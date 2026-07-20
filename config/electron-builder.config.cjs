@@ -61,6 +61,10 @@ const {
   verifyAppImageNodeRuntimeServesPty
 } = require('./scripts/appimage-node-runtime.cjs')
 const { signWindowsUninstallerViaSignPath } = require('./scripts/windows-uninstaller-signing.cjs')
+const {
+  createWindowsArchitectureResources,
+  getWindowsInstallerArtifactName
+} = require('./windows-package-architecture.cjs')
 
 // Why: dev-channel builds must carry the *release* identity — same bundle id,
 // Developer ID signature, and notarization ticket — or Squirrel.Mac refuses to
@@ -164,10 +168,6 @@ const macSpeechNativeResource = {
 const linuxSpeechNativeResource = {
   from: 'node_modules/sherpa-onnx-linux-${arch}',
   to: 'node_modules/sherpa-onnx-linux-${arch}'
-}
-const winSpeechNativeResource = {
-  from: 'node_modules/sherpa-onnx-win-x64',
-  to: 'node_modules/sherpa-onnx-win-x64'
 }
 // electron-builder replaces these defaults when `depends` is configured; retain
 // Electron's loader requirements alongside Orca's headless-host dependencies.
@@ -551,7 +551,7 @@ module.exports = {
     extraResources: [
       ...commonExtraResources,
       ...windowsRuntimeResources,
-      winSpeechNativeResource,
+      ...createWindowsArchitectureResources(),
       {
         from: 'resources/win32/bin/orca.cmd',
         to: 'bin/orca.cmd'
@@ -567,10 +567,6 @@ module.exports = {
         to: 'bin/orca-agent-hook.exe'
       },
       {
-        from: 'node_modules/agent-browser/bin/agent-browser-win32-x64.exe',
-        to: 'agent-browser-win32-x64.exe'
-      },
-      {
         from: 'native/computer-use-windows/runtime.ps1',
         to: 'computer-use-windows/runtime.ps1'
       },
@@ -578,7 +574,7 @@ module.exports = {
     ]
   },
   nsis: {
-    artifactName: 'orca-windows-setup.${ext}',
+    artifactName: getWindowsInstallerArtifactName(),
     shortcutName: '${productName}',
     uninstallDisplayName: '${productName}',
     createDesktopShortcut: 'always',
