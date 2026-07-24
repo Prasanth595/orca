@@ -493,6 +493,28 @@ describe('buildTitleDerivedAgentRows', () => {
 
     expect(rows).toHaveLength(0)
   })
+
+  it('does not invent Idle launchAgent rows for every split pane with a neutral title', () => {
+    const launchAgent: TuiAgent = 'codex'
+    const rows = buildWorktreeAgentRows({
+      tabs: [makeTab('tab-1', { launchAgent })],
+      entries: [],
+      retained: [],
+      runtimePaneTitlesByTabId: {
+        // Both leaves look idle; launchAgent is tab-scoped and must not mint
+        // a row per neutral sibling (CodeRabbit on #10178).
+        'tab-1': {
+          1: 'demo-repo',
+          2: 'zsh'
+        }
+      },
+      ptyIdsByTabId: { 'tab-1': ['pty-left', 'pty-right'] },
+      terminalLayoutsByTabId: { 'tab-1': makeSplitLayout() },
+      now: 2000
+    })
+
+    expect(rows).toHaveLength(0)
+  })
 })
 
 // #23767: Codex retitles its pane to the project name, so a title-gated row vanished while
