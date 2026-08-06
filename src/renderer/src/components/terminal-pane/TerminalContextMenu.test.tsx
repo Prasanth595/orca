@@ -161,7 +161,7 @@ describe('TerminalContextMenu', () => {
     const onOpenLinkTarget = vi.fn()
     const onCopyLinkTarget = vi.fn()
     renderMenu({
-      linkTarget: { kind: 'http', url: 'https://example.com' },
+      linkTarget: { kind: 'http', url: 'https://example.com', sourceOwner: { kind: 'local' } },
       onOpenLinkTarget,
       onCopyLinkTarget,
       onRevealLinkTarget: vi.fn()
