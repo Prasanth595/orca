@@ -30,6 +30,7 @@ import {
   isCommandAvailable,
   shellQuote
 } from '../ipc/preflight-command-exec'
+import { excludeMisidentifiedAgents } from './preflight-agent-identity-exclusion'
 import {
   detectRemoteWindowsTerminalCapabilities,
   type RemoteWindowsTerminalCapabilities
