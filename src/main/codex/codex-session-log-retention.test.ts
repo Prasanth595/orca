@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  utimesSync,
+  writeFileSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -122,6 +130,30 @@ describe('pruneExpiredCodexSessionLogs', () => {
       removedDirectories: 0,
       failures: 0
     })
+  })
+
+  it('counts an unreadable directory as a failure instead of treating it as absent', async () => {
+    if (process.platform === 'win32' || process.getuid?.() === 0) {
+      return
+    }
+    writeRollout(join('2026', '08', '20', rolloutName(1)), 8)
+    const lockedDirectory = join(sessionsRoot, '2025', '09', '01')
+    mkdirSync(lockedDirectory, { recursive: true })
+    chmodSync(lockedDirectory, 0o000)
+
+    let summary
+    try {
+      summary = await pruneExpiredCodexSessionLogs({
+        sessionsRoot,
+        now: NOW,
+        minRetainedRollouts: 0
+      })
+    } finally {
+      chmodSync(lockedDirectory, 0o700)
+    }
+
+    expect(summary.failures).toBe(1)
+    expect(summary.scannedRollouts).toBe(1)
   })
 
   it('deletes nothing while the default guard keeps the newest rollouts', async () => {
