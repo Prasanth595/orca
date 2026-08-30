@@ -119,10 +119,9 @@ export function startCodexSessionLogRetentionSweepInBackground(
   })
 }
 
-/** ENOENT/ENOTDIR mean the directory is simply not there; every other errno is a real failure. */
+/** Only ENOENT means the directory is simply not there; every other errno is a real failure. */
 function isDirectoryAbsence(error: unknown): boolean {
-  const code = (error as NodeJS.ErrnoException | null)?.code
-  return code === 'ENOENT' || code === 'ENOTDIR'
+  return (error as NodeJS.ErrnoException | null)?.code === 'ENOENT'
 }
 
 async function collectRollouts(
@@ -134,8 +133,9 @@ async function collectRollouts(
     entries = await readdir(directoryPath, { withFileTypes: true })
   } catch (error) {
     // An absent sessions root is the normal state before the first Codex run;
-    // any other errno (EACCES, EIO) is a real read failure and must be counted
-    // so the summary does not report a silently partial sweep as clean.
+    // any other errno is a real read failure and must be counted so the summary
+    // does not report a silently partial sweep as clean. ENOTDIR belongs on the
+    // failure side: the path exists, it is just not a directory.
     if (!isDirectoryAbsence(error)) {
       summary.failures += 1
     }

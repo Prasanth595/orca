@@ -132,6 +132,22 @@ describe('pruneExpiredCodexSessionLogs', () => {
     })
   })
 
+  it('counts a sessions root that is a file as a failure instead of treating it as absent', async () => {
+    const filePath = join(workspaceRoot, 'sessions-as-file')
+    writeFileSync(filePath, 'not a directory\n')
+
+    const summary = await pruneExpiredCodexSessionLogs({
+      sessionsRoot: filePath,
+      now: NOW
+    })
+
+    // readdir() reports ENOTDIR here: the path exists, it is just the wrong
+    // kind. Treating that as absence would report a clean sweep while nothing
+    // was ever pruned.
+    expect(summary.failures).toBe(1)
+    expect(summary.scannedRollouts).toBe(0)
+  })
+
   it('counts an unreadable directory as a failure instead of treating it as absent', async () => {
     if (process.platform === 'win32' || process.getuid?.() === 0) {
       return
