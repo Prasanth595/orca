@@ -86,6 +86,14 @@ export async function pruneExpiredCodexSessionLogs({
       continue
     }
     try {
+      // Why: the mtime that made this rollout expired was sampled during the scan, and Codex can
+      // resume the session in the window before the unlink lands. Deleting it then removes a live
+      // conversation from discovery and sends every later append into an unlinked file, so re-read
+      // the mtime and leave anything that moved to the next sweep.
+      const current = await stat(rollout.path)
+      if (current.mtimeMs !== rollout.mtimeMs) {
+        continue
+      }
       await unlink(rollout.path)
       summary.removedRollouts += 1
       summary.removedBytes += rollout.size
