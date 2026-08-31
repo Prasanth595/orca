@@ -28,6 +28,7 @@ import {
   resolveTitleDerivedPaneAgent,
   type TitleDerivedPaneForeground
 } from './title-derived-pane-agent-identity'
+import { buildTitleDerivedIdleAgentRow } from './worktree-title-derived-agent-idle-row'
 
 /** Fixed, not per-process: title rows are a pure projection of current pane facts, so they are
  *  comparable across restarts in a way a sequenced authority's rows are not. Ordering against
@@ -202,22 +203,29 @@ function buildTitleDerivedAgentRow(args: {
     foreground: args.paneForegroundAgentByPaneKey[paneKey]
   })
   const launchAgent = args.tab.launchAgent ?? null
-  // Why: hook-less SSH Codex leaves a live pane at its cwd title after a turn (#10178).
-  // Idle fallback is only safe for the launch-owning leaf because launchAgent is tab-scoped.
-  if (
-    !identifiedAgentType &&
-    (!launchAgent ||
+  // Why: SSH Codex can lose hooks after a turn and sit on a cwd title (#10178).
+  // Other agents keep title-based identity, and the fallback stays on the sole leaf.
+  if (!identifiedAgentType) {
+    if (
+      launchAgent !== 'codex' ||
       !args.allowLaunchAgentIdleFallback ||
       titleStatus === 'working' ||
-      titleStatus === 'permission')
-  ) {
-    return null
+      titleStatus === 'permission'
+    ) {
+      return null
+    }
+    return buildTitleDerivedIdleAgentRow({
+      paneKey,
+      tab: args.tab,
+      title,
+      launchAgent,
+      now: args.now,
+      authorityId: TITLE_DERIVED_AGENT_ROW_AUTHORITY_ID,
+      orchestration
+    })
   }
-  const agentType = identifiedAgentType ?? launchAgent
-  if (!agentType) {
-    return null
-  }
-  // Why: the title sets activity only; a plain title on a known pane is idle.
+  const agentType = identifiedAgentType
+  // Why: the title sets activity only; a plain title on a process-identified pane is idle.
   const status = titleStatus ?? 'idle'
   const rowLabel = agentType === titleAgentType && label ? label : formatAgentTypeLabel(agentType)
   const rowState = titleStatusToRowState(status)
