@@ -101,6 +101,8 @@ export type TerminalTab = {
    * (`operationId`) reuses it, and a retry of the same launch changes nothing. Never saved.
    */
   agentLaunchPane?: { leafId: string; operationId?: string; outcome?: AgentLaunchPaneOutcome }
+  /** Stable leaf that owns the tab-scoped launch agent while layout state hydrates. */
+  launchAgentLeafId?: string
   /** Why: when `setActiveWorktree` bumps generation on all-dead tabs to drive a
    *  TerminalPane remount, the fresh PTY that results is caused by navigation,
    *  not by the user doing work. Without this flag the resulting
