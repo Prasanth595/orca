@@ -172,6 +172,33 @@ describe('pruneExpiredCodexSessionLogs', () => {
     expect(summary.scannedRollouts).toBe(1)
   })
 
+  it('counts an unreadable directory once even when the sweep also removes directories', async () => {
+    if (process.platform === 'win32' || process.getuid?.() === 0) {
+      return
+    }
+    // Why: the scan and the empty-directory cleanup both walk the tree, so an unreadable
+    // directory is reachable twice in one sweep. Tallying the readdir failure in both places
+    // reports two failures for one directory, which is no more accurate than reporting none.
+    writeRollout(join('2025', '09', '01', rolloutName(1)), 300)
+    const lockedDirectory = join(sessionsRoot, '2024', '01', '01')
+    mkdirSync(lockedDirectory, { recursive: true })
+    chmodSync(lockedDirectory, 0o000)
+
+    let summary
+    try {
+      summary = await pruneExpiredCodexSessionLogs({
+        sessionsRoot,
+        now: NOW,
+        minRetainedRollouts: 0
+      })
+    } finally {
+      chmodSync(lockedDirectory, 0o700)
+    }
+
+    expect(summary.removedRollouts).toBe(1)
+    expect(summary.failures).toBe(1)
+  })
+
   it('deletes nothing while the default guard keeps the newest rollouts', async () => {
     const paths = Array.from(
       { length: CODEX_SESSION_LOG_MIN_RETAINED_ROLLOUTS },
