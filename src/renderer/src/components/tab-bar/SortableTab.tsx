@@ -22,7 +22,7 @@ import { preventMiddleButtonDefault } from './middle-button-default-guard'
 import { useSortableTabRename } from './use-sortable-tab-rename'
 import { SortableTabContextMenu } from './SortableTabContextMenu'
 import { translate } from '@/i18n/i18n'
-import { TAB_LABEL_WIDTH_CLASSES } from './tab-width-rules'
+import { TAB_ICON_ONLY_ROOT_CLASSES, TAB_LABEL_WIDTH_CLASSES } from './tab-width-rules'
 import { useTabStripSlotProps } from './use-tab-strip-slot-props'
 import { useTabStripPointerActivation } from './tab-strip-pointer-activation'
 import { TabCloseTooltip } from './TabCloseTooltip'
@@ -43,6 +43,7 @@ type SortableTabProps = {
   hasTabsToLeft: boolean
   isActive: boolean
   isPinned: boolean
+  pinnedIconOnly: boolean
   isExpanded: boolean
   onActivate: (tabId: string) => void
   onClose: (tabId: string) => void
@@ -76,6 +77,7 @@ export default function SortableTab({
   hasTabsToLeft,
   isActive,
   isPinned,
+  pinnedIconOnly,
   isExpanded,
   onActivate,
   onClose,
@@ -178,7 +180,9 @@ export default function SortableTab({
     onActivate: handleActivate,
     disabled: isEditing
   })
-  const slotProps = useTabStripSlotProps(tab.id, isActive)
+  // Why: an open rename editor needs the label slot back, so it outranks the collapse.
+  const iconOnly = isPinned && pinnedIconOnly && !isEditing
+  const slotProps = useTabStripSlotProps(tab.id, isActive, iconOnly)
   const tabTitle = tab.customTitle ?? tab.title
   const tabRoot = (
     <div
@@ -192,8 +196,10 @@ export default function SortableTab({
       data-agent-activity-status={activityStatus}
       {...attributes}
       {...dragListeners}
+      // Why: collapsed to an icon there is no text to name the tab, and dnd-kit's role="button" needs one.
+      aria-label={iconOnly ? tabTitle : undefined}
       // Why: subtle amber wash flags unread activity at a glance, layered over the active highlight so it still reads selected.
-      className={`group relative flex items-center h-full px-1.5 text-xs cursor-pointer select-none outline-none focus:outline-none focus-visible:outline-none ${getTabStripBorderClasses(hasTabsToRight, { includeTopBorder: includeTopTabBorder })} ${getDropIndicatorClasses(dropIndicator ?? null)} ${getTabRootStateClasses(isActive)}`}
+      className={`group relative flex items-center h-full px-1.5 text-xs cursor-pointer select-none outline-none focus:outline-none focus-visible:outline-none ${getTabStripBorderClasses(hasTabsToRight, { includeTopBorder: includeTopTabBorder })} ${getDropIndicatorClasses(dropIndicator ?? null)} ${getTabRootStateClasses(isActive)} ${iconOnly ? TAB_ICON_ONLY_ROOT_CLASSES : ''}`}
       onDoubleClick={(e) => {
         if (isEditing) {
           return
@@ -240,10 +246,10 @@ export default function SortableTab({
         showUnreadActivity={showUnreadActivity}
         isActive={isActive}
       />
-      {isPinned && !isEditing && (
+      {isPinned && !isEditing && !iconOnly && (
         <Pin className="mr-1 size-3 shrink-0 text-muted-foreground" aria-hidden />
       )}
-      {isEditing ? (
+      {iconOnly ? null : isEditing ? (
         <Input
           ref={setRenameInputElement}
           data-tab-rename-input="true"

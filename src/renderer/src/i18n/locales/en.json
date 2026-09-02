@@ -329,6 +329,17 @@
     "followSymlinkedDirectoriesDescription": "Search linked folders in Quick Open and expand local linked folders in File Explorer.",
     "accounts": {
       "claudeRemoveFolder": "Orca deletes this account's Claude folder and its sign-in from this computer. Chat history shared with System default stays. If it is selected, the next Claude you start uses System default."
+    },
+    "general": {
+      "pinnedTabsIconOnly": {
+        "title": "Show pinned tabs as icons only",
+        "description": "Hide the title on pinned tabs so they shrink to their icon and leave more room in the tab strip.",
+        "keyword": {
+          "icon": "icon",
+          "compact": "compact",
+          "space": "space"
+        }
+      }
     }
   },
   "menu": {
