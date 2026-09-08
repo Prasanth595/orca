@@ -294,6 +294,8 @@ describe('BrowserAddressBar autocomplete preview', () => {
     })
     // Collapsed, so the press places a caret and the click can expand it to the whole URL.
     expect(input.selectionStart).toBe(input.selectionEnd)
+  })
+
   it('removes a suggestion when pressing Shift+Delete on a highlighted history entry', async () => {
     const onNavigate = vi.fn()
     const onSubmit = vi.fn()
