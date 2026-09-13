@@ -8,6 +8,7 @@ export type NotificationSettings = {
   agentTaskComplete: boolean
   terminalBell: boolean
   suppressWhenFocused: boolean
+  suppressWhileMicActive: boolean
   customSoundId:
     | 'system'
     | 'two-tone'
@@ -81,6 +82,7 @@ export type NotificationDispatchResult = {
     | 'source-disabled'
     | 'host-muted'
     | 'suppressed-focus'
+    | 'suppressed-mic-active'
     | 'cooldown'
     | 'not-supported'
     | 'not-displayed'

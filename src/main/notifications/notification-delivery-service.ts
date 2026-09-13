@@ -28,6 +28,8 @@ export type NotificationDeliveryDependencies = {
   readAuthorizationStatus: () => Promise<
     'authorized' | 'denied' | 'not-determined' | 'unknown' | null
   >
+  /** Null/undefined when the host can't report mic state; the mic gate is then skipped. */
+  readMicActiveStatus?: (() => Promise<boolean | null>) | null
   recordDeliveryOutcome: (outcome: 'delivered' | 'failed') => void
   deliverNative: (
     request: NotificationDispatchRequest,
@@ -149,35 +151,56 @@ export function createNotificationDeliveryService(
         return { delivered: false, reason: 'suppressed-focus' }
       }
 
-      // Why: the Settings test button is an explicit, often-repeated user action, so it bypasses burst dedupe.
-      if (request.source !== 'test') {
-        // Dedupe by worktree, not source — agent-finish and terminal-bell often fire in one chunk; surface only the first.
-        if (
-          !reserveNotificationCooldown(
-            recentDesktopNotifications,
-            dedupeKeyFor(request),
-            deps.now()
-          )
-        ) {
-          return { delivered: false, reason: 'cooldown' }
+      const deliverToDesktop = ():
+        | NotificationDispatchResult
+        | Promise<NotificationDispatchResult> => {
+        // Why: the Settings test button is an explicit, often-repeated user action, so it bypasses burst dedupe.
+        if (request.source !== 'test') {
+          // Dedupe by worktree, not source — agent-finish and terminal-bell often fire in one chunk; surface only the first.
+          if (
+            !reserveNotificationCooldown(
+              recentDesktopNotifications,
+              dedupeKeyFor(request),
+              deps.now()
+            )
+          ) {
+            return { delivered: false, reason: 'cooldown' }
+          }
         }
+
+        if (!deps.isNotificationSupported()) {
+          return { delivered: false, reason: 'not-supported' }
+        }
+
+        if (deps.platform !== 'darwin') {
+          return deliverNativeAndRecord(request, notificationOptions, settings)
+        }
+        // Why: macOS silently swallows notifications while permission is denied/undecided (verified macOS 26); skip so the renderer can show a fallback.
+        return deps.readAuthorizationStatus().then((authorization) => {
+          if (authorization === 'denied' || authorization === 'not-determined') {
+            deps.recordDeliveryOutcome('failed')
+            return { delivered: false, reason: 'blocked-by-system' }
+          }
+          return deliverNativeAndRecord(request, notificationOptions, settings)
+        })
       }
 
-      if (!deps.isNotificationSupported()) {
-        return { delivered: false, reason: 'not-supported' }
+      // Why: unreadable/unsupported mic state resolves to null, which we treat as "not active"
+      // rather than suppressing incorrectly.
+      if (
+        settings.suppressWhileMicActive &&
+        deps.platform === 'darwin' &&
+        deps.readMicActiveStatus
+      ) {
+        return deps.readMicActiveStatus().then((micActive) => {
+          if (micActive === true) {
+            return { delivered: false, reason: 'suppressed-mic-active' }
+          }
+          return deliverToDesktop()
+        })
       }
 
-      if (deps.platform !== 'darwin') {
-        return deliverNativeAndRecord(request, notificationOptions, settings)
-      }
-      // Why: macOS silently swallows notifications while permission is denied/undecided (verified macOS 26); skip so the renderer can show a fallback.
-      return deps.readAuthorizationStatus().then((authorization) => {
-        if (authorization === 'denied' || authorization === 'not-determined') {
-          deps.recordDeliveryOutcome('failed')
-          return { delivered: false, reason: 'blocked-by-system' }
-        }
-        return deliverNativeAndRecord(request, notificationOptions, settings)
-      })
+      return deliverToDesktop()
     }
   }
 }
