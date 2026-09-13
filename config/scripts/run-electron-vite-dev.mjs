@@ -235,7 +235,12 @@ function prepareMacDevElectronApp() {
   )
   const requiredResourcePaths = [
     chromiumResourcePath,
-    path.join(appPath, 'Contents', 'MacOS', 'orca-keyboard-layout')
+    path.join(appPath, 'Contents', 'MacOS', 'orca-keyboard-layout'),
+    // Why required here too: without this, a bundle cached before this helper existed
+    // (or that failed to build it) would pass copiedAppIsUsable() forever and
+    // buildDevNativeHelper() below would never run again, leaving mic suppression
+    // silently disabled — this check forces a retry on the next launch instead.
+    path.join(appPath, 'Contents', 'MacOS', 'orca-mic-active-status')
   ]
 
   function copiedAppIsUsable() {
