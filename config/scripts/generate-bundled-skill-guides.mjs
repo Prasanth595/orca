@@ -22,6 +22,7 @@ const CANONICAL_GUIDE_NAMES = [
   'orca-jira',
   'orca-linear',
   'orca-per-workspace-env',
+  'orca-plane',
   'orchestration'
 ]
 
@@ -37,6 +38,7 @@ const GUIDE_ALIASES = {
   'orca-jira': [],
   'orca-linear': [],
   'orca-per-workspace-env': [],
+  'orca-plane': ['plane-tickets'],
   orchestration: []
 }
 
@@ -44,7 +46,7 @@ const GUIDE_ALIASES = {
 // `orca skills get <topic>` still serves the full version-matched guide from the binary.
 // Migrating a topic here is effectively one-way — earlier fat installs rely on the stub
 // landing to converge — so entries are added as skills convert, never removed. The stub
-// body lives in skill-stubs/<topic>.md; the projection reuses the guide's own frontmatter.
+// body lives in skill-stubs/<topic>.md; the projection reusers the guide's own frontmatter.
 const STUB_TOPICS = [
   'computer-use',
   'jira-tickets',
@@ -55,6 +57,7 @@ const STUB_TOPICS = [
   'orca-jira',
   'orca-linear',
   'orca-per-workspace-env',
+  'orca-plane',
   'orchestration'
 ]
 
