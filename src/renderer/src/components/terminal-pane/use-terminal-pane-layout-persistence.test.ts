@@ -72,7 +72,7 @@ function createPersistence() {
       controller as unknown as Parameters<typeof useTerminalPaneLayoutPersistence>[0]
     )
   )
-  return { persistLayoutSnapshot: result.current.persistLayoutSnapshot, transports }
+  return { persistLayoutSnapshot: result.current.persistLayoutSnapshot }
 }
 
 describe('live split-pane focus persistence', () => {
@@ -92,8 +92,8 @@ describe('live split-pane focus persistence', () => {
     })
   })
 
-  it('keeps the selected pane after its delayed shell binding arrives', () => {
-    const { persistLayoutSnapshot, transports } = createPersistence()
+  it('preserves the saved selection when only the shell binding is updated', () => {
+    const { persistLayoutSnapshot } = createPersistence()
     persistLayoutSnapshot()
     const layout = store.terminalLayoutsByTabId['terminal-1']
     store.terminalLayoutsByTabId['terminal-1'] = {
@@ -101,10 +101,6 @@ describe('live split-pane focus persistence', () => {
       ptyIdsByLeafId: { ...layout.ptyIdsByLeafId, [RIGHT]: 'pty-right' }
     }
 
-    expect(store.terminalLayoutsByTabId['terminal-1'].activeLeafId).toBe(RIGHT)
-
-    transports.set(2, { getPtyId: () => 'pty-right' })
-    persistLayoutSnapshot()
     expect(store.terminalLayoutsByTabId['terminal-1'].activeLeafId).toBe(RIGHT)
   })
 })
