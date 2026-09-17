@@ -217,7 +217,8 @@ test.describe('Tabs', () => {
 
   test('returning from a file tab restores focus to the last active split pane', async ({
     orcaPage
-  }) => {
+  }, testInfo) => {
+    await orcaPage.setViewportSize({ width: 1440, height: 900 })
     const terminalTabId = await getActiveTabId(orcaPage)
     if (!terminalTabId) {
       throw new Error('Expected an active terminal tab before the focus restoration flow')
@@ -239,20 +240,45 @@ test.describe('Tabs', () => {
     await orcaPage
       .locator(`.pane[data-leaf-id="${expectedLeafId}"] .xterm-screen`)
       .click({ force: true })
+    await expect.poll(() => getFocusedTerminalLeafId(orcaPage)).toBe(expectedLeafId)
+    await testInfo.attach('01-right-pane-selected', {
+      body: await orcaPage.screenshot(),
+      contentType: 'image/png'
+    })
 
     await fileTab.click({ force: true })
     await expect(orcaPage.locator('.rich-markdown-editor')).toBeVisible()
+    await testInfo.attach('02-file-tab-open', {
+      body: await orcaPage.screenshot(),
+      contentType: 'image/png'
+    })
     await tabLocator(orcaPage, terminalTabId).click({ force: true })
 
     await expect
       .poll(() => getFocusedTerminalLeafId(orcaPage), {
         timeout: 5_000,
-        message: 'The terminal tab did not restore DOM focus to its last active split pane'
+        message: 'The terminal tab did not restore DOM focus to a terminal pane'
       })
-      .toBe(expectedLeafId)
+      .not.toBeNull()
 
     const marker = `RESTORED_PANE_${Date.now()}`
     await orcaPage.keyboard.type(marker)
+    await expect
+      .poll(() =>
+        orcaPage.evaluate(
+          (text) =>
+            [...(window.__paneManagers?.values() ?? [])].some((manager) =>
+              manager.getPanes().some((pane) => pane.serializeAddon?.serialize?.().includes(text))
+            ),
+          marker
+        )
+      )
+      .toBe(true)
+    await testInfo.attach('03-input-after-returning-to-terminal', {
+      body: await orcaPage.screenshot(),
+      contentType: 'image/png'
+    })
+    expect(await getFocusedTerminalLeafId(orcaPage)).toBe(expectedLeafId)
     await expect
       .poll(async () => {
         return orcaPage.evaluate(
