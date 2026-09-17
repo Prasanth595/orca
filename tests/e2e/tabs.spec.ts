@@ -32,6 +32,14 @@ import {
   ensureTerminalVisible,
   waitForStartupWorktreeRefresh
 } from './helpers/store'
+import {
+  focusLastTerminalPane,
+  readPaneIdentitySnapshot,
+  splitActiveTerminalPane,
+  waitForActiveTerminalManager,
+  waitForPaneIdentitySnapshot
+} from './helpers/terminal'
+import { clickFileInExplorer } from './helpers/file-explorer'
 
 const SORTABLE_TAB = '[data-testid="sortable-tab"]'
 
@@ -80,6 +88,16 @@ async function getFocusedTerminalTabId(page: Page): Promise<string | null> {
       return null
     }
     return active.closest('[data-terminal-tab-id]')?.getAttribute('data-terminal-tab-id') ?? null
+  })
+}
+
+async function getFocusedTerminalLeafId(page: Page): Promise<string | null> {
+  return page.evaluate(() => {
+    const active = document.activeElement
+    if (!(active instanceof HTMLElement) || !active.classList.contains('xterm-helper-textarea')) {
+      return null
+    }
+    return active.closest<HTMLElement>('.pane[data-leaf-id]')?.dataset.leafId ?? null
   })
 }
 
@@ -196,6 +214,80 @@ test.describe('Tabs', () => {
       window.__store?.getState().closeFile(fileId)
     }, createdFile.id)
     await expect(editor).toBeHidden()
+  })
+
+  test('returning from a file tab restores focus to the last active split pane', async ({
+    orcaPage
+  }) => {
+    const terminalTabId = await getActiveTabId(orcaPage)
+    if (!terminalTabId) {
+      throw new Error('Expected an active terminal tab before the focus restoration flow')
+    }
+    expect(await clickFileInExplorer(orcaPage, ['README.md'])).toBe('README.md')
+    await expect(orcaPage.locator('.rich-markdown-editor')).toBeVisible()
+    const fileTab = orcaPage.locator('[data-tab-id]').filter({ hasText: 'README.md' }).first()
+    await expect(fileTab).toBeVisible()
+    await tabLocator(orcaPage, terminalTabId).click({ force: true })
+
+    await waitForActiveTerminalManager(orcaPage)
+    await splitActiveTerminalPane(orcaPage, 'vertical')
+    await waitForPaneIdentitySnapshot(orcaPage, 2)
+    await orcaPage.evaluate((tabId) => {
+      const manager = window.__paneManagers?.get(tabId)
+      const firstPane = manager?.getPanes()[0]
+      if (!manager || !firstPane) {
+        throw new Error('Expected the first split pane to be mounted')
+      }
+      manager.setActivePane(firstPane.id, { focus: true })
+    }, terminalTabId)
+    await focusLastTerminalPane(orcaPage)
+
+    const focusedSnapshot = await readPaneIdentitySnapshot(orcaPage)
+    const expectedLeafId = focusedSnapshot?.panes.at(-1)?.leafId ?? null
+    expect(expectedLeafId).not.toBeNull()
+    expect(focusedSnapshot?.activeLeafId).toBe(expectedLeafId)
+    await expect
+      .poll(async () => (await readPaneIdentitySnapshot(orcaPage))?.storeActiveLeafId ?? null)
+      .toBe(expectedLeafId)
+
+    await fileTab.click({ force: true })
+    await expect(orcaPage.locator('.rich-markdown-editor')).toBeVisible()
+    await tabLocator(orcaPage, terminalTabId).click({ force: true })
+
+    await expect
+      .poll(() => getFocusedTerminalLeafId(orcaPage), {
+        timeout: 5_000,
+        message: 'The terminal tab did not restore DOM focus to its last active split pane'
+      })
+      .toBe(expectedLeafId)
+
+    const marker = `RESTORED_PANE_${Date.now()}`
+    await orcaPage.keyboard.type(marker)
+    await expect
+      .poll(async () => {
+        return orcaPage.evaluate(
+          ({ tabId, leafId }) => {
+            const pane = window.__paneManagers
+              ?.get(tabId)
+              ?.getPanes()
+              .find((candidate) => candidate.leafId === leafId)
+            return pane?.serializeAddon?.serialize?.() ?? ''
+          },
+          { tabId: terminalTabId, leafId: expectedLeafId }
+        )
+      })
+      .toContain(marker)
+    const paneContents = await orcaPage.evaluate((tabId) => {
+      const panes = window.__paneManagers?.get(tabId)?.getPanes() ?? []
+      return panes.map((pane) => ({
+        leafId: pane.leafId,
+        content: pane.serializeAddon?.serialize?.() ?? ''
+      }))
+    }, terminalTabId)
+    expect(paneContents.filter((pane) => pane.leafId !== expectedLeafId)).not.toContainEqual(
+      expect.objectContaining({ content: expect.stringContaining(marker) })
+    )
+    expect(await getFocusedTerminalLeafId(orcaPage)).toBe(expectedLeafId)
   })
 
   /**
