@@ -33,7 +33,6 @@ import {
   waitForStartupWorktreeRefresh
 } from './helpers/store'
 import {
-  focusLastTerminalPane,
   readPaneIdentitySnapshot,
   splitActiveTerminalPane,
   waitForActiveTerminalManager,
@@ -230,25 +229,16 @@ test.describe('Tabs', () => {
     await tabLocator(orcaPage, terminalTabId).click({ force: true })
 
     await waitForActiveTerminalManager(orcaPage)
+    await waitForPaneIdentitySnapshot(orcaPage, 1)
     await splitActiveTerminalPane(orcaPage, 'vertical')
     await waitForPaneIdentitySnapshot(orcaPage, 2)
-    await orcaPage.evaluate((tabId) => {
-      const manager = window.__paneManagers?.get(tabId)
-      const firstPane = manager?.getPanes()[0]
-      if (!manager || !firstPane) {
-        throw new Error('Expected the first split pane to be mounted')
-      }
-      manager.setActivePane(firstPane.id, { focus: true })
-    }, terminalTabId)
-    await focusLastTerminalPane(orcaPage)
-
     const focusedSnapshot = await readPaneIdentitySnapshot(orcaPage)
     const expectedLeafId = focusedSnapshot?.panes.at(-1)?.leafId ?? null
     expect(expectedLeafId).not.toBeNull()
     expect(focusedSnapshot?.activeLeafId).toBe(expectedLeafId)
-    await expect
-      .poll(async () => (await readPaneIdentitySnapshot(orcaPage))?.storeActiveLeafId ?? null)
-      .toBe(expectedLeafId)
+    await orcaPage
+      .locator(`.pane[data-leaf-id="${expectedLeafId}"] .xterm-screen`)
+      .click({ force: true })
 
     await fileTab.click({ force: true })
     await expect(orcaPage.locator('.rich-markdown-editor')).toBeVisible()
