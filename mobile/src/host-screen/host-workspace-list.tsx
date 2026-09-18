@@ -1,5 +1,5 @@
 import { Pressable, RefreshControl, SectionList, Text, View } from 'react-native'
-import { ChevronDown, ChevronRight, Pin } from 'lucide-react-native'
+import { ChevronDown, ChevronRight, FolderTree, Pin } from 'lucide-react-native'
 import { AuthFailedBanner } from '../components/AuthFailedBanner'
 import { HostDiagnosticsLink } from '../components/HostDiagnosticsLink'
 import { HostRouteNoticeBanner } from '../components/HostRouteNoticeBanner'
@@ -132,14 +132,16 @@ export function HostWorkspaceList({ controller }: { controller: HostScreenContro
             }
             const isCollapsed = state.collapsedGroups.has(section.key)
             const rawSection = rawSections.find((s) => s.key === section.key)
-            const count = rawSection?.data.length ?? 0
-            const repoSectionColor =
-              state.groupMode === 'repo' ? uniqueRepoColors.get(section.title) : null
-            const repoSectionIcon =
-              state.groupMode === 'repo' ? state.repoIconsByName.get(section.title) : null
+            const count = section.count ?? rawSection?.data.length ?? 0
+            const isRepoSection = section.key.startsWith('repo:')
+            const repoSectionColor = isRepoSection ? uniqueRepoColors.get(section.title) : null
+            const repoSectionIcon = isRepoSection ? state.repoIconsByName.get(section.title) : null
             return (
               <Pressable
-                style={styles.sectionHeader}
+                style={[
+                  styles.sectionHeader,
+                  section.depth ? { paddingLeft: spacing.lg + section.depth * spacing.lg } : null
+                ]}
                 onPress={() => settings.toggleCollapsed(section.key)}
               >
                 {isCollapsed ? (
@@ -150,7 +152,10 @@ export function HostWorkspaceList({ controller }: { controller: HostScreenContro
                 {section.icon === 'pin' && (
                   <Pin size={12} color={colors.textMuted} style={styles.sectionIcon} />
                 )}
-                {state.groupMode === 'repo' ? (
+                {section.icon === 'folder' && (
+                  <FolderTree size={12} color={colors.textMuted} style={styles.sectionIcon} />
+                )}
+                {isRepoSection ? (
                   <View style={styles.sectionRepoIcon}>
                     <MobileRepoIcon
                       repoIcon={repoSectionIcon}
@@ -182,7 +187,7 @@ export function HostWorkspaceList({ controller }: { controller: HostScreenContro
               status={getWorktreeStatus(item)}
               repoColor={uniqueRepoColors.get(item.repo) ?? repoColor(item.repo)}
               repoIcon={state.repoIconsByName.get(item.repo) ?? null}
-              hideRepo={state.groupMode === 'repo'}
+              hideRepo={state.groupMode === 'repo' || state.groupMode === 'projectGroup'}
               onPress={actions.openWorktreeSession}
               onLongPress={
                 item.workspaceKind === 'folder-workspace' ? undefined : state.setActionTarget

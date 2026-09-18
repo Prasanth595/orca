@@ -13,6 +13,7 @@ import {
   retainLiveSleptWorktreeIdentities
 } from '../worktree/worktree-host-row-identity'
 import { savePinnedIds } from '../storage/preferences'
+import type { FetchHostProjectGroups } from './use-host-project-group-catalog'
 import type { FetchHostRepoMetadata } from './use-host-repo-metadata'
 import type { HostScreenState } from './use-host-screen-state'
 
@@ -20,6 +21,7 @@ export function useHostWorktreeCatalog(args: {
   client: RpcClient | null
   connState: ConnectionState
   embedded: boolean
+  fetchProjectGroups: FetchHostProjectGroups
   fetchRepoMetadata: FetchHostRepoMetadata
   hostId: string | undefined
   state: HostScreenState
@@ -29,6 +31,7 @@ export function useHostWorktreeCatalog(args: {
     client,
     connState,
     embedded,
+    fetchProjectGroups,
     fetchRepoMetadata,
     hostId,
     state,
@@ -168,10 +171,16 @@ export function useHostWorktreeCatalog(args: {
     }
     void syncViewSettingsFromDesktop()
     void syncShowPinnedInGroups(client)
-    return startHostWorktreeRefresh({ client, fetchWorktrees, fetchRepoMetadata })
+    return startHostWorktreeRefresh({
+      client,
+      fetchWorktrees,
+      fetchRepoMetadata,
+      fetchProjectGroups
+    })
   }, [
     client,
     connState,
+    fetchProjectGroups,
     fetchWorktrees,
     fetchRepoMetadata,
     syncViewSettingsFromDesktop,
@@ -199,7 +208,8 @@ export function useHostWorktreeCatalog(args: {
     client,
     connState,
     fetchWorktrees,
-    fetchRepoMetadata
+    fetchRepoMetadata,
+    fetchProjectGroups
   })
 
   return { fetchWorktrees, onRefresh, refreshing }
