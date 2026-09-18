@@ -10,7 +10,10 @@ import { WorktreeListRow } from '../components/WorktreeListRow'
 import { colors, spacing } from '../theme/mobile-theme'
 import { getWorktreeRowIdentity } from '../worktree/worktree-host-row-identity'
 import { HostWorkspaceListStates } from '../worktree/host-workspace-list-states'
-import { getWorktreeStatus } from '../worktree/workspace-list-sections'
+import {
+  getWorktreeStatus,
+  shouldHideMobileWorktreeRepoLabel
+} from '../worktree/workspace-list-sections'
 import { repoColor } from '../worktree/repo-color'
 import { hostScreenStyles as styles } from './host-screen-styles'
 import type { HostScreenController } from './use-host-screen-controller'
@@ -179,7 +182,7 @@ export function HostWorkspaceList({ controller }: { controller: HostScreenContro
               colors={[colors.textSecondary]}
             />
           }
-          renderItem={({ item }) => (
+          renderItem={({ item, section }) => (
             <WorktreeListRow
               item={item}
               isReadOnly={isReadOnly}
@@ -187,7 +190,7 @@ export function HostWorkspaceList({ controller }: { controller: HostScreenContro
               status={getWorktreeStatus(item)}
               repoColor={uniqueRepoColors.get(item.repo) ?? repoColor(item.repo)}
               repoIcon={state.repoIconsByName.get(item.repo) ?? null}
-              hideRepo={state.groupMode === 'repo' || state.groupMode === 'projectGroup'}
+              hideRepo={shouldHideMobileWorktreeRepoLabel(section.key)}
               onPress={actions.openWorktreeSession}
               onLongPress={
                 item.workspaceKind === 'folder-workspace' ? undefined : state.setActionTarget

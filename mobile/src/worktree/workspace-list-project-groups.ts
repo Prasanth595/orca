@@ -1,3 +1,4 @@
+import { projectGroupIdFromRepoId } from '../../../src/shared/folder-workspace-worktree'
 import {
   getEffectiveProjectGroupManualRank,
   UNGROUPED_PROJECT_GROUP_KEY
@@ -73,6 +74,16 @@ export function buildMobileProjectGroupSections(args: {
   } = args
   const knownGroupIds = new Set(projectGroups.map((group) => group.id))
   const bucketsByGroupId = new Map<string | null, RepoBucket[]>()
+  const folderWorktreesByGroupId = new Map<string | null, Worktree[]>()
+  for (const worktree of canonicalGroupWorktrees) {
+    if (!isMobileFolderWorkspace(worktree)) {
+      continue
+    }
+    const groupId = resolveProjectGroupId(worktree.repoId, repoGroupingById, knownGroupIds)
+    const list = folderWorktreesByGroupId.get(groupId) ?? []
+    list.push(worktree)
+    folderWorktreesByGroupId.set(groupId, list)
+  }
   for (const bucket of collectRepoBucketsById(
     worktrees,
     canonicalGroupWorktrees,
@@ -105,7 +116,9 @@ export function buildMobileProjectGroupSections(args: {
   }
 
   const subtreeRepoCount = (groupId: string): number => {
-    const direct = (bucketsByGroupId.get(groupId) ?? []).length
+    const direct =
+      (bucketsByGroupId.get(groupId) ?? []).length +
+      (folderWorktreesByGroupId.get(groupId) ?? []).length
     return (childGroupsByParentId.get(groupId) ?? []).reduce(
       (count, child) => count + subtreeRepoCount(child.id),
       direct
@@ -124,7 +137,7 @@ export function buildMobileProjectGroupSections(args: {
       key,
       title: group.name,
       icon: 'folder',
-      data: [],
+      data: mapSectionData(key, folderWorktreesByGroupId.get(group.id) ?? [], collapsedGroups),
       depth,
       count: subtreeRepoCount(group.id)
     })
@@ -144,15 +157,16 @@ export function buildMobileProjectGroupSections(args: {
   }
 
   const ungrouped = bucketsByGroupId.get(null) ?? []
-  if (ungrouped.length > 0) {
+  const ungroupedFolders = folderWorktreesByGroupId.get(null) ?? []
+  if (ungrouped.length > 0 || ungroupedFolders.length > 0) {
     const key = getMobileProjectGroupSectionKey(null)
     sections.push({
       key,
       title: 'Ungrouped',
       icon: 'folder',
-      data: [],
+      data: mapSectionData(key, ungroupedFolders, collapsedGroups),
       depth: 0,
-      count: ungrouped.length
+      count: ungrouped.length + ungroupedFolders.length
     })
     if (!collapsedGroups.has(key)) {
       for (const bucket of ungrouped) {
@@ -163,12 +177,20 @@ export function buildMobileProjectGroupSections(args: {
   return sections
 }
 
+function isMobileFolderWorkspace(worktree: Worktree): boolean {
+  return (
+    worktree.workspaceKind === 'folder-workspace' ||
+    projectGroupIdFromRepoId(worktree.repoId) !== null
+  )
+}
+
 function resolveProjectGroupId(
   repoId: string,
   repoGroupingById: ReadonlyMap<string, MobileRepoGrouping>,
   knownGroupIds: ReadonlySet<string>
 ): string | null {
-  const groupId = repoGroupingById.get(repoId)?.projectGroupId ?? null
+  const groupId =
+    repoGroupingById.get(repoId)?.projectGroupId ?? projectGroupIdFromRepoId(repoId) ?? null
   return groupId && knownGroupIds.has(groupId) ? groupId : null
 }
 
@@ -181,6 +203,9 @@ function collectRepoBucketsById(
 ): RepoBucket[] {
   const byRepoId = new Map<string, RepoBucket>()
   for (const worktree of canonicalGroupWorktrees) {
+    if (isMobileFolderWorkspace(worktree)) {
+      continue
+    }
     const existing = byRepoId.get(worktree.repoId)
     if (existing) {
       existing.items.push(worktree)
@@ -214,17 +239,17 @@ function sortBucketsInGroup(
   repoGroupingById: ReadonlyMap<string, MobileRepoGrouping>
 ): void {
   buckets.sort((left, right) => {
-    const rank =
-      getEffectiveProjectGroupManualRank({
-        id: left.repoId,
-        projectGroupOrder: repoGroupingById.get(left.repoId)?.projectGroupOrder
-      }) -
-      getEffectiveProjectGroupManualRank({
-        id: right.repoId,
-        projectGroupOrder: repoGroupingById.get(right.repoId)?.projectGroupOrder
-      })
-    if (rank !== 0) {
-      return rank
+    const leftRank = getEffectiveProjectGroupManualRank({
+      id: left.repoId,
+      projectGroupOrder: repoGroupingById.get(left.repoId)?.projectGroupOrder
+    })
+    const rightRank = getEffectiveProjectGroupManualRank({
+      id: right.repoId,
+      projectGroupOrder: repoGroupingById.get(right.repoId)?.projectGroupOrder
+    })
+    // Infinity - Infinity is NaN and would skip the displayName fallback.
+    if (leftRank !== rightRank) {
+      return leftRank < rightRank ? -1 : 1
     }
     return left.displayName.localeCompare(right.displayName)
   })
@@ -238,20 +263,27 @@ function orderMainWorktreeFirst(worktrees: Worktree[]): Worktree[] {
   return [...mainWorktrees, ...worktrees.filter((worktree) => !worktree.isMainWorktree)]
 }
 
+function mapSectionData(
+  key: string,
+  items: Worktree[],
+  collapsedGroups: ReadonlySet<string>
+): Worktree[] {
+  return applyMobileWorkspaceLineage(items, collapsedGroups).map((worktree) => ({
+    ...worktree,
+    sectionListKey: `${key}:${getWorktreeRowIdentity(worktree)}`
+  }))
+}
+
 function makeRepoSection(
   bucket: RepoBucket,
   depth: number,
   collapsedGroups: ReadonlySet<string>
 ): Section {
   const key = `repo:${bucket.repoId}`
-  const rows = applyMobileWorkspaceLineage(orderMainWorktreeFirst(bucket.items), collapsedGroups)
   return {
     key,
     title: bucket.displayName,
-    data: rows.map((worktree) => ({
-      ...worktree,
-      sectionListKey: `${key}:${getWorktreeRowIdentity(worktree)}`
-    })),
+    data: mapSectionData(key, orderMainWorktreeFirst(bucket.items), collapsedGroups),
     depth
   }
 }

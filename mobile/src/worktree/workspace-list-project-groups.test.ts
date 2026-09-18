@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { folderWorkspaceRepoId } from '../../../src/shared/folder-workspace-worktree'
 import { UNGROUPED_PROJECT_GROUP_KEY } from '../../../src/shared/project-groups'
 import { DEFAULT_MOBILE_WORKSPACE_STATUSES } from './mobile-workspace-statuses'
 import {
@@ -7,7 +8,11 @@ import {
   getMobileProjectGroupSectionKey,
   type MobileProjectGroup
 } from './workspace-list-project-groups'
-import { buildSections, type Worktree } from './workspace-list-sections'
+import {
+  buildSections,
+  shouldHideMobileWorktreeRepoLabel,
+  type Worktree
+} from './workspace-list-sections'
 
 function worktree(overrides: Partial<Worktree> = {}): Worktree {
   const worktreePath = join('/tmp', 'orca', 'worktrees', overrides.worktreeId ?? 'feature')
@@ -188,5 +193,123 @@ describe('buildSections projectGroup mode', () => {
       'repo:repo-nested',
       'project-group:ungrouped'
     ])
+  })
+
+  it('nests folder workspaces under their project group and counts them', () => {
+    const notes = worktree({
+      workspaceKind: 'folder-workspace',
+      worktreeId: 'folder:notes',
+      repoId: folderWorkspaceRepoId('client'),
+      repo: 'Client A',
+      displayName: 'Notes',
+      branch: ''
+    })
+    const stray = worktree({
+      workspaceKind: 'folder-workspace',
+      worktreeId: 'folder:stray',
+      repoId: folderWorkspaceRepoId('gone'),
+      repo: 'Gone',
+      displayName: 'Stray',
+      branch: ''
+    })
+    const sections = buildSections(
+      [...worktrees, notes, stray],
+      'manual',
+      { filterRepoIds: new Set(), hideSleeping: false, hideDefaultBranch: false },
+      '',
+      'projectGroup',
+      new Set(),
+      new Map([
+        ['Alpha', 'repo-alpha'],
+        ['Beta', 'repo-beta'],
+        ['Nested Repo', 'repo-nested'],
+        ['Orphan', 'repo-orphan'],
+        ['Missing', 'repo-missing-group']
+      ]),
+      DEFAULT_MOBILE_WORKSPACE_STATUSES,
+      new Set(),
+      groups,
+      grouping
+    )
+    const client = sections.find((section) => section.key === 'project-group:client')
+    const ungrouped = sections.find((section) => section.key === 'project-group:ungrouped')
+    expect(client?.count).toBe(4)
+    expect(client?.data.map((item) => item.worktreeId)).toEqual(['folder:notes'])
+    expect(ungrouped?.data.map((item) => item.worktreeId)).toEqual(['folder:stray'])
+    expect(
+      sections.some((section) => section.key === `repo:${folderWorkspaceRepoId('client')}`)
+    ).toBe(false)
+  })
+
+  it('sorts unranked repos in a group alphabetically', () => {
+    const unrankedGrouping = buildRepoGroupingById([
+      { id: 'repo-zeta', projectGroupId: 'product' },
+      { id: 'repo-apple', projectGroupId: 'product' }
+    ])
+    const sections = buildSections(
+      [
+        worktree({
+          worktreeId: 'zeta',
+          repoId: 'repo-zeta',
+          repo: 'Zeta',
+          displayName: 'zeta'
+        }),
+        worktree({
+          worktreeId: 'apple',
+          repoId: 'repo-apple',
+          repo: 'Apple',
+          displayName: 'apple'
+        })
+      ],
+      'manual',
+      { filterRepoIds: new Set(), hideSleeping: false, hideDefaultBranch: false },
+      '',
+      'projectGroup',
+      new Set(),
+      new Map([
+        ['Zeta', 'repo-zeta'],
+        ['Apple', 'repo-apple']
+      ]),
+      DEFAULT_MOBILE_WORKSPACE_STATUSES,
+      new Set(),
+      [{ id: 'product', name: 'Product B', parentGroupId: null, tabOrder: 0 }],
+      unrankedGrouping
+    )
+    expect(
+      sections.filter((section) => section.key.startsWith('repo:')).map((section) => section.title)
+    ).toEqual(['Apple', 'Zeta'])
+  })
+
+  it('keeps repository labels on pinned rows and hides them only under repo sections', () => {
+    const pinnedAlpha = worktree({
+      worktreeId: 'pinned-alpha',
+      repoId: 'repo-alpha',
+      repo: 'Alpha',
+      displayName: 'pinned-alpha',
+      isPinned: true
+    })
+    const sections = buildSections(
+      [pinnedAlpha, ...worktrees],
+      'manual',
+      { filterRepoIds: new Set(), hideSleeping: false, hideDefaultBranch: false },
+      '',
+      'projectGroup',
+      new Set(),
+      new Map([
+        ['Alpha', 'repo-alpha'],
+        ['Beta', 'repo-beta'],
+        ['Nested Repo', 'repo-nested'],
+        ['Orphan', 'repo-orphan'],
+        ['Missing', 'repo-missing-group']
+      ]),
+      DEFAULT_MOBILE_WORKSPACE_STATUSES,
+      new Set(),
+      groups,
+      grouping
+    )
+    expect(sections[0]?.key).toBe('pinned')
+    expect(shouldHideMobileWorktreeRepoLabel('pinned')).toBe(false)
+    expect(shouldHideMobileWorktreeRepoLabel('repo:repo-alpha')).toBe(true)
+    expect(shouldHideMobileWorktreeRepoLabel('project-group:client')).toBe(false)
   })
 })

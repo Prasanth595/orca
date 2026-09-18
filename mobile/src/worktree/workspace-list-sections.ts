@@ -23,6 +23,11 @@ import {
 export type { FilterState, Section, Worktree } from './workspace-list-types'
 export { CREATE_GRACE_MS, getWorktreeStatus, sortWorktrees } from './workspace-list-ordering'
 
+/** Repo labels are redundant only under a `repo:` header; Pinned mixes repos. */
+export function shouldHideMobileWorktreeRepoLabel(sectionKey: string): boolean {
+  return sectionKey.startsWith('repo:')
+}
+
 function makeSection(
   key: string,
   title: string,
