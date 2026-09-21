@@ -1,4 +1,5 @@
 import type { AgentStatusState } from './agent-status-types'
+import type { AgentProviderSessionMetadata } from './agent-session-resume'
 import type { AgentMainAgentStatus } from './main-agent-status'
 
 /** A snapshot of a previous agent state, used to render activity blocks.
@@ -20,6 +21,8 @@ export type AgentStateHistoryEntry = {
   /** The main agent's own status when this state was left, copied with `interrupted` by
    *  `agentVerdictFields`; read the verdict through `agentMainAgentVerdict`. */
   mainAgent?: AgentMainAgentStatus
+  /** Provider-owned conversation/session id for this historical state, when reported. */
+  providerSession?: AgentProviderSessionMetadata
 }
 
 /** Maximum number of history entries kept per agent to bound memory. */
