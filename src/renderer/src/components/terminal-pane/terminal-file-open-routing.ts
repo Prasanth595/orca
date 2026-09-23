@@ -15,7 +15,7 @@ import {
   terminalLinkWslDistro,
   type TerminalFileContext
 } from './terminal-file-path-mapping'
-import { hasBinaryFileExtensionWithoutEditorViewer } from '../../../../shared/binary-file-extensions'
+import { hasOsViewerOnlyFileExtension } from '../../../../shared/binary-file-extensions'
 import {
   LOCAL_EXECUTION_HOST_ID,
   getConnectionExecutionHostId,
@@ -229,7 +229,11 @@ export function openDetectedFilePath(
     if (openWithSystemDefault && !canOpenWithSystemDefault && hostGrantId === null) {
       // Why: the popover names Shift+Cmd/Ctrl "Download & open with default app", and the OS
       // cannot launch a remote path, so the direct gesture must reach the same download.
-      await downloadAndOpenRemoteTerminalFile(fileContext, mappedFilePath)
+      await downloadAndOpenRemoteTerminalFile(
+        fileContext,
+        mappedFilePath,
+        () => requestId === latestOpenDetectedFilePathRequestId
+      )
       return
     }
 
@@ -252,12 +256,19 @@ export function openDetectedFilePath(
 
     // Why: the editor can only say "Binary file — cannot display" for these, so an ordinary
     // click takes the Shift+Cmd/Ctrl route to the app the OS registers for the file type.
-    if (!openWithSystemDefault && hasBinaryFileExtensionWithoutEditorViewer(mappedFilePath)) {
+    if (!openWithSystemDefault && hasOsViewerOnlyFileExtension(mappedFilePath)) {
       if (!canOpenWithSystemDefault) {
-        await downloadAndOpenRemoteTerminalFile(fileContext, mappedFilePath)
+        await downloadAndOpenRemoteTerminalFile(
+          fileContext,
+          mappedFilePath,
+          () => requestId === latestOpenDetectedFilePathRequestId
+        )
         return
       }
-      const openedWithSystemDefault = await window.api.shell.openFilePath(mappedFilePath)
+      const openedWithSystemDefault = await window.api.shell.openFilePath(
+        mappedFilePath,
+        LOCAL_EXECUTION_HOST_ID
+      )
       if (openedWithSystemDefault || requestId !== latestOpenDetectedFilePathRequestId) {
         return
       }
