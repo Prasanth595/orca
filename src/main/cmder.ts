@@ -4,6 +4,25 @@ import { WINDOWS_CMDER_SHELL } from '../shared/windows-terminal-shell'
 
 export const ORCA_CMDER_INIT_ENV = 'ORCA_CMDER_INIT'
 export const ORCA_CMDER_INIT_QUOTE_ENV = 'ORCA_CMDER_INIT_QUOTE'
+export const ORCA_CMDER_ROOT_ENV = 'ORCA_CMDER_ROOT'
+
+let configuredCmderRoot: string | null = null
+
+/** Carries the Cmder setting into the spawn env so the out-of-process daemon resolves the same root. */
+export function applyConfiguredCmderRootEnv(
+  spawnOptions: { env?: Record<string, string> },
+  configuredRoot: string | undefined
+): void {
+  const root = configuredRoot?.trim()
+  if (root) {
+    spawnOptions.env = { ...spawnOptions.env, [ORCA_CMDER_ROOT_ENV]: root }
+  }
+}
+
+/** Settings-provided Cmder folder; it outranks CMDER_ROOT and guessed install dirs. */
+export function setConfiguredCmderRoot(root: string | null | undefined): void {
+  configuredCmderRoot = root?.trim() || null
+}
 
 type CmderRootOptions = {
   env?: NodeJS.ProcessEnv
@@ -44,6 +63,8 @@ export function getCmderRootCandidates(env: NodeJS.ProcessEnv = process.env): st
     }
   }
 
+  // Why: spawn paths inject the setting as ORCA_CMDER_ROOT so the separate daemon process sees it too.
+  push(readEnv(env, [ORCA_CMDER_ROOT_ENV]) ?? configuredCmderRoot ?? undefined)
   // Why: Cmder's installer and docs both publish CMDER_ROOT; it wins over guessed locations.
   push(readEnv(env, ['CMDER_ROOT', 'cmder_root']))
   const userProfile = readEnv(env, ['USERPROFILE', 'UserProfile'])
@@ -86,8 +107,17 @@ export function isCmderAvailable(): boolean {
   return resolveCmderRoot() !== null
 }
 
+/** Orca launched from a Cmder console inherits CMDER_CONFIGURED, which makes init.bat skip setup. */
+export function stripInheritedCmderState(env: Record<string, string>): void {
+  delete env[ORCA_CMDER_ROOT_ENV]
+  delete env.CMDER_CONFIGURED
+  delete env.CMDER_INIT_START
+  delete env.CMDER_INIT_END
+}
+
 /** Env Cmder's init.bat expects, plus the path/quote pair the cmd `/K` chain expands. */
 export function applyCmderSpawnEnvironment(env: Record<string, string>, cmderRoot: string): void {
+  stripInheritedCmderState(env)
   env.CMDER_ROOT = cmderRoot
   env[ORCA_CMDER_INIT_ENV] = getCmderInitScriptPath(cmderRoot)
   env[ORCA_CMDER_INIT_QUOTE_ENV] = '"'

@@ -76,7 +76,7 @@ export function createPtyShellLaunchPlan(
   if (process.platform === 'win32') {
     const normalizedShellFamily = pathWin32.basename(shellPath).toLowerCase()
     const resolvedGitBashPath = resolveWindowsGitBashShellPath(shellPath)
-    const cmderRoot = resolveWindowsCmderShellRoot(shellPath)
+    const cmderRoot = resolveWindowsCmderShellRoot(shellPath, { env })
     const resolvedShellFamily: WindowsPowerShellShellFamily =
       normalizedShellFamily === 'powershell.exe' || normalizedShellFamily === 'pwsh.exe'
         ? normalizedShellFamily

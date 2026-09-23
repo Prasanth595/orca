@@ -9,6 +9,8 @@ import {
   SettingsSubsectionHeader
 } from './SettingsFormControls'
 import { SearchableSetting } from './SearchableSetting'
+import { Input } from '../ui/input'
+import { refreshWindowsTerminalCapabilities } from '@/lib/windows-terminal-capabilities'
 import { translate } from '@/i18n/i18n'
 import { ShellIcon } from '../tab-bar/shell-icons'
 
@@ -17,6 +19,7 @@ type TerminalWindowsShellSectionProps = {
   windowsShell: string
   gitBashAvailable: boolean
   cmderAvailable: boolean
+  cmderPath: string
 }
 
 function windowsShellLabel(shell: string, label: string): React.JSX.Element {
@@ -32,7 +35,8 @@ export function TerminalWindowsShellSection({
   updateSettings,
   windowsShell,
   gitBashAvailable,
-  cmderAvailable
+  cmderAvailable,
+  cmderPath
 }: TerminalWindowsShellSectionProps): React.JSX.Element {
   const showGitBashOption = gitBashAvailable || windowsShell === WINDOWS_GIT_BASH_SHELL
   const showCmderOption = cmderAvailable || windowsShell === WINDOWS_CMDER_SHELL
@@ -166,6 +170,39 @@ export function TerminalWindowsShellSection({
                       ]
                     : [])
                 ]}
+              />
+            }
+          />
+        </SearchableSetting>
+        <SearchableSetting
+          title={translate('auto.components.settings.TerminalPane.cmderPath', 'Cmder Folder')}
+          description={translate(
+            'auto.components.settings.TerminalPane.cmderPathDescription',
+            'Cmder install folder containing vendor\\init.bat. Leave empty to auto-detect.'
+          )}
+          keywords={['terminal', 'windows', 'cmder', 'clink', 'path', 'folder', 'CMDER_ROOT']}
+        >
+          <SettingsRow
+            label={translate('auto.components.settings.TerminalPane.cmderPath', 'Cmder Folder')}
+            description={translate(
+              'auto.components.settings.TerminalPane.cmderPathHelp',
+              'Leave empty to use CMDER_ROOT or a standard install location. Takes effect for new terminals.'
+            )}
+            control={
+              <Input
+                value={cmderPath}
+                placeholder="C:\tools\cmder"
+                onChange={(event) =>
+                  updateSettings({ terminalWindowsCmderPath: event.target.value.trimStart() })
+                }
+                // Why: availability gates the Cmder options, so re-probe once the path is committed.
+                onBlur={() => void refreshWindowsTerminalCapabilities()}
+                className="w-64"
+                aria-label={translate(
+                  'auto.components.settings.TerminalPane.cmderPath',
+                  'Cmder Folder'
+                )}
+                spellCheck={false}
               />
             }
           />
