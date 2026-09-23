@@ -749,6 +749,40 @@ describe('LocalPtyProvider', () => {
       )
     })
 
+    it('resolves Cmder from the spawn-carried ORCA_CMDER_ROOT on the in-process fallback', async () => {
+      const platform = Object.getOwnPropertyDescriptor(process, 'platform')
+      const existsFallback = existsSyncMock.getMockImplementation()
+      Object.defineProperty(process, 'platform', { value: 'win32' })
+      existsSyncMock.mockImplementation((path: string) =>
+        path === 'D:\\apps\\cmder\\vendor\\init.bat' ? true : (existsFallback?.(path) ?? false)
+      )
+      provider.configure({ getWindowsShell: () => 'cmder' })
+
+      try {
+        await provider.spawn({
+          cols: 80,
+          rows: 24,
+          cwd: 'C:\\Users\\jin\\repo',
+          env: { ORCA_CMDER_ROOT: 'D:\\apps\\cmder' }
+        })
+      } finally {
+        if (platform) {
+          Object.defineProperty(process, 'platform', platform)
+        }
+      }
+
+      expect(spawnMock).toHaveBeenCalledWith(
+        'cmd.exe',
+        expect.any(Array),
+        expect.objectContaining({
+          env: expect.objectContaining({
+            CMDER_ROOT: 'D:\\apps\\cmder',
+            ORCA_CMDER_INIT: 'D:\\apps\\cmder\\vendor\\init.bat'
+          })
+        })
+      )
+    })
+
     it('runs the Codex preflight once in the cmd.exe startup chain', async () => {
       const platform = Object.getOwnPropertyDescriptor(process, 'platform')
       Object.defineProperty(process, 'platform', { value: 'win32' })

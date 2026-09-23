@@ -124,7 +124,10 @@ function createWindowsLocalPtyLaunchPlan(
   }
   const normalizedShellFamily = pathWin32.basename(shellFamily).toLowerCase()
   const resolvedGitBashPath = resolveWindowsGitBashShellPath(shellFamily)
-  const cmderRoot = resolveWindowsCmderShellRoot(shellFamily)
+  // Why args.env: orcad's in-process fallback never sets configuredCmderRoot; the setting rides in as ORCA_CMDER_ROOT.
+  const cmderRoot = resolveWindowsCmderShellRoot(shellFamily, {
+    env: { ...process.env, ...args.env }
+  })
   // Why: normalize setting-value and path forms to the PowerShell family so the resolver can fall back to inbox powershell.exe.
   const powerShellImplementation = getOptions().getWindowsPowerShellImplementation?.()
   const resolvedShellFamily: WindowsPowerShellShellFamily =
