@@ -76,5 +76,7 @@ describe('Cmder discovery', () => {
     expect(options.env).toEqual({ PATH: 'x' })
     applyConfiguredCmderRootEnv(options, 'D:\\cmder')
     expect(options.env).toEqual({ PATH: 'x', ORCA_CMDER_ROOT: 'D:\\cmder' })
+    applyConfiguredCmderRootEnv(options, '')
+    expect(options.env).toEqual({ PATH: 'x' })
   })
 })

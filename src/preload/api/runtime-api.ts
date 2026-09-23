@@ -36,12 +36,7 @@ export type RuntimeApi = {
       callback: (response: RuntimeRpcResponse<unknown>) => void
     ) => Promise<RuntimeEnvironmentSubscriptionHandle>
     getTerminalFitOverrides: () => Promise<
-      {
-        ptyId: string
-        mode: 'mobile-fit' | 'remote-desktop-fit'
-        cols: number
-        rows: number
-      }[]
+      { ptyId: string; mode: 'mobile-fit' | 'remote-desktop-fit'; cols: number; rows: number }[]
     >
     getTerminalDrivers: () => Promise<
       {

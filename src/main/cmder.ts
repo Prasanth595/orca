@@ -14,8 +14,12 @@ export function applyConfiguredCmderRootEnv(
   configuredRoot: string | undefined
 ): void {
   const root = configuredRoot?.trim()
+  // Why drop first: a carried key from an earlier setting would outrank CMDER_ROOT after the setting is cleared.
+  const { [ORCA_CMDER_ROOT_ENV]: _stale, ...env } = spawnOptions.env ?? {}
   if (root) {
-    spawnOptions.env = { ...spawnOptions.env, [ORCA_CMDER_ROOT_ENV]: root }
+    spawnOptions.env = { ...env, [ORCA_CMDER_ROOT_ENV]: root }
+  } else if (spawnOptions.env) {
+    spawnOptions.env = env
   }
 }
 
