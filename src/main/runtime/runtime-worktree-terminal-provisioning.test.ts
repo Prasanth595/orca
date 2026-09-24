@@ -223,3 +223,21 @@ describe('provisionWorktreeTerminals with a cleared creation choice', () => {
     expect(host.splitTerminal).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('provisionWorktreeTerminals setup auto-close', () => {
+  it('makes host-created setup terminals exit their shell on success only when enabled', async () => {
+    const off = createHost({}).host
+    await provisionWithSetup(off)
+    expect(off.createTerminal).toHaveBeenCalledWith(
+      'id:wt-1',
+      expect.objectContaining({ command: 'bash /repo/.orca/setup.sh' })
+    )
+
+    const on = createHost({ closeSetupTabOnSuccess: true }).host
+    await provisionWithSetup(on)
+    expect(on.createTerminal).toHaveBeenCalledWith(
+      'id:wt-1',
+      expect.objectContaining({ command: 'bash /repo/.orca/setup.sh && exit' })
+    )
+  })
+})

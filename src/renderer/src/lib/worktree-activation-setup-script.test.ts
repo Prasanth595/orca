@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { useAppStore } from '@/store'
 import { SETUP_AGENT_SEQUENCE_STARTUP_SCRIPT_ENV } from '../../../shared/setup-agent-sequencing'
 import { ensureWorktreeHasInitialTerminal } from './worktree-initial-terminal-seeding'
 import {
@@ -9,6 +10,14 @@ import {
 } from './worktree-activation-test-harness'
 
 registerWorktreeActivationReset()
+
+function setCloseSetupTabOnSuccess(closeSetupTabOnSuccess: boolean): void {
+  useAppStore.setState((state) => ({
+    settings: state.settings
+      ? { ...state.settings, closeSetupTabOnSuccess, terminalWindowsShell: '' }
+      : state.settings
+  }))
+}
 
 describe('ensureWorktreeHasInitialTerminal', () => {
   it('creates a background Setup tab for newly created worktrees by default', () => {
@@ -38,6 +47,41 @@ describe('ensureWorktreeHasInitialTerminal', () => {
       }
     })
     expect(store.queueTabSetupSplit).not.toHaveBeenCalled()
+  })
+
+  it('makes the setup tab and split exit their shell on success when auto-close is on', () => {
+    setCloseSetupTabOnSuccess(true)
+    try {
+      const setup = {
+        runnerScriptPath: 'C:\\repo\\.git\\orca\\setup-runner.cmd',
+        shell: { family: 'cmd' as const },
+        envVars: {}
+      }
+      let createdIndex = 0
+      const newTabStore = createMockStore({
+        createTab: vi.fn(() => ({ id: `tab-${++createdIndex}` }))
+      })
+      ensureWorktreeHasInitialTerminal(newTabStore, 'wt-1', undefined, setup)
+      expect(createdTabStartups(newTabStore)['tab-2']).toEqual({
+        command:
+          'cmd.exe /c "C:\\repo\\.git\\orca\\setup-runner.cmd"; if ($LASTEXITCODE -eq 0) { exit }',
+        env: {}
+      })
+
+      setSetupScriptLaunchMode('split-vertical')
+      const splitStore = createMockStore({ createTab: vi.fn(() => ({ id: 'tab-1' })) })
+      ensureWorktreeHasInitialTerminal(splitStore, 'wt-1', undefined, {
+        runnerScriptPath: '/tmp/repo/.git/orca/setup-runner.sh',
+        envVars: {}
+      })
+      expect(splitStore.queueTabSetupSplit).toHaveBeenCalledWith('tab-1', {
+        command: 'bash /tmp/repo/.git/orca/setup-runner.sh && exit',
+        env: {},
+        direction: 'vertical'
+      })
+    } finally {
+      setCloseSetupTabOnSuccess(false)
+    }
   })
 
   it('queues setup through returned POSIX shell metadata on native Windows paths', () => {

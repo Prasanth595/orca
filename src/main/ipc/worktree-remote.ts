@@ -115,6 +115,7 @@ import { resolveWorktreeSharedDirectories } from '../git/worktree-shared-directo
 import { normalizeSparseDirectories } from './sparse-checkout-directories'
 import { attributedSparsePresetId } from './sparse-preset-attribution'
 import {
+  applySetupAutoCloseSetting,
   buildSetupRunnerCommand,
   getSetupRunnerCommandPlatformForPath
 } from '../../shared/setup-runner-command'
@@ -367,16 +368,17 @@ async function spawnLocalStartupAndSetupTerminals(args: {
   let didSpawnSetup = false
   if (setup) {
     try {
-      const setupCommand =
+      const setupPlatform = getSetupRunnerCommandPlatformForLaunch(
+        setup,
+        process.platform === 'win32' ? 'windows' : 'posix'
+      )
+      const setupCommand = applySetupAutoCloseSetting(
         wrappedSetupCommandStr ??
-        buildSetupRunnerCommand(
-          setup.runnerScriptPath,
-          getSetupRunnerCommandPlatformForLaunch(
-            setup,
-            process.platform === 'win32' ? 'windows' : 'posix'
-          ),
-          setup.shell
-        )
+          buildSetupRunnerCommand(setup.runnerScriptPath, setupPlatform, setup.shell),
+        setupPlatform,
+        setup.shell,
+        settings
+      )
       const setupLaunchMode =
         (settings as Partial<Pick<GlobalSettings, 'setupScriptLaunchMode'>>)
           .setupScriptLaunchMode ?? 'new-tab'
