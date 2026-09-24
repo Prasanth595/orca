@@ -31,12 +31,46 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     let window = UIWindow(windowScene: windowScene)
     self.window = window
     appDelegate.window = window
-    // Why: a cold-start link is delivered only here under scenes, not to open:url:.
+    // Why: a cold-start link is delivered only here under scenes, not to open:url: or
+    // continue:. RN reads launch options; expo-linking's registry needs the delegate call.
+    let url = connectionOptions.urlContexts.first?.url
+    let activity = connectionOptions.userActivities.first
     var launchOptions: [UIApplication.LaunchOptionsKey: Any] = [:]
-    if let url = connectionOptions.urlContexts.first?.url {
+    if let url {
       launchOptions[.url] = url
     }
+    if let activity {
+      launchOptions[.userActivityDictionary] = [
+        UIApplication.LaunchOptionsKey.userActivityType.rawValue: activity.activityType,
+        "UIApplicationLaunchOptionsUserActivityKey": activity
+      ] as [String: Any]
+    }
     factory.startReactNative(withModuleName: "main", in: window, launchOptions: launchOptions)
+    if let url {
+      _ = appDelegate.application(UIApplication.shared, open: url, options: [:])
+    }
+    if let activity {
+      _ = appDelegate.application(
+        UIApplication.shared, continue: activity, restorationHandler: { _ in })
+    }
+  }
+
+  // Why: with a scene manifest UIKit stops sending these to the app delegate, so
+  // Expo's subscribers would never hear foreground/background transitions.
+  func sceneDidBecomeActive(_ scene: UIScene) {
+    UIApplication.shared.delegate?.applicationDidBecomeActive?(UIApplication.shared)
+  }
+
+  func sceneWillResignActive(_ scene: UIScene) {
+    UIApplication.shared.delegate?.applicationWillResignActive?(UIApplication.shared)
+  }
+
+  func sceneWillEnterForeground(_ scene: UIScene) {
+    UIApplication.shared.delegate?.applicationWillEnterForeground?(UIApplication.shared)
+  }
+
+  func sceneDidEnterBackground(_ scene: UIScene) {
+    UIApplication.shared.delegate?.applicationDidEnterBackground?(UIApplication.shared)
   }
 
   func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
