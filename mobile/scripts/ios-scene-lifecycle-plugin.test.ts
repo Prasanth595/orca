@@ -62,6 +62,12 @@ describe('ios-scene-lifecycle plugin', () => {
     expect(out).toContain('appDelegate.application(UIApplication.shared, open: url')
   })
 
+  it('forwards every URL a running scene receives', () => {
+    const out = adoptSceneLifecycle(TEMPLATE)
+    expect(out).toContain('for context in URLContexts {')
+    expect(out).not.toContain('URLContexts.first')
+  })
+
   it('forwards foreground and background transitions to the app delegate', () => {
     const out = adoptSceneLifecycle(TEMPLATE)
     for (const callback of [

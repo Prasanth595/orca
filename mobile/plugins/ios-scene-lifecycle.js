@@ -33,6 +33,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     appDelegate.window = window
     // Why: a cold-start link is delivered only here under scenes, not to open:url: or
     // continue:. RN reads launch options; expo-linking's registry needs the delegate call.
+    // Both keep one initial URL, so only one is forwarded or the two would disagree.
     let url = connectionOptions.urlContexts.first?.url
     let activity = connectionOptions.userActivities.first
     var launchOptions: [UIApplication.LaunchOptionsKey: Any] = [:]
@@ -74,15 +75,14 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
   }
 
   func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
-    guard let context = URLContexts.first else {
-      return
+    for context in URLContexts {
+      var options: [UIApplication.OpenURLOptionsKey: Any] = [:]
+      if let source = context.options.sourceApplication {
+        options[.sourceApplication] = source
+      }
+      _ = UIApplication.shared.delegate?.application?(
+        UIApplication.shared, open: context.url, options: options)
     }
-    var options: [UIApplication.OpenURLOptionsKey: Any] = [:]
-    if let source = context.options.sourceApplication {
-      options[.sourceApplication] = source
-    }
-    _ = UIApplication.shared.delegate?.application?(
-      UIApplication.shared, open: context.url, options: options)
   }
 
   func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
