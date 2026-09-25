@@ -19,6 +19,9 @@ export type RuntimeWorktreeAgentRow = {
   prompt: string
   taskTitle: string | null
   displayName: string | null
+  /** Stable tab/conversation name. Absent on older hosts; the phone then keeps
+   *  the last-message label. */
+  conversationName?: string
   lastAssistantMessage: string | null
   toolName: string | null
   toolInput: string | null

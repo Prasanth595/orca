@@ -14,6 +14,7 @@ import {
   applyRuntimeWorktreePsTerminalActivity
 } from './runtime-worktree-ps-activity'
 import { applyRuntimeWorktreePsUnverifiableTerminals } from './runtime-worktree-ps-unverifiable-terminals'
+import { resolveWorktreeAgentConversationNames } from './runtime-worktree-agent-conversation-name'
 import { attachRuntimeWorktreeAgentRows } from './runtime-worktree-agent-rows'
 import { compareWorktreePs } from './runtime-worktree-status-projection'
 import type { Repo } from '../../shared/repo-types'
@@ -123,16 +124,24 @@ export class OrcaRuntimeWithGetWorktreePs extends OrcaRuntimeWithStartTuiIdleVis
         getTerminalHandlesForPty: (ptyId) => this.getExistingTerminalHandlesForPtyId(ptyId),
         getSummary
       })
+    const rowSources = collectRuntimeWorktreeAgentSources({
+      mirroredWorktreeIdByTabId,
+      connectedPtyEvidence,
+      // Structured sessions are in here too: the host publishes them into the same store.
+      hookSnapshots: this.getAgentStatusSnapshotFn?.() ?? []
+    })
+    const orchestrationByPaneKey = this.agentOrchestrationProjection.buildByPaneKey()
     attachRuntimeWorktreeAgentRows({
       summaries,
       workingTerminalEvidenceByWorktreeId,
-      rowSources: collectRuntimeWorktreeAgentSources({
-        mirroredWorktreeIdByTabId,
-        connectedPtyEvidence,
-        // Structured sessions are in here too: the host publishes them into the same store.
-        hookSnapshots: this.getAgentStatusSnapshotFn?.() ?? []
+      rowSources,
+      orchestrationByPaneKey,
+      conversationNameByPaneKey: resolveWorktreeAgentConversationNames({
+        sources: rowSources.values(),
+        tabsByWorktree: session?.tabsByWorktree,
+        generatedTitlesEnabled: visibilitySettings?.tabAutoGenerateTitle === true,
+        orchestrationByPaneKey
       }),
-      orchestrationByPaneKey: this.agentOrchestrationProjection.buildByPaneKey(),
       getSummary
     })
 
