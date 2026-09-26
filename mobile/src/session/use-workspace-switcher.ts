@@ -56,7 +56,12 @@ export function useWorkspaceSwitcher({
   // Recorded on entry and again once the live name resolves, so rows never show a bare id.
   useEffect(() => {
     if (hostId && worktreeId) {
-      void recordRecentWorkspace({ hostId, worktreeId, name: worktreeName, openedAt: Date.now() })
+      void recordRecentWorkspace({
+        hostId,
+        worktreeId,
+        name: worktreeName,
+        openedAt: Date.now()
+      }).catch(() => {})
     }
   }, [hostId, worktreeId, worktreeName])
 

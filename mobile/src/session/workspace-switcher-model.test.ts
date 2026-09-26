@@ -14,6 +14,7 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
 import { hostStackResetAction, rootHostSwitchAction } from '../navigation/host-stack-reset'
 import {
   loadRecentWorkspaces,
+  subscribeRecentWorkspaces,
   parseRecentWorkspaces,
   recordRecentWorkspace,
   RECENT_WORKSPACES_LIMIT,
@@ -85,6 +86,16 @@ describe('recent workspaces', () => {
     const expected = [ws('b', '2', 2), ws('a', '1', 1), ws('a', '0', 0)]
     expect(await loadRecentWorkspaces()).toEqual(expected)
     expect(parseRecentWorkspaces(stored.value)).toEqual(expected)
+  })
+
+  it('keeps recording after a record fails', async () => {
+    const unsubscribe = subscribeRecentWorkspaces(() => {
+      throw new Error('listener failed')
+    })
+    await expect(recordRecentWorkspace(ws('a', '1', 1))).rejects.toThrow('listener failed')
+    unsubscribe()
+    await recordRecentWorkspace(ws('b', '2', 2))
+    expect(await loadRecentWorkspaces()).toEqual([ws('b', '2', 2), ws('a', '1', 1)])
   })
 })
 

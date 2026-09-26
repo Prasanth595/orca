@@ -96,12 +96,14 @@ export function subscribeRecentWorkspaces(listener: (list: RecentWorkspace[]) =>
 let recording: Promise<void> = Promise.resolve()
 
 export function recordRecentWorkspace(entry: RecentWorkspace): Promise<void> {
-  recording = recording.then(async () => {
+  const run = recording.then(async () => {
     const next = upsertRecentWorkspace(await loadRecentWorkspaces(), entry)
     publish(next)
     await AsyncStorage.setItem(RECENT_WORKSPACES_STORAGE_KEY, JSON.stringify(next)).catch(() => {})
   })
-  return recording
+  // Why: one failed record (e.g. a throwing listener) must not skip every record queued after it.
+  recording = run.catch(() => {})
+  return run
 }
 
 export function resetRecentWorkspacesForTest(): void {
