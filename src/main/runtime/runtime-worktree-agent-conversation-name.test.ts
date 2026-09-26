@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { TerminalTab } from '../../shared/terminal-tab-types'
+import type { TerminalLayoutSnapshot, TerminalTab } from '../../shared/terminal-tab-types'
 import type { RuntimeWorktreeAgentSource } from './runtime-worktree-agent-source'
 import { resolveWorktreeAgentConversationNames } from './runtime-worktree-agent-conversation-name'
 
@@ -125,4 +125,132 @@ describe('resolveWorktreeAgentConversationNames', () => {
 
     expect(names.has(source().paneKey)).toBe(false)
   })
+
+  it('uses the provider session id for the vault title', () => {
+    const named = resolveWorktreeAgentConversationNames({
+      sources: [source({ providerSessionId: 's1' })],
+      tabsByWorktree: {
+        'wt-1': [
+          tab({
+            title: '✳ Claude Code',
+            aiVaultTitle: { agent: 'claude', sessionId: 's1', title: 'Fix the lease probe' }
+          })
+        ]
+      },
+      generatedTitlesEnabled: false,
+      orchestrationByPaneKey: null
+    })
+    expect(named.get(source().paneKey)).toBe('Fix the lease probe')
+
+    const otherSession = resolveWorktreeAgentConversationNames({
+      sources: [source({ providerSessionId: 'other' })],
+      tabsByWorktree: {
+        'wt-1': [
+          tab({
+            title: '✳ Claude Code',
+            aiVaultTitle: { agent: 'claude', sessionId: 's1', title: 'Fix the lease probe' }
+          })
+        ]
+      },
+      generatedTitlesEnabled: false,
+      orchestrationByPaneKey: null
+    })
+    expect(otherSession.has(source().paneKey)).toBe(false)
+  })
+
+  it('does not give an unfocused agent the focused sibling pane title', () => {
+    const names = resolveWorktreeAgentConversationNames({
+      sources: [source()],
+      tabsByWorktree: { 'wt-1': [tab({ title: '✳ Linear work log' })] },
+      terminalLayoutsByTabId: { [TAB_ID]: splitLayout(OTHER_LEAF) },
+      generatedTitlesEnabled: false,
+      orchestrationByPaneKey: null
+    })
+    expect(names.has(source().paneKey)).toBe(false)
+
+    const focused = resolveWorktreeAgentConversationNames({
+      sources: [source()],
+      tabsByWorktree: { 'wt-1': [tab({ title: '✳ Linear work log' })] },
+      terminalLayoutsByTabId: { [TAB_ID]: splitLayout(LEAF) },
+      generatedTitlesEnabled: false,
+      orchestrationByPaneKey: null
+    })
+    expect(focused.get(source().paneKey)).toBe('Linear work log')
+  })
+
+  it('keeps a manual rename when the agent pane is not focused', () => {
+    const names = resolveWorktreeAgentConversationNames({
+      sources: [source()],
+      tabsByWorktree: {
+        'wt-1': [tab({ customTitle: 'Patient sync spike', title: '✳ Linear work log' })]
+      },
+      terminalLayoutsByTabId: { [TAB_ID]: splitLayout(OTHER_LEAF) },
+      generatedTitlesEnabled: false,
+      orchestrationByPaneKey: null
+    })
+    expect(names.get(source().paneKey)).toBe('Patient sync spike')
+  })
+
+  it('names a structured native-chat row from its unified tab', () => {
+    const tabId = 'structured-agent-session-s1'
+    const row = source({ tabId, paneKey: `${tabId}:${LEAF}` })
+    const unifiedTabs = {
+      'wt-1': [
+        {
+          id: tabId,
+          contentType: 'agent-session',
+          customLabel: 'Patient sync spike',
+          label: 'Claude Chat',
+          agentSessionAgent: 'claude' as const
+        }
+      ]
+    }
+    expect(
+      resolveWorktreeAgentConversationNames({
+        sources: [row],
+        tabsByWorktree: {},
+        unifiedTabs,
+        generatedTitlesEnabled: false,
+        orchestrationByPaneKey: null
+      }).get(row.paneKey)
+    ).toBe('Patient sync spike')
+
+    const placeholder = resolveWorktreeAgentConversationNames({
+      sources: [row],
+      tabsByWorktree: {},
+      unifiedTabs: {
+        'wt-1': [{ ...unifiedTabs['wt-1'][0], customLabel: null }]
+      },
+      generatedTitlesEnabled: true,
+      orchestrationByPaneKey: null
+    })
+    expect(placeholder.has(row.paneKey)).toBe(false)
+
+    expect(
+      resolveWorktreeAgentConversationNames({
+        sources: [row],
+        tabsByWorktree: {},
+        unifiedTabs: {
+          'wt-1': [
+            { ...unifiedTabs['wt-1'][0], customLabel: null, generatedLabel: 'Fix intake flow' }
+          ]
+        },
+        generatedTitlesEnabled: true,
+        orchestrationByPaneKey: null
+      }).get(row.paneKey)
+    ).toBe('Fix intake flow')
+  })
 })
+
+function splitLayout(activeLeafId: string): TerminalLayoutSnapshot {
+  return {
+    root: {
+      type: 'split',
+      direction: 'vertical',
+      first: { type: 'leaf', leafId: LEAF },
+      second: { type: 'leaf', leafId: OTHER_LEAF }
+    },
+    activeLeafId,
+    expandedLeafId: null
+  }
+}
