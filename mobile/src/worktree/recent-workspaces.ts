@@ -92,14 +92,21 @@ export function subscribeRecentWorkspaces(listener: (list: RecentWorkspace[]) =>
   }
 }
 
-export async function recordRecentWorkspace(entry: RecentWorkspace): Promise<void> {
-  const next = upsertRecentWorkspace(await loadRecentWorkspaces(), entry)
-  publish(next)
-  await AsyncStorage.setItem(RECENT_WORKSPACES_STORAGE_KEY, JSON.stringify(next)).catch(() => {})
+// Why: each record reads the list its predecessor wrote, so two records issued together both land.
+let recording: Promise<void> = Promise.resolve()
+
+export function recordRecentWorkspace(entry: RecentWorkspace): Promise<void> {
+  recording = recording.then(async () => {
+    const next = upsertRecentWorkspace(await loadRecentWorkspaces(), entry)
+    publish(next)
+    await AsyncStorage.setItem(RECENT_WORKSPACES_STORAGE_KEY, JSON.stringify(next)).catch(() => {})
+  })
+  return recording
 }
 
 export function resetRecentWorkspacesForTest(): void {
   cache = null
   loading = null
+  recording = Promise.resolve()
   listeners.clear()
 }

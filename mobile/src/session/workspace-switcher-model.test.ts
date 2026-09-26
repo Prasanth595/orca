@@ -11,7 +11,7 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
   }
 }))
 
-import { hostStackResetAction } from '../navigation/host-stack-reset'
+import { hostStackResetAction, rootHostSwitchAction } from '../navigation/host-stack-reset'
 import {
   loadRecentWorkspaces,
   parseRecentWorkspaces,
@@ -75,6 +75,17 @@ describe('recent workspaces', () => {
     resetRecentWorkspacesForTest()
     expect(await loadRecentWorkspaces()).toEqual([ws('a', '1', 1)])
   })
+
+  it('keeps both of two records issued before either is written', async () => {
+    stored.value = JSON.stringify([ws('a', '0', 0)])
+    await Promise.all([
+      recordRecentWorkspace(ws('a', '1', 1)),
+      recordRecentWorkspace(ws('b', '2', 2))
+    ])
+    const expected = [ws('b', '2', 2), ws('a', '1', 1), ws('a', '0', 0)]
+    expect(await loadRecentWorkspaces()).toEqual(expected)
+    expect(parseRecentWorkspaces(stored.value)).toEqual(expected)
+  })
 })
 
 describe('workspace switcher model', () => {
@@ -127,5 +138,43 @@ describe('hostStackResetAction', () => {
     expect(hostStackResetAction('b').payload.routes).toEqual([
       { name: '[hostId]/index', params: { hostId: 'b' } }
     ])
+  })
+})
+
+describe('rootHostSwitchAction', () => {
+  it('replaces the focused host route with one already holding the target stack', () => {
+    const root = {
+      index: 1,
+      routes: [
+        { key: 'index-1', name: 'index' },
+        { key: 'h-1', name: 'h' }
+      ]
+    }
+    expect(rootHostSwitchAction(root, 'b', { worktreeId: 'w' })).toEqual({
+      type: 'RESET',
+      payload: {
+        index: 1,
+        routes: [
+          { key: 'index-1', name: 'index' },
+          { name: 'h', state: hostStackResetAction('b', { worktreeId: 'w' }).payload }
+        ]
+      }
+    })
+  })
+
+  it('drops routes above the host so Back from the host list reaches home', () => {
+    const root = {
+      index: 1,
+      routes: [
+        { key: 'index-1', name: 'index' },
+        { key: 'h-1', name: 'h' },
+        { key: 'settings-1', name: 'settings' }
+      ]
+    }
+    expect(rootHostSwitchAction(root, 'b')?.payload.routes).toHaveLength(2)
+  })
+
+  it('declines when a host route is not focused', () => {
+    expect(rootHostSwitchAction({ index: 0, routes: [{ name: 'index' }] }, 'b')).toBeNull()
   })
 })

@@ -2,8 +2,9 @@ import { useCallback } from 'react'
 import type { ResetHostStack } from './use-reset-host-stack'
 import { useRouteHandoff } from './route-handoff'
 
-/** Web: the page owns no stack to reset, so the target is handed to the shell as a replace. */
-export function useResetHostStack(): ResetHostStack {
+/** Web: the page owns no stack to reset, so it replaces the route through the route handoff,
+ *  which keeps the page's own host local and hands other hosts to the shell. */
+export function useResetHostStack(_currentHostId: string): ResetHostStack {
   const router = useRouteHandoff()
   return useCallback(
     (hostId, session) => {

@@ -34,7 +34,7 @@ export function useWorkspaceSwitcher({
   hasDirtyDrafts,
   showToast
 }: Scope) {
-  const resetHostStack = useResetHostStack()
+  const resetHostStack = useResetHostStack(hostId)
   const [visible, setVisible] = useState(false)
   const [recents, setRecents] = useState<RecentWorkspace[]>([])
   const [hosts, setHosts] = useState<HostCatalogEntry[]>([])
@@ -42,7 +42,10 @@ export function useWorkspaceSwitcher({
   useEffect(() => {
     let stale = false
     void loadRecentWorkspaces().then((list) => !stale && setRecents(list))
-    void loadHostCatalog().then((catalog) => !stale && setHosts(catalog))
+    // Why: a failed catalog read leaves the list empty; the sheet still lists recents' hosts on retry.
+    void loadHostCatalog()
+      .then((catalog) => !stale && setHosts(catalog))
+      .catch(() => {})
     const unsubscribe = subscribeRecentWorkspaces(setRecents)
     return () => {
       stale = true
@@ -59,7 +62,9 @@ export function useWorkspaceSwitcher({
 
   const open = useCallback(() => {
     Keyboard.dismiss()
-    void loadHostCatalog().then(setHosts)
+    void loadHostCatalog()
+      .then(setHosts)
+      .catch(() => {})
     setVisible(true)
   }, [])
   const close = useCallback(() => setVisible(false), [])
