@@ -90,6 +90,8 @@ export function applyPaneOpacity(
 export function applyRootBackground(root: HTMLElement, styleOptions: PaneStyleOptions): void {
   if (styleOptions.splitBackground) {
     root.style.background = styleOptions.splitBackground
+    // Why: window glass clears this root under a chat pane; sibling terminal panes re-apply it from the var.
+    root.style.setProperty('--pane-split-background', styleOptions.splitBackground)
   }
   if (styleOptions.paddingX !== undefined) {
     root.style.setProperty('--pane-padding-x', `${styleOptions.paddingX}px`)
