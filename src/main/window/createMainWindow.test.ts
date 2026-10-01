@@ -451,11 +451,14 @@ describe('createMainWindow', () => {
       })
 
       withPlatform(platform, () =>
-        createMainWindow({
-          getUI: () => ({}),
-          getSettings: () => ({ windowBackgroundBlur: blur }),
-          updateUI: vi.fn()
-        } as never)
+        createMainWindow(
+          // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: createMainWindow reads only getUI, getSettings and updateUI from the store here.
+          {
+            getUI: () => ({}),
+            getSettings: () => ({ windowBackgroundBlur: blur }),
+            updateUI: vi.fn()
+          } as never
+        )
       )
 
       const browserWindowOptions = browserWindowMock.mock.calls[0]?.[0]

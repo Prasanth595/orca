@@ -131,7 +131,8 @@ export function TerminalWindowSection({
                 'auto.components.settings.TerminalWindowSection.2b82242f43',
                 'Window Blur'
               )}
-              checked={settings.windowBackgroundBlur ?? false}
+              // Why: Linux can't create a glass window, so a value saved elsewhere must not read as on.
+              checked={glassPlatform !== 'linux' && (settings.windowBackgroundBlur ?? false)}
               disabled={glassPlatform === 'linux'}
               onCheckedChange={(checked) => updateSettings({ windowBackgroundBlur: checked })}
             />

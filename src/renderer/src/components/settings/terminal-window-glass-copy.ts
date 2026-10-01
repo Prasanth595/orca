@@ -1,9 +1,10 @@
 import { translate } from '@/i18n/i18n'
+import { getRendererAppPlatform } from '@/lib/renderer-app-platform'
 
 export type GlassCopyPlatform = 'mac' | 'windows' | 'linux'
 
 export function getGlassCopyPlatform(
-  platform: string | undefined = window.api?.platform?.get().platform
+  platform: NodeJS.Platform = getRendererAppPlatform()
 ): GlassCopyPlatform {
   if (platform === 'darwin') {
     return 'mac'

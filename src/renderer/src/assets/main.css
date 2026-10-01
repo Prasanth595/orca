@@ -731,13 +731,13 @@ html.window-glass .pane .xterm-scrollable-element {
   background-color: transparent !important;
 }
 
-/* Why !important: pane-divider paints the split background inline on the root. */
-html.window-glass :has(> .pane > .native-chat-pane-shell) {
+/* Why !important: pane-divider paints the split background inline on the root, above any nested split. */
+html.window-glass .pane-split-root:has(.pane > .native-chat-pane-shell) {
   background: transparent !important;
 }
 
 html.window-glass
-  :has(> .pane > .native-chat-pane-shell)
+  .pane-split-root:has(.pane > .native-chat-pane-shell)
   .pane:not(:has(> .native-chat-pane-shell)) {
   background: var(--pane-split-background);
 }
