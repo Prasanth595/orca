@@ -9,6 +9,7 @@ import { SearchableSetting } from './SearchableSetting'
 import { clampNumber } from '@/lib/terminal-theme'
 import { useMountedRef } from '@/hooks/useMountedRef'
 import { translate } from '@/i18n/i18n'
+import { isWebClientLocation } from '@/lib/web-client-location'
 import {
   DEFAULT_NATIVE_CHAT_GLASS_OPACITY,
   MIN_NATIVE_CHAT_GLASS_OPACITY,
@@ -43,6 +44,8 @@ export function TerminalWindowSection({
   const [relaunchingBlur, setRelaunchingBlur] = useState(false)
   const mountedRef = useMountedRef()
   const glassPlatform = getGlassCopyPlatform()
+  // Why: a macOS browser web client has no glass window, matching AppearancePane's isDesktopMac.
+  const showChatGlassOpacity = glassPlatform === 'mac' && !isWebClientLocation()
 
   const handleRelaunch = async (): Promise<void> => {
     if (relaunchingBlur) {
@@ -176,7 +179,7 @@ export function TerminalWindowSection({
           ) : null}
         </SearchableSetting>
 
-        {glassPlatform === 'mac' ? (
+        {showChatGlassOpacity ? (
           <SearchableSetting
             title={translate(
               'auto.components.settings.TerminalWindowSection.chatGlassOpacity',
