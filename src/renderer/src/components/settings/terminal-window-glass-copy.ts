@@ -1,11 +1,18 @@
 import { translate } from '@/i18n/i18n'
 import { getRendererAppPlatform } from '@/lib/renderer-app-platform'
+import { isWebClientLocation } from '@/lib/web-client-location'
 
-export type GlassCopyPlatform = 'mac' | 'windows' | 'linux'
+export type GlassCopyPlatform = 'mac' | 'windows' | 'linux' | 'web'
 
+/** One gate for the glass control, its copy, and its search entry. */
 export function getGlassCopyPlatform(
-  platform: NodeJS.Platform = getRendererAppPlatform()
+  platform: NodeJS.Platform = getRendererAppPlatform(),
+  isWebClient: boolean = isWebClientLocation()
 ): GlassCopyPlatform {
+  // Why: a browser web client reports the browser's OS but never owns a glass window.
+  if (isWebClient) {
+    return 'web'
+  }
   if (platform === 'darwin') {
     return 'mac'
   }
@@ -25,6 +32,12 @@ export function windowBlurDescription(platform: GlassCopyPlatform): string {
     return translate(
       `${KEY}.blurWindows`,
       "Requests the Windows 11 acrylic backdrop. Orca's panels stay opaque on Windows, so terminals and chat don't show it yet. Requires restart."
+    )
+  }
+  if (platform === 'web') {
+    return translate(
+      `${KEY}.blurWeb`,
+      'Applies to the Orca desktop app window; it has no effect in this browser.'
     )
   }
   return translate(`${KEY}.blurLinux`, 'Not available on Linux.')

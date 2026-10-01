@@ -1,8 +1,7 @@
 import { translate } from '@/i18n/i18n'
 import { translateSearchKeyword } from './settings-search-keywords'
 import { createLocalizedCatalog } from '@/i18n/localized-catalog'
-import { getRendererAppPlatform } from '@/lib/renderer-app-platform'
-import { isWebClientLocation } from '@/lib/web-client-location'
+import { getGlassCopyPlatform } from './terminal-window-glass-copy'
 import type { SettingsSearchEntry } from './settings-search'
 
 export const getManageSessionsSearchEntries = createLocalizedCatalog(() => [
@@ -159,7 +158,7 @@ const getChatGlassSearchEntryCatalog = createLocalizedCatalog(() => [
 ])
 
 export function getTerminalWindowSearchEntries(
-  isMac = getRendererAppPlatform() === 'darwin' && !isWebClientLocation()
+  isMac = getGlassCopyPlatform() === 'mac'
 ): SettingsSearchEntry[] {
   // Why: Chat Glass Opacity only renders on desktop macOS; elsewhere search would land on a missing control.
   return isMac

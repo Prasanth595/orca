@@ -9301,7 +9301,8 @@
             "opacityMac": "Terminal background opacity, 1 is solid. With Window Blur on, lower values show the blurred desktop; with it off, they only blend into Orca's own background.",
             "opacityOther": "Terminal background opacity, 1 is solid. Orca's window is opaque on this platform, so lower values blend into Orca's own background instead of showing the desktop.",
             "chatOpacity": "Chat UI background opacity over the blurred desktop, 1 is solid. Lower values show more of the desktop.",
-            "chatOpacityNeedsBlur": "Turn on Window Blur (and restart) to use this."
+            "chatOpacityNeedsBlur": "Turn on Window Blur (and restart) to use this.",
+            "blurWeb": "Applies to the Orca desktop app window; it has no effect in this browser."
           }
         },
         "UIZoomControl": {
