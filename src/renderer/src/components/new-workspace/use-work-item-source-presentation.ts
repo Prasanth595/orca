@@ -9,6 +9,7 @@ import {
   prioritizeSmartWorkspaceLinearIssueResults
 } from '../../../../shared/new-workspace/smart-workspace-linear-intent'
 import { resolveSmartWorkspaceCommandValue } from './smart-workspace-command-value'
+import type { SmartWorkspaceSourceIntent } from './smart-workspace-command-value'
 import {
   buildSmartWorkspaceSourceRows,
   getVisibleBranchResults,
@@ -35,6 +36,7 @@ export function useWorkItemSourcePresentation(
 ) {
   const {
     jiraSource,
+    youtrackIssue,
     branches,
     mode,
     branchResultsSource,
@@ -132,7 +134,8 @@ export function useWorkItemSourcePresentation(
       gitlabUrlIntent,
       mode,
       resultLimit: RESULT_LIMIT,
-      value
+      value,
+      youtrackIssue
     })
     return foundation.typedTextEnabled
       ? results
@@ -157,7 +160,8 @@ export function useWorkItemSourcePresentation(
     linearUrlLookupFailed,
     mode,
     selectedRepo?.id,
-    value
+    value,
+    youtrackIssue
   ])
   const { typedTextActionRow, searchResultRows } = useMemo(() => {
     const typedTextRow = rows.find(isTypedTextSourceRow) ?? null
@@ -175,7 +179,7 @@ export function useWorkItemSourcePresentation(
   const isQueryStale =
     !linearUrlIntentOwnsInput && trimmedValue.length > 0 && trimmedDebouncedQuery !== trimmedValue
   // Why: unambiguous refs highlight their source row instead of the typed-text fallback.
-  const sourceIntent = useMemo<'github' | 'gitlab' | 'linear' | 'jira' | null>(() => {
+  const sourceIntent = useMemo<SmartWorkspaceSourceIntent>(() => {
     if (!isSmartWorkspaceSourceQueryWithinLimit(value)) {
       return null
     }
@@ -185,6 +189,9 @@ export function useWorkItemSourcePresentation(
     }
     if (jiraSource.intent) {
       return 'jira'
+    }
+    if (rows.some((row) => row.kind === 'youtrack')) {
+      return 'youtrack'
     }
     if (/^#\d+$/.test(trimmed) || parseGitHubIssueOrPRLink(trimmed) !== null) {
       return 'github'
