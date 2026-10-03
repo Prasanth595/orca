@@ -44,7 +44,7 @@ export async function removeRuntimeUnregisteredWorktree(args: {
   store: RuntimeStore
   acquireWatcherRemoval: (path: string) => Promise<RemovalGate>
   stopPtys: (worktreeId: string, allow: boolean) => Promise<void>
-  finishRemoval: () => void
+  finishRemoval: () => void | Promise<void>
 }): Promise<{}> {
   const { repo, target, registeredWorktrees, removedMeta, route } = args
   const removalHome = resolveWorktreeRemovalHome(route)
@@ -67,7 +67,7 @@ export async function removeRuntimeUnregisteredWorktree(args: {
       throw new Error(ORPHANED_WORKTREE_DIRECTORY_MESSAGE)
     }
     await deleteUnregisteredDirectory(args)
-    args.finishRemoval()
+    await args.finishRemoval()
     return {}
   }
   const access = getLocalWorktreePathAccess(args.localOptions)
@@ -89,7 +89,7 @@ export async function removeRuntimeUnregisteredWorktree(args: {
       throw new Error(ORPHANED_WORKTREE_DIRECTORY_MESSAGE)
     }
     await deleteUnregisteredDirectory(args)
-    args.finishRemoval()
+    await args.finishRemoval()
     return {}
   }
   if (await isLocalRuntimeWorktreePathMissing(target.path, args.localOptions)) {
@@ -97,7 +97,7 @@ export async function removeRuntimeUnregisteredWorktree(args: {
       throw new Error(UNREGISTERED_MISSING_WORKTREE_MESSAGE)
     }
     await cleanupPushTarget(args)
-    args.finishRemoval()
+    await args.finishRemoval()
     return {}
   }
   throw new Error(`Refusing to delete unregistered worktree path: ${target.path}`)
