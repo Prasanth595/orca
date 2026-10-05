@@ -1,3 +1,4 @@
+import type { TerminalSelectionGeometry } from '../../../src/shared/terminal-selection-gutter'
 import { useCallback } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { TerminalWebView } from '../terminal/TerminalWebView'
@@ -17,7 +18,7 @@ type TerminalPaneViewProps = {
   onRef: (handle: string, ref: TerminalWebViewHandle | null) => void
   onWebReady: (handle: string) => void
   onSelectionMode: (handle: string, active: boolean) => void
-  onSelectionCopy: (handle: string, text: string) => void
+  onSelectionCopy: (handle: string, text: string, geometry?: TerminalSelectionGeometry) => void
   onSelectionEvicted: (handle: string) => void
   onModesChanged: (handle: string, modes: TerminalModes) => void
   onKeyboardAvoidanceMetrics: (handle: string, metrics: TerminalKeyboardAvoidanceMetrics) => void
@@ -79,7 +80,7 @@ export function TerminalPaneView({
         shownAtMount={active}
         onWebReady={() => onWebReady(handle)}
         onSelectionMode={(a) => onSelectionMode(handle, a)}
-        onSelectionCopy={(t) => onSelectionCopy(handle, t)}
+        onSelectionCopy={(t, g) => onSelectionCopy(handle, t, g)}
         onSelectionEvicted={() => onSelectionEvicted(handle)}
         onModesChanged={(m) => onModesChanged(handle, m)}
         onKeyboardAvoidanceMetrics={(m) => onKeyboardAvoidanceMetrics(handle, m)}
