@@ -211,6 +211,9 @@ export const GITLAB_READY_FOR_REVIEW_RUNTIME_CAPABILITY =
   'gitlab.updateMR.readyForReview.v1' as const
 export const GITLAB_READY_FOR_REVIEW_UPDATE_REQUIRED_MESSAGE =
   'Marking a merge request ready requires a newer Orca server. Update the server and try again.'
+export const GITLAB_MR_APPROVAL_RUNTIME_CAPABILITY = 'gitlab.updateMR.approval.v1' as const
+export const GITLAB_MR_APPROVAL_UPDATE_REQUIRED_MESSAGE =
+  'Approving a merge request requires a newer Orca server. Update the server and try again.'
 export const WORKTREE_VISIBILITY_DEFAULTS_RUNTIME_CAPABILITY =
   'worktree.visibility-defaults.v1' as const
 export const WORKTREE_VISIBILITY_SOURCE_DEFAULTS_RUNTIME_CAPABILITY =
