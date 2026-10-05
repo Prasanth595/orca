@@ -42,7 +42,8 @@
         "portsToggleDescription": "顯示實時工作區埠。點選可檢視工作區範圍的埠和外部監聽器。",
         "antigravityToggleDescription": "顯示當前工作區的 Antigravity 訂閱使用情況。",
         "grokToggleDescription": "透過 Grok CLI 登入後顯示 Grok 訂閱額度使用情況。",
-        "cursorToggleDescription": "透過 cursor-agent 或 Cursor IDE 登入後顯示 Cursor 套餐用量。"
+        "cursorToggleDescription": "透過 cursor-agent 或 Cursor IDE 登入後顯示 Cursor 套餐用量。",
+        "zcodeToggleDescription": "顯示 ZCode Coding Plan 的額度使用量。"
       },
       "menuBarIcon": {
         "title": "顯示選單欄圖示",
@@ -97,6 +98,16 @@
         "optionNativeTooltip": "對於拒絕清理身份的站點，保留 Electron 的內建身份。 Google 登入在本機模式下不可用。",
         "restartRequired": "需要重新啟動",
         "unavailable": "瀏覽器身份不可用。"
+      }
+    },
+    "agents": {
+      "codexTerminalServerIsolation": {
+        "title": "讓每個 Codex 終端使用獨立的伺服器",
+        "description": "讓 Orca 的狀態顯示與關閉標籤頁正常運作。關閉此選項會改用 Codex 的共用伺服器及其智慧體總覽。僅套用到新的終端。"
+      },
+      "codexSharedServerWarning": {
+        "title": "Codex 標籤頁共用伺服器時發出警告",
+        "description": "當你自行啟動的 Codex 與其他標籤頁共用伺服器時顯示提示，因為它的智慧體狀態可能不正確。"
       }
     }
   },
@@ -505,7 +516,11 @@
           "opencode2_label": "OpenCode 2",
           "codebuddy_label": "CodeBuddy",
           "zcode_label": "ZCode",
-          "jcode_label": "Jcode"
+          "jcode_label": "Jcode",
+          "freebuff_label": "Freebuff",
+          "dsh_label": "DeepSeek Harness",
+          "qoder_label": "Qoder CLI",
+          "qoder_cn_label": "Qoder CLI 中國版"
         },
         "skill": {
           "cli": {
@@ -2003,7 +2018,7 @@
         "c679af7ad9": "重新整理我的待辦事項",
         "dfd72673e7": "無法儲存專案選擇。",
         "b797bdd7c3": "清除搜尋",
-        "99c2755218": "Jira JQL，例如 project = ABC AND statusCategory != Done",
+        "99c2755218": "搜尋議題或輸入 JQL，例如 project = ABC",
         "2ff9fd71fd": "重新整理 Jira 議題",
         "0b65d3fb2c": "搜尋 Linear 專案...",
         "eec0c5c079": "搜尋 Linear 議題...",
@@ -2122,7 +2137,7 @@
         "6edf402e11": "概述",
         "9ae151b26b": "Linear",
         "94d900518d": "沒有與所選預設匹配的議題。",
-        "f51e254d35": "嘗試不同的 JQL 查詢。",
+        "f51e254d35": "請改用其他搜尋字詞或 JQL。",
         "4645a7814f": "Jira",
         "e224d76876": "MR",
         "bbec4717ee": "mr",
@@ -2203,7 +2218,8 @@
         "jiraLinkSourceUnavailable": "無法關聯此 Jira 議題。請重新連線 Jira 或選擇匹配的站點，然後重試。",
         "loadPageUnreachable": "第 {{value0}} 頁超出了 GitHub 搜尋可返回的範圍。",
         "loadPageFailed": "無法從 GitHub 載入第 {{value0}} 頁。",
-        "loadPageNoMoreResults": "第 {{value0}} 頁沒有更多結果。"
+        "loadPageNoMoreResults": "第 {{value0}} 頁沒有更多結果。",
+        "jiraTextMatchesNotice": "目前顯示的是文字比對結果。Jira 無法將這次搜尋當作 JQL 執行。"
       },
       "Terminal": {
         "73768427cf": "關閉",
@@ -3033,18 +3049,16 @@
           },
           "MobileDriverOverlay": {
             "c6460cf584": "收回",
-            "c8f2e1a4b9": "收回此終端",
             "c44659e09f": "手機控制中",
-            "7cffad954c": "摺疊",
             "3eed73394f": "您的鍵盤已暫停",
-            "faa367dc74": "手機將此終端留在手機尺寸",
-            "54f7d6f69d": "收回所有終端",
-            "b3d8e1f42a": "恢復此終端",
-            "e8c4f2a91b": "恢復所有終端",
-            "f2a8b9c1d3": "來自手機",
             "c7e4a2b8f1": "手機正在控制",
-            "d9f3c6e2a4": "桌面鍵盤已暫停。收回此終端以在此輸入，收回手機控制的所有終端，或摺疊以繼續觀看。",
-            "a6b1d8f3e2": "手機會話已結束。將此終端或手機留在手機尺寸的所有終端恢復為桌面尺寸。"
+            "4b7e1c9a20": "仍維持手機尺寸",
+            "9d2f6a3e58": "手機端的會話已結束。按「還原」以符合這個視窗的大小。",
+            "1e5c8b7d43": "還原",
+            "6a3d9f2c71": "全部還原",
+            "8c1a5e9f36": "桌面端已暫停輸入，輸出仍會持續顯示。",
+            "2f7b4d1e95": "全部取回",
+            "3a9c5f7e12": "最小化"
           },
           "TerminalAgentSessionForkDialog": {
             "17fc841e59": "複製上下文",
@@ -3700,7 +3714,8 @@
             "codexSignInSuccess": "已登入 Codex",
             "codexSignInError": "Codex 登入失敗，請重試。",
             "cursorUsageMenu": "Cursor 用量",
-            "hiddenUsageProviders": "另有：{{value0}}"
+            "hiddenUsageProviders": "另有：{{value0}}",
+            "zcodeUsageMenu": "ZCode 使用量"
           },
           "StatusBarUsageEmptyCta": {
             "828c764a79": "連線帳戶",
@@ -3882,6 +3897,9 @@
                 "message": "請在執行 Orca 的電腦上的終端中執行 cursor-agent login，然後重新重新整理用量。"
               },
               "plan": "套餐"
+            },
+            "zcode": {
+              "mcp": "MCP"
             }
           },
           "SshTargetStatusRow": {
@@ -6318,6 +6336,11 @@
           "copied": "命令已複製",
           "retry": "立即重試",
           "restored": "Git 已恢復正常。工作樹已重新整理。"
+        },
+        "manualSortSwitch": {
+          "title": "排序已改為手動",
+          "description": "手動排序會讓工作區留在你放下的位置。",
+          "restore": "改回「{{label}}」"
         }
       },
       "shared": {
@@ -7546,7 +7569,6 @@
         },
         "MobilePane": {
           "dd3cd78d04": "使用 Orca 手機端 掃描",
-          "35100bca5d": "當您在手機上使用終端時，Orca 會將其縮小以適合您的手機螢幕。當您關閉應用程式或切換離開時，這可以控制它是保持手機大小（因此互動式 CLI 工具不會迴流）還是將大小調整回桌面。您始終可以在橫幅上使用“恢復此終端”或“恢復所有終端”來手動調整大小。",
           "ee56f1c7e4": "當您離開手機應用程式時",
           "3939fd062c": "撤銷裝置會立即斷開連線。",
           "254a6d09e4": "配對",
@@ -7571,7 +7593,8 @@
           "pairingCodeReady": "配對碼已準備就緒",
           "copyPairingCode": "複製配對碼",
           "diagnosticsCopied": "已複製診斷資訊",
-          "diagnosticsCopyFailed": "無法複製診斷資訊"
+          "diagnosticsCopyFailed": "無法複製診斷資訊",
+          "5e2c7a1f84": "當你在手機上使用終端時，Orca 會將它縮小以符合手機螢幕。關閉 App 或切換到其他畫面後，這個設定決定終端要維持手機尺寸（讓互動式 CLI 工具不會重新排版），還是調回桌面尺寸。你隨時可以用橫幅上的「還原」或「全部還原」手動調整大小。"
         },
         "MobileSettingsPane": {
           "9a3c280e49": "GitHub 釋出",
@@ -8479,7 +8502,12 @@
           "addTitle": "新增 SSH 主機",
           "editDescription": "更新此機器的連線詳情。更改將在下次連線時生效。",
           "addDescription": "新增一臺可透過 SSH 登入的持久機器。",
-          "editingPrefix": "正在編輯"
+          "editingPrefix": "正在編輯",
+          "remoteRuntime": "執行環境",
+          "remoteRuntimeHelp": "在這台主機上用哪個 Node.js 執行 Orca。「Orca 管理的 Node」會自行上傳，不需要 npm；「主機的 Node」會使用主機上已安裝的 Node.js。",
+          "remoteRuntimeAuto": "自動",
+          "remoteRuntimePinnedNode": "Orca 管理的 Node",
+          "remoteRuntimeHostNode": "主機的 Node"
         },
         "TasksPane": {
           "f71d8a9dd3": "任務提供者",
@@ -8793,7 +8821,8 @@
           "f9a9cf6928": "啟用語音聽寫之前需要麥克風許可。",
           "1eac933202": "開啟 macOS 隱私和安全。授予訪問許可權後再次啟用聽寫。",
           "cd9fe37556": "已授予麥克風許可權",
-          "6fa734ed95": "刪除 {{value0}}"
+          "6fa734ed95": "刪除 {{value0}}",
+          "openAiKeyName": "你的 OpenAI 語音轉文字金鑰"
         },
         "WorktreeSymlinksSection": {
           "1c1e35b219": "刪除 {{value0}}",
@@ -9011,7 +9040,12 @@
             "yolo": "約洛",
             "manual": "手動的",
             "skip": "跳過",
-            "checks": "檢查"
+            "checks": "檢查",
+            "7e15b89f6e": "伺服器",
+            "ff457e1e7b": "daemon",
+            "9f3becc4e8": "共用",
+            "34337ed5c7": "隔離",
+            "9a84e65118": "智慧體總覽"
           }
         },
         "appearance": {
@@ -9186,7 +9220,12 @@
                 "cursor": "cursor"
               },
               "title": "Cursor 用量"
-            }
+            },
+            "zcodeUsageTitle": "ZCode 使用量",
+            "zcodeUsageDescription": "在狀態列顯示 ZCode Coding Plan 的額度使用量。",
+            "zcode": "zcode",
+            "zai": "zai",
+            "glm": "glm"
           }
         },
         "auto": {
@@ -9878,7 +9917,8 @@
               "9a9f8d4910": "連線 Jira Cloud 以瀏覽、建立和連結議題。",
               "74f3063026": "{{value0}} 站點{{value1}} 已連線",
               "statusConnected": "已連線",
-              "statusNotConnected": "未連線"
+              "statusNotConnected": "未連線",
+              "jiraTokenName": "你的 Jira API 權杖"
             }
           }
         },
@@ -10049,7 +10089,13 @@
             "72539aede4": "系統",
             "51ae2183e1": "桌面",
             "0534c76311": "Orca 桌面通知的主開關。",
-            "4a210b2f72": "啟用通知"
+            "4a210b2f72": "啟用通知",
+            "machines": "機器",
+            "machinesDescription": "選擇哪些機器可以在這台電腦上顯示通知，例如 SSH 機器或已配對的伺服器。",
+            "host": "主機",
+            "remote": "遠端",
+            "ssh": "ssh",
+            "mute": "靜音"
           }
         },
         "orchestration": {
@@ -10707,7 +10753,11 @@
           "a42f6fbdd8": "在智慧體工作時保持此電腦和顯示器喚醒。Orca 還會根據電源策略，在合蓋時請求此裝置保持喚醒。",
           "modeTitle": "防止電腦休眠",
           "modeDescriptionWindows": "選擇“開啟”、“代理”或“關閉”。代理工作時代理模式保持喚醒狀態；蓋子關閉行為遵循該裝置的電源設定。",
-          "modeDescriptionDefault": "選擇“開啟”、“代理”或“關閉”。當代理工作時，代理模式保持喚醒狀態。 Orca 還要求該裝置在蓋子關閉時保持喚醒狀態，具體取決於其電源策略。"
+          "modeDescriptionDefault": "選擇“開啟”、“代理”或“關閉”。當代理工作時，代理模式保持喚醒狀態。 Orca 還要求該裝置在蓋子關閉時保持喚醒狀態，具體取決於其電源策略。",
+          "modeDescriptionMac": "可選擇「開啟」、「智慧體」或「關閉」。「智慧體」模式會在智慧體工作時防止閒置睡眠，讓長時間的工作在螢幕開著時能順利完成。闔上螢幕仍會讓這台 Mac 進入睡眠。",
+          "lidNoteWindows": "闔上螢幕時的行為依照這台裝置的電源設定。",
+          "lidNoteMac": "螢幕開著時防止閒置睡眠；闔上螢幕仍會讓這台 Mac 進入睡眠。",
+          "lidNoteDefault": "Orca 也會要求這台裝置在闔上螢幕時保持喚醒，但仍受電源原則限制。"
         },
         "AgentAwakeSetting": {
           "on": "開啟",
@@ -10857,7 +10907,8 @@
                 "2d60ec7921": "使用 API token 連線 Jira Cloud 站點，或使用個人訪問令牌或使用者名稱和密碼連線自託管 Jira。憑據會傳送到所選遠端執行時並以執行時支援的加密方式儲存。",
                 "977e360b71": "使用 API token 連線 Jira Cloud 站點，或使用個人訪問令牌或使用者名稱和密碼連線自託管 Jira。憑據儲存在本地，本地執行時儲存支援時會進行加密。",
                 "statusConnected": "已連線",
-                "statusNotConnected": "未連線"
+                "statusNotConnected": "未連線",
+                "linearTokenName": "你的 Linear API 權杖"
               }
             }
           }
@@ -12024,7 +12075,8 @@
               "notConfigured": "將 Bitbucket Cloud 帳戶與 Atlassian API 令牌或訪問令牌連線。 ORCA_BITBUCKET_* 環境變數也起作用並且優先。",
               "disconnectFailed": "無法刪除儲存的 Bitbucket 憑據。",
               "statusLoadFailed": "無法檢查已儲存的 Bitbucket 憑據。",
-              "replaceCredentials": "新增或替換憑據"
+              "replaceCredentials": "新增或替換憑據",
+              "credentialName": "你的 Bitbucket 憑證"
             }
           }
         },
@@ -12119,7 +12171,17 @@
           "usageTitle": "套餐用量",
           "usageDescription": "已關聯 Coding Plan 的實時配額視窗，隨狀態列用量週期重新整理。",
           "planLevel": "套餐：{{value0}}",
-          "hostOnly": "請在執行 Orca 的電腦上的桌面應用中更改套餐站點和 API 金鑰。"
+          "hostOnly": "請在執行 Orca 的電腦上的桌面應用中更改套餐站點和 API 金鑰。",
+          "detailsUnavailable": "方案憑證的詳細資料只能在執行 Orca 的電腦上讀取。",
+          "siteUnavailable": "無法使用主機的方案站台"
+        },
+        "UnsealedCredentialNotice": {
+          "body": "{{credential}} 以未加密的方式儲存，因為這個系統沒有 Orca 可用的作業系統金鑰圈。任何能讀取你的磁碟或其備份的人，都能讀到這個憑證。請安裝並解鎖 gnome-keyring 或 kwallet，再重新儲存一次以加密保存。"
+        },
+        "NotificationHostToggles": {
+          "offCount": "已關閉 {{count}} 個",
+          "machines": "機器",
+          "machinesDescription": "選擇哪些機器可以在這台電腦上顯示通知。已配對伺服器的開關也會套用到透過它存取的工作。"
         }
       },
       "right": {
@@ -13266,7 +13328,8 @@
             "fca915a67a": "遠端專案將永久刪除且無法撤銷。本地專案將移至 {{value0}}。"
           },
           "useFileExplorerHandlers": {
-            "32cd9fd991": "無法開啟符號連結目標"
+            "32cd9fd991": "無法開啟符號連結目標",
+            "folderLinksOutsideProject": "這個資料夾連結到專案以外的位置，所以無法在這裡開啟。"
           },
           "useFileExplorerImport": {
             "25919b2050": "跳過 {{value0}} {{value1}}。",
@@ -13534,7 +13597,6 @@
           },
           "aiVaultSessionLogOpen": {
             "workspaceGone": "無法開啟日誌 — 工作區已不可用。",
-            "notAuthorized": "無法開啟日誌 — 路徑未授權。",
             "alreadyEditable": "日誌已處於編輯狀態。"
           },
           "github": {
@@ -14902,7 +14964,12 @@
         "CsvViewer": {
           "eedd0d37a7": "列",
           "ac31d2cd60": "行",
-          "a233d55b77": "空檔案"
+          "a233d55b77": "空檔案",
+          "delimiterComma": "逗號",
+          "delimiterSemicolon": "分號",
+          "delimiterTab": "Tab 字元",
+          "delimiterAuto": "自動（{{delimiter}}）",
+          "delimiter": "分隔符號"
         },
         "DiffNotesSendMenu": {
           "f1aa04b5cf": "這個檔案",
@@ -15440,7 +15507,9 @@
           }
         },
         "richMarkdownLargeTextPaste": {
-          "tooLarge": "貼上內容過大。"
+          "tooLarge": "貼上內容過大。",
+          "stopped": "大量貼上在完成前已停止。",
+          "cancelled": "原本的貼上位置已變更，因此取消了大量貼上。"
         },
         "CheckRunJobs": {
           "1c0a4d7e02": "已成功",
@@ -15535,6 +15604,10 @@
           "a0af0198aa": "預設情況下不渲染較大的差異。",
           "c3d9f4a712": "此差異的大小尚不清楚，因此會根據請求載入。",
           "f7fa7a40d0": "負載差異"
+        },
+        "richMarkdownImageInsertionFeedback": {
+          "importedFileKept": "插入位置已變更，因此取消插入圖片。已匯入的檔案會保留。",
+          "destinationChanged": "插入位置已變更，因此取消插入圖片。請再試一次。"
         }
       },
       "diff": {
@@ -17857,7 +17930,8 @@
       "structuredSessionHostDeclined": "已在終端中開啟 {{value0}}",
       "structuredSessionHostDeclinedDescription": "此伺服器無法在此工作區中執行 {{value0}} 聊天。",
       "structuredSessionHostUnreachable": "無法連線到 {{value0}}",
-      "structuredSessionHostUnreachableDescription": "Orca 未開啟 {{value0}} 聊天。請檢查與伺服器的連線，然後重試。"
+      "structuredSessionHostUnreachableDescription": "Orca 未開啟 {{value0}} 聊天。請檢查與伺服器的連線，然後重試。",
+      "messageSending": "傳送中…"
     },
     "tab": {
       "bar": {
@@ -18117,6 +18191,16 @@
         "workspaceReadyToast": "工作區 {{name}} 已就緒",
         "goToWorktree": "轉到工作樹",
         "goToWorkspace": "轉到工作區"
+      },
+      "delete": {
+        "changes": {
+          "permanentLoss": "Git 工作區中任何未提交或未追蹤的變更都會被永久刪除。",
+          "clean": "沒有未提交或未追蹤的變更",
+          "unavailable": "無法檢查變更",
+          "checking": "正在檢查變更…",
+          "checkingDetails": "檢查中…",
+          "unavailableDetails": "無法取得詳細資料"
+        }
       }
     },
     "agentSessionContinuation": {
@@ -18565,6 +18649,10 @@
   "sourceControl": {
     "unlinkedPr": {
       "status": "PR #{{number}} 未連結"
+    },
+    "discard": {
+      "restoreStagedVersionDescription": "這會還原到最後一次暫存的版本，並捨棄這次的刪除。此動作無法復原。",
+      "unstagedChangesDescription": "這會還原這個檔案中尚未暫存的變更。此動作無法復原。"
     }
   },
   "rendererRecovery": {
@@ -18582,7 +18670,10 @@
     "launchFailedMessage": "Orca 無法啟動繪製其視窗的程序。",
     "launchFailedDetail": "Orca 重試了 {{recoveryCount}} 次，但未成功。",
     "processLimitDetail": "由於你的使用者帳戶已達到程序數上限，系統拒絕建立新程序。這通常由失控的終端、開發伺服器或代理導致。請關閉其中一些，然後點選“重試”。",
-    "launchFailedGenericDetail": "系統拒絕啟動它。請釋放記憶體或關閉其他應用，然後點選“重試”。如果問題持續出現，請重新安裝 Orca。"
+    "launchFailedGenericDetail": "系統拒絕啟動它。請釋放記憶體或關閉其他應用，然後點選“重試”。如果問題持續出現，請重新安裝 Orca。",
+    "lowCommitMessage": "Windows 記憶體不足。",
+    "lowCommitDetail": "Windows 只剩 {{availableMB}} MB 記憶體可供應用程式使用，因此視窗重新載入後再次耗盡記憶體。",
+    "lowCommitAdvice": "請關閉不用的應用程式或 Orca 工作區來釋放記憶體，或加大 Windows 分頁檔，再按「重新載入」。"
   },
   "sessionSearch": {
     "panel": {
@@ -18611,7 +18702,8 @@
       "sessionsOther": "{{count}} 會話",
       "sessionsOfLoaded": "{{value0}} 次（共 {{value1}} 次）",
       "showMoreSessions": "顯示更多會話",
-      "loadingMoreSessions": "正在載入更多會話..."
+      "loadingMoreSessions": "正在載入更多會話...",
+      "unsupportedAgent": "這台電腦不支援搜尋所選智慧體的歷史紀錄。請更新那台電腦上的 Orca，或選擇其他智慧體。"
     }
   },
   "sessionHistory": {
@@ -18664,7 +18756,12 @@
       "loading": "正在載入子代理...",
       "loadError": "無法載入所有子代理。",
       "empty": "未找到子代理。"
-    }
+    },
+    "antigravityReferenceDescription": "以這份對話紀錄為參考，在新的 Antigravity CLI 對話中繼續。",
+    "antigravityIdeToCli": "IDE → CLI",
+    "antigravity2ToCli": "2.0 → CLI",
+    "continueInCli": "在 CLI 中繼續",
+    "continueInCliNewTab": "在新標籤頁的 CLI 中繼續"
   },
   "common": {
     "retry": "重試"
@@ -18726,5 +18823,117 @@
     "addTypedPath": "Add",
     "noDirectories": "尚未新增任何資料夾。",
     "removePath": "移除 {{name}}"
+  },
+  "csv": {
+    "detectingDelimiter": "正在偵測分隔符號…",
+    "indexProgress": "正在建立 CSV 索引… {{percent}}%",
+    "loadingCell": "載入中…",
+    "nextRows": "下一批資料列",
+    "previousRows": "上一批資料列",
+    "readOnlyPreview": "大型檔案預覽 · 唯讀",
+    "resizeColumn": "調整欄位 {{column}} 寬度",
+    "rowWindow": "第 {{first}}–{{last}} 列"
+  },
+  "osDocumentOpen": {
+    "failed": "無法開啟檔案。"
+  },
+  "terminal": {
+    "sessionSaveFailure": {
+      "title": "無法儲存終端會話",
+      "capacity": "儲存這個終端的裝置回報儲存空間已滿或超過儲存配額。請釋放該裝置的空間後再試一次。",
+      "unknown": "Orca 無法儲存終端狀態，請再試一次。如果問題持續發生，請將 Orca 記錄檔提供給支援團隊，以便我們找出原因。"
+    },
+    "codexTerminalServerIsolationNotice": {
+      "title": "Orca 現在執行 Codex 時不再使用它的共用伺服器",
+      "description": "這讓智慧體狀態更可靠。你可以在設定中重新開啟。",
+      "openSettings": "開啟設定"
+    },
+    "codexSharedSettingsNotice": {
+      "title": "Orca 中的 Codex 現在使用 ~/.codex",
+      "description": "Codex 可能會再次要求你信任資料夾或核准指令。只在 Orca 中加入的 MCP 伺服器請重新加入。"
+    },
+    "codexSharedServerBanner": {
+      "title": "這個 Codex 正與你其他的 Codex 標籤頁共用伺服器",
+      "body": "會話可能意外結束，智慧體狀態也可能不正確。",
+      "openedBeforeUpdateBody": "這個終端是在 Orca 開始為每個 Codex 提供獨立伺服器之前開啟的。",
+      "oldTerminalDialogTitle": "為什麼這個 Codex 會共用伺服器",
+      "oldTerminalDialogRisk": "共用伺服器的 Codex 會話可能會一起結束，智慧體狀態也可能不正確。",
+      "oldTerminalDialogCause": "較舊的終端仍會共用 Codex 伺服器。開啟新的終端，即可讓 Codex 在獨立的伺服器上執行。",
+      "fix": "修正",
+      "openNewTerminal": "開啟新終端",
+      "dontShowAgain": "不再顯示",
+      "dismiss": "關閉",
+      "dialogTitle": "讓每個 Codex 標籤頁使用獨立的伺服器",
+      "dialogDescription": "直接在終端中啟動的 Codex 會話會共用同一個背景伺服器。Orca 自己啟動的 Codex 會話則彼此分開。當會話共用伺服器時，關閉其中一個可能會讓其他會話一起結束，智慧體狀態也可能不正確。",
+      "copy": "複製",
+      "copied": "已複製",
+      "done": "完成",
+      "step1Title": "關閉 Codex 伺服器共用",
+      "step1Note": "這會變更你的 Codex 設定，因此在 Orca 以外也會生效。",
+      "step2Title": "停止正在執行的共用伺服器",
+      "undo": "如要復原，請執行 codex features enable daemon_auto_start。",
+      "step2Warning": "會關閉所有共用該伺服器且仍在開啟中的 Codex 會話",
+      "learnMore": "瞭解更多",
+      "turnOff": "關閉",
+      "turningOff": "正在關閉…",
+      "turnedOff": "已關閉",
+      "turnOffFailed": "Orca 無法關閉這個設定。",
+      "stopServer": "停止伺服器",
+      "stopping": "正在停止…",
+      "stopped": "已停止",
+      "stopFailed": "Orca 無法停止伺服器。",
+      "confirmStopTitle": "要停止共用伺服器嗎？",
+      "confirmStopDescription": "這會關閉所有共用該伺服器且仍在開啟中的 Codex 會話，包括 Orca 以外的會話。",
+      "cancel": "取消",
+      "runs": "執行"
+    }
+  },
+  "accounts": {
+    "antigravity": {
+      "scope": "管理 {{host}} 上的原生 agy 帳戶。",
+      "signIn": "在這台主機上啟動 agy 並完成瀏覽器登入，然後儲存目前的帳戶。如要加入其他帳戶，請在 agy 中使用 /logout 後重新登入。",
+      "docs": "登入說明",
+      "retry": "重試",
+      "identityUnknown": "無法取得已登入的身分",
+      "signedOut": "目前沒有登入任何原生 agy 帳戶。",
+      "changed": "原生帳戶已變更。啟動 agy 前請重新選擇已儲存的帳戶。",
+      "save": "儲存目前的帳戶",
+      "refresh": "重新整理帳戶",
+      "usage": "重新整理使用量",
+      "working": "正在更新帳戶",
+      "usageReading": "本次會話：{{session}} · 每週：{{weekly}}",
+      "saved": "已儲存的 Google 帳戶",
+      "nativeActive": "原生帳戶",
+      "selected": "已選取",
+      "select": "選取",
+      "remove": "移除",
+      "sessions": "選擇的帳戶會套用到這台主機上新的 agy 會話。現有的會話可能會繼續使用先前的帳戶。",
+      "searchTitle": "Antigravity 帳戶",
+      "searchDescription": "在執行主機上儲存及選擇原生 agy 的 Google 帳戶。",
+      "title": "Antigravity",
+      "keyword": {
+        "antigravity": "antigravity",
+        "agy": "agy",
+        "google": "google",
+        "accounts": "帳戶"
+      }
+    },
+    "managedData": {
+      "description": "在 Orca 主機的終端中執行這個指令來加入帳戶。選擇的帳戶會套用到該主機上之後明確啟動的智慧體；直接透過 SSH 中繼和在 Windows 主機上的 WSL 啟動時，會使用各自的憑證。",
+      "copied": "已複製",
+      "add": "複製加入帳戶的指令",
+      "refresh": "重新整理帳戶",
+      "upgrade": "如果帳戶沒有出現，請更新或重新啟動 Orca 主機。",
+      "system": "系統預設",
+      "active": "使用中",
+      "select": "選取",
+      "remove": "移除",
+      "removeTitle": "要移除受管理的帳戶嗎？",
+      "removeDescription": "請先停止使用這個設定檔的智慧體。移除後會刪除它已儲存的憑證和對話資料。你的系統登入狀態不會改變。",
+      "cancel": "取消"
+    }
+  },
+  "fileSearch": {
+    "failed": "搜尋失敗，請再試一次。"
   }
 }
