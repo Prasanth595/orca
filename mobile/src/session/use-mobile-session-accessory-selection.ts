@@ -11,16 +11,15 @@ import {
 import {
   sameTerminalKeyboardAvoidanceMetrics,
   type TerminalKeyboardAvoidanceMetrics,
-  type TerminalModes
+  type TerminalModes,
+  type TerminalSelectionCells
 } from '../terminal/terminal-webview-contract'
 import type { createTerminalLiveAccessoryInput } from '../terminal/terminal-live-accessory-input'
 import { clearTerminalLiveInputFocusTimer } from '../terminal/terminal-live-input'
-import {
-  cleanTerminalSelection,
-  type TerminalSelectionGeometry
-} from '../../../src/shared/terminal-selection-gutter'
+import { cleanTerminalSelection } from '../../../src/shared/terminal-selection-gutter'
 import { useTerminalCopyTrimsGutter } from '../terminal/terminal-copy-gutter-preference'
 import { getRepoIdFromMobileWorktreeId } from './mobile-session-route-helpers'
+import { terminalHandleRunsAgent } from './mobile-terminal-tab-agent'
 import type { MobileSessionTerminalInputModel } from './use-mobile-session-terminal-input'
 
 export function useMobileSessionAccessorySelection(scope: MobileSessionTerminalInputModel) {
@@ -39,6 +38,7 @@ export function useMobileSessionAccessorySelection(scope: MobileSessionTerminalI
     liveInputFocusTimerRef,
     sessionTabActionSheetRequestSeqRef,
     activeHandleRef,
+    sessionTabsRef,
     clearPendingLiveInputCommit,
     clearDelayedActionTimers,
     clearToastHideTimer,
@@ -115,7 +115,7 @@ export function useMobileSessionAccessorySelection(scope: MobileSessionTerminalI
   }, [])
 
   const handleSelectionCopy = useCallback(
-    async (handle: string, text: string, geometry?: TerminalSelectionGeometry) => {
+    async (handle: string, text: string, cells?: TerminalSelectionCells) => {
       if (handle !== activeHandleRef.current) {
         return
       }
@@ -125,7 +125,15 @@ export function useMobileSessionAccessorySelection(scope: MobileSessionTerminalI
       }
       try {
         await clipboard.writeText(
-          trimsGutterRef.current ? cleanTerminalSelection(text, geometry) : text
+          trimsGutterRef.current
+            ? cleanTerminalSelection(
+                text,
+                cells && {
+                  ...cells,
+                  joinWrappedRows: terminalHandleRunsAgent(sessionTabsRef.current, handle)
+                }
+              )
+            : text
         )
         triggerSuccess()
         // Why: Android 13+ shows its own system copy toast; iOS shows none, so only iOS needs our in-app toast.

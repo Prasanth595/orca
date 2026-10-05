@@ -63,9 +63,12 @@ function toNonNegativeInteger(value: unknown): number {
 
 export type MobileTerminalTheme = RuntimeMobileTerminalTheme
 
+/** What the WebView knows about a selection; the host adds whether the pane runs an agent. */
+export type TerminalSelectionCells = Pick<TerminalSelectionGeometry, 'startCol' | 'cols'>
+
 export type TerminalSelectionEvents = {
   onSelectionMode?: (active: boolean) => void
-  onSelectionCopy?: (text: string, geometry?: TerminalSelectionGeometry) => void
+  onSelectionCopy?: (text: string, cells?: TerminalSelectionCells) => void
   onSelectionEvicted?: () => void
   onModesChanged?: (modes: TerminalModes) => void
   onKeyboardAvoidanceMetrics?: (metrics: TerminalKeyboardAvoidanceMetrics) => void

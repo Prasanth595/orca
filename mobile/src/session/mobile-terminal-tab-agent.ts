@@ -35,6 +35,15 @@ export function resolveMobileTerminalTabOwnedAgentId(
   return null
 }
 
+/** Whether the terminal behind a handle runs an agent Orca identified, for the copy join. */
+export function terminalHandleRunsAgent(
+  tabs: readonly MobileSessionTab[],
+  handle: string
+): boolean {
+  const tab = tabs.find((t) => t.type === 'terminal' && t.terminal === handle)
+  return tab?.type === 'terminal' && resolveMobileTerminalTabOwnedAgentId(tab) !== null
+}
+
 export function resolveMobileTerminalTabAgentId(
   tab: MobileTerminalTabAgentIdentity
 ): string | null {
