@@ -149,4 +149,20 @@ describe('terminalHandleRunsAgent', () => {
     expect(terminalHandleRunsAgent(tabs, 'term-titled')).toBe(false)
     expect(terminalHandleRunsAgent(tabs, 'term-missing')).toBe(false)
   })
+
+  it('joins only for TUI agents and ignores a status row restored from disk', () => {
+    const restored = terminalTab('zsh', { agentType: 'claude' })
+    const others: MobileSessionTab[] = [
+      { ...terminalTab('zsh', { agentType: 'dsb' }), terminal: 'term-hook' },
+      {
+        ...restored,
+        terminal: 'term-restored',
+        agentStatus: { ...restored.agentStatus!, restoredUnconfirmed: true }
+      },
+      { ...terminalTab('zsh', { launchAgent: 'codex' }), terminal: 'term-launched' }
+    ]
+    expect(terminalHandleRunsAgent(others, 'term-hook')).toBe(false)
+    expect(terminalHandleRunsAgent(others, 'term-restored')).toBe(false)
+    expect(terminalHandleRunsAgent(others, 'term-launched')).toBe(true)
+  })
 })
