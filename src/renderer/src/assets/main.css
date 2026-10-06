@@ -779,7 +779,8 @@ html.interface-glass .tab-strip-tab-active {
   background: color-mix(in srgb, var(--foreground) 6%, transparent);
 }
 
-html.interface-glass .right-sidebar-panel {
+html.interface-glass .right-sidebar-panel,
+html.interface-glass .right-sidebar-activity-bar {
   background: color-mix(in srgb, var(--sidebar) var(--interface-glass-mix), transparent);
 }
 
@@ -788,14 +789,16 @@ html.interface-glass .workspace-page-column > :not([data-terminal-workbench-cont
   background: color-mix(in srgb, var(--background) var(--interface-glass-mix), transparent);
 }
 
-/* Why: these sit inside a region that already paints the tint; a second layer would darken them. */
+/* Why: these repeat the fill of a region that already paints the tint; a second layer would darken them. */
 html.interface-glass .titlebar-left-floating,
-html.interface-glass .settings-view-shell > aside {
+html.interface-glass .settings-view-shell > aside,
+html.interface-glass .worktree-sidebar-panel .bg-worktree-sidebar,
+html.interface-glass .right-sidebar-panel .bg-sidebar {
   background: transparent;
 }
 
-/* Why: a clear sticky header would show the list scrolling through it. */
-html.interface-glass [data-worktree-sticky-header] {
+/* Why: sidebar sticky headers and footers repeat the surface fill; blur keeps the list from showing through crisply. */
+html.interface-glass :is(.worktree-sidebar-panel, .right-sidebar-panel) .sticky {
   background: transparent;
   backdrop-filter: blur(12px);
 }
