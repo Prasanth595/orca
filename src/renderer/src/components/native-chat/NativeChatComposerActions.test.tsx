@@ -184,10 +184,10 @@ describe('NativeChatComposerActions', () => {
       sessionOptionsSnapshot: []
     }
     const { rerender } = render(<NativeChatComposerActions {...props} />)
-    expect(screen.queryByRole('button', { name: 'Collapse message box' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Hide message box' })).toBeNull()
 
     rerender(<NativeChatComposerActions {...props} onCollapse={onCollapse} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse message box' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Hide message box' }))
     expect(onCollapse).toHaveBeenCalledOnce()
   })
 })

@@ -1,8 +1,8 @@
 import { NativeChatPromptEditor } from './NativeChatPromptEditor'
 import type { NativeChatComposerInput } from './native-chat-composer-input'
 import type { ClipboardEventHandler, KeyboardEventHandler, RefObject } from 'react'
-import { useEffect, useLayoutEffect, useRef } from 'react'
-import { ChevronsUp, ImageIcon, ImageOff } from 'lucide-react'
+import { useLayoutEffect, useRef } from 'react'
+import { ImageOff, PenLine } from 'lucide-react'
 import type { useImeEnterGestureOwnership } from '@/lib/ime-composition-keyboard-event'
 import { cn } from '@/lib/utils'
 import { NATIVE_FILE_DROP_TARGET } from '../../../../shared/native-file-drop'
@@ -21,7 +21,6 @@ import type { NativeChatComposerGoalMode } from './use-native-chat-composer-subm
 import { translate } from '@/i18n/i18n'
 import { useNativeChatComposerDraftUnsaved } from './use-native-chat-draft-unsaved'
 import { useNativeChatComposerCollapsed } from './native-chat-composer-collapse-store'
-import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 export type NativeChatComposerFieldProps = {
@@ -150,22 +149,7 @@ export function NativeChatComposerField({
 }: NativeChatComposerFieldProps): React.JSX.Element {
   const draftNotSaved = useNativeChatComposerDraftUnsaved(draftScopeKey)
   const [collapsed, setCollapsed] = useNativeChatComposerCollapsed(draftScopeKey)
-  const editorRowRef = useRef<HTMLDivElement>(null)
-  // Why: the one-line box keeps the expanded scroll offset; show the draft's last line instead.
-  // A frame later, because the editor applies its new class after this render commits.
-  useEffect(() => {
-    if (!collapsed) {
-      return
-    }
-    const frame = requestAnimationFrame(() => {
-      const editor = editorRowRef.current?.querySelector<HTMLElement>('[contenteditable]')
-      if (editor) {
-        editor.scrollTop = editor.scrollHeight
-      }
-    })
-    return () => cancelAnimationFrame(frame)
-  }, [collapsed])
-  const expandLabel = translate('components.native-chat.composer.expand', 'Expand message box')
+  const showLabel = translate('components.native-chat.composer.expand', 'Show message box')
   // Value the IME started from, and whether a programmatic clear was dropped on top of it.
   const compositionBaseRef = useRef('')
   const droppedDraftClearRef = useRef(false)
@@ -200,8 +184,37 @@ export function NativeChatComposerField({
 
   return (
     <div className="shrink-0 bg-chat-canvas">
-      {/* Extra bottom padding keeps the input box off the window rim. */}
-      <div className="px-3 pt-2 pb-4 sm:px-4">
+      {collapsed ? (
+        <div className="relative h-0">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              {/* Same pill treatment as the transcript's Jump to latest button. */}
+              <button
+                type="button"
+                aria-label={showLabel}
+                onClick={() => setCollapsed(false)}
+                className="absolute right-4 bottom-3 z-10 flex size-8 items-center justify-center rounded-full border border-border bg-card/90 text-muted-foreground shadow-sm backdrop-blur hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <PenLine className="size-4" />
+                {draft.trim() !== '' || imageAttachments.length > 0 ? (
+                  // Why: a hidden draft is easy to forget; the dot says one is waiting.
+                  <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-primary" />
+                ) : null}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="left" sideOffset={6}>
+              {showLabel}
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      ) : null}
+      {/* Why: collapsed hides the box visually but keeps the editor mounted and focusable, so
+          the draft and IME survive and any focus that lands in it (typing redirected from the
+          transcript, paste, dictation, a returned message) brings it back. */}
+      <div
+        className={cn('px-3 pt-2 pb-4 sm:px-4', collapsed && 'sr-only')}
+        onFocusCapture={collapsed ? () => setCollapsed(false) : undefined}
+      >
         <div className="relative mx-auto w-full max-w-(--chat-content-max-width)">
           {autocomplete.mode === 'slash' ? (
             <NativeChatPickerMenu
@@ -240,7 +253,7 @@ export function NativeChatComposerField({
               '[contain:paint]'
             )}
           >
-            {imageAttachments.length > 0 && !collapsed ? (
+            {imageAttachments.length > 0 ? (
               <div className="mb-2 flex flex-wrap gap-2 px-1 pt-1.5">
                 {imageAttachments.map((attachment) => (
                   <NativeChatImageAttachmentPreview
@@ -251,107 +264,66 @@ export function NativeChatComposerField({
                 ))}
               </div>
             ) : null}
-            {/* Why: collapsing restyles the same editor instead of hiding it, so focus, typing
-                redirected from the transcript, IME and the caret keep working on one line. */}
-            <div
-              ref={editorRowRef}
-              // Why: a grid, because the editor's own wrapper is the row child and can't take flex-1.
+            <NativeChatPromptEditor
+              key={draftScopeKey}
+              scopeKey={draftScopeKey}
+              inputRef={textareaRef}
+              initialValue={draft}
+              disabled={disabled}
+              onChange={(input) => onDraftChange(input.value, input)}
+              onKeyDownCapture={(event) => {
+                if (!imeEnterGesture.ownsKeyDown(event)) {
+                  onKeyDown(event)
+                }
+              }}
+              onKeyUp={imeEnterGesture.onKeyUp}
+              onBlur={() => {
+                const compositionWasActive = imeEnterGesture.isComposing()
+                imeEnterGesture.reset()
+                if (compositionWasActive) {
+                  settleImeValue(textareaRef.current!)
+                }
+              }}
+              onCompositionStart={() => {
+                compositionBaseRef.current = textareaRef.current!.value
+                imeEnterGesture.setComposing(true)
+              }}
+              onCompositionEnd={() => {
+                const compositionWasActive = imeEnterGesture.isComposing()
+                imeEnterGesture.setComposing(false)
+                if (compositionWasActive) {
+                  settleImeValue(textareaRef.current!)
+                }
+              }}
+              onPasteCapture={onPaste}
+              onSelect={onTextareaSelect}
+              aria-expanded={autocomplete.mode === 'slash'}
+              aria-controls={autocomplete.mode === 'slash' ? pickerListboxId : undefined}
+              aria-activedescendant={
+                autocomplete.mode === 'slash' && autocomplete.items.length > 0
+                  ? `${pickerListboxId}-option-${Math.min(activeSuggestion, autocomplete.items.length - 1)}`
+                  : undefined
+              }
+              placeholder={
+                goalMode?.active
+                  ? translate(
+                      'components.native-chat.goal.placeholder',
+                      'Describe your goal, define measurable outcomes for best results'
+                    )
+                  : nativeChatComposerPlaceholder(hasPty, canSend)
+              }
+              // Why: coarse-pointer min-height follows the app's touch target convention.
+              // Editable content grows naturally; the 8lh cap (plus
+              // py-1) turns further growth into internal scrolling, and scrollbar-sleek
+              // keeps that gutter off the heavy native scrollbar. Both are layout-driven,
+              // so re-wrap on window/pane resize is handled without a measure pass.
               className={cn(
-                collapsed && 'grid grid-flow-col grid-cols-[minmax(0,1fr)] items-center gap-1 py-1'
+                'min-h-12 w-full bg-transparent px-2 py-1 text-sm native-chat-message-text text-chat-foreground-strong outline-none pointer-coarse:min-h-14',
+                'max-h-[calc(8lh+0.5rem)] overflow-y-auto scrollbar-sleek',
+                'placeholder:text-chat-foreground-faint disabled:cursor-not-allowed disabled:opacity-50'
               )}
-            >
-              <NativeChatPromptEditor
-                key={draftScopeKey}
-                scopeKey={draftScopeKey}
-                inputRef={textareaRef}
-                initialValue={draft}
-                disabled={disabled}
-                onChange={(input) => onDraftChange(input.value, input)}
-                onKeyDownCapture={(event) => {
-                  if (!imeEnterGesture.ownsKeyDown(event)) {
-                    onKeyDown(event)
-                  }
-                }}
-                onKeyUp={imeEnterGesture.onKeyUp}
-                onBlur={() => {
-                  const compositionWasActive = imeEnterGesture.isComposing()
-                  imeEnterGesture.reset()
-                  if (compositionWasActive) {
-                    settleImeValue(textareaRef.current!)
-                  }
-                }}
-                onCompositionStart={() => {
-                  compositionBaseRef.current = textareaRef.current!.value
-                  imeEnterGesture.setComposing(true)
-                }}
-                onCompositionEnd={() => {
-                  const compositionWasActive = imeEnterGesture.isComposing()
-                  imeEnterGesture.setComposing(false)
-                  if (compositionWasActive) {
-                    settleImeValue(textareaRef.current!)
-                  }
-                }}
-                onPasteCapture={onPaste}
-                onSelect={onTextareaSelect}
-                aria-expanded={autocomplete.mode === 'slash'}
-                aria-controls={autocomplete.mode === 'slash' ? pickerListboxId : undefined}
-                aria-activedescendant={
-                  autocomplete.mode === 'slash' && autocomplete.items.length > 0
-                    ? `${pickerListboxId}-option-${Math.min(activeSuggestion, autocomplete.items.length - 1)}`
-                    : undefined
-                }
-                placeholder={
-                  goalMode?.active
-                    ? translate(
-                        'components.native-chat.goal.placeholder',
-                        'Describe your goal, define measurable outcomes for best results'
-                      )
-                    : nativeChatComposerPlaceholder(hasPty, canSend)
-                }
-                // Why: coarse-pointer min-height follows the app's touch target convention.
-                // Editable content grows naturally; the 8lh cap (plus
-                // py-1) turns further growth into internal scrolling, and scrollbar-sleek
-                // keeps that gutter off the heavy native scrollbar. Both are layout-driven,
-                // so re-wrap on window/pane resize is handled without a measure pass.
-                className={cn(
-                  'w-full bg-transparent px-2 text-sm native-chat-message-text text-chat-foreground-strong outline-none',
-                  // Why: exactly one line tall when collapsed (padding moves to the row), so the
-                  // scroll offset always lands on a whole line instead of showing a sliver above it.
-                  collapsed
-                    ? 'max-h-[1lh] overflow-hidden'
-                    : 'min-h-12 max-h-[calc(8lh+0.5rem)] py-1 overflow-y-auto scrollbar-sleek pointer-coarse:min-h-14',
-                  'placeholder:text-chat-foreground-faint disabled:cursor-not-allowed disabled:opacity-50'
-                )}
-              />
-              {collapsed ? (
-                <>
-                  {imageAttachments.length > 0 ? (
-                    <span className="flex shrink-0 items-center gap-1 text-xs text-chat-foreground-faint">
-                      <ImageIcon className="size-3.5" />
-                      {imageAttachments.length}
-                    </span>
-                  ) : null}
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={expandLabel}
-                        onClick={() => setCollapsed(false)}
-                        className="shrink-0 pointer-coarse:size-11"
-                      >
-                        <ChevronsUp className="size-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" sideOffset={4}>
-                      {expandLabel}
-                    </TooltipContent>
-                  </Tooltip>
-                </>
-              ) : null}
-            </div>
-            <div className={cn('flex flex-wrap items-center gap-2 pt-0.5', collapsed && 'hidden')}>
+            />
+            <div className="flex flex-wrap items-center gap-2 pt-0.5">
               <NativeChatComposerActions
                 attachDisabled={attachDisabled}
                 dictationDisabled={dictationDisabled}
@@ -372,7 +344,13 @@ export function NativeChatComposerField({
                 contextUsage={contextUsage}
                 sessionOptionsPickerRequest={sessionOptionsPickerRequest}
                 onExitGoalMode={goalMode?.active ? goalMode.exit : undefined}
-                onCollapse={() => setCollapsed(true)}
+                onCollapse={(event) => {
+                  setCollapsed(true)
+                  // Why: hand focus to the chat root, whose typing redirect brings the box back.
+                  event.currentTarget
+                    .closest<HTMLElement>('[data-native-chat-root="true"]')
+                    ?.focus({ preventScroll: true })
+                }}
               />
             </div>
           </div>

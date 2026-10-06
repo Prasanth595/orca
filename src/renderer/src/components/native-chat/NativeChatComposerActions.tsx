@@ -36,8 +36,8 @@ export type NativeChatComposerActionsProps = {
   onExitGoalMode?: () => void
   /** Absent until the session has reported or the transcript can estimate. */
   contextUsage?: NativeChatContextUsageSummary | null
-  /** Shrinks the message box to one line so the transcript keeps its height. */
-  onCollapse?: () => void
+  /** Hides the message box behind a corner button so the transcript keeps its height. */
+  onCollapse?: (event: React.MouseEvent<HTMLButtonElement>) => void
 }
 
 export function NativeChatComposerActions({
@@ -127,7 +127,7 @@ export function NativeChatComposerActions({
                 size="icon-sm"
                 aria-label={translate(
                   'components.native-chat.composer.collapse',
-                  'Collapse message box'
+                  'Hide message box'
                 )}
                 onClick={onCollapse}
                 className="pointer-coarse:size-11"
@@ -136,7 +136,7 @@ export function NativeChatComposerActions({
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top" sideOffset={4}>
-              {translate('components.native-chat.composer.collapse', 'Collapse message box')}
+              {translate('components.native-chat.composer.collapse', 'Hide message box')}
             </TooltipContent>
           </Tooltip>
         ) : null}
