@@ -1,5 +1,7 @@
 import {
+  NATIVE_CHAT_COLOR_KEYS,
   normalizeNativeChatAppearanceSettings,
+  type NativeChatColorKey,
   resetNativeChatAppearanceSettings,
   resolveNativeChatAppearanceSettings,
   type NativeChatAppearanceSettings
@@ -19,9 +21,13 @@ import { getChatAppearanceEntriesByKey, getChatWidthOptions } from './chat-appea
 import { writeNativeChatAppearance } from '../native-chat/native-chat-appearance-write'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 
-// Why: approximate the themes' softened chat text so the picker opens near the current color.
-const DEFAULT_CHAT_TEXT_COLOR_LIGHT = '#363636'
-const DEFAULT_CHAT_TEXT_COLOR_DARK = '#c8c8c8'
+// Why: approximate the themes' chat colors so a picker opens near the current color.
+const CHAT_COLOR_PICKER_START: Record<NativeChatColorKey, string> = {
+  textColorLight: '#363636',
+  textColorDark: '#c8c8c8',
+  userBubbleColorLight: '#f5f5f5',
+  userBubbleColorDark: '#262626'
+}
 
 export type AppearanceChatSectionProps = {
   settings: GlobalSettings
@@ -99,32 +105,22 @@ export function AppearanceChatSection({
           }
         />
       </SearchableSetting>
-      <SearchableSetting
-        id={entries.textColorLight.targetSectionId}
-        {...entries.textColorLight}
-        forceVisible={forceVisiblePrimary}
-      >
-        <ColorField
-          label={entries.textColorLight.title}
-          description={entries.textColorLight.description}
-          value={settings.nativeChatAppearance?.textColorLight ?? ''}
-          fallback={DEFAULT_CHAT_TEXT_COLOR_LIGHT}
-          onChange={(textColorLight) => update({ textColorLight })}
-        />
-      </SearchableSetting>
-      <SearchableSetting
-        id={entries.textColorDark.targetSectionId}
-        {...entries.textColorDark}
-        forceVisible={forceVisiblePrimary}
-      >
-        <ColorField
-          label={entries.textColorDark.title}
-          description={entries.textColorDark.description}
-          value={settings.nativeChatAppearance?.textColorDark ?? ''}
-          fallback={DEFAULT_CHAT_TEXT_COLOR_DARK}
-          onChange={(textColorDark) => update({ textColorDark })}
-        />
-      </SearchableSetting>
+      {NATIVE_CHAT_COLOR_KEYS.map((key) => (
+        <SearchableSetting
+          key={key}
+          id={entries[key].targetSectionId}
+          {...entries[key]}
+          forceVisible={forceVisiblePrimary}
+        >
+          <ColorField
+            label={entries[key].title}
+            description={entries[key].description}
+            value={settings.nativeChatAppearance?.[key] ?? ''}
+            fallback={CHAT_COLOR_PICKER_START[key]}
+            onChange={(color) => update({ [key]: color })}
+          />
+        </SearchableSetting>
+      ))}
       <SearchableSetting
         id={entries.reset.targetSectionId}
         {...entries.reset}

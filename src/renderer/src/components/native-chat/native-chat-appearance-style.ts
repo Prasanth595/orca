@@ -17,6 +17,8 @@ export type NativeChatAppearanceStyle = CSSProperties & {
   '--chat-estimated-chars-per-line': number
   '--chat-text-color-light'?: string
   '--chat-text-color-dark'?: string
+  '--chat-user-bubble-light'?: string
+  '--chat-user-bubble-dark'?: string
 }
 
 // Width buckets keep a pixel-by-pixel resize from re-deriving the entire transcript.
@@ -30,8 +32,15 @@ export function nativeChatAppearanceStyle(
   settings: Pick<GlobalSettings, 'nativeChatAppearance'> | null | undefined,
   measuredColumnWidthPx?: number | null
 ): NativeChatAppearanceStyle {
-  const { fontSize, codeFontSize, width, textColorLight, textColorDark } =
-    resolveNativeChatAppearanceSettings(settings?.nativeChatAppearance)
+  const {
+    fontSize,
+    codeFontSize,
+    width,
+    textColorLight,
+    textColorDark,
+    userBubbleColorLight,
+    userBubbleColorDark
+  } = resolveNativeChatAppearanceSettings(settings?.nativeChatAppearance)
   const maxWidthPx = width === 'wide' ? 960 : width === 'full' ? Number.POSITIVE_INFINITY : 736
   const measuredWidth = nativeChatColumnWidthBucket(measuredColumnWidthPx)
   const columnWidthPx = Math.min(
@@ -49,7 +58,9 @@ export function nativeChatAppearanceStyle(
       Math.floor((((96 * columnWidthPx) / 736) * 14) / fontSize)
     ),
     ...(textColorLight ? { '--chat-text-color-light': textColorLight } : {}),
-    ...(textColorDark ? { '--chat-text-color-dark': textColorDark } : {})
+    ...(textColorDark ? { '--chat-text-color-dark': textColorDark } : {}),
+    ...(userBubbleColorLight ? { '--chat-user-bubble-light': userBubbleColorLight } : {}),
+    ...(userBubbleColorDark ? { '--chat-user-bubble-dark': userBubbleColorDark } : {})
   }
 }
 

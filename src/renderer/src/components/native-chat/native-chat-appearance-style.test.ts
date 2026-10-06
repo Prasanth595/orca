@@ -53,5 +53,10 @@ describe('chat root appearance style', () => {
     expect(style['--chat-text-color-dark']).toBe('#e0d0c0')
     expect(style).not.toHaveProperty('--chat-text-color-light')
     expect(nativeChatAppearanceStyle(undefined)).not.toHaveProperty('--chat-text-color-dark')
+    expect(
+      nativeChatAppearanceStyle({ nativeChatAppearance: { userBubbleColorLight: 'abc' } })[
+        '--chat-user-bubble-light'
+      ]
+    ).toBe('#abc')
   })
 })

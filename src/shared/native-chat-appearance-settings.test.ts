@@ -78,7 +78,13 @@ describe('native chat appearance normalization', () => {
     expect(
       resolveNativeChatAppearanceSettings({ textColorLight: '#12', textColorDark: 'a0b1c2' })
     ).toMatchObject({ textColorLight: undefined, textColorDark: '#a0b1c2' })
-    const fromNewerVersion = { textColorLight: '#fff', contrast: 120 }
+    expect(
+      resolveNativeChatAppearanceSettings({
+        userBubbleColorDark: '#334455',
+        userBubbleColorLight: 'x'
+      })
+    ).toMatchObject({ userBubbleColorDark: '#334455', userBubbleColorLight: undefined })
+    const fromNewerVersion = { textColorLight: '#fff', userBubbleColorDark: '#000', contrast: 120 }
     expect(resetNativeChatAppearanceSettings(fromNewerVersion)).toEqual({ contrast: 120 })
   })
 })
