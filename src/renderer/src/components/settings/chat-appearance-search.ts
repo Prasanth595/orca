@@ -37,7 +37,7 @@ const getChatAppearanceCatalog = createLocalizedCatalog(
         title: translate('settings.appearance.chat.textColorLight', 'Text color (light theme)'),
         description: translate(
           'settings.appearance.chat.textColorLightDescription',
-          'Messages and the message box in the light theme. Leave empty for the theme color.'
+          'Messages, their markdown and code, and the message box in the light theme. Leave empty for the theme color.'
         ),
         keywords: [
           translate('settings.appearance.chat.title', 'Chat'),
@@ -49,7 +49,7 @@ const getChatAppearanceCatalog = createLocalizedCatalog(
         title: translate('settings.appearance.chat.textColorDark', 'Text color (dark theme)'),
         description: translate(
           'settings.appearance.chat.textColorDarkDescription',
-          'Messages and the message box in the dark theme. Leave empty for the theme color.'
+          'Messages, their markdown and code, and the message box in the dark theme. Leave empty for the theme color.'
         ),
         keywords: [
           translate('settings.appearance.chat.title', 'Chat'),
