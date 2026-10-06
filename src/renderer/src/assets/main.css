@@ -710,6 +710,7 @@ body:has(> [data-slot='dialog-overlay'], > [data-slot='sheet-overlay']) {
 
 html.window-glass {
   --native-chat-glass-base: var(--chat-canvas);
+  --native-chat-glass-solid-background: var(--background);
 }
 
 html.window-glass body {
@@ -725,6 +726,19 @@ html.window-glass .native-chat-pane-shell {
     var(--native-chat-glass-base) calc(var(--native-chat-glass-opacity, 0.6) * 100%),
     transparent
   );
+}
+
+/* Why: the chat palette re-derives from --background on its appearance root, and glass clears --background, which
+   left every chat text color part-transparent. Resolve the palette on the root against the solid theme surface and
+   clear the canvas only below it, so text stays opaque over the tint. */
+html.window-glass .native-chat-pane-shell .native-chat-appearance {
+  --chat-source-background: var(--native-chat-glass-solid-background);
+  background-color: transparent;
+}
+
+html.window-glass .native-chat-pane-shell .native-chat-appearance > * {
+  --background: transparent;
+  --chat-canvas: transparent;
 }
 
 /* Why: the split root carries the terminal tint (Background Opacity); xterm repeats it on two inner layers. */
