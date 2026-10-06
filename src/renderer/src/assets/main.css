@@ -709,15 +709,17 @@ body:has(> [data-slot='dialog-overlay'], > [data-slot='sheet-overlay']) {
    layers compound into a plain shade change. Surfaces with their own backgrounds stay opaque. */
 
 html.window-glass {
-  --native-chat-glass-base: var(--background);
+  --native-chat-glass-base: var(--chat-canvas);
 }
 
 html.window-glass body {
   background-color: transparent;
 }
 
+/* Why --chat-canvas: chat surfaces paint it, and it resolves on :root, so clearing --background alone misses them. */
 html.window-glass .native-chat-pane-shell {
   --background: transparent;
+  --chat-canvas: transparent;
   background-color: color-mix(
     in srgb,
     var(--native-chat-glass-base) calc(var(--native-chat-glass-opacity, 0.6) * 100%),
