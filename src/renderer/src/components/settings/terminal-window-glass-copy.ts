@@ -65,6 +65,15 @@ export function chatGlassOpacityDescription(blurEnabled: boolean): string {
     : translate(`${KEY}.chatOpacityNeedsBlur`, 'Turn on Window Blur (and restart) to use this.')
 }
 
+export function terminalChatGlassDescription(blurEnabled: boolean): string {
+  return blurEnabled
+    ? translate(
+        `${KEY}.terminalChatGlass`,
+        'Tint terminals with the chat glass color and Chat Glass Opacity instead of the terminal theme background and Background Opacity.'
+      )
+    : translate(`${KEY}.chatOpacityNeedsBlur`, 'Turn on Window Blur (and restart) to use this.')
+}
+
 export function interfaceGlassDescription(blurEnabled: boolean): string {
   return blurEnabled
     ? translate(

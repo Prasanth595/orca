@@ -14,7 +14,8 @@ import {
 import {
   chatGlassOpacityDescription,
   interfaceGlassDescription,
-  interfaceGlassOpacityDescription
+  interfaceGlassOpacityDescription,
+  terminalChatGlassDescription
 } from './terminal-window-glass-copy'
 
 /** macOS-only glass tuning: the chat UI and the rest of the interface over the Window Blur backdrop. */
@@ -54,6 +55,39 @@ export function MacWindowGlassSettings({
           onChange={(value) =>
             updateSettings({ nativeChatGlassOpacity: normalizeNativeChatGlassOpacity(value) })
           }
+        />
+      </SearchableSetting>
+
+      <SearchableSetting
+        title={translate(
+          'auto.components.settings.TerminalWindowSection.terminalChatGlass',
+          'Terminals Use Chat Glass'
+        )}
+        description={translate(
+          'auto.components.settings.TerminalWindowSection.terminalChatGlassSummary',
+          'macOS: give terminals the chat glass tint and opacity when Window Blur is on.'
+        )}
+        keywords={['terminal', 'chat', 'glass', 'tint', 'opacity', 'blur', 'contrast']}
+        className="flex items-center justify-between gap-4 py-2"
+      >
+        <div className="space-y-0.5">
+          <Label>
+            {translate(
+              'auto.components.settings.TerminalWindowSection.terminalChatGlass',
+              'Terminals Use Chat Glass'
+            )}
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            {terminalChatGlassDescription(blurEnabled)}
+          </p>
+        </div>
+        <Switch
+          aria-label={translate(
+            'auto.components.settings.TerminalWindowSection.terminalChatGlass',
+            'Terminals Use Chat Glass'
+          )}
+          checked={settings.terminalChatGlass ?? false}
+          onCheckedChange={(checked) => updateSettings({ terminalChatGlass: checked })}
         />
       </SearchableSetting>
 

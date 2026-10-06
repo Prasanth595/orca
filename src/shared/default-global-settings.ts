@@ -108,6 +108,7 @@ export function buildDefaultSettings(args: {
     terminalFocusFollowsMouse: false,
     windowBackgroundBlur: false,
     nativeChatGlassOpacity: DEFAULT_NATIVE_CHAT_GLASS_OPACITY,
+    terminalChatGlass: false,
     interfaceGlass: false,
     interfaceGlassOpacity: DEFAULT_INTERFACE_GLASS_OPACITY,
     minimizeToTrayOnClose: false,

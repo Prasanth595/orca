@@ -1574,7 +1574,8 @@
             "interfaceOpacity": "Background opacity of the sidebars, tab bar, status bar, and full pages over the blurred desktop, 1 is solid.",
             "interfaceOpacityNeedsToggle": "Turn on Interface Glass to use this.",
             "opacityMac": "Terminal background opacity, 1 is solid. With Window Blur on, lower values show the blurred desktop; with it off, they only blend into Orca's own background.",
-            "opacityOther": "Terminal background opacity, 1 is solid. Orca's window is opaque on this platform, so lower values blend into Orca's own background instead of showing the desktop."
+            "opacityOther": "Terminal background opacity, 1 is solid. Orca's window is opaque on this platform, so lower values blend into Orca's own background instead of showing the desktop.",
+            "terminalChatGlass": "Tint terminals with the chat glass color and Chat Glass Opacity instead of the terminal theme background and Background Opacity."
           }
         },
         "VoicePane": {

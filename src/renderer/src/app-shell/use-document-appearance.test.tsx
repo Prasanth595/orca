@@ -113,4 +113,35 @@ describe('useDocumentAppearance', () => {
     root.classList.remove('window-glass')
     Reflect.deleteProperty(window, 'api')
   })
+
+  it('gives terminals the chat glass tint only on a glass window', () => {
+    const root = document.documentElement
+    const setWindowGlass = (windowGlass: boolean): void => {
+      Object.defineProperty(window, 'api', {
+        configurable: true,
+        value: { platform: { get: () => ({ windowGlass }) } }
+      })
+    }
+    act(() => {
+      const settings = useAppStore.getState().settings!
+      useAppStore.setState({ settings: { ...settings, terminalChatGlass: true } })
+    })
+
+    setWindowGlass(false)
+    const first = renderHook(() => useDocumentAppearance())
+    expect(root.classList.contains('terminal-chat-glass')).toBe(false)
+    first.unmount()
+
+    setWindowGlass(true)
+    const second = renderHook(() => useDocumentAppearance())
+    expect(root.classList.contains('terminal-chat-glass')).toBe(true)
+    act(() => {
+      const settings = useAppStore.getState().settings!
+      useAppStore.setState({ settings: { ...settings, terminalChatGlass: false } })
+    })
+    expect(root.classList.contains('terminal-chat-glass')).toBe(false)
+    second.unmount()
+    root.classList.remove('window-glass')
+    Reflect.deleteProperty(window, 'api')
+  })
 })

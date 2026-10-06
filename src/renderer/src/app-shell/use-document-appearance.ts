@@ -14,6 +14,7 @@ export function useDocumentAppearance(): void {
   const appFontFamily = useAppStore((s) => s.settings?.appFontFamily)
   const nativeChatGlassOpacity = useAppStore((s) => s.settings?.nativeChatGlassOpacity)
   const interfaceGlass = useAppStore((s) => s.settings?.interfaceGlass === true)
+  const terminalChatGlass = useAppStore((s) => s.settings?.terminalChatGlass === true)
   const interfaceGlassOpacity = useAppStore((s) => s.settings?.interfaceGlassOpacity)
 
   useEffect(() => {
@@ -52,6 +53,7 @@ export function useDocumentAppearance(): void {
     const windowGlass = window.api?.platform?.get().windowGlass === true
     root.classList.toggle('window-glass', windowGlass)
     root.classList.toggle('interface-glass', windowGlass && interfaceGlass)
+    root.classList.toggle('terminal-chat-glass', windowGlass && terminalChatGlass)
     root.style.setProperty(
       '--native-chat-glass-opacity',
       String(normalizeNativeChatGlassOpacity(nativeChatGlassOpacity))
@@ -60,5 +62,5 @@ export function useDocumentAppearance(): void {
       '--interface-glass-opacity',
       String(normalizeInterfaceGlassOpacity(interfaceGlassOpacity))
     )
-  }, [nativeChatGlassOpacity, interfaceGlass, interfaceGlassOpacity])
+  }, [nativeChatGlassOpacity, interfaceGlass, interfaceGlassOpacity, terminalChatGlass])
 }

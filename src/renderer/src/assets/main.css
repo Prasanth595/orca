@@ -762,6 +762,26 @@ html.window-glass .pane:has(> .native-chat-pane-shell) > .xterm-container {
   visibility: hidden;
 }
 
+/* Why: opt-in, because a theme background at Background Opacity can read as mid-grey over the vibrancy; this gives
+   terminals the chat tint (its color and Chat Glass Opacity) so both read as one material. */
+html.terminal-chat-glass {
+  --terminal-chat-glass-background: color-mix(
+    in srgb,
+    var(--native-chat-glass-base) calc(var(--native-chat-glass-opacity, 0.6) * 100%),
+    transparent
+  );
+}
+
+html.terminal-chat-glass .pane-split-root {
+  background: var(--terminal-chat-glass-background) !important;
+}
+
+html.terminal-chat-glass
+  .pane-split-root:has(.pane > .native-chat-pane-shell)
+  .pane:not(:has(> .native-chat-pane-shell)) {
+  background: var(--terminal-chat-glass-background);
+}
+
 /* Interface glass: chrome keeps its own surface color at one shared alpha. Editors and dialogs stay solid. */
 html.interface-glass {
   --interface-glass-mix: calc(var(--interface-glass-opacity, 0.75) * 100%);

@@ -161,6 +161,8 @@ export type GlobalSettings = NativeChatGlobalSettings & {
   windowBackgroundBlur?: boolean
   /** macOS window glass: native chat background opacity over the blurred backdrop. */
   nativeChatGlassOpacity?: number
+  /** macOS window glass: terminals take the chat glass tint instead of their theme background. */
+  terminalChatGlass?: boolean
   /** macOS window glass: sidebars, tab strip, status bar and full pages also show the blurred backdrop. */
   interfaceGlass?: boolean
   /** macOS window glass: background opacity of those interface surfaces. */

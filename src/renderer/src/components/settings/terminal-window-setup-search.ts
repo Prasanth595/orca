@@ -156,6 +156,30 @@ const getMacGlassSearchEntryCatalog = createLocalizedCatalog(() => [
     ]
   },
   {
+    title: translate(
+      'auto.components.settings.terminal.search.terminalChatGlass',
+      'Terminals Use Chat Glass'
+    ),
+    description: translate(
+      'auto.components.settings.terminal.search.terminalChatGlassSummary',
+      'macOS: give terminals the chat glass tint and opacity when Window Blur is on.'
+    ),
+    keywords: [
+      ...translateSearchKeyword(
+        'auto.components.settings.terminal.search.terminalKeyword',
+        'terminal'
+      ),
+      ...translateSearchKeyword('auto.components.settings.terminal.search.chatKeyword', 'chat'),
+      ...translateSearchKeyword('auto.components.settings.terminal.search.glassKeyword', 'glass'),
+      ...translateSearchKeyword('auto.components.settings.terminal.search.tintKeyword', 'tint'),
+      ...translateSearchKeyword('auto.components.settings.terminal.search.71eb45e293', 'blur'),
+      ...translateSearchKeyword(
+        'auto.components.settings.terminal.search.contrastKeyword',
+        'contrast'
+      )
+    ]
+  },
+  {
     title: translate('auto.components.settings.terminal.search.interfaceGlass', 'Interface Glass'),
     description: translate(
       'auto.components.settings.terminal.search.interfaceGlassSummary',

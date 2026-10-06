@@ -9304,12 +9304,15 @@
             "interface": "Also show the blurred desktop through the sidebars, tab bar, status bar, and full pages such as Settings. Editors and dialogs stay solid.",
             "interfaceNeedsBlur": "Turn on Window Blur (and restart) to use this. Extends the glass to the sidebars, tab bar, status bar, and full pages.",
             "interfaceOpacity": "Background opacity of the sidebars, tab bar, status bar, and full pages over the blurred desktop, 1 is solid.",
-            "interfaceOpacityNeedsToggle": "Turn on Interface Glass to use this."
+            "interfaceOpacityNeedsToggle": "Turn on Interface Glass to use this.",
+            "terminalChatGlass": "Tint terminals with the chat glass color and Chat Glass Opacity instead of the terminal theme background and Background Opacity."
           },
           "interfaceGlass": "Interface Glass",
           "interfaceGlassSummary": "macOS: extend Window Blur glass to the sidebars, tab bar, status bar, and full pages.",
           "interfaceGlassOpacity": "Interface Glass Opacity",
-          "interfaceGlassOpacityDescription": "macOS: how much of the blurred desktop shows through the sidebars, tab bar, status bar, and full pages."
+          "interfaceGlassOpacityDescription": "macOS: how much of the blurred desktop shows through the sidebars, tab bar, status bar, and full pages.",
+          "terminalChatGlass": "Terminals Use Chat Glass",
+          "terminalChatGlassSummary": "macOS: give terminals the chat glass tint and opacity when Window Blur is on."
         },
         "UIZoomControl": {
           "c2c64b24d0": "Reset"
@@ -11199,7 +11202,12 @@
             "interfaceGlassOpacity": "Interface Glass Opacity",
             "interfaceGlassOpacityDescription": "macOS: how much of the blurred desktop shows through the sidebars, tab bar, status bar, and full pages.",
             "sidebarKeyword": "sidebar",
-            "interfaceKeyword": "interface"
+            "interfaceKeyword": "interface",
+            "terminalChatGlass": "Terminals Use Chat Glass",
+            "terminalChatGlassSummary": "macOS: give terminals the chat glass tint and opacity when Window Blur is on.",
+            "terminalKeyword": "terminal",
+            "tintKeyword": "tint",
+            "contrastKeyword": "contrast"
           },
           "windows": {
             "search": {

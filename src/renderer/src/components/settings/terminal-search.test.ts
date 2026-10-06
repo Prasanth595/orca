@@ -270,7 +270,12 @@ describe('getTerminalWindowSearchEntries', () => {
   it('only lists the chat and interface glass controls on macOS, where they render', () => {
     const titles = (isMac: boolean): string[] =>
       getTerminalWindowSearchEntries(isMac).map((entry) => entry.title)
-    const macOnly = ['Chat Glass Opacity', 'Interface Glass', 'Interface Glass Opacity']
+    const macOnly = [
+      'Chat Glass Opacity',
+      'Terminals Use Chat Glass',
+      'Interface Glass',
+      'Interface Glass Opacity'
+    ]
     expect(titles(true)).toEqual(expect.arrayContaining(macOnly))
     expect(titles(false).filter((title) => macOnly.includes(title))).toEqual([])
   })
