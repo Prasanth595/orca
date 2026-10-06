@@ -267,10 +267,11 @@ describe('getTerminalPaneSearchEntries', () => {
 })
 
 describe('getTerminalWindowSearchEntries', () => {
-  it('only lists Chat Glass Opacity on macOS, where the control renders', () => {
-    const hasChatGlass = (isMac: boolean): boolean =>
-      getTerminalWindowSearchEntries(isMac).some((entry) => entry.title === 'Chat Glass Opacity')
-    expect(hasChatGlass(true)).toBe(true)
-    expect(hasChatGlass(false)).toBe(false)
+  it('only lists the chat and interface glass controls on macOS, where they render', () => {
+    const titles = (isMac: boolean): string[] =>
+      getTerminalWindowSearchEntries(isMac).map((entry) => entry.title)
+    const macOnly = ['Chat Glass Opacity', 'Interface Glass', 'Interface Glass Opacity']
+    expect(titles(true)).toEqual(expect.arrayContaining(macOnly))
+    expect(titles(false).filter((title) => macOnly.includes(title))).toEqual([])
   })
 })

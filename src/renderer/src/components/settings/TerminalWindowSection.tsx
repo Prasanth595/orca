@@ -10,16 +10,11 @@ import { clampNumber } from '@/lib/terminal-theme'
 import { useMountedRef } from '@/hooks/useMountedRef'
 import { translate } from '@/i18n/i18n'
 import {
-  DEFAULT_NATIVE_CHAT_GLASS_OPACITY,
-  MIN_NATIVE_CHAT_GLASS_OPACITY,
-  normalizeNativeChatGlassOpacity
-} from '../../../../shared/window-glass'
-import {
   backgroundOpacityDescription,
-  chatGlassOpacityDescription,
   getGlassCopyPlatform,
   windowBlurDescription
 } from './terminal-window-glass-copy'
+import { MacWindowGlassSettings } from './MacWindowGlassSettings'
 
 type TerminalWindowSectionProps = {
   settings: GlobalSettings
@@ -43,7 +38,7 @@ export function TerminalWindowSection({
   const [relaunchingBlur, setRelaunchingBlur] = useState(false)
   const mountedRef = useMountedRef()
   const glassPlatform = getGlassCopyPlatform()
-  const showChatGlassOpacity = glassPlatform === 'mac'
+  const showMacGlassControls = glassPlatform === 'mac'
 
   const handleRelaunch = async (): Promise<void> => {
     if (relaunchingBlur) {
@@ -177,35 +172,8 @@ export function TerminalWindowSection({
           ) : null}
         </SearchableSetting>
 
-        {showChatGlassOpacity ? (
-          <SearchableSetting
-            title={translate(
-              'auto.components.settings.TerminalWindowSection.chatGlassOpacity',
-              'Chat Glass Opacity'
-            )}
-            description={translate(
-              'auto.components.settings.TerminalWindowSection.chatGlassOpacityDescription',
-              'macOS: how much of the blurred desktop shows through the chat UI when Window Blur is on.'
-            )}
-            keywords={['chat', 'glass', 'opacity', 'transparency', 'blur']}
-          >
-            <NumberField
-              label={translate(
-                'auto.components.settings.TerminalWindowSection.chatGlassOpacity',
-                'Chat Glass Opacity'
-              )}
-              description={chatGlassOpacityDescription(settings.windowBackgroundBlur === true)}
-              value={normalizeNativeChatGlassOpacity(settings.nativeChatGlassOpacity)}
-              defaultValue={DEFAULT_NATIVE_CHAT_GLASS_OPACITY}
-              min={MIN_NATIVE_CHAT_GLASS_OPACITY}
-              max={1}
-              step={0.05}
-              suffix={`${MIN_NATIVE_CHAT_GLASS_OPACITY} to 1`}
-              onChange={(value) =>
-                updateSettings({ nativeChatGlassOpacity: normalizeNativeChatGlassOpacity(value) })
-              }
-            />
-          </SearchableSetting>
+        {showMacGlassControls ? (
+          <MacWindowGlassSettings settings={settings} updateSettings={updateSettings} />
         ) : null}
 
         <SearchableSetting

@@ -134,7 +134,7 @@ const getTerminalWindowSearchEntryCatalog = createLocalizedCatalog(() => [
   }
 ])
 
-const getChatGlassSearchEntryCatalog = createLocalizedCatalog(() => [
+const getMacGlassSearchEntryCatalog = createLocalizedCatalog(() => [
   {
     title: translate(
       'auto.components.settings.terminal.search.chatGlassOpacity',
@@ -154,15 +154,61 @@ const getChatGlassSearchEntryCatalog = createLocalizedCatalog(() => [
       ),
       ...translateSearchKeyword('auto.components.settings.terminal.search.71eb45e293', 'blur')
     ]
+  },
+  {
+    title: translate('auto.components.settings.terminal.search.interfaceGlass', 'Interface Glass'),
+    description: translate(
+      'auto.components.settings.terminal.search.interfaceGlassSummary',
+      'macOS: extend Window Blur glass to the sidebars, tab bar, status bar, and full pages.'
+    ),
+    keywords: [
+      ...translateSearchKeyword(
+        'auto.components.settings.terminal.search.interfaceKeyword',
+        'interface'
+      ),
+      ...translateSearchKeyword('auto.components.settings.terminal.search.glassKeyword', 'glass'),
+      ...translateSearchKeyword(
+        'auto.components.settings.terminal.search.sidebarKeyword',
+        'sidebar'
+      ),
+      ...translateSearchKeyword(
+        'auto.components.settings.terminal.search.4f7f8f28ca',
+        'transparency'
+      ),
+      ...translateSearchKeyword('auto.components.settings.terminal.search.71eb45e293', 'blur'),
+      ...translateSearchKeyword('auto.components.settings.terminal.search.6c2f9f05c8', 'vibrancy')
+    ]
+  },
+  {
+    title: translate(
+      'auto.components.settings.terminal.search.interfaceGlassOpacity',
+      'Interface Glass Opacity'
+    ),
+    description: translate(
+      'auto.components.settings.terminal.search.interfaceGlassOpacityDescription',
+      'macOS: how much of the blurred desktop shows through the sidebars, tab bar, status bar, and full pages.'
+    ),
+    keywords: [
+      ...translateSearchKeyword(
+        'auto.components.settings.terminal.search.interfaceKeyword',
+        'interface'
+      ),
+      ...translateSearchKeyword('auto.components.settings.terminal.search.glassKeyword', 'glass'),
+      ...translateSearchKeyword('auto.components.settings.terminal.search.46d99ef4bb', 'opacity'),
+      ...translateSearchKeyword(
+        'auto.components.settings.terminal.search.4f7f8f28ca',
+        'transparency'
+      )
+    ]
   }
 ])
 
 export function getTerminalWindowSearchEntries(
   isMac = getGlassCopyPlatform() === 'mac'
 ): SettingsSearchEntry[] {
-  // Why: Chat Glass Opacity only renders on desktop macOS; elsewhere search would land on a missing control.
+  // Why: the chat and interface glass controls only render on desktop macOS; elsewhere search would land on a missing control.
   return isMac
-    ? [...getTerminalWindowSearchEntryCatalog(), ...getChatGlassSearchEntryCatalog()]
+    ? [...getTerminalWindowSearchEntryCatalog(), ...getMacGlassSearchEntryCatalog()]
     : getTerminalWindowSearchEntryCatalog()
 }
 

@@ -25,7 +25,7 @@ export function windowBlurDescription(platform: GlassCopyPlatform): string {
   if (platform === 'mac') {
     return translate(
       `${KEY}.blurMac`,
-      'Frosted-glass desktop behind terminals and the chat UI. Tune it with Background Opacity and Chat Glass Opacity. Uses some extra GPU power. Requires restart.'
+      'Frosted-glass desktop behind terminals and the chat UI; Interface Glass extends it to the rest of the window. Tune it with Background Opacity and Chat Glass Opacity. Uses some extra GPU power. Requires restart.'
     )
   }
   if (platform === 'windows') {
@@ -63,4 +63,34 @@ export function chatGlassOpacityDescription(blurEnabled: boolean): string {
         'Chat UI background opacity over the blurred desktop, 1 is solid. Lower values show more of the desktop.'
       )
     : translate(`${KEY}.chatOpacityNeedsBlur`, 'Turn on Window Blur (and restart) to use this.')
+}
+
+export function interfaceGlassDescription(blurEnabled: boolean): string {
+  return blurEnabled
+    ? translate(
+        `${KEY}.interface`,
+        'Also show the blurred desktop through the sidebars, tab bar, status bar, and full pages such as Settings. Editors and dialogs stay solid.'
+      )
+    : translate(
+        `${KEY}.interfaceNeedsBlur`,
+        'Turn on Window Blur (and restart) to use this. Extends the glass to the sidebars, tab bar, status bar, and full pages.'
+      )
+}
+
+export function interfaceGlassOpacityDescription(
+  blurEnabled: boolean,
+  interfaceGlass: boolean
+): string {
+  if (!blurEnabled) {
+    return translate(
+      `${KEY}.chatOpacityNeedsBlur`,
+      'Turn on Window Blur (and restart) to use this.'
+    )
+  }
+  return interfaceGlass
+    ? translate(
+        `${KEY}.interfaceOpacity`,
+        'Background opacity of the sidebars, tab bar, status bar, and full pages over the blurred desktop, 1 is solid.'
+      )
+    : translate(`${KEY}.interfaceOpacityNeedsToggle`, 'Turn on Interface Glass to use this.')
 }

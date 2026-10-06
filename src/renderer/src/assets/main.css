@@ -748,6 +748,58 @@ html.window-glass .pane:has(> .native-chat-pane-shell) > .xterm-container {
   visibility: hidden;
 }
 
+/* Interface glass: chrome keeps its own surface color at one shared alpha. Editors and dialogs stay solid. */
+html.interface-glass {
+  --interface-glass-mix: calc(var(--interface-glass-opacity, 0.75) * 100%);
+}
+
+html.interface-glass .titlebar-left,
+html.interface-glass .worktree-sidebar-panel {
+  background: color-mix(in srgb, var(--worktree-sidebar) var(--interface-glass-mix), transparent);
+}
+
+html.interface-glass .titlebar,
+html.interface-glass .status-bar-surface {
+  background: color-mix(
+    in srgb,
+    var(--bg-titlebar, var(--card)) var(--interface-glass-mix),
+    transparent
+  );
+}
+
+html.interface-glass [data-tab-group-strip-id] {
+  background: color-mix(in srgb, var(--card) var(--interface-glass-mix), transparent);
+}
+
+html.interface-glass .tab-strip-tab {
+  background: transparent;
+}
+
+html.interface-glass .tab-strip-tab-active {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+html.interface-glass .right-sidebar-panel {
+  background: color-mix(in srgb, var(--sidebar) var(--interface-glass-mix), transparent);
+}
+
+/* Why: Settings, Tasks and the other full pages each paint a solid root inside this column. */
+html.interface-glass .workspace-page-column > :not([data-terminal-workbench-container]) {
+  background: color-mix(in srgb, var(--background) var(--interface-glass-mix), transparent);
+}
+
+/* Why: these sit inside a region that already paints the tint; a second layer would darken them. */
+html.interface-glass .titlebar-left-floating,
+html.interface-glass .settings-view-shell > aside {
+  background: transparent;
+}
+
+/* Why: a clear sticky header would show the list scrolling through it. */
+html.interface-glass [data-worktree-sticky-header] {
+  background: transparent;
+  backdrop-filter: blur(12px);
+}
+
 /* ── Sleek scrollbar (VS Code-like) ─────────────────── */
 
 .scrollbar-sleek {
