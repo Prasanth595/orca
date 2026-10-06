@@ -1,3 +1,5 @@
+import { HEX_COLOR_RE } from './color-validation'
+
 export type NativeChatAppearanceSettings = {
   /** Chat text size in px, 12–20; absent = 14. */
   fontSize?: number
@@ -5,6 +7,17 @@ export type NativeChatAppearanceSettings = {
   codeFontSize?: number
   /** Transcript and composer width; absent = comfortable (46rem). */
   width?: 'comfortable' | 'wide' | 'full'
+  /** Chat text color in the light theme, as typed (hex when valid); absent = theme default. */
+  textColorLight?: string
+  /** Chat text color in the dark theme, as typed (hex when valid); absent = theme default. */
+  textColorDark?: string
+}
+
+export type ResolvedNativeChatAppearanceSettings = Required<
+  Pick<NativeChatAppearanceSettings, 'fontSize' | 'codeFontSize' | 'width'>
+> & {
+  textColorLight: string | undefined
+  textColorDark: string | undefined
 }
 
 export type NativeChatGlobalSettings = {
@@ -13,6 +26,21 @@ export type NativeChatGlobalSettings = {
 
 export const DEFAULT_NATIVE_CHAT_FONT_SIZE = 14
 export const DEFAULT_NATIVE_CHAT_CODE_FONT_SIZE = 12
+
+const KNOWN_KEYS = ['fontSize', 'codeFontSize', 'width', 'textColorLight', 'textColorDark']
+
+// Why: kept as typed so a half-entered hex survives the next write; validated where it is applied.
+function normalizeTextColorDraft(value: unknown): string | undefined {
+  const trimmed = typeof value === 'string' ? value.trim().slice(0, 32) : ''
+  return trimmed || undefined
+}
+
+function resolveTextColor(value: string | undefined): string | undefined {
+  if (!value || !HEX_COLOR_RE.test(value)) {
+    return undefined
+  }
+  return value.startsWith('#') ? value : `#${value}`
+}
 
 function normalizeSize(value: unknown, min: number, max: number, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value)
@@ -35,25 +63,33 @@ export function normalizeNativeChatAppearanceSettings(
   )
   const width =
     'width' in value && (value.width === 'wide' || value.width === 'full') ? value.width : undefined
+  const textColorLight = normalizeTextColorDraft(
+    'textColorLight' in value ? value.textColorLight : undefined
+  )
+  const textColorDark = normalizeTextColorDraft(
+    'textColorDark' in value ? value.textColorDark : undefined
+  )
   const normalized: NativeChatAppearanceSettings = {
-    ...Object.fromEntries(
-      Object.entries(value).filter(([key]) => !['fontSize', 'codeFontSize', 'width'].includes(key))
-    ),
+    ...Object.fromEntries(Object.entries(value).filter(([key]) => !KNOWN_KEYS.includes(key))),
     ...(fontSize !== DEFAULT_NATIVE_CHAT_FONT_SIZE ? { fontSize } : {}),
     ...(codeFontSize !== DEFAULT_NATIVE_CHAT_CODE_FONT_SIZE ? { codeFontSize } : {}),
-    ...(width ? { width } : {})
+    ...(width ? { width } : {}),
+    ...(textColorLight ? { textColorLight } : {}),
+    ...(textColorDark ? { textColorDark } : {})
   }
   return Object.keys(normalized).length ? normalized : undefined
 }
 
 export function resolveNativeChatAppearanceSettings(
   value: unknown
-): Required<NativeChatAppearanceSettings> {
+): ResolvedNativeChatAppearanceSettings {
   const normalized = normalizeNativeChatAppearanceSettings(value)
   return {
     fontSize: normalized?.fontSize ?? DEFAULT_NATIVE_CHAT_FONT_SIZE,
     codeFontSize: normalized?.codeFontSize ?? DEFAULT_NATIVE_CHAT_CODE_FONT_SIZE,
-    width: normalized?.width ?? 'comfortable'
+    width: normalized?.width ?? 'comfortable',
+    textColorLight: resolveTextColor(normalized?.textColorLight),
+    textColorDark: resolveTextColor(normalized?.textColorDark)
   }
 }
 
@@ -62,9 +98,7 @@ export function resetNativeChatAppearanceSettings(
 ): NativeChatAppearanceSettings | undefined {
   return normalizeNativeChatAppearanceSettings(
     Object.fromEntries(
-      Object.entries(appearance ?? {}).filter(
-        ([key]) => key !== 'fontSize' && key !== 'codeFontSize' && key !== 'width'
-      )
+      Object.entries(appearance ?? {}).filter(([key]) => !KNOWN_KEYS.includes(key))
     )
   )
 }

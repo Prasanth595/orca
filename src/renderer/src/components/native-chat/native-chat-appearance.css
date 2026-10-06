@@ -7,3 +7,20 @@
 .native-chat-message-text {
   font-size: var(--chat-font-size, 14px);
 }
+
+/* Why: children, not the root, pick the custom color so the root can keep the theme value as the fallback
+   (a property can't fall back to its own inherited value). Only one theme's color applies at a time. */
+.native-chat-appearance {
+  --chat-theme-foreground: var(--chat-foreground);
+  --chat-theme-foreground-strong: var(--chat-foreground-strong);
+}
+
+:root:not(.dark) .native-chat-appearance > * {
+  --chat-foreground: var(--chat-text-color-light, var(--chat-theme-foreground));
+  --chat-foreground-strong: var(--chat-text-color-light, var(--chat-theme-foreground-strong));
+}
+
+.dark .native-chat-appearance > * {
+  --chat-foreground: var(--chat-text-color-dark, var(--chat-theme-foreground));
+  --chat-foreground-strong: var(--chat-text-color-dark, var(--chat-theme-foreground-strong));
+}

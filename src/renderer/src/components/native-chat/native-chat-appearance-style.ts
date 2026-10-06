@@ -15,6 +15,8 @@ export type NativeChatAppearanceStyle = CSSProperties & {
   '--chat-inline-code-ratio': string
   '--chat-estimated-line-height': number
   '--chat-estimated-chars-per-line': number
+  '--chat-text-color-light'?: string
+  '--chat-text-color-dark'?: string
 }
 
 // Width buckets keep a pixel-by-pixel resize from re-deriving the entire transcript.
@@ -28,9 +30,8 @@ export function nativeChatAppearanceStyle(
   settings: Pick<GlobalSettings, 'nativeChatAppearance'> | null | undefined,
   measuredColumnWidthPx?: number | null
 ): NativeChatAppearanceStyle {
-  const { fontSize, codeFontSize, width } = resolveNativeChatAppearanceSettings(
-    settings?.nativeChatAppearance
-  )
+  const { fontSize, codeFontSize, width, textColorLight, textColorDark } =
+    resolveNativeChatAppearanceSettings(settings?.nativeChatAppearance)
   const maxWidthPx = width === 'wide' ? 960 : width === 'full' ? Number.POSITIVE_INFINITY : 736
   const measuredWidth = nativeChatColumnWidthBucket(measuredColumnWidthPx)
   const columnWidthPx = Math.min(
@@ -46,7 +47,9 @@ export function nativeChatAppearanceStyle(
     '--chat-estimated-chars-per-line': Math.max(
       1,
       Math.floor((((96 * columnWidthPx) / 736) * 14) / fontSize)
-    )
+    ),
+    ...(textColorLight ? { '--chat-text-color-light': textColorLight } : {}),
+    ...(textColorDark ? { '--chat-text-color-dark': textColorDark } : {})
   }
 }
 

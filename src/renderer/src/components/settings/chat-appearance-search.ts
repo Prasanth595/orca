@@ -32,6 +32,30 @@ const getChatAppearanceCatalog = createLocalizedCatalog(
           ...getChatWidthOptions().map((option) => option.label)
         ]
       },
+      textColorLight: {
+        targetSectionId: 'chat-text-color-light',
+        title: translate('settings.appearance.chat.textColorLight', 'Text color (light theme)'),
+        description: translate(
+          'settings.appearance.chat.textColorLightDescription',
+          'Messages and the message box in the light theme. Leave empty for the theme color.'
+        ),
+        keywords: [
+          translate('settings.appearance.chat.title', 'Chat'),
+          translate('settings.appearance.chat.fontColorKeyword', 'font color')
+        ]
+      },
+      textColorDark: {
+        targetSectionId: 'chat-text-color-dark',
+        title: translate('settings.appearance.chat.textColorDark', 'Text color (dark theme)'),
+        description: translate(
+          'settings.appearance.chat.textColorDarkDescription',
+          'Messages and the message box in the dark theme. Leave empty for the theme color.'
+        ),
+        keywords: [
+          translate('settings.appearance.chat.title', 'Chat'),
+          translate('settings.appearance.chat.fontColorKeyword', 'font color')
+        ]
+      },
       reset: {
         targetSectionId: 'chat-reset',
         title: translate('settings.appearance.chat.resetAppearance', 'Reset chat appearance'),
