@@ -278,7 +278,7 @@ export const MessageRow = memo(function MessageRow({
         <NativeChatMarkdown
           content={markdown}
           variant="document"
-          className="text-sm native-chat-message-text"
+          className="text-sm native-chat-message-text native-chat-markdown-wide-blocks"
           renderCodeBlock={NativeChatCodeBlock}
           onLinkClick={onLinkClick}
           allowFileUriLinks={allowFileUriLinks}
