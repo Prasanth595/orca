@@ -6,6 +6,7 @@ import { notifyRuntimeListeners } from '../../runtime-async-boundaries'
 import type {
   ProviderBufferAcquisition,
   RuntimeHeadlessTerminal,
+  RuntimeLeafRecord,
   RuntimePtyTitleTrackerEntry,
   RuntimePtyWorktreeRecord,
   RuntimeVisibleTerminalState
@@ -44,10 +45,14 @@ export abstract class OrcaRuntimeWithFitOverrideListeners extends OrcaRuntimeWit
     }
   }
 
-  protected emitAgentIdleEdge(event: AgentIdleEdgeEvent): void {
+  protected emitAgentIdleEdge(leaf: RuntimeLeafRecord): void {
+    const { ptyId, worktreeId, leafId, tabId } = leaf
+    if (ptyId === null) {
+      return
+    }
     notifyRuntimeListeners(
       this.agentIdleEdgeListeners,
-      (listener) => listener(event),
+      (listener) => listener({ ptyId, worktreeId, leafId, tabId }),
       'agent-idle-edge'
     )
   }
