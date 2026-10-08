@@ -189,15 +189,11 @@ export class MetadataLineageOperations {
       )
     )
     if (!preservesDifferentPersistedOwner) {
-      delete this[metadataLineageOperationsContext].runtime.state.worktreeMeta[worktreeId]
-      delete this[metadataLineageOperationsContext].runtime.state.worktreeLineageById[worktreeId]
-      delete this[metadataLineageOperationsContext].runtime.state.workspaceLineageByChildKey[
-        worktreeWorkspaceKey(worktreeId)
-      ]
-      dropScheduledMessagesForWorktree(
-        this[metadataLineageOperationsContext].runtime.state,
-        worktreeId
-      )
+      const { state } = this[metadataLineageOperationsContext].runtime
+      delete state.worktreeMeta[worktreeId]
+      delete state.worktreeLineageById[worktreeId]
+      delete state.workspaceLineageByChildKey[worktreeWorkspaceKey(worktreeId)]
+      dropScheduledMessagesForWorktree(state, worktreeId)
     }
     for (const partition of partitions) {
       removeWorkspaceSessionOwnerInPartition(
