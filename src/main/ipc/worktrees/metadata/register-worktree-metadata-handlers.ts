@@ -13,6 +13,8 @@ import { parseWorktreeId } from '../../worktree-logic'
 import { planWorktreeSortOrderUpdates } from '../../../../shared/worktree/sort-order-update'
 import { readBranchRenameFailureOutputForDisplay } from '../../../agent-hooks/branch-rename-failure-output'
 import { normalizeLinkedWorkItemFields } from '../ipc-context-schemas'
+import { isFolderRepo } from '../../../../shared/repo-kind'
+import { getFolderWorkspaceRootId, isFolderWorkspaceIdForRepo } from '../folder-workspace-model'
 import { listDesktopLineageForHost } from './host-lineage-listing'
 import type { WorktreeIpcContext } from '../worktree-ipc-context'
 
@@ -47,6 +49,20 @@ export function registerWorktreeMetadataHandlers(context: WorktreeIpcContext): v
             }
           : validatedUpdates
       const sanitizedUpdates = stripOrcaProvenanceMetaUpdates(updates)
+      const repo = store.getRepo(getRepoIdFromWorktreeId(args.worktreeId))
+      // Why (#22712): a folder workspace exists only as its meta row, so a late write from a terminal
+      // still bound to a removed one would mint a blank row that the sidebar lists forever.
+      if (
+        repo &&
+        isFolderRepo(repo) &&
+        isFolderWorkspaceIdForRepo(repo, args.worktreeId) &&
+        args.worktreeId !== getFolderWorkspaceRootId(repo) &&
+        !(executionHostId
+          ? store.getWorktreeMetaForHost(args.worktreeId, executionHostId)
+          : store.getWorktreeMeta(args.worktreeId))
+      ) {
+        return null
+      }
       const meta = executionHostId
         ? store.setWorktreeMetaForHost(args.worktreeId, executionHostId, sanitizedUpdates)
         : store.setWorktreeMeta(args.worktreeId, sanitizedUpdates)
