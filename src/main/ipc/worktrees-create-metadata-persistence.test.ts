@@ -303,6 +303,22 @@ describe('registerWorktreeHandlers', () => {
       expect(table[workspaceId]).toBeUndefined()
     })
 
+    it('refuses the write when a same-id owner on another host sits at a different path', () => {
+      const table = useFolderMetaTable()
+      delete table[workspaceId]
+      const otherOwner = { ...folderRepo, path: '/elsewhere/repo' }
+      store.getRepo.mockReturnValue(otherOwner)
+      store.getRepos.mockReturnValue([otherOwner, folderRepo])
+
+      handlers['worktrees:updateMeta'](null, {
+        worktreeId: workspaceId,
+        executionHostId: 'ssh:build-box',
+        updates: { lastActivityAt: 2 }
+      })
+
+      expect(table[workspaceId]).toBeUndefined()
+    })
+
     it('still persists metadata updates for a folder workspace that exists', () => {
       const table = useFolderMetaTable()
 
