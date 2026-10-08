@@ -6,6 +6,7 @@ import { ConversationKnowledgeIndexGate } from '../components/ConversationKnowle
 import { ConversationKnowledgeLaunchContextGate } from '../components/ConversationKnowledgeLaunchContextGate'
 import RetainedAgentsSyncGate from '../components/dashboard/RetainedAgentsSyncGate'
 import { WorkspacePortScanner } from '../components/ports/WorkspacePortScanner'
+import { SavedHostScopeWidenGate } from '../components/sidebar/SavedHostScopeWidenGate'
 import { MacosTccPromptNoticeHost } from '../hooks/MacosTccPromptNoticeHost'
 import { useAppStore } from '../store'
 import { StructuredAgentSessionAttentionBridge } from '../components/native-chat/StructuredAgentSessionAttentionBridge'
@@ -29,10 +30,11 @@ export function AppBackgroundServices(): React.JSX.Element {
       {/* Why: plugin language-pack discovery must not re-render the App shell. */}
       <MacosTccPromptNoticeHost />
       {/* Why: leaf-mounted retention sync keeps agent-status subscriptions out of the App render tree. */}
-      <RetainedAgentsSyncGate />
-      <AiVaultTabTitleSyncGate />
-      <ConversationKnowledgeIndexGate />
-      <ConversationKnowledgeLaunchContextGate />
+       <RetainedAgentsSyncGate />
+       <AiVaultTabTitleSyncGate />
+       <ConversationKnowledgeIndexGate />
+       <ConversationKnowledgeLaunchContextGate />
+       <SavedHostScopeWidenGate />
       {dashboardPopoutEnabled ? (
         <Suspense fallback={null}>
           <DashboardPopoutBridge />

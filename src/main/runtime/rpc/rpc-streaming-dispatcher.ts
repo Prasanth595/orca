@@ -1,4 +1,10 @@
-import { isStreamingMethod, type RpcEnvelopeMeta, type RpcRegistry, type RpcRequest } from './core'
+import {
+  isRegistrationFencedUnsubscribe,
+  isStreamingMethod,
+  type RpcEnvelopeMeta,
+  type RpcRegistry,
+  type RpcRequest
+} from './core'
 
 import { errorResponse, successResponse } from './errors'
 import type { OrcaRuntimeService } from '../orca-runtime'
@@ -15,6 +21,13 @@ import { parseRpcRequestParams } from './dispatcher-request-parsing'
 import { routeDispatcherClientHostedBrowserRpc } from './dispatcher-client-browser-routing'
 import { needsLocalCallerFingerprint } from './dispatcher-caller-fingerprint'
 import { createDispatcherStreamingFeatureEmitter } from './dispatcher-streaming-feature-emitter'
+import { resolveRpcCallerIdentity } from './rpc-caller-identity'
+import {
+  bindRpcCallToCallerScope,
+  denyRpcMethodForCaller,
+  OWNER_RPC_CALLER_SCOPE,
+  type RpcCallerScope
+} from './rpc-caller-scope'
 import {
   needsOrchestrationCallerResolution,
   resolveOrchestrationSessionCaller,
@@ -27,6 +40,7 @@ export type RpcStreamingDispatcherDependencies = {
   orchestrationMutations: OrchestrationMutationExecutor
   legacyOrchestration: OrchestrationLegacyCompatibility
   meta: () => RpcEnvelopeMeta
+  pinnedCallerScope?: RpcCallerScope
 }
 
 export class RpcStreamingDispatcher {
@@ -43,6 +57,13 @@ export class RpcStreamingDispatcher {
       this.dependencies
     const envelopeMeta = meta()
     const method = registry.get(request.method)
+    const callerScope =
+      this.dependencies.pinnedCallerScope ?? options?.callerScope ?? OWNER_RPC_CALLER_SCOPE
+    const denial = denyRpcMethodForCaller(callerScope, request.method, method?.permission)
+    if (denial) {
+      reply(JSON.stringify(errorResponse(request.id, envelopeMeta, 'forbidden', denial)))
+      return
+    }
     if (!method) {
       reply(
         JSON.stringify(
@@ -81,14 +102,20 @@ export class RpcStreamingDispatcher {
       return
     }
     const params = parsedParams.value
+    const pendingBinding = bindRpcCallToCallerScope(callerScope, runtime, request.method, params)
+    const binding = pendingBinding ? await pendingBinding : null
+    if (binding?.kind === 'denied') {
+      reply(JSON.stringify(errorResponse(request.id, envelopeMeta, 'forbidden', binding.message)))
+      return
+    }
 
     if (!isStreamingMethod(method)) {
       try {
+        // Session tabs always need this fence. COMPAT(terminal request-addressed unsubscribe): terminal only for phones without `requestId`.
         // Capture before middleware yields to a replacement subscribe on the same connection.
-        const subscriptionRegistrationVersion =
-          request.method === 'terminal.unsubscribe'
-            ? runtime.getSubscriptionRegistrationVersion()
-            : undefined
+        const subscriptionRegistrationVersion = isRegistrationFencedUnsubscribe(request.method)
+          ? runtime.getSubscriptionRegistrationVersion()
+          : undefined
         const clientHostedBrowser = await routeDispatcherClientHostedBrowserRpc(
           runtime,
           request.method,
@@ -132,10 +159,10 @@ export class RpcStreamingDispatcher {
             subscriptionRegistrationVersion,
             clientId: options?.clientId,
             pairedDeviceId: options?.pairedDeviceId,
+            caller: resolveRpcCallerIdentity(options),
             clientKind: options?.clientKind,
             clientCapabilities: options?.clientCapabilities,
             updateClientCapabilities: options?.updateClientCapabilities,
-            orchestrationCapability: request.orchestrationCapability,
             authenticatedCallerFingerprint:
               mutation?.identity.callerFingerprint ??
               legacyCoordinator?.mutationCallerFingerprint ??
@@ -163,7 +190,14 @@ export class RpcStreamingDispatcher {
           orchestrationCaller?.orcaSessionId
         )
         recordRuntimeFeatureInteraction(runtime, request.method, result, undefined, request.params)
-        reply(JSON.stringify(successResponse(request.id, envelopeMeta, result)))
+        const filtered = binding?.filterResult?.(result) ?? { kind: 'allowed', result }
+        reply(
+          JSON.stringify(
+            filtered.kind === 'denied'
+              ? errorResponse(request.id, envelopeMeta, 'forbidden', filtered.message)
+              : successResponse(request.id, envelopeMeta, filtered.result)
+          )
+        )
       } catch (error) {
         reply(JSON.stringify(mapDispatcherError(request, envelopeMeta, error)))
       }
@@ -187,10 +221,10 @@ export class RpcStreamingDispatcher {
           connectionId: options?.connectionId,
           clientId: options?.clientId,
           pairedDeviceId: options?.pairedDeviceId,
+          caller: resolveRpcCallerIdentity(options),
           clientKind: options?.clientKind,
           clientCapabilities: options?.clientCapabilities,
           updateClientCapabilities: options?.updateClientCapabilities,
-          orchestrationCapability: request.orchestrationCapability,
           pairing: options?.pairing,
           sendBinary: options?.sendBinary,
           registerBinaryStreamHandler: options?.registerBinaryStreamHandler,
