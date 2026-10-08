@@ -71,7 +71,8 @@ describeIfBuilt('orca orchestration check --wait subprocess (§3.4)', () => {
     const runtime = new OrcaRuntimeService()
     const db = new OrchestrationDb(':memory:')
     runtime.setOrchestrationDb(db)
-    const paneKey = 'tab_keepalive:44444444-4444-4444-8444-444444444444'
+    // A consuming inbox check requires a live pane, even when no messages exist.
+    const paneKey = 'tab_keepalive:11111111-1111-4111-8111-111111111111'
     vi.spyOn(runtime, 'getTerminalPaneKey').mockImplementation((handle) =>
       handle === 'term_nobody' ? paneKey : null
     )
@@ -204,6 +205,8 @@ describeIfBuilt('orca orchestration check --wait subprocess (§3.4)', () => {
     } finally {
       db.close()
       await server.stop()
+      vi.restoreAllMocks()
+      rmSync(userDataPath, { recursive: true, force: true })
     }
   }, 30_000)
 })

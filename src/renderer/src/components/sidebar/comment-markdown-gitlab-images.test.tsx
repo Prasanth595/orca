@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import CommentMarkdown from './CommentMarkdown'
+import CommentMarkdown, { type CommentMarkdownExtension } from './CommentMarkdown'
 
 describe('GitLab image rendering', () => {
   const src = '/uploads/0123456789abcdef0123456789abcdef/screen.png'
@@ -63,3 +63,25 @@ it.each([undefined, () => {}])(
     }
   }
 )
+
+it('keeps extension attributes and callouts while sanitizing authenticated previews', () => {
+  const src = '/uploads/0123456789abcdef0123456789abcdef/screen.png'
+  const extension: CommentMarkdownExtension = {
+    remarkPlugins: [],
+    sanitizeAttributes: { span: ['dataPreview'] },
+    components: {}
+  }
+  const markup = renderToStaticMarkup(
+    <CommentMarkdown
+      variant="document"
+      content={`> [!NOTE]\n> ![screen](${src}){width=75%}\n\n<span data-preview="kept" onclick="alert(1)">extension</span>`}
+      gitlabImageSources={{ [src]: 'data:image/png;base64,abc123' }}
+      extension={extension}
+    />
+  )
+  expect(markup).toContain('data-callout="note"')
+  expect(markup).toContain('src="data:image/png;base64,abc123"')
+  expect(markup).toContain('style="width:75%"')
+  expect(markup).toContain('data-preview="kept"')
+  expect(markup).not.toContain('onclick')
+})
