@@ -10,11 +10,10 @@ import type { VisibleWorktreeOptions } from './compute-visible-worktrees'
  * whose main checkout is the workspace, so exempting it would keep every idle clone listed.
  */
 export function isHiddenWhileIdle(worktree: Worktree, opts: VisibleWorktreeOptions): boolean {
-  if (!opts.repoMap.get(worktree.repoId)?.hideWhenIdle) {
-    return false
-  }
-  // Why: opening a workspace from Jump to workspace must not leave it invisible before its first terminal starts.
-  if (worktree.id === opts.activeWorktreeId) {
+  if (
+    !opts.repoMap.get(worktree.repoId)?.hideWhenIdle ||
+    isOpenHideWhenIdleWorkspace(worktree, opts)
+  ) {
     return false
   }
   // Why: a row in a PTY-rebind grace window is unverifiable, not idle (#15996).
@@ -32,6 +31,20 @@ export function isHiddenWhileIdle(worktree: Worktree, opts: VisibleWorktreeOptio
     opts.browserTabsByWorktree,
     opts.worktreeIdsWithLiveAgent,
     opts.worktreeIdsWithStructuredChat
+  )
+}
+
+/**
+ * Opening an opted-in workspace from Jump to workspace must not leave it invisible before its
+ * first terminal starts, so both idle sweeps (per-repo and global "Hide sleeping") spare it.
+ */
+export function isOpenHideWhenIdleWorkspace(
+  worktree: Worktree,
+  opts: Pick<VisibleWorktreeOptions, 'repoMap' | 'activeWorktreeId'>
+): boolean {
+  return (
+    worktree.id === opts.activeWorktreeId &&
+    opts.repoMap.get(worktree.repoId)?.hideWhenIdle === true
   )
 }
 

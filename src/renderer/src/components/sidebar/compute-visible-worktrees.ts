@@ -6,7 +6,11 @@ import type { ExecutionHostId, ExecutionHostScope } from '../../../../shared/exe
 import { getIndexedAllWorktrees } from '@/store/worktree-repo-index'
 import { selectVisibleSidebarWorktrees } from '../../../../shared/sidebar-list/visible-worktrees'
 import { buildDesktopWorkspaceRowFactReader } from './desktop-workspace-row-facts'
-import { isHiddenWhileIdle, someRepoHidesWhenIdle } from './repo-idle-visibility'
+import {
+  isHiddenWhileIdle,
+  isOpenHideWhenIdleWorkspace,
+  someRepoHidesWhenIdle
+} from './repo-idle-visibility'
 import { sidebarWorkspaceRowFilters } from './sidebar-filter-actions'
 import { getLineageAncestorIndex, getSortedWorktreeRankIndex } from './visible-worktree-indexes'
 
@@ -38,7 +42,7 @@ export type VisibleWorktreeOptions = {
   forcedVisibleWorktreeIds?: readonly string[]
   /** Exempt from the sleeping sweep only; unlike forcedVisibleWorktreeIds, every other filter still applies. */
   sleepingSweepExemptWorktreeIds?: ReadonlySet<string>
-  /** Exempts the open workspace from the per-repo "Hide when idle" sweep. */
+  /** Spares the open workspace of a "Hide when idle" project from both idle sweeps. */
   activeWorktreeId?: string | null
 }
 
@@ -48,6 +52,7 @@ export function computeVisibleWorktrees(
   opts: VisibleWorktreeOptions
 ): Worktree[] {
   const rows = getIndexedAllWorktrees(worktreesByRepo)
+  const facts = buildDesktopWorkspaceRowFactReader(opts)
   return selectVisibleSidebarWorktrees({
     rows: someRepoHidesWhenIdle(opts.repoMap)
       ? rows.filter((w) => !isHiddenWhileIdle(w, opts))
@@ -55,7 +60,10 @@ export function computeVisibleWorktrees(
     ancestorById: getLineageAncestorIndex(worktreesByRepo),
     rankById: getSortedWorktreeRankIndex(sortedIds),
     filters: sidebarWorkspaceRowFilters(opts),
-    facts: buildDesktopWorkspaceRowFactReader(opts),
+    facts: {
+      ...facts,
+      isSleeping: (w) => !isOpenHideWhenIdleWorkspace(w, opts) && facts.isSleeping(w)
+    },
     worktreeLineageById: opts.worktreeLineageById,
     filterRepoIds: opts.filterRepoIds,
     injectLineageAncestors: opts.injectLineageAncestors,
