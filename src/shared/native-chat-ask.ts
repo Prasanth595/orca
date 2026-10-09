@@ -44,7 +44,8 @@ function parseCanonicalQuestionsInput(input: unknown): AskPrompt | null {
         multiSelect:
           'multiSelect' in raw
             ? raw.multiSelect === true
-            : ('multiple' in raw && raw.multiple === true) || ('multi' in raw && raw.multi === true),
+            : ('multiple' in raw && raw.multiple === true) ||
+              ('multi' in raw && raw.multi === true),
         options
       })
     }
@@ -331,9 +332,9 @@ export function buildCodexAskAnswerKeys(
   return groups
 }
 
-/** Build keystrokes for OMP's cursor-navigated `ask` dialog (no digit shortcuts,
- *  pasted text ignored). Each move homes to row 0 first because the cursor starts
- *  on the `recommended` row. */
+/** Build keystrokes for OMP's cursor-navigated `ask` dialog (OMP >= 18.2.0: no digit
+ *  shortcuts, pasted text ignored, multi-select toggles on Space). Each move homes to
+ *  row 0 first because the cursor starts on the `recommended` row. */
 export function buildOmpAskAnswerKeys(
   prompt: AskPrompt,
   selections: AskAnswerSelection[]
@@ -359,14 +360,16 @@ export function buildOmpAskAnswerKeys(
     if (q.multiSelect) {
       for (const i of sel?.indices ?? []) {
         moveTo(q.options.length, i)
-        groups.push({ raw: ASK_ENTER })
+        groups.push({ raw: ' ' })
       }
       if (other) {
+        // Why: submitting Other's editor advances the dialog by itself.
         moveTo(q.options.length, q.options.length)
         groups.push({ raw: ASK_ENTER }, { text: other }, { raw: ASK_ENTER })
+      } else {
+        // Why: Right advances from any row; Enter on the Other row would open its editor.
+        groups.push({ raw: ASK_NEXT_TAB })
       }
-      // Why: a multi-select never advances on Enter, so step with Right.
-      groups.push({ raw: ASK_NEXT_TAB })
     } else if (other) {
       moveTo(q.options.length, q.options.length)
       groups.push({ raw: ASK_ENTER }, { text: answerLabels(q, sel).join(', ') }, { raw: ASK_ENTER })

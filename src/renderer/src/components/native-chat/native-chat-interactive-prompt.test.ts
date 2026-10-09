@@ -314,6 +314,7 @@ describe('buildOmpAskAnswerKeys', () => {
   const DOWN = '\x1b[B'
   const ENTER = '\r'
   const RIGHT = '\x1b[C'
+  const SPACE = ' '
   const CLEAR = { raw: buildAgentTuiClearInput(AGENT_TUI_CLEAR_LINE_SLACK) }
 
   it('homes to row 0 then moves down to the picked option before Enter', () => {
@@ -344,14 +345,46 @@ describe('buildOmpAskAnswerKeys', () => {
     ])
   })
 
-  it('toggles each multi-select pick, steps with Right, then submits', () => {
+  it('toggles multi-select picks with Space, then Right to Review and Enter to submit', () => {
+    // OMP >= 18.2: Enter on a multi-select row confirms and advances; only Space toggles.
     expect(buildOmpAskAnswerKeys(single(['A', 'B', 'C'], true), [{ indices: [0, 2] }])).toEqual([
       CLEAR,
       { raw: `${UP}${UP}${UP}` },
-      { raw: ENTER },
+      { raw: SPACE },
       { raw: `${UP}${UP}${UP}${DOWN}${DOWN}` },
-      { raw: ENTER },
+      { raw: SPACE },
       { raw: RIGHT },
+      { raw: ENTER }
+    ])
+  })
+
+  it('does not step again after multi-select free text, which advances on its own', () => {
+    expect(
+      buildOmpAskAnswerKeys(single(['A', 'B', 'C'], true), [{ indices: [1], other: 'D' }])
+    ).toEqual([
+      CLEAR,
+      { raw: `${UP}${UP}${UP}${DOWN}` },
+      { raw: SPACE },
+      { raw: `${UP}${UP}${UP}${DOWN}${DOWN}${DOWN}` },
+      { raw: ENTER },
+      { text: 'D' },
+      { raw: ENTER },
+      { raw: ENTER }
+    ])
+    const prompt: AskPrompt = {
+      questions: [
+        { question: 'q1', multiSelect: true, options: [{ label: 'A' }, { label: 'B' }] },
+        { question: 'q2', multiSelect: false, options: [{ label: 'C' }, { label: 'D' }] }
+      ]
+    }
+    expect(buildOmpAskAnswerKeys(prompt, [{ indices: [], other: 'x' }, { indices: [1] }])).toEqual([
+      CLEAR,
+      { raw: `${UP}${UP}${DOWN}${DOWN}` },
+      { raw: ENTER },
+      { text: 'x' },
+      { raw: ENTER },
+      { raw: `${UP}${UP}${DOWN}` },
+      { raw: ENTER },
       { raw: ENTER }
     ])
   })
