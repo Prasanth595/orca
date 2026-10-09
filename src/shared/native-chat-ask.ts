@@ -5,6 +5,8 @@ import type {
   InteractiveQuestionParser
 } from './native-chat-ask-types'
 import { isInterruptedStatusMessage, type NativeChatMessage } from './native-chat-types'
+import { resolveNativeChatTranscriptAgent } from './native-chat-agent-support'
+import { AGENT_TUI_CLEAR_LINE_SLACK, buildAgentTuiClearInput } from './agent-tui-input-clear'
 
 export type { AskOption, AskPrompt, AskQuestion, InteractiveQuestionParser }
 
@@ -38,10 +40,11 @@ function parseCanonicalQuestionsInput(input: unknown): AskPrompt | null {
       questions.push({
         question: text,
         header: 'header' in raw && typeof raw.header === 'string' ? raw.header : undefined,
+        // Why: OpenCode names the flag `multiple`, OMP's ask tool `multi`.
         multiSelect:
           'multiSelect' in raw
             ? raw.multiSelect === true
-            : 'multiple' in raw && raw.multiple === true,
+            : ('multiple' in raw && raw.multiple === true) || ('multi' in raw && raw.multi === true),
         options
       })
     }
@@ -326,6 +329,75 @@ export function buildCodexAskAnswerKeys(
     groups.push({ raw: ASK_ENTER })
   }
   return groups
+}
+
+/** Build keystrokes for OMP's cursor-navigated `ask` dialog (no digit shortcuts,
+ *  pasted text ignored). Each move homes to row 0 first because the cursor starts
+ *  on the `recommended` row. */
+export function buildOmpAskAnswerKeys(
+  prompt: AskPrompt,
+  selections: AskAnswerSelection[]
+): AskAnswerKeyGroup[] {
+  if (!hasAskAnswer(prompt, selections)) {
+    return []
+  }
+  const hasSubmitTab = prompt.questions.length > 1 || prompt.questions.some((q) => q.multiSelect)
+  // Why: OMP routes ask keys into a non-empty composer draft until it is empty, so an
+  // Enter would submit that draft as a prompt; the dialog itself ignores Ctrl+U/Ctrl+K.
+  const groups: AskAnswerKeyGroup[] = [{ raw: buildAgentTuiClearInput(AGENT_TUI_CLEAR_LINE_SLACK) }]
+  const moveTo = (optionCount: number, row: number): void => {
+    const home = optionCount > 0 ? ASK_PREVIOUS_ROW.repeat(optionCount) : ''
+    const nav = home + ASK_NEXT_ROW.repeat(row)
+    if (nav) {
+      groups.push({ raw: nav })
+    }
+  }
+
+  prompt.questions.forEach((q, qi) => {
+    const sel = selections[qi]
+    const other = (sel?.other ?? '').trim()
+    if (q.multiSelect) {
+      for (const i of sel?.indices ?? []) {
+        moveTo(q.options.length, i)
+        groups.push({ raw: ASK_ENTER })
+      }
+      if (other) {
+        moveTo(q.options.length, q.options.length)
+        groups.push({ raw: ASK_ENTER }, { text: other }, { raw: ASK_ENTER })
+      }
+      // Why: a multi-select never advances on Enter, so step with Right.
+      groups.push({ raw: ASK_NEXT_TAB })
+    } else if (other) {
+      moveTo(q.options.length, q.options.length)
+      groups.push({ raw: ASK_ENTER }, { text: answerLabels(q, sel).join(', ') }, { raw: ASK_ENTER })
+    } else if ((sel?.indices.length ?? 0) > 0) {
+      moveTo(q.options.length, sel!.indices[0]!)
+      groups.push({ raw: ASK_ENTER })
+    } else {
+      groups.push({ raw: ASK_NEXT_TAB })
+    }
+  })
+
+  if (hasSubmitTab) {
+    groups.push({ raw: ASK_ENTER })
+  }
+  return groups
+}
+
+/** Build the answer keystrokes for the agent that owns this question card. */
+export function buildNativeChatAskAnswerKeys(
+  agent: string | null | undefined,
+  prompt: AskPrompt,
+  selections: AskAnswerSelection[]
+): AskAnswerKeyGroup[] {
+  const transcriptAgent = resolveNativeChatTranscriptAgent(agent)
+  if (transcriptAgent === 'codex') {
+    return buildCodexAskAnswerKeys(prompt, selections)
+  }
+  if (transcriptAgent === 'omp') {
+    return buildOmpAskAnswerKeys(prompt, selections)
+  }
+  return buildAskAnswerKeys(prompt, selections)
 }
 
 /** Whether any question in `selections` carries an answer worth submitting. */
