@@ -6,7 +6,7 @@ import type {
 } from './native-chat-ask-types'
 import { isInterruptedStatusMessage, type NativeChatMessage } from './native-chat-types'
 import { resolveNativeChatTranscriptAgent } from './native-chat-agent-support'
-import { AGENT_TUI_CLEAR_LINE_SLACK, buildAgentTuiClearInput } from './agent-tui-input-clear'
+import { AGENT_TUI_CLEAR_INPUT_MAX } from './agent-tui-input-clear'
 
 export type { AskOption, AskPrompt, AskQuestion, InteractiveQuestionParser }
 
@@ -343,12 +343,11 @@ export function buildOmpAskAnswerKeys(
     return []
   }
   const hasSubmitTab = prompt.questions.length > 1 || prompt.questions.some((q) => q.multiSelect)
-  // Why: OMP routes ask keys into a non-empty composer draft until it is empty, so an
-  // Enter would submit that draft as a prompt; the dialog itself ignores Ctrl+U/Ctrl+K.
-  const groups: AskAnswerKeyGroup[] = [{ raw: buildAgentTuiClearInput(AGENT_TUI_CLEAR_LINE_SLACK) }]
+  // Why: OMP sends ask keys into a non-empty draft (Enter would submit it); its size is
+  // unknown, so use the widest clear. The dialog itself ignores Ctrl+U/Ctrl+K.
+  const groups: AskAnswerKeyGroup[] = [{ raw: AGENT_TUI_CLEAR_INPUT_MAX }]
   const moveTo = (optionCount: number, row: number): void => {
-    const home = optionCount > 0 ? ASK_PREVIOUS_ROW.repeat(optionCount) : ''
-    const nav = home + ASK_NEXT_ROW.repeat(row)
+    const nav = ASK_PREVIOUS_ROW.repeat(optionCount) + ASK_NEXT_ROW.repeat(row)
     if (nav) {
       groups.push({ raw: nav })
     }

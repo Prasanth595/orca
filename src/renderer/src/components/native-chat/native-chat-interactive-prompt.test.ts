@@ -11,10 +11,7 @@ import {
   parseInteractivePrompt,
   type AskPrompt
 } from './native-chat-interactive-prompt'
-import {
-  AGENT_TUI_CLEAR_LINE_SLACK,
-  buildAgentTuiClearInput
-} from '../../../../shared/agent-tui-input-clear'
+import { AGENT_TUI_CLEAR_INPUT_MAX } from '../../../../shared/agent-tui-input-clear'
 
 const ESC = String.fromCharCode(27)
 
@@ -315,7 +312,7 @@ describe('buildOmpAskAnswerKeys', () => {
   const ENTER = '\r'
   const RIGHT = '\x1b[C'
   const SPACE = ' '
-  const CLEAR = { raw: buildAgentTuiClearInput(AGENT_TUI_CLEAR_LINE_SLACK) }
+  const CLEAR = { raw: AGENT_TUI_CLEAR_INPUT_MAX }
 
   it('homes to row 0 then moves down to the picked option before Enter', () => {
     expect(buildOmpAskAnswerKeys(single(['A', 'B', 'C']), [{ indices: [1] }])).toEqual([
