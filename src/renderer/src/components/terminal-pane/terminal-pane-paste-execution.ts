@@ -21,11 +21,13 @@ import type { TerminalPaneCloseController } from './use-terminal-pane-close-acti
 
 export type TerminalPanePasteExecution = ReturnType<typeof createTerminalPanePasteExecution>
 
+/** Formats clipboard image paste errors for notification display. */
 export function formatClipboardImagePasteError(error: unknown): string {
   const detail = error instanceof Error ? error.message : String(error)
   return `Image paste failed: ${detail}`
 }
 
+/** Creates terminal pane paste execution handlers for clipboard and text pastes. */
 export function createTerminalPanePasteExecution(
   controller: TerminalPaneCloseController,
   shortcutPlatform: NodeJS.Platform
@@ -70,6 +72,7 @@ export function createTerminalPanePasteExecution(
       ptyId,
       runtime: resolveTerminalPasteRuntime({
         platform: shortcutPlatform,
+        ptyId,
         transport,
         isWindowsConpty: forceBracketedMultilineTextPaste
       }),
@@ -100,6 +103,7 @@ export function createTerminalPanePasteExecution(
     }
   }
 
+  /** Resolves protected multiline paste encoding options for a pane. */
   const resolvePaneProtectedMultilinePasteOptions = (
     pane: ManagedPane
   ): TerminalPasteTextOptions | undefined => {
