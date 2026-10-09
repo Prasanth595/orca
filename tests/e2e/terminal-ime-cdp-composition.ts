@@ -131,12 +131,16 @@ export async function dispatchPlainEnter(session: CDPSession): Promise<void> {
  * `Input.imeSetComposition` opens a genuine Chromium composition session — the same one a native
  * input source would — so preedit geometry can be asserted with no system input source at all.
  */
-export async function setImeComposition(session: CDPSession, text: string): Promise<void> {
+export async function setImeComposition(
+  session: CDPSession,
+  text: string,
+  selection?: { start: number; end: number }
+): Promise<void> {
   const length = Array.from(text).length
   await session.send('Input.imeSetComposition', {
     text,
-    selectionStart: length,
-    selectionEnd: length
+    selectionStart: selection?.start ?? length,
+    selectionEnd: selection?.end ?? length
   })
 }
 
