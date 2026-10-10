@@ -13,6 +13,15 @@ import type {
   SpawnedSourceControlAgentProcess
 } from './source-control-text-generation-types'
 
+const { terminateWindowsProcessTreeMock } = vi.hoisted(() => ({
+  terminateWindowsProcessTreeMock: vi.fn(async () => true)
+}))
+
+// Why: the fake pid is real to the host; a Windows timeout must not taskkill it.
+vi.mock('../windows-process-tree-kill', () => ({
+  terminateWindowsProcessTree: terminateWindowsProcessTreeMock
+}))
+
 // An agent that never answers, as Cursor does while it waits on unreachable MCP servers.
 function silentAgent(): SpawnedSourceControlAgentProcess {
   const child = Object.assign(new EventEmitter(), {
