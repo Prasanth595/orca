@@ -113,7 +113,8 @@ export function registerRuntimeClientIpcBridge(
       emitAutomationsChangedWindowEvent({
         environmentId,
         ...(event.selector ? { selector: event.selector } : {}),
-        ...(event.reason ? { reason: event.reason } : {})
+        ...(event.reason ? { reason: event.reason } : {}),
+        ...(event.alert ? { alert: event.alert } : {})
       })
       return
     }

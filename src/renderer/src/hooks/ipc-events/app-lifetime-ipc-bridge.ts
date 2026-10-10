@@ -1,6 +1,7 @@
 import type { RuntimeHostStatusSnapshot } from '../../../../shared/runtime-host-status'
 import { getTabIdsAwaitingHostHydrationRemount } from '@/lib/parked-terminal-host-hydration'
 import { emitAutomationsChangedWindowEvent } from '@/lib/automations-changed-window-event'
+import { openAutomationRunNotification } from '@/lib/automation-run-alert-delivery'
 import { createBackgroundSleepingAgentWakeDispatcher } from '@/lib/wake-sleeping-agents-in-background'
 import { attachMobileMarkdownBridge } from '@/runtime/mobile-markdown-bridge'
 import { remoteRuntimeTerminalColorPush } from '@/runtime/remote-runtime-terminal-color-push'
@@ -65,6 +66,9 @@ export function installAppLifetimeIpcEvents(
   unsubs.push(
     window.api.automations.onChanged((payload) => emitAutomationsChangedWindowEvent(payload))
   )
+  if (window.api.automations.onOpenRun) {
+    unsubs.push(window.api.automations.onOpenRun(openAutomationRunNotification))
+  }
 
   const worktreeRuntime = createWorktreeEventRuntime(unsubs, isRuntimeEnvironmentActive)
   const statusApi = window.api.runtimeEnvironments

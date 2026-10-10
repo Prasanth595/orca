@@ -82,7 +82,7 @@ export function deliverNativeNotification(
   // repoId to activate. A folder workspace ("folder:<id>") has none, but a chat reveal selects its
   // workspace itself, so only the terminal route needs the repoId to bind a click at all.
   const repoId = worktreeId?.includes('::') ? getRepoIdFromWorktreeId(worktreeId) : null
-  if (worktreeId && (repoId !== null || chatTarget)) {
+  if (args.automationRun || (worktreeId && (repoId !== null || chatTarget))) {
     clickHandler = () => {
       release()
       const win = getTrustedUIRendererWindow()
@@ -93,6 +93,10 @@ export function deliverNativeNotification(
         app.focus({ steal: true })
       }
       safelyRevealWindow(win)
+      if (args.automationRun) {
+        win.webContents.send('automations:openRun', args.automationRun)
+        return
+      }
       if (repoId !== null) {
         win.webContents.send('ui:activateWorktree', { repoId, worktreeId })
       }

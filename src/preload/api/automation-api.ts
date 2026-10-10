@@ -15,6 +15,7 @@ import type {
   ScopedExternalManagerUpdateRequest
 } from '../../shared/external-automation-scope'
 import type { AutomationsChangedPayload } from '../../shared/runtime-client-events'
+import type { AutomationRunNavigation } from '../../shared/automation-run-alert'
 
 export type ExternalAutomationManagerResult = {
   /** Null once a probe succeeded and found no manager configured for this scope. */
@@ -48,4 +49,5 @@ export type AutomationsApi = {
   rendererReady: () => Promise<void>
   onDispatchRequested: (callback: (request: AutomationDispatchRequest) => void) => () => void
   onChanged: (callback: (payload: AutomationsChangedPayload) => void) => () => void
+  onOpenRun: (callback: (target: AutomationRunNavigation) => void) => () => void
 }

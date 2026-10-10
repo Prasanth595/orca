@@ -1,6 +1,7 @@
 /** Renderer-internal fan-out for authority `automationsChanged` events, so the
  *  Automations page refreshes without every publisher knowing about the page. */
 import type { AutomationsChangedPayload } from '../../../shared/runtime-client-events'
+import { deliverAutomationRunAlert } from './automation-run-alert-delivery'
 
 export const AUTOMATIONS_CHANGED_EVENT = 'orca:automations-changed'
 
@@ -12,6 +13,7 @@ export type AutomationsChangedWindowDetail = AutomationsChangedPayload & {
 export function emitAutomationsChangedWindowEvent(
   detail: AutomationsChangedWindowDetail = {}
 ): void {
+  deliverAutomationRunAlert(detail)
   window.dispatchEvent(
     new CustomEvent<AutomationsChangedWindowDetail>(AUTOMATIONS_CHANGED_EVENT, { detail })
   )

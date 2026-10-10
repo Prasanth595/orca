@@ -16,8 +16,15 @@ import type {
   ScopedExternalManagerUpdateRequest
 } from '../../shared/external-automation-scope'
 import type { AutomationsChangedPayload } from '../../shared/runtime-client-events'
+import type { AutomationRunNavigation } from '../../shared/automation-run-alert'
 
 export const automationsApi = {
+  onOpenRun: (callback: (target: AutomationRunNavigation) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, target: AutomationRunNavigation) =>
+      callback(target)
+    ipcRenderer.on('automations:openRun', listener)
+    return () => ipcRenderer.removeListener('automations:openRun', listener)
+  },
   listExternalManagerForOwner: (
     request: ScopedExternalManagerListRequest
   ): Promise<ExternalAutomationManagerResult> =>

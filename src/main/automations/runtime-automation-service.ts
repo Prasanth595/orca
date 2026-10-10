@@ -16,6 +16,7 @@ import {
 } from '../../shared/tui-agent-config'
 import { launchHeadlessAutomationAgent } from './headless-automation-agent-launch'
 import { createRuntimeAutomationRunTerminalObserver } from './runtime-terminal-run-observer'
+import { publishAutomationRunChange } from './automation-alert-publication'
 
 const MAX_REMEMBERED_LAUNCHES = 256
 
@@ -47,7 +48,7 @@ export function createRuntimeAutomationService(input: {
         (run.terminalPaneKey ? launchedHandles.get(run.terminalPaneKey) : undefined) ??
         observer.resolveRunTerminal(run)
     },
-    onAutomationsChanged: (payload) => runtime.notifyAutomationsChanged(payload),
+    onAutomationsChanged: (payload) => publishAutomationRunChange(runtime, payload),
     allowRemoteHostScheduling: input.headless,
     headlessDispatcher: input.headless
       ? async (request) => {
