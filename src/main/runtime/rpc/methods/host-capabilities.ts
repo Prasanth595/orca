@@ -39,6 +39,7 @@ export const HOST_CAPABILITY_METHODS = [
   }),
   defineMethod({
     name: 'host.cmder.isAvailable',
+    permission: 'workspace',
     params: null,
     handler: async () => isCmderAvailable()
   })

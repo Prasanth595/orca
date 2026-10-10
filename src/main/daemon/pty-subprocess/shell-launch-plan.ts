@@ -39,7 +39,6 @@ import {
   CLAUDE_INJECTED_CONFIG_DIR_ENV,
   CLAUDE_PROFILE_POINTER_ENV
 } from '../../../shared/claude-profile-routing'
-import { WINDOWS_GIT_BASH_SHELL } from '../../../shared/windows-terminal-shell'
 import { WINDOWS_CMDER_SHELL, WINDOWS_GIT_BASH_SHELL } from '../../../shared/windows-terminal-shell'
 import { getShellLaunchConfig, resolvePtyShellPath } from '../shell-ready'
 import { resolveWslSessionContext } from '../wsl-session-context'
