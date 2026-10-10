@@ -23,6 +23,7 @@ import {
   type PaneLaunchAgentPaneSlice
 } from './pane-launch-agent-candidate'
 import type { ConnectPanePtySession } from './connect-pane-pty-session'
+import { noteArmsHibernatedPaneWake } from './pty-exit-hibernate'
 
 /** Pane agent identity, foreground-agent sampling, and command lifecycle handling. */
 export function installPaneAgentIdentity(session: ConnectPanePtySession): void {
@@ -201,7 +202,15 @@ export function installPaneAgentIdentity(session: ConnectPanePtySession): void {
       // otherwise the tab resolver can repaint the exited agent from sleeping occupancy.
       const state = useAppStore.getState()
       const sleepingRecord = session.getSleepingRecordForPane(state)
-      if (sleepingRecord) {
+      const ptyId = session.transport.getPtyId()
+      // Why: a hibernation kill ends the agent before the PTY, so the shell shows through for a
+      // moment. That record was just written as the wake hint; clearing it strands the pane.
+      const hibernationKillInFlight =
+        sleepingRecord !== null &&
+        ptyId !== null &&
+        state.suppressedPtyExitIds[ptyId] === true &&
+        noteArmsHibernatedPaneWake(sleepingRecord.record)
+      if (sleepingRecord && !hibernationKillInFlight) {
         session.clearSleepingRecordProviderDuplicates(state, sleepingRecord)
       }
       session.clearStaleAgentTabTitleOnConfirmedShell()
