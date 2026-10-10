@@ -69,6 +69,19 @@ describe('summarizeAutomationRunUsage', () => {
     })
   })
 
+  it('projects reported results without changing the legacy lifecycle field', () => {
+    const summary = summarizeAutomationRunUsage([
+      {
+        ...makeRun(null),
+        createdAt: 1,
+        status: 'completed',
+        result: { status: 'failed', message: 'Auth expired', reportedAt: 2 }
+      }
+    ])
+    expect(summary.lastRunStatus).toBe('completed')
+    expect(summary.lastRunResult).toBe('failed')
+  })
+
   it('projects the newest retained run so list filters never fetch history', () => {
     const summary = summarizeAutomationRunUsage([
       { ...makeRun(makeUsage()), createdAt: 1, status: 'completed', dispatchedAt: 11 },

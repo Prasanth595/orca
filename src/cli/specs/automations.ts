@@ -23,6 +23,21 @@ const AUTOMATION_STATE_FLAGS = [
 
 export const AUTOMATION_COMMAND_SPECS: CommandSpec[] = [
   {
+    path: ['automations', 'report'],
+    summary: 'Report a failed automation task or a finding that needs attention',
+    usage:
+      'orca automations report --run-id <id> --run-token <token> --status <failed|needs-attention> --message <text> [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'run-id', 'run-token', 'status', 'message'],
+    notes: [
+      "Use the run id and token supplied in this automation run's prompt. Each run accepts one result; identical retries are safe.",
+      'Reporting sends an Orca alert without stopping the agent. A failed task stays failed when the terminal later finishes normally.',
+      'Requires a host supporting automation.report-run.v1.'
+    ],
+    examples: [
+      'orca automations report --run-id <id> --run-token <token> --status needs-attention --message "Review the changed policy"'
+    ]
+  },
+  {
     path: ['automations', 'list'],
     summary: 'List scheduled Orca automations',
     usage: 'orca automations list [--json]',

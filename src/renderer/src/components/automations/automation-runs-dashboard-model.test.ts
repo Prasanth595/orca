@@ -86,6 +86,34 @@ describe('automation runs dashboard model', () => {
     expect(countAutomationRunOutcomes(entries, 30).successful7d).toBe(1)
   })
 
+  it('never counts an agent-reported failure or attention as successful after completion', () => {
+    const failed = {
+      ...run('failed', local.automation.id, 10, 'completed'),
+      result: { status: 'failed' as const, message: 'Login expired', reportedAt: 15 }
+    }
+    const attention = {
+      ...run('attention', local.automation.id, 20, 'completed'),
+      result: { status: 'needs_attention' as const, message: 'Review required', reportedAt: 25 }
+    }
+    const entries = buildAutomationRunsDashboardEntries(
+      [local],
+      new Map([[local.key, [failed, attention]]])
+    )
+    const filter = (status: Parameters<typeof filterAutomationRunsDashboardEntries>[0]['status']) =>
+      filterAutomationRunsDashboardEntries({ entries, status, query: '', hostKeys: [] }).map(
+        (entry) => entry.run.id
+      )
+    expect(filter('successful')).toEqual([])
+    expect(filter('failed')).toEqual(['failed'])
+    expect(filter('needs_attention')).toEqual(['attention'])
+    expect(countAutomationRunOutcomes(entries, 30)).toEqual({
+      successful24h: 0,
+      successful7d: 0,
+      failed24h: 1,
+      failed7d: 1
+    })
+  })
+
   it('keeps future-dated runs out of the outcome windows', () => {
     const entries = buildAutomationRunsDashboardEntries(
       [local, ssh],

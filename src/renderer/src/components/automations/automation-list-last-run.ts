@@ -1,4 +1,9 @@
 import { translate } from '@/i18n/i18n'
+import {
+  getAutomationRunDisplayStatus,
+  type AutomationRunDisplayStatus,
+  type AutomationRunResultStatus
+} from '../../../../shared/automation-run-result'
 import type {
   Automation,
   AutomationRun,
@@ -52,8 +57,10 @@ export function getAutomationRunLastRunAt(run: AutomationRun): number {
   return run.dispatchedAt ?? run.startedAt ?? run.createdAt
 }
 
-export function getToneForAutomationRunStatus(status: AutomationRunStatus): AutomationLastRunTone {
-  if (status === 'dispatch_failed') {
+export function getToneForAutomationRunStatus(
+  status: AutomationRunDisplayStatus
+): AutomationLastRunTone {
+  if (status === 'dispatch_failed' || status === 'failed' || status === 'needs_attention') {
     return 'failed'
   }
   if (status === 'completed') {
@@ -75,14 +82,22 @@ export function getToneForAutomationRunStatus(status: AutomationRunStatus): Auto
  */
 export function getAutomationRowLastRunSnapshot(row: {
   automation: Automation
-  usageSummary: { lastRunStatus?: AutomationRunStatus | null; lastRunAt?: number | null } | null
+  usageSummary: {
+    lastRunStatus?: AutomationRunStatus | null
+    lastRunResult?: AutomationRunResultStatus
+    lastRunAt?: number | null
+  } | null
 }): AutomationLastRunSnapshot {
   const status = row.usageSummary?.lastRunStatus
   if (status) {
     return {
       at: row.usageSummary?.lastRunAt ?? row.automation.lastRunAt ?? null,
-      tone: getToneForAutomationRunStatus(status),
-      statusLabel: getAutomationRunStatusLabel(status)
+      tone: getToneForAutomationRunStatus(
+        getAutomationRunDisplayStatus(status, row.usageSummary?.lastRunResult)
+      ),
+      statusLabel: getAutomationRunStatusLabel(
+        getAutomationRunDisplayStatus(status, row.usageSummary?.lastRunResult)
+      )
     }
   }
   return getLocalAutomationLastRunSnapshot(row.automation, undefined)
@@ -95,8 +110,12 @@ export function getLocalAutomationLastRunSnapshot(
   if (lastRun) {
     return {
       at: getAutomationRunLastRunAt(lastRun),
-      tone: getToneForAutomationRunStatus(lastRun.status),
-      statusLabel: getAutomationRunStatusLabel(lastRun.status)
+      tone: getToneForAutomationRunStatus(
+        getAutomationRunDisplayStatus(lastRun.status, lastRun.result?.status)
+      ),
+      statusLabel: getAutomationRunStatusLabel(
+        getAutomationRunDisplayStatus(lastRun.status, lastRun.result?.status)
+      )
     }
   }
   if (automation.lastRunAt) {

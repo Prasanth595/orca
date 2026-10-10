@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { normalizeAutomationRunResult } from '../../../shared/automation-run-result'
 import { isFinalAutomationRunStatus } from '../../../shared/automations-types'
 import { invalidateLocalWorktreeMetadataPruneInputs } from '../../local-worktree-metadata-prune-gate'
 import type {
@@ -47,6 +48,7 @@ function sortedAutomationRuns(state: PersistedState, automationId?: string): Aut
   return [...(automationId ? runs.filter((run) => run.automationId === automationId) : runs)]
     .map((run) => ({
       ...run,
+      ...(run.result ? { result: normalizeAutomationRunResult(run.result) } : {}),
       precheckResult: normalizeAutomationPrecheckResult(run.precheckResult)
     }))
     .sort(compareAutomationRunsNewestFirst)
@@ -84,6 +86,7 @@ export function createAutomationRun(
   )
   const run: AutomationRun = {
     id: randomUUID(),
+    reportToken: randomUUID(),
     automationId: automation.id,
     runNumber,
     runContext: automation.runContext ?? null,
@@ -175,6 +178,13 @@ export function updateAutomationRun(
     : null
   const updated: AutomationRun = {
     ...current,
+    ...(current.result || result.result
+      ? {
+          result:
+            normalizeAutomationRunResult(current.result) ??
+            normalizeAutomationRunResult(result.result)
+        }
+      : {}),
     status: result.status,
     workspaceId,
     workspaceDisplayName:

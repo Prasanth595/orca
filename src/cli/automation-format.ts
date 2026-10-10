@@ -14,6 +14,7 @@ import type { AutomationOwnerPrecondition } from '../shared/automation-owner-pre
 import { getAutomationLegacyRepoId } from '../shared/automation-run-identity'
 import { formatAutomationPrecheckTimeout } from '../shared/automation-precheck'
 import { formatAutomationSchedule } from '../shared/automation-schedules'
+import { getAutomationRunDisplayStatus } from '../shared/automation-run-result'
 
 export type AutomationListPayload = {
   automations: Automation[]
@@ -111,7 +112,10 @@ export function formatAutomationRun(result: { run: AutomationRun }): string {
     `id: ${result.run.id}`,
     `automationId: ${result.run.automationId}`,
     `title: ${result.run.title}`,
-    `status: ${result.run.status}`,
+    `status: ${getAutomationRunDisplayStatus(result.run.status, result.run.result?.status)}`,
+    ...(result.run.result
+      ? [`lifecycle: ${result.run.status}`, `result: ${result.run.result.message}`]
+      : []),
     `trigger: ${result.run.trigger}`,
     `scheduledFor: ${new Date(result.run.scheduledFor).toISOString()}`,
     `workspaceId: ${result.run.workspaceId ?? 'null'}`,
@@ -141,7 +145,7 @@ export function formatAutomationRuns(result: { runs: AutomationRun[] }): string 
   return result.runs
     .map(
       (run) =>
-        `${run.id}  ${run.automationId}  ${run.status}  ${run.trigger}  ${new Date(run.scheduledFor).toISOString()}\n${run.title}${run.precheckResult ? `\nprecheck: ${formatAutomationRunPrecheck(run)}` : ''}${run.error ? `\nerror: ${run.error}` : ''}`
+        `${run.id}  ${run.automationId}  ${getAutomationRunDisplayStatus(run.status, run.result?.status)}  ${run.trigger}  ${new Date(run.scheduledFor).toISOString()}\n${run.title}${run.result ? `\nresult: ${run.result.message}` : ''}${run.precheckResult ? `\nprecheck: ${formatAutomationRunPrecheck(run)}` : ''}${run.error ? `\nerror: ${run.error}` : ''}`
     )
     .join('\n\n')
 }

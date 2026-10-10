@@ -1,7 +1,6 @@
 import type { AutomationService } from '../automations/service'
 import type {
   Automation,
-  AutomationCreateInput,
   AutomationRun,
   AutomationUpdateInput,
   AutomationWorkspaceMode
@@ -19,25 +18,16 @@ import { runAutomationNowFenced } from '../automations/refused-manual-run'
 import { paginateAutomationRuns } from '../../shared/automation-run-cursor'
 import { hasRuntimeAutomationUpdateValue } from './runtime-automation-update-value'
 import { assertAutomationRunContextMatchesTarget } from './runtime-automation-run-context'
+import type { AutomationRunResultReport } from '../../shared/automation-run-result'
 
-export type RuntimeAutomationCreateInput = Omit<
-  AutomationCreateInput,
-  'projectId' | 'workspaceId' | 'workspaceMode' | 'timezone'
-> & {
-  repo?: string
-  workspace?: string
-  workspaceMode?: AutomationWorkspaceMode
-  timezone?: string
-  destination?: AutomationDestination
-}
-
-export type RuntimeAutomationUpdateInput = Omit<
-  AutomationUpdateInput,
-  'projectId' | 'workspaceId'
-> & {
-  repo?: string
-  workspace?: string
-}
+import type {
+  RuntimeAutomationCreateInput,
+  RuntimeAutomationUpdateInput
+} from './runtime-automation-command-types'
+export type {
+  RuntimeAutomationCreateInput,
+  RuntimeAutomationUpdateInput
+} from './runtime-automation-command-types'
 
 type RuntimeAutomationTargetResolvers = {
   showRepo: (selector: string) => Promise<Repo>
@@ -54,6 +44,13 @@ export class RuntimeAutomationController {
 
   setService(service: AutomationService): void {
     this.service = service
+  }
+
+  reportResult(input: AutomationRunResultReport): Promise<AutomationRun> {
+    if (!this.service) {
+      throw new Error('runtime_unavailable')
+    }
+    return this.service.reportResult(input)
   }
 
   /** Completed automation run terminals no client used, closed before an update; 0 off-headless. */

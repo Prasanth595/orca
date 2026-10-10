@@ -53,6 +53,7 @@ import {
   getWorkspaceModeFlag
 } from './automation-handler-flags'
 import { getExtraAgentArgsFlag } from './automation-extra-agent-args-flag'
+import { reportAutomationRun } from './automation-run-report'
 
 type AutomationCreateParams = Omit<AutomationCreateInput, 'projectId' | 'timezone'> & {
   destination?: AutomationDestination
@@ -180,6 +181,7 @@ async function assertExtraAgentArgsSupported(
 }
 
 export const AUTOMATION_HANDLERS: Record<string, CommandHandler> = {
+  'automations report': reportAutomationRun,
   'automations list': async ({ client, json }) => {
     const result = await client.call<{ automations: Automation[] }>('automation.list')
     printResult(result, json, formatAutomationList)

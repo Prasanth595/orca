@@ -63,7 +63,7 @@ export function createAutomationRunWriter(
         : null
       const run = store.updateAutomationRun(result)
       const alert = automationRunAlert(run)
-      if (publish && alert && previous?.status !== 'dispatch_failed') {
+      if (publish && alert && previous?.status !== 'dispatch_failed' && !previous?.result) {
         pendingAlerts.set(run.id, alert)
       }
       await store.flushPendingOrThrowAsync({ drainToStableGeneration: false })

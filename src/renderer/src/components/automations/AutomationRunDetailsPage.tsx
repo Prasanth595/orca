@@ -1,3 +1,4 @@
+import { getAutomationRunDisplayStatus } from '../../../../shared/automation-run-result'
 import React from 'react'
 import { Eye, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -56,8 +57,12 @@ export function AutomationRunDetailsPage({
               )
             : null
         }
-        statusLabel={getAutomationRunStatusLabel(run.status)}
-        statusVariant={getAutomationRunStatusVariant(run.status)}
+        statusLabel={getAutomationRunStatusLabel(
+          getAutomationRunDisplayStatus(run.status, run.result?.status)
+        )}
+        statusVariant={getAutomationRunStatusVariant(
+          getAutomationRunDisplayStatus(run.status, run.result?.status)
+        )}
         actions={
           <>
             {canRerun && automation ? (

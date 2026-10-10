@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { getAutomationRunContent } from './automation-run-content'
 import type { Automation, AutomationRun } from '../../../../shared/automations-types'
 import {
   AUTOMATION_RERUN_PENDING_MIN_VISIBLE_MS,
@@ -157,6 +158,21 @@ describe('automation run view state', () => {
 })
 
 describe('canRerunAutomationRun', () => {
+  it('allows retrying reported failure only after its process finishes', () => {
+    const result = { status: 'failed' as const, message: 'Login expired', reportedAt: 30 }
+    expect(
+      canRerunAutomationRun({
+        automation: makeAutomation(),
+        run: makeRun({ status: 'dispatched', result })
+      })
+    ).toBe(false)
+    expect(
+      canRerunAutomationRun({
+        automation: makeAutomation(),
+        run: makeRun({ status: 'completed', result })
+      })
+    ).toBe(true)
+  })
   it.each(['dispatch_failed', 'skipped_unavailable', 'skipped_needs_interactive_auth'] as const)(
     'allows rerun for recoverable launch status %s',
     (status) => {
@@ -201,6 +217,24 @@ describe('canRerunAutomationRun', () => {
         run: makeRun({ status: 'dispatch_failed' })
       })
     ).toBe(false)
+  })
+})
+
+describe('reported run content', () => {
+  it('keeps the report visible alongside a saved output snapshot', () => {
+    const content = getAutomationRunContent(
+      makeRun({
+        result: { status: 'failed', message: 'Login expired', reportedAt: 30 },
+        outputSnapshot: {
+          format: 'plain_text',
+          content: 'Agent output',
+          capturedAt: 30,
+          truncated: false
+        }
+      })
+    )
+    expect(content).toContain('Failed: Login expired')
+    expect(content).toContain('Agent output')
   })
 })
 

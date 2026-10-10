@@ -20,15 +20,15 @@ export type AutomationRunAlert = AutomationRunNavigation & {
 }
 
 export function automationRunAlert(run: AutomationRun): AutomationRunAlert | null {
-  if (run.status !== 'dispatch_failed') {
+  if (run.status !== 'dispatch_failed' && !run.result) {
     return null
   }
   return {
     automationId: run.automationId,
     runId: run.id,
     title: run.title,
-    message: run.error || 'The automation could not complete.',
-    status: 'failed',
+    message: run.result?.message || run.error || 'The automation could not complete.',
+    status: run.status === 'dispatch_failed' ? 'failed' : (run.result?.status ?? 'failed'),
     workspaceId: run.workspaceId,
     paneKey: run.terminalPaneKey,
     createdAt: Date.now()

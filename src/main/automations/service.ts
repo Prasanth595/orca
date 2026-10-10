@@ -25,6 +25,8 @@ import {
 } from './run-completion-watcher'
 import { createAutomationRunWriter, type AutomationRunWriter } from './automation-run-writer'
 import { reportAutomationScheduleDrift } from './schedule-drift-report'
+import { reportAutomationRunResult } from './automation-run-result-report'
+import type { AutomationRunResultReport } from '../../shared/automation-run-result'
 import {
   describeScheduledRefusal,
   missedBeyondGrace,
@@ -227,6 +229,10 @@ export class AutomationService {
       claudeUsage: this.claudeUsage,
       codexUsage: this.codexUsage
     })
+  }
+
+  reportResult(input: AutomationRunResultReport): Promise<AutomationRun> {
+    return reportAutomationRunResult(this.store, this.runs, input)
   }
 
   private async evaluateDueRuns(): Promise<void> {

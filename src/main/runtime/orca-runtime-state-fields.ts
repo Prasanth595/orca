@@ -159,7 +159,12 @@ export class OrcaRuntimeWithStateFields extends OrcaRuntimeWithLinearCommands {
       gitHubIssueComments: this.gitHubIssueComments,
       gitHubProjects: this.gitHubProjectCommands
     })
+    this.automation = new RuntimeAutomationController(store, {
+      showRepo: (selector) => runtime.showRepo(selector),
+      showManagedWorktree: (selector) => this.showManagedWorktree(selector)
+    })
     installRuntimeServiceCommandSurface(runtime, {
+      automation: this.automation,
       aiVault: this.aiVault,
       sessionSearchSettings: new RuntimeSessionSearchSettingsController(
         store,
@@ -208,10 +213,6 @@ export class OrcaRuntimeWithStateFields extends OrcaRuntimeWithLinearCommands {
     this.clientSettings = new RuntimeClientSettingsController(store, () =>
       this.notifyReposChanged()
     )
-    this.automation = new RuntimeAutomationController(store, {
-      showRepo: (selector) => runtime.showRepo(selector),
-      showManagedWorktree: (selector) => this.showManagedWorktree(selector)
-    })
     // Why: per-device tab selections must survive host restarts, or every phone snaps back to the first tab on return.
     const persistedClientTabSelections = store?.getMobileClientTabSelections?.()
     if (persistedClientTabSelections) {

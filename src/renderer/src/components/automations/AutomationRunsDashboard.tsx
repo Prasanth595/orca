@@ -32,6 +32,7 @@ const STATUS_LABELS: Record<AutomationRunsStatusFilter, { key: string; fallback:
   all: { key: 'allStatuses', fallback: 'All statuses' },
   successful: { key: 'successful', fallback: 'Successful' },
   failed: { key: 'failed', fallback: 'Failed' },
+  needs_attention: { key: 'needsAttention', fallback: 'Needs attention' },
   active: { key: 'active', fallback: 'In progress' },
   skipped: { key: 'skipped', fallback: 'Skipped' }
 }

@@ -1,6 +1,7 @@
 import type { TuiAgent } from './tui-agent'
 import type { SetupDecision } from './worktree/create-types'
 import type { TaskSourceContext, WorkspaceRunContext } from './task-source-context'
+import type { AutomationRunResult } from './automation-run-result'
 
 export type AutomationWorkspaceMode = 'existing' | 'new_per_run'
 export type AutomationExecutionTargetType = 'local' | 'ssh'
@@ -20,14 +21,7 @@ export type AutomationRunTrigger = 'scheduled' | 'manual'
 
 /** Statuses a run can never leave; only these are safe to evict from history. */
 export function isFinalAutomationRunStatus(status: AutomationRunStatus): boolean {
-  return (
-    status === 'completed' ||
-    status === 'dispatch_failed' ||
-    status === 'skipped_precheck' ||
-    status === 'skipped_missed' ||
-    status === 'skipped_unavailable' ||
-    status === 'skipped_needs_interactive_auth'
-  )
+  return status === 'completed' || status === 'dispatch_failed' || status.startsWith('skipped_')
 }
 
 export type AutomationSchedulePreset = 'hourly' | 'daily' | 'weekdays' | 'weekly' | 'custom'
@@ -135,6 +129,9 @@ export type Automation = {
 }
 
 export type AutomationRun = {
+  result?: AutomationRunResult
+  /** Scope proof for this run's agent report; preserved across host restarts. */
+  reportToken?: string
   id: string
   automationId: string
   runContext?: WorkspaceRunContext | null
@@ -235,6 +232,7 @@ export type AutomationDispatchRequest = {
 }
 
 export type AutomationDispatchResult = {
+  result?: AutomationRunResult
   runId: string
   status: AutomationRunStatus
   workspaceId?: string | null

@@ -9,8 +9,10 @@ import type { RuntimeMobileSpeechCatalog } from './runtime-mobile-speech-catalog
 import type { RuntimeNativeChatDraftResolutions } from './runtime-native-chat-draft-resolutions'
 import type { RuntimeSessionSearchSettingsController } from './runtime-session-search-settings'
 import type { RuntimeSubscriptionRegistry } from './runtime-subscription-registry'
+import type { RuntimeAutomationController } from './runtime-automation-controller'
 
 export type RuntimeServiceCommandSurface = {
+  reportAutomationRunResult: RuntimeAutomationController['reportResult']
   listAiVaultSessions: RuntimeAiVaultCommands['list']
   resolveAiVaultSessionTitles: RuntimeAiVaultCommands['resolveTitles']
   prepareAiVaultSessionResume: RuntimeAiVaultCommands['prepare']
@@ -80,6 +82,7 @@ export type RuntimeServiceCommandSurface = {
 }
 
 type RuntimeServiceCommandOwners = {
+  automation: RuntimeAutomationController
   aiVault: RuntimeAiVaultCommands
   sessionSearchSettings: RuntimeSessionSearchSettingsController
   clientEvents: RuntimeClientEventBus
@@ -109,6 +112,7 @@ export function installRuntimeServiceCommandSurface(
   const browsers = owners.browserDrivers
   const waiters = owners.messageWaiters
   Object.assign(target, {
+    reportAutomationRunResult: owners.automation.reportResult.bind(owners.automation),
     listAiVaultSessions: vault.list.bind(vault),
     resolveAiVaultSessionTitles: vault.resolveTitles.bind(vault),
     prepareAiVaultSessionResume: vault.prepare.bind(vault),

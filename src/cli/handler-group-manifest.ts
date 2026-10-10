@@ -47,7 +47,8 @@ export const HANDLER_GROUPS: readonly HandlerGroup[] = [
       'automations edit',
       'automations remove',
       'automations run',
-      'automations runs'
+      'automations runs',
+      'automations report'
     ],
     load: async () => (await import('./handlers/automations.js')).AUTOMATION_HANDLERS
   },
