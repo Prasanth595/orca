@@ -5,6 +5,7 @@ import { defineConfig, type UserConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { createBootstrapFatalExitBanner } from './config/build-plugins/bootstrap-fatal-exit-banner'
+import { createAsciiBundleSourcePlugin } from './config/build-plugins/ascii-bundle-source'
 import { createPdfjsViewerAssetsPlugin } from './config/build-plugins/pdfjs-viewer-assets'
 import { createProcessHostDevRebuildPlugin } from './config/build-plugins/process-host-dev-rebuild'
 import {
@@ -292,6 +293,10 @@ export const electronViteConfig: UserConfig = {
           chunkFileNames: 'chunks/[name]-[hash].js'
         },
         plugins: [
+          // Why first: later generateBundle hooks edit chunk code without touching the map.
+          ...(process.env.ORCA_ASCII_BUNDLE_SOURCE === '0'
+            ? []
+            : [createAsciiBundleSourcePlugin()]),
           createMainBootstrapPlugin(),
           createPlainNodeEntryGuardPlugin(),
           createProcessHostDevRebuildPlugin()
