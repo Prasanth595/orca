@@ -34,16 +34,31 @@ const bridge: RemoteCliBridgeEnv = {
 
 describe('SSH CLI path ownership', () => {
   it('replaces the client restore directory with the remote bridge', () => {
-    const env = { PATH: '/usr/bin', ORCA_CLI_BIN_DIR: '/client/orca/bin' }
+    const env = {
+      PATH: '/usr/bin',
+      ORCA_CLI_BIN_DIR: '/client/orca/bin',
+      ORCA_CLI_COMMAND: '/client/orca/bin/orca-dev',
+      ORCA_WSL_CLI_DIR: '/client/wsl/bin'
+    }
     const result = buildSshPtySpawnEnv({ env, remoteCliBridgeEnv: bridge })
     expect(result.ORCA_CLI_BIN_DIR).toBe(bridge.binDir)
+    expect(result.ORCA_CLI_COMMAND).toBeUndefined()
+    expect(result.ORCA_WSL_CLI_DIR).toBeUndefined()
     expect(result.PATH).toBe(`${bridge.binDir}:/usr/bin`)
     expect(env.ORCA_CLI_BIN_DIR).toBe('/client/orca/bin')
   })
 
   it('clears a client path when no remote bridge is available', () => {
-    const result = buildSshPtySpawnEnv({ env: { ORCA_CLI_BIN_DIR: '/client/orca/bin' } })
+    const result = buildSshPtySpawnEnv({
+      env: {
+        ORCA_CLI_BIN_DIR: '/client/orca/bin',
+        ORCA_CLI_COMMAND: '/client/orca/bin/orca-dev',
+        ORCA_WSL_CLI_DIR: '/client/wsl/bin'
+      }
+    })
     expect(result.ORCA_CLI_BIN_DIR).toBeUndefined()
+    expect(result.ORCA_CLI_COMMAND).toBeUndefined()
+    expect(result.ORCA_WSL_CLI_DIR).toBeUndefined()
   })
 
   it('does not give a POSIX wrapper a Windows bridge directory', () => {
