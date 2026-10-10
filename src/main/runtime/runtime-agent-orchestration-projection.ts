@@ -89,6 +89,7 @@ export class RuntimeAgentOrchestrationProjection {
       }
       const context = this.getForHandle(binding.handle, db, {
         paneKey: binding.authorityPaneKey,
+        evidence: evidenceByPaneKey.get(binding.displayPaneKey),
         deferAttention: batchAttention
       })
       if (context) {

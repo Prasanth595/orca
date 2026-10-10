@@ -246,6 +246,17 @@ describe('structured worker orchestration display', () => {
     )
   })
 
+  it('preserves IPC attention parity when batched attention is unavailable', () => {
+    const { dispatch } = dispatchWorker()
+    const facts = db.getWorkerAttentionFacts(dispatch.id, Date.now())
+    vi.spyOn(db, 'getWorkerAttentionFacts').mockReturnValue(facts)
+    Object.defineProperty(db, 'getWorkerAttentionFactsForDispatches', { value: undefined })
+    const projector = projection([status(WORKER)])
+    const context = projector.buildByPaneKey()?.[displayPane(WORKER)]
+    expect(context).toEqual(projector.getForStructuredPaneKey(displayPane(WORKER)))
+    expect(context?.attention?.categories).not.toContain('unverifiable')
+  })
+
   it('ignores rows from other hosts, workspaces, and non-structured producers', () => {
     dispatchWorker()
     for (const row of [
