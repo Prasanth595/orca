@@ -103,13 +103,17 @@ describe('agent-reported automation results', () => {
 
   it('records failure without ending the live run, and preserves it through late completion and restart', async () => {
     const { service, run, publish } = await setupRun()
-    const reported = await service.reportResult({
-      runId: run.id,
-      token: tokenFor(run),
-      status: 'failed',
-      message: 'Login expired'
-    })
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 10_000)
+    const reported = await service
+      .reportResult({
+        runId: run.id,
+        token: tokenFor(run),
+        status: 'failed',
+        message: 'Login expired'
+      })
+      .finally(() => clock.mockRestore())
     expect(reported.status).toBe('dispatched')
+    expect(reported.dispatchedAt).toBe(run.dispatchedAt)
     expect(reported.result).toMatchObject({ status: 'failed', message: 'Login expired' })
     const completed = await service.markDispatchResult({
       runId: run.id,
