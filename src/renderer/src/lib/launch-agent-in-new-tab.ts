@@ -1,5 +1,4 @@
 import { useAppStore } from '@/store'
-import type { AgentStartupPlan } from '@/lib/tui-agent-startup'
 import { planLaunchAgentStartupPrompt } from '@/lib/launch-agent-startup-prompt-plan'
 import { persistAgentLaunchTabOrder } from '@/lib/launch-agent-tab-order'
 import { tuiAgentToAgentKind } from '@/lib/telemetry'
@@ -11,7 +10,11 @@ import {
   launchNewTabPromptThroughHost,
   newTabPromptLaunchesThroughHost
 } from '@/lib/launch-agent-new-tab-host-route'
-import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
+import {
+  getExecutionHostIdForWorktree,
+  getRuntimeEnvironmentIdForWorktree
+} from '@/lib/worktree-runtime-owner'
+import { resolveWorktreeOperationRouteForHost } from '@/lib/worktree-operation-route'
 import { isWebRuntimeSessionActive } from '@/runtime/web-runtime-session'
 import { launchAgentInWebHostTab } from '@/lib/launch-agent-web-host-tab'
 import {
@@ -19,86 +22,23 @@ import {
   resolveTuiAgentLaunchEnv
 } from '../../../shared/tui-agent-launch-defaults'
 import { TUI_AGENT_CONFIG } from '../../../shared/tui-agent-config'
-import type { TuiAgent } from '../../../shared/tui-agent'
-import type { LaunchSource } from '../../../shared/telemetry-events'
 import { resolveAgentLaunchExecutionContext } from '@/lib/launch-agent-execution-context'
 import { launchStructuredAgentFromNewTab } from '@/lib/launch-agent-in-new-tab-structured-route'
-import type { StructuredAgentLaunchSettlement } from '@/lib/structured-agent-launch-settlement'
-import type { StructuredLaunchTerminal } from '@/lib/structured-agent-session-launch-admission'
 import { workspaceKindForWorktreeId } from '@/lib/agent-launch-route-input'
-import type { AgentSessionLaunchPlan } from '@/lib/agent-session-launch-plan'
 import {
   launchOnceHostAnswered,
   routeNewTabLaunch
 } from '@/lib/launch-agent-in-new-tab-host-agents'
-import type { AgentLaunchRequestId } from '@/lib/agent-launch-request-id'
+import type {
+  LaunchAgentInNewTabArgs,
+  LaunchAgentInNewTabResult
+} from './agent-tab-launch-contract'
 
-/** The user action this launch serves: minted where that action is handled, or carried by the
- *  route the caller already planned for it. */
-type LaunchAgentInNewTabRequest =
-  | { requestId: AgentLaunchRequestId; agentSessionLaunchPlan?: undefined }
-  | {
-      /** Keeps a preflighted route authoritative across workspace creation. */
-      agentSessionLaunchPlan: AgentSessionLaunchPlan
-      requestId?: undefined
-    }
-
-export type LaunchAgentInNewTabArgs = LaunchAgentInNewTabRequest & {
-  agent: TuiAgent
-  worktreeId: string
-  /** Tab group the user launched from; keeps split-group launches in that pane instead of the active group. */
-  groupId?: string
-  /** Optional initial prompt; delivery depends on `promptDelivery` and the agent's prompt mode. */
-  prompt?: string
-  /** Optional CLI arguments appended to the selected agent command. */
-  agentArgs?: string | null
-  initialCwd?: string | null
-  /** How to deliver the prompt: `draft` leaves it editable, `submit-after-ready` sends it once the TUI is ready. */
-  promptDelivery?: 'auto-submit' | 'draft' | 'submit-after-ready'
-  /** Telemetry surface that initiated this launch. Defaults to the tab-bar quick-launch entry point. */
-  launchSource?: LaunchSource
-  /** User-authored Quick Command label for local tabs created from the tab bar. */
-  quickCommandLabel?: string | null
-  /** Shell platform for the startup command; defaults to renderer OS. SSH/WSL worktrees run Linux even from Windows. */
-  launchPlatform?: NodeJS.Platform
-  /** Called after the prompt is actually delivered to the agent input path. */
-  onPromptDelivered?: () => void
-  /** The caller keeps the prompt's text if it does not go out (notes), so no composer gets it. */
-  promptKeptByCaller?: true
-  /**
-   * Called before `onPromptDelivered` when the paste was written without ever observing the
-   * agent's composer, so the launch cannot claim the prompt arrived. Fires only on the
-   * terminal route, whose readiness signal the client watches itself.
-   */
-  onPromptDeliveryUnconfirmed?: () => void
-  /** Keep terminal launches in a floating workspace from taking global selection. */
-  activate?: boolean
-  /** A plain new-tab pick ("+", Quick Launch, floating panel, dashboard): with no prompt it starts
-   *  through the host where that matches main's own launch. */
-  freshNewTab?: true
-  /** The launch seeds a workspace being opened, so its PTY spawn must not reshuffle Recent. */
-  pendingActivationSpawn?: boolean
-  /** Lets a workspace reveal itself before the selected surface opens. */
-  beforeSurfaceOpen?: (
-    surface: { kind: 'local-terminal' } | { kind: 'host-published' }
-  ) => boolean | void
-  /** Opens instead of this agent's terminal when the host declines its structured chat. */
-  onStructuredHostDeclined?: () => StructuredLaunchTerminal
-}
-
-/** `host-published`: the surface opens once its host answers, a structured chat's included. */
-export type AgentLaunchSurface =
-  | { kind: 'local-terminal'; tabId: string }
-  | { kind: 'host-published' }
-
-export type LaunchAgentInNewTabResult = {
-  surface: AgentLaunchSurface
-  startupPlan: AgentStartupPlan
-  pasteDraftAfterLaunch: boolean
-  promptDeliveryResult?: Promise<{ delivered: boolean; failureNotified: boolean }>
-  /** Structured route only: what the launch did once it settled. The call stays synchronous. */
-  structuredSettlement?: Promise<StructuredAgentLaunchSettlement>
-} | null
+export type {
+  AgentLaunchSurface,
+  LaunchAgentInNewTabArgs,
+  LaunchAgentInNewTabResult
+} from './agent-tab-launch-contract'
 
 export function shouldQueueTerminalFocusAfterMenuClose(
   result: NonNullable<LaunchAgentInNewTabResult>
@@ -120,6 +60,7 @@ function launchAgentInNewTabInternal(args: LaunchAgentInNewTabArgs): LaunchAgent
   const {
     agent,
     worktreeId,
+    executionHostId,
     groupId,
     prompt,
     agentArgs,
@@ -132,10 +73,14 @@ function launchAgentInNewTabInternal(args: LaunchAgentInNewTabArgs): LaunchAgent
     onPromptDeliveryUnconfirmed,
     pendingActivationSpawn,
     beforeSurfaceOpen,
-    activate
+    activate = true
   } = args
   const store = useAppStore.getState()
-  const executionContext = resolveAgentLaunchExecutionContext(store, { worktreeId, launchPlatform })
+  const executionContext = resolveAgentLaunchExecutionContext(store, {
+    worktreeId,
+    ...(executionHostId ? { executionHostId } : {}),
+    launchPlatform
+  })
   if (!executionContext) {
     return null
   }
@@ -178,7 +123,7 @@ function launchAgentInNewTabInternal(args: LaunchAgentInNewTabArgs): LaunchAgent
   // server included, so only a non-structured route falls through to the host-published terminal.
   const route = routeNewTabLaunch(store, args, {
     agent,
-    workspace: { kind: workspaceKind, worktreeId },
+    workspace: { kind: workspaceKind, worktreeId, executionHostId },
     prompt: trimmedPrompt,
     promptDelivery: routePromptDelivery,
     tuiCustomization: { cwd: initialCwd },
@@ -193,6 +138,7 @@ function launchAgentInNewTabInternal(args: LaunchAgentInNewTabArgs): LaunchAgent
     const structured = launchStructuredAgentFromNewTab({
       plan,
       worktreeId,
+      activate,
       ...(groupId ? { groupId } : {}),
       ...(beforeSurfaceOpen ? { beforeSurfaceOpen } : {}),
       ...(args.onStructuredHostDeclined ? { onHostDeclined: args.onStructuredHostDeclined } : {}),
@@ -208,7 +154,10 @@ function launchAgentInNewTabInternal(args: LaunchAgentInNewTabArgs): LaunchAgent
     return structured && { ...structured, startupPlan }
   }
 
-  const runtimeEnvironmentId = getRuntimeEnvironmentIdForWorktree(store, worktreeId)
+  const runtimeEnvironmentId = executionHostId
+    ? (resolveWorktreeOperationRouteForHost(store, worktreeId, executionHostId)
+        ?.runtimeEnvironmentId ?? null)
+    : getRuntimeEnvironmentIdForWorktree(store, worktreeId)
   if (isWebRuntimeSessionActive(runtimeEnvironmentId)) {
     if (beforeSurfaceOpen?.({ kind: 'host-published' }) === false) {
       return null
@@ -228,6 +177,7 @@ function launchAgentInNewTabInternal(args: LaunchAgentInNewTabArgs): LaunchAgent
       // Why: omission means terminal locally, but would let a paired host apply
       // its own default; send the client's resolved terminal choice explicitly.
       viewMode: 'terminal',
+      activate,
       onPromptDelivered
     })
     return {
@@ -243,7 +193,12 @@ function launchAgentInNewTabInternal(args: LaunchAgentInNewTabArgs): LaunchAgent
   if (beforeSurfaceOpen?.({ kind: 'local-terminal' }) === false) {
     return null
   }
+  // Why: the host's `agent.launch` names the workspace by bare id, so a picked host other than
+  // the one routing would choose keeps the window's own launch.
+  const hostLaunchMatchesPick =
+    !executionHostId || executionHostId === getExecutionHostIdForWorktree(store, worktreeId)
   if (
+    hostLaunchMatchesPick &&
     pasteDraftAfterLaunch !== null &&
     newTabPromptLaunchesThroughHost({ promptDelivery, pastesPrompt: true })
   ) {
@@ -258,6 +213,7 @@ function launchAgentInNewTabInternal(args: LaunchAgentInNewTabArgs): LaunchAgent
       launchSource: launchSource ?? 'tab_bar_quick_launch',
       quickCommandLabel,
       ...(pendingActivationSpawn ? { pendingActivationSpawn: true } : {}),
+      ...(activate === false ? { activate: false } : {}),
       pasteContent: pasteDraftAfterLaunch,
       submit: submitPastedPrompt,
       ...(onPromptDelivered ? { onPromptDelivered } : {}),
@@ -270,7 +226,11 @@ function launchAgentInNewTabInternal(args: LaunchAgentInNewTabArgs): LaunchAgent
       promptDeliveryResult: launched.promptDeliveryResult
     }
   }
-  if (args.freshNewTab && freshNewTabLaunchesThroughHost(args, resolvedLaunchPlatform)) {
+  if (
+    hostLaunchMatchesPick &&
+    args.freshNewTab &&
+    freshNewTabLaunchesThroughHost(args, resolvedLaunchPlatform)
+  ) {
     const tabId = launchFreshNewTabThroughHost({
       agent,
       worktreeId,
@@ -287,6 +247,7 @@ function launchAgentInNewTabInternal(args: LaunchAgentInNewTabArgs): LaunchAgent
   }
   // Why: queue startup BEFORE TerminalPane mounts — it snapshots pendingStartupByTabId in useState on first render.
   const tab = store.createTab(worktreeId, groupId, undefined, {
+    ...(executionHostId ? { executionHostId } : {}),
     launchAgent: agent,
     quickCommandLabel,
     ...(pendingActivationSpawn ? { pendingActivationSpawn: true } : {}),
@@ -344,8 +305,11 @@ function launchAgentInNewTabInternal(args: LaunchAgentInNewTabArgs): LaunchAgent
   }
 
   // Why: without setActiveTabType('terminal') an activated launch can stay hidden behind an editor.
-  // Scoped to the launch's worktree so a floating or background launch leaves the main window's tab alone.
-  store.setActiveTabType('terminal', worktreeId)
+  // Scoped to the launch's worktree so a floating or background launch leaves the main window's tab alone;
+  // gated so a grid launch into the on-screen worktree keeps the editor or browser it was showing.
+  if (activate) {
+    store.setActiveTabType('terminal', worktreeId)
+  }
 
   // Why: persist tab-bar order so reconcileTabOrder doesn't fall back to terminals-first and jump the new tab to index 0.
   persistAgentLaunchTabOrder(worktreeId, tab.id)

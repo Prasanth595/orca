@@ -1,9 +1,8 @@
+import type { TerminalDropSurface, TerminalDropTransport } from './terminal-drop-surface'
 import { toast } from 'sonner'
 import { extractIpcErrorMessage } from '@/lib/ipc-error'
-import type { PaneManager } from '@/lib/pane-manager/pane-manager'
 import { useAppStore } from '@/store'
 import { translate } from '@/i18n/i18n'
-import type { PtyTransport } from './pty-transport'
 import { captureTerminalDropTarget, getCurrentTerminalDropTransport } from './terminal-drop-target'
 import { captureTerminalDropTransportOwner } from './terminal-drop-transport-owner'
 import { resolveTerminalDropWorktreePath } from './terminal-drop-worktree-path'
@@ -11,8 +10,8 @@ import { isWorktreeUsingLocalWslRuntime } from './terminal-drop-local-wsl'
 import { deliverNativeTerminalFileDrop } from './terminal-native-file-drop'
 
 export type NativeTerminalFileDropArgs = {
-  manager: PaneManager
-  paneTransports: Map<number, PtyTransport>
+  manager: TerminalDropSurface
+  paneTransports: Map<number, TerminalDropTransport>
   worktreeId: string
   tabId: string
   cwd: string | undefined

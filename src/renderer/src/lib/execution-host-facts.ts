@@ -1,6 +1,7 @@
 import {
   getRepoExecutionHostId,
   parseExecutionHostId,
+  type ExecutionHostId,
   type ParsedExecutionHost
 } from '../../../shared/execution-host'
 import type { ProjectExecutionRuntimeResolution } from '../../../shared/project-execution-runtime'
@@ -16,6 +17,7 @@ import {
   getExecutionHostIdForWorktree,
   getRuntimeEnvironmentIdForWorktree
 } from './worktree-runtime-owner'
+import { resolveWorktreeOperationRouteForHost } from './worktree-operation-route'
 
 /**
  * The OS of the machine an agent runs on. `withheld` means no host has reported it; a launch must
@@ -135,16 +137,26 @@ export function resolveRepoExecutionHostPlatform(
 export function resolveWorktreeExecutionHostPlatform(
   state: WorktreeHostFactsState,
   worktreeId: string,
-  workspacePath: string | null | undefined
+  workspacePath: string | null | undefined,
+  /** A host the caller picked; the id alone can name publications on several hosts. */
+  selectedHostId?: ExecutionHostId
 ): ExecutionHostPlatformFact {
   // Why the routing default: an owner-less row launches where routing sends it, so read that host.
-  const host = parseExecutionHostId(getExecutionHostIdForWorktree(state, worktreeId))
+  const host = parseExecutionHostId(
+    selectedHostId ?? getExecutionHostIdForWorktree(state, worktreeId)
+  )
+  const sshOwnerEnvironmentId =
+    host?.kind !== 'ssh'
+      ? null
+      : selectedHostId
+        ? (resolveWorktreeOperationRouteForHost(state, worktreeId, selectedHostId)
+            ?.runtimeEnvironmentId ?? null)
+        : getRuntimeEnvironmentIdForWorktree(state, worktreeId)
   return resolveHostPlatform(state, {
     host,
     nestedSshTargetId:
       host?.kind === 'runtime' ? (getConnectionIdFromState(state, worktreeId) ?? null) : null,
-    sshOwnerEnvironmentId:
-      host?.kind === 'ssh' ? getRuntimeEnvironmentIdForWorktree(state, worktreeId) : null,
+    sshOwnerEnvironmentId,
     workspacePath,
     projectRuntime: () => getLocalProjectExecutionRuntimeContext(state, worktreeId)
   })

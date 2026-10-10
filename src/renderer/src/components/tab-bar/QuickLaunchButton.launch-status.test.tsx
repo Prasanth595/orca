@@ -125,11 +125,7 @@ describe('QuickLaunchAgentMenuItems launches', () => {
     registerLaunch('codex', 'failed')
 
     render(
-      <QuickLaunchAgentMenuItems
-        worktreeId={WORKTREE_ID}
-        groupId="group-1"
-        onFocusTerminal={vi.fn()}
-      />
+      <QuickLaunchAgentMenuItems worktreeId={WORKTREE_ID} groupId="group-1" onLaunched={vi.fn()} />
     )
     expect(agentRowDisabled('Claude')).toBe('false')
     expect(agentRowDisabled('Codex')).toBe('false')
@@ -140,7 +136,7 @@ describe('QuickLaunchAgentMenuItems launches', () => {
       <QuickLaunchAgentMenuItems
         worktreeId={WORKTREE_ID}
         groupId="group-1"
-        onFocusTerminal={vi.fn()}
+        onLaunched={vi.fn()}
         prompt="review notes"
       />
     )
@@ -156,7 +152,7 @@ describe('QuickLaunchAgentMenuItems launches', () => {
       <QuickLaunchAgentMenuItems
         worktreeId={WORKTREE_ID}
         groupId="group-1"
-        onFocusTerminal={vi.fn()}
+        onLaunched={vi.fn()}
         prompt="review notes"
       />
     )
@@ -183,7 +179,7 @@ describe('QuickLaunchAgentMenuItems launches', () => {
       <QuickLaunchAgentMenuItems
         worktreeId={WORKTREE_ID}
         groupId="group-1"
-        onFocusTerminal={vi.fn()}
+        onLaunched={vi.fn()}
         prompt="review notes"
         promptDelivery="submit-after-ready"
         onPromptHandedOff={onPromptHandedOff}
@@ -211,7 +207,7 @@ describe('QuickLaunchAgentMenuItems launches', () => {
       <QuickLaunchAgentMenuItems
         worktreeId={WORKTREE_ID}
         groupId="group-1"
-        onFocusTerminal={vi.fn()}
+        onLaunched={vi.fn()}
         prompt="review notes"
         promptDelivery="submit-after-ready"
         onPromptHandedOff={vi.fn()}
@@ -231,7 +227,7 @@ describe('QuickLaunchAgentMenuItems launches', () => {
       <QuickLaunchAgentMenuItems
         worktreeId={WORKTREE_ID}
         groupId="group-1"
-        onFocusTerminal={vi.fn()}
+        onLaunched={vi.fn()}
         prompt=""
         disabled
       />

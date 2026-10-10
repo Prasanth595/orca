@@ -8,9 +8,11 @@ import { useAgentDetectionTargetForWorktree } from '@/hooks/useAgentDetectionTar
 import { useDetectedAgents } from '@/hooks/useDetectedAgents'
 import { useOptionalShortcutLabel } from '@/hooks/useShortcutLabel'
 import { launchAgentInNewTab } from '@/lib/launch-agent-in-new-tab'
+import type { ExecutionHostId } from '../../../../shared/execution-host'
 import { newAgentLaunchRequestId } from '@/lib/agent-launch-request-id'
 import type { TuiAgent } from '../../../../shared/tui-agent'
 import type { LaunchSource } from '../../../../shared/telemetry-events'
+import type { TopLevelView } from '../../../../shared/ui-chrome-types'
 import {
   DEFAULT_DISABLED_TUI_AGENTS,
   filterEnabledTuiAgents
@@ -21,11 +23,18 @@ import { activeAgentNotesSendFailureMessage } from '@/lib/active-agent-note-send
 
 export type QuickLaunchAgentMenuItemsProps = {
   worktreeId: string
-  groupId: string
-  /** Called after the tab is created so keyboard focus lands in the new xterm.
-   *  Reuses the TabBar's existing double-rAF handoff — this component does
-   *  not duplicate the focus logic. */
-  onFocusTerminal: (tabId: string) => void
+  /** The host the user picked, from a surface that lists one row per host. A `worktreeId`
+   *  names no host, so two publications of it are indistinguishable without this. */
+  executionHostId?: ExecutionHostId
+  /** Tab group the launch belongs to; surfaces without tab groups omit it. */
+  groupId?: string
+  /** Called with the new tab id once it exists. The tab bar focuses it, the
+   *  session grid mounts it in the background — this component owns neither. */
+  onLaunched: (tabId: string) => void
+  /** The launch surface owns navigation to the created native chat. */
+  onStructuredLaunched?: (sessionId: string) => void
+  /** Host publication has no local tab ID; the picker can close after dispatch. */
+  onHostPublished?: () => void
   /** Optional initial prompt forwarded to `launchAgentInNewTab`. When set,
    *  the picked agent boots with this prompt — argv/flag agents auto-submit,
    *  followup-path agents land it as a draft for the user to confirm. */
@@ -38,6 +47,9 @@ export type QuickLaunchAgentMenuItemsProps = {
   launchSource?: LaunchSource
   /** Called after a prompt is queued into the agent, or immediately for argv prompt launches. */
   onPromptDelivered?: () => void
+  /** Whether the launched tab takes the foreground. Default true, which is what the tab bar's
+   *  `+` wants; a surface launching into a workspace it is not standing in passes false. */
+  activate?: boolean
   /** Given the launch's own delivery result while the prompt is still on its way. */
   onPromptHandedOff?: (delivered: Promise<unknown>) => void
   /** Nothing to send: e.g. every note is already on its way, so no agent is started. */
@@ -63,8 +75,22 @@ function orderAgents(
   return [defaultAgent, ...inCatalogOrder.filter((id) => id !== defaultAgent)]
 }
 
-export function shouldShowLaunchWatchdogTimeout({ hasPty }: { hasPty: boolean }): boolean {
-  return !hasPty
+/** The toast only fires on a surface where the user can see the failed launch. */
+export function shouldShowLaunchWatchdogTimeout({
+  hasPty,
+  isWorktreeActive,
+  activeView
+}: {
+  hasPty: boolean
+  isWorktreeActive: boolean
+  activeView: TopLevelView
+}): boolean {
+  if (hasPty) {
+    return false
+  }
+  // Why the sessions view too: the grid launches into workspaces that are not
+  // the active one, so its card would fail silently while the user watches it.
+  return isWorktreeActive || activeView === 'sessions'
 }
 
 function getLaunchWatchdogTimeoutMessage(label: string): string {
@@ -101,22 +127,48 @@ async function waitForTerminalPty(tabId: string, timeoutMs: number): Promise<boo
   return getTerminalLaunchState(tabId).hasPty
 }
 
-function QuickLaunchAgentMenuItemsInner({
+/** What a launch surface needs to list and start agents, with none of the menu markup. */
+export type QuickLaunchAgentsController = {
+  /** Enabled detected agents in catalog order, the user's default first. */
+  agents: TuiAgent[]
+  /** Null while detection has not answered; empty when the host reports none. */
+  detectedIds: TuiAgent[] | null
+  detectionFailed: boolean
+  /** The host's server is too old to report its agents. */
+  needsServerUpdate: boolean
+  defaultAgent: TuiAgent | 'blank' | null | undefined
+  /** The new-agent shortcut label, shown against the default agent only. */
+  newAgentShortcut: string | null
+  labelFor: (agent: TuiAgent) => string
+  runLaunch: (agent: TuiAgent) => void
+  openAgentSettings: () => void
+}
+
+/**
+ * The launch logic behind `QuickLaunchAgentMenuItems`, for a surface that renders its own
+ * rows (the session grid's Command picker). Detection, ordering, the launch call and its
+ * watchdog live here once, so the two surfaces cannot drift apart.
+ */
+export function useQuickLaunchAgents({
   worktreeId,
+  executionHostId,
   groupId,
-  onFocusTerminal,
+  onLaunched,
+  onStructuredLaunched,
+  onHostPublished,
   prompt,
   promptDelivery,
   launchSource,
   onPromptDelivered,
+  activate,
   onPromptHandedOff,
   disabled = false
-}: QuickLaunchAgentMenuItemsProps): React.JSX.Element | null {
+}: QuickLaunchAgentMenuItemsProps): QuickLaunchAgentsController {
   // Why: resolving only the SSH connectionId here made paired-runtime
   // worktrees fall back to LOCAL detection, listing the client's agents
   // instead of the remote server's. Use the same ssh/runtime/local owner
   // resolution as the rest of the tab bar.
-  const agentDetectionTarget = useAgentDetectionTargetForWorktree(worktreeId)
+  const agentDetectionTarget = useAgentDetectionTargetForWorktree(worktreeId, executionHostId)
   const { detectedIds, detectionFailed, needsServerUpdate } =
     useDetectedAgents(agentDetectionTarget)
   const defaultAgent = useAppStore((s) => s.settings?.defaultTuiAgent)
@@ -143,10 +195,12 @@ function QuickLaunchAgentMenuItemsInner({
         requestId: newAgentLaunchRequestId(),
         agent,
         worktreeId,
-        groupId,
+        ...(executionHostId !== undefined ? { executionHostId } : {}),
+        ...(groupId !== undefined ? { groupId } : {}),
         ...(prompt !== undefined ? { prompt } : {}),
         ...(promptDelivery !== undefined ? { promptDelivery } : {}),
         ...(launchSource !== undefined ? { launchSource } : {}),
+        ...(activate !== undefined ? { activate } : {}),
         ...(onPromptDelivered !== undefined ? { onPromptDelivered } : {}),
         // Notes keep their text until it goes out, so the new chat's composer never gets a copy.
         ...(onPromptHandedOff ? { promptKeptByCaller: true as const } : {}),
@@ -182,10 +236,22 @@ function QuickLaunchAgentMenuItemsInner({
           }
         })
       }
-      if (result.surface.kind !== 'local-terminal') {
+      if (result.surface.kind === 'host-published') {
+        // A structured chat names its session only once it settles; the caller decides then.
+        if (result.structuredSettlement && onStructuredLaunched) {
+          void result.structuredSettlement.then((settlement) => {
+            if (settlement.kind === 'structured' || settlement.kind === 'visibility-unknown') {
+              onStructuredLaunched(settlement.sessionId)
+            } else if (settlement.kind === 'terminal') {
+              onHostPublished?.()
+            }
+          })
+          return
+        }
+        onHostPublished?.()
         return
       }
-      onFocusTerminal(result.surface.tabId)
+      onLaunched(result.surface.tabId)
 
       // Why: launch success means the terminal session exists. Agent readiness
       // can lag behind on slow machines, and prompt paste flows already own
@@ -199,10 +265,14 @@ function QuickLaunchAgentMenuItemsInner({
         if (!launchState.stillOpen) {
           return
         }
-        if (useAppStore.getState().activeWorktreeId !== worktreeId) {
-          return
-        }
-        if (!shouldShowLaunchWatchdogTimeout({ hasPty: launchState.hasPty })) {
+        const store = useAppStore.getState()
+        if (
+          !shouldShowLaunchWatchdogTimeout({
+            hasPty: launchState.hasPty,
+            isWorktreeActive: store.activeWorktreeId === worktreeId,
+            activeView: store.activeView
+          })
+        ) {
           return
         }
         toast.message(getLaunchWatchdogTimeoutMessage(label))
@@ -210,11 +280,15 @@ function QuickLaunchAgentMenuItemsInner({
     },
     [
       worktreeId,
+      executionHostId,
       groupId,
-      onFocusTerminal,
+      onLaunched,
+      onStructuredLaunched,
+      onHostPublished,
       prompt,
       promptDelivery,
       launchSource,
+      activate,
       onPromptDelivered,
       onPromptHandedOff,
       disabled
@@ -223,6 +297,33 @@ function QuickLaunchAgentMenuItemsInner({
 
   const enabledDetectedIds = detectedIds ? filterEnabledTuiAgents(detectedIds, disabledAgents) : []
   const agents = detectedIds ? orderAgents(defaultAgent, enabledDetectedIds) : []
+  const labelFor = useCallback((agent: TuiAgent) => getCatalogEntry(agent)?.label ?? agent, [])
+
+  return {
+    agents,
+    detectedIds,
+    detectionFailed,
+    needsServerUpdate,
+    defaultAgent,
+    newAgentShortcut,
+    labelFor,
+    runLaunch,
+    openAgentSettings
+  }
+}
+
+function QuickLaunchAgentMenuItemsInner(props: QuickLaunchAgentMenuItemsProps): React.JSX.Element {
+  const {
+    agents,
+    detectedIds,
+    detectionFailed,
+    needsServerUpdate,
+    defaultAgent,
+    newAgentShortcut,
+    labelFor,
+    runLaunch,
+    openAgentSettings
+  } = useQuickLaunchAgents(props)
 
   return (
     <>
@@ -253,14 +354,13 @@ function QuickLaunchAgentMenuItemsInner({
         </DropdownMenuItem>
       ) : null}
       {agents.map((agent) => {
-        const entry = getCatalogEntry(agent)
-        const label = entry?.label ?? agent
+        const label = labelFor(agent)
         const showsDefaultAgentShortcut =
           newAgentShortcut !== null && defaultAgent !== 'blank' && agent === defaultAgent
         return (
           <DropdownMenuItem
             key={agent}
-            disabled={disabled}
+            disabled={props.disabled}
             onSelect={() => runLaunch(agent)}
             className="gap-2 rounded-[7px] px-2 py-1.5 text-[12px] leading-5 font-medium"
             title={translate(

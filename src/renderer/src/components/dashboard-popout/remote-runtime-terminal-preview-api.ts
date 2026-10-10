@@ -320,6 +320,16 @@ export const remoteRuntimeTerminalPreviewApi: TerminalPreviewApi = {
     }
     return Promise.resolve()
   },
+  // A paired host keys one stream per pane, so detaching any surface closes it.
+  detach: (ptyIds) => {
+    for (const ptyId of ptyIds) {
+      const session = sessions.get(ptyId)
+      if (session) {
+        closeSession(ptyId, session)
+      }
+    }
+    return Promise.resolve()
+  },
   onData: (callback) => {
     listeners.add(callback)
     return () => listeners.delete(callback)

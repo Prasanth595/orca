@@ -1,4 +1,6 @@
 import {
+  Eye,
+  EyeOff,
   PanelLeftClose,
   PanelRightClose,
   Pin,
@@ -23,6 +25,7 @@ import { translate } from '@/i18n/i18n'
 import { TerminalTabSplitMenuSection } from './TerminalTabSplitMenuSection'
 import { TabSessionSurfaceSwitchMenuItems } from './TabSessionSurfaceSwitchMenuItems'
 import { TAB_CONTEXT_MENU_CONTENT_CLASS } from './tab-context-menu-sizing'
+import { sessionGridVisibilityActionLabel } from '../session-grid/session-grid-visibility-labels'
 import { CopyTabIdMenuItem } from './CopyTabIdMenuItem'
 
 const TAB_COLORS = [
@@ -149,6 +152,11 @@ export function SortableTabContextMenu({
   structuredSessionId
 }: SortableTabContextMenuProps): React.JSX.Element {
   const keybindings = useAppStore((state) => state.keybindings)
+  // A boolean per tab, and only computed while open, so closed menus cost no subscription work.
+  const isHiddenFromGrid = useAppStore((state) =>
+    open ? state.sessionsGridHiddenTabIds.includes(tab.id) : false
+  )
+  const toggleSessionsGridHiddenTab = useAppStore((state) => state.toggleSessionsGridHiddenTab)
   const splitRightShortcut = formatShortcutLabel('terminal.splitRight', keybindings)
   const splitDownShortcut = formatShortcutLabel('terminal.splitDown', keybindings)
 
@@ -206,6 +214,17 @@ export function SortableTabContextMenu({
           {isPinned
             ? translate('auto.components.tab.bar.SortableTabContextMenu.417722e9c2', 'Unpin Tab')
             : translate('auto.components.tab.bar.SortableTabContextMenu.60f958ec75', 'Pin Tab')}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          data-testid="tab-context-menu-grid-visibility"
+          onSelect={() => toggleSessionsGridHiddenTab(tab.id)}
+        >
+          {isHiddenFromGrid ? (
+            <Eye className="size-3.5 shrink-0" />
+          ) : (
+            <EyeOff className="size-3.5 shrink-0" />
+          )}
+          {sessionGridVisibilityActionLabel(isHiddenFromGrid)}
         </DropdownMenuItem>
         <CopyTabIdMenuItem unifiedTabId={unifiedTabId} />
         <DropdownMenuSeparator />

@@ -1,10 +1,10 @@
-import type { ManagedPane, PaneManager } from '@/lib/pane-manager/pane-manager'
+import type { TerminalDropPane, TerminalDropSurface } from './terminal-drop-surface'
 
 export function resolveInternalTerminalDropPane(
-  manager: PaneManager,
+  manager: TerminalDropSurface,
   dropTarget: EventTarget | null | undefined,
   paneLeafId?: string
-): ManagedPane | null {
+): TerminalDropPane | null {
   const panes = manager.getPanes()
   if (paneLeafId !== undefined) {
     return panes.find((pane) => pane.leafId === paneLeafId) ?? null
@@ -18,7 +18,7 @@ export function resolveInternalTerminalDropPane(
   return null
 }
 
-function paneContainsDropTarget(pane: ManagedPane, dropTarget: EventTarget): boolean {
+function paneContainsDropTarget(pane: TerminalDropPane, dropTarget: EventTarget): boolean {
   return (
     typeof Node !== 'undefined' && dropTarget instanceof Node && pane.container.contains(dropTarget)
   )

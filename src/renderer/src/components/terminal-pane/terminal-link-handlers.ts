@@ -2,7 +2,6 @@ import { createTerminalPathExistenceBatch } from './terminal-path-existence-batc
 import type { IDisposable, ILink, ILinkProvider, Terminal } from '@xterm/xterm'
 import { extractTerminalFileLinkCandidates, extractTerminalFileLinks } from '@/lib/terminal-links'
 import { preferLongestNonOverlappingMatches } from '@/lib/longest-non-overlapping-matches'
-import type { PaneManager } from '@/lib/pane-manager/pane-manager'
 import {
   buildCandidateLogicalLinesForBufferPosition,
   dedupeLogicalLines,
@@ -42,7 +41,9 @@ export type LinkHandlerDeps = {
   worktreePath: string
   startupCwd: string
   getPaneLinkCwd?: (paneId: number) => string | null
-  managerRef: React.RefObject<PaneManager | null>
+  managerRef: React.RefObject<{
+    getPanes: () => { id: number; terminal: Pick<Terminal, 'buffer' | 'clearSelection'> }[]
+  } | null>
   linkProviderDisposablesRef: React.RefObject<Map<number, IDisposable>>
   pathExistsCache: Map<string, boolean>
   runtimeEnvironmentId?: string | null
@@ -50,6 +51,7 @@ export type LinkHandlerDeps = {
   wslDistro?: string | null
   getRuntimeEnvironmentIdForPane?: (paneId: number) => string | null
   getLinkActionContext?: (paneId: number) => TerminalLinkActionContext | null
+  isCurrent?: () => boolean
 }
 
 type ProvidedFileLink = {
@@ -83,6 +85,10 @@ export function createFilePathLinkProvider(
   const { startupCwd, managerRef, pathExistsCache, worktreeId, worktreePath } = deps
   return {
     provideLinks: (bufferLineNumber, callback) => {
+      if (deps.isCurrent?.() === false) {
+        callback(undefined)
+        return
+      }
       const pane = managerRef.current?.getPanes().find((candidate) => candidate.id === paneId)
       if (!pane) {
         callback(undefined)
@@ -137,6 +143,9 @@ export function createFilePathLinkProvider(
                   range,
                   text: parsed.displayText,
                   activate: (event) => {
+                    if (deps.isCurrent?.() === false) {
+                      return
+                    }
                     if (
                       handleTerminalFileLink(
                         mappedPath,
@@ -186,6 +195,10 @@ export function createFilePathLinkProvider(
       )
         .then(
           (resolvedLinks) => {
+            if (deps.isCurrent?.() === false) {
+              callback(undefined)
+              return
+            }
             const latestFingerprints = new Set(
               buildCandidateLogicalLinesForBufferPosition(buffer, bufferLineNumber).map(
                 (logicalLine) => logicalLine.fingerprint
@@ -223,7 +236,7 @@ export function installFilePathLinkClickFallback(
 ): IDisposable {
   const mouseUpListenerOptions = { capture: true }
   const handleMouseUp = (event: MouseEvent): void => {
-    if (!isTerminalLinkDirectActivation(event)) {
+    if (deps.isCurrent?.() === false || !isTerminalLinkDirectActivation(event)) {
       return
     }
 

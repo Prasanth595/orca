@@ -29,17 +29,27 @@ describe('native chat locale copy', () => {
   )
 
   it.each(Object.entries(localizedCatalogs))(
-    '%s falls back to current Chat UI copy until it is translated',
+    '%s shows current Chat UI copy, translated or English',
     (_code, catalog) => {
       const setting = catalog.auto.components.settings.ExperimentalPane.nativeChat
       const search = catalog.auto.components.settings.experimental.search.nativeChat
       expect(englishSetting.description).toContain('Chat UI')
       expect(englishSetting.copy).toContain('structured chat')
       expect(englishSearch.description).toContain('Chat UI')
-      expect(setting).not.toHaveProperty('description')
-      expect(setting).not.toHaveProperty('copy')
+      // Spanish is held complete by its gate, so it carries the current copy instead.
+      if (catalog === es) {
+        expect(es.auto.components.settings.ExperimentalPane.nativeChat.copy).toContain(
+          'chat estructurado'
+        )
+        expect(es.auto.components.settings.experimental.search.nativeChat.description).toContain(
+          'interfaz de chat'
+        )
+      } else {
+        expect(setting).not.toHaveProperty('description')
+        expect(setting).not.toHaveProperty('copy')
+        expect(search).not.toHaveProperty('description')
+      }
       expect(setting).not.toHaveProperty('defaultCopy')
-      expect(search).not.toHaveProperty('description')
       expect(search.grok).toBe('grok')
       const composer = catalog.components['native-chat'].composer
       for (const key of [

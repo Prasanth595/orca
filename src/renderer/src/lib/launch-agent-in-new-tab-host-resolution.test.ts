@@ -1,7 +1,13 @@
+import { newAgentLaunchRequestId } from '@/lib/agent-launch-request-id'
 // Execution-host coverage for launchAgentInNewTab, split from launch-agent-in-new-tab.test.ts to
 // keep both files within the lines budget.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mockStructuredLaunch = vi.hoisted(() => vi.fn(() => null))
+vi.mock('@/lib/structured-agent-session-provisional-tab', () => ({
+  beginStructuredAgentSessionProvisionalLaunch: mockStructuredLaunch
+}))
 
 const mockCreateTab = vi.fn()
 const mockQueueTabStartupCommand = vi.fn()
@@ -37,7 +43,8 @@ const store = {
   projectGroups: [] as unknown[],
   sshConnectionStates: new Map<string, { status: string; remotePlatform?: string }>([
     ['openclaw', { status: 'connected', remotePlatform: 'linux' }],
-    ['m4air', { status: 'connected', remotePlatform: 'linux' }]
+    ['m4air', { status: 'connected', remotePlatform: 'linux' }],
+    ['remote', { status: 'connected', remotePlatform: 'linux' }]
   ]),
   sshStateByEnvironment: new Map([
     ['vm-1', { connectionStates: new Map([['nested', { remotePlatform: 'linux' }]]) }]
@@ -45,6 +52,7 @@ const store = {
   runtimeStatusByEnvironmentId: new Map([['vm-1', { status: { hostPlatform: 'linux' } }]]),
   transientClearedAgentStatusConnectionIds: {} as Record<string, true>,
   worktreesByRepo: {} as Record<string, StoreWorktree[]>,
+  getKnownWorktreeById: vi.fn(),
   allWorktrees: vi.fn(() => store.worktreesByRepo['repo-1'] ?? []),
   tabsByWorktree: { 'wt-1': [{ id: 'tab-1' }] },
   openFiles: [] as { id: string; worktreeId: string }[],
@@ -129,6 +137,27 @@ describe('launchAgentInNewTab execution host resolution', () => {
     store.ptyIdsByTabId = {}
   })
 
+  it('forwards background activation to the structured launcher', async () => {
+    store.repos = []
+    store.worktreesByRepo = {}
+    const { adoptAgentSessionLaunchVerdict } = await import('./agent-session-launch-plan')
+    const { launchAgentInNewTab } = await import('./launch-agent-in-new-tab')
+    launchAgentInNewTab({
+      agent: 'codex',
+      worktreeId: 'wt-1',
+      activate: false,
+      agentSessionLaunchPlan: adoptAgentSessionLaunchVerdict({
+        requestId: newAgentLaunchRequestId(),
+        route: 'structured-native-chat',
+        agent: 'codex',
+        worktreeId: 'wt-1',
+        prompt: '',
+        promptDelivery: 'draft'
+      })
+    })
+    expect(mockStructuredLaunch).toHaveBeenCalledWith(expect.objectContaining({ activate: false }))
+  })
+
   it('shapes the launch from the worktree host, not a rival repo row on another SSH host', async () => {
     // `store.repos.find` is host-blind, so a worktree that names its own host could be shaped by
     // an `ssh:openclaw` row it has nothing to do with (#11163).
@@ -153,6 +182,45 @@ describe('launchAgentInNewTab execution host resolution', () => {
     await launchOnLinux()
 
     expect(queuedCommand()).toBe("orca claude-teams '--dangerously-skip-permissions'")
+  })
+
+  it('uses the explicitly selected SSH host when workspace IDs collide', async () => {
+    store.repos = [
+      { id: 'repo-1', connectionId: null, executionHostId: 'local', path: '/repo' },
+      { id: 'repo-1', connectionId: 'remote', executionHostId: 'ssh:remote', path: '/srv' }
+    ]
+    store.worktreesByRepo = {
+      'repo-1': [worktreeOn('local', '/repo'), worktreeOn('ssh:remote', '/srv')]
+    }
+    store.getKnownWorktreeById.mockReturnValue(worktreeOn('ssh:remote', '/srv'))
+    const { launchAgentInNewTab } = await import('./launch-agent-in-new-tab')
+    launchAgentInNewTab({
+      requestId: newAgentLaunchRequestId(),
+      agent: 'claude-agent-teams',
+      worktreeId: 'wt-1',
+      executionHostId: 'ssh:remote',
+      launchPlatform: 'linux'
+    })
+    expect(queuedCommand()).toBe("orca claude-teams '--dangerously-skip-permissions'")
+  })
+
+  it('withholds a launch on a picked SSH host whose platform is unknown, even if routing says local', async () => {
+    store.repos = [
+      { id: 'repo-1', connectionId: null, executionHostId: 'local', path: '/repo' },
+      { id: 'repo-1', connectionId: 'unreported', executionHostId: 'ssh:unreported', path: '/srv' }
+    ]
+    store.worktreesByRepo = { 'repo-1': [worktreeOn('local', '/repo')] }
+    store.getKnownWorktreeById.mockReturnValue(worktreeOn('ssh:unreported', '/srv'))
+    const { launchAgentInNewTab } = await import('./launch-agent-in-new-tab')
+    const result = launchAgentInNewTab({
+      requestId: newAgentLaunchRequestId(),
+      agent: 'claude-agent-teams',
+      worktreeId: 'wt-1',
+      executionHostId: 'ssh:unreported',
+      launchPlatform: 'linux'
+    })
+    expect(result).toBeNull()
+    expect(queuedCommand()).toBeUndefined()
   })
 
   it('keeps a runtime host reaching a nested SSH target on the relay shim name', async () => {

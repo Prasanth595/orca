@@ -1,10 +1,9 @@
+import type { TerminalDropSurface, TerminalDropTransport } from './terminal-drop-surface'
 import { toast } from 'sonner'
 import { extractIpcErrorMessage } from '@/lib/ipc-error'
-import type { PaneManager } from '@/lib/pane-manager/pane-manager'
 import { importExternalPathsToRuntime } from '@/runtime/runtime-file-client'
 import { translate } from '@/i18n/i18n'
 import { isWslUncPath } from '../../../../shared/wsl-paths'
-import type { PtyTransport } from './pty-transport'
 import { recordTerminalUserInputForLeaf } from './terminal-input-activity'
 import { reportTerminalDropUploadSkipsAndFailures } from './terminal-drop-upload-report'
 import {
@@ -110,8 +109,8 @@ export async function deliverNativeTerminalFileDrop(
 export type NativeDropFlowArgs = {
   dataPaths: string[]
   dropTarget: ReturnType<typeof captureTerminalDropTarget>
-  manager: PaneManager
-  paneTransports: Map<number, PtyTransport>
+  manager: TerminalDropSurface
+  paneTransports: Map<number, TerminalDropTransport>
   pane: { id: number; leafId: string }
   tabId: string
   worktreePath: string

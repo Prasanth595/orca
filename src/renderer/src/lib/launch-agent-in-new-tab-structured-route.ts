@@ -24,6 +24,7 @@ export function launchStructuredAgentFromNewTab(args: {
   plan: AgentSessionLaunchPlan
   worktreeId: string
   groupId?: string
+  activate?: boolean
   beforeSurfaceOpen?: LaunchAgentInNewTabArgs['beforeSurfaceOpen']
   onHostDeclined?: () => StructuredLaunchTerminal
   openTerminal: (terminalPlan: AgentSessionLaunchPlan) => {
@@ -37,6 +38,7 @@ export function launchStructuredAgentFromNewTab(args: {
   const launch = beginStructuredAgentSessionProvisionalLaunch({
     plan,
     hooks: {},
+    ...(args.activate !== undefined ? { activate: args.activate } : {}),
     target: { worktreeId: args.worktreeId },
     ...(args.groupId ? { targetGroupId: args.groupId } : {}),
     onHostDeclined: () => {

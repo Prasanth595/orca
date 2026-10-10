@@ -16,6 +16,7 @@ import {
   shouldClearWorkspaceAttention,
   type AgentAttentionTurnRecords
 } from '@/attention/agent-attention-acknowledgement'
+import { readAgentAttentionUnreadReason } from '@/attention/agent-attention-contract'
 import { createTerminalAttentionSurface } from '@/components/terminal-pane/terminal-attention-surface'
 import { createStructuredAttentionSurface } from '@/components/native-chat/structured-attention-surface'
 import type { AutoAckTabTarget } from './agent-auto-ack-targets'
@@ -78,13 +79,15 @@ export function acknowledgeViewedAutoAckTarget(
     state.unreadAgentCompletionPanes,
     subjectKey
   )
+  // A parked grid card's BEL writes only the group-level unread; nothing subject-keyed moves.
+  const hasGroupUnread = readAgentAttentionUnreadReason(state.unreadTerminalTabs[groupId]) !== null
   const readViewed =
     options?.readViewed &&
     subjectKey !== null &&
     (state.manuallyUnreadTurnsByPaneKey[subjectKey] === undefined ||
       state.manuallyUnreadTurnsByPaneKey[subjectKey] !==
         readAgentAttentionTurnStartedAt(records, subjectKey))
-  if (toAck.length === 0 && !viewedUnreadSubjectKey && !readViewed) {
+  if (toAck.length === 0 && !viewedUnreadSubjectKey && !readViewed && !hasGroupUnread) {
     return
   }
   const clearedSubjectKeys = new Set(toAck)
@@ -114,7 +117,8 @@ export function acknowledgeViewedAutoAckTarget(
           : null,
       viewedGroupId: groupId,
       subjectKeys: toAck,
-      viewedUnreadSubjectKey
+      viewedUnreadSubjectKey,
+      hasGroupUnread
     }
   )
 }
