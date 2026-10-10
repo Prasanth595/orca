@@ -57,13 +57,15 @@ export function NativeChatComposerToggleButton({
         const next = floatingTriggerShift(button, shiftRef.current)
         shiftRef.current = next
         setShift(next)
+        // Why: the transcript's Jump to latest button sits beside this one and follows it.
+        root?.style.setProperty('--native-chat-toggle-shift', `${next}px`)
       })
     }
+    const root = button.closest<HTMLElement>('[data-native-chat-root="true"]')
     measure()
     // Why: the launcher moves on window resize and on drag (pointerup), and this
     // corner moves whenever the pane or message box resizes.
     const resizeObserver = new ResizeObserver(measure)
-    const root = button.closest('[data-native-chat-root="true"]')
     resizeObserver.observe(root ?? document.body)
     window.addEventListener('resize', measure)
     window.addEventListener('pointerup', measure)

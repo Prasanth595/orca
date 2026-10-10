@@ -409,10 +409,11 @@ export function NativeChatMessageList({
               type="button"
               onClick={jumpToLatest}
               aria-label={translate('components.native-chat.jumpToLatest', 'Jump to latest')}
-              className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-border bg-card/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm backdrop-blur hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              title={translate('components.native-chat.jumpToLatest', 'Jump to latest')}
+              // Why: sits just left of the message box toggle (36px + 8px gap) and follows its shift.
+              className="absolute right-[calc(3.75rem+var(--native-chat-toggle-shift,0px))] bottom-3 z-10 flex size-9 items-center justify-center rounded-lg border border-border bg-card/90 text-muted-foreground shadow-sm backdrop-blur hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <ArrowDown className="size-3.5" />
-              <span>{translate('components.native-chat.jumpToLatest', 'Jump to latest')}</span>
+              <ArrowDown className="size-4" />
             </button>
           ) : null}
         </div>
