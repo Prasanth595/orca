@@ -54,6 +54,8 @@ type TerminalFileOpenDeps = {
   terminalHandle?: string | null
   /** Reports a path that could not be verified before opening; skipped once a later open supersedes it. */
   onOpenFailure?: (failure: FileOpenFailure) => void
+  /** The terminal or chat tab the click came from; lets the file open beside it. */
+  sourceTabId?: string
 }
 
 export function isHtmlFilePath(filePath: string): boolean {

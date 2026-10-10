@@ -34,7 +34,8 @@ export function createOpenFileAction(
         editorItemContentType,
         scratch.editorItemIsPreview,
         scratch.editorItemTargetGroupId,
-        options?.selection
+        options?.selection,
+        options?.placementFixed
       )
       if (options?.focusEditor) {
         set({
