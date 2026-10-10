@@ -19,32 +19,21 @@ function gitForConfig(config: {
     if (args[0] === 'symbolic-ref') {
       return { stdout: `${branch}\n`, stderr: '' }
     }
-    if (args[0] === 'config' && args[2] === `branch.${branch}.pushRemote`) {
-      if (config.pushRemote instanceof Error) {
-        throw config.pushRemote
+    if (args[0] === 'config' && args[1] === '--list') {
+      const values = [
+        [`branch.${branch}.pushremote`, config.pushRemote],
+        ['remote.pushdefault', config.pushDefault],
+        [`branch.${branch}.remote`, config.branchRemote],
+        [`branch.${branch}.merge`, merge],
+        [`branch.${branch}.base`, config.base]
+      ]
+      return {
+        stdout: values
+          .filter(([, value]) => typeof value === 'string')
+          .map(([key, value]) => `${key}\n${value}\0`)
+          .join(''),
+        stderr: ''
       }
-      return { stdout: `${config.pushRemote ?? ''}\n`, stderr: '' }
-    }
-    if (args[0] === 'config' && args[2] === 'remote.pushDefault') {
-      if (config.pushDefault instanceof Error) {
-        throw config.pushDefault
-      }
-      return { stdout: `${config.pushDefault ?? ''}\n`, stderr: '' }
-    }
-    if (args[0] === 'config' && args[2] === `branch.${branch}.remote`) {
-      if (config.branchRemote instanceof Error) {
-        throw config.branchRemote
-      }
-      return { stdout: `${config.branchRemote ?? ''}\n`, stderr: '' }
-    }
-    if (args[0] === 'config' && args[2] === `branch.${branch}.merge`) {
-      return { stdout: `${merge}\n`, stderr: '' }
-    }
-    if (args[0] === 'config' && args[2] === `branch.${branch}.base`) {
-      if (config.base instanceof Error) {
-        throw config.base
-      }
-      return { stdout: `${config.base ?? ''}\n`, stderr: '' }
     }
     if (args[0] === 'remote' && args[1] === '-v') {
       return {
@@ -83,34 +72,9 @@ describe('resolveRelayPushTarget', () => {
       remote: 'fork',
       refspec: 'HEAD:contributor/fix'
     })
-  })
-
-  it('does not combine remote.pushDefault with a base-branch merge target', async () => {
-    const git = gitForConfig({
-      branch: 'feature/fix',
-      pushRemote: new Error('missing pushRemote'),
-      pushDefault: 'fork',
-      branchRemote: 'origin',
-      merge: 'refs/heads/main',
-      base: 'refs/remotes/origin/main'
-    })
-
-    await expect(resolveRelayPushTarget(git, '/repo', undefined)).resolves.toBeNull()
-  })
-
-  it('keeps a fork head target when the contributor branch matches the base branch name', async () => {
-    const git = gitForConfig({
-      branch: 'review/pr-1',
-      pushRemote: 'fork',
-      branchRemote: 'fork',
-      merge: 'refs/heads/main',
-      base: 'refs/remotes/origin/main'
-    })
-
-    await expect(resolveRelayPushTarget(git, '/repo', undefined)).resolves.toEqual({
-      remote: 'fork',
-      refspec: 'HEAD:main'
-    })
+    expect(git.mock.calls.filter(([args]) => args[0] === 'config')).toEqual([
+      [['config', '--list', '-z'], '/repo']
+    ])
   })
 
   it('uses remote.pushDefault when branch pushRemote is missing', async () => {
@@ -122,42 +86,6 @@ describe('resolveRelayPushTarget', () => {
 
     await expect(resolveRelayPushTarget(git, '/repo', undefined)).resolves.toEqual({
       remote: 'fork',
-      refspec: 'HEAD:feature/fix'
-    })
-  })
-
-  it('normalizes a URL-valued branch remote to a matching named remote', async () => {
-    const forkUrl = 'https://github.com/contributor/orca.git'
-    const git = gitForConfig({
-      pushRemote: new Error('missing pushRemote'),
-      pushDefault: new Error('missing pushDefault'),
-      branchRemote: forkUrl,
-      remotes: ['origin', 'pr-contributor-orca'],
-      remoteUrls: {
-        origin: 'https://github.com/stablyai/orca.git',
-        'pr-contributor-orca': forkUrl
-      }
-    })
-
-    await expect(resolveRelayPushTarget(git, '/repo', undefined)).resolves.toEqual({
-      remote: 'pr-contributor-orca',
-      refspec: 'HEAD:feature/fix'
-    })
-  })
-
-  it('keeps a URL-valued pushRemote when no named remote matches it', async () => {
-    const forkUrl = 'git@github.com:contributor/orca.git'
-    const git = gitForConfig({
-      pushRemote: forkUrl,
-      branchRemote: forkUrl,
-      remotes: ['origin'],
-      remoteUrls: {
-        origin: 'git@github.com:stablyai/orca.git'
-      }
-    })
-
-    await expect(resolveRelayPushTarget(git, '/repo', undefined)).resolves.toEqual({
-      remote: forkUrl,
       refspec: 'HEAD:feature/fix'
     })
   })

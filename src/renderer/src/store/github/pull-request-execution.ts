@@ -1,4 +1,5 @@
 import type { StateCreator } from 'zustand'
+import type { RuntimeClientTarget } from '@/runtime/runtime-client-target'
 import type { AppState } from '../types'
 import type { GitHubSlice } from './slice-types'
 import type { Repo } from '../../../../shared/repo-types'
@@ -35,6 +36,7 @@ export function startPullRequestLookup(args: {
   repo: Repo | undefined
   repoId: string | undefined
   requestSettings: AppState['settings']
+  requestTarget: RuntimeClientTarget
   cacheKey: string
   cached: CacheEntry<PRInfo> | undefined
   linkedPRNumber: number | null
@@ -54,6 +56,7 @@ export function startPullRequestLookup(args: {
     repo,
     repoId,
     requestSettings,
+    requestTarget,
     cacheKey,
     cached,
     linkedPRNumber,
@@ -66,7 +69,7 @@ export function startPullRequestLookup(args: {
   } = args
   const request = (async () => {
     try {
-      const runtimeRepo = getRuntimeRepoTarget(get(), repoPath, requestSettings)
+      const runtimeRepo = getRuntimeRepoTarget(get(), repoPath, requestTarget)
       const candidateWorktree = options?.worktreeId
         ? findWorktreeById(get(), options.worktreeId)
         : null
@@ -102,6 +105,8 @@ export function startPullRequestLookup(args: {
               connectionId: repo?.connectionId ?? null,
               executionHostId: repo?.executionHostId ?? null,
               cachedFetchedAt: cached?.fetchedAt ?? null,
+              cachedHeadOid: cached?.fetchedHeadOid ?? cached?.data?.headSha ?? null,
+              isSelected: options?.worktreeId === get().activeWorktreeId,
               cachedHasPR: cached?.data ? true : cached ? false : null,
               cachedPRState: cached?.data?.state ?? null,
               cachedChecksStatus: cached?.data?.checksStatus ?? null,
@@ -153,7 +158,7 @@ export function startPullRequestLookup(args: {
           // Why: unlinking a PR mid exact-linked-PR-lookup must stop the older result from restoring the manual link UI.
           if (isStaleExactLinkedPRLookup(s, options?.worktreeId, linkedPRNumber)) {
             skippedStaleLinkedPRLookup = true
-            return {}
+            return s
           }
           const updates = setGitHubPRResultCaches(s, {
             prCacheKey: cacheKey,
@@ -166,6 +171,7 @@ export function startPullRequestLookup(args: {
             hasRepoOwner: repo !== undefined,
             pr,
             fetchedAt: outcome.fetchedAt,
+            fetchedHeadOid: requestHeadOid,
             worktreeId: options?.worktreeId,
             linkedPRNumber,
             fallbackPRNumber,
@@ -174,7 +180,7 @@ export function startPullRequestLookup(args: {
             requestStartedEntry: requestStartedHostedReviewEntry
           })
           didUpdatePRCache = updates.prCache !== undefined
-          return updates
+          return updates.prCache || updates.hostedReviewCache ? updates : s
         })
         if (skippedStaleLinkedPRLookup) {
           return null

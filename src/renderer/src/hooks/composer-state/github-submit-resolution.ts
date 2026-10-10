@@ -12,6 +12,7 @@ type GitHubSubmitResolutionInput = Pick<
   | 'selectedRepoGitHubSourceContext'
   | 'selectedRepoIsGit'
   | 'setBaseBranch'
+  | 'setBaseBranchNamesWorkspace'
   | 'setBranchNameOverride'
   | 'setBranchNameOverridePreservesNameEdits'
   | 'setCompareBaseRef'
@@ -33,7 +34,8 @@ import { useCallback } from 'react'
 import { resolveGitHubWorkItemIdentity } from '@/lib/github-work-item-identity'
 import { getLinkedWorkItemProvider } from '@/lib/new-workspace'
 import { resolveGitHubPrStartPointForRepo } from '@/lib/github-pr-start-point'
-import { getSettingsForRepoRuntimeOwner } from '@/lib/repo-runtime-owner'
+import { runtimeTargetForOwnerHostId } from '@/runtime/runtime-client-target'
+import { getRepoExecutionHostId } from '../../../../shared/execution-host'
 import {
   getSmartGitHubSubmitResolution,
   getSmartGitHubSubmitIntent,
@@ -62,6 +64,7 @@ export function useGitHubSubmitResolution(input: GitHubSubmitResolutionInput) {
     selectedRepoGitHubSourceContext,
     selectedRepoIsGit,
     setBaseBranch,
+    setBaseBranchNamesWorkspace,
     setBranchNameOverride,
     setBranchNameOverridePreservesNameEdits,
     setCompareBaseRef,
@@ -75,7 +78,6 @@ export function useGitHubSubmitResolution(input: GitHubSubmitResolutionInput) {
     setName,
     setPushTarget,
     setStartFromResetHint,
-    settings,
     smartGitHubPrStartPointSelectionRef
   } = input
 
@@ -102,10 +104,7 @@ export function useGitHubSubmitResolution(input: GitHubSubmitResolutionInput) {
             (await resolveGitHubPrStartPointForRepo({
               repoId: selectedRepo.id,
               prNumber: startPointIdentity.number,
-              settings: getSettingsForRepoRuntimeOwner(
-                { repos: [selectedRepo], settings },
-                selectedRepo.id
-              ),
+              target: runtimeTargetForOwnerHostId(getRepoExecutionHostId(selectedRepo)),
               ...(startPointSelection.item.branchName
                 ? { headRefName: startPointSelection.item.branchName }
                 : {}),
@@ -133,6 +132,7 @@ export function useGitHubSubmitResolution(input: GitHubSubmitResolutionInput) {
               : {})
           }
           setBaseBranch(selectedPrStartPoint.baseBranch)
+          setBaseBranchNamesWorkspace(true)
           setCompareBaseRef(selectedPrStartPoint.compareBaseRef)
           setPushTarget(selectedPrStartPoint.pushTarget)
           if (selectedPrStartPoint.branchNameOverride) {
@@ -194,10 +194,7 @@ export function useGitHubSubmitResolution(input: GitHubSubmitResolutionInput) {
           ? await resolveGitHubPrStartPointForRepo({
               repoId: selectedRepo.id,
               prNumber: itemIdentity.number,
-              settings: getSettingsForRepoRuntimeOwner(
-                { repos: [selectedRepo], settings },
-                selectedRepo.id
-              ),
+              target: runtimeTargetForOwnerHostId(getRepoExecutionHostId(selectedRepo)),
               ...(item.branchName ? { headRefName: item.branchName } : {}),
               ...(item.baseRefName ? { baseRefName: item.baseRefName } : {}),
               ...(item.isCrossRepository !== undefined
@@ -234,6 +231,7 @@ export function useGitHubSubmitResolution(input: GitHubSubmitResolutionInput) {
       lastAutoNameRef.current = resolution.workspaceName
       if (prStartPoint) {
         setBaseBranch(prStartPoint.baseBranch)
+        setBaseBranchNamesWorkspace(true)
         setCompareBaseRef(prStartPoint.compareBaseRef)
         setPushTarget(prStartPoint.pushTarget)
         if (prStartPoint.branchNameOverride) {
@@ -259,10 +257,10 @@ export function useGitHubSubmitResolution(input: GitHubSubmitResolutionInput) {
       selectedRepo,
       selectedRepoGitHubSourceContext,
       selectedRepoIsGit,
-      settings,
       branchAutoNameRef,
       lastAutoNameRef,
       setBaseBranch,
+      setBaseBranchNamesWorkspace,
       setBranchNameOverride,
       setBranchNameOverridePreservesNameEdits,
       setCompareBaseRef,

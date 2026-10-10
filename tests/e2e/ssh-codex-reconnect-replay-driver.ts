@@ -69,7 +69,8 @@ export async function connectDockerRemote(
         if ('error' in result) {
           throw new Error(result.error)
         }
-        await store.getState().fetchRepos()
+        const owner = store.getState().settings?.activeRuntimeEnvironmentId ?? null
+        await store.getState().fetchRepos({ runtimeEnvironmentId: owner })
         await store.getState().fetchWorktrees(result.repo.id)
         return { targetId: createdTarget.id, repoId: result.repo.id, repoPath: result.repo.path }
       } finally {
@@ -104,7 +105,7 @@ export async function connectDockerRemote(
     if ((store.getState().tabsByWorktree[worktree.id] ?? []).length === 0) {
       store.getState().createTab(worktree.id)
     }
-    store.getState().setActiveTabType('terminal')
+    store.getState().setActiveTabType('terminal', store.getState().activeWorktreeId)
     return worktree.id
   }, remote.repoId)
 

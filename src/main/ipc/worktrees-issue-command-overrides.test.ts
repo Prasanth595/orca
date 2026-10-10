@@ -1,7 +1,16 @@
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import * as issueCommandFile from '../issue-command-file'
+import * as projectGitOptions from '../project-runtime-git-options'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createIssueCommandRunnerScriptMock,
-  getSshFilesystemProviderMock
+  getSshFilesystemProviderMock,
+  getSshGitProviderMock,
+  addWorktreeMock,
+  getActiveMultiplexerMock,
+  listWorktreesMock
 } from './worktrees-test-module-mocks'
 import { handlers, setupWorktreeHandlers, store } from './worktrees-test-harness'
 
@@ -87,9 +96,118 @@ vi.mock('../runtime/worktree-teardown', async () =>
 )
 vi.mock('./pty', async () => (await import('./worktrees-test-module-mocks')).ptyModuleMock())
 
+const REMOTE_REPO_PATH = '/remote/repo'
+
+function makeRepo(fields: Record<string, unknown>) {
+  return {
+    id: 'repo-1',
+    path: REMOTE_REPO_PATH,
+    displayName: 'repo',
+    badgeColor: '#000',
+    addedAt: 0,
+    worktreeBaseRef: 'origin/main',
+    ...fields
+  }
+}
+
+function makeProvider(worktreePath: string) {
+  return {
+    exec: vi.fn().mockImplementation(async (args: string[]) => {
+      if (args[0] === 'remote') {
+        return { stdout: 'origin\n', stderr: '' }
+      }
+      if (args[0] === 'show-ref') {
+        // A hit here reads as "branch already exists"; the create loop would then rename.
+        throw Object.assign(new Error('missing exact ref'), { code: 1 })
+      }
+      return { stdout: '', stderr: '' }
+    }),
+    fetchRemoteTrackingRef: vi.fn().mockResolvedValue(undefined),
+    addWorktree: vi.fn().mockResolvedValue(undefined),
+    listWorktrees: vi.fn().mockResolvedValue([
+      {
+        path: worktreePath,
+        head: 'abc123',
+        branch: 'refs/heads/wt',
+        isBare: false,
+        isMainWorktree: false
+      }
+    ])
+  }
+}
+
+function useRepo(repo: ReturnType<typeof makeRepo>): void {
+  store.getRepos.mockReturnValue([repo])
+  store.getRepo.mockReturnValue(repo)
+  store.setWorktreeMeta.mockImplementation((_worktreeId: string, meta: unknown) => meta)
+  getActiveMultiplexerMock.mockReturnValue({
+    request: vi.fn().mockResolvedValue(undefined),
+    notify: vi.fn()
+  })
+}
+
 describe('registerWorktreeHandlers', () => {
   beforeEach(() => {
     setupWorktreeHandlers()
+  })
+
+  it.each(['command', ' '])(
+    'preserves local file writes with an unavailable runtime: %j',
+    async (content) => {
+      const root = mkdtempSync(join(tmpdir(), 'orca-runtime-ignore-'))
+      const repo = {
+        id: 'repo-1',
+        path: root,
+        displayName: 'local',
+        badgeColor: '#000',
+        addedAt: 0
+      }
+      mkdirSync(join(root, '.orca'))
+      writeFileSync(join(root, '.orca', 'issue-command'), 'old command\n')
+      store.getRepo.mockReturnValue(repo)
+      store.getRepos.mockReturnValue([repo])
+      const resolver = vi
+        .spyOn(projectGitOptions, 'getLocalProjectWorktreeGitOptions')
+        .mockImplementation(() => {
+          throw new Error('Project runtime requires repair')
+        })
+      try {
+        await handlers['hooks:writeIssueCommand'](null, { repoId: repo.id, content })
+        if (content.trim()) {
+          expect(readFileSync(join(root, '.orca', 'issue-command'), 'utf8')).toBe('command\n')
+          expect(readFileSync(join(root, '.gitignore'), 'utf8')).toBe('.orca\n')
+        } else {
+          expect(existsSync(join(root, '.orca', 'issue-command'))).toBe(false)
+          expect(existsSync(join(root, '.gitignore'))).toBe(false)
+          expect(resolver).not.toHaveBeenCalled()
+        }
+      } finally {
+        resolver.mockRestore()
+        rmSync(root, { recursive: true, force: true })
+      }
+    }
+  )
+
+  it('forwards the resolved WSL options when writing a local override', async () => {
+    const resolveOptions = vi
+      .spyOn(projectGitOptions, 'getLocalProjectWorktreeGitOptions')
+      .mockReturnValue({ wslDistro: 'Ubuntu' })
+    const write = vi.spyOn(issueCommandFile, 'writeIssueCommand').mockResolvedValue(undefined)
+    try {
+      await handlers['hooks:writeIssueCommand'](null, { repoId: 'repo-1', content: 'command' })
+      const options = write.mock.calls[0]?.[2]
+      expect(typeof options).toBe('function')
+      expect(typeof options === 'function' ? options() : options).toEqual({ wslDistro: 'Ubuntu' })
+      expect(resolveOptions).toHaveBeenCalledWith(store, expect.objectContaining({ id: 'repo-1' }))
+      expect(write).toHaveBeenCalledExactlyOnceWith(
+        '/workspace/repo',
+        'command',
+        expect.any(Function)
+      )
+    } finally {
+      resolveOptions.mockRestore()
+      write.mockRestore()
+    }
   })
 
   it('creates an issue-command runner for an existing repo/worktree pair', async () => {
@@ -270,5 +388,126 @@ describe('registerWorktreeHandlers', () => {
         content: 'orca issue command'
       })
     ).rejects.toThrow('Remote filesystem unavailable')
+  })
+
+  it('preserves .gitignore when the SSH host already ignores .orca', async () => {
+    store.getRepo.mockReturnValue({
+      id: 'repo-ssh',
+      path: '/remote/repo',
+      displayName: 'ssh',
+      badgeColor: '#000',
+      addedAt: 0,
+      connectionId: 'conn-1'
+    })
+    const checkIgnoredPaths = vi.fn().mockResolvedValue(['.orca/issue-command'])
+    getSshGitProviderMock.mockReturnValue({ checkIgnoredPaths })
+    const fsProvider = {
+      createDir: vi.fn().mockResolvedValue(undefined),
+      readFile: vi.fn(),
+      writeFile: vi.fn().mockResolvedValue(undefined)
+    }
+    getSshFilesystemProviderMock.mockReturnValue(fsProvider)
+
+    await handlers['hooks:writeIssueCommand'](null, {
+      repoId: 'repo-ssh',
+      content: 'local command'
+    })
+
+    expect(getSshGitProviderMock).toHaveBeenCalledWith('conn-1')
+    expect(checkIgnoredPaths).toHaveBeenCalledWith('/remote/repo', ['.orca/issue-command'])
+    expect(fsProvider.readFile).not.toHaveBeenCalled()
+    expect(fsProvider.writeFile).toHaveBeenCalledExactlyOnceWith(
+      '/remote/repo/.orca/issue-command',
+      'local command\n'
+    )
+  })
+})
+
+describe('worktrees:create execution host routing', () => {
+  beforeEach(() => {
+    setupWorktreeHandlers()
+  })
+
+  it('creates on the SSH host for a row that names it only as executionHostId', async () => {
+    // No `connectionId`: the raw read answered "local" and ran `git worktree add` on the client
+    // against `/remote/repo`. The runtime sibling already resolved this row remotely.
+    useRepo(makeRepo({ executionHostId: 'ssh:target-a' }))
+    const provider = makeProvider('/remote/repo-wt')
+    getSshGitProviderMock.mockImplementation((connectionId: string) =>
+      connectionId === 'target-a' ? provider : undefined
+    )
+
+    await handlers['worktrees:create'](null, { repoId: 'repo-1', name: 'wt' })
+
+    expect(provider.addWorktree).toHaveBeenCalledTimes(1)
+    expect(addWorktreeMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps two simultaneously registered SSH hosts apart', async () => {
+    useRepo(makeRepo({ executionHostId: 'ssh:target-b' }))
+    const providerA = makeProvider('/remote/repo-wt-a')
+    const providerB = makeProvider('/remote/repo-wt-b')
+    getSshGitProviderMock.mockImplementation((connectionId: string) =>
+      connectionId === 'target-a' ? providerA : connectionId === 'target-b' ? providerB : undefined
+    )
+
+    await handlers['worktrees:create'](null, { repoId: 'repo-1', name: 'wt' })
+
+    expect(providerB.addWorktree).toHaveBeenCalledTimes(1)
+    expect(providerA.addWorktree).not.toHaveBeenCalled()
+    expect(addWorktreeMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses a runtime row with no nested SSH target instead of creating locally', async () => {
+    useRepo(makeRepo({ executionHostId: 'runtime:env-1' }))
+
+    await expect(
+      handlers['worktrees:create'](null, { repoId: 'repo-1', name: 'wt' })
+    ).rejects.toThrow('not dispatched by this process')
+
+    expect(addWorktreeMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses a runtime row whose nested SSH target is dialable in this namespace', async () => {
+    // `target-a` names a target inside env-1. A same-named one registered here is another machine,
+    // so creating through it lands the checkout on the wrong host.
+    useRepo(makeRepo({ executionHostId: 'runtime:env-1', connectionId: 'target-a' }))
+    const provider = makeProvider('/remote/repo-wt')
+    getSshGitProviderMock.mockImplementation((connectionId: string) =>
+      connectionId === 'target-a' ? provider : undefined
+    )
+
+    await expect(
+      handlers['worktrees:create'](null, { repoId: 'repo-1', name: 'wt' })
+    ).rejects.toThrow('not dispatched by this process')
+
+    expect(provider.addWorktree).not.toHaveBeenCalled()
+    expect(addWorktreeMock).not.toHaveBeenCalled()
+  })
+
+  it('answers local for a row that declares itself local while carrying a connection', async () => {
+    // A contradictory row: `getRepoSshConnectionId` lets `local` win, and the runtime sibling has
+    // always read it that way. The raw field sent it remote, so the two entry points disagreed.
+    useRepo(
+      makeRepo({ path: '/workspace/repo', executionHostId: 'local', connectionId: 'target-a' })
+    )
+    listWorktreesMock.mockResolvedValue([
+      {
+        path: '/workspace/wt',
+        head: 'abc123',
+        branch: 'wt',
+        isBare: false,
+        isMainWorktree: false
+      }
+    ])
+    const provider = makeProvider('/remote/repo-wt')
+    getSshGitProviderMock.mockImplementation((connectionId: string) =>
+      connectionId === 'target-a' ? provider : undefined
+    )
+
+    await handlers['worktrees:create'](null, { repoId: 'repo-1', name: 'wt' })
+
+    expect(addWorktreeMock).toHaveBeenCalledTimes(1)
+    expect(provider.addWorktree).not.toHaveBeenCalled()
   })
 })

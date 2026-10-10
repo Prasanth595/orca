@@ -3,11 +3,13 @@ import type { ComposerModel } from './composer-model'
 type GitHubProviderSelectionInput = Pick<
   ComposerModel,
   | 'applyLinkedWorkItem'
+  | 'baseBranchNamesWorkspace'
   | 'branchAutoNameRef'
   | 'eligibleRepos'
   | 'handleBaseBranchPrSelect'
   | 'isProjectGroupTarget'
   | 'lastAutoNameRef'
+  | 'linkedWorkItem'
   | 'name'
   | 'selectedRepo'
   | 'selectedRepoGitHubSourceContext'
@@ -37,7 +39,8 @@ import {
   getLinkedItemDisplayName
 } from '@/components/sidebar/folder-workspace-composer-helpers'
 import { shouldApplyWorkspaceSourceAutoName } from '../../../../shared/new-workspace/workspace-source'
-import { getSettingsForRepoRuntimeOwner } from '@/lib/repo-runtime-owner'
+import { runtimeTargetForOwnerHostId } from '@/runtime/runtime-client-target'
+import { getRepoExecutionHostId } from '../../../../shared/execution-host'
 import { resolveGitHubPrStartPointForRepo } from '@/lib/github-pr-start-point'
 import { getForkPushWarning } from '../fork-push-warning'
 import { toast } from 'sonner'
@@ -47,11 +50,13 @@ import type { SmartGitHubPrStartPointSelection } from './source-selection-decisi
 export function useGitHubProviderSelection(input: GitHubProviderSelectionInput) {
   const {
     applyLinkedWorkItem,
+    baseBranchNamesWorkspace,
     branchAutoNameRef,
     eligibleRepos,
     handleBaseBranchPrSelect,
     isProjectGroupTarget,
     lastAutoNameRef,
+    linkedWorkItem,
     name,
     selectedRepo,
     selectedRepoGitHubSourceContext,
@@ -69,7 +74,6 @@ export function useGitHubProviderSelection(input: GitHubProviderSelectionInput) 
     setName,
     setPushTarget,
     setStartFromResetHint,
-    settings,
     smartGitHubPrStartPointSelectionRef
   } = input
 
@@ -94,7 +98,8 @@ export function useGitHubProviderSelection(input: GitHubProviderSelectionInput) 
           nextName &&
           shouldApplyWorkspaceSourceAutoName({
             currentName: name,
-            lastAutoName: lastAutoNameRef.current
+            lastAutoName: lastAutoNameRef.current,
+            lookupTextIsQuery: !linkedWorkItem
           })
         ) {
           setName(nextName)
@@ -112,7 +117,9 @@ export function useGitHubProviderSelection(input: GitHubProviderSelectionInput) 
       const runRepo = selectedRepo ?? eligibleRepos.find((repo) => repo.id === item.repoId)
       applyLinkedWorkItem(normalizedItem)
       if (identity.type !== 'pr' || !runRepo) {
-        setBaseBranch(undefined)
+        if (identity.type === 'pr' || baseBranchNamesWorkspace) {
+          setBaseBranch(undefined)
+        }
         setCompareBaseRef(undefined)
         setPushTarget(undefined)
         return
@@ -125,14 +132,10 @@ export function useGitHubProviderSelection(input: GitHubProviderSelectionInput) 
         item: normalizedItem
       }
       smartGitHubPrStartPointSelectionRef.current = startPointSelection
-      const itemRepoSettings = getSettingsForRepoRuntimeOwner(
-        { repos: [runRepo], settings },
-        runRepo.id
-      )
       const resolvePrBase = resolveGitHubPrStartPointForRepo({
         repoId: runRepo.id,
         prNumber: identity.number,
-        settings: itemRepoSettings,
+        target: runtimeTargetForOwnerHostId(getRepoExecutionHostId(runRepo)),
         ...(normalizedItem.branchName ? { headRefName: normalizedItem.branchName } : {}),
         ...(normalizedItem.baseRefName ? { baseRefName: normalizedItem.baseRefName } : {}),
         ...(normalizedItem.isCrossRepository !== undefined
@@ -150,7 +153,8 @@ export function useGitHubProviderSelection(input: GitHubProviderSelectionInput) 
             normalizedItem,
             result.pushTarget,
             result.branchNameOverride,
-            result.compareBaseRef
+            result.compareBaseRef,
+            { sourceAlreadyLinked: true }
           )
           // Why: a fork PR push lands on the contributor's fork; without maintainer-edits allowed GitHub rejects it, so warn up front.
           setForkPushWarning(getForkPushWarning(result))
@@ -171,13 +175,14 @@ export function useGitHubProviderSelection(input: GitHubProviderSelectionInput) 
     },
     [
       applyLinkedWorkItem,
+      baseBranchNamesWorkspace,
       eligibleRepos,
       handleBaseBranchPrSelect,
       isProjectGroupTarget,
       name,
+      linkedWorkItem,
       selectedRepo,
       selectedRepoGitHubSourceContext,
-      settings,
       branchAutoNameRef,
       lastAutoNameRef,
       setBaseBranch,
