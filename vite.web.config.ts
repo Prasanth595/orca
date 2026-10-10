@@ -1,4 +1,4 @@
-import { markdownParserAliases } from './config/build-plugins/markdown-parser-exports'
+import { rendererSourceAliases } from './config/build-plugins/renderer-source-aliases'
 import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -15,11 +15,7 @@ export default defineConfig({
     ORCA_FEATURE_WALL_ENABLED: 'true'
   },
   resolve: {
-    alias: {
-      ...markdownParserAliases,
-      '@renderer': resolve('src/renderer/src'),
-      '@': resolve('src/renderer/src')
-    }
+    alias: rendererSourceAliases
   },
   build: {
     outDir: resolve('out/web'),

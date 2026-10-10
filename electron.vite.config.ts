@@ -1,4 +1,4 @@
-import { markdownParserAliases } from './config/build-plugins/markdown-parser-exports'
+import { rendererSourceAliases } from './config/build-plugins/renderer-source-aliases'
 import { isBuiltin } from 'node:module'
 import { resolve } from 'node:path'
 import { defineConfig, type UserConfig } from 'electron-vite'
@@ -326,11 +326,7 @@ export const electronViteConfig: UserConfig = {
   },
   renderer: {
     resolve: {
-      alias: {
-        ...markdownParserAliases,
-        '@renderer': resolve('src/renderer/src'),
-        '@': resolve('src/renderer/src')
-      }
+      alias: rendererSourceAliases
     },
     plugins: [react(), tailwindcss(), createPdfjsViewerAssetsPlugin()],
     worker: {
