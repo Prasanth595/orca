@@ -5,7 +5,7 @@ import {
   OrchestrationDb,
   createRootDispatch
 } from './orca-runtime-test-mocks.spec'
-import { TEST_WORKTREE_ID, store } from './orca-runtime-test-fixtures.spec'
+import { TEST_WORKTREE_ID, store, syncSinglePty } from './orca-runtime-test-fixtures.spec'
 import { testOrcaSessionId } from '../../shared/orca-session-address-test-fixture'
 import { makeStructuredAgentStatusSubject } from '../../shared/agent-status-subject'
 import {
@@ -27,6 +27,39 @@ const WORKER = testOrcaSessionId('22222222-2222-4222-8222-222222222222')
 afterEach(() => structuredWorkerIdentities.clear())
 
 describe('structured worker sidebar and worktree ps lineage', () => {
+  it('resolves terminal-backed worker context through its terminal handle', () => {
+    const runtime = new OrcaRuntimeService(store)
+    syncSinglePty(runtime)
+    const paneKey = 'tab-1:1'
+    const handle = runtime.getTerminalHandleForPaneKey(paneKey)
+    if (!handle) {
+      throw new Error('Missing terminal worker handle')
+    }
+    const db = new OrchestrationDb(':memory:')
+    runtime.setOrchestrationDb(db)
+    try {
+      const parentPaneKey = 'coordinator-tab:11111111-1111-4111-8111-111111111111'
+      const run = db.createRun({
+        objective: 'Inspect source',
+        coordinatorHandle: null,
+        coordinatorPaneKey: parentPaneKey
+      })
+      const task = db.createTask({ runId: run.id, spec: 'Inspect source' })
+      const dispatch = createRootDispatch(db, task.id, handle)
+
+      expect(dispatch.assignee_pane_key).toBeNull()
+      expect(structuredWorkerIdentities.get(handle)).toBeNull()
+      expect(runtime.getAgentStatusOrchestrationContextForPaneKey(paneKey)).toMatchObject({
+        dispatchId: dispatch.id,
+        taskId: task.id,
+        orchestrationRunId: run.id,
+        parentPaneKey
+      })
+    } finally {
+      db.close()
+    }
+  })
+
   it('publishes the same display parent through the real runtime and IPC boundary', async () => {
     const statuses = new AgentHookServer()
     for (const sessionId of [COORDINATOR, WORKER]) {
