@@ -32,9 +32,17 @@ describe('Darwin device filesystem access', () => {
 
   it('reads exact bigint device metadata without following links', async () => {
     opendirMock.mockReturnValue(async () => [{ name: 'terminal' }])
-    lstatMock.mockResolvedValue({ rdev: 0xffffffff8000007cn, isCharacterDevice: () => true })
+    lstatMock.mockImplementation(async (path: string) => {
+      if (path === join('/dev', 'ttys124')) {
+        throw new Error('ENOENT')
+      }
+      return { rdev: 0xffffffff8000007cn, isCharacterDevice: () => true }
+    })
 
     expect(await nameDarwinTerminals(row)).toBe(row.replace('128/124', 'terminal'))
-    expect(lstatMock.mock.calls).toEqual([[join('/dev', 'terminal'), { bigint: true }]])
+    expect(lstatMock.mock.calls).toEqual([
+      [join('/dev', 'ttys124'), { bigint: true }],
+      [join('/dev', 'terminal'), { bigint: true }]
+    ])
   })
 })

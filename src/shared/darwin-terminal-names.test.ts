@@ -89,8 +89,8 @@ describe('nameDarwinTerminals', () => {
     expect(await nameDarwinTerminals(darwinRow('16/9', command, start), directory)).toBe(
       darwinRow('ttys009', command, start)
     )
-    expect(directory.openedPaths).toEqual(['/dev'])
-    expect(directory.closedDirectories).toBe(1)
+    expect(directory.openedPaths).toEqual([])
+    expect(directory.readPaths).toEqual([join('/dev', 'ttys009')])
   })
 
   it('preserves short and nonstandard opaque tails including date-only rows', async () => {
@@ -113,7 +113,7 @@ describe('nameDarwinTerminals', () => {
     expect(await nameDarwinTerminals(darwinRow('16/9'), directory)).toBe(darwinRow('??'))
     directory.entries = [{ name: 'ttys009', rdev: 0x10000009n }]
     expect(await nameDarwinTerminals(darwinRow('16/9'), directory)).toBe(darwinRow('ttys009'))
-    expect(directory.openedPaths).toEqual(['/dev', '/dev', '/dev', '/dev'])
+    expect(directory.openedPaths).toEqual(['/dev', '/dev'])
   })
 
   it('updates a known device name after a rename between captures', async () => {
@@ -123,7 +123,9 @@ describe('nameDarwinTerminals', () => {
 
     directory.entries = [{ name: 'cu.after', rdev: 0x1600002an }]
     expect(await nameDarwinTerminals(darwinRow('22/42'), directory)).toBe(darwinRow('cu.after'))
-    expect(directory.readPaths).toEqual([join('/dev', 'cu.before'), join('/dev', 'cu.after')])
+    expect(directory.readPaths).toEqual(
+      ['ttys042', 'cu.before', 'ttys042', 'cu.after'].map((name) => join('/dev', name))
+    )
   })
 
   it('chooses the first directory alias despite lexical and completion order', async () => {
@@ -136,7 +138,7 @@ describe('nameDarwinTerminals', () => {
     expect(await nameDarwinTerminals(darwinRow('16/9'), directory)).toBe(darwinRow('z-first'))
   })
 
-  it('inspects every entry and keeps complete serial names while excluding links and files', async () => {
+  it('scans until a serial name resolves while excluding links and files', async () => {
     const directory = new TestDeviceDirectory()
     directory.entries = [
       { name: 'tty-link', rdev: 0x1600002an, kind: 'symlink' },
@@ -149,7 +151,11 @@ describe('nameDarwinTerminals', () => {
     expect(await nameDarwinTerminals(darwinRow('22/42'), directory)).toBe(
       darwinRow('cu.serial-adapter')
     )
-    expect(directory.readPaths).toEqual(directory.entries.map((entry) => join('/dev', entry.name)))
+    expect(directory.readPaths).toEqual(
+      ['ttys042', 'tty-link', 'tty-file', 'null', 'cu.serial-adapter'].map((name) =>
+        join('/dev', name)
+      )
+    )
   })
 
   it('stops scheduling stats after cancellation while draining all active reads', async () => {
@@ -163,11 +169,11 @@ describe('nameDarwinTerminals', () => {
     const named = nameDarwinTerminals(darwinRow('16/9'), directory, controller.signal)
     const rejection = expect(named).rejects.toThrow()
     await new Promise((resolve) => setTimeout(resolve, 2))
-    expect(directory.readPaths).toHaveLength(1)
+    expect(directory.readPaths).toHaveLength(2)
     controller.abort()
     await rejection
 
-    expect(directory.readPaths).toHaveLength(1)
+    expect(directory.readPaths).toHaveLength(2)
     expect(directory.closedDirectories).toBe(1)
     expect(directory.peakReads).toBe(1)
   })
@@ -182,7 +188,7 @@ describe('nameDarwinTerminals', () => {
     await expect(nameDarwinTerminals(darwinRow('16/9'), directory)).rejects.toThrow(
       'Directory listing is too large'
     )
-    expect(directory.readPaths).toEqual([])
+    expect(directory.readPaths).toEqual([join('/dev', 'ttys009')])
     expect(directory.closedDirectories).toBe(1)
   })
 
@@ -204,19 +210,19 @@ describe('nameDarwinTerminals', () => {
     await expect(nameDarwinTerminals(darwinRow('16/9'), directory)).rejects.toThrow(
       'cannot open /dev'
     )
-    expect(directory.readPaths).toEqual([])
+    expect(directory.readPaths).toEqual([join('/dev', 'ttys009')])
   })
 
   it('closes an interrupted directory iterator and rejects partial inventories', async () => {
     const directory = new TestDeviceDirectory()
-    directory.entries = [{ name: 'ttys009', rdev: 0x10000009n }]
+    directory.entries = [{ name: 'cu.device', rdev: 0x10000009n }]
     directory.enumerationError = new Error('directory enumeration failed')
 
     await expect(nameDarwinTerminals(darwinRow('16/9'), directory)).rejects.toThrow(
       'directory enumeration failed'
     )
     expect(directory.closedDirectories).toBe(1)
-    expect(directory.readPaths).toEqual([])
+    expect(directory.readPaths).toEqual([join('/dev', 'ttys009')])
   })
 
   it('leaves valid no-terminal rows unchanged without a scan', async () => {
@@ -256,14 +262,14 @@ describe('nameDarwinTerminals', () => {
   it('rejects undecodable filenames and closes the directory before any stat reads', async () => {
     const directory = new TestDeviceDirectory()
     directory.entries = [
-      { name: 'ttys009', rdev: 0x10000009n },
+      { name: 'cu.device', rdev: 0x10000009n },
       { name: 'serial-\uFFFD', rdev: 0x1600002an }
     ]
     await expect(nameDarwinTerminals(darwinRow('16/9'), directory)).rejects.toThrow(
       'undecodable_device_name'
     )
     expect(directory.closedDirectories).toBe(1)
-    expect(directory.readPaths).toEqual([])
+    expect(directory.readPaths).toEqual([join('/dev', 'ttys009')])
   })
 
   it('accepts signed and sign-extended device numbers while ignoring arbitrary wide rdev', async () => {
@@ -316,7 +322,156 @@ describe('nameDarwinTerminals', () => {
 
     expect(await nameDarwinTerminals(darwinRow('16/9'), directory)).toBe(darwinRow('??'))
     expect(directory.peakReads).toBe(1)
-    expect(directory.readPaths).toHaveLength(directory.entries.length)
+    expect(directory.readPaths).toHaveLength(directory.entries.length + 1)
+  })
+
+  it('resolves a pty with one verified candidate stat and no directory scan', async () => {
+    const directory = new TestDeviceDirectory()
+    directory.entries = [{ name: 'ttys009', rdev: 0x10000009n }]
+    directory.openError = new Error('must not open')
+
+    expect(await nameDarwinTerminals(darwinRow('16/9'), directory)).toBe(darwinRow('ttys009'))
+    expect(directory.openedPaths).toEqual([])
+    expect(directory.readPaths).toEqual([join('/dev', 'ttys009')])
+  })
+
+  it('falls back to the first scanned alias when the pty candidate has another device', async () => {
+    const directory = new TestDeviceDirectory()
+    directory.entries = [
+      { name: 'cu.alias', rdev: 0x10000009n },
+      { name: 'ttys009', rdev: 0x0f000009n }
+    ]
+
+    expect(await nameDarwinTerminals(darwinRow('16/9'), directory)).toBe(darwinRow('cu.alias'))
+    expect(directory.openedPaths).toEqual(['/dev'])
+  })
+
+  it.each(['symlink', 'file'] as const)(
+    'rejects a %s pty candidate and falls back to a character device',
+    async (kind) => {
+      const directory = new TestDeviceDirectory()
+      directory.entries = [
+        { name: 'ttys009', rdev: 0x10000009n, kind },
+        { name: 'cu.real', rdev: 0x10000009n }
+      ]
+
+      expect(await nameDarwinTerminals(darwinRow('16/9'), directory)).toBe(darwinRow('cu.real'))
+      expect(directory.openedPaths).toEqual(['/dev'])
+    }
+  )
+
+  it('falls back when the pty candidate stat rejects', async () => {
+    const directory = new TestDeviceDirectory()
+    directory.entries = [
+      { name: 'ttys009', rdev: 0x10000009n, error: new Error('EIO') },
+      { name: 'cu.real', rdev: 0x10000009n }
+    ]
+
+    expect(await nameDarwinTerminals(darwinRow('16/9'), directory)).toBe(darwinRow('cu.real'))
+  })
+
+  it('falls back when the pty candidate stat throws synchronously', async () => {
+    const directory = new TestDeviceDirectory()
+    directory.entries = [
+      { name: 'ttys009', rdev: 0x10000009n },
+      { name: 'cu.real', rdev: 0x10000009n }
+    ]
+    const deps = {
+      openDirectory: directory.openDirectory,
+      readDevice: (path: string) => {
+        if (path === join('/dev', 'ttys009')) {
+          throw new Error('stat invocation failed')
+        }
+        return directory.readDevice(path)
+      }
+    }
+
+    expect(await nameDarwinTerminals(darwinRow('16/9'), deps)).toBe(darwinRow('cu.real'))
+  })
+
+  it('scans only for unresolved devices and stops once they resolve', async () => {
+    const directory = new TestDeviceDirectory()
+    directory.entries = [
+      { name: 'console', rdev: 0n },
+      { name: 'ttys001', rdev: 0x10000001n },
+      { name: 'ttys002', rdev: 0x10000002n },
+      { name: 'later', rdev: 0x1600002an }
+    ]
+    const capture = ['16/1', '16/2', '0/0'].map((device) => darwinRow(device)).join('')
+
+    expect(await nameDarwinTerminals(capture, directory)).toBe(
+      ['ttys001', 'ttys002', 'console'].map((device) => darwinRow(device)).join('')
+    )
+    expect(directory.openedPaths).toEqual(['/dev'])
+    expect(directory.readPaths).toEqual(
+      ['ttys001', 'ttys002', 'ttys000', 'console'].map((name) => join('/dev', name))
+    )
+  })
+
+  it('stops candidate stats after cancellation and rejects once the active read drains', async () => {
+    const directory = new TestDeviceDirectory()
+    directory.entries = [1, 2, 3].map((minor) => ({
+      name: `ttys00${minor}`,
+      rdev: 0x10000000n + BigInt(minor),
+      delayMs: 10
+    }))
+    const capture = ['16/1', '16/2', '16/3'].map((device) => darwinRow(device)).join('')
+    const controller = new AbortController()
+    const named = nameDarwinTerminals(capture, directory, controller.signal)
+    const rejection = expect(named).rejects.toThrow()
+    await new Promise((resolve) => setTimeout(resolve, 2))
+    controller.abort()
+    await rejection
+
+    expect(directory.readPaths).toEqual([join('/dev', 'ttys001')])
+    expect(directory.openedPaths).toEqual([])
+    expect(directory.peakReads).toBe(1)
+  })
+
+  it('admits one device read at a time across candidate and scan phases', async () => {
+    const directory = new TestDeviceDirectory()
+    directory.entries = [
+      ...Array.from({ length: 10 }, (_, minor) => ({
+        name: `ttys00${minor}`,
+        rdev: 0x10000000n + BigInt(minor),
+        delayMs: 1
+      })),
+      { name: 'cu.serial', rdev: 0x1600002an, delayMs: 1 }
+    ]
+    const devices = [...Array.from({ length: 10 }, (_, minor) => `16/${minor}`), '22/42']
+
+    expect(
+      await nameDarwinTerminals(devices.map((device) => darwinRow(device)).join(''), directory)
+    ).toBe(directory.entries.map((entry) => darwinRow(entry.name)).join(''))
+    expect(directory.peakReads).toBe(1)
+    expect(directory.openedPaths).toEqual(['/dev'])
+  })
+
+  it('accepts a four-digit pty candidate only when its device matches', async () => {
+    const directory = new TestDeviceDirectory()
+    directory.entries = [{ name: 'ttys1000', rdev: 0x100003e8n }]
+    expect(await nameDarwinTerminals(darwinRow('16/1000'), directory)).toBe(darwinRow('ttys1000'))
+    expect(directory.openedPaths).toEqual([])
+
+    directory.entries = [{ name: 'ttys1000', rdev: 0x0f0003e8n }]
+    expect(await nameDarwinTerminals(darwinRow('16/1000'), directory)).toBe(darwinRow('??'))
+    expect(directory.openedPaths).toEqual(['/dev'])
+  })
+
+  it('looks up each distinct device once across repeated rows', async () => {
+    const directory = new TestDeviceDirectory()
+    directory.entries = [
+      { name: 'ttys009', rdev: 0x10000009n },
+      { name: 'ttys010', rdev: 0x1000000an }
+    ]
+    const capture = Array.from({ length: 50 }, () => darwinRow('16/9') + darwinRow('16/10')).join(
+      ''
+    )
+
+    expect(await nameDarwinTerminals(capture, directory)).toBe(
+      Array.from({ length: 50 }, () => darwinRow('ttys009') + darwinRow('ttys010')).join('')
+    )
+    expect(directory.readPaths).toEqual([join('/dev', 'ttys009'), join('/dev', 'ttys010')])
   })
 
   it('keeps the canonical public ps arguments on both Darwin and Linux', () => {

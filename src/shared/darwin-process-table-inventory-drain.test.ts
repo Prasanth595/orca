@@ -17,6 +17,8 @@ const capture = vi.fn(async (args: readonly string[]) =>
   args[1].includes('tdev=') ? raw : canonical
 )
 const validate = (stdout: string): string => stdout
+const candidatePath = '/dev/ttys009'
+const missingCandidate = (): Promise<never> => Promise.reject(new Error('ENOENT'))
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -38,10 +40,15 @@ describe('Darwin inventory drain admission', () => {
     opendirMock.mockResolvedValue(
       Array.from({ length: 4 }, (_, index) => ({ name: `entry-${index}` }))
     )
-    const pending = deferred<{ rdev: bigint; isCharacterDevice: () => boolean }>()
-    lstatMock.mockImplementation(() => {
-      const index = lstatMock.mock.calls.length - 1
-      if (index === 0) {
+    const pending = deferred<{
+      rdev: bigint
+      isCharacterDevice: () => boolean
+    }>()
+    lstatMock.mockImplementation((path: string) => {
+      if (path === candidatePath) {
+        return missingCandidate()
+      }
+      if (lstatMock.mock.calls.length === 2) {
         throw new Error('stat invocation failed')
       }
       return pending.promise
@@ -53,7 +60,7 @@ describe('Darwin inventory drain admission', () => {
     })
     await vi.advanceTimersByTimeAsync(0)
     expect(settled).toBe(false)
-    expect(lstatMock).toHaveBeenCalledTimes(2)
+    expect(lstatMock).toHaveBeenCalledTimes(3)
     expect(await captureDarwinProcessTable(capture, validate, 100)).toBe(canonical)
     expect(opendirMock).toHaveBeenCalledTimes(1)
 
@@ -61,7 +68,7 @@ describe('Darwin inventory drain admission', () => {
     lstatMock.mockResolvedValue(stat)
     pending.resolve(stat)
     expect(await first).toBe(raw.replace('16/9', 'entry-1'))
-    expect(lstatMock).toHaveBeenCalledTimes(4)
+    expect(lstatMock).toHaveBeenCalledTimes(3)
     expect(vi.getTimerCount()).toBe(0)
   })
 
@@ -69,30 +76,62 @@ describe('Darwin inventory drain admission', () => {
     opendirMock.mockResolvedValue(
       Array.from({ length: 12 }, (_, index) => ({ name: `entry-${index}` }))
     )
-    const pending = deferred<{ rdev: bigint; isCharacterDevice: () => boolean }>()
-    lstatMock.mockReturnValue(pending.promise)
+    const pending = deferred<{
+      rdev: bigint
+      isCharacterDevice: () => boolean
+    }>()
+    lstatMock.mockImplementation((path: string) =>
+      path === candidatePath ? missingCandidate() : pending.promise
+    )
 
     const first = captureDarwinProcessTable(capture, validate, 100)
     const rejected = expect(first).rejects.toThrow('capture_over_budget')
     await vi.advanceTimersByTimeAsync(100)
     await rejected
-    expect(lstatMock).toHaveBeenCalledTimes(1)
+    expect(lstatMock).toHaveBeenCalledTimes(2)
     const stat = { rdev: 0x10000009n, isCharacterDevice: () => true }
 
     for (let index = 0; index < 5; index++) {
       expect(await captureDarwinProcessTable(capture, validate, 100)).toBe(canonical)
     }
     expect(opendirMock).toHaveBeenCalledTimes(1)
-    expect(lstatMock).toHaveBeenCalledTimes(1)
+    expect(lstatMock).toHaveBeenCalledTimes(2)
 
     pending.resolve(stat)
     await vi.advanceTimersByTimeAsync(0)
-    expect(lstatMock).toHaveBeenCalledTimes(1)
-    lstatMock.mockResolvedValue(stat)
+    expect(lstatMock).toHaveBeenCalledTimes(2)
+    lstatMock.mockImplementation(async (path: string) =>
+      path === candidatePath ? missingCandidate() : stat
+    )
     expect(await captureDarwinProcessTable(capture, validate, 100)).toBe(
       raw.replace('16/9', 'entry-0')
     )
     expect(opendirMock).toHaveBeenCalledTimes(2)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('holds admission while an expired pty candidate stat drains', async () => {
+    const pending = deferred<{
+      rdev: bigint
+      isCharacterDevice: () => boolean
+    }>()
+    lstatMock.mockReturnValue(pending.promise)
+
+    const first = captureDarwinProcessTable(capture, validate, 100)
+    const rejected = expect(first).rejects.toThrow('capture_over_budget')
+    await vi.advanceTimersByTimeAsync(100)
+    await rejected
+    expect(await captureDarwinProcessTable(capture, validate, 100)).toBe(canonical)
+    expect(lstatMock).toHaveBeenCalledTimes(1)
+    expect(opendirMock).not.toHaveBeenCalled()
+
+    const stat = { rdev: 0x10000009n, isCharacterDevice: () => true }
+    pending.resolve(stat)
+    await vi.advanceTimersByTimeAsync(0)
+    lstatMock.mockResolvedValue(stat)
+    expect(await captureDarwinProcessTable(capture, validate, 100)).toBe(canonical)
+    expect(lstatMock).toHaveBeenCalledTimes(2)
+    expect(opendirMock).not.toHaveBeenCalled()
     expect(vi.getTimerCount()).toBe(0)
   })
 
@@ -109,6 +148,7 @@ describe('Darwin inventory drain admission', () => {
     }
     const opened = deferred<AsyncIterable<{ name: string }>>()
     opendirMock.mockReturnValue(opened.promise)
+    lstatMock.mockImplementation(missingCandidate)
 
     const first = captureDarwinProcessTable(capture, validate, 100)
     const rejected = expect(first).rejects.toThrow('capture_over_budget')
@@ -117,14 +157,18 @@ describe('Darwin inventory drain admission', () => {
     opened.resolve(entries())
     await vi.advanceTimersByTimeAsync(0)
     expect(closeStarted).toBe(true)
-    expect(lstatMock).not.toHaveBeenCalled()
+    expect(lstatMock.mock.calls).toEqual([[candidatePath, { bigint: true }]])
     expect(await captureDarwinProcessTable(capture, validate, 100)).toBe(canonical)
     expect(opendirMock).toHaveBeenCalledTimes(1)
 
     close.resolve()
     await vi.advanceTimersByTimeAsync(0)
     opendirMock.mockResolvedValue([{ name: 'fresh-name' }])
-    lstatMock.mockResolvedValue({ rdev: 0x10000009n, isCharacterDevice: () => true })
+    lstatMock.mockImplementation(async (path: string) =>
+      path === candidatePath
+        ? missingCandidate()
+        : { rdev: 0x10000009n, isCharacterDevice: () => true }
+    )
     expect(await captureDarwinProcessTable(capture, validate, 100)).toBe(
       raw.replace('16/9', 'fresh-name')
     )

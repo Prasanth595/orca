@@ -1,7 +1,6 @@
 import { lstat, opendir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { DirectoryListingBudget } from './directory-listing-budget'
-import { mapWithConcurrency } from './map-with-concurrency'
 import { ProcessTableCaptureError } from './process-table-snapshot'
 
 type DarwinTerminalNameDeps = {
@@ -24,10 +23,48 @@ function isDeviceNumber(value: string): boolean {
   return match !== null && Number(match[1]) <= 255 && Number(match[2]) <= 0xffffff
 }
 
-async function readTerminalNames(
+function deviceKey(rdev: bigint): string | null {
+  const device = BigInt.asUintN(32, rdev)
+  const signedDevice = BigInt.asIntN(32, rdev)
+  if (rdev !== device && rdev !== signedDevice && rdev !== BigInt.asUintN(64, signedDevice)) {
+    return null
+  }
+  return `${device >> 24n}/${device & 0xffffffn}`
+}
+
+async function readDeviceKey(deps: DarwinTerminalNameDeps, name: string): Promise<string | null> {
+  try {
+    const stat = await deps.readDevice(join('/dev', name)).catch(() => null)
+    return stat?.isCharacterDevice() ? deviceKey(stat.rdev) : null
+  } catch {
+    return null
+  }
+}
+
+// XNU names every pty slave ttys%03d by minor with one /dev entry; verify rdev before trusting it.
+async function readPtyNames(
+  devices: ReadonlySet<string>,
   deps: DarwinTerminalNameDeps,
   signal?: AbortSignal
-): Promise<ReadonlyMap<string, string>> {
+): Promise<Map<string, string>> {
+  const names = new Map<string, string>()
+  for (const device of devices) {
+    signal?.throwIfAborted()
+    const name = `ttys${device.slice(device.indexOf('/') + 1).padStart(3, '0')}`
+    if ((await readDeviceKey(deps, name)) === device) {
+      names.set(device, name)
+    }
+  }
+  signal?.throwIfAborted()
+  return names
+}
+
+async function readTerminalNames(
+  devices: ReadonlySet<string>,
+  names: Map<string, string>,
+  deps: DarwinTerminalNameDeps,
+  signal?: AbortSignal
+): Promise<void> {
   const entries: string[] = []
   const budget = new DirectoryListingBudget()
   signal?.throwIfAborted()
@@ -39,39 +76,20 @@ async function readTerminalNames(
     budget.record(entry.name)
     entries.push(entry.name)
   }
-  const stats = await mapWithConcurrency(entries, 1, (name) => {
-    if (signal?.aborted) {
-      return Promise.resolve(null)
+  let unresolved = [...devices].filter((device) => !names.has(device)).length
+  for (const name of entries) {
+    if (unresolved === 0) {
+      break
     }
-    try {
-      return deps.readDevice(join('/dev', name)).catch(() => null)
-    } catch {
-      return Promise.resolve(null)
-    }
-  })
-  signal?.throwIfAborted()
-  const names = new Map<string, string>()
-  entries.forEach((name, index) => {
-    const stat = stats[index]
-    if (!stat?.isCharacterDevice()) {
-      return
-    }
-    const device = BigInt.asUintN(32, stat.rdev)
-    const signedDevice = BigInt.asIntN(32, stat.rdev)
-    if (
-      stat.rdev !== device &&
-      stat.rdev !== signedDevice &&
-      stat.rdev !== BigInt.asUintN(64, signedDevice)
-    ) {
-      return
-    }
-    const key = `${device >> 24n}/${device & 0xffffffn}`
+    signal?.throwIfAborted()
+    const device = await readDeviceKey(deps, name)
     // Apple devname chooses the first direct character entry in native directory order.
-    if (!names.has(key)) {
-      names.set(key, Buffer.byteLength(name, 'utf8') < 255 ? name : '??')
+    if (device !== null && devices.has(device) && !names.has(device)) {
+      names.set(device, Buffer.byteLength(name, 'utf8') < 255 ? name : '??')
+      unresolved -= 1
     }
-  })
-  return names
+  }
+  signal?.throwIfAborted()
 }
 
 /** Name terminals using this capture's /dev inventory, without retaining positive or misses. */
@@ -81,7 +99,7 @@ export async function nameDarwinTerminals(
   signal?: AbortSignal
 ): Promise<string> {
   signal?.throwIfAborted()
-  let hasDevices = false
+  const devices = new Set<string>()
   for (const line of stdout.split(/\r?\n/)) {
     if (!line.trim()) {
       continue
@@ -90,10 +108,14 @@ export async function nameDarwinTerminals(
     if (!match) {
       throw new ProcessTableCaptureError('malformed_darwin_device_row')
     }
-    hasDevices ||= isDeviceNumber(match[2])
+    if (isDeviceNumber(match[2])) {
+      devices.add(match[2])
+    }
   }
-  const names = hasDevices ? await readTerminalNames(deps, signal) : new Map<string, string>()
-  signal?.throwIfAborted()
+  const names = await readPtyNames(devices, deps, signal)
+  if (names.size < devices.size) {
+    await readTerminalNames(devices, names, deps, signal)
+  }
   return stdout.replace(TDEV_COLUMNS, (_row, head: string, device: string) => {
     return head + (names.get(device) ?? '??')
   })
