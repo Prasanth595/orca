@@ -1,7 +1,10 @@
+import type { AgentStatusOrchestrationContext } from '../../shared/agent-status-types'
+import { getRecentOrchestrationDispatch } from './runtime-agent-orchestration-dispatch'
+import type { AgentStatusIpcPayload } from '../../shared/agent-status-ipc-payload'
 import {
-  AGENT_STATUS_STALE_AFTER_MS,
-  type AgentStatusOrchestrationContext
-} from '../../shared/agent-status-types'
+  projectStructuredOrchestrationDisplay,
+  createStructuredStatusWorkerBinding
+} from './runtime-structured-orchestration-display'
 import type { FleetAgentStatusEvidence } from '../../shared/orchestration-fleet-agent-status-evidence'
 import { buildOrchestrationTaskDisplayMetadata } from '../../shared/orchestration-task-display'
 import { parsePaneKey } from '../../shared/stable-pane-id'
@@ -26,6 +29,7 @@ type RuntimeAgentOrchestrationDependencies = {
   getPaneKey(handle: string): string | null
   getDispatchAuthority(handle: string): OrchestrationCompatibilityTerminalAuthority | null
   getAgentStatusSnapshot(): readonly FleetAgentStatusEvidence[]
+  getStructuredStatusSnapshot?(): readonly AgentStatusIpcPayload[]
 }
 
 export class RuntimeAgentOrchestrationProjection {
@@ -77,6 +81,20 @@ export class RuntimeAgentOrchestrationProjection {
         contexts[pty.paneKey] = context
       }
     }
+    const bindStructuredRow = createStructuredStatusWorkerBinding(db)
+    for (const row of this.deps.getStructuredStatusSnapshot?.() ?? []) {
+      const binding = bindStructuredRow(row)
+      if (!binding) {
+        continue
+      }
+      const context = this.getForHandle(binding.handle, db, {
+        paneKey: binding.authorityPaneKey,
+        deferAttention: batchAttention
+      })
+      if (context) {
+        contexts[binding.displayPaneKey] = context
+      }
+    }
     const entries = Object.entries(contexts)
     if (entries.length === 0) {
       return undefined
@@ -105,6 +123,26 @@ export class RuntimeAgentOrchestrationProjection {
     return contexts
   }
 
+  getForStructuredPaneKey(paneKey: string): AgentStatusOrchestrationContext | undefined {
+    if (!parsePaneKey(paneKey)?.tabId.startsWith('structured-agent-session-')) {
+      return undefined
+    }
+    const db = this.deps.getDb()
+    if (!db || db.hasAnyDispatchContexts?.() === false) {
+      return undefined
+    }
+    const row = this.deps.getStructuredStatusSnapshot?.().find((row) => row.paneKey === paneKey)
+    const binding = row ? createStructuredStatusWorkerBinding(db)(row) : null
+    return binding
+      ? this.getForHandle(binding.handle, db, {
+          paneKey: binding.authorityPaneKey,
+          evidence: this.deps
+            .getAgentStatusSnapshot()
+            .find((entry) => entry.activity.paneKey === paneKey)
+        })
+      : undefined
+  }
+
   getForHandle(
     handle: string,
     db = this.deps.getDb(),
@@ -117,7 +155,8 @@ export class RuntimeAgentOrchestrationProjection {
   ): AgentStatusOrchestrationContext | undefined {
     const { paneKey, evidence, deferAttention = false } = options
     const dispatch =
-      db?.getActiveDispatchForTerminal?.(handle, paneKey) ?? this.getRecent(handle, db)
+      db?.getActiveDispatchForTerminal?.(handle, paneKey) ??
+      getRecentOrchestrationDispatch(handle, db)
     if (!dispatch) {
       return undefined
     }
@@ -215,18 +254,26 @@ export class RuntimeAgentOrchestrationProjection {
       !deferAttention && db && typeof db.getWorkerAttentionFacts === 'function'
         ? buildWorkerAttentionContext({ db, dispatch, task, evidence })
         : undefined
-    return {
-      taskId: dispatch.task_id,
-      dispatchId: dispatch.id,
-      dispatchStatus: dispatch.status,
-      ...(display.taskTitle ? { taskTitle: display.taskTitle } : {}),
-      ...(display.displayName ? { displayName: display.displayName } : {}),
-      ...(parent.handle ? { parentTerminalHandle: parent.handle } : {}),
-      ...(parent.paneKey ? { parentPaneKey: parent.paneKey } : {}),
-      ...(coordinator.handle ? { coordinatorHandle: coordinator.handle } : {}),
-      ...(orchestrationRunId ? { orchestrationRunId } : {}),
-      ...(attention ? { attention } : {})
-    }
+    return projectStructuredOrchestrationDisplay(
+      {
+        taskId: dispatch.task_id,
+        dispatchId: dispatch.id,
+        dispatchStatus: dispatch.status,
+        ...(display.taskTitle ? { taskTitle: display.taskTitle } : {}),
+        ...(display.displayName ? { displayName: display.displayName } : {}),
+        ...(parent.handle ? { parentTerminalHandle: parent.handle } : {}),
+        ...(parent.paneKey ? { parentPaneKey: parent.paneKey } : {}),
+        ...(coordinator.handle ? { coordinatorHandle: coordinator.handle } : {}),
+        ...(orchestrationRunId ? { orchestrationRunId } : {}),
+        ...(attention ? { attention } : {})
+      },
+      db,
+      owningRun,
+      paneKey,
+      task?.created_by_run_generation === owningRun?.consumer_generation
+        ? dispatch.creator_orca_session_id
+        : null
+    )
   }
 
   /**
@@ -253,24 +300,5 @@ export class RuntimeAgentOrchestrationProjection {
       return { paneKey: storedPaneKey }
     }
     return { handle: liveHandle, paneKey: this.deps.getPaneKey(liveHandle) ?? storedPaneKey }
-  }
-
-  private getRecent(handle: string, db: OrchestrationDb | null) {
-    const dispatch = db?.getLatestDispatchForTerminal?.(handle)
-    if (
-      !dispatch?.completed_at ||
-      dispatch.status === 'pending' ||
-      dispatch.status === 'dispatched'
-    ) {
-      return undefined
-    }
-    const completedAt = Date.parse(
-      dispatch.completed_at.includes('T')
-        ? dispatch.completed_at
-        : `${dispatch.completed_at.replace(' ', 'T')}Z`
-    )
-    return Number.isFinite(completedAt) && Date.now() - completedAt <= AGENT_STATUS_STALE_AFTER_MS
-      ? dispatch
-      : undefined
   }
 }
