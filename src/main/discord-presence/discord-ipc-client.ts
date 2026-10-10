@@ -168,8 +168,9 @@ async function connectToPath(
         return
       }
       closed = true
-      // Why: end() flushes a pending clear-activity write before the pipe goes away.
-      socket.end(encodeDiscordIpcPacket(DISCORD_IPC_OPCODE.close, {}))
+      // Why: end() flushes a pending clear-activity write; destroy after it so a peer that never
+      // closes its side cannot keep the socket half-open.
+      socket.end(encodeDiscordIpcPacket(DISCORD_IPC_OPCODE.close, {}), () => socket.destroy())
     }
   }
 }

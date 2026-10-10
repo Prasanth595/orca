@@ -40,12 +40,13 @@ function socketPath(): string {
 }
 
 async function startFakeDiscord(
-  onPacket: (packet: DiscordIpcPacket, socket: Socket) => void
+  onPacket: (packet: DiscordIpcPacket, socket: Socket) => void,
+  { allowHalfOpen = false } = {}
 ): Promise<FakeDiscord> {
   const path = socketPath()
   const received: DiscordIpcPacket[] = []
   const sockets: Socket[] = []
-  const server: Server = createServer((socket) => {
+  const server: Server = createServer({ allowHalfOpen }, (socket) => {
     sockets.push(socket)
     const decoder = new DiscordIpcPacketDecoder()
     socket.on('data', (chunk: Buffer) => {
@@ -128,6 +129,21 @@ describe('connectDiscordIpc', () => {
     )
     await discord.close()
     await waitFor(() => onClosed.mock.calls.length === 1)
+  })
+
+  it('fully closes the socket even when Discord keeps its side open', async () => {
+    const discord = await startFakeDiscord(acceptHandshake, { allowHalfOpen: true })
+    const connection = await connectDiscordIpc(
+      { clientId: CLIENT_ID, socketPaths: [discord.path], pid: 1, onClosed: vi.fn() },
+      quietLogger
+    )
+    let peerClosed = false
+    discord.sockets[0].on('close', () => {
+      peerClosed = true
+    })
+    connection.close()
+    await waitFor(() => peerClosed)
+    expect(discord.received.at(-1)?.op).toBe(DISCORD_IPC_OPCODE.close)
   })
 
   it('moves to the next socket when one rejects the handshake', async () => {
