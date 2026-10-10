@@ -27,7 +27,7 @@ export type DiscordIpcConnectOptions = {
   clientId: string
   socketPaths: readonly string[]
   pid: number
-  /** Fires once when an established connection ends for any reason. */
+  /** Fires once when an established connection ends without a local close(). */
   onClosed: () => void
 }
 
