@@ -6,6 +6,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { createBootstrapFatalExitBanner } from './config/build-plugins/bootstrap-fatal-exit-banner'
 import { createPdfjsViewerAssetsPlugin } from './config/build-plugins/pdfjs-viewer-assets'
+import { prependChunkBanner } from './config/build-plugins/prepend-chunk-banner'
 import { createProcessHostDevRebuildPlugin } from './config/build-plugins/process-host-dev-rebuild'
 import {
   CLI_MAIN_ENTRY_NAMES,
@@ -193,10 +194,11 @@ function createMainBootstrapPlugin() {
 
       // Why: source guards and diagnostics run after Rollup's generated require
       // prelude, too late to handle a missing bootstrap dependency.
-      mainChunk.code =
-        createBootstrapFatalExitBanner() +
-        createStartupDiagnosticsBanner(mainChunk.fileName) +
-        mainChunk.code
+      prependChunkBanner(
+        bundle,
+        mainChunk,
+        createBootstrapFatalExitBanner() + createStartupDiagnosticsBanner(mainChunk.fileName)
+      )
     }
   }
 }
