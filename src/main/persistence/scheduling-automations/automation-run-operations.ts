@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto'
+import { toSshExecutionHostId } from '../../../shared/execution-host'
+import { automationWorkspaceSshPin } from './automation-owner-projection'
 import { normalizeAutomationRunResult } from '../../../shared/automation-run-result'
 import { isFinalAutomationRunStatus } from '../../../shared/automations-types'
 import { invalidateLocalWorktreeMetadataPruneInputs } from '../../local-worktree-metadata-prune-gate'
@@ -84,9 +86,15 @@ export function createAutomationRun(
   const runNumber = nextAutomationRunNumber(
     (operations.state.automationRuns ?? []).filter((run) => run.automationId === automation.id)
   )
+  const workspacePin = automationWorkspaceSshPin(operations.state, automation.workspaceId)
   const run: AutomationRun = {
     id: randomUUID(),
     reportToken: randomUUID(),
+    reportHostId: workspacePin
+      ? toSshExecutionHostId(workspacePin.targetId)
+      : automation.executionTargetType === 'ssh'
+        ? toSshExecutionHostId(automation.executionTargetId)
+        : (automation.runContext?.hostId ?? 'local'),
     automationId: automation.id,
     runNumber,
     runContext: automation.runContext ?? null,

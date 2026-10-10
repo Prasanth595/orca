@@ -1,4 +1,5 @@
 import type { AutomationRunStatus } from './automations-types'
+import type { ExecutionHostId } from './execution-host'
 
 export const MAX_AUTOMATION_RESULT_MESSAGE_LENGTH = 2_000
 export type AutomationRunResultStatus = 'failed' | 'needs_attention'
@@ -6,6 +7,12 @@ export type AutomationRunResult = {
   status: AutomationRunResultStatus
   message: string
   reportedAt: number
+}
+export type AutomationRunReporting = {
+  result?: AutomationRunResult
+  /** Scope proof for this run's agent report; preserved across host restarts. */
+  reportToken?: string
+  reportHostId?: ExecutionHostId
 }
 export type AutomationRunResultReport = {
   runId: string

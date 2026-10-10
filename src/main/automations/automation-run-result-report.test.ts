@@ -7,6 +7,7 @@ import { AutomationService } from './service'
 import type { AutomationRun } from '../../shared/automations-types'
 import { getAutomationRunDisplayStatus } from '../../shared/automation-run-result'
 import type { HeadlessAutomationDispatcher } from './headless-dispatch'
+import { folderWorkspaceKey } from '../../shared/workspace-scope'
 
 vi.mock('electron', () => ({
   app: { getPath: () => testState.dir },
@@ -74,6 +75,29 @@ describe('agent-reported automation results', () => {
       `--run-id ${run.id} --run-token ${tokenFor(run)}`
     )
     expect(store.listAutomations()[0]?.prompt).toBe('Check changes')
+    service.stop()
+  })
+
+  it('captures the SSH folder pin even for a local project, and keeps it after retargeting', async () => {
+    const { store, service, run } = await setupRun()
+    store.addSshTarget({ id: 'box-1', label: 'Box', host: 'box', port: 22, username: 'agent' })
+    const group = store.createProjectGroup({
+      name: 'SSH folders',
+      createdFrom: 'manual',
+      parentPath: '/remote',
+      connectionId: 'box-1'
+    })
+    const folder = store.createFolderWorkspace({ projectGroupId: group.id, folderPath: '/remote' })
+    const automation = store.updateAutomation(run.automationId, {
+      workspaceId: folderWorkspaceKey(folder.id)
+    })
+    expect(automation.executionTargetType).toBe('local')
+    const pinnedRun = store.createAutomationRun(automation, run.scheduledFor + 1)
+    expect(pinnedRun.reportHostId).toBe('ssh:box-1')
+    store.updateAutomation(run.automationId, { workspaceId: 'wt-1' })
+    expect(
+      store.listAutomationRuns().find((entry) => entry.id === pinnedRun.id)?.reportHostId
+    ).toBe('ssh:box-1')
     service.stop()
   })
 

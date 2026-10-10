@@ -155,7 +155,9 @@ const SshBridgeCallSelectors = z
     id: BridgeSelector,
     payload: BridgeSelector,
     dispatchId: BridgeSelector,
-    worktree: BridgeSelector
+    worktree: BridgeSelector,
+    runId: BridgeSelector,
+    token: BridgeSelector
   })
   .catch({})
 

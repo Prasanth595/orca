@@ -1,5 +1,5 @@
 /**
- * Keeps an SSH host's relayed `orca` CLI inside that host's own terminals.
+ * Keeps an SSH host's relayed `orca` CLI inside that host's own work.
  *
  * Without the per-target opt-in, the bridge reaches only these methods, and each selector must
  * resolve to a terminal on the bridged host; orchestration callers are bound the same way. Terminals whose host cannot be named are refused:
@@ -53,12 +53,23 @@ const bindOrchestration: SshBridgeBinder = async (runtime, targetId, methodName,
     : { kind: 'allowed' }
 }
 
+const bindAutomationReport: SshBridgeBinder = async (runtime, targetId, _methodName, selectors) => {
+  // A later automation move cannot transfer the run's captured reporting scope.
+  const run = runtime.listAutomationRuns().find((entry) => entry.id === selectors.runId)
+  return run?.reportHostId === toSshExecutionHostId(targetId) &&
+    Boolean(run.reportToken) &&
+    run.reportToken === selectors.token
+    ? { kind: 'allowed' }
+    : { kind: 'denied', message: outsideHostMessage(targetId, 'automation run report') }
+}
+
 /** Every method an unopted bridge may reach, each with how its selectors are bound to the host. */
 export const SSH_BRIDGE_HOST_BINDERS: ReadonlyMap<string, SshBridgeBinder> = new Map<
   string,
   SshBridgeBinder
 >([
   ['status.get', async () => ({ kind: 'allowed' })],
+  ['automation.reportRun', bindAutomationReport],
   [
     'terminal.list',
     async (_runtime, targetId, _methodName, { worktree }) => ({

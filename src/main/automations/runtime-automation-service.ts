@@ -48,7 +48,8 @@ export function createRuntimeAutomationService(input: {
         (run.terminalPaneKey ? launchedHandles.get(run.terminalPaneKey) : undefined) ??
         observer.resolveRunTerminal(run)
     },
-    onAutomationsChanged: (payload) => publishAutomationRunChange(runtime, payload),
+    onAutomationsChanged: (payload) =>
+      publishAutomationRunChange(runtime, payload, store.getSettings().notifications),
     allowRemoteHostScheduling: input.headless,
     headlessDispatcher: input.headless
       ? async (request) => {

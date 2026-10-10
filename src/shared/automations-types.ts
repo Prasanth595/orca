@@ -1,7 +1,7 @@
 import type { TuiAgent } from './tui-agent'
 import type { SetupDecision } from './worktree/create-types'
 import type { TaskSourceContext, WorkspaceRunContext } from './task-source-context'
-import type { AutomationRunResult } from './automation-run-result'
+import type { AutomationRunResult, AutomationRunReporting } from './automation-run-result'
 
 export type AutomationWorkspaceMode = 'existing' | 'new_per_run'
 export type AutomationExecutionTargetType = 'local' | 'ssh'
@@ -128,10 +128,7 @@ export type Automation = {
   updatedAt: number
 }
 
-export type AutomationRun = {
-  result?: AutomationRunResult
-  /** Scope proof for this run's agent report; preserved across host restarts. */
-  reportToken?: string
+export type AutomationRun = AutomationRunReporting & {
   id: string
   automationId: string
   runContext?: WorkspaceRunContext | null
