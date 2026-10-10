@@ -11,6 +11,7 @@ export type AutomationRunNavigation = {
 }
 
 export type AutomationRunAlert = AutomationRunNavigation & {
+  executionHostId?: ExecutionHostId
   title: string
   message: string
   status: 'failed' | 'needs_attention'
@@ -23,11 +24,16 @@ export function automationRunAlert(run: AutomationRun): AutomationRunAlert | nul
   if (run.status !== 'dispatch_failed' && !run.result) {
     return null
   }
+  const message =
+    run.status === 'dispatch_failed'
+      ? run.error || run.result?.message
+      : run.result?.message || run.error
   return {
     automationId: run.automationId,
     runId: run.id,
     title: run.title,
-    message: run.result?.message || run.error || 'The automation could not complete.',
+    message: message || 'The automation could not complete.',
+    ...(run.reportHostId ? { executionHostId: run.reportHostId } : {}),
     status: run.status === 'dispatch_failed' ? 'failed' : (run.result?.status ?? 'failed'),
     workspaceId: run.workspaceId,
     paneKey: run.terminalPaneKey,
@@ -42,7 +48,7 @@ export function automationRunNotificationRequest(
   return {
     source: 'agent-task-complete',
     notificationId: key,
-    attentionKey: key,
+    attentionKey: `${key}:${alert.status}`,
     automationRun: alert,
     worktreeId: alert.workspaceId ?? undefined,
     agentState: alert.status === 'failed' ? 'done' : 'waiting',

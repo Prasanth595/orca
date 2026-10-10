@@ -63,13 +63,21 @@ export function createAutomationRunWriter(
         : null
       const run = store.updateAutomationRun(result)
       const alert = automationRunAlert(run)
-      if (publish && alert && previous?.status !== 'dispatch_failed' && !previous?.result) {
+      if (
+        publish &&
+        alert &&
+        previous?.status !== 'dispatch_failed' &&
+        previous?.result?.status !== alert.status
+      ) {
         pendingAlerts.set(run.id, alert)
       }
-      await store.flushPendingOrThrowAsync({ drainToStableGeneration: false })
       const pending = pendingAlerts.get(run.id)
-      pendingAlerts.delete(run.id)
-      announce(run.automationId, result.usage ? 'usage' : 'run', pending)
+      await store.flushPendingOrThrowAsync({ drainToStableGeneration: false })
+      const acknowledgedAlert = pendingAlerts.get(run.id) === pending ? pending : undefined
+      if (acknowledgedAlert) {
+        pendingAlerts.delete(run.id)
+      }
+      announce(run.automationId, result.usage ? 'usage' : 'run', acknowledgedAlert)
       return run
     },
     repeatSkip: async (automationId, error, scheduledFor): Promise<AutomationRun | null> => {

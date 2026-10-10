@@ -59,7 +59,7 @@ describe('automation alert delivery', () => {
 
   it('preserves the remote authority and SSH selector for click routing', () => {
     deliverAutomationRunAlert({
-      alert,
+      alert: { ...alert, executionHostId: 'local' },
       environmentId: 'env-1',
       selector: { kind: 'ssh', targetId: 'ssh-1' }
     })
@@ -77,6 +77,34 @@ describe('automation alert delivery', () => {
     )
     expect(mocks.markWorktreeUnread).not.toHaveBeenCalled()
   })
+
+  it.each([
+    {
+      executionHostId: 'ssh:ssh-1' as const,
+      hostId: 'local' as const,
+      selector: { kind: 'self' as const }
+    },
+    {
+      executionHostId: 'local' as const,
+      hostId: 'ssh:ssh-1' as const,
+      selector: { kind: 'ssh' as const, targetId: 'ssh-1' }
+    }
+  ])(
+    'keeps the run notification source after retargeting: $executionHostId',
+    ({ executionHostId, hostId, selector }) => {
+      deliverAutomationRunAlert({ alert: { ...alert, executionHostId }, selector })
+      expect(mocks.deliver).toHaveBeenCalledWith(
+        expect.objectContaining({
+          notificationSourceId: executionHostId,
+          automationRun: expect.objectContaining({
+            hostId,
+            catalogRef: { authority: { kind: 'desktop' }, selector }
+          })
+        }),
+        expect.anything()
+      )
+    }
+  )
 
   it('opens run history without requiring a surviving terminal', () => {
     openAutomationRunNotification({

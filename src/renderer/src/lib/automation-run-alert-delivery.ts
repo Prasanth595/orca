@@ -41,6 +41,9 @@ export function deliverAutomationRunAlert(
     : payload.selector?.kind === 'ssh'
       ? toSshExecutionHostId(payload.selector.targetId)
       : 'local'
+  const executionHostId = environmentId
+    ? toRuntimeExecutionHostId(environmentId)
+    : (payload.alert.executionHostId ?? hostId)
   const authority: StableAutomationAuthorityRef = environmentId
     ? { kind: 'runtime', environmentId }
     : { kind: 'desktop' }
@@ -64,7 +67,7 @@ export function deliverAutomationRunAlert(
     {
       ...automationRunNotificationRequest(alert),
       notificationSourceId: notificationSourceForOwner(
-        { executionHostId: hostId, runtimeEnvironmentId: environmentId ?? null },
+        { executionHostId, runtimeEnvironmentId: environmentId ?? null },
         state
       ),
       isActiveWorktree: alert.workspaceId === state.activeWorktreeId

@@ -147,6 +147,36 @@ describe('agent-reported automation results', () => {
     service.stop()
   })
 
+  it('alerts again when an attention report is followed by a dispatch failure', async () => {
+    const { service, run, publish } = await setupRun()
+    try {
+      await service.reportResult({
+        runId: run.id,
+        token: tokenFor(run),
+        status: 'needs_attention',
+        message: 'Review the changed policy'
+      })
+      const failure = {
+        runId: run.id,
+        status: 'dispatch_failed' as const,
+        error: 'Automation agent is blocked: agent-approval-prompt.'
+      }
+      await service.markDispatchResult(failure)
+      await service.markDispatchResult(failure)
+      expect(
+        publish.mock.calls.flatMap(([payload]) => (payload.alert ? [payload.alert] : []))
+      ).toEqual([
+        expect.objectContaining({
+          status: 'needs_attention',
+          message: 'Review the changed policy'
+        }),
+        expect.objectContaining({ status: 'failed', message: failure.error })
+      ])
+    } finally {
+      service.stop()
+    }
+  })
+
   it('refuses a token belonging to a different run and empty messages', async () => {
     const { service, run } = await setupRun()
     await expect(

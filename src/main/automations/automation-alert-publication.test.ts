@@ -24,7 +24,7 @@ describe('automation alert publication', () => {
         title: 'Daily check run 1 — failed',
         body: 'Authentication failed',
         notificationId: 'automation:auto-1:run-1',
-        attentionKey: 'automation:auto-1:run-1',
+        attentionKey: 'automation:auto-1:run-1:failed',
         agentState: 'done'
       })
     )
