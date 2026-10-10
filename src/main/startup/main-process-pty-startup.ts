@@ -82,9 +82,9 @@ export function handlePtyExit(id: string, exitSequence: number): void {
 }
 
 /** A PTY that dies while Orca is down never runs the teardown that clears pane
- *  state, so hydrate can rebuild a Claude subagent roster that no later hook can
- *  retire — pinning the pane 'working' and locking its agent out of hibernation
- *  for good. Once provider and hook hydration settle, targeted PTY liveness can
+ *  state, so hydrate can rebuild restored agent rows that no later hook can
+ *  retire — pinning panes 'working' and locking agents out of hibernation for
+ *  good. Once provider and hook hydration settle, targeted PTY liveness can
  *  retire only rows whose local owner is proven gone. */
 export async function reapRestoredSubagentsWithoutLiveAgent(): Promise<void> {
   const store = state.store
@@ -112,7 +112,7 @@ export async function reapRestoredSubagentsWithoutLiveAgent(): Promise<void> {
     getBoundPtyIdForPaneKey: getPtyIdForPaneKey,
     getPersistedPtyIdForPaneKey: (paneKey) => persistedPtyIdByPaneKey.get(paneKey),
     reap: (isLocalHost, isLocalPaneAgentLive, isLocalPaneLivenessEvidenceCurrent) =>
-      agentHookServer.reapRestoredClaudeSubagentsWithoutLiveAgent(
+      agentHookServer.reapRestoredAgentRowsWithoutLiveAgent(
         isLocalHost,
         isLocalPaneAgentLive,
         isLocalPaneLivenessEvidenceCurrent

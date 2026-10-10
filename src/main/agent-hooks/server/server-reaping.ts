@@ -10,18 +10,18 @@ import { AgentHookServerTabCleanup } from './server-tab-cleanup'
 import type { EnrichedAgentHookEventPayload } from './server-types'
 
 export abstract class AgentHookServerReaping extends AgentHookServerTabCleanup {
-  /** Second reap path for restored Claude subagent rows: drop the ones whose pane
-   *  has no live local agent process behind it any more. A PTY that dies while Orca
-   *  is down never runs the teardown that clears pane state, so hydrate rebuilds a
-   *  roster nothing can ever retire — the inventory reap needs the parent to emit a
-   *  complete `background_tasks` list and an idle parent never does. The row then
-   *  gates the pane 'working' for the rest of its life and hibernation, which
-   *  requires 'done', can never reclaim the agent's heap.
+  /** Retire restored rows of any agent type whose pane has no live agent process
+   *  behind it any more. A PTY that dies while Orca is down never runs the
+   *  teardown that clears pane state, so hydrate rebuilds claims nothing can ever
+   *  retire — the inventory reap needs the parent to emit a complete
+   *  `background_tasks` list and an idle parent never does. The row then gates
+   *  the pane 'working' for the rest of its life (host-owned rows never decay)
+   *  and hibernation, which requires 'done', can never reclaim the agent's heap.
    *
    *  Both the execution host and relay binding must prove local ownership before
    *  targeted PTY liveness is consulted. Panes that reported in this runtime are
    *  also skipped. Returns the number of panes changed. */
-  async reapRestoredClaudeSubagentsWithoutLiveAgent(
+  async reapRestoredAgentRowsWithoutLiveAgent(
     isLocalExecutionHost: (worktreeId: string | undefined) => boolean,
     isLocalPaneAgentLive: (paneKey: string) => Promise<boolean>,
     isLocalPaneLivenessEvidenceCurrent: (paneKey: string) => boolean
@@ -30,18 +30,22 @@ export abstract class AgentHookServerReaping extends AgentHookServerTabCleanup {
     for (const [paneKey, entry] of this.state.lastStatusByPaneKey) {
       const enriched = entry as EnrichedAgentHookEventPayload
       if (
-        enriched.payload.agentType === 'claude' &&
         enriched.connectionId === null &&
         isLocalExecutionHost(enriched.worktreeId) &&
-        // Why: a restored roster is only one shape of stranded claim. A lead row left non-terminal,
-        // or a background-task/cron latch nothing will refresh, strands the pane just as
-        // permanently — and unlike the roster case there is no child event left to reap it.
-        (claudeRosterHasRestoredSnapshotSubagent(
-          this.state.claudeSubagentRosterByPaneKey.get(paneKey)
-        ) ||
-          enriched.payload.state !== 'done' ||
-          this.state.claudeRunningNonAgentTaskPaneKeys.has(paneKey) ||
-          this.state.claudeActiveSessionCronPaneKeys.has(paneKey)) &&
+        // Why: any restored non-terminal row is stranded once its PTY is proven
+        // gone — not just Claude's. An interrupted agent leaves `working` rows
+        // of every agent type, and host-owned rows never decay, so the row would
+        // outlive the process forever. Claude adds shapes that strand even when
+        // the lead row reads `done`: a restored roster, or a background-task/
+        // cron latch nothing will refresh — and unlike the roster case there is
+        // no child event left to reap them.
+        (enriched.payload.state !== 'done' ||
+          (enriched.payload.agentType === 'claude' &&
+            (claudeRosterHasRestoredSnapshotSubagent(
+              this.state.claudeSubagentRosterByPaneKey.get(paneKey)
+            ) ||
+              this.state.claudeRunningNonAgentTaskPaneKeys.has(paneKey) ||
+              this.state.claudeActiveSessionCronPaneKeys.has(paneKey)))) &&
         !this.runtimeObservedStatusPaneKeys.has(paneKey)
       ) {
         candidates.push({ paneKey, entry: enriched })

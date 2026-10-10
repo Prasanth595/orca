@@ -38,9 +38,10 @@ afterEach(() => {
  *  behind when the child's SubagentStop is lost while Orca is down. */
 async function restartWithInFlightSubagent(options?: {
   connectionId?: string
-  state?: 'working' | 'waiting'
+  state?: 'working' | 'waiting' | 'done'
   subagents?: AgentSubagentSnapshot[]
   additionalPaneKey?: string
+  agentType?: string
 }): Promise<AgentHookServer> {
   const first = new AgentHookServer()
   await first.start({ env: 'production', userDataPath: dir })
@@ -52,7 +53,7 @@ async function restartWithInFlightSubagent(options?: {
     payload: {
       state: options?.state ?? 'working',
       prompt: 'review the PR',
-      agentType: 'claude',
+      agentType: options?.agentType ?? 'claude',
       subagents: options?.subagents ?? [WORKING_CHILD]
     }
   })
@@ -65,7 +66,7 @@ async function restartWithInFlightSubagent(options?: {
       payload: {
         state: options.state ?? 'working',
         prompt: 'review the PR',
-        agentType: 'claude',
+        agentType: options?.agentType ?? 'claude',
         subagents: options.subagents ?? [WORKING_CHILD]
       }
     })
@@ -97,7 +98,7 @@ function sweepWith(
     getBoundPtyIdForPaneKey: (paneKey) => overrides.boundPtyIdByPaneKey?.[paneKey],
     getPersistedPtyIdForPaneKey: (paneKey) => overrides.persistedPtyIdByPaneKey?.[paneKey],
     reap: (isLocalHost, isLocalPaneAgentLive, isLocalPaneLivenessEvidenceCurrent) =>
-      server.reapRestoredClaudeSubagentsWithoutLiveAgent(
+      server.reapRestoredAgentRowsWithoutLiveAgent(
         isLocalHost,
         isLocalPaneAgentLive,
         isLocalPaneLivenessEvidenceCurrent
@@ -226,6 +227,106 @@ describe('restored subagent liveness sweep', () => {
       ).toBe(1)
 
       expect(probeLiveLocalPty).toHaveBeenCalled()
+      expect(paneStatus(server).state).toBe('missing')
+    } finally {
+      server.stop()
+    }
+  })
+
+  it('retires a restored OMP working row whose PTY is proven gone', async () => {
+    // The interrupt case: Esc kills the agent mid-turn without a settle hook, the
+    // PTY dies while Orca is down, and hydrate rebuilds the `working` row.
+    // Host-owned rows never decay, so without this the desktop spinner is
+    // permanent — the sweep stands in for the exit Orca never observed.
+    const server = await restartWithInFlightSubagent({ agentType: 'omp', subagents: [] })
+    const probeLiveLocalPty = vi.fn(() => false)
+    try {
+      expect(paneStatus(server).state).toBe('working')
+
+      expect(
+        await sweepWith(server, {
+          probeLiveLocalPty,
+          persistedPtyIdByPaneKey: { [PANE]: PTY }
+        })
+      ).toBe(1)
+
+      expect(probeLiveLocalPty).toHaveBeenCalled()
+      expect(paneStatus(server).state).toBe('missing')
+    } finally {
+      server.stop()
+    }
+  })
+
+  it('keeps a restored OMP working row whose PTY is still live', async () => {
+    const server = await restartWithInFlightSubagent({ agentType: 'omp', subagents: [] })
+    try {
+      expect(
+        await sweepWith(server, {
+          probeLiveLocalPty: () => true,
+          persistedPtyIdByPaneKey: { [PANE]: PTY }
+        })
+      ).toBe(0)
+
+      expect(paneStatus(server).state).toBe('working')
+    } finally {
+      server.stop()
+    }
+  })
+
+  it('never probes a restored non-Claude done row', async () => {
+    // `done` is a terminal fact; only Claude's restored rosters and latches can
+    // strand a finished pane. A finished OMP row is not a sweep candidate.
+    const server = await restartWithInFlightSubagent({
+      agentType: 'omp',
+      state: 'done',
+      subagents: []
+    })
+    const probeLiveLocalPty = vi.fn(() => false)
+    try {
+      expect(
+        await sweepWith(server, {
+          probeLiveLocalPty,
+          persistedPtyIdByPaneKey: { [PANE]: PTY }
+        })
+      ).toBe(0)
+
+      expect(probeLiveLocalPty).not.toHaveBeenCalled()
+      expect(paneStatus(server).state).toBe('done')
+    } finally {
+      server.stop()
+    }
+  })
+
+  it('sweeps a Claude done row whose latch would re-gate the pane', async () => {
+    // Pins the nested Claude arm of the widened gate: a finished lead row with a
+    // background-task latch still strands the pane — the latch re-gates
+    // 'working' on the pane's next event even though the row reads `done`.
+    const server = await restartWithInFlightSubagent({ state: 'done', subagents: [] })
+    try {
+      server._getStateForTests().claudeRunningNonAgentTaskPaneKeys.add(PANE)
+      expect(paneStatus(server).state).toBe('done')
+
+      expect(await sweepWith(server, { persistedPtyIdByPaneKey: { [PANE]: PTY } })).toBe(1)
+
+      expect(paneStatus(server).state).toBe('missing')
+      expect(server._getStateForTests().claudeRunningNonAgentTaskPaneKeys.has(PANE)).toBe(false)
+    } finally {
+      server.stop()
+    }
+  })
+
+  it('deletes a restored OMP waiting row without inventing a completion', async () => {
+    // The interrupt shape: the row is left non-terminal but not `working`.
+    // The sweep deletes it rather than rewriting `waiting` to `done` — no
+    // completion that never happened gets invented.
+    const server = await restartWithInFlightSubagent({
+      agentType: 'omp',
+      state: 'waiting',
+      subagents: []
+    })
+    try {
+      expect(await sweepWith(server, { persistedPtyIdByPaneKey: { [PANE]: PTY } })).toBe(1)
+
       expect(paneStatus(server).state).toBe('missing')
     } finally {
       server.stop()
