@@ -292,7 +292,7 @@ it('keeps Shift+Ctrl as the local file default-app gesture', async () => {
   const found = await links(preview.providers[0]!)
   found[0]!.activate(new MouseEvent('click', { ctrlKey: true, shiftKey: true }), found[0]!.text)
   await flushAsyncWork()
-  expect(doubles.openFilePathMock).toHaveBeenCalledWith('/repo/subdir/docs/guide.md')
+  expect(doubles.openFilePathMock).toHaveBeenCalledWith('/repo/subdir/docs/guide.md', 'local')
   expect(doubles.openFileMock).not.toHaveBeenCalled()
   preview.dispose()
 })

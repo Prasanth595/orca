@@ -5,8 +5,8 @@ import { newAgentLaunchRequestId } from '@/lib/agent-launch-request-id'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockStructuredLaunch = vi.hoisted(() => vi.fn(() => null))
-vi.mock('@/lib/launch-agent-in-new-tab-structured', () => ({
-  launchAgentInStructuredNewTab: mockStructuredLaunch
+vi.mock('@/lib/structured-agent-session-provisional-tab', () => ({
+  beginStructuredAgentSessionProvisionalLaunch: mockStructuredLaunch
 }))
 
 const mockCreateTab = vi.fn()
@@ -41,7 +41,15 @@ const store = {
   repos: [] as StoreRepo[],
   folderWorkspaces: [] as unknown[],
   projectGroups: [] as unknown[],
-  sshConnectionStates: new Map<string, { status: string }>(),
+  sshConnectionStates: new Map<string, { status: string; remotePlatform?: string }>([
+    ['openclaw', { status: 'connected', remotePlatform: 'linux' }],
+    ['m4air', { status: 'connected', remotePlatform: 'linux' }],
+    ['remote', { status: 'connected', remotePlatform: 'linux' }]
+  ]),
+  sshStateByEnvironment: new Map([
+    ['vm-1', { connectionStates: new Map([['nested', { remotePlatform: 'linux' }]]) }]
+  ]),
+  runtimeStatusByEnvironmentId: new Map([['vm-1', { status: { hostPlatform: 'linux' } }]]),
   transientClearedAgentStatusConnectionIds: {} as Record<string, true>,
   worktreesByRepo: {} as Record<string, StoreWorktree[]>,
   getKnownWorktreeById: vi.fn(),
@@ -194,6 +202,25 @@ requestId: newAgentLaunchRequestId(),
       launchPlatform: 'linux'
     })
     expect(queuedCommand()).toBe("orca claude-teams '--dangerously-skip-permissions'")
+  })
+
+  it('withholds a launch on a picked SSH host whose platform is unknown, even if routing says local', async () => {
+    store.repos = [
+      { id: 'repo-1', connectionId: null, executionHostId: 'local', path: '/repo' },
+      { id: 'repo-1', connectionId: 'unreported', executionHostId: 'ssh:unreported', path: '/srv' }
+    ]
+    store.worktreesByRepo = { 'repo-1': [worktreeOn('local', '/repo')] }
+    store.getKnownWorktreeById.mockReturnValue(worktreeOn('ssh:unreported', '/srv'))
+    const { launchAgentInNewTab } = await import('./launch-agent-in-new-tab')
+    const result = launchAgentInNewTab({
+      requestId: newAgentLaunchRequestId(),
+      agent: 'claude-agent-teams',
+      worktreeId: 'wt-1',
+      executionHostId: 'ssh:unreported',
+      launchPlatform: 'linux'
+    })
+    expect(result).toBeNull()
+    expect(queuedCommand()).toBeUndefined()
   })
 
   it('keeps a runtime host reaching a nested SSH target on the relay shim name', async () => {

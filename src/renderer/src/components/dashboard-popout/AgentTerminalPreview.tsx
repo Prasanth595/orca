@@ -31,7 +31,13 @@ import type {
 } from '../../../../shared/terminal-preview'
 import type { AgentTerminalPreviewProps } from './agent-terminal-preview-props'
 import { parseAppSshPtyId } from '../../../../shared/ssh-pty-id'
+import { terminalPreviewApiFor } from './terminal-preview-api'
 
+const PREVIEW_CONNECT_UNVERIFIABLE: TerminalPreviewConnectResult = {
+  snapshot: null,
+  replay: [],
+  liveness: 'unverifiable'
+}
 const PREVIEW_SCROLLBACK_ROWS = 24
 // Preview snapshots bound history; pane scrollback would only cost memory.
 const PREVIEW_SCROLLBACK_BUFFER_ROWS = 1000
@@ -121,6 +127,7 @@ export function AgentTerminalPreview({
     const phaseFrames = new PaneReparentFrameTracker(() => disposed)
     let terminal: Terminal | null = null
     let offData: (() => void) | null = null
+    const previewApi = terminalPreviewApiFor(ptyId)
     const mountTerminalInput = terminalInputRef.current
     // Why: mirrors the pane's tracker — the policy needs the flags the TUI
     // negotiated, and this preview parses the same output stream the pane does.
@@ -225,7 +232,7 @@ export function AgentTerminalPreview({
         payload.data,
         () => {
           if (!disposed) {
-            void window.api.terminalPreview.ack(ptyId, payload.bytes, surfaceId)
+            void previewApi.ack(ptyId, payload.bytes, surfaceId)
           }
         },
         true
@@ -254,7 +261,7 @@ export function AgentTerminalPreview({
     })
 
     const replayConnection = (
-      connection: Awaited<ReturnType<typeof window.api.terminalPreview.connect>>,
+      connection: Awaited<ReturnType<typeof previewApi.connect>>,
       replaceExisting: boolean,
       requestRefresh: () => void
     ): void => {
@@ -380,39 +387,42 @@ export function AgentTerminalPreview({
       }
       refreshInFlight = true
       inputInstallers.invalidateTargetInteractions()
-      const connection = await window.api.terminalPreview
+      const connection = await previewApi
         .connect(ptyId, {
           scrollbackRows: PREVIEW_SCROLLBACK_ROWS,
           surfaceId
         })
-        .catch((): TerminalPreviewConnectResult => ({
-          snapshot: null,
-          replay: [],
-          liveness: 'unverifiable'
-        }))
+        .catch((): TerminalPreviewConnectResult => PREVIEW_CONNECT_UNVERIFIABLE)
       if (disposed) {
         return
       }
-      const snap = connection.snapshot
-      if (!snap) {
+      // The web client's fallback proxy answers a missing bridge with undefined: nothing to retry.
+      const bridgeMissing = connection === undefined
+      if (!connection?.snapshot) {
         refreshInFlight = false
         refreshAgain = false
         // An SSH pty has no snapshot to wait for: the provider serves none and the relay has no
         // snapshot RPC, so the notice (never an exit verdict) shows at once instead of retrying.
-        if (connection.liveness !== 'exited' && parseAppSshPtyId(ptyId) === null) {
+        if (
+          !bridgeMissing &&
+          connection.liveness !== 'exited' &&
+          parseAppSshPtyId(ptyId) === null
+        ) {
           snapshotRetry.noteUnavailable(terminal !== null)
           return
         }
         snapshotRetry.dispose()
         setPtyGone(true)
-        onPtyGoneRef.current?.()
+        if (!bridgeMissing) {
+          onPtyGoneRef.current?.()
+        }
         offData?.()
         offData = null
         inputInstallers.dispose()
         terminal?.dispose()
         terminal = null
         terminalRef.current = null
-        void window.api.terminalPreview.unsubscribe(ptyId, surfaceId)
+        void previewApi.unsubscribe(ptyId, surfaceId)
         return
       }
       refreshInFlight = false
@@ -426,7 +436,7 @@ export function AgentTerminalPreview({
 
     inputInstallers.installContainerClipboard(container)
 
-    offData = window.api.terminalPreview.onData((payload) => {
+    offData = previewApi.onData((payload) => {
       // A payload without a surface id is the implicit surface's; ours always has one.
       if (payload.ptyId !== ptyId || (payload.surfaceId ?? surfaceId) !== surfaceId) {
         return
@@ -455,7 +465,7 @@ export function AgentTerminalPreview({
       if (detachBatched) {
         queuePreviewDetach(ptyId, surfaceId)
       } else {
-        void window.api.terminalPreview.unsubscribe(ptyId, surfaceId)
+        void previewApi.unsubscribe(ptyId, surfaceId)
       }
       scheduleFitRef.current = null
       gridClaimScheduleRef.current = null

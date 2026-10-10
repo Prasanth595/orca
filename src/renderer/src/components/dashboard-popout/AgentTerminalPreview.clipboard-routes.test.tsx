@@ -21,6 +21,11 @@ import {
   imeHarness
 } from './__mocks__/preview-terminal-input'
 
+// Paste encoding is under test here; owner routing is covered by AgentTerminalPreview.test.tsx.
+vi.mock('./terminal-preview-api', () => ({
+  terminalPreviewApiFor: () => window.api.terminalPreview
+}))
+
 import { AgentTerminalPreview } from './AgentTerminalPreview'
 
 describe('AgentTerminalPreview clipboard routes', () => {

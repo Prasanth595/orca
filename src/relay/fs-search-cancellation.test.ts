@@ -29,10 +29,10 @@ vi.mock('./relay-bundled-ripgrep', () => ({
 
 import { searchWithRg } from './fs-handler-utils'
 import { searchWithGitGrep } from './fs-handler-git-fallback'
-import { RelayDispatcher } from './dispatcher'
+import { RelayDispatcher } from '../wsl-guest/dispatcher'
 import { FsHandler } from './fs-handler'
 import { RelayContext } from './context'
-import { encodeJsonRpcFrame } from './protocol'
+import { encodeJsonRpcFrame } from '../wsl-guest/protocol'
 
 function createProcess(spawned = true) {
   const child = new ChildProcess()
@@ -184,6 +184,8 @@ describe.each(['ripgrep', 'git grep'])('relay dispatcher cancels %s', (backend) 
       const handler = new FsHandler(dispatcher, new RelayContext(), {
         dispose: vi.fn(),
         forgetRoot: vi.fn(),
+        disposeAndWait: vi.fn(async () => {}),
+        reopen: vi.fn(),
         subscribe: vi.fn()
       })
       try {

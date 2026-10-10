@@ -19,7 +19,7 @@ import {
   getLocalProjectExecutionRuntimeContext,
   getLocalRepoProjectExecutionRuntimeContext
 } from '@/lib/local-preflight-context'
-import type { NativeChatLaunchPromptDelivery } from '@/lib/native-chat-initial-view-mode'
+import type { NativeChatLaunchPromptDelivery } from '@/lib/native-chat-launch-prompt-delivery'
 import { isNativeChatTranscriptLocalReadable } from '@/lib/native-chat-transcript-readability'
 import { getExecutionHostIdForWorktree } from '@/lib/worktree-runtime-owner'
 import { readLocalRuntimeCapabilitiesOrUnknown } from '@/runtime/local-runtime-capabilities'
@@ -28,6 +28,7 @@ import {
   structuredAgentSessionTargetForHost
 } from '@/runtime/structured-agent-session-owner'
 import { pairedHostClientCapabilities } from '@/runtime/paired-host-client-capabilities'
+import { readHostStructuredAgents } from '@/runtime/host-structured-agents'
 import { lastVerifiedRuntimeStatus } from '../../../shared/runtime-host-status'
 
 export type ProspectiveWorkspaceKind = NonNullable<AgentLaunchRoutingInput['workspaceKind']>
@@ -65,7 +66,6 @@ export type AgentLaunchRouteArgs = {
   promptDelivery?: NativeChatLaunchPromptDelivery
   /** A working directory only a terminal can apply; a structured session runs in its workspace. */
   tuiCustomization?: { cwd?: string | null }
-  initialSessionOptions?: Readonly<Record<string, unknown>>
 }
 
 export { workspaceKindForWorktreeId }
@@ -129,6 +129,14 @@ function resolveTranscriptIsLocalReadable(
   return host?.kind === 'ssh' ? isNativeChatTranscriptLocalReadable(host.targetId) : true
 }
 
+function hostStructuredAgentsInput(
+  store: AgentLaunchRouteStore,
+  executionHostId: string
+): Pick<AgentLaunchRoutingInput, 'hostStructuredAgents'> {
+  const agents = readHostStructuredAgents(executionHostId, store.runtimeStatusByEnvironmentId)
+  return agents ? { hostStructuredAgents: agents.map((row) => row.agent) } : {}
+}
+
 /** The one place that gathers what a launch route decision needs; only the planner resolves on it. */
 export function buildAgentLaunchRouteInput(
   store: AgentLaunchRouteStore,
@@ -173,6 +181,6 @@ export function buildAgentLaunchRouteInput(
       resolveFolderWorkspacePath: (folderWorkspaceId) =>
         store.folderWorkspaces?.find((entry) => entry.id === folderWorkspaceId)?.folderPath
     }),
-    initialSessionOptions: args.initialSessionOptions
+    ...hostStructuredAgentsInput(store, executionHostId)
   }
 }

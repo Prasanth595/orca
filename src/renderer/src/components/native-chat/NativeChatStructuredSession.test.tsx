@@ -6,6 +6,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AgentJournalRenderItem } from '../../../../shared/agent-session-journal-types'
 import { useAppStore } from '@/store'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import {
   claudeGroupedQuestionPromptItems,
   legacySingleQuestionPromptItems
@@ -370,7 +371,7 @@ describe('NativeChatStructuredSession', () => {
     expect(mocks.composerProps?.isWorking).toBe(true)
   })
 
-  it('suppresses live turn activity for a pending approval but keeps background work visible', () => {
+  it('suppresses live turn activity for a pending approval but keeps background work visible', async () => {
     const approvalItems: AgentJournalRenderItem[] = [
       {
         itemId: 'approval-item',
@@ -428,6 +429,7 @@ describe('NativeChatStructuredSession', () => {
       kind: 'option',
       optionId: 'allow'
     })
+    await waitFor(() => expect(mocks.revealLatest).toHaveBeenCalledOnce())
     expect(mocks.messageListProps?.awaitingInput).toBe('shown')
 
     act(() => mocks.approvalCardProps?.onCancel?.())
@@ -510,6 +512,24 @@ describe('NativeChatStructuredSession', () => {
     expect(mocks.cancel).not.toHaveBeenCalled()
   })
 
+  it("shows the queue's coming send as a Stop that is not live until a turn can be stopped", () => {
+    mocks.queueSendsNext = true
+    render(claudeSessionView('structured-tab-sends-next', 'session-sends-next'))
+    expect(mocks.composerProps?.isWorking).toBe(true)
+    expect(mocks.composerProps?.onStop).toBeUndefined()
+  })
+
+  it('hands the composer Resume, on its transport, only while the queue controller offers it', () => {
+    const { rerender } = render(claudeSessionView('structured-tab-resume', 'session-resume'))
+    expect(mocks.composerProps?.structuredTransport?.queueResume).toBeUndefined()
+    mocks.queuedResumable = true
+    rerender(claudeSessionView('structured-tab-resume', 'session-resume'))
+    act(() => {
+      mocks.composerProps?.structuredTransport?.queueResume?.resume()
+    })
+    expect(mocks.queuedResume).toHaveBeenCalledOnce()
+  })
+
   it('keeps the strip mounted through a running turn, with the turn owning the voice', () => {
     // The strip stands for work that OUTLIVES a turn, so `show` is true while
     // `isMonitoring` is false: mounted, but not speaking as the live indicator.
@@ -532,7 +552,7 @@ describe('NativeChatStructuredSession', () => {
     expect(screen.getByText('watcher')).toBeTruthy()
   })
 
-  it('tracks concurrent task stops independently and clears each pending result', async () => {
+  it('tracks concurrent task stops independently: a confirmed one holds its row, a failed one clears', async () => {
     mocks.monitoringBackgroundTasks = true
     mocks.supportsBackgroundTaskStop = true
     mocks.backgroundTasks = [
@@ -552,7 +572,7 @@ describe('NativeChatStructuredSession', () => {
         })
     )
 
-    render(
+    const { rerender } = render(
       claudeSessionView('structured-tab-concurrent-background', 'session-concurrent-background')
     )
     fireEvent.click(screen.getByRole('button', { name: '2 shells — 2 working' }))
@@ -564,12 +584,30 @@ describe('NativeChatStructuredSession', () => {
     expect((firstStop as HTMLButtonElement).disabled).toBe(true)
     expect((secondStop as HTMLButtonElement).disabled).toBe(true)
 
+    // Confirmed before its row leaves: the button stays in its stopping state, never Stop again.
     await act(async () => finishFirst({ cancelled: true }))
-    await waitFor(() => expect((firstStop as HTMLButtonElement).disabled).toBe(false))
+    expect((firstStop as HTMLButtonElement).disabled).toBe(true)
     expect((secondStop as HTMLButtonElement).disabled).toBe(true)
 
     await act(async () => finishSecond(null))
     await waitFor(() => expect((secondStop as HTMLButtonElement).disabled).toBe(false))
+    expect((firstStop as HTMLButtonElement).disabled).toBe(true)
+
+    mocks.backgroundTasks = [{ id: 'task-two', kind: 'command', description: 'Second task' }]
+    rerender(
+      claudeSessionView('structured-tab-concurrent-background', 'session-concurrent-background')
+    )
+    expect(screen.queryByRole('button', { name: 'Stop First task' })).toBeNull()
+    // The same task listed again is one the Stop did not end.
+    mocks.backgroundTasks = [
+      { id: 'task-one', kind: 'command', description: 'First task' },
+      { id: 'task-two', kind: 'command', description: 'Second task' }
+    ]
+    rerender(
+      claudeSessionView('structured-tab-concurrent-background', 'session-concurrent-background')
+    )
+    const firstAgain = screen.getByRole('button', { name: 'Stop First task' })
+    expect(firstAgain.hasAttribute('disabled')).toBe(false)
   })
 
   it('keeps a stale session stop result from clearing the current session pending state', async () => {
@@ -602,7 +640,7 @@ describe('NativeChatStructuredSession', () => {
 
     await act(async () => finishOld({ cancelled: true }))
     expect((currentStop as HTMLButtonElement).disabled).toBe(true)
-    await act(async () => finishCurrent({ cancelled: true }))
+    await act(async () => finishCurrent({ cancelled: false }))
     await waitFor(() => expect((currentStop as HTMLButtonElement).disabled).toBe(false))
   })
 
@@ -723,5 +761,105 @@ describe('NativeChatStructuredSession', () => {
       kind: 'answers',
       answers: [{ questionId: 'q1', optionIds: [], other: 'Svelte' }]
     })
+  })
+
+  it('gives a question card the keyboard, holds it while its answer is with the host, and frees it on a refusal', async () => {
+    mocks.promptItems = legacySingleQuestionPromptItems
+    render(
+      <NativeChatStructuredSession
+        isVisible
+        isFocusedGroup
+        tabId="structured-tab-hold"
+        sessionId="session-hold"
+        target={{ kind: 'local' }}
+        agent="claude"
+      />
+    )
+    let refuse: (result: null) => void = () => {}
+    mocks.respond.mockReturnValueOnce(
+      new Promise<null>((resolve) => {
+        refuse = resolve
+      })
+    )
+
+    // The card owns this pane's keyboard, which is what turns its number keys on.
+    expect(mocks.questionCardProps?.shouldFocus).toBe(true)
+    act(() => mocks.questionCardProps?.onAnswer([{ indices: [1], other: '' }]))
+    expect(mocks.questionCardProps?.isSubmitting).toBe(true)
+    await act(async () => refuse(null))
+
+    expect(mocks.questionCardProps?.isSubmitting).toBe(false)
+  })
+
+  // The reader may have scrolled far up; what they just did has to come into view.
+  it('brings the latest into view at the press for the submits this pane makes', async () => {
+    mocks.promptItems = legacySingleQuestionPromptItems
+    const { rerender } = render(
+      <NativeChatStructuredSession
+        isVisible
+        isFocusedGroup
+        tabId="structured-tab-reveal"
+        sessionId="session-reveal"
+        target={{ kind: 'local' }}
+        agent="claude"
+      />
+    )
+    // An answer reveals as it is pressed, before the host decides on it.
+    mocks.respond.mockReturnValueOnce(new Promise(() => {}))
+    mocks.questionCardProps?.onAnswer([{ indices: [1], other: '' }])
+    expect(mocks.respond).toHaveBeenCalledOnce()
+    expect(mocks.revealLatest).toHaveBeenCalledOnce()
+
+    mocks.promptItems = []
+    rerender(
+      <NativeChatStructuredSession
+        isVisible
+        isFocusedGroup
+        tabId="structured-tab-reveal"
+        sessionId="session-reveal"
+        target={{ kind: 'local' }}
+        agent="claude"
+      />
+    )
+    const steerQueued = mocks.composerProps?.steerQueued
+    const onSubmitted = mocks.composerProps?.structuredTransport?.onSubmitted
+    if (!steerQueued || typeof onSubmitted !== 'function') {
+      throw new Error('Structured composer was not wired')
+    }
+    mocks.revealLatest.mockClear()
+
+    // Refused: nothing was steered, so nothing moves.
+    expect(steerQueued()).toBe(false)
+    expect(mocks.revealLatest).not.toHaveBeenCalled()
+
+    // The composer's sends reveal through its transport.
+    onSubmitted()
+    expect(mocks.revealLatest).toHaveBeenCalledOnce()
+    mocks.queuedSteerNewest.mockReturnValue(true)
+    expect(steerQueued()).toBe(true)
+    expect(mocks.revealLatest).toHaveBeenCalledTimes(2)
+  })
+
+  it("brings the latest into view when a queued card's Steer sends it now", () => {
+    mocks.queuedCards = [
+      { messageId: 'draft-1', position: 1, text: 'Also check SSH', state: 'waiting', hold: 'turn' }
+    ]
+    render(
+      <TooltipProvider>
+        <NativeChatStructuredSession
+          isVisible
+          isFocusedGroup
+          tabId="structured-tab-queue"
+          sessionId="session-queue"
+          target={{ kind: 'local' }}
+          agent="claude"
+        />
+      </TooltipProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /Steer/ }))
+
+    expect(mocks.queuedSteer).toHaveBeenCalledWith('draft-1')
+    expect(mocks.revealLatest).toHaveBeenCalledOnce()
   })
 })

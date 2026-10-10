@@ -131,7 +131,20 @@ describe('launching from the session grid', () => {
         repos: [
           ...state.repos,
           { ...state.repos[0], connectionId: 'chosen-host', executionHostId: 'ssh:chosen-host' }
-        ]
+        ],
+        // An SSH launch waits for the host's OS; a connected host has reported it.
+        sshConnectionStates: new Map([
+          [
+            'chosen-host',
+            {
+              targetId: 'chosen-host',
+              status: 'connected',
+              error: null,
+              reconnectAttempt: 0,
+              remotePlatform: 'linux'
+            }
+          ]
+        ])
       })
       if (kind === 'shell') {
         launchSessionGridTab(TARGET_WT, host)

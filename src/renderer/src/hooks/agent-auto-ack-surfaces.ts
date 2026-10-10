@@ -20,6 +20,10 @@ import { readAgentAttentionUnreadReason } from '@/attention/agent-attention-cont
 import { createTerminalAttentionSurface } from '@/components/terminal-pane/terminal-attention-surface'
 import { createStructuredAttentionSurface } from '@/components/native-chat/structured-attention-surface'
 import type { AutoAckTabTarget } from './agent-auto-ack-targets'
+import {
+  emitAgentSubjectReads,
+  type AgentSubjectRead
+} from '@/attention/agent-subject-read-actions'
 
 type StoreSnapshot = ReturnType<typeof useAppStore.getState>
 
@@ -61,7 +65,8 @@ export function readAgentAttentionTurnRecords(state: StoreSnapshot): AgentAttent
 /** Acknowledge the one subject a viewed target shows, leaving hidden siblings' attention alone. */
 export function acknowledgeViewedAutoAckTarget(
   state: StoreSnapshot,
-  target: AutoAckTabTarget
+  target: AutoAckTabTarget,
+  options?: { reads?: readonly AgentSubjectRead[]; readViewed?: boolean }
 ): void {
   const records = readAgentAttentionTurnRecords(state)
   const groupId = target.tabId
@@ -76,17 +81,27 @@ export function acknowledgeViewedAutoAckTarget(
   )
   // A parked grid card's BEL writes only the group-level unread; nothing subject-keyed moves.
   const hasGroupUnread = readAgentAttentionUnreadReason(state.unreadTerminalTabs[groupId]) !== null
-  if (toAck.length === 0 && !viewedUnreadSubjectKey && !hasGroupUnread) {
+  const readViewed =
+    options?.readViewed &&
+    subjectKey !== null &&
+    (state.manuallyUnreadTurnsByPaneKey[subjectKey] === undefined ||
+      state.manuallyUnreadTurnsByPaneKey[subjectKey] !==
+        readAgentAttentionTurnStartedAt(records, subjectKey))
+  if (toAck.length === 0 && !viewedUnreadSubjectKey && !readViewed && !hasGroupUnread) {
     return
   }
   const clearedSubjectKeys = new Set(toAck)
   if (viewedUnreadSubjectKey) {
     clearedSubjectKeys.add(viewedUnreadSubjectKey)
   }
+  if (readViewed && subjectKey) {
+    clearedSubjectKeys.add(subjectKey)
+  }
+  emitAgentSubjectReads([...clearedSubjectKeys], options?.reads)
   const workspaceId = target.worktreeId
   applyAgentAttentionAcknowledgement(
     {
-      acknowledgeSubjects: state.acknowledgeAgents,
+      acknowledgeSubjects: (keys) => state.acknowledgeAgents(keys, []),
       clearWorkspaceUnread: state.clearWorktreeUnread,
       clearGroupUnread: state.clearTerminalTabUnread,
       clearSubjectUnread: state.clearTerminalPaneUnread

@@ -19,6 +19,7 @@ import {
 } from '../../../../shared/tui-agent-selection'
 import { translate } from '@/i18n/i18n'
 import { newAgentPromptOutcome } from '@/lib/new-agent-prompt-outcome'
+import { activeAgentNotesSendFailureMessage } from '@/lib/active-agent-note-send-result'
 
 export type QuickLaunchAgentMenuItemsProps = {
   worktreeId: string
@@ -132,6 +133,9 @@ export type QuickLaunchAgentsController = {
   agents: TuiAgent[]
   /** Null while detection has not answered; empty when the host reports none. */
   detectedIds: TuiAgent[] | null
+  detectionFailed: boolean
+  /** The host's server is too old to report its agents. */
+  needsServerUpdate: boolean
   defaultAgent: TuiAgent | 'blank' | null | undefined
   /** The new-agent shortcut label, shown against the default agent only. */
   newAgentShortcut: string | null
@@ -165,7 +169,8 @@ export function useQuickLaunchAgents({
   // instead of the remote server's. Use the same ssh/runtime/local owner
   // resolution as the rest of the tab bar.
   const agentDetectionTarget = useAgentDetectionTargetForWorktree(worktreeId, executionHostId)
-  const { detectedIds } = useDetectedAgents(agentDetectionTarget)
+  const { detectedIds, detectionFailed, needsServerUpdate } =
+    useDetectedAgents(agentDetectionTarget)
   const defaultAgent = useAppStore((s) => s.settings?.defaultTuiAgent)
   const disabledAgents = useAppStore(
     (s) => s.settings?.disabledTuiAgents ?? DEFAULT_DISABLED_TUI_AGENTS
@@ -196,7 +201,10 @@ export function useQuickLaunchAgents({
         ...(promptDelivery !== undefined ? { promptDelivery } : {}),
         ...(launchSource !== undefined ? { launchSource } : {}),
         ...(activate !== undefined ? { activate } : {}),
-        ...(onPromptDelivered !== undefined ? { onPromptDelivered } : {})
+        ...(onPromptDelivered !== undefined ? { onPromptDelivered } : {}),
+        // Notes keep their text until it goes out, so the new chat's composer never gets a copy.
+        ...(onPromptHandedOff ? { promptKeptByCaller: true as const } : {}),
+        freshNewTab: true
       })
       if (!result) {
         toast.error(
@@ -209,30 +217,38 @@ export function useQuickLaunchAgents({
         return
       }
       if (onPromptHandedOff && result.promptDeliveryResult) {
-        onPromptHandedOff(
-          newAgentPromptOutcome({
-            prompt: prompt ?? '',
-            ...(result.surface.kind === 'local-agent-session'
-              ? { sessionId: result.surface.sessionId }
-              : {}),
-            delivery: result.promptDeliveryResult
-          })
-        )
+        const outcome = newAgentPromptOutcome({ delivery: result.promptDeliveryResult })
+        onPromptHandedOff(outcome)
+        // The notes keep the text, so they say once why it did not go, as a send to a chat does.
+        void outcome.then(({ failure }) => {
+          if (failure) {
+            toast.error(
+              translate('auto.store.slices.ui.53883b7bc3', "Couldn't send to {{value0}}", {
+                value0: label
+              }),
+              {
+                description: activeAgentNotesSendFailureMessage(failure.status, {
+                  explicitTarget: true,
+                  code: failure.code
+                })
+              }
+            )
+          }
+        })
       }
       if (result.surface.kind === 'host-published') {
-        onHostPublished?.()
-        return
-      }
-      if (result.surface.kind !== 'local-terminal') {
+        // A structured chat names its session only once it settles; the caller decides then.
         if (result.structuredSettlement && onStructuredLaunched) {
           void result.structuredSettlement.then((settlement) => {
             if (settlement.kind === 'structured' || settlement.kind === 'visibility-unknown') {
               onStructuredLaunched(settlement.sessionId)
+            } else if (settlement.kind === 'terminal') {
+              onHostPublished?.()
             }
           })
+          return
         }
-        // Why: paired web clients create the tab on the host; focus follows the
-        // next session-tabs snapshot instead of a local tab id.
+        onHostPublished?.()
         return
       }
       onLaunched(result.surface.tabId)
@@ -286,6 +302,8 @@ export function useQuickLaunchAgents({
   return {
     agents,
     detectedIds,
+    detectionFailed,
+    needsServerUpdate,
     defaultAgent,
     newAgentShortcut,
     labelFor,
@@ -298,6 +316,8 @@ function QuickLaunchAgentMenuItemsInner(props: QuickLaunchAgentMenuItemsProps): 
   const {
     agents,
     detectedIds,
+    detectionFailed,
+    needsServerUpdate,
     defaultAgent,
     newAgentShortcut,
     labelFor,
@@ -312,12 +332,25 @@ function QuickLaunchAgentMenuItemsInner(props: QuickLaunchAgentMenuItemsProps): 
           disabled
           className="gap-2 rounded-[7px] px-2 py-1.5 text-[12px] leading-5 text-muted-foreground"
         >
-          {detectedIds && detectedIds.length > 0
-            ? translate('auto.components.tab.bar.QuickLaunchButton.8dea9b5cdf', 'No enabled agents')
-            : translate(
-                'auto.components.tab.bar.QuickLaunchButton.e518f544b1',
-                'No agents detected'
-              )}
+          {needsServerUpdate
+            ? translate(
+                'auto.components.tab.bar.QuickLaunchButton.needsServerUpdate',
+                'Update Orca on this server to list this workspace’s agents'
+              )
+            : detectionFailed
+              ? translate(
+                  'auto.components.tab.bar.QuickLaunchButton.hostUnreachable',
+                  'Can’t reach this workspace’s host to list its agents'
+                )
+              : detectedIds && detectedIds.length > 0
+                ? translate(
+                    'auto.components.tab.bar.QuickLaunchButton.8dea9b5cdf',
+                    'No enabled agents'
+                  )
+                : translate(
+                    'auto.components.tab.bar.QuickLaunchButton.e518f544b1',
+                    'No agents detected'
+                  )}
         </DropdownMenuItem>
       ) : null}
       {agents.map((agent) => {

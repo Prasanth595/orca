@@ -3,7 +3,10 @@ import { toast } from 'sonner'
 import { translate } from '@/i18n/i18n'
 import { useAppStore } from '@/store'
 import { getExecutionHostIdForWorktree } from '@/lib/worktree-runtime-owner'
-import { createBrowserUuid } from '@/lib/browser-uuid'
+import { resolveWorktreeOperationRouteForHost } from '@/lib/worktree-operation-route'
+import { attachOsFileDropOwner, createOsFileDropSequence } from '@/hooks/use-os-file-drop-owner'
+import { getNativeFileDropRejectionMessage } from '@/lib/native-file-drop-rejection-message'
+import { parseExecutionHostId } from '../../../../shared/execution-host'
 import { parsePaneKey } from '../../../../shared/stable-pane-id'
 import {
   hasWorkspaceFileDragType,
@@ -16,11 +19,13 @@ import {
   handleInternalTerminalFileDrop,
   handleTerminalFileDrop
 } from '../terminal-pane/terminal-drop-handler'
+import { captureNativeTerminalFileDrop } from '../terminal-pane/terminal-native-file-drop-destination'
 import type {
   TerminalDropSurface,
   TerminalDropTransport
 } from '../terminal-pane/terminal-drop-surface'
 import type { PreviewTerminalWorkspace } from './agent-terminal-preview-props'
+import { terminalPreviewApiFor } from './terminal-preview-api'
 
 export function installPreviewTerminalFileDrop(args: {
   container: HTMLElement
@@ -43,11 +48,21 @@ export function installPreviewTerminalFileDrop(args: {
     getPanes: () => (isCurrent() ? [pane] : []),
     getActivePane: () => (isCurrent() ? pane : null)
   }
+  const host = parseExecutionHostId(workspace.executionHostId)
   const transport: TerminalDropTransport = {
     getPtyId: () => args.ptyId,
     isConnected: isCurrent,
     sendInput: () => false,
-    sendInputAccepted: (data) => window.api.terminalPreview.input(args.ptyId, data)
+    sendInputAccepted: (data) => terminalPreviewApiFor(args.ptyId).input(args.ptyId, data),
+    getExecutionHostId: () => workspace.executionHostId,
+    // Upload and quoting follow the card's host, which may differ from the workspace's default.
+    getRuntimeEnvironmentId: () =>
+      resolveWorktreeOperationRouteForHost(
+        useAppStore.getState(),
+        workspace.worktreeId,
+        workspace.executionHostId
+      )?.runtimeEnvironmentId ?? null,
+    getConnectionId: () => (host?.kind === 'ssh' ? host.targetId : null)
   }
   const paneTransports = new Map([[pane.id, transport]])
   const dropArgs = {
@@ -57,17 +72,22 @@ export function installPreviewTerminalFileDrop(args: {
     tabId: workspace.tabId,
     cwd: workspace.cwd
   }
-  // A fresh registration fences preload events still in flight from a previous connection.
-  const scope = createBrowserUuid()
-  container.dataset.nativeFileDropTarget = 'terminal'
-  container.dataset.terminalTabId = workspace.tabId
-  container.dataset.terminalPreviewSurfaceId = scope
-  const offNative = window.api.ui.onFileDrop((data) => {
-    if (data.target !== 'terminal' || data.previewSurfaceId !== scope || !isCurrent()) {
-      return
+  const sequence = createOsFileDropSequence()
+  const detachOsDrop = attachOsFileDropOwner(container, () => ({
+    consumer: 'agent' as const,
+    sequence,
+    canAccept: isCurrent,
+    captureDestination: () => captureNativeTerminalFileDrop({ ...dropArgs, pane }),
+    onDrop: async (prepared, { destination }) => {
+      for (const failure of prepared.failures) {
+        const message = getNativeFileDropRejectionMessage(failure)
+        toast.error(message.title, { description: message.description })
+      }
+      if (isCurrent()) {
+        await destination?.(prepared.paths)
+      }
     }
-    void handleTerminalFileDrop({ ...dropArgs, data })
-  })
+  }))
   const onDragOver = (event: DragEvent): void => {
     if (!event.dataTransfer || !hasWorkspaceFileDragType(event.dataTransfer)) {
       return
@@ -100,7 +120,7 @@ export function installPreviewTerminalFileDrop(args: {
         toast.error(getWorkspaceFileDragRejectionMessage(paths.reason))
         return
       }
-      void handleTerminalFileDrop({ ...dropArgs, data: { target: 'terminal', paths: paths.paths } })
+      void handleTerminalFileDrop({ ...dropArgs, pane, paths: paths.paths })
       return
     }
     toast.error(
@@ -114,13 +134,8 @@ export function installPreviewTerminalFileDrop(args: {
   container.addEventListener('drop', onDrop)
   return () => {
     disposed = true
-    offNative()
+    detachOsDrop()
     container.removeEventListener('dragover', onDragOver)
     container.removeEventListener('drop', onDrop)
-    if (container.dataset.terminalPreviewSurfaceId === scope) {
-      container.dataset.nativeFileDropTarget = 'rejected'
-      delete container.dataset.terminalTabId
-      delete container.dataset.terminalPreviewSurfaceId
-    }
   }
 }

@@ -6,7 +6,7 @@ import { quickOpenRecentCandidateSet } from '../shared/quick-open-recent-candida
 import { QUICK_OPEN_SEARCH_VERSION } from '../shared/quick-open-path-search'
 import { pathsExistOnRelay } from './fs-path-existence'
 import { tmpdir } from 'node:os'
-import type { RelayDispatcher, RequestContext } from './dispatcher'
+import type { RelayDispatcher, RequestContext } from '../wsl-guest/dispatcher'
 import type { RelayContext } from './context'
 // Why: RelayContext is accepted in the constructor for protocol back-compat
 // (see docs/relay-fs-allowlist-removal.md), but no longer consulted on FS ops.
@@ -331,6 +331,17 @@ export class FsHandler {
 
   dispose(): void {
     this.watchRegistry.dispose()
-    void this.streamRegistry.disposeAll()
+    void this.disposeFileStreams().catch((error: unknown) => {
+      process.stderr.write(`[relay] file stream shutdown failed: ${String(error)}\n`)
+    })
+  }
+
+  disposeFileStreams = (): Promise<void> => this.streamRegistry.disposeAll()
+
+  disposeWatchers = (): Promise<void> => this.watchRegistry.disposeAndWait()
+
+  reopen(): void {
+    this.streamRegistry.reopen()
+    this.watchRegistry.reopen()
   }
 }

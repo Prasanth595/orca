@@ -15,5 +15,13 @@ export type TerminalDropSurface = {
 
 export type TerminalDropTransport = Pick<
   PtyTransport,
-  'getPtyId' | 'isConnected' | 'sendInput' | 'sendInputAccepted'
+  | 'getPtyId'
+  | 'isConnected'
+  | 'sendInput'
+  | 'sendInputAccepted'
+  | 'getExecutionHostId'
+  | 'getRuntimeEnvironmentId'
+  | 'getConnectionId'
+  | 'getRemotePlatform'
+  | 'getLocalSessionMetadata'
 >

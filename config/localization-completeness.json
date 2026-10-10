@@ -91,7 +91,16 @@
       "components.workspace.cleanup.browse.reviewPresence": "PR / MR",
       "projectBoardCard.itemLabel": "{{number}} — {{title}}",
       "settings.appearance.chat.pixels": "px",
-      "settings.appearance.chat.title": "Chat"
+      "settings.appearance.chat.title": "Chat",
+      "auto.components.NativeChatResumeOnRestartModal.sshHost": "SSH",
+      "auto.components.NativeChatResumeRunStatusIcon.inFlight": "{{value0}} · {{value1}}",
+      "auto.components.settings.managedServers.search.keywordSsh": "ssh",
+      "auto.components.settings.SettingsHostScopePicker.label": "Host",
+      "tabHoverCard.editor": "Editor",
+      "tabHoverCard.terminal": "Terminal",
+      "workspace.links.mrReference": "MR !{{number}}",
+      "workspace.links.prReference": "PR #{{number}}",
+      "workspace.links.terminal": "Terminal"
     }
   }
 }

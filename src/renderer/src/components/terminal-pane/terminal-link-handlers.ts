@@ -1,37 +1,23 @@
-import {
-  preferLongestNonOverlappingLinks,
-  type ProvidedFileLink
-} from './terminal-file-link-overlap'
 import { createTerminalPathExistenceBatch } from './terminal-path-existence-batch'
-import type { IDisposable, ILinkProvider, Terminal } from '@xterm/xterm'
-import {
-  extractTerminalFileLinkCandidates,
-  extractTerminalFileLinks,
-  resolveTerminalFileLink
-} from '@/lib/terminal-links'
-import { isRemoteRuntimeFileOperation } from '@/runtime/runtime-file-client'
+import type { IDisposable, ILink, ILinkProvider, Terminal } from '@xterm/xterm'
+import { extractTerminalFileLinkCandidates, extractTerminalFileLinks } from '@/lib/terminal-links'
+import { preferLongestNonOverlappingMatches } from '@/lib/longest-non-overlapping-matches'
 import {
   buildCandidateLogicalLinesForBufferPosition,
   dedupeLogicalLines,
   openFilePathLinkAtBufferPosition
 } from './terminal-file-link-hit-testing'
 import {
-  getTerminalFileContext,
   isHtmlFilePath,
-  mapTerminalFilePath,
-  shouldOpenTerminalFileWithSystemDefault,
-  terminalLinkWslDistro
+  shouldOpenTerminalFileWithSystemDefault
 } from './terminal-file-open-routing'
+import { fileLinkTargetExists, resolveFileLinkTarget } from './terminal-file-link-target'
 import {
   buildHardWrappedPathLogicalLineCandidates,
   buildWrappedLogicalLine,
-  rangeForParsedFileLink
+  rangeForParsedFileLink,
+  type WrappedLogicalLine
 } from './wrapped-terminal-link-ranges'
-import {
-  getTerminalPathExistsCacheKey,
-  readTerminalPathExistsCache,
-  writeTerminalPathExistsCache
-} from './terminal-path-exists-cache'
 import {
   getTerminalHtmlFileOpenHint,
   getTerminalOrcaFileOpenHint,
@@ -39,7 +25,6 @@ import {
   getTerminalFileOpenHint,
   getTerminalUrlOpenHint
 } from './terminal-link-open-hints'
-import { resolveKnownWorktreeRootPathLink } from './terminal-worktree-path-link'
 import { isTerminalLinkDirectActivation } from './terminal-link-activation'
 import { getTerminalBufferPositionForMouseEvent } from './terminal-mouse-buffer-position'
 import type { TerminalLinkActionContext } from './terminal-link-action-request'
@@ -67,6 +52,28 @@ export type LinkHandlerDeps = {
   getRuntimeEnvironmentIdForPane?: (paneId: number) => string | null
   getLinkActionContext?: (paneId: number) => TerminalLinkActionContext | null
   isCurrent?: () => boolean
+}
+
+type ProvidedFileLink = {
+  link: ILink
+  logicalLine: WrappedLogicalLine
+}
+
+function rangesOverlap(left: ILink['range'], right: ILink['range']): boolean {
+  const leftStartsAfterRightEnds =
+    left.start.y > right.end.y || (left.start.y === right.end.y && left.start.x > right.end.x)
+  const rightStartsAfterLeftEnds =
+    right.start.y > left.end.y || (right.start.y === left.end.y && right.start.x > left.end.x)
+  return !leftStartsAfterRightEnds && !rightStartsAfterLeftEnds
+}
+
+function preferLongestNonOverlappingLinks(links: ProvidedFileLink[]): ProvidedFileLink[] {
+  return preferLongestNonOverlappingMatches(links, {
+    length: ({ link }) => link.text.length,
+    overlaps: (left, right) => rangesOverlap(left.link.range, right.link.range),
+    compareStart: (a, b) =>
+      a.link.range.start.y - b.link.range.start.y || a.link.range.start.x - b.link.range.start.x
+  })
 }
 
 export function createFilePathLinkProvider(
@@ -111,52 +118,24 @@ export function createFilePathLinkProvider(
         logicalLines.flatMap((logicalLine) =>
           extractTerminalFileLinkCandidates(logicalLine.text).map(
             async (parsed): Promise<ProvidedFileLink | null> => {
-              const paneLinkCwd = deps.getPaneLinkCwd?.(paneId) ?? startupCwd
-              const resolved = paneLinkCwd
-                ? resolveTerminalFileLink(parsed, paneLinkCwd, deps.terminalHomePath)
-                : null
-              if (!resolved) {
-                return null
-              }
               const runtimeEnvironmentId =
                 deps.getRuntimeEnvironmentIdForPane?.(paneId) ?? deps.runtimeEnvironmentId ?? null
-              const mappedPath = mapTerminalFilePath(
-                resolved.absolutePath,
-                worktreePath,
-                terminalLinkWslDistro(deps.wslDistro, runtimeEnvironmentId)
-              )
-              const range = rangeForParsedFileLink(logicalLine, parsed.startIndex, parsed.endIndex)
-              if (!range) {
-                return null
-              }
-
-              const fileContext = getTerminalFileContext(
+              const target = resolveFileLinkTarget(parsed, {
+                cwd: deps.getPaneLinkCwd?.(paneId) ?? startupCwd,
+                homePath: deps.terminalHomePath,
                 worktreeId,
                 worktreePath,
-                runtimeEnvironmentId
-              )
-              const isRemoteRuntimePath = isRemoteRuntimeFileOperation(fileContext, mappedPath)
-              const cacheKey = getTerminalPathExistsCacheKey({
-                absolutePath: mappedPath,
-                connectionId: fileContext.connectionId,
-                isRemoteRuntimePath,
-                runtimeEnvironmentId
+                runtimeEnvironmentId,
+                wslDistro: deps.wslDistro
               })
-              const worktreeRootLink = resolveKnownWorktreeRootPathLink(mappedPath)
-              if (/[\\/]$/.test(parsed.pathText) && !worktreeRootLink) {
+              const range = rangeForParsedFileLink(logicalLine, parsed.startIndex, parsed.endIndex)
+              if (!target || !range) {
                 return null
               }
-              // Why: exact known workspace roots must stay clickable for SSH or
-              // stale local paths even when filesystem probing says "missing".
-              if (!worktreeRootLink) {
-                const cachedExists = readTerminalPathExistsCache(pathExistsCache, cacheKey)
-                const exists =
-                  cachedExists ?? (await pathExists(fileContext, mappedPath, isRemoteRuntimePath))
-                writeTerminalPathExistsCache(pathExistsCache, cacheKey, exists)
-                if (!exists) {
-                  return null
-                }
+              if (!(await fileLinkTargetExists(target, pathExistsCache, pathExists))) {
+                return null
               }
+              const { absolutePath: mappedPath, fileContext } = target
 
               return {
                 logicalLine,
@@ -170,8 +149,8 @@ export function createFilePathLinkProvider(
                     if (
                       handleTerminalFileLink(
                         mappedPath,
-                        resolved.line,
-                        resolved.column,
+                        target.line,
+                        target.column,
                         event,
                         {
                           worktreeId,
@@ -188,14 +167,12 @@ export function createFilePathLinkProvider(
                   hover: () => {
                     // Why: only local paths can offer the Shift+modifier system
                     // default escape hatch; remote paths may not exist locally.
-                    const canOpenWithSystemDefault = shouldOpenTerminalFileWithSystemDefault(
-                      fileContext,
-                      mappedPath
-                    )
+                    const canOpenWithSystemDefault =
+                      shouldOpenTerminalFileWithSystemDefault(fileContext)
                     const showActions = deps.getLinkActionContext
                       ? deps.getLinkActionContext(paneId) !== null
                       : true
-                    const hint = worktreeRootLink
+                    const hint = target.isKnownWorktreeRoot
                       ? getTerminalWorktreePathOpenHint(canOpenWithSystemDefault, showActions)
                       : canOpenWithSystemDefault
                         ? isHtmlFilePath(mappedPath)

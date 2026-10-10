@@ -1,5 +1,6 @@
 import type { Terminal } from '@xterm/xterm'
 import { clampTerminalViewport } from '../../../../shared/terminal-viewport'
+import { terminalPreviewApiFor } from './terminal-preview-api'
 
 const FIT_REQUEST_DEBOUNCE_MS = 200
 
@@ -100,7 +101,7 @@ export function createPreviewGridClaim(args: {
     inFlight = true
     // The resize triggers a main-side resync push; the reconnect snapshot
     // carries the new grid.
-    const landed = await window.api.terminalPreview
+    const landed = await terminalPreviewApiFor(args.ptyId)
       .fit(args.ptyId, target.cols, target.rows, args.surfaceId)
       .catch(() => null)
     inFlight = false

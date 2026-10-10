@@ -1,3 +1,5 @@
+import type { AgentSessionAttachmentClipboardTarget } from '../../../../shared/agent-session-attachments'
+import { saveClipboardImageAsWebAgentSessionAttachment } from './web-agent-session-attachment-upload'
 import { createWebExplorerRootSync } from './web-explorer-root-sync'
 import type { PreloadApi } from '../../../../preload/api-types'
 import { assertClipboardTextWithinLimitWithYield } from '../../../../shared/clipboard-text'
@@ -10,7 +12,6 @@ import {
 } from '../../../../shared/host-gated-ui-fields'
 import { omitPairingLocalUiFields } from '../../../../shared/pairing-local-ui-fields'
 import type { PairedUiState } from '../../../../shared/pairing-local-ui-fields'
-import type { PersistedUIState } from '../../../../shared/persisted-ui-state-types'
 import {
   clipboardHasImage,
   readClipboardImagePngBase64,
@@ -68,12 +69,8 @@ export function resetHostUiCapabilitiesForTest(): void {
 // strip would otherwise persist this browser's runtime:web-* keys over the desktop profile's
 // order. Host-gated keys are asked about only when present, so ordinary writes cost no extra RPC.
 async function toHostUiUpdate(
-  updates: Partial<PersistedUIState>
+  hostUpdates: Partial<PairedUiState>
 ): Promise<Partial<PairedUiState>> {
-  const hostUpdates = omitPairingLocalUiFields(updates)
-  if (!hasHostGatedUiFields(hostUpdates)) {
-    return hostUpdates
-  }
   return omitUnsupportedHostGatedUiFields(hostUpdates, await readHostUiCapabilities())
 }
 
@@ -81,14 +78,33 @@ async function toHostUiUpdate(
 export function createWebUiApi(): NonNullable<Partial<PreloadApi>['ui']> {
   const explorerRoots = createWebExplorerRootSync()
   /** Captures the target host and strips browser-local or unsupported fields before sending a UI update. */
-  const prepareHostUpdates = async (updates: Parameters<PreloadApi['ui']['set']>[0]) => {
+  type PreparedHostUpdates = { environmentId: string | undefined; hostUpdates: Partial<PairedUiState> }
+  // Why sync unless a gated key is present: ordinary writes reach the host in call order.
+  const prepareHostUpdates = (
+    updates: Parameters<PreloadApi['ui']['set']>[0]
+  ): PreparedHostUpdates | Promise<PreparedHostUpdates> => {
     const environmentId = requireActiveEnvironmentOrNull()?.id
-    const hostUpdates = await toHostUiUpdate(updates)
-    if (requireActiveEnvironmentOrNull()?.id !== environmentId) {
-      throw new Error('UI persistence environment changed during capability discovery')
+    const pairedUpdates = omitPairingLocalUiFields(updates)
+    if (!hasHostGatedUiFields(pairedUpdates)) {
+      explorerRoots.prepare(environmentId, pairedUpdates)
+      return { environmentId, hostUpdates: pairedUpdates }
     }
-    explorerRoots.prepare(environmentId, hostUpdates)
-    return { environmentId, hostUpdates }
+    return toHostUiUpdate(pairedUpdates).then((hostUpdates) => {
+      if (requireActiveEnvironmentOrNull()?.id !== environmentId) {
+        throw new Error('UI persistence environment changed during capability discovery')
+      }
+      explorerRoots.prepare(environmentId, hostUpdates)
+      return { environmentId, hostUpdates }
+    })
+  }
+  const sendHostUpdates = async (
+    updates: Parameters<PreloadApi['ui']['set']>[0]
+  ): Promise<PreparedHostUpdates> => {
+    const pending = prepareHostUpdates(updates)
+    const prepared = pending instanceof Promise ? await pending : pending
+    await callRuntimeResult('ui.set', prepared.hostUpdates, 15_000)
+    explorerRoots.acknowledge(prepared.environmentId, prepared.hostUpdates)
+    return prepared
   }
   let zoomLevel = readLocalWebUIState().uiZoomLevel
   return {
@@ -132,9 +148,7 @@ export function createWebUiApi(): NonNullable<Partial<PreloadApi>['ui']> {
       // Why strip here too when the host also strips: an old host predating that strip would
       // otherwise persist this browser's runtime:web-* keys over the desktop profile's order.
       try {
-        const { environmentId, hostUpdates } = await prepareHostUpdates(updates)
-        await callRuntimeResult('ui.set', hostUpdates, 15_000)
-        explorerRoots.acknowledge(environmentId, hostUpdates)
+        await sendHostUpdates(updates)
       } catch {
         // Why: unpaired/offline web clients still need local UI persistence.
       }
@@ -144,9 +158,7 @@ export function createWebUiApi(): NonNullable<Partial<PreloadApi>['ui']> {
       const next = mergeWebUIState(readLocalWebUIState(), updates)
       writeJson(UI_STORAGE_KEY, next)
       zoomLevel = next.uiZoomLevel
-      const { environmentId, hostUpdates } = await prepareHostUpdates(updates)
-      await callRuntimeResult('ui.set', hostUpdates, 15_000)
-      explorerRoots.acknowledge(environmentId, hostUpdates)
+      const { hostUpdates } = await sendHostUpdates(updates)
       if (
         updates.explorerDisplayRootByWorktree !== undefined &&
         hostUpdates.explorerDisplayRootByWorktree === undefined
@@ -204,6 +216,7 @@ export function createWebUiApi(): NonNullable<Partial<PreloadApi>['ui']> {
     saveClipboardImageAsTempFile: async (args?: {
       connectionId?: string | null
       runtimeEnvironmentId?: string | null
+      agentSessionAttachment?: AgentSessionAttachmentClipboardTarget
     }) => {
       if (!requireActiveEnvironmentOrNull()) {
         return null
@@ -211,6 +224,15 @@ export function createWebUiApi(): NonNullable<Partial<PreloadApi>['ui']> {
       const contentBase64 = await readClipboardImagePngBase64()
       if (!contentBase64) {
         return null
+      }
+      if (args?.agentSessionAttachment) {
+        if (!args.runtimeEnvironmentId) {
+          throw new Error('A chat attachment needs the server the chat runs on.')
+        }
+        return saveClipboardImageAsWebAgentSessionAttachment(contentBase64, {
+          ...args.agentSessionAttachment,
+          environmentId: args.runtimeEnvironmentId
+        })
       }
       return saveClipboardImageAsTempFileInRuntime(contentBase64, args)
     },
@@ -301,6 +323,9 @@ export function createWebUiApi(): NonNullable<Partial<PreloadApi>['ui']> {
     onRequestTerminalCreate: () => noopUnsubscribe,
     onRequestTerminalTabMount: () => noopUnsubscribe,
     replyTerminalCreate: () => {},
+    onPublishAgentLaunchTab: () => noopUnsubscribe,
+    onAgentLaunchPaneVerdict: () => noopUnsubscribe,
+    replyAgentLaunchTabPublish: () => {},
     onSplitTerminal: () => noopUnsubscribe,
     onRenameTerminal: () => noopUnsubscribe,
     onFocusTerminal: () => noopUnsubscribe,
@@ -322,7 +347,6 @@ export function createWebUiApi(): NonNullable<Partial<PreloadApi>['ui']> {
     onTerminalZoom: () => noopUnsubscribe,
     // Why: a paired web client has no OS sleep signal; occlusion-driven visibilitychange already covers wake recovery.
     onSystemResumed: () => noopUnsubscribe,
-    onFileDrop: () => noopUnsubscribe,
     syncTrafficLights: () => {},
     setMarkdownEditorFocused: () => {},
     setRichMarkdownContextMenuTarget: () => {},

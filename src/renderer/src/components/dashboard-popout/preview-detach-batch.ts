@@ -1,3 +1,5 @@
+import { terminalPreviewApiFor } from './terminal-preview-api'
+
 // Coalesces preview detaches into one IPC per surface per frame: every
 // hand-back main processes re-arms its global resize-suppression window (see
 // the terminalPreview:detach handler), and a same-frame remount costs nothing.
@@ -19,7 +21,14 @@ function flush(): void {
   }
   pending.clear()
   for (const [surfaceId, ptyIds] of bySurface) {
-    void window.api.terminalPreview.detach(ptyIds, surfaceId).catch(() => undefined)
+    const byApi = new Map<ReturnType<typeof terminalPreviewApiFor>, string[]>()
+    for (const ptyId of ptyIds) {
+      const api = terminalPreviewApiFor(ptyId)
+      byApi.set(api, [...(byApi.get(api) ?? []), ptyId])
+    }
+    for (const [api, ids] of byApi) {
+      void api.detach(ids, surfaceId).catch(() => undefined)
+    }
   }
 }
 

@@ -1,9 +1,10 @@
+import { toast } from 'sonner'
 import type { AgentStartupShell } from '../../../shared/tui-agent-startup-shell'
-import { resolveLocalWindowsAgentStartupShell } from '../../../shared/windows-terminal-shell'
-import { CLIENT_PLATFORM } from '@/lib/new-workspace'
-import { getAgentLaunchPlatformForRepo } from '@/lib/agent-launch-platform'
 import { getConnectionIdFromState } from '@/lib/connection-context'
-import { getLocalProjectExecutionRuntimeContext } from '@/lib/local-preflight-context'
+import {
+  resolveExecutionHostAgentStartupShell,
+  resolveWorktreeExecutionHostPlatform
+} from '@/lib/execution-host-facts'
 import { findRepoForHost } from '@/store/slices/repo-host-identity'
 import {
   getRepoSshConnectionId,
@@ -22,55 +23,59 @@ export type AgentLaunchExecutionContext = {
   queuedShell: AgentStartupShell | undefined
 }
 
+/** `null` means the host's OS is unknown; the user has been told why the launch stopped. */
 export function resolveAgentLaunchExecutionContext(
   store: ReturnType<typeof useAppStore.getState>,
   args: { worktreeId: string; executionHostId?: ExecutionHostId; launchPlatform?: NodeJS.Platform }
-): AgentLaunchExecutionContext {
+): AgentLaunchExecutionContext | null {
   const { worktreeId, executionHostId } = args
   const selectedHost = parseExecutionHostId(executionHostId)
-  // Why the host-qualified lookups when a host was picked: a bare-id `find` answers with
-  // whichever publication comes first, and the repo behind it decides the launch platform
-  // and whether the command is built for a remote shell at all.
-  const worktree = executionHostId
+  // Why the host-qualified lookups when a host was picked: a bare-id lookup answers with
+  // whichever publication comes first, so the wrong host would decide remote-ness and quoting.
+  const pickedWorktree = executionHostId
     ? (store.getKnownWorktreeById?.(worktreeId, executionHostId) ?? null)
-    : store.allWorktrees?.().find((entry: { id: string }) => entry.id === worktreeId)
-  const repo = worktree
-    ? executionHostId
-      ? findRepoForHost(store.repos ?? [], worktree.repoId, { hostId: executionHostId })
-      : store.repos?.find((entry) => entry.id === worktree.repoId)
     : null
-  // Why: `store.repos.find` is host-blind and the same repo id can exist on local, SSH and runtime
-  // hosts, so the row it returns can belong to a different host than the worktree names (#11163).
-  // The shared resolver answers from the worktree's own host; `undefined` (rival rows disagree) is
-  // not evidence of a remote, and main rejects that launch anyway. A selected host must not be
-  // re-resolved through an ambiguous workspace ID.
+  const pickedRepo =
+    pickedWorktree && executionHostId
+      ? findRepoForHost(store.repos ?? [], pickedWorktree.repoId, { hostId: executionHostId })
+      : null
+  // Why: `undefined` (rival host rows disagree) is not evidence of a remote; main rejects it anyway.
   const worktreeSshConnectionId = selectedHost
     ? selectedHost.kind === 'ssh'
       ? selectedHost.targetId
-      : repo
-        ? getRepoSshConnectionId(repo)
+      : pickedRepo
+        ? getRepoSshConnectionId(pickedRepo)
         : null
     : getConnectionIdFromState(store, worktreeId)
-  const resolvedLaunchPlatform =
-    args.launchPlatform ??
-    (repo
-      ? getAgentLaunchPlatformForRepo(
-          repo,
-          worktreeSshConnectionId
-            ? undefined
-            : getLocalProjectExecutionRuntimeContext(store, worktreeId)
-        )
-      : CLIENT_PLATFORM)
   // Why: SSH remotes deploy the shim as plain `orca`, so skip the Linux-only `orca-ide` rename for remote launches.
   const isRemote = Boolean(worktreeSshConnectionId)
+  // Why getKnownWorktreeById: folder workspaces are not in allWorktrees, and their path marks WSL.
+  const workspacePath = (
+    pickedWorktree ??
+    store.getKnownWorktreeById?.(args.worktreeId) ??
+    store.allWorktrees?.().find((entry) => entry.id === args.worktreeId)
+  )?.path
+  // Why: the agent runs on the workspace's execution host, so its OS and shell decide quoting (#22204).
+  const fact = resolveWorktreeExecutionHostPlatform(
+    store,
+    args.worktreeId,
+    workspacePath,
+    executionHostId
+  )
+  if (fact.kind === 'withheld') {
+    toast.error(fact.reason)
+    return null
+  }
+  // Why: a caller's platform only refines a local launch (e.g. WSL); a remote host's own OS wins.
+  const resolvedLaunchPlatform =
+    fact.hostKind === 'local' && args.launchPlatform ? args.launchPlatform : fact.platform
   return {
     worktreeSshConnectionId,
     resolvedLaunchPlatform,
     isRemote,
-    queuedShell: resolveLocalWindowsAgentStartupShell({
-      platform: resolvedLaunchPlatform,
-      isRemote,
-      terminalWindowsShell: store.settings?.terminalWindowsShell
-    })
+    queuedShell: resolveExecutionHostAgentStartupShell(
+      { ...fact, platform: resolvedLaunchPlatform },
+      store.settings?.terminalWindowsShell
+    )
   }
 }

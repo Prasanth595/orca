@@ -64,7 +64,7 @@ function launchChat() {
     settle = resolve
   })
   harness.launch.mockReturnValue({
-    surface: { kind: 'local-agent-session', tabId: 'chat-tab', sessionId: 'new-chat' },
+    surface: { kind: 'host-published' },
     structuredSettlement
   })
   render(
@@ -117,6 +117,13 @@ it.each([
   expect(harness.done).not.toHaveBeenCalled()
   expect(harness.reveal).not.toHaveBeenCalled()
   expect(harness.mount).not.toHaveBeenCalled()
+})
+
+it('closes the picker when the host declined the chat and opened its terminal', async () => {
+  const settle = launchChat()
+  await settle({ kind: 'terminal' })
+  expect(harness.done).toHaveBeenCalledOnce()
+  expect(harness.reveal).not.toHaveBeenCalled()
 })
 
 it('reveals the workspace when creation is awaiting visibility recovery', async () => {

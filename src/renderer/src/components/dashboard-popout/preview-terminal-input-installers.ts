@@ -17,6 +17,7 @@ import { isWindowsUserAgent } from '@/components/terminal-pane/pane-helpers'
 import { installPreviewTerminalDictation } from './preview-terminal-dictation'
 import { installPreviewTerminalFileDrop } from './preview-terminal-file-drop'
 import type { PreviewTerminalWorkspace } from './agent-terminal-preview-props'
+import { terminalPreviewApiFor } from './terminal-preview-api'
 import { installPreviewTerminalLinks } from './preview-terminal-links'
 
 /** Cap on queued user-input signals; a burst beyond this is indistinguishable from a stuck key. */
@@ -88,7 +89,7 @@ export function createPreviewInputInstallers(args: {
       if (userInputDisposable ? !signaledUserInput : args.getReplayDepth() > 0) {
         return
       }
-      void window.api.terminalPreview.input(args.ptyId, data)
+      void terminalPreviewApiFor(args.ptyId).input(args.ptyId, data)
     })
   }
 

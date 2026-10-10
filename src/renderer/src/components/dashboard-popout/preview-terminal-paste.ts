@@ -9,6 +9,7 @@ import { resolveTerminalPasteRuntime } from '@/components/terminal-pane/terminal
 import { pasteTerminalText } from '@/components/terminal-pane/terminal-bracketed-paste'
 import { pasteTerminalClipboard } from '@/components/terminal-pane/terminal-clipboard-paste'
 import type { DashboardCardTerminalInput } from '../../../../shared/dashboard-snapshot'
+import { terminalPreviewApiFor } from './terminal-preview-api'
 
 type PreviewPasteTerminal = Parameters<typeof pasteTerminalText>[0]
 
@@ -100,7 +101,7 @@ export function createPreviewTextPaster(deps: {
     const execution = await executeTerminalPastePlan(plan, {
       // Why: stream large pastes so the renderer never emits one huge IPC payload.
       pasteText: (chunk, chunkOptions) => pasteTerminalText(deps.terminal, chunk, chunkOptions),
-      writePty: (data) => window.api.terminalPreview.input(deps.ptyId, data),
+      writePty: (data) => terminalPreviewApiFor(deps.ptyId).input(deps.ptyId, data),
       isTargetCurrent: deps.isTargetCurrent,
       // Why: if focus changes mid-bracketed paste, the closing marker must still reach the live PTY.
       canContinue: () => true
