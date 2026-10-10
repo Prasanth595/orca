@@ -154,6 +154,9 @@
       "description": "Per-profile user-agent settings were removed. Choose Cleaned or Native in Browser settings; changes take effect after a restart.",
       "title": "Browser identity is now app-wide",
       "openSettings": "Open Settings"
+    },
+    "request": {
+      "pairedServerWorkspace": "This workspace runs on a paired server. Use that server's browser tabs."
     }
   },
   "editor": {
@@ -1131,7 +1134,8 @@
       },
       "file": {
         "preview": {
-          "pairedOutsideWorktree": "Files outside the workspace can't be previewed on a paired server yet."
+          "pairedOutsideWorktree": "Files outside the workspace can't be previewed on a paired server yet.",
+          "webClientUnavailable": "Document previews aren't available in the web client."
         }
       },
       "clipboardWriteFailure": {
@@ -1205,8 +1209,6 @@
         "0e3cf53060": "Browser tab {{value0}} not found",
         "2f6637fe6c": "Browser tab {{value0}} is pinned",
         "a8d2bf8e9e": "No active browser tab to close",
-        "291c8ed902": "Browser tabs are unavailable while a remote runtime is active",
-        "f45fa2b03c": "Browser profiles are unavailable while a remote runtime is active",
         "f000b2ff76": "No active worktree",
         "56d3ec4203": "Failed to create untitled markdown file.",
         "f6300deb8b": "New Browser Tab",
@@ -3639,7 +3641,8 @@
             "465e432ef1": "Could not build launch command for {{value0}}.",
             "e518f544b1": "No agents detected",
             "8dea9b5cdf": "No enabled agents",
-            "needsServerUpdate": "Update Orca on this server to list this workspace’s agents"
+            "needsServerUpdate": "Update Orca on this server to list this workspace’s agents",
+            "hostUnreachable": "Can’t reach this workspace’s host to list its agents"
           },
           "RecentTabSwitcher": {
             "329638ff6f": "Switch Tab",
@@ -3867,6 +3870,8 @@
             "c9382662bb": "Restart daemon",
             "59f178fe11": "{{value0}}, daemon unreachable",
             "21cacb16d1": "· remote",
+            "8a0472ab54": "Couldn't reach {{value0}}; its resources are unknown.",
+            "1ea066b73f": "Update {{value0}} to see its resources.",
             "73a3fd68a9": "Collapse repo",
             "b12e31dfcb": "Expand repo",
             "d659d71d2d": "Resume workspace {{value0}}",
@@ -6914,7 +6919,8 @@
               "placeholder": "Leave blank to use the key saved by /connect or OPENCODE_API_KEY",
               "help": "Used for OpenCode Go usage in the status bar. The session cookie below is only needed for legacy console (OpenCode Black) accounts."
             }
-          }
+          },
+          "remoteScopeLocalAccountsKeptHostPicker": "Accounts managed on this desktop are unchanged. Choose this computer in the Host menu at the top of Settings to view them."
         },
         "AdvancedPane": {
           "40b29e0bf3": "Restart",
@@ -12699,6 +12705,12 @@
           "machines": "Machines",
           "machinesDescription": "Choose which machines can show notifications on this computer. A paired server’s switch also covers work reached through it."
         },
+        "SettingsHostScopePicker": {
+          "label": "Host",
+          "unavailable": "{{value0}} (unavailable)",
+          "description": "Accounts, detected agents and terminal options below are for this host.",
+          "unavailableNotice": "This server is no longer saved, so nothing can be shown for it. Choose another host at the top of Settings."
+        },
         "discordPresence": {
           "statusConnected": "Connected",
           "statusUnavailable": "Discord not running",
@@ -12971,7 +12983,8 @@
             "740aca88ab": "Workspace port scan failed.",
             "5be4f7f727": "Port {{value0}} menu",
             "7550998473": "Copy",
-            "1004af16ab": "Copy {{value0}}"
+            "1004af16ab": "Copy {{value0}}",
+            "153d3a8026": "Workspace host unknown"
           },
           "Search": {
             "1abfb25a66": "Type to search in files",
@@ -13297,6 +13310,7 @@
           },
           "checks": {
             "panel": {
+              "loadFailedOnMachine": "Could not load from {{machine}}: {{detail}}",
               "content": {
                 "3916814392": "behind (base commit:",
                 "755be805f6": "No comments",
@@ -17950,6 +17964,10 @@
       },
       "gitlabIpcTimeout": {
         "timedOut": "Timed out talking to GitLab."
+      },
+      "forgeCredentialTarget": {
+        "unknownHost": "The machine that owns this repository is not known yet. Reconnect it and try again.",
+        "thisComputer": "this computer"
       }
     },
     "ssh": {
@@ -19092,6 +19110,9 @@
       "important": "Important",
       "warning": "Warning",
       "caution": "Caution"
+    },
+    "automations": {
+      "runTerminalUnavailable": "Run terminal is unavailable."
     }
   },
   "dashboardPopout": {
