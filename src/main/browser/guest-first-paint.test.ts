@@ -77,6 +77,30 @@ describe('waitForGuestFirstPaint', () => {
     expect(holdPaint).toHaveBeenCalledTimes(2)
   })
 
+  it('makes callers that overlap on one document share its wait', async () => {
+    let painted: (value: unknown) => void = () => {}
+    const firstPaint = new Promise((resolve) => {
+      painted = resolve
+    })
+    const send = vi.fn(async (_method: string, params: Record<string, unknown>) =>
+      isFirstPaintWait(params) ? firstPaint : paintState(false, 6)
+    )
+    const holdPaint = vi.fn(() => () => {})
+    const guest = {}
+    const settled = vi.fn()
+
+    const first = waitForGuestFirstPaint(guest, send, holdPaint).then(() => settled('first'))
+    const second = waitForGuestFirstPaint(guest, send, holdPaint).then(() => settled('second'))
+    await vi.waitFor(() => expect(holdPaint).toHaveBeenCalledTimes(1))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(settled).not.toHaveBeenCalled()
+
+    painted({ result: { type: 'boolean', value: true } })
+    await Promise.all([first, second])
+    expect(holdPaint).toHaveBeenCalledTimes(1)
+    expect(settled.mock.calls).toEqual([['first'], ['second']])
+  })
+
   it('releases the hold and lets the input go when the document goes away mid-wait', async () => {
     const release = vi.fn()
     const send = vi.fn(async (_method: string, params: Record<string, unknown>) => {

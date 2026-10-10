@@ -29,8 +29,9 @@ const FIRST_PAINT_EXPRESSION = `new Promise((resolve) => {
 // Why: a renderer whose main thread is stuck never answers; the input then goes out as before.
 const CHECK_TIMEOUT_MS = FIRST_PAINT_WAIT_MS + 500
 
-// Why: guest -> the last document waited on, so one that paints nothing costs the bound once.
-const waitedTimeOrigins = new WeakMap<object, number>()
+// Why: guest -> the last document waited on and that wait. Callers that overlap (the bridge and
+// the proxy queue separately) share it, and a document that paints nothing costs the bound once.
+const firstPaintWaits = new WeakMap<object, { timeOrigin: number; wait: Promise<void> }>()
 
 function withinCheckTimeout<T>(pending: Promise<T>): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -43,6 +44,24 @@ function withinCheckTimeout<T>(pending: Promise<T>): Promise<T> {
 function readEvaluatedValue(reply: unknown): unknown {
   const result = reply !== null && typeof reply === 'object' ? Reflect.get(reply, 'result') : null
   return result !== null && typeof result === 'object' ? Reflect.get(result, 'value') : undefined
+}
+
+async function drawUntilFirstPaint(send: GuestCdpSend, holdPaint: CapturePaintHold): Promise<void> {
+  const release = holdPaint()
+  try {
+    await withinCheckTimeout(
+      send('Runtime.evaluate', {
+        expression: FIRST_PAINT_EXPRESSION,
+        awaitPromise: true,
+        returnByValue: true,
+        silent: true
+      })
+    )
+  } catch {
+    // Why: a navigation can replace the document mid-wait; the input then goes out as before.
+  } finally {
+    release()
+  }
 }
 
 /**
@@ -70,23 +89,14 @@ export async function waitForGuestFirstPaint(
     if (!Array.isArray(state) || state[0] === true || typeof state[1] !== 'number') {
       return
     }
-    if (waitedTimeOrigins.get(guest) === state[1]) {
+    const pending = firstPaintWaits.get(guest)
+    if (pending?.timeOrigin === state[1]) {
+      await pending.wait
       return
     }
-    waitedTimeOrigins.set(guest, state[1])
-    const release = holdPaint()
-    try {
-      await withinCheckTimeout(
-        send('Runtime.evaluate', {
-          expression: FIRST_PAINT_EXPRESSION,
-          awaitPromise: true,
-          returnByValue: true,
-          silent: true
-        })
-      )
-    } finally {
-      release()
-    }
+    const wait = drawUntilFirstPaint(send, holdPaint)
+    firstPaintWaits.set(guest, { timeOrigin: state[1], wait })
+    await wait
   } catch {
     // Why: a navigation can replace the document mid-check; the input then goes out as before.
   }
