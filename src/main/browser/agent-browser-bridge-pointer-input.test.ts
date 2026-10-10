@@ -76,6 +76,19 @@ function recordDispatchedEvents(
   })
 }
 
+// Why: each dispatch first reads whether the page has painted; fail the dispatch itself.
+function failNextDispatch(wc: ReturnType<typeof mockWebContents>): void {
+  const dispatch = wc.debugger.sendCommand.getMockImplementation()
+  let failed = false
+  wc.debugger.sendCommand.mockImplementation(async (method, params) => {
+    if (method === 'Input.dispatchMouseEvent' && !failed) {
+      failed = true
+      throw new Error('boom')
+    }
+    return dispatch?.(method, params)
+  })
+}
+
 describe('AgentBrowserBridge coordinate pointer input', () => {
   let bridge: AgentBrowserBridge
   let wc: ReturnType<typeof mockWebContents>
@@ -113,6 +126,32 @@ describe('AgentBrowserBridge coordinate pointer input', () => {
 
     expect(execFileMock).not.toHaveBeenCalled()
     expect(dispatched()).toHaveLength(4)
+  })
+
+  it('draws a page that has never painted until it paints, before the first dispatch', async () => {
+    const order: string[] = []
+    const holdPaintForCapture = vi.fn(() => {
+      order.push('hold')
+      return () => order.push('release')
+    })
+    const drawing = new AgentBrowserBridge(
+      mockBrowserManager(undefined, undefined, { holdPaintForCapture })
+    )
+    drawing.setActiveTab(100)
+    wc.debugger.sendCommand.mockImplementation(async (method, params) => {
+      if (method === 'Input.dispatchMouseEvent') {
+        order.push('dispatch')
+        return {}
+      }
+      const waits = typeof params === 'object' && params !== null && 'awaitPromise' in params
+      order.push(waits ? 'wait' : 'check')
+      return { result: { value: waits ? true : [false, 11] } }
+    })
+
+    await drawing.mouseMove(10, 20)
+
+    expect(holdPaintForCapture).toHaveBeenCalledWith(100)
+    expect(order).toEqual(['check', 'hold', 'wait', 'release', 'dispatch'])
   })
 
   it('sends CDP payloads matching a real pointer press and release', async () => {
@@ -352,7 +391,7 @@ describe('AgentBrowserBridge coordinate pointer input', () => {
   })
 
   it('reports a dispatch failure as browser_error on the call that failed', async () => {
-    wc.debugger.sendCommand.mockRejectedValueOnce(new Error('boom'))
+    failNextDispatch(wc)
 
     await expect(bridge.mouseMove(10, 20)).rejects.toMatchObject({
       code: 'browser_error'
@@ -372,7 +411,7 @@ describe('AgentBrowserBridge coordinate pointer input', () => {
 
   it('leaves no phantom held button when a press fails to dispatch', async () => {
     await bridge.mouseMove(10, 20)
-    wc.debugger.sendCommand.mockRejectedValueOnce(new Error('boom'))
+    failNextDispatch(wc)
     await expect(bridge.mouseDown('left')).rejects.toThrow()
     await bridge.mouseMove(30, 40)
 
@@ -387,7 +426,7 @@ describe('AgentBrowserBridge coordinate pointer input', () => {
 
   it('rewinds the tracked position when a move fails to dispatch', async () => {
     await bridge.mouseMove(10, 20)
-    wc.debugger.sendCommand.mockRejectedValueOnce(new Error('boom'))
+    failNextDispatch(wc)
     await expect(bridge.mouseMove(300, 400)).rejects.toThrow()
     await bridge.mouseWheel(120)
 
@@ -396,7 +435,7 @@ describe('AgentBrowserBridge coordinate pointer input', () => {
 
   it('does not count a failed press toward the double-click cadence', async () => {
     await bridge.mouseMove(10, 20)
-    wc.debugger.sendCommand.mockRejectedValueOnce(new Error('boom'))
+    failNextDispatch(wc)
     await expect(bridge.mouseDown('left')).rejects.toThrow()
     await bridge.mouseDown('left')
 
