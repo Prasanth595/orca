@@ -1,3 +1,4 @@
+import type { WebContents } from 'electron'
 import type { ResolvedBrowserCommandTarget } from './agent-browser-bridge-types'
 import { BrowserError } from './cdp-bridge'
 import { normalizeCdpPointerButton } from './agent-browser-bridge-mouse'
@@ -11,6 +12,7 @@ import {
 } from './cdp-pointer-input'
 import { acquireElectronDebugger } from './electron-debugger-lease'
 import { AgentBrowserBridgeInputCommands } from './agent-browser-bridge-input-commands'
+import { waitForGuestFirstPaint } from './guest-first-paint'
 
 type CdpPointerEventParams = {
   type: 'mouseMoved' | 'mousePressed' | 'mouseReleased' | 'mouseWheel'
@@ -30,6 +32,14 @@ type CdpPointerEventParams = {
  * accessibility snapshot; these four carry their own coordinates and need nothing from it.
  */
 export abstract class AgentBrowserBridgePointerCommands extends AgentBrowserBridgeInputCommands {
+  protected waitForFirstPaint(wc: WebContents, webContentsId: number): Promise<void> {
+    return waitForGuestFirstPaint(
+      wc,
+      (method, params) => wc.debugger.sendCommand(method, params),
+      () => this.browserManager.holdPaintForCapture(webContentsId)
+    )
+  }
+
   // Why: coordinate pointer input needs no accessibility snapshot, so it dispatches over
   // the debugger `mouseClick` already uses instead of spawning a helper per event.
   private async dispatchPointerEvent<T>(
@@ -61,6 +71,7 @@ export abstract class AgentBrowserBridgePointerCommands extends AgentBrowserBrid
       if (focus) {
         wc.focus()
       }
+      await this.waitForFirstPaint(wc, target.webContentsId)
       await wc.debugger.sendCommand('Input.dispatchMouseEvent', params)
       return result
     } catch (error) {

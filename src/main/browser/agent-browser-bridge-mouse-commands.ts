@@ -46,6 +46,7 @@ export abstract class AgentBrowserBridgeMouseCommands extends AgentBrowserBridge
           // Why: land the tap as one atomic op — separate move/down/up CLI calls visibly hover and can miss small controls.
           // Why: mobile-emulated BrowserViews can ignore CDP mouse clicks, so the runtime may already have activated DOM controls.
           if (!point.handled) {
+            await this.waitForFirstPaint(wc, target.webContentsId)
             await wc.debugger.sendCommand('Input.dispatchMouseEvent', {
               type: 'mousePressed',
               x: point.x,

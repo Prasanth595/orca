@@ -5,8 +5,9 @@ export abstract class BrowserManagerVisibility extends BrowserManagerState {
   // Why: page id -> active capture count; the renderer hears only the first hold and the last release.
   private readonly capturePaintHolds = new Map<string, number>()
 
-  // Why: only pixel capture needs a drawn guest. One-way so a minimized or throttled desktop renderer
-  // can't stall the capture; the capture itself retries until the page produces a frame.
+  // Why: only pixel capture, and input to a document that has never painted, need a drawn guest.
+  // One-way so a minimized or throttled desktop renderer can't stall the caller; each retries or
+  // waits until the page produces a frame.
   holdPaintForCapture(guestWebContentsId: number): () => void {
     const browserPageId = this.resolveBrowserTabIdForGuestWebContentsId(guestWebContentsId)
     const renderer = browserPageId ? this.resolveRendererForBrowserTab(browserPageId) : null

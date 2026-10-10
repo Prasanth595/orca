@@ -9,6 +9,16 @@ import { CdpPageNavigationCommands } from './cdp-page-navigation-commands'
 import { CdpDomFocusReplay } from './cdp-dom-focus-replay'
 import { CdpPageCaptureCommands } from './cdp-page-capture-commands'
 import type { CapturePaintHold } from './cdp-screenshot'
+import { waitForGuestFirstPaint } from './guest-first-paint'
+
+// Why: Chromium drops these when they reach a document before its first paint; see guest-first-paint.ts.
+const POINTER_INPUT_METHODS = new Set([
+  'Input.dispatchMouseEvent',
+  'Input.dispatchTouchEvent',
+  'Input.dispatchDragEvent',
+  'Input.synthesizeScrollGesture',
+  'Input.synthesizeTapGesture'
+])
 
 export class CdpWsProxy {
   private httpServer: Server | null = null
@@ -23,10 +33,11 @@ export class CdpWsProxy {
   private readonly navigation: CdpPageNavigationCommands
   private readonly domFocusReplay: CdpDomFocusReplay
   private readonly pageCapture: CdpPageCaptureCommands
+  private pointerInput: Promise<void> = Promise.resolve()
 
   constructor(
     private readonly webContents: WebContents,
-    holdPaint: CapturePaintHold
+    private readonly holdPaint: CapturePaintHold
   ) {
     this.discovery = new CdpTargetDiscovery(
       webContents,
@@ -230,6 +241,10 @@ export class CdpWsProxy {
       void this.navigation.reloadWithLifecycle(client, clientId, msg.params ?? {}, msg.sessionId)
       return
     }
+    if (POINTER_INPUT_METHODS.has(msg.method)) {
+      this.forwardPointerInput(client, clientId, msg.method, msg.params ?? {}, msg.sessionId)
+      return
+    }
     this.debuggerChannel.forwardCommand(
       client,
       clientId,
@@ -237,5 +252,28 @@ export class CdpWsProxy {
       msg.params ?? {},
       msg.sessionId
     )
+  }
+
+  // Why serialized: a press waiting for the first paint must not be overtaken by its release.
+  private forwardPointerInput(
+    client: WebSocket,
+    clientId: number,
+    method: string,
+    params: Record<string, unknown>,
+    msgSessionId?: string
+  ): void {
+    const sessionId = this.sessions.resolveDebuggerSessionId(msgSessionId)
+    this.pointerInput = this.pointerInput
+      .then(() =>
+        waitForGuestFirstPaint(
+          this.webContents,
+          (command, commandParams) =>
+            this.debuggerChannel.sendDebuggerCommand(command, commandParams, sessionId),
+          this.holdPaint
+        )
+      )
+      .then(() =>
+        this.debuggerChannel.forwardCommand(client, clientId, method, params, msgSessionId)
+      )
   }
 }
