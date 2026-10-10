@@ -93,7 +93,7 @@ describe('launchAgentInNewTab paired web runtime', () => {
     ]
     const { launchAgentInNewTab } = await import('./launch-agent-in-new-tab')
     launchAgentInNewTab({
-requestId: newAgentLaunchRequestId(),
+      requestId: newAgentLaunchRequestId(),
       agent: 'claude',
       worktreeId: 'wt-1',
       executionHostId: 'runtime:chosen',
@@ -121,7 +121,7 @@ requestId: newAgentLaunchRequestId(),
     }))
     const { launchAgentInNewTab } = await import('./launch-agent-in-new-tab')
     launchAgentInNewTab({
-requestId: newAgentLaunchRequestId(),
+      requestId: newAgentLaunchRequestId(),
       agent: 'claude',
       worktreeId: 'wt-1',
       executionHostId: 'runtime:chosen',
@@ -136,7 +136,7 @@ requestId: newAgentLaunchRequestId(),
     store.tabsByWorktree['wt-1'].push({ id: 'local-agent-tab', launchAgent: 'claude' })
     const { launchAgentInNewTab } = await import('./launch-agent-in-new-tab')
     launchAgentInNewTab({
-requestId: newAgentLaunchRequestId(),
+      requestId: newAgentLaunchRequestId(),
       agent: 'claude',
       worktreeId: 'wt-1',
       executionHostId: 'runtime:chosen',

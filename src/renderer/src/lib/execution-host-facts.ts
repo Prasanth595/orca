@@ -142,7 +142,9 @@ export function resolveWorktreeExecutionHostPlatform(
   selectedHostId?: ExecutionHostId
 ): ExecutionHostPlatformFact {
   // Why the routing default: an owner-less row launches where routing sends it, so read that host.
-  const host = parseExecutionHostId(selectedHostId ?? getExecutionHostIdForWorktree(state, worktreeId))
+  const host = parseExecutionHostId(
+    selectedHostId ?? getExecutionHostIdForWorktree(state, worktreeId)
+  )
   const sshOwnerEnvironmentId =
     host?.kind !== 'ssh'
       ? null

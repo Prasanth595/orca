@@ -78,7 +78,10 @@ async function toHostUiUpdate(
 export function createWebUiApi(): NonNullable<Partial<PreloadApi>['ui']> {
   const explorerRoots = createWebExplorerRootSync()
   /** Captures the target host and strips browser-local or unsupported fields before sending a UI update. */
-  type PreparedHostUpdates = { environmentId: string | undefined; hostUpdates: Partial<PairedUiState> }
+  type PreparedHostUpdates = {
+    environmentId: string | undefined
+    hostUpdates: Partial<PairedUiState>
+  }
   // Why sync unless a gated key is present: ordinary writes reach the host in call order.
   const prepareHostUpdates = (
     updates: Parameters<PreloadApi['ui']['set']>[0]

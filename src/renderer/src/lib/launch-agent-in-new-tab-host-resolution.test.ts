@@ -147,7 +147,7 @@ describe('launchAgentInNewTab execution host resolution', () => {
       worktreeId: 'wt-1',
       activate: false,
       agentSessionLaunchPlan: adoptAgentSessionLaunchVerdict({
-requestId: newAgentLaunchRequestId(),
+        requestId: newAgentLaunchRequestId(),
         route: 'structured-native-chat',
         agent: 'codex',
         worktreeId: 'wt-1',
@@ -195,7 +195,7 @@ requestId: newAgentLaunchRequestId(),
     store.getKnownWorktreeById.mockReturnValue(worktreeOn('ssh:remote', '/srv'))
     const { launchAgentInNewTab } = await import('./launch-agent-in-new-tab')
     launchAgentInNewTab({
-requestId: newAgentLaunchRequestId(),
+      requestId: newAgentLaunchRequestId(),
       agent: 'claude-agent-teams',
       worktreeId: 'wt-1',
       executionHostId: 'ssh:remote',

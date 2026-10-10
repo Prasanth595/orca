@@ -201,7 +201,11 @@ it('delivers an OS drop to the one preview it landed on when two show the same t
   expect(surface).toBe(first.container.querySelector('.origin-bottom-left')?.parentElement)
   await dispatchOsDrop(first.container)
   expect(dropHarness.capture).toHaveBeenCalledTimes(1)
-  expect(capturedDropArgs()).toMatchObject({ worktreeId: 'folder-a', tabId: 'tab-a', cwd: '/workspace' })
+  expect(capturedDropArgs()).toMatchObject({
+    worktreeId: 'folder-a',
+    tabId: 'tab-a',
+    cwd: '/workspace'
+  })
   expect(dropHarness.deliver).toHaveBeenCalledWith(['/tmp/a b.txt'])
 })
 

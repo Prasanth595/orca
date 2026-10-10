@@ -125,11 +125,7 @@ describe('QuickLaunchAgentMenuItems launches', () => {
     registerLaunch('codex', 'failed')
 
     render(
-      <QuickLaunchAgentMenuItems
-        worktreeId={WORKTREE_ID}
-        groupId="group-1"
-        onLaunched={vi.fn()}
-      />
+      <QuickLaunchAgentMenuItems worktreeId={WORKTREE_ID} groupId="group-1" onLaunched={vi.fn()} />
     )
     expect(agentRowDisabled('Claude')).toBe('false')
     expect(agentRowDisabled('Codex')).toBe('false')

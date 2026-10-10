@@ -113,9 +113,7 @@ export function attachOsFileDropOwner<Destination = undefined>(
           const result = await prepared
           if (isDestinationLive || attached) {
             await deliver(
-              isDestinationLive && !isDestinationLive(context)
-                ? { ...result, paths: [] }
-                : result,
+              isDestinationLive && !isDestinationLive(context) ? { ...result, paths: [] } : result,
               context
             )
           }
