@@ -8,7 +8,9 @@ import type { JournalReducerState } from './journal-reducer'
 import type { JournalAppendResult, JournalItemAppendOptions } from './journal-store-contracts'
 import type { JournalRow } from './journal-row-schema'
 
-const NOTHING_RESOLVED = new Error('journal_item_resolved_to_nothing')
+// Why a class, not one module-level Error: an Error made while the bundle loads keeps the bundle's
+// top-level function in its stack, and with it ~5 MiB of compiled code for the life of main.
+class NothingResolvedError extends Error {}
 
 export type JournalResolvedItem = { identity: AgentJournalItemIdentity; body: AgentJournalItemBody }
 
@@ -41,7 +43,7 @@ export class JournalItemAppender {
       .enqueue((seq, ts) => {
         const resolved = resolve()
         if (resolved === null) {
-          throw NOTHING_RESOLVED
+          throw new NothingResolvedError('journal_item_resolved_to_nothing')
         }
         itemId = agentJournalItemKey(resolved.identity)
         return journalItemRowBuilder(
@@ -54,7 +56,7 @@ export class JournalItemAppender {
       .then(
         (row) => appendResult(row, itemId),
         (error: unknown) => {
-          if (error === NOTHING_RESOLVED) {
+          if (error instanceof NothingResolvedError) {
             return null
           }
           throw error
