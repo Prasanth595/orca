@@ -18,9 +18,12 @@ const TDEV_COLUMN =
   /^([^\S\r\n]*\d+[^\S\r\n]+\d+[^\S\r\n]+-?\d+[^\S\r\n]+-?\d+[^\S\r\n]+\S+[^\S\r\n]+)(\S+)(?=[^\S\r\n]+\S)/
 const TDEV_COLUMNS = new RegExp(TDEV_COLUMN.source, 'gm')
 
-function isDeviceNumber(value: string): boolean {
+function deviceToken(value: string): string | null {
   const match = value.match(/^(\d+)\/(\d+)$/)
-  return match !== null && Number(match[1]) <= 255 && Number(match[2]) <= 0xffffff
+  if (!match || Number(match[1]) > 255 || Number(match[2]) > 0xffffff) {
+    return null
+  }
+  return `${Number(match[1])}/${Number(match[2])}`
 }
 
 function deviceKey(rdev: bigint): string | null {
@@ -42,6 +45,7 @@ async function readDeviceKey(deps: DarwinTerminalNameDeps, name: string): Promis
 }
 
 // XNU names every pty slave ttys%03d by minor with one /dev entry; verify rdev before trusting it.
+// Unlike devname, a root-made earlier alias of a pty cannot win here.
 async function readPtyNames(
   devices: ReadonlySet<string>,
   deps: DarwinTerminalNameDeps,
@@ -108,8 +112,9 @@ export async function nameDarwinTerminals(
     if (!match) {
       throw new ProcessTableCaptureError('malformed_darwin_device_row')
     }
-    if (isDeviceNumber(match[2])) {
-      devices.add(match[2])
+    const device = deviceToken(match[2])
+    if (device !== null) {
+      devices.add(device)
     }
   }
   const names = await readPtyNames(devices, deps, signal)
@@ -117,6 +122,6 @@ export async function nameDarwinTerminals(
     await readTerminalNames(devices, names, deps, signal)
   }
   return stdout.replace(TDEV_COLUMNS, (_row, head: string, device: string) => {
-    return head + (names.get(device) ?? '??')
+    return head + (names.get(deviceToken(device) ?? '') ?? '??')
   })
 }

@@ -259,6 +259,14 @@ describe('nameDarwinTerminals', () => {
     expect(directory.openedPaths).toEqual([])
   })
 
+  it('names zero-padded device tokens by their numeric device', async () => {
+    const directory = new TestDeviceDirectory()
+    directory.entries = [{ name: 'ttys009', rdev: 0x10000009n }]
+
+    expect(await nameDarwinTerminals(darwinRow('016/009'), directory)).toBe(darwinRow('ttys009'))
+    expect(directory.readPaths).toEqual([join('/dev', 'ttys009')])
+  })
+
   it('rejects undecodable filenames and closes the directory before any stat reads', async () => {
     const directory = new TestDeviceDirectory()
     directory.entries = [
@@ -418,9 +426,16 @@ describe('nameDarwinTerminals', () => {
     const capture = ['16/1', '16/2', '16/3'].map((device) => darwinRow(device)).join('')
     const controller = new AbortController()
     const named = nameDarwinTerminals(capture, directory, controller.signal)
+    let settled = false
+    void named.then(
+      () => (settled = true),
+      () => (settled = true)
+    )
     const rejection = expect(named).rejects.toThrow()
     await new Promise((resolve) => setTimeout(resolve, 2))
     controller.abort()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(settled).toBe(false)
     await rejection
 
     expect(directory.readPaths).toEqual([join('/dev', 'ttys001')])

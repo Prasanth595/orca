@@ -90,4 +90,5 @@ export async function captureDarwinProcessTable(
 
 export function resetDarwinProcessTableCaptureForTests(): void {
   deviceColumnUnsupported = false
+  terminalNamingInFlight = null
 }
