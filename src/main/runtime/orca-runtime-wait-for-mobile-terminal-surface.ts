@@ -151,7 +151,8 @@ export class OrcaRuntimeWithWaitForMobileTerminalSurface extends OrcaRuntimeWith
         return null
       }
     }
-    const session = this.getWorkspaceSessionForWorktree(authority.worktreeId)
+    const [hostId] = this.getWorkspaceSessionHostIdsForTab(authority.worktreeId, tabId)
+    const session = hostId ? (this.store?.getWorkspaceSession?.(hostId) ?? null) : null
     const sessionWorktreeId = session
       ? resolveTerminalSessionWorktreeId(session, authority.worktreeId)
       : null
