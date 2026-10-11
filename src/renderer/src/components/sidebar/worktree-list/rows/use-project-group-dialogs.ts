@@ -108,6 +108,25 @@ export function useProjectGroupDialogs(args: {
     []
   )
 
+  const handleSetProjectGroupFolder = useCallback(
+    async (groupId: string, hostId?: ExecutionHostId) => {
+      const folderPath = await window.api.repos.pickFolder()
+      if (!folderPath) {
+        return
+      }
+      const updated = await updateProjectGroup(groupId, { parentPath: folderPath }, { hostId })
+      if (!updated) {
+        toast.error(
+          translate(
+            'auto.components.sidebar.WorktreeList.projectGroupFolder.failed',
+            'Failed to set group folder'
+          )
+        )
+      }
+    },
+    [updateProjectGroup]
+  )
+
   const handleSubmitProjectGroupName = useCallback(
     async (name: string) => {
       if (!nameDialog) {
@@ -203,6 +222,7 @@ export function useProjectGroupDialogs(args: {
     handleMoveProjectToGroup,
     handleRemoveProjectFromGroup,
     handleRenameProjectGroup,
+    handleSetProjectGroupFolder,
     handleSubmitProjectGroupName,
     handleDeleteProjectGroup,
     handleConfirmDeleteProjectGroup
