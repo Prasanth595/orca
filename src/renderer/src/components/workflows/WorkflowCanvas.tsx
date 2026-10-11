@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { Maximize2, Minimize2, Plus, Workflow, Play, Loader2, AlertTriangle } from 'lucide-react'
+import { Maximize2, Minimize2, Plus, Workflow, Play, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
 import { cn } from '@/lib/utils'
@@ -10,6 +10,7 @@ import WorkflowCanvasEdgesLayer from './WorkflowCanvasEdgesLayer'
 import WorkflowAddNodeMenu from './WorkflowAddNodeMenu'
 import WorkflowCanvasNode from './WorkflowCanvasNode'
 import WorkflowExecutionTargetBadge from './WorkflowExecutionTargetBadge'
+import WorkflowValidationButton from './WorkflowValidationButton'
 import { validateWorkflow } from '../../../../shared/workflow-graph-validation'
 import type { AgentWorkflow, WorkflowNodeType } from '../../../../shared/workflow-types'
 
@@ -63,7 +64,7 @@ export default function WorkflowCanvas({
   const [pan, setPan, persistPan] = usePersistedCanvasPan(workflow?.id ?? '')
 
   const validationErrors = useMemo(() => (workflow ? validateWorkflow(workflow) : []), [workflow])
-  const hasCycleError = validationErrors.some((e) => e.kind === 'cycle')
+  const hasErrors = validationErrors.length > 0
 
   useEffect(() => {
     if (!connectingFrom) {
@@ -145,7 +146,7 @@ export default function WorkflowCanvas({
   }
 
   async function handleRun(): Promise<void> {
-    if (!workflow || isRunning || hasCycleError) {
+    if (!workflow || isRunning || hasErrors) {
       return
     }
     await window.api.workflows.runNow(workflow.id)
@@ -388,33 +389,22 @@ export default function WorkflowCanvas({
       )}
       {showAddMenu && <WorkflowAddNodeMenu onAdd={(type) => void addNode(type)} />}
 
-      {/* Run + Add node buttons — bottom center */}
+      {/* Validation errors button + Run + Add node — bottom center */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2">
-        <div className="relative" onMouseDown={(e) => e.stopPropagation()}>
-          <button
-            type="button"
-            className={cn(
-              'flex items-center justify-center size-8 rounded-full border border-border bg-background text-foreground shadow-md transition-colors',
-              isRunning || hasCycleError ? 'opacity-60 cursor-not-allowed' : 'hover:bg-accent'
-            )}
-            onClick={() => void handleRun()}
-            disabled={isRunning || hasCycleError}
-            title={
-              hasCycleError
-                ? translate('workflows.canvas.runBlockedCycle', 'Fix cycle error to run')
-                : validationErrors.length > 0
-                  ? `${validationErrors.length} ${translate('workflows.canvas.runWarnings', 'warning(s)')} — ${validationErrors[0]?.message}`
-                  : translate('workflows.canvas.runNow', 'Run workflow')
-            }
-          >
-            {isRunning ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
-          </button>
-          {validationErrors.length > 0 && !isRunning && (
-            <div className="absolute -top-1 -right-1 size-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center pointer-events-none">
-              <AlertTriangle className="size-2.5" />
-            </div>
+        <WorkflowValidationButton errors={validationErrors} />
+        <button
+          type="button"
+          className={cn(
+            'flex items-center justify-center size-8 rounded-full border border-border bg-background text-foreground shadow-md transition-colors',
+            isRunning || hasErrors ? 'opacity-60 cursor-not-allowed' : 'hover:bg-accent'
           )}
-        </div>
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={() => void handleRun()}
+          disabled={isRunning || hasErrors}
+          title={translate('workflows.canvas.runNow', 'Run workflow')}
+        >
+          {isRunning ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
+        </button>
         <button
           type="button"
           className="flex items-center justify-center size-8 rounded-full border border-border bg-background text-foreground shadow-md hover:bg-accent transition-colors"
