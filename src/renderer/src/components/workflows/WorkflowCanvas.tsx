@@ -42,22 +42,11 @@ export default function WorkflowCanvas({
   const [isPanning, setIsPanning] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
 
-  const dragRef = useRef<{
-    nodeId: string
-    startX: number
-    startY: number
-    origX: number
-    origY: number
-  } | null>(null)
-  // Set to true when a node drag moves enough to count as a drag (not a click)
+  type DragState = { nodeId: string; startX: number; startY: number; origX: number; origY: number }
+  const dragRef = useRef<DragState | null>(null)
   const didDragNodeRef = useRef(false)
-  const panDragRef = useRef<{
-    startX: number
-    startY: number
-    origX: number
-    origY: number
-  } | null>(null)
-  // Tracks whether the last mousedown resulted in an actual pan (moved > 2px)
+  type PanState = { startX: number; startY: number; origX: number; origY: number }
+  const panDragRef = useRef<PanState | null>(null)
   const didPanRef = useRef(false)
   const viewportRef = useRef<HTMLDivElement>(null)
 
@@ -93,7 +82,18 @@ export default function WorkflowCanvas({
 
   if (workflow === null) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
+      <div className="relative flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
+        {focused && (
+          <Button
+            size="icon"
+            variant="outline"
+            className="absolute top-2 right-2 z-10 size-7"
+            onClick={onUnfocus}
+            title={translate('workflows.canvas.unfocus', 'Exit focus mode')}
+          >
+            <Minimize2 className="size-3.5" />
+          </Button>
+        )}
         <Workflow className="size-8 opacity-30" strokeWidth={1.25} />
         <span className="text-[13px]">
           {translate('workflows.canvas.empty', 'Select or create a workflow to start editing.')}
@@ -106,10 +106,7 @@ export default function WorkflowCanvas({
     if (!workflow || sourceId === targetId) {
       return
     }
-    const alreadyExists = workflow.edges.some(
-      (e) => e.sourceNodeId === sourceId && e.targetNodeId === targetId
-    )
-    if (alreadyExists) {
+    if (workflow.edges.some((e) => e.sourceNodeId === sourceId && e.targetNodeId === targetId)) {
       return
     }
     await window.api.workflows.update(workflow.id, {
@@ -268,10 +265,7 @@ export default function WorkflowCanvas({
     window.addEventListener('mouseup', onMouseUp)
   }
 
-  const nodePositions: Record<string, { x: number; y: number }> = {}
-  for (const node of workflow.nodes) {
-    nodePositions[node.id] = node.pos
-  }
+  const nodePositions = Object.fromEntries(workflow.nodes.map((n) => [n.id, n.pos]))
 
   return (
     <div
@@ -288,22 +282,20 @@ export default function WorkflowCanvas({
       </div>
 
       {/* Focus toggle — viewport overlay, top right */}
-      <div className="absolute top-2 right-2 z-10">
-        <Button
-          size="icon"
-          variant="outline"
-          className="size-7"
-          onClick={focused ? onUnfocus : onFocus}
-          onMouseDown={(e) => e.stopPropagation()}
-          title={
-            focused
-              ? translate('workflows.canvas.exitFocus', 'Exit focus')
-              : translate('workflows.canvas.focusCanvas', 'Focus canvas')
-          }
-        >
-          {focused ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
-        </Button>
-      </div>
+      <Button
+        size="icon"
+        variant="outline"
+        className="absolute top-2 right-2 z-10 size-7"
+        onClick={focused ? onUnfocus : onFocus}
+        onMouseDown={(e) => e.stopPropagation()}
+        title={
+          focused
+            ? translate('workflows.canvas.exitFocus', 'Exit focus')
+            : translate('workflows.canvas.focusCanvas', 'Focus canvas')
+        }
+      >
+        {focused ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+      </Button>
 
       {/* Connect mode hint — viewport overlay, top center */}
       {connectingFrom && (
@@ -381,10 +373,8 @@ export default function WorkflowCanvas({
       </div>
 
       {workflow.nodes.length === 0 && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground/50 pointer-events-none">
-          <span className="text-[13px]">
-            {translate('workflows.canvas.addNode', 'Click + to add nodes')}
-          </span>
+        <div className="absolute inset-0 flex items-center justify-center text-[13px] text-muted-foreground/50 pointer-events-none">
+          {translate('workflows.canvas.addNode', 'Click + to add nodes')}
         </div>
       )}
       {showAddMenu && <WorkflowAddNodeMenu onAdd={(type) => void addNode(type)} />}
