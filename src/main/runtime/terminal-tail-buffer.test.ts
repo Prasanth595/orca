@@ -155,3 +155,26 @@ describe('retained tail buffer prefix reuse', () => {
     expect(prefixTouches).toBeLessThan(300)
   })
 })
+
+describe('retained tail buffer carriage returns', () => {
+  it('keeps a line whose CR and LF arrive in separate chunks', () => {
+    const sim = newSim()
+    feed(sim, 'SPLIT-CHUNK\nQUJDRA==\r', false)
+    expect(sim.partialLine).toBe('QUJDRA==')
+    const step = feed(sim, '\nCRLF-END\n', false)
+    expect(sim.lines).toEqual(['SPLIT-CHUNK', 'QUJDRA==', 'CRLF-END'])
+    expect(step.newlyCompletedLines).toEqual(['QUJDRA==', 'CRLF-END'])
+    expect(sim.partialLine).toBe('')
+    expect(sim.redrawCursor).toBeNull()
+  })
+
+  it('overwrites a row from column zero after a trailing CR', () => {
+    const sim = newSim()
+    feed(sim, 'Receiving objects:  5%\r', false)
+    expect(sim.partialLine).toBe('Receiving objects:  5%')
+    feed(sim, 'Receiving objects: 10%\r', false)
+    expect(sim.partialLine).toBe('Receiving objects: 10%')
+    feed(sim, 'done\n', false)
+    expect(sim.lines).toEqual(['doneiving objects: 10%'])
+  })
+})

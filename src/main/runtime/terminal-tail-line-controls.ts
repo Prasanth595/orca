@@ -82,6 +82,15 @@ export function applyTerminalLineControls(line: string): {
   cursorColumn: number
   hadControl: boolean
 } {
+  let contentEnd = line.length
+  while (contentEnd > 0 && line.charCodeAt(contentEnd - 1) === 0x0d) {
+    contentEnd -= 1
+  }
+  if (contentEnd < line.length) {
+    // Why: a trailing CR only homes the cursor; the row stays until something overwrites it (e.g. the LF of a split CRLF).
+    const text = applyTerminalLineControls(line.slice(0, contentEnd)).text
+    return { text, cursorColumn: 0, hadControl: true }
+  }
   const carriageIndex = line.lastIndexOf('\r')
   const latestRedraw = carriageIndex !== -1 ? line.slice(carriageIndex + 1) : line
   if (!latestRedraw.includes('\u0008') && !latestRedraw.includes('\u001b')) {
