@@ -205,12 +205,13 @@ export function installPaneAgentIdentity(session: ConnectPanePtySession): void {
       const ptyId = session.transport.getPtyId()
       // Why: a hibernation kill ends the agent before the PTY, so the shell shows through for a
       // moment. That record was just written as the wake hint; clearing it strands the pane.
-      const hibernationKillInFlight =
+      // A read can also settle after the exit armed the wake, when the suppression is already spent.
+      const isHibernationWakeRecord =
         sleepingRecord !== null &&
-        ptyId !== null &&
-        state.suppressedPtyExitIds[ptyId] === true &&
-        noteArmsHibernatedPaneWake(sleepingRecord.record)
-      if (sleepingRecord && !hibernationKillInFlight) {
+        noteArmsHibernatedPaneWake(sleepingRecord.record) &&
+        ((ptyId !== null && state.suppressedPtyExitIds[ptyId] === true) ||
+          session.hibernatedWakeTarget?.record === sleepingRecord.record)
+      if (sleepingRecord && !isHibernationWakeRecord) {
         session.clearSleepingRecordProviderDuplicates(state, sleepingRecord)
       }
       session.clearStaleAgentTabTitleOnConfirmedShell()

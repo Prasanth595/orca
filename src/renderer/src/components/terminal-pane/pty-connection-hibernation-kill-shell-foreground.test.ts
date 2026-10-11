@@ -1,7 +1,7 @@
 import type * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { makePaneKey } from '../../../../shared/stable-pane-id'
-import { flushAsyncTicks } from './pty-connection-test-async'
+import { createDeferred, flushAsyncTicks } from './pty-connection-test-async'
 import {
   LEAF_1,
   createMockTransport,
@@ -147,6 +147,7 @@ describe('shell showing through a hibernation kill', () => {
 
   async function connectHibernatingPane(suppressExit: boolean): Promise<{
     finishCommand: () => void
+    exitPty: () => void
     paneKey: string
   }> {
     vi.useFakeTimers()
@@ -165,7 +166,14 @@ describe('shell showing through a hibernation kill', () => {
     const args = [
       createPane(1),
       createManager(1),
-      createDeps({ isVisibleRef: { current: false } })
+      createDeps({
+        isVisibleRef: { current: false },
+        consumeSuppressedPtyExit: vi.fn((id: string) => {
+          const suppressed = mockStoreState.suppressedPtyExitIds[id] === true
+          delete mockStoreState.suppressedPtyExitIds[id]
+          return suppressed
+        })
+      })
     ] as unknown as Parameters<typeof connectPanePty>
     connectPanePty(...args)
     await vi.advanceTimersByTimeAsync(20)
@@ -190,7 +198,16 @@ describe('shell showing through a hibernation kill', () => {
     if (suppressExit) {
       mockStoreState.suppressedPtyExitIds[ptyId] = true
     }
-    return { paneKey, finishCommand: () => dataCallbackRef.current?.('\x1b]133;D;0\x07') }
+    return {
+      paneKey,
+      finishCommand: () => dataCallbackRef.current?.('\x1b]133;D;0\x07'),
+      exitPty: () => {
+        const onPtyExit = createdTransportOptions[0]?.onPtyExit
+        if (typeof onPtyExit === 'function') {
+          onPtyExit(ptyId)
+        }
+      }
+    }
   }
 
   it('keeps the wake record while the kill is in flight', async () => {
@@ -203,6 +220,25 @@ describe('shell showing through a hibernation kill', () => {
       agent: null,
       shellForeground: true
     })
+    expect(mockStoreState.clearSleepingAgentSession).not.toHaveBeenCalled()
+    expect(mockStoreState.sleepingAgentSessionsByPaneKey[pane.paneKey]).toMatchObject({
+      providerSession: { id: 'sess-hibernating' }
+    })
+  })
+
+  it('keeps the wake record when the confirmation settles after the exit', async () => {
+    const pane = await connectHibernatingPane(true)
+    const foreground = createDeferred<string | null>()
+    vi.mocked(window.api.pty.confirmForegroundProcess).mockReturnValue(foreground.promise)
+
+    pane.finishCommand()
+    await vi.advanceTimersByTimeAsync(350)
+    pane.exitPty()
+    await flushAsyncTicks()
+    expect(mockStoreState.suppressedPtyExitIds).toEqual({})
+    foreground.resolve('zsh')
+    await flushAsyncTicks()
+
     expect(mockStoreState.clearSleepingAgentSession).not.toHaveBeenCalled()
     expect(mockStoreState.sleepingAgentSessionsByPaneKey[pane.paneKey]).toMatchObject({
       providerSession: { id: 'sess-hibernating' }
