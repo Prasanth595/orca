@@ -251,5 +251,5 @@ export async function applySettingsWrite(
     })
   }
 
-  return result
+  return store.getSettings()
 }
