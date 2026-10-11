@@ -171,6 +171,42 @@ describe('launchDaemonChild durable-scope fallback', () => {
     )
     expect(spawnDaemonChildProcessMock).toHaveBeenCalledOnce()
   })
+
+  // Outside AppImage the cleanup veto must not apply: the unscoped retry stays as it was.
+  it('still retries unscoped when a scoped attempt and its cleanup both fail', async () => {
+    isDurableDaemonScopeSupportedMock.mockReturnValue(true)
+    const scoped = fakeDaemonChild(4242)
+    const unscoped = fakeDaemonChild(4343)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    spawnDaemonChildProcessMock.mockImplementation((_options, useDurableScope: boolean) => {
+      const child = useDurableScope ? scoped : unscoped
+      queueMicrotask(() =>
+        child.emit(
+          'message',
+          useDurableScope
+            ? { type: 'ready', startedAtMs: 1 }
+            : { type: 'ready', pid: 4343, startedAtMs: 1_000_000 }
+        )
+      )
+      return child
+    })
+    const kill = vi.spyOn(process, 'kill').mockImplementation(() => {
+      throw Object.assign(new Error('operation not permitted'), { code: 'EPERM' })
+    })
+
+    try {
+      const launched = await launchDaemonChild(LAUNCH_OPTIONS)
+
+      expect(spawnDaemonChildProcessMock.mock.calls.map(([, scope]) => scope)).toEqual([
+        true,
+        false
+      ])
+      expect(launched.identity.pid).toBe(4343)
+    } finally {
+      kill.mockRestore()
+      warn.mockRestore()
+    }
+  })
 })
 
 describe('launchDaemonChild AppImage fallback', () => {

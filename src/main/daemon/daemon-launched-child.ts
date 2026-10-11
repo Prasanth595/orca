@@ -28,12 +28,6 @@ export class DaemonEndpointUnavailableError extends Error {
 /** The failed attempt may still be alive, so no retry may start beside it. */
 class DaemonStartupCleanupError extends AggregateError {}
 
-function isRetryableLaunchFailure(error: unknown): boolean {
-  return !(
-    error instanceof DaemonEndpointUnavailableError || error instanceof DaemonStartupCleanupError
-  )
-}
-
 export type LaunchedDaemonChild = {
   child: ChildProcess
   identity: DaemonEndpointIdentity
@@ -53,7 +47,10 @@ export async function launchDaemonChild(
         scopeSupported
       )
     } catch (error) {
-      if (!isRetryableLaunchFailure(error)) {
+      if (
+        error instanceof DaemonEndpointUnavailableError ||
+        error instanceof DaemonStartupCleanupError
+      ) {
         throw error
       }
       // Why: a missing/replaced AppImage or a refused FUSE mount must not cost the daemon; the
@@ -72,9 +69,8 @@ export async function launchDaemonChild(
  * is what lets the daemon survive a combined-unit `systemctl restart`, but the pre-flight
  * capability probe can still race a real environment fact (a torn-down user session, a polkit
  * policy rejection at the actual `StartTransientUnit` D-Bus call). A scoped attempt that fails
- * retries once, unscoped, so an environment that cannot support isolation degrades to today's
- * proven behavior instead of failing the launch outright. A lost endpoint race or a failed child
- * cleanup (`DaemonStartupCleanupError`) is not retried; see `isRetryableLaunchFailure`.
+ * for any reason but a lost endpoint race retries once, unscoped, so an environment that cannot
+ * support isolation degrades to today's proven behavior instead of failing the launch outright.
  */
 async function launchDaemonChildInEitherScope(
   options: DaemonChildSpawnOptions,
@@ -86,9 +82,9 @@ async function launchDaemonChildInEitherScope(
   try {
     return await launchDaemonChildAttempt(options, true)
   } catch (error) {
-    if (!isRetryableLaunchFailure(error)) {
-      // Not a scope problem: another daemon owns the endpoint and the caller adopts it, or the
-      // failed child could not be confirmed dead, so a retry would only race it.
+    if (error instanceof DaemonEndpointUnavailableError) {
+      // Not a scope problem: another daemon owns the endpoint and the caller adopts it, so a
+      // retry would only fork a second child to lose the same race.
       throw error
     }
     console.warn(
