@@ -9,6 +9,16 @@ const PROVISIONAL = `${MODES}${BEGIN}\x1b[37;1H›\x1b[40;3H? for shortcuts${END
 const LIVE = `${BEGIN}\x1b[39;3HModel high · folder${END}`
 
 describe('Codex fullscreen composer paste gate', () => {
+  it('accepts the live composer while braille animation continues repainting it', () => {
+    const scanner = createDraftPasteReadyScanner('codex-composer-prompt')
+    const animatedPrompt = `${MODES}${BEGIN}\x1b[37;1H›⠁ask codex to do anything ⠈\x1b[40;3H? for shortcuts${END}`
+    expect(scanner.observe(animatedPrompt).ready).toBe(false)
+    expect(scanner.observe(LIVE).ready).toBe(true)
+    expect(scanner.observe(`${BEGIN}\x1b[37;1H›⠂ask codex to do anything ⠐${END}`).ready).toBe(
+      true
+    )
+  })
+
   it('waits for the live footer, then accepts cursor-only redraws', () => {
     const scanner = createDraftPasteReadyScanner('codex-composer-prompt')
     expect(scanner.observe(PROVISIONAL).ready).toBe(false)

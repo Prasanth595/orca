@@ -72,6 +72,12 @@ describe('Codex quiet ready screen', () => {
   }
 
   describe('Codex composer ready screen, frame by frame', () => {
+    it('accepts the empty composer while animated braille dots repaint around the prompt', () => {
+      expect(
+        isCodexComposerReadyScreen('openai codex\n\n›⠁ask codex to do anything ⠈')
+      ).toBe(true)
+    })
+
     it.each([...SETTLED_IDLE_FIXTURES, ...DIALOG_FIXTURES])(
       '%s: never ready while loading, mid-turn, or under a drawn dialog',
       async (name) => {

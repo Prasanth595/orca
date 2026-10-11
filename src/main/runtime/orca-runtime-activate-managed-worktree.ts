@@ -250,6 +250,7 @@ export class OrcaRuntimeWithActivateManagedWorktree extends OrcaRuntimeWithListM
           const pty = this.ptysById.get(readyPtyId)
           const hold = pty
             ? readFreshComposerHold(
+                agent,
                 buildTerminalWaitText(pty.tailBuffer, pty.tailPartialLine, pty.preview),
                 this.readLiveTerminalScreenLines(readyPtyId)
               )

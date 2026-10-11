@@ -18,7 +18,9 @@ import {
 } from './agent-transcript-replay-test-harness'
 import {
   getLaunchedAgentReadinessLane,
+  readFreshComposerHold,
   waitForLaunchedAgentComposer,
+  waitForWorkerStartComposer,
   workerStartReadsComposerMarker,
   type LaunchedAgentReadinessLane,
   type LaunchedAgentReadinessRuntime
@@ -127,11 +129,74 @@ describe('which lane a freshly launched worker waits on', () => {
     }
     expect(getLaunchedAgentReadinessLane(agent)).toBe(lane)
   })
+
+  it('starts Codex workers from its captured composer signal', async () => {
+    const runtime: LaunchedAgentReadinessRuntime = {
+      waitForFreshWorkerComposer: vi.fn().mockResolvedValue(READY),
+      waitForTerminal: vi.fn(
+        () =>
+          new Promise((resolve) => {
+            setTimeout(() => resolve({ ...READY, satisfied: false }), 10)
+          })
+      )
+    }
+
+    await expect(waitForWorkerStartComposer(runtime, 'term-1', 'codex', 60_000)).resolves.toEqual(
+      READY
+    )
+    expect(runtime.waitForFreshWorkerComposer).toHaveBeenCalledWith(
+      'term-1',
+      'codex',
+      60_000,
+      expect.objectContaining({ requireComposerMarker: true, signal: expect.any(AbortSignal) })
+    )
+    expect(runtime.waitForTerminal).toHaveBeenCalledWith('term-1', {
+      condition: 'tui-idle',
+      timeoutMs: 60_000,
+      launchReadiness: true,
+      signal: expect.any(AbortSignal)
+    })
+  })
+
+  it('keeps a recognized Codex startup dialog as the winning blocked result', async () => {
+    const blocked: RuntimeTerminalWait = {
+      ...READY,
+      satisfied: false,
+      blockedReason: 'trust_prompt'
+    }
+    const runtime: LaunchedAgentReadinessRuntime = {
+      waitForFreshWorkerComposer: vi.fn(() => new Promise(() => {})),
+      waitForTerminal: vi.fn().mockResolvedValue(blocked)
+    }
+
+    await expect(waitForWorkerStartComposer(runtime, 'term-1', 'codex', 60_000)).resolves.toEqual(
+      blocked
+    )
+  })
+})
+
+describe('fresh Codex composer holds', () => {
+  it('accepts an animated empty composer but holds while busy or loading', () => {
+    const animated = [
+      'openai codex',
+      'weekly quota 96% remaining',
+      '',
+      '›⠁ask codex to do anything ⠈'
+    ]
+    const busy = ['openai codex', '', 'working (esc to interrupt)', '› ask codex to do anything']
+    const loading = ['openai codex', 'model: loading', '', '› ask codex to do anything']
+    const prefilled = ['openai codex', '', '› finish the migration']
+
+    expect(readFreshComposerHold('codex', '', animated)).toBeNull()
+    expect(readFreshComposerHold('codex', '', busy)).toBe('starting')
+    expect(readFreshComposerHold('codex', '', loading)).toBe('starting')
+    expect(readFreshComposerHold('codex', '', prefilled)).toBe('starting')
+    expect(readFreshComposerHold('codex', '', null)).toBe('starting')
+  })
 })
 
 describe('which idle-lane worker starts also answer on their composer marker', () => {
-  // Their only rest signal is their bare name, which a launch holds to quiet output; Grok's logo
-  // animates for ten seconds after its composer glyph. Gemini's title needs corroboration: absent.
+  // Their idle evidence is a bare name; Codex also needs its composer marker to bypass animation.
   it('is exactly the bare-name agents whose composer draws a marker', () => {
     expect(
       Object.keys(EXPECTED_LANES)
@@ -142,7 +207,7 @@ describe('which idle-lane worker starts also answer on their composer marker', (
             workerStartReadsComposerMarker(agent)
         )
         .sort()
-    ).toEqual(['dsh', 'grok', 'mimo-code'])
+    ).toEqual(['codex', 'dsh', 'grok', 'mimo-code'])
   })
 })
 

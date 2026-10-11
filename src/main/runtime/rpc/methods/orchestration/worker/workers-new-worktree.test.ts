@@ -454,15 +454,18 @@ describe('orchestration new-worktree workers', () => {
     )
   })
 
-  // Why: a first dispatch the composer signal settles must record setup exactly as one the idle
-  // wait settles; the composer lane once returned nothing and skipped this record.
-  it('settles a fresh worker start on main’s idle wait, not the launch paste’s signal', async () => {
+  it('races Codex composer readiness with the idle wait before dispatching a fresh worker', async () => {
     mockCreatedWorktree({ startupPolicy: 'wait-for-setup', state: 'running' })
     const composerSignal = vi.spyOn(runtime, 'waitForFreshWorkerComposer')
 
     const { result } = await startWorker()
 
-    expect(composerSignal).not.toHaveBeenCalled()
+    expect(composerSignal).toHaveBeenCalledWith(
+      'term_worker',
+      'codex',
+      60_000,
+      expect.objectContaining({ requireComposerMarker: true, signal: expect.any(AbortSignal) })
+    )
     expect(runtime.waitForTerminal).toHaveBeenCalledWith(
       'term_worker',
       expect.objectContaining({ condition: 'tui-idle', launchReadiness: true })

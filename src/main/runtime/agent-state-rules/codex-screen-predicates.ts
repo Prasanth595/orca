@@ -51,7 +51,7 @@ export function isCodexHeaderReadyScreen(screen: string): boolean {
  * `tui.terminal_title` without activity/spinner removes it.
  */
 export function isCodexComposerReadyScreen(screen: string): boolean {
-  const lines = screen.split('\n')
+  const lines = screen.replace(/[\u2800-\u28ff]/g, ' ').split('\n')
   const composer = lines.findLastIndex((line) => CODEX_EMPTY_COMPOSER_RE.test(line))
   if (composer === -1 || hasBusyStatusRowAbove(lines, composer)) {
     return false
