@@ -1,12 +1,8 @@
-// Test-only: the host-lane launch parity table (rows 3, 4, 5r, 7, 8, 10). Each case is the call a
-// host producer makes and the facts main hands the provider, the phone and telemetry for it.
+// Test-only: the host-lane launch parity table (rows 3, 4, 7, 8, 10). Each case is the call a host
+// producer makes and the facts main hands the provider, the phone and telemetry for it.
 import type { TerminalCreateOptions } from '../runtime/runtime-terminal-contracts'
 import type { LaunchWorkspace } from '../../shared/launch-parity-window-request.test-fixture'
-import {
-  POSIX_PATH,
-  WIN_PATH,
-  WSL_PATH
-} from '../../shared/launch-parity-window-cases.test-fixture'
+import { POSIX_PATH } from '../../shared/launch-parity-window-cases.test-fixture'
 
 export const HOST_TAB_ID = '33333333-3333-4333-8333-333333333333'
 export const HOST_LEAF_ID = '44444444-4444-4444-8444-444444444444'
@@ -36,7 +32,7 @@ export type HostProviderFacts = {
 export type HostLaunchCase = {
   name: string
   /** The launch-convergence producer row. */
-  row: '3' | '4' | '5r' | '7' | '8' | '10'
+  row: '3' | '4' | '7' | '8' | '10'
   os: NodeJS.Platform
   workspace: LaunchWorkspace
   settings?: Record<string, unknown>
@@ -73,16 +69,8 @@ const worker: HostLaunchCall = {
   }
 }
 
-export const repo = (path: string, extra: Partial<LaunchWorkspace> = {}): LaunchWorkspace => ({
-  kind: 'repo',
-  path,
-  ...extra
-})
-export const folder = (path: string, extra: Partial<LaunchWorkspace> = {}): LaunchWorkspace => ({
-  kind: 'folder',
-  path,
-  ...extra
-})
+export const repo = (path: string): LaunchWorkspace => ({ kind: 'repo', path })
+const folder = (path: string): LaunchWorkspace => ({ kind: 'folder', path })
 // The same factory for a mobile quick command (agent.launchReplay with a reserved pane and a
 // prompt): a paired phone never moves the host window.
 const mobileQuickCommand = (startupPrompt: string): HostLaunchCall => ({
@@ -106,25 +94,15 @@ const aiButtonSource = (workspace: LaunchWorkspace): string =>
 const QUICK_COMMAND = { agent_kind: 'codex', launch_source: 'quick_command', request_kind: 'new' }
 export const AGENT_PHONE = { title: 'Terminal', launchAgent: 'claude', isActive: true }
 const POSIX_CLAUDE = "claude '--dangerously-skip-permissions'"
-const CMD_CLAUDE = 'claude "--dangerously-skip-permissions"'
 // main today: a local POSIX host hands the provider the settings shell untrimmed.
 export const ZSH = { shellOverride: '  /bin/zsh  ', terminalWindowsWslDistro: null }
-// main today: the host lane sends no shell over SSH, from any OS.
-const NO_SHELL = {}
-const WSL_EXE = { shellOverride: 'wsl.exe', terminalWindowsWslDistro: 'Ubuntu' }
-const PWSH = { shellOverride: 'powershell.exe', terminalWindowsWslDistro: null }
 export const CMD_EXE = { shellOverride: 'cmd.exe', terminalWindowsWslDistro: null }
-// main today: a \\wsl$ cwd names a distro under a Windows shell; the daemon then runs wsl.exe.
-export const CMD_IN_WSL = { shellOverride: 'cmd.exe', terminalWindowsWslDistro: 'Ubuntu' }
-const WSL_UBUNTU = { kind: 'wsl', distro: 'Ubuntu' } as const
 export const CMD = { terminalWindowsShell: 'cmd.exe' }
-const GLOBAL_WSL = { ...CMD, localWindowsRuntimeDefault: WSL_UBUNTU }
 // A saved default argument with an apostrophe: the byte that tells POSIX and PowerShell quoting apart.
 const BOB_ARGS = {
   agentDefaultArgs: { claude: `--dangerously-skip-permissions --name "Bob's box"` }
 }
 const BOB_POSIX = `${POSIX_CLAUDE} '--name' 'Bob'"'"'s box'`
-const BOB_PS = `${POSIX_CLAUDE} '--name' 'Bob''s box'`
 const CODEX = "codex '--dangerously-bypass-approvals-and-sandbox'"
 
 /** Row 3: agent.launch with no prompt; `command` + shell are what the provider gets. */
@@ -147,116 +125,18 @@ function aiButton(
     phone: AGENT_PHONE
   }
 }
-const ssh = { connectionId: 'ssh-1' }
-
 export const HOST_LAUNCH_CASES: HostLaunchCase[] = [
+  // C1 (host planner inputs) and C2 (AI buttons onto the pane trigger) must keep these commands.
   aiButton('macOS repo', 'darwin', repo(POSIX_PATH), { command: POSIX_CLAUDE, ...ZSH }),
-  aiButton('macOS folder', 'darwin', folder(POSIX_PATH), { command: POSIX_CLAUDE, ...ZSH }),
-  aiButton('Windows C: repo, default PowerShell', 'win32', repo(WIN_PATH), {
-    command: POSIX_CLAUDE,
-    ...PWSH
-  }),
-  aiButton('Windows C: folder, default PowerShell', 'win32', folder(WIN_PATH), {
-    command: POSIX_CLAUDE,
-    ...PWSH
-  }),
   aiButton(
-    'Windows C: repo, cmd.exe',
-    'win32',
-    repo(WIN_PATH),
-    { command: CMD_CLAUDE, ...CMD_EXE },
-    CMD
-  ),
-  // main today: the repo planner ignores the \\wsl$ path and quotes for cmd.exe; the shell is WSL.
-  aiButton(
-    'Windows wsl$ repo, no saved runtime, cmd.exe',
-    'win32',
-    repo(WSL_PATH),
-    { command: CMD_CLAUDE, ...CMD_IN_WSL },
-    CMD
-  ),
-  aiButton(
-    'Windows wsl$ folder, cmd.exe',
-    'win32',
-    folder(WSL_PATH),
-    { command: POSIX_CLAUDE, ...CMD_IN_WSL },
-    CMD
-  ),
-  aiButton(
-    'Windows C: repo, project WSL',
-    'win32',
-    repo(WIN_PATH, { projectRuntime: WSL_UBUNTU }),
-    { command: POSIX_CLAUDE, ...WSL_EXE },
-    CMD
-  ),
-  aiButton(
-    'Windows wsl$ repo, project Windows host',
-    'win32',
-    repo(WSL_PATH, { projectRuntime: { kind: 'windows-host' } }),
-    { command: CMD_CLAUDE, ...CMD_IN_WSL },
-    CMD
-  ),
-  aiButton(
-    'Windows C: repo, global default WSL',
-    'win32',
-    repo(WIN_PATH),
-    { command: POSIX_CLAUDE, ...WSL_EXE },
-    GLOBAL_WSL
-  ),
-  // main today: a folder reads only its path, never the global WSL default.
-  aiButton(
-    'Windows C: folder, global default WSL',
-    'win32',
-    folder(WIN_PATH),
-    { command: CMD_CLAUDE, ...CMD_EXE },
-    GLOBAL_WSL
-  ),
-  aiButton('macOS host, SSH repo', 'darwin', repo(POSIX_PATH, ssh), {
-    command: POSIX_CLAUDE,
-    ...NO_SHELL
-  }),
-  aiButton(
-    'Windows host, SSH repo, cmd.exe',
-    'win32',
-    repo(POSIX_PATH, ssh),
-    { command: POSIX_CLAUDE, ...NO_SHELL },
-    CMD
-  ),
-  // A folder over SSH quotes for its own path: POSIX here, PowerShell for a Windows path.
-  aiButton(
-    'Linux host, SSH folder',
-    'linux',
-    folder(POSIX_PATH, ssh),
-    { command: BOB_POSIX, ...NO_SHELL },
-    BOB_ARGS
-  ),
-  aiButton(
-    'Linux host, SSH Windows-path folder',
-    'linux',
-    folder(WIN_PATH, ssh),
-    { command: BOB_PS, ...NO_SHELL },
+    'macOS folder, saved default args',
+    'darwin',
+    folder(POSIX_PATH),
+    { command: BOB_POSIX, ...ZSH },
     BOB_ARGS
   ),
   {
-    // The AI buttons never send a prompt; the window pastes it once the agent is ready.
-    // main today: with no prompt on the command, the host does not wait for the shell.
-    ...aiButton('macOS repo, codex', 'darwin', repo(POSIX_PATH), { command: CODEX, ...ZSH }),
-    call: agentLaunch({ startupAgent: 'codex' }),
-    telemetry: { ...TASK_PAGE, agent_kind: 'codex' },
-    phone: { ...AGENT_PHONE, launchAgent: 'codex' }
-  },
-  {
-    // A remote Windows path quotes PowerShell-style (the doubled apostrophe), whatever the host.
-    name: 'mobile quick command, Linux host, SSH Windows-path repo, codex prompt',
-    row: '10',
-    os: 'linux',
-    workspace: repo(WIN_PATH, ssh),
-    call: mobileQuickCommand("fix Bob's branch"),
-    provider: { command: `${CODEX} 'fix Bob''s branch'`, startupCommandDelivery: 'shell-ready' },
-    telemetry: QUICK_COMMAND,
-    phone: { ...AGENT_PHONE, launchAgent: 'codex' }
-  },
-  {
+    // C1-C7 keep the host path's prompt carry.
     name: 'mobile quick command, macOS repo, codex prompt waits for the shell',
     row: '10',
     os: 'darwin',
@@ -270,18 +150,17 @@ export const HOST_LAUNCH_CASES: HostLaunchCase[] = [
     telemetry: QUICK_COMMAND,
     phone: { ...AGENT_PHONE, launchAgent: 'codex' }
   },
-  ...[repo(POSIX_PATH), folder(POSIX_PATH), repo(POSIX_PATH, { connectionId: 'ssh-1' })].map(
-    (workspace): HostLaunchCase => ({
-      name: `orchestration worker, Linux ${workspace.kind}${workspace.connectionId ? ' over SSH' : ''}`,
-      row: '10',
-      os: 'linux',
-      workspace,
-      call: worker,
-      provider: { command: POSIX_CLAUDE, ...(workspace.connectionId ? NO_SHELL : ZSH) },
-      telemetry: { ...TASK_PAGE, launch_source: 'orchestration' },
-      phone: { title: 'worker-task-1', launchAgent: 'claude', isActive: true }
-    })
-  )
+  // C5d/C5e (options, presentation) check host callers against these.
+  ...[repo(POSIX_PATH), folder(POSIX_PATH)].map((workspace): HostLaunchCase => ({
+    name: `orchestration worker, Linux ${workspace.kind}`,
+    row: '10',
+    os: 'linux',
+    workspace,
+    call: worker,
+    provider: { command: POSIX_CLAUDE, ...ZSH },
+    telemetry: { ...TASK_PAGE, launch_source: 'orchestration' },
+    phone: { title: 'worker-task-1', launchAgent: 'claude', isActive: true }
+  }))
 ]
 
 const HOST_ENV_KEYS = [

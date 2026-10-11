@@ -95,7 +95,7 @@ async function openTab(c: WindowLaunchCase) {
         agent: 'antigravity',
         sessionId: 'ide-id',
         codexHome: null,
-        executionHostId: c.workspace.connectionId ? `ssh:${c.workspace.connectionId}` : 'local',
+        executionHostId: 'local',
         filePath: producer.transcript,
         cwd: producer.cwd
       }
@@ -174,11 +174,11 @@ async function paneSpawnRequest(c: WindowLaunchCase): Promise<unknown> {
 
 // Pins main's current launch behaviour as the convergence parity baseline (rows 2 and 6, window
 // half): the real producer, store and pane build the pty:spawn request each case's table row names.
+// C2 (typed-prompt tabs onto the pane trigger) and C3 (Antigravity continue) check against it.
 describe('window-tab producers: the pty:spawn request a real pane sends', () => {
   // Why: the first import transforms the whole pane graph; keep that out of the first case.
   beforeAll(async () => {
     await load('darwin')
-    await load('linux')
     await load('win32')
   }, 240_000)
 

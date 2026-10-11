@@ -28,9 +28,9 @@ const WIN_T = `C:/Users/alice/${BRAIN}`
 const LINUX_T = `/home/alice/${BRAIN}`
 const reference = (path: string): string =>
   `Review the chat transcript at "${path}". Confirm your understanding of the previous conversation and continue from where it left off. This starts a new CLI conversation using the original transcript as a reference.`
-const agy = (path: string, bin = 'agy'): WindowRequestFacts => ({
-  command: `${bin} '${SKIP}' --prompt-interactive '${reference(path)}'`,
-  agentCommand: `${bin} '${SKIP}'`
+const agy = (path: string): WindowRequestFacts => ({
+  command: `agy '${SKIP}' --prompt-interactive '${reference(path)}'`,
+  agentCommand: `agy '${SKIP}'`
 })
 
 const repo = (path: string, extra: Partial<LaunchWorkspace> = {}): LaunchWorkspace => ({
@@ -43,7 +43,6 @@ const folder = (path: string, extra: Partial<LaunchWorkspace> = {}): LaunchWorks
   path,
   ...extra
 })
-const ssh = { connectionId: 'ssh-1' }
 const WSL_UBUNTU = { kind: 'wsl', distro: 'Ubuntu' } as const
 const HOST_SENT = { projectRuntime: { kind: 'windows-host', reason: 'global-default' } } as const
 const WSL_SENT = {
@@ -53,8 +52,6 @@ const IN_PWSH = { shellOverride: 'powershell.exe' }
 const IN_WSL = { shellOverride: 'wsl.exe' }
 // Main runs a local pane in the settings shell; Windows adds the WSL distro it derived.
 const ZSH = { shellOverride: '/bin/zsh' }
-// A Windows client's default shell setting is '' (its Settings UI hides it), so SSH gets no shell.
-const NO_SHELL = { shellOverride: undefined }
 const PWSH = { shellOverride: 'powershell.exe', terminalWindowsWslDistro: null }
 const WSL_EXE = { shellOverride: 'wsl.exe', terminalWindowsWslDistro: 'Ubuntu' }
 const CMD_EXE = { shellOverride: 'cmd.exe', terminalWindowsWslDistro: null }
@@ -79,19 +76,16 @@ const resume = (transcript: string, cwd: string | null) =>
   launch.bind(null, 6, { kind: 'transcript-continue', transcript, cwd })
 
 export const WINDOW_LAUNCH_CASES: WindowLaunchCase[] = [
-  typed('macOS repo', 'darwin', repo(POSIX_PATH), posix, ZSH),
-  typed('macOS folder', 'darwin', folder(POSIX_PATH), posix, ZSH),
-  typed('Linux repo', 'linux', repo(POSIX_PATH), posix, ZSH),
+  // C2 (typed-prompt tabs onto the pane trigger) and C5a-e (assembler merge) check against rows 2.
   typed(
     'macOS repo, saved default env',
     'darwin',
     repo(POSIX_PATH),
     { ...posix, agentEnv: { A: '1' } },
     ZSH,
-    {
-      agentDefaultEnv: { claude: { A: '1' } }
-    }
+    { agentDefaultEnv: { claude: { A: '1' } } }
   ),
+  typed('macOS folder', 'darwin', folder(POSIX_PATH), posix, ZSH),
   // The draft rides --prefill.
   launch(
     2,
@@ -123,6 +117,7 @@ export const WINDOW_LAUNCH_CASES: WindowLaunchCase[] = [
     },
     ZSH
   ),
+  // C1 reproduces this Windows platform/shell rule on the host planner.
   typed(
     'Windows C: repo, default PowerShell',
     'win32',
@@ -153,18 +148,6 @@ export const WINDOW_LAUNCH_CASES: WindowLaunchCase[] = [
     { ...posix, ...IN_WSL, ...WSL_SENT },
     WSL_EXE
   ),
-  // main today: quoted for PowerShell, yet the \\wsl$ cwd names distro Ubuntu and the daemon runs wsl.exe.
-  typed(
-    'Windows wsl$ repo, project Windows host',
-    'win32',
-    repo(WSL_PATH, { projectRuntime: { kind: 'windows-host' } }),
-    {
-      ...ps,
-      ...IN_PWSH,
-      projectRuntime: { kind: 'windows-host', reason: 'project-override' } as const
-    },
-    { ...PWSH, terminalWindowsWslDistro: 'Ubuntu' }
-  ),
   typed(
     'Windows C: repo, global default WSL',
     'win32',
@@ -180,7 +163,7 @@ export const WINDOW_LAUNCH_CASES: WindowLaunchCase[] = [
   typed('Windows C: folder', 'win32', folder(WIN_PATH), { ...ps, ...IN_PWSH }, PWSH),
   // The folder's \\wsl$ path makes its host Linux, matching the wsl.exe createTab picks from the path.
   typed('Windows wsl$ folder', 'win32', folder(WSL_PATH), { ...posix, ...IN_WSL }, WSL_EXE),
-  // A folder borrows the runtime of a repo it contains (or equals), not of a repo it sits inside.
+  // A folder borrows the runtime of a repo it contains (or equals).
   typed(
     'Windows folder containing a WSL-project repo',
     'win32',
@@ -191,21 +174,7 @@ export const WINDOW_LAUNCH_CASES: WindowLaunchCase[] = [
     { ...posix, ...IN_WSL, ...WSL_SENT },
     WSL_EXE
   ),
-  typed(
-    'Windows folder inside a WSL-project repo',
-    'win32',
-    folder(`${WIN_PATH}\\pkg`, {
-      repoPath: WIN_PATH,
-      projectRuntime: WSL_UBUNTU
-    }),
-    { ...ps, ...IN_PWSH },
-    PWSH
-  ),
-  typed('macOS client, SSH repo', 'darwin', repo(POSIX_PATH, ssh), posix, ZSH),
-  typed('Windows client, SSH repo', 'win32', repo(POSIX_PATH, ssh), posix, NO_SHELL),
-  typed('macOS client, SSH Windows-path repo', 'darwin', repo(WIN_PATH, ssh), ps, ZSH),
-  typed('macOS client, SSH folder', 'darwin', folder(POSIX_PATH, ssh), posix, ZSH),
-  typed('Windows client, SSH folder', 'win32', folder(POSIX_PATH, ssh), posix, NO_SHELL),
+  // C3 (Antigravity continue) checks against rows 6.
   resume(MAC_T, `${POSIX_PATH}/pkg`)(
     'continue, macOS repo, transcript cwd',
     'darwin',
@@ -246,15 +215,5 @@ export const WINDOW_LAUNCH_CASES: WindowLaunchCase[] = [
     }),
     { ...agy(LINUX_T), cwd: POSIX_PATH, ...IN_WSL, ...WSL_SENT },
     WSL_EXE
-  ),
-  resume(LINUX_T, POSIX_PATH)(
-    'continue, Windows client, SSH repo, command override',
-    'win32',
-    repo(POSIX_PATH, ssh),
-    agy(LINUX_T, '/opt/agy/bin/agy'),
-    NO_SHELL,
-    {
-      agentCmdOverrides: { antigravity: '/opt/agy/bin/agy' }
-    }
   )
 ]

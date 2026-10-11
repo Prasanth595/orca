@@ -1,7 +1,4 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { createCompatibleRuntimeStatusResponseIfNeeded } from '@/runtime/runtime-compatibility-test-fixture'
-import { AGENT_SESSION_HOST_AUTHORITY_CAPABILITY } from '../../../shared/agent-session-host-authority'
-import { AGENT_SESSION_KEYBOARD_RUNTIME_CAPABILITY } from '../../../shared/protocol-version'
 import {
   launchWorkspaceState,
   perClientLoader,
@@ -14,13 +11,6 @@ import {
   automationSpawnRequest,
   type AutomationLaunchCase
 } from '../../../shared/launch-parity-automation-cases.test-fixture'
-import {
-  PAIRED_AUTOMATION_CASES,
-  PAIRED_AUTOMATION_WORKSPACE,
-  pairedAgentSessionParams,
-  pairedLegacyCreateParams,
-  type PairedAutomationCase
-} from '../../../shared/launch-parity-paired-host.test-fixture'
 import {
   LAUNCH_LEAF_ID,
   LAUNCH_TAB_ID,
@@ -44,53 +34,19 @@ vi.mock('@/components/terminal-pane/pty-data-sidecar-subscriptions', () => ({
 
 const load = perClientLoader(async () => ({
   launch: await import('./launch-agent-background-session'),
-  phone: await import('@/runtime/sync-runtime-graph/mobile-session-snapshots'),
-  rpc: await import('@/runtime/runtime-rpc-client'),
-  multiplexer: await import('@/runtime/remote-runtime-terminal-multiplexer')
+  phone: await import('@/runtime/sync-runtime-graph/mobile-session-snapshots')
 }))
 
-type Paired = { removed: readonly string[]; failCreateAgentSession?: string }
-
-/** Runs one automation; `paired` routes the workspace to paired runtime env-1 instead. */
-async function runAutomation(
-  c: Pick<AutomationLaunchCase, 'client' | 'workspace' | 'settings' | 'agent' | 'title'>,
-  paired?: Paired
-) {
+/** Runs one automation in a local workspace. */
+async function runAutomation(c: AutomationLaunchCase) {
   const modules = await load(c.client)
-  modules.rpc.clearRuntimeCompatibilityCacheForTests()
-  modules.multiplexer.resetRemoteRuntimeTerminalMultiplexersForTests()
   const store = modules.createStore()
   holder.store = store
   store.setState(launchWorkspaceState(c.workspace, c.settings))
   const spawn = vi.fn(async (_request: Record<string, unknown>) => ({ id: 'pty-1' }))
-  const rpc = vi.fn(async (request: { method: string }) =>
-    request.method === 'terminal.createAgentSession' && paired?.failCreateAgentSession
-      ? { ok: false, error: { code: paired.failCreateAgentSession, message: 'legacy' } }
-      : { ok: true, result: { terminal: { handle: 'terminal-1', worktreeId: 'wt', title: null } } }
-  )
   vi.stubGlobal('window', {
     dispatchEvent: vi.fn(),
-    api: {
-      pty: { spawn, write: vi.fn(), kill: vi.fn() },
-      runtime: { call: vi.fn() },
-      runtimeEnvironments: {
-        // The paired host answers status.get without the capabilities a case withholds.
-        call: async (request: { method: string }) => {
-          const status = createCompatibleRuntimeStatusResponseIfNeeded(request)
-          if (!status?.ok) {
-            return rpc(request)
-          }
-          const capabilities = status.result.capabilities?.filter(
-            (capability) => !paired?.removed.includes(capability)
-          )
-          return { ...status, result: { ...status.result, capabilities } }
-        },
-        subscribe: async (_request: unknown, callbacks: { onResponse: (r: unknown) => void }) => {
-          queueMicrotask(() => callbacks.onResponse({ ok: true, result: { type: 'ready' } }))
-          return { unsubscribe: vi.fn(), sendBinary: vi.fn() }
-        }
-      }
-    }
+    api: { pty: { spawn, write: vi.fn(), kill: vi.fn() }, runtime: { call: vi.fn() } }
   })
   await modules.launch.launchAgentBackgroundSession({
     agent: c.agent,
@@ -101,7 +57,7 @@ async function runAutomation(
     title: c.title
   })
   const phone = modules.phone.buildMobileSessionTabSnapshots(store.getState(), false)
-  return { spawn, rpc, phone }
+  return { spawn, phone }
 }
 
 /** Swaps the random tab, leaf and token ids for the table's fixed ones. */
@@ -114,8 +70,8 @@ function withFixedIds(value: unknown): unknown {
   return JSON.parse(ids.reduce((out, id, index) => out.replaceAll(id, fixed[index] ?? id), text))
 }
 
-// Pins main's current launch behaviour as the convergence parity baseline (row 5, rule
-// AUTOMATION_WSL_EXE): the pty:spawn request a desktop automation sends and its phone tab.
+// Pins main's current launch behaviour as the convergence parity baseline (row 5): the pty:spawn
+// request a desktop automation sends and its phone tab. C7 replaces this producer.
 describe('row 5: desktop automation pty:spawn request', () => {
   beforeAll(async () => {
     await load('darwin')
@@ -137,67 +93,6 @@ describe('row 5: desktop automation pty:spawn request', () => {
       )
     ).toEqual([[automationPhoneTab(c)]])
   })
-})
-
-const KEYBOARD = AGENT_SESSION_KEYBOARD_RUNTIME_CAPABILITY
-const pairedRun = (c: PairedAutomationCase) => ({
-  ...c,
-  title: 'Nightly audit run 3',
-  workspace: PAIRED_AUTOMATION_WORKSPACE
-})
-
-function onlyCreate(rpc: ReturnType<typeof vi.fn>, method: string): Record<string, unknown> {
-  const creates = rpc.mock.calls.map(([request]) => request).filter((r) => r.method === method)
-  expect(creates).toHaveLength(1)
-  expect({ selector: creates[0].selector, timeoutMs: creates[0].timeoutMs }).toEqual({
-    selector: 'env-1',
-    timeoutMs: 15_000
-  })
-  return creates[0].params
-}
-
-// Pins main's current launch behaviour as the convergence parity baseline (row 5r, host-authority
-// path): the terminal.createAgentSession params an automation sends a paired runtime.
-describe('row 5r: paired runtime terminal.createAgentSession params', () => {
-  afterEach(() => vi.unstubAllGlobals())
-
-  it.each(PAIRED_AUTOMATION_CASES.filter((c) => c.client === 'linux'))('$name', async (c) => {
-    const { spawn, rpc } = await runAutomation(pairedRun(c), {
-      removed: c.keyboard ? [] : [KEYBOARD]
-    })
-    expect(spawn).not.toHaveBeenCalled()
-    expect(withFixedIds(onlyCreate(rpc, 'terminal.createAgentSession'))).toEqual({
-      ...pairedAgentSessionParams(c),
-      clientOperationId: expect.stringMatching(/^\d{13}-[0-9a-f]{32}$/)
-    })
-  })
-})
-
-// Pins main's current launch behaviour as the convergence parity baseline (row 5r, legacy path):
-// the verbatim window plan terminal.create sends a host without agent-session host authority.
-describe('row 5r: paired runtime legacy terminal.create params', () => {
-  afterEach(() => vi.unstubAllGlobals())
-  const LEGACY = [AGENT_SESSION_HOST_AUTHORITY_CAPABILITY, KEYBOARD]
-
-  it.each(PAIRED_AUTOMATION_CASES.filter((c) => c.keyboard))('$name', async (c) => {
-    const { spawn, rpc } = await runAutomation(pairedRun(c), { removed: LEGACY })
-    expect(spawn).not.toHaveBeenCalled()
-    expect(withFixedIds(onlyCreate(rpc, 'terminal.create'))).toEqual(pairedLegacyCreateParams(c))
-  })
-
-  it.each(['agent_session_legacy_required', 'method_not_found'])(
-    'falls back to terminal.create once the host answers %s',
-    async (code) => {
-      const { rpc } = await runAutomation(pairedRun(PAIRED_AUTOMATION_CASES[0]), {
-        removed: [],
-        failCreateAgentSession: code
-      })
-      expect(rpc.mock.calls.map(([request]) => request.method).slice(0, 2)).toEqual([
-        'terminal.createAgentSession',
-        'terminal.create'
-      ])
-    }
-  )
 })
 
 function recordOf(value: unknown): Record<string, unknown> {

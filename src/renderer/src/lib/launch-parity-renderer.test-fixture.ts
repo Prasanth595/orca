@@ -66,23 +66,11 @@ export function perClientLoader<T>(
   }
 }
 
-/** The OS a remote host holding this path reports: the SSH relay's handshake or the server's status.get. */
-function reportedHostPlatform(path: string): 'win32' | 'linux' {
-  return /^[A-Za-z]:[\\/]/.test(path) ? 'win32' : 'linux'
-}
-
 /** The store state one workspace needs, with the settings a case overrides. */
 export function launchWorkspaceState(
   workspace: LaunchWorkspace,
   settings: Record<string, unknown> = {}
 ): Record<string, unknown> {
-  const connectionId = workspace.connectionId ?? null
-  // A paired runtime's rows name it as their host (project-host-routing.ts).
-  const executionHostId = workspace.pairedRuntime
-    ? `runtime:${workspace.pairedRuntime}`
-    : connectionId
-      ? `ssh:${connectionId}`
-      : 'local'
   const repoPath = workspace.kind === 'repo' ? workspace.path : workspace.repoPath
   const repo = repoPath
     ? {
@@ -92,16 +80,15 @@ export function launchWorkspaceState(
         badgeColor: '#000000',
         addedAt: 0,
         kind: 'git',
-        connectionId,
-        executionHostId
+        connectionId: null,
+        executionHostId: 'local'
       }
     : null
   const worktree = {
     id: `${LAUNCH_REPO_ID}::${repoPath}`,
     repoId: LAUNCH_REPO_ID,
     path: repoPath,
-    hostId: executionHostId,
-    ...(workspace.pairedRuntime ? { runtimeOwnerEnvironmentId: workspace.pairedRuntime } : {}),
+    hostId: 'local',
     head: 'abc',
     branch: 'refs/heads/main',
     isBare: false,
@@ -143,7 +130,7 @@ export function launchWorkspaceState(
               projectGroupId: 'pg-1',
               name: 'folder',
               folderPath: workspace.path,
-              connectionId,
+              connectionId: null,
               linkedTask: null,
               comment: '',
               isArchived: false,
@@ -157,38 +144,6 @@ export function launchWorkspaceState(
           ]
         : [],
     projectGroups: [{ id: 'pg-1', name: 'group', parentPath: null, parentGroupId: null }],
-    activeWorktreeId: launchWorkspaceId(workspace),
-    ...(connectionId
-      ? {
-          sshConnectionStates: new Map([
-            [
-              connectionId,
-              { status: 'connected', remotePlatform: reportedHostPlatform(workspace.path) }
-            ]
-          ]),
-          sshTargetLabels: new Map([[connectionId, 'build-box']])
-        }
-      : {}),
-    ...(workspace.pairedRuntime
-      ? {
-          runtimeStatusByEnvironmentId: new Map([
-            [
-              workspace.pairedRuntime,
-              {
-                checkedAt: 1,
-                status: {
-                  runtimeId: 'rt-paired',
-                  rendererGraphEpoch: 0,
-                  graphStatus: 'ready',
-                  authoritativeWindowId: null,
-                  liveTabCount: 0,
-                  liveLeafCount: 0,
-                  hostPlatform: reportedHostPlatform(workspace.path)
-                }
-              }
-            ]
-          ])
-        }
-      : {})
+    activeWorktreeId: launchWorkspaceId(workspace)
   }
 }

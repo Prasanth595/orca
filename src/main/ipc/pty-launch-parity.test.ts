@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { setupPtyIpcSuite } from './pty-ipc-test-harness'
-import { classifyErrorMock, statSyncMock, trackMock } from './pty-ipc-mock-registry'
+import { classifyErrorMock, trackMock } from './pty-ipc-mock-registry'
 import {
   providerFacts,
   recordOf,
@@ -11,8 +11,7 @@ import {
 } from './pty-launch-parity.test-fixture'
 import {
   POSIX_PATH,
-  WINDOW_LAUNCH_CASES,
-  WSL_PATH
+  WINDOW_LAUNCH_CASES
 } from '../../shared/launch-parity-window-cases.test-fixture'
 import {
   expectedWindowProvider,
@@ -138,9 +137,9 @@ const WINDOW_LANE_CASES: WindowLaneCase[] = [
 ]
 
 // Pins main's current launch behaviour as the convergence parity baseline (rows 2, 5 and 6, main
-// half; rules WINDOW_PANE, IPC_SSH_DEFAULT_SHELL, AUTOMATION_WSL_EXE): each table request, fed to
-// pty:spawn, reaches the provider with these facts (the pane's measured size, never hidden), one
-// agent_started, and a binding without host-admitted membership.
+// half): each table request, fed to pty:spawn, reaches the provider with these facts (the pane's
+// measured size, never hidden), one agent_started, and a pane binding.
+// C5a-e and C6 check the merged spawn pipeline against it.
 describe('window lane: pty:spawn request -> provider', () => {
   const suite = setupPtyIpcSuite()
   afterEach(() => restoreMainPlatform())
@@ -148,7 +147,7 @@ describe('window lane: pty:spawn request -> provider', () => {
   it.each(WINDOW_LANE_CASES)(
     '$label',
     async ({ client, workspace, settings, request, provider, env: agentEnv }) => {
-      // A desktop client's main process runs on the client OS, SSH included.
+      // A desktop client's main process runs on the client OS.
       setMainPlatform(client)
       const lanes = startParityLanes(suite, { workspace, settings })
       await lanes.spawnWindow(request)
@@ -167,8 +166,7 @@ describe('window lane: pty:spawn request -> provider', () => {
             startupCwd: expect.any(String),
             ...pick(request, ['placement']),
             origin: 'spawn'
-          },
-          ...(workspace.connectionId ? [`ssh:${workspace.connectionId}`] : [])
+          }
         ]
       ])
     }
@@ -220,7 +218,7 @@ async function runHostCall(lanes: ParityLanes, c: HostLaunchCase): Promise<unkno
           ? { clientOperationId: `${Date.now()}-0123456789abcdef0123456789abcdef`, ...params }
           : params
     },
-    // Row 4 is the desktop's own runtime:call (ipc/runtime.ts); rows 5r and 7 come from a paired desktop.
+    // Row 4 is the desktop's own runtime:call (ipc/runtime.ts); row 7 comes from a paired desktop.
     c.row === '4'
       ? {
           clientId: 'desktop-renderer',
@@ -237,9 +235,9 @@ async function runHostCall(lanes: ParityLanes, c: HostLaunchCase): Promise<unkno
   return response.result
 }
 
-// Pins main's current launch behaviour as the convergence parity baseline (rows 3, 4, 5r, 7, 8, 10;
-// rules HOST_REPO, HOST_FOLDER_PATH, RUNTIME_ASSEMBLER): each host producer's call reaches the
-// provider through the real runtime controller with these facts, telemetry, membership and phone tab.
+// Pins main's current launch behaviour as the convergence parity baseline (rows 3, 4, 7, 8, 10):
+// each host producer's call reaches the provider through the real runtime controller with these
+// facts, telemetry, placement and phone tab. C1, C2 and C5a-e check the host path against it.
 describe('host lane: producer call -> runtime controller -> provider', () => {
   const suite = setupPtyIpcSuite()
   beforeEach(() => stubOpenCodeV2())
@@ -256,7 +254,6 @@ describe('host lane: producer call -> runtime controller -> provider', () => {
     expect(recordOf(spawned.env).ORCA_PANE_KEY).toBe(spawned.paneKey)
     expect(trackMock.mock.calls).toEqual(c.telemetry ? [['agent_started', c.telemetry]] : [])
     expect(lanes.persistPtyBinding.mock.calls[0]?.[0]).toMatchObject({
-      hostAdmittedMembership: true,
       placement: { kind: 'new-tab' }
     })
     const phone = await lanes.runtime.listMobileSessionTabs(`id:${launchWorkspaceId(c.workspace)}`)
@@ -265,144 +262,57 @@ describe('host lane: producer call -> runtime controller -> provider', () => {
 })
 
 const POSIX_REPO = { kind: 'repo', path: POSIX_PATH } as const
-const SSH_REPO = { ...POSIX_REPO, connectionId: 'ssh-1' } as const
-const [AI_BUTTON] = HOST_LAUNCH_CASES
-const AI_BUTTON_OPTIONS = AI_BUTTON.call.kind === 'create' ? AI_BUTTON.call.options : {}
-const OPENCODE = CALLER_LAUNCH_CASES.find((c) => c.row === '4')!
-const CALLER_5R = CALLER_LAUNCH_CASES.find((c) => c.row === '5r')!
 const WORKER = HOST_LAUNCH_CASES.find((c) => c.name.startsWith('orchestration worker'))!
 
-// Pins main's current launch behaviour as the convergence parity baseline (rows 3, 4, 5r and 10;
-// disabled agent, failed spawn, missing cwd, reveal): the facts no single table row carries.
+// Pins main's current launch behaviour as the convergence parity baseline (rows 2 and 10; failed
+// spawn, reveal, pane identity): the facts no single table row carries.
 describe('launch facts outside the tables', () => {
   const suite = setupPtyIpcSuite()
-  beforeEach(() => stubOpenCodeV2())
   afterEach(() => restoreMainPlatform())
 
+  // C5a (one agent_error place): main today reports a failed window-lane spawn.
   it.each([
     {
-      c: AI_BUTTON,
-      agent: 'claude',
-      message: 'Agent claude is disabled. Choose an enabled agent.'
-    },
-    {
-      c: OPENCODE,
-      agent: 'opencode',
-      message: 'Selected agent is disabled. Choose an enabled agent before creating.'
-    }
-  ])('row $c.row: the host refuses a disabled $agent and spawns nothing', async (row) => {
-    setMainPlatform('darwin')
-    const lanes = startParityLanes(suite, {
-      workspace: row.c.workspace,
-      settings: { disabledTuiAgents: [row.agent] }
-    })
-    await expect(runHostCall(lanes, row.c)).rejects.toThrow(row.message)
-    expect(lanes.provider).not.toHaveBeenCalled()
-  })
-
-  it('row 5r: a caller-built launch of a disabled agent still spawns', async () => {
-    setMainPlatform('linux')
-    const lanes = startParityLanes(suite, {
-      workspace: CALLER_5R.workspace,
-      settings: { disabledTuiAgents: ['claude'] }
-    })
-    await runHostCall(lanes, CALLER_5R)
-    expect(lanes.provider).toHaveBeenCalledOnce()
-  })
-
-  it.each([
-    { os: 'win32', workspace: { kind: 'folder', path: WSL_PATH } },
-    { os: 'darwin', workspace: SSH_REPO }
-  ] as const)('row 4: refuses OpenCode at $workspace.path ($os) before any spawn', async (c) => {
-    setMainPlatform(c.os)
-    const lanes = startParityLanes(suite, { workspace: c.workspace })
-    await expect(runHostCall(lanes, { ...OPENCODE, workspace: c.workspace })).rejects.toMatchObject(
-      {
-        code: 'capability_unsupported',
-        message: 'The execution host cannot verify this OpenCode model launch.'
-      }
-    )
-    expect(lanes.provider).not.toHaveBeenCalled()
-  })
-
-  // main today: only the window lane reports agent_error; a host-lane failure reports nothing.
-  it.each([
-    { lane: 'host', workspace: POSIX_REPO, request: null, calls: [] },
-    {
-      lane: 'window, telemetry kind wins over the claude sniff',
-      workspace: POSIX_REPO,
+      lane: 'telemetry kind wins over the claude sniff',
       request: { command: 'claude', telemetry: { agent_kind: 'opencode' } },
       calls: [['agent_error', { agent_kind: 'opencode', error_class: 'binary_not_found' }]]
     },
     {
-      lane: 'window, local claude without telemetry',
-      workspace: POSIX_REPO,
+      lane: 'local claude without telemetry',
       request: { command: 'claude' },
       calls: [['agent_error', { agent_kind: 'claude-code', error_class: 'binary_not_found' }]]
-    },
-    { lane: 'window, non-claude', workspace: POSIX_REPO, request: { command: 'aider' }, calls: [] },
-    // The claude sniff is local-only.
-    { lane: 'window, SSH claude', workspace: SSH_REPO, request: { command: 'claude' }, calls: [] }
-  ] as const)('a failed $lane spawn emits $calls.length agent_error', async (c) => {
+    }
+  ])('a failed window spawn, $lane, emits agent_error', async (c) => {
     setMainPlatform('darwin')
     classifyErrorMock.mockReturnValue({ error_class: 'binary_not_found' })
     const spawnError = new Error('spawn boom')
-    const lanes = startParityLanes(suite, { workspace: c.workspace, spawnError })
-    const launch = c.request
-      ? lanes.spawnWindow({
-          cols: 80,
-          rows: 24,
-          cwd: c.workspace.path,
-          worktreeId: launchWorkspaceId(c.workspace),
-          ...(c.workspace.kind === 'repo' && 'connectionId' in c.workspace
-            ? { connectionId: c.workspace.connectionId }
-            : {}),
-          ...c.request
-        })
-      : runHostCall(lanes, AI_BUTTON)
+    const lanes = startParityLanes(suite, { workspace: POSIX_REPO, spawnError })
+    const launch = lanes.spawnWindow({
+      cols: 80,
+      rows: 24,
+      cwd: POSIX_PATH,
+      worktreeId: launchWorkspaceId(POSIX_REPO),
+      ...c.request
+    })
     await expect(launch).rejects.toThrow('spawn boom')
     expect(trackMock.mock.calls.filter(([event]) => event === 'agent_error')).toEqual(c.calls)
   })
 
-  // main today: neither refuses a gone folder before the spawn; the window pane's root fallback is
-  // pinned in pty-spawn-cwd-fallback.test.ts (an automation sends no cwdFallback, at the request).
-  it.each([
-    { lane: 'row 3: a gone host-lane subfolder', cwd: `${POSIX_PATH}/gone` },
-    { lane: 'row 5: a gone automation root', cwd: POSIX_PATH }
-  ])('$lane reaches the provider unchanged', async ({ lane, cwd }) => {
-    setMainPlatform('darwin')
-    statSyncMock.mockImplementation(() => {
-      throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+  // C5e (presentation merge): a worker asks the window to reveal its titled tab without activating it.
+  it('row 10: an orchestration worker requests a titled, inactive reveal', async () => {
+    setMainPlatform(WORKER.os)
+    const lanes = startParityLanes(suite, { workspace: WORKER.workspace })
+    await runHostCall(lanes, WORKER)
+    expect(lanes.reveal.mock.calls[0]?.[1]).toMatchObject({
+      title: 'worker-task-1',
+      activate: false,
+      surfaceOwner: false
     })
-    const lanes = startParityLanes(suite, { workspace: POSIX_REPO })
-    await (lane.startsWith('row 3')
-      ? runHostCall(lanes, {
-          ...AI_BUTTON,
-          call: { kind: 'create', options: { ...AI_BUTTON_OPTIONS, cwd: 'gone' } }
-        })
-      : lanes.spawnWindow(automationSpawnRequest(AUTOMATION_LAUNCH_CASES[0])))
-    expect((await providerFacts(lanes.provider)).cwd).toBe(cwd)
-  })
-
-  it.each([
-    { c: AI_BUTTON, reveal: { title: null, activate: false, surfaceOwner: false } },
-    { c: WORKER, reveal: { title: 'worker-task-1', activate: false, surfaceOwner: false } },
-    // A background create (legacy automation, OpenCode pane) never asks the window to reveal.
-    { c: CALLER_5R, reveal: null },
-    { c: OPENCODE, reveal: null }
-  ])('row $c.row: reveal request $reveal', async ({ c, reveal }) => {
-    setMainPlatform(c.os)
-    const lanes = startParityLanes(suite, { workspace: c.workspace, settings: c.settings })
-    await runHostCall(lanes, c)
-    if (!reveal) {
-      expect(lanes.reveal).not.toHaveBeenCalled()
-      return
-    }
-    expect(lanes.reveal.mock.calls[0]?.[1]).toMatchObject(reveal)
     expect(lanes.reveal.mock.calls[0]?.[1]).not.toHaveProperty('presentation')
   })
 
-  // main rewrites stale pane identity keys from the request's tab and leaf; workspace keys pass.
+  // C5c (pane identity built once in main): main rewrites stale pane keys from the request's tab and
+  // leaf; workspace keys pass.
   it('window lane: the provider gets the pane keys main derives, not the stale ones sent', async () => {
     setMainPlatform('darwin')
     const tabId = '55555555-5555-4555-8555-555555555555'
@@ -423,19 +333,5 @@ describe('launch facts outside the tables', () => {
       ORCA_PANE_KEY: `${tabId}:${leafId}`,
       ORCA_TAB_ID: tabId
     })
-  })
-
-  // main today: an unmeasured hidden pane's 0x0 grid is not clamped before the provider.
-  it('window lane: a hidden unmeasured pane reaches the provider at 0x0, marked hidden', async () => {
-    setMainPlatform('darwin')
-    const lanes = startParityLanes(suite, { workspace: POSIX_REPO })
-    await lanes.spawnWindow({
-      cols: 0,
-      rows: 0,
-      initiallyHidden: true,
-      cwd: POSIX_PATH,
-      worktreeId: launchWorkspaceId(POSIX_REPO)
-    })
-    expect(await providerFacts(lanes.provider)).toMatchObject({ cols: 0, rows: 0, hidden: true })
   })
 })

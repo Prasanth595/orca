@@ -3,7 +3,7 @@
 // through the runtime controller registerPtyHandlers installs. Suites still declare the IPC vi.mock block.
 import { vi } from 'vitest'
 import type { Mock } from 'vitest'
-import { registerPtyHandlers, registerSshPtyProvider } from './pty'
+import { registerPtyHandlers } from './pty'
 import { existsSyncMock, statSyncMock } from './pty-ipc-mock-registry'
 import type { PtyIpcSuiteFixtures } from './pty-ipc-test-harness'
 import { OrcaRuntimeService } from '../runtime/orca-runtime'
@@ -81,7 +81,7 @@ function parityMainSettings(overrides: Record<string, unknown> = {}): Record<str
 }
 
 function launchScope(workspace: LaunchWorkspace): TerminalWorkspaceLaunchScope {
-  const connectionId = workspace.connectionId ?? null
+  const connectionId = null
   if (workspace.kind === 'repo') {
     return {
       id: `repo-1::${workspace.path}`,
@@ -128,7 +128,7 @@ type ScopeResolver = {
 
 export type ParityLanes = {
   runtime: OrcaRuntimeService
-  /** The provider spawn mock for the lane's host (daemon locally, relay over SSH). */
+  /** The local daemon provider's spawn mock. */
   provider: Mock
   persistPtyBinding: Mock
   reveal: Mock
@@ -166,11 +166,7 @@ export function startParityLanes(
     getFolderWorkspace: () => folderWorkspace ?? undefined,
     getFolderWorkspaces: () => (folderWorkspace ? [folderWorkspace] : []),
     getProjectGroups: () => [{ id: 'pg-1', name: 'group', parentPath: null, connectionId: null }],
-    persistPtyBinding,
-    upsertSshRemotePtyLease: vi.fn(),
-    supersedeSshRemotePtyLeasesForBoundPane: vi.fn(),
-    markSshRemotePtyLease: vi.fn(),
-    removeSshRemotePtyLease: vi.fn()
+    persistPtyBinding
   }
   // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: launches read only the store members defined above; the rest of the persistence store is unreachable here.
   const runtime = new OrcaRuntimeService(store as never)
@@ -181,11 +177,7 @@ export function startParityLanes(
     // A fresh id per spawn, so one case's hidden mark never reads into the next.
     return { id: options.sessionId ?? `remote-pty-${++remoteSpawns}` }
   })
-  if (args.workspace.connectionId) {
-    installSshTestProvider(args.workspace.connectionId, provider)
-  } else {
-    suite.installDaemonTestProvider({ spawn: provider })
-  }
+  suite.installDaemonTestProvider({ spawn: provider })
   // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the handlers read the window, runtime, settings and store members these fakes define.
   const handlerArgs = [
     suite.mainWindow,
@@ -223,35 +215,6 @@ export function startParityLanes(
     reveal,
     spawnWindow: async (request) => suite.handlers.get('pty:spawn')!(null, request)
   }
-}
-
-/** Registers an SSH relay double whose spawn mock sees the full PtySpawnOptions. */
-function installSshTestProvider(connectionId: string, spawn: Mock): void {
-  const noopListener = vi.fn(() => () => {})
-  const provider = {
-    spawn,
-    write: vi.fn(),
-    resize: vi.fn(),
-    shutdown: vi.fn(),
-    sendSignal: vi.fn(),
-    getCwd: vi.fn(),
-    getInitialCwd: vi.fn(),
-    clearBuffer: vi.fn(),
-    onData: noopListener,
-    onReplay: noopListener,
-    onExit: noopListener,
-    listProcesses: vi.fn(),
-    hasChildProcesses: vi.fn(),
-    getForegroundProcess: vi.fn(),
-    serialize: vi.fn(),
-    revive: vi.fn(),
-    getDefaultShell: vi.fn(),
-    getProfiles: vi.fn(),
-    acknowledgeDataEvent: vi.fn()
-  }
-  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: a fresh SSH spawn calls only spawn and the listener registrations defined above.
-  const relay = provider as unknown as Parameters<typeof registerSshPtyProvider>[1]
-  registerSshPtyProvider(connectionId, relay)
 }
 
 const PROVIDER_FACT_KEYS = [

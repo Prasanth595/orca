@@ -15,14 +15,10 @@ export const PANE_GRID = { cols: 97, rows: 31 } as const
 export type LaunchWorkspace = {
   kind: 'repo' | 'folder'
   path: string
-  /** SSH target id; absent = local. */
-  connectionId?: string
   /** The project's saved Windows runtime; absent = never saved. */
   projectRuntime?: LocalWindowsRuntimePreference
   /** Folder workspaces only: a local repo at this path, to show which repos a folder borrows. */
   repoPath?: string
-  /** A paired runtime environment that owns the worktree. */
-  pairedRuntime?: string
 }
 
 export function launchWorkspaceId(workspace: LaunchWorkspace): string {
@@ -102,19 +98,15 @@ function sentRuntime(runtime: ProjectRuntimeSent): Record<string, unknown> {
 export function windowSpawnRequest(c: WindowLaunchCase): Record<string, unknown> {
   const { workspace, producer, request } = c
   const worktreeId = launchWorkspaceId(workspace)
-  const ssh = workspace.connectionId !== undefined
   const agent = producer.kind === 'transcript-continue' ? 'antigravity' : producer.agent
   const cwd = request.cwd ?? workspace.path
   // A local Windows ConPTY pane withholds the kitty keyboard flag (terminal-keyboard-protocol.ts).
   const localConpty =
-    c.client === 'win32' &&
-    !ssh &&
-    request.shellOverride !== 'wsl.exe' &&
-    !cwd.startsWith('\\\\wsl')
+    c.client === 'win32' && request.shellOverride !== 'wsl.exe' && !cwd.startsWith('\\\\wsl')
   return {
     ...PANE_GRID,
     cwd,
-    ...(ssh ? {} : { cwdFallback: 'worktree' }),
+    cwdFallback: 'worktree',
     env: {
       ...request.agentEnv,
       ORCA_WORKSPACE_ID: worktreeId,
@@ -134,12 +126,7 @@ export function windowSpawnRequest(c: WindowLaunchCase): Record<string, unknown>
     },
     launchToken: LAUNCH_TOKEN,
     launchAgent: agent,
-    ...(ssh
-      ? { commandDelivery: 'provider', startupCommandDelivery: 'shell-ready' }
-      : agent === 'codex'
-        ? { startupCommandDelivery: 'shell-ready' }
-        : {}),
-    ...(ssh ? { connectionId: workspace.connectionId } : {}),
+    ...(agent === 'codex' ? { startupCommandDelivery: 'shell-ready' } : {}),
     worktreeId,
     tabId: LAUNCH_TAB_ID,
     leafId: LAUNCH_LEAF_ID,
@@ -188,7 +175,6 @@ export function expectedWindowProvider(
     hidden: false,
     env: agentEnv,
     ...provider,
-    ...(request.commandDelivery ? { commandDelivery: request.commandDelivery } : {}),
     ...(request.startupCommandDelivery
       ? { startupCommandDelivery: request.startupCommandDelivery }
       : {}),

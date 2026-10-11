@@ -18,6 +18,7 @@ function seededStore() {
 
 // Pins main's current launch behaviour as the convergence parity baseline (B6; window-lane new tabs,
 // rows 1-2 and 6): a queued startup that never reached a pane does not survive an app restart.
+// C2 (D-b) must keep a never-mounted tab reopening as a plain shell with no launch record read.
 describe('queued tab startup across an app restart on main', () => {
   it('persists the agent tab but not its queued startup command', () => {
     const before = seededStore()
