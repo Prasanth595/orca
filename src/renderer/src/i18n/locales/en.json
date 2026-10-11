@@ -19405,7 +19405,10 @@
       "deleteNode": "Delete node",
       "menuGroupTriggers": "Triggers",
       "menuGroupActions": "Actions",
-      "runNow": "Run workflow"
+      "menuGroupControlFlow": "Control Flow",
+      "runNow": "Run workflow",
+      "connectPort": "Connect from this node",
+      "unfocus": "Exit focus mode"
     },
     "list": {
       "title": "Workflows",
@@ -19448,6 +19451,23 @@
       "cronPlaceholder": "* * * * *  (min hour dom month dow)"
     },
     "nodeEditor": {
+      "label": "Label (optional)",
+      "labelPlaceholder": "Custom display name…",
+      "manualTriggerHint": "This trigger fires when you click Run.",
+      "collectHint": "Collects outputs from each For Each iteration into an array.",
+      "itemsExpression": "Items expression",
+      "itemsExpressionHint": "Template expression that resolves to a JSON array. Use {{loop.item}} and {{loop.index}} in body nodes.",
+      "maxIterations": "Max iterations",
+      "conditions": "Conditions",
+      "conditionLabel": "Label",
+      "conditionField": "Field",
+      "conditionOperator": "Operator",
+      "conditionValue": "Value",
+      "addCondition": "Add condition",
+      "defaultLabel": "Default label (no match)",
+      "retry": "Retry",
+      "retryCount": "Max retries",
+      "retryDelay": "Delay (s)",
       "agentClaude": "Claude (claude -p)",
       "agentCursor": "Cursor (cursor-agent -p)",
       "agentCodex": "Codex (codex --quiet)",
@@ -19493,7 +19513,9 @@
       "running": "Running…",
       "nodes": "nodes",
       "completed": "Run completed",
-      "failed": "Run failed:"
+      "failed": "Run failed:",
+      "cancelled": "Run cancelled",
+      "clickToDismiss": "Click to dismiss"
     },
     "outputs": {
       "empty": "No outputs yet."
@@ -19524,6 +19546,11 @@
     "create": {
       "defaultName": "New Workflow",
       "title": "Create Workflow",
+      "chooseTemplate": "Choose a Template",
+      "templateHint": "Start from a ready-to-run example, or build from scratch.",
+      "blankTemplate": "Blank",
+      "blankTemplateDesc": "Start with an empty canvas.",
+      "back": "Back",
       "nameLabel": "Name",
       "namePlaceholder": "Workflow name",
       "runOnLabel": "Run on",
@@ -19539,6 +19566,10 @@
     },
     "executionTarget": {
       "local": "Local"
+    },
+    "validation": {
+      "issue": "1 issue — run blocked",
+      "issues": "{{count}} issues — run blocked"
     }
   }
 }

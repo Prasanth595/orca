@@ -3027,8 +3027,14 @@
     "pathHelp": "One repository-relative directory per line. Spaces within a path are preserved."
   },
   "workflows": {
+    "canvas": {
+      "connectPort": "Connect from this node"
+    },
     "history": {
       "title": "Run History"
+    },
+    "validation": {
+      "issues": "{{count}} issues — run blocked"
     }
   },
   "worktreeJumpPalette": {
