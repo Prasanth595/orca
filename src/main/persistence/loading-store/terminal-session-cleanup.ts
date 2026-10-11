@@ -38,10 +38,11 @@ export function deleteRemovedTerminalScrollbackSnapshots(
   }
   const nextRefs = collectTerminalScrollbackSnapshotRefs(next)
   for (const ref of collectTerminalScrollbackSnapshotRefs(prior)) {
-    if (!nextRefs.has(ref) && !retainedRefs.has(ref)) {
+    if (!nextRefs.has(ref)) {
+      // A migration can release its hold before this mutation settles.
       if (deferredDeletions) {
         deferredDeletions.add(ref)
-      } else {
+      } else if (!retainedRefs.has(ref)) {
         deleteTerminalScrollbackSnapshotSync(ref, storage)
       }
     }

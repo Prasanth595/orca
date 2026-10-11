@@ -1,9 +1,12 @@
 import { expect, it, vi } from 'vitest'
 import { join } from 'node:path'
+import { createHash } from 'node:crypto'
 import { fixture } from './profile-state-delayed-authority-fixture'
 import { OrcaRuntimeService } from '../../runtime/orca-runtime'
 import type { RuntimeMobileSessionTabsSnapshot } from '../../../shared/runtime-types'
 import { writeTerminalScrollbackSnapshotSync } from '../../terminal-scrollback-snapshots'
+import { orcadMigrationCutoverFixture } from '../../ssh/orcad-migration-cutover-fixture'
+import { computeOrcadMigrationManifestSha256 } from '../../orcad/orcad-migration-manifest-digest'
 
 vi.mock('../../telemetry/client', () => ({ track: vi.fn() }))
 vi.mock('../../telemetry/cohort-classifier', () => ({
@@ -286,6 +289,58 @@ it('releases the scrollback file only after accepting the durable close', async 
   await closing
   expect(kill).toHaveBeenCalledExactlyOnceWith(binding.ptyId)
   expect(store.readTerminalScrollbackSnapshot(ref)).toBeNull()
+})
+
+it('keeps its own file hold when a migration releases the same snapshot during the write', async () => {
+  const { authority, store, runtime, kill } = await closeFixture()
+  const ref = saveScrollback(store)
+  const { manifestSha256: _hash, ...manifest } = orcadMigrationCutoverFixture().manifest
+  const buffer = 'recover this terminal output'
+  manifest.payload = {
+    ...manifest.payload,
+    dormantState: {
+      version: 1,
+      worktreeMeta: [],
+      worktreeLineage: [],
+      workspaceLineage: [],
+      sparsePresets: [],
+      retiredWorktreeNames: [],
+      retiredWorktreeNamespaces: [],
+      workspaceSession: store.getWorkspaceSession(),
+      terminalScrollbackSnapshots: [
+        {
+          tabId: binding.tabId,
+          leafId: binding.leafId,
+          ref,
+          sha256: createHash('sha256').update(buffer).digest('hex'),
+          byteLength: Buffer.byteLength(buffer)
+        }
+      ]
+    }
+  }
+  store.syncOrcadMigrationScrollbackRetention([
+    { ...manifest, manifestSha256: computeOrcadMigrationManifestSha256(manifest) }
+  ])
+  await store.flushPendingOrThrowAsync()
+  runtime.registerPty(binding.ptyId, binding.worktreeId, null, binding)
+  runtime.publish()
+  const gate = authority.pause()
+  const closing = runtime.closeHeadlessTab()
+  const refused = expect(closing).rejects.toThrow('terminal_pane_owner_changed')
+  try {
+    await Promise.race([gate.started.promise, closing])
+    store.syncOrcadMigrationScrollbackRetention([])
+    expect.soft(store.readTerminalScrollbackSnapshot(ref)).toBe(buffer)
+    runtime.registerPty(binding.ptyId, binding.worktreeId, null, {
+      ...binding,
+      incarnationId: 'ffffffff-ffff-4fff-8fff-ffffffffffff'
+    })
+  } finally {
+    gate.finish.resolve()
+  }
+  await refused
+  expect(kill).not.toHaveBeenCalled()
+  expect(store.readTerminalScrollbackSnapshot(ref)).toBe(buffer)
 })
 
 it('keeps recovery data dirty if persisting the compensation fails', async () => {
