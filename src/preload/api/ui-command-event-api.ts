@@ -117,6 +117,8 @@ export type UiCommandEventApi = {
       sessionProfileId?: string | null
       sessionPartition?: string
       activate?: boolean
+      split?: 'right' | 'left' | 'down' | 'up'
+      splitFromTabId?: string
     }) => void
   ) => () => void
   replyTabCreate: (reply: { requestId: string; browserPageId?: string; error?: string }) => void

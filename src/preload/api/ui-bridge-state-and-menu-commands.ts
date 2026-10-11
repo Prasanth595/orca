@@ -162,6 +162,8 @@ export const uiStateAndMenuCommandsApi = {
       sessionProfileId?: string | null
       sessionPartition?: string
       activate?: boolean
+      split?: 'right' | 'left' | 'down' | 'up'
+      splitFromTabId?: string
     }) => void
   ): (() => void) => {
     const listener = (
