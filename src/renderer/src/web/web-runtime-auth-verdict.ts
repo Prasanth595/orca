@@ -23,6 +23,14 @@ export async function resolveWebRuntimeAuthRejection(
   if (reply.errorCode === INSECURE_WEB_ORIGIN_AUTH_CODE) {
     return { kind: 'failed', reason: 'insecure-origin' }
   }
+  // Why first: a ticket pairing must never delete a key the host may already hold.
+  const overridden = plan ? source.resolveRejection?.(plan, reply.errorCode) : null
+  if (overridden) {
+    return overridden
+  }
+  if (plan?.kind === 'redeem') {
+    return { kind: 'failed', reason: ticketRefusalReason(reply.errorCode) }
+  }
   if (plan?.kind !== 'device-key') {
     return { kind: 'failed', reason: 'unauthorized' }
   }
@@ -40,4 +48,21 @@ export async function resolveWebRuntimeAuthRejection(
     return { kind: 'failed', reason: 'device-revoked' }
   }
   return { kind: 'failed', reason: 'unauthorized' }
+}
+
+export function ticketRefusalReason(errorCode: string | null): WebRuntimeAuthFailureReason {
+  switch (errorCode) {
+    case 'approval_denied':
+      return 'approval-denied'
+    case 'ticket_consumed':
+      return 'ticket-consumed'
+    case 'device_key_in_use':
+      return 'device-key-in-use'
+    // Why: a host that predates tickets answers the redemption shape with bad_auth.
+    case 'bad_auth':
+      return 'ticket-unsupported'
+    case null:
+    default:
+      return 'ticket-invalid'
+  }
 }

@@ -17,6 +17,9 @@ import type { RuntimeStatus } from '../../../shared/runtime-types'
 import { translate } from '@/i18n/i18n'
 import { readWebDeviceKeySupport } from './web-device-key-support'
 import { webSessionPairingGuidance } from './web-pairing-security-guidance'
+import { parsePairingTicketInput } from '../../../shared/pairing-ticket-offer'
+import { connectWebBrowserWithTicket } from './web-pairing-ticket-connect'
+import { pairingHostKeyFingerprint } from './web-pairing-host-fingerprint'
 
 type WebConnectProps = {
   initialPairingInput: string | null
@@ -33,11 +36,42 @@ export default function WebConnect({
   const [error, setError] = useState<string | null>(null)
   const [connecting, setConnecting] = useState(false)
   const parsedOffer = useMemo(() => parseWebPairingInput(pairingCode), [pairingCode])
+  // A single-use code from the Orca desktop; redeemed with this browser's own key.
+  const ticketOffer = useMemo(() => parsePairingTicketInput(pairingCode), [pairingCode])
+  const [comparisonCode, setComparisonCode] = useState<string | null>(null)
   const autoConnectAttempted = useRef(false)
   const sessionGuidance = webSessionPairingGuidance(readWebDeviceKeySupport())
 
+  const connectWithTicket = async (offer: NonNullable<typeof ticketOffer>): Promise<void> => {
+    if (isMixedContentWebSocket(offer.endpoint)) {
+      setError(
+        'This HTTPS page cannot connect to a plain ws:// Orca server. Open the web client over HTTP or pair with a wss:// endpoint.'
+      )
+      return
+    }
+    setConnecting(true)
+    try {
+      await connectWebBrowserWithTicket({
+        offer,
+        name,
+        previousEnvironment: existingEnvironment,
+        onComparisonCode: setComparisonCode
+      })
+      onConnected()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setComparisonCode(null)
+      setConnecting(false)
+    }
+  }
+
   const connect = async (): Promise<void> => {
     setError(null)
+    if (ticketOffer) {
+      await connectWithTicket(ticketOffer)
+      return
+    }
     if (!parsedOffer) {
       setError('Enter a valid Orca pairing URL or pairing code.')
       return
@@ -97,14 +131,21 @@ export default function WebConnect({
   // Why: a deep-linked offer that reaches this screen either has mobile scope
   // or unknown legacy scope; run the same connect path to reject/probe it.
   useEffect(() => {
-    if (autoConnectAttempted.current || !initialPairingInput || !parsedOffer) {
+    // Why not tickets: a link can come from anyone, so redeeming one waits for a click on a
+    // screen that names its destination; otherwise it could pair this browser to a stranger's host.
+    if (autoConnectAttempted.current || !initialPairingInput || !parsedOffer || ticketOffer) {
       return
     }
     autoConnectAttempted.current = true
     void connect()
     // Why: run once for the deep-linked offer; connect() reads current refs/state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialPairingInput, parsedOffer])
+  }, [initialPairingInput, parsedOffer, ticketOffer])
+
+  const ticketHostFingerprint = useMemo(
+    () => (ticketOffer ? pairingHostKeyFingerprint(ticketOffer.publicKeyB64) : null),
+    [ticketOffer]
+  )
 
   const clear = (): void => {
     clearStoredWebRuntimeEnvironment()
@@ -170,6 +211,50 @@ export default function WebConnect({
           </div>
         )}
 
+        {ticketOffer && (
+          <div className="grid gap-1 rounded-md border border-border bg-muted px-3 py-2 text-xs text-muted-foreground">
+            <span>
+              {translate(
+                'auto.web.WebConnect.ticketDestination',
+                'This single-use code pairs this browser with:'
+              )}{' '}
+              <span className="font-mono text-foreground">{ticketOffer.endpoint}</span>
+            </span>
+            <span>
+              {translate('auto.web.WebConnect.ticketHostKey', 'Server key:')}{' '}
+              <span
+                className="font-mono text-foreground"
+                data-testid="web-pairing-host-fingerprint"
+              >
+                {ticketHostFingerprint}
+              </span>
+            </span>
+            <span>
+              {translate(
+                'auto.web.WebConnect.ticketConfirmHost',
+                'Connect only if this is the Orca server you meant to pair with.'
+              )}
+            </span>
+          </div>
+        )}
+
+        {comparisonCode && (
+          <div className="grid gap-1 rounded-md border border-border bg-muted px-3 py-2">
+            <p className="text-sm">
+              {translate(
+                'auto.web.WebConnect.ticketComparisonCode',
+                'Approve this browser on the Orca desktop. Allow it only if the desktop shows this same code:'
+              )}
+            </p>
+            <p
+              className="font-mono text-2xl font-semibold tracking-widest"
+              data-testid="web-pairing-comparison-code"
+            >
+              {comparisonCode}
+            </p>
+          </div>
+        )}
+
         {error && (
           <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {error}
@@ -184,7 +269,7 @@ export default function WebConnect({
           <Button
             type="button"
             onClick={() => void connect()}
-            disabled={connecting || !parsedOffer}
+            disabled={connecting || (!parsedOffer && !ticketOffer)}
             className="gap-2"
           >
             {connecting ? (
