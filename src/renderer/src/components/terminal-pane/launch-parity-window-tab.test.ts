@@ -12,6 +12,7 @@ import {
   perClientLoader,
   type LaunchStoreHolder
 } from '@/lib/launch-parity-renderer.test-fixture'
+import { getDefaultSettings } from '../../../../shared/constants'
 import { WINDOW_LAUNCH_CASES } from '../../../../shared/launch-parity-window-cases.test-fixture'
 import {
   LAUNCH_TAB_ID,
@@ -67,7 +68,9 @@ async function openTab(c: WindowLaunchCase) {
   Object.assign(window.api.platform, { get: () => ({ platform: c.client, osRelease: '10' }) })
   const store = modules.createStore()
   holder.store = store
-  store.setState(launchWorkspaceState(c.workspace, c.settings))
+  store.setState(
+    launchWorkspaceState(c.workspace, { ...getDefaultSettings('/home/alice'), ...c.settings })
+  )
   const worktreeId = launchWorkspaceId(c.workspace)
   const producer = c.producer
   if (producer.kind === 'quick-command') {

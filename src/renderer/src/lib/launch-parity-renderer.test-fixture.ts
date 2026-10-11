@@ -3,7 +3,6 @@
 import { vi } from 'vitest'
 import type * as StoreHelpersNamespace from '@/store/slices/store-test-helpers'
 import type * as CapabilitiesNamespace from '@/runtime/local-runtime-capabilities'
-import { getDefaultSettings } from '../../../shared/constants'
 import {
   LAUNCH_FOLDER_ID,
   LAUNCH_REPO_ID,
@@ -66,10 +65,10 @@ export function perClientLoader<T>(
   }
 }
 
-/** The store state one workspace needs, with the settings a case overrides. */
+/** The store state one workspace needs; `settings` is the full settings object the case runs with. */
 export function launchWorkspaceState(
   workspace: LaunchWorkspace,
-  settings: Record<string, unknown> = {}
+  settings: Record<string, unknown>
 ): Record<string, unknown> {
   const repoPath = workspace.kind === 'repo' ? workspace.path : workspace.repoPath
   const repo = repoPath
@@ -104,7 +103,7 @@ export function launchWorkspaceState(
     lastActivityAt: 0
   }
   return {
-    settings: { ...getDefaultSettings('/home/alice'), ...settings },
+    settings,
     repos: repo ? [repo] : [],
     projects: repo
       ? [

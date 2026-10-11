@@ -21,7 +21,7 @@ const NEW_WORKSPACE = {
   agent_kind: 'codex',
   launch_source: 'new_workspace_composer',
   request_kind: 'new'
-}
+} as const
 export const OPENCODE_MODEL = 'opencode/fledge-alpha-free'
 const rpc = (
   method: 'terminal.create' | 'terminal.createAgentSession',

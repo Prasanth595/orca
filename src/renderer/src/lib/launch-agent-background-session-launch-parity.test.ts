@@ -4,6 +4,7 @@ import {
   perClientLoader,
   type LaunchStoreHolder
 } from '@/lib/launch-parity-renderer.test-fixture'
+import { getDefaultSettings } from '../../../shared/constants'
 import {
   AUTOMATION_LAUNCH_CASES,
   AUTOMATION_PROMPT,
@@ -42,7 +43,9 @@ async function runAutomation(c: AutomationLaunchCase) {
   const modules = await load(c.client)
   const store = modules.createStore()
   holder.store = store
-  store.setState(launchWorkspaceState(c.workspace, c.settings))
+  store.setState(
+    launchWorkspaceState(c.workspace, { ...getDefaultSettings('/home/alice'), ...c.settings })
+  )
   const spawn = vi.fn(async (_request: Record<string, unknown>) => ({ id: 'pty-1' }))
   vi.stubGlobal('window', {
     dispatchEvent: vi.fn(),
