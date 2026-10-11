@@ -43,18 +43,23 @@ export function countUnsupportedSessionState(
     ? [...collectSessionOwnerKeys(session)].filter((ownerKey) => !owns(ownerKey)).length
     : 0
   // PTY bindings, remote session ids and shutdown markers are not counted: whether their terminals
-  // still run is the terminal gate's verdict, taken before every move; the move drops them.
+  // still run is the terminal gate's verdict, taken before every move; the move drops them. The
+  // same goes for saved-session residue no visible tab owns. A quit/live record whose pane left
+  // the terminal layout has no tab a user could close, and the destination refuses such a record
+  // in a payload (agent_pane_invalid), so the transfer's projection drops it. Client-hosted pages
+  // are dropped whole: rows name a paired device and browser profile only the source profile can
+  // resolve, and a page whose workspace is gone could never pass the destination's
+  // client_page_scope_invalid check either.
   count += Object.values(session.sleepingAgentSessionsByPaneKey ?? {}).filter((record) => {
     const touchesSource = matches(record.worktreeId) || record.connectionId === scope.targetId
     return (
-      touchesSource && !transferableSleepingAgentSession(record, session, scope, terminalTabIds)
+      touchesSource &&
+      !transferableSleepingAgentSession(record, session, scope, terminalTabIds) &&
+      // Residue a live pane still owns blocks: its resume authority is only the pane's own
+      // cold-restore path to consume, and silently dropping it would lose that verdict.
+      !orphanedSleepingAgentSession(record, session, terminalTabIds)
     )
   }).length
-  count += Object.entries(session.clientHostedBrowserPagesByWorktree ?? {})
-    .filter(([ownerKey]) => matches(ownerKey))
-    .filter(
-      ([ownerKey, pages]) => !clientHostedPagesAreTransferable(session, ownerKey, pages)
-    ).length
   count +=
     sourceHostPartition &&
     session.activeRepoId &&
@@ -90,15 +95,22 @@ export function countUnsupportedSessionState(
   return count
 }
 
-function clientHostedPagesAreTransferable(
+/**
+ * A quit/live record describes a pane that still exists in the restored session, so only that
+ * pane's cold-restore path may consume it (#5232). When the pane has left the terminal layout no
+ * tab owns the record any more and nothing in the UI can reach it: the move drops it instead of
+ * refusing on it. Worktree-sleep records and legacy records without an origin never orphan —
+ * worktree activation consumes them, which needs no pane.
+ */
+export function orphanedSleepingAgentSession(
+  record: SleepingAgentSessionRecord,
   session: WorkspaceSessionState,
-  ownerKey: string,
-  pages: NonNullable<WorkspaceSessionState['clientHostedBrowserPagesByWorktree']>[string]
+  terminalTabIds: ReadonlySet<string>
 ): boolean {
-  const browserWorkspaceIds = new Set(
-    (session.browserTabsByWorktree?.[ownerKey] ?? []).map((workspace) => workspace.id)
+  return (
+    (record.origin === 'quit' || record.origin === 'live') &&
+    !paneBelongsToTerminalLayout(record, session, terminalTabIds)
   )
-  return pages.every((page) => browserWorkspaceIds.has(page.workspaceId))
 }
 
 export function projectDormantSessionFocus(
