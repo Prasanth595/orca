@@ -75,5 +75,117 @@
     "text": "sidebar",
     "dynamic": false,
     "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowBranchConditionEditor.tsx",
+    "kind": "object-property:label",
+    "text": "path",
+    "dynamic": true,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowBranchConditionEditor.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "success",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowBranchConditionEditor.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "exitCode | output | json.field",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowBranchConditionEditor.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "otherwise",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowNodeEditorPanel.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "{{steps.nodeId.json.items}}",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/workflow-canvas-node-config.ts",
+    "kind": "object-property:label",
+    "text": "body",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/workflow-canvas-node-config.ts",
+    "kind": "object-property:label",
+    "text": "done",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/workflow-canvas-node-config.ts",
+    "kind": "object-property:label",
+    "text": "success",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/workflow-node-editor-config.ts",
+    "kind": "object-property:label",
+    "text": "exit code = 0",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/workflow-node-editor-config.ts",
+    "kind": "object-property:label",
+    "text": "= (equals)",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/workflow-node-editor-config.ts",
+    "kind": "object-property:label",
+    "text": "≠ (not equals)",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/workflow-node-editor-config.ts",
+    "kind": "object-property:label",
+    "text": "contains",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/workflow-node-editor-config.ts",
+    "kind": "object-property:label",
+    "text": "> (greater than)",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/workflow-node-editor-config.ts",
+    "kind": "object-property:label",
+    "text": "< (less than)",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/workflow-node-editor-config.ts",
+    "kind": "object-property:label",
+    "text": "matches regex",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/workflow-node-editor-config.ts",
+    "kind": "object-property:label",
+    "text": "is truthy",
+    "dynamic": false,
+    "count": 1
   }
 ]
