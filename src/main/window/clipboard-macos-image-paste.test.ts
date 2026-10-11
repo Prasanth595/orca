@@ -113,7 +113,7 @@ describe('macOS clipboard image data beside a file URL', () => {
 
       const savedPath = await invoke('clipboard:saveImageAsTempFile')
       expect(savedPath).toMatch(/orca-paste-.+\.png$/)
-      expect(mocks.writeFile).toHaveBeenCalledWith(savedPath, PNG)
+      expect(mocks.writeFile).toHaveBeenCalledWith(savedPath, PNG, { mode: 0o600 })
       expect(mocks.readBuffer).not.toHaveBeenCalled()
     }
   )
