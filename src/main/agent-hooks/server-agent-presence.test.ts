@@ -274,6 +274,7 @@ describe('host-owned hook presence', () => {
     expect(await server.checkAgentPresence(PANE)).toBe('exited')
     expect(visible(server)).toBe(false)
     expect(await server.checkAgentPresence(PANE)).toBeNull()
+    expect(await server.checkAgentPresence(PANE, { includeEnded: true })).toBe('exited')
   })
 
   it('does not apply a delayed process exit to a relaunched agent', async () => {

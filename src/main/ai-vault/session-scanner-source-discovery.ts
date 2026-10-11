@@ -8,6 +8,8 @@ import { AI_VAULT_AGENT_SOURCES, type AiVaultAgentSource } from './session-scann
 import { normalizedWslHomeDirs } from './session-scanner-roots'
 import { configureOpenCodeWslReaders } from './session-scanner-opencode-wsl-client'
 import type { AiVaultScanOptions, SessionFileDiscovery } from './session-scanner-types'
+import { recordSessionScanIssue } from './session-scan-issues'
+import { errorMessage } from './session-scanner-values'
 
 export { DEFAULT_CODEX_HOME_DIR } from './session-scanner-agent-sources'
 
@@ -55,17 +57,29 @@ function agentDiscoveries(
   issues: AiVaultScanIssue[]
 ): Promise<SessionFileDiscovery>[] {
   const rootDirs = source.rootDirs(options, wslHomeDirs)
-  const discover = (rootDir: string): Promise<SessionFileDiscovery> =>
-    discoverFiles({
+  if (rootDirs.length === 0) {
+    return []
+  }
+  const predicate = source.createFilePredicate?.() ?? Promise.resolve(source.filePredicate)
+  const discover = async (rootDir: string): Promise<SessionFileDiscovery> => {
+    let filePredicate: ((filePath: string) => boolean) | undefined
+    try {
+      filePredicate = await predicate
+    } catch (error) {
+      recordSessionScanIssue(issues, { agent, path: rootDir, message: errorMessage(error) })
+      return { agent, rootDir, files: [] }
+    }
+    return discoverFiles({
       rootDir,
       limit,
       agent,
       issues,
       extensions: [...source.extensions],
-      filePredicate: source.filePredicate,
+      filePredicate,
       contentDependencyPath: source.contentDependencyPath,
       directoryPredicate: source.directoryPredicate
     })
+  }
   return source.mergeRootDiscoveries
     ? [mergedDiscovery(agent, rootDirs, limit, discover)]
     : rootDirs.map(discover)

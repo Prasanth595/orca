@@ -53,12 +53,15 @@ export async function deleteAiVaultSession(
     // The parse cache is keyed by the raw path the scanner discovered (which is
     // what the renderer echoes back as filePath), so invalidate with that exact
     // key — resolve() could normalise it away from the stored key and miss.
-    invalidateSessionParseCacheEntry(args?.filePath ?? '')
-    await (deps.invalidateBackgroundCache ?? invalidateAiVaultBackgroundCache)([
-      args?.filePath ?? ''
-    ]).catch((error) => {
-      console.warn('[ai-vault] background cache invalidation failed:', error)
-    })
+    const filePaths = [...new Set([args?.filePath ?? '', ...(result.filePaths ?? [])])]
+    for (const filePath of filePaths) {
+      invalidateSessionParseCacheEntry(filePath)
+    }
+    await (deps.invalidateBackgroundCache ?? invalidateAiVaultBackgroundCache)(filePaths).catch(
+      (error) => {
+        console.warn('[ai-vault] background cache invalidation failed:', error)
+      }
+    )
   }
 
   return result

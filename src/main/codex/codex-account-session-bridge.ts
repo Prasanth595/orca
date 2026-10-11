@@ -7,8 +7,12 @@ import {
   createCodexAccountStateDb,
   healCodexAccountSessionIndex
 } from './codex-account-session-index-heal'
-import { parseCodexRolloutThreadId } from './codex-session-index-heal-state'
+import { parseCodexRolloutThreadId } from './codex-rollout-identity'
 import { linkCodexSessionFile } from './codex-session-link'
+import {
+  isCodexRolloutDeletionRecorded,
+  withCodexRolloutPublication
+} from './codex-session-deletion-record'
 import {
   countCodexSessionFilesUpTo,
   findNewestCodexStateDbPath,
@@ -166,6 +170,9 @@ export async function bridgeCodexSessionsIntoAccountHome(args: {
       sourceSessionsRoot,
       args.options ?? {}
     )) {
+      if (isCodexRolloutDeletionRecorded(sourceFilePath)) {
+        continue
+      }
       summary.scannedFiles += 1
       const result = bridgeRolloutIntoAccountHome(
         sourceSessionsRoot,
@@ -192,19 +199,25 @@ function bridgeRolloutIntoAccountHome(
   targetSessionsRoot: string,
   sourceFilePath: string
 ): 'linked' | 'existing' | 'failed' {
-  const targetFilePath = join(targetSessionsRoot, relative(sourceSessionsRoot, sourceFilePath))
-  // Why: rollout names carry the session UUID, so an existing target path is the
-  // same conversation already bridged (often the same inode) — never a conflict.
-  if (existsSync(targetFilePath)) {
-    return 'existing'
-  }
-  try {
-    mkdirSync(dirname(targetFilePath), { recursive: true })
-  } catch (error) {
-    console.warn('[codex-account-session-bridge] Failed to create session directory:', error)
-    return 'failed'
-  }
-  return linkCodexSessionFile(sourceFilePath, targetFilePath) ? 'linked' : 'failed'
+  return withCodexRolloutPublication<'linked' | 'existing' | 'failed'>(
+    sourceFilePath,
+    'failed',
+    () => {
+      const targetFilePath = join(targetSessionsRoot, relative(sourceSessionsRoot, sourceFilePath))
+      // Why: rollout names carry the session UUID, so an existing target path is the
+      // same conversation already bridged (often the same inode) — never a conflict.
+      if (existsSync(targetFilePath)) {
+        return 'existing'
+      }
+      try {
+        mkdirSync(dirname(targetFilePath), { recursive: true })
+      } catch (error) {
+        console.warn('[codex-account-session-bridge] Failed to create session directory:', error)
+        return 'failed'
+      }
+      return linkCodexSessionFile(sourceFilePath, targetFilePath) ? 'linked' : 'failed'
+    }
+  )
 }
 
 /**

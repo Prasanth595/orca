@@ -15,6 +15,7 @@ import {
 } from './codex-session-file-listing'
 import { linkCodexSessionFile, tryHardlinkCodexSessionFile } from './codex-session-link'
 import type { CodexSessionBridgeIncrementalOptions } from './codex-session-file-listing'
+import { withCodexRolloutPublication } from './codex-session-deletion-record'
 
 export type { CodexSessionBridgeIncrementalOptions } from './codex-session-file-listing'
 
@@ -126,23 +127,25 @@ function bridgeSystemCodexSessionFile(
   managedSessionsRoot: string,
   systemSessionFilePath: string
 ): boolean {
-  const relativePath = relative(systemSessionsRoot, systemSessionFilePath)
-  const managedSessionFilePath = join(managedSessionsRoot, relativePath)
-  if (existsSync(managedSessionFilePath)) {
-    if (
-      replaceSymlinkSessionBridgeWithHardlink(
-        systemSessionFilePath,
-        managedSessionFilePath,
-        relativePath
-      )
-    ) {
-      return true
+  return withCodexRolloutPublication(systemSessionFilePath, false, () => {
+    const relativePath = relative(systemSessionsRoot, systemSessionFilePath)
+    const managedSessionFilePath = join(managedSessionsRoot, relativePath)
+    if (existsSync(managedSessionFilePath)) {
+      if (
+        replaceSymlinkSessionBridgeWithHardlink(
+          systemSessionFilePath,
+          managedSessionFilePath,
+          relativePath
+        )
+      ) {
+        return true
+      }
+      migrateLegacyCopiedSessionBridge(systemSessionFilePath, managedSessionFilePath, relativePath)
+      return false
     }
-    migrateLegacyCopiedSessionBridge(systemSessionFilePath, managedSessionFilePath, relativePath)
-    return false
-  }
-  mkdirSync(dirname(managedSessionFilePath), { recursive: true })
-  return linkSystemCodexSessionFile(systemSessionFilePath, managedSessionFilePath, relativePath)
+    mkdirSync(dirname(managedSessionFilePath), { recursive: true })
+    return linkSystemCodexSessionFile(systemSessionFilePath, managedSessionFilePath, relativePath)
+  })
 }
 
 /**

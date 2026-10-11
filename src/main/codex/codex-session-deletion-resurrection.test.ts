@@ -1,0 +1,233 @@
+import { lock } from 'proper-lockfile'
+import type * as CodexHomePaths from './codex-home-paths'
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  recordCodexSessionDeletion,
+  withCodexSessionHistoryMutation
+} from './codex-session-deletion-record'
+import { syncSystemCodexSessionsIntoManagedHome } from './codex-session-bridge'
+import { bridgeCodexSessionsIntoAccountHome } from './codex-account-session-bridge'
+import {
+  backfillManagedCodexSessionsIntoSystemHome,
+  startCodexSessionBackfillInBackground,
+  resolveCodexSessionBackfillPaths
+} from './codex-session-backfill'
+import { readCodexThreadsForIndexHeal } from './codex-session-index-heal'
+import { collectPendingHealThreads } from './codex-session-index-heal-state'
+import { resolveCodexSessionResumeProvenance } from './codex-session-resume-home'
+import { AI_VAULT_AGENT_SOURCES } from '../ai-vault/session-scanner-agent-sources'
+
+const SESSION = '019f0000-1111-7222-8333-000000000001'
+const OTHER = '019f0000-1111-7222-8333-000000000002'
+let root: string
+let systemHome: string
+let managedHome: string
+
+vi.mock('./codex-home-paths', async (importOriginal) => {
+  const actual = await importOriginal<typeof CodexHomePaths>()
+  return {
+    ...actual,
+    getSystemCodexHomePath: () => systemHome,
+    getOrcaManagedCodexHomePath: () => managedHome
+  }
+})
+
+function rollout(home: string, id = SESSION): string {
+  return join(home, 'sessions', '2026', '10', '11', `rollout-2026-10-11T12-00-00-${id}.jsonl`)
+}
+
+function seed(home: string, id = SESSION): string {
+  const path = rollout(home, id)
+  mkdirSync(dirname(path), { recursive: true })
+  writeFileSync(path, `${JSON.stringify({ type: 'session_meta', payload: { id } })}\n`)
+  return path
+}
+
+function backfillPaths() {
+  return {
+    managedSessionsRoot: join(managedHome, 'sessions'),
+    systemSessionsRoot: join(systemHome, 'sessions'),
+    auditLogPath: join(root, 'audit.jsonl'),
+    markerPath: join(root, 'marker.json')
+  }
+}
+
+beforeEach(() => {
+  root = mkdtempSync(join(tmpdir(), 'orca-codex-resurrection-'))
+  systemHome = join(root, 'system')
+  managedHome = join(root, 'managed')
+  vi.stubEnv('ORCA_USER_DATA_PATH', join(root, 'orca'))
+})
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+  rmSync(root, { recursive: true, force: true })
+})
+
+describe('durable Codex session deletion', () => {
+  it('skips publication while another process holds the session transaction lock', async () => {
+    seed(systemHome)
+    const record = join(root, 'orca', 'codex-session-deletions', `${SESSION}.tombstone`)
+    mkdirSync(dirname(record), { recursive: true })
+    const release = await lock(record, { realpath: false })
+    try {
+      syncSystemCodexSessionsIntoManagedHome()
+      expect(existsSync(rollout(managedHome))).toBe(false)
+      recordCodexSessionDeletion(SESSION)
+    } finally {
+      await release()
+    }
+    syncSystemCodexSessionsIntoManagedHome()
+    expect(existsSync(rollout(managedHome))).toBe(false)
+  })
+
+  it('defers a locked backfill file, finishes the audit, and retries it next pass', async () => {
+    seed(managedHome)
+    seed(managedHome, OTHER)
+    const record = join(root, 'orca', 'codex-session-deletions', `${SESSION}.tombstone`)
+    mkdirSync(dirname(record), { recursive: true })
+    const paths = resolveCodexSessionBackfillPaths()
+    const release = await lock(record, { realpath: false })
+    try {
+      const summary = await startCodexSessionBackfillInBackground({ yieldMs: 0 })
+      expect(summary?.deferredFiles).toBe(1)
+      expect(existsSync(rollout(systemHome))).toBe(false)
+      expect(existsSync(rollout(systemHome, OTHER))).toBe(true)
+      expect(existsSync(paths.markerPath)).toBe(false)
+      expect(readFileSync(paths.auditLogPath, 'utf8')).toContain('run-summary')
+    } finally {
+      await release()
+    }
+    await startCodexSessionBackfillInBackground({ yieldMs: 0 })
+    expect(existsSync(rollout(systemHome))).toBe(true)
+    expect(existsSync(paths.markerPath)).toBe(true)
+  })
+
+  it('defers only the locked heal thread without recording a completed read', async () => {
+    const record = join(root, 'orca', 'codex-session-deletions', `${SESSION}.tombstone`)
+    mkdirSync(dirname(record), { recursive: true })
+    const release = await lock(record, { realpath: false })
+    const request = vi.fn().mockResolvedValue({ thread: { id: OTHER } })
+    const onOutcome = vi.fn()
+    const options = {
+      buildInvocation: () => ({ command: 'stub', args: [], cliPath: null, timeoutMs: 1000 }),
+      runSession: async (
+        _invocation: unknown,
+        operation: (rpc: { request: typeof request; notify: typeof request }) => Promise<void>
+      ) => operation({ request, notify: request })
+    }
+    try {
+      expect(
+        await readCodexThreadsForIndexHeal(
+          systemHome,
+          [{ threadId: SESSION }, { threadId: OTHER }],
+          onOutcome,
+          options
+        )
+      ).toBe('deferred')
+      expect(onOutcome).toHaveBeenCalledTimes(1)
+      expect(onOutcome).toHaveBeenCalledWith({ threadId: OTHER }, 'healed')
+    } finally {
+      await release()
+    }
+    expect(
+      await readCodexThreadsForIndexHeal(systemHome, [{ threadId: SESSION }], onOutcome, options)
+    ).toBe('completed')
+    expect(onOutcome).toHaveBeenCalledWith({ threadId: SESSION }, 'healed')
+  })
+
+  it('blocks system/account bridges and backfill while other sessions still publish', async () => {
+    seed(systemHome)
+    seed(systemHome, OTHER)
+    seed(managedHome)
+    recordCodexSessionDeletion(SESSION)
+    syncSystemCodexSessionsIntoManagedHome()
+    expect(existsSync(rollout(managedHome, OTHER))).toBe(true)
+    const accountHome = join(root, 'account')
+    await bridgeCodexSessionsIntoAccountHome({
+      targetCodexHomePath: accountHome,
+      sourceCodexHomePaths: [systemHome, managedHome],
+      options: { yieldMs: 0 }
+    })
+    expect(existsSync(rollout(accountHome))).toBe(false)
+    expect(existsSync(rollout(accountHome, OTHER))).toBe(true)
+    rmSync(rollout(systemHome))
+    await backfillManagedCodexSessionsIntoSystemHome(backfillPaths(), { yieldMs: 0 })
+    expect(existsSync(rollout(systemHome))).toBe(false)
+  })
+
+  it('checks the deletion record after a queued publisher acquires the session lock', async () => {
+    seed(managedHome)
+    let release: () => void = () => {}
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const deletion = withCodexSessionHistoryMutation(SESSION, async () => {
+      await held
+      recordCodexSessionDeletion(SESSION)
+    })
+    const backfill = backfillManagedCodexSessionsIntoSystemHome(backfillPaths(), { yieldMs: 0 })
+    release()
+    await Promise.all([deletion, backfill])
+    expect(existsSync(rollout(systemHome))).toBe(false)
+  })
+
+  it('omits completed deletions from history discovery but retains failed deletions for retry', async () => {
+    const path = seed(systemHome)
+    recordCodexSessionDeletion(SESSION)
+    const pendingScan = await AI_VAULT_AGENT_SOURCES.codex.createFilePredicate?.()
+    expect(pendingScan?.(path)).toBe(true)
+    recordCodexSessionDeletion(SESSION, true)
+    const completedScan = await AI_VAULT_AGENT_SOURCES.codex.createFilePredicate?.()
+    expect(completedScan?.(path)).toBe(false)
+    expect(completedScan?.(rollout(systemHome, OTHER))).toBe(true)
+    expect(
+      completedScan?.(
+        `\\\\wsl.localhost\\Ubuntu\\home\\user\\.codex\\sessions\\${path.split(/[\\/]/).at(-1)}`
+      )
+    ).toBe(true)
+  })
+
+  it('does not re-index a deletion from either the audit ledger or an already queued heal', async () => {
+    const path = seed(systemHome)
+    writeFileSync(
+      join(root, 'audit.jsonl'),
+      `${JSON.stringify({ action: 'hardlink', target: path })}\n`
+    )
+    recordCodexSessionDeletion(SESSION)
+    expect(
+      await collectPendingHealThreads({
+        auditLogPath: join(root, 'audit.jsonl'),
+        systemSessionsRoot: join(systemHome, 'sessions'),
+        healLedgerPath: join(root, 'heal.jsonl'),
+        healMarkerPath: join(root, 'heal-marker.json')
+      })
+    ).toEqual([])
+    const request = vi.fn()
+    const onOutcome = vi.fn()
+    await readCodexThreadsForIndexHeal(systemHome, [{ threadId: SESSION }], onOutcome, {
+      buildInvocation: () => ({ command: 'stub', args: [], cliPath: null, timeoutMs: 1000 }),
+      runSession: async (_invocation, operation) => operation({ request, notify: vi.fn() })
+    })
+    expect(request).not.toHaveBeenCalled()
+    expect(onOutcome).toHaveBeenCalledWith({ threadId: SESSION }, 'missing')
+  })
+
+  it('refuses stale resume requests after deletion is recorded', async () => {
+    const path = seed(systemHome)
+    recordCodexSessionDeletion(SESSION)
+    await expect(
+      resolveCodexSessionResumeProvenance({
+        sessionId: SESSION,
+        transcriptPath: path,
+        trustedCodexHomes: [systemHome],
+        getSelectedAccountCodexHome: () => null,
+        systemCodexHomePath: systemHome,
+        sharedRuntimeCodexHomePath: managedHome
+      })
+    ).rejects.toThrow('deleted')
+  })
+})

@@ -17,6 +17,20 @@ describe('aiVaultSessionDeleteBlockedReason', () => {
     expect(aiVaultSessionDeleteBlockedReason(localGeminiSession)).toBeNull()
   })
 
+  it('offers local Codex deletion and blocks guest or remote Codex paths', () => {
+    const codex = { ...localGeminiSession, agent: 'codex' as const }
+    expect(aiVaultSessionDeleteBlockedReason(codex)).toBeNull()
+    expect(aiVaultSessionDeleteBlockedReason({ ...codex, executionHostId: 'ssh:box' })).toBe(
+      NON_LOCAL
+    )
+    expect(
+      aiVaultSessionDeleteBlockedReason({
+        ...codex,
+        filePath: String.raw`\\wsl.localhost\Ubuntu\home\user\.codex\sessions\rollout.jsonl`
+      })
+    ).toBe(NON_LOCAL)
+  })
+
   it('offers Delete for a directory-shaped agent (claude)', () => {
     expect(
       aiVaultSessionDeleteBlockedReason({

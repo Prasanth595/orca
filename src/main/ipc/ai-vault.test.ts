@@ -432,6 +432,24 @@ describe('deleteAiVaultSession', () => {
     expect(invalidateBackgroundCache).toHaveBeenCalledWith([args.filePath])
   })
 
+  it('invalidates every bridged Codex rollout returned by the executor', async () => {
+    const alias = '/managed/home/sessions/rollout.jsonl'
+    mocks.deleteAiVaultSessionFile.mockResolvedValue({
+      outcome: 'deleted',
+      filePaths: [args.filePath, alias]
+    })
+    const invalidateBackgroundCache = vi.fn().mockResolvedValue(undefined)
+    await deleteAiVaultSessionWithDeps(
+      { ...args, agent: 'codex' },
+      {
+        invalidateMultiHostListCache: vi.fn(),
+        invalidateBackgroundCache
+      }
+    )
+    expect(mocks.invalidateSessionParseCacheEntry).toHaveBeenCalledWith(alias)
+    expect(invalidateBackgroundCache).toHaveBeenCalledWith([args.filePath, alias])
+  })
+
   it('does not invalidate any cache when the executor rejects (e.g. non-local host)', async () => {
     mocks.deleteAiVaultSessionFile.mockResolvedValue({
       outcome: 'rejected',

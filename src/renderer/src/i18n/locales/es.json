@@ -13627,6 +13627,9 @@
             "sessionHostMismatchUnsupported": "Esta sesión pertenece a un host diferente. Abre un espacio de trabajo en el mismo host para reanudarla.",
             "prepareSessionResumeFailed": "Could not prepare this session for resume.",
             "sessionDeleted": "Sesión eliminada",
+            "codexDeleteUnsupported": "Esta versión de Codex no permite eliminar sesiones. Actualiza Codex e inténtalo de nuevo.",
+            "codexDeleteActive": "Un terminal de Codex o un chat nativo sigue usando esta sesión. Cierra su terminal o elimínala desde su chat.",
+            "codexDeleteIncomplete": "Eliminación incompleta. Es posible que queden datos de la sesión de Codex. Pulsa Eliminar de nuevo para terminar la limpieza.",
             "sessionDeleteFailed": "No se pudo eliminar la sesión",
             "resumeInChatConflict": "Otro chat ya está manteniendo esta conversación.",
             "resumeInChatTranscriptMissing": "El historial de esta conversación no se pudo cargar, por lo que no se puede reanudar en el chat.",
@@ -13775,6 +13778,7 @@
           },
           "AiVaultSessionDeleteDialog": {
             "title": "¿Eliminar esta sesión?",
+            "codexDescription": "\"{{value0}}\" se eliminará permanentemente del historial de Codex en este dispositivo. Se conservarán los archivos de tu espacio de trabajo. Antes de eliminarla, cierra cualquier sesión de Codex que la use fuera de Orca; Orca no puede detectar esas sesiones.",
             "description": "\"{{value0}}\" se eliminará. Una vez eliminada, tampoco podrá reanudarse desde la línea de comandos propia de {{value1}}.",
             "confirm": "Eliminar"
           },

@@ -1,4 +1,5 @@
 import { homedir } from 'node:os'
+import { createCodexRolloutVisibilityPredicate } from '../codex/codex-session-deletion-record'
 import { basename, dirname, join } from 'node:path'
 import { pathSegments } from './session-file-discovery'
 import { resolveAbsoluteDirOverride } from '../../shared/absolute-dir-override'
@@ -85,6 +86,7 @@ export type AiVaultAgentSource = {
   rootDirs: (options: AiVaultScanOptions, wslHomeDirs: readonly string[]) => string[]
   extensions: readonly string[]
   filePredicate?: (filePath: string) => boolean
+  createFilePredicate?: () => Promise<(filePath: string) => boolean>
   // A sibling whose stat participates in candidate freshness and recency; async
   // for agents that have to look the sibling up rather than derive its path.
   contentDependencyPath?: (filePath: string) => string | undefined | Promise<string | undefined>
@@ -138,6 +140,7 @@ export const AI_VAULT_AGENT_SOURCES: AiVaultAgentSourceTable = {
     directoryPredicate: (name) => name !== SUBAGENT_DIR_NAME
   },
   codex: {
+    createFilePredicate: createCodexRolloutVisibilityPredicate,
     rootDirs: (options, wslHomeDirs) =>
       uniqueCodexSessionsDirs([
         options.codexSessionsDir ?? codexHomeSessionsDir(),

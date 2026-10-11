@@ -2,6 +2,7 @@ import { isAiVaultDeletableAgent } from '../../../../shared/ai-vault-session-del
 import type { AiVaultSession } from '../../../../shared/ai-vault-types'
 import { translate } from '@/i18n/i18n'
 import { agentLabel } from './ai-vault-session-filters'
+import { isWslUncPath } from '../../../../shared/wsl-paths'
 import {
   canUseLocalAiVaultSessionPathActions,
   isSyntheticAiVaultSessionPath
@@ -21,7 +22,10 @@ import {
 export function aiVaultSessionDeleteBlockedReason(
   session: Pick<AiVaultSession, 'agent' | 'executionHostId' | 'filePath'>
 ): string | null {
-  if (!canUseLocalAiVaultSessionPathActions(session.executionHostId)) {
+  if (
+    !canUseLocalAiVaultSessionPathActions(session.executionHostId) ||
+    (session.agent === 'codex' && isWslUncPath(session.filePath))
+  ) {
     return translate(
       'auto.components.right.sidebar.AiVaultSessionRow.deleteReasonNonLocalHost',
       'Only sessions on this device can be deleted.'

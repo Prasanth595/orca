@@ -4,8 +4,7 @@ import type { ExecutionHostId } from './execution-host'
 // IPC payload for aiVault:deleteSession.
 export type AiVaultDeleteSessionArgs = {
   agent: AiVaultAgent
-  // Optional for mixed renderer/main versions. Main ignores this field on delete
-  // (path + host + agent validation only; no identity/liveness check).
+  // Optional for older renderers; required for Codex identity and ownership checks.
   sessionId?: string
   filePath: string
   // The session's host; only a local session may be deleted.
@@ -13,23 +12,20 @@ export type AiVaultDeleteSessionArgs = {
 }
 
 export type AiVaultDeleteSessionResult =
-  | { outcome: 'deleted' }
+  | { outcome: 'deleted'; filePaths?: string[] }
   | { outcome: 'rejected'; agent: AiVaultAgent; reason: AiVaultSessionDeleteRejectionCode }
-  | { outcome: 'failed'; agent: AiVaultAgent; error: string }
+  | {
+      outcome: 'failed'
+      agent: AiVaultAgent
+      error: string
+      detail?: 'unsupported' | 'incomplete' | 'active'
+    }
 
-// Agents whose sessions Orca can remove completely: everything the session
-// wrote is derivable from the one path the scanner surfaced, and none of it is
-// shared with another session.
-//
-// The rest are excluded, recorded here because the UI deliberately won't say
-// why (a provider's storage layout is Orca's problem, not the reader's):
-// - antigravity, kimi: a separate registry (history.jsonl / session_index.jsonl)
-//   would keep a dangling entry. Antigravity's carries no conversation id, so
-//   which line to drop can't be determined at all.
-// - codex: session_index.jsonl plus hardlink aliases between the Orca-managed
-//   home and ~/.codex, so a one-sided delete reappears on the next scan.
-// - opencode 1.17.x: a SQLite row, not a file.
+// Providers offered Delete in history. Codex uses its CLI; others use a file plan.
+// The generic file validator deliberately excludes Codex.
+// Antigravity/Kimi registries and OpenCode SQLite rows need separate executors.
 export const AI_VAULT_DELETABLE_AGENTS = [
+  'codex',
   'gemini',
   'copilot',
   'cursor',
