@@ -118,7 +118,11 @@ export class PrimaryStateWriteOperations {
       throw error
     }
     if (compensation?.persist) {
-      await this.persistMutation()
+      try {
+        await this.persistMutation()
+      } catch (error) {
+        console.error('[persistence] Failed to persist mutation compensation:', error)
+      }
     }
   }
 

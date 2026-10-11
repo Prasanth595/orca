@@ -28,10 +28,14 @@ export function withDurableRuntimeStore<
         const compensate = async () => {
           const compensation = mutation.rollback?.()
           if (compensation?.persist) {
-            if (store.flushPendingOrThrowAsync) {
-              await store.flushPendingOrThrowAsync({ drainToStableGeneration: false })
-            } else {
-              store.flushOrThrow?.()
+            try {
+              if (store.flushPendingOrThrowAsync) {
+                await store.flushPendingOrThrowAsync({ drainToStableGeneration: false })
+              } else {
+                store.flushOrThrow?.()
+              }
+            } catch (error) {
+              console.error('[persistence] Failed to persist mutation compensation:', error)
             }
           }
         }

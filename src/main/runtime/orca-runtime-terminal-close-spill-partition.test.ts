@@ -1,5 +1,5 @@
 import { withDurableRuntimeStore } from './runtime-durable-store-fixture'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { getDefaultWorkspaceSession } from '../../shared/constants'
 import { LOCAL_EXECUTION_HOST_ID, type ExecutionHostId } from '../../shared/execution-host'
 import { hasClosedTerminalTabRecord } from '../../shared/closed-terminal-tab-tombstones'
@@ -20,6 +20,8 @@ const REPO = {
 const WORKTREE_ID = 'repo::/worktree'
 const LEAF = '11111111-1111-4111-8111-111111111111'
 const SPILL_HOST_ID: ExecutionHostId = 'runtime:env-1'
+
+afterEach(() => vi.restoreAllMocks())
 
 function terminalTab(id: string, ptyId: string) {
   return {
@@ -244,34 +246,43 @@ describe('terminal close across local and runtime session partitions (#18202)', 
     expect(kill).not.toHaveBeenCalled()
   })
 
-  it('restores the closed copy but preserves a new owner in another partition during the write', async () => {
-    const original = sessionWithTab('target', 'target-pty')
-    const replacement = sessionWithTab('target', 'replacement-pty')
-    const sessions = new Map<ExecutionHostId, WorkspaceSessionState>([
-      [LOCAL_EXECUTION_HOST_ID, sessionWithTab('unrelated', 'unrelated-pty')],
-      [SPILL_HOST_ID, original],
-      ['runtime:env-0', structuredClone(original)]
-    ])
-    const { runtime, kill, flushOrThrow } = harness(sessions)
-    runtime.registerPty('target-pty', WORKTREE_ID, null, {
-      tabId: 'target',
-      leafId: LEAF,
-      incarnationId: 'target-incarnation'
-    })
-    flushOrThrow.mockImplementationOnce(() => {
-      sessions.set('runtime:env-0', replacement)
-    })
+  it.each(['succeeds', 'fails'])(
+    'preserves both copies on refusal when compensation %s',
+    async (compensation) => {
+      const original = sessionWithTab('target', 'target-pty')
+      const replacement = sessionWithTab('target', 'replacement-pty')
+      const sessions = new Map<ExecutionHostId, WorkspaceSessionState>([
+        [LOCAL_EXECUTION_HOST_ID, sessionWithTab('unrelated', 'unrelated-pty')],
+        [SPILL_HOST_ID, original],
+        ['runtime:env-0', structuredClone(original)]
+      ])
+      const { runtime, kill, flushOrThrow } = harness(sessions)
+      runtime.registerPty('target-pty', WORKTREE_ID, null, {
+        tabId: 'target',
+        leafId: LEAF,
+        incarnationId: 'target-incarnation'
+      })
+      flushOrThrow.mockImplementationOnce(() => {
+        sessions.set('runtime:env-0', replacement)
+      })
+      if (compensation === 'fails') {
+        vi.spyOn(console, 'error').mockImplementation(() => {})
+        flushOrThrow.mockImplementationOnce(() => {
+          throw new Error('compensation disk refused')
+        })
+      }
 
-    await expect(runtime.closeMobileSessionTab(`id:${WORKTREE_ID}`, 'target')).rejects.toThrow(
-      'terminal_pane_owner_changed'
-    )
-    expect(sessions.get(SPILL_HOST_ID)?.terminalLayoutsByTabId.target).toEqual(
-      original.terminalLayoutsByTabId.target
-    )
-    expect(sessions.get('runtime:env-0')).toBe(replacement)
-    expect(kill).not.toHaveBeenCalled()
-    expect(flushOrThrow).toHaveBeenCalledTimes(2)
-  })
+      await expect(runtime.closeMobileSessionTab(`id:${WORKTREE_ID}`, 'target')).rejects.toThrow(
+        'terminal_pane_owner_changed'
+      )
+      expect(sessions.get(SPILL_HOST_ID)?.terminalLayoutsByTabId.target).toEqual(
+        original.terminalLayoutsByTabId.target
+      )
+      expect(sessions.get('runtime:env-0')).toBe(replacement)
+      expect(kill).not.toHaveBeenCalled()
+      expect(flushOrThrow).toHaveBeenCalledTimes(2)
+    }
+  )
 
   it('does not undo a newer close when compensating a rejected write', async () => {
     const sessions = new Map<ExecutionHostId, WorkspaceSessionState>([
