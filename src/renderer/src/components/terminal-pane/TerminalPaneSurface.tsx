@@ -19,6 +19,7 @@ import { handleInternalTerminalFileDrop } from './terminal-drop-handler'
 import { TerminalQuickCommandEditorDialog } from './TerminalQuickCommandEditorDialog'
 import { TerminalPaneNativeChatPortal } from './TerminalPaneNativeChatPortal'
 import { TerminalImageAttachmentPortals } from './TerminalImageAttachmentPortals'
+import { TerminalPaneSleepingPortals } from './TerminalPaneSleepingPortals'
 import {
   TerminalPaneCodexRestartPortals,
   TerminalPaneMobileDriverPortals,
@@ -370,6 +371,7 @@ export function TerminalPaneSurface({
         onRenameBlur={handleRenameBlur}
       />
       <TerminalPaneRecoveryPortals controller={controller} />
+      <TerminalPaneSleepingPortals controller={controller} />
       <TerminalPaneMobileDriverPortals controller={controller} />
       <CloseTerminalDialog
         open={pendingCloseConfirmation !== null}
