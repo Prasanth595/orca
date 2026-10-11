@@ -15,6 +15,8 @@ test('terminal focus keeps caption drag regions live and controls clickable', as
   await waitForSessionReady(orcaPage)
   await waitForActiveWorktree(orcaPage)
   await ensureTerminalVisible(orcaPage)
+  await orcaPage.evaluate(() => window.__store?.getState().setRightSidebarOpen(true))
+  await expect(orcaPage.locator('.right-sidebar-header-drag:visible').first()).toBeVisible()
 
   const helper = orcaPage.locator('.xterm:visible .xterm-helper-textarea').first()
   await expect(helper).toBeAttached()
@@ -51,6 +53,7 @@ test('terminal focus keeps caption drag regions live and controls clickable', as
     contentType: 'image/png'
   })
   expect(regions.drag.some(({ selector }) => selector === '.titlebar-left')).toBe(true)
+  expect(regions.drag.some(({ selector }) => selector === '.right-sidebar-header-drag')).toBe(true)
   expect(
     regions.drag.some(({ selector }) => selector === '[data-terminal-focus-release-surface="true"]')
   ).toBe(true)
