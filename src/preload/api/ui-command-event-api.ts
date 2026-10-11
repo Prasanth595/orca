@@ -201,7 +201,7 @@ export type UiCommandEventApi = {
     }) => void
   ) => () => void
   onRenameTerminal: (
-    callback: (data: { tabId: string; title: string | null }) => void
+    callback: (data: { tabId: string; title: string | null; recordInteraction?: false }) => void
   ) => () => void
   onFocusTerminal: (
     callback: (data: {
@@ -232,7 +232,7 @@ export type UiCommandEventApi = {
       worktreeId: string
       filePath: string
       relativePath: string
-      runtimeEnvironmentId?: string
+      runtimeEnvironmentId?: string | null
       navigation?: RuntimeNavigationTarget
     }) => void
   ) => () => void
@@ -242,7 +242,7 @@ export type UiCommandEventApi = {
       filePath: string
       relativePath: string
       staged: boolean
-      runtimeEnvironmentId?: string
+      runtimeEnvironmentId?: string | null
       navigation?: RuntimeNavigationTarget
     }) => void
   ) => () => void

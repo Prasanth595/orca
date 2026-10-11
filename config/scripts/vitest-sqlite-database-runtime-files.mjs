@@ -18,6 +18,7 @@ export const SQLITE_DATABASE_RUNTIME_INCLUDE = [
   'src/main/native-chat/transcript-opencode-semantic-fidelity.test.ts',
   'src/main/native-chat/transcript-opencode-sqlite-query.test.ts',
   'src/main/native-chat/transcript-opencode-subscribe.test.ts',
+  'src/main/native-chat/transcript-zcode.test.ts',
   'src/main/native-chat/transcript-opencode2-sqlite.test.ts',
   'src/main/opencode-usage/cache-read-reproduction.test.ts',
   'src/main/opencode-usage/opencode2-session-usage.test.ts',
@@ -29,7 +30,7 @@ export const SQLITE_DATABASE_RUNTIME_INCLUDE = [
   'src/main/runtime/claude-structured-exit-mid-response.test.ts',
   'src/main/runtime/claude-structured-failed-start-resume.test.ts',
   'src/main/runtime/claude-structured-resumed-start-failure.test.ts',
-  'src/main/runtime/claude-structured-send-held-for-startup.test.ts',
+  'src/main/runtime/claude-structured-send-during-startup.test.ts',
   'src/main/runtime/claude-structured-send-restart-dies-before-dispatch.test.ts',
   'src/main/runtime/claude-structured-session-integration.test.ts',
   'src/main/runtime/claude-structured-startup-fault-is-not-an-exit.test.ts',
@@ -119,6 +120,7 @@ export const SQLITE_DATABASE_RUNTIME_INCLUDE = [
   'src/main/runtime/orchestration/worker-dispatch-repair-safety.test.ts',
   'src/main/runtime/orchestration/worker-dispatch-settlement.test.ts',
   'src/main/runtime/orchestration/worker-start-unobserved-prompt-settlement.test.ts',
+  'src/main/runtime/rpc/methods/agent-launch-instant-tab.test.ts',
   'src/main/runtime/rpc/methods/agent-launch-restart-replay.test.ts',
   'src/main/runtime/rpc/methods/native-chat-opencode-semantic-pages.test.ts',
   'src/main/runtime/rpc/methods/native-chat-opencode-wire-page-budget.test.ts',
@@ -146,7 +148,6 @@ export const SQLITE_DATABASE_RUNTIME_INCLUDE = [
   'src/main/runtime/rpc/methods/orchestration/worker/agent-status-producer-census.test.ts',
   'src/main/runtime/rpc/methods/orchestration/worker/manual-dispatch-observation.test.ts',
   'src/main/runtime/rpc/methods/orchestration/worker/manual-dispatch-release.test.ts',
-  'src/main/runtime/rpc/methods/orchestration/worker/worker-abandon-caller.test.ts',
   'src/main/runtime/rpc/methods/orchestration/worker/worker-interactive-wait.test.ts',
   'src/main/runtime/rpc/methods/orchestration/worker/worker-list-pagination.test.ts',
   'src/main/runtime/rpc/methods/orchestration/worker/worker-release-recovery.test.ts',
@@ -193,7 +194,7 @@ export const SQLITE_DATABASE_RUNTIME_INCLUDE = [
   'src/main/runtime/structured-claude-auth-policy-wiring.test.ts',
   'src/main/runtime/structured-codex-child-work-runtime.test.ts',
   'src/main/runtime/structured-worker-at-rest.test.ts',
-  'src/main/ssh/ssh-remote-orca-cli.test.ts',
-  'src/main/ssh/ssh-remote-orchestration-compatibility.test.ts',
-  'tests/e2e/completed-worker-retirement-resume.unit.test.ts'
+  'tests/e2e/completed-worker-retirement-resume.unit.test.ts',
+  'tests/e2e/cross-version-wire/agent-session-clear-old-client.unit.test.ts',
+  'tests/e2e/cross-version-wire/agent-session-clear-old-tab-mirror.unit.test.ts'
 ]

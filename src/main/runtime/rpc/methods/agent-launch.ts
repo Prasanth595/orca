@@ -43,7 +43,11 @@ import {
   settleQuietly,
   withEarlyTab
 } from './agent-launch-execution-outcome'
-import { AgentLaunch, AgentLaunchReplay, type AgentLaunchParams } from './agent-launch-schemas'
+import {
+  AgentLaunch,
+  AgentLaunchReplay,
+  type AgentLaunchParams
+} from '../../../../shared/rpc-contract/agent-launch-params'
 import { agentLaunchSurfaceFactory } from './agent-launch-surfaces'
 import {
   agentLaunchFailureCode,
@@ -54,8 +58,14 @@ import {
   selectAgentLaunchTabForCaller
 } from './agent-launch-caller-selection'
 import { agentLaunchWorkspaceFactory } from './agent-launch-worktree-creation'
+import { assertAgentLaunchTargetAuthorized } from './agent-launch-target-authorization'
+import { clientRendersStructuredAgent } from './structured-agent-session-policy'
 import { resolveUnlaunchedIntent } from './agent-launch-intent-resolution'
-import { publishEarlyTab, withPlacement, type AgentLaunchView } from './agent-launch-tab-publication'
+import {
+  publishEarlyTab,
+  withPlacement,
+  type AgentLaunchView
+} from './agent-launch-tab-publication'
 
 /**
  * Advertising `agent.launch.v2` is a client's statement that it understands EITHER outcome — a
@@ -71,6 +81,23 @@ export function supportsAgentLaunch(
   return (
     context.clientKind === undefined ||
     context.clientCapabilities?.includes(AGENT_LAUNCH_RUNTIME_CAPABILITY) === true
+  )
+}
+
+/**
+ * `agent.launch.v2` was defined when Claude and Codex were the only chats, so it vouches for those
+ * two. Any other agent's chat needs the client to say it reads it, by the rule tabs and restart
+ * offers use; a client that does not gets that agent as a terminal.
+ */
+function callerRendersLaunchedChat(
+  context: Pick<RpcContext, 'clientKind' | 'clientCapabilities'>,
+  agent: string
+): boolean {
+  return (
+    context.clientKind === undefined ||
+    agent === 'claude' ||
+    agent === 'codex' ||
+    clientRendersStructuredAgent(context.clientCapabilities, agent)
   )
 }
 
@@ -104,6 +131,7 @@ async function runAgentLaunch(
       view.early
     ),
     workspaces: agentLaunchWorkspaceFactory(context, intent.agent),
+    ...(callerRendersLaunchedChat(context, intent.agent) ? {} : { callerRendersStructured: false }),
     // The tab is shown as it is published, not after a prompt that can take a minute to land.
     onSurfacePublished: (surface) => {
       view.early?.surfacePublished(surface)
@@ -282,11 +310,13 @@ function runReplaySafeAgentLaunch(
 export const AGENT_LAUNCH_METHODS = [
   defineMethod({
     name: 'agent.launchReplay',
+    permission: 'workspace',
     params: AgentLaunchReplay,
     handler: async (params, context): Promise<AgentLaunchResult> => {
       if (!supportsAgentLaunch(context)) {
         throw new Error('agent_launch_replay_unsupported')
       }
+      assertAgentLaunchTargetAuthorized(params.target, context)
       try {
         return await runReplaySafeAgentLaunch(params, context)
       } catch (error) {
@@ -311,11 +341,13 @@ export const AGENT_LAUNCH_METHODS = [
   }),
   defineMethod({
     name: 'agent.launch',
+    permission: 'workspace',
     params: AgentLaunch,
     handler: async (params, context): Promise<AgentLaunchResult> => {
       if (!supportsAgentLaunch(context)) {
         throw new Error('agent_launch_unsupported')
       }
+      assertAgentLaunchTargetAuthorized(params.target, context)
       if (!params.operationId) {
         return runLegacyAgentLaunch(params, context)
       }

@@ -10,6 +10,7 @@ import {
 } from '../direct-ssh-state-routing'
 import type { DirectSshBridgeRuntime } from './direct-ssh-bridge-runtime'
 import { hydrateDirectSshInitialState } from './direct-ssh-initial-state-hydration'
+import { applySshManagedServerTransition } from './ssh-managed-server-state-effects'
 export function registerDirectSshStateIpcBridge(
   unsubs: (() => void)[],
   runtime: DirectSshBridgeRuntime
@@ -19,7 +20,7 @@ export function registerDirectSshStateIpcBridge(
     reconnectCoordinator,
     currentAuthority,
     terminalActions,
-    prepareAndSync
+    prepareHost
   } = runtime
   const sshStateWatermarkByTargetId = new Map<string, number>()
   // Connect replies can update the store before this bridge routes the matching push.
@@ -154,7 +155,9 @@ export function registerDirectSshStateIpcBridge(
     origin: DirectSshConnectedStateOrigin
   ): void => {
     const store = useAppStore.getState()
+    const previousManagedServer = store.sshConnectionStates.get(targetId)?.managedServer
     store.setSshConnectionState(targetId, state)
+    applySshManagedServerTransition(targetId, previousManagedServer, state.managedServer)
 
     if (canConnectSshStatus(state.status)) {
       routedAuthorityByTarget.delete(targetId)
@@ -187,7 +190,7 @@ export function registerDirectSshStateIpcBridge(
           terminalActions().invalidateStaleDirectSshTargetPtyBindings?.(nextAuthority) ?? 0,
         retryTargetPanes: (nextAuthority) =>
           terminalActions().retryDirectSshTargetPanes?.(nextAuthority) ?? 0,
-        prepareAndSync: prepareAndSync,
+        prepareHost,
         rememberReconnectAuthority: (nextAuthority) => {
           if (nextAuthority) {
             reconnectAuthorityByTarget.set(targetId, nextAuthority)
@@ -258,7 +261,7 @@ export function registerDirectSshStateIpcBridge(
       getConnectionStates: () => useAppStore.getState().sshConnectionStates ?? [],
       wakeAuthority: (authority) => {
         reconnectCoordinator.correctUnboundTerminals(authority, 'wake-refresh')
-        void prepareAndSync(authority, 'wake-refresh')
+        void prepareHost(authority, 'wake-refresh')
       },
       ...(typeof window.api.ui.onSystemResumed === 'function'
         ? { onSystemResumed: (callback: () => void) => window.api.ui.onSystemResumed(callback) }

@@ -31,7 +31,12 @@ export type RuntimeNotifier = {
     selector?: { kind: 'self' } | { kind: 'ssh'; targetId: string } | { kind: 'orphan' }
     reason?: 'definition' | 'run' | 'usage'
   }): void
-  worktreesChanged(repoId: string, renamed?: { oldWorktreeId: string; newWorktreeId: string }): void
+  worktreesChanged(
+    repoId: string,
+    renamed?: { oldWorktreeId: string; newWorktreeId: string },
+    // Why: false for metadata-only changes (sort order) that leave Git scan results valid.
+    options?: { invalidateGitScans?: boolean }
+  ): void
   worktreeBaseStatus?(event: WorktreeBaseStatusEvent): void
   worktreeRemoteBranchConflict?(event: WorktreeRemoteBranchConflictEvent): void
   reposChanged(): void
@@ -104,7 +109,8 @@ export type RuntimeNotifier = {
       newLeafId?: string
     }
   ): void
-  renameTerminal(tabId: string, title: string | null): void
+  /** `recordInteraction: false` marks a title the host applied, not one the user typed. */
+  renameTerminal(tabId: string, title: string | null, options?: { recordInteraction: false }): void
   focusTerminal(tabId: string, worktreeId: string, leafId?: string | null): void
   focusEditorTab?(tabId: string, worktreeId: string): void
   closeSessionTab?(tabId: string, worktreeId: string): void | Promise<void>

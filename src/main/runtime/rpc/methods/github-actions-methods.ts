@@ -9,6 +9,7 @@ export const GITHUB_ACTIONS_METHODS = [
   ...GITHUB_ACTIONS_ARTIFACT_METHODS,
   defineMethod({
     name: 'github.actionsRuns',
+    permission: 'workspace',
     params: ActionsRuns,
     /** Read the selected run page on its execution host with caller cancellation. */
     handler: (params, { runtime, signal }) =>
@@ -16,6 +17,7 @@ export const GITHUB_ACTIONS_METHODS = [
   }),
   defineMethod({
     name: 'github.actionsWorkflows',
+    permission: 'workspace',
     params: ActionsWorkflows,
     /** Read workflow paging on the execution host with caller cancellation. */
     handler: (params, { runtime, signal }) =>
@@ -23,6 +25,7 @@ export const GITHUB_ACTIONS_METHODS = [
   }),
   defineMethod({
     name: 'github.actionsRunDetails',
+    permission: 'workspace',
     params: ActionsRunDetails,
     /** Read attempt-specific job details on the execution host with caller cancellation. */
     handler: (params, { runtime, signal }) =>

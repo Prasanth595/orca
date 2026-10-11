@@ -13,7 +13,7 @@ import type {
 } from '../../../../shared/github/actions-types'
 import type { GitHubRepositoryIdentity } from '../../../../shared/github/pull-request-types'
 import { callRuntimeRpc, RuntimeRpcCallError } from '../../runtime/runtime-rpc-client'
-import { getGitHubRepoSourceSettings, getGitHubWorkItemRequestContext } from './work-item-routing'
+import { getGitHubSourceTarget, getGitHubWorkItemRequestContext } from './work-item-routing'
 import { translate } from '@/i18n/i18n'
 
 import type {
@@ -86,10 +86,9 @@ function route(state: AppState, context: ActionsRequestContext) {
       )
     )
   }
-  const settings = getGitHubRepoSourceSettings(state.settings, repo, context.sourceContext)
   const target = getGitHubWorkItemRequestContext(
     state,
-    settings,
+    getGitHubSourceTarget(state, repo, context.sourceContext),
     repo.id,
     repo.path,
     context.sourceContext

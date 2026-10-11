@@ -7,6 +7,7 @@ import {
 export const GITHUB_ACTIONS_ARTIFACT_METHODS = [
   defineMethod({
     name: 'github.actionsArtifacts',
+    permission: 'workspace',
     params: ActionsArtifacts,
     /** List artifacts on the execution host with caller cancellation propagated to GitHub reads. */
     handler: (params, { runtime, signal }) =>
@@ -14,6 +15,7 @@ export const GITHUB_ACTIONS_ARTIFACT_METHODS = [
   }),
   defineMethod({
     name: 'github.startActionsArtifactDownload',
+    permission: 'workspace',
     params: ActionsArtifactDownload,
     /** Retain disconnect cancellation across chunk requests; dispose the lifetime immediately if acquisition fails. */
     handler: async (params, { runtime, signal, retainConnectionLifetime }) => {
@@ -37,12 +39,14 @@ export const GITHUB_ACTIONS_ARTIFACT_METHODS = [
   }),
   defineMethod({
     name: 'github.readActionsArtifactChunk',
+    permission: 'workspace',
     params: ActionsArtifactTransfer,
     /** Revalidate execution-host transfer ownership before returning a bounded archive chunk. */
     handler: (params, { runtime }) => runtime.readRepoActionsArtifactChunk(params.repo, params)
   }),
   defineMethod({
     name: 'github.releaseActionsArtifactDownload',
+    permission: 'workspace',
     params: ActionsArtifactTransfer,
     /** Release the owner-matching archive and its retained disconnect lifetime. */
     handler: (params, { runtime }) =>
