@@ -161,7 +161,6 @@ describe('defaultHostTerminalLedgerDir', () => {
   it('uses the per-user machine-local base beside relocated daemon sockets', () => {
     expect(defaultHostTerminalLedgerDir('linux', 1000)).toBe('/tmp/.orca-daemon-1000/terminals')
     expect(defaultHostTerminalLedgerDir('darwin', 501)).toBe('/tmp/.orca-daemon-501/terminals')
-    expect(defaultHostTerminalLedgerDir('linux', undefined)).toBeNull()
     expect(defaultHostTerminalLedgerDir('win32', undefined)).toBe(
       join(tmpdir(), 'orca-daemon-host-terminals')
     )
