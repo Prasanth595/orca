@@ -61,6 +61,7 @@ export function useHostRepoMetadata(args: {
     setHostLabelById,
     setHostHealthById,
     setHostPlatform,
+    setSshTargetSummaries,
     setRepoColorsByName,
     setRepoHostIdByRepoId,
     setRepoIconsByName,
@@ -118,14 +119,20 @@ export function useHostRepoMetadata(args: {
           )
           setRepoIdsByName(new Map(catalog.map((repo) => [repo.displayName, repo.id])))
           setRepoHostIdByRepoId(buildRepoHostIdByRepoId(catalog))
-          // Why: rows name their host when the list spans hosts or an SSH host may be unhealthy,
-          // so a local-only catalog never pays for the label lookups. Counted over repos, not the
-          // id-keyed map: one repo id registered on two hosts is two hosts.
+          const sshTargetReply = await settledMetadataReply(() =>
+            hostSshTargetSummariesRead.request(requestClient)
+          )
+          if (clientRef.current !== requestClient || hostId !== requestHostId) {
+            return
+          }
+          setSshTargetSummaries(
+            acceptedMetadata(sshTargetReply, hostSshTargetSummariesRead.interpret) ?? []
+          )
+          // Why: rows name their host when the list spans hosts or an SSH host may be unhealthy.
           const hostIds = new Set(catalog.map((repo) => getRepoExecutionHostId(repo)))
           const hasSshHost = [...hostIds].some((id) => parseExecutionHostId(id)?.kind === 'ssh')
           if (hostIds.size > 1 || hasSshHost) {
-            const [sshTargets, hostSettings, hostPlatform] = await Promise.all([
-              settledMetadataReply(() => hostSshTargetSummariesRead.request(requestClient)),
+            const [hostSettings, hostPlatform] = await Promise.all([
               optionalSettingsRead.request(requestClient).catch(() => null),
               settledMetadataReply(() => hostPlatformRead.request(requestClient))
             ])
@@ -136,7 +143,7 @@ export function useHostRepoMetadata(args: {
               ? optionalSettingsRead.interpret(hostSettings)
               : null
             const sshTargetSummaries =
-              acceptedMetadata(sshTargets, hostSshTargetSummariesRead.interpret) ?? []
+              acceptedMetadata(sshTargetReply, hostSshTargetSummariesRead.interpret) ?? []
             setHostHealthById(buildSshHostHealthById(sshTargetSummaries))
             setHostLabelById(
               buildHostLabelById({

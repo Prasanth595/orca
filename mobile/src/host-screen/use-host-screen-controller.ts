@@ -88,6 +88,7 @@ export function useHostScreenController({
     embedded,
     fetchWorktrees: catalog.fetchWorktrees,
     forgetHostClient,
+    hostCapabilities,
     hostId,
     pathname,
     router,

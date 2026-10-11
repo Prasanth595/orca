@@ -143,7 +143,11 @@ export const EXECUTION_HOST_METHODS = [
   // Why: the phone reports a takeover out of band, the same signal the desktop renderer sends.
   'orchestration.workerTerminalUserInput',
   'projectGroup.list',
+  // Add Project mutates the selected execution host; keep these routed with the host rather than the paired desktop.
+  'repo.add',
   'repo.baseRefDefault',
+  'repo.clone',
+  'repo.create',
   'repo.gitAvailable',
   'repo.hooks',
   'repo.list',

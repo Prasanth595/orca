@@ -24,6 +24,7 @@ export {
   listRegisteredSshTargets
 } from '../ssh/ssh-target-registry'
 import { registerSshBrowseHandler } from './ssh-browse'
+import { setSshBrowseConnectionResolver } from '../host/ssh-browse-port'
 import { registerCredentialHandler } from './ssh-passphrase'
 import type { OrcaRuntimeService } from '../runtime/orca-runtime'
 import {
@@ -129,6 +130,7 @@ export function registerSshHandlers(
   })
   registerPowerMonitorReconnect(() => getAppEnvironment().getPath('userData'))
   registerSshBrowseHandler(() => connectionManager)
+  setSshBrowseConnectionResolver((targetId) => connectionManager?.getConnection(targetId))
   setSshConnectionManagerResolver(() => connectionManager)
 
   registerSshTargetCrudHandlers()
@@ -163,6 +165,7 @@ export async function resetSshHandlerStateForTests(): Promise<void> {
   portForwardManager?.dispose()
   setConnectionManager(null)
   setSshConnectionManagerResolver(null)
+  setSshBrowseConnectionResolver(null)
   setPortForwardManager(null)
   setSshTargetRegistryStore(null)
   setPersistedStore(null)

@@ -1,5 +1,5 @@
-import type { SshConnectionManager } from './ssh-connection-manager'
 import type { SshExecOptions } from './ssh-connection-utils'
+import type { ClientChannel } from 'ssh2'
 import { powerShellCommand, powerShellLiteral } from './ssh-remote-powershell'
 import type { FilesystemPathFlavor } from '../../shared/filesystem-entry-types'
 import { sortDirEntries } from '../../shared/file-name-sort'
@@ -33,8 +33,16 @@ class RemoteBrowseError extends Error {
 }
 
 // Why: relay fs.readDir needs workspace-root ACLs that don't exist until a repo is added, so browse over raw SSH exec.
+export type SshBrowseConnection = {
+  exec: (command: string, options?: SshExecOptions) => Promise<ClientChannel>
+}
+
+type SshBrowseManager = {
+  getConnection: (targetId: string) => SshBrowseConnection | undefined
+}
+
 export async function browseSshDirectory(
-  manager: SshConnectionManager | null,
+  manager: SshBrowseManager | null,
   targetId: string,
   dirPath: string
 ): Promise<RemoteBrowseResult> {
@@ -61,8 +69,6 @@ export async function browseSshDirectory(
     }
   }
 }
-
-type SshBrowseConnection = NonNullable<ReturnType<SshConnectionManager['getConnection']>>
 
 function browseWithPosixShell(
   conn: SshBrowseConnection,

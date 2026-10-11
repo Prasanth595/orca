@@ -186,5 +186,4 @@ describe('Antigravity IDE history discovery', () => {
     await writeFile(file, ' '.repeat(ANTIGRAVITY_INDEX_MAX_BYTES + 1))
     expect(await readLocalAntigravityHistory(file)).toBeNull()
   })
-
 })
