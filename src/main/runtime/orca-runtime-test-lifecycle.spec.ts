@@ -1,6 +1,11 @@
 import * as mocks from './orca-runtime-test-mocks.spec'
+import type { MockInstance } from 'vitest'
+import * as worktreeChangeInvalidators from '../ipc/worktree-change-invalidators'
 import { awaitBackgroundRemovalsInRuntimeTests } from './orca-runtime-background-removal-test-support'
-import { _resetPendingWorktreeRemovalsForTests } from '../worktree-background-removal'
+import {
+  _resetPendingWorktreeRemovalsForTests,
+  _settlePendingWorktreeRemovalsForTests
+} from '../worktree-background-removal'
 import { _resetCanonicalRepoKeyCacheForTests } from '../git/canonical-repo-key'
 
 const { MOCK_GIT_WORKTREES, RuntimeBrowserCommands, _resetTerminalViewAttributesForTest } = mocks
@@ -16,7 +21,7 @@ const { closeLocalWatcherForWorktreePathMock, closeRemoteWatcherForWorktreePathM
 const { computeWorktreePathMock, countGitHubWorkItemsMock, createGitHubIssueMock } = mocks
 const { createGitLabIssueMock, createHostedReviewMock, createSetupRunnerScript } = mocks
 const { createStackedHostedReviewMock, detectInstalledAgentsWithShellPathHydrationMock } = mocks
-const { detectRemoteAgentsMock, electronMocks, ensurePathWithinWorkspaceMock } = mocks
+const { electronMocks, ensurePathWithinWorkspaceMock } = mocks
 const { findExistingWorktreeSymlinkPathsMock, forceDeleteLocalBranchMock } = mocks
 const { forgetLocalWatcherRemovalSnapshotMock, forgetRemoteWatcherRemovalSnapshotMock } = mocks
 const { describeCreatedWorktree } = mocks
@@ -69,7 +74,9 @@ function resetRuntimeTestMocks(): void {
   // Why: constructing the browser commands is what pulls the Chromium cluster in, so
   // production installs this at the Electron entry. A Node host installs none and the
   // browser RPCs reject rather than silently succeeding.
-  setRuntimeBrowserCommandsFactory((host) => new RuntimeBrowserCommands(host))
+  setRuntimeBrowserCommandsFactory((host) => new RuntimeBrowserCommands(host), {
+    clientHosting: true
+  })
   setRuntimeBrowserUnavailableCause(null)
   setRuntimeTerminalUnavailableCause(null)
   // Why: the runtime's notification, window lookup and tab-create-reply channel are
@@ -279,8 +286,6 @@ function resetRuntimeTestMocks(): void {
   listGitHubAssignableUsersMock.mockResolvedValue([])
   detectInstalledAgentsWithShellPathHydrationMock.mockReset()
   detectInstalledAgentsWithShellPathHydrationMock.mockResolvedValue([])
-  detectRemoteAgentsMock.mockReset()
-  detectRemoteAgentsMock.mockResolvedValue([])
   markCodexProjectTrustedMock.mockReset()
   markCopilotFolderTrustedMock.mockReset()
   markCursorWorkspaceTrustedMock.mockReset()
@@ -336,7 +341,31 @@ function resetRuntimeTestMocks(): void {
   getIssueMock.mockResolvedValue(null)
 }
 
-beforeEach(resetRuntimeTestMocks)
-afterEach(resetRuntimeTestMocks)
+let registrationSpy:
+  | MockInstance<typeof worktreeChangeInvalidators.registerWorktreeChangeInvalidator>
+  | undefined
+
+beforeEach(() => {
+  resetRuntimeTestMocks()
+  registrationSpy = vi.spyOn(worktreeChangeInvalidators, 'registerWorktreeChangeInvalidator')
+})
+afterEach(async () => {
+  try {
+    await _settlePendingWorktreeRemovalsForTests()
+  } finally {
+    try {
+      // Runtime fixtures share a process; invalidators must end with their case.
+      for (const result of registrationSpy?.mock.results ?? []) {
+        if (result.type === 'return') {
+          result.value()
+        }
+      }
+    } finally {
+      registrationSpy?.mockRestore()
+      registrationSpy = undefined
+      resetRuntimeTestMocks()
+    }
+  }
+})
 
 export { resetRuntimeTestMocks }
