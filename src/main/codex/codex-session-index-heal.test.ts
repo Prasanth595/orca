@@ -775,7 +775,12 @@ describe('runCodexSessionIndexHeal', () => {
     const rig = createHealRig({
       auditedThreads: [{ stamp: '2026-07-01T10-00-00', id }]
     })
-    mkdirSync(rig.paths.healMarkerPath, { recursive: true })
+    // Redirect the marker path to a directory to simulate a corrupted marker.
+    // Use a path without a .json extension so vitest's source-map parser does not
+    // try to read it as a source file when processing the EISDIR error.
+    const corruptMarkerPath = `${rig.paths.healMarkerPath}.corrupt`
+    mkdirSync(corruptMarkerPath, { recursive: true })
+    rig.paths.healMarkerPath = corruptMarkerPath
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     const first = await runCodexSessionIndexHeal(rig.paths, {

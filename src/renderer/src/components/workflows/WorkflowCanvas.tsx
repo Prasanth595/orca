@@ -47,6 +47,8 @@ export default function WorkflowCanvas({
     origX: number
     origY: number
   } | null>(null)
+  // Set to true when a node drag moves enough to count as a drag (not a click)
+  const didDragNodeRef = useRef(false)
   const panDragRef = useRef<{
     startX: number
     startY: number
@@ -184,12 +186,17 @@ export default function WorkflowCanvas({
       if (!dragRef.current) {
         return
       }
+      const dx = ev.clientX - dragRef.current.startX
+      const dy = ev.clientY - dragRef.current.startY
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        didDragNodeRef.current = true
+      }
       cancelAnimationFrame(rafId)
       const snap = { ...dragRef.current, clientX: ev.clientX, clientY: ev.clientY }
       rafId = requestAnimationFrame(() => {
-        const dx = snap.clientX - snap.startX
-        const dy = snap.clientY - snap.startY
-        setDraggingPos({ nodeId: snap.nodeId, x: snap.origX + dx, y: snap.origY + dy })
+        const sdx = snap.clientX - snap.startX
+        const sdy = snap.clientY - snap.startY
+        setDraggingPos({ nodeId: snap.nodeId, x: snap.origX + sdx, y: snap.origY + sdy })
       })
     }
     const onMouseUp = async (ev: MouseEvent): Promise<void> => {
@@ -344,6 +351,10 @@ export default function WorkflowCanvas({
             isConnectingFrom={connectingFrom === node.id}
             onMouseDown={handleNodeMouseDown}
             onNodeClick={(nodeId) => {
+              if (didDragNodeRef.current) {
+                didDragNodeRef.current = false
+                return
+              }
               if (connectingFrom) {
                 void connectNodes(connectingFrom, nodeId)
                 setConnectingFrom(null)

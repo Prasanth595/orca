@@ -13,16 +13,25 @@ export async function* streamCodexSessionLedgerRecords(
   filePath: string,
   options: { throwOnReadFailure?: boolean } = {}
 ): AsyncGenerator<Record<string, unknown>> {
-  const lines = createInterface({
-    input: createReadStream(filePath, { encoding: 'utf-8' }),
-    crlfDelay: Infinity
+  const stream = createReadStream(filePath, { encoding: 'utf-8' })
+  // Why: without a listener Node.js throws when the stream emits 'error' before
+  // readline subscribes, or when readline's asyncIterator does not forward it.
+  // We capture the error here so we can rethrow it intentionally if needed.
+  let streamError: Error | null = null
+  stream.once('error', (err: Error) => {
+    streamError = err
   })
+  const lines = createInterface({ input: stream, crlfDelay: Infinity })
   try {
     for await (const raw of lines) {
       const record = parseLedgerRecord(raw)
       if (record) {
         yield record
       }
+    }
+    // If the stream errored without the error propagating through the iterator
+    if (streamError !== null) {
+      throw streamError
     }
   } catch (error) {
     if (options.throwOnReadFailure && !isNotFoundError(error)) {

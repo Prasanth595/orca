@@ -9,7 +9,22 @@ import { useAppStore } from '@/store'
 import type { AgentWorkflow } from '../../../../shared/workflow-types'
 
 export default function WorkflowsPage(): React.JSX.Element {
-  const [canvasFocused, setCanvasFocused] = useState(false)
+  const [canvasFocused, setCanvasFocused] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('wf-canvas-focused') === '1'
+    } catch {
+      return false
+    }
+  })
+
+  function setCanvasFocusedPersisted(value: boolean): void {
+    setCanvasFocused(value)
+    try {
+      localStorage.setItem('wf-canvas-focused', value ? '1' : '0')
+    } catch {
+      // ignore — storage unavailable
+    }
+  }
   const [selectedWorkflow, setSelectedWorkflow] = useState<AgentWorkflow | null>(null)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
 
@@ -78,8 +93,8 @@ export default function WorkflowsPage(): React.JSX.Element {
               <WorkflowCanvas
                 workflow={selectedWorkflow}
                 focused={canvasFocused}
-                onFocus={() => setCanvasFocused(true)}
-                onUnfocus={() => setCanvasFocused(false)}
+                onFocus={() => setCanvasFocusedPersisted(true)}
+                onUnfocus={() => setCanvasFocusedPersisted(false)}
                 onNodeSelect={setSelectedNodeId}
                 selectedNodeId={selectedNodeId}
               />
