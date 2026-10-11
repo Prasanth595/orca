@@ -181,6 +181,35 @@ describe('read-only skill freshness inventory', () => {
     expect(inventory.eligibleUpdateNames).toEqual(['orca-cli'])
   })
 
+  it('keeps a lock-matched older official snapshot updateable (#26841)', async () => {
+    const test = await fixture()
+    const canonical = await test.writeSkill(
+      join(test.homeDir, '.agents', 'skills'),
+      test.oldMarkdown
+    )
+    const skillTreeSha = await gitTreeShaOf(canonical)
+    const registryPath = join(test.resourceRoot, 'skills', 'snapshot-registry.json')
+    const registry = JSON.parse(await readFile(registryPath, 'utf8'))
+    registry.skills['orca-cli'][0].gitTreeSha = skillTreeSha
+    await writeFile(registryPath, `${JSON.stringify(registry, null, 2)}\n`)
+    await writeSkillLockHash(test.homeDir, skillTreeSha)
+
+    const inventory = await inventorySkillFreshness({
+      currentAppVersion: '2.0.0',
+      homeDir: test.homeDir,
+      repos: [],
+      resourceRoot: test.resourceRoot
+    })
+
+    expect(inventory.installations[0]).toMatchObject({
+      topology: 'canonical-copy',
+      status: 'outdated',
+      installedReleaseRevision: 1
+    })
+    expect(inventory.eligibleUpdateNames).toEqual(['orca-cli'])
+    expect(getSkillFreshnessDisplayStatus(inventory, 'orca-cli')).toBe('update-available')
+  })
+
   it('does not offer an older copied bundle the external updater has never registered (#10791)', async () => {
     const test = await fixture()
     await test.writeSkill(join(test.homeDir, '.agents', 'skills'), test.oldMarkdown)
