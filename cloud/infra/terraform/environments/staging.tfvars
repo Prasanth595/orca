@@ -18,6 +18,14 @@ relay_staging_power_auth_service_name = "orca-cloud-auth-staging"
 relay_base_url                        = "https://relay-staging.onorca.dev"
 relay_min_instances                   = 0
 relay_max_instances                   = 2
+
+# Staging proves these before production turns them on.
+relay_director_cloud_sql_proxy_sidecar = true
+relay_event_loop_stall_alert           = true
+# What the serving staging director runs (revision 00171, 2026-10-11). Pinned so the sidecar apply,
+# whose revision the next deploy adopts as its shape, does not also drop it to the 80 / 30 s defaults.
+relay_director_concurrency             = 1000
+relay_director_request_timeout_seconds = 3600
 # Staging now exercises the production-shaped GCE data plane exclusively.
 relay_cells = {}
 # Keep the stable director mapping Terraform-owned while removing cell mappings.
@@ -77,7 +85,7 @@ relay_gce_cells = {
     boot_image                  = "https://www.googleapis.com/compute/v1/projects/cos-cloud/global/images/cos-stable-121-18867-528-21"
     capacity_requests           = 6000
     database_pool_max           = 10
-    image                       = "us-central1-docker.pkg.dev/onorca-cloud-staging/orca-cloud/relay@sha256:5aedbca5c86de24c8b4d4bf7e3b444b76c712f281ede916cb9d90f70cad1e563"
+    image                       = "us-central1-docker.pkg.dev/onorca-cloud-staging/orca-cloud/relay@sha256:ac2ab357d3ed9f104ed3d5c440ef3d1ad493d9661e86d1c404d8dfc6b7c59c02"
     initially_enabled           = false
     connection_hard_cap         = 3000
     connection_unobserved_bound = 60

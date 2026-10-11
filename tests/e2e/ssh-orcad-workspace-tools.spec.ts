@@ -7,7 +7,7 @@ import { expect, test } from './helpers/orca-app'
 import { reconnect } from './helpers/orcad-convert-flow'
 import { shellQuote } from './helpers/docker-ssh-relay-target'
 import { callEnvironment, createPairedHostTerminal } from './helpers/paired-host-terminal'
-import { reserveLocalPort } from './helpers/ssh-port-forward-snapshot-barrier'
+import { reserveLocalPort } from './helpers/reserve-local-port'
 import { openTerminalWorkspaceRootLink } from './helpers/terminal-workspace-root-link'
 import {
   echoMarker,
@@ -61,8 +61,6 @@ test('Quick Open finds a file in a monorepo-sized managed workspace', async (// 
 for (const acrossReconnect of [false, true]) {
   test(`a managed host reports its listener, and an SSH forward reaches it${acrossReconnect ? ' across a reconnect' : ''}`, async (// oxlint-disable-next-line no-empty-pattern -- Owns its app launch through a restart session.
   {}, testInfo) => {
-    // Why fixme: saved forwards are re-established only by the relay session's connect callbacks.
-    test.fixme(acrossReconnect, 'A managed host reconnect never calls restorePortForwards')
     test.setTimeout(10 * 60_000)
     const remotePort = 7860
     const marker = `ORCA_FORWARD_${Date.now()}`
@@ -97,11 +95,18 @@ for (const acrossReconnect of [false, true]) {
         }
       }
       await expect.poll(fetchMarker, { timeout: 30_000 }).toBe(marker)
+      let forwardId = forward.id
       if (acrossReconnect) {
         await reconnect(page, seeded.targetId)
         await expect.poll(fetchMarker, { timeout: 60_000 }).toBe(marker)
+        // The restored forward is a new entry for the same saved port.
+        const restored = await page.evaluate(
+          (targetId) => window.api.ssh.listPortForwards({ targetId }),
+          seeded.targetId
+        )
+        forwardId = restored.find((entry) => entry.localPort === localPort)?.id ?? forwardId
       }
-      await page.evaluate((id) => window.api.ssh.removePortForward({ id }), forward.id)
+      await page.evaluate((id) => window.api.ssh.removePortForward({ id }), forwardId)
       await expect.poll(fetchMarker, { timeout: 30_000 }).not.toBe(marker)
     }).finally(() => reservation.release())
   })
@@ -109,8 +114,6 @@ for (const acrossReconnect of [false, true]) {
 
 test('a terminal link opens an image outside the managed workspace', async (// oxlint-disable-next-line no-empty-pattern -- Owns its app launch through a restart session.
 {}, testInfo) => {
-  // Why fixme: in-workspace links work (ssh-orcad-terminal-root-owner); this path gets no link at all.
-  test.fixme(true, 'A managed terminal does not linkify a path outside its workspace')
   test.setTimeout(10 * 60_000)
   const imagePath = '/tmp/orca-ssh-external-preview.png'
   const imageBase64 =
@@ -119,7 +122,8 @@ test('a terminal link opens an image outside the managed workspace', async (// o
     fixture.host.exec!(
       `printf '%s' ${shellQuote(imageBase64)} | base64 -d > ${shellQuote(imagePath)}`
     )
-    const { page, seeded } = await launchManagedWorkspace(fixture)
+    // Why /root: the default folder workspace is /tmp, which would make the image a workspace file.
+    const { page, seeded } = await launchManagedWorkspace(fixture, { folderPath: '/root' })
     // A link is only clickable once the shell has printed it, so wait for one that answers.
     await expectTerminalAnswers(page, await openTerminalTab(page, seeded.worktreeId))
     await openTerminalWorkspaceRootLink(page, testInfo, imagePath, 'open')
