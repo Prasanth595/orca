@@ -10,7 +10,7 @@ import {
 import { parseCodexRolloutThreadId } from './codex-rollout-identity'
 import { linkCodexSessionFile } from './codex-session-link'
 import {
-  isCodexRolloutDeletionRecorded,
+  createCodexRolloutVisibilityPredicate,
   withCodexRolloutPublication
 } from './codex-session-deletion-record'
 import {
@@ -157,6 +157,7 @@ export async function bridgeCodexSessionsIntoAccountHome(args: {
     linkedFiles: 0,
     bridgedThreads: new Map()
   }
+  const canPublish = await createCodexRolloutVisibilityPredicate({ includePending: true })
   const targetSessionsRoot = join(args.targetCodexHomePath, 'sessions')
   for (const sourceHomePath of dedupeSourceHomes(
     args.sourceCodexHomePaths,
@@ -170,7 +171,7 @@ export async function bridgeCodexSessionsIntoAccountHome(args: {
       sourceSessionsRoot,
       args.options ?? {}
     )) {
-      if (isCodexRolloutDeletionRecorded(sourceFilePath)) {
+      if (!canPublish(sourceFilePath)) {
         continue
       }
       summary.scannedFiles += 1
@@ -199,11 +200,14 @@ function bridgeRolloutIntoAccountHome(
   targetSessionsRoot: string,
   sourceFilePath: string
 ): 'linked' | 'existing' | 'failed' {
+  const targetFilePath = join(targetSessionsRoot, relative(sourceSessionsRoot, sourceFilePath))
+  if (existsSync(targetFilePath)) {
+    return 'existing'
+  }
   return withCodexRolloutPublication<'linked' | 'existing' | 'failed'>(
     sourceFilePath,
     'failed',
     () => {
-      const targetFilePath = join(targetSessionsRoot, relative(sourceSessionsRoot, sourceFilePath))
       // Why: rollout names carry the session UUID, so an existing target path is the
       // same conversation already bridged (often the same inode) — never a conflict.
       if (existsSync(targetFilePath)) {

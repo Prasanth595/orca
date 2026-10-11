@@ -154,7 +154,7 @@ export async function resolveCodexSessionResumeProvenance(args: {
   | { outcome: 'fresh'; claimedCodexProvenance: boolean }
 > {
   if (isCodexSessionDeletionRecorded(args.sessionId)) {
-    throw new Error('This Codex session was deleted or has an incomplete deletion')
+    return { outcome: 'fresh', claimedCodexProvenance: true }
   }
   const sessionSource = await findTrustedCodexSessionResume(args)
   return sessionSource

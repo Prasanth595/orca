@@ -112,9 +112,9 @@ export async function deleteCodexSession(
       recordCodexSessionDeletion(sessionId, true)
       return { outcome: 'deleted', filePaths: [...filePaths] }
     } catch {
-      return failed('incomplete')
+      return unchangedOrIncomplete(sessionId)
     }
-  }).catch(() => failed('incomplete'))
+  }).catch(() => unchangedOrIncomplete(sessionId))
 }
 
 async function probeSupport(
@@ -130,8 +130,9 @@ async function probeSupport(
       env: { ...process.env, CODEX_HOME: target },
       timeoutMs: 10_000,
       maxOutputBytes: 16 * 1024
-    })
+    }).catch(() => null)
     if (
+      !probe ||
       probe.code !== 0 ||
       probe.timedOut ||
       !/Usage:\s+codex delete\b/.test(probe.stdout) ||
@@ -170,4 +171,13 @@ async function runDeletes(
 
 function failed(detail: 'active' | 'unsupported' | 'incomplete'): AiVaultDeleteSessionResult {
   return { outcome: 'failed', agent: 'codex', error: `Codex session deletion ${detail}`, detail }
+}
+
+function unchangedOrIncomplete(sessionId: string): AiVaultDeleteSessionResult {
+  try {
+    if (isCodexSessionDeletionRecorded(sessionId)) {
+      return failed('incomplete')
+    }
+  } catch {}
+  return { outcome: 'failed', agent: 'codex', error: 'Codex session deletion could not start' }
 }

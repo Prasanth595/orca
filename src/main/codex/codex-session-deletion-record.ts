@@ -1,4 +1,4 @@
-import { lstatSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs'
+import { lstatSync, mkdirSync, readFileSync, readdirSync, unlinkSync } from 'node:fs'
 import { readdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { lockSync } from 'proper-lockfile'
@@ -98,9 +98,9 @@ export function isCodexRolloutDeletionRecorded(filePath: string, complete = fals
   return rollout !== null && isCodexSessionDeletionRecorded(rollout.threadId, complete)
 }
 
-export async function createCodexRolloutVisibilityPredicate(): Promise<
-  (filePath: string) => boolean
-> {
+export async function createCodexRolloutVisibilityPredicate(
+  options: { includePending?: boolean } = {}
+): Promise<(filePath: string) => boolean> {
   let entries: string[]
   try {
     entries = await readdir(join(getOrcaUserDataPath(), 'codex-session-deletions'))
@@ -110,10 +110,31 @@ export async function createCodexRolloutVisibilityPredicate(): Promise<
     }
     entries = []
   }
-  const completed = new Set(
+  return rolloutVisibilityPredicate(entries, options.includePending === true)
+}
+
+export function createCodexRolloutPublicationPredicateSync(): (filePath: string) => boolean {
+  let entries: string[]
+  try {
+    entries = readdirSync(join(getOrcaUserDataPath(), 'codex-session-deletions'))
+  } catch (error) {
+    if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) {
+      throw error
+    }
+    entries = []
+  }
+  return rolloutVisibilityPredicate(entries, true)
+}
+
+function rolloutVisibilityPredicate(
+  entries: string[],
+  includePending: boolean
+): (filePath: string) => boolean {
+  const suffixes = includePending ? ['complete', 'pending', 'tombstone'] : ['complete']
+  const recorded = new Set(
     entries
-      .filter((entry) => entry.endsWith('.complete'))
-      .map((entry) => entry.slice(0, -'.complete'.length).toLowerCase())
+      .filter((entry) => suffixes.includes(entry.slice(entry.lastIndexOf('.') + 1)))
+      .map((entry) => entry.slice(0, entry.lastIndexOf('.')).toLowerCase())
       .filter(isCodexSessionUuid)
   )
   return (filePath) => {
@@ -121,7 +142,7 @@ export async function createCodexRolloutVisibilityPredicate(): Promise<
       return true
     }
     const rollout = parseCodexRolloutThreadId(filePath)
-    return rollout === null || !completed.has(rollout.threadId)
+    return rollout === null || !recorded.has(rollout.threadId)
   }
 }
 

@@ -1,4 +1,5 @@
 import { lock } from 'proper-lockfile'
+import type * as ProperLockfile from 'proper-lockfile'
 import type * as CodexHomePaths from './codex-home-paths'
 import { existsSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -6,6 +7,8 @@ import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   recordCodexSessionDeletion,
+  createCodexRolloutVisibilityPredicate,
+  withCodexRolloutPublication,
   withCodexSessionHistoryMutation
 } from './codex-session-deletion-record'
 import { syncSystemCodexSessionsIntoManagedHome } from './codex-session-bridge'
@@ -17,8 +20,18 @@ import {
 } from './codex-session-backfill'
 import { readCodexThreadsForIndexHeal } from './codex-session-index-heal'
 import { collectPendingHealThreads } from './codex-session-index-heal-state'
+import { prepareCodexSessionResume } from './codex-session-resume-preparation'
+import { prepareCodexAiVaultSessionResume } from './codex-ai-vault-session-resume'
+import { resolveCodexResumeLaunch } from '../ipc/pty/host-env/codex-resume'
 import { resolveCodexSessionResumeProvenance } from './codex-session-resume-home'
 import { AI_VAULT_AGENT_SOURCES } from '../ai-vault/session-scanner-agent-sources'
+
+const locks = vi.hoisted(() => ({ sync: vi.fn() }))
+vi.mock('proper-lockfile', async (importOriginal) => {
+  const original = await importOriginal<typeof ProperLockfile>()
+  locks.sync.mockImplementation(original.lockSync)
+  return { ...original, lockSync: locks.sync }
+})
 
 const SESSION = '019f0000-1111-7222-8333-000000000001'
 const OTHER = '019f0000-1111-7222-8333-000000000002'
@@ -56,6 +69,7 @@ function backfillPaths() {
 }
 
 beforeEach(() => {
+  locks.sync.mockClear()
   root = mkdtempSync(join(tmpdir(), 'orca-codex-resurrection-'))
   systemHome = join(root, 'system')
   managedHome = join(root, 'managed')
@@ -68,6 +82,32 @@ afterEach(() => {
 })
 
 describe('durable Codex session deletion', () => {
+  it('does not acquire publication locks for existing regular bridge targets', async () => {
+    const accountHome = join(root, 'account')
+    for (const home of [systemHome, managedHome, accountHome]) {
+      seed(home)
+      seed(home, OTHER)
+    }
+    syncSystemCodexSessionsIntoManagedHome()
+    const summary = await bridgeCodexSessionsIntoAccountHome({
+      targetCodexHomePath: accountHome,
+      sourceCodexHomePaths: [systemHome],
+      options: { yieldMs: 0 }
+    })
+    expect(summary.bridgedThreads.size).toBe(2)
+    expect(locks.sync).not.toHaveBeenCalled()
+  })
+
+  it('rechecks deletion state before writing when a pass snapshot is stale', async () => {
+    const path = seed(systemHome)
+    const canPublish = await createCodexRolloutVisibilityPredicate({ includePending: true })
+    recordCodexSessionDeletion(SESSION)
+    expect(canPublish(path)).toBe(true)
+    const publish = vi.fn(() => true)
+    expect(withCodexRolloutPublication(path, false, publish)).toBe(false)
+    expect(publish).not.toHaveBeenCalled()
+  })
+
   it('skips publication while another process holds the session transaction lock', async () => {
     seed(systemHome)
     const record = join(root, 'orca', 'codex-session-deletions', `${SESSION}.tombstone`)
@@ -216,18 +256,56 @@ describe('durable Codex session deletion', () => {
     expect(onOutcome).toHaveBeenCalledWith({ threadId: SESSION }, 'missing')
   })
 
-  it('refuses stale resume requests after deletion is recorded', async () => {
-    const path = seed(systemHome)
-    recordCodexSessionDeletion(SESSION)
-    await expect(
-      resolveCodexSessionResumeProvenance({
-        sessionId: SESSION,
-        transcriptPath: path,
-        trustedCodexHomes: [systemHome],
-        getSelectedAccountCodexHome: () => null,
-        systemCodexHomePath: systemHome,
-        sharedRuntimeCodexHomePath: managedHome
+  it.each([false, true])(
+    'starts fresh for a recorded deletion (complete: %s)',
+    async (complete) => {
+      const path = seed(systemHome)
+      recordCodexSessionDeletion(SESSION, complete)
+      await expect(
+        resolveCodexSessionResumeProvenance({
+          sessionId: SESSION,
+          transcriptPath: path,
+          trustedCodexHomes: [systemHome],
+          getSelectedAccountCodexHome: () => null,
+          systemCodexHomePath: systemHome,
+          sharedRuntimeCodexHomePath: managedHome
+        })
+      ).resolves.toEqual({ outcome: 'fresh', claimedCodexProvenance: true })
+      const resolveVerifiedResumeHome = vi.fn(async () => systemHome)
+      const launch = await resolveCodexResumeLaunch(`codex resume ${SESSION}`, {
+        providerSession: { key: 'session_id', id: SESSION, transcriptPath: path },
+        preparation: prepareCodexSessionResume({
+          sessionId: SESSION,
+          transcriptPath: path,
+          trustedCodexHomes: [systemHome],
+          getSelectedAccountCodexHome: () => null,
+          systemCodexHomePath: systemHome,
+          sharedRuntimeCodexHomePath: managedHome,
+          resolveVerifiedResumeHome
+        })
       })
-    ).rejects.toThrow('deleted')
-  })
+      expect(launch).toMatchObject({
+        command: 'codex',
+        droppedResumeArgv: true,
+        notifyResumeUnavailable: true
+      })
+      expect(resolveVerifiedResumeHome).not.toHaveBeenCalled()
+      await expect(
+        prepareCodexAiVaultSessionResume(
+          {
+            agent: 'codex',
+            sessionId: SESSION,
+            filePath: path,
+            executionHostId: 'local',
+            codexHome: null
+          },
+          {
+            runtimeHome: null,
+            systemCodexHomePath: systemHome,
+            preparePinnedLaunchHome: vi.fn()
+          }
+        )
+      ).rejects.toThrow('deleted')
+    }
+  )
 })

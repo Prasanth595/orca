@@ -275,6 +275,27 @@ describe('Codex session deletion', () => {
     ).toMatchObject({ outcome: 'deleted' })
   })
 
+  it('reports a missing CLI as unsupported without creating a deletion record', async () => {
+    const run = vi.fn<typeof runProcess>().mockRejectedValue(new Error('spawn ENOENT'))
+    expect(await deleteCodexSession(args(), { homes, run })).toMatchObject({
+      outcome: 'failed',
+      detail: 'unsupported'
+    })
+    expect(isCodexSessionDeletionRecorded(SESSION)).toBe(false)
+    expect(paths.every(existsSync)).toBe(true)
+  })
+
+  it('reports a preflight identity mismatch as an unchanged failure', async () => {
+    writeRollout(paths[2], OTHER)
+    const run = deleteRun()
+    const result = await deleteCodexSession(args(), { homes, run })
+    expect(result).toMatchObject({ outcome: 'failed' })
+    expect(result).not.toHaveProperty('detail')
+    expect(isCodexSessionDeletionRecorded(SESSION)).toBe(false)
+    expect(run).not.toHaveBeenCalled()
+    expect(paths.every(existsSync)).toBe(true)
+  })
+
   it('does not record deletion or remove data when the CLI lacks delete --force', async () => {
     const run = vi
       .fn<typeof runProcess>()
