@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { WorktreeMeta } from '../../shared/worktree/meta-types'
 import type { Worktree } from '../../shared/worktree/types'
 import { updateRuntimeManagedWorktreeMetadata } from './runtime-managed-worktree-metadata'
 import type { ResolvedWorktree } from './runtime-worktree-path-identity'
@@ -54,7 +55,7 @@ describe('updateRuntimeManagedWorktreeMetadata', () => {
       instanceId: 'instance-1'
     } as unknown as ResolvedWorktree
 
-    function run(meta: object | undefined) {
+    function run(meta: Partial<WorktreeMeta> | undefined) {
       const setWorktreeMeta = vi.fn()
       const setWorktreeMetaForHost = vi.fn()
       // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the update only reads these store members.
