@@ -5,6 +5,10 @@ import {
 } from '../../../shared/execution-host'
 import type { GlobalSettings } from '../../../shared/global-settings-types'
 import type { Repo } from '../../../shared/repo-types'
+import {
+  runtimeTargetForOwnerHostId,
+  type RuntimeClientTarget
+} from '@/runtime/runtime-client-target'
 
 export type RepoRuntimeOwnerState = {
   repos?: readonly Pick<Repo, 'id' | 'connectionId' | 'executionHostId'>[]
@@ -29,6 +33,18 @@ function findRepoOwner(
   // Why: duplicate bare repo ids are only safe to route when focus selects one
   // owner unambiguously; otherwise callers must avoid guessing a host.
   return focusedMatches.length === 1 ? focusedMatches[0] : null
+}
+
+/**
+ * Transport to a repo row's owner; a row with no owner stamp is local. `null` when no row, or no
+ * single row among duplicates, names the repo.
+ */
+export function runtimeTargetForRepoOwner(
+  state: RepoRuntimeOwnerState,
+  repoId: string | null | undefined
+): RuntimeClientTarget | null {
+  const repo = repoId ? findRepoOwner(state, repoId) : null
+  return repo ? runtimeTargetForOwnerHostId(getRepoExecutionHostId(repo)) : null
 }
 
 export function getRuntimeEnvironmentIdForRepo(
@@ -93,10 +109,6 @@ const ownerRoutedSettingsCache = new Map<string, OwnerRoutedSettingsCacheEntry>(
 // Why bounded: repo ids come from remote listings, so the key space is not closed.
 const MAX_OWNER_ROUTED_SETTINGS_CACHE_KEYS = 256
 
-export function releaseRepoRuntimeOwnerSettingsCache(): void {
-  ownerRoutedSettingsCache.clear()
-}
-
 export function getSettingsForRepoRuntimeOwner(
   state: RepoRuntimeOwnerState,
   repoId: string | null | undefined
@@ -133,21 +145,4 @@ export function getSettingsForRepoRuntimeOwner(
     }
   }
   return value
-}
-
-// Why: git/file/terminal mutations must route by the OWNER host of the repo,
-// not the currently focused runtime. This rebinds activeRuntimeEnvironmentId to
-// the repo owner while preserving every other (display/AI) settings field.
-export function getRepoOwnerRoutedSettings<T extends GlobalSettings | null>(
-  settings: T,
-  repo: Pick<Repo, 'id' | 'connectionId' | 'executionHostId'> | null | undefined
-): T {
-  if (!settings) {
-    return settings
-  }
-  const activeRuntimeEnvironmentId = getRuntimeEnvironmentIdForRepo(
-    { repos: repo ? [repo] : [], settings },
-    repo?.id ?? null
-  )
-  return { ...settings, activeRuntimeEnvironmentId }
 }
