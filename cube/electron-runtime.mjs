@@ -73,7 +73,7 @@ export async function launchElectronServe({
   display.once('exit', () => {
     if (!stopping) {
       displayFailed = true
-      child?.kill('SIGTERM')
+      if (child) void terminate(child, childExit)
     }
   })
   try {

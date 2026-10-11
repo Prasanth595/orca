@@ -68,3 +68,48 @@ test('a failed Electron launch cleans up its display', async (t) => {
     /ENOENT/
   )
 })
+
+test(
+  'display failure force-stops an unresponsive Electron process',
+  { timeout: 10000 },
+  async (t) => {
+    const root = await mkdtemp(join(tmpdir(), 'orca-display-failure-'))
+    t.after(() => rm(root, { recursive: true, force: true }))
+    const display = join(root, 'display'),
+      electron = join(root, 'electron')
+    await writeFile(
+      display,
+      `#!${process.execPath}\nrequire('fs').writeSync(3,'44\\n');setInterval(()=>{},1000)`,
+      { mode: 0o755 }
+    )
+    await writeFile(
+      electron,
+      `#!${process.execPath}\nprocess.on('SIGTERM',()=>{});require('fs').writeFileSync(${JSON.stringify(join(root, 'ready'))},'ready');setInterval(()=>{},1000)`,
+      { mode: 0o755 }
+    )
+    const app = await launchElectronServe({
+      root,
+      state: join(root, 'state'),
+      displayExecutable: display,
+      electronExecutable: electron
+    })
+    t.after(() => app.stop())
+    const { access } = await import('node:fs/promises')
+    for (let n = 0; ; n++) {
+      try {
+        await access(join(root, 'ready'))
+        break
+      } catch (error) {
+        if (n > 100) throw error
+        await new Promise((r) => setTimeout(r, 10))
+      }
+    }
+    process.kill(app.displayPid, 'SIGKILL')
+    const result = await Promise.race([
+      app.closed,
+      new Promise((resolve) => setTimeout(() => resolve('timeout'), 6500))
+    ])
+    assert.equal(result, 1)
+    assert.throws(() => process.kill(app.pid, 0), /ESRCH/)
+  }
+)

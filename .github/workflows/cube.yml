@@ -21,6 +21,10 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '24.21.0'
+      - name: Install Linux display dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libnss3 libatk-bridge2.0-0 libdrm2 libgbm1 libasound2t64
       - name: Install exactly as Cube does
         run: node cube/install.mjs
       - name: Gateway and lifecycle tests
@@ -34,6 +38,10 @@ jobs:
           src/renderer/src/web/web-workspace-selection.test.ts
           src/renderer/src/web/web-workspace-session.test.ts
           src/main/codex-cli/command.test.ts
+          src/main/startup/serve-options.test.ts
+          src/main/startup/serve-mode-argv.test.ts
+          src/main/startup/main-process-runtime-launch-activation.test.ts
+          src/main/startup/main-process-serve-health.test.ts
           src/renderer/src/components/status-bar/mergeSnapshotAndSessions.test.ts
           src/renderer/src/components/status-bar/use-resource-usage-derived-model.test.tsx
           src/main/runtime/rpc/methods/floating-terminal-directory.test.ts
