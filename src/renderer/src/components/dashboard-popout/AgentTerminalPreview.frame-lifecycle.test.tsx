@@ -262,7 +262,7 @@ it('keeps live replay writes coalesced and fits the latest cursor and dimensions
   expect(connect).toHaveBeenCalledOnce()
   expect(unsubscribe).not.toHaveBeenCalled()
   expect(terminal?.dispose).not.toHaveBeenCalled()
-  expect(terminal?.container?.style.transform).toBe('scale(0.75)')
+  expect(terminal?.container?.style.transform).toBe('scale(0.625)')
   expect(terminal?.container?.style.transformOrigin).toBe('top left')
   expect(fit).toHaveBeenCalledExactlyOnceWith('pty-live', 60, 15)
 })
