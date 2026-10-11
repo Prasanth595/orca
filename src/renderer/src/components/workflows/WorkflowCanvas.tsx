@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
 import { cn } from '@/lib/utils'
 import { createBrowserUuid } from '@/lib/browser-uuid'
-import { buildDefaultNode } from './workflow-canvas-node-config'
+import { buildDefaultNode, getOutputPorts } from './workflow-canvas-node-config'
 import { usePersistedCanvasPan } from '@/hooks/use-persisted-canvas-pan'
 import WorkflowCanvasEdgesLayer from './WorkflowCanvasEdgesLayer'
 import WorkflowAddNodeMenu from './WorkflowAddNodeMenu'
@@ -34,8 +34,9 @@ export default function WorkflowCanvas({
   onNodeSelect,
   selectedNodeId
 }: Props): React.JSX.Element {
+  type ConnectState = { nodeId: string; outputSelector?: string }
   const [showAddMenu, setShowAddMenu] = useState(false)
-  const [connectingFrom, setConnectingFrom] = useState<string | null>(null)
+  const [connectingFrom, setConnectingFrom] = useState<ConnectState | null>(null)
   const [draggingPos, setDraggingPos] = useState<{ nodeId: string; x: number; y: number } | null>(
     null
   )
@@ -102,19 +103,31 @@ export default function WorkflowCanvas({
     )
   }
 
-  async function connectNodes(sourceId: string, targetId: string): Promise<void> {
+  async function connectNodes(
+    sourceId: string,
+    targetId: string,
+    outputSelector?: string
+  ): Promise<void> {
     if (!workflow || sourceId === targetId) {
       return
     }
-    if (workflow.edges.some((e) => e.sourceNodeId === sourceId && e.targetNodeId === targetId)) {
+    if (
+      workflow.edges.some(
+        (e) =>
+          e.sourceNodeId === sourceId &&
+          e.targetNodeId === targetId &&
+          e.outputSelector === outputSelector
+      )
+    ) {
       return
     }
-    await window.api.workflows.update(workflow.id, {
-      edges: [
-        ...workflow.edges,
-        { id: createBrowserUuid(), sourceNodeId: sourceId, targetNodeId: targetId }
-      ]
-    })
+    const edge = {
+      id: createBrowserUuid(),
+      sourceNodeId: sourceId,
+      targetNodeId: targetId,
+      ...(outputSelector !== undefined ? { outputSelector } : {})
+    }
+    await window.api.workflows.update(workflow.id, { edges: [...workflow.edges, edge] })
   }
 
   async function deleteEdge(edgeId: string): Promise<void> {
@@ -345,7 +358,7 @@ export default function WorkflowCanvas({
             effectiveY={draggingPos?.nodeId === node.id ? draggingPos.y : node.pos.y}
             isSelected={selectedNodeId === node.id}
             isConnecting={connectingFrom !== null}
-            isConnectingFrom={connectingFrom === node.id}
+            isConnectingFrom={connectingFrom?.nodeId === node.id}
             onMouseDown={handleNodeMouseDown}
             onNodeClick={(nodeId) => {
               if (didDragNodeRef.current) {
@@ -353,18 +366,22 @@ export default function WorkflowCanvas({
                 return
               }
               if (connectingFrom) {
-                void connectNodes(connectingFrom, nodeId)
+                void connectNodes(connectingFrom.nodeId, nodeId, connectingFrom.outputSelector)
                 setConnectingFrom(null)
               } else {
                 onNodeSelect(nodeId)
               }
             }}
             onContextMenu={(nodeId) => {
-              setConnectingFrom(nodeId)
+              const n = workflow.nodes.find((nd) => nd.id === nodeId)
+              if (!n || getOutputPorts(n).length > 1) {
+                return
+              }
+              setConnectingFrom({ nodeId })
               setShowAddMenu(false)
             }}
-            onConnectStart={(nodeId) => {
-              setConnectingFrom(nodeId)
+            onConnectStart={(nodeId, outputSelector) => {
+              setConnectingFrom({ nodeId, outputSelector })
               setShowAddMenu(false)
             }}
             onDelete={deleteNode}

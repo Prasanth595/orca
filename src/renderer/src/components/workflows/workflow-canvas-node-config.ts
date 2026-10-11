@@ -15,6 +15,52 @@ import {
 } from 'lucide-react'
 import type { WorkflowNode, WorkflowNodeType } from '../../../../shared/workflow-types'
 
+// ─── Port layout ─────────────────────────────────────────────────────────────
+
+/** y-offset from node top where the first named output port row is centered. */
+export const PORT_Y_BASE = 46
+/** Height of each output port row for multi-port nodes. */
+export const PORT_ROW_H = 22
+/** y-offset for single-port nodes (vertically centered in the fixed header). */
+export const SINGLE_PORT_MID = 24
+
+export type OutputPort = {
+  /** The value stored on WorkflowEdge.outputSelector, or undefined for a plain edge. */
+  selector: string | undefined
+  label: string
+}
+
+/** Returns the ordered output ports for a node. */
+export function getOutputPorts(node: WorkflowNode): OutputPort[] {
+  if (node.type === 'branch') {
+    return [
+      ...node.data.conditions.map((c) => ({ selector: c.label, label: c.label })),
+      { selector: node.data.defaultLabel, label: node.data.defaultLabel }
+    ]
+  }
+  if (node.type === 'for_each') {
+    return [
+      { selector: 'body', label: 'body' },
+      { selector: 'done', label: 'done' }
+    ]
+  }
+  return [{ selector: undefined, label: '' }]
+}
+
+/**
+ * Returns the y-offset from the node's top-left corner where an edge should
+ * attach on the right (source) or left (target) side.
+ */
+export function getPortYOffset(node: WorkflowNode, outputSelector?: string): number {
+  const ports = getOutputPorts(node)
+  if (ports.length === 1) {
+    return SINGLE_PORT_MID
+  }
+  const idx = ports.findIndex((p) => p.selector === outputSelector)
+  const i = idx !== -1 ? idx : 0
+  return PORT_Y_BASE + i * PORT_ROW_H + PORT_ROW_H / 2
+}
+
 function defaultShell(): string {
   if (navigator.userAgent.includes('Win')) {
     return 'powershell'

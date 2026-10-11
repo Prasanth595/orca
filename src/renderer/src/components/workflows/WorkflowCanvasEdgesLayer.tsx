@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import WorkflowRunProgress from './WorkflowRunProgress'
+import { getPortYOffset } from './workflow-canvas-node-config'
 import type { AgentWorkflow } from '../../../../shared/workflow-types'
 
 const CANVAS_W = 4000
 const CANVAS_H = 3000
 const NODE_W = 160
-const NODE_H_MID = 24
 
 type Props = {
   workflowId: string
@@ -44,9 +44,9 @@ export default function WorkflowCanvasEdgesLayer({
           const sp = ep(src.id, src.pos)
           const tp = ep(tgt.id, tgt.pos)
           const x1 = sp.x + NODE_W
-          const y1 = sp.y + NODE_H_MID
+          const y1 = sp.y + getPortYOffset(src, edge.outputSelector)
           const x2 = tp.x
-          const y2 = tp.y + NODE_H_MID
+          const y2 = tp.y + getPortYOffset(tgt, undefined)
           const cp = Math.max(60, Math.abs(x2 - x1) / 2)
           const d = `M${x1},${y1} C${x1 + cp},${y1} ${x2 - cp},${y2} ${x2},${y2}`
           // Midpoint of this symmetric bezier = average of endpoints
