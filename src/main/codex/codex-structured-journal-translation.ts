@@ -174,7 +174,15 @@ export function createCodexJournalTranslator(
           return admission
         }
         // No event will ever settle a child once the provider is gone.
-        const sweep = subagents.settleSession()
+        const provenStopped =
+          'cause' in event &&
+          event.cause === 'requested-close' &&
+          'stopCause' in event &&
+          event.stopCause === 'user-stop' &&
+          'processExit' in event &&
+          event.processExit?.root === 'exited' &&
+          event.processExit.workload === 'exited'
+        const sweep = subagents.settleSession(provenStopped)
         if (!sweep.accepted) {
           return sweep
         }
@@ -210,6 +218,9 @@ export function createCodexJournalTranslator(
       }
       if (event.type === 'provider-frame') {
         return genericFrames.appendUnhandled(event.kind, event.payload, event.threadId)
+      }
+      if (event.type !== 'notification') {
+        return CODEX_JOURNAL_ADMITTED
       }
       if (event.method === 'turn/started' || event.method === 'turn/completed') {
         const childAdmission = subagents.handleTurnEvent(event)

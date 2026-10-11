@@ -4,7 +4,10 @@
 // session owns are cleared exactly once, and only when the child was actually
 // proven stopped — a refused close leaves the session indexed for a retry.
 
-import { AgentSessionAcquisitionRootExitObservedError } from '../native-chat/agent-session-wire/structured-agent-session-adapter'
+import {
+  AgentSessionAcquisitionRootExitObservedError,
+  type StructuredAgentSessionStopCause
+} from '../native-chat/agent-session-wire/structured-agent-session-adapter'
 import type { StructuredAgentSessionLogger } from '../native-chat/agent-session-wire/structured-agent-session-logger'
 import {
   closeAllCodexSessions,
@@ -28,8 +31,13 @@ export type CodexStructuredSessionTeardownDeps = {
 export class CodexStructuredSessionTeardown {
   constructor(private readonly deps: CodexStructuredSessionTeardownDeps) {}
 
-  close = async (sessionId: string): Promise<boolean> => {
-    const connection = this.deps.sessions.get(sessionId)?.connection
+  close = async (
+    sessionId: string,
+    options?: { cause?: StructuredAgentSessionStopCause }
+  ): Promise<boolean> => {
+    const connection =
+      this.deps.sessions.get(sessionId)?.connection ??
+      this.deps.acquisitions.get(sessionId)?.window.connection
     const closed = this.settled(
       sessionId,
       await closeCodexSession(
@@ -37,7 +45,9 @@ export class CodexStructuredSessionTeardown {
         this.deps.sessions,
         this.deps.acquisitions,
         this.deps.onEvent,
-        this.deps.logger
+        this.deps.logger,
+        true,
+        options?.cause
       )
     )
     if (closed && connection?.processTreeUnproven) {
@@ -50,11 +60,13 @@ export class CodexStructuredSessionTeardown {
   }
 
   forceClose = async (sessionId: string): Promise<boolean> => {
-    const closed = await closeCodexPublishedSession(
-      this.deps.sessions,
+    const closed = await closeCodexSession(
       sessionId,
+      this.deps.sessions,
+      this.deps.acquisitions,
       this.deps.onEvent,
-      { requestedClose: false }
+      this.deps.logger,
+      false
     )
     return this.settled(sessionId, closed)
   }

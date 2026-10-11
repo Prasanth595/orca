@@ -1,6 +1,7 @@
 import type { PipedProcessSpawner } from '@orca/process-host/process-spec'
 import { spawnProcess } from '@orca/process-host'
 import { spawnManagedProviderProcess } from '../provider-process/managed-provider-process'
+import { createClaudeChildTreeReaper } from '../claude/claude-agent-sdk-exit-proof'
 import type { ProviderProcessLaunch } from '../provider-process/provider-process-launch'
 import { buildCodexAppServerExitError } from './codex-app-server-exit-error'
 import { withMissingProviderExecutable } from '../provider-process/provider-executable-missing'
@@ -36,15 +37,12 @@ export type CodexAppServerLaunch = ProviderProcessLaunch
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000
 
-/**
- * Spawns `codex app-server`, completes the initialize handshake, and returns a
- * connection that stays open until `close()`. Rejects — after reaping the child
- * — when the handshake cannot complete.
- */
-export async function openCodexAppServerConnection(
+/** Builds the transport so an owner can record its process before initialization. */
+async function connectCodexAppServer(
   launch: CodexAppServerLaunch,
   handlers: CodexAppServerConnectionHandlers = {},
-  spawnImpl: PipedProcessSpawner = spawnProcess
+  spawnImpl: PipedProcessSpawner,
+  initialize: boolean
 ): Promise<CodexAppServerConnection> {
   const managed = spawnManagedProviderProcess(launch, {
     spawnImpl,
@@ -52,6 +50,9 @@ export async function openCodexAppServerConnection(
     ...(handlers.onOutput ? { onOutput: handlers.onOutput } : {})
   })
   const { child, terminateTree: terminateProcessTree } = managed
+  const tree = createClaudeChildTreeReaper(child, {
+    exited: () => managed.rootVerdict === 'exited'
+  })
 
   let nextRequestId = 1
   let closing = false
@@ -87,7 +88,7 @@ export async function openCodexAppServerConnection(
     // Transport/protocol failures make the connection unusable immediately so
     // callers do not hang, but recovery must not treat that as a child exit
     // until the execution host has observed `exit`/`close`.
-    if (managed.rootVerdict === 'exited' && !exitReported) {
+    if (managed.rootVerdict === 'exited' && !closing && !exitReported) {
       exitReported = true
       handlers.onExit?.(terminalError, { expected: closing })
     }
@@ -200,7 +201,11 @@ export async function openCodexAppServerConnection(
 
   function close(): Promise<boolean> {
     closing ||= managed.rootVerdict !== 'exited'
-    return managed.close().then((result) => {
+    return managed.close(tree).then((result) => {
+      if (result.root === 'exited' && !exitReported) {
+        exitReported = true
+        handlers.onExit?.(terminalError ?? buildExitError(), { expected: closing })
+      }
       dispatcher.failPending(new Error('codex app-server connection closed'))
       return result.root === 'exited'
     })
@@ -215,9 +220,10 @@ export async function openCodexAppServerConnection(
     },
     get processTreeUnproven() {
       const tree = managed.lastCloseResult?.tree
-      return (
-        managed.lastCloseResult?.root === 'exited' && (tree === 'unverifiable' || tree === 'live')
-      )
+      return managed.lastCloseResult?.root === 'exited' && tree !== 'exited'
+    },
+    get closeResult() {
+      return managed.lastCloseResult
     },
     request,
     notify,
@@ -234,8 +240,10 @@ export async function openCodexAppServerConnection(
     if (child.pid !== undefined) {
       await handlers.onSpawned?.(child.pid)
     }
-    handshaking = true
-    await initializeCodexAppServerConnection(connection)
+    if (initialize) {
+      handshaking = true
+      await initializeCodexAppServerConnection(connection)
+    }
   } catch (error) {
     if ((await close()) !== true) {
       throw new CodexAppServerHandshakeExitUnprovenError(connection, error)
@@ -247,4 +255,21 @@ export async function openCodexAppServerConnection(
       : buildExitError(error instanceof Error ? error : new Error(String(error)))
   }
   return connection
+}
+
+/** Publishes the transport after its process identity is recorded, before initialization. */
+export function spawnCodexAppServerConnection(
+  launch: CodexAppServerLaunch,
+  handlers: CodexAppServerConnectionHandlers = {},
+  spawnImpl: PipedProcessSpawner = spawnProcess
+): Promise<CodexAppServerConnection> {
+  return connectCodexAppServer(launch, handlers, spawnImpl, false)
+}
+
+export function openCodexAppServerConnection(
+  launch: CodexAppServerLaunch,
+  handlers: CodexAppServerConnectionHandlers = {},
+  spawnImpl: PipedProcessSpawner = spawnProcess
+): Promise<CodexAppServerConnection> {
+  return connectCodexAppServer(launch, handlers, spawnImpl, true)
 }

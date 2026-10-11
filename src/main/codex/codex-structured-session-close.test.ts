@@ -1,3 +1,4 @@
+import { acquireReadyCodexForTest } from './codex-structured-session-adapter-fixture'
 import { createCodexDispatchEchoes } from './codex-structured-dispatch-echo'
 import { createCodexTurnOpenWaits } from './codex-structured-turn-open-wait'
 import { describe, expect, it, vi } from 'vitest'
@@ -157,12 +158,36 @@ describe('Codex structured session close lifecycle', () => {
     expect(released).toBe(true)
   })
 
+  it('carries separate root and workload exit evidence into a requested end', () => {
+    const { connection, translator, sessions, session } = backpressuredSession(true)
+    if (session.orcaClose) {
+      session.orcaClose.stopCause = 'user-stop'
+    }
+    Object.defineProperty(connection, 'closeResult', {
+      value: { root: 'exited', tree: 'unverifiable' }
+    })
+    handleCodexSessionExit({
+      sessions,
+      sessionId: 'session-1',
+      connection,
+      error: new Error('closed'),
+      closedByOrca: true
+    })
+    expect(translator.handle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cause: 'requested-close',
+        stopCause: 'user-stop',
+        processExit: { root: 'exited', workload: 'unverifiable' }
+      })
+    )
+  })
+
   it('mints a distinct child generation even when acquisitions share one fence', async () => {
     const { adapter } = adapterFixture()
     const input = { identity: identity('session-1'), fence: 7, spawnToken: 'spawn-1' }
 
-    const first = await adapter.acquire(input)
-    const second = await adapter.acquire(input)
+    const first = await acquireReadyCodexForTest(adapter, input)
+    const second = await acquireReadyCodexForTest(adapter, input)
 
     expect(first.acquisitionGeneration).toBe('generation-1')
     expect(second.acquisitionGeneration).toBe('generation-2')
@@ -170,9 +195,17 @@ describe('Codex structured session close lifecycle', () => {
 
   it('distinguishes an observed provider death from a requested close', async () => {
     const { adapter, connections, events } = adapterFixture()
-    await adapter.acquire({ identity: identity('session-1'), fence: 7, spawnToken: 'spawn-1' })
+    await acquireReadyCodexForTest(adapter, {
+      identity: identity('session-1'),
+      fence: 7,
+      spawnToken: 'spawn-1'
+    })
     connections[0]?.handlers.onExit?.(new Error('provider exited'))
-    await adapter.acquire({ identity: identity('session-2'), fence: 9, spawnToken: 'spawn-2' })
+    await acquireReadyCodexForTest(adapter, {
+      identity: identity('session-2'),
+      fence: 9,
+      spawnToken: 'spawn-2'
+    })
 
     await adapter.closeSession('session-2')
 
@@ -190,9 +223,26 @@ describe('Codex structured session close lifecycle', () => {
     ])
   })
 
+  it('preserves the host Stop cause through the adapter close', async () => {
+    const { adapter, events } = adapterFixture()
+    await acquireReadyCodexForTest(adapter, {
+      identity: identity('session-1'),
+      fence: 7,
+      spawnToken: 'spawn-1'
+    })
+    await expect(adapter.stopSessionWithCause('session-1', 'user-stop')).resolves.toBe(true)
+    expect(events.filter((event) => event.type === 'ended')).toMatchObject([
+      { cause: 'requested-close', stopCause: 'user-stop' }
+    ])
+  })
+
   it('force-close preserves unexpected-exit evidence when the adapter reports exit during close', async () => {
     const { adapter, connections, events } = adapterFixture()
-    await adapter.acquire({ identity: identity('session-1'), fence: 7, spawnToken: 'spawn-1' })
+    await acquireReadyCodexForTest(adapter, {
+      identity: identity('session-1'),
+      fence: 7,
+      spawnToken: 'spawn-1'
+    })
     const current = connections[0]
     if (!current) {
       throw new Error('missing connection')
