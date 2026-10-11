@@ -7,6 +7,10 @@ import type {
 import { normalizeExecutionHostId, LOCAL_EXECUTION_HOST_ID } from '../../shared/execution-host'
 import { isPathInsideOrEqual } from '../../shared/cross-platform-path'
 import { isWslUncPath } from '../../shared/wsl-paths'
+import {
+  materializeCodexSessionDeletionSymlinks,
+  discardCodexSessionDeletionStagingFiles
+} from './codex-session-delete-symlinks'
 import { resolveCodexCommand } from '../codex-cli/command'
 import { parseCodexRolloutThreadId } from './codex-rollout-identity'
 import { readCodexRolloutSessionMetaId } from './codex-rollout-session-meta'
@@ -14,7 +18,9 @@ import {
   assertCodexSessionDeletionPath,
   codexSessionDeletionHomes,
   collectCodexSessionDeletionHomes,
-  planCodexSessionDeletionHomes
+  planCodexSessionDeletionHomes,
+  type CodexSessionDeletionSymlink,
+  type CodexSessionDeletionStagingFile
 } from './codex-session-delete-targets'
 import {
   isCodexSessionDeletionRecorded,
@@ -69,18 +75,22 @@ export async function deleteCodexSession(
         return failed('active')
       }
       if (!isCodexSessionDeletionRecorded(sessionId)) {
-        await assertCodexSessionDeletionPath(home, path)
+        await assertCodexSessionDeletionPath(home, path, homes)
         if ((await readCodexRolloutSessionMetaId(path))?.toLowerCase() !== sessionId) {
           return { outcome: 'rejected', agent: 'codex', reason: 'undiscoverable-path' }
         }
       }
       const filePaths = new Set([args.filePath])
+      const stagingFiles: CodexSessionDeletionStagingFile[] = []
+      const symlinks: CodexSessionDeletionSymlink[] = []
       const targets = await planCodexSessionDeletionHomes(
         sessionId,
         homes,
         remaining,
         home,
-        (file) => filePaths.add(file)
+        (file) => filePaths.add(file),
+        (alias) => symlinks.push(alias),
+        (file) => stagingFiles.push(file)
       )
       const command = options.command ?? resolveCodexCommand()
       const run = options.run ?? runProcess
@@ -91,6 +101,8 @@ export async function deleteCodexSession(
         return failed('active')
       }
       recordCodexSessionDeletion(sessionId, false, targets)
+      await discardCodexSessionDeletionStagingFiles(stagingFiles)
+      await materializeCodexSessionDeletionSymlinks(sessionId, symlinks, homes)
       if (
         !(await runDeletes(targets, sessionId, command, run)) ||
         (await collectCodexSessionDeletionHomes(sessionId, homes)).length > 0

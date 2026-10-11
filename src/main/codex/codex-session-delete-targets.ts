@@ -1,5 +1,5 @@
-import { lstat, realpath } from 'node:fs/promises'
-import { dirname, join, resolve } from 'node:path'
+import { lstat, readlink, realpath } from 'node:fs/promises'
+import { basename, dirname, join, resolve } from 'node:path'
 import {
   isPathInsideOrEqual,
   normalizeRuntimePathForComparison
@@ -11,6 +11,7 @@ import { getCodexAccountHomeSessionDirectories } from './codex-account-home-disc
 import { getSystemCodexHomePath, resolveOrcaManagedCodexHomePath } from './codex-home-paths'
 import { parseCodexRolloutThreadId } from './codex-rollout-identity'
 import { readCodexRolloutSessionMetaId } from './codex-rollout-session-meta'
+import { isCodexSessionDeletionRecorded } from './codex-session-deletion-record'
 import { listCodexSessionRolloutFilesIncrementally } from './codex-session-file-listing'
 
 export function codexSessionDeletionHomes(): string[] {
@@ -31,13 +32,14 @@ export function codexSessionDeletionHomes(): string[] {
 
 export async function assertCodexSessionDeletionPath(
   home: string,
-  filePath: string
-): Promise<void> {
+  filePath: string,
+  homes: readonly string[] = [home]
+): Promise<string | null> {
   const root = ['sessions', 'archived_sessions']
     .map((name) => join(home, name))
     .find((candidate) => isPathInsideOrEqual(candidate, filePath))
   const stat = await lstat(filePath)
-  if (!root || !stat.isFile() || !(await lstat(root)).isDirectory()) {
+  if (!root || (!stat.isFile() && !stat.isSymbolicLink()) || !(await lstat(root)).isDirectory()) {
     throw new Error('Invalid Codex session file')
   }
   const canonicalHome = await realpath(home)
@@ -51,15 +53,32 @@ export async function assertCodexSessionDeletionPath(
   ) {
     throw new Error('Codex session path escapes its home')
   }
-  if (!stat.isFile() || !isPathInsideOrEqual(canonicalRoot, await realpath(filePath))) {
-    throw new Error('Codex deletion does not support symlink rollouts')
+  if (stat.isSymbolicLink()) {
+    const target = resolve(dirname(filePath), await readlink(filePath))
+    const targetHome = homes.find((candidate) => isPathInsideOrEqual(candidate, target))
+    if (
+      !targetHome ||
+      parseCodexRolloutThreadId(target)?.threadId !==
+        parseCodexRolloutThreadId(filePath)?.threadId ||
+      !(await lstat(target)).isFile()
+    ) {
+      throw new Error('Invalid Codex session symlink target')
+    }
+    await assertCodexSessionDeletionPath(targetHome, target)
+    return target
   }
+  if (!isPathInsideOrEqual(canonicalRoot, await realpath(filePath))) {
+    throw new Error('Codex session path escapes its home')
+  }
+  return null
 }
 
 export async function collectCodexSessionDeletionHomes(
   sessionId: string,
   homes: readonly string[],
-  onRollout?: (filePath: string) => void
+  onRollout?: (filePath: string) => void,
+  onSymlink?: (alias: CodexSessionDeletionSymlink) => void,
+  onStagingFile?: (file: CodexSessionDeletionStagingFile) => void
 ): Promise<string[]> {
   const matched: string[] = []
   for (const home of homes) {
@@ -94,8 +113,19 @@ export async function collectCodexSessionDeletionHomes(
         if (parseCodexRolloutThreadId(filePath)?.threadId !== sessionId) {
           continue
         }
-        await assertCodexSessionDeletionPath(home, filePath)
-        if ((await readCodexRolloutSessionMetaId(filePath))?.toLowerCase() !== sessionId) {
+        const target = await assertCodexSessionDeletionPath(home, filePath, homes)
+        if (target) {
+          onSymlink?.({ home, filePath, target })
+        }
+        if (
+          isCodexSessionDeletionRecorded(sessionId) &&
+          basename(dirname(filePath)).startsWith(`.orca-delete-${sessionId}-`)
+        ) {
+          if (target) {
+            throw new Error('Invalid Codex deletion staging file')
+          }
+          onStagingFile?.({ home, filePath })
+        } else if ((await readCodexRolloutSessionMetaId(filePath))?.toLowerCase() !== sessionId) {
           throw new Error('Codex session identity could not be verified')
         }
         onRollout?.(filePath)
@@ -114,10 +144,18 @@ export async function planCodexSessionDeletionHomes(
   homes: readonly string[],
   pending: readonly string[],
   selectedHome: string,
-  onRollout: (filePath: string) => void
+  onRollout: (filePath: string) => void,
+  onSymlink?: (alias: CodexSessionDeletionSymlink) => void,
+  onStagingFile?: (file: CodexSessionDeletionStagingFile) => void
 ): Promise<string[]> {
   const canonicalHomes = new Map<string, string>()
-  const discovered = await collectCodexSessionDeletionHomes(sessionId, homes, onRollout)
+  const discovered = await collectCodexSessionDeletionHomes(
+    sessionId,
+    homes,
+    onRollout,
+    onSymlink,
+    onStagingFile
+  )
   const candidates = [...new Set([...pending, ...discovered])]
   candidates.sort((a, b) => Number(a === selectedHome) - Number(b === selectedHome))
   for (const home of candidates) {
@@ -143,3 +181,11 @@ export async function planCodexSessionDeletionHomes(
   const targets = [...canonicalHomes.values()]
   return targets
 }
+
+export type CodexSessionDeletionSymlink = {
+  home: string
+  filePath: string
+  target: string
+}
+
+export type CodexSessionDeletionStagingFile = { home: string; filePath: string }

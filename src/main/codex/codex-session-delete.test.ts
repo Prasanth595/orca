@@ -5,6 +5,7 @@ import {
   writeFileSync,
   existsSync,
   linkSync,
+  lstatSync,
   copyFileSync,
   rmSync,
   symlinkSync,
@@ -18,6 +19,7 @@ import { runProcess } from '@orca/process-host'
 import { deleteCodexSession } from './codex-session-delete'
 import {
   isCodexSessionDeletionRecorded,
+  recordCodexSessionDeletion,
   pendingCodexSessionDeletionHomes
 } from './codex-session-deletion-record'
 
@@ -166,6 +168,54 @@ describe('Codex session deletion', () => {
     expect(pendingCodexSessionDeletionHomes(SESSION)).toContain(homes[2])
   })
 
+  it('materializes a selected symlink before the CLI deletes its source home', async () => {
+    rmSync(paths[0])
+    symlinkSync(paths[2], paths[0], 'file')
+    const run = deleteRun()
+    expect(await deleteCodexSession(args(), { homes, run })).toMatchObject({ outcome: 'deleted' })
+    expect(paths.map(existsSync)).toEqual([false, false, false])
+  })
+
+  it('keeps a materialized symlink retryable after a CLI failure', async () => {
+    rmSync(paths[2])
+    symlinkSync(paths[0], paths[2], 'file')
+    const run = deleteRun().mockImplementation(async (spec) =>
+      spec.args?.includes('--help')
+        ? { ...success, stdout: 'Usage: codex delete [OPTIONS] <SESSION>\n--force' }
+        : { ...success, code: 1 }
+    )
+    expect(await deleteCodexSession(args(), { homes, run })).toMatchObject({ outcome: 'failed' })
+    expect(lstatSync(paths[2]).isFile()).toBe(true)
+    expect(readFileSync(paths[2])).toEqual(readFileSync(paths[0]))
+    expect(await deleteCodexSession(args(), { homes, run: deleteRun() })).toMatchObject({
+      outcome: 'deleted'
+    })
+  })
+
+  it('rejects a symlink whose target has a different UUID', async () => {
+    const other = rollout(homes[0], OTHER)
+    writeRollout(other, OTHER)
+    rmSync(paths[2])
+    symlinkSync(other, paths[2], 'file')
+    const run = deleteRun()
+    expect(await deleteCodexSession(args(), { homes, run })).toMatchObject({ outcome: 'failed' })
+    expect(run).not.toHaveBeenCalled()
+    expect(lstatSync(paths[2]).isSymbolicLink()).toBe(true)
+    expect(existsSync(other)).toBe(true)
+  })
+
+  it('rejects a symlink pointing outside known Codex homes', async () => {
+    const outside = rollout(join(root, 'outside'))
+    writeRollout(outside)
+    rmSync(paths[2])
+    symlinkSync(outside, paths[2], 'file')
+    const run = deleteRun()
+    expect(await deleteCodexSession(args(), { homes, run })).toMatchObject({ outcome: 'failed' })
+    expect(run).not.toHaveBeenCalled()
+    expect(readFileSync(outside)).toEqual(readFileSync(paths[0]))
+    expect(lstatSync(paths[2]).isSymbolicLink()).toBe(true)
+  })
+
   it('verifies and deletes a selected compressed rollout alongside its plain aliases', async () => {
     const compressed = `${paths[0]}.zst`
     writeFileSync(compressed, zstdCompressSync(readFileSync(paths[0])))
@@ -303,13 +353,20 @@ describe('Codex session deletion', () => {
 
 it
   .skipIf(process.env.ORCA_REAL_CODEX_SESSION_DELETE_TEST !== '1')
-  .each(['plain', 'compressed', 'symlink'])(
+  .each(['plain', 'compressed', 'symlink', 'compressed-symlink'])(
   'handles synthetic %s fixtures using the installed Codex CLI',
   async (kind) => {
     const selected = kind === 'compressed' ? `${paths[0]}.zst` : paths[0]
     if (kind === 'compressed') {
       writeFileSync(selected, zstdCompressSync(readFileSync(paths[0])))
       rmSync(paths[0])
+    }
+    if (kind === 'compressed-symlink') {
+      writeFileSync(`${paths[1]}.zst`, zstdCompressSync(readFileSync(paths[1])))
+      rmSync(paths[1])
+      rmSync(paths[2])
+      paths[2] = `${paths[2]}.zst`
+      symlinkSync(`${paths[1]}.zst`, paths[2], 'file')
     }
     if (kind === 'symlink') {
       rmSync(paths[2])
@@ -319,6 +376,16 @@ it
     const archived = paths[2].replace('sessions', 'archived_sessions')
     mkdirSync(dirname(archived), { recursive: true })
     renameSync(paths[2], archived)
+    const interruptedCopy = join(
+      dirname(archived),
+      `.orca-delete-${SESSION}-interrupted`,
+      archived.split(/[\\/]/).at(-1) ?? ''
+    )
+    if (kind === 'symlink') {
+      mkdirSync(dirname(interruptedCopy), { recursive: true, mode: 0o700 })
+      writeFileSync(interruptedCopy, 'partial metadata from an interrupted copy')
+      recordCodexSessionDeletion(SESSION, false, homes)
+    }
     const failures: string[] = []
     const result = await deleteCodexSession(
       { ...args(), filePath: selected },
@@ -337,16 +404,11 @@ it
         }
       }
     )
-    if (kind === 'symlink') {
-      expect(result).toMatchObject({ outcome: 'failed', detail: 'incomplete' })
-      expect(failures).toEqual([])
-      expect(existsSync(archived)).toBe(true)
-      expect(existsSync(selected)).toBe(true)
-      return
-    }
     expect({ result, failures }).toMatchObject({ result: { outcome: 'deleted' }, failures: [] })
     expect(paths.every((path) => !existsSync(path))).toBe(true)
     expect(existsSync(archived)).toBe(false)
+    expect(existsSync(interruptedCopy)).toBe(false)
+    expect(existsSync(`${paths[1]}.zst`)).toBe(false)
     expect(existsSync(selected)).toBe(false)
     expect(homes.every((home) => existsSync(rollout(home, OTHER)))).toBe(true)
   },
