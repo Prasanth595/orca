@@ -16,10 +16,9 @@ export async function runPythonScriptNode(
 ): Promise<PythonNodeResult> {
   const python = data.pythonBin ?? 'python3'
   if (remoteExec) {
-    // Escape single quotes in the script for remote shell safety
-    const escaped = data.script.replace(/'/g, `'\\''`)
-    const result = await remoteExec(`${python} -c '${escaped}'`, {
-      stdin,
+    // Pipe script via stdin — avoids any shell interpolation of $vars, backticks or !
+    const result = await remoteExec(`${python} -`, {
+      stdin: data.script,
       signal,
       timeoutMs: data.timeoutSeconds * 1000
     })

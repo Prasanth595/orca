@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { Maximize2, Minimize2, Plus, Workflow, Play, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
@@ -10,6 +10,8 @@ import WorkflowCanvasEdgesLayer from './WorkflowCanvasEdgesLayer'
 import WorkflowAddNodeMenu from './WorkflowAddNodeMenu'
 import WorkflowCanvasNode from './WorkflowCanvasNode'
 import WorkflowExecutionTargetBadge from './WorkflowExecutionTargetBadge'
+import WorkflowValidationButton from './WorkflowValidationButton'
+import { validateWorkflow } from '../../../../shared/workflow-graph-validation'
 import type { AgentWorkflow, WorkflowNodeType } from '../../../../shared/workflow-types'
 
 const CANVAS_W = 4000
@@ -40,26 +42,18 @@ export default function WorkflowCanvas({
   const [isPanning, setIsPanning] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
 
-  const dragRef = useRef<{
-    nodeId: string
-    startX: number
-    startY: number
-    origX: number
-    origY: number
-  } | null>(null)
-  // Set to true when a node drag moves enough to count as a drag (not a click)
+  type DragState = { nodeId: string; startX: number; startY: number; origX: number; origY: number }
+  const dragRef = useRef<DragState | null>(null)
   const didDragNodeRef = useRef(false)
-  const panDragRef = useRef<{
-    startX: number
-    startY: number
-    origX: number
-    origY: number
-  } | null>(null)
-  // Tracks whether the last mousedown resulted in an actual pan (moved > 2px)
+  type PanState = { startX: number; startY: number; origX: number; origY: number }
+  const panDragRef = useRef<PanState | null>(null)
   const didPanRef = useRef(false)
   const viewportRef = useRef<HTMLDivElement>(null)
 
   const [pan, setPan, persistPan] = usePersistedCanvasPan(workflow?.id ?? '')
+
+  const validationErrors = useMemo(() => (workflow ? validateWorkflow(workflow) : []), [workflow])
+  const hasErrors = validationErrors.length > 0
 
   useEffect(() => {
     if (!connectingFrom) {
@@ -88,7 +82,18 @@ export default function WorkflowCanvas({
 
   if (workflow === null) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
+      <div className="relative flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
+        {focused && (
+          <Button
+            size="icon"
+            variant="outline"
+            className="absolute top-2 right-2 z-10 size-7"
+            onClick={onUnfocus}
+            title={translate('workflows.canvas.unfocus', 'Exit focus mode')}
+          >
+            <Minimize2 className="size-3.5" />
+          </Button>
+        )}
         <Workflow className="size-8 opacity-30" strokeWidth={1.25} />
         <span className="text-[13px]">
           {translate('workflows.canvas.empty', 'Select or create a workflow to start editing.')}
@@ -101,10 +106,7 @@ export default function WorkflowCanvas({
     if (!workflow || sourceId === targetId) {
       return
     }
-    const alreadyExists = workflow.edges.some(
-      (e) => e.sourceNodeId === sourceId && e.targetNodeId === targetId
-    )
-    if (alreadyExists) {
+    if (workflow.edges.some((e) => e.sourceNodeId === sourceId && e.targetNodeId === targetId)) {
       return
     }
     await window.api.workflows.update(workflow.id, {
@@ -141,7 +143,7 @@ export default function WorkflowCanvas({
   }
 
   async function handleRun(): Promise<void> {
-    if (!workflow || isRunning) {
+    if (!workflow || isRunning || hasErrors) {
       return
     }
     await window.api.workflows.runNow(workflow.id)
@@ -263,10 +265,7 @@ export default function WorkflowCanvas({
     window.addEventListener('mouseup', onMouseUp)
   }
 
-  const nodePositions: Record<string, { x: number; y: number }> = {}
-  for (const node of workflow.nodes) {
-    nodePositions[node.id] = node.pos
-  }
+  const nodePositions = Object.fromEntries(workflow.nodes.map((n) => [n.id, n.pos]))
 
   return (
     <div
@@ -283,22 +282,20 @@ export default function WorkflowCanvas({
       </div>
 
       {/* Focus toggle — viewport overlay, top right */}
-      <div className="absolute top-2 right-2 z-10">
-        <Button
-          size="icon"
-          variant="outline"
-          className="size-7"
-          onClick={focused ? onUnfocus : onFocus}
-          onMouseDown={(e) => e.stopPropagation()}
-          title={
-            focused
-              ? translate('workflows.canvas.exitFocus', 'Exit focus')
-              : translate('workflows.canvas.focusCanvas', 'Focus canvas')
-          }
-        >
-          {focused ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
-        </Button>
-      </div>
+      <Button
+        size="icon"
+        variant="outline"
+        className="absolute top-2 right-2 z-10 size-7"
+        onClick={focused ? onUnfocus : onFocus}
+        onMouseDown={(e) => e.stopPropagation()}
+        title={
+          focused
+            ? translate('workflows.canvas.exitFocus', 'Exit focus')
+            : translate('workflows.canvas.focusCanvas', 'Focus canvas')
+        }
+      >
+        {focused ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+      </Button>
 
       {/* Connect mode hint — viewport overlay, top center */}
       {connectingFrom && (
@@ -366,34 +363,34 @@ export default function WorkflowCanvas({
               setConnectingFrom(nodeId)
               setShowAddMenu(false)
             }}
+            onConnectStart={(nodeId) => {
+              setConnectingFrom(nodeId)
+              setShowAddMenu(false)
+            }}
             onDelete={deleteNode}
           />
         ))}
       </div>
 
-      {/* Empty state — viewport overlay */}
       {workflow.nodes.length === 0 && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground/50 pointer-events-none">
-          <span className="text-[13px]">
-            {translate('workflows.canvas.addNode', 'Click + to add nodes')}
-          </span>
+        <div className="absolute inset-0 flex items-center justify-center text-[13px] text-muted-foreground/50 pointer-events-none">
+          {translate('workflows.canvas.addNode', 'Click + to add nodes')}
         </div>
       )}
-
-      {/* Add node menu */}
       {showAddMenu && <WorkflowAddNodeMenu onAdd={(type) => void addNode(type)} />}
 
-      {/* Run + Add node buttons — bottom center */}
+      {/* Validation errors button + Run + Add node — bottom center */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2">
+        <WorkflowValidationButton errors={validationErrors} />
         <button
           type="button"
           className={cn(
             'flex items-center justify-center size-8 rounded-full border border-border bg-background text-foreground shadow-md transition-colors',
-            isRunning ? 'opacity-60 cursor-not-allowed' : 'hover:bg-accent'
+            isRunning || hasErrors ? 'opacity-60 cursor-not-allowed' : 'hover:bg-accent'
           )}
           onMouseDown={(e) => e.stopPropagation()}
           onClick={() => void handleRun()}
-          disabled={isRunning}
+          disabled={isRunning || hasErrors}
           title={translate('workflows.canvas.runNow', 'Run workflow')}
         >
           {isRunning ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}

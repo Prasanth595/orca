@@ -5,7 +5,8 @@ import {
   NODE_TYPE_ICON_COLORS,
   NODE_TYPE_ICONS,
   TRIGGER_NODE_TYPES,
-  ACTION_NODE_TYPES
+  ACTION_NODE_TYPES,
+  CONTROL_FLOW_NODE_TYPES
 } from './workflow-canvas-node-config'
 import type { WorkflowNodeType } from '../../../../shared/workflow-types'
 
@@ -37,6 +38,25 @@ export default function WorkflowAddNodeMenu({ onAdd }: Props): React.JSX.Element
         {translate('workflows.canvas.menuGroupActions', 'Actions')}
       </div>
       {ACTION_NODE_TYPES.map((type) => {
+        const Icon = NODE_TYPE_ICONS[type]
+        return (
+          <button
+            key={type}
+            type="button"
+            className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left text-[12px] hover:bg-muted transition-colors"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={() => onAdd(type)}
+          >
+            <Icon className={cn('size-3.5 shrink-0', NODE_TYPE_ICON_COLORS[type])} />
+            {NODE_TYPE_LABELS[type]}
+          </button>
+        )
+      })}
+      <div className="mx-3 my-1 border-t border-border" />
+      <div className="px-3 pt-0.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {translate('workflows.canvas.menuGroupControlFlow', 'Control Flow')}
+      </div>
+      {CONTROL_FLOW_NODE_TYPES.map((type) => {
         const Icon = NODE_TYPE_ICONS[type]
         return (
           <button

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Loader2, CheckCircle2, XCircle, Clock } from 'lucide-react'
+import { Loader2, CheckCircle2, XCircle, Clock, SkipForward } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { translate } from '@/i18n/i18n'
 import type { WorkflowRun, WorkflowNodeRunStatus } from '../../../../shared/workflow-types'
@@ -18,6 +18,7 @@ function StatusIcon({ status }: { status: WorkflowNodeRunStatus }): React.JSX.El
     case 'failed':
       return <XCircle className="size-3 text-destructive" />
     case 'skipped':
+      return <SkipForward className="size-3 text-muted-foreground" />
     case 'pending':
       return <Clock className="size-3 text-muted-foreground" />
   }
@@ -31,8 +32,9 @@ function statusOverlayClass(status: WorkflowNodeRunStatus): string {
       return 'border-emerald-400 bg-emerald-400/10 ring-2 ring-emerald-400/30'
     case 'failed':
       return 'border-red-400 bg-red-400/10 ring-2 ring-red-400/50'
-    case 'pending':
     case 'skipped':
+      return 'border-border bg-muted/20 opacity-50'
+    case 'pending':
       return 'border-border bg-muted/20'
   }
 }
@@ -55,11 +57,11 @@ export default function WorkflowRunProgress({
       }
       setActiveRun(run)
       if (run.status !== 'running' && run.status !== 'pending') {
-        // Keep visible briefly after completion so user can see final state
         if (dismissTimer) {
           clearTimeout(dismissTimer)
         }
-        dismissTimer = setTimeout(() => setActiveRun(null), 3000)
+        // Auto-dismiss after 8s; user can also click to dismiss immediately
+        dismissTimer = setTimeout(() => setActiveRun(null), 8000)
       }
     })
     return () => {
@@ -73,6 +75,10 @@ export default function WorkflowRunProgress({
   if (!activeRun) {
     return null
   }
+
+  const completedCount = activeRun.nodeRuns.filter((nr) => nr.status === 'completed').length
+  const skippedCount = activeRun.nodeRuns.filter((nr) => nr.status === 'skipped').length
+  const totalCount = activeRun.nodeRuns.length
 
   return (
     <>
@@ -96,24 +102,34 @@ export default function WorkflowRunProgress({
           </div>
         )
       })}
-      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 bg-background/90 border border-border rounded-lg px-3 py-1.5 shadow-lg pointer-events-none flex items-center gap-2">
+      {/* Status banner — click to dismiss */}
+      <button
+        type="button"
+        className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 bg-background/90 border border-border rounded-lg px-3 py-1.5 shadow-lg flex items-center gap-2 cursor-pointer hover:bg-background transition-colors"
+        onClick={() => setActiveRun(null)}
+        title={translate('workflows.run.clickToDismiss', 'Click to dismiss')}
+      >
         {activeRun.status === 'running' && (
           <Loader2 className="size-3 animate-spin text-status-warning" />
         )}
         {activeRun.status === 'completed' && (
           <CheckCircle2 className="size-3 text-status-success" />
         )}
-        {activeRun.status === 'failed' && <XCircle className="size-3 text-destructive" />}
+        {(activeRun.status === 'failed' || activeRun.status === 'cancelled') && (
+          <XCircle className="size-3 text-destructive" />
+        )}
         <span className="text-[11px] font-medium">
           {activeRun.status === 'running'
-            ? `${translate('workflows.run.running', 'Running…')} ${activeRun.nodeRuns.filter((nr) => nr.status === 'completed').length}/${activeRun.nodeRuns.length} ${translate('workflows.run.nodes', 'nodes')}`
+            ? `${translate('workflows.run.running', 'Running…')} ${completedCount}/${totalCount - skippedCount} ${translate('workflows.run.nodes', 'nodes')}`
             : activeRun.status === 'completed'
-              ? translate('workflows.run.completed', 'Run completed')
+              ? `${translate('workflows.run.completed', 'Run completed')}${skippedCount > 0 ? ` (${skippedCount} skipped)` : ''}`
               : activeRun.status === 'failed'
                 ? `${translate('workflows.run.failed', 'Run failed:')} ${activeRun.error ?? ''}`
-                : activeRun.status}
+                : activeRun.status === 'cancelled'
+                  ? translate('workflows.run.cancelled', 'Run cancelled')
+                  : activeRun.status}
         </span>
-      </div>
+      </button>
     </>
   )
 }

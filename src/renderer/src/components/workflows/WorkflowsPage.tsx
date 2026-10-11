@@ -56,6 +56,14 @@ export default function WorkflowsPage(): React.JSX.Element {
   const [rightWidth, adjustRight] = usePersistedSize('wf-panel-right', 320, 200, 520)
   const [bottomHeight, adjustBottom] = usePersistedSize('wf-panel-bottom', 220, 80, 420)
 
+  // Auto-unfocus when no workflow is selected to prevent a stuck state where
+  // the list panel is hidden with no way to escape.
+  useEffect(() => {
+    if (selectedWorkflow === null && canvasFocused) {
+      setCanvasFocusedPersisted(false)
+    }
+  }, [selectedWorkflow, canvasFocused])
+
   const selectedWorkflowId = selectedWorkflow?.id ?? null
   useEffect(() => {
     if (!selectedWorkflowId) {
