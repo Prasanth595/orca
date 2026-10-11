@@ -45,13 +45,11 @@ type IgnoredPathsQueryContext = {
   worktreePath: string
 }
 
-// Why: an in-flight query already left for a specific host; a changed runtime
-// environment or connection must re-query instead of riding along its verdicts.
+// Why: an in-flight query already left for a specific host; a changed owner
+// target or connection must re-query instead of riding along its verdicts.
 type IgnoredPathsQueryContextIdentity = {
   connectionId: string | undefined
-  runtimeEnvironmentId: ReturnType<
-    typeof getRightSidebarWorktreeRuntimeSettings
-  >['activeRuntimeEnvironmentId']
+  targetKey: string
 }
 
 type IgnoredPathsQueryWaiter = {
@@ -73,12 +71,16 @@ type IgnoredPathsQueryLane = {
 
 const ignoredPathsQueryLanes = new Map<string, IgnoredPathsQueryLane>()
 
+function ignoredPathsQueryTargetKey(target: RuntimeClientTarget): string {
+  return target.kind === 'environment' ? `env:${target.environmentId}` : 'local'
+}
+
 function ignoredPathsQueryContextIdentity(
   context: IgnoredPathsQueryContext
 ): IgnoredPathsQueryContextIdentity {
   return {
     connectionId: context.connectionId,
-    runtimeEnvironmentId: context.settings.activeRuntimeEnvironmentId
+    targetKey: ignoredPathsQueryTargetKey(context.target)
   }
 }
 
@@ -86,10 +88,7 @@ function isSameIgnoredPathsQueryContextIdentity(
   left: IgnoredPathsQueryContextIdentity,
   right: IgnoredPathsQueryContextIdentity
 ): boolean {
-  return (
-    left.connectionId === right.connectionId &&
-    left.runtimeEnvironmentId === right.runtimeEnvironmentId
-  )
+  return left.connectionId === right.connectionId && left.targetKey === right.targetKey
 }
 
 function pumpIgnoredPathsQueryLane(key: string, lane: IgnoredPathsQueryLane): void {
