@@ -18,15 +18,15 @@ function makeWf(nodes: WorkflowNode[], edges: AgentWorkflow['edges'] = []): Agen
   }
 }
 
-function node(id: string): WorkflowNode {
-  return { id, type: 'trigger_manual', pos: { x: 0, y: 0 }, data: {} }
+function node(id: string, pos: { x: number; y: number } = { x: 0, y: 0 }): WorkflowNode {
+  return { id, type: 'trigger_manual', pos, data: {} }
 }
 
-function shell(id: string): WorkflowNode {
+function shell(id: string, pos: { x: number; y: number } = { x: 0, y: 0 }): WorkflowNode {
   return {
     id,
     type: 'shell_command',
-    pos: { x: 0, y: 0 },
+    pos,
     data: { command: 'echo', workingDirectory: '/', timeoutSeconds: 5 }
   }
 }
@@ -79,6 +79,39 @@ describe('topologicalSort', () => {
     const result = topologicalSort(makeWf([a, b]))
     expect(result).not.toBeNull()
     expect(result!.length).toBe(2)
+  })
+
+  it('orders parallel roots by y position (top-to-bottom)', () => {
+    // Three unconnected triggers at different y positions — should come out top first
+    const [top, mid, bottom] = [
+      node('top', { x: 0, y: 100 }),
+      node('mid', { x: 0, y: 300 }),
+      node('bottom', { x: 0, y: 200 })
+    ]
+    const result = topologicalSort(makeWf([top, mid, bottom]))
+    expect(result?.map((n) => n.id)).toEqual(['top', 'bottom', 'mid'])
+  })
+
+  it('orders parallel siblings unlocked by same predecessor by y position', () => {
+    // trigger → [branch_top (y=100), branch_bottom (y=300)] → join
+    const trigger = node('t', { x: 0, y: 0 })
+    const branchTop = shell('bt', { x: 200, y: 100 })
+    const branchBottom = shell('bb', { x: 200, y: 300 })
+    const join = shell('j', { x: 400, y: 200 })
+    const result = topologicalSort(
+      makeWf(
+        [trigger, branchTop, branchBottom, join],
+        [edge('e1', 't', 'bt'), edge('e2', 't', 'bb'), edge('e3', 'bt', 'j'), edge('e4', 'bb', 'j')]
+      )
+    )
+    expect(result?.map((n) => n.id)).toEqual(['t', 'bt', 'bb', 'j'])
+  })
+
+  it('uses x position as tiebreaker when y values are equal', () => {
+    const left = shell('l', { x: 100, y: 200 })
+    const right = shell('r', { x: 300, y: 200 })
+    const result = topologicalSort(makeWf([right, left]))
+    expect(result?.map((n) => n.id)).toEqual(['l', 'r'])
   })
 })
 

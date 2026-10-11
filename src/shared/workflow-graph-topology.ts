@@ -13,12 +13,22 @@ export function topologicalSort(workflow: AgentWorkflow): WorkflowNode[] | null 
     inDegree.set(edge.targetNodeId, (inDegree.get(edge.targetNodeId) ?? 0) + 1)
   }
 
+  // Sort by canvas position (top-to-bottom, left-to-right) so parallel nodes execute in
+  // visual order rather than arbitrary insertion order.
+  function byPosition(a: string, b: string): number {
+    const pa = nodeById.get(a)!.pos
+    const pb = nodeById.get(b)!.pos
+    return pa.y !== pb.y ? pa.y - pb.y : pa.x - pb.x
+  }
+
   const queue: string[] = []
   for (const [id, deg] of inDegree) {
     if (deg === 0) {
       queue.push(id)
     }
   }
+  queue.sort(byPosition)
+
   const sorted: WorkflowNode[] = []
   while (queue.length > 0) {
     const id = queue.shift()!
@@ -27,13 +37,16 @@ export function topologicalSort(workflow: AgentWorkflow): WorkflowNode[] | null 
       return null
     }
     sorted.push(node)
+    const newlyReady: string[] = []
     for (const next of adj.get(id) ?? []) {
       const deg = (inDegree.get(next) ?? 1) - 1
       inDegree.set(next, deg)
       if (deg === 0) {
-        queue.push(next)
+        newlyReady.push(next)
       }
     }
+    newlyReady.sort(byPosition)
+    queue.push(...newlyReady)
   }
   return sorted.length === workflow.nodes.length ? sorted : null
 }
