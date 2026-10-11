@@ -280,6 +280,7 @@ import { RepoSelector, SlugRepo } from './github-repo-target-params'
 import {
   IssuesList,
   RateLimit,
+  RepositoriesList,
   WorkItem,
   WorkItemByOwnerRepo,
   WorkItemsCount,
@@ -902,6 +903,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'github.listBindableAccounts': BindableAccounts,
   'github.listIssues': IssuesList,
   'github.listLabels': RepoSelector,
+  'github.listRepositories': RepositoriesList,
   'github.listWorkItems': WorkItemsList,
   'github.markPRReadyForReview': MarkPrReadyForReview,
   'github.mergePR': MergePr,
