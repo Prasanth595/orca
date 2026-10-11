@@ -1,12 +1,17 @@
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   DEFAULT_MAX_HOST_TERMINALS,
+  defaultHostTerminalLedgerDir,
   HostTerminalLedger,
   resolveMaxHostTerminals
 } from './host-terminal-ledger'
+
+const createDir = (path: string): void => {
+  mkdirSync(path, { recursive: true })
+}
 
 describe('HostTerminalLedger', () => {
   let dir: string
@@ -30,6 +35,8 @@ describe('HostTerminalLedger', () => {
       pid,
       now: () => now,
       isProcessAlive: (candidate) => alive.has(candidate),
+      // Why: the private-dir check rejects a shared parent such as Linux's /tmp.
+      createDir,
       log: vi.fn()
     })
   }
@@ -80,6 +87,7 @@ describe('HostTerminalLedger', () => {
         maxTerminals: 4,
         pid: 200,
         isProcessAlive: (candidate) => alive.has(candidate),
+        createDir,
         log: vi.fn()
       })
       idle.publish(4)
@@ -92,6 +100,14 @@ describe('HostTerminalLedger', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('recreates its directory when a cleaner removed it', () => {
+    const desktop = ledger(100)
+    desktop.publish(1)
+    rmSync(dir, { recursive: true, force: true })
+    desktop.publish(4)
+    expect(ledger(200).tryReserve(0)).toBe(false)
   })
 
   it('skips an unreadable entry instead of blocking terminals', () => {
@@ -138,5 +154,16 @@ describe('resolveMaxHostTerminals', () => {
 
   it('accepts a tuned cap', () => {
     expect(resolveMaxHostTerminals({ ORCA_DAEMON_MAX_HOST_TERMINALS: ' 64 ' })).toBe(64)
+  })
+})
+
+describe('defaultHostTerminalLedgerDir', () => {
+  it('uses the per-user machine-local base beside relocated daemon sockets', () => {
+    expect(defaultHostTerminalLedgerDir('linux', 1000)).toBe('/tmp/.orca-daemon-1000/terminals')
+    expect(defaultHostTerminalLedgerDir('darwin', 501)).toBe('/tmp/.orca-daemon-501/terminals')
+    expect(defaultHostTerminalLedgerDir('linux', undefined)).toBeNull()
+    expect(defaultHostTerminalLedgerDir('win32', undefined)).toBe(
+      join(tmpdir(), 'orca-daemon-host-terminals')
+    )
   })
 })

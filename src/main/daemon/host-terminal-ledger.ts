@@ -199,7 +199,7 @@ export class HostTerminalLedger {
     return dir
   }
 
-  private write(terminals: number): void {
+  private write(terminals: number, retried = false): void {
     this.published = terminals
     const dir = this.usableDir()
     if (dir === null) {
@@ -210,8 +210,13 @@ export class HostTerminalLedger {
     try {
       writeFileSync(`${path}.tmp`, JSON.stringify(entry), { mode: 0o600 })
       renameFileWithWindowsRetry(`${path}.tmp`, path)
-    } catch {
-      // Others then undercount this daemon; its own cap still holds.
+    } catch (error) {
+      // Why: a periodic /tmp cleaner can remove the directory under a long-lived daemon.
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT' && !retried) {
+        this.dirReady = false
+        this.write(terminals, true)
+      }
+      // Otherwise others undercount this daemon; its own cap still holds.
     }
   }
 
