@@ -544,7 +544,8 @@ test('adopts runtime-owned agent and Setup PTYs on first mount', async ({
       orcaPage.evaluate(
         async ({ repoId, command, windowsShell }) => {
           const state = window.__store?.getState()
-          await state?.fetchRepos()
+          const owner = state?.settings?.activeRuntimeEnvironmentId ?? null
+          await state?.fetchRepos({ runtimeEnvironmentId: owner })
           const repo = window.__store?.getState().repos.find((candidate) => candidate.id === repoId)
           if (!repo) {
             return false
