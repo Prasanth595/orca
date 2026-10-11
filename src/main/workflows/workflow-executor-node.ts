@@ -216,12 +216,13 @@ export async function executeNode(
         if (signal.aborted) {
           break
         }
+        // Expose current item via both __loop__ and the for_each node's own ID so body
+        // nodes (Python, shell) can receive it as primaryOutput/stdin.
+        const itemEntry = { output: JSON.stringify(items[i]), json: { item: items[i], index: i } }
         const loopSteps: StepOutputs = {
           ...steps,
-          __loop__: {
-            output: JSON.stringify(items[i]),
-            json: { item: items[i], index: i }
-          }
+          [node.id]: itemEntry,
+          __loop__: itemEntry
         }
         let lastOutput: unknown = null
         for (const bodyNode of bodyNodes) {
@@ -255,6 +256,8 @@ export async function executeNode(
         stderr: '',
         outputValue: { items: iterResults, count: iterResults.length },
         exitCode: 0,
+        // Activate the 'done' edge so collect/downstream nodes are reachable after the loop.
+        activeLabel: 'done',
         handledNodeIds: bodyNodeIds
       }
     }

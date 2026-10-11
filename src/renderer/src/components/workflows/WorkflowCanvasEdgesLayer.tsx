@@ -53,7 +53,6 @@ export default function WorkflowCanvasEdgesLayer({
           const midX = (x1 + x2) / 2
           const midY = (y1 + y2) / 2
           const isHovered = hoveredEdgeId === edge.id
-          const labelText = edge.outputSelector
 
           return (
             <g
@@ -78,62 +77,35 @@ export default function WorkflowCanvasEdgesLayer({
                     : 'text-foreground/60 transition-colors'
                 }
               />
-              {/* Output selector label pill */}
-              {labelText && (
-                <g transform={`translate(${midX}, ${midY - 14})`}>
-                  <rect
-                    x={-(labelText.length * 3.5 + 6)}
-                    y={-7}
-                    width={labelText.length * 7 + 12}
-                    height={14}
-                    rx={4}
-                    style={{
-                      fill: 'hsl(var(--background))',
-                      stroke: 'hsl(var(--border))'
-                    }}
-                  />
-                  <text
-                    x={0}
-                    y={1}
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    fontSize={9}
-                    fontWeight={600}
-                    style={{ fill: 'hsl(var(--muted-foreground))' }}
-                  >
-                    {labelText}
-                  </text>
-                </g>
-              )}
               {/* Delete badge — only shown on hover */}
               {isHovered && (
                 <g
                   transform={`translate(${midX}, ${midY})`}
-                  style={{ cursor: 'pointer' }}
+                  className="text-destructive cursor-pointer"
                   onClick={(e) => {
                     e.stopPropagation()
                     onDeleteEdge(edge.id)
                   }}
                 >
-                  <circle
-                    r={8}
-                    style={{
-                      fill: 'hsl(var(--destructive))',
-                      stroke: 'hsl(var(--background))',
-                      strokeWidth: 1.5
-                    }}
+                  <circle r={9} fill="currentColor" />
+                  <line
+                    x1="-4"
+                    y1="-4"
+                    x2="4"
+                    y2="4"
+                    stroke="var(--color-background)"
+                    strokeWidth={1.75}
+                    strokeLinecap="round"
                   />
-                  <text
-                    x={0}
-                    y={1}
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    fontSize={11}
-                    fontWeight={700}
-                    style={{ fill: 'hsl(var(--destructive-foreground))' }}
-                  >
-                    ×
-                  </text>
+                  <line
+                    x1="4"
+                    y1="-4"
+                    x2="-4"
+                    y2="4"
+                    stroke="var(--color-background)"
+                    strokeWidth={1.75}
+                    strokeLinecap="round"
+                  />
                 </g>
               )}
             </g>
