@@ -169,7 +169,11 @@ describe('launch race parity, both spawn lanes', () => {
   })
 
   describe('cleanup when a start fails', () => {
-    // C5d and C6 rely on this: the host overwrites then restores a cached size; the window never writes.
+    // C5d and C6 pick one: the host overwrites a cached size while building, then restores it.
+    const CACHED_SIZE_WHILE_BUILDING: Record<LaunchRaceLane, object> = {
+      ipc: { cols: 100, rows: 30 },
+      runtime: { cols: 80, rows: 24 }
+    }
     describe.each(LAUNCH_RACE_LANES)('%s lane: options build fails', (lane: LaunchRaceLane) => {
       it.each([
         { label: 'no size before', cached: undefined },
@@ -217,9 +221,9 @@ describe('launch race parity, both spawn lanes', () => {
           })
         ).rejects.toThrow('execution_owner_unavailable')
 
-        if (!cached) {
-          expect(sizeWhileBuilding).toEqual({ cols: 80, rows: 24 })
-        }
+        expect(sizeWhileBuilding).toEqual(
+          cached ? CACHED_SIZE_WHILE_BUILDING[lane] : { cols: 80, rows: 24 }
+        )
         expect(ptySizes.get(sessionId)).toEqual(cached)
         expect(spawn).not.toHaveBeenCalled()
       })
