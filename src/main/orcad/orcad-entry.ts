@@ -11,6 +11,7 @@
  * Chromium proves available at startup.
  */
 import process from 'node:process'
+import { describeOrcadSecretProtectionGap } from './orcad-secret-protection-gap'
 import {
   getAppEnvironment,
   setAppEnvironment,
@@ -37,6 +38,7 @@ import {
   changedAiVaultSearchSettings,
   type AiVaultSearchSettings
 } from '../../shared/ai-vault-search-settings'
+import { stampRuntimeSourceEnv } from '../../shared/runtime-source-env'
 
 export { parseArgs }
 
@@ -93,8 +95,7 @@ function createNodeSecretStore(): SecretStore {
     decryptString: () => {
       throw new Error('orcad_secret_sealing_unavailable')
     },
-    describeProtectionGap: () =>
-      'This host has no OS keyring, so credentials are stored unencrypted. Pair from a desktop to manage secrets, or install and unlock a keyring.'
+    describeProtectionGap: () => describeOrcadSecretProtectionGap(process.platform)
   }
 }
 
@@ -133,6 +134,8 @@ export type OrcadHandle = {
  */
 export async function startOrcad(options: OrcadOptions = {}): Promise<OrcadHandle> {
   installOrcadHostAdapters()
+  // Why: an orcad started from an Orca terminal must not fence its own CLI children to that Orca.
+  stampRuntimeSourceEnv(process.env, null)
   const { readiness, instance, stop } = await startOrcadWithHost(
     resolveUserDataPath(),
     (registerCleanup) => startOrcadRuntime(options, registerCleanup),
@@ -174,6 +177,7 @@ async function startOrcadRuntime(
   const { isAgentStatusHooksEnabled } = await import('../agent-hooks/managed-agent-hook-controls')
   const { installHookStatusSessionTabsRepublish } =
     await import('../agent-hooks/hook-status-session-tabs-republish')
+  const { startOrcadManagedAgentHooks } = await import('./orcad-managed-agent-hooks')
   const { AgentStatusObservedPaneIdentities, AgentStatusObservedPaneIdentityCapture } =
     await import('../runtime/agent-status-observed-pane-identity')
 
@@ -184,12 +188,10 @@ async function startOrcadRuntime(
     | undefined
   let uninstallHookStatusRepublish = (): void => {}
   let uninstallObservedStatusIdentity = (): void => {}
-  let removeStatusHookSettingsListener = (): void => {}
   // Cleanups run in reverse: RPC, then recovery and watchers, then the final flush, then daemon.
   registerCleanup(() => agentHookServer.stop())
   registerCleanup(() => uninstallHookStatusRepublish())
   registerCleanup(() => uninstallObservedStatusIdentity())
-  registerCleanup(() => removeStatusHookSettingsListener())
   // Why disconnect and not shut down: the daemon must outlive this process, or an orcad
   // restart goes back to killing every running terminal.
   registerCleanup(() => stopOrcadDaemon())
@@ -224,11 +226,11 @@ async function startOrcadRuntime(
     statusHooksEnabled: isAgentStatusHooksEnabled(profileStore.getSettings())
   })
 
-  removeStatusHookSettingsListener = profileStore.onSettingsChanged((updates, settings) => {
-    if ('agentStatusHooksEnabled' in updates) {
-      agentHookServer.setStatusHooksEnabled(isAgentStatusHooksEnabled(settings))
-    }
-  })
+  startOrcadManagedAgentHooks(
+    profileStore,
+    (enabled) => agentHookServer.setStatusHooksEnabled(enabled),
+    registerCleanup
+  )
 
   // Why before the runtime and the PTY handlers: `setLocalPtyProvider` installs the daemon
   // adapter as THE local provider, and the registry's contract is that it lands before
