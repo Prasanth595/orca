@@ -5,6 +5,8 @@
  * so main's responder replies byte-identically to a visible renderer xterm.
  */
 import type { TerminalOscColorQueryReplyColors } from './terminal-osc-color-reply'
+import { isTuiAgent } from './tui-agent-config'
+import type { TuiAgent } from './tui-agent'
 
 /** 8-bit-per-channel RGB triple — the same resolution xterm's theme service
  *  stores internally (`color.toColorRGB`). */
@@ -14,9 +16,7 @@ export const TERMINAL_VIEW_ANSI_COLOR_COUNT = 256
 
 export type TerminalViewCursorStyle = 'bar' | 'block' | 'underline'
 
-/** One app-global snapshot of the renderer's composed terminal appearance —
- *  per-pane font zoom never affects these, and terminalColorOverrides /
- *  cursor settings are global, so one push covers all PTYs. */
+/** One composed terminal appearance snapshot (global or a single agent override). */
 export type TerminalViewAttributes = {
   foreground: TerminalViewRgb
   background: TerminalViewRgb
@@ -200,4 +200,40 @@ export function validateTerminalViewAttributes(payload: unknown): TerminalViewAt
     cursorStyle: candidate.cursorStyle,
     cursorBlink: candidate.cursorBlink
   }
+}
+
+/** Atomic renderer→main push. Inherit is “agent key absent from byAgent”. */
+export type TerminalViewAttributesPush = {
+  kind: 'snapshot'
+  global: TerminalViewAttributes
+  byAgent: Partial<Record<TuiAgent, TerminalViewAttributes>>
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** Reject the entire payload on any ambiguity. Never drop a bad agent key. */
+export function validateTerminalViewAttributesPush(
+  payload: unknown
+): TerminalViewAttributesPush | null {
+  if (!isPlainObject(payload) || payload.kind !== 'snapshot') {
+    return null
+  }
+  const global = validateTerminalViewAttributes(payload.global)
+  if (!global || !isPlainObject(payload.byAgent)) {
+    return null
+  }
+  const byAgent: Partial<Record<TuiAgent, TerminalViewAttributes>> = {}
+  for (const [key, value] of Object.entries(payload.byAgent)) {
+    if (!isTuiAgent(key)) {
+      return null
+    }
+    const attributes = validateTerminalViewAttributes(value)
+    if (!attributes) {
+      return null
+    }
+    byAgent[key] = attributes
+  }
+  return { kind: 'snapshot', global, byAgent }
 }

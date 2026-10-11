@@ -125,3 +125,21 @@ describe('chat appearance settings', () => {
     ).toBeUndefined()
   })
 })
+
+describe('persisted agent terminal themes', () => {
+  it('keeps valid overrides and drops hand-edited junk when loading', () => {
+    const normalized = normalizeLegacyProfile({
+      agentTerminalThemes: {
+        codex: { dark: 'Dracula', light: 'inherit' },
+        'not-an-agent': { dark: 'Dracula' },
+        claude: 'Dracula'
+      }
+    })
+
+    expect(normalized.agentTerminalThemes).toEqual({ codex: { dark: 'Dracula' } })
+  })
+
+  it('defaults a profile saved before the setting existed to no overrides', () => {
+    expect(normalizeLegacyProfile({}).agentTerminalThemes).toEqual({})
+  })
+})

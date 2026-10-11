@@ -21,6 +21,7 @@ import { normalizeProxyBypassRules, normalizeProxyUrl } from '../../shared/netwo
 import { normalizeAppIconId } from '../../shared/app-icon'
 import { normalizeUiLanguage } from '../../shared/ui-language'
 import { applyAppIcon } from '../app-icon'
+import { normalizeAgentTerminalThemes } from '../../shared/agent-terminal-themes'
 import { normalizeTerminalCustomThemes } from '../../shared/terminal-custom-themes'
 import { normalizeDesktopTerminalScrollbackRows } from '../../shared/terminal-scrollback-policy'
 import { normalizeTerminalLineHeight } from '../../shared/terminal-line-height-settings'
@@ -169,6 +170,9 @@ export function registerSettingsHandlers(
     }
     if ('terminalCustomThemes' in args) {
       sanitizedArgs.terminalCustomThemes = normalizeTerminalCustomThemes(args.terminalCustomThemes)
+    }
+    if ('agentTerminalThemes' in args) {
+      sanitizedArgs.agentTerminalThemes = normalizeAgentTerminalThemes(args.agentTerminalThemes)
     }
     if ('terminalScrollbackRows' in args) {
       sanitizedArgs.terminalScrollbackRows = normalizeDesktopTerminalScrollbackRows(

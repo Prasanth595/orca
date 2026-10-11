@@ -8,6 +8,7 @@ it.each([{ launchAgent: 'omp' }, { command: 'omp' }, { telemetry: { agent_kind: 
       getStartupTerminalIngressIntent({ ...launch, terminalKittyKeyboardProtocol: true })
     ).toEqual({
       colors: {},
+      ...('launchAgent' in launch ? { launchAgent: launch.launchAgent } : {}),
       kittyKeyboardProtocol: true,
       deadlineMs: 5000
     })
@@ -23,7 +24,7 @@ it('seeds the creating viewer colours for every PTY, not only agent launches', (
   const colors = { foreground: '#fff', background: '#000' }
   expect(
     getStartupTerminalIngressIntent({ launchAgent: 'omp', terminalColorQueryReplies: colors })
-  ).toEqual({ colors, deadlineMs: 5000 })
+  ).toEqual({ colors, launchAgent: 'omp', deadlineMs: 5000 })
   expect(
     getStartupTerminalIngressIntent({
       command: 'echo hello',
@@ -46,7 +47,7 @@ it('does not answer jcode startup color queries but keeps keyboard support', () 
       terminalColorQueryReplies: colors,
       terminalKittyKeyboardProtocol: true
     })
-  ).toEqual({ colors: {}, kittyKeyboardProtocol: true, deadlineMs: 5000 })
+  ).toEqual({ colors: {}, launchAgent: 'jcode', kittyKeyboardProtocol: true, deadlineMs: 5000 })
   expect(
     getStartupTerminalIngressIntent({ launchAgent: 'jcode', terminalColorQueryReplies: colors })
   ).toBeUndefined()
@@ -73,6 +74,19 @@ it('skips jcode startup colors when only the command or telemetry names it', () 
   expect(
     getStartupTerminalIngressIntent({
       launchAgent: 'claude',
+      terminalColorQueryReplies: colors
+    })
+  ).toEqual({ colors, launchAgent: 'claude', deadlineMs: 5000 })
+})
+
+it('names the launching agent so its owner answers with that agent colours', () => {
+  const colors = { foreground: '#fff', background: '#000' }
+  expect(
+    getStartupTerminalIngressIntent({ launchAgent: 'codex', terminalColorQueryReplies: colors })
+  ).toEqual({ colors, launchAgent: 'codex', deadlineMs: 5000 })
+  expect(
+    getStartupTerminalIngressIntent({
+      launchAgent: 'not-an-agent',
       terminalColorQueryReplies: colors
     })
   ).toEqual({ colors, deadlineMs: 5000 })

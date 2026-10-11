@@ -11,6 +11,7 @@ import {
 import { assertRuntimeStatusCompatible } from '@/runtime/runtime-protocol-compat'
 import type { RuntimeStatus } from '../../../../shared/runtime-types'
 import { normalizeTerminalQuickCommands } from '../../../../shared/terminal-quick-commands'
+import { normalizeAgentTerminalThemes } from '../../../../shared/agent-terminal-themes'
 import { normalizeTerminalCustomThemes } from '../../../../shared/terminal-custom-themes'
 import { normalizeTaskProviderSettings } from '../../../../shared/task-providers'
 import { normalizeOpenInApplications } from '../../../../shared/open-in-applications'
@@ -75,6 +76,9 @@ function normalizeSettingsUpdates(
     sanitizedUpdates.terminalCustomThemes = normalizeTerminalCustomThemes(
       updates.terminalCustomThemes
     )
+  }
+  if ('agentTerminalThemes' in updates) {
+    sanitizedUpdates.agentTerminalThemes = normalizeAgentTerminalThemes(updates.agentTerminalThemes)
   }
   if ('visibleTaskProviders' in updates || 'defaultTaskSource' in updates) {
     const taskProviderSettings = normalizeTaskProviderSettings({

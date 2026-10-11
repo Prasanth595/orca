@@ -5,6 +5,7 @@ import { normalizeTerminalQuickCommands } from '../../../shared/terminal-quick-c
 import { normalizeOpenInApplications } from '../../../shared/open-in-applications'
 import { normalizeTerminalShortcutPolicy } from '../../../shared/keybindings'
 import { normalizeAppIconId } from '../../../shared/app-icon'
+import { normalizeAgentTerminalThemes } from '../../../shared/agent-terminal-themes'
 import { normalizeTerminalCustomThemes } from '../../../shared/terminal-custom-themes'
 import { projectSourceControlAiToLegacyCommitMessageAi } from '../../../shared/source-control-ai'
 import { normalizeUiLanguage } from '../../../shared/ui-language'
@@ -119,6 +120,7 @@ export function normalizeLoadedGlobalSettings(
     terminalScrollbackRows: migratedTerminalScrollback.rows,
     terminalQuickCommands: normalizeTerminalQuickCommands(parsed.settings?.terminalQuickCommands),
     terminalCustomThemes: normalizeTerminalCustomThemes(parsed.settings?.terminalCustomThemes),
+    agentTerminalThemes: normalizeAgentTerminalThemes(parsed.settings?.agentTerminalThemes),
     appIcon: normalizeAppIconId(parsed.settings?.appIcon),
     mobilePairingCustomAddress,
     mobilePairingCustomAddresses,

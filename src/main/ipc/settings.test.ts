@@ -664,6 +664,29 @@ describe('registerSettingsHandlers', () => {
     )
   })
 
+  it('normalizes per-agent terminal themes from renderer settings IPC', async () => {
+    store.getSettings.mockReturnValue({ agentTerminalThemes: {} })
+    store.updateSettings.mockReturnValue({ agentTerminalThemes: {} })
+    registerSettingsHandlers(store as never)
+
+    const handler = handleMock.mock.calls.find((call) => call[0] === 'settings:set')?.[1] as (
+      _event: unknown,
+      args: unknown
+    ) => Promise<unknown>
+
+    await handler(settingsInvokeEvent, {
+      agentTerminalThemes: {
+        codex: { dark: ' Dracula ', light: 'inherit' },
+        'not-an-agent': { dark: 'Dracula' }
+      }
+    })
+
+    expect(store.updateSettings).toHaveBeenCalledWith(
+      { agentTerminalThemes: { codex: { dark: 'Dracula' } } },
+      { notifyListeners: true, originWebContentsId: 1 }
+    )
+  })
+
   it('sanitizes and applies proxy settings from renderer settings IPC', async () => {
     store.getSettings.mockReturnValue({ httpProxyUrl: '' })
     store.updateSettings.mockReturnValue({

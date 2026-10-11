@@ -2,8 +2,10 @@ import { LocalPtyProvider } from '../../../providers/local-pty-provider'
 import type { IPtyProvider } from '../../../providers/types'
 import { parseAppSshPtyId, toAppSshPtyId, toRelaySshPtyId } from '../../../providers/ssh-pty-id'
 import { ptyOwnership } from './ownership-state'
-import type { TerminalOscColorQueryReplyColors } from '../../../../shared/terminal-osc-color-reply'
-import { colorQueryReplyColorsEqual } from '../../../../shared/pty-owner-color-query-colors'
+import {
+  colorQueryReplyColorsEqual,
+  type PtyOwnerHostColors
+} from '../../../../shared/pty-owner-color-query-colors'
 import {
   getSshTargetIdForExecutionHost,
   LOCAL_EXECUTION_HOST_ID,
@@ -19,7 +21,7 @@ export let localProvider: IPtyProvider = new LocalPtyProvider()
 /** SSH relay providers by SSH target id; address them through their `ssh:` host id. */
 export const sshProviders = new Map<string, IPtyProvider>()
 export const sshProvidersByGeneration = new Map<number, IPtyProvider>()
-let colorQueryReplyColors: TerminalOscColorQueryReplyColors | null = null
+let colorQueryReplyColors: PtyOwnerHostColors | null = null
 
 // Why push to every owner: each process that owns PTYs (in-process, daemon, relay) answers
 // OSC 10/11 itself, so a theme change must reach it before its next query, not at spawn.
@@ -35,7 +37,7 @@ function pushColorQueryReplyColors(provider: IPtyProvider): void {
   }
 }
 
-export function publishColorQueryReplyColors(colors: TerminalOscColorQueryReplyColors): void {
+export function publishColorQueryReplyColors(colors: PtyOwnerHostColors): void {
   // Why: a re-install republishes unchanged colours; that must not re-notify every daemon and relay.
   if (colorQueryReplyColorsEqual(colorQueryReplyColors, colors)) {
     return

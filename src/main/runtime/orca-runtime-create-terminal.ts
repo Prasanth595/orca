@@ -115,13 +115,13 @@ export class OrcaRuntimeWithCreateTerminal extends OrcaRuntimeWithTerminalCreate
           tabId,
           agentTeamsPlan?.env
         )
-        const terminalColorQueryReplies = dependencies.getTerminalViewerColors()
         if (launchOpts.signal?.aborted) {
           throw new Error('client_disconnected')
         }
         let result: Awaited<ReturnType<NonNullable<dependencies.RuntimePtyController['spawn']>>>
         try {
           const { launchAgent } = launchOpts
+          const terminalColorQueryReplies = dependencies.getTerminalViewerColors(launchAgent)
           launchOpts.onPtySpawnDispatched?.({ launchConfig: effectiveLaunchConfig, launchAgent })
           result = await dependencies.spawnInAdmittedPane(this.store, this.ptyController, {
             cols: 120,

@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import type { PtyOwnerHostColors } from '../../../../shared/pty-owner-color-query-colors'
 import { getDefaultSettings } from '../../../../shared/constants'
-import type { TerminalOscColorQueryReplyColors } from '../../../../shared/terminal-osc-color-reply'
 import { LocalPtyProvider } from '../../../providers/local-pty-provider'
 import {
   _resetTerminalViewAttributesForTest,
+  commitTerminalViewAttributesSnapshot,
   getTerminalViewAttributes,
   getTerminalViewerColors,
   setPairedViewerColors,
@@ -19,9 +20,9 @@ import {
 import { installTerminalViewAttributesIpc } from './terminal-view-attributes-ipc'
 
 class RecordingProvider extends LocalPtyProvider {
-  readonly pushes: TerminalOscColorQueryReplyColors[] = []
+  readonly pushes: PtyOwnerHostColors[] = []
 
-  override setColorQueryReplyColors(colors: TerminalOscColorQueryReplyColors): void {
+  override setColorQueryReplyColors(colors: PtyOwnerHostColors): void {
     this.pushes.push(colors)
   }
 }
@@ -148,5 +149,59 @@ describe('one viewer colour value for every PTY owner', () => {
     setPairedViewerColors({ foreground: '#111111', background: '#eeeeee' })
 
     expect(published).toEqual([CLIENT, DESKTOP])
+  })
+})
+
+describe('per-agent PTY owner colours', () => {
+  const originalLocal = getLocalPtyProvider()
+  const settings = getDefaultSettings('/tmp')
+
+  afterEach(() => {
+    _resetTerminalViewAttributesForTest()
+    _resetColorQueryReplyColorsForTest()
+    setLocalPtyProvider(originalLocal)
+  })
+
+  it('seeds each agent override from saved settings before any renderer push', () => {
+    const owner = new RecordingProvider()
+    setLocalPtyProvider(owner)
+
+    installTerminalViewAttributesIpc({
+      getSettings: () => ({
+        ...settings,
+        theme: 'dark',
+        agentTerminalThemes: { codex: { dark: 'Dracula' } }
+      })
+    })
+
+    expect(owner.pushes).toEqual([
+      {
+        foreground: '#ffffff',
+        background: '#282c34',
+        byAgent: { codex: { foreground: '#f8f8f2', background: '#282a36' } }
+      }
+    ])
+  })
+
+  it('publishes the agent colours of a renderer snapshot and drops them when the override goes', () => {
+    const owner = new RecordingProvider()
+    setLocalPtyProvider(owner)
+    installTerminalViewAttributesIpc({ getSettings: () => ({ ...settings, theme: 'dark' }) })
+    const codexAttributes: TerminalViewAttributes = {
+      ...DESKTOP_ATTRIBUTES,
+      foreground: [0xf8, 0xf8, 0xf2],
+      background: [0x28, 0x2a, 0x36]
+    }
+
+    commitTerminalViewAttributesSnapshot({
+      global: DESKTOP_ATTRIBUTES,
+      byAgent: { codex: codexAttributes }
+    })
+    commitTerminalViewAttributesSnapshot({ global: DESKTOP_ATTRIBUTES, byAgent: {} })
+
+    expect(owner.pushes.slice(1)).toEqual([
+      { ...DESKTOP, byAgent: { codex: { foreground: '#f8f8f2', background: '#282a36' } } },
+      DESKTOP
+    ])
   })
 })

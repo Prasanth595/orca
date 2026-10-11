@@ -347,13 +347,17 @@ describe('registerPtyHandlers', () => {
         throw new Error('pty:terminalViewAttributes listener was not registered')
       }
       pushViewAttributes(null, {
-        foreground: [0, 0, 0],
-        background: [0x12, 0x34, 0x56],
-        cursor: [0, 0, 0],
-        ansi: Array.from({ length: 256 }, () => [0, 0, 0]),
-        colorSchemeMode: 'light',
-        cursorStyle: 'block',
-        cursorBlink: false
+        kind: 'snapshot',
+        global: {
+          foreground: [0, 0, 0],
+          background: [0x12, 0x34, 0x56],
+          cursor: [0, 0, 0],
+          ansi: Array.from({ length: 256 }, () => [0, 0, 0]),
+          colorSchemeMode: 'light',
+          cursorStyle: 'block',
+          cursorBlink: false
+        },
+        byAgent: {}
       })
       mockProc.emitData(query)
 
@@ -368,6 +372,57 @@ describe('registerPtyHandlers', () => {
         rawLength: `${query}ready${query}`.length,
         transformed: true
       })
+    } finally {
+      _resetTerminalViewAttributesForTest()
+      _resetColorQueryReplyColorsForTest()
+      _resetPtyOwnerHostColorsForTest()
+      vi.useRealTimers()
+    }
+  })
+  it('answers an agent pane from its own override and a shell from the global colours', async () => {
+    vi.useFakeTimers()
+    const agentProc = createMockProc()
+    const shellProc = createMockProc()
+    spawnMock.mockReturnValueOnce(agentProc.proc).mockReturnValueOnce(shellProc.proc)
+    const attributes = (background: [number, number, number]): Record<string, unknown> => ({
+      foreground: [0, 0, 0],
+      background,
+      cursor: [0, 0, 0],
+      ansi: Array.from({ length: 256 }, () => [0, 0, 0]),
+      colorSchemeMode: 'dark',
+      cursorStyle: 'block',
+      cursorBlink: false
+    })
+
+    try {
+      registerPtyHandlers(mainWindow as never)
+      const spawnArgs = {
+        cols: 80,
+        rows: 24,
+        cwd: '/tmp',
+        terminalColorQueryReplies: { foreground: '#eeeeee', background: '#111111' }
+      }
+      await handlers.get('pty:spawn')!(null, { ...spawnArgs, launchAgent: 'codex' })
+      await handlers.get('pty:spawn')!(null, spawnArgs)
+      const pushViewAttributes: unknown = onMock.mock.calls.find(
+        (call: unknown[]) => call[0] === 'pty:terminalViewAttributes'
+      )?.[1]
+      if (typeof pushViewAttributes !== 'function') {
+        throw new Error('pty:terminalViewAttributes listener was not registered')
+      }
+      pushViewAttributes(null, {
+        kind: 'snapshot',
+        global: attributes([0x12, 0x34, 0x56]),
+        byAgent: { codex: attributes([0x65, 0x43, 0x21]) }
+      })
+      agentProc.proc.write.mockClear()
+      shellProc.proc.write.mockClear()
+
+      agentProc.emitData('\x1b]11;?\x1b\\')
+      shellProc.emitData('\x1b]11;?\x1b\\')
+
+      expect(agentProc.proc.write.mock.calls).toEqual([['\x1b]11;rgb:6565/4343/2121\x1b\\']])
+      expect(shellProc.proc.write.mock.calls).toEqual([['\x1b]11;rgb:1212/3434/5656\x1b\\']])
     } finally {
       _resetTerminalViewAttributesForTest()
       _resetColorQueryReplyColorsForTest()

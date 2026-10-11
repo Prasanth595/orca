@@ -4,7 +4,6 @@ import { useShallow } from 'zustand/react/shallow'
 import '@xterm/xterm/css/xterm.css'
 import { getShortcutPlatform } from '@/lib/shortcut-platform'
 import { subscribeToTerminalUserInput } from '@/components/terminal-pane/terminal-user-input-signal'
-import { composeActiveTerminalTheme } from '@/components/terminal-pane/terminal-appearance'
 import { useSystemPrefersDark } from '@/components/terminal-pane/use-system-prefers-dark'
 import { TerminalKittyKeyboardModeTracker } from '../../../../shared/terminal-kitty-keyboard-mode-tracker'
 import { replayPreviewConnectionSnapshot } from './preview-terminal-snapshot-replay'
@@ -20,7 +19,6 @@ import { createPreviewClipboardPaster } from './preview-terminal-paste'
 import { installPreviewImeBridge, type PreviewImeBridge } from './preview-terminal-ime-bridge'
 import type { DashboardCardTerminalInput } from '../../../../shared/dashboard-snapshot'
 import { terminalPreviewUnavailableMessage } from './terminal-preview-unavailable-message'
-import { getBuiltinTheme, resolveEffectiveTerminalAppearance } from '@/lib/terminal-theme'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store'
 import { installPreviewTerminalKeyHandler } from './preview-terminal-key-handler'
@@ -32,6 +30,7 @@ import { installTerminalNativeCopyGutterTrim } from '@/components/terminal-pane/
 import { isWindowsUserAgent } from '@/components/terminal-pane/pane-helpers'
 import type { TerminalPreviewDataPayload } from '../../../../shared/terminal-preview'
 import { terminalPreviewApiFor } from './terminal-preview-api'
+import { resolveAgentPreviewTheme, resolvePreviewAgent } from './agent-terminal-preview-theme'
 
 const PREVIEW_SCROLLBACK_ROWS = 24
 // Preview snapshots bound history; pane scrollback would only cost memory.
@@ -56,11 +55,14 @@ function clamp(value: number, min: number, max: number): number {
 export function AgentTerminalPreview({
   ptyId,
   terminalInput = null,
+  agentType,
   className
 }: {
   ptyId: string
   /** Host-input facts relayed with the card; null routes bytes by client OS. */
   terminalInput?: DashboardCardTerminalInput | null
+  /** Dashboard card agent; non-TUI / unknown falls back to the global theme. */
+  agentType?: string | null
   className?: string
 }): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -73,17 +75,11 @@ export function AgentTerminalPreview({
   const settingsRef = useRef(settings)
   const macOptionAsAltRef = useRef(macOptionAsAlt)
   const terminalInputRef = useRef(terminalInput)
-  const { terminalTheme: composedTheme, terminalMode } = useMemo(() => {
-    if (!settings) {
-      return { terminalTheme: null, terminalMode: 'dark' as const }
-    }
-    const appearance = resolveEffectiveTerminalAppearance(settings, systemPrefersDark)
-    const theme = composeActiveTerminalTheme(
-      appearance.theme ?? getBuiltinTheme(appearance.themeName),
-      settings
-    )
-    return { terminalTheme: theme, terminalMode: appearance.mode }
-  }, [settings, systemPrefersDark])
+  const previewAgent = resolvePreviewAgent(agentType)
+  const { terminalTheme: composedTheme, terminalMode } = useMemo(
+    () => resolveAgentPreviewTheme(settings, systemPrefersDark, previewAgent),
+    [settings, systemPrefersDark, previewAgent]
+  )
   // Settings arrive as cloned snapshots; compare theme values before reconnecting.
   const retainTheme = useShallow((theme: ITheme | null) => theme)
   const terminalTheme = retainTheme(composedTheme)

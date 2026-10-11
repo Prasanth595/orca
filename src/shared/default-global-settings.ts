@@ -83,6 +83,7 @@ export function buildDefaultSettings(args: {
     terminalUseSeparateLightTheme: true,
     terminalThemeLight: 'Builtin Tango Light',
     terminalCustomThemes: [],
+    agentTerminalThemes: {},
     terminalDividerColorLight: '#d4d4d8',
     terminalInactivePaneOpacity: args.terminalInactivePaneOpacity,
     terminalActivePaneOpacity: 1,

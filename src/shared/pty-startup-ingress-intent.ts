@@ -2,9 +2,13 @@ import {
   terminalOscColorQueryReplies,
   type TerminalOscColorQueryReplyColors
 } from './terminal-osc-color-reply'
+import { isTuiAgent } from './tui-agent-config'
+import type { TuiAgent } from './tui-agent'
 
 export type PtyStartupIngressIntent = {
   colors: TerminalOscColorQueryReplyColors
+  /** Agent the pane launched with; selects that agent's host colours for OSC 10/11. */
+  launchAgent?: TuiAgent
   kittyKeyboardProtocol?: boolean
   deadlineMs: number
 }
@@ -32,6 +36,7 @@ export function parsePtyStartupIngressIntent(value: unknown): PtyStartupIngressI
       ? { background: colors.background }
       : {})
   }
+  const launchAgent = 'launchAgent' in value ? value.launchAgent : undefined
   const deadlineMs = 'deadlineMs' in value ? value.deadlineMs : undefined
   if (
     (!kittyKeyboardProtocol && !terminalOscColorQueryReplies(normalizedColors, [10, 11])) ||
@@ -44,6 +49,7 @@ export function parsePtyStartupIngressIntent(value: unknown): PtyStartupIngressI
   }
   return {
     colors: normalizedColors,
+    ...(isTuiAgent(launchAgent) ? { launchAgent } : {}),
     ...(kittyKeyboardProtocol ? { kittyKeyboardProtocol: true } : {}),
     deadlineMs
   }

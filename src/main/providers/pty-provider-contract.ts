@@ -2,7 +2,7 @@ import type { SpawnIntent } from '../../shared/host-spawn-admission'
 import type { TuiAgent } from '../../shared/tui-agent'
 import type { AgentWorkspaceTrustSpawnRequest } from '../../shared/agent-workspace-trust-spawn-request'
 import type { PtyStartupIngressIntent } from '../../shared/pty-startup-ingress'
-import type { TerminalOscColorQueryReplyColors } from '../../shared/terminal-osc-color-reply'
+import type { PtyOwnerHostColors } from '../../shared/pty-owner-color-query-colors'
 import type { StartupCommandDelivery } from '../../shared/codex-startup-delivery'
 import type { TerminalOscLinkRange } from '../../shared/terminal-osc-link-ranges'
 import type { PtyBackgroundStreamEvent, PtyDataEvent } from './pty-provider-events'
@@ -238,7 +238,7 @@ export type IPtyProvider = {
   /** Ends the startup Kitty-query window; OSC 10/11 authority stays with the owner for life. */
   closeStartupQueryAuthority?: (id: string) => Promise<number> | number
   /** Host-wide viewer colours the PTY owner answers OSC 10/11 from. */
-  setColorQueryReplyColors?: (colors: TerminalOscColorQueryReplyColors) => void
+  setColorQueryReplyColors?: (colors: PtyOwnerHostColors) => void
   acknowledgeDataEvent(id: string, charCount: number): void
   hasChildProcesses(id: string): Promise<boolean>
   getForegroundProcess(id: string): Promise<string | null>

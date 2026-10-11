@@ -1,18 +1,19 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PtyStartupIngress, type PtyIngressEmission } from './pty-startup-ingress'
+import type { PtyOwnerHostColors } from './pty-owner-color-query-colors'
 import type { PtyStartupIngressIntent } from './pty-startup-ingress-intent'
 
 const HOST = { foreground: '#ffffff', background: '#000000' }
 const QUERY = '\x1b]11;?\x07'
 const HOST_BACKGROUND_REPLY = '\x1b]11;rgb:0000/0000/0000\x1b\\'
 
-function createHarness(intent?: PtyStartupIngressIntent) {
+function createHarness(intent?: PtyStartupIngressIntent, host: PtyOwnerHostColors = HOST) {
   const writes: string[] = []
   const emissions: PtyIngressEmission[] = []
   const ingress = new PtyStartupIngress({
     ...(intent ? { intent } : {}),
     ownerBackend: 'posix-pty',
-    resolveHostColors: () => HOST,
+    resolveHostColors: () => host,
     write: (data) => writes.push(data),
     onEmission: (emission) => emissions.push(emission)
   })
@@ -45,6 +46,24 @@ describe('PTY owner colour replies for the terminal life', () => {
     ingress.accept(QUERY)
 
     expect(writes).toEqual([HOST_BACKGROUND_REPLY])
+  })
+
+  it('answers an agent pane with its agent override and other panes with the host colours', () => {
+    const host: PtyOwnerHostColors = {
+      ...HOST,
+      byAgent: { codex: { foreground: '#123456', background: '#654321' } }
+    }
+    const codex = createHarness({ colors: HOST, launchAgent: 'codex', deadlineMs: 5_000 }, host)
+    const claude = createHarness({ colors: HOST, launchAgent: 'claude', deadlineMs: 5_000 }, host)
+    const shell = createHarness({ colors: HOST, deadlineMs: 5_000 }, host)
+
+    codex.ingress.accept(QUERY)
+    claude.ingress.accept(QUERY)
+    shell.ingress.accept(QUERY)
+
+    expect(codex.writes).toEqual(['\x1b]11;rgb:6565/4343/2121\x1b\\'])
+    expect(claude.writes).toEqual([HOST_BACKGROUND_REPLY])
+    expect(shell.writes).toEqual([HOST_BACKGROUND_REPLY])
   })
 
   it('answers a query torn right after its ESC once the Kitty window has closed', () => {

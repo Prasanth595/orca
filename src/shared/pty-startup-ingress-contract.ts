@@ -1,6 +1,6 @@
 import type { PtyOwnerBackend } from './pty-owner-backend'
 import type { PtyStartupIngressIntent } from './pty-startup-ingress-intent'
-import type { TerminalOscColorQueryReplyColors } from './terminal-osc-color-reply'
+import type { PtyOwnerHostColors } from './pty-owner-color-query-colors'
 
 export type PtyIngressEmission = {
   data: string
@@ -14,7 +14,7 @@ export type PtyStartupIngressOptions = {
   ownerBackend?: PtyOwnerBackend
   /** Host-wide viewer colours, read per query so a theme change reaches a long-lived pane.
    *  Defaults to this process's pushed colours. */
-  resolveHostColors?: () => TerminalOscColorQueryReplyColors | null
+  resolveHostColors?: () => PtyOwnerHostColors | null
   write: (data: string) => void
   onEmission: (emission: PtyIngressEmission) => void
   /**

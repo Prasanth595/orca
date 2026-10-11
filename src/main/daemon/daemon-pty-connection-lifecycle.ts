@@ -14,12 +14,12 @@ import { notifyDaemonAuditListeners } from './daemon-listener-registry'
 import { DaemonPtyEventSubscriptions } from './daemon-pty-event-subscriptions'
 import { parseDaemonPidFile, type ParsedDaemonPid } from './daemon-pid-file-parse'
 import { supportsColorQueryReplyColors } from './daemon-protocol-version'
-import type { TerminalOscColorQueryReplyColors } from '../../shared/terminal-osc-color-reply'
+import type { PtyOwnerHostColors } from '../../shared/pty-owner-color-query-colors'
 
 export abstract class DaemonPtyConnectionLifecycle extends DaemonPtyEventSubscriptions {
-  private colorQueryReplyColors: TerminalOscColorQueryReplyColors | null = null
+  private colorQueryReplyColors: PtyOwnerHostColors | null = null
 
-  setColorQueryReplyColors(colors: TerminalOscColorQueryReplyColors): void {
+  setColorQueryReplyColors(colors: PtyOwnerHostColors): void {
     this.colorQueryReplyColors = colors
     this.syncColorQueryReplyColors()
   }
