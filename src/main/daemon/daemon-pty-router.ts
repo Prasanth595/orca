@@ -11,6 +11,7 @@ import type {
 } from '../providers/types'
 import type { PtyProcessInspection } from '../providers/pty-process-inspection'
 import { isDaemonEndpointGoneError } from './daemon-errors'
+import { LegacyDaemonExitProof } from './daemon-legacy-exit-proof'
 import { shouldHandoffDaemonHistory } from './daemon-history-handoff'
 import type { DaemonPtyRouterDataEvent, DaemonPtyRouterExitEvent } from './daemon-pty-router-events'
 import { DaemonSessionOwnerResolver } from './daemon-session-owner-resolution'
@@ -25,6 +26,7 @@ export class DaemonPtyRouter implements IPtyProvider {
   private sessionAdapters = new Map<string, DaemonPtyAdapter>()
   private readonly ownerResolver: DaemonSessionOwnerResolver<DaemonPtyAdapter>
   private readonly subscriptions: DaemonPtyAdapterSubscriptionFanout
+  private readonly legacyExitProof = new LegacyDaemonExitProof()
   private readonly retirement = new DaemonRouterRetirement(() => this.allAdapters())
 
   constructor(opts: { current: DaemonPtyAdapter; legacy: DaemonPtyAdapter[] }) {
@@ -38,10 +40,12 @@ export class DaemonPtyRouter implements IPtyProvider {
       },
       (adapter) => this.ownerResolver.invalidateProvider(adapter)
     )
+    this.legacyExitProof.record(this.legacy)
   }
 
   async discoverLegacySessions(): Promise<void> {
     await this.ownerResolver.discoverRoutes()
+    this.legacyExitProof.record(this.legacy)
   }
 
   async spawn(opts: PtySpawnOptions): Promise<PtySpawnResult> {
@@ -235,14 +239,20 @@ export class DaemonPtyRouter implements IPtyProvider {
   }
 
   async listProcesses(opts?: { deadlineMs?: number }): Promise<PtyProcessInfo[]> {
-    // Why: worktree removal fails closed on this list. A dead legacy socket is an
-    // empty inventory, not proof the live daemon failed; anything else still throws.
+    // Why: worktree removal fails closed on this list. A legacy daemon whose socket is gone and
+    // whose process has exited is an empty inventory; anything else still throws.
     const results = await Promise.all(
       this.allAdapters().map(async (adapter) => {
         try {
-          return await adapter.listProcesses(opts)
+          const processes = await adapter.listProcesses(opts)
+          this.legacyExitProof.record(this.legacy)
+          return processes
         } catch (error) {
-          if (adapter === this.current || !isDaemonEndpointGoneError(error)) {
+          if (
+            adapter === this.current ||
+            !isDaemonEndpointGoneError(error) ||
+            !this.legacyExitProof.hasExited(adapter)
+          ) {
             throw error
           }
           const index = this.legacy.indexOf(adapter)
