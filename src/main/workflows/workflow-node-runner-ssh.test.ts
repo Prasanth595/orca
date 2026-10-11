@@ -82,7 +82,7 @@ describe('runShellCommandNode — SSH remote exec', () => {
 // ─── Python node ───────────────────────────────────────────────────────────────
 
 describe('runPythonScriptNode — SSH remote exec', () => {
-  it('runs python3 -c script via remoteExec', async () => {
+  it('runs python3 - with script via stdin through remoteExec', async () => {
     const remoteExec = makeRemoteExec({ stdout: '42' })
     const result = await runPythonScriptNode(
       { script: 'print(42)', timeoutSeconds: 5, workingDirectory: '/' },
@@ -90,8 +90,8 @@ describe('runPythonScriptNode — SSH remote exec', () => {
       remoteExec
     )
     expect(remoteExec).toHaveBeenCalledWith(
-      "python3 -c 'print(42)'",
-      expect.objectContaining({ timeoutMs: 5000 })
+      'python3 -',
+      expect.objectContaining({ stdin: 'print(42)', timeoutMs: 5000 })
     )
     expect(mockRunProcess).not.toHaveBeenCalled()
     expect(result.stdout).toBe('42')
@@ -110,21 +110,23 @@ describe('runPythonScriptNode — SSH remote exec', () => {
     )
   })
 
-  it('escapes single-quotes in the script to prevent shell injection', async () => {
+  it('passes the script verbatim via stdin so no shell escaping is needed', async () => {
     const remoteExec = makeRemoteExec()
     await runPythonScriptNode(
       { script: "print('hi')", timeoutSeconds: 5, workingDirectory: '/' },
       undefined,
       remoteExec
     )
-    const cmd = firstCallCmd(remoteExec)
-    // Each single-quote in the script must be escaped as '\''
-    expect(cmd).toContain(`'\\''`)
-    // The raw script must not appear verbatim in the command
-    expect(cmd).not.toContain("print('hi')")
+    // Script with single-quotes arrives unescaped in stdin, not in the command string
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: remoteExec mock call args match (cmd: string, opts: object); destructured for readable assertions
+    const [cmd, opts] = remoteExec.mock.calls[0] as [string, { stdin?: string }]
+    expect(cmd).toBe('python3 -')
+    expect(opts.stdin).toBe("print('hi')")
   })
 
-  it('forwards stdin through remoteExec', async () => {
+  it('passes the script (not the original stdin) as stdin to remoteExec', async () => {
+    // The script is piped via stdin; the caller's stdin arg is ignored for remote python runs
+    // because python3 - already reads its script from stdin.
     const remoteExec = makeRemoteExec()
     await runPythonScriptNode(
       { script: 'import sys; print(sys.stdin.read())', timeoutSeconds: 5, workingDirectory: '/' },
@@ -132,8 +134,8 @@ describe('runPythonScriptNode — SSH remote exec', () => {
       remoteExec
     )
     expect(remoteExec).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({ stdin: 'my-stdin' })
+      'python3 -',
+      expect.objectContaining({ stdin: 'import sys; print(sys.stdin.read())' })
     )
   })
 })

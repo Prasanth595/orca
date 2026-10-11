@@ -12,6 +12,9 @@ export type WorkflowNodeType =
   | 'file_write'
   | 'email_send'
   | 'json_transform'
+  | 'branch'
+  | 'for_each'
+  | 'collect'
 
 // ─── Node data shapes ────────────────────────────────────────────────────────
 
@@ -68,6 +71,42 @@ export type JsonTransformData = {
   expression: string
 }
 
+export type BranchConditionOperator =
+  | 'eq'
+  | 'neq'
+  | 'contains'
+  | 'gt'
+  | 'lt'
+  | 'exitCode0'
+  | 'regex'
+  | 'truthy'
+
+export type BranchCondition = {
+  /** Edge output label this condition fires when true ("success", "failure", etc.) */
+  label: string
+  /** Dot-path to evaluate: 'exitCode' | 'output' | 'json.field.path' */
+  field: string
+  operator: BranchConditionOperator
+  /** RHS value (empty for exitCode0 / truthy operators) */
+  value: string
+}
+
+export type BranchData = {
+  conditions: BranchCondition[]
+  /** Label fired when no condition matches */
+  defaultLabel: string
+}
+
+export type ForEachData = {
+  /** Template expression resolving to a JSON array, e.g. {{steps.nodeId.json.items}} */
+  itemsExpression: string
+  /** Safety cap to prevent runaway loops */
+  maxIterations: number
+}
+
+/** Marker node — terminates a ForEach loop body. Collects iteration outputs into an array. */
+export type CollectData = Record<string, never>
+
 export type WorkflowNodeData =
   | TriggerCronData
   | TriggerManualData
@@ -78,21 +117,86 @@ export type WorkflowNodeData =
   | FileWriteData
   | EmailSendData
   | JsonTransformData
+  | BranchData
+  | ForEachData
+  | CollectData
 
 // ─── Node ────────────────────────────────────────────────────────────────────
 
 export type Vec2 = { x: number; y: number }
 
+// label: optional user-defined display name (overrides content-derived canvas label)
+// retryCount / retryDelaySeconds: action-node retry config; ignored by triggers, branch, collect
+
 export type WorkflowNode =
-  | { id: string; type: 'trigger_cron'; pos: Vec2; data: TriggerCronData }
-  | { id: string; type: 'trigger_manual'; pos: Vec2; data: TriggerManualData }
-  | { id: string; type: 'shell_command'; pos: Vec2; data: ShellCommandData }
-  | { id: string; type: 'python_script'; pos: Vec2; data: PythonScriptData }
-  | { id: string; type: 'agent_call'; pos: Vec2; data: AgentCallData }
-  | { id: string; type: 'file_read'; pos: Vec2; data: FileReadData }
-  | { id: string; type: 'file_write'; pos: Vec2; data: FileWriteData }
-  | { id: string; type: 'email_send'; pos: Vec2; data: EmailSendData }
-  | { id: string; type: 'json_transform'; pos: Vec2; data: JsonTransformData }
+  | { id: string; type: 'trigger_cron'; pos: Vec2; data: TriggerCronData; label?: string }
+  | { id: string; type: 'trigger_manual'; pos: Vec2; data: TriggerManualData; label?: string }
+  | {
+      id: string
+      type: 'shell_command'
+      pos: Vec2
+      data: ShellCommandData
+      label?: string
+      retryCount?: number
+      retryDelaySeconds?: number
+    }
+  | {
+      id: string
+      type: 'python_script'
+      pos: Vec2
+      data: PythonScriptData
+      label?: string
+      retryCount?: number
+      retryDelaySeconds?: number
+    }
+  | {
+      id: string
+      type: 'agent_call'
+      pos: Vec2
+      data: AgentCallData
+      label?: string
+      retryCount?: number
+      retryDelaySeconds?: number
+    }
+  | {
+      id: string
+      type: 'file_read'
+      pos: Vec2
+      data: FileReadData
+      label?: string
+      retryCount?: number
+      retryDelaySeconds?: number
+    }
+  | {
+      id: string
+      type: 'file_write'
+      pos: Vec2
+      data: FileWriteData
+      label?: string
+      retryCount?: number
+      retryDelaySeconds?: number
+    }
+  | {
+      id: string
+      type: 'email_send'
+      pos: Vec2
+      data: EmailSendData
+      label?: string
+      retryCount?: number
+      retryDelaySeconds?: number
+    }
+  | {
+      id: string
+      type: 'json_transform'
+      pos: Vec2
+      data: JsonTransformData
+      label?: string
+      retryCount?: number
+      retryDelaySeconds?: number
+    }
+  | { id: string; type: 'branch'; pos: Vec2; data: BranchData; label?: string }
+  | { id: string; type: 'for_each'; pos: Vec2; data: ForEachData; label?: string }
+  | { id: string; type: 'collect'; pos: Vec2; data: CollectData; label?: string }
 
 // ─── Edge ────────────────────────────────────────────────────────────────────
 
@@ -100,6 +204,11 @@ export type WorkflowEdge = {
   id: string
   sourceNodeId: string
   targetNodeId: string
+  /**
+   * Condition label for branch output ports ("success", "failure", "otherwise").
+   * Body/done labels for for_each output ports ("body", "done").
+   * Unset on regular edges.
+   */
   outputSelector?: string
 }
 
@@ -136,6 +245,7 @@ export type WorkflowNodeRun = {
   outputValue: unknown
   error: string | null
   durationMs: number | null
+  retryAttempt?: number
 }
 
 export type WorkflowRun = {

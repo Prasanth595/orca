@@ -1,15 +1,10 @@
 import type { AgentWorkflow, WorkflowNode, WorkflowNodeRun } from '../../shared/workflow-types'
 import { topologicalSort } from '../../shared/workflow-graph-topology'
-import { resolveTemplateExpr } from '../../shared/workflow-template-path'
-import { runShellCommandNode } from './workflow-node-runner-shell'
-import { runPythonScriptNode } from './workflow-node-runner-python'
-import { runAgentCallNode } from './workflow-node-runner-agent'
-import { runFileReadNode, runFileWriteNode } from './workflow-node-runner-file'
-import { runEmailSendNode } from './workflow-node-runner-email'
-import { runJsonTransformNode } from './workflow-node-runner-json'
 import type { WorkflowStoreOperations } from './workflow-run-store'
 import { patchNodeRun, finalizeWorkflowRun } from './workflow-run-store'
 import type { RemoteExecFn } from './workflow-remote-exec'
+import type { StepOutputs, ExecuteNodeResult } from './workflow-executor-node'
+import { executeNode } from './workflow-executor-node'
 
 export type WorkflowExecutorCallbacks = {
   onNodeStart?: (runId: string, nodeId: string) => void
@@ -17,101 +12,37 @@ export type WorkflowExecutorCallbacks = {
   onRunComplete?: (runId: string) => void
 }
 
-type StepOutputs = Record<string, { output: string; json: unknown }>
-
-function resolveField(value: string, steps: StepOutputs): string {
-  return resolveTemplateExpr(value, steps)
-}
-
-async function executeNode(
+async function executeNodeWithRetry(
   node: WorkflowNode,
+  workflow: AgentWorkflow,
   steps: StepOutputs,
+  runId: string,
+  ops: WorkflowStoreOperations,
   signal: AbortSignal,
   remoteExec?: RemoteExecFn
-): Promise<{ stdout: string; stderr: string; outputValue: unknown; exitCode: number | null }> {
-  // Use the last non-trigger step's output as stdin where applicable
-  const prevIds = Object.keys(steps)
-  const prevOutput = prevIds.length > 0 ? (steps[prevIds.at(-1)!]?.output ?? '') : ''
+): Promise<ExecuteNodeResult> {
+  const retryCount = 'retryCount' in node && node.retryCount ? node.retryCount : 0
+  const retryDelayMs =
+    'retryDelaySeconds' in node && node.retryDelaySeconds ? node.retryDelaySeconds * 1000 : 1000
 
-  switch (node.type) {
-    case 'trigger_cron':
-    case 'trigger_manual': {
-      const ts = new Date().toISOString()
-      return { stdout: ts, stderr: '', outputValue: { timestamp: ts }, exitCode: 0 }
+  let lastError: unknown
+  for (let attempt = 0; attempt <= retryCount; attempt++) {
+    if (attempt > 0) {
+      await new Promise<void>((resolve) => setTimeout(resolve, retryDelayMs * 2 ** (attempt - 1)))
     }
-    case 'shell_command': {
+    try {
+      return await executeNode(node, workflow, steps, runId, ops, signal, remoteExec)
+    } catch (err) {
+      lastError = err
       if (signal.aborted) {
-        throw new Error('Cancelled')
+        throw err
       }
-      const r = await runShellCommandNode(
-        { ...node.data, command: resolveField(node.data.command, steps) },
-        prevOutput,
-        remoteExec,
-        signal
-      )
-      return { ...r, outputValue: { stdout: r.stdout, stderr: r.stderr, exitCode: r.exitCode } }
-    }
-    case 'python_script': {
-      if (signal.aborted) {
-        throw new Error('Cancelled')
-      }
-      const r = await runPythonScriptNode(node.data, prevOutput, remoteExec, signal)
-      return { ...r, outputValue: { stdout: r.stdout, stderr: r.stderr, exitCode: r.exitCode } }
-    }
-    case 'agent_call': {
-      if (signal.aborted) {
-        throw new Error('Cancelled')
-      }
-      const prompt = resolveField(node.data.prompt, steps)
-      const r = await runAgentCallNode(node.data, prompt, remoteExec, signal)
-      let parsed: unknown = null
-      if (node.data.structuredOutputSchema) {
-        try {
-          parsed = JSON.parse(r.stdout)
-        } catch {
-          parsed = null
-        }
-      }
-      return { ...r, outputValue: parsed ?? { stdout: r.stdout, stderr: r.stderr } }
-    }
-    case 'file_read': {
-      const r = await runFileReadNode(
-        { filePath: resolveField(node.data.filePath, steps) },
-        remoteExec
-      )
-      return { stdout: r.content, stderr: '', outputValue: { content: r.content }, exitCode: 0 }
-    }
-    case 'file_write': {
-      const r = await runFileWriteNode(
-        { ...node.data, filePath: resolveField(node.data.filePath, steps) },
-        resolveField(node.data.content, steps),
-        remoteExec
-      )
-      return { stdout: '', stderr: '', outputValue: r, exitCode: 0 }
-    }
-    case 'email_send': {
-      const r = await runEmailSendNode(
-        node.data,
-        resolveField(node.data.to, steps),
-        resolveField(node.data.subject, steps),
-        resolveField(node.data.body, steps)
-      )
-      return { stdout: r.message, stderr: '', outputValue: r, exitCode: 0 }
-    }
-    case 'json_transform': {
-      const inputJson = prevIds.length > 0 ? steps[prevIds.at(-1)!]?.json : undefined
-      const r = runJsonTransformNode(
-        { expression: resolveField(node.data.expression, steps) },
-        inputJson
-      )
-      return {
-        stdout: JSON.stringify(r.value),
-        stderr: '',
-        outputValue: r.value,
-        exitCode: 0
+      if (attempt < retryCount) {
+        patchNodeRun(ops, runId, node.id, { retryAttempt: attempt + 1 })
       }
     }
   }
+  throw lastError
 }
 
 export async function executeWorkflow(
@@ -130,63 +61,165 @@ export async function executeWorkflow(
   }
 
   const steps: StepOutputs = {}
+  // Maps sourceNodeId → set of output labels that are "active" (branch fired)
+  const activeEdgeLabels = new Map<string, Set<string>>()
+  const completedNodeIds = new Set<string>()
 
-  for (const node of sorted) {
+  const deps = new Map<string, Set<string>>()
+  for (const edge of workflow.edges) {
+    if (!deps.has(edge.targetNodeId)) {
+      deps.set(edge.targetNodeId, new Set())
+    }
+    deps.get(edge.targetNodeId)!.add(edge.sourceNodeId)
+  }
+
+  function isReady(nodeId: string): boolean {
+    const nodeDeps = deps.get(nodeId) ?? new Set()
+    for (const d of nodeDeps) {
+      if (!completedNodeIds.has(d)) {
+        return false
+      }
+    }
+    return true
+  }
+
+  // A node is reachable only when every inbound labeled edge has been activated.
+  function isReachable(nodeId: string): boolean {
+    const inbound = workflow.edges.filter((e) => e.targetNodeId === nodeId)
+    return inbound.every((e) => {
+      if (!e.outputSelector) {
+        return true
+      }
+      return activeEdgeLabels.get(e.sourceNodeId)?.has(e.outputSelector) ?? false
+    })
+  }
+
+  const pending = [...sorted]
+
+  while (pending.length > 0) {
     if (signal.aborted) {
       finalizeWorkflowRun(ops, runId, 'cancelled', 'Workflow was cancelled.')
       callbacks.onRunComplete?.(runId)
       return
     }
 
-    patchNodeRun(ops, runId, node.id, { status: 'running', startedAt: Date.now() })
-    callbacks.onNodeStart?.(runId, node.id)
+    const readyNow = pending.filter((n) => isReady(n.id))
+    if (readyNow.length === 0) {
+      break
+    }
 
-    const startMs = Date.now()
-    try {
-      const result = await executeNode(node, steps, signal, remoteExec)
-      const durationMs = Date.now() - startMs
-      let json: unknown = null
-      try {
-        json = JSON.parse(result.stdout)
-      } catch {
-        json = null
+    for (const n of readyNow) {
+      pending.splice(pending.indexOf(n), 1)
+    }
+
+    const unreachable = readyNow.filter((n) => !isReachable(n.id))
+    for (const n of unreachable) {
+      patchNodeRun(ops, runId, n.id, { status: 'skipped' })
+      completedNodeIds.add(n.id)
+    }
+
+    const executable = readyNow.filter((n) => isReachable(n.id))
+    if (executable.length === 0) {
+      continue
+    }
+
+    const batchResults = await Promise.all(
+      executable.map(async (node) => {
+        patchNodeRun(ops, runId, node.id, { status: 'running', startedAt: Date.now() })
+        callbacks.onNodeStart?.(runId, node.id)
+        const startMs = Date.now()
+        try {
+          const result = await executeNodeWithRetry(
+            node,
+            workflow,
+            steps,
+            runId,
+            ops,
+            signal,
+            remoteExec
+          )
+          return { node, ok: true as const, result, startMs }
+        } catch (err) {
+          return {
+            node,
+            ok: false as const,
+            error: err instanceof Error ? err.message : String(err),
+            startMs
+          }
+        }
+      })
+    )
+
+    let failed = false
+    for (const item of batchResults) {
+      const durationMs = Date.now() - item.startMs
+      if (!item.ok) {
+        patchNodeRun(ops, runId, item.node.id, {
+          status: 'failed',
+          completedAt: Date.now(),
+          error: item.error,
+          durationMs
+        })
+        finalizeWorkflowRun(
+          ops,
+          runId,
+          'failed',
+          `Node ${item.node.type} ${item.node.id.slice(0, 8)} failed: ${item.error}`
+        )
+        callbacks.onRunComplete?.(runId)
+        failed = true
+        break
       }
 
-      steps[node.id] = { output: result.stdout, json: json ?? result.outputValue }
+      const r = item.result
+      let json: unknown = null
+      try {
+        json = JSON.parse(r.stdout)
+      } catch {}
+      steps[item.node.id] = { output: r.stdout, json: json ?? r.outputValue }
 
-      const nodeRun = patchNodeRun(ops, runId, node.id, {
+      const runData = patchNodeRun(ops, runId, item.node.id, {
         status: 'completed',
         completedAt: Date.now(),
-        stdout: result.stdout,
-        stderr: result.stderr,
-        outputValue: result.outputValue,
+        stdout: r.stdout,
+        stderr: r.stderr,
+        outputValue: r.outputValue,
         durationMs,
         error: null
       })
-      if (nodeRun) {
-        const nr = nodeRun.nodeRuns.find((nr) => nr.nodeId === node.id)
+      if (runData) {
+        const nr = runData.nodeRuns.find((n) => n.nodeId === item.node.id)
         if (nr) {
-          callbacks.onNodeComplete?.(runId, node.id, nr)
+          callbacks.onNodeComplete?.(runId, item.node.id, nr)
         }
       }
-    } catch (err) {
-      const error = err instanceof Error ? err.message : String(err)
-      const durationMs = Date.now() - startMs
-      patchNodeRun(ops, runId, node.id, {
-        status: 'failed',
-        completedAt: Date.now(),
-        error,
-        durationMs
-      })
-      finalizeWorkflowRun(
-        ops,
-        runId,
-        'failed',
-        `Node ${node.type} ${node.id.slice(0, 8)} failed: ${error}`
-      )
-      callbacks.onRunComplete?.(runId)
+
+      completedNodeIds.add(item.node.id)
+
+      if (r.activeLabel) {
+        activeEdgeLabels.set(item.node.id, new Set([r.activeLabel]))
+      }
+
+      if (r.handledNodeIds) {
+        for (const bodyId of r.handledNodeIds) {
+          completedNodeIds.add(bodyId)
+          const idx = pending.findIndex((n) => n.id === bodyId)
+          if (idx !== -1) {
+            pending.splice(idx, 1)
+          }
+        }
+      }
+    }
+
+    if (failed) {
       return
     }
+  }
+
+  if (signal.aborted) {
+    finalizeWorkflowRun(ops, runId, 'cancelled', 'Workflow was cancelled.')
+    callbacks.onRunComplete?.(runId)
+    return
   }
 
   finalizeWorkflowRun(ops, runId, 'completed')

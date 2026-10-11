@@ -15,6 +15,7 @@ type Props = {
   onNodeClick: (nodeId: string) => void
   onContextMenu: (nodeId: string) => void
   onDelete: (nodeId: string, e: React.MouseEvent) => void
+  onConnectStart: (nodeId: string) => void
 }
 
 export default function WorkflowCanvasNode({
@@ -27,7 +28,8 @@ export default function WorkflowCanvasNode({
   onMouseDown,
   onNodeClick,
   onContextMenu,
-  onDelete
+  onDelete,
+  onConnectStart
 }: Props): React.JSX.Element {
   return (
     <div
@@ -57,6 +59,7 @@ export default function WorkflowCanvasNode({
         onContextMenu(node.id)
       }}
     >
+      {/* Delete button — top-right */}
       <button
         type="button"
         className="absolute -top-2 -right-2 size-4 rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center shadow-sm z-10"
@@ -66,6 +69,19 @@ export default function WorkflowCanvasNode({
       >
         <X className="size-2.5" />
       </button>
+      {/* Port handle — right-center, starts connection on click */}
+      {!isConnecting && (
+        <button
+          type="button"
+          className="absolute right-[-7px] top-1/2 -translate-y-1/2 size-3.5 rounded-full border-2 border-border bg-background hover:border-primary hover:bg-primary/10 opacity-0 group-hover:opacity-100 transition-all z-10 flex items-center justify-center shadow-sm"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            onConnectStart(node.id)
+          }}
+          title={translate('workflows.canvas.connectPort', 'Connect from this node')}
+        />
+      )}
       <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">
         {NODE_TYPE_LABELS[node.type]}
       </div>

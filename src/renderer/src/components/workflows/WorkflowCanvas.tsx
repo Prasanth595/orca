@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
-import { Maximize2, Minimize2, Plus, Workflow, Play, Loader2 } from 'lucide-react'
+import { useState, useRef, useEffect, useMemo } from 'react'
+import { Maximize2, Minimize2, Plus, Workflow, Play, Loader2, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
 import { cn } from '@/lib/utils'
@@ -10,6 +10,7 @@ import WorkflowCanvasEdgesLayer from './WorkflowCanvasEdgesLayer'
 import WorkflowAddNodeMenu from './WorkflowAddNodeMenu'
 import WorkflowCanvasNode from './WorkflowCanvasNode'
 import WorkflowExecutionTargetBadge from './WorkflowExecutionTargetBadge'
+import { validateWorkflow } from '../../../../shared/workflow-graph-validation'
 import type { AgentWorkflow, WorkflowNodeType } from '../../../../shared/workflow-types'
 
 const CANVAS_W = 4000
@@ -60,6 +61,9 @@ export default function WorkflowCanvas({
   const viewportRef = useRef<HTMLDivElement>(null)
 
   const [pan, setPan, persistPan] = usePersistedCanvasPan(workflow?.id ?? '')
+
+  const validationErrors = useMemo(() => (workflow ? validateWorkflow(workflow) : []), [workflow])
+  const hasCycleError = validationErrors.some((e) => e.kind === 'cycle')
 
   useEffect(() => {
     if (!connectingFrom) {
@@ -141,7 +145,7 @@ export default function WorkflowCanvas({
   }
 
   async function handleRun(): Promise<void> {
-    if (!workflow || isRunning) {
+    if (!workflow || isRunning || hasCycleError) {
       return
     }
     await window.api.workflows.runNow(workflow.id)
@@ -366,12 +370,15 @@ export default function WorkflowCanvas({
               setConnectingFrom(nodeId)
               setShowAddMenu(false)
             }}
+            onConnectStart={(nodeId) => {
+              setConnectingFrom(nodeId)
+              setShowAddMenu(false)
+            }}
             onDelete={deleteNode}
           />
         ))}
       </div>
 
-      {/* Empty state — viewport overlay */}
       {workflow.nodes.length === 0 && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground/50 pointer-events-none">
           <span className="text-[13px]">
@@ -379,25 +386,35 @@ export default function WorkflowCanvas({
           </span>
         </div>
       )}
-
-      {/* Add node menu */}
       {showAddMenu && <WorkflowAddNodeMenu onAdd={(type) => void addNode(type)} />}
 
       {/* Run + Add node buttons — bottom center */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2">
-        <button
-          type="button"
-          className={cn(
-            'flex items-center justify-center size-8 rounded-full border border-border bg-background text-foreground shadow-md transition-colors',
-            isRunning ? 'opacity-60 cursor-not-allowed' : 'hover:bg-accent'
+        <div className="relative" onMouseDown={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            className={cn(
+              'flex items-center justify-center size-8 rounded-full border border-border bg-background text-foreground shadow-md transition-colors',
+              isRunning || hasCycleError ? 'opacity-60 cursor-not-allowed' : 'hover:bg-accent'
+            )}
+            onClick={() => void handleRun()}
+            disabled={isRunning || hasCycleError}
+            title={
+              hasCycleError
+                ? translate('workflows.canvas.runBlockedCycle', 'Fix cycle error to run')
+                : validationErrors.length > 0
+                  ? `${validationErrors.length} ${translate('workflows.canvas.runWarnings', 'warning(s)')} — ${validationErrors[0]?.message}`
+                  : translate('workflows.canvas.runNow', 'Run workflow')
+            }
+          >
+            {isRunning ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
+          </button>
+          {validationErrors.length > 0 && !isRunning && (
+            <div className="absolute -top-1 -right-1 size-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center pointer-events-none">
+              <AlertTriangle className="size-2.5" />
+            </div>
           )}
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={() => void handleRun()}
-          disabled={isRunning}
-          title={translate('workflows.canvas.runNow', 'Run workflow')}
-        >
-          {isRunning ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
-        </button>
+        </div>
         <button
           type="button"
           className="flex items-center justify-center size-8 rounded-full border border-border bg-background text-foreground shadow-md hover:bg-accent transition-colors"

@@ -8,6 +8,9 @@ import {
   FilePen,
   Mail,
   Braces,
+  GitBranch,
+  Repeat,
+  Layers,
   type LucideIcon
 } from 'lucide-react'
 import type { WorkflowNode, WorkflowNodeType } from '../../../../shared/workflow-types'
@@ -31,7 +34,10 @@ export const NODE_TYPE_LABELS: Record<WorkflowNodeType, string> = {
   file_read: 'File Read',
   file_write: 'File Write',
   email_send: 'Email Send',
-  json_transform: 'JSON Transform'
+  json_transform: 'JSON Transform',
+  branch: 'Branch',
+  for_each: 'For Each',
+  collect: 'Collect'
 }
 
 export const NODE_TYPE_ICON_COLORS: Record<WorkflowNodeType, string> = {
@@ -43,7 +49,10 @@ export const NODE_TYPE_ICON_COLORS: Record<WorkflowNodeType, string> = {
   file_read: 'text-amber-500',
   file_write: 'text-orange-500',
   email_send: 'text-pink-500',
-  json_transform: 'text-cyan-500'
+  json_transform: 'text-cyan-500',
+  branch: 'text-yellow-500',
+  for_each: 'text-teal-500',
+  collect: 'text-indigo-500'
 }
 
 export const NODE_TYPE_ICONS: Record<WorkflowNodeType, LucideIcon> = {
@@ -55,7 +64,10 @@ export const NODE_TYPE_ICONS: Record<WorkflowNodeType, LucideIcon> = {
   file_read: FileText,
   file_write: FilePen,
   email_send: Mail,
-  json_transform: Braces
+  json_transform: Braces,
+  branch: GitBranch,
+  for_each: Repeat,
+  collect: Layers
 }
 
 export const NODE_TYPE_COLORS: Record<WorkflowNodeType, string> = {
@@ -67,29 +79,38 @@ export const NODE_TYPE_COLORS: Record<WorkflowNodeType, string> = {
   file_read: 'border-amber-400 bg-amber-50 dark:bg-amber-950/30',
   file_write: 'border-orange-400 bg-orange-50 dark:bg-orange-950/30',
   email_send: 'border-pink-400 bg-pink-50 dark:bg-pink-950/30',
-  json_transform: 'border-cyan-400 bg-cyan-50 dark:bg-cyan-950/30'
+  json_transform: 'border-cyan-400 bg-cyan-50 dark:bg-cyan-950/30',
+  branch: 'border-yellow-400 bg-yellow-50 dark:bg-yellow-950/30',
+  for_each: 'border-teal-400 bg-teal-50 dark:bg-teal-950/30',
+  collect: 'border-indigo-400 bg-indigo-50 dark:bg-indigo-950/30'
 }
 
 export function nodeLabel(node: WorkflowNode): string {
   switch (node.type) {
     case 'shell_command':
-      return node.data.command || node.id.slice(0, 8)
+      return node.label || node.data.command || node.id.slice(0, 8)
     case 'python_script':
-      return node.data.script.slice(0, 30) || node.id.slice(0, 8)
+      return node.label || node.data.script.slice(0, 30) || node.id.slice(0, 8)
     case 'agent_call':
-      return node.data.prompt.slice(0, 30) || node.id.slice(0, 8)
+      return node.label || node.data.prompt.slice(0, 30) || node.id.slice(0, 8)
     case 'file_read':
-      return node.data.filePath || node.id.slice(0, 8)
+      return node.label || node.data.filePath || node.id.slice(0, 8)
     case 'file_write':
-      return node.data.filePath || node.id.slice(0, 8)
+      return node.label || node.data.filePath || node.id.slice(0, 8)
     case 'trigger_cron':
-      return node.data.schedule || node.id.slice(0, 8)
+      return node.label || node.data.schedule || node.id.slice(0, 8)
     case 'trigger_manual':
-      return 'Manual'
+      return node.label || 'Manual'
     case 'email_send':
-      return node.data.to || node.id.slice(0, 8)
+      return node.label || node.data.to || node.id.slice(0, 8)
     case 'json_transform':
-      return node.data.expression.slice(0, 30) || node.id.slice(0, 8)
+      return node.label || node.data.expression.slice(0, 30) || node.id.slice(0, 8)
+    case 'branch':
+      return node.label || `Branch (${node.data.conditions.length} conditions)`
+    case 'for_each':
+      return node.label || node.data.itemsExpression || 'For Each'
+    case 'collect':
+      return node.label || 'Collect'
   }
 }
 
@@ -102,7 +123,10 @@ export const ADD_NODE_TYPES: WorkflowNodeType[] = [
   'file_read',
   'file_write',
   'email_send',
-  'json_transform'
+  'json_transform',
+  'branch',
+  'for_each',
+  'collect'
 ]
 
 export const TRIGGER_NODE_TYPES: WorkflowNodeType[] = ['trigger_manual', 'trigger_cron']
@@ -114,7 +138,10 @@ export const ACTION_NODE_TYPES: WorkflowNodeType[] = [
   'file_read',
   'file_write',
   'json_transform',
-  'email_send'
+  'email_send',
+  'branch',
+  'for_each',
+  'collect'
 ]
 
 export function buildDefaultNode(
@@ -167,5 +194,19 @@ export function buildDefaultNode(
       return { id, type, pos, data: { to: '', subject: '', body: '', smtpProfileId: null } }
     case 'json_transform':
       return { id, type, pos, data: { expression: '' } }
+    case 'branch':
+      return {
+        id,
+        type,
+        pos,
+        data: {
+          conditions: [{ label: 'success', field: 'exitCode', operator: 'exitCode0', value: '' }],
+          defaultLabel: 'otherwise'
+        }
+      }
+    case 'for_each':
+      return { id, type, pos, data: { itemsExpression: '', maxIterations: 100 } }
+    case 'collect':
+      return { id, type, pos, data: {} }
   }
 }
