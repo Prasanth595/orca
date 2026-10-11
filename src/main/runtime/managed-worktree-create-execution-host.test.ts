@@ -35,15 +35,29 @@ type RuntimeInternals = {
 function makeRuntime(repo: Record<string, unknown>): {
   runtime: OrcaRuntimeService
   createRemote: ReturnType<typeof vi.fn>
+  resolveLineage: ReturnType<typeof vi.fn>
 } {
   const store = {
     getSettings: () => ({ disabledTuiAgents: [], workspaceDir: '/tmp/workspaces' }),
-    getProjectHostSetups: () => []
+    getProjectHostSetups: () => [],
+    getAllWorktreeMeta: () => ({
+      'repo-remote::/srv/app-parent': {
+        setupProfile: { name: 'customer-default', setupDecision: 'run' }
+      }
+    }),
+    getAllWorktreeMetaForHost: () => ({
+      'repo-remote::/srv/app-parent': {
+        setupProfile: { name: 'customer-default', setupDecision: 'run' }
+      }
+    }),
+    getAllWorktreeLineage: () => ({})
   }
   const runtime = new OrcaRuntimeService(store as never)
   const internals = runtime as unknown as RuntimeInternals
   vi.spyOn(internals, 'resolveRepoSelector').mockResolvedValue(repo)
-  vi.spyOn(internals, 'resolveLineageForWorktreeCreate').mockResolvedValue(null)
+  const resolveLineage = vi
+    .spyOn(internals, 'resolveLineageForWorktreeCreate')
+    .mockResolvedValue(null)
   vi.spyOn(internals, 'recordCreatedWorktreeLineage').mockReturnValue({
     lineage: null,
     workspaceLineage: null,
@@ -53,7 +67,7 @@ function makeRuntime(repo: Record<string, unknown>): {
     worktree: { id: 'wt-1', path: '/srv/app-feature', branch: 'feature' }
   })
   vi.spyOn(internals, 'createManagedRemoteWorktree').mockImplementation(createRemote)
-  return { runtime, createRemote }
+  return { runtime, createRemote, resolveLineage }
 }
 
 describe('createManagedWorktree execution-host routing', () => {
@@ -100,6 +114,41 @@ describe('createManagedWorktree execution-host routing', () => {
     expect(createRemote).toHaveBeenCalledWith(
       expect.objectContaining({ connectionId: TARGET_ID }),
       expect.anything()
+    )
+  })
+
+  it('applies an inherited parent setup profile before remote creation', async () => {
+    const { runtime, createRemote, resolveLineage } = makeRuntime({
+      id: 'repo-remote',
+      path: REMOTE_PATH,
+      kind: 'git',
+      executionHostId: `ssh:${TARGET_ID}`
+    })
+    resolveLineage.mockResolvedValue({
+      kind: 'lineage',
+      parent: {
+        type: 'worktree',
+        workspaceKey: 'worktree:repo-remote::/srv/app-parent',
+        worktree: {
+          id: 'repo-remote::/srv/app-parent',
+          hostId: `ssh:${TARGET_ID}`
+        },
+        instanceId: 'parent-instance'
+      },
+      origin: 'cli',
+      capture: { source: 'explicit-cli-flag', confidence: 'explicit' }
+    })
+
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the test supplies only the create fields this execution-host path reads.
+    await runtime.createManagedWorktree({
+      repoSelector: 'repo-remote',
+      name: 'feature',
+      setupDecision: 'inherit'
+    } as never)
+
+    expect(createRemote).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ setupDecision: 'run' })
     )
   })
 })

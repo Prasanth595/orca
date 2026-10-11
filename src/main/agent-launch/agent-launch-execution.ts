@@ -26,7 +26,11 @@ import type {
 export type AgentLaunchPublishedSurface = AgentLaunchResult
 
 type AgentLaunchExecutionBase = {
-  runtime: Pick<OrcaRuntimeService, 'getStructuredAgentSessionCreateSupport' | 'getClientSettings'>
+  runtime: Pick<
+    OrcaRuntimeService,
+    'getStructuredAgentSessionCreateSupport' | 'getClientSettings'
+  > &
+    Partial<Pick<OrcaRuntimeService, 'projectMcpRequirementsForWorkspace'>>
   vocabulary?: AgentLaunchModeVocabulary
   /** False when the calling client cannot show the agent's chat; absent for the host's own callers. */
   callerRendersStructured?: boolean

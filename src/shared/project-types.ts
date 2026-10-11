@@ -5,6 +5,7 @@ import type { LocalWindowsRuntimePreference } from './project-execution-runtime'
 import type { RepoHookSettings } from './orca-yaml-hook-types'
 import type { RepoSourceControlAiOverrides } from './source-control-ai-types'
 import type { Repo, RepoKind } from './repo-types'
+import type { ProjectMcpRequirement } from './agent-mcp-readiness'
 
 export type ProjectProviderIdentity = {
   provider: 'github'
@@ -62,6 +63,7 @@ export type ProjectHostSetup = {
   setupState: ProjectHostSetupState
   setupMethod: ProjectHostSetupMethod
   sourceControlAi?: RepoSourceControlAiOverrides
+  requiredMcpCapabilities?: ProjectMcpRequirement[]
   createdAt: number
   updatedAt: number
 }
@@ -85,6 +87,7 @@ export type ProjectHostSetupCreateArgs = {
   displayName?: string
   worktreeBasePath?: string
   gitUsername?: string
+  requiredMcpCapabilities?: ProjectMcpRequirement[]
   setupState?: ProjectHostSetupState
   setupMethod?: Exclude<ProjectHostSetupMethod, 'legacy-repo'>
 }
@@ -100,6 +103,8 @@ export type ProjectHostSetupCloneArgs = {
 
 export type ProjectHostSetupUpdateArgs = {
   setupId: string
+  /** Disambiguates repo-backed setups when the same repo id exists on multiple hosts. */
+  hostId?: ExecutionHostId
   updates: Partial<
     Pick<
       ProjectHostSetup,
@@ -110,6 +115,7 @@ export type ProjectHostSetupUpdateArgs = {
       | 'setupMethod'
       | 'gitUsername'
       | 'kind'
+      | 'requiredMcpCapabilities'
     >
   >
 }

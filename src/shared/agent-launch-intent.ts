@@ -13,6 +13,7 @@
  */
 
 import type { TuiAgent } from './tui-agent'
+import type { AgentMcpReadiness } from './agent-mcp-readiness'
 
 /** How a launch's initial text reaches the agent. */
 export type AgentLaunchPromptDelivery =
@@ -207,6 +208,8 @@ export type AgentLaunchResult = {
   /** Absent when no window placed the tab: an older host, no requested placement, or a host with no
    *  window owning the layout. */
   placement?: AgentLaunchPlacementReceipt
+  /** Effective MCP status read from the launched provider session. */
+  mcpReadiness?: AgentMcpReadiness
 }
 
 export type AgentLaunchMode = 'structured' | 'terminal'
@@ -258,7 +261,22 @@ export function isAgentLaunchResult(value: unknown): value is AgentLaunchResult 
     isAgentLaunchModeReceipt(result.receipt) &&
     (result.warning === undefined || typeof result.warning === 'string') &&
     (result.prompt === undefined || isAgentLaunchPromptReceipt(result.prompt)) &&
-    (result.placement === undefined || isAgentLaunchPlacementReceipt(result.placement))
+    (result.placement === undefined || isAgentLaunchPlacementReceipt(result.placement)) &&
+    (result.mcpReadiness === undefined || isAgentMcpReadiness(result.mcpReadiness))
+  )
+}
+
+function isAgentMcpReadiness(value: unknown): value is AgentMcpReadiness {
+  if (typeof value !== 'object' || value === null) {
+    return false
+  }
+  return (
+    'state' in value &&
+    (value.state === 'ready' || value.state === 'blocked' || value.state === 'unverifiable') &&
+    'requirements' in value &&
+    Array.isArray(value.requirements) &&
+    'servers' in value &&
+    Array.isArray(value.servers)
   )
 }
 

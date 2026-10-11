@@ -40,6 +40,7 @@ export function mergeWorktree(
     ...(meta?.projectHostSetupId !== undefined
       ? { projectHostSetupId: meta.projectHostSetupId }
       : {}),
+    ...(meta?.setupProfile !== undefined ? { setupProfile: meta.setupProfile } : {}),
     ...(meta?.ephemeralVmCheckoutMode !== undefined
       ? { ephemeralVmCheckoutMode: meta.ephemeralVmCheckoutMode }
       : {}),

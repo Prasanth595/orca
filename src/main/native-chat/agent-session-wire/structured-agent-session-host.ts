@@ -50,6 +50,8 @@ import * as conversation from './structured-agent-session-host-delivery'
 import { structuredAgentSessionConversationFence } from './structured-agent-session-provider-child'
 import { wireStructuredAgentSessionQueuedMessages } from './structured-agent-session-queued-wiring'
 import * as sessionLogger from './structured-agent-session-logger'
+import type { AgentMcpReadiness, ProjectMcpRequirement } from '../../../shared/agent-mcp-readiness'
+import { readStructuredAgentMcpReadiness } from './structured-agent-session-mcp-readiness'
 export type { StructuredAgentSessionHostDeps } from './structured-agent-session-host-types'
 
 export class StructuredAgentSessionHost {
@@ -176,6 +178,12 @@ export class StructuredAgentSessionHost {
 
   hasSession = (sessionId: string): boolean => this.sessions.has(sessionId)
   sessionAgent = (sessionId: string) => this.deps.store.getRecord(sessionId)?.provider ?? null
+
+  readMcpReadiness = (
+    sessionId: string,
+    requirements: readonly ProjectMcpRequirement[]
+  ): Promise<AgentMcpReadiness> =>
+    readStructuredAgentMcpReadiness(this.deps, sessionId, requirements)
 
   handleAdapterEvent = (event: Parameters<StructuredAgentSessionEventRecovery['handle']>[0]) =>
     this.eventRecovery.handle(event)

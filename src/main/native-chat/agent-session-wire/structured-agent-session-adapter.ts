@@ -53,6 +53,7 @@ import type { ProviderHistoryWindow } from '../agent-session-journal/journal-sub
 import type { StructuredAgentSessionStartupAttempt } from './structured-agent-session-startup-attempt-contract'
 import type { AgentSessionCreatePhaseRecorder } from '../../observability/agent-session-instrumentation'
 import type { AgentModelCatalogLiveListing } from '../agent-model-catalog/agent-model-catalog-entry'
+import type { AgentMcpProviderObservation } from '../../../shared/agent-mcp-readiness'
 
 /** A live options read, plus what the child listed for its account's saved catalog. The host
  *  saves that listing and strips it before answering; an adapter whose listing reaches the
@@ -380,6 +381,8 @@ export type StructuredAgentSessionAdapter = StructuredAgentSessionAdapterStop & 
   /** Why the session's running child can take no turn, as its own start found; undefined when
    *  unknown or no child runs. Lives and dies with that child. */
   startUnavailable?(sessionId: string): AgentSessionUnavailable | undefined
+  /** Sanitized effective MCP state from the running provider child. */
+  readMcpStatus?(sessionId: string): Promise<AgentMcpProviderObservation>
   /** The `/` surface the running provider reports for itself. Undefined when the
    *  provider never reports one, which is what keeps the client on its catalog. */
   readCommands?(sessionId: string): AgentSessionSlashCommand[] | undefined

@@ -62,6 +62,11 @@ export const ProjectUpdate = z.object({
   })
 })
 
+const ProjectMcpRequirement = z.object({
+  serverNames: z.array(requiredString('Missing MCP server name')).min(1),
+  capability: z.enum(['read', 'write'])
+})
+
 export const ProjectHostSetupCreate = z.object({
   projectId: requiredString('Missing project ID'),
   hostId: RequestedHostId,
@@ -71,12 +76,14 @@ export const ProjectHostSetupCreate = z.object({
   displayName: OptionalString,
   worktreeBasePath: OptionalString,
   gitUsername: OptionalString,
+  requiredMcpCapabilities: z.array(ProjectMcpRequirement).optional(),
   setupState: z.enum(['ready', 'not-set-up', 'setting-up', 'error', 'unsupported']).optional(),
   setupMethod: z.enum(['imported-existing-folder', 'cloned', 'provisioned']).optional()
 })
 
 export const ProjectHostSetupUpdate = z.object({
   setupId: requiredString('Missing setup ID'),
+  hostId: RequestedHostId.optional(),
   updates: z.object({
     displayName: OptionalString,
     path: OptionalString,
@@ -86,8 +93,14 @@ export const ProjectHostSetupUpdate = z.object({
       .enum(['legacy-repo', 'imported-existing-folder', 'cloned', 'provisioned'])
       .optional(),
     gitUsername: OptionalString,
-    kind: z.enum(['git', 'folder']).optional()
+    kind: z.enum(['git', 'folder']).optional(),
+    requiredMcpCapabilities: z.array(ProjectMcpRequirement).optional()
   })
+})
+
+export const ProjectSetupPolicyRead = z.object({
+  worktree: requiredString('Missing worktree selector'),
+  dryRun: z.boolean().optional()
 })
 
 export const ProjectHostSetupDelete = z.object({

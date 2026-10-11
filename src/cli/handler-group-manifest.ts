@@ -13,6 +13,11 @@ export type HandlerGroup = {
 // real exports by handler-group-manifest.test.ts, so drift fails CI, not dispatch.
 export const HANDLER_GROUPS: readonly HandlerGroup[] = [
   {
+    name: 'agent',
+    keys: ['agent mcp-readiness'],
+    load: async () => (await import('./handlers/agent.js')).AGENT_HANDLERS
+  },
+  {
     name: 'reference',
     keys: ['reference list', 'reference add', 'reference remove', 'reference find'],
     load: async () => (await import('./handlers/reference.js')).REFERENCE_HANDLERS
@@ -65,6 +70,7 @@ export const HANDLER_GROUPS: readonly HandlerGroup[] = [
       'project setup-clone',
       'project setup-create',
       'project setup-update',
+      'project setup-policy',
       'project setup-delete'
     ],
     load: async () => (await import('./handlers/project.js')).PROJECT_HANDLERS

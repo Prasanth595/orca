@@ -37,6 +37,8 @@ export type RuntimeRepositoryCommandSurface = {
   listProjects: RuntimeProjectHostSetupController['listProjects']
   updateProject: RuntimeProjectHostSetupController['updateProject']
   listProjectHostSetups: RuntimeProjectHostSetupController['listSetups']
+  projectMcpRequirementsForWorkspace: RuntimeProjectHostSetupController['requirementsForWorkspace']
+  readProjectSetupPolicy: RuntimeProjectHostSetupController['readSetupPolicy']
   createProjectHostSetup: RuntimeProjectHostSetupController['createSetup']
   setupProjectExistingFolder: RuntimeProjectHostSetupController['setupExistingFolder']
   setupProjectClone: RuntimeProjectHostSetupController['setupClone']
@@ -113,6 +115,8 @@ export function installRuntimeRepositoryCommandSurface(
     listProjects: host.listProjects.bind(host),
     updateProject: host.updateProject.bind(host),
     listProjectHostSetups: host.listSetups.bind(host),
+    projectMcpRequirementsForWorkspace: host.requirementsForWorkspace.bind(host),
+    readProjectSetupPolicy: host.readSetupPolicy.bind(host),
     createProjectHostSetup: host.createSetup.bind(host),
     setupProjectExistingFolder: host.setupExistingFolder.bind(host),
     setupProjectClone: host.setupClone.bind(host),

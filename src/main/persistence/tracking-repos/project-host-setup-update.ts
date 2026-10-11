@@ -2,6 +2,7 @@ import type { PersistedState } from '../../../shared/persisted-state-types'
 import type { ProjectHostSetup, ProjectHostSetupUpdateArgs } from '../../../shared/project-types'
 import type { Repo } from '../../../shared/repo-types'
 import type { RepoUpdatePersistenceOperations } from './repo-update-operations'
+import { normalizeProjectMcpRequirements } from '../../../shared/agent-mcp-readiness'
 
 export type ProjectHostSetupUpdateOperations = {
   state: PersistedState
@@ -55,8 +56,13 @@ export class ProjectHostSetupPersistenceOperations {
     if (updates.setupMethod !== undefined && updates.setupMethod !== 'legacy-repo') {
       repoUpdates.projectHostSetupMethod = updates.setupMethod
     }
+    if (updates.requiredMcpCapabilities !== undefined) {
+      repoUpdates.requiredMcpCapabilities = updates.requiredMcpCapabilities
+    }
     const updatedRepo =
-      Object.keys(repoUpdates).length > 0 ? this.updateRepo(repo.id, repoUpdates) : repo
+      Object.keys(repoUpdates).length > 0
+        ? this.updateRepo(repo.id, repoUpdates, setup.hostId)
+        : repo
     if (!updatedRepo) {
       return null
     }
@@ -100,6 +106,14 @@ export class ProjectHostSetupPersistenceOperations {
     }
     if (updates.setupMethod !== undefined) {
       setup.setupMethod = updates.setupMethod
+    }
+    if (updates.requiredMcpCapabilities !== undefined) {
+      const requirements = normalizeProjectMcpRequirements(updates.requiredMcpCapabilities)
+      if (requirements.length > 0) {
+        setup.requiredMcpCapabilities = requirements
+      } else {
+        delete setup.requiredMcpCapabilities
+      }
     }
     setup.updatedAt = Date.now()
     this.scheduleSave()

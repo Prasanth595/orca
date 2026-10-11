@@ -46,6 +46,7 @@ import {
   settleClaudePromptFreeingChild
 } from './claude-structured-prompt-ownership'
 import { claudePromptCancelRoute } from './claude-structured-prompt-replies'
+import { projectClaudeMcpServerStatus } from './claude-mcp-readiness'
 
 export type { ClaudeStructuredLaunch } from './claude-structured-launch-resolution'
 export type {
@@ -246,6 +247,24 @@ export class ClaudeStructuredSessionAdapter implements StructuredAgentSessionAda
   readOptionRestoreFailures = (sessionId: string): readonly string[] => [
     ...(this.sessions.get(sessionId)?.restoreSkippedOptions ?? [])
   ]
+  readMcpStatus: NonNullable<StructuredAgentSessionAdapter['readMcpStatus']> = async (
+    sessionId
+  ) => {
+    const session = this.sessions.get(sessionId)
+    if (!session) {
+      return { state: 'unavailable', servers: [] }
+    }
+    if (!session.connection.mcpServerStatus) {
+      return { state: 'unverifiable', servers: [] }
+    }
+    try {
+      return projectClaudeMcpServerStatus(
+        await session.connection.mcpServerStatus({ timeoutMs: this.deps.requestTimeoutMs })
+      )
+    } catch {
+      return { state: 'unverifiable', servers: [] }
+    }
+  }
 
   releaseAcquisition = (input: { sessionId: string }): Promise<boolean> =>
     this.afterClose(input.sessionId, () => this.releaseProviderSession(input.sessionId))

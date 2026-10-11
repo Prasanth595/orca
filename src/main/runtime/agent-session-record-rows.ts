@@ -16,11 +16,17 @@ import type { AgentSessionStoreState } from './agent-session-store-state'
 import type { AgentSessionStoreRowWrites } from './agent-session-store-draft'
 import { agentSessionRefusalError } from '../../shared/agent-session-wire-refusals'
 import {
-  isReadableAgentSessionStoreOperation,
+  agentSessionOperationStorageKey,
   isReadableAgentSessionStoreRecord,
   isReadableAgentSessionStoreTab,
-  isReadableRetiredAgentSessionClaimKey
+  isReadableRetiredAgentSessionClaimKey,
+  readableAgentSessionStoreOperationKey
 } from './agent-session-store-row-rules'
+import {
+  agentSessionOperationIdentityFromKey,
+  isAgentSessionOperationRow,
+  type AgentSessionOperationRow
+} from '../../shared/agent-session-operation-ledger'
 import { AgentSessionTabTable, type PersistedAgentSessionTab } from './agent-session-tab-table'
 
 /** "Never recorded" and "recorded, now empty" differ, and #17439's legacy fallback needs the first;
@@ -122,8 +128,10 @@ export function loadAgentSessionStoreRows(db: Database.Database): AgentSessionSt
     .all()) {
     const key = text(row, 'operation_key')
     const parsed = parseJson(text(row, 'row_json'))
-    if (key !== null && parsed.ok && isReadableAgentSessionStoreOperation(key, parsed.value)) {
-      state.operations.set(key, parsed.value)
+    const canonicalKey =
+      key !== null && parsed.ok ? readableAgentSessionStoreOperationKey(key, parsed.value) : null
+    if (canonicalKey !== null && parsed.ok && isAgentSessionOperationRow(parsed.value)) {
+      state.operations.set(canonicalKey, parsed.value)
     }
   }
   for (const row of db
@@ -160,6 +168,37 @@ export function loadAgentSessionStoreRows(db: Database.Database): AgentSessionSt
   return state
 }
 
+function operationRowFromJson(json: string): AgentSessionOperationRow {
+  const parsed: unknown = JSON.parse(json)
+  if (!isAgentSessionOperationRow(parsed)) {
+    throw new Error('agent_session_store_write_invalid')
+  }
+  return parsed
+}
+
+function hasStoredOperation(
+  db: Database.Database,
+  row: Pick<AgentSessionOperationRow, 'callerKey' | 'operationId'>
+): boolean {
+  return Boolean(
+    db
+      .prepare(
+        "SELECT 1 AS present FROM agent_session_operations WHERE json_extract(CASE WHEN json_valid(row_json) THEN row_json ELSE '{}' END, '$.callerKey') = ? AND json_extract(CASE WHEN json_valid(row_json) THEN row_json ELSE '{}' END, '$.operationId') = ? LIMIT 1"
+      )
+      .get(row.callerKey, row.operationId)
+  )
+}
+
+function deleteStoredOperation(
+  db: Database.Database,
+  row: Pick<AgentSessionOperationRow, 'callerKey' | 'operationId'>
+): void {
+  const statement = db.prepare(
+    "DELETE FROM agent_session_operations WHERE json_extract(CASE WHEN json_valid(row_json) THEN row_json ELSE '{}' END, '$.callerKey') = ? AND json_extract(CASE WHEN json_valid(row_json) THEN row_json ELSE '{}' END, '$.operationId') = ?"
+  )
+  statement.run(row.callerKey, row.operationId)
+}
+
 function writeTabIndex(
   db: Database.Database,
   index: { recorded: boolean; tabs: readonly PersistedAgentSessionTab[] }
@@ -187,8 +226,14 @@ export function insertAgentSessionOperationRowsIfAbsent(
   const insert = db.prepare(
     'INSERT INTO agent_session_operations (operation_key, row_json) VALUES (?, ?) ON CONFLICT(operation_key) DO NOTHING'
   )
-  for (const [key, json] of rows) {
-    if (insert.run(key, json).changes === 0) {
+  for (const [legacyKey, json] of rows) {
+    const row = operationRowFromJson(json)
+    const key = agentSessionOperationStorageKey(row)
+    if (
+      hasStoredOperation(db, row) ||
+      insert.run(key, json).changes === 0 ||
+      insert.run(legacyKey, json).changes === 0
+    ) {
       throw agentSessionRefusalError('agent_session_operation_unknown', {
         reason: 'outcomeUnknown'
       })
@@ -213,11 +258,18 @@ export function writeAgentSessionStoreRows(
   const upsertOperation = db.prepare(
     'INSERT INTO agent_session_operations (operation_key, row_json) VALUES (?, ?) ON CONFLICT(operation_key) DO UPDATE SET row_json = excluded.row_json'
   )
-  for (const [key, json] of writes.operations.upsert) {
+  for (const [legacyKey, json] of writes.operations.upsert) {
+    const row = operationRowFromJson(json)
+    const key = agentSessionOperationStorageKey(row)
     upsertOperation.run(key, json)
+    // Dual-write for rollback: older runtimes still require the NUL-delimited key.
+    upsertOperation.run(legacyKey, json)
   }
   for (const key of writes.operations.remove) {
-    db.prepare('DELETE FROM agent_session_operations WHERE operation_key = ?').run(key)
+    const identity = agentSessionOperationIdentityFromKey(key)
+    if (identity) {
+      deleteStoredOperation(db, identity)
+    }
   }
   if (writes.retiredClaimKeys) {
     db.prepare('DELETE FROM agent_session_retired_claim_keys').run()

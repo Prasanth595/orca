@@ -10,12 +10,14 @@
 
 import { defineMethod } from '../core'
 import {
+  ensureStructuredHostInstalled,
   requireInstalledStructuredHost,
   requireStructuredAgentAudience,
   requireStructuredHost
 } from './structured-agent-session-gate'
 import {
   HandoffStatusParams,
+  McpReadinessParams,
   ModelCatalogParams,
   OptionsParams
 } from './structured-agent-session-schemas'
@@ -25,6 +27,30 @@ import { clientReadsOptionsWithoutModel } from './structured-agent-session-polic
 import type { AgentSessionModelCatalogResult } from '../../../../shared/agent-session-wire'
 
 export const STRUCTURED_AGENT_SESSION_OPTIONS_READ_METHODS = [
+  defineMethod({
+    name: 'agentSession.mcpReadiness',
+    permission: 'workspace',
+    params: McpReadinessParams,
+    handler: async (params, ctx) => {
+      if (!('sessionId' in params)) {
+        await ensureStructuredHostInstalled(ctx, params.agent)
+      }
+      const host =
+        'sessionId' in params
+          ? await requireInstalledStructuredHost(ctx, params.sessionId)
+          : requireStructuredHost(ctx, params.agent)
+      const sessionId =
+        'sessionId' in params ? params.sessionId : resolveMcpReadinessSession(host, params)
+      const record = host.deps.store.getRecord(sessionId)
+      if (!record) {
+        throw new Error(`no agent session ${sessionId}`)
+      }
+      const requirements = ctx.runtime.projectMcpRequirementsForWorkspace(
+        record.location.workspaceId
+      )
+      return host.readMcpReadiness(sessionId, requirements)
+    }
+  }),
   defineMethod({
     name: 'agentSession.handoffStatus',
     permission: 'workspace',
@@ -97,3 +123,30 @@ export const STRUCTURED_AGENT_SESSION_OPTIONS_READ_METHODS = [
     }
   })
 ]
+
+function resolveMcpReadinessSession(
+  host: Awaited<ReturnType<typeof requireInstalledStructuredHost>>,
+  params: { workspaceId: string; agent: string }
+): string {
+  const matches = host.deps.store
+    .listRecords()
+    .filter(
+      (record) =>
+        record.location.workspaceId === params.workspaceId && record.provider === params.agent
+    )
+  const live = matches.filter((record) => record.lease.claimStatus === 'live')
+  const candidates = live.length > 0 ? live : matches
+  if (candidates.length === 0) {
+    throw new Error(`no ${params.agent} agent session in workspace ${params.workspaceId}`)
+  }
+  if (candidates.length > 1) {
+    throw new Error(
+      `multiple ${params.agent} agent sessions in workspace ${params.workspaceId}; select one with --session`
+    )
+  }
+  const candidate = candidates[0]
+  if (!candidate) {
+    throw new Error(`no ${params.agent} agent session in workspace ${params.workspaceId}`)
+  }
+  return candidate.sessionId
+}

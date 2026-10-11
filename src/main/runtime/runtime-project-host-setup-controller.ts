@@ -30,6 +30,12 @@ import {
   countRepoWorkspacesWithMetadata,
   describeProjectRemovalRefusal
 } from './project-removal-impact'
+import type { ProjectMcpRequirement } from '../../shared/agent-mcp-readiness'
+import type { WorkspaceSetupPolicyReadback } from '../../shared/workspace-setup-profile'
+import {
+  projectMcpRequirementsForWorkspace,
+  readProjectWorkspaceSetupPolicy
+} from './runtime-project-workspace-setup-policy'
 
 type RuntimeProjectHostSetupDependencies = {
   getStore: () => RuntimeStore | null
@@ -85,6 +91,24 @@ export class RuntimeProjectHostSetupController {
 
   listSetups(): ProjectHostSetup[] {
     return this.deps.getStore()?.getProjectHostSetups?.() ?? []
+  }
+
+  requirementsForWorkspace(workspaceId: string): ProjectMcpRequirement[] {
+    return projectMcpRequirementsForWorkspace(this.deps.getStore(), workspaceId)
+  }
+
+  readSetupPolicy(
+    workspaceId: string,
+    dryRun = false,
+    executionHostId?: ExecutionHostId
+  ): WorkspaceSetupPolicyReadback {
+    return readProjectWorkspaceSetupPolicy({
+      store: this.deps.getStore(),
+      repos: this.deps.listRepos(),
+      workspaceId,
+      dryRun,
+      ...(executionHostId ? { executionHostId } : {})
+    })
   }
 
   createSetup(args: ProjectHostSetupCreateArgs): ProjectHostSetupCreateResult {

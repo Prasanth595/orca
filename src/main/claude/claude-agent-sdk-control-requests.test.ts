@@ -50,3 +50,19 @@ describe('createClaudeControlSurface cancelAsyncMessage', () => {
     ).resolves.toBe(false)
   })
 })
+
+describe('createClaudeControlSurface mcpServerStatus', () => {
+  it('reads status from the running SDK query', async () => {
+    const mcpServerStatus = vi.fn(async () => [{ name: 'linear', status: 'needs-auth' as const }])
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: this test calls only mcpServerStatus, the one Query member provided by the fake.
+    const controls = createClaudeControlSurface({ mcpServerStatus } as unknown as Query)
+    const read = controls.mcpServerStatus
+    expect(read).toBeDefined()
+    if (!read) {
+      throw new Error('missing MCP status control')
+    }
+
+    await expect(read()).resolves.toEqual([{ name: 'linear', status: 'needs-auth' }])
+    expect(mcpServerStatus).toHaveBeenCalledOnce()
+  })
+})

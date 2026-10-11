@@ -13,6 +13,7 @@ import type { PersistedState } from '../../../shared/persisted-state-types'
 import type { Repo } from '../../../shared/repo-types'
 import { getRepoExecutionHostId, normalizeExecutionHostId } from '../../../shared/execution-host'
 import { normalizeProjectRuntimePreference } from '../../../shared/project-execution-runtime'
+import { normalizeProjectMcpRequirements } from '../../../shared/agent-mcp-readiness'
 import { makeProjectHostSetupId } from './project-host-compatibility'
 import { repoGitUsernameCacheKey } from './repo-hydration'
 
@@ -135,6 +136,11 @@ export class ProjectHostPersistenceOperations {
       ...(args.kind ? { kind: args.kind } : {}),
       ...(args.worktreeBasePath?.trim() ? { worktreeBasePath: args.worktreeBasePath.trim() } : {}),
       ...(args.gitUsername?.trim() ? { gitUsername: args.gitUsername.trim() } : {}),
+      ...(args.requiredMcpCapabilities
+        ? {
+            requiredMcpCapabilities: normalizeProjectMcpRequirements(args.requiredMcpCapabilities)
+          }
+        : {}),
       setupState: args.setupState ?? 'not-set-up',
       setupMethod: args.setupMethod ?? 'provisioned',
       createdAt: now,
@@ -147,7 +153,10 @@ export class ProjectHostPersistenceOperations {
   }
 
   updateProjectHostSetup(args: ProjectHostSetupUpdateArgs): ProjectHostSetupUpdateResult | null {
-    const setup = this.state.projectHostSetups.find((entry) => entry.id === args.setupId)
+    const setup = this.state.projectHostSetups.find(
+      (entry) =>
+        entry.id === args.setupId && (args.hostId === undefined || entry.hostId === args.hostId)
+    )
     if (!setup) {
       return null
     }
@@ -156,7 +165,9 @@ export class ProjectHostPersistenceOperations {
       return null
     }
     const repo = setup.repoId
-      ? this.state.repos.find((entry) => entry.id === setup.repoId)
+      ? this.state.repos.find(
+          (entry) => entry.id === setup.repoId && getRepoExecutionHostId(entry) === setup.hostId
+        )
       : undefined
     if (repo) {
       const updated = this.updateRepoBackedProjectHostSetup(setup, repo, args.updates)

@@ -27,10 +27,27 @@ export function isReadableAgentSessionStoreOperation(
   key: string,
   value: unknown
 ): value is AgentSessionOperationRow {
-  return (
-    isAgentSessionOperationRow(value) &&
-    key === agentSessionOperationKey(value.callerKey, value.operationId)
-  )
+  return readableAgentSessionStoreOperationKey(key, value) !== null
+}
+
+/** NUL-delimited keys stay in memory; the current SQLite row gets JSON text that Node round-trips. */
+export function agentSessionOperationStorageKey(
+  value: Pick<AgentSessionOperationRow, 'callerKey' | 'operationId'>
+): string {
+  return JSON.stringify([value.callerKey, value.operationId])
+}
+
+/** Canonicalizes current storage plus legacy full and Node-24-truncated NUL keys. */
+export function readableAgentSessionStoreOperationKey(key: string, value: unknown): string | null {
+  if (!isAgentSessionOperationRow(value)) {
+    return null
+  }
+  const canonical = agentSessionOperationKey(value.callerKey, value.operationId)
+  return key === agentSessionOperationStorageKey(value) ||
+    key === canonical ||
+    key === value.callerKey
+    ? canonical
+    : null
 }
 
 export function isReadableRetiredAgentSessionClaimKey(
