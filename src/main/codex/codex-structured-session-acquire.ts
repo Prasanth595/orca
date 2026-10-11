@@ -46,6 +46,7 @@ import type { CodexStructuredSessionTeardown } from './codex-structured-session-
 import type { CodexStructuredNotificationRetry } from './codex-structured-notification-retry'
 import type { deliverCodexServerRequest } from './codex-structured-provider-events'
 import { codexAcquisitionNotificationHandler } from './codex-structured-acquisition-notification'
+import { createCodexMcpReadinessTracker } from './codex-mcp-readiness'
 
 export async function acquireCodexStructuredSession(input: {
   input: StructuredAgentSessionAcquireInput
@@ -224,6 +225,7 @@ export async function acquireCodexStructuredSession(input: {
     const session: CodexSession = {
       account,
       connection,
+      mcpReadiness: createCodexMcpReadinessTracker(),
       ...codexSessionLifecycle(acquireInput.fence, acquired.acquisitionGeneration as string),
       threadId: opened.threadId,
       historyMode: opened.historyMode,

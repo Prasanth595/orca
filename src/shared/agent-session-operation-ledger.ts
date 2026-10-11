@@ -136,6 +136,19 @@ export function agentSessionOperationKey(callerKey: string, operationId: string)
   return `${callerKey}${OPERATION_KEY_SEPARATOR}${operationId}`
 }
 
+export function agentSessionOperationIdentityFromKey(
+  key: string
+): { callerKey: string; operationId: string } | null {
+  const separator = key.indexOf(OPERATION_KEY_SEPARATOR)
+  if (separator <= 0 || separator === key.length - 1) {
+    return null
+  }
+  return {
+    callerKey: key.slice(0, separator),
+    operationId: key.slice(separator + OPERATION_KEY_SEPARATOR.length)
+  }
+}
+
 export function settleAgentSessionOperation(
   rows: ReadonlyMap<string, AgentSessionOperationRow>,
   args: {

@@ -100,6 +100,7 @@ export class RepoUpdatePersistenceOperations {
         | 'projectGroupId'
         | 'projectGroupOrder'
         | 'projectHostSetupMethod'
+        | 'requiredMcpCapabilities'
       >
     > & {
       externalWorktreeVisibility?: Repo['externalWorktreeVisibility'] | null
@@ -179,6 +180,13 @@ export class RepoUpdatePersistenceOperations {
     if ('worktreeBasePath' in sanitizedUpdates && sanitizedUpdates.worktreeBasePath === undefined) {
       delete repo.worktreeBasePath
       delete sanitizedUpdates.worktreeBasePath
+    }
+    if (
+      'requiredMcpCapabilities' in sanitizedUpdates &&
+      sanitizedUpdates.requiredMcpCapabilities?.length === 0
+    ) {
+      delete repo.requiredMcpCapabilities
+      delete sanitizedUpdates.requiredMcpCapabilities
     }
     if (
       'externalWorktreeVisibility' in sanitizedUpdates &&

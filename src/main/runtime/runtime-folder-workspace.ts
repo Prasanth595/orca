@@ -36,6 +36,7 @@ export function mergeRuntimeFolderWorkspace(
     ...(meta.projectHostSetupId !== undefined
       ? { projectHostSetupId: meta.projectHostSetupId }
       : {}),
+    ...(meta.setupProfile !== undefined ? { setupProfile: meta.setupProfile } : {}),
     ...(creatorProvenance ? { creatorProvenance } : {}),
     path: repo.path,
     head: '',

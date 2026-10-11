@@ -681,6 +681,8 @@ describe('orca cli worktree awareness', () => {
         'setup-update',
         '--setup',
         'setup-gpu',
+        '--host',
+        'ssh:server',
         '--display-name',
         'GPU VM',
         '--path',
@@ -691,6 +693,10 @@ describe('orca cli worktree awareness', () => {
         'ready',
         '--method',
         'imported-existing-folder',
+        '--required-mcp',
+        'linear:read',
+        '--required-mcp',
+        'linear|linear-cloud:write',
         '--json'
       ],
       '/tmp/repo'
@@ -698,6 +704,7 @@ describe('orca cli worktree awareness', () => {
 
     expect(callMock).toHaveBeenCalledWith('projectHostSetup.update', {
       setupId: 'setup-gpu',
+      hostId: 'ssh:server',
       updates: {
         displayName: 'GPU VM',
         path: path.resolve('/tmp/repo', '/srv/orca'),
@@ -705,7 +712,11 @@ describe('orca cli worktree awareness', () => {
         gitUsername: undefined,
         kind: undefined,
         setupState: 'ready',
-        setupMethod: 'imported-existing-folder'
+        setupMethod: 'imported-existing-folder',
+        requiredMcpCapabilities: [
+          { serverNames: ['linear'], capability: 'read' },
+          { serverNames: ['linear', 'linear-cloud'], capability: 'write' }
+        ]
       }
     })
   })
@@ -771,8 +782,43 @@ describe('orca cli worktree awareness', () => {
       displayName: 'GPU VM',
       worktreeBasePath: undefined,
       gitUsername: undefined,
+      requiredMcpCapabilities: undefined,
       setupState: 'setting-up',
       setupMethod: 'provisioned'
+    })
+  })
+
+  it('reads effective setup policy in mutation-free dry-run mode', async () => {
+    queueFixtures(
+      callMock,
+      okFixture('req_setup_policy', {
+        worktreeId: 'repo::/tmp/repo/child',
+        requestedProfile: null,
+        effectiveProfile: { name: 'customer-default', setupDecision: 'run' },
+        profileSource: 'inherited',
+        sourceWorktreeId: 'repo::/tmp/repo/main',
+        hooks: {
+          setupConfigured: true,
+          archiveConfigured: false,
+          setupSource: 'yaml',
+          repositoryRunPolicy: 'ask',
+          requestedDecision: 'inherit',
+          effectiveDecision: 'run'
+        },
+        tooling: { requiredMcpCapabilities: [], source: 'none' },
+        dryRun: { mutated: false, wouldRunSetup: true }
+      })
+    )
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await main(
+      ['project', 'setup-policy', '--worktree', 'id:repo::/tmp/repo/child', '--dry-run', '--json'],
+      '/tmp/repo'
+    )
+
+    expect(callMock).toHaveBeenCalledWith('projectHostSetup.policy', {
+      worktree: 'id:repo::/tmp/repo/child',
+      dryRun: true
     })
   })
 

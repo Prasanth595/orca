@@ -1,5 +1,6 @@
 import { LOCAL_EXECUTION_HOST_ID } from './execution-host'
 import type { Project, ProjectHostSetup } from './project-types'
+import { normalizeProjectMcpRequirements } from './agent-mcp-readiness'
 
 /**
  * Repairs untrusted `Project` / `ProjectHostSetup` rows so their declared field types are true.
@@ -50,7 +51,11 @@ export function normalizeProjectHostSetupRow(setup: ProjectHostSetup): ProjectHo
     !isString(row.displayName) ||
     !isTimestamp(row.createdAt) ||
     !isTimestamp(row.updatedAt)
-  if (!needsRepair) {
+  const normalizedRequirements = normalizeProjectMcpRequirements(row.requiredMcpCapabilities)
+  const requirementsNeedRepair =
+    row.requiredMcpCapabilities !== undefined &&
+    JSON.stringify(normalizedRequirements) !== JSON.stringify(row.requiredMcpCapabilities)
+  if (!needsRepair && !requirementsNeedRepair) {
     return setup
   }
   return {
@@ -68,7 +73,10 @@ export function normalizeProjectHostSetupRow(setup: ProjectHostSetup): ProjectHo
       ? 'legacy-repo'
       : row.setupMethod) as ProjectHostSetup['setupMethod'],
     createdAt: timestampValue(row.createdAt),
-    updatedAt: timestampValue(row.updatedAt)
+    updatedAt: timestampValue(row.updatedAt),
+    ...(row.requiredMcpCapabilities === undefined
+      ? {}
+      : { requiredMcpCapabilities: normalizedRequirements })
   }
 }
 

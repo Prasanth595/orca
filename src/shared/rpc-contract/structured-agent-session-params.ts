@@ -265,6 +265,16 @@ export const SetOptionParams = z
   .strict()
 
 export const OptionsParams = z.object({ sessionId: SessionId }).strict()
+
+export const McpReadinessParams = z.union([
+  OptionsParams,
+  z
+    .object({
+      workspaceId: Identifier('Invalid workspace id'),
+      agent: StructuredAgent
+    })
+    .strict()
+])
 export const AcknowledgeAttentionParams = OptionsParams.extend({ observedCursor: JournalCursor })
 
 /** `agentSession.agents` takes nothing: the list is the host's, whichever client asks. */

@@ -42,6 +42,7 @@ import { getReviewTargetLinkFlags } from './worktree-review-link-flags'
 import { withSetupDecisionRecovery } from './worktree-setup-decision-recovery'
 import { assertGitLabLinkFlagProjectsMatch } from './worktree-gitlab-link-context'
 import { assertReferenceWritesSupported, getCreateReferences } from '../reference-input'
+import { getOptionalSetupProfile } from './project-setup-profile-cli'
 
 function getPresentStringFlag(
   flags: Map<string, string | boolean>,
@@ -254,6 +255,7 @@ export const WORKTREE_HANDLERS: Record<string, CommandHandler> = {
     })
     const worktree = await getRequiredWorktreeSelector(flags, 'worktree', cwd, client)
     await assertGitLabLinkFlagProjectsMatch(flags, client, { worktree })
+    const setupProfile = getOptionalSetupProfile(flags, getPresentStringFlag)
     const result = await client.call<{ worktree: RuntimeWorktreeRecord }>('worktree.set', {
       worktree,
       displayName: getOptionalStringFlag(flags, 'display-name'),
@@ -261,6 +263,10 @@ export const WORKTREE_HANDLERS: Record<string, CommandHandler> = {
       ...linearIssueLink,
       comment: getOptionalStringFlag(flags, 'comment'),
       workspaceStatus: getOptionalStringFlag(flags, 'workspace-status'),
+      ...(setupProfile !== undefined ? { setupProfile } : {}),
+      ...(flags.get('confirm-shared-profile-change') === true
+        ? { confirmSharedSetupProfileChange: true }
+        : {}),
       isUnread,
       parentWorktree: await getOptionalWorktreeSelector(flags, 'parent-worktree', cwd, client),
       noParent: flags.get('no-parent') === true

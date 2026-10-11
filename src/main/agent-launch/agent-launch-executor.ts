@@ -51,8 +51,7 @@ import {
   resolveAgentLaunchModeOnHost,
   type AgentLaunchModeReceipt,
   type AgentLaunchModeVocabulary,
-  DEFAULT_LAUNCH_VOCABULARY,
-  warnStructuredLaunchDowngrade
+  DEFAULT_LAUNCH_VOCABULARY
 } from './agent-launch-mode'
 import {
   assertLegacyHostTarget,
@@ -63,11 +62,8 @@ import {
   AgentLaunchStructuredSessionRefusedError,
   type AgentLaunchStructuredSurface
 } from './agent-launch-surface-factories'
-import type {
-  AgentLaunchExecution,
-  AgentLaunchPublishedSurface,
-  AgentLaunchSurfaceExecution
-} from './agent-launch-execution'
+import type { AgentLaunchExecution, AgentLaunchSurfaceExecution } from './agent-launch-execution'
+import { publishAgentLaunchSurface, withMcpReadiness } from './agent-launch-mcp-readiness'
 
 export type { AgentLaunchExecution, AgentLaunchPublishedSurface } from './agent-launch-execution'
 
@@ -100,19 +96,22 @@ export async function executeAgentLaunch(
   if (execution.promptPolicy === 'legacy-host') {
     assertLegacyHostTarget(execution)
     const placed = await resolveWorkspace(execution, preflight)
-    return published(execution, legacyHostCreateResult(execution, placed, preflight))
+    return withMcpReadiness(
+      execution,
+      publishAgentLaunchSurface(execution, legacyHostCreateResult(execution, placed, preflight))
+    )
   }
 
   // A reused terminal already downgraded in the pre-flight; there is nothing to create. Its agent
   // was running before this launch existed, so argv is unreachable and the PTY is the only way in.
   if (intent.reuseTerminal) {
-    const reused = published(execution, {
+    const reused = publishAgentLaunchSurface(execution, {
       outcome: { kind: 'terminal', handle: intent.reuseTerminal.handle },
       worktreeId: existingWorktreeId(intent.target),
       receipt: preflight,
       ...promptReceipt(intent, settledAtCreation(intent, {}))
     })
-    return {
+    return withMcpReadiness(execution, {
       ...reused,
       ...promptReceipt(
         intent,
@@ -120,13 +119,13 @@ export async function executeAgentLaunch(
           freshLaunch: false
         })
       )
-    }
+    })
   }
 
   const placed = await resolveWorkspace(execution, preflight)
   // Agent-first creation already produced the agent, so the pre-flight verdict is final.
   if (placed.startupTerminalHandle) {
-    const startup = published(execution, {
+    const startup = publishAgentLaunchSurface(execution, {
       outcome: {
         kind: 'terminal',
         handle: placed.startupTerminalHandle,
@@ -137,7 +136,7 @@ export async function executeAgentLaunch(
       ...(placed.warning ? { warning: placed.warning } : {}),
       ...promptReceipt(intent, settledAtCreation(intent, placed))
     })
-    return {
+    return withMcpReadiness(execution, {
       ...startup,
       ...promptReceipt(
         intent,
@@ -147,7 +146,7 @@ export async function executeAgentLaunch(
               freshLaunch: true
             })
       )
-    }
+    })
   }
 
   execution.onStage?.('mode_settle')
@@ -192,26 +191,17 @@ export async function executeAgentLaunch(
   // not start while looking at it. Telling those apart needs `createManagedWorktree` to stop
   // multiplexing "couldn't copy untracked files" and "startup terminal failed" into one string.
   const warning = combineLaunchWarnings(placed.warning, created.warning)
-  const surface = published(execution, {
+  const surface = publishAgentLaunchSurface(execution, {
     outcome: created.outcome,
     worktreeId: placed.worktreeId,
     receipt: settled,
     ...(warning ? { warning } : {}),
     ...promptReceipt(intent, settledAtCreation(intent, created))
   })
-  return {
+  return withMcpReadiness(execution, {
     ...surface,
     ...promptReceipt(intent, await settleLaunchPromptDisposal(execution, created))
-  }
-}
-
-function published(
-  execution: AgentLaunchExecution,
-  surface: AgentLaunchPublishedSurface
-): AgentLaunchPublishedSurface {
-  warnStructuredLaunchDowngrade(execution.intent.agent, surface.receipt)
-  execution.onSurfacePublished?.(surface)
-  return surface
+  })
 }
 
 function downgradeAgentLaunchModeForStructuredRefusal(

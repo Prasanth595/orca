@@ -8,6 +8,7 @@ import type { EphemeralVmCheckoutMode } from '../orca-yaml-hook-types'
 import type { BuiltInWorktreeVisibilitySourceId } from '../repo-types'
 import type { WorktreeIdentity } from './identity'
 import type { WorktreeScanFailureKind } from '../worktree-scan-failure'
+import type { WorkspaceSetupProfile } from '../workspace-setup-profile'
 
 export type WorkspaceAttachmentOrigin = {
   kind: 'observed'
@@ -105,6 +106,8 @@ export type Worktree = {
   creatorProvenance?: WorkspaceCreatorProvenance
   /** Host-specific setup used to create/run this workspace. */
   projectHostSetupId?: string
+  /** Direct profile override. Effective inherited policy is available through setup-policy readback. */
+  setupProfile?: WorkspaceSetupProfile
   /** Checkout ownership for a recipe-provisioned main workspace. */
   ephemeralVmCheckoutMode?: EphemeralVmCheckoutMode
   displayName: string

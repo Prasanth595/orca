@@ -10,6 +10,7 @@ import type { WorktreeBaseStatusEvent } from '../../shared/worktree/base-ref-dri
 import { probeRuntimeWorktreeDrift } from './runtime-worktree-drift-probe'
 import type { WorktreeMeta } from '../../shared/worktree/meta-types'
 import type { GitHubPrStartPoint, GitPushTarget } from '../../shared/worktree/types'
+import type { WorkspaceSetupProfile } from '../../shared/workspace-setup-profile'
 import {
   persistRuntimeManagedWorktreeSortOrder,
   updateRuntimeManagedWorktreeMetadata
@@ -151,8 +152,10 @@ export class OrcaRuntimeWithCreateManagedRemoteWorktree extends OrcaRuntimeWithC
 
   async updateManagedWorktreeMeta(
     worktreeSelector: string,
-    updates: Omit<Partial<WorktreeMeta>, 'pushTarget'> & {
+    updates: Omit<Partial<WorktreeMeta>, 'pushTarget' | 'setupProfile'> & {
       pushTarget?: GitPushTarget | null
+      setupProfile?: WorkspaceSetupProfile | null
+      confirmSharedSetupProfileChange?: boolean
       lineage?: {
         parentWorktree?: string
         noParent?: boolean

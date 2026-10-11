@@ -1,5 +1,6 @@
 import type { StructuredAgentSessionLogger } from '../native-chat/agent-session-wire/structured-agent-session-logger'
 import type { AgentSessionAccountKind } from '../../shared/agent-session-availability'
+import type { CodexMcpReadinessTracker } from './codex-mcp-readiness'
 import type {
   AgentJournalAnsweredTurnIdentity,
   AgentJournalItemIdentity,
@@ -123,6 +124,8 @@ export type CodexStructuredSessionAdapterDeps = {
 export type CodexSession = {
   account?: AgentSessionAccountKind
   connection: CodexAppServerConnection
+  /** Sanitized live startup status. Optional for compatibility with older in-memory test sessions. */
+  mcpReadiness?: CodexMcpReadinessTracker
   ended: boolean
   /** First observed child exit survives rejected settlement admission. */
   exitObservedAt?: number

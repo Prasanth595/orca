@@ -132,6 +132,89 @@ describe('orca cli worktree awareness', () => {
     })
   })
 
+  it('attaches a named setup profile with tooling requirements', async () => {
+    queueFixtures(
+      callMock,
+      okFixture('req_set_profile', {
+        worktree: buildWorktree('/tmp/repo/child', 'feature/child')
+      })
+    )
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await main(
+      [
+        'worktree',
+        'set',
+        '--worktree',
+        'id:repo::/tmp/repo/child',
+        '--setup-profile',
+        'customer-default',
+        '--profile-setup',
+        'run',
+        '--required-mcp',
+        'linear|linear-mcp:write',
+        '--required-mcp',
+        'notion:read',
+        '--json'
+      ],
+      '/tmp/repo'
+    )
+
+    expect(callMock).toHaveBeenCalledWith('worktree.set', {
+      worktree: 'id:repo::/tmp/repo/child',
+      displayName: undefined,
+      linkedIssue: undefined,
+      comment: undefined,
+      workspaceStatus: undefined,
+      setupProfile: {
+        name: 'customer-default',
+        setupDecision: 'run',
+        requiredMcpCapabilities: [
+          { serverNames: ['linear', 'linear-mcp'], capability: 'write' },
+          { serverNames: ['notion'], capability: 'read' }
+        ]
+      },
+      parentWorktree: undefined,
+      noParent: false
+    })
+  })
+
+  it('passes explicit confirmation when clearing a shared setup profile', async () => {
+    queueFixtures(
+      callMock,
+      okFixture('req_clear_profile', {
+        worktree: buildWorktree('/tmp/repo/child', 'feature/child')
+      })
+    )
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await main(
+      [
+        'worktree',
+        'set',
+        '--worktree',
+        'id:repo::/tmp/repo/child',
+        '--setup-profile',
+        'null',
+        '--confirm-shared-profile-change',
+        '--json'
+      ],
+      '/tmp/repo'
+    )
+
+    expect(callMock).toHaveBeenCalledWith('worktree.set', {
+      worktree: 'id:repo::/tmp/repo/child',
+      displayName: undefined,
+      linkedIssue: undefined,
+      comment: undefined,
+      workspaceStatus: undefined,
+      setupProfile: null,
+      confirmSharedSetupProfileChange: true,
+      parentWorktree: undefined,
+      noParent: false
+    })
+  })
+
   it('resolves current for explicit parent-worktree on set', async () => {
     queueFixtures(
       callMock,

@@ -46,6 +46,7 @@ import {
   answerCodexStructuredPrompt,
   cancelCodexStructuredTurn
 } from './codex-structured-prompt-ownership'
+import { projectCodexSessionMcpReadiness } from './codex-mcp-readiness'
 
 export type {
   CodexStructuredLaunch,
@@ -294,6 +295,9 @@ export class CodexStructuredSessionAdapter implements StructuredAgentSessionAdap
 
   readOptions = (input: { sessionId: string; fence: number }) =>
     readLiveCodexSessionOptions(this.session(input.sessionId), this.deps.requestTimeoutMs)
+
+  readMcpStatus = async (sessionId: string) =>
+    projectCodexSessionMcpReadiness(this.sessions.get(sessionId))
 
   prepareReadOptions = (input: { sessionId: string; fence: number }) =>
     prepareLiveCodexSessionOptions(this.session(input.sessionId), this.deps.requestTimeoutMs)

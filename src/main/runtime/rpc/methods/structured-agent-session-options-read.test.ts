@@ -167,6 +167,71 @@ describe('agentSession.modelCatalog before anything built the host', () => {
   })
 })
 
+describe('agentSession.mcpReadiness by workspace and agent', () => {
+  const record = agentSessionRecordFixture()
+  const requirements = [{ serverNames: ['linear'], capability: 'write' as const }]
+  const readiness = {
+    state: 'ready' as const,
+    requirements: [{ ...requirements[0], state: 'connected' as const, satisfiedBy: 'linear' }],
+    servers: [
+      {
+        name: 'linear',
+        state: 'connected' as const,
+        capabilities: ['write' as const],
+        capabilitiesVerified: true
+      }
+    ]
+  }
+  const readMcpReadiness = vi.fn(() => readiness)
+  const installHost = vi.fn(async () => {
+    setStructuredAgentSessionHost(
+      Object.assign(hostStub(), {
+        deps: {
+          store: {
+            getRecord: () => record,
+            listRecords: () => [record]
+          }
+        },
+        readMcpReadiness
+      })
+    )
+  })
+  const projectMcpRequirementsForWorkspace = vi.fn(() => requirements)
+
+  beforeEach(() => {
+    readMcpReadiness.mockClear()
+    installHost.mockClear()
+    projectMcpRequirementsForWorkspace.mockClear()
+    clearStructuredHostStub()
+  })
+
+  it('builds a cold host and reads the unique matching session', async () => {
+    const reply = await call(
+      'agentSession.mcpReadiness',
+      { workspaceId: record.location.workspaceId, agent: record.provider },
+      STRUCTURED_CLIENT,
+      { ensureStructuredAgentSessionHost: installHost, projectMcpRequirementsForWorkspace }
+    )
+
+    expect(reply).toMatchObject({ ok: true, result: readiness })
+    expect(installHost).toHaveBeenCalledTimes(1)
+    expect(projectMcpRequirementsForWorkspace).toHaveBeenCalledWith(record.location.workspaceId)
+    expect(readMcpReadiness).toHaveBeenCalledWith(record.sessionId, requirements)
+  })
+
+  it('does not build the host for an agent outside the client audience', async () => {
+    const reply = await call(
+      'agentSession.mcpReadiness',
+      { workspaceId: record.location.workspaceId, agent: 'pi' },
+      STRUCTURED_CLIENT,
+      { ensureStructuredAgentSessionHost: installHost, projectMcpRequirementsForWorkspace }
+    )
+
+    expect(reply).toMatchObject({ ok: false })
+    expect(installHost).not.toHaveBeenCalled()
+  })
+})
+
 const PI_CLIENT = {
   ...STRUCTURED_CLIENT,
   clientCapabilities: [

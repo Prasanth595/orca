@@ -5,6 +5,7 @@ import { normalizeRepoBadgeColor } from '../../../shared/repo-badge-color'
 import { sanitizeRepoIcon } from '../../../shared/repo-icon'
 import { normalizeGhAccountBinding } from '../../../shared/github/account-binding'
 import type { GhAccountBinding } from '../../../shared/github/account-binding'
+import { normalizeProjectMcpRequirements } from '../../../shared/agent-mcp-readiness'
 import {
   normalizeCustomWorktreeVisibilitySources,
   normalizeWorktreeVisibilitySourcePreferences
@@ -80,6 +81,7 @@ export function sanitizeRepoUpdatesForPersistence<
       | 'forkSyncMode'
       | 'customWorktreeVisibilitySources'
       | 'worktreeVisibilitySourcePreferences'
+      | 'requiredMcpCapabilities'
     >
   > & {
     ghAccount?: GhAccountBinding | null
@@ -170,6 +172,11 @@ export function sanitizeRepoUpdatesForPersistence<
     } else {
       sanitized.worktreeVisibilitySourcePreferences = preferences
     }
+  }
+  if ('requiredMcpCapabilities' in sanitized) {
+    sanitized.requiredMcpCapabilities = normalizeProjectMcpRequirements(
+      sanitized.requiredMcpCapabilities
+    )
   }
   return sanitized
 }
