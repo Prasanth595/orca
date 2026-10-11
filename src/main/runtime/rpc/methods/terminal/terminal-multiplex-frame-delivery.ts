@@ -6,20 +6,17 @@ import {
   encodeTerminalStreamText
 } from '../../../../../shared/terminal-stream-protocol'
 import { appendAckPendingOutput } from './terminal-stream-replay'
-import type {
-  TerminalMultiplexConnection,
-  TerminalMultiplexConnectionBase,
-  TerminalMultiplexFrameDeliveryStage
+import {
+  isMultiplexStreamAttached,
+  type TerminalMultiplexConnection
 } from './terminal-multiplex-connection'
 import type { TerminalOutputFrameChunk } from '../../terminal-output-frame-chunks'
 import type { TerminalStreamInputOutcome } from './terminal-input-delivery'
 import type { TerminalMultiplexStream } from './terminal-stream-types'
+import type { RpcBinarySendResult } from '../../rpc-binary-sender'
 
-export function installMultiplexFrameDelivery(
-  build: TerminalMultiplexConnectionBase
-): asserts build is TerminalMultiplexFrameDeliveryStage {
-  const state = build as TerminalMultiplexConnection
-  const { sendBinary, emit, streams } = state
+export function installMultiplexFrameDelivery(state: TerminalMultiplexConnection): void {
+  const { sendBinary, emit } = state
   state.sendFrame = (
     streamId: number,
     opcode: TerminalStreamOpcode,
@@ -34,7 +31,7 @@ export function installMultiplexFrameDelivery(
     // Why: a seq-less Output chunk must carry sentinel 0, not the control-frame state.cursor, or it poisons the client's frame-drop tracker.
     const resolvedSeq =
       typeof seq === 'number' ? seq : opcode === TerminalStreamOpcode.Output ? 0 : state.cursor++
-    let sent: boolean | void
+    let sent: RpcBinarySendResult
     try {
       sent = sendBinary(encodeTerminalStreamFrame({ opcode, streamId, seq: resolvedSeq, payload }))
     } catch {
@@ -59,8 +56,7 @@ export function installMultiplexFrameDelivery(
     outcome: TerminalStreamInputOutcome
   ): void => {
     if (
-      state.closed ||
-      streams.get(stream.streamId) !== stream ||
+      !isMultiplexStreamAttached(state, stream) ||
       outcome !== 'rejected' ||
       !stream.supportsWriteUnavailable
     ) {
@@ -70,7 +66,7 @@ export function installMultiplexFrameDelivery(
   }
   state.sendInputAck = (stream, appliedSeq, kind): void => {
     // Why: a detached stream's client already resends on its successor, which acks again.
-    if (state.closed || streams.get(stream.streamId) !== stream || stream.inputSessionId === null) {
+    if (!isMultiplexStreamAttached(state, stream) || stream.inputSessionId === null) {
       return
     }
     state.sendFrame(
@@ -150,7 +146,7 @@ export function installMultiplexFrameDelivery(
     stream: TerminalMultiplexStream,
     chunk: TerminalOutputFrameChunk
   ): void => {
-    if (state.closed || streams.get(stream.streamId) !== stream || stream.outputPaused) {
+    if (!isMultiplexStreamAttached(state, stream) || stream.outputPaused) {
       return
     }
     if (

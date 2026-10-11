@@ -227,8 +227,14 @@ describe('prebuild floor gate', () => {
          throw new Error('unexpected runtime download in build-only fixture');
        }`
     )
+    const processHost = join(root, 'node_modules', '@orca', 'process-host')
+    mkdirSync(processHost, { recursive: true })
     writeFileSync(
-      join(scripts, 'script-child-process.mjs'),
+      join(processHost, 'package.json'),
+      JSON.stringify({ name: '@orca/process-host', type: 'module', exports: './index.mjs' })
+    )
+    writeFileSync(
+      join(processHost, 'index.mjs'),
       `import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
        import { join } from 'node:path';
        export function runProcessSync({ cwd }) {

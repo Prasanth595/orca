@@ -1,3 +1,5 @@
+import { readTerminalSpawnDeferral } from '../../../../shared/host-spawn-admission'
+import { remoteRestoreSpawnIntentParams } from '../../runtime/remote-restore-spawn-intent'
 import { createAgentSessionKeyboardOptions } from '@/runtime/agent-session-keyboard-capability'
 import { withRemoteReattachInputBuffer } from './remote-reattach-input-buffer'
 import { createRemoteRuntimeDisconnectedInputGrace } from './remote-runtime-disconnected-input-grace'
@@ -69,7 +71,8 @@ import {
 } from './remote-runtime-pty-batching'
 import {
   REMOTE_RUNTIME_AUTO_RECOVERY_TIMEOUT_MS,
-  RemoteRuntimePtyRecoveryState
+  RemoteRuntimePtyRecoveryState,
+  type RemoteRuntimePtyRecoveryPhase
 } from './remote-runtime-pty-recovery-state'
 import { createBrowserUuid } from '@/lib/browser-uuid'
 import {
@@ -318,15 +321,22 @@ export function createRemoteRuntimePtyTransport(
     onRefusalsPersist: () => notifyWriteUnavailable()
   })
   const disconnectedInputGrace = createRemoteRuntimeDisconnectedInputGrace()
+  let previousRecoveryPhase: RemoteRuntimePtyRecoveryPhase = 'idle'
   const recovery = new RemoteRuntimePtyRecoveryState(() => {
+    const leftLatchForRetry = previousRecoveryPhase === 'disconnected' && recovery.isActive
+    previousRecoveryPhase = recovery.currentPhase
     if (recovery.currentPhase === 'disposed') {
       clearPublishedHandleWait()
       disconnectedInputGrace.reset()
       discardPendingInput()
     }
-    if (recovery.isActive && discardExpiredDisconnectedInput()) {
-      // Why: a retry after the grace starts fresh; keys typed during it belong to this attempt.
-      disconnectedInputGrace.reset()
+    if (leftLatchForRetry) {
+      if (discardExpiredDisconnectedInput()) {
+        // Why: a retry after the grace starts fresh; keys typed during it belong to this attempt.
+        disconnectedInputGrace.reset()
+      } else {
+        disconnectedInputGrace.carryThroughRetry()
+      }
     }
     if (recovery.currentPhase === 'disconnected') {
       disconnectedInputGrace.start()
@@ -2670,6 +2680,16 @@ export function createRemoteRuntimePtyTransport(
         const resumeProviderSessionToSend = options.resumeProviderSession ?? resumeProviderSession
         const launchTokenToSend = options.launchToken ?? launchToken
         const launchAgentToSend = options.launchAgent ?? launchAgent
+        const restoreSpawnIntent = resumeProviderSessionToSend
+          ? options.resumeSpawnIntent
+          : undefined
+        // Why only for a restore: an extra await would reorder every plain create against destroy.
+        const spawnIntentParams = restoreSpawnIntent
+          ? await remoteRestoreSpawnIntentParams(createEnvironmentId, restoreSpawnIntent)
+          : {}
+        if (restoreSpawnIntent && (destroyed || lifecycleEpoch !== connectLifecycleEpoch)) {
+          return
+        }
         const legacyCreateParams = {
           worktree: toRuntimeTerminalWorktreeSelector(worktreeId),
           clientMutationId: terminalCreateMutationId,
@@ -2685,6 +2705,7 @@ export function createRemoteRuntimePtyTransport(
             : {}),
           ...(launchTokenToSend !== undefined ? { launchToken: launchTokenToSend } : {}),
           ...(launchAgentToSend !== undefined ? { launchAgent: launchAgentToSend } : {}),
+          ...spawnIntentParams,
           ...(terminalColorQueryReplies ? { terminalColorQueryReplies } : {}),
           ...(terminalKittyKeyboardProtocol === true
             ? { terminalKittyKeyboardProtocol: true }
@@ -2735,7 +2756,8 @@ export function createRemoteRuntimePtyTransport(
                         ? { launchPreferences: agentLaunchPreferences }
                         : {}),
                       placement: { tabId, leafId },
-                      presentation: 'background'
+                      presentation: 'background',
+                      ...spawnIntentParams
                     },
                     timeoutMs
                   )
@@ -2859,7 +2881,12 @@ export function createRemoteRuntimePtyTransport(
         if (!destroyed && lifecycleEpoch === connectLifecycleEpoch) {
           connecting = false
           const message = runtimeTerminalErrorMessage(error)
-          if (isRemoteTerminalGoneMessage(message)) {
+          const deferral = readTerminalSpawnDeferral(error)
+          if (deferral) {
+            recovery.cancel()
+            emitRecoveryState()
+            storedCallbacks.onSpawnDeferred?.(deferral)
+          } else if (isRemoteTerminalGoneMessage(message)) {
             recovery.cancel()
             handleRemoteTerminalError(error)
           } else if (isRecoverablePaneBindingError(error)) {
@@ -3042,10 +3069,15 @@ export function createRemoteRuntimePtyTransport(
         isWebTerminalSurfaceTabId(tabId ?? '') &&
         recovery.currentPhase === 'disconnected'
       ) {
-        recovery.cancel()
+        // Why begin, not cancel: the replay needs a deadline, or a stalled attach could release held
+        // input at any later time; an idle cancel would also count as recovered and reset the grace.
+        // The replayed attach starts this window afresh, as the idle cancel it replaces did.
+        autoRecoveryWindowSpent = false
+        recovery.begin()
         if (replayLastTransportEntryPoint()) {
           return true
         }
+        recovery.markDisconnected()
       }
       if (
         !destroyed &&

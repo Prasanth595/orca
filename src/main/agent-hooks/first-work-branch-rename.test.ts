@@ -21,7 +21,7 @@ const {
   gitExecFileAsyncMock: vi.fn(),
   resolveLocalGitUsernameMock: vi.fn(async () => 'you'),
   getSshGitUsernameMock: vi.fn(async () => 'you'),
-  getSshGitProviderMock: vi.fn(() => undefined),
+  getSshGitProviderMock: vi.fn((_connectionId: string): unknown => undefined),
   generateBranchNameMock: vi.fn(),
   resolveTextGenerationParamsMock: vi.fn(),
   prepareLocalEnvMock: vi.fn(async () => ({ ok: true as const })),
@@ -64,6 +64,14 @@ import {
   workingEvent
 } from './first-work-branch-rename-test-harness'
 import { createStructuredAgentSessionLogger } from '../native-chat/agent-session-wire/structured-agent-session-logger'
+
+const REMOTE_REPO_BASE: Repo = {
+  id: REPO_ID,
+  path: '/repo',
+  displayName: 'repo',
+  badgeColor: '',
+  addedAt: 0
+}
 
 function makeDeps(overrides: Partial<FirstWorkBranchRenameDeps> = {}) {
   return makeBranchRenameDeps(vi.fn, overrides)
@@ -687,50 +695,39 @@ describe('maybeAutoRenameBranchOnFirstWork', () => {
     expect(onRenamed).not.toHaveBeenCalled()
   })
 
-  it('uses the SSH git provider and remote generation target for remote worktrees', async () => {
-    getSshGitUsernameMock.mockResolvedValue('remote-user')
-    const provider = {
-      exec: vi.fn(gitResponder({ currentBranch: 'remote-user/Nautilus', hasUpstream: false })),
-      renameCurrentBranch: vi.fn(async () => undefined),
-      executeCommitMessagePlan: vi.fn()
-    }
-    getSshGitProviderMock.mockReturnValue(provider as never)
-    const repo = { id: REPO_ID, path: '/repo', connectionId: 'ssh-1' } as unknown as Repo
-    const { deps } = makeDeps({ getRepo: () => repo })
+  it.each<[string, Repo]>([
+    ['connectionId', { ...REMOTE_REPO_BASE, connectionId: 'ssh-1' }],
+    ['executionHostId', { ...REMOTE_REPO_BASE, executionHostId: 'ssh:ssh-1' }]
+  ])('retries without local git for a row naming its SSH owner by %s', async (_spelling, repo) => {
+    const { deps, onRenamed } = makeDeps({ getRepo: () => repo })
 
     await maybeAutoRenameBranchOnFirstWork(workingEvent(), deps)
 
     expect(gitExecFileAsyncMock).not.toHaveBeenCalled()
-    expect(prepareLocalEnvMock).not.toHaveBeenCalled()
-    expect(generateBranchNameMock).toHaveBeenCalledWith(
-      { firstPrompt: 'Fix the auth bug', assistantMessage: undefined },
-      { agentId: 'claude', model: 'm' },
-      expect.objectContaining({
-        kind: 'remote',
-        cwd: '/repo/wt',
-        missingBinaryLocation: 'remote PATH'
-      })
-    )
-    expect(computeBranchNameMock).toHaveBeenCalledWith('fix-auth', expect.anything(), 'remote-user')
-    expect(provider.exec).not.toHaveBeenCalledWith(['branch', '-m', 'you/fix-auth'], '/repo/wt')
-    expect(provider.renameCurrentBranch).toHaveBeenCalledWith('/repo/wt', 'you/fix-auth')
+    expect(generateBranchNameMock).not.toHaveBeenCalled()
+    expect(onRenamed).not.toHaveBeenCalled()
   })
 
-  it('retries when the SSH provider is unavailable on the first working event', async () => {
+  it("never dials a paired server's nested SSH target from this client", async () => {
     const provider = {
       exec: vi.fn(gitResponder({ currentBranch: 'you/Nautilus', hasUpstream: false })),
       renameCurrentBranch: vi.fn(async () => undefined),
       executeCommitMessagePlan: vi.fn()
     }
-    getSshGitProviderMock.mockReturnValueOnce(undefined).mockReturnValue(provider as never)
-    const repo = { id: REPO_ID, path: '/repo', connectionId: 'ssh-1' } as unknown as Repo
+    getSshGitProviderMock.mockReturnValue(provider)
+    const repo: Repo = {
+      ...REMOTE_REPO_BASE,
+      connectionId: 'ssh-1',
+      executionHostId: 'runtime:env-1'
+    }
     const { deps, onRenamed } = makeDeps({ getRepo: () => repo })
 
     await maybeAutoRenameBranchOnFirstWork(workingEvent(), deps)
-    expect(onRenamed).not.toHaveBeenCalled()
 
-    await maybeAutoRenameBranchOnFirstWork(workingEvent(), deps)
-    expect(provider.renameCurrentBranch).toHaveBeenCalledWith('/repo/wt', 'you/fix-auth')
-    expect(onRenamed).toHaveBeenCalledWith(REPO_ID)
+    expect(getSshGitProviderMock).not.toHaveBeenCalled()
+    expect(provider.exec).not.toHaveBeenCalled()
+    expect(gitExecFileAsyncMock).not.toHaveBeenCalled()
+    expect(generateBranchNameMock).not.toHaveBeenCalled()
+    expect(onRenamed).not.toHaveBeenCalled()
   })
 })

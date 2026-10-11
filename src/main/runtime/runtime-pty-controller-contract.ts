@@ -1,4 +1,9 @@
 import type {
+  AutomaticWorkResumeOutcome,
+  AutomaticWorkStatus,
+  SpawnIntent
+} from '../../shared/host-spawn-admission'
+import type {
   AgentSessionClaimedSpawnResult,
   AgentSessionExecutionClaim,
   AgentSessionSurfaceBinding
@@ -80,7 +85,9 @@ export type RuntimePtyController = {
       surface: AgentSessionSurfaceBinding
     }
     agentSessionCreateOperationId?: string
+    spawnIntent?: SpawnIntent
     signal?: AbortSignal
+    refuseSleptWorktree?: boolean
     onPtySpawnCommitted?: () => void
     adoptedStablePane?: {
       result: PtySpawnResult
@@ -101,6 +108,9 @@ export type RuntimePtyController = {
     stablePaneOwner?: { handle: string; tabId: string; leafId: string }
     agentSessionEnsure?: AgentSessionClaimedSpawnResult
   }>
+  /** The local terminal owner's automatic-restore state; null when it has no fork gate. */
+  getAutomaticWorkStatus?(): Promise<AutomaticWorkStatus | null>
+  resumeAutomaticWork?(): Promise<AutomaticWorkResumeOutcome>
   write(ptyId: string, data: string, inputKind: TerminalInputKind): boolean
   /** Three-valued settlement; local providers settle synchronously. */
   writeWithSettlement?(
@@ -135,8 +145,9 @@ export type RuntimePtyController = {
   resize?(ptyId: string, cols: number, rows: number): boolean
   // Why: exact-id mobile polls should not enumerate every local and SSH PTY.
   hasPty?(ptyId: string): boolean | null
+  /** Omitting the host lists every registered host. */
   listProcesses?(
-    connectionId?: string | null,
+    hostId?: ExecutionHostId,
     opts?: { deadlineMs?: number; includeForegroundProcessEvidence?: boolean }
   ): Promise<PtyProcessInfo[]>
   listProcessesWithHostScope?(opts?: {
@@ -146,7 +157,7 @@ export type RuntimePtyController = {
     processes: PtyProcessInfo[]
     hostIds: ExecutionHostId[]
   }>
-  supportsForegroundProcessEvidence?(connectionId?: string | null): Promise<boolean>
+  supportsForegroundProcessEvidence?(hostId?: ExecutionHostId): Promise<boolean>
   serializeBuffer?(
     ptyId: string,
     opts?: { scrollbackRows?: number }

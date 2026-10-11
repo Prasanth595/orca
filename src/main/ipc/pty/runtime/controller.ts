@@ -1,3 +1,8 @@
+import { localProvider } from '../provider/registry'
+import {
+  getLocalAutomaticWorkStatus,
+  resumeLocalAutomaticWork
+} from '../../../daemon/daemon-automatic-work-resume'
 import { makePaneKey } from '../../../../shared/stable-pane-id'
 import { claimRuntimePaneCreate, makePaneSpawnReservationKey } from '../pane/spawn-reservation'
 import type { PtyRuntimeControllerDeps } from './controller-deps'
@@ -45,6 +50,9 @@ export function installPtyRuntimeController(deps: PtyRuntimeControllerDeps): voi
     },
     adoptStablePane,
     spawn: async (args) => spawnPtyFromRuntimeController(deps, args),
+    // Why the local owner only: an SSH host's gate belongs to that host's own runtime.
+    getAutomaticWorkStatus: () => getLocalAutomaticWorkStatus(localProvider),
+    resumeAutomaticWork: () => resumeLocalAutomaticWork(localProvider),
     write: (ptyId, data, inputKind) => writePtyFromRuntimeController(deps, ptyId, data, inputKind),
     writeWithSettlement: (ptyId, data, inputKind) =>
       writePtyFromRuntimeController(deps, ptyId, data, inputKind, { waitForSettlement: true }),
@@ -73,12 +81,11 @@ export function installPtyRuntimeController(deps: PtyRuntimeControllerDeps): voi
     clearBuffer: (ptyId) => clearBufferFromRuntimeController(deps, ptyId),
     resetInputModes: (ptyId) => resetInputModesFromRuntimeController(deps, ptyId),
     hasPty: (ptyId) => hasPtyFromRuntimeController(deps, ptyId),
-    listProcesses: (connectionId, opts) =>
-      listProcessesFromRuntimeController(deps, connectionId, opts),
+    listProcesses: (hostId, opts) => listProcessesFromRuntimeController(deps, hostId, opts),
     listProcessesWithHostScope: (opts) =>
       listProcessesWithHostScopeFromRuntimeController(deps, opts),
-    supportsForegroundProcessEvidence: (connectionId) =>
-      supportsForegroundProcessEvidenceFromRuntimeController(connectionId),
+    supportsForegroundProcessEvidence: (hostId) =>
+      supportsForegroundProcessEvidenceFromRuntimeController(hostId),
     serializeBuffer: (ptyId, opts) => {
       // Why: mobile xterm must start from the desktop's exact screen state/dimensions before live TUI chunks render correctly.
       return requestSerializedBuffer(ptyId, opts)
