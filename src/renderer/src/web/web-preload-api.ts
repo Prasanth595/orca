@@ -1,5 +1,6 @@
+import { toRuntimeExecutionHostId } from '../../../shared/execution-host'
 import type { PreloadApi } from '../../../preload/api-types'
-import type { StatsSummary } from '../../../shared/process-stats-types'
+import type { MemorySnapshot, StatsSummary } from '../../../shared/process-stats-types'
 import { createWebE2EApi } from './preload-api/web-e2e-api'
 import {
   createClaudeAccountsApi,
@@ -30,7 +31,6 @@ import {
 } from './preload-api/web-host-capability-api'
 import { createWebKeybindingsApi } from './preload-api/web-keybindings-api'
 import { createMacosTccPromptsApi } from './preload-api/web-macos-tcc-api'
-import { createEmptyMemorySnapshot } from './preload-api/web-memory-api'
 import { createWebMobileApi } from './preload-api/web-mobile-api'
 import { createWebNativeChatApi } from './preload-api/web-native-chat-api'
 import { createNotificationsApi } from './preload-api/web-notifications-api'
@@ -41,7 +41,7 @@ import { createRateLimitsApi } from './preload-api/web-rate-limits-api'
 import { createReposApi } from './preload-api/web-repositories-api'
 import { createHooksApi, createRuntimeNamespaceApi } from './preload-api/web-review-api'
 import { createWebJiraApi } from './preload-api/web-jira-api'
-import { callRuntimeResult } from './preload-api/web-runtime-calls'
+import { callRuntimeResult, callRuntimeResultWithOwner } from './preload-api/web-runtime-calls'
 import { createWebRuntimeApi } from './preload-api/web-runtime-api'
 import { createRuntimeEnvironmentsApi } from './preload-api/web-runtime-environments-api'
 import { webRuntimeState } from './preload-api/web-runtime-session'
@@ -104,7 +104,10 @@ function createWebPreloadApi(): Partial<PreloadApi> {
         }))
     },
     memory: {
-      getSnapshot: () => Promise.resolve(createEmptyMemorySnapshot())
+      getSnapshot: async () => {
+        const owned = await callRuntimeResultWithOwner<MemorySnapshot>('diagnostics.memory')
+        return { ...owned.result, runtimeHostId: toRuntimeExecutionHostId(owned.environmentId) }
+      }
     },
     aiVault: createWebAiVaultApi(),
     preflight: createPreflightApi(),
