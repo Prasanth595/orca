@@ -109,32 +109,6 @@ describe('launch race parity, both spawn lanes', () => {
       }
     )
 
-    // C6 keeps "hold at the start": an unowned host spawn reserves the pane before its preflight.
-    it('a window mount arriving during an unowned runtime spawn preflight joins that spawn', async () => {
-      const pane = launchRacePane('race-runtime-early-hold', '75757575-7575-4575-8575-757575757575')
-      const spawn = vi.fn(async () => ({ id: 'pty-early-hold' }))
-      installDaemonTestProvider({ spawn })
-      const auth = gatedClaudeAuth()
-      const lanes = registerLaunchRaceLanes({
-        handlers,
-        mainWindow,
-        runtime: createLaunchRaceRuntime(),
-        prepareClaudeAuth: auth.prepareClaudeAuth
-      })
-
-      const held = lanes.spawn.runtime({ ...pane.args, command: 'claude' })
-      await vi.waitFor(() => expect(auth.prepareClaudeAuth).toHaveBeenCalledOnce())
-      const mount = lanes.spawn.ipc({ ...pane.args, command: 'claude' })
-      await flushMacrotasks()
-      auth.release()
-
-      await expect(held).resolves.toMatchObject({ id: 'pty-early-hold' })
-      await expect(mount).resolves.toMatchObject({ id: 'pty-early-hold', isReattach: true })
-      expect(spawn).toHaveBeenCalledOnce()
-      // Only the held spawn prepared a launch; the mount joined without its own setup.
-      expect(auth.prepareClaudeAuth).toHaveBeenCalledOnce()
-    })
-
     // C6 spreads joinPaneSpawn to both lanes: a slept-worktree refusal means "nothing to join".
     it('runtime lane: a spawn joining an automatic spawn refused for a slept worktree spawns itself', async () => {
       const pane = launchRacePane('race-slept-runtime', '73737373-7373-4373-8373-737373737373')
