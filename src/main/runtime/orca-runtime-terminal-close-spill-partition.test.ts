@@ -50,8 +50,9 @@ function sessionWithTab(id: string, ptyId: string): WorkspaceSessionState {
   }
 }
 
-function harness(sessions: Map<ExecutionHostId, WorkspaceSessionState>) {
+function harness(sessions: Map<ExecutionHostId, WorkspaceSessionState>, publish = true) {
   const kill = vi.fn(() => true)
+  const flushOrThrow = vi.fn()
   // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: This runtime fixture supplies the persistence methods exercised by the test.
   const store = withDurableRuntimeStore({
     getRepos: () => [REPO],
@@ -63,7 +64,7 @@ function harness(sessions: Map<ExecutionHostId, WorkspaceSessionState>) {
       sessions.get(hostId ?? LOCAL_EXECUTION_HOST_ID) ?? getDefaultWorkspaceSession(),
     setWorkspaceSession: (session: WorkspaceSessionState, hostId?: ExecutionHostId) =>
       sessions.set(hostId ?? LOCAL_EXECUTION_HOST_ID, session),
-    flushOrThrow: vi.fn()
+    flushOrThrow
   }) as never
   const runtime = new OrcaRuntimeService(store)
   runtime.setPtyController({
@@ -93,11 +94,40 @@ function harness(sessions: Map<ExecutionHostId, WorkspaceSessionState>) {
   const internals = runtime as unknown as {
     mobileSessionTabsByWorktree: Map<string, RuntimeMobileSessionTabsSnapshot>
   }
-  internals.mobileSessionTabsByWorktree.set(WORKTREE_ID, snapshot)
-  return { runtime, kill }
+  if (publish) {
+    internals.mobileSessionTabsByWorktree.set(WORKTREE_ID, snapshot)
+  }
+  return { runtime, kill, flushOrThrow }
 }
 
 describe('terminal close across local and runtime session partitions (#18202)', () => {
+  it('closes a saved-only recovered tab outside the worktree catalog partition', async () => {
+    const sessions = new Map<ExecutionHostId, WorkspaceSessionState>([
+      [LOCAL_EXECUTION_HOST_ID, sessionWithTab('unrelated', 'unrelated-pty')],
+      [SPILL_HOST_ID, sessionWithTab('target', 'target-pty')]
+    ])
+    const { runtime, kill } = harness(sessions, false)
+    runtime.setPtyController({
+      write: () => true,
+      kill,
+      getForegroundProcess: async () => null,
+      stopAndWait: async () => true
+    })
+    runtime.registerPty('target-pty', WORKTREE_ID, null, {
+      tabId: 'target',
+      leafId: LEAF,
+      incarnationId: 'target-incarnation'
+    })
+    const handle = runtime.resolveTerminalHandleByProcessIncarnation(
+      'target-pty:target-incarnation',
+      JSON.stringify({ kind: 'local', hostId: 'local' })
+    )
+    expect(handle).toBeTruthy()
+    await runtime.closeTerminal(handle!)
+    expect(sessions.get(SPILL_HOST_ID)?.terminalLayoutsByTabId.target).toBeUndefined()
+    expect(sessions.get(LOCAL_EXECUTION_HOST_ID)?.terminalLayoutsByTabId.unrelated).toBeDefined()
+  })
+
   it('closes a tab persisted only in a runtime spill partition', async () => {
     const local = sessionWithTab('unrelated', 'unrelated-pty')
     const sessions = new Map<ExecutionHostId, WorkspaceSessionState>([
@@ -211,6 +241,70 @@ describe('terminal close across local and runtime session partitions (#18202)', 
       'terminal_tab_pinned'
     )
     expect(sessions.get(SPILL_HOST_ID)).toBe(spill)
+    expect(kill).not.toHaveBeenCalled()
+  })
+
+  it('restores the closed copy but preserves a new owner in another partition during the write', async () => {
+    const original = sessionWithTab('target', 'target-pty')
+    const replacement = sessionWithTab('target', 'replacement-pty')
+    const sessions = new Map<ExecutionHostId, WorkspaceSessionState>([
+      [LOCAL_EXECUTION_HOST_ID, sessionWithTab('unrelated', 'unrelated-pty')],
+      [SPILL_HOST_ID, original],
+      ['runtime:env-0', structuredClone(original)]
+    ])
+    const { runtime, kill, flushOrThrow } = harness(sessions)
+    runtime.registerPty('target-pty', WORKTREE_ID, null, {
+      tabId: 'target',
+      leafId: LEAF,
+      incarnationId: 'target-incarnation'
+    })
+    flushOrThrow.mockImplementationOnce(() => {
+      sessions.set('runtime:env-0', replacement)
+    })
+
+    await expect(runtime.closeMobileSessionTab(`id:${WORKTREE_ID}`, 'target')).rejects.toThrow(
+      'terminal_pane_owner_changed'
+    )
+    expect(sessions.get(SPILL_HOST_ID)?.terminalLayoutsByTabId.target).toEqual(
+      original.terminalLayoutsByTabId.target
+    )
+    expect(sessions.get('runtime:env-0')).toBe(replacement)
+    expect(kill).not.toHaveBeenCalled()
+    expect(flushOrThrow).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not undo a newer close when compensating a rejected write', async () => {
+    const sessions = new Map<ExecutionHostId, WorkspaceSessionState>([
+      [SPILL_HOST_ID, sessionWithTab('target', 'target-pty')]
+    ])
+    const { runtime, kill, flushOrThrow } = harness(sessions)
+    runtime.registerPty('target-pty', WORKTREE_ID, null, {
+      tabId: 'target',
+      leafId: LEAF,
+      incarnationId: 'target-incarnation'
+    })
+    flushOrThrow.mockImplementationOnce(() => {
+      const current = sessions.get(SPILL_HOST_ID)!
+      const closed = current.closedTerminalTabTombstonesByTabId!.target!
+      sessions.set(SPILL_HOST_ID, {
+        ...current,
+        closedTerminalTabTombstonesByTabId: {
+          ...current.closedTerminalTabTombstonesByTabId,
+          target: { ...closed, closedAt: closed.closedAt + 1 }
+        }
+      })
+      runtime.registerPty('target-pty', WORKTREE_ID, null, {
+        tabId: 'target',
+        leafId: LEAF,
+        incarnationId: 'replacement-incarnation'
+      })
+    })
+
+    await expect(runtime.closeMobileSessionTab(`id:${WORKTREE_ID}`, 'target')).rejects.toThrow(
+      'terminal_pane_owner_changed'
+    )
+    expect(sessions.get(SPILL_HOST_ID)?.tabsByWorktree[WORKTREE_ID]).toEqual([])
+    expect(sessions.get(SPILL_HOST_ID)?.terminalLayoutsByTabId.target).toBeUndefined()
     expect(kill).not.toHaveBeenCalled()
   })
 })

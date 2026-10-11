@@ -1,7 +1,9 @@
 import { expect, it, vi } from 'vitest'
+import { join } from 'node:path'
 import { fixture } from './profile-state-delayed-authority-fixture'
 import { OrcaRuntimeService } from '../../runtime/orca-runtime'
 import type { RuntimeMobileSessionTabsSnapshot } from '../../../shared/runtime-types'
+import { writeTerminalScrollbackSnapshotSync } from '../../terminal-scrollback-snapshots'
 
 vi.mock('../../telemetry/client', () => ({ track: vi.fn() }))
 vi.mock('../../telemetry/cohort-classifier', () => ({
@@ -86,6 +88,29 @@ async function closeFixture(options: { split?: boolean } = {}) {
   }
 }
 
+function saveScrollback(store: Awaited<ReturnType<typeof fixture>>['store']): string {
+  // Remote terminals retain renderer-captured files, including legacy copies in the local slice.
+  store.updateRepo('repo-local', { executionHostId: 'ssh:build-host' })
+  const ref = writeTerminalScrollbackSnapshotSync({
+    ...binding,
+    buffer: 'recover this terminal output',
+    storage: { snapshotRoot: join(store.getProfileStorageDirectory(), 'terminal-scrollback') }
+  })
+  if (!ref) {
+    throw new Error('fixture snapshot write failed')
+  }
+  const session = store.getWorkspaceSession()
+  const layout = session.terminalLayoutsByTabId[binding.tabId]
+  store.setWorkspaceSession({
+    ...session,
+    terminalLayoutsByTabId: {
+      ...session.terminalLayoutsByTabId,
+      [binding.tabId]: { ...layout, scrollbackRefsByLeafId: { [binding.leafId]: ref } }
+    }
+  })
+  return ref
+}
+
 it.each([
   ['tab', { kind: 'tab' as const, tabId: binding.tabId }, []],
   [
@@ -155,6 +180,163 @@ it('keeps a renderer close when its durable write fails', async () => {
   await expect(closing).resolves.toBeUndefined()
   expect(liveLeafIds()).toEqual([])
   expect(persistedLeafIds()).toEqual([binding.leafId])
+})
+
+it('preserves the saved tab and resume record when its owner changes during the write', async () => {
+  const { authority, store, runtime, kill, readState, persistedLeafIds, liveLeafIds } =
+    await closeFixture()
+  const paneKey = `${binding.tabId}:${binding.leafId}`
+  const ref = saveScrollback(store)
+  const otherTabId = '11111111-1111-4111-8111-111111111111'
+  await store.persistPtyBinding({
+    ...binding,
+    tabId: otherTabId,
+    leafId: '22222222-2222-4222-8222-222222222222',
+    ptyId: 'other-pty'
+  })
+  const resume = {
+    paneKey,
+    tabId: binding.tabId,
+    worktreeId: binding.worktreeId,
+    agent: 'codex' as const,
+    providerSession: { key: 'session_id' as const, id: 'close-resume' },
+    prompt: '',
+    state: 'done' as const,
+    capturedAt: 1,
+    updatedAt: 1
+  }
+  store.setWorkspaceSession({
+    ...store.getWorkspaceSession(),
+    sleepingAgentSessionsByPaneKey: { [paneKey]: resume }
+  })
+  await store.flushPendingOrThrowAsync()
+  runtime.registerPty(binding.ptyId, binding.worktreeId, null, binding)
+  runtime.publish()
+  const gate = authority.pause()
+  const closing = runtime.closeHeadlessTab()
+  const refused = expect(closing).rejects.toThrow('terminal_pane_owner_changed')
+  await Promise.race([gate.started.promise, closing])
+  expect.soft(store.readTerminalScrollbackSnapshot(ref)).toBe('recover this terminal output')
+  const concurrent = store.getWorkspaceSession()
+  store.setWorkspaceSession({
+    ...concurrent,
+    closedTerminalTabTombstonesByTabId: {
+      ...concurrent.closedTerminalTabTombstonesByTabId,
+      'other-closed-tab': { worktreeId: binding.worktreeId, closedAt: Date.now(), reason: 'user' }
+    },
+    tabsByWorktree: {
+      ...concurrent.tabsByWorktree,
+      [binding.worktreeId]: concurrent.tabsByWorktree[binding.worktreeId].map((tab) => ({
+        ...tab,
+        customTitle: 'renamed while closing'
+      }))
+    }
+  })
+  runtime.registerPty(binding.ptyId, binding.worktreeId, null, {
+    ...binding,
+    incarnationId: 'ffffffff-ffff-4fff-8fff-ffffffffffff'
+  })
+  const recovery = authority.pause()
+  gate.finish.resolve()
+  try {
+    await Promise.race([recovery.started.promise, refused])
+    expect.soft(store.readTerminalScrollbackSnapshot(ref)).toBe('recover this terminal output')
+    expect.soft(liveLeafIds()).toEqual([binding.leafId])
+    expect.soft(persistedLeafIds()).toEqual([])
+  } finally {
+    recovery.finish.resolve()
+  }
+  await refused
+  expect(kill).not.toHaveBeenCalled()
+  expect.soft(liveLeafIds()).toEqual([binding.leafId])
+  expect.soft(persistedLeafIds()).toEqual([binding.leafId])
+  expect
+    .soft(readState().workspaceSession.sleepingAgentSessionsByPaneKey?.[paneKey])
+    .toEqual(resume)
+  expect(store.readTerminalScrollbackSnapshot(ref)).toBe('recover this terminal output')
+  expect(
+    readState().workspaceSession.terminalLayoutsByTabId[binding.tabId].scrollbackRefsByLeafId
+  ).toEqual({ [binding.leafId]: ref })
+  expect(readState().workspaceSession.tabsByWorktree[binding.worktreeId]).toContainEqual(
+    expect.objectContaining({ id: otherTabId, customTitle: 'renamed while closing' })
+  )
+  expect(readState().workspaceSession.tabsByWorktree[binding.worktreeId]).toContainEqual(
+    expect.objectContaining({ id: binding.tabId })
+  )
+  expect(
+    readState().workspaceSession.closedTerminalTabTombstonesByTabId?.[binding.tabId]
+  ).toBeUndefined()
+  expect(
+    readState().workspaceSession.closedTerminalTabTombstonesByTabId?.['other-closed-tab']
+  ).toBeDefined()
+})
+
+it('releases the scrollback file only after accepting the durable close', async () => {
+  const { authority, store, runtime, kill } = await closeFixture()
+  const ref = saveScrollback(store)
+  await store.flushPendingOrThrowAsync()
+  runtime.registerPty(binding.ptyId, binding.worktreeId, null, binding)
+  runtime.publish()
+  const gate = authority.pause()
+  const closing = runtime.closeHeadlessTab()
+  await Promise.race([gate.started.promise, closing])
+  expect.soft(store.readTerminalScrollbackSnapshot(ref)).toBe('recover this terminal output')
+  expect.soft(kill).not.toHaveBeenCalled()
+  gate.finish.resolve()
+  await closing
+  expect(kill).toHaveBeenCalledExactlyOnceWith(binding.ptyId)
+  expect(store.readTerminalScrollbackSnapshot(ref)).toBeNull()
+})
+
+it('keeps recovery data dirty if persisting the compensation fails', async () => {
+  const { authority, store, runtime, kill, liveLeafIds, persistedLeafIds } = await closeFixture()
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  const ref = saveScrollback(store)
+  await store.flushPendingOrThrowAsync()
+  runtime.registerPty(binding.ptyId, binding.worktreeId, null, binding)
+  runtime.publish()
+  const gate = authority.pause()
+  const closing = runtime.closeHeadlessTab()
+  const refused = expect(closing).rejects.toThrow('terminal_pane_owner_changed')
+  await Promise.race([gate.started.promise, closing])
+  runtime.registerPty(binding.ptyId, binding.worktreeId, null, {
+    ...binding,
+    incarnationId: 'ffffffff-ffff-4fff-8fff-ffffffffffff'
+  })
+  const recovery = authority.pause()
+  gate.finish.resolve()
+  await Promise.race([recovery.started.promise, closing])
+  recovery.finish.reject(new Error('compensation disk refused'))
+  await refused
+  expect(kill).not.toHaveBeenCalled()
+  expect(liveLeafIds()).toEqual([binding.leafId])
+  expect(persistedLeafIds()).toEqual([])
+  expect(store.readTerminalScrollbackSnapshot(ref)).toBe('recover this terminal output')
+  await store.flushPendingOrThrowAsync()
+  expect(persistedLeafIds()).toEqual([binding.leafId])
+})
+
+it('restores a rejected close even when its initial disk write fails', async () => {
+  const { authority, store, runtime, kill, liveLeafIds, persistedLeafIds } = await closeFixture()
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  const ref = saveScrollback(store)
+  await store.flushPendingOrThrowAsync()
+  runtime.registerPty(binding.ptyId, binding.worktreeId, null, binding)
+  runtime.publish()
+  const gate = authority.pause()
+  const closing = runtime.closeHeadlessTab()
+  const refused = expect(closing).rejects.toThrow('terminal_pane_owner_changed')
+  await Promise.race([gate.started.promise, closing])
+  runtime.registerPty(binding.ptyId, binding.worktreeId, null, {
+    ...binding,
+    incarnationId: 'ffffffff-ffff-4fff-8fff-ffffffffffff'
+  })
+  gate.finish.reject(new Error('close disk refused'))
+  await refused
+  expect(kill).not.toHaveBeenCalled()
+  expect(liveLeafIds()).toEqual([binding.leafId])
+  expect(persistedLeafIds()).toEqual([binding.leafId])
+  expect(store.readTerminalScrollbackSnapshot(ref)).toBe('recover this terminal output')
 })
 
 it('commits nothing for a pane that restarted while its close waited for the writer', async () => {

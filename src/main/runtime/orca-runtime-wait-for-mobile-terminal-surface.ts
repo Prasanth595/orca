@@ -136,6 +136,8 @@ export class OrcaRuntimeWithWaitForMobileTerminalSurface extends OrcaRuntimeWith
     if (!tabId || !leafId) {
       return null
     }
+    const [hostId] = this.getWorkspaceSessionHostIdsForTab(authority.worktreeId, tabId)
+    const session = hostId ? (this.store?.getWorkspaceSession?.(hostId) ?? null) : null
     if (!surface) {
       // An ambiguous or conflicting publication must not fall back to a saved owner.
       const snapshot = this.mobileSessionTabsByWorktree.get(authority.worktreeId)
@@ -146,13 +148,11 @@ export class OrcaRuntimeWithWaitForMobileTerminalSurface extends OrcaRuntimeWith
             (tab.parentTabId === tabId ||
               this.getMobileTerminalLeafPtyIds(tab).includes(authority.ptyId))
         ) ||
-        !this.hasExactPersistedTerminalSurfaceIdentity({ ...authority, tabId, leafId })
+        !this.hasExactPersistedTerminalSurfaceIdentity({ ...authority, tabId, leafId }, session)
       ) {
         return null
       }
     }
-    const [hostId] = this.getWorkspaceSessionHostIdsForTab(authority.worktreeId, tabId)
-    const session = hostId ? (this.store?.getWorkspaceSession?.(hostId) ?? null) : null
     const sessionWorktreeId = session
       ? resolveTerminalSessionWorktreeId(session, authority.worktreeId)
       : null
@@ -177,7 +177,8 @@ export class OrcaRuntimeWithWaitForMobileTerminalSurface extends OrcaRuntimeWith
         authority.worktreeId,
         tabId,
         leafId,
-        authority.ptyId
+        authority.ptyId,
+        session
       )
     ) {
       return null

@@ -187,6 +187,7 @@ describe('closing a terminal by PTY on a host without a renderer tab', () => {
   it('does not stop a replacement process registered during the durable flush', async () => {
     const harness = headlessPtyTab()
     harness.syncEmptyGraph()
+    const layout = harness.getSession().terminalLayoutsByTabId[TAB_ID]
     harness.flushOrThrow.mockImplementationOnce(() => {
       harness.runtime.registerPty(PTY_ID, WORKTREE_ID, null, {
         tabId: TAB_ID,
@@ -201,6 +202,7 @@ describe('closing a terminal by PTY on a host without a renderer tab', () => {
 
     expect(harness.stopAndWait).not.toHaveBeenCalled()
     expect(harness.kill).not.toHaveBeenCalled()
+    expect(harness.getSession().terminalLayoutsByTabId[TAB_ID]).toEqual(layout)
   })
 
   it('refuses a newly published sibling while the close awaits the writer', async () => {

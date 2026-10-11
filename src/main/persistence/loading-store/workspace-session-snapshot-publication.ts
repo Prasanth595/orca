@@ -106,7 +106,8 @@ export function setLocalWorkspaceSession(
       prior,
       session,
       context.runtime.terminalScrollbackSnapshotStorage,
-      retainedScrollbackRefs(context.runtime)
+      retainedScrollbackRefs(context.runtime),
+      context.runtime.deferredMutationScrollbackDeletions
     )
   }
   context.runtime.state.workspaceSession = session
@@ -188,8 +189,10 @@ export function enqueueTerminalScrollbackSnapshotWork(
 
 function retainedScrollbackRefs(runtime: {
   retainedScrollbackRefsByMigrationId: ReadonlyMap<string, ReadonlySet<string>>
+  deferredMutationScrollbackDeletions: ReadonlySet<string> | null
 }): ReadonlySet<string> {
-  return new Set(
-    [...runtime.retainedScrollbackRefsByMigrationId.values()].flatMap((refs) => [...refs])
-  )
+  return new Set([
+    ...(runtime.deferredMutationScrollbackDeletions ?? []),
+    ...[...runtime.retainedScrollbackRefsByMigrationId.values()].flatMap((refs) => [...refs])
+  ])
 }

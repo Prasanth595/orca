@@ -17,6 +17,8 @@ import { retireTerminalSurfaceFromPersistence } from './mobile-session-terminal-
 import { advanceTerminalTopologyRevision } from '../persistence/terminal-topology/terminal-topology-membership'
 import type { DurableProfileStateMutation } from '../persistence/loading-store/store-runtime-state'
 import type { ExecutionHostId } from '../../shared/execution-host'
+import { cloneWorkspaceSessionState } from '../persistence/restoring-sessions/session-owner-fields'
+import { terminalCloseWriteRecovery } from './terminal-close-write-recovery'
 import {
   capturePersistedTerminalTabCopy,
   isSamePersistedTerminalTabCopy,
@@ -252,7 +254,11 @@ export function terminalSurfaceCloseMutation(
       if (result.pinned) {
         return { value: new Error('terminal_tab_pinned'), persist: false }
       }
-      results.push({ hostId, session, result })
+      results.push({
+        hostId,
+        session: commit.requestedHolders ? cloneWorkspaceSessionState(session) : session,
+        result
+      })
     }
     const { requestedHolders } = commit
     const changedCopy =
@@ -285,7 +291,7 @@ export function terminalSurfaceCloseMutation(
         !hasClosedTerminalTabRecord(routed.session.closedTerminalTabTombstonesByTabId, target.tabId)
       ) {
         commit.setSession(routed.result.session, routed.hostId)
-        return { value: undefined }
+        return { value: undefined, ...terminalCloseWriteRecovery(commit, [routed]) }
       }
       return {
         value: commit.options.allowMissing ? undefined : new Error('tab_not_found'),
@@ -297,8 +303,6 @@ export function terminalSurfaceCloseMutation(
       commit.setSession(result.session, hostId)
     }
     commit.onClosed([...new Set(closed.flatMap(({ result }) => result.ptyIdsToKill))])
-    // Why no rollback: bookkeeping must not undo a user's close or skip its kill; a failed write
-    // keeps the removal dirty in memory, so the next write persists it.
-    return { value: undefined }
+    return { value: undefined, ...terminalCloseWriteRecovery(commit, closed) }
   }
 }

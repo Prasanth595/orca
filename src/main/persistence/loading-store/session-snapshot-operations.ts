@@ -24,6 +24,7 @@ import { scheduleSave } from './write-scheduling'
 type SessionSnapshotOperationsRuntime = Pick<
   StoreRuntimeState,
   | 'durableMutationPhase'
+  | 'deferredMutationScrollbackDeletions'
   | 'pendingSnapshotFileWork'
   | 'profileMaintenancePending'
   | 'quitFlushStarted'

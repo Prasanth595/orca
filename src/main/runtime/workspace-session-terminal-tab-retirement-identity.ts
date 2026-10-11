@@ -35,7 +35,7 @@ function capturePersistedTerminalTabRetirementIdentity(
     )
   }
 }
-function isRetainedTerminalTabRetirementIdentity(
+export function isRetainedTerminalTabRetirementIdentity(
   captured: PersistedTerminalTabIdentity | null,
   current: PersistedTerminalTabIdentity | null
 ): boolean {

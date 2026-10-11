@@ -21,7 +21,8 @@ export class OrcaRuntimeWithResolveTerminalSplitSourceAuthority extends OrcaRunt
     worktreeId: string,
     tabId: string,
     leafId: string,
-    ptyId: string
+    ptyId: string,
+    session = this.getWorkspaceSessionForWorktree(worktreeId)
   ): {
     persisted: boolean
     rendererMounted: boolean
@@ -29,7 +30,6 @@ export class OrcaRuntimeWithResolveTerminalSplitSourceAuthority extends OrcaRunt
     persistedIncarnationId: string | null
     liveIncarnationId: string | null
   } | null {
-    const session = this.getWorkspaceSessionForWorktree(worktreeId)
     const sessionWorktreeId = session ? resolveTerminalSessionWorktreeId(session, worktreeId) : null
     const persistedTab = sessionWorktreeId
       ? session?.tabsByWorktree[sessionWorktreeId]?.find(

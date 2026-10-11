@@ -26,7 +26,10 @@ export type DurableProfileStateMutation<T> = {
   value: T
   /** 'if-dirty' fences an existing change without rewriting an already durable generation. */
   persist?: boolean | 'if-dirty'
-  rollback?: () => void
+  /** Recheck external ownership after the write, before acknowledging the mutation. */
+  validate?: () => { value: T } | undefined
+  /** A rejected commit can require a durable, fieldwise compensation. */
+  rollback?: () => void | { persist: true }
 }
 
 export type StoreRuntimeOptions = {
@@ -46,6 +49,7 @@ export class StoreRuntimeState {
   readonly terminalScrollbackSnapshotStorage: TerminalScrollbackSnapshotStorage
   /** Scrollback refs each in-flight migration export still reads, keyed by migration id. */
   readonly retainedScrollbackRefsByMigrationId = new Map<string, ReadonlySet<string>>()
+  deferredMutationScrollbackDeletions: Set<string> | null = null
   writeTimer: ReturnType<typeof setTimeout> | null = null
   pendingWrite: Promise<void> | null = null
   pendingSnapshotFileWork: Promise<void> | null = null

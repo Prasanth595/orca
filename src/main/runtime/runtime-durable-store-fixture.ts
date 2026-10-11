@@ -25,6 +25,16 @@ export function withDurableRuntimeStore<
         if (mutation.persist === false) {
           return mutation.value
         }
+        const compensate = async () => {
+          const compensation = mutation.rollback?.()
+          if (compensation?.persist) {
+            if (store.flushPendingOrThrowAsync) {
+              await store.flushPendingOrThrowAsync({ drainToStableGeneration: false })
+            } else {
+              store.flushOrThrow?.()
+            }
+          }
+        }
         try {
           if (store.flushPendingOrThrowAsync) {
             await store.flushPendingOrThrowAsync({ drainToStableGeneration: false })
@@ -33,9 +43,14 @@ export function withDurableRuntimeStore<
           }
         } catch (error) {
           if (profileStateWriterFailureOutcome(error) !== 'indeterminate') {
-            mutation.rollback?.()
+            await compensate()
           }
           throw error
+        }
+        const refusal = mutation.validate?.()
+        if (refusal) {
+          await compensate()
+          return refusal.value
         }
         return mutation.value
       })

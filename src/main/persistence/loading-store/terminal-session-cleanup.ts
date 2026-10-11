@@ -7,6 +7,7 @@ import {
   deleteTerminalScrollbackSnapshotSync,
   type TerminalScrollbackSnapshotStorage
 } from '../../terminal-scrollback-snapshots'
+import type { StoreRuntimeState } from './store-runtime-state'
 
 // Why localOnlyScrollbackByTabId is deliberately NOT here despite TERMINAL_SCROLLBACK_SESSION_HOMES
 // pairing it with terminalLayoutsByTabId: full normalization reaches the fail-closed strip in
@@ -29,7 +30,8 @@ export function deleteRemovedTerminalScrollbackSnapshots(
   next: WorkspaceSessionState,
   storage?: TerminalScrollbackSnapshotStorage,
   /** Refs a pending migration export still reads; they outlive the session row. */
-  retainedRefs: ReadonlySet<string> = new Set()
+  retainedRefs: ReadonlySet<string> = new Set(),
+  deferredDeletions: Set<string> | null = null
 ): void {
   if (!prior) {
     return
@@ -37,7 +39,43 @@ export function deleteRemovedTerminalScrollbackSnapshots(
   const nextRefs = collectTerminalScrollbackSnapshotRefs(next)
   for (const ref of collectTerminalScrollbackSnapshotRefs(prior)) {
     if (!nextRefs.has(ref) && !retainedRefs.has(ref)) {
-      deleteTerminalScrollbackSnapshotSync(ref, storage)
+      if (deferredDeletions) {
+        deferredDeletions.add(ref)
+      } else {
+        deleteTerminalScrollbackSnapshotSync(ref, storage)
+      }
+    }
+  }
+}
+
+/** A refused mutation may restore these refs; release files only after its compensation settles. */
+export function finishMutationScrollbackDeletions(
+  runtime: Pick<
+    StoreRuntimeState,
+    | 'deferredMutationScrollbackDeletions'
+    | 'state'
+    | 'terminalScrollbackSnapshotStorage'
+    | 'retainedScrollbackRefsByMigrationId'
+  >
+): void {
+  const deferred = runtime.deferredMutationScrollbackDeletions
+  runtime.deferredMutationScrollbackDeletions = null
+  if (!deferred?.size) {
+    return
+  }
+  const sessions = [
+    runtime.state.workspaceSession,
+    ...Object.values(runtime.state.workspaceSessionsByHostId ?? {})
+  ]
+  const retained = new Set([
+    ...sessions.flatMap((session) =>
+      session ? [...collectTerminalScrollbackSnapshotRefs(session)] : []
+    ),
+    ...[...runtime.retainedScrollbackRefsByMigrationId.values()].flatMap((refs) => [...refs])
+  ])
+  for (const ref of deferred) {
+    if (!retained.has(ref)) {
+      deleteTerminalScrollbackSnapshotSync(ref, runtime.terminalScrollbackSnapshotStorage)
     }
   }
 }
