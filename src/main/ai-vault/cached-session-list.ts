@@ -93,7 +93,9 @@ export async function listAiVaultSessions(
     includeAntigravityIdeSessions: args?.includeAntigravityIdeSessions === true
   })
   const depth = requestedAiVaultSessionDepth(args)
-  const scanKey = JSON.stringify({ key, depth })
+  // Why: a read after an invalidation must start its own scan rather than join one that
+  // started before it — that scan's result predates the delete.
+  const scanKey = JSON.stringify({ key, depth, generation: cacheGeneration })
   const now = Date.now()
   if (args?.force === true) {
     clearAiVaultBackgroundRestartCircuit()

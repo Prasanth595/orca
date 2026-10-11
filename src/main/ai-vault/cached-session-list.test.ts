@@ -88,6 +88,24 @@ describe('invalidateAiVaultSessionListCache generation guard', () => {
     expect(scanAiVaultSessionsInService).toHaveBeenCalledTimes(2)
   })
 
+  it('does not let a read after an invalidation join a scan that started before it', async () => {
+    // Scan A starts and is still in flight.
+    const scanA = deferredScan()
+    const beforeDelete = listAiVaultSessions()
+    await vi.waitFor(() => expect(scanAiVaultSessionsInService).toHaveBeenCalledTimes(1))
+
+    // A delete invalidates the cache, then the list is read again while A is
+    // still running. That read must not be handed A's pre-delete result.
+    invalidateAiVaultSessionListCache()
+    scanAiVaultSessionsInService.mockResolvedValueOnce(scanResult('scan-B'))
+    const afterDelete = listAiVaultSessions()
+    scanA.resolve(scanResult('scan-A'))
+
+    expect((await beforeDelete).scannedAt).toBe('scan-A')
+    expect((await afterDelete).scannedAt).toBe('scan-B')
+    expect(scanAiVaultSessionsInService).toHaveBeenCalledTimes(2)
+  })
+
   it('caches normally when no invalidation interrupts the scan', async () => {
     scanAiVaultSessionsInService.mockResolvedValueOnce(scanResult('scan-A'))
     await listAiVaultSessions()
