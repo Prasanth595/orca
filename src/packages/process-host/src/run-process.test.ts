@@ -116,6 +116,16 @@ describe('runProcessSync', () => {
     expect(result.stdout).toBe('hi')
     expect(result.code).toBe(3)
   })
+
+  it('feeds string input to stdin', () => {
+    const result = runProcessSync({
+      program: process.execPath,
+      args: ['-e', 'process.stdin.pipe(process.stdout)'],
+      input: 'h\u00e9llo'
+    })
+    expect(result.stdout).toBe('h\u00e9llo')
+    expect(result.code).toBe(0)
+  })
 })
 
 describe('bounded output', () => {
