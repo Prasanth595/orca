@@ -14,6 +14,8 @@ export type WorkflowsApi = {
   cancelRun: (runId: string) => Promise<void>
   stop: (workflowId: string) => Promise<boolean>
   listModels: (agentId: TuiAgent) => Promise<WorkflowModel[]>
+  /** Probe which workflow-capable agent CLIs are installed on local or a named SSH target. */
+  detectAgents: (targetId?: string) => Promise<TuiAgent[]>
   onChanged: (
     cb: (payload: { workflows: AgentWorkflow[]; runs: WorkflowRun[] }) => void
   ) => () => void
@@ -30,6 +32,7 @@ export const workflowsApi: WorkflowsApi = {
   cancelRun: (runId) => ipcRenderer.invoke('workflows:cancelRun', runId),
   stop: (workflowId) => ipcRenderer.invoke('workflows:stop', workflowId),
   listModels: (agentId) => ipcRenderer.invoke('workflows:listModels', agentId),
+  detectAgents: (targetId) => ipcRenderer.invoke('workflows:detectAgents', targetId),
   onChanged: (cb) => {
     const listener = (_e: Electron.IpcRendererEvent, payload: Parameters<typeof cb>[0]) =>
       cb(payload)

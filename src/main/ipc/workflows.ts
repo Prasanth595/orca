@@ -6,6 +6,7 @@ import {
   parseClaudeModelList
 } from '../../shared/claude-model-list-probe'
 import { connectionManager } from './ssh-ipc-context'
+import { buildSshRemoteExec } from '../workflows/workflow-remote-exec'
 import type { WorkflowService } from '../workflows/workflow-service'
 import type { AgentWorkflow } from '../../shared/workflow-types'
 import type { TuiAgent } from '../../shared/tui-agent'
@@ -13,6 +14,106 @@ import type { TuiAgent } from '../../shared/tui-agent'
 export type WorkflowModel = { id: string; label: string }
 
 const MODEL_LIST_TIMEOUT_MS = 10_000
+
+// Agents that support non-interactive execution in workflows, in probe order
+const WORKFLOW_AGENTS: TuiAgent[] = ['claude', 'cursor', 'codex', 'gemini', 'amp', 'opencode']
+
+// Map agent id → executable name for `which` probing
+const AGENT_EXECUTABLES: Record<TuiAgent, string> = {
+  claude: 'claude',
+  cursor: 'cursor-agent',
+  codex: 'codex',
+  gemini: 'gemini',
+  amp: 'amp',
+  opencode: 'opencode',
+  // All other agents fall through; only the six above are probed for workflows
+  'claude-agent-teams': 'claude',
+  codebuddy: 'codebuddy',
+  openclaude: 'openclaude',
+  autohand: 'autohand',
+  opencode2: 'opencode',
+  'mimo-code': 'mimo-code',
+  pi: 'pi',
+  omp: 'omp',
+  qoder: 'qoder',
+  'qoder-cn': 'qoder',
+  antigravity: 'antigravity',
+  aider: 'aider',
+  goose: 'goose',
+  kilo: 'kilo',
+  kiro: 'kiro',
+  crush: 'crush',
+  aug: 'aug',
+  cline: 'cline',
+  codebuff: 'codebuff',
+  freebuff: 'freebuff',
+  'command-code': 'command-code',
+  continue: 'continue',
+  droid: 'droid',
+  kimi: 'kimi',
+  'mistral-vibe': 'mistral-vibe',
+  'qwen-code': 'qwen-code',
+  rovo: 'rovo',
+  hermes: 'hermes',
+  openclaw: 'openclaw',
+  copilot: 'gh',
+  grok: 'grok',
+  devin: 'devin',
+  ante: 'ante',
+  trae: 'trae',
+  muse: 'muse',
+  zcode: 'zcode',
+  'prime-agent': 'prime-agent',
+  dsh: 'dsh',
+  jcode: 'jcode'
+}
+
+async function detectLocalAgents(): Promise<TuiAgent[]> {
+  const whichCmd = process.platform === 'win32' ? 'where' : 'which'
+  const found: TuiAgent[] = []
+  await Promise.all(
+    WORKFLOW_AGENTS.map(async (agentId) => {
+      const exe = AGENT_EXECUTABLES[agentId]
+      try {
+        const result = await runProcess({
+          program: whichCmd,
+          args: [exe],
+          timeoutMs: 3000
+        })
+        if (result.code === 0 && result.stdout.trim()) {
+          found.push(agentId)
+        }
+      } catch {
+        // not found
+      }
+    })
+  )
+  return WORKFLOW_AGENTS.filter((a) => found.includes(a))
+}
+
+async function detectRemoteAgents(targetId: string): Promise<TuiAgent[]> {
+  if (!connectionManager) {
+    return []
+  }
+  const remoteExec = buildSshRemoteExec(connectionManager, targetId)
+  // Build a single remote probe: `command -v <exe> && echo "<id>:ok"` for each agent
+  const probes = WORKFLOW_AGENTS.map((a) => {
+    const exe = AGENT_EXECUTABLES[a]
+    return `command -v ${exe} >/dev/null 2>&1 && echo "${a}:ok"`
+  }).join('; ')
+  try {
+    const result = await remoteExec(probes, { timeoutMs: 8000 })
+    const found = new Set(
+      result.stdout
+        .split(/\r?\n/)
+        .filter((l) => l.endsWith(':ok'))
+        .map((l) => l.replace(/:ok$/, ''))
+    )
+    return WORKFLOW_AGENTS.filter((a) => found.has(a))
+  } catch {
+    return []
+  }
+}
 
 function parseCursorAgentModels(stdout: string): WorkflowModel[] {
   const seen = new Set<string>()
@@ -135,6 +236,14 @@ export function registerWorkflowHandlers(service: WorkflowService): void {
       }
     }
   )
+
+  ipcMain.handle('workflows:detectAgents', async (_e, targetId?: string): Promise<TuiAgent[]> => {
+    try {
+      return targetId ? await detectRemoteAgents(targetId) : await detectLocalAgents()
+    } catch {
+      return []
+    }
+  })
 }
 
 export function unregisterWorkflowHandlers(): void {
@@ -147,6 +256,7 @@ export function unregisterWorkflowHandlers(): void {
     'workflows:runNow',
     'workflows:cancelRun',
     'workflows:listModels',
+    'workflows:detectAgents',
     'workflows:stop'
   ]) {
     ipcMain.removeHandler(channel)

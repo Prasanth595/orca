@@ -1,3 +1,4 @@
+import { Readable } from 'node:stream'
 import type { SshConnectionManager } from '../ssh/ssh-connection-manager'
 import { execCommand } from '../ssh/ssh-relay-exec-command'
 
@@ -19,9 +20,11 @@ export function buildSshRemoteExec(manager: SshConnectionManager, targetId: stri
     let stderrBuf = ''
     let exitCode = 0
     try {
+      const stdinStream = opts.stdin !== undefined ? Readable.from([opts.stdin]) : undefined
       stdoutBuf = await execCommand(conn, command, {
         signal: opts.signal,
         timeoutMs: opts.timeoutMs,
+        stdin: stdinStream,
         onStderr: (s) => {
           stderrBuf += s
         }

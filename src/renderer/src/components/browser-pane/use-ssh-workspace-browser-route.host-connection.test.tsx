@@ -122,7 +122,9 @@ describe('useSshWorkspaceBrowserRoute under a reconnecting SSH host', () => {
       setHost('connecting')
       rerender()
       await settle()
-      expect(result.current.state).toEqual({ kind: 'preparing' })
+      // A dialing host keeps the existing error card visible rather than
+      // churning it to 'preparing'; the probe is not relaunched.
+      expect(result.current.state.kind).toBe('error')
 
       setHost('unavailable')
       rerender()

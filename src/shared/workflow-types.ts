@@ -34,12 +34,16 @@ export type PythonScriptData = {
 }
 
 export type AgentCallData = {
-  agentId: TuiAgent
+  agentId: TuiAgent | 'custom'
   model?: string
   prompt: string
   structuredOutputSchema: string | null
   workingDirectory: string
   timeoutSeconds: number
+  /** Used when agentId === 'custom': path to the agent executable. */
+  customExecutable?: string
+  /** Used when agentId === 'custom': arg template where {prompt} is replaced with the resolved prompt. */
+  customArgTemplate?: string
 }
 
 export type FileReadData = {

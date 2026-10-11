@@ -19467,7 +19467,15 @@
       "fileWriteMode": "Mode",
       "fileWriteModeOverwrite": "Overwrite",
       "fileWriteModeAppend": "Append",
-      "createParents": "Create parent directories"
+      "createParents": "Create parent directories",
+      "agentCustom": "Custom executable…",
+      "customExe": "Executable",
+      "customArgs": "Arg template",
+      "customArgsHint": "{prompt} is replaced with the resolved prompt at run time.",
+      "detectingAgents": "Detecting agents…",
+      "noAgentsFound": "No agents detected — using custom",
+      "customExePlaceholder": "/usr/local/bin/myagent",
+      "customArgsPlaceholder": "-p \"{prompt}\" -m sonnet-4.5"
     },
     "output": {
       "clickTo": "Click to",

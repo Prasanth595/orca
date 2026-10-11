@@ -43,6 +43,12 @@ export async function parseRemoteSessionTranscript(
       context
     )
   }
+  // Legacy providers without readTranscriptBytes cannot safely read large files.
+  if (exceedsWholeReadLimit && !context.provider.readTranscriptBytes) {
+    throw new Error(
+      `Session transcript exceeds 10MB limit: file is too large to read without streaming support`
+    )
+  }
   const read = await context.provider.readFile(candidate.file.path)
   throwIfAiVaultScanCancelled(context.signal)
   if (read.isBinary) {

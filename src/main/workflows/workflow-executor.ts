@@ -75,13 +75,17 @@ async function executeNode(
       return { ...r, outputValue: parsed ?? { stdout: r.stdout, stderr: r.stderr } }
     }
     case 'file_read': {
-      const r = await runFileReadNode({ filePath: resolveField(node.data.filePath, steps) })
+      const r = await runFileReadNode(
+        { filePath: resolveField(node.data.filePath, steps) },
+        remoteExec
+      )
       return { stdout: r.content, stderr: '', outputValue: { content: r.content }, exitCode: 0 }
     }
     case 'file_write': {
       const r = await runFileWriteNode(
         { ...node.data, filePath: resolveField(node.data.filePath, steps) },
-        resolveField(node.data.content, steps)
+        resolveField(node.data.content, steps),
+        remoteExec
       )
       return { stdout: '', stderr: '', outputValue: r, exitCode: 0 }
     }
