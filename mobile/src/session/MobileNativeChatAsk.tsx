@@ -266,7 +266,7 @@ function OptionRow({
           selected && styles.checkOn
         ]}
       >
-        {selected ? <Check size={12} color={colors.bgBase} strokeWidth={3} /> : null}
+        {selected ? <Check size={12} color={colors.onFill} strokeWidth={3} /> : null}
       </View>
       <View style={styles.optionBody}>
         <Text style={styles.optionLabel}>{label}</Text>
@@ -418,7 +418,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgRaised
   },
   nextText: {
-    color: colors.bgBase,
+    color: colors.onFill,
     fontSize: typography.bodySize,
     fontWeight: '700'
   },

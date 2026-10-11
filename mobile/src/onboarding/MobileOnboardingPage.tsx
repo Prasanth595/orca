@@ -171,7 +171,7 @@ function ChoiceButton({
       onPress={onPress}
     >
       {busy ? (
-        <ActivityIndicator color={primary ? colors.bgBase : colors.textSecondary} />
+        <ActivityIndicator color={primary ? colors.onFill : colors.textSecondary} />
       ) : (
         <Text style={primary ? styles.primaryButtonText : styles.secondaryButtonText}>{label}</Text>
       )}

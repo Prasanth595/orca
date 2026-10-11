@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
     fontWeight: '500'
   },
   submitText: {
-    color: colors.bgBase,
+    color: colors.onFill,
     fontSize: typography.bodySize,
     fontWeight: '600'
   }

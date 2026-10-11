@@ -80,7 +80,7 @@ export function MobileLinkPrForm({ client, worktreeId, onCancel, onLinked }: Pro
         onPress={() => void submit()}
       >
         {submitting ? (
-          <ActivityIndicator size="small" color={colors.bgBase} />
+          <ActivityIndicator size="small" color={colors.onFill} />
         ) : (
           <Text style={styles.submitText}>{parsed ? `Link #${parsed}` : 'Link pull request'}</Text>
         )}
@@ -131,5 +131,5 @@ const styles = StyleSheet.create({
   },
   submitDisabled: { opacity: 0.45 },
   submitPressed: { opacity: 0.8 },
-  submitText: { color: colors.bgBase, fontSize: typography.bodySize, fontWeight: '600' }
+  submitText: { color: colors.onFill, fontSize: typography.bodySize, fontWeight: '600' }
 })

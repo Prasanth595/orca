@@ -51,7 +51,7 @@ export const prCommentComposerStyles = StyleSheet.create({
     opacity: 0.45
   },
   submitText: {
-    color: colors.bgBase,
+    color: colors.onFill,
     fontSize: typography.metaSize,
     fontWeight: '700'
   },

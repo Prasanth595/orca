@@ -96,7 +96,7 @@ export function renderMobileTasksWorkspaceSparseDrawer(model: ConnectionPresenta
               onPress={() => void saveWorkspaceSparsePreset()}
             >
               {workspaceSparseSaving ? (
-                <ActivityIndicator size="small" color={colors.bgBase} />
+                <ActivityIndicator size="small" color={colors.onFill} />
               ) : null}
               <Text style={styles.primaryActionText}>Save</Text>
             </Pressable>

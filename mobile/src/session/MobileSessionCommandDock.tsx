@@ -158,7 +158,7 @@ export function MobileSessionCommandDock({ controller }: { controller: MobileSes
                 size={14}
                 color={
                   liveInputEnabled
-                    ? colors.bgBase
+                    ? colors.onFill
                     : canCompose
                       ? colors.textSecondary
                       : colors.textMuted

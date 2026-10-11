@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
     fontFamily: typography.monoFamily
   },
   keyButtonTextSelected: {
-    color: colors.bgBase
+    color: colors.onFill
   },
   disabled: {
     opacity: 0.35

@@ -238,7 +238,7 @@ export const newWorktreeFormStyles = StyleSheet.create({
     opacity: 0.4
   },
   createText: {
-    color: colors.bgBase,
+    color: colors.onFill,
     fontSize: typography.bodySize,
     fontWeight: '600'
   }

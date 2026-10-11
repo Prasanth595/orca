@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     fontSize: typography.bodySize,
     fontWeight: '600',
-    color: colors.bgBase
+    color: colors.onFill
   },
   secondaryButton: {
     backgroundColor: colors.bgRaised,

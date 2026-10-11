@@ -159,7 +159,7 @@ export default function EditHostScreen() {
           accessibilityLabel="Save host"
         >
           {saving ? (
-            <ActivityIndicator size="small" color={colors.bgBase} />
+            <ActivityIndicator size="small" color={colors.onFill} />
           ) : (
             <Text style={styles.saveButtonText}>Save</Text>
           )}
@@ -292,7 +292,7 @@ const styles = StyleSheet.create({
     opacity: 0.4
   },
   saveButtonText: {
-    color: colors.bgBase,
+    color: colors.onFill,
     fontSize: typography.bodySize,
     fontWeight: '600'
   },

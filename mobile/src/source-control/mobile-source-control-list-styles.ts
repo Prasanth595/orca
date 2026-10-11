@@ -183,7 +183,7 @@ export const listStyles = StyleSheet.create({
     opacity: 0.75
   },
   commitButtonText: {
-    color: colors.bgBase,
+    color: colors.onFill,
     fontSize: typography.bodySize,
     fontWeight: '700'
   },
@@ -236,7 +236,7 @@ export const listStyles = StyleSheet.create({
     opacity: 0.75
   },
   commitFailureFixButtonText: {
-    color: colors.bgBase,
+    color: colors.onFill,
     fontSize: typography.metaSize,
     fontWeight: '700'
   },

@@ -111,7 +111,7 @@ export const mobileSessionCommandInputStyles = StyleSheet.create({
     fontFamily: typography.monoFamily
   },
   accessoryKeyTextActive: {
-    color: colors.bgBase,
+    color: colors.onFill,
     fontWeight: '700'
   },
   accessoryKeyTextDisabled: {

@@ -1,4 +1,22 @@
-import { colors } from '../../theme/mobile-theme'
+import { colors, isLightTheme } from '../../theme/mobile-theme'
+
+// Selection handles and the copy menu: Tokyonight to match the default dark terminal, app tokens
+// on the light terminal (a dark-blue menu on a white terminal reads as a grey block on e-ink).
+const selection = isLightTheme
+  ? {
+      accent: colors.accentBlue,
+      ring: colors.bgBase,
+      menuBg: colors.bgRaised,
+      menuText: colors.textPrimary,
+      menuLine: colors.borderSubtle
+    }
+  : {
+      accent: '#7aa2f7',
+      ring: '#c0caf5',
+      menuBg: '#2a2f4a',
+      menuText: '#c0caf5',
+      menuLine: '#414868'
+    }
 
 /**
  * The rules that style the document itself, which only the WebView's document may carry.
@@ -101,9 +119,9 @@ export const TERMINAL_DOCUMENT_ELEMENT_STYLE = `  #terminal-container {
     left: 50%; top: 22px;
     transform: translateX(-50%);
     width: 14px; height: 14px;
-    background: #7aa2f7;
+    background: ${selection.accent};
     border-radius: 50%;
-    border: 2px solid #c0caf5;
+    border: 2px solid ${selection.ring};
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   }
   .sel-handle.start::before { top: 8px; }
@@ -113,7 +131,7 @@ export const TERMINAL_DOCUMENT_ELEMENT_STYLE = `  #terminal-container {
     left: 50%; top: 22px;
     transform: translateX(-50%);
     width: 2px; height: 16px;
-    background: #7aa2f7;
+    background: ${selection.accent};
   }
   .sel-handle.end::before { top: 22px; }
   .sel-handle.end::after {
@@ -122,12 +140,12 @@ export const TERMINAL_DOCUMENT_ELEMENT_STYLE = `  #terminal-container {
     left: 50%; top: 6px;
     transform: translateX(-50%);
     width: 2px; height: 16px;
-    background: #7aa2f7;
+    background: ${selection.accent};
   }
   #sel-menu {
     position: absolute;
     pointer-events: auto;
-    background: #2a2f4a;
+    background: ${selection.menuBg};
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
     display: flex;
@@ -140,13 +158,13 @@ export const TERMINAL_DOCUMENT_ELEMENT_STYLE = `  #terminal-container {
   #sel-menu button {
     background: transparent;
     border: none;
-    color: #c0caf5;
+    color: ${selection.menuText};
     font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     padding: 10px 16px;
     cursor: pointer;
   }
-  #sel-menu button:active { background: #414868; }
-  #sel-menu button + button { border-left: 1px solid #414868; }`
+  #sel-menu button:active { background: ${selection.menuLine}; }
+  #sel-menu button + button { border-left: 1px solid ${selection.menuLine}; }`
 
 /**
  * Both halves, in the order the WebView's `<head>` carries them.

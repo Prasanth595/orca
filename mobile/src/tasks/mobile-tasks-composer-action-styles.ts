@@ -215,7 +215,7 @@ export const mobileTasksComposerActionStyles = StyleSheet.create({
     paddingVertical: spacing.sm
   },
   primaryActionText: {
-    color: colors.bgBase,
+    color: colors.onFill,
     fontSize: typography.bodySize,
     fontWeight: '700'
   },
@@ -235,7 +235,7 @@ export const mobileTasksComposerActionStyles = StyleSheet.create({
     opacity: 0.5
   },
   createButtonText: {
-    color: colors.bgBase,
+    color: colors.onFill,
     fontSize: typography.bodySize,
     fontWeight: '700'
   }

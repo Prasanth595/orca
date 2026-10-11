@@ -60,7 +60,7 @@ export const prActionsStyles = StyleSheet.create({
     fontWeight: '700'
   },
   actionButtonTextPrimary: {
-    color: colors.bgBase
+    color: colors.onFill
   },
   actionButtonDestructiveText: {
     color: colors.statusRed

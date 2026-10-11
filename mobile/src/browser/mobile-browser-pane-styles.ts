@@ -138,7 +138,7 @@ export const mobileBrowserPaneStyles = StyleSheet.create({
     fontWeight: '600'
   },
   dialogButtonPrimaryText: {
-    color: colors.bgBase
+    color: colors.onFill
   },
   keyboardDock: {
     zIndex: 20,

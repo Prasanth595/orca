@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native'
 import type { HomeStatsSummary } from '../stats/home-stats-total'
-import { colors, spacing } from '../theme/mobile-theme'
+import { colors, isHighContrast, isLightTheme, spacing } from '../theme/mobile-theme'
 import { MobileHomeAppUpdateCard } from './MobileHomeAppUpdateCard'
 
 function formatDuration(ms: number): string {
@@ -54,7 +54,8 @@ const styles = StyleSheet.create({
   statsRow: { flexDirection: 'row', gap: 10, marginBottom: spacing.lg },
   statCard: {
     flex: 1,
-    backgroundColor: 'rgba(26,26,26,0.6)',
+    // Dark keeps its translucent card; the light and high-contrast palettes use a solid panel.
+    backgroundColor: isLightTheme || isHighContrast ? colors.bgPanel : 'rgba(26,26,26,0.6)',
     borderWidth: 1,
     borderColor: colors.borderSubtle,
     borderRadius: 10,

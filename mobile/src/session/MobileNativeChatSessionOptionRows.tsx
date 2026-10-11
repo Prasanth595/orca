@@ -81,7 +81,7 @@ function ChoiceRow({
       disabled={disabled}
     >
       <View style={[styles.radio, selected && styles.radioOn]}>
-        {selected ? <Check size={12} color={colors.bgBase} strokeWidth={3} /> : null}
+        {selected ? <Check size={12} color={colors.onFill} strokeWidth={3} /> : null}
       </View>
       <View style={styles.rowBody}>
         <Text style={styles.rowLabel}>{label}</Text>

@@ -62,7 +62,7 @@ function ViewModeButton({
       accessibilityState={{ selected, disabled }}
       accessibilityLabel={`Show ${label.toLowerCase()} website view`}
     >
-      <Icon size={14} color={selected ? colors.bgBase : colors.textSecondary} />
+      <Icon size={14} color={selected ? colors.onFill : colors.textSecondary} />
     </Pressable>
   )
 }

@@ -278,7 +278,7 @@ function SaveNoteButton({
       accessibilityRole="button"
       accessibilityLabel={composerLabel(composer)}
     >
-      <Check size={14} color={colors.bgBase} strokeWidth={2.2} />
+      <Check size={14} color={colors.onFill} strokeWidth={2.2} />
       <Text style={styles.primaryButtonText}>Save</Text>
     </Pressable>
   )
@@ -312,7 +312,7 @@ function CompletionContent({ controller }: Props) {
           accessibilityRole="button"
           accessibilityLabel="Send notes to agent"
         >
-          <Send size={14} color={colors.bgBase} strokeWidth={2.2} />
+          <Send size={14} color={colors.onFill} strokeWidth={2.2} />
           <Text style={styles.primaryButtonText}>Send Notes</Text>
         </Pressable>
       </View>

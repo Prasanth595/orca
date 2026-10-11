@@ -14,6 +14,8 @@ import { dispatchTerminalWebViewNotification } from './terminal-webview-notifica
 import { routeTerminalQueryReply } from './terminal-webview-query-reply-routing'
 import { useTerminalWebViewReadyPromises } from './terminal-webview-ready-promises'
 import { createTerminalWriteCoalescer } from './terminal-write-coalescer'
+import { isLightTheme } from '../theme/mobile-theme'
+import { selectTerminalTheme } from './terminal-theme-selection'
 
 /**
  * Everything `TerminalWebView` does that is not about `react-native-webview`.
@@ -51,7 +53,7 @@ export function useTerminalWebViewController(
   transport: TerminalWebViewTransport
 ) {
   const {
-    terminalTheme,
+    terminalTheme: hostTerminalTheme,
     textScale = 1,
     onWebReady,
     onEngineError,
@@ -70,6 +72,7 @@ export function useTerminalWebViewController(
     onCellBoxChange
   } = props
   const { pingsOnForegroundRecovery, post } = transport
+  const terminalTheme = selectTerminalTheme(isLightTheme, hostTerminalTheme)
   const isWebReadyRef = useRef(false)
   const pendingMessages = useMemo(() => createTerminalWebViewPendingMessages(), [])
   const messageIdRef = useRef(0)

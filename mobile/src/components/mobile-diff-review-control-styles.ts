@@ -62,7 +62,7 @@ export const mobileDiffReviewControlStyles = StyleSheet.create({
     backgroundColor: colors.statusGreen
   },
   primaryButtonText: {
-    color: colors.bgBase,
+    color: colors.onFill,
     fontSize: typography.bodySize,
     fontWeight: '800'
   },

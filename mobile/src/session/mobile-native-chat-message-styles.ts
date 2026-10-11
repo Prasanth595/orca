@@ -24,7 +24,7 @@ export const styles = StyleSheet.create({
     paddingVertical: spacing.sm
   },
   userText: {
-    color: colors.bgBase,
+    color: colors.onFill,
     fontSize: TEXT_SIZE,
     lineHeight: TEXT_SIZE + 6,
     fontWeight: '500'

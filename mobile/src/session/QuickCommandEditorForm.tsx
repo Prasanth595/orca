@@ -313,6 +313,6 @@ const styles = StyleSheet.create({
   cancelText: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
   saveButton: { backgroundColor: colors.textPrimary },
   saveButtonDisabled: { backgroundColor: colors.bgRaised },
-  saveText: { fontSize: 14, fontWeight: '700', color: colors.bgBase },
+  saveText: { fontSize: 14, fontWeight: '700', color: colors.onFill },
   saveTextDisabled: { color: colors.textMuted }
 })

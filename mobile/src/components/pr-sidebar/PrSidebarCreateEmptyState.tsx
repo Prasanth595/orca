@@ -184,9 +184,9 @@ export function PrSidebarCreateEmptyState({
             accessibilityLabel="Create pull request"
           >
             {loading ? (
-              <ActivityIndicator color={colors.bgBase} />
+              <ActivityIndicator color={colors.onFill} />
             ) : (
-              <GitPullRequestArrow size={14} color={colors.bgBase} strokeWidth={2.2} />
+              <GitPullRequestArrow size={14} color={colors.onFill} strokeWidth={2.2} />
             )}
             <Text style={styles.createButtonText}>Create PR</Text>
           </Pressable>

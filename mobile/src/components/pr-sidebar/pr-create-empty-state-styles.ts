@@ -50,7 +50,7 @@ export const prCreateEmptyStateStyles = StyleSheet.create({
     opacity: 0.5
   },
   createButtonText: {
-    color: colors.bgBase,
+    color: colors.onFill,
     fontSize: typography.metaSize,
     fontWeight: '700'
   },

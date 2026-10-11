@@ -228,7 +228,7 @@ const baseStyles = StyleSheet.create({
     opacity: 0.78
   },
   createPrButtonText: {
-    color: colors.bgBase,
+    color: colors.onFill,
     fontSize: typography.bodySize,
     fontWeight: '700'
   },

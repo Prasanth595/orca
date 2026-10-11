@@ -51,7 +51,7 @@ export function MobileHtmlPreview({ html, renderSource }: MobileHtmlPreviewProps
       </View>
       {mode === 'preview' ? (
         <WebView
-          style={styles.webview}
+          style={[styles.webview, PAGE_BACKGROUND]}
           originWhitelist={['*']}
           source={{ html }}
           javaScriptEnabled
@@ -72,6 +72,10 @@ export function MobileHtmlPreview({ html, renderSource }: MobileHtmlPreviewProps
     </View>
   )
 }
+
+// Inline on purpose: high contrast outlines white fills in StyleSheet.create, which would turn
+// an HTML page black. Pages keep a white background whatever the app theme.
+const PAGE_BACKGROUND = { backgroundColor: '#ffffff' }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -98,5 +102,5 @@ const styles = StyleSheet.create({
     borderColor: colors.borderSubtle
   },
   toggleText: { color: colors.textSecondary, fontSize: typography.metaSize },
-  webview: { flex: 1, backgroundColor: '#ffffff' }
+  webview: { flex: 1 }
 })

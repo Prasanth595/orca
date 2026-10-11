@@ -166,7 +166,7 @@ function PRTitle({
             accessibilityLabel="Save title"
           >
             {titleAction.saving ? (
-              <ActivityIndicator size="small" color={colors.bgBase} />
+              <ActivityIndicator size="small" color={colors.onFill} />
             ) : (
               <Text style={composerStyles.submitText}>Save</Text>
             )}

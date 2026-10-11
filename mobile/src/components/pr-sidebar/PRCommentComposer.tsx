@@ -84,7 +84,7 @@ export function PRCommentComposer({
           accessibilityLabel={submitLabel}
         >
           {submitting ? (
-            <ActivityIndicator size="small" color={colors.bgBase} />
+            <ActivityIndicator size="small" color={colors.onFill} />
           ) : (
             <Text style={styles.submitText}>{submitLabel}</Text>
           )}

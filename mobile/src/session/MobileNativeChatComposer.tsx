@@ -341,7 +341,7 @@ export function MobileNativeChatComposer({
             >
               <ArrowUp
                 size={20}
-                color={canSend ? colors.bgBase : colors.textMuted}
+                color={canSend ? colors.onFill : colors.textMuted}
                 strokeWidth={2.6}
               />
             </Pressable>

@@ -80,7 +80,7 @@ export const mobileDiffReviewLayoutStyles = StyleSheet.create({
     fontWeight: '700'
   },
   filterTextActive: {
-    color: colors.bgBase
+    color: colors.onFill
   },
   fileHeader: {
     paddingHorizontal: spacing.lg,

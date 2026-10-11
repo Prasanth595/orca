@@ -171,7 +171,7 @@ export function NewWorktreeFormSheet(props: {
               onPress={props.onCreate}
             >
               {props.creating ? (
-                <ActivityIndicator size="small" color={colors.bgBase} />
+                <ActivityIndicator size="small" color={colors.onFill} />
               ) : (
                 <Text style={styles.createText}>
                   {props.sshGate.requiresConnection ? 'Connect target' : 'Create worktree'}

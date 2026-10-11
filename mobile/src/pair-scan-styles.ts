@@ -158,7 +158,7 @@ export const pairScanStyles = StyleSheet.create({
     borderRadius: radii.button
   },
   primaryButtonText: {
-    color: colors.bgBase,
+    color: colors.onFill,
     fontSize: typography.bodySize,
     fontWeight: '600'
   },

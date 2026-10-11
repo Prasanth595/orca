@@ -1,5 +1,12 @@
 import { StyleSheet } from 'react-native'
-import { colors, spacing, radii, typography } from '../theme/mobile-theme'
+import {
+  colors,
+  isHighContrast,
+  isLightTheme,
+  spacing,
+  radii,
+  typography
+} from '../theme/mobile-theme'
 import { TEXT_INPUT_FONT_SIZE } from '../platform/text-input-font-size'
 
 export const customKeyModalStyles = StyleSheet.create({
@@ -160,7 +167,7 @@ export const customKeyModalStyles = StyleSheet.create({
     fontWeight: '500'
   },
   chipTextSelected: {
-    color: colors.bgBase
+    color: colors.onFill
   },
   chipGlyph: {
     color: colors.textMuted,
@@ -168,7 +175,9 @@ export const customKeyModalStyles = StyleSheet.create({
     fontFamily: typography.monoFamily
   },
   chipGlyphSelected: {
-    color: 'rgba(10,10,10,0.5)'
+    // Upstream's fixed near-black in the default dark theme; light/high contrast invert with the palette.
+    color: isLightTheme || isHighContrast ? colors.onFill : 'rgba(10,10,10,0.5)',
+    opacity: isLightTheme || isHighContrast ? 0.5 : 1
   },
   moreLink: {
     paddingVertical: spacing.sm,
@@ -227,7 +236,7 @@ export const customKeyModalStyles = StyleSheet.create({
     fontFamily: typography.monoFamily
   },
   keyCellTextSelected: {
-    color: colors.bgBase
+    color: colors.onFill
   },
   macroForm: {
     padding: spacing.md,
@@ -270,7 +279,7 @@ export const customKeyModalStyles = StyleSheet.create({
     backgroundColor: colors.bgRaised
   },
   saveButtonText: {
-    color: colors.bgBase,
+    color: colors.onFill,
     fontSize: 15,
     fontWeight: '600'
   },

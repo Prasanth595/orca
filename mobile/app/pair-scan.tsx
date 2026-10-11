@@ -258,7 +258,7 @@ export default function PairScanScreen() {
             style={styles.primaryButton}
             onPress={canAskAgain ? requestPermission : () => void Linking.openSettings()}
           >
-            {canAskAgain && <QrCode size={16} color={colors.bgBase} />}
+            {canAskAgain && <QrCode size={16} color={colors.onFill} />}
             <Text style={styles.primaryButtonText}>
               {canAskAgain ? 'Continue' : 'Open Settings'}
             </Text>

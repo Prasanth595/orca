@@ -1,6 +1,6 @@
 import { QrCode } from 'lucide-react-native'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { colors, radii, spacing } from '../theme/mobile-theme'
+import { colors, isHighContrast, isLightTheme, radii, spacing } from '../theme/mobile-theme'
 
 const ONBOARDING_STEPS = [
   {
@@ -42,7 +42,7 @@ export function MobileHomeEmptyState(props: {
           work from your phone.
         </Text>
         <Pressable style={styles.primaryButton} onPress={props.onPairDesktop}>
-          <QrCode size={17} color={colors.bgBase} />
+          <QrCode size={17} color={colors.onFill} />
           <Text style={styles.primaryButtonText}>Pair Desktop</Text>
         </Pressable>
       </View>
@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: radii.card
   },
-  primaryButtonText: { color: colors.bgBase, fontSize: 15, fontWeight: '700' },
+  primaryButtonText: { color: colors.onFill, fontSize: 15, fontWeight: '700' },
   stepsSection: { paddingHorizontal: spacing.xl },
   sectionHeading: {
     fontSize: 11,
@@ -118,7 +118,8 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    // Upstream's translucent chip in the default dark theme; a solid token where it would vanish.
+    backgroundColor: isLightTheme || isHighContrast ? colors.bgPanel : 'rgba(255,255,255,0.04)',
     borderWidth: 1,
     borderColor: colors.borderSubtle,
     alignItems: 'center',

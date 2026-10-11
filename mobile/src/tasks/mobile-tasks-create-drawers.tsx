@@ -179,7 +179,7 @@ export function renderMobileTasksCreateDrawer(model: ConnectionPresentationModel
           onPress={() => void createTask()}
         >
           {creatingTask ? (
-            <ActivityIndicator size="small" color={colors.bgBase} />
+            <ActivityIndicator size="small" color={colors.onFill} />
           ) : (
             <Text style={styles.createButtonText}>Create Issue</Text>
           )}
@@ -300,7 +300,7 @@ export function renderMobileTasksLinearConnectDrawer(model: ConnectionPresentati
           onPress={() => void connectLinearAccount()}
         >
           {linearConnectState === 'connecting' ? (
-            <ActivityIndicator size="small" color={colors.bgBase} />
+            <ActivityIndicator size="small" color={colors.onFill} />
           ) : (
             <Text style={styles.createButtonText}>Connect</Text>
           )}

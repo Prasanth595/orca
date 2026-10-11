@@ -127,7 +127,7 @@ export function MobileHtmlPreview({ html, renderSource }: MobileHtmlPreviewProps
  */
 function PreviewFrame({ html, linksOpen }: { html: string; linksOpen: boolean }) {
   return (
-    <View style={styles.frame}>
+    <View style={[styles.frame, PAGE_BACKGROUND]}>
       <iframe
         title="HTML preview"
         sandbox={linksOpen ? MOBILE_HTML_PREVIEW_SANDBOX : MOBILE_HTML_PREVIEW_SEALED_SANDBOX}
@@ -152,6 +152,10 @@ const IFRAME_STYLE = {
   // sets none, and an unset background here would show the panel through it.
   backgroundColor: '#ffffff'
 } as const
+
+// Inline on purpose: high contrast outlines white fills in StyleSheet.create, which would turn
+// an HTML page black. Pages keep a white background whatever the app theme.
+const PAGE_BACKGROUND = { backgroundColor: '#ffffff' }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -179,5 +183,5 @@ const styles = StyleSheet.create({
   },
   toggleText: { color: colors.textSecondary, fontSize: typography.metaSize },
   // The native component's own frame, so the preview sits where the preview sat.
-  frame: { flex: 1, backgroundColor: '#ffffff' }
+  frame: { flex: 1 }
 })

@@ -1,53 +1,32 @@
-// Orca mobile design tokens — matches desktop graphite/dark palette.
+// Orca mobile design tokens — matches desktop graphite/dark palette, plus a light
+// palette for light-mode devices (and e-ink readers, where a dark UI is unusable).
 // All screen files should import from here instead of using inline hex values.
 
-export const colors = {
-  bgBase: '#111111',
-  bgPanel: '#1a1a1a',
-  bgRaised: '#242424',
-  borderSubtle: '#2a2a2a',
-  editorSurface: '#1e1e1e',
+import {
+  darkColors,
+  highContrastDarkColors,
+  highContrastLightColors,
+  lightColors
+} from './palettes'
 
-  textPrimary: '#e0e0e0',
-  textSecondary: '#a1a1a1',
-  textMuted: '#8c8c8c',
+export { darkColors, highContrastDarkColors, highContrastLightColors, lightColors }
 
-  // Crisp near-white surface for the single primary action on a screen (the
-  // worktree FAB). Brighter than textPrimary so it reads as a solid button, not
-  // disabled chrome, while staying monochrome (STYLEGUIDE: color is for state).
-  surfaceBright: '#f5f5f5',
+// Why a global instead of importing Appearance here: this module is also bundled into the
+// terminal WebView document script, where react-native does not exist. appearance-boot.ts
+// sets it before any screen module evaluates, and there it falls back to dark.
+// The scheme is fixed per app launch (StyleSheets are built at import time), so switching
+// the OS theme applies on the next cold start.
 
-  accentBlue: '#3b82f6',
-  // Text/icon color on a filled accent (accentBlue) button, where the muted
-  // textPrimary would lack contrast against the saturated fill.
-  onAccent: '#ffffff',
+export const isLightTheme = globalThis.__orcaColorScheme === 'light'
+export const isHighContrast = globalThis.__orcaHighContrast === true
 
-  statusGreen: '#22c55e',
-  statusAmber: '#f59e0b',
-  statusRed: '#ef4444',
-  // Merge CTA fill + its on-fill text, mirroring the desktop ChecksPanel's
-  // bg-green-600 "Squash and merge" button (green-600 / white).
-  mergeGreen: '#16a34a',
-  onMergeGreen: '#ffffff',
-  // Merged-PR purple, mirroring the desktop ReviewIcon's purple-400/70 tone.
-  statusPurple: '#a78bfa',
-  gitDecorationAdded: '#81b88b',
-  gitDecorationDeleted: '#c74e39',
-  diffAddedBg: 'rgba(129, 184, 139, 0.1)',
-  diffDeletedBg: 'rgba(199, 78, 57, 0.11)',
-
-  syntaxComment: '#6a9955',
-  syntaxKeyword: '#569cd6',
-  syntaxString: '#ce9178',
-  syntaxNumber: '#b5cea8',
-  syntaxType: '#4ec9b0',
-  syntaxFunction: '#dcdcaa',
-  syntaxVariable: '#9cdcfe',
-  syntaxMeta: '#c586c0',
-
-  // Terminal WebView background (Tokyonight) — separate from app chrome
-  terminalBg: '#1a1b26'
-} as const
+export const colors = isHighContrast
+  ? isLightTheme
+    ? highContrastLightColors
+    : highContrastDarkColors
+  : isLightTheme
+    ? lightColors
+    : darkColors
 
 export const spacing = {
   xs: 4,

@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
   confirmText: {
     fontSize: typography.bodySize,
     fontWeight: '600',
-    color: colors.bgBase
+    color: colors.onFill
   },
   destructiveText: {
     fontSize: typography.bodySize,

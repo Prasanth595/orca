@@ -266,7 +266,7 @@ export function renderMobileTasksWorkspaceCreateDrawer(model: ConnectionPresenta
               }}
             >
               {creatingKey === workspaceCreateDraft.item.key ? (
-                <ActivityIndicator size="small" color={colors.bgBase} />
+                <ActivityIndicator size="small" color={colors.onFill} />
               ) : (
                 <Text style={styles.createButtonText}>
                   {workspaceAgentDetectionPending

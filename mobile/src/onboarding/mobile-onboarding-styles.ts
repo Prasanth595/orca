@@ -111,7 +111,7 @@ export const mobileOnboardingStyles = StyleSheet.create({
     paddingVertical: spacing.sm
   },
   primaryButtonText: {
-    color: colors.bgBase,
+    color: colors.onFill,
     fontSize: typography.bodySize,
     fontWeight: '600'
   },

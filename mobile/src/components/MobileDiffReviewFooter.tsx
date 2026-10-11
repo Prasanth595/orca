@@ -102,7 +102,7 @@ export function MobileDiffReviewFooter({
           accessibilityRole="button"
           accessibilityLabel="Mark file reviewed"
         >
-          <Check size={14} color={colors.bgBase} strokeWidth={2.2} />
+          <Check size={14} color={colors.onFill} strokeWidth={2.2} />
           <Text style={styles.primaryButtonText}>
             {item.isReviewed ? 'Reviewed' : 'Mark Reviewed'}
           </Text>

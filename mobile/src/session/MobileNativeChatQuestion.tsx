@@ -139,7 +139,7 @@ export function MobileNativeChatQuestion({
               >
                 {question.multiSelect ? (
                   <View style={[styles.checkbox, isSelected && styles.checkboxOn]}>
-                    {isSelected ? <Check size={13} color={colors.bgBase} strokeWidth={3} /> : null}
+                    {isSelected ? <Check size={13} color={colors.onFill} strokeWidth={3} /> : null}
                   </View>
                 ) : null}
                 <View style={styles.optionBody}>
@@ -201,7 +201,7 @@ export function MobileNativeChatQuestion({
           >
             <ArrowUp
               size={18}
-              color={canSendFreeText ? colors.bgBase : colors.textMuted}
+              color={canSendFreeText ? colors.onFill : colors.textMuted}
               strokeWidth={2.6}
             />
           </Pressable>

@@ -39,9 +39,9 @@ export function MobileCommitFailurePanel({ failure, action }: Props) {
           accessibilityLabel="Fix commit failure with AI"
         >
           {action.launching ? (
-            <ActivityIndicator color={colors.bgBase} />
+            <ActivityIndicator color={colors.onFill} />
           ) : (
-            <Sparkles size={14} color={colors.bgBase} strokeWidth={2.2} />
+            <Sparkles size={14} color={colors.onFill} strokeWidth={2.2} />
           )}
           <Text style={styles.commitFailureFixButtonText}>Fix</Text>
         </Pressable>

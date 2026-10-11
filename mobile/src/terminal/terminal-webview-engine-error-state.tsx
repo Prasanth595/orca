@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { RefreshCw } from 'lucide-react-native'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { colors } from '../theme/mobile-theme'
+import { colors, isHighContrast } from '../theme/mobile-theme'
 
 export type NativeWebViewEngineEvent = {
   readonly nativeEvent?: object
@@ -85,12 +85,15 @@ export function TerminalWebViewEngineErrorOverlay({
         {message}
       </Text>
       <Pressable accessibilityRole="button" style={styles.reloadButton} onPress={onReload}>
-        <RefreshCw size={16} color={colors.terminalBg} />
+        <RefreshCw size={16} color={reloadLabelColor} />
         <Text style={styles.reloadButtonText}>Reload</Text>
       </Pressable>
     </View>
   )
 }
+
+// Plain dark keeps the terminal background on the button; high contrast uses its on-fill colour.
+const reloadLabelColor = isHighContrast ? colors.onFill : colors.terminalBg
 
 const styles = StyleSheet.create({
   errorOverlay: {
@@ -123,7 +126,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceBright
   },
   reloadButtonText: {
-    color: colors.terminalBg,
+    color: reloadLabelColor,
     fontSize: 14,
     fontWeight: '700'
   }
