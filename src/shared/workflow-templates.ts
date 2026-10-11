@@ -34,8 +34,8 @@ export function materializeTemplate(
       return value.map(remap)
     }
     if (value !== null && typeof value === 'object') {
-      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: guarded by null + typeof object checks above; not an array (checked above).
       return Object.fromEntries(
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: guarded by null + typeof object checks above; not an array (checked above).
         Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, remap(v)])
       )
     }

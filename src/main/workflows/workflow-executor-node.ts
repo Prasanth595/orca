@@ -211,6 +211,8 @@ export async function executeNode(
       const bodyNodes = bodyEdge ? getBodyNodes(bodyEdge.targetNodeId, null, workflow) : []
       const bodyNodeIds = bodyNodes.map((n) => n.id)
       const iterResults: unknown[] = []
+      // Track each body node's last-iteration output for the final patch
+      const bodyLastOut = new Map<string, { stdout: string; outputValue: unknown }>()
 
       for (let i = 0; i < items.length; i++) {
         if (signal.aborted) {
@@ -229,6 +231,8 @@ export async function executeNode(
           if (signal.aborted) {
             break
           }
+          // Mark running so the UI reflects per-iteration progress
+          patchNodeRun(ops, runId, bodyNode.id, { status: 'running', startedAt: Date.now() })
           const r = await executeNode(bodyNode, workflow, loopSteps, runId, ops, signal, remoteExec)
           let json: unknown = null
           try {
@@ -236,17 +240,19 @@ export async function executeNode(
           } catch {}
           loopSteps[bodyNode.id] = { output: r.stdout, json: json ?? r.outputValue }
           lastOutput = r.outputValue
+          bodyLastOut.set(bodyNode.id, { stdout: r.stdout, outputValue: r.outputValue })
         }
         iterResults.push(lastOutput)
       }
 
       const aggregated = JSON.stringify(iterResults)
       for (const bodyNode of bodyNodes) {
+        const out = bodyLastOut.get(bodyNode.id)
         patchNodeRun(ops, runId, bodyNode.id, {
           status: 'completed',
           completedAt: Date.now(),
-          stdout: aggregated,
-          outputValue: iterResults,
+          stdout: out?.stdout ?? aggregated,
+          outputValue: out?.outputValue ?? iterResults,
           error: null
         })
       }

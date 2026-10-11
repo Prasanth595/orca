@@ -206,6 +206,166 @@ describe('Random Branch template', () => {
   })
 })
 
+describe('for_each with multi-node body chain', () => {
+  it('executes every body node on each iteration, not once after for_each', async () => {
+    mockPythonRun
+      .mockResolvedValueOnce({ stdout: '[1,2,3]\n', stderr: '', exitCode: 0 }) // list gen
+      .mockResolvedValue({ stdout: '{"squared":1}\n', stderr: '', exitCode: 0 }) // body python
+    mockShellRun.mockResolvedValue({ stdout: 'processed\n', stderr: '', exitCode: 0 })
+    mockFileWrite.mockResolvedValue({ bytesWritten: 0 })
+
+    // trigger → python_gen → for_each →[body]→ python_body → shell_body
+    //                                  →[done]→ collect → file_write
+    const workflow: AgentWorkflow = {
+      id: 'wf-multi',
+      name: 'Multi-body test',
+      description: '',
+      schedule: null,
+      enabled: true,
+      executionTargetType: 'local',
+      executionTargetId: 'local',
+      createdAt: 0,
+      updatedAt: 0,
+      nodes: [
+        { id: 'n1', type: 'trigger_manual', pos: { x: 0, y: 0 }, data: {} },
+        {
+          id: 'n2',
+          type: 'python_script',
+          pos: { x: 1, y: 0 },
+          data: {
+            script: 'print("[1,2,3]")',
+            workingDirectory: '',
+            timeoutSeconds: 10,
+            pythonBin: 'python3'
+          }
+        },
+        {
+          id: 'n3',
+          type: 'for_each',
+          pos: { x: 2, y: 0 },
+          data: { itemsExpression: '{{steps.n2.output}}', maxIterations: 20 }
+        },
+        {
+          id: 'n4',
+          type: 'python_script',
+          pos: { x: 3, y: 0 },
+          data: {
+            script: 'import sys,json; n=json.loads(sys.stdin.read()); print(json.dumps(n*n))',
+            workingDirectory: '',
+            timeoutSeconds: 10,
+            pythonBin: 'python3'
+          }
+        },
+        {
+          id: 'n5',
+          type: 'shell_command',
+          pos: { x: 4, y: 0 },
+          data: { command: 'echo "done"', workingDirectory: '', timeoutSeconds: 10, shell: 'bash' }
+        },
+        { id: 'n6', type: 'collect', pos: { x: 5, y: 0 }, data: {} },
+        {
+          id: 'n7',
+          type: 'file_write',
+          pos: { x: 6, y: 0 },
+          data: {
+            filePath: '/tmp/orca-multi-body.json',
+            content: '{{steps.n6.output}}',
+            mode: 'overwrite',
+            createParents: true
+          }
+        }
+      ],
+      edges: [
+        { id: 'e1', sourceNodeId: 'n1', targetNodeId: 'n2' },
+        { id: 'e2', sourceNodeId: 'n2', targetNodeId: 'n3' },
+        { id: 'e3', sourceNodeId: 'n3', targetNodeId: 'n4', outputSelector: 'body' },
+        { id: 'e4', sourceNodeId: 'n4', targetNodeId: 'n5' }, // body chain: python → shell
+        { id: 'e5', sourceNodeId: 'n3', targetNodeId: 'n6', outputSelector: 'done' },
+        { id: 'e6', sourceNodeId: 'n6', targetNodeId: 'n7' }
+      ]
+    }
+
+    const { ops, runId } = makeOps(workflow)
+    const onNodeComplete = vi.fn()
+    await executeWorkflow(workflow, runId, ops, { onNodeComplete })
+
+    // shell must run once per iteration (3 times), not once after for_each
+    expect(mockShellRun).toHaveBeenCalledTimes(3)
+    // python: 1 (list gen) + 3 (body) = 4
+    expect(mockPythonRun).toHaveBeenCalledTimes(4)
+    // trigger + python_gen + for_each + collect + file_write = 5
+    expect(onNodeComplete).toHaveBeenCalledTimes(5)
+    expect(mockFileWrite).toHaveBeenCalledWith(
+      expect.objectContaining({ filePath: '/tmp/orca-multi-body.json' }),
+      expect.any(String),
+      undefined
+    )
+  })
+
+  it('chains stdout from first to second body node on each iteration', async () => {
+    mockPythonRun
+      .mockResolvedValueOnce({ stdout: '["a","b"]\n', stderr: '', exitCode: 0 })
+      .mockResolvedValue({ stdout: 'python-out\n', stderr: '', exitCode: 0 })
+    mockShellRun.mockResolvedValue({ stdout: 'shell-out\n', stderr: '', exitCode: 0 })
+
+    const workflow: AgentWorkflow = {
+      id: 'wf-chain',
+      name: 'Chain test',
+      description: '',
+      schedule: null,
+      enabled: true,
+      executionTargetType: 'local',
+      executionTargetId: 'local',
+      createdAt: 0,
+      updatedAt: 0,
+      nodes: [
+        { id: 'n1', type: 'trigger_manual', pos: { x: 0, y: 0 }, data: {} },
+        {
+          id: 'n2',
+          type: 'python_script',
+          pos: { x: 1, y: 0 },
+          data: { script: '', workingDirectory: '', timeoutSeconds: 10, pythonBin: 'python3' }
+        },
+        {
+          id: 'n3',
+          type: 'for_each',
+          pos: { x: 2, y: 0 },
+          data: { itemsExpression: '{{steps.n2.output}}', maxIterations: 20 }
+        },
+        {
+          id: 'n4',
+          type: 'python_script',
+          pos: { x: 3, y: 0 },
+          data: { script: '', workingDirectory: '', timeoutSeconds: 10, pythonBin: 'python3' }
+        },
+        {
+          id: 'n5',
+          type: 'shell_command',
+          pos: { x: 4, y: 0 },
+          data: { command: 'cat', workingDirectory: '', timeoutSeconds: 10, shell: 'bash' }
+        },
+        { id: 'n6', type: 'collect', pos: { x: 5, y: 0 }, data: {} }
+      ],
+      edges: [
+        { id: 'e1', sourceNodeId: 'n1', targetNodeId: 'n2' },
+        { id: 'e2', sourceNodeId: 'n2', targetNodeId: 'n3' },
+        { id: 'e3', sourceNodeId: 'n3', targetNodeId: 'n4', outputSelector: 'body' },
+        { id: 'e4', sourceNodeId: 'n4', targetNodeId: 'n5' },
+        { id: 'e5', sourceNodeId: 'n3', targetNodeId: 'n6', outputSelector: 'done' }
+      ]
+    }
+
+    const { ops, runId } = makeOps(workflow)
+    await executeWorkflow(workflow, runId, ops, {})
+
+    // shell receives python's stdout as its stdin on each iteration
+    expect(mockShellRun).toHaveBeenCalledTimes(2)
+    for (const call of mockShellRun.mock.calls) {
+      expect(call[1]).toBe('python-out\n')
+    }
+  })
+})
+
 describe('CSV to JSON template', () => {
   it('runs full 6-node chain, reading back the written CSV file', async () => {
     const csvData = 'name,score,grade\nAlice,95,A\n'
