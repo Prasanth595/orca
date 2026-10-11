@@ -35,8 +35,7 @@ function isRunningFromOwnMount(runtimeRoot: string): boolean {
 }
 
 /**
- * Why process 'exit': it is the last hook of a committed quit, and it also runs on SIGTERM (session
- * logout). will-quit can still be deferred by teardown, which would leave the app running unreported.
+ * Use `exit`: Electron can defer `will-quit`; this hook runs only in Node's final exit phase.
  */
 export function installAppImageCrashpadHandlerExit(): void {
   const runtimeRoot = posix.dirname(process.execPath)
