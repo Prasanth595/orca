@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { openMarkdownHref, openMarkdownImage, routeMarkdownHref } from './markdown-href-routing'
+import { createNativeChatFileHref } from '../../../src/shared/native-chat-href-routing'
 
 const openExternalLink = vi.hoisted(() => vi.fn())
 
@@ -37,6 +38,13 @@ describe('routeMarkdownHref', () => {
     expect(routeMarkdownHref('docs/plan.md#usage')).toEqual({
       kind: 'file',
       pathText: 'docs/plan.md'
+    })
+  })
+
+  it('preserves the existing wrapped reply-location contract', () => {
+    expect(routeMarkdownHref(createNativeChatFileHref(' docs/report.md:12:4 '))).toEqual({
+      kind: 'file',
+      pathText: 'docs/report.md:12:4'
     })
   })
 

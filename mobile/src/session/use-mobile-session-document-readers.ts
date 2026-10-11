@@ -43,7 +43,8 @@ export function useMobileSessionDocumentReaders(scope: MobileSessionTabApplicati
       if (!client) {
         return
       }
-      setMarkdownDocs((prev) => new Map(prev).set(tab.id, { status: 'loading' }))
+      const loading = { status: 'loading' } as const
+      setMarkdownDocs((prev) => new Map(prev).set(tab.id, loading))
       try {
         const response = await markdownTabRead.request(client, {
           worktree: `id:${worktreeId}`,
@@ -52,19 +53,21 @@ export function useMobileSessionDocumentReaders(scope: MobileSessionTabApplicati
         if (response.ok) {
           const result = markdownTabRead.interpret(response)
           setMarkdownDocs((prev) =>
-            new Map(prev).set(tab.id, {
-              status: 'ready',
-              content: result.content,
-              localContent: result.content,
-              baseVersion: result.version,
-              isDirty: false,
-              editable: result.editable === true,
-              stale: result.isDirty,
-              readOnlyReason: result.readOnlyReason,
-              ...(result.truncated === true
-                ? { truncated: true, byteLength: result.byteLength }
-                : {})
-            })
+            prev.get(tab.id) === loading
+              ? new Map(prev).set(tab.id, {
+                  status: 'ready',
+                  content: result.content,
+                  localContent: result.content,
+                  baseVersion: result.version,
+                  isDirty: false,
+                  editable: result.editable === true,
+                  stale: result.isDirty,
+                  readOnlyReason: result.readOnlyReason,
+                  ...(result.truncated === true
+                    ? { truncated: true, byteLength: result.byteLength }
+                    : {})
+                })
+              : prev
           )
           resolveMarkdownImages(tab.id, tab.relativePath, result.content)
           return
@@ -84,23 +87,27 @@ export function useMobileSessionDocumentReaders(scope: MobileSessionTabApplicati
         }
         const fileResult = fallback.value
         setMarkdownDocs((prev) =>
-          new Map(prev).set(
-            tab.id,
-            buildMarkdownDiskFallbackDoc({
-              content: fileResult.content,
-              truncated: fileResult.truncated,
-              byteLength: fileResult.byteLength,
-              tabIsDirty: tab.isDirty
-            })
-          )
+          prev.get(tab.id) === loading
+            ? new Map(prev).set(
+                tab.id,
+                buildMarkdownDiskFallbackDoc({
+                  content: fileResult.content,
+                  truncated: fileResult.truncated,
+                  byteLength: fileResult.byteLength,
+                  tabIsDirty: tab.isDirty
+                })
+              )
+            : prev
         )
         resolveMarkdownImages(tab.id, tab.relativePath, fileResult.content)
       } catch (err) {
         setMarkdownDocs((prev) =>
-          new Map(prev).set(tab.id, {
-            status: 'error',
-            message: documentReadErrorMessage(err, "Couldn't load markdown")
-          })
+          prev.get(tab.id) === loading
+            ? new Map(prev).set(tab.id, {
+                status: 'error',
+                message: documentReadErrorMessage(err, "Couldn't load markdown")
+              })
+            : prev
         )
       }
     },
