@@ -53,6 +53,14 @@ function ensureLedgerDir(dir: string, platform: NodeJS.Platform = process.platfo
   ensureOwnedPrivateDir(dir, uid)
 }
 
+function removeQuietly(path: string): void {
+  try {
+    rmSync(path, { force: true })
+  } catch {
+    // A leftover entry is ignored once its owner is gone.
+  }
+}
+
 type LedgerEntry = { schemaVersion: 1; pid: number; terminals: number; updatedAt: number }
 
 function parseEntry(raw: string): LedgerEntry | null {
@@ -162,7 +170,7 @@ export class HostTerminalLedger {
     }
     const path = this.entryPath()
     if (path) {
-      rmSync(path, { force: true })
+      removeQuietly(path)
     }
     this.published = null
   }
@@ -235,7 +243,7 @@ export class HostTerminalLedger {
         continue
       }
       if (!this.isAlive(entry.pid)) {
-        rmSync(join(dir, name), { force: true })
+        removeQuietly(join(dir, name))
         continue
       }
       if (now - entry.updatedAt > STALE_AFTER_MS) {
