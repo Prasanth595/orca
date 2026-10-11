@@ -248,10 +248,10 @@ describe('registerSettingsHandlers', () => {
     store.getSettings.mockReturnValueOnce(before).mockReturnValue(latest)
     store.updateSettings.mockReturnValue(writeResult)
     registerSettingsHandlers(store as never)
-    const handler = handleMock.mock.calls.find((call) => call[0] === 'settings:set')?.[1] as (
-      event: typeof settingsInvokeEvent,
-      args: { theme: string }
-    ) => Promise<unknown>
+    const handler: unknown = handleMock.mock.calls.find((call) => call[0] === 'settings:set')?.[1]
+    if (typeof handler !== 'function') {
+      throw new Error('settings:set handler was not registered')
+    }
 
     await expect(handler(settingsInvokeEvent, { theme: 'dark' })).resolves.toBe(latest)
   })
