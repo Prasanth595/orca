@@ -1,8 +1,12 @@
-import { toSshExecutionHostId } from '../../../../shared/execution-host'
+import {
+  getConnectionExecutionHostId,
+  toSshExecutionHostId
+} from '../../../../shared/execution-host'
 import { closeStartupQueryAuthorityForPty, getRelayPtyId } from '../provider/registry'
 import { createTerminalSessionStateSaveFailureMessage } from '../../../../shared/terminal-session-state-save-failure'
 import { recordCodexPaneAccountForSpawn } from '../host-env/codex-home'
 import { persistAdmittedStablePaneBinding } from '../pane/stable-owner'
+import { swapReplacedPaneBinding } from '../pane/pane-owner-replacement'
 import { claimSshPaneLease } from '../pane/ssh-pane-lease-claim'
 import {
   pendingByPaneKey,
@@ -15,6 +19,7 @@ import { resolveCommittedPtySize, type PtyGrid } from '../delivery/attached-pty-
 import { discardUnpersistedPtySpawn } from '../pane/spawn-registration'
 import { spawnCommitBindingOrigin } from '../../../persistence/loading-store/pty-binding-span'
 import type { PtyIpcSpawnState } from './spawn-state'
+import { parseTerminalPanePlacement } from '../../../../shared/terminal-pane-placement'
 
 export async function persistPtyIpcSpawnCommit(ctx: PtyIpcSpawnState): Promise<PtyGrid> {
   const args = ctx.args
@@ -32,7 +37,7 @@ export async function persistPtyIpcSpawnCommit(ctx: PtyIpcSpawnState): Promise<P
       throw error
     }
     console.error('[pty] failed to persist PTY binding after attach:', error)
-    throw Object.assign(new Error(createTerminalSessionStateSaveFailureMessage()), {
+    throw Object.assign(new Error(createTerminalSessionStateSaveFailureMessage(error)), {
       agentSessionOperationOutcome: 'unknown' as const
     })
   }
@@ -51,6 +56,7 @@ export async function persistPtyIpcSpawnCommit(ctx: PtyIpcSpawnState): Promise<P
     !ctx.stablePaneBindingPersisted
   ) {
     try {
+      const placement = parseTerminalPanePlacement(args.placement)
       const binding = {
         worktreeId: args.worktreeId,
         tabId: args.tabId,
@@ -58,11 +64,16 @@ export async function persistPtyIpcSpawnCommit(ctx: PtyIpcSpawnState): Promise<P
         ptyId: ctx.result.id,
         ...(ctx.result.incarnationId ? { incarnationId: ctx.result.incarnationId } : {}),
         ...(ctx.cwd ? { startupCwd: ctx.cwd } : {}),
+        ...(placement ? { placement } : {}),
         origin: spawnCommitBindingOrigin(ctx.result)
       }
-      const persisted = args.connectionId
-        ? await ctx.deps.store.persistPtyBinding(binding, toSshExecutionHostId(args.connectionId))
-        : await ctx.deps.store.persistPtyBinding(binding)
+      const hostId = args.connectionId ? toSshExecutionHostId(args.connectionId) : undefined
+      const input = ctx.replacedPaneOwner
+        ? swapReplacedPaneBinding(ctx.deps.store, binding, ctx.replacedPaneOwner, hostId)
+        : binding
+      const persisted = hostId
+        ? await ctx.deps.store.persistPtyBinding(input, hostId)
+        : await ctx.deps.store.persistPtyBinding(input)
       if (persisted === false) {
         throw new Error('terminal_pane_owner_changed')
       }
@@ -73,7 +84,10 @@ export async function persistPtyIpcSpawnCommit(ctx: PtyIpcSpawnState): Promise<P
           ctx.deps.store.removeSshRemotePtyLease(args.connectionId, relayResultId)
         }
       })
-      throw Object.assign(new Error(createTerminalSessionStateSaveFailureMessage()), {
+      if (err instanceof Error && err.message === 'terminal_pane_owner_changed') {
+        throw err
+      }
+      throw Object.assign(new Error(createTerminalSessionStateSaveFailureMessage(err)), {
         agentSessionOperationOutcome: 'unknown' as const
       })
     }
@@ -83,6 +97,8 @@ export async function persistPtyIpcSpawnCommit(ctx: PtyIpcSpawnState): Promise<P
 
 export function publishPtyIpcSpawnCommit(ctx: PtyIpcSpawnState, committedSize: PtyGrid): void {
   const args = ctx.args
+  // Why here: every IPC spawn that survives its binding save publishes once through this point.
+  ctx.deps.runtime?.noteTerminalSpawnCommit?.(ctx.result)
   ctx.spawnTiming.log(ctx.result.id, {
     daemon: ctx.isDaemonHostSpawn,
     reattach: ctx.result.isReattach ?? false
@@ -93,11 +109,10 @@ export function publishPtyIpcSpawnCommit(ctx: PtyIpcSpawnState, committedSize: P
     isReattach: ctx.result.isReattach === true,
     pinnedByResume: ctx.codexResumeHomeSelected,
     launchCodexHomePath: ctx.selectedCodexHomePath,
-    launchEnv: ctx.baseEnv,
     target: ctx.codexSelectionTarget,
     settings: ctx.deps.getSettings?.()
   })
-  ptyOwnership.set(ctx.result.id, args.connectionId ?? null)
+  ptyOwnership.set(ctx.result.id, getConnectionExecutionHostId(args.connectionId))
   if (ctx.result.incarnationId) {
     ptyIncarnationById.set(ctx.result.id, ctx.result.incarnationId)
   }

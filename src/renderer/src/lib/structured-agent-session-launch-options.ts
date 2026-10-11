@@ -9,6 +9,7 @@ import {
   structuredAgentSessionPayloadFingerprint
 } from '../../../shared/structured-agent-session-mutation'
 import { callStructuredAgentSession } from '@/runtime/structured-agent-session-client'
+import { RuntimeRpcCallError } from '@/runtime/runtime-rpc-result'
 import { createBrowserUuid } from '@/lib/browser-uuid'
 import {
   StructuredAgentSessionLaunchCancelledError,
@@ -20,6 +21,12 @@ import {
   subscribeStructuredAgentLaunchStatus,
   type StructuredLaunchState
 } from './structured-agent-session-launch-registry'
+import {
+  agentSessionRefusalFailure,
+  agentSessionThrownFailure,
+  type AgentSessionWriteFailure
+} from '../../../shared/agent-session-write-failure'
+import type { RuntimeClientTarget } from '@/runtime/runtime-client-target'
 
 /** The options a launch starts with, replaced whole so readers can compare by identity. */
 export type StructuredLaunchSelection = {
@@ -31,7 +38,7 @@ export type StructuredLaunchSelection = {
 
 export type StructuredLaunchOptionOutcome =
   | { kind: 'accepted'; options: Readonly<Record<string, string>> }
-  | { kind: 'refused'; message: string }
+  | { kind: 'refused'; failure: AgentSessionWriteFailure }
   | { kind: 'superseded' }
 
 type OptionReply = (outcome: StructuredLaunchOptionOutcome) => void
@@ -76,6 +83,7 @@ export function holdStructuredAgentSessionLaunchOption(
 }
 
 async function setLaunchOption(
+  target: RuntimeClientTarget,
   sessionId: string,
   fence: number,
   key: string,
@@ -85,7 +93,7 @@ async function setLaunchOption(
   try {
     const result = await callStructuredAgentSession<
       AgentSessionMutationResult<AgentSessionOptionResult>
-    >({ kind: 'local' }, 'agentSession.setOption', {
+    >(target, 'agentSession.setOption', {
       envelope: {
         sessionId,
         clientOperationId: createStructuredAgentSessionOperationId(createBrowserUuid),
@@ -100,9 +108,15 @@ async function setLaunchOption(
     })
     return result.ok
       ? { kind: 'accepted', options: result.value.options ?? { [key]: value } }
-      : { kind: 'refused', message: result.refusal.message }
+      : { kind: 'refused', failure: agentSessionRefusalFailure(result.refusal) }
   } catch (error) {
-    return { kind: 'refused', message: error instanceof Error ? error.message : String(error) }
+    return {
+      kind: 'refused',
+      failure: agentSessionThrownFailure(
+        error,
+        error instanceof RuntimeRpcCallError ? error.code : undefined
+      )
+    }
   }
 }
 
@@ -128,6 +142,17 @@ function settleHeldOption(
     replies.delete(id)
   }
   notifyStructuredLaunchListeners()
+  state.callers.onSettled()
+}
+
+/** Selections included in the durable create are already the host's option intent. */
+export function settleStructuredLaunchCreateOptions(
+  state: StructuredLaunchState,
+  options: Readonly<Record<string, string>>
+): void {
+  for (const [id, encoded] of Object.entries(options)) {
+    settleHeldOption(state, id, encoded, { kind: 'accepted', options })
+  }
 }
 
 /**
@@ -149,7 +174,13 @@ export async function applyStructuredLaunchHeldOptions(
     if (!id || encoded === undefined) {
       return receipt
     }
-    const outcome = await setLaunchOption(state.intent.sessionId, receipt.fence, id, encoded)
+    const outcome = await setLaunchOption(
+      state.intent.target,
+      state.intent.sessionId,
+      receipt.fence,
+      id,
+      encoded
+    )
     settleHeldOption(state, id, encoded, outcome)
   }
 }
