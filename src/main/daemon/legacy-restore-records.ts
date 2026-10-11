@@ -11,9 +11,9 @@ const MAX_RECORDS = 32
 const MAX_AGE_MS = 14 * 24 * 60 * 60_000
 const PRIVATE_FILE_MODE = 0o600
 
-// Why per protocol version, like the run marker: an old daemon beside a new one keeps its own.
-export function legacyRestoreRecordsPathFor(pidRecordPath: string): string {
-  return `${pidRecordPath.replace(/\.pid$/, '')}.legacy-restores.json`
+// Why beside the run marker: per protocol version, so an old daemon beside a new one keeps its own.
+export function legacyRestoreRecordsPathFor(automaticWorkMarkerPath: string): string {
+  return `${automaticWorkMarkerPath.replace(/\.automatic-work-run\.json$/, '')}.legacy-restores.json`
 }
 
 function nullableString(value: unknown): string | null {
@@ -105,9 +105,7 @@ export class LegacyRestoreRecords {
       parsed = null
     }
     const raw =
-      typeof parsed === 'object' && parsed !== null && 'records' in parsed
-        ? parsed.records
-        : null
+      typeof parsed === 'object' && parsed !== null && 'records' in parsed ? parsed.records : null
     const now = this.now()
     this.records = (Array.isArray(raw) ? raw : [])
       .map(parseRecord)

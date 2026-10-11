@@ -83,8 +83,8 @@ describe('LegacyRestoreRecords', () => {
     expect(() => unwritable.record(details(), 'pressure')).not.toThrow()
   })
 
-  it('lives beside the daemon pid record', () => {
-    expect(legacyRestoreRecordsPathFor('/data/daemon/daemon-v44.pid')).toBe(
+  it('lives beside the daemon run marker', () => {
+    expect(legacyRestoreRecordsPathFor('/data/daemon/daemon-v44.automatic-work-run.json')).toBe(
       '/data/daemon/daemon-v44.legacy-restores.json'
     )
   })
