@@ -101,7 +101,8 @@ test.describe('Windows project runtime smoke', () => {
         }
 
         await window.api.repos.add({ path: wslRepoPath })
-        await store.getState().fetchRepos()
+        const owner = store.getState().settings?.activeRuntimeEnvironmentId ?? null
+        await store.getState().fetchRepos({ runtimeEnvironmentId: owner })
         const state = store.getState()
         const hostRepo = state.repos.find((repo) => repo.path === hostRepoPath)
         const wslRepo = state.repos.find((repo) => repo.path === wslRepoPath)
@@ -178,7 +179,8 @@ test.describe('Windows project runtime smoke', () => {
     ).toBeVisible()
 
     await orcaPage.evaluate(async (repoId) => {
-      await window.api.repos.remove({ repoId })
+      const repo = window.__store!.getState().repos.find((entry) => entry.id === repoId)
+      await window.api.repos.removeForHost({ repoId, hostId: repo?.executionHostId ?? 'local' })
     }, smoke.wslRepoId)
   })
 })

@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { runProcessSync } from '../../shared/child-process/run-process'
+import { runProcessSync } from '@orca/process-host'
 import { buildAppImageDaemonCommand, resolveAppImageDaemonLaunch } from './daemon-appimage-launch'
 
 const { resolveIdentity } = vi.hoisted(() => ({ resolveIdentity: vi.fn() }))

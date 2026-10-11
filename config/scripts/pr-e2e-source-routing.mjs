@@ -1,7 +1,10 @@
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'
+import { isUnitTestSupportSource } from './pr-code-change-scope.mjs'
 
-const isProductSource = (file) => !/\.test\.tsx?$/.test(file)
+const isProductSource = (file) => !/\.test\.tsx?$/.test(file) && !isUnitTestSupportSource(file)
+const isLayoutOracleSource = (file) =>
+  isProductSource(file) && !/\.spec\.ts$|-fixtures?\.ts$/.test(file)
 
 // Why config/patches: the xterm fork owns the helper textarea an input method attaches to, so a
 // patch edit can break composition without touching a file named "ime".
@@ -14,11 +17,198 @@ const NATIVE_IME_HARNESS =
 
 export const PR_E2E_SOURCE_ROUTES = [
   {
+    id: 'ssh.orcad-editor-ownership',
+    specs: ['tests/e2e/ssh-orcad-editor-ownership.spec.ts'],
+    matches: (file) =>
+      isProductSource(file) &&
+      /^src\/renderer\/src\/runtime\/(?:web-session-existing-tab-index|web-session-tabs-sync\/(?:mirrored-editor-file-identity|tab-builders|apply-preparation-browser|state-equality-files|terminal-surfaces))\.ts$/.test(
+        file
+      )
+  },
+  {
+    id: 'ssh.orcad-markdown-conversion',
+    specs: ['tests/e2e/ssh-orcad-markdown-conversion.spec.ts'],
+    matches: (file) =>
+      isProductSource(file) &&
+      /^src\/renderer\/src\/components\/editor\/(?:useMarkdownDocuments|restored-editor-workspace-runtime-owner|migrate-restored-editor-file-owner)\.ts$/.test(
+        file
+      )
+  },
+  {
+    id: 'ssh.orcad-markdown-link-refresh',
+    specs: ['tests/e2e/ssh-orcad-markdown-link-refresh.spec.ts'],
+    matches: (file) =>
+      isProductSource(file) &&
+      /^src\/renderer\/src\/components\/editor\/(?:rich-markdown-doc-link|useRichMarkdownProgrammaticSync)\.ts$/.test(
+        file
+      )
+  },
+  {
+    id: 'ssh.orcad-markdown-live-documents',
+    specs: ['tests/e2e/ssh-orcad-markdown-live-documents.spec.ts'],
+    matches: (file) =>
+      isProductSource(file) &&
+      /^src\/renderer\/src\/components\/editor\/(?:useMarkdownDocuments|use-markdown-document-watch-refresh|markdown-document-list-request)\.ts$/.test(
+        file
+      )
+  },
+  {
+    id: 'ssh.orcad-explorer-watch-recovery',
+    specs: ['tests/e2e/ssh-orcad-explorer-watch-recovery.spec.ts'],
+    matches: (file) =>
+      isProductSource(file) &&
+      (file === 'src/renderer/src/components/right-sidebar/useFileExplorerWatch.ts' ||
+        file === 'src/renderer/src/hooks/worktree-file-change-event.ts')
+  },
+  {
+    id: 'ssh.orcad-editor-watch-recovery',
+    specs: ['tests/e2e/ssh-orcad-editor-watch-recovery.spec.ts'],
+    matches: (file) =>
+      isProductSource(file) &&
+      /^src\/renderer\/src\/hooks\/(?:useEditorExternalWatch|editor-runtime-file-watch)\.ts$/.test(
+        file
+      )
+  },
+  {
+    id: 'ssh.orcad-explorer-selected-host',
+    specs: ['tests/e2e/ssh-orcad-explorer-selected-host.spec.ts'],
+    matches: (file) =>
+      isProductSource(file) &&
+      (file === 'src/renderer/src/components/right-sidebar/useFileExplorerWatch.ts' ||
+        file === 'src/renderer/src/components/right-sidebar/file-explorer-operation-owner.ts' ||
+        file === 'src/renderer/src/components/right-sidebar/FileExplorer.tsx' ||
+        file === 'src/renderer/src/hooks/editor-external-watch-targets.ts' ||
+        file === 'src/renderer/src/components/right-sidebar/useFileExplorerTree.ts' ||
+        file === 'src/renderer/src/components/right-sidebar/use-file-explorer-tree-load-effects.ts')
+  },
+  {
+    id: 'serve.orcad-mode-switch',
+    specs: ['tests/e2e/orcad-serve-mode-switch.spec.ts'],
+    matches: (file) =>
+      /^tests\/e2e\/helpers\/(?:orca-serve-cli-host|headless-paired-runtime-host)\.ts$/.test(
+        file
+      ) ||
+      (isProductSource(file) &&
+        /^src\/(?:cli\/runtime\/(?:launch|serve-)|main\/orcad\/(?:main|orcad-entry|orcad-instance-lock|orcad-command-arguments|orcad-lifecycle)\.ts$|main\/startup\/desktop-profile-instance-lock\.ts$|main\/daemon\/daemon-(?:spawner|endpoint-adoption|init)|main\/server\/serve-)/.test(
+          file
+        ))
+  },
+  {
+    id: 'startup.windows-missing-appdata',
+    specs: ['tests/e2e/windows-missing-appdata-startup.spec.ts'],
+    matches: (file) =>
+      file === 'tests/e2e/helpers/orca-serve-cli-host.ts' ||
+      (isProductSource(file) &&
+        /^src\/main\/startup\/(?:windows-app-data-path|main-process-preflight)\.ts$/.test(file))
+  },
+  {
+    id: 'ssh.orcad-auto-convert',
+    specs: ['tests/e2e/ssh-orcad-auto-convert.spec.ts'],
+    matches: (file) =>
+      /^tests\/e2e\/helpers\/(?:orcad-convert-(?:flow|host)|orcad-template-variant|orcad-upgrade-profile)\.ts$/.test(
+        file
+      ) ||
+      (isProductSource(file) &&
+        /^src\/main\/(?:ipc\/ssh-host-server-|ssh\/(?:ssh-host-server-|orcad-runtime-conversion|orcad-migration-|orcad-retained-source|orcad-runtime-deployment))/.test(
+          file
+        ))
+  },
+  {
+    id: 'ssh.orcad-browser-capabilities',
+    specs: ['tests/e2e/ssh-orcad-browser-capabilities.spec.ts'],
+    matches: (file) =>
+      isProductSource(file) &&
+      /^src\/main\/(?:runtime\/(?:runtime-browser-commands-factory|orca-runtime-get-status)|host\/electron-browser-commands|orcad\/orcad-browser-)/.test(
+        file
+      )
+  },
+  {
+    id: 'browser.orcad-service-status',
+    specs: ['tests/e2e/ssh-orcad-browser-service-status.spec.ts'],
+    matches: (file) =>
+      isProductSource(file) &&
+      /^src\/renderer\/src\/components\/browser-pane\/stream-remote\/remote-browser-stream-(?:errors|status|lifecycle|restart-attempt)\.ts$/.test(
+        file
+      )
+  },
+  {
+    id: 'ssh.orcad-browser-routing',
+    specs: ['tests/e2e/ssh-orcad-browser-routing.spec.ts'],
+    matches: (file) =>
+      isProductSource(file) &&
+      /^src\/(?:main\/browser\/local-ssh-browser|main\/ipc\/browser\.ts$|renderer\/src\/(?:lib\/(?:ssh-workspace-browser-route-eligibility|worktree-host-connection-phase)|components\/browser-pane\/use-ssh-workspace-browser-route|store\/repos\/converted-ssh-browser-pages|store\/slices\/browser\/browser-tab-actions|hooks\/ipc-events\/ssh-managed-server-state-effects))/.test(
+        file
+      )
+  },
+  {
+    id: 'ssh.orcad-browser-drop-owner',
+    specs: ['tests/e2e/ssh-orcad-browser-drop-owner.spec.ts'],
+    matches: (file) =>
+      /^tests\/e2e\/helpers\/(?:orcad-convert-(?:flow|host)|orcad-upgrade-profile|docker-ssh-relay-target|browser-split-(?:guest-probes|page-server))\.ts$/.test(
+        file
+      ) ||
+      (isProductSource(file) &&
+        /^src\/renderer\/src\/(?:lib\/(?:file-preview|workspace-file-drag|worktree-runtime-owner|connection-context)\.ts|components\/(?:right-sidebar\/FileExplorer(?:Row|VirtualRows)\.tsx|browser-pane\/(?:navigate\/use-browser-page-navigation-downloads\.ts|host-guest\/attach-browser-page-webview\.ts)))$/.test(
+          file
+        ))
+  },
+  {
+    id: 'ssh.orcad-open-in-owner',
+    specs: ['tests/e2e/ssh-orcad-open-in-owner.spec.ts'],
+    matches: (file) =>
+      /^tests\/e2e\/helpers\/(?:orcad-convert-(?:flow|host)|orcad-upgrade-profile|docker-ssh-relay-target)\.ts$/.test(
+        file
+      ) ||
+      (isProductSource(file) &&
+        /^src\/renderer\/src\/(?:lib\/(?:local-path-open-guard|external-editor-open-capability|worktree-runtime-owner)\.ts|components\/(?:sidebar\/(?:WorktreeOpenInMenu|WorktreeContextMenuView)\.tsx|right-sidebar\/(?:FileExplorer(?:Toolbar)?\.tsx|source-control\/listing\/entry-context-menu\.tsx)))$/.test(
+          file
+        ))
+  },
+  {
+    id: 'ssh.orcad-terminal-root-owner',
+    specs: ['tests/e2e/ssh-orcad-terminal-root-owner.spec.ts'],
+    matches: (file) =>
+      /^tests\/e2e\/helpers\/(?:terminal-workspace-root-link|orcad-convert-(?:flow|host)|orcad-upgrade-profile|docker-ssh-relay-target)\.ts$/.test(
+        file
+      ) ||
+      (isProductSource(file) &&
+        /^src\/renderer\/src\/(?:components\/terminal-pane\/terminal-(?:worktree-path-link|file-link-actions|file-link-hit-testing|file-open-routing|link-handlers)\.ts|lib\/(?:workspace-file-host-routing|worktree-owner-route|worktree-operation-route|worktree-operation-catalog-route)\.ts)$/.test(
+          file
+        ))
+  },
+  {
+    id: 'ssh.orcad-idle-exit',
+    specs: ['tests/e2e/ssh-orcad-idle-exit.spec.ts'],
+    matches: (file) =>
+      /^tests\/e2e\/helpers\/orcad-convert-(?:flow|host)\.ts$/.test(file) ||
+      (isProductSource(file) &&
+        /^src\/(?:main\/(?:orcad\/orcad-(?:idle-|managed-idle-)|ssh\/orcad-(?:managed-serving|managed-wake|managed-tunnel|recovery-slot|remote-launch|remote-runtime-control))|shared\/orcad-idle-exit)/.test(
+          file
+        ))
+  },
+  {
+    // Why: managed SSH hosts are now the only SSH path, so these specs carry its user journeys.
+    id: 'ssh.orcad-journeys',
+    specs: [
+      'tests/e2e/ssh-orcad-terminal-journeys.spec.ts',
+      'tests/e2e/ssh-orcad-workspace-tools.spec.ts',
+      'tests/e2e/ssh-orcad-vm-provisioned-root.spec.ts'
+    ],
+    matches: (file) =>
+      /^tests\/e2e\/helpers\/(?:orcad-managed-workspace|orcad-convert-(?:flow|host)|orcad-upgrade-profile|paired-host-terminal|terminal-workspace-root-link)\.ts$/.test(
+        file
+      ) ||
+      (isProductSource(file) &&
+        /^src\/(?:main\/ssh\/orcad-managed-|main\/ipc\/ssh-port-forward|renderer\/src\/startup\/(?:ssh-startup-reconnect|startup-ssh-connection-restore)\.ts$|renderer\/src\/runtime\/web-runtime-session|renderer\/src\/components\/terminal-pane\/remote-runtime-)/.test(
+          file
+        ))
+  },
+  {
     id: 'ssh.localhost-agent-hooks',
     specs: ['tests/e2e/ssh-localhost.spec.ts'],
     matches: (file) =>
       isProductSource(file) &&
-      /^src\/(?:relay\/(?:agent-hook|relay-agent-hook-runtime|plugin-overlay)|main\/(?:agent-hooks\/|ssh\/ssh-relay-session\.ts$)|shared\/agent-hook)/.test(
+      /^src\/(?:relay\/(?:agent-hook|relay-agent-hook-runtime|plugin-overlay)|wsl-guest\/(?:agent-hook|plugin-overlay)|main\/(?:agent-hooks\/|ssh\/ssh-relay-session\.ts$)|shared\/agent-hook)/.test(
         file
       )
   },
@@ -32,6 +222,17 @@ export const PR_E2E_SOURCE_ROUTES = [
         /^src\/main\/(?:browser\/(?:ssh-browser-network-execution-route|browser-network-deferred-socket|browser-network-execution-route|system-ssh-socks-client-socket)|ssh\/system-ssh-dynamic-forward-process)\.ts$/.test(
           file
         ))
+  },
+  {
+    // Why the host-connection phase: the route gate waits on it, so a phase change can strand the
+    // SSH-unavailable card without touching a browser file.
+    id: 'browser.local-ssh-workspace-route',
+    specs: ['tests/e2e/local-ssh-browser-routing.spec.ts'],
+    matches: (file) =>
+      isProductSource(file) &&
+      /^src\/(?:main\/browser\/local-ssh-browser-(?:route|partitions)\.ts|renderer\/src\/(?:components\/browser-pane\/(?:use-ssh-workspace-browser-route\.ts|assemble-chrome\/ssh-routed-browser-page-gate\.tsx)|lib\/worktree-host-connection-phase\.ts))$/.test(
+        file
+      )
   },
   {
     id: 'terminal.windows-wsl-launch-and-paste',
@@ -74,7 +275,7 @@ export const PR_E2E_SOURCE_ROUTES = [
     // admission that decide whether a pane rebinds live in the renderer store.
     matches: (file) =>
       isProductSource(file) &&
-      /^(?:src\/main\/ssh\/|src\/main\/providers\/ssh-|src\/main\/ipc\/(?:ssh-|pty)|src\/main\/runtime\/(?:public-ssh-state|ssh-file-explorer-chunk-read)\.ts|src\/relay\/|src\/shared\/(?:ssh-|skill-ssh-relay-contract)|src\/renderer\/src\/startup\/(?:ssh-startup-reconnect|startup-ssh-connection-restore)\.ts|src\/renderer\/src\/store\/slices\/(?:ssh|direct-ssh-)|src\/renderer\/src\/components\/terminal-pane\/(?:pty-|ssh-|remote-runtime-|terminal-parked-pty))/.test(
+      /^(?:src\/main\/ssh\/|src\/main\/providers\/ssh-|src\/main\/ipc\/(?:ssh-|pty)|src\/main\/runtime\/(?:public-ssh-state|ssh-file-explorer-chunk-read)\.ts|src\/relay\/|src\/wsl-guest\/|src\/shared\/(?:ssh-|skill-ssh-relay-contract)|src\/renderer\/src\/startup\/(?:ssh-startup-reconnect|startup-ssh-connection-restore)\.ts|src\/renderer\/src\/store\/slices\/(?:ssh|direct-ssh-)|src\/renderer\/src\/components\/terminal-pane\/(?:pty-|ssh-|remote-runtime-|terminal-parked-pty))/.test(
         file
       )
   },
@@ -248,6 +449,32 @@ export const PR_E2E_SOURCE_ROUTES = [
       /^src\/.*(?:[Cc]lient-?[Hh]osted|browser-host-(?:lease|page|client-page)|browser-client-(?:host|page)|runtime-browser-(?:client-)?page|session-tabs-sync|host-session-snapshot-authority|orca-runtime(?:-browser)?\.ts|\/runtime-(?:status|types)\.ts)/.test(
         file
       )
+  },
+  {
+    // Why: the oracle is the only check that reads every view of the stored layout back. Runtime
+    // matches only the modules that create, move, close, persist or publish layout, not every
+    // session or terminal file, so the orcad build and Docker SSH lane stay off unrelated work.
+    id: 'workspace-layout.oracle',
+    specs: [
+      'tests/e2e/workspace-layout-oracle-headless.spec.ts',
+      'tests/e2e/workspace-layout-oracle-ssh.spec.ts',
+      'tests/e2e/workspace-layout-oracle.spec.ts'
+    ],
+    matches: (file) =>
+      isLayoutOracleSource(file) &&
+      /^(?:src\/shared\/workspace-layout\/|src\/main\/persistence\/(?:terminal-topology\/|restoring-sessions\/|loading-store\/pty-binding-)|src\/(?:main|renderer\/src)\/runtime\/(?:[^/]+\/)*[^/]*(?:pane-admission|workspace-layout|session-tab|headless-[^/]*tab|layout-client|create-terminal|split-pty-backed-terminal|terminal-split-layout|spawn-placement)[^/]*\.ts$|tests\/e2e\/(?:helpers\/)?(?:workspace-layout-oracle|headless-layout-oracle|terminal-layout-journeys))/.test(
+        file
+      )
+  },
+  {
+    // The window's tab store reaches SSH through the same layout writers, so not the SSH lane.
+    id: 'workspace-layout.oracle-tab-store',
+    specs: [
+      'tests/e2e/workspace-layout-oracle-headless.spec.ts',
+      'tests/e2e/workspace-layout-oracle.spec.ts'
+    ],
+    matches: (file) =>
+      isLayoutOracleSource(file) && file.startsWith('src/renderer/src/store/slices/tabs')
   }
 ]
 
