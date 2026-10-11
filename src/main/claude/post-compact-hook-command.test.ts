@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process'
+import { runProcess } from '@orca/process-host'
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -29,6 +29,7 @@ describe('PostCompact managed hook command', () => {
     const { command } = getManagedEventHook('PostCompact', SCRIPT_PATH)
 
     expect(command.length).toBeLessThan(MAX_ECHOED_COMMAND_LENGTH)
+    expect(command).toContain('if [ -n "${HOME-}" ] && ')
     expect(command).toContain('/bin/sh "${HOME-}/.orca/agent-hooks/claude-hook.sh"')
     expect(command).toContain('ORCA_HOOK_AGENT_PID="${PPID:-}"')
     expect(command).not.toMatch(/powershell|OSTYPE|\/home\/test/i)
@@ -73,35 +74,58 @@ describe.skipIf(process.platform === 'win32')('PostCompact command execution', (
 
   afterEach(() => rmSync(home, { recursive: true, force: true }))
 
-  function run(command: string, env: Record<string, string>) {
-    return spawnSync('/bin/sh', ['-c', command], {
+  function run(command: string, env: NodeJS.ProcessEnv) {
+    return runProcess({
+      program: '/bin/sh',
+      args: ['-c', command],
       env: { PATH: '/usr/bin:/bin', ...env },
-      input: Buffer.alloc(1_000_000, 'x')
+      input: 'x'.repeat(1_000_000),
+      timeoutMs: 5_000
     })
   }
 
-  it('runs the HOME script with the agent pid captured', () => {
+  it('runs the HOME script with the agent pid captured', async () => {
     const dir = join(home, '.orca', 'agent-hooks')
     mkdirSync(dir, { recursive: true })
     const script = join(dir, 'claude-hook.sh')
     writeFileSync(script, '#!/bin/sh\ncat >/dev/null\nprintf "%s" "$ORCA_HOOK_AGENT_PID"\nexit 7\n')
     chmodSync(script, 0o755)
 
-    const result = run(getManagedEventHook('PostCompact', SCRIPT_PATH).command, { HOME: home })
+    const result = await run(getManagedEventHook('PostCompact', SCRIPT_PATH).command, {
+      HOME: home
+    })
 
-    expect(result.status, result.stderr.toString()).toBe(7)
-    expect(result.stdout.toString()).toMatch(/^\d+$/)
+    expect(result.code, result.stderr).toBe(7)
+    expect(result.stdout).toBe(String(process.pid))
   })
 
   it.each([
     ['the script is missing', (dir: string) => ({ HOME: dir })],
+    ['HOME is empty', () => ({ HOME: '' })],
     ['HOME is unset', () => ({})]
-  ])('drains stdin silently when %s', (_label, env) => {
-    const result = run(getManagedEventHook('PostCompact', SCRIPT_PATH).command, env(home))
+  ])('drains stdin silently when %s', async (_label, env) => {
+    const result = await run(getManagedEventHook('PostCompact', SCRIPT_PATH).command, env(home))
 
-    expect(result.error).toBeUndefined()
-    expect(result.status).toBe(0)
-    expect(result.stdout.toString()).toBe('')
+    expect(result.code).toBe(0)
+    expect(result.stdout).toBe('')
+    expect(result.stderr).toBe('')
+  })
+
+  it.each([{}, { HOME: '' }])('skips script lookup without a runtime HOME: %j', async (env) => {
+    const lookupProbe = [
+      'probe_test() {',
+      '  case "$1" in -f|-r|-x) printf "unexpected script lookup: %s\\n" "$2" >&2; return 1 ;;',
+      '    *) command [ "$@" ;; esac',
+      '}',
+      'alias [=probe_test',
+      getManagedEventHook('PostCompact', SCRIPT_PATH).command
+    ].join('\n')
+
+    const result = await run(lookupProbe, env)
+
+    expect(result.code).toBe(0)
+    expect(result.stdout).toBe('')
+    expect(result.stderr).toBe('')
   })
 })
 

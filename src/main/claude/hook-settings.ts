@@ -104,15 +104,12 @@ export function getManagedEventHook(
   scriptPath: string,
   settings = CLAUDE_HOOK_SETTINGS
 ): HookCommandConfig {
-  // Why: on a POSIX host the lifecycle hook is the remote command already; Windows keeps its launcher.
   return process.platform === 'win32'
     ? getManagedLifecycleHook(scriptPath, settings)
     : buildManagedCommandHook(getRemoteManagedEventCommand(eventName, scriptPath))
 }
 
-// Why: Claude echoes every PostCompact hook's full command into the post-compact transcript, which
-// the model then reads, so that event gets the short POSIX branch, not the ~3KB wrapper. It gives up
-// the wrapper's cross-OS portability and neutral-JSON fallback, which PostCompact does not need.
+// Claude adds the full PostCompact command to the model's context after compaction.
 export function getRemoteManagedEventCommand(eventName: string, scriptPath: string): string {
   return eventName === 'PostCompact'
     ? wrapRuntimeHomePosixHookCommand(getScriptBaseName(scriptPath))
