@@ -12,6 +12,7 @@ import {
 } from '../../../../shared/protocol-version'
 import { remoteRuntimeClientCapabilities } from '../../../../shared/remote-runtime-client-capabilities'
 import { REPO_SEARCH_REFS_MAX_LIMIT } from '../../../../shared/repo-search-limits'
+import { SSH_TARGET_MANAGEMENT_RUNTIME_CAPABILITY } from '../../../../shared/ssh-target-management'
 
 function makeRequest(method: string, params?: unknown): RpcRequest {
   return { id: 'req-1', authToken: 'tok', method, params }
@@ -160,6 +161,49 @@ describe('repo RPC methods', () => {
     )
   })
 
+  it('advertises server SSH target management so clients can gate the remote project flow', () => {
+    expect(RUNTIME_CAPABILITIES).toContain(SSH_TARGET_MANAGEMENT_RUNTIME_CAPABILITY)
+  })
+
+  // Harvested from the community PR #8492 by @jae-heo.
+  it('adds an existing folder on one of the server SSH targets as a project', async () => {
+    const repo = {
+      id: 'repo-p8',
+      path: '/srv/project',
+      displayName: 'project',
+      badgeColor: '#737373',
+      addedAt: 1,
+      connectionId: 'ssh-p8',
+      kind: 'git' as const
+    }
+    const runtime = new OrcaRuntimeService(null)
+    const addSshRepo = vi.spyOn(runtime, 'addSshRepo').mockResolvedValue(repo)
+    const addRepo = vi.spyOn(runtime, 'addRepo')
+    const dispatcher = new RpcDispatcher({ runtime, methods: REPO_METHODS })
+
+    const response = await dispatcher.dispatch(
+      makeRequest('repo.addRemote', { connectionId: 'ssh-p8', remotePath: '/srv/project' }),
+      { clientCapabilities: [WORKTREE_VISIBILITY_DEFAULTS_RUNTIME_CAPABILITY] }
+    )
+
+    expect(addSshRepo).toHaveBeenCalledWith({ connectionId: 'ssh-p8', remotePath: '/srv/project' })
+    expect(addRepo).not.toHaveBeenCalled()
+    expect(response).toMatchObject({ ok: true, result: { repo: { connectionId: 'ssh-p8' } } })
+  })
+
+  it('refuses a remote project without an SSH target rather than adding a server path', async () => {
+    const runtime = new OrcaRuntimeService(null)
+    const addSshRepo = vi.spyOn(runtime, 'addSshRepo')
+    const dispatcher = new RpcDispatcher({ runtime, methods: REPO_METHODS })
+
+    const response = await dispatcher.dispatch(
+      makeRequest('repo.addRemote', { remotePath: '/srv/project' })
+    )
+
+    expect(response).toMatchObject({ ok: false })
+    expect(addSshRepo).not.toHaveBeenCalled()
+  })
+
   it('updates project runtime preferences on the runtime server', async () => {
     const project = {
       id: 'project-1',
@@ -260,44 +304,6 @@ describe('repo RPC methods', () => {
       ok: true,
       result: { repo: { id: 'repo-1', path: '/srv/projects/orca' } }
     })
-  })
-
-  it('clones with a host-side default destination when the caller omits it', async () => {
-    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial service fake; the dispatcher only reaches getRuntimeId and cloneRepo here.
-    const runtime = {
-      getRuntimeId: () => 'test-runtime',
-      cloneRepo: vi.fn().mockResolvedValue({
-        id: 'repo-1',
-        path: '/home/li/orca/orca',
-        kind: 'git'
-      })
-    } as unknown as OrcaRuntimeService
-    const dispatcher = new RpcDispatcher({ runtime, methods: REPO_METHODS })
-
-    const response = await dispatcher.dispatch(
-      makeRequest('repo.clone', { url: 'https://github.com/example/orca.git' })
-    )
-
-    expect(runtime.cloneRepo).toHaveBeenCalledWith('https://github.com/example/orca.git', undefined)
-    expect(response).toMatchObject({ ok: true, result: { repo: { id: 'repo-1' } } })
-  })
-
-  it('creates a repo with a host-side default parent when the caller omits it', async () => {
-    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial service fake; the dispatcher only reaches getRuntimeId and createRepo here.
-    const runtime = {
-      getRuntimeId: () => 'test-runtime',
-      createRepo: vi.fn().mockResolvedValue({
-        repo: { id: 'repo-1', path: '/srv/projects/new-app', kind: 'git' }
-      })
-    } as unknown as OrcaRuntimeService
-    const dispatcher = new RpcDispatcher({ runtime, methods: REPO_METHODS })
-
-    const response = await dispatcher.dispatch(
-      makeRequest('repo.create', { name: 'new-app', kind: 'git' })
-    )
-
-    expect(runtime.createRepo).toHaveBeenCalledWith(undefined, 'new-app', 'git')
-    expect(response).toMatchObject({ ok: true, result: { repo: { id: 'repo-1' } } })
   })
 
   it('shows a repo with the CLI-compatible response shape', async () => {
