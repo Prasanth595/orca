@@ -148,6 +148,7 @@ describe('shell showing through a hibernation kill', () => {
   async function connectHibernatingPane(suppressExit: boolean): Promise<{
     finishCommand: () => void
     exitPty: () => void
+    rebindPty: (id: string) => void
     paneKey: string
   }> {
     vi.useFakeTimers()
@@ -201,6 +202,7 @@ describe('shell showing through a hibernation kill', () => {
     return {
       paneKey,
       finishCommand: () => dataCallbackRef.current?.('\x1b]133;D;0\x07'),
+      rebindPty: (id: string) => transport.getPtyId.mockReturnValue(id),
       exitPty: () => {
         const onPtyExit = createdTransportOptions[0]?.onPtyExit
         if (typeof onPtyExit === 'function') {
@@ -243,6 +245,20 @@ describe('shell showing through a hibernation kill', () => {
     expect(mockStoreState.sleepingAgentSessionsByPaneKey[pane.paneKey]).toMatchObject({
       providerSession: { id: 'sess-hibernating' }
     })
+  })
+
+  it('clears the record once another PTY is bound in place of the hibernated one', async () => {
+    const pane = await connectHibernatingPane(true)
+
+    pane.exitPty()
+    await flushAsyncTicks()
+    expect(mockStoreState.clearSleepingAgentSession).not.toHaveBeenCalled()
+    // A restart binds a new PTY without consuming the armed wake.
+    pane.rebindPty('pty-restarted')
+    pane.finishCommand()
+    await vi.advanceTimersByTimeAsync(350)
+
+    expect(mockStoreState.clearSleepingAgentSession).toHaveBeenCalledExactlyOnceWith(pane.paneKey)
   })
 
   it('still clears a record beside a PTY that is not being hibernated', async () => {

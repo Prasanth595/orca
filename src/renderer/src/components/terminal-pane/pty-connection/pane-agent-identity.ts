@@ -203,14 +203,17 @@ export function installPaneAgentIdentity(session: ConnectPanePtySession): void {
       const state = useAppStore.getState()
       const sleepingRecord = session.getSleepingRecordForPane(state)
       const ptyId = session.transport.getPtyId()
+      const wakeTarget = session.hibernatedWakeTarget
       // Why: a hibernation kill ends the agent before the PTY, so the shell shows through for a
       // moment. That record was just written as the wake hint; clearing it strands the pane.
       // A read can also settle after the exit armed the wake, when the suppression is already spent.
+      // A different PTY bound since then is another spawn's shell, which does prove the record stale.
       const isHibernationWakeRecord =
         sleepingRecord !== null &&
         noteArmsHibernatedPaneWake(sleepingRecord.record) &&
         ((ptyId !== null && state.suppressedPtyExitIds[ptyId] === true) ||
-          session.hibernatedWakeTarget?.record === sleepingRecord.record)
+          (wakeTarget?.record === sleepingRecord.record &&
+            (ptyId === null || wakeTarget.ptyId === ptyId)))
       if (sleepingRecord && !isHibernationWakeRecord) {
         session.clearSleepingRecordProviderDuplicates(state, sleepingRecord)
       }
