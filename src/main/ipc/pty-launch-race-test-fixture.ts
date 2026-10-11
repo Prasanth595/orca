@@ -1,14 +1,13 @@
 import { vi, type Mock } from 'vitest'
 import { makePaneKey } from '../../shared/stable-pane-id'
 import { WORKTREE_TERMINALS_SLEEPING_ERROR } from '../runtime/worktree-terminals-sleeping-error'
-import { registerPtyHandlers, setLocalPtyProvider } from './pty'
+import { registerPtyHandlers } from './pty'
 
 type IpcHandlerMap = Map<string, (_event: unknown, args: unknown) => unknown>
 type LaunchRaceSpawnReply = {
   id: string
   incarnationId?: string
   isReattach?: boolean
-  stablePaneOwner?: { handle: string; tabId: string; leafId: string }
 }
 type LaunchRaceController = {
   spawn(args: Record<string, unknown>): Promise<LaunchRaceSpawnReply>
@@ -18,12 +17,6 @@ type LaunchRaceController = {
     tabId: string
     leafId: string
   }): () => void
-  adoptStablePane(args: Record<string, unknown>): Promise<unknown>
-}
-type ProviderSpawn = (options: Record<string, unknown>) => Promise<Record<string, unknown>>
-export type LaunchRaceProvider = {
-  spawn: Mock<ProviderSpawn>
-  shutdown: Mock<(...args: unknown[]) => Promise<void>>
 }
 type LaunchRaceRuntimeBase = Record<
   | 'setPtyController'
@@ -77,35 +70,6 @@ export function launchRacePane(tag: string, leafId: string) {
       env: { ORCA_PANE_KEY: paneKey, ORCA_TAB_ID: tabId, ORCA_WORKTREE_ID: worktreeId }
     }
   }
-}
-
-/** A non-local provider, so both lanes treat the spawn as daemon-hosted. */
-export function installLaunchRaceProvider(spawn: ProviderSpawn): LaunchRaceProvider {
-  const provider = {
-    spawn: vi.fn(spawn),
-    write: vi.fn(),
-    resize: vi.fn(),
-    kill: vi.fn(),
-    shutdown: vi.fn(async (..._args: unknown[]) => {}),
-    sendSignal: vi.fn(),
-    getCwd: vi.fn(),
-    getInitialCwd: vi.fn(),
-    clearBuffer: vi.fn(),
-    acknowledgeDataEvent: vi.fn(),
-    hasChildProcesses: vi.fn(),
-    getForegroundProcess: vi.fn(),
-    serialize: vi.fn(),
-    revive: vi.fn(),
-    onData: vi.fn(() => () => {}),
-    onReplay: vi.fn(() => () => {}),
-    onExit: vi.fn(() => () => {}),
-    listProcesses: vi.fn(async () => []),
-    attach: vi.fn(),
-    getDefaultShell: vi.fn(),
-    getProfiles: vi.fn()
-  }
-  setLocalPtyProvider(testDouble(provider))
-  return provider
 }
 
 export function createLaunchRaceRuntime<T extends object = Record<never, never>>(
