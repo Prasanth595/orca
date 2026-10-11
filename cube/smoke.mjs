@@ -35,7 +35,13 @@ async function cli(args) {
   return data.result
 }
 async function start(port = 0) {
-  app = await launchOrca({ root, port, state: env.ORCA_USER_DATA, env })
+  app = await launchOrca({
+    root,
+    entry: join(root, 'cube/electron.mjs'),
+    port,
+    state: env.ORCA_USER_DATA,
+    env
+  })
   const response = await fetch(`http://127.0.0.1:${app.port}/`, { redirect: 'manual' })
   assert.equal(response.status, 302)
   pairing = response.headers.get('location').split('#pairing=')[1]
