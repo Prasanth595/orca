@@ -123,8 +123,14 @@ export async function executeWorkflow(
       continue
     }
 
+    // Each node reports its own completion immediately when it resolves so the UI
+    // reflects real per-node timing instead of waiting for the slowest in the batch.
+    type BatchItem =
+      | { node: WorkflowNode; ok: true }
+      | { node: WorkflowNode; ok: false; errorMsg: string }
+
     const batchResults = await Promise.all(
-      executable.map(async (node) => {
+      executable.map(async (node): Promise<BatchItem> => {
         patchNodeRun(ops, runId, node.id, { status: 'running', startedAt: Date.now() })
         callbacks.onNodeStart?.(runId, node.id)
         const startMs = Date.now()
@@ -138,80 +144,71 @@ export async function executeWorkflow(
             signal,
             remoteExec
           )
-          return { node, ok: true as const, result, startMs }
-        } catch (err) {
-          return {
-            node,
-            ok: false as const,
-            error: err instanceof Error ? err.message : String(err),
-            startMs
+          const durationMs = Date.now() - startMs
+
+          // JS is single-threaded: these mutations are safe even with concurrent awaits
+          let json: unknown = null
+          try {
+            json = JSON.parse(result.stdout)
+          } catch {}
+          steps[node.id] = { output: result.stdout, json: json ?? result.outputValue }
+          completedNodeIds.add(node.id)
+
+          if (result.activeLabel) {
+            activeEdgeLabels.set(node.id, new Set([result.activeLabel]))
           }
+          if (result.handledNodeIds) {
+            for (const bodyId of result.handledNodeIds) {
+              completedNodeIds.add(bodyId)
+              const idx = pending.findIndex((n) => n.id === bodyId)
+              if (idx !== -1) {
+                pending.splice(idx, 1)
+              }
+            }
+          }
+
+          // Fire completion event now, not after the whole batch settles
+          const runData = patchNodeRun(ops, runId, node.id, {
+            status: 'completed',
+            completedAt: Date.now(),
+            stdout: result.stdout,
+            stderr: result.stderr,
+            outputValue: result.outputValue,
+            durationMs,
+            error: null
+          })
+          if (runData) {
+            const nr = runData.nodeRuns.find((n) => n.nodeId === node.id)
+            if (nr) {
+              callbacks.onNodeComplete?.(runId, node.id, nr)
+            }
+          }
+
+          return { node, ok: true }
+        } catch (err) {
+          const durationMs = Date.now() - startMs
+          const errorMsg = err instanceof Error ? err.message : String(err)
+          patchNodeRun(ops, runId, node.id, {
+            status: 'failed',
+            completedAt: Date.now(),
+            error: errorMsg,
+            durationMs
+          })
+          return { node, ok: false, errorMsg }
         }
       })
     )
 
-    let failed = false
-    for (const item of batchResults) {
-      const durationMs = Date.now() - item.startMs
-      if (!item.ok) {
-        patchNodeRun(ops, runId, item.node.id, {
-          status: 'failed',
-          completedAt: Date.now(),
-          error: item.error,
-          durationMs
-        })
-        finalizeWorkflowRun(
-          ops,
-          runId,
-          'failed',
-          `Node ${item.node.type} ${item.node.id.slice(0, 8)} failed: ${item.error}`
-        )
-        callbacks.onRunComplete?.(runId)
-        failed = true
-        break
-      }
-
-      const r = item.result
-      let json: unknown = null
-      try {
-        json = JSON.parse(r.stdout)
-      } catch {}
-      steps[item.node.id] = { output: r.stdout, json: json ?? r.outputValue }
-
-      const runData = patchNodeRun(ops, runId, item.node.id, {
-        status: 'completed',
-        completedAt: Date.now(),
-        stdout: r.stdout,
-        stderr: r.stderr,
-        outputValue: r.outputValue,
-        durationMs,
-        error: null
-      })
-      if (runData) {
-        const nr = runData.nodeRuns.find((n) => n.nodeId === item.node.id)
-        if (nr) {
-          callbacks.onNodeComplete?.(runId, item.node.id, nr)
-        }
-      }
-
-      completedNodeIds.add(item.node.id)
-
-      if (r.activeLabel) {
-        activeEdgeLabels.set(item.node.id, new Set([r.activeLabel]))
-      }
-
-      if (r.handledNodeIds) {
-        for (const bodyId of r.handledNodeIds) {
-          completedNodeIds.add(bodyId)
-          const idx = pending.findIndex((n) => n.id === bodyId)
-          if (idx !== -1) {
-            pending.splice(idx, 1)
-          }
-        }
-      }
-    }
-
-    if (failed) {
+    // Finalize on the first failure after all batch nodes have settled
+    const firstFailure = batchResults.find((r) => !r.ok)
+    if (firstFailure && !firstFailure.ok) {
+      finalizeWorkflowRun(
+        ops,
+        runId,
+        'failed',
+        `Node ${firstFailure.node.type} ${firstFailure.node.id.slice(0, 8)} failed: ${firstFailure.errorMsg}`
+      )
+      callbacks.onRunComplete?.(runId)
       return
     }
   }

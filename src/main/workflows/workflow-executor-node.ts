@@ -197,12 +197,11 @@ export async function executeNode(
         const parsed: unknown = JSON.parse(rawItems)
         items = Array.isArray(parsed) ? parsed : [parsed]
       } catch {
-        // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Array.isArray guard confirms this is unknown[]; cast makes the type explicit
-        items = Array.isArray(primaryJson)
-          ? (primaryJson as unknown[])
-          : primaryJson
-            ? [primaryJson]
-            : []
+        if (Array.isArray(primaryJson)) {
+          items = primaryJson
+        } else if (primaryJson) {
+          items = [primaryJson]
+        }
       }
       items = items.slice(0, node.data.maxIterations)
 

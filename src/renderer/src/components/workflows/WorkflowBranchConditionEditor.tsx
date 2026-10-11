@@ -36,11 +36,11 @@ export default function WorkflowBranchConditionEditor({
 
   function addCondition(): void {
     const key = `new_${++_condKeySeq}`
-    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: 'exitCode0' is a valid BranchConditionOperator literal; the cast satisfies the narrowed union type for new rows
-    const newCond = {
+    const op: BranchConditionOperator = 'exitCode0'
+    const newCond: KeyedCondition = {
       label: `path${keyedConditions.length + 1}`,
       field: 'exitCode',
-      operator: 'exitCode0' as BranchConditionOperator,
+      operator: op,
       value: '',
       _k: key
     }
