@@ -11,20 +11,28 @@ import { translate } from '@/i18n/i18n'
 import type { TuiAgent } from '../../../../shared/tui-agent'
 import type { WorkflowModel } from '../../../../preload/api/workflow-bridge'
 
-const KNOWN_WORKFLOW_AGENTS: { value: TuiAgent; label: string }[] = [
-  { value: 'claude', label: translate('workflows.nodeEditor.agentClaude', 'Claude (claude -p)') },
-  {
-    value: 'cursor',
-    label: translate('workflows.nodeEditor.agentCursor', 'Cursor (cursor-agent -p)')
-  },
-  { value: 'codex', label: translate('workflows.nodeEditor.agentCodex', 'Codex (codex --quiet)') },
-  { value: 'gemini', label: translate('workflows.nodeEditor.agentGemini', 'Gemini (gemini -p)') },
-  { value: 'amp', label: translate('workflows.nodeEditor.agentAmp', 'Amp (amp -p)') },
-  {
-    value: 'opencode',
-    label: translate('workflows.nodeEditor.agentOpenCode', 'OpenCode (opencode -p)')
-  }
-]
+function getKnownWorkflowAgents(): { value: TuiAgent; label: string }[] {
+  return [
+    { value: 'claude', label: translate('workflows.nodeEditor.agentClaude', 'Claude (claude -p)') },
+    {
+      value: 'cursor',
+      label: translate('workflows.nodeEditor.agentCursor', 'Cursor (cursor-agent -p)')
+    },
+    {
+      value: 'codex',
+      label: translate('workflows.nodeEditor.agentCodex', 'Codex (codex --quiet)')
+    },
+    {
+      value: 'gemini',
+      label: translate('workflows.nodeEditor.agentGemini', 'Gemini (gemini -p)')
+    },
+    { value: 'amp', label: translate('workflows.nodeEditor.agentAmp', 'Amp (amp -p)') },
+    {
+      value: 'opencode',
+      label: translate('workflows.nodeEditor.agentOpenCode', 'OpenCode (opencode -p)')
+    }
+  ]
+}
 
 type AgentDetect = { state: 'loading' } | { state: 'done'; agents: TuiAgent[] }
 type ModelFetch =
@@ -131,13 +139,13 @@ export default function WorkflowAgentNodeFields({
                   )}
                 </div>
               )}
-              {KNOWN_WORKFLOW_AGENTS.filter((a) => agentDetect.agents.includes(a.value)).map(
-                (a) => (
+              {getKnownWorkflowAgents()
+                .filter((a) => agentDetect.agents.includes(a.value))
+                .map((a) => (
                   <SelectItem key={a.value} value={a.value}>
                     {a.label}
                   </SelectItem>
-                )
-              )}
+                ))}
               <SelectItem value="custom">
                 {translate('workflows.nodeEditor.agentCustom', 'Custom executable…')}
               </SelectItem>
