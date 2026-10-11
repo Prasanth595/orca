@@ -330,6 +330,21 @@ describe('electron-builder config', () => {
     )
   })
 
+  it('leaves the helpers afterPack signs with their own entitlements to that signature', () => {
+    const app = '/dist/mac-arm64/Orca.app'
+    const skipped = (path) =>
+      electronBuilderConfig.mac.signIgnore.some((pattern) => new RegExp(pattern).test(app + path))
+    expect(skipped('/Contents/Resources/Orca Computer Use.app')).toBe(true)
+    expect(
+      skipped('/Contents/Resources/Orca Computer Use.app/Contents/MacOS/orca-computer-use-macos')
+    ).toBe(true)
+    expect(skipped('/Contents/MacOS/orca-notification-status')).toBe(true)
+    expect(skipped('/Contents/MacOS/orca-keyboard-layout')).toBe(true)
+    // Electron's own processes keep electron-builder's signature and entitlements.
+    expect(skipped('/Contents/MacOS/Orca')).toBe(false)
+    expect(skipped('/Contents/Frameworks/Orca Helper (Renderer).app')).toBe(false)
+  })
+
   it('unpacks the compiled CommonJS boundary with CLI runtime files', () => {
     expect(electronBuilderConfig.asarUnpack).toEqual(
       expect.arrayContaining([

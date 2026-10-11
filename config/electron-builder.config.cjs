@@ -56,6 +56,14 @@ const isWinDaily = process.env.ORCA_WIN_DAILY === '1'
 const isWinAdhoc = process.env.ORCA_WIN_ADHOC === '1'
 const isWinDevChannel = isWinHourly || isWinDaily || isWinAdhoc
 const isMacRelease = process.env.ORCA_MAC_RELEASE === '1' || isMacHourly || isMacDaily || isMacAdhoc
+// Why: afterPack signs these helpers with their own entitlements (the computer-use file, or none)
+// before the app is sealed. Without the skip, osx-sign signs them again with entitlementsInherit,
+// Electron's JIT, camera, microphone and location set, and their own entitlements are lost.
+const macAfterPackSignedHelperSignIgnore = [
+  '/Contents/Resources/Orca Computer Use\\.app(/|$)',
+  '/Contents/MacOS/orca-notification-status$',
+  '/Contents/MacOS/orca-keyboard-layout$'
+]
 const isLinuxArm64Release = process.env.ORCA_LINUX_ARM64_RELEASE === '1'
 const localBuildVersion =
   isMacRelease || isWinDevChannel ? undefined : process.env.ORCA_LOCAL_BUILD_VERSION
@@ -547,7 +555,11 @@ module.exports = {
     icon: 'resources/build/icon.icns',
     entitlements: 'resources/build/entitlements.mac.plist',
     entitlementsInherit: 'resources/build/entitlements.mac.plist',
-    signIgnore: [...bundledRipgrepMacSignIgnore, ...orcadTemplateMacSignIgnore],
+    signIgnore: [
+      ...bundledRipgrepMacSignIgnore,
+      ...orcadTemplateMacSignIgnore,
+      ...macAfterPackSignedHelperSignIgnore
+    ],
     extendInfo: {
       NSAppleEventsUsageDescription:
         'Orca allows terminal-launched developer tools to automate local apps when you request it.',
