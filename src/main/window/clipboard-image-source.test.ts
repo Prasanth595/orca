@@ -29,6 +29,7 @@ describe('readClipboardImageSource', () => {
         kind: 'native',
         windowsFileFormats: null
       })
+      expect(clipboard.has).not.toHaveBeenCalled()
     }
   )
 
@@ -89,6 +90,7 @@ describe('readClipboardImageSource', () => {
         kind: 'native',
         windowsFileFormats: null
       })
+      expect(clipboard.readBuffer).not.toHaveBeenCalled()
     }
   )
 
