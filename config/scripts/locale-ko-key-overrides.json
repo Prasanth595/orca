@@ -1938,7 +1938,7 @@
     "ko": "검사 실패"
   },
   "auto.components.right.sidebar.gitlab.mr.merge.state.bf628700f6": {
-    "ko": "검사를 통과해야 합니다"
+    "ko": "파이프라인이 성공해야 합니다"
   },
   "auto.components.right.sidebar.index.8bc2bbc3a0": {
     "ko": "탐색기"
