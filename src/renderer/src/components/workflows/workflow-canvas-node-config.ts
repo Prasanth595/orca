@@ -138,11 +138,10 @@ export const ACTION_NODE_TYPES: WorkflowNodeType[] = [
   'file_read',
   'file_write',
   'json_transform',
-  'email_send',
-  'branch',
-  'for_each',
-  'collect'
+  'email_send'
 ]
+
+export const CONTROL_FLOW_NODE_TYPES: WorkflowNodeType[] = ['branch', 'for_each', 'collect']
 
 export function buildDefaultNode(
   id: string,
