@@ -13,6 +13,28 @@ function panelFrames(width: number, frames: number): string {
 }
 
 describe('onPtyData redraw cost', () => {
+  it('does not treat title-only OSC heartbeats as visible PTY activity', async () => {
+    const ptyId = 'pty-title-heartbeat'
+    const { runtime, leaf } = runtimeWithLeaf(ptyId)
+    const title = '\x1b]0;π - session\x07'
+    try {
+      runtime.onPtyData(ptyId, title, 1_000)
+      runtime.onPtyData(ptyId, title, 2_000)
+      runtime.onPtyData(ptyId, title, 3_000)
+      expect(runtime['ptysById'].get(ptyId)?.lastOutputAt).toBeNull()
+      expect(leaf.lastOutputAt).toBeNull()
+
+      runtime.onPtyData(ptyId, `${title}generating`, 3_500)
+      expect(runtime['ptysById'].get(ptyId)?.lastOutputAt).toBe(3_500)
+      expect(leaf.lastOutputAt).toBe(3_500)
+      runtime.onPtyData(ptyId, title, 4_000)
+      expect(runtime['ptysById'].get(ptyId)?.lastOutputAt).toBe(3_500)
+      expect(leaf.lastOutputAt).toBe(3_500)
+    } finally {
+      await runtime.onPtyExit(ptyId, 0)
+    }
+  })
+
   it('replays a full-history TUI redraw without splicing the tail once per line', async () => {
     const ptyId = 'pty-replay'
     const { runtime } = runtimeWithLeaf(ptyId)

@@ -90,9 +90,11 @@ export class OrcaRuntimeWithOnPtyData extends OrcaRuntimeWithPreparePtyExecution
     if (pty) {
       pty.connected = true
       pty.disconnectedAt = null
-      pty.lastOutputAt = at
       const normalized = normalizeTerminalChunk(data, pty.tailPendingAnsi)
       ptyNormalized = normalized
+      if (normalized.text.length > 0) {
+        pty.lastOutputAt = at
+      }
       pty.tailPendingAnsi = normalized.pendingAnsi
       observeTerminalCommandPaint(pty, data, normalized.text)
       const nextTail = appendNormalizedToTailBuffer(
@@ -122,7 +124,7 @@ export class OrcaRuntimeWithOnPtyData extends OrcaRuntimeWithPreparePtyExecution
     for (const leaf of this.getLeavesForPty(ptyId)) {
       this.recordPtyWorktree(ptyId, leaf.worktreeId, {
         connected: true,
-        lastOutputAt: pty?.lastOutputAt ?? at,
+        lastOutputAt: pty ? pty.lastOutputAt : at,
         preview: pty?.preview ?? leaf.preview,
         tabId: leaf.tabId,
         paneKey: this.makeRuntimePaneKey(leaf),
@@ -130,7 +132,6 @@ export class OrcaRuntimeWithOnPtyData extends OrcaRuntimeWithPreparePtyExecution
       })
       leaf.connected = true
       leaf.writable = this.graphStatus === 'ready'
-      leaf.lastOutputAt = at
       if (
         pty &&
         ptyTailBefore &&
@@ -158,6 +159,9 @@ export class OrcaRuntimeWithOnPtyData extends OrcaRuntimeWithPreparePtyExecution
         leaf.tailLinesTotal = pty.tailLinesTotal
         leaf.preview = pty.preview
         leaf.waitBlockedAt = pty.waitBlockedAt
+        if (ptyNormalized && ptyNormalized.text.length > 0) {
+          leaf.lastOutputAt = at
+        }
         // Why undefined on this branch: the PTY record's wait scan is throttled
         // (scheduleWaitBlockedCheck), so pty.tailWaitState is never populated;
         // copying it here intentionally invalidates the leaf cache and the
@@ -169,6 +173,9 @@ export class OrcaRuntimeWithOnPtyData extends OrcaRuntimeWithPreparePtyExecution
           ptyNormalized && ptyTailBefore?.pendingAnsi === leaf.tailPendingAnsi
             ? ptyNormalized
             : normalizeTerminalChunk(data, leaf.tailPendingAnsi)
+        if (normalized.text.length > 0) {
+          leaf.lastOutputAt = at
+        }
         leaf.tailPendingAnsi = normalized.pendingAnsi
         const previousWaitState =
           leaf.tailWaitState?.fromTail === true
