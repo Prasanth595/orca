@@ -307,9 +307,6 @@
           "settingUpHost": "Importing...",
           "setupHost": "Import"
         },
-        "RuntimeEnvironmentsPane": {
-          "7b5986c8df": "Saved {{value0}}. Use Active Server to switch when ready."
-        },
         "RuntimePairingUrlGenerator": {
           "add-custom": "Add custom address…"
         },
@@ -429,14 +426,6 @@
             }
           }
         },
-        "runtime": {
-          "environments": {
-            "search": {
-              "3517fb2ec0": "Active Server",
-              "4575341c77": "Choose local desktop, add a saved remote Orca server, or generate a pairing URL."
-            }
-          }
-        },
         "shareSkills": {
           "showButton": "Show Skills button"
         },
@@ -447,10 +436,8 @@
           }
         },
         "sshHostServer": {
-          "terminalsElsewhere_one": "Runs the relay while {{count}} terminal another Orca desktop or session opened on this host is running.",
-          "terminalsElsewhere_other": "Runs the relay while {{count}} terminals another Orca desktop or session opened on this host are running.",
-          "terminalsLive_one": "Runs the relay until its {{count}} open terminal is closed, then moves to a managed server.",
-          "terminalsLive_other": "Runs the relay until its {{count}} open terminals are closed, then moves to a managed server."
+          "olderTerminals_one": "{{count}} terminal started by an older version of Orca is still running on this host, and it doesn’t stop on its own. Close it in that version of Orca or end it on the host, then reconnect.",
+          "olderTerminals_other": "{{count}} terminals started by an older version of Orca are still running on this host, and they don’t stop on their own. Close them in that version of Orca or end them on the host, then reconnect."
         },
         "token": {
           "source": {
@@ -563,6 +550,7 @@
       "terminal": {
         "pane": {
           "TerminalErrorToast": {
+            "hostTerminalCap": "The host is already running as many terminals as Orca allows. Close a terminal you no longer need, then try again.",
             "ptyAllocationLimit": "Your system cannot allocate any more pty devices. Close some terminals you are not using, in Orca or another program, then try again.",
             "terminalProcessLimit": "Your system cannot start another terminal process. Close unused terminals or quit unused processes, then try again."
           },
@@ -597,16 +585,6 @@
     "runtime": {
       "githubCheckDetailsTimeout": {
         "timedOut": "Timed out loading check details."
-      }
-    },
-    "ssh": {
-      "managedServerMove": {
-        "offer_one": "Move {{host}} to a managed Orca server for more reliable connections. Its {{count}} open terminal will restart.",
-        "offer_other": "Move {{host}} to a managed Orca server for more reliable connections. Its {{count}} open terminals will restart.",
-        "refusedLive_one": "Not moved: {{count}} terminal on {{host}} is still running.",
-        "refusedLive_other": "Not moved: {{count}} terminals on {{host}} are still running.",
-        "refusedUnverifiable_one": "Not moved: Orca couldn’t confirm that {{count}} terminal on {{host}} stopped.",
-        "refusedUnverifiable_other": "Not moved: Orca couldn’t confirm that {{count}} terminals on {{host}} stopped."
       }
     }
   },
