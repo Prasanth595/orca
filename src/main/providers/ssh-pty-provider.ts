@@ -1,7 +1,7 @@
 import type { SshChannelMultiplexer } from '../ssh/ssh-channel-multiplexer'
 import type { IPtyProvider, PtySpawnOptions, PtySpawnResult } from './types'
 import type { WriteSettlement } from '../../shared/pty-write-settlement'
-import type { TerminalOscColorQueryReplyColors } from '../../shared/terminal-osc-color-reply'
+import type { PtyOwnerHostColors } from '../../shared/pty-owner-color-query-colors'
 import { toAppSshPtyId, toRelaySshPtyId } from './ssh-pty-id'
 import { createSshPtyAppliedSizeReader } from './ssh-pty-applied-size'
 import type {
@@ -60,7 +60,7 @@ export class SshPtyProvider implements IPtyProvider {
   resetInputModes = (id: string): Promise<void> => this.rpcOperations.resetInputModes(id)
   closeStartupQueryAuthority = (id: string): Promise<number> =>
     this.rpcOperations.closeStartupQueryAuthority(id)
-  setColorQueryReplyColors = (colors: TerminalOscColorQueryReplyColors): void =>
+  setColorQueryReplyColors = (colors: PtyOwnerHostColors): void =>
     this.rpcOperations.setColorQueryReplyColors(colors)
   acknowledgeDataEvent = (id: string, charCount: number): void =>
     this.rpcOperations.acknowledgeDataEvent(id, charCount)

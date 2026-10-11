@@ -4,10 +4,10 @@
  * resolution (defaults, cursor blend, 256-entry palette), and pushes must
  * happen once per actual change — not per pane, not per font tweak.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import type { PaneManager, ManagedPane } from '@/lib/pane-manager/pane-manager'
 import { getDefaultSettings } from '../../../../shared/constants'
-import type { TerminalViewAttributes } from '../../../../shared/terminal-view-attributes'
+import type { TerminalViewAttributesPush } from '../../../../shared/terminal-view-attributes'
 import { applyTerminalAppearance } from './terminal-appearance'
 import {
   _resetTerminalViewAttributesPublisherForTest,
@@ -172,8 +172,8 @@ describe('applyTerminalAppearance publication', () => {
     } as unknown as PaneManager
   }
 
-  function stubPublishBridge(): ReturnType<typeof vi.fn> {
-    const publish = vi.fn<(attributes: TerminalViewAttributes) => void>()
+  function stubPublishBridge(): Mock<(push: TerminalViewAttributesPush) => void> {
+    const publish = vi.fn<(push: TerminalViewAttributesPush) => void>()
     vi.stubGlobal('window', { api: { pty: { publishTerminalViewAttributes: publish } } })
     return publish
   }
@@ -205,9 +205,9 @@ describe('applyTerminalAppearance publication', () => {
       new Map()
     )
     expect(publish).toHaveBeenCalledTimes(1)
-    const attributes = publish.mock.calls[0][0] as TerminalViewAttributes
-    expect(attributes.ansi).toHaveLength(256)
-    expect(attributes.cursorStyle).toBe(settings.terminalCursorStyle)
+    const push = publish.mock.calls[0][0]
+    expect(push.global.ansi).toHaveLength(256)
+    expect(push.global.cursorStyle).toBe(settings.terminalCursorStyle)
 
     // Attribute-neutral tweak (font size) must not re-push…
     applyTerminalAppearance(
@@ -261,9 +261,7 @@ describe('applyTerminalAppearance publication', () => {
       new Map()
     )
 
-    const modes = publish.mock.calls.map(
-      (call) => (call[0] as TerminalViewAttributes).colorSchemeMode
-    )
+    const modes = publish.mock.calls.map((call) => call[0].global.colorSchemeMode)
     expect(modes).toEqual(['dark', 'light'])
   })
 })

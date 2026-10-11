@@ -5,6 +5,7 @@ import {
   terminalCustomThemeToXtermTheme
 } from './terminal-custom-themes'
 import type { TerminalOscColorQueryReplyColors } from './terminal-osc-color-reply'
+import type { TuiAgent } from './tui-agent'
 import { TERMINAL_THEME_CATALOG } from './terminal-themes'
 import type { TerminalThemeMap } from './terminal-themes/types'
 
@@ -13,7 +14,11 @@ export const DEFAULT_TERMINAL_THEME_LIGHT = 'Builtin Tango Light'
 
 export type TerminalThemeSelectionSettings = Pick<
   GlobalSettings,
-  'theme' | 'terminalThemeDark' | 'terminalUseSeparateLightTheme' | 'terminalThemeLight'
+  | 'theme'
+  | 'terminalThemeDark'
+  | 'terminalUseSeparateLightTheme'
+  | 'terminalThemeLight'
+  | 'agentTerminalThemes'
 >
 
 export type TerminalThemeSelection = {
@@ -22,16 +27,31 @@ export type TerminalThemeSelection = {
   themeName: string
 }
 
+/** The theme a slot selects: the agent's own override when set, else the global Dark/Light theme. */
+export function resolveAgentThemeSelection(
+  settings: Omit<TerminalThemeSelectionSettings, 'theme'>,
+  slot: 'dark' | 'light',
+  agent?: TuiAgent | null
+): string {
+  const override = agent ? settings.agentTerminalThemes?.[agent]?.[slot] : undefined
+  if (override) {
+    return override
+  }
+  const useLightGlobal = slot === 'light' && settings.terminalUseSeparateLightTheme
+  return useLightGlobal
+    ? settings.terminalThemeLight?.trim() || DEFAULT_TERMINAL_THEME_LIGHT
+    : settings.terminalThemeDark?.trim() || DEFAULT_TERMINAL_THEME_DARK
+}
+
 /** Which terminal theme the app's appearance settings select; one rule for the renderer and main. */
 export function selectTerminalTheme(
   settings: TerminalThemeSelectionSettings,
-  systemPrefersDark: boolean
+  systemPrefersDark: boolean,
+  agent?: TuiAgent | null
 ): TerminalThemeSelection {
   const mode = settings.theme === 'system' ? (systemPrefersDark ? 'dark' : 'light') : settings.theme
   const useLightVariant = mode === 'light' && settings.terminalUseSeparateLightTheme
-  const themeName = useLightVariant
-    ? settings.terminalThemeLight || DEFAULT_TERMINAL_THEME_LIGHT
-    : settings.terminalThemeDark || DEFAULT_TERMINAL_THEME_DARK
+  const themeName = resolveAgentThemeSelection(settings, useLightVariant ? 'light' : 'dark', agent)
   return { mode, useLightVariant, themeName }
 }
 
@@ -68,9 +88,10 @@ function themeColors(
 export function resolveConfiguredTerminalColors(
   settings: TerminalThemeSelectionSettings &
     Pick<GlobalSettings, 'terminalCustomThemes' | 'terminalColorOverrides'>,
-  systemPrefersDark: boolean
+  systemPrefersDark: boolean,
+  agent?: TuiAgent | null
 ): TerminalOscColorQueryReplyColors {
-  const { themeName, useLightVariant } = selectTerminalTheme(settings, systemPrefersDark)
+  const { themeName, useLightVariant } = selectTerminalTheme(settings, systemPrefersDark, agent)
   const fallback = useLightVariant ? DEFAULT_TERMINAL_THEME_LIGHT : DEFAULT_TERMINAL_THEME_DARK
   const base: TerminalOscColorQueryReplyColors =
     themeColors(themeName, settings) ?? themeColors(fallback, settings) ?? {}

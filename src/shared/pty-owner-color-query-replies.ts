@@ -1,6 +1,7 @@
 import {
   getPtyOwnerHostColors,
-  resolvePtyOwnerColorQueryColors
+  resolvePtyOwnerColorQueryColors,
+  type PtyOwnerHostColors
 } from './pty-owner-color-query-colors'
 import type { PtyStartupIngressIntent } from './pty-startup-ingress-intent'
 import { TerminalOscColorOverrideTracker } from './terminal-osc-color-override-tracker'
@@ -16,7 +17,7 @@ export class PtyOwnerColorQueryReplies {
 
   constructor(
     private readonly intent: PtyStartupIngressIntent | undefined,
-    private readonly resolveHostColors: () => TerminalOscColorQueryReplyColors | null = getPtyOwnerHostColors
+    private readonly resolveHostColors: () => PtyOwnerHostColors | null = getPtyOwnerHostColors
   ) {}
 
   /** Every byte the PTY emits, so app-set colours are seen in stream order. */
@@ -29,6 +30,10 @@ export class PtyOwnerColorQueryReplies {
   }
 
   private themeColors(): TerminalOscColorQueryReplyColors {
-    return resolvePtyOwnerColorQueryColors(this.resolveHostColors(), this.intent?.colors)
+    return resolvePtyOwnerColorQueryColors(
+      this.resolveHostColors(),
+      this.intent?.colors,
+      this.intent?.launchAgent
+    )
   }
 }

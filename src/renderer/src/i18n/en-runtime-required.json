@@ -1115,6 +1115,10 @@
           "817d3f9f18": "Copy command",
           "a31e2aa302": "Failed to copy command."
         },
+        "AgentTerminalThemes": {
+          "override_count_one": "1 override",
+          "override_count_other": "{{value0}} overrides"
+        },
         "AgentsPane": {
           "9b175d0f5e": "Pre-selected agent when opening a new workspace.",
           "c8794e622e": "Detected",

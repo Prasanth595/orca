@@ -1,6 +1,7 @@
 import type { ITheme } from '@xterm/xterm'
 import { getTheme, getThemeNames } from './terminal-themes-data'
 import type { GlobalSettings } from '../../../shared/global-settings-types'
+import type { TuiAgent } from '../../../shared/tui-agent'
 import {
   makeCustomTerminalThemeSelection,
   normalizeTerminalCustomThemes,
@@ -32,7 +33,7 @@ export type EffectiveTerminalAppearance = {
 export type TerminalThemeOption = {
   value: string
   label: string
-  group: 'built-in' | 'imported'
+  group: 'built-in' | 'imported' | 'inherit'
   sourceLabel?: string
   mode?: TerminalCustomTheme['mode']
   previewTheme: ITheme | null
@@ -56,7 +57,7 @@ export function getTerminalTheme(
   return lookupTerminalTheme(settings, selection)
 }
 
-function getTerminalThemePreview(
+export function getTerminalThemePreview(
   name: string,
   settings?: Pick<GlobalSettings, 'terminalCustomThemes'>,
   fallbackMode: 'dark' | 'light' = 'dark'
@@ -103,14 +104,16 @@ export function resolveEffectiveTerminalAppearance(
     | 'terminalThemeLight'
     | 'terminalCustomThemes'
     | 'terminalDividerColorLight'
+    | 'agentTerminalThemes'
   >,
-  systemPrefersDark = getSystemPrefersDark()
+  systemPrefersDark = getSystemPrefersDark(),
+  agent?: TuiAgent | null
 ): EffectiveTerminalAppearance {
   const {
     mode: sourceTheme,
     useLightVariant,
     themeName
-  } = selectTerminalTheme(settings, systemPrefersDark)
+  } = selectTerminalTheme(settings, systemPrefersDark, agent)
   const dividerColor = useLightVariant
     ? normalizeColor(settings.terminalDividerColorLight, DEFAULT_TERMINAL_DIVIDER_LIGHT)
     : normalizeColor(settings.terminalDividerColorDark, DEFAULT_TERMINAL_DIVIDER_DARK)

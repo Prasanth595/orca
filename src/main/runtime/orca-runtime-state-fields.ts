@@ -41,7 +41,10 @@ import { configureAiVaultSessionSources } from '../ai-vault/cached-session-list'
 import { configureHostReadableTranscriptPathSources } from '../native-chat/host-readable-transcript-path'
 import { createEphemeralAgentSessionClaimSigner } from './agent-session-claim-identity'
 import { registerConptyDa1OverrideInstaller } from './terminal-model-query-authority'
-import { registerTerminalViewAttributesApplier } from './terminal-view-attribute-store'
+import {
+  ptyMatchesViewAttributeScope,
+  registerTerminalViewAttributesApplier
+} from './terminal-view-attribute-store'
 import { RuntimeMachineName } from './runtime-machine-name'
 
 export class OrcaRuntimeWithStateFields extends OrcaRuntimeWithLinearCommands {
@@ -284,8 +287,12 @@ export class OrcaRuntimeWithStateFields extends OrcaRuntimeWithLinearCommands {
     // cursor options for DECRQSS/DECRQM parity plus the per-PTY OSC color
     // override reset a theme apply implies (terminal-query-authority.md
     // §View-attribute bridge).
-    registerTerminalViewAttributesApplier((attributes) => {
-      for (const state of this.headlessTerminals.values()) {
+    registerTerminalViewAttributesApplier((attributes, scope) => {
+      for (const [ptyId, state] of this.headlessTerminals.entries()) {
+        const launchAgent = this.ptysById.get(ptyId)?.launchAgent ?? null
+        if (!ptyMatchesViewAttributeScope(launchAgent, scope.launchAgent)) {
+          continue
+        }
         state.emulator.applyPushedViewAttributes(attributes)
       }
     })

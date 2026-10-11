@@ -2,6 +2,7 @@ import type { ManagedPane } from '@/lib/pane-manager/pane-manager'
 import type { PaneSpawnHints } from '@/lib/pane-manager/pane-manager-types'
 import { useAppStore } from '@/store'
 import { makePaneKey } from '../../../../shared/stable-pane-id'
+import { capturePaneThemeAgent } from './pane-theme-identity'
 import { createOsc52OscHandler } from './osc52-clipboard'
 import {
   showOsc52ClipboardBlockedToast,
@@ -41,6 +42,11 @@ export function createTerminalPaneCreatedHandler(
   // Split spawn hints let the renderer pane appear before a slow inherited-cwd lookup finishes.
   return (pane, spawnHints) => {
     const { deps, refs, ptyDeps, startupWithSetupSplitWait, startup, osc7UncHost } = context
+    // Why immutable per pane lifetime: a split or later `claude` typed into a shell keeps its creation-time theme identity.
+    const createdTab = useAppStore
+      .getState()
+      .tabsByWorktree[deps.worktreeId]?.find((candidate) => candidate.id === deps.tabId)
+    capturePaneThemeAgent(pane.leafId, ptyDeps.startup, createdTab?.launchAgent)
     const manager = deps.managerRef.current
     if (!manager) {
       return

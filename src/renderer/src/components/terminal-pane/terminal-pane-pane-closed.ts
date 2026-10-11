@@ -14,6 +14,7 @@ import {
   clearDeferredSplitPaneHandoff,
   discardDeferredSplitPaneHandoffForKey
 } from './deferred-split-pane-handoff'
+import { releasePaneThemeAgent } from './pane-theme-identity'
 import type { PaneClosedHandlerContext } from './terminal-pane-mount-context'
 
 export function createTerminalPaneClosedHandler(
@@ -85,6 +86,14 @@ export function createTerminalPaneClosedHandler(
     binding?.dispose()
     panePtyBindingsRef.current.delete(paneId)
     const leafId = closedPane?.leafId
+    if (
+      leafId &&
+      (closedPane?.reason === 'close' ||
+        closedPane?.reason === 'detach' ||
+        closedPane?.reason === undefined)
+    ) {
+      releasePaneThemeAgent(leafId)
+    }
     const deferredSplitHandoff = context.deferredSplitHandoffs.get(paneId)
     if (deferredSplitHandoff) {
       // Explicit pane removal is terminal for the split intent; only a

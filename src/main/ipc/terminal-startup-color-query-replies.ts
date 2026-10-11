@@ -61,6 +61,7 @@ export function getStartupTerminalIngressIntent(args: {
   return parsePtyStartupIngressIntent({
     kittyKeyboardProtocol: args.terminalKittyKeyboardProtocol === true && isAgentLaunch(args),
     colors,
+    ...(isTuiAgent(args.launchAgent) ? { launchAgent: args.launchAgent } : {}),
     deadlineMs: 5_000
   })
 }

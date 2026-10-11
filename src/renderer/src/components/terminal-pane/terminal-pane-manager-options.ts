@@ -16,6 +16,8 @@ import { buildFontFamily } from '@/lib/monospace-font-family'
 import { buildWindowsPtyCompatibilityOptions } from '@/lib/pane-manager/windows-pty-compatibility'
 import { buildTerminalKeyboardProtocolOptions } from '@/lib/pane-manager/terminal-keyboard-protocol'
 import { resolvePaneKeyboardProtocolAgent } from './terminal-keyboard-protocol-pane-agent'
+import { composeActiveTerminalTheme } from '../../../../shared/compose-active-terminal-theme'
+import { getBuiltinTheme, resolveEffectiveTerminalAppearance } from '@/lib/terminal-theme'
 import { getConnectionId } from '@/lib/connection-context'
 import { getExecutionHostIdForWorktree } from '@/lib/worktree-runtime-owner'
 import { scheduleRuntimeGraphSync } from '@/runtime/sync-runtime-graph'
@@ -137,9 +139,25 @@ export function createTerminalPaneManagerOptions(
         executionHostId: getExecutionHostIdForWorktree(storeState, worktreeId),
         tuiAgent: knownTuiAgent
       }
+      // Why seeded at creation: a new agent pane paints its override palette before the first appearance apply.
+      const seedAppearance = currentSettings
+        ? resolveEffectiveTerminalAppearance(
+            currentSettings,
+            context.refs.systemPrefersDarkRef.current,
+            knownTuiAgent
+          )
+        : null
+      const seedTheme =
+        currentSettings && seedAppearance
+          ? composeActiveTerminalTheme(
+              seedAppearance.theme ?? getBuiltinTheme(seedAppearance.themeName),
+              currentSettings
+            )
+          : null
       return {
         ...buildWindowsPtyCompatibilityOptions(ptyBackendContext),
         ...buildTerminalKeyboardProtocolOptions(ptyBackendContext),
+        ...(seedTheme ? { theme: seedTheme } : {}),
         fontSize: currentSettings?.terminalFontSize ?? 14,
         fontFamily: buildFontFamily(currentSettings?.terminalFontFamily ?? ''),
         fontWeight: terminalFontWeights.fontWeight,

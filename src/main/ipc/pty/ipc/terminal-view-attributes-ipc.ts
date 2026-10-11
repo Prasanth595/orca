@@ -1,11 +1,12 @@
 import { getPtyIpc } from '../../pty-host-bindings'
 import {
-  getTerminalViewerColors,
+  commitTerminalViewAttributesSnapshot,
+  getTerminalViewerHostColors,
   seedTerminalViewerColors,
-  setTerminalViewAttributes,
   setTerminalViewerColorsListener
 } from '../../../runtime/terminal-view-attribute-store'
-import { validateTerminalViewAttributes } from '../../../../shared/terminal-view-attributes'
+import { seedAgentViewerColors } from '../../../runtime/terminal-view-attributes-seed'
+import { validateTerminalViewAttributesPush } from '../../../../shared/terminal-view-attributes'
 import { resolveConfiguredTerminalColors } from '../../../../shared/terminal-theme-selection'
 import { publishColorQueryReplyColors } from '../provider/registry'
 import type { PtyIpcSession } from '../session'
@@ -18,11 +19,13 @@ export function installTerminalViewAttributesIpc(
   // Why seed from settings: a headless host may never hear from a viewer, and a desktop pane
   // can query before the first push lands; either way the owner should answer with the saved theme.
   if (settings) {
+    const systemPrefersDark = session.options?.systemPrefersDark?.() ?? true
     seedTerminalViewerColors(
-      resolveConfiguredTerminalColors(settings, session.options?.systemPrefersDark?.() ?? true)
+      resolveConfiguredTerminalColors(settings, systemPrefersDark),
+      seedAgentViewerColors(settings, systemPrefersDark)
     )
   }
-  const current = getTerminalViewerColors()
+  const current = getTerminalViewerHostColors()
   if (current) {
     publishColorQueryReplyColors(current)
   }
@@ -30,9 +33,9 @@ export function installTerminalViewAttributesIpc(
   ipcMain.removeAllListeners('pty:terminalViewAttributes')
   ipcMain.on('pty:terminalViewAttributes', (_event, args: unknown) => {
     // Why validate-or-drop: a malformed palette would give TUIs a wrong color reply.
-    const attributes = validateTerminalViewAttributes(args)
-    if (attributes) {
-      setTerminalViewAttributes(attributes)
+    const push = validateTerminalViewAttributesPush(args)
+    if (push) {
+      commitTerminalViewAttributesSnapshot(push)
     }
   })
 }

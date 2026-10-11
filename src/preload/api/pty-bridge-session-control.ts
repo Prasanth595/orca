@@ -17,7 +17,7 @@ import type {
   PtyRendererDeliveryHealthReply,
   PtyRendererDeliveryStateReport
 } from '../../shared/pty-renderer-delivery-health'
-import type { TerminalViewAttributes } from '../../shared/terminal-view-attributes'
+import type { TerminalViewAttributesPush } from '../../shared/terminal-view-attributes'
 import type { PtyMainDeliveryDiagnostics } from '../../shared/pty-delivery-diagnostics'
 import type { AgentKind, LaunchSource, RequestKind } from '../../shared/telemetry-events'
 import type { PreloadApi } from '../api-types'
@@ -158,8 +158,8 @@ export const ptySessionControlApi = {
   setPtyDeliveryInterest: (id: string, interested: boolean): void => {
     ipcRenderer.send('pty:setPtyDeliveryInterest', { id, interested })
   },
-  publishTerminalViewAttributes: (attributes: TerminalViewAttributes): void => {
-    ipcRenderer.send('pty:terminalViewAttributes', attributes)
+  publishTerminalViewAttributes: (push: TerminalViewAttributesPush): void => {
+    ipcRenderer.send('pty:terminalViewAttributes', push)
   },
   kill: (id: string, opts?: { keepHistory?: boolean }): Promise<void> =>
     ipcRenderer.invoke('pty:kill', { id, keepHistory: opts?.keepHistory ?? false }),

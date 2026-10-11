@@ -19,7 +19,7 @@ import type {
 } from '../../shared/pty-renderer-delivery-health'
 import type { AgentKind, LaunchSource, RequestKind } from '../../shared/telemetry-events'
 import type { TerminalSideEffectBatch } from '../../shared/terminal-side-effect-facts'
-import type { TerminalViewAttributes } from '../../shared/terminal-view-attributes'
+import type { TerminalViewAttributesPush } from '../../shared/terminal-view-attributes'
 import type { TuiAgent } from '../../shared/tui-agent'
 import type { TerminalPanePlacement } from '../../shared/terminal-pane-placement'
 import type { PtyManagementApi } from './pty-management-api'
@@ -129,9 +129,9 @@ export type PtyApi = {
   /** Ref-counted-on-the-renderer delivery-interest signal that suppresses
    *  the hidden-delivery gate while any raw-byte consumer is registered. */
   setPtyDeliveryInterest: (id: string, interested: boolean) => void
-  /** View-attribute bridge (Phase 5 slice 2): app-global composed terminal
-   *  appearance push backing main's hidden-PTY OSC/DSR color replies. */
-  publishTerminalViewAttributes: (attributes: TerminalViewAttributes) => void
+  /** View-attribute bridge: atomic `{global, byAgent}` composed terminal appearance snapshot
+   *  backing main's hidden-PTY OSC/DSR color replies. */
+  publishTerminalViewAttributes: (push: TerminalViewAttributesPush) => void
   hasChildProcesses: (id: string) => Promise<boolean>
   getForegroundProcess: (id: string) => Promise<string | null>
   inspectProcess: (
