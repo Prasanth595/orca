@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import type { ExecutionHostId } from '../../../src/shared/execution-host'
+import type { ExecutionHostHealth } from '../../../src/shared/execution-host-health'
 import type { WorkspaceStatusDefinition } from '../../../src/shared/worktree/types'
 import { getCachedWorktrees } from '../cache/worktree-cache'
 import { createInitialHostRouteActionState } from '../host-route-action-state'
@@ -76,6 +77,9 @@ export function useHostScreenState(hostId: string | undefined, action: string | 
     new Map()
   )
   const [hostLabelById, setHostLabelById] = useState<Map<ExecutionHostId, string>>(new Map())
+  const [hostHealthById, setHostHealthById] = useState<Map<ExecutionHostId, ExecutionHostHealth>>(
+    new Map()
+  )
   const [hostPlatform, setHostPlatform] = useState<NodeJS.Platform | null>(null)
   const [sshTargetSummaries, setSshTargetSummaries] = useState<
     readonly { id: string; label: string; connected?: boolean; connectionStatus?: string }[]
@@ -125,6 +129,7 @@ export function useHostScreenState(hostId: string | undefined, action: string | 
     filters,
     groupMode,
     hostLabelById,
+    hostHealthById,
     hostName,
     hostPlatform,
     sshTargetSummaries,
@@ -151,6 +156,7 @@ export function useHostScreenState(hostId: string | undefined, action: string | 
     setFilters,
     setGroupMode,
     setHostLabelById,
+    setHostHealthById,
     setHostName,
     setHostPlatform,
     setSshTargetSummaries,

@@ -11,7 +11,7 @@ import {
 import { resolveDefaultCreateProjectParent } from '../../shared/git/repo-default-locations'
 import type { Repo } from '../../shared/repo-types'
 import { gitExecFileAsync, awaitWindowsHostGitEnvironmentReady } from '../git/runner'
-import { getRepoName, isGitRepo } from '../git/repo'
+import { getRepoName, isGitRepoAsync } from '../git/repo'
 import { invalidateAuthorizedRootsCache, isENOENT } from '../ipc/filesystem-auth'
 import { detectRepoIconAndUpstream } from '../repo-icon-autodetect'
 import { prepareLocalWorktreeRootForRepo } from '../worktree-root-preparation'
@@ -58,7 +58,7 @@ export class RuntimeRepositoryRegistrationController {
     if (kind === 'git') {
       await awaitWindowsHostGitEnvironmentReady({ cwd: path })
     }
-    if (kind === 'git' && !isGitRepo(path)) {
+    if (kind === 'git' && !(await isGitRepoAsync(path))) {
       throw new Error(`Not a valid git repository: ${path}`)
     }
     const existing = store.getRepos().find((repo) => {
