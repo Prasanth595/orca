@@ -8,6 +8,7 @@ import { sendTerminalOscColorQueryReplies } from '../terminal-capability-replies
 
 import { shouldWritePtyOutputForeground } from './foreground-output-scan'
 import { registerE2eTerminalPtyDataInjection } from './e2e-terminal-pty-harness'
+import { discardedSeqRange } from './hidden-startup-renderer-query-write'
 
 import type { ConnectPanePtySession } from './connect-pane-pty-session'
 
@@ -88,7 +89,10 @@ export function bindLiveDataCallback(session: ConnectPanePtySession): void {
     }
     // Post-restore reconciliation: drop chunks the snapshot covers, force a fresh restore for unmappable seq gaps; runs after byte observers, before any xterm write.
     const reconciliation = session.reconcileChunkAgainstRestoredSnapshot(data, meta)
+    // Why salvage on every discard below: main delivered this chunk because the view answers its
+    // queries (main answered none), so skipping its bytes must not skip its replies.
     if (reconciliation.action === 'drop-duplicate') {
+      session.salvageRendererQueriesFromDiscardedRestoreData(data, discardedSeqRange(data, meta))
       return
     }
     if (reconciliation.action === 'force-fresh-restore') {
@@ -104,9 +108,18 @@ export function bindLiveDataCallback(session: ConnectPanePtySession): void {
         if (restoreWasInFlight) {
           session.hiddenOutputRestoreFreshSnapshotNeeded = true
         }
+        session.salvageRendererQueriesFromDiscardedRestoreData(data)
         return
       }
     } else {
+      if (reconciliation.data.length < data.length) {
+        const covered = data.length - reconciliation.data.length
+        const range = discardedSeqRange(data, meta)
+        session.salvageRendererQueriesFromDiscardedRestoreData(
+          data.slice(0, covered),
+          range ? { startSeq: range.startSeq, endSeq: range.startSeq + covered } : undefined
+        )
+      }
       data = reconciliation.data
       meta = reconciliation.meta
     }
@@ -126,6 +139,7 @@ export function bindLiveDataCallback(session: ConnectPanePtySession): void {
     if (orderedRendererData === null) {
       // Why: renderer filtering can't map cleaned text back to raw seq offsets; rebuild from main instead of risking stale bytes.
       session.markHiddenOutputRestoreNeeded()
+      session.salvageRendererQueriesFromDiscardedRestoreData(rendererData)
       session.schedulePendingStartupCommandDelivery()
       return
     }
@@ -163,11 +177,14 @@ export function bindLiveDataCallback(session: ConnectPanePtySession): void {
         }
         session.queueLiveChunkDuringRestore(orderedRendererData, rendererMeta)
         session.requestHiddenOutputRestoreIfNeeded()
-      } else if (session.hiddenOutputRestoreInFlight) {
-        session.hiddenOutputRestoreNeeded = true
-        session.hiddenOutputRestoreFreshSnapshotNeeded = true
+      } else {
+        if (session.hiddenOutputRestoreInFlight) {
+          session.hiddenOutputRestoreNeeded = true
+          session.hiddenOutputRestoreFreshSnapshotNeeded = true
+        }
+        // Why: hidden chunks with a restore already latched are dropped; the reveal snapshot covers their bytes.
+        session.salvageRendererQueriesFromDiscardedRestoreData(orderedRendererData)
       }
-      // Why: hidden chunks with a restore already latched are dropped; the reveal snapshot covers their bytes.
     } else {
       // Why: hidden panes normally get no bytes (main drops post-ingestion); stragglers ride the bounded background queue, overflow latches restore.
       if (pendingForegroundQuery?.statefulQueryData) {
