@@ -7,7 +7,14 @@ import {
 type ClipboardImageReader = {
   availableFormats: () => string[]
   readBuffer: (format: string) => Buffer
+  has: (format: string) => boolean
 }
+
+// Why: a macOS screenshot tool that saves a file and also copies the image
+// (BetterTouchTool, for one) leaves public.png beside public.file-url, and
+// Chromium then reports only text/uri-list, so the image is invisible to
+// availableFormats() even though readImage() returns it.
+const MAC_PASTEBOARD_IMAGE_TYPES = ['public.png', 'public.tiff'] as const
 
 type ClipboardImageSource =
   | { kind: 'native'; windowsFileFormats: WindowsClipboardFileFormats | null }
@@ -28,6 +35,9 @@ export function readClipboardImageSource(
   const windowsFileFormats = formats && readWindowsCopiedImageFilePath(formats) ? formats : null
   if (clipboardFormatsIncludeImage(clipboard.availableFormats())) {
     return { kind: 'native', windowsFileFormats }
+  }
+  if (platform === 'darwin' && MAC_PASTEBOARD_IMAGE_TYPES.some((type) => clipboard.has(type))) {
+    return { kind: 'native', windowsFileFormats: null }
   }
   return windowsFileFormats ? { kind: 'windows-file', windowsFileFormats } : null
 }
