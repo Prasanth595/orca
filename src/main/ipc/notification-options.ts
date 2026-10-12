@@ -1,3 +1,4 @@
+import type { NativeImage } from 'electron'
 import type { NotificationDispatchRequest } from '../../shared/notification-settings-types'
 
 type NotificationStatusTranslator = (key: string, fallback: string) => string
@@ -32,6 +33,7 @@ export function buildNotificationOptions(
   body: string
   silent?: boolean
   sound?: string
+  icon?: NativeImage
 } {
   if (args.source === 'terminal-bell') {
     return {

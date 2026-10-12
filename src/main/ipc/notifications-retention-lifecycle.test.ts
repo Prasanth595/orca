@@ -9,7 +9,8 @@ import {
   notificationCloseMock,
   notificationRemoveListenerMock,
   notificationShowMock,
-  resetNotificationDispatchMocks
+  resetNotificationDispatchMocks,
+  notificationTestStore
 } from './notifications-test-harness'
 
 vi.mock('electron', async () =>
@@ -72,16 +73,18 @@ describe('registerNotificationHandlers', () => {
     }
     getAllWindowsMock.mockReturnValue([popoutWindow, mainWindow] as never)
     getTrustedUIRendererWindowMock.mockReturnValue(mainWindow)
-    registerNotificationHandlers({
-      getSettings: () => ({
-        notifications: {
-          enabled: true,
-          agentTaskComplete: true,
-          terminalBell: true,
-          suppressWhenFocused: true
-        }
+    registerNotificationHandlers(
+      notificationTestStore({
+        getSettings: () => ({
+          notifications: {
+            enabled: true,
+            agentTaskComplete: true,
+            terminalBell: true,
+            suppressWhenFocused: true
+          }
+        })
       })
-    } as never)
+    )
 
     const paneKey = 'tab-1:11111111-1111-4111-8111-111111111111'
     const handler = getDispatchHandler()
@@ -126,16 +129,18 @@ describe('registerNotificationHandlers', () => {
       webContents: { send: webContentsSend }
     }
     getTrustedUIRendererWindowMock.mockReturnValue(mainWindow)
-    registerNotificationHandlers({
-      getSettings: () => ({
-        notifications: {
-          enabled: true,
-          agentTaskComplete: true,
-          terminalBell: true,
-          suppressWhenFocused: true
-        }
+    registerNotificationHandlers(
+      notificationTestStore({
+        getSettings: () => ({
+          notifications: {
+            enabled: true,
+            agentTaskComplete: true,
+            terminalBell: true,
+            suppressWhenFocused: true
+          }
+        })
       })
-    } as never)
+    )
 
     // The real minting, so the synthetic leaf this asserts against is the one the chat uses.
     const paneKey = structuredAgentSessionPaneKey('chat-tab', 'session-abc')
@@ -177,16 +182,18 @@ describe('registerNotificationHandlers', () => {
       focus: vi.fn(),
       webContents: { send: webContentsSend }
     })
-    registerNotificationHandlers({
-      getSettings: () => ({
-        notifications: {
-          enabled: true,
-          agentTaskComplete: true,
-          terminalBell: true,
-          suppressWhenFocused: true
-        }
+    registerNotificationHandlers(
+      notificationTestStore({
+        getSettings: () => ({
+          notifications: {
+            enabled: true,
+            agentTaskComplete: true,
+            terminalBell: true,
+            suppressWhenFocused: true
+          }
+        })
       })
-    } as never)
+    )
 
     await getDispatchHandler()(
       {},
@@ -208,16 +215,18 @@ describe('registerNotificationHandlers', () => {
   })
 
   it('clears the retained notification fallback timer when the native notification closes', async () => {
-    registerNotificationHandlers({
-      getSettings: () => ({
-        notifications: {
-          enabled: true,
-          agentTaskComplete: true,
-          terminalBell: true,
-          suppressWhenFocused: true
-        }
+    registerNotificationHandlers(
+      notificationTestStore({
+        getSettings: () => ({
+          notifications: {
+            enabled: true,
+            agentTaskComplete: true,
+            terminalBell: true,
+            suppressWhenFocused: true
+          }
+        })
       })
-    } as never)
+    )
 
     const handler = getDispatchHandler()
     expect(await handler({}, { source: 'agent-task-complete' })).toEqual({ delivered: true })
@@ -233,16 +242,18 @@ describe('registerNotificationHandlers', () => {
   it('releases retained notifications when native delivery fails', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     try {
-      registerNotificationHandlers({
-        getSettings: () => ({
-          notifications: {
-            enabled: true,
-            agentTaskComplete: true,
-            terminalBell: true,
-            suppressWhenFocused: true
-          }
+      registerNotificationHandlers(
+        notificationTestStore({
+          getSettings: () => ({
+            notifications: {
+              enabled: true,
+              agentTaskComplete: true,
+              terminalBell: true,
+              suppressWhenFocused: true
+            }
+          })
         })
-      } as never)
+      )
 
       const handler = getDispatchHandler()
       expect(await handler({}, { source: 'agent-task-complete' })).toEqual({ delivered: true })
@@ -262,16 +273,18 @@ describe('registerNotificationHandlers', () => {
   })
 
   it('closes the previous native notification when replacing the same id', async () => {
-    registerNotificationHandlers({
-      getSettings: () => ({
-        notifications: {
-          enabled: true,
-          agentTaskComplete: true,
-          terminalBell: true,
-          suppressWhenFocused: false
-        }
+    registerNotificationHandlers(
+      notificationTestStore({
+        getSettings: () => ({
+          notifications: {
+            enabled: true,
+            agentTaskComplete: true,
+            terminalBell: true,
+            suppressWhenFocused: false
+          }
+        })
       })
-    } as never)
+    )
 
     const dispatchHandler = getDispatchHandler()
     expect(
@@ -287,16 +300,18 @@ describe('registerNotificationHandlers', () => {
   })
 
   it('confirms explicit test notifications after the native show event', async () => {
-    registerNotificationHandlers({
-      getSettings: () => ({
-        notifications: {
-          enabled: true,
-          agentTaskComplete: true,
-          terminalBell: true,
-          suppressWhenFocused: false
-        }
+    registerNotificationHandlers(
+      notificationTestStore({
+        getSettings: () => ({
+          notifications: {
+            enabled: true,
+            agentTaskComplete: true,
+            terminalBell: true,
+            suppressWhenFocused: false
+          }
+        })
       })
-    } as never)
+    )
 
     const handler = getDispatchHandler()
 
@@ -315,16 +330,18 @@ describe('registerNotificationHandlers', () => {
   })
 
   it('reports not-displayed when explicit test notifications never show', async () => {
-    registerNotificationHandlers({
-      getSettings: () => ({
-        notifications: {
-          enabled: true,
-          agentTaskComplete: true,
-          terminalBell: true,
-          suppressWhenFocused: false
-        }
+    registerNotificationHandlers(
+      notificationTestStore({
+        getSettings: () => ({
+          notifications: {
+            enabled: true,
+            agentTaskComplete: true,
+            terminalBell: true,
+            suppressWhenFocused: false
+          }
+        })
       })
-    } as never)
+    )
 
     const handler = getDispatchHandler()
 

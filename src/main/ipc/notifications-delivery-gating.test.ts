@@ -12,7 +12,8 @@ import {
   removeHandlerMock,
   resetNotificationDispatchMocks,
   setTrayAttentionMock,
-  shellOpenExternalMock
+  shellOpenExternalMock,
+  notificationTestStore
 } from './notifications-test-harness'
 
 vi.mock('electron', async () =>
@@ -41,16 +42,18 @@ describe('registerNotificationHandlers', () => {
   })
 
   it('registers the IPC handler', async () => {
-    registerNotificationHandlers({
-      getSettings: () => ({
-        notifications: {
-          enabled: true,
-          agentTaskComplete: true,
-          terminalBell: true,
-          suppressWhenFocused: true
-        }
+    registerNotificationHandlers(
+      notificationTestStore({
+        getSettings: () => ({
+          notifications: {
+            enabled: true,
+            agentTaskComplete: true,
+            terminalBell: true,
+            suppressWhenFocused: true
+          }
+        })
       })
-    } as never)
+    )
 
     expect(removeHandlerMock).toHaveBeenCalledWith('notifications:dispatch')
     expect(handleMock).toHaveBeenCalledWith('notifications:dispatch', expect.any(Function))
@@ -62,16 +65,18 @@ describe('registerNotificationHandlers', () => {
     Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
     process.env.ORCA_DEV_MACOS_BUNDLE_ID = 'com.stablyai.orca.dev.fb5a47066f08'
     try {
-      registerNotificationHandlers({
-        getSettings: () => ({
-          notifications: {
-            enabled: true,
-            agentTaskComplete: true,
-            terminalBell: true,
-            suppressWhenFocused: true
-          }
+      registerNotificationHandlers(
+        notificationTestStore({
+          getSettings: () => ({
+            notifications: {
+              enabled: true,
+              agentTaskComplete: true,
+              terminalBell: true,
+              suppressWhenFocused: true
+            }
+          })
         })
-      } as never)
+      )
 
       const handler = getOpenSystemSettingsHandler()
       handler({})
@@ -93,16 +98,18 @@ describe('registerNotificationHandlers', () => {
     const originalPlatform = process.platform
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
     try {
-      registerNotificationHandlers({
-        getSettings: () => ({
-          notifications: {
-            enabled: true,
-            agentTaskComplete: true,
-            terminalBell: true,
-            suppressWhenFocused: true
-          }
+      registerNotificationHandlers(
+        notificationTestStore({
+          getSettings: () => ({
+            notifications: {
+              enabled: true,
+              agentTaskComplete: true,
+              terminalBell: true,
+              suppressWhenFocused: true
+            }
+          })
         })
-      } as never)
+      )
 
       const handler = getOpenSystemSettingsHandler()
       handler({})
@@ -114,16 +121,18 @@ describe('registerNotificationHandlers', () => {
   })
 
   it('suppresses notifications when disabled in settings', async () => {
-    registerNotificationHandlers({
-      getSettings: () => ({
-        notifications: {
-          enabled: false,
-          agentTaskComplete: true,
-          terminalBell: true,
-          suppressWhenFocused: true
-        }
+    registerNotificationHandlers(
+      notificationTestStore({
+        getSettings: () => ({
+          notifications: {
+            enabled: false,
+            agentTaskComplete: true,
+            terminalBell: true,
+            suppressWhenFocused: true
+          }
+        })
       })
-    } as never)
+    )
 
     const handler = getDispatchHandler()
     expect(await handler({}, { source: 'agent-task-complete' })).toEqual({
@@ -141,16 +150,18 @@ describe('registerNotificationHandlers', () => {
       } as never
     ])
 
-    registerNotificationHandlers({
-      getSettings: () => ({
-        notifications: {
-          enabled: true,
-          agentTaskComplete: true,
-          terminalBell: true,
-          suppressWhenFocused: true
-        }
+    registerNotificationHandlers(
+      notificationTestStore({
+        getSettings: () => ({
+          notifications: {
+            enabled: true,
+            agentTaskComplete: true,
+            terminalBell: true,
+            suppressWhenFocused: true
+          }
+        })
       })
-    } as never)
+    )
 
     const handler = getDispatchHandler()
     expect(await handler({}, { source: 'agent-task-complete', isActiveWorktree: true })).toEqual({
@@ -162,16 +173,18 @@ describe('registerNotificationHandlers', () => {
 
   describe('minimized tray attention dot', () => {
     function registerEnabledNotifications(): void {
-      registerNotificationHandlers({
-        getSettings: () => ({
-          notifications: {
-            enabled: true,
-            agentTaskComplete: true,
-            terminalBell: true,
-            suppressWhenFocused: true
-          }
+      registerNotificationHandlers(
+        notificationTestStore({
+          getSettings: () => ({
+            notifications: {
+              enabled: true,
+              agentTaskComplete: true,
+              terminalBell: true,
+              suppressWhenFocused: true
+            }
+          })
         })
-      } as never)
+      )
     }
 
     it('lights the tray dot for an agent completion while the window is hidden', () => {
@@ -220,16 +233,18 @@ describe('registerNotificationHandlers', () => {
   })
 
   it('returns source-disabled when the specific source toggle is off', async () => {
-    registerNotificationHandlers({
-      getSettings: () => ({
-        notifications: {
-          enabled: true,
-          agentTaskComplete: false,
-          terminalBell: true,
-          suppressWhenFocused: true
-        }
+    registerNotificationHandlers(
+      notificationTestStore({
+        getSettings: () => ({
+          notifications: {
+            enabled: true,
+            agentTaskComplete: false,
+            terminalBell: true,
+            suppressWhenFocused: true
+          }
+        })
       })
-    } as never)
+    )
 
     const handler = getDispatchHandler()
     expect(await handler({}, { source: 'agent-task-complete' })).toEqual({
@@ -239,16 +254,18 @@ describe('registerNotificationHandlers', () => {
   })
 
   it('deduplicates repeated notifications for the same worktree', async () => {
-    registerNotificationHandlers({
-      getSettings: () => ({
-        notifications: {
-          enabled: true,
-          agentTaskComplete: true,
-          terminalBell: true,
-          suppressWhenFocused: false
-        }
+    registerNotificationHandlers(
+      notificationTestStore({
+        getSettings: () => ({
+          notifications: {
+            enabled: true,
+            agentTaskComplete: true,
+            terminalBell: true,
+            suppressWhenFocused: false
+          }
+        })
       })
-    } as never)
+    )
 
     const handler = getDispatchHandler()
     expect(await handler({}, { source: 'terminal-bell', worktreeId: 'repo::wt1' })).toEqual({
@@ -269,16 +286,18 @@ describe('registerNotificationHandlers', () => {
 
   it('bounds notification cooldown keys during unique worktree bursts', async () => {
     notificationIsSupportedMock.mockReturnValue(false)
-    registerNotificationHandlers({
-      getSettings: () => ({
-        notifications: {
-          enabled: true,
-          agentTaskComplete: true,
-          terminalBell: true,
-          suppressWhenFocused: false
-        }
+    registerNotificationHandlers(
+      notificationTestStore({
+        getSettings: () => ({
+          notifications: {
+            enabled: true,
+            agentTaskComplete: true,
+            terminalBell: true,
+            suppressWhenFocused: false
+          }
+        })
       })
-    } as never)
+    )
 
     const handler = getDispatchHandler()
     for (let i = 0; i < 75; i++) {
@@ -300,16 +319,18 @@ describe('registerNotificationHandlers', () => {
   })
 
   it('deduplicates agent-task-complete and terminal-bell for the same worktree', async () => {
-    registerNotificationHandlers({
-      getSettings: () => ({
-        notifications: {
-          enabled: true,
-          agentTaskComplete: true,
-          terminalBell: true,
-          suppressWhenFocused: false
-        }
+    registerNotificationHandlers(
+      notificationTestStore({
+        getSettings: () => ({
+          notifications: {
+            enabled: true,
+            agentTaskComplete: true,
+            terminalBell: true,
+            suppressWhenFocused: false
+          }
+        })
       })
-    } as never)
+    )
 
     const handler = getDispatchHandler()
 
@@ -327,16 +348,18 @@ describe('registerNotificationHandlers', () => {
     const originalPlatform = process.platform
     Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
     try {
-      registerNotificationHandlers({
-        getSettings: () => ({
-          notifications: {
-            enabled: true,
-            agentTaskComplete: true,
-            terminalBell: true,
-            suppressWhenFocused: false
-          }
+      registerNotificationHandlers(
+        notificationTestStore({
+          getSettings: () => ({
+            notifications: {
+              enabled: true,
+              agentTaskComplete: true,
+              terminalBell: true,
+              suppressWhenFocused: false
+            }
+          })
         })
-      } as never)
+      )
       readAuthorizationStatusMock.mockResolvedValue('denied')
 
       const handler = getDispatchHandler()
@@ -353,16 +376,18 @@ describe('registerNotificationHandlers', () => {
   })
 
   it('does not cooldown explicit test notifications', async () => {
-    registerNotificationHandlers({
-      getSettings: () => ({
-        notifications: {
-          enabled: true,
-          agentTaskComplete: true,
-          terminalBell: true,
-          suppressWhenFocused: false
-        }
+    registerNotificationHandlers(
+      notificationTestStore({
+        getSettings: () => ({
+          notifications: {
+            enabled: true,
+            agentTaskComplete: true,
+            terminalBell: true,
+            suppressWhenFocused: false
+          }
+        })
       })
-    } as never)
+    )
 
     const handler = getDispatchHandler()
 

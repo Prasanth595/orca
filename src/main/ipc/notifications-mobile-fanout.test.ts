@@ -8,7 +8,8 @@ import {
   notificationCtorMock,
   notificationIsSupportedMock,
   notificationRemoveListenerMock,
-  resetNotificationDispatchMocks
+  resetNotificationDispatchMocks,
+  notificationTestStore
 } from './notifications-test-harness'
 
 vi.mock('electron', async () =>
@@ -40,7 +41,7 @@ describe('registerNotificationHandlers', () => {
     notificationIsSupportedMock.mockReturnValue(false)
     const dispatchMobileNotification = vi.fn()
     registerNotificationHandlers(
-      {
+      notificationTestStore({
         getSettings: () => ({
           notifications: {
             enabled: true,
@@ -49,7 +50,7 @@ describe('registerNotificationHandlers', () => {
             suppressWhenFocused: true
           }
         })
-      } as never,
+      }),
       { dispatchMobileNotification } as never
     )
 
@@ -84,7 +85,7 @@ describe('registerNotificationHandlers', () => {
   it('offers disabled desktop events to independently configured phones', async () => {
     const dispatchMobileNotification = vi.fn()
     registerNotificationHandlers(
-      {
+      notificationTestStore({
         getSettings: () => ({
           notifications: {
             enabled: false,
@@ -93,7 +94,7 @@ describe('registerNotificationHandlers', () => {
             suppressWhenFocused: false
           }
         })
-      } as never,
+      }),
       { dispatchMobileNotification } as never
     )
 
@@ -111,7 +112,7 @@ describe('registerNotificationHandlers', () => {
   it('marks a disabled desktop source for phones following desktop settings', async () => {
     const dispatchMobileNotification = vi.fn()
     registerNotificationHandlers(
-      {
+      notificationTestStore({
         getSettings: () => ({
           notifications: {
             enabled: true,
@@ -120,7 +121,7 @@ describe('registerNotificationHandlers', () => {
             suppressWhenFocused: false
           }
         })
-      } as never,
+      }),
       { dispatchMobileNotification } as never
     )
 
@@ -144,7 +145,7 @@ describe('registerNotificationHandlers', () => {
     ])
     const dispatchMobileNotification = vi.fn()
     registerNotificationHandlers(
-      {
+      notificationTestStore({
         getSettings: () => ({
           notifications: {
             enabled: true,
@@ -153,7 +154,7 @@ describe('registerNotificationHandlers', () => {
             suppressWhenFocused: true
           }
         })
-      } as never,
+      }),
       { dispatchMobileNotification } as never
     )
 
@@ -182,7 +183,7 @@ describe('registerNotificationHandlers', () => {
   it('preserves different mobile event categories before per-phone burst suppression', async () => {
     const dispatchMobileNotification = vi.fn()
     registerNotificationHandlers(
-      {
+      notificationTestStore({
         getSettings: () => ({
           notifications: {
             enabled: true,
@@ -191,7 +192,7 @@ describe('registerNotificationHandlers', () => {
             suppressWhenFocused: false
           }
         })
-      } as never,
+      }),
       { dispatchMobileNotification } as never
     )
 
@@ -213,7 +214,7 @@ describe('registerNotificationHandlers', () => {
   it('does not forward explicit desktop test notifications to mobile clients', async () => {
     const dispatchMobileNotification = vi.fn()
     registerNotificationHandlers(
-      {
+      notificationTestStore({
         getSettings: () => ({
           notifications: {
             enabled: true,
@@ -222,7 +223,7 @@ describe('registerNotificationHandlers', () => {
             suppressWhenFocused: false
           }
         })
-      } as never,
+      }),
       { dispatchMobileNotification } as never
     )
 
@@ -236,7 +237,7 @@ describe('registerNotificationHandlers', () => {
     const dispatchMobileNotification = vi.fn()
     const dismissMobileNotification = vi.fn()
     registerNotificationHandlers(
-      {
+      notificationTestStore({
         getSettings: () => ({
           notifications: {
             enabled: true,
@@ -245,7 +246,7 @@ describe('registerNotificationHandlers', () => {
             suppressWhenFocused: false
           }
         })
-      } as never,
+      }),
       { dispatchMobileNotification, dismissMobileNotification } as never
     )
 
@@ -266,7 +267,7 @@ describe('registerNotificationHandlers', () => {
   it('fans out mobile dismissal even when there is no active native notification', async () => {
     const dismissMobileNotification = vi.fn()
     registerNotificationHandlers(
-      {
+      notificationTestStore({
         getSettings: () => ({
           notifications: {
             enabled: true,
@@ -275,7 +276,7 @@ describe('registerNotificationHandlers', () => {
             suppressWhenFocused: false
           }
         })
-      } as never,
+      }),
       { dismissMobileNotification } as never
     )
 

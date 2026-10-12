@@ -4,7 +4,8 @@ import {
   getDispatchHandler,
   notificationCtorMock,
   notificationShowMock,
-  resetNotificationDispatchMocks
+  resetNotificationDispatchMocks,
+  notificationTestStore
 } from './notifications-test-harness'
 
 vi.mock('electron', async () =>
@@ -39,16 +40,18 @@ describe('registerNotificationHandlers', () => {
   })
 
   it('delivers a notification when the event is allowed', async () => {
-    registerNotificationHandlers({
-      getSettings: () => ({
-        notifications: {
-          enabled: true,
-          agentTaskComplete: true,
-          terminalBell: false,
-          suppressWhenFocused: true
-        }
+    registerNotificationHandlers(
+      notificationTestStore({
+        getSettings: () => ({
+          notifications: {
+            enabled: true,
+            agentTaskComplete: true,
+            terminalBell: false,
+            suppressWhenFocused: true
+          }
+        })
       })
-    } as never)
+    )
 
     const handler = getDispatchHandler()
     expect(
@@ -67,16 +70,18 @@ describe('registerNotificationHandlers', () => {
   })
 
   it('formats agent-task-complete with the agent response when a status snapshot is present', async () => {
-    registerNotificationHandlers({
-      getSettings: () => ({
-        notifications: {
-          enabled: true,
-          agentTaskComplete: true,
-          terminalBell: false,
-          suppressWhenFocused: true
-        }
+    registerNotificationHandlers(
+      notificationTestStore({
+        getSettings: () => ({
+          notifications: {
+            enabled: true,
+            agentTaskComplete: true,
+            terminalBell: false,
+            suppressWhenFocused: true
+          }
+        })
       })
-    } as never)
+    )
 
     const handler = getDispatchHandler()
     expect(
@@ -107,16 +112,18 @@ describe('registerNotificationHandlers', () => {
   it.each([true, false, undefined])(
     'includes the repo name regardless of the legacy multiple-repo flag (%s)',
     async (hasMultipleActiveRepos) => {
-      registerNotificationHandlers({
-        getSettings: () => ({
-          notifications: {
-            enabled: true,
-            agentTaskComplete: true,
-            terminalBell: false,
-            suppressWhenFocused: true
-          }
+      registerNotificationHandlers(
+        notificationTestStore({
+          getSettings: () => ({
+            notifications: {
+              enabled: true,
+              agentTaskComplete: true,
+              terminalBell: false,
+              suppressWhenFocused: true
+            }
+          })
         })
-      } as never)
+      )
 
       const handler = getDispatchHandler()
       expect(
@@ -145,16 +152,18 @@ describe('registerNotificationHandlers', () => {
   )
 
   it('keeps a readable body when no assistant response was captured', async () => {
-    registerNotificationHandlers({
-      getSettings: () => ({
-        notifications: {
-          enabled: true,
-          agentTaskComplete: true,
-          terminalBell: false,
-          suppressWhenFocused: true
-        }
+    registerNotificationHandlers(
+      notificationTestStore({
+        getSettings: () => ({
+          notifications: {
+            enabled: true,
+            agentTaskComplete: true,
+            terminalBell: false,
+            suppressWhenFocused: true
+          }
+        })
       })
-    } as never)
+    )
 
     const handler = getDispatchHandler()
     expect(
@@ -182,16 +191,18 @@ describe('registerNotificationHandlers', () => {
   })
 
   it('formats blocked and interrupted agent snapshots distinctly', async () => {
-    registerNotificationHandlers({
-      getSettings: () => ({
-        notifications: {
-          enabled: true,
-          agentTaskComplete: true,
-          terminalBell: false,
-          suppressWhenFocused: false
-        }
+    registerNotificationHandlers(
+      notificationTestStore({
+        getSettings: () => ({
+          notifications: {
+            enabled: true,
+            agentTaskComplete: true,
+            terminalBell: false,
+            suppressWhenFocused: false
+          }
+        })
       })
-    } as never)
+    )
 
     const handler = getDispatchHandler()
     expect(
@@ -240,16 +251,18 @@ describe('registerNotificationHandlers', () => {
   })
 
   it('normalizes custom agent labels and re-bounds multiline assistant previews', async () => {
-    registerNotificationHandlers({
-      getSettings: () => ({
-        notifications: {
-          enabled: true,
-          agentTaskComplete: true,
-          terminalBell: false,
-          suppressWhenFocused: false
-        }
+    registerNotificationHandlers(
+      notificationTestStore({
+        getSettings: () => ({
+          notifications: {
+            enabled: true,
+            agentTaskComplete: true,
+            terminalBell: false,
+            suppressWhenFocused: false
+          }
+        })
       })
-    } as never)
+    )
 
     const longAssistantMessage = `Line one\n\n${'x'.repeat(400)}`
     const handler = getDispatchHandler()
@@ -288,16 +301,18 @@ describe('registerNotificationHandlers', () => {
     { agentState: 'done', expected: 'feat/notis - Claude finished' },
     { agentState: undefined, expected: 'feat/notis - Claude finished' }
   ])('titles agentState $agentState without claiming a false finish', async (scenario) => {
-    registerNotificationHandlers({
-      getSettings: () => ({
-        notifications: {
-          enabled: true,
-          agentTaskComplete: true,
-          terminalBell: false,
-          suppressWhenFocused: true
-        }
+    registerNotificationHandlers(
+      notificationTestStore({
+        getSettings: () => ({
+          notifications: {
+            enabled: true,
+            agentTaskComplete: true,
+            terminalBell: false,
+            suppressWhenFocused: true
+          }
+        })
       })
-    } as never)
+    )
 
     const handler = getDispatchHandler()
     await handler(
@@ -326,16 +341,18 @@ describe('registerNotificationHandlers', () => {
     { agentTurnOutcome: 'success', word: 'finished' },
     { agentTurnOutcome: undefined, word: 'finished' }
   ] as const)('words a $agentTurnOutcome finish as $word', async ({ agentTurnOutcome, word }) => {
-    registerNotificationHandlers({
-      getSettings: () => ({
-        notifications: {
-          enabled: true,
-          agentTaskComplete: true,
-          terminalBell: false,
-          suppressWhenFocused: true
-        }
+    registerNotificationHandlers(
+      notificationTestStore({
+        getSettings: () => ({
+          notifications: {
+            enabled: true,
+            agentTaskComplete: true,
+            terminalBell: false,
+            suppressWhenFocused: true
+          }
+        })
       })
-    } as never)
+    )
 
     const handler = getDispatchHandler()
     await handler(
@@ -358,16 +375,18 @@ describe('registerNotificationHandlers', () => {
   })
 
   it('counts a success verdict alone as an agent snapshot', async () => {
-    registerNotificationHandlers({
-      getSettings: () => ({
-        notifications: {
-          enabled: true,
-          agentTaskComplete: true,
-          terminalBell: false,
-          suppressWhenFocused: true
-        }
+    registerNotificationHandlers(
+      notificationTestStore({
+        getSettings: () => ({
+          notifications: {
+            enabled: true,
+            agentTaskComplete: true,
+            terminalBell: false,
+            suppressWhenFocused: true
+          }
+        })
       })
-    } as never)
+    )
 
     const handler = getDispatchHandler()
     await handler(
@@ -384,16 +403,18 @@ describe('registerNotificationHandlers', () => {
   })
 
   it('uses tool context before falling back when no prompt or assistant preview exists', async () => {
-    registerNotificationHandlers({
-      getSettings: () => ({
-        notifications: {
-          enabled: true,
-          agentTaskComplete: true,
-          terminalBell: false,
-          suppressWhenFocused: true
-        }
+    registerNotificationHandlers(
+      notificationTestStore({
+        getSettings: () => ({
+          notifications: {
+            enabled: true,
+            agentTaskComplete: true,
+            terminalBell: false,
+            suppressWhenFocused: true
+          }
+        })
       })
-    } as never)
+    )
 
     const handler = getDispatchHandler()
     expect(
