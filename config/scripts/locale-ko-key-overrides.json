@@ -5104,5 +5104,68 @@
   },
   "components.workspace.cleanup.browse.agent.working": {
     "ko": "작업 중"
+  },
+  "auto.components.NewWorkspaceComposerCard.destroyConfigured": {
+    "ko": "삭제 명령 설정됨"
+  },
+  "auto.components.NewWorkspaceComposerCard.destroyDisabled": {
+    "ko": "삭제 비활성화됨"
+  },
+  "auto.components.NewWorkspaceComposerCard.noDestroyConfigured": {
+    "ko": "삭제 명령 없음"
+  },
+  "auto.components.settings.EphemeralVmCleanupStopDialog.stopping": {
+    "ko": "중지 중…"
+  },
+  "auto.components.settings.EphemeralVmRuntimesSection.stoppingCleanup": {
+    "ko": "중지 중…"
+  },
+  "auto.components.settings.EphemeralVmRuntimesSection.running": {
+    "ko": "실행 중"
+  },
+  "auto.components.settings.EphemeralVmRuntimesSection.copyCleanup": {
+    "ko": "명령어 복사"
+  },
+  "auto.components.settings.EphemeralVmRuntimesSection.description": {
+    "ko": "레시피로 생성한 런타임은 워크스페이스가 소유합니다. 충돌, 생성 실패, 수동 복구 후 남은 오래된 항목을 정리하세요."
+  },
+  "auto.components.settings.EphemeralVmCleanupStopDialog.cancel": {
+    "ko": "정리 계속"
+  },
+  "auto.components.settings.RuntimeAccessGrantList.fd83b94095": {
+    "ko": "아직 부여된 공유 서버 접근 권한이 없습니다."
+  },
+  "auto.components.settings.RuntimeEnvironmentsPane.connectToRemoteServersHelp": {
+    "ko": "다른 Orca 런타임을 페어링한 다음 여기에서 연결하거나 연결을 해제하세요."
+  },
+  "auto.components.settings.RuntimeEnvironmentsPane.reviewServerUpdates": {
+    "ko": "서버 업데이트 확인"
+  },
+  "auto.components.settings.RuntimeEnvironmentsPane.updateServer": {
+    "ko": "업데이트"
+  },
+  "auto.components.settings.RuntimeEnvironmentsPane.updatingServers": {
+    "ko": "서버 업데이트 중…"
+  },
+  "auto.components.settings.RuntimeEnvironmentsPane.versionUnavailable": {
+    "ko": "Orca 버전 확인 불가"
+  },
+  "auto.components.settings.RuntimeEnvironmentsPane.b2290ed203": {
+    "ko": "Orca가 이 호스트로 포커스를 옮기고 해당 프로젝트를 불러옵니다. 다른 호스트의 기존 터미널과 브라우저 탭은 계속 유지됩니다."
+  },
+  "auto.components.settings.SettingsHostScopePicker.description": {
+    "ko": "아래의 계정, 감지된 에이전트 및 터미널 옵션은 이 호스트에 적용됩니다."
+  },
+  "auto.components.settings.SettingsHostScopePicker.label": {
+    "ko": "호스트"
+  },
+  "auto.components.settings.SettingsHostScopePicker.unavailable": {
+    "ko": "{{value0}} (사용 불가)"
+  },
+  "auto.components.settings.SettingsHostScopePicker.unavailableNotice": {
+    "ko": "이 서버는 더 이상 저장되어 있지 않아 정보를 표시할 수 없습니다. 설정 상단에서 다른 호스트를 선택하세요."
+  },
+  "auto.components.settings.RuntimePairingUrlGenerator.45cf476df3": {
+    "ko": "host, host:port 또는 wss://host/path"
   }
 }
