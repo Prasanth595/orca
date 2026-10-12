@@ -5116,5 +5116,8 @@
   },
   "auto.components.settings.MobilePane.2e3dd0bc29": {
     "ko": "기기의 연결 권한을 해제했습니다."
+  },
+  "auto.components.settings.Settings.c6c01ac209": {
+    "ko": "휴대폰에서 터미널과 에이전트를 제어하세요."
   }
 }
