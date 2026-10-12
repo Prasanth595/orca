@@ -49,7 +49,8 @@ export class RuntimeFileCommandsWithWriteFileExplorerFile extends RuntimeFileCom
     append: boolean,
     expectedSshConnectionGeneration?: number,
     expectedSshTargetId?: string,
-    expectedExecutionHostId?: string
+    expectedExecutionHostId?: string,
+    requireExistingParent?: boolean
   ): Promise<{ ok: true }> {
     const target = await this.resolveFileExplorerPath(worktreeSelector, relativePath)
     assertRuntimeFileMutationExpectation(
@@ -61,7 +62,8 @@ export class RuntimeFileCommandsWithWriteFileExplorerFile extends RuntimeFileCom
     await requireRuntimeFileProvider(target, this.host).writeFileBase64Chunk(
       target.path,
       contentBase64,
-      append
+      append,
+      requireExistingParent
     )
     return { ok: true }
   }

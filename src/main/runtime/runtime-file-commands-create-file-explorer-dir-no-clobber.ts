@@ -34,7 +34,8 @@ export class RuntimeFileCommandsWithCreateFileExplorerDirNoClobber extends Runti
     finalRelativePath: string,
     expectedSshConnectionGeneration?: number,
     expectedSshTargetId?: string,
-    expectedExecutionHostId?: string
+    expectedExecutionHostId?: string,
+    requireExistingParent?: boolean
   ): Promise<{ ok: true }> {
     const [tempTarget, finalTarget] = await this.resolveFileExplorerPaths(worktreeSelector, [
       tempRelativePath,
@@ -51,7 +52,9 @@ export class RuntimeFileCommandsWithCreateFileExplorerDirNoClobber extends Runti
     const store = this.host.requireStore()
     const tempPath = await resolveAuthorizedPath(tempTarget.path, store)
     const finalPath = await resolveAuthorizedPath(finalTarget.path, store)
-    await mkdir(dirname(finalPath), { recursive: true })
+    if (!requireExistingParent) {
+      await mkdir(dirname(finalPath), { recursive: true })
+    }
     await copyFile(tempPath, finalPath, constants.COPYFILE_EXCL)
     await rm(tempPath, { force: true })
     return { ok: true }
