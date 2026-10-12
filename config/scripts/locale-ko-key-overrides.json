@@ -5104,5 +5104,38 @@
   },
   "components.workspace.cleanup.browse.agent.working": {
     "ko": "작업 중"
+  },
+  "auto.components.settings.shareSkills.openSkills": {
+    "ko": "스킬 열기"
+  },
+  "auto.components.settings.shareSkills.manageInSkills": {
+    "ko": "스킬에서 관리"
+  },
+  "auto.components.settings.shareSkills.showButton": {
+    "ko": "스킬 버튼 표시"
+  },
+  "auto.components.settings.shareSkills.allowAgentPublishing": {
+    "ko": "에이전트와 Orca CLI의 스킬 링크 게시 허용"
+  },
+  "auto.components.settings.shareSkills.allowAgentPublishingDescription": {
+    "ko": "설치된 스킬 중 명령어에 이름을 명시한 스킬을 게시하도록 허용합니다. 스킬 폴더에는 스크립트, 설정 또는 비밀정보가 포함될 수 있으므로 기본적으로 꺼져 있습니다."
+  },
+  "auto.components.settings.shareSkills.copyDescription": {
+    "ko": "링크가 있는 사람은 누구나 로그인하지 않고 전체 또는 선택한 스킬을 살펴보고 설치할 수 있습니다."
+  },
+  "auto.components.settings.shareSkills.description": {
+    "ko": "공개 목록에 표시되지 않는 링크로 스킬을 공유하세요. 링크가 있는 사람은 누구나 설치할 수 있습니다."
+  },
+  "auto.components.settings.shareSkills.howToTitle": {
+    "ko": "스킬 공유 방법"
+  },
+  "auto.components.settings.shareSkills.searchDescription": {
+    "ko": "공개 목록에 표시되지 않는 링크로 스킬을 공유하세요. 링크가 있는 사람은 누구나 설치할 수 있습니다."
+  },
+  "auto.components.settings.shareSkills.selectTitle": {
+    "ko": "스킬을 하나 이상 선택하세요."
+  },
+  "auto.components.settings.shareSkills.signInTitle": {
+    "ko": "스킬을 공유하려면 로그인하세요."
   }
 }
