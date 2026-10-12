@@ -12,7 +12,8 @@ import {
 } from './AgentLaunchSettingsCatalog'
 import { HostAgentLaunchSettings } from './HostAgentLaunchSettings'
 import { SettingsHostScopeUnavailableNotice } from './SettingsHostScopePicker'
-import { getSettingsHostScopeEnvironmentId, type SettingsHostScope } from './settings-host-scope'
+import type { SettingsHostScope } from './settings-host-scope'
+import { runtimeTargetEnvironmentId } from '@/runtime/runtime-client-target'
 import { translate } from '@/i18n/i18n'
 
 export function AgentLaunchSettingsSection({
@@ -27,7 +28,7 @@ export function AgentLaunchSettingsSection({
   hostScope: SettingsHostScope
   renderPermissions: AgentPermissionsRenderer
 }): React.JSX.Element {
-  const environmentId = getSettingsHostScopeEnvironmentId(hostScope)
+  const environmentId = runtimeTargetEnvironmentId(hostScope.target)
   const environment = useAppStore((state) =>
     environmentId ? state.runtimeEnvironments.find((entry) => entry.id === environmentId) : null
   )
