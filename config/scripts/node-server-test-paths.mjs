@@ -7,7 +7,16 @@ export const CROSS_RUNTIME_TEST_PATHS = [
   'src/main/persistence/profile-state/profile-state-cross-runtime.integration.test.ts'
 ]
 
-export function nodeServerTestPaths({ artifact = false, crossRuntime = false } = {}) {
+// Need the built desktop server template; CI runs them by path after build-orcad-template.mjs.
+export const TEMPLATE_TEST_PATHS = [
+  'src/main/orcad/orcad-packaged-structured-chat.integration.test.ts'
+]
+
+export function nodeServerTestPaths({
+  artifact = false,
+  crossRuntime = false,
+  template = false
+} = {}) {
   return [
     'src/main/persistence/profile-state',
     'src/main/persistence/loading-store/profile-state',
@@ -31,12 +40,14 @@ export function nodeServerTestPaths({ artifact = false, crossRuntime = false } =
           'src/main/orcad/orcad-packaged-node-pty.integration.test.ts',
           'src/main/providers/agent-foreground-process-git-bash.win32.test.ts',
           'src/main/orcad/orcad-node-launcher.integration.test.ts',
+          'src/main/orcad/orcad-launcher-isolation.integration.test.ts',
           'src/main/orcad/orcad-stop-request-shutdown.integration.test.ts',
           'src/main/orcad/orcad-windows-conpty-breakaway.integration.test.ts',
           'src/main/orcad/orcad-serve-parity.integration.test.ts',
           'config/scripts/zip-extractor-command.test.mjs'
         ]
       : []),
-    ...(crossRuntime ? CROSS_RUNTIME_TEST_PATHS : [])
+    ...(crossRuntime ? CROSS_RUNTIME_TEST_PATHS : []),
+    ...(template ? TEMPLATE_TEST_PATHS : [])
   ]
 }

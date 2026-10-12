@@ -16,11 +16,10 @@ import { execOrcadRemote } from './orcad-remote-runtime-control'
 import { readBoundedOrcadRemoteRecord } from './orcad-remote-record-file'
 import { orcadSlotDir, type OrcadSlotOptions } from './orcad-recovery-slot'
 import { isWindowsRemoteHost, joinRemotePath } from './ssh-remote-platform'
-import { isUnconfirmedSshCommandTermination } from './ssh-relay-deploy-helpers'
+import { isUnconfirmedSshCommandTermination } from './ssh-relay-exec-command'
 import {
-  orcadWindowsBaseDir,
-  orcadWindowsHostOpCommand,
   orcadWindowsNodeCommandLine,
+  orcadWindowsSlotOpCommand,
   readOrcadWindowsEncodedAnswer
 } from './orcad-remote-windows-node'
 import { ORCAD_WINDOWS_RUNTIME_MARKER } from './orcad-windows-host-script'
@@ -149,11 +148,10 @@ async function runWindowsSlotCommand(
   request: OrcadManagedStopRequest,
   flag: string
 ): Promise<string> {
-  const baseDir = orcadWindowsBaseDir(options.host, slotDir)
   const runtime = readOrcadWindowsEncodedAnswer(
     await execOrcadRemote(
       options,
-      orcadWindowsHostOpCommand(options.host, baseDir, 'slot-runtime', [slotDir])
+      orcadWindowsSlotOpCommand(options.host, slotDir, 'slot-runtime', [slotDir])
     ),
     ORCAD_WINDOWS_RUNTIME_MARKER
   )
@@ -184,7 +182,7 @@ async function runWindowsSlotCommand(
     if (removeStaged) {
       await execOrcadRemote(
         options,
-        orcadWindowsHostOpCommand(options.host, baseDir, 'remove-file', [staged])
+        orcadWindowsSlotOpCommand(options.host, slotDir, 'remove-file', [staged])
       ).catch(() => {})
     }
   }

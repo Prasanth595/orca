@@ -44,6 +44,10 @@ export function createPtyApi(): NonNullable<Partial<PreloadApi>['pty']> {
     isCodexOnSharedServer: () => Promise.resolve({ joined: false }),
     disableCodexSharedServerAutoStart: () => Promise.resolve(false),
     stopCodexSharedServer: () => Promise.resolve(false),
+    openedBeforeClaudeAccounts: () => Promise.resolve(false),
+    // Why: the paired host owns its daemons; this client has none to stop.
+    readNewerDaemonHeldScreen: () => Promise.resolve(null),
+    reopenNewerDaemonTerminals: () => Promise.resolve({ reopened: false }),
     getCwd: () => Promise.resolve('~'),
     getSize: () => Promise.resolve(null),
     listSessions: () => Promise.resolve([]),
@@ -156,8 +160,6 @@ export function createSshApi(): NonNullable<Partial<PreloadApi>['ssh']> {
       return state
     },
     disconnect: () => Promise.resolve(),
-    terminateSessions: () => Promise.resolve({ terminated: 0, unverifiable: 0 }),
-    resetRelay: () => Promise.resolve(),
     getState: async (args) => {
       if (!requireActiveEnvironmentOrNull()) {
         return null
