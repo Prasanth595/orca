@@ -27,6 +27,11 @@ vi.mock('./serve-orcad-launch', async (importOriginal) => ({
 }))
 
 import { serveOrcaApp } from './launch'
+import {
+  emptyServeSupervisorBrake,
+  readServeSupervisorBrake,
+  writeServeSupervisorBrake
+} from './serve-supervisor-brake'
 
 class FakeChildProcess extends EventEmitter {
   stdout = new EventEmitter()
@@ -51,6 +56,7 @@ describe('orca serve host selection', () => {
     spawnMock.mockReset()
     resolveLocalServeRuntimeMock.mockReset()
     serveWithOrcadMock.mockReset()
+    refuseIfProfileServedMock.mockReset()
     process.env.ORCA_APP_EXECUTABLE = '/opt/orca/orca-ide'
     stderr = []
     vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
@@ -139,6 +145,35 @@ describe('orca serve host selection', () => {
     expect(spawnMock).not.toHaveBeenCalled()
   })
 
+  it.each([false, true])(
+    'rejects unsupported browser-free supervision before force changes the brake (override=%s)',
+    async (override) => {
+      const root = await mkdtemp(join(tmpdir(), 'orca-no-browser-supervise-'))
+      const stop = setTimeout(() => process.emit('SIGTERM', 'SIGTERM'), 100)
+      try {
+        process.env.ORCA_APP_EXECUTABLE = join(root, 'orca')
+        await writeFile(process.env.ORCA_APP_EXECUTABLE, '')
+        const profile = join(root, 'profile')
+        process.env.ORCA_USER_DATA_PATH = profile
+        if (override) {
+          process.env.ORCA_SERVE_RUNTIME = 'electron'
+        }
+        const brake = emptyServeSupervisorBrake('preserved-fixture')
+        writeServeSupervisorBrake(profile, brake)
+        resolveLocalServeRuntimeMock.mockResolvedValue({ kind: 'electron', reason: 'no template' })
+        await expect(
+          serveOrcaApp({ noBrowser: true, supervise: true, force: true })
+        ).rejects.toThrow('--no-browser requires orcad')
+        expect(readServeSupervisorBrake(profile)).toEqual(brake)
+        expect(spawnMock).not.toHaveBeenCalled()
+        expect(serveWithOrcadMock).not.toHaveBeenCalled()
+      } finally {
+        clearTimeout(stop)
+        await rm(root, { recursive: true, force: true })
+      }
+    }
+  )
+
   it('carries the browser-free option to the selected orcad host', async () => {
     const selection = { kind: 'orcad', runtime: '/node', entry: '/slot/orcad.js', version: '1' }
     resolveLocalServeRuntimeMock.mockResolvedValue(selection)
@@ -149,6 +184,59 @@ describe('orca serve host selection', () => {
     expect(selectedHost).toEqual(selection)
     expect(options).toEqual({ noBrowser: true })
     expect(spawnMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps supported browser-free orcad supervision and stops without a failure record', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'orca-no-browser-supervise-orcad-'))
+    try {
+      process.env.ORCA_APP_EXECUTABLE = join(root, 'orca')
+      await writeFile(process.env.ORCA_APP_EXECUTABLE, '')
+      const profile = join(root, 'profile')
+      process.env.ORCA_USER_DATA_PATH = profile
+      resolveLocalServeRuntimeMock.mockResolvedValue({
+        kind: 'orcad',
+        runtime: '/node',
+        entry: '/slot/orcad.js',
+        version: '1'
+      })
+      refuseIfProfileServedMock.mockReturnValue(null)
+      serveWithOrcadMock.mockImplementation(async () => {
+        process.emit('SIGTERM', 'SIGTERM')
+        return 0
+      })
+      await expect(serveOrcaApp({ noBrowser: true, supervise: true })).resolves.toBe(0)
+      expect(serveWithOrcadMock).toHaveBeenCalledOnce()
+      expect(serveWithOrcadMock.mock.calls[0]?.[1]?.noBrowser).toBe(true)
+      expect(readServeSupervisorBrake(profile)).toBeNull()
+      expect(spawnMock).not.toHaveBeenCalled()
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects a later Electron selection without recording another supervised failure', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'orca-no-browser-supervise-change-'))
+    try {
+      process.env.ORCA_APP_EXECUTABLE = join(root, 'orca')
+      await writeFile(process.env.ORCA_APP_EXECUTABLE, '')
+      const profile = join(root, 'profile')
+      process.env.ORCA_USER_DATA_PATH = profile
+      const selection = { kind: 'orcad', runtime: '/node', entry: '/slot/orcad.js', version: '1' }
+      resolveLocalServeRuntimeMock
+        .mockResolvedValueOnce(selection)
+        .mockResolvedValueOnce(selection)
+        .mockResolvedValue({ kind: 'electron', reason: 'no template' })
+      refuseIfProfileServedMock.mockReturnValue(null)
+      serveWithOrcadMock.mockResolvedValue(0)
+      await expect(serveOrcaApp({ noBrowser: true, supervise: true })).rejects.toThrow(
+        '--no-browser requires orcad'
+      )
+      expect(serveWithOrcadMock).toHaveBeenCalledOnce()
+      expect(readServeSupervisorBrake(profile)?.failures).toHaveLength(1)
+      expect(spawnMock).not.toHaveBeenCalled()
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
   })
 
   it('keeps Electron without asking orcad when ORCA_SERVE_RUNTIME=electron', async () => {

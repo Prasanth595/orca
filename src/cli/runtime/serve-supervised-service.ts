@@ -30,6 +30,8 @@ export type SupervisedServeOptions = {
   /** Part of the build identity: the app archive changes with every release. */
   appRoot?: string
   force: boolean
+  /** Fatal validation before supervisor state changes and each launch attempt. */
+  validateBeforeRun?: () => Promise<void>
   /** One full serve attempt: preflight, spawn, and the existing update-aware wait. */
   runOnce: () => Promise<number>
   readInstallEvidence?: (executable: string) => Promise<ServeInstallEvidence>
@@ -84,6 +86,9 @@ function defaultSetTimer(callback: () => void, ms: number): () => void {
  * child died; it exits on a stop signal, or with 0 after giving up so the manager stops too.
  */
 export async function superviseServeService(options: SupervisedServeOptions): Promise<number> {
+  if (options.validateBeforeRun) {
+    await options.validateBeforeRun()
+  }
   const now = options.now ?? Date.now
   const random = options.random ?? Math.random
   const log = options.log ?? ((line: string) => process.stderr.write(`${line}\n`))
@@ -192,6 +197,12 @@ export async function superviseServeService(options: SupervisedServeOptions): Pr
         continue
       }
       hold.current = null
+      if (options.validateBeforeRun) {
+        await options.validateBeforeRun()
+        if (stopped) {
+          break
+        }
+      }
       record = brakeForBuild(record, identify(options.executable))
       if (record.gaveUp) {
         return refuseGaveUp(record.gaveUp)

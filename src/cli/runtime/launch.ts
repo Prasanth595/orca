@@ -21,7 +21,11 @@ import {
   superviseForegroundServe
 } from './serve-update-supervisor'
 import { RuntimeClientError } from './types'
-import { SERVE_RUNTIME_ELECTRON, SERVE_RUNTIME_ENV } from '../../shared/orcad-local-serve-selection'
+import {
+  SERVE_RUNTIME_ELECTRON,
+  SERVE_RUNTIME_ENV,
+  type ServeRuntimeSelection
+} from '../../shared/orcad-local-serve-selection'
 import {
   resolveLocalServeRuntime,
   serveOptionArgs,
@@ -121,18 +125,30 @@ export function serveOrcaApp(args: ServeOrcaAppArgs = {}): Promise<number> {
   const userDataPath = resolveLaunchUserDataPath()
   if (args.supervise) {
     let attempt = 0
+    let validatedSelection: ServeRuntimeSelection | undefined
     return superviseServeService({
       userDataPath,
       executable,
       appRoot: resolveAppRoot(),
       force: args.force === true,
+      validateBeforeRun: args.noBrowser
+        ? async () => {
+            if (process.env[SERVE_RUNTIME_ENV] === SERVE_RUNTIME_ELECTRON) {
+              refuseBrowserFreeElectronServe(args)
+            }
+            validatedSelection = await resolveServeRuntime(executable, args, userDataPath)
+            if (validatedSelection.kind === 'electron') {
+              refuseBrowserFreeElectronServe(args)
+            }
+          }
+        : undefined,
       // Why first only: --force overrides a remembered abort once; the brake owns later attempts.
-      runOnce: () =>
-        serveOnce(
-          executable,
-          { ...args, force: args.force === true && attempt++ === 0 },
-          userDataPath
-        )
+      runOnce: () => {
+        const attemptArgs = { ...args, force: args.force === true && attempt++ === 0 }
+        return validatedSelection
+          ? serveWithSelectedRuntime(executable, attemptArgs, userDataPath, validatedSelection)
+          : serveOnce(executable, attemptArgs, userDataPath)
+      }
     })
   }
   return serveOnce(executable, args, userDataPath)
@@ -150,17 +166,27 @@ function serveOnce(
   return serveWithSelectedRuntime(executable, args, userDataPath)
 }
 
-async function serveWithSelectedRuntime(
+function resolveServeRuntime(
   executable: string,
   args: ServeOrcaAppArgs,
   userDataPath: string
-): Promise<number> {
-  const selection = await resolveLocalServeRuntime({
+): Promise<ServeRuntimeSelection> {
+  return resolveLocalServeRuntime({
     executable,
     appRoot: resolveAppRoot(),
     userDataPath,
     usesMacUpdateHandoff: args.recipeJson !== true && getMacAppBundlePath(executable) !== null
   })
+}
+
+async function serveWithSelectedRuntime(
+  executable: string,
+  args: ServeOrcaAppArgs,
+  userDataPath: string,
+  validatedSelection?: ServeRuntimeSelection
+): Promise<number> {
+  const selection =
+    validatedSelection ?? (await resolveServeRuntime(executable, args, userDataPath))
   if (selection.kind === 'orcad') {
     // Why only supervised: orcad refuses a held profile as a configuration fault (exit 78), which
     // the brake would count; exit 3 here lets the supervisor wait for the other Orca instead.
@@ -177,17 +203,21 @@ async function serveWithSelectedRuntime(
   return serveWithElectron(executable, args, userDataPath)
 }
 
-function serveWithElectron(
-  executable: string,
-  args: ServeOrcaAppArgs,
-  userDataPath: string
-): Promise<number> {
+function refuseBrowserFreeElectronServe(args: ServeOrcaAppArgs): void {
   if (args.noBrowser) {
     throw new RuntimeClientError(
       'invalid_argument',
       '--no-browser requires orcad; this launch selected Electron serve. No server was started.'
     )
   }
+}
+
+function serveWithElectron(
+  executable: string,
+  args: ServeOrcaAppArgs,
+  userDataPath: string
+): Promise<number> {
+  refuseBrowserFreeElectronServe(args)
   const preflight = preflightElectronServe(args, userDataPath)
   if (preflight === null) {
     return spawnElectronServe(executable, args, userDataPath)
