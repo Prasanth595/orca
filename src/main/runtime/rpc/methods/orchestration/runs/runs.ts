@@ -39,8 +39,18 @@ export const ORCHESTRATION_RUN_METHODS = [
       })
       const db = runtime.getOrchestrationDb()
       const priorRun = db.getCurrentRunForCoordinator(caller)
+      if (
+        params.notificationPolicy === 'coordination' &&
+        !runtime.supportsCoordinatorDelivery(caller.address)
+      ) {
+        throw new OrchestrationError(
+          'coordinator_delivery_unsupported',
+          'Coordination delivery requires a supported Codex terminal owner. No Run was created.'
+        )
+      }
       const run = db.createRun({
         objective: params.objective,
+        notificationPolicy: params.notificationPolicy,
         coordinatorHandle: caller.terminalHandle,
         coordinatorPaneKey: caller.paneKey,
         coordinatorOrcaSessionId: caller.orcaSessionId
@@ -145,7 +155,20 @@ export const ORCHESTRATION_RUN_METHODS = [
       if (!run) {
         throw new OrchestrationError('run_not_found', `Run ${params.id} was not found.`)
       }
-      return { run: exposeRun(run) }
+      const processIncarnation = run.coordinator_handle
+        ? runtime.getTerminalProcessIncarnation(run.coordinator_handle)
+        : null
+      return {
+        run: exposeRun(run),
+        passOwner:
+          run.notification_policy === 'coordination' && run.coordinator_handle && processIncarnation
+            ? {
+                handle: run.coordinator_handle,
+                consumerGeneration: run.consumer_generation,
+                processIncarnation
+              }
+            : null
+      }
     }
   })
 ]

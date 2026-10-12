@@ -1,5 +1,6 @@
 import type { TerminalExitCause } from '../../../shared/terminal-exit-cause'
 import type { OrcaSessionId } from '../../../shared/orca-session-address'
+import type { OrchestrationNotificationPolicy } from '../../../shared/orchestration-coordinator-delivery'
 export const MESSAGE_TYPES = [
   'status',
   'dispatch',
@@ -42,6 +43,7 @@ export type GateStatus = 'pending' | 'resolved' | 'timeout'
 export type CoordinatorStatus = 'idle' | 'running' | 'completed' | 'failed'
 
 export type RunRow = {
+  notification_policy?: OrchestrationNotificationPolicy
   id: string
   objective: string
   home_database: string

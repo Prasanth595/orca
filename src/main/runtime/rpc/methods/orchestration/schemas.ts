@@ -110,6 +110,13 @@ export const SendParams = z
     // Why: pane key is the remint-stable identity used to verify worker_done/heartbeat ownership; the from handle stays routing metadata.
     senderPaneKey: OptionalString,
     run: OptionalString,
+    coordinatorPass: z
+      .object({
+        handle: z.string().min(1),
+        consumerGeneration: z.number().int().positive(),
+        processIncarnation: z.string().min(1)
+      })
+      .optional(),
     waitForLifecycleSettlement: OptionalBoolean,
     devMode: OptionalBoolean
   })

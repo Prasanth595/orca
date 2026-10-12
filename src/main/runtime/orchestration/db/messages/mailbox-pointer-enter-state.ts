@@ -165,9 +165,12 @@ export function releasePendingMailboxPointerForPty(this: OrchestrationDb, ptyId:
            END,
            pointer_enter_pending = 0, pointer_pty_id = NULL,
            pointer_process_incarnation = NULL
-       WHERE pointer_enter_pending > 0 AND pointer_pty_id = ?`
+       WHERE pointer_enter_pending > 0 AND pointer_pty_id = ?
+         AND (pointer_enter_pending = ? OR NOT EXISTS (
+           SELECT 1 FROM runs WHERE runs.id = messages.run_id AND notification_policy = 'coordination'
+         ))`
     )
-    .run(MAILBOX_POINTER_RESERVED, ptyId)
+    .run(MAILBOX_POINTER_RESERVED, ptyId, MAILBOX_POINTER_RESERVED)
 }
 
 function mutatePointerMessages(

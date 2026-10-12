@@ -43,6 +43,7 @@ export function selectOrchestrationPointerBatch(input: {
   mailboxHandle: string
   waiters: ReadonlySet<OrchestrationMessageWaiter> | undefined
   reservedTypes: ReadonlySet<string> | undefined
+  submitTarget?: { terminalHandle: string; processIncarnation: string } | null
 }): MessageRow[] {
   if (hasUnfilteredOrchestrationWaiter(input.waiters)) {
     return []
@@ -53,8 +54,20 @@ export function selectOrchestrationPointerBatch(input: {
       excludedTypes.add(type)
     }
   }
+  const run = input.mailboxHandle.startsWith('run:')
+    ? input.db.getRun(input.mailboxHandle.slice('run:'.length))
+    : undefined
   return input.db.getUndeliveredUnreadMessages(input.mailboxHandle, undefined, {
     excludeTypes: [...excludedTypes],
+    coordinationOnly: run?.notification_policy === 'coordination',
+    coordinatorPassOwner:
+      run && input.submitTarget
+        ? {
+            handle: input.submitTarget.terminalHandle,
+            processIncarnation: input.submitTarget.processIncarnation,
+            consumerGeneration: run.consumer_generation
+          }
+        : undefined,
     limit: ORCHESTRATION_DELIVERY_BATCH_LIMIT
   })
 }
@@ -62,9 +75,24 @@ export function selectOrchestrationPointerBatch(input: {
 export function shouldReleaseOrchestrationPointer(
   db: OrchestrationDb | null,
   mailboxHandle: string,
-  messages: readonly { id: string; type: string }[],
+  messages: readonly { id: string; type: string; payload?: string | null }[],
   waiters: ReadonlySet<OrchestrationMessageWaiter> | undefined
 ): boolean {
+  for (const message of messages) {
+    const owner = readCoordinatorPassOwner(message.payload)
+    if (!owner) {
+      continue
+    }
+    const run = mailboxHandle.startsWith('run:')
+      ? db?.getRun(mailboxHandle.slice('run:'.length))
+      : undefined
+    if (
+      !run ||
+      run.consumer_generation !== owner.consumerGeneration ||
+      run.coordinator_handle !== owner.handle
+    )
+      return true
+  }
   if (db?.hasOutstandingMailboxDelivery?.(mailboxHandle)) {
     return true
   }
@@ -78,3 +106,4 @@ export function shouldReleaseOrchestrationPointer(
     ) ?? true
   )
 }
+import { readCoordinatorPassOwner } from '../../../shared/orchestration-coordinator-delivery'

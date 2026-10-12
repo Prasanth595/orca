@@ -33,6 +33,10 @@ export function resumePendingOrchestrationMailboxPointer<
   const staged = args.messages[0]
   const messageIds = args.messages.map((message) => message.id)
   const phases = new Set(args.messages.map((message) => message.pointer_enter_pending))
+  const coordinated =
+    args.mailboxHandle.startsWith('run:') &&
+    args.deps.getDb()?.getRun?.(args.mailboxHandle.slice('run:'.length))?.notification_policy ===
+      'coordination'
   const persistedTarget = staged?.pointer_pty_id
     ? {
         ptyId: staged.pointer_pty_id,
@@ -52,6 +56,9 @@ export function resumePendingOrchestrationMailboxPointer<
         message.pointer_process_incarnation !== staged.pointer_process_incarnation
     )
   ) {
+    if (coordinated && [...phases].some((phase) => phase !== MAILBOX_POINTER_RESERVED)) {
+      return true
+    }
     const db = args.deps.getDb()
     if (db) {
       const byTarget = new Map<
@@ -84,6 +91,9 @@ export function resumePendingOrchestrationMailboxPointer<
     return false
   }
   if (phases.size !== 1 || !phases.has(MAILBOX_POINTER_RESERVED)) {
+    if (coordinated) {
+      return true
+    }
     // Same-incarnation recovery cannot tell whether pointer text or Enter reached the PTY.
     args.deps
       .getDb()

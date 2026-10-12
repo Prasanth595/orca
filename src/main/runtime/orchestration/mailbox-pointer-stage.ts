@@ -16,8 +16,9 @@ import type {
 import { submitOrchestrationMailboxPointer } from './mailbox-pointer-submit'
 import type { OrchestrationMailboxPointerSubmitTarget } from './mailbox-pointer-submit'
 import { isSettledWrite, type WriteSettlement } from '../../../shared/pty-write-settlement'
+import { sendOrchestrationMailboxPointerPrompt } from './mailbox-pointer-prompt'
 
-type StagePointerArgs<TWaiter extends OrchestrationMessageWaiter> = {
+export type StagePointerArgs<TWaiter extends OrchestrationMessageWaiter> = {
   deps: PointerDeliveryDependencies<TWaiter>
   state: OrchestrationMailboxPointerState
   leaf: OrchestrationMailboxLeaf
@@ -60,10 +61,15 @@ export function stageOrchestrationMailboxPointer<TWaiter extends OrchestrationMe
   const flight = args.state.beginFlight(ptyId)
   flight.processIncarnation = expectedTarget.processIncarnation
   flight.stagedMessageIds = args.messages.map((message) => message.id)
+  const verified =
+    args.mailboxHandle.startsWith('run:') &&
+    db.getRun(args.mailboxHandle.slice('run:'.length))?.notification_policy === 'coordination'
+  flight.verifiedPrompt = verified
   try {
     if (
       !db.stageMailboxPointerEnter(flight.stagedMessageIds, reservationTarget) ||
-      !db.markMailboxPointerWriteAttempted(flight.stagedMessageIds, reservationTarget)
+      (!verified &&
+        !db.markMailboxPointerWriteAttempted(flight.stagedMessageIds, reservationTarget))
     ) {
       args.settle(ptyId, flight)
       // Not forced: a retry would fail on the same reservation, but a park from an
@@ -78,6 +84,19 @@ export function stageOrchestrationMailboxPointer<TWaiter extends OrchestrationMe
   }
   // The watermark parks concurrent deliveries, so it must never outlive the DB reservation.
   args.state.setWatermark(args.mailboxHandle, args.newestSequence, ptyId, args.leafKey)
+  if (verified) {
+    void sendOrchestrationMailboxPointerPrompt(
+      args,
+      expectedTarget,
+      flight,
+      formatMessagePointer(
+        args.messages.length,
+        args.mailboxHandle,
+        args.deps.getCliCommand(expectedTarget.terminalHandle)
+      )
+    ).catch(() => undefined)
+    return
+  }
   // Only `refused` proves no bytes left, so only `refused` may release the reservation.
   const settlePointerWrite = (settlement: WriteSettlement): void => {
     if (settlement.outcome === 'unverifiable') {

@@ -4,6 +4,7 @@ import { ORCHESTRATION_RUN_PAGE_LIMIT } from '../orchestration-run-pagination'
 
 export const RunCreateParams = z.object({
   objective: requiredString('Missing --objective'),
+  notificationPolicy: z.enum(['all', 'coordination']).optional(),
   from: requiredString('Missing coordinator terminal')
 })
 

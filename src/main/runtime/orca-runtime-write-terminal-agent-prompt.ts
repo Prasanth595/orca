@@ -22,6 +22,8 @@ import {
   verifyAgentPromptSubmission
 } from './agent-prompt-submission-verification'
 import { TUI_AGENT_CONFIG } from '../../shared/tui-agent-config'
+import { AgentPromptWriteSettlementError } from './agent-prompt-write-settlement'
+import { writeUnverifiable } from '../../shared/pty-write-settlement'
 
 export class OrcaRuntimeWithWriteTerminalAgentPrompt extends OrcaRuntimeWithResolveAuthoritativeTerminalWaitPermission {
   protected async writeTerminalAgentPrompt(
@@ -68,9 +70,7 @@ export class OrcaRuntimeWithWriteTerminalAgentPrompt extends OrcaRuntimeWithReso
       // beginning when a large frame is split into independently processed chunks.
       renderGate?.arm()
       const initialWrite = submitWithPaste ? pastePayload + AGENT_PROMPT_SUBMIT : pastePayload
-      if (!this.ptyController?.write(ptyId, initialWrite, options.inputKind)) {
-        throw new Error('terminal_not_writable')
-      }
+      await this.writeAgentPromptFrame(ptyId, initialWrite, options)
     } catch (error) {
       renderGate?.dispose()
       throw error
@@ -114,9 +114,7 @@ export class OrcaRuntimeWithWriteTerminalAgentPrompt extends OrcaRuntimeWithReso
     const baseline = preSubmitBaseline ?? this.getAgentPromptActivity(handle, ptyId, waitTextCache)
     this.assertAgentPromptPermissionSafe(permissionBaseline, baseline)
     if (!submitWithPaste) {
-      if (!this.ptyController?.write(ptyId, AGENT_PROMPT_SUBMIT, options.inputKind)) {
-        throw new Error(options.suffixFailureError ?? 'terminal_not_writable')
-      }
+      await this.writeAgentPromptFrame(ptyId, AGENT_PROMPT_SUBMIT, options)
     }
     const submits =
       options.composerReady && !submitWithPaste
@@ -209,6 +207,28 @@ export class OrcaRuntimeWithWriteTerminalAgentPrompt extends OrcaRuntimeWithReso
       }
       throw error
     }
+  }
+
+  private async writeAgentPromptFrame(
+    ptyId: string,
+    data: string,
+    options: RuntimeAgentPromptWriteOptions
+  ): Promise<void> {
+    if (options.requireWriteSettlement) {
+      const settlement = await this.writeTerminalAction(ptyId, {}, data, {
+        inputKind: options.inputKind,
+        requireWriteSettlement: true,
+        signal: options.signal
+      })
+      if (settlement?.outcome !== 'accepted') {
+        throw new AgentPromptWriteSettlementError(
+          settlement ?? writeUnverifiable('transport_settlement_lost', true)
+        )
+      }
+    } else if (!this.ptyController?.write(ptyId, data, options.inputKind)) {
+      throw new Error(options.suffixFailureError ?? 'terminal_not_writable')
+    }
+    await options.afterWrite?.(ptyId)
   }
 
   /**

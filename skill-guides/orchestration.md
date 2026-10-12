@@ -70,6 +70,38 @@ non-Orca subagent tool when Orca orchestration provenance was requested.
 - A successful `orchestration send` proves durable enqueue; its wake or nudge is
   best-effort attention only and does not prove the recipient read or accepted it.
 
+## Opt-in owning hub attention
+
+Create a supported Codex terminal Run with
+`ORCA orchestration run-create --objective "..." --notification-policy coordination`.
+The host must advertise `orchestration.coordinator-delivery.v1`; unsupported peers
+fail explicitly. Existing Runs keep their original notification policy. This
+contract currently requires an addressable Codex PTY with settled-write support;
+it does not enable structured-session or other-provider delivery.
+
+Worker completion, escalation, questions, and status payloads declaring
+`{"materialKind":"dependency-change"}` or `{"materialKind":"delivery-risk"}`
+request attention. Rejected lifecycle reports also request attention; an invalid
+heartbeat is a delivery risk, rather than routine liveness. Ordinary heartbeats and routine status stay readable through `check`
+without starting a turn. Busy work waits for idle. Delivery uses one bracketed
+paste and one Enter, and settles only after the existing lifecycle verifier
+observes a new turn. Accepted transport bytes are not observed turn start.
+
+A supported timer caller can enqueue one bounded reconciliation request in the
+existing hub. Read `run-show --id <run>` and preserve its `passOwner` fields, then
+call `request-pass --run <run> --owner <handle> --consumer-generation <generation>
+--process-incarnation <incarnation> --from <caller>`. Use the normal explicit
+connection and caller identity for that host; do not call `run-use` to acquire the
+hub. An absent owner or stale generation/incarnation fails without takeover.
+The queued receipt is not a wake receipt and grants no additional authority.
+
+For an ambiguous send, resume its durable request with `--retry-request <id>`;
+do not create another request. Unobserved paste/Enter effects remain reserved
+across replay, restart and owner replacement, so automatic delivery cannot
+duplicate input. Permission prompts remain blocked. Reconciliation must retain
+pause, expiry and scope rules from its owning unit. No runtime timer or production
+schedule is installed by these commands.
+
 ## Worker obligations
 
 The injected preamble is authoritative. A dispatched worker must:

@@ -65,6 +65,16 @@ export const ORCHESTRATION_SEND_METHODS = [
         return stripMutationReplayNudge(replayedMutationReceipt)
       }
       const from = params.from ?? 'unknown'
+      if (params.coordinatorPass) {
+        assertCoordinatorPassOwner({
+          db,
+          runId: params.run,
+          to: params.to,
+          type: params.type,
+          owner: params.coordinatorPass,
+          readProcessIncarnation: (handle) => runtime.getTerminalProcessIncarnation(handle)
+        })
+      }
       const attestedCaller =
         orchestrationCompatibilityCallerAuthority?.terminalHandle === from
           ? orchestrationCompatibilityCallerAuthority
@@ -247,3 +257,4 @@ export const ORCHESTRATION_SEND_METHODS = [
     }
   })
 ]
+import { assertCoordinatorPassOwner } from '../../../../orchestration/coordinator-pass'

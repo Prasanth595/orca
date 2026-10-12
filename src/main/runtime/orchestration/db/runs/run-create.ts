@@ -3,6 +3,7 @@ import { generateId } from '../generated-id'
 import type { OrchestrationDb } from '../orchestration-db'
 import type { OrcaSessionId } from '../../../../../shared/orca-session-address'
 import { mailboxAddressOf } from '../../orchestration-caller-identity'
+import type { OrchestrationNotificationPolicy } from '../../../../../shared/orchestration-coordinator-delivery'
 
 // ── Runs ──
 
@@ -10,6 +11,7 @@ export function createRun(
   this: OrchestrationDb,
   params: {
     objective: string
+    notificationPolicy?: OrchestrationNotificationPolicy
     coordinatorHandle: string | null
     coordinatorPaneKey: string | null
     /** The coordinator's bare Orca session id when it is a structured session; see orca-session-address. */
@@ -28,13 +30,14 @@ export function createRun(
     this.db
       .prepare(
         `INSERT INTO runs (
-           id, objective, coordinator_handle, coordinator_pane_key, coordinator_orca_session_id,
+           id, objective, notification_policy, coordinator_handle, coordinator_pane_key, coordinator_orca_session_id,
            coordinator_orca_session_id_generation, consumer_generation, legacy
-         ) VALUES (?, ?, ?, ?, ?, 1, 1, 0)`
+         ) VALUES (?, ?, ?, ?, ?, ?, 1, 1, 0)`
       )
       .run(
         id,
         params.objective,
+        params.notificationPolicy ?? 'all',
         coordinator.terminalHandle,
         coordinator.paneKey,
         coordinator.orcaSessionId

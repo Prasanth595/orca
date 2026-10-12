@@ -122,7 +122,8 @@ export class OrchestrationMailboxPointerDelivery<TWaiter extends OrchestrationMe
       db,
       mailboxHandle,
       waiters,
-      reservedTypes: options.reservedTypes
+      reservedTypes: options.reservedTypes,
+      submitTarget: leaf.ptyId ? this.deps.resolveSubmitTarget(leaf, leaf.ptyId) : null
     })
     if (unread.length === 0 || !leaf.writable || !leaf.ptyId) {
       return
@@ -185,7 +186,9 @@ export class OrchestrationMailboxPointerDelivery<TWaiter extends OrchestrationMe
         db.releaseMailboxPointerEnter(
           flight.stagedMessageIds,
           { ptyId, processIncarnation: flight.processIncarnation },
-          [MAILBOX_POINTER_RESERVED, MAILBOX_POINTER_WRITE_ATTEMPTED]
+          flight.verifiedPrompt
+            ? [MAILBOX_POINTER_RESERVED]
+            : [MAILBOX_POINTER_RESERVED, MAILBOX_POINTER_WRITE_ATTEMPTED]
         )
       } else {
         db?.markAsUndelivered(flight.stagedMessageIds)

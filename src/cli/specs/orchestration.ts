@@ -3,11 +3,30 @@ import { ORCHESTRATION_WORKER_COMMAND_SPECS } from './orchestration-worker-specs
 
 export const ORCHESTRATION_COMMAND_SPECS: CommandSpec[] = [
   {
+    path: ['orchestration', 'request-pass'],
+    summary: 'Queue one bounded reconciliation pass in the existing owning hub',
+    usage:
+      'orca orchestration request-pass --run <run_id> --owner <handle> --consumer-generation <n> --process-incarnation <id> [--from <handle>] [--retry-request <id>] [--json]',
+    allowedFlags: [
+      ...GLOBAL_FLAGS,
+      'run',
+      'owner',
+      'consumer-generation',
+      'process-incarnation',
+      'from',
+      'retry-request'
+    ],
+    identityFlagRoles: { from: 'caller' },
+    notes: [
+      'Requires an opt-in coordination Run and the current owner identity; it never binds or takes over a Run. Enqueue does not prove turn start.'
+    ]
+  },
+  {
     path: ['orchestration', 'run-create'],
     summary: 'Create and bind a lightweight orchestration Run',
     usage:
-      'orca orchestration run-create --objective <text> [--from <handle>] [--retry-request <id>] [--json]',
-    allowedFlags: [...GLOBAL_FLAGS, 'objective', 'from', 'retry-request'],
+      'orca orchestration run-create --objective <text> [--from <handle>] [--notification-policy all|coordination] [--retry-request <id>] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'objective', 'from', 'notification-policy', 'retry-request'],
     identityFlagRoles: { from: 'caller' },
     notes: [
       'A Run is a namespace and home inbox. It never schedules or places workers.',

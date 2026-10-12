@@ -8,16 +8,27 @@ import {
 import { ORCHESTRATION_RUN_PAGE_LIMIT } from '../../../shared/orchestration-run-pagination'
 import { callOrchestrationMutation } from './mutation-request'
 import { resolveCoordinatorTerminalHandle } from './terminal-identity'
+import { ORCHESTRATION_COORDINATOR_DELIVERY_CAPABILITY } from '../../../shared/orchestration-coordinator-delivery'
 
 export const ORCHESTRATION_RUN_HANDLERS: Record<string, CommandHandler> = {
   'orchestration run-create': async ({ flags, client, cwd, json }) => {
     const from = await resolveCoordinatorTerminalHandle(flags, cwd, client)
+    const notificationPolicy = getOptionalStringFlag(flags, 'notification-policy')
     const result = await callOrchestrationMutation<{
       run: { id: string; objective: string; consumer_generation: number }
-    }>(client, flags, 'orchestration.runCreate', {
-      objective: getRequiredStringFlag(flags, 'objective'),
-      from
-    })
+    }>(
+      client,
+      flags,
+      'orchestration.runCreate',
+      {
+        objective: getRequiredStringFlag(flags, 'objective'),
+        from,
+        ...(notificationPolicy ? { notificationPolicy } : {})
+      },
+      notificationPolicy
+        ? { orchestrationCapability: ORCHESTRATION_COORDINATOR_DELIVERY_CAPABILITY }
+        : undefined
+    )
     printResult(result, json, (r) => `Run ${r.run.id} created and bound: ${r.run.objective}`)
   },
 

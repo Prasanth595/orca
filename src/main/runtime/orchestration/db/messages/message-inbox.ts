@@ -1,3 +1,8 @@
+import {
+  COORDINATION_POINTER_CONDITION,
+  coordinatorPointerParams,
+  type MailboxPointerQueryOptions
+} from './coordinator-pointer-query'
 import type { MessageType, MessageRow } from '../../types'
 import { exposeMessageTimestamps, exposeMessageListTimestamps } from '../utc-timestamp'
 import { addLifecycleRejectionMarker } from '../lifecycle-rejection-marker'
@@ -91,7 +96,7 @@ export function getUndeliveredUnreadMessages(
   this: OrchestrationDb,
   toHandle: string,
   types?: MessageType[],
-  options?: { excludeTypes?: readonly string[]; limit?: number }
+  options?: MailboxPointerQueryOptions
 ): MessageRow[] {
   const conditions = [
     'to_handle = ?',
@@ -101,6 +106,10 @@ export function getUndeliveredUnreadMessages(
     "delivery_contract = 'current_delivery'"
   ]
   const params: (string | number)[] = [toHandle]
+  if (options?.coordinationOnly) {
+    conditions.push(COORDINATION_POINTER_CONDITION)
+    params.push(...coordinatorPointerParams(options.coordinatorPassOwner))
+  }
   if (types?.length) {
     conditions.push(`type IN (${types.map(() => '?').join(',')})`)
     params.push(...types)

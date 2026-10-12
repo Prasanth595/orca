@@ -18,8 +18,55 @@ import { parseAppSshPtyId } from '../../shared/ssh-pty-id'
 import { isTerminalLeafId, makePaneKey } from '../../shared/stable-pane-id'
 import type { OrchestrationMailboxLeaf } from './orchestration/mailbox-owner'
 import type { OrchestrationMailboxPointerSubmitTarget } from './orchestration/mailbox-pointer-submit'
+import type { RuntimeAgentPromptWriteOptions } from './runtime-terminal-contracts'
+import { ORCHESTRATION_READINESS_TIMEOUT_MS } from '../../shared/orchestration-timing-budgets'
 
 export class OrcaRuntimeWithWriteOrchestrationPointerPty extends OrcaRuntimeWithRefreshFloatingWorkspacePtyLiveness {
+  supportsCoordinatorDelivery(handle: string): boolean {
+    try {
+      const ptyId = this.getTerminalAgentStatusPtyId(handle)
+      return (
+        this.ptysById.get(ptyId)?.connected === true &&
+        this.getPtyAgent(ptyId) === 'codex' &&
+        typeof this.ptyController?.writeWithSettlement === 'function'
+      )
+    } catch {
+      return false
+    }
+  }
+
+  protected async sendOrchestrationPointerPrompt(
+    target: OrchestrationMailboxPointerSubmitTarget,
+    text: string,
+    options: RuntimeAgentPromptWriteOptions
+  ) {
+    if (!this.supportsCoordinatorDelivery(target.terminalHandle)) {
+      throw new Error('coordinator_delivery_unsupported')
+    }
+    return this.sendTerminalAgentPrompt(target.terminalHandle, text, {
+      ...options,
+      beforeWrite: async (ptyId) => {
+        const status = await this.getTerminalAgentStatus(target.terminalHandle)
+        if (!status.isRunningAgent) {
+          throw new Error('coordinator_unverifiable')
+        }
+        if (status.status === 'permission') {
+          throw new Error('agent_prompt_blocked')
+        }
+        if (status.status !== 'idle') {
+          const idle = await this.waitForTerminal(target.terminalHandle, {
+            condition: 'tui-idle',
+            timeoutMs: ORCHESTRATION_READINESS_TIMEOUT_MS
+          })
+          if (!idle.satisfied || idle.blockedReason) {
+            throw new Error('agent_prompt_blocked')
+          }
+        }
+        await options.beforeWrite?.(ptyId)
+      }
+    })
+  }
+
   protected writeOrchestrationPointerPty(
     ptyId: string,
     data: string

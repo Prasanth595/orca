@@ -65,9 +65,11 @@ export function sendPointToPointMessage(args: {
       type: messageType,
       priority: params.priority as MessagePriority,
       threadId: params.threadId,
-      payload: dispatch
-        ? bindCoordinatorMutationPayload(messageType, params.payload, dispatch.id)
-        : params.payload,
+      payload: params.coordinatorPass
+        ? JSON.stringify({ coordinatorPass: params.coordinatorPass })
+        : dispatch
+          ? bindCoordinatorMutationPayload(messageType, params.payload, dispatch.id)
+          : params.payload,
       senderPaneKey,
       runId: messageRunId,
       deliveryContract: legacyWorkerDeliveryContract(

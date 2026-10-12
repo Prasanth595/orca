@@ -10,6 +10,7 @@ import { ORCHESTRATION_QUESTION_HANDLER } from './orchestration/question-handler
 import { ORCHESTRATION_REQUEST_SHOW_HANDLER } from './orchestration/mutation-request-show-handler'
 import { ORCHESTRATION_RESET_HANDLER } from './orchestration/reset-handler'
 import { ORCHESTRATION_RUN_HANDLERS } from './orchestration/run-handlers'
+import { ORCHESTRATION_COORDINATOR_PASS_HANDLER } from './orchestration/coordinator-pass-handler'
 import { ORCHESTRATION_SEND_HANDLER } from './orchestration/message-send-handler'
 import { ORCHESTRATION_TASK_HANDLERS } from './orchestration/task-handlers'
 import { ORCHESTRATION_WORKER_LAUNCH_HANDLER } from './orchestration/worker-launch-handler'
@@ -18,6 +19,7 @@ import { ORCHESTRATION_WORKER_TERMINAL_HANDLERS } from './orchestration/worker-t
 
 export const ORCHESTRATION_HANDLERS: Record<string, CommandHandler> = {
   ...ORCHESTRATION_RUN_HANDLERS,
+  ...ORCHESTRATION_COORDINATOR_PASS_HANDLER,
   ...ORCHESTRATION_SEND_HANDLER,
   ...ORCHESTRATION_CHECK_HANDLER,
   ...ORCHESTRATION_INBOX_HANDLERS,

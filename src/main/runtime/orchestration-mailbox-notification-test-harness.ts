@@ -10,6 +10,8 @@ import { OrcaRuntimeService } from './orca-runtime'
 import { OrchestrationDb } from './orchestration/db'
 import { RpcDispatcher } from './rpc/dispatcher'
 import { ORCHESTRATION_METHODS } from './rpc/methods/orchestration'
+import type { OrchestrationNotificationPolicy } from '../../shared/orchestration-coordinator-delivery'
+import type { MessageType } from './orchestration/db'
 
 export const TAB_ID = '11111111-1111-4111-8111-111111111111'
 export const LEAF_ID = '22222222-2222-4222-8222-222222222222'
@@ -36,20 +38,30 @@ export function sqliteFor(db: OrchestrationDb): Database.Database {
   return (db as unknown as { db: Database.Database }).db
 }
 
-export function createBoundRun(db: OrchestrationDb, objective: string) {
+export function createBoundRun(
+  db: OrchestrationDb,
+  objective: string,
+  notificationPolicy: OrchestrationNotificationPolicy = 'all'
+) {
   return db.createRun({
     objective,
+    notificationPolicy,
     coordinatorHandle: TERMINAL_HANDLE,
     coordinatorPaneKey: PANE_KEY
   })
 }
 
-export function insertDirectRunMessage(db: OrchestrationDb, runId: string, subject: string) {
+export function insertDirectRunMessage(
+  db: OrchestrationDb,
+  runId: string,
+  subject: string,
+  type: MessageType = 'status'
+) {
   const message = db.insertMessage({
     from: 'term_worker',
     to: TERMINAL_HANDLE,
     subject,
-    type: 'status',
+    type,
     runId,
     deliveryContract: 'current_delivery'
   })
