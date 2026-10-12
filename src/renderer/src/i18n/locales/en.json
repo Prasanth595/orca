@@ -19529,6 +19529,7 @@
       "completed": "Run completed",
       "failed": "Run failed:",
       "cancelled": "Run cancelled",
+      "skipped": "Skipped",
       "clickToDismiss": "Click to dismiss"
     },
     "outputs": {

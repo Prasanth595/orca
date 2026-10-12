@@ -224,6 +224,20 @@
     "count": 1
   },
   {
+    "filePath": "src/renderer/src/components/workflows/WorkflowFormInputEditor.tsx",
+    "kind": "object-property:label",
+    "text": "field",
+    "dynamic": true,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowForEachFields.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "{{steps.nodeId.json.items}}",
+    "dynamic": false,
+    "count": 1
+  },
+  {
     "filePath": "src/renderer/src/components/workflows/WorkflowBranchConditionEditor.tsx",
     "kind": "jsx-attribute:placeholder",
     "text": "field",
