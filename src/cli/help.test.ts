@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { CommandSpec } from './args'
 import { formatGroupHelp } from './help'
 import { BROWSER_BASIC_COMMAND_SPECS } from './specs/browser-basic'
+import { WORKSPACE_TAB_COMMAND_SPECS } from './specs/workspace-tabs'
 
 function listedCommands(specs: CommandSpec[], groupPath: string[]): string[] {
   const output = formatGroupHelp(specs, groupPath)
@@ -13,29 +14,17 @@ function listedCommands(specs: CommandSpec[], groupPath: string[]): string[] {
 
 describe('command group help', () => {
   it.each([
-    [
-      'tab',
-      [
-        'list',
-        'show',
-        'current',
-        'switch',
-        'create',
-        'profile list',
-        'profile create',
-        'profile delete',
-        'profile set',
-        'profile show',
-        'profile use-default',
-        'profile clone',
-        'close'
-      ]
-    ],
-    ['tab profile', ['list', 'create', 'delete', 'set', 'show', 'use-default', 'clone']],
+    ['tab', ['list', 'switch', 'close']],
+    ['tab profile', []],
     ['browser profile', ['list', 'create', 'rm', 'set', 'show', 'use-default', 'clone']],
     ['browser page', ['show', 'current', 'create']]
   ])('lists the accepted commands under %s', (group, commands) => {
-    expect(listedCommands(BROWSER_BASIC_COMMAND_SPECS, group.split(' '))).toEqual(commands)
+    expect(
+      listedCommands(
+        [...WORKSPACE_TAB_COMMAND_SPECS, ...BROWSER_BASIC_COMMAND_SPECS],
+        group.split(' ')
+      )
+    ).toEqual(commands)
   })
 
   it.each([
