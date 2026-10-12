@@ -17,6 +17,7 @@ import type { AutomaticAgentResumeClaim, CodexRestartNotice } from './terminal-c
 import type { StateCreator } from 'zustand'
 import type { AppState } from '../types'
 import type { TerminalActions } from './terminal-actions'
+import type { TerminalMoveIntoTabActions } from './terminal-move-into-tab-actions'
 
 export type TerminalState = {
   tabsByWorktree: Record<string, TerminalTab[]>
@@ -145,7 +146,7 @@ export type TerminalState = {
   deferredSshReconnectTargets: string[]
   deferredSshSessionIdsByTabId: Record<string, string>
 }
-export type TerminalSlice = TerminalState & TerminalActions
+export type TerminalSlice = TerminalState & TerminalActions & TerminalMoveIntoTabActions
 
 export type TerminalStoreSet = Parameters<StateCreator<AppState, [], [], AppState>>[0]
 export type TerminalStoreGet = Parameters<StateCreator<AppState, [], [], AppState>>[1]
