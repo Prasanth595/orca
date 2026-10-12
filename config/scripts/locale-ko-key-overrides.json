@@ -2124,7 +2124,7 @@
     "ko": "에이전트 권한"
   },
   "auto.components.settings.AgentsPane.agentPermissionsDescription": {
-    "ko": "Orca가 agents를 실행할 때 권한 프롬프트를 줄일지, 수동 확인을 유지할지 선택합니다."
+    "ko": "Orca가 에이전트를 실행할 때 권한 프롬프트를 줄일지, 수동 확인을 유지할지 선택합니다."
   },
   "auto.components.settings.AgentsPane.agentPermissionsInfo": {
     "ko": "에이전트 권한 정보"
@@ -5167,5 +5167,8 @@
   },
   "auto.components.settings.agents.search.ff457e1e7b": {
     "ko": "데몬"
+  },
+  "auto.components.settings.Settings.ec1ba547f7": {
+    "ko": "AI 에이전트를 관리하고, 기본값을 설정하고, 명령을 사용자 지정하세요."
   }
 }
