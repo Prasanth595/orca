@@ -2373,7 +2373,7 @@
     "ko": "사용자 정의:"
   },
   "auto.components.settings.NotificationsPane.b6fc369244": {
-    "ko": "백그라운드 terminal이 벨 문자를 내보냅니다."
+    "ko": "백그라운드 터미널에서 벨 문자가 출력됩니다."
   },
   "auto.components.settings.OpenAiTranscriptionKeyDialog.07b26f2742": {
     "ko": "키 지우기"
@@ -5122,5 +5122,8 @@
   },
   "auto.components.settings.NotificationsPane.00cd406dbb": {
     "ko": "보고 있는 워크트리의 알림 숨기기"
+  },
+  "auto.components.settings.NotificationsPane.55f901a59b": {
+    "ko": "코딩 에이전트가 작업을 마치고 유휴 상태가 됩니다."
   }
 }
