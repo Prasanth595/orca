@@ -2355,7 +2355,7 @@
     "ko": "SSH repos는 원격 파일 시스템을 통해 읽힙니다. 스타터 생성은 워크스페이스 루트 구성으로 제한됩니다."
   },
   "auto.components.settings.MobileEmulatorExamples.4daa95f25a": {
-    "ko": "Orca CLI 스킬이 설치된 프로젝트의 Claude Code, Codex 또는 다른 agent에 이들 중 하나를 붙여넣으세요."
+    "ko": "Orca CLI 스킬이 설치된 프로젝트의 Claude Code, Codex 또는 다른 에이전트에 이들 중 하나를 붙여넣으세요."
   },
   "auto.components.settings.MobileEmulatorSettingsPane.a4f1c82d90": {
     "ko": "비활성화됨"
@@ -5125,5 +5125,23 @@
   },
   "auto.components.settings.mobile.emulator.search.f8b871d655": {
     "ko": "에이전트 CLI"
+  },
+  "auto.components.settings.MobileEmulatorAgentControlRow.ff4b7e65d6": {
+    "ko": "코딩 에이전트가 Orca CLI 명령을 사용하여 활성 모바일 에뮬레이터를 제어하도록 합니다."
+  },
+  "auto.components.settings.MobileEmulatorAgentControlRow.d94ca6a623": {
+    "ko": "에이전트가 모바일 에뮬레이터 제어를 포함하여 Orca CLI 명령을 사용할 수 있도록 합니다."
+  },
+  "auto.components.settings.Settings.01f9d36292": {
+    "ko": "Orca 및 코딩 에이전트에 대한 모바일 에뮬레이터 지원을 구성합니다."
+  },
+  "auto.components.settings.MobileEmulatorSettingsPane.bc39d0f115": {
+    "ko": "Orca 및 코딩 에이전트에 대한 모바일 에뮬레이터 지원을 구성합니다."
+  },
+  "auto.components.settings.MobileEmulatorSettingsPane.f9af91ea26": {
+    "ko": "새 모바일 에뮬레이터 작업을 표시하고 에이전트가 활성 에뮬레이터에 연결할 수 있도록 합니다."
+  },
+  "auto.components.settings.mobile.emulator.search.9595354cff": {
+    "ko": "Orca 및 코딩 에이전트에 대한 모바일 에뮬레이터 지원을 구성합니다."
   }
 }
