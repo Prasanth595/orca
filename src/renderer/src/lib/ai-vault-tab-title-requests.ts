@@ -1,7 +1,4 @@
-import type {
-  AgentProviderSessionMetadata,
-  SleepingAgentSessionRecord
-} from '../../../shared/agent-session-resume'
+import type { AgentProviderSessionMetadata } from '../../../shared/agent-session-resume'
 import type { AgentStatusEntry, AgentType } from '../../../shared/agent-status-types'
 import type { AiVaultSessionTitle } from '../../../shared/ai-vault-session-title'
 import { isAiVaultTitleAgent } from '../../../shared/ai-vault-session-title'
@@ -10,7 +7,6 @@ import { parsePaneKey } from '../../../shared/stable-pane-id'
 import type { TerminalTab } from '../../../shared/terminal-tab-types'
 import { getExecutionHostIdForWorktree } from '@/lib/worktree-runtime-owner'
 import type { AppState } from '@/store/types'
-import type { RetainedAgentEntry } from '@/store/slices/agent-status'
 
 export type AiVaultTitleRequest = {
   agent: AiVaultSessionTitle['agent']
@@ -32,64 +28,25 @@ function activePaneKey(state: AppState, tabId: string): string | null {
   return activeLeafId ? `${tabId}:${activeLeafId}` : null
 }
 
-type CandidateSource = {
-  agent: AgentType | null | undefined
-  paneKey: string
-  priority: number
-  providerSession: AgentProviderSessionMetadata | undefined
-  refresh: boolean
-  tabId?: string
-  worktreeId?: string
-}
-
-// A pane's conversation sources, lowest priority first: retained, then sleeping, then live.
-function retainedSource(entry: RetainedAgentEntry): CandidateSource {
-  return {
-    agent: entry.agentType,
-    paneKey: entry.entry.paneKey,
-    priority: 10,
-    providerSession: entry.entry.providerSession,
-    refresh: false,
-    tabId: entry.entry.tabId,
-    worktreeId: entry.worktreeId
-  }
-}
-
-function sleepingSource(record: SleepingAgentSessionRecord): CandidateSource {
-  return {
-    agent: record.agent,
-    paneKey: record.paneKey,
-    priority: 20,
-    providerSession: record.providerSession,
-    refresh: false,
-    tabId: record.tabId,
-    worktreeId: record.worktreeId
-  }
-}
-
-function liveSource(entry: AgentStatusEntry): CandidateSource {
-  return {
-    agent: entry.agentType,
-    paneKey: entry.paneKey,
-    priority: 30,
-    providerSession: entry.providerSession,
-    refresh: true,
-    tabId: entry.tabId,
-    worktreeId: entry.worktreeId
-  }
-}
-
 function registerCandidate(
   state: AppState,
-  findTab: (tabId: string) => TerminalTab | undefined,
+  tabsById: ReadonlyMap<string, TerminalTab>,
   candidates: Map<string, RequestCandidate>,
-  args: CandidateSource
+  args: {
+    agent: AgentType | null | undefined
+    paneKey: string
+    priority: number
+    providerSession: AgentProviderSessionMetadata | undefined
+    refresh: boolean
+    tabId?: string
+    worktreeId?: string
+  }
 ): void {
   if (!isAiVaultTitleAgent(args.agent) || !args.providerSession?.id) {
     return
   }
   const tabId = tabIdFromPaneKey(args.paneKey, args.tabId)
-  const tab = tabId ? findTab(tabId) : undefined
+  const tab = tabId ? tabsById.get(tabId) : undefined
   const worktreeId = args.worktreeId ?? tab?.worktreeId
   if (!tabId || !tab || !worktreeId) {
     return
@@ -110,14 +67,24 @@ function registerCandidate(
   })
 }
 
-export type AiVaultTitleRequestOptions = {
-  /** Skip retained and sleeping records: those remember a conversation after its agent exited. */
-  runningAgentsOnly?: boolean
+function liveCandidate(entry: AgentStatusEntry): Parameters<typeof registerCandidate>[3] {
+  return {
+    agent: entry.agentType,
+    paneKey: entry.paneKey,
+    priority: 30,
+    providerSession: entry.providerSession,
+    refresh: true,
+    tabId: entry.tabId,
+    worktreeId: entry.worktreeId
+  }
 }
 
 export function collectAiVaultTitleRequests(
   state: AppState,
-  options: AiVaultTitleRequestOptions = {}
+  options: {
+    /** Skip retained and sleeping records: those remember a conversation after its agent exited. */
+    runningAgentsOnly?: boolean
+  } = {}
 ): AiVaultTitleRequest[] {
   const tabsById = new Map(
     Object.values(state.tabsByWorktree)
@@ -125,47 +92,54 @@ export function collectAiVaultTitleRequests(
       .map((tab) => [tab.id, tab] as const)
   )
   const candidates = new Map<string, RequestCandidate>()
-  const sources = [
-    ...(options.runningAgentsOnly
-      ? []
-      : [
-          ...Object.values(state.retainedAgentsByPaneKey).map(retainedSource),
-          ...Object.values(state.sleepingAgentSessionsByPaneKey).map(sleepingSource)
-        ]),
-    ...Object.values(state.agentStatusByPaneKey).map(liveSource)
-  ]
-  for (const source of sources) {
-    registerCandidate(state, (tabId) => tabsById.get(tabId), candidates, source)
+  const retained = options.runningAgentsOnly ? [] : Object.values(state.retainedAgentsByPaneKey)
+  const sleeping = options.runningAgentsOnly
+    ? []
+    : Object.values(state.sleepingAgentSessionsByPaneKey)
+
+  for (const entry of retained) {
+    registerCandidate(state, tabsById, candidates, {
+      agent: entry.agentType,
+      paneKey: entry.entry.paneKey,
+      priority: 10,
+      providerSession: entry.entry.providerSession,
+      refresh: false,
+      tabId: entry.entry.tabId,
+      worktreeId: entry.worktreeId
+    })
+  }
+  for (const record of sleeping) {
+    registerCandidate(state, tabsById, candidates, {
+      agent: record.agent,
+      paneKey: record.paneKey,
+      priority: 20,
+      providerSession: record.providerSession,
+      refresh: false,
+      tabId: record.tabId,
+      worktreeId: record.worktreeId
+    })
+  }
+  for (const entry of Object.values(state.agentStatusByPaneKey)) {
+    registerCandidate(state, tabsById, candidates, liveCandidate(entry))
   }
 
   return [...candidates.values()].map(({ priority: _priority, ...request }) => request)
 }
 
-/** The same mapping narrowed to one pane, so a pane's action finds that pane's own conversation. */
+/** One pane's running agent, mapped as above, so a pane's action finds that pane's own conversation. */
 export function resolvePaneAiVaultTitleRequest(
   state: AppState,
-  pane: { worktreeId: string; paneKey: string },
-  options: AiVaultTitleRequestOptions = {}
+  pane: { worktreeId: string; paneKey: string }
 ): AiVaultTitleRequest | null {
-  const retained = options.runningAgentsOnly
-    ? undefined
-    : state.retainedAgentsByPaneKey[pane.paneKey]
-  const sleeping = options.runningAgentsOnly
-    ? undefined
-    : state.sleepingAgentSessionsByPaneKey[pane.paneKey]
   const live = state.agentStatusByPaneKey[pane.paneKey]
-  const candidates = new Map<string, RequestCandidate>()
-  const findTab = (tabId: string): TerminalTab | undefined =>
-    state.tabsByWorktree[pane.worktreeId]?.find((tab) => tab.id === tabId)
-  for (const source of [
-    retained ? retainedSource(retained) : null,
-    sleeping ? sleepingSource(sleeping) : null,
-    live ? liveSource(live) : null
-  ]) {
-    if (source?.paneKey === pane.paneKey) {
-      registerCandidate(state, findTab, candidates, source)
-    }
+  if (live?.paneKey !== pane.paneKey) {
+    return null
   }
+  const tabsById = new Map(
+    (state.tabsByWorktree[pane.worktreeId] ?? []).map((tab) => [tab.id, tab] as const)
+  )
+  const candidates = new Map<string, RequestCandidate>()
+  registerCandidate(state, tabsById, candidates, liveCandidate(live))
   const [candidate] = candidates.values()
   if (!candidate) {
     return null
