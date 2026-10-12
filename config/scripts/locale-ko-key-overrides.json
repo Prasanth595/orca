@@ -5104,5 +5104,41 @@
   },
   "components.workspace.cleanup.browse.agent.working": {
     "ko": "작업 중"
+  },
+  "auto.components.settings.DeveloperPermissionsPane.fa809e8ada": {
+    "ko": "macOS '개인정보 보호 및 보안'을 열었습니다"
+  },
+  "auto.components.settings.DeveloperPermissionsPane.connectionTestHost": {
+    "ko": "호스트"
+  },
+  "auto.components.settings.DeveloperPermissionsPane.actionRequest": {
+    "ko": "권한 요청"
+  },
+  "auto.components.settings.DeveloperPermissionsPane.connectionTestUnreachable": {
+    "ko": "대상에 연결할 수 없습니다."
+  },
+  "auto.components.settings.DeveloperPermissionsPane.e7bb06007c": {
+    "ko": "로컬 네트워크"
+  },
+  "auto.components.settings.DeveloperPermissionsPane.appStatus": {
+    "ko": "앱: "
+  },
+  "auto.components.settings.DeveloperPermissionsPane.terminalHostStatus": {
+    "ko": "터미널 호스트: "
+  },
+  "auto.components.settings.DeveloperPermissionsPane.terminalHostRecovery": {
+    "ko": "터미널이 보호된 파일을 읽지 못하면 작업을 저장한 뒤 터미널 → 세션 관리에서 닫으세요. 새 터미널도 영향을 받는다면 데몬을 다시 시작하세요. 다시 시작하면 현재 터미널이 모두 닫힙니다."
+  },
+  "auto.components.settings.DeveloperPermissionsPane.6f011b9bf6": {
+    "ko": "터미널 도구는 Orca의 macOS 개인정보 보호 환경 안에서 실행됩니다."
+  },
+  "auto.components.settings.developer.permissions.search.acad3d4743": {
+    "ko": "터미널 세션에서 사용되는 장치 도구와 LAN 액세스를 허용합니다."
+  },
+  "auto.components.settings.DeveloperPermissionsPane.4a73f5217a": {
+    "ko": "다른 로컬 앱을 제어하는 스크립트에 필요한 Apple Events 권한입니다."
+  },
+  "auto.components.settings.ComputerUsePane.697005758f": {
+    "ko": "macOS '개인정보 보호 및 보안'을 열었습니다"
   }
 }
