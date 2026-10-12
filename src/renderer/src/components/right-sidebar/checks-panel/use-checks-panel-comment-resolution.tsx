@@ -1,8 +1,11 @@
 import { forgeOwnerHostIdForWorkspace } from '@/runtime/forge-credential-target'
 import { useCallback, useEffect } from 'react'
 import { toast } from 'sonner'
-import { pickDefaultSourceControlAgent } from '../SourceControl'
-import { resolveSourceControlLaunchAgentScope } from '../../../../../shared/source-control-launch-agent-selection'
+import {
+  pickSourceControlLaunchAgent,
+  resolveSourceControlLaunchAgentScope
+} from '../../../../../shared/source-control-launch-agent-selection'
+import type { SourceControlActionId } from '../../../../../shared/source-control-ai-actions'
 import {
   markPRCommentThreadResolved,
   restorePRCommentThreadSnapshot
@@ -152,30 +155,27 @@ export function useChecksPanelCommentResolution(model: ChecksPanelCommentResolut
   const commentsDisabledReason = canTargetPRComments
     ? undefined
     : 'Commenting requires a GitHub PR repository target.'
-  // A saved action agent launches even when hidden from pickers, so it keeps the actions usable.
-  const savedAgentDetected = (['fixChecks', 'resolveConflicts', 'resolveComments'] as const).some(
-    (actionId) => {
-      const agent = resolveSourceControlLaunchAgentScope({
-        settings,
-        repo,
-        actionId
-      }).effectiveAgentId
-      return agent !== null && Boolean(detectedAgentIds?.includes(agent))
+  // A saved agent launches even when hidden from pickers, so it keeps only its own action usable.
+  const aiActionDisabledReason = (actionId: SourceControlActionId): string | undefined => {
+    if (!activeWorktreeId) {
+      return 'Select a workspace before launching an AI action.'
     }
-  )
-  const noEnabledAgentKnown =
-    detectedAgentIds != null &&
-    !savedAgentDetected &&
-    pickDefaultSourceControlAgent(
-      settings?.defaultTuiAgent,
-      detectedAgentIds,
-      settings?.disabledTuiAgents
-    ) == null
-  const aiActionDisabledReason = !activeWorktreeId
-    ? 'Select a workspace before launching an AI action.'
-    : noEnabledAgentKnown
+    const noAgentToLaunch =
+      detectedAgentIds != null &&
+      pickSourceControlLaunchAgent({
+        savedAgent: resolveSourceControlLaunchAgentScope({ settings, repo, actionId })
+          .effectiveAgentId,
+        defaultAgent: settings?.defaultTuiAgent,
+        detectedAgents: detectedAgentIds,
+        disabledAgents: settings?.disabledTuiAgents
+      }) == null
+    return noAgentToLaunch
       ? 'No AI agent is both installed and shown in Settings. Install one, or show one in Settings.'
       : undefined
+  }
+  const fixChecksDisabledReason = aiActionDisabledReason('fixChecks')
+  const resolveConflictsDisabledReason = aiActionDisabledReason('resolveConflicts')
+  const resolveCommentsAgentDisabledReason = aiActionDisabledReason('resolveComments')
   useEffect(() => {
     if (!sourceControlAiActionsVisible) {
       setAgentComposerState(null)
@@ -195,8 +195,8 @@ export function useChecksPanelCommentResolution(model: ChecksPanelCommentResolut
     ? 'Still finishing the previous comment launch.'
     : commentsLoading
       ? 'Comments are still loading.'
-      : aiActionDisabledReason
-        ? aiActionDisabledReason
+      : resolveCommentsAgentDisabledReason
+        ? resolveCommentsAgentDisabledReason
         : !activeReview
           ? 'Open a PR or MR before launching an AI action.'
           : !repo
@@ -211,8 +211,8 @@ export function useChecksPanelCommentResolution(model: ChecksPanelCommentResolut
     canTargetPRComments,
     commentsDisabledReason,
     detectedAgentsForAI: detectedAgentIds,
-    noEnabledAgentKnown,
-    aiActionDisabledReason,
+    fixChecksDisabledReason,
+    resolveConflictsDisabledReason,
     resolveCommentsWithAIDisabledReason
   }
 }

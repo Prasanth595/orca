@@ -55,11 +55,12 @@ export type ChecksPanelActiveContentModel = Pick<
   > &
   Pick<
     ChecksPanelCommentResolutionState,
-    | 'aiActionDisabledReason'
     | 'canTargetPRComments'
     | 'commentsDisabledReason'
+    | 'fixChecksDisabledReason'
     | 'handleResolve'
     | 'resolveCommentsWithAIDisabledReason'
+    | 'resolveConflictsDisabledReason'
   > &
   Pick<
     ChecksPanelAiAcknowledgementState,

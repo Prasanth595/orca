@@ -48,7 +48,6 @@ export function ChecksPanelActiveContent({
     activeWorktree,
     activeWorktreeId,
     agentComposerState,
-    aiActionDisabledReason,
     canTargetPRComments,
     checks,
     checksError,
@@ -64,6 +63,7 @@ export function ChecksPanelActiveContent({
     consumeClaimedCommentResolutionAfterDeliveryRef,
     detachedHeadDisplay,
     editingTitle,
+    fixChecksDisabledReason,
     getGitLabProjectRef,
     handleAddPRComment,
     handleCancelEdit,
@@ -96,6 +96,7 @@ export function ChecksPanelActiveContent({
     refreshHostedReviewAfterMutation,
     repo,
     resolveCommentsWithAIDisabledReason,
+    resolveConflictsDisabledReason,
     saveLaunchActionDefault,
     setAgentComposerState,
     setChecksPanelContentRef,
@@ -222,12 +223,12 @@ export function ChecksPanelActiveContent({
           checks={checks}
           isResolvingConflictsWithAI={isResolvingConflictsWithAI}
           onResolveConflictsWithAI={() => void handleResolveConflictsWithAI()}
-          resolveConflictsDisabled={Boolean(aiActionDisabledReason)}
-          resolveConflictsDisabledReason={aiActionDisabledReason}
+          resolveConflictsDisabled={Boolean(resolveConflictsDisabledReason)}
+          resolveConflictsDisabledReason={resolveConflictsDisabledReason}
           isFixingChecksWithAI={isFixingChecksWithAI}
           onFixChecksWithAI={() => void handleFixChecksWithAI()}
-          fixChecksDisabled={Boolean(aiActionDisabledReason)}
-          fixChecksDisabledReason={aiActionDisabledReason}
+          fixChecksDisabled={Boolean(fixChecksDisabledReason)}
+          fixChecksDisabledReason={fixChecksDisabledReason}
         />
       )}
       {activeConflictReview && (
