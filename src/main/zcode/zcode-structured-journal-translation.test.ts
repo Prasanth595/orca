@@ -187,6 +187,34 @@ describe('zcode journal translation: model.streaming', () => {
     expect(tap.rows.length).toBe(afterFirst)
   })
 
+  it('retries a completion rewrite the sink refused until it accepts', () => {
+    const tap = recorder()
+    let refuseCompletions = true
+    const sink: StructuredAgentSessionEventSink = {
+      ...tap.sink,
+      tryAppendItem: (identity, body) =>
+        refuseCompletions && body.kind === 'message' && body.state === 'completed'
+          ? { accepted: false, reason: 'backpressure' }
+          : (tap.rows.push({ key: agentJournalItemKey(identity), body }), { accepted: true })
+    }
+    const { translator, window } = translatorWith({ ...tap, sink })
+    translator.handle(TURN_STARTED)
+    translator.handle(streaming('msg-1', '你好'))
+    window.fire()
+    expect(translator.handle(event('turn.completed', { turnId: 'turn-1' }, 4)).accepted).toBe(true)
+    // Refused: the completed rewrite has not landed yet.
+    expect(tap.rows.findLast((row) => row.key === messageKey('msg-1'))?.body).toMatchObject({
+      state: 'running'
+    })
+
+    refuseCompletions = false
+    window.fire()
+    expect(tap.rows.findLast((row) => row.key === messageKey('msg-1'))?.body).toMatchObject({
+      state: 'completed',
+      blocks: [{ type: 'text', text: '你好' }]
+    })
+  })
+
   it('restores snapshot messages over a live stream copy', () => {
     const { translator, tap } = translatorWith()
     translator.handle(TURN_STARTED)

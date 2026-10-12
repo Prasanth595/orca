@@ -21,7 +21,10 @@ import type {
   StructuredAgentSessionEventSink,
   StructuredAgentSessionSinkAdmission
 } from '../native-chat/agent-session-wire/structured-agent-session-event-sink'
-import { createAgentSessionDeltaCoalescer } from '../native-chat/agent-session-wire/agent-session-delta-coalescer'
+import {
+  AGENT_SESSION_DELTA_COALESCE_MS,
+  createAgentSessionDeltaCoalescer
+} from '../native-chat/agent-session-wire/agent-session-delta-coalescer'
 
 export type ZcodeStreamTranslatorDeps = {
   sink: StructuredAgentSessionEventSink
@@ -47,6 +50,13 @@ type ZcodeStreamState = {
 
 const STREAM_KEY_SEPARATOR = '\u0000'
 
+/** A completed rewrite the sink refused, kept so it can be retried. */
+type ZcodePendingCompletion = {
+  state: ZcodeStreamState
+  text: string
+  completedAt: number
+}
+
 export function createZcodeStreamTranslator(deps: ZcodeStreamTranslatorDeps): {
   handleDelta: (args: {
     messageId: string
@@ -64,6 +74,28 @@ export function createZcodeStreamTranslator(deps: ZcodeStreamTranslatorDeps): {
   dispose: () => void
 } {
   const states = new Map<string, ZcodeStreamState>()
+  /** Completions the sink refused: the coalesced stream is no longer dirty, so only these retry. */
+  const pendingCompletions = new Map<string, ZcodePendingCompletion>()
+  let cancelRetry: (() => void) | null = null
+
+  const scheduleCompletionRetry = (): void => {
+    cancelRetry ??= deps.schedule
+      ? deps.schedule(retryPendingCompletions, AGENT_SESSION_DELTA_COALESCE_MS)
+      : scheduleDefault(retryPendingCompletions, AGENT_SESSION_DELTA_COALESCE_MS)
+  }
+
+  const retryPendingCompletions = (): void => {
+    cancelRetry = null
+    for (const [key, pending] of pendingCompletions) {
+      if (appendRow(pending.state, pending.text, pending.completedAt)) {
+        pendingCompletions.delete(key)
+        states.delete(key)
+      }
+    }
+    if (pendingCompletions.size > 0) {
+      scheduleCompletionRetry()
+    }
+  }
 
   const appendRow = (
     state: ZcodeStreamState,
@@ -140,8 +172,10 @@ export function createZcodeStreamTranslator(deps: ZcodeStreamTranslatorDeps): {
       for (const [key, state] of states) {
         const snapshot = coalescer.snapshot(key)
         // The completed rewrite carries the full text, bypassing the checkpoint
-        // throttle; on sink refusal the stream stays for the timer's retry.
+        // throttle; on sink refusal it is retained and retried on the window.
         if (snapshot && !appendRow(state, snapshot.text, completedAt)) {
+          pendingCompletions.set(key, { state, text: snapshot.text, completedAt })
+          scheduleCompletionRetry()
           continue
         }
         coalescer.forget(key)
@@ -151,6 +185,9 @@ export function createZcodeStreamTranslator(deps: ZcodeStreamTranslatorDeps): {
     endTurnUnproven: () => {
       // Keep the running rows' last text visible, but never claim a completion
       // nobody saw: the journal's Stop rule decides what happens to the turn.
+      cancelRetry?.()
+      cancelRetry = null
+      pendingCompletions.clear()
       coalescer.flushAll()
       coalescer.dispose()
       states.clear()
@@ -159,14 +196,25 @@ export function createZcodeStreamTranslator(deps: ZcodeStreamTranslatorDeps): {
       for (const channel of ['text', 'reasoning']) {
         const key = `${messageId}${STREAM_KEY_SEPARATOR}${channel}`
         coalescer.forget(key)
+        pendingCompletions.delete(key)
         states.delete(key)
       }
     },
     dispose: () => {
+      cancelRetry?.()
+      cancelRetry = null
+      pendingCompletions.clear()
       coalescer.dispose()
       states.clear()
     }
   }
+}
+
+/** Fires on the coalescing window when no injected schedule is present. */
+function scheduleDefault(run: () => void, ms: number): () => void {
+  const timer = setTimeout(run, ms)
+  timer.unref?.()
+  return () => clearTimeout(timer)
 }
 
 /** The journal row for a stream snapshot; null for blank text, which journals no row. */
