@@ -1,4 +1,4 @@
-/** Shared steps of the "join a single-pane tab into another tab" journeys (the tab menu). */
+/** Shared steps of the "join a single-pane tab into another tab" journeys (tab menu and drag). */
 
 import { existsSync, readFileSync } from 'node:fs'
 import type { ElectronApplication, Page } from '@stablyai/playwright-test'
