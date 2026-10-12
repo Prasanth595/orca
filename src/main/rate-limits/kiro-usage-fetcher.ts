@@ -1,6 +1,6 @@
 import { stripAnsiEscapeSequences } from '../../shared/ansi-escape-sequences'
 import { resolveCliCommand, withCliRuntimeOnPath } from '../../shared/node-cli-command-resolution'
-import { runProcess } from '../../shared/child-process/run-process'
+import { runProcess } from '@orca/process-host'
 import type { ProviderRateLimits, RateLimitWindow } from '../../shared/rate-limit-types'
 
 const CLI_TIMEOUT_MS = 20_000

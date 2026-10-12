@@ -389,7 +389,7 @@ describe('RateLimitService', () => {
     const refresh = service.refresh().then(() => {
       refreshResolved = true
     })
-    await flushMicrotasks()
+    await flushMicrotasks(8)
 
     const pendingKiroState = service.getState()
     expect(pendingKiroState.claude?.status).toBe('ok')
