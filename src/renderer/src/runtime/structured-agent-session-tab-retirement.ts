@@ -13,7 +13,16 @@ import { discardStructuredAgentSessionChatSends } from '@/lib/structured-agent-s
 import { stopStructuredAgentSessionSends } from '@/components/native-chat/structured-agent-session-message-sender'
 import { retireStructuredAgentSessionReadOwner } from '@/components/native-chat/structured-agent-session-read-owner-registry'
 import { closeStructuredAgentSession } from './structured-agent-session-close'
-import { withLocalSessionTabCloseOwner } from './local-session-tab-close-owner'
+import { readSessionTabsCloseAgentSessionCapability } from './structured-agent-session-client'
+import {
+  captureHostIdentityFence,
+  isHostIdentityFenceCurrent,
+  type HostIdentityFence
+} from '@/store/host-catalog-fencing'
+import {
+  getRuntimeEnvironmentRevision,
+  resolveContinuedRuntimeEnvironmentRevision
+} from './runtime-environment-revision'
 import {
   executionHostIdForStructuredTarget,
   structuredAgentSessionFocusOwner
@@ -27,14 +36,16 @@ import {
 } from './host-session-tab-close'
 import { WEB_SESSION_TAB_RPC_TIMEOUT_MS } from './web-session-tab-rpc-timeout'
 import { captureWebSessionIntentOwner } from './web-runtime-session-environment'
-import { getRuntimeEnvironmentRevision } from './runtime-environment-revision'
 import { callRuntimeRpc, ensureRuntimeEnvironmentCompatible } from './runtime-rpc-client'
 import type { RuntimeClientTarget } from '../../../shared/runtime-client-target'
 import { toRuntimeWorktreeSelector } from './runtime-worktree-selector'
 
 type HostTabCloseSettlement = PromiseSettledResult<HostSessionTabCloseAnswer | undefined>
 
-const inFlightRetirements = new Map<string, Promise<HostTabCloseSettlement>>()
+const inFlightRetirements = new Map<
+  string,
+  { fence: HostIdentityFence; promise: Promise<HostTabCloseSettlement> }
+>()
 
 function retirementKey(
   target: RuntimeClientTarget,
@@ -49,6 +60,25 @@ function retirementKey(
     worktreeId,
     sessionId
   ])
+}
+
+/** A reveal must follow the close this client has already started, including its capability await. */
+export function pendingStructuredAgentSessionTabRetirement(
+  target: RuntimeClientTarget,
+  worktreeId: string,
+  sessionId: string
+): Promise<HostTabCloseSettlement> | undefined {
+  const pending = inFlightRetirements.get(
+    retirementKey(
+      target,
+      worktreeId,
+      sessionId,
+      target.kind === 'environment'
+        ? getRuntimeEnvironmentRevision(target.environmentId)
+        : undefined
+    )
+  )
+  return pending && isHostIdentityFenceCurrent(pending.fence) ? pending.promise : undefined
 }
 
 /**
@@ -66,13 +96,18 @@ export function retireStructuredAgentSessionTab(args: {
       ? getRuntimeEnvironmentRevision(args.target.environmentId)
       : undefined
   retireStructuredAgentSessionReadOwner(args.sessionId, args.target)
+  const fence = captureHostIdentityFence({ target: args.target, at: 'local' })
   const key = retirementKey(
     args.target,
     args.worktreeId,
     args.sessionId,
     expectedEnvironmentPairingRevision
   )
-  const existing = inFlightRetirements.get(key)
+  const existing = pendingStructuredAgentSessionTabRetirement(
+    args.target,
+    args.worktreeId,
+    args.sessionId
+  )
   if (existing) {
     return existing
   }
@@ -84,48 +119,61 @@ export function retireStructuredAgentSessionTab(args: {
     }
   }
   const hostTabId = `agent-session:${args.sessionId}`
-  const closeOptions = { expectedEnvironmentPairingRevision }
-  void (
-    args.target.kind === 'environment'
-      ? closeStructuredAgentSession(args.target, args.sessionId, closeOptions)
-      : closeStructuredAgentSession(args.target, args.sessionId)
-  ).catch(report)
   let gaveUp = false
   const sendHostTabClose = async (): Promise<HostSessionTabCloseAnswer | undefined> => {
-    if (args.target.kind === 'environment') {
-      await ensureRuntimeEnvironmentCompatible(args.target.environmentId, closeOptions)
-    }
     // Why: a close the window already gave up on must not be sent late (after a slow
     // compatibility check), or the chat it showed again would vanish again.
-    if (gaveUp) {
-      throw new Error('session_tab_close_abandoned')
+    const throwIfGaveUp = (): void => {
+      if (gaveUp) {
+        throw new Error('session_tab_close_abandoned')
+      }
+      if (!isHostIdentityFenceCurrent(fence)) {
+        throw new Error('session_tab_close_host_changed')
+      }
     }
-    // Why: main echoes the host tab id it was asked to close, never this window's tab id.
+    const requestOptions = (): { expectedEnvironmentPairingRevision?: number } => ({
+      expectedEnvironmentPairingRevision:
+        args.target.kind === 'environment'
+          ? resolveContinuedRuntimeEnvironmentRevision(
+              args.target.environmentId,
+              fence.pairingRevision
+            )
+          : undefined
+    })
+    // Why: a capable host's tab close also stops the chat and closes one still starting by its id.
+    const capability = await readSessionTabsCloseAgentSessionCapability(
+      args.target,
+      requestOptions()
+    )
+    throwIfGaveUp()
+    if (args.target.kind === 'environment') {
+      await ensureRuntimeEnvironmentCompatible(args.target.environmentId, requestOptions())
+    }
+    throwIfGaveUp()
+    const options = {
+      ...requestOptions(),
+      expectedEnvironmentRuntimeId: capability.runtimeId
+    }
+    if (!capability.supported) {
+      void closeStructuredAgentSession(args.target, args.sessionId, options).catch(report)
+    }
     return callRuntimeRpc<HostSessionTabCloseAnswer | undefined>(
       args.target,
       'session.tabs.close',
       { worktree: toRuntimeWorktreeSelector(args.worktreeId), tabId: hostTabId, reason: 'user' },
-      {
-        timeoutMs: WEB_SESSION_TAB_RPC_TIMEOUT_MS,
-        skipCompatibilityCheck: true,
-        expectedEnvironmentPairingRevision
-      }
+      { timeoutMs: WEB_SESSION_TAB_RPC_TIMEOUT_MS, skipCompatibilityCheck: true, ...options }
     )
   }
-  const promise: Promise<HostTabCloseSettlement> = withLocalSessionTabCloseOwner(
-    args.worktreeId,
-    hostTabId,
-    sendHostTabClose
-  ).then(
+  const promise: Promise<HostTabCloseSettlement> = sendHostTabClose().then(
     (value) => ({ status: 'fulfilled' as const, value }),
     (reason: unknown) => {
       report(reason)
       return { status: 'rejected' as const, reason }
     }
   )
-  inFlightRetirements.set(key, promise)
+  inFlightRetirements.set(key, { fence, promise })
   const forget = (): void => {
-    if (inFlightRetirements.get(key) === promise) {
+    if (inFlightRetirements.get(key)?.promise === promise) {
       inFlightRetirements.delete(key)
     }
   }

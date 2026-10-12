@@ -2,6 +2,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RuntimeMobileSessionTabsResult } from '../../../shared/runtime-types'
+import type * as StructuredAgentSessionClientModule from './structured-agent-session-client'
 import type { RuntimeClientTarget } from '../../../shared/runtime-client-target'
 import type { closeStructuredAgentSession } from './structured-agent-session-close'
 
@@ -21,9 +22,10 @@ vi.mock('./runtime-rpc-client', () => ({
   callRuntimeRpc: mocks.callRuntime,
   ensureRuntimeEnvironmentCompatible: vi.fn(async () => {})
 }))
-vi.mock('./local-session-tab-close-owner', () => ({
-  withLocalSessionTabCloseOwner: async (_w: string, _t: string, close: () => Promise<unknown>) =>
-    close()
+// A host without close-by-id, so the chat's close is also sent as its own command.
+vi.mock('./structured-agent-session-client', async (importOriginal) => ({
+  ...(await importOriginal<typeof StructuredAgentSessionClientModule>()),
+  readSessionTabsCloseAgentSessionCapability: async () => ({ supported: false })
 }))
 vi.mock('./runtime-worktree-selector', () => ({
   toRuntimeWorktreeSelector: (worktreeId: string) => `id:${worktreeId}`
@@ -88,7 +90,7 @@ beforeEach(() => {
 })
 
 describe('a chat closed before its create landed on a paired server', () => {
-  it("survives this machine's inventory, so the server's late frame is still suppressed", () => {
+  it("survives this machine's inventory, so the server's late frame is still suppressed", async () => {
     markStructuredAgentSessionLaunchCancelled(WORKTREE, 'remote-chat', SERVER_HOST)
     // A local chat launch or resubscribe: an authoritative census of this machine only.
     retireAbsentStructuredAgentSessionLaunchCancellationTombstones(
@@ -100,13 +102,16 @@ describe('a chat closed before its create landed on a paired server', () => {
     const applied = acceptPairedHostStructuredSessions(serverFrame(), 'server-1')
 
     expect(applied.tabs).toEqual([])
-    expect(mocks.closeSession).toHaveBeenCalledWith(SERVER, 'remote-chat', {
-      expectedEnvironmentPairingRevision: undefined
-    })
+    await vi.waitFor(() =>
+      expect(mocks.closeSession).toHaveBeenCalledWith(SERVER, 'remote-chat', {
+        expectedEnvironmentPairingRevision: undefined,
+        expectedEnvironmentRuntimeId: undefined
+      })
+    )
   })
 
   // A tombstone guards a random session id, so it is inert once stale; its 30-day TTL ends it.
-  it('after a reload is closed on the server when the chat appears, never on this machine', () => {
+  it('after a reload is closed on the server when the chat appears, never on this machine', async () => {
     markStructuredAgentSessionLaunchCancelled(WORKTREE, 'remote-chat', SERVER_HOST)
     reload()
 
@@ -117,9 +122,12 @@ describe('a chat closed before its create landed on a paired server', () => {
     const applied = acceptPairedHostStructuredSessions(serverFrame(), 'server-1')
 
     expect(applied.tabs).toEqual([])
-    expect(mocks.closeSession).toHaveBeenCalledWith(SERVER, 'remote-chat', {
-      expectedEnvironmentPairingRevision: undefined
-    })
+    await vi.waitFor(() =>
+      expect(mocks.closeSession).toHaveBeenCalledWith(SERVER, 'remote-chat', {
+        expectedEnvironmentPairingRevision: undefined,
+        expectedEnvironmentRuntimeId: undefined
+      })
+    )
     expect(mocks.closeSession).not.toHaveBeenCalledWith({ kind: 'local' }, 'remote-chat')
     expect(hasStructuredAgentSessionLaunchCancellationTombstone(WORKTREE, 'remote-chat')).toBe(true)
   })

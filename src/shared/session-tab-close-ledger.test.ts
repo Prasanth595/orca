@@ -205,6 +205,31 @@ describe('SessionTabCloseLedger', () => {
     expect(apply(ledger, [{ id: 'b' }], NOW + 2)).toEqual([])
   })
 
+  it('a reopen of the same id ends its close, and a late answer to that close is ignored', () => {
+    const ledger = new SessionTabCloseLedger()
+    const ticket = ledger.begin(P, 'b', NOW)!
+    ledger.begin(P, 'c', NOW)
+    expect(ledger.reopen(ticket)).toBe(true)
+    expect(apply(ledger, [{ id: 'a' }, { id: 'b' }, { id: 'c' }])).toEqual(['a', 'b'])
+    expect(ledger.settle(ticket, 'closed', NOW)).toBe(false)
+    expect(apply(ledger, [{ id: 'b' }])).toEqual(['b'])
+    expect(ledger.reopen(ticket)).toBe(false)
+    expect(ledger.reopen({ ...ticket, partition: 'other' })).toBe(false)
+    expect(ledger.isPending(P, 'c', NOW)).toBe(true)
+  })
+
+  it('captures only the current close and preserves a newer close on reopen', () => {
+    const ledger = new SessionTabCloseLedger()
+    expect(ledger.capture(P, 'b')).toBeNull()
+    const first = ledger.begin(P, 'b', NOW)!
+    expect(ledger.capture(P, ' b ')).toEqual(first)
+    const second = ledger.begin(P, 'b', NOW + 1)!
+    expect(ledger.reopen(first)).toBe(false)
+    expect(ledger.settle(second, 'closed', NOW + 2)).toBe(true)
+    expect(apply(ledger, [{ id: 'b' }], NOW + 2)).toEqual([])
+    expect(ledger.reopen(second)).toBe(true)
+  })
+
   it('scopes entries to their partition and evicts the oldest partition past the cap', () => {
     const ledger = new SessionTabCloseLedger({ maxPartitions: 2 })
     ledger.begin('p1', 'b', NOW)

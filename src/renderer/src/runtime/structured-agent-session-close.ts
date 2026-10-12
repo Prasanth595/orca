@@ -6,7 +6,10 @@ import { captureRuntimeEnvironmentRequestRevision } from './runtime-environment-
 export async function closeStructuredAgentSession(
   target: RuntimeClientTarget,
   sessionId: string,
-  options: { expectedEnvironmentPairingRevision?: number } = {}
+  options: {
+    expectedEnvironmentPairingRevision?: number
+    expectedEnvironmentRuntimeId?: string
+  } = {}
 ): Promise<'closed' | 'unsupported'> {
   const expectedEnvironmentPairingRevision =
     target.kind === 'environment'
@@ -15,22 +18,18 @@ export async function closeStructuredAgentSession(
           options.expectedEnvironmentPairingRevision
         )
       : undefined
+  const requestOptions = { ...options, expectedEnvironmentPairingRevision }
   if (
     target.kind === 'environment' &&
     !(await runtimeEnvironmentSupportsCapability(
       target.environmentId,
-      STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY
+      STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY,
+      undefined,
+      requestOptions
     ))
   ) {
     return 'unsupported'
   }
-  await callRuntimeRpc(
-    target,
-    'agentSession.close',
-    { sessionId },
-    {
-      expectedEnvironmentPairingRevision
-    }
-  )
+  await callRuntimeRpc(target, 'agentSession.close', { sessionId }, requestOptions)
   return 'closed'
 }

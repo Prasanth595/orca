@@ -2,10 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as RuntimeEnvironmentRevision from './runtime-environment-revision'
 import {
   beginWebSessionCloseIntent,
+  captureWebSessionCloseIntent,
   clearEndedPairingWebSessionCloseIntents,
   clearWebSessionCloseIntentsForWorktree,
   filterWebSessionCloseIntents,
   isWebSessionCloseIntentPending,
+  reopenWebSessionCloseIntent,
   resetWebSessionCloseIntentForTests,
   settleWebSessionCloseIntent,
   registerWebSessionClosePlacementStateReader
@@ -80,6 +82,16 @@ describe('web session tab close records', () => {
     clearWebSessionCloseIntentsForWorktree(OWNER, WT)
     expect(isWebSessionCloseIntentPending(OWNER, WT, 'host-tab-2', 1000)).toBe(false)
     expect(isWebSessionCloseIntentPending(OWNER, 'other-wt', 'host-tab-3', 1000)).toBe(true)
+  })
+
+  it('a reopen ends only that tab close in its own partition', () => {
+    const ticket = beginWebSessionCloseIntent(OWNER, WT, 'host-tab-1', 1000)!
+    expect(captureWebSessionCloseIntent(OWNER, WT, 'host-tab-1')?.entry).toBe(ticket.entry)
+    beginWebSessionCloseIntent(OWNER, 'other-wt', 'host-tab-1', 1000)
+    expect(reopenWebSessionCloseIntent(ticket)).toBe(true)
+    expect(isWebSessionCloseIntentPending(OWNER, WT, 'host-tab-1', 1000)).toBe(false)
+    expect(isWebSessionCloseIntentPending(OWNER, 'other-wt', 'host-tab-1', 1000)).toBe(true)
+    expect(reopenWebSessionCloseIntent(ticket)).toBe(false)
   })
 
   it('drops only the closes of pairings that ended', () => {

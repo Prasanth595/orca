@@ -193,6 +193,21 @@ export class SessionTabCloseLedger<Recovery = never> {
     return visible.length === tabs.length ? tabs : visible
   }
 
+  capture(partition: string, closedId: string): SessionTabCloseTicket | null {
+    const id = closedId.trim()
+    const entry = this.partitions.get(partition)?.get(id)
+    return entry ? { partition, closedId: id, entry } : null
+  }
+
+  /** A reopen supersedes only the close it observed, never a later close of the same tab. */
+  reopen(ticket: SessionTabCloseTicket): boolean {
+    if (this.partitions.get(ticket.partition)?.get(ticket.closedId) !== ticket.entry) {
+      return false
+    }
+    this.remove(ticket.partition, ticket.closedId)
+    return true
+  }
+
   clearPartition(partition: string): void {
     this.partitions.delete(partition)
   }
