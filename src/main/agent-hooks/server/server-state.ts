@@ -264,6 +264,7 @@ export abstract class AgentHookServerState {
   protected abstract restoreRetiredPaneFence(fence: RetiredPaneFence): void
   protected abstract revokeHydratedAuthorityForPaneKeys(paneKeys: ReadonlySet<string>): boolean
   protected abstract resolvePaneKeyAlias(paneKey: string): string
+  protected abstract resolveLeafAliasPaneKey(rawPaneKey: string): string | undefined
   protected abstract normalizeHookBodyPaneKeyAlias(body: unknown): unknown
   protected abstract normalizeLocalHookPayload(
     source: AgentHookSource,
