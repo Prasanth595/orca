@@ -90,7 +90,7 @@ it.each([
     expect.objectContaining({ worktreeId: 'folder:notes', worktreePath: '/notes' }),
     [snapshot.path],
     destination,
-    { assertCurrent: mocks.assertCurrent }
+    { assertCurrent: mocks.assertCurrent, requireExistingDestination: true }
   )
   expect(refreshDir).toHaveBeenCalledExactlyOnceWith(destination)
   expect(setSelectedPath).toHaveBeenCalledExactlyOnceWith(`${destination}/pasted-image copy.png`)

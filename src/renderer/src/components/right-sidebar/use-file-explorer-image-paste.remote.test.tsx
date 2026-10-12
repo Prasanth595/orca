@@ -80,7 +80,7 @@ it('pins the SSH owner and generation before staging a local clipboard image', a
     }),
     [snapshot.path],
     `${SSH_WORKTREE_PATH}/images`,
-    { assertCurrent: expect.any(Function) }
+    { assertCurrent: expect.any(Function), requireExistingDestination: true }
   )
   expect(mocks.release).toHaveBeenCalledWith(snapshot.handle)
 })

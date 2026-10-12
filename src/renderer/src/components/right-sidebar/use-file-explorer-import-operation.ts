@@ -83,7 +83,11 @@ export function useFileExplorerImportOperation({
     }
   }
 
-  async function importPaths(destination: FileExplorerImportDestination, paths: string[]) {
+  async function importPaths(
+    destination: FileExplorerImportDestination,
+    paths: string[],
+    options?: { requireExistingDestination?: boolean }
+  ) {
     const { destinationDir, guard } = destination
     guard.assertCurrent()
     const { results } = await importExternalPathsToRuntime(
@@ -94,7 +98,7 @@ export function useFileExplorerImportOperation({
       },
       paths,
       destinationDir,
-      { assertCurrent: guard.assertCurrent }
+      { ...options, assertCurrent: guard.assertCurrent }
     )
 
     if (isDestinationShown(destination)) {

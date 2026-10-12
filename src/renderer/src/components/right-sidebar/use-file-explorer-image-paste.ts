@@ -65,7 +65,7 @@ export function useFileExplorerImagePaste(params: FileExplorerImagePasteParams) 
       }
       staged = await stage()
       if (staged) {
-        await importPaths(destination, [staged.path])
+        await importPaths(destination, [staged.path], { requireExistingDestination: true })
       }
     } catch (error) {
       toast.error(extractIpcErrorMessage(error, 'Failed to import files.'))
