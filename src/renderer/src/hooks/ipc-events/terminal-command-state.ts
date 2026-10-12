@@ -37,6 +37,7 @@ export function focusTerminalInitiatedTab(
   }
 }
 
+/** Shows a host-revealed terminal's workspace: in the main window, or in the floating panel. */
 export function activateTerminalInitiatedWorktree(
   store: AppState,
   worktreeId: string,

@@ -12,6 +12,7 @@ vi.mock('@/lib/floating-workspace-panel-reveal', () => ({
 
 import { activateTerminalInitiatedWorktree } from './terminal-command-state'
 
+/** A store stub with only the members activateTerminalInitiatedWorktree reads. */
 function createStore() {
   const store = {
     isNavigatingHistory: false,
