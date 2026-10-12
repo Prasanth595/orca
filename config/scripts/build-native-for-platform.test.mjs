@@ -41,6 +41,10 @@ function startBuild(mode, options = {}) {
     options.guestHelperScript ?? "console.log('guest helpers built')"
   )
   writeFileSync(
+    join(directory, 'config', 'scripts', 'build-windows-agent-hook.mjs'),
+    "console.log('windows agent hook only')"
+  )
+  writeFileSync(
     join(directory, 'config', 'scripts', 'build-wayland-clipboard.mjs'),
     "console.log('wayland clipboard only')"
   )
@@ -367,6 +371,9 @@ describe('platform native build dispatch', () => {
     expect(result.output).toContain(
       platform === 'win32' ? 'guest helpers built\nwindows launcher only' : 'wayland clipboard only'
     )
+    if (platform === 'win32') {
+      expect(result.output).toContain('windows agent hook only')
+    }
   })
 
   it('stops Windows packaging preparation when guest helper construction fails', async () => {
