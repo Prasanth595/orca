@@ -76,6 +76,7 @@ export async function handleStructuredAgentSessionCreate(
         agent: params.agent,
         caller: callerFor(ctx),
         ...(params.resumeFrom ? { resumeFrom: params.resumeFrom } : {}),
+        ...(params.managedAccountId ? { managedAccountId: params.managedAccountId } : {}),
         ...(params.tabId ? { tabId: params.tabId } : {}),
         ...(params.options ? { options: params.options } : {}),
         ...(params.firstMessage ? { firstMessage: params.firstMessage } : {}),

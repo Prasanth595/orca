@@ -18,9 +18,11 @@ export async function prepareCodexRuntimeHomeForLaunch(
   // Why: a ManagedCodexHomeTemporarilyUnavailableError must escape uncaught —
   // the fallbacks below all key off `null`, which means "system default", so
   // swallowing the refusal would launch the wrong account (#STA-4422).
-  const runtimeHomePath = await runtimeHome.prepareForCodexLaunchAsync(target, launchEnv, {
-    unavailableManagedHomePath: launchContext?.unavailableManagedHomePath
-  })
+  const runtimeHomePath = launchContext?.managedAccountId
+    ? runtimeHome.prepareManagedAccountForSession(launchContext.managedAccountId)
+    : await runtimeHome.prepareForCodexLaunchAsync(target, launchEnv, {
+        unavailableManagedHomePath: launchContext?.unavailableManagedHomePath
+      })
   const launchesCodex = launchContext?.launchesCodex === true
   if (runtimeHomePath === null && target?.runtime !== 'wsl') {
     // Why only a Codex launch waits: the pane spawn already schedules the reconcile, which
@@ -64,8 +66,13 @@ export async function prepareCodexRuntimeHomeForLaunch(
 /** The runtime's structured Codex home resolvers: a launch prepares the home that a record-less
  *  catalog read resolves without side effects, so a new chat's picker and the chat share one key. */
 export const codexStructuredLaunchHomeResolvers = {
-  prepareCodexStructuredLaunch: ({ launchEnv }: { launchEnv: NodeJS.ProcessEnv }) =>
-    prepareCodexRuntimeHomeForLaunch(undefined, launchEnv),
+  prepareCodexStructuredLaunch: ({
+    launchEnv,
+    managedAccountId
+  }: {
+    launchEnv: NodeJS.ProcessEnv
+    managedAccountId?: string
+  }) => prepareCodexRuntimeHomeForLaunch(undefined, launchEnv, { managedAccountId }),
   // Why throw like prepare does: a null from an uninitialized service would
   // map to the system home and key a catalog read to the wrong account.
   resolveCodexStructuredLaunchHome: ({ launchEnv }: { launchEnv: NodeJS.ProcessEnv }) => {

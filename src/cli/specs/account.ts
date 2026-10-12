@@ -7,6 +7,18 @@ import { GLOBAL_FLAGS, type CommandSpec } from '../args'
 // way to manage Claude and Codex accounts.
 export const ACCOUNT_COMMAND_SPECS: CommandSpec[] = [
   {
+    path: ['account', 'start'],
+    summary: 'Start a new Claude or Codex chat using one saved account',
+    usage: 'orca account start --agent claude|codex --account <id> --worktree <selector> [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'agent', 'account', 'worktree'],
+    notes: [
+      'Pins a saved account on the execution host without changing its default account or running sessions.',
+      'Creates a native chat. Legacy terminal launches, WSL accounts, and imported conversations are not supported by this command.',
+      'Requires a host advertising agentSession.create.managed-account.v1. Older hosts are refused before creation.'
+    ],
+    examples: ['orca account start --agent codex --account <id> --worktree active']
+  },
+  {
     path: ['account', 'add'],
     summary: 'Add a managed agent account by signing in on this Orca host',
     usage:

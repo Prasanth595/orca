@@ -41,6 +41,7 @@ export function structuredAgentSessionCreateIntentFingerprint(params: {
   worktree: string
   agent: string
   resumeFrom?: StructuredAgentSessionResumeSource
+  managedAccountId?: string
   tabId?: string
   firstMessage?: StructuredAgentSessionFirstMessage
   options?: Readonly<Record<string, string>>
@@ -52,6 +53,7 @@ export function structuredAgentSessionCreateIntentFingerprint(params: {
       worktree: params.worktree,
       agent: params.agent,
       resumeFrom: params.resumeFrom,
+      managedAccountId: params.managedAccountId,
       tabId: params.tabId,
       firstMessage: params.firstMessage,
       options: params.options
@@ -74,6 +76,7 @@ export async function prepareStructuredAgentSessionCreateForWorktree(args: {
   options?: Readonly<Record<string, string>>
   /** The tab id the caller reserved for this chat, taken when its tab is published; absent, the tab
    *  gets the id clients derive. Beside `options`, after the fingerprint, likewise. */
+  managedAccountId?: string
   tabId?: string
   firstMessage?: StructuredAgentSessionFirstMessage
   atRest?: boolean
@@ -85,7 +88,8 @@ export async function prepareStructuredAgentSessionCreateForWorktree(args: {
     worktree: args.worktree,
     agent: args.agent,
     callerKey: args.caller.callerKey,
-    ...(args.resumeFrom ? { resumeFrom: args.resumeFrom } : {})
+    ...(args.resumeFrom ? { resumeFrom: args.resumeFrom } : {}),
+    ...(args.managedAccountId ? { managedAccountId: args.managedAccountId } : {})
   })
   const attachFingerprint = computeAgentSessionPayloadFingerprint({
     method: 'agentSession.attach',
@@ -222,6 +226,7 @@ export async function createStructuredAgentSessionForWorktree(args: {
   agent: StructuredAgentId
   activate: boolean
   options?: Readonly<Record<string, string>>
+  managedAccountId?: string
   tabId?: string
 }): Promise<AgentSessionMutationResult<AgentSessionAttachResult>> {
   const prepared: PreparedStructuredAgentSessionCreate | StructuredCreateRefused =

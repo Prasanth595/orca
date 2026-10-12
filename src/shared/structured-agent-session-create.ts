@@ -26,6 +26,7 @@ export type StructuredAgentSessionCreateParams = {
   agent: StructuredAgentId
   resumeFrom?: StructuredAgentSessionResumeSource
   /** Sent only to a host advertising `AGENT_SESSION_CREATE_TAB_ID_RUNTIME_CAPABILITY`. */
+  managedAccountId?: string
   tabId?: string
   /** Sent only to a host advertising `AGENT_SESSION_CREATE_MESSAGE_RUNTIME_CAPABILITY`. */
   firstMessage?: StructuredAgentSessionFirstMessage
@@ -64,6 +65,7 @@ export function structuredAgentSessionCreateParams(args: {
   worktree: string
   agent: StructuredAgentId
   resumeFrom?: StructuredAgentSessionResumeSource
+  managedAccountId?: string
   tabId?: string
   firstMessage?: StructuredAgentSessionFirstMessage
   options?: Readonly<Record<string, string>>
@@ -74,6 +76,7 @@ export function structuredAgentSessionCreateParams(args: {
     worktree: args.worktree,
     agent: args.agent,
     ...(args.resumeFrom ? { resumeFrom: args.resumeFrom } : {}),
+    ...(args.managedAccountId ? { managedAccountId: args.managedAccountId } : {}),
     ...(args.tabId ? { tabId: args.tabId } : {}),
     ...(args.firstMessage ? { firstMessage: args.firstMessage } : {}),
     ...(args.options ? { options: args.options } : {})
