@@ -5104,5 +5104,41 @@
   },
   "components.workspace.cleanup.browse.agent.working": {
     "ko": "작업 중"
+  },
+  "auto.components.settings.Settings.475980f53d": {
+    "ko": "Orca를 통해 여러 코딩 에이전트를 조율합니다."
+  },
+  "auto.hooks.useSettingsNavigationMetadata.cd50cec5d7": {
+    "ko": "Orca를 통해 여러 코딩 에이전트를 조율합니다."
+  },
+  "auto.components.settings.OrchestrationPane.191ac34567": {
+    "ko": "에이전트 오케스트레이션"
+  },
+  "auto.components.settings.OrchestrationPane.2aacdb0517": {
+    "ko": "핸드오프, 작업 트리 핸드오버, 하위 에이전트 작업 전반에 걸쳐 코딩 에이전트를 조율합니다."
+  },
+  "auto.components.settings.OrchestrationPane.52e0634e2c": {
+    "ko": "핸드오프, 작업 트리 핸드오버, 순차 또는 병렬 하위 에이전트 작업에 오케스트레이션을 사용하도록 조율 에이전트에 요청하세요."
+  },
+  "auto.components.settings.OrchestrationPane.832f1f3ee6": {
+    "ko": "사용 중인 터미널에서 직접 설치하시겠어요?"
+  },
+  "auto.components.settings.OrchestrationPane.9bedd2a6e5": {
+    "ko": "에이전트가 Orca를 통해 컨텍스트를 인계하고 작업을 조율할 수 있습니다."
+  },
+  "auto.components.settings.OrchestrationPane.nestedWorkerDepthDescription": {
+    "ko": "하위 에이전트를 몇 단계까지 생성할 수 있는지 설정합니다. 1이면 조율 에이전트만 하위 에이전트를 생성할 수 있고, 생성된 하위 에이전트는 자신의 하위 에이전트를 생성할 수 없습니다."
+  },
+  "auto.components.settings.OrchestrationSkillAgentCoverage.6dec5ce2d2": {
+    "ko": "에이전트별 스킬 설치 상태"
+  },
+  "auto.components.settings.OrchestrationSkillAgentCoverage.fullCoverage_other": {
+    "ko": "감지된 {{value0}}개 에이전트 모두에 스킬이 설치되어 있습니다."
+  },
+  "auto.components.settings.OrchestrationSkillAgentCoverage.partialCoverage": {
+    "ko": "감지된 {{value1}}개 에이전트 중 {{value0}}개에 스킬이 설치되어 있습니다."
+  },
+  "auto.lib.orchestration.usage.examples.childSequenceSummary": {
+    "ko": "각 단계가 직전 단계에 의존할 때 하위 에이전트를 순서대로 사용합니다."
   }
 }
