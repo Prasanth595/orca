@@ -28,11 +28,19 @@ describe('automation RPC methods', () => {
       reportAutomationRunResult: vi
         .fn()
         .mockResolvedValue({ id: 'run-1', result: { status: 'failed' } }),
-      listAutomationRuns: vi.fn().mockReturnValue([{ id: 'run-1', automationId: 'auto-1' }])
+      listAutomationRuns: vi.fn().mockReturnValue([{ id: 'run-1', automationId: 'auto-1' }]),
+      listAutomationInbox: vi
+        .fn()
+        .mockResolvedValue([{ selector: { kind: 'self' }, alert: { runId: 'run-1' } }])
     } as unknown as OrcaRuntimeService
     const dispatcher = new RpcDispatcher({ runtime, methods: AUTOMATION_METHODS })
 
     await dispatcher.dispatch(makeRequest('automation.list'))
+    await expect(dispatcher.dispatch(makeRequest('automation.inbox'))).resolves.toMatchObject({
+      ok: true,
+      result: { alerts: [{ selector: { kind: 'self' }, alert: { runId: 'run-1' } }] }
+    })
+    expect(runtime.listAutomationInbox).toHaveBeenCalledTimes(1)
     await dispatcher.dispatch(makeRequest('automation.show', { id: 'auto-1' }))
     await dispatcher.dispatch(
       makeRequest('automation.create', {

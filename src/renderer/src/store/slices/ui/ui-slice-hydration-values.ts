@@ -1,3 +1,4 @@
+import { normalizeAutomationInboxEntries } from '../../../../../shared/automation-inbox'
 import type { PersistedUIState } from '../../../../../shared/persisted-ui-state-types'
 import type { TaskResumeState, TaskViewPresetId } from '../../../../../shared/ui-chrome-types'
 import type { FeatureInteractionState } from '../../../../../shared/feature-interactions'
@@ -144,9 +145,13 @@ export function hydrateAgentReadState(
   ui: PersistedUIState
 ): Pick<
   UISlice,
-  'acknowledgedAgentsByPaneKey' | 'activityClearedAtByPaneKey' | 'manuallyUnreadTurnsByPaneKey'
+  | 'acknowledgedAgentsByPaneKey'
+  | 'activityClearedAtByPaneKey'
+  | 'manuallyUnreadTurnsByPaneKey'
+  | 'automationInboxEntries'
 > {
   return {
+    automationInboxEntries: normalizeAutomationInboxEntries(ui.automationInboxEntries),
     acknowledgedAgentsByPaneKey: sanitizeAcknowledgedAgentsByPaneKey(
       ui.acknowledgedAgentsByPaneKey
     ),

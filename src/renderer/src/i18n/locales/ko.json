@@ -16951,6 +16951,16 @@
           "markManyRead": "에이전트 {{count}}개 읽음으로 표시",
           "markManyUnread": "에이전트 {{count}}개 읽지 않은 것으로 표시",
           "clearMany": "목록에서 에이전트 {{count}}개 지우기"
+        },
+        "automationInbox": {
+          "title": "자동화 알림",
+          "failed": "실패",
+          "needsAttention": "확인 필요",
+          "markUnread": "자동화 알림을 읽지 않음으로 표시",
+          "markRead": "자동화 알림을 읽음으로 표시",
+          "dismiss": "자동화 알림 지우기",
+          "localHost": "로컬",
+          "remoteHost": "원격 호스트"
         }
       },
       "confirmation": {

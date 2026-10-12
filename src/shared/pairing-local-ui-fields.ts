@@ -26,6 +26,7 @@ export const PAIRING_LOCAL_UI_FIELDS = [
   'agentsReadFilter',
   'agentsGroupBy',
   'activityClearedAtByPaneKey',
+  'automationInboxEntries',
   'manuallyUnreadTurnsByPaneKey'
 ] as const satisfies readonly (keyof PersistedUIState)[]
 

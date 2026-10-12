@@ -2,6 +2,7 @@ import type { TuiAgent } from './tui-agent'
 import type { SetupDecision } from './worktree/create-types'
 import type { TaskSourceContext, WorkspaceRunContext } from './task-source-context'
 import type { AutomationRunResult, AutomationRunReporting } from './automation-run-result'
+import type { AutomationRunInboxAlert } from './automation-run-inbox-alert'
 
 export type AutomationWorkspaceMode = 'existing' | 'new_per_run'
 export type AutomationExecutionTargetType = 'local' | 'ssh'
@@ -131,6 +132,7 @@ export type Automation = {
 }
 
 export type AutomationRun = AutomationRunReporting & {
+  inboxAlert?: AutomationRunInboxAlert
   id: string
   automationId: string
   runContext?: WorkspaceRunContext | null

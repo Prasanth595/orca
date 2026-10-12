@@ -32,6 +32,7 @@ import {
   normalizeSortBy
 } from './ui-selection-normalization'
 import { stripMainOwnedTelemetryMarkerFromUI } from './ui-interaction-merge'
+import { normalizeAutomationInboxEntries } from '../../../shared/automation-inbox'
 
 /** Returns normalized UI state with the authoritative active view and without the main-owned telemetry marker. */
 export function getPersistedUI(
@@ -42,6 +43,7 @@ export function getPersistedUI(
   return {
     ...getDefaultUIState(),
     ...uiState,
+    automationInboxEntries: normalizeAutomationInboxEntries(uiState.automationInboxEntries),
     groupBy: normalizeGroupBy(state.ui?.groupBy),
     sortBy: normalizeSortBy(state.ui?.sortBy),
     projectOrderBy: normalizeProjectOrderBy(state.ui?.projectOrderBy),

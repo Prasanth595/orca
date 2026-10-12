@@ -1,7 +1,7 @@
 import type { Store } from '../persistence'
 import type { PublishAutomationsChanged } from '../../shared/runtime-client-events'
 import type { AutomationDispatchResult, AutomationRun } from '../../shared/automations-types'
-import { automationRunAlert, type AutomationRunAlert } from '../../shared/automation-run-alert'
+import { newAutomationRunAlert, type AutomationRunAlert } from '../../shared/automation-run-alert'
 
 type DurableWrite<T extends (...args: never[]) => unknown> = (
   ...args: Parameters<T>
@@ -63,14 +63,8 @@ export function createAutomationRunWriter(
         ? store.listAutomationRuns().find((entry) => entry.id === result.runId)
         : null
       const run = store.updateAutomationRun(result)
-      const alert = automationRunAlert(run)
-      if (
-        publish &&
-        alert &&
-        store.automationAlertsEnabled(run.automationId) &&
-        previous?.status !== 'dispatch_failed' &&
-        previous?.result?.status !== alert.status
-      ) {
+      const alert = newAutomationRunAlert(previous, run)
+      if (publish && alert && store.automationAlertsEnabled(run.automationId)) {
         pendingAlerts.set(run.id, alert)
       }
       const pending = pendingAlerts.get(run.id)

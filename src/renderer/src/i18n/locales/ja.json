@@ -16951,6 +16951,16 @@
           "markManyRead": "{{count}} 件の Agent に既読マークを付ける",
           "markManyUnread": "{{count}} 件の Agent を未読としてマークする",
           "clearMany": "{{count}} 件の Agent をリストから消去"
+        },
+        "automationInbox": {
+          "title": "自動化の通知",
+          "failed": "失敗",
+          "needsAttention": "確認が必要",
+          "markUnread": "自動化の通知を未読にする",
+          "markRead": "自動化の通知を既読にする",
+          "dismiss": "自動化の通知を消去",
+          "localHost": "ローカル",
+          "remoteHost": "リモートホスト"
         }
       },
       "confirmation": {

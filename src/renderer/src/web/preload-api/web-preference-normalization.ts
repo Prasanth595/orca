@@ -1,4 +1,5 @@
 import { normalizeNativeChatAppearanceSettings } from '../../../../shared/native-chat-appearance-settings'
+import { normalizeAutomationInboxEntries } from '../../../../shared/automation-inbox'
 import { normalizeAutoRenameBranchFromWorkDefaultOn } from '../../../../shared/auto-rename-branch-from-work-settings'
 import {
   getDefaultSettings,
@@ -82,6 +83,7 @@ export function mergeHostWebUIState(
     agentsReadFilter: local.agentsReadFilter,
     agentsGroupBy: local.agentsGroupBy,
     activityClearedAtByPaneKey: local.activityClearedAtByPaneKey,
+    automationInboxEntries: normalizeAutomationInboxEntries(local.automationInboxEntries),
     manuallyUnreadTurnsByPaneKey: local.manuallyUnreadTurnsByPaneKey
   } satisfies Record<PairingLocalUiField, unknown> & Partial<PersistedUIState>
   return {

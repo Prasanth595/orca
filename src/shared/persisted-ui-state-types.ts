@@ -1,3 +1,4 @@
+import type { AutomationInboxEntries } from './automation-inbox'
 import type { ReleaseChannel } from './release-channel'
 import type { WorkspaceCleanupUIState } from './workspace-cleanup'
 import type { FeatureTipId } from './feature-tips'
@@ -149,6 +150,7 @@ export type PersistedUIState = {
   updateReassuranceSeen?: boolean
   /** Per-paneKey "row visited" timestamps that mute seen inline-agent rows; persisted because rows survive restart, else acked rows return bold. Renderer-owned via ui:set. */
   acknowledgedAgentsByPaneKey?: Record<string, number>
+  automationInboxEntries?: AutomationInboxEntries
   /** Per-paneKey "Clear completed" cutoffs hiding activity events stamped at or before the cutoff; persisted so cleared rows stay cleared across restart. Renderer-owned via ui:set. */
   activityClearedAtByPaneKey?: Record<string, number>
   /** Per-paneKey turn stamps the user explicitly marked unread; persisted so a manual unread survives restart the way acks and cutoffs do. Renderer-owned via ui:set. */

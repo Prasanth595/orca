@@ -37,8 +37,23 @@ export function automationRunAlert(run: AutomationRun): AutomationRunAlert | nul
     status: run.status === 'dispatch_failed' ? 'failed' : (run.result?.status ?? 'failed'),
     workspaceId: run.workspaceId,
     paneKey: run.terminalPaneKey,
-    createdAt: Date.now()
+    createdAt:
+      run.inboxAlert &&
+      run.inboxAlert.status === (run.status === 'dispatch_failed' ? 'failed' : run.result?.status)
+        ? run.inboxAlert.createdAt
+        : Date.now()
   }
+}
+
+export function newAutomationRunAlert(
+  previous: AutomationRun | null | undefined,
+  run: AutomationRun
+): AutomationRunAlert | null {
+  if (previous?.status === 'dispatch_failed') {
+    return null
+  }
+  const alert = automationRunAlert(run)
+  return alert && previous?.result?.status !== alert.status ? alert : null
 }
 
 export function automationRunNotificationRequest(

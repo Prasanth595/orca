@@ -14,6 +14,8 @@ import {
 } from '../../../shared/execution-host'
 import { notificationSourceForOwner } from '../../../shared/notification-source'
 import type { AutomationsChangedPayload } from '../../../shared/runtime-client-events'
+import { hostStableKey } from '../../../shared/automation-owner-key'
+import { normalizeAutomationInboxEntries } from '../../../shared/automation-inbox'
 import type {
   StableAutomationAuthorityRef,
   StableAutomationCatalogRef
@@ -28,13 +30,12 @@ export function openAutomationRunNotification(target: AutomationRunNavigation): 
   state.openAutomationsPage()
 }
 
-export function deliverAutomationRunAlert(
+export function scopedAutomationRunAlert(
   payload: AutomationsChangedPayload & { environmentId?: string | null }
-): void {
+) {
   if (!payload.alert) {
-    return
+    return null
   }
-  const state = useAppStore.getState()
   const environmentId = payload.environmentId
   const hostId: ExecutionHostId = environmentId
     ? toRuntimeExecutionHostId(environmentId)
@@ -57,7 +58,53 @@ export function deliverAutomationRunAlert(
     hostId,
     catalogRef
   }
-  if (alert.workspaceId && !environmentId) {
+  return { alert, executionHostId }
+}
+
+export function receiveAutomationRunInbox(
+  payload: AutomationsChangedPayload & { environmentId?: string | null }
+): void {
+  receiveAutomationRunInboxBatch([payload])
+}
+
+export function receiveAutomationRunInboxBatch(
+  payloads: readonly (AutomationsChangedPayload & { environmentId?: string | null })[]
+): void {
+  const incoming = Object.fromEntries(
+    payloads.flatMap((payload, index) => {
+      const scoped = scopedAutomationRunAlert(payload)
+      if (!scoped) {
+        return []
+      }
+      const { catalogRef, ...alert } = scoped.alert
+      return [
+        [
+          String(index),
+          {
+            alert,
+            catalogKey: hostStableKey(catalogRef),
+            read: false,
+            dismissed: false,
+            interactionAt: 0
+          }
+        ] as const
+      ]
+    })
+  )
+  useAppStore.getState().receiveAutomationInbox(normalizeAutomationInboxEntries(incoming))
+}
+
+export function deliverAutomationRunAlert(
+  payload: AutomationsChangedPayload & { environmentId?: string | null }
+): void {
+  const scoped = scopedAutomationRunAlert(payload)
+  if (!scoped) {
+    return
+  }
+  const { alert, executionHostId } = scoped
+  const state = useAppStore.getState()
+  receiveAutomationRunInbox(payload)
+  if (alert.workspaceId && !payload.environmentId) {
     state.markWorktreeUnread(alert.workspaceId)
     if (alert.paneKey) {
       state.markAgentCompletionPaneUnread(alert.paneKey, 'agent-completion')
@@ -67,7 +114,7 @@ export function deliverAutomationRunAlert(
     {
       ...automationRunNotificationRequest(alert),
       notificationSourceId: notificationSourceForOwner(
-        { executionHostId, runtimeEnvironmentId: environmentId ?? null },
+        { executionHostId, runtimeEnvironmentId: payload.environmentId ?? null },
         state
       ),
       isActiveWorktree: alert.workspaceId === state.activeWorktreeId

@@ -1,3 +1,4 @@
+import { mergeAutomationInboxEntries } from '../../../../../shared/automation-inbox'
 import type { UISlice, UISliceGet, UISliceSet } from './ui-slice-contract'
 import type { AppState } from '../../types'
 import { normalizeRightSidebarRoute } from '../../right-sidebar-route'
@@ -289,6 +290,10 @@ export function createUiHydrationActions(set: UISliceSet, _get: UISliceGet): Par
             ;(hydrated as Record<string, unknown>)[field] = s[field]
           }
         }
+        hydrated.automationInboxEntries = mergeAutomationInboxEntries(
+          nextWriteBaseline.automationInboxEntries ?? {},
+          s.automationInboxEntries
+        )
         // Why: return the same ref on identical hydration so App's debounced writer doesn't echo it back to main.
         // The baseline must still advance when it moved (a remote same-field write during an in-flight
         // ack pins the only visibly differing field, and our own echo precedes every ack) — but only

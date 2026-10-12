@@ -3,6 +3,7 @@ import type { AutomationRunAlert } from '../../../shared/automation-run-alert'
 
 const mocks = vi.hoisted(() => ({
   deliver: vi.fn(),
+  receiveAutomationInbox: vi.fn(),
   markWorktreeUnread: vi.fn(),
   markAgentCompletionPaneUnread: vi.fn(),
   setPendingAutomationRunNavigation: vi.fn(),

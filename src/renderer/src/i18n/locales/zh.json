@@ -16969,6 +16969,16 @@
           "markManyRead": "将 {{count}} 个智能体标记为已读",
           "markManyUnread": "将 {{count}} 个智能体标记为未读",
           "clearMany": "从列表中清除 {{count}} 个智能体"
+        },
+        "automationInbox": {
+          "title": "自动化提醒",
+          "failed": "失败",
+          "needsAttention": "需要关注",
+          "markUnread": "将自动化提醒标记为未读",
+          "markRead": "将自动化提醒标记为已读",
+          "dismiss": "清除自动化提醒",
+          "localHost": "本机",
+          "remoteHost": "远程主机"
         }
       },
       "confirmation": {

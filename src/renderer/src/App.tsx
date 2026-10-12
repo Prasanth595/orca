@@ -30,6 +30,7 @@ import { useFloatingWorkspacePanel } from './app-shell/use-floating-workspace-pa
 import { useGlobalKeybindings } from './app-shell/use-global-keybindings'
 import { useOnboardingAndFeatureTips } from './app-shell/use-onboarding-and-feature-tips'
 import { usePersistedUIWriter } from './app-shell/use-persisted-ui-writer'
+import { useAutomationInboxSynchronization } from './app-shell/use-automation-inbox-synchronization'
 import { useRuntimeGraphSync } from './app-shell/use-runtime-graph-sync'
 import { useWindowVisibilityEffects } from './app-shell/use-window-visibility-effects'
 
@@ -46,6 +47,7 @@ function App(): React.JSX.Element {
   useAppSessionPersistence()
   useRuntimeGraphSync()
   usePersistedUIWriter()
+  useAutomationInboxSynchronization()
   useDocumentAppearance()
   useWindowVisibilityEffects()
   useGlobalKeybindings({ layout, floatingWorkspace })

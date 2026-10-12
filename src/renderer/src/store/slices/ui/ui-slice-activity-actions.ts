@@ -1,6 +1,7 @@
 import type { StoredAgentAttentionUnread } from '@/attention/agent-attention-contract'
 import { emitAgentSubjectReads } from '@/attention/agent-subject-read-actions'
 import type { UISlice, UISliceGet, UISliceSet } from './ui-slice-contract'
+import { createUiAutomationInboxActions } from './ui-slice-automation-inbox-actions'
 import {
   collectAcknowledgedAgentNotificationId,
   latestAgentTurnTimestamp,
@@ -10,6 +11,9 @@ import {
 
 type ActivityActions = Pick<
   UISlice,
+  | 'automationInboxEntries'
+  | 'receiveAutomationInbox'
+  | 'changeAutomationInbox'
   | 'acknowledgedAgentsByPaneKey'
   | 'acknowledgeAgents'
   | 'unacknowledgeAgents'
@@ -21,6 +25,7 @@ type ActivityActions = Pick<
 
 export function createUiActivityActions(set: UISliceSet, _get: UISliceGet): ActivityActions {
   return {
+    ...createUiAutomationInboxActions(set, _get),
     acknowledgedAgentsByPaneKey: {},
     acknowledgeAgents: (paneKeys, reads, intent) => {
       emitAgentSubjectReads(paneKeys, reads, intent)

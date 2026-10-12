@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto'
+import { newAutomationRunAlert } from '../../../shared/automation-run-alert'
+import { snapshotAutomationRunInboxAlert } from '../../../shared/automation-run-inbox-alert'
 import { toSshExecutionHostId } from '../../../shared/execution-host'
 import { automationWorkspaceSshPin } from './automation-owner-projection'
 import { normalizeAutomationRunResult } from '../../../shared/automation-run-result'
@@ -219,6 +221,18 @@ export function updateAutomationRun(
     startedAt: current.startedAt ?? now,
     // Reports and usage updates must keep the launch time used for usage attribution.
     dispatchedAt: current.dispatchedAt ?? (result.status === 'dispatched' ? now : null)
+  }
+  if (result.status === 'dispatch_failed' || result.result) {
+    const alert = newAutomationRunAlert(current, updated)
+    if (
+      alert &&
+      operations.state.automations.some(
+        (automation) =>
+          automation.id === updated.automationId && automation.notifyOnFailure === true
+      )
+    ) {
+      updated.inboxAlert = snapshotAutomationRunInboxAlert({ ...alert, createdAt: now })
+    }
   }
   // Replaced, not patched in place: the list projection caches on array identity.
   operations.state.automationRuns = operations.state.automationRuns.map((run) =>

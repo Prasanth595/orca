@@ -16951,6 +16951,16 @@
           "markManyRead": "Marcar {{count}} agentes como leídos",
           "markManyUnread": "Marcar {{count}} agentes como no leídos",
           "clearMany": "Quitar {{count}} agentes de la lista"
+        },
+        "automationInbox": {
+          "title": "Alertas de automatización",
+          "failed": "Error",
+          "needsAttention": "Requiere atención",
+          "markUnread": "Marcar esta alerta como no leída",
+          "markRead": "Marcar esta alerta como leída",
+          "dismiss": "Descartar esta alerta",
+          "localHost": "Local",
+          "remoteHost": "Host remoto"
         }
       },
       "confirmation": {

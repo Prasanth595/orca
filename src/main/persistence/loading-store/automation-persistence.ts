@@ -50,6 +50,7 @@ import {
 import type { StoreRuntimeState } from './store-runtime-state'
 import type { WriteFlushBarrierOperations } from './write-flush-barriers'
 import type { ProfilePreferences } from './profile-preferences'
+import { listAutomationInbox } from '../scheduling-automations/automation-inbox-projection'
 
 type AutomationPersistenceRuntime = Pick<
   StoreRuntimeState,
@@ -108,6 +109,13 @@ export class AutomationPersistence {
   automationAlertsEnabled(id: string): boolean {
     const { state } = this[automationPersistenceContext].runtime
     return state.automations?.find((automation) => automation.id === id)?.notifyOnFailure === true
+  }
+
+  listAutomationInbox() {
+    return listAutomationInbox(
+      this[automationPersistenceContext].runtime.state.automationRuns ?? [],
+      (id) => this.automationChangeSelector(id)
+    )
   }
 
   automationCapturedHostIssue(automation: Automation): AutomationCapturedHostIssue | null {

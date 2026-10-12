@@ -26,6 +26,10 @@ import { normalizeFeatureInteractions } from '../../../shared/feature-interactio
 import { mergeWorkspaceCleanupUIState } from '../../../shared/workspace-cleanup-ui-state'
 import { persistedUIValuesEqual } from '../../../shared/persisted-ui-equality'
 import {
+  mergeAutomationInboxEntries,
+  normalizeAutomationInboxEntries
+} from '../../../shared/automation-inbox'
+import {
   PROTECTED_SECRET_SLOT,
   type ProtectedSecretPersistence
 } from '../../protected-secret-persistence'
@@ -103,6 +107,10 @@ export function updatePersistedUI(
   const nextUI = {
     ...currentUI,
     ...durableUpdates,
+    automationInboxEntries: mergeAutomationInboxEntries(
+      normalizeAutomationInboxEntries(currentUI.automationInboxEntries),
+      normalizeAutomationInboxEntries(durableUpdates.automationInboxEntries)
+    ),
     workspaceCleanup: mergeWorkspaceCleanupUIState(
       currentUI.workspaceCleanup,
       durableUpdates.workspaceCleanup

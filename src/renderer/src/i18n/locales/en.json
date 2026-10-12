@@ -17254,6 +17254,16 @@
           "markManyRead": "Mark {{count}} Agents Read",
           "markManyUnread": "Mark {{count}} Agents Unread",
           "clearMany": "Clear {{count}} Agents from List"
+        },
+        "automationInbox": {
+          "title": "Automation alerts",
+          "failed": "Failed",
+          "needsAttention": "Needs attention",
+          "markUnread": "Mark automation alert unread",
+          "markRead": "Mark automation alert read",
+          "dismiss": "Dismiss automation alert",
+          "localHost": "Local",
+          "remoteHost": "Remote host"
         }
       },
       "confirmation": {

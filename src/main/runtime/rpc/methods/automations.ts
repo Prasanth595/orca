@@ -28,6 +28,12 @@ function mutationOwner(
 
 export const AUTOMATION_METHODS = [
   defineMethod({
+    name: 'automation.inbox',
+    permission: 'workspace',
+    params: null,
+    handler: async (_params, { runtime }) => ({ alerts: await runtime.listAutomationInbox() })
+  }),
+  defineMethod({
     name: 'automation.reportRun',
     permission: 'workspace',
     params: AutomationRunReport,

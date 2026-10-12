@@ -22,8 +22,14 @@ import type { LegacyWorkerTerminalRecoveryPlan } from './orchestration/orchestra
 import type { LegacyWorkerTerminalRecoveryResult } from './runtime-legacy-worker-terminal-recovery-types'
 import { makePaneKey } from '../../shared/stable-pane-id'
 import { runtimeWorktreeIdsEqual } from './runtime-worktree-path-identity'
+import { listRuntimeAutomationInbox } from './runtime-automation-inbox'
+import type { AutomationsChangedPayload } from '../../shared/runtime-client-events'
 
 export class OrcaRuntimeWithAutomationOperations extends OrcaRuntimeWithPtyForegroundProcessReads {
+  listAutomationInbox(): Promise<AutomationsChangedPayload[]> {
+    return listRuntimeAutomationInbox(this.store)
+  }
+
   private readAutomationRuns<T>(
     automationId: string | undefined,
     expectedOwner: AutomationOwnerPrecondition | undefined,

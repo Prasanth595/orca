@@ -21,6 +21,9 @@ export function createUiAgentActions(
   get: UISliceGet
 ): Pick<
   UISlice,
+  | 'automationInboxEntries'
+  | 'receiveAutomationInbox'
+  | 'changeAutomationInbox'
   | 'sidebarOpen'
   | 'sidebarWidth'
   | 'toggleSidebar'

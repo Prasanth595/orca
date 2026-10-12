@@ -1,6 +1,7 @@
 import { applyHostWorktreeTerminalSleepState } from '@/components/terminal-pane/pty-shutdown-exit-deferral'
 import { dispatchTerminalSideEffectBatch } from '@/components/terminal-pane/terminal-side-effect-facts-handler'
 import { emitAutomationsChangedWindowEvent } from '@/lib/automations-changed-window-event'
+import { refreshAutomationInbox } from '@/lib/automation-inbox-sync'
 import { applyNativeChatLaunchDraftResolved } from '@/runtime/native-chat-launch-draft-runtime-resolution'
 import { getRuntimeEnvironmentRevision } from '@/runtime/runtime-environment-revision'
 import { setRuntimeEnvironmentCatalogRefresher } from '@/runtime/runtime-environment-pairing-refresh'
@@ -209,6 +210,7 @@ export function registerRuntimeClientIpcBridge(
           if (!isCurrent()) {
             return
           }
+          void refreshAutomationInbox({ kind: 'environment', environmentId }).catch(console.warn)
           invalidateRuntimeClientEventReplay({
             getSshStateReference: () => useAppStore.getState().sshStateByEnvironment,
             refreshRuntimeStatus: () => {
