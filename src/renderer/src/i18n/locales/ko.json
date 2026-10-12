@@ -9627,6 +9627,15 @@
               "board": "판자",
               "inWindow": "창구 내",
               "worktrees": "작업 트리"
+            },
+            "editorGoToDefinition": {
+              "title": "정의로 이동",
+              "description": "TypeScript와 JavaScript 파일에서 Cmd/Ctrl-클릭하면 node_modules 패키지를 포함해 정의를 엽니다.",
+              "definition": "정의",
+              "navigation": "탐색",
+              "import": "import",
+              "typescript": "typescript",
+              "javascript": "javascript"
             }
           }
         },
@@ -12406,6 +12415,10 @@
           "description": "이 호스트는 현재 상태 그대로 관리형 서버로 돌아갑니다. 이전 버전의 Orca가 여기에서 추가하거나 변경한 내용은 이동되지 않으며, 정리될 때까지 이 컴퓨터의 저장된 설정에만 남습니다.",
           "cancel": "취소",
           "confirm": "서버 버전 유지"
+        },
+        "editorGoToDefinitionExperimentalSetting": {
+          "copy": "TypeScript 또는 JavaScript 파일에서 이름을 Cmd/Ctrl-클릭하면 그 이름을 정의한 파일을 엽니다. node_modules 패키지도 포함합니다. Orca가 열린 파일이 import하는 파일을 백그라운드에서 읽습니다. 지금은 로컬 워크스페이스에서만 동작합니다.",
+          "toggleLabel": "정의로 이동 전환"
         }
       },
       "right": {

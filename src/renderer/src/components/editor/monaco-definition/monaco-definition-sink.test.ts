@@ -8,7 +8,7 @@ function createLanguageDefaults(): {
   setCompilerOptions: (options: MonacoTypeScript.CompilerOptions) => void
   applied: MonacoTypeScript.CompilerOptions[]
 } {
-  let options: MonacoTypeScript.CompilerOptions = { allowJs: true }
+  let options: MonacoTypeScript.CompilerOptions = { jsx: 1 }
   const applied: MonacoTypeScript.CompilerOptions[] = []
   return {
     addExtraLib: vi.fn((_content: string, _filePath?: string) => ({ dispose: () => {} })),
@@ -26,6 +26,14 @@ const aliasesOf = (root: string): { pattern: string; substitutions: string[] }[]
 ]
 
 describe('createMonacoDefinitionSink', () => {
+  it('switches the worker to bundler resolution only once the experiment creates it', () => {
+    const defaults = createLanguageDefaults()
+
+    createMonacoDefinitionSink([defaults])
+
+    expect(defaults.getCompilerOptions()).toMatchObject({ moduleResolution: 100, allowJs: true })
+  })
+
   it('puts the most recently read root first for an alias sibling worktrees share', () => {
     const defaults = createLanguageDefaults()
     const sink = createMonacoDefinitionSink([defaults])
@@ -34,7 +42,6 @@ describe('createMonacoDefinitionSink', () => {
     sink.publishPathAliases('file:///b', aliasesOf('file:///b'))
 
     expect(defaults.getCompilerOptions()).toMatchObject({
-      allowJs: true,
       paths: { '@/*': ['file:///b/src/*', 'file:///a/src/*'] }
     })
   })
@@ -44,9 +51,10 @@ describe('createMonacoDefinitionSink', () => {
     const sink = createMonacoDefinitionSink([defaults])
 
     sink.publishPathAliases('file:///a', aliasesOf('file:///a'))
+    const appliedAfterFirstPublish = defaults.applied.length
     sink.publishPathAliases('file:///a', aliasesOf('file:///a'))
 
-    expect(defaults.applied).toHaveLength(1)
+    expect(defaults.applied).toHaveLength(appliedAfterFirstPublish)
   })
 
   it('registers each file with every language under its key', () => {

@@ -12,7 +12,7 @@ const MODULE_RESOLUTION_BUNDLER: number = 100
 const MODULE_ESNEXT = 99
 
 /** Lets the worker resolve imports the way a bundler-era project does, over the files we load. */
-export const DEFINITION_COMPILER_OPTIONS: MonacoTypeScript.CompilerOptions = {
+const DEFINITION_COMPILER_OPTIONS: MonacoTypeScript.CompilerOptions = {
   moduleResolution: MODULE_RESOLUTION_BUNDLER,
   module: MODULE_ESNEXT,
   allowJs: true
@@ -21,6 +21,13 @@ export const DEFINITION_COMPILER_OPTIONS: MonacoTypeScript.CompilerOptions = {
 export function createMonacoDefinitionSink(
   languages: readonly LanguageDefaults[]
 ): DefinitionContextSink {
+  // Why here, not at Monaco setup: with the experiment off the worker keeps its stock options.
+  for (const language of languages) {
+    language.setCompilerOptions({
+      ...language.getCompilerOptions(),
+      ...DEFINITION_COMPILER_OPTIONS
+    })
+  }
   const aliasesByRoot = new Map<string, readonly PathAlias[]>()
   let appliedPaths = ''
   return {

@@ -26,7 +26,7 @@ const publishedFiles = createPublishedDefinitionFiles()
 const loadersByOwner = new Map<string, DefinitionContextLoader>()
 let sink: ReturnType<typeof createMonacoDefinitionSink> | null = null
 
-/** Cmd/Ctrl-click in a TS/JS file follows a definition into another file, node_modules included. */
+/** Experimental: Cmd/Ctrl-click in a TS/JS file follows a definition into another file, node_modules included. */
 export function useMonacoDefinitionNavigation({
   editor: codeEditor,
   fileId,
@@ -36,7 +36,11 @@ export function useMonacoDefinitionNavigation({
   fileId: string
   language: string
 }): void {
+  const enabled = useAppStore((state) => state.settings?.experimentalEditorGoToDefinition === true)
   useEffect(() => {
+    if (!enabled) {
+      return
+    }
     const model = codeEditor?.getModel()
     // Why skip owner fragments: they hide the extension from the TS worker, which then serves
     // nothing for the file (remote-owned tabs), so a prefetch would only cost host reads.
@@ -64,7 +68,7 @@ export function useMonacoDefinitionNavigation({
       window.clearTimeout(timer)
       unregister()
     }
-  }, [codeEditor, fileId, language])
+  }, [codeEditor, enabled, fileId, language])
 }
 
 function resolveDefinitionSource(

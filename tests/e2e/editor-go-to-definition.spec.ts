@@ -92,6 +92,9 @@ test('Cmd/Ctrl-click follows a TypeScript import into node_modules and into proj
   await waitForSessionReady(orcaPage)
   await waitForActiveWorktree(orcaPage)
   const context = await getActiveWorktreeContext(orcaPage)
+  await orcaPage.evaluate(async () => {
+    await window.__store!.getState().updateSettings({ experimentalEditorGoToDefinition: true })
+  })
   const fixture = await createDefinitionFixture(context.rootPath)
   try {
     await openTypeScriptFile(orcaPage, context.worktreeId, context.rootPath, fixture.entryPath)
