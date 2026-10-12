@@ -2655,7 +2655,7 @@
     "ko": "셸, 렌더러, 세션, terminal 동작."
   },
   "auto.components.settings.Settings.c2ee313198": {
-    "ko": "SSH를 통해 기존 머신의 파일, terminals, Git, 워크스페이스를 사용합니다."
+    "ko": "SSH를 통해 기존 머신의 파일, 터미널, Git, 워크스페이스를 사용합니다."
   },
   "auto.components.settings.SettingsFormControls.c822571b2e": {
     "ko": " \"{{value0}}\"과(와) 일치"
@@ -5104,5 +5104,14 @@
   },
   "components.workspace.cleanup.browse.agent.working": {
     "ko": "작업 중"
+  },
+  "auto.components.settings.SshPassphraseDialog.c624f64b86": {
+    "ko": "계속"
+  },
+  "auto.components.settings.SshTargetForm.allowRemoteCliControl": {
+    "ko": "이 호스트의 orca CLI가 Orca를 제어하도록 허용"
+  },
+  "auto.components.settings.SshTargetForm.allowRemoteCliControlHelp": {
+    "ko": "꺼져 있으면 이 호스트에서 실행한 orca 명령은 이 호스트의 터미널에만 적용됩니다. 켜면 다른 호스트와 이 컴퓨터의 오케스트레이션, 파일 및 연동 기능에도 접근할 수 있습니다."
   }
 }
