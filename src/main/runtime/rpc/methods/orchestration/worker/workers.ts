@@ -2,6 +2,7 @@ import { OrchestrationError } from '../../../../orchestration/orchestration-erro
 import { defineMethod } from '../../../core'
 import { startFederatedWorker } from '../federation/federated-worker-start'
 import { startLocalWorker } from './local-worker-start'
+import { inheritRetryLaunchSelection } from './worker-retry-launch-inheritance'
 import {
   decideWorkerStartMode,
   readWorkerStartModeSettings
@@ -53,8 +54,9 @@ export const ORCHESTRATION_WORKER_START_METHODS = [
         )
       }
       await assertWorkerStartTaskSpecWithinPromptBudget(params.spec ?? existingTask!.spec)
+      const startParams = inheritRetryLaunchSelection(db, params)
       const mode = decideWorkerStartMode({
-        params,
+        params: startParams,
         settings: readWorkerStartModeSettings(runtime)
       })
       if (params.on && params.terminal?.startsWith(ORCA_SESSION_ADDRESS_PREFIX)) {
@@ -80,7 +82,7 @@ export const ORCHESTRATION_WORKER_START_METHODS = [
         return receipt && typeof receipt === 'object' ? { ...receipt, mode } : receipt
       }
       return startLocalWorker({
-        params: { ...params, timeoutMs: readinessTimeoutMs },
+        params: { ...startParams, timeoutMs: readinessTimeoutMs },
         runtime,
         db,
         run,

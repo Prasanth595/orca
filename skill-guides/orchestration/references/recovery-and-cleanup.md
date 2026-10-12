@@ -114,8 +114,12 @@ with `--task`, since `--spec` creates a new one. Placement is never silently
 inherited:
 
 ```text
-ORCA orchestration worker-start --task <task_id> --retry-of <dispatch_id> --worktree <explicit_placement> --agent <agent> --json
+ORCA orchestration worker-start --task <task_id> --retry-of <dispatch_id> --worktree <explicit_placement> --json
 ```
+
+Without `--agent` or `--terminal`, a local retry relaunches the agent, model,
+and effort the retried Dispatch recorded. Pass `--agent` (and `--model` /
+`--effort`) to switch, or `--terminal` to reuse a surviving pane.
 
 After three consecutive failures for one Task, its dispatch context
 circuit-breaks and the Task is failed. Do not route around that boundary with a
