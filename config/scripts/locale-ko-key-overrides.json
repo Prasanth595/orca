@@ -5104,5 +5104,26 @@
   },
   "components.workspace.cleanup.browse.agent.working": {
     "ko": "작업 중"
+  },
+  "auto.components.settings.MobileEmulatorSdkStatus.b94ff260e6": {
+    "ko": "Android Studio 다운로드"
+  },
+  "auto.components.settings.MobileEmulatorAgentControlRow.2a674aa810": {
+    "ko": "에이전트 모바일 에뮬레이터 제어"
+  },
+  "auto.components.settings.MobileEmulatorSettingsPane.b2fd62ea75": {
+    "ko": "새 에뮬레이터 탭 및 에이전트 연결 명령을 위한 기본 장치입니다. 자동 선택은 이미 실행 중인 장치를 선호합니다."
+  },
+  "auto.components.settings.MobileEmulatorSettingsPane.f2f8d97bb6": {
+    "ko": "에이전트 모바일 에뮬레이터 제어"
+  },
+  "auto.components.settings.mobile.emulator.search.b8ddd13195": {
+    "ko": "에이전트 에뮬레이터"
+  },
+  "auto.components.settings.mobile.emulator.search.ea3eac39bb": {
+    "ko": "에이전트 CLI 제어"
+  },
+  "auto.components.settings.mobile.emulator.search.f8b871d655": {
+    "ko": "에이전트 CLI"
   }
 }
