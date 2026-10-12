@@ -1,7 +1,15 @@
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { translate } from '@/i18n/i18n'
-import { NODE_TYPE_LABELS, NODE_TYPE_COLORS, nodeLabel } from './workflow-canvas-node-config'
+import {
+  NODE_TYPE_LABELS,
+  NODE_TYPE_COLORS,
+  nodeLabel,
+  getOutputPorts,
+  PORT_Y_BASE,
+  PORT_ROW_H,
+  SINGLE_PORT_MID
+} from './workflow-canvas-node-config'
 import type { WorkflowNode } from '../../../../shared/workflow-types'
 
 type Props = {
@@ -15,7 +23,7 @@ type Props = {
   onNodeClick: (nodeId: string) => void
   onContextMenu: (nodeId: string) => void
   onDelete: (nodeId: string, e: React.MouseEvent) => void
-  onConnectStart: (nodeId: string) => void
+  onConnectStart: (nodeId: string, outputSelector?: string) => void
 }
 
 export default function WorkflowCanvasNode({
@@ -31,11 +39,15 @@ export default function WorkflowCanvasNode({
   onDelete,
   onConnectStart
 }: Props): React.JSX.Element {
+  const ports = getOutputPorts(node)
+  const isMultiPort = ports.length > 1
+  const inputY = isMultiPort ? PORT_Y_BASE / 2 : SINGLE_PORT_MID
+
   return (
     <div
       id={`wf-node-${node.id}`}
       className={cn(
-        'absolute select-none rounded-lg border-2 px-3 py-2 shadow-sm transition-shadow min-w-[160px] group z-[1]',
+        'absolute select-none rounded-lg border-2 shadow-sm transition-shadow min-w-[160px] group z-[1]',
         isConnecting ? 'cursor-crosshair' : 'cursor-move',
         NODE_TYPE_COLORS[node.type],
         isSelected && 'ring-2 ring-primary ring-offset-1',
@@ -69,23 +81,61 @@ export default function WorkflowCanvasNode({
       >
         <X className="size-2.5" />
       </button>
-      {/* Port handle — right-center, starts connection on click */}
-      {!isConnecting && (
-        <button
-          type="button"
-          className="absolute right-[-7px] top-1/2 -translate-y-1/2 size-3.5 rounded-full border-2 border-border bg-background hover:border-primary hover:bg-primary/10 opacity-0 group-hover:opacity-100 transition-all z-10 flex items-center justify-center shadow-sm"
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation()
-            onConnectStart(node.id)
-          }}
-          title={translate('workflows.canvas.connectPort', 'Connect from this node')}
-        />
-      )}
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">
-        {NODE_TYPE_LABELS[node.type]}
+
+      {/* Input port — left side, visual only */}
+      <div
+        className="absolute left-[-7px] size-3 rounded-full border-2 border-border bg-background shadow-sm"
+        style={{ top: inputY, transform: 'translateY(-50%)' }}
+      />
+
+      {/* Node header */}
+      <div className="px-3 pt-2 pb-1">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">
+          {NODE_TYPE_LABELS[node.type]}
+        </div>
+        <div className="text-[12px] font-medium truncate max-w-[140px]">{nodeLabel(node)}</div>
       </div>
-      <div className="text-[12px] font-medium truncate max-w-[140px]">{nodeLabel(node)}</div>
+
+      {/* Output ports */}
+      {isMultiPort ? (
+        <div className="border-t border-border/40 pb-1">
+          {ports.map((port) => (
+            <div
+              key={port.selector ?? '__default__'}
+              className="relative flex items-center justify-end pr-4 pl-3"
+              style={{ height: PORT_ROW_H }}
+            >
+              <span className="text-[10px] text-muted-foreground">{port.label}</span>
+              {!isConnecting && (
+                <button
+                  type="button"
+                  className="absolute right-[-7px] top-1/2 -translate-y-1/2 size-3.5 rounded-full border-2 border-border bg-background hover:border-primary hover:bg-primary/10 transition-all z-10 shadow-sm"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onConnectStart(node.id, port.selector)
+                  }}
+                  title={translate('workflows.canvas.connectPort', `Connect from "${port.label}"`)}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        /* Single port — right-center, appears on hover */
+        !isConnecting && (
+          <button
+            type="button"
+            className="absolute right-[-7px] top-1/2 -translate-y-1/2 size-3.5 rounded-full border-2 border-border bg-background hover:border-primary hover:bg-primary/10 opacity-0 group-hover:opacity-100 transition-all z-10 flex items-center justify-center shadow-sm"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation()
+              onConnectStart(node.id, undefined)
+            }}
+            title={translate('workflows.canvas.connectPort', 'Connect from this node')}
+          />
+        )
+      )}
     </div>
   )
 }

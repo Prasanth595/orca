@@ -211,23 +211,28 @@ export async function executeNode(
       const bodyNodes = bodyEdge ? getBodyNodes(bodyEdge.targetNodeId, null, workflow) : []
       const bodyNodeIds = bodyNodes.map((n) => n.id)
       const iterResults: unknown[] = []
+      // Track each body node's last-iteration output for the final patch
+      const bodyLastOut = new Map<string, { stdout: string; outputValue: unknown }>()
 
       for (let i = 0; i < items.length; i++) {
         if (signal.aborted) {
           break
         }
+        // Expose current item via both __loop__ and the for_each node's own ID so body
+        // nodes (Python, shell) can receive it as primaryOutput/stdin.
+        const itemEntry = { output: JSON.stringify(items[i]), json: { item: items[i], index: i } }
         const loopSteps: StepOutputs = {
           ...steps,
-          __loop__: {
-            output: JSON.stringify(items[i]),
-            json: { item: items[i], index: i }
-          }
+          [node.id]: itemEntry,
+          __loop__: itemEntry
         }
         let lastOutput: unknown = null
         for (const bodyNode of bodyNodes) {
           if (signal.aborted) {
             break
           }
+          // Mark running so the UI reflects per-iteration progress
+          patchNodeRun(ops, runId, bodyNode.id, { status: 'running', startedAt: Date.now() })
           const r = await executeNode(bodyNode, workflow, loopSteps, runId, ops, signal, remoteExec)
           let json: unknown = null
           try {
@@ -235,17 +240,19 @@ export async function executeNode(
           } catch {}
           loopSteps[bodyNode.id] = { output: r.stdout, json: json ?? r.outputValue }
           lastOutput = r.outputValue
+          bodyLastOut.set(bodyNode.id, { stdout: r.stdout, outputValue: r.outputValue })
         }
         iterResults.push(lastOutput)
       }
 
       const aggregated = JSON.stringify(iterResults)
       for (const bodyNode of bodyNodes) {
+        const out = bodyLastOut.get(bodyNode.id)
         patchNodeRun(ops, runId, bodyNode.id, {
           status: 'completed',
           completedAt: Date.now(),
-          stdout: aggregated,
-          outputValue: iterResults,
+          stdout: out?.stdout ?? aggregated,
+          outputValue: out?.outputValue ?? iterResults,
           error: null
         })
       }
@@ -255,6 +262,8 @@ export async function executeNode(
         stderr: '',
         outputValue: { items: iterResults, count: iterResults.length },
         exitCode: 0,
+        // Activate the 'done' edge so collect/downstream nodes are reachable after the loop.
+        activeLabel: 'done',
         handledNodeIds: bodyNodeIds
       }
     }
