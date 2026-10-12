@@ -12,7 +12,7 @@ import { MobileSourceCopyButton } from './MobileSourceCopyButton'
 import { colors } from '../theme/mobile-theme'
 
 vi.mock('react-native', () => vi.importActual<typeof import('react-native')>('react-native-web'))
-vi.mock('../platform/clipboard', () => vi.importActual('../platform/clipboard.web'))
+vi.mock('../platform/clipboard', () => import('../platform/clipboard.web'))
 vi.mock('lucide-react-native', () => ({
   Copy: ({ size, color }: { size: number; color: string }) =>
     createElement('svg', { 'data-icon': 'copy', width: size, height: size, stroke: color }),
