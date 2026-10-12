@@ -2244,10 +2244,10 @@
     "ko": "분"
   },
   "auto.components.settings.ExperimentalPane.agentHibernation.title": {
-    "ko": "Agent 최대 절전"
+    "ko": "에이전트 최대 절전"
   },
   "auto.components.settings.ExperimentalPane.agentHibernation.toggleLabel": {
-    "ko": "Agent 최대 절전 전환"
+    "ko": "에이전트 최대 절전 전환"
   },
   "auto.components.settings.ExperimentalPane.newWorktreeCardStyle.copy": {
     "ko": "업데이트된 워크트리 카드 레이아웃, 메타데이터 배치, 카드 표시 메뉴 옵션 및 상태 표시를 미리 봅니다."
@@ -3276,7 +3276,7 @@
     "ko": "최대 절전"
   },
   "auto.components.settings.experimental.search.agentHibernation.title": {
-    "ko": "Agent 최대 절전"
+    "ko": "에이전트 최대 절전"
   },
   "auto.components.settings.experimental.search.newWorktreeCardStyle.description": {
     "ko": "업데이트된 워크트리 카드 레이아웃, 메타데이터 배치, 카드 표시 메뉴 옵션 및 상태 표시를 미리 봅니다."
@@ -5104,5 +5104,65 @@
   },
   "components.workspace.cleanup.browse.agent.working": {
     "ko": "작업 중"
+  },
+  "auto.components.settings.experimental.search.nativeChat.omp": {
+    "ko": "omp"
+  },
+  "auto.components.settings.experimental.search.nativeChat.openclaude": {
+    "ko": "openclaude"
+  },
+  "auto.components.settings.experimental.search.agentDashboard.board": {
+    "ko": "보드"
+  },
+  "auto.components.settings.experimental.search.agentDashboard.inWindow": {
+    "ko": "창 내부"
+  },
+  "auto.components.settings.experimental.search.newWorktreeCardStyle.worktree": {
+    "ko": "워크트리"
+  },
+  "auto.components.settings.ephemeralVms.search.keywordCloud": {
+    "ko": "클라우드"
+  },
+  "auto.components.settings.ephemeralVms.search.keywordSandbox": {
+    "ko": "샌드박스"
+  },
+  "auto.components.settings.ExperimentalPane.88b7613afb": {
+    "ko": "터미널 벨 및 에이전트 완료 이벤트에 대한 지속적인 패널 강조 표시입니다."
+  },
+  "auto.components.settings.ExperimentalPane.a20d5ea365": {
+    "ko": "해당 패널과 상호 작용할 때까지 터미널 벨 또는 에이전트 완료 이벤트 후에 패널 수준 강조 표시를 유지합니다. 신호를 조정하는 동안 실험적입니다."
+  },
+  "auto.components.settings.ExperimentalPane.agentHibernation.copy": {
+    "ko": "설정된 유휴 시간이 지난 백그라운드 에이전트 터미널을 중지하고, 다시 열 때 지원되는 세션을 재개합니다. 에이전트 최대 절전은 Orca에서 시작한 에이전트의 시작 옵션을 보존합니다. 수동으로 시작한 에이전트는 현재 Orca 기본값으로 재개될 수 있습니다. 안전 모델을 조정하는 동안 제공되는 실험적 기능입니다."
+  },
+  "auto.components.settings.ExperimentalPane.agentHibernation.description": {
+    "ko": "설정된 유휴 시간이 지난 백그라운드 에이전트 터미널을 중지하고, 다시 열 때 지원되는 세션을 재개합니다."
+  },
+  "auto.components.settings.ExperimentalPane.ec897e8d89": {
+    "ko": "터미널 주의"
+  },
+  "auto.components.settings.experimental.search.11877246fc": {
+    "ko": "터미널 벨 및 에이전트 완료 이벤트에 대한 지속적인 패널 강조 표시입니다."
+  },
+  "auto.components.settings.experimental.search.5f067ba0f9": {
+    "ko": "에이전트"
+  },
+  "auto.components.settings.experimental.search.9e4ddf776d": {
+    "ko": "터미널 주의"
+  },
+  "auto.components.settings.experimental.search.agentHibernation.agent": {
+    "ko": "에이전트"
+  },
+  "auto.components.settings.experimental.search.agentHibernation.description": {
+    "ko": "설정된 유휴 시간이 지난 백그라운드 에이전트 터미널을 중지하고, 다시 열 때 지원되는 세션을 재개합니다. 에이전트 최대 절전은 Orca에서 시작한 에이전트의 시작 옵션을 보존합니다. 수동으로 시작한 에이전트는 현재 Orca 기본값으로 재개될 수 있습니다."
+  },
+  "auto.components.settings.ExperimentalPane.nativeChat.copy": {
+    "ko": "지원되는 새 에이전트는 구조화된 채팅으로 열립니다. 그 외 에이전트는 터미널에서 열리며, 기존 채팅은 계속 사용할 수 있습니다."
+  },
+  "auto.components.settings.ExperimentalPane.nativeChat.description": {
+    "ko": "지원되는 새 에이전트를 채팅 UI로 엽니다."
+  },
+  "auto.components.settings.experimental.search.nativeChat.description": {
+    "ko": "지원되는 에이전트 터미널 세션의 데스크톱 채팅 화면을 미리 사용해 봅니다."
   }
 }
