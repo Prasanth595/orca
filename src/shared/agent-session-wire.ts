@@ -326,6 +326,8 @@ export type AgentSessionMutationResult<TValue> =
 // ─── Per-method payloads ────────────────────────────────────────────────────
 
 export type AgentSessionAttachResult = {
+  /** Create's committed opening message, even when its row is outside the returned history page. */
+  firstMessage?: AgentJournalSubmission
   sessionId: string
   fence: number
   page: AgentSessionHistoryPage
@@ -395,6 +397,10 @@ export type AgentSessionModelOption = {
   efforts: AgentSessionOptionChoice[]
   /** Provider catalog fact. Absent means the host could not determine support. */
   supportsFastMode?: boolean
+  /** Service tiers the provider lists for this model besides its standard one, each valued by the
+   *  provider's own tier id. Absent means unknown; a client that reads it offers one speed choice
+   *  (`default` for standard) in place of the Fast toggle. */
+  serviceTiers?: AgentSessionOptionChoice[]
 }
 
 export type AgentSessionFastModeState = 'off' | 'cooldown' | 'on'
@@ -485,6 +491,8 @@ export type AgentSessionOptionsResult = {
    *  `current` is the newest of each part the whole journal records, for a
    *  client whose loaded page starts after the row that carries it. */
   contextUsage?: { current: AgentSessionContextUsage; contextFloor?: AgentJournalCursor }
+  /** This session takes image attachments. Absent = unknown (an older host). */
+  acceptsImages?: boolean
   models: AgentSessionModelOption[]
   /** Session/account/transport support. Absent means unknown, never unsupported. */
   fastModeSupport?: AgentSessionFastModeSupport
@@ -493,6 +501,8 @@ export type AgentSessionOptionsResult = {
     effort?: string
     /** Canonical preference for the next turn. Explicit false is meaningful. */
     fastMode?: boolean
+    /** Next-turn service tier id where the model lists `serviceTiers`; `default` is standard. */
+    serviceTier?: string
     /** Provider-reported effective routing, distinct from the next-turn preference. */
     fastModeState?: AgentSessionFastModeState
     /**

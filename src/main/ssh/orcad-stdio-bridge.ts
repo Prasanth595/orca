@@ -5,13 +5,13 @@ import {
   OrcadStdioBridgeUnavailableError
 } from './orcad-host-unavailable'
 import { resolveOrcadRemoteContext } from './orcad-remote-context'
-import { orcadRemoteBaseDir, orcadWindowsHostOpCommand } from './orcad-remote-windows-node'
+import { orcadWindowsHomeOpCommand } from './orcad-remote-windows-node'
 import {
   orcadPosixStdioBridgeCommand,
   type OrcadStdioBridgeMode
 } from './orcad-stdio-bridge-script'
 import { OrcadStdioBridgeDecoder, type OrcadStdioBridgeSignal } from './orcad-stdio-bridge-stream'
-import type { SshConnection } from './ssh-connection'
+import type { OrcadHostTransport } from './orcad-host-transport'
 import { isWindowsRemoteHost } from './ssh-remote-platform'
 import { detectRemoteHostPlatform } from './ssh-remote-platform-detection'
 
@@ -27,7 +27,7 @@ const MAX_STDERR_TAIL_CHARS = 2_000
 const COMMAND_NOT_FOUND_EXITS: ReadonlySet<number | null> = new Set([127, 9009])
 
 export async function resolveOrcadStdioBridge(
-  conn: SshConnection,
+  conn: OrcadHostTransport,
   port: number
 ): Promise<OrcadStdioBridge> {
   const host = await detectRemoteHostPlatform(conn)
@@ -40,19 +40,14 @@ export async function resolveOrcadStdioBridge(
   // Stages this client's pinned node.exe and host script, which an app update may have changed.
   const context = await resolveOrcadRemoteContext(conn.getTarget(), conn, undefined, host)
   return {
-    command: orcadWindowsHostOpCommand(
-      host,
-      orcadRemoteBaseDir(host, context.remoteHome),
-      'stdio-bridge',
-      [String(port)]
-    ),
+    command: orcadWindowsHomeOpCommand(host, context.remoteHome, 'stdio-bridge', [String(port)]),
     mode: 'base64',
     wrapCommand: host.commandDialect !== 'powershell'
   }
 }
 
 export function openOrcadStdioBridgeChannel(
-  conn: SshConnection,
+  conn: OrcadHostTransport,
   bridge: OrcadStdioBridge
 ): Promise<ClientChannel> {
   return conn.exec(bridge.command, { wrapCommand: bridge.wrapCommand })
@@ -71,7 +66,7 @@ function closeQuietly(channel: ClientChannel): void {
  * exit the host reported without one is proof it can't run; anything else is unverifiable.
  */
 export async function checkOrcadStdioBridge(
-  conn: SshConnection,
+  conn: OrcadHostTransport,
   bridge: OrcadStdioBridge,
   timeoutMs = ORCAD_STDIO_BRIDGE_CHECK_TIMEOUT_MS
 ): Promise<'running' | 'unverifiable'> {

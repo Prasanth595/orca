@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import {
   TerminalStreamOpcode,
   encodeTerminalStreamJson
@@ -8,9 +7,10 @@ import { TERMINAL_MULTIPLEX_ACK_STREAM_INITIAL_WINDOW_BYTES } from '../../../../
 import { createTerminalOutputBatcher } from './terminal-output-batcher'
 import { appendPendingMultiplexOutput } from './terminal-stream-replay'
 import { updateViewportForClient } from './terminal-viewport-update'
-import type {
-  MultiplexSubscribeRequest,
-  TerminalMultiplexConnection
+import {
+  isMultiplexStreamAttached,
+  type MultiplexSubscribeRequest,
+  type TerminalMultiplexConnection
 } from './terminal-multiplex-connection'
 import type { TerminalMultiplexStream } from './terminal-stream-types'
 
@@ -20,25 +20,9 @@ export async function initializeMultiplexStream(
   ptyId: string,
   onInstalled: (stream: TerminalMultiplexStream) => void
 ): Promise<TerminalMultiplexStream | null> {
-  const { runtime, connectionId, streams, sourceRangeRegistry, registerBinaryStreamHandler } = state
+  const { runtime, connectionId, streams, registerBinaryStreamHandler } = state
   const isMobile = request.client?.type === 'mobile'
   const remoteDesktopSubscriptionKey = `multiplex:${connectionId}:${request.streamId}`
-  const streamGeneration = randomUUID()
-  const requestedSourceRangeConsumer =
-    request.capabilities?.ackOutput === 1 && request.capabilities?.ackOutputSourceRanges === 1
-  const sourceRangeLedger = requestedSourceRangeConsumer
-    ? sourceRangeRegistry.open(streamGeneration)
-    : null
-  const sourceRangeConsumerAttached =
-    sourceRangeLedger !== null &&
-    runtime.attachRemoteTerminalSourceRangeConsumer({
-      ptyId,
-      consumerId: remoteDesktopSubscriptionKey,
-      streamGeneration
-    })
-  if (!sourceRangeConsumerAttached) {
-    sourceRangeLedger?.close()
-  }
   const stream: TerminalMultiplexStream = {
     streamId: request.streamId,
     terminal: request.terminal,
@@ -46,11 +30,6 @@ export async function initializeMultiplexStream(
     client: request.client,
     isMobile,
     ackOutput: request.capabilities?.ackOutput === 1,
-    ackOutputSourceRanges: sourceRangeConsumerAttached,
-    streamGeneration,
-    sourceRangeLedger: sourceRangeConsumerAttached ? sourceRangeLedger : null,
-    sourceRangeConsumerAttached,
-    sourceRangeReplacement: null,
     ackInFlightBytes: 0,
     ackWindowBytes: TERMINAL_MULTIPLEX_ACK_STREAM_INITIAL_WINDOW_BYTES,
     supportsOutputPause: request.capabilities?.outputPause === 1,
@@ -101,7 +80,7 @@ export async function initializeMultiplexStream(
   onInstalled(stream)
 
   const unsubscribeStreamData = runtime.subscribeToTerminalData(ptyId, (data, meta) => {
-    if (state.closed || streams.get(request.streamId) !== stream) {
+    if (!isMultiplexStreamAttached(state, stream)) {
       return
     }
     if (stream.outputPaused) {
@@ -146,7 +125,7 @@ export async function initializeMultiplexStream(
       !stream.supportsDesktopViewportClaims
     )
   }
-  if (state.closed || streams.get(request.streamId) !== stream) {
+  if (!isMultiplexStreamAttached(state, stream)) {
     return null
   }
   return stream

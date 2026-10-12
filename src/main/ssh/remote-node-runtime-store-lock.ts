@@ -5,9 +5,9 @@
  */
 import { randomUUID } from 'node:crypto'
 import { ORCAD_RUNTIMES_DIRNAME } from '../../shared/orcad-artifacts'
-import type { SshConnection } from './ssh-connection'
+import type { RemoteInstallTransport } from './remote-install-transport'
 import { shellEscape } from './ssh-connection-utils'
-import { execCommand } from './ssh-relay-deploy-helpers'
+import { execHostCommand } from './ssh-relay-host-exec'
 import { isUnconfirmedSshCommandTermination } from './ssh-relay-exec-command'
 import { acquireInstallLock, INSTALL_LOCK_STALE_SECONDS } from './ssh-relay-install-lock'
 import {
@@ -72,7 +72,7 @@ function heldLock(
 }
 
 async function releaseRuntimeStoreLock(
-  conn: SshConnection,
+  conn: RemoteInstallTransport,
   host: RemoteHostPlatform,
   storeDir: string,
   owner: InstallLockOwnerFile
@@ -83,7 +83,7 @@ async function releaseRuntimeStoreLock(
   const command = windows
     ? removeRemoteTreeCommand(host, lock)
     : `${posixReleaseOwnedLockCommand(host, lock, owner)} || true`
-  await execCommand(conn, command, { wrapCommand: !windows }).catch((error) => {
+  await execHostCommand(conn, host, command).catch((error) => {
     if (isUnconfirmedSshCommandTermination(error)) {
       throw error
     }
@@ -92,7 +92,7 @@ async function releaseRuntimeStoreLock(
 
 /** One attempt, stealing only a stale or previous-boot lock. A missing store is simply not acquired. */
 async function tryAcquireRuntimeStoreLock(
-  conn: SshConnection,
+  conn: RemoteInstallTransport,
   host: RemoteHostPlatform,
   storeDir: string,
   owner: InstallLockOwnerFile,
@@ -100,19 +100,22 @@ async function tryAcquireRuntimeStoreLock(
 ): Promise<boolean> {
   const lock = lockDir(host, storeDir)
   try {
-    // Why unwrapped on Windows: these are already self-contained powershell.exe command lines.
-    const wrapCommand = !isWindowsRemoteHost(host)
-    const created = await execCommand(conn, tryCreateInstallLockCommand(host, lock, owner), {
-      signal,
-      wrapCommand
-    })
+    const created = await execHostCommand(
+      conn,
+      host,
+      tryCreateInstallLockCommand(host, lock, owner),
+      {
+        signal
+      }
+    )
     if (created.trim().endsWith('OK')) {
       return true
     }
-    const stolen = await execCommand(
+    const stolen = await execHostCommand(
       conn,
+      host,
       tryStealInstallLockCommand(host, lock, INSTALL_LOCK_STALE_SECONDS, owner),
-      { signal, wrapCommand }
+      { signal }
     )
     return stolen.trim().endsWith('OK')
   } catch (error) {
@@ -129,7 +132,7 @@ function newOwner(): InstallLockOwnerFile {
 }
 
 async function runHoldingLock<T>(
-  conn: SshConnection,
+  conn: RemoteInstallTransport,
   host: RemoteHostPlatform,
   storeDir: string,
   owner: InstallLockOwnerFile,
@@ -151,7 +154,7 @@ async function runHoldingLock<T>(
 
 /** Runs `task` holding the store lock, waiting for it within the deploy bound. */
 export async function withRuntimeStoreLock<T>(
-  conn: SshConnection,
+  conn: RemoteInstallTransport,
   host: RemoteHostPlatform,
   storeDir: string,
   task: (held: HeldRuntimeStoreLock) => Promise<T>,
@@ -169,7 +172,7 @@ export async function withRuntimeStoreLock<T>(
 
 /** Runs `task` only when the lock is free now; null when another holder has it. */
 export async function tryWithRuntimeStoreLock<T>(
-  conn: SshConnection,
+  conn: RemoteInstallTransport,
   host: RemoteHostPlatform,
   storeDir: string,
   task: () => Promise<T>,

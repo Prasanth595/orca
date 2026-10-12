@@ -26,7 +26,7 @@ import {
 import { closeOrcadManagedTunnel, ensureOrcadManagedTunnel } from './orcad-managed-tunnel'
 import { clearManagedOrcadUpdateDeferral } from './orcad-managed-update-deferrals'
 import { removeOrcadMigrationJournalsForDestination } from './orcad-migration-cutover-journal'
-import { decommissionRemoteOrcad } from './orcad-remote-stop'
+import { decommissionRemoteOrcad } from './orcad-remote-decommission'
 import { withManagedOrcadLifecycle } from './orcad-runtime-maintenance'
 import { collectManagedTerminalCensus } from './orcad-terminal-census-client'
 import { RemoteInstallLockBusyError } from './ssh-relay-install-lock'
@@ -55,7 +55,7 @@ export function stopManagedOrcadEnvironment(
       return refuse(
         'live',
         'orcad_stop_active_environment',
-        'Choose another Active Server in Advanced before stopping this server.'
+        'This server is the default host for new projects. Choose another one in Advanced before stopping it.'
       )
     }
     const stopped = await stopRemote(userDataPath, environment, deployment, args.signal)
@@ -89,7 +89,7 @@ export function forgetManagedOrcadEnvironment(
       return refuse(
         'live',
         'orcad_forget_active_environment',
-        'Choose another Active Server in Advanced before forgetting this server.'
+        'This server is the default host for new projects. Choose another one in Advanced before forgetting it.'
       )
     }
     await unlinkEnvironmentLocally(userDataPath, environment, deployment, policy)

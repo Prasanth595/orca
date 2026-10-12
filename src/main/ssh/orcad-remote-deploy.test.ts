@@ -3,7 +3,7 @@ import type * as RecordFile from './orcad-remote-record-file'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { runProcess } from '../../shared/child-process/run-process'
+import { runProcess } from '@orca/process-host'
 
 vi.mock('./ssh-relay-deploy-helpers', () => ({
   execCommand: vi.fn(),
@@ -53,7 +53,6 @@ import { ORCAD_ACTIVATION_POLICY_REFUSED_CODE } from './orcad-installed-activati
 import { getRemoteHostPlatform } from './ssh-remote-platform'
 import { isReadinessRead } from './orcad-activation-host-test-harness'
 import { isSnapshotCaptureCommand } from './orcad-snapshot-capture-command'
-import type { SshConnection } from './ssh-connection'
 import { NODE_RUNTIME_PIN } from '../../shared/node-runtime-pin'
 import { serializeOrcadActivationTransaction } from './orcad-activation-transaction'
 import { createOrcadActivationTransaction } from './orcad-activation-transaction-transitions'
@@ -187,7 +186,7 @@ function scriptHost(script: HostScript): void {
 
 function options(overrides: Partial<OrcadDeployOptions> = {}): OrcadDeployOptions {
   return {
-    conn: {} as SshConnection,
+    conn: Object.create(null),
     host: getRemoteHostPlatform('linux-x64'),
     remoteHome: '/home/u',
     localOrcadDir: '/local/out/orcad',

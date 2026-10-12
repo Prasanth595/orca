@@ -1,12 +1,7 @@
 import { z } from 'zod'
-import { requiredString } from '../../schemas'
-import { TerminalViewport } from './unary-schemas'
+import { requiredString } from '../../../../../shared/rpc-contract/rpc-param-primitives'
+import { TerminalViewport } from '../../../../../shared/rpc-contract/terminal-unary-params'
 import { TerminalHandle } from '../../../../../shared/rpc-contract/terminal-stream-params'
-export {
-  TerminalMultiplex,
-  TerminalResizeForClient,
-  TerminalSubscribe
-} from '../../../../../shared/rpc-contract/terminal-stream-params'
 
 export const TerminalMultiplexSubscribeFrame = TerminalHandle.extend({
   streamId: z.number().int().min(1),
@@ -34,13 +29,6 @@ export const TerminalMultiplexSubscribeFrame = TerminalHandle.extend({
 export const TerminalMultiplexLegacyAckFrame = z
   .object({
     bytes: z.number().int().nonnegative()
-  })
-  .strict()
-
-export const TerminalMultiplexSourceRangeAckFrame = z
-  .object({
-    streamGeneration: z.string().min(1),
-    ackedEndByte: z.number().int().nonnegative()
   })
   .strict()
 

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const runProcessMock = vi.hoisted(() => vi.fn())
-vi.mock('../../shared/child-process/run-process', () => ({ runProcess: runProcessMock }))
+vi.mock('@orca/process-host', () => ({ runProcess: runProcessMock }))
 vi.mock('./wsl-executable-path', () => ({
   resolveWslExecutablePath: () => 'C:\\Windows\\System32\\wsl.exe'
 }))
@@ -72,6 +72,11 @@ describe('separator', () => {
     seedWslGuestEnvironmentForTests('Ubuntu', ENVIRONMENT)
     await runWslProcess({ loginPath: 'preferred', distro: 'Ubuntu', program: '/bin/true' })
     expect(lastArgv().slice(0, 3)).toEqual(['-d', 'Ubuntu', '--exec'])
+  })
+
+  it('passes the guest user before --exec', async () => {
+    await runWslProcess({ loginPath: 'none', distro: 'Ubuntu', user: 'root', program: '/bin/true' })
+    expect(lastArgv().slice(0, 5)).toEqual(['-d', 'Ubuntu', '-u', 'root', '--exec'])
   })
 })
 

@@ -17,8 +17,7 @@ import {
   resolveComposerCreateSelection,
   resolveJiraAutoName,
   resolveLinearAutoName,
-  resolveWorkItemAutoName,
-  shouldApplyAutoName
+  resolveWorkItemAutoName
 } from './composer-linked-work-item'
 import {
   resolveComposerHostedItemBase,
@@ -31,6 +30,7 @@ import type {
   MobileLinkedWorkItem,
   SmartNameSelection
 } from './mobile-composer-source-types'
+import { useMobileComposerName } from './use-mobile-composer-name'
 const EMPTY_BASE: ComposerBaseState = {}
 
 export type UseMobileComposerSourceArgs = {
@@ -42,7 +42,6 @@ export type UseMobileComposerSourceArgs = {
 
 export function useMobileComposerSource(args: UseMobileComposerSourceArgs) {
   const { client, selectedRepoId, worktreeBranches = [], onError } = args
-  const [name, setNameState] = useState('')
   const [linkedWorkItem, setLinkedWorkItem] = useState<MobileLinkedWorkItem | null>(null)
   const [base, setBase] = useState<ComposerBaseState>(EMPTY_BASE)
   const [reuseEligibleBranch, setReuseEligibleBranch] = useState<string | null>(null)
@@ -53,22 +52,12 @@ export function useMobileComposerSource(args: UseMobileComposerSourceArgs) {
   // may contain slashes) is kept verbatim as the git branch (folder is sanitized).
   const [branchCreateIntent, setBranchCreateIntent] = useState(false)
 
-  const lastAutoNameRef = useRef('')
   const branchSelectionRef = useRef<{ refName: string; localBranchName: string } | null>(null)
   // Guards async base resolution: only the latest selection applies its result.
   const resolveTokenRef = useRef(0)
 
-  const setName = useCallback((value: string) => setNameState(value), [])
-
-  const applyAutoName = useCallback((suggested: string, currentName: string, force = false) => {
-    if (
-      suggested &&
-      (force || shouldApplyAutoName({ currentName, lastAutoName: lastAutoNameRef.current }))
-    ) {
-      setNameState(suggested)
-      lastAutoNameRef.current = suggested
-    }
-  }, [])
+  const { name, setName, setNameState, lastAutoNameRef, applyAutoName, isNameAutoManaged } =
+    useMobileComposerName(linkedWorkItem)
 
   const clearBaseAndBranch = useCallback(() => {
     branchSelectionRef.current = null
@@ -197,13 +186,19 @@ export function useMobileComposerSource(args: UseMobileComposerSourceArgs) {
     (args: { linked: MobileLinkedWorkItem; suggested: string; identifier: string }) => {
       resolveTokenRef.current += 1
       setLinkedWorkItem(args.linked)
-      // Typing the bare identifier is an explicit ask for that issue's name, so it
-      // overrides the usual "don't clobber a user-typed name" gate.
-      const identifierTyped = name.trim().toLowerCase() === args.identifier.toLowerCase()
-      applyAutoName(args.suggested, name, identifierTyped)
+      // Typing the bare identifier into an empty lookup is an explicit ask for that
+      // issue's name, so it overrides the usual "don't clobber a user-typed name" gate.
+      const identifierTyped =
+        !linkedWorkItem && name.trim().toLowerCase() === args.identifier.toLowerCase()
+      if (identifierTyped && args.suggested) {
+        setNameState(args.suggested)
+        lastAutoNameRef.current = args.suggested
+      } else {
+        applyAutoName(args.suggested, name)
+      }
       clearBaseAndBranch()
     },
-    [applyAutoName, clearBaseAndBranch, name]
+    [applyAutoName, clearBaseAndBranch, lastAutoNameRef, linkedWorkItem, name, setNameState]
   )
 
   const handleSmartLinearIssueSelect = useCallback(
@@ -308,10 +303,6 @@ export function useMobileComposerSource(args: UseMobileComposerSourceArgs) {
       }),
     [base, branchCreateIntent, linkedWorkItem, name, reuseEligibleBranch, reuseSelectedBranch]
   )
-
-  // Auto-managed until the user edits the name away from the last derived value;
-  // desktop suppresses the workspace displayName once the name is user-edited.
-  const isNameAutoManaged = !name.trim() || name === lastAutoNameRef.current
 
   return {
     name,
