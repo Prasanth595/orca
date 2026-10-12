@@ -37,6 +37,7 @@
         "68796dafa0": "pr",
         "88fd82474d": "page",
         "924c2fe05e": "destructive",
+        "a18f669c7a": "{{value0}} {{value1}} reaction{{value2}}",
         "b0b7344684": "Request up to 15 reviewers",
         "b1157c78ff": "sheet",
         "ce8a85d209": "default",
@@ -47,6 +48,7 @@
       },
       "GitLabItemDialog": {
         "11384f99aa": "number",
+        "40c56b95e2": "{{value0}} approval{{value1}} remaining",
         "4186685c78": "reopen",
         "881e522e04": "merge",
         "cae2712a23": "close"
@@ -155,6 +157,7 @@
         "6459faa8b3": "error",
         "68df347677": "you@example.com",
         "6edf402e11": "overview",
+        "7719d8daa9": "{{value0}} member{{value1}}",
         "7799ad9ab6": "draft",
         "887efe9140": "Connect",
         "937b29fa35": "items",
@@ -176,6 +179,7 @@
         "d0e3c8f933": "No matching GitHub work",
         "d6d08c1650": "Select a project to see GitLab work items.",
         "duplicateIssueNumberPlaceholder": "Issue number",
+        "eff9800d4b": "{{value0}} label{{value1}}",
         "f294c500ef": "No GitLab work matches this filter.",
         "fe28c9821f": "view"
       },
@@ -667,7 +671,8 @@
         "IntegrationsStep": {
           "93f0c49ad1": "not-authenticated",
           "a3bcf13694": "connected",
-          "a74c6d6b18": "not-installed"
+          "a74c6d6b18": "not-installed",
+          "b08a6ac93c": "{{value0}} workspace{{value1}} linked. Add another workspace or replace a restricted key any time."
         },
         "NotificationStep": {
           "2c47f5465f": "Turn on Allow notifications for Orca in System Settings. This step updates automatically once enabled.",
@@ -839,9 +844,11 @@
             "48a003c1b1": "Staged Changes",
             "522f44dce5": "Untracked Files",
             "527e130b6f": "Stop generating",
+            "657e0c90ad": "{{value0}} note{{value1}}",
             "77afaa8152": "All",
             "783a808870": "Close",
             "7a09d7f9d2": "base",
+            "8eb3782a0c": "Failed to discard {{value0}} file{{value1}}",
             "901140f47d": "Review the prompt before starting an agent.",
             "9bb062a886": "uncommitted",
             "9febd8ab5f": "create_pr",
@@ -1032,6 +1039,11 @@
                       "f2b47026e8": "Push failure prompt is empty. Update Source Control AI settings."
                     }
                   }
+                }
+              },
+              "compare": {
+                "summary": {
+                  "dd72a6fd37": "{{value0}} commit{{value1}} ahead of {{value2}}"
                 }
               },
               "discard": {
@@ -1872,6 +1884,7 @@
           "serverName": "Server name",
           "sshConfigPickerBulkHint": "Bulk sync stays in Settings → SSH",
           "sshConfigPickerDescription": "Pick a host to fill the form. Nothing is saved until you click Save.",
+          "sshImportSynced": "Added {{value0}} host{{value1}} to Orca.",
           "sshPersistenceDefault": "Remote terminals on this host stay alive until you end them or reset the relay."
         },
         "AddRepoHostSelector": {
@@ -2010,7 +2023,8 @@
           "5fc9d1891b": "Deleting…",
           "84a2238242": "Show child workspaces",
           "ebadb7eadb": "{{value0}} {{value1}} child {{value2}}",
-          "ebc5c7dcef": "Hide child workspaces"
+          "ebc5c7dcef": "Hide child workspaces",
+          "f94466bc39": "{{value0}} of {{value1}} contained project{{value2}} remained after deleting the group."
         },
         "WorktreeMetaDialog": {
           "029ea5ec57": "Open GitHub issue",
@@ -2558,9 +2572,9 @@
             "3eed73394f": "Your keyboard is paused"
           },
           "TerminalErrorToast": {
+            "hostTerminalCap": "The host is already running as many terminals as Orca allows. Close a terminal you no longer need, then try again.",
             "ptyAllocationLimit": "Your system cannot allocate any more pty devices. Close some terminals you are not using, in Orca or another program, then try again.",
-            "terminalProcessLimit": "Your system cannot start another terminal process. Close unused terminals or quit unused processes, then try again.",
-            "hostTerminalCap": "The host is already running as many terminals as Orca allows. Close a terminal you no longer need, then try again."
+            "terminalProcessLimit": "Your system cannot start another terminal process. Close unused terminals or quit unused processes, then try again."
           },
           "TerminalSessionStateSaveFailureDialog": {
             "678c780a2c": "Disk space is unavailable",
@@ -2573,7 +2587,10 @@
           "terminal": {
             "drop": {
               "handler": {
-                "29c031b49a": "Uploading {{value0}} file{{value1}} to runtime…"
+                "29c031b49a": "Uploading {{value0}} file{{value1}} to runtime…",
+                "53f015fd85": "Skipped {{value0}} symlink{{value1}}.",
+                "uploadingFilePlural": "Uploading {{count}} files to runtime…",
+                "uploadingFileSingular": "Uploading {{count}} file to runtime…"
               }
             }
           }

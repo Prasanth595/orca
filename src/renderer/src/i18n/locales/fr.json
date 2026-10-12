@@ -1504,7 +1504,9 @@
         "8812225174": "Rouvrir",
         "09d67a0f9b": "Échec de la fermeture de la pull request",
         "88809e79db": "Échec de la réouverture de la pull request",
-        "00f55cc17b": "L'accès au dépôt est indisponible pour cette pull request."
+        "00f55cc17b": "L'accès au dépôt est indisponible pour cette pull request.",
+        "reactionCountSingular": "{{count}} {{reaction}} réaction",
+        "reactionCountPlural": "{{count}} {{reaction}} réactions"
       },
       "GitLabItemDialog": {
         "65e784c1f1": "Rouvrir",
@@ -1570,7 +1572,9 @@
         "32f8bef818": "Aucune sortie de log.",
         "4168eb2c51": "Résoudre",
         "commentTooLarge": "Le commentaire est trop volumineux pour être envoyé sans risque.",
-        "gitlabActionFailed": "L'action GitLab a échoué."
+        "gitlabActionFailed": "L'action GitLab a échoué.",
+        "approvalsRemainingSingular": "Il reste {{count}} approbation",
+        "approvalsRemainingPlural": "Il reste {{count}} approbations"
       },
       "JiraIssueWorkspace": {
         "b0b92666c9": "Commentaire",
@@ -2377,7 +2381,11 @@
         "linearModeHasWorktreeTooltip": "Tickets Linear liés à un espace de travail Orca",
         "linearEmptyHasWorktree": "Aucun ticket Linear n'est encore lié à un espace de travail Orca. Démarrez le travail depuis une issue Linear pour le voir ici.",
         "linearOpenAttachedWorkspace": "Ouvrir l'espace de travail attaché à {{value0}}",
-        "linearWorktreesColumn": "Espaces de travail"
+        "linearWorktreesColumn": "Espaces de travail",
+        "labelCountPlural": "{{count}} labels",
+        "labelCountSingular": "{{count}} label",
+        "memberCountPlural": "{{count}} membres",
+        "memberCountSingular": "{{count}} membre"
       },
       "Terminal": {
         "73768427cf": "Fermer",
@@ -3380,7 +3388,11 @@
                 "internalHostMismatch": "Déposez des fichiers provenant du même hôte que ce terminal.",
                 "b4cf68e889": "Ignoré : {{value0}} {{value1}}.",
                 "writeTimeout": "Glisser-déposer de fichiers annulé : le terminal n'a pas accepté le chemin avant le délai de sécurité.",
-                "writeRejected": "Glisser-déposer de fichiers annulé : le terminal n'a pas pu accepter le chemin."
+                "writeRejected": "Glisser-déposer de fichiers annulé : le terminal n'a pas pu accepter le chemin.",
+                "skippedSymlinkSingular": "Ignoré : {{count}} symlink.",
+                "skippedSymlinkPlural": "Ignorés : {{count}} symlinks.",
+                "uploadingFileSingular": "Envoi de {{count}} fichier vers le runtime…",
+                "uploadingFilePlural": "Envoi de {{count}} fichiers vers le runtime…"
               }
             }
           },
@@ -5866,7 +5878,9 @@
           "groupRenameFailedDesc": "Orca n'a pas pu confirmer le nouveau nom auprès de l'hôte du groupe. Revérifiez le groupe après reconnexion.",
           "failedNestWorkspace": "Échec de l'imbrication de l'espace de travail",
           "sidebarRowMissing": "La cible n'existe plus",
-          "failedUnnestWorkspace": "Échec de la désimbrication de l'espace de travail"
+          "failedUnnestWorkspace": "Échec de la désimbrication de l'espace de travail",
+          "groupProjectsRemainedSingular": "{{remaining}} projet sur {{count}} est resté après la suppression du groupe.",
+          "groupProjectsRemainedPlural": "Projets restés après la suppression du groupe : {{remaining}} sur {{count}}."
         },
         "WorktreeMetaDialog": {
           "3db0a2a593": "Annuler",
@@ -6356,7 +6370,9 @@
           "sshConfigPickerAddAllEmpty": "Tout ajouter à Orca",
           "identityFileFromConfigHint": "Volontairement laissé vide : Orca utilise toutes les clés résolues par ~/.ssh/config pour {{value0}}. Saisissez un chemin pour n'utiliser que cette clé.",
           "sshConfigPickerRetry": "Réessayer",
-          "sshConfigPickerResolving": "Lecture…"
+          "sshConfigPickerResolving": "Lecture…",
+          "sshImportSyncedPlural": "Ajout de {{count}} hôtes à Orca.",
+          "sshImportSyncedSingular": "Ajout de {{count}} hôte à Orca."
         },
         "ForgetSshWorkspaceDialog": {
           "reconnectFailed": "Échec de la reconnexion",
@@ -13044,7 +13060,11 @@
             "entryDiscardFailed": "Échec de la suppression de « {{value0}} »",
             "entryDeleteFailed": "Échec de la suppression de « {{value0}} »",
             "entryFailedInWorkspace": "{{value0}} dans {{value1}}",
-            "diffCommentNotesCopyFailed": "Échec de la copie des notes"
+            "diffCommentNotesCopyFailed": "Échec de la copie des notes",
+            "discardFailedSingular": "Échec de l'abandon de {{count}} fichier",
+            "discardFailedPlural": "Échec de l'abandon de {{count}} fichiers",
+            "noteCountSingular": "{{count}} note",
+            "noteCountPlural": "{{count}} notes"
           },
           "SourceControlAgentActionDialog": {
             "8e856842d1": "Impossible de démarrer l'agent sélectionné.",
@@ -13577,7 +13597,9 @@
               },
               "compare": {
                 "summary": {
-                  "dd72a6fd37": "{{value0}} commit{{value1}} d'avance sur {{value2}}"
+                  "dd72a6fd37": "{{value0}} commit{{value1}} d'avance sur {{value2}}",
+                  "commitsAheadSingular": "{{count}} commit d'avance sur {{ref}}",
+                  "commitsAheadPlural": "{{count}} commits d'avance sur {{ref}}"
                 }
               },
               "conflict": {
@@ -14133,7 +14155,9 @@
           "a3bcf13694": "connecté",
           "d6e5dba05a": "Se connecter",
           "0b4a7d23ab": "Connexion en cours",
-          "a74c6d6b18": "not-installed"
+          "a74c6d6b18": "not-installed",
+          "linearWorkspacesLinkedSingular": "{{count}} espace de travail associé. Ajoutez un autre espace de travail ou remplacez une clé restreinte à tout moment.",
+          "linearWorkspacesLinkedPlural": "{{count}} espaces de travail associés. Ajoutez un autre espace de travail ou remplacez une clé restreinte à tout moment."
         },
         "NotificationStep": {
           "3bede04483": "Envoyer une notification de test",

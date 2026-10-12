@@ -1399,7 +1399,9 @@
         "8812225174": "Reabrir",
         "09d67a0f9b": "No se pudo cerrar la PR",
         "88809e79db": "No se pudo reabrir la PR",
-        "00f55cc17b": "El acceso al repositorio no está disponible para esta PR."
+        "00f55cc17b": "El acceso al repositorio no está disponible para esta PR.",
+        "reactionCountSingular": "{{count}} {{reaction}} reacción",
+        "reactionCountPlural": "{{count}} {{reaction}} reacciones"
       },
       "GitLabItemDialog": {
         "65e784c1f1": "Reabrir",
@@ -1465,7 +1467,9 @@
         "32f8bef818": "Sin output de log.",
         "4168eb2c51": "Resolver",
         "commentTooLarge": "El comentario es demasiado grande para enviarlo de forma segura.",
-        "gitlabActionFailed": "La acción de GitLab falló."
+        "gitlabActionFailed": "La acción de GitLab falló.",
+        "approvalsRemainingSingular": "{{count}} aprobación restante",
+        "approvalsRemainingPlural": "{{count}} aprobaciones restantes"
       },
       "JiraIssueWorkspace": {
         "b0b92666c9": "Comentar",
@@ -2272,7 +2276,11 @@
         "jiraLinkSourceUnavailable": "Couldn’t link this Jira issue. Reconnect Jira or pick the matching site, then try again.",
         "loadPageUnreachable": "La página {{value0}} está más allá de lo que la búsqueda de GitHub puede devolver.",
         "loadPageFailed": "No se pudo cargar la página {{value0}} desde GitHub.",
-        "loadPageNoMoreResults": "No hay más resultados en la página {{value0}}."
+        "loadPageNoMoreResults": "No hay más resultados en la página {{value0}}.",
+        "labelCountPlural": "{{count}} etiquetas",
+        "labelCountSingular": "{{count}} etiqueta",
+        "memberCountPlural": "{{count}} miembros",
+        "memberCountSingular": "{{count}} miembro"
       },
       "Terminal": {
         "73768427cf": "Cerrar",
@@ -3256,7 +3264,11 @@
                 "internalHostMismatch": "Arrastra archivos del mismo host que este terminal.",
                 "b4cf68e889": "Se omitió {{value0}} {{value1}}.",
                 "writeTimeout": "Se canceló el drop de archivos: el terminal no aceptó la ruta antes del tiempo límite de seguridad.",
-                "writeRejected": "Se canceló el drop de archivos: el terminal no pudo aceptar la ruta."
+                "writeRejected": "Se canceló el drop de archivos: el terminal no pudo aceptar la ruta.",
+                "skippedSymlinkSingular": "Se omitió {{count}} symlink.",
+                "skippedSymlinkPlural": "Se omitieron {{count}} symlinks.",
+                "uploadingFileSingular": "Subiendo {{count}} archivo al host…",
+                "uploadingFilePlural": "Subiendo {{count}} archivos al host…"
               }
             }
           },
@@ -5737,7 +5749,9 @@
           "sidebarRowMissing": "El destino ya no existe",
           "failedUnnestWorkspace": "Error al expandir el espacio de trabajo",
           "groupRenameFailed": "No se pudo cambiar el nombre del grupo",
-          "groupRenameFailedDesc": "Orca no pudo confirmar el nuevo nombre con el anfitrión del grupo. Vuelva a verificar el grupo después de volver a conectarse."
+          "groupRenameFailedDesc": "Orca no pudo confirmar el nuevo nombre con el anfitrión del grupo. Vuelva a verificar el grupo después de volver a conectarse.",
+          "groupProjectsRemainedSingular": "{{remaining}} de {{count}} proyecto contenido permaneció tras eliminar el grupo.",
+          "groupProjectsRemainedPlural": "Proyectos contenidos que permanecieron tras eliminar el grupo: {{remaining}} de {{count}}."
         },
         "WorktreeMetaDialog": {
           "3db0a2a593": "Cancelar",
@@ -6276,7 +6290,9 @@
           "sshConfigPickerAddAllEmpty": "Agregar todo a Orca",
           "identityFileFromConfigHint": "Dejado vacío a propósito: Orca usa todas las claves ~/.ssh/config resuelve para {{value0}}. Escriba una ruta para usar solo esa clave.",
           "sshConfigPickerRetry": "Probar de nuevo",
-          "sshConfigPickerResolving": "Lectura…"
+          "sshConfigPickerResolving": "Lectura…",
+          "sshImportSyncedPlural": "Se sincronizaron {{count}} hosts.",
+          "sshImportSyncedSingular": "Se sincronizó {{count}} host."
         },
         "ForgetSshWorkspaceDialog": {
           "reconnectFailed": "Error de reconexión",
@@ -12938,7 +12954,11 @@
             "entryDiscardFailed": "No se pudo descartar \"{{value0}}\"",
             "entryDeleteFailed": "No se pudo eliminar \"{{value0}}\"",
             "entryFailedInWorkspace": "{{value0}} en {{value1}}",
-            "diffCommentNotesCopyFailed": "No se pudieron copiar notas"
+            "diffCommentNotesCopyFailed": "No se pudieron copiar notas",
+            "discardFailedSingular": "No se pudo descartar {{count}} archivo",
+            "discardFailedPlural": "No se pudieron descartar {{count}} archivos",
+            "noteCountSingular": "{{count}} nota",
+            "noteCountPlural": "{{count}} notas"
           },
           "SourceControlAgentActionDialog": {
             "8e856842d1": "No se pudo iniciar el agente seleccionado.",
@@ -13471,7 +13491,9 @@
               },
               "compare": {
                 "summary": {
-                  "dd72a6fd37": "{{value0}} confirma{{value1}} antes de {{value2}}"
+                  "dd72a6fd37": "{{value0}} confirma{{value1}} antes de {{value2}}",
+                  "commitsAheadSingular": "{{count}} commit por delante de {{ref}}",
+                  "commitsAheadPlural": "{{count}} commits por delante de {{ref}}"
                 }
               },
               "conflict": {
@@ -14027,7 +14049,9 @@
           "a3bcf13694": "conectado",
           "d6e5dba05a": "Iniciar sesión",
           "0b4a7d23ab": "Iniciando sesión",
-          "a74c6d6b18": "no instalado"
+          "a74c6d6b18": "no instalado",
+          "linearWorkspacesLinkedSingular": "{{count}} workspace vinculado. Agrega otro workspace o reemplaza una clave restringida en cualquier momento.",
+          "linearWorkspacesLinkedPlural": "{{count}} workspaces vinculados. Agrega otro workspace o reemplaza una clave restringida en cualquier momento."
         },
         "NotificationStep": {
           "3bede04483": "Enviar notificación de prueba",

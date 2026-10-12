@@ -1399,7 +1399,9 @@
         "8812225174": "再度開く",
         "09d67a0f9b": "PR をクローズできませんでした",
         "88809e79db": "PR の再開に失敗しました",
-        "00f55cc17b": "この PR ではリポジトリにアクセスできません。"
+        "00f55cc17b": "この PR ではリポジトリにアクセスできません。",
+        "reactionCountSingular": "{{count}} {{reaction}} 反応",
+        "reactionCountPlural": "{{count}} {{reaction}} 反応"
       },
       "GitLabItemDialog": {
         "65e784c1f1": "再度開く",
@@ -1465,7 +1467,9 @@
         "32f8bef818": "ログは出力されません。",
         "4168eb2c51": "解決",
         "commentTooLarge": "コメントが大きすぎるため安全に送信できません。",
-        "gitlabActionFailed": "GitLab 操作が失敗しました。"
+        "gitlabActionFailed": "GitLab 操作が失敗しました。",
+        "approvalsRemainingSingular": "{{count}} 承認 残り",
+        "approvalsRemainingPlural": "{{count}} 承認 残り"
       },
       "JiraIssueWorkspace": {
         "b0b92666c9": "コメント",
@@ -2272,7 +2276,11 @@
         "jiraLinkSourceUnavailable": "この Jira Issue をリンクできませんでした。Jira に再接続するか該当するサイトを選択してから、もう一度お試しください。",
         "loadPageUnreachable": "ページ {{value0}} は GitHub 検索が返せる範囲を超えています。",
         "loadPageFailed": "GitHub からページ {{value0}} を読み込めませんでした。",
-        "loadPageNoMoreResults": "ページ {{value0}} にはこれ以上結果がありません。"
+        "loadPageNoMoreResults": "ページ {{value0}} にはこれ以上結果がありません。",
+        "labelCountPlural": "{{count}} ラベル",
+        "labelCountSingular": "{{count}} ラベル",
+        "memberCountPlural": "{{count}} メンバー",
+        "memberCountSingular": "{{count}} メンバー"
       },
       "Terminal": {
         "73768427cf": "閉じる",
@@ -3256,7 +3264,11 @@
                 "internalHostMismatch": "このターミナルと同じホストのファイルをドロップしてください。",
                 "b4cf68e889": "{{value0}} {{value1}} をスキップしました。",
                 "writeTimeout": "ファイルドロップをキャンセルしました: 安全タイムアウト前にターミナルがパスを受け付けませんでした。",
-                "writeRejected": "ファイルドロップをキャンセルしました: ターミナルがパスを受け付けられませんでした。"
+                "writeRejected": "ファイルドロップをキャンセルしました: ターミナルがパスを受け付けられませんでした。",
+                "skippedSymlinkSingular": "{{count}} シンボリックリンク をスキップしました。",
+                "skippedSymlinkPlural": "{{count}} シンボリックリンク をスキップしました。",
+                "uploadingFileSingular": "{{count}} ファイル をランタイムにアップロードしています…",
+                "uploadingFilePlural": "{{count}} ファイル をランタイムにアップロードしています…"
               }
             }
           },
@@ -5718,7 +5730,9 @@
           "sidebarRowMissing": "対象はもう存在しません",
           "failedUnnestWorkspace": "ワークスペースの展開に失敗しました",
           "groupRenameFailed": "グループ名の変更に失敗しました",
-          "groupRenameFailedDesc": "Orca はグループのホストに新規名前を確認できませんでした。再接続後、グループを再確認してください。"
+          "groupRenameFailedDesc": "Orca はグループのホストに新規名前を確認できませんでした。再接続後、グループを再確認してください。",
+          "groupProjectsRemainedSingular": "グループ削除後も、含まれていたプロジェクト {{count}} 件中 {{remaining}} 件が残りました。",
+          "groupProjectsRemainedPlural": "グループ削除後も、含まれていたプロジェクト {{count}} 件中 {{remaining}} 件が残りました。"
         },
         "WorktreeMetaDialog": {
           "3db0a2a593": "キャンセル",
@@ -6276,7 +6290,9 @@
           "sshConfigPickerAddAllEmpty": "すべてを Orca に追加",
           "identityFileFromConfigHint": "意図的に空のままにします: Orca は ~/.ssh/config が {{value0}} に対して解決するすべてのキーを使用します。そのキーのみを使用するパスを入力します。",
           "sshConfigPickerRetry": "再試行",
-          "sshConfigPickerResolving": "読む…"
+          "sshConfigPickerResolving": "読む…",
+          "sshImportSyncedPlural": "{{count}} ホスト を同期しました。",
+          "sshImportSyncedSingular": "{{count}} ホスト を同期しました。"
         },
         "ForgetSshWorkspaceDialog": {
           "reconnectFailed": "再接続に失敗しました",
@@ -12938,7 +12954,11 @@
             "entryDiscardFailed": "「{{value0}}」を破棄できませんでした",
             "entryDeleteFailed": "「{{value0}}」を削除できませんでした",
             "entryFailedInWorkspace": "{{value0}} の {{value1}}",
-            "diffCommentNotesCopyFailed": "メモのコピーに失敗しました"
+            "diffCommentNotesCopyFailed": "メモのコピーに失敗しました",
+            "discardFailedSingular": "{{count}} ファイル を破棄できませんでした",
+            "discardFailedPlural": "{{count}} ファイル を破棄できませんでした",
+            "noteCountSingular": "{{count}} 注",
+            "noteCountPlural": "{{count}} 注"
           },
           "SourceControlAgentActionDialog": {
             "8e856842d1": "選択した Agent を開始できませんでした。",
@@ -13471,7 +13491,9 @@
               },
               "compare": {
                 "summary": {
-                  "dd72a6fd37": "{{value0}} {{value2}} より先に{{value1}} をコミット"
+                  "dd72a6fd37": "{{value0}} {{value2}} より先に{{value1}} をコミット",
+                  "commitsAheadSingular": "{{ref}}より{{count}}コミット進んでいます",
+                  "commitsAheadPlural": "{{ref}}より{{count}}コミット進んでいます"
                 }
               },
               "conflict": {
@@ -14027,7 +14049,9 @@
           "a3bcf13694": "接続されています",
           "d6e5dba05a": "サインイン",
           "0b4a7d23ab": "サインインする",
-          "a74c6d6b18": "未インストール"
+          "a74c6d6b18": "未インストール",
+          "linearWorkspacesLinkedSingular": "{{count}} ワークスペース がリンクされました。いつでも別のワークスペースを追加したり、制限付きキーを置き換えたりできます。",
+          "linearWorkspacesLinkedPlural": "{{count}} ワークスペース がリンクされました。いつでも別のワークスペースを追加したり、制限付きキーを置き換えたりできます。"
         },
         "NotificationStep": {
           "3bede04483": "テスト通知を送信する",

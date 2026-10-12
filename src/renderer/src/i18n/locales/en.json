@@ -1587,7 +1587,9 @@
         "8812225174": "Reopen",
         "09d67a0f9b": "Failed to close pull request",
         "88809e79db": "Failed to reopen pull request",
-        "00f55cc17b": "Repository access is unavailable for this pull request."
+        "00f55cc17b": "Repository access is unavailable for this pull request.",
+        "reactionCountSingular": "{{count}} {{reaction}} reaction",
+        "reactionCountPlural": "{{count}} {{reaction}} reactions"
       },
       "GitLabItemDialog": {
         "65e784c1f1": "Reopen",
@@ -1653,7 +1655,9 @@
         "32f8bef818": "No log output.",
         "4168eb2c51": "Resolve",
         "commentTooLarge": "Comment is too large to submit safely.",
-        "gitlabActionFailed": "GitLab action failed."
+        "gitlabActionFailed": "GitLab action failed.",
+        "approvalsRemainingSingular": "{{count}} approval remaining",
+        "approvalsRemainingPlural": "{{count}} approvals remaining"
       },
       "JiraIssueWorkspace": {
         "b0b92666c9": "Comment",
@@ -2503,7 +2507,11 @@
         "linearModeHasWorktreeTooltip": "Linear tickets linked to an Orca workspace",
         "linearEmptyHasWorktree": "No Linear tickets are linked to an Orca workspace yet. Start work from a Linear issue to see it here.",
         "linearOpenAttachedWorkspace": "Open workspace attached to {{value0}}",
-        "linearWorktreesColumn": "Workspaces"
+        "linearWorktreesColumn": "Workspaces",
+        "labelCountPlural": "{{count}} labels",
+        "labelCountSingular": "{{count}} label",
+        "memberCountPlural": "{{count}} members",
+        "memberCountSingular": "{{count}} member"
       },
       "Terminal": {
         "73768427cf": "Close",
@@ -3506,7 +3514,11 @@
                 "internalHostMismatch": "Drop files from the same host as this terminal.",
                 "b4cf68e889": "Skipped {{value0}} {{value1}}.",
                 "writeTimeout": "File drop cancelled: terminal did not accept the path before the safety timeout.",
-                "writeRejected": "File drop cancelled: terminal could not accept the path."
+                "writeRejected": "File drop cancelled: terminal could not accept the path.",
+                "skippedSymlinkSingular": "Skipped {{count}} symlink.",
+                "skippedSymlinkPlural": "Skipped {{count}} symlinks.",
+                "uploadingFileSingular": "Uploading {{count}} file to runtime…",
+                "uploadingFilePlural": "Uploading {{count}} files to runtime…"
               }
             }
           },
@@ -6025,7 +6037,9 @@
           "groupRenameFailedDesc": "Orca could not confirm the new name with the group's host. Recheck the group after reconnecting.",
           "failedNestWorkspace": "Failed to nest workspace",
           "sidebarRowMissing": "Target no longer exists",
-          "failedUnnestWorkspace": "Failed to unnest workspace"
+          "failedUnnestWorkspace": "Failed to unnest workspace",
+          "groupProjectsRemainedSingular": "{{remaining}} of {{count}} contained project remained after deleting the group.",
+          "groupProjectsRemainedPlural": "{{remaining}} of {{count}} contained projects remained after deleting the group."
         },
         "WorktreeMetaDialog": {
           "3db0a2a593": "Cancel",
@@ -6515,7 +6529,9 @@
           "sshConfigPickerAddAllEmpty": "Add all to Orca",
           "identityFileFromConfigHint": "Left empty on purpose: Orca uses every key ~/.ssh/config resolves for {{value0}}. Type a path to use just that key.",
           "sshConfigPickerRetry": "Try again",
-          "sshConfigPickerResolving": "Reading…"
+          "sshConfigPickerResolving": "Reading…",
+          "sshImportSyncedPlural": "Added {{count}} hosts to Orca.",
+          "sshImportSyncedSingular": "Added {{count}} host to Orca."
         },
         "ForgetSshWorkspaceDialog": {
           "reconnectFailed": "Reconnection failed",
@@ -13234,7 +13250,11 @@
             "entryDiscardFailed": "Failed to discard “{{value0}}”",
             "entryDeleteFailed": "Failed to delete “{{value0}}”",
             "entryFailedInWorkspace": "{{value0}} in {{value1}}",
-            "diffCommentNotesCopyFailed": "Failed to copy notes"
+            "diffCommentNotesCopyFailed": "Failed to copy notes",
+            "discardFailedSingular": "Failed to discard {{count}} file",
+            "discardFailedPlural": "Failed to discard {{count}} files",
+            "noteCountSingular": "{{count}} note",
+            "noteCountPlural": "{{count}} notes"
           },
           "SourceControlAgentActionDialog": {
             "8e856842d1": "Could not start the selected agent.",
@@ -13768,7 +13788,9 @@
               },
               "compare": {
                 "summary": {
-                  "dd72a6fd37": "{{value0}} commit{{value1}} ahead of {{value2}}"
+                  "dd72a6fd37": "{{value0}} commit{{value1}} ahead of {{value2}}",
+                  "commitsAheadSingular": "{{count}} commit ahead of {{ref}}",
+                  "commitsAheadPlural": "{{count}} commits ahead of {{ref}}"
                 }
               },
               "conflict": {
@@ -14324,7 +14346,9 @@
           "a3bcf13694": "connected",
           "d6e5dba05a": "Sign in",
           "0b4a7d23ab": "Signing in",
-          "a74c6d6b18": "not-installed"
+          "a74c6d6b18": "not-installed",
+          "linearWorkspacesLinkedSingular": "{{count}} workspace linked. Add another workspace or replace a restricted key any time.",
+          "linearWorkspacesLinkedPlural": "{{count}} workspaces linked. Add another workspace or replace a restricted key any time."
         },
         "NotificationStep": {
           "3bede04483": "Send test notification",
