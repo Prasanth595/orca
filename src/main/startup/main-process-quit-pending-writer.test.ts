@@ -6,6 +6,7 @@ const settled = () => vi.fn(async () => {})
 const idle = () => vi.fn()
 const stopAgentHookServer = idle()
 const killAllPty = settled()
+const stopStructuredAgentSessionRuntime = settled()
 
 // Keep unrelated teardown members settled so each test isolates its pending resource.
 const dependencies: Record<string, Record<string, unknown>> = {
@@ -20,7 +21,7 @@ const dependencies: Record<string, Record<string, unknown>> = {
   '../agent-hooks/managed-agent-hook-controls': {
     removeManagedAgentHooksAsync: vi.fn(async () => [])
   },
-  '../runtime/structured-agent-session-runtime': { stopStructuredAgentSessionRuntime: settled() },
+  '../runtime/structured-agent-session-runtime': { stopStructuredAgentSessionRuntime },
   '../runtime/structured-agent-session-runtime-teardown': {
     setStructuredAgentSessionTeardownTrigger: idle()
   },
@@ -61,6 +62,7 @@ afterEach(() => {
 
 async function startQuit(
   flushFinalOrThrowAsync: () => Promise<void>,
+  services: Record<string, unknown> = {},
   shutdownLocalPtys: () => Promise<void> = async () => {}
 ) {
   vi.resetModules()
@@ -73,7 +75,13 @@ async function startQuit(
     freezeWritesAsync: settled()
   }
   const profileStateAdmission: typeof admission | undefined = admission
-  const state = { isQuitting: false, watcherShutdownDone: true, store, profileStateAdmission }
+  const state = {
+    isQuitting: false,
+    watcherShutdownDone: true,
+    store,
+    profileStateAdmission,
+    ...services
+  }
   vi.doMock('electron', () => ({ app }))
   vi.doMock('./main-process-state', () => ({ mainProcessState: state }))
   for (const [moduleName, exports] of Object.entries(dependencies)) {
@@ -116,6 +124,7 @@ it('waits for local PTY cleanup before quitting', async () => {
   const ptyShutdown = Promise.withResolvers<void>()
   const { app } = await startQuit(
     async () => {},
+    {},
     () => ptyShutdown.promise
   )
 
@@ -132,6 +141,7 @@ it('waits for local PTY cleanup before quitting', async () => {
 it('reports pending local PTY cleanup and quits at the teardown deadline', async () => {
   const { app } = await startQuit(
     async () => {},
+    {},
     () => new Promise<void>(() => {})
   )
 
@@ -148,6 +158,7 @@ it('reports pending local PTY cleanup and quits at the teardown deadline', async
 it('continues quitting when local PTY cleanup rejects', async () => {
   const { app } = await startQuit(
     async () => {},
+    {},
     async () => {
       throw new Error('PTY cleanup failed')
     }
@@ -163,3 +174,44 @@ it('stops the hook server without clearing the status store the chat teardown re
   await startQuit(async () => {})
   expect(stopAgentHookServer).toHaveBeenCalledWith({ keepStatus: true })
 })
+
+it.each([
+  ['chat teardown', 'RPC stop'],
+  ['RPC stop', 'chat teardown']
+] as const)(
+  'closes notification dismissals only once %s and then %s settle',
+  async (first, second) => {
+    const sessionTeardown = Promise.withResolvers<void>()
+    const rpcStop = Promise.withResolvers<void>()
+    const release = { 'chat teardown': sessionTeardown.resolve, 'RPC stop': rpcStop.resolve }
+    stopStructuredAgentSessionRuntime.mockClear()
+    stopStructuredAgentSessionRuntime.mockImplementationOnce(() => sessionTeardown.promise)
+    const closeNotificationDismissals = vi.fn(() => new Promise<void>(() => {}))
+    const { app } = await startQuit(async () => {}, {
+      runtime: {
+        getOffscreenBrowserBackend: () => null,
+        getAgentBrowserBridge: () => null,
+        getEmulatorBridge: () => null,
+        disposeSkillUploadSessions: settled(),
+        getRuntimeId: () => undefined,
+        closeNotificationDismissals
+      },
+      runtimeRpc: { setMobileRelayPairingProvider: idle(), stop: vi.fn(() => rpcStop.promise) }
+    })
+    expect(stopStructuredAgentSessionRuntime).toHaveBeenCalledOnce()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(closeNotificationDismissals).not.toHaveBeenCalled()
+    release[first]()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(closeNotificationDismissals).not.toHaveBeenCalled()
+    release[second]()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(closeNotificationDismissals).toHaveBeenCalledOnce()
+    expect(app.quit).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(WILL_QUIT_TEARDOWN_DEADLINE_MS)
+    expect(console.warn).toHaveBeenCalledWith('[shutdown] Quit teardown deadline reached', {
+      pendingTeardowns: ['notification-dismissals']
+    })
+    expect(app.quit).toHaveBeenCalledOnce()
+  }
+)
