@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useAppStore } from '@/store'
-import type { TuiAgent } from '../../../shared/types'
+import type { TuiAgent } from '../../../shared/tui-agent'
+import { getRuntimeAgentInventoryKey } from '@/store/slices/runtime-agent-inventory-key'
 
 export type UseDetectedAgentsResult = {
   /** Null while detection is in flight on first load. */
@@ -9,6 +10,8 @@ export type UseDetectedAgentsResult = {
   /** True when the first probe for this mounted remote target finished without a result. */
   detectionFailed: boolean
   isRefreshing: boolean
+  /** True when the runtime host is too old to list this workspace's agents. */
+  needsServerUpdate: boolean
   /** Forces a re-detect on the target host (`preflight.refreshAgents` for
    *  local/runtime targets, a fresh probe for SSH) and updates every
    *  subscribed surface in the same tick. Idempotent while in flight:
@@ -17,9 +20,10 @@ export type UseDetectedAgentsResult = {
 }
 
 export type AgentDetectionTarget =
-  | { kind: 'local' }
+  | { kind: 'local'; worktreeId?: string | null; contextKey?: string }
   | { kind: 'ssh'; connectionId: string }
-  | { kind: 'runtime'; environmentId: string }
+  // worktreeId: the host resolves that workspace's runtime; absent means the host default.
+  | { kind: 'runtime'; environmentId: string; worktreeId?: string | null }
 
 function normalizeAgentDetectionTarget(
   target: AgentDetectionTarget | string | null | undefined
@@ -65,12 +69,28 @@ export function useDetectedAgents(
       : target?.kind === 'runtime'
         ? target.environmentId
         : null
+  const localWorktreeId = target?.kind === 'local' ? target.worktreeId : undefined
+  const runtimeWorktreeId = target?.kind === 'runtime' ? target.worktreeId : undefined
+  // Records for a runtime host are per workspace; ssh/local records keep their own keys.
+  const recordKey =
+    targetKind === 'runtime' && targetId
+      ? getRuntimeAgentInventoryKey(targetId, runtimeWorktreeId)
+      : targetId
+  const localContextKey = target?.kind === 'local' ? target.contextKey : undefined
   const remoteTargetKey =
     targetKind === 'ssh' && targetId
       ? `ssh:${targetId}`
-      : targetKind === 'runtime' && targetId
-        ? `runtime:${targetId}`
+      : targetKind === 'runtime' && recordKey
+        ? `runtime:${recordKey}`
         : null
+  // Why: a re-pair clears the record; re-running the effect re-probes for a surface still waiting.
+  const pairingRevision = useAppStore((s) => {
+    if (targetKind !== 'runtime' || !targetId) {
+      return undefined
+    }
+    const environment = s.runtimeEnvironments.find((entry) => entry.id === targetId)
+    return environment ? (environment.pairingRevision ?? environment.createdAt) : undefined
+  })
 
   const detectedIds = useAppStore((s) => {
     if (isUnknown) {
@@ -79,10 +99,12 @@ export function useDetectedAgents(
     if (targetKind === 'ssh' && targetId) {
       return s.remoteDetectedAgentIds[targetId] ?? null
     }
-    if (targetKind === 'runtime' && targetId) {
-      return s.runtimeDetectedAgentIds[targetId] ?? null
+    if (targetKind === 'runtime' && recordKey) {
+      return s.runtimeDetectedAgentIds[recordKey] ?? null
     }
-    return s.detectedAgentIds
+    return localContextKey
+      ? (s.localDetectedAgentIdsByContext[localContextKey] ?? null)
+      : s.detectedAgentIds
   })
   const isLoading = useAppStore((s) => {
     if (isUnknown) {
@@ -91,20 +113,32 @@ export function useDetectedAgents(
     if (targetKind === 'ssh' && targetId) {
       return s.isDetectingRemoteAgents[targetId] ?? false
     }
-    if (targetKind === 'runtime' && targetId) {
-      return s.isDetectingRuntimeAgents[targetId] ?? false
+    if (targetKind === 'runtime' && recordKey) {
+      return s.isDetectingRuntimeAgents[recordKey] ?? false
     }
-    return s.isDetectingAgents
+    return localContextKey
+      ? (s.isDetectingLocalAgentsByContext[localContextKey] ?? false)
+      : s.isDetectingAgents
   })
   const isRefreshing = useAppStore((s) => {
-    if (targetKind === 'runtime' && targetId) {
-      return s.isRefreshingRuntimeAgents[targetId] ?? false
+    if (targetKind === 'runtime' && recordKey) {
+      return s.isRefreshingRuntimeAgents[recordKey] ?? false
     }
     if (targetKind === 'ssh' && targetId) {
       return s.isDetectingRemoteAgents[targetId] ?? false
     }
-    return targetKind === 'local' ? s.isRefreshingAgents : false
+    if (targetKind !== 'local') {
+      return false
+    }
+    return localContextKey
+      ? (s.isRefreshingLocalAgentsByContext[localContextKey] ?? false)
+      : s.isRefreshingAgents
   })
+  const needsServerUpdate = useAppStore((s) =>
+    targetKind === 'runtime' && recordKey
+      ? s.runtimeAgentDetectionNeedsServerUpdate[recordKey] === true
+      : false
+  )
   const detectionFailed =
     detectedIds === null &&
     !isLoading &&
@@ -121,13 +155,13 @@ export function useDetectedAgents(
     // no-op Zustand subscriptions per hook during unrelated store churn.
     const state = useAppStore.getState()
     if (targetKind === 'runtime' && targetId) {
-      return state.refreshRuntimeDetectedAgents(targetId)
+      return state.refreshRuntimeDetectedAgents(targetId, runtimeWorktreeId)
     }
     if (targetKind === 'ssh' && targetId) {
       return state.refreshRemoteDetectedAgents(targetId)
     }
-    return state.refreshDetectedAgents()
-  }, [isUnknown, targetKind, targetId])
+    return state.refreshDetectedAgents(localWorktreeId)
+  }, [isUnknown, localWorktreeId, runtimeWorktreeId, targetKind, targetId])
 
   useEffect(() => {
     if (isUnknown) {
@@ -144,25 +178,41 @@ export function useDetectedAgents(
     if (targetKind === 'ssh' && targetId) {
       if (detectedIds === null) {
         void state.ensureRemoteDetectedAgents(targetId)
-      } else if (detectedIds.length === 0 && isNewRemoteTarget) {
-        // Why: a newly opened remote launch surface should get one fresh probe
-        // after a prior empty result, but must not spin while the host has no agents.
+      } else if (isNewRemoteTarget && detectedIds.length > 0) {
+        // Why: a host can install an agent after its cached list was populated;
+        // refresh once when a new launch surface first observes that host.
+        void state.refreshRemoteDetectedAgents(targetId)
+      } else if (isNewRemoteTarget) {
+        // Empty results are intentionally retryable through the normal probe.
         void state.ensureRemoteDetectedAgents(targetId)
       }
     } else if (targetKind === 'runtime' && targetId) {
       if (detectedIds === null) {
-        void state.ensureRuntimeDetectedAgents(targetId)
-      } else if (detectedIds.length === 0 && isNewRemoteTarget) {
-        // Why: remote `orca serve` users can install/fix PATH without reconnecting;
-        // retry once per mounted surface so the menu can pick that up.
-        void state.ensureRuntimeDetectedAgents(targetId)
+        void state.ensureRuntimeDetectedAgents(targetId, runtimeWorktreeId)
+      } else if (isNewRemoteTarget && detectedIds.length > 0) {
+        // Why: a host can install an agent after its cached list was populated;
+        // refresh once when a new launch surface first observes that host.
+        void state.refreshRuntimeDetectedAgents(targetId, runtimeWorktreeId)
+      } else if (isNewRemoteTarget) {
+        // Empty results are intentionally retryable through the normal probe.
+        void state.ensureRuntimeDetectedAgents(targetId, runtimeWorktreeId)
       }
     } else {
       if (detectedIds === null) {
-        void state.ensureDetectedAgents()
+        void state.ensureDetectedAgents(localWorktreeId)
       }
     }
-  }, [isUnknown, targetKind, targetId, remoteTargetKey, detectedIds])
+  }, [
+    isUnknown,
+    targetKind,
+    targetId,
+    remoteTargetKey,
+    pairingRevision,
+    detectedIds,
+    localWorktreeId,
+    runtimeWorktreeId,
+    localContextKey
+  ])
 
-  return { detectedIds, isLoading, detectionFailed, isRefreshing, refresh }
+  return { detectedIds, isLoading, detectionFailed, isRefreshing, needsServerUpdate, refresh }
 }

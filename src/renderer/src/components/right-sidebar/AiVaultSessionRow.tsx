@@ -1,3 +1,5 @@
+import { isAntigravityReferenceSession } from '../../../../shared/antigravity-session-origin'
+import type { AiVaultSubagentResumeActions } from './AiVaultSessionSubagents'
 import { useCallback } from 'react'
 import type React from 'react'
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from '@/components/ui/context-menu'
@@ -16,17 +18,16 @@ import { SessionActionMenuItems } from './AiVaultSessionActionMenuItems'
 import { SessionRowTrailingActions } from './SessionRowTrailingActions'
 import { aiVaultSessionDeleteBlockedReason } from './ai-vault-session-deletability'
 import type { AiVaultSessionResumeActions } from './ai-vault-session-resume'
-import {
-  shouldShowAiVaultSessionWorktreeLine,
-  type AiVaultSessionWorktreeInfo
-} from './ai-vault-session-worktree'
+import type { AiVaultSessionWorktreeInfo } from './ai-vault-session-worktree'
 import {
   conversationRoleLabel,
   getSessionDetailsId,
-  SessionMetadata,
-  SessionWorktreeLine
+  SessionMetadata
 } from './ai-vault-session-row-display'
 import type { AgentStatusState } from '../../../../shared/agent-status-types'
+import type { AiVaultSearchHit } from '../../../../shared/ai-vault-search-types'
+import { AiVaultSearchEvidence } from './AiVaultSearchEvidence'
+import { useAiVaultSessionDisplayTitle } from './use-ai-vault-session-display-title'
 
 export function VaultSessionRow({
   session,
@@ -37,23 +38,28 @@ export function VaultSessionRow({
   vaultScope,
   detailsExpanded,
   resumeDisabled,
+  resumeHidden,
   onToggleDetails,
   onJumpToOriginalPane,
   showJumpToWorktree,
   onJumpToWorktree,
   onResume,
   onContinueInNewSession,
-  resumeLabel,
+  onResumeInNewChat,
+  onResumeInNewCli,
+  resumeLabel: defaultResumeLabel,
   resumeActions,
   onResumeInWorktree,
   onResumeInNewTab,
+  subagentResume,
   onCopyResume,
   onCopyId,
   onCopyPath,
   onOpenLog,
   onRevealLog,
   onOpenCwd,
-  onRequestDelete
+  onRequestDelete,
+  searchHit
 }: {
   session: AiVaultSession
   liveState: AgentStatusState | null
@@ -63,30 +69,46 @@ export function VaultSessionRow({
   vaultScope: AiVaultScope
   detailsExpanded: boolean
   resumeDisabled: boolean
+  resumeHidden?: boolean
   onToggleDetails: () => void
   onJumpToOriginalPane?: () => void
   showJumpToWorktree: boolean
   onJumpToWorktree?: () => void
   onResume: () => void
   onContinueInNewSession?: () => void
+  onResumeInNewChat?: () => void
+  onResumeInNewCli?: () => void
   resumeLabel: string
   resumeActions: AiVaultSessionResumeActions
   onResumeInWorktree: () => void
   onResumeInNewTab: () => void
+  subagentResume?: AiVaultSubagentResumeActions
   onCopyResume?: () => void
   onCopyId: () => void
-  onCopyPath: () => void
+  onCopyPath?: () => void
   onOpenLog?: () => void
   onRevealLog?: () => void
   onOpenCwd?: () => void
-  onRequestDelete: (session: AiVaultSession) => void
+  onRequestDelete?: (session: AiVaultSession) => void
+  searchHit?: AiVaultSearchHit
 }) {
+  const resumeLabel = isAntigravityReferenceSession(session)
+    ? translate('aiVault.continueInCli', 'Continue in CLI')
+    : defaultResumeLabel
   const updatedAt = session.updatedAt ?? session.modifiedAt
+  const title = useAiVaultSessionDisplayTitle(session)
   const detailsId = getSessionDetailsId(session.id)
   const latestTurn = latestSessionConversationTurn(session)
   // Computed once so the dropdown menu and the context menu never disagree.
-  const deleteBlockedReason = aiVaultSessionDeleteBlockedReason(session, liveState)
-  const requestDelete = (): void => onRequestDelete(session)
+  const deleteBlockedReason = onRequestDelete
+    ? aiVaultSessionDeleteBlockedReason(session)
+    : translate(
+        'auto.components.right.sidebar.AiVaultSearchEvidence.sourceActionsUnavailable',
+        'The transcript source is unavailable.'
+      )
+  const requestDelete = session.structuredSession
+    ? undefined
+    : (): void => onRequestDelete?.(session)
   const detailsTooltip = detailsExpanded
     ? translate('auto.components.right.sidebar.AiVaultSessionRow.hideDetails', 'Hide Details')
     : translate('auto.components.right.sidebar.AiVaultSessionRow.showDetails', 'Show Details')
@@ -100,7 +122,8 @@ export function VaultSessionRow({
       writeAiVaultSessionDragData(event.dataTransfer, {
         agent: session.agent,
         sessionId: session.sessionId,
-        title: session.title,
+        ...(session.structuredSession ? { structuredSession: session.structuredSession } : {}),
+        title,
         command: resumeStartup.command,
         sessionFilePath: session.filePath,
         sessionExecutionHostId: session.executionHostId,
@@ -111,11 +134,11 @@ export function VaultSessionRow({
         ...(resumeStartup.env ? { env: resumeStartup.env } : {}),
         ...(resumeStartup.envToDelete ? { envToDelete: resumeStartup.envToDelete } : {}),
         ...(resumeStartup.launchConfig ? { launchConfig: resumeStartup.launchConfig } : {}),
-        realHomeStartup: realHomeResumeStartup
+        ...(session.structuredSession ? {} : { realHomeStartup: realHomeResumeStartup })
       })
       window.dispatchEvent(new Event(AI_VAULT_SESSION_DRAG_START_EVENT))
     },
-    [realHomeResumeStartup, resumeDisabled, session, resumeStartup]
+    [realHomeResumeStartup, resumeDisabled, session, resumeStartup, title]
   )
 
   return (
@@ -160,7 +183,7 @@ export function VaultSessionRow({
                 window.dispatchEvent(new Event(AI_VAULT_SESSION_DRAG_END_EVENT))
               }}
             >
-              {session.title}
+              {title}
             </div>
             <SessionRowTrailingActions
               session={session}
@@ -168,6 +191,7 @@ export function VaultSessionRow({
               detailsId={detailsId}
               detailsTooltip={detailsTooltip}
               resumeDisabled={resumeDisabled}
+              resumeHidden={resumeHidden}
               resumeLabel={resumeLabel}
               worktreeInfo={worktreeInfo}
               onToggleDetails={onToggleDetails}
@@ -176,6 +200,8 @@ export function VaultSessionRow({
               onJumpToWorktree={onJumpToWorktree}
               onResume={onResume}
               onContinueInNewSession={onContinueInNewSession}
+              onResumeInNewChat={onResumeInNewChat}
+              onResumeInNewCli={onResumeInNewCli}
               onCopyResume={onCopyResume}
               onCopyId={onCopyId}
               onCopyPath={onCopyPath}
@@ -186,37 +212,31 @@ export function VaultSessionRow({
               onRequestDelete={requestDelete}
             />
           </div>
-          {detailsExpanded && shouldShowAiVaultSessionWorktreeLine(worktreeInfo, { vaultScope }) ? (
-            <div className="mt-1">
-              <SessionWorktreeLine worktreeInfo={worktreeInfo} vaultScope={vaultScope} />
+          {searchHit ? <AiVaultSearchEvidence hit={searchHit} /> : null}
+          {!detailsExpanded && !searchHit ? (
+            <div className="mt-0.5 min-w-0 line-clamp-2 text-[12px] leading-4 text-muted-foreground">
+              {latestTurn ? (
+                <>
+                  <span className="font-medium text-foreground/80">
+                    {conversationRoleLabel(latestTurn.role)}
+                  </span>
+                  <span>: {latestTurn.text}</span>
+                </>
+              ) : (
+                translate(
+                  'auto.components.right.sidebar.AiVaultSessionRow.noPreviewAvailable',
+                  'No conversation preview available'
+                )
+              )}
             </div>
           ) : null}
-          {!detailsExpanded ? (
-            <>
-              <div className="mt-0.5 min-w-0 line-clamp-2 text-[12px] leading-4 text-muted-foreground">
-                {latestTurn ? (
-                  <>
-                    <span className="font-medium text-foreground/80">
-                      {conversationRoleLabel(latestTurn.role)}
-                    </span>
-                    <span>: {latestTurn.text}</span>
-                  </>
-                ) : (
-                  translate(
-                    'auto.components.right.sidebar.AiVaultSessionRow.noPreviewAvailable',
-                    'No conversation preview available'
-                  )
-                )}
-              </div>
-              <SessionMetadata
-                session={session}
-                liveState={liveState}
-                updatedAt={updatedAt}
-                worktreeInfo={worktreeInfo}
-                vaultScope={vaultScope}
-              />
-            </>
-          ) : null}
+          <SessionMetadata
+            session={session}
+            liveState={liveState}
+            updatedAt={updatedAt}
+            worktreeInfo={worktreeInfo}
+            vaultScope={vaultScope}
+          />
           {detailsExpanded ? (
             <SessionInlineDetails
               id={detailsId}
@@ -226,7 +246,10 @@ export function VaultSessionRow({
               resumeActions={resumeActions}
               onResumeInWorktree={onResumeInWorktree}
               onResumeInNewTab={onResumeInNewTab}
+              subagentResume={subagentResume}
               onContinueInNewSession={onContinueInNewSession}
+              onResumeInNewChat={onResumeInNewChat}
+              onResumeInNewCli={onResumeInNewCli}
               onOpenLog={onOpenLog}
             />
           ) : null}
@@ -236,12 +259,16 @@ export function VaultSessionRow({
         <SessionActionMenuItems
           menuKind="context"
           resumeDisabled={resumeDisabled}
+          resumeHidden={resumeHidden}
           resumeLabel={resumeLabel}
           onJumpToOriginalPane={onJumpToOriginalPane}
           showJumpToWorktree={showJumpToWorktree}
+          jumpWorkspaceId={worktreeInfo?.worktreeId}
           onJumpToWorktree={onJumpToWorktree}
           onResume={onResume}
           onContinueInNewSession={onContinueInNewSession}
+          onResumeInNewChat={onResumeInNewChat}
+          onResumeInNewCli={onResumeInNewCli}
           onCopyResume={onCopyResume}
           onCopyId={onCopyId}
           onCopyPath={onCopyPath}

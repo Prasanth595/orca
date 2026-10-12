@@ -15,9 +15,14 @@ import {
 } from './terminal-linkifier-hover-reset-on-mouseleave'
 import { installTerminalLinkifierHoverResetOnWrite } from './terminal-linkifier-hover-reset-on-write'
 import { attachDomRendererFocusClassSync } from './pane-dom-focus-class-sync'
+import { attachDomBlockFill } from './terminal-dom-block-fill'
 import { attachWebgl, cancelPendingWebglRefresh, disposeWebgl } from './pane-webgl-renderer'
+import { rebuildAttachedWebgl } from './pane-webgl-reattach'
 import { configureLazyArabicShapingJoiner } from './terminal-arabic-shaping-joiner'
 import { TerminalLigaturesAddon } from './terminal-ligatures-addon'
+import { attachInlineImages, detachInlineImages } from './pane-inline-images'
+import { installTerminalImeCandidateAnchor } from './terminal-ime-candidate-anchor'
+import { cancelPendingTerminalViewportPresents } from './pane-viewport-present'
 
 // ---------------------------------------------------------------------------
 // Pane creation, terminal open/close, addon management
@@ -26,7 +31,11 @@ import { TerminalLigaturesAddon } from './terminal-ligatures-addon'
 export { createPaneDOM } from './pane-dom-creation'
 
 /** Open terminal into its container and load addons. Must be called after the container is in the DOM. */
-export function openTerminal(pane: ManagedPaneInternal): void {
+export function openTerminal(
+  pane: ManagedPaneInternal,
+  // Named rather than positional: two adjacent optional booleans swap silently.
+  { ligatures = false, inlineImages = false }: { ligatures?: boolean; inlineImages?: boolean } = {}
+): void {
   const {
     terminal,
     container,
@@ -93,8 +102,20 @@ export function openTerminal(pane: ManagedPaneInternal): void {
     () => pane.webglAddon != null
   )
 
-  pane.focusClassSyncCleanup = attachDomRendererFocusClassSync(terminal.element)
+  // Store so disposePane() can remove it and avoid a memory leak.
+  pane.compositionHandler = installTerminalImeCandidateAnchor(terminal)
 
+  pane.focusClassSyncCleanup = attachDomRendererFocusClassSync(terminal.element)
+  pane.domBlockFillCleanup = attachDomBlockFill(terminal)
+
+  // Configure the first atlas with ligatures instead of immediately rebuilding it.
+  if (ligatures) {
+    attachLigatures(pane)
+  }
+  // Deferred attachment restores Orca's DA1 handler after the addon registers its own.
+  if (inlineImages) {
+    attachInlineImages(pane)
+  }
   if (pane.gpuRenderingEnabled) {
     attachWebgl(pane)
   }
@@ -132,16 +153,15 @@ export function attachLigatures(pane: ManagedPaneInternal): void {
     pane.ligaturesAddon = ligaturesAddon
     // Why: ligatures can be enabled after rows already rendered, especially
     // from Settings. Force existing glyph runs to be recomputed immediately.
-    pane.terminal.refresh(0, pane.terminal.rows - 1)
+    if (!pane.webglAttachmentDeferred) {
+      pane.terminal.refresh(0, pane.terminal.rows - 1)
+    }
     // Why: the WebGL renderer builds its glyph texture atlas at activation
     // time, so `font-feature-settings` applied after WebGL loaded won't
     // reach the GPU-rendered cells until the atlas is rebuilt. The upstream
     // docs call this out explicitly — reactivating WebGL after ligatures
     // forces a fresh atlas that includes the ligated glyphs.
-    if (pane.webglAddon) {
-      disposeWebgl(pane)
-      attachWebgl(pane)
-    }
+    rebuildAttachedWebgl(pane)
   } catch (err) {
     console.warn('[terminal] ligatures addon failed to attach for pane', pane.id, err)
     pane.ligaturesAddon = null
@@ -158,10 +178,7 @@ export function setLigaturesEnabled(pane: ManagedPaneInternal, enabled: boolean)
     // Why: ligatures lived inside the WebGL atlas, so after disposing the
     // addon the atlas still holds the ligated glyphs. Rebuild it so text
     // renders as the non-ligated fallback immediately.
-    if (pane.webglAddon) {
-      disposeWebgl(pane)
-      attachWebgl(pane)
-    }
+    rebuildAttachedWebgl(pane)
   }
 }
 
@@ -169,6 +186,7 @@ export function disposePane(
   pane: ManagedPaneInternal,
   panes: Map<number, ManagedPaneInternal>
 ): void {
+  cancelPendingTerminalViewportPresents(pane.terminal)
   if (pane.pendingInitialFitRafId != null) {
     cancelAnimationFrame(pane.pendingInitialFitRafId)
     pane.pendingInitialFitRafId = null
@@ -187,8 +205,12 @@ export function disposePane(
   pane.paneDragCleanup = null
   pane.focusClassSyncCleanup?.()
   pane.focusClassSyncCleanup = null
+  pane.domBlockFillCleanup?.()
+  pane.domBlockFillCleanup = null
   pane.terminalScrollIntentDisposable?.dispose()
   pane.terminalScrollIntentDisposable = null
+  pane.mouseEncodingTrackerDisposable?.dispose()
+  pane.mouseEncodingTrackerDisposable = null
   pane.linkifierHoverResetDisposable?.dispose()
   pane.linkifierHoverResetDisposable = null
   pane.linkifierMouseLeaveResetDisposable?.dispose()
@@ -202,6 +224,11 @@ export function disposePane(
     /* ignore */
   }
   pane.arabicShapingJoinerCleanup = null
+  if (pane.compositionHandler) {
+    pane.terminal.element?.removeEventListener('compositionstart', pane.compositionHandler)
+    pane.terminal.element?.removeEventListener('compositionupdate', pane.compositionHandler)
+    pane.compositionHandler = null
+  }
   try {
     clearPendingSplitScrollRestore(pane)
   } catch {
@@ -219,6 +246,9 @@ export function disposePane(
   } catch {
     /* ignore */
   }
+  // Detach removes the pane from the deferred-attach set and disposes the addon
+  // (canvas layers + parser handlers) before the terminal surface goes away.
+  detachInlineImages(pane)
   disposeWebgl(pane)
   try {
     pane.searchAddon.dispose()
@@ -242,6 +272,12 @@ export function disposePane(
   }
   try {
     pane.fitAddon.dispose()
+  } catch {
+    /* ignore */
+  }
+  try {
+    // Drop renderer selection state before a recovery remount replaces the surface.
+    pane.terminal.clearSelection()
   } catch {
     /* ignore */
   }

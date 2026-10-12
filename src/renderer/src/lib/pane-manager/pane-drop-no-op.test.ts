@@ -29,6 +29,7 @@ function createPane(id: number, container: HTMLElement): ManagedPaneInternal {
     webglDisabledAfterContextLoss: false,
     hasComplexScriptOutput: false,
     webglAddon: null,
+    imageAddon: null,
     ligaturesAddon: null,
     fitResizeObserver: null,
     pendingObservedFitRafId: null,
@@ -37,6 +38,7 @@ function createPane(id: number, container: HTMLElement): ManagedPaneInternal {
     serializeAddon: {} as never,
     unicode11Addon: {} as never,
     webLinksAddon: {} as never,
+    compositionHandler: null,
     pendingSplitScrollState: null,
     debugLabel: null
   }

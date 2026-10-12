@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const wslMocks = vi.hoisted(() => ({
   listWslDistrosAsync: vi.fn<() => Promise<string[]>>(),
+  listRunningWslDistrosAsync: vi.fn<() => Promise<string[]>>(),
   getWslHomeAsync: vi.fn<(distro: string) => Promise<string | null>>()
 }))
 
@@ -9,7 +10,7 @@ vi.mock('../wsl', () => wslMocks)
 vi.mock('node:os', () => ({ homedir: () => 'C:\\Users\\neil' }))
 
 import { getHostKimiHome, getKimiRuntimeTarget, resolveKimiHome } from './kimi-runtime-home'
-import type { GlobalSettings } from '../../shared/types'
+import type { GlobalSettings } from '../../shared/global-settings-types'
 
 function settings(overrides: Partial<GlobalSettings>): GlobalSettings {
   return overrides as GlobalSettings
@@ -53,6 +54,7 @@ describe('resolveKimiHome', () => {
   beforeEach(() => {
     delete process.env.KIMI_CODE_HOME
     wslMocks.listWslDistrosAsync.mockReset().mockResolvedValue(['Ubuntu'])
+    wslMocks.listRunningWslDistrosAsync.mockReset().mockResolvedValue(['Ubuntu'])
     wslMocks.getWslHomeAsync.mockReset().mockResolvedValue('\\\\wsl.localhost\\Ubuntu\\home\\neil')
   })
 
@@ -93,6 +95,16 @@ describe('resolveKimiHome', () => {
       wslDistro: 'Ubuntu'
     })
     expect(wslMocks.getWslHomeAsync).toHaveBeenCalledWith('Ubuntu')
+  })
+
+  it('reports no path without probing the home while the distro is stopped', async () => {
+    wslMocks.listRunningWslDistrosAsync.mockResolvedValue([])
+    expect(await resolveKimiHome({ runtime: 'wsl', wslDistro: 'Ubuntu' }, 'win32')).toEqual({
+      runtime: 'wsl',
+      wslDistro: 'Ubuntu',
+      path: null
+    })
+    expect(wslMocks.getWslHomeAsync).not.toHaveBeenCalled()
   })
 
   it('reports no path when the distro home cannot be probed', async () => {

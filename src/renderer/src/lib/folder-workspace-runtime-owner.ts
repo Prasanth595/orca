@@ -1,6 +1,7 @@
 import { parseExecutionHostId, toSshExecutionHostId } from '../../../shared/execution-host'
 import type { ExecutionHostId, ParsedExecutionHost } from '../../../shared/execution-host'
-import type { FolderWorkspace, ProjectGroup } from '../../../shared/types'
+import type { FolderWorkspace } from '../../../shared/folder-workspace-types'
+import type { ProjectGroup } from '../../../shared/project-group-types'
 import { folderWorkspaceKey } from '../../../shared/workspace-scope'
 import {
   findIndexedFolderWorkspaceOwner,
@@ -10,13 +11,14 @@ import {
   getSingleFocusedRuntimeEnvironmentId,
   type SingleRuntimeLegacyOwnerState
 } from './single-runtime-legacy-owner'
+import { getPairedWebClientEnvironmentId } from './paired-web-client-host'
 
 type RuntimeExecutionHost = Extract<ParsedExecutionHost, { kind: 'runtime' }>
 
 export type FolderWorkspaceRuntimeOwnerState = SingleRuntimeLegacyOwnerState & {
   folderWorkspaces?: readonly Pick<
     FolderWorkspace,
-    'id' | 'projectGroupId' | 'connectionId' | 'executionHostId'
+    'id' | 'projectGroupId' | 'connectionId' | 'executionHostId' | 'diffComments'
   >[]
   projectGroups?: readonly Pick<ProjectGroup, 'id' | 'connectionId' | 'executionHostId'>[]
   restoredRuntimeHostIdByWorkspaceSessionKey?: Record<string, ExecutionHostId>
@@ -41,7 +43,10 @@ export function findFolderWorkspaceOwner(
   state: FolderWorkspaceRuntimeOwnerState,
   folderWorkspaceId: string,
   executionHostId?: ExecutionHostId
-): Pick<FolderWorkspace, 'id' | 'projectGroupId' | 'connectionId' | 'executionHostId'> | null {
+): Pick<
+  FolderWorkspace,
+  'id' | 'projectGroupId' | 'connectionId' | 'executionHostId' | 'diffComments'
+> | null {
   return findIndexedFolderWorkspaceOwner(
     state.folderWorkspaces,
     folderWorkspaceId,
@@ -102,7 +107,7 @@ export function getRuntimeEnvironmentIdForFolderWorkspace(
     folderWorkspace?.connectionId?.trim() ||
     projectGroup?.connectionId?.trim()
   ) {
-    return null
+    return getPairedWebClientEnvironmentId(state)
   }
   const restoredRuntimeHost = getRestoredRuntimeHostForFolderWorkspace(state, folderWorkspaceId)
   if (restoredRuntimeHost) {
@@ -128,6 +133,21 @@ export function getExplicitRuntimeEnvironmentIdForFolderWorkspace(
     return null
   }
   return getRestoredRuntimeHostForFolderWorkspace(state, folderWorkspaceId)?.environmentId ?? null
+}
+
+/** The SSH target behind the paired server that owns this folder, when the owning row names one. */
+export function getNestedSshTargetIdForFolderWorkspace(
+  state: FolderWorkspaceRuntimeOwnerState,
+  folderWorkspaceId: string,
+  executionHostId?: ExecutionHostId
+): string | null {
+  const folderWorkspace = findFolderWorkspaceOwner(state, folderWorkspaceId, executionHostId)
+  const owner = folderWorkspace?.executionHostId
+    ? folderWorkspace
+    : findFolderProjectGroup(state, folderWorkspaceId, executionHostId)
+  return owner && parseExecutionHostId(owner.executionHostId)?.kind === 'runtime'
+    ? owner.connectionId?.trim() || null
+    : null
 }
 
 export function getExecutionHostIdForFolderWorkspace(

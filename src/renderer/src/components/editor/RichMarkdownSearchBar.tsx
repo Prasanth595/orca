@@ -12,8 +12,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { translate } from '@/i18n/i18n'
+import { isImeCompositionKeyDown } from '@/lib/ime-composition-keyboard-event'
 import { useOptionalShortcutLabel } from '@/hooks/useShortcutLabel'
-import { useImeEnterGestureOwnership } from '@/lib/ime-composition-keyboard-event'
 
 type RichMarkdownSearchBarProps = {
   activeMatchIndex: number
@@ -62,10 +62,6 @@ export function RichMarkdownSearchBar({
   // is discoverable; reads the user's effective binding, formatted per platform.
   const replaceShortcut = useOptionalShortcutLabel('editor.replace')
   const readOnlyExplanationId = React.useId()
-  // Replace mutates the document and is not idempotent, so it needs full gesture
-  // ownership: the Korean confirm also redispatches an *unmarked* Enter that a
-  // plain isComposing/229 check lets through.
-  const replaceEnterGesture = useImeEnterGestureOwnership()
 
   if (!isOpen) {
     return null
@@ -116,6 +112,12 @@ export function RichMarkdownSearchBar({
               value={query}
               onChange={(event) => onQueryChange(event.target.value)}
               onKeyDown={(event) => {
+                // Why: mid-composition Enter only confirms the candidate and Escape
+                // only cancels it, so navigating matches or closing the bar here acts
+                // on a keystroke that was aimed at the IME.
+                if (isImeCompositionKeyDown(event)) {
+                  return
+                }
                 if (event.key === 'Enter' && event.shiftKey) {
                   event.preventDefault()
                   onMoveToMatch(-1)
@@ -251,11 +253,11 @@ export function RichMarkdownSearchBar({
               <Input
                 value={replaceQuery}
                 onChange={(event) => onReplaceQueryChange(event.target.value)}
-                onCompositionStart={() => replaceEnterGesture.setComposing(true)}
-                onCompositionEnd={() => replaceEnterGesture.setComposing(false)}
-                onKeyUp={(event) => replaceEnterGesture.onKeyUp(event)}
                 onKeyDown={(event) => {
-                  if (replaceEnterGesture.ownsKeyDown(event)) {
+                  // Why: replacing on the Enter that only confirms a candidate mutates
+                  // the document from a keystroke the user aimed at the IME; Escape
+                  // during composition belongs to the IME's cancel, not to the bar.
+                  if (isImeCompositionKeyDown(event)) {
                     return
                   }
                   if (event.key === 'Enter') {

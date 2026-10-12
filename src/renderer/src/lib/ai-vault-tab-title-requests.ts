@@ -4,7 +4,7 @@ import type { AiVaultSessionTitle } from '../../../shared/ai-vault-session-title
 import { isAiVaultTitleAgent } from '../../../shared/ai-vault-session-title'
 import type { ExecutionHostId } from '../../../shared/execution-host'
 import { parsePaneKey } from '../../../shared/stable-pane-id'
-import type { TerminalTab } from '../../../shared/types'
+import type { TerminalTab } from '../../../shared/terminal-tab-types'
 import { getExecutionHostIdForWorktree } from '@/lib/worktree-runtime-owner'
 import type { AppState } from '@/store/types'
 
@@ -13,7 +13,6 @@ export type AiVaultTitleRequest = {
   executionHostId: ExecutionHostId
   providerSession: AgentProviderSessionMetadata
   refresh: boolean
-  scopePath: string | null
   tabId: string
   worktreeId: string
 }
@@ -57,28 +56,36 @@ function registerCandidate(
     return
   }
   const executionHostId = getExecutionHostIdForWorktree(state, worktreeId)
-  const scopePath = state.getKnownWorktreeById(worktreeId, executionHostId)?.path?.trim() || null
   candidates.set(tabId, {
     agent: args.agent,
     executionHostId,
     providerSession: args.providerSession,
     refresh: args.refresh,
-    scopePath,
     tabId,
     worktreeId,
     priority
   })
 }
 
-export function collectAiVaultTitleRequests(state: AppState): AiVaultTitleRequest[] {
+export function collectAiVaultTitleRequests(
+  state: AppState,
+  options: {
+    /** Skip retained and sleeping records: those remember a conversation after its agent exited. */
+    runningAgentsOnly?: boolean
+  } = {}
+): AiVaultTitleRequest[] {
   const tabsById = new Map(
     Object.values(state.tabsByWorktree)
       .flat()
       .map((tab) => [tab.id, tab] as const)
   )
   const candidates = new Map<string, RequestCandidate>()
+  const retained = options.runningAgentsOnly ? [] : Object.values(state.retainedAgentsByPaneKey)
+  const sleeping = options.runningAgentsOnly
+    ? []
+    : Object.values(state.sleepingAgentSessionsByPaneKey)
 
-  for (const entry of Object.values(state.retainedAgentsByPaneKey)) {
+  for (const entry of retained) {
     registerCandidate(state, tabsById, candidates, {
       agent: entry.agentType,
       paneKey: entry.entry.paneKey,
@@ -89,7 +96,7 @@ export function collectAiVaultTitleRequests(state: AppState): AiVaultTitleReques
       worktreeId: entry.worktreeId
     })
   }
-  for (const record of Object.values(state.sleepingAgentSessionsByPaneKey)) {
+  for (const record of sleeping) {
     registerCandidate(state, tabsById, candidates, {
       agent: record.agent,
       paneKey: record.paneKey,

@@ -1,155 +1,72 @@
 #!/usr/bin/env node
 /**
- * Bundle the relay daemon and its crash-isolated watcher child per platform.
- *
- * The relay runs on remote hosts via `node relay.js`, so both outputs use
- * self-contained CommonJS bundles with no external dependencies beyond
- * Node.js built-ins. Native addons (node-pty, @parcel/watcher) are
- * marked external and expected to be installed on the remote or
- * gracefully degraded.
+ * Bundle the programs Orca runs inside WSL distros: the WSL agent-hook relay, the WSL browser
+ * network relay, the Claude profile helper, and the OpenCode SQLite reader. Each is a
+ * self-contained CommonJS bundle with only Node.js built-ins; the Windows app ships them from
+ * out/relay/wsl via the relay extraResources mapping.
  */
 import { build } from 'esbuild'
+import { JSONC_PARSER_ESM_ALIAS } from '../build-plugins/jsonc-parser-esm.ts'
 import { createHash } from 'node:crypto'
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import {
+  RELAY_OPENCODE_SQLITE_READER_FILENAME,
+  WSL_CLAUDE_PROFILE_HELPER_FILENAME
+} from '../../src/shared/relay-artifacts.ts'
 
 const __dirname = import.meta.dirname
 // Why: the script lives under config/scripts, so go two levels up to reach the repo root.
 const ROOT = join(__dirname, '..', '..')
-const RELAY_ENTRY = join(ROOT, 'src', 'relay', 'relay.ts')
-const WATCHER_ENTRY = join(ROOT, 'src', 'main', 'ipc', 'parcel-watcher-process-entry.ts')
-const MANAGED_HOOK_RUNTIME_ENTRY = join(
-  ROOT,
-  'src',
-  'main',
-  'agent-hooks',
-  'managed-hook-runtime.ts'
-)
-const JSONC_PARSER_ESM_ENTRY = join(ROOT, 'node_modules', 'jsonc-parser', 'lib', 'esm', 'main.js')
-const NODE_PTY_CONSOLE_LIST_PATCH_FILENAME = 'node-pty-1.1.0-console-list-agent-patch.cjs'
-const NODE_PTY_CONSOLE_LIST_PATCH_SOURCE = join(
-  ROOT,
-  'config',
-  'relay-assets',
-  NODE_PTY_CONSOLE_LIST_PATCH_FILENAME
-)
-
-const PLATFORMS = [
-  'linux-x64',
-  'linux-arm64',
-  'darwin-x64',
-  'darwin-arm64',
-  'win32-x64',
-  'win32-arm64'
-]
-
+// Why: lets a contract test build into a temp tree instead of clobbering a developer's out/relay.
+const OUT_ROOT = process.env.ORCA_RELAY_OUT_ROOT ?? join(ROOT, 'out', 'relay')
 const RELAY_VERSION = '0.1.0'
 
-for (const platform of PLATFORMS) {
-  const outDir = join(ROOT, 'out', 'relay', platform)
-  mkdirSync(outDir, { recursive: true })
+const outDir = join(OUT_ROOT, 'wsl')
+// Why: the SSH relay's per-platform directories are gone; a stale one must not ship.
+rmSync(OUT_ROOT, { recursive: true, force: true })
+mkdirSync(outDir, { recursive: true })
 
-  await build({
-    entryPoints: [RELAY_ENTRY],
+const bundle = (entry, outfile, extra = {}) =>
+  build({
+    entryPoints: [join(ROOT, entry)],
     bundle: true,
     platform: 'node',
     target: 'node18',
     format: 'cjs',
-    outfile: join(outDir, 'relay.js'),
-    // Native addons cannot be bundled — they must exist on the remote host.
-    // The relay gracefully degrades when they are absent.
-    external: ['node-pty', '@parcel/watcher', 'electron'],
+    outfile: join(outDir, outfile),
     sourcemap: false,
     minify: true,
-    define: {
-      'process.env.NODE_ENV': '"production"'
-    }
+    define: { 'process.env.NODE_ENV': '"production"' },
+    ...extra
   })
 
-  if (platform.startsWith('win32-')) {
-    copyFileSync(
-      NODE_PTY_CONSOLE_LIST_PATCH_SOURCE,
-      join(outDir, NODE_PTY_CONSOLE_LIST_PATCH_FILENAME)
-    )
-  }
-
-  await build({
-    entryPoints: [WATCHER_ENTRY],
-    bundle: true,
-    platform: 'node',
-    target: 'node18',
-    format: 'cjs',
-    outfile: join(outDir, 'relay-watcher.js'),
-    external: ['@parcel/watcher'],
-    sourcemap: false,
-    minify: true,
-    define: {
-      'process.env.NODE_ENV': '"production"'
-    }
-  })
-
-  await build({
-    entryPoints: [MANAGED_HOOK_RUNTIME_ENTRY],
-    bundle: true,
-    platform: 'node',
-    target: 'node18',
-    format: 'cjs',
-    outfile: join(outDir, 'managed-hook-runtime.js'),
-    // Why: jsonc-parser's default UMD build keeps relative dynamic requires
-    // that break after bundling; its ESM entry is equivalent and self-contained.
-    alias: { 'jsonc-parser': JSONC_PARSER_ESM_ENTRY },
-    sourcemap: false,
-    minify: true,
-    define: {
-      'process.env.NODE_ENV': '"production"'
-    }
-  })
-
-  // Why: include a content hash so the deploy check detects code changes
-  // even when RELAY_VERSION hasn't been bumped. Hash every executable module
-  // so a companion-only change always deploys beside the matching relay host.
-  const relayContent = readFileSync(join(outDir, 'relay.js'))
-  const watcherContent = readFileSync(join(outDir, 'relay-watcher.js'))
-  const managedHookRuntimeContent = readFileSync(join(outDir, 'managed-hook-runtime.js'))
+function stampVersion(bundleFile, versionFile) {
   const hash = createHash('sha256')
-    .update(relayContent)
-    .update(watcherContent)
-    .update(managedHookRuntimeContent)
-  // Why: changing the remote node-pty patch must select a fresh immutable Windows relay directory.
-  if (platform.startsWith('win32-')) {
-    hash.update(readFileSync(join(outDir, NODE_PTY_CONSOLE_LIST_PATCH_FILENAME)))
-  }
-  const contentHash = hash.digest('hex').slice(0, 12)
-  writeFileSync(join(outDir, '.version'), `${RELAY_VERSION}+${contentHash}`)
-
-  console.log(`Built relay for ${platform} → ${outDir}/relay.js`)
+    .update(readFileSync(join(outDir, bundleFile)))
+    .digest('hex')
+    .slice(0, 12)
+  writeFileSync(join(outDir, versionFile), `${RELAY_VERSION}+${hash}`)
 }
 
-// WSL agent-hook relay: a hooks-only guest receiver launched inside WSL
-// distros via wsl.exe. Pure Node built-ins (no node-pty/@parcel/watcher),
-// so a single platform-independent bundle suffices; it ships inside the
-// Windows app via the same out/relay extraResources mapping.
-{
-  const wslEntry = join(ROOT, 'src', 'relay', 'wsl-agent-hook-relay.ts')
-  const outDir = join(ROOT, 'out', 'relay', 'wsl')
-  mkdirSync(outDir, { recursive: true })
-  await build({
-    entryPoints: [wslEntry],
-    bundle: true,
-    platform: 'node',
-    target: 'node18',
-    format: 'cjs',
-    outfile: join(outDir, 'wsl-agent-hook-relay.js'),
-    sourcemap: false,
-    minify: true,
-    define: {
-      'process.env.NODE_ENV': '"production"'
-    }
-  })
-  const content = readFileSync(join(outDir, 'wsl-agent-hook-relay.js'))
-  const hash = createHash('sha256').update(content).digest('hex').slice(0, 12)
-  writeFileSync(join(outDir, '.version'), `${RELAY_VERSION}+${hash}`)
-  console.log(`Built WSL hook relay → ${outDir}/wsl-agent-hook-relay.js`)
-}
+await bundle('src/wsl-guest/wsl-agent-hook-relay.ts', 'wsl-agent-hook-relay.js', {
+  alias: JSONC_PARSER_ESM_ALIAS
+})
+stampVersion('wsl-agent-hook-relay.js', '.version')
+console.log(`Built WSL hook relay → ${outDir}/wsl-agent-hook-relay.js`)
 
-console.log('Relay build complete.')
+await bundle('src/wsl-guest/wsl-browser-network-relay.ts', 'wsl-browser-network-relay.js')
+stampVersion('wsl-browser-network-relay.js', '.browser-network-version')
+console.log(`Built WSL browser network relay → ${outDir}/wsl-browser-network-relay.js`)
+
+await bundle(
+  'src/main/claude-accounts/claude-profile-wsl-entry.ts',
+  WSL_CLAUDE_PROFILE_HELPER_FILENAME
+)
+await bundle(
+  'src/main/ai-vault/session-scanner-opencode-sqlite-process-entry.ts',
+  RELAY_OPENCODE_SQLITE_READER_FILENAME,
+  { external: ['electron'] }
+)
+
+console.log('WSL guest build complete.')

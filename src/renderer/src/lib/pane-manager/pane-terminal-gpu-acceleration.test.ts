@@ -24,6 +24,7 @@ function createPane(): ManagedPaneInternal {
       dispose: vi.fn()
     } as never,
     ligaturesAddon: null,
+    imageAddon: null,
     fitResizeObserver: null,
     pendingObservedFitRafId: null,
     fitAddon: {
@@ -34,6 +35,7 @@ function createPane(): ManagedPaneInternal {
     serializeAddon: {} as never,
     unicode11Addon: {} as never,
     webLinksAddon: {} as never,
+    compositionHandler: null,
     pendingSplitScrollState: null,
     debugLabel: null
   }

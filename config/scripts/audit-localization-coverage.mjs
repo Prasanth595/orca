@@ -5,10 +5,12 @@ import process from 'node:process'
 
 // TypeScript 7 is a native CLI; AST consumers still need the legacy JavaScript API.
 import ts from 'typescript-api'
+import { isTestOnlySourcePath } from './test-only-source-path.mjs'
 
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mts', '.cts'])
 const SKIP_PATH_PARTS = new Set(['.git', 'dist', 'node_modules', 'out', '__snapshots__', 'assets'])
 const LOCALIZATION_CALL_NAMES = new Set(['t', 'translate'])
+const CLASS_PROPERTY_NAMES = new Set(['className', 'classNames'])
 const USER_VISIBLE_JSX_ATTRIBUTES = new Set([
   'ariaLabel',
   'aria-label',
@@ -73,14 +75,9 @@ function normalizePath(root, filePath) {
   return path.relative(root, filePath).split(path.sep).join('/')
 }
 
-function isSkippedFile(root, filePath) {
+export function isSkippedFile(root, filePath) {
   const relative = normalizePath(root, filePath)
-  if (
-    relative.endsWith('.d.ts') ||
-    relative.includes('.test.') ||
-    relative.includes('.spec.') ||
-    relative.includes('/__tests__/')
-  ) {
+  if (relative.endsWith('.d.ts') || isTestOnlySourcePath(relative)) {
     return true
   }
   return relative.split('/').some((part) => SKIP_PATH_PARTS.has(part))
@@ -318,7 +315,7 @@ function isUserVisibleCallArgument(node) {
 }
 
 function classifyStringNode(node) {
-  if (hasAncestorObjectPropertyName(node, new Set(['className', 'classNames']))) {
+  if (hasAncestorObjectPropertyName(node, CLASS_PROPERTY_NAMES)) {
     return undefined
   }
 
@@ -428,10 +425,16 @@ export function collectLocalizationCandidates(filePath, sourceText, root = proce
       return
     }
 
-    const kind = classifyStringNode(node)
-    if (kind) {
-      for (const part of stringParts(node)) {
-        pushReport(node, kind, part.text, part.dynamic)
+    if (
+      ts.isStringLiteralLike(node) ||
+      ts.isNoSubstitutionTemplateLiteral(node) ||
+      ts.isTemplateExpression(node)
+    ) {
+      const kind = classifyStringNode(node)
+      if (kind) {
+        for (const part of stringParts(node)) {
+          pushReport(node, kind, part.text, part.dynamic)
+        }
       }
     }
 

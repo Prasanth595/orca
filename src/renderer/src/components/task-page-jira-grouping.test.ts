@@ -14,7 +14,7 @@ import {
   getSingleJiraProjectScope,
   loadTaskPageJiraProjectStatusOrder
 } from './task-page-jira-status-order'
-import type { JiraIssue, JiraProjectStatusOrder } from '../../../shared/types'
+import type { JiraIssue, JiraProjectStatusOrder } from '../../../shared/jira-types'
 
 const { jiraGetProjectStatusOrderMock } = vi.hoisted(() => ({
   jiraGetProjectStatusOrderMock: vi.fn()
@@ -159,7 +159,9 @@ describe('Jira issue status grouping', () => {
       throw new Error('Expected one Jira project scope')
     }
 
-    await expect(loadTaskPageJiraProjectStatusOrder(null, 'runtime:old', scope)).resolves.toEqual({
+    await expect(
+      loadTaskPageJiraProjectStatusOrder({ kind: 'local' }, 'runtime:old', scope)
+    ).resolves.toEqual({
       statusIdsByColumn: []
     })
     expect(warn).toHaveBeenCalledWith('[jira] Failed to load project status order:', error)

@@ -1,10 +1,10 @@
+import { ImeTextarea } from '@/lib/ime-text-field'
 import { CornerDownLeft, Pencil, Trash } from 'lucide-react'
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { getDiffCommentLineLabel } from '@/lib/diff-comment-compat'
 import { useMountedRef } from '@/hooks/useMountedRef'
 import { translate } from '@/i18n/i18n'
-import { useImeEnterGestureOwnership } from '@/lib/ime-composition-keyboard-event'
 
 // Why: the saved-note card lives inside a Monaco view zone's DOM node.
 // useDiffCommentDecorator creates a React root per zone and renders this
@@ -36,6 +36,13 @@ type Props = {
   headerActions?: ReactNode
 }
 
+function resizeDiffCommentTextarea(textarea: HTMLTextAreaElement): boolean {
+  const previousHeight = textarea.style.height
+  textarea.style.height = 'auto'
+  textarea.style.height = `${Math.min(textarea.scrollHeight, 240)}px`
+  return textarea.style.height !== previousHeight
+}
+
 export function DiffCommentCard({
   lineNumber,
   startLine,
@@ -53,7 +60,6 @@ export function DiffCommentCard({
   headerActions
 }: Props): React.JSX.Element {
   const [editing, setEditing] = useState(false)
-  const imeEnter = useImeEnterGestureOwnership()
   const [draft, setDraft] = useState(body)
   const [submitting, setSubmitting] = useState(false)
   const mountedRef = useMountedRef()
@@ -118,8 +124,7 @@ export function DiffCommentCard({
     if (!el) {
       return
     }
-    el.style.height = 'auto'
-    el.style.height = `${Math.min(el.scrollHeight, 240)}px`
+    resizeDiffCommentTextarea(el)
     el.focus()
     el.setSelectionRange(el.value.length, el.value.length)
     onContentResizeRef.current?.()
@@ -277,31 +282,24 @@ export function DiffCommentCard({
         {/* Body or Edit Mode */}
         {editing ? (
           <div className="flex flex-col gap-2 mt-1">
-            <textarea
+            <ImeTextarea
               ref={textareaRef}
               className="orca-diff-comment-popover-textarea"
               value={draft}
               onChange={(e) => {
                 setDraft(e.target.value)
-                const el = e.currentTarget
-                el.style.height = 'auto'
-                el.style.height = `${Math.min(el.scrollHeight, 240)}px`
-                onContentResizeRef.current?.()
-              }}
-              onBlur={imeEnter.reset}
-              onCompositionStart={() => imeEnter.setComposing(true)}
-              onCompositionEnd={() => imeEnter.setComposing(false)}
-              onKeyUp={imeEnter.onKeyUp}
-              onKeyDown={(e) => {
-                if (imeEnter.ownsKeyDown(e)) {
-                  return
+                // Why: rich-review layout measures every note; skip it when this card stayed put.
+                if (resizeDiffCommentTextarea(e.currentTarget)) {
+                  onContentResizeRef.current?.()
                 }
+              }}
+              onKeyDown={(e) => {
                 if (e.key === 'Escape') {
                   e.preventDefault()
                   handleCancel()
                   return
                 }
-                if (e.key === 'Enter' && !e.shiftKey) {
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing && !e.shiftKey) {
                   e.preventDefault()
                   if (!canSubmit) {
                     return

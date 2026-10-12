@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { AlertTriangle, CheckCircle2, ChevronDown, Copy, Loader2, RefreshCw } from 'lucide-react'
 import {
-  buildTargetedSkillUpdateCommand,
+  canonicalizeSkillUpdateNames,
   isSkillScanIssueNeedingAttention,
   isSkillScanIssueTruncatingScan,
   type SkillFreshnessInventory
@@ -9,6 +9,7 @@ import {
 import { useSkillFreshness } from '@/hooks/useSkillFreshness'
 import { useActiveProjectSkillRuntime } from '@/hooks/useActiveProjectSkillRuntime'
 import { notifyInstalledAgentSkillsChanged } from '@/hooks/useInstalledAgentSkills'
+import { buildAgentFeatureSkillInstallCommand } from '@/lib/agent-feature-install-commands'
 import { translate } from '@/i18n/i18n'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,9 +22,14 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { groupSkillFreshness } from './skill-freshness-grouping'
+import { useSkillUpdateSelection } from './use-skill-update-selection'
 import { SkillFreshnessScanIssues } from './skill-freshness-scan-issues'
 import { SkillUpdateRow } from './SkillUpdateRow'
-import { SummaryHeadline, summarizeInventory } from './skill-freshness-summary-headline'
+import {
+  SummaryHeadline,
+  summarizeInventory,
+  updateActionLabel
+} from './skill-freshness-summary-headline'
 import {
   acknowledgeSkillUpdateRun,
   cancelSkillUpdateRun,
@@ -41,7 +47,7 @@ function RunLog({ output }: { output: string }): React.JSX.Element | null {
     return null
   }
   return (
-    <Collapsible>
+    <Collapsible className="min-w-0">
       <CollapsibleTrigger asChild>
         <Button
           type="button"
@@ -53,9 +59,9 @@ function RunLog({ output }: { output: string }): React.JSX.Element | null {
           {translate('auto.components.skills.SkillFreshnessUpdateDialog.showLog', 'Show log')}
         </Button>
       </CollapsibleTrigger>
-      <CollapsibleContent className="mt-1">
-        {/* Displayed verbatim, never parsed — `skills update` has no --json. */}
-        <pre className="scrollbar-sleek max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-muted px-3 py-2.5 font-mono text-[11px] leading-relaxed text-muted-foreground">
+      <CollapsibleContent className="mt-1 min-w-0">
+        {/* Displayed verbatim, never parsed — `skills add` has no --json. */}
+        <pre className="scrollbar-sleek max-h-40 overflow-auto whitespace-pre-wrap [overflow-wrap:anywhere] rounded-md border border-border bg-muted px-3 py-2.5 font-mono text-[11px] leading-relaxed text-muted-foreground">
           {output.trim()}
         </pre>
       </CollapsibleContent>
@@ -84,10 +90,9 @@ export function SkillFreshnessUpdateDialog(): React.JSX.Element {
     lastInventoryRef.current = state.inventory
   }
   const inventory = state.inventory ?? (state.loading ? lastInventoryRef.current : null)
-  const eligibleNames = useMemo(() => state.inventory?.eligibleUpdateNames ?? [], [state.inventory])
-  // Display only. The action still fires `eligibleNames`, so a re-scan in flight
-  // can never authorize work — but the button keeps its place and its label
-  // instead of vanishing and reflowing the footer every time one runs.
+  // Display only. The button stays disabled until a live scan lands, so a re-scan in
+  // flight can never authorize work — but it keeps its place and its label instead of
+  // vanishing and reflowing the footer every time one runs.
   const displayEligibleCount = inventory?.eligibleUpdateNames.length ?? 0
   const isRunning = run.state === 'running'
   // The kill sweep can take seconds; without this the Stop button sits enabled
@@ -105,6 +110,7 @@ export function SkillFreshnessUpdateDialog(): React.JSX.Element {
         : [],
     [inventory, runNames]
   )
+  const selection = useSkillUpdateSelection(groups)
   const hasBlockedGroup = groups.some((group) => group.status === 'cannot-update')
   const blockedCount = groups.filter((group) => group.status === 'cannot-update').length
   // Retained: the list keeps the last known folders on screen through a re-scan, the
@@ -116,6 +122,7 @@ export function SkillFreshnessUpdateDialog(): React.JSX.Element {
   // available". Live means it says "Checking…" over the rows it kept on screen.
   const summaryKind = summarizeInventory(
     state.inventory,
+    selection.ownedCount,
     hasBlockedGroup,
     (state.inventory?.scanIssues ?? []).some(
       (issue) => isSkillScanIssueNeedingAttention(issue) || isSkillScanIssueTruncatingScan(issue)
@@ -151,6 +158,7 @@ export function SkillFreshnessUpdateDialog(): React.JSX.Element {
     // status-bar segment carries it from here.
     consumeSkillFreshnessUpdateDialogRequest()
     setCopied(false)
+    selection.reset()
     // Don't carry a finished session's rows into the next open — but a live run
     // keeps its own, or reopening from the status segment mid-run would land on
     // an empty list while the close's own re-scan is still reading disk.
@@ -168,16 +176,14 @@ export function SkillFreshnessUpdateDialog(): React.JSX.Element {
   }
 
   const handleCopyCommand = (): void => {
-    const command = buildTargetedSkillUpdateCommand(
-      run.state === 'error' ? run.failedNames : eligibleNames
-    )
-    if (!command) {
+    const names = run.state === 'error' ? canonicalizeSkillUpdateNames(run.failedNames) : null
+    if (!names) {
       return
     }
     // Clipboard writes reject on a denied permission or an unfocused document;
     // without this the button just never flips to "Copied".
     void navigator.clipboard
-      .writeText(command)
+      .writeText(buildAgentFeatureSkillInstallCommand(names))
       .then(() => {
         setCopied(true)
         setTimeout(() => setCopied(false), 2000)
@@ -259,8 +265,9 @@ export function SkillFreshnessUpdateDialog(): React.JSX.Element {
     return (
       <SummaryHeadline
         kind={summaryKind}
-        eligibleCount={eligibleNames.length}
+        eligibleCount={selection.ownedCount}
         blockedCount={blockedCount}
+        unselectedForeignCount={selection.unselectedForeignCount}
       />
     )
   })()
@@ -278,7 +285,7 @@ export function SkillFreshnessUpdateDialog(): React.JSX.Element {
         </DialogHeader>
 
         {state.error && !isRunning && !showResult ? (
-          <p className="text-xs text-destructive">{state.error}</p>
+          <p className="min-w-0 [overflow-wrap:anywhere] text-xs text-destructive">{state.error}</p>
         ) : (
           headline
         )}
@@ -308,7 +315,16 @@ export function SkillFreshnessUpdateDialog(): React.JSX.Element {
           <div className={`min-w-0 ${isRunning ? '' : 'border-t border-border/60'}`}>
             <TooltipProvider>
               {rows.map((row) => (
-                <SkillUpdateRow key={row.group.name} group={row.group} state={row.state} />
+                <SkillUpdateRow
+                  key={row.group.name}
+                  group={row.group}
+                  state={row.state}
+                  selection={
+                    row.state === 'available' && !isRunning && !showResult
+                      ? selection.checkboxFor(row.group)
+                      : undefined
+                  }
+                />
               ))}
             </TooltipProvider>
           </div>
@@ -323,14 +339,14 @@ export function SkillFreshnessUpdateDialog(): React.JSX.Element {
         ) : null}
 
         {run.state === 'error' ? (
-          <div className="space-y-2.5 rounded-md border border-destructive/35 bg-destructive/10 p-3">
+          <div className="min-w-0 space-y-2.5 rounded-md border border-destructive/35 bg-destructive/10 p-3">
             <p className="text-[13px] font-medium text-foreground">
               {translate(
                 'auto.components.skills.SkillFreshnessUpdateDialog.errorTitle',
                 "The update didn't finish"
               )}
             </p>
-            <p className="break-words font-mono text-[11px] leading-relaxed text-muted-foreground">
+            <p className="[overflow-wrap:anywhere] font-mono text-[11px] leading-relaxed text-muted-foreground">
               {run.message}
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -408,8 +424,8 @@ export function SkillFreshnessUpdateDialog(): React.JSX.Element {
               <Button
                 type="button"
                 size="sm"
-                disabled={isRunning || eligibleNames.length === 0}
-                onClick={() => handleUpdate(eligibleNames)}
+                disabled={isRunning || !state.inventory || selection.selectedNames.length === 0}
+                onClick={() => handleUpdate(selection.selectedNames)}
               >
                 {/* Not during a stop: the Stop button already carries the status,
                     and "Updating…" beside "Stopping…" says both at once. */}
@@ -418,16 +434,7 @@ export function SkillFreshnessUpdateDialog(): React.JSX.Element {
                       'auto.components.skills.SkillFreshnessUpdateDialog.updating',
                       'Updating…'
                     )
-                  : displayEligibleCount === 1
-                    ? translate(
-                        'auto.components.skills.SkillFreshnessUpdateDialog.updateActionOne',
-                        'Update 1 skill'
-                      )
-                    : translate(
-                        'auto.components.skills.SkillFreshnessUpdateDialog.updateActionMany',
-                        'Update {{value0}} skills',
-                        { value0: displayEligibleCount }
-                      )}
+                  : updateActionLabel(selection.selectedNames.length)}
               </Button>
             ) : null}
           </div>

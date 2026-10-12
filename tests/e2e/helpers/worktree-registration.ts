@@ -1,6 +1,6 @@
 import type { Page } from '@stablyai/playwright-test'
 import { expect } from './orca-app'
-import type { CommitMessageAiSettings } from '../../../src/shared/types'
+import type { CommitMessageAiSettings } from '../../../src/shared/commit-message-ai-types'
 
 // Why: these specs create worktrees via raw `git worktree add`, which bypasses
 // Orca's own add/remove path — the one thing that invalidates the main-process
@@ -32,7 +32,7 @@ async function resolveE2eWorktreeId(
             if (!store) {
               throw new Error('window.__store is not available')
             }
-            await store.getState().fetchRepos()
+            await store.getState().fetchRepos({ runtimeEnvironmentId: null, throwOnError: true })
             const repo = store.getState().repos.find((entry) => entry.path === repoPath)
             if (!repo) {
               throw new Error(`Seeded E2E repo was not registered: ${repoPath}`)

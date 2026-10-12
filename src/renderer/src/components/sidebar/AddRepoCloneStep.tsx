@@ -4,7 +4,6 @@ import { DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/di
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { translate } from '@/i18n/i18n'
-import { useImeEnterGestureOwnership } from '@/lib/ime-composition-keyboard-event'
 import { RemoteFileBrowser } from './RemoteFileBrowser'
 
 type CloneStepProps = {
@@ -15,8 +14,9 @@ type CloneStepProps = {
   isCloning: boolean
   disableDestinationPicker?: boolean
   runtimeEnvironmentId?: string | null
-  sshTargetId?: string | null
   cloneTargetLabel?: string | null
+  /** No host resolved yet (its server is still coming up): never clone onto this computer. */
+  submitDisabled?: boolean
   onUrlChange: (value: string) => void
   onDestChange: (value: string) => void
   onPickDestination: () => void
@@ -31,23 +31,18 @@ export function CloneStep({
   isCloning,
   disableDestinationPicker = false,
   runtimeEnvironmentId,
-  sshTargetId,
   cloneTargetLabel,
   onUrlChange,
   onDestChange,
   onPickDestination,
-  onClone
+  onClone,
+  submitDisabled = false
 }: CloneStepProps): React.JSX.Element {
   const [browsingDestination, setBrowsingDestination] = useState(false)
-  const imeEnter = useImeEnterGestureOwnership()
-  const isRemoteClone = Boolean(runtimeEnvironmentId || sshTargetId)
-  const canBrowseRemoteDestination = isRemoteClone
+  const canBrowseRemoteDestination = Boolean(runtimeEnvironmentId)
   const canClone = !!cloneUrl.trim() && !!cloneDestination.trim() && !isCloning
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
-    if (imeEnter.ownsKeyDown(e)) {
-      return
-    }
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
       e.preventDefault()
       if (canClone) {
         onClone()
@@ -55,7 +50,7 @@ export function CloneStep({
     }
   }
 
-  if (browsingDestination && (runtimeEnvironmentId || sshTargetId)) {
+  if (browsingDestination && runtimeEnvironmentId) {
     return (
       <>
         <DialogHeader>
@@ -69,27 +64,15 @@ export function CloneStep({
             )}
           </DialogDescription>
         </DialogHeader>
-        {sshTargetId ? (
-          <RemoteFileBrowser
-            targetId={sshTargetId}
-            initialPath={cloneDestination || '~'}
-            onSelect={(path) => {
-              onDestChange(path)
-              setBrowsingDestination(false)
-            }}
-            onCancel={() => setBrowsingDestination(false)}
-          />
-        ) : (
-          <RemoteFileBrowser
-            runtimeEnvironmentId={runtimeEnvironmentId as string}
-            initialPath={cloneDestination || '~'}
-            onSelect={(path) => {
-              onDestChange(path)
-              setBrowsingDestination(false)
-            }}
-            onCancel={() => setBrowsingDestination(false)}
-          />
-        )}
+        <RemoteFileBrowser
+          runtimeEnvironmentId={runtimeEnvironmentId}
+          initialPath={cloneDestination || '~'}
+          onSelect={(path) => {
+            onDestChange(path)
+            setBrowsingDestination(false)
+          }}
+          onCancel={() => setBrowsingDestination(false)}
+        />
       </>
     )
   }
@@ -122,10 +105,6 @@ export function CloneStep({
           <Input
             value={cloneUrl}
             onChange={(e) => onUrlChange(e.target.value)}
-            onBlur={imeEnter.reset}
-            onCompositionStart={() => imeEnter.setComposing(true)}
-            onCompositionEnd={() => imeEnter.setComposing(false)}
-            onKeyUp={imeEnter.onKeyUp}
             onKeyDown={handleKeyDown}
             placeholder={translate(
               'auto.components.sidebar.AddRepoSteps.b698a4a29d',
@@ -145,13 +124,9 @@ export function CloneStep({
             <Input
               value={cloneDestination}
               onChange={(e) => onDestChange(e.target.value)}
-              onBlur={imeEnter.reset}
-              onCompositionStart={() => imeEnter.setComposing(true)}
-              onCompositionEnd={() => imeEnter.setComposing(false)}
-              onKeyUp={imeEnter.onKeyUp}
               onKeyDown={handleKeyDown}
               placeholder={
-                isRemoteClone
+                runtimeEnvironmentId
                   ? translate(
                       'auto.components.sidebar.AddRepoSteps.remoteCloneParentPlaceholder',
                       '/home/user/projects'
@@ -202,7 +177,7 @@ export function CloneStep({
 
         <Button
           onClick={onClone}
-          disabled={!cloneUrl.trim() || !cloneDestination.trim() || isCloning}
+          disabled={!cloneUrl.trim() || !cloneDestination.trim() || isCloning || submitDisabled}
           className="w-full"
         >
           {isCloning

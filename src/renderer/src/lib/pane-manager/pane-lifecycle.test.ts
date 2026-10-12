@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ITerminalAddon } from '@xterm/xterm'
 import { WebglAddon } from '@xterm/addon-webgl'
 import type { ManagedPaneInternal } from './pane-manager-types'
 import {
   attachWebgl,
   markComplexScriptOutput,
+  primeTerminalWebglAddon,
   resetTerminalWebglSuggestion
 } from './pane-webgl-renderer'
-import { attachLigatures, disposePane, openTerminal } from './pane-lifecycle'
+import { attachLigatures, disposePane, openTerminal, setLigaturesEnabled } from './pane-lifecycle'
 import { ensureArabicShapingJoinerForText } from './terminal-arabic-shaping-joiner'
 import {
   buildDefaultTerminalOptions,
@@ -42,10 +44,12 @@ function createPane(): ManagedPaneInternal {
     id: 1,
     leafId,
     stablePaneId: leafId,
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: stand-in for xterm's Terminal exposing only the members these lifecycle paths touch.
     terminal: {
       loadAddon: vi.fn(),
       attachCustomWheelEventHandler: vi.fn(),
       refresh: vi.fn(),
+      onRender: vi.fn(() => ({ dispose: vi.fn() })),
       cols: 80,
       rows: 24
     } as never,
@@ -69,6 +73,8 @@ function createPane(): ManagedPaneInternal {
     ligaturesAddon: null,
     webLinksAddon: {} as never,
     webglAddon: null,
+    imageAddon: null,
+    compositionHandler: null,
     pendingSplitScrollState: null,
     debugLabel: null
   }
@@ -198,7 +204,8 @@ describe('buildDefaultTerminalOptions', () => {
 })
 
 describe('attachWebgl', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await primeTerminalWebglAddon()
     webglMock.contextLossHandler = null
     webglMock.clearTextureAtlas.mockClear()
     webglMock.dispose.mockClear()
@@ -429,6 +436,19 @@ describe('attachLigatures', () => {
     expect(pane.terminal.refresh).toHaveBeenCalledWith(0, 23)
     expect(pane.ligaturesAddon).not.toBeNull()
   })
+
+  it('defers a retained WebGL rebuild while hidden', () => {
+    const pane = createPane()
+    const retainedAddon = { dispose: vi.fn() } as never
+    pane.webglAddon = retainedAddon
+    pane.webglAttachmentDeferred = true
+
+    attachLigatures(pane)
+
+    expect(pane.webglAddon).toBe(retainedAddon)
+    expect(pane.webglRebuildDeferred).toBe(true)
+    expect(pane.terminal.refresh).not.toHaveBeenCalled()
+  })
 })
 
 describe('openTerminal — addon and provider wiring', () => {
@@ -492,6 +512,7 @@ describe('openTerminal — addon and provider wiring', () => {
       })
     )
 
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: a hand-built stand-in for xterm's Terminal; openTerminal touches only the members defined here, and a real Terminal needs a rendering canvas this suite has no DOM for.
     const terminal = {
       element: fakeTerminalElement,
       textarea: null,
@@ -500,7 +521,7 @@ describe('openTerminal — addon and provider wiring', () => {
       open: vi.fn(() => {
         events.push('open')
       }),
-      loadAddon: vi.fn((addon: object) => {
+      loadAddon: vi.fn((addon: ITerminalAddon) => {
         if (addon === fitAddon) {
           events.push('loadAddon:fit')
         } else if (addon === searchAddon) {
@@ -515,6 +536,7 @@ describe('openTerminal — addon and provider wiring', () => {
       }),
       attachCustomWheelEventHandler: vi.fn(),
       onWriteParsed: vi.fn(() => ({ dispose: vi.fn() })),
+      refresh: vi.fn(),
       write: vi.fn(() => {
         events.push('write')
       }),
@@ -525,6 +547,12 @@ describe('openTerminal — addon and provider wiring', () => {
       }),
       deregisterCharacterJoiner: vi.fn((joinerId: number) => {
         events.push(`deregisterCharacterJoiner:${joinerId}`)
+      }),
+      clearSelection: vi.fn(() => {
+        events.push('clearSelection')
+      }),
+      dispose: vi.fn(() => {
+        events.push('dispose')
       }),
       unicode: unicodeProxy,
       buffer: { active: { cursorX: 0, cursorY: 0 } }
@@ -553,6 +581,8 @@ describe('openTerminal — addon and provider wiring', () => {
       ligaturesAddon: null,
       webLinksAddon,
       webglAddon: null,
+      imageAddon: null,
+      compositionHandler: null,
       pendingSplitScrollState: null,
       debugLabel: null
     }
@@ -565,6 +595,31 @@ describe('openTerminal — addon and provider wiring', () => {
   // unicode v11 is activated (still on default v6 width tables), wide chars
   // lay out as single cells. The bug surfaces as the broken `?`-style glyphs
   // users saw on worktree switch.
+  it('builds one initial WebGL atlas with ligatures and still rebuilds on a live toggle', async () => {
+    await primeTerminalWebglAddon()
+    resetTerminalWebglSuggestion()
+    vi.mocked(WebglAddon).mockClear()
+    webglMock.dispose.mockClear()
+    vi.stubGlobal('navigator', { platform: 'MacIntel', userAgent: 'Macintosh' })
+    const { pane } = createOpenTerminalHarness()
+    pane.terminalGpuAcceleration = 'auto'
+    pane.gpuRenderingEnabled = true
+
+    openTerminal(pane, { ligatures: true })
+    expect(pane.ligaturesAddon).not.toBeNull()
+    expect(pane.webglAddon).not.toBeNull()
+    const addons = vi.mocked(pane.terminal.loadAddon).mock.calls.map(([addon]) => addon)
+    expect(addons.indexOf(pane.ligaturesAddon!)).toBeLessThan(addons.indexOf(pane.webglAddon!))
+    setLigaturesEnabled(pane, true)
+    expect(WebglAddon).toHaveBeenCalledTimes(1)
+    expect(webglMock.dispose).not.toHaveBeenCalled()
+
+    setLigaturesEnabled(pane, false)
+    expect(WebglAddon).toHaveBeenCalledTimes(2)
+    expect(webglMock.dispose).toHaveBeenCalledTimes(1)
+    expect(pane.ligaturesAddon).toBeNull()
+  })
+
   it('activates unicode 11 before any caller-driven write would be possible', () => {
     const { pane, events } = createOpenTerminalHarness()
 
@@ -603,6 +658,15 @@ describe('openTerminal — addon and provider wiring', () => {
 
     expect(events).toContain('deregisterCharacterJoiner:3')
     expect(pane.arabicShapingJoinerCleanup).toBeNull()
+  })
+
+  it('clears selection before disposing a remounted pane', () => {
+    const { pane, events } = createOpenTerminalHarness()
+    openTerminal(pane)
+
+    disposePane(pane, new Map([[pane.id, pane]]))
+
+    expect(events.indexOf('clearSelection')).toBeLessThan(events.indexOf('dispose'))
   })
 
   // Why: a link streamed under a stationary pointer must re-linkify on the next

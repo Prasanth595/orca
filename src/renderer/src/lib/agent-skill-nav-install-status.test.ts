@@ -24,7 +24,6 @@ function skill(name: string): DiscoveredSkill {
     directoryPath,
     skillFilePath: path.join(directoryPath, 'SKILL.md'),
     installed: true,
-    fileCount: 1,
     updatedAt: null
   }
 }
@@ -43,12 +42,8 @@ function placement(name: string, status: SkillFreshnessStatus): SkillFreshnessIn
     physicalIdentity: name,
     topology: 'canonical-copy',
     status,
-    installedReleaseRevision: 1,
-    installedAppVersion: '1.0.0',
-    currentReleaseRevision: 2,
     currentPackageDigest: 'current',
-    currentAppVersion: '2.0.0',
-    observedPackageDigest: status === 'current' ? 'current' : 'other',
+    lockSource: 'stablyai/orca',
     errorCategory: null
   }
 }

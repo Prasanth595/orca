@@ -1,3 +1,4 @@
+import { ImeTextarea } from '@/lib/ime-text-field'
 import React, { useCallback, useRef, useState } from 'react'
 import { LoaderCircle } from 'lucide-react'
 import { toast } from 'sonner'
@@ -7,9 +8,8 @@ import { useMountedRef } from '@/hooks/useMountedRef'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store'
 import { getScreenSubmitShortcutLabel, isScreenSubmitShortcut } from '@/lib/screen-submit-shortcut'
-import { useImeEnterGestureOwnership } from '@/lib/ime-composition-keyboard-event'
-import { linearUpdateIssue } from '@/runtime/runtime-linear-client'
-import type { LinearIssue } from '../../../shared/types'
+import { linearUpdateIssue } from '@/runtime/runtime-linear-issue-mutations'
+import type { LinearIssue } from '../../../shared/linear/issue-types'
 import type { TaskSourceContext } from '../../../shared/task-source-context'
 import {
   getLinearIssueTextSavePlan,
@@ -20,6 +20,7 @@ import {
   resolveLinearIssueTextDraftState
 } from './linear-issue-text-draft-state'
 import { translate } from '@/i18n/i18n'
+import { defaultScopeSource } from '@/lib/default-creation-host'
 
 type LinearIssueTextEditorProps = {
   issue: LinearIssue
@@ -37,13 +38,12 @@ export function LinearIssueTextEditor({
   sourceContext
 }: LinearIssueTextEditorProps): React.JSX.Element {
   const settings = useAppStore((s) => s.settings)
-  const providerSettings = sourceContext ?? settings
+  const providerSettings = sourceContext ?? defaultScopeSource(settings)
   const patchLinearIssue = useAppStore((s) => s.patchLinearIssue)
   const [draftState, setDraftState] = useState(() => createLinearIssueTextDraftState(issue))
   const [savingField, setSavingField] = useState<LinearIssueTextField | null>(null)
   const lastIssueIdRef = useRef(issue.id)
   const mountedRef = useMountedRef()
-  const titleImeEnter = useImeEnterGestureOwnership()
   const resolvedDraftState = resolveLinearIssueTextDraftState(draftState, issue)
   const issueChanged = draftState.issueId !== issue.id
   if (resolvedDraftState !== draftState) {
@@ -174,9 +174,6 @@ export function LinearIssueTextEditor({
 
   const handleTitleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (titleImeEnter.ownsKeyDown(event)) {
-        return
-      }
       if (event.key === 'Enter') {
         event.preventDefault()
         event.currentTarget.blur()
@@ -184,7 +181,7 @@ export function LinearIssueTextEditor({
       }
       handleDescriptionKeyDown(event)
     },
-    [handleDescriptionKeyDown, titleImeEnter]
+    [handleDescriptionKeyDown]
   )
 
   const titleClass =
@@ -195,17 +192,11 @@ export function LinearIssueTextEditor({
     <div className="min-w-0">
       {fields !== 'description' ? (
         <div className="relative">
-          <textarea
+          <ImeTextarea
             value={titleDraft}
             onChange={(event) => updateTitleDraft(event.target.value)}
-            onCompositionStart={() => titleImeEnter.setComposing(true)}
-            onCompositionEnd={() => titleImeEnter.setComposing(false)}
-            onBlur={() => {
-              titleImeEnter.reset()
-              void saveField('title')
-            }}
+            onBlur={() => void saveField('title')}
             onKeyDown={handleTitleKeyDown}
-            onKeyUp={titleImeEnter.onKeyUp}
             disabled={savingField === 'title'}
             rows={1}
             aria-label={translate(
@@ -236,6 +227,7 @@ export function LinearIssueTextEditor({
         <div className="relative">
           <LinearIssueMarkdownDescriptionEditor
             value={descriptionDraft}
+            imageUrls={issue.descriptionImageUrls}
             onChange={updateDescriptionDraft}
             onSave={saveDescriptionValue}
             density={density}

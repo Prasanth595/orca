@@ -64,6 +64,7 @@ function createPane(bufferType: 'normal' | 'alternate'): {
     webglDisabledAfterContextLoss: false,
     hasComplexScriptOutput: false,
     webglAddon: null,
+    imageAddon: null,
     ligaturesAddon: null,
     fitResizeObserver: null,
     pendingObservedFitRafId: null,
@@ -74,6 +75,7 @@ function createPane(bufferType: 'normal' | 'alternate'): {
     } as never,
     unicode11Addon: {} as never,
     webLinksAddon: {} as never,
+    compositionHandler: null,
     pendingSplitScrollState: scrollState,
     pendingSplitScrollBufferDisposable: null,
     debugLabel: null

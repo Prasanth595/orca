@@ -1,3 +1,4 @@
+import { MEDIA_FILE_MIME_TYPES } from '../../../src/shared/media-file-extensions'
 // Pure tree projection for the mobile file explorer. Mobile mirrors desktop
 // browse semantics by flattening cached files.readDir results as folders open.
 import { compareFileNames } from '../../../src/shared/file-name-sort'
@@ -39,6 +40,7 @@ export type FileExplorerRow = TreeNode | InlineStatusNode
 
 const DESKTOP_EXCLUDED_NAMES = new Set(['.git', 'node_modules'])
 const BINARY_EXTENSIONS = new Set([
+  ...Object.keys(MEDIA_FILE_MIME_TYPES),
   '.avif',
   '.bmp',
   '.gif',
@@ -132,7 +134,7 @@ export function getDirectoryCacheState(
 ): DirectoryState | undefined {
   // Why: repository paths are arbitrary object keys; inherited keys like
   // "constructor" must not masquerade as loaded directory state.
-  return Object.prototype.hasOwnProperty.call(cache, relativePath) ? cache[relativePath] : undefined
+  return Object.hasOwn(cache, relativePath) ? cache[relativePath] : undefined
 }
 
 export function joinRelativePath(parentPath: string, name: string): string {

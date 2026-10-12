@@ -2,7 +2,6 @@ import { useId, useLayoutEffect, useState } from 'react'
 import { LoaderCircle, Lock } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { useMountedRef } from '@/hooks/useMountedRef'
-import { ImeEnterGuardedForm } from '@/components/ime-enter-guarded-form'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -17,6 +16,7 @@ import { Label } from '@/components/ui/label'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/utils'
 import { hasRemoteProviderRuntime } from '@/lib/provider-runtime-context'
+import { preventOutsideDismissWhenDirty } from '@/lib/outside-dismiss-guard'
 import { translate } from '@/i18n/i18n'
 
 type JiraConnectDialogProps = {
@@ -113,6 +113,11 @@ export function JiraConnectDialog({
     }
   }
 
+  // Why: a stray backdrop click must not discard typed credentials. Mode switches clear the
+  // credential fields, so a toggle alone is not dirty. Escape / Cancel / × stay explicit.
+  const isDraftDirty = (): boolean => siteUrl !== '' || email !== '' || apiToken !== ''
+  const guardOutsideDismiss = preventOutsideDismissWhenDirty(isDraftDirty)
+
   const handleConnect = async (): Promise<void> => {
     const trimmedSite = siteUrl.trim()
     const trimmedEmail = email.trim()
@@ -165,6 +170,8 @@ export function JiraConnectDialog({
       <DialogContent
         overlayClassName={overlayClassName}
         className={cn('sm:max-w-md', contentClassName)}
+        onPointerDownOutside={guardOutsideDismiss}
+        onInteractOutside={guardOutsideDismiss}
       >
         <DialogHeader className="gap-3">
           <DialogTitle className="leading-tight">
@@ -187,7 +194,7 @@ export function JiraConnectDialog({
                   )}
           </DialogDescription>
         </DialogHeader>
-        <ImeEnterGuardedForm
+        <form
           className="flex flex-col gap-4"
           noValidate
           onSubmit={(event) => {
@@ -417,7 +424,7 @@ export function JiraConnectDialog({
               )}
             </Button>
           </DialogFooter>
-        </ImeEnterGuardedForm>
+        </form>
       </DialogContent>
     </Dialog>
   )

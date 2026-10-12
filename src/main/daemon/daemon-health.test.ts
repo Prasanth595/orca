@@ -1,3 +1,4 @@
+import './mock-descendant-sweep'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { spawn } from 'node:child_process'
@@ -10,18 +11,21 @@ import { getDaemonPidPath, serializeDaemonPidFile } from './daemon-spawner'
 import type { SocketProbeOutcome } from './daemon-endpoint-probe'
 import {
   checkDaemonHealth,
+  checkDaemonHealthWithCoverage,
   E2E_FORCE_DAEMON_HEALTH_UNREACHABLE_ENV,
+  healthCheckDaemon
+} from './daemon-health'
+import { killStaleDaemon } from './daemon-stale-kill'
+import {
   getProcessStartedAtMs,
-  healthCheckDaemon,
-  killStaleDaemon,
   parseLinuxBootTimeSeconds,
   parseLinuxProcStartTicks,
-  parseDaemonPidFile,
-  parseWindowsProcessIdentityJson,
   startTimeMatches,
   startTimesWithinTolerance
-} from './daemon-health'
-import type { SubprocessHandle } from './session'
+} from './daemon-process-start-time'
+import { parseDaemonPidFile } from './daemon-pid-file-parse'
+import { parseWindowsProcessIdentityJson } from './daemon-process-identity-query'
+import type { SubprocessHandle } from './session-subprocess-handle'
 
 function createMockSubprocess(): SubprocessHandle {
   return {
@@ -30,6 +34,7 @@ function createMockSubprocess(): SubprocessHandle {
     write() {},
     resize() {},
     kill() {},
+    terminateOwnedTree: () => 'unavailable' as const,
     forceKill() {},
     signal() {},
     onData() {},
@@ -101,9 +106,58 @@ describe('daemon health', () => {
     try {
       await expect(checkDaemonHealth(socketPath, tokenPath)).resolves.toBe('healthy')
       await expect(healthCheckDaemon(socketPath, tokenPath)).resolves.toBe(true)
-      expect(ptySpawnHealthCheck).toHaveBeenCalledTimes(2)
+      await expect(checkDaemonHealthWithCoverage(socketPath, tokenPath)).resolves.toEqual({
+        verdict: 'healthy',
+        coverage: process.platform === 'win32' ? 'handshake' : 'pty-spawn'
+      })
+      expect(ptySpawnHealthCheck).toHaveBeenCalledTimes(3)
     } finally {
       await server.shutdown()
+    }
+  })
+
+  it('treats missing coverage from a legacy Windows daemon as handshake-only', async () => {
+    writeFileSync(tokenPath, 'legacy-token')
+    const server = createServer((socket) => {
+      let pending = ''
+      socket.on('data', (chunk) => {
+        pending += chunk.toString()
+        for (;;) {
+          const newline = pending.indexOf('\n')
+          if (newline === -1) {
+            return
+          }
+          const message: unknown = JSON.parse(pending.slice(0, newline))
+          const type =
+            typeof message === 'object' && message !== null && 'type' in message
+              ? message.type
+              : undefined
+          pending = pending.slice(newline + 1)
+          if (type === 'hello') {
+            socket.write(`${JSON.stringify({ type: 'hello', ok: true })}\n`)
+          } else if (type === 'ptySpawnHealth') {
+            socket.write(
+              `${JSON.stringify({ id: 'health-1', ok: true, payload: { healthy: true } })}\n`
+            )
+          }
+        }
+      })
+    })
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(socketPath, resolve)
+    })
+
+    const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
+    Object.defineProperty(process, 'platform', { configurable: true, value: 'win32' })
+    try {
+      await expect(checkDaemonHealthWithCoverage(socketPath, tokenPath)).resolves.toEqual({
+        verdict: 'healthy',
+        coverage: 'handshake'
+      })
+    } finally {
+      Object.defineProperty(process, 'platform', platform)
+      await closeServer(server)
     }
   })
 
@@ -170,29 +224,26 @@ describe('daemon health', () => {
     }
   })
 
-  it.skipIf(process.platform === 'win32')(
-    'does not unlink a live socket when the pid file does not match this daemon',
-    async () => {
-      const server = createServer((socket) => socket.end())
-      await new Promise<void>((resolve, reject) => {
-        server.once('error', reject)
-        server.listen(socketPath, () => {
-          server.off('error', reject)
-          resolve()
-        })
+  it('does not unlink a live socket when the pid file does not match this daemon', async () => {
+    const server = createServer((socket) => socket.end())
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(socketPath, () => {
+        server.off('error', reject)
+        resolve()
       })
-      writeFileSync(getDaemonPidPath(dir), String(process.pid), { mode: 0o600 })
+    })
+    writeFileSync(getDaemonPidPath(dir), String(process.pid), { mode: 0o600 })
 
-      try {
-        await expect(killStaleDaemon(dir, socketPath, tokenPath)).resolves.toMatchObject({
-          killed: false
-        })
-        await expect(canConnect(socketPath)).resolves.toBe(true)
-      } finally {
-        await closeServer(server)
-      }
+    try {
+      await expect(killStaleDaemon(dir, socketPath, tokenPath)).resolves.toMatchObject({
+        killed: false
+      })
+      await expect(canConnect(socketPath)).resolves.toBe(true)
+    } finally {
+      await closeServer(server)
     }
-  )
+  })
 })
 
 describe('parseDaemonPidFile', () => {
@@ -206,7 +257,9 @@ describe('parseDaemonPidFile', () => {
       launchNonce: null,
       linuxStartTicks: null,
       bootId: null,
-      spawnerExecPath: null
+      spawnerExecPath: null,
+      cgroupUnit: null,
+      processCeiling: null
     })
   })
 
@@ -225,7 +278,9 @@ describe('parseDaemonPidFile', () => {
       launchNonce: null,
       linuxStartTicks: null,
       bootId: null,
-      spawnerExecPath: null
+      spawnerExecPath: null,
+      cgroupUnit: null,
+      processCeiling: null
     })
   })
 
@@ -255,7 +310,9 @@ describe('parseDaemonPidFile', () => {
       launchNonce: null,
       linuxStartTicks: null,
       bootId: null,
-      spawnerExecPath: null
+      spawnerExecPath: null,
+      cgroupUnit: null,
+      processCeiling: null
     })
   })
 
@@ -271,7 +328,9 @@ describe('parseDaemonPidFile', () => {
       launchNonce: null,
       linuxStartTicks: null,
       bootId: null,
-      spawnerExecPath: null
+      spawnerExecPath: null,
+      cgroupUnit: null,
+      processCeiling: null
     })
     expect(parseDaemonPidFile('  12345\n')).toEqual({
       pid: 12345,
@@ -281,7 +340,9 @@ describe('parseDaemonPidFile', () => {
       launchNonce: null,
       linuxStartTicks: null,
       bootId: null,
-      spawnerExecPath: null
+      spawnerExecPath: null,
+      cgroupUnit: null,
+      processCeiling: null
     })
   })
 
@@ -354,7 +415,7 @@ describe('startTimeMatches', () => {
     expect(startTimeMatches(process.pid, actual + 500)).toBe(true)
   })
 
-  it.skipIf(process.platform === 'win32')('returns false for start times outside tolerance', () => {
+  it('returns false for start times outside tolerance', () => {
     const actual = getProcessStartedAtMs(process.pid)
     if (actual === null) {
       return
@@ -415,37 +476,34 @@ describe('killStaleDaemon pid identity guards', () => {
     rmSync(dir, { recursive: true, force: true })
   })
 
-  it.skipIf(process.platform === 'win32')(
-    'does not SIGTERM when the saved startedAtMs mismatches the current process',
-    async () => {
-      // Why: seed a pid file that claims the daemon is `process.pid` (us) but
-      // was started 1 hour ago. Our real start time is "now," so startTimeMatches
-      // returns false and isDaemonProcess rejects. killStaleDaemon must not call
-      // process.kill in that case.
-      const bogusStartedAtMs = Date.now() - 60 * 60 * 1000
-      writeFileSync(
-        getDaemonPidPath(dir),
-        serializeDaemonPidFile({ pid: process.pid, startedAtMs: bogusStartedAtMs }),
-        { mode: 0o600 }
-      )
+  it('does not SIGTERM when the saved startedAtMs mismatches the current process', async () => {
+    // Why: seed a pid file that claims the daemon is `process.pid` (us) but
+    // was started 1 hour ago. Our real start time is "now," so startTimeMatches
+    // returns false and isDaemonProcess rejects. killStaleDaemon must not call
+    // process.kill in that case.
+    const bogusStartedAtMs = Date.now() - 60 * 60 * 1000
+    writeFileSync(
+      getDaemonPidPath(dir),
+      serializeDaemonPidFile({ pid: process.pid, startedAtMs: bogusStartedAtMs }),
+      { mode: 0o600 }
+    )
 
-      // isDaemonProcess uses process.kill(pid, 0) as a liveness probe; that's
-      // expected and not a real kill. We only care that no actual termination
-      // signal is sent.
-      const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true)
-      try {
-        await expect(killStaleDaemon(dir, socketPath, tokenPath)).resolves.toMatchObject({
-          killed: false
-        })
-        const terminationSignals = killSpy.mock.calls.filter(
-          ([, sig]) => sig === 'SIGTERM' || sig === 'SIGKILL'
-        )
-        expect(terminationSignals).toEqual([])
-      } finally {
-        killSpy.mockRestore()
-      }
+    // isDaemonProcess uses process.kill(pid, 0) as a liveness probe; that's
+    // expected and not a real kill. We only care that no actual termination
+    // signal is sent.
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true)
+    try {
+      await expect(killStaleDaemon(dir, socketPath, tokenPath)).resolves.toMatchObject({
+        killed: false
+      })
+      const terminationSignals = killSpy.mock.calls.filter(
+        ([, sig]) => sig === 'SIGTERM' || sig === 'SIGKILL'
+      )
+      expect(terminationSignals).toEqual([])
+    } finally {
+      killSpy.mockRestore()
     }
-  )
+  })
 })
 
 describe('killStaleDaemon ownership decisions', () => {

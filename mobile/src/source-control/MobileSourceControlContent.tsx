@@ -1,6 +1,6 @@
+import { useMemo } from 'react'
 import {
   ActivityIndicator,
-  Platform,
   Pressable,
   ScrollView,
   SectionList,
@@ -9,7 +9,6 @@ import {
   View
 } from 'react-native'
 import { Minus, MoreHorizontal, Plus, Sparkles } from 'lucide-react-native'
-import { imeGuardedSubmitProps } from '../ime/ime-submit-carry'
 import { colors, spacing } from '../theme/mobile-theme'
 import { MobileSourceControlCreatePrEntry } from './MobileSourceControlCreatePrEntry'
 import { MobileCommitFailurePanel } from './MobileCommitFailurePanel'
@@ -43,6 +42,7 @@ export function MobileSourceControlContent({ state }: Props) {
     openingBranchPath,
     sections,
     hasVisibleChanges,
+    status,
     stageablePaths,
     unstageablePaths,
     stagedCount,
@@ -57,23 +57,38 @@ export function MobileSourceControlContent({ state }: Props) {
     runGitAction
   } = state
   const ioBusy = busyAction !== null || openingPath !== null || openingBranchPath !== null
+  // Why: a capped listing can hide unstaged rows behind an all-staged prefix.
+  const canStageAll = stageablePaths.length > 0 || status?.didHitLimit === true
   const shouldShowGenerateButton = stagedCount > 0 || generatingMessage
   const createPrHeroActive =
     createPrAction.visible && !createPrAction.disabled && !createPrAction.pushFirst
-  const branchCompareFooter = (
-    <BranchCompareFooter
-      state={{
-        shouldShowBranchCompareSection: state.shouldShowBranchCompareSection,
-        branchCompareSummaryText: state.branchCompareSummaryText,
-        branchEntries: state.branchEntries,
-        branchCompareState: state.branchCompareState,
-        branchCompareResult: state.branchCompareResult,
-        busyAction,
-        openBranchDiff,
-        openingBranchPath,
-        openingPath
-      }}
-    />
+  const branchCompareFooter = useMemo(
+    () => (
+      <BranchCompareFooter
+        state={{
+          shouldShowBranchCompareSection: state.shouldShowBranchCompareSection,
+          branchCompareSummaryText: state.branchCompareSummaryText,
+          branchEntries: state.branchEntries,
+          branchCompareState: state.branchCompareState,
+          branchCompareResult: state.branchCompareResult,
+          busyAction,
+          openBranchDiff,
+          openingBranchPath,
+          openingPath
+        }}
+      />
+    ),
+    [
+      state.shouldShowBranchCompareSection,
+      state.branchCompareSummaryText,
+      state.branchEntries,
+      state.branchCompareState,
+      state.branchCompareResult,
+      busyAction,
+      openBranchDiff,
+      openingBranchPath,
+      openingPath
+    ]
   )
 
   return (
@@ -105,11 +120,11 @@ export function MobileSourceControlContent({ state }: Props) {
           <Pressable
             style={({ pressed }) => [
               styles.bulkButton,
-              (stageablePaths.length === 0 || ioBusy) && styles.bulkButtonDisabled,
+              (!canStageAll || ioBusy) && styles.bulkButtonDisabled,
               pressed && styles.bulkButtonPressed
             ]}
             onPress={() => void stageAll()}
-            disabled={ioBusy || stageablePaths.length === 0}
+            disabled={ioBusy || !canStageAll}
           >
             {busyAction === 'stage-all' ? (
               <ActivityIndicator size="small" color={colors.textPrimary} />
@@ -214,7 +229,7 @@ export function MobileSourceControlContent({ state }: Props) {
               placeholderTextColor={colors.textMuted}
               editable={busyAction === null && openingPath === null && openingBranchPath === null}
               returnKeyType="done"
-              {...imeGuardedSubmitProps(Platform.OS, primaryAction.onPress)}
+              onSubmitEditing={primaryAction.onPress}
             />
           )}
           {shouldShowGenerateButton ? (

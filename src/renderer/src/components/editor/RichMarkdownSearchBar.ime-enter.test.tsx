@@ -1,79 +1,210 @@
 // @vitest-environment happy-dom
 
-import { act, cleanup, fireEvent, render } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import React from 'react'
+import { act, createRef } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RichMarkdownSearchBar } from './RichMarkdownSearchBar'
 
-function dispatchKey(el: HTMLElement, type: 'keydown' | 'keyup', init: KeyboardEventInit): void {
-  const event = new KeyboardEvent(type, { bubbles: true, cancelable: true, ...init })
-  Object.defineProperty(event, 'keyCode', { value: init.keyCode })
-  act(() => el.dispatchEvent(event))
+vi.mock('@/i18n/i18n', () => ({
+  translate: (_key: string, fallback: string) => fallback
+}))
+
+vi.mock('@/hooks/useShortcutLabel', () => ({
+  useOptionalShortcutLabel: () => null
+}))
+
+const QUERY = '배포'
+const REPLACEMENT = '릴리스'
+
+let container: HTMLDivElement
+let root: Root
+
+beforeEach(() => {
+  container = document.createElement('div')
+  document.body.appendChild(container)
+  root = createRoot(container)
+})
+
+afterEach(() => {
+  act(() => {
+    root.unmount()
+  })
+  container.remove()
+})
+
+type BarSpies = {
+  onClose?: () => void
+  onMoveToMatch?: (direction: 1 | -1) => void
+  onReplaceCurrent?: () => void
 }
 
-function renderReplaceInput(onReplaceCurrent: () => void): HTMLInputElement {
-  const searchInputRef = React.createRef<HTMLInputElement>()
-  const view = render(
-    <RichMarkdownSearchBar
-      activeMatchIndex={0}
-      isOpen
-      isReplaceMode
-      matchCase={false}
-      matchCount={3}
-      query="a"
-      replaceQuery=""
-      replaceDisabled={false}
-      searchInputRef={searchInputRef}
-      wholeWord={false}
-      onClose={vi.fn()}
-      onMoveToMatch={vi.fn()}
-      onQueryChange={vi.fn()}
-      onReplaceAll={vi.fn()}
-      onReplaceCurrent={onReplaceCurrent}
-      onReplaceQueryChange={vi.fn()}
-      onToggleMatchCase={vi.fn()}
-      onToggleReplaceMode={vi.fn()}
-      onToggleWholeWord={vi.fn()}
-    />
-  )
-  return view.getByLabelText('Replace in rich markdown editor') as HTMLInputElement
+function renderBar(spies: BarSpies): {
+  findInput: HTMLInputElement
+  replaceInput: HTMLInputElement
+} {
+  act(() => {
+    root.render(
+      <RichMarkdownSearchBar
+        activeMatchIndex={0}
+        isOpen
+        isReplaceMode
+        matchCase={false}
+        matchCount={2}
+        query={QUERY}
+        replaceQuery={REPLACEMENT}
+        replaceDisabled={false}
+        searchInputRef={createRef<HTMLInputElement>()}
+        wholeWord={false}
+        onClose={spies.onClose ?? vi.fn()}
+        onMoveToMatch={spies.onMoveToMatch ?? vi.fn()}
+        onQueryChange={vi.fn()}
+        onReplaceAll={vi.fn()}
+        onReplaceCurrent={spies.onReplaceCurrent ?? vi.fn()}
+        onReplaceQueryChange={vi.fn()}
+        onToggleMatchCase={vi.fn()}
+        onToggleReplaceMode={vi.fn()}
+        onToggleWholeWord={vi.fn()}
+      />
+    )
+  })
+  const inputs = [...container.querySelectorAll('input')]
+  // Why: match on value rather than order so a layout change fails loudly instead of
+  // silently pointing the assertions at the wrong field.
+  const findInput = inputs.find((candidate) => candidate.value === QUERY)
+  const replaceInput = inputs.find((candidate) => candidate.value === REPLACEMENT)
+  if (!findInput || !replaceInput) {
+    throw new Error('search bar fields not rendered')
+  }
+  return { findInput, replaceInput }
 }
 
-afterEach(cleanup)
+function pressKey(
+  input: HTMLInputElement,
+  key: string,
+  init?: KeyboardEventInit & { keyCode?: number }
+): void {
+  const event = new KeyboardEvent('keydown', {
+    key,
+    bubbles: true,
+    cancelable: true,
+    ...init
+  })
+  if (init?.keyCode !== undefined) {
+    Object.defineProperty(event, 'keyCode', { value: init.keyCode })
+  }
+  act(() => {
+    input.dispatchEvent(event)
+  })
+}
 
-describe('RichMarkdownSearchBar IME Enter ownership', () => {
-  it('does not replace on the marked confirm keydown', () => {
+describe('RichMarkdownSearchBar replace field IME guard', () => {
+  it('does not replace on the Enter that commits a CJK composition', () => {
     const onReplaceCurrent = vi.fn()
-    const input = renderReplaceInput(onReplaceCurrent)
+    const { replaceInput } = renderBar({ onReplaceCurrent })
 
-    fireEvent.compositionStart(input)
-    dispatchKey(input, 'keydown', { key: 'Process', keyCode: 229, isComposing: true })
+    pressKey(replaceInput, 'Enter', { isComposing: true })
 
     expect(onReplaceCurrent).not.toHaveBeenCalled()
   })
 
-  // Why: replace is not idempotent, so the unmarked Enter the Korean IME redispatches
-  // after compositionEnd must not slip through and mutate the document.
-  it('does not replace on the recorded Korean Enter redispatch', () => {
+  it('does not replace on an Enter the IME reports as keyCode 229', () => {
     const onReplaceCurrent = vi.fn()
-    const input = renderReplaceInput(onReplaceCurrent)
+    const { replaceInput } = renderBar({ onReplaceCurrent })
 
-    fireEvent.compositionStart(input)
-    dispatchKey(input, 'keydown', { key: 'Process', keyCode: 229, isComposing: true })
-    fireEvent.compositionEnd(input, { data: '가' })
-    dispatchKey(input, 'keydown', { key: 'Enter', keyCode: 13, isComposing: false })
-    dispatchKey(input, 'keyup', { key: 'Process', keyCode: 229 })
-    dispatchKey(input, 'keyup', { key: 'Enter', keyCode: 13 })
+    pressKey(replaceInput, 'Enter', { keyCode: 229 })
 
     expect(onReplaceCurrent).not.toHaveBeenCalled()
   })
 
-  it('replaces exactly once on ordinary Enter', () => {
+  it('does not close the bar on the Escape that cancels a composition', () => {
+    const onClose = vi.fn()
+    const { replaceInput } = renderBar({ onClose })
+
+    pressKey(replaceInput, 'Escape', { isComposing: true })
+
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('still replaces on a plain Enter', () => {
     const onReplaceCurrent = vi.fn()
-    const input = renderReplaceInput(onReplaceCurrent)
+    const { replaceInput } = renderBar({ onReplaceCurrent })
 
-    dispatchKey(input, 'keydown', { key: 'Enter', keyCode: 13, isComposing: false })
+    pressKey(replaceInput, 'Enter')
 
-    expect(onReplaceCurrent).toHaveBeenCalledOnce()
+    expect(onReplaceCurrent).toHaveBeenCalledTimes(1)
+  })
+
+  it('still closes the bar on a plain Escape', () => {
+    const onClose = vi.fn()
+    const { replaceInput } = renderBar({ onClose })
+
+    pressKey(replaceInput, 'Escape')
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('RichMarkdownSearchBar find field IME guard', () => {
+  it('does not move to the next match on the Enter that commits a composition', () => {
+    const onMoveToMatch = vi.fn()
+    const { findInput } = renderBar({ onMoveToMatch })
+
+    pressKey(findInput, 'Enter', { isComposing: true })
+
+    expect(onMoveToMatch).not.toHaveBeenCalled()
+  })
+
+  it('does not move to the previous match on a composing Shift+Enter', () => {
+    const onMoveToMatch = vi.fn()
+    const { findInput } = renderBar({ onMoveToMatch })
+
+    pressKey(findInput, 'Enter', { isComposing: true, shiftKey: true })
+
+    expect(onMoveToMatch).not.toHaveBeenCalled()
+  })
+
+  it('does not move on an Enter the IME reports as keyCode 229', () => {
+    const onMoveToMatch = vi.fn()
+    const { findInput } = renderBar({ onMoveToMatch })
+
+    pressKey(findInput, 'Enter', { keyCode: 229 })
+
+    expect(onMoveToMatch).not.toHaveBeenCalled()
+  })
+
+  it('does not close the bar on the Escape that cancels a composition', () => {
+    const onClose = vi.fn()
+    const { findInput } = renderBar({ onClose })
+
+    pressKey(findInput, 'Escape', { isComposing: true })
+
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('still moves to the next match on a plain Enter', () => {
+    const onMoveToMatch = vi.fn()
+    const { findInput } = renderBar({ onMoveToMatch })
+
+    pressKey(findInput, 'Enter')
+
+    expect(onMoveToMatch).toHaveBeenCalledWith(1)
+  })
+
+  it('still moves to the previous match on a plain Shift+Enter', () => {
+    const onMoveToMatch = vi.fn()
+    const { findInput } = renderBar({ onMoveToMatch })
+
+    pressKey(findInput, 'Enter', { shiftKey: true })
+
+    expect(onMoveToMatch).toHaveBeenCalledWith(-1)
+  })
+
+  it('still closes the bar on a plain Escape', () => {
+    const onClose = vi.fn()
+    const { findInput } = renderBar({ onClose })
+
+    pressKey(findInput, 'Escape')
+
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

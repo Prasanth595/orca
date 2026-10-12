@@ -1,4 +1,11 @@
-import type { TerminalLayoutSnapshot, TerminalPaneLayoutNode } from '../../shared/types'
+import type {
+  TerminalLayoutSnapshot,
+  TerminalPaneLayoutNode
+} from '../../shared/terminal-tab-types'
+import {
+  insertLeafBeside,
+  removeLayoutLeaf
+} from '../../shared/workspace-layout/terminal-pane-tree'
 
 /**
  * Insert a newly split-off leaf into a terminal tab's persisted layout tree.
@@ -17,31 +24,26 @@ export function buildHeadlessTerminalSplitLayout(
     direction: 'horizontal' | 'vertical'
   }
 ): TerminalLayoutSnapshot {
-  const existingRoot: TerminalPaneLayoutNode = existing?.root ?? {
+  // Why: the stored tree may already hold the new leaf; it is placed again beside its source.
+  const currentRoot = existing?.root ? removeLayoutLeaf(existing.root, args.leafId) : null
+  const existingRoot: TerminalPaneLayoutNode = currentRoot ?? {
     type: 'leaf',
     leafId: args.splitFromLeafId
   }
-  const insertSplit = (node: TerminalPaneLayoutNode): TerminalPaneLayoutNode => {
-    if (node.type === 'leaf') {
-      if (node.leafId !== args.splitFromLeafId) {
-        return node
-      }
-      return {
-        type: 'split',
-        direction: args.direction,
-        first: node,
-        second: { type: 'leaf', leafId: args.leafId }
-      }
-    }
-    return { ...node, first: insertSplit(node.first), second: insertSplit(node.second) }
-  }
+  const ptyIdsByLeafId = { ...existing?.ptyIdsByLeafId }
+  delete ptyIdsByLeafId[args.leafId]
   return {
     ...existing,
-    root: insertSplit(existingRoot),
+    root: insertLeafBeside(
+      existingRoot,
+      args.splitFromLeafId,
+      args.leafId,
+      args.direction === 'vertical' ? 'right' : 'bottom'
+    ),
     activeLeafId: args.leafId,
     expandedLeafId: existing?.expandedLeafId ?? null,
     ptyIdsByLeafId: {
-      ...existing?.ptyIdsByLeafId,
+      ...ptyIdsByLeafId,
       [args.leafId]: args.ptyId
     }
   }

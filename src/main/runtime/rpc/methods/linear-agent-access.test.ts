@@ -1,8 +1,9 @@
+import '../unused-default-rpc-methods.test-fixture'
 import { describe, expect, it, vi } from 'vitest'
 import { RpcDispatcher } from '../dispatcher'
 import type { RpcRequest } from '../core'
 import { OrcaRuntimeService } from '../../orca-runtime'
-import { LinearWriteFailure } from '../../../linear/issues'
+import { LinearWriteFailure } from '../../../linear/linear-issue-write-support'
 import { sanitizeLinearErrorMessage } from '../../../linear/issue-context-errors'
 import { LINEAR_AGENT_ACCESS_METHODS } from './linear-agent-access'
 
@@ -355,7 +356,7 @@ type LinearUnconfirmedBuilder = {
     target: unknown,
     extra?: unknown
   ): Error & { data?: { cause?: string; nextSteps?: string[] } }
-  resolveLinearAgentState(input: string, states: unknown[]): unknown | null
+  resolveLinearAgentState(input: string, states: unknown[]): unknown
   linearCreatedIssueMatchesIntent(issue: unknown, intent: unknown): boolean
   linearSavedIssueMatchesIntent(issue: unknown, intent: unknown): boolean
   notifyLinearLinkedIssueUpdated(
@@ -372,13 +373,13 @@ type LinearRetryLookupTester = {
     parentId: string | null,
     workspaceId: string,
     required: boolean
-  ): Promise<unknown | null>
+  ): Promise<unknown>
   getMatchingLinearAttachmentWrite(
     writeId: string,
     issueId: string,
     workspaceId: string,
     required: boolean
-  ): Promise<unknown | null>
+  ): Promise<unknown>
   getMatchingLinearCreatedIssue(
     writeId: string,
     teamId: string,
@@ -386,7 +387,7 @@ type LinearRetryLookupTester = {
     workspaceId: string,
     required: boolean,
     intent?: unknown
-  ): Promise<unknown | null>
+  ): Promise<unknown>
   refetchLinearCommentAfterDuplicate(
     writeId: string,
     issueId: string,

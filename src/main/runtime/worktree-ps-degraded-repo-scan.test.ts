@@ -15,18 +15,10 @@ const electronMocks = vi.hoisted(() => {
 })
 vi.mock('electron', () => electronMocks)
 
-const getSshGitProviderMock = vi.hoisted(() => vi.fn())
-vi.mock('../providers/ssh-git-dispatch', () => ({
-  getSshGitProvider: getSshGitProviderMock,
-  getSshGitProviderGeneration: vi.fn(() => 0),
-  SSH_GIT_PROVIDER_UNAVAILABLE_MESSAGE: 'unavailable',
-  requireSshGitProvider: (connectionId: string) => getSshGitProviderMock(connectionId)
-}))
-
-const listWorktreesMock = vi.hoisted(() => vi.fn())
+const listWorktreesStrictMock = vi.hoisted(() => vi.fn())
 vi.mock('../git/worktree', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
-  listWorktrees: listWorktreesMock
+  listWorktreesStrict: listWorktreesStrictMock
 }))
 
 import { LOCAL_EXECUTION_HOST_ID } from '../../shared/execution-host'
@@ -137,16 +129,6 @@ function neverSettles() {
   return new Promise<never>(() => {})
 }
 
-/** A healthy remote scan, so the only difference between the co-hosted cases is how `metaById` is stamped. */
-function makeHealthySshScan() {
-  return {
-    listWorktrees: vi.fn(async () => [
-      { path: REPO_PATH, head: 'abc', branch: 'main', isBare: false, isMainWorktree: true },
-      { path: WORKTREE_PATH, head: 'def', branch: 'feature', isBare: false, isMainWorktree: false }
-    ])
-  }
-}
-
 async function advancePastRepoScanBudget<T>(pending: Promise<T>): Promise<T> {
   await vi.advanceTimersByTimeAsync(6_000)
   return pending
@@ -154,15 +136,13 @@ async function advancePastRepoScanBudget<T>(pending: Promise<T>): Promise<T> {
 
 describe('worktree.ps on a degraded repo scan', () => {
   beforeEach(() => {
-    getSshGitProviderMock.mockReset()
-    listWorktreesMock.mockReset()
-    listWorktreesMock.mockResolvedValue([])
+    listWorktreesStrictMock.mockReset()
+    listWorktreesStrictMock.mockResolvedValue([])
   })
 
   it('keeps persisted worktrees when a remote scan stalls past the per-repo budget', async () => {
     vi.useFakeTimers()
     try {
-      getSshGitProviderMock.mockReturnValue({ listWorktrees: vi.fn(neverSettles) })
       const runtime = new OrcaRuntimeService(makeStore({ connectionId: 'ssh-remote-1' }) as never)
 
       const result = await advancePastRepoScanBudget(runtime.getWorktreePs(10_000))
@@ -174,7 +154,6 @@ describe('worktree.ps on a degraded repo scan', () => {
   })
 
   it('keeps persisted worktrees when a remote repo is unreachable', async () => {
-    getSshGitProviderMock.mockReturnValue(undefined)
     const runtime = new OrcaRuntimeService(makeStore({ connectionId: 'ssh-remote-1' }) as never)
 
     const result = await runtime.getWorktreePs(10_000)
@@ -185,7 +164,7 @@ describe('worktree.ps on a degraded repo scan', () => {
   it('keeps persisted worktrees when a local scan stalls past the per-repo budget', async () => {
     vi.useFakeTimers()
     try {
-      listWorktreesMock.mockImplementation(neverSettles)
+      listWorktreesStrictMock.mockImplementation(neverSettles)
       const runtime = new OrcaRuntimeService(makeStore() as never)
 
       const result = await advancePastRepoScanBudget(runtime.getWorktreePs(10_000))
@@ -199,7 +178,7 @@ describe('worktree.ps on a degraded repo scan', () => {
   // Why: `withTimeout` resolves its fallback on rejection as well as on timeout, so an unabsorbed rejection would silently widen
   // selector resolution for local repos the way a stall does.
   it('treats a rejected scan as a real answer instead of restoring persisted worktrees', async () => {
-    listWorktreesMock.mockRejectedValue(new Error('git unavailable'))
+    listWorktreesStrictMock.mockRejectedValue(new Error('git unavailable'))
     const runtime = new OrcaRuntimeService(makeStore() as never)
 
     const result = await runtime.getWorktreePs(10_000)
@@ -208,7 +187,7 @@ describe('worktree.ps on a degraded repo scan', () => {
   })
 
   it('still reports selector_not_found for a local worktree when the scan rejects', async () => {
-    listWorktreesMock.mockRejectedValue(new Error('git unavailable'))
+    listWorktreesStrictMock.mockRejectedValue(new Error('git unavailable'))
     const runtime = new OrcaRuntimeService(makeStore() as never)
 
     await expect(runtime.showManagedWorktree(`id:${WORKTREE_ID}`)).rejects.toThrow(
@@ -216,41 +195,34 @@ describe('worktree.ps on a degraded repo scan', () => {
     )
   })
 
-  // Why: the scan cache only stores `ok` results, so calling a zero-row local scan degraded would re-spawn `git worktree list`
-  // on every ~1s snapshot recompute for a repo whose directory is permanently gone.
+  // Why: an authoritative empty scan must retain the normal backoff instead of spawning Git on every ~1s snapshot.
   it('caches a zero-row local scan instead of rescanning on every poll', async () => {
     vi.useFakeTimers()
     try {
-      listWorktreesMock.mockResolvedValue([])
+      listWorktreesStrictMock.mockResolvedValue([])
       const runtime = new OrcaRuntimeService(makeStore() as never)
 
       await runtime.getWorktreePs(10_000)
       await vi.advanceTimersByTimeAsync(2_000)
       await runtime.getWorktreePs(10_000)
 
-      expect(listWorktreesMock).toHaveBeenCalledTimes(1)
+      expect(listWorktreesStrictMock).toHaveBeenCalledTimes(1)
     } finally {
       vi.useRealTimers()
     }
   })
 
-  // Why: the scan cache stores `ok` results only, so a degraded answer must not pin the repo to persisted rows after the host recovers.
-  it('rescans a degraded remote repo on the next poll instead of caching the failure', async () => {
+  it('caches a failed local scan instead of respawning Git on every poll', async () => {
     vi.useFakeTimers()
     try {
-      const listWorktrees = vi.fn(async () => {
-        throw new Error('provider offline')
-      })
-      getSshGitProviderMock.mockReturnValue({ listWorktrees })
-      const runtime = new OrcaRuntimeService(
-        makeStore({ connectionId: SSH_CONNECTION_ID }) as never
-      )
+      listWorktreesStrictMock.mockRejectedValue(new Error('spawn git EAGAIN'))
+      const runtime = new OrcaRuntimeService(makeStore() as never)
 
       await runtime.getWorktreePs(10_000)
       await vi.advanceTimersByTimeAsync(2_000)
       await runtime.getWorktreePs(10_000)
 
-      expect(listWorktrees).toHaveBeenCalledTimes(2)
+      expect(listWorktreesStrictMock).toHaveBeenCalledTimes(1)
     } finally {
       vi.useRealTimers()
     }
@@ -260,8 +232,7 @@ describe('worktree.ps on a degraded repo scan', () => {
   it('does not overwrite another execution host’s healthy rows when this host’s scan stalls', async () => {
     vi.useFakeTimers()
     try {
-      getSshGitProviderMock.mockReturnValue(makeHealthySshScan())
-      listWorktreesMock.mockImplementation(neverSettles)
+      listWorktreesStrictMock.mockImplementation(neverSettles)
       const runtime = new OrcaRuntimeService(
         makeStore({
           connectionId: SSH_CONNECTION_ID,
@@ -280,34 +251,7 @@ describe('worktree.ps on a degraded repo scan', () => {
       const result = await advancePastRepoScanBudget(runtime.getWorktreePs(10_000))
 
       const remote = result.worktrees.find((worktree) => worktree.worktreeId === WORKTREE_ID)
-      expect(remote?.branch).toBe('feature')
       expect(remote?.hostId).toBe(SSH_HOST_ID)
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('does not claim an unstamped persisted row when the repo id is registered on two hosts', async () => {
-    vi.useFakeTimers()
-    try {
-      getSshGitProviderMock.mockReturnValue(makeHealthySshScan())
-      listWorktreesMock.mockImplementation(neverSettles)
-      const runtime = new OrcaRuntimeService(
-        makeStore({
-          connectionId: SSH_CONNECTION_ID,
-          coHostedRepos: [{ id: REPO_ID, path: LOCAL_REPO_PATH }],
-          metaById: {
-            [WORKTREE_ID]: makeMeta(),
-            [MAIN_WORKTREE_ID]: makeMeta({ displayName: 'main', instanceId: 'parent-instance' })
-          }
-        }) as never
-      )
-
-      const result = await advancePastRepoScanBudget(runtime.getWorktreePs(10_000))
-
-      const remote = result.worktrees.find((worktree) => worktree.worktreeId === WORKTREE_ID)
-      expect(remote?.hostId).toBe(SSH_HOST_ID)
-      expect(remote?.branch).toBe('feature')
     } finally {
       vi.useRealTimers()
     }
@@ -317,7 +261,7 @@ describe('worktree.ps on a degraded repo scan', () => {
   it('restores persisted rows stamped for this host when its only owner stalls', async () => {
     vi.useFakeTimers()
     try {
-      listWorktreesMock.mockImplementation(neverSettles)
+      listWorktreesStrictMock.mockImplementation(neverSettles)
       const runtime = new OrcaRuntimeService(
         makeStore({
           metaById: {
@@ -352,13 +296,13 @@ describe('worktree.ps on a degraded repo scan', () => {
   it('does not re-spawn the git scan on every poll while a scan stays stalled', async () => {
     vi.useFakeTimers()
     try {
-      listWorktreesMock.mockImplementation(neverSettles)
+      listWorktreesStrictMock.mockImplementation(neverSettles)
       const runtime = new OrcaRuntimeService(makeStore() as never)
 
       await advancePastRepoScanBudget(runtime.getWorktreePs(10_000))
       await advancePastRepoScanBudget(runtime.getWorktreePs(10_000))
 
-      expect(listWorktreesMock).toHaveBeenCalledTimes(1)
+      expect(listWorktreesStrictMock).toHaveBeenCalledTimes(1)
     } finally {
       vi.useRealTimers()
     }
@@ -367,7 +311,7 @@ describe('worktree.ps on a degraded repo scan', () => {
   it('drops and prunes a worktree that a healthy scan no longer reports', async () => {
     const removeWorktreeLineage = vi.fn()
     const removeWorkspaceLineage = vi.fn()
-    listWorktreesMock.mockResolvedValue([
+    listWorktreesStrictMock.mockResolvedValue([
       { path: REPO_PATH, head: 'abc', branch: 'main', isBare: false, isMainWorktree: true }
     ])
     const runtime = new OrcaRuntimeService(
@@ -386,7 +330,7 @@ describe('worktree.ps on a degraded repo scan', () => {
     try {
       const removeWorktreeLineage = vi.fn()
       const removeWorkspaceLineage = vi.fn()
-      listWorktreesMock.mockImplementation(neverSettles)
+      listWorktreesStrictMock.mockImplementation(neverSettles)
       const runtime = new OrcaRuntimeService(
         makeStore({ removeWorktreeLineage, removeWorkspaceLineage }) as never
       )
@@ -401,7 +345,7 @@ describe('worktree.ps on a degraded repo scan', () => {
   })
 
   it('does not re-read persisted worktree metadata on a healthy scan', async () => {
-    listWorktreesMock.mockResolvedValue([
+    listWorktreesStrictMock.mockResolvedValue([
       { path: REPO_PATH, head: 'abc', branch: 'main', isBare: false, isMainWorktree: true }
     ])
     const store = makeStore()
@@ -415,7 +359,7 @@ describe('worktree.ps on a degraded repo scan', () => {
   it('lists restored worktrees while a scan is stalled and still hides agent scratch', async () => {
     vi.useFakeTimers()
     try {
-      listWorktreesMock.mockImplementation(neverSettles)
+      listWorktreesStrictMock.mockImplementation(neverSettles)
       const runtime = new OrcaRuntimeService(
         makeStore({
           metaById: {

@@ -18,25 +18,35 @@ vi.mock('./NativeChatComposerActions', () => ({
 }))
 
 vi.mock('./NativeChatAutocompleteMenus', () => ({
-  NativeChatMentionHint: () => null,
+  NativeChatMentionMenu: () => null,
   NativeChatPickerMenu: () => null
 }))
 
-import {
-  NativeChatComposerField,
-  type NativeChatComposerFieldProps
-} from './NativeChatComposerField'
+vi.mock('@/components/editor/useLocalImageSrc', () => ({
+  useLocalImageSrc: (src?: string) => (src ? 'blob:attachment-preview' : undefined)
+}))
 
-afterEach(() => cleanup())
+import { NativeChatComposerField } from './NativeChatComposerField'
+import { useImeEnterGestureOwnership } from '@/lib/ime-composition-keyboard-event'
 
-function composerField(
-  draft: string,
-  callbacks: Partial<
-    Pick<NativeChatComposerFieldProps, 'onDraftChange' | 'onKeyDown' | 'onCompositionEnd'>
-  > = {}
-): React.JSX.Element {
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
+
+const EMPTY_IMAGE_ATTACHMENTS: { id: string; path: string }[] = []
+
+function TestField({
+  draft,
+  imageAttachments = EMPTY_IMAGE_ATTACHMENTS
+}: {
+  draft: string
+  imageAttachments?: { id: string; path: string }[]
+}): React.JSX.Element {
+  const imeEnterGesture = useImeEnterGestureOwnership()
   return (
     <NativeChatComposerField
+      draftScopeKey="pane-test"
       textareaRef={createRef<HTMLTextAreaElement>()}
       draft={draft}
       disabled={false}
@@ -44,24 +54,25 @@ function composerField(
       canSend
       autocomplete={{ mode: 'none' }}
       activeSuggestion={0}
-      notice={null}
-      imageAttachments={[]}
+      notices={[]}
+      imageAttachments={imageAttachments}
       sendButtonDisabled={false}
       isWorking={false}
       attachDisabled={false}
       dictationDisabled={false}
       isDictating={false}
       isDictationHoldMode={false}
-      onDraftChange={callbacks.onDraftChange ?? vi.fn()}
+      imeEnterGesture={imeEnterGesture}
+      onDraftChange={vi.fn()}
       onTextareaSelect={vi.fn()}
-      onKeyDown={callbacks.onKeyDown ?? vi.fn()}
-      onCompositionStart={vi.fn()}
-      onCompositionEnd={callbacks.onCompositionEnd ?? vi.fn()}
+      onKeyDown={vi.fn()}
+      onImeSettled={vi.fn()}
       onPaste={vi.fn()}
       pickerListboxId="picker"
       onChoosePickerItem={vi.fn()}
       onRetrySkills={vi.fn()}
-      onAcceptMention={vi.fn()}
+      onChooseMentionFile={vi.fn()}
+      mentionFiles={{ files: [], loading: false, failed: false }}
       onRemoveImageAttachment={vi.fn()}
       onAttach={vi.fn()}
       onDictationToggle={vi.fn()}
@@ -75,13 +86,13 @@ function composerField(
 }
 
 function renderField(draft: string): HTMLTextAreaElement {
-  render(composerField(draft))
+  render(<TestField draft={draft} />)
   return screen.getByRole('textbox') as HTMLTextAreaElement
 }
 
 describe('native chat composer autogrow', () => {
-  it('sizes the textarea from its content instead of staying at rows={2}', () => {
-    expect(renderField('').className).toContain('[field-sizing:content]')
+  it('grows naturally with editable content', () => {
+    expect(renderField('').getAttribute('contenteditable')).toBe('true')
   })
 
   it('caps growth at 8 lines plus the py-1 padding box', () => {
@@ -109,207 +120,14 @@ describe('native chat composer autogrow', () => {
   })
 })
 
-describe('native chat composer composition ownership', () => {
-  it('preserves browser-owned Korean preedit through stale streaming rerenders', () => {
-    const onCompositionEnd = vi.fn()
-    const view = render(composerField('', { onCompositionEnd }))
-    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
-    fireEvent.compositionStart(textarea)
-    textarea.value = '가'
+describe('native chat composer image attachments', () => {
+  it('renders a thumbnail and opens a full-size preview when clicked', async () => {
+    vi.stubGlobal('IntersectionObserver', undefined)
+    render(<TestField draft="" imageAttachments={[{ id: 'image-1', path: '/tmp/example.png' }]} />)
 
-    for (let index = 0; index < 120; index += 1) {
-      view.rerender(composerField(`stale stream ${index}`, { onCompositionEnd }))
-      expect(screen.getByRole('textbox')).toBe(textarea)
-      expect(textarea.value).toBe('가')
-    }
-
-    fireEvent.compositionEnd(textarea, { data: '가' })
-    expect(onCompositionEnd).toHaveBeenCalledOnce()
-    expect(onCompositionEnd.mock.calls[0][0].target.value).toBe('가')
-  })
-
-  it('applies draft rerenders while ordinary English input is idle', () => {
-    const view = render(composerField('abc'))
-    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
-
-    view.rerender(composerField('ordinary'))
-
-    expect(screen.getByRole('textbox')).toBe(textarea)
-    expect(textarea.value).toBe('ordinary')
-  })
-
-  it('owns an unmarked Enter redispatch until the marked IME gesture keyup', () => {
-    const onKeyDown = vi.fn()
-    render(composerField('가', { onKeyDown }))
-    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
-    fireEvent.compositionStart(textarea)
-
-    const markedResult = fireEvent.keyDown(textarea, {
-      key: 'Enter',
-      keyCode: 13,
-      isComposing: true
-    })
-    fireEvent.compositionEnd(textarea, { data: '가' })
-    const redispatchResult = fireEvent.keyDown(textarea, {
-      key: 'Enter',
-      keyCode: 13,
-      isComposing: false
-    })
-
-    expect(markedResult).toBe(true)
-    expect(redispatchResult).toBe(false)
-    expect(onKeyDown).not.toHaveBeenCalled()
-
-    fireEvent.keyUp(textarea, { key: 'Enter', keyCode: 13 })
-    fireEvent.keyDown(textarea, { key: 'Enter', keyCode: 13, isComposing: false })
-    expect(onKeyDown).toHaveBeenCalledOnce()
-  })
-
-  it('retains the Windows Process gesture through its unmarked Enter redispatch', () => {
-    const onKeyDown = vi.fn()
-    render(composerField('가', { onKeyDown }))
-    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
-    fireEvent.compositionStart(textarea)
-    fireEvent.keyDown(textarea, {
-      key: 'Process',
-      keyCode: 229,
-      isComposing: true
-    })
-    fireEvent.compositionEnd(textarea, { data: '가' })
-
-    const redispatchResult = fireEvent.keyDown(textarea, {
-      key: 'Enter',
-      keyCode: 13,
-      isComposing: false
-    })
-
-    expect(redispatchResult).toBe(false)
-    expect(onKeyDown).not.toHaveBeenCalled()
-
-    fireEvent.keyUp(textarea, { key: 'Process', keyCode: 229 })
-    fireEvent.keyUp(textarea, { key: 'Enter', keyCode: 13 })
-    fireEvent.keyDown(textarea, { key: 'Enter', keyCode: 13, isComposing: false })
-    expect(onKeyDown).toHaveBeenCalledOnce()
-  })
-
-  it('retains an active composition when the Process event omits its composing flag', () => {
-    const onKeyDown = vi.fn()
-    render(composerField('가', { onKeyDown }))
-    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
-    fireEvent.compositionStart(textarea)
-    fireEvent.keyDown(textarea, {
-      key: 'Process',
-      keyCode: 229,
-      isComposing: false
-    })
-    fireEvent.compositionEnd(textarea, { data: '가' })
-
-    const redispatchResult = fireEvent.keyDown(textarea, {
-      key: 'Enter',
-      keyCode: 13,
-      isComposing: false
-    })
-
-    expect(redispatchResult).toBe(false)
-    expect(onKeyDown).not.toHaveBeenCalled()
-  })
-
-  it('retains the macOS marked Enter/229 gesture through its unmarked redispatch', () => {
-    const onKeyDown = vi.fn()
-    let clearPending: FrameRequestCallback | undefined
-    const animationFrame = vi
-      .spyOn(window, 'requestAnimationFrame')
-      .mockImplementation((callback) => {
-        clearPending = callback
-        return 1
-      })
-    render(composerField('테스트', { onKeyDown }))
-    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
-    fireEvent.compositionStart(textarea)
-    fireEvent.keyDown(textarea, { key: 'Enter', keyCode: 229, isComposing: true })
-    fireEvent.compositionEnd(textarea, { data: '테스트' })
-    fireEvent.keyUp(textarea, { key: 'Enter', keyCode: 13 })
-
-    const redispatchResult = fireEvent.keyDown(textarea, {
-      key: 'Enter',
-      keyCode: 13,
-      isComposing: false
-    })
-
-    expect(redispatchResult).toBe(false)
-    expect(onKeyDown).not.toHaveBeenCalled()
-
-    clearPending?.(0)
-    fireEvent.keyUp(textarea, { key: 'Enter', keyCode: 13 })
-    fireEvent.keyDown(textarea, { key: 'Enter', keyCode: 13, isComposing: false })
-    expect(onKeyDown).toHaveBeenCalledOnce()
-    animationFrame.mockRestore()
-  })
-
-  it('expires a marked Enter when the browser does not redispatch it', () => {
-    const onKeyDown = vi.fn()
-    let clearPending: FrameRequestCallback | undefined
-    const animationFrame = vi
-      .spyOn(window, 'requestAnimationFrame')
-      .mockImplementation((callback) => {
-        clearPending = callback
-        return 1
-      })
-    render(composerField('가', { onKeyDown }))
-    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
-    fireEvent.compositionStart(textarea)
-    fireEvent.keyDown(textarea, { key: 'Enter', keyCode: 229, isComposing: true })
-    fireEvent.compositionEnd(textarea, { data: '가' })
-    fireEvent.keyUp(textarea, { key: 'Enter', keyCode: 13 })
-
-    clearPending?.(0)
-    fireEvent.keyDown(textarea, { key: 'Enter', keyCode: 13, isComposing: false })
-
-    expect(onKeyDown).toHaveBeenCalledOnce()
-    animationFrame.mockRestore()
-  })
-
-  it('does not let an older expiry clear a newer IME gesture', () => {
-    const onKeyDown = vi.fn()
-    const pendingFrames: FrameRequestCallback[] = []
-    const animationFrame = vi
-      .spyOn(window, 'requestAnimationFrame')
-      .mockImplementation((callback) => {
-        pendingFrames.push(callback)
-        return pendingFrames.length
-      })
-    render(composerField('가', { onKeyDown }))
-    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
-
-    fireEvent.compositionStart(textarea)
-    fireEvent.keyDown(textarea, { key: 'Enter', keyCode: 229, isComposing: true })
-    fireEvent.compositionEnd(textarea, { data: '가' })
-    fireEvent.keyUp(textarea, { key: 'Enter', keyCode: 13 })
-    fireEvent.keyDown(textarea, { key: 'Enter', keyCode: 13, isComposing: false })
-
-    fireEvent.compositionStart(textarea)
-    fireEvent.keyDown(textarea, { key: 'Enter', keyCode: 229, isComposing: true })
-    fireEvent.compositionEnd(textarea, { data: '나' })
-    pendingFrames[0]?.(0)
-
-    const redispatchResult = fireEvent.keyDown(textarea, {
-      key: 'Enter',
-      keyCode: 13,
-      isComposing: false
-    })
-
-    expect(redispatchResult).toBe(false)
-    expect(onKeyDown).not.toHaveBeenCalled()
-    animationFrame.mockRestore()
-  })
-
-  it('passes ordinary English Enter through without an IME gesture', () => {
-    const onKeyDown = vi.fn()
-    render(composerField('abc', { onKeyDown }))
-    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
-
-    fireEvent.keyDown(textarea, { key: 'Enter', keyCode: 13, isComposing: false })
-
-    expect(onKeyDown).toHaveBeenCalledOnce()
+    expect(await screen.findByRole('img', { name: 'example.png' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'View image: example.png' }))
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(screen.getByRole('dialog').textContent).toContain('example.png')
   })
 })

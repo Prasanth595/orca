@@ -1,6 +1,6 @@
 import type { DraftPasteReadySignal } from '../../../shared/tui-agent-config'
-import type { GlobalSettings } from '../../../shared/types'
 import { subscribeToPtyData } from '@/components/terminal-pane/pty-data-sidecar-subscriptions'
+import { replayPreHandlerPtyData } from '@/components/terminal-pane/pty-pre-handler-buffer'
 import { isRemoteRuntimePtyId } from '@/runtime/runtime-terminal-inspection'
 import { subscribeToRuntimeTerminalData } from '@/runtime/runtime-terminal-stream'
 import { createDraftPasteReadyScanner } from '../../../shared/draft-paste-ready-scanner'
@@ -20,13 +20,13 @@ const BRACKETED_PASTE_QUIET_MS = 1500
 export function waitForAgentDraftInputReady(
   ptyId: string,
   timeoutMs: number,
-  readySignal: DraftPasteReadySignal,
-  settings: Pick<GlobalSettings, 'activeRuntimeEnvironmentId'> | null | undefined
+  readySignal: DraftPasteReadySignal
 ): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
     let settled = false
     const scanner = createDraftPasteReadyScanner(readySignal)
     let quietTimer: number | null = null
+    let graceTimer: number | null = null
     let hardTimer: number | null = null
     let unsubscribe: (() => void) | null = null
 
@@ -41,6 +41,9 @@ export function waitForAgentDraftInputReady(
       if (quietTimer !== null) {
         window.clearTimeout(quietTimer)
       }
+      if (graceTimer !== null) {
+        window.clearTimeout(graceTimer)
+      }
       unsubscribe?.()
       resolve(value)
     }
@@ -53,10 +56,16 @@ export function waitForAgentDraftInputReady(
     }
 
     const observeData = (data: string): void => {
-      const { ready, armQuietTimer: shouldArm } = scanner.observe(data)
+      const { ready, armQuietTimer: shouldArm, readyAfterMs } = scanner.observe(data)
       if (ready) {
         finish(true)
         return
+      }
+      if (readyAfterMs === null && graceTimer !== null) {
+        window.clearTimeout(graceTimer)
+        graceTimer = null
+      } else if (typeof readyAfterMs === 'number' && graceTimer === null) {
+        graceTimer = window.setTimeout(() => finish(true), readyAfterMs)
       }
       if (shouldArm) {
         armQuietTimer()
@@ -64,12 +73,7 @@ export function waitForAgentDraftInputReady(
     }
 
     if (isRemoteRuntimePtyId(ptyId)) {
-      void subscribeToRuntimeTerminalData(
-        settings,
-        ptyId,
-        `desktop:paste-ready:${ptyId}`,
-        observeData
-      )
+      void subscribeToRuntimeTerminalData(ptyId, `desktop:paste-ready:${ptyId}`, observeData)
         .then((remoteUnsubscribe) => {
           if (settled) {
             remoteUnsubscribe()
@@ -80,10 +84,14 @@ export function waitForAgentDraftInputReady(
         .catch(() => finish(false))
     } else {
       unsubscribe = subscribeToPtyData(ptyId, observeData)
+      // Why: spawn can resolve after the first Codex frame was buffered. Replay
+      // it to this observer without consuming the primary xterm handler's copy.
+      replayPreHandlerPtyData(ptyId, observeData)
     }
 
     if (!settled) {
-      hardTimer = window.setTimeout(() => finish(false), timeoutMs)
+      // A pending grace means the box was seen: take it, as the box rule would have.
+      hardTimer = window.setTimeout(() => finish(graceTimer !== null), timeoutMs)
     }
   })
 }

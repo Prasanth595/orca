@@ -30,7 +30,9 @@ function createPane(pendingInitialFitRafId: number | null): ManagedPaneInternal 
     unicode11Addon: { dispose: vi.fn() } as never,
     webLinksAddon: { dispose: vi.fn() } as never,
     webglAddon: null,
+    imageAddon: null,
     ligaturesAddon: null,
+    compositionHandler: null,
     pendingSplitScrollState: null,
     pendingSplitScrollBufferDisposable: null,
     debugLabel: null

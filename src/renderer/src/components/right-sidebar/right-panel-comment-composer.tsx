@@ -1,10 +1,11 @@
+import { ImeTextarea } from '@/lib/ime-text-field'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Bold, Code2, Italic, List, Quote } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ShortcutKeyCombo } from '@/components/ShortcutKeyCombo'
 import { cn } from '@/lib/utils'
-import { isImeOwnedKeyboardEvent } from '@/lib/ime-composition-keyboard-event'
+import { isImeCompositionKeyDown } from '@/lib/ime-composition-keyboard-event'
 import {
   getCommentBodySubmitState,
   hasBoundedCommentBodyText
@@ -172,9 +173,9 @@ export function RightPanelCommentComposer({
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      // Mode B redispatch carries no modifier so it can't reach this chord; the real risk is a
-      // chord pressed mid-composition, which would post the unconverted preedit.
-      if (isImeOwnedKeyboardEvent(event)) {
+      // Why: the Enter that only confirms a CJK candidate still reports the held
+      // modifier, so submitting here posts the comment without its last syllable.
+      if (isImeCompositionKeyDown(event)) {
         return
       }
       const modifierPressed = isMac ? event.metaKey : event.ctrlKey
@@ -238,7 +239,7 @@ export function RightPanelCommentComposer({
       onClick={stopPropagation}
       onMouseDown={stopPropagation}
     >
-      <textarea
+      <ImeTextarea
         ref={setTextareaRef}
         value={body}
         rows={3}

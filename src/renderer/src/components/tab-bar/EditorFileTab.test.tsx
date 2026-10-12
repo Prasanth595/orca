@@ -29,9 +29,6 @@ vi.mock('react', async () => {
     useCallback<T extends (...args: never[]) => unknown>(callback: T) {
       return callback
     },
-    useMemo<T>(factory: () => T) {
-      return factory()
-    },
     useRef<T>(initial: T) {
       return { current: initial }
     },
@@ -51,6 +48,10 @@ vi.mock('react', async () => {
     }
   }
 })
+
+vi.mock('./use-tab-strip-slot-props', () => ({
+  useTabStripSlotProps: () => ({ className: '', 'data-tab-strip-slot': '' })
+}))
 
 vi.mock('@dnd-kit/sortable', () => ({
   useSortable: () => ({
@@ -160,6 +161,9 @@ vi.mock('@/components/ui/input', () => ({
 }))
 
 vi.mock('@/components/ui/tooltip', () => ({
+  TooltipProvider: function TooltipProvider(props: { children?: unknown }) {
+    return props.children
+  },
   Tooltip: function Tooltip(props: { children?: unknown }) {
     return { type: 'Tooltip', props }
   },
@@ -167,6 +171,12 @@ vi.mock('@/components/ui/tooltip', () => ({
     return { type: 'TooltipContent', props }
   },
   TooltipTrigger: function TooltipTrigger(props: { children?: unknown }) {
+    return props.children
+  }
+}))
+
+vi.mock('./TabHoverCard', () => ({
+  TabHoverCard: function TabHoverCard(props: { children?: unknown }) {
     return props.children
   }
 }))
@@ -203,10 +213,6 @@ vi.mock('../right-sidebar/status-display', () => ({
   STATUS_LABELS: {}
 }))
 
-vi.mock('./SortableTab', () => ({
-  CLOSE_ALL_CONTEXT_MENUS_EVENT: 'orca-close-all-context-menus'
-}))
-
 vi.mock('./drop-indicator', () => ({
   ACTIVE_TAB_INDICATOR_CLASSES: 'active-tab-indicator',
   getDropIndicatorClasses: () => '',
@@ -216,11 +222,6 @@ vi.mock('./drop-indicator', () => ({
 
 vi.mock('@/components/editor/markdown-preview-controls', () => ({
   canOpenMarkdownPreview: () => false
-}))
-
-vi.mock('@/lib/local-path-open-guard', () => ({
-  shouldBlockEditorTabLocalOpen: () => false,
-  showLocalPathOpenBlockedToast: vi.fn()
 }))
 
 type ReactElementLike = {
@@ -259,7 +260,7 @@ async function renderEditorFileTab(
     hasTabsToRight: false,
     hasTabsToLeft: false,
     tabCount: 1,
-    statusByRelativePath: new Map(),
+    gitStatus: null,
     onActivate,
     onClose: () => {},
     onCloseOthers: () => {},
@@ -348,6 +349,15 @@ function findMenuItemByText(node: unknown, label: string): ReactElementLike {
   return item
 }
 
+/** Picks Rename, then fires the close-autofocus that actually opens the input. */
+function selectRenameFromMenu(node: unknown): void {
+  ;(findMenuItemByText(node, 'Rename').props.onSelect as () => void)()
+  const content = findElementsByType(node, 'DropdownMenuContent')[0]!
+  ;(content.props.onCloseAutoFocus as (event: { preventDefault: () => void }) => void)({
+    preventDefault: vi.fn()
+  })
+}
+
 function findSpanByText(node: unknown, label: string): ReactElementLike {
   const span = findElementsByType(node, 'span').find(
     (candidate) =>
@@ -361,40 +371,23 @@ function findSpanByText(node: unknown, label: string): ReactElementLike {
 
 function pressInputKey(
   input: ReactElementLike,
-  type: 'onKeyDown' | 'onKeyUp',
   key: string,
   options?: { isComposing?: boolean; keyCode?: number }
 ): {
   preventDefault: ReturnType<typeof vi.fn>
   stopPropagation: ReturnType<typeof vi.fn>
 } {
-  const keyCode = options?.keyCode ?? 13
   const event = {
     key,
-    keyCode,
-    shiftKey: false,
     nativeEvent: {
       isComposing: options?.isComposing ?? false,
-      keyCode
+      keyCode: options?.keyCode ?? 13
     },
     preventDefault: vi.fn(),
     stopPropagation: vi.fn()
   }
-  ;(input.props[type] as (nextEvent: typeof event) => void)(event)
+  ;(input.props.onKeyDown as (nextEvent: typeof event) => void)(event)
   return event
-}
-
-function confirmRecordedComposition(input: ReactElementLike): ReturnType<typeof pressInputKey> {
-  ;(input.props.onCompositionStart as () => void)()
-  pressInputKey(input, 'onKeyDown', 'Process', { isComposing: true, keyCode: 229 })
-  ;(input.props.onCompositionEnd as () => void)()
-  const redispatch = pressInputKey(input, 'onKeyDown', 'Enter', {
-    isComposing: false,
-    keyCode: 13
-  })
-  pressInputKey(input, 'onKeyUp', 'Process', { keyCode: 229 })
-  pressInputKey(input, 'onKeyUp', 'Enter', { keyCode: 13 })
-  return redispatch
 }
 
 describe('EditorFileTab rename menu', () => {
@@ -421,7 +414,7 @@ describe('EditorFileTab rename menu', () => {
     // isUntitled; the tab menu must let users rename the screenshot-style
     // "untitled-N.md" files directly.
     expect(renameItem.props.disabled).toBe(false)
-    ;(renameItem.props.onSelect as () => void)()
+    selectRenameFromMenu(firstRender)
 
     const secondRender = expandNode((await renderEditorFileTab(file, onActivate)).element)
     const inputs = findElementsByType(secondRender, 'input')
@@ -445,9 +438,8 @@ describe('EditorFileTab rename menu', () => {
   it('ignores IME composition Enter before renaming the editor file tab', async () => {
     const file = baseFile()
     const firstRender = expandNode((await renderEditorFileTab(file)).element)
-    const renameItem = findMenuItemByText(firstRender, 'Rename')
 
-    ;(renameItem.props.onSelect as () => void)()
+    selectRenameFromMenu(firstRender)
 
     const secondRender = expandNode((await renderEditorFileTab(file)).element)
     const input = findElementsByType(secondRender, 'input')[0]
@@ -459,38 +451,43 @@ describe('EditorFileTab rename menu', () => {
       value: '日本語.md'
     } as unknown as HTMLInputElement)
 
-    const redispatch = confirmRecordedComposition(input)
+    const composingEvent = pressInputKey(input, 'Enter', { isComposing: true })
 
-    expect(redispatch.preventDefault).toHaveBeenCalledOnce()
+    expect(composingEvent.preventDefault).not.toHaveBeenCalled()
     expect(renameFileOnDiskMock).not.toHaveBeenCalled()
-  })
 
-  it('renames the editor file tab exactly once on an ordinary Enter', async () => {
-    const file = baseFile()
-    const firstRender = expandNode((await renderEditorFileTab(file)).element)
-    const renameItem = findMenuItemByText(firstRender, 'Rename')
+    pressInputKey(input, 'Enter')
 
-    ;(renameItem.props.onSelect as () => void)()
-
-    const secondRender = expandNode((await renderEditorFileTab(file)).element)
-    const input = findElementsByType(secondRender, 'input')[0]
-    const setInputRef = input.props.ref as (input: HTMLInputElement | null) => void
-    setInputRef({
-      focus: vi.fn(),
-      select: vi.fn(),
-      setSelectionRange: vi.fn(),
-      value: '日本語.md'
-    } as unknown as HTMLInputElement)
-
-    pressInputKey(input, 'onKeyDown', 'Enter')
-
-    expect(renameFileOnDiskMock).toHaveBeenCalledOnce()
     expect(renameFileOnDiskMock).toHaveBeenCalledWith({
       oldPath: '/repo/untitled-5.md',
       newName: '日本語.md',
       worktreeId: 'wt-1',
-      worktreePath: '/repo'
+      worktreePath: '/repo',
+      documentScoped: false
     })
+  })
+
+  it('does not re-commit when unmounting the rename input emits multiple blur events', async () => {
+    const file = baseFile()
+    const firstRender = expandNode((await renderEditorFileTab(file)).element)
+
+    selectRenameFromMenu(firstRender)
+
+    const secondRender = expandNode((await renderEditorFileTab(file)).element)
+    const input = findElementsByType(secondRender, 'input')[0]
+    const setInputRef = input.props.ref as (input: HTMLInputElement | null) => void
+    setInputRef({
+      focus: vi.fn(),
+      select: vi.fn(),
+      setSelectionRange: vi.fn(),
+      value: 'renamed.md'
+    } as unknown as HTMLInputElement)
+
+    pressInputKey(input, 'Enter')
+    ;(input.props.onBlur as () => void)()
+    ;(input.props.onBlur as () => void)()
+
+    expect(renameFileOnDiskMock).toHaveBeenCalledTimes(1)
   })
 
   it('disables Rename for diff tabs that do not map to one writable file', async () => {

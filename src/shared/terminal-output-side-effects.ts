@@ -11,7 +11,8 @@ import {
   detectAgentStatusFromTitle,
   extractAllOscTitles,
   isCursorNativeAgentTitle,
-  normalizeTerminalTitle
+  normalizeTerminalTitle,
+  shouldSuppressCursorNativeTitle
 } from './agent-detection'
 import { createBellDetector } from './terminal-bell-detector'
 import {
@@ -26,18 +27,6 @@ import { createOsc133CommandFinishedScanner } from './terminal-osc133-command-fi
 
 /** Ms of title-less output after a working title before it is cleared. */
 export const STALE_WORKING_TITLE_TIMEOUT_MS = 3000
-
-// Braille spinner glyphs (U+2800–U+28FF); mirrors the range clearWorkingIndicators strips in agent-detection.ts.
-// eslint-disable-next-line no-control-regex -- intentional unicode range
-const BRAILLE_SPINNER_RE = /[\u2800-\u28FF]/g
-
-/**
- * Strip decorative braille spinner frame glyphs so titles differing only by the animation frame
- * compare equal — the gate consumers use to avoid fan-out churn on spinner ticks.
- */
-export function stripBrailleSpinnerGlyphs(title: string): string {
-  return title.replace(BRAILLE_SPINNER_RE, '').trim()
-}
 
 /** Provenance for title/idle facts; `staleWorkingTitleClear` marks facts synthesized by the 3s stale timer — not genuine task completions. */
 export type TerminalTitleFactMeta = {
@@ -62,11 +51,13 @@ export type TerminalTitleTrackerCallbacks = {
    * mirrors renderer command-lifecycle semantics so the fact path drops stale agent rows like byte mode.
    */
   onCommandFinished?: (bestEffortExitCode: number | null) => void
+  /** Fired per complete OSC 133;C: the shell exec'd a command, so the pane's foreground changed. */
+  onCommandStarted?: () => void
   /** Fired once per newly observed GitHub PR URL (chunk-boundary-safe, deduplicated per tracker). */
   onPrLink?: (link: TerminalGitHubPRLink) => void
   /**
    * Fired per chunk containing a DECSET 2031 subscribe (chunk-boundary-safe): lets
-   * hidden-delivery-gated renderer views answer the color-scheme query without byte access.
+   * hidden-delivery-gated renderer views track the subscription without byte access.
    */
   onMode2031Subscribe?: () => void
   /**
@@ -92,7 +83,7 @@ export type TerminalTitleTracker = {
    */
   seedInitialTitle: (rawTitle: string) => void
   /** Restore the status consumed by the latest exit candidate when process evidence disproves it. */
-  restoreLastAgentExit: () => AgentStatus | null
+  restoreLastAgentExit: (confirmedStatus?: AgentStatus) => AgentStatus | null
   /** Last title surfaced through onTitle, after normalization. */
   getLastNormalizedTitle: () => string | null
   /**
@@ -118,15 +109,20 @@ export function createTerminalTitleTracker(
     onAgentExited,
     onBell,
     onCommandFinished,
+    onCommandStarted,
     onPrLink,
     onMode2031Subscribe,
     onMode2031Unsubscribe
   } = callbacks
   let bellDetector = onBell ? createBellDetector() : null
   // Why: created only when a consumer exists so headless serve never pays the per-chunk 133/URL scans.
-  const commandFinishedScanner = onCommandFinished
-    ? createOsc133CommandFinishedScanner(onCommandFinished)
-    : null
+  const commandFinishedScanner =
+    onCommandFinished || onCommandStarted
+      ? createOsc133CommandFinishedScanner(
+          (exitCode) => onCommandFinished?.(exitCode),
+          onCommandStarted ? () => onCommandStarted() : undefined
+        )
+      : null
   let prLinkDetector = onPrLink ? createTerminalGitHubPRLinkDetector() : null
   let transientSideEffectScanningEnabled = true
   let transientFactScanningSuppressed = false
@@ -137,6 +133,10 @@ export function createTerminalTitleTracker(
   let staleTitleTimer: ReturnType<typeof setTimeout> | null = null
   // Why: flags the stale-timer clear so its idle callback carries timer provenance, not a genuine task-complete.
   let applyingStaleWorkingTitleClear = false
+  const initialAgentStatusTitle =
+    options.initialTitle !== undefined && !isCursorNativeAgentTitle(options.initialTitle)
+      ? options.initialTitle
+      : undefined
   const agentTracker =
     onAgentBecameIdle || onAgentBecameWorking || onAgentExited
       ? createAgentStatusTracker(
@@ -148,7 +148,7 @@ export function createTerminalTitleTracker(
           },
           onAgentBecameWorking,
           onAgentExited,
-          options.initialTitle
+          initialAgentStatusTitle
         )
       : null
 
@@ -162,6 +162,13 @@ export function createTerminalTitleTracker(
   function applyObservedTitle(rawTitle: string): void {
     // Why: cursor-agent re-emits its bare native title mid-turn; passing it through would stomp Orca's synthesized spinner state.
     if (isCursorNativeAgentTitle(rawTitle)) {
+      if (shouldSuppressCursorNativeTitle(lastEmittedTitle)) {
+        return
+      }
+      // Why: a hookless Cursor pane needs the literal once so it has an identity (#10258),
+      // but never as activity — its null status would read as an exit in the status tracker.
+      lastEmittedTitle = normalizeTerminalTitle(rawTitle)
+      onTitle?.(lastEmittedTitle, rawTitle)
       return
     }
     lastEmittedTitle = normalizeTerminalTitle(rawTitle)
@@ -258,15 +265,18 @@ export function createTerminalTitleTracker(
     handleChunk,
     applySyntheticTitleFrame,
     seedInitialTitle(rawTitle: string): void {
-      // Why: the cursor-agent literal drop applies to seeds too — a bare native title would stomp synthesized spinner state.
-      if (lastEmittedTitle !== null || !rawTitle || isCursorNativeAgentTitle(rawTitle)) {
+      if (lastEmittedTitle !== null || !rawTitle) {
         return
       }
       lastEmittedTitle = normalizeTerminalTitle(rawTitle)
-      agentTracker?.seedTitle(rawTitle)
+      // Why: the cursor-agent literal seeds identity only — feeding its null status to the
+      // tracker would make the next real frame look like an agent exit.
+      if (!isCursorNativeAgentTitle(rawTitle)) {
+        agentTracker?.seedTitle(rawTitle)
+      }
     },
-    restoreLastAgentExit(): AgentStatus | null {
-      return agentTracker?.restoreLastExit() ?? null
+    restoreLastAgentExit(confirmedStatus?: AgentStatus): AgentStatus | null {
+      return agentTracker?.restoreLastExit(confirmedStatus) ?? null
     },
     getLastNormalizedTitle: () => lastEmittedTitle,
     setTransientFactScanningSuppressed(suppressed: boolean): void {

@@ -1,4 +1,4 @@
-import type { IPtyProvider } from '../providers/types'
+import type { IPtyProvider } from '../providers/pty-provider-contract'
 import type { DaemonPtyAdapter } from './daemon-pty-adapter'
 import { SessionNotFoundError } from './daemon-errors'
 
@@ -19,11 +19,11 @@ export async function attachDaemonOwnedSession(
   owner: IPtyProvider,
   fallback: IPtyProvider,
   sessionId: string
-): Promise<void> {
+): ReturnType<IPtyProvider['attach']> {
   if (owner === fallback) {
     throw new SessionNotFoundError(sessionId)
   }
-  await owner.attach(sessionId)
+  return await owner.attach(sessionId)
 }
 
 /** Probes providers for an id absent from the routing map and adopts the

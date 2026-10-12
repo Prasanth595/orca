@@ -5,8 +5,11 @@ import {
   type KeybindingActionId,
   type KeybindingOverrides
 } from '../../shared/keybindings'
-import type { UpdateCheckOptions } from '../../shared/types'
+import type { UpdateCheckOptions } from '../../shared/update-status-types'
 import { translateMain } from '../i18n/main-i18n'
+import { createAppMenuSelectionItem } from './app-menu-selection-item'
+import { createAppMenuQuitItem } from './app-menu-quit-item'
+import { createAppWindowMenu } from './app-menu-window'
 
 export type AppearanceMenuState = {
   showTasksButton: boolean
@@ -40,6 +43,7 @@ type RegisterAppMenuOptions = {
   // Why: the macOS app-menu title. Passed the per-branch dev label since
   // app.name is now pinned to a stable value for Keychain-key stability.
   appMenuLabel?: string
+  onQuit?: () => void
 }
 
 function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
@@ -112,8 +116,16 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
     click: checkForUpdatesClick
   }
 
+  const settingsBindings = getEffectiveKeybindingsForAction(
+    'app.settings',
+    process.platform,
+    getKeybindings?.()
+  )
+  const settingsShortcut = settingsBindings.length
+    ? `\t${formatKeybindingList(settingsBindings, process.platform)}`
+    : ''
   const settingsItem: Electron.MenuItemConstructorOptions = {
-    label: `${translateMain('menu.settings', 'Settings')}\t${shortcutLabel('app.settings')}`,
+    label: `${translateMain('menu.settings', 'Settings')}${settingsShortcut}`,
     click: () => onOpenSettings()
   }
 
@@ -150,7 +162,7 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
       { role: 'hideOthers' },
       { role: 'unhide' },
       { type: 'separator' },
-      { role: 'quit' }
+      createAppMenuQuitItem(options.onQuit, options.appMenuLabel ?? app.name)
     ]
   }
 
@@ -159,21 +171,25 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
     // Why: on Windows/Linux there is no app-named menu, so Settings and
     // Quit live under File — matching the common platform convention and
     // keeping all user-facing actions reachable from the in-window menu bar.
-    submenu: [
-      settingsItem,
-      { type: 'separator' },
-      { role: 'quit', label: translateMain('menu.exit', 'Exit') }
-    ]
+    submenu: [settingsItem, { type: 'separator' }, createAppMenuQuitItem(options.onQuit)]
   }
 
+  // Why: keep native menu hints while letting non-macOS Ctrl+Z/Ctrl+Y reach the focused terminal or DOM control.
+  const undoRedoOptions: Electron.MenuItemConstructorOptions = isMac
+    ? {}
+    : { registerAccelerator: false }
   const editMenu: Electron.MenuItemConstructorOptions = {
     label: translateMain('menu.edit', 'Edit'),
     submenu: [
-      { role: 'undo' },
-      { role: 'redo' },
+      { role: 'undo', ...undoRedoOptions },
+      { role: 'redo', ...undoRedoOptions },
       { type: 'separator' },
       { role: 'cut' },
-      { role: 'copy' },
+      createAppMenuSelectionItem({
+        action: 'copy',
+        label: translateMain('menu.copy', 'Copy'),
+        isMac
+      }),
       {
         label: translateMain('menu.paste', 'Paste'),
         accelerator: 'CmdOrCtrl+V',
@@ -193,7 +209,11 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
           }
         }
       },
-      { role: 'selectAll' }
+      createAppMenuSelectionItem({
+        action: 'select-all',
+        label: translateMain('menu.selectAll', 'Select All'),
+        isMac
+      })
     ]
   }
 
@@ -297,10 +317,7 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
     ]
   }
 
-  const windowMenu: Electron.MenuItemConstructorOptions = {
-    label: translateMain('menu.window', 'Window'),
-    submenu: [{ role: 'minimize' }, { role: 'zoom' }]
-  }
+  const windowMenu = createAppWindowMenu(translateMain('menu.window', 'Window'), isMac)
 
   const helpMenu: Electron.MenuItemConstructorOptions = {
     label: translateMain('menu.help', 'Help'),

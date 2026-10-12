@@ -1,8 +1,16 @@
 import { useAppStore } from '@/store'
+import {
+  activateBrowserWorkspaceTab,
+  getActivatableBrowserWorkspaceTab
+} from '@/lib/browser-workspace-tab-activation'
+import type { ExecutionHostId } from '../../../shared/execution-host'
 import { isBlankBrowserUrl } from './browser-palette-search'
 import { activateAndRevealWorktree } from './worktree-activation'
 
-export type BrowserPagePaletteActivationFailure = 'missing-page' | 'missing-worktree'
+export type BrowserPagePaletteActivationFailure =
+  | 'missing-page'
+  | 'missing-tab'
+  | 'missing-worktree'
 
 export type BrowserPageFocusTarget = 'address-bar' | 'webview'
 
@@ -11,25 +19,35 @@ export type BrowserPagePaletteActivationResult =
   | { status: 'failed'; reason: BrowserPagePaletteActivationFailure }
 
 export type BrowserPagePaletteActivationTarget = {
+  executionHostId?: ExecutionHostId
   pageId: string
   workspaceId: string
   worktreeId: string
 }
 
 export function activateBrowserPagePaletteResult({
+  executionHostId,
   pageId,
   workspaceId,
   worktreeId
 }: BrowserPagePaletteActivationTarget): BrowserPagePaletteActivationResult {
   const initialState = useAppStore.getState()
+  const worktree = initialState.getKnownWorktreeById(worktreeId, executionHostId)
+  // Why worktree first: removing a worktree also purges its browser workspaces
+  // and pages, so a page-first check would report a dead workspace as a stale page.
+  if (!worktree) {
+    return { status: 'failed', reason: 'missing-worktree' }
+  }
   const page = (initialState.browserPagesByWorkspace[workspaceId] ?? []).find(
-    (candidate) => candidate.id === pageId
+    (candidate) =>
+      candidate.id === pageId &&
+      candidate.workspaceId === workspaceId &&
+      candidate.worktreeId === worktreeId
   )
   const workspace = (initialState.browserTabsByWorktree[worktreeId] ?? []).find(
-    (candidate) => candidate.id === workspaceId
+    (candidate) => candidate.id === workspaceId && candidate.worktreeId === worktreeId
   )
-  const worktree = initialState.getKnownWorktreeById(worktreeId)
-  if (!page || !workspace || !worktree) {
+  if (!page || !workspace) {
     return { status: 'failed', reason: 'missing-page' }
   }
 
@@ -39,16 +57,31 @@ export function activateBrowserPagePaletteResult({
     ? 'address-bar'
     : 'webview'
 
+  const targetHostId = executionHostId ?? worktree.hostId
+  if (
+    !getActivatableBrowserWorkspaceTab({ worktreeId, workspaceId, executionHostId: targetHostId })
+  ) {
+    return { status: 'failed', reason: 'missing-tab' }
+  }
   const activated = activateAndRevealWorktree(
     worktree.id,
-    worktree.hostId ? { executionHostId: worktree.hostId } : {}
+    targetHostId ? { executionHostId: targetHostId } : {}
   )
   if (!activated) {
     return { status: 'failed', reason: 'missing-worktree' }
   }
 
-  const state = useAppStore.getState()
-  state.setActiveBrowserTab(workspace.id)
-  state.setActiveBrowserPage(workspace.id, pageId)
+  // Why the failure and not a bare activation: without a unified tab the browser state would go
+  // active behind a tab that never shows the page.
+  if (
+    !activateBrowserWorkspaceTab({
+      worktreeId: worktree.id,
+      workspaceId: workspace.id,
+      pageId,
+      ...(targetHostId ? { executionHostId: targetHostId } : {})
+    })
+  ) {
+    return { status: 'failed', reason: 'missing-tab' }
+  }
   return { status: 'activated', pageId, focusTarget }
 }
