@@ -3,7 +3,7 @@
  * app-side by `src/main/orcad/orcad-local-serve-selection.ts`; the CLI only asks and runs.
  */
 import { dirname, join } from 'node:path'
-import { runProcess, spawnProcess } from '../../shared/child-process/run-process'
+import { runProcess, spawnProcess } from '@orca/process-host'
 import {
   ORCAD_LOCAL_SERVE_SELECTION_ENTRY,
   ORCAD_LOCAL_SERVE_SELECTION_FLAGS as FLAGS,
@@ -12,6 +12,8 @@ import {
 } from '../../shared/orcad-local-serve-selection'
 import { waitForRecipeJson } from './serve-recipe-json'
 import { superviseForegroundServe } from './serve-update-supervisor'
+import { isSupervisedSpawnHeld } from './serve-supervised-stop'
+import { redactingSpawn, shouldRedactSupervisedStdout } from './serve-pairing-redaction'
 
 type SupervisorArgs = Parameters<typeof superviseForegroundServe>[0]
 
@@ -24,6 +26,10 @@ export type ServeOrcaAppArgs = {
   grantDesktopControl?: boolean
   recipeJson?: boolean
   projectRoot?: string | null
+  /** Starts Electron serve despite a remembered macOS startup abort in this environment. */
+  force?: boolean
+  /** Restart the server under a service manager instead of exiting with it; never inferred. */
+  supervise?: boolean
 }
 
 /** A first run may download and verify the pinned Node; bound it well past that. */
@@ -91,8 +97,11 @@ export function serveWithOrcad(
   userDataPath: string,
   /** The caller's environment without `ELECTRON_RUN_AS_NODE`. */
   baseEnv: NodeJS.ProcessEnv,
-  spawnChild: SupervisorArgs['spawnChild'] = spawnThroughChokepoint
+  spawnChildRaw: SupervisorArgs['spawnChild'] = spawnThroughChokepoint
 ): Promise<number> {
+  const spawnChild = shouldRedactSupervisedStdout(args.supervise === true)
+    ? redactingSpawn(spawnChildRaw)
+    : spawnChildRaw
   const childArgs = [selection.entry, ...orcadServeArgs(args)]
   const spawnOptions: SupervisorArgs['spawnOptions'] = {
     detached: args.recipeJson === true,
@@ -104,6 +113,9 @@ export function serveWithOrcad(
       ORCA_USER_DATA: userDataPath,
       ORCA_VERSION: selection.version
     }
+  }
+  if (isSupervisedSpawnHeld()) {
+    return Promise.resolve(0)
   }
   const child = spawnChild(selection.runtime, childArgs, spawnOptions)
   if (args.recipeJson) {
@@ -120,18 +132,20 @@ export function serveWithOrcad(
   })
 }
 
-export function orcadServeArgs(args: ServeOrcaAppArgs): string[] {
+export function serveOptionArgs(args: ServeOrcaAppArgs, prefix: '--' | '--serve-'): string[] {
   return [
-    '--bind',
-    '0.0.0.0',
-    ...(args.json ? ['--json'] : []),
-    ...(args.port ? ['--port', args.port] : []),
-    ...(args.pairingAddress ? ['--pairing-address', args.pairingAddress] : []),
-    ...(args.noPairing ? ['--no-pairing'] : []),
-    ...(args.mobilePairing ? ['--mobile-pairing'] : []),
-    ...(args.grantDesktopControl ? ['--grant-desktop-control'] : []),
+    ...(args.json ? [`${prefix}json`] : []),
+    ...(args.port ? [`${prefix}port`, args.port] : []),
+    ...(args.pairingAddress ? [`${prefix}pairing-address`, args.pairingAddress] : []),
+    ...(args.noPairing ? [`${prefix}no-pairing`] : []),
+    ...(args.mobilePairing ? [`${prefix}mobile-pairing`] : []),
+    ...(args.grantDesktopControl ? [`${prefix}grant-desktop-control`] : []),
     ...(args.recipeJson && args.projectRoot
-      ? ['--recipe-json', '--project-root', args.projectRoot]
+      ? [`${prefix}recipe-json`, `${prefix}project-root`, args.projectRoot]
       : [])
   ]
+}
+
+export function orcadServeArgs(args: ServeOrcaAppArgs): string[] {
+  return ['--bind', '0.0.0.0', ...serveOptionArgs(args, '--')]
 }

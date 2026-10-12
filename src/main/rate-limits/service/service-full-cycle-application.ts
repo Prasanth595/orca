@@ -1,6 +1,7 @@
 import type { FetchAllCyclePrepared } from './service-full-cycle-preparation'
 import type { SettledProviderResult } from './service-sibling-provider-result'
 import { RateLimitServiceFullCyclePreparation } from './service-full-cycle-preparation'
+import { isZcodeUsageCredentialCurrent } from '../zcode-usage-credentials'
 import { settleSiblingProviderResult } from './service-sibling-provider-result'
 import type { ProviderRateLimits } from './service-types'
 
@@ -123,7 +124,7 @@ export abstract class RateLimitServiceFullCycleApplication extends RateLimitServ
             status: 'error'
           } satisfies ProviderRateLimits)
 
-    const latestCodexHome = this.resolveCodexHome(codexTarget)
+    const latestCodexHome = await this.resolveCodexHome(codexTarget)
     const latestClaudeAuthPreparation = await this.claudeAuthPreparationResolver?.(claudeTarget)
     if (signal.aborted) {
       return
@@ -217,7 +218,17 @@ export abstract class RateLimitServiceFullCycleApplication extends RateLimitServ
     }
     const grok = settleSiblingProviderResult('grok', grokSettled)
     const cursor = settleSiblingProviderResult('cursor', cursorSettled)
-    const zcode = settleSiblingProviderResult('zcode', zcodeSettled)
+    const settledZcode = settleSiblingProviderResult('zcode', zcodeSettled)
+    const zcode = isZcodeUsageCredentialCurrent(settledZcode)
+      ? settledZcode
+      : {
+          ...settledZcode,
+          status: 'unavailable' as const,
+          session: null,
+          weekly: null,
+          monthly: null,
+          error: 'ZCode Coding Plan account changed during refresh'
+        }
     const shouldApplyZcode = zcodeGeneration === this.zcodeFetchGeneration
     const antigravity = settleSiblingProviderResult('antigravity', antigravitySettled)
     // Why: the stale policy keeps a recent snapshot through a failed refresh, but

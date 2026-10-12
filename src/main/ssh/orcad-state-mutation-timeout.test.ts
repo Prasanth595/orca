@@ -41,7 +41,7 @@ import { rollbackOrcad } from './orcad-remote-rollback'
 import { recoverInterruptedOrcadActivation } from './orcad-activation-recovery'
 import { getRemoteHostPlatform } from './ssh-remote-platform'
 import { SSH_EXEC_TIMEOUT_CODE, isUnconfirmedSshCommandTermination } from './ssh-relay-exec-command'
-import type { SshConnection } from './ssh-connection'
+import type { OrcadHostTransport } from './orcad-host-transport'
 import { BUILD_HASH, FakeOrcadHost, NEW, OLD } from './orcad-activation-host-test-harness'
 import { isSnapshotCaptureCommand } from './orcad-snapshot-capture-command'
 
@@ -52,7 +52,7 @@ let running = false
 
 const slot = {
   // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: execCommand is mocked, so nothing reads the connection.
-  conn: {} as SshConnection,
+  conn: {} as OrcadHostTransport,
   host: getRemoteHostPlatform('linux-x64'),
   remoteHome: '/home/u',
   nodePath: '/usr/bin/node',
@@ -158,6 +158,13 @@ describe('a state mutation that outlives the client’s wait', () => {
     await deploy().catch(() => undefined)
     host.crashAt = null
     expect(host.alive.has(NEW)).toBe(true)
+    // An unhealthy candidate, so recovery undoes the activation instead of committing it.
+    vi.mocked(execCommand).mockImplementation(async (_conn, command) => {
+      const answer = await exec(command)
+      return command.includes(`orcad-${NEW}/`)
+        ? answer.replace('"state":"live"', '"state":"absent"')
+        : answer
+    })
     slow = 'restore'
     const first = await recoverInterruptedOrcadActivation({ ...slot, acceptChangedState: true })
     expect(first).toMatchObject({ outcome: 'refused', verdict: 'unverifiable' })
