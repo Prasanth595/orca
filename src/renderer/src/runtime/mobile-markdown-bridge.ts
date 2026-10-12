@@ -7,10 +7,11 @@ import {
 } from '@/components/editor/editor-autosave'
 import { flushPendingEditorChange } from '@/components/editor/editor-pending-flush'
 import { getConnectionIdForFile } from '@/lib/connection-context'
+import { editorTabFileAccess } from '@/lib/local-file-access'
 import { useAppStore } from '@/store'
 import type { OpenFile } from '@/store/slices/editor'
-import { readRuntimeFileContent } from './runtime-file-client'
-import { settingsForRuntimeOwner } from './runtime-rpc-client'
+import { readRuntimeFileContent } from './runtime-file-read-client'
+import { requireRuntimeTargetForFileOwner } from '@/lib/file-owner-runtime-target'
 import {
   hashMarkdownContent,
   isMarkdownContentByteLengthOverLimit,
@@ -243,14 +244,15 @@ async function readCurrentContent(
 async function readFileContent(file: OpenFile): Promise<string> {
   const connectionId = getConnectionIdForFile(file.worktreeId, file.filePath) ?? undefined
   const state = useAppStore.getState()
-  const result = (await readRuntimeFileContent({
-    settings: settingsForRuntimeOwner(state.settings, file.runtimeEnvironmentId),
+  const result: FileContent = await readRuntimeFileContent({
+    target: requireRuntimeTargetForFileOwner(state, file.worktreeId, file.runtimeEnvironmentId),
     filePath: file.filePath,
     relativePath: file.relativePath,
     worktreeId: file.worktreeId,
     connectionId,
-    expectedExternalSshTargetId: file.externalSshTargetId
-  })) as FileContent
+    expectedExternalSshTargetId: file.externalSshTargetId,
+    access: editorTabFileAccess(state, file)
+  })
   if (result.isBinary) {
     throw new Error('binary_file')
   }

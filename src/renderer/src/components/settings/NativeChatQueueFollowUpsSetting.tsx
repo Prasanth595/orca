@@ -1,12 +1,12 @@
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import { translate } from '@/i18n/i18n'
-import type { RuntimeClientTarget } from '@/runtime/runtime-client-target'
+import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
 import { useStructuredAgentSessionHostQueuesMessages } from '@/runtime/structured-agent-session-host-capability'
 import { Label } from '../ui/label'
 import { SettingsSwitch } from './SettingsFormControls'
 
-// Structured chat launches only on the local host (`resolveStructuredNativeChatSupport`), so its
-// capability is the only one this setting can take effect on.
+// This screen edits this machine's settings, so it asks this machine's runtime; a paired host that
+// predates queueing sends a follow-up right away whatever the switch says.
 const STRUCTURED_CHAT_HOST: RuntimeClientTarget = { kind: 'local' }
 
 type NativeChatQueueFollowUpsSettingProps = {

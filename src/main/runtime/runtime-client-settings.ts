@@ -24,6 +24,13 @@ import { recordManagedHookInstallFailure } from '../agent-hooks/install-telemetr
 import { applyAgentStatusHooksEnabled } from '../agent-hooks/managed-agent-hook-controls'
 import { isAgentStatusHooksEnabledForAgent } from '../../shared/agent-status-hooks-setting'
 import type { RuntimeStore } from './runtime-store-contract'
+import {
+  agentLaunchSettingsMutationUpdates,
+  projectAgentLaunchSettings,
+  type AgentLaunchSettings,
+  type AgentLaunchSettingsMutation
+} from '../../shared/agent-launch-settings'
+import { agentLaunchSettingsRollbackUpdates } from './agent-launch-settings-rollback'
 
 export type RuntimeClientSettings = Pick<
   GlobalSettings,
@@ -42,18 +49,20 @@ export type RuntimeClientSettings = Pick<
   | 'githubProjects'
   | 'experimentalNewWorktreeCardStyle'
   | 'experimentalNativeChat'
-  | 'openAgentTabsInChatByDefault'
-  | 'experimentalStructuredNativeChat'
   | 'compactWorktreeCards'
   | 'minimaxGroupId'
   | 'minimaxUsageModels'
   | 'minimaxEndpoint'
+  | 'zcodePlanSite'
   | 'prBotAuthorOverrides'
   | 'artifactSharingEnabled'
   | 'worktreeVisibilityDefaults'
   | 'agentSkillSharingEnabled'
   | 'machineName'
 > & {
+  /** Older clients still read these; neither is persisted or accepted as an update. */
+  openAgentTabsInChatByDefault?: boolean
+  experimentalStructuredNativeChat?: boolean
   hostSettingOverrides: RuntimeHostDisplayLabelOverrides
   sourceControlAi: RuntimeClientSourceControlAi
 }
@@ -84,6 +93,7 @@ export type RuntimeClientSettingsUpdate = Pick<
   | 'minimaxGroupId'
   | 'minimaxUsageModels'
   | 'minimaxEndpoint'
+  | 'zcodePlanSite'
   | 'prBotAuthorOverrides'
   | 'worktreeVisibilityDefaults'
   | 'machineName'
@@ -94,7 +104,10 @@ export class RuntimeClientSettingsController {
   private reconciliationTail: Promise<void> = Promise.resolve()
 
   constructor(
-    private readonly store: Pick<RuntimeStore, 'getSettings' | 'updateSettings'> | null,
+    private readonly store: Pick<
+      RuntimeStore,
+      'getSettings' | 'updateSettings' | 'runDurableMutation'
+    > | null,
     private readonly notifyReposChanged: (() => void) | undefined = undefined
   ) {}
 
@@ -123,15 +136,15 @@ export class RuntimeClientSettingsController {
         : null,
       githubProjects: settings.githubProjects,
       experimentalNewWorktreeCardStyle: settings.experimentalNewWorktreeCardStyle === true,
-      // The three that decide whether a new agent tab -- and so an orchestration worker -- is a
-      // structured chat session rather than a terminal agent.
       experimentalNativeChat: settings.experimentalNativeChat === true,
-      openAgentTabsInChatByDefault: settings.openAgentTabsInChatByDefault === true,
-      experimentalStructuredNativeChat: settings.experimentalStructuredNativeChat === true,
+      // Older clients use this key to fall back to terminal-backed chat. Keep their default terminal.
+      openAgentTabsInChatByDefault: false,
+      experimentalStructuredNativeChat: settings.experimentalNativeChat === true,
       compactWorktreeCards: settings.compactWorktreeCards === true,
       minimaxGroupId: settings.minimaxGroupId ?? '',
       minimaxUsageModels: settings.minimaxUsageModels ?? 'general',
       minimaxEndpoint: settings.minimaxEndpoint ?? 'overseas',
+      zcodePlanSite: settings.zcodePlanSite ?? 'zai',
       prBotAuthorOverrides: settings.prBotAuthorOverrides ?? [],
       artifactSharingEnabled: isArtifactSharingEnabled(settings),
       worktreeVisibilityDefaults: settings.worktreeVisibilityDefaults ?? { external: 'hide' },
@@ -175,6 +188,55 @@ export class RuntimeClientSettingsController {
       throw new Error('runtime_unavailable')
     }
     return this.store.getSettings().terminalQuickCommands ?? []
+  }
+
+  getAgentLaunch(): AgentLaunchSettings {
+    if (!this.store?.getSettings) {
+      throw new Error('runtime_unavailable')
+    }
+    return projectAgentLaunchSettings(this.store.getSettings())
+  }
+
+  async mutateAgentLaunch(mutation: AgentLaunchSettingsMutation): Promise<AgentLaunchSettings> {
+    const store = this.store
+    if (!store?.getSettings || !store.updateSettings || !store.runDurableMutation) {
+      throw new Error('runtime_unavailable')
+    }
+    const applySettings = store.updateSettings.bind(store)
+    const committed = await store.runDurableMutation(() => {
+      const before = store.getSettings()
+      const updates = agentLaunchSettingsMutationUpdates(before, mutation, process.platform)
+      applySettings(updates, { notifyListeners: true })
+      const applied = store.getSettings()
+      return {
+        value: {
+          settings: projectAgentLaunchSettings(applied),
+          reconcileHooks:
+            updates.disabledTuiAgents !== undefined &&
+            !haveSameDisabledTuiAgents(before.disabledTuiAgents, applied.disabledTuiAgents)
+        },
+        rollback: () => {
+          const rollback = agentLaunchSettingsRollbackUpdates(
+            before,
+            applied,
+            store.getSettings(),
+            updates
+          )
+          if (Object.keys(rollback).length > 0) {
+            applySettings(rollback, { notifyListeners: true })
+          }
+        }
+      }
+    })
+    if (committed.reconcileHooks) {
+      void this.reconcileManagedAgentHooks().catch((error) => {
+        console.error(
+          '[agent-hooks] Failed to reconcile managed hooks after saving launch settings:',
+          error
+        )
+      })
+    }
+    return committed.settings
   }
 
   updateTerminalQuickCommands(mutation: TerminalQuickCommandMutation): TerminalQuickCommand[] {

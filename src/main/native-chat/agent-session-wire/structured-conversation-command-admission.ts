@@ -7,6 +7,8 @@ import { isQueuedAgentJournalSubmission } from '../../../shared/agent-session-qu
 import { agentChildWorkLiveness } from '../../../shared/agent-status-child-work-liveness'
 import type { AgentChildWorkView } from '../../../shared/agent-status-child-work-view'
 import { activeStructuredAgentSessionTurnId } from '../../../shared/structured-agent-session-projection'
+import { agentSessionCurrentContextRows } from '../../../shared/agent-session-context-clear'
+import { isUnansweredStructuredAgentSessionDispatch } from '../../../shared/structured-agent-session-unanswered-dispatch'
 import type { AgentSessionJournal } from '../agent-session-journal/journal-store'
 import type { StructuredAgentSessionAdapter } from './structured-agent-session-adapter'
 import {
@@ -52,19 +54,12 @@ export function conversationCommandBlocked(
   childWork: readonly AgentChildWorkView[] | undefined,
   admission?: 'at-rest' | 'handover'
 ): AgentSessionWireRefusal | null {
-  const items = ctx.journal.snapshot().items
+  const { items, submissions } = agentSessionCurrentContextRows(
+    ctx.journal.snapshot().items,
+    ctx.journal.submissions()
+  )
   if (record.rewind?.phase === 'prepared' || record.rewind?.phase === 'provider-succeeded') {
     return blocked('rewindUnconfirmed', 'agent_session_rewind:outcome-unknown')
-  }
-  if (
-    record.conversationCommand?.command === 'clear' &&
-    record.conversationCommand.phase === 'committed' &&
-    record.conversationCommand.replacementSessionId
-  ) {
-    return blocked(
-      'conversationCleared',
-      'This conversation has been cleared. Open the current conversation to continue.'
-    )
   }
   if (record.lease.handoffStage || record.lease.handoffOperationId) {
     return blocked('handoffInFlight', 'Wait for the session handoff to finish.')
@@ -93,13 +88,13 @@ export function conversationCommandBlocked(
         : 'Wait for background tasks to finish before using this command.'
     )
   }
+  // The Working indicator's own rule, so "unsettled" is exactly what the chat shows as working.
+  // At handover the queued messages are those behind this command, waiting for it.
   if (
-    ctx.journal.submissions().some(
+    submissions.some(
       (entry) =>
-        (entry.dispatchState === 'pending' &&
-          !(admission === 'handover' && isQueuedAgentJournalSubmission(entry))) ||
-        // Doubt left by an earlier child is not this one's work in flight.
-        (entry.dispatchState === 'unknown' && entry.recovered !== true && entry.fence === ctx.fence)
+        !(admission === 'handover' && isQueuedAgentJournalSubmission(entry)) &&
+        isUnansweredStructuredAgentSessionDispatch(entry, ctx.fence)
     )
   ) {
     return blocked(
