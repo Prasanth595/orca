@@ -12,7 +12,9 @@ import {
 import { ensureTerminalVisible } from './helpers/store'
 import {
   focusActiveTerminalInput,
+  sendToTerminal,
   waitForActivePaneHookDescriptor,
+  waitForActivePanePtyId,
   waitForActiveTerminalManager,
   waitForTerminalOutput
 } from './helpers/terminal'
@@ -34,6 +36,10 @@ test('selected explorer folder does not intercept terminal image paste', async (
   const { destination, folder } = await prepareImagePasteFolder(page, 'terminal-paste-owner')
   await ensureTerminalVisible(page)
   await waitForActiveTerminalManager(page)
+  // Why: a paste sent while the pane is still attaching its shell is cancelled as a stale target.
+  const ptyId = await waitForActivePanePtyId(page)
+  await sendToTerminal(page, ptyId, `node -e "console.log('IMAGE_PASTE_' + 'READY')"\r`)
+  await waitForTerminalOutput(page, 'IMAGE_PASTE_READY', 15_000)
   await installTerminalPtyWriteSpy(electronApp)
   const clipboard = await installImagePasteClipboard(electronApp)
   try {
