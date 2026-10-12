@@ -10928,7 +10928,7 @@
             "control": {
               "integration": {
                 "cards": {
-                  "d5b3be8ecd": "Re-check",
+                  "d5b3be8ecd": "다시 확인",
                   "8cbc39f862": "자세히 알아보기",
                   "707180d09c": "glab auth login",
                   "4be0616873": "GitLab CLI가 설치되어 있지만 인증되지 않았습니다. terminal에서 다음 명령을 실행하세요.",
@@ -10937,7 +10937,7 @@
                   "faddeb763d": "이 런타임에서는 아직 GitLab CLI 상태를 사용할 수 없습니다.",
                   "a47f71e357": "CLI.",
                   "2a6b359e75": "glab",
-                  "1f2b347bd3": "다음을 통해 MR, 이슈, 할 일, 파이프라인을 병합합니다.",
+                  "1f2b347bd3": "MR, 이슈, 할 일, 파이프라인을 지원하는",
                   "8d90249d22": "gh auth login",
                   "2e44dda68a": "GitHub CLI가 설치되어 있지만 인증되지 않았습니다. terminal에서 다음 명령을 실행하세요.",
                   "7755c28af5": "GitHub CLI 설치",
@@ -10947,7 +10947,7 @@
                   "b4d900e7f1": "PR, 이슈 및 검사는 다음을 통해 이루어집니다.",
                   "account_scope_prefix": "계정 범위",
                   "statusConnected": "연결됨",
-                  "statusUnavailable": "없는",
+                  "statusUnavailable": "사용할 수 없음",
                   "statusNotInstalled": "설치되지 않음",
                   "statusNotAuthenticated": "인증되지 않음"
                 }
@@ -11358,11 +11358,11 @@
               "search": {
                 "title": "Linear",
                 "description": "Linear 스킬 상태, 사용 예시, 작업 소스 설정 링크입니다.",
-                "linear": "선의",
+                "linear": "Linear",
                 "tickets": "티켓",
                 "issues": "이슈",
                 "skill": "스킬",
-                "orcaLinear": "오카 Linear"
+                "orcaLinear": "orca-linear"
               }
             }
           }
@@ -12139,7 +12139,7 @@
               "description": "Bitbucket Cloud에 대한 PR 및 빌드 상태.",
               "edit": "자격 증명 편집",
               "connect": "연결",
-              "accountUnknown": "비트버킷 클라우드",
+              "accountUnknown": "Bitbucket Cloud",
               "authModeToken": "액세스 토큰",
               "authModeBasic": "이메일 및 API 토큰",
               "disconnect": "Bitbucket 연결 끊기",
@@ -12213,7 +12213,7 @@
           "machinesDescription": "이 컴퓨터에 알림을 표시할 수 있는 컴퓨터를 선택합니다. 페어링된 서버의 스위치는 해당 서버를 통해 수행하는 작업에도 적용됩니다."
         },
         "UnsealedCredentialNotice": {
-          "body": "{{credential}} 은 암호화되지 않은 상태로 저장됩니다. 이 시스템에는 ORCA가 사용할 수 있는 OS 키링이 없습니다. 디스크나 디스크의 백업을 읽을 수 있는 사람은 자격 증명을 읽을 수 있습니다. 그놈 키링 또는 kwallet을 설치하고 잠금 해제한 다음 다시 저장하여 봉인합니다."
+          "body": "{{credential}}이(가) 암호화되지 않은 상태로 저장되어 있습니다. 이 시스템에는 Orca가 사용할 수 있는 OS 키링이 없습니다. 디스크나 디스크 백업을 읽을 수 있는 사람은 이 자격 증명도 읽을 수 있습니다. gnome-keyring 또는 kwallet을 설치하고 잠금 해제한 뒤 다시 저장해 암호화하세요."
         },
         "ZcodePlanAccountsSection": {
           "site": {
