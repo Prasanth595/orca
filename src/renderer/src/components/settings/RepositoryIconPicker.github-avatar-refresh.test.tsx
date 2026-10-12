@@ -3,12 +3,11 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Repo } from '../../../../shared/types'
+import type { Repo } from '../../../../shared/repo-types'
 import { RepositoryIconPicker } from './RepositoryIconPicker'
 
 vi.mock('@/runtime/runtime-rpc-client', () => ({
-  callRuntimeRpc: vi.fn(),
-  getActiveRuntimeTarget: () => ({ kind: 'local' })
+  callRuntimeRpc: vi.fn()
 }))
 
 vi.mock('./RepositoryIconColorSection', () => ({

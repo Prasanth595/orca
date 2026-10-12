@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { DirEntry } from '../../../shared/types'
+import type { DirEntry } from '../../../shared/filesystem-entry-types'
 import {
   applyMarkdownTemplatePlaceholders,
   getMarkdownTemplateTitleForFileName,
@@ -92,7 +92,7 @@ describe('markdown document templates', () => {
     await expect(
       listMarkdownDocumentTemplates(
         {
-          settings: null,
+          target: { kind: 'local' as const },
           worktreeId: 'wt-1',
           worktreePath: '/repo',
           connectionId: 'conn-1'
@@ -137,7 +137,7 @@ describe('markdown document templates', () => {
 
     await expect(
       listMarkdownDocumentTemplates(
-        { settings: null, worktreeId: 'wt-1', worktreePath: '/repo' },
+        { target: { kind: 'local' as const }, worktreeId: 'wt-1', worktreePath: '/repo' },
         '/repo'
       )
     ).resolves.toEqual([])
@@ -150,7 +150,7 @@ describe('markdown document templates', () => {
 
     await expect(
       listMarkdownDocumentTemplates(
-        { settings: null, worktreeId: 'wt-1', worktreePath: 'C:\\repo' },
+        { target: { kind: 'local' as const }, worktreeId: 'wt-1', worktreePath: 'C:\\repo' },
         'C:\\repo'
       )
     ).resolves.toEqual([

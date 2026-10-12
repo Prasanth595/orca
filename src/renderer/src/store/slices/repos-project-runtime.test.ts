@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTestStore } from './store-test-helpers'
-import type { Project, ProjectHostSetup, Repo } from '../../../../shared/types'
+import type { Project, ProjectHostSetup } from '../../../../shared/project-types'
+import type { Repo } from '../../../../shared/repo-types'
 import {
   createCompatibleRuntimeStatusResponseIfNeeded,
   type RuntimeEnvironmentCallRequest
@@ -91,9 +92,13 @@ describe('repo slice project runtime updates', () => {
       isRefreshingAgents: true
     })
 
-    await store.getState().updateProject(project.id, {
-      localWindowsRuntimePreference: { kind: 'windows-host' }
-    })
+    await store.getState().updateProject(
+      project.id,
+      {
+        localWindowsRuntimePreference: { kind: 'windows-host' }
+      },
+      'local'
+    )
 
     expect(store.getState().detectedAgentIds).toBeNull()
     expect(store.getState().isDetectingAgents).toBe(false)
@@ -127,7 +132,7 @@ describe('repo slice project runtime updates', () => {
     reposList.mockResolvedValue([localRepo])
     const store = createTestStore()
 
-    await store.getState().fetchRepos()
+    await store.getState().fetchRepos(catalogOwner(store))
 
     expect(store.getState().projects).toEqual([project])
     expect(store.getState().projectHostSetups).toEqual([setup])
@@ -171,7 +176,7 @@ describe('repo slice project runtime updates', () => {
     const store = createTestStore()
     store.setState({ projects: [staleProject], projectHostSetups: [setup] })
 
-    await store.getState().fetchRepos()
+    await store.getState().fetchRepos(catalogOwner(store))
 
     expect(store.getState().projects[0]?.localWindowsRuntimePreference).toBeUndefined()
   })
@@ -192,9 +197,13 @@ describe('repo slice project runtime updates', () => {
     const store = createTestStore()
     store.setState({ projects: [project] })
 
-    await store.getState().updateProject(project.id, {
-      localWindowsRuntimePreference: { kind: 'windows-host' }
-    })
+    await store.getState().updateProject(
+      project.id,
+      {
+        localWindowsRuntimePreference: { kind: 'windows-host' }
+      },
+      'local'
+    )
 
     expect(store.getState().projects[0]?.localWindowsRuntimePreference).toEqual({
       kind: 'windows-host'
@@ -206,7 +215,55 @@ describe('repo slice project runtime updates', () => {
     expect(runtimeEnvironmentCall).not.toHaveBeenCalled()
   })
 
-  it('updates remote project runtime preferences through the active runtime', async () => {
+  it('updates a local project on this computer even while a server with a setup is the default host', async () => {
+    const project: Project = {
+      id: 'project-1',
+      displayName: 'Project',
+      badgeColor: '#000',
+      sourceRepoIds: ['local-repo'],
+      createdAt: 1,
+      updatedAt: 1
+    }
+    projectsUpdate.mockResolvedValue({
+      ...project,
+      localWindowsRuntimePreference: { kind: 'windows-host' }
+    })
+    const store = createTestStore()
+    store.setState({
+      settings: { activeRuntimeEnvironmentId: 'env-1' } as never,
+      projects: [project],
+      projectHostSetups: [
+        {
+          id: 'setup-1',
+          projectId: project.id,
+          hostId: 'runtime:env-1',
+          repoId: 'remote-repo',
+          path: '/srv/repo',
+          displayName: 'Remote',
+          setupState: 'ready',
+          setupMethod: 'imported-existing-folder',
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ]
+    })
+
+    await store
+      .getState()
+      .updateProject(
+        project.id,
+        { localWindowsRuntimePreference: { kind: 'windows-host' } },
+        'local'
+      )
+
+    expect(projectsUpdate).toHaveBeenCalledWith({
+      projectId: project.id,
+      updates: { localWindowsRuntimePreference: { kind: 'windows-host' } }
+    })
+    expect(runtimeEnvironmentCall).not.toHaveBeenCalled()
+  })
+
+  it('updates remote project runtime preferences through the owning runtime', async () => {
     const project: Project = {
       id: 'project-1',
       displayName: 'Project',
@@ -246,9 +303,13 @@ describe('repo slice project runtime updates', () => {
       ]
     })
 
-    await store.getState().updateProject(project.id, {
-      localWindowsRuntimePreference: { kind: 'wsl', distro: 'Ubuntu' }
-    })
+    await store.getState().updateProject(
+      project.id,
+      {
+        localWindowsRuntimePreference: { kind: 'wsl', distro: 'Ubuntu' }
+      },
+      'runtime:env-1'
+    )
 
     expect(store.getState().projects[0]?.localWindowsRuntimePreference).toEqual({
       kind: 'wsl',
@@ -264,6 +325,39 @@ describe('repo slice project runtime updates', () => {
       timeoutMs: 15_000
     })
     expect(projectsUpdate).not.toHaveBeenCalled()
+  })
+
+  // Why: a host whose repos carry no `addedAt` projects createdAt 0, which means unknown, not
+  // epoch. Merging it with the host that does know the timestamp must keep the real one.
+  it('prefers a known createdAt over an unknown 0 when merging the same project id', async () => {
+    const project: Project = {
+      id: 'github:stablyai/orca',
+      displayName: 'Orca',
+      badgeColor: '#000',
+      sourceRepoIds: ['remote-repo'],
+      createdAt: 0,
+      updatedAt: 0
+    }
+    projectsUpdate.mockResolvedValue({
+      ...project,
+      sourceRepoIds: ['local-repo'],
+      createdAt: 100,
+      updatedAt: 100,
+      localWindowsRuntimePreference: { kind: 'windows-host' }
+    })
+    const store = createTestStore()
+    store.setState({ projects: [project] })
+
+    await store.getState().updateProject(
+      project.id,
+      {
+        localWindowsRuntimePreference: { kind: 'windows-host' }
+      },
+      'local'
+    )
+
+    expect(store.getState().projects[0]?.createdAt).toBe(100)
+    expect(store.getState().projects[0]?.updatedAt).toBe(100)
   })
 
   it('preserves shared project source repos when updating local runtime preferences', async () => {
@@ -284,9 +378,13 @@ describe('repo slice project runtime updates', () => {
     const store = createTestStore()
     store.setState({ projects: [project] })
 
-    await store.getState().updateProject(project.id, {
-      localWindowsRuntimePreference: { kind: 'windows-host' }
-    })
+    await store.getState().updateProject(
+      project.id,
+      {
+        localWindowsRuntimePreference: { kind: 'windows-host' }
+      },
+      'local'
+    )
 
     expect(store.getState().projects[0]?.sourceRepoIds).toEqual(['local-repo', 'remote-repo'])
     expect(store.getState().projects[0]?.localWindowsRuntimePreference).toEqual({
@@ -315,11 +413,22 @@ describe('repo slice project runtime updates', () => {
     const store = createTestStore()
     store.setState({ projects: [project] })
 
-    await store.getState().updateProject(project.id, {
-      localWindowsRuntimePreference: undefined
-    })
+    await store.getState().updateProject(
+      project.id,
+      {
+        localWindowsRuntimePreference: undefined
+      },
+      'local'
+    )
 
     expect(store.getState().projects[0]?.sourceRepoIds).toEqual(['local-repo', 'remote-repo'])
     expect(store.getState().projects[0]?.localWindowsRuntimePreference).toBeUndefined()
   })
 })
+
+// The catalog these tests read is the one the focused host would have shown.
+function catalogOwner(store: {
+  getState: () => { settings: { activeRuntimeEnvironmentId?: string | null } | null }
+}): { runtimeEnvironmentId: string | null } {
+  return { runtimeEnvironmentId: store.getState().settings?.activeRuntimeEnvironmentId ?? null }
+}

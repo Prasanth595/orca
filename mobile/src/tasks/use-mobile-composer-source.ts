@@ -1,5 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
-import type { GitHubWorkItem, GitLabWorkItem, LinearIssue } from '../../../src/shared/types'
+import type { GitHubWorkItem } from '../../../src/shared/github/work-item-types'
+import type { GitLabWorkItem } from '../../../src/shared/gitlab-types'
+import type { LinearIssue } from '../../../src/shared/linear/issue-types'
 import { resolveComposerManualBranchNameChange } from '../../../src/shared/composer-branch-selection'
 import { resolveGitHubWorkItemIdentity } from '../../../src/shared/new-workspace/github-work-item-identity'
 import { getForkPushWarning } from '../../../src/shared/new-workspace/fork-push-warning'
@@ -26,6 +28,7 @@ import type {
   MobileLinkedWorkItem,
   SmartNameSelection
 } from './mobile-composer-source-types'
+import { useMobileComposerName } from './use-mobile-composer-name'
 const EMPTY_BASE: ComposerBaseState = {}
 
 export type UseMobileComposerSourceArgs = {
@@ -37,7 +40,6 @@ export type UseMobileComposerSourceArgs = {
 
 export function useMobileComposerSource(args: UseMobileComposerSourceArgs) {
   const { client, selectedRepoId, worktreeBranches = [], onError } = args
-  const [name, setNameState] = useState('')
   const [linkedWorkItem, setLinkedWorkItem] = useState<MobileLinkedWorkItem | null>(null)
   const [base, setBase] = useState<ComposerBaseState>(EMPTY_BASE)
   const [reuseEligibleBranch, setReuseEligibleBranch] = useState<string | null>(null)
@@ -48,19 +50,12 @@ export function useMobileComposerSource(args: UseMobileComposerSourceArgs) {
   // may contain slashes) is kept verbatim as the git branch (folder is sanitized).
   const [branchCreateIntent, setBranchCreateIntent] = useState(false)
 
-  const lastAutoNameRef = useRef('')
   const branchSelectionRef = useRef<{ refName: string; localBranchName: string } | null>(null)
   // Guards async base resolution: only the latest selection applies its result.
   const resolveTokenRef = useRef(0)
 
-  const setName = useCallback((value: string) => setNameState(value), [])
-
-  const applyAutoName = useCallback((suggested: string, currentName: string) => {
-    if (suggested && shouldApplyAutoName({ currentName, lastAutoName: lastAutoNameRef.current })) {
-      setNameState(suggested)
-      lastAutoNameRef.current = suggested
-    }
-  }, [])
+  const { name, setName, setNameState, lastAutoNameRef, applyAutoName, isNameAutoManaged } =
+    useMobileComposerName(linkedWorkItem)
 
   const clearBaseAndBranch = useCallback(() => {
     branchSelectionRef.current = null
@@ -199,18 +194,23 @@ export function useMobileComposerSource(args: UseMobileComposerSourceArgs) {
       resolveTokenRef.current += 1
       setLinkedWorkItem(buildLinearLinkedWorkItem(issue))
       const suggested = resolveLinearAutoName(issue)
-      const identifierTyped = name.trim().toLowerCase() === issue.identifier.toLowerCase()
+      const identifierTyped =
+        !linkedWorkItem && name.trim().toLowerCase() === issue.identifier.toLowerCase()
       if (
         suggested &&
         (identifierTyped ||
-          shouldApplyAutoName({ currentName: name, lastAutoName: lastAutoNameRef.current }))
+          shouldApplyAutoName({
+            currentName: name,
+            lastAutoName: lastAutoNameRef.current,
+            lookupTextIsQuery: !linkedWorkItem
+          }))
       ) {
         setNameState(suggested)
         lastAutoNameRef.current = suggested
       }
       clearBaseAndBranch()
     },
-    [clearBaseAndBranch, name]
+    [clearBaseAndBranch, linkedWorkItem, name]
   )
 
   const handleSmartBranchSelect = useCallback(
@@ -299,10 +299,6 @@ export function useMobileComposerSource(args: UseMobileComposerSourceArgs) {
       }),
     [base, branchCreateIntent, linkedWorkItem, name, reuseEligibleBranch, reuseSelectedBranch]
   )
-
-  // Auto-managed until the user edits the name away from the last derived value;
-  // desktop suppresses the workspace displayName once the name is user-edited.
-  const isNameAutoManaged = !name.trim() || name === lastAutoNameRef.current
 
   return {
     name,

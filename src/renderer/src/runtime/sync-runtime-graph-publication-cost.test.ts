@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildMobileSessionTabSnapshots, registerRuntimeTerminalTab } from './sync-runtime-graph'
+import { buildMobileSessionTabSnapshots } from './sync-runtime-graph'
+import { registerRuntimeTerminalTab } from './mounted-terminal-tab-registry'
 import type { AppState } from '../store/types'
 
 // Why: getBrowserTabsByWorktree reads this slice once per worktree inside the build loop,
@@ -289,7 +290,8 @@ function makeLiveSurface(tabId: string): {
     worktreeId: MOUNTED_WT,
     getManager: () => manager,
     getContainer: () => null,
-    getPtyIdForPane: (paneId: number) => ptyIdByPaneId.get(paneId) ?? null
+    getPtyIdForPane: (paneId: number) => ptyIdByPaneId.get(paneId) ?? null,
+    getTabWideAgentHintLeafId: () => MOUNTED_LEAF_ID
   } as unknown as Parameters<typeof registerRuntimeTerminalTab>[0]
   return {
     registration,

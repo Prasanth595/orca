@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTestStore } from './store-test-helpers'
-import type { TerminalQuickCommand } from '../../../../shared/types'
+import type { TerminalQuickCommand } from '../../../../shared/terminal-quick-command-types'
 import { getDefaultSettings } from '../../../../shared/constants'
 import {
   MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
@@ -8,6 +8,7 @@ import {
   TERMINAL_QUICK_COMMANDS_RUNTIME_CAPABILITY
 } from '../../../../shared/protocol-version'
 import { clearRuntimeCompatibilityCacheForTests } from '@/runtime/runtime-rpc-client'
+import { stubRuntimeEnvironmentBridge } from '../../runtime/runtime-environment-bridge-fixture'
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn() } }))
 
@@ -48,7 +49,7 @@ function installRuntime(supported = true): ReturnType<typeof vi.fn> {
     }
     throw new Error(`Unexpected method: ${method}`)
   })
-  vi.stubGlobal('window', { api: { runtimeEnvironments: { call } } })
+  stubRuntimeEnvironmentBridge({ call })
   return call
 }
 
@@ -132,7 +133,7 @@ describe('terminal quick command host collections', () => {
       }
       throw new Error(`Unexpected method: ${method} ${String(params)}`)
     })
-    vi.stubGlobal('window', { api: { runtimeEnvironments: { call } } })
+    stubRuntimeEnvironmentBridge({ call })
     const store = createTestStore()
 
     const load = store.getState().loadRuntimeTerminalQuickCommands('env-race', { force: true })

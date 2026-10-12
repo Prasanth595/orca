@@ -17,8 +17,7 @@ const {
     settings: { openLinksInApp: true },
     createBrowserTab: vi.fn(),
     setRemoteBrowserPageHandle: vi.fn(),
-    setWorkspacePortScan: vi.fn(),
-    setWorkspacePortScanForKey: vi.fn(),
+    replaceWorkspacePortScans: vi.fn(),
     setWorkspacePortScanRefreshing: vi.fn(),
     recordFeatureInteraction: vi.fn(),
     workspacePortScansByKey: {}
@@ -46,11 +45,10 @@ vi.mock('@/lib/worktree-activation', () => ({
 }))
 
 vi.mock('@/lib/worktree-runtime-owner', () => ({
-  getRuntimeEnvironmentIdForWorktree: () => null
+  getExecutionHostIdForWorktree: () => 'local'
 }))
 
 vi.mock('@/runtime/runtime-rpc-client', () => ({
-  getActiveRuntimeTarget: () => ({ kind: 'local' }),
   callRuntimeRpc: vi.fn(),
   RuntimeRpcCallError: class RuntimeRpcCallError extends Error {
     code?: string

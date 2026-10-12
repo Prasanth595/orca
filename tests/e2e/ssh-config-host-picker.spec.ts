@@ -21,6 +21,8 @@ import {
   type SeededSshConfigHost
 } from './helpers/ssh-config-host-picker'
 
+test.use({ seedTestRepo: false })
+
 // Why: afterEach deletes every target carrying this prefix; workers loading the
 // module in the same millisecond must not collide on a shared Date.now().
 const HOST_PREFIX = makeSshConfigHostPrefix()
@@ -138,8 +140,8 @@ test.describe('SSH config host picker', () => {
 
     await form.getByRole('button', { name: 'Save' }).click()
     await expect(form).toBeHidden({ timeout: 10_000 })
-    await expect(orcaPage.getByText('SSH host added.')).toBeVisible({ timeout: 5_000 })
 
+    // The saved settings card is durable; the success toast is not.
     const sshSection = await openSshHostSettings(orcaPage)
     await expectSshHostListedInSettings(sshSection, prod)
   })

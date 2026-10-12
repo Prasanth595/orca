@@ -1,12 +1,13 @@
-import { callRuntimeRpc, getActiveRuntimeTarget } from '@/runtime/runtime-rpc-client'
-import type { GitHubAssignableUser, GlobalSettings } from '../../../shared/types'
+import { callRuntimeRpc } from '@/runtime/runtime-rpc-client'
+import type { RuntimeClientTarget } from '@/runtime/runtime-client-target'
+import type { GitHubAssignableUser } from '../../../shared/github/pull-request-types'
 import type {
   ListAssignableUsersBySlugResult,
   ListLabelsBySlugResult
-} from '../../../shared/github-project-types'
+} from '../../../shared/github/project-result-types'
 import { clearMetadataRequestStore, createMetadataRequestStore } from './metadata-request-cache'
-import { githubRepoIdentityKey } from '../../../shared/github-repository-identity-key'
-import { githubProjectHost } from '../../../shared/github-project-identity'
+import { githubRepoIdentityKey } from '../../../shared/github/repository-identity-key'
+import { githubProjectHost } from '../../../shared/github/project-identity'
 import { useMetadataListRequest, type MetadataListState } from './useMetadataListRequest'
 
 const slugLabelStore = createMetadataRequestStore<string[]>()
@@ -20,11 +21,10 @@ export function clearGitHubSlugMetadataCache(): void {
 export function useRepoLabelsBySlug(
   owner: string | null,
   repo: string | null,
-  settings?: Pick<GlobalSettings, 'activeRuntimeEnvironmentId'> | null,
+  ownerTarget?: RuntimeClientTarget | null,
   host?: string
 ): MetadataListState<string> {
-  const activeRuntimeEnvironmentId = settings?.activeRuntimeEnvironmentId ?? null
-  const target = getActiveRuntimeTarget({ activeRuntimeEnvironmentId })
+  const target: RuntimeClientTarget = ownerTarget ?? { kind: 'local' }
   const selectedOwner = owner ?? ''
   const selectedRepo = repo ?? ''
   const repositoryKey = owner && repo ? githubRepoIdentityKey({ owner, repo, host }) : null
@@ -63,12 +63,11 @@ export function useRepoAssigneesBySlug(
   owner: string | null,
   repo: string | null,
   seedLogins?: string[],
-  settings?: Pick<GlobalSettings, 'activeRuntimeEnvironmentId'> | null,
+  ownerTarget?: RuntimeClientTarget | null,
   host?: string
 ): MetadataListState<GitHubAssignableUser> {
   const seedKey = (seedLogins ?? []).slice().sort().join(',')
-  const activeRuntimeEnvironmentId = settings?.activeRuntimeEnvironmentId ?? null
-  const target = getActiveRuntimeTarget({ activeRuntimeEnvironmentId })
+  const target: RuntimeClientTarget = ownerTarget ?? { kind: 'local' }
   const selectedOwner = owner ?? ''
   const selectedRepo = repo ?? ''
   const repositoryKey = owner && repo ? githubRepoIdentityKey({ owner, repo, host }) : null

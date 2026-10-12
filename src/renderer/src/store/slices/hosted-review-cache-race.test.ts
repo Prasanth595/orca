@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { create } from 'zustand'
 import type { AppState } from '../types'
-import { createHostedReviewSlice, getHostedReviewCacheKey } from './hosted-review'
+import { createHostedReviewSlice } from './hosted-review'
+import { getHostedReviewCacheKey } from './hosted-review-cache-identity'
 import type { HostedReviewInfo } from '../../../../shared/hosted-review'
 
 const runtimeRpc = vi.hoisted(() => ({
@@ -9,13 +10,7 @@ const runtimeRpc = vi.hoisted(() => ({
 }))
 
 vi.mock('@/runtime/runtime-rpc-client', () => ({
-  callRuntimeRpc: runtimeRpc.callRuntimeRpc,
-  getActiveRuntimeTarget: (
-    settings: { activeRuntimeEnvironmentId?: string | null } | null | undefined
-  ) => {
-    const environmentId = settings?.activeRuntimeEnvironmentId?.trim()
-    return environmentId ? { kind: 'environment', environmentId } : { kind: 'local' }
-  }
+  callRuntimeRpc: runtimeRpc.callRuntimeRpc
 }))
 
 const mockApi = {
@@ -111,10 +106,14 @@ describe('hosted review cache race protection', () => {
         }
       }
     })
+    const subscriber = vi.fn()
+    const unsubscribe = store.subscribe(subscriber)
     vi.setSystemTime(300)
     resolveFetch(olderReview)
 
     await expect(request).resolves.toEqual(olderReview)
+    unsubscribe()
+    expect(subscriber).not.toHaveBeenCalled()
     expect(store.getState().hostedReviewCache[cacheKey]).toEqual({
       data: newerReview,
       fetchedAt: 200,

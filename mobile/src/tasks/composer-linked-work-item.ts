@@ -1,4 +1,6 @@
-import type { GitHubWorkItem, GitLabWorkItem, LinearIssue } from '../../../src/shared/types'
+import type { GitHubWorkItem } from '../../../src/shared/github/work-item-types'
+import type { GitLabWorkItem } from '../../../src/shared/gitlab-types'
+import type { LinearIssue } from '../../../src/shared/linear/issue-types'
 import { getLinearIssueWorkspaceName } from '../../../src/shared/workspace-name'
 import {
   buildGitHubWorkspaceSource,
@@ -48,7 +50,11 @@ export function buildLinearLinkedWorkItem(issue: {
 // Faithful port of desktop applyLinkedWorkItem's name gate: the derived name
 // replaces the current field only when it's empty, still the last auto-name, or
 // a lookup query — never a name the user deliberately typed.
-export function shouldApplyAutoName(args: { currentName: string; lastAutoName: string }): boolean {
+export function shouldApplyAutoName(args: {
+  currentName: string
+  lastAutoName: string
+  lookupTextIsQuery?: boolean
+}): boolean {
   return shouldApplyWorkspaceSourceAutoName(args)
 }
 
