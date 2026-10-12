@@ -5104,5 +5104,11 @@
   },
   "components.workspace.cleanup.browse.agent.working": {
     "ko": "작업 중"
+  },
+  "auto.components.settings.PrivacyDiagnosticBundleControls.19ec5e29b3": {
+    "ko": "최근 앱 활동과 오류를 민감 정보가 가려진 파일로 모아, 보내기 전에 검토할 수 있게 합니다. 보내기를 선택하기 전까지는 아무것도 업로드되지 않습니다."
+  },
+  "auto.components.settings.privacy.search.2b5a5c312f": {
+    "ko": "PostHog"
   }
 }
