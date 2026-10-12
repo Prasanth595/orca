@@ -16,7 +16,7 @@ const state = vi.hoisted(() => ({
 vi.mock('@/store', () => ({
   useAppStore: (selector: (value: typeof state) => unknown) => selector(state)
 }))
-vi.mock('@/runtime/runtime-file-client', () => ({
+vi.mock('@/runtime/runtime-file-import-client', () => ({
   importExternalPathsToRuntime: mocks.importPaths
 }))
 vi.mock('./file-explorer-operation-owner', () => ({

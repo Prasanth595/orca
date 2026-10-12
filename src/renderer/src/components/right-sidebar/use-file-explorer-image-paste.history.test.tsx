@@ -20,8 +20,10 @@ const mocks = vi.hoisted(() => ({
   assertCurrent: vi.fn(),
   error: vi.fn()
 }))
-vi.mock('@/runtime/runtime-file-client', () => ({
-  importExternalPathsToRuntime: mocks.importPaths,
+vi.mock('@/runtime/runtime-file-import-client', () => ({
+  importExternalPathsToRuntime: mocks.importPaths
+}))
+vi.mock('@/runtime/runtime-file-mutation-client', () => ({
   deleteRuntimePath: mocks.deletePath
 }))
 vi.mock('./file-explorer-operation-owner', () => ({

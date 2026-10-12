@@ -44,7 +44,7 @@ import { readClipboardImageSource } from './clipboard-image-source'
 import { registerClipboardImageImportHandlers } from './clipboard-image-import-ipc'
 import { readClipboardCopiedFilePaths } from './clipboard-copied-file-paths'
 import { buildClipboardImageThumbnail } from './clipboard-image-thumbnail'
-import { writeClipboardTextAndVerify } from './clipboard-text-write-verify'
+import { publishClipboardText } from './clipboard-text-publisher'
 import { isDashboardPopoutRenderer } from './dashboard-popout-window'
 import { restoreNativeChatPastes, sweepExpiredNativeChatPastes } from './native-chat-paste-files'
 
@@ -206,9 +206,8 @@ export function registerClipboardHandlers(store: Store): void {
   )
   ipcMain.handle('clipboard:writeText', async (event, text: string) => {
     assertTrustedClipboardTextSender(event)
-    const safeText = await assertClipboardTextWriteWithinLimitWithYield(text)
     try {
-      clipboard.writeText(safeText)
+      await publishClipboardText(text, 'ordinary')
     } catch (error) {
       // Native failures can name paths or platform state, so they stay here; the renderer
       // only renders a vetted reason (describeClipboardWriteFailure).
@@ -218,7 +217,7 @@ export function registerClipboardHandlers(store: Store): void {
   })
   ipcMain.handle('clipboard:writeTerminalText', async (event, text: string) => {
     assertTrustedClipboardTextSender(event)
-    return writeClipboardTextAndVerify(await assertClipboardTextWriteWithinLimitWithYield(text))
+    return publishClipboardText(text)
   })
   ipcMain.handle('clipboard:writeSelectionText', async (event, text: string) => {
     assertTrustedClipboardSender(event)

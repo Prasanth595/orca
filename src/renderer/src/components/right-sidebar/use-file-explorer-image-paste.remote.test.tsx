@@ -24,8 +24,10 @@ const mocks = vi.hoisted(() => ({
   deletePath: vi.fn(),
   error: vi.fn()
 }))
-vi.mock('@/runtime/runtime-file-client', () => ({
-  importExternalPathsToRuntime: mocks.importPaths,
+vi.mock('@/runtime/runtime-file-import-client', () => ({
+  importExternalPathsToRuntime: mocks.importPaths
+}))
+vi.mock('@/runtime/runtime-file-mutation-client', () => ({
   deleteRuntimePath: mocks.deletePath
 }))
 vi.mock('sonner', () => ({ toast: { error: mocks.error } }))

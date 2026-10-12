@@ -1,4 +1,4 @@
-import { deleteRuntimePath } from '@/runtime/runtime-file-client'
+import { deleteRuntimePath } from '@/runtime/runtime-file-mutation-client'
 import type { ClipboardImageImport } from '../../../../shared/clipboard-image-import'
 import { commitFileExplorerOp } from './fileExplorerUndoRedo'
 import type {

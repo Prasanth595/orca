@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { getRelativePathInsideRoot, joinPath } from '@/lib/path'
-import { importExternalPathsToRuntime } from '@/runtime/runtime-file-client'
+import { importExternalPathsToRuntime } from '@/runtime/runtime-file-import-client'
 import { translate } from '@/i18n/i18n'
 import type { FileExplorerOperationOwner } from './file-explorer-types'
 import {
