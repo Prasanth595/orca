@@ -138,6 +138,37 @@ beforeEach(() => {
   mocks.resumeInChat.mockReset()
 })
 
+// What Orca remembers once the agent exits and the pane is back at its shell prompt.
+const exitedAgentRecords: Record<string, Partial<AppState>> = {
+  retained: {
+    retainedAgentsByPaneKey: {
+      'term-1:leaf-1': {
+        entry: liveClaudeEntry['term-1:leaf-1'],
+        worktreeId: WORKTREE_ID,
+        tab: makeTerminalTab('term-1', WORKTREE_ID, 'claude'),
+        agentType: 'claude',
+        startedAt: 1
+      }
+    }
+  },
+  sleeping: {
+    sleepingAgentSessionsByPaneKey: {
+      'term-1:leaf-1': {
+        paneKey: 'term-1:leaf-1',
+        tabId: 'term-1',
+        worktreeId: WORKTREE_ID,
+        agent: 'claude',
+        providerSession: { key: 'session_id', id: 'claude-session-1' },
+        prompt: '',
+        state: 'working',
+        capturedAt: 1,
+        updatedAt: 1,
+        origin: 'live'
+      }
+    }
+  }
+}
+
 describe('resolveTabSessionHistorySubject', () => {
   it('finds a native chat tab by the chat it shows', () => {
     expect(
@@ -174,37 +205,6 @@ describe('resolveTabSessionHistorySubject', () => {
       )
     ).toEqual(cliSubject)
   })
-
-  // What Orca remembers once the agent exits and the pane is back at its shell prompt.
-  const exitedAgentRecords: Record<string, Partial<AppState>> = {
-    retained: {
-      retainedAgentsByPaneKey: {
-        'term-1:leaf-1': {
-          entry: liveClaudeEntry['term-1:leaf-1'],
-          worktreeId: WORKTREE_ID,
-          tab: makeTerminalTab('term-1', WORKTREE_ID, 'claude'),
-          agentType: 'claude',
-          startedAt: 1
-        }
-      }
-    },
-    sleeping: {
-      sleepingAgentSessionsByPaneKey: {
-        'term-1:leaf-1': {
-          paneKey: 'term-1:leaf-1',
-          tabId: 'term-1',
-          worktreeId: WORKTREE_ID,
-          agent: 'claude',
-          providerSession: { key: 'session_id', id: 'claude-session-1' },
-          prompt: '',
-          state: 'working',
-          capturedAt: 1,
-          updatedAt: 1,
-          origin: 'live'
-        }
-      }
-    }
-  }
 
   it.each(Object.keys(exitedAgentRecords))(
     'offers nothing from a %s record once the agent has exited, though the tab title keeps it',
@@ -343,26 +343,19 @@ describe('one pane of a terminal tab', () => {
     expect(paneGate(state, claudePane)).toBe(true)
   })
 
-  it('still maps a pane whose agent exited, as the tab menu does', () => {
-    const state = makeState()
-    useAppStore.setState({
-      retainedAgentsByPaneKey: {
-        [claudePane]: {
-          entry: liveClaudeEntry['term-1:leaf-1'],
-          worktreeId: WORKTREE_ID,
-          tab: state.tabsByWorktree[WORKTREE_ID][0],
-          agentType: 'claude',
-          startedAt: 0
-        }
-      }
-    })
-    const retained = useAppStore.getState()
-    expect(paneSubject(retained, claudePane)).toEqual(cliSubject)
-    expect(
-      resolveTabSessionHistorySubject(retained, { tab: { id: 'term-1', worktreeId: WORKTREE_ID } })
-    ).toEqual(cliSubject)
-    expect(paneGate(retained, claudePane)).toBe(true)
-  })
+  it.each(Object.keys(exitedAgentRecords))(
+    'offers nothing once the agent exited and only a %s record remains, as the tab menu does',
+    (kind) => {
+      makeState()
+      useAppStore.setState(exitedAgentRecords[kind])
+      const exited = useAppStore.getState()
+      expect(paneSubject(exited, claudePane)).toBeNull()
+      expect(paneGate(exited, claudePane)).toBe(false)
+      expect(
+        resolveTabSessionHistorySubject(exited, { tab: { id: 'term-1', worktreeId: WORKTREE_ID } })
+      ).toBeNull()
+    }
+  )
 
   it('offers nothing where the project runs in WSL, whose chat route is refused', () => {
     mocks.platform = 'win32'

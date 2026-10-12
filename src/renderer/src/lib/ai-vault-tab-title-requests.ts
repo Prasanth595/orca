@@ -144,10 +144,15 @@ export function collectAiVaultTitleRequests(
 /** The same mapping narrowed to one pane, so a pane's action finds that pane's own conversation. */
 export function resolvePaneAiVaultTitleRequest(
   state: AppState,
-  pane: { worktreeId: string; paneKey: string }
+  pane: { worktreeId: string; paneKey: string },
+  options: AiVaultTitleRequestOptions = {}
 ): AiVaultTitleRequest | null {
-  const retained = state.retainedAgentsByPaneKey[pane.paneKey]
-  const sleeping = state.sleepingAgentSessionsByPaneKey[pane.paneKey]
+  const retained = options.runningAgentsOnly
+    ? undefined
+    : state.retainedAgentsByPaneKey[pane.paneKey]
+  const sleeping = options.runningAgentsOnly
+    ? undefined
+    : state.sleepingAgentSessionsByPaneKey[pane.paneKey]
   const live = state.agentStatusByPaneKey[pane.paneKey]
   const candidates = new Map<string, RequestCandidate>()
   const findTab = (tabId: string): TerminalTab | undefined =>

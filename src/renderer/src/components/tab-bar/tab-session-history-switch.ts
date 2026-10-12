@@ -74,13 +74,13 @@ function canHostOfferTabSessionMove(
   return kind === 'chat' && parseExecutionHostId(hostScope)?.kind === 'runtime'
 }
 
-/** Whether a pane has a conversation the move could act on, without building the list request,
- *  for a surface that stays rendered. The history lookup still decides on click. */
+/** Whether a pane's running agent has a conversation the move could act on, without building the
+ *  list request, for a surface that stays rendered. The history lookup still decides on click. */
 export function canPaneOfferResumeInNewChat(
   state: AppState,
   pane: { worktreeId: string; paneKey: string }
 ): boolean {
-  const titleRequest = resolvePaneAiVaultTitleRequest(state, pane)
+  const titleRequest = resolvePaneAiVaultTitleRequest(state, pane, { runningAgentsOnly: true })
   if (!titleRequest) {
     return false
   }
@@ -131,10 +131,11 @@ export function resolveTabSessionHistorySubject(
   // The pane-to-conversation mapping tab titles use, limited to agents still running: once the agent
   // exits, the tab title keeps its conversation but the move is no longer offered.
   const titleRequest = args.paneKey
-    ? resolvePaneAiVaultTitleRequest(state, {
-        worktreeId: args.tab.worktreeId,
-        paneKey: args.paneKey
-      })
+    ? resolvePaneAiVaultTitleRequest(
+        state,
+        { worktreeId: args.tab.worktreeId, paneKey: args.paneKey },
+        { runningAgentsOnly: true }
+      )
     : (collectAiVaultTitleRequests(state, { runningAgentsOnly: true }).find(
         (candidate) => candidate.tabId === args.tab.id
       ) ?? null)
