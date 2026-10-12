@@ -12,11 +12,17 @@ export {
   type MethodTranslation,
   type SessionTabMoveErrorCode
 } from './old-client-method-translation'
+export { translateFileOpen } from './old-client-editor-tabs'
 export {
   translateUpdatePaneLayout,
   type PaneLayoutTranslation,
   type SentPaneLayout
 } from './old-client-pane-layout-translation'
+export {
+  resolveSessionTabRow,
+  terminalRowId,
+  type SessionTabRowTarget
+} from './old-client-session-tab-rows'
 export {
   projectSessionTabs,
   type ProjectedSessionTabs,

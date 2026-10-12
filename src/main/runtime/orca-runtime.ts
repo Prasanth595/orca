@@ -1,5 +1,5 @@
 import { installRuntimeLinearCommandSurface } from './runtime-linear-command-surface'
-import { OrcaRuntimeWithMigrationCatalog } from './orca-runtime-migration-catalog'
+import { OrcaRuntimeWithHeldLayout } from './orca-runtime-held-layout'
 import type { RuntimeCommandSurfaceHost } from './orca-runtime-core'
 import type {
   AgentLaunchTabPublished,
@@ -16,6 +16,7 @@ import { createAgentLaunchRecordWarmupGate } from './agent-launch-record-warmup-
 import { RuntimeWorkspaceLayouts } from './runtime-workspace-layouts'
 import { holderStoreOf } from './runtime-workspace-layout-writer'
 import { reloadHolderOnExternalWrites } from './holder-external-write-reload'
+import { getRuntimeBrowserPageRegistry } from './runtime-browser-page-registry'
 import { PaneTitleFacts } from './pane-title-facts'
 import { layoutCommandsFor } from './runtime-layout-command-host'
 import { isFrozenOrcadSourceSessionPartition } from '../ssh/orcad-retained-source'
@@ -44,12 +45,18 @@ import {
   type HeldPane
 } from './runtime-held-pane-exits'
 import type { Worktree } from '../../shared/worktree/types'
+import { closedPaneTerminals } from './closed-pane-terminal-stop'
+import { isStoreRecordedLocalWorkspace } from './runtime-spilled-terminal-tabs'
 
-class OrcaRuntimeService extends OrcaRuntimeWithMigrationCatalog {
+class OrcaRuntimeService extends OrcaRuntimeWithHeldLayout {
   /** The one copy of every host partition's tab layout (PR 6). */
   protected readonly layoutHolder = new RuntimeWorkspaceLayouts({
     store: () => holderStoreOf(this.store),
     homeHostId: (key) => this.layoutHomeHostId(key),
+    isKnownLocalWorkspace: (key) =>
+      isStoreRecordedLocalWorkspace(this.store, key, (candidate) =>
+        this.layoutHomeHostId(candidate)
+      ),
     isFrozenPartition: (hostId) => {
       const store = this.store
       return store?.getSshTarget
@@ -68,14 +75,7 @@ class OrcaRuntimeService extends OrcaRuntimeWithMigrationCatalog {
         ...(pty?.lastOscTitle ? { liveTitle: pty.lastOscTitle } : {})
       }
     },
-    stopTerminals: (ptyIds) => {
-      // The close is already committed; each stop is best-effort, as in the worktree sweep.
-      for (const ptyId of ptyIds) {
-        this.stopExplicitlyClosedTabPtys([ptyId], '').catch((error: unknown) => {
-          console.warn(`[runtime] failed to stop terminal ${ptyId}`, error)
-        })
-      }
-    }
+    stopTerminals: (ptyIds, before) => this.stopClosedTerminals(closedPaneTerminals(before, ptyIds))
   })
 
   private async selectReferenceCatalogWorkspace(selector: string, cwd?: string) {
@@ -131,7 +131,7 @@ class OrcaRuntimeService extends OrcaRuntimeWithMigrationCatalog {
     })
   }
 
-  constructor(...args: ConstructorParameters<typeof OrcaRuntimeWithMigrationCatalog>) {
+  constructor(...args: ConstructorParameters<typeof OrcaRuntimeWithHeldLayout>) {
     super(...args)
     // Why: the runtime listing re-runs a scan the worktree-change generation overtook and re-lists
     // through this runtime's scan cache, so a worktree change must reach both. The desktop IPC
@@ -152,12 +152,16 @@ class OrcaRuntimeService extends OrcaRuntimeWithMigrationCatalog {
     this.resolvedWorktrees.onResolved = (snapshot) => this.addCatalogWorktrees(snapshot.worktrees)
     if (store) {
       const onWritten = this.store?.onWorkspaceSessionWritten
-      reloadHolderOnExternalWrites(this.layoutHolder, {
-        ...store,
-        ...(onWritten
-          ? { onWorkspaceSessionWritten: (listener) => onWritten.call(this.store, listener) }
-          : {})
-      })
+      reloadHolderOnExternalWrites(
+        this.layoutHolder,
+        {
+          ...store,
+          ...(onWritten
+            ? { onWorkspaceSessionWritten: (listener) => onWritten.call(this.store, listener) }
+            : {})
+        },
+        () => getRuntimeBrowserPageRegistry(this).listPages()
+      )
     }
   }
 
@@ -242,11 +246,11 @@ class OrcaRuntimeService extends OrcaRuntimeWithMigrationCatalog {
         .filter((repo) => getRepoExecutionHostId(repo) === LOCAL_EXECUTION_HOST_ID)
         .map((repo) => repo.id)
     )
-    this.layoutHolder.addCatalogWorkspaces(
-      worktrees
-        .filter((worktree) => localRepoIds.has(worktree.repoId))
-        .map((worktree) => worktree.id)
-    )
+    const keys = worktrees
+      .filter((worktree) => localRepoIds.has(worktree.repoId))
+      .map((worktree) => worktree.id)
+    this.layoutHolder.addCatalogWorkspaces(keys)
+    this.restoreStructuredAgentSessionTabsForJoinedWorkspaces(keys)
   }
 
   /** A process that exited while its binding was written retires its pane, as on main. */

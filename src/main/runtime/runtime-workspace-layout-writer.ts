@@ -95,11 +95,17 @@ export class RuntimeWorkspaceLayoutWriter {
   private readonly saved = new Map<ExecutionHostId, WorkspaceSessionState>()
   private writing = false
   private failureLogged = false
+  private durableWrite: Promise<void> = Promise.resolve()
 
   constructor(private readonly store: () => HolderStore | null) {}
 
   isWriting(): boolean {
     return this.writing
+  }
+
+  /** Settles once the last durable write reached disk or was reported as failed. */
+  whenDurable(): Promise<void> {
+    return this.durableWrite
   }
 
   savedSession(hostId: ExecutionHostId): WorkspaceSessionState | undefined {
@@ -131,10 +137,22 @@ export class RuntimeWorkspaceLayoutWriter {
     } finally {
       this.writing = false
     }
-    if (durable) {
-      store
-        .runDurableMutation?.(() => ({ value: undefined, persist: 'if-dirty' }))
-        .catch((error: unknown) => this.logFailure(error))
+    if (durable && store.runDurableMutation) {
+      this.durableWrite = store
+        .runDurableMutation(() => ({ value: undefined, persist: 'if-dirty' }))
+        .then(
+          () => undefined,
+          (error: unknown) => this.logFailure(error)
+        )
+    }
+  }
+
+  /** #18202: a `runtime:<env>` partition without the spill copies the local load folded in. */
+  dropSpillCopies(hostId: ExecutionHostId, session: WorkspaceSessionState): void {
+    try {
+      this.store()?.setWorkspaceSession(session, hostId)
+    } catch (error) {
+      console.error('[workspace-layout] could not retire spilled terminal tabs:', error)
     }
   }
 

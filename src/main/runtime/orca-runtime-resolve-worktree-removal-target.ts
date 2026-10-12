@@ -141,8 +141,6 @@ export class OrcaRuntimeWithResolveWorktreeRemovalTarget extends OrcaRuntimeWith
       ((persistedHostId && persistedHostId !== hostId) ||
         (repoId && hasWorktreeRemovalRepoOwnerOnOtherHost(store, repoId, hostId)))
     )
-    const acceptedRendererSnapshot = this.acceptedRendererMobileSnapshotByWorktree.get(worktreeId)
-    const storedSnapshot = this.mobileSessionTabsByWorktree.get(worktreeId)
     if (hostId) {
       store.removeWorktreeMeta(worktreeId, hostId)
     } else {
@@ -159,20 +157,15 @@ export class OrcaRuntimeWithResolveWorktreeRemovalTarget extends OrcaRuntimeWith
           this.pairedRendererSessionOwnedPtyIds.delete(ptyId)
         }
       }
-      const removedPublicationEpoch =
-        acceptedRendererSnapshot?.publicationEpoch ??
-        storedSnapshot?.publicationEpoch ??
-        this.rendererGeneration ??
-        undefined
-      this.removedMobileSessionWorktreeIds.set(
-        worktreeId,
-        removedPublicationEpoch ? { removedPublicationEpoch } : {}
-      )
-      this.mobileSessionTabsByWorktree.delete(worktreeId)
       this.mobileSessionTabsAgentStatusHeartbeat.removeWorktree(worktreeId)
-      this.acceptedRendererMobileSnapshotByWorktree.delete(worktreeId)
-      this.cancelScheduledMobileSessionTabsChanged(worktreeId)
-      this.notifyMobileSessionTabsRemoved(worktreeId)
+      // Out of the catalog, so a later Store write or reload cannot republish it as empty.
+      const listed = this.sessionTabsStream.has(worktreeId)
+      this.layoutHolder.removeWorkspaces([worktreeId])
+      // The holder's removal already sent the removed frame for a worktree it published.
+      if (!listed || this.sessionTabsStream.has(worktreeId)) {
+        this.cancelScheduledMobileSessionTabsChanged(worktreeId)
+        this.notifyMobileSessionTabsRemoved(worktreeId)
+      }
       advertisedUrlWatcher.forgetWorktree(worktreeId)
       deleteWorktreeHistoryDir(worktreeId)
       this.closeHeadlessBrowserPagesForWorktree(worktreeId)

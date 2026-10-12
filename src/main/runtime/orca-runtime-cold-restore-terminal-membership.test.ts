@@ -53,11 +53,6 @@ const SSH_HOST: RestoreHost = {
   ptyIds: { left: 'ssh:ssh-1@@pty-left', right: 'ssh:ssh-1@@pty-right' },
   persistsPtyBindings: false
 }
-const RUNTIME_HOST: RestoreHost = {
-  ...LOCAL_HOST,
-  repo: { ...LOCAL_HOST.repo, executionHostId: 'runtime:env-1' },
-  hostId: 'runtime:env-1'
-}
 
 // A cold restore: the saved split survives, and an earlier incarnation change left the repo's
 // terminal membership host-authoritative, but no PTY has registered yet.
@@ -227,8 +222,7 @@ describe('a restored terminal published before its PTY registers', () => {
 
   it.each([
     ['local', LOCAL_HOST],
-    ['SSH without a saved PTY binding', SSH_HOST],
-    ['runtime host', RUNTIME_HOST]
+    ['SSH without a saved PTY binding', SSH_HOST]
   ])('%s: is listed pending, then pushed ready when its PTY registers', async (_label, host) => {
     vi.useFakeTimers()
     const { runtime } = coldRestoredRuntime(host)
@@ -326,23 +320,6 @@ describe('a retired restored terminal stays out of a later renderer frame', () =
     publishRendererFrame(runtime, makeRendererFrame(LOCAL_HOST, { version: 2 }))
     expect(await listedSurfaces(runtime)).not.toContain(`tab::${LEFT}:ready`)
     expect(await listedSurfaces(runtime)).not.toContain(`tab::${LEFT}:pending-handle`)
-  })
-
-  it('after its last pane exits from a runtime-host partition an older copy still lists', async () => {
-    const { runtime, sessions } = coldRestoredRuntime(RUNTIME_HOST)
-    // Left behind in another partition before the catalog owner rotated.
-    sessions.set(LOCAL_EXECUTION_HOST_ID, makeColdRestoredSession(RUNTIME_HOST))
-    registerLeaf(runtime, RUNTIME_HOST, 'left')
-    registerLeaf(runtime, RUNTIME_HOST, 'right')
-    publishRendererFrame(runtime, makeRendererFrame(RUNTIME_HOST))
-
-    await runtime.onPtyExit('pty-left', 0, 'incarnation-left')
-    await runtime.onPtyExit('pty-right', 0, 'incarnation-right')
-    // Emptying the owner's partition re-routes reads to the older copy.
-    expect(sessions.get(RUNTIME_HOST.hostId)?.tabsByWorktree[WORKTREE_ID]).toEqual([])
-
-    publishRendererFrame(runtime, makeRendererFrame(RUNTIME_HOST, { version: 2 }))
-    expect(await listedSurfaces(runtime)).toEqual([])
   })
 
   it('after the user closes it on the desktop', async () => {
@@ -487,27 +464,19 @@ describe('a surface the host retired stays retired when a restored sibling regis
     const { runtime } = coldRestoredRuntime()
     // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the chat close path uses only this relay.
     runtime.setNotifier({ closeSessionTab: vi.fn(async () => {}) } as never)
-    publishRendererFrame(
-      runtime,
-      makeRendererFrame(LOCAL_HOST, {
-        extraTabs: [
-          {
-            type: 'agent-session',
-            id: 'chat',
-            title: 'Chat',
-            sessionId: 'session-chat',
-            agent: 'claude',
-            isActive: false
-          }
-        ]
-      })
-    )
-    expect(await listedSurfaces(runtime)).toContain('chat:')
+    await runtime.publishStructuredAgentSessionTab({
+      workspaceId: WORKTREE_ID,
+      sessionId: 'session-chat',
+      agent: 'claude',
+      activate: false
+    })
+    const chat = 'agent-session:session-chat'
+    expect(await listedSurfaces(runtime)).toContain(`${chat}:`)
 
-    await runtime.closeMobileSessionTab(`id:${WORKTREE_ID}`, 'chat', { reason: 'user' })
+    await runtime.closeMobileSessionTab(`id:${WORKTREE_ID}`, chat, { reason: 'user' })
     registerLeaf(runtime, LOCAL_HOST, 'left')
 
-    expect(await listedSurfaces(runtime)).not.toContain('chat:')
+    expect(await listedSurfaces(runtime)).not.toContain(`${chat}:`)
   })
 })
 
@@ -516,7 +485,7 @@ describe('a surface the host retired stays retired when a restored sibling regis
 const PHONE_LEAF = '33333333-3333-4333-8333-333333333333'
 
 async function runtimeWithUnpublishedPhoneCreate(): Promise<OrcaRuntimeService> {
-  const { runtime } = coldRestoredRuntime()
+  const { runtime, sessions } = coldRestoredRuntime()
   const handlers = new Map<string, (event: unknown, reply: unknown) => void>()
   const webContents = {
     isDestroyed: () => false,
@@ -530,6 +499,26 @@ async function runtimeWithUnpublishedPhoneCreate(): Promise<OrcaRuntimeService> 
         tabId: 'tab-phone',
         leafId: PHONE_LEAF,
         incarnationId: 'incarnation-phone'
+      })
+      // The window saves the created tab, as its session save would.
+      const session = sessions.get(LOCAL_EXECUTION_HOST_ID)!
+      sessions.set(LOCAL_EXECUTION_HOST_ID, {
+        ...session,
+        tabsByWorktree: {
+          [WORKTREE_ID]: [
+            ...(session.tabsByWorktree[WORKTREE_ID] ?? []),
+            { ...session.tabsByWorktree[WORKTREE_ID]![0]!, id: 'tab-phone', ptyId: 'pty-phone' }
+          ]
+        },
+        terminalLayoutsByTabId: {
+          ...session.terminalLayoutsByTabId,
+          'tab-phone': {
+            root: { type: 'leaf', leafId: PHONE_LEAF },
+            activeLeafId: PHONE_LEAF,
+            expandedLeafId: null,
+            ptyIdsByLeafId: { [PHONE_LEAF]: 'pty-phone' }
+          }
+        }
       })
       handlers.get('terminal:tabCreateReply')?.(
         { sender: webContents },

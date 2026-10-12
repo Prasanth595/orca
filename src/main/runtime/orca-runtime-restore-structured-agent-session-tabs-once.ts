@@ -1,16 +1,10 @@
 // @ts-nocheck -- mechanically split from OrcaRuntimeService; behavior is covered by AST equivalence and characterization tests.
-import { defaultAgentChatLabel } from '../../shared/agent-session-chat-label'
 import { OrcaRuntimeWithGetStructuredAgentSessionCreateSupport } from './orca-runtime-get-structured-agent-session-create-support'
 import { getStructuredAgentSessionHost } from '../native-chat/agent-session-wire/structured-agent-session-registry'
 import { collectSavedStructuredAgentSessionIds } from './saved-structured-agent-session-restoration'
 import { seedStructuredAgentSessionTabIndex } from './structured-agent-session-tab-index-seed'
 import { LOCAL_EXECUTION_HOST_ID } from '../../shared/execution-host'
-import type {
-  RuntimeMobileSessionAgentTab,
-  RuntimeMobileSessionTabsSnapshot,
-  RuntimeRepoSearchRefs
-} from '../../shared/runtime-types'
-import { getHeadlessMobileSessionGroupId } from './mobile-session-layout-projection'
+import type { RuntimeRepoSearchRefs } from '../../shared/runtime-types'
 import { DEFAULT_REPO_SEARCH_REFS_LIMIT } from './orca-runtime-postlude'
 import type { Repo } from '../../shared/repo-types'
 import type { GitAdmissionTier } from '../git/command-runner/git-exec-options'
@@ -26,8 +20,27 @@ import { isWslUncPath } from '../../shared/wsl-paths'
 import { parseAppSshPtyId } from '../../shared/ssh-pty-id'
 import type { PtyProcessInspection } from '../providers/pty-process-inspection'
 import type { StructuredAgentId } from '../../shared/agent-session-provider-handle'
+import type { LayoutCommandReply } from '../../shared/workspace-layout/workspace-layout-command-types'
+
+type RestoredSessionTab = { workspaceId: string; sessionId: string; agent: StructuredAgentId }
+
+// Every session here is of an agent this host registered: its store holds no other agent's records.
+function restoredSessionTabs(
+  host: ReturnType<typeof getStructuredAgentSessionHost>
+): RestoredSessionTab[] {
+  return (host?.listSessionTabs() ?? []).map((session) => {
+    let sessionId = session.sessionId
+    while (sessionId.startsWith('agent-session:')) {
+      sessionId = sessionId.slice('agent-session:'.length)
+    }
+    return { ...session, agent: session.agent, sessionId }
+  })
+}
 
 export class OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce extends OrcaRuntimeWithGetStructuredAgentSessionCreateSupport {
+  /** Workspaces whose restored chats the layout refused: only a later scan adds them to the catalog. */
+  private readonly restoredChatWorkspacesAwaitingCatalog = new Set<string>()
+
   protected async restoreStructuredAgentSessionTabsOnce(): Promise<void> {
     await this.prepareStructuredAgentSessionStartupRestoration()
     const host = getStructuredAgentSessionHost()
@@ -40,29 +53,15 @@ export class OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce extends OrcaRu
     )
     const targets = persistedVisibleIndex.present ? persistedVisibleIndex.sessionIds : profileIds
     await host?.restoreReadableSessions(targets)
-    for (const worktreeId of this.getKnownWorkspaceSessionWorktreeIds()) {
-      this.hydrateHeadlessMobileSessionTabsFromWorkspaceSession(worktreeId, {
-        allowAttachedWindow: true,
-        onlyRuntimeOwnedTerminals: true
-      })
-    }
-    this.hydrateHeadlessMobileSessionTabsFromWorkspaceSession()
-    // Every session here is of an agent this host registered: its store holds no other agent's records.
-    const restored = (host?.listSessionTabs() ?? []).flatMap((session) => {
-      let sessionId = session.sessionId
-      while (sessionId.startsWith('agent-session:')) {
-        sessionId = sessionId.slice('agent-session:'.length)
-      }
-      return [{ ...session, agent: session.agent, sessionId }]
-    })
+    const restored = restoredSessionTabs(host)
     await seedStructuredAgentSessionTabIndex(
       host,
       targets,
       restored.map((session) => session.sessionId)
     )
-    // Past the seed, projecting records nothing.
+    // Past the seed, projecting records nothing; a chat the loaded layout already shows is kept.
     for (const session of restored) {
-      this.projectStructuredAgentSessionTab({ ...session, activate: false, notify: false })
+      this.projectRestoredStructuredAgentSessionTab(session)
     }
     const wasUnverifiable = this.structuredAgentSessionInventoryUnverifiable
     // No host means no one can say which chats exist; with none on disk, empty is the answer.
@@ -71,6 +70,33 @@ export class OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce extends OrcaRu
     // This restore published quietly; subscribers still hold the frames that said "cannot tell".
     if (wasUnverifiable && !this.structuredAgentSessionInventoryUnverifiable) {
       this.notifyMobileSessionTabSnapshots()
+    }
+  }
+
+  /** A scan added these worktrees to the catalog: chats restored before it open now, as on main. */
+  restoreStructuredAgentSessionTabsForJoinedWorkspaces(keys: readonly string[]): void {
+    const joined = new Set(
+      keys.filter((key) => this.restoredChatWorkspacesAwaitingCatalog.delete(key))
+    )
+    if (joined.size === 0) {
+      return
+    }
+    // Re-read the host: a chat closed while its worktree was unlisted stays closed.
+    for (const session of restoredSessionTabs(getStructuredAgentSessionHost())) {
+      if (joined.has(session.workspaceId)) {
+        this.projectRestoredStructuredAgentSessionTab(session)
+      }
+    }
+  }
+
+  private projectRestoredStructuredAgentSessionTab(session: RestoredSessionTab): void {
+    const reply = this.projectStructuredAgentSessionTab({
+      ...session,
+      activate: false,
+      notify: false
+    })
+    if (!reply.ok && reply.code === 'workspace_not_found') {
+      this.restoredChatWorkspacesAwaitingCatalog.add(session.workspaceId)
     }
   }
 
@@ -100,92 +126,29 @@ export class OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce extends OrcaRu
     this.projectStructuredAgentSessionTab(input)
   }
 
-  /** The runtime's own snapshot of a chat tab. Records nothing: the caller owns the store write. */
+  /** The chat's tab in the runtime's layout, added once. Records nothing: the caller owns the store write. */
   projectStructuredAgentSessionTab(input: {
     workspaceId: string
     sessionId: string
     agent: StructuredAgentId
     activate: boolean
     notify?: boolean
-  }): void {
-    const existing = this.mobileSessionTabsByWorktree.get(input.workspaceId)
-    const id = `agent-session:${input.sessionId}`
-    if (existing?.tabs.some((tab) => tab.id === id)) {
-      // A background re-publish is a no-op — no store write, no emit — so it cannot re-surface a
-      // client whose mirror lost the tab; healing one needs `activate` or an explicit republish.
-      if (!input.activate) {
-        return
-      }
-      const priorGroups = existing.tabGroups ?? []
-      const groupId =
-        priorGroups.find((group) => group.tabOrder.includes(id))?.id ??
-        (priorGroups.some((group) => group.id === existing.activeGroupId)
-          ? existing.activeGroupId
-          : priorGroups[0]?.id)
-      const snapshot: RuntimeMobileSessionTabsSnapshot = {
-        ...existing,
-        snapshotVersion: existing.snapshotVersion + 1,
-        activeGroupId: groupId ?? existing.activeGroupId,
-        activeTabId: id,
-        activeTabType: 'agent-session',
-        tabGroups: priorGroups.map((group) =>
-          group.id === groupId ? { ...group, activeTabId: id } : group
-        ),
-        tabs: existing.tabs.map((tab) => ({ ...tab, isActive: tab.id === id }))
-      }
-      const stored = this.storeMobileSessionSnapshot(input.workspaceId, snapshot)
-      if (input.notify !== false) {
-        this.emitMobileSessionTabsSnapshot(stored)
-      }
-      return
-    }
-    const tab: RuntimeMobileSessionAgentTab = {
-      type: 'agent-session',
-      id,
-      title: defaultAgentChatLabel(input.agent),
-      sessionId: input.sessionId,
-      agent: input.agent,
-      isActive: input.activate
-    }
-    const tabs = [...(existing?.tabs ?? [])].map((candidate) => ({
-      ...candidate,
-      isActive: input.activate ? false : candidate.isActive
-    }))
-    tabs.push(tab)
-    const priorGroups = existing?.tabGroups ?? [
+  }): LayoutCommandReply {
+    // A new chat tab opens in the group the desktop view shows, as the window opens it.
+    const reply = this.applyTranslatedLayoutCommands([
       {
-        id: getHeadlessMobileSessionGroupId(input.workspaceId),
-        activeTabId: existing?.activeTabId ?? null,
-        tabOrder: []
+        type: 'openAgentSessionTab',
+        workspace: input.workspaceId,
+        sessionId: input.sessionId,
+        agent: input.agent,
+        ...this.desktopActiveGroup(input.workspaceId)
       }
-    ]
-    const groupId = priorGroups.some((group) => group.id === existing?.activeGroupId)
-      ? existing!.activeGroupId!
-      : priorGroups[0]!.id
-    const tabGroups = priorGroups.map((group) =>
-      group.id === groupId
-        ? {
-            ...group,
-            activeTabId: input.activate ? id : group.activeTabId,
-            tabOrder: [...group.tabOrder, id]
-          }
-        : group
-    )
-    const snapshot: RuntimeMobileSessionTabsSnapshot = {
-      worktree: input.workspaceId,
-      publicationEpoch: existing?.publicationEpoch ?? `structured:${Date.now().toString(36)}`,
-      snapshotVersion: (existing?.snapshotVersion ?? 0) + 1,
-      activeGroupId: input.activate ? groupId : (existing?.activeGroupId ?? groupId),
-      activeTabId: input.activate ? id : (existing?.activeTabId ?? null),
-      activeTabType: input.activate ? 'agent-session' : (existing?.activeTabType ?? null),
-      tabGroups,
-      ...(existing?.tabGroupLayout ? { tabGroupLayout: existing.tabGroupLayout } : {}),
-      tabs
+    ])
+    const tabId = reply.ok ? reply.tabId : undefined
+    if (input.activate && tabId) {
+      this.focusInDesktopView(input.workspaceId, { tabId })
     }
-    const stored = this.storeMobileSessionSnapshot(input.workspaceId, snapshot)
-    if (input.notify !== false) {
-      this.emitMobileSessionTabsSnapshot(stored)
-    }
+    return reply
   }
 
   async inspectTerminalProcess(

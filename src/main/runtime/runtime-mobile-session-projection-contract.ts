@@ -33,9 +33,12 @@ export type RuntimeMobileSessionProjectionHost = {
     getRows: (paneKey: string, terminalHandle: string | null) => AgentStatusIpcPayload[]
   ): RuntimeAgentRowSnapshot | null
   getTrackedTitle(ptyId: string | null): string | null
+  /** The pane's own title, or a sole pane's tab rename, a user set on this host. */
+  getUserTitle(worktreeId: string, parentTabId: string, leafId: string): string | null
   /** Display-only clear of a PTY's native title; every title/status read here is display. */
   getTitleDisplayClear(ptyId: string | null): TitleDisplayClear | null
-  issuePtyHandle(pty: RuntimePtyWorktreeRecord): string
+  /** Null while the terminal awaits registration: its handle may still be a create's preallocated one. */
+  issuePtyHandle(pty: RuntimePtyWorktreeRecord): string | null
   recordPty(
     ptyId: string,
     worktreeId: string,

@@ -9,8 +9,6 @@ import { resolveTerminalTabTitle } from '../../tab-title-resolution'
 import type {
   RuntimeMobileSessionAgentTab,
   RuntimeMobileSessionBrowserTab,
-  RuntimeMobileSessionFileTab,
-  RuntimeMobileSessionMarkdownTab,
   RuntimeMobileSessionSnapshotTab,
   RuntimeMobileSessionTerminalTab
 } from '../../runtime-mobile-session-tab-contracts'
@@ -26,7 +24,9 @@ import {
   publishedTabOrderId,
   terminalRowId
 } from './old-client-session-tab-rows'
+import { editorTabRow } from './old-client-editor-tabs'
 import { collectLayoutLeafIdsInOrder } from '../terminal-pane-tree'
+import { resolveWorkspaceSelection } from '../workspace-layout-views'
 import {
   BLANK_BROWSER_TAB_STATE,
   type DesktopLayoutView,
@@ -42,7 +42,12 @@ import type {
 /** One view's selection: the desktop's record today, a phone's own record once views exist. */
 export type SessionTabsView = Pick<
   DesktopLayoutView,
-  'activeGroupIdByWorktree' | 'groups' | 'panes' | 'editorDrafts'
+  | 'activeGroupIdByWorktree'
+  | 'activeFileIdByWorktree'
+  | 'activeBrowserTabIdByWorktree'
+  | 'groups'
+  | 'panes'
+  | 'editorDrafts'
 >
 
 export type SessionTabsFacts = Pick<
@@ -60,6 +65,8 @@ type Scope = {
   key: string
   workspace: WorkspaceLayout
   view: SessionTabsView
+  /** This workspace's resolved pane selection; the view's own map is read only as a fallback. */
+  panes: Partial<SessionTabsView['panes']>
   facts: SessionTabsFacts
   /** The tab shown in the view's active group; its rows are the active ones. */
   activeTabId: string | null
@@ -74,12 +81,16 @@ export function projectSessionTabs(
   facts: SessionTabsFacts,
   generatedTitlesEnabled: boolean
 ): ProjectedSessionTabs {
-  const activeGroupId = view.activeGroupIdByWorktree?.[key] ?? null
+  // A group or pane id that no longer exists falls back as the window's does; a group that never
+  // showed a tab (a background create) still shows none.
+  const selection = resolveWorkspaceSelection(view, key, workspace)
+  const activeGroupId = selection.activeGroupId
   const groupViews = view.groups[key] ?? {}
   const scope: Scope = {
     key,
     workspace,
     view,
+    panes: selection.panes,
     facts,
     generatedTitlesEnabled,
     activeTabId: activeGroupId ? (groupViews[activeGroupId]?.activeTabId ?? null) : null
@@ -150,8 +161,9 @@ function projectTab(tab: LayoutTab, scope: Scope): RuntimeMobileSessionSnapshotT
   switch (tab.kind) {
     case 'terminal':
       return terminalRows(tab, scope)
-    case 'editor': {
-      const row = editorRow(tab, scope)
+    case 'editor':
+    case 'diff': {
+      const row = editorTabRow(tab, scope)
       return row ? [row] : []
     }
     case 'browser': {
@@ -162,9 +174,7 @@ function projectTab(tab: LayoutTab, scope: Scope): RuntimeMobileSessionSnapshotT
       const row = agentSessionRow(tab, scope)
       return row ? [row] : []
     }
-    // The model holds no file record for a diff (the window lists it from its own state); the
-    // others need the desktop to draw them and are not listed today.
-    case 'diff':
+    // These need the desktop to draw them and are not listed today.
     case 'conflict-review':
     case 'check-details':
     case 'chat-visual':
@@ -181,7 +191,7 @@ const tabProps = (tab: LayoutTab) => ({
 function terminalRows(tab: LayoutTerminalTab, scope: Scope): RuntimeMobileSessionTerminalTab[] {
   const leafIds = collectLayoutLeafIdsInOrder(tab.panes.root)
   const leaves = scope.workspace.leaves ?? {}
-  const paneView = scope.view.panes[tab.entityId]
+  const paneView = scope.panes[tab.entityId] ?? scope.view.panes[tab.entityId]
   const activeLeafId = paneView?.activeLeafId ?? leafIds[0] ?? null
   const ptyIdsByLeafId = recordOf(leafIds, (leafId) => leaves[leafId]?.ptyId)
   const titlesByLeafId = recordOf(leafIds, (leafId) => leaves[leafId]?.title)
@@ -197,8 +207,8 @@ function terminalRows(tab: LayoutTerminalTab, scope: Scope): RuntimeMobileSessio
   // also the focused one, as the window publishes it.
   const root = tab.panes.root
   const tabWide = root?.type === 'leaf' && activeLeafId === root.leafId
-  const liveTitle =
-    scope.facts.terminalRows[tab.entityId]?.title ?? tab.terminal.defaultTitle ?? 'Terminal'
+  // Not the tab's "Terminal N" default: today a row with no saved or live title reads "Terminal".
+  const liveTitle = scope.facts.terminalRows[tab.entityId]?.title ?? 'Terminal'
   return leafIds.map((leafId) => {
     const leaf = leaves[leafId]
     const paneTitle = leaf?.title?.trim() || undefined
@@ -240,40 +250,6 @@ function recordOf(
     return value ? [[key, value] as const] : []
   })
   return entries.length > 0 ? Object.fromEntries(entries) : undefined
-}
-
-/** Only edit-mode files are in the model; other editor tabs are the desktop view's own. */
-function editorRow(
-  tab: LayoutContentTab,
-  scope: Scope
-): RuntimeMobileSessionMarkdownTab | RuntimeMobileSessionFileTab | null {
-  const file = scope.workspace.editorFiles?.find((entry) => entry.filePath === tab.entityId)
-  if (!file) {
-    return null
-  }
-  const common = {
-    id: tab.id,
-    title: file.relativePath.split(/[\\/]/).pop() || file.relativePath || 'File',
-    filePath: file.filePath,
-    relativePath: file.relativePath,
-    isDirty: scope.view.editorDrafts[scope.key]?.[file.filePath]?.dirtyDraftContent !== undefined,
-    color: tab.color ?? null,
-    isPinned: tab.isPinned === true,
-    isActive: scope.activeTabId === tab.id
-  }
-  if (file.language === 'markdown') {
-    return {
-      ...common,
-      type: 'markdown',
-      language: 'markdown',
-      mode: 'edit',
-      sourceFileId: file.filePath,
-      sourceFilePath: file.filePath,
-      sourceRelativePath: file.relativePath,
-      documentVersion: `file:${file.filePath}`
-    }
-  }
-  return { ...common, type: 'file', language: file.language, mode: 'edit' }
 }
 
 function browserRow(tab: LayoutContentTab, scope: Scope): RuntimeMobileSessionBrowserTab | null {
