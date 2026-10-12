@@ -24,6 +24,9 @@
     "../src/types/**/*"
   ],
   "compilerOptions": {
+    "incremental": true,
+    "skipLibCheck": true,
+    "tsBuildInfoFile": "./node.tsbuildinfo",
     "composite": true,
     "types": ["electron-vite/node"]
   }

@@ -290,6 +290,9 @@
     "../src/main/win32-utils.ts"
   ],
   "compilerOptions": {
+    "incremental": true,
+    "skipLibCheck": true,
+    "tsBuildInfoFile": "./cli.tsbuildinfo",
     "composite": true,
     // The CLI runs on Node 24; Node20 models synchronous ESM imports from CommonJS.
     "module": "Node20",

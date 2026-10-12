@@ -9,6 +9,9 @@
     "../src/shared/**/*"
   ],
   "compilerOptions": {
+    "incremental": true,
+    "skipLibCheck": true,
+    "tsBuildInfoFile": "./web.tsbuildinfo",
     "composite": true,
     "jsx": "react-jsx",
     "paths": {

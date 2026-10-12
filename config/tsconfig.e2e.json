@@ -16,6 +16,9 @@
   ],
   "exclude": ["../tests/e2e/.cross-version-checkouts/**"],
   "compilerOptions": {
+    "incremental": true,
+    "skipLibCheck": true,
+    "tsBuildInfoFile": "./e2e.tsbuildinfo",
     "allowImportingTsExtensions": true,
     // Why: specs run browser code inside page.evaluate, so the DOM lib has to be visible here
     // even though the harness itself is Node.
