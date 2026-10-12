@@ -36,6 +36,8 @@ import { CLOSE_ALL_CONTEXT_MENUS_EVENT } from '@/lib/close-all-context-menus'
 
 export type WorktreeContextMenuProps = {
   worktree: Worktree
+  /** Only the active row gets the delete-shortcut badge; the chord acts on it alone. */
+  isActive?: boolean
   children: React.ReactNode
   contentClassName?: string
   selectedWorktrees?: readonly Worktree[]
@@ -47,6 +49,7 @@ export type WorktreeContextMenuProps = {
 
 export function useWorktreeContextMenuModel({
   worktree,
+  isActive,
   children,
   contentClassName,
   selectedWorktrees,
@@ -369,6 +372,7 @@ export function useWorktreeContextMenuModel({
 
   return {
     ...commands,
+    isActive: isActive ?? false,
     activeContextWorktrees,
     allWorktrees,
     batchDeleteWorktrees,

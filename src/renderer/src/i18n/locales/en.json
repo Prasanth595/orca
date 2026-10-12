@@ -6852,6 +6852,11 @@
           "add": "Add host",
           "refresh": "Refresh"
         },
+        "WorkspaceDeleteConfirmNotice": {
+          "press": "Press",
+          "again": "again to delete",
+          "againFolder": "again to remove from Orca"
+        },
         "wslHostRowStatus": {
           "connecting": "Starting",
           "reconnecting": "Reconnecting",
