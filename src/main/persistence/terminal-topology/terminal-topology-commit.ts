@@ -23,6 +23,7 @@ import {
 } from '../../runtime/terminal-surface-close'
 import type { DurableProfileStateMutation } from '../loading-store/store-runtime-state'
 import { planTerminalLeafMove, rekeyMovedLeafProfileRecords } from './terminal-leaf-move'
+import { aliasEntriesAfterMove } from './terminal-leaf-move-alias'
 import { assignWorkspaceSessionPartition } from './terminal-topology-membership'
 
 // The commit boundary for terminal layout (tabs, panes, pane-to-PTY bindings). Wraps the close and
@@ -134,7 +135,11 @@ function traced<T>(
 
 type TopologyState = Pick<
   PersistedState,
-  'workspaceSession' | 'workspaceSessionsByHostId' | 'ui' | 'sshRemotePtyLeases'
+  | 'workspaceSession'
+  | 'workspaceSessionsByHostId'
+  | 'ui'
+  | 'sshRemotePtyLeases'
+  | 'legacyPaneKeyAliasEntries'
 >
 
 export type TerminalTopologyCommitContext = {
@@ -142,7 +147,12 @@ export type TerminalTopologyCommitContext = {
   hostIds: () => ExecutionHostId[]
   getSession: (hostId: ExecutionHostId) => WorkspaceSessionState
   markDirty: (
-    domain: 'workspaceSession' | 'workspaceSessionsByHostId' | 'ui' | 'sshRemotePtyLeases'
+    domain:
+      | 'workspaceSession'
+      | 'workspaceSessionsByHostId'
+      | 'ui'
+      | 'sshRemotePtyLeases'
+      | 'legacyPaneKeyAliasEntries'
   ) => void
 }
 
@@ -196,6 +206,22 @@ function commitLeafMove(
       )
     )
     context.markDirty('sshRemotePtyLeases')
+  }
+  if (planned.result.status === 'moved' && planned.result.ptyId) {
+    // Why: the hook server's own save is debounced; a crash before it would strand the process's old key.
+    restores.push(
+      writeRestorable(
+        () => state.legacyPaneKeyAliasEntries,
+        (entries) => (state.legacyPaneKeyAliasEntries = entries),
+        aliasEntriesAfterMove(
+          state.legacyPaneKeyAliasEntries,
+          request,
+          planned.result.ptyId,
+          Date.now()
+        )
+      )
+    )
+    context.markDirty('legacyPaneKeyAliasEntries')
   }
   return {
     value: planned.result,

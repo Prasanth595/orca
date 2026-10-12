@@ -2,6 +2,8 @@ import { getPtyIpc } from '../../pty-host-bindings'
 import type { Store } from '../../../persistence'
 import type { OrcaRuntimeService } from '../../../runtime/orca-runtime'
 import { agentHookServer } from '../../../agent-hooks/server'
+import { rekeyMigrationUnsupportedPtyPaneKey } from '../../../agent-hooks/migration-unsupported-pty-state'
+import { rememberPaneKeyForPty } from '../pane/key-state'
 import {
   isTerminalLeafMoveRequest,
   terminalLeafMovePaneKeys,
@@ -33,6 +35,16 @@ export async function commitLeafMoveAndRekey(
     )
   } catch (error) {
     console.warn('[pty] moved pane kept its old agent-status key:', error)
+  }
+  if (result.ptyId) {
+    try {
+      // Why: the PTY keeps its spawn-time key in its env; every main-side pane-key lookup must see the new owner.
+      rememberPaneKeyForPty(result.ptyId, toPaneKey)
+      rekeyMigrationUnsupportedPtyPaneKey(result.ptyId, toPaneKey)
+      deps.runtime?.restampMovedPtySurface(result.ptyId, request.targetTabId, toPaneKey)
+    } catch (error) {
+      console.warn('[pty] moved pane kept its old PTY identity records:', error)
+    }
   }
   try {
     deps.runtime?.getExistingOrchestrationDb()?.rekeyWorkerTerminalResourcePaneKey({
