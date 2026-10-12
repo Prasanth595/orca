@@ -14,6 +14,7 @@ import { useFileExplorerDragDrop } from './useFileExplorerDragDrop'
 import { useFileExplorerHandlers } from './useFileExplorerHandlers'
 import { useFileExplorerImport } from './useFileExplorerImport'
 import { useFileExplorerImagePaste } from './use-file-explorer-image-paste'
+import { useFileExplorerPasteEvents } from './use-file-explorer-paste-events'
 import { useFileExplorerInlineInput } from './useFileExplorerInlineInput'
 import { useFileExplorerNodeCommands } from './use-file-explorer-node-commands'
 import { useFileExplorerRowScrolling } from './use-file-explorer-row-scrolling'
@@ -258,6 +259,14 @@ export function useFileExplorerTreePaneState({
     setSelectedPath: setSingleSelectedPath,
     activeFileId,
     openFiles
+  })
+
+  useFileExplorerPasteEvents({
+    containerRef: rowScrolling.explorerShellRef,
+    rowProjection,
+    selectedNode,
+    isEditing: inlineInputState.inlineInput !== null,
+    imagePaste
   })
 
   const handlers = useFileExplorerHandlers({
