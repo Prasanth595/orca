@@ -483,4 +483,116 @@ describe('createRemoteRuntimePtyTransport', () => {
     emitSnapshot(latestSubscribePayload().streamId, 'reattached')
     expect(transport.isConnected()).toBe(true)
   })
+
+  it('does not fall back to an ended handle whose send is still unanswered when the wait ends', async () => {
+    vi.useFakeTimers()
+    try {
+      resolvedPaneHandle = 'terminal-busy'
+      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const transport = createRemoteRuntimePtyTransport('env-1', {
+        worktreeId: 'wt-1',
+        tabId: 'web-terminal-host-tab-1',
+        leafId: 'pane:1'
+      })
+
+      transport.attach({
+        existingPtyId: 'remote:env-1@@terminal-busy',
+        callbacks: {}
+      })
+      await vi.waitFor(() => expect(subscriptionSendBinary).toHaveBeenCalled())
+      emitSnapshot(latestSubscribePayload().streamId, 'initial handle')
+      let resolveSend: (response: unknown) => void = () => {}
+      const sendResponse = new Promise((resolve) => {
+        resolveSend = resolve
+      })
+      runtimeCall.mockImplementation((args: { method: string }) => {
+        if (args.method === 'terminal.send') {
+          return sendResponse
+        }
+        return args.method === 'session.tabs.list'
+          ? Promise.resolve(readyHostSessionInventoryResponse('terminal-busy'))
+          : Promise.resolve({ ok: true, result: {} })
+      })
+      const sendInputAccepted = transport.sendInputAccepted
+      if (!sendInputAccepted) {
+        throw new Error('Expected acknowledged remote terminal input')
+      }
+      const pendingSend = sendInputAccepted('unanswered', 'driving')
+      await vi.waitFor(() =>
+        expect(runtimeCall).toHaveBeenCalledWith(
+          expect.objectContaining({ method: 'terminal.send' })
+        )
+      )
+
+      subscriptionCallbacks?.onResponse({
+        ok: true,
+        result: { type: 'end', streamId: latestSubscribePayload().streamId, code: 0 }
+      })
+      // The host keeps reporting the handle ready, but the unanswered send may still prove it stale.
+      await vi.advanceTimersByTimeAsync(16_000)
+      expect(subscribedTerminalHandles()).toEqual(['terminal-busy'])
+
+      resolveSend({
+        ok: false,
+        error: { code: 'terminal_handle_stale', message: 'terminal_handle_stale' }
+      })
+      await expect(pendingSend).resolves.toBe(false)
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(subscribedTerminalHandles()).toEqual(['terminal-busy'])
+      expect(transport.isConnected()).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('backs off reattaching a persisted pane whose stream keeps ending on the same handle', async () => {
+    vi.useFakeTimers()
+    try {
+      resolvedPaneHandle = 'terminal-persisted'
+      const onPtyExit = vi.fn()
+      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const transport = createRemoteRuntimePtyTransport('env-1', {
+        worktreeId: 'wt-1',
+        tabId: 'tab-1',
+        leafId: 'pane:1',
+        onPtyExit
+      })
+
+      transport.attach({
+        existingPtyId: 'remote:env-1@@terminal-persisted',
+        callbacks: {}
+      })
+      await vi.waitFor(() => expect(subscriptionSendBinary).toHaveBeenCalled())
+      emitSnapshot(latestSubscribePayload().streamId, 'initial handle')
+      const endAndCountReattachMs = async (): Promise<number> => {
+        const before = subscribedTerminalHandles().length
+        subscriptionCallbacks?.onResponse({
+          ok: true,
+          result: { type: 'end', streamId: latestSubscribePayload().streamId, code: 0 }
+        })
+        let elapsedMs = 0
+        while (subscribedTerminalHandles().length === before && elapsedMs < 16_000) {
+          await vi.advanceTimersByTimeAsync(50)
+          elapsedMs += 50
+        }
+        emitSnapshot(latestSubscribePayload().streamId, `reattached after ${elapsedMs}ms`)
+        return elapsedMs
+      }
+
+      const reattachDelays: number[] = []
+      for (let cycle = 0; cycle < 7; cycle += 1) {
+        reattachDelays.push(await endAndCountReattachMs())
+        expect(latestSubscribePayload().terminal).toBe('terminal-persisted')
+        expect(transport.isConnected()).toBe(true)
+      }
+
+      // Without an inventory poll to pace it, the persisted path must still grow the wait past the limit.
+      expect(reattachDelays[5]).toBeGreaterThanOrEqual(2_000)
+      expect(reattachDelays[6]).toBeGreaterThanOrEqual(4_000)
+      expect(reattachDelays[6]).toBeLessThan(15_000)
+      expect(onPtyExit).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
