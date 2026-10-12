@@ -5104,5 +5104,32 @@
   },
   "components.workspace.cleanup.browse.agent.working": {
     "ko": "작업 중"
+  },
+  "auto.components.settings.CliSkillRuntimeSetup.windowsPathUnknown": {
+    "ko": "WSL 셸 명령의 PATH를 확인할 수 없습니다"
+  },
+  "auto.components.settings.OrchestrationSetupCard.e7d2a5146c": {
+    "ko": "에이전트가 Orca를 통해 컨텍스트를 인계하고 작업을 조율할 수 있습니다."
+  },
+  "auto.components.settings.OrchestrationPane.ae79504732": {
+    "ko": "사용 방법"
+  },
+  "auto.components.settings.OrchestrationSkillAgentCoverage.fullCoverage_one": {
+    "ko": "감지된 에이전트 1개에 스킬이 설치되어 있습니다."
+  },
+  "auto.components.settings.OrchestrationSkillPromptDialog.b99f375eb2": {
+    "ko": "에이전트용 오케스트레이션 스킬을 설치하려면 터미널에서 이 명령을 실행하세요."
+  },
+  "auto.components.settings.orchestration.search.d86705ba77": {
+    "ko": "멀티 에이전트"
+  },
+  "auto.components.settings.orchestration.search.e05ff36753": {
+    "ko": "메시징, 작업 DAG, 디스패치 및 의사결정 게이트를 통해 여러 코딩 에이전트를 조율합니다."
+  },
+  "auto.components.settings.orchestration.search.f5d39af41e": {
+    "ko": "하위 에이전트"
+  },
+  "auto.components.settings.orchestration.search.c34045764e": {
+    "ko": "에이전트 오케스트레이션"
   }
 }
