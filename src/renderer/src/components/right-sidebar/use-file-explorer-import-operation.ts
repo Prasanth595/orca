@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from 'react'
 import { toast } from 'sonner'
-import { getRelativePathInsideRoot } from '@/lib/path'
+import { getRelativePathInsideRoot, joinPath } from '@/lib/path'
 import { importExternalPathsToRuntime } from '@/runtime/runtime-file-client'
 import { translate } from '@/i18n/i18n'
 import type { FileExplorerOperationOwner } from './file-explorer-types'
@@ -114,7 +114,11 @@ export function useFileExplorerImportOperation({
       isDestinationShown(destination) &&
       getRelativePathInsideRoot(imported[0].destPath, shownRef.current.displayRootPath) !== null
     ) {
-      setSelectedPath(imported[0].destPath)
+      const relativePath = getRelativePathInsideRoot(imported[0].destPath, destinationDir)
+      if (relativePath !== null) {
+        // Match the tree's path spelling when native Windows imports return backslashes.
+        setSelectedPath(joinPath(destinationDir, relativePath))
+      }
     }
 
     if (failed.length > 0) {

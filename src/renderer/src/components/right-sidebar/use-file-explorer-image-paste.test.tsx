@@ -119,6 +119,31 @@ it('handles Windows paths without losing the real workspace root', async () => {
   expect(mocks.importPaths.mock.calls[0][2]).toBe('C:\\Notas\\Imagens')
 })
 
+it.each([
+  ['C:/Notas/Imagens', 'C:\\Notas\\Imagens\\pasted-image.png', 'C:/Notas/Imagens/pasted-image.png'],
+  [
+    'C:\\Notas\\Imagens',
+    'C:/Notas/Imagens/pasted-image.png',
+    'C:\\Notas\\Imagens\\pasted-image.png'
+  ],
+  ['/notes/images', '/notes/images/pasted\\image.png', '/notes/images/pasted\\image.png']
+])(
+  'selects the imported file using the tree path spelling in %s',
+  async (root, imported, selected) => {
+    mocks.importPaths.mockResolvedValue({ results: [{ status: 'imported', destPath: imported }] })
+    const { result } = renderHook(() =>
+      useFileExplorerImagePaste({
+        ...initial,
+        worktreePath: root,
+        displayRootPath: root,
+        selectedNode: null
+      })
+    )
+    await act(() => result.current.pasteImage())
+    expect(setSelectedPath).toHaveBeenCalledExactlyOnceWith(selected)
+  }
+)
+
 it.each(['hidden', 'outside', 'invalid-root', 'missing-capability', 'missing-release'])(
   'does not stage for %s',
   async (condition) => {
