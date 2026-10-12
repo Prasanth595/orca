@@ -1,3 +1,8 @@
+import {
+  LOCAL_EXECUTION_HOST_ID,
+  toRuntimeExecutionHostId,
+  getConnectionExecutionHostId
+} from '../../../../shared/execution-host'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   copyFileToOsClipboard,
@@ -103,7 +108,7 @@ describe('FileExplorerRow collapse folder action', () => {
 
   it('shows default app open only for local desktop files', () => {
     const runtimeContext = {
-      settings: { activeRuntimeEnvironmentId: 'runtime-1' },
+      target: { kind: 'environment' as const, environmentId: 'runtime-1' },
       worktreeId: 'wt-1',
       worktreePath: '/repo'
     }
@@ -124,7 +129,7 @@ describe('FileExplorerRow collapse folder action', () => {
 
   it('shows remote download only for desktop SSH rows and file-like Remote Host rows', () => {
     const runtimeContext = {
-      settings: { activeRuntimeEnvironmentId: 'runtime-1' },
+      target: { kind: 'environment' as const, environmentId: 'runtime-1' },
       worktreeId: 'wt-1',
       worktreePath: '/repo'
     }
@@ -232,10 +237,28 @@ describe('FileExplorerRow collapse folder action', () => {
     const restoreWindow = replaceGlobalWindowForTest({ api: { shell: { openFilePath } } })
 
     try {
-      await openFileInDefaultApp(fileNode)
+      await openFileInDefaultApp(fileNode, LOCAL_EXECUTION_HOST_ID)
 
-      expect(openFilePath).toHaveBeenCalledWith('/repo/src/index.ts')
+      expect(openFilePath).toHaveBeenCalledWith('/repo/src/index.ts', LOCAL_EXECUTION_HOST_ID)
       expect(toastErrorMock).not.toHaveBeenCalled()
+    } finally {
+      restoreWindow()
+    }
+  })
+
+  it.each([
+    'unresolved',
+    toRuntimeExecutionHostId('runtime-1'),
+    getConnectionExecutionHostId('ssh-1')
+  ] as const)('blocks default app launches for owner %s', async (owner) => {
+    const openFilePath = vi.fn()
+    const restoreWindow = replaceGlobalWindowForTest({ api: { shell: { openFilePath } } })
+    try {
+      await openFileInDefaultApp(fileNode, owner)
+      expect(openFilePath).not.toHaveBeenCalled()
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        'Opening remote paths in the local OS is not available.'
+      )
     } finally {
       restoreWindow()
     }
@@ -246,7 +269,7 @@ describe('FileExplorerRow collapse folder action', () => {
     const restoreWindow = replaceGlobalWindowForTest({ api: { shell: { openFilePath } } })
 
     try {
-      await openFileInDefaultApp(fileNode)
+      await openFileInDefaultApp(fileNode, LOCAL_EXECUTION_HOST_ID)
 
       expect(toastErrorMock).toHaveBeenCalledWith("Could not open 'index.ts' in the default app.")
     } finally {
@@ -293,7 +316,7 @@ describe('FileExplorerRow collapse folder action', () => {
       | { onClick: () => void }
       | undefined
     action?.onClick()
-    expect(openPath).toHaveBeenCalledWith('/downloads/renamed\\entry.ts')
+    expect(openPath).toHaveBeenCalledWith('/downloads/renamed\\entry.ts', 'local')
     expect(toastErrorMock).not.toHaveBeenCalled()
   })
 
@@ -352,7 +375,7 @@ describe('FileExplorerRow collapse folder action', () => {
 
   it('downloads Remote Host rows through the runtime download path', async () => {
     const runtimeContext = {
-      settings: { activeRuntimeEnvironmentId: 'runtime-1' },
+      target: { kind: 'environment' as const, environmentId: 'runtime-1' },
       worktreeId: 'wt-1',
       worktreePath: '/repo'
     }

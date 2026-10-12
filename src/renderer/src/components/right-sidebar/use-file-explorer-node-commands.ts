@@ -4,6 +4,8 @@ import { useCallback, useMemo } from 'react'
 import { useAppStore } from '@/store'
 import { createNewTerminalTab } from '@/components/terminal/terminal-tab-create'
 import { isLocalPathOpenBlocked, showLocalPathOpenBlockedToast } from '@/lib/local-path-open-guard'
+import { getWorkspaceFileRevealOwner } from '@/lib/reveal-in-file-manager'
+import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
 import type { RuntimeFileOperationArgs } from '@/runtime/runtime-file-client'
 import type { Repo } from '../../../../shared/repo-types'
 import {
@@ -113,18 +115,19 @@ export function useFileExplorerNodeCommands({
       ) {
         return false
       }
-      if (
-        isLocalPathOpenBlocked(useAppStore.getState().settings, {
-          connectionId: activeRepo?.connectionId ?? null
-        })
-      ) {
+      const state = useAppStore.getState()
+      const owner = getWorkspaceFileRevealOwner(state, activeWorktreeId, {
+        connectionId: activeRepo?.connectionId ?? null,
+        runtimeEnvironmentId: getRuntimeEnvironmentIdForWorktree(state, activeWorktreeId)
+      })
+      if (isLocalPathOpenBlocked(owner)) {
         showLocalPathOpenBlockedToast()
         return false
       }
-      void openFileInDefaultApp(node)
+      void openFileInDefaultApp(node, owner)
       return true
     },
-    [activeRepo?.connectionId, runtimeDownloadContext]
+    [activeRepo?.connectionId, activeWorktreeId, runtimeDownloadContext]
   )
 
   useFileExplorerKeys({

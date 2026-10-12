@@ -8,6 +8,7 @@ import type {
   SshPlainSshMode,
   SshProviderEpoch
 } from './ssh-types'
+import { admitSshOldRelayProcesses } from './ssh-old-relay-processes-admission'
 import {
   SSH_MANAGED_SERVER_PHASES,
   SSH_MANAGED_SERVER_RELAY_REASONS,
@@ -103,6 +104,7 @@ export function admitSshConnectionState(
       ? { remotePlatform: input.remotePlatform }
       : {}),
     ...admitSshPlainSshMode(input.plainSsh),
+    ...(input.hostNodeRuntime === true ? { hostNodeRuntime: true } : {}),
     ...admitSshManagedServerStatus(input.managedServer)
   }
 }
@@ -160,7 +162,8 @@ function admitSshManagedServerStatus(value: unknown): { managedServer?: SshManag
       ...('offerMove' in value && value.offerMove === true ? { offerMove: true } : {}),
       ...('terminalsElsewhere' in value && value.terminalsElsewhere === true
         ? { terminalsElsewhere: true }
-        : {})
+        : {}),
+      ...admitSshOldRelayProcesses('oldRelays' in value ? value.oldRelays : undefined)
     }
   }
 }
@@ -226,6 +229,7 @@ export function admitSshConnectionStateForAuthorityReconciliation(
       supportsFolderDownload: input.supportsFolderDownload,
       remotePlatform: input.remotePlatform,
       plainSsh: input.plainSsh,
+      hostNodeRuntime: input.hostNodeRuntime,
       managedServer: input.managedServer
     },
     expectedTargetId

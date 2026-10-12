@@ -17,13 +17,15 @@ import type {
   SshManagedServerRelayReason,
   SshManagedServerServingNote,
   SshManagedServerUpdateNote,
+  SshOldRelayProcesses,
   SshTarget
 } from '../../shared/ssh-types'
-import { MANAGED_ORCAD_FENCED_DETAIL, type OrcadManagedServing } from './orcad-managed-serving'
+import type { OrcadManagedServing } from './orcad-managed-serving'
 import {
   checkManagedServerUpdate,
   type ManagedServerUpdateDeps
 } from './managed-server-update-check'
+import { managedResultAfterUpdate, unservedManagedResult } from './managed-server-serving-gate'
 import {
   classifyOrcadHostUnavailable,
   ORCAD_TUNNEL_UNAVAILABLE_REASON
@@ -57,6 +59,7 @@ export type HostServerOnConnectResult =
       detail?: string
       terminals?: number
       terminalsElsewhere?: boolean
+      oldRelays?: SshOldRelayProcesses
     }
 
 export type HostServerTerminalVerdict = {
@@ -65,6 +68,8 @@ export type HostServerTerminalVerdict = {
   count: number
   /** Counted only by the host-wide census: another desktop or session runs them. */
   elsewhere?: boolean
+  /** The older Orca's relay processes the census found, for the stop action. */
+  oldRelays?: SshOldRelayProcesses
 }
 
 export type HostServerOnConnectDeps = {
@@ -155,34 +160,21 @@ async function decide(
       return await convertHost(target, deps, trace, { checkTerminals: false })
     }
     const serving = await deps.ensureServing(existing)
-    if (serving.state === 'unverifiable') {
-      // Still the managed route: a stopped server says nothing about the host's terminals.
-      return {
-        route: 'managed',
-        environmentId: existing,
-        serving,
-        ...(serving.detail === MANAGED_ORCAD_FENCED_DETAIL ? { fenceHeld: true as const } : {})
-      }
+    const unserved = unservedManagedResult(existing, serving)
+    if (unserved) {
+      return unserved
     }
     try {
       deps.retainCommittedSource(target)
     } catch (error) {
       console.warn('[ssh] Could not mark a finished migration retained:', error)
     }
-    const { note, reason, recorded, fenceBusy } = await checkManagedServerUpdate(
-      target,
-      existing,
-      deps,
-      () => deps.progress(target, 'updating')
+    const update = await checkManagedServerUpdate(target, existing, deps, () =>
+      deps.progress(target, 'updating')
     )
-    trace.update = reason
-    trace.recorded = recorded
-    return {
-      route: 'managed',
-      environmentId: existing,
-      ...(note ? { update: note } : {}),
-      ...(fenceBusy ? { fenceHeld: true as const } : {})
-    }
+    trace.update = update.reason
+    trace.recorded = update.recorded
+    return managedResultAfterUpdate(existing, serving, update)
   }
   const recorded = deps.recordedUnavailable(target)
   if (recorded) {
@@ -220,7 +212,8 @@ async function convertHost(
         route: 'relay',
         reason: terminalReason(terminals.verdict),
         terminals: terminals.count,
-        ...(terminals.elsewhere ? { terminalsElsewhere: true } : {})
+        ...(terminals.elsewhere ? { terminalsElsewhere: true } : {}),
+        ...(terminals.oldRelays ? { oldRelays: terminals.oldRelays } : {})
       }
     }
     trace.path = 'convert'
