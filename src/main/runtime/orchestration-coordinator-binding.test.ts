@@ -27,14 +27,30 @@ afterEach(() => {
 })
 
 it.each([
-  { agent: 'claude' as const, policy: 'coordination' as const, supported: false },
-  { agent: 'codex' as const, policy: 'coordination' as const, supported: true },
-  { agent: 'claude' as const, policy: 'all' as const, supported: true }
+  {
+    agent: 'claude' as const,
+    foreground: undefined,
+    policy: 'coordination' as const,
+    supported: false
+  },
+  {
+    agent: 'codex' as const,
+    foreground: undefined,
+    policy: 'coordination' as const,
+    supported: true
+  },
+  { agent: 'claude' as const, foreground: undefined, policy: 'all' as const, supported: true },
+  {
+    agent: 'codex' as const,
+    foreground: 'claude',
+    policy: 'coordination' as const,
+    supported: false
+  }
 ])(
   'run-use agent=$agent policy=$policy preserves the supported-owner contract',
-  async ({ agent, policy, supported }) => {
+  async ({ agent, foreground, policy, supported }) => {
     const db = createDatabase('orca-coordinator-binding-')
-    const { runtime } = createRuntime(db, { launchAgent: agent })
+    const { runtime } = createRuntime(db, { launchAgent: agent, foregroundProcess: foreground })
     const prior = createBoundRun(db, 'Caller prior Run')
     const target = db.createRun({
       objective: 'Target Run',
@@ -44,7 +60,12 @@ it.each([
     })
     try {
       await runtime.listTerminals()
-      expect(runtime.supportsCoordinatorDelivery(TERMINAL_HANDLE)).toBe(agent === 'codex')
+      if (foreground) {
+        expect(await runtime.isTerminalRunningSettledPromptAgent(TERMINAL_HANDLE)).toBe(true)
+      }
+      expect(runtime.supportsCoordinatorDelivery(TERMINAL_HANDLE)).toBe(
+        agent === 'codex' && !foreground
+      )
       const response = await new RpcDispatcher({
         runtime,
         methods: ORCHESTRATION_METHODS

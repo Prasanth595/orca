@@ -220,7 +220,7 @@ it('does not submit accepted paste through a newly observed permission prompt', 
   }
 })
 
-it.each(['accepted-only', 'suffix-refused', 'turn-started'] as const)(
+it.each(['accepted-only', 'suffix-refused', 'other-provider', 'turn-started'] as const)(
   'settles only observed turn start, preserving %s effects across later idle edges',
   async (outcome) => {
     vi.useFakeTimers()
@@ -253,10 +253,12 @@ it.each(['accepted-only', 'suffix-refused', 'turn-started'] as const)(
           bytesWritten: text.length + 1,
           prompt: {
             requestId: options?.requestId ?? '',
-            provider: 'codex',
+            provider: outcome === 'other-provider' ? ('claude' as const) : ('codex' as const),
             observation: 'supported',
             stages:
-              outcome === 'turn-started' ? ['input_accepted', 'turn_started'] : ['input_accepted'],
+              outcome === 'turn-started' || outcome === 'other-provider'
+                ? ['input_accepted', 'turn_started']
+                : ['input_accepted'],
             ...runtime.getTerminalPromptRequestBinding(handle),
             baselineWorkingSequence: 0,
             baselineExplicitWorkingStartedAt: null,

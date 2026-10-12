@@ -25,9 +25,10 @@ export class OrcaRuntimeWithWriteOrchestrationPointerPty extends OrcaRuntimeWith
   supportsCoordinatorDelivery(handle: string): boolean {
     try {
       const ptyId = this.getTerminalAgentStatusPtyId(handle)
+      const pty = this.ptysById.get(ptyId)
       return (
-        this.ptysById.get(ptyId)?.connected === true &&
-        this.getPtyAgent(ptyId) === 'codex' &&
+        pty?.connected === true &&
+        (pty.foregroundAgent ?? pty.launchAgent) === 'codex' &&
         typeof this.ptyController?.writeWithSettlement === 'function'
       )
     } catch {
@@ -61,6 +62,9 @@ export class OrcaRuntimeWithWriteOrchestrationPointerPty extends OrcaRuntimeWith
           if (!idle.satisfied || idle.blockedReason) {
             throw new Error('agent_prompt_blocked')
           }
+        }
+        if (!this.supportsCoordinatorDelivery(target.terminalHandle)) {
+          throw new Error('coordinator_delivery_unsupported')
         }
         await options.beforeWrite?.(ptyId)
       }

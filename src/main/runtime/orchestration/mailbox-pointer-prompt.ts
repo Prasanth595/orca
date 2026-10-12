@@ -86,6 +86,7 @@ export async function sendOrchestrationMailboxPointerPrompt<
     assertOwner()
     delivered =
       result.prompt?.requestId === requestId &&
+      result.prompt.provider === 'codex' &&
       result.prompt.observation === 'supported' &&
       result.prompt.stages.includes('turn_started')
     if (delivered) {
