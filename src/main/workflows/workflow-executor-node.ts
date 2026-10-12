@@ -7,6 +7,7 @@ import { runFileReadNode, runFileWriteNode } from './workflow-node-runner-file'
 import { runEmailSendNode } from './workflow-node-runner-email'
 import { runJsonTransformNode } from './workflow-node-runner-json'
 import { evaluateBranchConditions } from './workflow-node-runner-branch'
+import { runFormInputNode } from './workflow-node-runner-form'
 import { patchNodeRun } from './workflow-run-store'
 import type { WorkflowStoreOperations } from './workflow-run-store'
 import type { RemoteExecFn } from './workflow-remote-exec'
@@ -272,6 +273,15 @@ export async function executeNode(
         stdout: primaryOutput,
         stderr: '',
         outputValue: primaryJson,
+        exitCode: 0
+      }
+    }
+    case 'form_input': {
+      const r = runFormInputNode(node.data)
+      return {
+        stdout: JSON.stringify(r.value),
+        stderr: '',
+        outputValue: r.value,
         exitCode: 0
       }
     }

@@ -16,10 +16,17 @@ import { useDocumentDarkTheme } from '@/hooks/use-document-dark-theme'
 import WorkflowCronScheduleField from './WorkflowCronScheduleField'
 import WorkflowAgentNodeFields from './WorkflowAgentNodeFields'
 import WorkflowBranchConditionEditor from './WorkflowBranchConditionEditor'
+import WorkflowFormInputEditor from './WorkflowFormInputEditor'
 import WorkflowRetryFields from './WorkflowRetryFields'
 import { NODE_TYPE_LABELS } from './workflow-canvas-node-config'
 import { getMonacoFields, getAvailableShells, coerceNodeData } from './workflow-node-editor-config'
-import type { AgentWorkflow, BranchCondition } from '../../../../shared/workflow-types'
+import { useLastRunSteps } from './use-last-run-steps'
+import type {
+  AgentWorkflow,
+  BranchCondition,
+  FormInputData,
+  FormInputField
+} from '../../../../shared/workflow-types'
 
 type Props = {
   workflow: AgentWorkflow
@@ -51,7 +58,6 @@ export default function WorkflowNodeEditorPanel({
   const [nodeLabel, setNodeLabel] = useState<string>(node?.label ?? '')
 
   const isBranchNode = node?.type === 'branch'
-  // Branch state lives in WorkflowBranchConditionEditor; parent stores the last onChange value
   const [branchValues, setBranchValues] = useState<{
     conditions: BranchCondition[]
     defaultLabel: string
@@ -64,6 +70,15 @@ export default function WorkflowNodeEditorPanel({
     return { conditions: d.conditions, defaultLabel: d.defaultLabel }
   })
 
+  const isFormInput = node?.type === 'form_input'
+  const [formFields, setFormFields] = useState<FormInputField[]>(() => {
+    if (!isFormInput || !node) {
+      return []
+    }
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: guarded by isFormInput; FormInputData always has fields[]
+    return (node.data as FormInputData).fields
+  })
+
   const isAgentCall = node?.type === 'agent_call'
   const isShellCommand = node?.type === 'shell_command'
   const isFileWrite = node?.type === 'file_write'
@@ -72,6 +87,28 @@ export default function WorkflowNodeEditorPanel({
   const isTriggerManual = node?.type === 'trigger_manual'
   const isRemote = workflow.executionTargetType === 'ssh'
 
+  // Last-run steps for expression hints and branch field hints
+  const { steps, resolveExpr } = useLastRunSteps(workflow.id)
+
+  // Derive parent-node output for branch condition hints from the loaded steps
+  const parentEdge = isBranchNode
+    ? workflow.edges.find((e) => e.targetNodeId === nodeId)
+    : undefined
+  const parentStep = parentEdge ? steps[parentEdge.sourceNodeId] : undefined
+  const parentNodeLastRun = parentStep
+    ? (() => {
+        let exitCode: number | null = null
+        try {
+          // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: parsing runtime JSON; exitCode may or may not be present
+          exitCode =
+            (JSON.parse(parentStep.output) as { exitCode?: number } | null)?.exitCode ?? null
+        } catch {
+          /* ignore */
+        }
+        return { output: parentStep.output, json: parentStep.json, exitCode }
+      })()
+    : undefined
+
   const handleSave = useCallback(async (): Promise<void> => {
     if (!node) {
       return
@@ -79,7 +116,9 @@ export default function WorkflowNodeEditorPanel({
 
     const nodeDataPatch: Record<string, unknown> = isBranchNode
       ? { conditions: branchValues.conditions, defaultLabel: branchValues.defaultLabel }
-      : coerceNodeData(localData)
+      : isFormInput
+        ? { fields: formFields }
+        : coerceNodeData(localData)
 
     const updatedNodes = workflow.nodes.map((n) =>
       n.id === nodeId
@@ -99,7 +138,18 @@ export default function WorkflowNodeEditorPanel({
       onWorkflowChange(updated)
       toast.success(translate('workflows.node.saved', 'Node saved'))
     }
-  }, [node, nodeId, localData, nodeLabel, isBranchNode, branchValues, workflow, onWorkflowChange])
+  }, [
+    node,
+    nodeId,
+    localData,
+    nodeLabel,
+    isBranchNode,
+    branchValues,
+    isFormInput,
+    formFields,
+    workflow,
+    onWorkflowChange
+  ])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
@@ -122,7 +172,8 @@ export default function WorkflowNodeEditorPanel({
     node.type !== 'trigger_cron' &&
     node.type !== 'trigger_manual' &&
     node.type !== 'branch' &&
-    node.type !== 'collect'
+    node.type !== 'collect' &&
+    node.type !== 'form_input'
 
   const genericFields = Object.keys(localData).filter((k) => {
     if (
@@ -144,7 +195,7 @@ export default function WorkflowNodeEditorPanel({
     if (isFileWrite && (k === 'mode' || k === 'createParents')) {
       return false
     }
-    if (isBranchNode) {
+    if (isBranchNode || isFormInput) {
       return false
     }
     if (isForEach && (k === 'itemsExpression' || k === 'maxIterations')) {
@@ -155,6 +206,24 @@ export default function WorkflowNodeEditorPanel({
     }
     return true
   })
+
+  /** Show a resolved hint below a plain-text input when the value has {{}} expressions. */
+  function exprHint(value: string): React.JSX.Element | null {
+    if (!value.includes('{{')) {
+      return null
+    }
+    const resolved = resolveExpr(value)
+    if (resolved === value) {
+      return null
+    }
+    const display = resolved.replace(/\n/g, '↵').replace(/\s+/g, ' ').trim()
+    const truncated = display.length > 80 ? `${display.slice(0, 80)}…` : display
+    return (
+      <span className="font-mono text-[10px] text-muted-foreground truncate block">
+        {`→ ${truncated}`}
+      </span>
+    )
+  }
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
@@ -288,6 +357,7 @@ export default function WorkflowNodeEditorPanel({
                 placeholder="{{steps.nodeId.json.items}}"
                 className="h-7"
               />
+              {exprHint(localData['itemsExpression'] ?? '')}
               <p className="text-[10px] text-muted-foreground">
                 {translate(
                   'workflows.nodeEditor.itemsExpressionHint',
@@ -318,7 +388,12 @@ export default function WorkflowNodeEditorPanel({
             initialConditions={branchValues.conditions}
             initialDefaultLabel={branchValues.defaultLabel}
             onChange={(conditions, defaultLabel) => setBranchValues({ conditions, defaultLabel })}
+            parentNodeLastRun={parentNodeLastRun}
           />
+        )}
+
+        {isFormInput && (
+          <WorkflowFormInputEditor initialFields={formFields} onChange={setFormFields} />
         )}
 
         {genericFields.map((key) => {
@@ -363,6 +438,7 @@ export default function WorkflowNodeEditorPanel({
                 onChange={(e) => setLocalData((prev) => ({ ...prev, [key]: e.target.value }))}
                 className="h-7"
               />
+              {exprHint(localData[key] ?? '')}
             </div>
           )
         })}

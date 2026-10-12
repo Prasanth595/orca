@@ -15,6 +15,7 @@ export type WorkflowNodeType =
   | 'branch'
   | 'for_each'
   | 'collect'
+  | 'form_input'
 
 // ─── Node data shapes ────────────────────────────────────────────────────────
 
@@ -107,6 +108,23 @@ export type ForEachData = {
 /** Marker node — terminates a ForEach loop body. Collects iteration outputs into an array. */
 export type CollectData = Record<string, never>
 
+export type FormFieldType = 'string' | 'number' | 'multi_choice' | 'json'
+
+export type FormInputField = {
+  id: string
+  /** Key used in the output JSON object */
+  label: string
+  type: FormFieldType
+  /** Stored as a string; parsed at execution time according to `type` */
+  value: string
+  /** For multi_choice: newline-separated option strings */
+  options?: string
+}
+
+export type FormInputData = {
+  fields: FormInputField[]
+}
+
 export type WorkflowNodeData =
   | TriggerCronData
   | TriggerManualData
@@ -120,6 +138,7 @@ export type WorkflowNodeData =
   | BranchData
   | ForEachData
   | CollectData
+  | FormInputData
 
 // ─── Node ────────────────────────────────────────────────────────────────────
 
@@ -197,6 +216,7 @@ export type WorkflowNode =
   | { id: string; type: 'branch'; pos: Vec2; data: BranchData; label?: string }
   | { id: string; type: 'for_each'; pos: Vec2; data: ForEachData; label?: string }
   | { id: string; type: 'collect'; pos: Vec2; data: CollectData; label?: string }
+  | { id: string; type: 'form_input'; pos: Vec2; data: FormInputData; label?: string }
 
 // ─── Edge ────────────────────────────────────────────────────────────────────
 
