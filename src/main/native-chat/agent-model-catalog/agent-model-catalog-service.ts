@@ -4,10 +4,10 @@ import type {
   AgentSessionRecord
 } from '../../../shared/agent-session-record'
 import { isLegacyAgentSessionAccountHome } from '../../../shared/agent-session-account-home'
+import { isNativeLocalLocation } from '../../../shared/execution-host'
 import {
-  agentModelCatalogFingerprint,
-  agentModelCatalogIdentityForRecord,
-  type AgentModelCatalogIdentity
+  agentModelCatalogFingerprintForRecord,
+  agentModelCatalogScopedFingerprint
 } from './agent-model-catalog-fingerprint'
 import type { AgentModelCatalogConfiguredChoice } from './agent-model-catalog-entry'
 import type {
@@ -56,6 +56,8 @@ export type AgentModelCatalogService = {
     sessionId?: string
     /** Where a new chat would run; null when one was named but is not a local directory. */
     workspacePath?: string | null
+    /** Answer for the folder the named session runs in, as its new-chat read did. */
+    inSessionWorkspace?: true
     /** With no entry yet, answer from the listing this read starts or joins instead of `unknown`;
      *  with a held reason past its TTL, from the probe re-checking it. */
     waitForListing?: boolean
@@ -74,14 +76,6 @@ export type AgentModelCatalogService = {
   providerStarted: (
     record: Pick<AgentSessionRecord, 'provider' | 'accountHome' | 'location'>
   ) => void
-}
-
-function catalogFingerprint(
-  deps: AgentModelCatalogServiceDeps,
-  identity: AgentModelCatalogIdentity
-): string {
-  const credentialScope = identity.agent === 'cursor' ? deps.cursorCredentialScope?.() : undefined
-  return agentModelCatalogFingerprint(credentialScope ? { ...identity, credentialScope } : identity)
 }
 
 // At most this many agents list at once: each listing spawns that agent's CLI.
@@ -138,9 +132,24 @@ async function newChatCatalogKey(
     return null
   }
   return {
-    fingerprint: catalogFingerprint(deps, { agent, accountHome, wslDistro: null }),
+    fingerprint: agentModelCatalogScopedFingerprint(
+      { agent, accountHome, wslDistro: null },
+      deps.cursorCredentialScope
+    ),
     accountHome
   }
+}
+
+/** The local folder a session's agent runs in; null where this host cannot look into it, as a new
+ *  chat's own read answers. */
+async function sessionWorkspacePath(
+  deps: AgentModelCatalogServiceDeps,
+  record: AgentSessionRecord
+): Promise<string | null> {
+  if (!isNativeLocalLocation(record.location) || !deps.recordWorkspacePath) {
+    return null
+  }
+  return deps.recordWorkspacePath(record).catch(() => null)
 }
 
 /** A session launched with no model pick resolved its config scope's default model and effort;
@@ -153,14 +162,10 @@ async function recordConfiguredDefault(
   choice: AgentModelCatalogConfiguredChoice | null
 ): Promise<void> {
   const accountHome = record.accountHome
-  if (
-    record.location.wslDistro !== null ||
-    !deps.recordWorkspacePath ||
-    !deps.workspaceMayOverrideDefaultModel
-  ) {
+  if (!deps.workspaceMayOverrideDefaultModel) {
     return
   }
-  const workspacePath = await deps.recordWorkspacePath(record)
+  const workspacePath = await sessionWorkspacePath(deps, record)
   if (
     !workspacePath ||
     (await deps.workspaceMayOverrideDefaultModel({
@@ -219,7 +224,9 @@ export function createAgentModelCatalogService(
       })
   return {
     providerStarted(record) {
-      deps.store.expireFailure(catalogFingerprint(deps, agentModelCatalogIdentityForRecord(record)))
+      deps.store.expireFailure(
+        agentModelCatalogFingerprintForRecord(record, deps.cursorCredentialScope)
+      )
     },
     async read(params) {
       const record = params.sessionId ? deps.getRecord(params.sessionId) : undefined
@@ -229,7 +236,7 @@ export function createAgentModelCatalogService(
       // The account a probe lists under; null where this host cannot spawn one natively.
       let probeHome: AgentSessionAccountHome | null
       if (scoped) {
-        fingerprint = catalogFingerprint(deps, agentModelCatalogIdentityForRecord(scoped))
+        fingerprint = agentModelCatalogFingerprintForRecord(scoped, deps.cursorCredentialScope)
         // Probes spawn natively; a WSL-pinned record has no host-side lister.
         probeHome = scoped.location.wslDistro === null ? scoped.accountHome : null
       } else {
@@ -242,6 +249,11 @@ export function createAgentModelCatalogService(
       }
       const accountHomePath =
         probeHome && isLegacyAgentSessionAccountHome(probeHome) ? probeHome.path : null
+      const workspacePath = params.inSessionWorkspace
+        ? record
+          ? await sessionWorkspacePath(deps, record)
+          : null
+        : params.workspacePath
       await recordingDefaults.get(fingerprint)
       let entry = deps.store.get(fingerprint)
       const probe = deps.probes?.[params.agent]
@@ -255,12 +267,7 @@ export function createAgentModelCatalogService(
         const result = listed
           ? resultFromEntry(
               listed,
-              await workspaceKeepsListedDefault(
-                deps,
-                params.agent,
-                params.workspacePath,
-                accountHomePath
-              ),
+              await workspaceKeepsListedDefault(deps, params.agent, workspacePath, accountHomePath),
               deps.listingNamesConfiguredModel?.has(params.agent) === true
             )
           : null
@@ -315,7 +322,7 @@ export function createAgentModelCatalogService(
         return
       }
       // The record's pinned account and host: the account this child listed under.
-      const fingerprint = catalogFingerprint(deps, agentModelCatalogIdentityForRecord(record))
+      const fingerprint = agentModelCatalogFingerprintForRecord(record, deps.cursorCredentialScope)
       const { configuredDefault, ...listed } = listing
       const saved = deps.store.recordSuccess(
         fingerprint,

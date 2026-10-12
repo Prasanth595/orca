@@ -41,6 +41,15 @@ export function agentModelCatalogFingerprint(identity: AgentModelCatalogIdentity
   return createHash('sha256').update(JSON.stringify(hashed)).digest('hex')
 }
 
+/** Cursor's listing also depends on the API key setting, named by `cursorCredentialScope`. */
+export function agentModelCatalogScopedFingerprint(
+  identity: AgentModelCatalogIdentity,
+  cursorCredentialScope?: () => string
+): string {
+  const credentialScope = identity.agent === 'cursor' ? cursorCredentialScope?.() : undefined
+  return agentModelCatalogFingerprint(credentialScope ? { ...identity, credentialScope } : identity)
+}
+
 /** The durable record pins the account home at launch, so this names the
  *  catalog THAT session lists from — not whichever account is selected now. */
 export function agentModelCatalogIdentityForRecord(
@@ -54,9 +63,13 @@ export function agentModelCatalogIdentityForRecord(
 }
 
 export function agentModelCatalogFingerprintForRecord(
-  record: Pick<AgentSessionRecord, 'provider' | 'accountHome' | 'location'>
+  record: Pick<AgentSessionRecord, 'provider' | 'accountHome' | 'location'>,
+  cursorCredentialScope?: () => string
 ): string {
-  return agentModelCatalogFingerprint(agentModelCatalogIdentityForRecord(record))
+  return agentModelCatalogScopedFingerprint(
+    agentModelCatalogIdentityForRecord(record),
+    cursorCredentialScope
+  )
 }
 
 /** A live session's store handle, pinned to the account home it spawned under.
