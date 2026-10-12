@@ -2643,7 +2643,7 @@
     "ko": "전역 또는 프로젝트별로 적용되는 저장된 terminal 명령입니다."
   },
   "auto.components.settings.Settings.7210ac09c4": {
-    "ko": "agent 활동과 terminal 이벤트에 대한 네이티브 데스크톱 알림입니다."
+    "ko": "에이전트 활동과 터미널 이벤트에 대한 네이티브 데스크톱 알림입니다."
   },
   "auto.components.settings.Settings.9b83cc62c2": {
     "ko": "terminal에서 실행되는 개발자 도구의 macOS 개인정보 보호 접근 권한입니다."
@@ -5104,5 +5104,23 @@
   },
   "components.workspace.cleanup.browse.agent.working": {
     "ko": "작업 중"
+  },
+  "auto.components.settings.NotificationsPane.591fe605b9": {
+    "ko": "터미널 벨"
+  },
+  "auto.components.settings.NotificationsPane.ca76d06fd2": {
+    "ko": "에이전트 작업 완료"
+  },
+  "auto.components.settings.notifications.search.7fa07e9600": {
+    "ko": "에이전트"
+  },
+  "auto.components.settings.notifications.search.a5edee1d99": {
+    "ko": "터미널 벨"
+  },
+  "auto.components.settings.notifications.search.bdc1edaeb4": {
+    "ko": "에이전트 작업 완료"
+  },
+  "auto.components.settings.NotificationsPane.00cd406dbb": {
+    "ko": "보고 있는 워크트리의 알림 숨기기"
   }
 }
