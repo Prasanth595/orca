@@ -25,6 +25,7 @@ import { useMonacoEditorMount } from './use-monaco-editor-mount'
 import { useDocumentDarkTheme } from '@/hooks/use-document-dark-theme'
 import { snapshotMonacoViewState } from './monaco-view-state-persistence'
 import { MonacoMarkdownAnnotationOverlay } from './MonacoMarkdownAnnotationOverlay'
+import { useMonacoDefinitionNavigation } from './monaco-definition/use-monaco-definition-navigation'
 
 type MonacoEditorProps = {
   fileId: string
@@ -216,6 +217,8 @@ export default function MonacoEditor({
     annotations,
     gutterMenu: { setGutterMenuOpen, setGutterMenuPoint, setGutterMenuLine }
   })
+
+  useMonacoDefinitionNavigation({ editor: mountedEditor, fileId, language })
 
   // Navigate to line and highlight match when requested (for already-mounted editor)
   useEffect(() => {

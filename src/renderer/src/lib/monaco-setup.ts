@@ -21,6 +21,7 @@ import { installMonacoDiffEditorDisposalGuard } from './monaco-diff-editor-dispo
 import { installMonacoPeekReferencesPreviewOptions } from './monaco-peek-preview-options'
 import { installMonacoContextMenuPaste } from '@/components/editor/install-monaco-context-menu-paste'
 import { runMonacoSetupSteps } from './monaco-setup-steps'
+import { DEFINITION_COMPILER_OPTIONS } from '@/components/editor/monaco-definition/monaco-definition-sink'
 
 globalThis.MonacoEnvironment = {
   getWorker(_workerId, label) {
@@ -72,10 +73,12 @@ monacoTS.javascriptDefaults.setDiagnosticsOptions(diagnosticsOptions)
 // an emit transform (we never emit — this is a read-only language service).
 monacoTS.typescriptDefaults.setCompilerOptions({
   ...monacoTS.typescriptDefaults.getCompilerOptions(),
+  ...DEFINITION_COMPILER_OPTIONS,
   jsx: monacoTS.JsxEmit.Preserve
 })
 monacoTS.javascriptDefaults.setCompilerOptions({
   ...monacoTS.javascriptDefaults.getCompilerOptions(),
+  ...DEFINITION_COMPILER_OPTIONS,
   jsx: monacoTS.JsxEmit.Preserve
 })
 
