@@ -182,6 +182,34 @@ describe('worktree.ps snapshot polls', () => {
     expect(second.worktrees).toEqual([expect.objectContaining({ lastOutputAt: 1_700_000_070_000 })])
   })
 
+  it('keeps the snapshot id while two active rows trade places inside one bucket', async () => {
+    const a = (lastOutputAt: number) => psRow({ lastOutputAt })
+    const b = (lastOutputAt: number) =>
+      psRow({ lastOutputAt, worktreeId: 'repo-1::/w/b', path: '/w/b', displayName: 'b' })
+    const getWorktreePs = vi
+      .fn()
+      .mockResolvedValueOnce({
+        worktrees: [a(1_700_000_039_000), b(1_700_000_031_000)],
+        totalCount: 2,
+        truncated: false
+      })
+      .mockResolvedValueOnce({
+        worktrees: [b(1_700_000_039_500), a(1_700_000_039_000)],
+        totalCount: 2,
+        truncated: false
+      })
+    const runtime = {
+      getRuntimeId: () => 'test-runtime',
+      getWorktreePs
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: worktree.ps reads only these two runtime members.
+    } as unknown as OrcaRuntimeService
+    const dispatcher = new RpcDispatcher({ runtime, methods: WORKTREE_METHODS })
+    const first = await poll(dispatcher, { limit: 10_000, afterSnapshotId: null })
+    const second = await poll(dispatcher, { limit: 10_000, afterSnapshotId: first.snapshotId })
+
+    expect(second).toEqual({ unchanged: true, snapshotId: first.snapshotId })
+  })
+
   it('keeps a null lastOutputAt null', async () => {
     const dispatcher = new RpcDispatcher({
       runtime: makeRuntime(psRow({ lastOutputAt: null, preview: '' })),
