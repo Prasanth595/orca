@@ -81,4 +81,24 @@ describe('MobileRichMarkdownEditor', () => {
     )
     expect(mocks.dismissKeyboard).toHaveBeenCalledOnce()
   })
+
+  it('sends the text scale to the editor on ready, and again when it changes', () => {
+    const props = { content: '', editable: true, onChange: vi.fn() }
+    act(() => {
+      renderer = create(createElement(MobileRichMarkdownEditor, { ...props, textScale: 1.5 }))
+    })
+    const webView = renderer!.root.find((node) => String(node.type) === 'WebView')
+    act(() => {
+      webView.props.onMessage({ nativeEvent: { data: JSON.stringify({ type: 'ready' }) } })
+    })
+    expect(mocks.injectJavaScript).toHaveBeenCalledWith(
+      expect.stringContaining('setTextScale(1.5)')
+    )
+
+    mocks.injectJavaScript.mockClear()
+    act(() => {
+      renderer!.update(createElement(MobileRichMarkdownEditor, { ...props, textScale: 2 }))
+    })
+    expect(mocks.injectJavaScript).toHaveBeenCalledWith(expect.stringContaining('setTextScale(2)'))
+  })
 })

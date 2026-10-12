@@ -42,6 +42,7 @@ function MobileRichMarkdownEditorInner(
   {
     content,
     editable,
+    textScale,
     onChange,
     onKeyboardInsetChange,
     onOpenLink
@@ -65,6 +66,8 @@ function MobileRichMarkdownEditorInner(
         inject(
           `window.__orcaRichMarkdown && window.__orcaRichMarkdown.setEditable(${nextEditable ? 'true' : 'false'});`
         ),
+      setTextScale: (scale: number) =>
+        inject(`window.__orcaRichMarkdown && window.__orcaRichMarkdown.setTextScale(${scale});`),
       runCommand: (command: MobileRichMarkdownCommand) =>
         inject(
           `window.__orcaRichMarkdown && window.__orcaRichMarkdown.runCommand(${escapeInjectedJavaScriptString(command)});`
@@ -87,6 +90,7 @@ function MobileRichMarkdownEditorInner(
   const { handleMessage, runCommand } = useMobileRichMarkdownEditorController({
     content,
     editable,
+    textScale,
     onChange,
     onKeyboardInsetChange,
     onOpenLink: openLink,

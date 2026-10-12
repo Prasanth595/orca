@@ -84,6 +84,9 @@ export function MobileMarkdownReader({
         key={documentId}
         content={doc.localContent}
         editable={doc.editable && !doc.saving}
+        // Why 1, not persisted: this reader is unused (superseded by MobileSessionMarkdownReader,
+        // which carries the real text-size control) — kept compiling for its own test only.
+        textScale={1}
         onChange={onChange}
         onKeyboardInsetChange={setWebviewKeyboardInset}
       />

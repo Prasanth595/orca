@@ -54,7 +54,7 @@ import type {
  * screen's own bar twice. The mount supplies no inset source, so there is nothing to report.
  */
 function MobileRichMarkdownEditorWebInner(
-  { content, editable, onChange, onOpenLink }: MobileRichMarkdownEditorComponentProps,
+  { content, editable, textScale, onChange, onOpenLink }: MobileRichMarkdownEditorComponentProps,
   ref: ForwardedRef<MobileRichMarkdownEditorHandle>
 ) {
   const hostRef = useRef<View>(null)
@@ -93,6 +93,10 @@ function MobileRichMarkdownEditorWebInner(
         send((api) => {
           api.setEditable(nextEditable)
         }),
+      setTextScale: (scale: number) =>
+        send((api) => {
+          api.setTextScale(scale)
+        }),
       runCommand: (command: Parameters<RichMarkdownEditorApi['runCommand']>[0]) =>
         send((api) => {
           void api.runCommand(command)
@@ -115,6 +119,7 @@ function MobileRichMarkdownEditorWebInner(
   const { handleMessage, runCommand } = useMobileRichMarkdownEditorController({
     content,
     editable,
+    textScale,
     onChange,
     onOpenLink: openLink,
     transport

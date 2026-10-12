@@ -35,6 +35,7 @@ export type RichMarkdownKeyboardInsetReader = {
 export type RichMarkdownEditorApi = {
   setMarkdown: (markdown: string, generation: number) => void
   setEditable: (editable: boolean) => void
+  setTextScale: (scale: number) => void
   runCommand: (command: MobileRichMarkdownCommand) => Promise<void>
   currentMarkdown: () => string
   dismissKeyboard: () => void

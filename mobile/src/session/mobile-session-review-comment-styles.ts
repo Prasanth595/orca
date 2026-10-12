@@ -164,6 +164,19 @@ export const mobileSessionReviewCommentStyles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 0
   },
+  markdownTextSizeButton: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.bgPanel,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    borderRadius: radii.button
+  },
   markdownSaveButton: {
     backgroundColor: colors.bgRaised
   },

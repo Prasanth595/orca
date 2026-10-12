@@ -93,7 +93,8 @@ describe('the bundled rich Markdown editor document', () => {
       'dismissKeyboard',
       'runCommand',
       'setEditable',
-      'setMarkdown'
+      'setMarkdown',
+      'setTextScale'
     ])
   })
 
@@ -192,6 +193,12 @@ describe('the bundled rich Markdown editor document', () => {
     expect(commands).toEqual([])
   })
 
+  it('writes the text scale to the CSS variable the stylesheet reads', () => {
+    const { handle } = evaluateBundle()
+    handle.setTextScale(1.25)
+    expect(document.documentElement.style.getPropertyValue('--markdown-text-scale')).toBe('1.25')
+  })
+
   it('opens a tapped link through the host rather than navigating', () => {
     const { posted, handle } = evaluateBundle()
     handle.setMarkdown('[docs](https://example.com/docs)', 1)
@@ -221,7 +228,8 @@ describe('the bundled rich Markdown editor document', () => {
     // three about the artifact that ships rather than about a bundle this case built for itself.
     const { script, inputs } = await richMarkdownEditorBundle()
     expect(inputs.filter((input) => input.includes('node_modules'))).toEqual([])
-    expect(inputs).toHaveLength(23)
+    // 24: `editor-text-scale.ts` joined the bundle for the markdown-tab text-size feature.
+    expect(inputs).toHaveLength(24)
     expect(script).not.toContain('__commonJS')
     // `__esm` wrappers are esbuild's answer to a cycle, and a cycle would make a module's top level
     // run at first import rather than where the bundle places it.

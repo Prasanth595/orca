@@ -12,8 +12,10 @@ import {
   type ComponentType,
   type ReactNode
 } from 'react'
-import { Pressable, ScrollView, Text as NativeText, View, type TextProps } from 'react-native'
+import { Pressable, Text as NativeText, View, type TextProps } from 'react-native'
 import { styles } from './mobile-markdown-styles'
+import { MobileMarkdownTable } from './MobileMarkdownTable'
+import { getMarkdownBlockScales, scaledTextStyle, withScale } from './mobile-markdown-scale'
 import {
   detectFilePathSegments,
   isFilePathCodeSpan,
@@ -39,6 +41,9 @@ type Props = {
   /** Multiplier for prose font size (paragraphs, lists, quotes). Defaults to 1;
    *  the chat view passes >1 so agent prose reads larger than the compact base. */
   textScale?: number
+  /** Also scale headings, quotes, code, tables, captions and inline code by `textScale`.
+   *  Off for chat (which scales only paragraphs and lists); the Markdown viewers opt in. */
+  scaleAllBlocks?: boolean
   /** When provided, detected file paths and file-target hrefs render as tappable
    *  and invoke this with the path text (worktree-relative or absolute, with an
    *  optional :line(:col) suffix). Omitted on screens with no file viewer, where
@@ -49,8 +54,6 @@ type Props = {
   renderVisual?: (directive: NativeChatVisualDirective, index: number) => ReactNode
 }
 
-const MAX_TABLE_ROWS = 40
-const MAX_TABLE_COLUMNS = 8
 /** Prose base size — passed to MermaidDiagram fallback mono text. */
 const MERMAID_BASE = 13
 type MarkdownTextSetup = {
@@ -122,7 +125,12 @@ function renderTextRun(
   })
 }
 
-function renderInline(text: string, onOpenFile?: (pathText: string) => void): ReactNode[] {
+function renderInline(
+  text: string,
+  onOpenFile?: (pathText: string) => void,
+  textScale = 1
+): ReactNode[] {
+  const inlineCodeScale = scaledTextStyle(12, undefined, textScale)
   const parts: ReactNode[] = []
   const pattern = createMarkdownInlineMatcher(
     text,
@@ -191,7 +199,7 @@ function renderInline(text: string, onOpenFile?: (pathText: string) => void): Re
         parts.push(
           <MarkdownText
             key={key}
-            style={[styles.inlineCode, styles.inlineCodeLink]}
+            style={withScale([styles.inlineCode, styles.inlineCodeLink], inlineCodeScale)}
             onPress={() => onOpenFile(normalizeFilePath(code.trim()))}
           >
             {code}
@@ -199,7 +207,7 @@ function renderInline(text: string, onOpenFile?: (pathText: string) => void): Re
         )
       } else {
         parts.push(
-          <MarkdownText key={key} style={styles.inlineCode}>
+          <MarkdownText key={key} style={withScale(styles.inlineCode, inlineCodeScale)}>
             {code}
           </MarkdownText>
         )
@@ -236,6 +244,7 @@ function MobileMarkdownContent({
   fallback = '',
   rangeSelectable = false,
   textScale = 1,
+  scaleAllBlocks = false,
   onOpenFile,
   renderVisual
 }: Props) {
@@ -244,11 +253,8 @@ function MobileMarkdownContent({
   const rowLongPress = setup.androidTranscript ? setup.onLongPress : undefined
   const text = content?.trim() ?? ''
   const { blocks, directives } = useMobileMarkdownBlocks(text, renderVisual !== undefined)
-  // Scale prose sizes; inline spans inherit fontSize from the wrapping Text.
-  const scaled = (size: number): { fontSize: number; lineHeight: number } | null =>
-    textScale !== 1 ? { fontSize: size * textScale, lineHeight: (size + 6) * textScale } : null
-  const proseScale = scaled(13)
-  const listScale = scaled(14)
+  const scales = getMarkdownBlockScales(textScale, scaleAllBlocks)
+  const inlineScale = scaleAllBlocks ? textScale : 1
   if (!text) {
     return fallback ? (
       <MarkdownText selectable={rangeSelectable} style={styles.paragraph}>
@@ -275,17 +281,22 @@ function MobileMarkdownContent({
             <MarkdownText
               key={index}
               selectable
-              style={[styles.heading, block.level <= 2 ? styles.headingLarge : null]}
+              style={[
+                styles.heading,
+                scales.heading,
+                block.level <= 2 ? styles.headingLarge : null,
+                block.level <= 2 ? scales.headingLarge : null
+              ]}
             >
-              {renderInline(block.text, onOpenFile)}
+              {renderInline(block.text, onOpenFile, inlineScale)}
             </MarkdownText>
           )
         }
         if (block.type === 'quote') {
           return (
             <View key={index} style={styles.quote}>
-              <MarkdownText selectable style={styles.quoteText}>
-                {renderInline(block.text, onOpenFile)}
+              <MarkdownText selectable style={withScale(styles.quoteText, scales.quote)}>
+                {renderInline(block.text, onOpenFile, inlineScale)}
               </MarkdownText>
             </View>
           )
@@ -308,9 +319,11 @@ function MobileMarkdownContent({
           return (
             <View key={index} style={styles.codeBlock}>
               {block.language ? (
-                <NativeText style={styles.codeLanguage}>{block.language}</NativeText>
+                <NativeText style={withScale(styles.codeLanguage, scales.codeLanguage)}>
+                  {block.language}
+                </NativeText>
               ) : null}
-              <MarkdownText selectable style={styles.codeText}>
+              <MarkdownText selectable style={withScale(styles.codeText, scales.codeText)}>
                 {block.text}
               </MarkdownText>
             </View>
@@ -325,49 +338,29 @@ function MobileMarkdownContent({
               onLongPress={rowLongPress}
             >
               <NativeText style={styles.link}>{block.alt || 'Open image'}</NativeText>
-              <NativeText style={styles.imageCaption} numberOfLines={1}>
+              <NativeText
+                style={withScale(styles.imageCaption, scales.imageCaption)}
+                numberOfLines={1}
+              >
                 {block.url}
               </NativeText>
             </Pressable>
           )
         }
         if (block.type === 'table') {
-          const visibleHeaders = block.headers.slice(0, MAX_TABLE_COLUMNS)
-          const visibleRows = block.rows.slice(0, MAX_TABLE_ROWS)
-          const hiddenRows = Math.max(0, block.rows.length - visibleRows.length)
-          const hiddenColumns = Math.max(0, block.headers.length - visibleHeaders.length)
           return (
-            <ScrollView key={index} horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.table}>
-                <View style={styles.tableRow}>
-                  {visibleHeaders.map((header, cellIndex) => (
-                    <MarkdownText
-                      key={cellIndex}
-                      selectable
-                      style={[styles.tableCell, styles.tableHeader]}
-                    >
-                      {renderInline(header, onOpenFile)}
-                    </MarkdownText>
-                  ))}
-                </View>
-                {visibleRows.map((row, rowIndex) => (
-                  <View key={rowIndex} style={styles.tableRow}>
-                    {visibleHeaders.map((_, cellIndex) => (
-                      <MarkdownText key={cellIndex} selectable style={styles.tableCell}>
-                        {renderInline(row[cellIndex] ?? '', onOpenFile)}
-                      </MarkdownText>
-                    ))}
-                  </View>
-                ))}
-                {hiddenRows > 0 || hiddenColumns > 0 ? (
-                  <NativeText style={styles.tableTruncated}>
-                    {hiddenRows > 0 ? `${hiddenRows} more rows` : ''}
-                    {hiddenRows > 0 && hiddenColumns > 0 ? ' · ' : ''}
-                    {hiddenColumns > 0 ? `${hiddenColumns} more columns` : ''}
-                  </NativeText>
-                ) : null}
-              </View>
-            </ScrollView>
+            <MobileMarkdownTable
+              key={index}
+              headers={block.headers}
+              rows={block.rows}
+              cellScale={scales.tableCell}
+              truncatedScale={scales.tableTruncated}
+              renderCell={(cellText, style, key) => (
+                <MarkdownText key={key} selectable style={style}>
+                  {renderInline(cellText, onOpenFile, inlineScale)}
+                </MarkdownText>
+              )}
+            />
           )
         }
         if (block.type === 'list') {
@@ -375,7 +368,7 @@ function MobileMarkdownContent({
             <View key={index} style={styles.list}>
               {block.items.map((item, itemIndex) => (
                 <View key={itemIndex} style={styles.listItem}>
-                  <NativeText style={styles.listMarker}>
+                  <NativeText style={withScale(styles.listMarker, scales.listMarker)}>
                     {item.checked == null
                       ? block.ordered
                         ? `${itemIndex + 1}.`
@@ -384,8 +377,8 @@ function MobileMarkdownContent({
                         ? '[x]'
                         : '[ ]'}
                   </NativeText>
-                  <MarkdownText selectable style={[styles.listText, listScale]}>
-                    {renderInline(item.text, onOpenFile)}
+                  <MarkdownText selectable style={[styles.listText, scales.list]}>
+                    {renderInline(item.text, onOpenFile, inlineScale)}
                   </MarkdownText>
                 </View>
               ))}
@@ -399,12 +392,12 @@ function MobileMarkdownContent({
           <MarkdownText
             key={index}
             selectable={rangeSelectable}
-            style={[styles.paragraph, proseScale]}
+            style={[styles.paragraph, scales.prose]}
           >
             {block.text.split('\n').map((line, lineIndex) => (
               <Fragment key={lineIndex}>
                 {lineIndex > 0 ? '\n' : null}
-                {renderInline(line, onOpenFile)}
+                {renderInline(line, onOpenFile, inlineScale)}
               </Fragment>
             ))}
           </MarkdownText>

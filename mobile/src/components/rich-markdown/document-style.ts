@@ -1,5 +1,8 @@
 import { colors } from '../../theme/mobile-theme'
-import { TEXT_INPUT_FONT_SIZE } from '../../platform/text-input-font-size'
+import {
+  TEXT_INPUT_FONT_SIZE,
+  TEXT_INPUT_FONT_SIZE_FLOOR
+} from '../../platform/text-input-font-size'
 
 /**
  * The editor document's stylesheet: the theme variables and every rule that reads them.
@@ -14,9 +17,20 @@ import { TEXT_INPUT_FONT_SIZE } from '../../platform/text-input-font-size'
  * never zooms back, and `keyboard-occlusion.web.ts` reads that scale as "no keyboard" for the rest
  * of the session. One binding, so a floor that moved would move both halves together.
  */
+/**
+ * The editable surface's font size at the user's text scale, never below the platform floor: on
+ * web, a scaled-down editor under 16 px would make iOS zoom on focus and never zoom back.
+ */
+export function editorFontSizeRule(): string {
+  const scaled = `calc(${TEXT_INPUT_FONT_SIZE}px * var(--markdown-text-scale))`
+  return TEXT_INPUT_FONT_SIZE_FLOOR > 0 ? `max(${TEXT_INPUT_FONT_SIZE_FLOOR}px, ${scaled})` : scaled
+}
+
 export function richMarkdownEditorStyle(): string {
   return `    :root {
       color-scheme: dark;
+      /* Why: one knob the toolbar/pinch write and the editor's font-size reads, so every block scales together. */
+      --markdown-text-scale: 1;
       --background: ${colors.bgBase};
       --editor-surface: ${colors.bgBase};
       --foreground: ${colors.textPrimary};
@@ -42,9 +56,10 @@ export function richMarkdownEditorStyle(): string {
     body { overflow: auto; }
     #editor {
       min-height: 100vh;
-      padding: 18px 16px 112px;
+      /* Why 56px right: clears the native "Aa" text-size button (34px + 8px inset) over the first line. */
+      padding: 18px 56px 112px 16px;
       outline: none;
-      font-size: ${TEXT_INPUT_FONT_SIZE}px;
+      font-size: ${editorFontSizeRule()};
       line-height: 1.7;
       word-wrap: break-word;
       overflow-wrap: anywhere;

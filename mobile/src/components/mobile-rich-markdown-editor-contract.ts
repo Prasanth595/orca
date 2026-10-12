@@ -24,6 +24,8 @@ export type MobileRichMarkdownEditorMessage =
 export type MobileRichMarkdownEditorProps = {
   content: string
   editable: boolean
+  /** Shared with the file-viewer's Markdown preview via `markdown-text-scale-storage`. */
+  textScale: number
   onChange: (content: string) => void
   onKeyboardInsetChange?: (bottom: number) => void
   onOpenLink: (url: string) => void
@@ -33,5 +35,6 @@ export type MobileRichMarkdownEditorProps = {
 export type MobileRichMarkdownEditorTransport = {
   setMarkdown: (markdown: string, generation: number) => void
   setEditable: (editable: boolean) => void
+  setTextScale: (scale: number) => void
   runCommand: (command: MobileRichMarkdownCommand) => void
 }

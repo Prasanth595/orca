@@ -35,6 +35,7 @@ export function normalizeExternalEditorUrl(value: string): string | null {
 export function useMobileRichMarkdownEditorController({
   content,
   editable,
+  textScale,
   onChange,
   onKeyboardInsetChange,
   onOpenLink,
@@ -65,6 +66,12 @@ export function useMobileRichMarkdownEditorController({
     }
   }, [editable, transport])
 
+  useEffect(() => {
+    if (readyRef.current) {
+      transport.setTextScale(textScale)
+    }
+  }, [textScale, transport])
+
   // Clear any reported keyboard inset when the editor unmounts so a lifted
   // Save/Discard bar settles back once the tab closes.
   useEffect(() => {
@@ -77,6 +84,7 @@ export function useMobileRichMarkdownEditorController({
         readyRef.current = true
         applyContent(content)
         transport.setEditable(editable)
+        transport.setTextScale(textScale)
         return
       }
       if (
@@ -102,7 +110,16 @@ export function useMobileRichMarkdownEditorController({
         }
       }
     },
-    [applyContent, content, editable, onChange, onKeyboardInsetChange, onOpenLink, transport]
+    [
+      applyContent,
+      content,
+      editable,
+      textScale,
+      onChange,
+      onKeyboardInsetChange,
+      onOpenLink,
+      transport
+    ]
   )
 
   const runCommand = useCallback(
