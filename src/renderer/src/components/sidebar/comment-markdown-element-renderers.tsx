@@ -24,6 +24,8 @@ export type CommentMarkdownLinkClickHandler = (
 export type DocumentCodeBlockRenderer = (props: {
   children?: React.ReactNode
   language?: string
+  /** Where the fence starts in the whole document: appended text never moves it. */
+  sourceOffset?: number
 }) => React.JSX.Element
 
 export function isTrustedCompactImageSrc(src: string | undefined): src is string {
@@ -268,8 +270,11 @@ export function createDocumentCommentMarkdownComponents(
         </a>
       ),
     code: CommentMarkdownDocumentCode,
-    pre: ({ children }) => (
-      <CommentMarkdownDocumentPre renderCodeBlock={renderCodeBlock}>
+    pre: ({ node, children }) => (
+      <CommentMarkdownDocumentPre
+        renderCodeBlock={renderCodeBlock}
+        blockOffset={node?.position?.start.offset}
+      >
         {children}
       </CommentMarkdownDocumentPre>
     ),

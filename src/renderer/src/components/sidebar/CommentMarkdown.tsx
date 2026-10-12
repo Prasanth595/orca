@@ -20,6 +20,7 @@ import {
   remarkNativeChatFileLinks,
   type FileLinkExists
 } from './comment-markdown-native-chat-file-links'
+import { CommentMarkdownBlockStartContext } from './comment-markdown-code-renderers'
 import { rehypeWordFade } from './comment-markdown-word-fade'
 import { CommentMarkdownWords } from './CommentMarkdownWords'
 import {
@@ -342,21 +343,22 @@ const CommentMarkdown = React.memo(
             {...rest}
           >
             {blocks.map((block, index) => (
-              <MemoizedMarkdown
-                key={block.start}
-                remarkPlugins={activeRemarkPlugins}
-                rehypePlugins={wrapsWords ? fadingRehypePlugins : activeRehypePlugins}
-                components={wrapsWords ? fadingComponents : components}
-                urlTransform={
-                  allowFileUriLinks
-                    ? commentMarkdownFileUriUrlTransform
-                    : commentMarkdownUrlTransform
-                }
-              >
-                {growing && index === blocks.length - 1
-                  ? remend(block.text, { linkMode: 'text-only' })
-                  : block.text}
-              </MemoizedMarkdown>
+              <CommentMarkdownBlockStartContext.Provider key={block.start} value={block.start}>
+                <MemoizedMarkdown
+                  remarkPlugins={activeRemarkPlugins}
+                  rehypePlugins={wrapsWords ? fadingRehypePlugins : activeRehypePlugins}
+                  components={wrapsWords ? fadingComponents : components}
+                  urlTransform={
+                    allowFileUriLinks
+                      ? commentMarkdownFileUriUrlTransform
+                      : commentMarkdownUrlTransform
+                  }
+                >
+                  {growing && index === blocks.length - 1
+                    ? remend(block.text, { linkMode: 'text-only' })
+                    : block.text}
+                </MemoizedMarkdown>
+              </CommentMarkdownBlockStartContext.Provider>
             ))}
           </div>
         </CommentMarkdownMermaidSourceContext.Provider>

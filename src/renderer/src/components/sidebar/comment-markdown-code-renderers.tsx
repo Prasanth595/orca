@@ -1,4 +1,4 @@
-import React, { useContext } from 'react'
+import React, { createContext, useContext } from 'react'
 import { isMermaidFence, isMermaidPre, renderMermaidFence } from './comment-mermaid-fence'
 import type { DocumentCodeBlockRenderer } from './comment-markdown-element-renderers'
 
@@ -9,6 +9,9 @@ import {
 
 const diagramClassName =
   'my-3 min-w-0 max-w-full overflow-x-auto rounded-md border border-border/60 p-3 [&_.mermaid-block]:min-w-0 [&_.mermaid-block_pre]:my-0 [&_.mermaid-block_pre]:max-h-80 [&_.mermaid-block_pre]:max-w-full [&_.mermaid-block_pre]:overflow-x-auto [&_.mermaid-block_pre]:rounded-md [&_.mermaid-block_pre]:bg-accent [&_.mermaid-block_pre]:p-3 [&_.mermaid-block_pre]:font-mono [&_.mermaid-block_pre]:text-[12px]'
+
+/** Where the rendered top-level block starts in the whole document; its nodes' offsets are local. */
+export const CommentMarkdownBlockStartContext = createContext(0)
 
 export function CommentMarkdownDocumentCode({
   className,
@@ -31,13 +34,17 @@ export function CommentMarkdownDocumentCode({
 
 export function CommentMarkdownDocumentPre({
   children,
-  renderCodeBlock
+  renderCodeBlock,
+  blockOffset
 }: {
   children?: React.ReactNode
   renderCodeBlock?: DocumentCodeBlockRenderer
+  /** Where the fence starts in its top-level block's source. */
+  blockOffset?: number
 }): React.JSX.Element {
   const renderMermaid = useContext(CommentMarkdownMermaidContext)
   const keepSource = useContext(CommentMarkdownMermaidSourceContext)
+  const blockStart = useContext(CommentMarkdownBlockStartContext)
   if (renderMermaid && !keepSource && isMermaidPre(children)) {
     return <>{children}</>
   }
@@ -48,7 +55,12 @@ export function CommentMarkdownDocumentPre({
   // An element, not a call, so the renderer's hooks stay out of this early-returning component.
   const CodeBlock = renderCodeBlock
   const code = CodeBlock ? (
-    <CodeBlock language={language}>{children}</CodeBlock>
+    <CodeBlock
+      language={language}
+      sourceOffset={blockOffset === undefined ? undefined : blockStart + blockOffset}
+    >
+      {children}
+    </CodeBlock>
   ) : (
     <pre className="my-3 max-h-80 max-w-full overflow-x-auto rounded-md bg-accent p-3 font-mono text-[12px]">
       {children}

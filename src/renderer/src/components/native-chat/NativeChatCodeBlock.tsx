@@ -1,27 +1,40 @@
-import React, { useState } from 'react'
+import React, { useContext } from 'react'
 import { WrapText } from 'lucide-react'
 import { translate } from '@/i18n/i18n'
 import { cn } from '@/lib/utils'
 import { getCodeFenceLanguageLabel } from './code-fence-language-label'
 import { NativeChatCopyButton } from './NativeChatCopyButton'
+import {
+  NativeChatMarkdownRowKeyContext,
+  useNativeChatDisclosure
+} from './native-chat-disclosure-store'
 import { NativeChatHighlightedCode } from './NativeChatHighlightedCode'
 
 /** Code fences need their own copy target rather than the whole chat message. */
 export function NativeChatCodeBlock({
   children,
   language,
+  sourceOffset,
   plain = false
 }: {
   children?: React.ReactNode
   language?: string
+  sourceOffset?: number
   plain?: boolean
 }): React.JSX.Element {
   const code = extractCodeText(children)
-  // Per block and not persisted: long lines scroll sideways until the reader asks to wrap.
-  const [wrapped, setWrapped] = useState(false)
+  const rowKey = useContext(NativeChatMarkdownRowKeyContext)
+  // Off until the reader asks; kept in the transcript's store so the row unmounting under
+  // windowing, or a growing reply re-cutting its blocks, does not undo it. Never saved.
+  const { open: wrapped, setOpen: setWrapped } = useNativeChatDisclosure(
+    rowKey === undefined || sourceOffset === undefined
+      ? undefined
+      : `code-wrap:${rowKey}:${sourceOffset}`,
+    false
+  )
   const actions = code ? (
     <>
-      <NativeChatCodeWrapButton wrapped={wrapped} onToggle={() => setWrapped((value) => !value)} />
+      <NativeChatCodeWrapButton wrapped={wrapped} onToggle={() => setWrapped(!wrapped)} />
       <NativeChatCopyButton
         text={code}
         label={translate('components.native-chat.copyCode', 'Copy code')}
@@ -96,6 +109,7 @@ function NativeChatCodeWrapButton({
 export function NativeChatPlainCodeBlock(props: {
   children?: React.ReactNode
   language?: string
+  sourceOffset?: number
 }): React.JSX.Element {
   return <NativeChatCodeBlock {...props} plain />
 }
