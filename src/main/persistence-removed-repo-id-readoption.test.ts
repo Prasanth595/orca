@@ -32,8 +32,8 @@ describe('removed repo id readoption', () => {
     testState.dir = mkdtempSync(join(tmpdir(), 'orca-test-'))
   })
 
-  afterEach(() => {
-    closeTestStores()
+  afterEach(async () => {
+    await closeTestStores()
     rmSync(testState.dir, { recursive: true, force: true })
   })
 
@@ -88,13 +88,16 @@ describe('removed repo id readoption', () => {
     expect(store.claimRemovedRepoId({ path: '/repo' })).toBeNull()
   })
 
-  it('refuses an id that a live repo on the same host already holds', async () => {
+  it('holds back an id a live repo on the same host has, until that repo is gone', async () => {
     const store = await createStore()
     store.addRepo(makeRepo({ id: 'shared-id', path: '/repo' }))
     store.removeProjectForHost('shared-id', 'local')
     store.addRepo(makeRepo({ id: 'shared-id', path: '/moved' }))
 
     expect(store.claimRemovedRepoId({ path: '/repo' })).toBeNull()
+
+    store.removeProjectForHost('shared-id', 'local')
+    expect(store.claimRemovedRepoId({ path: '/repo' })).toBe('shared-id')
   })
 
   it('remembers only the host the repo was removed from', async () => {

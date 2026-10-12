@@ -127,6 +127,31 @@ describe('OrcaRuntimeService', () => {
     expect(repo.id).toBe('id-before-removal')
   })
 
+  it('returns the row it added when a readopted id also lives on another host', async () => {
+    const repos: Repo[] = [
+      { id: 'shared-id', path: '/elsewhere', displayName: 'elsewhere', badgeColor: '', addedAt: 1 }
+    ]
+    const runtimeStore = {
+      ...store,
+      getRepos: () => [...repos],
+      addRepo: (repo: Repo) => {
+        repos.push(repo)
+      },
+      getRepo: (id: string) => repos.find((repo) => repo.id === id),
+      claimRemovedRepoId: () => 'shared-id'
+    }
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the fixture store stubs only the methods repo registration calls.
+    const runtime = new OrcaRuntimeService(runtimeStore as never)
+
+    const repo = await runtime.addRepo('/tmp/runtime-readd', 'folder', 'runtime:env-1')
+
+    expect(repo).toMatchObject({
+      id: 'shared-id',
+      path: '/tmp/runtime-readd',
+      executionHostId: 'runtime:env-1'
+    })
+  })
+
   it('prepares the runtime worktree root when adding a repo', async () => {
     const added: Record<string, unknown>[] = []
     const runtimeStore = {

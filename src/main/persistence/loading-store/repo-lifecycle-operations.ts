@@ -75,13 +75,13 @@ export class RepoLifecycleOperations {
     if (!claim) {
       return null
     }
-    state.removedRepoIdTombstones = claim.remaining
-    scheduleSave(this[repoLifecycleOperationsContext].scheduling)
     const hostId = getRepoExecutionHostId(target)
-    // Why: an id is unique per host; never hand out one a live row on this host still holds.
+    // Why: an id is unique per host; the tombstone stays so the id can return once it is free.
     if (state.repos.some((r) => r.id === claim.repoId && getRepoExecutionHostId(r) === hostId)) {
       return null
     }
+    state.removedRepoIdTombstones = claim.remaining
+    scheduleSave(this[repoLifecycleOperationsContext].scheduling)
     return claim.repoId
   }
 
