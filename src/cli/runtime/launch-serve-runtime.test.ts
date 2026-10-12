@@ -101,12 +101,11 @@ describe('orca serve host selection', () => {
     serveWithOrcadMock.mockResolvedValue(0)
 
     await expect(serveOrcaApp({ json: true })).resolves.toBe(0)
-    expect(serveWithOrcadMock).toHaveBeenCalledWith(
-      selection,
-      { json: true },
-      expect.any(String),
-      expect.not.objectContaining({ ELECTRON_RUN_AS_NODE: expect.anything() })
-    )
+    expect(serveWithOrcadMock).toHaveBeenCalledOnce()
+    expect(serveWithOrcadMock.mock.calls[0]?.slice(0, 2)).toEqual([selection, { json: true }])
+    const [, , profile, environment] = serveWithOrcadMock.mock.calls[0] ?? []
+    expect(typeof profile).toBe('string')
+    expect(environment?.ELECTRON_RUN_AS_NODE).toBeUndefined()
     expect(spawnMock).not.toHaveBeenCalled()
     expect(stderr.join('')).toContain('[serve] running on orcad 1')
   })
@@ -116,10 +115,10 @@ describe('orca serve host selection', () => {
     electronChild()
 
     await expect(serveOrcaApp({ json: true })).resolves.toBe(0)
-    expect(spawnMock).toHaveBeenCalledWith(
-      '/opt/orca/orca-ide',
-      expect.arrayContaining(['--serve', '--serve-json']),
-      expect.any(Object)
+    expect(spawnMock).toHaveBeenCalledOnce()
+    expect(spawnMock.mock.calls[0]?.[0]).toBe('/opt/orca/orca-ide')
+    expect(spawnMock.mock.calls[0]?.[1]).toEqual(
+      expect.arrayContaining(['--serve', '--serve-json'])
     )
     expect(stderr.join('')).toContain('[serve] using Electron serve: no template')
   })
@@ -180,10 +179,8 @@ describe('orca serve host selection', () => {
       )
       const child = electronSpawn()
       expect(child.args).toContain(`--user-data-dir=${profile}`)
-      expect(child.env).toMatchObject({
-        ORCA_USER_DATA_PATH: profile,
-        ORCA_SERVE_USER_DATA_PATH: profile
-      })
+      expect(child.env.ORCA_USER_DATA_PATH).toBe(profile)
+      expect(child.env.ORCA_SERVE_USER_DATA_PATH).toBe(profile)
     })
 
     it('pins the opt-out Electron serve to the same profile', async () => {
@@ -207,7 +204,8 @@ describe('orca serve host selection', () => {
       expect(resolveLocalServeRuntimeMock).toHaveBeenCalledWith(
         expect.objectContaining({ userDataPath: profile })
       )
-      expect(serveWithOrcadMock).toHaveBeenCalledWith(selection, {}, profile, expect.any(Object))
+      expect(serveWithOrcadMock).toHaveBeenCalledOnce()
+      expect(serveWithOrcadMock.mock.calls[0]?.slice(0, 3)).toEqual([selection, {}, profile])
     })
 
     it('uses ORCA_DEV_USER_DATA_PATH for both the selector and a dev Electron child', async () => {
@@ -223,10 +221,9 @@ describe('orca serve host selection', () => {
         expect.objectContaining({ userDataPath: profile })
       )
       // A dev build ignores --user-data-dir and reads this instead.
-      expect(electronSpawn().env).toMatchObject({
-        ORCA_DEV_USER_DATA_PATH: profile,
-        ORCA_SERVE_USER_DATA_PATH: profile
-      })
+      const child = electronSpawn()
+      expect(child.env.ORCA_DEV_USER_DATA_PATH).toBe(profile)
+      expect(child.env.ORCA_SERVE_USER_DATA_PATH).toBe(profile)
     })
   })
 })
