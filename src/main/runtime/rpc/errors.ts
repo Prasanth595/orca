@@ -156,6 +156,8 @@ const STRUCTURED_RUNTIME_PASSTHROUGH_CODES: ReadonlySet<string> = new Set([
   // with the same code the mobile-allowlist check does, so a caller reads one answer either way.
   'forbidden',
   NESTED_WORKER_DEPTH_EXCEEDED_CODE,
+  'coordinator_delivery_unsupported',
+  'coordinator_unverifiable',
   GIT_DIFF_TOO_LARGE_CODE,
   ARTIFACT_SHARING_DISABLED_CODE,
   AGENT_SKILL_SHARING_DISABLED_CODE,

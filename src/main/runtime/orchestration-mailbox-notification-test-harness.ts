@@ -12,6 +12,7 @@ import { RpcDispatcher } from './rpc/dispatcher'
 import { ORCHESTRATION_METHODS } from './rpc/methods/orchestration'
 import type { OrchestrationNotificationPolicy } from '../../shared/orchestration-coordinator-delivery'
 import type { MessageType } from './orchestration/db'
+import type { TuiAgent } from '../../shared/tui-agent'
 
 export const TAB_ID = '11111111-1111-4111-8111-111111111111'
 export const LEAF_ID = '22222222-2222-4222-8222-222222222222'
@@ -100,6 +101,7 @@ export function createRuntime(
   options: {
     connectionId?: string
     isWsl?: boolean
+    launchAgent?: TuiAgent
     getAgentStatusSnapshot?: () => AgentStatusIpcPayload[]
     checkHookAgentPresence?: (paneKey: string) => Promise<'live' | 'unverifiable' | 'exited' | null>
   } = {}
@@ -128,7 +130,10 @@ export function createRuntime(
       tabId: TAB_ID,
       leafId: LEAF_ID,
       incarnationId: 'mailbox-incarnation',
-      agentLaunchAuthority: { launchToken: LAUNCH_TOKEN, launchAgent: 'codex' }
+      agentLaunchAuthority: {
+        launchToken: LAUNCH_TOKEN,
+        launchAgent: options.launchAgent ?? 'codex'
+      }
     },
     options.isWsl
   )
