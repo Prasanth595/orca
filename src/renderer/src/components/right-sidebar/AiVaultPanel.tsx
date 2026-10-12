@@ -91,11 +91,13 @@ export default function AiVaultPanel(): React.JSX.Element {
     group,
     hideEmptySessions,
     sessionLimit,
+    groupSessionLimit,
     setSort,
     setSearchSort,
     setGroup,
     setHideEmptySessions,
     setSessionLimit,
+    setGroupSessionLimit,
     setAgentEnabled,
     setAllAgentsEnabled,
     resetViewOptions
@@ -213,7 +215,8 @@ export default function AiVaultPanel(): React.JSX.Element {
     agents,
     group,
     hideEmptySessions,
-    sessionLimit
+    sessionLimit,
+    groupSessionLimit
   })
 
   const { filteredSessions, groups } = useAiVaultPanelSessions(sessions, searching, group, {
@@ -310,6 +313,7 @@ export default function AiVaultPanel(): React.JSX.Element {
         group={group}
         hideEmptySessions={hideEmptySessions}
         sessionLimit={sessionLimit}
+        groupSessionLimit={groupSessionLimit}
         adjustmentCount={viewAdjustmentCount}
         focusSearchRequestId={focusSearchRequestId}
         onQueryChange={setQuery}
@@ -320,6 +324,7 @@ export default function AiVaultPanel(): React.JSX.Element {
         onGroupChange={setGroup}
         onHideEmptySessionsChange={setHideEmptySessions}
         onSessionLimitChange={setSessionLimit}
+        onGroupSessionLimitChange={setGroupSessionLimit}
         onReset={resetViewOptions}
         onRefresh={() => (searching ? search.retry() : void refresh({ force: true }))}
       />
@@ -355,6 +360,7 @@ export default function AiVaultPanel(): React.JSX.Element {
             searchHits={searching ? searchHits : undefined}
             groups={groups}
             collapsedGroups={collapsedGroups}
+            groupSessionLimit={groupSessionLimit}
             loading={searching ? search.loading : loading}
             sessionsCount={sessions.length}
             filteredSessionsCount={filteredSessions.length}
