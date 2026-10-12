@@ -6,6 +6,7 @@ export type RuntimeStore = {
   getRepos: Store['getRepos']
   getRepo: Store['getRepo']
   addRepo: Store['addRepo']
+  claimRemovedRepoId?: Store['claimRemovedRepoId']
   updateRepo: Store['updateRepo']
   addRetiredWorktreeName?: Store['addRetiredWorktreeName']
   mergeRetiredWorktreeNames?: Store['mergeRetiredWorktreeNames']

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { resolveRepoIdForExistingFolder } from '../repo-registration-id'
 import { mkdir, readdir, rm, stat } from 'node:fs/promises'
 import { isAbsolute, join } from 'node:path'
 import { DEFAULT_REPO_BADGE_COLOR } from '../../shared/constants'
@@ -70,7 +71,7 @@ export class RuntimeRepositoryRegistrationController {
       executionHostId: LOCAL_EXECUTION_HOST_ID
     })
     const repo: Repo = {
-      id: randomUUID(),
+      id: resolveRepoIdForExistingFolder(store, { path, executionHostId }),
       path,
       displayName: displayName?.trim() || getRepoName(path),
       badgeColor: DEFAULT_REPO_BADGE_COLOR,
