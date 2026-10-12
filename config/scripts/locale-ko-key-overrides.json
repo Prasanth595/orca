@@ -2637,7 +2637,7 @@
     "ko": "\"에 대한 설정을 찾을 수 없습니다."
   },
   "auto.components.settings.Settings.3d9adfe6a5": {
-    "ko": "전역 terminal, 브라우저, Markdown 탭."
+    "ko": "전역 터미널, 브라우저, Markdown 탭."
   },
   "auto.components.settings.Settings.6742c7932c": {
     "ko": "전역 또는 프로젝트별로 적용되는 저장된 terminal 명령입니다."
@@ -5104,5 +5104,17 @@
   },
   "components.workspace.cleanup.browse.agent.working": {
     "ko": "작업 중"
+  },
+  "auto.components.settings.FloatingWorkspacePane.12aa09f10c": {
+    "ko": "터미널 디렉터리"
+  },
+  "auto.components.settings.FloatingWorkspacePane.81afb79785": {
+    "ko": "새로운 플로팅 터미널 탭이 여기에서 시작됩니다. Markdown 메모는 Orca의 앱 소유 플로팅 워크스페이스에 저장됩니다."
+  },
+  "auto.components.settings.floating.workspace.search.6f183fa1b9": {
+    "ko": "플로팅 터미널"
+  },
+  "auto.components.settings.floating.workspace.search.ebeedb2f6a": {
+    "ko": "빠른 터미널"
   }
 }
