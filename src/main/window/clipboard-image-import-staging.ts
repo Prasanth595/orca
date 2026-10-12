@@ -14,7 +14,9 @@ import {
 } from './owned-temp-staging-root'
 
 const STAGING_TTL_MS = 24 * 60 * 60 * 1000
-const MAX_STAGED_IMAGES = 8
+// Retain up to 50 explorer undo steps, with room for active imports and asynchronous cleanup.
+const MAX_STAGED_IMAGES = 64
+const MAX_PENDING_IMAGES = 8
 const HANDLE_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export class ClipboardImageImportStaging {
@@ -33,7 +35,10 @@ export class ClipboardImageImportStaging {
     if (buffer.byteLength === 0) {
       throw new Error('Clipboard image is empty')
     }
-    if (this.entries.size + this.pending.size >= MAX_STAGED_IMAGES) {
+    if (
+      this.entries.size + this.pending.size >= MAX_STAGED_IMAGES ||
+      this.pending.size >= MAX_PENDING_IMAGES
+    ) {
       throw new Error('Too many clipboard image imports in progress')
     }
     const snapshot = Buffer.from(buffer)

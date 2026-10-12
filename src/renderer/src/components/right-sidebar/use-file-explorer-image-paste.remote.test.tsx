@@ -11,15 +11,22 @@ import {
 import { getFileExplorerOperationOwner } from './file-explorer-operation-owner'
 import { useFileExplorerImagePaste } from './use-file-explorer-image-paste'
 import type { ClipboardImageImport } from '../../../../shared/clipboard-image-import'
+import {
+  clearFileExplorerUndoHistory,
+  undoFileExplorer,
+  fileExplorerHasUndo
+} from './fileExplorerUndoRedo'
 
 const mocks = vi.hoisted(() => ({
   stage: vi.fn(),
   release: vi.fn(),
   importPaths: vi.fn(),
+  deletePath: vi.fn(),
   error: vi.fn()
 }))
 vi.mock('@/runtime/runtime-file-client', () => ({
-  importExternalPathsToRuntime: mocks.importPaths
+  importExternalPathsToRuntime: mocks.importPaths,
+  deleteRuntimePath: mocks.deletePath
 }))
 vi.mock('sonner', () => ({ toast: { error: mocks.error } }))
 const snapshot = { handle: 'snapshot', path: 'C:\\staging\\pasted-image.png' }
@@ -60,7 +67,9 @@ beforeEach(() => {
     ui: { stageClipboardImageForImport: mocks.stage, releaseClipboardImageImport: mocks.release }
   })
 })
-afterEach(() => {
+afterEach(async () => {
+  clearFileExplorerUndoHistory()
+  await Promise.resolve()
   cleanup()
   vi.unstubAllGlobals()
 })
@@ -82,7 +91,22 @@ it('pins the SSH owner and generation before staging a local clipboard image', a
     `${SSH_WORKTREE_PATH}/images`,
     { assertCurrent: expect.any(Function), requireExistingDestination: true }
   )
-  expect(mocks.release).toHaveBeenCalledWith(snapshot.handle)
+  expect(mocks.release).not.toHaveBeenCalled()
+  await act(() => undoFileExplorer())
+  expect(mocks.deletePath).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({ connectionId: 'ssh-1', expectedSshConnectionGeneration: 3 }),
+    `${SSH_WORKTREE_PATH}/images/pasted-image.png`,
+    false
+  )
+})
+
+it('refuses undo after SSH reconnects without losing its history step', async () => {
+  const { result } = setup()
+  await act(() => result.current.pasteImage())
+  useAppStore.setState({ sshConnectionStates: sshConnectionStatesAt(4) })
+  await expect(undoFileExplorer()).rejects.toThrow()
+  expect(mocks.deletePath).not.toHaveBeenCalled()
+  expect(fileExplorerHasUndo()).toBe(true)
 })
 
 it('uses the runtime owning the workspace while another runtime has focus', async () => {

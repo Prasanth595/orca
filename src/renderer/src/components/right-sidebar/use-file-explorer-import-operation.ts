@@ -15,6 +15,7 @@ export type FileExplorerImportParams = {
   displayRootPath?: string | null
   refreshDir: (dirPath: string) => Promise<void>
   setSelectedPath: (path: string | null) => void
+  revealPath?: (path: string) => void
   operationOwner?: FileExplorerOperationOwner
 }
 
@@ -31,6 +32,7 @@ export function useFileExplorerImportOperation({
   displayRootPath = worktreePath,
   refreshDir,
   setSelectedPath,
+  revealPath,
   operationOwner
 }: FileExplorerImportParams) {
   const shownRef = useRef({ worktreeId, worktreePath, displayRootPath })
@@ -86,7 +88,7 @@ export function useFileExplorerImportOperation({
   async function importPaths(
     destination: FileExplorerImportDestination,
     paths: string[],
-    options?: { requireExistingDestination?: boolean }
+    options?: { requireExistingDestination?: boolean; onImported?: (path: string) => void }
   ) {
     const { destinationDir, guard } = destination
     guard.assertCurrent()
@@ -98,15 +100,21 @@ export function useFileExplorerImportOperation({
       },
       paths,
       destinationDir,
-      { ...options, assertCurrent: guard.assertCurrent }
+      {
+        ...(options?.requireExistingDestination ? { requireExistingDestination: true } : {}),
+        assertCurrent: guard.assertCurrent
+      }
     )
 
-    if (isDestinationShown(destination)) {
-      await refreshDir(destinationDir)
-    }
     const imported = results.filter((result) => result.status === 'imported')
     const skipped = results.filter((result) => result.status === 'skipped')
     const failed = results.filter((result) => result.status === 'failed')
+    if (imported.length > 0) {
+      options?.onImported?.(imported[0].destPath)
+    }
+    if (isDestinationShown(destination)) {
+      await refreshDir(destinationDir)
+    }
 
     // A refresh can yield while the user switches workspaces or the owner reconnects.
     if (
@@ -117,7 +125,9 @@ export function useFileExplorerImportOperation({
       const relativePath = getRelativePathInsideRoot(imported[0].destPath, destinationDir)
       if (relativePath !== null) {
         // Match the tree's path spelling when native Windows imports return backslashes.
-        setSelectedPath(joinPath(destinationDir, relativePath))
+        const selectedPath = joinPath(destinationDir, relativePath)
+        setSelectedPath(selectedPath)
+        revealPath?.(selectedPath)
       }
     }
 
@@ -141,5 +151,5 @@ export function useFileExplorerImportOperation({
     return results
   }
 
-  return { captureDestination, importPaths }
+  return { captureDestination, importPaths, isDestinationShown }
 }

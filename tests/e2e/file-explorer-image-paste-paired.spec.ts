@@ -107,10 +107,20 @@ test('pastes an image through a paired runtime and cleans both staging locations
         'pasted-image copy.png'
       ])
       const staging = getOwnedTempStagingRoot(client.userDataDir, 'clipboard-image-imports')
-      await expect.poll(() => readdir(staging)).toEqual([])
+      await expect.poll(() => readdir(staging).then((entries) => entries.length)).toBe(2)
       await page.keyboard.press('Escape')
       await expect(page.getByRole('menuitem', { name: /Paste Image/ })).toBeHidden()
       await page.screenshot({ path: testInfo.outputPath('paired-image-paste.png') })
+      const chord = process.platform === 'darwin' ? 'Meta' : 'Control'
+      await row('pasted-image copy.png').focus()
+      await page.keyboard.press(`${chord}+z`)
+      await expect.poll(() => readdir(destination)).toEqual(['pasted-image.png'])
+      await row(folderName).focus()
+      await page.keyboard.press(`${chord}+Shift+z`)
+      await expect(row('pasted-image copy.png')).toHaveAttribute('data-selected', 'true')
+      expect(await readFile(path.join(destination, 'pasted-image copy.png'))).toEqual(expected)
+      await page.reload()
+      await expect.poll(() => readdir(staging)).toEqual([])
       await testInfo.attach('pasted-image.png', { body: expected, contentType: 'image/png' })
       await testInfo.attach('paired-image-paste.json', {
         body: JSON.stringify(

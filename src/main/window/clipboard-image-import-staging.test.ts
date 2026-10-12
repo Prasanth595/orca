@@ -18,6 +18,7 @@ import { PNG as Png } from 'pngjs'
 import { ClipboardImageImportStaging } from './clipboard-image-import-staging'
 import { getOwnedTempStagingRoot } from './owned-temp-staging-root'
 import { CLIPBOARD_IMAGE_MAX_SOURCE_BYTES } from '../../shared/clipboard-image'
+import type { ClipboardImageImport } from '../../shared/clipboard-image-import'
 import { importOneSource } from '../ipc/filesystem-import-local'
 import { stageOneSourceForRuntimeUpload } from '../ipc/filesystem-runtime-upload-staging'
 
@@ -111,7 +112,7 @@ describe('clipboard image import staging', () => {
     expect(await readdir(root)).toEqual([snapshots[1].handle])
   })
 
-  it('bounds pending as well as completed images and allows new imports after release', async () => {
+  it('bounds concurrent image encoding and allows new imports after release', async () => {
     const pending = Array.from({ length: 8 }, () => staging.stage(17, PNG, owner.signal))
     await expect(staging.stage(17, PNG, owner.signal)).rejects.toThrow('Too many')
     const snapshots = await Promise.all(pending)
@@ -119,6 +120,20 @@ describe('clipboard image import staging', () => {
     await expect(staging.stage(17, PNG, owner.signal)).resolves.toMatchObject({
       path: expect.any(String)
     })
+  })
+
+  it('retains a full undo history but bounds completed snapshots', async () => {
+    const snapshots: ClipboardImageImport[] = []
+    for (let index = 0; index < 64; index += 1) {
+      snapshots.push(await staging.stage(17, PNG, owner.signal))
+    }
+    await expect(staging.stage(17, PNG, owner.signal)).rejects.toThrow('Too many')
+    await staging.release(17, snapshots[0].handle)
+    await expect(staging.stage(17, PNG, owner.signal)).resolves.toMatchObject({
+      path: expect.any(String)
+    })
+    await staging.releaseOwner(17)
+    expect(await readdir(root)).toEqual([])
   })
 
   it('rejects empty, oversized and already-cancelled images before allocating files', async () => {

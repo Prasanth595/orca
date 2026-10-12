@@ -4,6 +4,7 @@ import { dirname, getRelativePathInsideRoot } from '@/lib/path'
 import { extractIpcErrorMessage } from '@/lib/ipc-error'
 import type { ClipboardImageImport } from '../../../../shared/clipboard-image-import'
 import type { TreeNode } from './file-explorer-types'
+import { recordFileExplorerImagePaste } from './file-explorer-image-paste-history'
 import {
   useFileExplorerImportOperation,
   type FileExplorerImportParams
@@ -15,7 +16,8 @@ type FileExplorerImagePasteParams = FileExplorerImportParams & {
 
 export function useFileExplorerImagePaste(params: FileExplorerImagePasteParams) {
   const { worktreeId, worktreePath, displayRootPath = worktreePath, selectedNode } = params
-  const { captureDestination, importPaths } = useFileExplorerImportOperation(params)
+  const { captureDestination, importPaths, isDestinationShown } =
+    useFileExplorerImportOperation(params)
   const busyRef = useRef(false)
   const mountedRef = useRef(false)
   const [isPastingImage, setIsPastingImage] = useState(false)
@@ -53,6 +55,7 @@ export function useFileExplorerImagePaste(params: FileExplorerImagePasteParams) 
         : dirname(node.path)
       : displayRootPath
     let staged: ClipboardImageImport | null = null
+    let retainedForUndo = false
     busyRef.current = true
     setIsPastingImage(true)
     try {
@@ -65,13 +68,37 @@ export function useFileExplorerImagePaste(params: FileExplorerImagePasteParams) 
       }
       staged = await stage()
       if (staged) {
-        await importPaths(destination, [staged.path], { requireExistingDestination: true })
+        const snapshot = staged
+        await importPaths(destination, [snapshot.path], {
+          requireExistingDestination: true,
+          onImported: (importedPath) => {
+            if (!isDestinationShown(destination)) {
+              return
+            }
+            recordFileExplorerImagePaste({
+              destination,
+              snapshot,
+              importedPath,
+              importPaths,
+              release,
+              refreshAfterUndo: async () => {
+                if (isDestinationShown(destination)) {
+                  await params.refreshDir(destinationDir)
+                }
+                if (isDestinationShown(destination)) {
+                  params.setSelectedPath(destinationDir)
+                }
+              }
+            })
+            retainedForUndo = true
+          }
+        })
       }
     } catch (error) {
       toast.error(extractIpcErrorMessage(error, 'Failed to import files.'))
     } finally {
       try {
-        if (staged) {
+        if (staged && !retainedForUndo) {
           await release(staged.handle)
         }
       } catch (error) {

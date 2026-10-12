@@ -137,9 +137,11 @@ test('pastes clipboard pixels into a Linux folder through managed SSH', async (/
         )
       ).toBe('pasted-image copy.png\npasted-image.png')
       const staging = getOwnedTempStagingRoot(session.userDataDir, 'clipboard-image-imports')
-      await expect.poll(() => readdir(staging)).toEqual([])
+      await expect.poll(() => readdir(staging).then((entries) => entries.length)).toBe(2)
       await page.keyboard.press('Escape')
       await page.screenshot({ path: testInfo.outputPath('ssh-linux-image-paste.png') })
+      await page.reload()
+      await expect.poll(() => readdir(staging)).toEqual([])
       await testInfo.attach('ssh-linux-image-paste.json', {
         body: JSON.stringify(
           {

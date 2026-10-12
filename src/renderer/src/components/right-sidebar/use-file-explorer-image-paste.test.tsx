@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { ClipboardImageImport } from '../../../../shared/clipboard-image-import'
 import type { TreeNode } from './file-explorer-types'
 import { useFileExplorerImagePaste } from './use-file-explorer-image-paste'
+import { clearFileExplorerUndoHistory } from './fileExplorerUndoRedo'
 
 const mocks = vi.hoisted(() => ({
   stage: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock('sonner', () => ({ toast: { error: mocks.error } }))
 const snapshot = { handle: 'owned-handle', path: '/staging/pasted-image.png' }
 const refreshDir = vi.fn().mockResolvedValue(undefined)
 const setSelectedPath = vi.fn()
+const revealPath = vi.fn()
 const owner = { kind: 'local' } as const
 const initial = {
   worktreeId: 'folder:notes',
@@ -31,6 +33,7 @@ const initial = {
   displayRootPath: '/notes/images',
   refreshDir,
   setSelectedPath,
+  revealPath,
   operationOwner: owner
 }
 function node(path: string, isDirectory = true): TreeNode {
@@ -70,7 +73,9 @@ beforeEach(() => {
     ui: { stageClipboardImageForImport: mocks.stage, releaseClipboardImageImport: mocks.release }
   })
 })
-afterEach(() => {
+afterEach(async () => {
+  clearFileExplorerUndoHistory()
+  await Promise.resolve()
   cleanup()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
@@ -94,7 +99,8 @@ it.each([
   )
   expect(refreshDir).toHaveBeenCalledExactlyOnceWith(destination)
   expect(setSelectedPath).toHaveBeenCalledExactlyOnceWith(`${destination}/pasted-image copy.png`)
-  expect(mocks.release).toHaveBeenCalledExactlyOnceWith(snapshot.handle)
+  expect(revealPath).toHaveBeenCalledExactlyOnceWith(`${destination}/pasted-image copy.png`)
+  expect(mocks.release).not.toHaveBeenCalled()
 })
 
 it('uses an explicit context-menu target instead of the current selection', async () => {
@@ -224,7 +230,8 @@ it('checks scope again after refreshing the directory', async () => {
     await operation
   })
   expect(setSelectedPath).not.toHaveBeenCalled()
-  expect(mocks.release).toHaveBeenCalledWith(snapshot.handle)
+  expect(revealPath).not.toHaveBeenCalled()
+  expect(mocks.release).not.toHaveBeenCalled()
 })
 
 it('releases after an in-flight import finishes even when the tree unmounts', async () => {
@@ -249,6 +256,7 @@ it('releases after an in-flight import finishes even when the tree unmounts', as
 
 it('ignores overlapping calls through import and cleanup, then accepts a new gesture', async () => {
   const released = deferred<boolean>()
+  mocks.importPaths.mockResolvedValueOnce({ results: [] })
   mocks.release.mockReturnValueOnce(released.promise)
   const { result } = setup()
   let operation: Promise<void> | undefined
@@ -284,7 +292,7 @@ it.each(['stage', 'import', 'refresh'])(
     const { result } = setup()
     await act(() => result.current.pasteImage())
     expect(mocks.error).toHaveBeenCalledExactlyOnceWith('Permission denied')
-    expect(mocks.release).toHaveBeenCalledTimes(failure === 'stage' ? 0 : 1)
+    expect(mocks.release).toHaveBeenCalledTimes(failure === 'import' ? 1 : 0)
     expect(result.current.canPasteImage).toBe(true)
   }
 )
@@ -308,6 +316,9 @@ it('does not turn a successful import into an import error when cleanup fails', 
   mocks.release.mockRejectedValueOnce(new Error('Cleanup unavailable'))
   const { result } = setup()
   await act(() => result.current.pasteImage())
+  await act(async () => {
+    clearFileExplorerUndoHistory()
+  })
   expect(setSelectedPath).toHaveBeenCalledTimes(1)
   expect(mocks.error).not.toHaveBeenCalled()
   expect(log).toHaveBeenCalledTimes(1)

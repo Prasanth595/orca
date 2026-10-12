@@ -238,6 +238,11 @@ export function useFileExplorerTreePaneState({
     worktreeId: activeWorktreeId,
     refreshDir,
     setSelectedPath: setSingleSelectedPath,
+    revealPath: (path) => {
+      if (activeWorktreeId) {
+        useAppStore.getState().revealInExplorer(activeWorktreeId, path)
+      }
+    },
     operationOwner: rootCache?.operationOwner,
     selectedNode
   })
