@@ -107,6 +107,7 @@ export class OrcaRuntimeWithStateFields extends OrcaRuntimeWithLinearCommands {
         args: AiVaultPrepareSessionResumeArgs
       ) => Promise<AiVaultPrepareSessionResumeResult>
       prepareCodexStructuredLaunch?: (input: {
+        managedAccountId?: string
         launchEnv: NodeJS.ProcessEnv
       }) => string | null | Promise<string | null>
       // Why a sibling of prepare: record-less catalog reads must resolve the

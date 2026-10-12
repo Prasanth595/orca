@@ -1,3 +1,4 @@
+import { prepareStructuredAccountAllocation } from '../../structured-account-allocation'
 // Resolve the host launch identity, then commit an at-rest create or the compatible acquired path.
 
 import { refuse, AgentSessionRefusalError } from '../../../../shared/agent-session-wire-refusals'
@@ -32,6 +33,7 @@ export type PreparedStructuredAgentSessionCreate = {
   /** Null when the caller supplied its own location; only a resolved worktree publishes a tab. */
   tab: { workspaceId: string; agent: StructuredAgentId } | null
   /** Absent for older clients and provider-dependent in-process callers. */
+  allocationCommitted?: () => void
   atRest?: { firstMessage?: StructuredAgentSessionFirstMessage }
 }
 
@@ -41,6 +43,8 @@ export function structuredAgentSessionCreateIntentFingerprint(params: {
   worktree: string
   agent: string
   resumeFrom?: StructuredAgentSessionResumeSource
+  accountAllocation?: 'available'
+  managedAccountId?: string
   tabId?: string
   firstMessage?: StructuredAgentSessionFirstMessage
   options?: Readonly<Record<string, string>>
@@ -52,6 +56,8 @@ export function structuredAgentSessionCreateIntentFingerprint(params: {
       worktree: params.worktree,
       agent: params.agent,
       resumeFrom: params.resumeFrom,
+      managedAccountId: params.managedAccountId,
+      accountAllocation: params.accountAllocation,
       tabId: params.tabId,
       firstMessage: params.firstMessage,
       options: params.options
@@ -74,18 +80,35 @@ export async function prepareStructuredAgentSessionCreateForWorktree(args: {
   options?: Readonly<Record<string, string>>
   /** The tab id the caller reserved for this chat, taken when its tab is published; absent, the tab
    *  gets the id clients derive. Beside `options`, after the fingerprint, likewise. */
+  accountAllocation?: 'available'
+  managedAccountId?: string
   tabId?: string
   firstMessage?: StructuredAgentSessionFirstMessage
   atRest?: boolean
 }): Promise<PreparedStructuredAgentSessionCreate> {
   // Adoption replay may need the record loaded from disk before source discovery can be skipped.
-  let host = args.resumeFrom ? await args.ensureHost() : null
+  let host = args.resumeFrom || args.accountAllocation ? await args.ensureHost() : null
+  if (args.accountAllocation && (args.managedAccountId || args.resumeFrom)) {
+    throw new Error('Automatic allocation applies only to new chats without an explicit account.')
+  }
+  const allocation =
+    args.accountAllocation && host
+      ? await prepareStructuredAccountAllocation({
+          runtime: args.runtime,
+          host,
+          sessionId: args.envelope.sessionId,
+          agent: args.agent
+        })
+      : null
   const resolved = await args.runtime.resolveStructuredAgentSessionCreateIntent({
     envelope: args.envelope,
     worktree: args.worktree,
     agent: args.agent,
     callerKey: args.caller.callerKey,
-    ...(args.resumeFrom ? { resumeFrom: args.resumeFrom } : {})
+    ...(args.resumeFrom ? { resumeFrom: args.resumeFrom } : {}),
+    ...(args.managedAccountId ? { managedAccountId: args.managedAccountId } : {}),
+    ...(allocation?.managedAccountId ? { managedAccountId: allocation.managedAccountId } : {}),
+    ...(allocation?.pinnedAccountHome ? { pinnedAccountHome: allocation.pinnedAccountHome } : {})
   })
   const attachFingerprint = computeAgentSessionPayloadFingerprint({
     method: 'agentSession.attach',
@@ -124,6 +147,7 @@ export async function prepareStructuredAgentSessionCreateForWorktree(args: {
     ...resolvedAttach
   } = resolved
   return {
+    ...(allocation ? { allocationCommitted: allocation.committed } : {}),
     host,
     ...(hostLaunchDirectory ? { hostLaunchDirectory } : {}),
     attachParams: {
@@ -146,7 +170,7 @@ export async function prepareStructuredAgentSessionCreateForWorktree(args: {
 }
 
 /** The commit half. Past `attach`, a failure no longer proves the session does not exist. */
-export async function commitStructuredAgentSessionCreate(args: {
+async function commitStructuredAgentSessionCreateInner(args: {
   runtime: OrcaRuntimeService
   caller: StructuredAgentSessionCaller
   prepared: PreparedStructuredAgentSessionCreate
@@ -222,6 +246,8 @@ export async function createStructuredAgentSessionForWorktree(args: {
   agent: StructuredAgentId
   activate: boolean
   options?: Readonly<Record<string, string>>
+  accountAllocation?: 'available'
+  managedAccountId?: string
   tabId?: string
 }): Promise<AgentSessionMutationResult<AgentSessionAttachResult>> {
   const prepared: PreparedStructuredAgentSessionCreate | StructuredCreateRefused =
@@ -237,4 +263,19 @@ export async function createStructuredAgentSessionForWorktree(args: {
     prepared,
     activate: args.activate
   })
+}
+
+export async function commitStructuredAgentSessionCreate(
+  args: Parameters<typeof commitStructuredAgentSessionCreateInner>[0]
+) {
+  try {
+    return await commitStructuredAgentSessionCreateInner(args)
+  } finally {
+    if (
+      args.prepared.allocationCommitted &&
+      args.prepared.host.deps.store.getRecord(args.prepared.attachParams.envelope.sessionId)
+    ) {
+      args.prepared.allocationCommitted?.()
+    }
+  }
 }

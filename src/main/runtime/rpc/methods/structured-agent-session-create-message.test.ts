@@ -257,3 +257,21 @@ it.each(['options', 'firstMessage'] as const)(
     expect(rig.adapter.acquire).not.toHaveBeenCalled()
   }
 )
+
+it('forwards an explicit managed account to the execution host before creating a session', async () => {
+  const input = structuredAgentSessionCreateParams({
+    sessionId: SESSION,
+    worktree: 'id:workspace-1',
+    agent: 'codex',
+    managedAccountId: 'account-b',
+    randomUuid: () => '00000000-0000-0000-0000-0000000000fb',
+    now: NOW
+  })
+  expect(await call('agentSession.create', input, capable)).toMatchObject({
+    ok: true,
+    result: { ok: true }
+  })
+  expect(runtimeCalls.resolveStructuredAgentSessionCreateIntent).toHaveBeenCalledWith(
+    expect.objectContaining({ managedAccountId: 'account-b' })
+  )
+})

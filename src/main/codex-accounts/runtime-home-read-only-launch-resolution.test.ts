@@ -193,6 +193,30 @@ describe('resolveHostCodexHomePathForLaunchReadOnly', () => {
     expect(sideEffects.accountBridge).toHaveBeenCalled()
   })
 
+  it('prepares an unselected account without changing the default account', async () => {
+    const firstHome = createManagedAuth(
+      testState.userDataDir,
+      'account-1',
+      createCodexAuthJson('first@example.test', 'acct-1', 'refresh-1')
+    )
+    const secondHome = createManagedAuth(
+      testState.userDataDir,
+      'account-2',
+      createCodexAuthJson('second@example.test', 'acct-2', 'refresh-2')
+    )
+    const settings = managedAccountSettings(firstHome)
+    settings.codexManagedAccounts.push(
+      createCodexAccountRecord('account-2', 'second@example.test', 'acct-2', secondHome)
+    )
+    const { service, store, sideEffects } = await createServiceWithSpies(settings)
+    expect(service.prepareManagedAccountForSession('account-2')).toBe(secondHome)
+    expect(store.updateSettings).not.toHaveBeenCalled()
+    expect(service.resolveHostCodexHomePathForLaunchReadOnly()).toBe(firstHome)
+    expect(sideEffects.syncResources).toHaveBeenCalledWith(secondHome)
+    expect(() => service.prepareManagedAccountForSession('missing')).toThrow()
+    expect(store.updateSettings).not.toHaveBeenCalled()
+  })
+
   it('system-default real home: answers null (real ~/.codex) with zero side effects, matching launch prep', async () => {
     const { service, store, sideEffects } = await createServiceWithSpies(
       createSettings({ realHomeRoutable: true })

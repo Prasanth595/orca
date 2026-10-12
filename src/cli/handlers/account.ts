@@ -1,3 +1,4 @@
+import { accountAutoStartHandler } from './account-auto-start'
 import { spawn } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -286,6 +287,7 @@ export const ACCOUNT_HANDLERS: Record<string, CommandHandler> = {
     await ctx.client.call('accounts.list', { refreshUsage: false })
     await (agent === 'claude' ? addClaudeAccount(ctx) : addCodexAccount(ctx))
   },
+  'account auto-start': accountAutoStartHandler,
   'account list': async (ctx) => {
     rejectAccountRemoteSelectionFlags(ctx, 'orca account list')
     const provider = ctx.flags.get('agent')

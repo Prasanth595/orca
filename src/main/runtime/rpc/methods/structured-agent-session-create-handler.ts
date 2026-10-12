@@ -1,3 +1,4 @@
+import { withStructuredAccountAllocation } from '../../structured-account-allocation'
 import type { z } from 'zod'
 import { agentSessionRefusalError } from '../../../../shared/agent-session-wire-refusals'
 import { agentSessionFingerprintConflict } from '../../../../shared/agent-session-mutation-envelope'
@@ -44,7 +45,7 @@ export async function attachClientSuppliedLocation(
   return host.attach(callerFor(ctx), attachParams)
 }
 
-export async function handleStructuredAgentSessionCreate(
+async function handleStructuredAgentSessionCreateInner(
   params: z.infer<typeof CreateParams>,
   ctx: RpcContext
 ) {
@@ -76,6 +77,8 @@ export async function handleStructuredAgentSessionCreate(
         agent: params.agent,
         caller: callerFor(ctx),
         ...(params.resumeFrom ? { resumeFrom: params.resumeFrom } : {}),
+        ...(params.accountAllocation ? { accountAllocation: params.accountAllocation } : {}),
+        ...(params.managedAccountId ? { managedAccountId: params.managedAccountId } : {}),
         ...(params.tabId ? { tabId: params.tabId } : {}),
         ...(params.options ? { options: params.options } : {}),
         ...(params.firstMessage ? { firstMessage: params.firstMessage } : {}),
@@ -97,4 +100,16 @@ export async function handleStructuredAgentSessionCreate(
     prepared,
     activate: true
   })
+}
+
+export async function handleStructuredAgentSessionCreate(
+  params: z.infer<typeof CreateParams>,
+  ctx: RpcContext
+) {
+  if ('worktree' in params && params.accountAllocation) {
+    return withStructuredAccountAllocation(ctx.runtime, () =>
+      handleStructuredAgentSessionCreateInner(params, ctx)
+    )
+  }
+  return handleStructuredAgentSessionCreateInner(params, ctx)
 }

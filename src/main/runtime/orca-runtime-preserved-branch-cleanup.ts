@@ -143,7 +143,10 @@ export class OrcaRuntimeWithPreservedBranchCleanup extends OrcaRuntimeWithTermin
     | null
 
   protected readonly prepareCodexStructuredLaunchFn:
-    | ((input: { launchEnv: NodeJS.ProcessEnv }) => string | null | Promise<string | null>)
+    | ((input: {
+        launchEnv: NodeJS.ProcessEnv
+        managedAccountId?: string
+      }) => string | null | Promise<string | null>)
     | null
 
   protected readonly resolveCodexStructuredLaunchHomeFn:

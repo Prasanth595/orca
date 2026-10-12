@@ -27,6 +27,27 @@ import type { CodexManagedAccount } from '../../shared/managed-account-types'
 import { CodexRuntimeHomeSync } from './runtime-home-service-sync'
 
 export abstract class CodexRuntimeHomeManagedHome extends CodexRuntimeHomeSync {
+  /** Prepares a saved account without changing the default or legacy auth synchronization state. */
+  prepareManagedAccountForSession(accountId: string): string {
+    const account = this.store
+      .getSettings()
+      .codexManagedAccounts.find((entry) => entry.id === accountId)
+    if (!account || account.managedHomeRuntime === 'wsl' || this.getWslManagedHomePath(account)) {
+      throw new Error('The Codex account is not available on this execution host.')
+    }
+    const resolved = this.resolveSelfContainedManagedHome(account)
+    if (resolved.kind !== 'owned') {
+      throw new Error('The Codex account home could not be verified.')
+    }
+    syncSystemCodexResourcesIntoManagedHome(resolved.homePath)
+    syncSystemConfigIntoManagedCodexHome({
+      runtimeHomePath: resolved.homePath,
+      systemHomePath: getSystemCodexHomePath()
+    })
+    this.startSelfContainedSessionBridgeForLaunch(resolved.homePath)
+    return resolved.homePath
+  }
+
   // Why: a managed HOST account runs against its own self-contained CODEX_HOME
   // (codex-accounts/<id>/home) rather than the shared runtime mirror. Its
   // auth.json lives there and codex refreshes it in place, so two accounts never

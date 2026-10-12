@@ -145,6 +145,8 @@ export const CreateIntentParams = z
     worktree: Identifier('Invalid worktree selector'),
     agent: StructuredAgent,
     resumeFrom: ResumeSource.optional(),
+    accountAllocation: z.literal('available').optional(),
+    managedAccountId: Identifier('Invalid managed account id').optional(),
     /** Strict payload: send only after the host advertises the create-tab-id capability. */
     tabId: z.string().refine(isAgentSessionSurfaceTabId, 'Invalid chat tab ID').optional(),
     /** Both fields require `agentSession.create.message.v1` on the executing host. */
