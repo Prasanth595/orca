@@ -5146,5 +5146,11 @@
   },
   "auto.components.settings.OrchestrationSkillAgentCoverage.ffe13e36fb": {
     "ko": "미설치"
+  },
+  "auto.lib.orchestration.usage.examples.5e0d489fe1": {
+    "ko": "진행 중인 작업 인계"
+  },
+  "auto.lib.orchestration.usage.examples.ab0e9803b7": {
+    "ko": "다른 작업 트리로 작업 인계"
   }
 }
