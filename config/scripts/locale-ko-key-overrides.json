@@ -5140,5 +5140,8 @@
   },
   "auto.lib.orchestration.usage.examples.childSequenceSummary": {
     "ko": "각 단계가 직전 단계에 의존할 때 하위 에이전트를 순서대로 사용합니다."
+  },
+  "auto.components.settings.OrchestrationPane.nestedWorkerDepthTitle": {
+    "ko": "하위 에이전트 최대 생성 단계"
   }
 }
