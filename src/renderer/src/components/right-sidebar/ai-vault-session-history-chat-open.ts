@@ -12,8 +12,8 @@ import type { AiVaultSession } from '../../../../shared/ai-vault-types'
 /**
  * Handles a history row that opens as a read-only chat tab, returning whether it did.
  *
- * ZCode has no structured-session host adapter, so its history cannot adopt into a live
- * structured chat; instead the row's conversation renders through the same live-session hook
+ * A ZCode conversation the host cannot adopt into a live structured chat (its database is stored
+ * inside WSL, or no structured route is available here) renders through the same live-session hook
  * the chat overlay uses, reading the agent's own store (`nativeChat:subscribe`). The tab
  * reuses the `agent-session` content type with the session id as its entity, so the tab bar,
  * persistence and close commands all work unchanged; `AiVaultSessionHistoryChatLayer` is the

@@ -80,9 +80,9 @@ describe('ZcodeStructuredSessionAdapter.acquire', () => {
     }
 
     // SAFETY: the acquire path only touches `bindReadingControl` on this sink.
-    await adapter.acquire(
-      acquireInput({ events: sink as unknown as StructuredAgentSessionEventSink })
-    )
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the acquire path only calls bindReadingControl on this sink.
+    const events = sink as unknown as StructuredAgentSessionEventSink
+    await adapter.acquire(acquireInput({ events }))
 
     expect(sink.bindReadingControl).toHaveBeenCalledOnce()
     expect(bound[0]).toMatchObject({ pauseReading: expect.any(Function) })
@@ -99,9 +99,9 @@ describe('ZcodeStructuredSessionAdapter.acquire', () => {
       publish: vi.fn()
     }
     // SAFETY: the acquire path only touches translator wiring on this sink.
-    await adapter.acquire(
-      acquireInput({ events: sink as unknown as StructuredAgentSessionEventSink })
-    )
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the acquire path only calls appendItem and publish on this sink.
+    const events = sink as unknown as StructuredAgentSessionEventSink
+    await adapter.acquire(acquireInput({ events }))
 
     const connection = zcode.connections[0]!
     connection.handlers.onServerRequest?.({

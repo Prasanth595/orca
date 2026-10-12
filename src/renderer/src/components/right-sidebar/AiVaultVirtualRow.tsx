@@ -88,7 +88,11 @@ export function AiVaultVirtualRow({
   onJumpToWorktree: (worktreeId: string) => void
   onResume: (session: AiVaultSession, worktreeId: string) => void
   onContinueInNewSession: (session: AiVaultSession, worktreeId: string) => void
-  onResumeInNewChat: (session: AiVaultSession, worktreeId: string) => void
+  onResumeInNewChat: (
+    session: AiVaultSession,
+    worktreeId: string,
+    route?: 'structured' | 'history'
+  ) => void
   onResumeInNewCli: (session: AiVaultSession, worktreeId: string) => void
   onCopyResume: (session: AiVaultSession, worktreeId?: string | null) => void
   onCopyId: (session: AiVaultSession) => void
@@ -129,10 +133,14 @@ export function AiVaultVirtualRow({
       ? aiVaultSessionRowResumeGating(row.session, resumeState)
       : { resumeDisabled: true, canCopyResumeCommand: false }
   const resumeLabel = resumeState ? aiVaultSessionResumeLabel(resumeState) : ''
-  const { resumeInNewChatWorkspaceId, resumeInNewCliWorktreeId } =
+  const { resumeInNewChatWorkspaceId, resumeInNewChatRoute, resumeInNewCliWorktreeId } =
     row.type === 'session'
       ? resolveAiVaultSessionSurfaceSwitchTargets(row.session, resumeState, resumeInChat)
-      : { resumeInNewChatWorkspaceId: null, resumeInNewCliWorktreeId: null }
+      : {
+          resumeInNewChatWorkspaceId: null,
+          resumeInNewChatRoute: null,
+          resumeInNewCliWorktreeId: null
+        }
   const canOpenLocalSessionPaths =
     row.type === 'session' && canUseLocalAiVaultSessionPathActions(row.session.executionHostId)
   // Why: in-Orca View Log additionally withholds synthetic (SQLite/OpenCode)
@@ -214,7 +222,12 @@ export function AiVaultVirtualRow({
           }
           onResumeInNewChat={
             searchResumeAllowed && resumeInNewChatWorkspaceId
-              ? () => onResumeInNewChat(row.session, resumeInNewChatWorkspaceId)
+              ? () =>
+                  onResumeInNewChat(
+                    row.session,
+                    resumeInNewChatWorkspaceId,
+                    resumeInNewChatRoute ?? undefined
+                  )
               : undefined
           }
           onResumeInNewCli={

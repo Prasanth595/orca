@@ -126,7 +126,8 @@ describe('the tab menu offers exactly what the Session History row offers', () =
     expect(panel.resumeInNewChatWorkspaceId).toBe(WORKTREE_ID)
     expect(resolveTabSessionSwitch(state, session, subject)).toEqual({
       action: 'resume-in-new-chat',
-      worktreeId: panel.resumeInNewChatWorkspaceId
+      worktreeId: panel.resumeInNewChatWorkspaceId,
+      chatRoute: 'structured'
     })
   })
 
@@ -144,7 +145,7 @@ describe('the tab menu offers exactly what the Session History row offers', () =
         workspaceId: WORKTREE_ID,
         request
       })
-    ).toEqual({ action: 'resume-in-new-chat', worktreeId: SIBLING_ID })
+    ).toEqual({ action: 'resume-in-new-chat', worktreeId: SIBLING_ID, chatRoute: 'structured' })
   })
 
   it('Resume in New CLI for a native chat, and nothing once it has no saved turns', () => {

@@ -22,6 +22,7 @@ describe('resolveAiVaultSessionSurfaceSwitchTargets', () => {
       )
     ).toEqual({
       resumeInNewChatWorkspaceId: null,
+      resumeInNewChatRoute: null,
       resumeInNewCliWorktreeId: 'repo-1::wt'
     })
   })
@@ -50,10 +51,12 @@ describe('resolveAiVaultSessionSurfaceSwitchTargets', () => {
     expect(
       resolveAiVaultSessionSurfaceSwitchTargets(cliRow, RESUMABLE, {
         available: true,
-        workspaceId: 'repo-1::wt'
+        workspaceId: 'repo-1::wt',
+        route: 'structured'
       })
     ).toEqual({
       resumeInNewChatWorkspaceId: 'repo-1::wt',
+      resumeInNewChatRoute: 'structured',
       resumeInNewCliWorktreeId: null
     })
     expect(

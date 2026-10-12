@@ -22,8 +22,10 @@ export type AiVaultResumeInChatBlockedReason =
   | 'already-structured'
   | 'workspace'
 
+export type AiVaultResumeInChatRoute = 'structured' | 'history'
+
 export type AiVaultResumeInChatEligibility =
-  | { available: true; workspaceId: string }
+  | { available: true; workspaceId: string; route: AiVaultResumeInChatRoute }
   | { available: false; reason: AiVaultResumeInChatBlockedReason }
 
 /**
@@ -72,9 +74,32 @@ export function resolveAiVaultSessionResumeInChatEligibility(args: {
   structuredRouteAvailable: boolean
 }): AiVaultResumeInChatEligibility {
   const { session } = args
-  // A read-only chat tab needs no host adoption — the conversation renders from the agent's own
-  // store — so the structured-route questions (host, capabilities, workspace) do not apply.
-  if (canOpenAiVaultSessionHistoryChat(session)) {
+  // A ZCode row rides two paths: an unadopted local conversation adopts into the live structured
+  // chat like Claude's and Codex's (its transcript proof is the provider's SQLite store, checked by
+  // the host at create), while a conversation the host cannot adopt — one whose database is stored
+  // inside WSL, which no local app-server child can open — keeps the read-only history tab.
+  const isZcodeRow = canOpenAiVaultSessionHistoryChat(session)
+  if (!isZcodeRow) {
+    if (isAntigravityReferenceSession(session) || !isAgentSessionHandleProvider(session.agent)) {
+      return { available: false, reason: 'agent' }
+    }
+    // An already-adopted row reopens its own chat instead; offering a second resume of it would ask
+    // for a conflict the host would rightly refuse.
+    if (session.structuredSession) {
+      return { available: false, reason: 'already-structured' }
+    }
+  } else if (session.structuredSession) {
+    // An adopted ZCode row reopens its own chat, never a second one.
+    return { available: false, reason: 'already-structured' }
+  }
+  const route: AiVaultResumeInChatRoute = isZcodeRow
+    ? zcodeAdoptionAvailable(session) && args.structuredRouteAvailable
+      ? 'structured'
+      : 'history'
+    : 'structured'
+  // The history tab needs no host adoption — the conversation renders from the agent's own store —
+  // so the structured-route questions do not apply to it, only the storage ones.
+  if (route === 'history') {
     if (session.executionHostId !== LOCAL_EXECUTION_HOST_ID) {
       return { available: false, reason: 'remote' }
     }
@@ -84,20 +109,15 @@ export function resolveAiVaultSessionResumeInChatEligibility(args: {
     if (!args.targetWorkspaceId) {
       return { available: false, reason: 'workspace' }
     }
-    return { available: true, workspaceId: args.targetWorkspaceId }
+    return { available: true, workspaceId: args.targetWorkspaceId, route }
   }
-  if (isAntigravityReferenceSession(session) || !isAgentSessionHandleProvider(session.agent)) {
-    return { available: false, reason: 'agent' }
+  if (session.executionHostId !== LOCAL_EXECUTION_HOST_ID) {
+    return { available: false, reason: 'remote' }
   }
-  // An already-adopted row reopens its own chat instead; offering a second resume of it would ask
-  // for a conflict the host would rightly refuse.
-  if (session.structuredSession) {
-    return { available: false, reason: 'already-structured' }
-  }
-  if (
-    session.executionHostId !== LOCAL_EXECUTION_HOST_ID ||
-    isWslStoredAiVaultSessionFile(session.filePath)
-  ) {
+  // A structured host reads the conversation through a reader on this machine, so a transcript
+  // stored inside WSL is as out of reach here as one on a remote host (ZCode's read-only path
+  // already routed those rows to 'history' above).
+  if (isWslStoredAiVaultSessionFile(session.filePath)) {
     return { available: false, reason: 'remote' }
   }
   if (!isAiVaultSessionResumableContent(session)) {
@@ -112,5 +132,18 @@ export function resolveAiVaultSessionResumeInChatEligibility(args: {
   ) {
     return { available: false, reason: 'workspace' }
   }
-  return { available: true, workspaceId: args.targetWorkspaceId }
+  return { available: true, workspaceId: args.targetWorkspaceId, route }
+}
+
+/** Whether this ZCode row's storage lets a structured host on this machine adopt it: the
+ *  conversation must live in a database the app-server child can open, which a WSL-stored
+ *  database is not (the child runs on the host OS; `session/resume` would find nothing). */
+function zcodeAdoptionAvailable(session: {
+  executionHostId: AiVaultSession['executionHostId']
+  filePath: AiVaultSession['filePath']
+}): boolean {
+  return (
+    session.executionHostId === LOCAL_EXECUTION_HOST_ID &&
+    !isWslStoredAiVaultSessionFile(session.filePath)
+  )
 }

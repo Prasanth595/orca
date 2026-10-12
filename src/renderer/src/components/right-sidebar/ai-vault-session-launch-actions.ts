@@ -31,10 +31,10 @@ import {
   resumeAiVaultSessionInNewChat
 } from './ai-vault-session-resume-in-chat-launch'
 import {
-  aiVaultResumeUnsupportedMessage,
-  resolveAiVaultSessionLaunchTarget,
-  resolveAiVaultTargetWorkspacePath
-} from './ai-vault-session-launch-target'
+  notifyAiVaultSessionPreparationFailure,
+  resolveAiVaultSessionLaunchTargetOrNotify
+} from './ai-vault-session-launch-target-notify'
+import { resolveAiVaultTargetWorkspacePath } from './ai-vault-session-launch-target'
 
 export function useAiVaultSessionLaunchActions({
   activeWorktree,
@@ -197,12 +197,17 @@ export function useAiVaultSessionLaunchActions({
   )
 
   const handleResumeInNewChat = useCallback(
-    (session: AiVaultSession, targetWorktreeId?: string): void => {
+    (
+      session: AiVaultSession,
+      targetWorktreeId?: string,
+      /** The route the eligibility gate decided; a structured lane skips the read-only tab. */
+      route?: 'structured' | 'history'
+    ): void => {
       const worktreeId = targetWorktreeId ?? activeWorktreeId ?? activeWorktree?.id ?? null
-      // No structured host to adopt into: the row opens as a read-only chat tab over the
-      // agent's own store, which is the whole conversation, not a fork of it. It must
-      // land in the row's own workspace, not whichever one happens to be active.
-      if (openAiVaultSessionHistoryChatForRow(session, worktreeId)) {
+      // The read-only tab needs no host adoption — the conversation renders from the agent's own
+      // store, which is the whole conversation, not a fork of it. It must land in the row's own
+      // workspace, not whichever one happens to be active.
+      if (route !== 'structured' && openAiVaultSessionHistoryChatForRow(session, worktreeId)) {
         return
       }
       if (!isAgentSessionHandleProvider(session.agent)) {
@@ -280,38 +285,4 @@ export function useAiVaultSessionLaunchActions({
     continuationRequest,
     handleContinuationDialogOpenChange
   }
-}
-
-function notifyAiVaultSessionPreparationFailure(
-  error: unknown,
-  describeFailure: (message: string) => string = (message) => message
-): void {
-  toast.error(
-    error instanceof Error
-      ? describeFailure(error.message)
-      : translate(
-          'auto.components.right.sidebar.AiVaultPanel.prepareSessionResumeFailed',
-          'Could not prepare this session for resume.'
-        )
-  )
-}
-
-function resolveAiVaultSessionLaunchTargetOrNotify(
-  args: Parameters<typeof resolveAiVaultSessionLaunchTarget>[0]
-): Extract<ReturnType<typeof resolveAiVaultSessionLaunchTarget>, { status: 'ready' }> | null {
-  const target = resolveAiVaultSessionLaunchTarget(args)
-  if (target.status === 'missing') {
-    toast.error(
-      translate(
-        'auto.components.right.sidebar.AiVaultPanel.openWorkspaceBeforeResuming',
-        'Open a workspace before resuming a session.'
-      )
-    )
-    return null
-  }
-  if (target.status === 'unsupported') {
-    toast.error(aiVaultResumeUnsupportedMessage(target.targetStatus))
-    return null
-  }
-  return target
 }
