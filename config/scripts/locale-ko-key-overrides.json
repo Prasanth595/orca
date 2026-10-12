@@ -5104,5 +5104,11 @@
   },
   "components.workspace.cleanup.browse.agent.working": {
     "ko": "작업 중"
+  },
+  "auto.components.settings.orcaAccount.keywordCloud": {
+    "ko": "클라우드"
+  },
+  "auto.components.settings.orcaAccount.keywordRelay": {
+    "ko": "릴레이"
   }
 }

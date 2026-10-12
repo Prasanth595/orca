@@ -11930,8 +11930,8 @@
           "keywordLogout": "로그아웃",
           "keywordSignIn": "로그인",
           "keywordSignOut": "로그아웃",
-          "keywordRelay": "계전기",
-          "keywordCloud": "구름"
+          "keywordRelay": "릴레이",
+          "keywordCloud": "클라우드"
         },
         "automations": {
           "title": "자동화",
