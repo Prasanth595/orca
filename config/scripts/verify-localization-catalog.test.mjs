@@ -141,6 +141,36 @@ describe('verify-localization-catalog', () => {
     }
   })
 
+  // Why: i18next reads a flat "a.b" leaf, so only language packs, which reject dotted keys, noticed.
+  it('rejects a key that carries its path in a dotted name', async () => {
+    const sourceText =
+      "import { translate } from '@/i18n/i18n'\nexport const label = translate('auto.example.greeting', 'Hello')\n"
+    const nested = { auto: { example: { greeting: 'Hello' } } }
+    const dottedEnglish = makeProject({
+      sourceText,
+      enCatalog: { 'auto.example.greeting': 'Hello' }
+    })
+    const dottedTarget = makeProject({
+      sourceText,
+      enCatalog: nested,
+      esCatalog: { auto: { 'example.greeting': 'Hola' } }
+    })
+    const report = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    try {
+      await expect(verifyLocalizationCatalog(dottedEnglish.root, { fix: true })).resolves.toBe(1)
+      expect(report).toHaveBeenCalledWith('dotted: auto.example.greeting')
+      expect(readJson(path.join(dottedEnglish.localesDir, 'en.json'))).toEqual({
+        'auto.example.greeting': 'Hello'
+      })
+
+      await expect(verifyLocalizationCatalog(dottedTarget.root, { fix: false })).resolves.toBe(1)
+      expect(report).toHaveBeenCalledWith(expect.stringContaining('es.json has keys with a dot'))
+    } finally {
+      report.mockRestore()
+    }
+  })
+
   // Why: #12113 — parity checks passed while the repair policy rewrote translated terms to English.
   it('flags catalog values the repair policy would rewrite back to English', () => {
     const enEntries = new Map([['auto.example.commitLabel', 'Commit message']])
