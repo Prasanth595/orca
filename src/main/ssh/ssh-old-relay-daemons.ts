@@ -12,8 +12,9 @@ import { shellEscape } from './ssh-connection-utils'
 import { RELAY_REMOTE_DIR } from './relay-protocol'
 import { SHORT_RELAY_SOCKET_DIR_PREFIX } from './relay-socket-path-limit'
 import { execCommand } from './ssh-relay-deploy-helpers'
-import { RELAY_DAEMON_MARKER } from './ssh-relay-endpoint-runtime'
 
+// Same marker the runtime census lists daemons by (ssh-relay-endpoint-runtime.ts).
+const RELAY_DAEMON_MARKER = ' relay.js --detached '
 const MAX_OLD_RELAY_PIDS = 64
 const TERM_GRACE_POLLS = 20
 const KILL_CONFIRM_POLLS = 8
