@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { executeTerminalPastePlan, planTerminalPaste } from './terminal-paste-coordinator'
+import { planTerminalPaste } from './terminal-paste-coordinator'
+import { executeTerminalPastePlan } from './terminal-paste-executor'
 
 function imagePlan(chunked = false) {
   return planTerminalPaste({

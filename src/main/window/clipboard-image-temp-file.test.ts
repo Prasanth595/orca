@@ -1,17 +1,15 @@
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SSH_HOST_NOT_SERVED_MESSAGE } from '../providers/ssh-host-not-served-error'
 
-const { writeFileMock, mkdirMock, getPathMock, writeFileBase64Mock, unlinkMock, deletePathMock } =
-  vi.hoisted(() => ({
-    writeFileMock: vi.fn(),
-    mkdirMock: vi.fn(),
-    getPathMock: vi.fn((name: string) =>
-      name === 'temp' ? '/os/temp' : '/Users/me/Library/Application Support/orca'
-    ),
-    writeFileBase64Mock: vi.fn(),
-    unlinkMock: vi.fn(),
-    deletePathMock: vi.fn()
-  }))
+const { writeFileMock, mkdirMock, getPathMock, unlinkMock } = vi.hoisted(() => ({
+  writeFileMock: vi.fn(),
+  mkdirMock: vi.fn(),
+  getPathMock: vi.fn((name: string) =>
+    name === 'temp' ? '/os/temp' : '/Users/me/Library/Application Support/orca'
+  ),
+  unlinkMock: vi.fn()
+}))
 
 vi.mock('node:fs/promises', () => ({
   default: { writeFile: writeFileMock, mkdir: mkdirMock, unlink: unlinkMock }
@@ -19,13 +17,6 @@ vi.mock('node:fs/promises', () => ({
 vi.mock('node:crypto', () => ({ randomUUID: () => 'uuid-1' }))
 vi.mock('../../shared/app-environment', () => ({
   getAppEnvironment: () => ({ getPath: getPathMock })
-}))
-vi.mock('../providers/ssh-filesystem-dispatch', () => ({
-  requireSshFilesystemProvider: () => ({
-    getTempDir: async () => '/remote/tmp',
-    writeFileBase64: writeFileBase64Mock,
-    deletePath: deletePathMock
-  })
 }))
 
 import {
@@ -38,7 +29,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.useFakeTimers()
   unlinkMock.mockResolvedValue(undefined)
-  deletePathMock.mockResolvedValue(undefined)
 })
 
 afterEach(() => vi.useRealTimers())
@@ -69,15 +59,22 @@ describe('saveClipboardImageBufferAsTempFile', () => {
     expect(writeFileMock).toHaveBeenCalledWith(savedPath, Buffer.from([1, 2, 3]), { mode: 0o600 })
   })
 
-  it('writes an SSH paste to the remote temp folder', async () => {
-    const savedPath = await saveClipboardImageBufferAsTempFile(Buffer.from([1]), {
-      connectionId: 'conn-1'
-    })
-
-    expect(savedPath.startsWith('/remote/tmp/')).toBe(true)
-    expect(writeFileBase64Mock).toHaveBeenCalled()
-    expect(writeFileMock).not.toHaveBeenCalled()
-  })
+  it.each([false, true])(
+    'refuses an unserved SSH target with discardable=%s before local writes',
+    async (discardable) => {
+      await expect(
+        saveClipboardImageBufferAsTempFile(Buffer.from([1]), {
+          connectionId: 'ssh-unserved',
+          discardable,
+          forNativeChatDraft: true
+        })
+      ).rejects.toThrow(SSH_HOST_NOT_SERVED_MESSAGE)
+      expect(getPathMock).not.toHaveBeenCalled()
+      expect(mkdirMock).not.toHaveBeenCalled()
+      expect(writeFileMock).not.toHaveBeenCalled()
+      expect(unlinkMock).not.toHaveBeenCalled()
+    }
+  )
 })
 
 describe('clipboard image cleanup ownership', () => {
@@ -87,15 +84,14 @@ describe('clipboard image cleanup ownership', () => {
     expect(unlinkMock).toHaveBeenCalledExactlyOnceWith(path)
     await expect(discardClipboardImageTempFile('/tmp/user-file.png')).rejects.toThrow('not found')
   })
-  it('deletes only through the original SSH provider and matching connection', async () => {
+  it('refuses a mismatched connection without deleting an admitted local file', async () => {
     const path = await saveClipboardImageBufferAsTempFile(Buffer.from([1]), {
-      connectionId: 'ssh-1',
       discardable: true
     })
     await expect(discardClipboardImageTempFile(path, 'ssh-2')).rejects.toThrow('not found')
-    await discardClipboardImageTempFile(path, 'ssh-1')
-    expect(deletePathMock).toHaveBeenCalledExactlyOnceWith(path)
     expect(unlinkMock).not.toHaveBeenCalled()
+    await discardClipboardImageTempFile(path)
+    expect(unlinkMock).toHaveBeenCalledExactlyOnceWith(path)
   })
   it('retains files handed to a CLI and leaves ordinary clipboard paths unmanaged', async () => {
     const path = await saveClipboardImageBufferAsTempFile(Buffer.from([1]), { discardable: true })
