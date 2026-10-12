@@ -6,7 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { TerminalSshReconnectOverlay } from '@/components/terminal-pane/TerminalSshReconnectOverlay'
-import { ConfirmationDialogContext } from '@/components/confirmation-dialog-context'
+import {
+  ConfirmationDialogContext,
+  type ConfirmationDialogContextValue
+} from '@/components/confirmation-dialog-context'
 import { useAppStore } from '@/store'
 import { resetSshConnectInFlightForTests } from './ssh-connect-in-flight'
 import type { SshConnectionState, SshManagedServerStatus } from '../../../shared/ssh-types'
@@ -52,7 +55,10 @@ function installApi(api: Record<string, ReturnType<typeof vi.fn>>): void {
   })
 }
 
-function renderOverlay(confirm: ReturnType<typeof vi.fn>, environmentId: string | null = null) {
+function renderOverlay(
+  confirm: ConfirmationDialogContextValue,
+  environmentId: string | null = null
+) {
   return render(
     <ConfirmationDialogContext.Provider value={confirm}>
       <TerminalSshReconnectOverlay
@@ -89,7 +95,7 @@ describe('End old terminals on this host', () => {
     seed(live)
     const endOldRelayTerminals = vi.fn().mockResolvedValue({ ended: 2, connected: true })
     installApi({ connect: vi.fn(), endOldRelayTerminals })
-    const confirm = vi.fn().mockResolvedValue(true)
+    const confirm = vi.fn<ConfirmationDialogContextValue>().mockResolvedValue(true)
     const user = userEvent.setup()
     renderOverlay(confirm)
 
@@ -117,7 +123,7 @@ describe('End old terminals on this host', () => {
     const endOldRelayTerminals = vi.fn()
     installApi({ connect: vi.fn(), endOldRelayTerminals })
     const user = userEvent.setup()
-    renderOverlay(vi.fn().mockResolvedValue(false))
+    renderOverlay(vi.fn<ConfirmationDialogContextValue>().mockResolvedValue(false))
 
     await user.click(screen.getByRole('button', { name: 'End old terminals on this host' }))
     expect(endOldRelayTerminals).not.toHaveBeenCalled()
@@ -130,7 +136,7 @@ describe('End old terminals on this host', () => {
       oldRelays: { hostOs: 'posix', pids: [] }
     })
     installApi({ connect: vi.fn(), endOldRelayTerminals: vi.fn() })
-    renderOverlay(vi.fn())
+    renderOverlay(vi.fn<ConfirmationDialogContextValue>())
 
     expect(screen.queryByRole('button', { name: 'End old terminals on this host' })).toBeNull()
   })
@@ -138,7 +144,7 @@ describe('End old terminals on this host', () => {
   it('is not offered for a host a remote Orca server owns', () => {
     seed(live)
     installApi({ connect: vi.fn(), endOldRelayTerminals: vi.fn() })
-    renderOverlay(vi.fn(), 'env-1')
+    renderOverlay(vi.fn<ConfirmationDialogContextValue>(), 'env-1')
 
     expect(screen.queryByRole('button', { name: 'End old terminals on this host' })).toBeNull()
   })
@@ -150,7 +156,7 @@ describe('End old terminals on this host', () => {
       endOldRelayTerminals: vi.fn()
     })
     const user = userEvent.setup()
-    renderOverlay(vi.fn())
+    renderOverlay(vi.fn<ConfirmationDialogContextValue>())
 
     await user.click(screen.getByRole('button', { name: 'Retry' }))
     await waitFor(() =>
