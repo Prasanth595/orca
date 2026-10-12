@@ -8,6 +8,8 @@ import {
   NativeChatDisclosureContext,
   useNativeChatDisclosures
 } from './native-chat-disclosure-store'
+import { NativeChatNoticeRow } from './NativeChatNoticeRow'
+import { NativeChatReasoningRow } from './NativeChatReasoningRow'
 
 vi.mock('@/lib/syntax-highlighting/oniguruma', async () => ({
   loadOniguruma: (await import('@/lib/syntax-highlighting/oniguruma-test-harness'))
@@ -107,6 +109,62 @@ describe('native chat code block line wrap', () => {
     expect(wrapToggle()).toHaveAttribute('aria-pressed', 'true')
 
     view.rerender(<Transcript {...next(content)} />)
+
+    expect(wrapToggle()).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('keeps a reasoning block and the reply of one message apart', () => {
+    const fence = '```ts\nconst first = 1\n```'
+    function Row(): React.JSX.Element {
+      const disclosures = useNativeChatDisclosures()
+      return (
+        <NativeChatDisclosureContext.Provider value={disclosures}>
+          <NativeChatReasoningRow
+            message={{ id: 'message-1', role: 'reasoning', timestamp: 0, state: 'completed' }}
+            markdown={fence}
+          />
+          <NativeChatMarkdown
+            rowKey="message-1"
+            content={fence}
+            variant="document"
+            renderCodeBlock={NativeChatCodeBlock}
+          />
+        </NativeChatDisclosureContext.Provider>
+      )
+    }
+    render(<Row />)
+    fireEvent.click(screen.getByRole('button', { name: /^Reasoning/ }))
+
+    const [reasoningWrap, replyWrap] = screen.getAllByRole('button', { name: 'Wrap lines' })
+    fireEvent.click(replyWrap)
+
+    expect(reasoningWrap).toHaveAttribute('aria-pressed', 'false')
+    expect(replyWrap).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it("keeps a plan card's wrap when its row remounts", () => {
+    function Row({ mounted }: { mounted: boolean }): React.JSX.Element {
+      const disclosures = useNativeChatDisclosures()
+      return (
+        <NativeChatDisclosureContext.Provider value={disclosures}>
+          {mounted ? (
+            <NativeChatNoticeRow
+              messageId="message-2"
+              block={{
+                type: 'text',
+                text: '# Steps\n\n```sh\npnpm install\n```',
+                presentation: 'plan-document'
+              }}
+            />
+          ) : null}
+        </NativeChatDisclosureContext.Provider>
+      )
+    }
+    const view = render(<Row mounted />)
+    fireEvent.click(wrapToggle())
+
+    view.rerender(<Row mounted={false} />)
+    view.rerender(<Row mounted />)
 
     expect(wrapToggle()).toHaveAttribute('aria-pressed', 'true')
   })
