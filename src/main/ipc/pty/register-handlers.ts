@@ -119,6 +119,7 @@ export function registerPtyHandlers(
   // Remove prior handlers so re-registration (e.g. macOS re-activate creating a new window) doesn't double-register.
   ipcMain.removeHandler('pty:spawn')
   ipcMain.removeHandler('pty:moveLeafToNewTab')
+  ipcMain.removeHandler('pty:moveLeafIntoTab')
   ipcMain.removeHandler('pty:kill')
   ipcMain.removeHandler('pty:listSessions')
   ipcMain.removeHandler('pty:hasPty')

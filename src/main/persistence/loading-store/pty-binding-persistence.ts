@@ -19,9 +19,13 @@ import { applyPtyBinding } from './pty-binding-session-update'
 import type { TerminalPanePlacement } from '../../../shared/terminal-pane-placement'
 import { terminalPanePlacementAgreement } from '../terminal-topology/terminal-pane-placement-agreement'
 import type {
+  TerminalLeafIntoTabRequest,
+  TerminalLeafIntoTabResult,
   TerminalLeafMoveRequest,
   TerminalLeafMoveResult
 } from '../../../shared/terminal-leaf-move'
+import { assignWorkspaceSessionPartition } from '../terminal-topology/terminal-topology-membership'
+import { moveLeafIntoTab } from '../terminal-topology/terminal-topology-commit-into-tab'
 import {
   admitPane,
   moveLeaf,
@@ -98,16 +102,8 @@ export class PtyBindingPersistenceOperations {
     const { runtime, sessions } = this[ptyBindingPersistenceOperationsContext]
     const resolved = resolveHostId(hostId)
     const publish = (session: WorkspaceSessionState): void => {
-      if (resolved === LOCAL_EXECUTION_HOST_ID) {
-        runtime.state.workspaceSession = session
-      } else {
-        runtime.state.workspaceSessionsByHostId = {
-          ...runtime.state.workspaceSessionsByHostId,
-          [resolved]: session
-        }
-      }
       runtime.dirtyProfileStateDomains?.add(
-        resolved === LOCAL_EXECUTION_HOST_ID ? 'workspaceSession' : 'workspaceSessionsByHostId'
+        assignWorkspaceSessionPartition(runtime.state, resolved, session)
       )
     }
     return runtime.runDurableMutation(() => {
@@ -233,6 +229,13 @@ export class PtyBindingPersistenceOperations {
     )
   }
 
+  /** Joins a single-leaf tab into an existing tab and closes it, committed before the renderer applies. */
+  moveTerminalLeafIntoTab(request: TerminalLeafIntoTabRequest): Promise<TerminalLeafIntoTabResult> {
+    return this[ptyBindingPersistenceOperationsContext].runtime.runDurableMutation(
+      moveLeafIntoTab(request, topologyCommitContext(this))
+    )
+  }
+
   /** Writes a runtime-started pane before its terminal starts; the commit module owns the write. */
   admitTerminalPane(
     admission: TerminalPaneAdmission,
@@ -276,14 +279,7 @@ function writePtyBinding(
   const { runtime, sessions } = owner[ptyBindingPersistenceOperationsContext]
   const sessionBeforeBinding = cloneWorkspaceSessionState(session)
   const restore = (restoredSession = sessionBeforeBinding): void => {
-    if (resolvedHostId === LOCAL_EXECUTION_HOST_ID) {
-      runtime.state.workspaceSession = restoredSession
-    } else {
-      runtime.state.workspaceSessionsByHostId = {
-        ...runtime.state.workspaceSessionsByHostId,
-        [resolvedHostId]: restoredSession
-      }
-    }
+    assignWorkspaceSessionPartition(runtime.state, resolvedHostId, restoredSession)
   }
   try {
     if (resolvedHostId !== LOCAL_EXECUTION_HOST_ID) {

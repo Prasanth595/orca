@@ -3,7 +3,8 @@ import type { SshRemotePtyLease } from '../../../shared/ssh-types'
 import {
   terminalLeafMovePaneKeys,
   type TerminalLeafMoveRequest,
-  type TerminalLeafMoveResult
+  type TerminalLeafMoveResult,
+  type TerminalPaneKeyMove
 } from '../../../shared/terminal-leaf-move'
 import type { TerminalLayoutSnapshot, TerminalTab } from '../../../shared/terminal-tab-types'
 import type { WorkspaceSessionState } from '../../../shared/workspace-session-state-types'
@@ -22,7 +23,7 @@ type PlannedTerminalLeafMove = {
   sessions: TerminalSessionPartition[]
 }
 
-function moveRecordKey<T>(
+export function moveRecordKey<T>(
   record: Record<string, T> | undefined,
   fromKey: string,
   toKey: string | null,
@@ -50,6 +51,23 @@ function hasTabId(session: WorkspaceSessionState, tabId: string): boolean {
   return (
     liveTabIds(session).has(tabId) || Object.hasOwn(session.terminalLayoutsByTabId ?? {}, tabId)
   )
+}
+
+/** Whether a live tab other than `tabId` shows the leaf. A layout left behind by a removed tab row owns nothing. */
+export function leafHeldOutsideTab(
+  owners: readonly TerminalSessionPartition[],
+  tabId: string,
+  leafId: string
+): boolean {
+  return owners.some(({ session }) => {
+    const tabIds = liveTabIds(session)
+    return Object.entries(session.terminalLayoutsByTabId ?? {}).some(
+      ([layoutTabId, layout]) =>
+        layoutTabId !== tabId &&
+        tabIds.has(layoutTabId) &&
+        layoutContainsLeafId(layout?.root ?? null, leafId)
+    )
+  })
 }
 
 type SourceHolder = TerminalSessionPartition & {
@@ -154,16 +172,7 @@ export function planTerminalLeafMove(
   if (partitions.some(({ session }) => hasTabId(session, request.targetTabId))) {
     return refuse('target_tab_exists')
   }
-  // A layout left behind by a removed tab row owns nothing.
-  const leafElsewhere = owners.some(({ session }) => {
-    const tabIds = liveTabIds(session)
-    return Object.entries(session.terminalLayoutsByTabId ?? {}).some(
-      ([tabId, layout]) =>
-        tabId !== sourceTabId &&
-        tabIds.has(tabId) &&
-        layoutContainsLeafId(layout?.root ?? null, leafId)
-    )
-  })
+  const leafElsewhere = leafHeldOutsideTab(owners, sourceTabId, leafId)
   if (leafElsewhere) {
     return refuse('leaf_in_other_tab')
   }
@@ -201,34 +210,35 @@ const PANE_KEYED_UI_RECORDS = [
   'manuallyUnreadTurnsByPaneKey'
 ] as const
 
-/** Pane-keyed UI marks and SSH lease leaf addresses that must follow a moved leaf. */
+/** Pane-keyed UI marks and SSH lease leaf addresses that must follow moved leaves, in order. */
 export function rekeyMovedLeafProfileRecords(
   state: Pick<PersistedState, 'ui' | 'sshRemotePtyLeases'>,
-  move: TerminalLeafMoveRequest
+  moves: readonly TerminalPaneKeyMove[]
 ): { ui?: PersistedState['ui']; sshRemotePtyLeases?: SshRemotePtyLease[] } {
-  const { from: fromPaneKey, to: toPaneKey } = terminalLeafMovePaneKeys(move)
-  const ui = state.ui
-  let nextUi: PersistedState['ui'] | undefined
-  for (const key of PANE_KEYED_UI_RECORDS) {
-    const moved = moveRecordKey(ui?.[key], fromPaneKey, toPaneKey)
-    if (ui && moved !== ui[key]) {
-      nextUi = { ...(nextUi ?? ui), [key]: moved }
+  let ui = state.ui
+  let uiChanged = false
+  let leases = state.sshRemotePtyLeases ?? []
+  let leasesChanged = false
+  for (const move of moves) {
+    const { from: fromPaneKey, to: toPaneKey } = terminalLeafMovePaneKeys(move)
+    for (const key of PANE_KEYED_UI_RECORDS) {
+      const moved = moveRecordKey(ui?.[key], fromPaneKey, toPaneKey)
+      if (ui && moved !== ui[key]) {
+        ui = { ...ui, [key]: moved }
+        uiChanged = true
+      }
+    }
+    const isMoved = (lease: SshRemotePtyLease): boolean =>
+      lease.tabId === move.sourceTabId && lease.leafId === move.leafId
+    if (leases.some(isMoved)) {
+      leases = leases.map((lease) =>
+        isMoved(lease) ? { ...lease, tabId: move.targetTabId } : lease
+      )
+      leasesChanged = true
     }
   }
-  const leases = state.sshRemotePtyLeases ?? []
-  const leasesChanged = leases.some(
-    (lease) => lease.tabId === move.sourceTabId && lease.leafId === move.leafId
-  )
   return {
-    ...(nextUi ? { ui: nextUi } : {}),
-    ...(leasesChanged
-      ? {
-          sshRemotePtyLeases: leases.map((lease) =>
-            lease.tabId === move.sourceTabId && lease.leafId === move.leafId
-              ? { ...lease, tabId: move.targetTabId }
-              : lease
-          )
-        }
-      : {})
+    ...(uiChanged && ui ? { ui } : {}),
+    ...(leasesChanged ? { sshRemotePtyLeases: leases } : {})
   }
 }

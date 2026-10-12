@@ -2,7 +2,8 @@ import type { ExecutionHostId } from '../../../shared/execution-host'
 import type { PersistedState } from '../../../shared/persisted-state-types'
 import type {
   TerminalLeafMoveRequest,
-  TerminalLeafMoveResult
+  TerminalLeafMoveResult,
+  TerminalPaneKeyMove
 } from '../../../shared/terminal-leaf-move'
 import type { WorkspaceSessionState } from '../../../shared/workspace-session-state-types'
 import type {
@@ -24,7 +25,10 @@ import {
 import type { DurableProfileStateMutation } from '../loading-store/store-runtime-state'
 import { planTerminalLeafMove, rekeyMovedLeafProfileRecords } from './terminal-leaf-move'
 import { aliasEntriesAfterMove } from './terminal-leaf-move-alias'
-import { assignWorkspaceSessionPartition } from './terminal-topology-membership'
+import {
+  assignWorkspaceSessionPartition,
+  type TerminalSessionPartition
+} from './terminal-topology-membership'
 
 // The commit boundary for terminal layout (tabs, panes, pane-to-PTY bindings). Wraps the close and
 // the pane move; the close transform still lives in runtime/ and other writers move here later.
@@ -34,6 +38,7 @@ type TerminalTopologyCommitKind =
   | 'close_leaf'
   | 'close_tab'
   | 'move_leaf'
+  | 'move_leaf_into_tab'
   | 'admit_pane'
   | 'withdraw_pane'
 
@@ -103,7 +108,7 @@ export function withdrawPane(
  * One `persistence.terminal-topology` span per commit, from admission to the in-memory write.
  * Attributes stay low-cardinality: no pane key, PTY id or path; `refusalOf` returns a fixed code.
  */
-function traced<T>(
+export function traced<T>(
   kind: TerminalTopologyCommitKind,
   mutate: () => DurableProfileStateMutation<T>,
   refusalOf: (value: T) => string | undefined
@@ -157,7 +162,7 @@ export type TerminalTopologyCommitContext = {
 }
 
 /** Writes `next`, returning a restore that puts the prior value back unless a later write replaced it. */
-function writeRestorable<V>(read: () => V, write: (value: V) => void, next: V): () => void {
+export function writeRestorable<V>(read: () => V, write: (value: V) => void, next: V): () => void {
   const prior = read()
   write(next)
   return () => {
@@ -167,26 +172,27 @@ function writeRestorable<V>(read: () => V, write: (value: V) => void, next: V): 
   }
 }
 
-function commitLeafMove(
-  request: TerminalLeafMoveRequest,
+/** One pane that changed tabs; `ptyId` is the process behind it, when it has one. */
+export type MovedPane = TerminalPaneKeyMove & { ptyId: string | null }
+
+/**
+ * Writes a move's rewritten partitions plus every profile record keyed by the moved panes, in the
+ * caller's one durable mutation. Returns the restores that undo all of it on a failed write.
+ */
+export function writeMovedPaneRecords(
+  sessions: readonly TerminalSessionPartition[],
+  moved: readonly MovedPane[],
   context: TerminalTopologyCommitContext
-): DurableProfileStateMutation<TerminalLeafMoveResult> {
+): (() => void)[] {
   const { state } = context
-  const planned = planTerminalLeafMove(
-    context.hostIds().map((hostId) => ({ hostId, session: context.getSession(hostId) })),
-    request
-  )
-  if (planned.sessions.length === 0) {
-    return { value: planned.result, persist: false }
-  }
-  const restores = planned.sessions.map(({ hostId, session }) =>
+  const restores = sessions.map(({ hostId, session }) =>
     writeRestorable(
       () => context.getSession(hostId),
       (value) => context.markDirty(assignWorkspaceSessionPartition(state, hostId, value)),
       session
     )
   )
-  const rekeyed = rekeyMovedLeafProfileRecords(state, request)
+  const rekeyed = rekeyMovedLeafProfileRecords(state, moved)
   if (rekeyed.ui) {
     restores.push(
       writeRestorable(
@@ -207,22 +213,38 @@ function commitLeafMove(
     )
     context.markDirty('sshRemotePtyLeases')
   }
-  if (planned.result.status === 'moved' && planned.result.ptyId) {
-    // Why: the hook server's own save is debounced; a crash before it would strand the process's old key.
+  // Why: the hook server's own save is debounced; a crash before it would strand the process's old key.
+  const aliased = moved.filter((pane): pane is MovedPane & { ptyId: string } => pane.ptyId !== null)
+  if (aliased.length > 0) {
+    const now = Date.now()
     restores.push(
       writeRestorable(
         () => state.legacyPaneKeyAliasEntries,
         (entries) => (state.legacyPaneKeyAliasEntries = entries),
-        aliasEntriesAfterMove(
-          state.legacyPaneKeyAliasEntries,
-          request,
-          planned.result.ptyId,
-          Date.now()
+        aliased.reduce(
+          (entries, pane) => aliasEntriesAfterMove(entries, pane, pane.ptyId, now),
+          state.legacyPaneKeyAliasEntries
         )
       )
     )
     context.markDirty('legacyPaneKeyAliasEntries')
   }
+  return restores
+}
+
+function commitLeafMove(
+  request: TerminalLeafMoveRequest,
+  context: TerminalTopologyCommitContext
+): DurableProfileStateMutation<TerminalLeafMoveResult> {
+  const planned = planTerminalLeafMove(
+    context.hostIds().map((hostId) => ({ hostId, session: context.getSession(hostId) })),
+    request
+  )
+  if (planned.sessions.length === 0) {
+    return { value: planned.result, persist: false }
+  }
+  const moved = planned.result.status === 'moved' ? planned.result.ptyId : null
+  const restores = writeMovedPaneRecords(planned.sessions, [{ ...request, ptyId: moved }], context)
   return {
     value: planned.result,
     rollback: () => restores.forEach((restore) => restore())
