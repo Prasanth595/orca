@@ -9,7 +9,7 @@
 import type { SshConnection } from './ssh-connection'
 import { execCommand } from './ssh-relay-deploy-helpers'
 
-const RELAY_DAEMON_MARKER = ' relay.js --detached '
+export const RELAY_DAEMON_MARKER = ' relay.js --detached '
 
 /**
  * `-ww` keeps long argv untruncated on procps and BSD `ps`; BusyBox (Alpine) rejects those flags
