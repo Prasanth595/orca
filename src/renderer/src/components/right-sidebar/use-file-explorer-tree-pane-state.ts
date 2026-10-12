@@ -13,6 +13,7 @@ import { useFileDeletion } from './useFileDeletion'
 import { useFileExplorerDragDrop } from './useFileExplorerDragDrop'
 import { useFileExplorerHandlers } from './useFileExplorerHandlers'
 import { useFileExplorerImport } from './useFileExplorerImport'
+import { useFileExplorerImagePaste } from './use-file-explorer-image-paste'
 import { useFileExplorerInlineInput } from './useFileExplorerInlineInput'
 import { useFileExplorerNodeCommands } from './use-file-explorer-node-commands'
 import { useFileExplorerRowScrolling } from './use-file-explorer-row-scrolling'
@@ -58,6 +59,7 @@ type UseFileExplorerTreePaneStateResult = {
   handlers: ReturnType<typeof useFileExplorerHandlers>
   nodeCommands: ReturnType<typeof useFileExplorerNodeCommands>
   fileDropOwnerRef: (root: HTMLElement | null) => void
+  imagePaste: ReturnType<typeof useFileExplorerImagePaste>
 }
 
 /**
@@ -229,6 +231,16 @@ export function useFileExplorerTreePaneState({
     operationOwner: rootCache?.operationOwner
   })
 
+  const imagePaste = useFileExplorerImagePaste({
+    displayRootPath,
+    worktreePath: visibleFilesWorktreePath,
+    worktreeId: activeWorktreeId,
+    refreshDir,
+    setSelectedPath: setSingleSelectedPath,
+    operationOwner: rootCache?.operationOwner,
+    selectedNode
+  })
+
   const rowScrolling = useFileExplorerRowScrolling({
     onRevealOutsideRoot,
     displayRootPath,
@@ -295,6 +307,7 @@ export function useFileExplorerTreePaneState({
     rowScrolling,
     handlers,
     nodeCommands,
-    fileDropOwnerRef
+    fileDropOwnerRef,
+    imagePaste
   }
 }
