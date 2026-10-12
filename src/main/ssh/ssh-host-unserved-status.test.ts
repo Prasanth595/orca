@@ -11,7 +11,9 @@ describe('an unserved host’s untranslated message', () => {
     }
     const message = unservedHostServerMessage(decision)
     expect(message).toContain('(process IDs 4101, 4102)')
-    expect(message).toContain('pkill -u "$(id -u)" -f " relay\\.js --detached .*--sock-path')
+    expect(message).toContain(
+      'pkill -u "$(id -u)" -f "^([^ ]*/)?node[^ /]* relay\\.js --detached .*--sock-path'
+    )
     expect(message).not.toContain('pkill -f relay.js')
     expect(unservedServerStatus(decision).oldRelays).toEqual(decision.oldRelays)
   })

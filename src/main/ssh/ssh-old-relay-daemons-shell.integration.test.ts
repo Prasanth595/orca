@@ -124,7 +124,22 @@ posixOnly('old relay daemons on a POSIX host', () => {
       join(dir, 'relay-a.sock')
     ])
 
-    const pids = parseOldRelayDaemonPids(await sh(OLD_RELAY_DAEMON_LIST_COMMAND), home)
+    // A same-account shell whose script text mentions a relay launch, running unrelated work.
+    const shellDecoy = spawn(
+      '/bin/sh',
+      [
+        '-c',
+        `echo READY; : node relay.js --detached --sock-path ${join(dir, 'relay-a.sock')}; sleep 60; true`
+      ],
+      { stdio: ['ignore', 'pipe', 'ignore'] }
+    )
+    running.push(shellDecoy)
+    await new Promise((resolve) => shellDecoy.stdout?.once('data', resolve))
+
+    const listing = await sh(OLD_RELAY_DAEMON_LIST_COMMAND)
+    // The decoy is in the raw listing; only argv position keeps it out.
+    expect(listing).toMatch(new RegExp(`^\\s*${shellDecoy.pid}\\s`, 'm'))
+    const pids = parseOldRelayDaemonPids(listing, home)
     expect(pids.sort()).toEqual([relay.pid, stubborn.pid].sort())
     // The manual command the error text names matches the same processes (pgrep: list only).
     const manual = oldRelayStopCommand('posix').replace(/^pkill /, 'pgrep ')
@@ -145,7 +160,29 @@ posixOnly('old relay daemons on a POSIX host', () => {
     expect(isAlive(outside)).toBe(true)
     expect(isAlive(orcad)).toBe(true)
     expect(isAlive(bridge)).toBe(true)
+    expect(isAlive(shellDecoy)).toBe(true)
   }, 30_000)
+
+  it('skips a shell whose script text names a relay launch, even when handed its pid', async () => {
+    const dir = installRelay('1.4.224')
+    const decoy = spawn(
+      '/bin/sh',
+      [
+        '-c',
+        `echo READY; : node relay.js --detached --sock-path ${join(dir, 'relay-z.sock')}; sleep 60; true`
+      ],
+      { stdio: ['ignore', 'pipe', 'ignore'] }
+    )
+    running.push(decoy)
+    await new Promise((resolve) => decoy.stdout?.once('data', resolve))
+
+    const result = parseEndOldRelayDaemonsOutput(
+      await sh(endOldRelayDaemonsCommand(home, [decoy.pid!])),
+      [decoy.pid!]
+    )
+    expect(result).toEqual({ ended: [], stillRunning: [], skipped: [decoy.pid] })
+    expect(isAlive(decoy)).toBe(true)
+  })
 
   it('skips a pid that no longer runs an old relay instead of signalling it', async () => {
     const decoyDir = join(workDir, 'decoy')

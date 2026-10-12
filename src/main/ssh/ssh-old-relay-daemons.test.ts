@@ -19,6 +19,9 @@ describe('old relay daemon pids', () => {
       ' 4106 node orcad.js --detached --sock-path /home/me/.orca-remote/relay-1/relay.sock',
       ' 4107 node relay.js --detached --sock-path /home/me/.orca-remote/relay-1/../../x.sock',
       ' 4108 grep -F -- relay.js --detached',
+      // A shell whose script text mentions a relay launch is not the daemon.
+      ' 4109 sh -c node relay.js --detached --sock-path /home/me/.orca-remote/relay-1/relay.sock & backup; wait',
+      ' 4110 /usr/bin/python3 relay.js --detached --sock-path /home/me/.orca-remote/relay-1/relay.sock',
       ' 1 node relay.js --detached --sock-path /home/me/.orca-remote/relay-1/relay.sock'
     ].join('\n')
     expect(parseOldRelayDaemonPids(listing, home)).toEqual([4101, 4102])
@@ -27,7 +30,8 @@ describe('old relay daemon pids', () => {
   it('re-verifies owner and argv before each signal and escalates TERM to KILL', () => {
     const command = endOldRelayDaemonsCommand(home, [4101])
     expect(command).toContain(`base='/home/me/.orca-remote'`)
-    expect(command).toContain('[ "$owner" = "$uid" ] || return 1')
+    expect(command).toContain('[ -n "$uid" ] && [ "$owner" = "$uid" ] || return 1')
+    expect(command).toContain('[ "$2" = relay.js ] && [ "$3" = --detached ] || return 1')
     expect(command).toContain('kill -TERM "$pid"')
     expect(command).toContain('is_old_relay "$pid" && kill -KILL "$pid"')
     expect(command).not.toMatch(/pkill|killall|kill -9 -1/)

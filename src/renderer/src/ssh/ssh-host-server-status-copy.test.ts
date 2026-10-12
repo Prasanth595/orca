@@ -193,7 +193,7 @@ describe('SSH host server status line', () => {
     const text = sshConnectFailureText(live, 'raw')
     expect(text).toContain('process IDs 4101, 4102')
     expect(text).toContain(
-      'pkill -u "$(id -u)" -f " relay\\.js --detached .*--sock-path ($HOME/\\.orca-remote|/tmp/\\.orca-relay-$(id -u))/relay-"'
+      'pkill -u "$(id -u)" -f "^([^ ]*/)?node[^ /]* relay\\.js --detached .*--sock-path ($HOME/\\.orca-remote|/tmp/\\.orca-relay-$(id -u))/relay-"'
     )
     expect(sshHostServerStatusLine(plain, live)?.stopHint?.command).toMatch(/^pkill -u /)
     expect(canEndOldRelayTerminals(live)).toBe(true)

@@ -34,16 +34,30 @@ function isRelayInstallSocket(sockPath: string, remoteHome: string): boolean {
   )
 }
 
+/**
+ * The daemon's own argv, by position: `<node> relay.js --detached ... --sock-path <sock>`. A shell
+ * whose command text merely mentions such a launch (`sh -c '...'`) has a different argv[1].
+ */
+function relayDaemonSocket(args: string[]): string | null {
+  const [node, script, mode] = args
+  if (
+    !node?.split('/').pop()?.startsWith('node') ||
+    script !== 'relay.js' ||
+    mode !== '--detached'
+  ) {
+    return null
+  }
+  const index = args.indexOf('--sock-path', 3)
+  return index > 0 ? (args[index + 1] ?? null) : null
+}
+
 /** Pids of relay daemons whose socket lives in this account's relay install directories. */
 export function parseOldRelayDaemonPids(output: string, remoteHome: string): number[] {
   const pids: number[] = []
   for (const line of output.split('\n')) {
-    const match = /^\s*(\d+)\s+(.*)$/.exec(line)
-    if (!match || !match[2].includes(RELAY_DAEMON_MARKER)) {
-      continue
-    }
-    const pid = Number.parseInt(match[1], 10)
-    const sock = /\s--sock-path\s+(\/\S+)/.exec(match[2])?.[1]
+    const [rawPid, ...args] = line.trim().split(/\s+/)
+    const pid = Number.parseInt(rawPid ?? '', 10)
+    const sock = relayDaemonSocket(args)
     if (pid > 1 && sock && isRelayInstallSocket(sock, remoteHome) && !pids.includes(pid)) {
       pids.push(pid)
     }
@@ -70,29 +84,42 @@ export async function listOldRelayDaemonPids(
 
 /**
  * TERM each verified relay, give its shutdown (which ends its shells) a grace period, then KILL
- * the ones still there. Identity — owner uid, the daemon marker, and a socket under the install
- * dirs — is re-read from the host before every signal. Prints `GONE`/`LIVE`/`SKIP <pid>`.
+ * the ones still there. Identity — owner uid, a `<node> relay.js --detached` argv, and a socket
+ * under the install dirs — is re-read from the host before every signal. Prints `GONE`/`LIVE`/`SKIP <pid>`.
  */
 export function endOldRelayDaemonsCommand(remoteHome: string, pids: readonly number[]): string {
-  const marker = RELAY_DAEMON_MARKER
   return [
     `base=${shellEscape(`${remoteHome}/${RELAY_REMOTE_DIR}`)}`,
     'uid=$(id -u 2>/dev/null)',
     '[ -n "$uid" ] || exit 0',
     `short_base="${SHORT_RELAY_SOCKET_DIR_PREFIX}$uid"`,
+    "nl='",
+    "'",
+    // Why by argv position: a shell whose script text mentions a relay launch must never match.
     'is_old_relay() {',
     '  if [ -r "/proc/$1/cmdline" ]; then',
-    `    args=$(tr '\\000' ' ' < "/proc/$1/cmdline" 2>/dev/null)`,
+    `    args=$(tr '\\000' '\\n' < "/proc/$1/cmdline" 2>/dev/null)`,
     '    owner=$(stat -c %u "/proc/$1" 2>/dev/null)',
+    '    split=$nl',
     '  else',
     '    args=$(ps -ww -o args= -p "$1" 2>/dev/null | tr "\\n" " ")',
     '    owner=$(ps -o uid= -p "$1" 2>/dev/null | tr -d " \\n")',
+    "    split=' '",
     '  fi',
-    '  [ "$owner" = "$uid" ] || return 1',
-    '  case "$args" in',
-    `    *${shellEscape(marker)}*"--sock-path $base/relay-"*) return 0 ;;`,
-    `    *${shellEscape(marker)}*"--sock-path $short_base/relay-"*) return 0 ;;`,
-    '  esac',
+    '  [ -n "$uid" ] && [ "$owner" = "$uid" ] || return 1',
+    '  old_ifs=$IFS; IFS=$split; set -f',
+    '  set -- $args',
+    '  set +f; IFS=$old_ifs',
+    '  case "${1##*/}" in node*) ;; *) return 1 ;; esac',
+    '  [ "$2" = relay.js ] && [ "$3" = --detached ] || return 1',
+    '  shift 3',
+    '  while [ $# -gt 1 ]; do',
+    '    if [ "$1" = --sock-path ]; then',
+    '      case "$2" in */../*) return 1 ;; "$base"/relay-*|"$short_base"/relay-*) return 0 ;; esac',
+    '      return 1',
+    '    fi',
+    '    shift',
+    '  done',
     '  return 1',
     '}',
     'owned=""',
