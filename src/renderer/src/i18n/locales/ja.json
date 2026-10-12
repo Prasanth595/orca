@@ -3375,9 +3375,6 @@
             "openSupportedWorkspace": "セッションを再開する前に、ワークスペースを開いてください。",
             "localSessionSshWorkspaceUnsupported": "このセッションの履歴はこのマシンに保存されているため、SSH ワークスペースでは再開できません。代わりにローカルワークスペースにドロップしてください。",
             "sessionHostMismatchUnsupported": "このセッションは別のホストに属しています。同じホスト上のワークスペースにドロップしてください。"
-          },
-          "TabGroupDropOverlay": {
-            "paneColumnLabel": "新規分割"
           }
         },
         "bar": {

@@ -10,8 +10,69 @@ import {
   type TabGroupPanelGeometrySnapshot
 } from './tab-group-panel-split-target'
 import { isPaneDropData, isTabDragData, type TabDragItemData } from './tab-drag-data'
+import {
+  resolveTabDragLeafTarget,
+  type LeafRect,
+  type TabDragLeafTarget
+} from './tab-drag-leaf-target'
+import {
+  restoreTabDragActivationSnapshot,
+  type TabDragActivationSnapshot
+} from './tab-drag-preview-activation'
+import type {
+  TerminalTabIntoPaneArgs,
+  TerminalTabIntoPaneOutcome
+} from '../terminal-pane/terminal-tab-into-pane-types'
 
 type AppState = ReturnType<typeof useAppStore.getState>
+
+/** What a leaf-edge drop needs beyond the store: the move itself and the DOM it reads leaves from. */
+export type LeafJoinDeps = {
+  moveTabIntoPane: (args: TerminalTabIntoPaneArgs) => Promise<TerminalTabIntoPaneOutcome>
+  readLeafRects: (tabId: string) => LeafRect[]
+  getPreDragSnapshot: () => TabDragActivationSnapshot | null
+}
+
+/** A drop on a pane edge joins the tab there; a refused target is a no-op that restores the preview. */
+function commitLeafEdgeDrop({
+  leafJoin,
+  leafTarget,
+  activeData,
+  worktreeId,
+  finishDrag
+}: {
+  leafJoin: LeafJoinDeps
+  leafTarget: TabDragLeafTarget
+  activeData: TabDragItemData
+  worktreeId: string
+  finishDrag: (restoreSnapshot: boolean) => void
+}): void {
+  if (leafTarget.refusal) {
+    finishDrag(true)
+    return
+  }
+  // The drag state is cleared by finishDrag, so the snapshot is taken first.
+  const snapshot = leafJoin.getPreDragSnapshot()
+  // The join activates the target tab itself, so the previewed tab is kept rather than restored.
+  finishDrag(false)
+  const groupsAfterDrag = useAppStore.getState().groupsByWorktree[worktreeId]
+  void leafJoin
+    .moveTabIntoPane({
+      sourceTabId: activeData.visibleTabId,
+      targetTabId: leafTarget.targetTabId,
+      targetLeafId: leafTarget.leafId,
+      side: leafTarget.side
+    })
+    .then((outcome) => {
+      // Only a refusal changed nothing; an unknown outcome may already be applied.
+      // A group change during the round trip is newer than the snapshot, so it must not be undone.
+      const groupsUntouched =
+        useAppStore.getState().groupsByWorktree[worktreeId] === groupsAfterDrag
+      if (outcome === 'refused' && snapshot && groupsUntouched) {
+        restoreTabDragActivationSnapshot(worktreeId, snapshot)
+      }
+    })
+}
 
 /** Turns a finished tab drag into store mutations: pane-column split,
  *  same-group reorder, cross-group move, or pane-body drop — each mirrored to
@@ -22,7 +83,8 @@ export function commitTabDragDrop({
   dragGeometryRef,
   dropUnifiedTab,
   reorderUnifiedTabs,
-  finishDrag
+  finishDrag,
+  leafJoin
 }: {
   event: DragEndEvent
   worktreeId: string
@@ -30,6 +92,7 @@ export function commitTabDragDrop({
   dropUnifiedTab: AppState['dropUnifiedTab']
   reorderUnifiedTabs: AppState['reorderUnifiedTabs']
   finishDrag: (restoreSnapshot: boolean, activeData?: TabDragItemData) => void
+  leafJoin: LeafJoinDeps
 }): void {
   const activeData = event.active.data.current
   const overData = event.over?.data.current
@@ -72,6 +135,19 @@ export function commitTabDragDrop({
         shouldRestorePreDragActivation
       )
     )
+    return
+  }
+
+  const leafTarget = resolveTabDragLeafTarget({
+    activeDrag: activeData,
+    pointer: getDragPointer(event),
+    worktreeId,
+    state,
+    geometry: dragGeometryRef.current,
+    readLeafRects: leafJoin.readLeafRects
+  })
+  if (leafTarget) {
+    commitLeafEdgeDrop({ leafJoin, leafTarget, activeData, worktreeId, finishDrag })
     return
   }
 

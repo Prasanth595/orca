@@ -3617,7 +3617,10 @@
             "localSessionSshWorkspaceUnsupported": "This session's history is stored on this machine, so it can't resume in an SSH workspace. Drop it onto a local workspace instead."
           },
           "TabGroupDropOverlay": {
-            "paneColumnLabel": "New split"
+            "newColumnLabel": "New column"
+          },
+          "TabLeafDropOverlay": {
+            "joinLabel": "Join tab"
           }
         },
         "bar": {
