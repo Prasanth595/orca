@@ -14,8 +14,8 @@ import {
 } from './mobile-terminal-records'
 import {
   acceptSessionSnapshot,
-  applyClosedTabTombstones,
-  confirmsMirroredTabSelection
+  confirmsMirroredTabSelection,
+  hidePendingTabCloses
 } from './session-tab-snapshot-gate'
 import type { SessionTabsApplyOutcome } from './mobile-session-tabs-stream-health'
 import { getActiveTabIdForHandle } from './mobile-session-route-helpers'
@@ -27,13 +27,15 @@ import type { MobileSessionTerminalListModel } from './use-mobile-session-termin
 
 export function useMobileSessionTabApplication(scope: MobileSessionTerminalListModel) {
   const {
+    worktreeId,
     setTerminals,
     terminalsRef,
     setSessionTabs,
     sessionTabsRef,
     appliedSnapshotMarkerRef,
     appliedSessionTabsRevisionRef,
-    closedTabTombstonesRef,
+    closedTabLedger,
+    closedTabPartition,
     reconcileBufferedDraftsRef,
     setTerminalsLoaded,
     defaultTerminalHandlesToLiveInput,
@@ -63,9 +65,10 @@ export function useMobileSessionTabApplication(scope: MobileSessionTerminalListM
         return { accepted: false }
       }
       const applicationRevision = ++appliedSessionTabsRevisionRef.current
-      let nextTabs = applyClosedTabTombstones(
+      let nextTabs = hidePendingTabCloses(
+        closedTabLedger,
+        closedTabPartition,
         result.tabs,
-        closedTabTombstonesRef.current,
         Date.now()
       )
       const presentTabIds = new Set(nextTabs.map((tab) => tab.id))
@@ -235,7 +238,14 @@ export function useMobileSessionTabApplication(scope: MobileSessionTerminalListM
       }
       return outcome
     },
-    [defaultTerminalHandlesToLiveInput, subscribeToTerminal, unsubscribeTerminal]
+    [
+      closedTabLedger,
+      closedTabPartition,
+      defaultTerminalHandlesToLiveInput,
+      subscribeToTerminal,
+      unsubscribeTerminal,
+      worktreeId
+    ]
   )
   return {
     applySessionTabs

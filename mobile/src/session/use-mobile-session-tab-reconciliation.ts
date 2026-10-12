@@ -22,7 +22,8 @@ export function useMobileSessionTabReconciliation(scope: MobileSessionMarkdownAc
     activeSessionTabIdRef,
     terminalsRef,
     appliedSessionTabsRevisionRef,
-    closedTabTombstonesRef,
+    closedTabLedger,
+    closedTabPartition,
     setMarkdownDocs,
     setShowQuickCommands,
     terminalGestureInputQueuesRef,
@@ -74,14 +75,14 @@ export function useMobileSessionTabReconciliation(scope: MobileSessionMarkdownAc
   )
   const hasSessionTabsRecoveryNeed = useCallback(
     () =>
-      closedTabTombstonesRef.current.size > 0 ||
+      closedTabLedger.hasPending(closedTabPartition, Date.now()) ||
       pendingBrowserFocusPageIdRef.current !== null ||
       hasConnectedTerminalAbsentFromSessionTabs(terminalsRef.current, sessionTabsRef.current) ||
       // Why: a chat-covered handle that ran out of rearms and left `terminal.list`
       // was reminted by a desktop graph reload. Only a fresh tab snapshot carries
       // the replacement handle, so force one instead of holding the composer locked.
       nativeChatStream.hasTabsRecoveryNeed(),
-    [nativeChatStream]
+    [closedTabLedger, closedTabPartition, nativeChatStream]
   )
   const getSessionTabsApplicationRevision = useCallback(
     () => appliedSessionTabsRevisionRef.current,
