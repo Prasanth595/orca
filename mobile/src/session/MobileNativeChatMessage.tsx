@@ -195,6 +195,9 @@ function MobileNativeChatMessageImpl({
   // Keep the memoized Markdown context stable as the message streams.
   const openActions = useCallback(() => setActionsOpen(true), [])
   const onLongPress = INLINE_TEXT_SELECTION ? undefined : openActions
+  // Like desktop's hover-only copy: a tap on the message shows it, another tap hides it.
+  const [copyShown, setCopyShown] = useState(false)
+  const toggleCopy = useCallback(() => setCopyShown((shown) => !shown), [])
   const renderVisual = useContext(MobileNativeChatVisualContext) ?? undefined
   // Structured replies grow in place: only the last block of the newest row may still be typing.
   const growingBlock =
@@ -254,6 +257,7 @@ function MobileNativeChatMessageImpl({
       <View style={[styles.row, isUser && styles.rowUser]}>
         <Content
           onLongPress={onLongPress}
+          onPress={copyText.length > 0 ? toggleCopy : undefined}
           style={[
             styles.content,
             isUser && styles.userBubble,
@@ -301,7 +305,7 @@ function MobileNativeChatMessageImpl({
             />
           ) : null}
         </Content>
-        {copyText.length > 0 ? (
+        {copyShown && copyText.length > 0 ? (
           <MobileSourceCopyButton
             key={message.id}
             text={copyText}

@@ -69,10 +69,18 @@ describe('iOS whole-message copy', () => {
     }
     return node
   }
+  function tapMessage() {
+    const body = renderer!.root
+      .findByType(MobileNativeChatLongPressContent)
+      .findAll((node) => String(node.type) === 'Pressable')[0]
+    act(() => body?.props.onPress?.())
+  }
+  // Every copy case starts from a tapped message, the only state that shows the button.
   function render(value = message) {
     act(() => {
       renderer = create(createElement(MobileNativeChatMessage, { message: value }))
     })
+    tapMessage()
   }
   beforeEach(() => {
     vi.clearAllMocks()
@@ -128,6 +136,25 @@ describe('iOS whole-message copy', () => {
       expect(copyButton().findAll((node) => String(node.type) === 'Text')).toHaveLength(0)
     }
   )
+
+  it('shows the copy button only after a tap on the message, and hides it on the next', () => {
+    act(() => {
+      renderer = create(createElement(MobileNativeChatMessage, { message }))
+    })
+    const hasCopy = () =>
+      nodes('Pressable').some((node) => node.props.accessibilityLabel === 'Copy message')
+    const body = renderer!.root
+      .findByType(MobileNativeChatLongPressContent)
+      .findAll((node) => String(node.type) === 'Pressable')[0]
+    expect(hasCopy()).toBe(false)
+    expect(body?.props).toMatchObject({ accessible: false })
+    expect(body?.props.onLongPress).toBeUndefined()
+
+    tapMessage()
+    expect(hasCopy()).toBe(true)
+    tapMessage()
+    expect(hasCopy()).toBe(false)
+  })
 
   it.each([
     'Please repair this chart:\n::orca-visual{file="usage.html"}\nKeep this text.',
