@@ -23,7 +23,7 @@ const DEFINITION_LANGUAGES = new Set(['typescript', 'javascript'])
 const LOAD_DELAY_MS = 300
 
 const publishedFiles = createPublishedDefinitionFiles()
-const loadersByRoot = new Map<string, DefinitionContextLoader>()
+const loadersByOwner = new Map<string, DefinitionContextLoader>()
 let sink: ReturnType<typeof createMonacoDefinitionSink> | null = null
 
 /** Cmd/Ctrl-click in a TS/JS file follows a definition into another file, node_modules included. */
@@ -106,7 +106,14 @@ function getDefinitionContextLoader(
     monaco.typescript.typescriptDefaults,
     monaco.typescript.javascriptDefaults
   ])
-  const existing = loadersByRoot.get(source.root.rootKey)
+  // Why the whole route: a loader keeps its context, so the same path on another host needs its own.
+  const ownerKey = JSON.stringify([
+    source.root.rootKey,
+    context.target,
+    context.connectionId ?? null,
+    context.expectedSshConnectionGeneration ?? null
+  ])
+  const existing = loadersByOwner.get(ownerKey)
   if (existing) {
     return existing
   }
@@ -116,6 +123,6 @@ function getDefinitionContextLoader(
     sink,
     publishedFiles
   )
-  loadersByRoot.set(source.root.rootKey, loader)
+  loadersByOwner.set(ownerKey, loader)
   return loader
 }

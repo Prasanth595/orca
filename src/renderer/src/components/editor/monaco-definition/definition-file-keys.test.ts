@@ -33,6 +33,14 @@ describe('definition file keys', () => {
     expect(keyToFilePath(root, `${root.rootKey}/src/index.ts`)).toBe('C:\\src\\app\\src\\index.ts')
   })
 
+  it('refuses encoded traversal that only appears once segments are decoded', () => {
+    const root = createDefinitionFileRoot('/work/app')
+
+    expect(keyToFilePath(root, `${root.rootKey}/node_modules/%2e%2e/%2e%2e/secret`)).toBeNull()
+    expect(keyToFilePath(root, `${root.rootKey}/src/..%2f..%2fsecret`)).toBeNull()
+    expect(keyToFilePath(root, `${root.rootKey}/src/..%5c..%5csecret`)).toBeNull()
+  })
+
   it('refuses keys outside the root and never climbs above the filesystem root', () => {
     const root = createDefinitionFileRoot('/work/app')
 

@@ -131,8 +131,8 @@ describe('createDefinitionContextLoader', () => {
       createPublishedDefinitionFiles(),
       {
         maxFiles: 2,
-        maxFileBytes: 1024,
-        maxTotalBytes: 1024 * 1024
+        maxFileLength: 1024,
+        maxTotalLength: 1024 * 1024
       }
     )
 

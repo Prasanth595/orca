@@ -13,6 +13,7 @@ export type DefinitionFileRoot = {
 }
 
 const FILE_KEY_PREFIX = 'file://'
+const PATH_SEPARATOR = /[\\/]/
 
 export function createDefinitionFileRoot(rootPath: string): DefinitionFileRoot {
   return { rootPath, rootKey: toEditorModelUri(rootPath) }
@@ -59,10 +60,17 @@ export function keyToFilePath(root: DefinitionFileRoot, key: string): string | n
   if (!canonical.startsWith(`${root.rootKey}/`)) {
     return null
   }
-  const relativePath = canonical
+  const segments = canonical
     .slice(root.rootKey.length + 1)
     .split('/')
     .map(decodeURIComponent)
-    .join('/')
-  return joinPath(root.rootPath, relativePath)
+  // Why: `%2e%2e` or `%2f` passes the prefix check above and only becomes a traversal once decoded.
+  if (segments.some(isUnsafePathSegment)) {
+    return null
+  }
+  return joinPath(root.rootPath, segments.join('/'))
+}
+
+function isUnsafePathSegment(segment: string): boolean {
+  return segment === '' || segment === '.' || segment === '..' || PATH_SEPARATOR.test(segment)
 }

@@ -13,24 +13,26 @@ export type DefinitionContextSink = {
 /** What the worker already holds; shared by every root's loader so the limits are global. */
 export type PublishedDefinitionFiles = {
   files: Map<string, string>
-  bytes: number
+  /** UTF-16 code units, the size the worker receives and clones. */
+  length: number
 }
 
 export function createPublishedDefinitionFiles(): PublishedDefinitionFiles {
-  return { files: new Map(), bytes: 0 }
+  return { files: new Map(), length: 0 }
 }
 
 export type DefinitionContextLimits = {
   maxFiles: number
-  maxFileBytes: number
-  maxTotalBytes: number
+  /** Both lengths are UTF-16 code units, like `String#length`. */
+  maxFileLength: number
+  maxTotalLength: number
 }
 
 // Why capped: the worker receives every extra lib again on each change, so the set must stay small.
 export const DEFAULT_DEFINITION_CONTEXT_LIMITS: DefinitionContextLimits = {
   maxFiles: 1500,
-  maxFileBytes: 2 * 1024 * 1024,
-  maxTotalBytes: 24 * 1024 * 1024
+  maxFileLength: 2 * 1024 * 1024,
+  maxTotalLength: 24 * 1024 * 1024
 }
 
 const DECLARATION_FILE = /\.d\.[mc]?ts$/
@@ -67,20 +69,20 @@ export function createDefinitionContextLoader(
         }
         visited.add(key)
         const text = await host.readText(key)
-        if (text === null || text.length > limits.maxFileBytes) {
+        if (text === null || text.length > limits.maxFileLength) {
           return
         }
         const previous = published.files.get(key)
-        const addedBytes = text.length - (previous?.length ?? 0)
+        const addedLength = text.length - (previous?.length ?? 0)
         const overBudget =
-          published.bytes + addedBytes > limits.maxTotalBytes ||
+          published.length + addedLength > limits.maxTotalLength ||
           (previous === undefined && published.files.size >= limits.maxFiles)
         if (overBudget) {
           return
         }
         if (previous !== text) {
           published.files.set(key, text)
-          published.bytes += addedBytes
+          published.length += addedLength
           changed.set(key, text)
         }
         if (!key.endsWith('/package.json')) {
