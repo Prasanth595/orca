@@ -43,6 +43,7 @@ import { getOptionalWorktreeUnreadFlag } from './worktree-unread-flag'
 import { getReviewTargetLinkFlags } from './worktree-review-link-flags'
 import { withSetupDecisionRecovery } from './worktree-setup-decision-recovery'
 import { assertGitLabLinkFlagProjectsMatch } from './worktree-gitlab-link-context'
+import { printWorktreeSetResult } from './worktree-workspace-status-check'
 import { assertReferenceWritesSupported, getCreateReferences } from '../reference-input'
 
 function getPresentStringFlag(
@@ -267,7 +268,7 @@ export const WORKTREE_HANDLERS: Record<string, CommandHandler> = {
       parentWorktree: await getOptionalWorktreeSelector(flags, 'parent-worktree', cwd, client),
       noParent: flags.get('no-parent') === true
     })
-    printResult(result, json, formatWorktreeShow)
+    await printWorktreeSetResult(result, { client, flags, json })
   },
   'worktree rm': async ({ flags, client, cwd, json }) => {
     const worktree = await getRequiredWorktreeSelector(flags, 'worktree', cwd, client)
