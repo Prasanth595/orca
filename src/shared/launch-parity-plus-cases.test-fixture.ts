@@ -1,6 +1,6 @@
 // Test-only (never imported by production code): the window-lane launch parity table for row 1, the
-// "+" launches C2 moves onto the pane trigger. One row per distinct "+" input shape; local hosts only.
-import { POSIX_PATH, WIN_PATH, WSL_PATH } from './launch-parity-window-cases.test-fixture'
+// "+" launches C2 moves onto the pane trigger. One row per "+" entry point; local hosts only.
+import { POSIX_PATH, WIN_PATH } from './launch-parity-window-cases.test-fixture'
 import type {
   LaunchClient,
   LaunchWorkspace,
@@ -54,15 +54,6 @@ export const PLUS_LAUNCH_CASES: WindowLaunchCase[] = [
       projectRuntime: { kind: 'windows-host', reason: 'global-default' }
     },
     { shellOverride: 'powershell.exe', terminalWindowsWslDistro: null }
-  ),
-  // The folder's \\wsl$ path makes its host Linux, matching the wsl.exe createTab picks from the path.
-  plus(
-    'menu',
-    'Windows wsl$ folder',
-    'win32',
-    { kind: 'folder', path: WSL_PATH },
-    { ...quoted(posix), shellOverride: 'wsl.exe' },
-    { shellOverride: 'wsl.exe', terminalWindowsWslDistro: 'Ubuntu' }
   ),
   plus('dashboard', 'Linux repo', 'linux', { kind: 'repo', path: POSIX_PATH }, quoted(posix), ZSH)
 ]

@@ -34,7 +34,7 @@ export type WindowLaunchProducer =
   /** A "+" launch with no prompt, as each "+" entry point calls launchAgentInNewTab. */
   | { kind: 'plus'; agent: 'claude'; via: PlusEntry }
 
-/** "+" entry points by input shape: the tab-bar menu, its search and its Quick Launch items share `menu`. */
+/** "+" entry points. Quick Launch items omit launchSource and get `menu`'s source by default. */
 export type PlusEntry = 'menu' | 'shortcut' | 'dashboard'
 const PLUS_LAUNCH_SOURCE: Record<PlusEntry, string> = {
   menu: 'tab_bar_quick_launch',

@@ -96,7 +96,7 @@ async function openTab(c: WindowLaunchCase) {
     Object.assign(window.api, { gh: {} })
     modules.dashboard.launchDashboardAgent({ worktreeId, agent: producer.agent })
   } else if (producer.kind === 'plus') {
-    // What the "+" menu (its search and Quick Launch items too) and the new-agent shortcut pass.
+    // Hand-built copies of what the "+" menu and the new-agent shortcut pass.
     modules.launch.launchAgentInNewTab({
       requestId: `parity-${c.name}`,
       agent: producer.agent,
