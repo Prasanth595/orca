@@ -54,7 +54,7 @@ export function usePalettePins() {
     try {
       localStorage.setItem(PALETTE_PINS_STORAGE_KEY, JSON.stringify(next))
     } catch {
-      toast.error(translate('worktreeJumpPalette.pinSaveFailed', 'Could not save pinned shortcuts'))
+      toast.error(translate('worktreeJumpPalette.pinSaveFailed', 'Could not save shortcuts'))
       return
     }
     pinsRef.current = next
@@ -87,10 +87,7 @@ export function usePalettePins() {
         ])
       } else {
         toast.info(
-          translate(
-            'worktreeJumpPalette.pinLimit',
-            'Unpin an item to add another shortcut (5 maximum)'
-          )
+          translate('worktreeJumpPalette.pinLimit', 'Remove a shortcut to add another (5 maximum)')
         )
       }
     },

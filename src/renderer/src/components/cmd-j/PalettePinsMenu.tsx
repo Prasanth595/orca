@@ -1,4 +1,4 @@
-import { Pin, PinOff } from 'lucide-react'
+import { BookMarked, BookmarkMinus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -24,9 +24,9 @@ export function PalettePinsMenu({
         <Button
           variant="ghost"
           size="xs"
-          aria-label={translate('worktreeJumpPalette.managePins', 'Manage pinned shortcuts')}
+          aria-label={translate('worktreeJumpPalette.managePins', 'Manage shortcuts')}
         >
-          <Pin /> {controller.pins.length}/5
+          <BookMarked /> {controller.pins.length}/5
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -36,11 +36,11 @@ export function PalettePinsMenu({
         }}
       >
         <DropdownMenuLabel>
-          {translate('worktreeJumpPalette.removePin', 'Unpin a shortcut')}
+          {translate('worktreeJumpPalette.removePin', 'Remove a shortcut')}
         </DropdownMenuLabel>
         {controller.pins.map((pin) => (
           <DropdownMenuItem key={pin.id} onSelect={() => controller.removePin(pin.id)}>
-            <PinOff />
+            <BookmarkMinus />
             <span className="max-w-64 truncate">{pin.title}</span>
           </DropdownMenuItem>
         ))}

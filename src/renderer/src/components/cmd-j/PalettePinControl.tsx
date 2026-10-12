@@ -1,4 +1,4 @@
-import { Pin, PinOff } from 'lucide-react'
+import { BookmarkPlus, BookmarkMinus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { translate } from '@/i18n/i18n'
@@ -14,8 +14,8 @@ export function PalettePinControl({
 }): React.JSX.Element {
   const pinned = controller.pinnedIds.includes(entry.id)
   const label = pinned
-    ? translate('worktreeJumpPalette.unpin', 'Unpin from search')
-    : translate('worktreeJumpPalette.pin', 'Pin to search')
+    ? translate('worktreeJumpPalette.unpin', 'Remove shortcut')
+    : translate('worktreeJumpPalette.pin', 'Add shortcut')
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -36,7 +36,7 @@ export function PalettePinControl({
             controller.inputRef.current?.focus()
           }}
         >
-          {pinned ? <PinOff /> : <Pin />}
+          {pinned ? <BookmarkMinus /> : <BookmarkPlus />}
         </Button>
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>

@@ -158,7 +158,7 @@ export function useWorktreeJumpPaletteListEntries({
       entries.push({
         id: '__header_pinned__',
         type: 'section-header',
-        label: translate('worktreeJumpPalette.pinned', 'Pinned')
+        label: translate('worktreeJumpPalette.pinned', 'Shortcuts')
       })
       appendPaletteListEntries(entries, pinnedItems)
     }

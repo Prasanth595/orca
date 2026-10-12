@@ -5,7 +5,7 @@ import { waitForActiveWorktree, waitForSessionReady } from './helpers/store'
 
 const SEARCH = 'Search chats, terminals, worktrees, settings, and actions...'
 
-test('pins search results, persists order, enforces five slots and activates numbered shortcuts', async ({
+test('saves search shortcuts, persists order, enforces five slots and activates numbered shortcuts', async ({
   orcaPage: page,
   electronApp
 }, testInfo) => {
@@ -19,8 +19,8 @@ test('pins search results, persists order, enforces five slots and activates num
     const worktrees = Array.from({ length: 6 }, (_, index) => ({
       ...source,
       id: `pin-workspace-${index}`,
-      title: `Pin workspace ${index}`,
-      displayName: `Pin workspace ${index}`,
+      title: `Shortcut workspace ${index}`,
+      displayName: `Shortcut workspace ${index}`,
       isMainWorktree: false,
       branch: `refs/heads/pin-${index}`,
       isArchived: false,
@@ -44,41 +44,46 @@ test('pins search results, persists order, enforces five slots and activates num
       )
     })
   for (let index = 0; index < 5; index++) {
-    await input.fill(`Pin workspace ${index}`)
-    await row(index).getByRole('button', { name: 'Pin to search', exact: true }).click()
+    await input.fill(`Shortcut workspace ${index}`)
+    await row(index).getByRole('button', { name: 'Add shortcut', exact: true }).click()
     await expect(dialog).toBeVisible()
   }
-  await input.fill('Pin workspace 5')
-  await row(5).getByRole('button', { name: 'Pin to search', exact: true }).click()
-  await expect(dialog.getByRole('button', { name: 'Manage pinned shortcuts' })).toContainText('5/5')
-  await expect(row(5).getByRole('button', { name: 'Pin to search', exact: true })).toBeVisible()
+  await input.fill('Shortcut workspace 5')
+  await row(5).getByRole('button', { name: 'Add shortcut', exact: true }).click()
+  await expect(dialog.getByRole('button', { name: 'Manage shortcuts' })).toContainText('5/5')
+  await expect(row(5).getByRole('button', { name: 'Add shortcut', exact: true })).toBeVisible()
   await input.fill('')
-  await expect(dialog.getByText('Pinned', { exact: true })).toBeVisible()
-  await expect(dialog.locator('[cmdk-item]').first()).toContainText('Pin workspace 0')
+  await expect(
+    dialog.getByText('Shortcuts', { exact: true }).and(dialog.locator('div'))
+  ).toBeVisible()
+  await expect(dialog.locator('[cmdk-item]').first()).toContainText('Shortcut workspace 0')
   await expect(row(0)).toHaveCount(1)
   await page.evaluate(() => window.__store!.getState().closeModal())
   await expect(dialog).toBeHidden()
   await page.waitForTimeout(350)
   await page.evaluate(() => window.__store!.getState().openModal('worktree-palette'))
-  await expect(dialog.locator('[cmdk-item]').first()).toContainText('Pin workspace 0')
+  await expect(dialog.locator('[cmdk-item]').first()).toContainText('Shortcut workspace 0')
   await expect(dialog.locator('[cmdk-item][data-selected="true"]')).toHaveCount(1)
   await page.evaluate(() => document.documentElement.classList.add('dark'))
   await page.waitForTimeout(500)
   const cdp = await page.context().newCDPSession(page)
   const capture = await cdp.send('Page.captureScreenshot')
   await writeFile(
-    testInfo.outputPath('pinned-search-dark.png'),
+    testInfo.outputPath('search-shortcuts-dark.png'),
     Buffer.from(capture.data, 'base64')
   )
-  await testInfo.attach('pinned-search-dark', {
+  await testInfo.attach('search-shortcuts-dark', {
     body: Buffer.from(capture.data, 'base64'),
     contentType: 'image/png'
   })
   await page.evaluate(() => document.documentElement.classList.remove('dark'))
   await page.waitForTimeout(500)
   const light = await cdp.send('Page.captureScreenshot')
-  await writeFile(testInfo.outputPath('pinned-search-light.png'), Buffer.from(light.data, 'base64'))
-  await testInfo.attach('pinned-search-light', {
+  await writeFile(
+    testInfo.outputPath('search-shortcuts-light.png'),
+    Buffer.from(light.data, 'base64')
+  )
+  await testInfo.attach('search-shortcuts-light', {
     body: Buffer.from(light.data, 'base64'),
     contentType: 'image/png'
   })
@@ -106,15 +111,17 @@ test('pins search results, persists order, enforces five slots and activates num
   })
   await expect(dialog).toBeHidden()
   await expect(
-    page.locator('[data-worktree-card-active="primary"]').filter({ hasText: 'Pin workspace 4' })
+    page
+      .locator('[data-worktree-card-active="primary"]')
+      .filter({ hasText: 'Shortcut workspace 4' })
   ).toBeVisible()
   await page.evaluate(() => window.__store!.getState().openModal('worktree-palette'))
-  await dialog.getByRole('button', { name: 'Manage pinned shortcuts' }).click()
-  await page.getByRole('menuitem', { name: 'Pin workspace 1' }).click()
-  await expect(dialog.getByRole('button', { name: 'Manage pinned shortcuts' })).toContainText('4/5')
+  await dialog.getByRole('button', { name: 'Manage shortcuts' }).click()
+  await page.getByRole('menuitem', { name: 'Shortcut workspace 1' }).click()
+  await expect(dialog.getByRole('button', { name: 'Manage shortcuts' })).toContainText('4/5')
 })
 
-test('pins a terminal, survives a renderer reload, and unpins with the keyboard', async ({
+test('saves a terminal shortcut, survives a renderer reload, and removes it with the keyboard', async ({
   orcaPage: page
 }) => {
   await waitForSessionReady(page)
@@ -136,18 +143,22 @@ test('pins a terminal, survives a renderer reload, and unpins with the keyboard'
       has: page.locator('[cmdk-item][data-value^="13:workspace-tab"]')
     })
     .first()
-  await row.getByRole('button', { name: 'Pin to search', exact: true }).click()
+  await row.getByRole('button', { name: 'Add shortcut', exact: true }).click()
   await input.fill('')
-  await expect(dialog.getByText('Pinned', { exact: true })).toBeVisible()
+  await expect(
+    dialog.getByText('Shortcuts', { exact: true }).and(dialog.locator('div'))
+  ).toBeVisible()
   await expect(dialog.locator('[cmdk-item]').first()).toContainText(title)
   await page.reload()
   await waitForSessionReady(page)
   await page.evaluate(() => window.__store!.getState().openModal('worktree-palette'))
   await expect(dialog.locator('[cmdk-item]').first()).toContainText(title)
-  const unpin = dialog.getByRole('button', { name: 'Unpin from search', exact: true })
+  const unpin = dialog.getByRole('button', { name: 'Remove shortcut', exact: true })
   await unpin.focus()
   await unpin.press('Enter')
   await expect(dialog).toBeVisible()
-  await expect(dialog.getByText('Pinned', { exact: true })).toHaveCount(0)
-  await expect(dialog.getByRole('button', { name: 'Manage pinned shortcuts' })).toHaveCount(0)
+  await expect(
+    dialog.getByText('Shortcuts', { exact: true }).and(dialog.locator('div'))
+  ).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: 'Manage shortcuts' })).toHaveCount(0)
 })
