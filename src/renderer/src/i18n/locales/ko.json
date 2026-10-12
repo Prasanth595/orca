@@ -7751,7 +7751,7 @@
         },
         "OrchestrationSkillAgentCoverage": {
           "6dec5ce2d2": "에이전트별 스킬 설치 상태",
-          "ffe13e36fb": "누락",
+          "ffe13e36fb": "미설치",
           "1e8f8d8fae": "준비됨",
           "checking": "설치된 에이전트와 스킬 경로를 확인하는 중…",
           "noAgents": "PATH에서 에이전트 CLI가 감지되지 않습니다. 설정 → 에이전트에서 에이전트를 설치한 후 다시 확인하세요.",
