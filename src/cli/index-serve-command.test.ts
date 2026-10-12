@@ -74,6 +74,30 @@ describe('orca cli worktree awareness', () => {
     })
   })
 
+  it('forwards the browser-free opt-in through the public serve command', async () => {
+    serveOrcaAppMock.mockResolvedValue(0)
+    await main(['serve', '--no-browser', '--no-pairing'], '/tmp/repo')
+    expect(serveOrcaAppMock).toHaveBeenCalledWith(
+      expect.objectContaining({ noBrowser: true, noPairing: true })
+    )
+  })
+
+  it.each(['--no-browser=false', '--no-browser=true', '--no-browser='])(
+    'rejects a value on %s before launching a server',
+    async (flag) => {
+      const priorExitCode = process.exitCode
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+      try {
+        await main(['serve', flag], '/tmp/repo')
+        expect(serveOrcaAppMock).not.toHaveBeenCalled()
+        expect(error.mock.calls.flat().join('\n')).toContain('--no-browser does not take a value')
+        expect(process.exitCode).toBe(1)
+      } finally {
+        process.exitCode = priorExitCode
+      }
+    }
+  )
+
   it.skipIf(process.platform === 'win32')(
     'turns on supervision only for an explicit --supervise, and never with --recipe-json',
     async () => {

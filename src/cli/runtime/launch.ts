@@ -182,6 +182,12 @@ function serveWithElectron(
   args: ServeOrcaAppArgs,
   userDataPath: string
 ): Promise<number> {
+  if (args.noBrowser) {
+    throw new RuntimeClientError(
+      'invalid_argument',
+      '--no-browser requires orcad; this launch selected Electron serve. No server was started.'
+    )
+  }
   const preflight = preflightElectronServe(args, userDataPath)
   if (preflight === null) {
     return spawnElectronServe(executable, args, userDataPath)

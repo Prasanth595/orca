@@ -124,6 +124,34 @@ describe('orca serve host selection', () => {
     expect(stderr.join('')).toContain('[serve] using Electron serve: no template')
   })
 
+  it('refuses an Electron fallback for a browser-free launch without spawning it', async () => {
+    resolveLocalServeRuntimeMock.mockResolvedValue({ kind: 'electron', reason: 'no template' })
+    electronChild()
+
+    await expect(serveOrcaApp({ noBrowser: true })).rejects.toThrow('--no-browser requires orcad')
+    expect(spawnMock).not.toHaveBeenCalled()
+    expect(serveWithOrcadMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses an explicit Electron override without selection or spawning', () => {
+    process.env.ORCA_SERVE_RUNTIME = 'electron'
+    expect(() => serveOrcaApp({ noBrowser: true })).toThrow('--no-browser requires orcad')
+    expect(resolveLocalServeRuntimeMock).not.toHaveBeenCalled()
+    expect(spawnMock).not.toHaveBeenCalled()
+  })
+
+  it('carries the browser-free option to the selected orcad host', async () => {
+    const selection = { kind: 'orcad', runtime: '/node', entry: '/slot/orcad.js', version: '1' }
+    resolveLocalServeRuntimeMock.mockResolvedValue(selection)
+    serveWithOrcadMock.mockResolvedValue(0)
+    await expect(serveOrcaApp({ noBrowser: true })).resolves.toBe(0)
+    expect(serveWithOrcadMock).toHaveBeenCalledOnce()
+    const [selectedHost, options] = serveWithOrcadMock.mock.calls[0] ?? []
+    expect(selectedHost).toEqual(selection)
+    expect(options).toEqual({ noBrowser: true })
+    expect(spawnMock).not.toHaveBeenCalled()
+  })
+
   it('keeps Electron without asking orcad when ORCA_SERVE_RUNTIME=electron', async () => {
     process.env.ORCA_SERVE_RUNTIME = 'electron'
     electronChild()

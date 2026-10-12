@@ -12,12 +12,14 @@ import { SERVE_COMMAND_SPECS } from './specs/serve'
 // - pairing-code / environment: nothing in src/main reads them, so they ride through untouched.
 // - force: overrides the CLI's own pre-exec check; a direct `<binary> serve` launch has none to override.
 // - supervise: the CLI is the supervisor; a direct `<binary> serve` launch has no parent to restart it.
+// - no-browser: requires orcad; a direct Electron serve launch is refused.
 const UNTRANSLATED_GLOBAL_FLAGS = new Set([
   'help',
   'pairing-code',
   'environment',
   'force',
-  'supervise'
+  'supervise',
+  'no-browser'
 ])
 
 const serveSpec = SERVE_COMMAND_SPECS.find((spec) => spec.path.join(' ') === 'serve')
@@ -26,6 +28,15 @@ const translatedFlags = [...new Set(serveSpec?.allowedFlags ?? [])].filter(
 )
 
 describe('serve flag parity between the CLI spec and the Electron argv rewrite', () => {
+  it.each([
+    ['/AppRun', 'serve', '--no-browser'],
+    ['/AppRun', '--serve', '--no-browser'],
+    ['/AppRun', '--serve', '--serve-no-browser'],
+    ['/AppRun', 'serve', '--no-browser=false']
+  ])('refuses a browser-free request on the direct Electron entry: %j', (...argv) => {
+    expect(() => normalizeServeModeArgv(argv)).toThrow('--no-browser requires the Node CLI')
+  })
+
   it('has a serve spec to compare against', () => {
     expect(translatedFlags.length).toBeGreaterThan(0)
   })

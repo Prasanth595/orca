@@ -140,6 +140,11 @@ export function normalizeServeModeArgv(argv: readonly string[]): string[] {
     // Why: keep the internal argv shape canonical even though getServeOptions accepts both forms.
     const eq = token.indexOf('=')
     const name = eq === -1 ? token : token.slice(0, eq)
+    if (name === '--no-browser' || name === '--serve-no-browser') {
+      throw new Error(
+        '--no-browser requires the Node CLI with orcad, not a direct Electron launch.'
+      )
+    }
     // Why only the bare form: the CLI reads its serve booleans as `flags.get(name) === true`
     // (src/cli/handlers/core.ts), so `--no-pairing=false` is NOT no-pairing there. Translating it
     // anyway dropped the value and disabled pairing for an operator who wrote `=false` — the

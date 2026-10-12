@@ -108,6 +108,7 @@ export type OrcadOptions = {
   port?: number
   json?: boolean
   noPairing?: boolean
+  noBrowser?: boolean
   pairingAddress?: string
   /** Desktop `orca serve` parity: a mobile-scoped offer with a terminal QR. */
   mobilePairing?: boolean
@@ -147,7 +148,8 @@ export async function startOrcad(options: OrcadOptions = {}): Promise<OrcadHandl
         closeOrcadObservability()
         closeOrcadObservability = () => {}
       }
-    }
+    },
+    { noBrowser: options.noBrowser }
   )
   const version = getAppEnvironment().getVersion()
   return { readiness, managedStop: { version, runtimeId: readiness.runtimeId, instance }, stop }

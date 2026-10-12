@@ -99,6 +99,9 @@ export const CORE_HANDLERS: Record<string, CommandHandler> = {
     printResult(result, json, formatCliStatus)
   },
   serve: async ({ flags, json }) => {
+    if (flags.has('no-browser') && flags.get('no-browser') !== true) {
+      throw new RuntimeClientError('invalid_argument', '--no-browser does not take a value.')
+    }
     const projectRootValue = flags.get('project-root')
     const projectRoot = typeof projectRootValue === 'string' ? projectRootValue : null
     const noPairing = flags.get('no-pairing') === true
@@ -132,6 +135,7 @@ export const CORE_HANDLERS: Record<string, CommandHandler> = {
       grantDesktopControl,
       recipeJson,
       projectRoot,
+      ...(flags.get('no-browser') === true ? { noBrowser: true } : {}),
       ...(force ? { force: true } : {}),
       ...(supervise ? { supervise: true } : {})
     })

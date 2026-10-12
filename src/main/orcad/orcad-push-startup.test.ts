@@ -10,6 +10,7 @@ import { PushUnregisterOutbox } from '../runtime/push/push-unregister-outbox'
 import { createPushHostKeypair } from '../runtime/push/push-host-challenge-fixtures'
 import { acquireProfileStateMaintenance } from '../persistence/profile-state/profile-state-access'
 import { profileStateAccessPaths } from '../persistence/profile-state/profile-state-access-owner'
+import { runtimeBrowserCommandsFactoryIsAvailable } from '../runtime/runtime-browser-commands-factory'
 
 const state = vi.hoisted(() => ({
   root: '',
@@ -201,6 +202,24 @@ it('refuses recovery overlap before initializing the browser provider or runtime
   }
 })
 
+it('serves and stops without browser discovery when explicitly disabled', async () => {
+  state.root = mkdtempSync(join(tmpdir(), 'orca-headless-no-browser-'))
+  state.controller = new RuntimeMobileNotificationController()
+  state.registry = new DeviceRegistry(state.root)
+  const { startOrcad, parseArgs } = await import('./orcad-entry')
+  const host = await startOrcad(parseArgs(['--no-browser', '--no-pairing', '--json']))
+  try {
+    expect(state.rpcStarted).toBe(true)
+    expect(state.browserProvider).not.toHaveBeenCalled()
+    expect(runtimeBrowserCommandsFactoryIsAvailable()).toBe(false)
+  } finally {
+    await host.stop()
+  }
+  expect(state.browserProvider).not.toHaveBeenCalled()
+  expect(state.rpcStarted).toBe(false)
+  expect(readdirSync(profileStateAccessPaths(state.root).participants)).toEqual([])
+})
+
 it('starts push after RPC identity is available and stops dispatch on shutdown', async () => {
   state.root = mkdtempSync(join(tmpdir(), 'orca-headless-push-'))
   state.controller = new RuntimeMobileNotificationController()
@@ -268,6 +287,7 @@ it('serves RPC without waiting for browser discovery', async () => {
     runtimeId: 'headless-runtime',
     instance: { pid: process.pid, nonce: 'headless-instance' }
   })
+  expect(state.browserProvider).toHaveBeenCalledOnce()
   finishDiscovery()
   await host.stop()
   expect(readdirSync(profileStateAccessPaths(state.root).participants)).toEqual([])

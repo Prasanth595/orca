@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { join } from 'node:path'
 import { formatServeRuntimeSelection } from '../../shared/orcad-local-serve-selection'
 import type { runProcess } from '@orca/process-host'
 import { orcadServeArgs, resolveLocalServeRuntime, serveOptionArgs } from './serve-orcad-launch'
@@ -23,6 +24,16 @@ const options = {
 }
 
 describe('orca serve asking the app which host to run', () => {
+  it('forwards the browser-free option only when selected', () => {
+    expect(orcadServeArgs({ noBrowser: true, noPairing: true })).toEqual([
+      '--bind',
+      '0.0.0.0',
+      '--no-pairing',
+      '--no-browser'
+    ])
+    expect(orcadServeArgs({})).toEqual(['--bind', '0.0.0.0'])
+  })
+
   it("runs the app's own selection entry as plain Node and reads its answer", async () => {
     const selection = {
       kind: 'orcad' as const,
@@ -32,20 +43,18 @@ describe('orca serve asking the app which host to run', () => {
     }
     const run = answering(`noise\n${formatServeRuntimeSelection(selection)}\n`)
     expect(await resolveLocalServeRuntime(options, run)).toEqual(selection)
-    expect(run).toHaveBeenCalledWith(
-      expect.objectContaining({
-        program: options.executable,
-        args: [
-          `${options.appRoot}/out/main/orcad/orcad-local-serve-selection-entry.js`,
-          '--user-data',
-          options.userDataPath,
-          '--app-root',
-          options.appRoot
-        ],
-        env: expect.objectContaining({ ELECTRON_RUN_AS_NODE: '1' }),
-        stdio: ['ignore', 'pipe', 'inherit']
-      })
-    )
+    expect(run).toHaveBeenCalledOnce()
+    const invocation = vi.mocked(run).mock.calls[0]?.[0]
+    expect(invocation?.program).toBe(options.executable)
+    expect(invocation?.args).toEqual([
+      join(options.appRoot, 'out', 'main', 'orcad', 'orcad-local-serve-selection-entry.js'),
+      '--user-data',
+      options.userDataPath,
+      '--app-root',
+      options.appRoot
+    ])
+    expect(invocation?.env?.ELECTRON_RUN_AS_NODE).toBe('1')
+    expect(invocation?.stdio).toEqual(['ignore', 'pipe', 'inherit'])
   })
 
   it('keeps packaged macOS on Electron without starting the app to ask', async () => {

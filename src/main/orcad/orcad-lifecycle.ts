@@ -107,7 +107,8 @@ export async function startOrcadWithLifecycle<T extends object>(
 export async function startOrcadWithHost<T extends object>(
   userDataPath: string,
   start: (registerCleanup: (cleanup: OrcadRuntimeCleanup) => void) => Promise<T>,
-  runQuitHandlers: () => void
+  runQuitHandlers: () => void,
+  options: { noBrowser?: boolean } = {}
 ): Promise<T & { stop(): Promise<void>; instance: OrcadManagedStopInstance }> {
   const instanceLock = acquireOrcadInstanceLock(userDataPath)
   const { pid, startedAtMs, nonce } = instanceLock.record
@@ -117,8 +118,12 @@ export async function startOrcadWithHost<T extends object>(
   return startOrcadWithLifecycle(
     async (registerCleanup) => {
       admission = acquireProfileStateRuntimeAdmission(userDataPath)
-      // Why not awaited: a desktop sidecar's authorization UI must not hold RPC readiness hostage.
-      browserProvider = startOrcadBrowserProvider({ userDataPath })
+      if (options.noBrowser) {
+        setRuntimeBrowserCommandsFactory(null)
+      } else {
+        // Why not awaited: a desktop sidecar's authorization UI must not hold RPC readiness hostage.
+        browserProvider = startOrcadBrowserProvider({ userDataPath })
+      }
       return { ...(await start(registerCleanup)), instance }
     },
     async (runtimeCleanupSucceeded) => {

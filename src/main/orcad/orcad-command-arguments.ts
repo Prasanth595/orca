@@ -16,6 +16,7 @@ Options:
                            from the bind address (for example, a public hostname).
   --json                   Print the one-line server readiness JSON to stdout.
   --no-pairing             Do not create a client pairing offer at startup.
+  --no-browser             Skip browser discovery and startup; browser commands unavailable.
   --mobile-pairing         Create a mobile-scoped pairing offer with a QR code.
   --grant-desktop-control  Allow desktop control in the default runtime offer;
                            cannot combine with --no-pairing or --mobile-pairing.
@@ -52,6 +53,8 @@ export function parseArgs(argv: string[]): OrcadCommandArguments {
       options.json = true
     } else if (arg === '--no-pairing') {
       options.noPairing = true
+    } else if (arg === '--no-browser') {
+      options.noBrowser = true
     } else if (arg === '--mobile-pairing') {
       options.mobilePairing = true
     } else if (arg === '--grant-desktop-control') {

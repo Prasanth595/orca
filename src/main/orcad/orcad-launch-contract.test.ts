@@ -20,6 +20,19 @@ import { ProfileStateAccessError } from '../persistence/profile-state/profile-st
 import { OrcadBundledRuntimeError } from './orcad-bundled-runtime'
 
 describe('parseArgs', () => {
+  it('accepts browser-free launch and rejects malformed forms before startup', () => {
+    expect(parseArgs(['--no-browser', '--no-pairing'])).toEqual({
+      noBrowser: true,
+      noPairing: true
+    })
+    expect(parseArgs(['--no-browser', '--help'])).toEqual({ noBrowser: true, help: true })
+    expect(parseArgs([])).not.toHaveProperty('noBrowser')
+    for (const flag of ['--no-browser=true', '--no-browser=false', '--no-browser=']) {
+      expect(() => parseArgs([flag])).toThrow('Unknown argument:')
+    }
+    expect(() => parseArgs(['--no-browser', 'false'])).toThrow('Unknown argument: false')
+  })
+
   it('accepts help alongside valid server flags', () => {
     expect(parseArgs(['--help'])).toEqual({ help: true })
     expect(parseArgs(['-h'])).toEqual({ help: true })

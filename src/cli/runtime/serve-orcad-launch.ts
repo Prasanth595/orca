@@ -20,6 +20,7 @@ export type ServeOrcaAppArgs = {
   port?: string | null
   pairingAddress?: string | null
   noPairing?: boolean
+  noBrowser?: boolean
   mobilePairing?: boolean
   grantDesktopControl?: boolean
   recipeJson?: boolean
@@ -139,5 +140,10 @@ export function serveOptionArgs(args: ServeOrcaAppArgs, prefix: '--' | '--serve-
 }
 
 export function orcadServeArgs(args: ServeOrcaAppArgs): string[] {
-  return ['--bind', '0.0.0.0', ...serveOptionArgs(args, '--')]
+  return [
+    '--bind',
+    '0.0.0.0',
+    ...serveOptionArgs(args, '--'),
+    ...(args.noBrowser ? ['--no-browser'] : [])
+  ]
 }
