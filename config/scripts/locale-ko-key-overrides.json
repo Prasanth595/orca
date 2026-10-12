@@ -5104,5 +5104,140 @@
   },
   "components.workspace.cleanup.browse.agent.working": {
     "ko": "작업 중"
+  },
+  "auto.components.settings.CliSection.installFailureConflictRemedy": {
+    "ko": "{{value0}}이(가) 더 이상 필요하지 않다면 제거한 뒤 다시 등록하세요."
+  },
+  "auto.components.settings.GeneralEditorSettingsSection.0df2e4fd12": {
+    "ko": "파일 자동 저장"
+  },
+  "auto.components.settings.GeneralEditorSettingsSection.collapseUnchangedTitle": {
+    "ko": "변경되지 않은 영역 접기"
+  },
+  "auto.components.settings.general.search.collapseUnchanged": {
+    "ko": "변경되지 않은 영역 접기"
+  },
+  "auto.components.settings.GeneralEditorSettingsSection.f1b3ceeb98": {
+    "ko": "변경 비교에서 공백 표시"
+  },
+  "auto.components.settings.GeneralRemoteServerUpdates.availableCount": {
+    "ko": "{{value0}}개 업데이트 가능"
+  },
+  "auto.components.settings.GeneralRemoteServerUpdates.currentCount": {
+    "ko": "{{value0}}개 최신 상태"
+  },
+  "auto.components.settings.GeneralRemoteServerUpdates.description": {
+    "ko": "이 클라이언트에서 페어링된 Orca 서버를 확인하고 업데이트합니다."
+  },
+  "auto.components.settings.GeneralRemoteServerUpdates.manualCount": {
+    "ko": "{{value0}}개 수동 업데이트"
+  },
+  "auto.components.settings.GeneralRemoteServerUpdates.offlineCount": {
+    "ko": "{{value0}}개 오프라인"
+  },
+  "auto.components.settings.GeneralRemoteServerUpdates.reviewServers": {
+    "ko": "서버 업데이트 확인"
+  },
+  "auto.components.settings.GeneralRemoteServerUpdates.serverCount": {
+    "ko": "페어링된 서버 {{value0}}개"
+  },
+  "auto.components.settings.GeneralRemoteServerUpdates.serverCountOne": {
+    "ko": "페어링된 서버 1개"
+  },
+  "auto.components.settings.GeneralRemoteServerUpdates.title": {
+    "ko": "원격 Orca 서버"
+  },
+  "auto.components.settings.GeneralRemoteServerUpdates.updating": {
+    "ko": "서버 업데이트 중…"
+  },
+  "auto.components.settings.GeneralUpdateSettingsSection.42717918f4": {
+    "ko": "업데이트 다운로드 ("
+  },
+  "auto.components.settings.GeneralUpdateSettingsSection.8311da27ba": {
+    "ko": "업데이트가 준비되었습니다. \"업데이트 다운로드\"를 클릭하여 다운로드하세요."
+  },
+  "auto.components.settings.GeneralUpdateSettingsSection.e3b9d21c07": {
+    "ko": "업데이트가 준비되었습니다. 시스템 패키지 관리자를 통해 Orca를 업데이트하세요. Orca 자체적으로는 이번 릴리스를 설치할 수 없습니다."
+  },
+  "auto.components.settings.ReleaseChannelSection.channelAriaLabel": {
+    "ko": "업데이트 채널"
+  },
+  "auto.components.settings.ReleaseChannelSection.adhocWarning": {
+    "ko": "Adhoc 빌드는 아직 병합되지 않은 브랜치에서 만들어지며, Windows 빌드는 서명되지 않습니다. 빌드를 만든 사람이 관리를 중단할 수 있으니 안정적인 빌드를 준비해 두세요."
+  },
+  "auto.components.settings.ReleaseChannelSection.dailyWarning": {
+    "ko": "Daily 빌드는 테스트 통과를 배포 조건으로 삼지 않고 main 브랜치에서 바로 배포됩니다. Windows 빌드는 서명되지 않으므로 안정적인 빌드를 준비해 두세요."
+  },
+  "auto.components.settings.ReleaseChannelSection.hourlyWarning": {
+    "ko": "Hourly 빌드는 테스트 통과를 배포 조건으로 삼지 않고 main 브랜치에서 바로 배포됩니다. Windows 빌드는 서명되지 않으므로 안정적인 빌드를 준비해 두세요."
+  },
+  "auto.components.settings.RemoteServerUpdateDialog.description": {
+    "ko": "페어링된 서버를 확인하고, 지원되는 설치본을 이 Orca 클라이언트에서 업데이트합니다."
+  },
+  "auto.components.settings.RemoteServerUpdateDialog.restartWarning": {
+    "ko": "업데이트하면 이 서버들이 다시 시작됩니다. {{value0}} 및 {{value1}}의 연결이 잠시 끊길 수 있습니다."
+  },
+  "auto.components.settings.RemoteServerUpdateDialog.restartingHelp": {
+    "ko": "새 버전으로 교체된 서버가 다시 연결되기를 기다리는 중입니다."
+  },
+  "auto.components.settings.RemoteServerUpdateDialog.retry": {
+    "ko": "다시 시도"
+  },
+  "auto.components.settings.RemoteServerUpdateDialog.title": {
+    "ko": "원격 Orca 서버 업데이트"
+  },
+  "auto.components.settings.RemoteServerUpdateDialog.update": {
+    "ko": "이 서버 업데이트"
+  },
+  "auto.components.settings.RemoteServerUpdateDialog.versionUnavailable": {
+    "ko": "버전 확인 불가"
+  },
+  "auto.components.settings.RemoteServerUpdateStatus.serviceManagerHelp": {
+    "ko": "서버 호스트에서 Orca를 업데이트하세요. .deb 또는 .rpm으로 설치했다면 시스템 패키지 관리자로, 그렇지 않다면 Orca를 시작하는 서비스 관리자로 업데이트합니다."
+  },
+  "auto.components.settings.general.search.running_terminal": {
+    "ko": "실행 중"
+  },
+  "auto.components.settings.general.search.explorer": {
+    "ko": "탐색기"
+  },
+  "auto.components.settings.general.search.collapseUnchangedKw": {
+    "ko": "접기"
+  },
+  "auto.components.settings.general.search.foldKw": {
+    "ko": "접기"
+  },
+  "auto.components.settings.general.search.hideUnchangedKw": {
+    "ko": "변경되지 않은 내용 숨기기"
+  },
+  "auto.components.settings.general.search.preview": {
+    "ko": "미리보기"
+  },
+  "auto.components.settings.general.search.visibility": {
+    "ko": "표시 여부"
+  },
+  "auto.components.settings.general.search.runtime": {
+    "ko": "런타임"
+  },
+  "auto.components.settings.CliSection.04873eea3e": {
+    "ko": "에이전트 스킬"
+  },
+  "auto.components.settings.CliSection.36a6f919ba": {
+    "ko": "에이전트가 Orca를 활용해 워크스페이스, 터미널 및 진행 상황을 관리할 수 있도록 합니다."
+  },
+  "auto.components.settings.CliSection.e8012c03a1": {
+    "ko": "에이전트가 Orca 워크스페이스, 터미널 및 진행 명령을 사용할 수 있도록 합니다."
+  },
+  "auto.components.settings.OpenInMenuSetting.ba1422ee07": {
+    "ko": "터미널 명령"
+  },
+  "auto.components.settings.general.search.2d9f7b42df": {
+    "ko": "에이전트 스킬"
+  },
+  "auto.components.settings.GeneralEditorSettingsSection.5a1ea6eaa2": {
+    "ko": "숨김"
+  },
+  "auto.components.settings.GeneralWorkspaceSettingsSection.bf46474e33": {
+    "ko": "공유 아티팩트를 삭제하기 전에 확인창을 표시합니다. 삭제하면 공개 링크가 있는 사람도 더 이상 접근할 수 없습니다."
   }
 }
