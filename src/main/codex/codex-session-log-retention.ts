@@ -1,5 +1,5 @@
-import { readdir, rmdir, stat, unlink } from 'node:fs/promises'
-import { join } from 'node:path'
+import { lstat, readdir, rmdir, stat, unlink } from 'node:fs/promises'
+import { join, relative } from 'node:path'
 import { getOrcaManagedCodexHomePath } from './codex-home-paths'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -57,17 +57,23 @@ export function resolveCodexSessionLogRetentionDays(
  *
  * Never throws: a sweep that cannot read or unlink one entry still reclaims the
  * rest and reports the failure count.
+ *
+ * With `publishedSessionsRoot`, an expired rollout is only removed once the same
+ * relative path exists there, so a rollout the session migration has not yet
+ * published into the real Codex home is never deleted as the last copy.
  */
 export async function pruneExpiredCodexSessionLogs({
   sessionsRoot,
   now = Date.now(),
   retentionDays = CODEX_SESSION_LOG_RETENTION_DAYS,
-  minRetainedRollouts = CODEX_SESSION_LOG_MIN_RETAINED_ROLLOUTS
+  minRetainedRollouts = CODEX_SESSION_LOG_MIN_RETAINED_ROLLOUTS,
+  publishedSessionsRoot
 }: {
   sessionsRoot: string
   now?: number
   retentionDays?: number
   minRetainedRollouts?: number
+  publishedSessionsRoot?: string
 }): Promise<CodexSessionLogRetentionSummary> {
   const summary: CodexSessionLogRetentionSummary = {
     scannedRollouts: 0,
@@ -83,6 +89,12 @@ export async function pruneExpiredCodexSessionLogs({
   const cutoffMs = now - retentionDays * DAY_MS
   for (const rollout of rollouts.slice(minRetainedRollouts)) {
     if (rollout.mtimeMs >= cutoffMs) {
+      continue
+    }
+    if (
+      publishedSessionsRoot !== undefined &&
+      !(await isPublished(join(publishedSessionsRoot, relative(sessionsRoot, rollout.path))))
+    ) {
       continue
     }
     try {
@@ -112,7 +124,8 @@ export async function pruneExpiredCodexSessionLogs({
  * caller; resolves to null when retention is opted out of.
  */
 export function startCodexSessionLogRetentionSweepInBackground(
-  managedCodexHomePath: string = getOrcaManagedCodexHomePath()
+  managedCodexHomePath: string = getOrcaManagedCodexHomePath(),
+  publishedSessionsRoot?: string
 ): Promise<CodexSessionLogRetentionSummary | null> {
   const retentionDays = resolveCodexSessionLogRetentionDays()
   if (retentionDays === null) {
@@ -120,11 +133,20 @@ export function startCodexSessionLogRetentionSweepInBackground(
   }
   return pruneExpiredCodexSessionLogs({
     sessionsRoot: join(managedCodexHomePath, 'sessions'),
-    retentionDays
+    retentionDays,
+    publishedSessionsRoot
   }).catch((error: unknown) => {
     console.warn('[codex-session-log-retention] Session log sweep failed:', error)
     return null
   })
+}
+
+async function isPublished(publishedPath: string): Promise<boolean> {
+  try {
+    return (await lstat(publishedPath)).isFile()
+  } catch {
+    return false
+  }
 }
 
 /** Only ENOENT means the directory is simply not there; every other errno is a real failure. */
