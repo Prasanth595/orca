@@ -9,11 +9,22 @@ import { ORCHESTRATION_RUN_PAGE_LIMIT } from '../../../shared/orchestration-run-
 import { callOrchestrationMutation } from './mutation-request'
 import { resolveCoordinatorTerminalHandle } from './terminal-identity'
 import { assertCoordinatorDeliverySupported } from './coordinator-delivery-capability'
+import { RuntimeClientError } from '../../runtime-client'
 
 export const ORCHESTRATION_RUN_HANDLERS: Record<string, CommandHandler> = {
   'orchestration run-create': async ({ flags, client, cwd, json }) => {
-    const from = await resolveCoordinatorTerminalHandle(flags, cwd, client)
     const notificationPolicy = getOptionalStringFlag(flags, 'notification-policy')
+    if (
+      notificationPolicy !== undefined &&
+      notificationPolicy !== 'all' &&
+      notificationPolicy !== 'coordination'
+    ) {
+      throw new RuntimeClientError(
+        'invalid_argument',
+        '--notification-policy must be all or coordination'
+      )
+    }
+    const from = await resolveCoordinatorTerminalHandle(flags, cwd, client)
     if (notificationPolicy === 'coordination') {
       await assertCoordinatorDeliverySupported(client)
     }

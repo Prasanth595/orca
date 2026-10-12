@@ -9,9 +9,23 @@ import { ORCHESTRATION_HANDLERS } from './orchestration'
 
 vi.mock('../format', () => ({ printResult: vi.fn() }))
 
-it.each(['run-create', 'request-pass'])(
-  'refuses %s through real transport to a contract-v1-only peer',
-  async (command) => {
+it.each([
+  {
+    command: 'run-create',
+    policy: 'coordination',
+    code: 'incompatible_runtime',
+    expectedMethods: ['status.get']
+  },
+  {
+    command: 'request-pass',
+    policy: 'coordination',
+    code: 'incompatible_runtime',
+    expectedMethods: ['status.get']
+  },
+  { command: 'run-create', policy: 'quiet', code: 'invalid_argument', expectedMethods: [] }
+])(
+  'refuses $command policy=$policy through real transport to a contract-v1-only peer',
+  async ({ command, policy, code, expectedMethods }) => {
     const directory = mkdtempSync(join(tmpdir(), 'orca-coordinator-peer-'))
     const endpoint =
       process.platform === 'win32'
@@ -76,15 +90,15 @@ it.each(['run-create', 'request-pass'])(
           flags: new Map([
             ['objective', 'Hub'],
             ['from', 'term_test'],
-            ['notification-policy', 'coordination'],
+            ['notification-policy', policy],
             ['run', 'old-run'],
             ['owner', 'term_hub'],
             ['consumer-generation', '1'],
             ['process-incarnation', 'inc']
           ])
         })
-      ).rejects.toMatchObject({ code: 'incompatible_runtime' })
-      expect(methods).toEqual(['status.get'])
+      ).rejects.toMatchObject({ code })
+      expect(methods).toEqual(expectedMethods)
     } finally {
       for (const socket of sockets) {
         socket.destroy()
