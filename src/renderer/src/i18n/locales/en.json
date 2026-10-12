@@ -19523,7 +19523,8 @@
       "findInFolder": "Find in {{path}}",
       "folderLoadError": "Could not load this folder:",
       "emptyFolder": "No files in this folder"
-    }
+    },
+    "pasteImage": "Paste Image"
   },
   "sparsePreset": {
     "name": "Name",

@@ -382,6 +382,12 @@ function FileExplorerFiles(): React.JSX.Element {
         worktreePath={displayRootPath ?? worktreePath}
         displayDepth={displayDepth}
         onStartNew={inlineInputState.startNew}
+        onPasteImage={
+          paneState.imagePaste.canPasteImage || paneState.imagePaste.isPastingImage
+            ? () => void paneState.imagePaste.pasteImage(null)
+            : undefined
+        }
+        isPastingImage={paneState.imagePaste.isPastingImage}
       />
     </>
   )

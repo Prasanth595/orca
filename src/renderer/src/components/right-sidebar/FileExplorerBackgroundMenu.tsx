@@ -1,10 +1,12 @@
 import React, { useEffect } from 'react'
-import { FilePlus, FolderPlus } from 'lucide-react'
+import { ClipboardPaste, FilePlus, FolderPlus } from 'lucide-react'
 import { CLOSE_ALL_CONTEXT_MENUS_EVENT } from '@/lib/close-all-context-menus'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { translate } from '@/i18n/i18n'
@@ -26,7 +28,9 @@ export function FileExplorerBackgroundMenu({
   point,
   worktreePath,
   displayDepth = 0,
-  onStartNew
+  onStartNew,
+  onPasteImage,
+  isPastingImage
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -34,6 +38,8 @@ export function FileExplorerBackgroundMenu({
   displayDepth?: number
   worktreePath: string
   onStartNew: (type: 'file' | 'folder', dir: string, depth: number) => void
+  onPasteImage?: () => void
+  isPastingImage?: boolean
 }): React.JSX.Element {
   useEffect(() => {
     const close = (): void => onOpenChange(false)
@@ -72,6 +78,18 @@ export function FileExplorerBackgroundMenu({
             'New Folder'
           )}
         </DropdownMenuItem>
+        {onPasteImage && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem disabled={isPastingImage} onSelect={() => onPasteImage()}>
+              <ClipboardPaste />
+              {translate('fileExplorer.pasteImage', 'Paste Image')}
+              <DropdownMenuShortcut>
+                {navigator.userAgent.includes('Mac') ? '⌘V' : 'Ctrl+V'}
+              </DropdownMenuShortcut>
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )

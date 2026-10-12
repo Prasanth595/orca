@@ -11,6 +11,7 @@ import {
   Globe,
   ListCollapse,
   Pencil,
+  ClipboardPaste,
   Search,
   SquareTerminal,
   Trash2
@@ -76,6 +77,8 @@ type FileExplorerRowContextMenuProps = Pick<
   | 'onStartNew'
   | 'onStartRename'
   | 'onDuplicate'
+  | 'onPasteImage'
+  | 'isPastingImage'
   | 'onAddFolderAsProject'
   | 'canAddAsProject'
   | 'onOpenInTerminal'
@@ -101,6 +104,8 @@ export function FileExplorerRowContextMenu({
   onStartNew,
   onStartRename,
   onDuplicate,
+  onPasteImage,
+  isPastingImage,
   onAddFolderAsProject,
   canAddAsProject,
   onOpenInTerminal,
@@ -166,6 +171,13 @@ export function FileExplorerRowContextMenu({
         <ContextMenuItem onSelect={handleCopyFile}>
           <Copy />
           {translate('auto.components.right.sidebar.FileExplorerRow.98a79948b3', 'Copy')}
+        </ContextMenuItem>
+      )}
+      {onPasteImage && (
+        <ContextMenuItem disabled={isPastingImage} onSelect={() => onPasteImage(node)}>
+          <ClipboardPaste />
+          {translate('fileExplorer.pasteImage', 'Paste Image')}
+          <ContextMenuShortcut>{isMac ? '⌘V' : 'Ctrl+V'}</ContextMenuShortcut>
         </ContextMenuItem>
       )}
       <ContextMenuItem onSelect={() => onCopyPaths('absolute')}>
