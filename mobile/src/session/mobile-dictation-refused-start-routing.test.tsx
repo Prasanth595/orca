@@ -121,8 +121,12 @@ function mount(client: FakeRpcClient): Mounted {
       },
       resetLiveInputFocus: () => {}
     }
-    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the scope carries every member this hook destructures; the rest of the session model is unreachable from the mic path.
-    const model = useMobileSessionNativeChatDictation(scope as never, async () => true)
+    const model = useMobileSessionNativeChatDictation(
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the scope carries every member this hook destructures; the rest of the session model is unreachable from the mic path.
+      scope as never,
+      async () => true,
+      async () => {}
+    )
     held.start = model.startDictation
     return null
   }

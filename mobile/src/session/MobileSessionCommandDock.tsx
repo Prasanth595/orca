@@ -38,6 +38,7 @@ export function MobileSessionCommandDock({ controller }: { controller: MobileSes
     terminalModes,
     canPaste,
     dictationMode,
+    floatingVoiceEnabled,
     bindCommandField,
     handleLiveInputChange,
     handleLiveInputKeyPress,
@@ -283,6 +284,7 @@ export function MobileSessionCommandDock({ controller }: { controller: MobileSes
               isAttaching={isAttaching}
               dictation={dictation}
               dictationMode={dictationMode}
+              showDictation={!floatingVoiceEnabled}
               buttonStyle={styles.dictationButton}
               activeButtonStyle={styles.dictationButtonActive}
               disabledButtonStyle={styles.sendButtonDisabled}
@@ -351,6 +353,7 @@ export function MobileSessionCommandDock({ controller }: { controller: MobileSes
               isAttaching={isAttaching}
               dictation={dictation}
               dictationMode={dictationMode}
+              showDictation={!floatingVoiceEnabled}
               buttonStyle={styles.dictationButton}
               activeButtonStyle={styles.dictationButtonActive}
               disabledButtonStyle={styles.sendButtonDisabled}

@@ -197,6 +197,7 @@ function mountTerminalInputSend(
         commandInputRef: { current: null },
         liveInputFocusTimerRef: { current: null },
         sendLiveTerminalInputRef: { current: null },
+        sendBufferedTerminalInputRef: { current: async () => {} },
         sessionTabActionSheetKeyboardHideSubRef: { current: null },
         sessionTabActionSheetRequestSeqRef: { current: 0 },
         activeHandleRef,

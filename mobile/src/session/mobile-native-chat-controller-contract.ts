@@ -26,6 +26,10 @@ export type MobileNativeChatController = {
   toggleTabChatView: (tabId: string) => void
   showNativeChat: boolean
   showNativeChatRef: MutableRefObject<boolean>
+  /** True chat-composer send gate (lease + connection) — distinct from the
+   *  terminal dock's `canSend`, which the floating button must not use while
+   *  Chat UI is the active view. */
+  chatInputSendable: boolean
   /** Resolved agent for the active chat tab (names the empty-state copy). */
   nativeChatAgent: string | null
   chatComposerText: string

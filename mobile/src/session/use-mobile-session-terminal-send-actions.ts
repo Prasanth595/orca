@@ -39,6 +39,7 @@ export function useMobileSessionTerminalSendActions(scope: MobileSessionTerminal
     commandInputRef,
     liveInputFocusTimerRef,
     sendLiveTerminalInputRef,
+    sendBufferedTerminalInputRef,
     sessionTabActionSheetKeyboardHideSubRef,
     sessionTabActionSheetRequestSeqRef,
     activeHandleRef,
@@ -90,14 +91,18 @@ export function useMobileSessionTerminalSendActions(scope: MobileSessionTerminal
   }
   const bindCommandField = useTerminalTextFieldSubmitBinding(commandInputRef, submitBufferedDraft)
 
-  async function handleSend() {
+  // overrideText: used by dictation auto-send, where the just-appended
+  // transcript hasn't round-tripped through bufferedTerminalDraftState's
+  // useState yet — reading .input here in the same tick would see the stale
+  // pre-transcript value.
+  async function handleSend(overrideText?: string) {
     // Why: the return key still submits while offline; hold the composed text instead of firing a doomed RPC (#6713).
     if (!client || !activeHandle || sendingRef.current || !canSend) {
       return
     }
     sendingRef.current = true
 
-    const draft = bufferedTerminalDraftState.input
+    const draft = overrideText ?? bufferedTerminalDraftState.input
     const text = normalizeTerminalTextInput(draft)
     const bufferedDraftSend = bufferedTerminalDraftState.beginBufferedTerminalDraftSend(
       activeHandle,
@@ -209,6 +214,9 @@ export function useMobileSessionTerminalSendActions(scope: MobileSessionTerminal
     [showToast]
   )
   sendLiveTerminalInputRef.current = sendLiveTerminalInput
+  sendBufferedTerminalInputRef.current = async (text: string) => {
+    await handleSend(text)
+  }
 
   const clearSessionTabActionSheetKeyboardListener = useCallback(() => {
     sessionTabActionSheetKeyboardHideSubRef.current?.remove()

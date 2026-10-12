@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useMemo } from 'react'
+import { useEffect, useCallback, useMemo, useRef } from 'react'
 import { useFocusEffect } from 'expo-router'
 import { useMobileDictation } from '../hooks/use-mobile-dictation'
 import { triggerError } from '../platform/haptics'
@@ -19,11 +19,14 @@ import {
 } from './use-mobile-native-chat-send-error'
 import { mobileNativeChatScopeKey } from './mobile-native-chat-scope-key'
 import { useMobileSendCompletionGeneration } from './use-mobile-send-completion-generation'
+import { useFloatingVoiceButtonSessionSettings } from './use-floating-voice-button-settings'
+import { shouldAutoSendDictation } from './floating-voice-button-geometry'
 import type { MobileSessionFeedbackCapabilitiesModel } from './use-mobile-session-feedback-capabilities'
 
 export function useMobileSessionNativeChatDictation(
   scope: MobileSessionFeedbackCapabilitiesModel,
-  sendLiveTerminalInput: (handle: string, bytes: string) => Promise<boolean>
+  sendLiveTerminalInput: (handle: string, bytes: string) => Promise<boolean>,
+  sendBufferedTerminalInput: (text: string) => Promise<void>
 ) {
   const {
     hostId,
@@ -31,6 +34,7 @@ export function useMobileSessionNativeChatDictation(
     client,
     connState,
     agentSessionHostSupport,
+    input,
     setInput,
     liveInputTerminalHandles,
     activeHandle,
@@ -49,6 +53,15 @@ export function useMobileSessionNativeChatDictation(
     showToast,
     resetLiveInputFocus
   } = scope
+  // Sole reader of the floating-voice prefs; useMobileSessionFloatingVoice maps this result.
+  const floatingVoiceSettings = useFloatingVoiceButtonSessionSettings()
+  const floatingVoiceAutoSend = floatingVoiceSettings.autoSend
+  // Bridge to the composer's send (images + terminal write lock); set by use-mobile-session-attachments.
+  const sendNativeChatRef = useRef<((text: string) => Promise<boolean>) | null>(null)
+  // Latest rendered drafts, for building the auto-sent text synchronously in onTranscript.
+  const bufferedInputRef = useRef(input)
+  bufferedInputRef.current = input
+  const chatComposerTextRef = useRef('')
   const nativeChatScopeKey = mobileNativeChatScopeKey(hostId, worktreeId, activeSessionTabId)
   const nativeChatSendError = useMobileNativeChatSendError({
     scopeKey: nativeChatScopeKey,
@@ -80,6 +93,7 @@ export function useMobileSessionNativeChatDictation(
     onSendError: nativeChatSendError.show,
     onSendResolved: nativeChatSendError.clear
   })
+  chatComposerTextRef.current = nativeChatController.chatComposerText
   const { toggleTabChatView, showNativeChat, showNativeChatRef } = nativeChatController
   const sendErrorMessage = useMemo(
     () =>
@@ -131,12 +145,18 @@ export function useMobileSessionNativeChatDictation(
     client,
     enabled: canSend,
     onTranscript: (text) => {
+      const autoSend = shouldAutoSendDictation(floatingVoiceAutoSend, text)
       // Why: dictation belongs to the visible composer — native chat consumes it locally, terminal mode keeps live-input routing.
       if (showNativeChatRef.current) {
-        nativeChatController.setChatComposerText((current) =>
-          appendBufferedDictation(current, text)
-        )
-        showToast('Dictation inserted')
+        // Why a ref, not a setState updater: updaters run lazily and would auto-send without the draft.
+        const composed = appendBufferedDictation(chatComposerTextRef.current, text)
+        chatComposerTextRef.current = composed
+        nativeChatController.setChatComposerText(composed)
+        if (autoSend) {
+          void (sendNativeChatRef.current ?? nativeChatController.handleNativeChatSend)(composed)
+        } else {
+          showToast('Dictation inserted')
+        }
         return
       }
       // Live mode inserts the transcript into its PTY as text (no Return); buffered mode appends to the command field.
@@ -157,14 +177,27 @@ export function useMobileSessionNativeChatDictation(
             return
           }
           const sent = await sendLiveTerminalInput(insertHandle, route.text)
-          if (sent) {
+          if (!sent) {
+            return
+          }
+          if (autoSend) {
+            // Text is already in the live PTY input; submit it with a raw Enter like handleLiveInputSubmit.
+            void sendLiveTerminalInput(insertHandle, '\r')
+          } else {
             showToast('Dictation inserted')
           }
         })()
         return
       }
-      setInput((current) => appendBufferedDictation(current, route.text))
-      showToast('Dictation inserted')
+      const composedBufferedDraft = appendBufferedDictation(bufferedInputRef.current, route.text)
+      bufferedInputRef.current = composedBufferedDraft
+      setInput(composedBufferedDraft)
+      if (autoSend) {
+        // handleSend clears the draft; setInput above lets a rejected send restore the text.
+        void sendBufferedTerminalInput(composedBufferedDraft)
+      } else {
+        showToast('Dictation inserted')
+      }
     },
     onError: (err) => {
       dictationRouteContextRef.current = null
@@ -256,7 +289,10 @@ export function useMobileSessionNativeChatDictation(
     toggleTabChatView,
     showNativeChat,
     showNativeChatRef,
+    chatInputSendable: nativeChatController.chatInputSendable,
     dictation,
+    floatingVoiceSettings,
+    sendNativeChatRef,
     startDictation,
     cancelDictation,
     handleDictationToggle,

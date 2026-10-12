@@ -77,6 +77,7 @@ function buildScope(session: Session): MobileSessionTerminalWebviewModel {
     commandInputRef: { current: null },
     liveInputFocusTimerRef: { current: null },
     sendLiveTerminalInputRef: { current: async () => true },
+    sendBufferedTerminalInputRef: { current: async () => {} },
     sessionTabActionSheetKeyboardHideSubRef: { current: null },
     sessionTabActionSheetRequestSeqRef: { current: 0 },
     activeHandleRef: { current: session.activeHandle },

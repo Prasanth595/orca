@@ -153,7 +153,8 @@ export function useMobileNativeChatImageAttachments({
     [scopeKey]
   )
 
-  const sendNativeChat = useCallback(
+  const sendInFlightRef = useRef(false)
+  const sendNativeChatUnguarded = useCallback(
     async (text: string): Promise<boolean> => {
       // Serialize clear/paste/submit ownership per terminal while allowing other
       // tabs to send. Shared with the prompt-card writes (answer/permission), so
@@ -329,6 +330,23 @@ export function useMobileNativeChatImageAttachments({
       scopeKey,
       sleep
     ]
+  )
+
+  // Why: one in-flight guard shared by the composer Send and dictation auto-send;
+  // agent-session tabs hold no terminal lock, so an overlapping send would double-send.
+  const sendNativeChat = useCallback(
+    async (text: string): Promise<boolean> => {
+      if (sendInFlightRef.current) {
+        return false
+      }
+      sendInFlightRef.current = true
+      try {
+        return await sendNativeChatUnguarded(text)
+      } finally {
+        sendInFlightRef.current = false
+      }
+    },
+    [sendNativeChatUnguarded]
   )
 
   return { attachments, isAttaching, attachImage, removeAttachment, sendNativeChat }

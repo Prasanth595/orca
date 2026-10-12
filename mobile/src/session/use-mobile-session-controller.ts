@@ -30,6 +30,7 @@ import { useMobileSessionCloseActions } from './use-mobile-session-close-actions
 import { useMobileSessionBulkClose } from './use-mobile-session-bulk-close'
 import { useMobileSessionPresentation } from './use-mobile-session-presentation'
 import { useMobileSessionPanelRouteActions } from './use-mobile-session-panel-route-actions'
+import { useMobileSessionFloatingVoice } from './use-mobile-session-floating-voice'
 
 export function useMobileSessionController() {
   const foundation = useMobileSessionFoundation()
@@ -41,9 +42,15 @@ export function useMobileSessionController() {
   )
   const sendLiveTerminalInput = (handle: string, bytes: string) =>
     feedbackCapabilities.sendLiveTerminalInputRef.current(handle, bytes)
+  const sendBufferedTerminalInput = (text: string) =>
+    feedbackCapabilities.sendBufferedTerminalInputRef.current(text)
   const nativeChatDictation = Object.assign(
     feedbackCapabilities,
-    useMobileSessionNativeChatDictation(feedbackCapabilities, sendLiveTerminalInput)
+    useMobileSessionNativeChatDictation(
+      feedbackCapabilities,
+      sendLiveTerminalInput,
+      sendBufferedTerminalInput
+    )
   )
   const subscriptionFoundation = Object.assign(
     nativeChatDictation,
@@ -120,7 +127,11 @@ export function useMobileSessionController() {
     presentation,
     useMobileSessionPanelRouteActions(presentation)
   )
-  return panelRouteActions
+  const floatingVoice = Object.assign(
+    panelRouteActions,
+    useMobileSessionFloatingVoice(panelRouteActions)
+  )
+  return floatingVoice
 }
 
 export type MobileSessionController = ReturnType<typeof useMobileSessionController>

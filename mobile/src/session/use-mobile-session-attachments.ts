@@ -42,7 +42,8 @@ export function useMobileSessionAttachments(scope: MobileSessionAccessorySelecti
     nativeChatController,
     getActiveWorktreeConnectionId,
     refreshCanPaste,
-    activeSessionTab
+    activeSessionTab,
+    sendNativeChatRef
   } = scope
   const clipboardContents = useClipboardReader().contents
   const agent =
@@ -100,6 +101,8 @@ export function useMobileSessionAttachments(scope: MobileSessionAccessorySelecti
     onSuccess: triggerSelection,
     onError: triggerError
   })
+
+  sendNativeChatRef.current = nativeChatImages.sendNativeChat
 
   // Why: refresh canPaste on mount, AppState active, after paste.
   useEffect(() => {

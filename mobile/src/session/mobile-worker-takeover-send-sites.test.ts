@@ -65,6 +65,7 @@ function mountSendSites(client: ReturnType<typeof clientFixture>, handle = 'term
     commandInputRef: ref(null),
     liveInputFocusTimerRef: ref(null),
     sendLiveTerminalInputRef,
+    sendBufferedTerminalInputRef: ref(async (_text: string) => {}),
     getSendCompletionGeneration: () => 0,
     showToast: vi.fn(),
     ptyModesRef: ref(new Map([[handle, { altScreen: true }]])),

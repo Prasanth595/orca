@@ -61,6 +61,11 @@ export function useMobileSessionTerminalRuntime(scope: MobileSessionScreenStateM
   const commandInputRef = useRef<TextInput>(null)
   const liveInputFocusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sendLiveTerminalInputRef = useRef<TerminalLiveInputSender>(async () => false)
+  // Bridges dictation auto-send to handleSend (created later in the hook
+  // chain, in useMobileSessionTerminalSendActions) — same ref-bridge pattern
+  // as sendLiveTerminalInputRef above, since a hook created earlier can't take
+  // a value produced by one created later as a plain argument.
+  const sendBufferedTerminalInputRef = useRef<(text: string) => Promise<void>>(async () => {})
   const sessionTabActionSheetKeyboardHideSubRef = useRef<ReturnType<
     typeof Keyboard.addListener
   > | null>(null)
@@ -171,6 +176,7 @@ export function useMobileSessionTerminalRuntime(scope: MobileSessionScreenStateM
     commandInputRef,
     liveInputFocusTimerRef,
     sendLiveTerminalInputRef,
+    sendBufferedTerminalInputRef,
     sessionTabActionSheetKeyboardHideSubRef,
     sessionTabActionSheetRequestSeqRef,
     dictationRouteContextRef,
