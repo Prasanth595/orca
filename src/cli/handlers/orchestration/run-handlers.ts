@@ -8,27 +8,22 @@ import {
 import { ORCHESTRATION_RUN_PAGE_LIMIT } from '../../../shared/orchestration-run-pagination'
 import { callOrchestrationMutation } from './mutation-request'
 import { resolveCoordinatorTerminalHandle } from './terminal-identity'
-import { ORCHESTRATION_COORDINATOR_DELIVERY_CAPABILITY } from '../../../shared/orchestration-coordinator-delivery'
+import { assertCoordinatorDeliverySupported } from './coordinator-delivery-capability'
 
 export const ORCHESTRATION_RUN_HANDLERS: Record<string, CommandHandler> = {
   'orchestration run-create': async ({ flags, client, cwd, json }) => {
     const from = await resolveCoordinatorTerminalHandle(flags, cwd, client)
     const notificationPolicy = getOptionalStringFlag(flags, 'notification-policy')
+    if (notificationPolicy === 'coordination') {
+      await assertCoordinatorDeliverySupported(client)
+    }
     const result = await callOrchestrationMutation<{
       run: { id: string; objective: string; consumer_generation: number }
-    }>(
-      client,
-      flags,
-      'orchestration.runCreate',
-      {
-        objective: getRequiredStringFlag(flags, 'objective'),
-        from,
-        ...(notificationPolicy ? { notificationPolicy } : {})
-      },
-      notificationPolicy
-        ? { orchestrationCapability: ORCHESTRATION_COORDINATOR_DELIVERY_CAPABILITY }
-        : undefined
-    )
+    }>(client, flags, 'orchestration.runCreate', {
+      objective: getRequiredStringFlag(flags, 'objective'),
+      from,
+      ...(notificationPolicy ? { notificationPolicy } : {})
+    })
     printResult(result, json, (r) => `Run ${r.run.id} created and bound: ${r.run.objective}`)
   },
 
