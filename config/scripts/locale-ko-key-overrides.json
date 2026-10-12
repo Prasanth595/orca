@@ -5223,7 +5223,7 @@
     "ko": "Z.AI 또는 Zhipu(BigModel) GLM Coding Plan 사용량을 추적합니다. 사이트를 선택하고 요금제 API 키를 저장하세요."
   },
   "auto.components.settings.accounts.search.f8374c3151": {
-    "ko": "MiniMax 사용량 추적을 설정합니다. 해외 또는 중국 엔드포인트를 선택한 다음, 세션 쿠키를 붙여넣거나 두 엔드포인트에서 모두 사용할 수 있는 API 키를 저장하세요."
+    "ko": "MiniMax 사용량 추적을 설정합니다. 해외 또는 중국 엔드포인트를 선택한 다음, 세션 쿠키를 붙여넣거나 선택한 엔드포인트의 API 키를 저장하세요."
   },
   "auto.components.settings.accounts.search.d16378a88f": {
     "ko": "minimax"
