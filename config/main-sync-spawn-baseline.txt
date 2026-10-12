@@ -57,7 +57,6 @@
 1 src/main/pwsh.ts
 3 src/main/runtime/device-registry.ts
 1 src/main/runtime/e2ee-keypair.ts
-1 src/main/runtime/mobile-notification-dismissal-store.ts
 1 src/main/runtime/push/push-unregister-outbox.ts
 1 src/main/runtime/relay/relay-region-preference.ts
 1 src/main/runtime/relay/relay-revoke-outbox.ts

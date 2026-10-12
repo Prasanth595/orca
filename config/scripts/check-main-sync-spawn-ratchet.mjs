@@ -4,10 +4,10 @@ import { pathToFileURL } from 'node:url'
 import ts from 'typescript-api'
 import {
   diffCounts,
-  formatBaseline,
-  parseBaseline,
-  parseBaselineNotes
-} from './check-focus-read-ratchet.mjs'
+  formatCountBaseline,
+  parseCountBaseline,
+  parseCountNotes
+} from './ratchet-baseline.mjs'
 import { literalString, propertyName, unwrap } from './static-module-specifiers.mjs'
 import { isTestOnlySourcePath } from './test-only-source-path.mjs'
 
@@ -392,7 +392,7 @@ export function main(root = ROOT) {
   const { counts, symbols } = countSyncSpawnUses(collectSyncSpawnSources(root))
   const { grown, shrunk } = diffCounts(
     counts,
-    parseBaseline(readFileSync(path.join(root, BASELINE_PATH), 'utf8'))
+    parseCountBaseline(readFileSync(path.join(root, BASELINE_PATH), 'utf8'))
   )
   for (const { file, now, allowed } of grown) {
     console.error(
@@ -419,12 +419,12 @@ export function prune(root = ROOT) {
   const { counts } = countSyncSpawnUses(collectSyncSpawnSources(root))
   // Lowers entries only; growth still has to be fixed in the code.
   const pruned = new Map(
-    [...parseBaseline(text)].map(([file, allowed]) => [
+    [...parseCountBaseline(text)].map(([file, allowed]) => [
       file,
       Math.min(allowed, counts.get(file) ?? 0)
     ])
   )
-  writeFileSync(baselineFile, formatBaseline(pruned, BASELINE_HEADER, parseBaselineNotes(text)))
+  writeFileSync(baselineFile, formatCountBaseline(pruned, BASELINE_HEADER, parseCountNotes(text)))
   console.log(`Pruned ${BASELINE_PATH} to ${total(pruned)} use(s).`)
 }
 
