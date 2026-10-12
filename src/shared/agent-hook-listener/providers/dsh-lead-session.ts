@@ -20,6 +20,13 @@ function getDshPaneState(state: HookListenerState, paneKey: string): DshPaneStat
   let pane = state.dshPaneStateByPaneKey.get(paneKey)
   if (!pane) {
     pane = { leadTurnOpen: false, childSessionIds: new Set(), candidates: new Map() }
+    // Why: after a restart the hydrated row still names the lead; seeding it keeps a child's
+    // SessionStart, which beats its SubagentStart, from being adopted as the first speaker.
+    const restored = state.lastStatusByPaneKey.get(paneKey)
+    if (restored?.payload.agentType === 'dsh' && restored.providerSession?.key === 'session_id') {
+      pane.leadSessionId = restored.providerSession.id
+      pane.leadTurnOpen = restored.payload.state !== 'done'
+    }
     state.dshPaneStateByPaneKey.set(paneKey, pane)
   }
   return pane

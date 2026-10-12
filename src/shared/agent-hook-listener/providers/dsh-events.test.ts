@@ -255,4 +255,21 @@ describe('normalizeDshEvent with in-process subagents', () => {
     expect(lead?.providerSession?.id).toBe(SESSION_ID)
     expect(normalizeAndAccept(state, 'dsh', child('Stop'))).toBeNull()
   })
+
+  it('resumes from the restored lead when a child starts right after a listener restart', () => {
+    normalizeAndAccept(state, 'dsh', event('UserPromptSubmit', { prompt: 'delegate' }))
+    // A restart keeps the hydrated status row but loses the in-memory DSH pane state.
+    state.dshPaneStateByPaneKey.clear()
+
+    expect(
+      normalizeAndAccept(state, 'dsh', child('SessionStart', { source: 'startup' }))
+    ).toBeNull()
+    expect(normalizeAndAccept(state, 'dsh', subagentEdge('SubagentStart'))).toBeNull()
+    const restored = state.lastStatusByPaneKey.values().next().value
+    expect(restored?.payload.state).toBe('working')
+    expect(restored?.providerSession?.id).toBe(SESSION_ID)
+
+    const lead = normalizeAndAccept(state, 'dsh', event('Stop'))
+    expect(lead?.providerSession?.id).toBe(SESSION_ID)
+  })
 })
