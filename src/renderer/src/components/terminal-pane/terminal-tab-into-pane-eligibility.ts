@@ -128,9 +128,6 @@ export function resolveTerminalTabIntoPaneEligibility(
   if (source.viewMode === 'chat' || (leafId && sourceLayout?.chatLeafId === leafId)) {
     return refuse('source_chat')
   }
-  if (target.viewMode === 'chat') {
-    return refuse('target_chat')
-  }
   const ptyId = leafId ? (sourceLayout?.ptyIdsByLeafId?.[leafId] ?? source.ptyId) : null
   if (!leafId || !ptyId) {
     return refuse('no_terminal')
@@ -162,6 +159,10 @@ export function resolveTerminalTabIntoPaneEligibility(
   }
   if (sourceTabId in state.unverifiedPtyLossTabIds) {
     return refuse('unverified_pty_loss')
+  }
+  // After every source-only check, so an ineligible source reads the same over any target.
+  if (target.viewMode === 'chat') {
+    return refuse('target_chat')
   }
   const targetLeafIds = collectLayoutLeafIdsInOrder(targetLayout?.root ?? null)
   const targetLeafId =
