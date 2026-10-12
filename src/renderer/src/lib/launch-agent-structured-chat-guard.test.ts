@@ -91,7 +91,12 @@ const store = {
   },
   projects: [{ id: 'repo-1', localWindowsRuntimePreference: { kind: 'inherit-global' as const } }],
   repos: [{ id: 'repo-1', connectionId: null as string | null, path: '/repo' }],
-  sshConnectionStates: new Map(),
+  sshConnectionStates: new Map([
+    ['ssh-a', { status: 'connected', remotePlatform: 'linux' }],
+    ['runtime-ssh-a', { status: 'connected', remotePlatform: 'linux' }]
+  ]),
+  sshStateByEnvironment: new Map(),
+  runtimeStatusByEnvironmentId: new Map([['web-runtime', { status: { hostPlatform: 'linux' } }]]),
   transientClearedAgentStatusConnectionIds: {},
   worktreesByRepo: {
     'repo-1': [{ id: 'wt-1', repoId: 'repo-1', projectId: 'repo-1', path: '/repo/worktree' }]
@@ -132,10 +137,14 @@ vi.mock('@/lib/telemetry', () => ({
   track: vi.fn(),
   tuiAgentToAgentKind: (agent: string) => agent
 }))
-vi.mock('@/runtime/web-runtime-session', () => ({
+vi.mock('@/runtime/web-runtime-terminal-creation', () => ({
   createWebRuntimeSessionTerminal: vi.fn(),
-  createWebRuntimeAgentSessionTerminalWithLaunchDraft: vi.fn(),
-  isWebRuntimeSessionActive: vi.fn(() => false),
+  createWebRuntimeAgentSessionTerminalWithLaunchDraft: vi.fn()
+}))
+vi.mock('@/runtime/web-runtime-session-environment', () => ({
+  isWebRuntimeSessionActive: vi.fn(() => false)
+}))
+vi.mock('@/runtime/web-terminal-surface-id', () => ({
   isWebTerminalSurfaceTabId: vi.fn(() => false)
 }))
 vi.mock('@/lib/launch-structured-agent-session', () => {

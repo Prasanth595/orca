@@ -18,10 +18,13 @@ import {
   BrowserNetworkTunnelAttachParams
 } from '../browser-client-host-protocol'
 import { BrowserClientPageMetadataParams } from '../browser-client-page-metadata-protocol'
+import { DelegatedMobileDeviceSyncParamsSchema } from '../delegated-mobile-device-contract'
+import { RegisterDeviceKeyParamsSchema } from '../device-key-registration-contract'
 import {
   PairingGetEndpointsParamsSchema,
   PairingProvisionRelayParamsSchema
 } from '../mobile-relay-credential-contract'
+import { MobileRelayHostWorktreesParamsSchema } from '../mobile-relay-hosts-contract'
 import { MobileWebBundleChunkParamsSchema } from '../mobile-web-bundle/bundle-rpc-contract'
 import { OrcadMigrationSnapshotChunkRequestSchema } from '../orcad-migration-scrollback'
 import { OrcadTerminalCensusParamsSchema } from '../orcad-terminal-census'
@@ -43,6 +46,7 @@ import {
 } from './accounts-params'
 import { PrepareCodexForWslPaneParams } from './agent-hooks-params'
 import { AgentLaunch, AgentLaunchReplay } from './agent-launch-params'
+import { AgentLaunchSettingsMutation } from './agent-launch-settings-params'
 import {
   AttachmentReadParams,
   AttachmentUploadAppendParams,
@@ -491,7 +495,7 @@ import {
   DictationStart,
   SpeechModelAction
 } from './speech-params'
-import { SshTarget } from './ssh-params'
+import { RepoAddRemote, SshBrowseDir, SshTarget, SshTargetAdd, SshTargetUpdate } from './ssh-params'
 import { ContinueInterruptedParams } from './structured-agent-session-continue-params'
 import {
   AcknowledgeAttentionParams,
@@ -581,6 +585,7 @@ import {
   WorktreeSortOrder,
   WorktreeTeardownMissingTerminalsParams
 } from './worktree-params'
+import { WorktreeAdoptProvisionedRoot } from './worktree-provisioned-root-params'
 import { SkillBundleInstallRequestSchema } from '../skill-bundle-install-contract'
 import { SkillDeleteRequestSchema } from '../skill-delete-contract'
 import {
@@ -995,6 +1000,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'jira.status': null,
   'jira.testConnection': SiteSelection,
   'jira.updateIssue': IssueUpdate,
+  'layout.getRemoteSnapshots': null,
   'layout.subscribe': LayoutSubscribeParams,
   'layout.unsubscribe': LayoutUnsubscribeParams,
   'linear.addIssueComment': IssueCommentOfLinearParams,
@@ -1047,6 +1053,8 @@ export const RPC_PARAMS_BY_METHOD = {
   'managedServer.update': ManagedServerUpdate,
   'markdown.readTab': ActivateTab,
   'markdown.saveTab': SaveMarkdownTab,
+  'mobileRelay.hosts.list': null,
+  'mobileRelay.hosts.worktrees': MobileRelayHostWorktreesParamsSchema,
   'mobileWeb.bundle.chunk': MobileWebBundleChunkParamsSchema,
   'mobileWeb.bundle.manifest': null,
   'mobileWeb.bundle.range': MobileWebBundleChunkParamsSchema,
@@ -1108,8 +1116,10 @@ export const RPC_PARAMS_BY_METHOD = {
   'orchestration.workerStart': WorkerStartParams,
   'orchestration.workerStop': WorkerDispatchParamsOfOrchestrationWorkerStopParams,
   'orchestration.workerTerminalUserInput': OrchestrationWorkerTerminalUserInputParams,
+  'pairing.delegatedMobileDevice.sync': DelegatedMobileDeviceSyncParamsSchema,
   'pairing.getEndpoints': PairingGetEndpointsParamsSchema,
   'pairing.provisionRelay': PairingProvisionRelayParamsSchema,
+  'pairing.registerDeviceKey': RegisterDeviceKeyParamsSchema,
   'plugins.consent': pluginConsentRequestSchema,
   'plugins.invokeCommand': PluginInvokeCommandParams,
   'plugins.list': null,
@@ -1140,6 +1150,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'reference.find': ReferenceFind,
   'reference.list': ReferenceList,
   'repo.add': RepoPath,
+  'repo.addRemote': RepoAddRemote,
   'repo.baseRefDefault': RepoSelector,
   'repo.clone': RepoClone,
   'repo.create': RepoCreate,
@@ -1158,6 +1169,8 @@ export const RPC_PARAMS_BY_METHOD = {
   'repo.show': RepoSelector,
   'repo.sparsePresets': RepoSelector,
   'repo.update': RepoUpdate,
+  'runtime.automaticWork.resume': null,
+  'runtime.automaticWork.status': null,
   'runtime.clientCapabilities.update': ClientCapabilitiesUpdate,
   'runtime.clientEvents.subscribe': null,
   'runtime.clientEvents.unsubscribe': ClientEventsUnsubscribeParams,
@@ -1175,7 +1188,9 @@ export const RPC_PARAMS_BY_METHOD = {
   'session.tabs.unsubscribeAll': SessionTabsUnsubscribeAllParams,
   'session.tabs.updatePaneLayout': UpdatePaneLayout,
   'settings.get': null,
+  'settings.getAgentLaunch': null,
   'settings.getTerminalQuickCommands': null,
+  'settings.mutateAgentLaunch': AgentLaunchSettingsMutation,
   'settings.mutateNativeChatSessionOptions': NativeChatSessionOptionsMutation,
   'settings.update': SettingsUpdate,
   'settings.updatePRBotAuthorOverride': PRBotAuthorOverrideUpdate,
@@ -1203,11 +1218,16 @@ export const RPC_PARAMS_BY_METHOD = {
   'speech.models.delete': SpeechModelAction,
   'speech.models.download': SpeechModelAction,
   'speech.models.list': null,
+  'ssh.addTarget': SshTargetAdd,
+  'ssh.browseDir': SshBrowseDir,
   'ssh.connect': SshTarget,
   'ssh.getState': SshTarget,
+  'ssh.listEditableTargets': null,
   'ssh.listRemovedTargetLabels': null,
   'ssh.listTargetSummaries': null,
   'ssh.listTargets': null,
+  'ssh.removeTarget': SshTarget,
+  'ssh.updateTarget': SshTargetUpdate,
   'stats.summary': null,
   'status.get': null,
   'terminal.adoptOrphans': TerminalAdoptOrphans,
@@ -1260,6 +1280,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'workspacePorts.scan': WorkspacePortScanParams,
   'workspacePorts.scanHost': WorkspacePortScanHostParams,
   'worktree.activate': WorktreeActivate,
+  'worktree.adoptProvisionedRoot': WorktreeAdoptProvisionedRoot,
   'worktree.create': WorktreeCreate,
   'worktree.detectedList': WorktreeDetectedListParams,
   'worktree.forceDeleteBranch': WorktreeForceDeleteBranch,
