@@ -2343,7 +2343,7 @@
     "ko": "glab auth login"
   },
   "auto.components.settings.ManageSessionsSection.2896a50f50": {
-    "ko": "terminal {{value0}}(으)로 이동"
+    "ko": "터미널 {{value0}}(으)로 이동"
   },
   "auto.components.settings.ManageSessionsSection.33c2a1e1b4": {
     "ko": "세션 {{value0}} 종료"
@@ -2652,7 +2652,7 @@
     "ko": "지속 세션, 더 풍부한 원격 상태, 웹 또는 모바일 핸드오프를 위해 원격 Orca 런타임을 페어링합니다."
   },
   "auto.components.settings.Settings.b79b5b31e9": {
-    "ko": "셸, 렌더러, 세션, terminal 동작."
+    "ko": "셸, 렌더러, 세션, 터미널 동작."
   },
   "auto.components.settings.Settings.c2ee313198": {
     "ko": "SSH를 통해 기존 머신의 파일, terminals, Git, 워크스페이스를 사용합니다."
@@ -2775,7 +2775,7 @@
     "ko": "구분선 두께"
   },
   "auto.components.settings.TerminalPane.09bf02de9a": {
-    "ko": "새 terminals 패널을 열 때 사용할 셸입니다. 새 terminals에 적용됩니다."
+    "ko": "새 터미널 패널을 열 때 사용할 셸입니다. 새 터미널에 적용됩니다."
   },
   "auto.components.settings.TerminalPane.0a10420e1a": {
     "ko": "Option을 Alt로 사용"
@@ -3777,7 +3777,7 @@
     "ko": "tmux"
   },
   "auto.components.settings.terminal.clipboard.search.603818e8d8": {
-    "ko": "terminal 선택 영역이 만들어지는 즉시 자동으로 클립보드에 복사합니다."
+    "ko": "터미널 선택 영역이 만들어지는 즉시 자동으로 클립보드에 복사합니다."
   },
   "auto.components.settings.terminal.clipboard.search.e87c6d776d": {
     "ko": "자동"
@@ -3795,7 +3795,7 @@
     "ko": "ANSI"
   },
   "auto.components.settings.terminal.search.17cc3ea102": {
-    "ko": "terminal 패널 위에 마우스를 올리면 클릭하지 않고도 활성화됩니다. Ghostty의 초점이 마우스를 따라가는 설정을 반영합니다. 선택 및 창 전환이 안전하게 유지됩니다."
+    "ko": "터미널 패널 위에 마우스를 올리면 클릭하지 않고도 활성화됩니다. Ghostty의 초점이 마우스를 따라가는 설정을 반영합니다. 선택 및 창 전환이 안전하게 유지됩니다."
   },
   "auto.components.settings.terminal.search.18ce996647": {
     "ko": "수직"
@@ -3921,7 +3921,7 @@
     "ko": "Alt"
   },
   "auto.components.settings.terminal.search.c6178a2b4d": {
-    "ko": "마우스를 따라가는 초점"
+    "ko": "마우스를 따라 포커스 이동"
   },
   "auto.components.settings.terminal.search.d8d6f7a3c5": {
     "ko": "macOS"
@@ -3948,7 +3948,7 @@
     "ko": "데몬"
   },
   "auto.components.settings.terminal.search.f7d56b6281": {
-    "ko": "최대 terminal 스크롤백 버퍼 크기입니다."
+    "ko": "보관할 데스크톱 터미널 행입니다."
   },
   "auto.components.settings.terminal.search.fae142a354": {
     "ko": "readline"
@@ -3969,7 +3969,7 @@
     "ko": "YAML에서 가져오기"
   },
   "auto.components.settings.terminal.windows.search.28ff08ed35": {
-    "ko": "창"
+    "ko": "Windows"
   },
   "auto.components.settings.terminal.windows.search.2b4a340ce0": {
     "ko": "배포판"
@@ -5104,5 +5104,119 @@
   },
   "components.workspace.cleanup.browse.agent.working": {
     "ko": "작업 중"
+  },
+  "auto.components.settings.TerminalPane.822f62ddcd": {
+    "ko": "PowerShell 7+ 다운로드"
+  },
+  "auto.components.settings.TerminalPane.fe20f79dd1": {
+    "ko": "PowerShell 버전"
+  },
+  "auto.components.settings.TerminalPane.87e678a8af": {
+    "ko": "Windows 셸"
+  },
+  "auto.components.settings.TerminalPane.a9d47451d1": {
+    "ko": "\"새 탭\"은 현재 포커스를 가져가지 않고 \"Setup\"이라는 제목의 백그라운드 탭에서 설정 명령을 엽니다."
+  },
+  "auto.components.settings.terminal.search.015c82349f": {
+    "ko": "블록"
+  },
+  "auto.components.settings.terminal.search.minimumContrast.powerline": {
+    "ko": "Powerline"
+  },
+  "auto.components.settings.contrast.offDescription": {
+    "ko": "흐린 텍스트와 Powerline 구분 기호를 포함해 프로그램 색상을 그대로 유지합니다."
+  },
+  "auto.components.settings.contrast.auto": {
+    "ko": "자동"
+  },
+  "auto.components.settings.contrast.custom": {
+    "ko": "사용자 지정"
+  },
+  "auto.components.settings.terminal.search.running": {
+    "ko": "실행 중"
+  },
+  "auto.components.settings.terminal.search.tui": {
+    "ko": "TUI"
+  },
+  "auto.components.settings.terminal.search.wheel": {
+    "ko": "휠"
+  },
+  "auto.components.settings.terminal.search.f036794286": {
+    "ko": "활성"
+  },
+  "auto.components.settings.terminal.search.f5d1e3d472": {
+    "ko": "포커스"
+  },
+  "auto.components.settings.TerminalPane.267d020745": {
+    "ko": "스크롤백, 단어 경계 및 플랫폼별 터미널 동작."
+  },
+  "auto.components.settings.TerminalPane.3d88af864d": {
+    "ko": "PowerShell 셸 옵션이 새 터미널 패널에 대해 Windows PowerShell을 시작할지 아니면 PowerShell 7+를 시작할지 선택합니다."
+  },
+  "auto.components.settings.TerminalPane.45721f3e67": {
+    "ko": "터미널 상호작용"
+  },
+  "auto.components.settings.TerminalPane.4729c645fc": {
+    "ko": "터미널에서 선택한 내용을 클립보드에 자동으로 복사합니다."
+  },
+  "auto.components.settings.TerminalPane.5ed5c95344": {
+    "ko": "새 터미널 패널을 위해 Windows PowerShell과 PowerShell 7+ 중에서 선택하세요."
+  },
+  "auto.components.settings.TerminalPane.72bc9334a0": {
+    "ko": "라이브 창과 새 창에 대한 터미널 렌더러 동작입니다."
+  },
+  "auto.components.settings.TerminalPane.7eaccc1424": {
+    "ko": "WebGL은 항상 터미널 패널에 대해 시도됩니다."
+  },
+  "auto.components.settings.TerminalPane.81d86b2dd2": {
+    "ko": "새 패널과 열린 패널에 보관할 데스크톱 터미널 행입니다."
+  },
+  "auto.components.settings.TerminalPane.9129b7e805": {
+    "ko": "터미널 패널 위에 마우스를 올리면 클릭하지 않고도 활성화됩니다."
+  },
+  "auto.components.settings.TerminalPane.96fe15def8": {
+    "ko": "터미널 패널의 마우스 및 클립보드 동작."
+  },
+  "auto.components.settings.TerminalPane.a55eee649f": {
+    "ko": "Windows의 새 터미널 패널에 대한 기본 셸입니다."
+  },
+  "auto.components.settings.TerminalPane.bd68f3170d": {
+    "ko": "Windows의 새 터미널 패널에 대한 기본 셸을 선택합니다."
+  },
+  "auto.components.settings.TerminalPane.c3810b2b42": {
+    "ko": "보관할 데스크톱 터미널 행입니다."
+  },
+  "auto.components.settings.terminal.search.73e9422f19": {
+    "ko": "지원되는 Ghostty 터미널 설정을 한 번만 가져옵니다."
+  },
+  "auto.components.settings.terminal.windows.search.41a69bc24d": {
+    "ko": "PowerShell 셸 옵션이 새 터미널 패널에 대해 Windows PowerShell을 시작할지 아니면 PowerShell 7+를 시작할지 선택합니다."
+  },
+  "auto.components.settings.terminal.windows.search.713c4a2f92": {
+    "ko": "Windows의 새 터미널 패널에 대한 기본 셸을 선택합니다."
+  },
+  "auto.components.settings.TerminalPane.691ce810e0": {
+    "ko": "세로로 분할"
+  },
+  "auto.components.settings.terminal.search.063914c486": {
+    "ko": "JIS 엔(¥) 키를 눌렀을 때 백슬래시(\\)를 대신 보낼지 여부를 설정합니다."
+  },
+  "auto.components.settings.terminal.search.minimumContrast.colors": {
+    "ko": "색상"
+  },
+  "auto.components.settings.terminal.search.minimumContrast.contrast": {
+    "ko": "대비"
+  },
+  "components.settings.TerminalInteraction.copyTrimsGutterDescription": {
+    "ko": "복사한 텍스트에서 에이전트 출력의 왼쪽 여백을 제거합니다. 선택한 모든 줄에 공통된 들여쓰기만 제거됩니다."
+  },
+  "components.settings.terminal.clipboard.search.gutter": {
+    "ko": "여백"
+  },
+  "components.settings.terminal.clipboard.search.indent": {
+    "ko": "들여쓰기"
+  },
+  "components.settings.terminal.clipboard.search.leading": {
+    "ko": "선행"
   }
 }
