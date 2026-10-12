@@ -2121,13 +2121,13 @@
     "ko": "기본 인수 없음"
   },
   "auto.components.settings.AgentsPane.agentPermissions": {
-    "ko": "Agent 권한"
+    "ko": "에이전트 권한"
   },
   "auto.components.settings.AgentsPane.agentPermissionsDescription": {
     "ko": "Orca가 agents를 실행할 때 권한 프롬프트를 줄일지, 수동 확인을 유지할지 선택합니다."
   },
   "auto.components.settings.AgentsPane.agentPermissionsInfo": {
-    "ko": "Agent 권한 정보"
+    "ko": "에이전트 권한 정보"
   },
   "auto.components.settings.AgentsPane.f9f127d664": {
     "ko": "이 agent의 바이너리 경로나 이름을 재정의하고 기본 실행 인수 또는 환경을 편집합니다."
@@ -3027,10 +3027,10 @@
     "ko": "Windows"
   },
   "auto.components.settings.agents.search.agentPermissions": {
-    "ko": "Agent 권한"
+    "ko": "에이전트 권한"
   },
   "auto.components.settings.agents.search.agentPermissionsDescription": {
-    "ko": "agent 권한 기본값을 Yolo와 수동 사이에서 전환합니다."
+    "ko": "에이전트 권한 기본값을 Yolo와 수동 사이에서 전환합니다."
   },
   "auto.components.settings.appearance.search.00a028f25f": {
     "ko": "사용량"
@@ -3642,7 +3642,7 @@
     "ko": "클라이언트"
   },
   "auto.components.settings.settingOwnership.agentLaunchDefaults": {
-    "ko": "기본 agent, 명령 재정의, CLI 인수 및 실행 환경은 선택한 호스트에 저장됩니다."
+    "ko": "기본 에이전트, 명령 재정의, CLI 인수 및 실행 환경은 선택한 호스트에 저장됩니다."
   },
   "auto.components.settings.settingOwnership.clientDefault": {
     "ko": "클라이언트 기본값"
@@ -5104,5 +5104,68 @@
   },
   "components.workspace.cleanup.browse.agent.working": {
     "ko": "작업 중"
+  },
+  "auto.components.settings.AgentsPane.agentPermissionsTooltip": {
+    "ko": "실행 인수를 재정의한 에이전트에는 적용되지 않습니다."
+  },
+  "auto.components.settings.AgentsPane.noAgentsDetected": {
+    "ko": "감지된 에이전트가 없습니다. 에이전트가 설치되어 있다면 감지 시간이 초과되었을 수 있습니다."
+  },
+  "auto.components.settings.AgentsPane.remoteDetectionFailed": {
+    "ko": "설치된 에이전트를 감지하지 못했습니다. 호스트 연결을 확인한 뒤 다시 시도하세요."
+  },
+  "auto.components.settings.AgentsPane.retryDetection": {
+    "ko": "다시 시도"
+  },
+  "auto.components.settings.AgentsPane.03e1a5081a": {
+    "ko": "{{value0}}에서"
+  },
+  "auto.components.settings.AgentsPane.cea7d97be1": {
+    "ko": "명령 재정의 접기"
+  },
+  "auto.components.settings.AgentsPane.dc4a2ffdc0": {
+    "ko": "명령 재정의 펼치기"
+  },
+  "auto.components.settings.AgentsPane.13647f9f80": {
+    "ko": "셸 PATH를 다시 읽고 설치된 에이전트를 다시 감지합니다"
+  },
+  "settings.agents.codexTerminalServerIsolation.description": {
+    "ko": "Orca의 상태 표시와 탭 닫기가 올바르게 동작하도록 합니다. Codex의 공유 서버와 에이전트 개요를 사용하려면 끄세요. 새 터미널에 적용됩니다."
+  },
+  "auto.components.settings.agents.search.runtime": {
+    "ko": "런타임"
+  },
+  "auto.components.settings.agents.search.installedAgentsWsl": {
+    "ko": "WSL에 설치된 에이전트"
+  },
+  "auto.components.settings.AgentRuntimeSetting.label": {
+    "ko": "에이전트 런타임"
+  },
+  "auto.components.settings.AgentsPane.110b74b022": {
+    "ko": "에이전트 없음(빈 터미널)"
+  },
+  "auto.components.settings.AgentsPane.385212c7a1": {
+    "ko": "기본 에이전트"
+  },
+  "auto.components.settings.AgentsPane.d7625cf8b2": {
+    "ko": "기본 에이전트"
+  },
+  "auto.components.settings.AgentsPane.d83834f5e6": {
+    "ko": "설치된 에이전트 감지 중…"
+  },
+  "auto.components.settings.agents.search.01926b9d8c": {
+    "ko": "AI 코딩 에이전트, 기본 에이전트 및 명령 재정의를 구성합니다."
+  },
+  "auto.components.settings.agents.search.96ba2373b6": {
+    "ko": "에이전트"
+  },
+  "auto.components.settings.agents.search.agentRuntime": {
+    "ko": "에이전트 런타임"
+  },
+  "auto.components.settings.general.search.40c9585e43": {
+    "ko": "프롬프트 캐시가 만료될 때까지의 시간을 표시하는 카운트다운 타이머(Claude 에이전트)"
+  },
+  "auto.components.settings.agents.search.ff457e1e7b": {
+    "ko": "데몬"
   }
 }
