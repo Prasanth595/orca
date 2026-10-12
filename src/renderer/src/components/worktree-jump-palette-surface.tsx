@@ -1,4 +1,5 @@
 import type React from 'react'
+import { PalettePinsMenu } from './cmd-j/PalettePinsMenu'
 import { CommandDialog, CommandEmpty, CommandInput, CommandList } from '@/components/ui/command'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import PaletteFilterMenu from '@/components/cmd-j/PaletteFilterMenu'
@@ -66,7 +67,11 @@ export function WorktreeJumpPaletteSurface({
         iconClassName="mr-2.5 h-4 w-4 text-muted-foreground/60"
         className="h-12 min-w-0 flex-1"
         trailing={
-          <div ref={controller.setDialogElementFromNode} className="shrink-0">
+          <div
+            ref={controller.setDialogElementFromNode}
+            className="flex shrink-0 items-center gap-1"
+          >
+            <PalettePinsMenu controller={controller} />
             <PaletteFilterMenu
               model={controller.filterModel}
               filter={controller.filter}

@@ -16,6 +16,7 @@ import { useWorkspaceEmojiShortcodeInput } from '@/components/workspace-emoji/us
 import { usePaletteSearchEvaluationContext } from '@/hooks/use-palette-search-evaluation-context'
 import type { WorktreePaletteRequestGuard } from '@/lib/worktree-palette-create-action'
 import { useMemo } from 'react'
+import { usePalettePins } from './cmd-j/use-palette-pins'
 
 export function useWorktreeJumpPaletteController({
   visible,
@@ -26,6 +27,7 @@ export function useWorktreeJumpPaletteController({
   lingering: boolean
   createLookupGuard: WorktreePaletteRequestGuard
 }) {
+  const pins = usePalettePins()
   const storeState = useWorktreeJumpPaletteStoreState({ visible, lingering })
   const localState = useWorktreeJumpPaletteLocalState({ createLookupGuard, visible })
   const paletteEvaluationSnapshot = useMemo(
@@ -67,7 +69,8 @@ export function useWorktreeJumpPaletteController({
     ...storeState,
     ...localState,
     ...filter,
-    ...evaluation
+    ...evaluation,
+    pinnedIds: pins.pinnedIds
   })
   const openTabs = useWorktreeJumpPaletteOpenTabs({
     ...storeState,
@@ -97,6 +100,7 @@ export function useWorktreeJumpPaletteController({
     ...projectTargets
   })
   const sections = useWorktreeJumpPaletteSections({
+    pinnedIds: pins.pinnedIds,
     ...localState,
     ...filter,
     ...worktrees,
@@ -150,6 +154,7 @@ export function useWorktreeJumpPaletteController({
   })
 
   return {
+    ...pins,
     ...storeState,
     ...localState,
     ...taskUrl,

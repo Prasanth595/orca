@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { getPinnedWorktreeSearchScope } from './cmd-j/palette-pinned-worktrees'
 import {
   isAutomationGeneratedWorkspace,
   isCliCreatedWorkspace,
@@ -11,10 +12,7 @@ import { sortWorktreesSmart } from '@/components/sidebar/smart-sort'
 import { buildWorktreeChecksReviewIndex } from '@/components/cmd-j/worktree-checks-review-index'
 import { getLiveAgentStatusByWorktreeId, isInactiveWorkspace } from '@/lib/worktree-activity-state'
 import { orderEmptyQueryWorktrees } from '@/lib/order-empty-query-worktrees'
-import {
-  getWorktreePaletteSearchScope,
-  searchWorktreeDocuments
-} from '@/lib/worktree-palette-search'
+import { searchWorktreeDocuments } from '@/lib/worktree-palette-search'
 import { buildPaletteWorktreeIndex, resolvePaletteWorktree } from '@/lib/palette-repo-resolution'
 import {
   EMPTY_PAIRED_DEVICE_IDS_BY_ENVIRONMENT,
@@ -28,6 +26,7 @@ import { buildWorktreeJumpPaletteWorktreeMaps } from './worktree-jump-palette-wo
 import type { WorktreeJumpPaletteWorktreesInput } from './worktree-jump-palette-worktrees-input'
 
 export function useWorktreeJumpPaletteWorktrees({
+  pinnedIds,
   paletteSearchQuery,
   paletteSearchContext,
   repos,
@@ -70,8 +69,6 @@ export function useWorktreeJumpPaletteWorktrees({
   const worktreeIdsWithLiveAgent = useMemo(
     () =>
       new Set(
-        // The palette recomputes this snapshot when status inputs change; the
-        // clock intentionally reflects the render that performs that snapshot.
         // oxlint-disable-next-line react/purity
         getLiveAgentStatusByWorktreeId(agentStatusByPaneKey, tabsByWorktree, Date.now()).keys()
       ),
@@ -168,14 +165,17 @@ export function useWorktreeJumpPaletteWorktrees({
       lastVisitedAtByWorktreeId
     ]
   )
-  const searchScopeWorktrees = useMemo(() => {
-    const scope = getWorktreePaletteSearchScope({
-      hasQuery,
-      allWorktrees,
-      emptyQueryWorktrees: switchableWorktreesForRows
-    })
-    return hasQuery && filterPredicate ? scope.filter(filterPredicate.matchesWorktree) : scope
-  }, [allWorktrees, filterPredicate, hasQuery, switchableWorktreesForRows])
+  const searchScopeWorktrees = useMemo(
+    () =>
+      getPinnedWorktreeSearchScope({
+        hasQuery,
+        allWorktrees,
+        visibleWorktrees: switchableWorktreesForRows,
+        pinnedIds,
+        matchesFilter: filterPredicate?.matchesWorktree
+      }),
+    [allWorktrees, filterPredicate, hasQuery, pinnedIds, switchableWorktreesForRows]
+  )
   const browserSortedWorktrees = useMemo(() => {
     if (!paletteStatusInputsActive) {
       return EMPTY_SORTED_WORKTREES

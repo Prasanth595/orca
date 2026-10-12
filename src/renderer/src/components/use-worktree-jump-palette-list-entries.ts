@@ -22,6 +22,7 @@ type WorktreeJumpPaletteListEntriesInput = WorktreeJumpPaletteSections &
 
 export function useWorktreeJumpPaletteListEntries({
   hasQuery,
+  pinnedItems,
   openTabsLeadSections,
   paletteSections,
   showCreateAction,
@@ -144,6 +145,7 @@ export function useWorktreeJumpPaletteListEntries({
     // Why: a pasted issue/PR URL is decisive. Show linked worktrees first so
     // Enter jumps; keep create available underneath when the user wants a new one.
     if (taskSourceUrl) {
+      appendPaletteListEntries(entries, pinnedItems)
       if (visibleWorktreeItems.length > 0) {
         pushWorktreeSection()
       }
@@ -151,6 +153,14 @@ export function useWorktreeJumpPaletteListEntries({
         entries.push({ id: CREATE_WORKTREE_ITEM_ID, type: 'create-worktree' })
       }
       return entries
+    }
+    if (pinnedItems.length > 0) {
+      entries.push({
+        id: '__header_pinned__',
+        type: 'section-header',
+        label: translate('worktreeJumpPalette.pinned', 'Pinned')
+      })
+      appendPaletteListEntries(entries, pinnedItems)
     }
     if (!hasQuery) {
       pushOpenTabSection()
@@ -233,6 +243,7 @@ export function useWorktreeJumpPaletteListEntries({
     middleLeadsSections,
     openTabsLeadSections,
     paletteSections,
+    pinnedItems,
     showCreateAction,
     taskSourceUrl
   ])

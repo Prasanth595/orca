@@ -3,7 +3,9 @@ import type { WorktreeJumpPaletteFilter } from './use-worktree-jump-palette-filt
 import type { WorktreeJumpPaletteLocalState } from './use-worktree-jump-palette-local-state'
 import type { WorktreeJumpPaletteStoreState } from './use-worktree-jump-palette-store-state'
 
-export type WorktreeJumpPaletteWorktreesInput = WorktreeJumpPaletteStoreState &
+export type WorktreeJumpPaletteWorktreesInput = {
+  pinnedIds: readonly string[]
+} & WorktreeJumpPaletteStoreState &
   Pick<
     WorktreeJumpPaletteFilter,
     'filterPredicate' | 'repoMap' | 'repoByHostIdentity' | 'hostOptions' | 'hostFilterActive'

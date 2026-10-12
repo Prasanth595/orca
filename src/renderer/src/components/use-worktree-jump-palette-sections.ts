@@ -31,7 +31,9 @@ import type { WorktreeJumpPaletteQuickActions } from './use-worktree-jump-palett
 import type { WorktreeJumpPaletteRecentTabs } from './use-worktree-jump-palette-recent-tabs'
 import type { WorktreeJumpPaletteWorktrees } from './use-worktree-jump-palette-worktrees'
 
-type WorktreeJumpPaletteSectionsInput = WorktreeJumpPaletteOpenTabs &
+type WorktreeJumpPaletteSectionsInput = {
+  pinnedIds: readonly string[]
+} & WorktreeJumpPaletteOpenTabs &
   WorktreeJumpPaletteRecentTabs &
   WorktreeJumpPaletteProjectTargets &
   Pick<WorktreeJumpPaletteQuickActions, 'middleItems'> &
@@ -47,9 +49,10 @@ type WorktreeJumpPaletteSectionsInput = WorktreeJumpPaletteOpenTabs &
 
 export function useWorktreeJumpPaletteSections({
   hasQuery,
-  worktreeItems,
-  openTabItems,
-  recentTabItems,
+  pinnedIds,
+  worktreeItems: allWorktreeItems,
+  openTabItems: allOpenTabItems,
+  recentTabItems: allRecentTabItems,
   projectTargetItems,
   middleItems,
   createWorktreeName,
@@ -58,6 +61,15 @@ export function useWorktreeJumpPaletteSections({
   setExpandedSectionCaps,
   selectedItemId
 }: WorktreeJumpPaletteSectionsInput) {
+  const { pinnedItems, worktreeItems, openTabItems, recentTabItems } = useMemo(() => {
+    const byId = new Map([...allWorktreeItems, ...allOpenTabItems].map((item) => [item.id, item]))
+    return {
+      pinnedItems: pinnedIds.flatMap((id) => byId.get(id) ?? []),
+      worktreeItems: allWorktreeItems.filter((item) => !pinnedIds.includes(item.id)),
+      openTabItems: allOpenTabItems.filter((item) => !pinnedIds.includes(item.id)),
+      recentTabItems: allRecentTabItems.filter((item) => !pinnedIds.includes(item.id))
+    }
+  }, [allWorktreeItems, allOpenTabItems, allRecentTabItems, pinnedIds])
   const openTabsLeadSections = useMemo(() => {
     if (!hasQuery) {
       return true
@@ -198,34 +210,34 @@ export function useWorktreeJumpPaletteSections({
     worktreeItems
   ])
 
-  // Why: badges number the snapshotted recent rows only — ⌘N is meaningless on a typed query, and an
-  // expanded section leaves its unaddressable rows unbadged rather than advertising ⌘10.
+  const digitShortcutItems = useMemo(() => {
+    if (hasQuery) {
+      return []
+    }
+    const byId = new Map(pinnedItems.map((item) => [item.id, item]))
+    return [...pinnedIds.map((id) => byId.get(id)), ...paletteSections.visibleOpenTabItems].slice(
+      0,
+      DIGIT_INDEX_ADDRESSABLE_ROWS
+    )
+  }, [hasQuery, paletteSections, pinnedIds, pinnedItems])
   const recentTabShortcutIndexByItem = useMemo(
     () =>
-      new Map(
-        hasQuery
-          ? []
-          : paletteSections.visibleOpenTabItems
-              .slice(0, DIGIT_INDEX_ADDRESSABLE_ROWS)
-              .map((item, index) => [item, index])
-      ),
-    [hasQuery, paletteSections]
+      new Map(digitShortcutItems.flatMap((item, index) => (item ? [[item, index] as const] : []))),
+    [digitShortcutItems]
   )
   const recentTabShortcutIndexById = useMemo(
     () =>
       new Map(
-        hasQuery
-          ? []
-          : paletteSections.visibleOpenTabItems
-              .slice(0, DIGIT_INDEX_ADDRESSABLE_ROWS)
-              .map((item, index) => [item.id, index])
+        digitShortcutItems.flatMap((item, index) => (item ? [[item.id, index] as const] : []))
       ),
-    [hasQuery, paletteSections]
+    [digitShortcutItems]
   )
   const digitShortcutModifiers =
     useShortcutKeyComboDetails(DIGIT_INDEX_ACTION_ID)[0]?.keys.slice(0, -1) ?? []
 
   return {
+    pinnedItems,
+    digitShortcutItems,
     openTabsLeadSections,
     middleLeadsSections,
     paletteSections,
