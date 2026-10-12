@@ -5137,5 +5137,8 @@
   },
   "auto.components.settings.shareSkills.signInTitle": {
     "ko": "스킬을 공유하려면 로그인하세요."
+  },
+  "auto.components.settings.shareSkills.copyTitle": {
+    "ko": "공개 목록에 표시되지 않는 링크 복사"
   }
 }
