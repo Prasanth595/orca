@@ -482,17 +482,6 @@
         "WorkspaceStatusAppearancePopover": {
           "514be2f569": "Set {{value0}} color to {{value1}}"
         },
-        "add": {
-          "repo": {
-            "local": {
-              "start": {
-                "actions": {
-                  "a6c20dca96": "Open a project from an SSH target"
-                }
-              }
-            }
-          }
-        },
         "preserved": {
           "branch": {
             "batch": {
@@ -906,6 +895,16 @@
         "storageUnavailable": "Your disk may be full or read-only. Free up space, then restart Orca.",
         "unknown": "Restart Orca to try again."
       }
+    }
+  },
+  "terminal": {
+    "newerDaemonBanner": {
+      "reopenTerminal_one": "Reopen terminal",
+      "reopenTerminal_other": "Reopen {{count}} terminals",
+      "reopened_one": "Reopened {{count}} terminal",
+      "reopened_other": "Reopened {{count}} terminals",
+      "resumed_one": "{{count}} agent session resumed.",
+      "resumed_other": "{{count}} agent sessions resumed."
     }
   },
   "worktreeJumpPalette": {
