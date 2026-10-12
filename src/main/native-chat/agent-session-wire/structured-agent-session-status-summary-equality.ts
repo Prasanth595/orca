@@ -1,6 +1,7 @@
 // Which status-summary changes reach every session list. The summary is broadcast to remote
 // subscribers too, so only a change a session list shows may re-send it.
 
+import { structuralValuesEqual } from '../../../shared/structural-value-equality'
 import { agentProviderSessionsEqual } from '../../../shared/agent-session-resume'
 import {
   agentSessionBackgroundTasksEqual,
@@ -31,6 +32,7 @@ export function structuredStatusSummariesEqual(
       (a.statusStartedAt !== undefined && !isIdleHeldOpenByChildWork(b))) &&
     a.latestPrompt === b.latestPrompt &&
     a.model === b.model &&
+    structuralValuesEqual(a.optionSelection, b.optionSelection) &&
     a.toolName === b.toolName &&
     a.toolInput === b.toolInput &&
     a.lastAssistantMessage === b.lastAssistantMessage &&

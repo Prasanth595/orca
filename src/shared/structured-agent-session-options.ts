@@ -47,7 +47,7 @@ export type StructuredAgentSessionOptionState = {
    *  same list once the host said it has none, usable but naming nothing the host may replace. */
   catalogSource: 'seed' | 'builtin' | 'host' | 'live' | null
   record: NativeChatSessionOptionRecord
-  pendingId: string | null
+  pendingPick: { id: string; value: string } | null
 }
 
 /** With `seedCatalog`, the state holds the static seed from the first frame, but the picker shows
@@ -60,7 +60,7 @@ export function createStructuredAgentSessionOptionState(
     catalog: seedCatalog ?? null,
     catalogSource: seedCatalog ? 'seed' : null,
     record: createNativeChatSessionOptionRecord(agent),
-    pendingId: null
+    pendingPick: null
   }
 }
 
@@ -137,8 +137,11 @@ export function applyStructuredAgentSessionOptions(
   )
   return {
     ...state,
-    catalog: structuredAgentSessionOptionCatalog(seed, result),
-    catalogSource: 'live'
+    catalog:
+      result.modelsKnown === false
+        ? state.catalog
+        : structuredAgentSessionOptionCatalog(seed, result),
+    catalogSource: result.modelsKnown === false ? state.catalogSource : 'live'
   }
 }
 
@@ -161,8 +164,11 @@ export function structuredAgentSessionOptionSnapshot(
   if (!state.catalog) {
     return []
   }
-  // Until the host answers, the built-in list would paint a label its list may replace.
-  if (state.catalogSource === 'seed') {
+  // A built-in list can name a saved model it recognizes, never a guessed default.
+  if (
+    state.catalogSource === 'seed' &&
+    !state.catalog.models.some((model) => model.id === state.record.model?.value)
+  ) {
     return [PROVIDER_DEFAULT_MODEL_PLACEHOLDER]
   }
   const snapshot = buildNativeChatSessionOptionSnapshot({
@@ -198,7 +204,7 @@ export function canSetStructuredAgentSessionOption(
   const descriptor = structuredAgentSessionOptionSnapshot(state).find((entry) => entry.id === id)
   return Boolean(
     state.catalog &&
-    state.pendingId === null &&
+    state.pendingPick === null &&
     ((typeof value === 'string' &&
       descriptor?.kind.type === 'select' &&
       descriptor.kind.choices.some((choice) => choice.value === value)) ||
@@ -221,10 +227,10 @@ export function commitStructuredAgentSessionOption(
   )
   const decoded = decodeStructuredAgentSessionOptionValue(id, value)
   if (decoded === null) {
-    return { ...state, pendingId: null }
+    return { ...state, pendingPick: null }
   }
   setTrackedSessionOption(state.record, id, decoded, 'dispatched', effectiveModel)
-  return { ...state, pendingId: null }
+  return { ...state, pendingPick: null }
 }
 
 export function commitStructuredAgentSessionOptionValues(

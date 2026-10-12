@@ -56,6 +56,7 @@ export function structuredAgentSessionStatusSummary({
       ? { rewindBlockedReason: 'outcome-unknown' as const }
       : {}),
     ...(model ? { model } : {}),
+    ...(record ? { optionSelection: record.options ?? {} } : {}),
     ...childWork,
     ...(providerSession ? { providerSession } : {}),
     ...(launchDirectory ? { launchDirectory } : {}),
