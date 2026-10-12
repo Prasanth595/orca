@@ -11951,7 +11951,7 @@
           "keywordAutomations": "자동화",
           "keywordSchedule": "일정",
           "keywordAgent": "에이전트",
-          "keywordRuns": "달린다"
+          "keywordRuns": "실행"
         },
         "QuickCommandsList": {
           "noSearchMatches": "이 검색과 일치하는 명령이 없습니다."
