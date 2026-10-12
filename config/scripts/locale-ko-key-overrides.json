@@ -5104,5 +5104,8 @@
   },
   "components.workspace.cleanup.browse.agent.working": {
     "ko": "작업 중"
+  },
+  "auto.components.settings.Settings.6855b0f77d": {
+    "ko": "Orca를 병렬 에이전트 작업에 유용하게 만드는 핵심 워크플로를 완료합니다."
   }
 }
