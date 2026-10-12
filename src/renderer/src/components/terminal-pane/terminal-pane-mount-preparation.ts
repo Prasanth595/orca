@@ -7,7 +7,10 @@ import {
   canOpenWorkspaceBrowserTabOnSsh
 } from '@/lib/workspace-browser-tab-open'
 import { resolvePaneWslDistro } from './terminal-pane-wsl-distro'
-import { resolveTerminalHttpLinkSourceOwner } from './terminal-http-link-source-owner'
+import {
+  resolveTerminalHttpLinkSourceOwner,
+  resolveTerminalRuntimeHandle
+} from './terminal-http-link-source-owner'
 import {
   getTerminalFileOpenHint,
   getTerminalUrlOpenHint,
@@ -20,7 +23,7 @@ import type { PtyConnectionDeps } from './pty-connection-types'
 import type { UseTerminalPaneLifecycleDeps } from './terminal-pane-lifecycle-types'
 import type { TerminalPaneLifecycleRefs } from './use-terminal-pane-lifecycle-refs'
 import { fitAndFocusPanes, fitPanes } from './pane-helpers'
-import { registerRuntimeTerminalTab } from '@/runtime/sync-runtime-graph'
+import { registerRuntimeTerminalTab } from '@/runtime/mounted-terminal-tab-registry'
 import { normalizeTerminalLayoutSnapshot } from './layout-serialization'
 import { applyTerminalAppearance } from './terminal-appearance'
 import { terminalLinkClickBehaviorFor } from './terminal-link-click-behavior'
@@ -81,13 +84,9 @@ export function prepareTerminalPaneMount(
   const expandedStyleSnapshots = expandedStyleSnapshotRef.current
   const paneTransports = paneTransportsRef.current
   const panePtyBindings = panePtyBindingsRef.current
+  const worktrees = useAppStore.getState().allWorktrees()
   const worktreePath =
-    useAppStore
-      .getState()
-      .allWorktrees()
-      .find((candidate) => candidate.id === deps.worktreeId)?.path ??
-    deps.cwd ??
-    ''
+    worktrees.find((candidate) => candidate.id === deps.worktreeId)?.path ?? deps.cwd ?? ''
   const defaultTabCwd = deps.cwd ?? worktreePath
   const initialCwdResolution = resolveQueuedInitialCwd(
     refs.queuedInitialCwdRef.current,
@@ -169,6 +168,7 @@ export function prepareTerminalPaneMount(
       const sourceOwner = getHttpLinkSourceOwnerForPane(paneId)
       return sourceOwner.kind === 'runtime' ? sourceOwner.runtimeEnvironmentId : null
     },
+    getRuntimeTerminalHandleForPane: (id) => resolveTerminalRuntimeHandle(paneTransports.get(id)),
     getLinkActionContext
   }
   let resizeRaf: number | null = null

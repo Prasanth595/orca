@@ -49,6 +49,7 @@ describe('terminal.list RPC boundary', () => {
     expect(response.ok).toBe(true)
     const result = (response as { result: RuntimeTerminalListResult }).result
     expect(result.terminals[0]?.executionHostId).toBe('ssh:box-1')
+    expect(result.terminals[0]?.surface).toBe('visible')
     expect(result.hostScope).toEqual({ hostIds: ['ssh:box-1'], omittedHostIds: ['local'] })
   })
 })
