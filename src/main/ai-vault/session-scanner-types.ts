@@ -80,6 +80,8 @@ export type FileWithMtime = {
   // What discovery saw of the agent's sibling file, tracked apart from the
   // transcript's own stat (see session-sidecar-stat.ts).
   sidecar?: SessionSidecarObservation
+  /** Multi-file content identity, separate from the primary transcript's byte cursor. */
+  contentFingerprint?: string
   // Present when discovery can prove filesystem identity. Codex dual-root
   // scans use a multi-link inode to collapse only actual hardlink aliases.
   dev?: number

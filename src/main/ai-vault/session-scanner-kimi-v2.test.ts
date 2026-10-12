@@ -1,0 +1,134 @@
+import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, expect, it } from 'vitest'
+import { parseKimiSessionFile } from './session-scanner-kimi-parser'
+import type { TranscriptMessage } from './session-transcript-consumers'
+
+const roots: string[] = []
+afterEach(async () => {
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+})
+
+it.each(['milliseconds', 'iso'])(
+  'normalizes Kimi v2 %s state timestamps and retains cwd without an index',
+  async (format) => {
+    const root = await mkdtemp(join(tmpdir(), 'kimi-v2-'))
+    roots.push(root)
+    const session = join(root, 'sessions', 'wd_fixture', 'session_v2-fixture')
+    await mkdir(join(session, 'agents', 'main'), { recursive: true })
+    const path = join(session, 'state.json')
+    await writeFile(
+      path,
+      JSON.stringify({
+        version: 2,
+        cwd: '/synthetic/kimi-app',
+        createdAt:
+          format === 'iso' ? '2026-10-04T13:30:00.000Z' : Date.parse('2026-10-04T13:30:00.000Z'),
+        updatedAt:
+          format === 'iso' ? '2026-10-04T14:00:00.000Z' : Date.parse('2026-10-04T14:00:00.000Z'),
+        agents: { main: { type: 'main' } }
+      })
+    )
+    await writeFile(join(session, 'agents', 'main', 'wire.jsonl'), '')
+    const result = await parseKimiSessionFile(
+      { path, mtimeMs: 1, modifiedAt: '2026-10-04T14:00:00.000Z' },
+      'darwin'
+    )
+    expect(result?.createdAt).toBe('2026-10-04T13:30:00.000Z')
+    expect(result?.updatedAt).toBe('2026-10-04T14:00:00.000Z')
+    expect(result?.cwd).toBe('/synthetic/kimi-app')
+  }
+)
+
+it('publishes v2 canonical turns and tool calls/results once, with record timestamps', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'kimi-v2-'))
+  roots.push(root)
+  const session = join(root, 'sessions', 'wd_fixture', 'session_v2-fixture')
+  await mkdir(join(session, 'agents', 'main'), { recursive: true })
+  const path = join(session, 'state.json')
+  await writeFile(path, JSON.stringify({ version: 2, agents: { main: { type: 'main' } } }))
+  const time = Date.parse('2026-10-04T13:30:00.000Z')
+  const appended = (message: unknown) => ({
+    type: 'agent.message.appended',
+    time,
+    message: { message, meta: { origin: { kind: 'user' } } }
+  })
+  const loop = (event: unknown) => ({ type: 'context.append_loop_event', time, event })
+  const records = [
+    {
+      type: 'context.append_message',
+      time,
+      message: {
+        role: 'user',
+        origin: { kind: 'user' },
+        content: [{ type: 'text', text: 'beta11 fixture user' }]
+      }
+    },
+    appended({ role: 'user', content: [{ type: 'text', text: 'beta11 fixture user' }] }),
+    loop({ type: 'content.part', part: { type: 'text', text: 'fixture answer' } }),
+    loop({
+      type: 'tool.call',
+      toolCallId: 'call-1',
+      name: 'Bash',
+      args: { command: 'printf fixture-command' }
+    }),
+    appended({
+      role: 'assistant',
+      content: [{ type: 'text', text: 'fixture answer' }],
+      toolCalls: [{ id: 'call-1', name: 'Bash', arguments: '{"command":"printf fixture-command"}' }]
+    }),
+    loop({
+      type: 'tool.result',
+      toolCallId: 'call-1',
+      result: { output: 'ElementResolutionError fixture-output' }
+    }),
+    appended({
+      role: 'tool',
+      toolCallId: 'call-1',
+      content: [{ type: 'text', text: 'ElementResolutionError fixture-output' }]
+    }),
+    loop({ type: 'step.end' })
+  ]
+  await writeFile(
+    join(session, 'agents', 'main', 'wire.jsonl'),
+    records.map((r) => JSON.stringify(r)).join('\n')
+  )
+  const messages: TranscriptMessage[] = []
+  await parseKimiSessionFile(
+    { path, mtimeMs: 1, modifiedAt: '2026-10-04T14:00:00.000Z' },
+    'darwin',
+    { active: true, push: (m) => messages.push(m) }
+  )
+  expect(messages.filter((m) => m.role === 'user')).toEqual([
+    { role: 'user', text: 'beta11 fixture user', timestamp: '2026-10-04T13:30:00.000Z' }
+  ])
+  expect(messages.filter((m) => m.role === 'assistant')).toHaveLength(1)
+  expect(messages.filter((m) => m.role === 'tool').map((m) => m.text)).toEqual([
+    'Bash: printf fixture-command',
+    'ElementResolutionError fixture-output'
+  ])
+  expect(messages.every((m) => m.timestamp === '2026-10-04T13:30:00.000Z')).toBe(true)
+})
+
+it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
+  'rejects an unreadable v2 wire instead of committing a partial searchable session',
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), 'kimi-v2-'))
+    roots.push(root)
+    const session = join(root, 'sessions', 'wd_fixture', 'session_v2-fixture')
+    await mkdir(join(session, 'agents', 'main'), { recursive: true })
+    const path = join(session, 'state.json')
+    const wire = join(session, 'agents', 'main', 'wire.jsonl')
+    await writeFile(path, JSON.stringify({ version: 2, agents: { main: { type: 'main' } } }))
+    await writeFile(wire, '{}\n')
+    await chmod(wire, 0)
+    try {
+      await expect(
+        parseKimiSessionFile({ path, mtimeMs: 1, modifiedAt: '2026-10-04T14:00:00.000Z' }, 'darwin')
+      ).rejects.toMatchObject({ code: 'EACCES' })
+    } finally {
+      await chmod(wire, 0o600)
+    }
+  }
+)

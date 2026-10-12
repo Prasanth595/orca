@@ -218,6 +218,9 @@ function parsePersistedEntry(item: unknown): [string, PersistedSessionParseCache
       sizeBytes: entry.sizeBytes,
       platform: entry.platform as NodeJS.Platform,
       session: entry.session as PersistedSessionParseCacheEntry['session'],
+      ...(typeof entry.contentFingerprint === 'string'
+        ? { contentFingerprint: entry.contentFingerprint }
+        : {}),
       ...(sidecar === undefined ? {} : { sidecar })
     }
   ]

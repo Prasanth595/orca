@@ -132,6 +132,11 @@ function openExisting(path: string): SyncDatabase {
       db = openWithPragmas(path)
     }
     db.exec(SCHEMA_SQL)
+    // Additive and rollback-compatible: never bump the destructive cache schema for this field.
+    const columns = db.prepare('PRAGMA table_info(files)').all()
+    if (!columns.some((column) => column.name === 'content_fingerprint')) {
+      db.exec('ALTER TABLE files ADD COLUMN content_fingerprint TEXT')
+    }
     db.prepare('INSERT OR IGNORE INTO meta(key, value) VALUES (?, ?)').run(
       'index_incarnation',
       randomUUID()

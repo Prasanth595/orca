@@ -37,6 +37,7 @@ export async function discoverFiles(args: {
   extensions: string[]
   filePredicate?: (path: string) => boolean
   contentDependencyPath?: (path: string) => string | undefined | Promise<string | undefined>
+  contentFingerprint?: (path: string) => Promise<string>
   directoryPredicate?: (name: string, depth: number) => boolean
 }): Promise<SessionFileDiscovery> {
   const files = new SessionNewestFiles(args.limit)
@@ -102,7 +103,9 @@ export async function discoverFiles(args: {
       withNativeDiscoverySlot(async () => {
         const files: SessionFileObservation[] = []
         for (const path of group) {
-          files.push(await observeSessionFile(path, args.contentDependencyPath))
+          files.push(
+            await observeSessionFile(path, args.contentDependencyPath, args.contentFingerprint)
+          )
         }
         return files
       })
@@ -129,7 +132,10 @@ export async function discoverFiles(args: {
         },
         native
           ? queueNativeFile
-          : async (path) => consume([await observeSessionFile(path, args.contentDependencyPath)])
+          : async (path) =>
+              consume([
+                await observeSessionFile(path, args.contentDependencyPath, args.contentFingerprint)
+              ])
       )
     } finally {
       // One read batch overlaps directory traversal; commit in traversal order.
@@ -157,10 +163,12 @@ export async function discoverFiles(args: {
 
 async function observeSessionFile(
   path: string,
-  contentDependencyPath?: (path: string) => string | undefined | Promise<string | undefined>
+  contentDependencyPath?: (path: string) => string | undefined | Promise<string | undefined>,
+  contentFingerprint?: (path: string) => Promise<string>
 ): Promise<SessionFileObservation> {
   try {
     const fileStat = await wslGatedStat(path, 'scan')
+    const fingerprint = contentFingerprint ? await contentFingerprint(path) : undefined
     const sidecarPath = contentDependencyPath ? await contentDependencyPath(path) : undefined
     const sidecar = sidecarPath ? await observeSessionSidecar(sidecarPath) : 'none'
     return {
@@ -168,6 +176,7 @@ async function observeSessionFile(
         path,
         mtimeMs: fileStat.mtimeMs,
         sizeBytes: fileStat.size,
+        ...(fingerprint === undefined ? {} : { contentFingerprint: fingerprint }),
         sidecar,
         dev: fileStat.dev,
         ino: fileStat.ino,
