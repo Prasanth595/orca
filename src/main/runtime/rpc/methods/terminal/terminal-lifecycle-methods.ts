@@ -11,6 +11,7 @@ import {
   TerminalCreateParams,
   TerminalFocus,
   TerminalHandle,
+  TerminalReveal,
   TerminalSleep,
   TerminalSplit,
   TerminalStop,
@@ -159,6 +160,21 @@ export const TERMINAL_LIFECYCLE_METHODS = [
         navigateHost: navigationTargetsHost(
           resolveRuntimeNavigationTarget({ navigation: params.navigation, clientKind })
         )
+      })
+    })
+  }),
+  defineMethod({
+    // Why a method of its own: terminal.focus resolves a handle on the host that runs the PTY, and a
+    // paired server has no window, so only the desktop showing its pane can reveal it (#24688).
+    name: 'terminal.reveal',
+    permission: 'workspace',
+    params: TerminalReveal,
+    handler: async (params, { runtime }) => ({
+      reveal: await runtime.revealTerminalPane({
+        worktreeId: params.worktreeId,
+        tabId: params.tabId,
+        leafId: params.leafId ?? null,
+        executionHostId: params.executionHostId ?? null
       })
     })
   }),
