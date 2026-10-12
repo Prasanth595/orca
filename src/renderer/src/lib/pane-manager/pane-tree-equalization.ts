@@ -71,3 +71,38 @@ export function equalizePaneSplitSizes(root: HTMLElement | null): boolean {
   visit(root)
   return changed
 }
+
+/**
+ * Equalizes every pane laid out along `split`'s axis in the same row/column, however the
+ * binary tree nests them; cross-axis splits keep their own ratios.
+ * Returns the outermost split it resized, or null when nothing changed.
+ */
+export function equalizeSameAxisPaneRun(split: HTMLElement): HTMLElement | null {
+  const direction = getSplitDirection(split)
+  let runRoot = split
+  for (
+    let parent = runRoot.parentElement;
+    parent?.classList.contains('pane-split') && getSplitDirection(parent) === direction;
+    parent = parent.parentElement
+  ) {
+    runRoot = parent
+  }
+
+  const weights = new Map<HTMLElement, number>()
+  let changed = false
+  const visit = (el: HTMLElement): void => {
+    for (const child of findPaneChildren(el)) {
+      const nextFlex = `${getEqualizeWeight(child, direction, weights)} 1 0%`
+      if (child.style.flex !== nextFlex) {
+        child.style.flex = nextFlex
+        changed = true
+      }
+      if (child.classList.contains('pane-split') && getSplitDirection(child) === direction) {
+        visit(child)
+      }
+    }
+  }
+
+  visit(runRoot)
+  return changed ? runRoot : null
+}
