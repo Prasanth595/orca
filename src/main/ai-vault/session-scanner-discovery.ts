@@ -40,6 +40,7 @@ export async function discoverFiles(args: {
   directoryPredicate?: (name: string, depth: number) => boolean
 }): Promise<SessionFileDiscovery> {
   const files = new SessionNewestFiles(args.limit)
+  const traversal = new Map<string, number>()
   let paths: string[] = []
   let pending: Promise<SessionFileObservation[]> | null = null
   const native = !isWslUncPath(args.rootDir)
@@ -54,6 +55,7 @@ export async function discoverFiles(args: {
         const modifiedAt = new Date(observation.file.mtimeMs)
         if (Number.isNaN(modifiedAt.getTime()) || files.wouldRetain(observation.file.mtimeMs)) {
           files.add({ ...observation.file, modifiedAt: modifiedAt.toISOString() })
+          traversal.set(observation.file.path, traversal.size)
         }
       } catch (err) {
         recordSessionScanIssue(args.issues, {
@@ -118,9 +120,7 @@ export async function discoverFiles(args: {
               }
             : {})
         },
-        native
-          ? queueNativeFile
-          : async (path) => consume([await observeSessionFile(path)])
+        native ? queueNativeFile : async (path) => consume([await observeSessionFile(path)])
       )
     } finally {
       // One read batch overlaps directory traversal; commit in traversal order.
@@ -146,9 +146,11 @@ export async function discoverFiles(args: {
   return {
     agent: args.agent,
     rootDir: args.rootDir,
-    files: await attachKeptSidecars(files.newest(), args)
+    files: await attachKeptSidecars(files.newest(), args, traversal, native)
   }
 }
+
+type KeptSidecar = { file: FileWithMtime; sidecarPath?: string } | { error: unknown }
 
 // Why: resolving every sidecar before the recency cap walks chats the scan never returns.
 async function attachKeptSidecars(
@@ -158,37 +160,48 @@ async function attachKeptSidecars(
     agent: AiVaultAgent
     issues: AiVaultScanIssue[]
     contentDependencyPath?: (path: string) => string | undefined | Promise<string | undefined>
-  }
+  },
+  traversal: ReadonlyMap<string, number>,
+  native: boolean
 ): Promise<FileWithMtime[]> {
-  if (!args.contentDependencyPath) {
+  const resolve = args.contentDependencyPath
+  if (!resolve) {
     return kept
   }
-  const withSidecars: FileWithMtime[] = []
-  let refusedSidecar = false
-  for (const file of kept) {
+  const read = async (file: FileWithMtime): Promise<KeptSidecar> => {
     try {
-      const sidecarPath = await args.contentDependencyPath(file.path)
-      const sidecar = await observeSessionSidecar(sidecarPath)
-      if (sidecar === 'unknown' && !refusedSidecar) {
-        // One issue per root: a refused sibling is a property of the tree,
-        // not of each transcript that happens to point at it.
-        refusedSidecar = true
-        recordSessionScanIssue(args.issues, {
-          agent: args.agent,
-          path: sidecarPath ?? args.rootDir,
-          message: 'Session metadata could not be read this scan.'
-        })
-      }
-      withSidecars.push({ ...file, sidecar })
-    } catch (err) {
+      const sidecarPath = await resolve(file.path)
+      return { file: { ...file, sidecar: await observeSessionSidecar(sidecarPath) }, sidecarPath }
+    } catch (error) {
+      return { error }
+    }
+  }
+  const observed: { path: string; order: number; entry: KeptSidecar }[] = []
+  for (const file of kept) {
+    const entry = await (native ? withNativeDiscoverySlot(() => read(file)) : read(file))
+    observed.push({ path: file.path, order: traversal.get(file.path) ?? 0, entry })
+  }
+  // Issues in traversal order, as a scan that read every sidecar would report them.
+  let refusedSidecar = false
+  for (const { path, entry } of [...observed].sort((a, b) => a.order - b.order)) {
+    if ('error' in entry) {
       recordSessionScanIssue(args.issues, {
         agent: args.agent,
-        path: file.path,
-        message: errorMessage(err)
+        path,
+        message: errorMessage(entry.error)
+      })
+    } else if (entry.file.sidecar === 'unknown' && !refusedSidecar) {
+      // One issue per root: a refused sibling is a property of the tree,
+      // not of each transcript that happens to point at it.
+      refusedSidecar = true
+      recordSessionScanIssue(args.issues, {
+        agent: args.agent,
+        path: entry.sidecarPath ?? args.rootDir,
+        message: 'Session metadata could not be read this scan.'
       })
     }
   }
-  return withSidecars
+  return observed.flatMap(({ entry }) => ('file' in entry ? [entry.file] : []))
 }
 
 async function observeSessionFile(path: string): Promise<SessionFileObservation> {

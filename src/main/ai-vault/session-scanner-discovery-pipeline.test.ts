@@ -65,7 +65,7 @@ describe('fresh discovery pipeline', () => {
     expect(format).toHaveBeenCalledTimes(35)
   })
 
-  it('reports invalid timestamps even for empty requests, after unavailable sidecar issues', async () => {
+  it('reports invalid timestamps even for empty requests, reading no metadata it does not return', async () => {
     const [file] = await createFiles(root, 1)
     fsMocks.stat.mockImplementation(async (path: string) => {
       if (path.endsWith('.meta')) {
@@ -84,13 +84,9 @@ describe('fresh discovery pipeline', () => {
     })
     expect(discovery.files).toEqual([])
     expect(issues).toEqual([
-      {
-        agent: 'claude',
-        path: `${file}.meta`,
-        message: 'Session metadata could not be read this scan.'
-      },
       { agent: 'claude', path: file, message: expect.stringMatching(/Invalid (?:time value|Date)/) }
     ])
+    expect(fsMocks.stat.mock.calls.map(([path]) => path)).not.toContain(`${file}.meta`)
   })
 
   it('preserves traversal ties when later metadata completes first, including the partial batch', async () => {
