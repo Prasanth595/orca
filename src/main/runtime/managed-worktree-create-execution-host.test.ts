@@ -35,7 +35,18 @@ type RuntimeInternals = {
 function makeRuntime(repo: Record<string, unknown>): OrcaRuntimeService {
   const store = {
     getSettings: () => ({ disabledTuiAgents: [], workspaceDir: '/tmp/workspaces' }),
-    getProjectHostSetups: () => []
+    getProjectHostSetups: () => [],
+    getAllWorktreeMeta: () => ({
+      'repo-remote::/srv/app-parent': {
+        setupProfile: { name: 'customer-default', setupDecision: 'run' }
+      }
+    }),
+    getAllWorktreeMetaForHost: () => ({
+      'repo-remote::/srv/app-parent': {
+        setupProfile: { name: 'customer-default', setupDecision: 'run' }
+      }
+    }),
+    getAllWorktreeLineage: () => ({})
   }
   const runtime = new OrcaRuntimeService(store as never)
   const internals = runtime as unknown as RuntimeInternals

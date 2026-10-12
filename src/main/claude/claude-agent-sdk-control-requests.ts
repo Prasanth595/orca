@@ -1,4 +1,5 @@
 import type {
+  McpServerStatus,
   PermissionMode,
   Query,
   SDKControlInterruptResponse
@@ -109,6 +110,8 @@ export type ClaudeControlSurface = {
   getSettings: (options?: ClaudeControlOptions) => Promise<unknown>
   /** The `/context` breakdown; older CLIs reject the request and the caller shows nothing. */
   getContextUsage: (options?: ClaudeControlOptions) => Promise<unknown>
+  /** Effective status from this running provider session, not config on disk. */
+  mcpServerStatus?: (options?: ClaudeControlOptions) => Promise<McpServerStatus[]>
 }
 
 type InterruptingQuery = {
@@ -160,6 +163,8 @@ export function createClaudeControlSurface(query: Query): ClaudeControlSurface {
       runClaudeControl('initialize', () => query.initializationResult(), null),
     getContextUsage: (options) =>
       runClaudeControl('get_context_usage', () => query.getContextUsage(), options?.timeoutMs),
+    mcpServerStatus: (options) =>
+      runClaudeControl('mcp_server_status', () => query.mcpServerStatus(), options?.timeoutMs),
     getSettings: (options) => {
       const read = claudeQuerySettingsReader(query)
       return read

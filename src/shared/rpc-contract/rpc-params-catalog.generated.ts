@@ -448,6 +448,7 @@ import {
   ProjectHostSetupDelete,
   ProjectHostSetupExistingFolder,
   ProjectHostSetupUpdate,
+  ProjectSetupPolicyRead,
   ProjectUpdate
 } from './project-runtime-params'
 import { ReferenceFind, ReferenceList } from './reference-params'
@@ -508,6 +509,7 @@ import {
   HandoffStatusParams,
   HistoryParams,
   HoldParams,
+  McpReadinessParams,
   ModelCatalogParams,
   OptionsParams,
   QueuedMessageActionParams,
@@ -643,6 +645,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'agentSession.handoffStatus': HandoffStatusParams,
   'agentSession.history': HistoryParams,
   'agentSession.hold': HoldParams,
+  'agentSession.mcpReadiness': McpReadinessParams,
   'agentSession.modelCatalog': ModelCatalogParams,
   'agentSession.options': OptionsParams,
   'agentSession.queuedMessageDelete': QueuedMessageActionParams,
@@ -1146,6 +1149,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'projectHostSetup.create': ProjectHostSetupCreate,
   'projectHostSetup.delete': ProjectHostSetupDelete,
   'projectHostSetup.list': null,
+  'projectHostSetup.policy': ProjectSetupPolicyRead,
   'projectHostSetup.setupExistingFolder': ProjectHostSetupExistingFolder,
   'projectHostSetup.update': ProjectHostSetupUpdate,
   'reference.find': ReferenceFind,

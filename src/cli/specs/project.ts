@@ -63,7 +63,7 @@ export const PROJECT_COMMAND_SPECS: CommandSpec[] = [
     path: ['project', 'setup-create'],
     summary: 'Create independent project host setup metadata',
     usage:
-      'orca project setup-create --project <id> --host <host-id> [--setup-id <id>] [--path <path>] [--kind git|folder] [--display-name <name>] [--worktree-base-path <path>] [--git-username <name>] [--state ready|not-set-up|setting-up|error|unsupported] [--method imported-existing-folder|cloned|provisioned] [--json]',
+      'orca project setup-create --project <id> --host <host-id> [--setup-id <id>] [--path <path>] [--kind git|folder] [--display-name <name>] [--worktree-base-path <path>] [--git-username <name>] [--required-mcp <server[|alternative]>:read|write] [--state ready|not-set-up|setting-up|error|unsupported] [--method imported-existing-folder|cloned|provisioned] [--json]',
     allowedFlags: [
       ...GLOBAL_FLAGS,
       'project',
@@ -75,8 +75,10 @@ export const PROJECT_COMMAND_SPECS: CommandSpec[] = [
       'worktree-base-path',
       'git-username',
       'state',
-      'method'
+      'method',
+      'required-mcp'
     ],
+    repeatableFlags: ['required-mcp'],
     notes: [
       'Creates setup metadata without registering a repo compatibility record.',
       '--host runtime:<environment-id> targets that paired Orca server; use the id from `orca environment list`, not the environment name.',
@@ -90,25 +92,46 @@ export const PROJECT_COMMAND_SPECS: CommandSpec[] = [
     path: ['project', 'setup-update'],
     summary: 'Update project host setup metadata',
     usage:
-      'orca project setup-update --setup <setup-id> [--display-name <name>] [--path <path>] [--worktree-base-path <path>] [--git-username <name>] [--kind git|folder] [--state ready|not-set-up|setting-up|error|unsupported] [--method legacy-repo|imported-existing-folder|cloned|provisioned] [--json]',
+      'orca project setup-update --setup <setup-id> [--host <host-id>] [--display-name <name>] [--path <path>] [--worktree-base-path <path>] [--git-username <name>] [--required-mcp <server[|alternative]>:read|write] [--kind git|folder] [--state ready|not-set-up|setting-up|error|unsupported] [--method legacy-repo|imported-existing-folder|cloned|provisioned] [--json]',
     allowedFlags: [
       ...GLOBAL_FLAGS,
       'setup',
+      'host',
       'display-name',
       'path',
       'worktree-base-path',
       'git-username',
       'kind',
       'state',
-      'method'
+      'method',
+      'required-mcp'
     ],
+    repeatableFlags: ['required-mcp'],
     notes: [
       'Repo-backed setups mirror safe fields onto the repo record.',
-      'Path and availability state changes are only supported for independent setup records.'
+      'Pass --host when repo-backed setups on multiple hosts share the same setup ID.',
+      'Path and availability state changes are only supported for independent setup records.',
+      'Repeat --required-mcp to require multiple capabilities. Pass --required-mcp= to clear all requirements.'
     ],
     examples: [
       'orca project setup-update --setup github:stablyai/orca::gpu --display-name "GPU VM"',
+      'orca project setup-update --setup orca --host ssh:builder --required-mcp linear:write',
       'orca project setup-update --setup github:stablyai/orca::gpu --path /srv/orca --state ready --json'
+    ]
+  },
+  {
+    path: ['project', 'setup-policy'],
+    summary: 'Read effective setup profile, hooks, and tooling for a worktree',
+    usage: 'orca project setup-policy --worktree <selector> [--dry-run] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'worktree', 'dry-run'],
+    notes: [
+      'Reports the direct or inherited profile source and the effective repository hook policy.',
+      '--dry-run reports whether setup would run and never mutates metadata or executes hooks.',
+      'Hook commands and credentials are never included in the result.'
+    ],
+    examples: [
+      'orca project setup-policy --worktree active --json',
+      'orca project setup-policy --worktree active --dry-run --json'
     ]
   },
   {

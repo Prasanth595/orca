@@ -19,6 +19,7 @@ describe('updateRuntimeManagedWorktreeMetadata', () => {
     // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the update only reads these store members.
     const store = {
       getRepos: () => [],
+      getWorktreeMeta: () => undefined,
       setWorktreeMeta,
       setWorktreeMetaForHost
     } as unknown as RuntimeStore
@@ -42,6 +43,75 @@ describe('updateRuntimeManagedWorktreeMetadata', () => {
       comment: 'remote row only'
     })
     expect(setWorktreeMeta).not.toHaveBeenCalled()
+  })
+
+  it('allows first attachment but confirms replacement or removal of a direct setup profile', async () => {
+    const worktree = {
+      id: 'repo-1::/workspace/app',
+      repoId: 'repo-1',
+      hostId: 'local',
+      path: '/workspace/app',
+      instanceId: 'instance-1'
+    } as unknown as ResolvedWorktree
+    let meta: Partial<WorktreeMeta> = { instanceId: 'instance-1' }
+    const setWorktreeMetaForHost = vi.fn(
+      (_id: string, _hostId: string, updates: Partial<WorktreeMeta>) => {
+        meta = { ...meta, ...updates }
+      }
+    )
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the update only reads and writes the metadata members stubbed here.
+    const store = {
+      getRepos: () => [],
+      getWorktreeMeta: () => meta,
+      getWorktreeMetaForHost: () => meta,
+      setWorktreeMeta: vi.fn(),
+      setWorktreeMetaForHost
+    } as unknown as RuntimeStore
+    const ports = {
+      resolveWorktree: vi.fn(async () => worktree),
+      validateParent: vi.fn(),
+      invalidateResolved: vi.fn(),
+      invalidateScan: vi.fn(),
+      notifyChanged: vi.fn(),
+      showWorktree: vi.fn(async () => worktree as unknown as Worktree)
+    }
+
+    await updateRuntimeManagedWorktreeMetadata({
+      selector: `id:${worktree.id}`,
+      updates: { setupProfile: { name: 'customer-default', setupDecision: 'run' } },
+      store,
+      ports
+    })
+    expect(meta.setupProfile).toEqual({ name: 'customer-default', setupDecision: 'run' })
+
+    await expect(
+      updateRuntimeManagedWorktreeMetadata({
+        selector: `id:${worktree.id}`,
+        updates: { setupProfile: { name: 'customer-safe', setupDecision: 'skip' } },
+        store,
+        ports
+      })
+    ).rejects.toThrow('--confirm-shared-profile-change')
+
+    await updateRuntimeManagedWorktreeMetadata({
+      selector: `id:${worktree.id}`,
+      updates: {
+        setupProfile: { name: 'customer-safe', setupDecision: 'skip' },
+        confirmSharedSetupProfileChange: true
+      },
+      store,
+      ports
+    })
+    expect(meta.setupProfile).toEqual({ name: 'customer-safe', setupDecision: 'skip' })
+
+    await expect(
+      updateRuntimeManagedWorktreeMetadata({
+        selector: `id:${worktree.id}`,
+        updates: { setupProfile: null },
+        store,
+        ports
+      })
+    ).rejects.toThrow('--confirm-shared-profile-change')
   })
 
   describe('a folder workspace removed while its resolution was in flight (#22712)', () => {

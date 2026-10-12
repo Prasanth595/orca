@@ -13,6 +13,7 @@ import type {
 import type { TuiAgent } from '../tui-agent'
 import type { OrcaWorkspaceLayout } from '../global-settings-types'
 import type { DiffComment, MobileDiffReviewState } from '../diff-comment-types'
+import type { WorkspaceSetupProfile } from '../workspace-setup-profile'
 
 // ─── Worktree metadata (persisted user-authored fields only) ─────────
 export type WorktreeMeta = {
@@ -24,6 +25,8 @@ export type WorktreeMeta = {
   hostId?: ExecutionHostId
   /** See Worktree.projectHostSetupId. Persisted for project-first workspace ownership. */
   projectHostSetupId?: string
+  /** Direct setup profile. Children resolve the nearest ancestor profile through valid lineage. */
+  setupProfile?: WorkspaceSetupProfile
   /** See Worktree.ephemeralVmCheckoutMode. */
   ephemeralVmCheckoutMode?: EphemeralVmCheckoutMode
   /** See Worktree.creatorProvenance. */

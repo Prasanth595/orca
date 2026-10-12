@@ -4,6 +4,7 @@ import type { CodexJournalTranslationAdmission } from './codex-structured-journa
 import * as codexRewind from './codex-structured-rewind'
 import type { CodexSession, CodexStructuredSessionEvent } from './codex-structured-session-state'
 import { readCodexThreadId } from './codex-structured-thread-facts'
+import { observeCodexMcpServerStatus } from './codex-mcp-readiness'
 
 type EmitCodexEvent = (
   session: CodexSession,
@@ -21,6 +22,9 @@ export function translateCodexNotification(input: {
   emit: EmitCodexEvent
 }): CodexJournalTranslationAdmission {
   const { sessionId, session, method, params, observedAt, dispatchSequenceAtReceipt } = input
+  if (session.mcpReadiness) {
+    observeCodexMcpServerStatus(session.mcpReadiness, method, params)
+  }
   codexRewind.observeCodexRewindActivity(session, method, params)
   session.turnOpenWaits.observe(session.threadId, method, params)
   return deliverCodexNotification(

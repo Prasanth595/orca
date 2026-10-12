@@ -6,6 +6,7 @@ import type { ForkSyncMode } from './git-fork-sync'
 import type { GitRemoteIdentity } from './git-remote-identity'
 import type { RepoSourceControlAiOverrides } from './source-control-ai-types'
 import type { RepoProjectHostSetupMethod } from './project-types'
+import type { ProjectMcpRequirement } from './agent-mcp-readiness'
 
 // ─── Repo ────────────────────────────────────────────────────────────
 export type RepoKind = 'git' | 'folder'
@@ -120,6 +121,8 @@ export type Repo = {
   sourceControlAi?: RepoSourceControlAiOverrides
   /** Transitional source for ProjectHostSetup.setupMethod while Repo remains compatibility storage. */
   projectHostSetupMethod?: RepoProjectHostSetupMethod
+  /** Effective MCP capabilities an agent must prove for this project on this host. */
+  requiredMcpCapabilities?: ProjectMcpRequirement[]
 }
 
 /**

@@ -5,7 +5,11 @@
  * through the test database registry, so `closeTestJournalHostDatabases` closes it too.
  */
 
-import type { AgentSessionOperationRow } from '../../shared/agent-session-operation-ledger'
+import {
+  agentSessionOperationKey,
+  isAgentSessionOperationRow,
+  type AgentSessionOperationRow
+} from '../../shared/agent-session-operation-ledger'
 import type { PersistedAgentSessionRecord } from '../../shared/agent-session-legacy-handoff-lease'
 import {
   encodePersistedAgentSessionProviderHandle,
@@ -20,6 +24,7 @@ import {
 import type Database from '../sqlite/sync-database'
 import { AgentSessionRecordStore } from './agent-session-record-store'
 import type { RetiredAgentSessionClaimKey } from './agent-session-store-state'
+import { agentSessionOperationStorageKey } from './agent-session-store-row-rules'
 
 const TEST_HOST_ID = 'local'
 
@@ -71,10 +76,13 @@ function writePersisted(db: Database.Database, persisted: PersistedTestAgentSess
     for (const [sessionId, record] of Object.entries(persisted.records)) {
       insertRecord.run(sessionId, JSON.stringify(record))
     }
-    for (const [key, row] of Object.entries(persisted.operations)) {
-      db.prepare(
+    for (const [legacyKey, row] of Object.entries(persisted.operations)) {
+      const insert = db.prepare(
         'INSERT INTO agent_session_operations (operation_key, row_json) VALUES (?, ?)'
-      ).run(key, JSON.stringify(row))
+      )
+      const json = JSON.stringify(row)
+      insert.run(agentSessionOperationStorageKey(row), json)
+      insert.run(legacyKey, json)
     }
     for (const { keyId, retiredAt } of persisted.retiredClaimKeys) {
       db.prepare(
@@ -168,10 +176,10 @@ export async function readPersistedTestAgentSessionStore(
   for (const row of db
     .prepare('SELECT operation_key, row_json FROM agent_session_operations ORDER BY rowid')
     .all()) {
-    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: test read-back of rows the store wrote after validating them.
-    persisted.operations[String(row.operation_key)] = parsed(
-      row.row_json
-    ) as AgentSessionOperationRow
+    const value = parsed(row.row_json)
+    if (isAgentSessionOperationRow(value)) {
+      persisted.operations[agentSessionOperationKey(value.callerKey, value.operationId)] = value
+    }
   }
   for (const row of db
     .prepare('SELECT key_id, retired_at FROM agent_session_retired_claim_keys ORDER BY rowid')
