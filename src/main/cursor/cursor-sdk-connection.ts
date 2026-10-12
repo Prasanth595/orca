@@ -5,6 +5,7 @@ import { ensureCursorSdkLoginFromSessionOnce } from './cursor-sdk-session-login'
 import { cursorSdkHomePath } from './cursor-structured-location-support'
 import { runProcess, spawnProcess } from '@orca/process-host'
 import type { PipedChildProcess } from '@orca/process-host/process-spec'
+import type { CursorSidecarLaunch } from './cursor-sidecar-launch'
 import {
   parseCursorSidecarEvent,
   type CursorSdkListedModel,
@@ -85,8 +86,24 @@ function cursorSidecarEnv(apiKey: string | undefined): NodeJS.ProcessEnv {
   return env
 }
 
+/** Orca's own environment under the session's composed one, less the keys the launch drops. */
+function cursorSessionSidecarEnv(
+  launch: CursorSidecarLaunch,
+  apiKey: string | undefined
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env, ...launch.env }
+  for (const key of launch.envToDelete) {
+    delete env[key]
+  }
+  if (apiKey) {
+    env.CURSOR_API_KEY = apiKey
+  }
+  return env
+}
+
 export async function openCursorSdkConnection(input: {
   apiKey?: string
+  launch: CursorSidecarLaunch
   entryPath?: string
 }): Promise<CursorSdkConnection> {
   if (!input.apiKey) {
@@ -96,8 +113,8 @@ export async function openCursorSdkConnection(input: {
   const child = spawnProcess({
     program: process.execPath,
     args: [entryPath],
-    env: cursorSidecarEnv(input.apiKey),
-    cwd: process.cwd()
+    env: cursorSessionSidecarEnv(input.launch, input.apiKey),
+    cwd: input.launch.cwd
   })
   return connectionFromChild(child)
 }

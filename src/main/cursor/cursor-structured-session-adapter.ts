@@ -43,14 +43,16 @@ import {
   type StructuredAgentSessionSetOptionInput
 } from '../native-chat/agent-session-wire/structured-agent-session-adapter'
 import { readProcessStartTimeMs } from '../runtime/agent-session-process-identity-probe'
+import type { StructuredAgentLaunchResolver } from '../runtime/structured-agent-launch-composition'
+import type { CursorSidecarLaunch } from './cursor-sidecar-launch'
 
 export type CursorStructuredSessionAdapterDeps = {
   hostId: string
   stateDirectory: string
-  resolveWorkspacePath: (workspaceId: string) => Promise<string>
+  resolveLaunch: StructuredAgentLaunchResolver<CursorSidecarLaunch>
   resolveApiKey?: () => string | undefined
   resolveToolGate?: () => { sandbox: boolean; autoReview: boolean }
-  openConnection?: (input: { apiKey?: string }) => CursorSdkConnection
+  openConnection?: (input: { apiKey?: string; launch: CursorSidecarLaunch }) => CursorSdkConnection
   readProcessStartTime?: (pid: number) => Promise<number | null>
   listModels?: (apiKey: string | undefined) => Promise<CursorSdkListedModel[]>
   onEvent?: (event: StructuredAgentSessionLifecycleEvent) => void
@@ -73,11 +75,23 @@ export class CursorStructuredSessionAdapter implements StructuredAgentSessionAda
   holdsDispatch = (sessionId: string): boolean => this.sessions.get(sessionId)?.runInFlight === true
 
   async acquire(input: StructuredAgentSessionAcquireInput): Promise<AgentSessionAcquisition> {
-    const cwd = await this.deps.resolveWorkspacePath(input.identity.workspaceId)
+    let launch: CursorSidecarLaunch
+    try {
+      launch = await this.deps.resolveLaunch({
+        identity: input.identity,
+        spawnToken: input.spawnToken
+      })
+    } catch (error) {
+      throw new AgentSessionPreSpawnError(error)
+    }
+    const { cwd } = launch
     const apiKey = this.deps.resolveApiKey?.()?.trim() || undefined
     const gate = this.deps.resolveToolGate?.() ?? { sandbox: false, autoReview: false }
     await mkdir(join(this.deps.stateDirectory, 'cursor-sdk-agents'), { recursive: true })
-    const connection = await (this.deps.openConnection ?? openCursorSdkConnection)({ apiKey })
+    const connection = await (this.deps.openConnection ?? openCursorSdkConnection)({
+      apiKey,
+      launch
+    })
     if (!connection.pid) {
       await connection.close()
       throw new AgentSessionPreSpawnError(new Error('Cursor sidecar did not start'))

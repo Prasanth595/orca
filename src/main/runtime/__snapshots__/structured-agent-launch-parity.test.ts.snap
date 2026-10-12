@@ -1029,6 +1029,287 @@ exports[`native-chat launch parity > codex worktree resumed configured 1`] = `
 }
 `;
 
+exports[`native-chat launch parity > cursor floating fresh 1`] = `
+{
+  "child": {
+    "args": [
+      "<repo>/out/main/cursor-sdk-sidecar.js",
+    ],
+    "command": "<node>",
+    "cwd": "<root>/floating",
+    "env": {
+      "ANTHROPIC_API_KEY": "parent-api-key",
+      "CLAUDE_CODE_SESSION_ID": "parent-claude-session",
+      "CLAUDE_CONFIG_DIR": "/parent/claude",
+      "CODEX_HOME": "/parent/codex",
+      "CURSOR_API_KEY": "parity-cursor-key",
+      "CURSOR_SDK_HOME": "<root>/accounts/cursor",
+      "HOME": "<root>/home",
+      "INHERITED_ONLY": "process",
+      "LANG": "en_US.UTF-8",
+      "NODE_OPTIONS": "--max-old-space-size=4096",
+      "ORCA_AGENT_SESSION_ID": "00000000-0000-4000-8000-000000000045",
+      "ORCA_AGENT_SESSION_SPAWN_TOKEN": "parity-spawn-token",
+      "ORCA_CLI_BIN_DIR": "<root>/orca-cli/bin",
+      "ORCA_CLI_COMMAND": "<root>/orca-cli/bin/orca",
+      "ORCA_DATA_ACCOUNT_PROVIDER": "parent-account",
+      "ORCA_OPENCODE_CONFIG_DIR": "/parent/opencode-overlay",
+      "ORCA_STRUCTURED_SESSION": "1",
+      "ORCA_USER_DATA_PATH": "<root>/user-data",
+      "PARITY_OVERLAY": "cursor",
+      "PATH": "<root>/orca-cli/bin:<root>/bin:/opt/login-shell/bin:/usr/bin:/bin",
+      "SHELL_ONLY": "shell",
+      "SHELL_UNLISTED": "shell",
+    },
+    "envToDelete": [],
+    "supervisor": null,
+  },
+  "launchPosture": {},
+  "pinnedLaunchDirectories": [
+    "<root>/floating",
+  ],
+}
+`;
+
+exports[`native-chat launch parity > cursor floating resumed 1`] = `
+{
+  "child": {
+    "args": [
+      "<repo>/out/main/cursor-sdk-sidecar.js",
+    ],
+    "command": "<node>",
+    "cwd": "<root>/floating-pinned",
+    "env": {
+      "ANTHROPIC_API_KEY": "parent-api-key",
+      "CLAUDE_CODE_SESSION_ID": "parent-claude-session",
+      "CLAUDE_CONFIG_DIR": "/parent/claude",
+      "CODEX_HOME": "/parent/codex",
+      "CURSOR_API_KEY": "parity-cursor-key",
+      "CURSOR_SDK_HOME": "<root>/accounts/cursor",
+      "HOME": "<root>/home",
+      "INHERITED_ONLY": "process",
+      "LANG": "en_US.UTF-8",
+      "NODE_OPTIONS": "--max-old-space-size=4096",
+      "ORCA_AGENT_SESSION_ID": "00000000-0000-4000-8000-000000000046",
+      "ORCA_AGENT_SESSION_SPAWN_TOKEN": "parity-spawn-token",
+      "ORCA_CLI_BIN_DIR": "<root>/orca-cli/bin",
+      "ORCA_CLI_COMMAND": "<root>/orca-cli/bin/orca",
+      "ORCA_DATA_ACCOUNT_PROVIDER": "parent-account",
+      "ORCA_OPENCODE_CONFIG_DIR": "/parent/opencode-overlay",
+      "ORCA_STRUCTURED_SESSION": "1",
+      "ORCA_USER_DATA_PATH": "<root>/user-data",
+      "PARITY_OVERLAY": "cursor",
+      "PATH": "<root>/orca-cli/bin:<root>/bin:/opt/login-shell/bin:/usr/bin:/bin",
+      "SHELL_ONLY": "shell",
+      "SHELL_UNLISTED": "shell",
+    },
+    "envToDelete": [],
+    "supervisor": null,
+  },
+  "launchPosture": {},
+  "pinnedLaunchDirectories": [],
+}
+`;
+
+exports[`native-chat launch parity > cursor worktree fresh 1`] = `
+{
+  "child": {
+    "args": [
+      "<repo>/out/main/cursor-sdk-sidecar.js",
+    ],
+    "command": "<node>",
+    "cwd": "<root>/worktree",
+    "env": {
+      "ANTHROPIC_API_KEY": "parent-api-key",
+      "CLAUDE_CODE_SESSION_ID": "parent-claude-session",
+      "CLAUDE_CONFIG_DIR": "/parent/claude",
+      "CODEX_HOME": "/parent/codex",
+      "CURSOR_API_KEY": "parity-cursor-key",
+      "CURSOR_SDK_HOME": "<root>/accounts/cursor",
+      "HOME": "<root>/home",
+      "INHERITED_ONLY": "process",
+      "LANG": "en_US.UTF-8",
+      "NODE_OPTIONS": "--max-old-space-size=4096",
+      "ORCA_AGENT_SESSION_ID": "00000000-0000-4000-8000-000000000043",
+      "ORCA_AGENT_SESSION_SPAWN_TOKEN": "parity-spawn-token",
+      "ORCA_CLI_BIN_DIR": "<root>/orca-cli/bin",
+      "ORCA_CLI_COMMAND": "<root>/orca-cli/bin/orca",
+      "ORCA_DATA_ACCOUNT_PROVIDER": "parent-account",
+      "ORCA_OPENCODE_CONFIG_DIR": "/parent/opencode-overlay",
+      "ORCA_STRUCTURED_SESSION": "1",
+      "ORCA_USER_DATA_PATH": "<root>/user-data",
+      "PARITY_OVERLAY": "cursor",
+      "PATH": "<root>/orca-cli/bin:<root>/bin:/opt/login-shell/bin:/usr/bin:/bin",
+      "SHELL_ONLY": "shell",
+      "SHELL_UNLISTED": "shell",
+    },
+    "envToDelete": [],
+    "supervisor": null,
+  },
+  "launchPosture": {},
+  "pinnedLaunchDirectories": [],
+}
+`;
+
+exports[`native-chat launch parity > cursor worktree fresh configured 1`] = `
+{
+  "child": {
+    "args": [
+      "<repo>/out/main/cursor-sdk-sidecar.js",
+    ],
+    "command": "<node>",
+    "cwd": "<root>/worktree",
+    "env": {
+      "ANTHROPIC_API_KEY": "parent-api-key",
+      "CLAUDE_CODE_SESSION_ID": "parent-claude-session",
+      "CLAUDE_CONFIG_DIR": "/parent/claude",
+      "CODEX_HOME": "/parent/codex",
+      "CURSOR_API_KEY": "parity-cursor-key",
+      "CURSOR_SDK_HOME": "<root>/accounts/cursor",
+      "HOME": "<root>/home",
+      "INHERITED_ONLY": "overlay",
+      "LANG": "C",
+      "NODE_OPTIONS": "--max-old-space-size=4096",
+      "ORCA_AGENT_SESSION_ID": "00000000-0000-4000-8000-000000000048",
+      "ORCA_AGENT_SESSION_SPAWN_TOKEN": "parity-spawn-token",
+      "ORCA_CLI_BIN_DIR": "<root>/orca-cli/bin",
+      "ORCA_CLI_COMMAND": "<root>/orca-cli/bin/orca",
+      "ORCA_DATA_ACCOUNT_PROVIDER": "parent-account",
+      "ORCA_OPENCODE_CONFIG_DIR": "/parent/opencode-overlay",
+      "ORCA_STRUCTURED_SESSION": "1",
+      "ORCA_USER_DATA_PATH": "<root>/user-data",
+      "PARITY_OVERLAY": "cursor-configured",
+      "PATH": "<root>/orca-cli/bin:<root>/bin:/opt/login-shell/bin:/usr/bin:/bin",
+      "SHELL_ONLY": "shell",
+    },
+    "envToDelete": [],
+    "supervisor": null,
+  },
+  "launchPosture": {},
+  "pinnedLaunchDirectories": [],
+}
+`;
+
+exports[`native-chat launch parity > cursor worktree fresh worker 1`] = `
+{
+  "child": {
+    "args": [
+      "<repo>/out/main/cursor-sdk-sidecar.js",
+    ],
+    "command": "<node>",
+    "cwd": "<root>/worktree",
+    "env": {
+      "ANTHROPIC_API_KEY": "parent-api-key",
+      "CLAUDE_CODE_SESSION_ID": "parent-claude-session",
+      "CLAUDE_CONFIG_DIR": "/parent/claude",
+      "CODEX_HOME": "/parent/codex",
+      "CURSOR_API_KEY": "parity-cursor-key",
+      "CURSOR_SDK_HOME": "<root>/accounts/cursor",
+      "HOME": "<root>/home",
+      "INHERITED_ONLY": "process",
+      "LANG": "en_US.UTF-8",
+      "NODE_OPTIONS": "--max-old-space-size=4096",
+      "ORCA_AGENT_SESSION_ID": "00000000-0000-4000-8000-000000000047",
+      "ORCA_AGENT_SESSION_SPAWN_TOKEN": "parity-spawn-token",
+      "ORCA_CLI_BIN_DIR": "<root>/orca-cli/bin",
+      "ORCA_CLI_COMMAND": "<root>/orca-cli/bin/orca",
+      "ORCA_DATA_ACCOUNT_PROVIDER": "parent-account",
+      "ORCA_OPENCODE_CONFIG_DIR": "/parent/opencode-overlay",
+      "ORCA_STRUCTURED_SESSION": "1",
+      "ORCA_TERMINAL_HANDLE": "structworker_00000000-0000-4000-8000-000000000047",
+      "ORCA_USER_DATA_PATH": "<root>/user-data",
+      "PARITY_OVERLAY": "cursor",
+      "PATH": "<root>/orca-cli/bin:<root>/bin:/opt/login-shell/bin:/usr/bin:/bin",
+      "SHELL_ONLY": "shell",
+      "SHELL_UNLISTED": "shell",
+    },
+    "envToDelete": [],
+    "supervisor": null,
+  },
+  "launchPosture": {},
+  "pinnedLaunchDirectories": [],
+}
+`;
+
+exports[`native-chat launch parity > cursor worktree resumed 1`] = `
+{
+  "child": {
+    "args": [
+      "<repo>/out/main/cursor-sdk-sidecar.js",
+    ],
+    "command": "<node>",
+    "cwd": "<root>/worktree",
+    "env": {
+      "ANTHROPIC_API_KEY": "parent-api-key",
+      "CLAUDE_CODE_SESSION_ID": "parent-claude-session",
+      "CLAUDE_CONFIG_DIR": "/parent/claude",
+      "CODEX_HOME": "/parent/codex",
+      "CURSOR_API_KEY": "parity-cursor-key",
+      "CURSOR_SDK_HOME": "<root>/accounts/cursor",
+      "HOME": "<root>/home",
+      "INHERITED_ONLY": "process",
+      "LANG": "en_US.UTF-8",
+      "NODE_OPTIONS": "--max-old-space-size=4096",
+      "ORCA_AGENT_SESSION_ID": "00000000-0000-4000-8000-000000000044",
+      "ORCA_AGENT_SESSION_SPAWN_TOKEN": "parity-spawn-token",
+      "ORCA_CLI_BIN_DIR": "<root>/orca-cli/bin",
+      "ORCA_CLI_COMMAND": "<root>/orca-cli/bin/orca",
+      "ORCA_DATA_ACCOUNT_PROVIDER": "parent-account",
+      "ORCA_OPENCODE_CONFIG_DIR": "/parent/opencode-overlay",
+      "ORCA_STRUCTURED_SESSION": "1",
+      "ORCA_USER_DATA_PATH": "<root>/user-data",
+      "PARITY_OVERLAY": "cursor",
+      "PATH": "<root>/orca-cli/bin:<root>/bin:/opt/login-shell/bin:/usr/bin:/bin",
+      "SHELL_ONLY": "shell",
+      "SHELL_UNLISTED": "shell",
+    },
+    "envToDelete": [],
+    "supervisor": null,
+  },
+  "launchPosture": {},
+  "pinnedLaunchDirectories": [],
+}
+`;
+
+exports[`native-chat launch parity > cursor worktree resumed configured 1`] = `
+{
+  "child": {
+    "args": [
+      "<repo>/out/main/cursor-sdk-sidecar.js",
+    ],
+    "command": "<node>",
+    "cwd": "<root>/worktree",
+    "env": {
+      "ANTHROPIC_API_KEY": "parent-api-key",
+      "CLAUDE_CODE_SESSION_ID": "parent-claude-session",
+      "CLAUDE_CONFIG_DIR": "/parent/claude",
+      "CODEX_HOME": "/parent/codex",
+      "CURSOR_API_KEY": "parity-cursor-key",
+      "CURSOR_SDK_HOME": "<root>/accounts/cursor",
+      "HOME": "<root>/home",
+      "INHERITED_ONLY": "overlay",
+      "LANG": "C",
+      "NODE_OPTIONS": "--max-old-space-size=4096",
+      "ORCA_AGENT_SESSION_ID": "00000000-0000-4000-8000-000000000049",
+      "ORCA_AGENT_SESSION_SPAWN_TOKEN": "parity-spawn-token",
+      "ORCA_CLI_BIN_DIR": "<root>/orca-cli/bin",
+      "ORCA_CLI_COMMAND": "<root>/orca-cli/bin/orca",
+      "ORCA_DATA_ACCOUNT_PROVIDER": "parent-account",
+      "ORCA_OPENCODE_CONFIG_DIR": "/parent/opencode-overlay",
+      "ORCA_STRUCTURED_SESSION": "1",
+      "ORCA_USER_DATA_PATH": "<root>/user-data",
+      "PARITY_OVERLAY": "cursor-configured",
+      "PATH": "<root>/orca-cli/bin:<root>/bin:/opt/login-shell/bin:/usr/bin:/bin",
+      "SHELL_ONLY": "shell",
+    },
+    "envToDelete": [],
+    "supervisor": null,
+  },
+  "launchPosture": {},
+  "pinnedLaunchDirectories": [],
+}
+`;
+
 exports[`native-chat launch parity > grok floating fresh 1`] = `
 {
   "child": {

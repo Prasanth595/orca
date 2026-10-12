@@ -81,7 +81,7 @@ describe('Cursor structured session adapter', () => {
     const adapter = new CursorStructuredSessionAdapter({
       hostId: 'local',
       stateDirectory: '/tmp/orca-cursor-test',
-      resolveWorkspacePath: async () => '/tmp/workspace',
+      resolveLaunch: async () => ({ cwd: '/tmp/workspace', env: {}, envToDelete: [] }),
       openConnection: () => connection,
       readProcessStartTime: async () => 1000
     })
@@ -125,7 +125,7 @@ describe('Cursor structured session adapter', () => {
     const adapter = new CursorStructuredSessionAdapter({
       hostId: 'local',
       stateDirectory: '/tmp/orca-cursor-test',
-      resolveWorkspacePath: async () => '/tmp/workspace',
+      resolveLaunch: async () => ({ cwd: '/tmp/workspace', env: {}, envToDelete: [] }),
       openConnection: () => connection,
       readProcessStartTime: async () => 1000
     })
@@ -156,7 +156,7 @@ describe('Cursor structured session adapter', () => {
     const adapter = new CursorStructuredSessionAdapter({
       hostId: 'local',
       stateDirectory: '/tmp/orca-cursor-test',
-      resolveWorkspacePath: async () => '/tmp/workspace',
+      resolveLaunch: async () => ({ cwd: '/tmp/workspace', env: {}, envToDelete: [] }),
       openConnection: () => connection,
       readProcessStartTime: async () => 1000
     })
@@ -197,7 +197,7 @@ describe('Cursor structured session adapter', () => {
     const adapter = new CursorStructuredSessionAdapter({
       hostId: 'local',
       stateDirectory: '/tmp/orca-cursor-test',
-      resolveWorkspacePath: async () => '/tmp/workspace',
+      resolveLaunch: async () => ({ cwd: '/tmp/workspace', env: {}, envToDelete: [] }),
       openConnection: () => connection,
       readProcessStartTime: async () => 1000
     })
@@ -234,7 +234,7 @@ describe('Cursor structured session adapter', () => {
     const adapter = new CursorStructuredSessionAdapter({
       hostId: 'local',
       stateDirectory: '/tmp/orca-cursor-test',
-      resolveWorkspacePath: async () => '/tmp/workspace',
+      resolveLaunch: async () => ({ cwd: '/tmp/workspace', env: {}, envToDelete: [] }),
       openConnection: () => connection,
       readProcessStartTime: async () => 1000
     })
@@ -293,7 +293,7 @@ describe('Cursor structured session adapter', () => {
     const adapter = new CursorStructuredSessionAdapter({
       hostId: 'local',
       stateDirectory: '/tmp/orca-cursor-test',
-      resolveWorkspacePath: async () => '/tmp/workspace',
+      resolveLaunch: async () => ({ cwd: '/tmp/workspace', env: {}, envToDelete: [] }),
       openConnection: () => connection,
       readProcessStartTime: async () => 1000
     })
@@ -322,7 +322,7 @@ describe('Cursor structured session adapter', () => {
     const adapter = new CursorStructuredSessionAdapter({
       hostId: 'local',
       stateDirectory: '/tmp/orca-cursor-test',
-      resolveWorkspacePath: async () => '/tmp/workspace',
+      resolveLaunch: async () => ({ cwd: '/tmp/workspace', env: {}, envToDelete: [] }),
       openConnection: () => connection,
       readProcessStartTime: async () => 1000
     })
@@ -349,7 +349,7 @@ describe('Cursor structured session adapter', () => {
       const adapter = new CursorStructuredSessionAdapter({
         hostId: 'local',
         stateDirectory: '/tmp/orca-cursor-test',
-        resolveWorkspacePath: async () => '/tmp/workspace',
+        resolveLaunch: async () => ({ cwd: '/tmp/workspace', env: {}, envToDelete: [] }),
         openConnection: () => connection,
         readProcessStartTime: async () => 1000,
         listModels: async () => {
@@ -377,7 +377,7 @@ describe('Cursor structured session adapter', () => {
     const adapter = new CursorStructuredSessionAdapter({
       hostId: 'local',
       stateDirectory: '/tmp/orca-cursor-test',
-      resolveWorkspacePath: async () => '/tmp/workspace',
+      resolveLaunch: async () => ({ cwd: '/tmp/workspace', env: {}, envToDelete: [] }),
       resolveApiKey: () => key,
       openConnection: () => scriptedConnection(() => {}),
       readProcessStartTime: async () => 1000,

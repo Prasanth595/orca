@@ -10,7 +10,11 @@ describe('openCursorSdkConnection', () => {
     const entry = join(root, 'hang.js')
     await writeFile(entry, 'setInterval(() => {}, 1_000)\n')
     try {
-      const connection = await openCursorSdkConnection({ apiKey: 'test-key', entryPath: entry })
+      const connection = await openCursorSdkConnection({
+        apiKey: 'test-key',
+        launch: { cwd: root, env: { ELECTRON_RUN_AS_NODE: '1' }, envToDelete: [] },
+        entryPath: entry
+      })
       await expect(connection.close({ force: true })).resolves.toBe(true)
     } finally {
       await rm(root, { recursive: true, force: true })

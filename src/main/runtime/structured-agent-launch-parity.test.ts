@@ -12,6 +12,7 @@ import type { ProcessSpec } from '@orca/process-host/process-spec'
 import type * as AcpAdapterModule from '../acp/acp-structured-session-adapter'
 import type * as ClaudeAdapterModule from '../claude/claude-structured-session-adapter'
 import type * as CodexAdapterModule from '../codex/codex-structured-session-adapter'
+import type * as CursorAdapterModule from '../cursor/cursor-structured-session-adapter'
 import type * as PiAdapterModule from '../pi/rpc-session-adapter'
 import type * as ManagedProviderProcessModule from '../provider-process/managed-provider-process'
 import type { ProviderProcessLaunch } from '../provider-process/provider-process-launch'
@@ -95,6 +96,15 @@ vi.mock('../acp/acp-structured-session-adapter', async (importOriginal) => {
   }
   return { ...actual, AcpStructuredSessionAdapter: RecordingAdapter }
 })
+vi.mock('../cursor/cursor-structured-session-adapter', async (importOriginal) => {
+  const actual = await importOriginal<typeof CursorAdapterModule>()
+  class RecordingAdapter extends actual.CursorStructuredSessionAdapter {
+    constructor(deps: ConstructorParameters<typeof actual.CursorStructuredSessionAdapter>[0]) {
+      super({ ...deps, resolveLaunch: (input) => deps.resolveLaunch(input).then(capture.record) })
+    }
+  }
+  return { ...actual, CursorStructuredSessionAdapter: RecordingAdapter }
+})
 vi.mock('../pi/rpc-session-adapter', async (importOriginal) => {
   const actual = await importOriginal<typeof PiAdapterModule>()
   class RecordingAdapter extends actual.PiRpcSessionAdapter {
@@ -150,11 +160,15 @@ import {
   structuredWorkerProcessIncarnation
 } from './structured-worker-identity'
 
-const AGENTS = ['claude', 'codex', 'grok', 'opencode', 'omp', 'pi'] as const
+const CLI_AGENTS = ['claude', 'codex', 'grok', 'opencode', 'omp', 'pi'] as const
+/** Registered after the first snapshot; their cases run last, so every earlier case keeps its id. */
+const LATER_AGENTS = ['cursor'] as const
+const AGENTS = [...CLI_AGENTS, ...LATER_AGENTS]
+type CliAgent = (typeof CLI_AGENTS)[number]
 type Agent = (typeof AGENTS)[number]
 
 /** What each fake binary prints for `--version`: a release every launch gate accepts. */
-const VERSIONS: Record<Agent, string> = {
+const VERSIONS: Record<CliAgent, string> = {
   claude: '2.1.120 (Claude Code)',
   codex: 'codex-cli 0.130.0',
   grok: '1.0.50',
@@ -173,35 +187,37 @@ type LaunchCase = {
   configured: boolean
 }
 
-const CASES: readonly LaunchCase[] = AGENTS.flatMap((agent) => [
-  ...(['worktree', 'floating'] as const).flatMap((workspace) =>
-    (['fresh', 'resumed'] as const).map((start) => ({
-      agent,
-      workspace,
-      start,
-      worker: false,
-      configured: false
-    }))
-  ),
-  {
+function defaultCases(agent: Agent): LaunchCase[] {
+  return [
+    ...(['worktree', 'floating'] as const).flatMap((workspace) =>
+      (['fresh', 'resumed'] as const).map((start) => ({
+        agent,
+        workspace,
+        start,
+        worker: false,
+        configured: false
+      }))
+    ),
+    { agent, workspace: 'worktree', start: 'fresh', worker: true, configured: false }
+  ]
+}
+
+function configuredCases(agent: Agent): LaunchCase[] {
+  return (['fresh', 'resumed'] as const).map((start) => ({
     agent,
-    workspace: 'worktree' as const,
-    start: 'fresh' as const,
-    worker: true,
-    configured: false
-  }
-]).concat(
+    workspace: 'worktree',
+    start,
+    worker: false,
+    configured: true
+  }))
+}
+
+const CASES: readonly LaunchCase[] = [
+  ...CLI_AGENTS.flatMap(defaultCases),
   // Last, so every case before them keeps its session id.
-  AGENTS.flatMap((agent) =>
-    (['fresh', 'resumed'] as const).map((start) => ({
-      agent,
-      workspace: 'worktree' as const,
-      start,
-      worker: false,
-      configured: true
-    }))
-  )
-)
+  ...CLI_AGENTS.flatMap(configuredCases),
+  ...LATER_AGENTS.flatMap((agent) => [...defaultCases(agent), ...configuredCases(agent)])
+]
 
 const SPAWN_TOKEN = 'parity-spawn-token'
 const WORKSPACE_ID = 'parity-worktree'
@@ -231,7 +247,7 @@ async function writeExecutable(path: string, script: string): Promise<void> {
 async function installFakeBinaries(bin: string): Promise<void> {
   await mkdir(bin, { recursive: true })
   await mkdir(join(root, 'custom-bin'), { recursive: true })
-  for (const agent of AGENTS) {
+  for (const agent of CLI_AGENTS) {
     await writeExecutable(
       join(bin, agent),
       `if [ "$1" = "--version" ]; then echo "${VERSIONS[agent]}"; exit 0; fi\nexit 1`
@@ -253,6 +269,8 @@ function defaultSettings(): Partial<GlobalSettings> {
       codex: '-c model_reasoning_effort=high'
     },
     agentDefaultEnv: Object.fromEntries(AGENTS.map((agent) => [agent, { PARITY_OVERLAY: agent }])),
+    // Cursor's sidecar otherwise mints a key from this machine's own Cursor login first.
+    cursorSdkApiKey: 'parity-cursor-key',
     nativeChatInlineVisuals: true
   } satisfies Partial<GlobalSettings>
 }
@@ -262,7 +280,7 @@ function defaultSettings(): Partial<GlobalSettings> {
 function configuredSettings(): Partial<GlobalSettings> {
   return {
     agentCmdOverrides: Object.fromEntries(
-      AGENTS.map((agent) => [agent, join(root, 'custom-bin', `${agent}-custom`)])
+      CLI_AGENTS.map((agent) => [agent, join(root, 'custom-bin', `${agent}-custom`)])
     ),
     agentDefaultArgs: {
       claude: `${YOLO_TUI_AGENT_ARGS.claude} --add-dir /parity/configured`,
@@ -340,6 +358,8 @@ function accountHomeFor(agent: Agent): AgentSessionAccountHome {
       return { variable: 'PI_CODING_AGENT_DIR', path: directory('omp') }
     case 'pi':
       return { variable: 'PI_CODING_AGENT_DIR', path: directory('pi') }
+    case 'cursor':
+      return { variable: 'CURSOR_SDK_HOME', path: directory('cursor') }
   }
 }
 
@@ -363,6 +383,8 @@ async function resumedHandleFor(
     case 'opencode':
     case 'omp':
       return { transport: 'acp', agent, nativeId: `acp-session-${sessionId}` }
+    case 'cursor':
+      return { transport: 'cursor-sdk', agent, nativeId: `cursor-agent-${sessionId}` }
   }
 }
 
