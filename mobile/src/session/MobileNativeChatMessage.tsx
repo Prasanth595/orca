@@ -1,3 +1,4 @@
+import { isAgentSessionProviderContextBoundary } from '../../../src/shared/agent-session-provider-context'
 import { MobileSelectableText as Text } from '../components/MobileSelectableText'
 import { memo, useCallback, useContext, useState } from 'react'
 import { Image, Text as NativeText, View } from 'react-native'
@@ -59,6 +60,18 @@ function Prose({
   onLongPress?: () => void
 }): React.JSX.Element | null {
   if (isTextBlock(block)) {
+    if (isAgentSessionProviderContextBoundary(block.contextClear)) {
+      return (
+        <View style={styles.contextBoundary}>
+          <Text
+            selectable={INLINE_TEXT_SELECTION}
+            style={[styles.hostNotice, { fontSize: TEXT_SIZE * fontScale }]}
+          >
+            {block.text}
+          </Text>
+        </View>
+      )
+    }
     if (isAgentSessionHostStatusPresentation(block.presentation)) {
       return (
         <Text
@@ -135,6 +148,7 @@ function MobileNativeChatMessageImpl({
   reasoningIsLive = false,
   reasoningExpanded,
   onToggleReasoning,
+  unsentNotice,
   subagentGroupsOpen,
   onToggleSubagentGroup
 }: {
@@ -164,6 +178,8 @@ function MobileNativeChatMessageImpl({
   /** The transcript-held disclosure of a reasoning row; one stable handler takes its key. */
   reasoningExpanded?: boolean
   onToggleReasoning?: (key: string) => void
+  /** Why the host did not deliver this message, when it is drawn as not sent. */
+  unsentNotice?: string
   /** The roster groups the reader opened, held by the transcript; only a roster row gets it. */
   subagentGroupsOpen?: ReadonlySet<string>
   onToggleSubagentGroup?: (groupId: string) => void
@@ -305,6 +321,7 @@ function MobileNativeChatMessageImpl({
             />
           ) : null}
         </Content>
+        {unsentNotice ? <NativeText style={styles.unsentNotice}>{unsentNotice}</NativeText> : null}
         {copyShown && copyText.length > 0 ? (
           <MobileSourceCopyButton
             key={message.id}

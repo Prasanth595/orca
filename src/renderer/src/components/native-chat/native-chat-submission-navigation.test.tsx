@@ -123,6 +123,7 @@ function useReviewTranscript() {
     showsTailRow: true,
     isVisible: true,
     alignToViewportTop: vi.fn(),
+    isAlignPending: () => false,
     scrollToEnd,
     restoreScrollOffset: vi.fn(),
     consumeProgrammaticScroll: () => false,
@@ -396,6 +397,8 @@ it('reveals a structured prompt answer at the press, before the host accepts it'
         respond: async () => host.promise,
         queuedMessages: {
           queueCapable: true,
+          editCapable: false,
+          editor: undefined,
           cards: [],
           pause: null,
           resuming: false,

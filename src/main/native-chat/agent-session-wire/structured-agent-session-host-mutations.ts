@@ -46,7 +46,9 @@ export type { StructuredAgentSessionMutationContext } from './structured-agent-s
 import type { StructuredAgentSessionCaller } from './structured-agent-session-host-types'
 import {
   readStructuredAgentSessionOptions,
-  recordStructuredAgentSessionOptionIntent
+  IN_PROCESS_OPTIONS_READER,
+  recordStructuredAgentSessionOptionIntent,
+  type StructuredAgentSessionOptionsReader
 } from './structured-agent-session-options-read'
 
 export function sendStructuredAgentSessionTurn(
@@ -199,6 +201,8 @@ export async function setStructuredAgentSessionOption(
           return await performSetOption(ctx, params, wait.signal)
         } finally {
           wait.end()
+          // Whatever the write's outcome, the child may hold what it asked for now.
+          context.optionRevisions.advance(params.envelope.sessionId)
         }
       }
     },
@@ -242,6 +246,10 @@ export function structuredAgentSessionMutationDelegates(
       caller: StructuredAgentSessionCaller,
       params: Parameters<typeof changeStructuredAgentSessionThreadGoal>[2]
     ) => changeStructuredAgentSessionThreadGoal(context(), caller, params),
-    readOptions: (sessionId: string) => readStructuredAgentSessionOptions(context(), sessionId)
+    // The RPC handler always names its client's reader; only in-process callers omit it.
+    readOptions: (
+      sessionId: string,
+      reader: StructuredAgentSessionOptionsReader = IN_PROCESS_OPTIONS_READER
+    ) => readStructuredAgentSessionOptions(context(), sessionId, reader)
   }
 }

@@ -23,7 +23,7 @@ import {
 } from './windows-hook-files'
 
 export { getManagedScript }
-import { getManagedStatusLineScript } from './statusline-script'
+import { getManagedStatusLineCommand, getManagedStatusLineScript } from './statusline-script'
 import { refuseProfileAtDefaultHome } from './claude-profile-hook-target'
 import {
   applyManagedHooks,
@@ -31,12 +31,11 @@ import {
   CLAUDE_HOOK_SETTINGS,
   getManagedScriptFileName,
   getConfigPath,
-  getManagedCommand,
-  getManagedLifecycleHook,
+  getManagedEventHook,
   getManagedScriptPath,
   getPosixManagedScriptFileName,
   getRemoteConfigPath,
-  getRemoteManagedCommand,
+  getRemoteManagedEventCommand,
   getStatusLineInstallMarkerPath,
   getStatusLineScriptFileName,
   getStatusLineScriptPath,
@@ -122,10 +121,10 @@ export class ClaudeHookService {
     }
 
     // Why: report partial registration instead of a false installed state.
-    const expectedHook = getManagedLifecycleHook(scriptPath, this.options.settings)
     const missing: string[] = []
     let presentCount = 0
     for (const event of this.managedHookPlan(options).install) {
+      const expectedHook = getManagedEventHook(event.eventName, scriptPath, this.options.settings)
       const definitions = Array.isArray(config.hooks?.[event.eventName])
         ? config.hooks![event.eventName]!
         : []
@@ -186,11 +185,10 @@ export class ClaudeHookService {
       }
     }
 
-    const hook = getManagedLifecycleHook(scriptPath, this.options.settings)
     const plan = this.managedHookPlan(options)
     let nextConfig = applyManagedHooks(
       config,
-      hook,
+      (eventName) => getManagedEventHook(eventName, scriptPath, this.options.settings),
       getManagedScriptFileName(this.options.settings),
       plan
     )
@@ -200,7 +198,7 @@ export class ClaudeHookService {
     } else {
       writeManagedScript(scriptPath, payload)
     }
-    // Why: a profile's statusLine arrives with the settings merge from the default home.
+    // Why: a profile's statusLine arrives with the settings copy from the default home.
     if (options.configDir === undefined && plan.statusLine === 'install') {
       nextConfig = this.installManagedStatusLine(nextConfig)
     } else if (options.configDir === undefined && plan.statusLine === 'retire') {
@@ -223,7 +221,7 @@ export class ClaudeHookService {
     writeManagedScript(statusLineScriptPath, getManagedStatusLineScript('local'))
     const next = applyManagedStatusLine(
       config,
-      getManagedCommand(statusLineScriptPath),
+      getManagedStatusLineCommand(statusLineScriptPath),
       scriptFileName
     )
     try {
@@ -275,10 +273,10 @@ export class ClaudeHookService {
       }
 
       // Why: settings resolve HOME at runtime while SFTP still targets the discovered remote home.
-      const hook = buildManagedCommandHook(getRemoteManagedCommand(remoteScriptPath))
       const nextConfig = applyManagedHooks(
         config,
-        hook,
+        (eventName) =>
+          buildManagedCommandHook(getRemoteManagedEventCommand(eventName, remoteScriptPath)),
         remoteScriptFileName,
         this.managedHookPlan(options)
       )
