@@ -11,7 +11,7 @@ import type {
 import type { Repo } from '../../shared/repo-types'
 import { awaitWindowsHostGitEnvironmentReady } from '../git/runner'
 import { getRepoName, isGitRepoAsync } from '../git/repo'
-import { detectRepoIconAndUpstream } from '../repo-icon-autodetect'
+import { detectRepoIcon } from '../repo-icon-autodetect'
 import { scanNestedRepos } from '../project-groups/nested-repo-discovery'
 import {
   createNestedProjectGroupResolver,
@@ -106,8 +106,8 @@ export class RuntimeNestedRepoImport {
           results.push({ path: repoPath, projectId: existing.id, status: 'already-known' })
           continue
         }
-        // Why local: this process validated and reads the path, as in the single-repo add.
-        const detected = await detectRepoIconAndUpstream({
+        // Why no upstream lookup: it calls GitHub per repo; the fork backfill fills it in later.
+        const repoIcon = await detectRepoIcon({
           repoPath: importRepoPath,
           kind: 'git',
           executionHostId: LOCAL_EXECUTION_HOST_ID
@@ -117,7 +117,7 @@ export class RuntimeNestedRepoImport {
           path: importRepoPath,
           displayName: getRepoName(importRepoPath),
           badgeColor: DEFAULT_REPO_BADGE_COLOR,
-          ...detected,
+          ...(repoIcon ? { repoIcon } : {}),
           addedAt: Date.now(),
           kind: 'git',
           externalWorktreeVisibilityLegacy: false,

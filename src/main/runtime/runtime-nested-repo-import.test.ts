@@ -6,8 +6,8 @@ import type { ProjectGroup } from '../../shared/project-group-types'
 import type { Repo } from '../../shared/repo-types'
 import type * as RepoModule from '../git/repo'
 
-const { detectRepoIconAndUpstreamMock } = vi.hoisted(() => ({
-  detectRepoIconAndUpstreamMock: vi.fn()
+const { detectRepoIconMock } = vi.hoisted(() => ({
+  detectRepoIconMock: vi.fn()
 }))
 
 // Why: the tree holds empty `.git` folders, so real git would not call them repositories.
@@ -23,7 +23,7 @@ vi.mock('../git/worktree', () => ({
   listWorktreeGraph: vi.fn(async () => [])
 }))
 vi.mock('../repo-icon-autodetect', () => ({
-  detectRepoIconAndUpstream: detectRepoIconAndUpstreamMock
+  detectRepoIcon: detectRepoIconMock
 }))
 
 import { RuntimeNestedRepoImport } from './runtime-nested-repo-import'
@@ -54,7 +54,7 @@ describe('RuntimeNestedRepoImport', () => {
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), 'orca-runtime-nested-import-'))
     await mkdir(join(root, 'service', '.git'), { recursive: true })
-    detectRepoIconAndUpstreamMock.mockReset()
+    detectRepoIconMock.mockReset()
   })
 
   afterEach(async () => {
@@ -80,8 +80,8 @@ describe('RuntimeNestedRepoImport', () => {
     })
   }
 
-  it('gives an imported repo the detected icon and fork marker', async () => {
-    detectRepoIconAndUpstreamMock.mockResolvedValue({ repoIcon: ICON, upstream: null })
+  it('gives an imported repo the detected icon and leaves the fork lookup to the backfill', async () => {
+    detectRepoIconMock.mockResolvedValue(ICON)
     const added: Repo[] = []
     const repoPath = join(root, 'service')
 
@@ -93,18 +93,18 @@ describe('RuntimeNestedRepoImport', () => {
     })
 
     expect(result).toMatchObject({ importedCount: 1, failedCount: 0 })
-    expect(detectRepoIconAndUpstreamMock).toHaveBeenCalledWith({
+    expect(detectRepoIconMock).toHaveBeenCalledWith({
       repoPath,
       kind: 'git',
       executionHostId: 'local'
     })
-    expect(added).toEqual([
-      expect.objectContaining({ path: repoPath, repoIcon: ICON, upstream: null })
-    ])
+    expect(added).toEqual([expect.objectContaining({ path: repoPath, repoIcon: ICON })])
+    // Why: the backfill only looks up rows whose `upstream` is still undefined.
+    expect(added[0]).not.toHaveProperty('upstream')
   })
 
   it('still imports a repo when nothing is detected', async () => {
-    detectRepoIconAndUpstreamMock.mockResolvedValue({})
+    detectRepoIconMock.mockResolvedValue(undefined)
     const added: Repo[] = []
     const repoPath = join(root, 'service')
 
