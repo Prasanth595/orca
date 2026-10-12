@@ -15,6 +15,8 @@ export type EditorThemePalette = {
   function: string
   constant: string
   type: string
+  /** Declared type names (`class Foo`, `interface Bar`); defaults to `type`. */
+  declaration?: string
   variable: string
   selection: string
   lineHighlight: string
@@ -44,6 +46,7 @@ export function buildMonacoThemeFromPalette(
     function: fn,
     constant,
     type,
+    declaration = type,
     variable,
     selection,
     lineHighlight,
@@ -67,6 +70,7 @@ export function buildMonacoThemeFromPalette(
       { token: 'regexp', foreground: bare(string) },
       { token: 'type', foreground: bare(type) },
       { token: 'type.identifier', foreground: bare(type) },
+      { token: 'type.declaration', foreground: bare(declaration) },
       { token: 'delimiter', foreground: bare(foreground) },
       { token: 'tag', foreground: bare(keyword) },
       { token: 'attribute.name', foreground: bare(fn) },

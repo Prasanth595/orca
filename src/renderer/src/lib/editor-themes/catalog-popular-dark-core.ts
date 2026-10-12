@@ -72,6 +72,8 @@ export const POPULAR_DARK_CORE_EDITOR_THEMES = {
       function: '#a6e22e',
       constant: '#ae81ff',
       type: '#66d9ef',
+      // Monokai colors declared class/interface names green, unlike type references.
+      declaration: '#a6e22e',
       variable: '#fd971f',
       selection: '#49483e',
       lineHighlight: '#3e3d32',

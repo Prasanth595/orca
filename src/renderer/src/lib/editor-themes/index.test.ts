@@ -48,6 +48,17 @@ describe('EDITOR_THEME_CATALOG', () => {
 })
 
 describe('buildMonacoThemeFromPalette', () => {
+  it('colors declared type names with the declaration role, falling back to the type color', () => {
+    const declarationColor = (id: keyof typeof EDITOR_THEME_CATALOG): string | undefined =>
+      buildMonacoThemeFromPalette(EDITOR_THEME_CATALOG[id].palette).rules.find(
+        (rule) => rule.token === 'type.declaration'
+      )?.foreground
+    expect(declarationColor('monokai')).toBe('a6e22e')
+    expect(declarationColor('dracula')).toBe(
+      EDITOR_THEME_CATALOG.dracula.palette.type.replace('#', '')
+    )
+  })
+
   it('strips the leading # from token colors (Monaco expects bare hex)', () => {
     const themeData = buildMonacoThemeFromPalette(EDITOR_THEME_CATALOG.monokai.palette)
     for (const rule of themeData.rules) {
