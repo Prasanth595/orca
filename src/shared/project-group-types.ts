@@ -1,3 +1,5 @@
+import type { RepoIcon } from './repo-icon'
+
 export type ProjectGroupCreatedFrom = 'manual' | 'folder-scan' | 'migration'
 
 export type ProjectGroup = {
@@ -13,9 +15,16 @@ export type ProjectGroup = {
   tabOrder: number
   isCollapsed: boolean
   color: string | null
+  /** Same shape and validation as a repo icon; absent = default folder glyph. */
+  icon?: RepoIcon | null
   createdAt: number
   updatedAt: number
 }
+
+/** Fields a group update may change (IPC, runtime RPC, persistence). `icon: null` clears it. */
+export type ProjectGroupUpdates = Partial<
+  Pick<ProjectGroup, 'name' | 'isCollapsed' | 'tabOrder' | 'color' | 'icon'>
+>
 
 export type NestedRepoScanOptions = {
   maxDepth?: number

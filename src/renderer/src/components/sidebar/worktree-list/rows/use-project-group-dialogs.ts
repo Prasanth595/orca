@@ -5,6 +5,8 @@ import { translate } from '@/i18n/i18n'
 import { selectProjectGroupRemovalTargets } from '@/store/slices/project-group-removal-targets'
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 import type { Repo } from '../../../../../../shared/repo-types'
+import type { RepoIcon } from '../../../../../../shared/repo-icon'
+import { findIndexedProjectGroupOwner } from '@/lib/worktree-runtime-owner-index'
 import {
   getRepoExecutionHostId,
   type ExecutionHostId
@@ -19,6 +21,12 @@ export type ProjectGroupDeleteDialogState = {
   groupId: string
   groupName: string
   removeContainedProjects: boolean
+  hostId?: ExecutionHostId
+}
+
+export type ProjectGroupIconDialogState = {
+  groupId: string
+  groupName: string
   hostId?: ExecutionHostId
 }
 
@@ -64,7 +72,7 @@ function reportProjectGroupDeleteFailures(result: {
   }
 }
 
-// Create/rename/delete flows for project groups, including the contained-project fan-out.
+// Create/rename/icon/delete flows for project groups, including the contained-project fan-out.
 export function useProjectGroupDialogs(args: {
   repos: readonly Repo[]
   repoMap: Map<string, Repo>
@@ -79,6 +87,72 @@ export function useProjectGroupDialogs(args: {
   )
   const [nameDialog, setNameDialog] = useState<ProjectGroupNameDialogState | null>(null)
   const [deleteDialog, setDeleteDialog] = useState<ProjectGroupDeleteDialogState | null>(null)
+  const [iconDialog, setIconDialog] = useState<ProjectGroupIconDialogState | null>(null)
+
+  const handleChangeProjectGroupIcon = useCallback(
+    (groupId: string, groupName: string, hostId?: ExecutionHostId) => {
+      setIconDialog({ groupId, groupName, hostId })
+    },
+    []
+  )
+
+  // Why: read the live row so the dialog preview tracks each saved pick.
+  const iconDialogGroup = useMemo(
+    () =>
+      iconDialog
+        ? findIndexedProjectGroupOwner(projectGroups, iconDialog.groupId, iconDialog.hostId)
+        : null,
+    [iconDialog, projectGroups]
+  )
+
+  const handleSetProjectGroupIcon = useCallback(
+    async (icon: RepoIcon | null) => {
+      if (!iconDialog) {
+        return
+      }
+      const saved = await updateProjectGroup(
+        iconDialog.groupId,
+        { icon },
+        { hostId: iconDialog.hostId }
+      )
+      // Why: an older host strips the unknown icon field yet still reports success.
+      const stored = findIndexedProjectGroupOwner(
+        useAppStore.getState().projectGroups,
+        iconDialog.groupId,
+        iconDialog.hostId
+      )
+      if (saved && icon !== null && !stored?.icon) {
+        toast.error(
+          translate(
+            'auto.components.sidebar.WorktreeList.groupIconUnsupported',
+            "This group's host doesn't support group icons yet"
+          ),
+          {
+            description: translate(
+              'auto.components.sidebar.WorktreeList.groupIconUnsupportedDesc',
+              'The group is stored on an Orca server running an older version. Update Orca there, then set the icon again.'
+            )
+          }
+        )
+        return
+      }
+      if (!saved) {
+        toast.error(
+          translate(
+            'auto.components.sidebar.WorktreeList.groupIconFailed',
+            'Failed to update group icon'
+          ),
+          {
+            description: translate(
+              'auto.components.sidebar.WorktreeList.groupIconFailedDesc',
+              "Orca could not confirm the icon with the group's host. Recheck the group after reconnecting."
+            )
+          }
+        )
+      }
+    },
+    [iconDialog, updateProjectGroup]
+  )
 
   const handleCreateGroupFromRepo = useCallback((repo: Repo) => {
     setNameDialog({ type: 'create-from-repo', repo })
@@ -192,6 +266,11 @@ export function useProjectGroupDialogs(args: {
   }, [deleteProjectGroupWithContainedProjects, removeContainedProjects, deleteDialog])
 
   return {
+    iconDialog,
+    setIconDialog,
+    iconDialogGroup,
+    handleChangeProjectGroupIcon,
+    handleSetProjectGroupIcon,
     nameDialog,
     setNameDialog,
     deleteDialog,

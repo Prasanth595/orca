@@ -27,7 +27,8 @@ type RepositoryIconTabsProps = {
   selectedEmoji: string
   loadingGitHub: boolean
   onSetIcon: (repoIcon: RepoIcon | null) => void
-  onUseGitHubAvatar: () => void
+  /** Omitted for targets with no GitHub identity (project groups); the tab then reads "Image". */
+  onUseGitHubAvatar?: () => void
 }
 
 export function RepositoryIconTabs({
@@ -91,7 +92,9 @@ export function RepositoryIconTabs({
     <Tabs defaultValue={initialTab} className="gap-3">
       <TabsList variant="line" className="h-8">
         <TabsTrigger value="avatar" className="h-7 text-xs">
-          {translate('auto.components.settings.RepositoryIconPicker.2d8bd302fa', 'Avatar')}
+          {onUseGitHubAvatar
+            ? translate('auto.components.settings.RepositoryIconPicker.2d8bd302fa', 'Avatar')
+            : translate('auto.components.settings.RepositoryIconPicker.imageTab', 'Image')}
         </TabsTrigger>
         <TabsTrigger value="icon" className="h-7 text-xs">
           {translate('auto.components.settings.RepositoryIconPicker.b2d7fd2116', 'Icon')}
@@ -102,25 +105,29 @@ export function RepositoryIconTabs({
       </TabsList>
 
       <TabsContent value="avatar" className="space-y-3">
-        <Button
-          type="button"
-          variant="default"
-          className="w-full gap-2"
-          disabled={loadingGitHub}
-          onClick={() => void onUseGitHubAvatar()}
-        >
-          <Github className="size-3.5" />
-          {translate(
-            'auto.components.settings.RepositoryIconPicker.39da8a10bf',
-            'Use GitHub Avatar'
-          )}
-        </Button>
-        <p className="text-xs text-muted-foreground">
-          {translate(
-            'auto.components.settings.RepositoryIconPicker.7da623abcc',
-            "Used by default — GitHub always provides one, even when the owner hasn't set a custom image."
-          )}
-        </p>
+        {onUseGitHubAvatar ? (
+          <>
+            <Button
+              type="button"
+              variant="default"
+              className="w-full gap-2"
+              disabled={loadingGitHub}
+              onClick={() => void onUseGitHubAvatar()}
+            >
+              <Github className="size-3.5" />
+              {translate(
+                'auto.components.settings.RepositoryIconPicker.39da8a10bf',
+                'Use GitHub Avatar'
+              )}
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              {translate(
+                'auto.components.settings.RepositoryIconPicker.7da623abcc',
+                "Used by default — GitHub always provides one, even when the owner hasn't set a custom image."
+              )}
+            </p>
+          </>
+        ) : null}
         <Button
           type="button"
           variant="outline"

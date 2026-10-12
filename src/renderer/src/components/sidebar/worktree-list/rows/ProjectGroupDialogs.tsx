@@ -5,6 +5,7 @@ import type { AppState } from '@/store/types'
 import type { Repo } from '../../../../../../shared/repo-types'
 import { ProjectGroupNameDialog } from '../../ProjectGroupNameDialog'
 import { ProjectGroupDeleteDialog } from '../../ProjectGroupDeleteDialog'
+import { ProjectGroupIconDialog } from '../../ProjectGroupIconDialog'
 import SuppressExternalWorktreeInboxDialog from '../../SuppressExternalWorktreeInboxDialog'
 import type { NewExternalWorktreesInboxActionState } from '../../new-external-worktrees-inbox-actions'
 import type { ProjectGroupDialogs } from './use-project-group-dialogs'
@@ -94,6 +95,17 @@ export function SidebarWorktreeListDialogs({
             onOpenWorktreeVisibility(repo)
           }
         }}
+      />
+      <ProjectGroupIconDialog
+        open={dialogs.iconDialog !== null}
+        groupName={dialogs.iconDialogGroup?.name ?? dialogs.iconDialog?.groupName ?? ''}
+        icon={dialogs.iconDialogGroup?.icon ?? null}
+        onOpenChange={(open) => {
+          if (!open) {
+            dialogs.setIconDialog(null)
+          }
+        }}
+        onSetIcon={(icon) => void dialogs.handleSetProjectGroupIcon(icon)}
       />
       <ProjectGroupDeleteDialog
         open={deleteDialog !== null}

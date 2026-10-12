@@ -6,22 +6,29 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useProjectGroupDialogs, type ProjectGroupDialogs } from './use-project-group-dialogs'
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 
-const mocks = vi.hoisted(() => ({
-  moveProjectToGroup: vi.fn(),
-  createProjectGroup: vi.fn(),
-  updateProjectGroup: vi.fn(),
-  deleteProjectGroupWithContainedProjects: vi.fn(),
-  toastError: vi.fn()
-}))
+const mocks = vi.hoisted(() => {
+  const storedGroups: ProjectGroup[] = []
+  return {
+    moveProjectToGroup: vi.fn(),
+    createProjectGroup: vi.fn(),
+    updateProjectGroup: vi.fn(),
+    deleteProjectGroupWithContainedProjects: vi.fn(),
+    toastError: vi.fn(),
+    storedGroups
+  }
+})
 
 vi.mock('@/store', () => ({
-  useAppStore: (selector: (state: Record<string, unknown>) => unknown) =>
-    selector({
-      moveProjectToGroup: mocks.moveProjectToGroup,
-      createProjectGroup: mocks.createProjectGroup,
-      updateProjectGroup: mocks.updateProjectGroup,
-      deleteProjectGroupWithContainedProjects: mocks.deleteProjectGroupWithContainedProjects
-    })
+  useAppStore: Object.assign(
+    (selector: (state: Record<string, unknown>) => unknown) =>
+      selector({
+        moveProjectToGroup: mocks.moveProjectToGroup,
+        createProjectGroup: mocks.createProjectGroup,
+        updateProjectGroup: mocks.updateProjectGroup,
+        deleteProjectGroupWithContainedProjects: mocks.deleteProjectGroupWithContainedProjects
+      }),
+    { getState: () => ({ projectGroups: mocks.storedGroups }) }
+  )
 }))
 
 vi.mock('sonner', () => ({
@@ -66,6 +73,7 @@ async function renderHookProbe(): Promise<void> {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.storedGroups = [remoteGroup]
   mocks.updateProjectGroup.mockResolvedValue(true)
   mocks.deleteProjectGroupWithContainedProjects.mockResolvedValue({
     status: 'deleted-group',
@@ -132,5 +140,57 @@ describe('project group dialogs carry the owner host', () => {
       removeContainedProjects: false,
       hostId: 'runtime:env-1'
     })
+  })
+
+  it('sets a group icon through the owner host without a toast when it is stored', async () => {
+    mocks.updateProjectGroup.mockImplementation(async () => {
+      mocks.storedGroups = [{ ...remoteGroup, icon: { type: 'emoji', emoji: '🌱' } }]
+      return true
+    })
+    await renderHookProbe()
+    await act(async () => {
+      latest!.handleChangeProjectGroupIcon(remoteGroup.id, remoteGroup.name, 'runtime:env-1')
+    })
+    await act(async () => {
+      await latest!.handleSetProjectGroupIcon({ type: 'emoji', emoji: '🌱' })
+    })
+
+    expect(mocks.updateProjectGroup).toHaveBeenCalledWith(
+      remoteGroup.id,
+      { icon: { type: 'emoji', emoji: '🌱' } },
+      { hostId: 'runtime:env-1' }
+    )
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
+  it('tells the user when an older host accepts the save but drops the icon', async () => {
+    await renderHookProbe()
+    await act(async () => {
+      latest!.handleChangeProjectGroupIcon(remoteGroup.id, remoteGroup.name, 'runtime:env-1')
+    })
+    await act(async () => {
+      await latest!.handleSetProjectGroupIcon({ type: 'emoji', emoji: '🌱' })
+    })
+
+    expect(mocks.toastError).toHaveBeenCalledWith(
+      "This group's host doesn't support group icons yet",
+      expect.objectContaining({ description: expect.stringContaining('older version') })
+    )
+  })
+
+  it('surfaces an unconfirmed-icon toast when the owner host does not answer', async () => {
+    mocks.updateProjectGroup.mockResolvedValue(false)
+    await renderHookProbe()
+    await act(async () => {
+      latest!.handleChangeProjectGroupIcon(remoteGroup.id, remoteGroup.name, 'runtime:env-1')
+    })
+    await act(async () => {
+      await latest!.handleSetProjectGroupIcon(null)
+    })
+
+    expect(mocks.toastError).toHaveBeenCalledWith(
+      'Failed to update group icon',
+      expect.objectContaining({ description: expect.stringContaining('could not confirm') })
+    )
   })
 })

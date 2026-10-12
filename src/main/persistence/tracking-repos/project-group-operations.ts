@@ -1,5 +1,6 @@
 import type { PersistedState } from '../../../shared/persisted-state-types'
-import type { ProjectGroup } from '../../../shared/project-group-types'
+import type { ProjectGroup, ProjectGroupUpdates } from '../../../shared/project-group-types'
+import { sanitizeRepoIcon } from '../../../shared/repo-icon'
 import {
   createProjectGroup,
   getProjectGroupSubtreeIds,
@@ -61,10 +62,7 @@ export class ProjectGroupPersistenceOperations {
     return group
   }
 
-  updateProjectGroup(
-    groupId: string,
-    updates: Partial<Pick<ProjectGroup, 'name' | 'isCollapsed' | 'tabOrder' | 'color'>>
-  ): ProjectGroup | null {
+  updateProjectGroup(groupId: string, updates: ProjectGroupUpdates): ProjectGroup | null {
     const group = (this.state.projectGroups ?? []).find((entry) => entry.id === groupId)
     if (!group) {
       return null
@@ -80,6 +78,14 @@ export class ProjectGroupPersistenceOperations {
     }
     if (updates.color !== undefined) {
       group.color = typeof updates.color === 'string' ? updates.color : null
+    }
+    if (updates.icon !== undefined) {
+      const icon = sanitizeRepoIcon(updates.icon)
+      if (icon) {
+        group.icon = icon
+      } else if (icon === null) {
+        delete group.icon
+      }
     }
     group.updatedAt = Date.now()
     this.scheduleSave()
