@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Terminal } from '@xterm/xterm'
-import { createTerminalPixelSizeQueryResponder } from './terminal-capability-replies'
 import {
   subscribeToTerminalInputData,
   subscribeToTerminalUserInput
@@ -102,23 +101,6 @@ describe('subscribeToTerminalInputData', () => {
     subscription.dispose()
     core.triggerDataEvent('after-dispose', true)
     expect(listener).toHaveBeenCalledTimes(4)
-    terminal.dispose()
-  })
-
-  it('rescales real xterm pixel mouse reports onto the reported cell size', async () => {
-    const terminal = new Terminal({ cols: 80, rows: 41, allowProposedApi: true })
-    // A 80x41 screen of 8.362 x 18.268 px cells, answered as 8 x 18.
-    const screen = { getBoundingClientRect: () => ({ width: 80 * 8.362, height: 41 * 18.268 }) }
-    Object.defineProperty(terminal, 'element', { value: { querySelector: () => screen } })
-    await new Promise<void>((resolve) => terminal.write('\x1b[?1003h\x1b[?1016h', resolve))
-    createTerminalPixelSizeQueryResponder(terminal, () => true)('\x1b[16t')
-    const listener = vi.fn()
-    const subscription = subscribeToTerminalInputData(terminal, listener)
-
-    terminal.input('\x1b[<0;79;630M', true)
-
-    expect(listener).toHaveBeenCalledWith('\x1b[<0;75;620M', true)
-    subscription.dispose()
     terminal.dispose()
   })
 })

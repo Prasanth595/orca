@@ -497,7 +497,7 @@ describe('installTerminalCapabilityReplyHandlers', () => {
 })
 
 describe('rescalePixelMouseReport', () => {
-  // Measured on macOS (devicePixelRatio 2): D2Coding 17 at UI zoom 1.5 and 0.
+  // Measured on a MacBook Retina display (devicePixelRatio 2, 2.63 at UI zoom 1.5), D2Coding 17.
   const ZOOM_15 = { cols: 80, rows: 41, screenWidth: 80 * 8.362, screenHeight: 41 * 18.268 }
   const ZOOM_0 = { cols: 127, rows: 56, screenWidth: 127 * 8.504, screenHeight: 56 * 18 }
 
@@ -565,6 +565,24 @@ describe('rescalePixelMouseReport', () => {
     }
   )
 
+  it('leaves reports alone when the cell is already a whole number of px', () => {
+    // e.g. 100% display scaling: 9 x 22 px cells are replied as 9 x 22.
+    const terminal = createPixelMouseTerminal({
+      cols: 80,
+      rows: 24,
+      screenWidth: 80 * 9,
+      screenHeight: 24 * 22
+    })
+    createTerminalPixelSizeQueryResponder(terminal, () => true)('\x1b[16t')
+
+    for (let x = 0; x < 80 * 9; x++) {
+      expect(rescalePixelMouseReport(terminal, `\x1b[<0;${x};15M`)).toBe(`\x1b[<0;${x};15M`)
+    }
+    for (let y = 0; y < 24 * 22; y++) {
+      expect(rescalePixelMouseReport(terminal, `\x1b[<0;15;${y}M`)).toBe(`\x1b[<0;15;${y}M`)
+    }
+  })
+
   it('keeps the button code and the press or release final byte', () => {
     const terminal = createPixelMouseTerminal(ZOOM_15)
     createTerminalPixelSizeQueryResponder(terminal, () => true)('\x1b[14t')
@@ -578,7 +596,7 @@ describe('rescalePixelMouseReport', () => {
     const terminal = createPixelMouseTerminal(ZOOM_0)
     const observe = createTerminalPixelSizeQueryResponder(terminal, () => true)
     observe('\x1b[16t')
-    // The cell shrinks to 8.362 x 18.268 px; the app still converts with 9 x 18.
+    // The cell becomes 8.362 x 18.268 px; the app still converts with 9 x 18.
     terminal.element = createElement(ZOOM_0.cols * 8.362, ZOOM_0.rows * 18.268)
 
     expect(

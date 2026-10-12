@@ -1,5 +1,4 @@
 import type { Terminal } from '@xterm/xterm'
-import { rescalePixelMouseReport } from './terminal-capability-replies'
 
 // Why: xterm's public onData stream mixes real user input (keyboard, IME,
 // paste, mouse reports) with parser-generated auto-replies (focus in/out
@@ -57,8 +56,7 @@ export function subscribeToTerminalInputData(
   const dataInput = terminal.onData((data) => {
     const wasUserInput = pendingUserInput
     pendingUserInput = false
-    // Why here: rescale with the geometry xterm measured the click on, before any deferral.
-    listener(rescalePixelMouseReport(terminal, data), wasUserInput)
+    listener(data, wasUserInput)
   })
   return {
     dispose: () => {

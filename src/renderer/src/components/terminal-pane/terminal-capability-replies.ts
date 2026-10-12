@@ -8,6 +8,7 @@ import {
 } from '../../../../shared/terminal-osc-color-reply'
 import { readTerminalMouseEncoding } from '../../../../shared/terminal-mouse-encoding'
 import { guardParserHandler } from './terminal-parser-handler-guard'
+import { parseSgrMouseReport } from './terminal-pointer-input-sequences'
 
 export const DEFAULT_DA1_RESPONSE = '\x1b[?1;2c'
 export const CONPTY_DA1_RESPONSE = '\x1b[?61;4c'
@@ -100,7 +101,8 @@ function toReportedCellPixel(
   cells: number
 ): number {
   const cell = Math.min(cells - 1, Math.floor(pixel / cssCell))
-  const offset = Math.floor(((pixel - cell * cssCell) / cssCell) * reportedCell)
+  // Why multiply first: dividing first rounds 15 / 22 * 22 down to 14, moving whole-px cells.
+  const offset = Math.floor(((pixel - cell * cssCell) * reportedCell) / cssCell)
   return cell * reportedCell + Math.min(reportedCell - 1, Math.max(0, offset))
 }
 
@@ -110,10 +112,7 @@ export function rescalePixelMouseReport(
   data: string
 ): string {
   // Why: xterm reports unrounded CSS px but 14t/16t can only answer whole px, so clicks drift.
-  if (!data.startsWith('\x1b[<')) {
-    return data
-  }
-  const report = /^(\d+);(\d+);(\d+)([Mm])$/.exec(data.slice(3))
+  const report = parseSgrMouseReport(data)
   if (!report || readTerminalMouseEncoding(terminal) !== 'sgr-pixels') {
     return data
   }
@@ -121,11 +120,11 @@ export function rescalePixelMouseReport(
   if (!css) {
     return data
   }
-  // Why the fallback: after a remount the app still holds what the replaced xterm answered.
+  // Why the fallback: a remounted xterm's app was answered by the one it replaced, at this size.
   const reported = reportedCellSizeByTerminal.get(terminal) ?? toCellPixels(css)
-  const x = toReportedCellPixel(Number(report[2]), css.width, reported.width, terminal.cols)
-  const y = toReportedCellPixel(Number(report[3]), css.height, reported.height, terminal.rows)
-  return `\x1b[<${report[1]};${x};${y}${report[4]}`
+  const x = toReportedCellPixel(report.x, css.width, reported.width, terminal.cols)
+  const y = toReportedCellPixel(report.y, css.height, reported.height, terminal.rows)
+  return `\x1b[<${report.button};${x};${y}${report.final}`
 }
 
 function disposeAll(disposables: IDisposable[]): void {
