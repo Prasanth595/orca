@@ -12,12 +12,18 @@ export const AUTOMATION_CREATE_IDEMPOTENCY_RUNTIME_CAPABILITY =
 // Older hosts strip extraAgentArgs and would run without the user's arguments.
 export const AUTOMATION_EXTRA_AGENT_ARGS_RUNTIME_CAPABILITY =
   'automations.extra-agent-args.v1' as const
+// Older hosts strip semantic evaluation config and cannot persist evaluator receipts.
+export const AUTOMATION_SEMANTIC_EVALUATION_RUNTIME_CAPABILITY =
+  'automations.semantic-evaluation.v1' as const
+export const AUTOMATION_SEMANTIC_EVALUATION_UPDATE_REQUIRED_MESSAGE =
+  'Jev automation evaluation requires a newer Orca server. Update the HUB and try again.'
 
 export const AUTOMATION_RUNTIME_CAPABILITIES = [
   AUTOMATION_LIST_HOST_SCOPE_RUNTIME_CAPABILITY,
   AUTOMATION_OWNER_FENCING_RUNTIME_CAPABILITY,
   AUTOMATION_CREATE_IDEMPOTENCY_RUNTIME_CAPABILITY,
-  AUTOMATION_EXTRA_AGENT_ARGS_RUNTIME_CAPABILITY
+  AUTOMATION_EXTRA_AGENT_ARGS_RUNTIME_CAPABILITY,
+  AUTOMATION_SEMANTIC_EVALUATION_RUNTIME_CAPABILITY
 ] as const
 
 export const AUTOMATION_RUNTIME_CLIENT_CAPABILITIES = [

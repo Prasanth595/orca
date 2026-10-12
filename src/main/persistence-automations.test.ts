@@ -381,17 +381,28 @@ describe('Store', () => {
       workspaceId: 'wt1',
       timezone: 'UTC',
       rrule: 'FREQ=DAILY;BYHOUR=9;BYMINUTE=0',
-      dtstart: new Date('2026-05-13T00:00:00Z').getTime()
+      dtstart: new Date('2026-05-13T00:00:00Z').getTime(),
+      semanticEvaluation: {
+        evaluator: 'jev',
+        mode: 'shadow',
+        rubricPath: '.agents/rubrics/nightly.json'
+      }
     })
 
     const run = store.createAutomationRun(automation, new Date('2026-05-13T09:00:00Z').getTime())
-    store.updateAutomation(automation.id, { sourceContext: null, runContext: null })
+    store.updateAutomation(automation.id, {
+      sourceContext: null,
+      runContext: null,
+      semanticEvaluation: null
+    })
 
     expect(run.runContext).toEqual(automation.runContext)
     expect(run.sourceContext).toEqual(automation.sourceContext)
+    expect(run.semanticEvaluation).toEqual(automation.semanticEvaluation)
     expect(store.listAutomationRuns(automation.id)[0]).toMatchObject({
       runContext: automation.runContext,
-      sourceContext: automation.sourceContext
+      sourceContext: automation.sourceContext,
+      semanticEvaluation: automation.semanticEvaluation
     })
   })
 

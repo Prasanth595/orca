@@ -52,11 +52,15 @@ export const HANDLER_GROUPS: readonly HandlerGroup[] = [
     name: 'automations',
     keys: [
       'automations list',
+      'automations doctor',
       'automations show',
       'automations create',
       'automations edit',
       'automations remove',
       'automations run',
+      'automations run-show',
+      'automations receipt',
+      'automations jev-evaluate',
       'automations runs'
     ],
     load: async () => (await import('./handlers/automations.js')).AUTOMATION_HANDLERS

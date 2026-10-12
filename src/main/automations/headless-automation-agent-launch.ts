@@ -22,6 +22,29 @@ import { buildHeadlessAutomationWorktreeCreateArgs } from './headless-workspace-
 import type { AutomationRunTargetResult } from './run-target-resolution'
 
 const TERMINAL_ONLY_MESSAGE = 'An automation starts a terminal agent only.'
+const AUTOMATION_RECEIPT_INSTRUCTION =
+  'Before finishing, record the workflow result. Use `orca automations receipt --outcome passed --summary "<brief evidence>"` for success, substituting `failed` or `blocked` when appropriate. The current run id is supplied automatically.'
+
+function automationAgentEnvironment(automation: Automation, runId: string): Record<string, string> {
+  return {
+    ORCA_AUTOMATION_ID: automation.id,
+    ORCA_AUTOMATION_RUN_ID: runId
+  }
+}
+
+function automationAgentPrompt(automation: Automation): string {
+  const prompt = automation.prompt?.trim() ?? ''
+  const instructions = [prompt]
+  if (automation.workflowReceiptRequired) {
+    instructions.push(AUTOMATION_RECEIPT_INSTRUCTION)
+  }
+  if (automation.semanticEvaluation?.evaluator === 'jev') {
+    instructions.push(
+      `This automation has a Jev semantic evaluation in ${automation.semanticEvaluation.mode} mode using the versioned rubric at ${automation.semanticEvaluation.rubricPath}. Before finishing, create a temporary JSON evidence state with no secrets and run \`orca automations jev-evaluate --state-file <path>\`. The current run id is supplied automatically.`
+    )
+  }
+  return instructions.filter(Boolean).join('\n\n')
+}
 
 type LaunchedTerminal = {
   handle: string
@@ -45,7 +68,8 @@ export async function launchHeadlessAutomationAgent(
   const { automation, run, target } = request
   const agent = automation.agentId
   // The startup plan trims the prompt for every agent; a blank one launches the agent bare.
-  const text = automation.prompt?.trim()
+  const text = automationAgentPrompt(automation)
+  const env = automationAgentEnvironment(automation, run.id)
   let workspace: { id: string; displayName: string | null } | undefined
   let terminal: LaunchedTerminal | undefined
   const execution: AgentLaunchSurfaceExecution = {
@@ -74,6 +98,7 @@ export async function launchHeadlessAutomationAgent(
         const created = await runtime.createManagedWorktree({
           ...create,
           startupAgent,
+          startupEnv: env,
           ...(startupPrompt ? { startupPrompt } : {})
         })
         workspace = {
@@ -105,6 +130,7 @@ export async function launchHeadlessAutomationAgent(
           agent,
           prompt: startupPrompt ?? '',
           title: run.title,
+          env,
           ...(automation.extraAgentArgs ? { extraAgentArgs: automation.extraAgentArgs } : {})
         })
         terminal = launched

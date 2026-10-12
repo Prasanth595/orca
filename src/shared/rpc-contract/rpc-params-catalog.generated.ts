@@ -69,8 +69,11 @@ import {
   AutomationCreate,
   AutomationId,
   AutomationList,
+  AutomationRunId,
   AutomationRuns,
-  AutomationUpdate
+  AutomationSemanticEvaluation,
+  AutomationUpdate,
+  AutomationWorkflowReceipt
 } from './automation-params'
 import { CertificateProceed } from './browser-core-params'
 import { MouseClick } from './browser-extras-params'
@@ -690,7 +693,10 @@ export const RPC_PARAMS_BY_METHOD = {
   'automation.create': AutomationCreate,
   'automation.delete': AutomationId,
   'automation.list': AutomationList,
+  'automation.recordSemanticEvaluation': AutomationSemanticEvaluation,
+  'automation.recordWorkflowReceipt': AutomationWorkflowReceipt,
   'automation.runNow': AutomationId,
+  'automation.runShow': AutomationRunId,
   'automation.runs': AutomationRuns,
   'automation.show': AutomationId,
   'automation.update': AutomationUpdate,

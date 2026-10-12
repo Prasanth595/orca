@@ -16,6 +16,7 @@ import { startRuntimeLocalWorktreeTerminals } from './runtime-local-worktree-ter
 import { trackRuntimeWorkspaceCreate } from '../workspace-create-telemetry'
 import { assertOpenCodeModelLaunchPreferencesAbsent } from '../opencode/opencode-model-startup-plan'
 import { resolveWorktreeCreateAgentStartup } from './runtime-worktree-agent-startup'
+import { mergeStartupEnv } from './runtime-worktree-startup-env'
 import type { RuntimeWorkspaceCreateEvents } from '../workspace-create-telemetry'
 
 export class OrcaRuntimeWithCreateManagedWorktree extends OrcaRuntimeWithGetWorktreeTerminalProvisioningHost {
@@ -76,7 +77,8 @@ export class OrcaRuntimeWithCreateManagedWorktree extends OrcaRuntimeWithGetWork
             args.startupLaunchSource
           )
         : null
-    const effectiveStartup = args.startup ?? agentStartup?.startup ?? draftStartup?.startup
+    const selectedStartup = args.startup ?? agentStartup?.startup ?? draftStartup?.startup
+    const effectiveStartup = mergeStartupEnv(selectedStartup, args.startupEnv)
     const effectiveStartupFollowup = agentStartup?.followup
     const effectiveCreatedWithAgent = args.startup
       ? args.createdWithAgent

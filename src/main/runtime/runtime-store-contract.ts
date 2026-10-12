@@ -74,6 +74,8 @@ export type RuntimeStore = {
   listAutomationRuns?: Store['listAutomationRuns']
   listAutomationRunsPage?: Store['listAutomationRunsPage']
   createAutomation?: Store['createAutomation']
+  recordAutomationWorkflowReceipt?: Store['recordAutomationWorkflowReceipt']
+  recordAutomationSemanticEvaluation?: Store['recordAutomationSemanticEvaluation']
   updateAutomation?: Store['updateAutomation']
   deleteAutomation?: Store['deleteAutomation']
   getSparsePresets?: Store['getSparsePresets']

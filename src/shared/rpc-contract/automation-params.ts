@@ -176,11 +176,79 @@ export const AutomationId = z.object({
   expectedOwner: ExpectedOwner
 })
 
+export const AutomationRunId = z.object({
+  id: requiredString('Missing automation run id')
+})
+
+export const AutomationRunStatus = z
+  .enum([
+    'pending',
+    'dispatching',
+    'dispatched',
+    'completed',
+    'skipped_precheck',
+    'skipped_missed',
+    'skipped_unavailable',
+    'skipped_needs_interactive_auth',
+    'dispatch_failed'
+  ])
+  .optional()
+
+export const AutomationWorkflowReceipt = z.object({
+  runId: requiredString('Missing automation run id'),
+  outcome: z.enum(['passed', 'failed', 'blocked']),
+  summary: OptionalPlainString
+})
+
+const AutomationSemanticEvaluationMode = z.enum(['shadow', 'enforced'])
+
+const AutomationSemanticEvaluationConfig = z
+  .object({
+    evaluator: z.literal('jev'),
+    mode: AutomationSemanticEvaluationMode,
+    rubricPath: requiredString('Missing Jev rubric path')
+  })
+  .strict()
+  .nullable()
+  .optional()
+
+export const AutomationSemanticEvaluation = z.object({
+  runId: requiredString('Missing automation run id'),
+  result: z
+    .object({
+      evaluator: z.literal('jev'),
+      mode: AutomationSemanticEvaluationMode,
+      model: requiredString('Missing evaluator model'),
+      rubricId: requiredString('Missing rubric id'),
+      rubricVersion: requiredString('Missing rubric version'),
+      rubricSha256: z.string().regex(/^[a-f0-9]{64}$/),
+      stateSha256: z.string().regex(/^[a-f0-9]{64}$/),
+      choice: z.enum([
+        'requirements_satisfied',
+        'requirements_not_satisfied',
+        'insufficient_evidence'
+      ]),
+      probabilities: z
+        .object({
+          requirements_satisfied: z.number().min(0).max(1),
+          requirements_not_satisfied: z.number().min(0).max(1),
+          insufficient_evidence: z.number().min(0).max(1)
+        })
+        .strict(),
+      confidence: z.number().min(0).max(1),
+      minimumConfidence: z.number().min(0).max(1),
+      evidenceRefs: z.array(z.string().trim().min(1).max(2048)).max(100)
+    })
+    .strict()
+})
+
 export const AutomationRuns = z.object({
   automationId: OptionalString,
   expectedOwner: ExpectedOwner,
   limit: OptionalPositiveInt,
-  cursor: OptionalString
+  cursor: OptionalString,
+  status: AutomationRunStatus,
+  since: OptionalPositiveInt
 })
 
 // Why strict: null or a non-string must fail rather than fall back to "omitted", which preserves.
@@ -206,6 +274,8 @@ export const AutomationCreate = z.object({
   dtstart: requiredNumber('Missing trigger start time'),
   enabled: OptionalBoolean,
   missedRunGraceMinutes: OptionalPositiveInt,
+  workflowReceiptRequired: OptionalBoolean,
+  semanticEvaluation: AutomationSemanticEvaluationConfig,
   destination: Destination
 })
 
@@ -228,7 +298,9 @@ export const AutomationUpdateFields = z.object({
   rrule: AutomationSchedule.optional(),
   dtstart: requiredNumber('Missing trigger start time').optional(),
   enabled: OptionalBoolean,
-  missedRunGraceMinutes: OptionalPositiveInt
+  missedRunGraceMinutes: OptionalPositiveInt,
+  workflowReceiptRequired: OptionalBoolean,
+  semanticEvaluation: AutomationSemanticEvaluationConfig
 })
 
 export const AutomationUpdate = z.object({

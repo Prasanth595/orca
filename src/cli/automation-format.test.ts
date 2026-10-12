@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { AUTOMATION_ORPHAN_ISSUES } from '../shared/automation-list-scope'
 import type { Automation } from '../shared/automations-types'
-import { formatAutomationList, formatAutomationShow } from './automation-format'
+import {
+  formatAutomationHealth,
+  formatAutomationList,
+  formatAutomationRuns,
+  formatAutomationShow
+} from './automation-format'
 
 function automation(overrides: Partial<Automation> = {}): Automation {
   return {
@@ -105,5 +110,68 @@ describe('formatAutomationList reports each row host', () => {
     const output = formatAutomationList({ automations: [automation()] })
 
     expect(output).not.toContain('host:')
+  })
+})
+
+describe('formatAutomationRuns', () => {
+  it('prints the continuation cursor when another page exists', () => {
+    const output = formatAutomationRuns({
+      runs: [
+        {
+          id: 'run-1',
+          automationId: 'auto-1',
+          title: 'Nightly run 1',
+          scheduledFor: 1,
+          status: 'completed',
+          trigger: 'scheduled',
+          workspaceId: null,
+          sessionKind: 'terminal',
+          chatSessionId: null,
+          terminalSessionId: null,
+          terminalPaneKey: null,
+          terminalPtyId: null,
+          outputSnapshot: null,
+          precheckResult: null,
+          usage: null,
+          error: null,
+          startedAt: 1,
+          dispatchedAt: 1,
+          createdAt: 1
+        }
+      ],
+      nextCursor: '1:run-1'
+    })
+
+    expect(output).toContain('nextCursor: 1:run-1')
+  })
+})
+
+describe('formatAutomationHealth', () => {
+  it('prints the verdict and remediation', () => {
+    const output = formatAutomationHealth({
+      automations: [
+        {
+          automationId: 'auto-1',
+          name: 'Nightly',
+          enabled: true,
+          verdict: 'overdue',
+          nextRunAt: 1,
+          overdueDurationMs: 99,
+          lastRunId: null,
+          lastProcessStatus: null,
+          lastWorkflowOutcome: null,
+          semanticEvaluationMode: null,
+          lastSemanticChoice: null,
+          lastSemanticConfidence: null,
+          consecutiveFailures: 0,
+          historyAvailable: true,
+          remediation: 'Check scheduler.'
+        }
+      ]
+    })
+
+    expect(output).toContain('auto-1  Nightly  overdue')
+    expect(output).toContain('overdueMs: 99')
+    expect(output).toContain('remediation: Check scheduler.')
   })
 })

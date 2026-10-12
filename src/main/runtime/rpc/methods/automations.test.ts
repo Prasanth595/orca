@@ -11,6 +11,7 @@ function makeRequest(method: string, params?: unknown): RpcRequest {
 
 describe('automation RPC methods', () => {
   it('routes automation CRUD and run operations to the runtime server', async () => {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the dispatcher reads only the mocked runtime members in this test.
     const runtime = {
       getRuntimeId: () => 'test-runtime',
       listAutomations: vi.fn().mockReturnValue([{ id: 'auto-1', name: 'Daily review' }]),
@@ -23,6 +24,13 @@ describe('automation RPC methods', () => {
       updateAutomation: vi.fn().mockResolvedValue({ id: 'auto-1', name: 'Paused' }),
       deleteAutomation: vi.fn().mockReturnValue({ removed: true, id: 'auto-1' }),
       runAutomationNow: vi.fn().mockResolvedValue({ id: 'run-1', automationId: 'auto-1' }),
+      showAutomationRun: vi.fn().mockReturnValue({ id: 'run-1', automationId: 'auto-1' }),
+      recordAutomationWorkflowReceipt: vi
+        .fn()
+        .mockResolvedValue({ id: 'run-1', automationId: 'auto-1' }),
+      recordAutomationSemanticEvaluation: vi
+        .fn()
+        .mockResolvedValue({ id: 'run-1', automationId: 'auto-1' }),
       listAutomationRuns: vi.fn().mockReturnValue([{ id: 'run-1', automationId: 'auto-1' }])
     } as unknown as OrcaRuntimeService
     const dispatcher = new RpcDispatcher({ runtime, methods: AUTOMATION_METHODS })
@@ -73,6 +81,37 @@ describe('automation RPC methods', () => {
     )
     await dispatcher.dispatch(makeRequest('automation.delete', { id: 'auto-1' }))
     await dispatcher.dispatch(makeRequest('automation.runNow', { id: 'auto-1' }))
+    await dispatcher.dispatch(makeRequest('automation.runShow', { id: 'run-1' }))
+    await dispatcher.dispatch(
+      makeRequest('automation.recordWorkflowReceipt', {
+        runId: 'run-1',
+        outcome: 'passed',
+        summary: 'validated'
+      })
+    )
+    await dispatcher.dispatch(
+      makeRequest('automation.recordSemanticEvaluation', {
+        runId: 'run-1',
+        result: {
+          evaluator: 'jev',
+          mode: 'shadow',
+          model: 'typesafe-ai/jev',
+          rubricId: 'customer-memory',
+          rubricVersion: '1.0.0',
+          rubricSha256: 'a'.repeat(64),
+          stateSha256: 'b'.repeat(64),
+          choice: 'requirements_satisfied',
+          probabilities: {
+            requirements_satisfied: 0.9,
+            requirements_not_satisfied: 0.05,
+            insufficient_evidence: 0.05
+          },
+          confidence: 0.9,
+          minimumConfidence: 0.8,
+          evidenceRefs: ['receipt.json']
+        }
+      })
+    )
     await dispatcher.dispatch(makeRequest('automation.runs', { automationId: 'auto-1' }))
 
     expect(runtime.listAutomationsForScope).toHaveBeenCalledWith({})
@@ -103,6 +142,20 @@ describe('automation RPC methods', () => {
     )
     expect(runtime.deleteAutomation).toHaveBeenCalledWith('auto-1', undefined)
     expect(runtime.runAutomationNow).toHaveBeenCalledWith('auto-1', undefined)
+    expect(runtime.showAutomationRun).toHaveBeenCalledWith('run-1')
+    expect(runtime.recordAutomationWorkflowReceipt).toHaveBeenCalledWith(
+      'run-1',
+      'passed',
+      'validated'
+    )
+    expect(runtime.recordAutomationSemanticEvaluation).toHaveBeenCalledWith(
+      'run-1',
+      expect.objectContaining({
+        evaluator: 'jev',
+        choice: 'requirements_satisfied',
+        rubricVersion: '1.0.0'
+      })
+    )
     expect(runtime.listAutomationRuns).toHaveBeenCalledWith('auto-1', undefined)
   })
 
@@ -122,7 +175,43 @@ describe('automation RPC methods', () => {
       ok: true,
       result: { nextCursor: '100' }
     })
-    expect(runtime.listAutomationRunsPage).toHaveBeenCalledWith('auto-1', undefined, 100, undefined)
+    expect(runtime.listAutomationRunsPage).toHaveBeenCalledWith(
+      'auto-1',
+      undefined,
+      100,
+      undefined,
+      undefined,
+      undefined
+    )
+  })
+
+  it('forwards run history filters to the bounded query', async () => {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the dispatcher reads only the mocked runtime members in this test.
+    const runtime = {
+      getRuntimeId: () => 'test-runtime',
+      listAutomationRunsPage: vi.fn().mockReturnValue({ runs: [], nextCursor: null })
+    } as unknown as OrcaRuntimeService
+    const dispatcher = new RpcDispatcher({ runtime, methods: AUTOMATION_METHODS })
+    const since = Date.parse('2026-10-01T00:00:00-04:00')
+
+    await dispatcher.dispatch(
+      makeRequest('automation.runs', {
+        automationId: 'auto-1',
+        limit: 25,
+        cursor: 'cursor-1',
+        status: 'dispatch_failed',
+        since
+      })
+    )
+
+    expect(runtime.listAutomationRunsPage).toHaveBeenCalledWith(
+      'auto-1',
+      undefined,
+      25,
+      'cursor-1',
+      'dispatch_failed',
+      since
+    )
   })
 
   it('rejects unknown providers and invalid schedules', async () => {

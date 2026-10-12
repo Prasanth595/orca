@@ -8,8 +8,9 @@
  * `orca automations show` unable to complete the recovery it is named in.
  */
 
-import type { Automation, AutomationRun } from '../shared/automations-types'
+import type { Automation, AutomationRun, AutomationRunsPage } from '../shared/automations-types'
 import type { AutomationListItem } from '../shared/automation-list-scope'
+import type { AutomationHealth } from '../shared/automation-health'
 import type { AutomationOwnerPrecondition } from '../shared/automation-owner-precondition'
 import { getAutomationLegacyRepoId } from '../shared/automation-run-identity'
 import { formatAutomationPrecheckTimeout } from '../shared/automation-precheck'
@@ -59,6 +60,23 @@ export function formatAutomationList(result: AutomationListPayload): string {
     .join('\n\n')
 }
 
+export function formatAutomationHealth(result: { automations: AutomationHealth[] }): string {
+  if (result.automations.length === 0) {
+    return 'No automations found.'
+  }
+  return result.automations
+    .map((health) => {
+      const next = new Date(health.nextRunAt).toISOString()
+      const overdue = health.overdueDurationMs > 0 ? `  overdueMs: ${health.overdueDurationMs}` : ''
+      const remediation = health.remediation ? `\nremediation: ${health.remediation}` : ''
+      const semantic = health.semanticEvaluationMode
+        ? `  jev: ${health.lastSemanticChoice ?? 'not_recorded'}${health.lastSemanticConfidence === null ? '' : `@${health.lastSemanticConfidence}`}`
+        : ''
+      return `${health.automationId}  ${health.name}  ${health.verdict}\nnext: ${next}  last: ${health.lastProcessStatus ?? 'none'}  workflow: ${health.lastWorkflowOutcome ?? 'not_recorded'}${semantic}  consecutiveFailures: ${health.consecutiveFailures}${overdue}${remediation}`
+    })
+    .join('\n\n')
+}
+
 export function formatAutomationShow(result: AutomationShowPayload): string {
   const automation = result.automation
   const runContext = automation.runContext ?? null
@@ -93,6 +111,12 @@ export function formatAutomationShow(result: AutomationShowPayload): string {
     `workspaceId: ${automation.workspaceId ?? 'null'}`,
     `baseBranch: ${automation.baseBranch ?? 'null'}`,
     `reuseSession: ${automation.reuseSession}`,
+    `workflowReceiptRequired: ${automation.workflowReceiptRequired ?? false}`,
+    `semanticEvaluation: ${
+      automation.semanticEvaluation
+        ? `${automation.semanticEvaluation.evaluator}:${automation.semanticEvaluation.mode} (${automation.semanticEvaluation.rubricPath})`
+        : 'none'
+    }`,
     `target: ${automation.executionTargetType}:${automation.executionTargetId}`,
     // Omitted rather than guessed: a host that reports no owner has none to report.
     ...(result.owner ? [`host: ${formatOwnerSelector(result.owner.selector)}`] : []),
@@ -116,6 +140,15 @@ export function formatAutomationRun(result: { run: AutomationRun }): string {
     `scheduledFor: ${new Date(result.run.scheduledFor).toISOString()}`,
     `workspaceId: ${result.run.workspaceId ?? 'null'}`,
     `precheck: ${formatAutomationRunPrecheck(result.run)}`,
+    `workflowOutcome: ${result.run.workflowReceipt?.outcome ?? 'not_recorded'}`,
+    `workflowSummary: ${result.run.workflowReceipt?.summary ?? 'null'}`,
+    `semanticChoice: ${result.run.semanticEvaluationReceipt?.choice ?? 'not_recorded'}`,
+    `semanticConfidence: ${result.run.semanticEvaluationReceipt?.confidence ?? 'null'}`,
+    `semanticRubric: ${
+      result.run.semanticEvaluationReceipt
+        ? `${result.run.semanticEvaluationReceipt.rubricId}@${result.run.semanticEvaluationReceipt.rubricVersion}`
+        : 'null'
+    }`,
     `error: ${result.run.error ?? 'null'}`
   ].join('\n')
 }
@@ -134,14 +167,19 @@ function formatAutomationRunPrecheck(run: AutomationRun): string {
   return output ? `${outcome}; ${output}` : outcome
 }
 
-export function formatAutomationRuns(result: { runs: AutomationRun[] }): string {
+export function formatAutomationRuns(
+  result: AutomationRunsPage | { runs: AutomationRun[] }
+): string {
   if (result.runs.length === 0) {
     return 'No automation runs found.'
   }
-  return result.runs
+  const output = result.runs
     .map(
       (run) =>
-        `${run.id}  ${run.automationId}  ${run.status}  ${run.trigger}  ${new Date(run.scheduledFor).toISOString()}\n${run.title}${run.precheckResult ? `\nprecheck: ${formatAutomationRunPrecheck(run)}` : ''}${run.error ? `\nerror: ${run.error}` : ''}`
+        `${run.id}  ${run.automationId}  ${run.status}  ${run.trigger}  ${new Date(run.scheduledFor).toISOString()}\n${run.title}${run.workflowReceipt ? `\nworkflow: ${run.workflowReceipt.outcome}${run.workflowReceipt.summary ? `; ${run.workflowReceipt.summary}` : ''}` : ''}${run.semanticEvaluationReceipt ? `\njev: ${run.semanticEvaluationReceipt.choice}@${run.semanticEvaluationReceipt.confidence}` : ''}${run.precheckResult ? `\nprecheck: ${formatAutomationRunPrecheck(run)}` : ''}${run.error ? `\nerror: ${run.error}` : ''}`
     )
     .join('\n\n')
+  return 'nextCursor' in result && result.nextCursor
+    ? `${output}\n\nnextCursor: ${result.nextCursor}`
+    : output
 }

@@ -4,6 +4,8 @@ import type {
   AutomationDispatchResult,
   AutomationRun,
   AutomationRunTrigger,
+  AutomationSemanticEvaluationResult,
+  AutomationWorkflowOutcome,
   AutomationUpdateInput
 } from '../../../shared/automations-types'
 import type {
@@ -30,6 +32,8 @@ import {
   createAutomationRun as createAutomationRunOperation,
   listAutomationRuns as listAutomationRunsOperation,
   listAutomationRunsPage as listAutomationRunsOperationPage,
+  recordAutomationSemanticEvaluation as recordAutomationSemanticEvaluationOperation,
+  recordAutomationWorkflowReceipt as recordAutomationWorkflowReceiptOperation,
   recordRepeatedAutomationSkip as recordRepeatedAutomationSkipOperation,
   snapshotAutomationRunWorkspaceDisplayName as snapshotAutomationRunWorkspaceDisplayNameOperation,
   updateAutomationRun as updateAutomationRunOperation,
@@ -130,12 +134,20 @@ export class AutomationPersistence {
     )
   }
 
-  listAutomationRunsPage(automationId?: string, limit?: number, cursor?: string) {
+  listAutomationRunsPage(
+    automationId?: string,
+    limit?: number,
+    cursor?: string,
+    status?: AutomationRun['status'],
+    since?: number
+  ) {
     return listAutomationRunsOperationPage(
       this[automationPersistenceContext].runtime.state,
       automationId,
       limit,
-      cursor
+      cursor,
+      status,
+      since
     )
   }
 
@@ -186,6 +198,30 @@ export class AutomationPersistence {
 
   updateAutomationRun(result: AutomationDispatchResult): AutomationRun {
     return updateAutomationRunOperation(getAutomationRunOperations(this), result)
+  }
+
+  recordAutomationWorkflowReceipt(
+    runId: string,
+    outcome: AutomationWorkflowOutcome,
+    summary?: string
+  ): AutomationRun {
+    return recordAutomationWorkflowReceiptOperation(
+      getAutomationRunOperations(this),
+      runId,
+      outcome,
+      summary
+    )
+  }
+
+  recordAutomationSemanticEvaluation(
+    runId: string,
+    result: AutomationSemanticEvaluationResult
+  ): AutomationRun {
+    return recordAutomationSemanticEvaluationOperation(
+      getAutomationRunOperations(this),
+      runId,
+      result
+    )
   }
 
   snapshotAutomationRunWorkspaceDisplayName(workspaceId: string, displayName: string): number {

@@ -5,6 +5,7 @@ import type {
   Automation,
   AutomationDispatchResult,
   AutomationRun,
+  AutomationRunQuery,
   AutomationRunsPage,
   AutomationRunTrigger
 } from '../../../shared/automations-types'
@@ -25,6 +26,11 @@ import {
   normalizeAutomationRunWorkspaceDisplayName
 } from './automation-context-migration'
 
+export {
+  recordAutomationSemanticEvaluation,
+  recordAutomationWorkflowReceipt
+} from './automation-run-receipts'
+
 export type AutomationRunOperations = {
   state: PersistedState
   flush: () => void
@@ -42,9 +48,18 @@ function touchAutomation(state: PersistedState, automationId: string, now: numbe
   )
 }
 
-function sortedAutomationRuns(state: PersistedState, automationId?: string): AutomationRun[] {
+function sortedAutomationRuns(
+  state: PersistedState,
+  query: AutomationRunQuery = {}
+): AutomationRun[] {
   const runs = state.automationRuns ?? []
-  return [...(automationId ? runs.filter((run) => run.automationId === automationId) : runs)]
+  return runs
+    .filter(
+      (run) =>
+        (!query.automationId || run.automationId === query.automationId) &&
+        (!query.status || run.status === query.status) &&
+        (query.since === undefined || run.createdAt >= query.since)
+    )
     .map((run) => ({
       ...run,
       precheckResult: normalizeAutomationPrecheckResult(run.precheckResult)
@@ -53,16 +68,22 @@ function sortedAutomationRuns(state: PersistedState, automationId?: string): Aut
 }
 
 export function listAutomationRuns(state: PersistedState, automationId?: string): AutomationRun[] {
-  return sortedAutomationRuns(state, automationId)
+  return sortedAutomationRuns(state, { automationId })
 }
 
 export function listAutomationRunsPage(
   state: PersistedState,
   automationId: string | undefined,
   limit = 100,
-  cursor?: string
+  cursor?: string,
+  status?: AutomationRunQuery['status'],
+  since?: number
 ): AutomationRunsPage {
-  return paginateAutomationRuns(sortedAutomationRuns(state, automationId), limit, cursor)
+  return paginateAutomationRuns(
+    sortedAutomationRuns(state, { automationId, status, since }),
+    limit,
+    cursor
+  )
 }
 
 export function createAutomationRun(
@@ -102,6 +123,9 @@ export function createAutomationRun(
     outputSnapshot: null,
     precheckResult: null,
     usage: null,
+    workflowReceipt: null,
+    semanticEvaluation: automation.semanticEvaluation ?? null,
+    semanticEvaluationReceipt: null,
     error: null,
     startedAt: null,
     dispatchedAt: null,

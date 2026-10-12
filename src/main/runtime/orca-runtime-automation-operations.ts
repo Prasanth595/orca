@@ -4,7 +4,12 @@ import type {
   AutomationOwnerPrecondition,
   AutomationDestination
 } from '../../shared/automation-owner-precondition'
-import type { Automation, AutomationRun } from '../../shared/automations-types'
+import type {
+  Automation,
+  AutomationRun,
+  AutomationSemanticEvaluationResult,
+  AutomationWorkflowOutcome
+} from '../../shared/automations-types'
 import type {
   RuntimeAutomationCreateInput,
   RuntimeAutomationUpdateInput
@@ -53,11 +58,21 @@ export class OrcaRuntimeWithAutomationOperations extends OrcaRuntimeWithPtyForeg
     automationId?: string,
     expectedOwner?: AutomationOwnerPrecondition,
     limit?: number,
-    cursor?: string
+    cursor?: string,
+    status?: AutomationRun['status'],
+    since?: number
   ) {
     return this.readAutomationRuns(automationId, expectedOwner, () =>
-      this.automation.listRunsPage(automationId, limit, cursor)
+      this.automation.listRunsPage(automationId, limit, cursor, status, since)
     )
+  }
+
+  showAutomationRun(id: string): AutomationRun {
+    return this.automation.withExternalProbePriority(() => {
+      const run = this.automation.showRun(id)
+      this.automation.assertOwner(run.automationId, undefined, 'read')
+      return run
+    })
   }
 
   showAutomation(id: string, expectedOwner?: AutomationOwnerPrecondition): Automation {
@@ -126,6 +141,25 @@ export class OrcaRuntimeWithAutomationOperations extends OrcaRuntimeWithPtyForeg
   ): Promise<AutomationRun> {
     return this.automation.withExternalProbePriority(() =>
       this.automation.runNow(id, expectedOwner)
+    )
+  }
+
+  recordAutomationWorkflowReceipt(
+    runId: string,
+    outcome: AutomationWorkflowOutcome,
+    summary?: string
+  ): Promise<AutomationRun> {
+    return this.automation.withExternalProbePriority(() =>
+      this.automation.recordWorkflowReceipt(runId, outcome, summary)
+    )
+  }
+
+  recordAutomationSemanticEvaluation(
+    runId: string,
+    result: AutomationSemanticEvaluationResult
+  ): Promise<AutomationRun> {
+    return this.automation.withExternalProbePriority(() =>
+      this.automation.recordSemanticEvaluation(runId, result)
     )
   }
 
