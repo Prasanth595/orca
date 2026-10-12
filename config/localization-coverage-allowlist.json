@@ -187,5 +187,82 @@
     "text": "is truthy",
     "dynamic": false,
     "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/workflow-canvas-node-config.ts",
+    "kind": "object-property",
+    "text": "Form Input",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/workflow-canvas-node-config.ts",
+    "kind": "return",
+    "text": "Form Input",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowFormInputEditor.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "fieldName",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowFormInputEditor.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "{\"key\": \"value\"}",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowFormInputEditor.tsx",
+    "kind": "jsx-text",
+    "text": "—",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowFormInputEditor.tsx",
+    "kind": "object-property:label",
+    "text": "field",
+    "dynamic": true,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowForEachFields.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "{{steps.nodeId.json.items}}",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowBranchConditionEditor.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "field",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowBranchConditionEditor.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "field.path",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowBranchConditionEditor.tsx",
+    "kind": "object-property",
+    "text": "json.",
+    "dynamic": false,
+    "count": 2
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowBranchConditionEditor.tsx",
+    "kind": "jsx-text",
+    "text": "json.",
+    "dynamic": false,
+    "count": 1
   }
 ]

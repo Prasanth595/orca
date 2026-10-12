@@ -1,4 +1,9 @@
-import type { AgentWorkflow, WorkflowEdge, WorkflowNode } from '../../shared/workflow-types'
+import type {
+  AgentWorkflow,
+  WorkflowEdge,
+  WorkflowNode,
+  StepOutputs
+} from '../../shared/workflow-types'
 import { resolveTemplateExpr } from '../../shared/workflow-template-path'
 import { runShellCommandNode } from './workflow-node-runner-shell'
 import { runPythonScriptNode } from './workflow-node-runner-python'
@@ -7,11 +12,10 @@ import { runFileReadNode, runFileWriteNode } from './workflow-node-runner-file'
 import { runEmailSendNode } from './workflow-node-runner-email'
 import { runJsonTransformNode } from './workflow-node-runner-json'
 import { evaluateBranchConditions } from './workflow-node-runner-branch'
+import { runFormInputNode } from './workflow-node-runner-form'
 import { patchNodeRun } from './workflow-run-store'
 import type { WorkflowStoreOperations } from './workflow-run-store'
 import type { RemoteExecFn } from './workflow-remote-exec'
-
-export type StepOutputs = Record<string, { output: string; json: unknown }>
 
 export type ExecuteNodeResult = {
   stdout: string
@@ -103,7 +107,11 @@ export async function executeNode(
         throw new Error('Cancelled')
       }
       const r = await runShellCommandNode(
-        { ...node.data, command: resolveField(node.data.command, steps) },
+        {
+          ...node.data,
+          command: resolveField(node.data.command, steps),
+          workingDirectory: resolveField(node.data.workingDirectory, steps)
+        },
         primaryOutput,
         remoteExec,
         signal
@@ -114,7 +122,16 @@ export async function executeNode(
       if (signal.aborted) {
         throw new Error('Cancelled')
       }
-      const r = await runPythonScriptNode(node.data, primaryOutput, remoteExec, signal)
+      const r = await runPythonScriptNode(
+        {
+          ...node.data,
+          script: resolveField(node.data.script, steps),
+          workingDirectory: resolveField(node.data.workingDirectory, steps)
+        },
+        primaryOutput,
+        remoteExec,
+        signal
+      )
       return { ...r, outputValue: { stdout: r.stdout, stderr: r.stderr, exitCode: r.exitCode } }
     }
     case 'agent_call': {
@@ -122,7 +139,12 @@ export async function executeNode(
         throw new Error('Cancelled')
       }
       const prompt = resolveField(node.data.prompt, steps)
-      const r = await runAgentCallNode(node.data, prompt, remoteExec, signal)
+      const r = await runAgentCallNode(
+        { ...node.data, workingDirectory: resolveField(node.data.workingDirectory, steps) },
+        prompt,
+        remoteExec,
+        signal
+      )
       let parsed: unknown = null
       if (node.data.structuredOutputSchema) {
         try {
@@ -177,11 +199,11 @@ export async function executeNode(
             return { exitCode: ec }
           })()
         : { exitCode: null }
-      const activeLabel = evaluateBranchConditions(node.data, {
-        output: primaryOutput,
-        json: primaryJson,
-        exitCode
-      })
+      const activeLabel = evaluateBranchConditions(
+        node.data,
+        { output: primaryOutput, json: primaryJson, exitCode },
+        steps
+      )
       return {
         stdout: activeLabel,
         stderr: '',
@@ -272,6 +294,15 @@ export async function executeNode(
         stdout: primaryOutput,
         stderr: '',
         outputValue: primaryJson,
+        exitCode: 0
+      }
+    }
+    case 'form_input': {
+      const r = runFormInputNode(node.data, steps)
+      return {
+        stdout: JSON.stringify(r.value),
+        stderr: '',
+        outputValue: r.value,
         exitCode: 0
       }
     }

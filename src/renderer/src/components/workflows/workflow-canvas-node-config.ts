@@ -11,6 +11,7 @@ import {
   GitBranch,
   Repeat,
   Layers,
+  ClipboardList,
   type LucideIcon
 } from 'lucide-react'
 import type { WorkflowNode, WorkflowNodeType } from '../../../../shared/workflow-types'
@@ -83,7 +84,8 @@ export const NODE_TYPE_LABELS: Record<WorkflowNodeType, string> = {
   json_transform: 'JSON Transform',
   branch: 'Branch',
   for_each: 'For Each',
-  collect: 'Collect'
+  collect: 'Collect',
+  form_input: 'Form Input'
 }
 
 export const NODE_TYPE_ICON_COLORS: Record<WorkflowNodeType, string> = {
@@ -98,7 +100,8 @@ export const NODE_TYPE_ICON_COLORS: Record<WorkflowNodeType, string> = {
   json_transform: 'text-cyan-500',
   branch: 'text-yellow-500',
   for_each: 'text-teal-500',
-  collect: 'text-indigo-500'
+  collect: 'text-indigo-500',
+  form_input: 'text-rose-500'
 }
 
 export const NODE_TYPE_ICONS: Record<WorkflowNodeType, LucideIcon> = {
@@ -113,7 +116,8 @@ export const NODE_TYPE_ICONS: Record<WorkflowNodeType, LucideIcon> = {
   json_transform: Braces,
   branch: GitBranch,
   for_each: Repeat,
-  collect: Layers
+  collect: Layers,
+  form_input: ClipboardList
 }
 
 export const NODE_TYPE_COLORS: Record<WorkflowNodeType, string> = {
@@ -128,7 +132,8 @@ export const NODE_TYPE_COLORS: Record<WorkflowNodeType, string> = {
   json_transform: 'border-cyan-400 bg-cyan-50 dark:bg-cyan-950/30',
   branch: 'border-yellow-400 bg-yellow-50 dark:bg-yellow-950/30',
   for_each: 'border-teal-400 bg-teal-50 dark:bg-teal-950/30',
-  collect: 'border-indigo-400 bg-indigo-50 dark:bg-indigo-950/30'
+  collect: 'border-indigo-400 bg-indigo-50 dark:bg-indigo-950/30',
+  form_input: 'border-rose-400 bg-rose-50 dark:bg-rose-950/30'
 }
 
 export function nodeLabel(node: WorkflowNode): string {
@@ -157,6 +162,8 @@ export function nodeLabel(node: WorkflowNode): string {
       return node.label || node.data.itemsExpression || 'For Each'
     case 'collect':
       return node.label || 'Collect'
+    case 'form_input':
+      return node.label || 'Form Input'
   }
 }
 
@@ -170,6 +177,7 @@ export const ADD_NODE_TYPES: WorkflowNodeType[] = [
   'file_write',
   'email_send',
   'json_transform',
+  'form_input',
   'branch',
   'for_each',
   'collect'
@@ -184,7 +192,8 @@ export const ACTION_NODE_TYPES: WorkflowNodeType[] = [
   'file_read',
   'file_write',
   'json_transform',
-  'email_send'
+  'email_send',
+  'form_input'
 ]
 
 export const CONTROL_FLOW_NODE_TYPES: WorkflowNodeType[] = ['branch', 'for_each', 'collect']
@@ -253,5 +262,7 @@ export function buildDefaultNode(
       return { id, type, pos, data: { itemsExpression: '', maxIterations: 100 } }
     case 'collect':
       return { id, type, pos, data: {} }
+    case 'form_input':
+      return { id, type, pos, data: { fields: [] } }
   }
 }

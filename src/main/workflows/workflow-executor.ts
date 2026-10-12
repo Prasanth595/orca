@@ -1,9 +1,14 @@
-import type { AgentWorkflow, WorkflowNode, WorkflowNodeRun } from '../../shared/workflow-types'
+import type {
+  AgentWorkflow,
+  WorkflowNode,
+  WorkflowNodeRun,
+  StepOutputs
+} from '../../shared/workflow-types'
 import { topologicalSort } from '../../shared/workflow-graph-topology'
 import type { WorkflowStoreOperations } from './workflow-run-store'
 import { patchNodeRun, finalizeWorkflowRun } from './workflow-run-store'
 import type { RemoteExecFn } from './workflow-remote-exec'
-import type { StepOutputs, ExecuteNodeResult } from './workflow-executor-node'
+import type { ExecuteNodeResult } from './workflow-executor-node'
 import { executeNode } from './workflow-executor-node'
 
 export type WorkflowExecutorCallbacks = {

@@ -70,8 +70,6 @@ export default function WorkflowList({ selectedWorkflowId, onSelect }: Props): R
   function handleCreated(wf: AgentWorkflow): void {
     onSelect(wf)
     setCreateDialogOpen(false)
-    setRenamingId(wf.id)
-    setRenameValue(wf.name)
   }
 
   async function handleDelete(id: string, e: React.MouseEvent): Promise<void> {
