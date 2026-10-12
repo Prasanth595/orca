@@ -1,17 +1,16 @@
 import { subscribeToPtyData } from '@/components/terminal-pane/pty-data-sidecar-subscriptions'
 import { subscribeToPtyExit } from '@/components/terminal-pane/pty-dispatcher'
-import { callRuntimeRpc, getActiveRuntimeTarget } from '@/runtime/runtime-rpc-client'
+import { callRuntimeRpc } from '@/runtime/runtime-rpc-client'
 import { getRemoteRuntimeTerminalMultiplexer } from '@/runtime/remote-runtime-terminal-multiplexer'
 import { isRemoteRuntimePtyId } from '@/runtime/runtime-terminal-inspection'
-import {
-  getRemoteRuntimePtyEnvironmentId,
-  getRemoteRuntimeTerminalHandle
-} from '@/runtime/runtime-terminal-stream'
+import { getRemoteRuntimePtyOwner } from '@/runtime/runtime-terminal-stream'
 import { useAppStore } from '@/store'
 import { createAgentStatusOscProcessor } from '../../../shared/agent-status-osc'
+import { runtimeWaitExitCode } from '@/lib/agent-background-session-exit'
 import type { ParsedAgentStatusPayload } from '../../../shared/agent-status-types'
 import { isMainTerminalSideEffectAuthorityForPty } from '@/components/terminal-pane/terminal-side-effect-facts-handler'
 import { resolveLiveAgentStatusConnectionRouting } from '@/lib/agent-status-connection-ownership'
+import { rendererAgentStatusObservations } from '@/lib/renderer-agent-status-observations'
 
 export async function observeExistingAutomationSession(args: {
   ptyId: string
@@ -44,7 +43,20 @@ export async function observeExistingAutomationSession(args: {
         // Why: a delayed reuse observer must not write into a pane that has
         // since rebound to another host's colliding tab/pane identifiers.
         if (routing) {
-          state.setAgentStatus(paneKey, payload, undefined, undefined, routing)
+          state.setAgentStatus(
+            paneKey,
+            {
+              ...payload,
+              observation: rendererAgentStatusObservations.observe(paneKey, {
+                origin: 'osc',
+                observedAt: Date.now(),
+                kind: 'snapshot'
+              })
+            },
+            undefined,
+            undefined,
+            routing
+          )
         }
       }
       args.onAgentStatus(payload)
@@ -53,14 +65,11 @@ export async function observeExistingAutomationSession(args: {
 
   if (isRemoteRuntimePtyId(ptyId)) {
     let disposed = false
-    const ownerEnvironmentId = getRemoteRuntimePtyEnvironmentId(ptyId)
-    const runtimeTarget = ownerEnvironmentId
-      ? ({ kind: 'environment', environmentId: ownerEnvironmentId } as const)
-      : getActiveRuntimeTarget(useAppStore.getState().settings)
-    const terminal = getRemoteRuntimeTerminalHandle(ptyId)
-    if (runtimeTarget.kind !== 'environment' || !terminal) {
+    const owner = getRemoteRuntimePtyOwner(ptyId)
+    if (!owner) {
       return () => {}
     }
+    const { target: runtimeTarget, terminal } = owner
     const stream = await getRemoteRuntimeTerminalMultiplexer(
       runtimeTarget.environmentId
     ).subscribeTerminal({
@@ -79,7 +88,7 @@ export async function observeExistingAutomationSession(args: {
     )
       .then((result) => {
         if (!disposed) {
-          onExit(result.wait.exitCode ?? 0)
+          onExit(runtimeWaitExitCode(result.wait))
         }
       })
       .catch(() => {})

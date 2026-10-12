@@ -2,32 +2,39 @@ import { createHash } from 'node:crypto'
 import type { Dirent } from 'node:fs'
 import { lstat, open, opendir } from 'node:fs/promises'
 import { isAbsolute, join, relative, sep } from 'node:path'
-import type { SkillBundleFileIdentity, SkillKnownSnapshot } from '../../shared/skill-freshness'
-import {
-  gitBlobSha,
-  skillPackageGitTreeSha,
-  type SkillGitTreeFileEntry
-} from './skill-git-tree-identity'
+import type { SkillBundleFileIdentity } from '../../shared/skill-freshness'
 
 type ObservedSkillFile = SkillBundleFileIdentity
 
 export type ObservedSkillPackage = {
   files: ObservedSkillFile[]
   observedDigest: string
-  /**
-   * Git tree sha of every observed file's raw bytes — one of the two values comparable
-   * against the updater lock's `skillFolderHash` (see `officialPathsGitTreeSha`).
-   */
-  observedGitTreeSha: string
-  /** Retained so a subset of the observed paths can be re-hashed the same way. */
-  treeEntries: SkillGitTreeFileEntry[]
+}
+
+export function observedSkillPackagesMatch(
+  left: ObservedSkillPackage,
+  right: ObservedSkillPackage
+): boolean {
+  return (
+    left.files.length === right.files.length &&
+    left.files.every((file, index) => {
+      const other = right.files[index]
+      return (
+        file.path === other.path &&
+        file.size === other.size &&
+        file.executable === other.executable &&
+        file.classification === other.classification &&
+        file.exactSha256 === other.exactSha256 &&
+        file.identitySha256 === other.identitySha256
+      )
+    })
+  )
 }
 
 // Why: package identity compares a live user directory against a tree the generator read
 // from a clean checkout, so anything the OS deposits on its own counts as drift the user
-// never caused. One Finder visit writes .DS_Store, and that alone made the copy
-// 'unrecognized' — reported as "may be modified", left out of the update, and unfixable by
-// running it, since the updater compares its lock to the source and never reads disk.
+// never caused. One Finder visit writes .DS_Store, and that alone would mark the copy
+// outdated.
 //
 // Only OS-authored names belong here. Tolerating unexpected files in general would let a
 // modified skill pass: the entry is safe precisely because an official SKILL.md never
@@ -122,14 +129,14 @@ export function describeObservedSkillFile(
       normalized = null
     }
   }
-  const classification = normalized ? 'text' : 'binary'
   const exactSha256 = sha256(bytes)
-  const textNormalizedSha256 = normalized ? sha256(normalized) : null
+  const textNormalizedSha256 =
+    normalized && (normalized.equals(bytes) ? exactSha256 : sha256(normalized))
   return {
     path,
     size: bytes.length,
     executable,
-    classification,
+    classification: normalized ? 'text' : 'binary',
     exactSha256,
     textNormalizedSha256,
     identitySha256:
@@ -172,11 +179,16 @@ export async function observeSkillPackage(
   packageRoot: string,
   limits: SkillPackageObservationLimits = SKILL_PACKAGE_OBSERVATION_LIMITS,
   executablePaths?: ReadonlySet<string>,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  platform: NodeJS.Platform = process.platform,
+  inferShebangExecutables = false
 ): Promise<ObservedSkillPackage> {
   const files: ObservedSkillFile[] = []
-  const treeEntries: SkillGitTreeFileEntry[] = []
   const caseFoldedPaths = new Map<string, string>()
+  const normalizedExecutablePaths =
+    platform === 'win32' && executablePaths
+      ? new Set([...executablePaths].map((path) => path.toLocaleLowerCase('en-US')))
+      : executablePaths
   let entryCount = 0
   let totalBytes = 0
 
@@ -258,11 +270,12 @@ export async function observeSkillPackage(
           signal
         )
         totalBytes += bytes.length
-        const executable = executablePaths
-          ? executablePaths.has(manifestPath)
-          : (fileStat.mode & 0o111) !== 0
+        const executable = normalizedExecutablePaths
+          ? normalizedExecutablePaths.has(platform === 'win32' ? folded : manifestPath)
+          : platform === 'win32' && inferShebangExecutables
+            ? bytes.subarray(0, 2).equals(Buffer.from('#!'))
+            : (fileStat.mode & 0o111) !== 0
         files.push(describeObservedSkillFile(manifestPath, bytes, executable))
-        treeEntries.push({ path: manifestPath, executable, blobSha: gitBlobSha(bytes) })
       } else {
         throw new Error('skill-package-special-file')
       }
@@ -270,81 +283,22 @@ export async function observeSkillPackage(
   }
 
   await visit(packageRoot, 0)
-  return {
-    files,
-    observedDigest: skillPackageDigest(files),
-    observedGitTreeSha: skillPackageGitTreeSha(treeEntries),
-    treeEntries
-  }
+  return { files, observedDigest: skillPackageDigest(files) }
 }
 
 /**
- * The newest revision whose every listed file is present and byte-identical.
+ * Whether every file the bundled entry lists is present with the same identity.
  *
- * `officialPaths` is what the CURRENT bundle says this skill owns, and it is what
- * separates a tolerable neighbour from drift. Agent CLIs drop their own metadata
- * beside an official SKILL.md (Codex writes `agents/openai.yaml` and cannot put it
- * anywhere else), and a file no revision claims is not evidence the user edited
- * anything — so extras alone must not mark the package unrecognized.
- *
- * A file the current bundle DOES list is never an extra, even when the revision
- * being tested predates it: without that guard an older snapshot would happily match
- * a folder whose newer official file had been tampered with, laundering real drift
- * into a clean "outdated" row. Listed-file drift still fails closed either way.
+ * Files the entry does not list are ignored: agent CLIs drop their own metadata beside an
+ * official SKILL.md (Codex writes `agents/openai.yaml`), and that is not drift.
  */
-export function matchingKnownSnapshot(
+export function matchesBundledSkillFiles(
   observed: ObservedSkillPackage,
-  snapshots: readonly SkillKnownSnapshot[],
-  officialPaths: ReadonlySet<string>
-): SkillKnownSnapshot | null {
+  expectedFiles: readonly SkillBundleFileIdentity[]
+): boolean {
   const observedByPath = new Map(observed.files.map((file) => [file.path, file]))
-  for (let index = snapshots.length - 1; index >= 0; index -= 1) {
-    const snapshot = snapshots[index]
-    if (!snapshot) {
-      continue
-    }
-    const listed = new Set(snapshot.files.map((file) => file.path))
-    const launders = observed.files.some(
-      (file) => !listed.has(file.path) && officialPaths.has(file.path)
-    )
-    if (
-      !launders &&
-      snapshot.files.every((expected) => {
-        const actual = observedByPath.get(expected.path)
-        return Boolean(actual && matchesFileIdentity(actual, expected))
-      })
-    ) {
-      return snapshot
-    }
-  }
-  return null
-}
-
-/**
- * The observed folder hashed as if it held only the files the current bundle owns.
- *
- * Compared against the updater lock's `skillFolderHash` ALONGSIDE the whole-folder
- * hash, never instead of it. The two cover different halves and neither subsumes the
- * other: the lock records the source tree, so a folder carrying a sidecar only ever
- * matches scoped, while an upstream revision that ADDS a file puts that file in the
- * lock's own tree and only ever matches whole. Publishing one and dropping the other
- * would trade this bug for #11220 — a clean install reading "may be modified" and its
- * update run reporting failure.
- *
- * Scoped to the CURRENT entry rather than every revision ever shipped: a leftover from
- * an older revision is exactly the stale byte the lock comparison should look past, and
- * unioning historical paths would drag it back in on the accident of its name.
- *
- * A folder holding none of them yields the whole-folder hash rather than git's empty-tree
- * sha, which is a real, matchable value: a lock that ever recorded an empty source tree
- * would otherwise vouch for every such folder.
- */
-export function officialPathsGitTreeSha(
-  observed: ObservedSkillPackage,
-  officialPaths: ReadonlySet<string>
-): string {
-  const scoped = observed.treeEntries.filter((entry) => officialPaths.has(entry.path))
-  return scoped.length === 0 || scoped.length === observed.treeEntries.length
-    ? observed.observedGitTreeSha
-    : skillPackageGitTreeSha(scoped)
+  return expectedFiles.every((expected) => {
+    const actual = observedByPath.get(expected.path)
+    return Boolean(actual && matchesFileIdentity(actual, expected))
+  })
 }

@@ -77,9 +77,31 @@ describe('createNewTerminalTab', () => {
     createNewTerminalTab('wt-1', 'zsh')
 
     expect(createTab).toHaveBeenCalledWith('wt-1', undefined, 'zsh', undefined)
-    expect(setActiveTabType).toHaveBeenCalledWith('terminal')
+    expect(setActiveTabType).toHaveBeenCalledWith('terminal', 'wt-1')
     expect(setTabBarOrder).toHaveBeenCalledWith('wt-1', ['tab-1'])
     expect(createWebRuntimeSessionTerminalMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps open browser tabs before the new terminal when no order is saved yet', () => {
+    const setTabBarOrder = vi.fn()
+    getStateMock
+      .mockReturnValueOnce({
+        settings: { activeRuntimeEnvironmentId: null },
+        createTab: vi.fn(() => ({ id: 'term-new' })),
+        setActiveTabType: vi.fn(),
+        setTabBarOrder
+      })
+      .mockReturnValueOnce({
+        tabsByWorktree: { 'wt-1': [{ id: 'term-a' }, { id: 'term-new' }] },
+        openFiles: [],
+        browserTabsByWorktree: { 'wt-1': [{ id: 'browser-1' }] },
+        tabBarOrderByWorktree: {},
+        setTabBarOrder
+      })
+
+    createNewTerminalTab('wt-1')
+
+    expect(setTabBarOrder).toHaveBeenCalledWith('wt-1', ['term-a', 'browser-1', 'term-new'])
   })
 
   it('delegates terminal creation to the host runtime in paired web clients', () => {
@@ -150,7 +172,7 @@ describe('createNewTerminalTab', () => {
     expect(createTab).toHaveBeenCalledWith('wt-1', undefined, undefined, {
       startupCwd: '/repo/packages/app'
     })
-    expect(setActiveTabType).toHaveBeenCalledWith('terminal')
+    expect(setActiveTabType).toHaveBeenCalledWith('terminal', 'wt-1')
   })
 
   it('delegates requested startup cwd to host runtime terminals', () => {
@@ -441,6 +463,7 @@ describe('closeTerminalTab', () => {
       activeTabId: 'terminal-entity-1',
       openFiles: [],
       browserTabsByWorktree: {},
+      reconcileWorktreeTabModel: vi.fn(() => ({ renderableTabCount: 0 })),
       closeTab,
       closeUnifiedTab,
       setActiveTab: vi.fn(),
@@ -453,7 +476,7 @@ describe('closeTerminalTab', () => {
     expect(closeUnifiedTab).not.toHaveBeenCalled()
   })
 
-  it('activates the next unified terminal tab when closing the active unified-only tab', () => {
+  it('defers successor selection for unified terminal tabs to the unified close contract', () => {
     const closeTab = vi.fn()
     const closeUnifiedTab = vi.fn()
     const setActiveTab = vi.fn()
@@ -504,7 +527,10 @@ describe('closeTerminalTab', () => {
 
     closeTerminalTab('terminal-entity-1')
 
-    expect(setActiveTab).toHaveBeenCalledWith('terminal-entity-2')
+    // Why: a unified terminal must not pre-pick a terminal-only successor — the
+    // store's closeUnifiedTab owns the MRU/neighbor repair (which may land on an
+    // agent-session tab); terminal-tab-actions-unified-close.test.ts covers it.
+    expect(setActiveTab).not.toHaveBeenCalled()
     expect(closeTab).toHaveBeenCalledWith('terminal-entity-1', { reason: undefined })
     expect(closeUnifiedTab).not.toHaveBeenCalled()
   })
@@ -573,6 +599,7 @@ describe('closeTerminalTab', () => {
       activeTabId: 'pinned-entity-1',
       openFiles: [],
       browserTabsByWorktree: {},
+      reconcileWorktreeTabModel: vi.fn(() => ({ renderableTabCount: 0 })),
       closeTab: vi.fn(),
       closeUnifiedTab: vi.fn(),
       setActiveTab: vi.fn(),

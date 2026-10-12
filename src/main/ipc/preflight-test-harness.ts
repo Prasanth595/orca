@@ -7,14 +7,15 @@ export type HandlerMap = Record<string, (_event?: unknown, args?: unknown) => Pr
 export type PreflightMocks = {
   handleMock: Mock
   execFileAsyncMock: Mock
+  runWslProcessMock?: Mock
   hydrateShellPathMock: Mock
   mergePathSegmentsMock: Mock
-  getActiveMultiplexerMock: Mock
   getBitbucketAuthStatusMock: Mock
   getAzureDevOpsAuthStatusMock: Mock
   getGiteaAuthStatusMock: Mock
   resolveCliCommandsMock: Mock
   isCommandOnLocalPathMock: Mock
+  listLocalCommandPathsMock: Mock
   mergePersistedWindowsPathAsyncMock: Mock
   mergePersistedWindowsPathMock: Mock
 }
@@ -42,24 +43,30 @@ export function resetPreflightMocks(mocks: PreflightMocks, handlers: HandlerMap)
   const {
     handleMock,
     execFileAsyncMock,
+    runWslProcessMock,
     hydrateShellPathMock,
     mergePathSegmentsMock,
-    getActiveMultiplexerMock,
     getBitbucketAuthStatusMock,
     getAzureDevOpsAuthStatusMock,
     getGiteaAuthStatusMock,
     resolveCliCommandsMock,
     isCommandOnLocalPathMock,
+    listLocalCommandPathsMock,
     mergePersistedWindowsPathAsyncMock,
     mergePersistedWindowsPathMock
   } = mocks
 
   handleMock.mockReset()
   execFileAsyncMock.mockReset()
+  runWslProcessMock?.mockReset()
   hydrateShellPathMock.mockReset()
   hydrateShellPathMock.mockResolvedValue({ segments: [], ok: false, failureReason: 'no_shell' })
   mergePathSegmentsMock.mockReset()
-  getActiveMultiplexerMock.mockReset()
+  // Why empty by default: with no fs candidates the local probe keeps its
+  // historical bare-name spawn, so cases that stub only where/which and execFile
+  // still assert on the command names they were written against.
+  listLocalCommandPathsMock.mockReset()
+  listLocalCommandPathsMock.mockResolvedValue([])
   getBitbucketAuthStatusMock.mockReset()
   getAzureDevOpsAuthStatusMock.mockReset()
   getGiteaAuthStatusMock.mockReset()

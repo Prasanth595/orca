@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createWebRuntimeSessionBrowserTab } from './web-runtime-session'
+import { stubRuntimeEnvironmentBridge } from './runtime-environment-bridge-fixture'
 
 const ENVIRONMENT_ID = 'runtime-1'
 const WORKTREE_ID = 'repo::/worktree'
@@ -22,8 +23,10 @@ vi.mock('../store', () => ({
 
 vi.mock('./web-session-tabs-sync', () => ({
   acceptReplayedWebSessionTabsSnapshot: vi.fn(),
-  applyFreshWebSessionTabsSnapshot: vi.fn(),
-  applyWebSessionTabsStorePatch: vi.fn(),
+  applyWebSessionTabsSnapshot: vi.fn(),
+  decideWebSessionTabsSnapshot: vi.fn(() => ({ apply: true, settlesHostMirror: true })),
+  getWebSessionTabsTrackingGeneration: vi.fn(() => 0),
+  applyWebSessionTabsStorePatch: vi.fn(() => () => {}),
   resolveHostSessionTabIdForWebSessionTab: vi.fn()
 }))
 
@@ -44,9 +47,7 @@ describe('paired browser capability cleanup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal('__ORCA_WEB_CLIENT__', true)
-    vi.stubGlobal('window', {
-      api: { runtimeEnvironments: { call: mocks.runtimeCall } }
-    })
+    stubRuntimeEnvironmentBridge({ call: mocks.runtimeCall })
   })
 
   it.each([

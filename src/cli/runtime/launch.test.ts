@@ -13,12 +13,14 @@ import {
   SERVE_REPLACEMENT_READY_TIMEOUT_MS
 } from './serve-update-supervisor'
 
-const { spawnMock } = vi.hoisted(() => ({
-  spawnMock: vi.fn()
+const { spawnMock, spawnSyncMock } = vi.hoisted(() => ({
+  spawnMock: vi.fn(),
+  spawnSyncMock: vi.fn()
 }))
 
 vi.mock('child_process', () => ({
-  spawn: spawnMock
+  spawn: spawnMock,
+  spawnSync: spawnSyncMock
 }))
 
 import { launchOrcaApp, serveOrcaApp } from './launch'
@@ -68,6 +70,24 @@ const SSH_RECIPE_JSON = JSON.stringify({
 })
 const INVALID_SSH_RECIPE_JSON = SSH_RECIPE_JSON.replace('/workspace/repo', 'relative/repo')
 const IGNORED_NON_RECIPE_STDOUT = '[serve] ignored non-recipe stdout'
+const PROFILE = resolve('/profiles/serve')
+const PIN_PROFILE = `--user-data-dir=${PROFILE}`
+
+function restoreEnv(key: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[key]
+  } else {
+    process.env[key] = value
+  }
+}
+
+function firstServeSpawnArgs(): string[] {
+  const args: unknown = spawnMock.mock.calls[0]?.[1]
+  if (!Array.isArray(args)) {
+    throw new Error('orca serve did not spawn its server')
+  }
+  return args.map(String)
+}
 
 function startRecipeJsonServer() {
   const child = new FakeChildProcess()
@@ -86,18 +106,79 @@ describe('serveOrcaApp', () => {
 
   beforeEach(() => {
     spawnMock.mockReset()
+    spawnSyncMock.mockReset()
     process.env.ORCA_APP_EXECUTABLE = '/Applications/Orca.app/Contents/MacOS/Orca'
+    // These cover Electron serve itself; the orcad default is in launch-serve-runtime.test.ts.
+    process.env.ORCA_SERVE_RUNTIME = 'electron'
+    process.env.ORCA_USER_DATA_PATH = PROFILE
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
+    delete process.env.ORCA_SERVE_RUNTIME
     delete process.env.ORCA_APP_EXECUTABLE
     delete process.env.ORCA_APP_EXECUTABLE_NEEDS_APP_ROOT
-    delete process.env.ORCA_APPIMAGE_NO_SANDBOX
     delete process.env.ORCA_USER_DATA_PATH
     return Promise.all(
       temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true }))
     )
+  })
+
+  it('launches an isolated profile with the keychain mocked, so serve is not blocked on it', async () => {
+    const previousUserData = process.env.ORCA_E2E_USER_DATA_DIR
+    const previousHome = process.env.ORCA_E2E_HOME_DIR
+    process.env.ORCA_E2E_USER_DATA_DIR = '/tmp/orca-e2e-profile'
+    try {
+      const { child, result } = startRecipeJsonServer()
+      queueMicrotask(() => child.stdout.emit('data', `${RECIPE_JSON}\n`))
+      await expect(result).resolves.toBe(0)
+
+      const args = firstServeSpawnArgs()
+      expect(args).toEqual(
+        expect.arrayContaining(['--password-store=basic', '--use-mock-keychain'])
+      )
+    } finally {
+      restoreEnv('ORCA_E2E_USER_DATA_DIR', previousUserData)
+      restoreEnv('ORCA_E2E_HOME_DIR', previousHome)
+    }
+  })
+
+  it('keeps the real keychain when only HOME is overridden', async () => {
+    const previousUserData = process.env.ORCA_E2E_USER_DATA_DIR
+    const previousHome = process.env.ORCA_E2E_HOME_DIR
+    delete process.env.ORCA_E2E_USER_DATA_DIR
+    process.env.ORCA_E2E_HOME_DIR = '/tmp/orca-e2e-home-only'
+    try {
+      const { child, result } = startRecipeJsonServer()
+      queueMicrotask(() => child.stdout.emit('data', `${RECIPE_JSON}\n`))
+      await expect(result).resolves.toBe(0)
+
+      const args = firstServeSpawnArgs()
+      expect(args).not.toContain('--use-mock-keychain')
+      expect(args).not.toContain('--password-store=basic')
+    } finally {
+      restoreEnv('ORCA_E2E_USER_DATA_DIR', previousUserData)
+      restoreEnv('ORCA_E2E_HOME_DIR', previousHome)
+    }
+  })
+
+  it('leaves a normal profile on the real keychain', async () => {
+    const previousUserData = process.env.ORCA_E2E_USER_DATA_DIR
+    const previousHome = process.env.ORCA_E2E_HOME_DIR
+    delete process.env.ORCA_E2E_USER_DATA_DIR
+    delete process.env.ORCA_E2E_HOME_DIR
+    try {
+      const { child, result } = startRecipeJsonServer()
+      queueMicrotask(() => child.stdout.emit('data', `${RECIPE_JSON}\n`))
+      await expect(result).resolves.toBe(0)
+
+      const args = firstServeSpawnArgs()
+      expect(args).not.toContain('--use-mock-keychain')
+      expect(args).not.toContain('--password-store=basic')
+    } finally {
+      restoreEnv('ORCA_E2E_USER_DATA_DIR', previousUserData)
+      restoreEnv('ORCA_E2E_HOME_DIR', previousHome)
+    }
   })
 
   it.runIf(process.platform === 'darwin')(
@@ -344,7 +425,7 @@ describe('serveOrcaApp', () => {
 
     expect(spawnMock).toHaveBeenCalledWith(
       '/Applications/Orca.app/Contents/MacOS/Orca',
-      ['--serve', '--serve-json'],
+      [PIN_PROFILE, '--serve', '--serve-json'],
       expect.objectContaining({
         cwd: resolve(__dirname, '../../..')
       })
@@ -377,6 +458,7 @@ describe('serveOrcaApp', () => {
     expect(spawnMock).toHaveBeenCalledWith(
       '/Applications/Orca.app/Contents/MacOS/Orca',
       [
+        PIN_PROFILE,
         '--serve',
         '--serve-json',
         '--serve-port',
@@ -389,32 +471,6 @@ describe('serveOrcaApp', () => {
         cwd: resolve(__dirname, '../../..')
       })
     )
-  })
-
-  it('preserves an AppImage no-sandbox launch for the server child', async () => {
-    process.env.ORCA_APPIMAGE_NO_SANDBOX = '1'
-    const child = {
-      kill: vi.fn(),
-      once: vi.fn(
-        (event: string, handler: (code: number | null, signal: string | null) => void) => {
-          if (event === 'exit') {
-            queueMicrotask(() => handler(0, null))
-          }
-          return child
-        }
-      )
-    }
-    spawnMock.mockReturnValue(child)
-
-    await expect(serveOrcaApp({ json: true })).resolves.toBe(0)
-
-    expect(spawnMock).toHaveBeenCalledWith(
-      '/Applications/Orca.app/Contents/MacOS/Orca',
-      ['--no-sandbox', '--serve', '--serve-json'],
-      expect.any(Object)
-    )
-    const spawnOptions = spawnMock.mock.calls[0]?.[2] as { env?: NodeJS.ProcessEnv }
-    expect(spawnOptions.env).not.toHaveProperty('ORCA_APPIMAGE_NO_SANDBOX')
   })
 
   it('passes the app root before serve flags for dev Electron executables', async () => {
@@ -437,12 +493,79 @@ describe('serveOrcaApp', () => {
 
     expect(spawnMock).toHaveBeenCalledWith(
       '/repo/node_modules/.bin/electron',
-      [resolve(__dirname, '../../..'), '--serve', '--serve-json', '--serve-port', '6768'],
+      [
+        resolve(__dirname, '../../..'),
+        PIN_PROFILE,
+        '--serve',
+        '--serve-json',
+        '--serve-port',
+        '6768'
+      ],
       expect.objectContaining({
         cwd: resolve(__dirname, '../../..')
       })
     )
   })
+
+  it.each([
+    { probe: 'exits nonzero', result: { status: 1 }, expectedPrefix: ['--no-sandbox'] },
+    { probe: 'succeeds', result: { status: 0 }, expectedPrefix: [] },
+    {
+      probe: 'times out',
+      result: {
+        status: null,
+        error: Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' })
+      },
+      expectedPrefix: ['--no-sandbox']
+    },
+    {
+      probe: 'cannot start',
+      result: { status: null, error: Object.assign(new Error('missing'), { code: 'ENOENT' }) },
+      expectedPrefix: ['--no-sandbox']
+    }
+  ])(
+    'uses the extracted AppImage sandbox fallback when the userns probe $probe',
+    async ({ result: userNamespaceResult, expectedPrefix }) => {
+      const platformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform')
+      const getuidDescriptor = Object.getOwnPropertyDescriptor(process, 'getuid')
+      const root = await mkdtemp(join(tmpdir(), 'orca-extracted-appimage-'))
+      temporaryDirectories.push(root)
+      const executable = join(root, 'orca-ide')
+      await writeFile(join(root, 'AppRun'), '', { mode: 0o755 })
+      process.env.ORCA_APP_EXECUTABLE = executable
+      Object.defineProperty(process, 'platform', { value: 'linux' })
+      Object.defineProperty(process, 'getuid', { configurable: true, value: () => 1000 })
+      spawnSyncMock.mockReturnValue(userNamespaceResult)
+      const child = new FakeChildProcess()
+      spawnMock.mockReturnValue(child)
+
+      try {
+        const result = serveOrcaApp({ json: true })
+        queueMicrotask(() => child.emit('exit', 0, null))
+        await expect(result).resolves.toBe(0)
+        expect(spawnSyncMock).toHaveBeenCalledWith(
+          'unshare',
+          ['-Ur', 'true'],
+          expect.objectContaining({ stdio: 'ignore', timeout: 2_000 })
+        )
+        expect(spawnMock).toHaveBeenCalledWith(
+          executable,
+          [...expectedPrefix, PIN_PROFILE, '--serve', '--serve-json'],
+          // Foreground serve must share POSIX job-control signals with its CLI supervisor.
+          expect.objectContaining({ detached: false })
+        )
+      } finally {
+        if (platformDescriptor) {
+          Object.defineProperty(process, 'platform', platformDescriptor)
+        }
+        if (getuidDescriptor) {
+          Object.defineProperty(process, 'getuid', getuidDescriptor)
+        } else {
+          Reflect.deleteProperty(process, 'getuid')
+        }
+      }
+    }
+  )
 
   it('prints recipe JSON from a detached server child and exits', async () => {
     const child = new FakeChildProcess()
@@ -463,6 +586,7 @@ describe('serveOrcaApp', () => {
     expect(spawnMock).toHaveBeenCalledWith(
       '/Applications/Orca.app/Contents/MacOS/Orca',
       [
+        PIN_PROFILE,
         '--serve',
         '--serve-pairing-address',
         'wss://sandbox.example.com',
@@ -583,7 +707,7 @@ describe('serveOrcaApp', () => {
       await expect(serveOrcaApp({ json: true })).resolves.toBe(0)
       expect(spawnMock).toHaveBeenCalledWith(
         'C:\\repo\\node_modules\\.bin\\electron.cmd',
-        ['--serve', '--serve-json'],
+        [PIN_PROFILE, '--serve', '--serve-json'],
         expect.objectContaining({
           shell: true
         })
@@ -599,9 +723,12 @@ describe('serveOrcaApp', () => {
 describe('launchOrcaApp', () => {
   beforeEach(() => {
     spawnMock.mockReset()
+    spawnSyncMock.mockReset()
+    process.env.ORCA_USER_DATA_PATH = PROFILE
   })
 
   afterEach(() => {
+    delete process.env.ORCA_USER_DATA_PATH
     delete process.env.ORCA_OPEN_COMMAND
     delete process.env.ORCA_APP_EXECUTABLE
     delete process.env.ORCA_APP_EXECUTABLE_NEEDS_APP_ROOT
@@ -617,5 +744,52 @@ describe('launchOrcaApp', () => {
     await Promise.resolve()
 
     expect(child.unref).toHaveBeenCalled()
+  })
+
+  it('adds the extracted-AppImage sandbox fallback for open launches', async () => {
+    const platformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform')
+    const getuidDescriptor = Object.getOwnPropertyDescriptor(process, 'getuid')
+    const root = await mkdtemp(join(tmpdir(), 'orca-open-extracted-appimage-'))
+    const executable = join(root, 'orca-ide')
+
+    try {
+      await writeFile(join(root, 'AppRun'), '')
+      process.env.ORCA_APP_EXECUTABLE = executable
+      process.env.ELECTRON_RUN_AS_NODE = '1'
+      Object.defineProperty(process, 'platform', { configurable: true, value: 'linux' })
+      Object.defineProperty(process, 'getuid', { configurable: true, value: () => 1000 })
+      spawnSyncMock.mockReturnValue({ status: 1 })
+      const child = new FakeChildProcess()
+      spawnMock.mockReturnValue(child)
+
+      launchOrcaApp()
+
+      expect(spawnSyncMock).toHaveBeenCalledWith(
+        'unshare',
+        ['-Ur', 'true'],
+        expect.objectContaining({ stdio: 'ignore', timeout: 2_000 })
+      )
+      expect(spawnMock).toHaveBeenCalledWith(
+        executable,
+        ['--no-sandbox', PIN_PROFILE],
+        expect.objectContaining({
+          detached: true,
+          stdio: 'ignore',
+          env: expect.not.objectContaining({ ELECTRON_RUN_AS_NODE: '1' })
+        })
+      )
+      expect(child.unref).toHaveBeenCalledOnce()
+    } finally {
+      await rm(root, { recursive: true, force: true })
+      delete process.env.ELECTRON_RUN_AS_NODE
+      if (platformDescriptor) {
+        Object.defineProperty(process, 'platform', platformDescriptor)
+      }
+      if (getuidDescriptor) {
+        Object.defineProperty(process, 'getuid', getuidDescriptor)
+      } else {
+        Reflect.deleteProperty(process, 'getuid')
+      }
+    }
   })
 })
