@@ -3360,7 +3360,7 @@
     "ko": "전환"
   },
   "auto.components.settings.git.search.0e993bf00f": {
-    "ko": "워크스페이스를 만들면 Orca가 원격 기준 브랜치를 새로고침하고 main 또는 master 등 대응하는 로컬 브랜치를 안전하게 fast-forward 합니다. git diff main...HEAD 같은 명령이 오래된 이력과 비교하지 않도록 하기 위한 동작입니다. 해당 브랜치에 커밋되지 않은 변경 사항이나 로컬에만 있는 커밋이 있으면 업데이트를 건너뜁니다."
+    "ko": "워크스페이스를 만들면 Orca가 원격 기준 브랜치를 새로고침하고 main 또는 master 등 대응하는 로컬 브랜치를 안전하게 fast-forward 합니다. git diff main...HEAD 같은 명령이 오래된 이력과 비교하지 않도록 하기 위한 동작입니다. 해당 로컬 브랜치에 로컬에만 있는 커밋이 있거나, 체크아웃된 작업 트리에 추적 중인 파일의 커밋되지 않은 변경 사항이 있으면 업데이트를 건너뜁니다. 체크아웃된 작업 트리에서 fast-forward가 미추적 파일을 덮어쓰게 되는 경우에도 업데이트할 수 없습니다."
   },
   "auto.components.settings.git.search.1d2fae1fa2": {
     "ko": "Git 사용자 이름"
