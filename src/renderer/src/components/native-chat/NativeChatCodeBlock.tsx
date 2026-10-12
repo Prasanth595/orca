@@ -14,12 +14,12 @@ import { NativeChatHighlightedCode } from './NativeChatHighlightedCode'
 export function NativeChatCodeBlock({
   children,
   language,
-  sourceOffset,
+  sourceLine,
   plain = false
 }: {
   children?: React.ReactNode
   language?: string
-  sourceOffset?: number
+  sourceLine?: number
   plain?: boolean
 }): React.JSX.Element {
   const code = extractCodeText(children)
@@ -27,9 +27,9 @@ export function NativeChatCodeBlock({
   // Off until the reader asks; kept in the transcript's store so the row unmounting under
   // windowing, or a growing reply re-cutting its blocks, does not undo it. Never saved.
   const { open: wrapped, setOpen: setWrapped } = useNativeChatDisclosure(
-    rowKey === undefined || sourceOffset === undefined
+    rowKey === undefined || sourceLine === undefined
       ? undefined
-      : `code-wrap:${rowKey}:${sourceOffset}`,
+      : `code-wrap:${rowKey}:${sourceLine}`,
     false
   )
   const actions = code ? (
@@ -109,7 +109,7 @@ function NativeChatCodeWrapButton({
 export function NativeChatPlainCodeBlock(props: {
   children?: React.ReactNode
   language?: string
-  sourceOffset?: number
+  sourceLine?: number
 }): React.JSX.Element {
   return <NativeChatCodeBlock {...props} plain />
 }

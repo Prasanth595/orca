@@ -19,7 +19,15 @@ afterEach(cleanup)
 const OPENING = 'Run this first:\n\n```ts\nconst answer = 42\n```\n\nThen press '
 
 /** A transcript: its disclosure store outlives the row, which windowing may unmount. */
-function Transcript({ content, mounted = true }: { content: string; mounted?: boolean }) {
+function Transcript({
+  content,
+  mounted = true,
+  growing = true
+}: {
+  content: string
+  mounted?: boolean
+  growing?: boolean
+}) {
   const disclosures = useNativeChatDisclosures()
   return (
     <NativeChatDisclosureContext.Provider value={disclosures}>
@@ -29,9 +37,9 @@ function Transcript({ content, mounted = true }: { content: string; mounted?: bo
           content={content}
           variant="document"
           renderCodeBlock={NativeChatCodeBlock}
-          streaming
-          growing
-          fadeWords
+          streaming={growing}
+          growing={growing}
+          fadeWords={growing}
         />
       ) : null}
     </NativeChatDisclosureContext.Provider>
@@ -73,5 +81,33 @@ describe('native chat code block line wrap', () => {
       screen.getByRole('button', { name: 'Wrap lines' }),
       screen.getByRole('button', { name: 'Disable line wrap' })
     ])
+  })
+
+  // Streaming fixes escape `x~y` and `- >5` mid-line, so a fence's character offset moves when the
+  // block is next parsed without them.
+  it.each([
+    [
+      'the reply finishes',
+      '1. Undo with git reset HEAD~1:\n   ```sh\n   git status\n   ```\n',
+      (content: string) => ({ content, growing: false })
+    ],
+    [
+      'another block follows a list item',
+      '- >5 users need x~y:\n  ```sh\n  scale up\n  ```\n',
+      (content: string) => ({ content: `${content}\nDone.`, growing: true })
+    ],
+    [
+      'the reply merges into one block',
+      'Undo with git reset HEAD~1 first.\n\n```sh\ngit status\n```\n\nThen press ',
+      (content: string) => ({ content: `${content}<kbd>Enter</kbd>`, growing: true })
+    ]
+  ])('stays on when %s after streaming escaped text before it', (_name, content, next) => {
+    const view = render(<Transcript content={content} />)
+    fireEvent.click(wrapToggle())
+    expect(wrapToggle()).toHaveAttribute('aria-pressed', 'true')
+
+    view.rerender(<Transcript {...next(content)} />)
+
+    expect(wrapToggle()).toHaveAttribute('aria-pressed', 'true')
   })
 })

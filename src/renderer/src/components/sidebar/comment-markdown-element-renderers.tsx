@@ -24,8 +24,9 @@ export type CommentMarkdownLinkClickHandler = (
 export type DocumentCodeBlockRenderer = (props: {
   children?: React.ReactNode
   language?: string
-  /** Where the fence starts in the whole document: appended text never moves it. */
-  sourceOffset?: number
+  /** The line the fence starts on in the whole document. Streaming fixes only escape characters
+   *  within a line or append at the end, so it holds while the text grows and when it finishes. */
+  sourceLine?: number
 }) => React.JSX.Element
 
 export function isTrustedCompactImageSrc(src: string | undefined): src is string {
@@ -273,7 +274,7 @@ export function createDocumentCommentMarkdownComponents(
     pre: ({ node, children }) => (
       <CommentMarkdownDocumentPre
         renderCodeBlock={renderCodeBlock}
-        blockOffset={node?.position?.start.offset}
+        blockLine={node?.position?.start.line}
       >
         {children}
       </CommentMarkdownDocumentPre>

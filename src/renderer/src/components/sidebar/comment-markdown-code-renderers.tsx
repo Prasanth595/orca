@@ -10,8 +10,8 @@ import {
 const diagramClassName =
   'my-3 min-w-0 max-w-full overflow-x-auto rounded-md border border-border/60 p-3 [&_.mermaid-block]:min-w-0 [&_.mermaid-block_pre]:my-0 [&_.mermaid-block_pre]:max-h-80 [&_.mermaid-block_pre]:max-w-full [&_.mermaid-block_pre]:overflow-x-auto [&_.mermaid-block_pre]:rounded-md [&_.mermaid-block_pre]:bg-accent [&_.mermaid-block_pre]:p-3 [&_.mermaid-block_pre]:font-mono [&_.mermaid-block_pre]:text-[12px]'
 
-/** Where the rendered top-level block starts in the whole document; its nodes' offsets are local. */
-export const CommentMarkdownBlockStartContext = createContext(0)
+/** The line the rendered top-level block starts on in the whole document; its nodes' lines are local. */
+export const CommentMarkdownBlockLineContext = createContext(1)
 
 export function CommentMarkdownDocumentCode({
   className,
@@ -35,16 +35,16 @@ export function CommentMarkdownDocumentCode({
 export function CommentMarkdownDocumentPre({
   children,
   renderCodeBlock,
-  blockOffset
+  blockLine
 }: {
   children?: React.ReactNode
   renderCodeBlock?: DocumentCodeBlockRenderer
-  /** Where the fence starts in its top-level block's source. */
-  blockOffset?: number
+  /** The line the fence starts on in its top-level block's source, from 1. */
+  blockLine?: number
 }): React.JSX.Element {
   const renderMermaid = useContext(CommentMarkdownMermaidContext)
   const keepSource = useContext(CommentMarkdownMermaidSourceContext)
-  const blockStart = useContext(CommentMarkdownBlockStartContext)
+  const blockStartLine = useContext(CommentMarkdownBlockLineContext)
   if (renderMermaid && !keepSource && isMermaidPre(children)) {
     return <>{children}</>
   }
@@ -57,7 +57,7 @@ export function CommentMarkdownDocumentPre({
   const code = CodeBlock ? (
     <CodeBlock
       language={language}
-      sourceOffset={blockOffset === undefined ? undefined : blockStart + blockOffset}
+      sourceLine={blockLine === undefined ? undefined : blockStartLine + blockLine - 1}
     >
       {children}
     </CodeBlock>
