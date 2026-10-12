@@ -97,6 +97,18 @@ describe('selection in a workspace other than the active one', () => {
     expect(store.getState().activeFileId).toBe(fileId)
   })
 
+  it('ignores a file id that no open file has', () => {
+    const store = createEditorTabsStore()
+    const fileId = openMarkdown(store, 'wt-1')
+    store.getState().setActiveFile(fileId)
+    const before = store.getState().activeFileIdByWorktree
+
+    store.getState().setActiveFile('stale-file-id')
+
+    expect(store.getState().activeFileId).toBe(fileId)
+    expect(store.getState().activeFileIdByWorktree).toBe(before)
+  })
+
   it('records a browser selection in its own workspace without moving the global surface', () => {
     const store = createTestStore()
     const mainTab = store.getState().createBrowserTab('wt-1', 'https://main.example.com')

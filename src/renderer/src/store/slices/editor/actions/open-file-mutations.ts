@@ -21,28 +21,23 @@ export function createOpenFileMutations(
 > {
   return {
     setActiveFile: (fileId, targetWorktreeId) => {
+      const file = get().openFiles.find((f) => f.id === fileId)
+      // Why: a stale tab or pane id must not become the selected file.
+      if (!file) {
+        return
+      }
       set((s) => {
-        const file = s.openFiles.find((f) => f.id === fileId)
-        const worktreeId = file?.worktreeId
         // Why the scope guard: an overlay workspace (the floating panel) activates files while a
         // different workspace owns global selection; moving activeFileId would break the
         // agent-auto-ack invariant that the floating active tab never becomes global selection.
-        const scopeWorktreeId = targetWorktreeId ?? worktreeId ?? s.activeWorktreeId
+        const scopeWorktreeId = targetWorktreeId ?? file.worktreeId
         return {
           ...(scopeWorktreeId === s.activeWorktreeId ? { activeFileId: fileId } : {}),
-          activeFileIdByWorktree: worktreeId
-            ? { ...s.activeFileIdByWorktree, [worktreeId]: fileId }
-            : s.activeFileIdByWorktree
+          activeFileIdByWorktree: { ...s.activeFileIdByWorktree, [file.worktreeId]: fileId }
         }
       })
       const state = get()
-      const worktreeId =
-        targetWorktreeId ??
-        state.openFiles.find((file) => file.id === fileId)?.worktreeId ??
-        state.activeWorktreeId
-      if (!worktreeId) {
-        return
-      }
+      const worktreeId = targetWorktreeId ?? file.worktreeId
       const groupId =
         state.activeGroupIdByWorktree?.[worktreeId] ?? state.groupsByWorktree?.[worktreeId]?.[0]?.id
       if (!groupId) {

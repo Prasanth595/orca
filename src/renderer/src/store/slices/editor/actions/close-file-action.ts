@@ -76,7 +76,14 @@ export function createCloseFileAction(
     closeFile: (fileId) => {
       // Why: capture untitled+dirty state before set() mutates the store, so cleanup of throwaway untitled files can decide after removal.
       const preClose = get().openFiles.find((f) => f.id === fileId)
-      // Why: stale same-owner records survive tab close; retain other owners and pending drafts.
+      const pinnedFileIds = new Set(
+        Object.values(get().unifiedTabsByWorktree ?? {}).flatMap((tabs) =>
+          tabs
+            .filter((entry) => entry.isPinned && isEditorTabContentType(entry.contentType))
+            .map((entry) => entry.entityId)
+        )
+      )
+      // Why: stale same-owner records survive tab close; retain other owners, pending drafts and pinned tabs.
       const fileIdsToClose = new Set(
         preClose
           ? get()
@@ -89,7 +96,8 @@ export function createCloseFileAction(
                     file.readOnly !== true &&
                     isSameOwnedDocument(file, preClose) &&
                     !file.isDirty &&
-                    !(file.id in get().editorDrafts))
+                    !(file.id in get().editorDrafts) &&
+                    !pinnedFileIds.has(file.id))
               )
               .map((file) => file.id)
           : [fileId]

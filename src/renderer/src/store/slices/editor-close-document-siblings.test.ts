@@ -135,6 +135,16 @@ describe('closing duplicate document records', () => {
     }
   )
 
+  it('preserves a clean sibling whose tab is pinned', () => {
+    const sibling = addSibling()
+    store.getState().pinTab('duplicate-tab')
+    store.getState().closeFile(file.id)
+    expect(store.getState().openFiles).toEqual([sibling])
+    expect(store.getState().unifiedTabsByWorktree['wt-1'].map((tab) => tab.id)).toEqual([
+      'duplicate-tab'
+    ])
+  })
+
   it('preserves the same path on another runtime owner', () => {
     const sibling = addSibling({ runtimeEnvironmentId: 'other-runtime' })
     store.getState().closeFile(file.id)
