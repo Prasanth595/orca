@@ -27,6 +27,37 @@ export async function captureSystemImageClipboard(app: ElectronApplication) {
     )
     return {
       bufferReads: () => bufferReads,
+      assertUnchanged() {
+        if (signature() !== owned) {
+          throw new Error('Clipboard changed outside this test; leaving it untouched.')
+        }
+      },
+      adoptExternalImage(expectedPng: string) {
+        const before = signature()
+        const actual = clipboard.readImage()
+        const expected = nativeImage.createFromBuffer(Buffer.from(expectedPng, 'base64'))
+        const size = actual.getSize()
+        if (
+          expected.isEmpty() ||
+          actual.isEmpty() ||
+          size.width !== expected.getSize().width ||
+          size.height !== expected.getSize().height ||
+          !actual.toBitmap().equals(expected.toBitmap())
+        ) {
+          throw new Error('External clipboard pixels do not match the test image.')
+        }
+        const snapshot = {
+          formats: clipboard.availableFormats(),
+          text: clipboard.readText(),
+          html: clipboard.readHTML(),
+          png: actual.toPNG().toString('base64')
+        }
+        if (signature() !== before) {
+          throw new Error('Clipboard changed during capture; leaving it untouched.')
+        }
+        owned = before
+        return snapshot
+      },
       write(kind: 'mixed' | 'html' | 'text' | 'empty') {
         if (signature() !== owned) {
           throw new Error('Clipboard changed outside this test; leaving it untouched.')
