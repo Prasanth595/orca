@@ -143,9 +143,11 @@ export const GRAB_GUEST_OVERLAY_SCRIPT = `  var host = document.createElement('d
       window.addEventListener('resize', scheduleFrozenHighlight, true);
       if (typeof ResizeObserver === 'function') {
         frozenResizeObserver = new ResizeObserver(scheduleFrozenHighlight);
-        frozenResizeObserver.observe(selectedEl);
+        frozenResizeObserver.observe(selectedEl, { box: 'border-box' });
         // A scrollbar appearing narrows the page without a window resize.
-        frozenResizeObserver.observe(document.documentElement);
+        if (selectedEl !== document.documentElement) {
+          frozenResizeObserver.observe(document.documentElement);
+        }
       }
     },
     cleanup: function() {

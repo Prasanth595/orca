@@ -34,23 +34,47 @@ async function armGuest(previousMarker?: string) {
   scroller.appendChild(target)
   document.body.appendChild(scroller)
   let targetRect: Rect = { x: 40, y: 300, width: 120, height: 30 }
+  const contentSize = { width: 120, height: 30 }
+  const rootSize = { width: 1000, height: 800 }
+  const spacing = { padding: 0, border: 0 }
   target.getBoundingClientRect = () =>
     new window.DOMRect(targetRect.x, targetRect.y, targetRect.width, targetRect.height)
   document.elementFromPoint = () => target
 
   const frames: (() => void)[] = []
   const resizeCallbacks: (() => void)[] = []
+  const observers: {
+    callback: () => void
+    boxes: Map<unknown, { box: 'content-box' | 'border-box'; width: number; height: number }>
+  }[] = []
+  const measure = (element: unknown, box: 'content-box' | 'border-box') => {
+    if (element === target) {
+      const spacingSize = box === 'border-box' ? 2 * (spacing.padding + spacing.border) : 0
+      return { width: contentSize.width + spacingSize, height: contentSize.height + spacingSize }
+    }
+    return { ...rootSize }
+  }
   const context = {
     window,
     document,
     requestAnimationFrame: (callback: () => void) => frames.push(callback),
     cancelAnimationFrame: () => {},
     ResizeObserver: class {
+      private boxes = new Map<
+        unknown,
+        { box: 'content-box' | 'border-box'; width: number; height: number }
+      >()
       constructor(callback: () => void) {
         resizeCallbacks.push(callback)
+        observers.push({ callback, boxes: this.boxes })
       }
-      observe(): void {}
-      disconnect(): void {}
+      observe(element: unknown, options?: { box?: 'content-box' | 'border-box' }): void {
+        const box = options?.box ?? 'content-box'
+        this.boxes.set(element, { box, ...measure(element, box) })
+      }
+      disconnect(): void {
+        this.boxes.clear()
+      }
     }
   }
   expect(runInNewContext(buildGuestOverlayScript('arm'), context)).toBe(true)
@@ -92,6 +116,37 @@ async function armGuest(previousMarker?: string) {
     outline,
     flushFrames,
     resizeCallbacks,
+    notifyResizes: () => {
+      let notifications = 0
+      for (const observer of observers) {
+        let changed = false
+        for (const [element, previous] of observer.boxes) {
+          const current = measure(element, previous.box)
+          if (current.width !== previous.width || current.height !== previous.height) {
+            observer.boxes.set(element, { box: previous.box, ...current })
+            changed = true
+          }
+        }
+        if (changed) {
+          observer.callback()
+          notifications++
+        }
+      }
+      return notifications
+    },
+    setTargetSpacing: (padding: number, border: number) => {
+      spacing.padding = padding
+      spacing.border = border
+      targetRect = {
+        ...targetRect,
+        width: contentSize.width + 2 * (padding + border),
+        height: contentSize.height + 2 * (padding + border)
+      }
+    },
+    setRootContentSize: (width: number, height: number) => {
+      rootSize.width = width
+      rootSize.height = height
+    },
     moveTarget: (rect: Rect) => {
       targetRect = rect
     }
@@ -99,6 +154,30 @@ async function armGuest(previousMarker?: string) {
 }
 
 describe('grab overlay after the click', () => {
+  it.each([
+    ['border', 0, 8],
+    ['padding', 8, 0]
+  ])('follows %s-only outer growth with a fixed content box', async (_kind, padding, border) => {
+    const guest = await armGuest()
+    guest.setTargetSpacing(padding, border)
+
+    expect(guest.notifyResizes()).toBe(1)
+    guest.flushFrames()
+
+    expect(guest.outline()).toEqual({ x: 40, y: 300, width: 136, height: 46 })
+  })
+
+  it('re-measures when the document root content box changes', async () => {
+    const guest = await armGuest()
+    guest.moveTarget({ x: 40, y: 250, width: 120, height: 30 })
+    guest.setRootContentSize(980, 800)
+
+    expect(guest.notifyResizes()).toBe(1)
+    guest.flushFrames()
+
+    expect(guest.outline()).toEqual({ x: 40, y: 250, width: 120, height: 30 })
+  })
+
   it('keeps the outline on the element when a box inside the page scrolls', async () => {
     const guest = await armGuest()
     expect(guest.outline()).toEqual({ x: 40, y: 300, width: 120, height: 30 })

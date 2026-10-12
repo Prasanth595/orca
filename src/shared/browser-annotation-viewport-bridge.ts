@@ -144,8 +144,10 @@ export function buildBrowserAnnotationViewportBridgeScript({
       if (state.targetObserver) {
         state.targetObserver.disconnect();
         if (next) {
-          state.targetObserver.observe(next);
-          state.targetObserver.observe(document.documentElement);
+          state.targetObserver.observe(next, { box: 'border-box' });
+          if (next !== document.documentElement) {
+            state.targetObserver.observe(document.documentElement);
+          }
         }
       }
     }
