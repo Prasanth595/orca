@@ -45,8 +45,10 @@ export function CommentMarkdownDocumentPre({
   const language = React.isValidElement<{ className?: string; children?: React.ReactNode }>(child)
     ? child.props.className?.match(/(?:^|\s)language-([^\s]+)/)?.[1]
     : undefined
-  const code = renderCodeBlock ? (
-    renderCodeBlock({ children, language })
+  // An element, not a call, so the renderer's hooks stay out of this early-returning component.
+  const CodeBlock = renderCodeBlock
+  const code = CodeBlock ? (
+    <CodeBlock language={language}>{children}</CodeBlock>
   ) : (
     <pre className="my-3 max-h-80 max-w-full overflow-x-auto rounded-md bg-accent p-3 font-mono text-[12px]">
       {children}

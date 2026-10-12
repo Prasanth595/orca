@@ -20,6 +20,7 @@ export type CommentMarkdownLinkClickHandler = (
   href: string | undefined
 ) => void
 
+/** Rendered as a component, so it may hold state. */
 export type DocumentCodeBlockRenderer = (props: {
   children?: React.ReactNode
   language?: string
