@@ -50,7 +50,11 @@ describe('native chat session option enrichment', () => {
       catalogOrigin: 'probe',
       models: [{ id: 'gpt-cli', label: 'GPT CLI' }]
     })
-    const context = { settings: {}, worktreeId: 'repo::/worktree', worktreePath: '/worktree' }
+    const context = {
+      target: { kind: 'local' as const },
+      worktreeId: 'repo::/worktree',
+      worktreePath: '/worktree'
+    }
 
     const local = await discoverNativeChatCatalogModels('codex', context, 'local')
     expect(local?.map(({ id }) => id)).toEqual(['gpt-host'])
@@ -71,7 +75,8 @@ describe('native chat session option enrichment', () => {
       models: [{ id: 'gpt-custom', label: 'GPT Custom' }]
     })
     const context = {
-      settings: { agentCmdOverrides: { codex: 'codex-nightly' } },
+      target: { kind: 'local' as const },
+      prefs: { agentCmdOverrides: { codex: 'codex-nightly' } },
       worktreeId: 'repo::/worktree',
       worktreePath: '/worktree'
     }
@@ -184,7 +189,7 @@ describe('native chat session option enrichment', () => {
       ]
     })
     const models = await discoverNativeChatCatalogModels('omp', {
-      settings: {},
+      target: { kind: 'local' as const },
       worktreeId: 'repo::/worktree',
       worktreePath: '/worktree'
     })
@@ -225,7 +230,7 @@ describe('native chat session option enrichment', () => {
     })
     const discover = vi.fn(() =>
       discoverNativeChatCatalogModels('claude', {
-        settings: {},
+        target: { kind: 'local' as const },
         worktreeId: 'repo::/worktree',
         worktreePath: '/worktree'
       })
@@ -273,7 +278,7 @@ describe('native chat session option enrichment', () => {
     })
     const discover = vi.fn(() =>
       discoverNativeChatCatalogModels('grok', {
-        settings: {},
+        target: { kind: 'local' as const },
         worktreeId: 'repo::/worktree',
         worktreePath: '/worktree'
       })
@@ -356,7 +361,7 @@ describe('native chat session option enrichment', () => {
     })
     const discover = vi.fn(() =>
       discoverNativeChatCatalogModels('grok', {
-        settings: {},
+        target: { kind: 'local' as const },
         worktreeId: 'repo::/worktree',
         worktreePath: '/worktree'
       })
@@ -383,7 +388,7 @@ describe('native chat session option enrichment', () => {
 
     await expect(
       discoverNativeChatCatalogModels('grok', {
-        settings: {},
+        target: { kind: 'local' as const },
         worktreeId: 'repo::/worktree',
         worktreePath: '/worktree'
       })
@@ -401,7 +406,7 @@ describe('native chat session option enrichment', () => {
 
     await expect(
       discoverNativeChatCatalogModels('cursor', {
-        settings: {},
+        target: { kind: 'local' as const },
         worktreeId: 'repo::/worktree',
         worktreePath: '/worktree'
       })
@@ -461,7 +466,7 @@ describe('native chat session option enrichment', () => {
 
     await expect(
       discoverNativeChatCatalogModels('claude', {
-        settings: {},
+        target: { kind: 'local' as const },
         worktreeId: 'repo::/worktree',
         worktreePath: '/worktree'
       })

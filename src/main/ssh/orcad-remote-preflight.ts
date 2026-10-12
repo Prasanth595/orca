@@ -8,9 +8,8 @@ import {
 } from '../../shared/orcad-profile-preflight'
 import { assertPosixOrcadHost } from './orcad-remote-host-support'
 import {
-  orcadWindowsBaseDir,
-  orcadWindowsHostOpCommand,
   orcadWindowsNodeCommandLine,
+  orcadWindowsSlotOpCommand,
   readOrcadWindowsEncodedAnswer
 } from './orcad-remote-windows-node'
 import { readWindowsOrcadSlotEntry } from './orcad-remote-launch-windows'
@@ -19,7 +18,7 @@ import { orcadNodeSlotRuntimeCommand, selectOrcadSlotEntryCommand } from './orca
 import { execCommand } from './ssh-relay-deploy-helpers'
 import { shellEscape } from './ssh-connection-utils'
 import { isWindowsRemoteHost, joinRemotePath, type RemoteHostPlatform } from './ssh-remote-platform'
-import type { SshConnection } from './ssh-connection'
+import type { OrcadHostTransport } from './orcad-host-transport'
 
 export function orcadProfilePreflightCommand(
   host: RemoteHostPlatform,
@@ -41,7 +40,7 @@ export function orcadProfilePreflightCommand(
 
 /** Failure leaves the incumbent and its data untouched, including an unconfirmed SSH exit. */
 export async function preflightInstalledOrcad(options: {
-  conn: SshConnection
+  conn: OrcadHostTransport
   host: RemoteHostPlatform
   remoteInstallDir: string
   fullVersion: string
@@ -65,7 +64,7 @@ export async function preflightInstalledOrcad(options: {
  */
 async function windowsOrcadProfilePreflightCommand(
   options: {
-    conn: SshConnection
+    conn: OrcadHostTransport
     host: RemoteHostPlatform
     remoteInstallDir: string
     signal?: AbortSignal
@@ -75,9 +74,7 @@ async function windowsOrcadProfilePreflightCommand(
   const { host, remoteInstallDir } = options
   const slotAnswer = await execCommand(
     options.conn,
-    orcadWindowsHostOpCommand(host, orcadWindowsBaseDir(host, remoteInstallDir), 'slot-runtime', [
-      remoteInstallDir
-    ]),
+    orcadWindowsSlotOpCommand(host, remoteInstallDir, 'slot-runtime', [remoteInstallDir]),
     { signal: options.signal, wrapCommand: false }
   )
   const runtime = readOrcadWindowsEncodedAnswer(slotAnswer, ORCAD_WINDOWS_RUNTIME_MARKER)
