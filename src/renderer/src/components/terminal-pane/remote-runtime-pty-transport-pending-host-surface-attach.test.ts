@@ -116,8 +116,8 @@ describe('initial host-mirror attach against a surface published as pending-hand
     await vi.advanceTimersByTimeAsync(HOST_SURFACE_ATTACH_WINDOW_MS)
     await expect(connect).resolves.toBeUndefined()
 
-    expect(transport.getRecoveryState?.().phase).toBe('recovering')
-    expect(recoveryStates.at(-1)?.phase).toBe('recovering')
+    expect(transport.getRecoveryState?.().phase).toBe('backoff')
+    expect(recoveryStates.at(-1)?.phase).toBe('backoff')
 
     await vi.advanceTimersByTimeAsync(REMOTE_RUNTIME_AUTO_RECOVERY_TIMEOUT_MS)
 
@@ -185,6 +185,41 @@ describe('initial host-mirror attach against a surface published as pending-hand
     expect(transport.getPtyId?.()).toBe('remote:env-1@@terminal-1')
   })
 
+  // #27178: a healthy link fires no online/resume, so a parked attach idled out the whole deadline.
+  it('retries the attach on its own once the host materializes the surface, with no external trigger', async () => {
+    let hostMaterialized = false
+    runtimeCall.mockImplementation((args: { method: string }) => {
+      if (args.method === 'session.tabs.activate' || args.method === 'session.tabs.list') {
+        return Promise.resolve({
+          ok: true,
+          result: hostSessionSnapshot(hostMaterialized ? 'ready' : 'pending-handle')
+        })
+      }
+      return Promise.resolve({ ok: true, result: { terminal: { handle: 'duplicate-terminal' } } })
+    })
+    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const transport = createRemoteRuntimePtyTransport('env-1', {
+      worktreeId: 'wt-1',
+      tabId: 'web-terminal-host-tab-1',
+      leafId: 'leaf-1'
+    })
+
+    transport.attach({
+      existingPtyId: 'remote:env-1@@stale-client-handle',
+      cols: 100,
+      rows: 30,
+      callbacks: {}
+    })
+    await vi.advanceTimersByTimeAsync(HOST_SURFACE_ATTACH_WINDOW_MS)
+    expect(transport.getRecoveryState?.().phase).toBe('backoff')
+
+    hostMaterialized = true
+    await vi.advanceTimersByTimeAsync(2_000)
+
+    expect(subscribedTerminalHandles()).toContain('terminal-1')
+    expect(transport.getPtyId?.()).toBe('remote:env-1@@terminal-1')
+  })
+
   it('concludes absence from list inventory only, never from an activation snapshot', async () => {
     runtimeCall.mockImplementation((args: { method: string }) => {
       if (args.method === 'session.tabs.activate') {
@@ -209,7 +244,7 @@ describe('initial host-mirror attach against a surface published as pending-hand
 
     expect(onError).not.toHaveBeenCalled()
     expect(countCalls('session.tabs.activate')).toBeGreaterThan(1)
-    expect(transport.getRecoveryState?.().phase).toBe('recovering')
+    expect(transport.getRecoveryState?.().phase).toBe('backoff')
   })
 
   it('never reads an empty tab inventory as a closed remote terminal', async () => {

@@ -830,7 +830,8 @@ export function createRemoteRuntimePtyTransport(
 
   async function waitForHostSessionHandleWithRecovery(
     hostTabId: string,
-    isCurrent: () => boolean
+    isCurrent: () => boolean,
+    outcome: { boundedWaitEnded: boolean }
   ): Promise<string | undefined | false> {
     let recoveryEpoch = recovery.isActive ? recovery.currentEpoch : undefined
     while (isCurrent()) {
@@ -841,8 +842,14 @@ export function createRemoteRuntimePtyTransport(
         }
         if (recoveryEpoch !== undefined) {
           if (!recovery.isCurrent(recoveryEpoch)) {
+            if (hostHandle === undefined) {
+              outcome.boundedWaitEnded = true
+            }
             return undefined
           }
+        }
+        if (hostHandle === undefined) {
+          outcome.boundedWaitEnded = true
         }
         return hostHandle
       } catch (error) {
@@ -1039,19 +1046,29 @@ export function createRemoteRuntimePtyTransport(
       (expectedAttachGeneration === undefined || expectedAttachGeneration === attachGeneration) &&
       (expectedLifecycleEpoch === undefined || expectedLifecycleEpoch === lifecycleEpoch)
     const hostTabId = toHostSessionTabId(tabId)
-    const hostHandle = await waitForHostSessionHandleWithRecovery(hostTabId, isCurrent)
+    const waitOutcome = { boundedWaitEnded: false }
+    const hostHandle = await waitForHostSessionHandleWithRecovery(hostTabId, isCurrent, waitOutcome)
     if (!isCurrent()) {
       return undefined
     }
     if (hostHandle === undefined) {
       connecting = false
-      // Why: no handle and no removal evidence is unknown liveness, so own an epoch and keep an unarmed retry parked for the
-      // banner and online/resume to fire — a silent 'connecting' renders no banner and retryRecovery() refuses to run.
-      if (recovery.currentPhase !== 'disconnected') {
+      // Why: no handle and no removal evidence is unknown liveness, so own an epoch — a silent 'connecting' renders no banner
+      // and retryRecovery() refuses to run. Schedule, not park: a healthy link fires no online/resume, so a parked retry
+      // idled out the whole deadline before Reconnect (#27178). schedule() still leaves it revivable after the latch.
+      const replayAttach = (): void => {
+        replayLastTransportEntryPoint()
+      }
+      if (recovery.currentPhase === 'disconnected') {
+        // Why: a replayable attach that outlived the cutoff stays revivable; a settled single-shot retry wait does not.
+        if (waitOutcome.boundedWaitEnded) {
+          recovery.parkRetryAfterDeadline(replayAttach)
+        }
+      } else {
         const recoveryEpoch = recovery.isActive ? recovery.currentEpoch : recovery.begin()
-        recovery.parkRetryForExternalTrigger(recoveryEpoch, () => {
-          replayLastTransportEntryPoint()
-        })
+        if (!recovery.schedule(recoveryEpoch, replayAttach)) {
+          recovery.parkRetryForExternalTrigger(recoveryEpoch, replayAttach)
+        }
       }
       emitRecoveryState()
       return undefined
@@ -1923,9 +1940,9 @@ export function createRemoteRuntimePtyTransport(
             return
           }
           if (!autoRecoveryWindowSpent) {
-            // Why: a published surface is the evidence a parked wait (not a scheduled backoff) is waiting for, unless it needs a replacement handle.
+            // Why: a published surface is the evidence a pending retry is waiting for, so skip the rest of its backoff — unless it needs a replacement handle.
             if (
-              recovery.currentPhase === 'recovering' &&
+              recovery.isActive &&
               getRecoveryReplacementPolicy(previousHandle) !== 'require-replacement'
             ) {
               recovery.retryNow()
@@ -2069,15 +2086,23 @@ export function createRemoteRuntimePtyTransport(
             code: 'remote_runtime_unavailable'
           })
         }
-        // Why: liveness is unknown, so auto-retry stops here; keep an unarmed retry parked for online/resume/reconnect to fire.
-        recovery.parkRetryForExternalTrigger(recoveryEpoch, (nextEpoch) => {
-          // Why: an external trigger is a fresh attempt, not a repeated stale send, so it takes over this epoch's snapshot wait.
+        const retryResubscribe = (nextEpoch: number): void => {
+          // Why: a retry is a fresh attempt, not a repeated stale send, so it takes over this epoch's snapshot wait.
           clearPublishedHandleWait()
           scheduleResubscribeAfterTransportClose(
             handle ? getRecoveryReplacementPolicy(handle) : 'reuse',
             nextEpoch
           )
-        })
+        }
+        // Why: park only when re-polling cannot help — a fenced handle waits for the host to publish its replacement, and a
+        // failing inventory is capped above. A host that answered without a ready handle is reachable, so keep retrying (#27178).
+        if (
+          effectivePolicy === 'require-replacement' ||
+          waitResult.inventoryFailed ||
+          !recovery.schedule(recoveryEpoch, retryResubscribe)
+        ) {
+          recovery.parkRetryForExternalTrigger(recoveryEpoch, retryResubscribe)
+        }
         return
       }
       if (!nextHandle) {
