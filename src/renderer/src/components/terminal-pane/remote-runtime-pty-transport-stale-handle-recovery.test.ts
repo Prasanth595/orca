@@ -134,7 +134,7 @@ describe('createRemoteRuntimePtyTransport', () => {
     }
   })
 
-  it('strengthens repeated same-handle end recovery until it disconnects', async () => {
+  it('keeps reattaching a still-ready same handle across repeated stream ends', async () => {
     vi.useFakeTimers()
     try {
       resolvedPaneHandle = 'terminal-flapping'
@@ -157,11 +157,11 @@ describe('createRemoteRuntimePtyTransport', () => {
       )
       emitSnapshot(latestSubscribePayload().streamId, 'initial stream')
 
-      for (let cycle = 0; cycle < 2; cycle += 1) {
-        const endingStreamId = latestSubscribePayload().streamId
+      // Past the reuse limit the fence only slows reattach; a handle the host still reports ready is never abandoned.
+      for (let cycle = 0; cycle < 5; cycle += 1) {
         subscriptionCallbacks?.onResponse({
           ok: true,
-          result: { type: 'end', streamId: endingStreamId, code: 0 }
+          result: { type: 'end', streamId: latestSubscribePayload().streamId, code: 0 }
         })
         await vi.advanceTimersByTimeAsync(16_000)
         expect(subscribedTerminalHandles()).toHaveLength(cycle + 2)
@@ -169,20 +169,8 @@ describe('createRemoteRuntimePtyTransport', () => {
         expect(transport.isConnected()).toBe(true)
       }
 
-      subscriptionCallbacks?.onResponse({
-        ok: true,
-        result: { type: 'end', streamId: latestSubscribePayload().streamId, code: 0 }
-      })
-      await vi.advanceTimersByTimeAsync(16_000)
-
-      expect(subscribedTerminalHandles()).toEqual([
-        'terminal-flapping',
-        'terminal-flapping',
-        'terminal-flapping'
-      ])
-      expect(transport.isConnected()).toBe(false)
       await vi.advanceTimersByTimeAsync(REMOTE_RUNTIME_AUTO_RECOVERY_TIMEOUT_MS)
-      expect(transport.getRecoveryState?.().phase).toBe('disconnected')
+      expect(transport.getRecoveryState?.().phase).toBe('connected')
       transport.destroy?.()
     } finally {
       vi.useRealTimers()

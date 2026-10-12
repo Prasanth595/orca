@@ -9,7 +9,6 @@ import {
   readyHostSessionInventoryResponse,
   type MultiplexSubscriptionCallbacks
 } from './remote-runtime-pty-transport-test-harness'
-import { REMOTE_RUNTIME_AUTO_RECOVERY_TIMEOUT_MS } from './remote-runtime-pty-recovery-state'
 
 let subscriptionCallbacks: MultiplexSubscriptionCallbacks = null
 let resolvedPaneHandle = 'terminal-1'
@@ -107,7 +106,49 @@ describe('createRemoteRuntimePtyTransport', () => {
     }
   })
 
-  it('requires replacement after repeated same-handle stream-end flaps', async () => {
+  it('reattaches a same handle the host still reports ready after a short grace', async () => {
+    vi.useFakeTimers()
+    try {
+      resolvedPaneHandle = 'terminal-alive'
+      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const transport = createRemoteRuntimePtyTransport('env-1', {
+        worktreeId: 'wt-1',
+        tabId: 'web-terminal-host-tab-1',
+        leafId: 'pane:1'
+      })
+
+      transport.attach({
+        existingPtyId: 'remote:env-1@@terminal-alive',
+        callbacks: {}
+      })
+      await vi.waitFor(() => expect(subscriptionSendBinary).toHaveBeenCalled())
+      emitSnapshot(latestSubscribePayload().streamId, 'initial handle')
+      runtimeCall.mockImplementation((args: { method: string }) =>
+        args.method === 'session.tabs.list'
+          ? Promise.resolve(readyHostSessionInventoryResponse('terminal-alive'))
+          : Promise.resolve({ ok: true, result: {} })
+      )
+
+      subscriptionCallbacks?.onResponse({
+        ok: true,
+        result: { type: 'end', streamId: latestSubscribePayload().streamId, code: 0 }
+      })
+      // Inside the grace a relaunched host may still publish a replacement, so the ended handle waits.
+      await vi.advanceTimersByTimeAsync(900)
+      expect(subscribedTerminalHandles()).toEqual(['terminal-alive'])
+
+      // Well before the 15s bounded wait ends, the still-ready handle is reattached.
+      await vi.advanceTimersByTimeAsync(1_100)
+      expect(subscribedTerminalHandles()).toEqual(['terminal-alive', 'terminal-alive'])
+      emitSnapshot(latestSubscribePayload().streamId, 'same handle')
+      expect(transport.isConnected()).toBe(true)
+      expect(transport.getRecoveryState?.().phase).toBe('connected')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('backs off reattaching a same handle whose stream keeps ending', async () => {
     vi.useFakeTimers()
     try {
       resolvedPaneHandle = 'terminal-flapping'
@@ -131,39 +172,75 @@ describe('createRemoteRuntimePtyTransport', () => {
           ? Promise.resolve(readyHostSessionInventoryResponse('terminal-flapping'))
           : Promise.resolve({ ok: true, result: {} })
       )
-
-      for (let cycle = 0; cycle < 2; cycle += 1) {
-        const endedStreamId = latestSubscribePayload().streamId
+      const endAndCountReattachMs = async (): Promise<number> => {
+        const before = subscribedTerminalHandles().length
         subscriptionCallbacks?.onResponse({
           ok: true,
-          result: { type: 'end', streamId: endedStreamId, code: 0 }
+          result: { type: 'end', streamId: latestSubscribePayload().streamId, code: 0 }
         })
-        await vi.advanceTimersByTimeAsync(16_000)
-        expect(subscribedTerminalHandles()).toHaveLength(cycle + 2)
+        let elapsedMs = 0
+        while (subscribedTerminalHandles().length === before && elapsedMs < 16_000) {
+          await vi.advanceTimersByTimeAsync(50)
+          elapsedMs += 50
+        }
+        emitSnapshot(latestSubscribePayload().streamId, `reattached after ${elapsedMs}ms`)
+        return elapsedMs
+      }
+
+      const reattachDelays: number[] = []
+      for (let cycle = 0; cycle < 7; cycle += 1) {
+        reattachDelays.push(await endAndCountReattachMs())
         expect(latestSubscribePayload().terminal).toBe('terminal-flapping')
-        emitSnapshot(latestSubscribePayload().streamId, `same handle ${cycle + 1}`)
         expect(transport.isConnected()).toBe(true)
       }
 
-      const condemnedStreamId = latestSubscribePayload().streamId
-      subscriptionCallbacks?.onResponse({
-        ok: true,
-        result: { type: 'end', streamId: condemnedStreamId, code: 0 }
-      })
-      await vi.advanceTimersByTimeAsync(16_000)
-
-      expect(subscribedTerminalHandles()).toEqual([
-        'terminal-flapping',
-        'terminal-flapping',
-        'terminal-flapping'
-      ])
-      expect(transport.getPtyId()).toBe('remote:env-1@@terminal-flapping')
-      expect(transport.isConnected()).toBe(false)
+      // Under the limit the ended handle waits only the replacement grace; past it, the wait grows.
+      expect(reattachDelays.slice(0, 5).every((delay) => delay < 1_500)).toBe(true)
+      expect(reattachDelays[5]).toBeGreaterThanOrEqual(2_000)
+      expect(reattachDelays[6]).toBeGreaterThanOrEqual(4_000)
+      expect(reattachDelays[6]).toBeLessThan(15_000)
       expect(onPtyExit).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 
-      await vi.advanceTimersByTimeAsync(REMOTE_RUNTIME_AUTO_RECOVERY_TIMEOUT_MS)
-      expect(transport.getRecoveryState?.().phase).toBe('disconnected')
-      expect(subscribedTerminalHandles()).toHaveLength(3)
+  it('keeps the short grace for a same handle whose stream ends long after reattach', async () => {
+    vi.useFakeTimers()
+    try {
+      resolvedPaneHandle = 'terminal-steady'
+      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const transport = createRemoteRuntimePtyTransport('env-1', {
+        worktreeId: 'wt-1',
+        tabId: 'web-terminal-host-tab-1',
+        leafId: 'pane:1'
+      })
+
+      transport.attach({
+        existingPtyId: 'remote:env-1@@terminal-steady',
+        callbacks: {}
+      })
+      await vi.waitFor(() => expect(subscriptionSendBinary).toHaveBeenCalled())
+      emitSnapshot(latestSubscribePayload().streamId, 'initial handle')
+      runtimeCall.mockImplementation((args: { method: string }) =>
+        args.method === 'session.tabs.list'
+          ? Promise.resolve(readyHostSessionInventoryResponse('terminal-steady'))
+          : Promise.resolve({ ok: true, result: {} })
+      )
+
+      // An end well after reattach (a hidden pane revealed later) is not a flap, so the grace never grows.
+      for (let cycle = 0; cycle < 6; cycle += 1) {
+        await vi.advanceTimersByTimeAsync(20_000)
+        const before = subscribedTerminalHandles().length
+        subscriptionCallbacks?.onResponse({
+          ok: true,
+          result: { type: 'end', streamId: latestSubscribePayload().streamId, code: 0 }
+        })
+        await vi.advanceTimersByTimeAsync(1_500)
+        expect(subscribedTerminalHandles()).toHaveLength(before + 1)
+        emitSnapshot(latestSubscribePayload().streamId, `same handle ${cycle}`)
+        expect(transport.isConnected()).toBe(true)
+      }
     } finally {
       vi.useRealTimers()
     }
