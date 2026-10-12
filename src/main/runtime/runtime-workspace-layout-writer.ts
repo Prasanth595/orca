@@ -2,7 +2,16 @@
 // today's Store scheduling. Memory is never rolled back: a failed write is logged and the next
 // save writes the latest state.
 
+import { isDeepStrictEqual } from 'node:util'
 import type { ExecutionHostId } from '../../shared/execution-host'
+import {
+  omitStoredFields,
+  pickStoredFields
+} from '../../shared/workspace-layout/stored-record-fields'
+import {
+  VIEW_SESSION_FIELDS,
+  type ViewSessionField
+} from '../../shared/workspace-layout/workspace-layout-beside'
 import type { LayoutCommand } from '../../shared/workspace-layout/workspace-layout-command-types'
 import type { WorkspaceSessionState } from '../../shared/workspace-session-state-types'
 import type { LoadedWorkspaceLayout } from '../../shared/workspace-layout/workspace-layout-load-types'
@@ -15,7 +24,15 @@ export type HolderStore = Required<
   Pick<RuntimeStore, 'runDurableMutation'>
 
 /** The Store's session methods the holder uses; null for a runtime built without them. */
-export function holderStoreOf(store: RuntimeStore | null): HolderStore | null {
+export function holderStoreOf(
+  store: Pick<
+    RuntimeStore,
+    | 'getWorkspaceSession'
+    | 'getWorkspaceSessionHostIds'
+    | 'setWorkspaceSession'
+    | 'runDurableMutation'
+  > | null
+): HolderStore | null {
   if (!store?.getWorkspaceSession || !store.setWorkspaceSession) {
     return null
   }
@@ -28,6 +45,39 @@ export function holderStoreOf(store: RuntimeStore | null): HolderStore | null {
     ...(store.runDurableMutation
       ? { runDurableMutation: (mutate) => store.runDurableMutation!(mutate) }
       : {})
+  }
+}
+
+/**
+ * A partition the holder does not hold (`runtime:<env>`): the runtime writes only its view fields
+ * there (O1), replacing them whole so a cleared selection clears; its layout fields are the frozen
+ * mirror's.
+ */
+export function writeUnheldViewFields(
+  store: HolderStore,
+  hostId: ExecutionHostId,
+  view: Pick<WorkspaceSessionState, ViewSessionField>
+): void {
+  const stored = store.getWorkspaceSession(hostId)
+  const next: WorkspaceSessionState = {
+    ...omitStoredFields(stored, VIEW_SESSION_FIELDS),
+    ...pickStoredFields(view, VIEW_SESSION_FIELDS),
+    activeRepoId: view.activeRepoId,
+    activeWorktreeId: view.activeWorktreeId,
+    activeTabId: view.activeTabId
+  }
+  if (
+    isDeepStrictEqual(
+      pickStoredFields(next, VIEW_SESSION_FIELDS),
+      pickStoredFields(stored, VIEW_SESSION_FIELDS)
+    )
+  ) {
+    return
+  }
+  try {
+    store.setWorkspaceSession(next, hostId)
+  } catch (error) {
+    console.error('[workspace-layout] could not save a server workspace selection:', error)
   }
 }
 

@@ -1,7 +1,7 @@
 // Commands a client sends to change the layout (design 2.1). The pure module applies only their
 // layout effect. Refusals that need facts it does not hold stay with the runtime: an unknown
 // workspace or unresolved folder home (catalog), `shell_override_refused` and
-// `startup_agent_conflict` (host support), `file_outside_workspace` (paths) and
+// `startup_agent_conflict` (host support, the CLI's `terminal.create` only), `file_outside_workspace` (paths) and
 // `terminal_liveness_unavailable` (PTY host).
 
 import type { SleepingAgentSessionRecord } from '../agent-session-resume'
@@ -148,6 +148,11 @@ export type LayoutCommandResult = {
   renamedTabIds?: Record<string, string>
 }
 
+/** A `layout.*` reply. A view's saved shell is rewritten at spawn as today, never refused. */
+export type LayoutCommandReply =
+  | ({ ok: true } & LayoutCommandResult)
+  | { ok: false; code: LayoutRefusalCode }
+
 export type LayoutContext = {
   mintId: () => string
   /** Pane ids must be UUIDs (pane keys and PTY env carry them). */
@@ -155,6 +160,8 @@ export type LayoutContext = {
   now: () => number
   /** True while a start of this pane is in flight; such a pane is not started again. */
   isStarting?: (leafId: string) => boolean
+  /** Whether a bound terminal may still run; a pane bound to one that does not is started again. */
+  isRunning?: (ptyId: string) => boolean
 }
 
 export type LayoutApplyResult<Model> =

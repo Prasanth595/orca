@@ -5,6 +5,7 @@ import { paneKeyOf } from '../../shared/workspace-layout/workspace-layout-model'
 import type { RuntimePtyController } from './runtime-pty-controller-contract'
 import type { PaneStart } from './runtime-pane-start-attempts'
 import type { RuntimeWorkspaceLayouts } from './runtime-workspace-layouts'
+import { beginStarts } from './runtime-workspace-layout-pane-facts'
 
 type Spawn = NonNullable<RuntimePtyController['spawn']>
 type AdmittedSpawnArgs = Parameters<Spawn>[0] & {
@@ -13,6 +14,8 @@ type AdmittedSpawnArgs = Parameters<Spawn>[0] & {
   leafId: string
   /** The group a new tab joins; a split stays in its parent's. */
   groupId?: string
+  /** The start a layout command's apply began for a pane already in the layout. */
+  paneStart?: PaneStart
 }
 
 /** A new tab, or a split of an existing pane, with the ids its terminal will run under. */
@@ -61,15 +64,24 @@ export function withdrawRuntimePane(
   )
 }
 
+/** A fresh attempt for a pane already in the layout, as when a start attaches to it. */
+export function beginPaneStart(holder: RuntimeWorkspaceLayouts, paneKey: string): PaneStart | null {
+  return beginStarts(null, [paneKey], holder.starts)[0] ?? null
+}
+
 /** Admits the pane in the holder, or starts a new attempt when it is already there. */
 function admit(
   holder: RuntimeWorkspaceLayouts,
   args: AdmittedSpawnArgs
 ): { start: PaneStart; admitted: boolean } {
+  if (args.paneStart) {
+    return { start: args.paneStart, admitted: false }
+  }
   const hostId = hostIdOf(args)
   const paneKey = paneKeyOf(args.tabId, args.leafId)
   const workspace = holder.model(hostId)?.workspaces[args.worktreeId]
-  const existing = workspace && locatePane(workspace, paneKey) ? holder.beginStart(paneKey) : null
+  const existing =
+    workspace && locatePane(workspace, paneKey) ? beginPaneStart(holder, paneKey) : null
   if (existing) {
     return { start: existing, admitted: false }
   }
@@ -93,7 +105,7 @@ export async function spawnInAdmittedPane(
   controller: Required<Pick<RuntimePtyController, 'spawn' | 'kill'>>,
   args: AdmittedSpawnArgs
 ): ReturnType<Spawn> {
-  const { groupId: _groupId, ...spawnArgs } = args
+  const { groupId: _groupId, paneStart: _paneStart, ...spawnArgs } = args
   if (!holder.model(hostIdOf(args))) {
     // No partition holds this host's layout (a runtime without a profile): nothing to admit.
     return controller.spawn(spawnArgs)
