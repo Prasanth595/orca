@@ -5104,5 +5104,17 @@
   },
   "components.workspace.cleanup.browse.agent.working": {
     "ko": "작업 중"
+  },
+  "auto.components.settings.MobilePane.5e2c7a1f84": {
+    "ko": "휴대폰에서 터미널을 사용하는 동안 Orca는 휴대폰 화면에 맞게 터미널을 축소합니다. 앱을 닫거나 다른 앱으로 전환할 때, 휴대폰 화면 크기를 유지할지(대화형 CLI 도구의 레이아웃 재배치 방지) 아니면 데스크톱 크기로 다시 조정할지 제어합니다. 배너에서 언제든지 '복원' 또는 '모두 복원'을 사용해 수동으로 크기를 조정할 수 있습니다."
+  },
+  "auto.components.settings.MobileRelayBetaNotice.notice": {
+    "ko": "Orca Relay는 베타 버전입니다."
+  },
+  "auto.components.settings.MobilePairingConnectionOptions.relaySignInDetail": {
+    "ko": "이 데스크톱에서 Orca에 로그인하고 휴대폰 연결을 Orca 서버를 통해 전달합니다. LAN 연결에는 계정이 필요하지 않습니다."
+  },
+  "auto.components.settings.MobilePane.2e3dd0bc29": {
+    "ko": "기기의 연결 권한을 해제했습니다."
   }
 }
