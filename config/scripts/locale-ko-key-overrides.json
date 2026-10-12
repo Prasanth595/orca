@@ -5104,5 +5104,14 @@
   },
   "components.workspace.cleanup.browse.agent.working": {
     "ko": "작업 중"
+  },
+  "auto.components.settings.SshPassphraseDialog.981352fb42": {
+    "ko": "다음 연결 대상의 인증 요청을 완료하세요:"
+  },
+  "auto.components.settings.SshPassphraseDialog.ce4fdf7914": {
+    "ko": "다음 연결 대상에 사용할 SSH 키의 암호 문구를 입력하세요:"
+  },
+  "auto.components.settings.SshPassphraseDialog.dbf9b6f2d0": {
+    "ko": "다음 연결 대상의 비밀번호를 입력하세요:"
   }
 }
