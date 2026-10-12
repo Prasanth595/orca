@@ -173,8 +173,8 @@ describe('resolveTabSessionHistorySubject', () => {
   it('finds a native chat tab by the chat it shows', () => {
     expect(
       resolveTabSessionHistorySubject(makeState(), {
-        tab: { id: 'unified-1', worktreeId: WORKTREE_ID, launchAgent: 'codex' },
-        structuredSessionId: 'orca-chat-1'
+        tab: { id: 'unified-1', worktreeId: WORKTREE_ID },
+        nativeChat: { sessionId: 'orca-chat-1', agent: 'codex' }
       })
     ).toEqual({ ...chatSubject })
   })
@@ -182,8 +182,8 @@ describe('resolveTabSessionHistorySubject', () => {
   it('skips chats whose agent has no history move', () => {
     expect(
       resolveTabSessionHistorySubject(makeState(), {
-        tab: { id: 'unified-1', worktreeId: WORKTREE_ID, launchAgent: 'grok' },
-        structuredSessionId: 'orca-chat-1'
+        tab: { id: 'unified-1', worktreeId: WORKTREE_ID },
+        nativeChat: { sessionId: 'orca-chat-1', agent: 'grok' }
       })
     ).toBeNull()
   })
@@ -269,8 +269,8 @@ describe('resolveTabSessionHistorySubject', () => {
     ).toBeNull()
     expect(
       resolveTabSessionHistorySubject(state, {
-        tab: { id: 'unified-1', worktreeId: WORKTREE_ID, launchAgent: 'claude' },
-        structuredSessionId: 'orca-chat-1'
+        tab: { id: 'unified-1', worktreeId: WORKTREE_ID },
+        nativeChat: { sessionId: 'orca-chat-1', agent: 'claude' }
       })
     ).toBeNull()
   })
@@ -279,8 +279,8 @@ describe('resolveTabSessionHistorySubject', () => {
     const state = makeState(liveClaudeEntry, { executionHostId: 'runtime:server-1' })
     expect(
       resolveTabSessionHistorySubject(state, {
-        tab: { id: 'unified-1', worktreeId: WORKTREE_ID, launchAgent: 'claude' },
-        structuredSessionId: 'orca-chat-1'
+        tab: { id: 'unified-1', worktreeId: WORKTREE_ID },
+        nativeChat: { sessionId: 'orca-chat-1', agent: 'claude' }
       })
     ).toMatchObject({
       kind: 'chat',

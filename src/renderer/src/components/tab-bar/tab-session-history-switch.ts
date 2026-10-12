@@ -23,6 +23,7 @@ import {
   type AgentSessionHandleProvider
 } from '../../../../shared/agent-session-provider-handle'
 import type { TerminalTab } from '../../../../shared/terminal-tab-types'
+import type { AgentType } from '../../../../shared/agent-status-types'
 import { resolveAiVaultSessionSurfaceSwitchTargets } from '../right-sidebar/ai-vault-session-surface-switch'
 import { resolveAiVaultHistoryRowResume } from '../right-sidebar/ai-vault-session-resume-in-chat-workspace'
 import { resolveAiVaultTargetWorkspacePath } from '../right-sidebar/ai-vault-session-launch-target'
@@ -102,12 +103,18 @@ export function canPaneOfferResumeInNewChat(
   )
 }
 
+/** A native chat tab's session and the provider recorded when it was created. */
+export type NativeChatTabSession = {
+  sessionId: string
+  agent: AgentType | undefined
+}
+
 export function resolveTabSessionHistorySubject(
   state: AppState,
   args: {
-    tab: Pick<TerminalTab, 'id' | 'worktreeId' | 'launchAgent'>
-    /** Set only for a native chat tab: the chat session it shows. */
-    structuredSessionId?: string
+    tab: Pick<TerminalTab, 'id' | 'worktreeId'>
+    /** Set only for a native chat tab. */
+    nativeChat?: NativeChatTabSession
     /** Narrows a terminal tab to one pane's own conversation instead of the tab's best one. */
     paneKey?: string
   }
@@ -121,12 +128,12 @@ export function resolveTabSessionHistorySubject(
       ? { workspaceId, request }
       : null
   }
-  if (args.structuredSessionId !== undefined) {
+  if (args.nativeChat) {
     // Only these providers have history rows either move can act on.
-    const target = isAgentSessionHandleProvider(args.tab.launchAgent)
+    const target = isAgentSessionHandleProvider(args.nativeChat.agent)
       ? workspace(args.tab.worktreeId, 'chat')
       : null
-    return target ? { ...target, kind: 'chat', sessionId: args.structuredSessionId } : null
+    return target ? { ...target, kind: 'chat', sessionId: args.nativeChat.sessionId } : null
   }
   // The pane-to-conversation mapping tab titles use, limited to agents still running: once the agent
   // exits, the tab title keeps its conversation but the move is no longer offered.
