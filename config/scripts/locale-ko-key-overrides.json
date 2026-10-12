@@ -5104,5 +5104,8 @@
   },
   "components.workspace.cleanup.browse.agent.working": {
     "ko": "작업 중"
+  },
+  "auto.components.skills.SkillFreshnessStatusPill.needsAttention": {
+    "ko": "스킬 검토"
   }
 }

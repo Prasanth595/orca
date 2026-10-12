@@ -4656,7 +4656,7 @@
           "upToDate": "최신 상태",
           "installed": "설치됨",
           "details": "Details",
-          "needsAttention": "Review skill",
+          "needsAttention": "스킬 검토",
           "checking": "확인 중...",
           "checkFailed": "확인 실패"
         },
