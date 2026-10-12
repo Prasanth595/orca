@@ -2640,7 +2640,7 @@
     "ko": "전역 terminal, 브라우저, Markdown 탭."
   },
   "auto.components.settings.Settings.6742c7932c": {
-    "ko": "전역 또는 프로젝트별로 적용되는 저장된 terminal 명령입니다."
+    "ko": "전역 또는 프로젝트별로 적용되는 저장된 터미널 명령입니다."
   },
   "auto.components.settings.Settings.7210ac09c4": {
     "ko": "agent 활동과 terminal 이벤트에 대한 네이티브 데스크톱 알림입니다."
@@ -5104,5 +5104,23 @@
   },
   "components.workspace.cleanup.browse.agent.working": {
     "ko": "작업 중"
+  },
+  "auto.components.settings.QuickCommandsToolbar.searchLabel": {
+    "ko": "명령 검색"
+  },
+  "auto.components.settings.QuickCommandsPane.89f7e57fcc": {
+    "ko": "저장 호스트"
+  },
+  "auto.components.settings.QuickCommandsPane.9b3e338d62": {
+    "ko": "Enter로 실행"
+  },
+  "auto.components.settings.QuickCommandsPane.c36912efd5": {
+    "ko": "탭 표시줄의 빠른 명령 버튼을 사용하여 실행하거나 터미널 내부를 마우스 오른쪽 버튼으로 클릭하세요."
+  },
+  "auto.components.settings.quick.commands.search.d691c4e8d8": {
+    "ko": "전역적으로 또는 특정 프로젝트로 범위가 지정된 모든 터미널에서 실행할 수 있는 저장된 터미널 명령입니다."
+  },
+  "auto.components.settings.quick.commands.search.1c5bdcd0f2": {
+    "ko": "저장소"
   }
 }
