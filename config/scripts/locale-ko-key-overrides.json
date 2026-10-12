@@ -5104,5 +5104,59 @@
   },
   "components.workspace.cleanup.browse.agent.working": {
     "ko": "작업 중"
+  },
+  "auto.components.settings.DevToolsPane.behindBaseRefToast": {
+    "ko": "기준 참조 뒤처짐 알림"
+  },
+  "auto.components.settings.DevToolsPane.behindBaseRefToastDescription": {
+    "ko": "설정 링크와 하단 동작 버튼이 포함된 알림을 계속 표시합니다."
+  },
+  "auto.components.settings.DevToolsPane.branchHasChanges": {
+    "ko": "브랜치에 변경 사항이 있습니다"
+  },
+  "auto.components.settings.DevToolsPane.deleteFailureToast": {
+    "ko": "삭제 실패 알림"
+  },
+  "auto.components.settings.DevToolsPane.devOnly": {
+    "ko": "개발 전용"
+  },
+  "auto.components.settings.DevToolsPane.devOnlyCallback": {
+    "ko": "개발 전용 콜백입니다."
+  },
+  "auto.components.settings.DevToolsPane.errorToast": {
+    "ko": "오류 알림"
+  },
+  "auto.components.settings.DevToolsPane.infoToast": {
+    "ko": "정보 알림"
+  },
+  "auto.components.settings.DevToolsPane.nativeActionLayoutCheck": {
+    "ko": "기본 동작 버튼 레이아웃 확인"
+  },
+  "auto.components.settings.DevToolsPane.nativeActionToast": {
+    "ko": "기본 동작 버튼이 있는 알림"
+  },
+  "auto.components.settings.DevToolsPane.notificationPlayground": {
+    "ko": "알림 테스트"
+  },
+  "auto.components.settings.DevToolsPane.primaryAction": {
+    "ko": "주 동작"
+  },
+  "auto.components.settings.DevToolsPane.primaryActionClicked": {
+    "ko": "주 동작을 클릭했습니다."
+  },
+  "auto.components.settings.DevToolsPane.secondary": {
+    "ko": "보조 동작"
+  },
+  "auto.components.settings.DevToolsPane.secondaryActionClicked": {
+    "ko": "보조 동작을 클릭했습니다."
+  },
+  "auto.components.settings.DevToolsPane.settingsSaved": {
+    "ko": "설정을 저장했습니다"
+  },
+  "auto.components.settings.DevToolsPane.successToast": {
+    "ko": "성공 알림"
+  },
+  "auto.components.settings.Settings.dev": {
+    "ko": "개발자 도구"
   }
 }
