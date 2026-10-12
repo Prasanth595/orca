@@ -1974,7 +1974,12 @@
           "631b97eea9": "Host scope",
           "680043342f": "compact",
           "bc96dbd041": "Workspace options ({{value0}})",
-          "c7591b6014": "repo"
+          "c7591b6014": "repo",
+          "sidebarStyle": {
+            "classic": "Classic",
+            "hierarchy": "Hierarchy",
+            "title": "Sidebar style"
+          }
         },
         "WorkspaceKanbanSettingsMenu": {
           "b45b350eb0": "Move {{value0}} left"

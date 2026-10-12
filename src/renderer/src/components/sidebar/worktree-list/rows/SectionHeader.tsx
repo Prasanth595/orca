@@ -21,10 +21,6 @@ import { getVirtualRowTransform } from '../viewport/virtual-rows'
 import { resolveProjectGroupHeaderColor } from '../../project-header-color'
 import { getRepoHeaderCreateState } from '../../repo-header-create-state'
 import { ProjectHeaderActions } from '../../ProjectHeaderActions'
-import {
-  getProjectGroupHeaderPaddingLeft,
-  WORKTREE_SECTION_HEADER_PADDING_LEFT
-} from './indentation'
 import { FolderPathStatusIndicator } from './FolderPathStatusIndicator'
 import { RepoScanUnavailableIndicator } from './RepoScanUnavailableIndicator'
 import {
@@ -42,9 +38,13 @@ import {
 } from './header-event-guards'
 import type { WorktreeSidebarHeaderDrag } from '../drag/use-header-drag'
 import { getWorktreeOptionId } from './option-dom'
+import { RepoRuntimeHostIndicator } from '../../runtime-host-indicator'
 import { ProjectGroupHeaderGlyph } from './project-group-header-glyph'
+import { getSectionHeaderLayout } from './section-header-hierarchy'
 
 export type SectionHeaderRowContext = {
+  /** Sidebar style 'hierarchy': tree guides and quieter nested rows. */
+  hierarchyStyle?: boolean
   groupBy: WorktreeGroupBy
   collapsedGroups: Set<string>
   workspaceStatuses: readonly WorkspaceStatusDefinition[]
@@ -93,8 +93,12 @@ export function renderWorktreeSectionHeaderRow(args: {
   const isRepoHeader = ctx.groupBy === 'repo' && row.repo !== undefined
   const isProjectGroupHeader = ctx.groupBy === 'repo' && row.projectGroup !== undefined
   const projectIdForHeader = isRepoHeader ? row.repo!.id : undefined
-  const projectGroupForIcon =
-    isProjectGroupHeader && !row.repo && row.projectGroup?.id != null ? row.projectGroup : null
+  const layout = getSectionHeaderLayout({
+    row,
+    hierarchyStyle: ctx.hierarchyStyle === true,
+    isRepoHeader,
+    isProjectGroupHeader
+  })
   const projectGroupIdForHeader =
     isProjectGroupHeader && !row.repo && typeof row.projectGroup?.id === 'string'
       ? row.projectGroup.id
@@ -249,13 +253,7 @@ export function renderWorktreeSectionHeaderRow(args: {
             'rounded-md bg-worktree-sidebar-accent ring-1 ring-worktree-sidebar-ring/40',
           row.repo && 'overflow-hidden'
         )}
-        style={{
-          // Why: non-project headers like "All" are flat-list labels; don't reserve project hierarchy indent.
-          paddingLeft:
-            isRepoHeader || isProjectGroupHeader
-              ? getProjectGroupHeaderPaddingLeft(row.projectGroupDepth ?? 0)
-              : WORKTREE_SECTION_HEADER_PADDING_LEFT
-        }}
+        style={{ paddingLeft: layout.paddingLeft }}
         onDragOver={
           isPinnedHeader
             ? ctx.onWorkspacePinDragOver
@@ -311,7 +309,7 @@ export function renderWorktreeSectionHeaderRow(args: {
               'cursor-grab active:cursor-grabbing'
           )}
         >
-          {row.icon ? (
+          {row.icon && !layout.isNestedRepoHeader ? (
             <div
               className={cn(
                 'flex size-4 shrink-0 items-center justify-center rounded-[4px]',
@@ -327,7 +325,8 @@ export function renderWorktreeSectionHeaderRow(args: {
                 />
               ) : isProjectGroupHeader ? (
                 <ProjectGroupHeaderGlyph
-                  icon={projectGroupForIcon?.icon ?? null}
+                  icon={layout.projectGroupIcon}
+                  hierarchyStyle={ctx.hierarchyStyle === true}
                   defaultIcon={row.icon}
                 />
               ) : (
@@ -338,7 +337,12 @@ export function renderWorktreeSectionHeaderRow(args: {
 
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
-              <div className="min-w-0 truncate text-[13px] font-semibold leading-none">
+              <div
+                className={cn(
+                  'min-w-0 truncate leading-none',
+                  layout.isNestedRepoHeader ? 'text-xs font-medium' : 'text-[13px] font-semibold'
+                )}
+              >
                 {row.label}
               </div>
               <RepoForkIndicator upstream={row.repo?.upstream} />
@@ -346,6 +350,7 @@ export function renderWorktreeSectionHeaderRow(args: {
               {isRepoHeader ? <RepoScanUnavailableIndicator repo={row.repo!} /> : null}
             </div>
           </div>
+          {layout.showRepoRuntimeIndicator && <RepoRuntimeHostIndicator repo={row.repo!} />}
         </div>
 
         <ProjectHeaderActions>

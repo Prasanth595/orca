@@ -73,7 +73,8 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
     canUnlinkReview,
     handleUnlinkReview,
     detailsHoverControl,
-    showDeleteQuickAction
+    showDeleteQuickAction,
+    hierarchyRow = false
   } = card
 
   // Why: pinned trees mix repos, so the repo icon shows regardless of groupBy's hideRepoBadge.
@@ -81,7 +82,12 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
   // Why: new card style retired the Compact/Detailed switch; repo identity uses the compact chip, not a lower pill.
   const showRepoIdentityInTitle = newCardStyle || compactCards
   const showInlineRepoBadge =
-    showRepoIdentityInTitle && !!repo && !hideRepoBadge && !isFolder && !showPinnedRepoIcon
+    !hierarchyRow &&
+    showRepoIdentityInTitle &&
+    !!repo &&
+    !hideRepoBadge &&
+    !isFolder &&
+    !showPinnedRepoIcon
   const showRepoBadgeInMetaRow =
     !showRepoIdentityInTitle && !!repo && !hideRepoBadge && !showPinnedRepoIcon
   const showHostContextBadge = !compactCards && !!hostContextLabel && cardProps.includes('host')
@@ -95,12 +101,14 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
   const showConflictOperationBadge =
     !!conflictOperation && conflictOperation !== 'unknown' && conflictOperation !== 'rebase'
   const hasMetadataBadge = showConflictOperationBadge
-  const showUnreadQuickAction = !affiliateListMode && showStatus && !newCardStyle
+  const showUnreadQuickAction = !hierarchyRow && !affiliateListMode && showStatus && !newCardStyle
   // Why: the slot owns the unread/status lane; legacy keeps the bell toggle, the new card keeps the glyph passive.
-  const showCombinedStatusSlot = showStatus
-  const showTitleRowPrimary = compactCards && worktree.isMainWorktree && !isFolder
+  // Hierarchy rows move status to a single right-hand mark instead.
+  const showCombinedStatusSlot = showStatus && !hierarchyRow
+  const showTitleRowPrimary = !hierarchyRow && compactCards && worktree.isMainWorktree && !isFolder
   const showMetaRowDetails = !newCardStyle && !compactCards && (hasDetails || hasPorts)
-  const showTitleRowIndicators = (newCardStyle || compactCards) && (hasDetails || hasPorts)
+  const showTitleRowIndicators =
+    !hierarchyRow && (newCardStyle || compactCards) && (hasDetails || hasPorts)
   // Why: grouped views can hide the repo badge; don't reserve a blank metadata lane unless there's real content.
   const hasDetailedMetaRowContent = Boolean(
     (showRepoBadgeInMetaRow && repo) ||
@@ -113,10 +121,13 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
     cacheStartedAt != null ||
     showMetaRowDetails
   )
-  const hasMetaRow = compactCards
-    ? hasMetadataBadge || cacheStartedAt != null
-    : hasDetailedMetaRowContent
-  const showHeaderActions = showTitleRowPrimary || showDeleteQuickAction
+  const hasMetaRow = hierarchyRow
+    ? false
+    : compactCards
+      ? hasMetadataBadge || cacheStartedAt != null
+      : hasDetailedMetaRowContent
+  // Why: hierarchy rows keep destructive actions in the context menu only.
+  const showHeaderActions = !hierarchyRow && (showTitleRowPrimary || showDeleteQuickAction)
   // Why: normalize the title once so title/branch de-dupe and identity-only hover eligibility stay in sync.
   const trimmedVisibleCardTitle = visibleCardTitle.trim()
   const showBranchIdentityHover = newCardStyle
@@ -239,9 +250,13 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
   ) : null
   const hasSecondaryCardContent =
     hasMetaRow || !!remoteBranchConflict || showInlineAgentList || showLineageChildChip
-  const titleOnlyCard = !hasSecondaryCardContent
+  const titleOnlyCard = hierarchyRow || !hasSecondaryCardContent
+  // Why: hierarchy draws the runtime host on the project row; rows with no project row above keep it.
+  const showHierarchyRuntimeIndicator = hierarchyRow && (!hideRepoBadge || inPinnedSection)
 
   return {
+    hierarchyRow,
+    showHierarchyRuntimeIndicator,
     showPinnedRepoIcon,
     showInlineRepoBadge,
     showRepoBadgeInMetaRow,

@@ -53,6 +53,8 @@ export type WorktreeCardProps = {
   nativeDragEnabled?: boolean
   affiliateListMode?: boolean
   statusPrDisplay?: WorktreeCardPrDisplay | null
+  /** Sidebar style 'hierarchy': single-line tree row, status on the right, inline primary star. */
+  hierarchyRow?: boolean
 }
 
 type DefaultedWorktreeCardProp =

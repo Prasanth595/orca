@@ -41,6 +41,11 @@
       "description": "The active workspace is hidden in the sidebar. Revealing it will adjust only the filters hiding it.",
       "confirm": "Adjust filters and reveal",
       "cancel": "Keep filters"
+    },
+    "hierarchy": {
+      "status": {
+        "unread": "Unread"
+      }
     }
   },
   "app": {
@@ -5761,6 +5766,11 @@
           "3d4b9c4997": "Hover",
           "ba87080fb7": "Show properties",
           "320b675c9a": "Card layout",
+          "sidebarStyle": {
+            "title": "Sidebar style",
+            "classic": "Classic",
+            "hierarchy": "Hierarchy"
+          },
           "newCardDisplay": {
             "title": "Card display"
           },

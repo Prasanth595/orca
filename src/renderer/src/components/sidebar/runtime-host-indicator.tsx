@@ -2,7 +2,8 @@ import React from 'react'
 import { Server, ServerOff } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { translate } from '@/i18n/i18n'
-import { toRuntimeExecutionHostId } from '../../../../shared/execution-host'
+import { parseExecutionHostId, toRuntimeExecutionHostId } from '../../../../shared/execution-host'
+import type { Repo } from '../../../../shared/repo-types'
 import { getHostDisplayLabelOverrides } from '../../../../shared/host-setting-overrides'
 import {
   isDisconnectedRuntimeHostState,
@@ -44,6 +45,15 @@ export function useRuntimeHostIndicatorState(
     ? (getHostDisplayLabelOverrides(settings).get(runtimeHostId) ?? runtimeEnvironmentName)
     : null
   return { runtimeHostLabel, isRuntimeDisconnected }
+}
+
+/** Project-row server glyph: shown when the repo lives on an Orca server (runtime host). */
+export function RepoRuntimeHostIndicator({ repo }: { repo: Repo }): React.JSX.Element | null {
+  const parsed = repo.connectionId ? null : parseExecutionHostId(repo.executionHostId)
+  const state = useRuntimeHostIndicatorState(
+    parsed?.kind === 'runtime' ? parsed.environmentId : null
+  )
+  return parsed?.kind === 'runtime' ? <RuntimeHostIndicator {...state} /> : null
 }
 
 export function RuntimeHostIndicator({
