@@ -20,6 +20,7 @@ import type { OrchestrationMailboxLeaf } from './orchestration/mailbox-owner'
 import type { OrchestrationMailboxPointerSubmitTarget } from './orchestration/mailbox-pointer-submit'
 import type { RuntimeAgentPromptWriteOptions } from './runtime-terminal-contracts'
 import { ORCHESTRATION_READINESS_TIMEOUT_MS } from '../../shared/orchestration-timing-budgets'
+import { OrchestrationError } from './orchestration/orchestration-error'
 
 export class OrcaRuntimeWithWriteOrchestrationPointerPty extends OrcaRuntimeWithRefreshFloatingWorkspacePtyLiveness {
   supportsCoordinatorDelivery(handle: string): boolean {
@@ -36,12 +37,33 @@ export class OrcaRuntimeWithWriteOrchestrationPointerPty extends OrcaRuntimeWith
     }
   }
 
+  async verifyCoordinatorDeliveryOwner(handle: string): Promise<boolean> {
+    if (!this.supportsCoordinatorDelivery(handle)) {
+      return false
+    }
+    const binding = this.getTerminalPromptRequestBinding(handle)
+    const verified = await this.isTerminalRunningSettledPromptAgent(handle)
+    const current = this.getTerminalPromptRequestBinding(handle)
+    if (
+      !verified ||
+      current.ptyId !== binding.ptyId ||
+      current.processIncarnation !== binding.processIncarnation ||
+      current.generation !== binding.generation
+    ) {
+      throw new OrchestrationError(
+        'coordinator_unverifiable',
+        'The current coordinator receiver cannot be verified.'
+      )
+    }
+    return this.supportsCoordinatorDelivery(handle)
+  }
+
   protected async sendOrchestrationPointerPrompt(
     target: OrchestrationMailboxPointerSubmitTarget,
     text: string,
     options: RuntimeAgentPromptWriteOptions
   ) {
-    if (!this.supportsCoordinatorDelivery(target.terminalHandle)) {
+    if (!(await this.verifyCoordinatorDeliveryOwner(target.terminalHandle))) {
       throw new Error('coordinator_delivery_unsupported')
     }
     return this.sendTerminalAgentPrompt(target.terminalHandle, text, {
@@ -63,7 +85,7 @@ export class OrcaRuntimeWithWriteOrchestrationPointerPty extends OrcaRuntimeWith
             throw new Error('agent_prompt_blocked')
           }
         }
-        if (!this.supportsCoordinatorDelivery(target.terminalHandle)) {
+        if (!(await this.verifyCoordinatorDeliveryOwner(target.terminalHandle))) {
           throw new Error('coordinator_delivery_unsupported')
         }
         await options.beforeWrite?.(ptyId)

@@ -102,7 +102,7 @@ export function createRuntime(
     connectionId?: string
     isWsl?: boolean
     launchAgent?: TuiAgent
-    foregroundProcess?: string
+    foregroundProcess?: string | null
     getAgentStatusSnapshot?: () => AgentStatusIpcPayload[]
     checkHookAgentPresence?: (paneKey: string) => Promise<'live' | 'unverifiable' | 'exited' | null>
   } = {}
@@ -121,7 +121,10 @@ export function createRuntime(
     write,
     writeWithSettlement: settledWriteStub(write),
     kill: vi.fn(),
-    getForegroundProcess: async () => options.foregroundProcess ?? null
+    getForegroundProcess: async () =>
+      options.foregroundProcess === undefined
+        ? (options.launchAgent ?? 'codex')
+        : options.foregroundProcess
   })
   runtime.registerPty(
     PTY_ID,

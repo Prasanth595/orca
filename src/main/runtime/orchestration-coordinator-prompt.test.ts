@@ -15,6 +15,12 @@ import {
   TAB_ID,
   LEAF_ID,
   TERMINAL_HANDLE,
+  pointerCount,
+  registerSecondPane,
+  SECOND_LEAF_ID,
+  SECOND_PANE_KEY,
+  SECOND_PTY_ID,
+  SECOND_TERMINAL_HANDLE,
   temporaryDirectories
 } from './orchestration-mailbox-notification-test-harness'
 
@@ -77,6 +83,181 @@ it.each(['unsupported', 'blocked'])(
       expect(db.getMessageById(row.id)?.pointer_enter_pending).toBe(0)
       expect(db.getMessageById(row.id)?.delivered_at).toBeNull()
     } finally {
+      db.close()
+    }
+  }
+)
+
+it.each(['claude', null])(
+  'refuses an unprimed foreground receiver %s before bytes',
+  async (agent) => {
+    vi.useFakeTimers()
+    const db = createDatabase('orca-coordinator-receiver-')
+    const { runtime, write } = createRuntime(db, { foregroundProcess: agent })
+    const run = createBoundRun(db, 'Hub', 'coordination')
+    const row = db.insertMessage({
+      from: 'worker',
+      to: `run:${run.id}`,
+      runId: run.id,
+      type: 'question',
+      subject: 'Help'
+    })
+    try {
+      await driveToLiveIdle(runtime)
+      await vi.advanceTimersByTimeAsync(30_000)
+      expect(write).not.toHaveBeenCalled()
+      expect(db.getMessageById(row.id)?.pointer_enter_pending).toBe(0)
+      expect(db.getMessageById(row.id)?.delivered_at).toBeNull()
+    } finally {
+      db.close()
+    }
+  }
+)
+
+it.each(['refused', 'unknown'] as const)(
+  'handles a %s first paste after its flight retires',
+  async (outcome) => {
+    vi.useFakeTimers()
+    const db = createDatabase('orca-coordinator-retired-refusal-')
+    const { runtime } = createRuntime(db)
+    const run = createBoundRun(db, 'Hub', 'coordination')
+    const row = db.insertMessage({
+      from: 'worker',
+      to: `run:${run.id}`,
+      runId: run.id,
+      type: 'question',
+      subject: 'Help'
+    })
+    vi.spyOn(runtime, 'sendTerminalAgentPrompt').mockImplementation(
+      async (_handle, _text, options) => {
+        await options?.beforeWrite?.(PTY_ID)
+        expect(db.getMessageById(row.id)?.pointer_enter_pending).toBe(2)
+        await runtime.onPtyExit(PTY_ID, 0)
+        if (outcome === 'unknown') {
+          throw new Error('write_outcome_unknown')
+        }
+        throw new AgentPromptWriteSettlementError(writeRefused('provider_refused_write'))
+      }
+    )
+    try {
+      await driveToLiveIdle(runtime)
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(db.getMessageById(row.id)?.pointer_enter_pending).toBe(outcome === 'refused' ? 0 : 2)
+      expect(db.getMessageById(row.id)?.delivered_at).toBeNull()
+      const rebound = createRuntime(db)
+      vi.spyOn(rebound.runtime, 'getTerminalProcessIncarnation').mockReturnValue(
+        'replacement-incarnation'
+      )
+      await driveToLiveIdle(rebound.runtime)
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(pointerCount(rebound.write)).toBe(outcome === 'refused' ? 1 : 0)
+    } finally {
+      db.close()
+    }
+  }
+)
+
+it('preserves accepted paste when the foreground receiver changes before Enter', async () => {
+  vi.useFakeTimers()
+  const db = createDatabase('orca-coordinator-receiver-change-')
+  const { runtime } = createRuntime(db)
+  const write = vi.fn(() => true)
+  let receiver = 'codex'
+  runtime.setPtyController({
+    write,
+    writeWithSettlement: settledWriteStub(write),
+    kill: () => true,
+    getForegroundProcess: async () => receiver
+  })
+  const run = createBoundRun(db, 'Hub', 'coordination')
+  const row = db.insertMessage({
+    from: 'worker',
+    to: `run:${run.id}`,
+    runId: run.id,
+    type: 'question',
+    subject: 'Help'
+  })
+  let frames = 0
+  const send = vi
+    .spyOn(runtime, 'sendTerminalAgentPrompt')
+    .mockImplementation(async (_handle, _text, options) => {
+      await options?.beforeWrite?.(PTY_ID)
+      frames++
+      receiver = 'claude'
+      await options?.beforeWrite?.(PTY_ID)
+      throw new Error('Enter must not be reached')
+    })
+  try {
+    await driveToLiveIdle(runtime)
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(frames).toBe(1)
+    expect(db.getMessageById(row.id)?.pointer_enter_pending).toBe(2)
+    expect(db.getMessageById(row.id)?.delivered_at).toBeNull()
+    await driveToLiveIdle(runtime)
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(send).toHaveBeenCalledTimes(1)
+  } finally {
+    db.close()
+  }
+})
+
+it.each(['refused', 'unknown'] as const)(
+  'handles a late %s result after the new owner is already idle',
+  async (outcome) => {
+    vi.useFakeTimers()
+    const db = createDatabase('orca-coordinator-late-refusal-')
+    const { runtime } = createRuntime(db)
+    const run = createBoundRun(db, 'Hub', 'coordination')
+    const row = db.insertMessage({
+      from: 'worker',
+      to: `run:${run.id}`,
+      runId: run.id,
+      type: 'question',
+      subject: 'Help'
+    })
+    let resolveWrite = () => {}
+    const pendingWrite = new Promise<void>((resolve) => {
+      resolveWrite = resolve
+    })
+    const send = vi
+      .spyOn(runtime, 'sendTerminalAgentPrompt')
+      .mockImplementation(async (handle, _text, options) => {
+        await options?.beforeWrite?.(handle === TERMINAL_HANDLE ? PTY_ID : SECOND_PTY_ID)
+        if (handle === TERMINAL_HANDLE) {
+          await pendingWrite
+          if (outcome === 'refused') {
+            throw new AgentPromptWriteSettlementError(writeRefused('provider_refused_write'))
+          }
+          throw new Error('write_outcome_unknown')
+        }
+        return { handle, accepted: true, bytesWritten: 0 }
+      })
+    try {
+      await driveToLiveIdle(runtime)
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(db.getMessageById(row.id)?.pointer_enter_pending).toBe(2)
+      await runtime.onPtyExit(PTY_ID, 0)
+      registerSecondPane(runtime, SECOND_LEAF_ID, false)
+      db.bindRun({
+        runId: run.id,
+        coordinatorHandle: SECOND_TERMINAL_HANDLE,
+        coordinatorPaneKey: SECOND_PANE_KEY
+      })
+      runtime.onPtyData(SECOND_PTY_ID, '\x1b]0;Codex working\x07', 1)
+      runtime.onPtyData(SECOND_PTY_ID, '\x1b]0;Codex done\x07', 2)
+      await runtime.serializeMainTerminalBuffer(SECOND_PTY_ID)
+      await vi.advanceTimersByTimeAsync(30_000)
+      expect(send).toHaveBeenCalledTimes(1)
+      resolveWrite()
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(send).toHaveBeenCalledTimes(outcome === 'refused' ? 2 : 1)
+      if (outcome === 'refused') {
+        expect(send.mock.calls[1]?.[0]).toBe(SECOND_TERMINAL_HANDLE)
+      }
+      expect(db.getMessageById(row.id)?.delivered_at).toBeNull()
+    } finally {
+      resolveWrite()
+      await vi.advanceTimersByTimeAsync(1_000)
       db.close()
     }
   }

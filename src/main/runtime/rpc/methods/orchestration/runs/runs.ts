@@ -26,12 +26,12 @@ function cancelBoundDispatchWaiters(
   }
 }
 
-function assertCoordinatorDeliveryOwnerSupported(
+async function assertCoordinatorDeliveryOwnerSupported(
   runtime: OrcaRuntimeService,
   policy: OrchestrationNotificationPolicy | undefined,
   address: string
-): void {
-  if (policy === 'coordination' && !runtime.supportsCoordinatorDelivery(address)) {
+): Promise<void> {
+  if (policy === 'coordination' && !(await runtime.verifyCoordinatorDeliveryOwner(address))) {
     throw new OrchestrationError(
       'coordinator_delivery_unsupported',
       'Coordination delivery requires a supported Codex terminal owner. No effects were applied.',
@@ -45,7 +45,10 @@ export const ORCHESTRATION_RUN_METHODS = [
     name: 'orchestration.runCreate',
     permission: 'workspace',
     params: RunCreateParams,
-    handler: (params, { orchestrationCompatibilityEvidence, orchestrationCaller, runtime }) => {
+    handler: async (
+      params,
+      { orchestrationCompatibilityEvidence, orchestrationCaller, runtime }
+    ) => {
       const caller = resolveOrchestrationCaller(runtime, {
         callerTerminalHandle: params.from,
         callerEvidence: orchestrationCompatibilityEvidence,
@@ -53,8 +56,12 @@ export const ORCHESTRATION_RUN_METHODS = [
         requireStablePane: true
       })
       const db = runtime.getOrchestrationDb()
+      await assertCoordinatorDeliveryOwnerSupported(
+        runtime,
+        params.notificationPolicy,
+        caller.address
+      )
       const priorRun = db.getCurrentRunForCoordinator(caller)
-      assertCoordinatorDeliveryOwnerSupported(runtime, params.notificationPolicy, caller.address)
       const run = db.createRun({
         objective: params.objective,
         notificationPolicy: params.notificationPolicy,
@@ -74,7 +81,7 @@ export const ORCHESTRATION_RUN_METHODS = [
     name: 'orchestration.runUse',
     permission: 'workspace',
     params: RunUseParams,
-    handler: (
+    handler: async (
       params,
       {
         runtime,
@@ -105,12 +112,12 @@ export const ORCHESTRATION_RUN_METHODS = [
       }
       assertCallerHandleMatchesEvidence(runtime, params.from, orchestrationCompatibilityEvidence)
       const db = runtime.getOrchestrationDb()
-      const priorRun = db.getCurrentRunForCoordinator(caller)
-      assertCoordinatorDeliveryOwnerSupported(
+      await assertCoordinatorDeliveryOwnerSupported(
         runtime,
         db.getRun(params.id)?.notification_policy,
         caller.address
       )
+      const priorRun = db.getCurrentRunForCoordinator(caller)
       const run = db.bindRun({
         runId: params.id,
         coordinatorHandle: caller.terminalHandle,

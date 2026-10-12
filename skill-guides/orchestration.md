@@ -78,6 +78,8 @@ The host must advertise `orchestration.coordinator-delivery.v1`; unsupported pee
 fail explicitly. Existing Runs keep their original notification policy. This
 contract currently requires an addressable Codex PTY with settled-write support;
 it does not enable structured-session or other-provider delivery.
+Binding and delivery verify the current receiver. Unknown provider evidence fails
+with `coordinator_unverifiable`; a launch hint alone does not authorize input.
 
 Worker completion, escalation, questions, and status payloads declaring
 `{"materialKind":"dependency-change"}` or `{"materialKind":"delivery-risk"}`

@@ -101,7 +101,7 @@ export async function sendOrchestrationMailboxPointerPrompt<
       (phase === MAILBOX_POINTER_WRITE_ATTEMPTED &&
         error instanceof AgentPromptWriteSettlementError &&
         error.settlement.outcome === 'refused')
-    if (release && args.state.isCurrentFlight(ptyId, flight)) {
+    if (release) {
       try {
         args.deps.getDb()?.releaseMailboxPointerEnter(ids, reservation, [phase])
       } catch {
@@ -109,7 +109,8 @@ export async function sendOrchestrationMailboxPointerPrompt<
       }
     }
   } finally {
-    if (args.state.isCurrentFlight(ptyId, flight)) {
+    const retired = !args.state.isCurrentFlight(ptyId, flight)
+    if (!retired) {
       if (delivered || release) {
         args.state.clearWatermark(args.mailboxHandle, args.newestSequence, ptyId)
       } else {
@@ -117,9 +118,9 @@ export async function sendOrchestrationMailboxPointerPrompt<
       }
     }
     args.settle(ptyId, flight)
-    // A persistent pre-write refusal needs a new idle/event edge, not an immediate retry.
-    if (delivered) {
-      args.redrive(args.mailboxHandle)
+    // A proven no-write outcome after retirement must reoffer mail to an already idle owner.
+    if (delivered || (release && retired)) {
+      args.redrive(args.mailboxHandle, retired)
     }
   }
 }
