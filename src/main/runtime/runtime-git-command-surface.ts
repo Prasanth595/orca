@@ -7,6 +7,8 @@ type RuntimeGitCommandName =
   | 'getRuntimeGitHistory'
   | 'getRuntimeGitConflictOperation'
   | 'abortRuntimeGitMerge'
+  | 'stashRuntimeGit'
+  | 'listRuntimeGitStashes'
   | 'abortRuntimeGitRebase'
   | 'checkoutRuntimeGitBranch'
   | 'listRuntimeGitLocalBranches'
@@ -50,6 +52,8 @@ export function installRuntimeGitCommandSurface(
     getRuntimeGitHistory: commands.getRuntimeGitHistory.bind(commands),
     getRuntimeGitConflictOperation: commands.getRuntimeGitConflictOperation.bind(commands),
     abortRuntimeGitMerge: commands.abortRuntimeGitMerge.bind(commands),
+    stashRuntimeGit: commands.stashRuntimeGit.bind(commands),
+    listRuntimeGitStashes: commands.listRuntimeGitStashes.bind(commands),
     abortRuntimeGitRebase: commands.abortRuntimeGitRebase.bind(commands),
     checkoutRuntimeGitBranch: commands.checkoutRuntimeGitBranch.bind(commands),
     listRuntimeGitLocalBranches: commands.listRuntimeGitLocalBranches.bind(commands),

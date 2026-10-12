@@ -5,6 +5,7 @@ import { CapabilityProbeCache } from './capability-probe-cache'
 export const GIT_CAPABILITY_RETRY_INTERVAL_MS = 30 * 60_000
 
 export type GitCapability =
+  | 'stash-push-staged'
   | 'fetch-no-write-fetch-head'
   | 'for-each-ref-exclude'
   | 'merge-tree-merge-base'

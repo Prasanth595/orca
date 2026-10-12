@@ -55,6 +55,8 @@ export function useSourceControlActionDispatch({
         return
       }
       switch (kind) {
+        case 'stash':
+          return
         case 'commit':
           void handleCommit()
           return

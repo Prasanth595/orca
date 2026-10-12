@@ -1,5 +1,6 @@
 import type { GitForkSyncExpectedUpstream, GitForkSyncResult } from '../../shared/git-fork-sync'
 import type { TuiAgent } from '../../shared/tui-agent'
+import type { GitStashOptions, GitStashResult, GitStashListResult } from '../../shared/git-stash'
 import type { GitPushTarget } from '../../shared/worktree/types'
 import type { GitStageWorktreeScope } from '../../shared/git-stage-worktree-scope'
 import type { HostedReviewProvider } from '../../shared/hosted-review'
@@ -7,6 +8,13 @@ import type { ResolvedSourceControlAiGenerationParams } from '../../shared/sourc
 import type { SourceControlAiSettings } from '../../shared/source-control-ai-types'
 
 export type GitOperationApi = {
+  stash: (
+    args: {
+      worktreePath: string
+      connectionId?: string
+    } & GitStashOptions
+  ) => Promise<GitStashResult>
+  stashList: (args: { worktreePath: string; connectionId?: string }) => Promise<GitStashListResult>
   appendGitignore: (args: { worktreePath: string; folderName: string }) => Promise<boolean>
   abortMerge: (args: { worktreePath: string; connectionId?: string }) => Promise<void>
   abortRebase: (args: { worktreePath: string; connectionId?: string }) => Promise<void>

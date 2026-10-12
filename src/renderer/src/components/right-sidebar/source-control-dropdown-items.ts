@@ -23,6 +23,13 @@ export function resolveDropdownItems(inputs: DropdownActionInputs): DropdownEntr
     commit,
     commitPush,
     commitSync,
+    { kind: 'separator', id: 'before-stash' },
+    {
+      kind: 'stash',
+      label: 'Stash',
+      title: 'Save and restore uncommitted changes',
+      disabled: globalBusy
+    },
     { kind: 'separator', id: 'before-remote' },
     push,
     forcePush,

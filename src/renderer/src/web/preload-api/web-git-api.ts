@@ -42,6 +42,22 @@ export async function callAbortableRuntimeStatus<TResult>(
 
 export function createGitApi(): NonNullable<Partial<PreloadApi>['git']> {
   return {
+    stash: async ({ worktreePath, action, stash, message, expectedStashes }) => {
+      const worktree = await resolveRuntimeWorktreeByPath(worktreePath)
+      return callRuntimeResult('git.stash', {
+        worktree: toRuntimeWorktreeSelector(worktree.id),
+        action,
+        stash,
+        message,
+        expectedStashes
+      })
+    },
+    stashList: async ({ worktreePath }) => {
+      const worktree = await resolveRuntimeWorktreeByPath(worktreePath)
+      return callRuntimeResult('git.stashList', {
+        worktree: toRuntimeWorktreeSelector(worktree.id)
+      })
+    },
     status: async ({
       worktreePath,
       includeIgnored,

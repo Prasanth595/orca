@@ -19289,6 +19289,37 @@
     },
     "unlinkedPr": {
       "status": "PR #{{number}} unlinked"
+    },
+    "stash": {
+      "action": {
+        "push_staged": "Stash Staged",
+        "push_untracked": "Stash (Include Untracked)",
+        "push": "Stash",
+        "apply": "Apply Stash…",
+        "pop": "Pop Stash…",
+        "drop": "Drop Stash…",
+        "show": "View Stash…",
+        "apply_last": "Apply Last Stash",
+        "pop_last": "Pop Last Stash",
+        "clear": "Drop All Stashes…"
+      },
+      "message": "Message (optional)",
+      "cancel": "Cancel",
+      "repositoryScope": "Stashes are shared by all worktrees in this repository.",
+      "retry": "Retry",
+      "search": "Search stashes…",
+      "loading": "Loading stashes…",
+      "empty": "No stashes found",
+      "limited": "Showing the latest 200 stashes.",
+      "noDiff": "No text diff available.",
+      "menu": "Stash",
+      "completed": "Stash operation completed",
+      "failed": "Stash operation failed",
+      "dropAllTitle": "Drop all stashes?",
+      "dropAllDescription": "Delete all {{count}} stashes in this repository. All worktrees share this stash list.",
+      "dropAll": "Drop All Stashes",
+      "dropTitle": "Drop this stash?",
+      "drop": "Drop Stash"
     }
   },
   "agentsSidebarIntro": {

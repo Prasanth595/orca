@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react'
+import { StashMenu } from '../stash/stash-menu'
 import { ArrowDownUp, ArrowUp, Check, CloudUpload, GitPullRequestArrow, Plus } from 'lucide-react'
 import {
   DropdownMenuContent,
@@ -37,6 +38,7 @@ const PRIMARY_ICONS: Partial<
 }
 
 export function CommitArea({
+  stashActions,
   worktreeId,
   groupId,
   connectionId,
@@ -170,6 +172,8 @@ export function CommitArea({
       {dropdownItems.map((entry) =>
         entry.kind === 'separator' ? (
           <DropdownMenuSeparator key={entry.id} />
+        ) : entry.kind === 'stash' ? (
+          <StashMenu key={entry.kind} disabled={entry.disabled} actions={stashActions} />
         ) : (
           <Tooltip key={entry.kind}>
             <TooltipTrigger asChild>
