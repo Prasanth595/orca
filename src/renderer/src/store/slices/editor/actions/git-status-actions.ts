@@ -19,6 +19,7 @@ export function createGitStatusActions(
   | 'gitStatusByWorktree'
   | 'gitStatusHeadByWorktree'
   | 'gitStatusHugeByWorktree'
+  | 'gitStatusReadErrorByWorktree'
   | 'gitBranchLineTotalByWorktree'
   | 'gitIgnoredPathsByWorktree'
   | 'gitConflictOperationByWorktree'
@@ -31,6 +32,7 @@ export function createGitStatusActions(
     gitStatusByWorktree: {},
     gitStatusHeadByWorktree: {},
     gitStatusHugeByWorktree: {},
+    gitStatusReadErrorByWorktree: {},
     gitBranchLineTotalByWorktree: {},
     gitIgnoredPathsByWorktree: {},
     gitConflictOperationByWorktree: {},
@@ -51,6 +53,18 @@ export function createGitStatusActions(
     // Why: session-local conflict tracking (Resolved-locally) lives only in the renderer; main returns raw git status, so the renderer owns conflictStatusSource.
     setGitStatus: (worktreeId, status) =>
       set((s) => {
+        // Why: a failed read lists nothing, so reconciling against it would drop every known change.
+        if (status.readError !== undefined) {
+          return s.gitStatusReadErrorByWorktree[worktreeId] === status.readError
+            ? s
+            : {
+                gitStatusReadErrorByWorktree: {
+                  ...s.gitStatusReadErrorByWorktree,
+                  [worktreeId]: status.readError
+                }
+              }
+        }
+        const readErrorCleared = Object.hasOwn(s.gitStatusReadErrorByWorktree, worktreeId)
         const hadStatusEntry = Object.hasOwn(s.gitStatusByWorktree, worktreeId)
         const prevEntries = s.gitStatusByWorktree[worktreeId] ?? []
         const prevOperation = s.gitConflictOperationByWorktree[worktreeId] ?? 'unknown'
@@ -181,7 +195,8 @@ export function createGitStatusActions(
           hugeUnchanged &&
           branchLineTotalUnchanged &&
           statusHeadUnchanged &&
-          !shouldInvalidateBranchCompare
+          !shouldInvalidateBranchCompare &&
+          !readErrorCleared
         ) {
           return s
         }
@@ -225,9 +240,18 @@ export function createGitStatusActions(
           ? { ...s.gitBranchChangesByWorktree, [worktreeId]: [] }
           : s.gitBranchChangesByWorktree
 
+        const nextReadErrorMap = readErrorCleared
+          ? (() => {
+              const copy = { ...s.gitStatusReadErrorByWorktree }
+              delete copy[worktreeId]
+              return copy
+            })()
+          : s.gitStatusReadErrorByWorktree
+
         return {
           openFiles: nextOpenFiles,
           gitStatusHugeByWorktree: nextHugeMap,
+          gitStatusReadErrorByWorktree: nextReadErrorMap,
           gitBranchLineTotalByWorktree: nextBranchLineTotalMap,
           gitStatusHeadByWorktree: nextStatusHeadMap,
           gitStatusByWorktree: statusUnchanged
