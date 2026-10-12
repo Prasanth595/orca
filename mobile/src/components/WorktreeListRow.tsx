@@ -10,9 +10,9 @@ import {
 } from 'lucide-react-native'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { parseExecutionHostId, type ExecutionHostId } from '../../../src/shared/execution-host'
-import type { RepoIcon } from '../../../src/shared/repo-icon'
 import type { AgentWorkingMode } from '../../../src/shared/agent-status-types'
 import type { RuntimeWorktreeAgentRow } from '../../../src/shared/runtime-types'
+import type { MobileRenderableRepoIcon } from '../host-screen/host-screen-reply-schema'
 import { triggerMediumImpact } from '../platform/haptics'
 import { colors, radii, spacing, typography } from '../theme/mobile-theme'
 import { AgentSpinner } from './AgentSpinner'
@@ -36,6 +36,8 @@ export type WorktreeListRowItem = {
   hostContextLabel?: string
   /** Resolved host for the display label; present when legacy rows omit hostId. */
   hostContextHostId?: ExecutionHostId
+  /** The host's health word, e.g. "Disconnected"; absent while the host is healthy. */
+  hostContextHealthLabel?: string
   repo: string
   branch: string
   displayName: string
@@ -64,7 +66,7 @@ type Props<T extends WorktreeListRowItem> = {
   isReadOnly: boolean
   now: number
   repoColor: string
-  repoIcon?: RepoIcon | null
+  repoIcon?: MobileRenderableRepoIcon | null
   // When the list is already grouped under this repo's section header, the row
   // omits its own repo icon+name to avoid the redundant "📁 orca" on every row.
   hideRepo?: boolean
@@ -165,7 +167,12 @@ function WorktreeListRowComponent<T extends WorktreeListRowItem>({
             </View>
           )}
           {item.hostContextLabel ? (
-            <View style={[styles.childBadge, styles.hostBadge]}>
+            <View
+              style={[styles.childBadge, styles.hostBadge]}
+              accessibilityLabel={[item.hostContextLabel, item.hostContextHealthLabel]
+                .filter(Boolean)
+                .join(', ')}
+            >
               {/* Rows from hosts that predate hostId stamping are local: a remote row always carries one. */}
               {(parseExecutionHostId(item.hostContextHostId ?? item.hostId)?.kind ?? 'local') ===
               'local' ? (
@@ -176,6 +183,12 @@ function WorktreeListRowComponent<T extends WorktreeListRowItem>({
               <Text style={[styles.childBadgeText, styles.hostBadgeText]} numberOfLines={1}>
                 {item.hostContextLabel}
               </Text>
+              {/* Why separate Text: the name truncates first so the health word stays readable. */}
+              {item.hostContextHealthLabel ? (
+                <Text style={[styles.childBadgeText, styles.hostHealthText]}>
+                  {`· ${item.hostContextHealthLabel}`}
+                </Text>
+              ) : null}
             </View>
           ) : null}
           {/* Repo glyph+name only when not already grouped under this repo;
@@ -340,6 +353,9 @@ const styles = StyleSheet.create({
   },
   hostBadgeText: {
     flexShrink: 1
+  },
+  hostHealthText: {
+    flexShrink: 0
   },
   lineageToggle: {
     alignSelf: 'flex-start',

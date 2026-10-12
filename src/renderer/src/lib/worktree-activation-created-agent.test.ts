@@ -10,6 +10,7 @@ import {
   seedAlreadyActiveWorktree,
   seedEmptyActivatableWorktree
 } from '@/lib/worktree-activation-created-agent-test-state'
+import { stubRuntimeEnvironmentBridge } from '../runtime/runtime-environment-bridge-fixture'
 
 const initialAppStoreState = useAppStore.getState()
 
@@ -67,6 +68,16 @@ describe('activateAndRevealWorktree', () => {
     expect(result).toEqual({ primaryTabId: null })
     expect(markWorktreeVisited).toHaveBeenCalledWith(worktree.id)
     expect(recordWorktreeVisit).toHaveBeenCalledWith(worktree.id)
+  })
+
+  it('adds the activated project to an active project filter', () => {
+    const worktree = makeWorktree()
+    seedEmptyActivatableWorktree(worktree)
+    useAppStore.setState({ filterRepoIds: ['repo-2'] })
+
+    activateAndRevealWorktree(worktree.id)
+
+    expect(useAppStore.getState().filterRepoIds).toEqual(['repo-2', worktree.repoId])
   })
 
   it('does not relaunch the creation-time agent when reopening an empty worktree', () => {
@@ -269,13 +280,7 @@ describe('activateAndRevealWorktree', () => {
       result: { repoId: worktree.repoId, worktreeId: worktree.id, activated: true }
     })
     ;(globalThis as { __ORCA_WEB_CLIENT__?: boolean }).__ORCA_WEB_CLIENT__ = true
-    vi.stubGlobal('window', {
-      api: {
-        runtimeEnvironments: {
-          call: callRuntimeEnvironment
-        }
-      }
-    })
+    stubRuntimeEnvironmentBridge({ call: callRuntimeEnvironment })
 
     useAppStore.setState({
       repos: [
@@ -337,13 +342,7 @@ describe('activateAndRevealWorktree', () => {
       result: { repoId: worktree.repoId, worktreeId: worktree.id, activated: true }
     })
     ;(globalThis as { __ORCA_WEB_CLIENT__?: boolean }).__ORCA_WEB_CLIENT__ = true
-    vi.stubGlobal('window', {
-      api: {
-        runtimeEnvironments: {
-          call: callRuntimeEnvironment
-        }
-      }
-    })
+    stubRuntimeEnvironmentBridge({ call: callRuntimeEnvironment })
 
     useAppStore.setState({
       repos: [
@@ -407,13 +406,7 @@ describe('activateAndRevealWorktree', () => {
       result: { repoId: worktree.repoId, worktreeId: worktree.id, activated: true }
     })
     ;(globalThis as { __ORCA_WEB_CLIENT__?: boolean }).__ORCA_WEB_CLIENT__ = true
-    vi.stubGlobal('window', {
-      api: {
-        runtimeEnvironments: {
-          call: callRuntimeEnvironment
-        }
-      }
-    })
+    stubRuntimeEnvironmentBridge({ call: callRuntimeEnvironment })
 
     useAppStore.setState({
       repos: [
@@ -545,13 +538,9 @@ describe('activateAndRevealWorktree', () => {
         result: { tabId: 'host-tab-1', terminal: 'term_host' }
       })
     ;(globalThis as { __ORCA_WEB_CLIENT__?: boolean }).__ORCA_WEB_CLIENT__ = true
-    vi.stubGlobal('window', {
-      api: {
-        runtimeEnvironments: {
-          call: callRuntimeEnvironment,
-          subscribe: vi.fn()
-        }
-      }
+    stubRuntimeEnvironmentBridge({
+      call: callRuntimeEnvironment,
+      subscribe: vi.fn()
     })
 
     useAppStore.setState({
@@ -627,13 +616,9 @@ describe('activateAndRevealWorktree', () => {
       result: { tabId: 'host-tab-1', terminal: 'term_host' }
     })
     ;(globalThis as { __ORCA_WEB_CLIENT__?: boolean }).__ORCA_WEB_CLIENT__ = true
-    vi.stubGlobal('window', {
-      api: {
-        runtimeEnvironments: {
-          call: callRuntimeEnvironment,
-          subscribe: vi.fn()
-        }
-      }
+    stubRuntimeEnvironmentBridge({
+      call: callRuntimeEnvironment,
+      subscribe: vi.fn()
     })
 
     useAppStore.setState({

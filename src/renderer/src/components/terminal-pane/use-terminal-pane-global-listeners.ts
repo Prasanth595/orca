@@ -46,6 +46,7 @@ export function useTerminalPaneGlobalListeners(controller: TerminalPaneCloseCont
     restoreExpandedLayout,
     searchOpenRef,
     searchStateRef,
+    focusSearchInput,
     setExpandedPane,
     setSearchOpen,
     settings,
@@ -74,6 +75,7 @@ export function useTerminalPaneGlobalListeners(controller: TerminalPaneCloseCont
     persistLayoutSnapshot,
     toggleExpandPane,
     setSearchOpen,
+    focusSearchInput,
     onSearchSelectedText: handleSearchSelectedText,
     onRequestClosePane: handleRequestClosePane,
     onClearPaneScrollback: clearPaneScrollback,
@@ -88,7 +90,6 @@ export function useTerminalPaneGlobalListeners(controller: TerminalPaneCloseCont
   })
   useTerminalPaneGlobalEffects({
     tabId,
-    worktreeId,
     cwd,
     isActive,
     isVisible,

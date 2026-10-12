@@ -1,3 +1,4 @@
+import type { StoredAgentAttentionUnread } from '@/attention/agent-attention-contract'
 import type { ClosedTerminalTabTombstonesByTabId } from '../../../../shared/closed-terminal-tab-tombstones'
 import type { TerminalLayoutSnapshot, TerminalTab } from '../../../../shared/terminal-tab-types'
 import type { TuiAgent } from '../../../../shared/tui-agent'
@@ -10,11 +11,6 @@ import type { ExecutionHostId } from '../../../../shared/execution-host'
 import type { StartupCommandDelivery } from '../../../../shared/codex-startup-delivery'
 import type { SessionOptionValue } from '../../../../shared/native-chat-session-options'
 import type { AgentStartedTelemetry } from '../../lib/worktree-startup-payload'
-import type {
-  DirectSshLivePtyBinding,
-  DirectSshPaneRetryAttempt,
-  DirectSshPaneRetryHistory
-} from '../slices/direct-ssh-terminal-recovery'
 import type { NativeChatLaunchDraft, NativeChatLaunchPrompt } from '@/lib/native-chat-launch-prompt'
 import type { HostSessionSlices } from '@/lib/workspace-session-host-split'
 import type { AutomaticAgentResumeClaim, CodexRestartNotice } from './terminal-contracts'
@@ -29,20 +25,20 @@ export type TerminalState = {
   activeTabIdByWorktree: Record<string, string | null>
   ptyIdsByTabId: Record<string, string[]>
   runtimePaneTitlesByTabId: Record<string, Record<number, string>>
-  unreadTerminalTabs: Record<string, true>
-  unreadTerminalPanes: Record<string, true>
-  unreadAgentCompletionPanes: Record<string, true>
+  unreadTerminalTabs: Record<string, StoredAgentAttentionUnread>
+  unreadTerminalPanes: Record<string, StoredAgentAttentionUnread>
+  unreadAgentCompletionPanes: Record<string, StoredAgentAttentionUnread>
   /** Scoped exit suppression and reference-counted shutdown ownership prevent teardown races. */
   suppressedPtyExitIds: Record<string, true>
   pendingPtyShutdownIds: Record<string, number>
   pendingCodexPaneRestartIds: Record<string, true>
   codexRestartNoticeByPtyId: Record<string, CodexRestartNotice>
-  directSshPaneRetryByTabId: Record<string, DirectSshPaneRetryAttempt>
-  directSshLivePtyBindingByTabId: Record<string, DirectSshLivePtyBinding>
-  directSshPaneRetryHistoryByTabId: Record<string, DirectSshPaneRetryHistory>
   expandedPaneByTabId: Record<string, boolean>
   canExpandPaneByTabId: Record<string, boolean>
   terminalLayoutsByTabId: Record<string, TerminalLayoutSnapshot>
+  /** Ordinary-park scrollback, tabId -> leafId -> buffer. Never uploaded to a peer; see
+   *  WorkspaceSessionState.localOnlyScrollbackByTabId. Read via resolveLeafScrollbackBuffers only. */
+  localOnlyScrollbackByTabId: Record<string, Record<string, string>>
   recentQuickCommandIdByGroup: Record<string, string>
   /** Runtime-only claim bridging startup payload consumption until terminal hooks mount. */
   automaticAgentResumeClaimsByTabId: Record<string, AutomaticAgentResumeClaim>

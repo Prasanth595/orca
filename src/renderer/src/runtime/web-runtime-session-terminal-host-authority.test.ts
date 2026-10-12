@@ -15,6 +15,7 @@ import {
   resetTerminalCreateEnvironment,
   stubTerminalCreateEnvironment
 } from './web-runtime-session-test-harness'
+import { stubRuntimeEnvironmentBridge } from './runtime-environment-bridge-fixture'
 
 const mocks = vi.hoisted(() => ({
   getState: vi.fn(),
@@ -100,9 +101,7 @@ describe('createWebRuntimeSessionTerminal', () => {
         result: { tab: { id: 'host-tab-1', leafId: 'host-leaf-1' } }
       })
       .mockResolvedValueOnce({ id: 'list', ok: true, result: makeSnapshot() })
-    vi.stubGlobal('window', {
-      api: { runtimeEnvironments: { call: runtimeCall } }
-    })
+    stubRuntimeEnvironmentBridge({ call: runtimeCall })
 
     await expect(
       createWebRuntimeSessionTerminal({
@@ -114,14 +113,18 @@ describe('createWebRuntimeSessionTerminal', () => {
     expect(selectedHosts).toEqual([RUNTIME_EXECUTION_HOST_ID])
   })
 
-  it.each([
-    { sessionKind: 'fresh' as const, activate: true },
-    { sessionKind: 'fresh' as const, activate: false },
-    { sessionKind: 'resume' as const, activate: true },
-    { sessionKind: 'resume' as const, activate: false }
-  ])(
-    'keeps $sessionKind host creation background with activate=$activate while focus stays client-owned',
-    async ({ sessionKind, activate }) => {
+  it.each(
+    [
+      { sessionKind: 'fresh' as const, activate: true },
+      { sessionKind: 'fresh' as const, activate: false },
+      { sessionKind: 'resume' as const, activate: true },
+      { sessionKind: 'resume' as const, activate: false }
+    ].flatMap((entry) =>
+      [true, false].map((keyboardSupported) => ({ ...entry, keyboardSupported }))
+    )
+  )(
+    'keeps $sessionKind host creation background with activate=$activate and keyboard=$keyboardSupported',
+    async ({ sessionKind, activate, keyboardSupported }) => {
       const hostTabId = `host-${sessionKind}-${activate ? 'active' : 'background'}`
       const runtimeCall = vi.fn(async (request: { method: string }) => {
         if (request.method === 'status.get') {
@@ -133,7 +136,10 @@ describe('createWebRuntimeSessionTerminal', () => {
               graphStatus: 'ready',
               runtimeProtocolVersion: 3,
               minCompatibleRuntimeClientVersion: 2,
-              capabilities: ['agent-session.host-authority.v1']
+              capabilities: [
+                'agent-session.host-authority.v1',
+                ...(keyboardSupported ? ['agent-session.keyboard.v1'] : [])
+              ]
             }
           }
         }
@@ -157,9 +163,7 @@ describe('createWebRuntimeSessionTerminal', () => {
         }
         return { id: 'list', ok: true, result: makeSnapshot() }
       })
-      vi.stubGlobal('window', {
-        api: { runtimeEnvironments: { call: runtimeCall } }
-      })
+      stubRuntimeEnvironmentBridge({ call: runtimeCall })
 
       await expect(
         createWebRuntimeSessionTerminal({
@@ -186,6 +190,11 @@ describe('createWebRuntimeSessionTerminal', () => {
         method: authorityMethod,
         params: { presentation: 'background' }
       })
+      if (keyboardSupported) {
+        expect(authorityRequest).toHaveProperty('params.terminalKittyKeyboardProtocol', true)
+      } else {
+        expect(authorityRequest).not.toHaveProperty('params.terminalKittyKeyboardProtocol')
+      }
       expect(peekWebSessionFocusIntent({ environmentId: ENVIRONMENT_ID }, WORKTREE_ID)).toEqual(
         activate ? { hostTabId, leafId: FOCUS_LEAF_ID } : null
       )
@@ -243,9 +252,7 @@ describe('createWebRuntimeSessionTerminal', () => {
         }
         return { id: 'list', ok: true, result: makeSnapshot() }
       })
-      vi.stubGlobal('window', {
-        api: { runtimeEnvironments: { call: runtimeCall } }
-      })
+      stubRuntimeEnvironmentBridge({ call: runtimeCall })
 
       await expect(
         createWebRuntimeSessionTerminal({
@@ -322,13 +329,7 @@ describe('createWebRuntimeSessionTerminal', () => {
         result: snapshot
       })
 
-    vi.stubGlobal('window', {
-      api: {
-        runtimeEnvironments: {
-          call: runtimeCall
-        }
-      }
-    })
+    stubRuntimeEnvironmentBridge({ call: runtimeCall })
 
     await expect(
       createWebRuntimeSessionTerminal({
@@ -437,9 +438,7 @@ describe('createWebRuntimeSessionTerminal', () => {
         }
         return { id: 'ok', ok: true, result: makeSnapshot() }
       })
-      vi.stubGlobal('window', {
-        api: { runtimeEnvironments: { call: runtimeCall } }
-      })
+      stubRuntimeEnvironmentBridge({ call: runtimeCall })
 
       await expect(
         createWebRuntimeSessionTerminal({
@@ -497,9 +496,7 @@ describe('createWebRuntimeSessionTerminal', () => {
       }
       return { id: 'list', ok: true, result: makeSnapshot() }
     })
-    vi.stubGlobal('window', {
-      api: { runtimeEnvironments: { call: runtimeCall } }
-    })
+    stubRuntimeEnvironmentBridge({ call: runtimeCall })
 
     await expect(
       createWebRuntimeSessionTerminal({
@@ -545,9 +542,7 @@ describe('createWebRuntimeSessionTerminal', () => {
       }
       return { id: 'list', ok: true, result: makeSnapshot() }
     })
-    vi.stubGlobal('window', {
-      api: { runtimeEnvironments: { call: runtimeCall } }
-    })
+    stubRuntimeEnvironmentBridge({ call: runtimeCall })
 
     await expect(
       createWebRuntimeAgentSessionTerminal({
@@ -607,9 +602,7 @@ describe('createWebRuntimeSessionTerminal', () => {
       }
       return { id: 'list', ok: true, result: makeSnapshot() }
     })
-    vi.stubGlobal('window', {
-      api: { runtimeEnvironments: { call: runtimeCall } }
-    })
+    stubRuntimeEnvironmentBridge({ call: runtimeCall })
 
     await expect(
       createWebRuntimeAgentSessionTerminalWithLaunchDraft({

@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from 'react'
-import { AlertTriangle, Loader2, MonitorSmartphone, Server, ServerOff } from 'lucide-react'
+import { Loader2, MonitorSmartphone, Server, ServerOff } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   DropdownMenu,
@@ -18,13 +18,9 @@ import {
 } from '../../../../shared/execution-host'
 import { isUserManagedRuntimeEnvironment } from '../../../../shared/runtime-environments'
 import { RuntimeHostStatusRow } from './RuntimeHostStatusRow'
-import {
-  connectedHostCountLabel,
-  connectingHostsLabel,
-  workspaceSyncProblemLabel
-} from './ssh-status-segment-copy'
+import { connectedHostCountLabel, connectingHostsLabel } from './ssh-status-segment-copy'
 import { SshTargetStatusRow } from './SshTargetStatusRow'
-import { connectRuntimeEnvironmentAndRecordStatus } from './runtime-environment-explicit-connect'
+import { connectRuntimeHostAndReloadProjects } from './runtime-environment-explicit-connect'
 import {
   overallDotColor,
   overallStatus,
@@ -33,34 +29,9 @@ import {
 } from './remote-host-connection-status'
 import {
   isConnectedRuntimeHostState,
-  runtimeHostConnectionState,
+  runtimeHostConnectionStateForEntry,
   runtimeStatusForOverall
 } from '@/runtime/runtime-host-connection-state'
-import { refreshRuntimeProjectWorktreesAndLineage } from '@/hooks/runtime-project-refresh-scheduler'
-import type { ExecutionHostId } from '../../../../shared/execution-host'
-
-export async function connectRuntimeHostForNavigation(args: {
-  environmentId: string
-  refreshStatus: (environmentId: string, timeoutMs: number) => Promise<boolean>
-  fetchRepos: (environmentId: string) => Promise<{ id: string }[]>
-  fetchWorktrees: (
-    repoId: string,
-    options: { executionHostId: ExecutionHostId; suppressRemoteLineageRefresh: true }
-  ) => Promise<unknown>
-  fetchLineage: (options: { executionHostId: ExecutionHostId }) => Promise<unknown>
-}): Promise<boolean> {
-  if (!(await args.refreshStatus(args.environmentId, 5_000))) {
-    return false
-  }
-  const repos = await args.fetchRepos(args.environmentId)
-  await refreshRuntimeProjectWorktreesAndLineage(
-    args.environmentId,
-    repos,
-    args.fetchWorktrees,
-    args.fetchLineage
-  )
-  return true
-}
 
 export function SshStatusSegment({
   compact,
@@ -74,11 +45,8 @@ export function SshStatusSegment({
   const settings = useAppStore((s) => s.settings)
   const runtimeEnvironments = useAppStore((s) => s.runtimeEnvironments)
   const runtimeStatusByEnvironmentId = useAppStore((s) => s.runtimeStatusByEnvironmentId)
-  const setRuntimeEnvironmentStatus = useAppStore((s) => s.setRuntimeEnvironmentStatus)
+  const readRuntimeHostStatusSnapshots = useAppStore((s) => s.readRuntimeHostStatusSnapshots)
   const hydrateRuntimeEnvironmentStatuses = useAppStore((s) => s.hydrateRuntimeEnvironmentStatuses)
-  const remoteWorkspaceSyncStatusByTargetId = useAppStore(
-    (s) => s.remoteWorkspaceSyncStatusByTargetId
-  )
   const setActiveView = useAppStore((s) => s.setActiveView)
   const openSettingsTarget = useAppStore((s) => s.openSettingsTarget)
   const recordFeatureInteraction = useAppStore((s) => s.recordFeatureInteraction)
@@ -93,8 +61,7 @@ export function SshStatusSegment({
       return {
         id,
         label,
-        status: (state?.status ?? 'disconnected') as SshConnectionStatus,
-        syncStatus: remoteWorkspaceSyncStatusByTargetId[id]
+        status: state?.status ?? ('disconnected' satisfies SshConnectionStatus)
       }
     })
   const runtimeHosts = runtimeEnvironments
@@ -105,7 +72,7 @@ export function SshStatusSegment({
       return {
         id: environment.id,
         label: override || environment.name || environment.id,
-        hasStatusEntry: Boolean(statusEntry),
+        snapshot: statusEntry?.snapshot,
         status: statusEntry?.status ?? null,
         active: settings?.activeRuntimeEnvironmentId === environment.id,
         remoteControl: statusEntry?.remoteControl ?? statusEntry?.status?.remoteControl ?? null
@@ -113,7 +80,7 @@ export function SshStatusSegment({
     })
   const runtimeHostRows = runtimeHosts.map((host) => ({
     ...host,
-    state: runtimeHostConnectionState(host)
+    state: runtimeHostConnectionStateForEntry(runtimeStatusByEnvironmentId.get(host.id))
   }))
   // Available remote servers are online even when they are not the active runtime.
   // Keep host health separate from the advanced active-server selection.
@@ -127,24 +94,9 @@ export function SshStatusSegment({
   const disconnectedTargets = targets.filter((target) => target.status !== 'connected')
   const connectRuntimeHost = useCallback(
     async (environmentId: string): Promise<void> => {
-      const store = useAppStore.getState()
-      const reachable = await connectRuntimeHostForNavigation({
-        environmentId,
-        refreshStatus: connectRuntimeEnvironmentAndRecordStatus,
-        fetchRepos: store.fetchRuntimeEnvironmentRepos,
-        fetchWorktrees: store.fetchWorktrees,
-        fetchLineage: store.fetchWorktreeLineage
-      })
-      if (!reachable) {
-        toast.error(
-          translate(
-            'auto.components.status.bar.SshStatusSegment.runtime_connect_unavailable',
-            'Remote host is not reachable'
-          )
-        )
-        return
+      if (await connectRuntimeHostAndReloadProjects(environmentId)) {
+        recordFeatureInteraction('ssh')
       }
-      recordFeatureInteraction('ssh')
     },
     [recordFeatureInteraction]
   )
@@ -152,11 +104,7 @@ export function SshStatusSegment({
     async (environmentId: string): Promise<void> => {
       try {
         await window.api.runtimeEnvironments.disconnect({ selector: environmentId })
-        setRuntimeEnvironmentStatus(
-          environmentId,
-          { status: null, checkedAt: Date.now() },
-          { suppressDisconnectToast: true }
-        )
+        await readRuntimeHostStatusSnapshots()
         recordFeatureInteraction('ssh')
       } catch (err) {
         toast.error(
@@ -169,7 +117,7 @@ export function SshStatusSegment({
         )
       }
     },
-    [recordFeatureInteraction, setRuntimeEnvironmentStatus]
+    [recordFeatureInteraction, readRuntimeHostStatusSnapshots]
   )
 
   if (targets.length === 0 && runtimeHosts.length === 0) {
@@ -183,12 +131,6 @@ export function SshStatusSegment({
   const overall = overallStatus(statuses)
   const connectedHostCount = statuses.filter((status) => status === 'connected').length
   const anyConnecting = overall === 'connecting'
-  const syncProblem = targets.find(
-    (t) => t.syncStatus?.phase === 'conflict' || t.syncStatus?.phase === 'error'
-  )
-  const syncProblemLabel = syncProblem
-    ? workspaceSyncProblemLabel(syncProblem.syncStatus?.phase)
-    : null
   return (
     <DropdownMenu
       onOpenChange={(open) => {
@@ -210,13 +152,9 @@ export function SshStatusSegment({
           {iconOnly ? (
             <span className="inline-flex items-center gap-1">
               <span
-                className={`inline-block size-2 rounded-full ${
-                  syncProblem ? 'bg-destructive' : overallDotColor(overall, connectedHostCount)
-                }`}
+                className={`inline-block size-2 rounded-full ${overallDotColor(overall, connectedHostCount)}`}
               />
-              {syncProblem ? (
-                <AlertTriangle className="size-3 text-destructive" />
-              ) : anyConnecting ? (
+              {anyConnecting ? (
                 <Loader2 className="size-3 animate-spin text-muted-foreground" />
               ) : (
                 <MonitorSmartphone className="size-3 text-muted-foreground" />
@@ -224,9 +162,7 @@ export function SshStatusSegment({
             </span>
           ) : (
             <span className="inline-flex items-center gap-1.5">
-              {syncProblem ? (
-                <AlertTriangle className="size-3 text-destructive" />
-              ) : anyConnecting ? (
+              {anyConnecting ? (
                 <Loader2 className="size-3 animate-spin text-yellow-500" />
               ) : overall === 'connected' ? (
                 <Server className="size-3 text-emerald-500" />
@@ -237,18 +173,15 @@ export function SshStatusSegment({
               )}
               {!compact && (
                 <span className="text-[11px]">
-                  <span className={syncProblem ? 'text-destructive' : 'text-muted-foreground'}>
-                    {syncProblemLabel ??
-                      (anyConnecting
-                        ? connectingHostsLabel()
-                        : connectedHostCountLabel(connectedHostCount))}
+                  <span className="text-muted-foreground">
+                    {anyConnecting
+                      ? connectingHostsLabel()
+                      : connectedHostCountLabel(connectedHostCount)}
                   </span>
                 </span>
               )}
               <span
-                className={`inline-block size-1.5 rounded-full ${
-                  syncProblem ? 'bg-destructive' : overallDotColor(overall, connectedHostCount)
-                }`}
+                className={`inline-block size-1.5 rounded-full ${overallDotColor(overall, connectedHostCount)}`}
               />
             </span>
           )}
@@ -275,13 +208,7 @@ export function SshStatusSegment({
           />
         ))}
         {connectedTargets.map((t) => (
-          <SshTargetStatusRow
-            key={t.id}
-            targetId={t.id}
-            label={t.label}
-            status={t.status}
-            syncStatus={t.syncStatus}
-          />
+          <SshTargetStatusRow key={t.id} targetId={t.id} label={t.label} status={t.status} />
         ))}
         {inactiveRuntimeHosts.map((host) => (
           <RuntimeHostStatusRow
@@ -295,13 +222,7 @@ export function SshStatusSegment({
           />
         ))}
         {disconnectedTargets.map((t) => (
-          <SshTargetStatusRow
-            key={t.id}
-            targetId={t.id}
-            label={t.label}
-            status={t.status}
-            syncStatus={t.syncStatus}
-          />
+          <SshTargetStatusRow key={t.id} targetId={t.id} label={t.label} status={t.status} />
         ))}
         <DropdownMenuSeparator />
         <DropdownMenuItem
