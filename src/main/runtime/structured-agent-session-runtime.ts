@@ -10,6 +10,7 @@
 // A process whose journal will not open installs none and answers every
 // structured request with the refusal that says why.
 
+import type { AgentSessionAccountKind } from '../../shared/agent-session-availability'
 import type { PiRpcSessionDeps } from '../pi/rpc-session'
 import type { PermissionMode } from '@anthropic-ai/claude-agent-sdk'
 import { existsSync } from 'node:fs'
@@ -117,9 +118,6 @@ export type StructuredAgentSessionRuntimeDeps = {
   readProcessStartTime?: CodexStructuredSessionAdapterDeps['readProcessStartTime']
   /** Required, and asserted at install time — saved Arguments must never be silently omitted. */
   resolveLaunchArgs: (provider: AgentSessionRecord['provider']) => Promise<string[]> | string[]
-  resolveLaunchEnv?: () => Promise<NodeJS.ProcessEnv>
-  resolveLaunchEnvOverlay?: () => Promise<Record<string, string>> | Record<string, string>
-  resolveClaudeLaunchEnv?: () => Promise<Record<string, string>> | Record<string, string>
   /** Required, and asserted at install time — an absent policy must not degrade to a guess. */
   resolveClaudeAuthPolicy: () => Promise<ClaudeStructuredAuthPolicy> | ClaudeStructuredAuthPolicy
   /** The user's Agent Permissions setting for Claude; absent means prompting. */
@@ -128,14 +126,13 @@ export type StructuredAgentSessionRuntimeDeps = {
   resolveCodexPermissionPolicy?: () => CodexStructuredPermissionPolicy
   /** The same setting for a protocol-driven (ACP) agent: whether it runs with full access. */
   resolveAgentFullAccess?: (agent: string) => boolean
-  /** The user's per-agent environment overlay, for agents with no lane-specific resolver. */
+  /** The user's per-agent environment overlay from settings, laid over every agent's base env. */
   resolveAgentLaunchEnv?: (agent: string) => Record<string, string>
   /** The settings a per-agent Command override is read from, for the same agents. */
   resolveAgentCommandSettings?: () => StructuredAgentCommandSettings
   resolveEnvironment?: () => Promise<NodeJS.ProcessEnv>
   /** Which login-shell variables Codex and Claude children inherit; absent inherits all. */
   resolveShellEnvironmentPolicy?: () => NativeChatShellEnvironmentPolicy
-  resolveCodexOverrides?: () => NodeJS.ProcessEnv
   /** Where every failure the runtime and its host carry on past is reported. Required, so no path
    *  can drop one: the desktop and headless hosts both pass the trace-file logger. */
   logger: StructuredAgentSessionLogger
@@ -146,6 +143,9 @@ export type StructuredAgentSessionRuntimeDeps = {
   statusSink?: StructuredAgentSessionHostDeps['statusSink']
   /** See `StructuredAgentSessionHostDeps.hasOpenDispatch`. */
   hasOpenDispatch?: StructuredAgentSessionHostDeps['hasOpenDispatch']
+  resolveCodexAccountKind?: (home: string) => AgentSessionAccountKind | undefined
+  /** Launch prep's sync for a probed home; see `CodexModelCatalogProbeDeps.prepareHome`. */
+  prepareCodexCatalogProbeHome?: (homePath: string) => void
   /** See `StructuredAgentSessionHostDeps.onSessionTabHidden`. */
   onSessionTabHidden?: StructuredAgentSessionHostDeps['onSessionTabHidden']
   /** Host-owned phone delivery and reconciliation from the current journal projection. */
@@ -319,7 +319,13 @@ async function installOnJournal(
     ...(deps.statusSink ? { statusSink: deps.statusSink } : {}),
     ...(deps.hasOpenDispatch ? { hasOpenDispatch: deps.hasOpenDispatch } : {}),
     ...(deps.onSessionTabHidden ? { onSessionTabHidden: deps.onSessionTabHidden } : {}),
-    ...(await modelCatalogHostDeps({ store, agents, deps, envResolvers }))
+    ...(await modelCatalogHostDeps({
+      store,
+      agents,
+      registrations: STRUCTURED_AGENT_RUNTIME_REGISTRATIONS,
+      deps,
+      environment: envResolvers
+    }))
   })
   if (deps.attentionDelivery) {
     const installed = host
@@ -340,6 +346,9 @@ async function installOnJournal(
     })
   }
   setStructuredAgentSessionHost(host)
+  // The host starts with its runtime, local or remote, so this is the runtime-start listing.
+  const modelCatalog = host.deps.modelCatalog
+  void modelCatalog?.prewarm()
   installAgentSessionAttachments({
     stateDirectory: deps.stateDirectory,
     store,
@@ -360,6 +369,9 @@ async function installOnJournal(
     adapter,
     journalDatabase,
     waitForRecovery: lifecycle.drain,
-    ...(stopVisualsSweep ? { stopBackgroundWork: stopVisualsSweep } : {})
+    stopBackgroundWork: () => {
+      stopVisualsSweep?.()
+      modelCatalog?.stop()
+    }
   }
 }

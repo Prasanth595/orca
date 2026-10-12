@@ -40,7 +40,8 @@ export function useMobileNativeChatController(args: {
   connState: ConnectionState
   /** Host capability fact from the shared runtime status probe. */
   agentSessionHostSupport?: StructuredAgentSessionHostSupport | null
-  onSendError: (message: string) => void
+  /** Forwarded to the session lane, a refusal's cause with it. */
+  onSendError: Parameters<typeof useMobileNativeChatSessionLane>[0]['onSendError']
   /** Retires a held failure banner. Any accepted chat write clears it — a delivered
    *  answer or permission reply must not sit under a stale "not sent". */
   onSendResolved: () => void
@@ -225,7 +226,7 @@ export function useMobileNativeChatController(args: {
   })
 
   const structuredNativeChatSend = useMobileStructuredNativeChatSendBridge({
-    agent: activeChatResolution?.agent === 'claude' ? 'claude' : 'codex',
+    agent: activeChatResolution?.agent,
     sendStructured: structuredNativeChat.sendWithOutcome,
     captureSendOrigin,
     clearDraftForSend,
@@ -300,6 +301,8 @@ export function useMobileNativeChatController(args: {
     nativeChatWorkingStartedAt: activeChatStructured ? structuredNativeChat.workingStartedAt : null,
     nativeChatSettledTurns: activeChatStructured ? structuredNativeChat.settledTurns : null,
     nativeChatTurnJournal: activeChatStructured ? structuredNativeChat.turnJournal : null,
+    // Only the structured lane names a refusal's cause; the bridge lane's starved ones drop none.
+    nativeChatCommandRefusalCauses: structuredNativeChat.commandRefusalCauses,
     nativeChatCanStop: activeChatStructured
       ? structuredNativeChat.turnId !== null
       : nativeChatAgentWorking,
@@ -329,6 +332,8 @@ export function useMobileNativeChatController(args: {
       ? structuredNativeChatSend.sendWithOutcome
       : handleNativeChatSendWithOutcome,
     readSeededLaunchDraft,
-    nativeChatSessionOptions
+    nativeChatSessionOptions,
+    // A terminal-backed chat pastes images into the agent's own input instead.
+    nativeChatAcceptsImages: !activeChatStructured || structuredNativeChat.acceptsImages
   }
 }

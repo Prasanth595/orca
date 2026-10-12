@@ -1,7 +1,6 @@
 import { runCoalescedProbe, type CoalescedProbes } from '../git/coalesced-probe'
 import { NEGATIVE_ENTRY_TTL_MS } from '../git/remote-ref-probe-cache'
 import { glabExecFileAsync } from '../git/runner'
-import { getSshGitProviderGeneration } from '../providers/ssh-git-dispatch'
 import { DEFAULT_GITLAB_HOSTS, normalizeGitLabHost } from './project-ref-parser'
 import type { GitAdmissionTier } from '../git/command-runner/git-exec-options'
 
@@ -14,10 +13,7 @@ export type LocalGitExecOptions = {
 const GLAB_KNOWN_HOSTS_TIMEOUT_MS = 10_000
 const UNAUTHENTICATED_HOSTS_MAX_ENTRIES = 128
 export const KNOWN_HOSTS_CACHE_MAX_ENTRIES = 128
-const knownHostsCacheByExecutionContext = new Map<
-  string,
-  { key: string; hosts: readonly string[] }
->()
+const knownHostsCacheByExecutionContext = new Map<string, readonly string[]>()
 const knownHostsInFlightByExecutionContext: CoalescedProbes<readonly string[]> = new Map()
 const unauthenticatedHostExpiries = new Map<string, number>()
 
@@ -26,23 +22,9 @@ function knownHostsExecutionKey(
   localGitOptions: LocalGitExecOptions = {}
 ): string {
   if (connectionId) {
-    // Why: reconnecting can replace the SSH/relay execution host under the same id.
-    return `connection:${connectionId}:${getSshGitProviderGeneration(connectionId)}`
+    return `connection:${connectionId}`
   }
   return localGitOptions.wslDistro ? `wsl:${localGitOptions.wslDistro}` : 'native'
-}
-
-function knownHostsCacheContext(
-  connectionId?: string | null,
-  localGitOptions: LocalGitExecOptions = {}
-): { key: string; cacheKey: string } {
-  const key = knownHostsExecutionKey(connectionId, localGitOptions)
-  const cacheKey = connectionId ? `connection:${connectionId}` : key
-  const cached = knownHostsCacheByExecutionContext.get(cacheKey)
-  if (cached && cached.key !== key) {
-    knownHostsCacheByExecutionContext.delete(cacheKey)
-  }
-  return { key, cacheKey }
 }
 
 /** @internal - exposed for tests only */
@@ -136,8 +118,8 @@ export function rememberGlabKnownHosts(
   connectionId?: string | null,
   localGitOptions: LocalGitExecOptions = {}
 ): void {
-  const { key, cacheKey } = knownHostsCacheContext(connectionId, localGitOptions)
-  const cached = knownHostsCacheByExecutionContext.get(cacheKey)?.hosts ?? DEFAULT_GITLAB_HOSTS
+  const key = knownHostsExecutionKey(connectionId, localGitOptions)
+  const cached = knownHostsCacheByExecutionContext.get(key) ?? DEFAULT_GITLAB_HOSTS
   const seen = new Set(cached.map(normalizeGitLabHost))
   const additions: string[] = []
   for (const host of hosts) {
@@ -154,7 +136,7 @@ export function rememberGlabKnownHosts(
   if (additions.length === 0) {
     return
   }
-  knownHostsCacheByExecutionContext.set(cacheKey, { key, hosts: [...cached, ...additions] })
+  knownHostsCacheByExecutionContext.set(key, [...cached, ...additions])
   trimKnownHostsCache()
 }
 
@@ -162,14 +144,11 @@ export async function getGlabKnownHosts(
   connectionId?: string | null,
   localGitOptions: LocalGitExecOptions = {}
 ): Promise<readonly string[]> {
-  const { key, cacheKey } = knownHostsCacheContext(connectionId, localGitOptions)
-  const cached = knownHostsCacheByExecutionContext.get(cacheKey)?.hosts
+  const key = knownHostsExecutionKey(connectionId, localGitOptions)
+  const cached = knownHostsCacheByExecutionContext.get(key)
   if (cached) {
-    const entry = knownHostsCacheByExecutionContext.get(cacheKey)
-    if (entry) {
-      knownHostsCacheByExecutionContext.delete(cacheKey)
-      knownHostsCacheByExecutionContext.set(cacheKey, entry)
-    }
+    knownHostsCacheByExecutionContext.delete(key)
+    knownHostsCacheByExecutionContext.set(key, cached)
     return cached
   }
   // Why: only join a probe still young enough to answer, so a wedged one cannot
@@ -177,7 +156,7 @@ export async function getGlabKnownHosts(
   return runCoalescedProbe(
     knownHostsInFlightByExecutionContext,
     key,
-    (ownsKey) => probeGlabKnownHosts(key, cacheKey, ownsKey, connectionId, localGitOptions),
+    (ownsKey) => probeGlabKnownHosts(key, ownsKey, connectionId, localGitOptions),
     undefined,
     localGitOptions.signal
   )
@@ -185,14 +164,13 @@ export async function getGlabKnownHosts(
 
 async function probeGlabKnownHosts(
   key: string,
-  cacheKey: string,
   ownsKey: () => boolean,
   connectionId?: string | null,
   localGitOptions: LocalGitExecOptions = {}
 ): Promise<readonly string[]> {
   try {
-    // Why: auth config belongs to the executing host; do not share native, WSL,
-    // or reconnected SSH/relay results, and bound an otherwise global probe.
+    // Why: auth config belongs to the executing host; do not share native, WSL or
+    // connection results, and bound an otherwise global probe.
     const { stdout, stderr } = await glabExecFileAsync(['auth', 'status'], {
       timeout: GLAB_KNOWN_HOSTS_TIMEOUT_MS,
       ...(localGitOptions.signal ? { signal: localGitOptions.signal } : {}),
@@ -206,19 +184,17 @@ async function probeGlabKnownHosts(
       ...(localGitOptions.admissionTier ? { admissionTier: localGitOptions.admissionTier } : {})
     })
     const hosts = parseGlabAuthStatusHosts(`${stdout}\n${stderr}`)
-    const cached = knownHostsCacheByExecutionContext.get(cacheKey)
-    const remembered = cached?.key === key ? cached.hosts : []
+    const remembered = knownHostsCacheByExecutionContext.get(key) ?? []
     const merged = Array.from(new Set([...DEFAULT_GITLAB_HOSTS, ...remembered, ...hosts]))
-    if (ownsKey() && knownHostsExecutionKey(connectionId, localGitOptions) === key) {
-      knownHostsCacheByExecutionContext.set(cacheKey, { key, hosts: merged })
+    if (ownsKey()) {
+      knownHostsCacheByExecutionContext.set(key, merged)
       trimKnownHostsCache()
     }
     return merged
   } catch {
     localGitOptions.signal?.throwIfAborted()
     // Keep failures uncached so auth or tunnel recovery is discovered later.
-    const cached = knownHostsCacheByExecutionContext.get(cacheKey)
-    return cached?.key === key ? cached.hosts : [...DEFAULT_GITLAB_HOSTS]
+    return knownHostsCacheByExecutionContext.get(key) ?? [...DEFAULT_GITLAB_HOSTS]
   }
 }
 

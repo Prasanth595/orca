@@ -2,6 +2,11 @@
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { GitLabWorkItem, GitLabWorkItemDetails } from '../../../../shared/gitlab-types'
+const ownerRpc = vi.hoisted(() => vi.fn())
+vi.mock('../../runtime/runtime-rpc-client', () => ({
+  callRuntimeRpc: ownerRpc,
+  runtimeEnvironmentSupportsCapability: () => Promise.resolve(true)
+}))
 import { useGitLabItemDetailsEffect } from './use-gitlab-item-dialog-effects'
 import { useGitLabItemDialogState } from './use-gitlab-item-dialog-state'
 const item: GitLabWorkItem = {
@@ -26,6 +31,7 @@ const details: GitLabWorkItemDetails = {
 }
 afterEach(() => {
   cleanup()
+  ownerRpc.mockReset()
   cancelWorkItemDetails.mockClear()
   if (originalApi) {
     Object.defineProperty(window, 'api', originalApi)
@@ -96,4 +102,45 @@ it.each([false, true])('keeps text when previews settle (failure=%s)', async (fa
   expect(result.current.error).toBeNull()
   expect(result.current.details?.body).toBe(details.body)
   expect(result.current.details?.imageSources).toEqual(failure ? undefined : imageSources)
+})
+
+it('loads text and previews from the owning server and cancels there on unmount', async () => {
+  const localFetch = vi.fn()
+  Object.defineProperty(window, 'api', {
+    configurable: true,
+    value: { gl: { workItemDetails: localFetch, cancelWorkItemDetails } }
+  })
+  let previewSignal: AbortSignal | undefined
+  ownerRpc
+    .mockResolvedValueOnce(details)
+    .mockImplementationOnce((_target, _method, _params, options) => {
+      previewSignal = options.signal
+      return new Promise((_resolve, reject) => {
+        options.signal.addEventListener('abort', () => reject(new Error('cancelled')), {
+          once: true
+        })
+      })
+    })
+  const serverSelector = {
+    ...selector,
+    repoId: 'server-repo',
+    repoOwnerExecutionHostId: 'runtime:owner-server'
+  }
+  const { result, unmount } = renderHook(() => {
+    const state = useGitLabItemDialogState(item.id)
+    useGitLabItemDetailsEffect(item, serverSelector, state)
+    return state
+  })
+  await waitFor(() => expect(ownerRpc).toHaveBeenCalledTimes(2))
+  expect(result.current.details?.body).toBe(details.body)
+  expect(localFetch).not.toHaveBeenCalled()
+  expect(ownerRpc).toHaveBeenLastCalledWith(
+    { kind: 'environment', environmentId: 'owner-server' },
+    'gitlab.workItemDetails',
+    expect.objectContaining({ repo: 'id:server-repo', includeImages: true }),
+    expect.objectContaining({ signal: previewSignal })
+  )
+  unmount()
+  expect(previewSignal?.aborted).toBe(true)
+  expect(cancelWorkItemDetails).not.toHaveBeenCalled()
 })

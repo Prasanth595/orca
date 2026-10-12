@@ -19,11 +19,12 @@ import type {
   SshManagedServerUpdateNote,
   SshTarget
 } from '../../shared/ssh-types'
-import { MANAGED_ORCAD_FENCED_DETAIL, type OrcadManagedServing } from './orcad-managed-serving'
+import type { OrcadManagedServing } from './orcad-managed-serving'
 import {
   checkManagedServerUpdate,
   type ManagedServerUpdateDeps
 } from './managed-server-update-check'
+import { managedResultAfterUpdate, unservedManagedResult } from './managed-server-serving-gate'
 import {
   classifyOrcadHostUnavailable,
   ORCAD_TUNNEL_UNAVAILABLE_REASON
@@ -65,6 +66,8 @@ export type HostServerTerminalVerdict = {
   count: number
   /** Counted only by the host-wide census: another desktop or session runs them. */
   elsewhere?: boolean
+  /** COMPAT(legacy-relay-bridge): the host converts anyway and the bridge serves them. */
+  bridged?: true
 }
 
 export type HostServerOnConnectDeps = {
@@ -155,34 +158,21 @@ async function decide(
       return await convertHost(target, deps, trace, { checkTerminals: false })
     }
     const serving = await deps.ensureServing(existing)
-    if (serving.state === 'unverifiable') {
-      // Still the managed route: a stopped server says nothing about the host's terminals.
-      return {
-        route: 'managed',
-        environmentId: existing,
-        serving,
-        ...(serving.detail === MANAGED_ORCAD_FENCED_DETAIL ? { fenceHeld: true as const } : {})
-      }
+    const unserved = unservedManagedResult(existing, serving)
+    if (unserved) {
+      return unserved
     }
     try {
       deps.retainCommittedSource(target)
     } catch (error) {
       console.warn('[ssh] Could not mark a finished migration retained:', error)
     }
-    const { note, reason, recorded, fenceBusy } = await checkManagedServerUpdate(
-      target,
-      existing,
-      deps,
-      () => deps.progress(target, 'updating')
+    const update = await checkManagedServerUpdate(target, existing, deps, () =>
+      deps.progress(target, 'updating')
     )
-    trace.update = reason
-    trace.recorded = recorded
-    return {
-      route: 'managed',
-      environmentId: existing,
-      ...(note ? { update: note } : {}),
-      ...(fenceBusy ? { fenceHeld: true as const } : {})
-    }
+    trace.update = update.reason
+    trace.recorded = update.recorded
+    return managedResultAfterUpdate(existing, serving, update)
   }
   const recorded = deps.recordedUnavailable(target)
   if (recorded) {
@@ -214,7 +204,7 @@ async function convertHost(
 ): Promise<HostServerOnConnectResult> {
   try {
     const terminals = options.checkTerminals ? await deps.relayTerminals(target) : null
-    if (terminals && terminals.verdict !== 'exited') {
+    if (terminals && terminals.verdict !== 'exited' && !terminals.bridged) {
       // Why unverifiable too: loss of contact is never evidence that a relay terminal exited.
       return {
         route: 'relay',
