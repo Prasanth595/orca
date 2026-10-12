@@ -7,7 +7,7 @@ import {
 } from './wsl-guest-tree-kill'
 import { resolveBundledGuestTreeKillArtifact } from '../pty/bundled-guest-tree-kill'
 import { resolveWslExecutablePath } from '../wsl/wsl-executable-path'
-import type { ProcessResult } from '../../shared/child-process/run-process'
+import type { ProcessResult } from '@orca/process-host'
 
 vi.mock('../wsl/wsl-executable-path', () => ({
   resolveWslExecutablePath: vi.fn(() => 'C:\\Windows\\System32\\wsl.exe')

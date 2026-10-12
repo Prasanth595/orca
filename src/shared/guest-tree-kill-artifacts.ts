@@ -55,7 +55,7 @@ export function guestTreeKillSha256(bytes: Buffer): string {
 export function readGuestTreeKillManifest(root: string): unknown {
   return JSON.parse(
     readNodeFileSyncWithinLimit(join(root, 'manifest.json'), 64 * 1024, {
-      requireRegularFile: true
+      regularFileOnly: true
     }).buffer.toString('utf8')
   )
 }
@@ -90,7 +90,7 @@ export function readGuestTreeKillArtifact(
   }
   const path = join(root, platform, GUEST_TREE_KILL_BINARY)
   const bytes = readNodeFileSyncWithinLimit(path, GUEST_TREE_KILL_MAX_BYTES, {
-    requireRegularFile: true
+    regularFileOnly: true
   }).buffer
   if (guestTreeKillSha256(bytes) !== entry.sha256) {
     throw new Error(`Guest cleanup helper digest mismatch: ${platform}`)
@@ -102,5 +102,14 @@ export function readGuestTreeKillArtifact(
 export function assertGuestTreeKillArtifacts(root: string): void {
   for (const platform of GUEST_TREE_KILL_PLATFORMS) {
     readGuestTreeKillArtifact(root, platform)
+  }
+}
+
+export function hasGuestTreeKillArtifacts(root: string): boolean {
+  try {
+    assertGuestTreeKillArtifacts(root)
+    return true
+  } catch {
+    return false
   }
 }

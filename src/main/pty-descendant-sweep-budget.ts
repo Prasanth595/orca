@@ -73,7 +73,7 @@ function splitSweepBudget(sweepTimeoutMs: number): SweepBudgets {
  * the caller from waiting past its shutdown budget for it.
  */
 function settleEscalationWithin(
-  escalation: Promise<void>,
+  escalation: Promise<unknown>,
   escalationMs: number,
   keepAlive: boolean
 ): Promise<void> {

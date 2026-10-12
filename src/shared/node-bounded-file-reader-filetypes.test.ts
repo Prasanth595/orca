@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, it } from 'vitest'
-import { runProcess } from './child-process/run-process'
+import { runProcess } from '@orca/process-host'
 
 it.skipIf(process.platform === 'win32')('refuses a FIFO without waiting for a writer', async () => {
   const root = await mkdtemp(join(tmpdir(), 'orca-bounded-fifo-'))
@@ -23,7 +23,7 @@ it.skipIf(process.platform === 'win32')('refuses a FIFO without waiting for a wr
       program: process.execPath,
       args: [
         '-e',
-        `try { require(process.argv[1]).readNodeFileSyncWithinLimit(process.argv[2], 1024, { requireRegularFile: true }); process.exit(1) } catch (error) { process.exit(error.message === 'Expected a regular file' ? 0 : 2) }`,
+        `try { require(process.argv[1]).readNodeFileSyncWithinLimit(process.argv[2], 1024, { regularFileOnly: true }); process.exit(1) } catch (error) { process.exit(error.message === 'Expected a regular file' ? 0 : 2) }`,
         reader,
         fifo
       ],

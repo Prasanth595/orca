@@ -1,9 +1,5 @@
 import { win32 as pathWin32 } from 'node:path'
-import {
-  runProcess,
-  type ProcessResult,
-  type ProcessSpec
-} from '../../shared/child-process/run-process'
+import { runProcess, type ProcessResult, type ProcessSpec } from '@orca/process-host'
 import { resolveWslInteropSpawnCwd } from '../wsl-interop-spawn-directory'
 import { isUsablePtyTreeMarker } from '../pty/wsl-orca-env'
 import { filterUserWslDistros, parseWslDistros } from '../wsl-distro-list-output'

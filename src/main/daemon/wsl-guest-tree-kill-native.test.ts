@@ -4,11 +4,7 @@ import { randomUUID, createHash } from 'node:crypto'
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import {
-  runProcess,
-  spawnProcess,
-  type ChildProcessHandle
-} from '../../shared/child-process/run-process'
+import { runProcess, spawnProcess, type ChildProcessHandle } from '@orca/process-host'
 import {
   buildWslGuestTreeKillArgs,
   buildWslGuestTreeKillInput

@@ -12,7 +12,7 @@ import {
 } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { dirname, join, resolve } from 'node:path'
-import { runProcessSync } from './script-child-process.mjs'
+import { runProcessSync } from '@orca/process-host'
 import {
   GUEST_TREE_KILL_ZIG_VERSION,
   withGuestTreeKillCompiler
