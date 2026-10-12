@@ -9,6 +9,7 @@ type KeyedField = FormInputField & { readonly _k: string }
 type Props = {
   initialFields: FormInputField[]
   onChange: (fields: FormInputField[]) => void
+  resolveExpr?: (expr: string) => string
 }
 
 function fieldTypes(): { value: FormFieldType; label: string }[] {
@@ -31,7 +32,8 @@ const textareaCls =
 
 export default function WorkflowFormInputEditor({
   initialFields,
-  onChange
+  onChange,
+  resolveExpr
 }: Props): React.JSX.Element {
   const [fields, setFields] = useState<KeyedField[]>(() =>
     initialFields.map((f, idx) => ({ ...f, _k: `init_${idx}` }))
@@ -151,12 +153,27 @@ export default function WorkflowFormInputEditor({
                   className={inputCls}
                 />
               ) : (
-                <input
-                  type="text"
-                  value={field.value}
-                  onChange={(e) => updateField(i, { value: e.target.value })}
-                  className={inputCls}
-                />
+                <>
+                  <input
+                    type="text"
+                    value={field.value}
+                    onChange={(e) => updateField(i, { value: e.target.value })}
+                    className={inputCls}
+                  />
+                  {resolveExpr &&
+                    field.value.includes('{{') &&
+                    (() => {
+                      const resolved = resolveExpr(field.value)
+                      if (resolved === field.value) {
+                        return null
+                      }
+                      const display = resolved.replace(/\n/g, '↵').replace(/\s+/g, ' ').trim()
+                      const truncated = display.length > 80 ? `${display.slice(0, 80)}…` : display
+                      return (
+                        <span className="font-mono text-[10px] text-muted-foreground truncate block">{`→ ${truncated}`}</span>
+                      )
+                    })()}
+                </>
               )}
             </div>
           </div>

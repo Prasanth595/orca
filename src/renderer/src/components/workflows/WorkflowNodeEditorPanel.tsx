@@ -333,7 +333,11 @@ export default function WorkflowNodeEditorPanel({
         )}
 
         {isFormInput && (
-          <WorkflowFormInputEditor initialFields={formFields} onChange={setFormFields} />
+          <WorkflowFormInputEditor
+            initialFields={formFields}
+            onChange={setFormFields}
+            resolveExpr={resolveExpr}
+          />
         )}
 
         {genericFields.map((key) => {
