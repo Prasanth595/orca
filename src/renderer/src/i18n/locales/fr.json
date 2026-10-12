@@ -717,7 +717,7 @@
               "822bf52295": "Impossible de résoudre la plateforme de lancement de l'espace de travail.",
               "dfb4dd7c00": "Impossible de trouver l'espace de travail associé à ces vérifications.",
               "9f00d7df0c": "Le prompt de correction des checks est vide. Mettez à jour les paramètres d'IA du contrôle de code source.",
-              "2ebf794906": "Aucun agent IA affiché dans les paramètres n'a été détecté sur l'hôte de cet espace de travail.",
+              "2ebf794906": "Aucun agent IA de l'hôte de cet espace de travail n'est à la fois installé et affiché dans les paramètres. Installez-en un ou affichez-en un dans les paramètres.",
               "4c7f783a7a": "L'agent de checks enregistré n'est pas disponible sur l'hôte de cet espace de travail."
             }
           }
@@ -3520,7 +3520,7 @@
             "ec2adf093e": "Lancer {{value0}} dans un nouveau terminal",
             "465e432ef1": "Impossible de construire la commande de lancement pour {{value0}}.",
             "e518f544b1": "Aucun agent détecté",
-            "8dea9b5cdf": "Aucun agent à afficher",
+            "8dea9b5cdf": "Tous les agents sont masqués. Affichez-en un dans les paramètres.",
             "needsServerUpdate": "Mettez à jour Orca sur ce serveur pour lister les agents de cet espace de travail"
           },
           "RecentTabSwitcher": {
@@ -13478,7 +13478,7 @@
                       "empty": "Le prompt d'échec de commit est vide. Mettez à jour les paramètres IA du contrôle de code source."
                     },
                     "d481ab22f9": "L'agent IA enregistré est indisponible. Utilisez « Personnaliser le lancement » pour choisir un autre agent.",
-                    "9bbd9077a2": "Aucun agent IA n'est affiché. Choisissez les agents à afficher dans les paramètres.",
+                    "9bbd9077a2": "Aucun agent IA n'est à la fois installé et affiché dans les paramètres. Installez-en un ou affichez-en un dans les paramètres.",
                     "5540ff50cc": "Impossible de construire la commande de lancement de l'agent.",
                     "216f762bd7": "Impossible de résoudre la connexion de l'espace de travail.",
                     "success": "Un agent IA a été lancé pour l'échec de {{value0}}."

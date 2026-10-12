@@ -799,7 +799,7 @@
               "822bf52295": "Unable to resolve the workspace launch platform.",
               "dfb4dd7c00": "Unable to find the workspace attached to these checks.",
               "9f00d7df0c": "Fix checks prompt is empty. Update Source Control AI settings.",
-              "2ebf794906": "No AI agent shown in Settings was detected on this workspace host.",
+              "2ebf794906": "No AI agent on this workspace host is both installed and shown in Settings. Install one, or show one in Settings.",
               "4c7f783a7a": "Saved checks agent is not available on this workspace host."
             }
           }
@@ -3654,7 +3654,7 @@
             "ec2adf093e": "Launch {{value0}} in a new terminal",
             "465e432ef1": "Could not build launch command for {{value0}}.",
             "e518f544b1": "No agents detected",
-            "8dea9b5cdf": "No agents to show",
+            "8dea9b5cdf": "All agents are hidden. Show one in Settings.",
             "needsServerUpdate": "Update Orca on this server to list this workspace’s agents",
             "hostUnreachable": "Can’t reach this workspace’s host to list its agents"
           },
@@ -13668,7 +13668,7 @@
                       "empty": "Commit failure prompt is empty. Update Source Control AI settings."
                     },
                     "d481ab22f9": "Saved AI agent is unavailable. Use Customize launch to choose another agent.",
-                    "9bbd9077a2": "No AI agents are shown. Choose which agents to show in Settings.",
+                    "9bbd9077a2": "No AI agent is both installed and shown in Settings. Install one, or show one in Settings.",
                     "5540ff50cc": "Could not build the agent launch command.",
                     "216f762bd7": "Unable to resolve the workspace connection.",
                     "success": "Started an AI agent for the {{value0}} failure."

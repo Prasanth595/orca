@@ -243,10 +243,12 @@ const BASE_LOCALE_KEY_OVERRIDES = {
     ja: 'コマンド'
   },
   'auto.components.settings.AgentsPane.1c9a9679ec': {
-    ko: '{{value0}} 사용 가능 여부',
-    zh: '{{value0}} 可用性',
-    ja: '{{value0}} の利用可否'
+    ko: '{{value0}} 표시 여부',
+    zh: '{{value0}} 可见性',
+    ja: '{{value0}} の表示'
   },
+  // The Shown / Hidden switch pairs as 表示 / 非表示; the glossary's 表示中 reads as a status.
+  'auto.components.settings.AgentsPane.d4d2a45d63': { ja: '表示' },
   'auto.components.settings.AgentsPane.ed3e110e61': {
     ko: '감지됨',
     zh: '已检测',

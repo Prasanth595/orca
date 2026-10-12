@@ -616,7 +616,7 @@
               "822bf52295": "No se puede resolver la plataforma de inicio del espacio de trabajo.",
               "dfb4dd7c00": "No se encontró el espacio de trabajo adjunto a estos checks.",
               "9f00d7df0c": "El prompt de corrección de checks está vacío. Actualiza los ajustes de Source Control AI.",
-              "2ebf794906": "No se detectó en este host de espacio de trabajo ningún agente de IA mostrado en Configuración.",
+              "2ebf794906": "Ningún agente de IA de este host de espacio de trabajo está instalado y mostrado en Configuración a la vez. Instala uno o muestra uno en Configuración.",
               "4c7f783a7a": "El agente guardado para checks no está disponible en este host de espacio de trabajo."
             }
           }
@@ -3415,7 +3415,7 @@
             "ec2adf093e": "Iniciar {{value0}} en un nuevo terminal",
             "465e432ef1": "No se pudo generar el comando de inicio para {{value0}}.",
             "e518f544b1": "No se detectaron agentes",
-            "8dea9b5cdf": "No hay agentes para mostrar",
+            "8dea9b5cdf": "Todos los agentes están ocultos. Muestra uno en Configuración.",
             "needsServerUpdate": "Actualiza Orca en este servidor para ver los agentes de este espacio de trabajo"
           },
           "RecentTabSwitcher": {
@@ -13372,7 +13372,7 @@
                       "empty": "El prompt de fallo de commit está vacío. Actualiza la configuración de AI de Control de Código."
                     },
                     "d481ab22f9": "El agente de AI guardado no está disponible. Usa Inicio personalizado para elegir otro agente.",
-                    "9bbd9077a2": "No se muestra ningún agente de IA. Elige qué agentes mostrar en Configuración.",
+                    "9bbd9077a2": "Ningún agente de IA está instalado y mostrado en Configuración a la vez. Instala uno o muestra uno en Configuración.",
                     "5540ff50cc": "No se pudo construir el comando de inicio del agente.",
                     "216f762bd7": "No se pudo resolver la conexión del espacio de trabajo.",
                     "success": "Se inició un agente de AI para el fallo de {{value0}}."

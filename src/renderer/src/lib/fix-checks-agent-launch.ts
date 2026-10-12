@@ -99,7 +99,7 @@ async function pickExistingWorktreeAgent(
     toast.error(
       translate(
         'auto.lib.fix.checks.agent.launch.2ebf794906',
-        'No AI agent shown in Settings was detected on this workspace host.'
+        'No AI agent on this workspace host is both installed and shown in Settings. Install one, or show one in Settings.'
       )
     )
   }
