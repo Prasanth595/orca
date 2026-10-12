@@ -13,7 +13,11 @@ import { registerWorktreeChangeInvalidator } from '../ipc/worktree-change-invali
 import type { AgentSessionRecordStore } from './agent-session-record-store'
 import { peekOpenedAgentSessionRecordStore } from './agent-session-record-store-slot'
 import { createAgentLaunchRecordWarmupGate } from './agent-launch-record-warmup-gate'
-import { WorkspaceLayoutStream } from './workspace-layout-stream'
+import { RuntimeWorkspaceLayouts } from './runtime-workspace-layouts'
+import { holderStoreOf } from './runtime-workspace-layout-writer'
+import { reloadHolderOnExternalWrites } from './holder-external-write-reload'
+import { PaneTitleFacts } from './pane-title-facts'
+import { isFrozenOrcadSourceSessionPartition } from '../ssh/orcad-retained-source'
 import type { RemoteLayoutSnapshot } from '../../shared/remote-layout-snapshot'
 import { registerDetectedWorktreeScanInvalidation } from '../ipc/worktrees/listing/register-detected-worktree-scan-invalidation'
 import {
@@ -24,9 +28,55 @@ import {
 import { findWorkspaceReferences } from './runtime-reference-find'
 import { createReferenceAgentIndex, referenceConnectionHosts } from './runtime-reference-agents'
 import type { RuntimeReferenceFindParams } from '../../shared/runtime-reference-contracts'
-import { getRepoExecutionHostId } from '../../shared/execution-host'
+import {
+  getRepoExecutionHostId,
+  LOCAL_EXECUTION_HOST_ID,
+  type ExecutionHostId
+} from '../../shared/execution-host'
+import { FLOATING_TERMINAL_WORKTREE_ID } from '../../shared/constants'
+import { folderWorkspaceKey } from '../../shared/workspace-scope'
+import { getRepoMainWorktreeId } from '../../shared/worktree/id'
+import {
+  hostIdOfPane,
+  retireExitedPane,
+  unbindAbsentPane,
+  type HeldPane
+} from './runtime-held-pane-exits'
+import type { Worktree } from '../../shared/worktree/types'
 
 class OrcaRuntimeService extends OrcaRuntimeWithMigrationCatalog {
+  /** The one copy of every host partition's tab layout (PR 6). */
+  protected readonly layoutHolder = new RuntimeWorkspaceLayouts({
+    store: () => holderStoreOf(this.store),
+    homeHostId: (key) => this.layoutHomeHostId(key),
+    isFrozenPartition: (hostId) => {
+      const store = this.store
+      return store?.getSshTarget
+        ? isFrozenOrcadSourceSessionPartition(
+            { getSshTarget: (id) => store.getSshTarget!(id) },
+            hostId
+          )
+        : false
+    },
+    terminal: (ptyId) => {
+      const pty = this.ptysById.get(ptyId)
+      const unverifiable =
+        this.ptyLivenessVerdictByPtyId.get(ptyId)?.verdict.status === 'unverifiable'
+      return {
+        fact: unverifiable ? 'unverifiable' : pty?.connected ? 'live' : null,
+        ...(pty?.lastOscTitle ? { liveTitle: pty.lastOscTitle } : {})
+      }
+    },
+    stopTerminals: (ptyIds) => {
+      // The close is already committed; each stop is best-effort, as in the worktree sweep.
+      for (const ptyId of ptyIds) {
+        this.stopExplicitlyClosedTabPtys([ptyId], '').catch((error: unknown) => {
+          console.warn(`[runtime] failed to stop terminal ${ptyId}`, error)
+        })
+      }
+    }
+  })
+
   private async selectReferenceCatalogWorkspace(selector: string, cwd?: string) {
     const catalog = listReferenceWorkspaces(
       this.requireStore(),
@@ -87,6 +137,27 @@ class OrcaRuntimeService extends OrcaRuntimeWithMigrationCatalog {
     // module registers the generation bump at load; a headless host never loads it.
     registerDetectedWorktreeScanInvalidation()
     registerWorktreeChangeInvalidator((repoId) => this.invalidateWorktreeCatalog(repoId))
+    const store = holderStoreOf(this.store)
+    // Before any RPC server starts: every caller of this runtime reads the loaded holder.
+    this.layoutHolder.load()
+    // What the Store knows now; a worktree only a scan finds joins when the scan lands, before
+    // any window or client lists it.
+    this.addCatalogWorkspaces([
+      FLOATING_TERMINAL_WORKTREE_ID,
+      ...(this.store?.getFolderWorkspaces?.() ?? []).map((folder) => folderWorkspaceKey(folder.id)),
+      ...(this.store?.getRepos?.() ?? []).map((repo) => getRepoMainWorktreeId(repo)),
+      ...Object.keys(this.store?.getAllWorktreeMetaForHost?.('local') ?? {})
+    ])
+    this.resolvedWorktrees.onResolved = (snapshot) => this.addCatalogWorktrees(snapshot.worktrees)
+    if (store) {
+      const onWritten = this.store?.onWorkspaceSessionWritten
+      reloadHolderOnExternalWrites(this.layoutHolder, {
+        ...store,
+        ...(onWritten
+          ? { onWorkspaceSessionWritten: (listener) => onWritten.call(this.store, listener) }
+          : {})
+      })
+    }
   }
 
   /** Whether a window owns the layout and can show a launch's tab ahead of its process. */
@@ -134,16 +205,56 @@ class OrcaRuntimeService extends OrcaRuntimeWithMigrationCatalog {
     return this.getPtyRecordForPaneKey(paneKey)?.connected === true
   }
 
-  private readonly workspaceLayoutStream = new WorkspaceLayoutStream({
-    store: () => this.store,
-    homeHostId: (key) => this.tryGetWorkspaceSessionHostIdForWorktree(key)
-  })
+  protected readonly paneTitleFacts = new PaneTitleFacts(this.layoutHolder)
 
-  /** The read-only layout stream (`layout.subscribe`, not advertised yet). */
+  /** No partition owns a folder whose child repos sit on different hosts, so it is not published. */
+  private layoutHomeHostId(key: string): ExecutionHostId | null {
+    try {
+      return this.tryGetWorkspaceSessionHostIdForWorktree(key)
+    } catch (error) {
+      if (error instanceof Error && error.message === 'folder_workspace_connection_ambiguous') {
+        return null
+      }
+      throw error
+    }
+  }
+
+  /** Local catalog workspaces are published, empty until they have tabs; others' hosts publish theirs. */
+  addCatalogWorkspaces(keys: readonly string[]): void {
+    this.layoutHolder.addCatalogWorkspaces(
+      keys.filter((key) => this.layoutHolder.hostIdOf(key) === LOCAL_EXECUTION_HOST_ID)
+    )
+  }
+
+  /** Listed worktrees join by their repo's host: a scan must not look up each worktree's host. */
+  addCatalogWorktrees(worktrees: readonly Pick<Worktree, 'id' | 'repoId'>[]): void {
+    const localRepoIds = new Set(
+      (this.store?.getRepos?.() ?? [])
+        .filter((repo) => getRepoExecutionHostId(repo) === LOCAL_EXECUTION_HOST_ID)
+        .map((repo) => repo.id)
+    )
+    this.layoutHolder.addCatalogWorkspaces(
+      worktrees
+        .filter((worktree) => localRepoIds.has(worktree.repoId))
+        .map((worktree) => worktree.id)
+    )
+  }
+
+  /** A process that exited while its binding was written retires its pane, as on main. */
+  retireExitedDuringRegistration(pane: HeldPane): Promise<void> {
+    retireExitedPane(this.layoutHolder, hostIdOfPane(pane), pane)
+    return this.persistStagedTerminalSurfaceRetirements()
+  }
+
+  unbindAbsentTerminal(pane: HeldPane): 'gone' | 'kept' | 'replaced' {
+    return unbindAbsentPane(this.layoutHolder, pane)
+  }
+
+  /** The layout stream (`layout.subscribe`, not advertised yet), published by the holder. */
   subscribeWorkspaceLayouts(
-    listener: Parameters<WorkspaceLayoutStream['subscribe']>[0]
-  ): ReturnType<WorkspaceLayoutStream['subscribe']> {
-    return this.workspaceLayoutStream.subscribe(listener)
+    listener: Parameters<RuntimeWorkspaceLayouts['subscribe']>[0]
+  ): ReturnType<RuntimeWorkspaceLayouts['subscribe']> {
+    return this.layoutHolder.subscribe(listener)
   }
 
   /** This desktop's display-only copy of each paired server's layout (`layout.getRemoteSnapshots`). */

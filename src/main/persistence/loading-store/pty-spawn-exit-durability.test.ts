@@ -1,9 +1,6 @@
 import { expect, it, vi } from 'vitest'
-import { fixture, admitRuntimeSpawnPane } from './profile-state-delayed-authority-fixture'
+import { fixture } from './profile-state-delayed-authority-fixture'
 import { OrcaRuntimeService } from '../../runtime/orca-runtime'
-import { commitRuntimePtySpawn } from '../../ipc/pty/runtime/spawn-commit'
-import { createRuntimePtySpawnState } from '../../ipc/pty/runtime/spawn-state'
-import type { PtyRuntimeControllerDeps } from '../../ipc/pty/runtime/controller-deps'
 import { commitPtyIpcSpawn } from '../../ipc/pty/ipc/spawn-commit'
 import { createPtyIpcSpawnState } from '../../ipc/pty/ipc/spawn-state'
 import type { PtySpawnIpcDeps } from '../../ipc/pty/ipc/spawn-types'
@@ -15,8 +12,7 @@ import {
   paneSpawnReservationsByOwnerKey,
   reservePaneSpawn,
   reserveIdlePaneSpawn,
-  resolvePaneSpawnReservation,
-  type PaneSpawnReservation
+  resolvePaneSpawnReservation
 } from '../../ipc/pty/pane/spawn-reservation'
 
 vi.mock('../../telemetry/client', () => ({ track: vi.fn() }))
@@ -28,17 +24,10 @@ vi.mock('../../ssh/ssh-config-parser', () => ({
   sshConfigHostsToTargets: () => []
 }))
 
-it.each(
-  [
-    { controller: 'runtime', exitCode: 0 },
-    { controller: 'ipc', exitCode: -1 }
-  ].flatMap((test) => [
-    { ...test, stableOwner: false },
-    { ...test, stableOwner: true }
-  ])
-)(
-  'retires an exited $controller binding after disk finishes (stable: $stableOwner)',
-  async ({ controller, exitCode, stableOwner }) => {
+// The runtime controller binds through the layout holder after its spawn returns, not here.
+it.each([false, true])(
+  'retires an exited ipc binding after disk finishes (stable: %s)',
+  async (stableOwner) => {
     const connectionId = null
     const { store, authority, readState } = await fixture()
     const runtime = new OrcaRuntimeService(store)
@@ -62,45 +51,27 @@ it.each(
     runtime.onPtySpawned(binding.ptyId, binding.incarnationId)
     runtime.beginPtyRegistration(binding.ptyId, binding.incarnationId)
     runtime.assertPtyRegistrationAllowed(binding.ptyId, binding.incarnationId)
-    let commit: () => Promise<unknown>
     const reservationKey = JSON.stringify([connectionId, binding.worktreeId, binding.leafId])
-    let reservation: PaneSpawnReservation | undefined
-    if (controller === 'runtime') {
-      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: only commit runs; its runtime/store are real and preflight-only dependencies are unreachable.
-      const deps = { runtime, store, options: {} } as PtyRuntimeControllerDeps
-      const ctx = createRuntimePtySpawnState(deps, { ...binding, connectionId, cols: 80, rows: 24 })
-      ctx.result = { id: binding.ptyId, incarnationId: binding.incarnationId }
-      ctx.stablePaneOwner = owner
-      await admitRuntimeSpawnPane(store, binding, connectionId)
-      ctx.hostSessionBinding = { store, ...binding }
-      ctx.metadataLeafId = binding.leafId
-      commit = () => commitRuntimePtySpawn(ctx)
-    } else {
-      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: only commit runs; its runtime/store are real and preflight-only dependencies are unreachable.
-      const deps = { runtime, store } as PtySpawnIpcDeps
-      const ctx = createPtyIpcSpawnState(deps, { ...binding, connectionId, cols: 80, rows: 24 })
-      ctx.result = { id: binding.ptyId, incarnationId: binding.incarnationId }
-      ctx.stablePaneOwner = owner
-      ctx.metadataLeafId = binding.leafId
-      ctx.validatedLeafId = binding.leafId
-      reservation = reservePaneSpawn(reservationKey)
-      ctx.paneSpawnReservationKey = reservationKey
-      ctx.paneSpawnReservation = reservation
-      commit = () => commitPtyIpcSpawn(ctx)
-    }
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: only commit runs; its runtime/store are real and preflight-only dependencies are unreachable.
+    const deps = { runtime, store } as PtySpawnIpcDeps
+    const ctx = createPtyIpcSpawnState(deps, { ...binding, connectionId, cols: 80, rows: 24 })
+    ctx.result = { id: binding.ptyId, incarnationId: binding.incarnationId }
+    ctx.stablePaneOwner = owner
+    ctx.metadataLeafId = binding.leafId
+    ctx.validatedLeafId = binding.leafId
+    const reservation = reservePaneSpawn(reservationKey)
+    ctx.paneSpawnReservationKey = reservationKey
+    ctx.paneSpawnReservation = reservation
     const gate = authority.pause()
-    const pending =
-      controller === 'ipc'
-        ? expect(commit()).resolves.toMatchObject({
-            id: binding.ptyId,
-            incarnationId: binding.incarnationId
-          })
-        : expect(commit()).rejects.toThrow('agent_session_exited_during_start')
+    const pending = expect(commitPtyIpcSpawn(ctx)).resolves.toMatchObject({
+      id: binding.ptyId,
+      incarnationId: binding.incarnationId
+    })
     await gate.started.promise
-    const nextReservation = reservation ? reserveIdlePaneSpawn(reservationKey) : undefined
+    const nextReservation = reserveIdlePaneSpawn(reservationKey)
     clearProviderPtyState(binding.ptyId)
     ptyOwnership.delete(binding.ptyId)
-    await runtime.onPtyExit(binding.ptyId, exitCode, binding.incarnationId, {
+    await runtime.onPtyExit(binding.ptyId, -1, binding.incarnationId, {
       providerExitObserved: true
     })
     gate.finish.resolve()
@@ -108,13 +79,11 @@ it.each(
     expect(ptyOwnership.has(binding.ptyId)).toBe(false)
     expect(ptyIncarnationById.has(binding.ptyId)).toBe(false)
     expect(ptySizes.has(binding.ptyId)).toBe(false)
-    if (reservation) {
-      await expect(reservation.promise).resolves.toMatchObject({ id: binding.ptyId })
-      const next = await nextReservation
-      expect(next).not.toBe(reservation)
-      resolvePaneSpawnReservation(reservationKey, next, { id: 'next-spawn' })
-      expect(paneSpawnReservationsByOwnerKey.has(reservationKey)).toBe(false)
-    }
+    await expect(reservation.promise).resolves.toMatchObject({ id: binding.ptyId })
+    const next = await nextReservation
+    expect(next).not.toBe(reservation)
+    resolvePaneSpawnReservation(reservationKey, next, { id: 'next-spawn' })
+    expect(paneSpawnReservationsByOwnerKey.has(reservationKey)).toBe(false)
     const session = readState().workspaceSession
     expect(
       session.terminalLayoutsByTabId[binding.tabId]?.ptyIdsByLeafId?.[binding.leafId]
@@ -146,7 +115,7 @@ it.each(['replacement-pty', binding.ptyId])(
     })
     await gate.started.promise
     const registration = expect(
-      registerPersistedPtySpawn(runtime, store, binding.ptyId, binding.worktreeId, null, binding)
+      registerPersistedPtySpawn(runtime, binding.ptyId, binding.worktreeId, null, binding)
     ).rejects.toThrow('agent_session_exited_during_start')
     gate.finish.resolve()
     await Promise.all([replacement, registration])
@@ -165,7 +134,7 @@ it('retains the binding when loss of contact supplies no process-exit proof', as
   await store.persistPtyBinding(binding)
   await runtime.onPtyExit(binding.ptyId, -1, binding.incarnationId)
   expect(() =>
-    registerPersistedPtySpawn(runtime, store, binding.ptyId, binding.worktreeId, null, binding)
+    registerPersistedPtySpawn(runtime, binding.ptyId, binding.worktreeId, null, binding)
   ).toThrow('agent_session_exited_during_start')
   expect(
     readState().workspaceSession.terminalLayoutsByTabId[binding.tabId].ptyIdsByLeafId[
@@ -174,51 +143,11 @@ it('retains the binding when loss of contact supplies no process-exit proof', as
   ).toBe(binding.ptyId)
 })
 
-it('does not settle rejected registration until its exit cleanup reaches SQLite', async () => {
-  const { store, authority, readState } = await fixture()
-  const runtime = new OrcaRuntimeService(store)
-  runtime.beginPtyRegistration(binding.ptyId, binding.incarnationId)
-  await store.persistPtyBinding(binding)
-  await runtime.onPtyExit(binding.ptyId, 0, binding.incarnationId, { providerExitObserved: true })
-  const gate = authority.pause()
-  let rejected = false
-  const cleanup = registerPersistedPtySpawn(
-    runtime,
-    store,
-    binding.ptyId,
-    binding.worktreeId,
-    null,
-    binding
-  )
-  if (!cleanup) {
-    throw new Error('exited registration did not start durable cleanup')
-  }
-  const pending = cleanup.catch((error: unknown) => {
-    rejected = true
-    throw error
-  })
-  const failure = expect(pending).rejects.toThrow('agent_session_exited_during_start')
-  await gate.started.promise
-  expect(rejected).toBe(false)
-  expect(
-    readState().workspaceSession.terminalLayoutsByTabId[binding.tabId].ptyIdsByLeafId[
-      binding.leafId
-    ]
-  ).toBe(binding.ptyId)
-  gate.finish.resolve()
-  await failure
-  expect(
-    readState().workspaceSession.terminalLayoutsByTabId[binding.tabId]?.ptyIdsByLeafId?.[
-      binding.leafId
-    ]
-  ).toBeUndefined()
-})
-
 it('keeps successful registration synchronous through the remaining spawn publication', async () => {
   const { store } = await fixture()
   const runtime = new OrcaRuntimeService(store)
   await store.persistPtyBinding(binding)
   expect(
-    registerPersistedPtySpawn(runtime, store, binding.ptyId, binding.worktreeId, null, binding)
+    registerPersistedPtySpawn(runtime, binding.ptyId, binding.worktreeId, null, binding)
   ).toBeUndefined()
 })

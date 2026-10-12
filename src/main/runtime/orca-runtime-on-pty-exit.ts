@@ -29,6 +29,16 @@ export class OrcaRuntimeWithOnPtyExit extends OrcaRuntimeWithOnClientDisconnecte
     if (exitIncarnationId && pty?.incarnationId && exitIncarnationId !== pty.incarnationId) {
       return
     }
+    // Read before this exit clears the PTY's output and run records.
+    const run = this.terminalRunFacts.read(ptyId, exitIncarnationId ?? pty?.incarnationId)
+    const exitFacts = {
+      exitCode,
+      local: pty?.connectionId == null,
+      spawnedFresh: run.freshSpawn,
+      restored: !run.freshSpawn,
+      inputWritten: run.firstUserInputAt !== null,
+      outputReceived: (this.ptyOutputSequenceById.get(ptyId) ?? 0) > 0
+    }
     this.invalidatePtyControllerInventoryForLifecycle(ptyId, pty?.connectionId)
     // A bare exit code is not enough to establish why a process ended: older
     // daemons and SSH relays can report 0 for crashes and wrapper exits.
@@ -204,7 +214,7 @@ export class OrcaRuntimeWithOnPtyExit extends OrcaRuntimeWithOnClientDisconnecte
         this.rememberPtyLivenessVerdict(ptyId, { status: 'exited' })
       }
       if (pty) {
-        pty.connected = false
+        this.setPtyConnected(pty, false)
         pty.runtimeSessionOwned = false
         this.setPairedRendererSessionOwnership(pty.ptyId, false)
         pty.disconnectedAt = Date.now()
@@ -225,7 +235,12 @@ export class OrcaRuntimeWithOnPtyExit extends OrcaRuntimeWithOnClientDisconnecte
         // Why: permanent process exit is absence, not a starting/sleeping tab.
         // Retire before publishing so paired clients never persist a ghost.
         try {
-          retirement = this.retireMobileSessionSurfacesForPty(ptyId, incarnationId, exactSurfaces)
+          retirement = this.retireMobileSessionSurfacesForPty(
+            ptyId,
+            incarnationId,
+            exactSurfaces,
+            exitFacts
+          )
         } catch (error) {
           console.error('[runtime] failed to publish terminal retirement:', error)
         }

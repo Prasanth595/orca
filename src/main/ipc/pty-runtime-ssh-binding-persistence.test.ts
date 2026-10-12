@@ -58,7 +58,7 @@ describe('registerPtyHandlers', () => {
         worktreeId?: string
         tabId?: string
         leafId?: string
-        persistHostSessionBinding?: boolean
+        runtimeAdmittedPane?: boolean
       }): Promise<{ id: string }>
     }
     const store = {
@@ -94,7 +94,7 @@ describe('registerPtyHandlers', () => {
       worktreeId: 'wt-1',
       tabId: 'tab-headless',
       leafId: validLeafId,
-      persistHostSessionBinding: true
+      runtimeAdmittedPane: true
     }
 
     for (const args of [
@@ -104,7 +104,7 @@ describe('registerPtyHandlers', () => {
       { ...baseArgs, leafId: 'legacy-leaf' }
     ]) {
       await expect(spawnController.spawn(args)).rejects.toThrow(
-        'Cannot persist runtime PTY binding without worktreeId, tabId, and leafId'
+        'Cannot spawn into an admitted pane without worktreeId, tabId, and leafId'
       )
     }
     expect(spawnMock).not.toHaveBeenCalled()

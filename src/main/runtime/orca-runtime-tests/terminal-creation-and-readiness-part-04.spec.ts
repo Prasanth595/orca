@@ -244,7 +244,7 @@ describe('OrcaRuntimeService', () => {
     expect(spawn).toHaveBeenCalledWith(
       expect.objectContaining({
         worktreeId: TEST_WORKTREE_ID,
-        persistHostSessionBinding: true,
+        runtimeAdmittedPane: true,
         placement: { kind: 'new-tab' }
       })
     )
@@ -275,10 +275,7 @@ describe('OrcaRuntimeService', () => {
 
     await runtime.createTerminal(`path:${TEST_WORKTREE_PATH}`)
 
-    const spawnOptions = spawn.mock.calls[0]?.[0] as
-      | { persistHostSessionBinding?: boolean }
-      | undefined
-    expect(spawnOptions?.persistHostSessionBinding).toBe(true)
+    expect(spawn).toHaveBeenCalledWith(expect.objectContaining({ runtimeAdmittedPane: true }))
   })
 
   it('falls back to background terminal creation for renderer-backed requests without a renderer window', async () => {
@@ -350,7 +347,7 @@ describe('OrcaRuntimeService', () => {
         command: 'echo test',
         cwd: TEST_WORKTREE_PATH,
         worktreeId: TEST_WORKTREE_ID,
-        persistHostSessionBinding: true
+        runtimeAdmittedPane: true
       })
     )
     // Why: degrading the create must not silently drop the focus request — the

@@ -28,18 +28,20 @@ import {
   type SessionSnapshotOperations
 } from './session-snapshot-operations'
 import { scheduleSave } from './write-scheduling'
+import type { WorkspaceSessionWriteOptions } from './session-host-partitions'
 
 export function setLocalWorkspaceSession(
   owner: SessionSnapshotOperations,
   session: PersistedState['workspaceSession'],
-  deferSnapshotFiles = false
+  deferSnapshotFiles = false,
+  options: WorkspaceSessionWriteOptions = {}
 ): void {
   const context = getSessionSnapshotOperationsContext(owner)
   const prior = context.runtime.state.workspaceSession
   // Why here and not at the callers: the before-unload stage path writes the renderer's payload
   // straight through, so a per-caller guard leaves the quit write erasing runtime-authored rows.
   session = dropClosedTerminalTabs(preserveRuntimeAuthoredWorkspaceSessionFields(session, prior))
-  session = sanitizeWorkspaceSessionTerminalRetirements(session, prior)
+  session = sanitizeWorkspaceSessionTerminalRetirements(session, prior, options.fromLayoutHolder)
   session = pruneWorkspaceSessionBrowserHistory(
     pruneLocalTerminalScrollbackBuffers(session, context.runtime.state.repos)
   )
@@ -94,7 +96,13 @@ export function setLocalWorkspaceSession(
   if (remappedLeases.changed) {
     context.runtime.state.sshRemotePtyLeases = remappedLeases.leases
   }
-  session = preserveMissingWorkspaceSessionTerminalBindings(session, prior, context.bindingRecovery)
+  if (!options.fromLayoutHolder) {
+    session = preserveMissingWorkspaceSessionTerminalBindings(
+      session,
+      prior,
+      context.bindingRecovery
+    )
+  }
   session = pruneLocalTerminalScrollbackBuffers(session, context.runtime.state.repos)
   if (!deferSnapshotFiles) {
     const migratedScrollback = migrateWorkspaceSessionTerminalScrollbackSnapshots(

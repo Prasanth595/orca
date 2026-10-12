@@ -553,7 +553,8 @@ describe('OrcaRuntimeService terminal surface retirement', () => {
           })
         }
       }),
-      LOCAL_EXECUTION_HOST_ID
+      LOCAL_EXECUTION_HOST_ID,
+      { fromLayoutHolder: true }
     )
   })
 
@@ -683,10 +684,10 @@ describe('OrcaRuntimeService terminal surface retirement', () => {
             ptyIdsByLeafId: { right: 'pty-right' }
           })
         },
-        terminalSurfaceTombstonesByPaneKey: {},
         terminalTopologyRevisionByRepoId: { [REPO_ID]: 1 }
       }),
-      LOCAL_EXECUTION_HOST_ID
+      LOCAL_EXECUTION_HOST_ID,
+      { fromLayoutHolder: true }
     )
     expect(flushOrThrow).toHaveBeenCalledOnce()
   })

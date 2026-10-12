@@ -1,7 +1,7 @@
 // Runtime-internal transitions (design 2.3): facts the runtime sees about processes, hosts and
 // owners, applied through the same module as commands. No client sends these. Transitions whose
-// producer arrives later (orphan adoption, legacy worker recovery, client-hosted pages, agent
-// launch verdicts, sleep capture, partition moves) ship with that producer's PR.
+// producer arrives later (legacy worker recovery, client-hosted pages, agent launch verdicts,
+// sleep capture, partition moves) ship with that producer's PR.
 
 import { isSameTerminal } from './terminal-owner-invariants'
 import { omitStoredFields } from './stored-record-fields'
@@ -13,9 +13,13 @@ import {
   type Applied
 } from './workspace-layout-command-steps'
 import { updateLegacyPersistence } from './workspace-layout-legacy-persistence'
-import type { WorkspaceLayoutModel } from './workspace-layout-model'
+import type { WorkspaceLayout, WorkspaceLayoutModel } from './workspace-layout-model'
 import { renameEditorFiles, type EditorFileRename } from './workspace-layout-editor-rekey'
-import { applyProcessExit, type ProcessExitFacts } from './workspace-layout-process-exit'
+import {
+  applyProcessExit,
+  applySurfaceRetirement,
+  type ProcessExitFacts
+} from './workspace-layout-process-exit'
 import { withWorkspace, type ExitedSurface } from './workspace-layout-removal'
 import { removeWorkspaces, renameWorkspace } from './workspace-layout-owner-transitions'
 
@@ -28,10 +32,17 @@ export type LayoutTransition =
       incarnationId?: string
     }
   | { type: 'processExited'; surface: ExitedSurface; exit: ProcessExitFacts }
+  /** Stack-internal (temporary-code ledger): today's retirement of a window-mounted pane; removed in 6f. */
+  | { type: 'surfaceRetired'; surface: ExitedSurface }
   | { type: 'sshLeaseTerminated'; ptyIds: string[] }
   | { type: 'ownerRemoved'; workspaces: string[] }
   | { type: 'identityRenamed'; from: string; to: string }
   | { type: 'editorFilesRenamed'; workspace: string; renames: EditorFileRename[] }
+  /**
+   * Live terminals no pane showed were adopted into the workspace, as `adopted` lays it out. `from`
+   * is the key the workspace was stored under when that spelling differs from its id.
+   */
+  | { type: 'orphansAdopted'; from: string; workspace: string; adopted: WorkspaceLayout }
 
 function boundElsewhere(
   model: WorkspaceLayoutModel,
@@ -84,7 +95,7 @@ function sshLeaseTerminated(model: WorkspaceLayoutModel, ptyIds: readonly string
 
 function applyTransition(
   model: WorkspaceLayoutModel,
-  transition: Exclude<LayoutTransition, { type: 'processExited' }>
+  transition: Exclude<LayoutTransition, { type: 'processExited' | 'surfaceRetired' }>
 ): Applied {
   switch (transition.type) {
     case 'processStarted':
@@ -95,6 +106,13 @@ function applyTransition(
       return applied(removeWorkspaces(model, transition.workspaces))
     case 'editorFilesRenamed':
       return renameEditorFiles(model, transition.workspace, transition.renames)
+    case 'orphansAdopted': {
+      const others =
+        transition.from === transition.workspace
+          ? model
+          : removeWorkspaces(model, [transition.from])
+      return applied(withWorkspace(others, transition.workspace, transition.adopted))
+    }
     case 'identityRenamed': {
       const renamedModel = renameWorkspace(model, transition.from, transition.to)
       return renamedModel ? applied(renamedModel) : refuse('workspace_exists')
@@ -108,6 +126,9 @@ export function applyLayoutTransition(
 ): Applied {
   if (transition.type === 'processExited') {
     return applyProcessExit(model, transition.surface, transition.exit)
+  }
+  if (transition.type === 'surfaceRetired') {
+    return applySurfaceRetirement(model, transition.surface)
   }
   const result = applyTransition(model, transition)
   return result.ok ? { ...result, model: updateLegacyPersistence(model, result.model) } : result

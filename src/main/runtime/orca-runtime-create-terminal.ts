@@ -123,7 +123,7 @@ export class OrcaRuntimeWithCreateTerminal extends OrcaRuntimeWithTerminalCreate
         try {
           const { launchAgent } = launchOpts
           launchOpts.onPtySpawnDispatched?.({ launchConfig: effectiveLaunchConfig, launchAgent })
-          result = await dependencies.spawnInAdmittedPane(this.store, this.ptyController, {
+          result = await dependencies.spawnInAdmittedPane(this.layoutHolder, this.ptyController, {
             cols: 120,
             rows: 40,
             cwd,
