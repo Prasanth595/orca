@@ -25,6 +25,8 @@ import {
 } from '@/components/ui/context-menu'
 import { useAppStore } from '@/store'
 import { useShortcutLabel } from '@/hooks/useShortcutLabel'
+import { getShortcutPlatform } from '@/lib/shortcut-platform'
+import { formatKeybindingList } from '../../../../shared/keybindings'
 import { detectLanguage } from '@/lib/language-detect'
 import { openFileInBrowserTab } from '@/lib/file-preview'
 import { translate } from '@/i18n/i18n'
@@ -177,7 +179,9 @@ export function FileExplorerRowContextMenu({
         <ContextMenuItem disabled={isPastingImage} onSelect={() => onPasteImage(node)}>
           <ClipboardPaste />
           {translate('fileExplorer.pasteImage', 'Paste Image')}
-          <ContextMenuShortcut>{isMac ? '⌘V' : 'Ctrl+V'}</ContextMenuShortcut>
+          <ContextMenuShortcut>
+            {formatKeybindingList(['Mod+V'], getShortcutPlatform())}
+          </ContextMenuShortcut>
         </ContextMenuItem>
       )}
       <ContextMenuItem onSelect={() => onCopyPaths('absolute')}>

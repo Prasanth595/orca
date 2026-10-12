@@ -8,12 +8,14 @@ export async function installImagePasteClipboard(app: ElectronApplication) {
     )
     const original = {
       readImage: clipboard.readImage,
+      readText: clipboard.readText,
       availableFormats: clipboard.availableFormats,
       readBuffer: clipboard.readBuffer,
       has: clipboard.has
     }
     // Only OS reads are controlled; both processes retain their real import and transport.
     clipboard.readImage = () => image
+    clipboard.readText = () => ''
     clipboard.availableFormats = () => ['image/png']
     clipboard.readBuffer = () => Buffer.alloc(0)
     clipboard.has = (format) => format === 'image/png'

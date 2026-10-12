@@ -1,10 +1,13 @@
 import type { ElectronApplication } from '@stablyai/playwright-test'
 import path from 'node:path'
-import { FILE_UPLOAD_EXISTING_PARENT_RUNTIME_CAPABILITY } from '../../../src/shared/protocol-version'
+import {
+  FILE_UPLOAD_EXISTING_PARENT_RUNTIME_CAPABILITY,
+  PROJECT_HOST_SETUP_RUNTIME_CAPABILITY
+} from '../../../src/shared/protocol-version'
 
 export async function omitHostImagePasteCapability(app: ElectronApplication) {
   return app.evaluateHandle(
-    async (_electron, { chunks, capability }) => {
+    async (_electron, { chunks, capability, runtimeCapability }) => {
       const fs = process.getBuiltinModule('node:fs/promises')
       const path = process.getBuiltinModule('node:path')
       const { createRequire } = process.getBuiltinModule('node:module')
@@ -20,7 +23,8 @@ export async function omitHostImagePasteCapability(app: ElectronApplication) {
         (value): value is string[] =>
           Array.isArray(value) &&
           value.every((entry) => typeof entry === 'string') &&
-          value.includes(capability)
+          value.includes(capability) &&
+          value.includes(runtimeCapability)
       )
       if (lists.length !== 1) {
         throw new Error('Expected the host runtime capability list')
@@ -33,7 +37,8 @@ export async function omitHostImagePasteCapability(app: ElectronApplication) {
     },
     {
       chunks: path.join(process.cwd(), 'out', 'main', 'chunks'),
-      capability: FILE_UPLOAD_EXISTING_PARENT_RUNTIME_CAPABILITY
+      capability: FILE_UPLOAD_EXISTING_PARENT_RUNTIME_CAPABILITY,
+      runtimeCapability: PROJECT_HOST_SETUP_RUNTIME_CAPABILITY
     }
   )
 }

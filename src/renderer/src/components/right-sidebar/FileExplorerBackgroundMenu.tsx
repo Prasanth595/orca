@@ -10,6 +10,8 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { translate } from '@/i18n/i18n'
+import { getShortcutPlatform } from '@/lib/shortcut-platform'
+import { formatKeybindingList } from '../../../../shared/keybindings'
 
 function stopRightButtonMenuSelection(event: React.PointerEvent): void {
   if (event.button !== 2) {
@@ -85,7 +87,7 @@ export function FileExplorerBackgroundMenu({
               <ClipboardPaste />
               {translate('fileExplorer.pasteImage', 'Paste Image')}
               <DropdownMenuShortcut>
-                {navigator.userAgent.includes('Mac') ? '⌘V' : 'Ctrl+V'}
+                {formatKeybindingList(['Mod+V'], getShortcutPlatform())}
               </DropdownMenuShortcut>
             </DropdownMenuItem>
           </>

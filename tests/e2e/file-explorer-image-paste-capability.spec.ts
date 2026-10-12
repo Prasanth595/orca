@@ -103,8 +103,14 @@ test('refuses image paste when the paired host lacks existing-parent support', a
           }
           await expect(errors.last()).toBeVisible()
           await expect(errors.last()).toHaveCSS('opacity', '1')
-          await errors.last().screenshot({
+          const errorBounds = await errors.last().boundingBox()
+          if (!errorBounds) {
+            throw new Error('Visible image paste error has no bounds')
+          }
+          // Capture without scrolling a short-lived toast while the hidden compositor settles.
+          await page.screenshot({
             path: testInfo.outputPath(`unsupported-error-${gesture}.png`),
+            clip: errorBounds,
             animations: 'disabled'
           })
           await expect
