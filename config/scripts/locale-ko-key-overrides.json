@@ -2676,7 +2676,7 @@
     "ko": "명령 또는 키 검색"
   },
   "auto.components.settings.ShortcutTerminalPolicyControl.0f55c6f15c": {
-    "ko": "단축키가 겹칠 때 Orca와 포커스된 terminal 중 어느 쪽이 우선할지 선택합니다."
+    "ko": "단축키가 겹칠 때 Orca와 포커스된 터미널 중 어느 쪽이 우선할지 선택합니다."
   },
   "auto.components.settings.ShortcutsPane.4b7ae34062": {
     "ko": "직접."
@@ -3687,7 +3687,7 @@
     "ko": "단축키"
   },
   "auto.components.settings.shortcuts.search.ebd7d81e1d": {
-    "ko": "단축키가 겹칠 때 Orca와 포커스된 terminal 중 어느 쪽이 우선할지 선택합니다."
+    "ko": "단축키가 겹칠 때 Orca와 포커스된 터미널 중 어느 쪽이 우선할지 선택합니다."
   },
   "auto.components.settings.shortcuts.search.f1adebbe8c": {
     "ko": "셸"
@@ -5104,5 +5104,44 @@
   },
   "components.workspace.cleanup.browse.agent.working": {
     "ko": "작업 중"
+  },
+  "auto.components.settings.ShortcutCommandBlock.287e07ddde": {
+    "ko": "변경됨"
+  },
+  "auto.components.settings.ShortcutCommandBlock.3c83cd7d1c": {
+    "ko": "비활성화됨"
+  },
+  "auto.components.settings.ShortcutCommandBlock.482a60225d": {
+    "ko": "{{value0}} 활성화"
+  },
+  "auto.components.settings.ShortcutCommandBlock.70b5d25583": {
+    "ko": "{{value0}} 단축키"
+  },
+  "auto.components.settings.ShortcutCommandBlock.a799f90f82": {
+    "ko": "{{value0}} 비활성화"
+  },
+  "auto.components.settings.ShortcutTerminalPolicyControl.0762983d13": {
+    "ko": "터미널 우선"
+  },
+  "auto.components.settings.ShortcutsPane.25b0004fbf": {
+    "ko": "터미널 활성"
+  },
+  "auto.components.settings.ShortcutsPane.5c65d5db9d": {
+    "ko": "터미널 우선"
+  },
+  "auto.components.settings.ShortcutsPane.781cb74d22": {
+    "ko": "터미널 패널에서 실행됩니다."
+  },
+  "auto.components.settings.ShortcutsPane.dfa8ff612f": {
+    "ko": "터미널이나 TUI에 키보드 포커스가 있는 동안에도 실행됩니다."
+  },
+  "auto.components.settings.ShortcutsPane.f0b35b0b2e": {
+    "ko": "터미널 또는 TUI에 키보드 포커스가 있는 동안에는 비활성화됩니다."
+  },
+  "auto.components.settings.shortcuts.search.0f8cb15582": {
+    "ko": "에이전트"
+  },
+  "auto.components.settings.shortcuts.search.4811a8264a": {
+    "ko": "터미널 우선"
   }
 }
