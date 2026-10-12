@@ -26,7 +26,10 @@ import type { TerminalTab } from '../../../../shared/terminal-tab-types'
 import { resolveAiVaultSessionSurfaceSwitchTargets } from '../right-sidebar/ai-vault-session-surface-switch'
 import { resolveAiVaultHistoryRowResume } from '../right-sidebar/ai-vault-session-resume-in-chat-workspace'
 import { resolveAiVaultTargetWorkspacePath } from '../right-sidebar/ai-vault-session-launch-target'
-import { resolveAiVaultSessionWorktreeDisplay } from '../right-sidebar/ai-vault-session-worktree'
+import {
+  aiVaultSessionOwnerWorkspaces,
+  resolveAiVaultSessionWorktreeDisplay
+} from '../right-sidebar/ai-vault-session-worktree'
 import {
   aiVaultSessionListArgs,
   type AiVaultSessionListRequest
@@ -125,14 +128,16 @@ export function resolveTabSessionHistorySubject(
       : null
     return target ? { ...target, kind: 'chat', sessionId: args.structuredSessionId } : null
   }
-  // The same pane-to-conversation mapping tab titles use: live agent, then sleeping, then retained.
+  // The pane-to-conversation mapping tab titles use, limited to agents still running: once the agent
+  // exits, the tab title keeps its conversation but the move is no longer offered.
   const titleRequest = args.paneKey
     ? resolvePaneAiVaultTitleRequest(state, {
         worktreeId: args.tab.worktreeId,
         paneKey: args.paneKey
       })
-    : (collectAiVaultTitleRequests(state).find((candidate) => candidate.tabId === args.tab.id) ??
-      null)
+    : (collectAiVaultTitleRequests(state, { runningAgentsOnly: true }).find(
+        (candidate) => candidate.tabId === args.tab.id
+      ) ?? null)
   const target = titleRequest ? workspace(titleRequest.worktreeId, 'cli') : null
   return titleRequest && target
     ? {
@@ -169,7 +174,10 @@ export function resolveTabSessionSwitch(
   session: AiVaultSession,
   subject: TabSessionHistorySubject
 ): TabSessionSwitch | null {
-  const worktrees = getIndexedAllWorktrees(state.worktreesByRepo)
+  const worktrees = aiVaultSessionOwnerWorkspaces(
+    getIndexedAllWorktrees(state.worktreesByRepo),
+    state.folderWorkspaces
+  )
   const { resumeState, resumeInChat } = resolveAiVaultHistoryRowResume({
     session,
     worktreeInfo: resolveAiVaultSessionWorktreeDisplay({
