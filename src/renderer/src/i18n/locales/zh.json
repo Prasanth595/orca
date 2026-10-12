@@ -155,11 +155,11 @@
       "savedEnvironment": "已保存的值 · 输入以替换",
       "newEnvironment": "值",
       "removeEnvironment": "删除",
-      "loadingHost": "正在加载代理设置…",
-      "updateHost": "请更新此服务器以编辑其代理启动设置。",
-      "readFailed": "无法读取代理设置。请检查主机连接并重试。",
-      "saveFailed": "无法保存代理设置。请检查主机连接并重试。",
-      "hostDefaults": "所选主机上新代理的默认设置。",
+      "loadingHost": "正在加载智能体设置…",
+      "updateHost": "请更新此服务器以编辑其智能体启动设置。",
+      "readFailed": "无法读取智能体设置。请检查主机连接并重试。",
+      "saveFailed": "无法保存智能体设置。请检查主机连接并重试。",
+      "hostDefaults": "所选主机上新智能体的默认设置。",
       "save": "保存"
     },
     "followSymlinkedDirectoriesKeywords": {
