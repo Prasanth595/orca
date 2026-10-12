@@ -11,7 +11,6 @@ import {
 } from '@/lib/workspace-browser-tab-open'
 import { isLocalPathOpenBlocked, showLocalPathOpenBlockedToast } from '@/lib/local-path-open-guard'
 import { getLinkSourceLocalOpenOwner } from '@/lib/link-source-local-open-owner'
-import type { settingsForRuntimeOwner } from '@/runtime/runtime-rpc-client'
 import {
   absolutePathToFileUri as toFileUrlForOsEscape,
   resolveMarkdownLinkTarget
@@ -19,7 +18,10 @@ import {
 import { scrollToAnchorInEditor } from './markdown-anchor-scroll'
 import { getRichMarkdownCommentAtPos } from './rich-markdown-review-annotations'
 import type { DiffComment } from '../../../../shared/diff-comment-types'
-import { toRuntimeExecutionHostId } from '../../../../shared/execution-host'
+import {
+  LOCAL_EXECUTION_HOST_ID,
+  toRuntimeExecutionHostId
+} from '../../../../shared/execution-host'
 import { translate } from '@/i18n/i18n'
 import {
   classifyHtmlSuperscriptLinkAction,
@@ -36,8 +38,6 @@ export type ActivateMarkdownLink = (
     sourceOwner?: HttpLinkSourceOwner
   }
 ) => void | Promise<unknown>
-
-export type RichMarkdownRuntimeSettings = Parameters<typeof settingsForRuntimeOwner>[0]
 
 type RichMarkdownEditorClickRoutingOptions = {
   activateMarkdownLink: ActivateMarkdownLink
@@ -255,9 +255,12 @@ function openShiftModifiedMarkdownLink({
         )
         return
       }
-      void window.api.shell.openFileUri(toFileUrlForOsEscape(classified.absolutePath))
+      void window.api.shell.openFileUri(
+        toFileUrlForOsEscape(classified.absolutePath),
+        LOCAL_EXECUTION_HOST_ID
+      )
     })
     return
   }
-  void window.api.shell.openFileUri(classified.uri)
+  void window.api.shell.openFileUri(classified.uri, LOCAL_EXECUTION_HOST_ID)
 }

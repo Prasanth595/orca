@@ -42,7 +42,7 @@ vi.mock('child_process', async () => {
 
 import { main } from './index'
 import { okFixture, queueFixtures } from './test-fixtures'
-import { AUTOMATION_RUN_REPORT_RUNTIME_CAPABILITY } from '../shared/protocol-version'
+import { AUTOMATION_RUN_REPORT_RUNTIME_CAPABILITY } from '../shared/automation-runtime-capabilities'
 import { useWorktreeAwarenessEnvironment } from './index-test-harness'
 
 describe('orca cli automation run reporting', () => {

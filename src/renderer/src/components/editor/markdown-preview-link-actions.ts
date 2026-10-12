@@ -1,3 +1,4 @@
+import { LOCAL_EXECUTION_HOST_ID } from '../../../../shared/execution-host'
 import { toast } from 'sonner'
 import { getConnectionIdForFile } from '@/lib/connection-context'
 import { detectLanguage } from '@/lib/language-detect'
@@ -5,7 +6,7 @@ import { isLocalPathOpenBlocked, showLocalPathOpenBlockedToast } from '@/lib/loc
 import { getLinkSourceLocalOpenOwner } from '@/lib/link-source-local-open-owner'
 import { openHttpLink } from '@/lib/http-link-routing'
 import { translate } from '@/i18n/i18n'
-import { settingsForRuntimeOwner } from '@/runtime/runtime-rpc-client'
+import { requireRuntimeTargetForFileOwner } from '@/lib/file-owner-runtime-target'
 import { statRuntimePath } from '@/runtime/runtime-file-client'
 import { useAppStore } from '@/store'
 import { relativePathInsideRoot } from '../../../../shared/cross-platform-path'
@@ -154,7 +155,7 @@ export async function handleMarkdownPreviewLinkClick({
       showLocalPathOpenBlockedToast()
       return
     }
-    void window.api.shell.openFileUri(target.toString())
+    void window.api.shell.openFileUri(target.toString(), LOCAL_EXECUTION_HOST_ID)
     return
   }
 
@@ -170,8 +171,9 @@ export async function handleMarkdownPreviewLinkClick({
   try {
     const stats = await statRuntimePath(
       {
-        settings: settingsForRuntimeOwner(
-          useAppStore.getState().settings,
+        target: requireRuntimeTargetForFileOwner(
+          useAppStore.getState(),
+          targetWorktree.id,
           resolvedSourceRuntimeEnvironmentId
         ),
         worktreeId: targetWorktree.id,
