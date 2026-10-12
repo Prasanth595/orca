@@ -69,6 +69,21 @@ describe('deriveAutomationHealth', () => {
     expect(result).toMatchObject({ verdict: 'failed', consecutiveFailures: 2, lastRunId: 'third' })
   })
 
+  it('uses the newest final run for health while reporting the newest process status', () => {
+    const result = deriveAutomationHealth({
+      automation: automation(),
+      runs: [run('in-flight', 'dispatched'), run('failed', 'dispatch_failed')],
+      now: 100
+    })
+
+    expect(result).toMatchObject({
+      verdict: 'failed',
+      consecutiveFailures: 1,
+      lastRunId: 'in-flight',
+      lastProcessStatus: 'dispatched'
+    })
+  })
+
   it('reports enabled schedules whose next dispatch is overdue', () => {
     expect(
       deriveAutomationHealth({ automation: automation({ nextRunAt: 50 }), runs: [], now: 100 })
@@ -109,6 +124,18 @@ describe('deriveAutomationHealth', () => {
     expect(
       deriveAutomationHealth({ automation: automation(), runs: [latest], now: 100 })
     ).toMatchObject({ verdict: 'healthy' })
+  })
+
+  it('preserves an explicit process-only run contract after Jev is enabled', () => {
+    expect(
+      deriveAutomationHealth({
+        automation: automation({
+          semanticEvaluation: { evaluator: 'jev', mode: 'enforced', rubricPath: 'rubric.json' }
+        }),
+        runs: [{ ...run('process-only', 'completed'), semanticEvaluation: null }],
+        now: 100
+      })
+    ).toMatchObject({ verdict: 'healthy', semanticEvaluationMode: null })
   })
 
   it('surfaces a blocked workflow receipt as failed', () => {

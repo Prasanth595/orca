@@ -176,6 +176,44 @@ describe('CLI automation run history', () => {
     })
   })
 
+  it('does not apply a newly enabled Jev contract to an explicit process-only run', async () => {
+    vi.stubEnv('AI_GATEWAY_API_KEY', 'test-only')
+    const call = vi.fn(async (method: string) => {
+      if (method === 'status.get') {
+        return ok({ capabilities: [AUTOMATION_SEMANTIC_EVALUATION_RUNTIME_CAPABILITY] })
+      }
+      if (method === 'automation.runShow') {
+        return ok({ run: { id: 'run-1', automationId: 'auto-1', semanticEvaluation: null } })
+      }
+      return ok({
+        automation: {
+          id: 'auto-1',
+          semanticEvaluation: {
+            evaluator: 'jev',
+            mode: 'enforced',
+            rubricPath: 'rubrics/v2.json'
+          }
+        }
+      })
+    })
+
+    await expect(
+      AUTOMATION_HANDLERS['automations jev-evaluate']!({
+        client: { call } as never,
+        cwd: '/workspace',
+        flags: new Map([
+          ['run', 'run-1'],
+          ['state-file', 'state.json']
+        ]),
+        json: true
+      })
+    ).rejects.toMatchObject({
+      code: 'invalid_argument',
+      message: 'This automation has no Jev evaluation configured.'
+    })
+    expect(evaluateAutomationEvidenceWithJev).not.toHaveBeenCalled()
+  })
+
   it('refuses Jev evaluation before reading state or calling an older host', async () => {
     vi.stubEnv('AI_GATEWAY_API_KEY', 'test-only')
     const call = vi.fn(async () => ok({ capabilities: [] }))
@@ -203,6 +241,45 @@ describe('CLI automation run history', () => {
 })
 
 describe('CLI automation doctor', () => {
+  it('paginates through the complete failure streak', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(100)
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    const failures = Array.from({ length: 100 }, (_, index) => ({
+      id: `failed-${index}`,
+      status: 'dispatch_failed'
+    }))
+    const call = vi.fn(async (method: string, params?: { cursor?: string }) => {
+      if (method === 'automation.list') {
+        return ok({
+          automations: [{ id: 'auto-1', name: 'Nightly', enabled: true, nextRunAt: 200 }]
+        })
+      }
+      return params?.cursor
+        ? ok({
+            runs: [
+              { id: 'failed-100', status: 'dispatch_failed' },
+              { id: 'passed', status: 'completed' }
+            ],
+            nextCursor: null
+          })
+        : ok({ runs: failures, nextCursor: 'page-2' })
+    })
+
+    await AUTOMATION_HANDLERS['automations doctor']!({
+      client: { call } as never,
+      cwd: '/tmp',
+      flags: new Map(),
+      json: true
+    })
+
+    expect(call).toHaveBeenCalledWith('automation.runs', {
+      automationId: 'auto-1',
+      limit: 100,
+      cursor: 'page-2'
+    })
+    expect(String(log.mock.calls[0]?.[0])).toContain('"consecutiveFailures": 101')
+  })
+
   it('keeps the fleet report and marks an unreadable history unverifiable', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(100)
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)

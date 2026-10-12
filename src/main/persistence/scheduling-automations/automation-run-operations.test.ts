@@ -200,6 +200,107 @@ describe('recordAutomationSemanticEvaluation', () => {
     ).toThrow('already recorded')
   })
 
+  it('treats a reordered persisted receipt as the same structured result', () => {
+    const state = stateWithRuns([{ id: 'run-1', createdAt: 1 }])
+    state.automationRuns[0].semanticEvaluation = {
+      evaluator: 'jev',
+      mode: 'shadow',
+      rubricPath: 'rubric.json'
+    }
+    state.automationRuns[0].semanticEvaluationReceipt = {
+      source: 'evaluator',
+      recordedAt: 2,
+      evidenceRefs: ['artifact:1'],
+      minimumConfidence: 0.8,
+      confidence: 0.9,
+      probabilities: {
+        insufficient_evidence: 0.07,
+        requirements_not_satisfied: 0.03,
+        requirements_satisfied: 0.9
+      },
+      choice: 'requirements_satisfied',
+      stateSha256: 'b'.repeat(64),
+      rubricSha256: 'a'.repeat(64),
+      rubricVersion: '1',
+      rubricId: 'memory-review',
+      model: 'typesafe-ai/jev',
+      mode: 'shadow',
+      evaluator: 'jev'
+    }
+    const flush = vi.fn()
+    const operations = {
+      state,
+      flush,
+      recordManualRun: vi.fn(),
+      getWorkspaceDisplayName: () => null
+    }
+
+    const retried = recordAutomationSemanticEvaluation(operations, 'run-1', {
+      evaluator: 'jev',
+      mode: 'shadow',
+      model: 'typesafe-ai/jev',
+      rubricId: 'memory-review',
+      rubricVersion: '1',
+      rubricSha256: 'a'.repeat(64),
+      stateSha256: 'b'.repeat(64),
+      choice: 'requirements_satisfied',
+      probabilities: {
+        requirements_satisfied: 0.9,
+        requirements_not_satisfied: 0.03,
+        insufficient_evidence: 0.07
+      },
+      confidence: 0.9,
+      minimumConfidence: 0.8,
+      evidenceRefs: ['artifact:1']
+    })
+
+    expect(retried).toBe(state.automationRuns[0])
+    expect(flush).not.toHaveBeenCalled()
+  })
+
+  it('does not apply a newly enabled Jev contract to an explicit process-only run', () => {
+    const state = stateWithRuns([{ id: 'run-1', createdAt: 1 }])
+    state.automationRuns[0].semanticEvaluation = null
+    state.automations = [
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: receipt lookup only reads these automation fields.
+      {
+        id: 'a1',
+        semanticEvaluation: {
+          evaluator: 'jev',
+          mode: 'enforced',
+          rubricPath: 'rubric.json'
+        }
+      } as PersistedState['automations'][number]
+    ]
+    const operations = {
+      state,
+      flush: vi.fn(),
+      recordManualRun: vi.fn(),
+      getWorkspaceDisplayName: () => null
+    }
+
+    expect(() =>
+      recordAutomationSemanticEvaluation(operations, 'run-1', {
+        evaluator: 'jev',
+        mode: 'enforced',
+        model: 'typesafe-ai/jev',
+        rubricId: 'memory-review',
+        rubricVersion: '1',
+        rubricSha256: 'a'.repeat(64),
+        stateSha256: 'b'.repeat(64),
+        choice: 'requirements_satisfied',
+        probabilities: {
+          requirements_satisfied: 0.9,
+          requirements_not_satisfied: 0.03,
+          insufficient_evidence: 0.07
+        },
+        confidence: 0.9,
+        minimumConfidence: 0.8,
+        evidenceRefs: []
+      })
+    ).toThrow('no matching semantic evaluation configuration')
+  })
+
   it('refuses a result that does not match the run evaluation mode', () => {
     const state = stateWithRuns([{ id: 'run-1', createdAt: 1 }])
     state.automationRuns[0].semanticEvaluation = {

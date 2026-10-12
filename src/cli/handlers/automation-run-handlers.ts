@@ -88,6 +88,36 @@ function getRunId(flags: Map<string, string | boolean>): string {
   return runId
 }
 
+async function getAutomationHealthRuns(
+  client: Parameters<CommandHandler>[0]['client'],
+  automationId: string
+): Promise<AutomationRun[]> {
+  const runs: AutomationRun[] = []
+  const seenCursors = new Set<string>()
+  let cursor: string | undefined
+  do {
+    const history = await client.call<AutomationRunsPage>('automation.runs', {
+      automationId,
+      limit: 100,
+      cursor
+    })
+    runs.push(...history.result.runs)
+    if (runs.some((run) => run.status === 'completed')) {
+      break
+    }
+    const nextCursor = history.result.nextCursor ?? undefined
+    if (!nextCursor) {
+      break
+    }
+    if (seenCursors.has(nextCursor)) {
+      throw new RuntimeClientError('internal_error', 'Automation history returned a cursor cycle.')
+    }
+    seenCursors.add(nextCursor)
+    cursor = nextCursor
+  } while (cursor !== undefined)
+  return runs
+}
+
 export const AUTOMATION_RUN_HANDLERS: Record<string, CommandHandler> = {
   'automations doctor': async ({ client, json }) => {
     const result = await client.call<{ automations: Automation[]; items?: AutomationListItem[] }>(
@@ -100,11 +130,8 @@ export const AUTOMATION_RUN_HANDLERS: Record<string, CommandHandler> = {
         const owner = items.get(automation.id)
         const ownerIssue = owner?.selector.kind === 'orphan' ? owner.selector.issue : undefined
         try {
-          const history = await client.call<AutomationRunsPage>('automation.runs', {
-            automationId: automation.id,
-            limit: 100
-          })
-          return deriveAutomationHealth({ automation, runs: history.result.runs, now, ownerIssue })
+          const runs = await getAutomationHealthRuns(client, automation.id)
+          return deriveAutomationHealth({ automation, runs, now, ownerIssue })
         } catch {
           return deriveAutomationHealth({
             automation,
@@ -149,8 +176,9 @@ export const AUTOMATION_RUN_HANDLERS: Record<string, CommandHandler> = {
     // Why: use the contract captured for this run so later schedule edits cannot
     // silently change its rubric or enforcement mode.
     const evaluation =
-      runResult.result.run.semanticEvaluation ??
-      automationResult.result.automation.semanticEvaluation
+      runResult.result.run.semanticEvaluation === undefined
+        ? automationResult.result.automation.semanticEvaluation
+        : runResult.result.run.semanticEvaluation
     if (!evaluation || evaluation.evaluator !== 'jev') {
       throw new RuntimeClientError(
         'invalid_argument',

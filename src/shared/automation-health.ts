@@ -6,6 +6,7 @@ import type {
   AutomationSemanticEvaluationMode,
   AutomationWorkflowOutcome
 } from './automations-types'
+import { isFinalAutomationRunStatus } from './automations-types'
 
 export type AutomationHealthVerdict = 'healthy' | 'disabled' | 'overdue' | 'failed' | 'unverifiable'
 
@@ -49,11 +50,16 @@ export function deriveAutomationHealth(input: {
   const { automation, runs, now, ownerIssue } = input
   const historyAvailable = input.historyAvailable ?? true
   const latest = runs[0] ?? null
+  const latestFinal = runs.find((run) => isFinalAutomationRunStatus(run.status)) ?? null
   // Why: an edited schedule must not retroactively change the contract of an existing run.
   // Legacy runs fall back to the current automation configuration.
-  const semanticEvaluation = latest?.semanticEvaluation ?? automation.semanticEvaluation ?? null
-  const firstSuccess = runs.findIndex((run) => !isFailedRun(run))
-  const consecutiveFailures = firstSuccess === -1 ? runs.length : firstSuccess
+  const semanticEvaluation =
+    latestFinal?.semanticEvaluation !== undefined
+      ? latestFinal.semanticEvaluation
+      : (automation.semanticEvaluation ?? null)
+  const finalRuns = runs.filter((run) => isFinalAutomationRunStatus(run.status))
+  const firstSuccess = finalRuns.findIndex((run) => !isFailedRun(run))
+  const consecutiveFailures = firstSuccess === -1 ? finalRuns.length : firstSuccess
   const overdueDurationMs = automation.enabled ? Math.max(0, now - automation.nextRunAt) : 0
 
   let verdict: AutomationHealthVerdict = 'healthy'
@@ -65,52 +71,53 @@ export function deriveAutomationHealth(input: {
     remediation = ownerIssue
       ? 'Repair or retarget the automation owner before relying on this schedule.'
       : 'Bring the automation owner online and retry the history check.'
-  } else if (latest && isFailedRun(latest)) {
+  } else if (latestFinal && isFailedRun(latestFinal)) {
     verdict = 'failed'
     remediation = 'Inspect the latest run and resolve its process failure before the next schedule.'
   } else if (
-    latest?.workflowReceipt?.outcome === 'failed' ||
-    latest?.workflowReceipt?.outcome === 'blocked'
+    latestFinal?.workflowReceipt?.outcome === 'failed' ||
+    latestFinal?.workflowReceipt?.outcome === 'blocked'
   ) {
     verdict = 'failed'
     remediation = 'Inspect the latest workflow receipt and resolve its semantic failure.'
   } else if (
     automation.workflowReceiptRequired &&
-    latest?.status === 'completed' &&
-    !latest.workflowReceipt
+    latestFinal?.status === 'completed' &&
+    !latestFinal.workflowReceipt
   ) {
     verdict = 'unverifiable'
     remediation = 'Record a workflow receipt for the latest completed run.'
   } else if (
     semanticEvaluation?.mode === 'enforced' &&
-    latest?.status === 'completed' &&
-    !latest.semanticEvaluationReceipt
+    latestFinal?.status === 'completed' &&
+    !latestFinal.semanticEvaluationReceipt
   ) {
     verdict = 'unverifiable'
     remediation = 'Run the configured Jev evaluation for the latest completed run.'
   } else if (
     semanticEvaluation?.mode === 'enforced' &&
-    latest?.semanticEvaluationReceipt &&
-    latest.semanticEvaluationReceipt.mode !== semanticEvaluation.mode
+    latestFinal?.semanticEvaluationReceipt &&
+    latestFinal.semanticEvaluationReceipt.mode !== semanticEvaluation.mode
   ) {
     verdict = 'unverifiable'
     remediation = 'Rerun Jev using the semantic evaluation mode captured for this run.'
   } else if (
     semanticEvaluation?.mode === 'enforced' &&
-    latest?.semanticEvaluationReceipt &&
-    latest.semanticEvaluationReceipt.confidence < latest.semanticEvaluationReceipt.minimumConfidence
+    latestFinal?.semanticEvaluationReceipt &&
+    latestFinal.semanticEvaluationReceipt.confidence <
+      latestFinal.semanticEvaluationReceipt.minimumConfidence
   ) {
     verdict = 'unverifiable'
     remediation = 'Review the low-confidence Jev evaluation and its evidence.'
   } else if (
     semanticEvaluation?.mode === 'enforced' &&
-    latest?.semanticEvaluationReceipt?.choice === 'requirements_not_satisfied'
+    latestFinal?.semanticEvaluationReceipt?.choice === 'requirements_not_satisfied'
   ) {
     verdict = 'failed'
     remediation = 'Inspect the Jev evaluation and remediate the unmet workflow requirements.'
   } else if (
     semanticEvaluation?.mode === 'enforced' &&
-    latest?.semanticEvaluationReceipt?.choice === 'insufficient_evidence'
+    latestFinal?.semanticEvaluationReceipt?.choice === 'insufficient_evidence'
   ) {
     verdict = 'unverifiable'
     remediation = 'Add sufficient evidence and rerun the configured Jev evaluation.'
@@ -128,10 +135,10 @@ export function deriveAutomationHealth(input: {
     overdueDurationMs,
     lastRunId: latest?.id ?? null,
     lastProcessStatus: latest?.status ?? null,
-    lastWorkflowOutcome: latest?.workflowReceipt?.outcome ?? null,
+    lastWorkflowOutcome: latestFinal?.workflowReceipt?.outcome ?? null,
     semanticEvaluationMode: semanticEvaluation?.mode ?? null,
-    lastSemanticChoice: latest?.semanticEvaluationReceipt?.choice ?? null,
-    lastSemanticConfidence: latest?.semanticEvaluationReceipt?.confidence ?? null,
+    lastSemanticChoice: latestFinal?.semanticEvaluationReceipt?.choice ?? null,
+    lastSemanticConfidence: latestFinal?.semanticEvaluationReceipt?.confidence ?? null,
     consecutiveFailures,
     historyAvailable,
     remediation

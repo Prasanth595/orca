@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util'
 import type {
   AutomationRun,
   AutomationSemanticEvaluationResult,
@@ -52,10 +53,11 @@ export function recordAutomationSemanticEvaluation(
     throw new Error('Automation run not found.')
   }
   const configuredEvaluation =
-    current.semanticEvaluation ??
-    (operations.state.automations ?? []).find(
-      (automation) => automation.id === current.automationId
-    )?.semanticEvaluation
+    current.semanticEvaluation === undefined
+      ? (operations.state.automations ?? []).find(
+          (automation) => automation.id === current.automationId
+        )?.semanticEvaluation
+      : current.semanticEvaluation
   if (!configuredEvaluation || configuredEvaluation.evaluator !== result.evaluator) {
     throw new Error('Automation run has no matching semantic evaluation configuration.')
   }
@@ -68,7 +70,7 @@ export function recordAutomationSemanticEvaluation(
       source: _source,
       ...existing
     } = current.semanticEvaluationReceipt
-    if (JSON.stringify(existing) === JSON.stringify(result)) {
+    if (isDeepStrictEqual(existing, result)) {
       return current
     }
     throw new Error('Automation semantic evaluation is already recorded.')
