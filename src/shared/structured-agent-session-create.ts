@@ -25,8 +25,8 @@ export type StructuredAgentSessionCreateParams = {
   worktree: string
   agent: StructuredAgentId
   resumeFrom?: StructuredAgentSessionResumeSource
-  /** Sent only to a host advertising `AGENT_SESSION_CREATE_TAB_ID_RUNTIME_CAPABILITY`. */
   managedAccountId?: string
+  /** Sent only to a host advertising `AGENT_SESSION_CREATE_TAB_ID_RUNTIME_CAPABILITY`. */
   tabId?: string
   /** Sent only to a host advertising `AGENT_SESSION_CREATE_MESSAGE_RUNTIME_CAPABILITY`. */
   firstMessage?: StructuredAgentSessionFirstMessage

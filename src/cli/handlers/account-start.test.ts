@@ -48,7 +48,8 @@ it('pins the requested account without ever selecting a global account', async (
         sessionId: expect.stringMatching(/^codex_/),
         payloadFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/)
       })
-    })
+    }),
+    { timeoutMs: 300_000 }
   )
 })
 
@@ -67,5 +68,21 @@ it('surfaces a host refusal rather than reporting a created chat', async () => {
     }
   })
   await expect(accountStartHandler(context())).rejects.toThrow('Account unavailable')
+  expect(mocks.printResult).not.toHaveBeenCalled()
+})
+
+it('refuses remote selectors before resolving the local runtime', async () => {
+  const ctx = context()
+  ctx.flags.set('environment', 'remote')
+  await expect(accountStartHandler(ctx)).rejects.toThrow('does not retarget')
+  expect(getCliStatus).not.toHaveBeenCalled()
+  expect(call).not.toHaveBeenCalled()
+})
+it('reports the durable create intent on an unconfirmed transport outcome', async () => {
+  call.mockRejectedValue(new Error('disconnected'))
+  await expect(accountStartHandler(context())).rejects.toMatchObject({
+    code: 'agent_session_operation_unknown',
+    data: { createParams: { managedAccountId: 'account-b' } }
+  })
   expect(mocks.printResult).not.toHaveBeenCalled()
 })

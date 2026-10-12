@@ -12,6 +12,7 @@ export const ACCOUNT_COMMAND_SPECS: CommandSpec[] = [
     usage: 'orca account start --agent claude|codex --account <id> --worktree <selector> [--json]',
     allowedFlags: [...GLOBAL_FLAGS, 'agent', 'account', 'worktree'],
     notes: [
+      'Run this command on the executing host. Remote selection flags are refused.',
       'Pins a saved account on the execution host without changing its default account or running sessions.',
       'Creates a native chat. Legacy terminal launches, WSL accounts, and imported conversations are not supported by this command.',
       'Requires a host advertising agentSession.create.managed-account.v1. Older hosts are refused before creation.'

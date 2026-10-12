@@ -1,3 +1,4 @@
+import { rejectRemoteSelectionFlags } from '../remote-selection-flag-rejection'
 import { randomUUID } from 'node:crypto'
 import type { CommandHandler } from '../dispatch'
 import { getRequiredStringFlag } from '../flags'
@@ -15,6 +16,7 @@ import type {
 } from '../../shared/agent-session-wire'
 
 export const accountStartHandler: CommandHandler = async ({ flags, client, cwd, json }) => {
+  rejectRemoteSelectionFlags(flags, 'account start; run this command on the execution host.')
   const agent = getRequiredStringFlag(flags, 'agent')
   if (agent !== 'claude' && agent !== 'codex') {
     throw new RuntimeClientError('invalid_argument', '--agent must be claude or codex.')
@@ -37,10 +39,17 @@ export const accountStartHandler: CommandHandler = async ({ flags, client, cwd, 
     managedAccountId: accountId,
     randomUuid: randomUUID
   })
-  const response = await client.call<AgentSessionMutationResult<AgentSessionAttachResult>>(
-    'agentSession.create',
-    params
-  )
+  const response = await client
+    .call<AgentSessionMutationResult<AgentSessionAttachResult>>('agentSession.create', params, {
+      timeoutMs: 300_000
+    })
+    .catch(() => {
+      throw new RuntimeClientError(
+        'agent_session_operation_unknown',
+        `Creation could not be confirmed. Check chat ${params.envelope.sessionId} before creating another.`,
+        { sessionId: params.envelope.sessionId, createParams: params }
+      )
+    })
   if (!response.result.ok) {
     throw new RuntimeClientError(
       response.result.refusal.code,
