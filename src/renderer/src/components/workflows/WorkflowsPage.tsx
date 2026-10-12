@@ -56,15 +56,32 @@ export default function WorkflowsPage(): React.JSX.Element {
   const [rightWidth, adjustRight] = usePersistedSize('wf-panel-right', 320, 200, 520)
   const [bottomHeight, adjustBottom] = usePersistedSize('wf-panel-bottom', 220, 80, 420)
 
-  // Auto-unfocus when no workflow is selected to prevent a stuck state where
-  // the list panel is hidden with no way to escape.
+  // Auto-unfocus when no workflow selected to prevent a stuck state where the
+  // list panel is hidden with no way to escape. Only update React state here —
+  // keeping localStorage intact so focus is restored when a workflow is reselected.
   useEffect(() => {
     if (selectedWorkflow === null && canvasFocused) {
-      setCanvasFocusedPersisted(false)
+      setCanvasFocused(false)
     }
   }, [selectedWorkflow, canvasFocused])
 
   const selectedWorkflowId = selectedWorkflow?.id ?? null
+
+  // Re-apply persisted focus whenever a workflow is (re)selected, e.g. after
+  // switching workspaces/views causes selectedWorkflow to temporarily reset.
+  useEffect(() => {
+    if (selectedWorkflowId === null) {
+      return
+    }
+    try {
+      if (localStorage.getItem('wf-canvas-focused') === '1') {
+        setCanvasFocused(true)
+      }
+    } catch {
+      // ignore — storage unavailable
+    }
+  }, [selectedWorkflowId])
+
   useEffect(() => {
     if (!selectedWorkflowId) {
       return
