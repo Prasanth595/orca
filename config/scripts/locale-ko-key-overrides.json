@@ -3360,7 +3360,7 @@
     "ko": "전환"
   },
   "auto.components.settings.git.search.0e993bf00f": {
-    "ko": "워크스페이스를 만들면 Orca가 원격 기준 브랜치를 새로고침하고, main 또는 master처럼 일치하는 로컬 브랜치를 안전하게 fast-forward합니다. 이렇게 하면 git diff main...HEAD 같은 명령이 오래된 기록과 비교되지 않습니다. 해당 브랜치에 commits 되지 않은 변경 사항이나 로컬 전용 commits이 있으면 Orca가 업데이트를 건너뜁니다."
+    "ko": "워크스페이스를 만들면 Orca가 원격 기준 브랜치를 새로고침하고 main 또는 master 등 대응하는 로컬 브랜치를 안전하게 fast-forward 합니다. git diff main...HEAD 같은 명령이 오래된 이력과 비교하지 않도록 하기 위한 동작입니다. 해당 브랜치에 커밋되지 않은 변경 사항이나 로컬에만 있는 커밋이 있으면 업데이트를 건너뜁니다."
   },
   "auto.components.settings.git.search.1d2fae1fa2": {
     "ko": "Git 사용자 이름"
@@ -5104,5 +5104,47 @@
   },
   "components.workspace.cleanup.browse.agent.working": {
     "ko": "작업 중"
+  },
+  "auto.components.settings.CommitMessageAiPane.1ef29f8c29": {
+    "ko": "텍스트 레시피에서 '사용자 지정 명령'을 사용할 때 Orca가 실행할 명령줄입니다."
+  },
+  "auto.components.settings.git.search.c41e345153": {
+    "ko": "main보다 뒤처짐"
+  },
+  "auto.components.settings.CommitMessageAiPane.4ec89c319e": {
+    "ko": "에이전트"
+  },
+  "auto.components.settings.SourceControlAiActionRecipeDefaults.926d58e87f": {
+    "ko": "에이전트"
+  },
+  "auto.components.settings.SourceControlAiActionRecipeDefaults.bf84dea6af": {
+    "ko": "Orca가 컨텍스트를 삽입하도록 하려는 경우에만 변수를 사용하십시오. 일반 에이전트 기본 설정을 따르려면 에이전트를 기본값으로 둡니다."
+  },
+  "auto.components.settings.SourceControlAiActionRecipeDefaults.cf01d41bce": {
+    "ko": "각 소스 제어 AI 버튼에서 사용되는 에이전트, CLI 인수 및 명령 템플릿입니다."
+  },
+  "auto.components.settings.SourceControlAiActionRecipeDefaults.ee0e5c2a48": {
+    "ko": "기본 에이전트 사용"
+  },
+  "auto.components.settings.auto.rename.branch.search.3ef3cbe98c": {
+    "ko": "에이전트"
+  },
+  "auto.components.settings.auto.rename.branch.search.672387fb77": {
+    "ko": "브랜치 이름을 생성할 때 사용되는 에이전트 명령 템플릿입니다."
+  },
+  "auto.components.settings.commit.message.ai.search.18b6d38835": {
+    "ko": "각 소스 제어 AI 버튼에서 사용되는 에이전트, CLI 인수 및 명령 템플릿입니다."
+  },
+  "auto.components.settings.commit.message.ai.search.3766941527": {
+    "ko": "에이전트"
+  },
+  "auto.components.settings.source.control.action.recipe.options.branchName": {
+    "ko": "초기 에이전트 작업에서 Orca가 생성한 브랜치의 이름을 바꿉니다."
+  },
+  "auto.components.settings.source.control.action.recipe.options.supportedAgents": {
+    "ko": "이 레시피에 지원되는 에이전트: {{value0}}."
+  },
+  "auto.components.settings.source.control.action.recipe.options.unsupportedSavedAgent": {
+    "ko": "{{value0}}은(는) 이 텍스트 생성 레시피를 실행할 수 없습니다. 아래에서 지원되는 에이전트 중 하나를 선택하세요."
   }
 }
