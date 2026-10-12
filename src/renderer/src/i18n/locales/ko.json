@@ -19248,7 +19248,7 @@
       "description": "이 컴퓨터와 페어링된 Orca 서버에서 에이전트가 말하고 행한 모든 내용을 검색하세요.",
       "searchDescription": "이 컴퓨터와 페어링된 서버에 대한 세션 검색을 켜거나 검색 데이터를 지웁니다.",
       "indexComputers": "세션 내부 검색",
-      "computersConsent": "각 컴퓨터는 자체 에이전트 대화 및 도구 출력의 검색 가능한 복사본을 보관합니다. 그 컴퓨터에는 아무것도 남지 않습니다.",
+      "computersConsent": "각 컴퓨터는 자체 에이전트 대화와 도구 출력의 검색 가능한 사본을 보관합니다. 이 데이터는 해당 컴퓨터 밖으로 전송되지 않습니다.",
       "serverVersion": "Orca v{{version}}",
       "rowSwitchLabel": "{{host}}의 세션 검색",
       "serverOffline": "오프라인",
