@@ -347,7 +347,7 @@ beforeEach(async () => {
         resolveWorkspacePath: async (workspaceId) => `/repos/${workspaceId}`,
         resolveCodexCommand: () => '/usr/local/bin/codex',
         resolveLaunchArgs: () => [],
-        resolveClaudeAuthPolicy: () => ({ stripAuthEnv: true }),
+        resolveClaudeAuthPolicy: () => ({ account: 'managed' }),
         resolveEnvironment: async () => {
           bootEnvironmentReads += 1
           return {
@@ -357,7 +357,10 @@ beforeEach(async () => {
           }
         },
         resolveShellEnvironmentPolicy: () => shellEnvironmentPolicy,
-        resolveCodexOverrides: () => {
+        resolveAgentLaunchEnv: (agent): Record<string, string> => {
+          if (agent !== 'codex') {
+            return {}
+          }
           codexOverrideReads += 1
           return { CODEX_PROFILE: configuredCodexProfile }
         },

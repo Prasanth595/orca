@@ -1,3 +1,4 @@
+import { createClaudeStructuredLaunchResolver } from '../runtime/structured-agent-launch-composition.test-support'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -11,11 +12,10 @@ import {
   type SpawnOptions as SdkSpawnOptions
 } from '@anthropic-ai/claude-agent-sdk'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { spawnProcess } from '../../shared/child-process/run-process'
+import { spawnProcess } from '@orca/process-host'
 import type { AgentSessionRecord } from '../../shared/agent-session-record'
 import { LOCAL_EXECUTION_HOST_ID } from '../../shared/execution-host'
 import { claudeQuerySettingsReader } from './claude-agent-sdk-control-requests'
-import { createClaudeStructuredLaunchResolver } from './claude-structured-launch-resolution'
 
 // Contract pins for @anthropic-ai/claude-agent-sdk, run against the real SDK
 // driving a scripted fake CLI (never the real Claude binary). These tests exist
@@ -150,7 +150,7 @@ function resolvedLaunch(permissionMode: PermissionMode, launchArgs: string[] = [
     store: { getRecord: () => record, pinLaunchDirectory: vi.fn() },
     resolveWorkspacePath: async () => '/repos/workspace-1',
     resolveCommand: () => FAKE_CLI,
-    resolveAuthPolicy: () => ({ stripAuthEnv: true }),
+    resolveAuthPolicy: () => ({ account: 'managed' }),
     resolvePermissionMode: () => permissionMode
   })({ identity: { sessionId: record.sessionId } as never })
 }

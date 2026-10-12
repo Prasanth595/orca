@@ -92,7 +92,6 @@ export function useTerminalPaneGlobalListeners(controller: TerminalPaneCloseCont
   })
   useTerminalPaneGlobalEffects({
     tabId,
-    worktreeId,
     cwd,
     isActive,
     isVisible,
