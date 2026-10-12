@@ -26,6 +26,7 @@ export function createAutomationRunWriter(
     | 'recordRepeatedAutomationSkip'
     | 'advanceAutomationNextRun'
     | 'automationChangeSelector'
+    | 'automationAlertsEnabled'
     | 'flushPendingOrThrowAsync'
     | 'listAutomationRuns'
   >,
@@ -66,6 +67,7 @@ export function createAutomationRunWriter(
       if (
         publish &&
         alert &&
+        store.automationAlertsEnabled(run.automationId) &&
         previous?.status !== 'dispatch_failed' &&
         previous?.result?.status !== alert.status
       ) {
@@ -77,7 +79,13 @@ export function createAutomationRunWriter(
       if (acknowledgedAlert) {
         pendingAlerts.delete(run.id)
       }
-      announce(run.automationId, result.usage ? 'usage' : 'run', acknowledgedAlert)
+      announce(
+        run.automationId,
+        result.usage ? 'usage' : 'run',
+        acknowledgedAlert && store.automationAlertsEnabled(run.automationId)
+          ? acknowledgedAlert
+          : undefined
+      )
       return run
     },
     repeatSkip: async (automationId, error, scheduledFor): Promise<AutomationRun | null> => {

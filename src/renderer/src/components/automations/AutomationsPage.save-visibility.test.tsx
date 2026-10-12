@@ -39,7 +39,7 @@ function desktopStoreHolds(automations: Automation[]): void {
   scopedList(automations)
 }
 
-async function createSweep(): Promise<void> {
+async function createSweep(notifyOnFailure = false): Promise<void> {
   await act(async () => {
     mocks.listPanel?.openCreateDialog()
   })
@@ -48,6 +48,7 @@ async function createSweep(): Promise<void> {
       ...(current as Record<string, unknown>),
       name: 'Sweep',
       prompt: 'Do the sweep',
+      notifyOnFailure,
       projectId: REPO_ID,
       workspaceMode: 'existing',
       workspaceId: WORKSPACE_ID
@@ -60,6 +61,17 @@ async function createSweep(): Promise<void> {
 }
 
 describe('AutomationsPage save visibility', () => {
+  it('saves the per-automation opt-in through the create dialog', async () => {
+    desktopStoreHolds([])
+    mocks.state.automationHostFilter = DESKTOP_SELF_FILTER
+    api.automations.create.mockResolvedValue(CREATED)
+    await renderPage()
+    await settleHostQueries()
+    await createSweep(true)
+    expect(api.automations.create).toHaveBeenCalledWith(
+      expect.objectContaining({ notifyOnFailure: true })
+    )
+  })
   it('lists a newly created automation on the host it was saved to', async () => {
     desktopStoreHolds([])
     mocks.state.automationHostFilter = DESKTOP_SELF_FILTER
@@ -73,6 +85,9 @@ describe('AutomationsPage save visibility', () => {
     await createSweep()
 
     expect(api.automations.create).toHaveBeenCalledTimes(1)
+    expect(api.automations.create).toHaveBeenCalledWith(
+      expect.objectContaining({ notifyOnFailure: false })
+    )
     expect(rows(container, 'automation-row')).toEqual(['Sweep'])
   })
 

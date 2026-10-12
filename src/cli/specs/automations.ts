@@ -18,7 +18,8 @@ const AUTOMATION_STATE_FLAGS = [
   'disabled',
   'missed-run-grace-minutes',
   'reuse-session',
-  'fresh-session'
+  'fresh-session',
+  'notify-on-failure'
 ]
 
 export const AUTOMATION_COMMAND_SPECS: CommandSpec[] = [
@@ -30,7 +31,7 @@ export const AUTOMATION_COMMAND_SPECS: CommandSpec[] = [
     allowedFlags: [...GLOBAL_FLAGS, 'run-id', 'run-token', 'status', 'message'],
     notes: [
       "Use the run id and token supplied in this automation run's prompt. Each run accepts one result; identical retries are safe.",
-      'Reporting sends an Orca alert without stopping the agent. A failed task stays failed when the terminal later finishes normally.',
+      'Reporting sends an Orca alert when this automation has Notify on failure enabled, without stopping the agent. A failed task stays failed when the terminal later finishes normally.',
       'Requires a host supporting automation.report-run.v1.'
     ],
     examples: [
@@ -70,6 +71,7 @@ export const AUTOMATION_COMMAND_SPECS: CommandSpec[] = [
     ],
     notes: [
       'Trigger accepts hourly, daily, weekdays, weekly, a 5-field cron expression, or an RRULE string.',
+      'Use --notify-on-failure true to opt in to failure and attention alerts, or false to turn them off. Requires automation.notification-policy.v1.',
       'When --repo is omitted, the CLI uses the enclosing Orca worktree when one can be resolved from cwd.',
       'Use --project with --host, or --project-host-setup, to run on a specific project host setup.',
       '--host runtime:<environment-id> targets that paired Orca server; use the id from `orca environment list`, not the environment name.',

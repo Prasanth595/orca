@@ -25,7 +25,7 @@ function tokenFor(run: AutomationRun): string {
   return run.reportToken
 }
 
-async function setupRun() {
+async function setupRun(notifyOnFailure: boolean | undefined = true) {
   const store = await createStore()
   store.addRepo({
     id: 'repo-1',
@@ -36,6 +36,7 @@ async function setupRun() {
   })
   const automation = store.createAutomation({
     name: 'Daily check',
+    notifyOnFailure,
     prompt: 'Check changes',
     agentId: 'claude',
     projectId: 'repo-1',
@@ -76,6 +77,80 @@ describe('agent-reported automation results', () => {
     )
     expect(store.listAutomations()[0]?.prompt).toBe('Check changes')
     service.stop()
+  })
+
+  it('defaults to opt-out and keeps failures in history without an alert', async () => {
+    const { store, service, run, publish } = await setupRun(false)
+    try {
+      const automation = store.createAutomation({
+        name: 'Default alerts',
+        prompt: 'Check',
+        agentId: 'claude',
+        projectId: 'repo-1',
+        workspaceMode: 'existing',
+        workspaceId: 'wt-1',
+        timezone: 'UTC',
+        rrule: 'FREQ=DAILY',
+        dtstart: 1
+      })
+      expect(automation.notifyOnFailure).toBe(false)
+      expect(store.automationAlertsEnabled(automation.id)).toBe(false)
+      const reported = await service.reportResult({
+        runId: run.id,
+        token: tokenFor(run),
+        status: 'failed',
+        message: 'Login expired'
+      })
+      expect(reported.result?.message).toBe('Login expired')
+      expect(publish.mock.calls.filter(([payload]) => payload.alert)).toHaveLength(0)
+    } finally {
+      service.stop()
+    }
+  })
+
+  it('saves each automation’s opt-in independently and persists disabling through restart', async () => {
+    const { store, service, run, publish } = await setupRun(false)
+    const other = store.createAutomation({
+      name: 'Opted in',
+      prompt: 'Check',
+      notifyOnFailure: true,
+      agentId: 'claude',
+      projectId: 'repo-1',
+      workspaceMode: 'existing',
+      workspaceId: 'wt-1',
+      timezone: 'UTC',
+      rrule: 'FREQ=DAILY',
+      dtstart: 1
+    })
+    try {
+      expect(store.automationAlertsEnabled(run.automationId)).toBe(false)
+      expect(store.automationAlertsEnabled(other.id)).toBe(true)
+      store.updateAutomation(run.automationId, { notifyOnFailure: true })
+      await service.reportResult({
+        runId: run.id,
+        token: tokenFor(run),
+        status: 'needs_attention',
+        message: 'Review findings'
+      })
+      expect(publish.mock.calls.filter(([payload]) => payload.alert)).toHaveLength(1)
+      store.updateAutomation(run.automationId, { notifyOnFailure: false })
+      const mutedRun = await service.runNow(run.automationId)
+      await service.markDispatchResult({
+        runId: mutedRun.id,
+        status: 'dispatch_failed',
+        error: 'Launch failed'
+      })
+      expect(publish.mock.calls.filter(([payload]) => payload.alert)).toHaveLength(1)
+    } finally {
+      service.stop()
+    }
+    await closeTestStores()
+    const restored = await createStore()
+    expect(restored.automationAlertsEnabled(run.automationId)).toBe(false)
+    expect(restored.automationAlertsEnabled(other.id)).toBe(true)
+    expect(restored.listAutomationRuns().find((entry) => entry.id === run.id)?.result?.status).toBe(
+      'needs_attention'
+    )
   })
 
   it('captures the SSH folder pin even for a local project, and keeps it after retargeting', async () => {

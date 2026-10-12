@@ -17131,6 +17131,10 @@
           "useFreshSessions": "Use fresh sessions",
           "helper": "Added to this host's default arguments for each fresh session.",
           "detailLabel": "Extra arguments"
+        },
+        "notifications": {
+          "label": "Notify on failure",
+          "description": "Alert when a run fails or the agent reports something that needs attention. Uses your notification settings."
         }
       },
       "agent": {

@@ -40,6 +40,7 @@ export type AutomationDraft = {
   agentId: TuiAgent
   /** Saved as-is; empty means none. */
   extraAgentArgs: string
+  notifyOnFailure?: boolean
   projectId: string
   workspaceMode: AutomationWorkspaceMode
   workspaceId: string

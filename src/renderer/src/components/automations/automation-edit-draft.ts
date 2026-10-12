@@ -25,6 +25,7 @@ export function buildAutomationEditDraft(automation: Automation): AutomationDraf
     prompt: automation.prompt,
     agentId: automation.agentId,
     extraAgentArgs: automation.extraAgentArgs ?? '',
+    notifyOnFailure: automation.notifyOnFailure,
     projectId: getAutomationRunRepoId(automation),
     workspaceMode: automation.workspaceMode,
     workspaceId: automation.workspaceId ?? '',

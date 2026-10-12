@@ -34,7 +34,8 @@ function writerWith(
     }),
     recordRepeatedAutomationSkip: vi.fn(() => null),
     advanceAutomationNextRun: vi.fn(() => automation),
-    automationChangeSelector
+    automationChangeSelector,
+    automationAlertsEnabled: vi.fn(() => true)
   }
   return {
     publish,
@@ -45,6 +46,48 @@ function writerWith(
 }
 
 describe('automation run writer publications', () => {
+  it.each(['failed', 'needs_attention'] as const)(
+    'stores an opted-out %s report without publishing an alert',
+    async (status) => {
+      const { writer, store, publish } = writerWith(SSH_SELECTOR)
+      store.automationAlertsEnabled.mockReturnValue(false)
+      const updated = await writer.updateRun({
+        runId: run.id,
+        status: 'dispatched',
+        result: { status, message: 'Check this run', reportedAt: 1 }
+      })
+      expect(updated.result?.status).toBe(status)
+      expect(store.flushPendingOrThrowAsync).toHaveBeenCalled()
+      expect(publish).toHaveBeenCalledWith({ reason: 'run', selector: SSH_SELECTOR })
+    }
+  )
+
+  it('suppresses a launch failure when the automation has opted out', async () => {
+    const { writer, store, publish } = writerWith(SSH_SELECTOR)
+    store.automationAlertsEnabled.mockReturnValue(false)
+    const updated = await writer.updateRun({
+      runId: run.id,
+      status: 'dispatch_failed',
+      error: 'Missing folder'
+    })
+    expect(updated.error).toBe('Missing folder')
+    expect(publish).toHaveBeenCalledWith({ reason: 'run', selector: SSH_SELECTOR })
+  })
+
+  it('honors disabling reminders while persistence is pending without replaying later', async () => {
+    const { writer, store, publish } = writerWith(SSH_SELECTOR)
+    const acknowledgement = Promise.withResolvers<void>()
+    store.flushPendingOrThrowAsync.mockReturnValueOnce(acknowledgement.promise)
+    const result = { runId: run.id, status: 'dispatch_failed' as const, error: 'Launch failed' }
+    const pending = writer.updateRun(result)
+    store.automationAlertsEnabled.mockReturnValue(false)
+    acknowledgement.resolve()
+    await pending
+    store.automationAlertsEnabled.mockReturnValue(true)
+    await writer.updateRun(result)
+    expect(publish.mock.calls.filter(([payload]) => payload.alert)).toHaveLength(0)
+  })
+
   it('publishes the original execution host separately from the current catalog', async () => {
     const { writer, publish } = writerWith({ kind: 'self' }, { reportHostId: 'ssh:ssh-1' })
     await writer.updateRun({ runId: run.id, status: 'dispatch_failed', error: 'Launch failed' })

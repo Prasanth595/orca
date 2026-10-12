@@ -25,6 +25,7 @@ import {
   AUTOMATION_CREATE_IDEMPOTENCY_RUNTIME_CAPABILITY as CREATE_IDEMPOTENCY
 } from '../../../../shared/protocol-version'
 import type { AppState } from '@/store'
+import { AUTOMATION_NOTIFICATION_POLICY_RUNTIME_CAPABILITY } from '../../../../shared/automation-runtime-capabilities'
 import type { AutomationHostCatalogEntry } from './automation-host-catalog-types'
 import type { AutomationHostCatalogView } from './use-automation-host-catalog'
 import type { AutomationCreateDestinationControl } from './use-automation-create-destination'
@@ -307,7 +308,12 @@ export const DESKTOP_SELF_OWNER = { authority: { kind: 'desktop' }, selector: { 
 
 export const RUNTIME_ID = 'gpu'
 /** A runtime that advertises both automation capabilities, so its rows carry owners. */
-const RUNTIME_CAPABILITIES = [LIST_HOST_SCOPE, OWNER_FENCING, CREATE_IDEMPOTENCY]
+const RUNTIME_CAPABILITIES = [
+  LIST_HOST_SCOPE,
+  OWNER_FENCING,
+  CREATE_IDEMPOTENCY,
+  AUTOMATION_NOTIFICATION_POLICY_RUNTIME_CAPABILITY
+]
 export const RUNTIME_SELF_FILTER = {
   kind: 'host' as const,
   host: {

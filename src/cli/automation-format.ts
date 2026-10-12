@@ -79,6 +79,7 @@ export function formatAutomationShow(result: AutomationShowPayload): string {
     `provider: ${automation.agentId}`,
     ...(automation.extraAgentArgs ? [`extraAgentArgs: ${automation.extraAgentArgs}`] : []),
     `enabled: ${automation.enabled}`,
+    `notifyOnFailure: ${automation.notifyOnFailure === true}`,
     `schedule: ${formatAutomationSchedule(automation.rrule)}`,
     `rrule: ${automation.rrule}`,
     `precheck: ${

@@ -92,6 +92,8 @@ export type Automation = {
   agentId: TuiAgent
   /** Saved text appended to the host's default agent Arguments on each fresh run; absent means none. */
   extraAgentArgs?: string
+  /** Opt-in for failed and needs-attention run alerts; absent means off. */
+  notifyOnFailure?: boolean
   /** Why: runContext carries the logical project + host setup identity for
    *  multi-host projects; projectId remains only as the legacy repo-id storage
    *  field for pre-host-context automations.
@@ -181,6 +183,7 @@ export type AutomationCreateInput = {
   agentId: TuiAgent
   /** Empty or whitespace means no extras. */
   extraAgentArgs?: string
+  notifyOnFailure?: boolean
   runContext?: WorkspaceRunContext | null
   sourceContext?: TaskSourceContext | null
   /** @deprecated Legacy repo-id compatibility field required for older stored
@@ -206,6 +209,7 @@ export type AutomationUpdateInput = Partial<
     | 'precheck'
     | 'agentId'
     | 'extraAgentArgs'
+    | 'notifyOnFailure'
     | 'runContext'
     | 'sourceContext'
     | 'projectId'

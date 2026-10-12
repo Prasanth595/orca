@@ -105,6 +105,11 @@ export class AutomationPersistence {
     return automationChangeSelectorOperation(runtime.state, runtime.storageAuthority, id)
   }
 
+  automationAlertsEnabled(id: string): boolean {
+    const { state } = this[automationPersistenceContext].runtime
+    return state.automations?.find((automation) => automation.id === id)?.notifyOnFailure === true
+  }
+
   automationCapturedHostIssue(automation: Automation): AutomationCapturedHostIssue | null {
     const runtime = this[automationPersistenceContext].runtime
     return automationCapturedHostIssueOperation(runtime.state, runtime.storageAuthority, automation)

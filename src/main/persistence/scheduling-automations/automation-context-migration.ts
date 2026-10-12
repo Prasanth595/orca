@@ -102,6 +102,7 @@ export function normalizeAutomationSessionReuse(automation: Automation): Automat
     ...rest,
     ...(hasExtraAgentArgs(extraAgentArgs) ? { extraAgentArgs } : {}),
     precheck: normalizeAutomationPrecheck(automation.precheck),
+    notifyOnFailure: automation.notifyOnFailure === true,
     setupDecision,
     reuseSession: automation.workspaceMode === 'existing' && automation.reuseSession === true
   }

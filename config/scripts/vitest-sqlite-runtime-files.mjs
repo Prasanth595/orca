@@ -4,6 +4,7 @@ import { SQLITE_DATABASE_RUNTIME_INCLUDE } from './vitest-sqlite-database-runtim
 export const SQLITE_RUNTIME_INCLUDE = [
   ...SQLITE_DATABASE_RUNTIME_INCLUDE,
   'src/main/automations/automation-run-result-report.test.ts',
+  'src/main/runtime/runtime-automation-notifications.test.ts',
   'src/main/runtime/orca-runtime.test.ts',
   'src/main/acp/acp-structured-host-live-listing.test.ts',
   'src/main/acp/acp-structured-host-configured-default.test.ts',

@@ -121,6 +121,20 @@ Saved extras use the same quoting on every host, including Windows: wrap values 
 
 Extras accept only model and effort options, plus Claude's `--add-dir`, for Claude, Codex, CodeBuddy, Cursor, Grok, and OMP. Permission, config, prompt, and session options are rejected. Extras require a fresh session for every run, so they can't be combined with `--reuse-session`. Use `orca automations edit <automationId> --extra-agent-args=` to clear them.
 
+## Failure and attention alerts
+
+Turn on **Notify on failure** in an automation's create or edit dialog, or use the CLI:
+
+```bash
+orca automations edit <automationId> --notify-on-failure true --json
+```
+
+Alerts are off by default, including for existing automations. Each automation has its own setting. Automations with reminders enabled alert when a run cannot start or fails during execution, or when its agent reports a failed task or a finding that needs attention. Desktop alerts follow the existing Notifications settings; clicking an alert opens the corresponding run. Turning this setting off keeps the run's result and error in history.
+
+Each run's prompt includes an `orca automations report` command with that run's id and token. Tell the agent to execute it with `--status failed` when it cannot achieve the task, or `--status needs-attention` for a finding the user should review, and `--message` describing the reason. Reporting records the task result without stopping the terminal; a failed task stays failed even if the agent later finishes normally.
+
+Use `--notify-on-failure false` to disable these alerts. Create also accepts this flag. Changing it on a remote host requires a server that supports `automation.notification-policy.v1`; update the execution host if Orca reports that the setting is unsupported.
+
 ## Review and enable
 
 List and inspect automations before enabling them:
