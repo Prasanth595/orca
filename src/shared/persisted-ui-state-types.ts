@@ -97,6 +97,8 @@ export type PersistedUIState = {
   /** Agents-view thread grouping. Absent means 'status'. */
   agentsGroupBy?: ActivityGroupBy
   collapsedGroups: string[]
+  /** Host-qualified keys of groups the hierarchy sidebar's Active view always hides. Absent means none. */
+  activeViewHiddenProjectGroupIds?: string[]
   uiZoomLevel: number
   editorFontZoomLevel: number
   worktreeCardProperties: WorktreeCardProperty[]

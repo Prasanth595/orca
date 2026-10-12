@@ -39,6 +39,7 @@ describe('getSectionHeaderLayout', () => {
       isProjectGroupHeader: false
     })
     expect(layout).toMatchObject({ isNestedRepoHeader: false, paddingLeft: 20 })
+    expect(layout.activeViewGroupKey).toBeUndefined()
   })
 
   it('aligns a grouped project with its group label and drops its icon in hierarchy', () => {
@@ -62,17 +63,19 @@ describe('getSectionHeaderLayout', () => {
     expect(layout).toMatchObject({ isNestedRepoHeader: false, paddingLeft: 10 })
   })
 
-  it('exposes the group icon in both styles', () => {
+  it('exposes the group icon in both styles and the opt-out key only in hierarchy', () => {
     const args = {
       row: header({ projectGroup: group }),
       isRepoHeader: false,
       isProjectGroupHeader: true
     }
-    for (const hierarchyStyle of [false, true]) {
-      expect(getSectionHeaderLayout({ ...args, hierarchyStyle }).projectGroupIcon).toEqual(
-        group.icon
-      )
-    }
+    expect(getSectionHeaderLayout({ ...args, hierarchyStyle: false })).toMatchObject({
+      projectGroupIcon: group.icon,
+      activeViewGroupKey: undefined
+    })
+    expect(getSectionHeaderLayout({ ...args, hierarchyStyle: true }).activeViewGroupKey).toBe(
+      'runtime:env-1::group'
+    )
   })
 
   it('treats the synthetic Ungrouped header as having no group', () => {
@@ -82,6 +85,6 @@ describe('getSectionHeaderLayout', () => {
       isRepoHeader: false,
       isProjectGroupHeader: true
     })
-    expect(layout).toMatchObject({ projectGroupIcon: null })
+    expect(layout).toMatchObject({ projectGroupIcon: null, activeViewGroupKey: undefined })
   })
 })

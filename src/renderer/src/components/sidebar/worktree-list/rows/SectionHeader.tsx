@@ -380,6 +380,7 @@ export function renderWorktreeSectionHeaderRow(args: {
               onRename={ctx.onRenameProjectGroup}
               onChangeIcon={ctx.onChangeProjectGroupIcon}
               onDelete={ctx.onDeleteProjectGroup}
+              activeViewGroupKey={layout.activeViewGroupKey}
             />
           ) : null}
 

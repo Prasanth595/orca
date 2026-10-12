@@ -23,6 +23,8 @@ import { orderHostSectionOptions } from '../../host-section-order'
 import { buildSidebarHostOptions } from '../../sidebar-host-options'
 import { selectPendingWorktreeCreationKeys } from './pending-worktree-creation-keys'
 
+const NO_NOTICE_CARDS = new Map<string, never>()
+
 type SectionRowsArgs = {
   groupBy: WorktreeGroupBy
   projectOrderBy: ProjectOrderBy
@@ -43,6 +45,8 @@ type SectionRowsArgs = {
   visibleFolderWorkspacesForRows: readonly FolderWorkspace[]
   importedWorktreesByRepo: Parameters<typeof buildRows>[14]
   newExternalWorktreesInboxByRepo: Parameters<typeof buildRows>[15]
+  /** Hierarchy "Active" view: open work only, so no empty-project placeholders or notice cards. */
+  activeOnly?: boolean
   filterRepoIds: readonly string[]
   visibleWorkspaceHostIds: readonly ExecutionHostId[] | null
   workspaceHostScope: AppState['workspaceHostScope']
@@ -89,14 +93,23 @@ export function useSidebarSectionRows(args: SectionRowsArgs) {
   const allRepoIds = useMemo(() => repos.map((r) => r.id), [repos])
   const placeholderRepoIds = useMemo(
     () =>
-      getEmptyProjectPlaceholderRepoIds({
-        groupBy: args.groupBy,
-        repos: args.visibleReposForRows,
-        worktreesByRepo,
-        visibleWorktrees: worktrees,
-        filterRepoIds: args.filterRepoIds
-      }),
-    [args.filterRepoIds, args.groupBy, args.visibleReposForRows, worktrees, worktreesByRepo]
+      args.activeOnly
+        ? new Set<string>()
+        : getEmptyProjectPlaceholderRepoIds({
+            groupBy: args.groupBy,
+            repos: args.visibleReposForRows,
+            worktreesByRepo,
+            visibleWorktrees: worktrees,
+            filterRepoIds: args.filterRepoIds
+          }),
+    [
+      args.filterRepoIds,
+      args.groupBy,
+      args.activeOnly,
+      args.visibleReposForRows,
+      worktrees,
+      worktreesByRepo
+    ]
   )
 
   // Why: subscribe on a flat key array (useShallow) so progress ticks don't rebuild the whole row model.
@@ -172,8 +185,8 @@ export function useSidebarSectionRows(args: SectionRowsArgs) {
         args.settings,
         args.visibleProjectGroupsForRows,
         placeholderRepoIds,
-        args.importedWorktreesByRepo,
-        args.newExternalWorktreesInboxByRepo,
+        args.activeOnly ? NO_NOTICE_CARDS : args.importedWorktreesByRepo,
+        args.activeOnly ? NO_NOTICE_CARDS : args.newExternalWorktreesInboxByRepo,
         pendingCreations,
         args.projectGrouping,
         args.visibleFolderWorkspacesForRows,
@@ -198,6 +211,7 @@ export function useSidebarSectionRows(args: SectionRowsArgs) {
       args.visibleProjectGroupsForRows,
       args.visibleFolderWorkspacesForRows,
       placeholderRepoIds,
+      args.activeOnly,
       args.importedWorktreesByRepo,
       args.newExternalWorktreesInboxByRepo,
       pendingCreations,

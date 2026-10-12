@@ -6042,7 +6042,8 @@
           "groupIconFailed": "Failed to update group icon",
           "groupIconFailedDesc": "Orca could not confirm the icon with the group's host. Recheck the group after reconnecting.",
           "groupIconUnsupported": "This group's host doesn't support group icons yet",
-          "groupIconUnsupportedDesc": "The group is stored on an Orca server running an older version. Update Orca there, then set the icon again."
+          "groupIconUnsupportedDesc": "The group is stored on an Orca server running an older version. Update Orca there, then set the icon again.",
+          "alwaysMarkInactive": "Always mark inactive"
         },
         "WorktreeMetaDialog": {
           "3db0a2a593": "Cancel",
@@ -19230,7 +19231,12 @@
       "openActivity": "View activity",
       "closeActivity": "Turn off activity view",
       "projects": "Projects",
-      "workspaces": "Workspaces"
+      "workspaces": "Workspaces",
+      "activeOnly": {
+        "label": "Active",
+        "turnOff": "Show all workspaces",
+        "turnOn": "Show only workspaces with open tabs, plus the one you are in"
+      }
     }
   },
   "runtimeRpc": {

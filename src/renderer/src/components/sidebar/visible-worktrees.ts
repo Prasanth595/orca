@@ -87,6 +87,8 @@ export type VisibleWorktreeOptions = {
   injectLineageAncestors?: boolean
   preserveLineageParentOrder?: boolean
   forcedVisibleWorktreeIds?: readonly string[]
+  /** Hierarchy "Active" view: keep only these ids, with no main-worktree exemption. */
+  activeOnlyWorkspaceIds?: ReadonlySet<string> | null
 }
 
 export function computeVisibleWorktrees(
@@ -146,7 +148,8 @@ export function computeVisibleWorktrees(
     all = all.filter((w) => selectedRepoIds.has(w.repoId))
   }
 
-  if (!opts.showSleepingWorkspaces) {
+  // Why skipped for the Active view: its open-tab membership is broader than live PTYs, so the sweep would drop editor-only rows.
+  if (!opts.showSleepingWorkspaces && !opts.activeOnlyWorkspaceIds) {
     // Why no !hideDefaultBranchWorkspace term: that filter already ran above, so
     // an explicit hide still wins over the exemption.
     all = all.filter(
@@ -161,6 +164,11 @@ export function computeVisibleWorktrees(
           opts.worktreeIdsWithStructuredChat
         )
     )
+  }
+
+  const activeOnlyWorkspaceIds = opts.activeOnlyWorkspaceIds
+  if (activeOnlyWorkspaceIds) {
+    all = all.filter((w) => activeOnlyWorkspaceIds.has(w.id))
   }
 
   if (opts.forcedVisibleWorktreeIds && opts.forcedVisibleWorktreeIds.length > 0) {

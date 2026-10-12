@@ -1,5 +1,6 @@
 import type { RepoIcon } from '../../../../../../shared/repo-icon'
 import type { Row } from '../grouping/row-types'
+import { getActiveViewGroupKey } from '../../active-only-sidebar-scope'
 import {
   getNestedRepoHeaderPaddingLeft,
   getProjectGroupHeaderPaddingLeft,
@@ -15,6 +16,8 @@ export type SectionHeaderLayout = {
   showRepoRuntimeIndicator: boolean
   paddingLeft: number
   projectGroupIcon: RepoIcon | null
+  /** Host-qualified key for the Active view's per-group opt-out; hierarchy style only. */
+  activeViewGroupKey: string | undefined
 }
 
 export function getSectionHeaderLayout(args: {
@@ -36,6 +39,7 @@ export function getSectionHeaderLayout(args: {
       : isRepoHeader || isProjectGroupHeader
         ? getProjectGroupHeaderPaddingLeft(depth)
         : WORKTREE_SECTION_HEADER_PADDING_LEFT,
-    projectGroupIcon: isProjectGroupHeader && group ? (group.icon ?? null) : null
+    projectGroupIcon: isProjectGroupHeader && group ? (group.icon ?? null) : null,
+    activeViewGroupKey: hierarchyStyle && group ? getActiveViewGroupKey(group) : undefined
   }
 }

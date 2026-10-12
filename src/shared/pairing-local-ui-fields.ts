@@ -26,6 +26,8 @@ export const PAIRING_LOCAL_UI_FIELDS = [
   'agentsReadFilter',
   'agentsGroupBy',
   'activityClearedAtByPaneKey',
+  // Hierarchy sidebar's per-group Active-view opt-out, keyed to this client's group catalog.
+  'activeViewHiddenProjectGroupIds',
   'manuallyUnreadTurnsByPaneKey'
 ] as const satisfies readonly (keyof PersistedUIState)[]
 

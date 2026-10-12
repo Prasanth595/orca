@@ -45,7 +45,11 @@ export function createUiPreferenceActions(set: UISliceSet, get: UISliceGet): Par
     // Why: group keys are mode-specific, so clear collapsed state on mode switch — stale keys are meaningless and accumulate.
     setGroupBy: (g) => {
       window.api.ui.set({ groupBy: g, collapsedGroups: [] }).catch(console.error)
-      set({ groupBy: g, collapsedGroups: new Set<string>() })
+      set({
+        groupBy: g,
+        collapsedGroups: new Set<string>(),
+        sidebarOtherViewCollapsedGroups: new Set<string>()
+      })
     },
 
     sortBy: 'recent',
@@ -57,6 +61,37 @@ export function createUiPreferenceActions(set: UISliceSet, get: UISliceGet): Par
 
     showActiveOnly: false,
     setShowActiveOnly: (v) => set({ showActiveOnly: v }),
+
+    sidebarActiveOnly: false,
+    sidebarActiveOnlyVisibleCount: 0,
+    setSidebarActiveOnlyVisibleCount: (count) => {
+      if (get().sidebarActiveOnlyVisibleCount !== count) {
+        set({ sidebarActiveOnlyVisibleCount: count })
+      }
+    },
+    activeViewHiddenProjectGroupIds: [],
+    // Why a direct write: the debounced writer doesn't carry this pairing-local field.
+    toggleActiveViewHiddenProjectGroup: (groupKey) =>
+      set((s) => {
+        const current = s.activeViewHiddenProjectGroupIds
+        const next = current.includes(groupKey)
+          ? current.filter((key) => key !== groupKey)
+          : [...current, groupKey]
+        window.api.ui.set({ activeViewHiddenProjectGroupIds: next }).catch(console.error)
+        return { activeViewHiddenProjectGroupIds: next }
+      }),
+    sidebarOtherViewCollapsedGroups: new Set<string>(),
+    // Why swap: every collapse reader (reveal, Cmd+1–9, keyboard toggles) keeps reading collapsedGroups.
+    setSidebarActiveOnly: (v) => {
+      if (get().sidebarActiveOnly === v) {
+        return
+      }
+      set((s) => ({
+        sidebarActiveOnly: v,
+        collapsedGroups: s.sidebarOtherViewCollapsedGroups,
+        sidebarOtherViewCollapsedGroups: s.collapsedGroups
+      }))
+    },
 
     showSleepingWorkspaces: DEFAULT_SHOW_SLEEPING_WORKSPACES,
     setShowSleepingWorkspaces: (v) => set({ showSleepingWorkspaces: v }),
@@ -169,7 +204,10 @@ export function createUiPreferenceActions(set: UISliceSet, get: UISliceGet): Par
         } else {
           next.add(key)
         }
-        window.api.ui.set({ collapsedGroups: [...next] }).catch(console.error)
+        // Why: the Active view's collapse memory is session-only; disk keeps the full view's.
+        if (!s.sidebarActiveOnly) {
+          window.api.ui.set({ collapsedGroups: [...next] }).catch(console.error)
+        }
         return { collapsedGroups: next }
       }),
 
