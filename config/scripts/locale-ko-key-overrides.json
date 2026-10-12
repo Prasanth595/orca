@@ -5104,5 +5104,47 @@
   },
   "components.workspace.cleanup.browse.agent.working": {
     "ko": "작업 중"
+  },
+  "auto.components.settings.BrowserLinkRoutingModifierSetting.descriptionOrca": {
+    "ko": "링크가 시스템 기본 브라우저에서 열립니다. 활성화하면 {{chord}}+클릭 시 Orca 내장 브라우저에서 대신 열립니다."
+  },
+  "auto.components.settings.BrowserLinkRoutingModifierSetting.descriptionSystem": {
+    "ko": "링크가 Orca에서 열리므로, {{chord}}+클릭 시 시스템 기본 브라우저에서 대신 열립니다."
+  },
+  "auto.components.settings.BrowserLinkRoutingModifierSetting.titleOrca": {
+    "ko": "Shift를 누른 채 클릭하면 Orca에서 열기"
+  },
+  "auto.components.settings.BrowserLinkRoutingModifierSetting.titleSystem": {
+    "ko": "Shift를 누른 채 클릭하면 웹 브라우저에서 열기"
+  },
+  "auto.components.settings.BrowserTerminalLinkActionsSetting.actionsLabel": {
+    "ko": "동작 메뉴 표시"
+  },
+  "auto.components.settings.BrowserTerminalLinkActionsSetting.leaveToTerminalLabel": {
+    "ko": "터미널에 맡기기"
+  },
+  "settings.browser.userAgent.resetRequiredCommand": {
+    "ko": "명령줄에서 재설정하세요: orca browser identity set --mode <mode> --reset"
+  },
+  "auto.components.settings.browser.search.clientHostedRemote.client": {
+    "ko": "클라이언트"
+  },
+  "auto.components.settings.browser.search.clientHostedRemote.host": {
+    "ko": "호스트"
+  },
+  "auto.components.settings.browser.search.sshWorkspaceRouting.network": {
+    "ko": "네트워크"
+  },
+  "auto.components.settings.browser.search.terminalLinkActions.click": {
+    "ko": "클릭"
+  },
+  "auto.components.settings.BrowserUseEnableSwitch.aea3f45349": {
+    "ko": "에이전트 브라우저 사용 활성화"
+  },
+  "auto.components.settings.BrowserUsePane.b8a1f2d84d": {
+    "ko": "에이전트 브라우저 사용"
+  },
+  "auto.components.settings.browser.use.search.9d97446873": {
+    "ko": "에이전트"
   }
 }

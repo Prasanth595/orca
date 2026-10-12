@@ -132,7 +132,7 @@
         "remoteUnsupported": "Orca CLI를 사용하여 원격 호스트에서 브라우저 ID를 관리합니다.",
         "loading": "로드 중…",
         "resetRequired": "ID 데이터를 변경하려면 먼저 명시적으로 재설정해야 합니다.",
-        "resetRequiredCommand": "명령줄에서 재설정: orca browser Identity set --mode <mode> --reset",
+        "resetRequiredCommand": "명령줄에서 재설정하세요: orca browser identity set --mode <mode> --reset",
         "optionClean": "정리됨",
         "optionCleanTooltip": "가져온 Chrome 세션과 일치하도록 Orca 및 Electron 토큰을 제거합니다.",
         "optionNative": "네이티브",
@@ -6923,7 +6923,7 @@
           "333984cf90": "기존 브라우저 세션 사용"
         },
         "BrowserUseEnableSwitch": {
-          "aea3f45349": "Agent 브라우저 사용 활성화"
+          "aea3f45349": "에이전트 브라우저 사용 활성화"
         },
         "BrowserUseExamples": {
           "1199258ace": "복사",
@@ -6945,7 +6945,7 @@
           "af8c83ed61": "agents가 로그인을 재사용할 수 있도록 Chrome, Edge 또는 기타 브라우저에서 쿠키를 가져옵니다.",
           "68ea76eb71": "agents가 Orca의 브라우저를 작동할 수 있도록 브라우저 사용 스킬을 설치하세요.",
           "2d6ead9ab2": "브라우저 사용 스킬 설치",
-          "b8a1f2d84d": "Agent 브라우저 사용",
+          "b8a1f2d84d": "에이전트 브라우저 사용",
           "96b91c6349": "코딩 agents가 로그인을 통해 이 브라우저를 구동하게 하세요.",
           "2ea4617e3a": "{{value1}}{{value2}}에서 {{value0}} 쿠키를 가져왔습니다.",
           "2ccfc9cff8": "가져오기",
@@ -9377,7 +9377,7 @@
             "terminalLinkActions": {
               "terminal": "터미널",
               "chat": "채팅",
-              "click": "딸깍 하는 소리",
+              "click": "클릭",
               "actions": "행위",
               "popover": "팝오버",
               "menu": "메뉴",
@@ -9390,8 +9390,8 @@
             "660c1dd007": "라벨",
             "clientHostedRemote": {
               "remote": "원격",
-              "client": "고객",
-              "host": "주인",
+              "client": "클라이언트",
+              "host": "호스트",
               "desktop": "데스크탑",
               "placement": "놓기"
             },
@@ -9400,7 +9400,7 @@
               "proxy": "프록시",
               "tunnel": "터널",
               "routing": "라우팅",
-              "network": "회로망"
+              "network": "네트워크"
             },
             "userAgent": {
               "identity": "신원",
@@ -9435,7 +9435,7 @@
               "6ea88e5206": "npx",
               "f5b8fdddf5": "orca-cli",
               "e5a784bc54": "설치",
-              "9d97446873": "agent",
+              "9d97446873": "에이전트",
               "a2d489263e": "스킬",
               "a7e82445fa": "agents가 Orca의 브라우저를 작동할 수 있도록 브라우저 사용 스킬을 설치하세요.",
               "a1414dcefb": "브라우저 사용 스킬 설치"
@@ -11534,10 +11534,10 @@
           "descriptionBase": "터미널, Markdown, 편집기의 http(s) 링크를 Orca 내장 브라우저에서 엽니다."
         },
         "BrowserLinkRoutingModifierSetting": {
-          "titleSystem": "Hold Shift to open in your web browser",
-          "titleOrca": "Hold Shift to open in Orca",
-          "descriptionSystem": "Links open in Orca, so {{chord}}+click sends one to your system browser instead.",
-          "descriptionOrca": "Links open in your system browser. When enabled, {{chord}}+click opens one in Orca's built-in browser instead."
+          "titleSystem": "Shift를 누른 채 클릭하면 웹 브라우저에서 열기",
+          "titleOrca": "Shift를 누른 채 클릭하면 Orca에서 열기",
+          "descriptionSystem": "링크가 Orca에서 열리므로, {{chord}}+클릭 시 시스템 기본 브라우저에서 대신 열립니다.",
+          "descriptionOrca": "링크가 시스템 기본 브라우저에서 열립니다. 활성화하면 {{chord}}+클릭 시 Orca 내장 브라우저에서 대신 열립니다."
         },
         "PluginConsentDialog": {
           "workerTrust": "백그라운드 워커 — 자체 프로세스 실행",
@@ -11972,9 +11972,9 @@
           "middleClickLabel": "가운데 클릭",
           "middleClickDescription": "감지된 터미널 URL에서 마우스 휠 클릭이 수행하는 작업을 선택합니다.",
           "middleClickAriaLabel": "가운데 클릭",
-          "actionsLabel": "행위",
+          "actionsLabel": "동작 메뉴 표시",
           "openUrlLabel": "URL 열기",
-          "leaveToTerminalLabel": "터미널로 출발"
+          "leaveToTerminalLabel": "터미널에 맡기기"
         },
         "ReleaseChannelSection": {
           "switchFailed": "해당 빌드로 전환할 수 없습니다.",
