@@ -10,6 +10,7 @@ import { SortableTabContextMenu } from './SortableTabContextMenu'
 
 const storeMock = vi.hoisted(() => ({
   dropUnifiedTab: vi.fn(),
+  createTerminalSplitGroup: vi.fn(),
   state: {
     keybindings: {},
     unifiedTabsByWorktree: {},
@@ -102,6 +103,10 @@ vi.mock('../../store', () => ({
   )
 }))
 
+vi.mock('../tab-group/create-terminal-split-group', () => ({
+  createTerminalSplitGroup: storeMock.createTerminalSplitGroup
+}))
+
 const mounted: { container: HTMLDivElement; root: Root }[] = []
 
 function renderMenu(overrides: Partial<ComponentProps<typeof SortableTabContextMenu>> = {}): {
@@ -180,6 +185,7 @@ function getLastSplitEvent(spy: ReturnType<typeof vi.spyOn>): CustomEvent {
 
 beforeEach(() => {
   storeMock.dropUnifiedTab.mockReset()
+  storeMock.createTerminalSplitGroup.mockReset()
   storeMock.state = {
     keybindings: {},
     dropUnifiedTab: storeMock.dropUnifiedTab,
@@ -348,11 +354,24 @@ describe('SortableTabContextMenu', () => {
     })
   })
 
-  it('hides terminal-only split actions for structured chat tabs', () => {
-    const { container } = renderMenu({ canSplitTerminal: false })
+  it('creates an adjacent terminal when splitting a structured chat tab', () => {
+    const { container } = renderMenu({
+      canSplitTerminal: false,
+      structuredSessionId: 'orca-chat-1',
+      isActive: false
+    })
 
     expect(container.textContent).toContain('Move Tab to Split')
-    expect(container.textContent).not.toContain('Split terminal')
+    expect(container.textContent).toContain('Split terminal')
+
+    act(() => getButton(container, 'Split terminal right').click())
+    expect(storeMock.createTerminalSplitGroup).toHaveBeenCalledWith('wt-1', 'group-1', 'right')
+    expect(storeMock.createTerminalSplitGroup).toHaveBeenCalledTimes(1)
+    expect(container.textContent).toContain('Split terminal down')
+
+    act(() => getButton(container, 'Split terminal down').click())
+    expect(storeMock.createTerminalSplitGroup).toHaveBeenLastCalledWith('wt-1', 'group-1', 'down')
+    expect(storeMock.createTerminalSplitGroup).toHaveBeenCalledTimes(2)
   })
 
   it('routes the directional close actions to their handlers with the tab id', () => {

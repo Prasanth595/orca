@@ -24,6 +24,7 @@ import { TerminalTabSplitMenuSection } from './TerminalTabSplitMenuSection'
 import { TabSessionSurfaceSwitchMenuItems } from './TabSessionSurfaceSwitchMenuItems'
 import { TAB_CONTEXT_MENU_CONTENT_CLASS } from './tab-context-menu-sizing'
 import { CopyTabIdMenuItem } from './CopyTabIdMenuItem'
+import { createTerminalSplitGroup } from '../tab-group/create-terminal-split-group'
 
 const TAB_COLORS = [
   {
@@ -177,7 +178,17 @@ export function SortableTabContextMenu({
           onActivate={onActivate}
           splitRightShortcut={splitRightShortcut}
           splitDownShortcut={splitDownShortcut}
-          showTerminalSplit={canSplitTerminal}
+          showTerminalSplit={canSplitTerminal || Boolean(structuredSessionId)}
+          onCreateTerminalSplit={
+            structuredSessionId
+              ? (direction) =>
+                  createTerminalSplitGroup(
+                    tab.worktreeId,
+                    groupId,
+                    direction === 'vertical' ? 'right' : 'down'
+                  )
+              : undefined
+          }
         />
         {showTerminalViewSwitch ? (
           <>

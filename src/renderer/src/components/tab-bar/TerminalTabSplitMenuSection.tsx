@@ -22,6 +22,7 @@ export function TerminalTabSplitMenuSection({
   splitRightShortcut,
   splitDownShortcut,
   showTerminalSplit = true,
+  onCreateTerminalSplit,
   trailingSeparator = false
 }: {
   unifiedTabId: string
@@ -32,9 +33,14 @@ export function TerminalTabSplitMenuSection({
   splitRightShortcut: string
   splitDownShortcut: string
   showTerminalSplit?: boolean
+  onCreateTerminalSplit?: (direction: 'vertical' | 'horizontal') => void
   trailingSeparator?: boolean
 }): React.JSX.Element {
   const splitActiveTerminalPane = (direction: 'vertical' | 'horizontal'): void => {
+    if (onCreateTerminalSplit) {
+      onCreateTerminalSplit(direction)
+      return
+    }
     if (!isActive) {
       onActivate(tabId)
     }
