@@ -71,8 +71,9 @@ export function createRuntimeGitLabApi(transport: RuntimeGitLabTransport): GitLa
           controller.signal
         )
       } finally {
-        if (detailControllers.get(requestToken) === controller)
+        if (detailControllers.get(requestToken) === controller) {
           detailControllers.delete(requestToken)
+        }
       }
     },
     cancelWorkItemDetails: async ({ requestToken }) => {
