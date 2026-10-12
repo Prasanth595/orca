@@ -11,10 +11,24 @@ vi.mock('./ssh-relay-install-lock', async (importOriginal) => ({
   ...(await importOriginal<typeof InstallLock>()),
   acquireInstallLock: vi.fn()
 }))
+// Why partial: managedOrcadSlot stays real, so the woke slot matches the one this file builds.
+vi.mock('./orcad-managed-runtime-context', async (importOriginal) => ({
+  ...(await importOriginal<typeof RuntimeContextModule>()),
+  probeManagedOrcadReadiness: vi.fn()
+}))
 
 import { execCommand } from './ssh-relay-exec-command'
 import { acquireInstallLock, RemoteInstallLockBusyError } from './ssh-relay-install-lock'
-import { wakeStoppedManagedOrcad } from './orcad-managed-wake'
+import type * as RuntimeContextModule from './orcad-managed-runtime-context'
+import { probeManagedOrcadReadiness } from './orcad-managed-runtime-context'
+import { OrcadActiveReadinessError } from './orcad-active-readiness'
+import type { OrcadRemoteContext } from './orcad-remote-context'
+import type { ServeReadiness } from '../server/serve-readiness'
+import {
+  probeOrWakeStoppedOrcadReadiness,
+  startStoppedActiveOrcad,
+  wakeStoppedManagedOrcad
+} from './orcad-managed-wake'
 import { getRemoteHostPlatform } from './ssh-remote-platform'
 import type { OrcadHostTransport } from './orcad-host-transport'
 import { FakeOrcadHost, OLD } from './orcad-activation-host-test-harness'
@@ -285,6 +299,84 @@ describe('wakeStoppedManagedOrcad', () => {
     host = new FakeOrcadHost()
 
     expect(await wakeStoppedManagedOrcad(slot)).toEqual({ outcome: 'not-activated' })
+    expect(launches()).toEqual([])
+  })
+})
+
+describe('startStoppedActiveOrcad', () => {
+  it('answers the readiness of the slot it started', async () => {
+    host = stoppedHost()
+
+    const readiness = await startStoppedActiveOrcad(slot)
+
+    expect(readiness).not.toBeNull()
+    expect(launches()).toHaveLength(1)
+  })
+
+  it('answers nothing for a server that is already running', async () => {
+    host = FakeOrcadHost.deployedOld()
+
+    await expect(startStoppedActiveOrcad(slot)).resolves.toBeNull()
+    expect(launches()).toEqual([])
+  })
+
+  it('answers nothing when the slot state cannot be proven', async () => {
+    host = stoppedHost()
+    host.pidFiles.clear()
+
+    await expect(startStoppedActiveOrcad(slot)).resolves.toBeNull()
+    expect(launches()).toEqual([])
+  })
+})
+
+describe('probeOrWakeStoppedOrcadReadiness', () => {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: managedOrcadSlot reads only the connection, host, home and data dir.
+  const context = {
+    connection: slot.conn,
+    host: slot.host,
+    remoteHome: slot.remoteHome,
+    userDataDir: slot.userDataDir
+  } as unknown as OrcadRemoteContext
+  const args = { context, localOrcadDir: '/local/orcad', fullVersion: OLD, port: slot.port }
+
+  it('starts the deployed slot when its process is proven exited', async () => {
+    host = stoppedHost()
+    vi.mocked(probeManagedOrcadReadiness).mockRejectedValueOnce(
+      new OrcadActiveReadinessError(
+        'exited',
+        'orcad is recorded active but its process has exited.'
+      )
+    )
+
+    await expect(probeOrWakeStoppedOrcadReadiness(args)).resolves.toMatchObject({
+      startedServer: true
+    })
+    expect(probeManagedOrcadReadiness).toHaveBeenCalledWith(context, '/local/orcad', OLD, undefined)
+    expect(launches()).toHaveLength(1)
+  })
+
+  it('keeps a refusal that is not a proven exit, and starts nothing', async () => {
+    host = stoppedHost()
+    vi.mocked(probeManagedOrcadReadiness).mockRejectedValueOnce(
+      new OrcadActiveReadinessError('unverifiable', 'orcad process state is unverifiable.')
+    )
+
+    await expect(probeOrWakeStoppedOrcadReadiness(args)).rejects.toBeInstanceOf(
+      OrcadActiveReadinessError
+    )
+    expect(launches()).toEqual([])
+  })
+
+  it('answers a running server without starting anything', async () => {
+    host = FakeOrcadHost.deployedOld()
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the probe's answer is passed through untouched.
+    const readiness = { boundEndpoint: 'ws://127.0.0.1:7777' } as ServeReadiness
+    vi.mocked(probeManagedOrcadReadiness).mockResolvedValueOnce(readiness)
+
+    await expect(probeOrWakeStoppedOrcadReadiness(args)).resolves.toEqual({
+      readiness,
+      startedServer: false
+    })
     expect(launches()).toEqual([])
   })
 })

@@ -5,9 +5,20 @@ import {
   OrcadManagedIdentityError,
   type OrcadTunnelIdentity
 } from './orcad-managed-tunnel-identity'
-import { forwardToVerifiedOrcad } from './orcad-managed-tunnel-target'
+import {
+  environmentForwardChecks,
+  forwardToVerifiedOrcad,
+  type OrcadTunnelPortInput
+} from './orcad-managed-tunnel-target'
 
 const FOREIGN: OrcadTunnelIdentity = { verdict: 'foreign', detail: '4001: Unauthorized' }
+
+// oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the targeting doubles read only the fields their own function takes.
+const PORT_INPUT = {
+  environment: {},
+  target: {},
+  connection: {}
+} as unknown as OrcadTunnelPortInput
 
 function setup(verdicts: OrcadTunnelIdentity[], rereadPort: number) {
   const addForward = vi.fn(
@@ -87,6 +98,70 @@ describe('forwardToVerifiedOrcad', () => {
     await expect(forwardToVerifiedOrcad(state.args)).resolves.toMatchObject({ remotePort: 6_768 })
     expect(state.removeForwardAndWait).not.toHaveBeenCalled()
     warn.mockRestore()
+  })
+
+  it('starts the server when nothing answers, and follows the port it landed on', async () => {
+    // Nothing holds the recorded port because this server stopped, so the wake is the only way the
+    // forward can ever reach it again.
+    const state = setup([{ verdict: 'unreachable', detail: 'ECONNREFUSED' }], 58_520)
+    await expect(forwardToVerifiedOrcad(state.args)).resolves.toMatchObject({ remotePort: 58_520 })
+    expect(state.rereadRemotePort).toHaveBeenCalledTimes(1)
+    expect(state.removeForwardAndWait).toHaveBeenCalledWith('forward-1')
+    expect(state.addForward.mock.calls.map((call) => call[4])).toEqual([6_768, 58_520])
+  })
+
+  it('wakes once, then keeps the forward of a server that is still starting', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const state = setup(
+      [
+        { verdict: 'unreachable', detail: 'ECONNREFUSED' },
+        { verdict: 'unreachable', detail: 'ECONNREFUSED' }
+      ],
+      58_520
+    )
+    await expect(forwardToVerifiedOrcad(state.args)).resolves.toMatchObject({ remotePort: 58_520 })
+    expect(state.rereadRemotePort).toHaveBeenCalledTimes(1)
+    expect(state.removeForwardAndWait).toHaveBeenCalledTimes(1)
+    warn.mockRestore()
+  })
+
+  it('starts a stopped server before re-reading the port a stranger answered on', async () => {
+    const targeting = {
+      resolveRemotePort: vi.fn(async () => 6_768),
+      verifyIdentity: vi.fn(async () => ({ verdict: 'verified' as const })),
+      startStoppedServer: vi.fn(async () => 58_520)
+    }
+
+    const checks = await environmentForwardChecks(targeting, PORT_INPUT)
+
+    expect(checks.remotePort).toBe(6_768)
+    await expect(checks.rereadRemotePort()).resolves.toBe(58_520)
+    expect(targeting.startStoppedServer).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the port it had when there was no stopped server to start', async () => {
+    const targeting = {
+      resolveRemotePort: vi.fn(async () => 6_768),
+      verifyIdentity: vi.fn(async () => ({ verdict: 'verified' as const })),
+      startStoppedServer: vi.fn(async () => null)
+    }
+
+    const checks = await environmentForwardChecks(targeting, PORT_INPUT)
+
+    await expect(checks.rereadRemotePort()).resolves.toBe(6_768)
+    expect(targeting.startStoppedServer).toHaveBeenCalledTimes(1)
+  })
+
+  it('re-reads the port and verifies identity for a targeting with no wake', async () => {
+    const targeting = {
+      resolveRemotePort: vi.fn(async () => 6_768),
+      verifyIdentity: vi.fn(async () => FOREIGN)
+    }
+
+    const checks = await environmentForwardChecks(targeting, PORT_INPUT)
+
+    await expect(checks.rereadRemotePort()).resolves.toBe(6_768)
+    await expect(checks.verify(41_000)).resolves.toEqual(FOREIGN)
   })
 
   it('drops the forward and reports nothing when setup was superseded', async () => {

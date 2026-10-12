@@ -4,6 +4,7 @@ import {
   type KnownRuntimeEnvironment
 } from '../../shared/runtime-environments'
 import {
+  orcadBoundPort,
   resolveManagedOrcadTunnelPort,
   type OrcadTunnelPortInput
 } from './orcad-managed-bound-port'
@@ -12,6 +13,9 @@ import {
   verifyManagedOrcadTunnelIdentity,
   type OrcadTunnelIdentity
 } from './orcad-managed-tunnel-identity'
+import { managedOrcadSlot } from './orcad-managed-runtime-context'
+import { startStoppedActiveOrcad } from './orcad-managed-wake'
+import { resolveOrcadRemoteContext } from './orcad-remote-context'
 import type { SshConnection } from './ssh-connection'
 import type { PortForwardEntry, SshPortForwardManager } from './ssh-port-forward'
 
@@ -19,11 +23,41 @@ export type OrcadManagedTunnelTargeting = {
   resolveRemotePort: (input: OrcadTunnelPortInput) => Promise<number>
   /** Checks the runtime the environment's pairing endpoint (the tunnel's local port) reaches. */
   verifyIdentity: (environment: KnownRuntimeEnvironment) => Promise<OrcadTunnelIdentity>
+  /**
+   * Starts the managed server when its process is proven exited, and answers the port it landed on.
+   * Null when there was nothing to start, so the caller keeps the port it already had.
+   */
+  startStoppedServer?: (input: OrcadTunnelPortInput) => Promise<number | null>
 }
 
 export const MANAGED_ORCAD_TUNNEL_TARGETING: OrcadManagedTunnelTargeting = {
   resolveRemotePort: resolveManagedOrcadTunnelPort,
-  verifyIdentity: verifyManagedOrcadTunnelIdentity
+  verifyIdentity: verifyManagedOrcadTunnelIdentity,
+  startStoppedServer: startStoppedManagedOrcadServer
+}
+
+/**
+ * Why a failed identity check is not the end: the recorded port may be held by another runtime (a
+ * foreign answer) or left free (nothing answers) precisely because this server stopped, and a stopped
+ * server is woken rather than reported as a stranger or as silence. Starting it moves orcad to a free
+ * port, which the caller then follows; anything the wake could not prove leaves the port as it was.
+ */
+async function startStoppedManagedOrcadServer(input: OrcadTunnelPortInput): Promise<number | null> {
+  try {
+    const access = getRuntimeSshAccess(input.environment)
+    if (!access) {
+      return null
+    }
+    const context = await resolveOrcadRemoteContext(input.target, input.connection)
+    const readiness = await startStoppedActiveOrcad(managedOrcadSlot(context, access.remotePort))
+    return readiness ? orcadBoundPort(readiness) : null
+  } catch (error) {
+    console.warn(
+      '[ssh] Could not start the managed Orca server after a failed identity check:',
+      error
+    )
+    return null
+  }
 }
 
 /** Test default: the persisted port, and no identity round trip. */
@@ -62,15 +96,25 @@ export async function environmentForwardChecks(
 ): Promise<Required<Pick<VerifiedOrcadForwardArgs, 'remotePort' | 'rereadRemotePort' | 'verify'>>> {
   return {
     remotePort: await targeting.resolveRemotePort(input),
-    rereadRemotePort: () => targeting.resolveRemotePort(input),
+    rereadRemotePort: async () => {
+      // Why before the re-read: either failure at this port can mean this server stopped — another
+      // runtime took the port it left behind, or nobody answers because it left the port free — so
+      // start it and follow where it lands.
+      const started = await targeting.startStoppedServer?.(input)
+      return started ?? (await targeting.resolveRemotePort(input))
+    },
     verify: () => targeting.verifyIdentity(input.environment)
   }
 }
 
 /**
  * Null when `stillCurrent` turned false mid-setup; the forward is already removed then.
- * An answer from another runtime re-reads the port once, since orcad may have restarted onto a
- * new one, and throws if the port did not move or the new one is foreign too.
+ *
+ * Neither failure verdict ends the attempt on its own: the recorded port may be held by another
+ * runtime (a foreign answer) or free because this server stopped (nothing answers), and `rereadPort`
+ * starts the server on a proven exit and answers the port it lands on. A foreign answer follows that
+ * port once and throws if it did not move; an answer that says nothing keeps the forward it has,
+ * because a server that is down or still starting is not a wrong server.
  */
 export async function forwardToVerifiedOrcad(
   args: VerifiedOrcadForwardArgs
@@ -88,19 +132,28 @@ export async function forwardToVerifiedOrcad(
       await args.forwards.removeForwardAndWait(forward.id)
       return null
     }
-    if (identity.verdict !== 'foreign') {
-      if (identity.verdict === 'unreachable') {
-        // Why not fail: a server that is down or still starting is not a wrong server.
+    if (identity.verdict === 'verified') {
+      return forward
+    }
+    const reread =
+      attempt === 0 && args.rereadRemotePort ? await args.rereadRemotePort() : remotePort
+    if (!args.stillCurrent()) {
+      await args.forwards.removeForwardAndWait(forward.id)
+      return null
+    }
+    if (identity.verdict === 'unreachable') {
+      if (reread === remotePort) {
         console.warn(
           `[ssh] Managed Orca server did not answer through its tunnel: ${identity.detail}`
         )
+        return forward
       }
-      return forward
+      await args.forwards.removeForwardAndWait(forward.id)
+      remotePort = reread
+      continue
     }
     await args.forwards.removeForwardAndWait(forward.id)
-    const reread =
-      attempt === 0 && args.rereadRemotePort ? await args.rereadRemotePort() : remotePort
-    if (reread === remotePort || !args.stillCurrent()) {
+    if (reread === remotePort) {
       throw new OrcadManagedIdentityError(remotePort, identity.detail)
     }
     remotePort = reread

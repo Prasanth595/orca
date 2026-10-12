@@ -17,6 +17,9 @@ import { orcadActivationFenceLockDir } from './orcad-activation-transaction'
 import { joinRemotePath } from './ssh-remote-platform'
 
 import { readOrcadActivationTransaction } from './orcad-activation-transaction-store'
+import { OrcadActiveReadinessError } from './orcad-active-readiness'
+import { managedOrcadSlot, probeManagedOrcadReadiness } from './orcad-managed-runtime-context'
+import type { OrcadRemoteContext } from './orcad-remote-context'
 import {
   ORCAD_RECOVERY_UNVERIFIABLE_CODE,
   recoverInterruptedOrcadActivation
@@ -59,6 +62,56 @@ export function wakeStoppedManagedOrcad(
       }
     })
   return wake
+}
+
+/**
+ * The readiness of a recorded-active slot this call started, or null when there was nothing to start:
+ * not activated, already serving, unprovable, or fenced by another run. Callers that are about to use
+ * the slot's port use this so a server that idled out is woken instead of answering as a wrong server.
+ */
+export async function startStoppedActiveOrcad(
+  options: OrcadSlotOptions
+): Promise<ServeReadiness | null> {
+  const wake = await wakeStoppedManagedOrcad(options)
+  return wake.outcome === 'started' ? wake.readiness : null
+}
+
+/**
+ * A readiness answer, and whether this call had to start the slot to get it. Callers need the flag
+ * because a started slot may bind another port than the forward they already reuse.
+ */
+export type OrcadProbedReadiness = { readiness: ServeReadiness; startedServer: boolean }
+
+/**
+ * The deployed version's readiness, starting the slot when it is proven exited. A deploy that finds
+ * this version already active launches nothing, so a server that stopped since then reports itself as
+ * exited: that is a server to start, not a failed update.
+ */
+export async function probeOrWakeStoppedOrcadReadiness(args: {
+  context: OrcadRemoteContext
+  localOrcadDir: string
+  fullVersion: string
+  port: number
+  signal?: AbortSignal
+}): Promise<OrcadProbedReadiness> {
+  try {
+    const readiness = await probeManagedOrcadReadiness(
+      args.context,
+      args.localOrcadDir,
+      args.fullVersion,
+      args.signal
+    )
+    return { readiness, startedServer: false }
+  } catch (error) {
+    const readiness =
+      error instanceof OrcadActiveReadinessError && error.verdict === 'exited'
+        ? await startStoppedActiveOrcad(managedOrcadSlot(args.context, args.port, args.signal))
+        : null
+    if (!readiness) {
+      throw error
+    }
+    return { readiness, startedServer: true }
+  }
 }
 
 async function wakeAfterPrior(

@@ -4,6 +4,8 @@ import { listEnvironments } from '../../shared/runtime-environment-store'
 import { recordManagedOrcadMigration } from '../../shared/runtime-environment-managed-orcad-store'
 import { orcadMigrationCutoverFixture } from './orcad-migration-cutover-fixture'
 import { writeOrcadMigrationSourceCutover } from './orcad-migration-cutover-journal'
+import type * as ActiveReadinessModule from './orcad-active-readiness'
+import { OrcadActiveReadinessError } from './orcad-active-readiness'
 import {
   createManagedLifecycleHarness,
   MANAGED_PREVIOUS_VERSION,
@@ -21,8 +23,11 @@ const mocks = vi.hoisted(() => {
     rollback: vi.fn(),
     recover: vi.fn(),
     probe: vi.fn(),
+    probeOrWake: vi.fn(),
+    startStopped: vi.fn(),
     buildHash: vi.fn(),
     ensureTunnel: vi.fn(),
+    rebuildTunnel: vi.fn(),
     pendingMigration: vi.fn()
   }
 })
@@ -36,13 +41,23 @@ vi.mock('./orcad-terminal-census-client', () => ({ collectManagedTerminalCensus:
 vi.mock('./orcad-remote-deploy', () => ({ deployOrcad: mocks.deploy }))
 vi.mock('./orcad-remote-rollback', () => ({ rollbackOrcad: mocks.rollback }))
 vi.mock('./orcad-activation-recovery', () => ({ recoverInterruptedOrcadActivation: mocks.recover }))
-vi.mock('./orcad-active-readiness', () => ({ probeActiveOrcadReadiness: mocks.probe }))
+vi.mock('./orcad-active-readiness', async (importOriginal) => ({
+  ...(await importOriginal<typeof ActiveReadinessModule>()),
+  probeActiveOrcadReadiness: mocks.probe
+}))
+vi.mock('./orcad-managed-wake', () => ({
+  probeOrWakeStoppedOrcadReadiness: mocks.probeOrWake,
+  startStoppedActiveOrcad: mocks.startStopped
+}))
 vi.mock('./orcad-remote-build-hash', () => ({ readRemoteOrcadBuildHash: mocks.buildHash }))
 vi.mock('../orcad/orcad-artifact-materializer', () => ({
   materializeOrcadArtifact: async () => '/local/orcad'
 }))
 vi.mock('./orcad-local-build-hash', () => ({ computeLocalOrcadBuildHash: () => 'local-hash' }))
-vi.mock('./orcad-managed-tunnel', () => ({ ensureOrcadManagedTunnel: mocks.ensureTunnel }))
+vi.mock('./orcad-managed-tunnel', () => ({
+  ensureOrcadManagedTunnel: mocks.ensureTunnel,
+  rebuildOrcadManagedTunnel: mocks.rebuildTunnel
+}))
 vi.mock('./orcad-managed-migration-status', () => ({
   findIncompleteManagedOrcadMigration: mocks.pendingMigration
 }))
@@ -67,8 +82,10 @@ beforeEach(() => {
   mocks.resolveContext.mockImplementation(async () => harness.context())
   mocks.census.mockResolvedValue(idle)
   mocks.probe.mockResolvedValue(managedReadiness())
+  mocks.probeOrWake.mockResolvedValue({ readiness: managedReadiness(), startedServer: false })
   mocks.buildHash.mockResolvedValue('previous-hash')
   mocks.recover.mockResolvedValue({ outcome: 'none' })
+  mocks.startStopped.mockResolvedValue(null)
 })
 
 afterEach(() => rmSync(harness.userDataPath, { recursive: true, force: true }))
@@ -116,10 +133,9 @@ describe('updateManagedOrcadEnvironment', () => {
       force: true
     })
     expect(result).toMatchObject({ outcome: 'updated', activeVersion: '0.3.0+new' })
-    expect(mocks.probe).toHaveBeenCalledWith(expect.anything(), {
-      buildHash: 'local-hash',
-      fullVersion: '0.3.0+new'
-    })
+    expect(mocks.probeOrWake).toHaveBeenCalledWith(
+      expect.objectContaining({ fullVersion: '0.3.0+new', port: 6_768 })
+    )
     const [environment] = listEnvironments(harness.userDataPath)
     expect(environment?.pairingRevision).toBe(harness.environment.pairingRevision)
     expect(environment?.orcadDeployment).toEqual(harness.environment.orcadDeployment)
@@ -127,9 +143,51 @@ describe('updateManagedOrcadEnvironment', () => {
     expect(status.deferredUpdate).toBeNull()
   })
 
+  it('records what the waking probe answered, so a started server re-pairs', async () => {
+    mocks.deploy.mockResolvedValueOnce({ outcome: 'already-active', fullVersion: MANAGED_VERSION })
+    mocks.probeOrWake.mockResolvedValueOnce({
+      readiness: managedReadiness('started-token'),
+      startedServer: false
+    })
+
+    const result = await updateManagedOrcadEnvironment(harness.userDataPath, {
+      selector: 'Managed'
+    })
+
+    expect(result).toMatchObject({ outcome: 'already-current', activeVersion: MANAGED_VERSION })
+    const [environment] = listEnvironments(harness.userDataPath)
+    expect(environment?.endpoints[0]?.deviceToken).toBe('started-token')
+    expect(mocks.rebuildTunnel).not.toHaveBeenCalled()
+  })
+
+  it('rebuilds the tunnel when the update had to start the server', async () => {
+    mocks.deploy.mockResolvedValueOnce({ outcome: 'already-active', fullVersion: MANAGED_VERSION })
+    mocks.probeOrWake.mockResolvedValueOnce({ readiness: managedReadiness(), startedServer: true })
+
+    await updateManagedOrcadEnvironment(harness.userDataPath, { selector: 'Managed' })
+
+    // The started slot may bind another port than the forward in use.
+    expect(mocks.rebuildTunnel).toHaveBeenCalledWith(harness.userDataPath, 'environment-1')
+  })
+
+  it('does not paper over a readiness refusal that is not a proven exit', async () => {
+    mocks.deploy.mockResolvedValueOnce({ outcome: 'already-active', fullVersion: MANAGED_VERSION })
+    mocks.probeOrWake.mockRejectedValueOnce(
+      new OrcadActiveReadinessError('unverifiable', 'orcad process state is unverifiable.')
+    )
+
+    await expect(
+      updateManagedOrcadEnvironment(harness.userDataPath, { selector: 'Managed' })
+    ).rejects.toBeInstanceOf(OrcadActiveReadinessError)
+    expect(mocks.startStopped).not.toHaveBeenCalled()
+  })
+
   it('re-pairs through the same tunnel, keeping the deployment link, when the offer changed', async () => {
     mocks.deploy.mockResolvedValueOnce({ outcome: 'installed-and-activated', fullVersion: 'v3' })
-    mocks.probe.mockResolvedValueOnce(managedReadiness('rotated-token'))
+    mocks.probeOrWake.mockResolvedValueOnce({
+      readiness: managedReadiness('rotated-token'),
+      startedServer: false
+    })
     await updateManagedOrcadEnvironment(harness.userDataPath, { selector: 'Managed' })
     const [environment] = listEnvironments(harness.userDataPath)
     expect(environment?.endpoints[0]?.deviceToken).toBe('rotated-token')
@@ -224,6 +282,25 @@ describe('recoverManagedOrcadEnvironment', () => {
       recoverManagedOrcadEnvironment(harness.userDataPath, { selector: 'Managed' })
     ).resolves.toMatchObject({ outcome: 'refused', verdict: 'unverifiable' })
     expect(listEnvironments(harness.userDataPath)).toHaveLength(1)
+  })
+
+  it('starts a server that stopped itself, which no journal can name', async () => {
+    mocks.startStopped.mockResolvedValueOnce(managedReadiness())
+
+    await expect(
+      recoverManagedOrcadEnvironment(harness.userDataPath, { selector: 'Managed' })
+    ).resolves.toMatchObject({
+      outcome: 'recovered',
+      resolution: 'restored-incumbent',
+      activeVersion: MANAGED_VERSION
+    })
+    expect(mocks.rebuildTunnel).toHaveBeenCalledWith(harness.userDataPath, 'environment-1')
+  })
+
+  it('reports nothing to recover when nothing was proven stopped', async () => {
+    await expect(
+      recoverManagedOrcadEnvironment(harness.userDataPath, { selector: 'Managed' })
+    ).resolves.toEqual({ outcome: 'none' })
   })
 
   it('re-ensures the tunnel once a serving slot is restored', async () => {

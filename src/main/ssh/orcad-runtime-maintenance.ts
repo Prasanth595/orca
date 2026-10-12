@@ -21,7 +21,7 @@ import { recoverInterruptedOrcadActivation } from './orcad-activation-recovery'
 import { probeActiveOrcadReadiness } from './orcad-active-readiness'
 import { materializeOrcadArtifact } from '../orcad/orcad-artifact-materializer'
 import { CURRENT_ORCAD_DAEMON_PROTOCOL } from './orcad-daemon-protocol-crossing'
-import { ensureOrcadManagedTunnel } from './orcad-managed-tunnel'
+import { ensureOrcadManagedTunnel, rebuildOrcadManagedTunnel } from './orcad-managed-tunnel'
 import {
   clearManagedOrcadUpdateDeferral,
   recordManagedOrcadUpdateDeferral
@@ -30,10 +30,10 @@ import {
   isForceableOrcadDeferral,
   managedOrcadInstallDir,
   managedOrcadSlot,
-  probeManagedOrcadReadiness,
   requireManagedOrcadEnvironment,
   resolveLinkedOrcadContext
 } from './orcad-managed-runtime-context'
+import { probeOrWakeStoppedOrcadReadiness, startStoppedActiveOrcad } from './orcad-managed-wake'
 import type { OrcadRemoteContext } from './orcad-remote-context'
 import { readRemoteOrcadBuildHash } from './orcad-remote-build-hash'
 import { deployOrcad, type OrcadDeployOptions } from './orcad-remote-deploy'
@@ -138,12 +138,13 @@ export async function runManagedOrcadUpdate(
     return deferral
   }
   clearManagedOrcadUpdateDeferral(environment.id)
-  const readiness = await probeManagedOrcadReadiness(
+  const { readiness, startedServer } = await probeOrWakeStoppedOrcadReadiness({
     context,
     localOrcadDir,
-    result.fullVersion,
-    args.signal
-  )
+    fullVersion: result.fullVersion,
+    port: deployment.remotePort,
+    signal: args.signal
+  })
   await pruneManagedOrcadVersions({
     slot,
     serverTarget: context.serverTarget,
@@ -151,6 +152,11 @@ export async function runManagedOrcadUpdate(
     readiness
   })
   const updated = refreshPairing(userDataPath, environment, readiness, deployment.localPort)
+  if (startedServer) {
+    // Why rebuild: the slot this call started may bind another port than the forward in use, and
+    // pairing refresh keeps the deployment's port, so the reused tunnel would answer nothing.
+    await rebuildOrcadManagedTunnel(userDataPath, environment.id)
+  }
   return {
     outcome: result.outcome === 'already-active' ? 'already-current' : 'updated',
     environment: redactRuntimeEnvironment(updated),
@@ -247,7 +253,27 @@ export function recoverManagedOrcadEnvironment(
         acceptChangedState: args.acceptChangedState === true
       })
       if (result.outcome !== 'recovered') {
-        return result
+        // Why: a server that stopped after idling leaves no interrupted transaction, so it is the one
+        // state the journal cannot name. Starting it is what an operator asking to recover wants, and
+        // a slot that is not proven exited answers null and keeps this refusal.
+        const readiness =
+          result.outcome === 'none'
+            ? await startStoppedActiveOrcad(
+                managedOrcadSlot(context, deployment.remotePort, args.signal)
+              )
+            : null
+        if (!readiness) {
+          return result
+        }
+        const updated = refreshPairing(userDataPath, environment, readiness, deployment.localPort)
+        // Why rebuild: the slot this call started may bind another port than the forward in use.
+        await rebuildOrcadManagedTunnel(userDataPath, environment.id)
+        return {
+          outcome: 'recovered',
+          resolution: 'restored-incumbent',
+          activeVersion: context.activationRecord.active,
+          environment: redactRuntimeEnvironment(updated)
+        }
       }
       const updated = result.readiness
         ? refreshPairing(userDataPath, environment, result.readiness, deployment.localPort)
