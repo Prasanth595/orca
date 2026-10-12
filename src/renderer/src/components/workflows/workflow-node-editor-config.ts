@@ -44,10 +44,39 @@ export function operatorNeedsValue(op: BranchConditionOperator): boolean {
   return op !== 'exitCode0' && op !== 'truthy'
 }
 
-/**
- * Coerce localData string values back to the correct types for the node's data shape.
- * Handles booleans, numbers, and null-able string fields.
- */
+export function getGenericFieldKeys(keys: string[], nodeType: string): string[] {
+  if (nodeType === 'branch' || nodeType === 'form_input') {
+    return []
+  }
+  const excluded = new Set(['retryCount', 'retryDelaySeconds'])
+  if (nodeType === 'agent_call') {
+    for (const k of [
+      'agentId',
+      'model',
+      'structuredOutputSchema',
+      'customExecutable',
+      'customArgTemplate'
+    ]) {
+      excluded.add(k)
+    }
+  }
+  if (nodeType === 'trigger_cron') {
+    excluded.add('schedule')
+  }
+  if (nodeType === 'shell_command') {
+    excluded.add('shell')
+  }
+  if (nodeType === 'file_write') {
+    excluded.add('mode')
+    excluded.add('createParents')
+  }
+  if (nodeType === 'for_each') {
+    excluded.add('itemsExpression')
+    excluded.add('maxIterations')
+  }
+  return keys.filter((k) => !excluded.has(k))
+}
+
 export function coerceNodeData(rawData: Record<string, string>): Record<string, unknown> {
   const coerced: Record<string, unknown> = { ...rawData }
   if ('createParents' in coerced) {

@@ -18,8 +18,14 @@ import WorkflowAgentNodeFields from './WorkflowAgentNodeFields'
 import WorkflowBranchConditionEditor from './WorkflowBranchConditionEditor'
 import WorkflowFormInputEditor from './WorkflowFormInputEditor'
 import WorkflowRetryFields from './WorkflowRetryFields'
+import WorkflowForEachFields from './WorkflowForEachFields'
 import { NODE_TYPE_LABELS } from './workflow-canvas-node-config'
-import { getMonacoFields, getAvailableShells, coerceNodeData } from './workflow-node-editor-config'
+import {
+  getMonacoFields,
+  getAvailableShells,
+  coerceNodeData,
+  getGenericFieldKeys
+} from './workflow-node-editor-config'
 import { useLastRunSteps } from './use-last-run-steps'
 import type {
   AgentWorkflow,
@@ -87,10 +93,8 @@ export default function WorkflowNodeEditorPanel({
   const isTriggerManual = node?.type === 'trigger_manual'
   const isRemote = workflow.executionTargetType === 'ssh'
 
-  // Last-run steps for expression hints and branch field hints
   const { steps, resolveExpr } = useLastRunSteps(workflow.id)
 
-  // Derive parent-node output for branch condition hints from the loaded steps
   const parentEdge = isBranchNode
     ? workflow.edges.find((e) => e.targetNodeId === nodeId)
     : undefined
@@ -99,9 +103,9 @@ export default function WorkflowNodeEditorPanel({
     ? (() => {
         let exitCode: number | null = null
         try {
-          // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: parsing runtime JSON; exitCode may or may not be present
-          exitCode =
-            (JSON.parse(parentStep.output) as { exitCode?: number } | null)?.exitCode ?? null
+          // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: JSON.parse returns unknown; shape verified by optional chaining
+          const parsed = JSON.parse(parentStep.output) as { exitCode?: number } | null
+          exitCode = parsed?.exitCode ?? null
         } catch {
           /* ignore */
         }
@@ -113,7 +117,6 @@ export default function WorkflowNodeEditorPanel({
     if (!node) {
       return
     }
-
     const nodeDataPatch: Record<string, unknown> = isBranchNode
       ? { conditions: branchValues.conditions, defaultLabel: branchValues.defaultLabel }
       : isFormInput
@@ -175,39 +178,8 @@ export default function WorkflowNodeEditorPanel({
     node.type !== 'collect' &&
     node.type !== 'form_input'
 
-  const genericFields = Object.keys(localData).filter((k) => {
-    if (
-      isAgentCall &&
-      (k === 'agentId' ||
-        k === 'model' ||
-        k === 'structuredOutputSchema' ||
-        k === 'customExecutable' ||
-        k === 'customArgTemplate')
-    ) {
-      return false
-    }
-    if (isCronTrigger && k === 'schedule') {
-      return false
-    }
-    if (isShellCommand && k === 'shell') {
-      return false
-    }
-    if (isFileWrite && (k === 'mode' || k === 'createParents')) {
-      return false
-    }
-    if (isBranchNode || isFormInput) {
-      return false
-    }
-    if (isForEach && (k === 'itemsExpression' || k === 'maxIterations')) {
-      return false
-    }
-    if (k === 'retryCount' || k === 'retryDelaySeconds') {
-      return false
-    }
-    return true
-  })
+  const genericFields = getGenericFieldKeys(Object.keys(localData), node.type)
 
-  /** Show a resolved hint below a plain-text input when the value has {{}} expressions. */
   function exprHint(value: string): React.JSX.Element | null {
     if (!value.includes('{{')) {
       return null
@@ -234,7 +206,6 @@ export default function WorkflowNodeEditorPanel({
         </Button>
       </div>
       <div className="flex-1 overflow-y-auto scrollbar-sleek p-3 space-y-3">
-        {/* Label field — all node types */}
         <div className="space-y-1">
           <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
             {translate('workflows.nodeEditor.label', 'Label (optional)')}
@@ -344,43 +315,11 @@ export default function WorkflowNodeEditorPanel({
         )}
 
         {isForEach && (
-          <>
-            <div className="space-y-1">
-              <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                {translate('workflows.nodeEditor.itemsExpression', 'Items expression')}
-              </span>
-              <Input
-                value={localData['itemsExpression'] ?? ''}
-                onChange={(e) =>
-                  setLocalData((prev) => ({ ...prev, itemsExpression: e.target.value }))
-                }
-                placeholder="{{steps.nodeId.json.items}}"
-                className="h-7"
-              />
-              {exprHint(localData['itemsExpression'] ?? '')}
-              <p className="text-[10px] text-muted-foreground">
-                {translate(
-                  'workflows.nodeEditor.itemsExpressionHint',
-                  'Template expression that resolves to a JSON array. Use {{loop.item}} and {{loop.index}} in body nodes.'
-                )}
-              </p>
-            </div>
-            <div className="space-y-1">
-              <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                {translate('workflows.nodeEditor.maxIterations', 'Max iterations')}
-              </span>
-              <Input
-                type="number"
-                value={localData['maxIterations'] ?? '100'}
-                onChange={(e) =>
-                  setLocalData((prev) => ({ ...prev, maxIterations: e.target.value }))
-                }
-                className="h-7"
-                min={1}
-                max={10000}
-              />
-            </div>
-          </>
+          <WorkflowForEachFields
+            localData={localData}
+            onDataChange={(patch) => setLocalData((prev) => ({ ...prev, ...patch }))}
+            exprHint={exprHint}
+          />
         )}
 
         {isBranchNode && (
@@ -389,6 +328,7 @@ export default function WorkflowNodeEditorPanel({
             initialDefaultLabel={branchValues.defaultLabel}
             onChange={(conditions, defaultLabel) => setBranchValues({ conditions, defaultLabel })}
             parentNodeLastRun={parentNodeLastRun}
+            resolveExpr={resolveExpr}
           />
         )}
 

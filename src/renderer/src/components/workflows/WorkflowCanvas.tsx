@@ -6,9 +6,11 @@ import { cn } from '@/lib/utils'
 import { createBrowserUuid } from '@/lib/browser-uuid'
 import { buildDefaultNode, getOutputPorts } from './workflow-canvas-node-config'
 import { usePersistedCanvasPan } from '@/hooks/use-persisted-canvas-pan'
+import { useWorkflowRunStatus } from './use-workflow-run-status'
 import WorkflowCanvasEdgesLayer from './WorkflowCanvasEdgesLayer'
 import WorkflowAddNodeMenu from './WorkflowAddNodeMenu'
 import WorkflowCanvasNode from './WorkflowCanvasNode'
+import WorkflowRunBanner from './WorkflowRunBanner'
 import WorkflowExecutionTargetBadge from './WorkflowExecutionTargetBadge'
 import WorkflowValidationButton from './WorkflowValidationButton'
 import { validateWorkflow } from '../../../../shared/workflow-graph-validation'
@@ -41,7 +43,7 @@ export default function WorkflowCanvas({
     null
   )
   const [isPanning, setIsPanning] = useState(false)
-  const [isRunning, setIsRunning] = useState(false)
+  const { activeRun, setActiveRun, isRunning, nodeRunStatuses } = useWorkflowRunStatus(workflow)
 
   type DragState = { nodeId: string; startX: number; startY: number; origX: number; origY: number }
   const dragRef = useRef<DragState | null>(null)
@@ -68,18 +70,6 @@ export default function WorkflowCanvas({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [connectingFrom])
-
-  useEffect(() => {
-    if (!workflow) {
-      return
-    }
-    return window.api.workflows.onRunUpdated(({ workflowId: wid, run }) => {
-      if (wid !== workflow.id) {
-        return
-      }
-      setIsRunning(run.status === 'running')
-    })
-  }, [workflow])
 
   if (workflow === null) {
     return (
@@ -170,7 +160,6 @@ export default function WorkflowCanvas({
     const id = createBrowserUuid()
     const vpW = viewportRef.current?.clientWidth ?? 600
     const vpH = viewportRef.current?.clientHeight ?? 400
-    // Place in the visible center area of the canvas
     const centerX = -pan.x + vpW / 2 - 80
     const centerY = -pan.y + vpH / 2 - 24
     const pos = {
@@ -226,7 +215,6 @@ export default function WorkflowCanvas({
       const dy = ev.clientY - dragRef.current.startY
       const newPos = { x: dragRef.current.origX + dx, y: dragRef.current.origY + dy }
       dragRef.current = null
-      // Hold draggingPos until IPC update resolves to prevent position flash
       await window.api.workflows.update(workflow.id, {
         nodes: workflow.nodes.map((n) => (n.id === nodeId ? { ...n, pos: newPos } : n))
       })
@@ -278,8 +266,6 @@ export default function WorkflowCanvas({
     window.addEventListener('mouseup', onMouseUp)
   }
 
-  const nodePositions = Object.fromEntries(workflow.nodes.map((n) => [n.id, n.pos]))
-
   return (
     <div
       ref={viewportRef}
@@ -289,12 +275,10 @@ export default function WorkflowCanvas({
       )}
       onMouseDown={handleViewportMouseDown}
     >
-      {/* Execution target badge — viewport overlay, top left */}
       <div className="absolute top-2 left-2 z-10" onMouseDown={(e) => e.stopPropagation()}>
         <WorkflowExecutionTargetBadge workflow={workflow} />
       </div>
 
-      {/* Focus toggle — viewport overlay, top right */}
       <Button
         size="icon"
         variant="outline"
@@ -310,7 +294,6 @@ export default function WorkflowCanvas({
         {focused ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
       </Button>
 
-      {/* Connect mode hint — viewport overlay, top center */}
       {connectingFrom && (
         <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 bg-primary text-primary-foreground text-[11px] px-2 py-1 rounded shadow pointer-events-none">
           {translate(
@@ -320,7 +303,6 @@ export default function WorkflowCanvas({
         </div>
       )}
 
-      {/* Panned canvas layer */}
       <div
         className="absolute top-0 left-0"
         style={{
@@ -343,11 +325,9 @@ export default function WorkflowCanvas({
         }}
       >
         <WorkflowCanvasEdgesLayer
-          workflowId={workflow.id}
           nodes={workflow.nodes}
           edges={workflow.edges}
           draggingPos={draggingPos}
-          nodePositions={nodePositions}
           onDeleteEdge={(id) => void deleteEdge(id)}
         />
         {workflow.nodes.map((node) => (
@@ -359,6 +339,7 @@ export default function WorkflowCanvas({
             isSelected={selectedNodeId === node.id}
             isConnecting={connectingFrom !== null}
             isConnectingFrom={connectingFrom?.nodeId === node.id}
+            runStatus={nodeRunStatuses[node.id]}
             onMouseDown={handleNodeMouseDown}
             onNodeClick={(nodeId) => {
               if (didDragNodeRef.current) {
@@ -396,7 +377,9 @@ export default function WorkflowCanvas({
       )}
       {showAddMenu && <WorkflowAddNodeMenu onAdd={(type) => void addNode(type)} />}
 
-      {/* Validation errors button + Run + Add node — bottom center */}
+      {activeRun && (
+        <WorkflowRunBanner activeRun={activeRun} onDismiss={() => setActiveRun(null)} />
+      )}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2">
         <WorkflowValidationButton errors={validationErrors} />
         <button

@@ -18,6 +18,7 @@ type Props = {
   initialDefaultLabel: string
   onChange: (conditions: BranchCondition[], defaultLabel: string) => void
   parentNodeLastRun?: ParentNodeLastRun
+  resolveExpr?: (expr: string) => string
 }
 
 function resolvePath(obj: unknown, path: string): unknown {
@@ -30,8 +31,26 @@ function resolvePath(obj: unknown, path: string): unknown {
   }, obj)
 }
 
-function resolveFieldHint(field: string, data: ParentNodeLastRun): string | undefined {
+function resolveFieldHint(
+  field: string,
+  data: ParentNodeLastRun | undefined,
+  resolveExpr?: (expr: string) => string
+): string | undefined {
   if (!field) {
+    return undefined
+  }
+
+  // Template expression — resolve against all step outputs, no parent data needed
+  if (field.includes('{{') && resolveExpr) {
+    const resolved = resolveExpr(field)
+    if (resolved === field) {
+      return undefined
+    }
+    const flat = resolved.replace(/\n/g, '↵').replace(/\s+/g, ' ').trim()
+    return flat.length > 60 ? `${flat.slice(0, 60)}…` : flat
+  }
+
+  if (!data) {
     return undefined
   }
   let subject: unknown
@@ -69,7 +88,8 @@ export default function WorkflowBranchConditionEditor({
   initialConditions,
   initialDefaultLabel,
   onChange,
-  parentNodeLastRun
+  parentNodeLastRun,
+  resolveExpr
 }: Props): React.JSX.Element {
   const [keyedConditions, setKeyedConditions] = useState<KeyedCondition[]>(() =>
     initialConditions.map((c, idx) => ({ ...c, _k: `init_${idx}` }))
@@ -127,10 +147,9 @@ export default function WorkflowBranchConditionEditor({
       {keyedConditions.map((cond, i) => {
         const mode = fieldMode(cond.field)
         const jsonPath = cond.field.startsWith('json.') ? cond.field.slice(5) : ''
-        const hint =
-          parentNodeLastRun && cond.field
-            ? resolveFieldHint(cond.field, parentNodeLastRun)
-            : undefined
+        const hint = cond.field
+          ? resolveFieldHint(cond.field, parentNodeLastRun, resolveExpr)
+          : undefined
 
         return (
           <div key={cond._k} className="rounded border border-border p-2 space-y-2 bg-muted/20">

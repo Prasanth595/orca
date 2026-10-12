@@ -283,6 +283,9 @@ export function isFinalWorkflowRunStatus(status: WorkflowRunStatus): boolean {
   return status === 'completed' || status === 'failed' || status === 'cancelled'
 }
 
+/** Map of nodeId → last-run outputs, threaded through the executor to resolve {{}} templates. */
+export type StepOutputs = Record<string, { output: string; json: unknown }>
+
 // ─── Default agent ───────────────────────────────────────────────────────────
 
 export const DEFAULT_WORKFLOW_AGENT_ID: TuiAgent = 'cursor'
