@@ -1,23 +1,19 @@
 import type { ExecutionHostId } from '../../shared/execution-host'
-import type { WorkspaceSessionState } from '../../shared/workspace-session-state-types'
-import { retireTerminalSurfaceFromPersistence } from './mobile-session-terminal-persistence-retirement'
 import type { OrchestrationDb } from './orchestration/db'
 import {
   planLegacyWorkerTerminalRecovery,
   type LegacyWorkerTerminalRecoveryPlan
 } from './orchestration/orchestration-legacy-worker-terminal-recovery'
-import type { RuntimeStore } from './runtime-store-contract'
 import type {
   LegacyWorkerRecoveryCandidate,
   LegacyWorkerRecoveryResolution
 } from './runtime-legacy-worker-terminal-recovery-types'
+import type { RuntimeWorkspaceLayouts } from './runtime-workspace-layouts'
 import { runtimeWorktreeIdsEqual } from './runtime-worktree-path-identity'
-import { cloneWorkspaceSessionState } from '../persistence/restoring-sessions/session-owner-fields'
-import { rollbackWorkspaceSessionAfterFailedAsyncWrite } from '../persistence/restoring-sessions/workspace-session-write-rollback'
 
 export class RuntimeLegacyWorkerTerminalRecoveryPersistence {
   constructor(
-    private readonly getStore: () => RuntimeStore | null,
+    private readonly getHolder: () => RuntimeWorkspaceLayouts,
     private readonly getDb: () => OrchestrationDb,
     private readonly getHostId: (worktreeId: string) => ExecutionHostId | null
   ) {}
@@ -26,86 +22,36 @@ export class RuntimeLegacyWorkerTerminalRecoveryPersistence {
     return this.getPlan(dispatchIds) ?? { candidates: [], ambiguousDispatchIds: [] }
   }
 
+  /**
+   * The holder applies each resolution; the database hears once its write has ended. Q4: a failed
+   * write is logged, not rolled back, and the next save writes it.
+   */
   async persist(
     resolutions: readonly LegacyWorkerRecoveryResolution[]
   ): Promise<ReadonlySet<string>> {
-    if (resolutions.length === 0) {
-      return new Set()
-    }
-    const store = this.getStore()
-    if (!store?.getWorkspaceSession || !store.setWorkspaceSession || !store.runDurableMutation) {
-      return new Set()
-    }
-    const getWorkspaceSession = store.getWorkspaceSession.bind(store)
-    const setWorkspaceSession = store.setWorkspaceSession.bind(store)
-    const originals = new Map<ExecutionHostId, WorkspaceSessionState>()
-    const staged = new Map<ExecutionHostId, WorkspaceSessionState>()
+    const holder = this.getHolder()
     const dispatchIds = new Set<string>()
-    let adopted = false
-    try {
-      return await store.runDurableMutation(() => {
-        for (const { candidate, resolution, hostId: observedHostId } of resolutions) {
-          const hostId = observedHostId ?? this.getHostId(candidate.worktreeId)
-          const session = hostId ? getWorkspaceSession(hostId) : null
-          if (!hostId || !session) {
-            continue
-          }
-          let next =
-            resolution === 'exited'
-              ? retireTerminalSurfaceFromPersistence(session, {
-                  worktreeId: candidate.worktreeId,
-                  parentTabId: candidate.tabId,
-                  leafId: candidate.leafId,
-                  ptyId: candidate.ptyId,
-                  incarnationId: candidate.incarnationId
-                })
-              : session
-          const record = next.sleepingAgentSessionsByPaneKey?.[candidate.paneKey]
-          if (record && runtimeWorktreeIdsEqual(record.worktreeId, candidate.worktreeId)) {
-            const sleeping = { ...next.sleepingAgentSessionsByPaneKey }
-            delete sleeping[candidate.paneKey]
-            next = { ...next, sleepingAgentSessionsByPaneKey: sleeping }
-          }
-          if (next !== session) {
-            originals.set(hostId, originals.get(hostId) ?? cloneWorkspaceSessionState(session))
-            setWorkspaceSession(next, hostId)
-          }
-          adopted ||= resolution === 'adopted'
-          dispatchIds.add(candidate.dispatchId)
-        }
-        // Rollback needs the final stored state, not a full-session copy after every worker.
-        for (const hostId of originals.keys()) {
-          staged.set(hostId, cloneWorkspaceSessionState(getWorkspaceSession(hostId)))
-        }
-        return {
-          value: dispatchIds,
-          persist: originals.size > 0 || adopted,
-          rollback: () => {
-            for (const [hostId, original] of originals) {
-              const stagedSession = staged.get(hostId)
-              const current = getWorkspaceSession(hostId)
-              if (!stagedSession || !current) {
-                continue
-              }
-              const rolledBack = rollbackWorkspaceSessionAfterFailedAsyncWrite(
-                original,
-                stagedSession,
-                current
-              )
-              if (rolledBack !== current) {
-                setWorkspaceSession(rolledBack, hostId)
-              }
-            }
-          }
-        }
+    for (const { candidate, resolution, hostId: observedHostId } of resolutions) {
+      const hostId = observedHostId ?? this.getHostId(candidate.worktreeId)
+      if (!hostId || !holder.holds(hostId)) {
+        continue
+      }
+      holder.transition(hostId, {
+        type: 'legacyWorkerRecovered',
+        surface: {
+          worktreeId: candidate.worktreeId,
+          terminalTabId: candidate.tabId,
+          leafId: candidate.leafId,
+          ptyId: candidate.ptyId,
+          ...(candidate.incarnationId ? { incarnationId: candidate.incarnationId } : {})
+        },
+        resolution
       })
-    } catch (error) {
-      console.warn('[orchestration] failed to persist legacy worker recovery batch', {
-        dispatchIds: [...dispatchIds],
-        error
-      })
-      return new Set()
+      dropUnplacedSleepingRecord(holder, hostId, candidate)
+      dispatchIds.add(candidate.dispatchId)
     }
+    await holder.whenDurable()
+    return dispatchIds
   }
 
   reconcileMissing(candidate: LegacyWorkerRecoveryCandidate): boolean {
@@ -139,4 +85,20 @@ export class RuntimeLegacyWorkerTerminalRecoveryPersistence {
       return null
     }
   }
+}
+
+/** A worker's sleeping record whose pane the layout does not hold is dropped too, as for a placed one. */
+function dropUnplacedSleepingRecord(
+  holder: RuntimeWorkspaceLayouts,
+  hostId: ExecutionHostId,
+  candidate: LegacyWorkerRecoveryCandidate
+): void {
+  const carried = holder.beside(hostId)?.carried
+  const record = carried?.unplacedSleepingRecords[candidate.paneKey]
+  if (!carried || !record || !runtimeWorktreeIdsEqual(record.worktreeId, candidate.worktreeId)) {
+    return
+  }
+  const { [candidate.paneKey]: _dropped, ...unplacedSleepingRecords } =
+    carried.unplacedSleepingRecords
+  holder.updateBeside(hostId, { carried: { ...carried, unplacedSleepingRecords } })
 }

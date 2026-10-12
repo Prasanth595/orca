@@ -75,8 +75,7 @@ export class OrcaRuntimeWithRegisterPty extends OrcaRuntimeWithInvalidateAllHand
     }
     this.ptyLivenessVerdictByPtyId.delete(ptyId)
     this.terminalViewSubscribers.markSpawnPublished(ptyId)
-    // Why: record the renderer pane identity at spawn time so a stalled graph
-    // sync can't hide that a live PTY already backs a pending mobile create.
+    // Why: record the pane identity at spawn time; a graph naming the pane may not exist yet.
     const paneKey =
       binding && isValidTerminalTabId(binding.tabId) && isTerminalLeafId(binding.leafId)
         ? makePaneKey(binding.tabId, binding.leafId)
@@ -84,9 +83,6 @@ export class OrcaRuntimeWithRegisterPty extends OrcaRuntimeWithInvalidateAllHand
     const pty = this.recordPtyWorktree(ptyId, worktreeId, {
       connected: true,
       connectionId,
-      ...(binding && this.pendingMobileTerminalCreatesByKey.has(`${worktreeId}::${binding.tabId}`)
-        ? { runtimeSessionOwned: true }
-        : {}),
       ...(isWsl !== undefined ? { isWsl } : {}),
       ...(binding && paneKey
         ? {
@@ -161,11 +157,6 @@ export class OrcaRuntimeWithRegisterPty extends OrcaRuntimeWithInvalidateAllHand
     // Why: a listed surface's pending-handle → ready flip must not wait on a later renderer graph change.
     this.touchMobileSessionSnapshotsForPty(ptyId)
     this.layoutHolder.republishTerminal(ptyId)
-    // Why: the renderer's own PTY spawn is the reliable signal that the pending
-    // mobile create's tab is live; publish its surface main-side (#7587).
-    if (binding && paneKey) {
-      this.ensurePtyBackedMobileSurfaceForRendererTab(worktreeId, binding.tabId)
-    }
   }
 
   assertPtyRegistrationAllowed(ptyId: string, incarnationId?: PtyIncarnationId): void {

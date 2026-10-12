@@ -9,8 +9,7 @@ const { gitRunner, vi } = mocks
 
 import * as fixtures from './orca-runtime-test-fixtures.spec'
 
-const { HEADLESS_LEAF_ID, TEST_REPO_ID, TEST_REPO_PATH, TEST_WINDOW_ID, TEST_WORKTREE_ID } =
-  fixtures
+const { HEADLESS_LEAF_ID, TEST_REPO_ID, TEST_REPO_PATH, TEST_WORKTREE_ID } = fixtures
 const { TEST_WORKTREE_PATH, makeHeadlessTerminalLayout, makeRuntimeStoreWithWorkspaceSession } =
   fixtures
 const { makeWorkspaceSessionWithHeadlessTerminal, store } = fixtures
@@ -26,17 +25,9 @@ import type { OrchestrationDb } from './orchestration/db'
 type RuntimeService = InstanceType<typeof OrcaRuntimeService>
 type TestMock = Mock
 
-type MobileCreateTestNotifier = {
-  focusTerminal: TestMock
+type WindowTestNotifier = {
   worktreesChanged: TestMock
   reposChanged: TestMock
-  activateWorktree: TestMock
-  createTerminal: TestMock
-  revealTerminalSession: TestMock
-  splitTerminal: TestMock
-  renameTerminal: TestMock
-  closeTerminal: (tabId: string, leafId?: string) => void
-  closeSessionTab: TestMock
   sleepWorktree: TestMock
   terminalFitOverrideChanged: TestMock
   terminalDriverChanged: TestMock
@@ -135,36 +126,38 @@ const wireHeadlessServeRuntime = (): RuntimeService => {
   return runtime
 }
 
-function publishLegacyWorkerReveal(
-  runtime: RuntimeService,
-  identity: { worktreeId: string; tabId: string; leafId: string; ptyId: string },
-  title = 'Recovered legacy worker'
-): { tabId: string; identity: typeof identity } {
-  runtime.attachWindow(TEST_WINDOW_ID)
-  runtime.syncWindowGraph(TEST_WINDOW_ID, {
-    tabs: [
-      {
-        tabId: identity.tabId,
-        worktreeId: identity.worktreeId,
-        title,
-        activeLeafId: identity.leafId,
-        layout: null
-      }
-    ],
-    leaves: [
-      {
-        tabId: identity.tabId,
-        worktreeId: identity.worktreeId,
-        leafId: identity.leafId,
-        paneRuntimeId: 1,
-        ptyId: identity.ptyId
-      }
-    ]
-  })
-  return { tabId: identity.tabId, identity }
+/** Adds a legacy worker's persisted tab: its pane carries the worker's sleeping record. */
+function withLegacyWorkerTab(
+  session: WorkspaceSessionState,
+  worker: { worktreeId: string; tabId: string; leafId: string; ptyId: string; title?: string }
+): WorkspaceSessionState {
+  const tabs = session.tabsByWorktree[worker.worktreeId] ?? []
+  return {
+    ...session,
+    tabsByWorktree: {
+      ...session.tabsByWorktree,
+      [worker.worktreeId]: [
+        ...tabs,
+        {
+          id: worker.tabId,
+          ptyId: worker.ptyId,
+          worktreeId: worker.worktreeId,
+          title: worker.title ?? 'Recovered legacy worker',
+          customTitle: null,
+          color: null,
+          sortOrder: tabs.length,
+          createdAt: 1
+        }
+      ]
+    },
+    terminalLayoutsByTabId: {
+      ...session.terminalLayoutsByTabId,
+      [worker.tabId]: makeHeadlessTerminalLayout({ [worker.leafId]: worker.ptyId })
+    }
+  }
 }
 
-function makePostRevealWorkerRecoveryHarness(
+function makeLegacyWorkerRecoveryHarness(
   hasPty: (ptyId: string) => boolean | null,
   listProcesses?: () => Promise<
     {
@@ -185,16 +178,16 @@ function makePostRevealWorkerRecoveryHarness(
   incarnationId: string
   terminalHandle: string
   kill: ReturnType<typeof vi.fn>
-  revealTerminalSession: ReturnType<typeof vi.fn>
-  resolveLegacyWorkerTerminalRecovery: ReturnType<typeof vi.fn>
 } {
   const workerPaneKey = `legacy-post-reveal:${HEADLESS_LEAF_ID}`
   const ptyId = 'pty-post-reveal'
   const incarnationId = '45454545-4545-4545-8545-454545454545'
   const terminalHandle = 'term_post_reveal'
   const session: WorkspaceSessionState = {
-    ...getDefaultWorkspaceSession(),
-    tabsByWorktree: { [TEST_WORKTREE_ID]: [] },
+    ...withLegacyWorkerTab(
+      { ...getDefaultWorkspaceSession(), tabsByWorktree: { [TEST_WORKTREE_ID]: [] } },
+      { worktreeId: TEST_WORKTREE_ID, tabId: 'legacy-post-reveal', leafId: HEADLESS_LEAF_ID, ptyId }
+    ),
     sleepingAgentSessionsByPaneKey: {
       [workerPaneKey]: {
         paneKey: workerPaneKey,
@@ -255,31 +248,7 @@ function makePostRevealWorkerRecoveryHarness(
         }
       ])
   })
-  const revealTerminalSession = vi.fn().mockResolvedValue({
-    tabId: 'legacy-post-reveal',
-    identity: {
-      worktreeId: TEST_WORKTREE_ID,
-      tabId: 'legacy-post-reveal',
-      leafId: HEADLESS_LEAF_ID,
-      ptyId
-    }
-  })
-  const resolveLegacyWorkerTerminalRecovery = vi.fn()
-  runtime.setNotifier({
-    revealTerminalSession,
-    resolveLegacyWorkerTerminalRecovery
-  } as never)
-  return {
-    runtime,
-    getSession,
-    workerPaneKey,
-    ptyId,
-    incarnationId,
-    terminalHandle,
-    kill,
-    revealTerminalSession,
-    resolveLegacyWorkerTerminalRecovery
-  }
+  return { runtime, getSession, workerPaneKey, ptyId, incarnationId, terminalHandle, kill }
 }
 
 function makePendingAgentTabActivationRuntime(opts: { disabledTuiAgents?: string[] } = {}): {
@@ -327,21 +296,11 @@ function makePendingAgentTabActivationRuntime(opts: { disabledTuiAgents?: string
   return { runtime, spawn }
 }
 
-// Why: the five #7587 mobile-create tests share one notifier factory so interface changes live in one place.
-function createMobileCreateTestNotifier(
-  closeTerminal: (tabId: string, leafId?: string) => void
-): MobileCreateTestNotifier {
+/** An attached window's notifier, with the methods the runtime still calls. */
+function createWindowTestNotifier(): WindowTestNotifier {
   return {
-    focusTerminal: vi.fn(),
     worktreesChanged: vi.fn(),
     reposChanged: vi.fn(),
-    activateWorktree: vi.fn(),
-    createTerminal: vi.fn(),
-    revealTerminalSession: vi.fn(),
-    splitTerminal: vi.fn(),
-    renameTerminal: vi.fn(),
-    closeTerminal,
-    closeSessionTab: vi.fn(),
     sleepWorktree: vi.fn(),
     terminalFitOverrideChanged: vi.fn(),
     terminalDriverChanged: vi.fn()
@@ -457,8 +416,8 @@ function createSideEffectRuntime(
   return { runtime, batches }
 }
 
-export { attachClientBrowserHost, createMobileCreateTestNotifier, createReconcileRuntime }
+export { attachClientBrowserHost, createWindowTestNotifier, createReconcileRuntime }
 export { createSideEffectRuntime, createWorktreeRemovalRuntime }
-export { makePendingAgentTabActivationRuntime, makePostRevealWorkerRecoveryHarness }
-export { mockReconcileGit, publishClientHostedPage, publishLegacyWorkerReveal, reconcileWithToken }
+export { makePendingAgentTabActivationRuntime, makeLegacyWorkerRecoveryHarness }
+export { mockReconcileGit, publishClientHostedPage, reconcileWithToken, withLegacyWorkerTab }
 export { remoteTrackingBase, wireHeadlessServeRuntime }

@@ -5,7 +5,8 @@ import type {
   RuntimeMobileSessionTerminalTab
 } from '../../shared/runtime-types'
 import type { BrowserSessionTabSelectionOptions } from './browser-tab-create-publication'
-import { getRuntimeBrowserPageRegistry } from './runtime-browser-page-registry'
+import type { BrowserSessionProfile } from '../../shared/browser-workspace-types'
+import { BrowserError } from '../browser/browser-error'
 import { getStructuredAgentSessionHost } from '../native-chat/agent-session-wire/structured-agent-session-registry'
 import type { StructuredAgentSessionCloseCause } from '../native-chat/agent-session-wire/structured-agent-session-host-lifetime'
 
@@ -79,19 +80,6 @@ export class OrcaRuntimeWithCloseStructuredAgentSessionTab extends OrcaRuntimeWi
     return this.handleByPtyId.get(pty.ptyId) ?? this.findHandleForPtyRecord(pty.ptyId)
   }
 
-  protected notifyRendererOfHeadlessTerminalClose(parentTabId: string): void {
-    // Why: this relay is advisory after main owns teardown; renderer failure must
-    // not prevent the authoritative session flush or turn the close into failure.
-    try {
-      this.notifier?.closeTerminal(parentTabId)
-    } catch (error) {
-      console.warn('[runtime] failed to notify renderer after headless terminal close', {
-        parentTabId,
-        error
-      })
-    }
-  }
-
   // Public so runtime-side page release (lease fencing) can prune a tab whose page is gone.
   retireRuntimeOwnedBrowserSessionTab(worktreeId: string, browserPageId: string): boolean {
     // Why: before the layout guard — worktree removal drops the workspace first, and the host
@@ -117,17 +105,54 @@ export class OrcaRuntimeWithCloseStructuredAgentSessionTab extends OrcaRuntimeWi
       : undefined
   }
 
-  /** A page created with no window to own its tab: the holder adds the tab that shows it. */
-  addHeadlessBrowserLayoutTab(worktreeId: string, browserPageId: string, groupId?: string): void {
+  /** A page the runtime created: the holder adds the tab that shows it. */
+  addHeadlessBrowserLayoutTab(
+    worktreeId: string,
+    browserPageId: string,
+    groupId?: string,
+    profileId?: string
+  ): void {
     if (!this.heldBrowserTabForPage(worktreeId, browserPageId)) {
       this.applyTranslatedLayoutCommands([
         {
           type: 'openBrowserTab',
           workspace: worktreeId,
           pageId: browserPageId,
-          ...(groupId ? { groupId } : {})
+          ...(groupId ? { groupId } : {}),
+          ...(profileId ? { profileId } : {})
         }
       ])
+    }
+  }
+
+  /** `browser tab set-profile`: the held tab showing this page takes the profile. */
+  setHeldBrowserTabProfile(
+    worktreeId: string | undefined,
+    browserPageId: string,
+    profile: BrowserSessionProfile
+  ): void {
+    // An explicit page names no workspace: look in every one the runtime holds.
+    const candidates = worktreeId
+      ? [worktreeId]
+      : this.layoutHolder
+          .loadedHostIds()
+          .flatMap((hostId) => Object.keys(this.layoutHolder.model(hostId)?.workspaces ?? {}))
+    const owner = candidates.find((id) => this.heldBrowserTabForPage(id, browserPageId))
+    const tab = owner ? this.heldBrowserTabForPage(owner, browserPageId) : undefined
+    if (!owner || !tab) {
+      throw new BrowserError('browser_no_tab', `Browser tab ${browserPageId} not found`)
+    }
+    const reply = this.applyTranslatedLayoutCommands([
+      {
+        type: 'setBrowserTabProfile',
+        workspace: owner,
+        tabId: tab.entityId,
+        profileId: profile.id,
+        sessionPartition: profile.partition
+      }
+    ])
+    if (!reply.ok) {
+      throw new BrowserError('browser_no_tab', `Browser tab ${browserPageId} not found`)
     }
   }
 
@@ -137,13 +162,6 @@ export class OrcaRuntimeWithCloseStructuredAgentSessionTab extends OrcaRuntimeWi
     options: BrowserSessionTabSelectionOptions
   ): void {
     if (!worktreeId) {
-      return
-    }
-    // Why: client-placed pages publish through the page registry and need no offscreen backing.
-    if (
-      !this.offscreenBrowserBackend &&
-      !getRuntimeBrowserPageRegistry(this).getPage(browserPageId)
-    ) {
       return
     }
     this.addHeadlessBrowserLayoutTab(worktreeId, browserPageId, options.targetGroupId)

@@ -21,8 +21,10 @@ import {
   paneKeyOf,
   type WorkspaceLayout
 } from '../../shared/workspace-layout/workspace-layout-model'
-import type { PublishedWorkspaceLayout } from '../../shared/workspace-layout/workspace-layout-published'
-import { focusInViewRecord } from '../../shared/workspace-layout/workspace-layout-view-focus'
+import {
+  focusInViewRecord,
+  navigateRequestFor
+} from '../../shared/workspace-layout/workspace-layout-view-focus'
 import {
   DESKTOP_VIEW_ID,
   resolveWorkspaceSelection
@@ -35,6 +37,7 @@ import type { layoutCommandsFor } from './runtime-layout-command-host'
 import { newTabIn, runtimeSplitPlacement } from './runtime-terminal-spawn-placement'
 import type { RuntimeWorkspaceLayouts } from './runtime-workspace-layouts'
 import { WindowPublishedPhoneRowFacts } from './window-published-phone-row-facts'
+import { waitForHeldPaneTerminal } from './held-pane-terminal-wait'
 
 export abstract class OrcaRuntimeWithHeldLayout extends OrcaRuntimeWithMigrationCatalog {
   protected abstract readonly layoutHolder: RuntimeWorkspaceLayouts
@@ -78,7 +81,7 @@ export abstract class OrcaRuntimeWithHeldLayout extends OrcaRuntimeWithMigration
     return hostId ? this.layoutHolder.model(hostId)?.workspaces[worktreeId] : undefined
   }
 
-  /** The holder's close took each closed pane's records; a window's close (until PR 6d) did not. */
+  /** The holder's close took each closed pane's records. */
   protected assertHeldTerminalsClosed(worktreeId: string): void {
     if (this.heldWorkspaceLayout(worktreeId)?.tabs.some((tab) => tab.kind === 'terminal')) {
       throw new Error('terminal_close_incomplete')
@@ -137,11 +140,6 @@ export abstract class OrcaRuntimeWithHeldLayout extends OrcaRuntimeWithMigration
     return reply
   }
 
-  /** Until PR 6d a window that owns the layout mounts its panes; without one the runtime starts them. */
-  startsPanesForSubscribers(): boolean {
-    return !this.getAvailableAuthoritativeWindow()
-  }
-
   /**
    * A client opened a terminal whose pane has no live terminal: the runtime starts the pane and
    * answers with the terminal it binds, or null once the start ends any other way. Serves every
@@ -149,53 +147,21 @@ export abstract class OrcaRuntimeWithHeldLayout extends OrcaRuntimeWithMigration
    */
   async startPaneForHandle(handle: string, signal?: AbortSignal): Promise<string | null> {
     const record = this.handles.get(handle)
-    if (!record || signal?.aborted) {
+    if (!record) {
       return null
     }
-    const workspace = record.worktreeId
+    const pane = { workspace: record.worktreeId, tabId: record.tabId, leafId: record.leafId }
     const paneKey = paneKeyOf(record.tabId, record.leafId)
-    const paneOf = (layout: PublishedWorkspaceLayout | undefined) =>
-      layout?.tabs
-        .flatMap((tab) => (tab.entityId === record.tabId ? (tab.terminal?.panes ?? []) : []))
-        .find((pane) => pane.leafId === record.leafId)
-    const settled = (pane: ReturnType<typeof paneOf>): string | null | undefined => {
-      if (!pane) {
-        return null
-      }
-      if (pane.status === 'running' && pane.ptyId) {
-        return pane.ptyId
-      }
-      return pane.status === 'starting' || pane.status === 'restorable' ? undefined : null
-    }
-    const now = settled(paneOf(this.layoutHolder.published(workspace)))
-    if (now !== undefined) {
-      return now
-    }
-    return await new Promise<string | null>((resolve) => {
-      const finish = (ptyId: string | null): void => {
-        unsubscribe()
-        signal?.removeEventListener('abort', onAbort)
-        resolve(ptyId)
-      }
-      const onAbort = (): void => finish(null)
-      const { unsubscribe } = this.layoutHolder.subscribe((event) => {
-        if (event.key !== workspace) {
-          return
-        }
-        const result = settled(event.type === 'workspace' ? paneOf(event.layout) : undefined)
-        if (result !== undefined) {
-          finish(result)
-        }
-      })
-      signal?.addEventListener('abort', onAbort, { once: true })
-      const reply = this.layoutCommands.apply(
-        { type: 'startPane', workspace, paneKey },
-        { viewId: null }
-      )
-      if (!reply.ok) {
-        finish(null)
-      }
-    })
+    return await waitForHeldPaneTerminal(
+      this.layoutHolder,
+      pane,
+      () =>
+        this.layoutCommands.apply(
+          { type: 'startPane', workspace: pane.workspace, paneKey },
+          { viewId: null }
+        ).ok,
+      { signal }
+    )
   }
 
   /**
@@ -217,7 +183,7 @@ export abstract class OrcaRuntimeWithHeldLayout extends OrcaRuntimeWithMigration
       : newTabIn(opts)
   }
 
-  /** `files.open`, or `files.openDiff` when `diff` is given, with no window: the runtime's layout opens the tab. */
+  /** `files.open`, or `files.openDiff` when `diff` is given: the runtime's layout opens the tab. */
   openHeldEditorFile(
     worktreeId: string,
     file: { filePath: string; relativePath: string },
@@ -229,7 +195,7 @@ export abstract class OrcaRuntimeWithHeldLayout extends OrcaRuntimeWithMigration
       throw new Error(reply.code)
     }
     if (reply.tabId && navigationTargetsHost(navigation ?? 'host')) {
-      this.focusInDesktopView(worktreeId, { tabId: reply.tabId })
+      this.navigateDesktopView(worktreeId, { tabId: reply.tabId })
     }
   }
 
@@ -275,17 +241,26 @@ export abstract class OrcaRuntimeWithHeldLayout extends OrcaRuntimeWithMigration
   }
 
   /**
-   * With no window to reveal a created terminal, the desktop view (which paired clients follow)
-   * shows it when asked to, or when it shows nothing yet, as a window selects one it opens.
+   * The desktop view (which paired clients follow) shows a created terminal when asked to, or when
+   * it shows nothing yet, as a window selects one it opens.
    */
   protected desktopViewShowsCreatedTerminal(
     worktreeId: string,
     presentation: RuntimeTerminalPresentation | undefined
   ): boolean {
-    if (this.getAvailableAuthoritativeWindow() || presentation === 'background') {
+    if (presentation === 'background') {
       return false
     }
     return presentation === 'focused' || !this.readSessionTabsSnapshot(worktreeId)?.activeTabId
+  }
+
+  /** Host navigation: the desktop view shows the target, and its window is told to go there. */
+  protected navigateDesktopView(worktreeId: string, target: { tabId: string; leafId?: string }) {
+    this.focusInDesktopView(worktreeId, target)
+    const request = navigateRequestFor(worktreeId, this.heldWorkspaceLayout(worktreeId), target)
+    if (request) {
+      this.layoutCommands.views.navigate(DESKTOP_VIEW_ID, request)
+    }
   }
 
   /** A terminal tab's rename the user set, which `terminal.list` shows first (#19582). */
@@ -330,11 +305,12 @@ export abstract class OrcaRuntimeWithHeldLayout extends OrcaRuntimeWithMigration
       return
     }
     const { views } = this.layoutCommands
-    views.setRecord(
-      DESKTOP_VIEW_ID,
-      focusInViewRecord(views.record(DESKTOP_VIEW_ID), worktreeId, workspace, target)
-    )
-    // A view record is saved, never published on the layout stream.
-    this.notifyMobileSessionTabsChanged(worktreeId)
+    const record = views.record(DESKTOP_VIEW_ID)
+    const next = focusInViewRecord(record, worktreeId, workspace, target)
+    if (next !== record) {
+      views.setRecord(DESKTOP_VIEW_ID, next)
+      // A view record is saved, never published on the layout stream.
+      this.notifyMobileSessionTabsChanged(worktreeId)
+    }
   }
 }

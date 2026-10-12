@@ -34,23 +34,9 @@ it.each([
       vi.mocked(detectAgentCommandsOnHost).mockResolvedValue(new Set(['qoder']))
       const runtime = new QoderAdoptionRuntime(store)
       runtime.syncWindowGraph(0, { tabs: [], leaves: [] })
-      let revealedRecipe: SleepingAgentLaunchConfig | undefined
-      const revealTerminalSession = vi.fn(
-        (_workspace: string, reveal: { launchConfig?: SleepingAgentLaunchConfig }) => {
-          revealedRecipe = reveal.launchConfig
-        }
-      )
       runtime.setNotifier({
-        focusTerminal: vi.fn(),
         worktreesChanged: vi.fn(),
         reposChanged: vi.fn(),
-        activateWorktree: vi.fn(),
-        createTerminal: vi.fn(),
-        revealTerminalSession,
-        splitTerminal: vi.fn(),
-        renameTerminal: vi.fn(),
-        closeTerminal: vi.fn(),
-        closeSessionTab: vi.fn(),
         sleepWorktree: vi.fn(),
         terminalFitOverrideChanged: vi.fn(),
         terminalDriverChanged: vi.fn()
@@ -111,16 +97,7 @@ it.each([
         kill,
         getForegroundProcess: async () => null
       })
-      const send = vi.fn((channel: string, payload: { command?: string }) => {
-        if (channel === 'terminal:requestTabCreate') {
-          if (payload.command) {
-            acceptedCommands.push(payload.command)
-          }
-          if (failure === 'client_disconnected') {
-            connection.abort()
-          }
-        }
-      })
+      const send = vi.fn()
       runtime.attachWindow(1)
       runtime.syncWindowGraph(1, { tabs: [], leaves: [] })
       electronMocks.BrowserWindow.fromId.mockReturnValue({
@@ -200,10 +177,9 @@ it.each([
       if (!retry) {
         throw new Error('missing adopted resume')
       }
-      const pane = runtime.resolveTerminalPane(`${retry.tab.parentTabId}:${retry.tab.leafId}`)
-      await runtime.focusTerminal(pane.handle)
-      expect(revealTerminalSession).toHaveBeenCalledWith(
-        TEST_WORKTREE_ID,
+      // The adopted pane keeps the launch recipe a later relaunch resumes with.
+      const adopted = runtime.retainedRecipe('qoder-live-resume', TEST_WORKTREE_ID)
+      expect(adopted).toEqual(
         expect.objectContaining({
           launchAgent: 'qoder',
           launchConfig:
@@ -223,17 +199,18 @@ it.each([
                 })
         })
       )
-      if (!revealedRecipe) {
-        throw new Error('missing revealed recipe')
+      const adoptedRecipe: SleepingAgentLaunchConfig | null = adopted.launchConfig
+      if (!adoptedRecipe) {
+        throw new Error('missing adopted recipe')
       }
       const relaunch = buildAgentResumeStartupPlan({
         agent: 'qoder',
         providerSession: { key: 'session_id', id: 'same-qoder-session' },
         cmdOverrides: { qoder: 'changed-default-command' },
         platform: 'darwin',
-        agentCommand: revealedRecipe.agentCommand,
-        agentArgs: revealedRecipe.agentArgs,
-        agentEnv: revealedRecipe.agentEnv
+        agentCommand: adoptedRecipe.agentCommand,
+        agentArgs: adoptedRecipe.agentArgs,
+        agentEnv: adoptedRecipe.agentEnv
       })
       if (!relaunch) {
         throw new Error('missing relaunch')
