@@ -14,6 +14,10 @@ import {
   resolveWorkspaceCleanupWorktreeGitRoute,
   type WorkspaceCleanupGitRoute
 } from './workspace-cleanup-git-route'
+import {
+  isWorkspaceCleanupBranchMerged,
+  type WorkspaceCleanupBaseRefResolver
+} from './workspace-cleanup-merged'
 
 export type WorkspaceCleanupGitEvidence = {
   clean: boolean | null
@@ -21,6 +25,8 @@ export type WorkspaceCleanupGitEvidence = {
   upstreamBehind: number | null
   checkedAt: number | null
   blockers: WorkspaceCleanupBlocker[]
+  /** Base ref the branch is fully merged into; null when not merged or not checked. */
+  mergedBaseRef: string | null
 }
 
 export function createEmptyWorkspaceCleanupGitEvidence(): WorkspaceCleanupGitEvidence {
@@ -29,7 +35,8 @@ export function createEmptyWorkspaceCleanupGitEvidence(): WorkspaceCleanupGitEvi
     upstreamAhead: null,
     upstreamBehind: null,
     checkedAt: null,
-    blockers: []
+    blockers: [],
+    mergedBaseRef: null
   }
 }
 
@@ -37,7 +44,8 @@ export async function readWorkspaceCleanupGitEvidence(
   worktree: Worktree,
   repo: Repo,
   repoRoute: WorkspaceCleanupGitRoute,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  resolveBaseRef?: WorkspaceCleanupBaseRefResolver
 ): Promise<WorkspaceCleanupGitEvidence> {
   const blockers: WorkspaceCleanupBlocker[] = []
   let status: GitStatusResult
@@ -107,12 +115,18 @@ export async function readWorkspaceCleanupGitEvidence(
     }
   }
 
+  // Why after the blockers: merged is a reason to offer the row, never a reason to drop one.
+  const baseRef = resolveBaseRef ? await resolveBaseRef(worktree) : null
+  const merged =
+    baseRef !== null && (await isWorkspaceCleanupBranchMerged(worktree, baseRef, route, signal))
+
   return {
     clean,
     upstreamAhead,
     upstreamBehind,
     checkedAt,
-    blockers: uniqueWorkspaceCleanupGitBlockers(blockers)
+    blockers: uniqueWorkspaceCleanupGitBlockers(blockers),
+    mergedBaseRef: merged ? baseRef : null
   }
 }
 
