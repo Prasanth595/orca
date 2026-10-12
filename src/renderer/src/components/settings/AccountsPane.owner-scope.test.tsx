@@ -6,6 +6,8 @@ import type {
   ClaudeManagedAccountSummary,
   ClaudeRateLimitAccountsState
 } from '../../../../shared/managed-account-types'
+import { createEmptyRateLimitState } from '../../../../shared/rate-limit-state-factory'
+import type { RateLimitState } from '../../../../shared/rate-limit-types'
 import type { RuntimeClientTarget } from '@/runtime/runtime-client-target'
 import { AccountsPane } from './AccountsPane'
 import type { SettingsHostScope } from './settings-host-scope'
@@ -27,9 +29,16 @@ const fake = vi.hoisted(() => {
   const state: {
     pendingSelect: ((roster: unknown) => void) | null
     write: ReturnType<typeof vi.fn>
+    usage: Map<string, RateLimitState>
     rosters: Map<string, unknown>
     watchedTargets: unknown[]
-  } = { pendingSelect: null, write: vi.fn(), rosters: new Map(), watchedTargets: [] }
+  } = {
+    pendingSelect: null,
+    write: vi.fn(),
+    rosters: new Map(),
+    usage: new Map(),
+    watchedTargets: []
+  }
   return state
 })
 vi.mock('@/i18n/i18n', () => ({
@@ -75,7 +84,8 @@ vi.mock('@/runtime/runtime-provider-accounts-client', () => {
       handlers.onSnapshot({
         claude: fake.rosters.get(target.kind === 'environment' ? target.environmentId : 'local'),
         codex: empty(),
-        rateLimits: null
+        rateLimits:
+          fake.usage.get(target.kind === 'environment' ? target.environmentId : 'local') ?? null
       })
       return { close: vi.fn() }
     },
@@ -108,6 +118,7 @@ function claudeRoster(id: string, email: string, active: boolean): ClaudeRateLim
 
 beforeEach(() => {
   fake.pendingSelect = null
+  fake.usage.clear()
   fake.watchedTargets = []
   fake.rosters.set('local', claudeRoster('acct-l', 'local@desktop.test', false))
   fake.rosters.set('server-a', claudeRoster('acct-a', 'alpha@server-a.test', false))
@@ -168,4 +179,51 @@ it('keeps a late account result once the pane is back on the server it was sent 
   await act(async () => fake.pendingSelect?.(claudeRoster('acct-a', 'alpha@server-a.test', true)))
 
   expect(within(alphaRow()).getByText('Active')).toBeTruthy()
+})
+
+function usage(usedPercent: number): RateLimitState {
+  return {
+    ...createEmptyRateLimitState(),
+    claude: {
+      provider: 'claude',
+      session: null,
+      weekly: { usedPercent, windowMinutes: 10080, resetsAt: null, resetDescription: null },
+      status: 'ok',
+      updatedAt: 100,
+      error: null
+    }
+  }
+}
+
+it('shows each account usage without selecting accounts', async () => {
+  const roster = claudeRoster('acct-a', 'alpha@example.test', true)
+  roster.accounts.push(...claudeRoster('acct-b', 'beta@example.test', false).accounts)
+  fake.rosters.set('local', roster)
+  const data = usage(25)
+  data.inactiveClaudeAccounts = [
+    { accountId: 'acct-b', rateLimits: usage(80).claude, updatedAt: 100, isFetching: false }
+  ]
+  fake.usage.set('local', data)
+  render(renderPane(scopeFor(null)))
+  await act(async () => {})
+  const alpha = screen.getByText('alpha@example.test').closest('button')
+  const beta = screen.getByText('beta@example.test').closest('button')
+  expect(alpha?.textContent).toContain('25%')
+  expect(beta?.textContent).toContain('80%')
+  expect(fake.pendingSelect).toBeNull()
+})
+
+it('keeps the same account id usage isolated when the selected host changes', async () => {
+  for (const host of ['server-a', 'server-b']) {
+    fake.rosters.set(host, claudeRoster('same-id', 'same@example.test', true))
+  }
+  fake.usage.set('server-a', usage(25))
+  fake.usage.set('server-b', usage(80))
+  const view = render(renderPane(scopeFor('server-a')))
+  await act(async () => {})
+  expect(screen.getByText('same@example.test').closest('button')?.textContent).toContain('25%')
+  await act(async () => view.rerender(renderPane(scopeFor('server-b'))))
+  const row = screen.getByText('same@example.test').closest('button')
+  expect(row?.textContent).toContain('80%')
+  expect(row?.textContent).not.toContain('25%')
 })

@@ -13,6 +13,8 @@ import {
 } from './provider-account-visibility'
 import { formatAccountTimestamp, getClaudeAccountRuntimeLabel } from './accounts-pane-runtime'
 import type { AccountsPaneSectionModel } from './accounts-pane-types'
+import { AccountUsageReading } from './AccountUsageReading'
+import { accountUsageReading } from './account-usage-reading'
 import {
   canOfferClaudeSignInLink,
   ClaudeSignInLinkMenu,
@@ -200,6 +202,14 @@ export function renderClaudeAccountsSection(model: AccountsPaneSectionModel): Re
                   { value0: accountRuntimeSentenceLabel }
                 )}
               </span>
+              <AccountUsageReading
+                reading={accountUsageReading(
+                  model.accountUsageSnapshot,
+                  'claude',
+                  null,
+                  accountRuntime
+                )}
+              />
             </div>
           </button>
           {systemDefaultIsSaved ? (
@@ -312,6 +322,14 @@ export function renderClaudeAccountsSection(model: AccountsPaneSectionModel): Re
                             ? `${account.organizationName} · ${formatAccountTimestamp(account.lastAuthenticatedAt)}`
                             : formatAccountTimestamp(account.lastAuthenticatedAt)}
                       </span>
+                      <AccountUsageReading
+                        reading={accountUsageReading(
+                          model.accountUsageSnapshot,
+                          'claude',
+                          account.id,
+                          accountRuntimeView
+                        )}
+                      />
                     </button>
                     <div className="flex shrink-0 items-center justify-end gap-1 max-md:w-full max-md:flex-wrap">
                       <ButtonGroup>

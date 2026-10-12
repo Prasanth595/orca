@@ -19624,6 +19624,13 @@
       "removeTitle": "Remove managed account?",
       "removeDescription": "Stop agents using this profile first. Removal deletes its saved credentials and conversation data. Your system login stays unchanged.",
       "cancel": "Cancel"
+    },
+    "usage": {
+      "loading": "Checking usage…",
+      "unavailable": "Usage unavailable",
+      "notReported": "Usage not reported",
+      "checkedAt": "Last reported: {{time}}",
+      "refresh": "Refresh usage"
     }
   },
   "fileSearch": {

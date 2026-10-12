@@ -14,6 +14,7 @@ import type { FeatureInteractionId } from '../../../../shared/feature-interactio
 import type { ProviderAccountRuntimeView } from './provider-account-visibility'
 import type { RuntimeClientTarget } from '@/runtime/runtime-client-target'
 import type { SettingsHostScope } from './settings-host-scope'
+import type { ProviderAccountsSnapshot } from '@/runtime/runtime-provider-accounts-client'
 
 export type AccountsPaneProps = {
   settings: GlobalSettings
@@ -64,6 +65,7 @@ export type ClaudeAccountActionRunner = (
 ) => Promise<void>
 
 export type AccountsPaneSectionModel = {
+  accountUsageSnapshot?: ProviderAccountsSnapshot | null
   settings: GlobalSettings
   /** Host whose accounts the pane lists and mutates. */
   accountOwner: RuntimeClientTarget

@@ -5,16 +5,15 @@ import type {
   CodexRateLimitAccountsState
 } from '../../../../shared/managed-account-types'
 import type { CodexConfigSyncStatus } from '../../../../shared/codex-config-sync-types'
-import { toast } from 'sonner'
 import { useAppStore } from '../../store'
 import { translate } from '@/i18n/i18n'
 import { isWebClientLocation } from '@/lib/web-client-location'
 import {
   emptyClaudeAccountsState,
   emptyCodexAccountsState,
-  getProviderAccountsOwnerKey,
-  watchProviderAccounts
+  getProviderAccountsOwnerKey
 } from '@/runtime/runtime-provider-accounts-client'
+import { useAccountsPaneUsage } from './use-accounts-pane-usage'
 import {
   getAccountsClaudeSearchEntries,
   getAccountsCodexSearchEntries,
@@ -41,7 +40,6 @@ import {
 } from './provider-account-visibility'
 import { GrokAccountsSection } from './GrokAccountsSection'
 import { AntigravityAccountsSection } from './AntigravityAccountsSection'
-import type { RuntimeClientTarget } from '@/runtime/runtime-client-target'
 import { runtimeTargetEnvironmentId } from '@/runtime/runtime-client-target'
 import { CursorAccountsSection } from './CursorAccountsSection'
 import { ZcodePlanAccountsSection } from './ZcodePlanAccountsSection'
@@ -68,6 +66,7 @@ import {
 } from './accounts-pane-provider-setting-sections'
 import { renderMiniMaxAccountsSection } from './accounts-pane-minimax-section'
 import { ManagedDataAccountsSection } from './ManagedDataAccountsSection'
+import { Button } from '../ui/button'
 import { renderAccountsRemovalDialogs } from './accounts-pane-removal-dialogs'
 
 export { getAccountsPaneSearchEntries }
@@ -164,6 +163,7 @@ export function AccountsPane({
   const [codexAccounts, setCodexAccounts] =
     useState<CodexRateLimitAccountsState>(emptyCodexAccountsState)
   const [codexAccountsLoaded, setCodexAccountsLoaded] = useState(false)
+  const [usageRefreshRevision, setUsageRefreshRevision] = useState(0)
   const [codexAction, setCodexAction] = useState<CodexAccountAction>('idle')
   const [claudeAccounts, setClaudeAccounts] =
     useState<ClaudeRateLimitAccountsState>(emptyClaudeAccountsState)
@@ -276,39 +276,13 @@ export function AccountsPane({
     void refreshMiniMaxCredentialStatus()
   }, [])
 
-  useEffect(() => {
-    const owner: RuntimeClientTarget = scopeEnvironmentId
-      ? { kind: 'environment', environmentId: scopeEnvironmentId }
-      : { kind: 'local' }
-    // Why: remote snapshots stream usage refreshes after the synchronous ready
-    // message, so the watcher stays open for the pane's lifetime; the local
-    // path resolves once and the close() is a no-op.
-    const watcher = watchProviderAccounts(owner, {
-      onSnapshot: (snapshot) => {
-        // Why: a failed provider's half is a substituted empty roster, not
-        // authoritative data; keep prior state and leave the loaded gate shut.
-        if (!snapshot.failedProviders?.includes('codex')) {
-          setCodexAccounts(snapshot.codex)
-          setCodexAccountsLoaded(true)
-        }
-        if (!snapshot.failedProviders?.includes('claude')) {
-          setClaudeAccounts(snapshot.claude)
-        }
-      },
-      onError: (error) => {
-        toast.error(
-          translate(
-            'auto.components.settings.AccountsPane.loadAccountsFailed',
-            'Could not load provider accounts.'
-          ),
-          { description: String((error as Error)?.message ?? error) }
-        )
-      }
-    })
-    return () => {
-      watcher.close()
-    }
-  }, [scopeEnvironmentId])
+  const accountUsageSnapshot = useAccountsPaneUsage({
+    scopeEnvironmentId,
+    usageRefreshRevision,
+    setCodexAccounts,
+    setCodexAccountsLoaded,
+    setClaudeAccounts
+  })
 
   const runCodexAccountAction = createCodexAccountActionRunner({
     settings,
@@ -335,6 +309,7 @@ export function AccountsPane({
     recordFeatureInteraction
   })
   const model: AccountsPaneSectionModel = {
+    accountUsageSnapshot,
     settings,
     accountOwner,
     updateSettings,
@@ -438,6 +413,18 @@ export function AccountsPane({
 
   return (
     <div className="space-y-8">
+      {matchesSettingsSearch(searchQuery, getAccountsClaudeSearchEntries()) ||
+      matchesSettingsSearch(searchQuery, getAccountsCodexSearchEntries()) ? (
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={() => setUsageRefreshRevision((revision) => revision + 1)}
+          >
+            {translate('accounts.usage.refresh', 'Refresh usage')}
+          </Button>
+        </div>
+      ) : null}
       {renderAccountsRemovalDialogs(model, removeCodexTarget, removeClaudeTarget)}
       <SettingsSectionStack sections={visibleSections} spacing="group" />
     </div>

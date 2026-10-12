@@ -12,6 +12,8 @@ import {
 } from './provider-account-visibility'
 import { formatAccountTimestamp, getCodexAccountRuntimeLabel } from './accounts-pane-runtime'
 import type { AccountsPaneSectionModel } from './accounts-pane-types'
+import { AccountUsageReading } from './AccountUsageReading'
+import { accountUsageReading } from './account-usage-reading'
 
 export function renderCodexAccountRow(
   account: CodexRateLimitAccountsState['accounts'][number],
@@ -130,6 +132,14 @@ export function renderCodexAccountRow(
             {needsReauthentication ? <span className="shrink-0 opacity-50">•</span> : null}
             <span className="shrink-0">{formatAccountTimestamp(account.lastAuthenticatedAt)}</span>
           </div>
+          <AccountUsageReading
+            reading={accountUsageReading(
+              model.accountUsageSnapshot,
+              'codex',
+              account.id,
+              getProviderAccountRuntime(account)
+            )}
+          />
         </button>
 
         <div className="flex shrink-0 items-center justify-end gap-1 max-md:w-full max-md:flex-wrap">

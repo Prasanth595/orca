@@ -5,6 +5,7 @@ import type {
 import type { RateLimitState } from '../../../shared/rate-limit-types'
 import type { RuntimeRpcResponse } from '../../../shared/runtime-rpc-envelope'
 import { callRuntimeRpc, RuntimeRpcCallError, type RuntimeClientTarget } from './runtime-rpc-client'
+import { watchLocalProviderAccountUsage } from './watch-local-provider-account-usage'
 
 // Mirrors OrcaRuntime.getAccountsSnapshot() / the accounts.subscribe payload.
 export type ProviderAccountsSnapshot = {
@@ -58,8 +59,7 @@ function providerAccountsLoadError(provider: 'Claude' | 'Codex', cause: unknown)
 }
 
 // Watches the provider-account snapshot for whichever runtime owns accounts.
-// Local: one-shot reads of the desktop services (they have no push channel
-// here; the pane refetches after each mutation). Remote: a live
+// Local: one-shot reads by default, or a live stream for usage views. Remote: a live
 // accounts.subscribe stream — the ready message carries the current snapshot
 // synchronously and later broadcasts deliver refreshed usage. accounts.list is
 // deliberately avoided: it blocks behind provider usage refreshes on the
@@ -69,8 +69,16 @@ export function watchProviderAccounts(
   handlers: {
     onSnapshot: (snapshot: ProviderAccountsSnapshot) => void
     onError: (error: unknown) => void
-  }
+  },
+  options: { liveUsage?: boolean } = {}
 ): ProviderAccountsWatcher {
+  if (
+    target.kind === 'local' &&
+    options.liveUsage &&
+    typeof window.api.runtime?.subscribe === 'function'
+  ) {
+    return watchLocalProviderAccountUsage(handlers)
+  }
   if (target.kind === 'local') {
     let closed = false
     void Promise.allSettled([

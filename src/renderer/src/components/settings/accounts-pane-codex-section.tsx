@@ -11,6 +11,8 @@ import { getAccountsCodexSearchEntries } from './accounts-search'
 import { getCodexSystemDefaultSubtitle } from './accounts-pane-runtime'
 import type { AccountsPaneSectionModel } from './accounts-pane-types'
 import { renderCodexAccountRow } from './accounts-pane-codex-account-row'
+import { AccountUsageReading } from './AccountUsageReading'
+import { accountUsageReading } from './account-usage-reading'
 
 export function renderCodexAccountsSection(model: AccountsPaneSectionModel): React.JSX.Element {
   const {
@@ -262,6 +264,14 @@ export function renderCodexAccountsSection(model: AccountsPaneSectionModel): Rea
                       )
                   : getCodexSystemDefaultSubtitle(systemCodexIdentity, accountRuntimeSentenceLabel)}
               </span>
+              <AccountUsageReading
+                reading={accountUsageReading(
+                  model.accountUsageSnapshot,
+                  'codex',
+                  null,
+                  accountRuntime
+                )}
+              />
             </div>
           </button>
           {visibleCodexAccounts.length === 0 ? (
