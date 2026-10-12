@@ -213,6 +213,29 @@ describe('useFileSearchRunner result ownership', () => {
     log.mockRestore()
   })
 
+  it('sends leading and trailing spaces as part of the query, but skips a blank one', async () => {
+    const { hook } = renderSearchRunner(
+      { settings: {}, repos: [], worktreesByRepo: {}, fileSearchStateByWorktree: {} },
+      'missing-repo::/repo'
+    )
+
+    await act(async () => {
+      hook.result.current.executeSearch(' needle ')
+      await vi.advanceTimersByTimeAsync(300)
+    })
+    expect(mocks.searchRuntimeFiles).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ query: ' needle ' }),
+      expect.any(AbortSignal)
+    )
+
+    await act(async () => {
+      hook.result.current.executeSearch('   ')
+      await vi.advanceTimersByTimeAsync(300)
+    })
+    expect(mocks.searchRuntimeFiles).toHaveBeenCalledTimes(1)
+  })
+
   it('ignores an older rejection after a newer search has succeeded', async () => {
     const { hook, updates } = renderSearchRunner(
       { settings: {}, repos: [], worktreesByRepo: {}, fileSearchStateByWorktree: {} },
