@@ -13492,8 +13492,8 @@
               "compare": {
                 "summary": {
                   "dd72a6fd37": "{{value0}}은 {{value2}}보다 먼저 {{value1}}을 커밋합니다.",
-                  "commitsAheadSingular": "{{ref}}보다 {{count}} commit 앞서 있음",
-                  "commitsAheadPlural": "{{ref}}보다 {{count}} commits 앞서 있음"
+                  "commitsAheadSingular": "{{ref}}보다 커밋 {{count}}개 앞서 있음",
+                  "commitsAheadPlural": "{{ref}}보다 커밋 {{count}}개 앞서 있음"
                 }
               },
               "conflict": {

@@ -58,4 +58,16 @@ describe('count sentences in the bundled locales', () => {
       expect(renderCountSentence(baseKey, 3, values), baseKey).not.toMatch(LATIN_S_AFTER_CJK)
     }
   })
+
+  // Why: these languages do not inflect for number, so a pair that differs carries an
+  // English plural inside the sentence ("commit"/"commits").
+  it.each(['ja', 'ko', 'zh'])('%s uses one sentence for one and several', async (locale) => {
+    await i18n.changeLanguage(locale)
+    for (const [baseKey, values] of COUNT_SENTENCES) {
+      const options = { ...values, count: 3, defaultValue: '' }
+      expect(i18n.t(`${baseKey}Plural`, options), baseKey).toBe(
+        i18n.t(`${baseKey}Singular`, options)
+      )
+    }
+  })
 })
