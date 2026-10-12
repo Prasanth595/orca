@@ -1,6 +1,9 @@
 import { useState, useEffect, useMemo } from 'react'
-import type { WorkflowRun, WorkflowNodeRunStatus } from '../../../../shared/workflow-types'
-import type { AgentWorkflow } from '../../../../shared/workflow-types'
+import type {
+  WorkflowRun,
+  WorkflowNodeRunStatus,
+  AgentWorkflow
+} from '../../../../shared/workflow-types'
 
 type WorkflowRunStatus = {
   activeRun: WorkflowRun | null

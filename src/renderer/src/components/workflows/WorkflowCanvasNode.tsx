@@ -37,7 +37,7 @@ function RunStatusBadge({ status }: { status: WorkflowNodeRunStatus }): React.JS
       return <XCircle className="size-3 text-destructive" />
     case 'skipped':
       return <SkipForward className="size-3 text-muted-foreground" />
-    default:
+    case 'pending':
       return null
   }
 }
