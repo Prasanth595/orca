@@ -122,7 +122,11 @@ describe('iOS whole-message copy', () => {
       for (const node of nodes('MobileMarkdown')) {
         expect(node.props.onLongPress).toBeUndefined()
       }
-      expect(nodes('Pressable').filter((node) => node.props.onLongPress)).toHaveLength(0)
+      // A held press selects text natively: no actions sheet, and no copy toggle.
+      const press = body.findAll((node) => String(node.type) === 'Pressable')[0]
+      act(() => press?.props.onLongPress())
+      expect(nodes('MessageActionsSheet')).toHaveLength(0)
+      expect(copyButton()).toBeDefined()
       await act(async () => copy.props.onPress())
       expect(writeText.mock.calls).toEqual([[first + '\n\n' + last]])
       expect(nodes('MessageActionsSheet')).toHaveLength(0)
@@ -148,7 +152,8 @@ describe('iOS whole-message copy', () => {
       .findAll((node) => String(node.type) === 'Pressable')[0]
     expect(hasCopy()).toBe(false)
     expect(body?.props).toMatchObject({ accessible: false })
-    expect(body?.props.onLongPress).toBeUndefined()
+    act(() => body?.props.onLongPress())
+    expect(hasCopy()).toBe(false)
 
     tapMessage()
     expect(hasCopy()).toBe(true)
