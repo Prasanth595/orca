@@ -1,6 +1,8 @@
 import { collectLeafIdsInOrder } from '@/components/terminal-pane/layout-serialization'
 import { focusTerminalTabSurface } from '@/lib/focus-terminal-tab-surface'
+import { revealFloatingWorkspacePanel } from '@/lib/floating-workspace-panel-reveal'
 import { focusRuntimeTerminalSurface } from '@/runtime/mounted-terminal-tab-registry'
+import { isFloatingWorkspaceId } from '../../../../shared/floating-workspace-worktree'
 import type { RuntimeTerminalPresentation } from '../../../../shared/runtime-types'
 import type {
   TerminalLayoutSnapshot,
@@ -41,6 +43,11 @@ export function activateTerminalInitiatedWorktree(
   // Activate after creating into a requested group: activation prunes a workspace's empty groups.
   createdTabIds?: readonly string[]
 ): void {
+  // Floating tabs have no catalog workspace; reveal their panel without changing the main workspace.
+  if (isFloatingWorkspaceId(worktreeId)) {
+    revealFloatingWorkspacePanel(store)
+    return
+  }
   store.setActiveView('terminal')
   if (createdTabIds) {
     store.setActiveWorktree(worktreeId, undefined, { createdTabIds })
