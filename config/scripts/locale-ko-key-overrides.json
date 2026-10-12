@@ -5104,5 +5104,11 @@
   },
   "components.workspace.cleanup.browse.agent.working": {
     "ko": "작업 중"
+  },
+  "auto.components.settings.VoiceMicrophoneSetting.unavailable": {
+    "ko": "사용할 수 없음"
+  },
+  "auto.components.settings.voice.pane.search.748b33e531": {
+    "ko": "받아쓰기를 켜고 끄거나, 키를 누르는 동안 받아쓰는 방식입니다."
   }
 }
