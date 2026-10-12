@@ -2,6 +2,7 @@ import type { TabGroupLayoutNode } from '../../../../../shared/tab-types'
 import type { TabsSlice, TabsSliceGet, TabsSliceSet } from './tabs-slice-contract'
 import { findGroupAndWorktree, findTabAndWorktree } from '../tab-group-state'
 import {
+  equalizeSplitRunRatios,
   findSiblingGroupId,
   updateSplitRatio
 } from '../../../../../shared/workspace-layout/tab-group-layout-tree'
@@ -9,7 +10,38 @@ import {
 export function createTabsSecondaryActions(
   set: TabsSliceSet,
   get: TabsSliceGet
-): Pick<TabsSlice, 'copyUnifiedTabToGroup' | 'mergeGroupIntoSibling' | 'setTabGroupSplitRatio'> {
+): Pick<
+  TabsSlice,
+  | 'copyUnifiedTabToGroup'
+  | 'mergeGroupIntoSibling'
+  | 'setTabGroupSplitRatio'
+  | 'equalizeTabGroupSplitRun'
+> {
+  const writeTabGroupLayout = (
+    worktreeId: string,
+    edit: (layout: TabGroupLayoutNode) => TabGroupLayoutNode
+  ): void => {
+    set((state) => {
+      const currentLayout = state.layoutByWorktree[worktreeId]
+      if (!currentLayout) {
+        return state
+      }
+      const nextLayout = edit(currentLayout)
+      // Why: an unchanged layout must not mint fresh root state — every store
+      // subscriber wakes on the new reference (STA-3328).
+      if (nextLayout === currentLayout) {
+        return state
+      }
+      return {
+        layoutByWorktree: {
+          ...state.layoutByWorktree,
+          // Why: split ratios belong to the tab-group model (not transient UI), so persist them for restores and multi-step group ops.
+          [worktreeId]: nextLayout
+        }
+      }
+    })
+  }
+
   return {
     copyUnifiedTabToGroup: (tabId, targetGroupId, init) => {
       const foundTab = findTabAndWorktree(get().unifiedTabsByWorktree, tabId)
@@ -61,15 +93,10 @@ export function createTabsSecondaryActions(
     },
 
     setTabGroupSplitRatio: (worktreeId, nodePath, ratio) => {
-      set((state) => {
-        const currentLayout = state.layoutByWorktree[worktreeId]
-        if (!currentLayout) {
-          return state
-        }
-        // Why: an unchanged ratio must not mint fresh root state — every store
-        // subscriber wakes on the new reference (STA-3328).
-        let targetNode: TabGroupLayoutNode | undefined = currentLayout
-        for (const segment of nodePath.length > 0 ? nodePath.split('.') : []) {
+      const path = nodePath.length > 0 ? nodePath.split('.') : []
+      writeTabGroupLayout(worktreeId, (layout) => {
+        let targetNode: TabGroupLayoutNode | undefined = layout
+        for (const segment of path) {
           targetNode =
             targetNode &&
             targetNode.type === 'split' &&
@@ -78,20 +105,16 @@ export function createTabsSecondaryActions(
               : undefined
         }
         if (!targetNode || targetNode.type !== 'split' || (targetNode.ratio ?? 0.5) === ratio) {
-          return state
+          return layout
         }
-        return {
-          layoutByWorktree: {
-            ...state.layoutByWorktree,
-            // Why: split ratios belong to the tab-group model (not transient UI), so persist them for restores and multi-step group ops.
-            [worktreeId]: updateSplitRatio(
-              currentLayout,
-              nodePath.length > 0 ? nodePath.split('.') : [],
-              ratio
-            )
-          }
-        }
+        return updateSplitRatio(layout, path, ratio)
       })
+    },
+
+    equalizeTabGroupSplitRun: (worktreeId, nodePath) => {
+      writeTabGroupLayout(worktreeId, (layout) =>
+        equalizeSplitRunRatios(layout, nodePath.length > 0 ? nodePath.split('.') : [])
+      )
     }
   }
 }

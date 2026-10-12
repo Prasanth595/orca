@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type * as AgentStatusModule from '@/lib/agent-status'
 import { getDefaultUIState } from '../../../../shared/constants'
+import type { TabGroupLayoutNode } from '../../../../shared/tab-types'
 import { createTabsSliceMockApi } from './tabs-slice-test-harness'
 import { createTestStore } from './store-test-helpers'
 
@@ -106,6 +107,63 @@ describe('TabsSlice', () => {
       expect(store.getState().layoutByWorktree).not.toBe(beforeLayout)
       expect(subscriber).toHaveBeenCalledOnce()
       expect((store.getState().layoutByWorktree[WT] as { ratio: number }).ratio).toBe(0.5004)
+      unsubscribe()
+    })
+  })
+
+  describe('equalizeTabGroupSplitRun', () => {
+    const threeAcross = (): TabGroupLayoutNode => ({
+      type: 'split',
+      direction: 'horizontal',
+      ratio: 0.5,
+      first: { type: 'leaf', groupId: 'g-1' },
+      second: {
+        type: 'split',
+        direction: 'horizontal',
+        ratio: 0.5,
+        first: { type: 'leaf', groupId: 'g-2' },
+        second: { type: 'leaf', groupId: 'g-3' }
+      }
+    })
+
+    it.each(['', 'second'])('equalizes the whole run from node path %j', (nodePath) => {
+      store.setState({ layoutByWorktree: { [WT]: threeAcross() } })
+
+      store.getState().equalizeTabGroupSplitRun(WT, nodePath)
+
+      const layout = store.getState().layoutByWorktree[WT]
+      if (layout.type !== 'split' || layout.second.type !== 'split') {
+        throw new Error('expected nested split layout')
+      }
+      expect(layout.ratio).toBe(1 / 3)
+      expect(layout.second.ratio).toBe(0.5)
+    })
+
+    it.each([
+      ['a malformed path', WT, 'second.bogus'],
+      ['a leaf path', WT, 'first'],
+      ['an unknown worktree', 'repo1::/tmp/missing', '']
+    ])('keeps state identity for %s', (_label, worktreeId, nodePath) => {
+      store.setState({ layoutByWorktree: { [WT]: threeAcross() } })
+      const beforeState = store.getState()
+
+      store.getState().equalizeTabGroupSplitRun(worktreeId, nodePath)
+
+      expect(store.getState()).toBe(beforeState)
+    })
+
+    it('keeps state identity when the run is already equal', () => {
+      store.setState({ layoutByWorktree: { [WT]: threeAcross() } })
+      store.getState().equalizeTabGroupSplitRun(WT, '')
+      const beforeState = store.getState()
+      const subscriber = vi.fn()
+      const unsubscribe = store.subscribe(subscriber)
+
+      // Why: an unchanged commit must not mint fresh root state (STA-3328).
+      store.getState().equalizeTabGroupSplitRun(WT, 'second')
+
+      expect(store.getState()).toBe(beforeState)
+      expect(subscriber).not.toHaveBeenCalled()
       unsubscribe()
     })
   })

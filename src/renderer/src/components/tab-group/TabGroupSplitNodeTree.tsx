@@ -10,11 +10,13 @@ const MAX_RATIO = 0.85
 function ResizeHandle({
   direction,
   onResizeStart,
-  onRatioChange
+  onRatioChange,
+  onEqualize
 }: {
   direction: 'horizontal' | 'vertical'
   onResizeStart: () => void
   onRatioChange: (ratio: number) => void
+  onEqualize: () => void
 }): React.JSX.Element {
   const isHorizontal = direction === 'horizontal'
   const [dragging, setDragging] = useState(false)
@@ -133,6 +135,7 @@ function ResizeHandle({
         isHorizontal ? 'is-vertical' : 'is-horizontal'
       }${dragging ? ' is-dragging' : ''}`}
       onPointerDown={onPointerDown}
+      onDoubleClick={onEqualize}
     />
   )
 }
@@ -175,6 +178,7 @@ function SplitNode({
   hoveredTabInsertion: HoveredTabInsertion | null
 }): React.JSX.Element {
   const setTabGroupSplitRatio = useAppStore((state) => state.setTabGroupSplitRatio)
+  const equalizeTabGroupSplitRun = useAppStore((state) => state.equalizeTabGroupSplitRun)
   const recordFeatureInteraction = useAppStore((state) => state.recordFeatureInteraction)
 
   if (node.type === 'leaf') {
@@ -242,6 +246,7 @@ function SplitNode({
         direction={node.direction}
         onResizeStart={() => recordFeatureInteraction('terminal-panes')}
         onRatioChange={(nextRatio) => setTabGroupSplitRatio(worktreeId, nodePath, nextRatio)}
+        onEqualize={() => equalizeTabGroupSplitRun(worktreeId, nodePath)}
       />
       <div className="flex min-w-0 min-h-0 overflow-hidden" style={{ flex: `${1 - ratio} 1 0%` }}>
         <SplitNode
