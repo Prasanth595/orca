@@ -64,7 +64,8 @@ export function useAutomationEditorActions({
       prompt: '',
       agentId: defaultAgent,
       extraAgentArgs: '',
-      notifyOnFailure: false,
+      // Untouched opt-outs stay omitted so older hosts can still create automations.
+      notifyOnFailure: undefined,
       projectId: target.projectId,
       workspaceMode: 'existing',
       workspaceId: target.workspaceId,

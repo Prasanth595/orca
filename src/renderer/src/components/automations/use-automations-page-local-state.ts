@@ -135,7 +135,8 @@ export function useAutomationsPageLocalState(store: AutomationsPageStoreState) {
     prompt: '',
     agentId: defaultAgent,
     extraAgentArgs: '',
-    notifyOnFailure: false,
+    // Untouched opt-outs stay omitted so older hosts can still create automations.
+    notifyOnFailure: undefined,
     projectId: '',
     workspaceMode: 'existing',
     workspaceId: '',

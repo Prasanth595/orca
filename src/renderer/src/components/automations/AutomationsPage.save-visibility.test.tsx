@@ -12,17 +12,29 @@
 import { act } from 'react'
 import { describe, expect, it } from 'vitest'
 import type { Automation } from '../../../../shared/automations-types'
+import {
+  AUTOMATION_CREATE_IDEMPOTENCY_RUNTIME_CAPABILITY,
+  AUTOMATION_LIST_HOST_SCOPE_RUNTIME_CAPABILITY,
+  AUTOMATION_OWNER_FENCING_RUNTIME_CAPABILITY
+} from '../../../../shared/automation-runtime-capabilities'
 import { AUTOMATIONS_CHANGED_EVENT } from '@/lib/automations-changed-window-event'
 import {
+  addRuntimeProject,
   api,
   installAutomationsPageHarness,
   mocks,
   renderPage,
   rows,
+  runtimeHost,
+  RUNTIME_ID,
+  RUNTIME_REPO_ID,
+  RUNTIME_SELF_FILTER,
+  RUNTIME_WORKSPACE_ID,
   scopedList,
   settleHostQueries
 } from './automations-page-test-harness'
 import { makeAutomation, REPO_ID, WORKSPACE_ID } from './automations-page-fixtures'
+import { listedRow } from './automations-page-listed-items'
 
 installAutomationsPageHarness()
 
@@ -39,20 +51,29 @@ function desktopStoreHolds(automations: Automation[]): void {
   scopedList(automations)
 }
 
-async function createSweep(notifyOnFailure = false): Promise<void> {
+async function createSweep(
+  notifyOnFailure?: boolean,
+  projectId = REPO_ID,
+  workspaceId = WORKSPACE_ID
+): Promise<void> {
   await act(async () => {
     mocks.listPanel?.openCreateDialog()
   })
   await act(async () => {
-    mocks.editorDialog?.onDraftChange((current) => ({
-      ...(current as Record<string, unknown>),
-      name: 'Sweep',
-      prompt: 'Do the sweep',
-      notifyOnFailure,
-      projectId: REPO_ID,
-      workspaceMode: 'existing',
-      workspaceId: WORKSPACE_ID
-    }))
+    mocks.editorDialog?.onDraftChange((current) => {
+      if (typeof current !== 'object' || current === null) {
+        throw new Error('Expected an automation draft')
+      }
+      return {
+        ...current,
+        name: 'Sweep',
+        prompt: 'Do the sweep',
+        ...(notifyOnFailure !== undefined ? { notifyOnFailure } : {}),
+        projectId,
+        workspaceMode: 'existing',
+        workspaceId
+      }
+    })
   })
   await act(async () => {
     await mocks.editorDialog?.onSave()
@@ -61,17 +82,89 @@ async function createSweep(notifyOnFailure = false): Promise<void> {
 }
 
 describe('AutomationsPage save visibility', () => {
-  it('saves the per-automation opt-in through the create dialog', async () => {
+  it.each([true, false])(
+    'saves an explicit notification setting of %s',
+    async (notifyOnFailure) => {
+      desktopStoreHolds([])
+      mocks.state.automationHostFilter = DESKTOP_SELF_FILTER
+      api.automations.create.mockResolvedValue(CREATED)
+      await renderPage()
+      await settleHostQueries()
+      await createSweep(notifyOnFailure)
+      expect(api.automations.create).toHaveBeenCalledWith(
+        expect.objectContaining({ notifyOnFailure })
+      )
+    }
+  )
+
+  it('creates on an older runtime when the notification switch is untouched', async () => {
     desktopStoreHolds([])
-    mocks.state.automationHostFilter = DESKTOP_SELF_FILTER
-    api.automations.create.mockResolvedValue(CREATED)
+    runtimeHost([], [])
+    addRuntimeProject()
+    mocks.state.automationHostFilter = RUNTIME_SELF_FILTER
+    const capabilities = [
+      AUTOMATION_LIST_HOST_SCOPE_RUNTIME_CAPABILITY,
+      AUTOMATION_OWNER_FENCING_RUNTIME_CAPABILITY,
+      AUTOMATION_CREATE_IDEMPOTENCY_RUNTIME_CAPABILITY
+    ]
+    mocks.state.runtimeStatusByEnvironmentId = new Map([[RUNTIME_ID, { status: { capabilities } }]])
+    mocks.getRuntimeEnvironmentStatus.mockResolvedValue({ capabilities })
+    const previous = mocks.callRuntimeRpc.getMockImplementation()
+    mocks.callRuntimeRpc.mockImplementation(
+      async (target: unknown, method: string, params: unknown, options: unknown) => {
+        if (method === 'automation.create') {
+          return { automation: CREATED }
+        }
+        return await previous?.(target, method, params, options)
+      }
+    )
+
     await renderPage()
     await settleHostQueries()
-    await createSweep(true)
-    expect(api.automations.create).toHaveBeenCalledWith(
-      expect.objectContaining({ notifyOnFailure: true })
+    await createSweep(undefined, RUNTIME_REPO_ID, RUNTIME_WORKSPACE_ID)
+
+    const createCalls = mocks.callRuntimeRpc.mock.calls.filter(
+      (call) => call[1] === 'automation.create'
+    )
+    expect(createCalls).toHaveLength(1)
+    expect(createCalls[0]?.[2]).toMatchObject({
+      repo: `id:${RUNTIME_REPO_ID}`,
+      workspace: `id:${RUNTIME_WORKSPACE_ID}`
+    })
+    expect(createCalls[0]?.[2]).not.toHaveProperty('notifyOnFailure')
+    expect(api.automations.create).not.toHaveBeenCalled()
+    expect(mocks.editorDialog?.open).toBe(false)
+  })
+
+  it('saves an explicit opt-out when editing an opted-in automation', async () => {
+    const automation = makeAutomation({ notifyOnFailure: true })
+    desktopStoreHolds([automation])
+    mocks.state.automationHostFilter = DESKTOP_SELF_FILTER
+    await renderPage()
+    await settleHostQueries()
+    await act(async () => {
+      await mocks.listPanel?.openEditDialog(listedRow(automation.id))
+    })
+    await act(async () => {
+      mocks.editorDialog?.onDraftChange((current) => {
+        if (typeof current !== 'object' || current === null) {
+          throw new Error('Expected an automation draft')
+        }
+        return { ...current, notifyOnFailure: false }
+      })
+    })
+    await act(async () => {
+      await mocks.editorDialog?.onSave()
+    })
+
+    expect(api.automations.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: automation.id,
+        updates: expect.objectContaining({ notifyOnFailure: false })
+      })
     )
   })
+
   it('lists a newly created automation on the host it was saved to', async () => {
     desktopStoreHolds([])
     mocks.state.automationHostFilter = DESKTOP_SELF_FILTER
@@ -85,9 +178,7 @@ describe('AutomationsPage save visibility', () => {
     await createSweep()
 
     expect(api.automations.create).toHaveBeenCalledTimes(1)
-    expect(api.automations.create).toHaveBeenCalledWith(
-      expect.objectContaining({ notifyOnFailure: false })
-    )
+    expect(api.automations.create.mock.calls[0]?.[0]).not.toHaveProperty('notifyOnFailure')
     expect(rows(container, 'automation-row')).toEqual(['Sweep'])
   })
 
