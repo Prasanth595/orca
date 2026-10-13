@@ -1,0 +1,98 @@
+---
+title: Orca Relay before Linux login
+---
+
+This optional setup runs the installed **desktop runtime** on a private Xvfb
+display. It supports Orca Relay after boot without a graphical login. A lingering
+`orca serve` service alone does not start the desktop relay, and Xvfb alone does
+not unlock the GNOME keyring that protects the saved cloud session.
+
+## Requirements
+
+- Linux with a systemd user manager and user-scoped encrypted credentials
+  (`systemd-creds encrypt --user`, systemd 256 or newer).
+- Installed Orca desktop executable, a signed-in cloud account with Relay access,
+  and an already paired mobile client using Relay.
+- `python3` with `secretstorage` and `dbus` modules, `gnome-keyring-daemon`,
+  `dbus-run-session`, `xvfb-run`, `Xvfb`, and `xauth`.
+- A home directory and network connection available before login. Encrypted
+  homes mounted only at login and networks requiring interactive authentication
+  cannot support this setup without separate configuration.
+
+Use distribution packages for the dependencies. On Fedora, the Python packages
+are `python3-secretstorage` and `python3-dbus`; the display packages are
+`xorg-x11-server-Xvfb`, `xorg-x11-xauth`, and `xvfb-run`.
+
+## Prepare while logged in
+
+Unlock the keyring containing the `application=orca` Safe Storage entry first.
+The helper never prompts for, exports, or saves the login/keyring password.
+Run as the same regular user who owns the Orca profile:
+
+```sh
+python3 config/scripts/linux-relay-boot.py prepare --app /opt/Orca/orca-ide
+```
+
+`--app` names the desktop executable, **not** the shell CLI launcher. Preparation
+copies the helper to `$XDG_CONFIG_HOME/orca-relay-boot` (default `~/.config`),
+encrypts only Orca's Safe Storage key using systemd user credentials, and writes
+`orca-relay.service`. It refuses to overwrite an installation. No services are
+started or stopped by this command.
+
+This deliberately makes the Orca encryption key available to your user service
+before login. The exported copy is encrypted on disk, bound to the machine/user
+by systemd, and supplied to a private in-memory Secret Service. It does not
+unlock or copy the rest of your personal keyring. Protect your Linux account and
+machine accordingly; this is not a substitute for disk encryption. The Safe
+Storage key can decrypt other secrets stored by Orca with that same key, not
+only the cloud session.
+
+## Enable
+
+Quit other Orca instances and disable any existing Orca desktop or `orca serve`
+boot service using the same profile. Do not run both services against that
+profile. The helper does not stop other services or replace their configuration.
+
+```sh
+loginctl enable-linger "$USER"
+systemctl --user daemon-reload
+systemctl --user enable --now orca-relay.service
+journalctl --user -u orca-relay.service -b
+```
+
+Enabling lingering may require an administrator. If denied, ask them to run
+`sudo loginctl enable-linger <username>`. A successful systemd start proves the
+process started, not that Relay registered. Confirm the existing mobile client
+connects through Relay, then reboot and repeat the connection **without logging
+in locally**. Inspect the journal over SSH if it fails.
+
+The private display has no local desktop window. It remains private after login;
+there is no automatic transfer to the physical display. To use the visible
+desktop app, stop this service first, then open Orca normally. Use the same
+profile and keep its pairing data. A booted service cannot provide computer-use
+access to a desktop that has not been logged into.
+
+If the cloud account is signed out, revoked, or the Orca Safe Storage key changes,
+sign in normally and prepare a fresh installation. This helper supports the
+default installed profile and the GNOME/libsecret key format; it does not migrate
+other password stores or custom `ORCA_USER_DATA_PATH` profiles.
+
+## Remove or refresh
+
+```sh
+systemctl --user disable --now orca-relay.service
+rm "$HOME/.config/systemd/user/orca-relay.service"
+rm -r "$HOME/.config/orca-relay-boot"
+systemctl --user daemon-reload
+```
+
+Adjust the paths if `XDG_CONFIG_HOME` is set. Removal retains Orca profiles,
+pairings, the original GNOME keyring, and user lingering. To refresh, prepare and
+enable again after removal. Runtime keyring directories live under
+`XDG_RUNTIME_DIR`, contain no persistent keyring secrets, and disappear on reboot.
+
+## Regression tests
+
+```sh
+python3 -m unittest discover -s config/scripts -p test_linux_relay_boot.py
+```

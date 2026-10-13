@@ -1,0 +1,20 @@
+name: Linux Relay boot helper
+
+on:
+  pull_request:
+    paths:
+      - 'config/scripts/linux-relay-boot.py'
+      - 'config/scripts/test_linux_relay_boot.py'
+      - '.github/workflows/linux-relay-boot.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Test credential isolation and service preparation
+        run: python3 -m unittest discover -s config/scripts -p test_linux_relay_boot.py

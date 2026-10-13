@@ -124,6 +124,11 @@ Orca creates a separate, revocable token for each paired client. The server list
 
 Use `orca serve` when the host should run without the desktop window—for example, a headless Linux server or a service-managed VM. For a MacBook or desktop you can leave signed in, the in-app setup above is simpler.
 
+For Orca Relay on Linux **before login**, see the optional
+[boot service guide](/docs/recipes/linux-relay-before-login).
+It uses the desktop runtime on a private display and a separate credential store;
+starting `orca serve` alone does not start the desktop relay or unlock a login keyring.
+
 Install Orca and its bundled CLI on the server, then run:
 
 <Callout title="On Linux, start it with orca-ide serve">
