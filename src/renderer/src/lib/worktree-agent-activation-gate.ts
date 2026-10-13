@@ -282,8 +282,15 @@ export function gateWorktreeAgentActivation(
   return gate
 }
 
+/** Observe restoration already in flight without starting another recovery. */
+export function getPendingWorktreeAgentActivation(
+  worktreeId: string
+): Promise<WorktreeAgentActivationOutcome> | null {
+  return inFlightByWorktreeId.get(worktreeId) ?? null
+}
+
 export function waitForWorktreeAgentActivationGateForTests(
   worktreeId: string
 ): Promise<WorktreeAgentActivationOutcome | null> {
-  return inFlightByWorktreeId.get(worktreeId) ?? Promise.resolve(null)
+  return getPendingWorktreeAgentActivation(worktreeId) ?? Promise.resolve(null)
 }

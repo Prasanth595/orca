@@ -22,6 +22,9 @@ vi.mock('@/lib/structured-agent-session-tab-activation', () => ({
 vi.mock('@/lib/worktree-activation', () => ({
   activateAndRevealWorkspace: mocks.activateAndRevealWorkspace
 }))
+vi.mock('@/lib/worktree-agent-activation-gate', () => ({
+  getPendingWorktreeAgentActivation: () => null
+}))
 
 import { createActivityThreadActions, hasActivityThreadWorkspace } from './activity-thread-actions'
 
