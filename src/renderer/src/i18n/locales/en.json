@@ -19420,7 +19420,11 @@
       "renameTitle": "Rename Workflow",
       "namePlaceholder": "Workflow name",
       "cancel": "Cancel",
-      "save": "Save"
+      "save": "Save",
+      "export": "Export workflow",
+      "import": "Import workflow",
+      "importSuccess": "Workflow imported",
+      "importError": "Failed to import workflow"
     },
     "node": {
       "save": "Save",
