@@ -127,6 +127,7 @@ export function agentLaunchSurfaceFactory(
       agent,
       startupPrompt,
       agentArgs,
+      suppressStartupUpdatePrompt,
       cwd,
       launchSource,
       paneKey,
@@ -155,6 +156,7 @@ export function agentLaunchSurfaceFactory(
             }
           : {}),
         ...(agentArgs !== undefined ? { agentArgs } : {}),
+        ...(suppressStartupUpdatePrompt ? { suppressStartupUpdatePrompt } : {}),
         ...(cwd ? { cwd } : {}),
         // The model the user picked outranks configured args here too, as it does on a chat.
         ...(launchPreferences ? { launchPreferences } : {}),
