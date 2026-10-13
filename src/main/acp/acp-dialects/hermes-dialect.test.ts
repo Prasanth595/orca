@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { AgentJournalToolCallItem } from '../../../shared/agent-session-journal-types'
 import type { ToolCallUpdate } from '../generated/acp-protocol.generated'
-import { hermesToolBackgroundTasks, hermesToolSubagents } from './hermes-dialect'
+import {
+  HERMES_ACP_DIALECT,
+  hermesToolBackgroundTasks,
+  hermesToolSubagents
+} from './hermes-dialect'
 
 /** The text blocks Hermes sends, wrapped the way ACP wraps them. */
 function text(...texts: string[]): ToolCallUpdate['content'] {
@@ -190,5 +194,62 @@ describe('hermes dialect', () => {
         call('process_manage: poll')
       )
     ).toEqual([])
+  })
+})
+
+describe('hermes delegation notices', () => {
+  /** A finished batch, as the ACP adapter reports it after the children finished. */
+  function notice(subagents: unknown, extra: Record<string, unknown> = {}) {
+    return {
+      sessionId: 'session-1',
+      update: {
+        sessionUpdate: 'agent_message_chunk',
+        content: { type: 'text', text: '2 of 2 subagents finished' },
+        _meta: { hermes: { subagents } },
+        ...extra
+      }
+    }
+  }
+
+  it('settles the rows the dispatch drew, keyed the way the dispatch keyed them', () => {
+    const mapped = HERMES_ACP_DIALECT.notification?.(
+      'session/update',
+      notice([
+        { id: 'deleg_abc:0', state: 'completed', summary: 'hi from one' },
+        { id: 'deleg_abc:1', state: 'failed', summary: 'boom' }
+      ]),
+      1
+    )
+
+    expect(mapped).toEqual({
+      disposition: 'map',
+      subagents: [
+        { id: 'deleg_abc:0', state: 'completed', result: 'hi from one' },
+        { id: 'deleg_abc:1', state: 'failed', result: 'boom' }
+      ]
+    })
+  })
+
+  it('drops a state the roster does not have, keeping the rows it does', () => {
+    const mapped = HERMES_ACP_DIALECT.notification?.(
+      'session/update',
+      notice([{ id: 'deleg_abc:0', state: 'exploded' }, { id: 'deleg_abc:1', state: 'stopped' }]),
+      1
+    )
+
+    expect(mapped).toEqual({
+      disposition: 'map',
+      subagents: [{ id: 'deleg_abc:1', state: 'stopped' }]
+    })
+  })
+
+  it('leaves every other notification to the default path', () => {
+    expect(
+      HERMES_ACP_DIALECT.notification?.('session/update', notice([]), 1)
+    ).toBeUndefined()
+    expect(
+      HERMES_ACP_DIALECT.notification?.('session/update', { sessionId: 's', update: {} }, 1)
+    ).toBeUndefined()
+    expect(HERMES_ACP_DIALECT.notification?.('_x/y', { anything: true }, 1)).toBeUndefined()
   })
 })

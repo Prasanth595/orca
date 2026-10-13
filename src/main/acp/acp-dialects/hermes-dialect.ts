@@ -6,7 +6,7 @@ import { z } from 'zod'
 import type { AgentJournalToolCallItem } from '../../../shared/agent-session-journal-types'
 import type { NativeChatSubagentState } from '../../../shared/native-chat-types'
 import type { ToolCallUpdate } from '../generated/acp-protocol.generated'
-import type { AcpBackgroundTaskUpdate, AcpDialect, AcpSubagentUpdate } from './acp-dialect'
+import type { AcpBackgroundTaskUpdate, AcpDialect, AcpDialectNotification, AcpSubagentUpdate } from './acp-dialect'
 
 /** A delegation Hermes dispatched, whose children keep running after the call completes. */
 const dispatchedSchema = z.looseObject({
@@ -192,9 +192,48 @@ export function hermesToolBackgroundTasks(
   ]
 }
 
+/**
+ * A finished background delegation, as Hermes' ACP adapter reports it: a `session/update` carrying
+ * the roster under `_meta.hermes.subagents`. The children are detached, so this notice is the only
+ * thing in the stream that can settle the rows a client drew for them.
+ */
+const HERMES_SUBAGENT_STATES = [
+  'working',
+  'idle',
+  'completed',
+  'stopped',
+  'failed',
+  'unverifiable'
+] as const
+
+const delegationNoticeSchema = z.looseObject({
+  update: z.looseObject({
+    _meta: z.looseObject({
+      hermes: z.looseObject({
+        subagents: z.array(
+          z.looseObject({ id: z.string().min(1), state: z.string(), summary: z.string().optional() })
+        )
+      })
+    })
+  })
+})
+
+function hermesDelegationNotice(_method: string, params: unknown): AcpDialectNotification | undefined {
+  const parsed = delegationNoticeSchema.safeParse(params)
+  if (!parsed.success) return undefined
+  const subagents: AcpSubagentUpdate[] = []
+  for (const row of parsed.data.update._meta.hermes.subagents) {
+    const state = HERMES_SUBAGENT_STATES.find((known) => known === row.state)
+    if (!state) continue
+    subagents.push({ id: row.id, state, ...(row.summary ? { result: row.summary } : {}) })
+  }
+  return subagents.length > 0 ? { disposition: 'map', subagents } : undefined
+}
+
 export const HERMES_ACP_DIALECT: AcpDialect = {
   // Hermes titles a call `name: detail`; the journal reads the name before the detail.
   toolName: (update) => bareToolName(update.name ?? update.title) || undefined,
   toolSubagents: hermesToolSubagents,
-  toolBackgroundTasks: hermesToolBackgroundTasks
+  toolBackgroundTasks: hermesToolBackgroundTasks,
+  notification: hermesDelegationNotice
 }
