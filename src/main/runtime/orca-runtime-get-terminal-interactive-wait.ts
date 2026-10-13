@@ -34,9 +34,24 @@ export class OrcaRuntimeWithGetTerminalInteractiveWait extends OrcaRuntimeWithAd
       terminal: RuntimeTerminalAgentStatusSnapshot
       lifecycle: { status: AgentStatus | null; updatedAt: number } | null | undefined
     }
+    let observedOnScreen = false
+    let screenUnavailable = false
     try {
       ptyId = this.getTerminalAgentStatusPtyId(handle)
       inputs = this.getTerminalWaitPermissionInputs(handle, ptyId)
+      if (this.getPaneAgentForTuiIdle(ptyId) === 'claude' && this.headlessTerminals.has(ptyId)) {
+        const screen = await this.readCurrentTerminalWaitScreen(ptyId)
+        if (this.getTerminalAgentStatusPtyId(handle) !== ptyId || screen === undefined) {
+          return undefined
+        }
+        observedOnScreen = screen !== null
+        screenUnavailable = !observedOnScreen
+        inputs = this.getTerminalWaitPermissionInputs(
+          handle,
+          ptyId,
+          observedOnScreen ? screen.lines.join('\n') : undefined
+        )
+      }
     } catch {
       return undefined
     }
@@ -45,7 +60,8 @@ export class OrcaRuntimeWithGetTerminalInteractiveWait extends OrcaRuntimeWithAd
     const promptReason = this.resolveAuthoritativeTerminalWaitPermission(
       terminal,
       explicitStatus,
-      lifecycle
+      lifecycle,
+      observedOnScreen
     )
     if (promptReason) {
       return {
@@ -58,6 +74,9 @@ export class OrcaRuntimeWithGetTerminalInteractiveWait extends OrcaRuntimeWithAd
       return { source: 'title' }
     }
     if (explicitStatus?.status !== 'permission') {
+      if (screenUnavailable && !explicitStatus && !this.hasConfirmedNonPermissionTitle(terminal)) {
+        return undefined
+      }
       return null
     }
     const status = await withTimeout(

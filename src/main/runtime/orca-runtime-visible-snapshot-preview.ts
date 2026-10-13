@@ -15,6 +15,7 @@ import { visibleNonBlankTerminalLines } from './terminal-tail-read'
 import type { RuledScreen } from './screen-input-veto'
 import { HeadlessEmulator } from '../daemon/headless-emulator'
 import { withTimeout } from './runtime-async-boundaries'
+import { TERMINAL_INTERACTIVE_WAIT_PROBE_TIMEOUT_MS } from './orca-runtime-core'
 
 export class OrcaRuntimeWithVisibleSnapshotPreview extends OrcaRuntimeWithCaptureProviderTerminalBuffer {
   protected async visibleSnapshotPreview(ptyId: string, preview: string): Promise<string> {
@@ -143,6 +144,25 @@ export class OrcaRuntimeWithVisibleSnapshotPreview extends OrcaRuntimeWithCaptur
       sequence: state.outputSequence,
       generation
     }
+  }
+
+  protected async readCurrentTerminalWaitScreen(
+    ptyId: string
+  ): Promise<RuntimeVisibleTerminalState | null | undefined> {
+    const generation = this.getPtyLifecycleGeneration(ptyId)
+    const screen = await withTimeout(
+      this.readVisibleTerminalState(ptyId),
+      TERMINAL_INTERACTIVE_WAIT_PROBE_TIMEOUT_MS,
+      null
+    )
+    if (generation !== this.getPtyLifecycleGeneration(ptyId)) {
+      return undefined
+    }
+    return screen &&
+      screen.generation === generation &&
+      screen.sequence >= this.getPtyOutputSequence(ptyId)
+      ? screen
+      : null
   }
 
   /** Synchronous visible grid of the live emulator, for tui-idle body evidence. Null when the

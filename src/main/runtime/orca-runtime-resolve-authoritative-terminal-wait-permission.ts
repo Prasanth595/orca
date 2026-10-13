@@ -3,7 +3,10 @@ import { OrcaRuntimeWithAgentPromptRequestCorrelation } from './orca-runtime-age
 import type { RuntimeTerminalAgentStatusSnapshot } from './runtime-terminal-agent-status-query'
 import type { AgentStatus } from '../../shared/agent-detection'
 import type { RuntimeTerminalWaitBlockedReason } from '../../shared/runtime-types'
-import { detectTerminalWaitBlockedReason } from './terminal-wait-detection'
+import {
+  detectExplicitIdleStatusFromTitle,
+  detectTerminalWaitBlockedReason
+} from './terminal-wait-detection'
 import { isOpenCodeNativeTitle } from '../../shared/agent-detection'
 import type { AgentStatusEntry, AgentStatusIpcPayload } from '../../shared/agent-status-types'
 import type { RuntimePtyWorktreeRecord } from './runtime-terminal-state-records'
@@ -40,10 +43,19 @@ export class OrcaRuntimeWithResolveAuthoritativeTerminalWaitPermission extends O
     return this.terminalRunFacts.read(ptyId, incarnationId)
   }
 
+  protected hasConfirmedNonPermissionTitle(terminal: RuntimeTerminalAgentStatusSnapshot): boolean {
+    return (
+      terminal.titleStatusIsLive &&
+      (terminal.titleStatus === 'working' ||
+        detectExplicitIdleStatusFromTitle(terminal.title ?? '') === 'idle')
+    )
+  }
+
   protected resolveAuthoritativeTerminalWaitPermission(
     terminal: RuntimeTerminalAgentStatusSnapshot,
     explicitStatus: { status: AgentStatus; updatedAt: number } | null,
-    lifecycle: { status: AgentStatus | null; updatedAt: number } | null | undefined
+    lifecycle: { status: AgentStatus | null; updatedAt: number } | null | undefined,
+    observedOnScreen = false
   ): RuntimeTerminalWaitBlockedReason | null {
     const blockedByWaitText = detectTerminalWaitBlockedReason(terminal.waitText)
     if (!blockedByWaitText) {
@@ -53,6 +65,9 @@ export class OrcaRuntimeWithResolveAuthoritativeTerminalWaitPermission extends O
       terminal.titleStatusIsLive &&
       terminal.titleStatus !== null &&
       terminal.titleStatus !== 'permission' &&
+      (!observedOnScreen ||
+        terminal.titleStatus !== 'idle' ||
+        detectExplicitIdleStatusFromTitle(terminal.title ?? '') === 'idle') &&
       !isOpenCodeNativeTitle(terminal.title) &&
       blockedByWaitText !== 'agent-approval-prompt'
     if (liveTitleClearsBlockedText && lifecycle?.status !== terminal.titleStatus) {
@@ -70,7 +85,10 @@ export class OrcaRuntimeWithResolveAuthoritativeTerminalWaitPermission extends O
       explicitStatus && explicitStatus.status !== 'permission' ? explicitStatus.updatedAt : -1,
       lifecycle?.status && lifecycle.status !== 'permission' ? lifecycle.updatedAt : -1
     )
-    return newestPermissionAt >= 0 && newestPermissionAt >= newestClearAt ? blockedByWaitText : null
+    return (observedOnScreen && newestClearAt < 0) ||
+      (newestPermissionAt >= 0 && newestPermissionAt >= newestClearAt)
+      ? blockedByWaitText
+      : null
   }
 
   /**
