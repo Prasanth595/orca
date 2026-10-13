@@ -12,6 +12,7 @@ import { getDirectoryName } from './worktree-card-model'
 import type { WorktreeCardPresentation } from './worktree-card-presentation'
 import type { WorktreeCardController } from './use-worktree-card-controller'
 
+/** Renders workspace metadata with repository and branch labels that share the available width. */
 export function WorktreeCardMetaRow({
   card,
   presentation

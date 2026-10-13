@@ -22,6 +22,7 @@ for (const theme of ['light', 'dark'] as const) {
       }
       return worktree.path
     })
+    /** Renames the real Git branch so catalog refreshes preserve the test identity. */
     const renameBranch = async (name: string): Promise<void> => {
       const result = await runProcess({
         program: 'git',
