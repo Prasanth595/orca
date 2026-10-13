@@ -12,12 +12,12 @@ import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner
 import { translate } from '@/i18n/i18n'
 import { useAppStore } from '@/store'
 import type { AppState } from '@/store/types'
-import { findSiblingGroupId } from '@/store/slices/tabs'
-import { browserPageDocLocationsEqual } from '../../../shared/browser-page-doc-location'
 import type { BrowserPageDocLocation } from '../../../shared/browser-workspace-types'
 import { findPage } from '@/store/slices/browser-page-records'
+import { findSiblingGroupId } from '@/store/slices/tabs'
+import { findWorkspaceShowingDoc, openDocPreviewTab } from '@/lib/workspace-doc-preview-tab'
+import { resolveHostPathFilePreviewPlan } from '@/lib/host-path-file-preview'
 import type { BrowserPageConversionLeg } from '@/store/slices/browser-page-conversion'
-import { ORCA_BROWSER_BLANK_URL } from '../../../shared/constants'
 
 export type PreviewableLanguage = 'html'
 /** Still the answer for flows that need a real `file://` URL (e.g. dropping a file on a browser pane). */
@@ -44,7 +44,9 @@ function pairedOutsideWorktreeMessage(): string {
 export type WorkspaceFilePreviewPlan =
   | { status: 'browser-tab'; url: string; title: string }
   | { status: 'doc-preview' }
-  | { status: 'unsupported'; message: string; reason: 'no-channel' | 'outside-worktree' }
+  | { status: 'unsupported'; message: string; reason: 'no-channel' }
+  /** `environmentId` is the host that refused, so only that host is asked to serve the path. */
+  | { status: 'unsupported'; message: string; reason: 'outside-worktree'; environmentId: string }
 
 export function getWorkspaceFilePreviewPlan(
   state: AppState,
@@ -66,15 +68,18 @@ export function getWorkspaceFilePreviewPlan(
   }
   // Why: the doc preview needs no browser at all, so a paired runtime without the
   // screencast capability still previews documents.
-  if (getRuntimeEnvironmentIdForWorktree(state, worktreeId)) {
+  const environmentId = getRuntimeEnvironmentIdForWorktree(state, worktreeId)
+  if (environmentId) {
     const worktreeRoot = state.getKnownWorktreeById(worktreeId)?.path ?? null
     if (worktreeRoot && !getRelativePathInsideRoot(filePath, worktreeRoot)) {
-      // Why: the host's files.read is worktree-scoped, so this would 404 at request time with
-      // nothing telling the user which boundary they hit.
+      // Why: the host's workspace reads stop at the worktree, so this would 404 at request time
+      // with nothing telling the user which boundary they hit. A host that serves files by path
+      // may still render it (host-path-file-preview.ts).
       return {
         status: 'unsupported',
         message: pairedOutsideWorktreeMessage(),
-        reason: 'outside-worktree'
+        reason: 'outside-worktree',
+        environmentId
       }
     }
     return webClientDocPreviewRefusal() ?? { status: 'doc-preview' }
@@ -168,53 +173,23 @@ export function getWorkspaceFileBrowserOpenTarget(params: {
   }
 }
 
-function openDocPreviewTab(
-  state: AppState,
-  params: { filePath: string; worktreeId: string; targetGroupId?: string; activate: boolean }
-): void {
-  const docLocation = {
-    kind: 'workspace-doc' as const,
-    worktreeId: params.worktreeId,
-    filePath: params.filePath
-  }
-  // Why reuse and not a second tab: previewing a document already on screen is a request to look at
-  // it, and two tabs of one document would each hold their own grant on the same file.
-  const existing = (state.browserTabsByWorktree[params.worktreeId] ?? []).find((tab) =>
-    browserPageDocLocationsEqual(tab.docLocation ?? null, docLocation)
-  )
-  if (existing) {
-    if (
-      !params.activate ||
-      !activateBrowserWorkspaceTab({ worktreeId: params.worktreeId, workspaceId: existing.id })
-    ) {
-      state.setActiveBrowserTab(existing.id)
-    }
-    return
-  }
-  state.createBrowserTab(params.worktreeId, ORCA_BROWSER_BLANK_URL, {
-    docLocation,
-    title: basename(params.filePath) || params.filePath,
-    targetGroupId: params.targetGroupId,
-    // Why explicitly client-local: the document is read through a grant this desktop mints, so the
-    // page never belongs to a remote runtime even when the worktree does.
-    browserRuntimeEnvironmentId: null,
-    // Why the caller decides: opening a file is a request to look at it, while a preview opened to
-    // the side belongs beside the source the reader is still working in.
-    activate: params.activate
-  })
-}
-
 export function openFileInBrowserTab(params: {
   filePath: string
   worktreeId: string
+  /** A plan the caller already resolved, e.g. for a document its host serves by path. */
+  plan?: WorkspaceFilePreviewPlan
 }): WorkspaceFilePreviewPlan {
   const state = useAppStore.getState()
-  const plan = getWorkspaceFilePreviewPlan(state, params.worktreeId, params.filePath)
+  const plan = params.plan ?? getWorkspaceFilePreviewPlan(state, params.worktreeId, params.filePath)
   if (plan.status === 'unsupported') {
     return plan
   }
   if (plan.status === 'doc-preview') {
-    openDocPreviewTab(state, { ...params, activate: true })
+    openDocPreviewTab(state, {
+      filePath: params.filePath,
+      worktreeId: params.worktreeId,
+      activate: true
+    })
     return plan
   }
 
@@ -223,23 +198,6 @@ export function openFileInBrowserTab(params: {
     activate: true
   })
   return plan
-}
-
-/** The tab a document is already open in, found by every PAGE's docLocation and not just the
- *  workspace mirror — a mixed workspace whose doc page is inactive mirrors null. */
-function findWorkspaceShowingDoc(
-  state: AppState,
-  docLocation: BrowserPageDocLocation
-): { workspaceId: string; pageId: string } | null {
-  for (const tab of state.browserTabsByWorktree[docLocation.worktreeId] ?? []) {
-    const page = (state.browserPagesByWorkspace[tab.id] ?? []).find((candidate) =>
-      browserPageDocLocationsEqual(candidate.docLocation ?? null, docLocation)
-    )
-    if (page) {
-      return { workspaceId: tab.id, pageId: page.id }
-    }
-  }
-  return null
 }
 
 /**
@@ -293,15 +251,20 @@ export function convertBrowserPageToWorkspaceDoc(
     if (state.activeWorktreeId !== docLocation.worktreeId) {
       state.setActiveWorktree(docLocation.worktreeId)
     }
-    const plan = openFileInBrowserTab({
-      filePath: docLocation.filePath,
-      worktreeId: docLocation.worktreeId
+    let refused = false
+    openWithResolvedPreviewPlan(docLocation, (plan) => {
+      const opened = openFileInBrowserTab({
+        filePath: docLocation.filePath,
+        worktreeId: docLocation.worktreeId,
+        plan
+      })
+      if (opened.status === 'unsupported') {
+        toast.error(opened.message)
+        refused = true
+      }
     })
-    if (plan.status === 'unsupported') {
-      toast.error(plan.message)
-      return 'failed'
-    }
-    return 'opened-in-owning-worktree'
+    // Why only a refusal known now fails: a host still being asked answers through its toast.
+    return refused ? 'failed' : 'opened-in-owning-worktree'
   }
   return state.convertBrowserPage(pageId, { kind: 'workspace-doc', docLocation }, options)
     ? 'converted'
@@ -326,13 +289,36 @@ export function openFilePreviewToSide(params: {
     return
   }
 
+  openWithResolvedPreviewPlan(params, (plan) => openPlannedPreviewToSide(params, plan))
+}
+
+/**
+ * Hands `open` the document's preview plan. A paired document outside its worktree first asks the
+ * host that refused whether it serves the path, so every way into a preview gives the same answer.
+ */
+function openWithResolvedPreviewPlan(
+  document: { worktreeId: string; filePath: string },
+  open: (plan: WorkspaceFilePreviewPlan) => void
+): void {
   const state = useAppStore.getState()
-  const worktreeId = params.worktreeId
-  const plan = getWorkspaceFilePreviewPlan(state, worktreeId, params.filePath)
+  const plan = getWorkspaceFilePreviewPlan(state, document.worktreeId, document.filePath)
+  if (plan.status === 'unsupported' && plan.reason === 'outside-worktree') {
+    void resolveHostPathFilePreviewPlan(state, document, plan).then(open)
+    return
+  }
+  open(plan)
+}
+
+function openPlannedPreviewToSide(
+  params: { filePath: string; worktreeId: string; sourceGroupId: string | null },
+  plan: WorkspaceFilePreviewPlan
+): void {
   if (plan.status === 'unsupported') {
     toast.error(plan.message)
     return
   }
+  const state = useAppStore.getState()
+  const worktreeId = params.worktreeId
 
   // Resolve the group this action originated from. Prefer the caller-supplied
   // id (the tab's own group under split-pane layouts), fall back to the

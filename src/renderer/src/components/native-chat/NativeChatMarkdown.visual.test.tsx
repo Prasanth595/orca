@@ -15,12 +15,16 @@ import { NativeChatMarkdown } from './NativeChatMarkdown'
 import { MessageRow } from './NativeChatMessageRow'
 import {
   NativeChatVisualOwnerContext,
-  type NativeChatVisualOwner
+  NativeChatVisualReadingContext,
+  type NativeChatVisualOwner,
+  type NativeChatVisualReading
 } from './native-chat-visual-owner'
+import { createNativeChatVisualRefresh } from './native-chat-visual-refresh'
+import { clearNativeChatVisualFileCacheForTests } from './native-chat-visual-path-read-client'
 import { clearNativeChatVisualCacheForTests } from './native-chat-visual-read-client'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useAppStore } from '@/store'
-import { getDefaultSettings } from '../../../../shared/constants'
+import { FLOATING_TERMINAL_WORKTREE_ID, getDefaultSettings } from '../../../../shared/constants'
 
 const owner: NativeChatVisualOwner = {
   target: { kind: 'local' },
@@ -28,6 +32,10 @@ const owner: NativeChatVisualOwner = {
   worktreeId: 'wt-1'
 }
 const LINE = '::orca-visual{file="usage.html" title="Usage"}'
+const READ_BY_PATH: NativeChatVisualReading = {
+  route: { kind: 'file', scratchDirectory: '/state/chat-scratch/aaaa' },
+  refresh: createNativeChatVisualRefresh()
+}
 
 function withOwner(children: ReactNode, value: NativeChatVisualOwner | null = owner): ReactNode {
   return (
@@ -52,6 +60,7 @@ class InViewObserver {
 beforeEach(() => {
   vi.stubGlobal('IntersectionObserver', InViewObserver)
   clearNativeChatVisualCacheForTests()
+  clearNativeChatVisualFileCacheForTests()
   callRuntimeRpc.mockReset()
   callRuntimeRpc.mockResolvedValue({ ok: true, revision: 'r1', sizeBytes: 9, html: '<p>v</p>' })
 })
@@ -78,7 +87,7 @@ describe('NativeChatMarkdown visuals', () => {
     }
   })
 
-  it('opens the visual in its own workspace tab', async () => {
+  it('opens the visual in its own tab where its host has no path for it', async () => {
     const openChatVisualTab = vi.fn()
     const original = useAppStore.getState().openChatVisualTab
     useAppStore.setState({ openChatVisualTab })
@@ -94,6 +103,40 @@ describe('NativeChatMarkdown visuals', () => {
         file: 'usage.html',
         title: 'Usage'
       })
+    } finally {
+      useAppStore.setState({ openChatVisualTab: original })
+    }
+  })
+
+  it('opens a visual its host reads by path as that file in a browser tab', async () => {
+    vi.stubGlobal('api', { fs: { readFile: vi.fn().mockResolvedValue({ content: '<p>v</p>' }) } })
+    const openChatVisualTab = vi.fn()
+    const original = useAppStore.getState().openChatVisualTab
+    useAppStore.setState({
+      openChatVisualTab,
+      browserTabsByWorktree: {},
+      browserPagesByWorkspace: {}
+    })
+    const floatingOwner = { ...owner, worktreeId: FLOATING_TERMINAL_WORKTREE_ID }
+    try {
+      const { container } = render(
+        withOwner(
+          <NativeChatVisualReadingContext.Provider value={READ_BY_PATH}>
+            <NativeChatMarkdown content={LINE} visualMessageId="m1" />
+          </NativeChatVisualReadingContext.Provider>,
+          floatingOwner
+        )
+      )
+      await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
+      fireEvent.click(screen.getByRole('button', { name: 'Open in new tab' }))
+      const pages = Object.values(useAppStore.getState().browserPagesByWorkspace).flat()
+      expect(pages).toEqual([
+        expect.objectContaining({
+          url: 'file:///state/chat-scratch/aaaa/usage.html',
+          title: 'Usage'
+        })
+      ])
+      expect(openChatVisualTab).not.toHaveBeenCalled()
     } finally {
       useAppStore.setState({ openChatVisualTab: original })
     }

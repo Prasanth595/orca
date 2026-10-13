@@ -4,7 +4,6 @@ import { ArtifactPublishButton } from '@/components/artifacts/ArtifactPublishBut
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { translate } from '@/i18n/i18n'
-import { useAppStore } from '@/store'
 import { NATIVE_CHAT_VISUAL_RESERVED_HEIGHT, NativeChatVisualFrame } from './NativeChatVisualFrame'
 import { observeTranscriptVisibility } from './NativeChatTranscriptChrome'
 import {
@@ -23,6 +22,7 @@ import {
   type NativeChatVisualFile
 } from './native-chat-visual-path-read-client'
 import { useNativeChatVisualSavedMark } from './native-chat-visual-refresh'
+import { openNativeChatVisual } from './native-chat-visual-open'
 import {
   nativeChatVisualArtifactSourceKey,
   readNativeChatVisualArtifactRequest
@@ -179,7 +179,6 @@ function NativeChatInlineVisualToolbar({
 }): React.JSX.Element {
   // Share's popover is portalled and takes focus, so hover and focus-within can't hold the toolbar.
   const [shareOpen, setShareOpen] = useState(false)
-  const openChatVisualTab = useAppStore((state) => state.openChatVisualTab)
   const openLabel = translate('components.native-chat.visualOpenInNewTab', 'Open in new tab')
   return (
     <div
@@ -193,12 +192,7 @@ function NativeChatInlineVisualToolbar({
             size="icon-xs"
             aria-label={openLabel}
             onClick={() =>
-              openChatVisualTab(owner.worktreeId, {
-                target: owner.target,
-                sessionId: owner.sessionId,
-                file,
-                title
-              })
+              openNativeChatVisual(owner, { file, title, path: shareFile ? shareFile.path : null })
             }
           >
             <SquareArrowOutUpRight />
