@@ -5,7 +5,8 @@ import { createTestStore, makeWorktree } from './store-test-helpers'
 const mocks = vi.hoisted(() => ({ callRuntimeRpc: vi.fn() }))
 vi.mock('@/lib/doc-preview-grants', () => ({
   releaseDocPreviewGrant: vi.fn(),
-  ensureDocPreviewGrant: vi.fn()
+  ensureDocPreviewGrant: vi.fn(),
+  buildDocPreviewGrantRequest: vi.fn()
 }))
 vi.mock('@/runtime/runtime-rpc-client', async (importOriginal) => {
   const actual = await importOriginal<object>()

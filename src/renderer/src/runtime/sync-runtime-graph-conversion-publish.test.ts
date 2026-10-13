@@ -5,7 +5,8 @@ import { createTestStore, makeWorktree } from '../store/slices/store-test-helper
 
 vi.mock('@/lib/doc-preview-grants', () => ({
   releaseDocPreviewGrant: vi.fn(),
-  ensureDocPreviewGrant: vi.fn()
+  ensureDocPreviewGrant: vi.fn(),
+  buildDocPreviewGrantRequest: vi.fn()
 }))
 vi.mock('sonner', () => ({ toast: { info: vi.fn(), success: vi.fn(), error: vi.fn() } }))
 vi.mock('@/lib/agent-status', async (importOriginal) => {

@@ -11,7 +11,8 @@ import { createTestStore, makeWorktree } from './store-test-helpers'
 const mocks = vi.hoisted(() => ({ releaseDocPreviewGrant: vi.fn() }))
 vi.mock('@/lib/doc-preview-grants', () => ({
   releaseDocPreviewGrant: mocks.releaseDocPreviewGrant,
-  ensureDocPreviewGrant: vi.fn()
+  ensureDocPreviewGrant: vi.fn(),
+  buildDocPreviewGrantRequest: vi.fn()
 }))
 vi.mock('sonner', () => ({ toast: { info: vi.fn(), success: vi.fn(), error: vi.fn() } }))
 vi.mock('@/lib/agent-status', async (importOriginal) => {

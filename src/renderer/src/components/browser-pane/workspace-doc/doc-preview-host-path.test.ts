@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/runtime/runtime-file-address', async (importOriginal) => ({
   ...(await importOriginal<typeof RuntimeFileAddressModule>()),
-  knownRuntimeEnvironmentServesFilesByPath: mocks.servesFilesByPath
+  runtimeEnvironmentServesFilesByPath: mocks.servesFilesByPath
 }))
 vi.mock('@/runtime/runtime-file-read-client', async (importOriginal) => ({
   ...(await importOriginal<typeof RuntimeFileReadClientModule>()),
@@ -68,7 +68,7 @@ async function resolvedLocation(filePath = PAGE): Promise<DocPreviewGrantLocatio
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mocks.servesFilesByPath.mockReturnValue(true)
+  mocks.servesFilesByPath.mockResolvedValue(true)
   seed()
 })
 
@@ -92,16 +92,7 @@ describe('preview grant for a paired document outside its workspace', () => {
   })
 
   it('has no grant on an older host, which keeps today’s unavailable preview', async () => {
-    mocks.servesFilesByPath.mockReturnValue(false)
-
-    expect(
-      await resolveDocPreviewGrantRequest(useAppStore.getState(), WORKTREE_ID, PAGE)
-    ).toBeNull()
-  })
-
-  // Why: an unreachable or unprobed host must not hold the preview on a wait.
-  it('has no grant at once while the host has not said it serves paths', async () => {
-    mocks.servesFilesByPath.mockReturnValue(undefined)
+    mocks.servesFilesByPath.mockResolvedValue(false)
 
     expect(
       await resolveDocPreviewGrantRequest(useAppStore.getState(), WORKTREE_ID, PAGE)

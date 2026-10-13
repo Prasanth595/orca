@@ -3,7 +3,7 @@ import { useAppStore } from '@/store'
 import type { Repo } from '../../../../../shared/repo-types'
 import type { Worktree } from '../../../../../shared/worktree/types'
 import { editorArtifactSourceKey } from '@/components/editor/editor-artifact-upload'
-import { resolveDocPreviewGrantRequest } from '@/lib/doc-preview-grants'
+import { buildDocPreviewGrantRequest } from '@/lib/doc-preview-grants'
 import { captureEditorFileOperationProvenance } from '@/lib/editor-file-operation-owner'
 import { fileArtifactSourceKey } from '@/lib/file-artifact-source-key'
 import { makeRepo, makeWorktree } from '@/components/worktree-jump-palette-test-fixtures'
@@ -36,12 +36,8 @@ function editorKey(): string {
   })
 }
 
-async function previewKey(): Promise<string> {
-  const location = await resolveDocPreviewGrantRequest(
-    useAppStore.getState(),
-    WORKTREE_ID,
-    FILE_PATH
-  )
+function previewKey(): string {
+  const location = buildDocPreviewGrantRequest(useAppStore.getState(), WORKTREE_ID, FILE_PATH)
   if (!location) {
     throw new Error('no grant location')
   }
@@ -50,24 +46,24 @@ async function previewKey(): Promise<string> {
 
 describe('preview Share key matches the editor key', () => {
   // The grant mints on the SSH target the workspace row names, so both surfaces key it as SSH.
-  it('for an SSH workspace a paired server proxies', async () => {
+  it('for an SSH workspace a paired server proxies', () => {
     seed(
       { connectionId: 'hub-target', executionHostId: 'runtime:hub-a' },
       { hostId: 'ssh:hub-target', runtimeOwnerEnvironmentId: 'hub-a' }
     )
-    expect(await previewKey()).toBe(editorKey())
+    expect(previewKey()).toBe(editorKey())
   })
 
-  it('for a mixed-version SSH publication from a paired server', async () => {
+  it('for a mixed-version SSH publication from a paired server', () => {
     seed(
       { connectionId: 'hub-target', executionHostId: 'runtime:hub-a' },
       { hostId: 'ssh:hub-target' }
     )
-    expect(await previewKey()).toBe(editorKey())
+    expect(previewKey()).toBe(editorKey())
   })
 
-  it('for a plain paired workspace', async () => {
+  it('for a plain paired workspace', () => {
     seed({ executionHostId: 'runtime:hub-a' }, { hostId: 'runtime:hub-a' })
-    expect(await previewKey()).toBe(editorKey())
+    expect(previewKey()).toBe(editorKey())
   })
 })
