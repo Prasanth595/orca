@@ -1,4 +1,3 @@
-import { getActiveTabNavOrder } from '@/components/tab-bar/group-tab-order'
 import {
   ORCA_EDITOR_FILE_SAVED_EVENT,
   requestEditorFileSave,
@@ -188,10 +187,11 @@ function resolveMarkdownTarget(
   tabId: string
 ): { tab: OpenFile; sourceFile: OpenFile } {
   const state = useAppStore.getState()
-  const orderItem = getActiveTabNavOrder(state, worktreeId).find(
-    (item) => item.type === 'editor' && (item.tabId === tabId || item.id === tabId)
+  // Why every group: the phone lists tabs from all split groups, not just the desktop's focused one.
+  const unifiedTab = (state.unifiedTabsByWorktree[worktreeId] ?? []).find(
+    (candidate) => candidate.id === tabId && candidate.contentType === 'editor'
   )
-  const tabFileId = orderItem?.type === 'editor' ? orderItem.id : tabId
+  const tabFileId = unifiedTab?.entityId ?? tabId
   const tab = state.openFiles.find(
     (file) => file.worktreeId === worktreeId && (file.id === tabFileId || file.id === tabId)
   )
