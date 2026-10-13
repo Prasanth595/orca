@@ -45,6 +45,7 @@ export {
   terminalSendWarnings
 } from './terminal-format'
 export {
+  formatAutomationHealth,
   formatAutomationList,
   formatAutomationRemoved,
   formatAutomationRun,

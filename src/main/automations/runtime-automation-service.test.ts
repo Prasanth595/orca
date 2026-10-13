@@ -53,12 +53,13 @@ describe('headless automation dispatch', () => {
     const launch = await dispatcher({
       // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: a reuse-workspace automation; only these fields are read.
       automation: {
+        id: 'auto-1',
         workspaceMode: 'existing',
         workspaceId: 'wt-1',
         agentId: 'goose'
       } as never,
       // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: only the title is read.
-      run: { title: 'Nightly' } as never,
+      run: { id: 'run-1', title: 'Nightly' } as never,
       // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: unused for an existing workspace.
       target: {} as never
     })
@@ -67,6 +68,7 @@ describe('headless automation dispatch', () => {
     expect(launch.terminalPaneKey).toBe('tab-1:pane-1')
     expect(runtime.launchAgentTerminal).toHaveBeenCalledWith('id:wt-1', {
       agent: 'goose',
+      env: { ORCA_AUTOMATION_ID: 'auto-1', ORCA_AUTOMATION_RUN_ID: 'run-1' },
       prompt: '',
       title: 'Nightly'
     })
@@ -106,6 +108,7 @@ describe('headless automation dispatch with extra agent args', () => {
     // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: captured from the mocked constructor above.
     const dispatcher = captured.dispatcher as HeadlessAutomationDispatcher
     const automation = {
+      id: 'auto-1',
       workspaceMode: 'existing',
       workspaceId: 'wt-1',
       agentId: 'claude',
@@ -116,13 +119,14 @@ describe('headless automation dispatch with extra agent args', () => {
       // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: only these fields are read.
       automation: automation as never,
       // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: only the title is read.
-      run: { title: 'Nightly' } as never,
+      run: { id: 'run-1', title: 'Nightly' } as never,
       // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: unused for an existing workspace.
       target: {} as never
     })
 
     expect(runtime.launchAgentTerminal).toHaveBeenCalledWith('id:wt-1', {
       agent: 'claude',
+      env: { ORCA_AUTOMATION_ID: 'auto-1', ORCA_AUTOMATION_RUN_ID: 'run-1' },
       prompt: 'go',
       title: 'Nightly',
       extraAgentArgs: '--model opus'

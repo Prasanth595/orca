@@ -74,6 +74,7 @@ describe('headless automation agent launch', () => {
       agent: 'claude',
       prompt: 'fix the flaky test',
       title: 'Nightly',
+      env: { ORCA_AUTOMATION_ID: 'auto-1', ORCA_AUTOMATION_RUN_ID: 'run-1' },
       extraAgentArgs: '--model opus'
     })
     expect(runtime.deliverStartupFollowup).not.toHaveBeenCalled()
@@ -128,6 +129,7 @@ describe('headless automation agent launch', () => {
       setupDecision: 'skip',
       startupAgent: 'claude',
       startupPrompt: 'fix the flaky test',
+      startupEnv: { ORCA_AUTOMATION_ID: 'auto-1', ORCA_AUTOMATION_RUN_ID: 'run-1' },
       startupExtraAgentArgs: '--model opus',
       createdWithAgent: 'claude',
       telemetrySource: 'unknown'
@@ -166,6 +168,39 @@ describe('headless automation agent launch', () => {
       launch(runtime, { workspaceMode: 'new_per_run', workspaceId: null })
     ).rejects.toThrow('Startup terminal failed.')
     expect(runtime.launchAgentTerminal).not.toHaveBeenCalled()
+  })
+
+  it('adds the semantic receipt instruction only when the automation opts in', async () => {
+    const runtime = harness()
+
+    await launch(runtime, { workflowReceiptRequired: true })
+
+    expect(runtime.launchAgentTerminal).toHaveBeenCalledWith(
+      'id:wt-1',
+      expect.objectContaining({
+        prompt: expect.stringContaining('orca automations receipt --outcome passed')
+      })
+    )
+  })
+
+  it('adds the configured Jev evaluation instruction without exposing a key', async () => {
+    const runtime = harness()
+
+    await launch(runtime, {
+      semanticEvaluation: {
+        evaluator: 'jev',
+        mode: 'shadow',
+        rubricPath: '.agents/rubrics/customer-memory.json'
+      }
+    })
+
+    expect(runtime.launchAgentTerminal).toHaveBeenCalledWith(
+      'id:wt-1',
+      expect.objectContaining({
+        prompt: expect.stringContaining('orca automations jev-evaluate --state-file <path>')
+      })
+    )
+    expect(runtime.launchAgentTerminal.mock.calls[0]![1].prompt).not.toContain('AI_GATEWAY_API_KEY')
   })
 
   it('launches bare and delivers nothing for a blank prompt', async () => {

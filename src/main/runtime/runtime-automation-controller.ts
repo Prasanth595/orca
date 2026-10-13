@@ -3,11 +3,11 @@ import type {
   Automation,
   AutomationCreateInput,
   AutomationRun,
+  AutomationSemanticEvaluationResult,
+  AutomationWorkflowOutcome,
   AutomationUpdateInput,
   AutomationWorkspaceMode
 } from '../../shared/automations-types'
-import type { Repo } from '../../shared/repo-types'
-import type { Worktree } from '../../shared/worktree/types'
 import type { RuntimeStore } from './runtime-store-contract'
 import type { AutomationListParams, AutomationListResult } from '../../shared/automation-list-scope'
 import type {
@@ -19,6 +19,10 @@ import { runAutomationNowFenced } from '../automations/refused-manual-run'
 import { paginateAutomationRuns } from '../../shared/automation-run-cursor'
 import { hasRuntimeAutomationUpdateValue } from './runtime-automation-update-value'
 import { assertAutomationRunContextMatchesTarget } from './runtime-automation-run-context'
+import {
+  resolveRuntimeAutomationTarget,
+  type RuntimeAutomationTargetResolvers
+} from './runtime-automation-target'
 
 export type RuntimeAutomationCreateInput = Omit<
   AutomationCreateInput,
@@ -37,11 +41,6 @@ export type RuntimeAutomationUpdateInput = Omit<
 > & {
   repo?: string
   workspace?: string
-}
-
-type RuntimeAutomationTargetResolvers = {
-  showRepo: (selector: string) => Promise<Repo>
-  showManagedWorktree: (selector: string) => Promise<Pick<Worktree, 'id' | 'repoId' | 'path'>>
 }
 
 export class RuntimeAutomationController {
@@ -81,11 +80,28 @@ export class RuntimeAutomationController {
     return this.store.listAutomationRuns(automationId)
   }
 
-  listRunsPage(automationId?: string, limit?: number, cursor?: string) {
+  listRunsPage(
+    automationId?: string,
+    limit?: number,
+    cursor?: string,
+    status?: AutomationRun['status'],
+    since?: number
+  ) {
     if (this.store?.listAutomationRunsPage) {
-      return this.store.listAutomationRunsPage(automationId, limit, cursor)
+      return this.store.listAutomationRunsPage(automationId, limit, cursor, status, since)
     }
-    return paginateAutomationRuns(this.listRuns(automationId), limit, cursor)
+    const runs = this.listRuns(automationId).filter(
+      (run) => (!status || run.status === status) && (since === undefined || run.createdAt >= since)
+    )
+    return paginateAutomationRuns(runs, limit, cursor)
+  }
+
+  showRun(id: string): AutomationRun {
+    const run = this.listRuns().find((entry) => entry.id === id)
+    if (!run) {
+      throw new Error('Automation run not found.')
+    }
+    return run
   }
 
   listForScope(params: AutomationListParams = {}): AutomationListResult {
@@ -114,7 +130,7 @@ export class RuntimeAutomationController {
     if (!this.store?.createAutomation) {
       throw new Error('runtime_unavailable')
     }
-    const target = await this.resolveTarget(input)
+    const target = await resolveRuntimeAutomationTarget(input, undefined, this.resolvers)
     assertAutomationRunContextMatchesTarget(input.runContext, target.repo)
     if (input.reuseSession && target.workspaceMode !== 'existing') {
       throw new Error('Session reuse requires an existing workspace target.')
@@ -139,7 +155,9 @@ export class RuntimeAutomationController {
         rrule: input.rrule,
         dtstart: input.dtstart,
         enabled: input.enabled,
-        missedRunGraceMinutes: input.missedRunGraceMinutes
+        missedRunGraceMinutes: input.missedRunGraceMinutes,
+        workflowReceiptRequired: input.workflowReceiptRequired,
+        semanticEvaluation: input.semanticEvaluation
       },
       (destination ?? input.destination)
         ? { destination: destination ?? input.destination }
@@ -165,7 +183,7 @@ export class RuntimeAutomationController {
       hasRuntimeAutomationUpdateValue(updates, 'workspace') ||
       hasRuntimeAutomationUpdateValue(updates, 'workspaceMode')
     if (targetChanged) {
-      const target = await this.resolveTarget(updates, current)
+      const target = await resolveRuntimeAutomationTarget(updates, current, this.resolvers)
       assertAutomationRunContextMatchesTarget(updates.runContext, target.repo)
       if (patch.reuseSession === true && target.workspaceMode !== 'existing') {
         throw new Error('Session reuse requires an existing workspace target.')
@@ -217,6 +235,35 @@ export class RuntimeAutomationController {
     })
   }
 
+  async recordWorkflowReceipt(
+    runId: string,
+    outcome: AutomationWorkflowOutcome,
+    summary?: string
+  ): Promise<AutomationRun> {
+    if (!this.store?.recordAutomationWorkflowReceipt) {
+      throw new Error('runtime_unavailable')
+    }
+    const run = this.showRun(runId)
+    this.assertOwner(run.automationId, undefined, 'mutate')
+    const updated = this.store.recordAutomationWorkflowReceipt(runId, outcome, summary)
+    await this.store.flushPendingOrThrowAsync?.({ drainToStableGeneration: false })
+    return updated
+  }
+
+  async recordSemanticEvaluation(
+    runId: string,
+    result: AutomationSemanticEvaluationResult
+  ): Promise<AutomationRun> {
+    if (!this.store?.recordAutomationSemanticEvaluation) {
+      throw new Error('runtime_unavailable')
+    }
+    const run = this.showRun(runId)
+    this.assertOwner(run.automationId, undefined, 'mutate')
+    const updated = this.store.recordAutomationSemanticEvaluation(runId, result)
+    await this.store.flushPendingOrThrowAsync?.({ drainToStableGeneration: false })
+    return updated
+  }
+
   assertOwner(
     id: string,
     expectedOwner: AutomationOwnerPrecondition | undefined,
@@ -250,74 +297,14 @@ export class RuntimeAutomationController {
       'rrule',
       'dtstart',
       'enabled',
-      'missedRunGraceMinutes'
+      'missedRunGraceMinutes',
+      'workflowReceiptRequired',
+      'semanticEvaluation'
     ] as const
     for (const key of keys) {
       if (hasRuntimeAutomationUpdateValue(updates, key)) {
         Object.assign(patch, { [key]: updates[key] })
       }
     }
-  }
-
-  private async resolveTarget(
-    input: {
-      repo?: string
-      workspace?: string
-      workspaceMode?: AutomationWorkspaceMode
-      baseBranch?: string | null
-    },
-    current?: Automation
-  ): Promise<{
-    projectId: string
-    workspaceMode: AutomationWorkspaceMode
-    workspaceId?: string | null
-    repo: Repo | null
-  }> {
-    const hasRepo = input.repo !== undefined
-    const hasWorkspace = input.workspace !== undefined
-    if (
-      current?.workspaceMode === 'existing' &&
-      hasRepo &&
-      !hasWorkspace &&
-      input.workspaceMode !== 'new_per_run'
-    ) {
-      throw new Error(
-        'Repo updates for existing-workspace automation require workspaceMode new_per_run.'
-      )
-    }
-    const workspace = input.workspace
-      ? await this.resolvers.showManagedWorktree(input.workspace)
-      : null
-    const repoSelector =
-      input.repo ??
-      (workspace?.repoId
-        ? `id:${workspace.repoId}`
-        : current?.projectId
-          ? `id:${current.projectId}`
-          : null)
-    const repo = repoSelector ? await this.resolvers.showRepo(repoSelector) : null
-    const workspaceMode =
-      input.workspaceMode ??
-      (workspace
-        ? 'existing'
-        : input.repo && !current
-          ? 'new_per_run'
-          : (current?.workspaceMode ?? 'new_per_run'))
-    if (workspaceMode === 'existing') {
-      const workspaceId = workspace?.id ?? current?.workspaceId
-      const projectId = workspace?.repoId ?? current?.projectId
-      if (repo && repo.id !== projectId) {
-        throw new Error('Selected workspace belongs to a different repo.')
-      }
-      if (!workspaceId || !projectId) {
-        throw new Error('Existing-workspace automation requires --workspace.')
-      }
-      return { projectId, workspaceMode, workspaceId, repo }
-    }
-    const projectId = repo?.id ?? workspace?.repoId ?? current?.projectId
-    if (!projectId) {
-      throw new Error('Automation requires --repo or --workspace.')
-    }
-    return { projectId, workspaceMode: 'new_per_run', workspaceId: null, repo }
   }
 }

@@ -17,6 +17,11 @@ const AUTOMATION_STATE_FLAGS = [
   'enabled',
   'disabled',
   'missed-run-grace-minutes',
+  'require-receipt',
+  'no-require-receipt',
+  'jev-evaluation',
+  'jev-rubric',
+  'no-jev-evaluation',
   'reuse-session',
   'fresh-session'
 ]
@@ -28,6 +33,13 @@ export const AUTOMATION_COMMAND_SPECS: CommandSpec[] = [
     usage: 'orca automations list [--json]',
     allowedFlags: [...GLOBAL_FLAGS],
     examples: ['orca automations list', 'orca automations list --json']
+  },
+  {
+    path: ['automations', 'doctor'],
+    summary: 'Check automation schedule and run health',
+    usage: 'orca automations doctor [--json]',
+    allowedFlags: [...GLOBAL_FLAGS],
+    examples: ['orca automations doctor', 'orca automations doctor --json']
   },
   {
     path: ['automations', 'show'],
@@ -112,10 +124,54 @@ export const AUTOMATION_COMMAND_SPECS: CommandSpec[] = [
     examples: ['orca automations run 2f9e...', 'orca automations run --id 2f9e... --json']
   },
   {
+    path: ['automations', 'run-show'],
+    summary: 'Show one automation run',
+    usage: 'orca automations run-show <run-id> [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'id'],
+    positionalArgs: ['id'],
+    examples: ['orca automations run-show 819a...', 'orca automations run-show --id 819a... --json']
+  },
+  {
+    path: ['automations', 'receipt'],
+    summary: 'Record a semantic workflow result for an automation run',
+    usage:
+      'orca automations receipt [<run-id>] --outcome <passed|failed|blocked> [--summary <text>] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'run', 'outcome', 'summary'],
+    positionalArgs: ['run'],
+    examples: [
+      'orca automations receipt --outcome passed --summary "Artifact validated" --json',
+      'orca automations receipt 819a... --outcome blocked --summary "Waiting for credentials"'
+    ]
+  },
+  {
+    path: ['automations', 'jev-evaluate'],
+    summary: 'Evaluate automation evidence with the configured Jev rubric',
+    usage: 'orca automations jev-evaluate [<run-id>] --state-file <json-path> [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'run', 'state-file'],
+    positionalArgs: ['run'],
+    notes: [
+      'Requires AI_GATEWAY_API_KEY in the process environment; the key is never persisted.',
+      'The state JSON may include evidenceRefs as an array of non-secret references.'
+    ],
+    examples: [
+      'orca automations jev-evaluate --state-file /tmp/customer-memory-evidence.json --json',
+      'orca automations jev-evaluate 819a... --state-file ./tmp/evidence.json'
+    ]
+  },
+  {
     path: ['automations', 'runs'],
     summary: 'List automation run history',
-    usage: 'orca automations runs [--id <automation-id>] [--json]',
-    allowedFlags: [...GLOBAL_FLAGS, 'id'],
-    examples: ['orca automations runs', 'orca automations runs --id 2f9e... --json']
+    usage:
+      'orca automations runs [--id <automation-id>] [--limit <n>] [--cursor <cursor>] [--status <status>] [--since <iso>] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'id', 'limit', 'cursor', 'status', 'since'],
+    notes: [
+      '--since takes an ISO 8601 timestamp with an offset, for example 2026-10-01T00:00:00-04:00.',
+      'Use nextCursor from the JSON response with --cursor to continue a bounded history scan.'
+    ],
+    examples: [
+      'orca automations runs',
+      'orca automations runs --id 2f9e... --limit 25 --json',
+      'orca automations runs --status dispatch_failed --since 2026-10-01T00:00:00-04:00 --json'
+    ]
   }
 ]

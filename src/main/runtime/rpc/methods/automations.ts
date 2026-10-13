@@ -5,7 +5,10 @@ import {
   AutomationCreate,
   AutomationId,
   AutomationList,
+  AutomationRunId,
   AutomationRuns,
+  AutomationSemanticEvaluation,
+  AutomationWorkflowReceipt,
   AutomationUpdate
 } from '../../../../shared/rpc-contract/automation-params'
 
@@ -87,16 +90,49 @@ export const AUTOMATION_METHODS = [
     })
   }),
   defineMethod({
+    name: 'automation.runShow',
+    permission: 'workspace',
+    params: AutomationRunId,
+    handler: (params, { runtime }) => ({ run: runtime.showAutomationRun(params.id) })
+  }),
+  defineMethod({
+    name: 'automation.recordWorkflowReceipt',
+    permission: 'workspace',
+    params: AutomationWorkflowReceipt,
+    handler: async (params, { runtime }) => ({
+      run: await runtime.recordAutomationWorkflowReceipt(
+        params.runId,
+        params.outcome,
+        params.summary
+      )
+    })
+  }),
+  defineMethod({
+    name: 'automation.recordSemanticEvaluation',
+    permission: 'workspace',
+    params: AutomationSemanticEvaluation,
+    handler: async (params, { runtime }) => ({
+      run: await runtime.recordAutomationSemanticEvaluation(params.runId, params.result)
+    })
+  }),
+  defineMethod({
     name: 'automation.runs',
     permission: 'workspace',
     params: AutomationRuns,
     handler: (params, { runtime }) => {
-      if (params.limit !== undefined || params.cursor !== undefined) {
+      if (
+        params.limit !== undefined ||
+        params.cursor !== undefined ||
+        params.status !== undefined ||
+        params.since !== undefined
+      ) {
         return runtime.listAutomationRunsPage(
           params.automationId,
           params.expectedOwner,
           params.limit,
-          params.cursor
+          params.cursor,
+          params.status,
+          params.since
         )
       }
       return { runs: runtime.listAutomationRuns(params.automationId, params.expectedOwner) }

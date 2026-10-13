@@ -117,6 +117,8 @@ export function createAutomation(
     nextRunAt: nextAutomationOccurrenceAfter(input.rrule, input.dtstart, now),
     missedRunPolicy: 'run_once_within_grace',
     missedRunGraceMinutes: input.missedRunGraceMinutes ?? 720,
+    workflowReceiptRequired: input.workflowReceiptRequired ?? false,
+    semanticEvaluation: input.semanticEvaluation ?? null,
     createdAt: now,
     updatedAt: now
   }

@@ -1,33 +1,49 @@
 import type { TuiAgent } from './tui-agent'
 import type { SetupDecision } from './worktree/create-types'
 import type { TaskSourceContext, WorkspaceRunContext } from './task-source-context'
+import type { AutomationRunStatus } from './automation-run-state'
+import type {
+  AutomationSemanticEvaluationConfig,
+  AutomationSemanticEvaluationReceipt
+} from './automation-semantic-evaluation-types'
+
+export { isFinalAutomationRunStatus } from './automation-run-state'
+export type { AutomationRunQuery, AutomationRunStatus } from './automation-run-state'
+export type {
+  AutomationSemanticEvaluationChoice,
+  AutomationSemanticEvaluationConfig,
+  AutomationSemanticEvaluationMode,
+  AutomationSemanticEvaluationReceipt,
+  AutomationSemanticEvaluationResult
+} from './automation-semantic-evaluation-types'
+export type {
+  ExternalAutomationAction,
+  ExternalAutomationActionInput,
+  ExternalAutomationCreateInput,
+  ExternalAutomationJob,
+  ExternalAutomationManager,
+  ExternalAutomationManagerStatus,
+  ExternalAutomationProvider,
+  ExternalAutomationRun,
+  ExternalAutomationRunsInput,
+  ExternalAutomationRunsPage,
+  ExternalAutomationRunStatus,
+  ExternalAutomationTarget,
+  ExternalAutomationUpdateInput
+} from './external-automations-types'
 
 export type AutomationWorkspaceMode = 'existing' | 'new_per_run'
 export type AutomationExecutionTargetType = 'local' | 'ssh'
 export type AutomationSchedulerOwner = 'local_host_service' | 'ssh_bridge' | 'remote_host_service'
 export type AutomationMissedRunPolicy = 'run_once_within_grace'
-export type AutomationRunStatus =
-  | 'pending'
-  | 'dispatching'
-  | 'dispatched'
-  | 'completed'
-  | 'skipped_precheck'
-  | 'skipped_missed'
-  | 'skipped_unavailable'
-  | 'skipped_needs_interactive_auth'
-  | 'dispatch_failed'
 export type AutomationRunTrigger = 'scheduled' | 'manual'
+export type AutomationWorkflowOutcome = 'passed' | 'failed' | 'blocked'
 
-/** Statuses a run can never leave; only these are safe to evict from history. */
-export function isFinalAutomationRunStatus(status: AutomationRunStatus): boolean {
-  return (
-    status === 'completed' ||
-    status === 'dispatch_failed' ||
-    status === 'skipped_precheck' ||
-    status === 'skipped_missed' ||
-    status === 'skipped_unavailable' ||
-    status === 'skipped_needs_interactive_auth'
-  )
+export type AutomationWorkflowReceipt = {
+  outcome: AutomationWorkflowOutcome
+  summary: string | null
+  recordedAt: number
+  source: 'agent'
 }
 
 export type AutomationSchedulePreset = 'hourly' | 'daily' | 'weekdays' | 'weekly' | 'custom'
@@ -130,6 +146,10 @@ export type Automation = {
   lastRunAt?: number
   missedRunPolicy: AutomationMissedRunPolicy
   missedRunGraceMinutes: number
+  /** Opt-in semantic success contract. Legacy schedules default to process-only health. */
+  workflowReceiptRequired?: boolean
+  /** Optional independent Jev judgment over a versioned rubric and run evidence. */
+  semanticEvaluation?: AutomationSemanticEvaluationConfig | null
   createdAt: number
   updatedAt: number
 }
@@ -157,6 +177,10 @@ export type AutomationRun = {
   outputSnapshot: AutomationRunOutputSnapshot | null
   precheckResult: AutomationPrecheckResult | null
   usage: AutomationRunUsage | null
+  workflowReceipt?: AutomationWorkflowReceipt | null
+  /** Snapshot of the semantic contract used when this run was created. */
+  semanticEvaluation?: AutomationSemanticEvaluationConfig | null
+  semanticEvaluationReceipt?: AutomationSemanticEvaluationReceipt | null
   error: string | null
   startedAt: number | null
   dispatchedAt: number | null
@@ -202,6 +226,8 @@ export type AutomationCreateInput = {
   dtstart: number
   enabled?: boolean
   missedRunGraceMinutes?: number
+  workflowReceiptRequired?: boolean
+  semanticEvaluation?: AutomationSemanticEvaluationConfig | null
 }
 
 export type AutomationUpdateInput = Partial<
@@ -225,6 +251,8 @@ export type AutomationUpdateInput = Partial<
     | 'dtstart'
     | 'enabled'
     | 'missedRunGraceMinutes'
+    | 'workflowReceiptRequired'
+    | 'semanticEvaluation'
   >
 >
 
@@ -246,107 +274,4 @@ export type AutomationDispatchResult = {
   precheckResult?: AutomationPrecheckResult | null
   usage?: AutomationRunUsage | null
   error?: string | null
-}
-
-export type ExternalAutomationProvider = 'hermes' | 'openclaw'
-export type ExternalAutomationManagerStatus = 'available' | 'unavailable'
-export type ExternalAutomationAction = 'pause' | 'resume' | 'run' | 'delete'
-export type ExternalAutomationRunStatus = 'completed' | 'failed' | 'unknown'
-
-export type ExternalAutomationTarget =
-  | {
-      type: 'local'
-    }
-  | {
-      type: 'ssh'
-      connectionId: string
-    }
-
-export type ExternalAutomationJob = {
-  id: string
-  managerId: string
-  provider: ExternalAutomationProvider
-  name: string
-  schedule: string
-  rawSchedule: string | null
-  enabled: boolean
-  state: string
-  prompt: string | null
-  promptPreview: string
-  nextRunAt: string | null
-  lastRunAt: string | null
-  lastStatus: string | null
-  lastError: string | null
-  workdir: string | null
-  runCount: number
-  runCountSaturated?: true
-  runs: ExternalAutomationRun[]
-}
-
-export type ExternalAutomationRun = {
-  id: string
-  managerId: string
-  provider: ExternalAutomationProvider
-  jobId: string
-  runAt: string | null
-  status: ExternalAutomationRunStatus
-  outputPreview: string | null
-  outputContent: string | null
-  error: string | null
-  outputPath: string | null
-}
-
-export type ExternalAutomationRunsPage = {
-  managerId: string
-  provider: ExternalAutomationProvider
-  target: ExternalAutomationTarget
-  jobId: string
-  page: number
-  pageSize: number
-  total: number
-  totalSaturated?: true
-  runs: ExternalAutomationRun[]
-}
-
-export type ExternalAutomationRunsInput = {
-  managerId: string
-  provider: ExternalAutomationProvider
-  target: ExternalAutomationTarget
-  jobId: string
-  page: number
-  pageSize: number
-}
-
-export type ExternalAutomationCreateInput = {
-  managerId: string
-  provider: ExternalAutomationProvider
-  target: ExternalAutomationTarget
-  name: string
-  prompt: string
-  schedule: string
-  workdir: string | null
-}
-
-export type ExternalAutomationUpdateInput = ExternalAutomationCreateInput & {
-  jobId: string
-}
-
-export type ExternalAutomationManager = {
-  id: string
-  provider: ExternalAutomationProvider
-  label: string
-  targetLabel: string
-  target: ExternalAutomationTarget
-  status: ExternalAutomationManagerStatus
-  error: string | null
-  canManage: boolean
-  jobs: ExternalAutomationJob[]
-}
-
-export type ExternalAutomationActionInput = {
-  managerId: string
-  provider: ExternalAutomationProvider
-  target: ExternalAutomationTarget
-  jobId: string
-  action: ExternalAutomationAction
 }

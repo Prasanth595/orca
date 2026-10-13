@@ -2,6 +2,7 @@ import type {
   Automation,
   AutomationCreateInput,
   AutomationRun,
+  AutomationSemanticEvaluationConfig,
   AutomationUpdateInput
 } from '../../shared/automations-types'
 import {
@@ -18,7 +19,6 @@ import {
   formatAutomationList,
   formatAutomationRemoved,
   formatAutomationRun,
-  formatAutomationRuns,
   formatAutomationShow,
   printResult,
   type AutomationShowPayload
@@ -29,13 +29,7 @@ import {
   getRequiredStringFlag
 } from '../flags'
 import { resolveAutomationDestination } from '../automation-destination'
-import { RuntimeClientError, type RuntimeClient } from '../runtime-client'
-import { AUTOMATION_EXTRA_AGENT_ARGS_RUNTIME_CAPABILITY } from '../../shared/protocol-version'
-import {
-  EXTRA_AGENT_ARGS_HOST_UPDATE_REQUIRED,
-  hasExtraAgentArgs
-} from '../../shared/automation-extra-agent-args'
-import type { RuntimeStatus } from '../../shared/runtime-types'
+import { RuntimeClientError } from '../runtime-client'
 import { getOptionalWorktreeSelector, resolveCurrentWorktreeSelector } from '../selectors'
 import {
   assertWorkspaceTargetFlagsCompatible,
@@ -53,6 +47,50 @@ import {
   getWorkspaceModeFlag
 } from './automation-handler-flags'
 import { getExtraAgentArgsFlag } from './automation-extra-agent-args-flag'
+import {
+  assertExtraAgentArgsSupported,
+  assertSemanticEvaluationSupported
+} from './automation-runtime-support'
+import { AUTOMATION_RUN_HANDLERS } from './automation-run-handlers'
+
+function getWorkflowReceiptRequiredFlag(flags: Map<string, string | boolean>): boolean | undefined {
+  const required = flags.has('require-receipt')
+  const optional = flags.has('no-require-receipt')
+  if (required && optional) {
+    throw new RuntimeClientError(
+      'invalid_argument',
+      'Use either --require-receipt or --no-require-receipt, not both.'
+    )
+  }
+  return required ? true : optional ? false : undefined
+}
+
+function getSemanticEvaluationFlag(
+  flags: Map<string, string | boolean>
+): AutomationSemanticEvaluationConfig | null | undefined {
+  const disabled = flags.has('no-jev-evaluation')
+  const mode = getOptionalStringFlag(flags, 'jev-evaluation')
+  const rubricPath = getOptionalStringFlag(flags, 'jev-rubric')
+  if (disabled && (mode !== undefined || rubricPath !== undefined)) {
+    throw new RuntimeClientError(
+      'invalid_argument',
+      'Use --no-jev-evaluation by itself, or provide both --jev-evaluation and --jev-rubric.'
+    )
+  }
+  if (disabled) {
+    return null
+  }
+  if (mode === undefined && rubricPath === undefined) {
+    return undefined
+  }
+  if ((mode !== 'shadow' && mode !== 'enforced') || !rubricPath?.trim()) {
+    throw new RuntimeClientError(
+      'invalid_argument',
+      '--jev-evaluation requires shadow or enforced, together with --jev-rubric <path>.'
+    )
+  }
+  return { evaluator: 'jev', mode, rubricPath: rubricPath.trim() }
+}
 
 type AutomationCreateParams = Omit<AutomationCreateInput, 'projectId' | 'timezone'> & {
   destination?: AutomationDestination
@@ -165,21 +203,8 @@ function buildAutomationRunContextFromSetup(setup: ProjectHostSetup): WorkspaceR
   return runContext
 }
 
-// Why: an older runtime strips the field and would run the automation without it.
-async function assertExtraAgentArgsSupported(
-  client: RuntimeClient,
-  extraAgentArgs: string | undefined
-): Promise<void> {
-  if (!hasExtraAgentArgs(extraAgentArgs)) {
-    return
-  }
-  const status = await client.call<RuntimeStatus>('status.get')
-  if (!status.result.capabilities?.includes(AUTOMATION_EXTRA_AGENT_ARGS_RUNTIME_CAPABILITY)) {
-    throw new RuntimeClientError('incompatible_runtime', EXTRA_AGENT_ARGS_HOST_UPDATE_REQUIRED)
-  }
-}
-
 export const AUTOMATION_HANDLERS: Record<string, CommandHandler> = {
+  ...AUTOMATION_RUN_HANDLERS,
   'automations list': async ({ client, json }) => {
     const result = await client.call<{ automations: Automation[] }>('automation.list')
     printResult(result, json, formatAutomationList)
@@ -216,9 +241,12 @@ export const AUTOMATION_HANDLERS: Record<string, CommandHandler> = {
       timezone: getOptionalStringFlag(flags, 'timezone'),
       enabled: getEnabledFlag(flags),
       missedRunGraceMinutes: getOptionalPositiveIntegerFlag(flags, 'missed-run-grace-minutes'),
+      workflowReceiptRequired: getWorkflowReceiptRequiredFlag(flags),
+      semanticEvaluation: getSemanticEvaluationFlag(flags),
       ...schedule
     } satisfies AutomationCreateParams
     await assertExtraAgentArgsSupported(client, create.extraAgentArgs)
+    await assertSemanticEvaluationSupported(client, create.semanticEvaluation)
     const destination = await resolveAutomationDestination(client, target)
     const result = await client.call<{ automation: Automation }>('automation.create', {
       ...create,
@@ -248,9 +276,12 @@ export const AUTOMATION_HANDLERS: Record<string, CommandHandler> = {
       timezone: getOptionalStringFlag(flags, 'timezone'),
       enabled: getEnabledFlag(flags),
       missedRunGraceMinutes: getOptionalPositiveIntegerFlag(flags, 'missed-run-grace-minutes'),
+      workflowReceiptRequired: getWorkflowReceiptRequiredFlag(flags),
+      semanticEvaluation: getSemanticEvaluationFlag(flags),
       ...schedule
     } satisfies AutomationUpdateParams
     await assertExtraAgentArgsSupported(client, updates.extraAgentArgs)
+    await assertSemanticEvaluationSupported(client, updates.semanticEvaluation)
     const expectedOwner = await resolveExpectedOwner(client, id)
     // Why: expectedOwner only fences the host the record is leaving; an edit that moves it needs the arrival fenced too.
     const destination = await resolveAutomationDestination(client, target)
@@ -279,11 +310,5 @@ export const AUTOMATION_HANDLERS: Record<string, CommandHandler> = {
       ...(expectedOwner ? { expectedOwner } : {})
     })
     printResult(result, json, formatAutomationRun)
-  },
-  'automations runs': async ({ flags, client, json }) => {
-    const result = await client.call<{ runs: AutomationRun[] }>('automation.runs', {
-      automationId: getOptionalStringFlag(flags, 'id')
-    })
-    printResult(result, json, formatAutomationRuns)
   }
 }
