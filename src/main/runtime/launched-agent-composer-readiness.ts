@@ -13,8 +13,8 @@
  * at its prompt turns bracketed paste on too, so the write still needs the agent found in front.
  *
  * Where the desktop pasted blind once its budget ran out, the host falls back to the `tui-idle`
- * evidence ranking (idle titles, known ready screens), which also reports a dialog left up. Agents
- * whose composer marker a captured boot proves (`composerReadyCaptures`) wait for their marker alone.
+ * evidence ranking (idle titles, known ready screens), which also reports a dialog left up. A
+ * captured composer marker may answer worker startup early while `tui-idle` still reports blockers.
  */
 
 import type { TuiAgent } from '../../shared/tui-agent'
@@ -25,6 +25,7 @@ import { draftPasteReadySignalHasMarker } from '../../shared/draft-paste-ready-s
 import { nameOnlyIdleNeedsCorroboration } from './tui-idle-evidence'
 import type { OrcaRuntimeService } from './orca-runtime'
 import { showsHoldAnchor } from './agent-state-rules/agent-state-text-anchors'
+import { isCodexComposerReadyScreen } from './agent-state-rules/codex-screen-predicates'
 import { detectTerminalWaitBlockedReason } from './terminal-wait-detection'
 
 export type LaunchedAgentReadinessLane = 'composer-marker' | 'tui-idle'
@@ -43,6 +44,7 @@ export type LaunchedAgentReadinessRuntime = Pick<
  * a rule file's hold anchor (Codex 0.157's provisional `model: loading` header, which discards input).
  */
 export function readFreshComposerHold(
+  agent: TuiAgent,
   waitText: string,
   screenLines: readonly string[] | null
 ): 'dialog' | 'starting' | null {
@@ -52,14 +54,19 @@ export function readFreshComposerHold(
   ) {
     return 'dialog'
   }
+  if (
+    agent === 'codex' &&
+    (screenLines === null || !isCodexComposerReadyScreen(screenLines.join('\n').toLowerCase()))
+  ) {
+    return 'starting'
+  }
   return showsHoldAnchor(waitText.toLowerCase()) ? 'starting' : null
 }
 
 /**
- * A fresh orchestration worker's first dispatch. Marker agents wait for their marker, as a launch
- * does; every other agent takes main's cue for this path, `tui-idle`, which settles on the agent's
- * own ready title instead of a quiet window after it. That dispatch waits for the render to settle
- * before Enter, so it never needed the desktop paste's later cue.
+ * A fresh worker's first dispatch. Codex races its composer marker against `tui-idle` so animation
+ * cannot block a ready composer and dialogs still return their blocked result. Other agents keep
+ * their existing marker or idle lane.
  */
 export async function waitForWorkerStartComposer(
   runtime: LaunchedAgentReadinessRuntime,
@@ -67,7 +74,7 @@ export async function waitForWorkerStartComposer(
   agent: TuiAgent,
   timeoutMs: number
 ): Promise<RuntimeTerminalWait> {
-  if (getLaunchedAgentReadinessLane(agent) === 'composer-marker') {
+  if (getLaunchedAgentReadinessLane(agent) === 'composer-marker' && agent !== 'codex') {
     return runtime.waitForFreshWorkerComposer(handle, agent, timeoutMs)
   }
   if (!workerStartReadsComposerMarker(agent)) {
@@ -96,17 +103,13 @@ export async function waitForWorkerStartComposer(
   }
 }
 
-/**
- * An agent whose only rest signal is its bare name, which a launch holds to quiet output, and whose
- * composer draws a marker: that marker answers first. Grok draws its glyph at 0.6 s, then animates
- * its logo for ten.
- */
+/** Whether a composer marker can answer before the agent's idle evidence settles. */
 export function workerStartReadsComposerMarker(agent: TuiAgent): boolean {
   const signal = TUI_AGENT_CONFIG[agent].draftPasteReadySignal
   return (
     signal !== undefined &&
     draftPasteReadySignalHasMarker(signal) &&
-    !nameOnlyIdleNeedsCorroboration(agent)
+    (!nameOnlyIdleNeedsCorroboration(agent) || agent === 'codex')
   )
 }
 
