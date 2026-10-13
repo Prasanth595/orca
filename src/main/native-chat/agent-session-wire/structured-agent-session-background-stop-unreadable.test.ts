@@ -7,6 +7,7 @@ import {
 } from './structured-agent-session-queued-message-rig.test-fixture'
 import {
   HOST_TEST_NOW as NOW,
+  HOST_TEST_SESSION as SESSION,
   hostTestOperationId
 } from './structured-agent-session-host-test-data'
 
@@ -65,15 +66,23 @@ async function rigWithTaskList(): Promise<{
   return { testRig, stopBackgroundTasks, setReadFails: (fails) => void (readFails = fails) }
 }
 
+async function unconfirmedNotes(testRig: QueuedMessageTestRig) {
+  return (await testRig.host.journalSnapshot(SESSION)).items.filter(
+    (item) => item.body.kind === 'status' && item.body.failure?.kind === 'cancelUnconfirmed'
+  )
+}
+
 for (const taskId of ['task-1', undefined]) {
   it(`answers ${taskId ? 'one task' : 'every task'}'s Stop unconfirmed while the task list cannot be read`, async () => {
     const { testRig, stopBackgroundTasks, setReadFails } = await rigWithTaskList()
     setReadFails(true)
     expect(await testRig.host.cancel(QUEUED_RIG_CALLER, taskStop(testRig, taskId))).toMatchObject({
-      ok: false,
-      refusal: { code: 'agent_session_operation_unknown' }
+      ok: true,
+      value: { cancelled: false }
     })
     expect(stopBackgroundTasks).not.toHaveBeenCalled()
+    // Saved, so the answer is its receipt; the chat says the Stop went unconfirmed.
+    expect(await unconfirmedNotes(testRig)).toHaveLength(1)
     setReadFails(false)
     expect(await testRig.host.cancel(QUEUED_RIG_CALLER, taskStop(testRig, taskId))).toMatchObject({
       ok: true,
@@ -89,4 +98,5 @@ it('still answers a task the readable list no longer offers as already ended', a
     await testRig.host.cancel(QUEUED_RIG_CALLER, taskStop(testRig, 'task-gone'))
   ).toMatchObject({ ok: true, value: { cancelled: false } })
   expect(stopBackgroundTasks).not.toHaveBeenCalled()
+  expect(await unconfirmedNotes(testRig)).toHaveLength(0)
 })
