@@ -6,23 +6,33 @@ import { getIndexedRepoMap } from '@/store/worktree-repo-index'
 import { activateAndRevealWorktree } from '@/lib/worktree-activation'
 import { resolveWorktreeDisplayName } from '@/lib/worktree-default-display-name'
 import { getKnownExecutionHostIdForWorktree } from '@/lib/worktree-runtime-owner'
+import { resolveIndexedWorktreeOwner } from '@/lib/worktree-runtime-owner-index'
+import { withRepoHostOwnership } from '@/store/slices/worktrees/listing/worktree-host-ownership'
 import { isFolderRepo } from '../../../shared/repo-kind'
+import type { ExecutionHostId } from '../../../shared/execution-host'
 import { worktreeIdsEqual } from '../../../shared/worktree/id'
 import type { Worktree } from '../../../shared/worktree/types'
 
 /** Announces a create that finished after the user left its creation surface, instead of pulling them to it. */
 export function showWorktreeCreationReadyToast(
-  worktree: Pick<
-    Worktree,
-    'id' | 'repoId' | 'displayName' | 'branch' | 'path' | 'hostId' | 'identity'
-  >
+  worktree: Pick<Worktree, 'id' | 'repoId' | 'displayName' | 'branch' | 'path' | 'hostId'>,
+  creationHostId?: ExecutionHostId
 ): void {
-  const executionHostId = worktree.identity?.executionHostId ?? worktree.hostId
+  const owner = resolveIndexedWorktreeOwner(useAppStore.getState().worktreesByRepo, worktree.id)
+  const ownerHostId = creationHostId ?? (owner.kind === 'resolved' ? owner.owner.hostId : undefined)
+  // Paired create responses name the server's host; use the renderer's ownership projection.
+  const executionHostId =
+    owner.kind === 'ambiguous' && creationHostId === undefined
+      ? null
+      : ownerHostId
+        ? withRepoHostOwnership(worktree, ownerHostId).hostId
+        : worktree.hostId
   const isViewingWorktree = (state: ReturnType<typeof useAppStore.getState>): boolean =>
     state.activeView === 'terminal' &&
     state.activePendingCreationId === null &&
     state.activeWorktreeId !== null &&
     worktreeIdsEqual(state.activeWorktreeId, worktree.id) &&
+    executionHostId !== null &&
     (executionHostId === undefined ||
       getKnownExecutionHostIdForWorktree(state, state.activeWorktreeId) === executionHostId)
   if (isViewingWorktree(useAppStore.getState())) {

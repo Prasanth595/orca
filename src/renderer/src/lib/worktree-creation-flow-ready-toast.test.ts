@@ -170,6 +170,24 @@ beforeEach(() => {
 })
 
 describe('a creation that finishes after the user moved on (#9944)', () => {
+  it('keeps the captured runtime host when its create response calls itself local', async () => {
+    const finish = await submitCreate(
+      makeCreateResult({
+        worktree: makeWorktree({ id: 'wt-1', repoId: 'repo-1', hostId: 'local' })
+      }),
+      makeRequest({ executionHostId: 'runtime:remote-a' })
+    )
+    selectWorkspace('wt-other')
+    finish()
+    await vi.waitFor(() => expect(readyToast.calls).toHaveLength(1))
+    readyToast.calls[0]?.onClick()
+    expect(activateAndRevealWorktree).toHaveBeenCalledWith('wt-1', {
+      sidebarRevealBehavior: 'auto',
+      navigationIntent: 'user-open',
+      executionHostId: 'runtime:remote-a'
+    })
+  })
+
   it('keeps the user on the workspace they switched to and offers the new one in a toast', async () => {
     const finish = await submitCreate()
     selectWorkspace('wt-other')

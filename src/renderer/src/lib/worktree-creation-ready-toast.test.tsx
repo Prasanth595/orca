@@ -254,4 +254,57 @@ describe('showWorktreeCreationReadyToast', () => {
     await Promise.resolve()
     expect(toast.dismiss).not.toHaveBeenCalled()
   })
+
+  it.each([undefined, 'runtime:remote-a'] as const)(
+    'projects a paired response into the renderer host with creation host %s',
+    async (creationHostId) => {
+      const raw = { ...worktree, hostId: 'local' as const }
+      store.setState({
+        worktreesByRepo: { [worktree.repoId]: [{ ...worktree, hostId: 'runtime:remote-a' }] }
+      })
+      showWorktreeCreationReadyToast(raw, creationHostId)
+      store.setState({ activeWorktreeId: worktree.id, activeWorkspaceExecutionHostId: 'local' })
+      await Promise.resolve()
+      expect(toast.dismiss).not.toHaveBeenCalled()
+      toasts[0]?.onClick()
+      expect(activateAndRevealWorktree).toHaveBeenCalledWith(worktree.id, {
+        sidebarRevealBehavior: 'auto',
+        navigationIntent: 'user-open',
+        executionHostId: 'runtime:remote-a'
+      })
+      store.setState({ activeWorktreeId: null })
+      showWorktreeCreationReadyToast(raw, creationHostId)
+      store.setState({
+        activeWorktreeId: worktree.id,
+        activeWorkspaceExecutionHostId: 'runtime:remote-a'
+      })
+      await Promise.resolve()
+      expect(toast.dismiss).toHaveBeenCalledExactlyOnceWith(toasts[1]?.id)
+    }
+  )
+
+  it('preserves nested SSH ownership reached through a paired runtime', async () => {
+    showWorktreeCreationReadyToast({ ...worktree, hostId: 'ssh:remote-a' }, 'runtime:hub')
+    store.setState({ activeWorktreeId: worktree.id, activeWorkspaceExecutionHostId: 'runtime:hub' })
+    await Promise.resolve()
+    expect(toast.dismiss).not.toHaveBeenCalled()
+    store.setState({ activeWorkspaceExecutionHostId: 'ssh:remote-a' })
+    await Promise.resolve()
+    expect(toast.dismiss).toHaveBeenCalledExactlyOnceWith(toasts[0]?.id)
+  })
+
+  it('keeps an unqualified notification when the catalog cannot prove its host', async () => {
+    store.setState({
+      worktreesByRepo: {
+        [worktree.repoId]: [
+          { ...worktree, hostId: 'local' },
+          { ...worktree, hostId: 'runtime:remote-a' }
+        ]
+      }
+    })
+    showWorktreeCreationReadyToast(worktree)
+    store.setState({ activeWorktreeId: worktree.id, activeWorkspaceExecutionHostId: 'local' })
+    await Promise.resolve()
+    expect(toast.dismiss).not.toHaveBeenCalled()
+  })
 })
