@@ -28,6 +28,7 @@ import {
   tabFromWorktreeAttributedStatusEntry
 } from './worktree-agent-row-fallback-tab'
 import { resolveRowAgentType } from './worktree-agent-row-type'
+import { shouldRetireFinishedHarnessSnapshot } from './retire-stale-harness-snapshot'
 import { entryWithRuntimeOrchestration } from './worktree-agent-row-orchestration'
 
 function countTerminalLayoutLeaves(node: TerminalPaneLayoutNode | null | undefined): number {
@@ -169,30 +170,46 @@ export function buildWorktreeAgentRows(args: {
   }
 
   const ptyIdsByTabId = args.ptyIdsByTabId ?? {}
+  const pushTabLiveRow = (entry: AgentStatusEntry, tab: TerminalTab, hasLivePty: boolean): void => {
+    const isFresh = isExplicitAgentStatusFresh(entry, args.now, AGENT_STATUS_STALE_AFTER_MS)
+    const shouldDecay =
+      !isFresh &&
+      (entry.state === 'working' || entry.state === 'blocked' || entry.state === 'waiting')
+    rows.push({
+      paneKey: entry.paneKey,
+      entry,
+      tab,
+      agentType: resolveRowAgentType(entry, tab),
+      rowSource: 'live',
+      state: shouldDecay ? resolveDecayedAgentRowState(entry, hasLivePty) : entry.state,
+      startedAt: effectiveWorktreeAgentRowStartedAt(entry)
+    })
+    rows.push(...buildSubagentChildRows({ parentEntry: entry, tab, parentIsFresh: isFresh }))
+    seenPaneKeys.add(entry.paneKey)
+  }
+  // Why: a finished harness must not hold the pane key a different live process occupies (#24854);
+  // title-derived claims it first, and the snapshot returns only if nothing did.
+  const supersededDoneRows: { entry: AgentStatusEntry; tab: TerminalTab; hasLivePty: boolean }[] =
+    []
 
   for (const tab of args.tabs) {
     const explicitEntries = entriesByTabId.get(tab.id) ?? []
     const hasLivePty = tabHasLivePty(ptyIdsByTabId, tab.id)
     for (const entry of explicitEntries) {
       const rowEntry = entryWithRuntimeOrchestration(entry, args.runtimeAgentOrchestrationByPaneKey)
-      const isFresh = isExplicitAgentStatusFresh(rowEntry, args.now, AGENT_STATUS_STALE_AFTER_MS)
-      const shouldDecay =
-        !isFresh &&
-        (rowEntry.state === 'working' ||
-          rowEntry.state === 'blocked' ||
-          rowEntry.state === 'waiting')
-      const startedAt = effectiveWorktreeAgentRowStartedAt(rowEntry)
-      rows.push({
-        paneKey: rowEntry.paneKey,
-        entry: rowEntry,
-        tab,
-        agentType: resolveRowAgentType(rowEntry, tab),
-        rowSource: 'live',
-        state: shouldDecay ? resolveDecayedAgentRowState(rowEntry, hasLivePty) : rowEntry.state,
-        startedAt
-      })
-      rows.push(...buildSubagentChildRows({ parentEntry: rowEntry, tab, parentIsFresh: isFresh }))
-      seenPaneKeys.add(rowEntry.paneKey)
+      const foreground = args.paneForegroundAgentByPaneKey?.[rowEntry.paneKey]
+      if (
+        hasLivePty &&
+        shouldRetireFinishedHarnessSnapshot({
+          finishedAgent: resolveRowAgentType(rowEntry, tab),
+          finishedState: rowEntry.state,
+          occupantAgent: foreground?.agentEvidence === 'process-read' ? foreground.agent : null
+        })
+      ) {
+        supersededDoneRows.push({ entry: rowEntry, tab, hasLivePty })
+        continue
+      }
+      pushTabLiveRow(rowEntry, tab, hasLivePty)
     }
   }
 
@@ -206,6 +223,12 @@ export function buildWorktreeAgentRows(args: {
   })
 
   rows.push(...buildTitleDerivedAgentRows({ ...args, seenPaneKeys }))
+
+  for (const superseded of supersededDoneRows) {
+    if (!seenPaneKeys.has(superseded.entry.paneKey)) {
+      pushTabLiveRow(superseded.entry, superseded.tab, superseded.hasLivePty)
+    }
+  }
 
   // Why: orchestration workers can be attributed to a worktree by main before
   // their tab is present in this renderer. Keep those live rows visible in the
