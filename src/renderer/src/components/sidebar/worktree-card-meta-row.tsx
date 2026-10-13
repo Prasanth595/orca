@@ -14,6 +14,7 @@ import { useAppStore } from '@/store'
 import type { WorktreeCardPresentation } from './worktree-card-presentation'
 import type { WorktreeCardController } from './use-worktree-card-controller'
 
+/** Compact badge/label row under the worktree card title: repo, host, branch, conflict, and mute state. */
 export function WorktreeCardMetaRow({
   card,
   presentation

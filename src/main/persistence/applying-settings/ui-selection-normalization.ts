@@ -17,6 +17,7 @@ export function normalizeGroupBy(groupBy: unknown): PersistedState['ui']['groupB
   return getDefaultUIState().groupBy
 }
 
+/** Drops non-boolean values and unsafe record keys from a persisted per-worktree flag map. */
 function normalizeBooleanByWorktree(value: unknown): Record<string, boolean> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     return {}
@@ -37,10 +38,12 @@ function normalizeBooleanByWorktree(value: unknown): Record<string, boolean> {
   return out
 }
 
+/** Normalizes the persisted per-worktree Explorer dotfile visibility map. */
 export function normalizeShowDotfilesByWorktree(value: unknown): Record<string, boolean> {
   return normalizeBooleanByWorktree(value)
 }
 
+/** Normalizes the persisted per-worktree notification mute map. */
 export function normalizeNotificationsMutedByWorktree(value: unknown): Record<string, boolean> {
   return normalizeBooleanByWorktree(value)
 }

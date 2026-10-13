@@ -47,6 +47,7 @@ import {
 } from './worktree-context-menu-policy'
 import { CLOSE_ALL_CONTEXT_MENUS_EVENT } from '@/lib/close-all-context-menus'
 
+/** Pure view for the worktree right-click menu; all state and commands come in via the model. */
 export default function WorktreeContextMenuView({ model }: { model: WorktreeContextMenuModel }) {
   const {
     batchDeleteWorktrees,
