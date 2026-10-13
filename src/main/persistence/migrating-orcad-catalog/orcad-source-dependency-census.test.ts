@@ -1,12 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import { getDefaultPersistedState } from '../../../shared/constants'
+import type { SleepingAgentSessionRecord } from '../../../shared/agent-session-resume'
+import {
+  CLIENT_HOSTED_BROWSER_PAGE_RECORD_VERSION,
+  type PersistedClientHostedBrowserPage
+} from '../../../shared/client-hosted-browser-page-record'
 import type { FolderWorkspace } from '../../../shared/folder-workspace-types'
+import type { TerminalLayoutSnapshot, TerminalTab } from '../../../shared/terminal-tab-types'
 import {
   ORCAD_MIGRATION_MANIFEST_VERSION,
   type OrcadMigrationManifest
 } from '../../../shared/orcad-migration-manifest'
+import type { PersistedState } from '../../../shared/persisted-state-types'
 import type { Repo } from '../../../shared/repo-types'
 import type { SshTarget } from '../../../shared/ssh-types'
+import type { WorkspaceSessionState } from '../../../shared/workspace-session-state-types'
 import { worktreeWorkspaceKey } from '../../../shared/workspace-scope'
 import { collectOrcadMigrationUntransferredDependencyCensus } from './orcad-source-dependency-census'
 
@@ -134,6 +142,147 @@ describe('orcad migration source dependency census', () => {
     expect(collectOrcadMigrationUntransferredDependencyCensus(state, MANIFEST)).toMatchObject({
       totalCount: 1,
       counts: { 'terminal-lease': 1 }
+    })
+  })
+})
+
+const WORKTREE = `${REPO.id}::/srv/repo`
+
+function sleepingAgentRecord(
+  overrides: Partial<SleepingAgentSessionRecord> = {}
+): SleepingAgentSessionRecord {
+  return {
+    paneKey: 'gone-tab:gone-leaf',
+    tabId: 'gone-tab',
+    worktreeId: WORKTREE,
+    agent: 'claude',
+    providerSession: { key: 'session_id', id: 'session-1' },
+    prompt: 'continue',
+    state: 'waiting',
+    capturedAt: 1,
+    updatedAt: 1,
+    origin: 'quit',
+    ...overrides
+  }
+}
+
+function hostPartitionState(session: Partial<WorkspaceSessionState>): PersistedState {
+  const state = getDefaultPersistedState('/home/test')
+  state.sshTargets = [TARGET]
+  state.repos = [REPO]
+  state.workspaceSessionsByHostId = {
+    [`ssh:${TARGET.id}`]: { ...state.workspaceSession, ...session }
+  }
+  return state
+}
+
+function terminalTab(id: string): TerminalTab {
+  return {
+    id,
+    ptyId: null,
+    worktreeId: WORKTREE,
+    title: 'Shell',
+    customTitle: null,
+    color: null,
+    sortOrder: 0,
+    createdAt: 1
+  }
+}
+
+function terminalLayout(leafId: string): TerminalLayoutSnapshot {
+  return { root: { type: 'leaf', leafId }, activeLeafId: leafId, expandedLeafId: null }
+}
+
+function clientHostedPage(workspaceId: string): PersistedClientHostedBrowserPage {
+  return {
+    v: CLIENT_HOSTED_BROWSER_PAGE_RECORD_VERSION,
+    browserPageId: 'page-1',
+    workspaceId,
+    browserProfileId: 'profile-1',
+    url: 'https://example.test/',
+    title: 'Example',
+    pairedDeviceId: 'device-1',
+    savedAt: 1
+  }
+}
+
+describe('orphaned saved-session residue no visible tab owns', () => {
+  it('does not block the move on a quit record whose pane left the terminal layout', () => {
+    const state = hostPartitionState({
+      sleepingAgentSessionsByPaneKey: { 'gone-tab:gone-leaf': sleepingAgentRecord() }
+    })
+
+    expect(collectOrcadMigrationUntransferredDependencyCensus(state, MANIFEST)).toMatchObject({
+      counts: { 'workspace-session': 0 }
+    })
+  })
+
+  it('does not block the move on a live record whose pane left the terminal layout', () => {
+    const state = hostPartitionState({
+      sleepingAgentSessionsByPaneKey: {
+        'gone-tab:gone-leaf': sleepingAgentRecord({ origin: 'live' })
+      }
+    })
+
+    expect(collectOrcadMigrationUntransferredDependencyCensus(state, MANIFEST)).toMatchObject({
+      counts: { 'workspace-session': 0 }
+    })
+  })
+
+  it('does not block the move on an orphaned quit record copied into the local partition', () => {
+    const state = getDefaultPersistedState('/home/test')
+    state.sshTargets = [TARGET]
+    state.repos = [REPO]
+    state.workspaceSession = {
+      ...state.workspaceSession,
+      sleepingAgentSessionsByPaneKey: {
+        'gone-tab:gone-leaf': sleepingAgentRecord({
+          worktreeId: `ssh:${TARGET.id}|${WORKTREE}`
+        })
+      }
+    }
+
+    expect(collectOrcadMigrationUntransferredDependencyCensus(state, MANIFEST)).toMatchObject({
+      counts: { 'workspace-session': 0 }
+    })
+  })
+
+  it('does not block the move on client-hosted pages whose browser workspace is gone', () => {
+    const state = hostPartitionState({
+      clientHostedBrowserPagesByWorktree: { [WORKTREE]: [clientHostedPage('gone-browser-workspace')] }
+    })
+
+    expect(collectOrcadMigrationUntransferredDependencyCensus(state, MANIFEST)).toMatchObject({
+      counts: { 'workspace-session': 0 }
+    })
+  })
+
+  it('still counts a pane-owned quit record the destination could never carry', () => {
+    const record = sleepingAgentRecord({ paneKey: 'tab-1:leaf-1', tabId: 'tab-1' })
+    // A legacy resume fence rides on records the schema no longer models; raw profile rows keep it.
+    ;(record as Record<string, unknown>).automaticResumeBlockedBy = 'legacy-orchestration-worker'
+    const state = hostPartitionState({
+      sleepingAgentSessionsByPaneKey: { 'tab-1:leaf-1': record },
+      tabsByWorktree: { [WORKTREE]: [terminalTab('tab-1')] },
+      terminalLayoutsByTabId: { 'tab-1': terminalLayout('leaf-1') }
+    })
+
+    expect(collectOrcadMigrationUntransferredDependencyCensus(state, MANIFEST)).toMatchObject({
+      counts: { 'workspace-session': 1 }
+    })
+  })
+
+  it('does not count a pane-owned quit record that transfers whole', () => {
+    const state = hostPartitionState({
+      sleepingAgentSessionsByPaneKey: {
+        'tab-1:leaf-1': sleepingAgentRecord({ paneKey: 'tab-1:leaf-1', tabId: 'tab-1' })
+      },
+      tabsByWorktree: { [WORKTREE]: [terminalTab('tab-1')] },
+      terminalLayoutsByTabId: { 'tab-1': terminalLayout('leaf-1') }
+    })
+
+    expect(collectOrcadMigrationUntransferredDependencyCensus(state, MANIFEST)).toMatchObject({
+      counts: { 'workspace-session': 0 }
     })
   })
 })
