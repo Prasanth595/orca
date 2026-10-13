@@ -24,7 +24,7 @@ import {
 } from '@/lib/pane-manager/pane-terminal-options'
 import { getFitOverrideForPty } from '@/lib/pane-manager/mobile-fit-overrides'
 import { setTerminalCursorBlinkOption } from '@/lib/pane-manager/pane-cursor-blink-suspension'
-import type { PtyTransport } from './pty-transport'
+import type { PtyTransport } from './pty-transport-types'
 import type { EffectiveMacOptionAsAlt } from '@/lib/keyboard-layout/detect-option-as-alt'
 import { hexToRgba } from '../../../../shared/terminal-css-color'
 import type { TerminalViewAttributes } from '../../../../shared/terminal-view-attributes'

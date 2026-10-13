@@ -7,9 +7,7 @@ import {
   getLocalPtyProvider,
   publishColorQueryReplyColors,
   publishRepoColorQueryReplyColors,
-  registerSshPtyProvider,
-  setLocalPtyProvider,
-  unregisterSshPtyProvider
+  setLocalPtyProvider
 } from './registry'
 
 class RecordingProvider extends LocalPtyProvider {
@@ -34,26 +32,21 @@ describe('PTY owner colour publication', () => {
 
   afterEach(() => {
     _resetColorQueryReplyColorsForTest()
-    unregisterSshPtyProvider('ssh-colors')
-    unregisterSshPtyProvider('ssh-other')
     setLocalPtyProvider(originalLocal)
   })
 
-  it('pushes every change to each owner, and the latest to owners that register later', () => {
+  it('pushes every change to the owner, and the latest to an owner installed later', () => {
     const local = new RecordingProvider()
     setLocalPtyProvider(local)
-    const early = new RecordingProvider()
-    registerSshPtyProvider('ssh-colors', early)
     // Why nothing yet: pushing "unknown" would wipe the theme a surviving daemon still holds.
-    expect([...local.pushes, ...early.pushes]).toEqual([])
+    expect(local.pushes).toEqual([])
 
     publishColorQueryReplyColors(DARK)
     publishColorQueryReplyColors(LIGHT)
     const late = new RecordingProvider()
-    registerSshPtyProvider('ssh-colors', late)
+    setLocalPtyProvider(late)
 
     expect(local.pushes).toEqual([DARK, LIGHT])
-    expect(early.pushes).toEqual([DARK, LIGHT])
     expect(late.pushes).toEqual([LIGHT])
   })
 
@@ -67,12 +60,10 @@ describe('PTY owner colour publication', () => {
     expect(local.pushes).toEqual([DARK])
   })
 
-  it("sends each owner only its own host's projects, again to a replacement owner", () => {
+  it("sends the owner only this host's projects, again to a replacement owner", () => {
     const local = new RecordingProvider()
     setLocalPtyProvider(local)
-    const relay = new RecordingProvider()
-    registerSshPtyProvider('ssh-colors', relay)
-    // The same repo id, themed on this host and on the relay's host.
+    // The same repo id, themed on this host and on an SSH host the owner never sees.
     const projects = { local: { 'repo-a': LIGHT }, 'ssh:ssh-colors': { 'repo-a': SOLARIZED } }
 
     publishColorQueryReplyColors(DARK)
@@ -83,22 +74,14 @@ describe('PTY owner colour publication', () => {
     })
     const replacementLocal = new RecordingProvider()
     setLocalPtyProvider(replacementLocal)
-    const reconnectedRelay = new RecordingProvider()
-    registerSshPtyProvider('ssh-colors', reconnectedRelay)
 
     expect(local.projectPushes).toEqual([undefined, { 'repo-a': LIGHT }])
-    expect(relay.projectPushes).toEqual([undefined, { 'repo-a': SOLARIZED }])
     expect(replacementLocal.projectPushes).toEqual([{ 'repo-a': LIGHT }])
-    expect(reconnectedRelay.projectPushes).toEqual([{ 'repo-a': SOLARIZED }])
   })
 
-  it("re-pushes only the owners whose host's projects changed, and an empty map to the rest", () => {
+  it("re-pushes only when this host's projects changed, and an empty map once none is themed", () => {
     const local = new RecordingProvider()
     setLocalPtyProvider(local)
-    const relay = new RecordingProvider()
-    registerSshPtyProvider('ssh-colors', relay)
-    const other = new RecordingProvider()
-    registerSshPtyProvider('ssh-other', other)
     publishColorQueryReplyColors(DARK)
 
     publishRepoColorQueryReplyColors({ local: { 'repo-a': LIGHT } })
@@ -107,12 +90,8 @@ describe('PTY owner colour publication', () => {
       'ssh:ssh-colors': { 'repo-b': SOLARIZED }
     })
     publishRepoColorQueryReplyColors({ 'ssh:ssh-colors': { 'repo-b': SOLARIZED } })
-    // A host spelled with an empty map is the same as one left out.
-    publishRepoColorQueryReplyColors({ local: {}, 'ssh:ssh-colors': { 'repo-b': SOLARIZED } })
 
-    // Why {} to a host with no themed project: main knows that; the owner must clear its last map.
+    // Why {} once none is themed: main knows that; the owner must clear its last map.
     expect(local.projectPushes).toEqual([undefined, { 'repo-a': LIGHT }, {}])
-    expect(relay.projectPushes).toEqual([undefined, {}, { 'repo-b': SOLARIZED }])
-    expect(other.projectPushes).toEqual([undefined, {}])
   })
 })

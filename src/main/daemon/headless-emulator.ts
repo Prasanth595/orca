@@ -138,17 +138,14 @@ export class HeadlessEmulator {
 
   /** Sets cursor options so xterm answers DECSCUSR / DECRQM 12 renderer-true; per-PTY color
    *  overrides are dropped only when a theme change moved this PTY's colours away from
-   *  `previous` (null: no theme changed, main only learned the base). */
-  applyPushedViewAttributes(
-    attributes: TerminalViewAttributes,
-    previous: TerminalViewAttributes | null
-  ): void {
+   *  `prev` (null: no theme changed, main only learned the base). */
+  applyPushedViewAttributes(next: TerminalViewAttributes, prev: TerminalViewAttributes | null) {
     if (this.disposed) {
       return
     }
-    this.terminal.options.cursorStyle = attributes.cursorStyle
-    this.terminal.options.cursorBlink = attributes.cursorBlink
-    this.viewAttributeResponder?.applyPushedBase(attributes, previous)
+    this.terminal.options.cursorStyle = next.cursorStyle
+    this.terminal.options.cursorBlink = next.cursorBlink
+    this.viewAttributeResponder?.applyPushedBase(next, prev)
   }
 
   /** Re-seeds snapshot kitty flags via the live-push parse, routed unflagged so it can never answer a query (terminal-query-authority.md). */
@@ -311,6 +308,10 @@ export class HeadlessEmulator {
       lines.push(buffer.getLine(row)?.translateToString(true) ?? '')
     }
     return lines
+  }
+
+  get isSynchronizedOutput(): boolean {
+    return this.terminal.modes.synchronizedOutputMode
   }
 
   getVisibleBufferRange(): { start: number; endExclusive: number; totalLength: number } {

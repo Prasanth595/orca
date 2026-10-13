@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getDefaultSettings } from '../../../../shared/constants'
 import type { Repo } from '../../../../shared/repo-types'
 import {
   createCompatibleRuntimeStatusResponseIfNeeded,
@@ -88,10 +87,7 @@ describe('awaitLocalRepoCatalogSettlement', () => {
 
   it('keeps waiting while fetchRepos targets a paired runtime', async () => {
     const store = createTestStore()
-    store.setState({
-      settings: { ...getDefaultSettings('/tmp'), activeRuntimeEnvironmentId: 'env-1' }
-    })
-    await store.getState().fetchRepos()
+    await store.getState().fetchRepos({ runtimeEnvironmentId: 'env-1' })
     expect(store.getState().reposFetchGeneration).toBe(1)
     const settlement = trackSettlement(store.getState().awaitLocalRepoCatalogSettlement())
     await flushMicrotasks()

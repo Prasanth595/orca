@@ -7,7 +7,10 @@ import {
   canOpenWorkspaceBrowserTabOnSsh
 } from '@/lib/workspace-browser-tab-open'
 import { resolvePaneWslDistro } from './terminal-pane-wsl-distro'
-import { resolveTerminalHttpLinkSourceOwner } from './terminal-http-link-source-owner'
+import {
+  resolveTerminalHttpLinkSourceOwner,
+  resolveTerminalRuntimeHandle
+} from './terminal-http-link-source-owner'
 import {
   getTerminalFileOpenHint,
   getTerminalUrlOpenHint,
@@ -20,7 +23,7 @@ import type { PtyConnectionDeps } from './pty-connection-types'
 import type { UseTerminalPaneLifecycleDeps } from './terminal-pane-lifecycle-types'
 import type { TerminalPaneLifecycleRefs } from './use-terminal-pane-lifecycle-refs'
 import { fitAndFocusPanes, fitPanes } from './pane-helpers'
-import { registerRuntimeTerminalTab } from '@/runtime/sync-runtime-graph'
+import { registerRuntimeTerminalTab } from '@/runtime/mounted-terminal-tab-registry'
 import { normalizeTerminalLayoutSnapshot } from './layout-serialization'
 import { applyTerminalAppearance } from './terminal-appearance'
 import { terminalLinkClickBehaviorFor } from './terminal-link-click-behavior'
@@ -169,6 +172,7 @@ export function prepareTerminalPaneMount(
       const sourceOwner = getHttpLinkSourceOwnerForPane(paneId)
       return sourceOwner.kind === 'runtime' ? sourceOwner.runtimeEnvironmentId : null
     },
+    getRuntimeTerminalHandleForPane: (id) => resolveTerminalRuntimeHandle(paneTransports.get(id)),
     getLinkActionContext
   }
   let resizeRaf: number | null = null
@@ -281,20 +285,19 @@ export function prepareTerminalPaneMount(
     osc7UncHost: extractUncHost(startupCwd),
     applyAppearance: (manager) => {
       const currentSettings = deps.settingsRef.current
-      if (!currentSettings) {
-        return
+      if (currentSettings) {
+        applyTerminalAppearance(
+          manager,
+          currentSettings,
+          refs.systemPrefersDarkRef.current,
+          deps.paneFontSizesRef.current,
+          deps.paneTransportsRef.current,
+          deps.effectiveMacOptionAsAltRef.current,
+          deps.paneMode2031Ref.current,
+          deps.paneLastThemeModeRef.current,
+          deps.repoTerminalThemeRef.current
+        )
       }
-      applyTerminalAppearance(
-        manager,
-        currentSettings,
-        refs.systemPrefersDarkRef.current,
-        deps.paneFontSizesRef.current,
-        deps.paneTransportsRef.current,
-        deps.effectiveMacOptionAsAltRef.current,
-        deps.paneMode2031Ref.current,
-        deps.paneLastThemeModeRef.current,
-        deps.repoTerminalThemeRef.current
-      )
     },
     cancelResizeAll
   }

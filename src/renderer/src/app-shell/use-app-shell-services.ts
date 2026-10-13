@@ -15,7 +15,7 @@ import { useRadixBodyPointerEventsRecovery } from '../hooks/useRadixBodyPointerE
 import { useGitStatusPolling } from '../components/right-sidebar/useGitStatusPolling'
 import { useOsc52ClipboardDefaultOnNotice } from '../components/terminal-pane/osc52-clipboard-default-on-notice'
 import { useRepoTerminalViewAttributesPublisher } from '../components/terminal-pane/repo-terminal-view-attributes-publisher'
-import { useWebSessionTabsSync } from '../runtime/web-session-tabs-sync'
+import { useWebSessionTabsSync } from '../runtime/web-session-tabs-sync/use-web-session-tabs-sync'
 import { useLocalStructuredSessionTabsSync } from '../runtime/local-structured-session-tabs-sync'
 import { useHostStructuredAgentsSync } from '../runtime/host-structured-agents-sync'
 import { useHostModelCatalogSnapshotsSync } from '../runtime/host-model-catalog-snapshots-sync'

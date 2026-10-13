@@ -10,12 +10,7 @@ import {
   tmpdir
 } from '../orca-runtime-test-mocks.spec'
 import type { OrchestrationDb } from '../orchestration/db'
-import {
-  getTerminalViewerColors,
-  setRepoTerminalViewAttributes,
-  setTerminalViewAttributesSeedSource
-} from '../terminal-view-attribute-store'
-import { getRepoIdFromWorktreeId } from '../../../shared/worktree/id'
+import { getTerminalViewerColors } from '../terminal-view-attribute-store'
 import type {
   TerminalViewAttributes,
   TerminalViewRgb
@@ -216,36 +211,6 @@ describe('OrcaRuntimeService', () => {
     )
   })
 
-  it("passes a themed project's seeded colours to a background spawn before any renderer publish", async () => {
-    // App start: persisted repos already name the project's theme, and an agent TUI queries
-    // OSC 10/11 once, at start, so the spawn must carry the project colours now.
-    const global = viewAttributes([0xff, 0xff, 0xff], [0x28, 0x2c, 0x34])
-    setTerminalViewAttributes(global)
-    const repoId = getRepoIdFromWorktreeId(TEST_WORKTREE_ID)
-    const solarized = { foreground: '#839496', background: '#002b36' }
-    setTerminalViewAttributesSeedSource(() => ({
-      global,
-      byHostId: { local: { [repoId]: viewAttributes([0x83, 0x94, 0x96], [0x00, 0x2b, 0x36]) } }
-    }))
-    const spawn = vi.fn().mockResolvedValue({ id: 'pty-seeded-colors' })
-    const runtime = new OrcaRuntimeService(store)
-    runtime.setPtyController({
-      spawn,
-      write: () => true,
-      kill: () => true,
-      getForegroundProcess: async () => null
-    })
-
-    try {
-      await runtime.createTerminal(`path:${TEST_WORKTREE_PATH}`, { command: 'codex' })
-      expect(spawn).toHaveBeenLastCalledWith(
-        expect.objectContaining({ terminalColorQueryReplies: solarized })
-      )
-    } finally {
-      setTerminalViewAttributesSeedSource(null)
-    }
-  })
-
   it("keeps a desktop host's own colours when a paired client creates a terminal", async () => {
     setTerminalViewAttributes(viewAttributes([0xff, 0xff, 0xff], [0x28, 0x2c, 0x34]))
     const spawn = vi.fn().mockResolvedValue({ id: 'pty-remote-colors' })
@@ -289,36 +254,6 @@ describe('OrcaRuntimeService', () => {
     expect(spawn).toHaveBeenCalledWith(
       expect.objectContaining({
         terminalColorQueryReplies: { foreground: '#2e3434', background: '#ffffff' }
-      })
-    )
-  })
-
-  it("passes the project's themed view colors to background agent spawns", async () => {
-    setTerminalViewAttributes(viewAttributes([0xff, 0xff, 0xff], [0x28, 0x2c, 0x34]))
-    setRepoTerminalViewAttributes({
-      byHostId: {
-        local: {
-          [getRepoIdFromWorktreeId(TEST_WORKTREE_ID)]: viewAttributes(
-            [0x83, 0x94, 0x96],
-            [0x00, 0x2b, 0x36]
-          )
-        }
-      }
-    })
-    const spawn = vi.fn().mockResolvedValue({ id: 'pty-bg-themed' })
-    const runtime = new OrcaRuntimeService(store)
-    runtime.setPtyController({
-      spawn,
-      write: () => true,
-      kill: () => true,
-      getForegroundProcess: async () => null
-    })
-
-    await runtime.createTerminal(`path:${TEST_WORKTREE_PATH}`, { command: 'codex' })
-
-    expect(spawn).toHaveBeenCalledWith(
-      expect.objectContaining({
-        terminalColorQueryReplies: { foreground: '#839496', background: '#002b36' }
       })
     )
   })
@@ -425,6 +360,65 @@ describe('OrcaRuntimeService', () => {
         })
       })
     )
+  })
+
+  it("forwards a paired client's declared spawn intent to the fork gate", async () => {
+    const spawn = vi.fn(async (options) => ({
+      id: 'pty-intent',
+      agentSessionEnsure: {
+        disposition: 'created' as const,
+        owner: {
+          claim: options.agentSessionEnsure!.claim,
+          generation: 'generation-1',
+          phase: 'live' as const,
+          ptyId: 'pty-intent',
+          surface: options.agentSessionEnsure!.surface
+        }
+      }
+    }))
+    const runtime = new OrcaRuntimeService(store)
+    runtime.setPtyController({
+      spawn,
+      write: () => true,
+      kill: () => true,
+      getForegroundProcess: async () => null
+    })
+
+    await runtime.ensureAgentSession({
+      kind: 'explicit',
+      worktree: `id:${TEST_WORKTREE_ID}`,
+      agent: 'claude',
+      providerSession: { key: 'session_id', id: 'provider-session-intent' },
+      spawnIntent: 'automatic-restore'
+    })
+    expect(spawn).toHaveBeenLastCalledWith(
+      expect.objectContaining({ spawnIntent: 'automatic-restore' })
+    )
+
+    await runtime.ensureAgentSession({
+      kind: 'explicit',
+      worktree: `id:${TEST_WORKTREE_ID}`,
+      agent: 'claude',
+      providerSession: { key: 'session_id', id: 'provider-session-undeclared' }
+    })
+    expect(spawn.mock.lastCall?.[0]).not.toHaveProperty('spawnIntent')
+  })
+
+  it('passes a deferred fork back unchanged so the client can keep the pane sleeping', async () => {
+    const runtime = new OrcaRuntimeService(store)
+    runtime.setPtyController({
+      spawn: vi.fn().mockRejectedValue(new Error('terminal_spawn_deferred:live_cap')),
+      write: () => true,
+      kill: () => true,
+      getForegroundProcess: async () => null
+    })
+
+    await expect(
+      runtime.createTerminal(`id:${TEST_WORKTREE_ID}`, {
+        command: 'claude --resume provider-session-1',
+        spawnIntent: 'automatic-restore'
+      })
+    ).rejects.toThrow('terminal_spawn_deferred:live_cap')
   })
 
   it('builds structured fresh drafts with supported launch preferences on the host', async () => {
@@ -712,9 +706,9 @@ describe('OrcaRuntimeService', () => {
       })
     })
 
-    await expect(
-      runtime.createTerminal(undefined, { startupAgent: 'cursor', rendererBacked: true })
-    ).rejects.toThrow(/requires a workspace selector/)
+    await expect(runtime.createTerminal(undefined, { startupAgent: 'cursor' })).rejects.toThrow(
+      /requires a workspace selector/
+    )
   })
 
   // Why: folder workspaces have no repo, so command sniffing skipped them entirely

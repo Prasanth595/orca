@@ -1,5 +1,5 @@
 import { LocalPtyProvider } from '../../../providers/local-pty-provider'
-import type { IPtyProvider } from '../../../providers/types'
+import type { IPtyProvider } from '../../../providers/pty-provider-contract'
 import { parseAppSshPtyId, toAppSshPtyId, toRelaySshPtyId } from '../../../providers/ssh-pty-id'
 import { ptyOwnership } from './ownership-state'
 import type { TerminalOscColorQueryReplyColors } from '../../../../shared/terminal-osc-color-reply'
@@ -10,14 +10,19 @@ import {
   type PtyOwnerRepoColors,
   type PtyOwnerRepoColorsByHost
 } from '../../../../shared/pty-owner-color-query-colors'
-import { getConnectionTerminalThemeHostId } from '../../../../shared/terminal-theme-execution-host'
+import { normalizeTerminalThemeHostId } from '../../../../shared/terminal-theme-execution-host'
+import {
+  getSshTargetIdForExecutionHost,
+  LOCAL_EXECUTION_HOST_ID,
+  toSshExecutionHostId,
+  type ExecutionHostId
+} from '../../../../shared/execution-host'
+import { getPtyExecutionHost } from '../../../../shared/terminal-execution-host'
 
 // ─── Provider Registry ──────────────────────────────────────────────
-// Routes PTY operations by connectionId (null = local provider).
+// Routes PTY operations by the execution host that runs the PTY; this machine is `local`.
 
 export let localProvider: IPtyProvider = new LocalPtyProvider()
-export const sshProviders = new Map<string, IPtyProvider>()
-export const sshProvidersByGeneration = new Map<number, IPtyProvider>()
 let colorQueryReplyColors: TerminalOscColorQueryReplyColors | null = null
 // Null until the renderer's first project-theme push (or main's seed), which covers every host.
 let repoColorQueryReplyColorsByHost: PtyOwnerRepoColorsByHost | null = null
@@ -27,25 +32,23 @@ const NO_THEMED_PROJECTS: PtyOwnerRepoColors = {}
 /** The slice of the project map one owner is told: its own host's entries (repo ids are
  *  unambiguous within a host), empty once main knows no project there is themed, and nothing at
  *  all while main knows no map (the owner then keeps its last one). */
-function repoColorQueryReplyColorsForOwner(connectionId: string | null): PtyOwnerRepoColors | null {
+function repoColorQueryReplyColorsForOwner(hostId: ExecutionHostId): PtyOwnerRepoColors | null {
   if (!repoColorQueryReplyColorsByHost) {
     return null
   }
-  return (
-    repoColorQueryReplyColorsByHost[getConnectionTerminalThemeHostId(connectionId)] ??
-    NO_THEMED_PROJECTS
-  )
+  const themeHostId = normalizeTerminalThemeHostId(hostId)
+  return (themeHostId && repoColorQueryReplyColorsByHost[themeHostId]) || NO_THEMED_PROJECTS
 }
 
-// Why push to every owner: each process that owns PTYs (in-process, daemon, relay) answers
+// Why push to every owner: each process that owns PTYs (in-process or daemon) answers
 // OSC 10/11 itself, so a theme change must reach it before its next query, not at spawn.
 // Why never push "unknown": a daemon outlives the app and keeps the last run's theme.
-function pushColorQueryReplyColors({ provider, connectionId }: RegisteredPtyProvider): void {
+function pushColorQueryReplyColors({ provider, hostId }: RegisteredPtyProvider): void {
   if (!colorQueryReplyColors) {
     return
   }
   try {
-    const byRepoId = repoColorQueryReplyColorsForOwner(connectionId)
+    const byRepoId = repoColorQueryReplyColorsForOwner(hostId)
     if (byRepoId) {
       provider.setColorQueryReplyColors?.(colorQueryReplyColors, byRepoId)
     } else {
@@ -57,7 +60,7 @@ function pushColorQueryReplyColors({ provider, connectionId }: RegisteredPtyProv
 }
 
 export function publishColorQueryReplyColors(colors: TerminalOscColorQueryReplyColors): void {
-  // Why: a re-install republishes unchanged colours; that must not re-notify every daemon and relay.
+  // Why: a re-install republishes unchanged colours; that must not re-notify every daemon.
   if (colorQueryReplyColorsEqual(colorQueryReplyColors, colors)) {
     return
   }
@@ -76,9 +79,10 @@ export function publishRepoColorQueryReplyColors(byHost: PtyOwnerRepoColorsByHos
   repoColorQueryReplyColorsByHost = byHost
   for (const registered of registeredPtyProviders()) {
     // Why per host: a change to another host's projects is not a change this owner can see.
-    const hostId = getConnectionTerminalThemeHostId(registered.connectionId)
+    const hostId = normalizeTerminalThemeHostId(registered.hostId)
     if (
       !previous ||
+      !hostId ||
       !repoColorQueryReplyColorsEqual(
         previous[hostId] ?? NO_THEMED_PROJECTS,
         byHost[hostId] ?? NO_THEMED_PROJECTS
@@ -96,54 +100,84 @@ export function _resetColorQueryReplyColorsForTest(): void {
 
 export type RegisteredPtyProvider = {
   provider: IPtyProvider
-  connectionId: string | null
+  hostId: ExecutionHostId
 }
 
 export function registeredPtyProviders(): RegisteredPtyProvider[] {
-  return [
-    { provider: localProvider, connectionId: null },
-    ...Array.from(sshProviders, ([connectionId, provider]) => ({ provider, connectionId }))
-  ]
+  return [{ provider: localProvider, hostId: LOCAL_EXECUTION_HOST_ID }]
 }
 
-export function getProvider(connectionId: string | null | undefined): IPtyProvider {
-  if (!connectionId) {
+function ptyHostNotDispatchableMessage(hostId: ResolvedPtyHost): string {
+  const connectionId = hostId === 'foreign' ? null : getSshTargetIdForExecutionHost(hostId)
+  if (connectionId === null) {
+    return `PTY host "${hostId}" is not dispatchable from this process`
+  }
+  // Why: this surfaces verbatim in `terminal create`; keep the prefix — the renderer matches it.
+  return (
+    `No PTY provider for connection "${connectionId}": the SSH relay for this host is not attached ` +
+    '(reconnecting or disconnected). Wait for the host to reconnect, or use Reconnect on the SSH target.'
+  )
+}
+
+/** Only this machine's PTYs are driven here; a paired runtime drives its own over runtime RPC. */
+export class PtyHostNotDispatchableError extends Error {
+  constructor(readonly hostId: ResolvedPtyHost) {
+    super(ptyHostNotDispatchableMessage(hostId))
+    this.name = 'PtyHostNotDispatchableError'
+  }
+}
+
+export function getProvider(hostId: ExecutionHostId): IPtyProvider {
+  if (hostId === LOCAL_EXECUTION_HOST_ID) {
     return localProvider
   }
-  const provider = sshProviders.get(connectionId)
-  if (!provider) {
-    // Why the suffix: this surfaces verbatim in `terminal create` on a reconnecting SSH host; the
-    // bare id told the caller nothing about what to do. Keep the prefix — the renderer matches it.
-    throw new Error(
-      `No PTY provider for connection "${connectionId}": the SSH relay for this host is not attached ` +
-        '(reconnecting or disconnected). Wait for the host to reconnect, or use Reconnect on the SSH target.'
-    )
+  throw new PtyHostNotDispatchableError(hostId)
+}
+
+/** 'foreign' = a PTY that runs off this machine on a host its id cannot name. */
+export type ResolvedPtyHost = ExecutionHostId | 'foreign'
+
+/** The host that runs a PTY: its recorded owner, else the host its id names. */
+export function resolvePtyExecutionHost(ptyId: string): ResolvedPtyHost {
+  const owner = ptyOwnership.get(ptyId)
+  if (owner !== undefined) {
+    return owner
   }
-  return provider
+  // Why: disconnected SSH PTYs retain their encoded owner and must never fall through to the HUB-local provider.
+  const ssh = parseAppSshPtyId(ptyId)
+  if (ssh) {
+    return toSshExecutionHostId(ssh.connectionId)
+  }
+  // Why: local PTY ids are bare (daemon-restored ids arrive before any ownership is recorded), so
+  // only an id that names no host may run here; `remote:` and malformed `ssh:` ids never do.
+  return getPtyExecutionHost(ptyId) ?? LOCAL_EXECUTION_HOST_ID
+}
+
+/** The SSH target a PTY runs on, or null for any other host. */
+export function getPtySshConnectionId(ptyId: string): string | null {
+  const hostId = resolvePtyExecutionHost(ptyId)
+  return hostId === 'foreign' ? null : getSshTargetIdForExecutionHost(hostId)
+}
+
+/** This machine, or an SSH host whose PTYs read as retryable rather than definitively foreign. */
+export function isDispatchablePtyHost(hostId: ResolvedPtyHost): boolean {
+  return (
+    hostId === LOCAL_EXECUTION_HOST_ID ||
+    (hostId !== 'foreign' && getSshTargetIdForExecutionHost(hostId) !== null)
+  )
 }
 
 export function getProviderForPty(ptyId: string): IPtyProvider {
-  const connectionId = ptyOwnership.get(ptyId)
-  if (connectionId === undefined) {
-    const parsedSshId = parseAppSshPtyId(ptyId)
-    if (parsedSshId) {
-      // Why: disconnected SSH PTYs retain their encoded owner and must never fall through to the HUB-local provider.
-      return getProvider(parsedSshId.connectionId)
-    }
-    return localProvider
+  const hostId = resolvePtyExecutionHost(ptyId)
+  if (hostId === 'foreign') {
+    throw new PtyHostNotDispatchableError(hostId)
   }
-  return getProvider(connectionId)
+  return getProvider(hostId)
 }
 
 export function hasPtyProviderForInspection(ptyId: string): boolean {
-  // Why: process inspection is background polling; disconnected SSH hosts should read as idle, not raise repeated IPC errors.
-  const connectionId = ptyOwnership.get(ptyId)
-  if (connectionId === undefined) {
-    // Why: mirror getProviderForPty — an unowned id still routes by its encoded SSH owner.
-    const parsedSshId = parseAppSshPtyId(ptyId)
-    return !parsedSshId || sshProviders.has(parsedSshId.connectionId)
-  }
-  return connectionId === null || sshProviders.has(connectionId)
+  // Why: process inspection is background polling; other hosts read as idle, not repeated IPC errors.
+  return resolvePtyExecutionHost(ptyId) === LOCAL_EXECUTION_HOST_ID
 }
 
 export function getAppPtyId(connectionId: string | null | undefined, ptyId: string): string {
@@ -172,43 +206,6 @@ export function closeStartupQueryAuthorityForPty(ptyId: string): void {
   }
 }
 
-export function tryGetProviderForAgentSessionOwner(ptyId: string): IPtyProvider | undefined {
-  const ownedConnectionId = ptyOwnership.get(ptyId)
-  const parsedSshId = ownedConnectionId === undefined ? parseAppSshPtyId(ptyId) : null
-  try {
-    return getProvider(parsedSshId?.connectionId ?? ownedConnectionId)
-  } catch {
-    return undefined
-  }
-}
-
-/** Register an SSH PTY provider for a connection. */
-export function registerSshPtyProvider(connectionId: string, provider: IPtyProvider): void {
-  sshProviders.set(connectionId, provider)
-  // Why on every registration: a reconnect brings a fresh relay channel that must hear this
-  // host's colours and project map again.
-  pushColorQueryReplyColors({ provider, connectionId })
-  const generation = (provider as { providerGeneration?: number }).providerGeneration
-  if (Number.isSafeInteger(generation) && generation! > 0) {
-    sshProvidersByGeneration.set(generation!, provider)
-  }
-}
-
-/** Remove an SSH PTY provider when a connection is closed. */
-export function unregisterSshPtyProvider(connectionId: string): void {
-  const provider = sshProviders.get(connectionId)
-  const generation = (provider as { providerGeneration?: number } | undefined)?.providerGeneration
-  if (generation !== undefined && sshProvidersByGeneration.get(generation) === provider) {
-    sshProvidersByGeneration.delete(generation)
-  }
-  sshProviders.delete(connectionId)
-}
-
-/** Get the SSH PTY provider for a connection (for dispose on cleanup). */
-export function getSshPtyProvider(connectionId: string): IPtyProvider | undefined {
-  return sshProviders.get(connectionId)
-}
-
 /** Get the installed PTY provider (for direct access in tests/runtime).
  *  After daemon init this may be a DaemonPtyAdapter/DaemonPtyRouter, not LocalPtyProvider;
  *  callers needing LocalPtyProvider-specific methods must type-narrow or import the class. */
@@ -220,5 +217,5 @@ export function getLocalPtyProvider(): IPtyProvider {
  *  Call before registerPtyHandlers so the IPC layer routes through the daemon. */
 export function setLocalPtyProvider(provider: IPtyProvider): void {
   localProvider = provider
-  pushColorQueryReplyColors({ provider, connectionId: null })
+  pushColorQueryReplyColors({ provider, hostId: LOCAL_EXECUTION_HOST_ID })
 }

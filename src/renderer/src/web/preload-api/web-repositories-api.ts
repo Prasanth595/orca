@@ -8,7 +8,7 @@ import {
   withRuntimeRepoMutationOwner,
   withRuntimeRepoOwner
 } from './web-runtime-calls'
-import { assertActiveEnvironment, invalidateRuntimeWorktreeCaches } from './web-runtime-session'
+import { invalidateRuntimeWorktreeCaches } from './web-runtime-session'
 import { noopUnsubscribe } from './web-storage'
 
 export function createReposApi(): NonNullable<Partial<PreloadApi>['repos']> {
@@ -53,35 +53,7 @@ export function createReposApi(): NonNullable<Partial<PreloadApi>['repos']> {
       )
       return withRuntimeRepoOwner(owned.result.repo, owned.hostId)
     },
-    cloneRemote: async () => {
-      // Why: SSH relay cloning is owned by the desktop main process; paired web clients can't run that local IPC path.
-      throw new Error('SSH clone is unavailable in paired web clients.')
-    },
-    createRemote: async () => {
-      // Why: SSH relay project creation is owned by the desktop main process; paired web clients can't use local SSH IPC.
-      throw new Error('Creating projects on SSH hosts is unavailable in paired web clients.')
-    },
     cloneAbort: () => Promise.resolve(),
-    addRemote: async ({ remotePath, displayName, kind }) => {
-      invalidateRuntimeWorktreeCaches()
-      const owned = await callRuntimeResultWithOwner<{ repo: Repo }>('repo.add', {
-        path: remotePath,
-        kind
-      })
-      const result = {
-        repo: withRuntimeRepoOwner(owned.result.repo, owned.hostId)
-      }
-      if (!displayName) {
-        return result
-      }
-      assertActiveEnvironment(owned.environmentId)
-      // Why the fallback: the runtime RPC always replies with a row; null is only main's refusal.
-      const renamed = await createReposApi().update({
-        repoId: result.repo.id,
-        updates: { displayName }
-      })
-      return { repo: renamed ?? result.repo }
-    },
     create: async ({ parentPath, name, kind }) => {
       invalidateRuntimeWorktreeCaches()
       const owned = await callRuntimeResultWithOwner<{ repo: Repo } | { error: string }>(

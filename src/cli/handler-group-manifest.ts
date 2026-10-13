@@ -1,5 +1,6 @@
 import type { CommandHandler } from './dispatch'
 import { BROWSER_HANDLER_GROUPS } from './browser-handler-groups'
+import { REPO_HANDLER_GROUPS } from './repo-handler-groups'
 
 export type HandlerGroup = {
   name: string
@@ -13,9 +14,24 @@ export type HandlerGroup = {
 // real exports by handler-group-manifest.test.ts, so drift fails CI, not dispatch.
 export const HANDLER_GROUPS: readonly HandlerGroup[] = [
   {
+    name: 'reference',
+    keys: ['reference list', 'reference add', 'reference remove', 'reference find'],
+    load: async () => (await import('./handlers/reference.js')).REFERENCE_HANDLERS
+  },
+  {
     name: 'core',
     keys: ['claude-teams', 'open', 'serve', 'status'],
     load: async () => (await import('./handlers/core.js')).CORE_HANDLERS
+  },
+  {
+    name: 'serve-restore',
+    keys: ['serve restore resume'],
+    load: async () => (await import('./handlers/serve-restore.js')).SERVE_RESTORE_HANDLERS
+  },
+  {
+    name: 'serve-service',
+    keys: ['serve service install', 'serve service status', 'serve service uninstall'],
+    load: async () => (await import('./handlers/serve-service.js')).SERVE_SERVICE_HANDLERS
   },
   {
     name: 'account',
@@ -59,19 +75,7 @@ export const HANDLER_GROUPS: readonly HandlerGroup[] = [
     ],
     load: async () => (await import('./handlers/project.js')).PROJECT_HANDLERS
   },
-  {
-    name: 'repo',
-    keys: [
-      'repo list',
-      'repo add',
-      'repo show',
-      'repo set',
-      'repo set-theme',
-      'repo set-base-ref',
-      'repo search-refs'
-    ],
-    load: async () => (await import('./handlers/repo.js')).REPO_HANDLERS
-  },
+  ...REPO_HANDLER_GROUPS,
   {
     name: 'worktree',
     keys: [
@@ -192,13 +196,18 @@ export const HANDLER_GROUPS: readonly HandlerGroup[] = [
     load: async () => (await import('./handlers/agent-hooks.js')).AGENT_HOOK_HANDLERS
   },
   {
+    name: 'agent-launch',
+    keys: ['agent launch'],
+    load: async () => (await import('./handlers/agent-launch.js')).AGENT_LAUNCH_HANDLERS
+  },
+  {
     name: 'profile-state',
     keys: ['profile state exports', 'profile state rollback'],
     load: async () => (await import('./handlers/profile-state.js')).PROFILE_STATE_HANDLERS
   },
   {
     name: 'diagnostics',
-    keys: ['diagnostics memory'],
+    keys: ['diagnostics memory', 'terminal-daemon status', 'terminal-daemon restart'],
     load: async () => (await import('./handlers/diagnostics.js')).DIAGNOSTICS_HANDLERS
   },
   {

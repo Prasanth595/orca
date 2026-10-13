@@ -24,9 +24,7 @@ import type { TerminalViewAttributes } from '../../../../shared/terminal-view-at
 import {
   _resetColorQueryReplyColorsForTest,
   getLocalPtyProvider,
-  registerSshPtyProvider,
-  setLocalPtyProvider,
-  unregisterSshPtyProvider
+  setLocalPtyProvider
 } from '../provider/registry'
 import type { RuntimeClientEvent } from '../../../../shared/runtime-client-events'
 import {
@@ -478,7 +476,7 @@ describe('attributes pre-loaded for the hidden responder', () => {
   })
 })
 
-describe('project colours for SSH PTY owners', () => {
+describe('project colours for SSH PTYs', () => {
   const originalLocal = getLocalPtyProvider()
   const settings = getDefaultSettings('/tmp')
   const SOLARIZED = { foreground: '#839496', background: '#002b36' }
@@ -499,19 +497,12 @@ describe('project colours for SSH PTY owners', () => {
   afterEach(() => {
     _resetTerminalViewAttributesForTest()
     _resetColorQueryReplyColorsForTest()
-    for (const connectionId of ['ssh-1', 'ssh-2', 'ssh-3']) {
-      unregisterSshPtyProvider(connectionId)
-    }
     setLocalPtyProvider(originalLocal)
   })
 
-  it("seeds each SSH relay with its own host's projects, and a hidden SSH PTY answers from them", async () => {
+  it("seeds the local owner with this host's projects only, and a hidden SSH PTY answers from its own", async () => {
     const local = new OwnerRecordingProvider()
     setLocalPtyProvider(local)
-    const relay1 = new OwnerRecordingProvider()
-    const relay2 = new OwnerRecordingProvider()
-    registerSshPtyProvider('ssh-1', relay1)
-    registerSshPtyProvider('ssh-2', relay2)
     const repos: TerminalViewAttributesRepo[] = [
       { id: 'repo-a', connectionId: null, terminalTheme: { dark: 'Solarized Dark' } },
       // The same repo id on an SSH host, themed differently there.
@@ -536,15 +527,6 @@ describe('project colours for SSH PTY owners', () => {
     })
 
     expect(local.pushes.map((push) => push.byRepoId)).toEqual([{ 'repo-a': SOLARIZED }])
-    expect(relay1.pushes.map((push) => push.byRepoId)).toEqual([
-      { 'repo-a': TOKYO, 'repo-c': SOLARIZED }
-    ])
-    // Known to have no themed project: an empty map, so a surviving relay clears its old one.
-    expect(relay2.pushes.map((push) => push.byRepoId)).toEqual([{}])
-    // A relay that registers (or reconnects) later hears its slice at once.
-    const relay3 = new OwnerRecordingProvider()
-    registerSshPtyProvider('ssh-3', relay3)
-    expect(relay3.pushes.map((push) => push.byRepoId)).toEqual([{}])
 
     const sshScope = { worktreeId: 'repo-a::/remote/a', connectionId: 'ssh-1' }
     expect(getTerminalViewerColors(sshScope)).toEqual(TOKYO)
@@ -562,30 +544,10 @@ describe('project colours for SSH PTY owners', () => {
     await emulator.write('\x1b]4;1;?\x07\x1b[?996n', { forwardQueryReplies: true })
     expect(replies).toEqual(['\x1b]4;1;rgb:f7f7/7676/8e8e\x1b\\', '\x1b[?997;1n'])
 
-    // A change on one SSH host reaches that relay only.
+    // A change on an SSH host's project is not a change the local owner can see.
     repos[2] = { id: 'repo-c', connectionId: 'ssh-1', terminalTheme: { dark: 'Tokyo Night' } }
     clientEventListeners.forEach((notify) => notify({ type: 'reposChanged' }))
-    expect(relay1.pushes.map((push) => push.byRepoId)).toEqual([
-      { 'repo-a': TOKYO, 'repo-c': SOLARIZED },
-      { 'repo-a': TOKYO, 'repo-c': TOKYO }
-    ])
     expect(local.pushes).toHaveLength(1)
-    expect(relay2.pushes).toHaveLength(1)
-  })
-
-  it('never sends a relay a project map main does not know (headless host)', () => {
-    const relay = new OwnerRecordingProvider()
-    installTerminalViewAttributesIpc({
-      getSettings: () => ({ ...settings, theme: 'dark' }),
-      store: {
-        getRepos: () => [
-          { id: 'repo-c', connectionId: 'ssh-1', terminalTheme: { dark: 'Solarized Dark' } }
-        ]
-      }
-    })
-    registerSshPtyProvider('ssh-1', relay)
-
-    expect(relay.pushes).toEqual([{ colors: { foreground: '#ffffff', background: '#282c34' } }])
-    expect(relay.pushes[0]).not.toHaveProperty('byRepoId', expect.anything())
+    expect(getTerminalViewerColors({ ...sshScope, worktreeId: 'repo-c::/remote/c' })).toEqual(TOKYO)
   })
 })
