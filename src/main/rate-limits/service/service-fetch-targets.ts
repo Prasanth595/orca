@@ -47,6 +47,7 @@ export abstract class RateLimitServiceFetchTargets extends RateLimitServiceResul
   protected async resolveCodexHome(target?: CodexAccountSelectionTarget): Promise<{
     skip: boolean
     homePath: string | null
+    managedAccountId?: string
   }> {
     const resolution = await this.codexHomePathResolver?.(target)
     if (!resolution) {
@@ -54,7 +55,11 @@ export abstract class RateLimitServiceFetchTargets extends RateLimitServiceResul
     }
     return resolution.kind === 'skip'
       ? { skip: true, homePath: null }
-      : { skip: false, homePath: resolution.codexHomePath }
+      : {
+          skip: false,
+          homePath: resolution.codexHomePath,
+          managedAccountId: resolution.managedAccountId
+        }
   }
 
   // Why: resolving a WSL home probes wsl.exe, so it must not run before the other
@@ -86,6 +91,16 @@ export abstract class RateLimitServiceFetchTargets extends RateLimitServiceResul
   ): string {
     const targetKey = target.runtime === 'wsl' ? `wsl:${target.wslDistro ?? '__default__'}` : 'host'
     return codexHomePath ? `${targetKey}:managed:${codexHomePath}` : `${targetKey}:system`
+  }
+
+  protected withCodexAccountProvenance(
+    limits: ProviderRateLimits,
+    managedAccountId: string | undefined
+  ): ProviderRateLimits {
+    return {
+      ...limits,
+      usageMetadata: { ...limits.usageMetadata, managedAccountId }
+    }
   }
 
   protected getMissingWslCodexHomeResult(
@@ -166,7 +181,10 @@ export abstract class RateLimitServiceFetchTargets extends RateLimitServiceResul
       this.trackActiveFailureStreak('codex', fresh)
       this.updateState({
         ...this.state,
-        codex: this.applyStalePolicy(fresh, this.state.codex)
+        codex: this.withCodexAccountProvenance(
+          this.applyStalePolicy(fresh, this.state.codex),
+          currentCodexHome.managedAccountId
+        )
       })
     }
 

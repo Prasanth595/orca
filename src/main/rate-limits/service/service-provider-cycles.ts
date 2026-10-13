@@ -74,7 +74,12 @@ export abstract class RateLimitServiceProviderCycles extends RateLimitServiceFul
     }
     this.updateState({
       ...this.state,
-      codex: shouldApplyCodex ? this.applyStalePolicy(codex, previousState.codex) : this.state.codex
+      codex: shouldApplyCodex
+        ? this.withCodexAccountProvenance(
+            this.applyStalePolicy(codex, previousState.codex),
+            codexHome.managedAccountId
+          )
+        : this.state.codex
     })
   }
 

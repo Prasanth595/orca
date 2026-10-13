@@ -8,9 +8,9 @@ import type {
 import type { RateLimitService } from '../rate-limits/service'
 import { DEFAULT_POLL_MS } from '../rate-limits/service/service-types'
 import {
-  isClaudeOverAutoSwitchLine,
-  pickClaudeAutoSwitchTarget
-} from './claude-account-auto-switch-policy'
+  isAccountOverAutoSwitchLine,
+  pickAccountAutoSwitchTarget
+} from '../accounts/account-auto-switch-policy'
 import {
   getSelectedClaudeAccountIdForTarget,
   normalizeClaudeAccountSelectionTarget
@@ -62,7 +62,7 @@ export function createClaudeAccountAutoSwitch(
       !isReadingOf(state.claude, from) ||
       // Why: after a switch or a failed attempt, act only on a newer reading.
       (state.claude?.updatedAt ?? 0) < lastSwitchAt ||
-      !isClaudeOverAutoSwitchLine(state.claude, now)
+      !isAccountOverAutoSwitchLine(state.claude, now)
     ) {
       return STAY
     }
@@ -93,7 +93,7 @@ export function createClaudeAccountAutoSwitch(
         return { kind: 'read-usage' }
       }
     }
-    const targetId = pickClaudeAutoSwitchTarget(state.claude, candidates, { now, lastSwitchAt })
+    const targetId = pickAccountAutoSwitchTarget(state.claude, candidates, { now, lastSwitchAt })
     const to = accounts.find((account) => account.id === targetId)
     return to ? { kind: 'switch', from, to } : STAY
   }

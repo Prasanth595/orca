@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { InactiveAccountUsage, ProviderRateLimits } from '../../shared/rate-limit-types'
 import {
-  CLAUDE_AUTO_SWITCH_COOLDOWN_MS,
-  pickClaudeAutoSwitchTarget
-} from './claude-account-auto-switch-policy'
+  ACCOUNT_AUTO_SWITCH_COOLDOWN_MS as CLAUDE_AUTO_SWITCH_COOLDOWN_MS,
+  pickAccountAutoSwitchTarget as pickClaudeAutoSwitchTarget
+} from '../accounts/account-auto-switch-policy'
 
 function limits(session: number, weekly = 0, status: ProviderRateLimits['status'] = 'ok') {
   const window = (usedPercent: number, windowMinutes: number) => ({

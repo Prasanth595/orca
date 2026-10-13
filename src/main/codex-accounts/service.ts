@@ -78,7 +78,8 @@ function killLoginProcessTree(
 }
 
 export class CodexAccountService {
-  // Why: serialize the read-modify-write of settings; overlapping calls (e.g. double-click Add) would lose updates.
+  private userActionCount = 0
+  // Why: serialize settings mutations so overlapping account actions cannot lose updates.
   private mutationQueue: Promise<unknown> = Promise.resolve()
   private cancelPendingCodexLogin: (() => boolean) | null = null
   private pendingLoginUrl: string | null = null
@@ -199,6 +200,7 @@ export class CodexAccountService {
   // every later account action waits for. Called from the four the user drives,
   // never from serializeMutation, which background reset-credit work also uses.
   private supersedePendingLogin(): void {
+    this.userActionCount += 1
     if (this.cancelPendingLogin()) {
       console.info('[codex-accounts] Cancelled a pending Codex login superseded by a new request.')
     }
@@ -241,6 +243,22 @@ export class CodexAccountService {
   ): Promise<CodexRateLimitAccountsState> {
     this.supersedePendingLogin()
     return this.serializeMutation(() => this.selection.select(accountId, target))
+  }
+
+  /** Automatic selection waits for sign-in and yields to later user actions. */
+  autoSelectAccountForTarget(
+    accountId: string,
+    target: CodexAccountSelectionTarget,
+    stillWanted: () => boolean
+  ): Promise<boolean> {
+    const userActionCountWhenQueued = this.userActionCount
+    return this.serializeMutation(async () => {
+      if (this.userActionCount !== userActionCountWhenQueued || !stillWanted()) {
+        return false
+      }
+      await this.selection.select(accountId, target)
+      return true
+    })
   }
 
   consumeRateLimitResetCredit(

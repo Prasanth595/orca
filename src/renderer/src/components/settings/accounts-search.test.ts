@@ -18,6 +18,7 @@ vi.mock('./settings-search-keywords', () => ({
 import { matchesSettingsSearch } from './settings-search'
 import { getAccountsClaudeSearchEntries } from './accounts-claude-search'
 import {
+  getAccountsCodexSearchEntries,
   getAccountsMiniMaxSearchEntries,
   getAccountsOpencodeSearchEntries,
   getAccountsPaneSearchEntries
@@ -89,5 +90,14 @@ describe('getAccountsOpencodeSearchEntries', () => {
     expect(cookieEntry?.keywords).toEqual(
       expect.arrayContaining(['opencode', 'cookie', 'session', 'console', 'rate limit'])
     )
+  })
+})
+
+describe('getAccountsCodexSearchEntries', () => {
+  it('finds the Codex section by its auto-switch setting', () => {
+    expect(matchesSettingsSearch('before a usage limit', getAccountsCodexSearchEntries())).toBe(
+      true
+    )
+    expect(matchesSettingsSearch('auto', getAccountsCodexSearchEntries())).toBe(true)
   })
 })

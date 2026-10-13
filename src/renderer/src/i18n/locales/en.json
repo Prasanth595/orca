@@ -19609,6 +19609,13 @@
         "accounts": "accounts"
       }
     },
+    "codex": {
+      "autoSwitch": "Switch accounts before a usage limit",
+      "autoSwitchDescription": "When the selected account passes 90% of its 5-hour or weekly limit, new Codex sessions start on the account with the most room left. Running sessions keep their account.",
+      "autoSwitchedTitle": "Codex account switched",
+      "autoSwitchedBody": "{{from}} is near its usage limit. New Codex sessions start on {{to}}.",
+      "keyword": { "auto": "auto" }
+    },
     "claude": {
       "added": "Account added. Select it to use it for the next Claude you start.",
       "nextLaunch": "{{value0}} → {{value1}}. The next Claude you start uses it. Running sessions keep their account.",

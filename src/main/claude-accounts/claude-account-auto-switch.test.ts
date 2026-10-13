@@ -4,7 +4,7 @@ import type { ClaudeManagedAccountSummary } from '../../shared/managed-account-t
 import type { ProviderRateLimits, RateLimitState } from '../../shared/rate-limit-types'
 import { createEmptyRateLimitState } from '../../shared/rate-limit-state-factory'
 import { createClaudeAccountAutoSwitch } from './claude-account-auto-switch'
-import { CLAUDE_AUTO_SWITCH_COOLDOWN_MS } from './claude-account-auto-switch-policy'
+import { ACCOUNT_AUTO_SWITCH_COOLDOWN_MS as CLAUDE_AUTO_SWITCH_COOLDOWN_MS } from '../accounts/account-auto-switch-policy'
 
 const HOST = { runtime: 'host' as const, wslDistro: null }
 

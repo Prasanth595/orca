@@ -4,6 +4,8 @@ import { CodexRuntimeHomeService } from '../codex-accounts/runtime-home-service'
 import { CodexAccountService } from '../codex-accounts/service'
 import { ClaudeRuntimeAuthService } from '../claude-accounts/runtime-auth-service'
 import { ClaudeAccountService } from '../claude-accounts/service'
+import { getCodexUsageAccountId } from '../codex-accounts/codex-account-usage-provenance'
+import { createCodexAccountAutoSwitch } from '../codex-accounts/codex-account-auto-switch'
 import { createClaudeAccountAutoSwitch } from '../claude-accounts/claude-account-auto-switch'
 import { getRuntimeDesktopSurface } from '../runtime/runtime-desktop-surface'
 import { translateMain } from '../i18n/main-i18n'
@@ -102,13 +104,46 @@ export function initializeMainProcessAccountServices(): void {
       }
     })
   )
+  const autoSwitchCodex = createCodexAccountAutoSwitch({
+    getSettings: () => store.getSettings(),
+    rateLimits: state.rateLimits,
+    accounts: state.codexAccounts,
+    onSwitched: ({ from, to }) => {
+      if (!store.getSettings().notifications.enabled) {
+        return
+      }
+      getRuntimeDesktopSurface().showNotification({
+        title: translateMain('accounts.codex.autoSwitchedTitle', 'Codex account switched'),
+        body: translateMain(
+          'accounts.codex.autoSwitchedBody',
+          '{{from}} is near its usage limit. New Codex sessions start on {{to}}.',
+          { from, to }
+        )
+      })
+    }
+  })
+  state.rateLimits.onStateChange(autoSwitchCodex)
   // Why: quota polls are background work and must not boot a stopped distro; user-driven
   // resets call prepareForRateLimitFetch directly.
-  state.rateLimits.setCodexHomePathResolver(async (target) =>
-    target?.runtime === 'wsl' && !(await isWslDistroRunningForBackgroundWork(target.wslDistro))
-      ? { kind: 'skip' }
-      : state.codexRuntimeHome!.prepareForRateLimitFetch(target)
-  )
+  state.rateLimits.setCodexHomePathResolver(async (target) => {
+    if (
+      target?.runtime === 'wsl' &&
+      !(await isWslDistroRunningForBackgroundWork(target.wslDistro))
+    ) {
+      return { kind: 'skip' }
+    }
+    const resolved = state.codexRuntimeHome!.prepareForRateLimitFetch(target)
+    if (resolved.kind === 'skip') {
+      return resolved
+    }
+    return {
+      ...resolved,
+      managedAccountId: getCodexUsageAccountId(
+        store.getSettings().codexManagedAccounts,
+        resolved.codexHomePath
+      )
+    }
+  })
   state.rateLimits.setCodexFetchTarget(getInitialCodexRateLimitTarget(store.getSettings()))
   // Why: Kimi's CLI refreshes its OAuth token in whichever runtime it runs in, so the
   // usage fetch must read the WSL-side credentials when that's the configured runtime (#12370).
@@ -126,6 +161,12 @@ export function initializeMainProcessAccountServices(): void {
   )
   store.onSettingsChanged((updates, settings) => {
     expireModelCatalogs(updates, settings)
+    if (
+      'activeCodexManagedAccountId' in updates ||
+      'activeCodexManagedAccountIdsByRuntime' in updates
+    ) {
+      autoSwitchCodex(state.rateLimits!.getState())
+    }
     // Why: auto is a live policy; retarget only providers whose settings-derived runtime changed.
     void syncAccountRuntimeTargets(updates, settings).catch((error) =>
       console.warn('[rate-limits] Failed to apply account runtime target:', error)

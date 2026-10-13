@@ -34,9 +34,13 @@ export type InactiveCodexAccountInfo = {
   resolveHome: () => { kind: 'ready'; managedHomePath: string } | { kind: 'skip' }
 }
 
+type CodexAccountUsageHomeResolution = CodexRateLimitHomeResolution & {
+  managedAccountId?: string
+}
+
 export type CodexHomePathResolver = (
   target?: CodexAccountSelectionTarget
-) => CodexRateLimitHomeResolution | Promise<CodexRateLimitHomeResolution>
+) => CodexAccountUsageHomeResolution | Promise<CodexAccountUsageHomeResolution>
 export type KimiHomeResolver = () => Promise<KimiHomeResolution>
 export type ClaudeAuthPreparationResolver = (
   target?: ClaudeAccountSelectionTarget

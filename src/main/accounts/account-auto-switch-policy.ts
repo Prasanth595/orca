@@ -1,13 +1,13 @@
 import type { InactiveAccountUsage, ProviderRateLimits } from '../../shared/rate-limit-types'
 
-const CLAUDE_AUTO_SWITCH_THRESHOLD_PERCENT = 90
-// Why: a switch only reaches the next Claude started, so a fresh pick needs time to be used.
-export const CLAUDE_AUTO_SWITCH_COOLDOWN_MS = 5 * 60_000
+const AUTO_SWITCH_THRESHOLD_PERCENT = 90
+// Why: a switch only reaches the next agent started, so a fresh pick needs time to be used.
+export const ACCOUNT_AUTO_SWITCH_COOLDOWN_MS = 5 * 60_000
 // Why: an account only a few points under the line would cross it again within minutes.
 const MIN_PERCENT_GAINED = 10
 
 /** The tightest 5-hour or weekly window still running (0 once both reset), or null when usage could not be read. */
-function getClaudeUsedPercent(limits: ProviderRateLimits | null, now: number): number | null {
+function getAccountUsedPercent(limits: ProviderRateLimits | null, now: number): number | null {
   if (limits?.status !== 'ok') {
     return null
   }
@@ -20,30 +20,30 @@ function getClaudeUsedPercent(limits: ProviderRateLimits | null, now: number): n
   return Math.max(0, ...current.map((window) => window.usedPercent))
 }
 
-export function isClaudeOverAutoSwitchLine(
+export function isAccountOverAutoSwitchLine(
   limits: ProviderRateLimits | null,
   now: number
 ): boolean {
-  return (getClaudeUsedPercent(limits, now) ?? 0) >= CLAUDE_AUTO_SWITCH_THRESHOLD_PERCENT
+  return (getAccountUsedPercent(limits, now) ?? 0) >= AUTO_SWITCH_THRESHOLD_PERCENT
 }
 
-/** The account new Claude sessions should move to, or null to stay. */
-export function pickClaudeAutoSwitchTarget(
+/** The account new agent sessions should move to, or null to stay. */
+export function pickAccountAutoSwitchTarget(
   active: ProviderRateLimits | null,
   candidates: InactiveAccountUsage[],
   { now, lastSwitchAt }: { now: number; lastSwitchAt: number }
 ): string | null {
-  const used = getClaudeUsedPercent(active, now)
-  if (used === null || used < CLAUDE_AUTO_SWITCH_THRESHOLD_PERCENT) {
+  const used = getAccountUsedPercent(active, now)
+  if (used === null || used < AUTO_SWITCH_THRESHOLD_PERCENT) {
     return null
   }
   const atLimit = used >= 100
-  if (!atLimit && now - lastSwitchAt < CLAUDE_AUTO_SWITCH_COOLDOWN_MS) {
+  if (!atLimit && now - lastSwitchAt < ACCOUNT_AUTO_SWITCH_COOLDOWN_MS) {
     return null
   }
   const best = candidates
     .flatMap((candidate) => {
-      const candidateUsed = getClaudeUsedPercent(candidate.rateLimits, now)
+      const candidateUsed = getAccountUsedPercent(candidate.rateLimits, now)
       return candidateUsed !== null && candidateUsed < 100
         ? [{ accountId: candidate.accountId, used: candidateUsed }]
         : []
@@ -57,6 +57,6 @@ export function pickClaudeAutoSwitchTarget(
     return best.accountId
   }
   const clearlyBetter =
-    best.used < CLAUDE_AUTO_SWITCH_THRESHOLD_PERCENT && best.used <= used - MIN_PERCENT_GAINED
+    best.used < AUTO_SWITCH_THRESHOLD_PERCENT && best.used <= used - MIN_PERCENT_GAINED
   return clearlyBetter ? best.accountId : null
 }
