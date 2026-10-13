@@ -21,6 +21,7 @@ import {
 } from './sidebar-workspace-option-items'
 import { PROPERTY_OPTIONS } from './worktree-card-display-property-options'
 import { translate } from '@/i18n/i18n'
+import { isHierarchySidebarStyle } from '../../../../shared/sidebar-style'
 
 type WorktreeCardDisplayMenuSectionProps = {
   preserveWorkspaceBoardOpen: boolean
@@ -28,7 +29,7 @@ type WorktreeCardDisplayMenuSectionProps = {
 
 export function WorktreeCardDisplayMenuSection({
   preserveWorkspaceBoardOpen
-}: WorktreeCardDisplayMenuSectionProps): React.JSX.Element {
+}: WorktreeCardDisplayMenuSectionProps): React.JSX.Element | null {
   const worktreeCardProperties = useAppStore((s) => s.worktreeCardProperties)
   const setWorktreeCardProperties = useAppStore((s) => s.setWorktreeCardProperties)
   const settings = useAppStore((s) => s.settings)
@@ -57,6 +58,11 @@ export function WorktreeCardDisplayMenuSection({
     },
     [setWorktreeCardProperties, worktreeCardProperties]
   )
+
+  // Why: hierarchy rows are fixed single-line, so card layout and property toggles don't apply.
+  if (isHierarchySidebarStyle(settings)) {
+    return null
+  }
 
   if (newCardStyle) {
     return (

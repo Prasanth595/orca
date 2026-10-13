@@ -33,6 +33,7 @@ function makeState(overrides: Partial<AddRepoSkipFinalizationState>): AddRepoSki
     activeRepoId: null,
     filterRepoIds: [],
     showActiveOnly: false,
+    sidebarActiveOnly: false,
     hideDefaultBranchWorkspace: false,
     showSleepingWorkspaces: true,
     alwaysShowDefaultBranchWorkspace: true,
@@ -41,6 +42,7 @@ function makeState(overrides: Partial<AddRepoSkipFinalizationState>): AddRepoSki
     setActiveRepo: vi.fn(),
     setFilterRepoIds: vi.fn(),
     setShowActiveOnly: vi.fn(),
+    setSidebarActiveOnly: vi.fn(),
     setHideDefaultBranchWorkspace: vi.fn(),
     setAlwaysShowDefaultBranchWorkspace: vi.fn(),
     ...overrides
@@ -215,5 +217,11 @@ describe('finalizeImportedRepoAfterSkip', () => {
     expect(state.setFilterRepoIds).toHaveBeenCalledWith(['repo-old', 'repo-new'])
     expect(state.setShowActiveOnly).toHaveBeenCalledWith(false)
     expect(state.setHideDefaultBranchWorkspace).not.toHaveBeenCalled()
+  })
+
+  it('leaves the hierarchy Active view so the imported project is visible', () => {
+    const state = makeState({ sidebarActiveOnly: true })
+    finalizeImportedRepoAfterSkip(state, 'repo-1')
+    expect(state.setSidebarActiveOnly).toHaveBeenCalledWith(false)
   })
 })

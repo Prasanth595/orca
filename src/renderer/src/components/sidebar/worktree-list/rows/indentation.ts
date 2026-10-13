@@ -33,6 +33,48 @@ export function getProjectGroupHeaderPaddingLeft(depth: number): number {
   )
 }
 
+// Why: group headers render a size-4 icon then gap-1.5 before the label.
+const PROJECT_GROUP_HEADER_ICON_SIZE = 16
+const PROJECT_GROUP_HEADER_ICON_GAP = 6
+
+/** Left edge of the 2px guide centred under a group header's icon. */
+export function getProjectGroupGuideLeft(level: number): number {
+  return getProjectGroupHeaderPaddingLeft(level) + PROJECT_GROUP_HEADER_ICON_SIZE / 2 - 1
+}
+
+/** Icon-less nested repo headers start at the parent group's label column, clear of its guide. */
+export function getNestedRepoHeaderPaddingLeft(depth: number): number {
+  return (
+    getProjectGroupHeaderPaddingLeft(clampDepth(depth) - 1) +
+    PROJECT_GROUP_HEADER_ICON_SIZE +
+    PROJECT_GROUP_HEADER_ICON_GAP
+  )
+}
+
+/** Hierarchy: x of the tree line a section's worktrees hang off (under the parent label or icon). */
+export function getHierarchyWorktreeTreeLeft(groupDepth: number): number {
+  return clampDepth(groupDepth) > 0
+    ? getNestedRepoHeaderPaddingLeft(groupDepth) + 4
+    : getProjectGroupGuideLeft(0)
+}
+
+export const HIERARCHY_TREE_TICK_WIDTH = 8
+// Why: tick center on a single-line card (py-1 + leading-5 + 1px borders = 30px).
+export const HIERARCHY_TREE_TICK_TOP = 15
+
+/** Hierarchy: the card surface starts where the tick ends. */
+export function getHierarchyWorktreeRowGeometry(groupDepth: number): {
+  surfaceInset: number
+  cardContentIndent: number
+} {
+  // Surface left = inset + card ml-1 (4px); flush padding = max(2, indent - 4).
+  // Why indent 12: 8px left padding mirrors the right (pr-1.5 + status cluster pr-0.5).
+  return {
+    surfaceInset: getHierarchyWorktreeTreeLeft(groupDepth) + HIERARCHY_TREE_TICK_WIDTH + 1 - 4,
+    cardContentIndent: 12
+  }
+}
+
 export function getWorktreeCardContentIndent(args: {
   isGrouped: boolean
   groupDepth: number

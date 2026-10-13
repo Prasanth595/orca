@@ -6,6 +6,7 @@ import { revealRepoInProjectFilter, type ProjectFilterRevealState } from './proj
 export type AddRepoSkipFinalizationState = ProjectFilterRevealState & {
   activeRepoId: string | null
   showActiveOnly: boolean
+  sidebarActiveOnly: boolean
   hideDefaultBranchWorkspace: boolean
   showSleepingWorkspaces: boolean
   alwaysShowDefaultBranchWorkspace: boolean
@@ -13,6 +14,7 @@ export type AddRepoSkipFinalizationState = ProjectFilterRevealState & {
   worktreesByRepo: Record<string, Worktree[]>
   setActiveRepo: (repoId: string | null) => void
   setShowActiveOnly: (value: boolean) => void
+  setSidebarActiveOnly: (value: boolean) => void
   setHideDefaultBranchWorkspace: (value: boolean) => void
   setAlwaysShowDefaultBranchWorkspace: (value: boolean) => void
 }
@@ -34,6 +36,9 @@ export function finalizeImportedRepoAfterSkip(
   revealRepoInProjectFilter(state, importedRepoId)
   if (state.showActiveOnly) {
     state.setShowActiveOnly(false)
+  }
+  if (state.sidebarActiveOnly) {
+    state.setSidebarActiveOnly(false)
   }
   if (
     importedWorktrees.length > 0 &&

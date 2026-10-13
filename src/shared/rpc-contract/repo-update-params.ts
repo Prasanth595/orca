@@ -9,6 +9,9 @@ import {
 } from '../worktree/visibility-sources'
 import { OptionalFiniteNumber, OptionalString } from './rpc-param-primitives'
 
+/** Repo and project-group icon updates: null clears; an invalid icon sanitizes to undefined (ignored). */
+export const RepoIconUpdate = z.unknown().transform((value) => sanitizeRepoIcon(value))
+
 export const RepoSourceControlAiOverrides = z
   .unknown()
   .optional()
@@ -46,10 +49,7 @@ export function createRepoUpdateSchema<T extends Readonly<Record<string, z.ZodTy
     updates: z.object({
       displayName: OptionalString,
       badgeColor: RepoBadgeColor,
-      repoIcon: z
-        .unknown()
-        .transform((value) => sanitizeRepoIcon(value))
-        .optional(),
+      repoIcon: RepoIconUpdate.optional(),
       upstream: RepoUpstream,
       hookSettings: z.unknown().optional(),
       worktreeBaseRef: OptionalString,

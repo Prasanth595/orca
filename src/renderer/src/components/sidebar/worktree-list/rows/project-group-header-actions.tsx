@@ -1,5 +1,5 @@
 import React from 'react'
-import { Ellipsis, Plus } from 'lucide-react'
+import { Check, Ellipsis, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -8,6 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
+import { useAppStore } from '@/store'
 import { cn } from '@/lib/utils'
 import { translate } from '@/i18n/i18n'
 import { getFolderWorkspacePathStatusDescription } from '@/lib/folder-workspace-path-status'
@@ -26,15 +27,26 @@ export function ProjectGroupHeaderMenu({
   hostId,
   label,
   onRename,
-  onDelete
+  onChangeIcon,
+  onDelete,
+  activeViewGroupKey
 }: {
   groupId: string
   /** Owner host of the group row, so rename/delete route to the host that holds it. */
   hostId?: ExecutionHostId
   label: string
   onRename: (groupId: string, currentName: string, hostId?: ExecutionHostId) => void
+  onChangeIcon?: (groupId: string, groupName: string, hostId?: ExecutionHostId) => void
   onDelete: (groupId: string, groupName: string, hostId?: ExecutionHostId) => void
+  /** Host-qualified key for the Active view's per-group opt-out; hierarchy style only. */
+  activeViewGroupKey?: string
 }): React.JSX.Element {
+  const hiddenInActiveView = useAppStore(
+    (s) =>
+      activeViewGroupKey !== undefined &&
+      s.activeViewHiddenProjectGroupIds?.includes(activeViewGroupKey) === true
+  )
+  const toggleActiveViewHidden = useAppStore((s) => s.toggleActiveViewHiddenProjectGroup)
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
@@ -71,6 +83,25 @@ export function ProjectGroupHeaderMenu({
         <DropdownMenuItem onSelect={() => onRename(groupId, label, hostId)}>
           {translate('auto.components.sidebar.WorktreeList.4d7b73658c', 'Rename group')}
         </DropdownMenuItem>
+        {onChangeIcon ? (
+          <DropdownMenuItem onSelect={() => onChangeIcon(groupId, label, hostId)}>
+            {translate('auto.components.sidebar.WorktreeList.changeGroupIcon', 'Change icon')}
+          </DropdownMenuItem>
+        ) : null}
+        {activeViewGroupKey ? (
+          <DropdownMenuItem
+            // Why: a checkbox item reserves a leading tick column that misaligns it against the plain rows.
+            role="menuitemcheckbox"
+            aria-checked={hiddenInActiveView}
+            onSelect={() => toggleActiveViewHidden(activeViewGroupKey)}
+          >
+            {translate(
+              'auto.components.sidebar.WorktreeList.alwaysMarkInactive',
+              'Always mark inactive'
+            )}
+            {hiddenInActiveView ? <Check className="ml-auto size-3.5" /> : null}
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem variant="destructive" onSelect={() => onDelete(groupId, label, hostId)}>
           {translate('auto.components.sidebar.WorktreeList.902115cdbe', 'Delete group')}
         </DropdownMenuItem>

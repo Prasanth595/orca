@@ -19,6 +19,7 @@ import { useSidebarHostScopeOptions } from './use-sidebar-host-scope-options'
 import { SidebarHostScopeMenuSection } from './SidebarHostScopeMenuSection'
 import { PROJECT_ORDER_OPTIONS, SORT_OPTIONS } from './sidebar-workspace-option-items'
 import { WorktreeCardDisplayMenuSection } from './WorktreeCardDisplayMenuSection'
+import { SidebarStyleMenuSub } from './SidebarStyleMenuSub'
 import { translate } from '@/i18n/i18n'
 import { SidebarGroupByToggle } from './SidebarGroupByToggle'
 import { formatActiveFilterLabel } from './options-filter-count-badge'
@@ -233,6 +234,7 @@ export function WorkspaceOptionsMenuItems({
         </DropdownMenuSub>
       )}
 
+      <SidebarStyleMenuSub preserveWorkspaceBoardOpen={preserveWorkspaceBoardOpen} />
       <WorktreeCardDisplayMenuSection preserveWorkspaceBoardOpen={preserveWorkspaceBoardOpen} />
       <DropdownMenuSeparator />
       <SidebarWorkspaceFilterSection />

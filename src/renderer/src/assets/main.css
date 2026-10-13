@@ -103,6 +103,7 @@
   --color-worktree-sidebar-accent-foreground: var(--worktree-sidebar-accent-foreground);
   --color-worktree-sidebar-border: var(--worktree-sidebar-border);
   --color-worktree-sidebar-ring: var(--worktree-sidebar-ring);
+  --color-worktree-sidebar-primary-star: var(--worktree-sidebar-primary-star);
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
   --color-sidebar-accent: var(--sidebar-accent);
@@ -243,6 +244,8 @@
   --worktree-sidebar-accent-foreground: #171717;
   --worktree-sidebar-border: #e5e5e5;
   --worktree-sidebar-ring: #a1a1a1;
+  /* Why: the primary-worktree star's long-standing amber, named so hierarchy rows avoid raw palette. */
+  --worktree-sidebar-primary-star: #fbbf24;
   --sidebar: #fafafa;
   --sidebar-foreground: #0a0a0a;
   --sidebar-primary: #171717;
@@ -1738,6 +1741,24 @@ html.native-shell .app-layout {
 
 .dark .worktree-agent-lineage-children {
   border-left-color: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+/* Why: mixed into the sidebar ground (opaque), so crossing tree strokes never darken. */
+.worktree-sidebar-tree-guide {
+  background: color-mix(in srgb, var(--worktree-sidebar-foreground) 32%, var(--worktree-sidebar));
+}
+
+.dark .worktree-sidebar-tree-guide {
+  background: color-mix(in srgb, var(--worktree-sidebar-foreground) 30%, var(--worktree-sidebar));
+}
+
+/* Why separate: group lines are 2px, so a lighter mix still reads heavier than the 1px branches. */
+.worktree-sidebar-group-guide {
+  background: color-mix(in srgb, var(--worktree-sidebar-foreground) 26%, var(--worktree-sidebar));
+}
+
+.dark .worktree-sidebar-group-guide {
+  background: color-mix(in srgb, var(--worktree-sidebar-foreground) 24%, var(--worktree-sidebar));
 }
 
 .worktree-agent-send-target-button {

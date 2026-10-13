@@ -58,6 +58,8 @@ export type ImportedWorktreesCardRow = {
   repo: Repo
   hiddenWorktrees: DetectedWorktree[]
   placement: 'repo-group' | 'pinned-fallback'
+  /** Project-group nesting of the containing repo section; absent at top level. */
+  groupDepth?: number
   /** Set only when the row's project is checked out on more than one host. */
   hostContextLabel?: string
   hostContextHostId?: ExecutionHostId
@@ -73,6 +75,8 @@ export type NewExternalWorktreesInboxRow = {
   key: string
   repo: Repo
   inboxWorktrees: DetectedWorktree[]
+  /** Project-group nesting of the containing repo section; absent at top level. */
+  groupDepth?: number
   /** Set only when the row's project is checked out on more than one host. */
   hostContextLabel?: string
   hostContextHostId?: ExecutionHostId
@@ -83,6 +87,8 @@ export type PendingCreationRow = {
   key: string
   creationId: string
   repo: Repo | undefined
+  /** Project-group nesting of the containing repo section; absent at top level. */
+  groupDepth?: number
 }
 
 export type FolderWorkspaceRow = {

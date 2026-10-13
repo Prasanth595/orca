@@ -29,9 +29,12 @@ import {
   type WorktreeItemRowContext
 } from './item-row'
 import { renderWorktreeSectionHeaderRow, type SectionHeaderRowContext } from './SectionHeader'
+import { getSidebarTreeGuideSpec, renderSidebarTreeGuides } from './sidebar-tree-guides'
 import type { WorktreeRowDragState } from '../drag/row-state'
 
 export type WorktreeVirtualRowContext = {
+  /** Sidebar style 'hierarchy': tree guides and quieter nested rows. */
+  hierarchyStyle?: boolean
   renderRows: RenderRow[]
   firstHeaderIndex: number
   activeStickyHeaderIndexRef: React.MutableRefObject<number | null>
@@ -145,9 +148,30 @@ function renderLineageGroupVirtualRow(
   )
 }
 
+export function renderWorktreeVirtualRow(
+  ctx: WorktreeVirtualRowContext,
+  row: RenderRow,
+  vItem: VirtualItem
+): React.JSX.Element | null {
+  const frame = renderWorktreeVirtualRowFrame(ctx, row, vItem)
+  const guides = ctx.hierarchyStyle
+    ? getSidebarTreeGuideSpec({ rows: ctx.renderRows, index: vItem.index, groupBy: ctx.groupBy })
+    : null
+  if (frame === null || guides === null) {
+    return frame
+  }
+  // Why: guides sit in the slot, not the frame, so drag-preview offsets never break the line.
+  return (
+    <React.Fragment key={vItem.key}>
+      {frame}
+      {renderSidebarTreeGuides(vItem, guides)}
+    </React.Fragment>
+  )
+}
+
 // One virtual slot -> one row renderer. Every branch owns its own absolute/sticky frame
 // because sticky headers and lineage groups position differently from plain cards.
-export function renderWorktreeVirtualRow(
+function renderWorktreeVirtualRowFrame(
   ctx: WorktreeVirtualRowContext,
   row: RenderRow,
   vItem: VirtualItem

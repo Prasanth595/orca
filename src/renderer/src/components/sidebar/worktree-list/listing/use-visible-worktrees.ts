@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useAppStore } from '@/store'
 import { getAgentStatusEpochNow } from '@/lib/agent-status-epoch-clock'
 import { getWorktreeIdsWithLiveAgent } from '@/lib/worktree-activity-state'
@@ -15,11 +16,20 @@ import {
   getVisibleWorktreeTerminalActivityTabs,
   getStructuredChatWorktreeIds
 } from '../../visible-worktree-activity-inputs'
+import {
+  addPinnedWorkspaceIds,
+  excludeHiddenGroupWorktrees,
+  getActiveOnlyWorkspaceIds,
+  getActiveViewHiddenGroups,
+  getUnifiedTabWorktreeIds,
+  NO_HIDDEN_GROUPS
+} from '../../active-only-sidebar-scope'
 import type { SortBy } from '../../smart-sort'
 import type { SidebarWorktreeFilters } from './use-filters'
 import { useReusedArrayIdentity } from './use-reused-array-identity'
 
 const EMPTY_WORKTREE_ID_SET: ReadonlySet<string> = new Set()
+const NO_IDS: string[] = []
 
 // Applies every sidebar filter to the sorted id stream. Flatten/filter/sort goes through the
 // shared utility so card order matches Cmd+1–9 numbering.
@@ -33,6 +43,9 @@ export function useVisibleSidebarWorktrees(args: {
    *  423-workspace scan on every unrelated settings write. */
   defaultHostId: ExecutionHostId
   agentSendTargetWorktreeId: string | null
+  /** Hierarchy "Active" view, and the selected workspace it must never hide. */
+  activeOnly?: boolean
+  currentWorkspaceId?: string | null
 }) {
   const { filterState, sortBy, sortedIds, repoMap, worktreeLineageById, defaultHostId } = args
   const {
@@ -47,11 +60,15 @@ export function useVisibleSidebarWorktrees(args: {
     visibleWorkspaceHostIds,
     workspaceHostScope
   } = filterState
+  const activeOnly = args.activeOnly === true
+  // Why gated: Classic must not rescan every workspace on each selection change.
+  const currentWorkspaceId = activeOnly ? (args.currentWorkspaceId ?? null) : null
+  const needsLiveAgents = !showSleepingWorkspaces || activeOnly
   const worktreesByRepo = useAppStore((s) => s.worktreesByRepo)
-  const agentStatusEpoch = useAppStore((s) => (!showSleepingWorkspaces ? s.agentStatusEpoch : 0))
+  const agentStatusEpoch = useAppStore((s) => (needsLiveAgents ? s.agentStatusEpoch : 0))
   // Why: skip the clock entirely when the epoch is the opt-out sentinel, so a
   // sleeping-workspaces list cannot evict the sample the live lists share.
-  const agentStatusNow = showSleepingWorkspaces ? 0 : getAgentStatusEpochNow(agentStatusEpoch)
+  const agentStatusNow = needsLiveAgents ? getAgentStatusEpochNow(agentStatusEpoch) : 0
   const runtimeEnvironments = useAppStore((s) => s.runtimeEnvironments)
   const runtimeStatusByEnvironmentId = useAppStore((s) => s.runtimeStatusByEnvironmentId)
   const pairedDeviceIdsByEnvironment = useMemo(
@@ -63,37 +80,68 @@ export function useVisibleSidebarWorktrees(args: {
   )
 
   // Read tabsByWorktree when needed for filtering or sorting
-  const needsActivityMaps = !showSleepingWorkspaces || sortBy === 'smart'
+  const needsActivityMaps = needsLiveAgents || sortBy === 'smart'
   const tabsByWorktree = useAppStore((s) =>
     needsActivityMaps ? getVisibleWorktreeTerminalActivityTabs(s.tabsByWorktree) : null
   )
   const ptyIdsByTabId = useAppStore((s) => (needsActivityMaps ? s.ptyIdsByTabId : null))
   const browserTabsByWorktree = useAppStore((s) =>
-    !showSleepingWorkspaces ? getVisibleWorktreeBrowserActivityTabs(s.browserTabsByWorktree) : null
+    needsLiveAgents ? getVisibleWorktreeBrowserActivityTabs(s.browserTabsByWorktree) : null
   )
   const worktreeIdsWithStructuredChat = useAppStore((s) =>
     getStructuredChatWorktreeIds(showSleepingWorkspaces, s.unifiedTabsByWorktree)
   )
+  const unifiedTabWorktreeIds = useAppStore(
+    useShallow((s) => (activeOnly ? getUnifiedTabWorktreeIds(s.unifiedTabsByWorktree) : NO_IDS))
+  )
+  const activeViewHiddenGroupKeys = useAppStore((s) => s.activeViewHiddenProjectGroupIds)
+  const projectGroups = useAppStore((s) => s.projectGroups)
+  const activeViewHiddenGroups = useMemo(
+    () =>
+      activeOnly
+        ? getActiveViewHiddenGroups(projectGroups ?? [], activeViewHiddenGroupKeys ?? [])
+        : NO_HIDDEN_GROUPS,
+    [activeOnly, activeViewHiddenGroupKeys, projectGroups]
+  )
+  const agentSendTargetWorktreeId = args.agentSendTargetWorktreeId
 
-  const recomputedVisibleWorktrees = useMemo(() => {
+  const recomputed = useMemo(() => {
     // Keyed on the epoch, not `agentStatusNow`: two bumps in one millisecond
     // share a sample, so the timestamp alone would not re-key this memo.
     void agentStatusEpoch
-    return computeVisibleWorktrees(worktreesByRepo, sortedIds, {
+    // Why snapshot on agentStatusEpoch: update membership immediately without repainting on every hook ping.
+    const liveAgentWorktreeIds = needsLiveAgents
+      ? getWorktreeIdsWithLiveAgent(
+          useAppStore.getState().agentStatusByPaneKey,
+          tabsByWorktree,
+          agentStatusNow
+        )
+      : EMPTY_WORKTREE_ID_SET
+    let activeOnlyWorkspaceIds: Set<string> | null = null
+    if (activeOnly) {
+      activeOnlyWorkspaceIds = getActiveOnlyWorkspaceIds({
+        unifiedTabWorktreeIds,
+        tabsByWorktree,
+        browserTabsByWorktree,
+        worktreeIdsWithLiveAgent: liveAgentWorktreeIds
+      })
+      addPinnedWorkspaceIds(activeOnlyWorkspaceIds, worktreesByRepo)
+      if (currentWorkspaceId) {
+        // Why: hiding the row you are on would make the selection vanish from the tree.
+        activeOnlyWorkspaceIds.add(currentWorkspaceId)
+      }
+    }
+    const worktrees = computeVisibleWorktrees(worktreesByRepo, sortedIds, {
       filterRepoIds,
       showSleepingWorkspaces,
       tabsByWorktree,
       ptyIdsByTabId,
       browserTabsByWorktree,
       worktreeIdsWithStructuredChat,
-      // Why snapshot on agentStatusEpoch: update membership immediately without repainting on every hook ping.
       worktreeIdsWithLiveAgent: showSleepingWorkspaces
         ? EMPTY_WORKTREE_ID_SET
-        : getWorktreeIdsWithLiveAgent(
-            useAppStore.getState().agentStatusByPaneKey,
-            tabsByWorktree,
-            agentStatusNow
-          ),
+        : liveAgentWorktreeIds,
+      activeOnlyWorkspaceIds,
       hideDefaultBranchWorkspace,
       hideAutomationGeneratedWorkspaces,
       hideCliCreatedWorkspaces,
@@ -107,12 +155,25 @@ export function useVisibleSidebarWorktrees(args: {
       defaultHostId,
       worktreeLineageById,
       preserveLineageParentOrder: sortBy === 'manual',
-      forcedVisibleWorktreeIds: args.agentSendTargetWorktreeId
-        ? [args.agentSendTargetWorktreeId]
-        : undefined
+      forcedVisibleWorktreeIds: agentSendTargetWorktreeId ? [agentSendTargetWorktreeId] : undefined
     })
+    if (!activeOnlyWorkspaceIds) {
+      return { worktrees, activeOnlyWorkspaceIds }
+    }
+    const keepIds = new Set(
+      [currentWorkspaceId, agentSendTargetWorktreeId].filter((id): id is string => id !== null)
+    )
+    return {
+      worktrees: excludeHiddenGroupWorktrees(worktrees, activeViewHiddenGroups, repoMap, keepIds),
+      activeOnlyWorkspaceIds
+    }
   }, [
-    args.agentSendTargetWorktreeId,
+    activeOnly,
+    activeViewHiddenGroups,
+    currentWorkspaceId,
+    needsLiveAgents,
+    unifiedTabWorktreeIds,
+    agentSendTargetWorktreeId,
     agentStatusEpoch,
     agentStatusNow,
     filterRepoIds,
@@ -140,7 +201,12 @@ export function useVisibleSidebarWorktrees(args: {
   // Why: agentStatusEpoch bumps recompute this memo even when membership and
   // order are unchanged; keeping the previous identity stops the whole
   // rows/sectionRows/renderedWorktrees chain from churning per epoch.
-  const visibleWorktrees = useReusedArrayIdentity(recomputedVisibleWorktrees)
+  const visibleWorktrees = useReusedArrayIdentity(recomputed.worktrees)
 
-  return { visibleWorktrees, pairedDeviceIdsByEnvironment }
+  return {
+    visibleWorktrees,
+    pairedDeviceIdsByEnvironment,
+    activeOnlyWorkspaceIds: recomputed.activeOnlyWorkspaceIds,
+    activeViewHiddenGroups
+  }
 }

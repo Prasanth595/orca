@@ -37,6 +37,8 @@ import { useVisibleSidebarWorktrees } from './worktree-list/listing/use-visible-
 import { useWorktreeStatusMutations } from './worktree-list/drag/use-status-mutations'
 import { shouldFiltersHideAllRows } from './sidebar-empty-state-gate'
 import { buildWorktreeManualOrderCatalog } from './worktree-manual-order-catalog'
+import { useActiveOnlySidebarScope } from './worktree-list/listing/use-active-only-scope'
+import { useActiveOnlySidebarMode } from './worktree-list/listing/use-active-only-mode'
 
 type WorktreeListProps = {
   scrollOffsetRef: React.MutableRefObject<number>
@@ -86,6 +88,7 @@ const WorktreeList = React.memo(function WorktreeList({
   const clearPendingRevealWorktreeId = useAppStore((s) => s.clearPendingRevealWorktreeId)
   const clearPendingRevealSidebarRow = useAppStore((s) => s.clearPendingRevealSidebarRow)
   const collapsedGroups = useAppStore((s) => s.collapsedGroups)
+  const setSidebarActiveOnly = useAppStore((s) => s.setSidebarActiveOnly)
   const toggleGroup = useAppStore((s) => s.toggleCollapsedGroup)
   const projectGroups = useAppStore((s) => s.projectGroups ?? EMPTY_PROJECT_GROUPS)
   const folderWorkspaces = useAppStore((s) => s.folderWorkspaces)
@@ -105,6 +108,7 @@ const WorktreeList = React.memo(function WorktreeList({
     [projectHostSetupProjection]
   )
 
+  const activeOnly = useActiveOnlySidebarMode(settings)
   const agentSendTargetWorktreeId = useAgentSendTargetWorktreeId()
   const { filterState, hasFilters, clearFilters, revealWorkspaceFilters } =
     useSidebarWorktreeFilters()
@@ -113,14 +117,21 @@ const WorktreeList = React.memo(function WorktreeList({
     () => buildWorktreeManualOrderCatalog({ worktrees: allWorktrees, folderWorkspaces }),
     [allWorktrees, folderWorkspaces]
   )
-  const { visibleWorktrees, pairedDeviceIdsByEnvironment } = useVisibleSidebarWorktrees({
+  const {
+    visibleWorktrees,
+    pairedDeviceIdsByEnvironment,
+    activeOnlyWorkspaceIds,
+    activeViewHiddenGroups
+  } = useVisibleSidebarWorktrees({
     filterState,
     sortBy,
     sortedIds,
     repoMap,
     worktreeLineageById,
     defaultHostId,
-    agentSendTargetWorktreeId
+    agentSendTargetWorktreeId,
+    activeOnly,
+    currentWorkspaceId: currentSidebarWorktreeId
   })
   const effectiveCollapsedGroups = useEffectiveCollapsedGroups({
     hostScopedGroups:
@@ -142,13 +153,21 @@ const WorktreeList = React.memo(function WorktreeList({
     folderWorkspaces,
     defaultHostId
   })
-  const visibleScope = useSidebarHostVisibleScope({
+  const hostVisibleScope = useSidebarHostVisibleScope({
     filterState,
     defaultHostId,
     repos,
     projectGroups,
     folderWorkspaces,
     pairedDeviceIdsByEnvironment
+  })
+  const visibleScope = useActiveOnlySidebarScope({
+    hostVisibleScope,
+    activeOnlyWorkspaceIds,
+    activeViewHiddenGroups,
+    currentWorkspaceId: currentSidebarWorktreeId,
+    visibleWorktrees,
+    repoMap
   })
   const externalWorktreeCards = useSidebarExternalWorktreeCards({
     repos,
@@ -176,6 +195,7 @@ const WorktreeList = React.memo(function WorktreeList({
     visibleFolderWorkspacesForRows: visibleScope.visibleFolderWorkspacesForRows,
     importedWorktreesByRepo: externalWorktreeCards.importedWorktreesByRepo,
     newExternalWorktreesInboxByRepo: externalWorktreeCards.newExternalWorktreesInboxByRepo,
+    activeOnly,
     filterRepoIds: filterState.filterRepoIds,
     visibleWorkspaceHostIds: filterState.visibleWorkspaceHostIds,
     workspaceHostScope: filterState.workspaceHostScope
@@ -262,7 +282,15 @@ const WorktreeList = React.memo(function WorktreeList({
   })
   // Why: when active filters hide every row, the Clear Filters empty state must win over Project Group headers.
   if (rowModel.rows.length === 0 || filtersHideAllRows) {
-    return <SidebarWorktreeListEmptyState hasFilters={hasFilters} onClearFilters={clearFilters} />
+    return (
+      <SidebarWorktreeListEmptyState
+        hasFilters={hasFilters || activeOnly}
+        onClearFilters={() => {
+          setSidebarActiveOnly(false)
+          clearFilters()
+        }}
+      />
+    )
   }
 
   return (
@@ -317,6 +345,7 @@ const WorktreeList = React.memo(function WorktreeList({
         handleMoveProjectToGroup={projectGroupDialogs.handleMoveProjectToGroup}
         handleRemoveProjectFromGroup={projectGroupDialogs.handleRemoveProjectFromGroup}
         handleRenameProjectGroup={projectGroupDialogs.handleRenameProjectGroup}
+        handleChangeProjectGroupIcon={projectGroupDialogs.handleChangeProjectGroupIcon}
         handleDeleteProjectGroup={projectGroupDialogs.handleDeleteProjectGroup}
         handleCreateFolderWorkspace={handleCreateFolderWorkspace}
         activeModal={activeModal}

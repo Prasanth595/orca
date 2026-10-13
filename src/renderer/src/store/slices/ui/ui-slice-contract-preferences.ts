@@ -35,6 +35,18 @@ export type UISlicePreferences = {
   setProjectOrderBy: (p: ProjectOrderBy) => void
   showActiveOnly: boolean
   setShowActiveOnly: (v: boolean) => void
+  /** Hierarchy sidebar's session-only "Active" view; unrelated to the retired showActiveOnly. */
+  sidebarActiveOnly: boolean
+  setSidebarActiveOnly: (v: boolean) => void
+  /** Rows the Active view lists, shown on its toggle; only updated while the view is on. */
+  sidebarActiveOnlyVisibleCount: number
+  setSidebarActiveOnlyVisibleCount: (count: number) => void
+  /** Collapse memory of the sidebar view (all/active) that is not currently shown. */
+  sidebarOtherViewCollapsedGroups: Set<string>
+  /** Groups the Active view always hides ("Always mark inactive"). */
+  activeViewHiddenProjectGroupIds: string[]
+  /** Takes a host-qualified key from getActiveViewGroupKey. */
+  toggleActiveViewHiddenProjectGroup: (groupKey: string) => void
   showSleepingWorkspaces: boolean
   setShowSleepingWorkspaces: (v: boolean) => void
   workspaceHostScope: WorkspaceHostScope
