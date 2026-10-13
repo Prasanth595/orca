@@ -21,7 +21,8 @@ import type { WorktreeJumpPaletteController } from './use-worktree-jump-palette-
 import {
   getPaletteSupportingTextLabel,
   HighlightedText,
-  PaletteHostBadgeChip
+  PaletteHostBadgeChip,
+  PaletteRowShortcutBadge
 } from './worktree-jump-palette-primitives'
 
 export function WorktreeJumpPaletteWorktreeRow({
@@ -157,6 +158,10 @@ export function WorktreeJumpPaletteWorktreeRow({
                 </span>
               </span>
             )}
+            <PaletteRowShortcutBadge
+              index={controller.recentTabShortcutIndexByItem.get(entry)}
+              modifierKeys={controller.digitShortcutModifiers}
+            />
           </div>
         </div>
       </div>

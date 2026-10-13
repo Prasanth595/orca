@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom'
 import { CommandItem } from '@/components/ui/command'
 import { cn } from '@/lib/utils'
 import { PaletteCreateWorktreeRow } from '@/components/cmd-j/PaletteCreateWorktreeRow'
-import type { PaletteListEntry } from './worktree-jump-palette-model'
+import type { PaletteItem, PaletteListEntry } from './worktree-jump-palette-model'
 import type { WorktreeJumpPaletteController } from './use-worktree-jump-palette-controller'
 import { WorktreeJumpPaletteWorktreeRow } from './worktree-jump-palette-worktree-row'
 import {
@@ -15,6 +15,8 @@ import {
   WorktreeJumpPaletteBrowserRow,
   WorktreeJumpPaletteSimulatorRow
 } from './worktree-jump-palette-browser-simulator-rows'
+import { PalettePinControl } from './cmd-j/PalettePinControl'
+import { isPinnablePaletteItem } from './cmd-j/use-palette-pins'
 import { translate } from '@/i18n/i18n'
 
 export function WorktreeJumpPaletteEntry({
@@ -77,6 +79,25 @@ export function WorktreeJumpPaletteEntry({
       />
     )
   }
+  return (
+    <div data-palette-row={entry.id} className="flex items-center gap-1">
+      <div className="min-w-0 flex-1">
+        <PaletteTargetRow entry={entry} renderKey={renderKey} controller={controller} />
+      </div>
+      {isPinnablePaletteItem(entry) && <PalettePinControl entry={entry} controller={controller} />}
+    </div>
+  )
+}
+
+function PaletteTargetRow({
+  entry,
+  renderKey,
+  controller
+}: {
+  entry: PaletteItem
+  renderKey: string
+  controller: WorktreeJumpPaletteController
+}): React.JSX.Element {
   if (entry.type === 'worktree') {
     return (
       <WorktreeJumpPaletteWorktreeRow entry={entry} renderKey={renderKey} controller={controller} />

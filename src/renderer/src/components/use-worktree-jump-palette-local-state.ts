@@ -45,7 +45,7 @@ export function useWorktreeJumpPaletteLocalState({
   const autoSelectedItemIdRef = useRef<string | null>(null)
   // Create is armed by an explicit keyboard/pointer move, except for task URLs.
   const selectionMovedByUserRef = useRef(false)
-  const digitShortcutItemsRef = useRef<readonly PaletteItem[]>([])
+  const digitShortcutItemsRef = useRef<readonly (PaletteItem | undefined)[]>([])
   const [filter, setFilter] = useState<PaletteFilterState>(() =>
     buildPaletteFilterFromSidebarScope(sidebarScope)
   )

@@ -422,7 +422,14 @@
     "taskUrl": {
       "loadingHint": "Loading {{value0}}…",
       "createHint": "Create worktree from {{value0}}"
-    }
+    },
+    "unpin": "Remove shortcut",
+    "pin": "Add shortcut",
+    "managePins": "Manage shortcuts",
+    "removePin": "Remove a shortcut",
+    "pinSaveFailed": "Could not save shortcuts",
+    "pinLimit": "Remove a shortcut to add another (5 maximum)",
+    "pinned": "Shortcuts"
   },
   "auto": {
     "App": {
