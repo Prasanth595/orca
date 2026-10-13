@@ -55,6 +55,8 @@ export type Repo = {
   displayName: string
   badgeColor: string
   repoIcon?: RepoIcon | null
+  /** Tints the project's whole sidebar section with its badge color. */
+  sidebarHighlight?: boolean
   /** Set when the repo is a fork: the upstream/parent owner/repo. Drives the
    *  fork indicator and the default avatar of same-name forks (renamed forks
    *  keep their own owner). Absent = not a fork, or fork status not yet
