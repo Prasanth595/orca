@@ -1,6 +1,6 @@
 import { getConnectionIdForFile } from '@/lib/connection-context'
-import { settingsForRuntimeOwner } from '@/runtime/runtime-rpc-client'
-import { getRuntimeGitFileBlame, getRuntimeGitLineBlame } from '@/runtime/runtime-git-client'
+import { getRuntimeTargetForFileOwner } from '@/lib/file-owner-runtime-target'
+import { getRuntimeGitFileBlame, getRuntimeGitLineBlame } from '@/runtime/runtime-git-blame-client'
 import { useAppStore } from '@/store'
 import type { GitLineBlameResult } from '../../../shared/git-line-blame-types'
 
@@ -42,7 +42,8 @@ export type BlameTarget = {
   /** Path relative to `worktreePath`, which is the repo git actually runs in. */
   relativePath: string
   worktreePath: string
-  runtimeEnvironmentId: string | null
+  /** The tab's owner stamp; `undefined` defers to the worktree's owner. */
+  runtimeEnvironmentId: string | null | undefined
   line: number
 }
 
@@ -80,9 +81,8 @@ export function blameKey(target: BlameTarget): string {
 
 // Why module scope: the status-bar segment and the inline annotation both track
 // the cursor, and both ship on by default. Per-component queues would spawn one
-// `git blame` per surface for the same line — two child processes, two IPC round
-// trips, twice over an SSH relay. One pump means the second consumer reads the
-// first one's answer.
+// `git blame` per surface for the same line — two child processes, two IPC or
+// remote round trips. One pump means the second consumer reads the first one's answer.
 type CachedBlame = { result: GitLineBlameResult; readAt: number }
 const settled = new Map<string, CachedBlame>()
 
@@ -167,18 +167,23 @@ function ensureFileBlame(target: BlameTarget, now: number): Promise<void> {
 
 async function loadFileBlame(target: BlameTarget): Promise<void> {
   const startedGeneration = generation
-  const byLine = await getRuntimeGitFileBlame(
-    {
-      settings: settingsForRuntimeOwner(
-        useAppStore.getState().settings,
-        target.runtimeEnvironmentId
-      ),
-      worktreeId: target.worktreeId,
-      worktreePath: target.worktreePath,
-      connectionId: getConnectionIdForFile(target.worktreeId, target.filePath) ?? undefined
-    },
-    { filePath: target.relativePath }
-  ).catch(() => null)
+  const runtimeTarget = getRuntimeTargetForFileOwner(
+    useAppStore.getState(),
+    target.worktreeId,
+    target.runtimeEnvironmentId
+  )
+  // Why no blame when ownership is unresolved: guessing a host could attribute lines from the wrong repo.
+  const byLine = runtimeTarget
+    ? await getRuntimeGitFileBlame(
+        {
+          target: runtimeTarget,
+          worktreeId: target.worktreeId,
+          worktreePath: target.worktreePath,
+          connectionId: getConnectionIdForFile(target.worktreeId, target.filePath) ?? undefined
+        },
+        { filePath: target.relativePath }
+      ).catch(() => null)
+    : null
   if (startedGeneration !== generation) {
     // The file or its contents changed while this read was in flight; its
     // authorship describes a revision the editor has already left.
@@ -256,16 +261,25 @@ function pump(): void {
   const startedGeneration = generation
   inFlightKey = key
   inFlightGeneration = startedGeneration
-  void getRuntimeGitLineBlame(
-    {
-      settings: settingsForRuntimeOwner(useAppStore.getState().settings, next.runtimeEnvironmentId),
-      worktreeId: next.worktreeId,
-      worktreePath: next.worktreePath,
-      // Why: folder workspaces resolve ownership per file, so asking the
-      // workspace would route a child repo's blame at the wrong host.
-      connectionId: getConnectionIdForFile(next.worktreeId, next.filePath) ?? undefined
-    },
-    { filePath: next.relativePath, line: next.line }
+  const runtimeTarget = getRuntimeTargetForFileOwner(
+    useAppStore.getState(),
+    next.worktreeId,
+    next.runtimeEnvironmentId
+  )
+  void (
+    runtimeTarget
+      ? getRuntimeGitLineBlame(
+          {
+            target: runtimeTarget,
+            worktreeId: next.worktreeId,
+            worktreePath: next.worktreePath,
+            // Why: folder workspaces resolve ownership per file, so asking the
+            // workspace would route a child repo's blame at the wrong host.
+            connectionId: getConnectionIdForFile(next.worktreeId, next.filePath) ?? undefined
+          },
+          { filePath: next.relativePath, line: next.line }
+        )
+      : Promise.resolve(null)
   )
     .then((result) => {
       if (startedGeneration !== generation) {

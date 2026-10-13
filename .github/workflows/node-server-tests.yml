@@ -16,6 +16,8 @@ on:
       - '.npmrc'
       - '.pnpmfile.cjs'
       - '.github/actions/install-node-dependencies/**'
+      - '.github/actions/restore-pnpm-verification/**'
+      - '.github/actions/prepare-headless-compiler/**'
       - '.github/actions/prepare-native-runtime/**'
       - '.github/actions/prepare-orcad-prebuilds/**'
       - '.github/workflows/node-server-tests.yml'
@@ -35,6 +37,8 @@ on:
       - '.npmrc'
       - '.pnpmfile.cjs'
       - '.github/actions/install-node-dependencies/**'
+      - '.github/actions/restore-pnpm-verification/**'
+      - '.github/actions/prepare-headless-compiler/**'
       - '.github/actions/prepare-native-runtime/**'
       - '.github/actions/prepare-orcad-prebuilds/**'
       - '.github/workflows/node-server-tests.yml'
@@ -74,15 +78,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      should_run: ${{ steps.scope.outputs.should_run }}
-      qualification: ${{ steps.scope.outputs.qualification }}
-      runners: ${{ steps.scope.outputs.runners }}
+      should_run: ${{ steps.scope.outputs.should_run || steps.graph.outputs.should_run }}
+      qualification: ${{ steps.scope.outputs.qualification || steps.graph.outputs.qualification }}
+      runners: ${{ steps.scope.outputs.runners || steps.graph.outputs.runners }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 2
           persist-credentials: false
-      - uses: ./.github/actions/install-node-dependencies
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
       - name: Detect headless-server build and test inputs
         id: scope
         shell: bash
@@ -93,18 +100,39 @@ jobs:
           if [ "$EVENT_NAME" = push ]; then
             # Compare the entire push, including multi-commit pushes and removed files.
             if git fetch --no-tags --depth=1 origin "$PUSH_BASE" &&
-               git diff --name-only --no-renames -z "$PUSH_BASE" HEAD > "$RUNNER_TEMP/node-server-changes"; then
-              node config/scripts/node-server-change-scope.mjs "$RUNNER_TEMP/node-server-changes" --full-qualification
+               git diff --name-only --no-renames -z "$PUSH_BASE" HEAD > "$RUNNER_TEMP/node-server-changes" &&
+               git diff --name-only --no-renames --diff-filter=M -z "$PUSH_BASE" HEAD > "$RUNNER_TEMP/node-server-modified"; then
+              node config/scripts/node-server-change-scope.mjs "$RUNNER_TEMP/node-server-changes" --defer-graph --full-qualification --modified-paths "$RUNNER_TEMP/node-server-modified"
             else
               echo 'should_run=true' >> "$GITHUB_OUTPUT"
             fi
             exit 0
           fi
           # Compare the tested merge with its base, retaining both sides of renames.
-          if git diff --name-only --no-renames -z HEAD^1 HEAD > "$RUNNER_TEMP/node-server-changes"; then
-            node config/scripts/node-server-change-scope.mjs "$RUNNER_TEMP/node-server-changes"
+          if git diff --name-only --no-renames -z HEAD^1 HEAD > "$RUNNER_TEMP/node-server-changes" &&
+             git diff --name-only --no-renames --diff-filter=M -z HEAD^1 HEAD > "$RUNNER_TEMP/node-server-modified"; then
+            node config/scripts/node-server-change-scope.mjs "$RUNNER_TEMP/node-server-changes" --defer-graph --modified-paths "$RUNNER_TEMP/node-server-modified"
           else
             echo 'should_run=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: ./.github/actions/prepare-headless-compiler
+        id: compiler
+        if: steps.scope.outputs.graph_required == 'true'
+        continue-on-error: true
+      - uses: ./.github/actions/install-node-dependencies
+        if: steps.scope.outputs.graph_required == 'true' && steps.compiler.outputs.available != 'true'
+      - name: Check the headless import graph
+        id: graph
+        if: steps.scope.outputs.graph_required == 'true'
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT_NAME" = push ]; then
+            node config/scripts/node-server-change-scope.mjs "$RUNNER_TEMP/node-server-changes" --full-qualification --modified-paths "$RUNNER_TEMP/node-server-modified"
+          else
+            node config/scripts/node-server-change-scope.mjs "$RUNNER_TEMP/node-server-changes" --modified-paths "$RUNNER_TEMP/node-server-modified"
           fi
 
   persistence:
@@ -121,7 +149,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(needs.changes.outputs.runners || '["ubuntu-22.04","ubuntu-24.04-arm","macos-14","macos-15-intel","windows-2022","windows-11-arm"]') }}
+        os: ${{ fromJSON(needs.changes.outputs.runners || '["ubuntu-22.04","ubuntu-24.04-arm","macos-15","macos-15-intel","windows-2022","windows-11-arm"]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     env:
@@ -134,6 +162,29 @@ jobs:
       - uses: ./.github/actions/install-node-dependencies
         with:
           native-runtime: ${{ runner.os == 'Windows' && 'node' || 'none' }}
+          cache-pnpm-store: ${{ runner.os != 'Windows' }}
+          cache-pnpm-store-lookup-only: 'true'
+      # Design D7 upgrade and rollback: the last Bun orcad, built from a main commit that shipped
+      # it, beside this checkout's Node slot; the live-terminal hand-over skips once PROTOCOL_VERSION
+      # moves past the Bun daemon's. Install its pinned dependencies independently of this checkout.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        if: runner.os == 'Linux'
+        with:
+          bun-version: 1.4.2
+      - name: Build the last Bun orcad for the cross-runtime tests
+        id: bun-orcad
+        background: true
+        shell: bash
+        env:
+          BUN_ORCAD_COMMIT: f4092c06d639ee13ad446261dcabc78b27a21fbc
+        run: |
+          if [ "$RUNNER_OS" != Linux ]; then exit 0; fi
+          git fetch --no-tags --depth=1 origin "$BUN_ORCAD_COMMIT"
+          git worktree add --detach "$RUNNER_TEMP/bun-orcad-source" "$BUN_ORCAD_COMMIT"
+          pnpm --dir "$RUNNER_TEMP/bun-orcad-source" install --frozen-lockfile --ignore-scripts
+          node "$RUNNER_TEMP/bun-orcad-source/config/scripts/build-orcad-bun.mjs" --out-dir "$RUNNER_TEMP/bun-orcad"
+          echo "slot=$RUNNER_TEMP/bun-orcad" >> "$GITHUB_OUTPUT"
+          echo "executable=$(command -v bun)" >> "$GITHUB_OUTPUT"
       # Linux release slots come from the floor and Alpine lanes; this slot serves local tests.
       - uses: ./.github/actions/prepare-orcad-prebuilds
         id: orcad-prebuild
@@ -143,35 +194,43 @@ jobs:
             (github.event_name == 'pull_request' ||
             (github.ref == 'refs/heads/main' && contains(fromJSON('["push","schedule","workflow_dispatch"]'), github.event_name))) }}
           restore-windows-cache: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
-      - run: pnpm build:orcad
-      # Design D7 upgrade and rollback: the last Bun orcad, built from a main commit that shipped
-      # it, beside this checkout's Node slot; the live-terminal hand-over skips once PROTOCOL_VERSION
-      # moves past the Bun daemon's. Same lockfile, so its build reuses this checkout's node_modules.
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        if: runner.os == 'Linux'
+      # The template lane cross-compiles arm64 too, as it does for the process-table addon.
+      - uses: ./.github/actions/prepare-windows-cli-launcher
+        if: runner.os == 'Windows'
         with:
-          bun-version: 1.4.2
-      - name: Build the last Bun orcad for the cross-runtime tests
-        if: runner.os == 'Linux'
-        shell: bash
-        env:
-          BUN_ORCAD_COMMIT: f4092c06d639ee13ad446261dcabc78b27a21fbc
-        run: |
-          git fetch --no-tags --depth=1 origin "$BUN_ORCAD_COMMIT"
-          git worktree add --detach "$RUNNER_TEMP/bun-orcad-source" "$BUN_ORCAD_COMMIT"
-          ln -s "$GITHUB_WORKSPACE/node_modules" "$RUNNER_TEMP/bun-orcad-source/node_modules"
-          node "$RUNNER_TEMP/bun-orcad-source/config/scripts/build-orcad-bun.mjs" --out-dir "$RUNNER_TEMP/bun-orcad"
-          echo "ORCA_BUN_ORCAD_SLOT=$RUNNER_TEMP/bun-orcad" >> "$GITHUB_ENV"
-          echo "BUN_EXECUTABLE=$(command -v bun)" >> "$GITHUB_ENV"
+          arches: ${{ (inputs.build_template && matrix.os == 'windows-2022') && 'x64 arm64' || (runner.arch == 'ARM64' && 'arm64' || 'x64') }}
+      - run: pnpm build:orcad
+      - wait: bun-orcad
       - run: pnpm test:node-server --artifact ${{ runner.os == 'Linux' && '--cross-runtime' || '' }}
-      # Only a Windows runner compiles it; arm64 cross-compiles here, as release-cut does for the relay.
+        env:
+          ORCA_BUN_ORCAD_SLOT: ${{ steps.bun-orcad.outputs.slot }}
+          BUN_EXECUTABLE: ${{ steps.bun-orcad.outputs.executable }}
+      - name: Build the host-target desktop server template
+        if: runner.os == 'Linux'
+        run: node config/scripts/build-orcad-template.mjs --targets linux-${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}-glibc
+      - name: Verify a structured chat from the desktop server template
+        if: runner.os == 'Linux'
+        run: pnpm test:node-server --artifact src/main/orcad/orcad-packaged-structured-chat.integration.test.ts --maxWorkers=2
+      # Only a Windows runner compiles it; arm64 cross-compiles here.
       # Before the Node 18 check below: the build script imports TypeScript, which Node 18 cannot load.
+      # orcad's instance lock and stop proof read a PID's creation time through it; the x64 binary this
+      # runner loads must answer it, and answer nothing for a missing PID rather than a stale time.
       - name: Build the Windows process-table addons for the desktop template
         if: inputs.build_template && matrix.os == 'windows-2022'
         shell: bash
         run: |
-          node config/scripts/build-windows-process-tree-relay-addon.mjs --arch=x64
-          node config/scripts/build-windows-process-tree-relay-addon.mjs --arch=arm64
+          node config/scripts/build-windows-process-tree-addon.mjs --arch=x64
+          node config/scripts/build-windows-process-tree-addon.mjs --arch=arm64
+          node -e "
+          const { assertWindowsProcessTreeCreationTime } = require('./config/scripts/windows-process-tree-creation-time.cjs')
+          const addon = require('./.build/windows-process-tree/x64/windows-process-tree.node')
+          assertWindowsProcessTreeCreationTime({ module: addon })
+          const own = addon.getProcessCreationTime(process.pid)
+          const started = Date.now() - process.uptime() * 1000
+          if (typeof own !== 'number' || Math.abs(own - started) > 5000) throw new Error('creation time ' + own + ' vs ' + started)
+          if (addon.getProcessCreationTime(0x7ffffff0) !== undefined) throw new Error('a missing PID must read undefined')
+          console.log('creation time ok:', own)
+          "
       - name: Keep the Windows process-table addons for the desktop template
         if: inputs.build_template && matrix.os == 'windows-2022'
         uses: actions/upload-artifact@v7
@@ -179,6 +238,32 @@ jobs:
           name: orcad-windows-process-tree
           path: .build/windows-process-tree/
           include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
+      - name: Keep the Windows CLI launchers for the desktop template
+        if: inputs.build_template && matrix.os == 'windows-2022'
+        uses: actions/upload-artifact@v7
+        with:
+          name: orcad-windows-cli-launcher
+          path: .build/windows-cli-launcher/
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
+      # orcad's data-root privacy check fails closed without it, so every Windows slot needs one.
+      - name: Build the Windows security addons for the desktop template
+        if: inputs.build_template && matrix.os == 'windows-2022'
+        shell: bash
+        run: |
+          node config/scripts/build-windows-security-addon.mjs --arch=x64
+          node config/scripts/build-windows-security-addon.mjs --arch=arm64
+          node -e "require('./.build/windows-security/x64/windows-security.node').currentUserSid()"
+      - name: Keep the Windows security addons for the desktop template
+        if: inputs.build_template && matrix.os == 'windows-2022'
+        uses: actions/upload-artifact@v7
+        with:
+          name: orcad-windows-security
+          path: .build/windows-security/*/windows-security.node
           if-no-files-found: error
           retention-days: 7
           overwrite: true
@@ -363,11 +448,19 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           persist-credentials: false
+      - uses: ./.github/actions/restore-pnpm-verification
+        id: pnpm-verification
+        with:
+          container-toolchain: 'true'
       - name: Verify native Alpine artifact and persistence
+        env:
+          VERIFICATION_CACHE_PATH: ${{ steps.pnpm-verification.outputs.path }}
         run: |
+          touch "$VERIFICATION_CACHE_PATH"
           # Multi-arch index digest of the tag; re-resolve it whenever NODE_RUNTIME_PIN moves.
           docker run --rm --init -i \
             -e ORCA_BACKGROUND_LAUNCH=1 \
+            -v "$VERIFICATION_CACHE_PATH:/root/.cache/pnpm/lockfile-verified.jsonl" \
             -v "$GITHUB_WORKSPACE:/work" -w /work \
             node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 sh -s <<'NODE_SERVER_QUALIFICATION'
           set -eu
@@ -416,6 +509,16 @@ jobs:
         with:
           name: orcad-windows-process-tree
           path: .build/windows-process-tree
+      - name: Collect the Windows CLI launchers
+        uses: actions/download-artifact@v8
+        with:
+          name: orcad-windows-cli-launcher
+          path: .build/windows-cli-launcher
+      - name: Collect the Windows security addons
+        uses: actions/download-artifact@v8
+        with:
+          name: orcad-windows-security
+          path: .build/windows-security
       - name: Merge the lanes and gate the full slot matrix
         shell: bash
         run: |

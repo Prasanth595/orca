@@ -3,6 +3,8 @@ import type { MarkdownViewMode, OpenFile, PendingEditorReveal } from '@/store/sl
 import type { GitDiffResult } from '../../../../shared/git-diff-compare-types'
 import type { GitStatusEntry } from '../../../../shared/git-status-types'
 import { CheckRunDetailsPanel } from './CheckRunDetailsPanel'
+import { NativeChatVisualTab } from '../native-chat/NativeChatVisualTab'
+import { NativeChatVisualUnavailable } from '../native-chat/NativeChatInlineVisual'
 import { CombinedDiffViewer, MarkdownPreview } from './editor-lazy-views'
 import { EditorConflictReviewSurface } from './EditorConflictReviewSurface'
 import { EditorDiffFileSurface } from './EditorDiffFileSurface'
@@ -152,6 +154,15 @@ export function EditorContent({
     )
   }
 
+  if (activeFile.mode === 'chat-visual') {
+    // Why key: a different visual is a different frame, never a reused one.
+    return activeFile.chatVisual ? (
+      <NativeChatVisualTab key={activeFile.id} visual={activeFile.chatVisual} />
+    ) : (
+      <NativeChatVisualUnavailable />
+    )
+  }
+
   if (activeFile.mode === 'conflict-review') {
     return (
       <EditorConflictReviewSurface
@@ -212,9 +223,9 @@ export function EditorContent({
     const previewContent = editBuffers[previewSourceFileId] ?? fileContent.content
     return (
       <div className="min-h-0 flex-1">
-        <MarkdownPreviewSizeGate previewTabId={activeFile.id} content={previewContent}>
+        <MarkdownPreviewSizeGate content={previewContent}>
           <MarkdownPreview
-            key={viewStateScopeId}
+            key={`${viewStateScopeId}:${markdownPreviewViewStateKey}`}
             content={previewContent}
             filePath={activeFile.filePath}
             sourceFileId={previewSourceFileId}

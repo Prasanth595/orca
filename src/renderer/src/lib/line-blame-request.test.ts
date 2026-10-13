@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   getRuntimeGitFileBlame: vi.fn()
 }))
 
-vi.mock('@/runtime/runtime-git-client', () => ({
+vi.mock('@/runtime/runtime-git-blame-client', () => ({
   getRuntimeGitLineBlame: mocks.getRuntimeGitLineBlame,
   getRuntimeGitFileBlame: mocks.getRuntimeGitFileBlame
 }))

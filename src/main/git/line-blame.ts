@@ -37,8 +37,6 @@ const MAX_FILE_BLAME_BYTES = 2 * 1024 * 1024
 // per-line request for that file, so it is worth waiting a little longer for.
 export const FILE_BLAME_TIMEOUT_MS = 15_000
 
-/** Why shared: the local runner and the SSH relay sender must send the exact
- *  argv the relay allowlist permits, so it is spelled once. */
 export function buildFileBlameArgs(repoRelativeFilePath: string): string[] {
   return ['blame', '--porcelain', '--', repoRelativeFilePath]
 }
@@ -111,8 +109,7 @@ export function parseBlamePorcelain(stdout: string): GitLineBlameResult | null {
   if (!text) {
     return null
   }
-  // Split on CRLF too so a Windows/relay-normalized stream doesn't leave a stray
-  // '\r' on author/summary values.
+  // Split on CRLF too so Windows output doesn't leave a stray '\r' on author/summary values.
   const lines = text.split(/\r?\n/)
   const sha = lines[0]?.split(' ')[0] ?? ''
   if (!LINE_BLAME_SHA.test(sha)) {

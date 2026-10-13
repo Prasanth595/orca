@@ -17,7 +17,7 @@ const blameMocks = vi.hoisted(() => ({
 }))
 const i18nMocks = vi.hoisted(() => ({ locale: 'en-US' }))
 
-vi.mock('@/runtime/runtime-git-client', () => ({
+vi.mock('@/runtime/runtime-git-blame-client', () => ({
   getRuntimeGitLineBlame: blameMocks.getRuntimeGitLineBlame,
   getRuntimeGitFileBlame: blameMocks.getRuntimeGitFileBlame
 }))

@@ -41,7 +41,7 @@ export function useLineBlame(enabled: boolean): {
   const worktreeId = activeFile?.worktreeId
   const filePath = activeFile?.filePath
   const workspaceRelativePath = activeFile?.relativePath
-  const runtimeEnvironmentId = activeFile?.runtimeEnvironmentId ?? null
+  const runtimeEnvironmentId = activeFile?.runtimeEnvironmentId
   // Why: while the buffer has unsaved edits its line numbers drift from the
   // on-disk file git blames, so blaming the cursor line would name the wrong
   // commit — hide until the file is saved.
