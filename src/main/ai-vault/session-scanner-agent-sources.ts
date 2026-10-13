@@ -5,6 +5,7 @@ import { resolveAbsoluteDirOverride } from '../../shared/absolute-dir-override'
 import type { AiVaultAgent } from '../../shared/ai-vault-types'
 import type { AiVaultDeletableAgent } from '../../shared/ai-vault-session-deletion'
 import { resolveGrokSessionsDir } from '../../shared/grok-session-paths'
+import { resolveHermesHomeDir } from '../../shared/hermes-home'
 import { resolveKiroHomeDir } from '../../shared/kiro-home'
 import { uniqueCodexSessionsDirs } from './session-scanner-codex-paths'
 import {
@@ -26,6 +27,7 @@ import {
   codexHomeSessionsDir,
   ompSessionsRootDirs,
   sessionRootDirs,
+  uniqueDirs,
   wslHomeSessionDirs
 } from './session-scanner-roots'
 import { SUBAGENT_DIR_NAME } from './session-scanner-subagent-transcripts'
@@ -40,7 +42,9 @@ const COPILOT_SESSIONS_DIR = join(
 )
 const CURSOR_PROJECTS_DIR = join(homedir(), '.cursor', 'projects')
 const CODEBUDDY_PROJECTS_DIR = join(homedir(), '.codebuddy', 'projects')
-const HERMES_SESSIONS_DIR = join(homedir(), '.hermes', 'sessions')
+// Why: Hermes's Windows home is `%LOCALAPPDATA%\hermes`, so the POSIX dotfolder
+// default scans a directory Hermes never writes to.
+const HERMES_SESSIONS_DIR = join(resolveHermesHomeDir(), 'sessions')
 const ROVO_SESSIONS_DIR = join(homedir(), '.rovodev', 'sessions')
 const PI_SESSIONS_DIR = normalizeAgentSessionsDir(
   process.env.PI_CODING_AGENT_DIR?.trim() || join(homedir(), '.pi', 'agent', 'sessions'),
@@ -204,10 +208,16 @@ export const AI_VAULT_AGENT_SOURCES: AiVaultAgentSourceTable = {
   },
   hermes: {
     rootDirs: (options, wslHomeDirs) =>
-      sessionRootDirs(options.hermesSessionsDir ?? HERMES_SESSIONS_DIR, wslHomeDirs, [
-        '.hermes',
-        'sessions'
+      uniqueDirs([
+        ...sessionRootDirs(options.hermesSessionsDir ?? HERMES_SESSIONS_DIR, wslHomeDirs, [
+          '.hermes',
+          'sessions'
+        ]),
+        // The dotfolder stays listed on Windows too: snapshots written there
+        // before the home was resolved correctly are still history.
+        ...(options.hermesSessionsDir ? [] : [join(homedir(), '.hermes', 'sessions')])
       ]),
+    mergeRootDiscoveries: true,
     extensions: ['.json'],
     filePredicate: (filePath) => basename(filePath).startsWith('session_')
   },
