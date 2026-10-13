@@ -1,3 +1,4 @@
+import { feishuBitableRecordKey } from './feishu-bitable-types'
 import { parseJiraIssueUrl, JIRA_ISSUE_KEY_PATTERN } from './jira-issue-url'
 import { parseLinearIssueInput, parseLinearIssueUrlIntent } from './linear/links'
 import { getTaskSourceCacheScope } from './task-source-context'
@@ -162,7 +163,9 @@ function parseReferenceRoute(
 }
 
 export function getWorkspaceReferenceIdentifier(item: WorkspaceAttachment): string | undefined {
-  return item.identifier ?? item.linearIdentifier ?? item.jiraIdentifier
+  return (
+    item.identifier ?? item.linearIdentifier ?? item.jiraIdentifier ?? item.feishuRecord?.recordId
+  )
 }
 
 function externalUrl(item: WorkspaceAttachment): string | undefined {
@@ -189,6 +192,10 @@ function externalUrl(item: WorkspaceAttachment): string | undefined {
         ? `${identity.siteUrl.replace(/\/+$/, '')}/browse/${identifier}`
         : undefined
     case 'linear':
+      return undefined
+    case 'feishu-bitable':
+      // Bitable URLs are not parseable by the provider route matchers, so a
+      // Feishu record keeps its opaque legacy identity instead.
       return undefined
   }
 }
@@ -222,6 +229,13 @@ export function getProvenWorkspaceReferenceIdentity(item: WorkspaceAttachment): 
 }
 
 export function getWorkspaceReferenceIdentity(item: WorkspaceAttachment): string {
+  if (item.provider === 'feishu-bitable' && item.feishuRecord) {
+    return JSON.stringify([
+      'feishu-bitable',
+      feishuBitableRecordKey(item.feishuRecord),
+      item.taskSourceContext ? getTaskSourceCacheScope(item.taskSourceContext) : ''
+    ])
+  }
   return (
     getProvenWorkspaceReferenceIdentity(item) ??
     JSON.stringify([

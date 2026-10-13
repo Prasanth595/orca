@@ -14,6 +14,7 @@ import {
   getTaskSourceCacheScope
 } from '../../../shared/task-source-context'
 import { useTaskPageSourceSummary } from './use-task-page-source-summary'
+import { useAppStore } from '@/store'
 export type TaskPageSourceAvailabilityPreludeModel = ReturnType<
   typeof useTaskPageSourceAvailabilityPrelude
 >
@@ -141,14 +142,43 @@ export function useTaskPageSourceAvailabilityPrelude(model: TaskPageRuntimeHosts
   const jiraTaskSourceScopeKey = jiraTaskSourceContext
     ? getTaskSourceCacheScope(jiraTaskSourceContext)
     : providerRuntimeContextKey
+  const feishuBitableStatus = useAppStore((s) => s.feishuBitableStatus)
+  const feishuBitableConnection = useMemo(
+    () =>
+      feishuBitableStatus.connections.find(
+        (entry) => entry.id === feishuBitableStatus.activeConnectionId
+      ) ??
+      feishuBitableStatus.connections[0] ??
+      null,
+    [feishuBitableStatus]
+  )
+  const feishuBitableTaskSourceContext = useMemo(
+    () =>
+      normalizeTaskSourceContext({
+        provider: 'feishu-bitable',
+        projectId: fallbackTaskSourceProjectId,
+        hostId: accountBackedTaskSourceHostId,
+        providerIdentity: feishuBitableConnection
+          ? {
+              provider: 'feishu-bitable',
+              connectionId: feishuBitableConnection.id,
+              appToken: feishuBitableConnection.appToken,
+              tableId: feishuBitableConnection.tableId
+            }
+          : null,
+        accountLabel: feishuBitableConnection?.label ?? null
+      }),
+    [accountBackedTaskSourceHostId, fallbackTaskSourceProjectId, feishuBitableConnection]
+  )
   const accountBackedTaskSourceHostAvailability = useMemo<TaskSourceHostAvailability[]>(() => {
-    if (taskSource !== 'linear' && taskSource !== 'jira') {
+    if (taskSource !== 'linear' && taskSource !== 'jira' && taskSource !== 'feishu-bitable') {
       return []
     }
     const host = hostRegistryById.get(accountBackedTaskSourceHostId)
     const availability = getTaskSourceHostAvailabilityForHost(host, accountBackedTaskSourceHostId)
     return availability ? [availability] : []
   }, [accountBackedTaskSourceHostId, hostRegistryById, taskSource])
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: staged TaskPage hook-chain extension; every listed member is assigned from this hook before the model reaches the next stage.
   const nextModel = model as typeof model & {
     getTaskPickerRepoHostLabel: typeof getTaskPickerRepoHostLabel
     taskSourceHostAvailability: typeof taskSourceHostAvailability
@@ -158,6 +188,7 @@ export function useTaskPageSourceAvailabilityPrelude(model: TaskPageRuntimeHosts
     linearListInvalidationVersionForSource: typeof linearListInvalidationVersionForSource
     jiraTaskSourceContext: typeof jiraTaskSourceContext
     jiraTaskSourceScopeKey: typeof jiraTaskSourceScopeKey
+    feishuBitableTaskSourceContext: typeof feishuBitableTaskSourceContext
     accountBackedTaskSourceHostAvailability: typeof accountBackedTaskSourceHostAvailability
   }
   nextModel.getTaskPickerRepoHostLabel = getTaskPickerRepoHostLabel
@@ -168,6 +199,7 @@ export function useTaskPageSourceAvailabilityPrelude(model: TaskPageRuntimeHosts
   nextModel.linearListInvalidationVersionForSource = linearListInvalidationVersionForSource
   nextModel.jiraTaskSourceContext = jiraTaskSourceContext
   nextModel.jiraTaskSourceScopeKey = jiraTaskSourceScopeKey
+  nextModel.feishuBitableTaskSourceContext = feishuBitableTaskSourceContext
   nextModel.accountBackedTaskSourceHostAvailability = accountBackedTaskSourceHostAvailability
   return nextModel
 }

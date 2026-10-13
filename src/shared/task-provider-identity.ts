@@ -29,11 +29,19 @@ export type JiraTaskProviderIdentity = {
   projectKey?: string | null
 }
 
+export type FeishuBitableTaskProviderIdentity = {
+  provider: 'feishu-bitable'
+  connectionId?: string | null
+  appToken?: string | null
+  tableId?: string | null
+}
+
 export type TaskProviderIdentity =
   | GitHubTaskProviderIdentity
   | GitLabTaskProviderIdentity
   | LinearTaskProviderIdentity
   | JiraTaskProviderIdentity
+  | FeishuBitableTaskProviderIdentity
 
 export function normalizeTaskProviderIdentity(
   provider: TaskProvider,
@@ -79,6 +87,13 @@ export function normalizeTaskProviderIdentity(
         siteUrl: normalizeNonEmptyString(raw.siteUrl),
         projectKey: normalizeNonEmptyString(raw.projectKey)
       }
+    case 'feishu-bitable':
+      return {
+        provider,
+        connectionId: normalizeNonEmptyString(raw.connectionId),
+        appToken: normalizeNonEmptyString(raw.appToken),
+        tableId: normalizeNonEmptyString(raw.tableId)
+      }
   }
 }
 
@@ -112,6 +127,10 @@ export function isStoredTaskProviderIdentity(provider: TaskProvider, identity: u
       )
     case 'jira':
       return ['siteId', 'siteUrl', 'projectKey'].every((key) => isNullableOptionalString(raw[key]))
+    case 'feishu-bitable':
+      return ['connectionId', 'appToken', 'tableId'].every((key) =>
+        isNullableOptionalString(raw[key])
+      )
   }
 }
 
@@ -119,7 +138,8 @@ const TASK_PROVIDER_IDENTITY_FIELDS: Record<TaskProvider, readonly string[]> = {
   github: ['owner', 'repo', 'host'],
   gitlab: ['projectId', 'namespace', 'project', 'webUrl'],
   linear: ['workspaceId', 'workspaceName', 'teamId', 'teamKey'],
-  jira: ['siteId', 'siteUrl', 'projectKey']
+  jira: ['siteId', 'siteUrl', 'projectKey'],
+  'feishu-bitable': ['connectionId', 'appToken', 'tableId']
 }
 
 export function areTaskProviderIdentitiesEqual(
@@ -157,6 +177,8 @@ export function taskProviderIdentityCachePart(
       return [identity.workspaceId, identity.teamId ?? identity.teamKey].filter(Boolean).join('/')
     case 'jira':
       return [identity.siteId ?? identity.siteUrl, identity.projectKey].filter(Boolean).join('/')
+    case 'feishu-bitable':
+      return [identity.connectionId, identity.appToken, identity.tableId].filter(Boolean).join('/')
   }
 }
 

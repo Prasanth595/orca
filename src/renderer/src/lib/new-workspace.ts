@@ -1,3 +1,4 @@
+import type { FeishuBitableTaskSnapshot } from '../../../shared/feishu-bitable-task-contract'
 import { useAppStore } from '@/store'
 import { pasteDraftToAgentPtyWhenReady } from '@/lib/agent-paste-draft'
 import { sendFollowupPromptWhenAgentReady } from '@/lib/agent-followup-delivery'
@@ -34,6 +35,7 @@ export type LinkedWorkItemSummary = Omit<FolderWorkspaceLinkedTask, 'provider'> 
   linearWorkspaceId?: string
   linearOrganizationUrlKey?: string
   linearBranchName?: string
+  feishuTask?: FeishuBitableTaskSnapshot
   linkedContext?: LinkedWorkItemContext
 }
 

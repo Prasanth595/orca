@@ -111,3 +111,46 @@ describe('workspace linked-item source context', () => {
     ).toBe(true)
   })
 })
+
+describe('Feishu linked-item source context', () => {
+  const record = {
+    connectionId: 'connection',
+    appToken: 'app',
+    tableId: 'table',
+    recordId: 'record'
+  }
+  const item: WorkspaceLinkedItem = {
+    provider: 'feishu-bitable',
+    type: 'issue',
+    number: 0,
+    title: 'Task',
+    url: 'https://example.com/record',
+    feishuRecord: record
+  }
+  const context: TaskSourceContext = {
+    kind: 'task-source',
+    provider: 'feishu-bitable',
+    projectId: 'project',
+    hostId: 'local',
+    providerIdentity: {
+      provider: 'feishu-bitable',
+      connectionId: 'connection',
+      appToken: 'app',
+      tableId: 'table'
+    }
+  }
+  it('requires the connection, app and table to agree', () => {
+    expect(isWorkspaceLinkedItemSourceContextMatch(item, context)).toBe(true)
+    for (const field of ['connectionId', 'appToken', 'tableId'] as const) {
+      expect(
+        isWorkspaceLinkedItemSourceContextMatch(
+          { ...item, feishuRecord: { ...record, [field]: 'other' } },
+          context
+        )
+      ).toBe(false)
+    }
+    expect(
+      isWorkspaceLinkedItemSourceContextMatch({ ...item, feishuRecord: undefined }, context)
+    ).toBe(false)
+  })
+})

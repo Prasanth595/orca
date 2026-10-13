@@ -25,6 +25,7 @@ export function useTaskPageSourceSummary(model: TaskPageSourceAvailabilityPrelud
     selectedRepos,
     selectedLinearWorkspace,
     selectedJiraSite,
+    feishuBitableTaskSourceContext,
     sourceOptions,
     taskSource,
     runtimePreflightStatusByHostId,
@@ -96,6 +97,13 @@ export function useTaskPageSourceSummary(model: TaskPageSourceAvailabilityPrelud
           hostLabelById,
           hostAvailability: accountAvailability
         }) ?? undefined,
+      'feishu-bitable':
+        getTaskSourceAvailabilityNotice({
+          providerLabel: labelFor('feishu-bitable'),
+          sourceCount: 1,
+          hostLabelById,
+          hostAvailability: accountAvailability
+        }) ?? undefined,
       jira:
         getTaskSourceAvailabilityNotice({
           providerLabel: labelFor('jira'),
@@ -124,7 +132,7 @@ export function useTaskPageSourceSummary(model: TaskPageSourceAvailabilityPrelud
       providerLabel,
       repoContexts: taskSourceRepoContexts,
       hostAvailability:
-        taskSource === 'linear' || taskSource === 'jira'
+        taskSource === 'linear' || taskSource === 'jira' || taskSource === 'feishu-bitable'
           ? accountBackedTaskSourceHostAvailability
           : taskSourceHostAvailability,
       accountHostId: accountBackedTaskSourceHostId,
@@ -132,10 +140,12 @@ export function useTaskPageSourceSummary(model: TaskPageSourceAvailabilityPrelud
       selectedRepoCount: selectedRepos.length,
       linearWorkspaceName:
         selectedLinearWorkspace?.organizationName ?? selectedLinearWorkspace?.id ?? null,
+      feishuConnectionName: feishuBitableTaskSourceContext?.accountLabel,
       jiraSiteName: selectedJiraSite?.displayName ?? selectedJiraSite?.siteUrl ?? null
     })
   }, [
     selectedJiraSite,
+    feishuBitableTaskSourceContext,
     selectedLinearWorkspace,
     selectedRepos.length,
     sourceOptions,
@@ -152,11 +162,11 @@ export function useTaskPageSourceSummary(model: TaskPageSourceAvailabilityPrelud
     return getTaskSourceAvailabilityNotice({
       providerLabel,
       sourceCount:
-        taskSource === 'linear' || taskSource === 'jira'
+        taskSource === 'linear' || taskSource === 'jira' || taskSource === 'feishu-bitable'
           ? 1
           : Math.max(1, taskSourceRepoContexts.length),
       hostAvailability:
-        taskSource === 'linear' || taskSource === 'jira'
+        taskSource === 'linear' || taskSource === 'jira' || taskSource === 'feishu-bitable'
           ? accountBackedTaskSourceHostAvailability
           : taskSourceHostAvailability,
       hostLabelById

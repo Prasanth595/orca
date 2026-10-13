@@ -11,6 +11,9 @@ export function useIntegrationProviderStatusRefresh(): void {
   const linearStatusContextKey = useAppStore((s) => s.linearStatusContextKey)
   const jiraStatusChecked = useAppStore((s) => s.jiraStatusChecked)
   const jiraStatusContextKey = useAppStore((s) => s.jiraStatusContextKey)
+  const feishuStatusChecked = useAppStore((s) => s.feishuBitableStatusChecked)
+  const feishuStatusContextKey = useAppStore((s) => s.feishuBitableStatusContextKey)
+  const checkFeishuConnection = useAppStore((s) => s.checkFeishuBitableConnection)
   const checkLinearConnection = useAppStore((s) => s.checkLinearConnection)
   const checkJiraConnection = useAppStore((s) => s.checkJiraConnection)
   const refreshPreflightStatus = useAppStore((s) => s.refreshPreflightStatus)
@@ -23,6 +26,9 @@ export function useIntegrationProviderStatusRefresh(): void {
   const jiraStatusCurrent = jiraStatusContextKey === providerRuntimeContextKey
 
   useEffect(() => {
+    if (feishuStatusContextKey !== providerRuntimeContextKey || !feishuStatusChecked) {
+      void checkFeishuConnection()
+    }
     if (!linearStatusCurrent || !linearStatusChecked) {
       void checkLinearConnection()
     }
@@ -33,6 +39,9 @@ export function useIntegrationProviderStatusRefresh(): void {
       void refreshPreflightStatus()
     }
   }, [
+    feishuStatusChecked,
+    feishuStatusContextKey,
+    checkFeishuConnection,
     checkJiraConnection,
     checkLinearConnection,
     jiraStatusChecked,

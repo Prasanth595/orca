@@ -8,6 +8,7 @@ import type { EphemeralVmCheckoutMode } from '../orca-yaml-hook-types'
 import type { BuiltInWorktreeVisibilitySourceId } from '../repo-types'
 import type { WorktreeIdentity } from './identity'
 import type { WorktreeScanFailureKind } from '../worktree-scan-failure'
+import type { FeishuBitableRecordReference } from '../feishu-bitable-task-contract'
 
 export type WorkspaceAttachmentOrigin = {
   kind: 'observed'
@@ -20,7 +21,15 @@ export type WorkspaceAttachmentOrigin = {
 }
 
 export type WorkspaceAttachment = {
-  provider: 'github' | 'gitlab' | 'linear' | 'jira' | 'bitbucket' | 'azure-devops' | 'gitea'
+  provider:
+    | 'github'
+    | 'gitlab'
+    | 'linear'
+    | 'jira'
+    | 'bitbucket'
+    | 'azure-devops'
+    | 'gitea'
+    | 'feishu-bitable'
   type: 'issue' | 'pr' | 'mr'
   number: number
   identifier?: string
@@ -29,6 +38,9 @@ export type WorkspaceAttachment = {
   repoId?: string
   linearIdentifier?: string
   jiraIdentifier?: string
+  // Stable record identity for provider 'feishu-bitable' — the complete
+  // connection/app/table/record tuple, never a title or numeric placeholder.
+  feishuRecord?: FeishuBitableRecordReference
   linearWorkspaceId?: string
   linearOrganizationUrlKey?: string
   taskSourceContext?: TaskSourceContext
@@ -36,13 +48,15 @@ export type WorkspaceAttachment = {
 }
 
 export type WorkspaceLinkedItem = {
-  provider: 'github' | 'gitlab' | 'linear' | 'jira'
+  provider: 'github' | 'gitlab' | 'linear' | 'jira' | 'feishu-bitable'
   type: 'issue' | 'pr' | 'mr'
   number: number
   title: string
   url: string
   linearIdentifier?: string
   jiraIdentifier?: string
+  // Stable record identity for provider 'feishu-bitable'.
+  feishuRecord?: FeishuBitableRecordReference
   repoId?: string
 }
 

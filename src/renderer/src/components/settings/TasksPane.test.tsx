@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   refreshPreflightStatus: vi.fn(),
   checkLinearConnection: vi.fn(),
   checkJiraConnection: vi.fn(),
+  checkFeishuBitableConnection: vi.fn(),
   linearSetupProps: [] as {
     connected: boolean
     checking: boolean
@@ -30,6 +31,10 @@ vi.mock('./use-task-source-provider-readiness', () => ({
 
 vi.mock('./use-integration-provider-status-refresh', () => ({
   useIntegrationProviderStatusRefresh: vi.fn()
+}))
+
+vi.mock('./FeishuBitableSetupSteps', () => ({
+  FeishuBitableSetupSteps: () => <div data-testid="feishu-bitable-setup">Feishu Bitable setup</div>
 }))
 
 vi.mock('./TaskSourceLinearSetup', () => ({
@@ -76,6 +81,7 @@ vi.mock('@/store', () => ({
       refreshPreflightStatus: () => void
       checkLinearConnection: () => void
       checkJiraConnection: () => void
+      checkFeishuBitableConnection: () => void
       settingsSearchQuery: string
     }) => unknown
   ) =>
@@ -85,6 +91,7 @@ vi.mock('@/store', () => ({
       refreshPreflightStatus: mocks.refreshPreflightStatus,
       checkLinearConnection: mocks.checkLinearConnection,
       checkJiraConnection: mocks.checkJiraConnection,
+      checkFeishuBitableConnection: mocks.checkFeishuBitableConnection,
       settingsSearchQuery: ''
     })
 }))
@@ -137,7 +144,8 @@ describe('TasksPane', () => {
         skillChecking: false,
         visible: true
       },
-      jira: { connected: false, checking: false, visible: false }
+      jira: { connected: false, checking: false, visible: false },
+      'feishu-bitable': { connected: false, checking: false, visible: false }
     }
   })
 

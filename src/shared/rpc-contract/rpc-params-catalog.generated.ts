@@ -180,6 +180,15 @@ import {
   TypeParams
 } from './emulator-params'
 import {
+  Connect,
+  ConnectionSelection,
+  GetRecord,
+  ListFields,
+  ListRecords,
+  SelectConnection,
+  UpdateFieldMapping
+} from './feishu-bitable-params'
+import {
   FileCommitUpload,
   FileCopy,
   FileDelete,
@@ -315,7 +324,7 @@ import {
 } from './hosted-review-params'
 import {
   AssignableUsers,
-  Connect,
+  Connect as ConnectOfJiraParams,
   CreateIssue as CreateIssueOfJiraParams,
   IssueComment as IssueCommentOfJiraParams,
   IssueKey,
@@ -824,6 +833,15 @@ export const RPC_PARAMS_BY_METHOD = {
   'emulator.tap': TapParams,
   'emulator.type': TypeParams,
   'emulator.unregisterActive': EmulatorUnregisterActiveParams,
+  'feishuBitable.connect': Connect,
+  'feishuBitable.disconnect': ConnectionSelection,
+  'feishuBitable.getRecord': GetRecord,
+  'feishuBitable.listFields': ListFields,
+  'feishuBitable.listRecords': ListRecords,
+  'feishuBitable.readStatus': null,
+  'feishuBitable.selectConnection': SelectConnection,
+  'feishuBitable.status': null,
+  'feishuBitable.updateFieldMapping': UpdateFieldMapping,
   'files.browseServerDir': ServerDirectoryBrowse,
   'files.commitUpload': FileCommitUpload,
   'files.copy': FileCopy,
@@ -978,7 +996,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'hostedReview.forBranch': HostedReviewForBranch,
   'hostedReview.getCreationEligibility': HostedReviewCreationEligibility,
   'jira.addIssueComment': IssueCommentOfJiraParams,
-  'jira.connect': Connect,
+  'jira.connect': ConnectOfJiraParams,
   'jira.createIssue': CreateIssueOfJiraParams,
   'jira.disconnect': SiteSelection,
   'jira.getIssue': IssueKey,

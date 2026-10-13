@@ -201,6 +201,7 @@ function normalizeTaskProvider(value: unknown): TaskProvider | null {
     case 'gitlab':
     case 'linear':
     case 'jira':
+    case 'feishu-bitable':
       return value
     default:
       return null

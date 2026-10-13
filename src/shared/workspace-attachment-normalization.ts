@@ -4,6 +4,10 @@ import {
 } from './workspace-attachment-origins'
 import type { WorkspaceAttachment, WorkspaceLinkedItem } from './worktree/types'
 import { getTaskSourceCacheScope, normalizeStoredTaskSourceContext } from './task-source-context'
+import {
+  feishuBitableRecordKey,
+  normalizeFeishuBitableRecordReference
+} from './feishu-bitable-types'
 import { normalizeWorkspaceLinkedItem } from './workspace-linked-item'
 import { getProvenWorkspaceReferenceIdentity } from './workspace-reference-identity'
 import { isWorkspaceLinkedItemSourceContextMatch } from './workspace-linked-item-source-context'
@@ -25,7 +29,8 @@ export function normalizeWorkspaceAttachment(value: unknown): WorkspaceAttachmen
     provider !== 'jira' &&
     provider !== 'bitbucket' &&
     provider !== 'azure-devops' &&
-    provider !== 'gitea'
+    provider !== 'gitea' &&
+    provider !== 'feishu-bitable'
   ) {
     return null
   }
@@ -33,7 +38,10 @@ export function normalizeWorkspaceAttachment(value: unknown): WorkspaceAttachmen
   if (type !== 'issue' && type !== 'pr' && type !== 'mr') {
     return null
   }
-  if ((provider === 'linear' || provider === 'jira') && type !== 'issue') {
+  if (
+    (provider === 'linear' || provider === 'jira' || provider === 'feishu-bitable') &&
+    type !== 'issue'
+  ) {
     return null
   }
   if (type === 'mr' && provider !== 'gitlab') {
@@ -42,10 +50,22 @@ export function normalizeWorkspaceAttachment(value: unknown): WorkspaceAttachmen
   if (typeof raw.number !== 'number' || !Number.isSafeInteger(raw.number) || raw.number < 0) {
     return null
   }
+  // Why: identity for Feishu records is the record tuple, not the legacy
+  // number; a missing/invalid tuple invalidates the attachment.
+  const feishuRecord =
+    provider === 'feishu-bitable' ? normalizeFeishuBitableRecordReference(raw.feishuRecord) : null
+  if (provider === 'feishu-bitable' && !feishuRecord) {
+    return null
+  }
   const identifier =
     nonEmpty(raw.identifier) ?? nonEmpty(raw.linearIdentifier) ?? nonEmpty(raw.jiraIdentifier)
-  if (raw.number === 0 && (!identifier || (provider !== 'linear' && provider !== 'jira'))) {
-    return null
+  // Why: number 0 is a display placeholder for providers whose identity lives
+  // elsewhere — Linear/Jira key on identifier, Feishu on the record tuple
+  // validated above. Every other provider needs a real number.
+  if (raw.number === 0 && provider !== 'feishu-bitable') {
+    if (!identifier || (provider !== 'linear' && provider !== 'jira')) {
+      return null
+    }
   }
   if (raw.url !== undefined) {
     try {
@@ -70,6 +90,7 @@ export function normalizeWorkspaceAttachment(value: unknown): WorkspaceAttachmen
     ...(nonEmpty(raw.repoId) ? { repoId: nonEmpty(raw.repoId) } : {}),
     ...(nonEmpty(raw.linearIdentifier) ? { linearIdentifier: nonEmpty(raw.linearIdentifier) } : {}),
     ...(nonEmpty(raw.jiraIdentifier) ? { jiraIdentifier: nonEmpty(raw.jiraIdentifier) } : {}),
+    ...(feishuRecord ? { feishuRecord } : {}),
     ...(nonEmpty(raw.linearWorkspaceId)
       ? { linearWorkspaceId: nonEmpty(raw.linearWorkspaceId) }
       : {}),
@@ -98,9 +119,13 @@ function attachmentIdentity(item: WorkspaceAttachment): string {
   return JSON.stringify([
     item.provider,
     item.type,
-    item.provider === 'linear' || item.provider === 'jira'
-      ? (item.identifier ?? item.linearIdentifier ?? item.jiraIdentifier ?? item.number)
-      : item.number
+    item.provider === 'feishu-bitable'
+      ? item.feishuRecord
+        ? feishuBitableRecordKey(item.feishuRecord)
+        : item.number
+      : item.provider === 'linear' || item.provider === 'jira'
+        ? (item.identifier ?? item.linearIdentifier ?? item.jiraIdentifier ?? item.number)
+        : item.number
   ])
 }
 

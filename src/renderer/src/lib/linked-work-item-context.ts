@@ -1,3 +1,5 @@
+import type { FeishuBitableTaskSnapshot } from '../../../shared/feishu-bitable-task-contract'
+import { buildFeishuBitableExecutionPlan } from '../../../shared/feishu-bitable-execution-plan'
 import type { TaskProvider } from '../../../shared/task-providers'
 
 export type LinkedWorkItemContext = {
@@ -184,11 +186,21 @@ export function resolveQuickCreateLinkedWorkItemPrompt(
           linearIdentifier?: string
         },
         'provider' | 'number' | 'url' | 'title' | 'linearIdentifier'
-      > & { linkedContext?: LinkedWorkItemContext })
+      > & { linkedContext?: LinkedWorkItemContext; feishuTask?: FeishuBitableTaskSnapshot })
     | null
     | undefined,
   note: string
 ): { prompt: string; draftPrompt: string | null } {
+  if (linkedWorkItem?.provider === 'feishu-bitable') {
+    if (!linkedWorkItem.feishuTask) {
+      throw new Error('Reload the Feishu record before starting an agent.')
+    }
+    const plan = buildFeishuBitableExecutionPlan({
+      task: linkedWorkItem.feishuTask,
+      userInstruction: note.trim() || undefined
+    })
+    return { prompt: '', draftPrompt: plan.prompt }
+  }
   const trimmedNote = note.trim()
   const linearBlock = isLinearWorkItemReference(linkedWorkItem)
     ? buildLinearLaunchContextBlock({
