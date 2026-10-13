@@ -193,4 +193,75 @@ describe('project group dialogs carry the owner host', () => {
       expect.objectContaining({ description: expect.stringContaining('could not confirm') })
     )
   })
+
+  it('reports a replacement the host did not store', async () => {
+    mocks.storedGroups = [{ ...remoteGroup, icon: { type: 'emoji', emoji: '🌱' } }]
+    await renderHookProbe()
+    await act(async () => {
+      latest!.handleChangeProjectGroupIcon(remoteGroup.id, remoteGroup.name, 'runtime:env-1')
+    })
+    await act(async () => {
+      await latest!.handleSetProjectGroupIcon({ type: 'emoji', emoji: '🚀' })
+    })
+
+    expect(mocks.toastError).toHaveBeenCalledWith('Failed to update group icon', expect.anything())
+  })
+
+  it('reports a clear the host did not apply, and accepts one it did', async () => {
+    mocks.storedGroups = [{ ...remoteGroup, icon: { type: 'emoji', emoji: '🌱' } }]
+    await renderHookProbe()
+    await act(async () => {
+      latest!.handleChangeProjectGroupIcon(remoteGroup.id, remoteGroup.name, 'runtime:env-1')
+    })
+    await act(async () => {
+      await latest!.handleSetProjectGroupIcon(null)
+    })
+    expect(mocks.toastError).toHaveBeenCalledWith('Failed to update group icon', expect.anything())
+
+    mocks.toastError.mockClear()
+    mocks.updateProjectGroup.mockImplementation(async () => {
+      mocks.storedGroups = [remoteGroup]
+      return true
+    })
+    await act(async () => {
+      await latest!.handleSetProjectGroupIcon(null)
+    })
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
+  it('starts the next icon save only after the previous one answers', async () => {
+    let answerFirst: (saved: boolean) => void = () => {}
+    mocks.updateProjectGroup
+      .mockImplementationOnce(
+        () =>
+          new Promise<boolean>((resolve) => {
+            answerFirst = resolve
+          })
+      )
+      .mockResolvedValue(true)
+    await renderHookProbe()
+    await act(async () => {
+      latest!.handleChangeProjectGroupIcon(remoteGroup.id, remoteGroup.name, 'runtime:env-1')
+    })
+
+    let first: Promise<void> = Promise.resolve()
+    let second: Promise<void> = Promise.resolve()
+    await act(async () => {
+      first = latest!.handleSetProjectGroupIcon({ type: 'emoji', emoji: '🌱' })
+      second = latest!.handleSetProjectGroupIcon({ type: 'emoji', emoji: '🚀' })
+    })
+    expect(mocks.updateProjectGroup).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      answerFirst(true)
+      await first
+      await second
+    })
+    expect(mocks.updateProjectGroup).toHaveBeenCalledTimes(2)
+    expect(mocks.updateProjectGroup).toHaveBeenLastCalledWith(
+      remoteGroup.id,
+      { icon: { type: 'emoji', emoji: '🚀' } },
+      { hostId: 'runtime:env-1' }
+    )
+  })
 })
