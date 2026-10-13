@@ -1,13 +1,16 @@
-import { Check, Mail, X, Zap } from 'lucide-react'
+import { Zap } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { translate } from '@/i18n/i18n'
 import { useAppStore } from '@/store'
 import { parseHostStableKey } from '../../../../shared/automation-owner-key'
 import type { AutomationInboxEntry } from '../../../../shared/automation-inbox'
 import { EventTime } from './activity-thread-controls'
+import {
+  ActivityNotificationClearAction,
+  ActivityNotificationReadAction
+} from './activity-notification-actions'
 
 export function AutomationInboxRow({
   entry,
@@ -18,17 +21,6 @@ export function AutomationInboxRow({
   onOpen: () => void
   onChange: (action: 'read' | 'unread' | 'dismiss') => void
 }): React.JSX.Element {
-  const ReadIcon = entry.read ? Mail : Check
-  const readLabel = entry.read
-    ? translate(
-        'auto.components.activity.automationInbox.markUnread',
-        'Mark automation alert unread'
-      )
-    : translate('auto.components.activity.automationInbox.markRead', 'Mark automation alert read')
-  const dismissLabel = translate(
-    'auto.components.activity.automationInbox.dismiss',
-    'Dismiss automation alert'
-  )
   const catalog = parseHostStableKey(entry.catalogKey)
   const hostName = useAppStore((state) => {
     if (catalog?.authority.kind === 'runtime') {
@@ -47,7 +39,7 @@ export function AutomationInboxRow({
     return translate('auto.components.activity.automationInbox.localHost', 'Local')
   })
   return (
-    <div className="border-b border-border py-1" data-automation-inbox-row="">
+    <div className="group border-b border-border py-1" data-automation-inbox-row="">
       <Button
         type="button"
         variant="ghost"
@@ -78,40 +70,23 @@ export function AutomationInboxRow({
           </span>
         </span>
       </Button>
-      <div className="flex items-center justify-between gap-2 px-3">
-        <span className="flex min-w-0 items-center gap-1 text-2xs text-muted-foreground">
-          <span className="truncate">{hostName}</span>
-          <span>·</span>
-          <EventTime timestamp={entry.alert.createdAt} compact />
-        </span>
-        <div className="flex gap-1">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={() => onChange(entry.read ? 'unread' : 'read')}
-                aria-label={readLabel}
-              >
-                <ReadIcon className="size-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{readLabel}</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={() => onChange('dismiss')}
-                aria-label={dismissLabel}
-              >
-                <X className="size-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{dismissLabel}</TooltipContent>
-          </Tooltip>
-        </div>
+      <div className="flex min-w-0 items-center gap-1.5 px-3 text-2xs text-muted-foreground">
+        <span className="min-w-0 flex-1 truncate">{hostName}</span>
+        <ActivityNotificationClearAction onClear={() => onChange('dismiss')} />
+        <ActivityNotificationReadAction
+          unread={!entry.read}
+          onMarkRead={() => onChange('read')}
+          onMarkUnread={() => onChange('unread')}
+          readLabel={translate(
+            'auto.components.activity.automationInbox.markRead',
+            'Mark automation alert read'
+          )}
+          unreadLabel={translate(
+            'auto.components.activity.automationInbox.markUnread',
+            'Mark automation alert unread'
+          )}
+        />
+        <EventTime timestamp={entry.alert.createdAt} compact />
       </div>
     </div>
   )

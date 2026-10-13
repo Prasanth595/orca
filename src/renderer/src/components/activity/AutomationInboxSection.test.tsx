@@ -18,7 +18,8 @@ beforeEach(() => {
   useAppStore.setState({
     automationInboxEntries: {},
     runtimeEnvironments: [],
-    sshTargetLabels: new Map()
+    sshTargetLabels: new Map(),
+    pendingAutomationRunNavigation: null
   })
   Object.defineProperty(window, 'api', {
     configurable: true,
@@ -59,10 +60,12 @@ it('supports marking read/unread and clearing without replaying the cleared row'
   await user.click(screen.getByRole('button', { name: 'Mark automation alert read' }))
   await user.click(screen.getByRole('button', { name: 'Mark automation alert unread' }))
   expect(countAutomationInboxUnread(useAppStore.getState().automationInboxEntries)).toBe(1)
-  await user.click(screen.getByRole('button', { name: 'Dismiss automation alert' }))
+  expect(useAppStore.getState().pendingAutomationRunNavigation).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'Clear notification' }))
   useAppStore.getState().receiveAutomationInbox(records)
   expect(screen.queryByText('Login expired')).toBeNull()
   expect(countAutomationInboxUnread(useAppStore.getState().automationInboxEntries)).toBe(0)
+  expect(useAppStore.getState().pendingAutomationRunNavigation).toBeNull()
 })
 
 it('filters by failure text and keeps long inboxes virtualized', () => {
