@@ -22,6 +22,7 @@ import {
 import { hashProfileStatePayload } from '../persistence/profile-state/profile-state-document-validation'
 import { importProfileStateJson } from '../persistence/profile-state/profile-state-documents'
 import { selectServeRuntime, type ServeRuntimeSelectionInput } from './orcad-local-serve-selection'
+import type { AppImageNodeRuntime } from '../node-runtime/appimage-bundled-node-runtime'
 
 const TARGET = 'linux-x64-glibc'
 const SSH_TARGET = { id: 'ssh-1', label: 'box', host: 'box.example', port: 22, username: 'me' }
@@ -209,7 +210,7 @@ describe('orca serve runtime selection', () => {
         throw new Error('fetch failed')
       })
 
-    function bundledNode(bytes: string) {
+    function bundledNode(bytes: string): AppImageNodeRuntime {
       const path = join(root, 'resources', 'node-runtime', 'bin', 'node')
       mkdirSync(join(path, '..'), { recursive: true })
       writeFileSync(path, bytes)
