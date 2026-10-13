@@ -134,3 +134,7 @@ Source-control and review changes must consider GitLab and other supported git p
 ## GitHub CLI Usage
 
 Be mindful of the user's `gh` CLI API rate limit — batch requests where possible and avoid unnecessary calls. All code, commands, and scripts must be compatible with macOS, Linux, and Windows.
+
+## zh-Hant Fork
+
+This is the TW199501 zh-Hant fork. Before syncing, translating, building, or opening upstream PRs, read [`docs/zh-hant-fork.md`](./docs/zh-hant-fork.md).
