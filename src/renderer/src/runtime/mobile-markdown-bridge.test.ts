@@ -147,6 +147,36 @@ describe('mobile markdown bridge', () => {
     }
   })
 
+  it('reads the requested tab when the same file is open in two groups', async () => {
+    openMarkdownFile()
+    useAppStore.setState({
+      unifiedTabsByWorktree: {
+        'wt-1': [
+          markdownUnifiedTab('tab-main', '/repo/README.md', 'group-main'),
+          markdownUnifiedTab('tab-split', '/repo/README.md', 'group-split')
+        ]
+      }
+    })
+    setupWindow({ readFile: vi.fn().mockResolvedValue({ content: '# both', isBinary: false }) })
+    const detach = attachMobileMarkdownBridge()
+
+    try {
+      const response = await sendRequest({
+        id: 'read-duplicate',
+        operation: 'read',
+        worktreeId: 'wt-1',
+        tabId: 'tab-split'
+      })
+
+      expect(response).toMatchObject({
+        ok: true,
+        result: { tabId: 'tab-split', filePath: '/repo/README.md', content: '# both' }
+      })
+    } finally {
+      detach()
+    }
+  })
+
   it('rejects save when a clean file changed after mobile read', async () => {
     openMarkdownFile()
     const writeFile = vi.fn().mockResolvedValue(undefined)
