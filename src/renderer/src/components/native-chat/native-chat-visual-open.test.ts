@@ -15,6 +15,7 @@ import { resolveDocPreviewGrantRequest } from '@/lib/doc-preview-grants'
 import { makeRepo, makeWorktree } from '@/components/worktree-jump-palette-test-fixtures'
 import { openNativeChatVisual } from './native-chat-visual-open'
 import type { NativeChatVisualOwner } from './native-chat-visual-owner'
+import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../../shared/constants'
 
 const WORKTREE_ID = 'repo-1::/srv/repo'
 const LOCAL_PAGE = '/home/me/state/aaaa/usage.html'
@@ -33,8 +34,11 @@ function seed(repo: Partial<Repo> = {}, worktree: Partial<Worktree> = {}): void 
   })
 }
 
-function seedPaired(environmentId: string): void {
-  seed({ executionHostId: `runtime:${environmentId}` }, { hostId: `runtime:${environmentId}` })
+function seedPaired(environmentId: string, root = '/srv/repo'): void {
+  seed(
+    { executionHostId: `runtime:${environmentId}`, path: root },
+    { hostId: `runtime:${environmentId}`, path: root }
+  )
 }
 
 function chatOwner(target: NativeChatVisualOwner['target']): NativeChatVisualOwner {
@@ -108,6 +112,48 @@ describe('opening a chat visual like any file', () => {
       root: '/home/me/state/bbbb',
       entryRelativePath: 'usage.html'
     })
+  })
+
+  // A host whose workspace is opened at its home holds the scratch folder inside that workspace.
+  it("opens a host chat's visual inside its same-host workspace in that workspace's preview", async () => {
+    seedPaired('hub-a', '/home/me')
+
+    openNativeChatVisual(hubA, { file: 'usage.html', title: 'Usage', path: HOST_PAGE })
+
+    expect(browserPages()).toEqual([
+      expect.objectContaining({
+        docLocation: { kind: 'workspace-doc', worktreeId: WORKTREE_ID, filePath: HOST_PAGE }
+      })
+    ])
+    expect(visualTabs()).toEqual([])
+    expect(
+      await resolveDocPreviewGrantRequest(useAppStore.getState(), WORKTREE_ID, HOST_PAGE)
+    ).toMatchObject({
+      owner: { kind: 'runtime', environmentId: 'hub-a', worktreeRoot: '/home/me' }
+    })
+  })
+
+  it("keeps the visual tab inside a workspace on another host's same path", () => {
+    seedPaired('hub-b', '/home/me')
+
+    openNativeChatVisual(hubA, { file: 'usage.html', title: 'Usage', path: HOST_PAGE })
+
+    expect(browserPages()).toEqual([])
+    expect(visualTabs()).toHaveLength(1)
+  })
+
+  // The floating and local workspaces plan a file:// tab, which would read this computer's disk.
+  it.each([
+    ['the floating workspace', FLOATING_TERMINAL_WORKTREE_ID],
+    ['a local workspace', WORKTREE_ID]
+  ])('never opens a host chat in %s as a local file', (_label, worktreeId) => {
+    openNativeChatVisual(
+      { ...hubA, worktreeId },
+      { file: 'usage.html', title: 'Usage', path: HOST_PAGE }
+    )
+
+    expect(browserPages()).toEqual([])
+    expect(visualTabs()).toHaveLength(1)
   })
 
   it('keeps the visual tab where the host has no path for it', () => {

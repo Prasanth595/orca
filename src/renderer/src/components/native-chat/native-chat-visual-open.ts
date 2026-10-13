@@ -4,6 +4,7 @@ import {
   type WorkspaceFilePreviewPlan
 } from '@/lib/file-preview'
 import { hostPathFilePreviewPlan } from '@/lib/host-path-file-preview'
+import { buildDocPreviewGrantRequest } from '@/lib/doc-preview-grants'
 import { useAppStore } from '@/store'
 import type { NativeChatVisualOwner } from './native-chat-visual-owner'
 
@@ -16,12 +17,22 @@ function nativeChatVisualFilePlan(
   owner: NativeChatVisualOwner,
   path: string
 ): WorkspaceFilePreviewPlan | null {
-  const plan = getWorkspaceFilePreviewPlan(useAppStore.getState(), owner.worktreeId, path)
+  const state = useAppStore.getState()
+  const plan = getWorkspaceFilePreviewPlan(state, owner.worktreeId, path)
   if (owner.target.kind === 'local') {
     return plan.status === 'browser-tab' ? plan : null
   }
-  // The scratch folder is outside every workspace, so the workspace's host refuses it by name;
-  // only when that host is the chat's own does its by-path preview show this chat's file.
+  if (plan.status === 'doc-preview') {
+    // Inside a workspace (e.g. a folder workspace at the host's home), the preview reads from the
+    // host its grant names, which must be the chat's own and not an SSH machine that host proxies.
+    const reader = buildDocPreviewGrantRequest(state, owner.worktreeId, path)?.owner
+    return reader?.kind === 'runtime' && reader.environmentId === owner.target.environmentId
+      ? plan
+      : null
+  }
+  // Outside every workspace the workspace's host refuses it by name; only when that host is the
+  // chat's own does its by-path preview show this chat's file. A local browser-tab plan never
+  // qualifies: its file:// URL would read this computer's disk.
   if (
     plan.status !== 'unsupported' ||
     plan.reason !== 'outside-worktree' ||
