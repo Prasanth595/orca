@@ -368,18 +368,15 @@ describe('connectPanePty', () => {
       transportFactoryQueue.push(transport)
       const pane = createPane(1)
       pane.container = createMeasuredElement({ rect: () => createRect(1200, 800) })
-      ;(
-        pane.fitAddon as unknown as { proposeDimensions: () => { cols: number; rows: number } }
-      ).proposeDimensions = vi.fn(() => ({ cols: 120, rows: 40 }))
+      pane.fitAddon.proposeDimensions = vi.fn(() => ({ cols: 120, rows: 40 }))
       pane.fitAddon.fit = vi.fn(() => {
         pane.terminal.cols = 120
         pane.terminal.rows = 40
       })
-      connectPanePty(
-        pane as never,
-        createManager(1) as never,
-        createDeps({ startup: { command: 'claude' } }) as never
-      )
+      const deps = createDeps({ startup: { command: 'claude' } })
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the pane, manager and deps doubles implement every member connectPanePty reads on this startup path.
+      const args = [pane, createManager(1), deps] as unknown as Parameters<typeof connectPanePty>
+      connectPanePty(...args)
 
       if (hiddenWhen === 'before') {
         vi.advanceTimersByTime(250)
