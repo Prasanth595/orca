@@ -36,13 +36,20 @@ function servesFilesByPath(status: RuntimeStatus): boolean {
   return status.capabilities?.includes(FILES_HOST_PATH_RUNTIME_CAPABILITY) === true
 }
 
-function probeHostPathCapability(environmentId: string): Promise<boolean> {
+function probeHostPathCapability(
+  environmentId: string,
+  askAgainAfterFailure = false
+): Promise<boolean> {
   const running = hostPathProbes.get(environmentId)
   if (running) {
     return running
   }
   const failedAt = hostPathProbeFailedAt.get(environmentId)
-  if (failedAt !== undefined && Date.now() - failedAt < HOST_PATH_PROBE_RETRY_MS) {
+  if (
+    !askAgainAfterFailure &&
+    failedAt !== undefined &&
+    Date.now() - failedAt < HOST_PATH_PROBE_RETRY_MS
+  ) {
     return Promise.resolve(false)
   }
   const probe = getRuntimeEnvironmentStatus(environmentId, 15_000)
@@ -75,12 +82,18 @@ export function knownRuntimeEnvironmentServesFilesByPath(
   return servesFilesByPath(status)
 }
 
-/** Waits for the host only when no status is cached for it. */
-export function runtimeEnvironmentServesFilesByPath(environmentId: string): Promise<boolean> {
+/**
+ * Waits for the host (bounded) only when no status is cached for it. `askAgainAfterFailure` is
+ * for an explicit user action, such as Retry, which must not inherit an earlier failed probe.
+ */
+export function runtimeEnvironmentServesFilesByPath(
+  environmentId: string,
+  { askAgainAfterFailure = false }: { askAgainAfterFailure?: boolean } = {}
+): Promise<boolean> {
   const status = peekRuntimeEnvironmentStatus(environmentId)
   return status
     ? Promise.resolve(servesFilesByPath(status))
-    : probeHostPathCapability(environmentId)
+    : probeHostPathCapability(environmentId, askAgainAfterFailure)
 }
 
 export function clearRuntimeHostPathProbesForTests(): void {

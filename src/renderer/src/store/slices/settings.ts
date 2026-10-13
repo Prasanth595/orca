@@ -174,7 +174,7 @@ async function verifyRuntimeEnvironmentReachable(environmentId: string | null): 
   assertRuntimeStatusCompatible(status)
   // Why: the switch probe already proved compatibility; avoid immediately
   // re-probing through the heavier generic runtime RPC path during hydration.
-  markRuntimeEnvironmentCompatible(environmentId)
+  markRuntimeEnvironmentCompatible(environmentId, status)
 }
 
 export const createSettingsSlice: StateCreator<AppState, [], [], SettingsSlice> = (set, get) => ({

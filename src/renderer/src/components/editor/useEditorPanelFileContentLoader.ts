@@ -4,7 +4,7 @@ import { getConnectionIdForFile, isWorktreeConnectionResolved } from '@/lib/conn
 import { useAppStore } from '@/store'
 import { getDiskBaselineSignature } from './diff-content-signature'
 import { getRuntimeFileReadScope } from '@/runtime/runtime-file-routing'
-import { knownRuntimeEnvironmentServesFilesByPath } from '@/runtime/runtime-file-address'
+import { hostServesFilesByPathForUserAction } from '@/lib/host-path-file-support'
 import { readEditorCsvFileContent } from './csv/csv-file-content'
 import { RuntimeRpcCallError } from '@/runtime/runtime-rpc-result'
 import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
@@ -196,9 +196,10 @@ export function useEditorPanelFileContentLoader({
               runtimeEnvironmentId &&
               !route &&
               !restoredOpenFile.terminalArtifactGrantId &&
-              // Why: only a host already known to serve paths is asked; restore never waits on a probe.
+              // Why: an unknown answer waits behind the tab's loading state (bounded); a host the
+              // app shows as unreachable gets today's message at once.
               (externalSshOwnerId ||
-                knownRuntimeEnvironmentServesFilesByPath(runtimeEnvironmentId) !== true)
+                !(await hostServesFilesByPathForUserAction(runtimeEnvironmentId)))
             ) {
               throw new Error(EXTERNAL_LOCAL_FILES_UNAVAILABLE_MESSAGE)
             }

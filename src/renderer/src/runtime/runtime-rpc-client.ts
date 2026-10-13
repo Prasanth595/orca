@@ -208,7 +208,11 @@ export function clearRuntimeCompatibilityCache(environmentId?: string | null): v
   runtimeCompatibilityChecks.clear()
 }
 
-export function markRuntimeEnvironmentCompatible(environmentId: string): void {
+/** `status`: the answer that proved it, kept so capability checks don't need to ask again. */
+export function markRuntimeEnvironmentCompatible(
+  environmentId: string,
+  status?: RuntimeStatus
+): void {
   const trimmed = environmentId.trim()
   if (!trimmed) {
     return
@@ -217,8 +221,8 @@ export function markRuntimeEnvironmentCompatible(environmentId: string): void {
     check: Promise.resolve(),
     failedAt: null,
     provenCompatible: true,
-    status: null,
-    statusCheckedAt: null
+    status: status ?? null,
+    statusCheckedAt: status ? Date.now() : null
   })
 }
 

@@ -3,7 +3,7 @@ import { isHostPathOutsideWorkspace } from '@/components/terminal-pane/terminal-
 import { statHostPathFile } from '@/components/terminal-pane/terminal-host-workspace-file'
 import { runtimeTargetEnvironmentId } from '@/runtime/runtime-client-target'
 import { knownRuntimeEnvironmentServesFilesByPath } from '@/runtime/runtime-file-address'
-import { useAppStore } from '@/store'
+import { isRuntimeEnvironmentShownUnreachable } from '@/lib/host-path-file-support'
 
 // Why: a transcript can name many outside paths, and each turn end rechecks them all.
 const HOST_PATH_STAT_CONCURRENCY = 4
@@ -73,8 +73,7 @@ export function createHostPathLinkExistence(): HostPathLinkExistence {
     if (
       !environmentId ||
       !isHostPathOutsideWorkspace(target) ||
-      // Why: the app already shows this host as unreachable; asking it would only wait.
-      useAppStore.getState().runtimeStatusByEnvironmentId.get(environmentId)?.status === null ||
+      isRuntimeEnvironmentShownUnreachable(environmentId) ||
       knownRuntimeEnvironmentServesFilesByPath(environmentId) !== true
     ) {
       return false
