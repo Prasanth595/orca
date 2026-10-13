@@ -30,6 +30,8 @@ import {
 import { RepositoryIssueCommandSetting } from './RepositoryIssueCommandSetting'
 import { useRepositoryHookSettingsDraft } from './use-repository-hook-settings-draft'
 import { useRepositoryIssueCommand } from './use-repository-issue-command'
+import { RepositoryPluginHookSourceSetting } from './RepositoryPluginHookSourceSetting'
+import { pluginHookSourceValue, usePluginWorktreeHookOptions } from './plugin-worktree-hook-options'
 
 export { getLocalCommandSourcePolicyNotice }
 export type { LocalCommandSourcePolicyNotice }
@@ -90,9 +92,22 @@ export function RepositoryHooksSection({
   const hasSharedSetupScript = Boolean(sharedSetupScript?.trim())
   const hasSharedArchiveScript = Boolean(sharedArchiveScript?.trim())
   const hasSharedScript = hasSharedSetupScript || hasSharedArchiveScript
-  const hasLocalScript = Boolean(
-    hookSettingsDraft.scripts.setup?.trim() || hookSettingsDraft.scripts.archive?.trim()
-  )
+  // Why: a remote Orca runtime runs hooks with its own plugins, which this desktop cannot list.
+  const hooksRunOnThisDesktop = !selectedHostId.startsWith('runtime:')
+  const pluginHookOptions = usePluginWorktreeHookOptions(hooksRunOnThisDesktop)
+  const pluginHookSource = hookSettingsDraft.pluginHookSource
+  const selectedPluginHook = pluginHookSource
+    ? pluginHookOptions.find(
+        (option) => option.available && option.value === pluginHookSourceValue(pluginHookSource)
+      )?.hook
+    : undefined
+  const showPluginHookSource =
+    hooksRunOnThisDesktop && (pluginHookOptions.length > 0 || pluginHookSource !== undefined)
+  // Mirrors main: a picked plugin's commands stand in for the local scripts, even when unavailable.
+  const localScripts = pluginHookSource
+    ? { setup: selectedPluginHook?.setup, archive: selectedPluginHook?.archive }
+    : hookSettingsDraft.scripts
+  const hasLocalScript = Boolean(localScripts.setup?.trim() || localScripts.archive?.trim())
   const selectedCommandSourcePolicy: HookCommandSourcePolicy = resolveHookCommandSourcePolicy(
     hookSettingsDraft.commandSourcePolicy,
     { hasLocalScript }
@@ -100,8 +115,8 @@ export function RepositoryHooksSection({
   const localCommandSourceNotice = getLocalCommandSourcePolicyNotice({
     hooksInspectionReady,
     currentPolicy: selectedCommandSourcePolicy,
-    setupScript: hookSettingsDraft.scripts.setup,
-    archiveScript: hookSettingsDraft.scripts.archive,
+    setupScript: localScripts.setup,
+    archiveScript: localScripts.archive,
     hasSharedScript
   })
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
@@ -122,38 +137,61 @@ export function RepositoryHooksSection({
           )}
         </p>
       </div>
-      <SearchableSetting
-        title={translate(
-          'auto.components.settings.RepositoryHooksSection.52b31baf02',
-          'Setup Script'
-        )}
-        description={translate(
-          'auto.components.settings.RepositoryHooksSection.30d555acd2',
-          'Local and shared scripts that run after a new worktree is created.'
-        )}
-        forceVisible={forceVisible}
-        keywords={[
-          'setup',
-          'script',
-          'command',
-          'local',
-          'local settings scripts',
-          'orca.yaml',
-          'orca.yaml hooks',
-          'hook'
-        ]}
-      >
-        <RepositoryHookScriptSetting
-          key={`${repo.id}:setup`}
-          field={localHookFields[0]}
-          value={hookSettingsDraft.scripts.setup ?? ''}
-          hasShared={hasSharedSetupScript}
-          sharedScript={sharedSetupScript}
-          onChange={(next) => updateScriptDraft('setup', next)}
-          onCommit={commitScriptDraft}
-          sectionId={getRepositoryLocalCommandsSectionId(repo.id)}
-        />
-      </SearchableSetting>
+      {showPluginHookSource ? (
+        <SearchableSetting
+          title={translate(
+            'auto.components.settings.RepositoryPluginHookSourceSetting.label',
+            'Local Hook Commands'
+          )}
+          description={translate(
+            'auto.components.settings.RepositoryPluginHookSourceSetting.description',
+            'Use the setup and archive scripts below, or the commands a plugin provides.'
+          )}
+          forceVisible={forceVisible}
+          keywords={['plugin', 'hook', 'setup', 'archive', 'local', 'worktree hooks']}
+        >
+          <RepositoryPluginHookSourceSetting
+            selected={pluginHookSource}
+            options={pluginHookOptions}
+            sectionId={pluginHookSource ? getRepositoryLocalCommandsSectionId(repo.id) : undefined}
+            onSelect={(next) => updateHookSettingsPolicyDraft({ pluginHookSource: next })}
+          />
+        </SearchableSetting>
+      ) : null}
+      {pluginHookSource ? null : (
+        <SearchableSetting
+          title={translate(
+            'auto.components.settings.RepositoryHooksSection.52b31baf02',
+            'Setup Script'
+          )}
+          description={translate(
+            'auto.components.settings.RepositoryHooksSection.30d555acd2',
+            'Local and shared scripts that run after a new worktree is created.'
+          )}
+          forceVisible={forceVisible}
+          keywords={[
+            'setup',
+            'script',
+            'command',
+            'local',
+            'local settings scripts',
+            'orca.yaml',
+            'orca.yaml hooks',
+            'hook'
+          ]}
+        >
+          <RepositoryHookScriptSetting
+            key={`${repo.id}:setup`}
+            field={localHookFields[0]}
+            value={hookSettingsDraft.scripts.setup ?? ''}
+            hasShared={hasSharedSetupScript}
+            sharedScript={sharedSetupScript}
+            onChange={(next) => updateScriptDraft('setup', next)}
+            onCommit={commitScriptDraft}
+            sectionId={getRepositoryLocalCommandsSectionId(repo.id)}
+          />
+        </SearchableSetting>
+      )}
       <SearchableSetting
         title={translate(
           'auto.components.settings.RepositoryHooksSection.fb6bebcf7e',
@@ -175,37 +213,39 @@ export function RepositoryHooksSection({
           }
         />
       </SearchableSetting>
-      <SearchableSetting
-        title={translate(
-          'auto.components.settings.RepositoryHooksSection.9a100323ff',
-          'Archive Script'
-        )}
-        description={translate(
-          'auto.components.settings.RepositoryHooksSection.b91a0f297d',
-          'Local and shared scripts that run before a worktree is archived.'
-        )}
-        forceVisible={forceVisible}
-        keywords={[
-          'archive',
-          'script',
-          'command',
-          'local',
-          'local settings scripts',
-          'orca.yaml',
-          'orca.yaml hooks',
-          'hook'
-        ]}
-      >
-        <RepositoryHookScriptSetting
-          key={`${repo.id}:archive`}
-          field={localHookFields[1]}
-          value={hookSettingsDraft.scripts.archive ?? ''}
-          hasShared={hasSharedArchiveScript}
-          sharedScript={sharedArchiveScript}
-          onChange={(next) => updateScriptDraft('archive', next)}
-          onCommit={commitScriptDraft}
-        />
-      </SearchableSetting>
+      {pluginHookSource ? null : (
+        <SearchableSetting
+          title={translate(
+            'auto.components.settings.RepositoryHooksSection.9a100323ff',
+            'Archive Script'
+          )}
+          description={translate(
+            'auto.components.settings.RepositoryHooksSection.b91a0f297d',
+            'Local and shared scripts that run before a worktree is archived.'
+          )}
+          forceVisible={forceVisible}
+          keywords={[
+            'archive',
+            'script',
+            'command',
+            'local',
+            'local settings scripts',
+            'orca.yaml',
+            'orca.yaml hooks',
+            'hook'
+          ]}
+        >
+          <RepositoryHookScriptSetting
+            key={`${repo.id}:archive`}
+            field={localHookFields[1]}
+            value={hookSettingsDraft.scripts.archive ?? ''}
+            hasShared={hasSharedArchiveScript}
+            sharedScript={sharedArchiveScript}
+            onChange={(next) => updateScriptDraft('archive', next)}
+            onCommit={commitScriptDraft}
+          />
+        </SearchableSetting>
+      )}
       {localCommandSourceNotice ? (
         <LocalCommandSourceNotice
           notice={localCommandSourceNotice}

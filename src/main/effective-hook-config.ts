@@ -8,6 +8,7 @@ import type {
 import type { Repo } from '../shared/repo-types'
 import type { SetupDecision } from '../shared/worktree/create-types'
 import type { WorktreeDefaultTabsLaunch } from '../shared/worktree/launch-types'
+import { getLocalHookScripts } from './plugin-worktree-hook-source'
 
 function getEffectiveHookScript(
   yamlScript: string | undefined,
@@ -32,8 +33,7 @@ export function getEffectiveHooksFromConfig(
   repo: Repo,
   yamlHooks: OrcaHooks | null
 ): OrcaHooks | null {
-  const localSetup = repo.hookSettings?.scripts.setup
-  const localArchive = repo.hookSettings?.scripts.archive
+  const { setup: localSetup, archive: localArchive } = getLocalHookScripts(repo)
   const rawPolicy = repo.hookSettings?.commandSourcePolicy
   const setupPolicy = resolveHookCommandSourcePolicy(rawPolicy, {
     hasLocalScript: Boolean(localSetup?.trim())
@@ -104,7 +104,7 @@ export function getDefaultTabsLaunch(
   const sharedCommandPolicy = resolveHookCommandSourcePolicy(
     repo.hookSettings?.commandSourcePolicy,
     {
-      hasLocalScript: Boolean(repo.hookSettings?.scripts.setup?.trim())
+      hasLocalScript: Boolean(getLocalHookScripts(repo).setup?.trim())
     }
   )
   // Why: local-only repos may use shared tab titles/colors but must not run the committed orca.yaml commands.

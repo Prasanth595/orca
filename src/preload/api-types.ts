@@ -191,6 +191,7 @@ export type {
   PluginHostLogLine,
   PluginHostPanel,
   PluginHostStatus,
+  PluginHostWorktreeHook,
   PluginMarketplaceHostInstallPreview,
   PluginMarketplaceHostListing,
   PluginMarketplaceHostSourceState

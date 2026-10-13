@@ -10,6 +10,8 @@ import { resolveBundledPluginRoot } from '../plugins/plugin-bundled-bootstrap'
 import { resolvePluginHostEntryPath } from '../plugins/plugin-host-process'
 import { applyPluginConsent, applyPluginEnablement } from '../plugins/plugin-enablement'
 import { setPluginServiceForRpc } from '../runtime/rpc/methods/plugins'
+import { setPluginWorktreeHookResolver } from '../plugin-worktree-hook-source'
+import { resolvePluginWorktreeHookScripts } from '../plugins/plugin-worktree-hooks'
 import {
   normalizePluginConsents,
   normalizePluginIdList
@@ -67,6 +69,9 @@ export async function initializeMainProcessPlugins(runtime: OrcaRuntimeService):
     getPluginKillListEntry: (pluginKey) => state.pluginKillListService?.find(pluginKey) ?? null,
     hostEntryPath: resolvePluginHostEntryPath(app.getAppPath(), app.isPackaged)
   })
+  setPluginWorktreeHookResolver((source) =>
+    resolvePluginWorktreeHookScripts(state.pluginService, source)
+  )
   const bundledPluginBootstrap = new PluginBundledBootstrapCoordinator({
     root: resolveBundledPluginRoot({
       isPackaged: app.isPackaged,

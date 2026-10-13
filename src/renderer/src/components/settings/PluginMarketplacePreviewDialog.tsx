@@ -31,6 +31,7 @@ function contributionSummary(
   preview: PluginMarketplaceHostInstallPreview
 ): { key: string; label: string }[] {
   const { contributes } = preview.manifest
+  const worktreeHookCount = contributes.worktreeHooks?.length ?? 0
   // Why: two static keys per kind (not one dynamic key) so the localization
   // catalog sync can extract them, and "1 language packs" never renders.
   const entries: { key: string; count: number; one: string; many: string }[] = [
@@ -84,6 +85,20 @@ function contributionSummary(
         'auto.components.settings.PluginMarketplacePreviewDialog.vmRecipes',
         '{{value0}} VM recipes',
         { value0: contributes.vmRecipes.length }
+      )
+    },
+    {
+      key: 'worktreeHooks',
+      // Older hosts project manifests from before this contribution existed.
+      count: worktreeHookCount,
+      one: translate(
+        'auto.components.settings.PluginMarketplacePreviewDialog.worktreeHooksOne',
+        '1 worktree hook set'
+      ),
+      many: translate(
+        'auto.components.settings.PluginMarketplacePreviewDialog.worktreeHooks',
+        '{{value0}} worktree hook sets',
+        { value0: worktreeHookCount }
       )
     },
     {

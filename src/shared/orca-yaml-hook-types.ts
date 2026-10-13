@@ -59,6 +59,14 @@ export type RepoHookSettings = {
     setup: string
     archive: string
   }
+  /** When set, this plugin contribution's commands stand in for `scripts`, which are kept but unused. */
+  pluginHookSource?: PluginHookSource
+}
+
+/** A `contributes.worktreeHooks` entry of an installed plugin, named by `<publisher>.<id>` and hook id. */
+export type PluginHookSource = {
+  pluginKey: string
+  contributionId: string
 }
 
 export type PersistedTrustedOrcaHookEntry = {

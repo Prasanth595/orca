@@ -3,7 +3,9 @@ import { canonicalizeCapabilitySet } from './plugin-capabilities'
 import type { PluginManifest } from './plugin-manifest'
 
 type PluginConsentSubject = Pick<PluginManifest, 'capabilities' | 'main'> & {
-  contributes?: Partial<Pick<PluginManifest['contributes'], 'keybindings' | 'vmRecipes' | 'agents'>>
+  contributes?: Partial<
+    Pick<PluginManifest['contributes'], 'keybindings' | 'vmRecipes' | 'agents' | 'worktreeHooks'>
+  >
 }
 
 export function hasInstructionalPluginContributions(manifest: PluginConsentSubject): boolean {
@@ -32,7 +34,20 @@ export function canonicalizePluginConsent(
   const instructionalIdentity = hasInstructionalPluginContributions(manifest)
     ? `\0instructional-content:${contentIdentity ?? 'unresolved'}`
     : ''
-  return `${capabilities}${workerIdentity}${instructionalIdentity}`
+  return `${capabilities}${workerIdentity}${instructionalIdentity}${worktreeHookIdentity(manifest)}`
+}
+
+// Why: hook commands live in the manifest, not in content files, so they are not covered by the
+// content identity; an update that changes what runs in a worktree must ask again.
+function worktreeHookIdentity(manifest: PluginConsentSubject): string {
+  const hooks = manifest.contributes?.worktreeHooks ?? []
+  if (hooks.length === 0) {
+    return ''
+  }
+  const canonical = [...hooks]
+    .map((hook) => [hook.id, hook.setup ?? '', hook.archive ?? ''])
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+  return `\0worktree-hooks:${JSON.stringify(canonical)}`
 }
 
 export function fingerprintPluginConsent(

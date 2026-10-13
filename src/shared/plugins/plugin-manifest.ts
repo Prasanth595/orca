@@ -5,10 +5,12 @@ import {
   PLUGIN_KEYBINDING_LIMIT,
   PLUGIN_LANGUAGE_PACK_LIMIT,
   PLUGIN_VM_RECIPE_LIMIT,
+  PLUGIN_WORKTREE_HOOK_LIMIT,
   pluginAgentProfileContributionSchema,
   pluginKeybindingContributionSchema,
   pluginLanguagePackContributionSchema,
-  pluginVmRecipeContributionSchema
+  pluginVmRecipeContributionSchema,
+  pluginWorktreeHookContributionSchema
 } from './plugin-content-pack-contributions'
 import {
   pluginCommandIdSchema,
@@ -114,6 +116,10 @@ export const pluginManifestSchema = z
         agents: z
           .array(pluginAgentProfileContributionSchema)
           .max(PLUGIN_AGENT_PROFILE_LIMIT)
+          .default([]),
+        worktreeHooks: z
+          .array(pluginWorktreeHookContributionSchema)
+          .max(PLUGIN_WORKTREE_HOOK_LIMIT)
           .default([])
       })
       .strict()
@@ -124,7 +130,8 @@ export const pluginManifestSchema = z
         languagePacks: [],
         keybindings: [],
         vmRecipes: [],
-        agents: []
+        agents: [],
+        worktreeHooks: []
       })),
     capabilities: z.array(pluginCapabilitySchema).max(32).default([])
   })
