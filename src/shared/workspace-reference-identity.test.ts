@@ -283,3 +283,28 @@ describe('reference queries', () => {
     expect(() => parseWorkspaceReferenceQuery(query)).toThrow()
   })
 })
+
+it('keeps Feishu record identity stable across title and URL changes', () => {
+  const record = {
+    connectionId: 'connection',
+    appToken: 'app',
+    tableId: 'table',
+    recordId: 'record'
+  }
+  const item: WorkspaceAttachment = {
+    provider: 'feishu-bitable',
+    type: 'issue',
+    number: 0,
+    title: 'Old title',
+    url: 'https://example.com/old',
+    feishuRecord: record
+  }
+  expect(
+    getWorkspaceReferenceIdentity({ ...item, title: 'New title', url: 'https://example.com/new' })
+  ).toBe(getWorkspaceReferenceIdentity(item))
+  for (const field of ['connectionId', 'appToken', 'tableId', 'recordId'] as const) {
+    expect(
+      getWorkspaceReferenceIdentity({ ...item, feishuRecord: { ...record, [field]: 'other' } })
+    ).not.toBe(getWorkspaceReferenceIdentity(item))
+  }
+})

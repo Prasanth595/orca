@@ -1,3 +1,4 @@
+import { normalizeFeishuBitableRecordReference } from './feishu-bitable-types'
 import type { WorkspaceLinkedItem } from './worktree/types'
 
 export function areWorkspaceLinkedItemsEqual(
@@ -10,8 +11,20 @@ export function areWorkspaceLinkedItemsEqual(
   if (!a || !b) {
     return !a && !b
   }
+  if (a.provider !== b.provider) {
+    return false
+  }
+  // Why: a Feishu record's identity is the connection/app/table/record tuple;
+  // number/url/title drift must not split or merge records.
+  if (a.provider === 'feishu-bitable' || b.provider === 'feishu-bitable') {
+    return (
+      a.provider === 'feishu-bitable' &&
+      b.provider === 'feishu-bitable' &&
+      normalizeFeishuBitableRecordReference(a.feishuRecord) !== null &&
+      feishuRecordKey(a.feishuRecord) === feishuRecordKey(b.feishuRecord)
+    )
+  }
   return (
-    a.provider === b.provider &&
     a.type === b.type &&
     a.number === b.number &&
     a.title === b.title &&
@@ -31,7 +44,8 @@ export function normalizeWorkspaceLinkedItem(value: unknown): WorkspaceLinkedIte
     raw.provider !== 'github' &&
     raw.provider !== 'gitlab' &&
     raw.provider !== 'linear' &&
-    raw.provider !== 'jira'
+    raw.provider !== 'jira' &&
+    raw.provider !== 'feishu-bitable'
   ) {
     return null
   }
@@ -48,6 +62,15 @@ export function normalizeWorkspaceLinkedItem(value: unknown): WorkspaceLinkedIte
   ) {
     return null
   }
+  // Why: without the full record tuple the link cannot be de-duplicated or
+  // reopened, so a Feishu item missing it is not a valid linked item.
+  const feishuRecord =
+    raw.provider === 'feishu-bitable'
+      ? normalizeFeishuBitableRecordReference(raw.feishuRecord)
+      : null
+  if (raw.provider === 'feishu-bitable' && !feishuRecord) {
+    return null
+  }
   return {
     provider: raw.provider,
     type: raw.type,
@@ -60,8 +83,21 @@ export function normalizeWorkspaceLinkedItem(value: unknown): WorkspaceLinkedIte
     ...(typeof raw.jiraIdentifier === 'string' && raw.jiraIdentifier.trim().length > 0
       ? { jiraIdentifier: raw.jiraIdentifier.trim() }
       : {}),
+    ...(feishuRecord ? { feishuRecord } : {}),
     ...(typeof raw.repoId === 'string' && raw.repoId.trim().length > 0
       ? { repoId: raw.repoId.trim() }
       : {})
   }
+}
+
+function feishuRecordKey(reference: WorkspaceLinkedItem['feishuRecord']): string {
+  if (!reference) {
+    return ''
+  }
+  return JSON.stringify([
+    reference.connectionId,
+    reference.appToken,
+    reference.tableId,
+    reference.recordId
+  ])
 }

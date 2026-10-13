@@ -2,6 +2,7 @@ import React from 'react'
 import { Github, Gitlab, LayoutGrid, List } from 'lucide-react'
 
 import { JiraIcon } from '@/components/icons/JiraIcon'
+import { FeishuBitableIcon } from '@/components/icons/FeishuBitableIcon'
 import { createLocalizedCatalog } from '@/i18n/localized-catalog'
 import { translate } from '@/i18n/i18n'
 import {
@@ -131,6 +132,11 @@ export const getSourceOptions = createLocalizedCatalog((): SourceOption[] => [
     id: 'jira',
     label: translate('auto.components.TaskPage.9cd11ba218', 'Jira'),
     Icon: ({ className }) => <JiraIcon className={className} />
+  },
+  {
+    id: 'feishu-bitable',
+    label: translate('auto.components.TaskPage.feishuBitable', 'Feishu Bitable'),
+    Icon: ({ className }) => <FeishuBitableIcon className={className} />
   }
 ])
 

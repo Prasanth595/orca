@@ -25,6 +25,7 @@ export const HOST_OPERATION_OWNERSHIP = {
   computer: 'host',
   diagnostics: 'host',
   emulator: 'host',
+  feishuBitable: 'scope-picked',
   files: 'host',
   folderWorkspace: 'host',
   git: 'host',

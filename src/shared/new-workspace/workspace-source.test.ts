@@ -142,3 +142,19 @@ describe('workspace source policy', () => {
     ).toBe(false)
   })
 })
+
+it('preserves Feishu records while choosing a target repository and labels their source', () => {
+  const item = {
+    provider: 'feishu-bitable' as const,
+    type: 'issue' as const,
+    number: 0,
+    title: 'Task',
+    url: 'https://example.com/record',
+    feishuRecord: { connectionId: 'c', appToken: 'a', tableId: 't', recordId: 'r' }
+  }
+  expect(shouldPreserveWorkspaceSourceOnRepoChange(item)).toBe(true)
+  expect(buildWorkspaceSourceSelection({ linkedWorkItem: item })).toMatchObject({
+    kind: 'feishu-bitable',
+    label: 'Task'
+  })
+})

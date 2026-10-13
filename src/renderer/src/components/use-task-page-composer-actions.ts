@@ -3,6 +3,7 @@ import { useCallback } from 'react'
 import type { LinearIssue } from '../../../shared/linear/issue-types'
 import type { LinearWorkspaceSelection } from '../../../shared/linear/workspace-types'
 import type { JiraIssue } from '../../../shared/jira-types'
+import { useFeishuBitableTaskComposer } from './use-feishu-bitable-task-composer'
 import { buildLinearIssueLinkedWorkItem } from '@/lib/linear-linked-work-item'
 import { getLinearIssueWorkspaceName } from '../../../shared/workspace-name'
 import { useAppStore } from '@/store'
@@ -228,15 +229,22 @@ export function useTaskPageComposerActions(model: TaskPageJiraListEffectsModel) 
     },
     [openComposerForJiraItem]
   )
+  const { feishuBitableTaskSourceContext } = model
+  const selectedFeishuBitableTask = useAppStore((s) => s.selectedFeishuBitableTask)
+  const setSelectedFeishuBitableTask = useAppStore((s) => s.setSelectedFeishuBitableTask)
+  const { openComposerForFeishuBitableTask, handleUseFeishuBitableTask } =
+    useFeishuBitableTaskComposer({ openModal, feishuBitableTaskSourceContext })
   const taskPageListChromeHidden = shouldHideTaskPageListChrome({
     taskSource,
     hasGitHubDetail: Boolean(dialogWorkItem),
     hasGitLabDetail: Boolean(gitlabDialogItem),
     hasJiraDetail: Boolean(selectedJiraIssue),
+    hasFeishuBitableDetail: Boolean(selectedFeishuBitableTask),
     hasLinearIssueDetail: Boolean(selectedLinearIssue),
     hasLinearProjectContext: Boolean(selectedLinearProject),
     hasLinearViewContext: Boolean(selectedLinearCustomView)
   })
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: staged TaskPage hook-chain extension; every listed member is assigned from this hook before the model reaches the next stage.
   const nextModel = model as typeof model & {
     openComposerForLinearItem: typeof openComposerForLinearItem
     handleUseLinearItem: typeof handleUseLinearItem
@@ -247,6 +255,9 @@ export function useTaskPageComposerActions(model: TaskPageJiraListEffectsModel) 
     handleLinearAccessConnected: typeof handleLinearAccessConnected
     openComposerForJiraItem: typeof openComposerForJiraItem
     handleUseJiraItem: typeof handleUseJiraItem
+    openComposerForFeishuBitableTask: typeof openComposerForFeishuBitableTask
+    handleUseFeishuBitableTask: typeof handleUseFeishuBitableTask
+    setSelectedFeishuBitableTask: typeof setSelectedFeishuBitableTask
     taskPageListChromeHidden: typeof taskPageListChromeHidden
   }
   nextModel.openComposerForLinearItem = openComposerForLinearItem
@@ -258,6 +269,9 @@ export function useTaskPageComposerActions(model: TaskPageJiraListEffectsModel) 
   nextModel.handleLinearAccessConnected = handleLinearAccessConnected
   nextModel.openComposerForJiraItem = openComposerForJiraItem
   nextModel.handleUseJiraItem = handleUseJiraItem
+  nextModel.openComposerForFeishuBitableTask = openComposerForFeishuBitableTask
+  nextModel.handleUseFeishuBitableTask = handleUseFeishuBitableTask
+  nextModel.setSelectedFeishuBitableTask = setSelectedFeishuBitableTask
   nextModel.taskPageListChromeHidden = taskPageListChromeHidden
   return nextModel
 }

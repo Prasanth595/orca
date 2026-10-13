@@ -49,6 +49,7 @@ export type WorkspaceSourceSelectionKind =
   | 'branch'
   | 'linear'
   | 'jira'
+  | 'feishu-bitable'
 
 export type WorkspaceSourceSelection = {
   kind: WorkspaceSourceSelectionKind
@@ -196,17 +197,19 @@ export function buildWorkspaceSourceSelection(args: {
   }
   const provider = getWorkspaceSourceProvider(linkedWorkItem)
   const kind: WorkspaceSourceSelectionKind =
-    provider === 'linear'
-      ? 'linear'
-      : provider === 'jira'
-        ? 'jira'
-        : provider === 'gitlab'
-          ? linkedWorkItem.type === 'mr'
-            ? 'gitlab-mr'
-            : 'gitlab-issue'
-          : linkedWorkItem.type === 'pr'
-            ? 'github-pr'
-            : 'github-issue'
+    provider === 'feishu-bitable'
+      ? 'feishu-bitable'
+      : provider === 'linear'
+        ? 'linear'
+        : provider === 'jira'
+          ? 'jira'
+          : provider === 'gitlab'
+            ? linkedWorkItem.type === 'mr'
+              ? 'gitlab-mr'
+              : 'gitlab-issue'
+            : linkedWorkItem.type === 'pr'
+              ? 'github-pr'
+              : 'github-issue'
   return {
     kind,
     label:
@@ -224,5 +227,5 @@ export function shouldPreserveWorkspaceSourceOnRepoChange(
     return false
   }
   const provider = getWorkspaceSourceProvider(item)
-  return provider === 'linear' || provider === 'jira'
+  return provider === 'linear' || provider === 'jira' || provider === 'feishu-bitable'
 }

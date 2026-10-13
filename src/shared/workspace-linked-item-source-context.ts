@@ -36,6 +36,18 @@ export function isWorkspaceLinkedItemSourceContextMatch(
   if (itemProvider !== context.provider) {
     return false
   }
+  if (itemProvider === 'feishu-bitable') {
+    const identity = context.providerIdentity
+    const record = item.feishuRecord
+    return Boolean(
+      item.type === 'issue' &&
+      record &&
+      identity?.provider === 'feishu-bitable' &&
+      record.connectionId === identity.connectionId &&
+      record.appToken === identity.appToken &&
+      record.tableId === identity.tableId
+    )
+  }
   if (itemProvider !== 'jira') {
     return true
   }

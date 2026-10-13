@@ -1,3 +1,4 @@
+import { FeishuBitableIcon } from '@/components/icons/FeishuBitableIcon'
 import React from 'react'
 import {
   CaseSensitive,
@@ -74,6 +75,9 @@ export function SelectionIcon({
   }
   if (kind === 'branch') {
     return <GitBranch className="size-3.5 shrink-0 text-muted-foreground" />
+  }
+  if (kind === 'feishu-bitable') {
+    return <FeishuBitableIcon className="size-3.5 shrink-0 text-muted-foreground" />
   }
   if (kind === 'jira') {
     return <JiraIcon className="size-3.5 shrink-0 text-muted-foreground" />
