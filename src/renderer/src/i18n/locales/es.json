@@ -1261,7 +1261,6 @@
         "0bbdc673c1": "No se pudieron actualizar los checks",
         "e7007aa1d8": "No se pueden actualizar los checks sin una ruta al repositorio.",
         "675bc0d638": "Cancelar",
-        "a18f669c7a": "{{value0}} {{value1}} reacción{{value2}}",
         "53fe19aefc": "Abrir el cuadro de merge de GitHub",
         "a2495e4784": "Pull request",
         "ce360fc318": "No se pudo deshabilitar auto-merge",
@@ -1457,7 +1456,6 @@
         "22511537d2": "Aprobado",
         "00f3bab87b": " de {{value0}} obligatorias",
         "11384f99aa": "número",
-        "40c56b95e2": "{{value0}} aprobación{{value1}} restante",
         "3a051b8ade": "Work item",
         "32f8bef818": "Sin output de log.",
         "4168eb2c51": "Resolver",
@@ -2173,10 +2171,8 @@
         "3b11c8e8fc": "array",
         "e178c0a953": "Elige un proyecto de Jira antes de crear el issue.",
         "0f7b0d964a": "Crea un nuevo issue en {{value0}}.",
-        "eff9800d4b": "{{value0}} etiqueta{{value1}}",
         "d7f16d0e32": "Seleccionar equipo",
         "5301ca0f20": "Crear proyecto",
-        "7719d8daa9": "{{value0}} miembro{{value1}}",
         "5af6f0ae5b": "Seleccionar equipo",
         "cfb730b73e": "issue",
         "3659f9792a": "board",
@@ -3251,8 +3247,6 @@
             "drop": {
               "handler": {
                 "1e072f611e": "No se pudo subir {{value0}} {{value1}}.",
-                "53f015fd85": "Se omitió {{value0}} symlink{{value1}}.",
-                "29c031b49a": "Subiendo {{value0}} archivo{{value1}} al host…",
                 "0c77693641": "El worktree no está listo; inténtalo de nuevo en un momento.",
                 "ce8248b835": "Ruta del worktree no disponible.",
                 "internalTooManyPaths": "El drop contiene demasiadas rutas para pegarlas de forma segura en el terminal.",
@@ -5740,7 +5734,6 @@
           "0cd15956d4": "Ocultar {{value0}} espacios de trabajo secundarios",
           "bd37a57ac8": "Crear espacio de trabajo para {{value0}}",
           "b667b59632": "Algunos proyectos no se pudieron eliminar de Orca",
-          "f94466bc39": "{{value0}} de {{value1}} proyecto{{value2}} contenido(s) permanecieron tras eliminar el grupo.",
           "groupDeleteFailed": "No se pudo eliminar el grupo",
           "groupDeleteFailedDesc": "Algo salió mal al eliminar el grupo. No se eliminó ningún proyecto.",
           "7a8b9c0d1e": "Actualización requerida",
@@ -6257,7 +6250,6 @@
           "pairingCommand": "orca serve --pairing-address <host>",
           "pairingHelpSuffix": "en el servidor y pega la URL de emparejamiento impresa.",
           "sshImportAlreadySynced": "~/.ssh/config ya está sincronizado.",
-          "sshImportSynced": "Se sincronizó {{value0}} host{{value1}}.",
           "sshImportFailed": "No se pudo importar la configuración SSH.",
           "sshPersistenceDefault": "Los terminales remotos en este host seguirán activos hasta que los cierres o restablezcas el relay.",
           "advanced": "Advanced",
@@ -12785,7 +12777,6 @@
             "e131cd7128": "Source Control sólo está disponible para repositorios Git",
             "c07b236287": "Seleccione un espacio de trabajo para ver los cambios",
             "dc5a6465fc": "{{value0}} (por ejemplo, {{value1}}{{value2}})",
-            "8eb3782a0c": "No se pudo descartar el archivo {{value0}}{{value1}}",
             "a5e5a11090": "Descartar todo falló: no se pueden eliminar los archivos antes de descartarlos",
             "8a5ba6a988": "No se pudo cargar la diferencia de commit",
             "fe5bd1a610": "Creando {{value0}}...",
@@ -12794,7 +12785,6 @@
             "0453ca3a9a": "{{value0}} creado, pero Orca no pudo actualizarlo todavía.",
             "f99560ab29": "No se pudo abortar {{value0}}",
             "eae7a1da5f": "No se pudieron borrar las notas.",
-            "657e0c90ad": "{{value0}} nota{{value1}}",
             "df5040e3c3": "Quitar del stage",
             "8cde1a2fb0": "Agregar al stage",
             "d54dd48b0b": "Descartar cambios",
@@ -13474,7 +13464,6 @@
               },
               "compare": {
                 "summary": {
-                  "dd72a6fd37": "{{value0}} confirma{{value1}} antes de {{value2}}",
                   "commitsAheadSingular": "{{count}} commit por delante de {{ref}}",
                   "commitsAheadPlural": "{{count}} commits por delante de {{ref}}"
                 }
@@ -14027,7 +14016,6 @@
           "5c115cb713": "CLI no instalada",
           "217beb0658": "GitHub",
           "4983ae7433": "Agregue acceso Linear con una clave API personal. Las claves de acceso total pueden mostrar todos los equipos a los que puede acceder el propietario de la clave.",
-          "b08a6ac93c": "{{value0}} workspace{{value1}} vinculado. Agrega otro workspace o reemplaza una clave restringida en cualquier momento.",
           "93f0c49ad1": "no autenticado",
           "a3bcf13694": "conectado",
           "d6e5dba05a": "Iniciar sesión",
