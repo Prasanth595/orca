@@ -234,7 +234,12 @@ export function requestLineBlame(target: BlameTarget): void {
   if (key === inFlightKey && generation === inFlightGeneration) {
     return
   }
+  const requestedGeneration = generation
   void ensureFileBlame(target, now).then(() => {
+    // Why: an invalidation during the file read obsoletes this request; the consumer asks again.
+    if (requestedGeneration !== generation) {
+      return
+    }
     const fresh = cachedLineBlame(key)
     if (fresh) {
       // Why publish rather than return: this consumer may have asked for a

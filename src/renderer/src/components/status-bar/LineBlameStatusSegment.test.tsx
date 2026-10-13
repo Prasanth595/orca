@@ -27,10 +27,6 @@ vi.mock('@/lib/connection-context', () => ({
   getConnectionIdForFile: () => undefined
 }))
 
-vi.mock('@/runtime/runtime-rpc-client', () => ({
-  settingsForRuntimeOwner: () => ({ activeRuntimeEnvironmentId: null })
-}))
-
 vi.mock('@/i18n/i18n', () => ({
   translate: (_key: string, fallback: string) => fallback,
   getIntlLocale: () => i18nMocks.locale

@@ -11,7 +11,6 @@ vi.mock('@/runtime/runtime-git-blame-client', () => ({
   getRuntimeGitFileBlame: mocks.getRuntimeGitFileBlame
 }))
 vi.mock('@/lib/connection-context', () => ({ getConnectionIdForFile: () => undefined }))
-vi.mock('@/runtime/runtime-rpc-client', () => ({ settingsForRuntimeOwner: () => ({}) }))
 vi.mock('@/store', () => ({ useAppStore: { getState: () => ({ settings: {} }) } }))
 
 const {
@@ -130,6 +129,7 @@ describe('whole-file blame', () => {
     await settle()
 
     expect(cachedLineBlame(blameKey(target(5)))).toBeNull()
+    expect(mocks.getRuntimeGitLineBlame).not.toHaveBeenCalled()
   })
 
   it('never publishes an answer from a generation the editor has left', async () => {
