@@ -3,7 +3,7 @@ import { basename, dirname, getRelativePathInsideRoot } from '@/lib/path'
 import { getConnectionIdForFileFromState } from '@/lib/connection-owner-resolution'
 import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
 import { toRuntimeWorktreeSelector } from '@/runtime/runtime-worktree-selector'
-import { runtimeEnvironmentServesFilesByPath } from '@/runtime/runtime-file-address'
+import { knownRuntimeEnvironmentServesFilesByPath } from '@/runtime/runtime-file-address'
 import type { AppState } from '@/store/types'
 
 /** `location` is what the grant was minted for, so its readers and its share key stay on that host. */
@@ -24,8 +24,8 @@ const grantsByPreviewId = new Map<string, Promise<DocPreviewGrantHandle>>()
 export type DocPreviewGrantLocation = Omit<DocPreviewGrantRequest, 'browserPageId'>
 
 /**
- * A paired document outside its worktree is `host-path`: only its host can say whether it serves
- * the path, so its location is held until that host answers.
+ * A paired document outside the opening worktree is `host-path`: only its host can say whether it
+ * serves the path, so its location is held until that host answers.
  */
 type DocPreviewGrantDraft =
   | { kind: 'workspace'; location: DocPreviewGrantLocation }
@@ -87,20 +87,11 @@ function draftDocPreviewGrantRequest(
   }
 }
 
-/** The grant request for a document its owner reads by workspace, or null without asking a host. */
-export function buildDocPreviewGrantRequest(
-  state: AppState,
-  worktreeId: string,
-  filePath: string
-): DocPreviewGrantLocation | null {
-  const draft = draftDocPreviewGrantRequest(state, worktreeId, filePath)
-  return draft?.kind === 'workspace' ? draft.location : null
-}
-
 /**
- * {@link buildDocPreviewGrantRequest}, plus a paired or SSH host's document outside its workspaces
- * when that host serves files by path. The grant starts at the entry file alone, and the host
- * refuses any path it does not serve.
+ * The grant request for a document, or null when no grant can read it. A paired document outside
+ * the opening workspace reads by path only on a host already known to serve paths (its workspaces
+ * and its chat scratch folder); an unknown answer shows "Preview unavailable" at once, and a reload
+ * after the host answers mints the grant.
  */
 export async function resolveDocPreviewGrantRequest(
   state: AppState,
@@ -111,7 +102,9 @@ export async function resolveDocPreviewGrantRequest(
   if (draft?.kind !== 'host-path') {
     return draft?.location ?? null
   }
-  return (await runtimeEnvironmentServesFilesByPath(draft.environmentId)) ? draft.location : null
+  return knownRuntimeEnvironmentServesFilesByPath(draft.environmentId) === true
+    ? draft.location
+    : null
 }
 
 export function ensureDocPreviewGrant(

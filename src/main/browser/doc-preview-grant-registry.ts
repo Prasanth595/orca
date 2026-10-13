@@ -18,7 +18,7 @@ export type DocPreviewOwner =
       worktreeRoot: string
     }
   | {
-      /** A document outside every workspace that its paired or SSH host serves by absolute path. */
+      /** A document outside the opening workspace that its paired or SSH host serves by absolute path. */
       kind: 'host-path'
       environmentId: string
       /** Workspace the reader opened the document from; the host reads the file by path either way. */

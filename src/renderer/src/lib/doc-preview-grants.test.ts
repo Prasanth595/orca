@@ -13,11 +13,15 @@ vi.mock('@/lib/connection-owner-resolution', () => ({
 vi.mock('@/lib/worktree-runtime-owner', () => ({
   getRuntimeEnvironmentIdForWorktree: () => mocks.environmentId
 }))
+// The host never answered whether it serves paths; host-path grants are covered beside the preview.
+vi.mock('@/runtime/runtime-file-address', () => ({
+  knownRuntimeEnvironmentServesFilesByPath: () => undefined
+}))
 
 import {
-  buildDocPreviewGrantRequest,
   ensureDocPreviewGrant,
-  releaseDocPreviewGrant
+  releaseDocPreviewGrant,
+  resolveDocPreviewGrantRequest
 } from './doc-preview-grants'
 
 const state = { getKnownWorktreeById: () => ({ id: 'wt-1', path: '/srv/repo' }) } as never
@@ -32,12 +36,14 @@ beforeEach(() => {
   })
 })
 
-describe('buildDocPreviewGrantRequest', () => {
+describe('resolveDocPreviewGrantRequest', () => {
   // A document outside every workspace resolves and authorizes from its own directory.
-  it('roots an SSH grant outside the workspace at the document directory', () => {
+  it('roots an SSH grant outside the workspace at the document directory', async () => {
     mocks.connectionId = 'ssh-1'
 
-    expect(buildDocPreviewGrantRequest(state, 'wt-1', '/home/alice/docs/report.html')).toEqual({
+    expect(
+      await resolveDocPreviewGrantRequest(state, 'wt-1', '/home/alice/docs/report.html')
+    ).toEqual({
       owner: { kind: 'ssh', connectionId: 'ssh-1' },
       requestBase: '/home/alice/docs',
       root: '/home/alice/docs',
@@ -45,10 +51,12 @@ describe('buildDocPreviewGrantRequest', () => {
     })
   })
 
-  it('resolves from the workspace but authorizes only the document directory', () => {
+  it('resolves from the workspace but authorizes only the document directory', async () => {
     mocks.connectionId = 'ssh-1'
 
-    expect(buildDocPreviewGrantRequest(state, 'wt-1', '/srv/repo/docs/report.html')).toEqual({
+    expect(
+      await resolveDocPreviewGrantRequest(state, 'wt-1', '/srv/repo/docs/report.html')
+    ).toEqual({
       owner: { kind: 'ssh', connectionId: 'ssh-1' },
       requestBase: '/srv/repo',
       root: '/srv/repo/docs',
@@ -56,10 +64,12 @@ describe('buildDocPreviewGrantRequest', () => {
     })
   })
 
-  it('carries the worktree selector and root for a paired runtime grant', () => {
+  it('carries the worktree selector and root for a paired runtime grant', async () => {
     mocks.environmentId = 'env-1'
 
-    expect(buildDocPreviewGrantRequest(state, 'wt-1', '/srv/repo/docs/report.html')).toEqual({
+    expect(
+      await resolveDocPreviewGrantRequest(state, 'wt-1', '/srv/repo/docs/report.html')
+    ).toEqual({
       owner: {
         kind: 'runtime',
         environmentId: 'env-1',
@@ -72,15 +82,15 @@ describe('buildDocPreviewGrantRequest', () => {
     })
   })
 
-  // Why: files.read is worktree-scoped, so a paired document outside it has no readable root.
-  it('refuses a paired document outside the workspace', () => {
+  // Why: the host's workspace reads stop at the worktree, so only a host known to serve paths reads it.
+  it('refuses a paired document outside the workspace on a host not known to serve paths', async () => {
     mocks.environmentId = 'env-1'
 
-    expect(buildDocPreviewGrantRequest(state, 'wt-1', '/var/tmp/report.html')).toBeNull()
+    expect(await resolveDocPreviewGrantRequest(state, 'wt-1', '/var/tmp/report.html')).toBeNull()
   })
 
-  it('refuses a local workspace, which has no remote channel to read over', () => {
-    expect(buildDocPreviewGrantRequest(state, 'wt-1', '/tmp/report.html')).toBeNull()
+  it('refuses a local workspace, which has no remote channel to read over', async () => {
+    expect(await resolveDocPreviewGrantRequest(state, 'wt-1', '/tmp/report.html')).toBeNull()
   })
 })
 

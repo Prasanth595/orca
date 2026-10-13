@@ -43,6 +43,16 @@ const mocks = vi.hoisted(() => ({
   statHostPathFile: vi.fn()
 }))
 
+// The host's cached answer to "do you serve files by path?"; undefined when it never answered.
+const hostPathCapability = vi.hoisted(() => {
+  const answer: { serves: boolean | undefined } = { serves: true }
+  return answer
+})
+
+vi.mock('@/runtime/runtime-file-address', () => ({
+  knownRuntimeEnvironmentServesFilesByPath: () => hostPathCapability.serves
+}))
+
 vi.mock('@/components/terminal-pane/terminal-host-workspace-file', () => ({
   statHostPathFile: mocks.statHostPathFile
 }))
@@ -94,6 +104,7 @@ beforeEach(() => {
   mocks.unifiedTabsByWorktree = {}
   mocks.activeWorktreeId = 'wt-1'
   mocks.statHostPathFile.mockResolvedValue(null)
+  hostPathCapability.serves = true
 })
 
 /**
@@ -365,7 +376,8 @@ describe('openFileInBrowserTab', () => {
         worktreeId: 'wt-1',
         worktreePath: '/srv/repo'
       },
-      '/tmp/agent-scratch/report.html'
+      '/tmp/agent-scratch/report.html',
+      5_000
     )
     expect(mocks.createEmptySplitGroup).not.toHaveBeenCalled()
     expect(mocks.createBrowserTab).not.toHaveBeenCalled()
@@ -392,6 +404,26 @@ describe('openFileInBrowserTab', () => {
       )
     )
     expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
+  // Why at once: an unreachable or unprobed host must not leave the click waiting.
+  it('keeps the boundary message at once on a host not known to serve paths', () => {
+    mocks.environmentId = 'runtime-1'
+    hostPathCapability.serves = undefined
+
+    openFilePreviewToSide({
+      language: 'html',
+      filePath: '/home/me/state/ab12/chart.html',
+      worktreeId: 'wt-1',
+      sourceGroupId: 'group-1'
+    })
+
+    return vi.waitFor(() => {
+      expect(mocks.toastError).toHaveBeenCalledWith(
+        "Files outside the workspace can't be previewed on a paired server yet."
+      )
+      expect(mocks.statHostPathFile).not.toHaveBeenCalled()
+    })
   })
 
   it('keeps the boundary message when the host cannot be asked', async () => {
@@ -622,6 +654,53 @@ describe('convertBrowserPageToWorkspaceDoc', () => {
     expect(mocks.createBrowserTab).toHaveBeenCalledWith(
       ...docPreviewCall(DOC_LOCATION.filePath, { activate: true })
     )
+  })
+
+  // Why: a page picked from another workspace's history or suggestions opens the same way as from
+  // its own, so the host that refused is asked once there too.
+  it('opens a host-served page outside its workspace from another worktree', async () => {
+    mocks.environmentId = 'runtime-1'
+    mocks.activeWorktreeId = 'wt-other'
+    mocks.browserPagesByWorkspace = { 'browser-1': [{ id: 'page-1', worktreeId: 'wt-other' }] }
+    const page = '/home/me/state/ab12/chart.html'
+    mocks.statHostPathFile.mockResolvedValue({
+      kind: 'host-path',
+      absolutePath: page,
+      isDirectory: false
+    })
+
+    const outcome = convertBrowserPageToWorkspaceDoc('page-1', {
+      kind: 'workspace-doc',
+      worktreeId: 'wt-1',
+      filePath: page
+    })
+
+    expect(outcome).toBe('opened-in-owning-worktree')
+    await vi.waitFor(() =>
+      expect(mocks.createBrowserTab).toHaveBeenCalledWith(
+        ...docPreviewCall(page, { activate: true })
+      )
+    )
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
+  it('names the boundary for a page outside its workspace the host does not serve', async () => {
+    mocks.environmentId = 'runtime-1'
+    mocks.activeWorktreeId = 'wt-other'
+    mocks.browserPagesByWorkspace = { 'browser-1': [{ id: 'page-1', worktreeId: 'wt-other' }] }
+
+    convertBrowserPageToWorkspaceDoc('page-1', {
+      kind: 'workspace-doc',
+      worktreeId: 'wt-1',
+      filePath: '/etc/site/index.html'
+    })
+
+    await vi.waitFor(() =>
+      expect(mocks.toastError).toHaveBeenCalledWith(
+        "Files outside the workspace can't be previewed on a paired server yet."
+      )
+    )
+    expect(mocks.createBrowserTab).not.toHaveBeenCalled()
   })
 
   // Back and Forward mean "this tab, as it was": a history leg converts in place even when the
