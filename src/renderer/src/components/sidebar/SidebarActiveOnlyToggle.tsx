@@ -20,7 +20,7 @@ export function SidebarActiveOnlyToggle(): React.JSX.Element | null {
     ? translate('dashboard.sidebar.activeOnly.turnOff', 'Show all workspaces')
     : translate(
         'dashboard.sidebar.activeOnly.turnOn',
-        'Show only workspaces with open tabs, plus the one you are in'
+        'Show only workspaces with open tabs or a live agent, plus pinned ones and the one you are in'
       )
   return (
     <Tooltip>
