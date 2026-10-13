@@ -77,7 +77,7 @@ export function AiVaultSessionHistoryChatView({
       style={appearanceStyle}
       data-native-chat-scheme={appearanceStyle.colorScheme}
     >
-      <div className="flex h-8 shrink-0 items-center gap-1.5 border-b border-sidebar-border/60 px-3 text-[11px] text-muted-foreground">
+      <div className="flex h-8 shrink-0 items-center gap-1.5 border-b border-sidebar-border/60 px-3 text-2xs text-muted-foreground">
         <span className="truncate">{agentName}</span>
         <span>·</span>
         <span className="truncate font-mono">{sessionId}</span>
