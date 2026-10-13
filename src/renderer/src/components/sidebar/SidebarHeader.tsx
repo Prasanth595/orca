@@ -8,6 +8,8 @@ import { Popover, PopoverAnchor, PopoverArrow, PopoverContent } from '@/componen
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Sparkles, Bell } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
+import { useActivityUnreadCount } from '@/components/activity/useActivityUnreadCount'
 
 type SidebarHeaderProps = {
   onWorkspaceBoardMenuOpenChange: (open: boolean) => void
@@ -20,6 +22,8 @@ const SidebarHeader = React.memo(function SidebarHeader({
 }: SidebarHeaderProps) {
   // Subscribe this memoized header to locale changes before using translate().
   useTranslation()
+  const unreadCount = useActivityUnreadCount()
+  const unreadCountId = useId()
   const sidebarBody = useAppStore((s) => s.sidebarBody ?? 'workspaces')
   const groupBy = useAppStore((s) => s.groupBy)
   const setSidebarBody = useAppStore((s) => s.setSidebarBody)
@@ -44,6 +48,7 @@ const SidebarHeader = React.memo(function SidebarHeader({
     agentsViewActive ? 'dashboard.sidebar.closeActivity' : 'dashboard.sidebar.openActivity',
     agentsViewActive ? 'Turn off activity view' : 'View activity'
   )
+  const unreadLabel = `${unreadCount} ${translate('auto.components.activity.ActivityTitlebarControls.f915168c8e', 'unread')}`
 
   return (
     <div className="mt-2 flex h-8 min-w-0 items-center justify-between gap-1.5 px-2">
@@ -67,9 +72,9 @@ const SidebarHeader = React.memo(function SidebarHeader({
           }}
         >
           <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-flex shrink-0">
-                <PopoverAnchor asChild>
+            <span className="relative inline-flex shrink-0">
+              <PopoverAnchor asChild>
+                <TooltipTrigger asChild>
                   <Button
                     type="button"
                     variant="ghost"
@@ -79,16 +84,29 @@ const SidebarHeader = React.memo(function SidebarHeader({
                       agentsViewActive && 'bg-primary/15 text-primary hover:bg-primary/20'
                     )}
                     aria-label={activityLabel}
+                    aria-describedby={unreadCount > 0 ? unreadCountId : undefined}
                     aria-pressed={agentsViewActive}
                     onClick={() => setSidebarBody?.(agentsViewActive ? 'workspaces' : 'agents')}
                   >
                     <Bell className="size-3.5" strokeWidth={2.25} />
                   </Button>
-                </PopoverAnchor>
-              </span>
-            </TooltipTrigger>
+                </TooltipTrigger>
+              </PopoverAnchor>
+              {unreadCount > 0 ? (
+                <Badge
+                  id={unreadCountId}
+                  size="count"
+                  className="pointer-events-none absolute -right-1 -top-1"
+                  aria-label={unreadLabel}
+                  data-sidebar-activity-unread=""
+                >
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </Badge>
+              ) : null}
+            </span>
             <TooltipContent side="bottom" sideOffset={6}>
               {activityLabel}
+              {unreadCount > 0 ? ` · ${unreadLabel}` : null}
             </TooltipContent>
           </Tooltip>
           <PopoverContent

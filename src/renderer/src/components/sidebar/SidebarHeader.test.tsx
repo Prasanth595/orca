@@ -4,6 +4,12 @@ import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import SidebarHeader from './SidebarHeader'
+import type { AppState } from '@/store/types'
+import { makeAutomationInboxEntry } from '../../../../shared/automation-inbox-test-fixture'
+import {
+  changeAutomationInboxEntries,
+  normalizeAutomationInboxEntries
+} from '../../../../shared/automation-inbox'
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 
@@ -19,7 +25,16 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-type MockState = {
+type MockState = Pick<
+  AppState,
+  | 'agentStatusEpoch'
+  | 'agentStatusByPaneKey'
+  | 'migrationUnsupportedByPtyId'
+  | 'retainedAgentsByPaneKey'
+  | 'acknowledgedAgentsByPaneKey'
+  | 'activityClearedAtByPaneKey'
+  | 'automationInboxEntries'
+> & {
   repos: { id: string }[]
   groupBy: string
   sidebarBody: 'workspaces' | 'agents'
@@ -110,6 +125,13 @@ beforeEach(() => {
   mocks.toast.mockClear()
   mocks.shortcutLabel.current = '⌘N'
   mockState = {
+    agentStatusEpoch: 0,
+    agentStatusByPaneKey: {},
+    migrationUnsupportedByPtyId: {},
+    retainedAgentsByPaneKey: {},
+    acknowledgedAgentsByPaneKey: {},
+    activityClearedAtByPaneKey: {},
+    automationInboxEntries: {},
     repos: [],
     groupBy: 'repo',
     sidebarBody: 'workspaces',
@@ -131,6 +153,54 @@ afterEach(() => {
 })
 
 describe('SidebarHeader', () => {
+  it.each(['workspaces', 'agents'] as const)(
+    'shows new automation alerts on the bell in %s mode and removes read or dismissed alerts from the count',
+    (sidebarBody) => {
+      mockState.sidebarBody = sidebarBody
+      mockState.automationInboxEntries = normalizeAutomationInboxEntries({
+        first: makeAutomationInboxEntry(),
+        second: makeAutomationInboxEntry({ runId: 'run-2' })
+      })
+      const renderHeader = () =>
+        act(() => {
+          root.render(<SidebarHeader onWorkspaceBoardMenuOpenChange={vi.fn()} />)
+        })
+      const badge = () => container.querySelector('[data-sidebar-activity-unread]')
+      renderHeader()
+      expect(badge()?.textContent).toBe('2')
+      const keys = Object.keys(mockState.automationInboxEntries)
+      mockState.automationInboxEntries = changeAutomationInboxEntries(
+        mockState.automationInboxEntries,
+        [keys[0]],
+        'read'
+      )
+      renderHeader()
+      expect(badge()?.textContent).toBe('1')
+      mockState.automationInboxEntries = changeAutomationInboxEntries(
+        mockState.automationInboxEntries,
+        [keys[1]],
+        'dismiss'
+      )
+      renderHeader()
+      expect(badge()).toBeNull()
+    }
+  )
+
+  it('keeps large bell counts compact while exposing the full unread count', () => {
+    mockState.automationInboxEntries = normalizeAutomationInboxEntries(
+      Object.fromEntries(
+        Array.from({ length: 100 }, (_, index) => [
+          index,
+          makeAutomationInboxEntry({ runId: `run-${index}` })
+        ])
+      )
+    )
+    act(() => root.render(<SidebarHeader onWorkspaceBoardMenuOpenChange={vi.fn()} />))
+    const badge = container.querySelector('[data-sidebar-activity-unread]')
+    expect(badge?.textContent).toBe('99+')
+    expect(badge?.getAttribute('aria-label')).toBe('100 unread')
+  })
+
   it('keeps New workspace clickable with zero projects, since the composer adds the first one', async () => {
     act(() => {
       root.render(<SidebarHeader onWorkspaceBoardMenuOpenChange={vi.fn()} />)
