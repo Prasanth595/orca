@@ -16958,7 +16958,6 @@
           "needsAttention": "確認が必要",
           "markUnread": "自動化の通知を未読にする",
           "markRead": "自動化の通知を既読にする",
-          "dismiss": "自動化の通知を消去",
           "localHost": "ローカル",
           "remoteHost": "リモートホスト"
         }

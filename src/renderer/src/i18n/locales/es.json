@@ -16958,7 +16958,6 @@
           "needsAttention": "Requiere atención",
           "markUnread": "Marcar esta alerta como no leída",
           "markRead": "Marcar esta alerta como leída",
-          "dismiss": "Descartar esta alerta",
           "localHost": "Local",
           "remoteHost": "Host remoto"
         }

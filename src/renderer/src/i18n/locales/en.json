@@ -17261,7 +17261,6 @@
           "needsAttention": "Needs attention",
           "markUnread": "Mark automation alert unread",
           "markRead": "Mark automation alert read",
-          "dismiss": "Dismiss automation alert",
           "localHost": "Local",
           "remoteHost": "Remote host"
         }

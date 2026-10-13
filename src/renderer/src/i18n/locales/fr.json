@@ -17064,7 +17064,6 @@
           "needsAttention": "À vérifier",
           "markUnread": "Marquer cette alerte comme non lue",
           "markRead": "Marquer cette alerte comme lue",
-          "dismiss": "Effacer cette alerte",
           "localHost": "Local",
           "remoteHost": "Hôte distant"
         }

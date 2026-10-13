@@ -16976,7 +16976,6 @@
           "needsAttention": "需要关注",
           "markUnread": "将自动化提醒标记为未读",
           "markRead": "将自动化提醒标记为已读",
-          "dismiss": "清除自动化提醒",
           "localHost": "本机",
           "remoteHost": "远程主机"
         }
