@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decodeHermesTranscriptLine } from './transcript-line-decoders'
+import { decodeHermesTranscriptLine, expandHermesTranscriptLine } from './transcript-line-decoders'
 
 const line = (record: unknown): string => JSON.stringify(record)
 
@@ -68,5 +68,31 @@ describe('decodeHermesTranscriptLine', () => {
     )
     expect(decoded?.id).toBe('fallback-id')
     expect(decodeHermesTranscriptLine(line({ type: 'message', role: 'assistant' }), 'f')).toBeNull()
+  })
+})
+
+describe('expandHermesTranscriptLine', () => {
+  it('expands a session row into one row per turn, carrying the session id', () => {
+    const nested = line({
+      sessionId: '20261013_120000_abcd',
+      messages: [
+        { type: 'message', role: 'user', text: 'hello' },
+        { type: 'message', role: 'assistant', text: 'hi' }
+      ]
+    })
+    const rows = expandHermesTranscriptLine(nested)
+    expect(rows).toHaveLength(2)
+    const decoded = rows.map((row) => decodeHermesTranscriptLine(row, 'fallback'))
+    expect(decoded.map((message) => message?.blocks)).toEqual([
+      [{ type: 'text', text: 'hello' }],
+      [{ type: 'text', text: 'hi' }]
+    ])
+    expect(decoded[0]?.id).toContain('20261013_120000_abcd')
+  })
+
+  it('passes a row-per-turn line through untouched', () => {
+    const row = line({ type: 'message', role: 'user', text: 'kept' })
+    expect(expandHermesTranscriptLine(row)).toEqual([row])
+    expect(expandHermesTranscriptLine('not json')).toEqual(['not json'])
   })
 })

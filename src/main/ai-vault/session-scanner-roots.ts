@@ -45,13 +45,19 @@ export function codexHomeSessionsDir(): string {
   )
 }
 
+/** Hermes' own home when `HERMES_HOME` is unset: `%LOCALAPPDATA%/hermes` on Windows, else `~/.hermes`. */
+function defaultHermesHome(): string {
+  if (process.platform === 'win32') {
+    const localAppData = process.env.LOCALAPPDATA
+    return join(localAppData && localAppData.length > 0 ? localAppData : join(homedir(), 'AppData', 'Local'), 'hermes')
+  }
+  return join(homedir(), '.hermes')
+}
+
 /** This host's Hermes Agent sessions root (`~/.hermes/sessions`). Hermes keeps its
  *  own sessions in SQLite; this directory holds the JSON/JSONL exports Orca reads. */
 export function hermesSessionsDir(): string {
-  return join(
-    resolveAbsoluteDirOverride(process.env.HERMES_HOME, join(homedir(), '.hermes')),
-    'sessions'
-  )
+  return join(resolveAbsoluteDirOverride(process.env.HERMES_HOME, defaultHermesHome()), 'sessions')
 }
 
 // The local host and each WSL distro's `~/.claude/projects`. Callers reading

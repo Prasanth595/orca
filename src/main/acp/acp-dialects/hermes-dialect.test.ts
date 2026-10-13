@@ -23,12 +23,62 @@ function call(
 
 describe('hermes dialect', () => {
   it('reads the name off the title Hermes builds, `name: detail`', () => {
+    // No dispatch and no results: a control call (`stop`, `steer`, `list`) spawns nothing.
     expect(
       hermesToolSubagents(
         update({ toolCallId: 'tc-1', status: 'completed', title: 'delegate_task: 1 tasks: PONG' }),
         call('delegate_task: 1 tasks: Reply with PONG')
       )
-    ).toEqual([{ id: 'tc-1', state: 'completed', label: 'delegate_task: 1 tasks: PONG' }])
+    ).toEqual([])
+  })
+
+  it('makes no rows for a control call that names a subagent', () => {
+    expect(
+      hermesToolSubagents(
+        update({
+          toolCallId: 'tc-stop',
+          status: 'completed',
+          title: 'delegate_task: stop child-1',
+          content: text('{"action": "stop", "subagent_id": "child-1"}', 'stopped child-1')
+        }),
+        call('delegate_task: stop child-1')
+      )
+    ).toEqual([])
+  })
+
+  it('keeps a dispatched child working when prose follows the answer', () => {
+    const dispatched = '{"status": "dispatched", "delegation_id": "deleg_9", "goals": ["Reply PONG"]}'
+    expect(
+      hermesToolSubagents(
+        update({
+          toolCallId: 'tc-10',
+          status: 'completed',
+          title: 'delegate_task: 1 tasks: Reply PONG',
+          content: text(dispatched, 'Follow the progress in the roster {see note}')
+        }),
+        call('delegate_task: 1 tasks: Reply PONG')
+      )
+    ).toEqual([{ id: 'deleg_9', state: 'working', label: 'Reply PONG' }])
+  })
+
+  it('reads a synchronous batch as one finished row per task', () => {
+    const results =
+      '{"total_duration_seconds": 4.2, "results": [' +
+      '{"task_index": 0, "status": "completed", "summary": "First done"},' +
+      '{"task_index": 1, "status": "failed", "error": "Second failed"}]}'
+    const rows = hermesToolSubagents(
+      update({
+        toolCallId: 'tc-11',
+        status: 'completed',
+        title: 'delegate_task: 2 tasks: First / Second',
+        content: text(results)
+      }),
+      call('delegate_task: 2 tasks: First / Second')
+    )
+    expect(rows.map((row) => [row.id, row.state, row.result])).toEqual([
+      ['tc-11:0', 'completed', 'First done'],
+      ['tc-11:1', 'failed', 'Second failed']
+    ])
   })
 
   // Captured from Hermes: the call answers with the delegation it dispatched, whose children keep
@@ -106,6 +156,38 @@ describe('hermes dialect', () => {
           content: text('terminal result\n- **output:** a.txt\n- **exit_code:** 0')
         }),
         call('terminal: ls')
+      )
+    ).toEqual([])
+  })
+
+  // Captured from Hermes: the kill echoes the call's input and answers with the session it ended.
+  it('settles the launched task when the process tool kills it', () => {
+    expect(
+      hermesToolBackgroundTasks(
+        update({
+          toolCallId: 'tc-6',
+          status: 'completed',
+          title: 'process_manage: kill proc_7a7f15c3446',
+          content: text(
+            '{"action": "kill", "session_id": "proc_7a7f15c3446b"}',
+            'process_manage result\n- **status:** killed\n- **session_id:** proc_7a7f15c3446b'
+          )
+        }),
+        call('process_manage: kill proc_7a7f15c3446')
+      )
+    ).toEqual([{ taskId: 'proc_7a7f15c3446b', kind: 'command', label: 'kill proc_7a7f15c3446', state: 'done' }])
+  })
+
+  it('ignores a process call that only polls', () => {
+    expect(
+      hermesToolBackgroundTasks(
+        update({
+          toolCallId: 'tc-7',
+          status: 'completed',
+          title: 'process_manage: poll',
+          content: text('{"action": "poll", "session_id": "proc_7a7f15c3446b"}', 'still running')
+        }),
+        call('process_manage: poll')
       )
     ).toEqual([])
   })

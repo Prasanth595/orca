@@ -8,16 +8,27 @@ import type { NativeChatSubagentState } from '../../../shared/native-chat-types'
 import type { ToolCallUpdate } from '../generated/acp-protocol.generated'
 import type { AcpBackgroundTaskUpdate, AcpDialect, AcpSubagentUpdate } from './acp-dialect'
 
-/** The delegation Hermes answers `delegate_task` with, before the children report. */
-const delegationResultSchema = z.looseObject({
+/** A delegation Hermes dispatched, whose children keep running after the call completes. */
+const dispatchedSchema = z.looseObject({
+  status: z.literal('dispatched'),
   delegation_id: z.string().optional(),
-  goals: z.array(z.string()).optional(),
-  count: z.number().optional(),
-  mode: z.string().optional()
+  goals: z.array(z.string()).optional()
 })
 
-/** `- **session_id:** proc_…` in the result of a backgrounded command. */
-const BACKGROUND_SESSION_ID = /session_id:?\**\s*(proc_[A-Za-z0-9_-]+)/
+/** A delegation Hermes ran synchronously: one entry per task, already finished. */
+const syncResultsSchema = z.looseObject({
+  results: z.array(
+    z.looseObject({
+      task_index: z.number().optional(),
+      status: z.string().optional(),
+      summary: z.string().nullish(),
+      error: z.string().nullish()
+    })
+  )
+})
+
+/** `- **session_id:** proc_…` in a result that started or ended a background process. */
+const PROCESS_SESSION_ID = /session_id:?\**\s*(proc_[A-Za-z0-9_-]+)/
 
 /** Hermes titles a call `name: detail`, and Orca's journal name falls back to that title. */
 function bareToolName(raw: string | null | undefined): string {
@@ -53,23 +64,82 @@ function resultText(update: ToolCallUpdate): string {
 
 /** Every in-flight provider status collapses to `working`; only an end is definite. */
 function subagentState(status: string | null | undefined): NativeChatSubagentState | undefined {
-  if (status === 'completed') return 'completed'
-  if (status === 'failed') return 'failed'
+  if (status === 'completed' || status === 'ok') return 'completed'
+  if (status === 'failed' || status === 'error' || status === 'timeout' || status === 'interrupted') {
+    return 'failed'
+  }
   if (status === 'pending' || status === 'in_progress') return 'working'
   return undefined
 }
 
-function dispatchedDelegation(text: string): z.infer<typeof delegationResultSchema> | null {
-  const start = text.indexOf('{"status"')
-  if (start === -1) return null
-  const end = text.lastIndexOf('}')
-  if (end <= start) return null
-  try {
-    const parsed = delegationResultSchema.safeParse(JSON.parse(text.slice(start, end + 1)))
-    return parsed.success ? parsed.data : null
-  } catch {
-    return null
+/**
+ * Each JSON object in `text`, in order, matched by its own braces: a result may carry the call's
+ * input, its answer, and prose after them, so the objects are read one at a time rather than as one
+ * span from the first `{` to the last `}`.
+ */
+function jsonObjects(text: string): unknown[] {
+  const found: unknown[] = []
+  let depth = 0
+  let start = -1
+  let inString = false
+  let escaped = false
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]
+    if (inString) {
+      if (escaped) escaped = false
+      else if (char === '\\') escaped = true
+      else if (char === '"') inString = false
+      continue
+    }
+    if (char === '"') inString = true
+    else if (char === '{') {
+      if (depth === 0) start = index
+      depth += 1
+    } else if (char === '}') {
+      depth -= 1
+      if (depth === 0 && start !== -1) {
+        try {
+          found.push(JSON.parse(text.slice(start, index + 1)))
+        } catch {
+          // A malformed object is skipped; the next one may still parse.
+        }
+        start = -1
+      }
+      if (depth < 0) depth = 0
+    }
   }
+  return found
+}
+
+/** The rows a spawn's answer describes, or none when the call was a control action. */
+function spawnRows(update: ToolCallUpdate, objects: readonly unknown[]): AcpSubagentUpdate[] {
+  for (const object of objects) {
+    const dispatched = dispatchedSchema.safeParse(object)
+    if (dispatched.success) {
+      const goals = dispatched.data.goals ?? []
+      const base = dispatched.data.delegation_id ?? update.toolCallId
+      // The children are still running: the call is over, they are not.
+      const ids = goals.length > 1 ? goals.map((_, index) => `${base}:${index}`) : [base]
+      return ids.map((id, index) => ({
+        id,
+        state: 'working' as NativeChatSubagentState,
+        label: goals[index] ?? callLabel(update, 'Subagent')
+      }))
+    }
+    const sync = syncResultsSchema.safeParse(object)
+    if (sync.success) {
+      return sync.data.results.map((entry, index) => {
+        const result = (entry.summary ?? entry.error ?? '').trim()
+        return {
+          id: `${update.toolCallId}:${entry.task_index ?? index}`,
+          state: subagentState(entry.status) ?? 'completed',
+          label: callLabel(update, `Subagent ${(entry.task_index ?? index) + 1}`),
+          ...(result.length > 0 ? { result } : {})
+        }
+      })
+    }
+  }
+  return []
 }
 
 export function hermesToolSubagents(
@@ -79,37 +149,45 @@ export function hermesToolSubagents(
   if (bareToolName(tool.name) !== 'delegate_task') return []
   const state = subagentState(update.status)
   if (!state) return []
-  const dispatched = dispatchedDelegation(resultText(update))
-  // A delegation that answered `dispatched` runs its children in the background: the call is over
-  // but they are not. Its goals are the roster; without them the call is one unnamed child.
-  const goals = dispatched?.goals ?? []
-  const base = dispatched?.delegation_id ?? update.toolCallId
-  const ids = goals.length > 1 ? goals.map((_, index) => `${base}:${index}`) : [base]
-  const childState: NativeChatSubagentState = dispatched ? 'working' : state
-  return ids.map((id, index) => ({
-    id,
-    state: childState,
-    label: goals[index] ?? callLabel(update, 'Subagent')
-  }))
+  // Control actions (`stop`, `steer`, `list`) reuse the tool but spawn nothing, and they answer
+  // with no dispatch and no results, so only a spawn's own answer makes rows.
+  return spawnRows(update, jsonObjects(resultText(update)))
 }
 
 export function hermesToolBackgroundTasks(
   update: ToolCallUpdate,
   tool: AgentJournalToolCallItem
 ): AcpBackgroundTaskUpdate[] {
-  if (bareToolName(tool.name) !== 'terminal') return []
+  const name = bareToolName(tool.name)
   const text = resultText(update)
-  if (!text.includes('Background process started')) return []
-  const sessionId = BACKGROUND_SESSION_ID.exec(text)?.[1] ?? update.toolCallId
   const title = typeof update.title === 'string' ? update.title : ''
-  const command = title.includes(':') ? title.slice(title.indexOf(':') + 1).trim() : ''
+  const detail = title.includes(':') ? title.slice(title.indexOf(':') + 1).trim() : ''
+  if (name === 'terminal') {
+    if (!text.includes('Background process started')) return []
+    const sessionId = PROCESS_SESSION_ID.exec(text)?.[1] ?? update.toolCallId
+    return [
+      {
+        taskId: sessionId,
+        kind: 'command',
+        label: detail.length > 0 ? detail : callLabel(update, 'Background command'),
+        state: update.status === 'failed' ? 'blocked' : 'working',
+        parentToolUseId: update.toolCallId
+      }
+    ]
+  }
+  // A kill settles the task it names, which was launched under its own process session id.
+  if (name !== 'process_manage') return []
+  const killed = jsonObjects(text).some(
+    (object) => (object as { action?: unknown }).action === 'kill'
+  )
+  const sessionId = PROCESS_SESSION_ID.exec(text)?.[1]
+  if (!killed || !sessionId) return []
   return [
     {
       taskId: sessionId,
       kind: 'command',
-      label: command.length > 0 ? command : callLabel(update, 'Background command'),
-      state: update.status === 'failed' ? 'blocked' : 'working',
-      parentToolUseId: update.toolCallId
+      label: detail.length > 0 ? detail : callLabel(update, 'Background command'),
+      state: 'done'
     }
   ]
 }

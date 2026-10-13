@@ -32,9 +32,13 @@ export const SESSION_FILE_ID_LAYOUTS: Record<SessionIdLookupAgent, SessionFileId
       win32.basename(path) === GROK_CHAT_HISTORY_FILE && win32.basename(win32.dirname(path)) === id,
     directoryPredicate: (name, depth, wanted) => depth === 0 || (depth === 1 && wanted(name))
   },
-  // `<sessions>/session_<id>.jsonl`
+  // `<sessions>/session_<id>.jsonl` (Orca's export) or `<sessions>/hermes_session_<id>.jsonl`
+  // (`hermes sessions export`).
   hermes: {
-    fileMatchesId: (path, id) => win32.basename(path) === `session_${id}.jsonl`
+    fileMatchesId: (path, id) => {
+      const name = win32.basename(path)
+      return name === `session_${id}.jsonl` || name === `hermes_session_${id}.jsonl`
+    }
   },
   // `<sessions>/<cwd dir>/<ISO stamp>_<id>.jsonl`
   omp: {

@@ -54,4 +54,34 @@ describe('hermes native chat transcript', () => {
     const result = await readNativeChatTranscript('hermes', SESSION_ID, { hermesSessionsDir: root })
     expect('error' in result && result.notFound).toBe(true)
   })
+
+  // `hermes sessions export` names its file differently and nests the turns in one row per session.
+  it('reads the documented export file, one session row with its turns nested', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'hermes-sessions-'))
+    tempRoots.push(root)
+    const file = join(root, `hermes_session_${SESSION_ID}.jsonl`)
+    await writeFile(
+      file,
+      `${JSON.stringify({
+        sessionId: SESSION_ID,
+        cwd: '/work',
+        messages: [
+          { type: 'message', id: 'n1', role: 'user', text: 'nested hello' },
+          { type: 'message', id: 'n2', role: 'assistant', text: 'nested hi' }
+        ]
+      })}\n`,
+      'utf-8'
+    )
+
+    await expect(
+      resolveSessionFilePath('hermes', SESSION_ID, { hermesSessionsDir: root })
+    ).resolves.toBe(file)
+
+    const result = await readNativeChatTranscript('hermes', SESSION_ID, { hermesSessionsDir: root })
+    if (!('messages' in result)) {
+      throw new Error(`expected messages, got ${result.error}`)
+    }
+    expect(result.messages.map((message) => message.role)).toEqual(['user', 'assistant'])
+    expect(result.messages[1]?.blocks).toEqual([{ type: 'text', text: 'nested hi' }])
+  })
 })

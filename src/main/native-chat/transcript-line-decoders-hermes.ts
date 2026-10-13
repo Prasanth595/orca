@@ -58,3 +58,28 @@ function parseTimestamp(value: unknown): number | null {
   const parsed = timestampMs(value)
   return Number.isFinite(parsed) ? parsed : null
 }
+
+/**
+ * `hermes sessions export` writes one JSONL row per session with its turns nested under `messages`,
+ * while the row-per-turn export Orca's own Hermes integration writes is already in the shape the
+ * decoder reads. A nested row is expanded into one row per turn; every other line passes through.
+ */
+export function expandHermesTranscriptLine(line: string): string[] {
+  const record = parseJsonObject(line)
+  if (!record || !Array.isArray(record.messages)) {
+    return [line]
+  }
+  const sessionId = extractString(record.sessionId) ?? extractString(record.session_id)
+  return record.messages.flatMap((entry, index) => {
+    if (!entry || typeof entry !== 'object') return []
+    const row = { ...(entry as Record<string, unknown>) }
+    // The nested turns carry neither a session id nor a stable id of their own; the row's own id
+    // names them, the way the row-per-turn export does.
+    if (sessionId !== undefined) {
+      if (row.sessionId === undefined) row.sessionId = sessionId
+      if (row.id === undefined) row.id = `${sessionId}:${index}`
+    }
+    return [JSON.stringify(row)]
+  })
+}
+
