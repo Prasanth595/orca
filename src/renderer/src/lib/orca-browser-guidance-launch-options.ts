@@ -36,10 +36,14 @@ export function orcaBrowserGuidanceLaunchOptions(
     return { orcaBrowserGuidance: true }
   }
   const launchCwd = cwd?.trim() || undefined
+  // Why: without a cwd we cannot see project .codex/config.toml, which -c would override.
+  if (!launchCwd) {
+    return { orcaBrowserGuidance: true, codexUserDeveloperInstructions: true }
+  }
   refreshCodexUserDeveloperInstructions(launchCwd)
   return {
     orcaBrowserGuidance: true,
-    codexUserDeveloperInstructions: codexConfigAnswers.get(launchCwd ?? '') ?? true
+    codexUserDeveloperInstructions: codexConfigAnswers.get(launchCwd) ?? true
   }
 }
 

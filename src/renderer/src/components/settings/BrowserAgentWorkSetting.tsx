@@ -1,5 +1,4 @@
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
-import { refreshCodexUserDeveloperInstructions } from '@/lib/orca-browser-guidance-launch-options'
 import { SearchableSetting } from './SearchableSetting'
 import { SettingsSwitchRow } from './SettingsFormControls'
 import {
@@ -31,12 +30,7 @@ export function BrowserAgentWorkSetting({
         label={title}
         description={description}
         checked={enabled}
-        onChange={() => {
-          if (!enabled) {
-            refreshCodexUserDeveloperInstructions()
-          }
-          updateSettings({ useOrcaBrowserForAgentWork: !enabled })
-        }}
+        onChange={() => updateSettings({ useOrcaBrowserForAgentWork: !enabled })}
       />
     </SearchableSetting>
   )

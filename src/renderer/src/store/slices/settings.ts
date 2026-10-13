@@ -1,5 +1,4 @@
 import { normalizeNativeChatAppearanceSettings } from '../../../../shared/native-chat-appearance-settings'
-import { refreshCodexUserDeveloperInstructions } from '@/lib/orca-browser-guidance-launch-options'
 import type { StateCreator } from 'zustand'
 import type { AppState } from '../types'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
@@ -187,9 +186,6 @@ export const createSettingsSlice: StateCreator<AppState, [], [], SettingsSlice> 
 
   fetchSettings: async (options) => {
     await ownerHydration.fetchSettingsWithOwnerHydration({ options, set, get })
-    if (get().settings?.useOrcaBrowserForAgentWork) {
-      refreshCodexUserDeveloperInstructions()
-    }
     const { runtimeEnvironmentCatalogHydrated, runtimeEnvironments, runtimeStatusByEnvironmentId } =
       get()
     // Why: settings refreshes are frequent, but only incomplete host coverage needs

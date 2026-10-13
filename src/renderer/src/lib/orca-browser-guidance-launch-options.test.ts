@@ -38,16 +38,26 @@ describe('orcaBrowserGuidanceLaunchOptions', () => {
 
   it('skips Codex guidance until the config check answers, then follows it', async () => {
     const settings = { useOrcaBrowserForAgentWork: true }
-    expect(orcaBrowserGuidanceLaunchOptions(settings, 'codex')).toEqual({
+    expect(orcaBrowserGuidanceLaunchOptions(settings, 'codex', '/repo')).toEqual({
       orcaBrowserGuidance: true,
       codexUserDeveloperInstructions: true
     })
     await vi.waitFor(() => expect(userDefines).toHaveBeenCalledTimes(1))
     await Promise.resolve()
-    expect(orcaBrowserGuidanceLaunchOptions(settings, 'codex')).toEqual({
+    expect(orcaBrowserGuidanceLaunchOptions(settings, 'codex', '/repo')).toEqual({
       orcaBrowserGuidance: true,
       codexUserDeveloperInstructions: false
     })
+  })
+
+  it('skips Codex guidance without a launch cwd since project config is unknown', () => {
+    expect(orcaBrowserGuidanceLaunchOptions({ useOrcaBrowserForAgentWork: true }, 'codex')).toEqual(
+      {
+        orcaBrowserGuidance: true,
+        codexUserDeveloperInstructions: true
+      }
+    )
+    expect(userDefines).not.toHaveBeenCalled()
   })
 
   it('caches the config answer per launch cwd', async () => {
