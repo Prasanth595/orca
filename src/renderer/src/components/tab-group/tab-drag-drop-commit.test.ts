@@ -23,6 +23,7 @@ import {
 
 const WORKTREE_ID = 'wt-1'
 
+/** A DOMRect at the given position and size. */
 function rect(left: number, top: number, width: number, height: number): DOMRect {
   const box = {
     x: left,
@@ -47,6 +48,7 @@ const geometry: TabGroupPanelGeometrySnapshot = {
   byGroupId: new Map(geometryEntries.map((entry) => [entry.groupId, entry]))
 }
 
+/** Drag data for the dragged tab, which starts in group-3. */
 function dragData(overrides: Partial<TabDragItemData> = {}): TabDragItemData {
   return {
     kind: 'tab',
@@ -74,6 +76,7 @@ function dragEnd(
   })
 }
 
+/** Runs the drop commit and returns the store actions it called. */
 function commit(event: DragEndEvent) {
   const dropUnifiedTab = vi.fn(() => true)
   const reorderUnifiedTabs = vi.fn()

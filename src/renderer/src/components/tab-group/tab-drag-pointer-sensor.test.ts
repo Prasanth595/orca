@@ -131,17 +131,23 @@ describe('tab drag pointer sensor cursor recording', () => {
     expect(getDragPointer(scrollShiftedEvent)).toEqual({ x: 100, y: 50 })
   })
 
-  it('keeps the last position after pointerup for the drop commit', () => {
+  it('records the pointerup position for the drop commit', () => {
     startSensor()
     movePointer()
-    document.dispatchEvent(new PointerEvent('pointerup'))
-    expect(getDragPointer(scrollShiftedEvent)).toEqual({ x: 100, y: 50 })
+    document.dispatchEvent(new PointerEvent('pointerup', { clientX: 130, clientY: 60 }))
+    expect(getDragPointer(scrollShiftedEvent)).toEqual({ x: 130, y: 60 })
+  })
+
+  it('keeps the pointerdown position when released before the drag activates', () => {
+    startSensor({ activationConstraint: { distance: 500 } })
+    document.dispatchEvent(new PointerEvent('pointerup', { clientX: 130, clientY: 60 }))
+    expect(getDragPointer(scrollShiftedEvent)).toEqual({ x: 10, y: 10 })
   })
 
   it('replaces the previous gesture position when a new gesture starts', () => {
     startSensor()
     movePointer()
-    document.dispatchEvent(new PointerEvent('pointerup'))
+    document.dispatchEvent(new PointerEvent('pointerup', { clientX: 130, clientY: 60 }))
     startSensor()
     expect(getDragPointer(scrollShiftedEvent)).toEqual({ x: 10, y: 10 })
   })
