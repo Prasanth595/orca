@@ -3142,6 +3142,11 @@
       "title": "Agent dashboard"
     }
   },
+  "editor": {
+    "fileLoad": {
+      "fileTooLarge": "This document is too large for the server to send in full."
+    }
+  },
   "fileExplorer": {
     "root": {
       "omittedFiles": "Files omitted by sparse checkout are not searched.",
