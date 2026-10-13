@@ -90,6 +90,7 @@ const RUNTIME_PASSTHROUGH_CODES: ReadonlySet<string> = new Set([
   'agent_prompt_stalled',
   'no_active_terminal',
   'repo_not_found',
+  'comment_not_found',
   'timeout',
   'invalid_limit',
   'request_aborted',

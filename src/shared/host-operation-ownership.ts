@@ -22,6 +22,7 @@ export const HOST_OPERATION_OWNERSHIP = {
   automation: 'host',
   browser: 'host',
   clipboard: 'host',
+  comment: 'host',
   computer: 'host',
   diagnostics: 'host',
   emulator: 'host',

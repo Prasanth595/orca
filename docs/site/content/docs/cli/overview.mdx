@@ -73,6 +73,18 @@ orca file open-changed --mode both
 
 Use `--worktree <selector>` when the shell's current directory is not inside the target worktree.
 
+## Comment commands
+
+List, edit, and delete the comments left on lines of a file in Orca, so a session can clear one it has handled:
+
+```
+orca comment list notes/status.md --json
+orca comment edit <id> --body "done"
+orca comment rm <id>
+```
+
+Use `--worktree <selector>` when the shell's current directory is not inside the target worktree.
+
 ## Browser profiles
 
 Browser profiles isolate tab session state, so a script or agent can test with different cookies, local storage, and logged-in identities. The CLI exposes profile commands under `orca tab profile`; start with `orca tab profile list --json`, then use `create`, `set`, `clone`, or `use-default` as needed.
