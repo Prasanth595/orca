@@ -35,7 +35,7 @@ export function settleQuietly(settlement: Promise<void>): Promise<void> {
 }
 
 /** Runs a launch whose tab may already be showing, and tells its pane how the launch ended: why,
- *  when it definitely failed; nothing when its outcome is unknown, so the pane is an ordinary one. */
+ *  when it definitely failed; that it couldn't confirm the start when its outcome is unknown. */
 export async function withEarlyTab<T>(
   early: EarlyAgentLaunchTab | null,
   run: () => Promise<T>

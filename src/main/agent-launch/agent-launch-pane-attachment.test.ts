@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  forgetFailedAgentLaunches,
   markAgentLaunchesClosedByUser,
   resetAgentLaunchPanesForTests,
   resolveAgentLaunchPaneVerdict,
@@ -50,6 +51,28 @@ describe('a pane an agent launch laid out', () => {
       kind: 'proceed'
     })
     expect(resolveAgentLaunchPaneVerdict(PANE, notLive)).toBeNull()
+  })
+
+  it('keeps no failure for a pane the user closed before its launch ended', () => {
+    const pane = { worktreeId: 'wt-1', paneKey: 'tab-1:3f2504e0-4f89-41d3-9a0c-0305e82c3301' }
+    const running = trackRunningAgentLaunchPane(pane)
+    markAgentLaunchesClosedByUser('wt-1', { kind: 'tab', tabId: 'tab-1' })
+    running.finish({ kind: 'not-started', code: 'agent_launch_tab_closed' })
+    expect(resolveAgentLaunchPaneVerdict(pane, notLive)).toBeNull()
+  })
+
+  it('forgets a failure once its pane moves to another tab or its workspace goes', () => {
+    const leafId = '3f2504e0-4f89-41d3-9a0c-0305e82c3301'
+    const moved = { worktreeId: 'wt-1', paneKey: `tab-1:${leafId}` }
+    const removed = { worktreeId: 'wt-2', paneKey: `tab-2:${leafId}` }
+    trackRunningAgentLaunchPane(moved).finish({ kind: 'unconfirmed' })
+    trackRunningAgentLaunchPane(removed).finish({ kind: 'not-started', code: 'boom' })
+
+    forgetFailedAgentLaunches('wt-1', { kind: 'pane', tabId: 'tab-1', leafId })
+    forgetFailedAgentLaunches('wt-2', null)
+
+    expect(resolveAgentLaunchPaneVerdict(moved, notLive)).toBeNull()
+    expect(resolveAgentLaunchPaneVerdict(removed, notLive)).toBeNull()
   })
 
   it("hears the user's close only while the pane's launch is running", () => {

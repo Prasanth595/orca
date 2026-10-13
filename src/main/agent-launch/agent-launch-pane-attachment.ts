@@ -76,7 +76,11 @@ export function trackRunningAgentLaunchPane(pane: AgentLaunchPane): RunningAgent
       finished = true
       if (runningLaunchesByPane.get(key) === running) {
         runningLaunchesByPane.delete(key)
-        if (verdict.kind === 'not-started' || verdict.kind === 'unconfirmed') {
+        // A pane the user closed meanwhile is gone: nothing is left for its failure to answer.
+        if (
+          !running.closedByUser &&
+          (verdict.kind === 'not-started' || verdict.kind === 'unconfirmed')
+        ) {
           failedLaunchesByPane.set(key, { pane, verdict })
         }
       }
@@ -87,14 +91,19 @@ export function trackRunningAgentLaunchPane(pane: AgentLaunchPane): RunningAgent
   }
 }
 
+/** `null` targets every pane of the workspace. */
 function launchesIn<T extends { pane: AgentLaunchPane }>(
   launches: Map<string, T>,
   worktreeId: string,
-  target: TerminalSurfaceCloseTarget
+  target: TerminalSurfaceCloseTarget | null
 ): T[] {
   return [...launches.values()].filter((launch) => {
     const pane = launch.pane.worktreeId === worktreeId ? parsePaneKey(launch.pane.paneKey) : null
-    return pane?.tabId === target.tabId && (target.kind === 'tab' || pane.leafId === target.leafId)
+    return (
+      pane !== null &&
+      (target === null ||
+        (pane.tabId === target.tabId && (target.kind === 'tab' || pane.leafId === target.leafId)))
+    )
   })
 }
 
@@ -113,6 +122,15 @@ export function markAgentLaunchesClosedByUser(
   for (const running of runningLaunchesIn(worktreeId, target)) {
     running.closedByUser = true
   }
+  forgetFailedAgentLaunches(worktreeId, target)
+}
+
+/** The pane left its address (closed, moved to another tab, or its workspace removed): a failure
+ *  kept for it has no pane left to answer. `null` forgets the whole workspace's. */
+export function forgetFailedAgentLaunches(
+  worktreeId: string,
+  target: TerminalSurfaceCloseTarget | null
+): void {
   for (const failed of launchesIn(failedLaunchesByPane, worktreeId, target)) {
     failedLaunchesByPane.delete(paneKeyOf(failed.pane))
   }
