@@ -11,6 +11,7 @@ import {
   decodeClaudeTranscriptLine,
   decodeCodexTranscriptLine,
   decodeGrokTranscriptLine,
+  decodeHermesTranscriptLine,
   decodeOmpTranscriptLine
 } from './transcript-line-decoders'
 import { transcriptFallbackId } from './transcript-fallback-id'
@@ -46,6 +47,9 @@ export function nativeChatLineDecoderForAgent(agent: AgentType): NativeChatLineD
   }
   if (transcriptAgent === 'grok') {
     return decodeGrokTranscriptLine
+  }
+  if (transcriptAgent === 'hermes') {
+    return decodeHermesTranscriptLine
   }
   if (transcriptAgent === 'omp') {
     return decodeOmpTranscriptLine

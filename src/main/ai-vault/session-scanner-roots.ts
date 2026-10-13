@@ -18,6 +18,7 @@ export const AGENT_SESSION_HOME_SEGMENTS = {
     ['.codex', 'sessions']
   ],
   grok: [['.grok', 'sessions']],
+  hermes: [['.hermes', 'sessions']],
   omp: [['.omp', 'agent', 'sessions']]
 } as const satisfies Record<string, readonly (readonly string[])[]>
 
@@ -40,6 +41,15 @@ export function claudeProjectsHostDirs(): string[] {
 export function codexHomeSessionsDir(): string {
   return join(
     resolveAbsoluteDirOverride(process.env.CODEX_HOME, join(homedir(), '.codex')),
+    'sessions'
+  )
+}
+
+/** This host's Hermes Agent sessions root (`~/.hermes/sessions`). Hermes keeps its
+ *  own sessions in SQLite; this directory holds the JSON/JSONL exports Orca reads. */
+export function hermesSessionsDir(): string {
+  return join(
+    resolveAbsoluteDirOverride(process.env.HERMES_HOME, join(homedir(), '.hermes')),
     'sessions'
   )
 }
