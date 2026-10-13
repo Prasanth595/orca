@@ -42,6 +42,7 @@ import {
 } from '../runtime/agent-status-observed-pane-identity'
 import { startAgentStateRulesLiveUpdates } from '../runtime/agent-state-rules/agent-state-rules-live-update'
 import { recordDurableCrashBreadcrumb } from '../crash-reporting/durable-crash-breadcrumb'
+import { createCliRecipeWorkspace } from '../ephemeral-vm-cli-workspace-create'
 
 export function getDesktopWindowStatus(): RuntimeDesktopWindowStatus {
   const activation = state.desktopActivationGate
@@ -132,6 +133,15 @@ export function initializeMainProcessRuntime(): OrcaRuntimeService {
     applySessionSearchSettings: applySessionSearchSettingsChange,
     skillTransactionRecovery: state.skillTransactionRecovery
   })
+  runtime.setRecipeWorkspaceCreator((params, repo) =>
+    createCliRecipeWorkspace({
+      store,
+      userDataPath: app.getPath('userData'),
+      repo,
+      params,
+      pluginService: state.pluginService
+    })
+  )
   // Both desktop and headless serve own a host-local search service.
   const sessionSearch = installChildSessionSearchService({
     dataRoot: getCanonicalUserDataPath(),
