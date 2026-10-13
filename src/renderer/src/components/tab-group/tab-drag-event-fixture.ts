@@ -4,6 +4,7 @@ type Point = { x: number; y: number }
 
 /** Stands in for the pointerdown dnd-kit keeps as `activatorEvent`. */
 class PointerDownFixture extends Event {
+  /** A pointerdown at (`clientX`, `clientY`). */
   constructor(
     readonly clientX: number,
     readonly clientY: number
