@@ -98,6 +98,8 @@ export type AgentLaunchIntent = {
   /** The caller-minted id of the chat session a structured launch creates. Not a route input;
    *  refused when that session already exists. */
   sessionId?: string
+  /** Account routing env for a terminal agent (`agent.launch`'s `accountEnv`). Not a route input. */
+  accountEnv?: Readonly<Record<string, string>>
 }
 
 /**
@@ -335,12 +337,6 @@ function isAgentLaunchModeReceipt(value: unknown): value is AgentLaunchModeRecei
 
 function isAgentLaunchPromptDelivery(value: unknown): value is AgentLaunchPromptDelivery {
   return value === 'submit' || value === 'draft'
-}
-
-export function agentLaunchTargetIsCreate(
-  target: AgentLaunchTarget
-): target is Extract<AgentLaunchTarget, { kind: 'create-worktree' }> {
-  return target.kind === 'create-worktree'
 }
 
 /** The agent fields a create payload must not carry: the launch owns placement, and a caller that

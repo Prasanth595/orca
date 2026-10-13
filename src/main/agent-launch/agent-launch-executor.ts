@@ -1,8 +1,9 @@
 /**
  * The one place an agent launch is sequenced — for the surfaces moved onto it: `agent.launch`,
  * `worktree.create` (CLI and mobile create) through `createWorktreeWithStartupAgent`, whose
- * `legacy-host` create still starts the agent itself, and orchestration workers, local and
- * federated. The desktop agent tab still starts agents its own way; moving it here is later work.
+ * `legacy-host` create still starts the agent itself, orchestration workers, local and
+ * federated, and server-run automations. The desktop agent tab still starts agents its own way;
+ * moving it here is later work.
  *
  * The mode decision is shared, not copied: `agent-launch-mode` owns it, and
  * `orchestration-worker-start-mode` is a thin adapter over it supplying orchestration's receipt
@@ -34,6 +35,10 @@ import type {
   AgentLaunchTarget
 } from '../../shared/agent-launch-intent'
 import { withoutReservedAgentCreateFields } from '../../shared/agent-launch-intent'
+import {
+  combineLaunchWarnings,
+  ignoredStructuredLaunchInputsWarning
+} from './agent-launch-warnings'
 import {
   argvLaunchPrompt,
   deliverTerminalLaunchPrompt,
@@ -306,24 +311,10 @@ async function createSurface(
         ...(session.tabId ? { tabId: session.tabId } : {})
       },
       structured: session,
-      ...ignoredStructuredAgentArgsWarning(intent)
+      ...ignoredStructuredLaunchInputsWarning(intent)
     }
   }
   return createTerminalSurface(execution, workspace)
-}
-
-/**
- * Structured chat uses saved Arguments, so a per-call override still needs a truthful warning.
- */
-function ignoredStructuredAgentArgsWarning(
-  intent: AgentLaunchIntent
-): { warning: string } | undefined {
-  return intent.agentArgs === undefined
-    ? undefined
-    : {
-        warning:
-          'Started a structured chat session using saved agent Arguments; the per-launch argument override was ignored.'
-      }
 }
 
 /** What every route that builds a terminal agent passes on, so the startup terminal of a new
@@ -335,7 +326,8 @@ function terminalLaunchInputs(intent: AgentLaunchIntent) {
     ...(intent.agentArgs !== undefined ? { agentArgs: intent.agentArgs } : {}),
     ...(intent.cwd ? { cwd: intent.cwd } : {}),
     ...(intent.launchSource ? { launchSource: intent.launchSource } : {}),
-    ...(intent.paneKey ? { paneKey: intent.paneKey } : {})
+    ...(intent.paneKey ? { paneKey: intent.paneKey } : {}),
+    ...(intent.accountEnv ? { accountEnv: intent.accountEnv } : {})
   }
 }
 
@@ -365,23 +357,6 @@ async function createTerminalSurface(
     ...(terminal.warning ? { warning: terminal.warning } : {}),
     ...(startupPrompt && terminal.promptRodeLaunchCommand ? { promptRodeLaunchCommand: true } : {})
   }
-}
-
-/**
- * Two warnings, both true, neither droppable.
- *
- * Mirrors how the create combines its own failures — `appendFailure` in
- * runtime-local-worktree-terminal-startup.ts, and the startup-terminal catch in
- * runtime-remote-managed-worktree-create.ts — which append rather than replace.
- */
-function combineLaunchWarnings(
-  create: string | undefined,
-  surface: string | undefined
-): string | undefined {
-  if (!create || !surface) {
-    return create ?? surface
-  }
-  return `${create} Also ${surface[0].toLowerCase()}${surface.slice(1)}`
 }
 
 function existingWorktreeId(target: AgentLaunchTarget): string {
