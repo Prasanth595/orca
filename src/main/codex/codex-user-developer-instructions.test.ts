@@ -27,16 +27,14 @@ describe('codexUserConfigDefinesDeveloperInstructions', () => {
     expect(codexUserConfigDefinesDeveloperInstructions(home)).toBe(true)
   })
 
-  it('ignores the key in a profile that is not active', () => {
-    write('model = "x"\n[profiles.a]\ndeveloper_instructions = "y"\n')
-    expect(codexUserConfigDefinesDeveloperInstructions(home)).toBe(false)
-    write('profile = "b"\n[profiles.a]\ndeveloper_instructions = "y"\n[profiles.b]\nmodel = "m"\n')
-    expect(codexUserConfigDefinesDeveloperInstructions(home)).toBe(false)
+  it('treats a profile selected in the user config as defined', () => {
+    write('profile = "p"\nmodel = "x"\n')
+    expect(codexUserConfigDefinesDeveloperInstructions(home)).toBe(true)
   })
 
-  it('detects the key in the active profile', () => {
-    write('profile = "a"\n[profiles.a]\ndeveloper_instructions = "y"\n')
-    expect(codexUserConfigDefinesDeveloperInstructions(home)).toBe(true)
+  it('allows guidance for profile tables that nothing selects', () => {
+    write('[profiles.a]\ndeveloper_instructions = "y"\n')
+    expect(codexUserConfigDefinesDeveloperInstructions(home)).toBe(false)
   })
 
   it('reads the same answer asynchronously', async () => {
@@ -55,6 +53,9 @@ describe('codexUserConfigDefinesDeveloperInstructions', () => {
         path: '\\\\wsl.localhost\\Ubuntu\\home\\me\\repo'
       })
     ).toEqual({ codexUserDeveloperInstructions: true })
+    expect(codexUserDeveloperInstructionsInput('codex', settings, { isRemote: false })).toEqual({
+      codexUserDeveloperInstructions: true
+    })
     expect(codexUserDeveloperInstructionsInput('claude', settings, { isRemote: true })).toEqual({})
   })
 
@@ -94,8 +95,24 @@ describe('codexUserConfigDefinesDeveloperInstructions', () => {
       expect(await codexUserConfigDefinesDeveloperInstructionsAsync(home, cwd())).toBe(true)
     })
 
-    it('detects the key under the project config active profile', () => {
-      writeProject(project, 'profile = "p"\n[profiles.p]\ndeveloper_instructions = "x"\n')
+    it('blocks when a project selects a profile the user config defines, and the reverse', () => {
+      write('[profiles.p]\ndeveloper_instructions = "x"\n')
+      writeProject(project, 'profile = "p"\n')
+      expect(codexUserConfigDefinesDeveloperInstructions(home, cwd())).toBe(true)
+      write('profile = "p"\n')
+      writeProject(project, '[profiles.p]\ndeveloper_instructions = "x"\n')
+      expect(codexUserConfigDefinesDeveloperInstructions(home, cwd())).toBe(true)
+    })
+
+    it('blocks when a profile and its table are split across parent and child projects', async () => {
+      writeProject(project, '[profiles.p]\ndeveloper_instructions = "x"\n')
+      writeProject(cwd(), 'profile = "p"\n')
+      expect(codexUserConfigDefinesDeveloperInstructions(home, cwd())).toBe(true)
+      expect(await codexUserConfigDefinesDeveloperInstructionsAsync(home, cwd())).toBe(true)
+    })
+
+    it('blocks on a profile in any single project layer', () => {
+      writeProject(project, 'profile = "p"\n')
       expect(codexUserConfigDefinesDeveloperInstructions(home, cwd())).toBe(true)
     })
 

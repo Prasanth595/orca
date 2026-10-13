@@ -167,6 +167,7 @@ export class OrcaRuntimeWithTerminalCreateDeduplication extends OrcaRuntimeWithC
       throw new Error('Repository for the selected workspace is no longer available.')
     }
     const startup = this.buildStartupForAgent(repo, opts.agent, opts.prompt, undefined, {
+      launchPath: worktree.path,
       ...(opts.extraAgentArgs ? { extraAgentArgs: opts.extraAgentArgs } : {}),
       launchScope: await this.resolveTerminalWorkspaceLaunchScope(`id:${worktree.id}`)
     })

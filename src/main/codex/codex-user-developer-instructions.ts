@@ -20,23 +20,14 @@ function hasDeveloperInstructions(value: unknown): boolean {
   )
 }
 
-/** True when top-level or the active profile sets `developer_instructions`; unparsable is treated as set. */
-function configContentDefinesDeveloperInstructions(content: string): boolean {
+/**
+ * True when a layer sets `developer_instructions` or selects a profile; unparsable is treated as set.
+ * Why a bare `profile` counts: it can resolve against profiles defined in any other layer.
+ */
+function configContentBlocksGuidance(content: string): boolean {
   try {
     const config = parseToml(content)
-    if (hasDeveloperInstructions(config)) {
-      return true
-    }
-    const profile = config.profile
-    if (typeof profile !== 'string') {
-      return false
-    }
-    const { profiles } = config
-    return (
-      typeof profiles === 'object' &&
-      profiles !== null &&
-      hasDeveloperInstructions(Object.getOwnPropertyDescriptor(profiles, profile)?.value)
-    )
+    return hasDeveloperInstructions(config) || typeof config.profile === 'string'
   } catch {
     return true
   }
@@ -70,14 +61,14 @@ function configPathsToCheck(homePath: string | undefined, cwd: string | undefine
   return [userConfigPath, ...(cwd ? projectConfigPaths(cwd, userConfigPath) : [])]
 }
 
-/** True when the user's or a project's Codex config sets `developer_instructions`, which Orca must not override. */
+/** True when any Codex config layer (user, or a project from cwd to root) sets `developer_instructions` or a profile. */
 export function codexUserConfigDefinesDeveloperInstructions(
   homePath?: string,
   cwd?: string
 ): boolean {
   return configPathsToCheck(homePath, cwd).some((path) => {
     try {
-      return configContentDefinesDeveloperInstructions(readFileSync(path, 'utf8'))
+      return configContentBlocksGuidance(readFileSync(path, 'utf8'))
     } catch (error) {
       return !isMissingFile(error)
     }
@@ -90,7 +81,7 @@ export async function codexUserConfigDefinesDeveloperInstructionsAsync(
 ): Promise<boolean> {
   for (const path of configPathsToCheck(homePath, cwd)) {
     try {
-      if (configContentDefinesDeveloperInstructions(await readFile(path, 'utf8'))) {
+      if (configContentBlocksGuidance(await readFile(path, 'utf8'))) {
         return true
       }
     } catch (error) {
@@ -115,7 +106,8 @@ export function codexUserDeveloperInstructionsInput(
   if (agent !== 'codex' || settings.useOrcaBrowserForAgentWork !== true) {
     return {}
   }
-  if (host.isRemote || (host.path !== undefined && isWslUncPath(host.path))) {
+  // Why: no launch directory means project configs cannot be checked, so skip.
+  if (host.isRemote || host.path === undefined || isWslUncPath(host.path)) {
     return { codexUserDeveloperInstructions: true }
   }
   return {

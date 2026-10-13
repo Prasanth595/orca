@@ -3,6 +3,7 @@ import type { AgentLaunchPreferences } from '../../shared/agent-session-host-aut
 import type { Repo } from '../../shared/repo-types'
 import type { TuiAgent } from '../../shared/tui-agent'
 import type { WorktreeStartupLaunch } from '../../shared/worktree/launch-types'
+import { isFolderRepo } from '../../shared/repo-kind'
 import { repoIsRemote } from '../../shared/agent-launch-remote'
 import { getRepoSshConnectionId } from '../../shared/execution-host'
 import { isTuiAgent } from '../../shared/tui-agent-config'
@@ -41,6 +42,8 @@ type StartupEnvironment = {
   extraAgentArgs?: string
   /** Caller-supplied telemetry attribution, validated leniently at the host boundary. */
   launchSource?: string
+  /** Directory the agent will start in; absent for a git repo whose worktree does not exist yet. */
+  launchPath?: string
 }
 
 /** The agent a linked draft starts: the requested one, else the default, else one detected on the
@@ -72,6 +75,13 @@ export async function resolveWorktreeStartupDraftAgent(
   return pickTuiAgent(null, detected.filter(isTuiAgent), settings.disabledTuiAgents)
 }
 
+// Why: a folder repo starts in its own path; a git repo's agent starts in a worktree path only the caller knows.
+function worktreeStartupLaunchPath(environment: StartupEnvironment): string | undefined {
+  return (
+    environment.launchPath ?? (isFolderRepo(environment.repo) ? environment.repo.path : undefined)
+  )
+}
+
 export async function buildWorktreeStartupForDraft(
   environment: StartupEnvironment & { draft: string; requestedAgent?: TuiAgent }
 ): Promise<{
@@ -100,7 +110,7 @@ export async function buildWorktreeStartupForDraft(
     ...(environment.agentArgs !== undefined ? { agentArgs: environment.agentArgs } : {}),
     ...codexUserDeveloperInstructionsInput(agent, settings, {
       isRemote: repoIsRemote(repo),
-      path: repo.path
+      path: worktreeStartupLaunchPath(environment)
     })
   })
   const telemetry = agentStartedTelemetry(agent, environment.launchSource)
@@ -178,7 +188,7 @@ export function buildWorktreeStartupForAgent(
     sessionOptions: environment.toSessionOptions(environment.launchPreferences),
     ...codexUserDeveloperInstructionsInput(agent, settings, {
       isRemote: repoIsRemote(repo),
-      path: repo.path
+      path: worktreeStartupLaunchPath(environment)
     })
   })
   const prompt = environment.prompt ?? ''
