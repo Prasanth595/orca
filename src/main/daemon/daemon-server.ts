@@ -21,8 +21,8 @@ import { DaemonTerminalAdmission } from './daemon-terminal-admission'
 import { checkPtySpawnHealth } from './pty-subprocess'
 import { TerminalHistorySeedTransferRegistry } from './terminal-history-seed-transfer-registry'
 import { TerminalHost } from './terminal-host'
-import { TerminalSpawnGate } from './terminal-spawn-gate'
-import { AutomaticWorkRunMarker } from './automatic-work-run-marker-store'
+import { DaemonAutomaticWorkGuard } from './daemon-automatic-work-guard'
+import { answerAutomaticWorkRequest } from './daemon-automatic-work-protocol'
 import {
   CLEAN_DISCONNECT_PROTOCOL_VERSION,
   NOTIFY_PREFIX,
@@ -35,7 +35,7 @@ export class DaemonServer {
   private static readonly INITIAL_ADOPTION_TIMEOUT_MS = 2 * 60 * 1000
 
   private readonly log: DaemonFileLog
-  private readonly automaticWork: AutomaticWorkRunMarker
+  private readonly automaticWork: DaemonAutomaticWorkGuard
   private readonly host: TerminalHost
   private readonly transientFactRelay: BackgroundTransientFactRelay
   private readonly streamDataBatcher: DaemonStreamDataBatcher
@@ -48,22 +48,21 @@ export class DaemonServer {
   private readonly admission: DaemonTerminalAdmission
   private readonly requestRouter: DaemonRequestRouter
   private stopStreamBacklogProbe: () => void = () => {}
-  readonly recordOrderlyExit = (): void => this.automaticWork.markCleanExit()
+  readonly recordOrderlyExit = (): void => this.automaticWork.recordOrderlyExit()
 
   constructor(options: DaemonServerOptions) {
     this.log = options.log ?? createNoopDaemonFileLog()
-    this.automaticWork = new AutomaticWorkRunMarker(
-      options.automaticWorkMarkerPath,
-      this.log,
-      () => !this.endpoint.lost
-    )
+    this.automaticWork = new DaemonAutomaticWorkGuard({
+      markerPath: options.automaticWorkMarkerPath,
+      hostTerminalLedgerDir: options.hostTerminalLedgerDir,
+      mode: options.spawnAdmission ?? 'observe',
+      log: this.log,
+      listSessions: () => this.host.listSessions(),
+      ownsEndpoint: () => !this.endpoint.lost
+    })
     this.host = new TerminalHost({
       spawnSubprocess: options.spawnSubprocess,
-      spawnGate: new TerminalSpawnGate({
-        log: (event, details) => this.log.log(event, details),
-        mode: options.spawnAdmission ?? 'observe',
-        ...this.automaticWork.gateOptions()
-      }),
+      spawnGate: this.automaticWork.gate,
       reportReadinessEvent: (event, details) => this.log.log(event, details),
       onSessionReaped: (sessionId) => {
         this.attachments.release(sessionId)
@@ -247,7 +246,7 @@ export class DaemonServer {
   async start(): Promise<void> {
     await this.lifecycle.start((socket) => this.connections.accept(socket))
     // Why after start: only the daemon that won the endpoint may judge or rewrite the marker.
-    this.automaticWork.open()
+    this.automaticWork.start()
   }
 
   shutdown(): Promise<void> {
@@ -279,7 +278,7 @@ export class DaemonServer {
     this.streamDataBatcher.clear()
     this.historySeedTransfers.dispose()
     // Why after host dispose: every automatic session is gone, so this exit was orderly.
-    this.automaticWork.markCleanExit()
+    this.automaticWork.stop()
     // Let canceled in-flight RPCs enqueue their protocol errors before transport destruction.
     await waitForImmediate()
     this.connections.dispose()
@@ -292,7 +291,9 @@ export class DaemonServer {
   ): Promise<void> {
     const isNotify = request.id.startsWith(NOTIFY_PREFIX)
     try {
-      const result = await this.requestRouter.route(clientId, request)
+      const result =
+        answerAutomaticWorkRequest(request, this.automaticWork, this.endpoint) ??
+        (await this.requestRouter.route(clientId, request))
       if (!isNotify) {
         socket.write(encodeNdjson({ id: request.id, ok: true, payload: result }), () => {
           this.lifecycle.startPendingShutdownReply(clientId, request.id)

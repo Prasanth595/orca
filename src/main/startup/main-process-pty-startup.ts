@@ -1,12 +1,9 @@
 import { app } from 'electron'
 import { classifyError } from '../telemetry/classify-error'
 import { track } from '../telemetry/client'
-import { getPtyIdForPaneKey } from '../ipc/pty'
-import {
-  getDaemonProvider,
-  initDaemonPtyProvider,
-  listLiveDaemonPtyIds
-} from '../daemon/daemon-init'
+import { getPtyIdForPaneKey } from '../ipc/pty/pane/key-state'
+import { getDaemonProvider, listLiveDaemonPtyIds } from '../daemon/daemon-provider-state'
+import { initDaemonPtyProvider } from '../daemon/daemon-provider-init'
 import {
   getCodexPaneAccount,
   hasAnyRecordedLegacyWslCodexPane,

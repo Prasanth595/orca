@@ -3,6 +3,7 @@ import { Pressable, ScrollView, View } from 'react-native'
 import { Code, Pencil } from 'lucide-react-native'
 import { GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler'
 import { MobileMarkdown } from '../components/MobileMarkdown'
+import { MobileSourceCopyButton } from '../components/MobileSourceCopyButton'
 import { colors } from '../theme/mobile-theme'
 import { useMobileNativeChatPinchGesture } from '../session/use-mobile-native-chat-pinch-gesture'
 import {
@@ -75,6 +76,12 @@ export function MobileFileMarkdownPreview({
             strokeWidth={2.2}
           />
         </Pressable>
+        <MobileSourceCopyButton
+          key={relativePath}
+          text={content}
+          partial={truncated}
+          accessibilityLabel={truncated ? 'Copy loaded Markdown source' : 'Copy Markdown source'}
+        />
       </View>
       <GestureHandlerRootView style={styles.previewGestureArea}>
         <GestureDetector gesture={pinchGesture}>
