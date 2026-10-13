@@ -4,6 +4,7 @@ import type { AgentWorkflow, WorkflowEdge, WorkflowNode } from '../../../../shar
 export type WorkflowExportFile = {
   version: 1
   name: string
+  executionTargetType: 'local' | 'ssh'
   nodes: WorkflowNode[]
   edges: WorkflowEdge[]
 }
@@ -12,6 +13,7 @@ export function exportWorkflow(workflow: AgentWorkflow): WorkflowExportFile {
   return {
     version: 1,
     name: workflow.name,
+    executionTargetType: workflow.executionTargetType,
     nodes: workflow.nodes,
     edges: workflow.edges
   }
@@ -32,6 +34,7 @@ export function downloadWorkflowJson(workflow: AgentWorkflow): void {
 
 export function importWorkflowJson(raw: string): {
   name: string
+  executionTargetType: 'local' | 'ssh'
   nodes: WorkflowNode[]
   edges: WorkflowEdge[]
 } {
@@ -89,6 +92,7 @@ export function importWorkflowJson(raw: string): {
 
   return {
     name: typeof file.name === 'string' ? file.name : 'Imported Workflow',
+    executionTargetType: file.executionTargetType === 'ssh' ? 'ssh' : 'local',
     nodes: remappedNodes,
     edges: remappedEdges
   }

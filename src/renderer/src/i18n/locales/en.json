@@ -19426,6 +19426,12 @@
       "importSuccess": "Workflow imported",
       "importError": "Failed to import workflow"
     },
+    "import": {
+      "sshTitle": "Select SSH Connection",
+      "sshHint": "\"{name}\" was configured for SSH. Choose a connection to run it on.",
+      "noSshConnections": "No SSH connections saved. Add one in Settings → SSH.",
+      "importButton": "Import"
+    },
     "node": {
       "save": "Save",
       "saved": "Node saved"

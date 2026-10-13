@@ -3,6 +3,7 @@ import { Plus, Trash2, Play, Pencil, Square, Download, Upload } from 'lucide-rea
 import { toast } from 'sonner'
 import WorkflowTipsCard from './WorkflowTipsCard'
 import WorkflowCreateDialog from './WorkflowCreateDialog'
+import WorkflowImportSshDialog from './WorkflowImportSshDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -17,6 +18,12 @@ import { translate } from '@/i18n/i18n'
 import { downloadWorkflowJson, importWorkflowJson } from './workflow-export-import'
 import type { AgentWorkflow, WorkflowRun } from '../../../../shared/workflow-types'
 import { isFinalWorkflowRunStatus } from '../../../../shared/workflow-types'
+
+type PendingSshImport = {
+  name: string
+  nodes: AgentWorkflow['nodes']
+  edges: AgentWorkflow['edges']
+}
 
 type Props = {
   selectedWorkflowId: string | null
@@ -58,6 +65,7 @@ export default function WorkflowList({ selectedWorkflowId, onSelect }: Props): R
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [pendingSshImport, setPendingSshImport] = useState<PendingSshImport | null>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -110,19 +118,64 @@ export default function WorkflowList({ selectedWorkflowId, onSelect }: Props): R
   async function handleImport(file: File): Promise<void> {
     try {
       const raw = await file.text()
-      const { name, nodes, edges } = importWorkflowJson(raw)
-      const wf = await window.api.workflows.create({
+      const { name, executionTargetType, nodes, edges } = importWorkflowJson(raw)
+      if (executionTargetType === 'ssh') {
+        setPendingSshImport({ name, nodes, edges })
+        return
+      }
+      await createImportedWorkflow({
         name,
-        description: '',
-        schedule: null,
-        enabled: false,
         executionTargetType: 'local',
         executionTargetId: 'local',
         nodes,
         edges
       })
-      onSelect(wf)
-      toast.success(translate('workflows.list.importSuccess', 'Workflow imported'))
+    } catch {
+      toast.error(translate('workflows.list.importError', 'Failed to import workflow'))
+    }
+  }
+
+  async function createImportedWorkflow({
+    name,
+    executionTargetType,
+    executionTargetId,
+    nodes,
+    edges
+  }: {
+    name: string
+    executionTargetType: 'local' | 'ssh'
+    executionTargetId: string
+    nodes: AgentWorkflow['nodes']
+    edges: AgentWorkflow['edges']
+  }): Promise<void> {
+    const wf = await window.api.workflows.create({
+      name,
+      description: '',
+      schedule: null,
+      enabled: false,
+      executionTargetType,
+      executionTargetId,
+      nodes,
+      edges
+    })
+    onSelect(wf)
+    toast.success(translate('workflows.list.importSuccess', 'Workflow imported'))
+  }
+
+  async function handleSshImportConfirm(targetId: string): Promise<void> {
+    if (!pendingSshImport) {
+      return
+    }
+    const { name, nodes, edges } = pendingSshImport
+    setPendingSshImport(null)
+    try {
+      await createImportedWorkflow({
+        name,
+        executionTargetType: 'ssh',
+        executionTargetId: targetId,
+        nodes,
+        edges
+      })
     } catch {
       toast.error(translate('workflows.list.importError', 'Failed to import workflow'))
     }
@@ -135,6 +188,12 @@ export default function WorkflowList({ selectedWorkflowId, onSelect }: Props): R
         open={createDialogOpen}
         onClose={() => setCreateDialogOpen(false)}
         onCreate={handleCreated}
+      />
+      <WorkflowImportSshDialog
+        open={pendingSshImport !== null}
+        workflowName={pendingSshImport?.name ?? ''}
+        onClose={() => setPendingSshImport(null)}
+        onImport={(targetId) => void handleSshImportConfirm(targetId)}
       />
       <div className="flex flex-col h-full min-h-0">
         <input
