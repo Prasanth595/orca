@@ -61,6 +61,7 @@ export function createExplorerDirState(set: EditorSet, _get: EditorGet): Explore
     revealInExplorer: (worktreeId, filePath) =>
       set((s) => ({
         rightSidebarOpen: true,
+        terminalFullscreen: null,
         rightSidebarTab: 'explorer',
         rightSidebarExplorerView: 'files',
         rightSidebarRouteRequestId: s.rightSidebarRouteRequestId + 1,

@@ -131,6 +131,8 @@ export function registerWorkspaceShortcutIpcBridge(unsubs: (() => void)[]): void
   unsubs.push(
     window.api.ui.onToggleStatusBar(() => {
       const store = useAppStore.getState()
+      // Why: Electron already flipped the checkbox, so toggling the saved value keeps them in step.
+      store.exitTerminalFullscreen()
       store.setStatusBarVisible(!store.statusBarVisible)
     })
   )

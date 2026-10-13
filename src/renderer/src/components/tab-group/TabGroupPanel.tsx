@@ -4,6 +4,10 @@ import { useDroppable } from '@dnd-kit/core'
 import { Ellipsis, X } from 'lucide-react'
 import { useAppStore } from '../../store'
 import {
+  selectLeftSidebarShown,
+  selectRightSidebarShown
+} from '../../store/terminal-fullscreen-chrome'
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -73,8 +77,8 @@ export default function TabGroupPanel({
   isTabDragActive?: boolean
   hoveredTabInsertion?: HoveredTabInsertion | null
 }): React.JSX.Element {
-  const rightSidebarOpen = useAppStore((state) => state.rightSidebarOpen)
-  const sidebarOpen = useAppStore((state) => state.sidebarOpen)
+  const rightSidebarOpen = useAppStore(selectRightSidebarShown)
+  const sidebarOpen = useAppStore(selectLeftSidebarShown)
   const model = useTabGroupWorkspaceModel({ groupId, worktreeId })
   const {
     activeTab,
