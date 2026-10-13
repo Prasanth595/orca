@@ -1,6 +1,6 @@
 # Feishu Bitable task integration
 
-Base branch: `feishu`. Both implementation branches start from the same contract commit.
+Base branch: `feat/feishu-bitable-task-integration`. Both implementation branches start from the same contract commit.
 
 ## Shared contract
 
@@ -30,4 +30,14 @@ Implement record reading, viewing, workspace association, and agent execution in
 
 Each worker follows AGENTS.md, reads the design guide before UI changes, installs dependencies locally when necessary, and does not share a writable node_modules tree. Never read/edit the parent checkout to bypass worktree isolation. Do not merge, push, publish, or modify the other worktree. Commit your scoped implementation and finish with changed files, validation results, commit ID, integration instructions, and blockers. Keep the worktree and terminal for later tasks.
 
-Integration order: source changes, execution changes, then source-owned composer integration and combined validation on `feishu`. This document defines ownership, not a claim that either capability is already implemented.
+Integration order: source changes, execution changes, then source-owned composer integration and combined validation on `feat/feishu-bitable-task-integration`. This document defines ownership, not a claim that either capability is already implemented.
+
+## Contribution requirements
+
+Follow `.github/CONTRIBUTING.md` and `.github/pull_request_template.md` for implementation and handoff. Use descriptive implementation branch names such as `feat/feishu-bitable-task-source` and `feat/feishu-bitable-task-execution`.
+
+- Keep the change focused; reuse existing implementations and preserve macOS, Linux, Windows, local, SSH/remote, folder-workspace, and supported agent/provider compatibility. Keep project-owned type declarations in `.ts` files. Do not change release versions or tags.
+- Add regression tests for behavior changes. Before opening the combined PR, run `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build`; record actual results and any blockers. Run tests and agent-launched apps with `ORCA_BACKGROUND_LAUNCH=1` and keep native-focus tests on an isolated display or CI.
+- Use the PR template to explain the user-facing before/after, mechanism, and why this approach was chosen. Outside contributors must link the issue addressed. Attach before/after screenshots or videos for UI or interaction changes; otherwise write `N/A` with the reason.
+- Include an AI review summary covering cross-platform support, local/SSH/remote behavior, supported agents and integrations, performance, UI quality when applicable, and basic security. Document platform/provider-specific behavior, unverified live Feishu integration, and any mixed-version compatibility considerations.
+- Include AI disclosure when applicable and the contributor's X handle in the Author section as requested by the guide; obtain these details from the contributor rather than inventing them.
