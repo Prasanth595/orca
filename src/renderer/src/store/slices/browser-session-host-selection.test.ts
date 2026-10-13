@@ -10,7 +10,7 @@ const createWebRuntimeSessionBrowserTabMock = vi.hoisted(() => vi.fn())
 const runtimeEnvironmentCall = vi.fn()
 const runtimeEnvironmentTransportCall = vi.fn()
 
-vi.mock('@/runtime/web-runtime-session', () => ({
+vi.mock('@/runtime/web-runtime-browser-creation', () => ({
   createWebRuntimeSessionBrowserTab: createWebRuntimeSessionBrowserTabMock
 }))
 
@@ -169,6 +169,17 @@ describe('createBrowserSlice runtime guard', () => {
       .getState()
       .importCookiesFromBrowser('windows-profile', 'chrome', 'Default')
     await vi.waitFor(() => expect(resolveImport).toBeDefined())
+    expect(runtimeEnvironmentCall).toHaveBeenCalledWith({
+      selector: 'windows-2',
+      method: 'browser.profileImportFromBrowser',
+      params: {
+        profileId: 'windows-profile',
+        browserFamily: 'chrome',
+        browserProfile: 'Default',
+        supportsPartitionSkippedCookies: true
+      },
+      timeoutMs: 30_000
+    })
     await store.getState().setBrowserSessionHostId('runtime:linux-3')
     const callsBeforeCompletion = runtimeEnvironmentCall.mock.calls.length
     resolveImport?.({

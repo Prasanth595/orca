@@ -1,31 +1,33 @@
 import type {
+  GetProjectViewTableResult,
+  GitHubProjectCommentMutationResult,
+  GitHubProjectMutationResult,
+  ListAccessibleProjectsResult,
+  ListAssignableUsersBySlugResult,
+  ListIssueTypesBySlugResult,
+  ListLabelsBySlugResult,
+  ListProjectViewsResult,
+  ProjectWorkItemDetailsBySlugResult,
+  ResolveProjectRefResult
+} from '../../shared/github/project-result-types'
+import type {
   AddIssueCommentBySlugArgs,
   ClearProjectItemFieldArgs,
   DeleteIssueCommentBySlugArgs,
   GetProjectViewTableArgs,
-  GetProjectViewTableResult,
-  GitHubProjectCommentMutationResult,
-  GitHubProjectMutationResult,
   ListAccessibleProjectsArgs,
-  ListAccessibleProjectsResult,
   ListAssignableUsersBySlugArgs,
-  ListAssignableUsersBySlugResult,
   ListIssueTypesBySlugArgs,
-  ListIssueTypesBySlugResult,
   ListLabelsBySlugArgs,
-  ListLabelsBySlugResult,
   ListProjectViewsArgs,
-  ListProjectViewsResult,
   ProjectWorkItemDetailsBySlugArgs,
-  ProjectWorkItemDetailsBySlugResult,
   ResolveProjectRefArgs,
-  ResolveProjectRefResult,
   UpdateIssueBySlugArgs,
   UpdateIssueCommentBySlugArgs,
   UpdateIssueTypeBySlugArgs,
   UpdateProjectItemFieldArgs,
   UpdatePullRequestBySlugArgs
-} from '../../shared/github/project-types'
+} from '../../shared/github/project-request-types'
 import type { TaskSourceContext } from '../../shared/task-source-context'
 import type { GitHubCommentResult } from '../../shared/github/comment-types'
 import type {
@@ -63,6 +65,7 @@ export type GithubWorkItemApi = {
   workItemByOwnerRepo: (args: {
     repoPath: string
     repoId?: string
+    sourceContext?: TaskSourceContext | null
     owner: string
     repo: string
     host?: string
@@ -73,6 +76,7 @@ export type GithubWorkItemApi = {
     args: GitHubRepoSelectorArgs & {
       number: number
       type?: 'issue' | 'pr'
+      ownerRepo?: GitHubOwnerRepo
     }
   ) => Promise<GitHubWorkItemDetails | null>
   notifyWorkItemMutated: (args: {
@@ -104,6 +108,7 @@ export type GithubWorkItemApi = {
     args: GitHubRepoSelectorArgs & {
       number: number
       updates: GitHubIssueUpdate
+      ownerRepo?: GitHubOwnerRepo
     }
   ) => Promise<{ ok: true } | { ok: false; error: string }>
   addIssueComment: (
@@ -119,11 +124,13 @@ export type GithubWorkItemApi = {
     repoPath: string
     repoId?: string
     sourceContext?: TaskSourceContext | null
+    ownerRepo?: GitHubOwnerRepo
   }) => Promise<string[]>
   listAssignableUsers: (args: {
     repoPath: string
     repoId?: string
     sourceContext?: TaskSourceContext | null
+    ownerRepo?: GitHubOwnerRepo
   }) => Promise<GitHubAssignableUser[]>
   /** Subscribe to local-mutation broadcasts so the work-item-drawer cache can invalidate across windows. Returns an unsubscribe. */
   onWorkItemMutated: (

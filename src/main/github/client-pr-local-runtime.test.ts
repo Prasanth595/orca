@@ -84,10 +84,6 @@ vi.mock('./github-enterprise-repository', () => ({
   isGitHubHostAuthenticated: vi.fn().mockResolvedValue(true)
 }))
 
-vi.mock('../providers/ssh-git-dispatch', () => ({
-  getSshGitProvider: vi.fn()
-}))
-
 vi.mock('./conflict-summary', () => ({
   getPRConflictSummary: vi.fn()
 }))

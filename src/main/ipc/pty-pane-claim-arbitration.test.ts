@@ -3,12 +3,10 @@ import { spawnMock } from './pty-ipc-mock-registry'
 import { setupPtyIpcSuite } from './pty-ipc-test-harness'
 import { makePaneKey } from '../../shared/stable-pane-id'
 import { OrcaRuntimeService } from '../runtime/orca-runtime'
-import {
-  registerPtyHandlers,
-  clearProviderPtyState,
-  setLocalPtyProvider,
-  isCurrentPtyExit
-} from './pty'
+import { registerPtyHandlers } from './pty/register-handlers'
+import { clearProviderPtyState } from './pty/provider/state-cleanup'
+import { setLocalPtyProvider } from './pty/provider/registry'
+import { isCurrentPtyExit } from './pty/provider/ownership-state'
 
 vi.mock('electron', () => import('./pty-ipc-mock-registry').then((m) => m.electronModuleMock()))
 vi.mock('fs', () => import('./pty-ipc-mock-registry').then((m) => m.fsModuleMock()))
@@ -158,7 +156,9 @@ describe('registerPtyHandlers', () => {
       tabId: 'tab-headless',
       leafId,
       ptyId: expect.any(String),
-      incarnationId: expect.any(String)
+      incarnationId: expect.any(String),
+      mayCreate: false,
+      origin: 'spawn'
     })
   })
   it('shuts down a split PTY when its expected source binding was retired', async () => {
@@ -178,12 +178,19 @@ describe('registerPtyHandlers', () => {
         }
       }): Promise<{ id: string }>
     }
+    let exitCallback: ((event: { exitCode: number }) => void) | undefined
+    const killSpy = vi.fn(() => {
+      exitCallback?.({ exitCode: 0 })
+    })
     const proc = {
       onData: vi.fn(),
-      onExit: vi.fn(),
+      onExit: vi.fn((cb) => {
+        exitCallback = cb
+        return { dispose: () => {} }
+      }),
       write: vi.fn(),
       resize: vi.fn(),
-      kill: vi.fn(),
+      kill: killSpy,
       process: 'zsh',
       pid: 12345
     }
@@ -238,7 +245,7 @@ describe('registerPtyHandlers', () => {
     expect(store.persistPtyBinding).toHaveBeenCalledWith(
       expect.objectContaining({ expectedSourceBinding })
     )
-    expect(proc.kill).toHaveBeenCalledOnce()
+    expect(killSpy).toHaveBeenCalledOnce()
   })
   it('reports lower-owner commit before rejecting an early-exited runtime incarnation', async () => {
     const persistPtyBinding = vi.fn()
@@ -497,9 +504,7 @@ describe('registerPtyHandlers', () => {
         ORCA_WORKTREE_ID: 'repo-1::/tmp'
       }
     }) as Promise<{ id: string }>
-    await Promise.resolve()
-
-    expect(providerSpawn).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => expect(providerSpawn).toHaveBeenCalledTimes(1))
     resolveSpawn({ id: 'pty-shared' })
     await expect(Promise.all([runtimeSpawn, rendererSpawn])).resolves.toEqual([
       { id: 'pty-shared' },
@@ -511,7 +516,9 @@ describe('registerPtyHandlers', () => {
       tabId: 'tab-race',
       leafId,
       ptyId: 'pty-shared',
-      startupCwd: '/tmp'
+      startupCwd: '/tmp',
+      mayCreate: false,
+      origin: 'spawn'
     })
   })
 })

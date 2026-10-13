@@ -1,3 +1,7 @@
+import { findOptionOccurrence } from './command-option-occurrence'
+import { planAgentBinary } from './agent-command-plan'
+export { planAgentBinary } from './agent-command-plan'
+import type { CommandTemplateBackslash } from './commit-message-prompt'
 import {
   getCommitMessageAgentSpec,
   getCommitMessageModel,
@@ -5,6 +9,7 @@ import {
 } from './commit-message-agent-spec'
 import { planCustomCommand, tokenizeCustomCommandTemplate } from './commit-message-prompt'
 import type { TuiAgent } from './tui-agent'
+import { mergeOpenCodeGenerationArgs } from './opencode-generation-command'
 
 // Why: planning is a pure transformation from "user request + prompt text"
 // into "spawn-ready binary + argv". Keeping it in shared lets both the local
@@ -14,6 +19,10 @@ import type { TuiAgent } from './tui-agent'
 
 export type CommitMessagePlanInput = {
   agentId: TuiAgent | 'custom'
+  /** How to read `\` in the user's command override / args / custom command.
+   *  Defaults to POSIX escaping; pass `'literal'` only when the command is known
+   *  to run on native Windows, where `\` is the path separator (#11375). */
+  backslash?: CommandTemplateBackslash
   model: string
   thinkingLevel?: string
   customAgentCommand?: string
@@ -28,40 +37,24 @@ export type CommitMessagePlan = {
   stdinPayload: string | null
   /** Human-readable label used in error prefixes (e.g. "Claude failed: ..."). */
   label: string
+  /** Leading command assignments, applied on the execution host. */
+  env?: Record<string, string>
+  outputFormat?: 'opencode-json'
 }
 
 export type CommitMessagePlanResult =
   | { ok: true; plan: CommitMessagePlan }
   | { ok: false; error: string }
 
-export function planAgentBinary(
-  defaultBinary: string,
-  commandOverride: string | undefined
-): { ok: true; binary: string; prefixArgs: string[] } | { ok: false; error: string } {
-  const command = commandOverride?.trim()
-  if (!command) {
-    return { ok: true, binary: defaultBinary, prefixArgs: [] }
-  }
-
-  const tokenized = tokenizeCustomCommandTemplate(command)
-  if (!tokenized.ok) {
-    return { ok: false, error: `Agent command override is invalid: ${tokenized.error}` }
-  }
-  const [binary, ...prefixArgs] = tokenized.tokens
-  if (!binary) {
-    return { ok: false, error: 'Agent command override must start with a binary name.' }
-  }
-  return { ok: true, binary, prefixArgs }
-}
-
 function planAdditionalAgentArgs(
-  agentArgs: string | null | undefined
+  agentArgs: string | null | undefined,
+  backslash: CommandTemplateBackslash = 'escape'
 ): { ok: true; args: string[] } | { ok: false; error: string } {
   const trimmed = agentArgs?.trim()
   if (!trimmed) {
     return { ok: true, args: [] }
   }
-  const tokenized = tokenizeCustomCommandTemplate(trimmed)
+  const tokenized = tokenizeCustomCommandTemplate(trimmed, backslash)
   if (!tokenized.ok) {
     return { ok: false, error: `CLI arguments are invalid: ${tokenized.error}` }
   }
@@ -69,39 +62,6 @@ function planAdditionalAgentArgs(
 }
 
 const DEFAULT_SINGLETON_OPTIONS: readonly (readonly string[])[] = [['--model']]
-
-function matchesOption(token: string, aliases: readonly string[]): boolean {
-  return aliases.some(
-    (alias) =>
-      token === alias ||
-      token.startsWith(`${alias}=`) ||
-      (alias.startsWith('-') &&
-        !alias.startsWith('--') &&
-        token.startsWith(alias) &&
-        token.length > alias.length)
-  )
-}
-
-function findOptionOccurrence(
-  tokens: string[],
-  aliases: readonly string[],
-  stopAtTerminator: boolean
-): { index: number; consumed: number } | null {
-  for (let index = 0; index < tokens.length; index += 1) {
-    const token = tokens[index]
-    if (stopAtTerminator && token === '--') {
-      break
-    }
-    if (!matchesOption(token, aliases)) {
-      continue
-    }
-    const nextToken = tokens[index + 1]
-    const consumesNext =
-      aliases.includes(token) && nextToken !== undefined && !nextToken.startsWith('-')
-    return { index, consumed: consumesNext ? 2 : 1 }
-  }
-  return null
-}
 
 function applyRecipeOptionOverride(args: {
   generatedArgs: string[]
@@ -239,11 +199,11 @@ export function planCommitMessageGeneration(
         error: 'Custom command is empty. Add one in Settings → Git → AI Commit Messages.'
       }
     }
-    const planned = planCustomCommand(command, prompt)
+    const planned = planCustomCommand(command, prompt, input.backslash)
     if (!planned.ok) {
       return { ok: false, error: planned.error }
     }
-    const agentArgs = planAdditionalAgentArgs(input.agentArgs)
+    const agentArgs = planAdditionalAgentArgs(input.agentArgs, input.backslash)
     if (!agentArgs.ok) {
       return agentArgs
     }
@@ -260,7 +220,8 @@ export function planCommitMessageGeneration(
         stdinPayload: planned.stdinPayload,
         // Why: a custom command has no friendly name, so the binary doubles
         // as the label in error prefixes ("ollama failed: ...").
-        label: planned.binary
+        label: planned.binary,
+        ...(planned.env ? { env: planned.env } : {})
       }
     }
   }
@@ -294,11 +255,11 @@ export function planCommitMessageGeneration(
     model: input.model,
     thinkingLevel: input.thinkingLevel
   })
-  const agentArgs = planAdditionalAgentArgs(input.agentArgs)
+  const agentArgs = planAdditionalAgentArgs(input.agentArgs, input.backslash)
   if (!agentArgs.ok) {
     return agentArgs
   }
-  const command = planAgentBinary(spec.binary, input.agentCommandOverride)
+  const command = planAgentBinary(spec.binary, input.agentCommandOverride, input.backslash)
   if (!command.ok) {
     return { ok: false, error: command.error }
   }
@@ -316,13 +277,25 @@ export function planCommitMessageGeneration(
     promptDelivery: spec.promptDelivery,
     prompt: argvPrompt
   })
+  const generationArgs = mergeOpenCodeGenerationArgs(
+    input.agentId,
+    command.binary,
+    merged.prefixArgs,
+    args
+  )
+  const formatOption =
+    input.agentId === 'opencode' || input.agentId === 'opencode2'
+      ? findOptionOccurrence(generationArgs, ['--format'], true)
+      : null
   return {
     ok: true,
     plan: {
       binary: command.binary,
-      args: [...merged.prefixArgs, ...args],
+      args: generationArgs,
       stdinPayload: spec.promptDelivery === 'stdin' ? prompt : null,
-      label: spec.label
+      label: spec.label,
+      ...(formatOption?.value === 'json' ? { outputFormat: 'opencode-json' as const } : {}),
+      ...(command.env ? { env: command.env } : {})
     }
   }
 }

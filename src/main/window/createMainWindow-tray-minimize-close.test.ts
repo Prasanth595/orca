@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { recordAgentSessionRuntimeEndMock } = vi.hoisted(() => ({
+  recordAgentSessionRuntimeEndMock: vi.fn()
+}))
+
 vi.mock('electron', async () =>
   (await import('./createMainWindow-test-harness')).electronModuleMock()
 )
@@ -13,6 +17,9 @@ vi.mock('../app-icon', async () => (await import('./createMainWindow-test-harnes
 vi.mock('../browser/browser-manager', async () =>
   (await import('./createMainWindow-test-harness')).browserManagerMock()
 )
+vi.mock('../runtime/agent-session-runtime-end-record', () => ({
+  recordAgentSessionRuntimeEnd: recordAgentSessionRuntimeEndMock
+}))
 
 import { createMainWindow } from './createMainWindow'
 import { ipcMain } from 'electron'
@@ -21,6 +28,10 @@ import {
   resolveExpectedTeardownScope,
   WINDOWS_SESSION_END_CRASH_SUPPRESSION_WINDOW_MS
 } from '../crash-reporting/expected-teardown-state'
+import {
+  clearCrashBreadcrumbsForTest,
+  getCrashBreadcrumbSnapshot
+} from '../crash-reporting/crash-breadcrumb-store'
 import {
   browserWindowMock,
   notificationMock,
@@ -32,6 +43,7 @@ describe('createMainWindow', () => {
   beforeEach(() => {
     resetMainWindowMocks()
     resetExpectedTeardownStateForTest()
+    clearCrashBreadcrumbsForTest()
     vi.useRealTimers()
   })
 
@@ -76,8 +88,8 @@ describe('createMainWindow', () => {
         maximize: vi.fn(),
         show: vi.fn(),
         hide: vi.fn(),
-        loadFile: vi.fn(),
-        loadURL: vi.fn()
+        loadFile: vi.fn(() => Promise.resolve()),
+        loadURL: vi.fn(() => Promise.resolve())
       }
       browserWindowMock.mockImplementation(function () {
         return instance
@@ -95,6 +107,7 @@ describe('createMainWindow', () => {
 
     afterEach(() => {
       setPlatform(originalPlatform)
+      clearCrashBreadcrumbsForTest()
     })
 
     it('marks production teardown state on irrevocable Windows session end', () => {
@@ -112,6 +125,37 @@ describe('createMainWindow', () => {
           isExpectedRendererReload: false
         })
       ).toBe('app-shutdown')
+    })
+
+    it('durably records the session-end reasons so bundles can identify OS shutdown', () => {
+      setPlatform('win32')
+      const { windowHandlers } = setupCloseWindow()
+
+      createMainWindow(null)
+      windowHandlers['session-end']?.({ reasons: ['shutdown', 'critical'] } as never)
+      windowHandlers['session-end']?.({} as never)
+
+      expect(getCrashBreadcrumbSnapshot()).toEqual([
+        expect.objectContaining({
+          name: 'system_session_end',
+          data: expect.objectContaining({ reasons: 'shutdown,critical' })
+        }),
+        expect.objectContaining({
+          name: 'system_session_end',
+          data: expect.objectContaining({ reasons: '' })
+        })
+      ])
+    })
+
+    it("records the Orca runtime's end, since Windows emits no will-quit for it", () => {
+      setPlatform('win32')
+      recordAgentSessionRuntimeEndMock.mockClear()
+      const { windowHandlers } = setupCloseWindow()
+
+      createMainWindow(null)
+      windowHandlers['session-end']?.({ reasons: ['logoff'] })
+
+      expect(recordAgentSessionRuntimeEndMock).toHaveBeenCalledExactlyOnceWith('quit')
     })
 
     it.each(['darwin', 'linux'] as const)(

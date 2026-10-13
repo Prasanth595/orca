@@ -23,10 +23,10 @@ export type LocalPtyProviderMocks = {
   writeFileSyncMock: Mock
   prepareMacosTccLoginShellMock: Mock
   resolveAgentForegroundProcessMock: Mock
-  readWindowsConptyProcessIdsMock: Mock
+  readWindowsPtyJobProcessIdsMock: Mock
   killWithDescendantSweepMock: Mock
   isWslAvailableAsyncMock: Mock
-  wslUncDirectoryExistsMock: Mock
+  wslUncDirectoryExistsAsyncMock: Mock
   createShellPromptReadinessProbeMock: Mock
 }
 
@@ -74,7 +74,8 @@ export function installLocalPtyProviderEnvSandbox(): void {
 
 export function applyLocalPtyProviderMockDefaults(mocks: LocalPtyProviderMocks): void {
   mocks.existsSyncMock.mockReturnValue(true)
-  mocks.statSyncMock.mockReturnValue({ isDirectory: () => true, mode: 0o755 })
+  // size: the wrapper writer verifies each generated file is non-empty.
+  mocks.statSyncMock.mockReturnValue({ isDirectory: () => true, mode: 0o755, size: 1 })
   mocks.accessSyncMock.mockReturnValue(undefined)
   mocks.mkdirSyncMock.mockReset()
   mocks.writeFileSyncMock.mockReset()
@@ -94,12 +95,12 @@ export function applyLocalPtyProviderMockDefaults(mocks: LocalPtyProviderMocks):
       processName: fallbackProcess
     })
   )
-  mocks.readWindowsConptyProcessIdsMock.mockReset()
-  mocks.readWindowsConptyProcessIdsMock.mockResolvedValue(null)
+  mocks.readWindowsPtyJobProcessIdsMock.mockReset()
+  mocks.readWindowsPtyJobProcessIdsMock.mockReturnValue(null)
   mocks.isWslAvailableAsyncMock.mockReset()
   mocks.isWslAvailableAsyncMock.mockResolvedValue(true)
-  mocks.wslUncDirectoryExistsMock.mockReset()
-  mocks.wslUncDirectoryExistsMock.mockReturnValue(true)
+  mocks.wslUncDirectoryExistsAsyncMock.mockReset()
+  mocks.wslUncDirectoryExistsAsyncMock.mockResolvedValue(true)
   mocks.createShellPromptReadinessProbeMock.mockReset()
 }
 

@@ -23,7 +23,6 @@ export type GitHubClientMocks = {
   noteRateLimitSpendMock: Mock
   ghRepoExecOptionsMock: Mock<typeof ghRepoExecOptions>
   githubRepoContextMock: Mock<typeof githubRepoContext>
-  getSshGitProviderMock: Mock
   readLocalGitConfigSignatureMock: Mock
   acquireMock: Mock
   releaseMock: Mock
@@ -62,7 +61,6 @@ export function createGitHubClientMocks(): GitHubClientMocks {
         ...localGitOptions
       })
     ),
-    getSshGitProviderMock: vi.fn(),
     readLocalGitConfigSignatureMock: vi.fn(),
     acquireMock: vi.fn(),
     releaseMock: vi.fn()
@@ -131,13 +129,9 @@ export function gitRunnerModuleMock(mocks: GitHubClientMocks): GitRunnerModuleMo
   }
 }
 
-export type SshGitDispatchModuleMock = { getSshGitProvider: Mock }
-
-export function sshGitDispatchModuleMock(mocks: GitHubClientMocks): SshGitDispatchModuleMock {
-  return { getSshGitProvider: mocks.getSshGitProviderMock }
+export type LocalGitConfigSignatureModuleMock = {
+  readLocalGitConfigSignature: Mock
 }
-
-export type LocalGitConfigSignatureModuleMock = { readLocalGitConfigSignature: Mock }
 
 export function localGitConfigSignatureModuleMock(
   mocks: GitHubClientMocks

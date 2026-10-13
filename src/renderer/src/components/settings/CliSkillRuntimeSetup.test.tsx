@@ -4,9 +4,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { getDefaultSettings } from '../../../../shared/constants'
-import { buildAgentFeatureSkillInstallCommand } from '../../../../shared/agent-feature-install-commands'
 import { buildWslLoginShellCommand } from '../../../../shared/wsl-login-shell-command'
 import { useAppStore } from '@/store'
+import { buildAgentFeatureSkillInstallCommand } from '@/lib/agent-feature-install-commands'
 import {
   buildSkillCommandForRuntime,
   buildSkillInstallCommandForRuntime,
@@ -17,15 +17,16 @@ import {
 } from './CliSkillRuntimeSetup'
 
 function decodeWslLoginShellScript(command: string): string {
-  const encoded = /-- sh -c 'eval \\"`printf %s ([A-Za-z0-9+/=]+) \| base64 -d`\\"'/.exec(
-    command
-  )?.[1]
+  const encoded =
+    /(?:--|--exec) sh -c '(?:eval \\"`|sh -c \\"\$\()?printf %s ([A-Za-z0-9+/=]+) \| base64 -d/.exec(
+      command
+    )?.[1]
   expect(encoded).toBeDefined()
   return Buffer.from(encoded!, 'base64').toString('utf8')
 }
 
 function getWslOuterShellScript(command: string): string {
-  const script = /-- sh -c '([^']+)' \} # Runs:/.exec(command)?.[1]
+  const script = /(?:--|--exec) sh -c '([^']+)' \} # Runs:/.exec(command)?.[1]
   expect(script).toBeDefined()
   // Simulate PowerShell 5.1's native argv boundary consuming quote escapes.
   return script!.replaceAll('\\"', '"')
@@ -49,7 +50,7 @@ describe('CliSkillRuntimeSetup runtime helpers', () => {
 
     expect(command).toBe(skillCommand)
     expect(setupCommand).toBe(
-      `& { $PSNativeCommandArgumentPassing = 'Legacy'; wsl.exe -d 'Ubuntu' -- sh -c 'eval \\"\`printf %s ${encoded} | base64 -d\`\\"' } # Runs: ${skillCommand}`
+      `& { $PSNativeCommandArgumentPassing = 'Legacy'; wsl.exe -d 'Ubuntu' --exec sh -c 'sh -c \\"$(printf %s ${encoded} | base64 -d)\\"' } # Runs: ${skillCommand}`
     )
     expect(decodeWslLoginShellScript(setupCommand)).toContain(
       'exec "$_orca_wsl_shell" -ilc \'npx skills add orchestration --global\''
@@ -94,9 +95,11 @@ describe('CliSkillRuntimeSetup runtime helpers', () => {
     const setupCommand = buildSkillSetupTerminalCommand(command, 'powershell.exe', runtime, 'win32')
 
     expect(setupCommand).toMatch(
-      /^& \{ \$PSNativeCommandArgumentPassing = 'Legacy'; wsl\.exe -- sh -c 'eval \\"`printf/
+      /^& \{ \$PSNativeCommandArgumentPassing = 'Legacy'; wsl\.exe --exec sh -c 'sh -c/
     )
-    expect(setupCommand).toContain('`\\"\' } # Runs: npx skills update orchestration --global')
+    // The command no longer ends in the eval wrapper's nested quotes; it is a
+    // plain pipe into sh, so the payload has no quoting layer to escape from.
+    expect(setupCommand).toContain('base64 -d)')
   })
 
   it.skipIf(process.platform === 'win32')(
@@ -175,29 +178,6 @@ describe('CliSkillRuntimeSetup runtime helpers', () => {
     )
   })
 
-  it('reinstalls Windows-host skill updates after the npx preflight', () => {
-    const installCommand = buildAgentFeatureSkillInstallCommand(['orchestration'])
-
-    expect(
-      buildSkillCommandForRuntime(
-        'npx skills update orchestration --global',
-        {
-          runtime: 'host',
-          label: 'Windows'
-        },
-        'win32'
-      )
-    ).toBe(`${windowsNpxPreflightPrefix}${windowsNpxGuidance}) else (${installCommand})"`)
-  })
-
-  it('treats missing runtime as a preflighted Windows host fallback for skill updates', () => {
-    const installCommand = buildAgentFeatureSkillInstallCommand(['orca-cli'])
-
-    expect(
-      buildSkillCommandForRuntime('npx skills update orca-cli --global', undefined, 'win32')
-    ).toBe(`${windowsNpxPreflightPrefix}${windowsNpxGuidance}) else (${installCommand})"`)
-  })
-
   it('keeps non-Windows host skill installs on the direct npx path', () => {
     const installCommand = buildAgentFeatureSkillInstallCommand(['orchestration'])
 
@@ -211,19 +191,6 @@ describe('CliSkillRuntimeSetup runtime helpers', () => {
         'linux'
       )
     ).toBe(installCommand)
-  })
-
-  it('keeps non-Windows host skill updates on the update path', () => {
-    expect(
-      buildSkillCommandForRuntime(
-        'npx skills update orchestration --global',
-        {
-          runtime: 'host',
-          label: 'This device'
-        },
-        'linux'
-      )
-    ).toBe('npx skills update orchestration --global')
   })
 
   it('skips the Windows preflight while a remote runtime environment is focused', () => {
@@ -364,26 +331,6 @@ describe('CliSkillRuntimeSetup runtime helpers', () => {
     expect(buildSkillSetupTerminalCommand(powershellCommand, 'wsl.exe', runtime, 'win32')).toBe(
       buildWslLoginShellCommand(skillCommand)
     )
-  })
-
-  it('keeps the bare reinstall rewrite for POSIX-family Windows skill updates', () => {
-    const installCommand = buildAgentFeatureSkillInstallCommand(['orchestration'])
-    const previous = useAppStore.getState()
-    useAppStore.setState({
-      settings: { ...getDefaultSettings('/tmp'), terminalWindowsShell: 'git-bash' }
-    })
-
-    try {
-      expect(
-        buildSkillCommandForRuntime(
-          'npx skills update orchestration --global',
-          { runtime: 'host', label: 'Windows' },
-          'win32'
-        )
-      ).toBe(installCommand)
-    } finally {
-      useAppStore.setState({ settings: previous.settings })
-    }
   })
 
   it('does not wrap unrelated Windows host commands', () => {

@@ -7,9 +7,20 @@ import {
   CLAUDE_STATUSLINE_MIN_POST_INTERVAL_SECONDS,
   CLAUDE_STATUSLINE_PATHNAME
 } from '../../shared/claude-statusline-rate-limits'
+import { wrapWindowsDirectCmdHookCommand } from '../agent-hooks/windows-direct-cmd-hook-command'
+import { getManagedCommand } from './hook-settings'
 
 const STATUSLINE_CLEANUP_LABEL = 'orca_statusline_cleanup'
 const STATUSLINE_PROBE_LABEL = 'orca_statusline_probe'
+
+// Why: PowerShell (no Git Bash) cannot parse the runtime-home form, so a cmd-safe path is registered bare;
+// an unsafe one keeps that form, as the encoded PowerShell fallback would spawn per statusline tick.
+export function getManagedStatusLineCommand(scriptPath: string): string {
+  return (
+    (process.platform === 'win32' ? wrapWindowsDirectCmdHookCommand(scriptPath) : null) ??
+    getManagedCommand(scriptPath)
+  )
+}
 
 // Why: Claude Code pipes `rate_limits` to the statusLine command on every turn; forwarding
 // it gives Orca live usage without spending the OAuth usage endpoint's tight budget.
@@ -19,6 +30,11 @@ export function getManagedStatusLineScript(target: 'local' | 'posix' = 'local'):
     return [
       '@echo off',
       'setlocal',
+      // Why: a backgrounded session's statusline runs in a daemon worker that inherited the
+      // dispatching pane's env, so ORCA_PANE_KEY names a pane it does not run in (#9236).
+      // Why exit, not the drain label: a worker is outside an Orca pane, so reading stdin to
+      // EOF can block forever (#11549). This gates before stdin is owned, per that contract.
+      'if not "%CLAUDE_JOB_DIR%"=="" exit /b 0',
       // Why: pane key is static PTY env (the endpoint file never sets it), so it can gate before stdin is consumed.
       `if "%ORCA_PANE_KEY%"=="" goto :${WINDOWS_HOOK_STDIN_DRAIN_LABEL}`,
       // Why: current keys end in a UUID; replacing the legacy delimiter also keeps surviving numeric-pane keys filename-safe.
@@ -86,6 +102,12 @@ export function getManagedStatusLineScript(target: 'local' | 'posix' = 'local'):
     'done',
     'payload=${payload%?}',
     'if [ -z "$payload" ]; then',
+    '  exit 0',
+    'fi',
+    // Why: a backgrounded session's statusline runs in a daemon worker that inherited the
+    // dispatching pane's env, so ORCA_PANE_KEY names a pane it does not run in (#9236).
+    // Placed after capture: POSIX hooks own stdin first, or the agent sees EPIPE (#8110).
+    'if [ -n "$CLAUDE_JOB_DIR" ]; then',
     '  exit 0',
     'fi',
     // Why: rate_limits appears only for Claude.ai-subscriber sessions after the first API response; skip the post (and its curl spawn) otherwise.

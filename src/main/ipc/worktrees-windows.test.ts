@@ -73,6 +73,9 @@ vi.mock('electron', () => ({
 vi.mock('../git/worktree', () => ({
   listWorktrees: listWorktreesMock,
   listWorktreesStrict: listWorktreesMock,
+  listWorktreesSharedStrict: listWorktreesMock,
+  listWorktreesSharedStrictAllowingTrueEmpty: listWorktreesMock,
+  describeCreatedWorktree: vi.fn().mockResolvedValue(undefined),
   assertWorktreeCleanForRemoval: assertWorktreeCleanForRemovalMock,
   addWorktree: addWorktreeMock,
   removeWorktree: removeWorktreeMock
@@ -104,15 +107,21 @@ vi.mock('../github/client', () => ({
 }))
 
 vi.mock('../hooks', () => ({
-  createIssueCommandRunnerScript: createIssueCommandRunnerScriptMock,
-  createSetupRunnerScript: createSetupRunnerScriptMock,
   getEffectiveHooks: getEffectiveHooksMock,
-  getEffectiveHooksFromConfig: getEffectiveHooksFromConfigMock,
-  getDefaultTabsLaunch: getDefaultTabsLaunchMock,
   loadHooks: loadHooksMock,
   runHook: runHookMock,
-  hasHooksFile: hasHooksFileMock,
-  resolveSetupRunnerShell: resolveSetupRunnerShellMock,
+  hasHooksFile: hasHooksFileMock
+}))
+
+vi.mock('../worktree-runner-script', () => ({
+  createIssueCommandRunnerScript: createIssueCommandRunnerScriptMock,
+  createSetupRunnerScript: createSetupRunnerScriptMock,
+  resolveSetupRunnerShell: resolveSetupRunnerShellMock
+}))
+
+vi.mock('../effective-hook-config', () => ({
+  getEffectiveHooksFromConfig: getEffectiveHooksFromConfigMock,
+  getDefaultTabsLaunch: getDefaultTabsLaunchMock,
   shouldRunSetupForCreate: shouldRunSetupForCreateMock
 }))
 
@@ -120,10 +129,10 @@ vi.mock('../runtime/worktree-teardown', () => ({
   killAllProcessesForWorktree: killAllProcessesForWorktreeMock
 }))
 
-vi.mock('./pty', () => ({
-  clearProviderPtyState: clearProviderPtyStateMock,
-  getLocalPtyProvider: getLocalPtyProviderMock
+vi.mock('./pty/provider/state-cleanup', () => ({
+  clearProviderPtyState: clearProviderPtyStateMock
 }))
+vi.mock('./pty/provider/registry', () => ({ getLocalPtyProvider: getLocalPtyProviderMock }))
 
 vi.mock('../terminal-history-deletion', () => ({
   deleteWorktreeHistoryDir: deleteWorktreeHistoryDirMock
@@ -159,6 +168,8 @@ describe('registerWorktreeHandlers – Windows path handling', () => {
     getProjectHostSetups: vi.fn(),
     getSettings: vi.fn(),
     getWorktreeMeta: vi.fn(),
+    getAllWorktreeMeta: vi.fn(),
+    captureNativeLocalWorktreeMetadataScanExpectation: vi.fn(),
     setWorktreeMeta: vi.fn(),
     removeWorktreeMeta: vi.fn(),
     addRetiredWorktreeName: vi.fn(),
@@ -203,6 +214,8 @@ describe('registerWorktreeHandlers – Windows path handling', () => {
     store.getProjectHostSetups.mockReset()
     store.getSettings.mockReset()
     store.getWorktreeMeta.mockReset()
+    store.getAllWorktreeMeta.mockReset()
+    store.captureNativeLocalWorktreeMetadataScanExpectation.mockReset()
     store.setWorktreeMeta.mockReset()
     store.removeWorktreeMeta.mockReset()
     store.addRetiredWorktreeName.mockReset()
@@ -245,6 +258,21 @@ describe('registerWorktreeHandlers – Windows path handling', () => {
     })
     resolveSetupRunnerShellMock.mockReturnValue(undefined)
     store.getWorktreeMeta.mockReturnValue(undefined)
+    store.getAllWorktreeMeta.mockReturnValue({})
+    store.captureNativeLocalWorktreeMetadataScanExpectation.mockImplementation((repo) => ({
+      repo: {
+        id: repo.id,
+        path: repo.path,
+        kind: 'git',
+        expectedRepo: repo
+      },
+      routing: {
+        expectedProject: undefined,
+        expectedProjectUpdatedAt: undefined,
+        expectedSettings: store.getSettings()
+      },
+      metadata: []
+    }))
     store.getRetiredWorktreeNameRegistry.mockReturnValue({ exhaustedTiers: 0, names: [] })
     store.setWorktreeMeta.mockReturnValue({})
     resolveLocalGitUsernameMock.mockResolvedValue('')
@@ -283,7 +311,10 @@ describe('registerWorktreeHandlers – Windows path handling', () => {
       closeFileWatchersForRemoval: vi.fn().mockResolvedValue(undefined),
       acquireFileWatcherRemoval: vi.fn().mockResolvedValue({
         finish: vi.fn().mockResolvedValue(undefined)
-      })
+      }),
+      publishWorktreeRemovalChange: vi.fn((repoId: string) =>
+        mainWindow.webContents.send('worktrees:changed', { repoId })
+      )
     }
     registerWorktreeHandlers(mainWindow as never, store as never, runtimeStub as never)
   })
@@ -309,7 +340,9 @@ describe('registerWorktreeHandlers – Windows path handling', () => {
       'C:\\workspaces\\improve-dashboard',
       'improve-dashboard',
       'origin/main',
-      false
+      false,
+      false,
+      {}
     )
     expect(resolveLocalGitUsernameMock).not.toHaveBeenCalled()
     // A name the user typed is never retired — the pool holds ordinary words people choose.
@@ -375,7 +408,9 @@ describe('registerWorktreeHandlers – Windows path handling', () => {
       'C:\\workspaces\\nautilus',
       'nautilus',
       'origin/main',
-      false
+      false,
+      false,
+      {}
     )
     expect(store.addRetiredWorktreeName).not.toHaveBeenCalled()
   })
@@ -409,7 +444,9 @@ describe('registerWorktreeHandlers – Windows path handling', () => {
       'C:\\workspaces\\improve-dashboard',
       'octocat/improve-dashboard',
       'origin/main',
-      false
+      false,
+      false,
+      {}
     )
   })
 
@@ -458,7 +495,8 @@ describe('registerWorktreeHandlers – Windows path handling', () => {
       'C:\\workspaces\\improve-dashboard',
       'pnpm install',
       undefined,
-      setupShell
+      setupShell,
+      undefined
     )
     expect(result).toMatchObject({
       setup: {
@@ -495,6 +533,14 @@ describe('registerWorktreeHandlers – Windows path handling', () => {
           }
         : undefined
     )
+    store.getAllWorktreeMeta.mockReturnValue({
+      'repo-1::C:/workspaces/improve-dashboard': {
+        lastActivityAt: 123,
+        displayName: 'Improve Dashboard',
+        linkedIssue: 123,
+        linkedPR: 456
+      }
+    })
 
     await handlers['worktrees:create'](null, {
       repoId: 'repo-1',

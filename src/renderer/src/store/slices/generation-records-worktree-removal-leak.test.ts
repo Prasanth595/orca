@@ -60,7 +60,14 @@ const BRANCH = 'refs/heads/feature'
 
 function prRecord(worktreeId: string, worktreePath: string): PullRequestGenerationRecord {
   return {
-    context: { worktreeId, worktreePath, requestId: 1, repoId: REPO, branch: BRANCH },
+    context: {
+      worktreeId,
+      worktreePath,
+      requestId: 1,
+      repoId: REPO,
+      branch: BRANCH,
+      runtimeTarget: { kind: 'local' }
+    },
     seed: { base: 'main', title: 'Title', body: 'Body', draft: false },
     seedFieldRevisions: { base: 0, title: 0, body: 0, draft: 0 },
     requiresPushBeforeCreate: false,
@@ -73,7 +80,7 @@ function prRecord(worktreeId: string, worktreePath: string): PullRequestGenerati
 
 function commitRecord(worktreeId: string, worktreePath: string): CommitMessageGenerationRecord {
   return {
-    context: { worktreeId, worktreePath, requestId: 1 },
+    context: { worktreeId, worktreePath, requestId: 1, runtimeTarget: { kind: 'local' } },
     status: 'succeeded',
     message: 'a generated commit message',
     error: null,
@@ -132,7 +139,7 @@ describe('worktree removal evicts generation records (leak regression)', () => {
         commitRecord(OTHER, OTHER_PATH)
       )
 
-    const result = await store.getState().removeWorktree(WT)
+    const result = await store.getState().removeWorktree({ id: WT, executionHostId: null })
     expect(result).toEqual({ ok: true })
 
     const s = store.getState()

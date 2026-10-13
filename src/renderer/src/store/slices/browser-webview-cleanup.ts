@@ -2,16 +2,36 @@ import type { BrowserPage, BrowserWorkspace } from '../../../../shared/browser-w
 import {
   destroyPersistentWebview,
   moveFocusToRendererBeforeFocusedWebviewHidden
-} from '../../components/browser-pane/webview-registry'
+} from '../../components/browser-pane/host-guest/webview-registry'
 import {
   getExplicitBrowserPageZoomLevel,
   rememberExplicitBrowserPageZoomLevel
-} from '../../components/browser-pane/browser-page-zoom'
+} from '../../components/browser-pane/host-guest/browser-page-zoom'
+import { releaseBrowserPageMount } from '../../components/browser-pane/host-guest/browser-page-mount-admission'
 
 export { moveFocusToRendererBeforeFocusedWebviewHidden }
 
+// Why the admission is released here: a page that leaves the store (close, worktree purge,
+// conversion) or has its guest evicted is destroyed through this function, so the start
+// admission dies with its guest.
 export function destroyRemovedBrowserWebview(browserPageId: string): void {
+  releaseBrowserPageMount(browserPageId)
   destroyPersistentWebview(browserPageId)
+}
+
+/** Destroys every page in `previousIds` the store no longer holds; returns the ids it holds now. */
+export function destroyWebviewsRemovedFromStore(
+  previousIds: ReadonlySet<string>,
+  browserTabsByWorktree: Record<string, BrowserWorkspace[]>,
+  browserPagesByWorkspace: Record<string, BrowserPage[]>
+): Set<string> {
+  const currentIds = collectBrowserWebviewIds(browserTabsByWorktree, browserPagesByWorkspace)
+  for (const previousId of previousIds) {
+    if (!currentIds.has(previousId)) {
+      destroyRemovedBrowserWebview(previousId)
+    }
+  }
+  return currentIds
 }
 
 export function collectBrowserWebviewIds(

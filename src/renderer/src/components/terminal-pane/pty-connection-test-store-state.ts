@@ -58,6 +58,7 @@ export type StoreState = {
       | { kind: 'wsl'; distro: string }
   }[]
   sshConnectionStates: Map<string, { status: string }>
+  sshTargetLabels?: Map<string, string>
   transientClearedAgentStatusConnectionIds: Record<string, true>
   cacheTimerByKey: Record<string, number | null>
   settings: {
@@ -107,8 +108,10 @@ export type StoreState = {
     { launchConfig: unknown; identity?: { agentType?: string } }
   >
   getAgentLaunchConfigForStatusEntry: ReturnType<typeof vi.fn>
-  getAgentLaunchConfigForStatusMetadata: ReturnType<typeof vi.fn>
   clearSleepingAgentSession: ReturnType<typeof vi.fn>
+  rememberSleepingAgentSession?: ReturnType<typeof vi.fn>
+  pendingStartupByTabId?: Record<string, unknown>
+  automaticAgentResumeClaimsByTabId?: Record<string, unknown>
   registerAgentLaunchConfig: ReturnType<typeof vi.fn>
   clearAgentLaunchConfig: ReturnType<typeof vi.fn>
   markWorktreeUnread: ReturnType<typeof vi.fn>
@@ -118,38 +121,12 @@ export type StoreState = {
   removeAgentStatus: ReturnType<typeof vi.fn>
   dropAgentStatus: ReturnType<typeof vi.fn>
   retireAgentPaneAuthority: ReturnType<typeof vi.fn>
+  restoreAgentPaneAuthority: ReturnType<typeof vi.fn>
   setPaneForegroundAgent: ReturnType<typeof vi.fn>
   clearPaneForegroundAgent: ReturnType<typeof vi.fn>
   markTerminalTabUnread: ReturnType<typeof vi.fn>
   markTerminalPaneUnread: ReturnType<typeof vi.fn>
   markAgentCompletionPaneUnread: ReturnType<typeof vi.fn>
-  directSshPaneRetryByTabId?: Record<
-    string,
-    {
-      attemptId: string
-      authority: {
-        targetId: string
-        providerEpoch: string
-        connectionGeneration: number
-      }
-      tabGeneration: number
-      startedAt: number
-    }
-  >
-  directSshLivePtyBindingByTabId?: Record<
-    string,
-    {
-      attemptId: string
-      authority: {
-        targetId: string
-        providerEpoch: string
-        connectionGeneration: number
-      }
-      tabGeneration: number
-      ptyId: string
-    }
-  >
-  settleDirectSshPaneRetry?: ReturnType<typeof vi.fn>
 }
 
 export type WindowsShiftEnterPaneState = Parameters<

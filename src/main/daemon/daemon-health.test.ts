@@ -1,3 +1,4 @@
+import './mock-descendant-sweep'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { spawn } from 'node:child_process'
@@ -10,18 +11,20 @@ import { getDaemonPidPath, serializeDaemonPidFile } from './daemon-spawner'
 import type { SocketProbeOutcome } from './daemon-endpoint-probe'
 import {
   checkDaemonHealth,
+  checkDaemonHealthWithCoverage,
   E2E_FORCE_DAEMON_HEALTH_UNREACHABLE_ENV,
+  healthCheckDaemon
+} from './daemon-health'
+import { killStaleDaemon } from './daemon-stale-kill'
+import {
   getProcessStartedAtMs,
-  healthCheckDaemon,
-  killStaleDaemon,
   parseLinuxBootTimeSeconds,
   parseLinuxProcStartTicks,
-  parseDaemonPidFile,
-  parseWindowsProcessIdentityJson,
   startTimeMatches,
   startTimesWithinTolerance
-} from './daemon-health'
-import type { SubprocessHandle } from './session'
+} from './daemon-process-start-time'
+import { parseDaemonPidFile } from './daemon-pid-file-parse'
+import type { SubprocessHandle } from './session-subprocess-handle'
 
 function createMockSubprocess(): SubprocessHandle {
   return {
@@ -30,6 +33,7 @@ function createMockSubprocess(): SubprocessHandle {
     write() {},
     resize() {},
     kill() {},
+    terminateOwnedTree: () => 'unavailable' as const,
     forceKill() {},
     signal() {},
     onData() {},
@@ -101,9 +105,58 @@ describe('daemon health', () => {
     try {
       await expect(checkDaemonHealth(socketPath, tokenPath)).resolves.toBe('healthy')
       await expect(healthCheckDaemon(socketPath, tokenPath)).resolves.toBe(true)
-      expect(ptySpawnHealthCheck).toHaveBeenCalledTimes(2)
+      await expect(checkDaemonHealthWithCoverage(socketPath, tokenPath)).resolves.toEqual({
+        verdict: 'healthy',
+        coverage: process.platform === 'win32' ? 'handshake' : 'pty-spawn'
+      })
+      expect(ptySpawnHealthCheck).toHaveBeenCalledTimes(3)
     } finally {
       await server.shutdown()
+    }
+  })
+
+  it('treats missing coverage from a legacy Windows daemon as handshake-only', async () => {
+    writeFileSync(tokenPath, 'legacy-token')
+    const server = createServer((socket) => {
+      let pending = ''
+      socket.on('data', (chunk) => {
+        pending += chunk.toString()
+        for (;;) {
+          const newline = pending.indexOf('\n')
+          if (newline === -1) {
+            return
+          }
+          const message: unknown = JSON.parse(pending.slice(0, newline))
+          const type =
+            typeof message === 'object' && message !== null && 'type' in message
+              ? message.type
+              : undefined
+          pending = pending.slice(newline + 1)
+          if (type === 'hello') {
+            socket.write(`${JSON.stringify({ type: 'hello', ok: true })}\n`)
+          } else if (type === 'ptySpawnHealth') {
+            socket.write(
+              `${JSON.stringify({ id: 'health-1', ok: true, payload: { healthy: true } })}\n`
+            )
+          }
+        }
+      })
+    })
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(socketPath, resolve)
+    })
+
+    const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
+    Object.defineProperty(process, 'platform', { configurable: true, value: 'win32' })
+    try {
+      await expect(checkDaemonHealthWithCoverage(socketPath, tokenPath)).resolves.toEqual({
+        verdict: 'healthy',
+        coverage: 'handshake'
+      })
+    } finally {
+      Object.defineProperty(process, 'platform', platform)
+      await closeServer(server)
     }
   })
 
@@ -203,7 +256,9 @@ describe('parseDaemonPidFile', () => {
       launchNonce: null,
       linuxStartTicks: null,
       bootId: null,
-      spawnerExecPath: null
+      spawnerExecPath: null,
+      cgroupUnit: null,
+      processCeiling: null
     })
   })
 
@@ -222,7 +277,9 @@ describe('parseDaemonPidFile', () => {
       launchNonce: null,
       linuxStartTicks: null,
       bootId: null,
-      spawnerExecPath: null
+      spawnerExecPath: null,
+      cgroupUnit: null,
+      processCeiling: null
     })
   })
 
@@ -252,7 +309,9 @@ describe('parseDaemonPidFile', () => {
       launchNonce: null,
       linuxStartTicks: null,
       bootId: null,
-      spawnerExecPath: null
+      spawnerExecPath: null,
+      cgroupUnit: null,
+      processCeiling: null
     })
   })
 
@@ -268,7 +327,9 @@ describe('parseDaemonPidFile', () => {
       launchNonce: null,
       linuxStartTicks: null,
       bootId: null,
-      spawnerExecPath: null
+      spawnerExecPath: null,
+      cgroupUnit: null,
+      processCeiling: null
     })
     expect(parseDaemonPidFile('  12345\n')).toEqual({
       pid: 12345,
@@ -278,7 +339,9 @@ describe('parseDaemonPidFile', () => {
       launchNonce: null,
       linuxStartTicks: null,
       bootId: null,
-      spawnerExecPath: null
+      spawnerExecPath: null,
+      cgroupUnit: null,
+      processCeiling: null
     })
   })
 
@@ -358,29 +421,6 @@ describe('startTimeMatches', () => {
     }
     // Shift expected by 10s — clearly outside the ±1500ms tolerance.
     expect(startTimeMatches(process.pid, actual + 10_000)).toBe(false)
-  })
-})
-
-describe('parseWindowsProcessIdentityJson', () => {
-  it('parses command line and start time from the CIM query output', () => {
-    expect(
-      parseWindowsProcessIdentityJson(
-        '{"cmd":"Orca.exe daemon-entry.js","start":1700000000000}\r\n'
-      )
-    ).toEqual({ commandLine: 'Orca.exe daemon-entry.js', startedAtMs: 1_700_000_000_000 })
-  })
-
-  it('returns a null start time when CreationDate was unavailable', () => {
-    expect(
-      parseWindowsProcessIdentityJson('{"cmd":"Orca.exe daemon-entry.js","start":null}')
-    ).toEqual({ commandLine: 'Orca.exe daemon-entry.js', startedAtMs: null })
-  })
-
-  it('returns null for a missing process or inaccessible command line', () => {
-    expect(parseWindowsProcessIdentityJson('')).toBeNull()
-    expect(parseWindowsProcessIdentityJson('   \r\n')).toBeNull()
-    expect(parseWindowsProcessIdentityJson('{"cmd":null,"start":123}')).toBeNull()
-    expect(parseWindowsProcessIdentityJson('not-json')).toBeNull()
   })
 })
 
