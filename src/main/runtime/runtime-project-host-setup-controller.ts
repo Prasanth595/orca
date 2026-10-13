@@ -93,7 +93,11 @@ export class RuntimeProjectHostSetupController {
   }
 
   requirementsForWorkspace(workspaceId: string): ProjectMcpRequirement[] {
-    return projectMcpRequirementsForWorkspace(this.deps.getStore(), workspaceId)
+    return projectMcpRequirementsForWorkspace(
+      this.deps.getStore(),
+      this.deps.listRepos(),
+      workspaceId
+    )
   }
 
   readSetupPolicy(

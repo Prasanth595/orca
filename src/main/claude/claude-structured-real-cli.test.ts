@@ -338,7 +338,7 @@ describe.skipIf(!realClaudeAvailable)(suiteTitle, () => {
         // Both halves: the field exists, and it names the model the picker asked
         // for in the catalog's resolved shape rather than the id Orca sent.
         expect(frames[0]?.model).toEqual(expect.any(String))
-        expect(frames[0]?.model).toBe('claude-haiku-5-5')
+        expect(frames[0]?.model).toBe('claude-haiku-4-5-20251001')
         await expect(
           adapter.readOptions({ sessionId: 'real-cli-handshake', fence: 1 })
         ).resolves.toMatchObject({ current: { model: 'haiku' } })

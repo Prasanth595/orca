@@ -27,7 +27,8 @@ describe('RuntimeProjectHostSetupController setup policy', () => {
     const childId = 'repo-remote::/srv/app-child'
     const setupProfile: WorkspaceSetupProfile = {
       name: 'customer-default',
-      setupDecision: 'run'
+      setupDecision: 'run',
+      requiredMcpCapabilities: [{ serverNames: ['linear'], capability: 'write' }]
     }
     const remoteMeta = {
       [parentId]: {
@@ -74,5 +75,8 @@ describe('RuntimeProjectHostSetupController setup policy', () => {
       hooks: { requestedDecision: 'inherit', effectiveDecision: 'run' },
       dryRun: { mutated: false, wouldRunSetup: true }
     })
+    expect(controller.requirementsForWorkspace(childId)).toEqual([
+      { serverNames: ['linear'], capability: 'write' }
+    ])
   })
 })

@@ -28,9 +28,11 @@ export async function withMcpReadiness(
     }
   }
   const host = getStructuredAgentSessionHost()
+  const unverifiable = () =>
+    evaluateAgentMcpReadiness(requirements, { state: 'unverifiable' as const, servers: [] })
   const mcpReadiness = host
-    ? await host.readMcpReadiness(result.outcome.sessionId, requirements)
-    : evaluateAgentMcpReadiness(requirements, { state: 'unverifiable', servers: [] })
+    ? await host.readMcpReadiness(result.outcome.sessionId, requirements).catch(unverifiable)
+    : unverifiable()
   return { ...result, mcpReadiness }
 }
 

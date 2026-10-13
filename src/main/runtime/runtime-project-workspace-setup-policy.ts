@@ -35,12 +35,26 @@ function setupRequirementsForWorkspace(
 
 export function projectMcpRequirementsForWorkspace(
   store: RuntimeStore | null,
+  repos: Repo[],
   workspaceId: string
 ): ProjectMcpRequirement[] {
   if (!store) {
     return []
   }
-  const metaByWorktreeId = store.getAllWorktreeMeta()
+  const repoId = splitWorktreeIdForFilesystem(workspaceId)?.repoId
+  const candidates = repos.filter((repo) => repo.id === repoId)
+  const projectedHostId = store.getWorktreeMeta(workspaceId)?.hostId
+  const repo =
+    candidates.find(
+      (candidate) =>
+        projectedHostId !== undefined && getRepoExecutionHostId(candidate) === projectedHostId
+    ) ??
+    candidates.find(
+      (candidate) => readAllWorktreeMetaForRepo(store, candidate)[workspaceId] !== undefined
+    )
+  const metaByWorktreeId = repo
+    ? readAllWorktreeMetaForRepo(store, repo)
+    : store.getAllWorktreeMeta()
   const resolution = resolveWorkspaceSetupProfile(
     workspaceId,
     metaByWorktreeId,
