@@ -8,9 +8,15 @@ import { isRemovedFolderWorkspaceInstance } from '../folder-workspace-meta-prese
 import type { RuntimeStore } from './runtime-store-contract'
 import { RuntimeLineageError } from './runtime-worktree-lineage-resolution'
 import type { ResolvedWorktree } from './runtime-worktree-path-identity'
+import {
+  normalizeWorkspaceSetupProfile,
+  type WorkspaceSetupProfile
+} from '../../shared/workspace-setup-profile'
 
-type Updates = Omit<Partial<WorktreeMeta>, 'pushTarget'> & {
+type Updates = Omit<Partial<WorktreeMeta>, 'pushTarget' | 'setupProfile'> & {
   pushTarget?: GitPushTarget | null
+  setupProfile?: WorkspaceSetupProfile | null
+  confirmSharedSetupProfileChange?: boolean
   lineage?: { parentWorktree?: string; noParent?: boolean }
 }
 
@@ -30,16 +36,44 @@ export async function updateRuntimeManagedWorktreeMetadata(args: {
   ports: Ports
 }): Promise<Worktree> {
   const worktree = await args.ports.resolveWorktree(args.selector)
-  const { lineage, ...metaUpdates } = args.updates
+  const { lineage, confirmSharedSetupProfileChange, ...metaUpdates } = args.updates
   if (lineage?.parentWorktree) {
     args.ports.invalidateResolved()
     args.ports.invalidateScan(worktree.repoId)
   }
-  const clearPushTarget =
-    Object.hasOwn(metaUpdates, 'pushTarget') && metaUpdates.pushTarget === null
-  const normalized: Partial<WorktreeMeta> = clearPushTarget
-    ? { ...metaUpdates, pushTarget: undefined }
-    : (metaUpdates as Partial<WorktreeMeta>)
+  const hasPushTargetUpdate = Object.hasOwn(metaUpdates, 'pushTarget')
+  const clearPushTarget = hasPushTargetUpdate && metaUpdates.pushTarget === null
+  const hasSetupProfileUpdate = Object.hasOwn(metaUpdates, 'setupProfile')
+  const clearSetupProfile = hasSetupProfileUpdate && metaUpdates.setupProfile === null
+  const requestedSetupProfile = normalizeWorkspaceSetupProfile(metaUpdates.setupProfile)
+  const executionHostId = worktree.identity?.executionHostId ?? worktree.hostId
+  const currentMeta =
+    executionHostId && args.store.getWorktreeMetaForHost
+      ? args.store.getWorktreeMetaForHost(worktree.id, executionHostId)
+      : args.store.getWorktreeMeta(worktree.id)
+  const currentSetupProfile = normalizeWorkspaceSetupProfile(currentMeta?.setupProfile)
+  if (
+    hasSetupProfileUpdate &&
+    currentSetupProfile &&
+    JSON.stringify(currentSetupProfile) !== JSON.stringify(requestedSetupProfile) &&
+    confirmSharedSetupProfileChange !== true
+  ) {
+    throw new Error(
+      'Changing an existing shared setup profile requires explicit confirmation. Pass --confirm-shared-profile-change.'
+    )
+  }
+  const {
+    setupProfile: _setupProfileUpdate,
+    pushTarget: requestedPushTarget,
+    ...remainingMetaUpdates
+  } = metaUpdates
+  const normalizedPushTarget: GitPushTarget | undefined =
+    requestedPushTarget === null ? undefined : requestedPushTarget
+  const normalized: Partial<WorktreeMeta> = {
+    ...remainingMetaUpdates,
+    ...(hasPushTargetUpdate ? { pushTarget: normalizedPushTarget } : {}),
+    ...(hasSetupProfileUpdate ? { setupProfile: requestedSetupProfile } : {})
+  }
   const persisted: Partial<WorktreeMeta> = omitUndefinedProperties(
     normalized.displayName !== undefined
       ? {
@@ -51,6 +85,9 @@ export async function updateRuntimeManagedWorktreeMetadata(args: {
   )
   if (clearPushTarget) {
     persisted.pushTarget = undefined
+  }
+  if (clearSetupProfile) {
+    persisted.setupProfile = undefined
   }
   if (lineage?.noParent === true) {
     args.store.removeWorktreeLineage?.(worktree.id)
@@ -91,7 +128,6 @@ export async function updateRuntimeManagedWorktreeMetadata(args: {
     })
   }
   const metadataUpdates = stripOrcaProvenanceMetaUpdates(persisted)
-  const executionHostId = worktree.identity?.executionHostId ?? worktree.hostId
   // Why: a resolution snapshot taken before a removal still returns the workspace (#22712).
   if (isRemovedFolderWorkspaceInstance(args.store, worktree.id, executionHostId)) {
     throw new Error('selector_not_found')

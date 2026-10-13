@@ -17,6 +17,7 @@ import { trackRuntimeWorkspaceCreate } from '../workspace-create-telemetry'
 import { assertOpenCodeModelLaunchPreferencesAbsent } from '../opencode/opencode-model-startup-plan'
 import { resolveWorktreeCreateAgentStartup } from './runtime-worktree-agent-startup'
 import type { RuntimeWorkspaceCreateEvents } from '../workspace-create-telemetry'
+import { withInheritedSetupProfile } from './runtime-worktree-inherited-setup-profile'
 
 export class OrcaRuntimeWithCreateManagedWorktree extends OrcaRuntimeWithGetWorktreeTerminalProvisioningHost {
   async createManagedWorktree(
@@ -124,6 +125,8 @@ export class OrcaRuntimeWithCreateManagedWorktree extends OrcaRuntimeWithGetWork
     const lineageInput =
       args.lineage || args.comment ? { ...args.lineage, comment: args.comment } : undefined
     const lineageResolution = await this.resolveLineageForWorktreeCreate(lineageInput, repo)
+    // The profile only fills an inherited decision. Explicit --setup/--run-hooks still wins.
+    const setupRequest = withInheritedSetupProfile(args, lineageResolution, this.store)
     if (createRoute.kind === 'runtime') {
       throw new ExecutionHostNotDispatchableError(createRoute.hostId)
     }
@@ -134,7 +137,7 @@ export class OrcaRuntimeWithCreateManagedWorktree extends OrcaRuntimeWithGetWork
       throw new SshHostNotServedError(createRoute.connectionId)
     }
     const localCreate = await createRuntimeLocalManagedWorktree({
-      request: args,
+      request: setupRequest,
       repo,
       store: this.requireStore(),
       createdWithAgent: effectiveCreatedWithAgent,
@@ -166,7 +169,7 @@ export class OrcaRuntimeWithCreateManagedWorktree extends OrcaRuntimeWithGetWork
       shouldRunSetup,
       didStartInProcessSetupHook
     } = await prepareRuntimeLocalWorktreeSetup({
-      request: args,
+      request: setupRequest,
       repo,
       worktreePath,
       settings,
@@ -203,7 +206,7 @@ export class OrcaRuntimeWithCreateManagedWorktree extends OrcaRuntimeWithGetWork
       startupTerminalPaneKey,
       startupTerminalPtyId
     } = await startRuntimeLocalWorktreeTerminals({
-      request: args,
+      request: setupRequest,
       repo,
       worktree,
       setup,

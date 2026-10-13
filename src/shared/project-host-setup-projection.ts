@@ -299,6 +299,9 @@ function createSetupFromRepo(repo: Repo, projectId: string): ProjectHostSetup {
     ...(repo.hookSettings ? { hookSettings: repo.hookSettings } : {}),
     ...(repo.gitUsername ? { gitUsername: repo.gitUsername } : {}),
     ...(repo.sourceControlAi ? { sourceControlAi: repo.sourceControlAi } : {}),
+    ...(repo.requiredMcpCapabilities
+      ? { requiredMcpCapabilities: repo.requiredMcpCapabilities }
+      : {}),
     setupState: 'ready',
     setupMethod,
     createdAt,

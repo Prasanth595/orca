@@ -91,6 +91,19 @@ export const WorktreeActivate = WorktreeSelector.extend({
   navigation: z.enum(RUNTIME_NAVIGATION_TARGETS).optional()
 })
 
+const WorkspaceSetupProfileSchema = z.object({
+  name: z.string().trim().min(1),
+  setupDecision: z.enum(['run', 'skip', 'inherit']).optional(),
+  requiredMcpCapabilities: z
+    .array(
+      z.object({
+        serverNames: z.array(z.string().trim().min(1)).min(1),
+        capability: z.enum(['read', 'write'])
+      })
+    )
+    .optional()
+})
+
 /** Shared by WorktreeCreate and WorktreeSet so the two error messages cannot drift. */
 export function assertLinkedWorkItemSourceContextMatch(
   params: {
@@ -147,6 +160,8 @@ export const WorktreeSet = WorktreeSelector.extend({
   sparsePresetId: OptionalString,
   baseRef: OptionalString,
   workspaceStatus: OptionalString,
+  setupProfile: WorkspaceSetupProfileSchema.nullable().optional(),
+  confirmSharedSetupProfileChange: OptionalBoolean,
   pushTarget: z
     .object({
       remoteName: z.string(),

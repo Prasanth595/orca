@@ -6,6 +6,7 @@ import {
   ProjectHostSetupDelete,
   ProjectHostSetupExistingFolder,
   ProjectHostSetupUpdate,
+  ProjectSetupPolicyRead,
   ProjectUpdate
 } from '../../../../shared/rpc-contract/project-runtime-params'
 
@@ -34,6 +35,15 @@ export const PROJECT_RUNTIME_METHODS = [
     handler: (_params, { runtime }) => {
       runtime.enrichMissingRepoGitRemoteIdentities?.()
       return { setups: runtime.listProjectHostSetups() }
+    }
+  }),
+  defineMethod({
+    name: 'projectHostSetup.policy',
+    permission: 'workspace',
+    params: ProjectSetupPolicyRead,
+    handler: async (params, { runtime }) => {
+      const worktree = await runtime.showManagedWorktree(params.worktree)
+      return runtime.readProjectSetupPolicy(worktree.id, params.dryRun === true, worktree.hostId)
     }
   }),
   defineMethod({

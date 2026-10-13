@@ -8,15 +8,19 @@
  * workspace exists.
  */
 
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { executeAgentLaunch, type AgentLaunchExecution } from './agent-launch-executor'
 import { AgentLaunchStructuredSessionRefusedError } from './agent-launch-surface-factories'
 import type { AgentLaunchIntent, AgentLaunchResult } from '../../shared/agent-launch-intent'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../shared/constants'
+import type { ProjectMcpRequirement } from '../../shared/agent-mcp-readiness'
+import { setStructuredAgentSessionHost } from '../native-chat/agent-session-wire/structured-agent-session-registry'
 
 const STRUCTURED_PREFERENCE = {
   experimentalNativeChat: true
 }
+
+afterEach(() => setStructuredAgentSessionHost(null))
 
 function harness(options: {
   settings?: Record<string, unknown> | null
@@ -30,6 +34,7 @@ function harness(options: {
   onSurfacePublished?: AgentLaunchExecution['onSurfacePublished']
   /** A worktree-only factory, as orchestration workers and `worktree.create` pass. */
   worktreeOnlyFactory?: boolean
+  requirements?: ProjectMcpRequirement[]
 }) {
   const calls: string[] = []
   const carried = (startupPrompt: string | undefined) =>
@@ -82,7 +87,10 @@ function harness(options: {
   const runtime = {
     getClientSettings: () =>
       options.settings === undefined ? STRUCTURED_PREFERENCE : options.settings,
-    getStructuredAgentSessionCreateSupport
+    getStructuredAgentSessionCreateSupport,
+    ...(options.requirements
+      ? { projectMcpRequirementsForWorkspace: () => options.requirements ?? [] }
+      : {})
   }
   return {
     calls,
@@ -117,6 +125,37 @@ const CREATE_INTENT: AgentLaunchIntent = {
 }
 
 describe('a structured launch that creates its own worktree', () => {
+  it('includes project MCP readiness in a new launch receipt', async () => {
+    const result = await harness({
+      settings: null,
+      requirements: [{ serverNames: ['linear'], capability: 'write' }]
+    }).run(CREATE_INTENT)
+
+    expect(result.mcpReadiness).toEqual({
+      state: 'unverifiable',
+      requirements: [{ serverNames: ['linear'], capability: 'write', state: 'unverifiable' }],
+      servers: []
+    })
+  })
+
+  it('keeps a launched agent successful when its MCP readiness cannot be read', async () => {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the test reaches only readMcpReadiness; the registry tolerates partial test hosts.
+    setStructuredAgentSessionHost({
+      readMcpReadiness: vi.fn().mockRejectedValue(new Error('session record unavailable'))
+    } as never)
+
+    const result = await harness({
+      requirements: [{ serverNames: ['linear'], capability: 'write' }]
+    }).run(CREATE_INTENT)
+
+    expect(result.outcome).toMatchObject({ kind: 'structured', sessionId: 'sess-1' })
+    expect(result.mcpReadiness).toEqual({
+      state: 'unverifiable',
+      requirements: [{ serverNames: ['linear'], capability: 'write', state: 'unverifiable' }],
+      servers: []
+    })
+  })
+
   it('creates the worktree with no startup agent, then asks the host, then opens a session', async () => {
     const h = harness({})
     const result = await h.run(CREATE_INTENT)
@@ -728,6 +767,22 @@ describe('the surface is published as the launch stands, before its prompt is de
       }
     ])
     expect(result.prompt).toEqual({ delivery: 'submit', outcome: 'handed-to-terminal' })
+  })
+
+  it('publishes provisional readiness before prompt delivery can be interrupted', async () => {
+    const { launch, published } = publishing({
+      settings: {},
+      lineCarriesPrompt: false,
+      requirements: [{ serverNames: ['linear'], capability: 'write' }]
+    })
+
+    await launch.run(PROMPTED_EXISTING)
+
+    expect(published[0]?.mcpReadiness).toEqual({
+      state: 'unverifiable',
+      requirements: [{ serverNames: ['linear'], capability: 'write', state: 'unverifiable' }],
+      servers: []
+    })
   })
 
   it('records a draft as not delivered, since the host never delivers one', async () => {

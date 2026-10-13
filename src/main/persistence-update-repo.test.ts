@@ -208,7 +208,8 @@ describe('Store', () => {
         worktreeBasePath: '../worktrees',
         setupState: 'ready',
         setupMethod: 'cloned',
-        gitUsername: 'alice'
+        gitUsername: 'alice',
+        requiredMcpCapabilities: [{ serverNames: ['linear'], capability: 'write' }]
       }
     })
 
@@ -221,7 +222,8 @@ describe('Store', () => {
         worktreeBasePath: '../worktrees',
         setupState: 'ready',
         setupMethod: 'cloned',
-        gitUsername: 'alice'
+        gitUsername: 'alice',
+        requiredMcpCapabilities: [{ serverNames: ['linear'], capability: 'write' }]
       })
     })
     expect(store.getProjectHostSetups()[0]).toMatchObject({
@@ -302,7 +304,8 @@ describe('Store', () => {
       updates: {
         displayName: 'Repo renamed',
         worktreeBasePath: '../new',
-        setupMethod: 'cloned'
+        setupMethod: 'cloned',
+        requiredMcpCapabilities: [{ serverNames: ['linear'], capability: 'read' }]
       }
     })
 
@@ -310,7 +313,8 @@ describe('Store', () => {
       id: 'r1',
       displayName: 'Repo renamed',
       worktreeBasePath: '../new',
-      projectHostSetupMethod: 'cloned'
+      projectHostSetupMethod: 'cloned',
+      requiredMcpCapabilities: [{ serverNames: ['linear'], capability: 'read' }]
     })
     expect(result?.project).toMatchObject({
       id: 'repo:r1',
@@ -320,7 +324,48 @@ describe('Store', () => {
       id: 'r1',
       displayName: 'Repo renamed',
       worktreeBasePath: '../new',
-      setupMethod: 'cloned'
+      setupMethod: 'cloned',
+      requiredMcpCapabilities: [{ serverNames: ['linear'], capability: 'read' }]
+    })
+  })
+
+  it('updates only the selected host when repo ids collide', async () => {
+    const store = await createStore()
+    store.addRepo(makeRepo({ id: 'shared', path: '/local/repo' }))
+    store.addRepo(
+      makeRepo({
+        id: 'shared',
+        path: '/remote/repo',
+        connectionId: 'server',
+        executionHostId: 'ssh:server'
+      })
+    )
+    const remoteSetup = store
+      .getProjectHostSetups()
+      .find((setup) => setup.repoId === 'shared' && setup.hostId === 'ssh:server')
+    expect(remoteSetup).toBeDefined()
+    if (!remoteSetup) {
+      throw new Error('expected the SSH project host setup')
+    }
+
+    const result = store.updateProjectHostSetup({
+      setupId: remoteSetup.id,
+      hostId: remoteSetup.hostId,
+      updates: {
+        requiredMcpCapabilities: [{ serverNames: ['linear'], capability: 'write' }]
+      }
+    })
+
+    expect(result?.repo).toMatchObject({
+      path: '/remote/repo',
+      requiredMcpCapabilities: [{ serverNames: ['linear'], capability: 'write' }]
+    })
+    const matchingRepos = store.getRepos().filter((repo) => repo.id === 'shared')
+    expect(matchingRepos[0]).toMatchObject({ path: '/local/repo' })
+    expect(matchingRepos[0]).not.toHaveProperty('requiredMcpCapabilities')
+    expect(matchingRepos[1]).toMatchObject({
+      path: '/remote/repo',
+      requiredMcpCapabilities: [{ serverNames: ['linear'], capability: 'write' }]
     })
   })
 

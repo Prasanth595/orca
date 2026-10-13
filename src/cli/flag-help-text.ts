@@ -12,6 +12,7 @@ export const FLAG_HELP_TEXT: Record<string, string> = {
   app: '--app <app>            App name, bundle ID, or pid:N',
   direction:
     '--direction <dir>      Direction: up|down|left|right for scroll, horizontal|vertical for split',
+  'dry-run': '--dry-run              Resolve and report without mutation or execution',
   'display-name': '--display-name <name>  Override the Orca display name',
   'element-index': '--element-index <n>   Element index from get-app-state',
   title: '--title <text>         Custom title for the terminal tab (omit to reset)',
@@ -59,6 +60,13 @@ export const FLAG_HELP_TEXT: Record<string, string> = {
   'restore-window': '--restore-window     Bring the target app/window forward before the operation',
   session: '--session <id>        Snapshot namespace for a related computer-use workflow',
   setup: '--setup run|skip|inherit Setup policy for repo-defined setup hooks',
+  'setup-profile':
+    '--setup-profile <name|null> Named setup policy for this workspace and its children',
+  'profile-setup': '--profile-setup <policy> Setup hook policy: run, skip, or inherit',
+  'required-mcp':
+    '--required-mcp <servers>:<access> Required MCP server alternatives and read/write access',
+  'confirm-shared-profile-change':
+    '--confirm-shared-profile-change Confirm replacement or removal of an existing setup profile',
   shell: '--shell <shell>        Windows shell the terminal itself runs as',
   terminal: '--terminal <handle>  Runtime-issued terminal handle',
   text: '--text <text>          Text payload to send or type',

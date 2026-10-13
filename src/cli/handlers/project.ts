@@ -28,8 +28,11 @@ import {
   resolveHostFlagTarget
 } from '../execution-host-flag'
 import { getOptionalStringFlag, getRequiredStringFlag } from '../flags'
+import type { WorkspaceSetupPolicyReadback } from '../../shared/workspace-setup-profile'
 import { resolveRepoPathArgument } from '../repo-path-arguments'
 import { RuntimeClientError, type RuntimeRpcSuccess } from '../runtime-client'
+import { getRequiredWorktreeSelector } from '../selectors'
+import { formatWorkspaceSetupPolicy, getOptionalMcpRequirements } from './project-setup-profile-cli'
 
 // Why: an Orca server that predates project host setup answers `method_not_found`, which reads
 // as an Orca bug rather than a version gap — and since --host runtime:<id> now routes these
@@ -169,6 +172,7 @@ export const PROJECT_HANDLERS: Record<string, CommandHandler> = {
       displayName: getOptionalStringFlag(flags, 'display-name'),
       worktreeBasePath: getOptionalStringFlag(flags, 'worktree-base-path'),
       gitUsername: getOptionalStringFlag(flags, 'git-username'),
+      requiredMcpCapabilities: getOptionalMcpRequirements(flags),
       setupState: getOptionalSetupState(flags),
       setupMethod: getOptionalIndependentSetupMethod(flags)
     }
@@ -181,8 +185,10 @@ export const PROJECT_HANDLERS: Record<string, CommandHandler> = {
   },
   'project setup-update': async ({ flags, client, cwd, json }) => {
     const path = getOptionalStringFlag(flags, 'path')
+    const host = parseHostFlag(flags)
     const args: ProjectHostSetupUpdateArgs = {
       setupId: getRequiredStringFlag(flags, 'setup'),
+      ...(host ? { hostId: host.id } : {}),
       updates: {
         displayName: getOptionalStringFlag(flags, 'display-name'),
         path:
@@ -193,7 +199,8 @@ export const PROJECT_HANDLERS: Record<string, CommandHandler> = {
         gitUsername: getOptionalStringFlag(flags, 'git-username'),
         kind: getOptionalRepoKind(flags),
         setupState: getOptionalSetupState(flags),
-        setupMethod: getOptionalSetupMethod(flags)
+        setupMethod: getOptionalSetupMethod(flags),
+        requiredMcpCapabilities: getOptionalMcpRequirements(flags)
       }
     }
     const result = await callProjectHostSetup<{ result: ProjectHostSetupUpdateResult }>(
@@ -202,6 +209,17 @@ export const PROJECT_HANDLERS: Record<string, CommandHandler> = {
       args
     )
     printResult(result, json, formatProjectHostSetupUpdateResult)
+  },
+  'project setup-policy': async ({ flags, client, cwd, json }) => {
+    const result = await callProjectHostSetup<WorkspaceSetupPolicyReadback>(
+      client,
+      'projectHostSetup.policy',
+      {
+        worktree: await getRequiredWorktreeSelector(flags, 'worktree', cwd, client),
+        dryRun: flags.get('dry-run') === true
+      }
+    )
+    printResult(result, json, formatWorkspaceSetupPolicy)
   },
   'project setup-delete': async ({ flags, client, json }) => {
     const result = await callProjectHostSetup<{ result: ProjectHostSetupDeleteResult }>(
