@@ -7,6 +7,7 @@ import type { TerminalLeafMoveRequest } from '../../../../shared/terminal-leaf-m
 import { commitTerminalSurfaceClose } from '@/store/terminals/terminal-surface-close-intent'
 import type { PaneCwdEntry } from './resolve-split-cwd'
 import { detachTerminalLayoutLeaf } from './terminal-layout-leaf-detach'
+import { holdTerminalMoveKeys, terminalLeafMoveKey } from './terminal-leaf-move-guard'
 export {
   isTerminalTabStripDropTarget,
   resolveTerminalTabStripDropTarget
@@ -85,9 +86,6 @@ type DetachTerminalPaneToTabArgs = {
   worktreeId: string
 }
 
-// Leaves whose move main is committing; a repeat drop meanwhile is a no-op.
-const leavesMovingToNewTab = new Set<string>()
-
 /**
  * Moves a pane into a new tab. Main commits the move (leaf, binding and pane-keyed records) before
  * the target tab exists here, so the moved pane's reattach never races a second owner (STA-9259).
@@ -97,14 +95,15 @@ export async function detachTerminalPaneToTab(
   args: DetachTerminalPaneToTabArgs
 ): Promise<DetachedTerminalPaneTab | null> {
   const leafId = args.manager?.getLeafId(args.sourcePaneId)
-  if (!leafId || leavesMovingToNewTab.has(leafId)) {
+  // Shared with the join into a tab: a repeat drop, or the other kind of move, meanwhile is a no-op.
+  const release = leafId ? holdTerminalMoveKeys([terminalLeafMoveKey(leafId)]) : null
+  if (!leafId || !release) {
     return null
   }
-  leavesMovingToNewTab.add(leafId)
   try {
     return await moveLeafToNewTab(args, leafId)
   } finally {
-    leavesMovingToNewTab.delete(leafId)
+    release()
   }
 }
 

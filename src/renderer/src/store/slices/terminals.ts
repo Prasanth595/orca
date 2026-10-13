@@ -20,6 +20,7 @@ import { createDirectSshTerminalBindingActions } from '../terminals/direct-ssh-t
 import { createTerminalShutdownActions } from '../terminals/terminal-shutdown'
 import { createTerminalRestartActions } from '../terminals/terminal-restart-state'
 import { createTerminalLayoutActions } from '../terminals/terminal-layout-state'
+import { createTerminalMoveIntoTabActions } from '../terminals/terminal-layout-move-into-tab-state'
 import { createTerminalStartupQueueActions } from '../terminals/terminal-startup-queues'
 import { createWorkspaceTerminalHydrationActions } from '../terminals/workspace-terminal-hydration'
 import { createWorkspaceTerminalReconnectActions } from '../terminals/workspace-terminal-reconnect'
@@ -90,6 +91,7 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
   ...createTerminalShutdownActions(set, get),
   ...createTerminalRestartActions(set, get),
   ...createTerminalLayoutActions(set, get),
+  ...createTerminalMoveIntoTabActions(set, get),
   ...createTerminalStartupQueueActions(set, get),
   ...createWorkspaceTerminalHydrationActions(set, get),
   ...createWorkspaceTerminalReconnectActions(set, get)
