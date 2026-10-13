@@ -3,10 +3,12 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MobileFileMarkdownPreview } from './MobileFileMarkdownPreview'
 
-const pinchSeam = vi.hoisted(() => ({
-  composed: [] as string[],
-  handlers: {} as Record<string, ((event?: { scale: number }) => void) | undefined>
-}))
+const pinchSeam = vi.hoisted(
+  (): {
+    composed: string[]
+    handlers: Record<string, ((event?: { scale: number }) => void) | undefined>
+  } => ({ composed: [], handlers: {} })
+)
 
 vi.mock('react-native', () => ({
   Alert: { alert },

@@ -29,7 +29,7 @@ function scaleEntry(node: ReactTestInstance): unknown {
 
 function textByContent(renderer: ReactTestRenderer, content: string): ReactTestInstance {
   const match = renderer.root
-    .findAll((node) => node.type === ('Text' as never))
+    .findAll((node) => String(node.type) === 'Text')
     .find((node) => flattenText(node) === content)
   expect(match, `no text node ${JSON.stringify(content)}`).toBeDefined()
   return match!

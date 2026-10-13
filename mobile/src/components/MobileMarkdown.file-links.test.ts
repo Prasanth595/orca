@@ -224,7 +224,7 @@ describe('MobileMarkdown file links', () => {
       const tree = render('![chart](https://example.com/chart.png)', undefined, onOpenImage)
       // An external standalone image parses as an image block: the handler sits on the Pressable.
       const frame = tree.root.find(
-        (node) => node.type === ('Pressable' as never) && typeof node.props.onPress === 'function'
+        (node) => String(node.type) === 'Pressable' && typeof node.props.onPress === 'function'
       )
       act(() => {
         frame.props.onPress()

@@ -59,6 +59,7 @@ function Probe({ doc }: { doc: MarkdownDocState }) {
     onRefresh: vi.fn(),
     onSave: vi.fn(),
     onDiscard: vi.fn(),
+    onOpenImage: vi.fn(),
     onCopy: () => {
       void actions.copyMarkdownLocalContent('doc')
     }
