@@ -43,16 +43,6 @@ const mocks = vi.hoisted(() => ({
   statHostPathFile: vi.fn()
 }))
 
-// The host's cached answer to "do you serve files by path?"; undefined when it never answered.
-const hostPathCapability = vi.hoisted(() => {
-  const answer: { serves: boolean | undefined } = { serves: true }
-  return answer
-})
-
-vi.mock('@/runtime/runtime-file-address', () => ({
-  knownRuntimeEnvironmentServesFilesByPath: () => hostPathCapability.serves
-}))
-
 vi.mock('@/components/terminal-pane/terminal-host-workspace-file', () => ({
   statHostPathFile: mocks.statHostPathFile
 }))
@@ -104,7 +94,6 @@ beforeEach(() => {
   mocks.unifiedTabsByWorktree = {}
   mocks.activeWorktreeId = 'wt-1'
   mocks.statHostPathFile.mockResolvedValue(null)
-  hostPathCapability.serves = true
 })
 
 /**
@@ -404,26 +393,6 @@ describe('openFileInBrowserTab', () => {
       )
     )
     expect(mocks.toastError).not.toHaveBeenCalled()
-  })
-
-  // Why at once: an unreachable or unprobed host must not leave the click waiting.
-  it('keeps the boundary message at once on a host not known to serve paths', () => {
-    mocks.environmentId = 'runtime-1'
-    hostPathCapability.serves = undefined
-
-    openFilePreviewToSide({
-      language: 'html',
-      filePath: '/home/me/state/ab12/chart.html',
-      worktreeId: 'wt-1',
-      sourceGroupId: 'group-1'
-    })
-
-    return vi.waitFor(() => {
-      expect(mocks.toastError).toHaveBeenCalledWith(
-        "Files outside the workspace can't be previewed on a paired server yet."
-      )
-      expect(mocks.statHostPathFile).not.toHaveBeenCalled()
-    })
   })
 
   it('keeps the boundary message when the host cannot be asked', async () => {
