@@ -95,6 +95,8 @@ ORCA worktree set --worktree active --unread --json
 ORCA worktree create --repo id:<repoId> --name review-task --pr 123 --json
 ORCA worktree set --worktree active --gitlab-issue '#42' --gitlab-mr '!77' --json
 ORCA worktree set --worktree active --pr null --gitlab-mr null --json
+ORCA worktree set --worktree active --pin --json
+ORCA worktree set --worktree active --unpin --json
 ORCA worktree rm --worktree id:<repoId>::<worktreePath> --force --json
 ```
 
@@ -179,6 +181,8 @@ flags leave links unchanged; literal `null` clears only the named link on `set` 
 is refused on `create`. Folder-based repos can store numeric links, but missing
 source/remote identity prevents URL validation and may leave provider links unavailable.
 Old runtimes that predate these existing fields may ignore them; verify with `worktree show --json`.
+
+Use `--pin` or `--unpin` with `worktree set` to explicitly set a workspace's pin state. The JSON receipt returns the updated worktree, including `isPinned`.
 
 ## Terminals
 

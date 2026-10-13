@@ -37,6 +37,7 @@ export const CLI_BOOLEAN_FLAGS = new Set([
   'no-pairing',
   'screen',
   'parent-current',
+  'pin',
   'provision',
   'ready',
   'recipe-json',
@@ -53,6 +54,7 @@ export const CLI_BOOLEAN_FLAGS = new Set([
   'tasks',
   'text-stdin',
   'unread',
+  'unpin',
   'value-stdin',
   'wait',
   'yes'
