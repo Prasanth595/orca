@@ -1,3 +1,4 @@
+import { compactIpcErrorMessage } from '@/lib/ipc-error'
 import { isAiVaultOwnershipRefusal } from '@/lib/ai-vault-resume-refusal'
 import { aiVaultCliForkHostTooOldMessage } from '@/lib/ai-vault-session-resume-preparation'
 import type { AiVaultSession } from '../../../../shared/ai-vault-types'
@@ -30,7 +31,8 @@ export function aiVaultSessionCliForkWorktreeId(
  *  the fork as a second writer, so that refusal asks for the update instead of naming a code. */
 export function describeAiVaultCliForkFailure(message: string): string {
   // The desktop preparation's refusal arrives inside Electron's IPC wrapper.
+  const code = compactIpcErrorMessage(message)
   return isAiVaultOwnershipRefusal(message)
     ? aiVaultCliForkHostTooOldMessage()
-    : message
+    : (code ?? message)
 }
