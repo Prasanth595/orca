@@ -25,7 +25,8 @@ vi.mock('../tray/system-tray', async () =>
 
 import { registerNotificationHandlers } from './notifications'
 
-const UPLOAD_ICON_SRC = 'data:image/png;base64,iVBORw0KGgo='
+const UPLOAD_ICON_SRC =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
 
 async function dispatchFor(worktreeId: string, repoIcon: RepoIcon | null): Promise<void> {
   registerNotificationHandlers(
