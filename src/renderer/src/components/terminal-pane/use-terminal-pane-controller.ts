@@ -15,6 +15,7 @@ import { useTerminalPaneTitleEffects } from './use-terminal-pane-title-effects'
 import { useTerminalPaneContextActions } from './use-terminal-pane-context-actions'
 import { useTerminalPaneMobileActions } from './use-terminal-pane-mobile-actions'
 import { useTerminalPaneProjection } from './use-terminal-pane-projection'
+import { useTerminalPaneFullscreen } from './use-terminal-pane-fullscreen'
 
 export function useTerminalPaneController(props: TerminalPaneProps) {
   const foundation = useTerminalPaneFoundation(props)
@@ -32,7 +33,8 @@ export function useTerminalPaneController(props: TerminalPaneProps) {
   useTerminalPaneTitleEffects(reconciliation)
   const context = Object.assign(reconciliation, useTerminalPaneContextActions(reconciliation))
   const mobile = Object.assign(context, useTerminalPaneMobileActions(context))
-  return Object.assign(mobile, useTerminalPaneProjection(mobile))
+  const projection = Object.assign(mobile, useTerminalPaneProjection(mobile))
+  return Object.assign(projection, useTerminalPaneFullscreen(projection))
 }
 
 export type TerminalPaneController = ReturnType<typeof useTerminalPaneController>

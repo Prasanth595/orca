@@ -5,8 +5,10 @@ import {
   Copy,
   Eraser,
   GitFork,
+  Maximize,
   Maximize2,
   MessageSquare,
+  Minimize,
   Minimize2,
   PanelBottomClose,
   PanelsTopLeft,
@@ -71,6 +73,9 @@ type TerminalContextMenuProps = {
   onQuickCommand: (command: TerminalQuickCommand, historyId: string) => void
   onAddQuickCommand: (hostId: ExecutionHostId) => void
   onToggleExpand: () => void
+  canToggleFullscreen: boolean
+  menuPaneIsFullscreen: boolean
+  onToggleFullscreen: () => void
   onSetTitle: () => void
   onClearPaneTitle: () => void
   canClearPaneTitle: boolean
@@ -161,6 +166,9 @@ function TerminalContextMenuItems({
   onQuickCommand,
   onAddQuickCommand,
   onToggleExpand,
+  canToggleFullscreen,
+  menuPaneIsFullscreen,
+  onToggleFullscreen,
   onSetTitle,
   onClearPaneTitle,
   canClearPaneTitle,
@@ -286,6 +294,20 @@ function TerminalContextMenuItems({
                 'Expand Pane'
               )}
           <DropdownMenuShortcut>{shortcuts.expand}</DropdownMenuShortcut>
+        </DropdownMenuItem>
+      )}
+      {canToggleFullscreen && (
+        <DropdownMenuItem onSelect={onToggleFullscreen}>
+          {menuPaneIsFullscreen ? <Minimize /> : <Maximize />}
+          {menuPaneIsFullscreen
+            ? translate(
+                'auto.components.terminal.pane.TerminalContextMenu.exitFullscreen',
+                'Exit Fullscreen'
+              )
+            : translate(
+                'auto.components.terminal.pane.TerminalContextMenu.fullscreen',
+                'Fullscreen'
+              )}
         </DropdownMenuItem>
       )}
       <DropdownMenuSeparator />
