@@ -10,13 +10,14 @@ import {
   updateTimeline
 } from './session-scanner-accumulator'
 import {
-  kimiPrimaryAgentWirePath,
+  kimiSessionWirePaths,
   kimiSessionIdFromStatePath,
   kimiSessionIndexPathFromStatePath,
   readKimiWorkDirBySessionId
 } from './session-scanner-kimi-paths'
 import type { FileWithMtime, SessionAccumulator } from './session-scanner-types'
 import type { TranscriptMessageSink } from './session-transcript-consumers'
+import { createKimiV2WireConsumer } from './session-scanner-kimi-v2-wire'
 import {
   asRecord,
   extractContentText,
@@ -63,22 +64,28 @@ export async function parseKimiSessionFile(
   const workDirBySessionId = await readKimiWorkDirBySessionId(
     kimiSessionIndexPathFromStatePath(file.path)
   )
-  accumulator.cwd = workDirBySessionId.get(sessionId) ?? null
+  accumulator.cwd = workDirBySessionId.get(sessionId) ?? extractString(stateRecord.cwd)
 
   accumulator.title = normalizeTitleText(extractString(stateRecord.title) ?? '')
   accumulator.fallbackTitle = normalizeTitleText(extractString(stateRecord.lastPrompt) ?? '')
-  updateTimeline(accumulator, extractString(stateRecord.createdAt))
-  updateTimeline(accumulator, extractString(stateRecord.updatedAt))
+  updateTimeline(accumulator, stateRecord.createdAt)
+  updateTimeline(accumulator, stateRecord.updatedAt)
 
-  await consumeKimiWireTranscript(accumulator, kimiPrimaryAgentWirePath(file.path, stateRecord))
+  const wires = kimiSessionWirePaths(file.path, stateRecord)
+  for (const [index, wire] of wires.entries()) {
+    await consumeKimiWireTranscript(accumulator, wire, stateRecord.version === 2, index === 0)
+  }
 
   return finalizeSession(accumulator, platform)
 }
 
 async function consumeKimiWireTranscript(
   accumulator: SessionAccumulator,
-  wirePath: string
+  wirePath: string,
+  version2 = false,
+  preview = true
 ): Promise<void> {
+  const v2 = version2 ? createKimiV2WireConsumer(accumulator, preview) : null
   let pendingAssistantText: string[] = []
   const flushAssistant = (): void => {
     // Why: previews use the 220-char limit (normalizePreviewText), not the
@@ -99,6 +106,12 @@ async function consumeKimiWireTranscript(
     for await (const line of lines) {
       const record = parseJsonObject(line)
       if (!record) {
+        continue
+      }
+      if (v2?.consume(record)) {
+        continue
+      }
+      if (!preview) {
         continue
       }
       switch (record.type) {
@@ -123,7 +136,11 @@ async function consumeKimiWireTranscript(
     // No transcript yet (session created but never ran a turn) — metadata-only
     // sessions still belong in the panel. A gate refusal instead means the wire
     // bytes exist but are unreachable; a partial session must not be cached.
-    if (error instanceof WslTranscriptFsError) {
+    const code = asRecord(error)?.code
+    if (
+      error instanceof WslTranscriptFsError ||
+      (version2 && code !== 'ENOENT' && code !== 'ENOTDIR')
+    ) {
       throw error
     }
   } finally {

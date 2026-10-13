@@ -37,6 +37,7 @@ export type SessionSearchFileRow = {
   identity: SessionSearchFileIdentity
   mtimeMs: number
   sizeBytes: number | null
+  contentFingerprint?: string | null
   state: SessionSearchFileState
   failCount: number
   failedMtimeMs: number | null
@@ -212,22 +213,25 @@ export class SessionSearchStore {
    * enough.
    */
   files(): SessionSearchFileRow[] {
-    return (
-      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: The files schema and SELECT aliases define this row; REAL casts return numeric IDs or null.
-      (
-        this.db
-          .prepare(
-            // Numeric stat IDs may exceed SQLite's safe INTEGER-to-number read range.
-            `SELECT path, CAST(dev AS REAL) AS dev, CAST(ino AS REAL) AS ino,
-                  mtime_ms AS mtimeMs, size_bytes AS sizeBytes,
-                  state, fail_count AS failCount, failed_mtime_ms AS failedMtimeMs
-           FROM files`
-          )
-          .all() as (Omit<SessionSearchFileRow, 'identity'> & {
-          dev: number | null
-          ino: number | null
-        })[]
-      ).map((row) => ({
+    const rows = this.db
+      .prepare(
+        `SELECT path, CAST(dev AS REAL) AS dev, CAST(ino AS REAL) AS ino,
+                mtime_ms AS mtimeMs, size_bytes AS sizeBytes, content_fingerprint AS contentFingerprint,
+                state, fail_count AS failCount, failed_mtime_ms AS failedMtimeMs FROM files`
+      )
+      .all()
+    return rows.map((row) => {
+      if (
+        typeof row.path !== 'string' ||
+        typeof row.mtimeMs !== 'number' ||
+        (row.sizeBytes !== null && typeof row.sizeBytes !== 'number') ||
+        (row.state !== 'current' && row.state !== 'due' && row.state !== 'failed') ||
+        typeof row.failCount !== 'number' ||
+        (row.failedMtimeMs !== null && typeof row.failedMtimeMs !== 'number')
+      ) {
+        throw new Error('Invalid session search file observation')
+      }
+      return {
         path: row.path,
         identity:
           typeof row.dev === 'number' && typeof row.ino === 'number'
@@ -235,11 +239,14 @@ export class SessionSearchStore {
             : null,
         mtimeMs: row.mtimeMs,
         sizeBytes: row.sizeBytes,
+        ...(typeof row.contentFingerprint === 'string'
+          ? { contentFingerprint: row.contentFingerprint }
+          : {}),
         state: row.state,
         failCount: row.failCount,
         failedMtimeMs: row.failedMtimeMs
-      }))
-    )
+      }
+    })
   }
 
   /**
@@ -250,7 +257,12 @@ export class SessionSearchStore {
    * file has changed since it last failed". A path with no row is a no-op: the
    * next pass reads it because the index holds nothing for it.
    */
-  setFileState(path: string, state: SessionSearchFileState, atMtimeMs?: number): void {
+  setFileState(
+    path: string,
+    state: SessionSearchFileState,
+    atMtimeMs?: number,
+    contentFingerprint?: string
+  ): void {
     try {
       if (state === 'failed') {
         // Inserted when there is no row, because the common unreadable file is
@@ -261,14 +273,15 @@ export class SessionSearchStore {
         // "the index holds nothing for this file" already looks like.
         this.db
           .prepare(
-            `INSERT INTO files(path, byte_offset, mtime_ms, state, fail_count, failed_mtime_ms)
-             VALUES (?, 0, ?, 'failed', 1, ?)
+            `INSERT INTO files(path, byte_offset, mtime_ms, state, fail_count, failed_mtime_ms, content_fingerprint)
+             VALUES (?, 0, ?, 'failed', 1, ?, ?)
              ON CONFLICT(path) DO UPDATE SET
                state = 'failed',
                fail_count = files.fail_count + 1,
-               failed_mtime_ms = excluded.failed_mtime_ms`
+               failed_mtime_ms = excluded.failed_mtime_ms,
+               content_fingerprint = COALESCE(excluded.content_fingerprint, files.content_fingerprint)`
           )
-          .run(path, atMtimeMs ?? 0, atMtimeMs ?? null)
+          .run(path, atMtimeMs ?? 0, atMtimeMs ?? null, contentFingerprint ?? null)
         return
       }
       this.db

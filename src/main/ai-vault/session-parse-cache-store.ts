@@ -31,6 +31,7 @@ export type SessionParseCacheEntry = {
   // What the sibling file looked like when `session` was built. Tracked apart
   // from the transcript's key so each can go stale on its own.
   sidecar?: SessionSidecarObservation
+  contentFingerprint?: string
   // The session the transcript alone produced, before any sibling was merged
   // onto it. In-memory only: without it a sibling change costs one re-parse.
   foldSession?: AiVaultSession | null
@@ -66,6 +67,9 @@ export function snapshotSessionParseCacheForPersistence(): [
       sizeBytes: entry.sizeBytes,
       platform: entry.platform,
       session: entry.session,
+      ...(entry.contentFingerprint === undefined
+        ? {}
+        : { contentFingerprint: entry.contentFingerprint }),
       ...(entry.sidecar === undefined ? {} : { sidecar: entry.sidecar })
     }
   ])
@@ -105,6 +109,7 @@ export function seedSessionParseCache(
       // Absent in files an older build wrote; `sidecarUnchanged` reads that as
       // unknown, so such a row re-enriches on its first scan.
       sidecar: entry.sidecar,
+      contentFingerprint: entry.contentFingerprint,
       resume: null
     })
   }

@@ -164,6 +164,7 @@ function sessionParseCacheCoversTranscript(
     entry !== undefined &&
     entry.platform === platform &&
     entry.mtimeMs === file.mtimeMs &&
+    entry.contentFingerprint === file.contentFingerprint &&
     (entry.sizeBytes === null || file.sizeBytes === undefined || entry.sizeBytes === file.sizeBytes)
   )
 }
@@ -234,6 +235,7 @@ async function parseCachedInLane(
   const enriched = await enrichSessionFromSidecar(candidate, session, platform)
   storeSessionParseCacheEntry(file.path, {
     mtimeMs: file.mtimeMs,
+    contentFingerprint: file.contentFingerprint,
     sizeBytes: file.sizeBytes ?? null,
     platform,
     session: enriched.session,

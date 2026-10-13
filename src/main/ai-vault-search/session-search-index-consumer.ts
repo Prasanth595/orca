@@ -101,7 +101,12 @@ class SessionSearchReadConsumer implements TranscriptReadConsumer {
     // Counted against the stat it failed at, not merely recorded: a transcript
     // the reader cannot open fails identically on every pass, and only a change
     // to this stat can mean the file itself changed.
-    this.store.setFileState(candidate.file.path, 'failed', candidate.file.mtimeMs)
+    this.store.setFileState(
+      candidate.file.path,
+      'failed',
+      candidate.file.mtimeMs,
+      candidate.file.contentFingerprint
+    )
   }
 }
 
