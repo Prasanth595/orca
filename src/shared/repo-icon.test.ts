@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type * as ImageDataUriModule from './image-data-uri'
-import { githubAvatarIcon, githubAvatarSlug, sanitizeRepoIcon } from './repo-icon'
+import { githubAvatarIcon, githubAvatarSlug, isRepoIconStored, sanitizeRepoIcon } from './repo-icon'
 
 // Why a module mock: `validateRasterImageDataUri` is the leaf that base64-decodes an inline icon's
 // header, so counting its invocations is the direct measure of what re-hydrating a repo costs.
@@ -283,5 +283,29 @@ describe('repo icon source validation memo', () => {
     expect(sanitizeRepoIcon(icon)).toEqual(icon)
     icon.source = 'upload'
     expect(sanitizeRepoIcon(icon)).toBeUndefined()
+  })
+})
+
+describe('isRepoIconStored', () => {
+  it('compares the stored icon with the sanitized request', () => {
+    expect(isRepoIconStored({ type: 'emoji', emoji: '🌱' }, { type: 'emoji', emoji: ' 🌱 ' })).toBe(
+      true
+    )
+    expect(isRepoIconStored({ type: 'emoji', emoji: '🌱' }, { type: 'emoji', emoji: '🚀' })).toBe(
+      false
+    )
+    expect(
+      isRepoIconStored({ type: 'lucide', name: 'Folder' }, { type: 'emoji', emoji: '🌱' })
+    ).toBe(false)
+  })
+
+  it('treats a missing stored icon as cleared', () => {
+    expect(isRepoIconStored(undefined, null)).toBe(true)
+    expect(isRepoIconStored({ type: 'emoji', emoji: '🌱' }, null)).toBe(false)
+    expect(isRepoIconStored(undefined, { type: 'emoji', emoji: '🌱' })).toBe(false)
+  })
+
+  it('has nothing to confirm for an icon the host would ignore', () => {
+    expect(isRepoIconStored(undefined, { type: 'lucide', name: 'not a name' })).toBe(true)
   })
 })
