@@ -47,6 +47,7 @@ export type { WorktreeVisibilityDefaults } from './repo-types'
 
 /** MiniMax account region used to select the quota endpoint. */
 export type MiniMaxEndpoint = 'overseas' | 'cn'
+export type SidebarStyle = 'classic' | 'hierarchy'
 
 export type GlobalSettings = NativeChatGlobalSettings & {
   workspaceDir: string
@@ -505,6 +506,8 @@ export type GlobalSettings = NativeChatGlobalSettings & {
   compactWorktreeCards: boolean
   /** Legacy persisted key from the Experimental rollout; new writes use compactWorktreeCards. */
   experimentalCompactWorktreeCards?: boolean
+  /** Sidebar look: 'classic' cards, or 'hierarchy' single-line tree rows with guides. Absent = classic. */
+  sidebarStyle?: SidebarStyle
   /** Active non-local runtime environment for client-routed RPC; null keeps local desktop behavior. */
   activeRuntimeEnvironmentId?: string | null
   /** GitHub Project mode state (pinned/recent/active project, last view per project).

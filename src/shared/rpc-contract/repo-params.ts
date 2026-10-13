@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { OptionalFiniteNumber, OptionalString, requiredString } from './rpc-param-primitives'
-import { createRepoUpdateSchema } from './repo-update-params'
+import { createRepoUpdateSchema, RepoIconUpdate } from './repo-update-params'
 import { RepoSelector } from './github-repo-target-params'
 
 export const RepoPath = z.object({
@@ -54,7 +54,9 @@ export const ProjectGroupUpdate = z.object({
     name: OptionalString,
     isCollapsed: z.boolean().optional(),
     tabOrder: OptionalFiniteNumber,
-    color: OptionalString.nullable().optional()
+    color: OptionalString.nullable().optional(),
+    // Why: optional and sanitized like repo.update's repoIcon; older hosts strip it without error.
+    icon: RepoIconUpdate.optional()
   })
 })
 

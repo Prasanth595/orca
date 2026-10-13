@@ -13,6 +13,7 @@ import type { WorktreeGroupBy } from '../grouping/row-types'
 import {
   getFolderBackedRepoWorktreeCardContentIndent,
   getFolderBackedRepoWorktreeCardSurfaceInset,
+  getHierarchyWorktreeRowGeometry,
   getLineageChildrenInlineStyle,
   getLineageNestedRowGeometry,
   getWorktreeCardContentIndent,
@@ -26,6 +27,8 @@ import { getWorktreeOptionId } from './option-dom'
 import type { WorktreeRowDragState } from '../drag/row-state'
 
 export type WorktreeItemRowContext = {
+  /** Sidebar style 'hierarchy': single-line tree rows. */
+  hierarchyStyle?: boolean
   settings: AppState['settings']
   groupBy: WorktreeGroupBy
   folderBackedProjectGroupIds: ReadonlySet<string>
@@ -70,6 +73,9 @@ function getWorktreeItemRowGeometry(
   itemRow: WorktreeItemRow,
   nested: boolean
 ): { surfaceInset: number; cardContentIndent: number; lineageChildrenInlineOffset?: number } {
+  if (!nested && ctx.hierarchyStyle === true) {
+    return getHierarchyWorktreeRowGeometry(itemRow.groupDepth)
+  }
   const projectGroupId = itemRow.repo?.projectGroupId
   const isFolderBackedRepoChild =
     ctx.groupBy === 'repo' &&
@@ -224,6 +230,7 @@ export function renderWorktreeItemRow(
         onLineageToggle={
           itemRow.lineageGroupKey ? ctx.getLineageToggleHandler(itemRow.lineageGroupKey) : undefined
         }
+        hierarchyRow={ctx.hierarchyStyle === true}
       />
     </div>
   )

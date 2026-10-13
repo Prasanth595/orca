@@ -1,5 +1,5 @@
 import React from 'react'
-import { AlertCircle, Server, ServerOff, Star, Trash2 } from 'lucide-react'
+import { AlertCircle, Star, Trash2 } from 'lucide-react'
 
 import { RepoIconGlyph } from '@/components/repo/repo-icon'
 import { Badge } from '@/components/ui/badge'
@@ -13,6 +13,9 @@ import { formatSparseDirectoryPreview, shouldBeginWorktreeRename } from './workt
 import type { WorktreeCardPresentation } from './worktree-card-presentation'
 import { WorktreeCardSshHostControl } from './WorktreeCardSshHostControl'
 import { WorktreeTitleInlineRename } from './WorktreeTitleInlineRename'
+import { PrimaryWorktreeStar } from './primary-worktree-star'
+import { RuntimeHostIndicator } from './runtime-host-indicator'
+import { WorktreeHierarchyStatusMark } from './worktree-hierarchy-status-mark'
 import type { WorktreeCardController } from './use-worktree-card-controller'
 
 // Why: pinned repo icon and compact inline badge share this chip shell so both repo cues read as the same affordance.
@@ -54,6 +57,7 @@ export function WorktreeCardHeader({
   const {
     worktree,
     repo,
+    isActiveSurface,
     affiliateListMode,
     renameRowKey,
     compactCards,
@@ -86,8 +90,29 @@ export function WorktreeCardHeader({
     showDeleteQuickAction,
     showTitleRowIndicators,
     titleRowIndicators,
-    titleWrapper
+    titleWrapper,
+    hierarchyRow,
+    showHierarchyRuntimeIndicator
   } = presentation
+
+  const sshHostControl = repo?.connectionId ? (
+    <WorktreeCardSshHostControl
+      targetId={repo.connectionId}
+      targetLabel={sshTargetLabel || repo.displayName}
+      status={sshStatus}
+      targetRemoved={sshTargetRemoved}
+      sshOwnerEnvironmentId={sshOwnerEnvironmentId}
+      iconOnly={compactCards || newCardStyle || hierarchyRow}
+      onPointerDown={stopQuickActionPointerPropagation}
+    />
+  ) : null
+  const runtimeHostIndicator =
+    !repo?.connectionId && parsedRepoHost?.kind === 'runtime' ? (
+      <RuntimeHostIndicator
+        runtimeHostLabel={runtimeHostLabel}
+        isRuntimeDisconnected={isRuntimeDisconnected}
+      />
+    ) : null
 
   return (
     <div className="flex min-w-0 items-center justify-between gap-2">
@@ -103,57 +128,9 @@ export function WorktreeCardHeader({
           </RepoIdentityChip>
         )}
 
-        {repo?.connectionId && (
-          <WorktreeCardSshHostControl
-            targetId={repo.connectionId}
-            targetLabel={sshTargetLabel || repo.displayName}
-            status={sshStatus}
-            targetRemoved={sshTargetRemoved}
-            sshOwnerEnvironmentId={sshOwnerEnvironmentId}
-            iconOnly={compactCards || newCardStyle}
-            onPointerDown={stopQuickActionPointerPropagation}
-          />
-        )}
-
-        {!repo?.connectionId && parsedRepoHost?.kind === 'runtime' && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="shrink-0 inline-flex items-center">
-                {isRuntimeDisconnected ? (
-                  // Passive by design: runtime ("Orca server") hosts have no
-                  // renderer-reachable connect API, unlike the SSH glyph above which is
-                  // now a control. Don't "fix" the inconsistency by wiring one up.
-                  <ServerOff className="size-3 text-destructive" />
-                ) : (
-                  <Server className="size-3 text-muted-foreground" />
-                )}
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="right" sideOffset={8}>
-              {isRuntimeDisconnected
-                ? runtimeHostLabel
-                  ? translate(
-                      'auto.components.sidebar.WorktreeCard.runtimeHostDisconnectedNamed',
-                      '{{hostName}} disconnected',
-                      { hostName: runtimeHostLabel }
-                    )
-                  : translate(
-                      'auto.components.sidebar.WorktreeCard.runtimeHostDisconnected',
-                      'Server disconnected'
-                    )
-                : runtimeHostLabel
-                  ? translate(
-                      'auto.components.sidebar.WorktreeCard.runtimeHostProjectNamed',
-                      'Project on {{hostName}}',
-                      { hostName: runtimeHostLabel }
-                    )
-                  : translate(
-                      'auto.components.sidebar.WorktreeCard.runtimeHostProject',
-                      'Project on Orca server'
-                    )}
-            </TooltipContent>
-          </Tooltip>
-        )}
+        {/* Why: hierarchy rows keep icons off the left; the server glyph moves to the project row. */}
+        {!hierarchyRow && sshHostControl}
+        {!hierarchyRow && runtimeHostIndicator}
 
         {showInlineRepoBadge && (
           <RepoIdentityChip repo={repo!}>
@@ -172,7 +149,14 @@ export function WorktreeCardHeader({
           disabled={isDeleting || affiliateListMode}
           showUnreadEmphasis={showUnreadEmphasis}
           dimReadTitle={newCardStyle}
-          className="text-[13px] leading-5"
+          className={
+            hierarchyRow
+              ? cn(
+                  'text-xs leading-5',
+                  isActiveSurface ? 'text-foreground' : 'text-muted-foreground'
+                )
+              : 'text-[13px] leading-5'
+          }
           editingClassName="flex-1"
           titleWrapper={titleWrapper}
           onEditingChange={affiliateListMode ? undefined : setTitleRenaming}
@@ -214,7 +198,9 @@ export function WorktreeCardHeader({
             </TooltipContent>
           </Tooltip>
         ) : null}
-        {!compactCards && worktree.isMainWorktree && !isFolder && (
+        {hierarchyRow && worktree.isMainWorktree && !isFolder && <PrimaryWorktreeStar />}
+
+        {!hierarchyRow && !compactCards && worktree.isMainWorktree && !isFolder && (
           <Tooltip>
             <TooltipTrigger asChild>
               <Badge
@@ -263,6 +249,14 @@ export function WorktreeCardHeader({
 
         {showTitleRowIndicators && titleRowIndicators}
       </div>
+
+      {hierarchyRow && (
+        <div className="ml-auto flex shrink-0 items-center gap-1.5 pr-0.5">
+          {sshHostControl}
+          {showHierarchyRuntimeIndicator && runtimeHostIndicator}
+          <WorktreeHierarchyStatusMark worktreeId={worktree.id} isUnread={worktree.isUnread} />
+        </div>
+      )}
 
       {showHeaderActions && (
         <div className="ml-auto flex shrink-0 items-center justify-center gap-1 pr-1.5">

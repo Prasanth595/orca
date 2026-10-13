@@ -41,6 +41,11 @@
       "description": "The active workspace is hidden in the sidebar. Revealing it will adjust only the filters hiding it.",
       "confirm": "Adjust filters and reveal",
       "cancel": "Keep filters"
+    },
+    "hierarchy": {
+      "status": {
+        "unread": "Unread"
+      }
     }
   },
   "app": {
@@ -5761,6 +5766,11 @@
           "3d4b9c4997": "Hover",
           "ba87080fb7": "Show properties",
           "320b675c9a": "Card layout",
+          "sidebarStyle": {
+            "title": "Sidebar style",
+            "classic": "Classic",
+            "hierarchy": "Hierarchy"
+          },
           "newCardDisplay": {
             "title": "Card display"
           },
@@ -6027,7 +6037,12 @@
           "groupRenameFailedDesc": "Orca could not confirm the new name with the group's host. Recheck the group after reconnecting.",
           "failedNestWorkspace": "Failed to nest workspace",
           "sidebarRowMissing": "Target no longer exists",
-          "failedUnnestWorkspace": "Failed to unnest workspace"
+          "failedUnnestWorkspace": "Failed to unnest workspace",
+          "changeGroupIcon": "Change icon",
+          "groupIconFailed": "Failed to update group icon",
+          "groupIconFailedDesc": "Orca could not confirm the icon with the group's host. Recheck the group after reconnecting.",
+          "groupIconUnsupported": "This group's host doesn't support group icons yet",
+          "groupIconUnsupportedDesc": "The group is stored on an Orca server running an older version. Update Orca there, then set the icon again."
         },
         "WorktreeMetaDialog": {
           "3db0a2a593": "Cancel",
@@ -6678,6 +6693,11 @@
           "title": "Sort changed to Manual",
           "description": "Manual keeps workspaces where you drop them.",
           "restore": "Back to {{label}}"
+        },
+        "ProjectGroupIconDialog": {
+          "title": "Group Icon",
+          "description": "Choose the icon shown next to {{value0}} in the sidebar.",
+          "done": "Done"
         }
       },
       "shared": {
@@ -8264,7 +8284,8 @@
           "868c5c9b56": "Failed to import repo icon",
           "emojiTooLongForRepoIcon": "This emoji can't be used as a repo icon.",
           "currentEmojiSelection": "Current: {{value0}}",
-          "searchEmojiPlaceholder": "Search emoji"
+          "searchEmojiPlaceholder": "Search emoji",
+          "imageTab": "Image"
         },
         "RepositoryPane": {
           "15a99d9b9f": "Relative paths resolve from this project root.",

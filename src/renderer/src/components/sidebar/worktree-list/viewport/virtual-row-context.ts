@@ -16,6 +16,7 @@ import type { WorktreeListVirtualizer } from './use-virtualizer'
 import type { VirtualizedWorktreeViewportProps } from './viewport-props'
 import type { WorktreeVirtualRowContext } from '../rows/virtual-row-dispatch'
 import { getRepoOwnerWorktreeVisibilityDefaults } from '../../../../store/worktree-visibility-defaults-by-host'
+import { isHierarchySidebarStyle } from '../../../../../../shared/sidebar-style'
 
 import type { RepoSshGateResolver } from '@/hooks/use-repo-ssh-gate-resolver'
 
@@ -53,7 +54,9 @@ type BuildArgs = {
 // is either a prop, a memoised hook result, or a stable callback.
 export function buildWorktreeVirtualRowContext(args: BuildArgs): WorktreeVirtualRowContext {
   const { props, runtime, session, statusDrag, headerDrag, primaryActive, reveal } = args
+  const hierarchyStyle = isHierarchySidebarStyle(args.settings)
   return {
+    hierarchyStyle,
     renderRows: args.renderRows,
     firstHeaderIndex: args.firstHeaderIndex,
     activeStickyHeaderIndexRef: args.virtualization.activeStickyHeaderIndexRef,
@@ -76,6 +79,7 @@ export function buildWorktreeVirtualRowContext(args: BuildArgs): WorktreeVirtual
     onWorkspaceStatusDragLeave: statusDrag.handleWorkspaceStatusDragLeave,
     onWorkspaceStatusDrop: statusDrag.handleWorkspaceStatusDrop,
     header: {
+      hierarchyStyle,
       groupBy: props.groupBy,
       collapsedGroups: props.collapsedGroups,
       workspaceStatuses: props.workspaceStatuses,
@@ -103,6 +107,7 @@ export function buildWorktreeVirtualRowContext(args: BuildArgs): WorktreeVirtual
         onCreateForRepo: props.handleCreateForRepo
       },
       onRenameProjectGroup: props.handleRenameProjectGroup,
+      onChangeProjectGroupIcon: props.handleChangeProjectGroupIcon,
       onDeleteProjectGroup: props.handleDeleteProjectGroup,
       onCreateFolderWorkspace: props.handleCreateFolderWorkspace,
       onWorkspaceStatusDragOver: statusDrag.handleWorkspaceStatusDragOver,
@@ -112,6 +117,7 @@ export function buildWorktreeVirtualRowContext(args: BuildArgs): WorktreeVirtual
       onWorkspaceStatusDrop: statusDrag.handleWorkspaceStatusDrop
     },
     item: {
+      hierarchyStyle,
       settings: args.settings,
       groupBy: props.groupBy,
       folderBackedProjectGroupIds: args.folderBackedProjectGroupIds,

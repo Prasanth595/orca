@@ -75,6 +75,9 @@ export function appendOrderedGroups(
     nestLineage,
     cyclicLineageIds
   } = ctx
+  // Why: notice rows carry their section's group depth so hierarchy guides stay continuous through them.
+  const withGroupDepth = <T extends object>(row: T): T =>
+    projectGroupDepth > 0 ? { ...row, groupDepth: projectGroupDepth } : row
   for (const [key, group] of groupsToAppend) {
     const isCollapsed = collapsedGroups.has(key)
     const repo = group.repo
@@ -162,10 +165,12 @@ export function appendOrderedGroups(
           const candidate = importedWorktreesByRepo.get(repoId)
           if (candidate) {
             result.push(
-              buildImportedWorktreesCardRow(
-                candidate,
-                'repo-group',
-                ctx.noticeHostContextLabelByRepoId?.get(repoId)
+              withGroupDepth(
+                buildImportedWorktreesCardRow(
+                  candidate,
+                  'repo-group',
+                  ctx.noticeHostContextLabelByRepoId?.get(repoId)
+                )
               )
             )
           }
@@ -174,9 +179,11 @@ export function appendOrderedGroups(
           const candidate = newExternalWorktreesInboxByRepo.get(repoId)
           if (candidate) {
             result.push(
-              buildNewExternalWorktreesInboxRow(
-                candidate,
-                ctx.noticeHostContextLabelByRepoId?.get(repoId)
+              withGroupDepth(
+                buildNewExternalWorktreesInboxRow(
+                  candidate,
+                  ctx.noticeHostContextLabelByRepoId?.get(repoId)
+                )
               )
             )
           }
@@ -186,7 +193,7 @@ export function appendOrderedGroups(
         // of the sidebar.
         for (const repoId of repoIds) {
           for (const creation of pendingByRepo.get(repoId) ?? []) {
-            result.push(buildPendingCreationRow(creation, repoMap))
+            result.push(withGroupDepth(buildPendingCreationRow(creation, repoMap)))
           }
         }
       }

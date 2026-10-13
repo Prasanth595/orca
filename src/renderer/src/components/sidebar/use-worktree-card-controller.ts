@@ -176,7 +176,9 @@ export function useWorktreeCardController(props: ResolvedWorktreeCardProps) {
     ...activation,
     showDeleteQuickAction,
     ...workspaceActions,
-    ...secondary
+    ...secondary,
+    // Why: hierarchy rows are single-line; agents and unread surface as the right-hand status mark.
+    ...(props.hierarchyRow ? { showInlineAgentList: false, showUnreadEmphasis: false } : {})
   }
 }
 

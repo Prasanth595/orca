@@ -45,6 +45,16 @@ describe('project-groups', () => {
     })
   })
 
+  it('keeps a valid persisted group icon and drops an invalid one', () => {
+    const [kept, dropped] = normalizeProjectGroups([
+      { id: 'a', name: 'A', tabOrder: 1, icon: { type: 'lucide', name: 'Folder' } },
+      { id: 'b', name: 'B', tabOrder: 2, icon: { type: 'image', src: 'javascript:alert(1)' } }
+    ])
+
+    expect(kept?.icon).toEqual({ type: 'lucide', name: 'Folder' })
+    expect(dropped).not.toHaveProperty('icon')
+  })
+
   it('trims empty group names to a fallback', () => {
     expect(normalizeProjectGroupName('   ', 'Existing')).toBe('Existing')
   })
