@@ -3,6 +3,16 @@
 Branch: `feat/feishu-bitable-task-source` (renamed from `strongwood/feishu-source`).
 Base contract: `38d2a1d2`. Source changes continue Claude's existing implementation.
 
+## Combined integration validation (2026-10-14)
+
+Source commit `1e9f9dd0` and execution commit `18920b04` are merged into `feat/feishu-bitable-task-integration`. The missing execution module blocker described below is resolved. The following results supersede the earlier source-only build results.
+
+- Full typecheck and desktop build passed, including WSL guest, CLI, Electron main/preload/renderer, web projection and mobile web bundle verification. Mobile dependencies were installed from its existing frozen lockfile.
+- 10 targeted test files / 75 tests passed, including source-to-execution composer draft integration and missing-snapshot rejection. The stale-base injection regression assertion now lives in the main-process test, avoiding a shared-to-main test import that broke CLI/Web project boundaries.
+- Changed-code quality checks and `git diff --check` passed.
+- `ORCA_BACKGROUND_LAUNCH=1 pnpm build` reaches the final native stage but fails because this user cannot access `/var/run/docker.sock`; the Ubuntu 20.04 Wayland clipboard helper cannot be built. Desktop output is available under `out/`; complete native build success is not claimed.
+- Logs: `/tmp/orca-feishu-integration-build.log`, `/tmp/orca-feishu-integration-test.log`, `/tmp/orca-feishu-integration-quality.log`. No rendered UI, live Feishu, or real agent execution validation was performed during integration.
+
 ## User-facing change
 
 Tasks and Settings now offer Feishu Bitable access through an enterprise app. Users can connect a table, select or disconnect saved connections, map title/description/acceptance/link fields, browse paginated records, read details, and open the existing workspace composer from a record. The composer keeps the source while users choose a project, execution host and agent. Existing Git workspaces and folder workspaces are reused by the complete record tuple and source host.

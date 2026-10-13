@@ -4,7 +4,6 @@ import {
   FEISHU_EXECUTION_LIMITS
 } from './feishu-bitable-execution-plan'
 import type { FeishuBitableExecutionInput } from './feishu-bitable-task-contract'
-import { parseAllowStaleBaseFromSpec } from '../main/runtime/orchestration/coordinator-stale-base-flag'
 import { ORCHESTRATION_WORKER_START_TASK_SPEC_MAX_BYTES } from './orchestration-worker-start-prompt-budget'
 
 const source = { connectionId: 'connection', appToken: 'app', tableId: 'table', recordId: 'record' }
@@ -73,7 +72,6 @@ describe('buildFeishuBitableExecutionPlan', () => {
     for (const control of ['\u0000', '\u001b', '\u202e', '\u2028', '\ud800']) {
       expect(plan.prompt).not.toContain(control)
     }
-    expect(parseAllowStaleBaseFromSpec(plan.taskSpec).allowStale).toBe(false)
   })
 
   it('bounds encoded data without splitting escapes or dropping identity', () => {
