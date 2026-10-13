@@ -232,12 +232,14 @@ export abstract class AgentHookServerState {
     onAccepted?: () => void,
     origin?: AgentStatusObservationOrigin,
     observedAt?: number,
-    mutationBefore?: EnrichedAgentHookEventPayload
+    mutationBefore?: EnrichedAgentHookEventPayload,
+    restoredPermissionBaseline?: AgentHookEventPayload
   ): EnrichedAgentHookEventPayload | undefined
   protected abstract emitEnrichedStatus(enriched: EnrichedAgentHookEventPayload): void
   protected abstract clearAssistantMessageRetry(paneKey: string): void
   protected abstract clearTranscriptPoll(paneKey: string): void
   protected abstract clearAllTranscriptPolls(): void
+  protected abstract resumeRestoredClaudePermissionPolls(): void
   protected abstract scheduleTranscriptPoll(
     source: AgentHookSource,
     body: unknown,

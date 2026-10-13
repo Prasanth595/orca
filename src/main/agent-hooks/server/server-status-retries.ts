@@ -1,5 +1,9 @@
 import { pollCodexTranscriptStatus } from '../../../shared/agent-hook-listener/providers/codex-transcript-poll'
-import { pollClaudePermissionResult } from '../../../shared/agent-hook-listener/providers/claude-permission-poll'
+import {
+  pollClaudePermissionResult,
+  seedRestoredClaudePermission
+} from '../../../shared/agent-hook-listener/providers/claude-permission-poll'
+import { hasRestoredClaudePermissionAuthority } from './server-claude-permission-recovery'
 import { normalizeHookPayload } from '../../../shared/agent-hook-listener'
 import {
   hasPendingAgentResultText,
@@ -35,6 +39,7 @@ export abstract class AgentHookServerStatusRetries extends AgentHookServerStatus
         if (
           poll.source === 'claude' &&
           this.server &&
+          this.statusHooksEnabled &&
           this.state.lastStatusByPaneKey.get(paneKey) === poll.original
         ) {
           this.scheduleTranscriptPoll(poll.source, poll.body, poll.original)
@@ -45,6 +50,35 @@ export abstract class AgentHookServerStatusRetries extends AgentHookServerStatus
 
   protected clearAllTranscriptPolls(): void {
     this.transcriptPollScheduler.clearAll()
+  }
+
+  protected resumeRestoredClaudePermissionPolls(): void {
+    for (const row of this.state.lastStatusByPaneKey.values()) {
+      if (
+        hasRestoredClaudePermissionAuthority(
+          row,
+          this.hydratedAuthorityCommitments,
+          this.revokedHydratedAuthorityCommitments
+        )
+      ) {
+        seedRestoredClaudePermission(this.state, row)
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Main hydration stores enriched rows in this shared base-event map.
+        this.scheduleTranscriptPoll('claude', undefined, row as EnrichedAgentHookEventPayload)
+      }
+    }
+  }
+
+  private canRecoverRestoredPermission(original: EnrichedAgentHookEventPayload): boolean {
+    return Boolean(
+      this.server &&
+      this.statusHooksEnabled &&
+      this.state.lastStatusByPaneKey.get(original.paneKey) === original &&
+      hasRestoredClaudePermissionAuthority(
+        original,
+        this.hydratedAuthorityCommitments,
+        this.revokedHydratedAuthorityCommitments
+      )
+    )
   }
 
   protected clearAssistantMessageRetry(paneKey: string): void {
@@ -72,7 +106,10 @@ export abstract class AgentHookServerStatusRetries extends AgentHookServerStatus
     if (original.payload.agentType !== source) {
       return
     }
-    if (!shouldPollHookTranscript(this.state, source, original)) {
+    if (
+      !shouldPollHookTranscript(this.state, source, original) &&
+      !this.canRecoverRestoredPermission(original)
+    ) {
       this.transcriptPollScheduler.clear(original.paneKey)
       return
     }
@@ -90,15 +127,34 @@ export abstract class AgentHookServerStatusRetries extends AgentHookServerStatus
     if (
       paneKey !== original.paneKey ||
       !this.server ||
+      !this.statusHooksEnabled ||
       this.state.lastStatusByPaneKey.get(original.paneKey) !== original
     ) {
       return
     }
     if (source === 'claude') {
-      const next = await pollClaudePermissionResult(this.state, original, (candidate) =>
-        this.server ? this.applyNormalizedStatus(candidate, undefined, 'process') : undefined
+      const next = await pollClaudePermissionResult(
+        this.state,
+        original,
+        (candidate) =>
+          this.server && this.statusHooksEnabled
+            ? this.applyNormalizedStatus(
+                candidate,
+                undefined,
+                'process',
+                undefined,
+                undefined,
+                original.restoredUnconfirmed ? original : undefined
+              )
+            : undefined,
+        () => this.canRecoverRestoredPermission(original)
       )
-      if (next && this.server && this.state.lastStatusByPaneKey.get(paneKey) === next) {
+      if (
+        next &&
+        this.server &&
+        this.statusHooksEnabled &&
+        this.state.lastStatusByPaneKey.get(paneKey) === next
+      ) {
         this.scheduleTranscriptPoll(source, body, next)
       }
       return

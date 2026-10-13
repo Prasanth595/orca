@@ -15,6 +15,7 @@ import {
   isClaudePermissionReplay,
   matchesRetainedClaudePermission
 } from '../../../shared/agent-hook-listener/claude-permission-replay'
+import { canApplyRestoredClaudePermission } from './server-claude-permission-recovery'
 
 export function canApplyClaudePermissionResult(
   previous: AgentHookEventPayload | undefined,
@@ -50,8 +51,20 @@ export function admitClaudePermissionEvidence<T extends AgentHookEventPayload>(
   previous: AgentHookEventPayload | undefined,
   incoming: T,
   commitments: readonly AgentHookAuthorityEvidence[],
-  revoked: WeakSet<AgentHookAuthorityEvidence>
+  revoked: WeakSet<AgentHookAuthorityEvidence>,
+  restoredPermissionBaseline?: AgentHookEventPayload
 ): T | undefined {
+  if (
+    canApplyRestoredClaudePermission(
+      previous,
+      incoming,
+      restoredPermissionBaseline,
+      commitments,
+      revoked
+    )
+  ) {
+    return incoming
+  }
   const owned =
     isClaudePermissionReplay(incoming) &&
     (!previous ||

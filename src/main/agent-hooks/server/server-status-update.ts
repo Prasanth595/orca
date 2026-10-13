@@ -49,7 +49,8 @@ export abstract class AgentHookServerStatusUpdate extends AgentHookServerStatusA
     onAccepted?: () => void,
     origin: AgentStatusObservationOrigin = 'hook',
     observedAt?: number,
-    mutationBefore?: EnrichedAgentHookEventPayload
+    mutationBefore?: EnrichedAgentHookEventPayload,
+    restoredPermissionBaseline?: AgentHookEventPayload
   ): EnrichedAgentHookEventPayload | undefined {
     // Check the sender before presence folding can retain the previous owner's identity.
     const current = this.state.lastStatusByPaneKey.get(incoming.paneKey)
@@ -57,7 +58,8 @@ export abstract class AgentHookServerStatusUpdate extends AgentHookServerStatusA
       current,
       incoming,
       this.hydratedAuthorityCommitments,
-      this.revokedHydratedAuthorityCommitments
+      this.revokedHydratedAuthorityCommitments,
+      restoredPermissionBaseline
     )
     if (!ownedIncoming) {
       return undefined

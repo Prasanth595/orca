@@ -203,6 +203,7 @@ export abstract class AgentHookServerLifecycle extends AgentHookServerStatusHook
     }
     if (this.statusHooksEnabled) {
       this.startOpenCodeBinderLoop()
+      this.resumeRestoredClaudePermissionPolls()
     }
   }
 

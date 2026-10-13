@@ -2,13 +2,17 @@ import type { AgentHookEventPayload } from '../listener-event'
 import type { HookListenerState } from '../listener-state'
 import { isAskUserQuestionTool } from '../../agent-question-answered-intent'
 import { readClaudePermissionResult } from '../claude-permission-result'
-import { clearClaudePendingToolWait } from './claude-roster-state'
+import { clearClaudePendingToolWait, setClaudeMainAgentTurnState } from './claude-roster-state'
 import { isSameAgentProcess } from '../../agent-process-presence'
 import { probeAgentProcessPresence } from '../../agent-process-presence-probe'
 import { launchTokenHash } from '../../agent-hook-spool'
 import { structuralValuesEqualIgnoringUndefined } from '../../structural-value-equality'
 
-export function canPollClaudePermission(event: AgentHookEventPayload): boolean {
+export function canPollClaudePermission(
+  event: AgentHookEventPayload,
+  allowRestoredLocal = false
+): boolean {
+  const restored = isRestoredLocalPermission(event, allowRestoredLocal)
   return (
     event.source === 'claude' &&
     event.connectionId === null &&
@@ -16,14 +20,14 @@ export function canPollClaudePermission(event: AgentHookEventPayload): boolean {
     event.payload.state === 'waiting' &&
     event.hookEventName === 'PermissionRequest' &&
     !isAskUserQuestionTool(event.payload.toolName) &&
-    !event.restoredUnconfirmed &&
+    (!event.restoredUnconfirmed || restored) &&
     !event.isReplay &&
     !event.providerSessionOnly &&
     !event.agentPresence?.ended &&
     event.agentPresence?.process !== undefined &&
     (!event.claudePermissionToolUseIdInferred || Boolean(event.payload.toolName)) &&
     Boolean(
-      event.launchToken &&
+      (event.launchToken || restored) &&
       event.toolUseId &&
       event.providerSession?.id &&
       event.providerSession.transcriptPath
@@ -31,17 +35,54 @@ export function canPollClaudePermission(event: AgentHookEventPayload): boolean {
   )
 }
 
+function isRestoredLocalPermission(event: AgentHookEventPayload, allowed: boolean): boolean {
+  return (
+    allowed &&
+    event.restoredUnconfirmed === true &&
+    event.connectionId === null &&
+    event.launchToken === undefined
+  )
+}
+
+/** Seed only after the owning server verifies the frozen local authority commitment. */
+export function seedRestoredClaudePermission(
+  state: HookListenerState,
+  event: AgentHookEventPayload
+): void {
+  if (!canPollClaudePermission(event, true) || !event.restoredUnconfirmed) {
+    return
+  }
+  const previous = state.claudeLeadStateByPaneKey.get(event.paneKey)
+  if (previous?.state === 'waiting') {
+    return
+  }
+  const main = event.payload.mainAgent
+  const before =
+    event.toolAgentId &&
+    main &&
+    main.state !== 'waiting' &&
+    (main.state !== 'done' || event.claudeRunningNonAgentTask === false)
+      ? main
+      : { state: 'working' as const, stateStartedAt: main?.stateStartedAt ?? Date.now() }
+  setClaudeMainAgentTurnState(state, event.paneKey, {
+    state: 'waiting',
+    waitingAgentId: event.toolAgentId,
+    stateBeforeWait: before
+  })
+}
+
 /** Runs on the execution host; a disconnected client never reads a remote transcript locally. */
 export async function pollClaudePermissionResult<T extends AgentHookEventPayload>(
   state: HookListenerState,
   original: T,
-  apply: (event: T) => T | undefined
+  apply: (event: T) => T | undefined,
+  canRecoverRestored?: () => boolean
 ): Promise<T | undefined> {
   const session = original.providerSession
   const toolUseId = original.toolUseId
   const lead = state.claudeLeadStateByPaneKey.get(original.paneKey)
   if (
-    !canPollClaudePermission(original) ||
+    !canPollClaudePermission(original, canRecoverRestored?.() === true) ||
     state.lastStatusByPaneKey.get(original.paneKey) !== original ||
     lead?.state !== 'waiting' ||
     lead.waitingAgentId !== original.toolAgentId ||
@@ -51,7 +92,8 @@ export async function pollClaudePermissionResult<T extends AgentHookEventPayload
       sessionId: session.id,
       toolUseId,
       agentId: original.toolAgentId,
-      ...(original.claudePermissionToolUseIdInferred && original.payload.toolName
+      ...((original.claudePermissionToolUseIdInferred || original.restoredUnconfirmed) &&
+      original.payload.toolName
         ? { inferredTool: { name: original.payload.toolName, input: original.payload.toolInput } }
         : {})
     })
@@ -61,13 +103,15 @@ export async function pollClaudePermissionResult<T extends AgentHookEventPayload
   const verdict = await probeAgentProcessPresence(original.agentPresence?.process)
   if (
     verdict !== 'live' ||
+    (original.restoredUnconfirmed && canRecoverRestored?.() !== true) ||
     state.lastStatusByPaneKey.get(original.paneKey) !== original ||
     state.claudeLeadStateByPaneKey.get(original.paneKey) !== lead ||
     !readClaudePermissionResult(session.transcriptPath, {
       sessionId: session.id,
       toolUseId,
       agentId: original.toolAgentId,
-      ...(original.claudePermissionToolUseIdInferred && original.payload.toolName
+      ...((original.claudePermissionToolUseIdInferred || original.restoredUnconfirmed) &&
+      original.payload.toolName
         ? { inferredTool: { name: original.payload.toolName, input: original.payload.toolInput } }
         : {})
     })
@@ -118,7 +162,11 @@ export async function pollClaudePermissionResult<T extends AgentHookEventPayload
   }
 }
 
-export function isClaudePermissionResult(event: AgentHookEventPayload): boolean {
+export function isClaudePermissionResult(
+  event: AgentHookEventPayload,
+  allowRestoredLocal = false
+): boolean {
+  const restored = isRestoredLocalPermission(event, allowRestoredLocal)
   return (
     event.claudePermissionResolved === true &&
     event.source === 'claude' &&
@@ -127,12 +175,12 @@ export function isClaudePermissionResult(event: AgentHookEventPayload): boolean 
     !event.hookEventName &&
     !event.hasExplicitPrompt &&
     !event.providerSessionOnly &&
-    !event.restoredUnconfirmed &&
+    (!event.restoredUnconfirmed || restored) &&
     !event.agentPresence?.ended &&
     event.agentPresence?.agent === 'claude' &&
     event.agentPresence.process !== undefined &&
     Boolean(
-      event.launchToken &&
+      (event.launchToken || restored) &&
       event.toolUseId &&
       event.providerSession?.id &&
       event.providerSession.transcriptPath
@@ -165,32 +213,40 @@ export function hasSameClaudePermissionOwner(
   next: AgentHookEventPayload,
   retainedLaunchTokenHash?: string
 ): boolean {
-  const previousProcess = previous.agentPresence?.process
-  const nextProcess = next.agentPresence?.process
   const restoredOwner =
     previous.restoredUnconfirmed === true &&
     next.connectionId !== null &&
     retainedLaunchTokenHash !== undefined &&
     launchTokenHash(next.launchToken) === retainedLaunchTokenHash
   return (
-    previousProcess !== undefined &&
-    nextProcess !== undefined &&
-    !previous.agentPresence?.ended &&
-    !next.agentPresence?.ended &&
+    hasSameClaudePermissionIdentity(previous, next) &&
     !next.restoredUnconfirmed &&
-    next.source === 'claude' &&
-    next.payload.agentType === 'claude' &&
-    isSameAgentProcess(previousProcess, nextProcess) &&
-    previous.payload.agentType === 'claude' &&
     (restoredOwner ||
       (!previous.restoredUnconfirmed &&
         Boolean(previous.launchToken) &&
         (next.connectionId === null || Boolean(previous.hostTurnRevision)) &&
         previous.launchToken === next.launchToken &&
         previous.hostTurnRevision === next.hostTurnRevision)) &&
-    Boolean(
-      previous.providerSession?.id && next.launchToken && next.providerSession?.transcriptPath
-    ) &&
+    Boolean(next.launchToken)
+  )
+}
+
+export function hasSameClaudePermissionIdentity(
+  previous: AgentHookEventPayload,
+  next: AgentHookEventPayload
+): boolean {
+  const previousProcess = previous.agentPresence?.process
+  const nextProcess = next.agentPresence?.process
+  return (
+    previousProcess !== undefined &&
+    nextProcess !== undefined &&
+    !previous.agentPresence?.ended &&
+    !next.agentPresence?.ended &&
+    next.source === 'claude' &&
+    next.payload.agentType === 'claude' &&
+    previous.payload.agentType === 'claude' &&
+    isSameAgentProcess(previousProcess, nextProcess) &&
+    Boolean(previous.providerSession?.id && next.providerSession?.transcriptPath) &&
     previous.paneKey === next.paneKey &&
     previous.worktreeId === next.worktreeId &&
     previous.tabId === next.tabId &&
