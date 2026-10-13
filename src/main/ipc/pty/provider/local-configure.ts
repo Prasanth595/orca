@@ -96,7 +96,8 @@ export function configureLocalPtyProvider(args: {
         agentStatusHooksEnabled: isAgentStatusHooksEnabled(ptySettings),
         disabledTuiAgents: ptySettings?.disabledTuiAgents,
         networkProxySettings: ptySettings,
-        routeBrowserOpensToClient: runtime?.shouldRelayTerminalBrowserOpens?.()
+        routeBrowserOpensToClient: runtime?.shouldRelayTerminalBrowserOpens?.(),
+        forceOrcaBrowserOpens: ptySettings?.useOrcaBrowserForAgentWork === true
       })
       // Why: agents need their terminal handle at process start to self-identify in orchestration messages without an extra RPC.
       const requestedHandle = baseEnv.ORCA_TERMINAL_HANDLE

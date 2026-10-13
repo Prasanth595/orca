@@ -7,6 +7,7 @@ import { repoIsRemote } from '../../shared/agent-launch-remote'
 import { getRepoSshConnectionId } from '../../shared/execution-host'
 import { isTuiAgent } from '../../shared/tui-agent-config'
 import { isTuiAgentEnabled, pickTuiAgent } from '../../shared/tui-agent-selection'
+import { codexUserDeveloperInstructionsInput } from '../codex/codex-user-developer-instructions'
 import { resolveAgentStartupPlanInputs } from '../../shared/agent-startup-plan-inputs'
 import type { AgentLaunchRuntime } from '../../shared/agent-launch-runtime'
 import type { resolveStartupAgentLaunchRuntime } from './agent-launch-scope-runtime'
@@ -96,7 +97,11 @@ export async function buildWorktreeStartupForDraft(
     platform,
     shell,
     isRemote: repoIsRemote(repo),
-    ...(environment.agentArgs !== undefined ? { agentArgs: environment.agentArgs } : {})
+    ...(environment.agentArgs !== undefined ? { agentArgs: environment.agentArgs } : {}),
+    ...codexUserDeveloperInstructionsInput(agent, settings, {
+      isRemote: repoIsRemote(repo),
+      path: repo.path
+    })
   })
   const telemetry = agentStartedTelemetry(agent, environment.launchSource)
   const draftPlan = buildAgentDraftLaunchPlan({ ...launchArgs, draft: content })
@@ -170,7 +175,11 @@ export function buildWorktreeStartupForAgent(
     isRemote: repoIsRemote(repo),
     ...(environment.agentArgs !== undefined ? { agentArgs: environment.agentArgs } : {}),
     ...(environment.extraAgentArgs ? { extraAgentArgs: environment.extraAgentArgs } : {}),
-    sessionOptions: environment.toSessionOptions(environment.launchPreferences)
+    sessionOptions: environment.toSessionOptions(environment.launchPreferences),
+    ...codexUserDeveloperInstructionsInput(agent, settings, {
+      isRemote: repoIsRemote(repo),
+      path: repo.path
+    })
   })
   const prompt = environment.prompt ?? ''
   let startupPlan: ReturnType<typeof buildAgentStartupPlan>

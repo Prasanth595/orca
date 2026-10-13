@@ -20,6 +20,7 @@ import { newAgentLaunchRequestId } from '@/lib/agent-launch-request-id'
 import { beginStructuredAgentSessionProvisionalLaunch } from '@/lib/structured-agent-session-provisional-tab'
 import { getNewWorkspaceProjectGroupHostId } from '@/lib/new-workspace-project-options'
 import { useAppStore } from '@/store'
+import { orcaBrowserGuidanceLaunchOptions } from '@/lib/orca-browser-guidance-launch-options'
 import { resolveExecutionHostAgentStartupShell } from '@/lib/execution-host-facts'
 import {
   buildFolderWorkspaceLinkedStartupPlan,
@@ -100,6 +101,9 @@ export async function submitFolderWorkspaceCreate({
   // `orca-ide` rename must not be applied for remote launches.
   const launchIsRemote = Boolean(projectGroup.connectionId)
   const launchShell = resolveExecutionHostAgentStartupShell(launchHost, terminalWindowsShell)
+  const guidanceOptions = quickAgent
+    ? orcaBrowserGuidanceLaunchOptions(useAppStore.getState().settings, quickAgent)
+    : {}
   const startupPlan =
     quickAgent && launchPlatform && linkedWorkItem
       ? buildFolderWorkspaceLinkedStartupPlan({
@@ -111,7 +115,8 @@ export async function submitFolderWorkspaceCreate({
           agentEnv,
           platform: launchPlatform,
           shell: launchShell,
-          isRemote: launchIsRemote
+          isRemote: launchIsRemote,
+          ...guidanceOptions
         })
       : quickAgent && launchPlatform
         ? buildAgentStartupPlan({
@@ -123,6 +128,7 @@ export async function submitFolderWorkspaceCreate({
             platform: launchPlatform,
             shell: launchShell,
             isRemote: launchIsRemote,
+            ...guidanceOptions,
             allowEmptyPromptLaunch: true
           })
         : null

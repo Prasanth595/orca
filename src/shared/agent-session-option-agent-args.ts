@@ -59,6 +59,10 @@ const VALUE_OPTIONS: Partial<Record<AgentType, readonly string[]>> = {
   ]
 }
 
+export function agentArgValueOptions(agent: AgentType): readonly string[] {
+  return VALUE_OPTIONS[agent] ?? []
+}
+
 export function agentArgTerminatorIndex(agent: AgentType, tokens: readonly string[]): number {
   return findOptionOccurrence(tokens, ['--'], false, VALUE_OPTIONS[agent])?.index ?? tokens.length
 }

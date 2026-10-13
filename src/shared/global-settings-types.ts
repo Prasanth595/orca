@@ -215,6 +215,8 @@ export type GlobalSettings = NativeChatGlobalSettings & {
   openLinksInAppPreferencePrompted: boolean
   /** Opt-in: Shift+modifier click inverts openLinksInApp instead of always forcing the system browser. Off keeps the historical one-way escape hatch. */
   openLinksInAppModifierInverts?: boolean
+  /** Opt-in: local terminals open tool links in an Orca browser tab and new Claude/Codex launches are told to use the Orca browser. */
+  useOrcaBrowserForAgentWork?: boolean
   /** Show link actions on plain click in the terminal and chat; off restores modifier-click-only terminal links. */
   terminalLinkActionPopoverEnabled?: boolean
   /** Plain-click behavior for terminal links; optional for profiles saved before this setting existed. */

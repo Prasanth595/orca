@@ -175,6 +175,10 @@
         "optionNativeTooltip": "Mantiene la identidad incorporada de Electron para los sitios que rechazan la identidad limpiada. El inicio de sesión de Google no está disponible en modo nativo.",
         "restartRequired": "Se requiere un reinicio",
         "unavailable": "La identidad del navegador no está disponible."
+      },
+      "agentWork": {
+        "title": "Usar el navegador de Orca para el trabajo de los agentes",
+        "description": "Las nuevas terminales abren los enlaces de las herramientas en una pestaña del navegador de Orca, y a los nuevos Claude y Codex se les indica que usen el navegador de Orca. Se aplica a las terminales locales."
       }
     },
     "agents": {
@@ -9569,6 +9573,15 @@
               "native": "nativo",
               "cleaned": "limpiado",
               "restart": "Reanudar"
+            },
+            "agentWork": {
+              "agent": "agente",
+              "claude": "claude",
+              "codex": "codex",
+              "terminal": "terminal",
+              "links": "enlaces",
+              "playwright": "playwright",
+              "automation": "automatización"
             }
           },
           "use": {

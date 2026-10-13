@@ -249,6 +249,7 @@ export async function prepareRuntimePtySpawn(
         disabledTuiAgents: ptySettings?.disabledTuiAgents,
         networkProxySettings: ptySettings,
         routeBrowserOpensToClient: ctx.deps.runtime?.shouldRelayTerminalBrowserOpens?.(),
+        forceOrcaBrowserOpens: ptySettings?.useOrcaBrowserForAgentWork === true,
         deferGitConfigGuardToDaemon:
           ctx.provider.supportsGitCredentialGuardHost?.(ctx.sessionId) === true
       })

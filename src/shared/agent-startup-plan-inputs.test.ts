@@ -158,3 +158,39 @@ describe('a picked session option outranks configured launch arguments', () => {
     )
   })
 })
+
+describe('resolveAgentStartupPlanInputs Orca browser guidance', () => {
+  const resolve = (settings: AgentStartupSettings, codexUserDeveloperInstructions?: boolean) =>
+    resolveAgentStartupPlanInputs({
+      agent: 'codex',
+      settings,
+      platform: 'linux',
+      isRemote: false,
+      ...(codexUserDeveloperInstructions !== undefined ? { codexUserDeveloperInstructions } : {})
+    })
+
+  it('maps the setting and defaults to off', () => {
+    expect(resolve({}).orcaBrowserGuidance).toBe(false)
+    expect(resolve({ useOrcaBrowserForAgentWork: true }).orcaBrowserGuidance).toBe(true)
+  })
+
+  it('carries the Codex user config answer only when supplied', () => {
+    expect(resolve({}, true).codexUserDeveloperInstructions).toBe(true)
+    expect(resolve({})).not.toHaveProperty('codexUserDeveloperInstructions')
+  })
+
+  it('flows through to the built launch command', () => {
+    const plan = buildAgentStartupPlan({
+      ...resolve({ useOrcaBrowserForAgentWork: true }, false),
+      prompt: '',
+      allowEmptyPromptLaunch: true
+    })
+    expect(plan?.launchCommand).toContain('developer_instructions=')
+    const skipped = buildAgentStartupPlan({
+      ...resolve({ useOrcaBrowserForAgentWork: true }, true),
+      prompt: '',
+      allowEmptyPromptLaunch: true
+    })
+    expect(skipped?.launchCommand).not.toContain('developer_instructions=')
+  })
+})

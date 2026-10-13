@@ -12,6 +12,7 @@ import {
 } from '@/lib/tui-agent-startup'
 import type { ProjectGroup } from '../../../../shared/project-group-types'
 import type { TuiAgent } from '../../../../shared/tui-agent'
+import type { OrcaBrowserGuidanceOptions } from '../../../../shared/tui-agent-launch-command'
 import type { AgentStartupShell } from '../../../../shared/tui-agent-startup-shell'
 
 /** OS of the host that owns a folder group; its agents are quoted for that host's shell. */
@@ -42,17 +43,19 @@ export function resolveFolderWorkspaceLaunchDraft(
   return (draftPrompt ?? prompt.trim()) || null
 }
 
-export function buildFolderWorkspaceLinkedStartupPlan(args: {
-  agent: TuiAgent
-  linkedWorkItem: LinkedWorkItemSummary
-  note: string
-  agentCmdOverrides: Record<string, string> | undefined
-  agentArgs?: string | null
-  agentEnv?: Record<string, string>
-  platform: NodeJS.Platform
-  shell?: AgentStartupShell
-  isRemote: boolean
-}): AgentStartupPlan | null {
+export function buildFolderWorkspaceLinkedStartupPlan(
+  args: {
+    agent: TuiAgent
+    linkedWorkItem: LinkedWorkItemSummary
+    note: string
+    agentCmdOverrides: Record<string, string> | undefined
+    agentArgs?: string | null
+    agentEnv?: Record<string, string>
+    platform: NodeJS.Platform
+    shell?: AgentStartupShell
+    isRemote: boolean
+  } & OrcaBrowserGuidanceOptions
+): AgentStartupPlan | null {
   const linkedDraftPrompt = resolveFolderWorkspaceLaunchDraft(args.linkedWorkItem, args.note)
   const draftLaunchPlan = linkedDraftPrompt
     ? buildAgentDraftLaunchPlan({
@@ -63,7 +66,9 @@ export function buildFolderWorkspaceLinkedStartupPlan(args: {
         agentEnv: args.agentEnv,
         platform: args.platform,
         shell: args.shell,
-        isRemote: args.isRemote
+        isRemote: args.isRemote,
+        orcaBrowserGuidance: args.orcaBrowserGuidance,
+        codexUserDeveloperInstructions: args.codexUserDeveloperInstructions
       })
     : null
   if (draftLaunchPlan) {
@@ -90,6 +95,8 @@ export function buildFolderWorkspaceLinkedStartupPlan(args: {
     platform: args.platform,
     shell: args.shell,
     isRemote: args.isRemote,
+    orcaBrowserGuidance: args.orcaBrowserGuidance,
+    codexUserDeveloperInstructions: args.codexUserDeveloperInstructions,
     allowEmptyPromptLaunch: true
   })
   if (startupPlan && linkedDraftPrompt) {

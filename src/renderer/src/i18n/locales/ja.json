@@ -175,6 +175,10 @@
         "optionNativeTooltip": "クリーンアップされた ID を拒否するサイトのために Electron の組み込み ID を保持します。 Google サインインはネイティブモードでは利用できません。",
         "restartRequired": "再起動が必要です",
         "unavailable": "ブラウザ ID が利用できません。"
+      },
+      "agentWork": {
+        "title": "Agent 作業に Orca ブラウザを使う",
+        "description": "新しいターミナルでは、ツールからのリンクが Orca ブラウザのタブで開き、新しく起動する Claude と Codex には Orca ブラウザを使うよう指示されます。ローカルのターミナルに適用されます。"
       }
     },
     "agents": {
@@ -9591,6 +9595,15 @@
               "native": "ネイティブ",
               "cleaned": "クリーン",
               "restart": "再起動"
+            },
+            "agentWork": {
+              "agent": "agent",
+              "claude": "claude",
+              "codex": "codex",
+              "terminal": "ターミナル",
+              "links": "リンク",
+              "playwright": "playwright",
+              "automation": "自動化"
             }
           },
           "use": {

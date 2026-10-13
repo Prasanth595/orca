@@ -81,6 +81,9 @@ vi.mock('./BrowserClientHostedRemoteSetting', () => ({
 vi.mock('./BrowserSshWorkspaceRoutingSetting', () => ({
   BrowserSshWorkspaceRoutingSetting: () => <span>SSH row</span>
 }))
+vi.mock('./BrowserAgentWorkSetting', () => ({
+  BrowserAgentWorkSetting: () => <span>Agent work row</span>
+}))
 vi.mock('./BrowserUserAgentSetting', () => ({
   BrowserUserAgentSetting: () => <span>Identity row</span>
 }))
@@ -110,6 +113,20 @@ it('keeps targeted search visibility', () => {
   render(<BrowserPane settings={getDefaultSettings('/synthetic')} updateSettings={vi.fn()} />)
   expect(screen.getByRole('textbox')).toBeTruthy()
   expect(screen.queryByText('Cookies row')).toBeNull()
+})
+
+it('shows the agent work row for its own search and hides it for others', () => {
+  fake.query = 'Use Orca Browser for Agent Work'
+  const view = render(
+    <BrowserPane settings={getDefaultSettings('/synthetic')} updateSettings={vi.fn()} />
+  )
+  expect(screen.getByText('Agent work row')).toBeTruthy()
+  expect(screen.queryByText('Cookies row')).toBeNull()
+  fake.query = 'Default Home Page'
+  view.rerender(
+    <BrowserPane settings={getDefaultSettings('/synthetic')} updateSettings={vi.fn()} />
+  )
+  expect(screen.queryByText('Agent work row')).toBeNull()
 })
 
 it('rebuilds metadata in the next render after the language changes', () => {

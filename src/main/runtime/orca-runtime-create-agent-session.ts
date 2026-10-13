@@ -12,6 +12,7 @@ import {
 } from '../../shared/agent-session-host-authority'
 import { createHash } from 'node:crypto'
 import { isTuiAgentEnabled } from '../../shared/tui-agent-selection'
+import { codexUserDeveloperInstructionsInput } from '../codex/codex-user-developer-instructions'
 import { resolveAgentStartupPlanInputs } from '../../shared/agent-startup-plan-inputs'
 import { agentLaunchQuotingShell } from '../../shared/agent-launch-runtime'
 import { buildExecutionHostAgentStartupPlan } from '../opencode/opencode-model-startup-plan'
@@ -142,7 +143,11 @@ export class OrcaRuntimeWithCreateAgentSession extends OrcaRuntimeWithGetAgentSe
         // shape must match the PTY route this scope already resolved.
         isRemote: Boolean(workspace.connectionId),
         ...(request.agentArgs !== undefined ? { agentArgs: request.agentArgs } : {}),
-        sessionOptions: this.toAgentSessionOptions(request.launchPreferences)
+        sessionOptions: this.toAgentSessionOptions(request.launchPreferences),
+        ...codexUserDeveloperInstructionsInput(request.agent, settings, {
+          isRemote: Boolean(workspace.connectionId),
+          path: workspace.path
+        })
       })
       const startup = await buildExecutionHostAgentStartupPlan({
         inputs: startupArgs,

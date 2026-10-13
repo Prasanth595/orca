@@ -121,7 +121,9 @@ function createWebPreloadApi(): Partial<PreloadApi> {
     macosTccPrompts: createMacosTccPromptsApi(),
     codexConfigSync: {
       status: () =>
-        Promise.resolve({ state: 'synced', reason: null, systemConfigPath: '' } as const)
+        Promise.resolve({ state: 'synced', reason: null, systemConfigPath: '' } as const),
+      // Why: the web client has no local Codex config to inspect, so skip Codex guidance.
+      userDefinesDeveloperInstructions: () => Promise.resolve(true)
     },
     developerPermissions: createDeveloperPermissionsApi(),
     computerUsePermissions: createComputerUsePermissionsApi(),

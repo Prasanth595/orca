@@ -17,6 +17,7 @@ import {
   nameLocalTypedLineShell
 } from './agent-launch-typed-line-shell'
 import { resolveTerminalStartupCwd } from '../../shared/terminal-startup-cwd'
+import { codexUserDeveloperInstructionsInput } from '../codex/codex-user-developer-instructions'
 import { resolveAgentStartupPlanInputs } from '../../shared/agent-startup-plan-inputs'
 import { agentStartedTelemetry } from '../agent-launch/agent-started-telemetry'
 import { terminalShellOverrideRefusal } from './terminal-shell-override-host-support'
@@ -179,7 +180,8 @@ async function buildRuntimeAgentTerminalStartupOptions(
       isRemote,
       ...(opts.agentArgs !== undefined ? { agentArgs: opts.agentArgs } : {}),
       shell: agentLaunchQuotingShell(runtime),
-      sessionOptions: host.toSessionOptions(opts.launchPreferences)
+      sessionOptions: host.toSessionOptions(opts.launchPreferences),
+      ...codexUserDeveloperInstructionsInput(agent, settings, { isRemote, path: workspace.path })
     }),
     prompt: opts.startupPrompt ?? '',
     cwd: resolveTerminalStartupCwd(workspace.path, opts.cwd) ?? workspace.path,

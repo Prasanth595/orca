@@ -175,6 +175,10 @@
         "optionNativeTooltip": "对于拒绝清理身份的站点，保留 Electron 的内置身份。 Google 登录在本机模式下不可用。",
         "restartRequired": "需要重新启动",
         "unavailable": "浏览器身份不可用。"
+      },
+      "agentWork": {
+        "title": "将 Orca 浏览器用于智能体工作",
+        "description": "新终端会在 Orca 浏览器标签页中打开工具的链接，新启动的 Claude 和 Codex 会被告知使用 Orca 浏览器。适用于本地终端。"
       }
     },
     "agents": {
@@ -9554,6 +9558,15 @@
               "native": "原生",
               "cleaned": "清洁过的",
               "restart": "重新启动"
+            },
+            "agentWork": {
+              "agent": "智能体",
+              "claude": "claude",
+              "codex": "codex",
+              "terminal": "终端",
+              "links": "链接",
+              "playwright": "playwright",
+              "automation": "自动化"
             }
           },
           "use": {
