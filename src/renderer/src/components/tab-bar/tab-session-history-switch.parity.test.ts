@@ -228,6 +228,10 @@ describe('the tab menu offers exactly what the Session History row offers', () =
         workspaceId: WORKTREE_ID,
         request
       })
-    ).toEqual({ action: 'resume-in-new-chat', worktreeId: folderWorkspaceKey('folder-1') })
+    ).toEqual({
+      action: 'resume-in-new-chat',
+      worktreeId: folderWorkspaceKey('folder-1'),
+      chatRoute: 'structured'
+    })
   })
 })
