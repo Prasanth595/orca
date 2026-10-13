@@ -24,8 +24,8 @@ const grantsByPreviewId = new Map<string, Promise<DocPreviewGrantHandle>>()
 export type DocPreviewGrantLocation = Omit<DocPreviewGrantRequest, 'browserPageId'>
 
 /**
- * A paired document outside its worktree is `host-path`: only its host can say whether it serves
- * the path, so its location is held until that host answers.
+ * A paired document outside the opening worktree is `host-path`: only its host can say whether it
+ * serves the path, so its location is held until that host answers.
  */
 type DocPreviewGrantDraft =
   | { kind: 'workspace'; location: DocPreviewGrantLocation }
@@ -98,9 +98,10 @@ export function buildDocPreviewGrantRequest(
 }
 
 /**
- * {@link buildDocPreviewGrantRequest}, plus a paired or SSH host's document outside its workspaces
- * when that host serves files by path. The grant starts at the entry file alone, and the host
- * refuses any path it does not serve.
+ * The grant request for a document, or null when no grant can read it. A paired document outside
+ * the opening workspace reads by path only on a host that serves paths (its workspaces and its chat
+ * scratch folder). Why the preview may wait here: it mints behind its own loading state, so a tab
+ * restored before the host's status is known loads by itself once the host answers.
  */
 export async function resolveDocPreviewGrantRequest(
   state: AppState,

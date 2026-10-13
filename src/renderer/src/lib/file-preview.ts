@@ -251,15 +251,20 @@ export function convertBrowserPageToWorkspaceDoc(
     if (state.activeWorktreeId !== docLocation.worktreeId) {
       state.setActiveWorktree(docLocation.worktreeId)
     }
-    const plan = openFileInBrowserTab({
-      filePath: docLocation.filePath,
-      worktreeId: docLocation.worktreeId
+    let refused = false
+    openWithResolvedPreviewPlan(docLocation, (plan) => {
+      const opened = openFileInBrowserTab({
+        filePath: docLocation.filePath,
+        worktreeId: docLocation.worktreeId,
+        plan
+      })
+      if (opened.status === 'unsupported') {
+        toast.error(opened.message)
+        refused = true
+      }
     })
-    if (plan.status === 'unsupported') {
-      toast.error(plan.message)
-      return 'failed'
-    }
-    return 'opened-in-owning-worktree'
+    // Why only a refusal known now fails: a host still being asked answers through its toast.
+    return refused ? 'failed' : 'opened-in-owning-worktree'
   }
   return state.convertBrowserPage(pageId, { kind: 'workspace-doc', docLocation }, options)
     ? 'converted'
@@ -284,18 +289,24 @@ export function openFilePreviewToSide(params: {
     return
   }
 
-  const plan = getWorkspaceFilePreviewPlan(
-    useAppStore.getState(),
-    params.worktreeId,
-    params.filePath
-  )
+  openWithResolvedPreviewPlan(params, (plan) => openPlannedPreviewToSide(params, plan))
+}
+
+/**
+ * Hands `open` the document's preview plan. A paired document outside its worktree first asks the
+ * host that refused whether it serves the path, so every way into a preview gives the same answer.
+ */
+function openWithResolvedPreviewPlan(
+  document: { worktreeId: string; filePath: string },
+  open: (plan: WorkspaceFilePreviewPlan) => void
+): void {
+  const state = useAppStore.getState()
+  const plan = getWorkspaceFilePreviewPlan(state, document.worktreeId, document.filePath)
   if (plan.status === 'unsupported' && plan.reason === 'outside-worktree') {
-    void resolveHostPathFilePreviewPlan(useAppStore.getState(), params, plan).then((resolved) =>
-      openPlannedPreviewToSide(params, resolved)
-    )
+    void resolveHostPathFilePreviewPlan(state, document, plan).then(open)
     return
   }
-  openPlannedPreviewToSide(params, plan)
+  open(plan)
 }
 
 function openPlannedPreviewToSide(
