@@ -518,9 +518,9 @@
         "orca": {
           "profiles": {
             "612f7f6861": "建立配置檔案失敗",
-            "319d7cf39b": "已建立雲配置檔案",
+            "319d7cf39b": "已建立雲端配置檔案",
             "d6e764e7db": "請重新連線此配置檔案",
-            "f0c9e11a6d": "建立雲配置檔案失敗",
+            "f0c9e11a6d": "建立雲端配置檔案失敗",
             "8b8fa73174": "未配置 Orca Cloud 登入",
             "33290e88ed": "連線配置檔案失敗",
             "9fcb07a796": "配置檔案已連線",
@@ -4783,7 +4783,7 @@
           "ready": "技能連結已準備好",
           "title": "分享技能",
           "readyDescription": "收件人先透過 Orca 進行身份驗證，然後才能檢查或安裝它。",
-          "newVersionDescription": "檢視確切的檔案，然後將不可變版本釋出到現有云包。",
+          "newVersionDescription": "檢視確切的檔案，然後將不可變版本釋出到現有雲端套件。",
           "description": "檢視確切的檔案，選擇誰可以訪問它們，然後釋出不可變的版本。",
           "0f07fa2a79": "釋出技能",
           "7aa4ba0dba": "釋出新版本",
@@ -4801,9 +4801,9 @@
           "01c5a16e01": "選擇{{value0}}"
         },
         "SkillCloudManagementActions": {
-          "ed753624c0": "刪除雲包",
+          "ed753624c0": "刪除雲端套件",
           "640bc6b92e": "確認刪除包",
-          "6b6adf68c1": "刪除選定的雲版本",
+          "6b6adf68c1": "刪除選定的雲端版本",
           "bbec37d8f8": "確認版本刪除",
           "7a80285dad": "取消分享",
           "0ac5c175fd": "確認取消共享",
@@ -4815,7 +4815,7 @@
           "3d346ddce8": "現有收件人",
           "2b8c569ea7": "當前組織",
           "2552c12fea": "使用權",
-          "505cd6105c": "雲共享控制",
+          "505cd6105c": "雲端共享控制",
           "linkCopied": "分享連結已複製",
           "activeLinkBearerDescription": "任何擁有活動連結的人都可以檢查並安裝技能。撤銷會阻止將來的訪問，但會保留已安裝的副本不變。",
           "copyLink": "複製連結"
@@ -4916,7 +4916,7 @@
           "f25429e266": "選定的人",
           "0a49d901ab": "組織",
           "6817a7f6f8": "技能獲取",
-          "c15d90c10b": "需要連線的 Orca 雲帳戶。",
+          "c15d90c10b": "需要連線的 Orca 雲端帳戶。",
           "266527d295": "釋出為 {{value0}}{{value1}}。",
           "78d863235c": "使用權",
           "b3b1d4b911": "SHA-256",
@@ -7789,8 +7789,8 @@
           "a622bc3b37": "更換金鑰",
           "3b0ab3fc0b": "已連線",
           "27e0cb656d": "OpenAI 轉錄",
-          "893790e13b": "在選擇雲語音轉文字模型之前新增 OpenAI API 金鑰。",
-          "b59b9b2b51": "為雲語音轉文字模型配置的 API 金鑰。"
+          "893790e13b": "在選擇雲端語音轉文字模型之前新增 OpenAI API 金鑰。",
+          "b59b9b2b51": "為雲端語音轉文字模型配置的 API 金鑰。"
         },
         "OpenInMenuSetting": {
           "03b00b1f64": "定製應用程式",
@@ -8263,7 +8263,7 @@
           "troubleshootStepAddress": "選擇“其他裝置”，然後選擇其 Tailscale 或 LAN 地址。",
           "troubleshootStepRegenerate": "生成新的訪問連結，並僅在此處使用最新的連結。",
           "troubleshootTunnel": "正在使用 SSH 本地轉發？返回“連線到主機”，貼上環回連結，然後在“高階”下啟用“我正在使用 SSH 隧道”。",
-          "cloudVmWorkflow": "雲虛擬機器",
+          "cloudVmWorkflow": "雲端虛擬機器",
           "cloudVmWorkflowHelp": "管理由配方建立的雲端機器",
           "serverWorkspaceWindowClosed": "工作區視窗已關閉",
           "serverRuntimeUnavailable": "Orca 不可用",
@@ -8953,7 +8953,7 @@
           "8f4d2a51d7": "離線",
           "d504ab05f0": "流媒體",
           "fbe5990716": "選擇型號",
-          "e24f7d43d2": "選擇語音模型，本地模型離線執行；雲模型需要 API 金鑰。",
+          "e24f7d43d2": "選擇語音模型，本地模型離線執行；雲端模型需要 API 金鑰。",
           "174da92062": "抓住",
           "118b3c2dee": "切換",
           "901985625d": "切換",
@@ -10463,7 +10463,7 @@
           "environments": {
             "search": {
               "772e3b4753": "虛擬機器",
-              "45501ff2c3": "雲",
+              "45501ff2c3": "雲端",
               "2bd988d041": "配對碼",
               "5cd7dca3b8": "遠端",
               "d760866285": "客戶",
@@ -10849,7 +10849,7 @@
         "voice": {
           "pane": {
             "search": {
-              "f6e0dfa61c": "雲",
+              "f6e0dfa61c": "雲端",
               "2d206de105": "API金鑰",
               "04c25a6fb0": "開放伊",
               "b9dee49cd7": "下載",
@@ -10857,7 +10857,7 @@
               "3d8b853963": "演講",
               "080202facb": "模型",
               "7640ed9848": "語音",
-              "56defcd6c3": "選擇用於聽寫的本地或雲語音轉文字模型。",
+              "56defcd6c3": "選擇用於聽寫的本地或雲端語音轉文字模型。",
               "7e62cd7c41": "語音模型",
               "931b1a9e53": "即按即說",
               "064a9bd94a": "抓住",
@@ -10870,7 +10870,7 @@
               "698376a38d": "語音聽寫功能的主開關。",
               "20574cbc72": "啟用語音聽寫",
               "322d457a0d": "轉錄",
-              "dcc7846641": "配置用於雲語音轉文字模型的 OpenAI API 金鑰。",
+              "dcc7846641": "配置用於雲端語音轉文字模型的 OpenAI API 金鑰。",
               "ebfd0b32e5": "OpenAI 轉錄",
               "microphoneTitle": "麥克風",
               "microphoneDescription": "選擇語音聽寫使用的輸入裝置。",
@@ -11325,7 +11325,7 @@
           "notificationPlaygroundDescription": "用於檢查提示佈局、恢復操作和長文案換行的開發觸發器。",
           "devOnly": "僅開發",
           "orcaCloud": "Orca Cloud",
-          "orcaCloudDescription": "僅限開發環境的第一方雲登入預覽。在生產環境中隱藏；在開發環境中，設定 ORCA_CLOUD_API_URL 和 ORCA_CLOUD_CLIENT_ID 後也會出現在側邊欄帳戶切換器中。",
+          "orcaCloudDescription": "僅限開發環境的第一方雲端登入預覽。在生產環境中隱藏；在開發環境中，設定 ORCA_CLOUD_API_URL 和 ORCA_CLOUD_CLIENT_ID 後也會出現在側邊欄帳戶切換器中。",
           "orcaCloudStatus": "狀態",
           "orcaCloudSignOut": "退出登入",
           "orcaCloudConnect": "連線配置檔案",
@@ -11357,26 +11357,26 @@
           "copyCleanup": "複製命令",
           "retry": "重試清理",
           "cleanup": "清理",
-          "cloudVmLoadFailed": "無法載入雲虛擬機器執行時。",
-          "cloudVmCleanupFailedToast": "無法清理雲虛擬機器執行時。",
-          "cloudVmMarkedCleaned": "已將雲虛擬機器執行時標記為已清理。",
-          "cloudVmCleaned": "已清理雲虛擬機器執行時。",
-          "cloudVmTitle": "雲虛擬機器執行時",
-          "cloudVmRefresh": "重新整理雲虛擬機器執行時",
-          "cloudVmLoading": "正在檢查雲虛擬機器執行時…",
-          "cloudVmEmptyWithSetup": "還沒有云虛擬機器執行時。請在建立工作區時使用環境模板來建立。",
+          "cloudVmLoadFailed": "無法載入雲端虛擬機器執行時。",
+          "cloudVmCleanupFailedToast": "無法清理雲端虛擬機器執行時。",
+          "cloudVmMarkedCleaned": "已將雲端虛擬機器執行時標記為已清理。",
+          "cloudVmCleaned": "已清理雲端虛擬機器執行時。",
+          "cloudVmTitle": "雲端虛擬機器執行時",
+          "cloudVmRefresh": "重新整理雲端虛擬機器執行時",
+          "cloudVmLoading": "正在檢查雲端虛擬機器執行時…",
+          "cloudVmEmptyWithSetup": "還沒有雲端虛擬機器執行時。請在建立工作區時使用環境模板來建立。",
           "stoppingCleanup": "停止…",
           "stopCleanup": "停止清理",
           "cleanupStopped": "清理已停止",
-          "stopCleanupFailed": "無法停止雲虛擬機器清理。"
+          "stopCleanupFailed": "無法停止雲端虛擬機器清理。"
         },
         "ephemeralVms": {
           "search": {
             "description": "瞭解倉庫自帶的環境模板如何為每個工作區提供按需建立、可丟棄的獨立環境。",
-            "cloudVmTitle": "雲虛擬機器",
+            "cloudVmTitle": "雲端虛擬機器",
             "keywordVm": "虛擬機器",
             "keywordSandbox": "沙箱",
-            "keywordCloud": "雲",
+            "keywordCloud": "雲端",
             "keywordRecipe": "食譜",
             "keywordEphemeral": "短暫的"
           }
@@ -11396,14 +11396,14 @@
           "recipesHelp": "orca.yaml 和已啟用外掛中的配方會顯示在這裡，可用於啟動工作區。",
           "checking": "正在檢查環境模板...",
           "none": "還沒有找到環境模板。",
-          "cloudVmSkillTitle": "雲虛擬機器設定技能",
-          "cloudVmRefresh": "重新整理雲虛擬機器環境模板",
-          "cloudVmTerminalTitle": "雲虛擬機器設定",
-          "cloudVmTerminalAriaLabel": "雲虛擬機器技能安裝終端"
+          "cloudVmSkillTitle": "雲端虛擬機器設定技能",
+          "cloudVmRefresh": "重新整理雲端虛擬機器環境模板",
+          "cloudVmTerminalTitle": "雲端虛擬機器設定",
+          "cloudVmTerminalAriaLabel": "雲端虛擬機器技能安裝終端"
         },
         "ephemeralVmsExperimentalSetting": {
           "description": "顯示倉庫自帶按需環境的設定控制元件和工作區執行目標。",
-          "cloudVmToggleLabel": "切換雲虛擬機器"
+          "cloudVmToggleLabel": "切換雲端虛擬機器"
         },
         "SourceControlActionRepoOverrideNote": {
           "agent": "智慧體",
@@ -11974,9 +11974,9 @@
           "saveFailedHelp": "主機已驗證，但 Orca 無法儲存。檢查名稱和本地設定儲存，然後重試。"
         },
         "CloudVmSetupGuide": {
-          "title": "建立雲虛擬機器",
-          "description": "雲虛擬機器會在建立工作區時透過環境模板建立。",
-          "setupRecipe": "為你的雲提供商設定環境模板。",
+          "title": "建立雲端虛擬機器",
+          "description": "雲端虛擬機器會在建立工作區時透過環境模板建立。",
+          "setupRecipe": "為你的雲端提供商設定環境模板。",
           "createWorkspace": "建立工作區，並在“執行於”中選擇該模板。",
           "openSetup": "設定環境模板"
         },
@@ -12092,9 +12092,9 @@
         },
         "orcaAccount": {
           "connected": "已連線",
-          "reconnectRequired": "您的會話已過期。重新登入即可使用雲功能。",
+          "reconnectRequired": "您的會話已過期。重新登入即可使用雲端功能。",
           "unavailable": "Orca 登入在此版本中不可用。",
-          "signedOut": "登入以使用雲功能擴充套件 Orca，包括 Artifacts 和 Orca Relay。",
+          "signedOut": "登入以使用雲端功能擴充 Orca，包括 Artifacts 和 Orca Relay。",
           "checking": "檢查帳戶狀態...",
           "account": "Orca 帳戶",
           "signOut": "登出",
@@ -12116,7 +12116,7 @@
           "keywordSignIn": "登入",
           "keywordSignOut": "登出",
           "keywordRelay": "中繼",
-          "keywordCloud": "雲"
+          "keywordCloud": "雲端"
         },
         "automations": {
           "showButton": "顯示自動化按鈕",
@@ -12219,7 +12219,7 @@
               "description": "Bitbucket Cloud 的拉取請求和構建狀態。",
               "edit": "編輯憑據",
               "connect": "連線",
-              "accountUnknown": "位元桶雲",
+              "accountUnknown": "Bitbucket Cloud",
               "authModeToken": "訪問令牌",
               "authModeBasic": "電子郵件和 API 令牌",
               "disconnect": "斷開 Bitbucket 連線",
