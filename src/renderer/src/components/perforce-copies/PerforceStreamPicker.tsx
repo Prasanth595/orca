@@ -22,19 +22,29 @@ import { runPerforceCopyOperation } from '../../runtime/runtime-perforce-client'
 import { perforceProjectTarget } from '@/lib/perforce-workspace-target'
 
 function choiceLabel(choice: WorkspaceCopyStreamChoice, sourceStream: string): string {
-  if (choice.kind === 'same-stream') {
+  if (choice.kind === 'same-stream' || choice.kind === 'stream') {
+    const stream = choice.kind === 'same-stream' ? sourceStream : choice.stream
     return translate('perforce.copies.directlyOnStream', '{{stream}} directly (no new stream)', {
-      stream: streamShortName(sourceStream)
+      stream: streamShortName(stream)
     })
   }
-  const parent = choice.kind === 'child' ? (choice.parent ?? sourceStream) : choice.stream
+  const parent = choice.parent ?? sourceStream
   return translate('perforce.copies.newStreamFrom', 'New stream from {{stream}}', {
     stream: streamShortName(parent)
   })
 }
 
-function isSelected(value: WorkspaceCopyStreamChoice, stream: string, sourceStream: string) {
+/** The "New stream from" group marks the parent the new child branches from. */
+function isChildOf(value: WorkspaceCopyStreamChoice, stream: string, sourceStream: string) {
   return value.kind === 'child' && (value.parent ?? sourceStream) === stream
+}
+
+/** The "Work directly on" group marks the existing stream the copy sits on. */
+function isDirectlyOn(value: WorkspaceCopyStreamChoice, stream: string, sourceStream: string) {
+  if (stream === sourceStream) {
+    return value.kind === 'same-stream'
+  }
+  return value.kind === 'stream' && value.stream === stream
 }
 
 /**
@@ -148,7 +158,7 @@ export function PerforceStreamPicker({
                     <Check
                       className={cn(
                         'size-3.5',
-                        isSelected(value, stream, sourceStream) ? 'opacity-100' : 'opacity-0'
+                        isChildOf(value, stream, sourceStream) ? 'opacity-100' : 'opacity-0'
                       )}
                     />
                     <span className="min-w-0 flex-1 truncate">{streamShortName(stream)}</span>
@@ -161,24 +171,36 @@ export function PerforceStreamPicker({
                 ))}
               </CommandGroup>
             ) : null}
-            {list ? (
+            {parents.length > 0 ? (
               <CommandGroup
                 heading={translate('perforce.copies.directlyHeading', 'Work directly on')}
               >
-                <CommandItem
-                  value={`${sourceStream} directly`}
-                  onSelect={() => select({ kind: 'same-stream' })}
-                >
-                  <Check
-                    className={cn(
-                      'size-3.5',
-                      value.kind === 'same-stream' ? 'opacity-100' : 'opacity-0'
-                    )}
-                  />
-                  <span className="truncate">
-                    {choiceLabel({ kind: 'same-stream' }, sourceStream)}
-                  </span>
-                </CommandItem>
+                {parents.map((stream) => (
+                  <CommandItem
+                    key={stream}
+                    value={`${stream} directly`}
+                    onSelect={() =>
+                      select(
+                        stream === sourceStream
+                          ? { kind: 'same-stream' }
+                          : { kind: 'stream', stream }
+                      )
+                    }
+                  >
+                    <Check
+                      className={cn(
+                        'size-3.5',
+                        isDirectlyOn(value, stream, sourceStream) ? 'opacity-100' : 'opacity-0'
+                      )}
+                    />
+                    <span className="min-w-0 flex-1 truncate">{streamShortName(stream)}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {stream === sourceStream
+                        ? translate('perforce.copies.thisWorkspace', 'this workspace')
+                        : typeOf.get(stream)}
+                    </span>
+                  </CommandItem>
+                ))}
               </CommandGroup>
             ) : null}
           </CommandList>
