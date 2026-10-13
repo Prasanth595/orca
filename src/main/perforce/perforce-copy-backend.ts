@@ -27,8 +27,7 @@ function createLocalBackend(): WorkspaceCopyBackend {
 }
 
 function deferredRemoteBackend(): WorkspaceCopyBackend {
-  const unavailable = (): Promise<never> =>
-    Promise.reject(new Error(REMOTE_COPY_DEFERRED_MESSAGE))
+  const unavailable = (): Promise<never> => Promise.reject(new Error(REMOTE_COPY_DEFERRED_MESSAGE))
   return {
     readiness: unavailable,
     list: unavailable,

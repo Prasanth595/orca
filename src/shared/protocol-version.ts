@@ -53,7 +53,6 @@ import { AGENT_SESSION_STOP_RUNTIME_CAPABILITIES } from './agent-session-stop-ca
 import { AGENT_SESSION_CREATE_RUNTIME_CAPABILITIES } from './agent-session-create-capabilities'
 import { REMOTE_SERVER_UPDATE_CAPABILITY } from './remote-server-update'
 import { SKILL_RUNTIME_CAPABILITIES } from './skill-install-capability'
-import { PERFORCE_RUNTIME_CAPABILITY } from './perforce/perforce-runtime-capability'
 import {
   AGENT_LAUNCH_RUNTIME_CAPABILITIES,
   AGENT_LAUNCH_RUNTIME_CAPABILITY
@@ -193,7 +192,6 @@ export const SESSION_TABS_RETIREMENT_PROOF_DELTA_RUNTIME_CAPABILITY =
   'session-tabs.retirement-proof-delta.v1' as const
 export const AGENT_SESSION_BOUNDARY_RUNTIME_CAPABILITY =
   'agent-session.session-boundary.v1' as const
-export { REMOTE_SERVER_UPDATE_CAPABILITY } from './remote-server-update'
 export * from './agent-session-stop-capabilities'
 export const AGENT_SESSION_HOST_AUTHORITY_RUNTIME_CAPABILITY =
   'agent-session.host-authority.v1' as const
@@ -452,7 +450,8 @@ export const RUNTIME_CAPABILITIES = [
   WORKSPACE_PORTS_HOST_SCOPED_RUNTIME_CAPABILITY,
   RUNTIME_SOURCE_FENCE_RUNTIME_CAPABILITY,
   SSH_TARGET_MANAGEMENT_RUNTIME_CAPABILITY,
-  PERFORCE_RUNTIME_CAPABILITY,
+  // perforce.* family; value mirrors PERFORCE_RUNTIME_CAPABILITY in perforce-runtime-capability.ts
+  'perforce.v1',
   ...AGENT_LAUNCH_RUNTIME_CAPABILITIES
 ] as const
 

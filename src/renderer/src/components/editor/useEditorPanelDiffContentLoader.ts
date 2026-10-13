@@ -3,10 +3,7 @@ import { requireRuntimeTargetForFileOwner } from '@/lib/file-owner-runtime-targe
 import type { OpenFile } from '@/store/slices/editor'
 import { getConnectionIdForFile } from '@/lib/connection-context'
 import { useAppStore } from '@/store'
-import {
-  getRuntimeGitBranchDiff,
-  getRuntimeGitCommitDiff
-} from '@/runtime/runtime-git-diff-client'
+import { getRuntimeGitBranchDiff, getRuntimeGitCommitDiff } from '@/runtime/runtime-git-diff-client'
 import { getRuntimeGitScope } from '@/runtime/runtime-git-client-context'
 import { getRuntimeWorktreeFileDiff } from '@/runtime/runtime-worktree-file-diff'
 import type { DiffContent, InFlightContentRead } from './editor-panel-content-types'
