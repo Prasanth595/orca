@@ -4,16 +4,25 @@ import type { OrcaRuntimeService } from '../../orca-runtime'
 import { RpcDispatcher } from '../dispatcher'
 import { WORKTREE_METHODS } from './worktree'
 import { WORKTREE_VISIBILITY_SOURCE_DEFAULTS_RUNTIME_CAPABILITY } from '../../../../shared/protocol-version'
-import type { RuntimeWorktreePsSummary } from '../../../../shared/runtime-types'
+import type {
+  RuntimeWorktreePsResult,
+  RuntimeWorktreePsSummary
+} from '../../../../shared/runtime-types'
 
 function makeRuntime(...rows: RuntimeWorktreePsSummary[]) {
+  return runtimeReturning(
+    ...rows.map((row) => ({ worktrees: [row], totalCount: 1, truncated: false }))
+  )
+}
+
+function runtimeReturning(...results: RuntimeWorktreePsResult[]) {
   const getWorktreePs = vi.fn().mockResolvedValue({
     worktrees: [],
     totalCount: 0,
     truncated: false
   })
-  for (const row of rows) {
-    getWorktreePs.mockResolvedValueOnce({ worktrees: [row], totalCount: 1, truncated: false })
+  for (const result of results) {
+    getWorktreePs.mockResolvedValueOnce(result)
   }
   // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: worktree.ps reads only these two runtime members.
   return { getRuntimeId: () => 'test-runtime', getWorktreePs } as unknown as OrcaRuntimeService
@@ -186,23 +195,10 @@ describe('worktree.ps snapshot polls', () => {
     const a = (lastOutputAt: number) => psRow({ lastOutputAt })
     const b = (lastOutputAt: number) =>
       psRow({ lastOutputAt, worktreeId: 'repo-1::/w/b', path: '/w/b', displayName: 'b' })
-    const getWorktreePs = vi
-      .fn()
-      .mockResolvedValueOnce({
-        worktrees: [a(1_700_000_039_000), b(1_700_000_031_000)],
-        totalCount: 2,
-        truncated: false
-      })
-      .mockResolvedValueOnce({
-        worktrees: [b(1_700_000_039_500), a(1_700_000_039_000)],
-        totalCount: 2,
-        truncated: false
-      })
-    const runtime = {
-      getRuntimeId: () => 'test-runtime',
-      getWorktreePs
-      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: worktree.ps reads only these two runtime members.
-    } as unknown as OrcaRuntimeService
+    const runtime = runtimeReturning(
+      { worktrees: [a(1_700_000_039_000), b(1_700_000_031_000)], totalCount: 2, truncated: false },
+      { worktrees: [b(1_700_000_039_500), a(1_700_000_039_000)], totalCount: 2, truncated: false }
+    )
     const dispatcher = new RpcDispatcher({ runtime, methods: WORKTREE_METHODS })
     const first = await poll(dispatcher, { limit: 10_000, afterSnapshotId: null })
     const second = await poll(dispatcher, { limit: 10_000, afterSnapshotId: first.snapshotId })
