@@ -261,6 +261,7 @@ export function attachDividerDrag(
     }
   }
 
+  /** Equalizes the panes in this divider's row or column. */
   const onDoubleClick = (): void => {
     const split = divider.parentElement
     // Why: panes nest as a binary tree, so equalizing only this divider's two

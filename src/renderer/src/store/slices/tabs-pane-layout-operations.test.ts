@@ -112,6 +112,7 @@ describe('TabsSlice', () => {
   })
 
   describe('equalizeTabGroupSplitRun', () => {
+    /** Three groups side by side at the default 50/25/25. */
     const threeAcross = (): TabGroupLayoutNode => ({
       type: 'split',
       direction: 'horizontal',

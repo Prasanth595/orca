@@ -90,6 +90,7 @@ export function equalizeSameAxisPaneRun(split: HTMLElement): HTMLElement | null 
 
   const weights = new Map<HTMLElement, number>()
   let changed = false
+  /** Sets each child's weight and walks into nested splits on the same axis. */
   const visit = (el: HTMLElement): void => {
     for (const child of findPaneChildren(el)) {
       const nextFlex = `${getEqualizeWeight(child, direction, weights)} 1 0%`

@@ -104,6 +104,7 @@ export function equalizeSplitRunRatios(
     runRootDepth -= 1
   }
 
+  /** Copies the path down to the run root, sharing every untouched subtree. */
   const rebuild = (current: TabGroupLayoutNode, depth: number): TabGroupLayoutNode => {
     if (depth === runRootDepth) {
       return equalizeSplitRun(current, direction)

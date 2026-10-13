@@ -7,6 +7,7 @@ import {
   updateSplitRatio
 } from '../../../../../shared/workspace-layout/tab-group-layout-tree'
 
+/** Tab-group actions split out of the tabs slice: copy, merge and split-ratio edits. */
 export function createTabsSecondaryActions(
   set: TabsSliceSet,
   get: TabsSliceGet
@@ -17,6 +18,7 @@ export function createTabsSecondaryActions(
   | 'setTabGroupSplitRatio'
   | 'equalizeTabGroupSplitRun'
 > {
+  /** The single writer of a worktree's tab-group layout; skips the commit when `edit` changes nothing. */
   const writeTabGroupLayout = (
     worktreeId: string,
     edit: (layout: TabGroupLayoutNode) => TabGroupLayoutNode
@@ -92,6 +94,7 @@ export function createTabsSecondaryActions(
       return targetGroupId
     },
 
+    /** Stores a dragged ratio for the split at `nodePath`. */
     setTabGroupSplitRatio: (worktreeId, nodePath, ratio) => {
       const path = nodePath.length > 0 ? nodePath.split('.') : []
       writeTabGroupLayout(worktreeId, (layout) => {
@@ -111,6 +114,7 @@ export function createTabsSecondaryActions(
       })
     },
 
+    /** Equalizes every group along the axis of the split at `nodePath`. */
     equalizeTabGroupSplitRun: (worktreeId, nodePath) => {
       writeTabGroupLayout(worktreeId, (layout) =>
         equalizeSplitRunRatios(layout, nodePath.length > 0 ? nodePath.split('.') : [])

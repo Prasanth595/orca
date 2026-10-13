@@ -8,6 +8,7 @@ type Callbacks = {
   onLayoutChanged: Mock<(intent?: PaneLayoutEditIntent) => void>
 }
 
+/** A pane element with the given flex value. */
 function makePane(flex = '1 1 0%'): HTMLElement {
   const pane = document.createElement('div')
   pane.className = 'pane'
@@ -31,14 +32,17 @@ function makeSplit(
   return { split, divider }
 }
 
+/** Mocked drag callbacks so a test can see whether a refit and a layout edit were reported. */
 function makeCallbacks(): Callbacks {
   return { refitPanesUnder: vi.fn(), onLayoutChanged: vi.fn() }
 }
 
+/** Dispatches a dblclick on the divider. */
 function doubleClick(divider: HTMLElement): void {
   divider.dispatchEvent(new MouseEvent('dblclick'))
 }
 
+/** The inline flex value of each element. */
 const flexOf = (...els: HTMLElement[]): string[] => els.map((el) => el.style.flex)
 
 describe.each([

@@ -7,6 +7,7 @@ import type { HoveredTabInsertion } from './useTabDragSplit'
 const MIN_RATIO = 0.15
 const MAX_RATIO = 0.85
 
+/** Divider between two tab groups: drag to resize, double-click to equalize the row or column. */
 function ResizeHandle({
   direction,
   onResizeStart,
@@ -140,6 +141,7 @@ function ResizeHandle({
   )
 }
 
+/** Renders one split of the tab-group layout tree and its resize handle. */
 function SplitNode({
   node,
   nodePath,

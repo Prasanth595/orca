@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import type { TabGroupLayoutNode, TabGroupSplitDirection } from '../tab-types'
 import { equalizeSplitRunRatios } from './tab-group-layout-tree'
 
+/** A leaf node for `groupId`. */
 const leaf = (groupId: string): TabGroupLayoutNode => ({ type: 'leaf', groupId })
 
+/** A split node; leave `ratio` out to get the 0.5 default. */
 function split(
   direction: TabGroupSplitDirection,
   first: TabGroupLayoutNode,
