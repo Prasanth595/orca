@@ -66,7 +66,8 @@ const store = Object.assign(navigation, {
 
 vi.mock('@/store', () => ({
   useAppStore: {
-    getState: () => store
+    getState: () => store,
+    subscribe: vi.fn(() => () => {})
   }
 }))
 
