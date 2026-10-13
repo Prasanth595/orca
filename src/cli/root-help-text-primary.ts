@@ -88,6 +88,7 @@ export const ROOT_HELP_TEXT_PRIMARY = [
   '  agent launch              Start an agent in a worktree, as a chat or terminal per your settings',
   '',
   'Files:',
+  '  file close                Close a file tab, or --all in one worktree (--force discards drafts)',
   '  file open                 Open a file as a tab, view stays put (--focus brings you to it)',
   '  file diff                 Open a file diff as a tab, view stays put (--focus brings you to it)',
   '  file open-changed         Open changed files as tabs, view stays put (--focus brings you there)',

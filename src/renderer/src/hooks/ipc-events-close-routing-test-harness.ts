@@ -1,6 +1,7 @@
 /* oxlint-disable anti-slop/no-module-mocking -- Vitest support module for the 4 close-routing ipc-events specs, not shipped code, and it falls
    outside the *.test / *.spec / tests glob set. The stubs and the hook invocation are one unit; splitting the 11 doMock
    calls back out would duplicate them into all 4 specs. */
+import type { SessionTabCloseRequest } from '../../../shared/session-tab-close'
 import type * as ReactModule from 'react'
 import { vi } from 'vitest'
 import type { TerminalSurfaceCloseTarget } from '../../../shared/terminal-surface-close-target'
@@ -15,12 +16,7 @@ export type CloseFloatingItemListener = (payload: { sourceId: string }) => void
 export type SelectFloatingIndexListener = (payload: { index: number }) => void
 export type CloseTerminalListener = (target: TerminalSurfaceCloseTarget) => void
 export type CloseSessionTabListener = (data: { tabId: string; worktreeId: string }) => void
-export type SessionTabCloseRequestListener = (data: {
-  requestId: string
-  tabId: string
-  worktreeId: string
-  expiresAt?: number
-}) => void
+export type SessionTabCloseRequestListener = (data: SessionTabCloseRequest) => void
 export type TerminalTabCloseRequestListener = (data: {
   requestId: string
   tabId: string

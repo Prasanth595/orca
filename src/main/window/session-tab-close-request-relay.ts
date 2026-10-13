@@ -14,7 +14,8 @@ const SESSION_TAB_CLOSE_RESPONSE_GRACE_MS = 5_000
 export async function requestSessionTabCloseFromRenderer(
   mainWindow: BrowserWindow,
   tabId: string,
-  worktreeId: string
+  worktreeId: string,
+  fileClose?: SessionTabCloseRequest['fileClose']
 ): Promise<void> {
   if (mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) {
     throw new Error('renderer_unavailable')
@@ -58,7 +59,13 @@ export async function requestSessionTabCloseFromRenderer(
     webContents.once('destroyed', onRendererUnavailable)
     webContents.once('render-process-gone', onRendererUnavailable)
     webContents.once('did-start-loading', onRendererUnavailable)
-    const request: SessionTabCloseRequest = { requestId, tabId, worktreeId, expiresAt }
+    const request: SessionTabCloseRequest = {
+      requestId,
+      tabId,
+      worktreeId,
+      expiresAt,
+      ...(fileClose ? { fileClose } : {})
+    }
     try {
       webContents.send('ui:sessionTabCloseRequest', request)
     } catch {

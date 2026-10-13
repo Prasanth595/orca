@@ -50,6 +50,14 @@ export const FileOpenTab = FileOpen.extend({
   navigation: z.enum(RUNTIME_NAVIGATION_TARGETS).optional()
 })
 
+export const FileClose = WorktreeSelector.extend({
+  relativePath: z.string().min(1).optional(),
+  all: z.boolean().optional(),
+  force: z.boolean().optional()
+}).refine((params) => Boolean(params.relativePath) !== (params.all === true), {
+  message: 'Choose a file path or --all.'
+})
+
 export const FileOpenDiff = FileOpenTab.extend({
   staged: z.boolean().optional()
 })

@@ -21,6 +21,7 @@ const blocked = [
   ['orchestration worker-relay', 'orchestration worker-release'],
   ['orchestration worker-reuse', 'orchestration worker-release'],
   ['tab clues', 'tab close'],
+  ['file clues', 'file close'],
   ['linear relation move', 'linear relation remove'],
   ['environment rollbook', 'environment rollback']
 ]
@@ -33,6 +34,7 @@ const recovery = [
   ['orchestration worker-stp', 'orchestration worker-stop'],
   ['orchestration worker-releasee', 'orchestration worker-release'],
   ['tab clos', 'tab close'],
+  ['file clos', 'file close'],
   ['tab clone', 'tab close'],
   ['environment rollbac', 'environment rollback'],
   ['environment remov', 'environment rm'],

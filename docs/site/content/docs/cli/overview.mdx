@@ -69,6 +69,8 @@ Open files and diffs as tabs in their Orca worktree from a shell. They open with
 orca file open src/App.tsx
 orca file diff src/App.tsx --staged
 orca file open-changed --mode both
+orca file close src/App.tsx --worktree active --json
+orca file close --all --worktree active --json
 ```
 
 Use `--worktree <selector>` when the shell's current directory is not inside the target worktree.

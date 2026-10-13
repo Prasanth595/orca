@@ -191,6 +191,7 @@ import {
 } from './files-mutation-params'
 import {
   DocPreviewFileRead,
+  FileClose,
   FileListAll,
   FileOpenDiff,
   FileOpenTab,
@@ -825,6 +826,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'emulator.type': TypeParams,
   'emulator.unregisterActive': EmulatorUnregisterActiveParams,
   'files.browseServerDir': ServerDirectoryBrowse,
+  'files.close': FileClose,
   'files.commitUpload': FileCommitUpload,
   'files.copy': FileCopy,
   'files.createDir': FileMutationOpen,

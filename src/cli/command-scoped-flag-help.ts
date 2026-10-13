@@ -4,6 +4,10 @@ const FILE_OPEN_FOCUS_HELP =
 
 /** Per-command flag help, kept out of the shared help chain it would crowd. */
 const COMMAND_SCOPED_FLAG_HELP: Record<string, Record<string, string>> = {
+  'file close': {
+    all: '--all                  Close every file tab in the selected worktree',
+    force: '--force                Explicitly discard unsaved changes and close pinned files'
+  },
   'reference add': {
     url: '--url <url>            Full review or issue URL; pass all URLs positionally or all as repeated --url'
   },
