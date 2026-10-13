@@ -1,13 +1,13 @@
-import { globSync, readFileSync, writeFileSync } from 'node:fs'
+import { globSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import ts from 'typescript-api'
 import {
   diffCounts,
-  formatBaseline,
-  parseBaseline,
-  parseBaselineNotes
-} from './check-focus-read-ratchet.mjs'
+  parseCountBaseline,
+  pruneCountBaseline,
+  totalCount
+} from './ratchet-baseline.mjs'
 import { literalString, propertyName, unwrap } from './static-module-specifiers.mjs'
 import { isTestOnlySourcePath } from './test-only-source-path.mjs'
 
@@ -64,6 +64,12 @@ const GATED_FAMILIES = [
   { modules: ['src/main/win32-utils'], advice: { grantDirAcl: 'use grantDirAclAsync' } }
 ]
 const ADVICE = new Map(GATED_FAMILIES.flatMap((family) => Object.entries(family.advice)))
+const GATED_MARKERS = [
+  ...ADVICE.keys(),
+  ...new Set(
+    GATED_FAMILIES.flatMap((family) => family.modules.map((module) => path.posix.basename(module)))
+  )
+]
 // Only spread-free calls with no options or a literal with absent/false `sync` are exempt.
 const SYNC_FLAG_SYMBOLS = new Set(['hardenSecurePath'])
 const FALLBACK_OPERATORS = new Set([ts.SyntaxKind.QuestionQuestionToken, ts.SyntaxKind.BarBarToken])
@@ -165,9 +171,16 @@ function isValueReference(node) {
  * Counted by reference only: not traced through non-const holders or the file's own wrappers.
  */
 export function collectSyncLaunchUses(file, contents) {
-  const source = ts.createSourceFile(file, contents, ts.ScriptTarget.Latest, true)
+  // Escaped spellings and relative imports inside gated modules still need the full analysis.
+  const analyze =
+    contents.includes('\\') ||
+    GATED_MARKERS.some((marker) => contents.includes(marker) || file.includes(marker))
+  const source = ts.createSourceFile(file, contents, ts.ScriptTarget.Latest, analyze)
   if (source.parseDiagnostics.length > 0) {
     throw new Error(`Cannot parse ${file}; the sync-spawn ratchet must not skip it.`)
+  }
+  if (!analyze) {
+    return { count: 0, symbols: [] }
   }
   const used = new Set()
   let count = 0
@@ -384,15 +397,11 @@ export function collectSyncSpawnSources(root = ROOT) {
   )
 }
 
-function total(counts) {
-  return [...counts.values()].reduce((sum, count) => sum + count, 0)
-}
-
 export function main(root = ROOT) {
   const { counts, symbols } = countSyncSpawnUses(collectSyncSpawnSources(root))
   const { grown, shrunk } = diffCounts(
     counts,
-    parseBaseline(readFileSync(path.join(root, BASELINE_PATH), 'utf8'))
+    parseCountBaseline(readFileSync(path.join(root, BASELINE_PATH), 'utf8'))
   )
   for (const { file, now, allowed } of grown) {
     console.error(
@@ -408,24 +417,15 @@ export function main(root = ROOT) {
     return 1
   }
   console.log(
-    `Main sync-spawn ratchet OK — ${total(counts)} use(s) in ${counts.size} legacy file(s).`
+    `Main sync-spawn ratchet OK — ${totalCount(counts)} use(s) in ${counts.size} legacy file(s).`
   )
   return 0
 }
 
 export function prune(root = ROOT) {
-  const baselineFile = path.join(root, BASELINE_PATH)
-  const text = readFileSync(baselineFile, 'utf8')
   const { counts } = countSyncSpawnUses(collectSyncSpawnSources(root))
-  // Lowers entries only; growth still has to be fixed in the code.
-  const pruned = new Map(
-    [...parseBaseline(text)].map(([file, allowed]) => [
-      file,
-      Math.min(allowed, counts.get(file) ?? 0)
-    ])
-  )
-  writeFileSync(baselineFile, formatBaseline(pruned, BASELINE_HEADER, parseBaselineNotes(text)))
-  console.log(`Pruned ${BASELINE_PATH} to ${total(pruned)} use(s).`)
+  const kept = pruneCountBaseline(root, BASELINE_PATH, BASELINE_HEADER, counts)
+  console.log(`Pruned ${BASELINE_PATH} to ${kept} use(s).`)
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
