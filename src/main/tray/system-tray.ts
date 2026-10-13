@@ -43,6 +43,9 @@ let devIndicator: { label: string | null } | null = null
 
 let nativeThemeUpdatedListener: (() => void) | null = null
 
+// Why: kept so a UI language change can rebuild the menu labels without recreating the tray.
+let trayOptions: SystemTrayOptions | null = null
+
 // Why: multiple dev instances can run side by side (one per worktree); the
 // tooltip carries the worktree/branch label so hovering tells them apart.
 function baseTooltip(): string {
@@ -251,7 +254,24 @@ export function createSystemTray(opts: SystemTrayOptions): Tray | null {
   // Why: reflect any attention event that fired before the tray existed.
   applyTrayImage()
 
-  const menu = Menu.buildFromTemplate([
+  trayOptions = opts
+  tray.setContextMenu(buildTrayMenu(opts))
+  if (process.platform === 'win32') {
+    tray.setToolTip(baseTooltip())
+    // Why: a left-click on the tray icon is the conventional Windows gesture to
+    // restore a minimized-to-tray app; macOS opens the attached menu instead.
+    tray.on(
+      'click',
+      safeMenuAction(() => opts.onOpen())
+    )
+  } else {
+    watchMacAppearance()
+  }
+  return tray
+}
+
+function buildTrayMenu(opts: SystemTrayOptions): Menu {
+  return Menu.buildFromTemplate([
     ...(devIndicator
       ? ([
           // Why: several dev instances (one per worktree) can show trays at
@@ -281,19 +301,16 @@ export function createSystemTray(opts: SystemTrayOptions): Tray | null {
       : []),
     { label: translateMain('tray.quit', 'Quit'), click: safeMenuAction(() => opts.onQuit()) }
   ])
-  tray.setContextMenu(menu)
-  if (process.platform === 'win32') {
-    tray.setToolTip(baseTooltip())
-    // Why: a left-click on the tray icon is the conventional Windows gesture to
-    // restore a minimized-to-tray app; macOS opens the attached menu instead.
-    tray.on(
-      'click',
-      safeMenuAction(() => opts.onOpen())
-    )
-  } else {
-    watchMacAppearance()
+}
+
+/** Rebuilds the tray menu labels after a UI language change. No-op without a live tray. */
+export function rebuildSystemTrayMenu(): void {
+  if (!tray || tray.isDestroyed() || !trayOptions) {
+    return
   }
-  return tray
+  tray.setContextMenu(buildTrayMenu(trayOptions))
+  // Why: the macOS attention tooltip is translated too.
+  scheduleTrayImage()
 }
 
 /** Applies the persisted macOS visibility preference without affecting Windows. */
@@ -332,6 +349,7 @@ export function destroySystemTray(): void {
   }
   tray = null
   baseTrayImage = null
+  trayOptions = null
   // Why: attention is owned by the notification/visibility flow, and must
   // survive the macOS hide/show toggle so a re-shown icon keeps its dot.
 }
