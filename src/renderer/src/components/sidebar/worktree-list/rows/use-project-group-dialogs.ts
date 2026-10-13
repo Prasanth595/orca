@@ -1,10 +1,12 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useAppStore } from '@/store'
 import { translate } from '@/i18n/i18n'
 import { selectProjectGroupRemovalTargets } from '@/store/slices/project-group-removal-targets'
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 import type { Repo } from '../../../../../../shared/repo-types'
+import { isRepoIconStored, type RepoIcon } from '../../../../../../shared/repo-icon'
+import { findIndexedProjectGroupOwner } from '@/lib/worktree-runtime-owner-index'
 import {
   getRepoExecutionHostId,
   type ExecutionHostId
@@ -19,6 +21,12 @@ export type ProjectGroupDeleteDialogState = {
   groupId: string
   groupName: string
   removeContainedProjects: boolean
+  hostId?: ExecutionHostId
+}
+
+export type ProjectGroupIconDialogState = {
+  groupId: string
+  groupName: string
   hostId?: ExecutionHostId
 }
 
@@ -64,7 +72,7 @@ function reportProjectGroupDeleteFailures(result: {
   }
 }
 
-// Create/rename/delete flows for project groups, including the contained-project fan-out.
+// Create/rename/icon/delete flows for project groups, including the contained-project fan-out.
 export function useProjectGroupDialogs(args: {
   repos: readonly Repo[]
   repoMap: Map<string, Repo>
@@ -79,6 +87,81 @@ export function useProjectGroupDialogs(args: {
   )
   const [nameDialog, setNameDialog] = useState<ProjectGroupNameDialogState | null>(null)
   const [deleteDialog, setDeleteDialog] = useState<ProjectGroupDeleteDialogState | null>(null)
+  const [iconDialog, setIconDialog] = useState<ProjectGroupIconDialogState | null>(null)
+
+  const handleChangeProjectGroupIcon = useCallback(
+    (groupId: string, groupName: string, hostId?: ExecutionHostId) => {
+      setIconDialog({ groupId, groupName, hostId })
+    },
+    []
+  )
+
+  // Why: read the live row so the dialog preview tracks each saved pick.
+  const iconDialogGroup = useMemo(
+    () =>
+      iconDialog
+        ? findIndexedProjectGroupOwner(projectGroups, iconDialog.groupId, iconDialog.hostId)
+        : null,
+    [iconDialog, projectGroups]
+  )
+
+  // Why: saves run in pick order, so a slow earlier response can't overwrite a later pick.
+  const iconSaveQueue = useRef<Promise<void>>(Promise.resolve())
+
+  const saveProjectGroupIcon = useCallback(
+    async (target: ProjectGroupIconDialogState, icon: RepoIcon | null) => {
+      const saved = await updateProjectGroup(target.groupId, { icon }, { hostId: target.hostId })
+      const stored = findIndexedProjectGroupOwner(
+        useAppStore.getState().projectGroups,
+        target.groupId,
+        target.hostId
+      )
+      if (saved && isRepoIconStored(stored?.icon, icon)) {
+        return
+      }
+      // Why: an older host strips the unknown icon field yet still reports success.
+      if (saved && icon !== null && !stored?.icon) {
+        toast.error(
+          translate(
+            'auto.components.sidebar.WorktreeList.groupIconUnsupported',
+            "This group's host doesn't support group icons yet"
+          ),
+          {
+            description: translate(
+              'auto.components.sidebar.WorktreeList.groupIconUnsupportedDesc',
+              'The group is stored on an Orca server running an older version. Update Orca there, then set the icon again.'
+            )
+          }
+        )
+        return
+      }
+      toast.error(
+        translate(
+          'auto.components.sidebar.WorktreeList.groupIconFailed',
+          'Failed to update group icon'
+        ),
+        {
+          description: translate(
+            'auto.components.sidebar.WorktreeList.groupIconFailedDesc',
+            "Orca could not confirm the icon with the group's host. Recheck the group after reconnecting."
+          )
+        }
+      )
+    },
+    [updateProjectGroup]
+  )
+
+  const handleSetProjectGroupIcon = useCallback(
+    (icon: RepoIcon | null): Promise<void> => {
+      if (!iconDialog) {
+        return Promise.resolve()
+      }
+      const run = iconSaveQueue.current.then(() => saveProjectGroupIcon(iconDialog, icon))
+      iconSaveQueue.current = run.catch(() => undefined)
+      return run
+    },
+    [iconDialog, saveProjectGroupIcon]
+  )
 
   const handleCreateGroupFromRepo = useCallback((repo: Repo) => {
     setNameDialog({ type: 'create-from-repo', repo })
@@ -192,6 +275,11 @@ export function useProjectGroupDialogs(args: {
   }, [deleteProjectGroupWithContainedProjects, removeContainedProjects, deleteDialog])
 
   return {
+    iconDialog,
+    setIconDialog,
+    iconDialogGroup,
+    handleChangeProjectGroupIcon,
+    handleSetProjectGroupIcon,
     nameDialog,
     setNameDialog,
     deleteDialog,

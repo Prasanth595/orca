@@ -26,6 +26,7 @@ export function ProjectGroupHeaderMenu({
   hostId,
   label,
   onRename,
+  onChangeIcon,
   onDelete
 }: {
   groupId: string
@@ -33,6 +34,7 @@ export function ProjectGroupHeaderMenu({
   hostId?: ExecutionHostId
   label: string
   onRename: (groupId: string, currentName: string, hostId?: ExecutionHostId) => void
+  onChangeIcon?: (groupId: string, groupName: string, hostId?: ExecutionHostId) => void
   onDelete: (groupId: string, groupName: string, hostId?: ExecutionHostId) => void
 }): React.JSX.Element {
   return (
@@ -71,6 +73,11 @@ export function ProjectGroupHeaderMenu({
         <DropdownMenuItem onSelect={() => onRename(groupId, label, hostId)}>
           {translate('auto.components.sidebar.WorktreeList.4d7b73658c', 'Rename group')}
         </DropdownMenuItem>
+        {onChangeIcon ? (
+          <DropdownMenuItem onSelect={() => onChangeIcon(groupId, label, hostId)}>
+            {translate('auto.components.sidebar.WorktreeList.changeGroupIcon', 'Change icon')}
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem variant="destructive" onSelect={() => onDelete(groupId, label, hostId)}>
           {translate('auto.components.sidebar.WorktreeList.902115cdbe', 'Delete group')}
         </DropdownMenuItem>

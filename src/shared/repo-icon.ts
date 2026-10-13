@@ -188,3 +188,30 @@ export function sanitizeRepoIcon(value: unknown): RepoIcon | null | undefined {
 
   return undefined
 }
+
+function repoIconsEqual(a: RepoIcon | null, b: RepoIcon | null): boolean {
+  if (a === null || b === null) {
+    return a === b
+  }
+  switch (a.type) {
+    case 'lucide':
+      return b.type === 'lucide' && a.name === b.name
+    case 'emoji':
+      return b.type === 'emoji' && a.emoji === b.emoji
+    case 'image':
+      return b.type === 'image' && a.src === b.src && a.source === b.source && a.label === b.label
+  }
+}
+
+/** Whether a host stored what it would store for `requested`; hosts sanitize before saving. */
+export function isRepoIconStored(
+  stored: RepoIcon | null | undefined,
+  requested: RepoIcon | null
+): boolean {
+  const expected = sanitizeRepoIcon(requested)
+  // Why: hosts ignore an invalid icon, so there is no stored value to confirm.
+  if (expected === undefined) {
+    return true
+  }
+  return repoIconsEqual(stored ?? null, expected)
+}

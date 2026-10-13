@@ -1,5 +1,5 @@
 import React from 'react'
-import { AlertCircle, Server, ServerOff, Star, Trash2 } from 'lucide-react'
+import { AlertCircle, Star, Trash2 } from 'lucide-react'
 
 import { RepoIconGlyph } from '@/components/repo/repo-icon'
 import { Badge } from '@/components/ui/badge'
@@ -13,6 +13,7 @@ import { formatSparseDirectoryPreview, shouldBeginWorktreeRename } from './workt
 import type { WorktreeCardPresentation } from './worktree-card-presentation'
 import { WorktreeCardSshHostControl } from './WorktreeCardSshHostControl'
 import { WorktreeTitleInlineRename } from './WorktreeTitleInlineRename'
+import { RuntimeHostIndicator } from './runtime-host-indicator'
 import type { WorktreeCardController } from './use-worktree-card-controller'
 
 // Why: pinned repo icon and compact inline badge share this chip shell so both repo cues read as the same affordance.
@@ -116,43 +117,10 @@ export function WorktreeCardHeader({
         )}
 
         {!repo?.connectionId && parsedRepoHost?.kind === 'runtime' && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="shrink-0 inline-flex items-center">
-                {isRuntimeDisconnected ? (
-                  // Passive by design: runtime ("Orca server") hosts have no
-                  // renderer-reachable connect API, unlike the SSH glyph above which is
-                  // now a control. Don't "fix" the inconsistency by wiring one up.
-                  <ServerOff className="size-3 text-destructive" />
-                ) : (
-                  <Server className="size-3 text-muted-foreground" />
-                )}
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="right" sideOffset={8}>
-              {isRuntimeDisconnected
-                ? runtimeHostLabel
-                  ? translate(
-                      'auto.components.sidebar.WorktreeCard.runtimeHostDisconnectedNamed',
-                      '{{hostName}} disconnected',
-                      { hostName: runtimeHostLabel }
-                    )
-                  : translate(
-                      'auto.components.sidebar.WorktreeCard.runtimeHostDisconnected',
-                      'Server disconnected'
-                    )
-                : runtimeHostLabel
-                  ? translate(
-                      'auto.components.sidebar.WorktreeCard.runtimeHostProjectNamed',
-                      'Project on {{hostName}}',
-                      { hostName: runtimeHostLabel }
-                    )
-                  : translate(
-                      'auto.components.sidebar.WorktreeCard.runtimeHostProject',
-                      'Project on Orca server'
-                    )}
-            </TooltipContent>
-          </Tooltip>
+          <RuntimeHostIndicator
+            runtimeHostLabel={runtimeHostLabel}
+            isRuntimeDisconnected={isRuntimeDisconnected}
+          />
         )}
 
         {showInlineRepoBadge && (

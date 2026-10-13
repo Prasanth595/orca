@@ -42,6 +42,7 @@ import {
 } from './header-event-guards'
 import type { WorktreeSidebarHeaderDrag } from '../drag/use-header-drag'
 import { getWorktreeOptionId } from './option-dom'
+import { ProjectGroupHeaderGlyph } from './project-group-header-glyph'
 
 export type SectionHeaderRowContext = {
   groupBy: WorktreeGroupBy
@@ -60,6 +61,7 @@ export type SectionHeaderRowContext = {
   toggleGroupWithScrollAnchor: (groupKey: string) => void
   projectActions: RepoHeaderProjectActions
   onRenameProjectGroup: (groupId: string, currentName: string, hostId?: ExecutionHostId) => void
+  onChangeProjectGroupIcon?: (groupId: string, groupName: string, hostId?: ExecutionHostId) => void
   onDeleteProjectGroup: (groupId: string, groupName: string, hostId?: ExecutionHostId) => void
   onCreateFolderWorkspace: (projectGroup: ProjectGroup) => void
   onWorkspaceStatusDragOver: (event: React.DragEvent, status: WorkspaceStatus) => void
@@ -91,6 +93,8 @@ export function renderWorktreeSectionHeaderRow(args: {
   const isRepoHeader = ctx.groupBy === 'repo' && row.repo !== undefined
   const isProjectGroupHeader = ctx.groupBy === 'repo' && row.projectGroup !== undefined
   const projectIdForHeader = isRepoHeader ? row.repo!.id : undefined
+  const projectGroupForIcon =
+    isProjectGroupHeader && !row.repo && row.projectGroup?.id != null ? row.projectGroup : null
   const projectGroupIdForHeader =
     isProjectGroupHeader && !row.repo && typeof row.projectGroup?.id === 'string'
       ? row.projectGroup.id
@@ -321,6 +325,11 @@ export function renderWorktreeSectionHeaderRow(args: {
                   className="size-4"
                   iconClassName="size-3.5"
                 />
+              ) : isProjectGroupHeader ? (
+                <ProjectGroupHeaderGlyph
+                  icon={projectGroupForIcon?.icon ?? null}
+                  defaultIcon={row.icon}
+                />
               ) : (
                 <row.icon className="size-3" />
               )}
@@ -364,6 +373,7 @@ export function renderWorktreeSectionHeaderRow(args: {
               hostId={projectGroupHostIdForHeader}
               label={row.label}
               onRename={ctx.onRenameProjectGroup}
+              onChangeIcon={ctx.onChangeProjectGroupIcon}
               onDelete={ctx.onDeleteProjectGroup}
             />
           ) : null}
