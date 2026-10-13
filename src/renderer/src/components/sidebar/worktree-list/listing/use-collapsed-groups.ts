@@ -1,30 +1,29 @@
 import { useMemo } from 'react'
+import { getWorktreeRevealCollapsedGroupKeys } from '../navigation/worktree-reveal-group-keys'
 import type { AppState } from '@/store/types'
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 import type { Repo } from '../../../../../../shared/repo-types'
 import type { WorkspaceStatusDefinition, Worktree } from '../../../../../../shared/worktree/types'
 import type { WorktreeLineage } from '../../../../../../shared/worktree/lineage-types'
-import { PINNED_GROUP_KEY, getLineageGroupKey } from '../grouping/group-keys'
 import type {
   PinnedWorktreeDisplayPolicy,
   WorktreeGroupBy,
   WorktreeGroupBySecondary
 } from '../grouping/row-types'
 import type { ProjectGroupingModel } from '../grouping/project-grouping'
-import { getGroupKeysForWorktree } from '../grouping/worktree-group-keys'
 import { getFolderWorkspaceRevealGroupKeys } from '../navigation/folder-reveal'
 import type { FolderWorkspace } from '../../../../../../shared/folder-workspace-types'
 import type { ExecutionHostId } from '../../../../../../shared/execution-host'
-import { isPinnedSectionWorktree } from '../../pinned-section-worktrees'
-import { getWorktreeLineageAncestors } from '../../worktree-lineage-projection'
 
 // While the agent send picker targets a workspace, force open every section that hides it.
 export function useEffectiveCollapsedGroups(args: {
+  hostScopedGroups?: boolean
   collapsedGroups: Set<string>
   agentSendTargetWorktreeId: string | null
   groupBy: WorktreeGroupBy
   groupBySecondary: WorktreeGroupBySecondary
   pinnedDisplayPolicy: PinnedWorktreeDisplayPolicy
+  worktrees: readonly Worktree[]
   visibleWorktrees: readonly Worktree[]
   repoMap: Map<string, Repo>
   worktreeMap: Map<string, Worktree>
@@ -39,10 +38,12 @@ export function useEffectiveCollapsedGroups(args: {
 }): Set<string> {
   const {
     collapsedGroups,
+    hostScopedGroups = false,
     agentSendTargetWorktreeId,
     groupBy,
     groupBySecondary,
     pinnedDisplayPolicy,
+    worktrees,
     visibleWorktrees,
     repoMap,
     worktreeMap,
@@ -67,7 +68,7 @@ export function useEffectiveCollapsedGroups(args: {
         agentSendTargetWorktreeId,
         folderWorkspaces,
         projectGroups,
-        { groupBy, groupBySecondary, workspaceStatuses, defaultHostId }
+        { groupBy, groupBySecondary, workspaceStatuses, defaultHostId, hostScopedGroups }
       )
       if (folderKeys.length === 0) {
         return collapsedGroups
@@ -79,41 +80,35 @@ export function useEffectiveCollapsedGroups(args: {
       return nextForFolder
     }
     const next = new Set(collapsedGroups)
-    if (
-      pinnedDisplayPolicy === 'single-location' &&
-      isPinnedSectionWorktree(targetWorktree, visibleWorktrees, worktreeLineageById, worktreeMap)
-    ) {
-      next.delete(PINNED_GROUP_KEY)
-    } else {
-      for (const groupKey of getGroupKeysForWorktree(
-        groupBy,
-        targetWorktree,
-        repoMap,
-        prCache,
-        workspaceStatuses,
-        settings,
-        projectGroups,
-        projectGrouping,
-        groupBySecondary
-      )) {
-        next.delete(groupKey)
-      }
-    }
-
-    for (const parent of getWorktreeLineageAncestors(
-      targetWorktree,
+    for (const groupKey of getWorktreeRevealCollapsedGroupKeys({
+      worktree: targetWorktree,
+      worktrees,
+      visibleWorktrees,
       worktreeLineageById,
-      worktreeMap
-    )) {
-      next.delete(getLineageGroupKey(parent.id))
+      repoMap,
+      defaultHostId,
+      hostScopedGroups,
+      collapsedGroups,
+      groupBy,
+      groupBySecondary,
+      pinnedDisplayPolicy,
+      prCache,
+      workspaceStatuses,
+      settings,
+      projectGroups,
+      projectGrouping
+    })) {
+      next.delete(groupKey)
     }
     return next
   }, [
     agentSendTargetWorktreeId,
     collapsedGroups,
+    hostScopedGroups,
     groupBy,
     groupBySecondary,
     pinnedDisplayPolicy,
+    worktrees,
     visibleWorktrees,
     prCache,
     projectGroups,

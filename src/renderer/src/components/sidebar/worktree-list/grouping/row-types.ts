@@ -29,6 +29,7 @@ export function getPinnedWorktreeDisplayPolicy(
 
 export type GroupHeaderRow = {
   type: 'header'
+  collapseKey?: string
   key: string
   /** Semantic role stays explicit when a secondary grouping differs from the primary mode. */
   groupKind?: GroupHeaderKind

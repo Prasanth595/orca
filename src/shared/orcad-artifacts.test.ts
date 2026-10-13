@@ -5,17 +5,27 @@ import { BUNDLED_RIPGREP_PLATFORMS, bundledRipgrepBinaryName } from './bundled-r
 import { SERVER_TARGETS } from './node-runtime-pin'
 import {
   ORCAD_BUILD_TARGET_FILENAME,
+  ORCAD_FOREIGN_SQLITE_READER_ENTRY,
   ORCAD_NODE_PTY_JS_ARTIFACTS,
   ORCAD_NODE_RUNTIME_MARKER_FILENAME,
   ORCAD_RIPGREP_ARTIFACTS,
   ORCAD_RIPGREP_LICENSE_ARTIFACTS,
+  ORCAD_WINDOWS_SECURITY_FILENAME,
   orcadArtifactFilenames,
   orcadBunRuntimeFilename,
   orcadNodeRuntimeRelativePath,
-  orcadTemplateCommonFilenames
+  orcadTemplateCommonFilenames,
+  orcadTemplateTargetFilenames
 } from './orcad-artifacts'
 
 describe('standalone runtime artifacts', () => {
+  it.each(SERVER_TARGETS)(
+    'ships the foreign SQLite reader worker the %s runtime starts',
+    (target) => {
+      expect(orcadArtifactFilenames(target)).toContain(ORCAD_FOREIGN_SQLITE_READER_ENTRY)
+    }
+  )
+
   it('names a search binary for every SSH host platform', () => {
     const expected = BUNDLED_RIPGREP_PLATFORMS.map(
       (platform) => `ripgrep/${platform}/${bundledRipgrepBinaryName(platform)}`
@@ -68,6 +78,16 @@ describe('standalone runtime artifacts', () => {
     ])
   })
 
+  // Without it orcad's data-root privacy check fails closed and a Windows slot never starts.
+  it('requires the Windows security addon in every Windows slot and nowhere else', () => {
+    for (const target of ['win32-x64', 'win32-arm64']) {
+      expect(orcadArtifactFilenames(target)).toContain(ORCAD_WINDOWS_SECURITY_FILENAME)
+      expect(orcadTemplateTargetFilenames(target)).toContain(ORCAD_WINDOWS_SECURITY_FILENAME)
+    }
+    expect(orcadArtifactFilenames('linux-x64-glibc')).not.toContain(ORCAD_WINDOWS_SECURITY_FILENAME)
+    expect(orcadArtifactFilenames('darwin-arm64')).not.toContain(ORCAD_WINDOWS_SECURITY_FILENAME)
+  })
+
   it('keeps the runtime executable under its upstream name in the shared store', () => {
     expect(orcadNodeRuntimeRelativePath('linux-x64-glibc', 'a'.repeat(64))).toEqual([
       '..',
@@ -82,8 +102,6 @@ describe('standalone runtime artifacts', () => {
   it('keeps target-specific files out of the shared template set', () => {
     const common = orcadTemplateCommonFilenames()
     for (const target of SERVER_TARGETS) {
-      const specific = orcadArtifactFilenames(target).filter((file) => !common.includes(file))
-      expect(specific.every((file) => !common.includes(file))).toBe(true)
       expect(common.every((file) => orcadArtifactFilenames(target).includes(file))).toBe(true)
     }
   })

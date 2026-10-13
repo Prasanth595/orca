@@ -2,7 +2,7 @@ import React from 'react'
 import { ChevronDown } from 'lucide-react'
 import type { VirtualItem } from '@tanstack/react-virtual'
 import { cn } from '@/lib/utils'
-import type { AppState } from '@/store/types'
+import type { RepoSshGateResolver } from '@/hooks/use-repo-ssh-gate-resolver'
 import { RepoIconGlyph } from '@/components/repo/repo-icon'
 import { RepoForkIndicator } from '@/components/repo/repo-fork-indicator'
 import type { FolderWorkspacePathStatus } from '../../../../../../shared/folder-workspace-path-status'
@@ -48,7 +48,7 @@ export type SectionHeaderRowContext = {
   collapsedGroups: Set<string>
   workspaceStatuses: readonly WorkspaceStatusDefinition[]
   projectGroups: readonly ProjectGroup[]
-  sshConnectionStates: AppState['sshConnectionStates']
+  getRepoSshGate: RepoSshGateResolver
   highlightedRevealRowKey: string | null
   dragOverStatus: WorkspaceStatus | null
   dragOverStatusGroupKey: string | null
@@ -157,9 +157,7 @@ export function renderWorktreeSectionHeaderRow(args: {
     ? getRepoHeaderCreateState({
         repo: row.repo,
         label: row.label,
-        sshStatus: row.repo.connectionId
-          ? (ctx.sshConnectionStates.get(row.repo.connectionId)?.status ?? null)
-          : null
+        sshGate: ctx.getRepoSshGate(row.repo)
       })
     : null
   const folderBackedProjectGroup =
@@ -176,7 +174,8 @@ export function renderWorktreeSectionHeaderRow(args: {
         projectGroupId: folderBackedProjectGroup.id
       })
     : null
-  const isHeaderCollapsed = ctx.collapsedGroups.has(row.key)
+  const collapseKey = row.collapseKey ?? row.key
+  const isHeaderCollapsed = ctx.collapsedGroups.has(collapseKey)
   // Why: repo/project/status/pinned share compact section chrome; flat "All" stays a simple label.
   const showHeaderCollapseAffordance =
     row.count > 0 &&
@@ -294,7 +293,7 @@ export function renderWorktreeSectionHeaderRow(args: {
           if (shouldIgnoreRepoHeaderToggle(event)) {
             return
           }
-          ctx.toggleGroupWithScrollAnchor(row.key)
+          ctx.toggleGroupWithScrollAnchor(collapseKey)
         }}
         onKeyDown={(e) => {
           if (shouldIgnoreRepoHeaderToggle(e)) {
@@ -302,7 +301,7 @@ export function renderWorktreeSectionHeaderRow(args: {
           }
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
-            ctx.toggleGroupWithScrollAnchor(row.key)
+            ctx.toggleGroupWithScrollAnchor(collapseKey)
           }
         }}
       >
@@ -360,7 +359,7 @@ export function renderWorktreeSectionHeaderRow(args: {
               onClick={(event) => {
                 event.preventDefault()
                 event.stopPropagation()
-                ctx.toggleGroupWithScrollAnchor(row.key)
+                ctx.toggleGroupWithScrollAnchor(collapseKey)
               }}
             >
               <ChevronDown

@@ -5,17 +5,24 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AgentSessionJournalIdentity } from '../../../shared/agent-session-journal-types'
 import type { AgentChildWorkView } from '../../../shared/agent-status-child-work-view'
+import type { AgentChildWorkEvidence } from '../../../shared/agent-status-child-work-evidence'
+import type { AgentSessionJournal } from '../agent-session-journal/journal-store'
 import { createTrackedJournalOpener } from '../agent-session-journal/journal-host-database-test-support'
 import type { StructuredAgentSessionAdapter } from './structured-agent-session-adapter'
 import { performCancel, type AgentSessionTurnContext } from './structured-agent-session-turns'
+import { createDeferredStructuredAgentSessionEventSink } from './structured-agent-session-event-sink'
+import { agentJournalItemKey } from '../../../shared/agent-session-journal-item-key'
 import { createStructuredAgentSessionLogger } from './structured-agent-session-logger'
+import { testEventSinkLogging } from './structured-agent-session-logger-test-support'
+import { codexProviderHandle } from '../../../shared/agent-session-provider-handle-encoding'
+import { NO_STRUCTURED_AGENTS } from './structured-agent-session-adapter-router-test-support'
 
 const IDENTITY: AgentSessionJournalIdentity = {
   sessionId: 'session-1',
   workspaceId: 'workspace-1',
   hostId: 'host-1',
   agent: 'codex',
-  providerHandle: { kind: 'codex', threadId: 'thread-1' }
+  providerHandle: codexProviderHandle('thread-1')
 }
 
 let root: string | null = null
@@ -54,11 +61,12 @@ describe('performCancel', () => {
       sessionId: 'session-1',
       journal,
       fence: 1,
+      agents: NO_STRUCTURED_AGENTS,
+      agent: 'codex',
       adapter: { cancelTurn } as unknown as StructuredAgentSessionAdapter,
       persistOptions: async () => undefined,
       resolvedBy: 'client-1',
       publish: vi.fn(),
-      flushStreamedEvents: async () => undefined,
       now: () => 1
     }
 
@@ -109,11 +117,12 @@ describe('performCancel', () => {
       sessionId: 'session-1',
       journal,
       fence: 1,
+      agents: NO_STRUCTURED_AGENTS,
+      agent: 'codex',
       adapter: { cancelTurn } as unknown as StructuredAgentSessionAdapter,
       persistOptions: async () => undefined,
       resolvedBy: 'client-1',
       publish: vi.fn(),
-      flushStreamedEvents: async () => undefined,
       now: () => 1
     }
 
@@ -155,13 +164,14 @@ describe('performCancel', () => {
       sessionId: 'session-1',
       journal,
       fence: 1,
+      agents: NO_STRUCTURED_AGENTS,
+      agent: 'codex',
       adapter: {
         cancelTurn: vi.fn(async () => ({ cancelled: false }))
       } as unknown as StructuredAgentSessionAdapter,
       persistOptions: async () => undefined,
       resolvedBy: 'client-1',
       publish: vi.fn(),
-      flushStreamedEvents: async () => undefined,
       now: () => 1
     }
 
@@ -190,11 +200,12 @@ describe('performCancel', () => {
       sessionId: 'session-1',
       journal,
       fence: 1,
+      agents: NO_STRUCTURED_AGENTS,
+      agent: 'codex',
       adapter: { cancelTurn, stopBackgroundTasks } as unknown as StructuredAgentSessionAdapter,
       persistOptions: async () => undefined,
       resolvedBy: 'client-1',
       publish: vi.fn(),
-      flushStreamedEvents: async () => undefined,
       now: () => 1
     }
 
@@ -213,7 +224,8 @@ describe('performCancel', () => {
     expect(stopBackgroundTasks).toHaveBeenCalledWith({
       sessionId: 'session-1',
       fence: 1,
-      taskIds: ['task-1']
+      taskIds: ['task-1'],
+      acknowledge: expect.any(Function)
     })
     expect(cancelTurn).not.toHaveBeenCalled()
     expect(journal.snapshot().items).toEqual([])
@@ -229,11 +241,12 @@ describe('performCancel', () => {
       sessionId: 'session-1',
       journal,
       fence: 1,
+      agents: NO_STRUCTURED_AGENTS,
+      agent: 'codex',
       adapter: { cancelTurn, stopBackgroundTasks } as unknown as StructuredAgentSessionAdapter,
       persistOptions: async () => undefined,
       resolvedBy: 'client-1',
       publish: vi.fn(),
-      flushStreamedEvents: async () => undefined,
       now: () => 1
     }
 
@@ -252,10 +265,170 @@ describe('performCancel', () => {
     expect(stopBackgroundTasks).toHaveBeenCalledWith({
       sessionId: 'session-1',
       fence: 1,
-      taskIds: ['task-2']
+      taskIds: ['task-2'],
+      acknowledge: expect.any(Function)
     })
     expect(cancelTurn).not.toHaveBeenCalled()
     expect(journal.snapshot().items).toEqual([])
+  })
+
+  async function backgroundStopWith(
+    stopBackgroundTasks: StructuredAgentSessionAdapter['stopBackgroundTasks'],
+    operation: string,
+    acknowledgeStops?: (evidence: AgentChildWorkEvidence[]) => void,
+    /** An untargeted press, as production sends with unlisted work: `listed` is what the records list. */
+    untargeted?: {
+      unlisted: { present: () => boolean; stop: () => Promise<void> }
+      listed: AgentChildWorkView[]
+      onJournal?: (journal: AgentSessionJournal) => void
+    }
+  ) {
+    root = await mkdtemp(join(tmpdir(), 'orca-background-task-failed-cancel-'))
+    const journal = await journals.open({ identity: IDENTITY, stateDirectory: root })
+    untargeted?.onJournal?.(journal)
+    const cancelTurn = vi.fn(async () => ({ cancelled: true }))
+    const ctx: AgentSessionTurnContext = {
+      logger: createStructuredAgentSessionLogger(),
+      sessionId: 'session-1',
+      journal,
+      fence: 1,
+      agents: NO_STRUCTURED_AGENTS,
+      agent: 'codex',
+      adapter: { cancelTurn, stopBackgroundTasks } as unknown as StructuredAgentSessionAdapter,
+      persistOptions: async () => undefined,
+      resolvedBy: 'client-1',
+      publish: vi.fn(),
+      now: () => 1
+    }
+    const result = await performCancel(ctx, {
+      clientOperationId: operation,
+      turnId: 'background-tasks',
+      scope: 'background-tasks',
+      ...(untargeted
+        ? { unlisted: untargeted.unlisted, childWork: () => untargeted.listed }
+        : { taskId: 'task-1', childWork: () => [liveTask('task-1')] }),
+      ...(acknowledgeStops ? { acknowledgeStops } : {})
+    })
+    expect(cancelTurn).not.toHaveBeenCalled()
+    // A background Stop writes no row; only what the agent itself wrote is there.
+    expect(journal.snapshot().items).toHaveLength(untargeted?.onJournal ? 1 : 0)
+    return result
+  }
+
+  it('refuses a background Stop the agent shows still running, so the person hears it failed', async () => {
+    const result = await backgroundStopWith(
+      async () => ({ cancelled: false, stillRunning: true }),
+      'cancel-background-task-survived'
+    )
+
+    expect(result).toMatchObject({
+      ok: false,
+      refusal: { code: 'agent_session_operation_invalid' }
+    })
+    expect(result.ok ? undefined : result.refusal.details).toBeUndefined()
+  })
+
+  it.each([
+    ['timed out', 'codex app-server request timed out'],
+    ['lost the agent', 'codex app-server connection closed']
+  ])('answers a background Stop that %s as unconfirmed, never not stopped', async (_, message) => {
+    const result = await backgroundStopWith(async () => {
+      throw new Error(message)
+    }, 'cancel-background-task-unconfirmed')
+
+    expect(result).toMatchObject({
+      ok: false,
+      refusal: { code: 'agent_session_operation_unknown' }
+    })
+    expect(result.ok ? undefined : result.refusal.details).toBeUndefined()
+  })
+
+  it('ends the agent for unlisted work only when, after the listed stops, no turn runs', async () => {
+    const stop = vi.fn(async () => {})
+    // Unlisted work is read inside the Stop's step: here it appears while the listed stop is out.
+    let incomplete = false
+    const atRest = await backgroundStopWith(
+      async () => {
+        incomplete = true
+        return { cancelled: false }
+      },
+      'cancel-background-unlisted',
+      undefined,
+      { unlisted: { present: () => incomplete, stop }, listed: [liveTask('task-1')] }
+    )
+    expect(atRest).toEqual({ ok: true, value: { turnId: 'background-tasks', cancelled: true } })
+    expect(stop).toHaveBeenCalledOnce()
+
+    // A turn the agent opens while the listed stops are out is not the Stop's to end.
+    let journal: AgentSessionJournal | undefined
+    const woke = await backgroundStopWith(
+      async () => {
+        await journal!.appendItem(
+          {
+            provider: 'legacy',
+            agent: 'codex',
+            sessionId: 'session-1',
+            recordId: 'turn-lifecycle:woke'
+          },
+          {
+            kind: 'status',
+            text: 'Agent is working…',
+            turnLifecycle: { turnId: 'woke', state: 'running' }
+          },
+          { fence: 1, turnScope: AGENT_JOURNAL_THREAD_SCOPE }
+        )
+        return { cancelled: false }
+      },
+      'cancel-background-unlisted-woke',
+      undefined,
+      {
+        unlisted: { present: () => true, stop },
+        listed: [liveTask('task-1')],
+        onJournal: (opened) => (journal = opened)
+      }
+    )
+    expect(woke).toEqual({ ok: true, value: { turnId: 'background-tasks', cancelled: false } })
+    expect(stop).toHaveBeenCalledOnce()
+  })
+
+  it('ends the agent for unlisted work with nothing listed, never asking an agent that has no stop', async () => {
+    const stop = vi.fn(async () => {})
+    // As an ACP agent with no cancellation route answers any stop.
+    const stopBackgroundTasks = vi.fn(async () => {
+      throw new Error('ACP child cancellation is unavailable')
+    })
+    const result = await backgroundStopWith(
+      stopBackgroundTasks,
+      'cancel-background-unlisted-acp',
+      undefined,
+      {
+        unlisted: { present: () => true, stop },
+        listed: []
+      }
+    )
+    expect(result).toEqual({ ok: true, value: { turnId: 'background-tasks', cancelled: true } })
+    expect(stopBackgroundTasks).not.toHaveBeenCalled()
+    expect(stop).toHaveBeenCalledOnce()
+  })
+
+  it('ends a run the agent accepted the stop of, even when a later stop in the batch fails', async () => {
+    const acknowledgeStops = vi.fn()
+    const result = await backgroundStopWith(
+      async ({ acknowledge }) => {
+        acknowledge?.({ taskId: 'task-1' })
+        throw new Error('claude control request timed out')
+      },
+      'cancel-background-task-partial',
+      acknowledgeStops
+    )
+
+    expect(result).toMatchObject({
+      ok: false,
+      refusal: { code: 'agent_session_operation_unknown' }
+    })
+    expect(acknowledgeStops).toHaveBeenCalledWith([
+      expect.objectContaining({ type: 'stop-acknowledged', childWorkId: 'child-task-1' })
+    ])
   })
 })
 
@@ -282,7 +455,7 @@ describe('what a conversation Stop reports when the provider stopped nothing', (
   async function cancelWith(
     outcome: Awaited<ReturnType<StructuredAgentSessionAdapter['cancelTurn']>>,
     input: { turnId?: string; withdrewQueued?: boolean },
-    turnRow: 'none' | 'running' | 'lands-on-flush' = 'none'
+    turnRow: 'none' | 'running' | 'landing' = 'none'
   ) {
     root = await mkdtemp(join(tmpdir(), 'orca-turn-cancel-report-'))
     const journal = await journals.open({ identity: IDENTITY, stateDirectory: root })
@@ -304,11 +477,15 @@ describe('what a conversation Stop reports when the provider stopped nothing', (
     if (turnRow === 'running') {
       await openTurn()
     }
+    // Issued, not yet landed: the Stop's read takes its place behind it in the journal's queue.
+    const landing = turnRow === 'landing' ? openTurn() : null
     const ctx: AgentSessionTurnContext = {
       logger: createStructuredAgentSessionLogger(),
       sessionId: 'session-1',
       journal,
       fence: 1,
+      agents: NO_STRUCTURED_AGENTS,
+      agent: 'codex',
       adapter: {
         acquire: vi.fn(),
         dispatch: vi.fn(),
@@ -320,14 +497,15 @@ describe('what a conversation Stop reports when the provider stopped nothing', (
       persistOptions: async () => undefined,
       resolvedBy: 'client-1',
       publish: vi.fn(),
-      flushStreamedEvents: async () => {
-        if (turnRow === 'lands-on-flush') {
-          await openTurn()
-        }
-      },
       now: () => 1
     }
-    const result = await performCancel(ctx, { clientOperationId: 'cancel-report-1', ...input })
+    const { withdrewQueued, ...named } = input
+    const result = await performCancel(ctx, {
+      clientOperationId: 'cancel-report-1',
+      ...named,
+      ...(withdrewQueued === undefined ? {} : { withdrewQueued: Promise.resolve(withdrewQueued) })
+    })
+    await landing
     const rows = journal
       .snapshot()
       .items.flatMap((item) =>
@@ -350,12 +528,72 @@ describe('what a conversation Stop reports when the provider stopped nothing', (
     expect(reported.rows).not.toContain('The provider had already finished this turn.')
   })
 
-  it('reads the journal after its streamed rows land: a turn whose send was accepted first is still working', async () => {
+  it('reads the journal behind its streamed rows: a turn whose send was accepted first is still working', async () => {
     const reported = await cancelWith(
       { cancelled: false },
       { turnId: 'turn-0', withdrewQueued: true },
-      'lands-on-flush'
+      'landing'
     )
     expect(reported).toEqual({ cancelled: false, rows: [] })
+  })
+})
+
+describe('the note a Stop writes', () => {
+  it('belongs to the turn whose row was emitted just before the Stop, with no flush', async () => {
+    root = await mkdtemp(join(tmpdir(), 'orca-turn-cancel-note-scope-'))
+    const journal = await journals.open({ identity: IDENTITY, stateDirectory: root })
+    const deferred = createDeferredStructuredAgentSessionEventSink(testEventSinkLogging())
+    deferred.bind({ journal, fence: 1, publish: () => {} })
+    const turnIdentity = {
+      provider: 'legacy' as const,
+      agent: 'codex' as const,
+      sessionId: 'session-1',
+      recordId: 'turn-lifecycle:turn-1'
+    }
+    // An earlier streamed row still ahead, then the turn row the Stop names.
+    deferred.sink.appendItem(
+      { provider: 'codex', threadId: 'thread-1', turnId: 'turn-0', ordinal: 0 },
+      { kind: 'message', role: 'assistant', blocks: [{ type: 'text', text: 'Earlier.' }] },
+      { turnScope: AGENT_JOURNAL_THREAD_SCOPE }
+    )
+    deferred.sink.appendItem(
+      turnIdentity,
+      {
+        kind: 'status',
+        text: 'Agent is working…',
+        turnLifecycle: { turnId: 'turn-1', state: 'running' }
+      },
+      { turnScope: AGENT_JOURNAL_THREAD_SCOPE }
+    )
+    const ctx: AgentSessionTurnContext = {
+      sessionId: 'session-1',
+      journal,
+      fence: 1,
+      agents: NO_STRUCTURED_AGENTS,
+      agent: 'codex',
+      adapter: {
+        acquire: vi.fn(),
+        dispatch: vi.fn(),
+        closeSession: vi.fn(),
+        cancelTurn: vi.fn(async () => ({ cancelled: true })),
+        answerPrompt: vi.fn(),
+        setOption: vi.fn()
+      },
+      persistOptions: async () => undefined,
+      resolvedBy: 'client-1',
+      publish: vi.fn(),
+      logger: createStructuredAgentSessionLogger(),
+      now: () => 1
+    }
+
+    await performCancel(ctx, { clientOperationId: 'cancel-scope-1', turnId: 'turn-1' })
+    await deferred.drained()
+
+    const note = journal
+      .snapshot()
+      .items.find(
+        (item) => item.body.kind === 'status' && item.body.text === 'Cancellation requested.'
+      )
+    expect(note?.turnScope).toEqual({ kind: 'turn', turnItemId: agentJournalItemKey(turnIdentity) })
   })
 })

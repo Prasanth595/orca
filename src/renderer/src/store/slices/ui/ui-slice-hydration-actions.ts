@@ -123,6 +123,7 @@ export function createUiHydrationActions(set: UISliceSet, _get: UISliceGet): Par
             undefined,
             s.combinedDiffFileTreeWidth
           ),
+          sidebarOpen: typeof ui.sidebarOpen === 'boolean' ? ui.sidebarOpen : true,
           rightSidebarOpen: typeof ui.rightSidebarOpen === 'boolean' ? ui.rightSidebarOpen : true,
           rightSidebarTab: rightSidebarRoute.rightSidebarTab,
           rightSidebarExplorerView: rightSidebarRoute.rightSidebarExplorerView,
@@ -167,6 +168,10 @@ export function createUiHydrationActions(set: UISliceSet, _get: UISliceGet): Par
               ? persistedAgentsFilterRepoIds
               : persistedAgentsFilterRepoIds.filter((repoId) => validRepoIds.has(repoId))
           ),
+          agentsHideWorkspacesFromOtherDevices: ui.agentsHideWorkspacesFromOtherDevices === true,
+          agentsHideAutomationGeneratedWorkspaces:
+            ui.agentsHideAutomationGeneratedWorkspaces === true,
+          agentsHideCliCreatedWorkspaces: ui.agentsHideCliCreatedWorkspaces === true,
           agentsShowChildAgents: ui.agentsShowChildAgents === true,
           agentsCompactMode: ui.agentsCompactMode !== false,
           agentsShowSearch: ui.agentsShowSearch !== false,
@@ -250,10 +255,12 @@ export function createUiHydrationActions(set: UISliceSet, _get: UISliceGet): Par
           // Why: treat only explicit true as dismissed so a false from migration still surfaces.
           usagePercentageDisplayChangeNoticeDismissed:
             ui.usagePercentageDisplayChangeNoticeDismissed === true,
+          statusBarCompactChangeNoticeDismissed: ui.statusBarCompactChangeNoticeDismissed !== false,
           // Why: default false so existing users still see the CTA; only explicit dismissal persists true.
           usageEmptyStateDismissed: ui.usageEmptyStateDismissed === true,
           codexTerminalServerIsolationNoticeSeen:
             ui.codexTerminalServerIsolationNoticeSeen === true,
+          codexSharedSettingsNoticeSeen: ui.codexSharedSettingsNoticeSeen === true,
           ...hydrateAgentReadState(ui),
           workspaceCleanupDismissals: sanitizeWorkspaceCleanupDismissals(
             ui.workspaceCleanup?.dismissals
