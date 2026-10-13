@@ -294,6 +294,7 @@ export function getAppearancePaneSearchEntries(
     ...getTypographyEntries(),
     ...getZoomEntries(),
     ...getTerminalAppearanceSearchEntries(options),
+    ...getCodeEditorAppearanceSearchEntries(),
     ...getLayoutEntries(),
     ...getTitlebarEntries(),
     ...getStatusBarEntries(),

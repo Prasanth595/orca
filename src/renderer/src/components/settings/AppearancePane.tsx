@@ -287,7 +287,6 @@ export function AppearancePane({
           <CodeEditorAppearanceSection
             settings={settings}
             updateSettings={updateSettings}
-            systemPrefersDark={systemPrefersDark}
             forceVisiblePrimary={codeEditorLabelMatches}
           />
         </AppearanceSection>

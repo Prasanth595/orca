@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { i18n } from '@/i18n/i18n'
 import {
+  getAppearancePaneSearchEntries,
   getCodeEditorAppearanceSearchEntries,
   getFollowSymlinkedDirectoriesEntry,
   getLanguageEntries
@@ -56,5 +57,9 @@ describe('getCodeEditorAppearanceSearchEntries', () => {
     for (const { label } of getAvailableEditorColorThemeOptions()) {
       expect(matchesSettingsSearch(label, entries), label).toBe(true)
     }
+  })
+
+  it('is part of the aggregated Appearance search catalog', () => {
+    expect(matchesSettingsSearch('Monokai', getAppearancePaneSearchEntries())).toBe(true)
   })
 })

@@ -10,6 +10,7 @@ import {
   type EditorColorThemeValue
 } from '@/lib/editor-theme'
 import { translate } from '@/i18n/i18n'
+import { useDocumentDarkTheme } from '@/hooks/use-document-dark-theme'
 
 // Why: the preview boots Monaco; loading it eagerly would pull Monaco into every Settings import.
 const EditorColorThemePreview = lazy(() =>
@@ -21,7 +22,6 @@ const EditorColorThemePreview = lazy(() =>
 type CodeEditorAppearanceSectionProps = {
   settings: GlobalSettings
   updateSettings: (updates: Partial<GlobalSettings>) => void
-  systemPrefersDark: boolean
   forceVisiblePrimary?: boolean
 }
 
@@ -30,13 +30,13 @@ type CodeEditorAppearanceSectionProps = {
 export function CodeEditorAppearanceSection({
   settings,
   updateSettings,
-  systemPrefersDark,
   forceVisiblePrimary = false
 }: CodeEditorAppearanceSectionProps): React.JSX.Element {
   const [themeSearch, setThemeSearch] = useState('')
   const selectedTheme: EditorColorThemeValue = settings.editorColorTheme ?? 'auto'
   const themeOptions = getAvailableEditorColorThemeOptions()
-  const previewThemeName = resolveMonacoThemeName(selectedTheme, systemPrefersDark)
+  // Why: same resolution as the real editors, so the preview's global setTheme never recolors them.
+  const previewThemeName = resolveMonacoThemeName(selectedTheme, useDocumentDarkTheme())
 
   const pickerTitle = translate(
     'auto.components.settings.CodeEditorAppearanceSection.pickerTitle',

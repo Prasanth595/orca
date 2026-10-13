@@ -73,9 +73,8 @@ export function EditorColorThemePreview({
                 )}
               </span>
             }
-            // Why: hidden from a11y tree — this is a decorative live preview,
-            // not an editable document; the real editor is elsewhere.
-            wrapperProps={{ 'aria-hidden': !isEditorReady }}
+            // Why: decorative preview, hidden once rendered; the loading text stays announced.
+            wrapperProps={{ 'aria-hidden': isEditorReady }}
           />
         </div>
       </CardContent>
