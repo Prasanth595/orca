@@ -93,8 +93,12 @@ export function activateActivityThreadTarget(
     return 'none'
   }
   if (activateStructuredAgentSessionTab({ worktreeId: thread.worktree.id, tabId: thread.tab.id })) {
+    const activated = useAppStore.getState()
+    if (isFloatingTerminal) {
+      revealFloatingWorkspacePanel(activated)
+    }
     if (acknowledgeOnFocus) {
-      useAppStore.getState().acknowledgeAgents([thread.paneKey])
+      activated.acknowledgeAgents([thread.paneKey])
     }
     return 'pane'
   }

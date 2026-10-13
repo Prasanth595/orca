@@ -164,12 +164,41 @@ describe('activity thread host routing', () => {
     )
   })
 
+  it('opens the floating panel on a floating chat row once its tab is activated', () => {
+    state.settings = { floatingTerminalEnabled: true }
+    state.floatingWorkspacePanelOpen = false
+    mocks.activateStructuredAgentSessionTab.mockReturnValue(true)
+
+    makeActions().selectThread(makeFloatingThread())
+
+    expect(mocks.activateAndRevealWorkspace).not.toHaveBeenCalled()
+    expect(mocks.dispatchEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: TOGGLE_FLOATING_TERMINAL_EVENT })
+    )
+  })
+
   it('does not open the floating panel for a retained thread whose tab was closed', () => {
     makeActions().selectThread(makeFloatingThread())
 
     expect(mocks.activateAndRevealWorkspace).not.toHaveBeenCalled()
     expect(mocks.dispatchEvent).not.toHaveBeenCalled()
     expect(mocks.activateTabAndFocusPane).not.toHaveBeenCalled()
+  })
+
+  it('reveals a reached floating chat and acknowledges only that unread agent', () => {
+    const floatingThread = makeFloatingThread()
+    state.settings = { floatingTerminalEnabled: true }
+    state.floatingWorkspacePanelOpen = false
+    mocks.activateStructuredAgentSessionTab.mockReturnValue(true)
+
+    expect(activateActivityThreadTarget(floatingThread, true)).toBe('pane')
+
+    expect(mocks.dispatchEvent).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ type: TOGGLE_FLOATING_TERMINAL_EVENT })
+    )
+    expect(acknowledgeAgents).toHaveBeenCalledExactlyOnceWith([floatingThread.paneKey])
+    expect(mocks.activateTabAndFocusPane).not.toHaveBeenCalled()
+    expect(mocks.activateAndRevealWorkspace).not.toHaveBeenCalled()
   })
 
   it('skips a closed floating terminal and reaches the next unread agent', () => {
