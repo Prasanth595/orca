@@ -160,6 +160,7 @@ describe('WSL hosts with the internal gate closed', () => {
     startApp()
 
     expect(getWslHostService()).toBeNull()
+    expect(store.onSettingsChanged).not.toHaveBeenCalled()
     expect(mocks.createConnector).not.toHaveBeenCalled()
     expect(mocks.createFakeConnector).not.toHaveBeenCalled()
     expect(getRuntimeEnvironmentStatusSnapshots().map((s) => s.environmentId)).not.toContain(WSL_ID)
@@ -212,5 +213,30 @@ describe('WSL hosts with the internal gate closed', () => {
     expect(getWslHostService()).not.toBeNull()
     expect(mocks.createFakeConnector).toHaveBeenCalledTimes(1)
     expect(registeredWslHostChannels().sort()).toEqual([...WSL_HOST_HANDLER_CHANNELS].sort())
+    expect(store.onSettingsChanged).toHaveBeenCalledTimes(1)
+
+    // Registering again (another window) reuses the service and its one settings listener.
+    mocks.handle.mockClear()
+    startApp()
+    expect(mocks.createFakeConnector).toHaveBeenCalledTimes(1)
+    expect(store.onSettingsChanged).toHaveBeenCalledTimes(1)
+    expect(registeredWslHostChannels().sort()).toEqual([...WSL_HOST_HANDLER_CHANNELS].sort())
+  })
+
+  it('registers nothing with the gate open on a non-Windows host without the fake', () => {
+    vi.stubEnv(WSL_HOSTS_INTERNAL_GATE_ENV, '1')
+    const platform = Object.getOwnPropertyDescriptor(process, 'platform')
+    Object.defineProperty(process, 'platform', { value: 'linux' })
+    try {
+      startApp()
+    } finally {
+      if (platform) {
+        Object.defineProperty(process, 'platform', platform)
+      }
+    }
+
+    expect(getWslHostService()).toBeNull()
+    expect(registeredWslHostChannels()).toEqual([])
+    expect(store.onSettingsChanged).not.toHaveBeenCalled()
   })
 })
