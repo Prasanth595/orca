@@ -6,10 +6,6 @@ import type { PerforceBackend } from '../../shared/perforce/perforce-backend'
 import { buildPerforceDescriptionPrompt } from '../../shared/perforce/perforce-description-prompt'
 import type { PerforceSettings } from '../../shared/perforce/perforce-settings'
 import {
-  getSshGitProvider,
-  SSH_GIT_PROVIDER_UNAVAILABLE_MESSAGE
-} from '../providers/ssh-git-dispatch'
-import {
   prepareLocalCommitMessageAgentEnv,
   type CommitMessageAgentEnvironmentResolvers
 } from '../text-generation/commit-message-agent-environment'
@@ -74,9 +70,12 @@ export async function generatePerforceDescription(input: {
   if (!resolved.ok) {
     return { success: false, error: resolved.error }
   }
-  // Why before reading the diff: a dropped SSH host should say so, not report an unreadable diff.
-  if (agentHost.kind === 'ssh' && !getSshGitProvider(agentHost.connectionId)) {
-    return { success: false, error: SSH_GIT_PROVIDER_UNAVAILABLE_MESSAGE }
+  // Remote (SSH) descriptions rode on the SSH relay that main removed; they need re-homing onto orcad.
+  if (agentHost.kind === 'ssh') {
+    return {
+      success: false,
+      error: 'Remote Perforce descriptions are unavailable after the SSH relay change.'
+    }
   }
   const context = await buildContext(input.backend, cwd, input.changelist, input.filePaths).catch(
     () => null
@@ -85,41 +84,19 @@ export async function generatePerforceDescription(input: {
     return { success: false, error: 'Failed to read the changelist diff.' }
   }
   const prompt = buildPerforceDescriptionPrompt(context, perforce.aiInstructions)
-  switch (agentHost.kind) {
-    case 'ssh': {
-      const provider = getSshGitProvider(agentHost.connectionId)
-      if (!provider) {
-        return { success: false, error: SSH_GIT_PROVIDER_UNAVAILABLE_MESSAGE }
-      }
-      return generateCommitMessageFromContext(
-        context,
-        resolved.params,
-        {
-          kind: 'remote',
-          cwd,
-          execute: (plan, planCwd, timeoutMs, operation) =>
-            provider.executeCommitMessagePlan(plan, planCwd, timeoutMs, operation),
-          missingBinaryLocation: 'remote PATH'
-        },
-        prompt
-      )
-    }
-    case 'local': {
-      const { wslDistro } = agentHost
-      const localEnv = await prepareLocalCommitMessageAgentEnv(
-        resolved.params.agentId,
-        agentHost.agentEnvironment,
-        wslDistro ? { runtime: 'wsl', wslDistro } : { runtime: 'host' }
-      )
-      if (!localEnv.ok) {
-        return { success: false, error: localEnv.error }
-      }
-      return generateCommitMessageFromContext(
-        context,
-        resolved.params,
-        { kind: 'local', cwd, ...(wslDistro ? { wslDistro } : {}), env: localEnv.env },
-        prompt
-      )
-    }
+  const { wslDistro } = agentHost
+  const localEnv = await prepareLocalCommitMessageAgentEnv(
+    resolved.params.agentId,
+    agentHost.agentEnvironment,
+    wslDistro ? { runtime: 'wsl', wslDistro } : { runtime: 'host' }
+  )
+  if (!localEnv.ok) {
+    return { success: false, error: localEnv.error }
   }
+  return generateCommitMessageFromContext(
+    context,
+    resolved.params,
+    { kind: 'local', cwd, ...(wslDistro ? { wslDistro } : {}), env: localEnv.env },
+    prompt
+  )
 }

@@ -22,23 +22,20 @@ import {
   PERFORCE_UPDATE_REQUIRED_MESSAGE
 } from '../../../shared/perforce/perforce-runtime-capability'
 import { isTuiAgent } from '../../../shared/tui-agent-config'
-import type { RuntimeClientTarget } from './runtime-client-target'
+import type { RuntimeClientTarget } from '../../../shared/runtime-client-target'
 import {
   getRuntimeGitScope,
   resolveLocalWorktreePath,
-  type RuntimeGitContext,
-  type RuntimeGitSettings
+  type RuntimeGitContext
 } from './runtime-git-client-context'
-import {
-  assertRuntimeEnvironmentCapability,
-  callRuntimeRpc,
-  getActiveRuntimeTarget
-} from './runtime-rpc-client'
+import { assertRuntimeEnvironmentCapability, callRuntimeRpc } from './runtime-rpc-client'
 import { toRuntimeWorktreeSelector } from './runtime-worktree-selector'
 import { isPairedWebClientWindow } from '@/lib/desktop-window-chrome'
 import type { ExecutionHostId } from '../../../shared/execution-host'
 
-export type PerforceClientSettings = RuntimeGitSettings & Partial<Pick<GlobalSettings, 'perforce'>>
+export type PerforceClientSettings = Partial<
+  Pick<GlobalSettings, 'perforce' | 'agentCmdOverrides' | 'defaultTuiAgent'>
+>
 
 /**
  * The workspace a Perforce request runs in, routed like Git: through this desktop (a local folder
@@ -50,7 +47,7 @@ export type PerforceWorkspaceTarget = RuntimeGitContext & {
 
 /** Identifies a workspace across hosts, for caches keyed by workspace. */
 export function perforceWorkspaceKey(target: PerforceWorkspaceTarget): string {
-  return `${getRuntimeGitScope(target.settings, target.connectionId) ?? ''}|${target.worktreePath}`
+  return `${getRuntimeGitScope(target.target, target.connectionId) ?? ''}|${target.worktreePath}`
 }
 
 /** What a remote host receives: this user's Settings > Perforce minus the machine-specific ones. */
@@ -86,7 +83,7 @@ export async function runPerforceOperation<K extends PerforceOperationName>(
   operation: K,
   params: PerforceOperationParams[K]
 ): Promise<PerforceOperationResult<K>> {
-  const runtimeTarget = getActiveRuntimeTarget(target.settings)
+  const runtimeTarget = target.target
   if (runtimeTarget.kind === 'local' || !target.worktreeId) {
     return desktopPerforceApi().run(operation, {
       ...params,
@@ -114,6 +111,8 @@ export function perforceOperationsFor(target: PerforceWorkspaceTarget) {
 
 /** A Perforce folder project, routed to the host that owns it; `settings` are its owner-routed settings. */
 export type PerforceProjectTarget = {
+  /** Transport to the project's owner. */
+  target: RuntimeClientTarget
   settings: PerforceClientSettings | null | undefined
   repoId: string
   /** The project's execution host, for a desktop that has the same project id on several hosts. */
@@ -126,7 +125,7 @@ export async function runPerforceCopyOperation<K extends PerforceCopyOperationNa
   operation: K,
   params: PerforceCopyOperationParams<K>
 ): Promise<WorkspaceCopyIpcResult<PerforceCopyOperationResult<K>>> {
-  const runtimeTarget = getActiveRuntimeTarget(target.settings)
+  const runtimeTarget = target.target
   try {
     if (runtimeTarget.kind === 'local') {
       return await desktopPerforceApi().runCopy(operation, {
@@ -157,7 +156,7 @@ export async function generatePerforceDescription(
   target: PerforceWorkspaceTarget,
   request: { changelist: 'default' | 'new' | number; filePaths: string[] }
 ): Promise<PerforceDescriptionResult> {
-  const runtimeTarget = getActiveRuntimeTarget(target.settings)
+  const runtimeTarget = target.target
   if (runtimeTarget.kind === 'local' || !target.worktreeId) {
     return desktopPerforceApi().generateDescription({
       ...request,

@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useAppStore } from '@/store'
 import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
-import { settingsForRepoOwner } from '@/store/slices/worktrees/listing/worktree-owner-settings'
+import { runtimeTargetForRepoOwner } from '@/lib/repo-runtime-owner'
 import { findRepoForHost } from '@/store/slices/repo-host-identity'
 import type { ExecutionHostId } from '../../../shared/execution-host'
 import { isFolderRepo, isPerforceRepo } from '../../../shared/repo-kind'
@@ -31,7 +31,8 @@ function buildTarget(
   settings: PerforceTargetSettings
 ): PerforceWorkspaceTarget {
   return {
-    settings: { ...settings, activeRuntimeEnvironmentId: environmentId },
+    target: environmentId ? { kind: 'environment', environmentId } : { kind: 'local' },
+    settings,
     worktreeId,
     worktreePath,
     ...(connectionId ? { connectionId } : {})
@@ -94,8 +95,14 @@ export function perforceProjectTarget(
   repoId: string,
   hostId?: ExecutionHostId | null
 ): PerforceProjectTarget {
+  const state = useAppStore.getState()
   return {
-    settings: settingsForRepoOwner(useAppStore.getState(), repoId, hostId),
+    target: runtimeTargetForRepoOwner(state, repoId) ?? { kind: 'local' },
+    settings: {
+      perforce: state.settings?.perforce,
+      agentCmdOverrides: state.settings?.agentCmdOverrides,
+      defaultTuiAgent: state.settings?.defaultTuiAgent
+    },
     repoId,
     ...(hostId ? { hostId } : {})
   }
@@ -137,7 +144,7 @@ function workspaceOfFile(
       worktreeId: context.worktreeId,
       worktreePath: ownPath,
       connectionId: context.connectionId,
-      environmentId: context.settings?.activeRuntimeEnvironmentId ?? null,
+      environmentId: context.target.kind === 'environment' ? context.target.environmentId : null,
       repo: own
         ? folderRepoOf(state, own)
         : folderRepoOf(state, { repoId: getRepoIdFromWorktreeId(context.worktreeId) })

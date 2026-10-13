@@ -1,6 +1,6 @@
 import { access, constants } from 'node:fs/promises'
 import { delimiter, join } from 'node:path'
-import { runProcess } from '../child-process/run-process'
+import { runProcess } from '@orca/process-host'
 import { currentPerforceSettings } from './p4-settings-context'
 import { perforceEnvOverrides } from './perforce-settings'
 

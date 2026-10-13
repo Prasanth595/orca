@@ -24,6 +24,7 @@ export type CreateWorktreeCallOptions = {
     runtimeId: string
     executionHostId: ExecutionHostId
     expectedPath: string
+    expectedRefHead?: string
   }
 }
 

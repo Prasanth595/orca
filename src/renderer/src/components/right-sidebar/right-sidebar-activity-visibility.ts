@@ -3,7 +3,8 @@ import type { ActivityBarItem } from './activity-bar-buttons'
 type RightSidebarActivityVisibilityState = {
   isFolder: boolean
   isFolderWorkspace: boolean
-  isSshRepo: boolean
+  /** The workspace runs on an SSH host, reached directly or through its managed server. */
+  hasSshHost: boolean
   isPerforce?: boolean
 }
 
@@ -12,7 +13,7 @@ export function getVisibleRightSidebarActivityItems(
   {
     isFolder,
     isFolderWorkspace,
-    isSshRepo,
+    hasSshHost,
     isPerforce = false
   }: RightSidebarActivityVisibilityState
 ): ActivityBarItem[] {
@@ -20,6 +21,6 @@ export function getVisibleRightSidebarActivityItems(
     (item) =>
       (!item.gitOnly || !isFolder || (item.perforceCapable === true && isPerforce)) &&
       (!item.folderOnly || isFolderWorkspace) &&
-      (!item.sshOnly || isSshRepo)
+      (!item.sshOnly || hasSshHost)
   )
 }

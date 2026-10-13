@@ -29,7 +29,7 @@ function repo(id: string, patch: Partial<Repo>): Repo {
 }
 
 const context = (worktreeId: string, worktreePath: string) => ({
-  settings: { activeRuntimeEnvironmentId: null },
+  target: { kind: 'local' as const },
   worktreeId,
   worktreePath
 })

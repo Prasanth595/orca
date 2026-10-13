@@ -25,8 +25,8 @@ const generateDescription = vi.fn()
 
 function target(environmentId: string | null): PerforceWorkspaceTarget {
   return {
+    target: environmentId ? { kind: 'environment', environmentId } : { kind: 'local' },
     settings: {
-      activeRuntimeEnvironmentId: environmentId,
       perforce: normalizePerforceSettings({ p4Path: 'C:\\p4\\p4.exe', p4Port: 'ssl:p4:1666' }),
       defaultTuiAgent: 'blank'
     },
@@ -85,7 +85,7 @@ describe('runPerforceCopyOperation', () => {
     rpc.assertRuntimeEnvironmentCapability.mockRejectedValue(new Error('Update Orca'))
     await expect(
       runPerforceCopyOperation(
-        { settings: { activeRuntimeEnvironmentId: 'env-1' }, repoId: 'repo-1' },
+        { target: { kind: 'environment', environmentId: 'env-1' }, settings: {}, repoId: 'repo-1' },
         'syncCopies',
         {}
       )
@@ -96,7 +96,7 @@ describe('runPerforceCopyOperation', () => {
     rpc.callRuntimeRpc.mockResolvedValue({ name: 'copy-1' })
     await expect(
       runPerforceCopyOperation(
-        { settings: { activeRuntimeEnvironmentId: 'env-1' }, repoId: 'repo-1' },
+        { target: { kind: 'environment', environmentId: 'env-1' }, settings: {}, repoId: 'repo-1' },
         'previewCopyRemoval',
         { name: 'copy-1' }
       )
@@ -109,7 +109,7 @@ describe('runPerforceCopyOperation', () => {
 
   it('uses IPC for a project this desktop owns', async () => {
     await runPerforceCopyOperation(
-      { settings: { activeRuntimeEnvironmentId: null }, repoId: 'repo-1' },
+      { target: { kind: 'local' }, settings: {}, repoId: 'repo-1' },
       'detectProject',
       {}
     )

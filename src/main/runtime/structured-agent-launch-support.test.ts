@@ -1,10 +1,10 @@
+import { createAcpStructuredLaunchResolver } from './structured-agent-launch-composition.test-support'
 import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { agentSessionRecordFixture } from '../../shared/agent-session-record.test-fixture'
 import { acpLaunchSpecFor } from '../acp/acp-launch-specs'
-import { createAcpStructuredLaunchResolver } from '../acp/acp-structured-launch-resolution'
 import { structuredAgentSupportsLaunch } from './structured-agent-launch-support'
 
 const { probeAgentCliVersion, loginShell } = vi.hoisted(() => {
@@ -59,11 +59,21 @@ describe('structuredAgentSupportsLaunch', () => {
     expect(runtime.resolveRuntimeFileTarget).not.toHaveBeenCalled()
   })
 
-  it('refuses an installed OpenCode 2.x and allows 1.x, in the workspace with the launch env', async () => {
-    installedVersion('2.0.21')
-    expect(await structuredAgentSupportsLaunch('opencode', 'id:workspace-1', runtime)).toBe(false)
-    installedVersion('1.18.31')
-    expect(await structuredAgentSupportsLaunch('opencode', 'id:workspace-1', runtime)).toBe(true)
+  it('allows stable OpenCode 1.x and 2.x, asking in the workspace with the launch env', async () => {
+    for (const [version, supported] of [
+      ['1.18.31', true],
+      ['2.0.14', true],
+      ['2.0.21', true],
+      ['1.18.30', false],
+      ['2.0.13', false],
+      ['2.1.0-beta.1', false],
+      ['3.0.0', false]
+    ] as const) {
+      installedVersion(version)
+      expect(await structuredAgentSupportsLaunch('opencode', 'id:workspace-1', runtime)).toBe(
+        supported
+      )
+    }
     expect(asked[0]).toMatchObject({
       cwd: '/repo/worktree',
       env: { PATH: bin, OPENCODE_EXTRA: '1', OPENCODE_CLIENT: 'acp' }
@@ -87,7 +97,8 @@ describe('structuredAgentSupportsLaunch', () => {
             provider: 'opencode',
             providerHandleChain: [],
             accountHome: { kind: 'opencode', locator: { kind: 'unmanaged' } }
-          })
+          }),
+          pinLaunchDirectory: vi.fn()
         },
         readJournal: () => null,
         resolveWorkspacePath: async () => '/repo/worktree',

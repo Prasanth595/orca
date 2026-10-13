@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module'
 import { createProcessTableSnapshotReader } from '../../shared/process-table-snapshot-reader'
-import { RELAY_WINDOWS_PROCESS_TREE_FILENAME } from '../../shared/relay-artifacts'
+import { ORCAD_WINDOWS_PROCESS_TREE_FILENAME } from '../../shared/orcad-artifacts'
 import { reportWindowsCommandLineRecoveryHealth } from './windows-command-line-recovery-health'
 import { readWindowsProcessRowsWithCim } from './windows-process-table-cim-scan'
 import { WindowsProcessTableTimeoutError } from './windows-process-table-timeout-error'
@@ -141,8 +141,8 @@ type WindowsProcessTreeAddon = {
  */
 const PROCESS_DATA_FLAG = { None: 0, Memory: 1, CommandLine: 2, CreationTime: 4 } as const
 
-/** Staged beside the relay bundle by build-relay; see RELAY_ARTIFACTS. */
-const RELAY_ADDON_FILENAME = `./${RELAY_WINDOWS_PROCESS_TREE_FILENAME}`
+/** Staged beside the orcad bundle by orcad-windows-process-tree.mjs. */
+const RELAY_ADDON_FILENAME = `./${ORCAD_WINDOWS_PROCESS_TREE_FILENAME}`
 
 /**
  * Once per process, for the main and relay processes whose console is real. The
@@ -171,7 +171,7 @@ function adaptAddon(addon: WindowsProcessTreeAddon): WindowsProcessTreeModule {
  *
  * Two sources, because two very different deployments need it. The desktop app
  * installs the npm package. A relay host has no node_modules of ours at all, so
- * build-relay stages the bare addon next to the bundle and we bind to that.
+ * the bundle build stages the bare addon next to the bundle and we bind to that.
  *
  * Why tolerate absence: it stays optional and Windows-only, so a macOS/Linux
  * install legitimately has no binary, and a relay built before this artifact

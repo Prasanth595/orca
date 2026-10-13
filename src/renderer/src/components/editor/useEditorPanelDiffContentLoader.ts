@@ -1,13 +1,13 @@
 import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
+import { requireRuntimeTargetForFileOwner } from '@/lib/file-owner-runtime-target'
 import type { OpenFile } from '@/store/slices/editor'
 import { getConnectionIdForFile } from '@/lib/connection-context'
 import { useAppStore } from '@/store'
-import { settingsForRuntimeOwner } from '@/runtime/runtime-rpc-client'
 import {
   getRuntimeGitBranchDiff,
-  getRuntimeGitCommitDiff,
-  getRuntimeGitScope
-} from '@/runtime/runtime-git-client'
+  getRuntimeGitCommitDiff
+} from '@/runtime/runtime-git-diff-client'
+import { getRuntimeGitScope } from '@/runtime/runtime-git-client-context'
 import { getRuntimeWorktreeFileDiff } from '@/runtime/runtime-worktree-file-diff'
 import type { DiffContent, InFlightContentRead } from './editor-panel-content-types'
 import { canUseChangesModeForFile } from './editor-panel-file-mode'
@@ -69,9 +69,12 @@ export function useEditorPanelDiffContentLoader({
             : null
         const commitCompare = file.commitCompare?.commitOid ? file.commitCompare : null
         const connectionId = getConnectionIdForFile(file.worktreeId, file.filePath) ?? undefined
-        const activeSettings = useAppStore.getState().settings
-        const fileSettings = settingsForRuntimeOwner(activeSettings, file.runtimeEnvironmentId)
-        const gitScope = getRuntimeGitScope(fileSettings, connectionId)
+        const fileTarget = requireRuntimeTargetForFileOwner(
+          useAppStore.getState(),
+          file.worktreeId,
+          file.runtimeEnvironmentId
+        )
+        const gitScope = getRuntimeGitScope(fileTarget, connectionId)
         const effectiveDiffSource: typeof file.diffSource =
           file.mode === 'edit' ? 'unstaged' : file.diffSource
         const compareAgainstHead = file.mode === 'edit'
@@ -97,7 +100,7 @@ export function useEditorPanelDiffContentLoader({
               ? commitCompare
                 ? getRuntimeGitCommitDiff(
                     {
-                      settings: fileSettings,
+                      target: fileTarget,
                       worktreeId: file.worktreeId,
                       worktreePath,
                       connectionId
@@ -113,7 +116,7 @@ export function useEditorPanelDiffContentLoader({
               : effectiveDiffSource === 'branch' && branchCompare
                 ? getRuntimeGitBranchDiff(
                     {
-                      settings: fileSettings,
+                      target: fileTarget,
                       worktreeId: file.worktreeId,
                       worktreePath,
                       connectionId
@@ -131,7 +134,7 @@ export function useEditorPanelDiffContentLoader({
                   )
                 : getRuntimeWorktreeFileDiff(
                     {
-                      settings: fileSettings,
+                      target: fileTarget,
                       worktreeId: file.worktreeId,
                       worktreePath,
                       connectionId

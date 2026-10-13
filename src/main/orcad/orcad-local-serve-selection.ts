@@ -11,7 +11,7 @@
  */
 import { chmodSync, copyFileSync, existsSync, linkSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { runProcess } from '../../shared/child-process/run-process'
+import { runProcess } from '@orca/process-host'
 import { NODE_RUNTIME_ASSETS, type ServerTarget } from '../../shared/node-runtime-pin'
 import {
   ORCAD_SERVER_ENTRY_FILENAME,
@@ -29,8 +29,10 @@ import {
 } from '../../shared/orcad-local-serve-selection'
 import { resolveBundledOrcadRuntime } from './orcad-bundled-runtime'
 import { detectNativeHostAbi, nativeSlotName } from './native-host-abi'
-import { materializeOrcadArtifact } from '../ssh/orcad-artifact-materializer'
-import { materializeCachedNodeRuntime } from '../ssh/pinned-runtime-materializer'
+import { materializeOrcadArtifact } from './orcad-artifact-materializer'
+import { materializeCachedNodeRuntime } from '../node-runtime/pinned-runtime-materializer'
+import { serveProfileHasSshTargets } from './serve-profile-ssh-targets'
+import { errorMessage } from '../../shared/error-message'
 
 const NATIVE_PREFLIGHT_TIMEOUT_MS = 30_000
 
@@ -43,6 +45,7 @@ export type ServeRuntimeSelectionInput = {
   materializeSlot?: typeof materializeOrcadArtifact
   materializeRuntime?: typeof materializeCachedNodeRuntime
   nativePreflight?: (runtime: string, entry: string) => Promise<string>
+  profileHasSshTargets?: (userDataPath: string) => boolean
 }
 
 function isServerTarget(value: string): value is ServerTarget {
@@ -63,6 +66,12 @@ export async function selectServeRuntime(
   if (requested && requested !== 'orcad') {
     return electron(`${SERVE_RUNTIME_ENV}=${requested} is neither orcad nor electron`)
   }
+  // Why: orcad has no SSH connection stack yet, so a default serve on it would list no targets
+  // and fail every connect (#25886, #8489). An explicit ORCA_SERVE_RUNTIME=orcad keeps orcad.
+  const sshReason = requested ? null : profileSshReason(input)
+  if (sshReason) {
+    return electron(sshReason)
+  }
   const target = (input.hostTarget ?? (() => nativeSlotName(detectNativeHostAbi())))()
   if (!isServerTarget(target)) {
     return electron(`no orcad build exists for this host (${target})`)
@@ -80,13 +89,13 @@ export async function selectServeRuntime(
     })
     await placeSlotRuntime(slotDir, target, cacheRoot, input.materializeRuntime)
   } catch (error) {
-    return electron(`the orcad slot for ${target} could not be prepared: ${errorText(error)}`)
+    return electron(`the orcad slot for ${target} could not be prepared: ${errorMessage(error)}`)
   }
   let runtime: string | null
   try {
     runtime = resolveBundledOrcadRuntime(slotDir)
   } catch (error) {
-    return electron(`the orcad slot is incomplete: ${errorText(error)}`)
+    return electron(`the orcad slot is incomplete: ${errorMessage(error)}`)
   }
   if (!runtime) {
     return electron('the orcad slot names no pinned runtime')
@@ -108,6 +117,19 @@ export async function selectServeRuntime(
     runtime,
     entry,
     version: readFileSync(join(slotDir, ORCAD_VERSION_FILENAME), 'utf8').trim()
+  }
+}
+
+/** Why this profile must serve on Electron for SSH, or null when it provably has no targets. */
+function profileSshReason(input: ServeRuntimeSelectionInput): string | null {
+  try {
+    return (input.profileHasSshTargets ?? serveProfileHasSshTargets)(input.userDataPath)
+      ? 'this profile has SSH targets, which orcad cannot serve yet'
+      : null
+  } catch (error) {
+    // Why: fail closed. The read-only probe rejects profiles the serve host would still migrate
+    // (an older schema), and guessing "no SSH" there leaves saved targets unreachable.
+    return `could not tell whether this profile has SSH targets, which orcad cannot serve yet (${errorMessage(error)})`
   }
 }
 
@@ -142,8 +164,4 @@ async function runNativePreflight(runtime: string, entry: string): Promise<strin
     timeoutMs: NATIVE_PREFLIGHT_TIMEOUT_MS
   })
   return result.stdout
-}
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }

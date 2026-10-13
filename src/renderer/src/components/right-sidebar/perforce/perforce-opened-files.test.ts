@@ -3,7 +3,8 @@ import { refreshPerforceOpenedFiles } from './perforce-opened-files'
 import type { PerforceWorkspaceTarget } from '../../../runtime/runtime-perforce-client'
 
 const local = (worktreePath: string): PerforceWorkspaceTarget => ({
-  settings: { activeRuntimeEnvironmentId: null },
+  target: { kind: 'local' },
+  settings: {},
   worktreeId: null,
   worktreePath
 })

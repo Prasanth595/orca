@@ -8,7 +8,7 @@ import {
 installRuntimeFileClientEnvironment()
 
 const context = {
-  settings: { activeRuntimeEnvironmentId: null },
+  target: { kind: 'local' as const },
   worktreeId: 'wt-1',
   worktreePath: '/repo'
 }

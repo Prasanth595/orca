@@ -6,7 +6,12 @@
 // no catch-all: a site that cannot name its situation sends the code with no reason, the same as an
 // older host, and the reader falls back to what it does for the code.
 
+import type { AgentSessionAccountKind } from './agent-session-availability'
 import type { AgentJournalResolution } from './agent-session-journal-types'
+import {
+  readCodexInstallationProblem,
+  type CodexInstallationProblem
+} from './codex-cli-installation'
 import {
   readAgentSessionArgumentProblem,
   type AgentSessionArgumentProblem
@@ -40,6 +45,8 @@ export const AGENT_SESSION_REFUSAL_REASONS = {
     'promptPending',
     'backgroundTasksRunning',
     'messagesUnsettled',
+    /** The chat's queued messages hold too much text to show on every client. */
+    'queueTooLarge',
     'rewindRefused',
     'rewindUnconfirmed',
     // A prompt card or an option
@@ -51,6 +58,8 @@ export const AGENT_SESSION_REFUSAL_REASONS = {
     'providerRejected',
     'providerStartFailed',
     'notSignedIn',
+    /** The agent's CLI is not installed on the host that would run it. */
+    'cliMissing',
     'historyTooLarge',
     /** The launch's own Anthropic sign-in variables would override the managed Claude account. */
     'managedAccountEnvOverride',
@@ -150,7 +159,11 @@ type NoFacts = Record<never, never>
 
 /** The facts a code carries beside its reason. */
 type AgentSessionRefusalFactsByCode = {
-  agent_session_operation_invalid: RewindFacts & { argumentProblem?: AgentSessionArgumentProblem }
+  agent_session_operation_invalid: RewindFacts & {
+    account?: AgentSessionAccountKind
+    argumentProblem?: AgentSessionArgumentProblem
+    codexInstallation?: CodexInstallationProblem
+  }
   agent_session_operation_unknown: RewindFacts
   agent_session_checkpoint_stale: {
     /** So the client can retry without another round trip. */
@@ -271,10 +284,20 @@ export function readAgentSessionRefusalDetails<C extends AgentSessionWireRefusal
     code === 'agent_session_operation_invalid'
       ? readAgentSessionArgumentProblem(value.argumentProblem)
       : undefined
+  const codexInstallation =
+    code === 'agent_session_operation_invalid'
+      ? readCodexInstallationProblem(value.codexInstallation)
+      : undefined
   const read = {
     ...(isAgentSessionRefusalReason(code, value.reason) ? { reason: value.reason } : {}),
     ...facts,
-    ...(argumentProblem ? { argumentProblem } : {})
+    ...(code === 'agent_session_operation_invalid' &&
+    value.reason === 'notSignedIn' &&
+    (value.account === 'managed' || value.account === 'system')
+      ? { account: value.account }
+      : {}),
+    ...(argumentProblem ? { argumentProblem } : {}),
+    ...(codexInstallation ? { codexInstallation } : {})
   }
   // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the reason was checked against `code`'s list and only the facts `code` lists (plus the verdict every code may carry) were kept.
   return Object.keys(read).length > 0 ? (read as AgentSessionRefusalDetails<C>) : undefined

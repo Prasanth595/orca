@@ -27,7 +27,7 @@ export async function checkoutPerforceFileBeforeWrite(
   }
   const target = await perforceTargetForFile(
     {
-      settings: context.settings,
+      target: context.target,
       worktreeId: context.worktreeId,
       worktreePath: context.worktreePath ?? '',
       ...(context.connectionId ? { connectionId: context.connectionId } : {})

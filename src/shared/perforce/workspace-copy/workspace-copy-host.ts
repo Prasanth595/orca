@@ -1,8 +1,8 @@
 import { rm, statfs } from 'node:fs/promises'
 import { release } from 'node:os'
 import { toNamespacedPath } from 'node:path'
-import { runProcess } from '../../child-process/run-process'
-import { windowsSystem32Binary } from '../../child-process/windows-system-binary'
+import { runProcess } from '@orca/process-host'
+import { windowsSystem32Binary } from '@orca/process-host/windows-system-binary'
 import { transientLockRemovalOptions } from '../../windows-transient-lock-removal'
 import { runP4, type P4CommandResult, type P4RunOptions } from '../p4-command'
 

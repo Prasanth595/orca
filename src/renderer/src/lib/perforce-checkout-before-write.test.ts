@@ -47,7 +47,7 @@ vi.mock('../runtime/runtime-perforce-client', () => ({
   }
 }))
 
-const CONTEXT = { settings: null, worktreeId: 'wt', worktreePath: '/ws' }
+const CONTEXT = { target: { kind: 'local' as const }, worktreeId: 'wt', worktreePath: '/ws' }
 
 beforeEach(() => {
   state.behavior = 'ask'

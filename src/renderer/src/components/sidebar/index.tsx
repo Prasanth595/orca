@@ -20,6 +20,7 @@ import { useSystemPrefersDark } from '@/components/terminal-pane/use-system-pref
 import { lazyWithRetry } from '@/lib/lazy-with-retry'
 import { usePerforceCopySync } from '../perforce-copies/use-perforce-copy-sync'
 import { LocalGitToolchainScanBanner } from './LocalGitToolchainScanBanner'
+import { SeveredTerminalDaemonBanner } from './SeveredTerminalDaemonBanner'
 
 // Why lazy: the Agents list pulls the whole activity pipeline (virtualizer, markdown
 // previews, thread derivation); users on the workspace view should not load or render any of it.
@@ -182,6 +183,7 @@ function Sidebar({
               onWorkspaceBoardMenuOpenChange={setWorkspaceBoardMenuOpen}
               activityOptionsTarget={setAgentOptionsTarget}
             />
+            <SeveredTerminalDaemonBanner />
             {sidebarBody === 'agents' ? (
               <React.Suspense fallback={<div className="min-h-0 flex-1" />}>
                 <ActivityThreadCollapseContext.Provider value={agentsCollapseState}>
