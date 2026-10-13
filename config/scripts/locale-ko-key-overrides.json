@@ -5104,5 +5104,17 @@
   },
   "components.workspace.cleanup.browse.agent.working": {
     "ko": "작업 중"
+  },
+  "auto.components.right.sidebar.SourceControl.compareBaseCommitsAheadOne": {
+    "ko": "{{ref}}보다 커밋 1개 앞서 있음"
+  },
+  "auto.components.right.sidebar.SourceControl.compareBaseCommitsAheadOther": {
+    "ko": "{{ref}}보다 커밋 {{count}}개 앞서 있음"
+  },
+  "auto.components.right.sidebar.SourceControl.compareBaseCommitsBehindOne": {
+    "ko": "{{ref}}보다 커밋 1개 뒤처짐"
+  },
+  "auto.components.right.sidebar.SourceControl.compareBaseCommitsBehindOther": {
+    "ko": "{{ref}}보다 커밋 {{count}}개 뒤처짐"
   }
 }
