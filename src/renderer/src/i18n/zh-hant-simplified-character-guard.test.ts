@@ -29,12 +29,18 @@ describe('zh-Hant catalog', () => {
     expect(leaks.map(([path]) => path)).toEqual([])
   })
 
-  // Why: 計算機 / 製表符 are mainland terms; Taiwan UI copy uses 電腦 and 分頁.
-  it('uses Taiwan terms for computer and tab', () => {
+  // Why: these are mainland terms (often left by s2t conversion); Taiwan UI copy uses 電腦, 分頁, 雲端, 工作階段, etc.
+  it('uses Taiwan terms instead of mainland ones', () => {
     const entries: [string, string][] = []
     collectStrings(zhHant, '', entries)
     expect(
-      entries.filter(([, value]) => /計算機|製表符/.test(value)).map(([path]) => path)
+      entries
+        .filter(([, value]) =>
+          /計算機|製表符|云|雲(?!端)|會話|獲取|構建|令牌|拉取請求|選項卡|標籤頁|本地|倉庫|後臺|影象|單擊|當前|自定義|二維碼|反饋|終端(?!機)|許可權|擴充套件/.test(
+            value
+          )
+        )
+        .map(([path]) => path)
     ).toEqual([])
   })
 
