@@ -11,7 +11,6 @@ import {
   type StructuredAgentSessionAcquireInput
 } from '../native-chat/agent-session-wire/structured-agent-session-adapter'
 import { openZcodeAppServerConnection } from './zcode-app-server-connection'
-import { zcodeStructuredChildEnvironment } from './zcode-structured-child-environment'
 import {
   readZcodeSessionEvent,
   readZcodePermissionRequest,
@@ -44,14 +43,16 @@ export async function acquireZcodeStructuredSession(input: {
   const now = deps.now ?? Date.now
   let launch
   try {
-    launch = await deps.resolveLaunch({ identity: acquire.identity })
+    launch = await deps.resolveLaunch({
+      identity: acquire.identity,
+      spawnToken: acquire.spawnToken
+    })
   } catch (error) {
     throw error instanceof AgentSessionPreSpawnError ? error : new AgentSessionPreSpawnError(error)
   }
 
   const acquisitionGeneration = deps.mintAcquisitionGeneration?.() ?? randomUUID()
   const resumeSessionId = launch.resumeSessionId
-  const childEnv = zcodeStructuredChildEnvironment(launch, sessionId)
   /** Shared with the session: prompts the child asks during and after acquire all land here. */
   const livePrompts = new Map<string, ZcodeLivePrompt>()
 
@@ -78,8 +79,8 @@ export async function acquireZcodeStructuredSession(input: {
         command: launch.command,
         args: launch.args,
         cwd: launch.cwd,
-        env: { ...childEnv.env, ORCA_AGENT_SESSION_SPAWN_TOKEN: acquire.spawnToken },
-        envToDelete: childEnv.envToDelete
+        env: launch.env,
+        envToDelete: launch.envToDelete
       },
       {
         onSpawned: acquire.onSpawned

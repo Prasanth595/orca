@@ -5,22 +5,28 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { agentSessionAccountHome } from '../../shared/agent-session-account-home'
 import { supportsSupervisedProviderChildLocation } from '../provider-process/supervised-provider-child-location'
-import type { StructuredAgentRuntimeRegistration } from '../runtime/structured-agent-runtime-registrations'
+import {
+  composeStructuredLaunch,
+  structuredAgentLaunchSources
+} from '../runtime/structured-agent-launch-composition'
+import type {
+  StructuredAgentAdapterContext,
+  StructuredAgentRuntimeAdapter,
+  StructuredAgentRuntimeRegistration
+} from '../runtime/structured-agent-runtime-registrations'
 import { ZcodeStructuredSessionAdapter } from './zcode-structured-session-adapter'
 import { ZCODE_STRUCTURED_AGENT } from './zcode-structured-agent-definition'
-import { createZcodeStructuredLaunchResolver } from './zcode-structured-launch-resolution'
+import { zcodeStructuredLaunchPart } from './zcode-structured-launch-resolution'
+import { ZCODE_CLI_CONVERSATIONS } from './zcode-cli-conversations'
 
-function createZcodeAdapter(
-  context: Parameters<StructuredAgentRuntimeRegistration['createAdapter']>[0]
-) {
-  const { deps, store } = context
+function createZcodeAdapter(context: StructuredAgentAdapterContext): StructuredAgentRuntimeAdapter {
+  const { deps } = context
   return new ZcodeStructuredSessionAdapter({
-    resolveLaunch: createZcodeStructuredLaunchResolver({
-      store,
-      resolveWorkspacePath: deps.resolveWorkspacePath,
-      resolveEnvironment: context.environment.resolveBaseEnvironment,
-      ...(deps.resolveZcodeCommand ? { resolveCommand: deps.resolveZcodeCommand } : {})
-    }),
+    resolveLaunch: composeStructuredLaunch(
+      ZCODE_STRUCTURED_AGENT,
+      structuredAgentLaunchSources(context),
+      zcodeStructuredLaunchPart({ resolveCommand: deps.resolveZcodeCommand })
+    ),
     ...(deps.openZcodeConnection ? { openConnection: deps.openZcodeConnection } : {}),
     ...(deps.readProcessStartTime ? { readProcessStartTime: deps.readProcessStartTime } : {}),
     logger: deps.logger,
@@ -32,6 +38,12 @@ function createZcodeAdapter(
 export const ZCODE_RUNTIME_REGISTRATION: StructuredAgentRuntimeRegistration = {
   definition: ZCODE_STRUCTURED_AGENT,
   createAdapter: createZcodeAdapter,
+  // The app-server lists models only inside a conversation; no session-free listing exists.
+  modelCatalog: () => ({
+    kind: 'unavailable',
+    reason: 'zcode app-server lists no models without a session'
+  }),
+  ...ZCODE_CLI_CONVERSATIONS,
   supportsLocation: (location) => supportsSupervisedProviderChildLocation(location),
   resolveAccountHome: async ({ launchEnv }) =>
     agentSessionAccountHome(

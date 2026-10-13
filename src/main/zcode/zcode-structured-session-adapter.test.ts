@@ -152,7 +152,8 @@ describe('ZcodeStructuredSessionAdapter.acquire', () => {
         command: 'zcode',
         args: ['app-server', '--stdio'],
         cwd: '/work/repo',
-        zcodeHome: null,
+        env: {},
+        envToDelete: [],
         resumeSessionId: PROVIDER_SESSION,
         workspacePath: '/work/repo'
       })
@@ -172,7 +173,8 @@ describe('ZcodeStructuredSessionAdapter.acquire', () => {
         command: 'zcode',
         args: ['app-server', '--stdio'],
         cwd: '/work/repo',
-        zcodeHome: '/home/dev/.zcode',
+        env: { ZCODE_HOME: '/home/dev/.zcode' },
+        envToDelete: [],
         resumeSessionId: PROVIDER_SESSION,
         workspacePath: '/work/repo'
       })
@@ -200,7 +202,8 @@ describe('ZcodeStructuredSessionAdapter.acquire', () => {
         command: 'zcode',
         args: ['app-server', '--stdio'],
         cwd: '/work/repo',
-        zcodeHome: null,
+        env: {},
+        envToDelete: [],
         resumeSessionId: PROVIDER_SESSION,
         workspacePath: '/work/repo'
       })

@@ -46,7 +46,7 @@ export function resolveNativeChatTranscriptAgent(
   if (agent === 'claude' || agent === 'openclaude') {
     return 'claude'
   }
-  if (agent === 'opencode' || agent === 'opencode2') {
+  if (agent === 'opencode' || agent === 'opencode2' || agent === 'zcode') {
     return 'opencode'
   }
   // Why: ZCode's CLI stores an OpenCode-v1-shaped history in its own SQLite DB

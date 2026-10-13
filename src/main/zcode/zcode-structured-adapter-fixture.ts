@@ -171,7 +171,8 @@ export function adapterFor(
       command: 'zcode',
       args: ['app-server', '--stdio'],
       cwd: '/work/repo',
-      zcodeHome: '/home/dev/.zcode',
+      env: { ZCODE_HOME: '/home/dev/.zcode' },
+      envToDelete: [],
       resumeSessionId: null,
       workspacePath: '/work/repo'
     }),

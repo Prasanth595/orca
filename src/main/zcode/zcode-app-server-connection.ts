@@ -3,7 +3,7 @@
 // handshake — the first request may go out as soon as the child exists — so `open` only awaits
 // `onSpawned` before returning.
 
-import { spawnProcess } from '../../shared/child-process/run-process'
+import { spawnProcess } from '@orca/process-host'
 import { spawnManagedProviderProcess } from '../provider-process/managed-provider-process'
 import type { ProviderProcessLaunch } from '../provider-process/provider-process-launch'
 import { withMissingProviderExecutable } from '../provider-process/provider-executable-missing'

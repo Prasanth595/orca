@@ -1,8 +1,8 @@
 import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { ProcessSpec } from '../../shared/child-process/process-spec'
-import type { spawnProcess } from '../../shared/child-process/run-process'
+import type { ProcessSpec } from '@orca/process-host/process-spec'
+import type { spawnProcess } from '@orca/process-host'
 import {
   openZcodeAppServerConnection,
   ZcodeAppServerTimeoutError

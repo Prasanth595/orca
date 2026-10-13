@@ -17,17 +17,16 @@ import { agentJournalTurnBody } from '../../shared/agent-session-turn-record'
 import type { StructuredAgentSessionEventSink } from '../native-chat/agent-session-wire/structured-agent-session-event-sink'
 import {
   appendZcodeItemAndPublish,
+  ZCODE_JOURNAL_ADMITTED,
   zcodeItemIdentity,
   zcodeMessageIdentity,
   zcodeToolIdentity,
-  zcodeTurnIdentity
+  zcodeTurnIdentity,
+  type ZcodeJournalAdmission
 } from './zcode-structured-journal-sink'
-import {
-  readZcodeMessageParts,
-  readZcodeModelStreamingEvent,
-  type ZcodeSessionEvent
-} from './zcode-protocol-events'
+import { readZcodeModelStreamingEvent, type ZcodeSessionEvent } from './zcode-protocol-events'
 import { createZcodeStreamTranslator } from './zcode-structured-stream-translation'
+import { zcodeJournalMessageRow } from './zcode-structured-journal-message-row'
 import {
   agentKey,
   readRecord,
@@ -36,16 +35,10 @@ import {
   zcodeToolState
 } from './zcode-structured-journal-payload-readers'
 
-export type ZcodeJournalTranslationAdmission =
-  | { accepted: true }
-  | { accepted: false; reason: 'backpressure' | 'failed' | 'closed' | 'untranslated' }
-
-export const ZCODE_JOURNAL_ADMITTED: ZcodeJournalTranslationAdmission = { accepted: true }
-
 export type ZcodeJournalTranslator = {
-  handle: (event: ZcodeSessionEvent) => ZcodeJournalTranslationAdmission
+  handle: (event: ZcodeSessionEvent) => ZcodeJournalAdmission
   /** Seeds the journal from a `session/create`/`session/resume` snapshot, before publication. */
-  restoreSnapshot: (messages: unknown[]) => ZcodeJournalTranslationAdmission
+  restoreSnapshot: (messages: unknown[]) => ZcodeJournalAdmission
   /**
    * Writes the durable pending-approval row a reverse-RPC prompt waits on. The live
    * prompt is the claim state, but a second client answers from the journal, so the
@@ -56,7 +49,7 @@ export type ZcodeJournalTranslator = {
     toolName: string
     detail: string | null
     options: { id: string; label: string }[]
-  }) => ZcodeJournalTranslationAdmission
+  }) => ZcodeJournalAdmission
   endTurnUnproven: (turnId: string | undefined) => void
   dispose: () => void
 }
@@ -116,7 +109,7 @@ export function createZcodeJournalTranslator(
     ...(deps.schedule ? { schedule: deps.schedule } : {})
   })
 
-  const handleTurnStarted = (event: ZcodeSessionEvent): ZcodeJournalTranslationAdmission => {
+  const handleTurnStarted = (event: ZcodeSessionEvent): ZcodeJournalAdmission => {
     const turnId = readString(event.payload, 'turnId') ?? `turn-${event.seq}`
     const startedAt = event.timestamp
     currentTurn = { turnId, userItemId: null, startedAt }
@@ -129,7 +122,7 @@ export function createZcodeJournalTranslator(
     )
   }
 
-  const handleTurnCompleted = (event: ZcodeSessionEvent): ZcodeJournalTranslationAdmission => {
+  const handleTurnCompleted = (event: ZcodeSessionEvent): ZcodeJournalAdmission => {
     const turnId = readString(event.payload, 'turnId') ?? currentTurn?.turnId
     if (!turnId) {
       return ZCODE_JOURNAL_ADMITTED
@@ -162,41 +155,14 @@ export function createZcodeJournalTranslator(
   }
 
   /** One whole ZCode message → its journal message row, `null` for unnameable or blank ones. */
-  const messageRowFrom = (
-    message: unknown,
-    timestamp: number | null
-  ): {
-    messageId: string
-    identity: AgentJournalItemIdentity
-    body: AgentJournalItemBody
-  } | null => {
-    // Some builds file the id inside `info` rather than at the top level; skipping
-    // those would silently drop the message from a resumed chat.
-    const messageId =
-      readString(message, 'messageId') ?? readString(readRecord(message, 'info') ?? {}, 'messageId')
-    const role = readString(readRecord(message, 'info') ?? message, 'role') ?? 'assistant'
-    const blocks = readZcodeMessageParts(message)
-    if (!messageId || blocks.length === 0) {
-      return null
-    }
-    const isUser = role === 'user'
-    if (isUser && currentTurn && !currentTurn.userItemId) {
-      currentTurn.userItemId = agentKey(messageIdentity(messageId))
-    }
-    return {
-      messageId,
-      identity: messageIdentity(messageId),
-      body: {
-        kind: 'message',
-        role: isUser ? 'user' : 'assistant',
-        blocks,
-        state: 'completed',
-        ...(timestamp === null ? {} : { completedAt: timestamp })
+  const messageRowFrom = (message: unknown, timestamp: number | null) =>
+    zcodeJournalMessageRow(message, timestamp, (messageId) => {
+      if (currentTurn && !currentTurn.userItemId) {
+        currentTurn.userItemId = agentKey(messageIdentity(messageId))
       }
-    }
-  }
+    })
 
-  const handleMessageUpserted = (event: ZcodeSessionEvent): ZcodeJournalTranslationAdmission => {
+  const handleMessageUpserted = (event: ZcodeSessionEvent): ZcodeJournalAdmission => {
     const row = messageRowFrom(
       readRecord(event.payload, 'message') ?? event.payload,
       event.timestamp
@@ -214,7 +180,7 @@ export function createZcodeJournalTranslator(
     )
   }
 
-  const handleToolPart = (event: ZcodeSessionEvent): ZcodeJournalTranslationAdmission => {
+  const handleToolPart = (event: ZcodeSessionEvent): ZcodeJournalAdmission => {
     const part = readRecord(event.payload, 'part') ?? event.payload
     const messageId = readString(part, 'messageId') ?? readString(event.payload, 'messageId')
     const partId = readString(part, 'partId')
@@ -239,7 +205,7 @@ export function createZcodeJournalTranslator(
     )
   }
 
-  const handleSessionEvent = (event: ZcodeSessionEvent): ZcodeJournalTranslationAdmission => {
+  const handleSessionEvent = (event: ZcodeSessionEvent): ZcodeJournalAdmission => {
     if (disposed) {
       return { accepted: false, reason: 'closed' }
     }
@@ -277,7 +243,7 @@ export function createZcodeJournalTranslator(
     }
   }
 
-  const restoreSnapshot = (messages: unknown[]): ZcodeJournalTranslationAdmission => {
+  const restoreSnapshot = (messages: unknown[]): ZcodeJournalAdmission => {
     for (const raw of messages) {
       if (typeof raw !== 'object' || raw === null) {
         continue
@@ -304,7 +270,7 @@ export function createZcodeJournalTranslator(
     toolName: string
     detail: string | null
     options: { id: string; label: string }[]
-  }): ZcodeJournalTranslationAdmission => {
+  }): ZcodeJournalAdmission => {
     return appendZcodeItemAndPublish(
       sink,
       zcodeItemIdentity(`prompt:${prompt.itemId}`),

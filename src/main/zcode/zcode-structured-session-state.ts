@@ -3,13 +3,16 @@
 // acquire/close/prompt modules share one state shape.
 
 import type { AgentSessionProcessIdentity } from '../../shared/agent-session-record'
-import type { AgentSessionJournalIdentity } from '../../shared/agent-session-journal-types'
 import type { StructuredAgentSessionLogger } from '../native-chat/agent-session-wire/structured-agent-session-logger'
 import type { StructuredAgentSessionEndedEvent } from '../native-chat/agent-session-wire/structured-agent-session-adapter'
 import type { ZcodeAppServerConnection } from './zcode-app-server-connection-types'
 import type { openZcodeAppServerConnection } from './zcode-app-server-connection'
 import type { ZcodeJournalTranslator } from './zcode-structured-journal-translation'
 import type { ZcodeStructuredLaunch } from './zcode-structured-launch-resolution'
+import type {
+  ComposedStructuredLaunch,
+  StructuredAgentLaunchResolver
+} from '../runtime/structured-agent-launch-composition'
 
 /** One reverse-RPC approval/question the child asked and Orca has not answered. */
 export type ZcodeLivePrompt = {
@@ -38,15 +41,13 @@ export type ZcodeStructuredSession = {
   prompts: Map<string, ZcodeLivePrompt>
   /** The options the session's create carried; the child has no read-back surface. */
   options: Map<string, string>
-  launch: ZcodeStructuredLaunch
+  launch: ComposedStructuredLaunch<ZcodeStructuredLaunch>
   /** Releases the journal sink's backpressure binding; every close path calls it. */
   unbindReadingControl?: () => void
 }
 
 export type ZcodeStructuredSessionAdapterDeps = {
-  resolveLaunch: (input: {
-    identity: AgentSessionJournalIdentity
-  }) => Promise<ZcodeStructuredLaunch>
+  resolveLaunch: StructuredAgentLaunchResolver<ZcodeStructuredLaunch>
   /** The host's lifecycle listener: every exit, expected or not, ends the record. */
   onEvent?: (event: StructuredAgentSessionEndedEvent) => void
   /** The connection saw the child die; the adapter owns turning that into `onEvent`. */

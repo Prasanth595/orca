@@ -10,8 +10,13 @@ import type {
   AgentJournalTurnScope
 } from '../../shared/agent-session-journal-types'
 import type { StructuredAgentSessionEventSink } from '../native-chat/agent-session-wire/structured-agent-session-event-sink'
-import type { ZcodeJournalTranslationAdmission } from './zcode-structured-journal-translation'
-import { ZCODE_JOURNAL_ADMITTED } from './zcode-structured-journal-translation'
+
+/** Whether one row landed, or why it did not. */
+export type ZcodeJournalAdmission =
+  | { accepted: true }
+  | { accepted: false; reason: 'backpressure' | 'failed' | 'closed' | 'untranslated' }
+
+export const ZCODE_JOURNAL_ADMITTED: ZcodeJournalAdmission = { accepted: true }
 
 export function zcodeItemIdentity(recordId: string): AgentJournalItemIdentity {
   return { provider: 'legacy', agent: 'zcode', sessionId: '', recordId }
@@ -36,7 +41,7 @@ export function appendZcodeItemAndPublish(
   body: AgentJournalItemBody,
   turnScope: AgentJournalTurnScope,
   options: { lifecycle?: boolean; observedAt?: number; coalescingKey?: string } = {}
-): ZcodeJournalTranslationAdmission {
+): ZcodeJournalAdmission {
   const admission = sink.tryAppendItem
     ? sink.tryAppendItem(identity, body, {
         turnScope,
