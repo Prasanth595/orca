@@ -20,7 +20,8 @@ import {
   getDispatchHandler,
   getSettleStructuredPromptsHandler,
   notificationCloseMock,
-  resetNotificationDispatchMocks
+  resetNotificationDispatchMocks,
+  notificationTestStore
 } from './notifications-test-harness'
 
 vi.mock('electron', async () =>
@@ -59,8 +60,7 @@ function register(
   const reconcileStructuredPromptAttention = (state: StructuredAttentionState) =>
     controller?.reconcileStructuredPromptAttention(state)
   registerNotificationHandlers(
-    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: these paths read only getSettings; Store is a class, so a structural double needs the cast.
-    {
+    notificationTestStore({
       getSettings: () => ({
         notifications: {
           enabled: true,
@@ -69,7 +69,7 @@ function register(
           suppressWhenFocused: options.suppressWhenFocused
         }
       })
-    } as never,
+    }),
     // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the notification handlers call only these four runtime methods.
     {
       dispatchMobileNotification,

@@ -1,5 +1,6 @@
 import { vi } from 'vitest'
 import type { Mock } from 'vitest'
+import type { Store } from '../persistence'
 
 // Why: mock state lives in this module so each split suite's `vi.mock` factory can
 // pull it in with a lazy dynamic import (hoisted factories cannot close over imports).
@@ -48,6 +49,9 @@ export function createElectronModuleMock(): Record<string, unknown> {
     app: {
       focus: vi.fn()
     },
+    nativeImage: {
+      createFromDataURL: (dataUrl: string) => ({ dataUrl, isEmpty: () => false })
+    },
     shell: {
       openExternal: shellOpenExternalMock
     }
@@ -67,6 +71,12 @@ export function createTrustedUIRendererModuleMock(): Record<string, unknown> {
 // suites stay focused on notification dispatch and avoid that import chain.
 export function createSystemTrayModuleMock(): Record<string, unknown> {
   return { setTrayAttention: setTrayAttentionMock }
+}
+
+/** Store double for the reads notifications make; repos have no icon unless a suite stubs getRepo. */
+export function notificationTestStore(stub: Partial<Record<keyof Store, unknown>>): Store {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: notification handlers read only getSettings, getUI, updateUI and getRepo; each suite stubs what its path reads. Store is a class, so a structural double needs the cast.
+  return { getRepo: () => undefined, ...stub } as Store
 }
 
 export function resetNotificationDispatchMocks(): void {
