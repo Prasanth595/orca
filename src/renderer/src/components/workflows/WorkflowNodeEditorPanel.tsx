@@ -87,6 +87,7 @@ export default function WorkflowNodeEditorPanel({
 
   const isAgentCall = node?.type === 'agent_call'
   const isShellCommand = node?.type === 'shell_command'
+  const isPythonScript = node?.type === 'python_script'
   const isFileWrite = node?.type === 'file_write'
   const isForEach = node?.type === 'for_each'
   const isCollect = node?.type === 'collect'
@@ -273,6 +274,22 @@ export default function WorkflowNodeEditorPanel({
               </SelectContent>
             </Select>
           </div>
+        )}
+
+        {(isShellCommand || isPythonScript) && (
+          <label className="flex items-center gap-2 text-[12px] cursor-pointer">
+            <input
+              type="checkbox"
+              checked={localData['failOnNonZeroExit'] === 'true'}
+              onChange={(e) =>
+                setLocalData((prev) => ({
+                  ...prev,
+                  failOnNonZeroExit: e.target.checked ? 'true' : 'false'
+                }))
+              }
+            />
+            {translate('workflows.nodeEditor.failOnNonZeroExit', 'Fail node if exit code ≠ 0')}
+          </label>
         )}
 
         {isFileWrite && (

@@ -116,6 +116,9 @@ export async function executeNode(
         remoteExec,
         signal
       )
+      if (node.data.failOnNonZeroExit && r.exitCode !== 0) {
+        throw new Error(`Shell command exited with code ${r.exitCode}`)
+      }
       return { ...r, outputValue: { stdout: r.stdout, stderr: r.stderr, exitCode: r.exitCode } }
     }
     case 'python_script': {
@@ -132,6 +135,9 @@ export async function executeNode(
         remoteExec,
         signal
       )
+      if (node.data.failOnNonZeroExit && r.exitCode !== 0) {
+        throw new Error(`Python script exited with code ${r.exitCode}`)
+      }
       return { ...r, outputValue: { stdout: r.stdout, stderr: r.stderr, exitCode: r.exitCode } }
     }
     case 'agent_call': {

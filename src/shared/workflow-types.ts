@@ -28,6 +28,7 @@ export type ShellCommandData = {
   timeoutSeconds: number
   shell?: string
   env?: Record<string, string>
+  failOnNonZeroExit?: boolean
 }
 
 export type PythonScriptData = {
@@ -35,6 +36,7 @@ export type PythonScriptData = {
   workingDirectory: string
   timeoutSeconds: number
   pythonBin?: string
+  failOnNonZeroExit?: boolean
 }
 
 export type AgentCallData = {

@@ -65,6 +65,10 @@ export function getGenericFieldKeys(keys: string[], nodeType: string): string[] 
   }
   if (nodeType === 'shell_command') {
     excluded.add('shell')
+    excluded.add('failOnNonZeroExit')
+  }
+  if (nodeType === 'python_script') {
+    excluded.add('failOnNonZeroExit')
   }
   if (nodeType === 'file_write') {
     excluded.add('mode')
@@ -81,6 +85,9 @@ export function coerceNodeData(rawData: Record<string, string>): Record<string, 
   const coerced: Record<string, unknown> = { ...rawData }
   if ('createParents' in coerced) {
     coerced['createParents'] = coerced['createParents'] !== 'false'
+  }
+  if ('failOnNonZeroExit' in coerced) {
+    coerced['failOnNonZeroExit'] = coerced['failOnNonZeroExit'] === 'true'
   }
   for (const k of ['timeoutSeconds', 'maxIterations', 'retryCount', 'retryDelaySeconds']) {
     if (k in coerced) {

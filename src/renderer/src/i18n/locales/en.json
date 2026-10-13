@@ -19502,6 +19502,7 @@
       "fileWriteModeOverwrite": "Overwrite",
       "fileWriteModeAppend": "Append",
       "createParents": "Create parent directories",
+      "failOnNonZeroExit": "Fail node if exit code ≠ 0",
       "agentCustom": "Custom executable…",
       "customExe": "Executable",
       "customArgs": "Arg template",
