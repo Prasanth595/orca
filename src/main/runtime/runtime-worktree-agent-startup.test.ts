@@ -314,7 +314,8 @@ describe('buildWorktreeStartupForAgent extra agent args', () => {
   it("merges a launch's account env over the startup plan's env", () => {
     const build = vi.fn(() => ({
       agent: 'codex' as const,
-      startup: { command: 'codex', env: { CODEX_HOME: '/stale', KEEP: '1' } }
+      startup: { command: 'codex', env: { CODEX_HOME: '/stale', KEEP: '1' } },
+      launchRuntime: LINUX_FACT
     }))
     const resolved = resolveWorktreeCreateAgentStartup(
       {
@@ -327,6 +328,7 @@ describe('buildWorktreeStartupForAgent extra agent args', () => {
     )
 
     expect(resolved?.startup.env).toEqual({ CODEX_HOME: '/home/u/.codex-b', KEEP: '1' })
+    expect(resolved?.launchRuntime).toBe(LINUX_FACT)
   })
 })
 
