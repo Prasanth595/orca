@@ -6,7 +6,8 @@ import type { TerminalLeafMoveResult } from '../../../../shared/terminal-leaf-mo
 import {
   clearMigrationUnsupportedPty,
   getMigrationUnsupportedPtySnapshot,
-  setMigrationUnsupportedPty
+  setMigrationUnsupportedPty,
+  setMigrationUnsupportedPtyListener
 } from '../../../agent-hooks/migration-unsupported-pty-state'
 import {
   getPtyIdForPaneKey,
@@ -129,6 +130,35 @@ describe('pty:moveLeafToNewTab', () => {
     expect(getMigrationUnsupportedPtySnapshot()).toEqual([
       expect.objectContaining({ ptyId: 'pty-agent', paneKey: TO_KEY, tabId: 'tab-target' })
     ])
+  })
+
+  it('still re-stamps the runtime PTY record when the migration notification throws', async () => {
+    vi.spyOn(agentHookServer, 'transferPaneAuthority').mockImplementation(() => {})
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    setMigrationUnsupportedPty({
+      ptyId: 'pty-agent',
+      tabId: 'tab-source',
+      paneKey: FROM_KEY,
+      reason: 'legacy-numeric-pane-key',
+      source: 'local',
+      updatedAt: 1
+    })
+    // Why: a destroyed renderer makes the webContents send inside this listener throw.
+    setMigrationUnsupportedPtyListener(() => {
+      throw new Error('Object has been destroyed')
+    })
+    const { store, runtime, restampMovedPtySurface } = deps({ status: 'moved', ptyId: 'pty-agent' })
+
+    try {
+      await expect(commitLeafMoveAndRekey({ store, runtime }, request)).resolves.toEqual({
+        status: 'moved',
+        ptyId: 'pty-agent'
+      })
+    } finally {
+      setMigrationUnsupportedPtyListener(null)
+    }
+
+    expect(restampMovedPtySurface).toHaveBeenCalledWith('pty-agent', 'tab-target', TO_KEY)
   })
 
   it('touches no PTY lookup or runtime record for a move with no PTY', async () => {
