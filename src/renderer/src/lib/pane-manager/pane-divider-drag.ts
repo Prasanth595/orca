@@ -64,6 +64,7 @@ export function createDividerFlexFrameScheduler({
   }
 }
 
+/** Wires a pane divider's drag-to-resize and double-click-to-equalize gestures. */
 export function attachDividerDrag(
   divider: HTMLElement,
   isVertical: boolean,
