@@ -29,6 +29,13 @@ export type PluginHostStatus =
   | 'errored'
   | 'invalid'
 
+export type PluginHostWorktreeHook = {
+  id: string
+  title: string
+  setup?: string
+  archive?: string
+}
+
 /** Wire shape of plugins:list — must stay assignable from the main-process
  *  projection in src/main/plugins/plugin-list-projection.ts. */
 export type PluginHostListEntry = {
@@ -63,6 +70,7 @@ export type PluginHostListEntry = {
       command: string
     }[]
   }[]
+  worktreeHooks?: PluginHostWorktreeHook[]
   restarts: number
   blockedByKillList?: { reason: string; advisoryUrl?: string }
   source?: {

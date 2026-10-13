@@ -37,6 +37,11 @@ export function pluginCapabilityDescription(kind: string, fallback: string): str
         'auto.components.settings.PluginConsentDialog.capability.settingsOwn',
         "Read and change the plugin's own settings"
       )
+    case 'repo:hooks':
+      return translate(
+        'auto.components.settings.PluginConsentDialog.capability.repoHooks',
+        'Offer worktree setup and archive commands, which run only in projects you turn them on for'
+      )
     default:
       return fallback
   }

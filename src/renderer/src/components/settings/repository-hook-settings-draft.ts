@@ -15,7 +15,10 @@ export type LocalHookField = {
   placeholder: string
 }
 export type HookSettingsPolicyDraft = Partial<
-  Pick<RepoHookSettings, 'setupRunPolicy' | 'setupAgentStartupPolicy' | 'commandSourcePolicy'>
+  Pick<
+    RepoHookSettings,
+    'setupRunPolicy' | 'setupAgentStartupPolicy' | 'commandSourcePolicy' | 'pluginHookSource'
+  >
 >
 
 export function getLocalHookFields(): readonly [LocalHookField, LocalHookField] {
@@ -71,7 +74,9 @@ export function areHookSettingsDraftsEqual(a: RepoHookSettings, b: RepoHookSetti
     a.setupAgentStartupPolicy === b.setupAgentStartupPolicy &&
     a.commandSourcePolicy === b.commandSourcePolicy &&
     a.scripts.setup === b.scripts.setup &&
-    a.scripts.archive === b.scripts.archive
+    a.scripts.archive === b.scripts.archive &&
+    a.pluginHookSource?.pluginKey === b.pluginHookSource?.pluginKey &&
+    a.pluginHookSource?.contributionId === b.pluginHookSource?.contributionId
   )
 }
 

@@ -11576,7 +11576,8 @@
             "storage": "Guardar datos en la carpeta de almacenamiento propia del plugin",
             "secrets": "Guardar y leer secretos en la bóveda cifrada propia del plugin",
             "eventsSubscribe": "Recibir avisos cuando se creen o eliminen worktrees y cuando cambie el estado de un agente",
-            "settingsOwn": "Leer y cambiar la configuración propia del plugin"
+            "settingsOwn": "Leer y cambiar la configuración propia del plugin",
+            "repoHooks": "Ofrecer comandos de configuración y archivado de worktrees, que solo se ejecutan en los proyectos donde los activas"
           },
           "decisionFailed": "No se pudo guardar la decisión sobre los permisos. Inténtalo de nuevo."
         },
@@ -11682,7 +11683,9 @@
           "close": "Close",
           "cancel": "Cancelar",
           "update": "Actualizar plugin",
-          "install": "Instalar plugin"
+          "install": "Instalar plugin",
+          "worktreeHooksOne": "1 conjunto de hooks de worktree",
+          "worktreeHooks": "{{value0}} conjuntos de hooks de worktree"
         },
         "PluginMarketplaceSourceDialog": {
           "addFailed": "No se pudo añadir este marketplace. Comprueba la URL de Git, la referencia y tus credenciales de Git.",
@@ -12413,6 +12416,20 @@
           "description": "Este host vuelve a su servidor gestionado tal como está. Lo que la versión anterior de Orca agregó o cambió aquí no se mueve; permanece solo en los ajustes guardados de esta computadora hasta que se limpien.",
           "cancel": "Cancelar",
           "confirm": "Conservar la versión del servidor"
+        },
+        "PluginWorktreeHookConsentPreview": {
+          "setup": "Configuración",
+          "archive": "Archivado",
+          "commandLabel": "Comando de {{value0}} · {{value1}}",
+          "heading": "Comandos de hooks de worktree",
+          "scope": "Solo se ejecutan en un worktree de los proyectos donde elijas este plugin en Hooks de worktree."
+        },
+        "RepositoryPluginHookSourceSetting": {
+          "label": "Comandos de hooks locales",
+          "description": "Usa los scripts de configuración y archivado de abajo, o los comandos que ofrece un plugin.",
+          "ownScripts": "Mis scripts",
+          "removedPlugin": "{{value0}} (no instalado)",
+          "unavailable": "Este plugin está desactivado, eliminado o pendiente de tu aprobación, así que no se ejecuta ningún comando de hook local en este proyecto. Tus propios scripts siguen desactivados hasta que vuelvas a elegirlos."
         }
       },
       "right": {

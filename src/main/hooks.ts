@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { parseOrcaYaml } from '../shared/orca-yaml'
 import { resolveHookCommandSourcePolicy } from '../shared/hook-command-source-policy'
 import { getEffectiveHooksFromConfig } from './effective-hook-config'
+import { getLocalHookScripts } from './plugin-worktree-hook-source'
 import { getHookRuntimeTarget, getHookWslContext } from './hook-runtime-target'
 import { getSetupEnvVars } from './setup-hook-env-vars'
 import { iterateLfScriptLines } from './setup-runner-script-text'
@@ -176,7 +177,7 @@ export function getSetupCommandSource(
   const hooksRoot = worktreePath ?? repo.path
   const yamlHooks = loadHooks(hooksRoot)
   const yamlSetup = yamlHooks?.scripts.setup?.trim()
-  const localSetup = repo.hookSettings?.scripts.setup?.trim()
+  const localSetup = getLocalHookScripts(repo).setup?.trim()
   const rawPolicy = repo.hookSettings?.commandSourcePolicy
   const policy = resolveHookCommandSourcePolicy(rawPolicy, {
     hasLocalScript: Boolean(localSetup)

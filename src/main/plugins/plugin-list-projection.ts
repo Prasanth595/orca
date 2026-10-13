@@ -71,6 +71,8 @@ export type PluginListEntry = {
     description?: string
     commands: { phase: 'create' | 'suspend' | 'resume' | 'destroy'; command: string }[]
   }[]
+  /** Optional on the wire: older hosts omit it. */
+  worktreeHooks?: { id: string; title: string; setup?: string; archive?: string }[]
   restarts: number
   blockedByKillList?: { reason: string; advisoryUrl?: string }
   source?: {
@@ -115,6 +117,7 @@ export async function buildPluginList(
           commands: [],
           hasWorker: false,
           vmRecipes: [],
+          worktreeHooks: [],
           restarts: 0
         }
       }
@@ -190,6 +193,12 @@ export async function buildPluginList(
           name: recipe.name,
           ...(recipe.description ? { description: recipe.description } : {}),
           commands: listPluginVmRecipeCommands(recipe)
+        })),
+        worktreeHooks: plugin.manifest.contributes.worktreeHooks.map((hook) => ({
+          id: hook.id,
+          title: hook.title,
+          ...(hook.setup?.trim() ? { setup: hook.setup } : {}),
+          ...(hook.archive?.trim() ? { archive: hook.archive } : {})
         })),
         restarts: worker.restarts,
         ...(killListEntry

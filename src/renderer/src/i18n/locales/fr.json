@@ -11673,7 +11673,8 @@
             "storage": "Stocker des données dans le dossier de stockage propre au plugin",
             "secrets": "Stocker et lire des secrets dans le coffre chiffré propre au plugin",
             "eventsSubscribe": "Être notifié quand des worktrees sont créés ou supprimés et quand le statut d'un agent change",
-            "settingsOwn": "Lire et modifier les paramètres propres au plugin"
+            "settingsOwn": "Lire et modifier les paramètres propres au plugin",
+            "repoHooks": "Proposer des commandes de configuration et d'archivage des worktrees, exécutées uniquement dans les projets où vous les activez"
           },
           "decisionFailed": "Impossible d'enregistrer la décision d'autorisation. Réessayez."
         },
@@ -11779,7 +11780,9 @@
           "close": "Fermer",
           "cancel": "Annuler",
           "update": "Mettre à jour le plugin",
-          "install": "Installer le plugin"
+          "install": "Installer le plugin",
+          "worktreeHooksOne": "1 ensemble de hooks de worktree",
+          "worktreeHooks": "{{value0}} ensembles de hooks de worktree"
         },
         "PluginMarketplaceSourceDialog": {
           "addFailed": "Impossible d'ajouter ce marketplace. Vérifiez l'URL Git, la ref et vos identifiants Git.",
@@ -12519,6 +12522,20 @@
           "description": "Cet hôte revient à son serveur géré tel quel. Ce que la version plus ancienne d'Orca a ajouté ou modifié ici n'est pas déplacé ; cela reste uniquement dans les paramètres enregistrés de cet ordinateur jusqu'à leur nettoyage.",
           "cancel": "Annuler",
           "confirm": "Conserver la version du serveur"
+        },
+        "PluginWorktreeHookConsentPreview": {
+          "setup": "Configuration",
+          "archive": "Archivage",
+          "commandLabel": "Commande {{value0}} · {{value1}}",
+          "heading": "Commandes des hooks de worktree",
+          "scope": "Elles s'exécutent dans un worktree uniquement pour les projets où vous choisissez ce plugin dans Hooks de worktree."
+        },
+        "RepositoryPluginHookSourceSetting": {
+          "label": "Commandes de hooks locales",
+          "description": "Utilisez les scripts de configuration et d'archivage ci-dessous, ou les commandes fournies par un plugin.",
+          "ownScripts": "Mes scripts",
+          "removedPlugin": "{{value0}} (non installé)",
+          "unavailable": "Ce plugin est désactivé, supprimé ou en attente de votre approbation : aucune commande de hook locale ne s'exécute pour ce projet. Vos propres scripts restent désactivés jusqu'à ce que vous les choisissiez à nouveau."
         }
       },
       "right": {

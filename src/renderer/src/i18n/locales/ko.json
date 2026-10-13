@@ -11576,7 +11576,8 @@
             "storage": "플러그인 자체 저장소 폴더에 데이터 저장",
             "secrets": "플러그인 자체 암호화 금고에 비밀 저장 및 읽기",
             "eventsSubscribe": "워크트리가 생성되거나 제거되고 에이전트 상태가 변경될 때 알림 받기",
-            "settingsOwn": "플러그인 자체 설정 읽기 및 변경"
+            "settingsOwn": "플러그인 자체 설정 읽기 및 변경",
+            "repoHooks": "워크트리 설정 및 보관 명령을 제공합니다. 사용 설정한 프로젝트에서만 실행됩니다"
           },
           "decisionFailed": "권한 결정을 저장할 수 없습니다. 다시 시도하세요."
         },
@@ -11682,7 +11683,9 @@
           "close": "닫기",
           "cancel": "취소",
           "update": "플러그인 업데이트",
-          "install": "플러그인 설치"
+          "install": "플러그인 설치",
+          "worktreeHooksOne": "워크트리 훅 세트 1개",
+          "worktreeHooks": "워크트리 훅 세트 {{value0}}개"
         },
         "PluginMarketplaceSourceDialog": {
           "addFailed": "이 마켓플레이스를 추가할 수 없습니다. Git URL, ref 및 Git 자격 증명을 확인하세요.",
@@ -12413,6 +12416,20 @@
           "description": "이 호스트는 현재 상태 그대로 관리형 서버로 돌아갑니다. 이전 버전의 Orca가 여기에서 추가하거나 변경한 내용은 이동되지 않으며, 정리될 때까지 이 컴퓨터의 저장된 설정에만 남습니다.",
           "cancel": "취소",
           "confirm": "서버 버전 유지"
+        },
+        "PluginWorktreeHookConsentPreview": {
+          "setup": "설정",
+          "archive": "보관",
+          "commandLabel": "{{value0}} · {{value1}} 명령",
+          "heading": "워크트리 훅 명령",
+          "scope": "워크트리 훅에서 이 플러그인을 선택한 프로젝트의 워크트리에서만 실행됩니다."
+        },
+        "RepositoryPluginHookSourceSetting": {
+          "label": "로컬 훅 명령",
+          "description": "아래의 설정 및 보관 스크립트 또는 플러그인이 제공하는 명령을 사용합니다.",
+          "ownScripts": "내 스크립트",
+          "removedPlugin": "{{value0}} (설치되지 않음)",
+          "unavailable": "이 플러그인이 비활성화되었거나 제거되었거나 승인을 기다리고 있어 이 프로젝트에서는 로컬 훅 명령이 실행되지 않습니다. 내 스크립트로 다시 전환하기 전까지 내 스크립트도 실행되지 않습니다."
         }
       },
       "right": {

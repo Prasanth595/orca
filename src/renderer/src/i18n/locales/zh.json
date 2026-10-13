@@ -11576,7 +11576,8 @@
             "storage": "在插件自己的存储文件夹中存储数据",
             "secrets": "在插件自己的加密保险库中存储和读取密钥",
             "eventsSubscribe": "在工作树创建或移除以及智能体状态更改时获得通知",
-            "settingsOwn": "读取和更改插件自己的设置"
+            "settingsOwn": "读取和更改插件自己的设置",
+            "repoHooks": "提供工作树设置和归档命令，仅在你为其开启的项目中运行"
           },
           "decisionFailed": "无法保存权限决定。请重试。"
         },
@@ -11682,7 +11683,9 @@
           "close": "关闭",
           "cancel": "取消",
           "update": "更新插件",
-          "install": "安装插件"
+          "install": "安装插件",
+          "worktreeHooksOne": "1 个工作树钩子集",
+          "worktreeHooks": "{{value0}} 个工作树钩子集"
         },
         "PluginMarketplaceSourceDialog": {
           "addFailed": "无法添加此市场。请检查 Git URL、引用和您的 Git 凭据。",
@@ -12427,6 +12430,20 @@
           "description": "此主机将按原样恢复为使用其受管服务器。较旧版本的 Orca 在此处添加或更改的内容不会被迁移；它们只会保留在这台电脑保存的设置中，直到被清理。",
           "cancel": "取消",
           "confirm": "保留服务器的版本"
+        },
+        "PluginWorktreeHookConsentPreview": {
+          "setup": "设置",
+          "archive": "归档",
+          "commandLabel": "{{value0}} · {{value1}} 命令",
+          "heading": "工作树钩子命令",
+          "scope": "仅在你于“工作树钩子”中选择了此插件的项目的工作树中运行。"
+        },
+        "RepositoryPluginHookSourceSetting": {
+          "label": "本地钩子命令",
+          "description": "使用下方的设置和归档脚本，或插件提供的命令。",
+          "ownScripts": "我的脚本",
+          "removedPlugin": "{{value0}}（未安装）",
+          "unavailable": "此插件已停用、已移除或正在等待你的批准，因此该项目不会运行任何本地钩子命令。在你切换回自己的脚本之前，它们也不会运行。"
         }
       },
       "right": {
