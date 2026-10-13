@@ -80,6 +80,10 @@ describe('getDefaultSettings', () => {
     expect(getDefaultSettings('/tmp').editorWordWrap).toBe(true)
   })
 
+  it('keeps file-editor keybindings on default', () => {
+    expect(getDefaultSettings('/tmp').editorKeybindings).toBe('default')
+  })
+
   it('keeps rich Markdown spellcheck enabled by default', () => {
     expect(getDefaultSettings('/tmp').richMarkdownSpellcheckEnabled).toBe(true)
   })

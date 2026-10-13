@@ -85,6 +85,8 @@ export type GlobalSettings = NativeChatGlobalSettings & {
   editorFontFamily?: string
   /** Defaults on for profiles saved before file-editor wrapping became configurable. */
   editorWordWrap?: boolean
+  /** Writable file-editor keys. Missing or unknown values stay on Default. */
+  editorKeybindings?: 'default' | 'vim'
   /** Persisted opt-out for browser spellcheck noise in rich Markdown editing surfaces. */
   richMarkdownSpellcheckEnabled?: boolean
   /** Whether local markdown review note controls and the review panel are shown. */
