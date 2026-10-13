@@ -1,4 +1,5 @@
 import { pollCodexTranscriptStatus } from '../shared/agent-hook-listener/providers/codex-transcript-poll'
+import { pollClaudePermissionResult } from '../shared/agent-hook-listener/providers/claude-permission-poll'
 // Deferred re-normalization timers for late-arriving agent results: the transcript hadn't caught up
 // when the hook fired, so re-read the same body on a timer and re-apply only if it changed. Both
 // timer families live in one owner so pane teardown and server stop tear both down in one ordered
@@ -55,7 +56,24 @@ export class AgentHookResultRetryScheduler {
     this.claudeOwedNotificationExpiry = new ClaudeOwedNotificationExpiryTimers(host.state)
     this.transcriptPollScheduler = new AgentTranscriptPollScheduler(
       CODEX_SUBAGENT_POLL_MS,
-      (paneKey, poll) => this.runTranscriptPoll(paneKey, poll)
+      (paneKey, poll) => {
+        return this.runTranscriptPoll(paneKey, poll).catch((error) => {
+          console.error('[relay-hook-server] transcript poll failed:', error)
+          if (
+            poll.source === 'claude' &&
+            this.host.isListening() &&
+            this.host.state.lastStatusByPaneKey.get(paneKey) === poll.original
+          ) {
+            this.scheduleTranscriptPoll(
+              poll.source,
+              poll.body,
+              poll.original,
+              poll.env,
+              poll.version
+            )
+          }
+        })
+      }
     )
   }
 
@@ -103,7 +121,10 @@ export class AgentHookResultRetryScheduler {
     version?: string
   ): void {
     // Why: a nested CLI of another kind inherits ORCA_PANE_KEY, so clearing here would silently end a live poll.
-    if (source !== 'codex' && source !== 'muse') {
+    if (source !== 'codex' && source !== 'muse' && source !== 'claude') {
+      return
+    }
+    if (original.payload.agentType !== source) {
       return
     }
     if (!shouldPollHookTranscript(this.host.state, source, original)) {
@@ -123,7 +144,7 @@ export class AgentHookResultRetryScheduler {
     )
   }
 
-  private runTranscriptPoll(paneKey: string, poll: TranscriptPoll): void {
+  private async runTranscriptPoll(paneKey: string, poll: TranscriptPoll): Promise<void> {
     const { source, body, original, env, version } = poll
     // Keep the identity check at callback time: a newer event supersedes this
     // payload even when its pane still has transcript children.
@@ -134,11 +155,33 @@ export class AgentHookResultRetryScheduler {
     ) {
       return
     }
+    if (source === 'claude') {
+      const next = await pollClaudePermissionResult(this.host.state, original, (candidate) => {
+        if (!this.host.isListening()) {
+          return undefined
+        }
+        this.host.applyEvent(candidate, source, env, version)
+        return this.host.state.lastStatusByPaneKey.get(paneKey)
+      })
+      if (
+        next &&
+        this.host.isListening() &&
+        this.host.state.lastStatusByPaneKey.get(paneKey) === next
+      ) {
+        this.armClaudeOwedNotificationExpiry(source, paneKey, env, version)
+        this.scheduleTranscriptPoll(source, body, next, env, version)
+      }
+      return
+    }
     const event =
       source === 'codex'
         ? pollCodexTranscriptStatus(this.host.state, original)
         : normalizeHookPayload(this.host.state, source, body, this.host.env)
-    if (!event) {
+    if (
+      !event ||
+      !this.host.isListening() ||
+      this.host.state.lastStatusByPaneKey.get(paneKey) !== original
+    ) {
       return
     }
     const update = transcriptPollUpdate(source, original, event)

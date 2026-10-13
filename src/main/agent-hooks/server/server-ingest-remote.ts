@@ -106,11 +106,16 @@ export abstract class AgentHookServerIngestRemote extends AgentHookServerIngestS
       worktreeId,
       promptInteractionKey,
       toolUseId,
+      claudePermissionResolved,
+      claudePermissionResults,
       toolAgentId,
       teammateName,
       toolAgentType,
       providerSession
     } = normalizeRemoteEnvelopeFields(envelope)
+    if (envelope.claudePermissionResults !== undefined && !claudePermissionResults) {
+      return
+    }
     if (envelope.statusUnavailable === true && envelope.payload === null) {
       const previous = this.state.lastStatusByPaneKey.get(paneKey)
       if (
@@ -127,6 +132,10 @@ export abstract class AgentHookServerIngestRemote extends AgentHookServerIngestS
       return
     }
     const age = envelope.evidenceAgeMs
+    // A cached result must retain its host observation age across reconnects.
+    if ((claudePermissionResolved || claudePermissionResults) && age === undefined) {
+      return
+    }
     if (age !== undefined && (typeof age !== 'number' || !Number.isSafeInteger(age) || age < 0)) {
       return
     }
@@ -271,6 +280,8 @@ export abstract class AgentHookServerIngestRemote extends AgentHookServerIngestS
       grokPromptBoundary,
       compactTrigger,
       toolUseId,
+      claudePermissionResolved,
+      claudePermissionResults,
       toolAgentId,
       teammateName,
       toolAgentType,
@@ -295,7 +306,7 @@ export abstract class AgentHookServerIngestRemote extends AgentHookServerIngestS
             }
           }
         : undefined,
-      'hook',
+      claudePermissionResolved ? 'process' : 'hook',
       typeof age === 'number' ? Math.max(0, Date.now() - age) : undefined
     )
   }

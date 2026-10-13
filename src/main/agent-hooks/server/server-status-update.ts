@@ -13,6 +13,7 @@ import type { AgentStatusObservationOrigin } from '../../../shared/agent-status-
 import { ClaudeOwedNotificationExpiryTimers } from '../../../shared/claude-owed-notification-expiry-timers'
 import { setClaudeMainAgentTurnState } from '../../../shared/agent-hook-listener/providers/claude-roster-state'
 import {
+  admitClaudePermissionEvidence,
   attachClaudePermissionToolUseId,
   pairedClaudeNonAgentWork,
   shouldKeepClaudePermissionVisible,
@@ -50,14 +51,25 @@ export abstract class AgentHookServerStatusUpdate extends AgentHookServerStatusA
     observedAt?: number,
     mutationBefore?: EnrichedAgentHookEventPayload
   ): EnrichedAgentHookEventPayload | undefined {
-    const transitioned = transitionHookPresence(
+    // Check the sender before presence folding can retain the previous owner's identity.
+    const current = this.state.lastStatusByPaneKey.get(incoming.paneKey)
+    const ownedIncoming = admitClaudePermissionEvidence(
+      current,
       incoming,
+      this.hydratedAuthorityCommitments,
+      this.revokedHydratedAuthorityCommitments
+    )
+    if (!ownedIncoming) {
+      return undefined
+    }
+    const transitioned = transitionHookPresence(
+      ownedIncoming,
       this.state.lastStatusByPaneKey.get(incoming.paneKey)
     )
     if (!transitioned) {
       return undefined
     }
-    const { authorityRestartId, ...payload } = { ...incoming, ...transitioned }
+    const { authorityRestartId, ...payload } = { ...ownedIncoming, ...transitioned }
     if (!this.canWriteLegacyStatusRow(payload)) {
       return undefined
     }
@@ -256,7 +268,13 @@ export abstract class AgentHookServerStatusUpdate extends AgentHookServerStatusA
     }
     // Why carried forward only within one host: main's OSC parse resolves the handle, so a later
     // hook must not erase its terminal join; a connection change must not inherit another host's.
-    const { claudeRunningNonAgentTask: _unpaired, ...unpairedPayload } = effectivePayload
+    // The result authorizes this transition only; later local restatements are independent observations.
+    const {
+      claudePermissionResolved: _resolvedPermission,
+      claudePermissionResults: _retainedResults,
+      claudeRunningNonAgentTask: _unpaired,
+      ...unpairedPayload
+    } = effectivePayload
     const runningNonAgentTask = pairedClaudeNonAgentWork(previous, effectivePayload)
     const pairedPayload =
       runningNonAgentTask === undefined

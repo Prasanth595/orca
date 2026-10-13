@@ -4,6 +4,10 @@ import {
   normalizeGrokPromptId
 } from '../../../shared/agent-hook-listener/listener-limits'
 import { isAgentHookSource, type AgentHookSource } from '../../../shared/agent-hook-relay'
+import {
+  readClaudePermissionResults,
+  type ClaudePermissionResultIdentity
+} from '../../../shared/agent-hook-listener/claude-permission-replay'
 
 export type RemoteAgentStatusEnvelope = {
   paneKey: string
@@ -22,6 +26,8 @@ export type RemoteAgentStatusEnvelope = {
   grokPromptBoundary?: unknown
   compactTrigger?: unknown
   toolUseId?: string
+  claudePermissionResolved?: unknown
+  claudePermissionResults?: unknown
   toolAgentId?: string
   teammateName?: string
   toolAgentType?: string
@@ -47,6 +53,8 @@ export type RemoteEnvelopeFields = {
   worktreeId?: string
   promptInteractionKey?: string
   toolUseId?: string
+  claudePermissionResolved?: true
+  claudePermissionResults?: readonly ClaudePermissionResultIdentity[]
   toolAgentId?: string
   teammateName?: string
   toolAgentType?: string
@@ -62,6 +70,8 @@ export function normalizeRemoteEnvelopeFields(envelope: {
   worktreeId?: string
   promptInteractionKey?: string
   toolUseId?: string
+  claudePermissionResolved?: unknown
+  claudePermissionResults?: unknown
   toolAgentId?: string
   teammateName?: string
   toolAgentType?: string
@@ -74,6 +84,12 @@ export function normalizeRemoteEnvelopeFields(envelope: {
         ? envelope.hookEventName.trim()
         : undefined,
     source,
+    claudePermissionResolved:
+      source === 'claude' && envelope.claudePermissionResolved === true ? true : undefined,
+    claudePermissionResults:
+      source === 'claude'
+        ? readClaudePermissionResults(envelope.claudePermissionResults)
+        : undefined,
     providerPromptId:
       source === 'claude'
         ? normalizeClaudePromptId(envelope.providerPromptId)

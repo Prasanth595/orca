@@ -139,4 +139,72 @@ describe('host transcript wakeup budget', () => {
     expect(watchers.entries[0]!.dispose).toHaveBeenCalledOnce()
     expect(vi.getTimerCount()).toBe(0)
   })
+
+  it('retains the watch and sparse cadence while an asynchronous observation finishes', async () => {
+    let finish: () => void = () => {}
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve
+    })
+    const seen = vi.fn()
+    const scheduler = new AgentTranscriptPollScheduler<number>(500, async (key, value) => {
+      seen(value)
+      await pending
+      scheduler.schedule(key, value, '/rollout.jsonl')
+    })
+    scheduler.schedule('pane', 1, '/rollout.jsonl')
+    vi.advanceTimersByTime(500)
+    expect(watchers.entries[0]!.dispose).not.toHaveBeenCalled()
+    finish()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(watchers.entries).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(4999)
+    expect(seen).toHaveBeenCalledOnce()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(seen).toHaveBeenCalledTimes(2)
+    scheduler.clearAll()
+  })
+
+  it('does not let a completed old observation dispose a replacement watch', async () => {
+    let finish: () => void = () => {}
+    const scheduler = new AgentTranscriptPollScheduler<number>(
+      500,
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        })
+    )
+    scheduler.schedule('pane', 1, '/old.jsonl')
+    vi.advanceTimersByTime(500)
+    scheduler.clear('pane')
+    scheduler.schedule('pane', 2, '/new.jsonl')
+    finish()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(watchers.entries[1]!.dispose).not.toHaveBeenCalled()
+    scheduler.clearAll()
+  })
+
+  it('coalesces file events and newer hooks while a process observation is pending', async () => {
+    let finish: () => void = () => {}
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve
+    })
+    const seen = vi.fn()
+    const scheduler = new AgentTranscriptPollScheduler<number>(500, async (_key, value) => {
+      seen(value)
+      await pending
+    })
+    scheduler.schedule('pane', 1, '/rollout.jsonl')
+    vi.advanceTimersByTime(500)
+    watchers.entries[0]!.wake()
+    scheduler.schedule('pane', 2, '/rollout.jsonl')
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(seen.mock.calls).toEqual([[1]])
+    finish()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(watchers.entries[0]!.dispose).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(500)
+    expect(seen.mock.calls).toEqual([[1], [2]])
+    expect(watchers.entries[0]!.dispose).toHaveBeenCalledOnce()
+    expect(vi.getTimerCount()).toBe(0)
+  })
 })

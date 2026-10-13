@@ -1,4 +1,5 @@
 import { transitionHookPresence } from '../shared/agent-hook-presence-transition'
+import { attachClaudePermissionToolUseId } from '../shared/agent-hook-listener/claude-permission-identity'
 import { isSameAgentProcess } from '../shared/agent-process-presence'
 import { cacheRelayLegacyAgentStatus } from '../shared/agent-status-legacy-relay-cache'
 import type { HookListenerState } from '../shared/agent-hook-listener/listener-state'
@@ -6,7 +7,11 @@ import type { AgentHookEventPayload } from '../shared/agent-hook-listener/listen
 import type { AgentHookSource } from '../shared/agent-hook-relay'
 import { buildRelayHookEnvelope } from './agent-hook-envelope-build'
 import type { RelayHookForward } from './agent-hook-server-contract'
-import { MAX_CACHED_PANES, type CachedPaneEnvelopeMeta } from './agent-hook-cached-pane-status'
+import {
+  MAX_CACHED_PANES,
+  retainClaudePermissionResults,
+  type CachedPaneEnvelopeMeta
+} from './agent-hook-cached-pane-status'
 import {
   reconcileRelayClaudeCancel,
   withRelayClaudeTurnRevision
@@ -35,7 +40,17 @@ export function applyRelayHookEvent(
     return undefined
   }
   const previous = host.state.lastStatusByPaneKey.get(incoming.paneKey)
-  const cancellation = reconcileRelayClaudeCancel(host.state, previous, incoming, source)
+  // Retain settlement proof through lease expiry for a disconnected receiver; exits use presence authority.
+  const observation =
+    incoming.claudePermissionResolved && incoming.agentPresence?.ended
+      ? { ...incoming, claudePermissionResolved: undefined }
+      : incoming
+  const cancellation = reconcileRelayClaudeCancel(
+    host.state,
+    previous,
+    attachClaudePermissionToolUseId(previous, observation),
+    source
+  )
   if (cancellation.hold) {
     return previous
   }
@@ -71,8 +86,12 @@ export function applyRelayHookEvent(
   ) {
     return undefined
   }
+  const claudePermissionResults = retainClaudePermissionResults(
+    host.metadata.get(event.paneKey),
+    event
+  )
   host.metadata.delete(event.paneKey)
-  host.metadata.set(event.paneKey, { source, env, version })
+  host.metadata.set(event.paneKey, { source, env, version, claudePermissionResults })
   host.forward(buildRelayHookEnvelope(event, source, env, version, options))
   const sender = incoming.agentPresence?.process
   const owner = event.agentPresence

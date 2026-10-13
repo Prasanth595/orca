@@ -14,6 +14,7 @@ type TranscriptWakeup<T> = {
   watcherBound: boolean
   nextBindAt: number
   scheduled: boolean
+  running: boolean
   eventPending: boolean
   initialCheck: boolean
 }
@@ -25,7 +26,7 @@ export class AgentTranscriptPollScheduler<T> {
 
   constructor(
     private readonly delayMs: number,
-    private readonly onDue: (key: string, value: T) => void
+    private readonly onDue: (key: string, value: T) => void | Promise<void>
   ) {
     this.deadlines = new CodexSubagentPollScheduler(delayMs, (key, entry) => {
       if (this.entries.get(key) !== entry) {
@@ -34,12 +35,32 @@ export class AgentTranscriptPollScheduler<T> {
       entry.scheduled = false
       entry.eventPending = false
       entry.initialCheck = false
-      try {
-        this.onDue(key, entry.value)
-      } finally {
-        if (this.entries.get(key) === entry && !entry.scheduled) {
+      entry.running = true
+      const finish = (): void => {
+        if (this.entries.get(key) !== entry) {
+          return
+        }
+        entry.running = false
+        if (entry.scheduled || entry.eventPending) {
+          entry.scheduled = false
+          this.schedule(key, entry.value, entry.filePath)
+        } else {
           this.clear(key)
         }
+      }
+      try {
+        const observation = this.onDue(key, entry.value)
+        if (observation) {
+          void observation.then(finish, (error) => {
+            finish()
+            console.error('[agent-transcript-poll] observation failed:', error)
+          })
+        } else {
+          finish()
+        }
+      } catch (error) {
+        finish()
+        throw error
       }
     })
   }
@@ -57,6 +78,7 @@ export class AgentTranscriptPollScheduler<T> {
         watcherBound: false,
         nextBindAt: 0,
         scheduled: false,
+        running: false,
         eventPending: false,
         initialCheck: true
       }
@@ -75,6 +97,9 @@ export class AgentTranscriptPollScheduler<T> {
             return
           }
           watchedEntry.eventPending = true
+          if (watchedEntry.running) {
+            return
+          }
           watchedEntry.scheduled = true
           this.deadlines.schedule(key, watchedEntry, this.delayMs)
         }
@@ -95,12 +120,19 @@ export class AgentTranscriptPollScheduler<T> {
     if (entry.scheduled) {
       return
     }
+    if (entry.running) {
+      entry.scheduled = true
+      return
+    }
     const now = performance.now()
     if (entry.watcher?.needsRebind() && now >= entry.nextBindAt) {
       entry.watcherBound = entry.watcher.bind()
       entry.nextBindAt = now + ROOT_RECONCILIATION_MS
     }
-    const delay = entry.watcherBound && !entry.initialCheck ? ROOT_RECONCILIATION_MS : this.delayMs
+    const delay =
+      entry.watcherBound && !entry.initialCheck && !entry.eventPending
+        ? ROOT_RECONCILIATION_MS
+        : this.delayMs
     entry.scheduled = true
     this.deadlines.schedule(key, entry, delay)
   }

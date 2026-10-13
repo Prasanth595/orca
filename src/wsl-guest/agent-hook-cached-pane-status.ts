@@ -1,11 +1,82 @@
 import type { AgentHookEventPayload } from '../shared/agent-hook-listener/listener-event'
 import type { AgentHookSource } from '../shared/agent-hook-relay'
+import { isSameAgentProcess } from '../shared/agent-process-presence'
+import { isClaudePermissionResult } from '../shared/agent-hook-listener/providers/claude-permission-poll'
+import { buildRelayHookEnvelope } from './agent-hook-envelope-build'
+import type { RelayHookForward } from './agent-hook-server-contract'
+import { MAX_RETAINED_CLAUDE_PERMISSION_RESULTS } from '../shared/agent-hook-listener/claude-permission-replay'
 
-export type CachedPaneEnvelopeMeta = { source: AgentHookSource; env?: string; version?: string }
+export type CachedPaneEnvelopeMeta = {
+  source: AgentHookSource
+  env?: string
+  version?: string
+  claudePermissionResults?: readonly AgentHookEventPayload[]
+}
+
+/** A newer display row must not erase the request evidence a disconnected receiver still needs. */
+export function retainClaudePermissionResults(
+  previous: CachedPaneEnvelopeMeta | undefined,
+  event: AgentHookEventPayload
+): readonly AgentHookEventPayload[] | undefined {
+  const owner = event.agentPresence?.process
+  if (event.source !== 'claude' || event.agentPresence?.ended || !owner) {
+    return undefined
+  }
+  const retained = (previous?.claudePermissionResults ?? []).filter(
+    (result) =>
+      result.paneKey === event.paneKey &&
+      result.worktreeId === event.worktreeId &&
+      result.tabId === event.tabId &&
+      result.connectionId === event.connectionId &&
+      result.launchToken === event.launchToken &&
+      result.hostTurnRevision === event.hostTurnRevision &&
+      result.providerSession?.key === event.providerSession?.key &&
+      result.providerSession?.id === event.providerSession?.id &&
+      result.providerSession?.transcriptPath === event.providerSession?.transcriptPath &&
+      result.agentPresence?.process !== undefined &&
+      isSameAgentProcess(result.agentPresence.process, owner)
+  )
+  if (isClaudePermissionResult(event)) {
+    const existing = retained.findIndex(
+      (result) =>
+        result.toolUseId === event.toolUseId &&
+        result.toolAgentId === event.toolAgentId &&
+        result.toolAgentType === event.toolAgentType
+    )
+    if (existing !== -1) {
+      retained.splice(existing, 1)
+    }
+    retained.push(event)
+  }
+  return retained.length ? retained.slice(-MAX_RETAINED_CLAUDE_PERMISSION_RESULTS) : undefined
+}
 
 export type CachedPaneReplaySelection = {
   event: AgentHookEventPayload
   meta: CachedPaneEnvelopeMeta
+}
+
+export function replayCachedPaneStatus(
+  { event, meta }: CachedPaneReplaySelection,
+  forward: RelayHookForward
+): void {
+  const envelope = buildRelayHookEnvelope(event, meta.source, meta.env, meta.version, {
+    isReplay: true
+  })
+  const results = event.payload.state !== 'waiting' ? meta.claudePermissionResults : undefined
+  // Older peers see only the current status; exact request facts are additive metadata.
+  forward(
+    results?.length
+      ? {
+          ...envelope,
+          claudePermissionResults: results.map(({ toolUseId, toolAgentId, toolAgentType }) => ({
+            toolUseId: toolUseId!,
+            toolAgentId,
+            toolAgentType
+          }))
+        }
+      : envelope
+  )
 }
 
 /**

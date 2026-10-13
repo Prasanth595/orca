@@ -42,11 +42,11 @@ import {
 import { REMOTE_AGENT_HOOK_ENV, type AgentHookSource } from '../shared/agent-hook-relay'
 import type { SpoolRecord } from '../shared/agent-hook-spool'
 import { buildRelayHookPtyEnv, defaultEndpointDir } from './agent-hook-endpoint-coordinates'
-import { buildRelayHookEnvelope } from './agent-hook-envelope-build'
 import { drainRelayHookSpool, ingestRelayHookSpoolRecord } from './agent-hook-spool-ingest'
 import { AgentHookResultRetryScheduler } from './agent-hook-result-retry-scheduler'
 import {
   selectReplayableCachedPanes,
+  replayCachedPaneStatus,
   type CachedPaneEnvelopeMeta
 } from './agent-hook-cached-pane-status'
 import { createRelayClaudeTerminalInterrupts } from './claude-terminal-interrupt-status'
@@ -204,9 +204,7 @@ export class RelayAgentHookServer extends RelayAgentHookCanonicalStatus {
     })
     for (const { event, meta } of replayable) {
       void this.checkAgentPresence(event.paneKey)
-      this.forward(
-        buildRelayHookEnvelope(event, meta.source, meta.env, meta.version, { isReplay: true })
-      )
+      replayCachedPaneStatus({ event, meta }, this.forward)
     }
     return replayable.length + this.replayCanonicalHooks()
   }

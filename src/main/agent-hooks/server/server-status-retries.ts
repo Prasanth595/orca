@@ -1,4 +1,5 @@
 import { pollCodexTranscriptStatus } from '../../../shared/agent-hook-listener/providers/codex-transcript-poll'
+import { pollClaudePermissionResult } from '../../../shared/agent-hook-listener/providers/claude-permission-poll'
 import { normalizeHookPayload } from '../../../shared/agent-hook-listener'
 import {
   hasPendingAgentResultText,
@@ -28,7 +29,18 @@ type TranscriptPoll = {
 export abstract class AgentHookServerStatusRetries extends AgentHookServerStatusUpdate {
   private readonly transcriptPollScheduler = new AgentTranscriptPollScheduler<TranscriptPoll>(
     CODEX_SUBAGENT_POLL_MS,
-    (paneKey, poll) => this.runTranscriptPoll(paneKey, poll)
+    (paneKey, poll) => {
+      return this.runTranscriptPoll(paneKey, poll).catch((error) => {
+        console.error('[agent-hooks] transcript poll failed:', error)
+        if (
+          poll.source === 'claude' &&
+          this.server &&
+          this.state.lastStatusByPaneKey.get(paneKey) === poll.original
+        ) {
+          this.scheduleTranscriptPoll(poll.source, poll.body, poll.original)
+        }
+      })
+    }
   )
 
   protected clearAllTranscriptPolls(): void {
@@ -54,7 +66,10 @@ export abstract class AgentHookServerStatusRetries extends AgentHookServerStatus
     original: EnrichedAgentHookEventPayload
   ): void {
     // Why: a nested CLI of another kind inherits ORCA_PANE_KEY, so clearing here would silently end a live poll.
-    if (source !== 'codex' && source !== 'muse') {
+    if (source !== 'codex' && source !== 'muse' && source !== 'claude') {
+      return
+    }
+    if (original.payload.agentType !== source) {
       return
     }
     if (!shouldPollHookTranscript(this.state, source, original)) {
@@ -68,7 +83,7 @@ export abstract class AgentHookServerStatusRetries extends AgentHookServerStatus
     )
   }
 
-  private runTranscriptPoll(paneKey: string, poll: TranscriptPoll): void {
+  private async runTranscriptPoll(paneKey: string, poll: TranscriptPoll): Promise<void> {
     const { source, body, original } = poll
     // Keep the identity check at callback time: a newer event supersedes this
     // payload even when its pane still has transcript children.
@@ -79,11 +94,20 @@ export abstract class AgentHookServerStatusRetries extends AgentHookServerStatus
     ) {
       return
     }
+    if (source === 'claude') {
+      const next = await pollClaudePermissionResult(this.state, original, (candidate) =>
+        this.server ? this.applyNormalizedStatus(candidate, undefined, 'process') : undefined
+      )
+      if (next && this.server && this.state.lastStatusByPaneKey.get(paneKey) === next) {
+        this.scheduleTranscriptPoll(source, body, next)
+      }
+      return
+    }
     const normalized =
       source === 'codex'
         ? pollCodexTranscriptStatus(this.state, original)
         : normalizeHookPayload(this.state, source, body, this.env)
-    if (!normalized) {
+    if (!normalized || !this.server || this.state.lastStatusByPaneKey.get(paneKey) !== original) {
       return
     }
     const update = transcriptPollUpdate(source, original, normalized)

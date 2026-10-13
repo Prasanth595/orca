@@ -1,0 +1,229 @@
+import type { AgentHookEventPayload } from '../listener-event'
+import type { HookListenerState } from '../listener-state'
+import { isAskUserQuestionTool } from '../../agent-question-answered-intent'
+import { readClaudePermissionResult } from '../claude-permission-result'
+import { clearClaudePendingToolWait } from './claude-roster-state'
+import { isSameAgentProcess } from '../../agent-process-presence'
+import { probeAgentProcessPresence } from '../../agent-process-presence-probe'
+import { launchTokenHash } from '../../agent-hook-spool'
+import { structuralValuesEqualIgnoringUndefined } from '../../structural-value-equality'
+
+export function canPollClaudePermission(event: AgentHookEventPayload): boolean {
+  return (
+    event.source === 'claude' &&
+    event.connectionId === null &&
+    event.payload.agentType === 'claude' &&
+    event.payload.state === 'waiting' &&
+    event.hookEventName === 'PermissionRequest' &&
+    !isAskUserQuestionTool(event.payload.toolName) &&
+    !event.restoredUnconfirmed &&
+    !event.isReplay &&
+    !event.providerSessionOnly &&
+    !event.agentPresence?.ended &&
+    event.agentPresence?.process !== undefined &&
+    (!event.claudePermissionToolUseIdInferred || Boolean(event.payload.toolName)) &&
+    Boolean(
+      event.launchToken &&
+      event.toolUseId &&
+      event.providerSession?.id &&
+      event.providerSession.transcriptPath
+    )
+  )
+}
+
+/** Runs on the execution host; a disconnected client never reads a remote transcript locally. */
+export async function pollClaudePermissionResult<T extends AgentHookEventPayload>(
+  state: HookListenerState,
+  original: T,
+  apply: (event: T) => T | undefined
+): Promise<T | undefined> {
+  const session = original.providerSession
+  const toolUseId = original.toolUseId
+  const lead = state.claudeLeadStateByPaneKey.get(original.paneKey)
+  if (
+    !canPollClaudePermission(original) ||
+    state.lastStatusByPaneKey.get(original.paneKey) !== original ||
+    lead?.state !== 'waiting' ||
+    lead.waitingAgentId !== original.toolAgentId ||
+    !session?.transcriptPath ||
+    !toolUseId ||
+    !readClaudePermissionResult(session.transcriptPath, {
+      sessionId: session.id,
+      toolUseId,
+      agentId: original.toolAgentId,
+      ...(original.claudePermissionToolUseIdInferred && original.payload.toolName
+        ? { inferredTool: { name: original.payload.toolName, input: original.payload.toolInput } }
+        : {})
+    })
+  ) {
+    return original
+  }
+  const verdict = await probeAgentProcessPresence(original.agentPresence?.process)
+  if (
+    verdict !== 'live' ||
+    state.lastStatusByPaneKey.get(original.paneKey) !== original ||
+    state.claudeLeadStateByPaneKey.get(original.paneKey) !== lead ||
+    !readClaudePermissionResult(session.transcriptPath, {
+      sessionId: session.id,
+      toolUseId,
+      agentId: original.toolAgentId,
+      ...(original.claudePermissionToolUseIdInferred && original.payload.toolName
+        ? { inferredTool: { name: original.payload.toolName, input: original.payload.toolInput } }
+        : {})
+    })
+  ) {
+    return original
+  }
+  const paneKey = original.paneKey
+  const tool = state.lastToolByPaneKey.get(paneKey)
+  const tasks = state.claudeLaunchedBackgroundTasksByPaneKey.get(paneKey)
+  const savedTasks = tasks && new Map([...tasks].map(([id, task]) => [id, { ...task }]))
+  try {
+    const restored = clearClaudePendingToolWait(state, paneKey)
+    const candidate: T = {
+      ...original,
+      hookEventName: undefined,
+      hasExplicitPrompt: undefined,
+      claudePermissionResolved: true,
+      hostEvidenceObservedAt: Date.now(),
+      payload: {
+        ...original.payload,
+        ...restored,
+        toolName: undefined,
+        toolInput: undefined,
+        interactivePrompt: undefined
+      }
+    }
+    return (
+      apply(candidate) ??
+      (state.lastStatusByPaneKey.get(paneKey) === original ? original : undefined)
+    )
+  } finally {
+    // Keep the pending row and its listener caches consistent if admission refuses the result.
+    if (state.lastStatusByPaneKey.get(paneKey) === original) {
+      state.claudeLeadStateByPaneKey.set(paneKey, lead)
+      if (tool) {
+        state.lastToolByPaneKey.set(paneKey, tool)
+      } else {
+        state.lastToolByPaneKey.delete(paneKey)
+      }
+      if (tasks && savedTasks) {
+        tasks.clear()
+        for (const [id, task] of savedTasks) {
+          tasks.set(id, task)
+        }
+        state.claudeLaunchedBackgroundTasksByPaneKey.set(paneKey, tasks)
+      }
+    }
+  }
+}
+
+export function isClaudePermissionResult(event: AgentHookEventPayload): boolean {
+  return (
+    event.claudePermissionResolved === true &&
+    event.source === 'claude' &&
+    event.payload.agentType === 'claude' &&
+    event.payload.state !== 'waiting' &&
+    !event.hookEventName &&
+    !event.hasExplicitPrompt &&
+    !event.providerSessionOnly &&
+    !event.restoredUnconfirmed &&
+    !event.agentPresence?.ended &&
+    event.agentPresence?.agent === 'claude' &&
+    event.agentPresence.process !== undefined &&
+    Boolean(
+      event.launchToken &&
+      event.toolUseId &&
+      event.providerSession?.id &&
+      event.providerSession.transcriptPath
+    )
+  )
+}
+
+export function isMatchingClaudePermissionResult(
+  previous: AgentHookEventPayload,
+  next: AgentHookEventPayload,
+  retainedLaunchTokenHash?: string
+): boolean {
+  const pendingRequest =
+    previous.payload.state === 'waiting' &&
+    previous.hookEventName === 'PermissionRequest' &&
+    !isAskUserQuestionTool(previous.payload.toolName)
+  return (
+    isClaudePermissionResult(next) &&
+    (pendingRequest || isSettledPermissionRestatement(previous, next)) &&
+    hasSameClaudePermissionOwner(previous, next, retainedLaunchTokenHash) &&
+    Boolean(previous.toolUseId) &&
+    previous.toolUseId === next.toolUseId &&
+    previous.toolAgentId === next.toolAgentId &&
+    previous.toolAgentType === next.toolAgentType
+  )
+}
+
+export function hasSameClaudePermissionOwner(
+  previous: AgentHookEventPayload,
+  next: AgentHookEventPayload,
+  retainedLaunchTokenHash?: string
+): boolean {
+  const previousProcess = previous.agentPresence?.process
+  const nextProcess = next.agentPresence?.process
+  const restoredOwner =
+    previous.restoredUnconfirmed === true &&
+    next.connectionId !== null &&
+    retainedLaunchTokenHash !== undefined &&
+    launchTokenHash(next.launchToken) === retainedLaunchTokenHash
+  return (
+    previousProcess !== undefined &&
+    nextProcess !== undefined &&
+    !previous.agentPresence?.ended &&
+    !next.agentPresence?.ended &&
+    !next.restoredUnconfirmed &&
+    next.source === 'claude' &&
+    next.payload.agentType === 'claude' &&
+    isSameAgentProcess(previousProcess, nextProcess) &&
+    previous.payload.agentType === 'claude' &&
+    (restoredOwner ||
+      (!previous.restoredUnconfirmed &&
+        Boolean(previous.launchToken) &&
+        (next.connectionId === null || Boolean(previous.hostTurnRevision)) &&
+        previous.launchToken === next.launchToken &&
+        previous.hostTurnRevision === next.hostTurnRevision)) &&
+    Boolean(
+      previous.providerSession?.id && next.launchToken && next.providerSession?.transcriptPath
+    ) &&
+    previous.paneKey === next.paneKey &&
+    previous.worktreeId === next.worktreeId &&
+    previous.tabId === next.tabId &&
+    previous.connectionId === next.connectionId &&
+    previous.providerSession?.key === next.providerSession?.key &&
+    previous.providerSession?.id === next.providerSession?.id &&
+    previous.providerSession?.transcriptPath === next.providerSession?.transcriptPath
+  )
+}
+
+function isSettledPermissionRestatement(
+  previous: AgentHookEventPayload,
+  next: AgentHookEventPayload
+): boolean {
+  const {
+    state: oldState,
+    claudeTaskWakeupPending: oldWakeup,
+    turnCompletedAt: oldCompletedAt,
+    ...oldPayload
+  } = previous.payload
+  const {
+    state: nextState,
+    claudeTaskWakeupPending: nextWakeup,
+    turnCompletedAt: nextCompletedAt,
+    ...nextPayload
+  } = next.payload
+  // A cached proof may expire its notification lease, but cannot restore older progress.
+  return (
+    !previous.hookEventName &&
+    oldState !== 'waiting' &&
+    !(oldState === 'done' && nextState !== 'done') &&
+    (nextWakeup === undefined || nextWakeup === oldWakeup) &&
+    (oldCompletedAt === undefined || nextCompletedAt === oldCompletedAt) &&
+    structuralValuesEqualIgnoringUndefined(oldPayload, nextPayload)
+  )
+}

@@ -5,7 +5,88 @@ import {
 } from '../../../shared/claude-subagent-roster'
 import { isAskUserQuestionTool } from '../../../shared/agent-question-answered-intent'
 import type { AgentHookEventPayload } from '../../../shared/agent-hook-listener/listener-event'
-import type { EnrichedAgentHookEventPayload } from './server-types'
+import type { AgentHookAuthorityEvidence, EnrichedAgentHookEventPayload } from './server-types'
+import {
+  isClaudePermissionResult,
+  hasSameClaudePermissionOwner,
+  isMatchingClaudePermissionResult
+} from '../../../shared/agent-hook-listener/providers/claude-permission-poll'
+import {
+  isClaudePermissionReplay,
+  matchesRetainedClaudePermission
+} from '../../../shared/agent-hook-listener/claude-permission-replay'
+
+export function canApplyClaudePermissionResult(
+  previous: AgentHookEventPayload | undefined,
+  incoming: AgentHookEventPayload,
+  commitments: readonly AgentHookAuthorityEvidence[],
+  revoked: WeakSet<AgentHookAuthorityEvidence>
+): boolean {
+  if (incoming.claudePermissionResolved !== true) {
+    return true
+  }
+  if (!previous) {
+    return incoming.connectionId !== null && isClaudePermissionResult(incoming)
+  }
+  if (
+    previous.payload.state === 'waiting' &&
+    incoming.claudePermissionResults &&
+    isClaudePermissionReplay(incoming)
+  ) {
+    return matchesRetainedClaudePermission(
+      previous,
+      incoming,
+      retainedPermissionOwner(previous, commitments, revoked)
+    )
+  }
+  return isMatchingClaudePermissionResult(
+    previous,
+    incoming,
+    retainedPermissionOwner(previous, commitments, revoked)
+  )
+}
+
+export function admitClaudePermissionEvidence<T extends AgentHookEventPayload>(
+  previous: AgentHookEventPayload | undefined,
+  incoming: T,
+  commitments: readonly AgentHookAuthorityEvidence[],
+  revoked: WeakSet<AgentHookAuthorityEvidence>
+): T | undefined {
+  const owned =
+    isClaudePermissionReplay(incoming) &&
+    (!previous ||
+      hasSameClaudePermissionOwner(
+        previous,
+        incoming,
+        retainedPermissionOwner(previous, commitments, revoked)
+      ))
+  // Unrelated facts cannot suppress ordinary hooks or borrow an owner during presence folding.
+  const admitted =
+    !incoming.claudePermissionResults || owned
+      ? incoming
+      : { ...incoming, claudePermissionResults: undefined }
+  return canApplyClaudePermissionResult(previous, admitted, commitments, revoked)
+    ? admitted
+    : undefined
+}
+
+function retainedPermissionOwner(
+  previous: AgentHookEventPayload,
+  commitments: readonly AgentHookAuthorityEvidence[],
+  revoked: WeakSet<AgentHookAuthorityEvidence>
+): string | undefined {
+  // Live ingress refreshes mutable authority; restart proof uses the frozen disk commitment.
+  return previous.restoredUnconfirmed
+    ? commitments.find(
+        (entry) =>
+          entry.paneKey === previous.paneKey &&
+          entry.connectionId === previous.connectionId &&
+          entry.worktreeId === previous.worktreeId &&
+          entry.tabId === previous.tabId &&
+          !revoked.has(entry)
+      )?.launchTokenHash
+    : undefined
+}
 
 /** The shell fact a Claude row stores beside its `mainAgent`; restart seeds a settled main agent only
  *  when it reads `false`. The listener restates it on every event it produces; any other write keeps
@@ -75,6 +156,12 @@ export function shouldKeepClaudePermissionVisible(
     return false
   }
   if (next.hasExplicitPrompt === true) {
+    return false
+  }
+  if (
+    isMatchingClaudePermissionResult(previous, next) ||
+    matchesRetainedClaudePermission(previous, next)
+  ) {
     return false
   }
   if (isClaudePermissionOwningChildEnding(previous, next)) {
@@ -161,55 +248,7 @@ function isClaudePermissionResumingApprovedTool(
   )
 }
 
-export function shouldInheritClaudeToolUseIdForPermission(
-  previous: EnrichedAgentHookEventPayload | undefined,
-  next: AgentHookEventPayload
-): boolean {
-  if (
-    previous?.restoredUnconfirmed ||
-    previous?.payload.agentType !== 'claude' ||
-    previous.payload.state !== 'working' ||
-    previous.hookEventName !== 'PreToolUse' ||
-    typeof previous.toolUseId !== 'string' ||
-    previous.toolUseId.trim().length === 0 ||
-    next.payload.agentType !== 'claude' ||
-    next.payload.state !== 'waiting' ||
-    next.hookEventName !== 'PermissionRequest' ||
-    next.toolUseId !== undefined
-  ) {
-    return false
-  }
-  const sameKnownToolInput =
-    previous.payload.toolInput !== undefined &&
-    previous.payload.toolInput === next.payload.toolInput
-  const sameUnknownToolInput =
-    previous.payload.toolInput === undefined && next.payload.toolInput === undefined
-  if (
-    previous.toolAgentId !== next.toolAgentId ||
-    previous.toolAgentType !== next.toolAgentType ||
-    previous.payload.toolName === undefined ||
-    previous.payload.toolName !== next.payload.toolName ||
-    (!sameKnownToolInput && !sameUnknownToolInput)
-  ) {
-    return false
-  }
-  return true
-}
-
-export function attachClaudePermissionToolUseId(
-  previous: EnrichedAgentHookEventPayload | undefined,
-  next: AgentHookEventPayload
-): AgentHookEventPayload {
-  const inheritedToolUseId = previous?.toolUseId
-  if (
-    !shouldInheritClaudeToolUseIdForPermission(previous, next) ||
-    typeof inheritedToolUseId !== 'string'
-  ) {
-    return next
-  }
-  return {
-    ...next,
-    // Why: Claude emits PermissionRequest without tool_use_id, then PostToolUse carries the original PreToolUse id.
-    toolUseId: inheritedToolUseId
-  }
-}
+export {
+  attachClaudePermissionToolUseId,
+  shouldInheritClaudeToolUseIdForPermission
+} from '../../../shared/agent-hook-listener/claude-permission-identity'

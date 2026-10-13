@@ -298,6 +298,14 @@ export function clearClaudePendingWaitForAgent(
 export function clearClaudeAnsweredQuestionWait(
   state: HookListenerState,
   paneKey: string
+): ReturnType<typeof clearClaudePendingToolWait> {
+  return clearClaudePendingToolWait(state, paneKey)
+}
+
+/** Restore the lead and retain child work after the caller proves the pending tool settled. */
+export function clearClaudePendingToolWait(
+  state: HookListenerState,
+  paneKey: string
 ): Pick<ClaudeLeadTurnState, 'state' | 'turnCompletedAt'> & {
   interrupted?: true
   workingMode?: AgentWorkingMode

@@ -2,6 +2,7 @@ import type { AgentProcessPresence } from '../agent-process-presence'
 import type { ParsedAgentStatusPayload } from '../agent-status-types'
 import type { AgentHookSource } from '../agent-hook-relay'
 import type { AgentProviderSessionMetadata } from '../agent-session-resume'
+import type { ClaudePermissionResultIdentity } from './claude-permission-replay'
 
 export type AgentHookEventPayload = {
   paneKey: string
@@ -33,6 +34,12 @@ export type AgentHookEventPayload = {
   compactTrigger?: 'manual' | 'auto'
   /** Claude tool-use identifier when the hook source exposes one. */
   toolUseId?: string
+  /** Host-local correlation only; a missing provider id is not an exact request identity. */
+  claudePermissionToolUseIdInferred?: true
+  /** Execution host observed this exact request's terminal transcript result; no turn verdict. */
+  claudePermissionResolved?: true
+  /** Retained request facts beside one current relay replay, never historical status rows. */
+  claudePermissionResults?: readonly ClaudePermissionResultIdentity[]
   /** Claude agent/subagent identifier when the hook source exposes one. */
   toolAgentId?: string
   /** Claude teammate name carried by TeammateIdle. */

@@ -3,6 +3,7 @@ import type { AgentHookEventPayload } from './listener-event'
 import type { HookListenerState } from './listener-state'
 import { hasCodexTranscriptSubagents } from './providers/codex-state'
 import { hasMuseSessionLog } from './providers/muse-events'
+import { canPollClaudePermission } from './providers/claude-permission-poll'
 
 /** Whether a pane's last hook body should be re-normalized on a timer to pick up transcript-only state. */
 export function shouldPollHookTranscript(
@@ -10,6 +11,9 @@ export function shouldPollHookTranscript(
   source: AgentHookSource,
   event: AgentHookEventPayload
 ): boolean {
+  if (source === 'claude') {
+    return canPollClaudePermission(event)
+  }
   if (source === 'codex') {
     return (
       hasCodexTranscriptSubagents(state, event.paneKey) ||
@@ -30,6 +34,9 @@ export function hookTranscriptWatchPath(
   source: AgentHookSource,
   paneKey: string
 ): string | undefined {
+  if (source === 'claude') {
+    return state.lastStatusByPaneKey.get(paneKey)?.providerSession?.transcriptPath
+  }
   return source === 'codex' && !hasCodexTranscriptSubagents(state, paneKey)
     ? state.codexSubagentTranscriptByPaneKey.get(paneKey)?.parent.filePath
     : undefined
@@ -43,6 +50,9 @@ export function transcriptPollUpdate<T extends AgentHookEventPayload>(
 ): T | undefined {
   if (original === polled) {
     return undefined
+  }
+  if (source === 'claude') {
+    return polled.claudePermissionResolved === true ? polled : undefined
   }
   if (source === 'muse') {
     const changed =

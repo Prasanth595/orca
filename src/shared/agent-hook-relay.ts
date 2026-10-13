@@ -1,4 +1,5 @@
 import type { AgentProcessPresence } from './agent-process-presence'
+import type { ClaudePermissionResultIdentity } from './agent-hook-listener/claude-permission-replay'
 // Why: defines the wire shape carried by the JSON-RPC `agent.hook` notification
 // the relay sends to Orca. Consumed by `src/wsl-guest/agent-hook-server.ts` (which
 // produces it after the shared listener parses an HTTP POST) and by
@@ -107,6 +108,9 @@ export type AgentHookRelayEnvelope = {
   compactTrigger?: 'manual' | 'auto'
   /** Claude tool execution id, when the source hook provides one. */
   toolUseId?: string
+  /** Optional execution-host observation; older receivers retain the permission wait. */
+  claudePermissionResolved?: true
+  claudePermissionResults?: readonly ClaudePermissionResultIdentity[]
   /** Claude subagent identity, when the source hook provides one. */
   toolAgentId?: string
   /** Claude teammate name carried by TeammateIdle. */
