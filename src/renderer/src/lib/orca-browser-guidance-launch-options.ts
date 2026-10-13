@@ -3,28 +3,31 @@ import type { TuiAgent } from '../../../shared/tui-agent'
 
 const REFRESH_INTERVAL_MS = 5_000
 
-// Why: builders are synchronous, so the main-process config check is cached; unknown means "skip Codex guidance".
-let codexUserDeveloperInstructions: boolean | undefined
-let lastRefreshAt = 0
+// Why: builders are synchronous, so the main-process config check is cached per launch cwd;
+// unknown means "skip Codex guidance".
+const codexConfigAnswers = new Map<string, boolean>()
+const lastRefreshAt = new Map<string, number>()
 
-export function refreshCodexUserDeveloperInstructions(now = Date.now()): void {
-  if (now - lastRefreshAt < REFRESH_INTERVAL_MS) {
+export function refreshCodexUserDeveloperInstructions(cwd?: string, now = Date.now()): void {
+  const key = cwd ?? ''
+  if (now - (lastRefreshAt.get(key) ?? -Infinity) < REFRESH_INTERVAL_MS) {
     return
   }
-  lastRefreshAt = now
+  lastRefreshAt.set(key, now)
   void window.api.codexConfigSync
-    .userDefinesDeveloperInstructions()
+    .userDefinesDeveloperInstructions(cwd)
     .then((defined) => {
-      codexUserDeveloperInstructions = defined
+      codexConfigAnswers.set(key, defined)
     })
     .catch(() => {
-      codexUserDeveloperInstructions = true
+      codexConfigAnswers.set(key, true)
     })
 }
 
 export function orcaBrowserGuidanceLaunchOptions(
   settings: Pick<GlobalSettings, 'useOrcaBrowserForAgentWork'> | null | undefined,
-  agent: TuiAgent
+  agent: TuiAgent,
+  cwd?: string | null
 ): { orcaBrowserGuidance: boolean; codexUserDeveloperInstructions?: boolean } {
   if (settings?.useOrcaBrowserForAgentWork !== true) {
     return { orcaBrowserGuidance: false }
@@ -32,15 +35,16 @@ export function orcaBrowserGuidanceLaunchOptions(
   if (agent !== 'codex') {
     return { orcaBrowserGuidance: true }
   }
-  refreshCodexUserDeveloperInstructions()
+  const launchCwd = cwd?.trim() || undefined
+  refreshCodexUserDeveloperInstructions(launchCwd)
   return {
     orcaBrowserGuidance: true,
-    codexUserDeveloperInstructions: codexUserDeveloperInstructions ?? true
+    codexUserDeveloperInstructions: codexConfigAnswers.get(launchCwd ?? '') ?? true
   }
 }
 
-/** Test seam: forgets the cached config check. */
+/** Test seam: forgets the cached config checks. */
 export function resetCodexUserDeveloperInstructionsCache(): void {
-  codexUserDeveloperInstructions = undefined
-  lastRefreshAt = 0
+  codexConfigAnswers.clear()
+  lastRefreshAt.clear()
 }

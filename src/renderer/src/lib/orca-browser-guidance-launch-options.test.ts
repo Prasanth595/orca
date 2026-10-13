@@ -49,4 +49,20 @@ describe('orcaBrowserGuidanceLaunchOptions', () => {
       codexUserDeveloperInstructions: false
     })
   })
+
+  it('caches the config answer per launch cwd', async () => {
+    const settings = { useOrcaBrowserForAgentWork: true }
+    userDefines.mockImplementation((cwd?: string) => Promise.resolve(cwd === '/repo/a'))
+    orcaBrowserGuidanceLaunchOptions(settings, 'codex', '/repo/a')
+    orcaBrowserGuidanceLaunchOptions(settings, 'codex', '/repo/b')
+    await vi.waitFor(() => expect(userDefines).toHaveBeenCalledTimes(2))
+    await Promise.resolve()
+    expect(userDefines).toHaveBeenCalledWith('/repo/a')
+    expect(
+      orcaBrowserGuidanceLaunchOptions(settings, 'codex', '/repo/a').codexUserDeveloperInstructions
+    ).toBe(true)
+    expect(
+      orcaBrowserGuidanceLaunchOptions(settings, 'codex', '/repo/b').codexUserDeveloperInstructions
+    ).toBe(false)
+  })
 })

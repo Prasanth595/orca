@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -66,5 +66,60 @@ describe('codexUserConfigDefinesDeveloperInstructions', () => {
   it('is conservative when the config path is unreadable', () => {
     write('')
     expect(codexUserConfigDefinesDeveloperInstructions(join(home, 'config.toml'))).toBe(true)
+  })
+
+  describe('project .codex/config.toml', () => {
+    let project: string
+    const writeProject = (dir: string, content: string): void => {
+      mkdirSync(join(dir, '.codex'), { recursive: true })
+      writeFileSync(join(dir, '.codex', 'config.toml'), content)
+    }
+    beforeEach(() => {
+      project = mkdtempSync(join(tmpdir(), 'codex-project-'))
+      mkdirSync(join(project, 'a', 'b'), { recursive: true })
+    })
+    afterEach(() => {
+      rmSync(project, { recursive: true, force: true })
+    })
+    const cwd = (): string => join(project, 'a', 'b')
+
+    it('detects the key in the config at the cwd', () => {
+      writeProject(cwd(), 'developer_instructions = "x"\n')
+      expect(codexUserConfigDefinesDeveloperInstructions(home, cwd())).toBe(true)
+    })
+
+    it('detects the key in a parent directory config', async () => {
+      writeProject(project, 'developer_instructions = "x"\n')
+      expect(codexUserConfigDefinesDeveloperInstructions(home, cwd())).toBe(true)
+      expect(await codexUserConfigDefinesDeveloperInstructionsAsync(home, cwd())).toBe(true)
+    })
+
+    it('detects the key under the project config active profile', () => {
+      writeProject(project, 'profile = "p"\n[profiles.p]\ndeveloper_instructions = "x"\n')
+      expect(codexUserConfigDefinesDeveloperInstructions(home, cwd())).toBe(true)
+    })
+
+    it('allows guidance when project configs lack the key', async () => {
+      writeProject(project, 'model = "x"\n')
+      expect(codexUserConfigDefinesDeveloperInstructions(home, cwd())).toBe(false)
+      expect(await codexUserConfigDefinesDeveloperInstructionsAsync(home, cwd())).toBe(false)
+    })
+
+    it('is conservative when a project config is unreadable', () => {
+      writeProject(project, 'developer_instructions = [broken')
+      expect(codexUserConfigDefinesDeveloperInstructions(home, cwd())).toBe(true)
+    })
+
+    it('ignores project configs when no cwd is given', () => {
+      writeProject(project, 'developer_instructions = "x"\n')
+      expect(codexUserConfigDefinesDeveloperInstructions(home)).toBe(false)
+    })
+
+    it('does not read the user config twice when the cwd is under its parent', () => {
+      mkdirSync(join(project, '.codex'), { recursive: true })
+      expect(codexUserConfigDefinesDeveloperInstructions(join(project, '.codex'), cwd())).toBe(
+        false
+      )
+    })
   })
 })

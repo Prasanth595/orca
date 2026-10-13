@@ -418,7 +418,8 @@ describe('launchWorkItemDirect', () => {
       agentArgs: '--dangerously-skip-permissions',
       agentEnv: {},
       platform: 'win32',
-      isRemote: false
+      isRemote: false,
+      orcaBrowserGuidance: false
     })
     expect(buildAgentStartupPlan).not.toHaveBeenCalledWith(
       expect.objectContaining({
@@ -676,7 +677,8 @@ describe('launchWorkItemDirect', () => {
       agentArgs: '--yolo',
       agentEnv: {},
       platform: 'linux',
-      isRemote: true
+      isRemote: true,
+      orcaBrowserGuidance: false
     })
     expect(buildAgentStartupPlan).toHaveBeenCalledWith({
       agent: 'cursor',
@@ -686,6 +688,7 @@ describe('launchWorkItemDirect', () => {
       agentEnv: {},
       platform: 'linux',
       isRemote: true,
+      orcaBrowserGuidance: false,
       allowEmptyPromptLaunch: true
     })
     expect(mocks.activateAndRevealWorktree).toHaveBeenCalledWith(

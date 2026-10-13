@@ -15,8 +15,11 @@ type CodexMirroredHomeResolver = {
 export function registerCodexConfigSyncHandlers(runtimeHome: CodexMirroredHomeResolver): void {
   ipcMain.removeHandler('codexConfigSync:status')
   ipcMain.removeHandler('codexConfigSync:userDefinesDeveloperInstructions')
-  ipcMain.handle('codexConfigSync:userDefinesDeveloperInstructions', () =>
-    codexUserConfigDefinesDeveloperInstructionsAsync()
+  ipcMain.handle('codexConfigSync:userDefinesDeveloperInstructions', (_event, cwd?: unknown) =>
+    codexUserConfigDefinesDeveloperInstructionsAsync(
+      undefined,
+      typeof cwd === 'string' && cwd ? cwd : undefined
+    )
   )
   ipcMain.handle('codexConfigSync:status', (): CodexConfigSyncStatus => {
     const systemHomePath = getSystemCodexHomePath()

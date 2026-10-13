@@ -1,3 +1,4 @@
+import { findWorktreeById } from '@/store/slices/worktree-helpers'
 import { useAppStore } from '@/store'
 import { orcaBrowserGuidanceLaunchOptions } from '@/lib/orca-browser-guidance-launch-options'
 import type { AgentStartupPlan } from '@/lib/tui-agent-startup'
@@ -149,6 +150,11 @@ function launchAgentInNewTabInternal(args: LaunchAgentInNewTabArgs): LaunchAgent
   // Why: a followup-path agent gets its prompt pasted unsubmitted after start, so route it as a draft.
   const routePromptDelivery =
     hasPrompt && isFollowupPath && promptDelivery === 'auto-submit' ? 'draft' : promptDelivery
+  // Why: only a Codex launch with guidance on consults project config, so other launches skip the lookup.
+  const guidanceCwd =
+    agent === 'codex' && store.settings?.useOrcaBrowserForAgentWork === true
+      ? (initialCwd ?? findWorktreeById(store.worktreesByRepo, worktreeId)?.path)
+      : undefined
   const startupPlanBase = {
     agent,
     cmdOverrides,
@@ -157,7 +163,7 @@ function launchAgentInNewTabInternal(args: LaunchAgentInNewTabArgs): LaunchAgent
     isRemote,
     agentArgs: effectiveAgentArgs,
     agentEnv,
-    ...orcaBrowserGuidanceLaunchOptions(store.settings, agent)
+    ...orcaBrowserGuidanceLaunchOptions(store.settings, agent, guidanceCwd)
   }
   const { startupPlan, pasteDraftAfterLaunch, submitPastedPrompt } = planLaunchAgentStartupPrompt({
     base: startupPlanBase,

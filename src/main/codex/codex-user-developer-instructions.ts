@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { parse as parseToml } from 'smol-toml'
 import type { AgentStartupSettings } from '../../shared/agent-startup-plan-inputs'
 import type { TuiAgent } from '../../shared/tui-agent'
@@ -47,27 +47,59 @@ function isMissingFile(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT'
 }
 
-/** True when the user's own Codex config sets `developer_instructions`, which Orca must not override. */
-export function codexUserConfigDefinesDeveloperInstructions(homePath?: string): boolean {
-  try {
-    return configContentDefinesDeveloperInstructions(
-      readFileSync(resolveCodexConfigPath(homePath), 'utf8')
-    )
-  } catch (error) {
-    return !isMissingFile(error)
+function projectConfigPaths(cwd: string, userConfigPath: string): string[] {
+  const paths: string[] = []
+  let dir = resolve(cwd)
+  for (;;) {
+    const candidate = join(dir, '.codex', 'config.toml')
+    // Why: the user's own config is read once, as the user config.
+    if (candidate !== userConfigPath) {
+      paths.push(candidate)
+    }
+    const parent = dirname(dir)
+    if (parent === dir) {
+      return paths
+    }
+    dir = parent
   }
 }
 
+/** Project `.codex/config.toml` files from cwd to the root are checked regardless of Codex trust. */
+function configPathsToCheck(homePath: string | undefined, cwd: string | undefined): string[] {
+  const userConfigPath = resolveCodexConfigPath(homePath)
+  return [userConfigPath, ...(cwd ? projectConfigPaths(cwd, userConfigPath) : [])]
+}
+
+/** True when the user's or a project's Codex config sets `developer_instructions`, which Orca must not override. */
+export function codexUserConfigDefinesDeveloperInstructions(
+  homePath?: string,
+  cwd?: string
+): boolean {
+  return configPathsToCheck(homePath, cwd).some((path) => {
+    try {
+      return configContentDefinesDeveloperInstructions(readFileSync(path, 'utf8'))
+    } catch (error) {
+      return !isMissingFile(error)
+    }
+  })
+}
+
 export async function codexUserConfigDefinesDeveloperInstructionsAsync(
-  homePath?: string
+  homePath?: string,
+  cwd?: string
 ): Promise<boolean> {
-  try {
-    return configContentDefinesDeveloperInstructions(
-      await readFile(resolveCodexConfigPath(homePath), 'utf8')
-    )
-  } catch (error) {
-    return !isMissingFile(error)
+  for (const path of configPathsToCheck(homePath, cwd)) {
+    try {
+      if (configContentDefinesDeveloperInstructions(await readFile(path, 'utf8'))) {
+        return true
+      }
+    } catch (error) {
+      if (!isMissingFile(error)) {
+        return true
+      }
+    }
   }
+  return false
 }
 
 /**
@@ -86,5 +118,10 @@ export function codexUserDeveloperInstructionsInput(
   if (host.isRemote || (host.path !== undefined && isWslUncPath(host.path))) {
     return { codexUserDeveloperInstructions: true }
   }
-  return { codexUserDeveloperInstructions: codexUserConfigDefinesDeveloperInstructions() }
+  return {
+    codexUserDeveloperInstructions: codexUserConfigDefinesDeveloperInstructions(
+      undefined,
+      host.path
+    )
+  }
 }

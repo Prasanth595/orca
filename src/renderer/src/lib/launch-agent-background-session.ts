@@ -78,8 +78,11 @@ export async function launchAgentBackgroundSession(
     // The window quotes by its Settings shell, which its pane's spawn also reads.
     shell: undefined,
     extraAgentArgs: args.extraAgentArgs,
-    codexUserDeveloperInstructions: orcaBrowserGuidanceLaunchOptions(store.settings, agent)
-      .codexUserDeveloperInstructions
+    codexUserDeveloperInstructions: orcaBrowserGuidanceLaunchOptions(
+      store.settings,
+      agent,
+      worktree.path
+    ).codexUserDeveloperInstructions
   })
   const trimmedPrompt = prompt?.trim() ?? ''
   const hasPrompt = trimmedPrompt.length > 0
