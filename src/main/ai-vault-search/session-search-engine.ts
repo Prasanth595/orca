@@ -93,8 +93,9 @@ export class SessionSearchEngine {
     return readIndexGeneration(this.db)
   }
 
-  search(request: SessionSearchRequest): SessionSearchResponse {
+  search(raw: SessionSearchRequest): SessionSearchResponse {
     const startedAt = performance.now()
+    const request = withSinceInUtc(raw)
     ensureSessionSearchQuerySchema(this.db)
     const generation = readIndexGeneration(this.db)
     const incarnation = readIndexIncarnation(this.db)
@@ -229,6 +230,19 @@ export class SessionSearchEngine {
         : null
     }
   }
+}
+
+/**
+ * `updated_at` is stored as `…sssZ` and compared as text, so a `since` with an
+ * offset would be read as UTC. Normalized before the page key too, so every
+ * spelling of one instant pages as one query.
+ */
+function withSinceInUtc(request: SessionSearchRequest): SessionSearchRequest {
+  const since = request.filters?.since
+  if (!since) {
+    return request
+  }
+  return { ...request, filters: { ...request.filters, since: new Date(since).toISOString() } }
 }
 
 /**
