@@ -15,7 +15,6 @@ import type { SettingsNavigationBuildOptions } from './settings-navigation-build
 
 export function buildInterfaceSettingsSections({
   isMac,
-  isWindows,
   isWebClient,
   nativeChatEnabled,
   hostQueuesMessages,
@@ -34,7 +33,7 @@ export function buildInterfaceSettingsSections({
       icon: Palette,
       searchEntries: getAppearancePaneSearchEntries({
         showDesktopThemeImports: showDesktopOnlySettings,
-        showSystemTray: showDesktopOnlySettings && isWindows,
+        showSystemTray: showDesktopOnlySettings && !isMac,
         showMenuBarIcon: showDesktopOnlySettings && isMac
       }),
       group: 'interface'
