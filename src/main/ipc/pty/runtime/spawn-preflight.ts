@@ -73,7 +73,12 @@ export async function prepareRuntimePtySpawn(
       ? resolveLocalWindowsTerminalRuntimeOptions({
           requestedShellOverride: args.shellOverride,
           settings: ctx.deps.getSettings?.(),
-          projectRuntime: resolveLocalProjectRuntimeForWorktreeId(ctx.deps.store, args.worktreeId),
+          projectRuntime: resolveLocalProjectRuntimeForWorktreeId(
+            ctx.deps.store,
+            args.worktreeId,
+            ctx.cwd,
+            { agentLaunch: Boolean(args.launchAgent) }
+          ),
           fallbackHostShell: process.env.COMSPEC || 'powershell.exe',
           sshLoginShell: resolveManagedSshHostLoginShell()
         })

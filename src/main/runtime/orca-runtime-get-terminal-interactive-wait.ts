@@ -20,7 +20,10 @@ import { resolveStartupShell, type AgentStartupShell } from '../../shared/tui-ag
 import { isTuiAgent } from '../../shared/tui-agent-config'
 import { resolveConfiguredWorkerAgent } from './orchestration/configured-worker-agent-selector'
 import { parseWslUncPath } from '../../shared/wsl-paths'
-import { resolveLocalProjectRuntimeForRepo } from '../project-runtime-git-options'
+import {
+  resolveFolderProjectStartupShell,
+  resolveLocalProjectRuntimeForWorktreeId
+} from '../local-project-runtime-resolution'
 
 import { prepareOpenCodeModelStartupInputs } from '../opencode/opencode-model-startup-plan'
 import { resolveAgentStartupPlanInputs } from '../../shared/agent-startup-plan-inputs'
@@ -216,13 +219,15 @@ export class OrcaRuntimeWithGetTerminalInteractiveWait extends OrcaRuntimeWithAd
     const workspace = repo
       ? { repo, path: repo.path, connectionId: repo.connectionId }
       : await this.resolveTerminalWorkspaceLaunchScope(target.worktree)
-    const platform = this.getAgentLaunchPlatformForWorkspace(workspace)
+    const platform = this.getAgentLaunchPlatformForWorkspace(workspace, workspace.path)
     const shell = resolveStartupShell(
       platform,
       resolveLocalWindowsAgentStartupShell({
         platform,
         isRemote: Boolean(workspace.connectionId),
-        terminalWindowsShell: this.store?.getSettings().terminalWindowsShell
+        terminalWindowsShell:
+          resolveFolderProjectStartupShell(this.store, workspace.id, { cwd: workspace.path }) ??
+          this.store?.getSettings().terminalWindowsShell
       })
     )
     return this.resolveOrchestrationAgentLauncher(selector, platform, shell)
@@ -247,9 +252,9 @@ export class OrcaRuntimeWithGetTerminalInteractiveWait extends OrcaRuntimeWithAd
     const settings = store.getSettings()
     const path = workspace?.path
     const unc = path ? parseWslUncPath(path) : null
-    const projectRuntime = executionRepo
-      ? resolveLocalProjectRuntimeForRepo(store, executionRepo)
-      : null
+    const projectRuntime = resolveLocalProjectRuntimeForWorktreeId(store, workspace?.id, path, {
+      agentLaunch: true
+    })
     if (projectRuntime?.status === 'repair-required') {
       return false
     }

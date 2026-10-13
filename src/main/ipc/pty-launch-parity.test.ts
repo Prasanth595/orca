@@ -43,7 +43,6 @@ import {
   resolveOpenCodeDirectModelExecutable
 } from '../opencode/opencode-model-availability'
 import { probeOpenCodeLaunchModelContext } from '../opencode/opencode-launch-model-context'
-
 vi.mock('electron', () => import('./pty-ipc-mock-registry').then((m) => m.electronModuleMock()))
 vi.mock('fs', () => import('./pty-ipc-mock-registry').then((m) => m.fsModuleMock()))
 vi.mock('node-pty', () => import('./pty-ipc-mock-registry').then((m) => m.nodePtyModuleMock()))
