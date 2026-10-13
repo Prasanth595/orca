@@ -191,10 +191,9 @@ function resolveMarkdownTarget(
   const unifiedTab = (state.unifiedTabsByWorktree[worktreeId] ?? []).find(
     (candidate) => candidate.id === tabId && candidate.contentType === 'editor'
   )
-  const tabFileId = unifiedTab?.entityId ?? tabId
-  const tab = state.openFiles.find(
-    (file) => file.worktreeId === worktreeId && (file.id === tabFileId || file.id === tabId)
-  )
+  // Hosts publish the file id when a file has no unified tab.
+  const fileId = unifiedTab?.entityId ?? tabId
+  const tab = state.openFiles.find((file) => file.worktreeId === worktreeId && file.id === fileId)
   if (!tab || !isMarkdownTab(tab)) {
     throw new Error('tab_not_found')
   }
