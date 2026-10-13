@@ -37,9 +37,14 @@ function rekeyMainIdentity(
       // Why: the PTY keeps its spawn-time key in its env; every main-side pane-key lookup must see the new owner.
       rememberPaneKeyForPty(ptyId, toPaneKey)
       rekeyMigrationUnsupportedPtyPaneKey(ptyId, toPaneKey)
-      deps.runtime?.restampMovedPtySurface(ptyId, move.targetTabId, toPaneKey)
     } catch (error) {
       console.warn('[pty] moved pane kept its old PTY identity records:', error)
+    }
+    try {
+      // Why: separate from the lookups above, whose renderer notification can throw on a destroyed window.
+      deps.runtime?.restampMovedPtySurface(ptyId, move.targetTabId, toPaneKey)
+    } catch (error) {
+      console.warn('[pty] moved pane kept its old runtime PTY record:', error)
     }
   }
   try {
