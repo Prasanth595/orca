@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { CreateWorktreeResult } from '../../shared/worktree/create-types'
+import { shouldSeedWorktreePrimaryTerminal } from '../../shared/worktree-first-surface'
 import { buildObservedSetupCommand } from './orchestration/setup-completion-signal'
 import { buildSetupRunnerCommand } from '../../shared/setup-runner-command'
 import type { RuntimeStore } from './runtime-store-contract'
@@ -42,6 +43,8 @@ export type WorktreeTerminalProvisioningArgs = {
   primaryTerminalHandle?: string | null
   hasStartupTerminal: boolean
   setupOnly?: boolean
+  callerProvidesSurface?: boolean
+  startupNeedsTerminal?: boolean
   setupCommandPlatform: 'windows' | 'posix'
   observeSetupCompletion?: boolean
   // Why: setup and startup must use the same wrapper when startup waits for setup.
@@ -134,12 +137,19 @@ export async function provisionWorktreeTerminals(
       args.hasStartupTerminal ? (args.primaryTerminalHandle ?? undefined) : undefined
     )
     let primaryHandle = args.primaryTerminalHandle ?? defaultHandles[0] ?? null
-    if (!args.hasStartupTerminal && !primaryHandle) {
-      if (setupOnly) {
-        shellSkippedForSetup = true
-      } else {
-        primaryHandle = (await host.createTerminal(args.worktreeSelector, surfacing)).handle
-      }
+    if (!args.hasStartupTerminal && !primaryHandle && setupOnly) {
+      shellSkippedForSetup = true
+    }
+    if (
+      !setupOnly &&
+      shouldSeedWorktreePrimaryTerminal({
+        hasPrimarySurface: args.hasStartupTerminal || primaryHandle !== null,
+        callerProvidesSurface: args.callerProvidesSurface === true,
+        startupNeedsTerminal: args.startupNeedsTerminal,
+        ...(args.setup ? { setupLaunchMode } : {})
+      })
+    ) {
+      primaryHandle = (await host.createTerminal(args.worktreeSelector, surfacing)).handle
     }
     if (args.setup) {
       const completionToken =
