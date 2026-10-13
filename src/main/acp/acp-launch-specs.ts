@@ -3,7 +3,7 @@
 
 import { join } from 'node:path'
 import type { AcpDialect } from './acp-dialects/acp-dialect'
-import { GENERIC_ACP_DIALECT } from './acp-dialects/acp-dialect'
+import { HERMES_ACP_DIALECT } from './acp-dialects/hermes-dialect'
 import { GROK_ACP_DIALECT } from './acp-dialects/grok-dialect'
 import { OMP_ACP_DIALECT } from './acp-dialects/omp-dialect'
 import { OPENCODE_ACP_DIALECT } from './acp-dialects/opencode-dialect'
@@ -205,7 +205,7 @@ const HERMES_LAUNCH_SPEC: AcpLaunchSpec = {
   // auto-approved, which is the same posture as answering every permission request yes.
   args: ({ fullAccess }) => ['acp', ...(fullAccess ? ['--accept-hooks'] : [])],
   env: {},
-  dialect: GENERIC_ACP_DIALECT,
+  dialect: HERMES_ACP_DIALECT,
   loginCommand: agentSessionSignInFor('hermes')?.loginCommand ?? [],
   account: directoryAccountBinding('HERMES_HOME', (homePath) => join(homePath, '.hermes')),
   installDirectories: ({ homePath }) => [join(homePath, '.local', 'bin')],
