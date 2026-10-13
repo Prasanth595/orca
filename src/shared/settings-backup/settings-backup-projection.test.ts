@@ -69,6 +69,14 @@ describe('projectSettingsForBackup', () => {
     expect(JSON.stringify(settings)).not.toContain('session=abc')
   })
 
+  it('never exports the agent chat permission mode', () => {
+    const { settings } = projectSettingsForBackup(
+      settingsWith({ nativeChatPermissionMode: 'full-access' }),
+      SETTINGS_BACKUP_SECTIONS
+    )
+    expect(settings.nativeChatPermissionMode).toBeUndefined()
+  })
+
   it('drops free-form values that look like credentials', () => {
     const token = `ghp_${'a'.repeat(36)}`
     const { settings, excludedSecretKeys } = projectSettingsForBackup(

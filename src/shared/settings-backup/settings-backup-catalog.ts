@@ -249,6 +249,7 @@ export const SETTINGS_BACKUP_KEY_CLASSES = {
   nestedWorkerMaxDepth: 'protected',
   aiVaultSearch: 'protected',
   telemetry: 'protected',
+  nativeChatPermissionMode: 'protected',
 
   // Internal: one-shot migration guards, kill switches, local ids and dismissed prompts
   machineName: 'internal',
