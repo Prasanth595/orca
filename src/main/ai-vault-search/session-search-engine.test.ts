@@ -283,6 +283,17 @@ describe('filters narrow retrieval, not just the page', () => {
     }
   })
 
+  it('leaves out a session from just before a sub-millisecond `since`', async () => {
+    const { db, engine } = await open('ss-engine-since-sub-ms')
+    addSyntheticSession(db, { id: 1, text: 'needle', updatedAt: '2026-10-12T00:00:00.000Z' })
+    addSyntheticSession(db, { id: 2, text: 'needle', updatedAt: '2026-10-12T00:00:00.001Z' })
+    const result = engine.search({
+      query: 'needle',
+      filters: { since: '2026-10-12T00:00:00.0005Z', sort: 'newest' }
+    })
+    expect(ids(result)).toEqual(['2'])
+  })
+
   it('pages one instant as one query, whatever offset it is spelled with', async () => {
     const { db, engine } = await open('ss-engine-since-cursor')
     addSyntheticSession(db, { id: 1, text: 'needle', updatedAt: '2026-10-12T01:00:00.000Z' })
