@@ -26,6 +26,7 @@ import {
   isAgentSessionOperationOutcomeUnknown
 } from './runtime-agent-launch-resolution'
 import { agentStartedTelemetry } from '../agent-launch/agent-started-telemetry'
+import { withAgentSessionAccountEnv } from './agent-session-account-env'
 
 export class OrcaRuntimeWithCreateAgentSession extends OrcaRuntimeWithGetAgentSessionExecutionNamespace {
   async createAgentSession(
@@ -186,7 +187,8 @@ export class OrcaRuntimeWithCreateAgentSession extends OrcaRuntimeWithGetAgentSe
       try {
         terminal = await this.createTerminal(`id:${workspace.id}`, {
           command: startup.launchCommand,
-          env: startup.env,
+          // Why outside both fingerprints: the desktop re-prepares it per attempt; the first spawn wins.
+          env: withAgentSessionAccountEnv(startup.env, request.accountEnv),
           launchConfig: startup.launchConfig,
           launchAgent: request.agent,
           launchRuntime,

@@ -87,14 +87,7 @@ export class OrcaRuntimeWithActivateManagedWorktree extends OrcaRuntimeWithListM
         this.notifyHostActivateWorktree(repo.id, worktree.id)
       }
       if (targetsClients) {
-        this.notifyClientsActivateWorktree(
-          repo.id,
-          worktree.id,
-          undefined,
-          undefined,
-          undefined,
-          navigation
-        )
+        this.notifyClientsActivateWorktree(repo.id, worktree.id, undefined, navigation)
       }
     }
     if (!targetsHost) {
@@ -311,7 +304,7 @@ export class OrcaRuntimeWithActivateManagedWorktree extends OrcaRuntimeWithListM
     return deliverWorktreeStartupFollowup(this.getWorktreeStartupReadinessHost(), handle, followup)
   }
 
-  protected async provisionManagedWorktreeTerminals(
+  async provisionManagedWorktreeTerminals(
     args: {
       worktreeSelector: string
       worktreeId: string
