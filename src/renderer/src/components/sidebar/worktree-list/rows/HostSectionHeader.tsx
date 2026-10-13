@@ -152,7 +152,13 @@ export function HostSectionHeader({
             className={cn('size-3.5 transition-transform', row.collapsed && '-rotate-90')}
           />
         </div>
-        <span data-host-header-action="">
+        {/* Portaled menus and dialogs still bubble events through the React header. */}
+        <span
+          data-host-header-action=""
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+        >
           <HostSectionHeaderMenu row={row} />
         </span>
       </div>
