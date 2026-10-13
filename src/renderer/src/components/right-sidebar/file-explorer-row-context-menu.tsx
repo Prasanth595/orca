@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react'
 import {
+  AppWindow,
   Copy,
   Download,
   ExternalLink,
@@ -25,6 +26,7 @@ import {
 import { useAppStore } from '@/store'
 import { useShortcutLabel } from '@/hooks/useShortcutLabel'
 import { detectLanguage } from '@/lib/language-detect'
+import { isLocalPathOpenBlocked } from '@/lib/local-path-open-guard'
 import { openFileInBrowserTab } from '@/lib/file-preview'
 import { translate } from '@/i18n/i18n'
 import { LocalOnlyMenuHint } from '@/components/local-only-menu-hint'
@@ -33,18 +35,22 @@ import {
   getWorkspaceFileRevealOwner,
   revealInFileManager
 } from '@/lib/reveal-in-file-manager'
-import { isLocalPathOpenBlocked } from '@/lib/local-path-open-guard'
 import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
 import type { FileExplorerRowProps } from './FileExplorerRow'
 import {
   shouldShowCollapseFolderAction,
   shouldShowCopyFileAction,
   shouldShowFindInFolderAction,
+  shouldShowOpenInDefaultAppAction,
   shouldShowOpenInTerminalAction,
   shouldShowRemoteDownloadAction,
   shouldShowViewFileAction
 } from './file-explorer-row-action-visibility'
-import { copyFileToOsClipboard, downloadRemoteFile } from './file-explorer-row-file-transfer'
+import {
+  copyFileToOsClipboard,
+  downloadRemoteFile,
+  openFileInDefaultApp
+} from './file-explorer-row-file-transfer'
 
 const isMac = navigator.userAgent.includes('Mac')
 
@@ -112,6 +118,7 @@ export function FileExplorerRowContextMenu({
   const activeWorktreeId = useAppStore((s) => s.activeWorktreeId)
   const copyPathShortcutLabel = useShortcutLabel('fileExplorer.copyPath')
   const copyRelativePathShortcutLabel = useShortcutLabel('fileExplorer.copyRelativePath')
+  const openInDefaultAppShortcutLabel = useShortcutLabel('fileExplorer.openInDefaultApp')
   const findInFolderShortcutLabel = useShortcutLabel('sidebar.search.toggle')
   const showRemoteDownloadAction = shouldShowRemoteDownloadAction(
     node,
@@ -120,6 +127,11 @@ export function FileExplorerRowContextMenu({
     supportsFolderDownload
   )
   const showCopyFileAction = shouldShowCopyFileAction(node, connectionId, selectionSize)
+  const showOpenInDefaultAppAction = shouldShowOpenInDefaultAppAction(
+    node,
+    connectionId,
+    runtimeDownloadContext
+  )
   const revealOwner = useAppStore((s) =>
     getWorkspaceFileRevealOwner(s, s.activeWorktreeId, {
       connectionId,
@@ -146,6 +158,14 @@ export function FileExplorerRowContextMenu({
   const handleCopyFile = useCallback(() => {
     void copyFileToOsClipboard(node, connectionId)
   }, [connectionId, node])
+  const handleOpenInDefaultApp = useCallback(() => {
+    const state = useAppStore.getState()
+    const owner = getWorkspaceFileRevealOwner(state, activeWorktreeId, {
+      connectionId,
+      runtimeEnvironmentId: getRuntimeEnvironmentIdForWorktree(state, activeWorktreeId)
+    })
+    void openFileInDefaultApp(node, owner)
+  }, [activeWorktreeId, connectionId, node])
 
   return (
     <ContextMenuContent
@@ -220,6 +240,18 @@ export function FileExplorerRowContextMenu({
         <ContextMenuItem onSelect={onViewFile}>
           <File />
           {translate('auto.components.right.sidebar.FileExplorerRow.1d8e182c32', 'View File')}
+        </ContextMenuItem>
+      )}
+      {showOpenInDefaultAppAction && (
+        <ContextMenuItem onSelect={handleOpenInDefaultApp}>
+          <AppWindow />
+          {translate(
+            'auto.components.right.sidebar.FileExplorerRow.288a8e8081',
+            'Open in Default App'
+          )}
+          {openInDefaultAppShortcutLabel !== 'Unassigned' ? (
+            <ContextMenuShortcut>{openInDefaultAppShortcutLabel}</ContextMenuShortcut>
+          ) : null}
         </ContextMenuItem>
       )}
       {!node.isDirectory && activeWorktreeId && canOpenInOrcaBrowser && (
