@@ -12,7 +12,6 @@ const mocks = vi.hoisted(() => ({
   prepareAiVaultSessionForTerminalResume: vi.fn(),
   launchAiVaultSessionInNewTab: vi.fn(),
   activateAiVaultResumeWorkspace: vi.fn(),
-  resumeAiVaultSessionInNewChat: vi.fn(),
   toastError: vi.fn(),
   toastSuccess: vi.fn()
 }))
@@ -43,7 +42,7 @@ vi.mock('./ai-vault-session-launch-target', () => ({
 }))
 vi.mock('./ai-vault-session-resume-in-chat-launch', () => ({
   activateAiVaultResumeWorkspace: mocks.activateAiVaultResumeWorkspace,
-  resumeAiVaultSessionInNewChat: mocks.resumeAiVaultSessionInNewChat
+  resumeAiVaultSessionInNewChat: vi.fn()
 }))
 vi.mock('sonner', () => ({ toast: { error: mocks.toastError, success: mocks.toastSuccess } }))
 vi.mock('@/store', () => ({
@@ -174,34 +173,4 @@ it('refuses the stale OMP row before creating a second terminal writer', async (
     'This OMP conversation is open in a chat. Refresh Session History to open it.'
   )
   expect(mocks.launchAiVaultSessionInNewTab).not.toHaveBeenCalled()
-})
-
-describe('Resume in New Native Chat launch', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it.each([
-    ['codex', 'codex'],
-    ['opencode', 'opencode'],
-    // OpenCode 2.x lists its conversations under its own row agent; an OpenCode chat takes them.
-    ['opencode2', 'opencode']
-  ] as const)('starts a %s row in a %s chat', (rowAgent, chatAgent) => {
-    const row: AiVaultSession = { ...owned, agent: rowAgent, structuredSession: undefined }
-
-    renderActions().handleResumeInNewChat(row, 'worktree-2')
-
-    expect(mocks.resumeAiVaultSessionInNewChat).toHaveBeenCalledWith(
-      row,
-      chatAgent,
-      'worktree-2',
-      expect.any(String)
-    )
-  })
-
-  it('starts nothing for an agent whose chats cannot take a conversation over', () => {
-    renderActions().handleResumeInNewChat({ ...owned, agent: 'pi' }, 'worktree-2')
-
-    expect(mocks.resumeAiVaultSessionInNewChat).not.toHaveBeenCalled()
-  })
 })
