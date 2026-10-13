@@ -143,6 +143,13 @@ function isClaudePermissionResumingApprovedTool(
     previous.payload.toolInput === undefined &&
     next.payload.toolInput === undefined
 
+  // Failure events clear display fields, so only the exact request and owner can settle the wait.
+  if (next.hookEventName === 'PostToolUseFailure') {
+    return (
+      hasMatchingToolUseId && previousAgentId === nextAgentId && previousAgentType === nextAgentType
+    )
+  }
+
   return (
     (next.hookEventName === 'PreToolUse' || next.hookEventName === 'PostToolUse') &&
     nextToolUseId !== undefined &&
