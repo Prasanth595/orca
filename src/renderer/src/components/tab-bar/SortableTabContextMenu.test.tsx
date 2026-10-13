@@ -93,6 +93,16 @@ vi.mock('./TabSessionSurfaceSwitchMenuItems', () => ({
   )
 }))
 
+vi.mock('./TerminalTabMoveIntoTabMenuSection', () => ({
+  TerminalTabMoveIntoTabMenuSection: ({
+    tabId,
+    worktreeId
+  }: {
+    tabId: string
+    worktreeId: string
+  }) => <div data-testid="move-into-tab" data-tab-id={tabId} data-worktree-id={worktreeId} />
+}))
+
 vi.mock('../../store', () => ({
   useAppStore: Object.assign(
     (selector: (state: Record<string, unknown>) => unknown) => selector(storeMock.state),
@@ -269,6 +279,18 @@ describe('SortableTabContextMenu', () => {
       }
     }
   )
+
+  it('offers Move Into Tab for a terminal tab, but not for a native chat tab', () => {
+    const { container } = renderMenu()
+    expect(container.querySelector('[data-testid="move-into-tab"]')).toMatchObject({
+      dataset: { tabId: 'term-1', worktreeId: 'wt-1' }
+    })
+
+    const chat = renderMenu({ structuredSessionId: 'orca-chat-1' })
+    expect(chat.container.querySelector('[data-testid="move-into-tab"]')).toBeNull()
+    const chatView = renderMenu({ isChatView: true })
+    expect(chatView.container.querySelector('[data-testid="move-into-tab"]')).toBeNull()
+  })
 
   it('does not expose a native/terminal view switch', () => {
     const { container } = renderMenu()

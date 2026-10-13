@@ -11,7 +11,9 @@ import type { RuntimeSyncedLeaf } from '../../shared/runtime-types'
 import { isTerminalLeafId, makePaneKey } from '../../shared/stable-pane-id'
 import { inferWorktreeIdFromPtyId } from './runtime-worktree-path-identity'
 import {
+  recordPtySurface,
   recordPtySurfaceClaim,
+  spawnSurfaceClaimSequence,
   SURFACE_CLAIM_WITHOUT_STANDING
 } from './pty-recorded-surface-topology'
 
@@ -186,6 +188,15 @@ export class OrcaRuntimeWithRecordPtyWorktree extends OrcaRuntimeWithRefreshRepo
     // Why: recordPtyWorktree is the common lifecycle point for every path that resolves a PTY's worktree (renderer restore, controller list).
     advertisedUrlWatcher.bindPty(ptyId, worktreeId)
     return pty
+  }
+
+  /** Re-points a live PTY's record at the pane main just moved it to, so CLI and mobile closes target it. */
+  restampMovedPtySurface(ptyId: string, tabId: string, paneKey: string): void {
+    const pty = this.ptysById.get(ptyId)
+    if (pty) {
+      // Why: the renderer's graph sync carrying the move is still in flight, like a spawn's.
+      recordPtySurface(pty, tabId, paneKey, spawnSurfaceClaimSequence(this.graphSequence))
+    }
   }
 
   protected makeRuntimePaneKey(
