@@ -3,7 +3,6 @@ import { SquareArrowOutUpRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { translate } from '@/i18n/i18n'
-import { useAppStore } from '@/store'
 import { NATIVE_CHAT_VISUAL_RESERVED_HEIGHT, NativeChatVisualFrame } from './NativeChatVisualFrame'
 import { observeTranscriptVisibility } from './NativeChatTranscriptChrome'
 import {
@@ -21,6 +20,7 @@ import {
   type NativeChatVisualFile
 } from './native-chat-visual-path-read-client'
 import { useNativeChatVisualSavedMark } from './native-chat-visual-refresh'
+import { openNativeChatVisual } from './native-chat-visual-open'
 
 const subscribeToNothing = (): (() => void) => () => {}
 const noMark = (): number => 0
@@ -77,7 +77,6 @@ export function NativeChatInlineVisual({
   const [near, setNear] = useState(false)
   const [revealedMark, setRevealedMark] = useState(0)
   const [retired, setRetired] = useState(false)
-  const openChatVisualTab = useAppStore((state) => state.openChatVisualTab)
   const reading = useNativeChatVisualReading()
   const hostFile = useNativeChatVisualHostFile(owner, reading, file)
   const chatRefreshMark = useSyncExternalStore(
@@ -142,11 +141,10 @@ export function NativeChatInlineVisual({
                   size="icon-xs"
                   aria-label={openLabel}
                   onClick={() =>
-                    openChatVisualTab(owner.worktreeId, {
-                      target: owner.target,
-                      sessionId: owner.sessionId,
+                    openNativeChatVisual(owner, {
                       file,
-                      title
+                      title,
+                      path: hostFile.kind === 'file' ? hostFile.file.path : null
                     })
                   }
                 >
