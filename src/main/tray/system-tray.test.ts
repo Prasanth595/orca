@@ -110,6 +110,12 @@ vi.mock('./tray-dev-badge', () => ({
   stampTrayDevBadge: stampDevBadgeMock
 }))
 
+const { translations } = vi.hoisted(() => ({ translations: new Map<string, string>() }))
+
+vi.mock('../i18n/main-i18n', () => ({
+  translateMain: (key: string, fallback: string) => translations.get(key) ?? fallback
+}))
+
 type TrayModule = typeof SystemTrayModule
 type MenuItem = { label?: string; type?: string; click?: () => void }
 
@@ -183,6 +189,7 @@ beforeEach(() => {
   nativeThemeMock.on.mockClear()
   nativeThemeMock.removeListener.mockClear()
   themeState.updatedListener = null
+  translations.clear()
 })
 
 afterEach(() => {
@@ -568,6 +575,47 @@ describe('destroySystemTray', () => {
 
     expect(created.destroy).toHaveBeenCalledOnce()
     expect(nativeThemeMock.removeListener).toHaveBeenCalledWith('updated', listener)
+  })
+})
+
+describe('rebuildSystemTrayMenu', () => {
+  it('relabels the existing tray menu after a UI language change', async () => {
+    setPlatform('darwin')
+    const { createSystemTray, rebuildSystemTrayMenu } = await loadModule()
+    const options = createOptions()
+    createSystemTray(options)
+    const created = trayInstances[0]
+
+    translations.set('tray.openOrca', '開啟 Orca')
+    translations.set('menu.settings', '設定')
+    translations.set('tray.quit', '結束')
+    rebuildSystemTrayMenu()
+
+    expect(trayInstances).toHaveLength(1)
+    expect(created.setContextMenu).toHaveBeenCalledTimes(2)
+    expect(builtMenuItems().map((item) => item.label)).toEqual([
+      '開啟 Orca',
+      undefined,
+      '設定',
+      'Check for Updates...',
+      undefined,
+      '結束'
+    ])
+    builtMenuItems()[0].click?.()
+    expect(options.onOpen).toHaveBeenCalledOnce()
+  })
+
+  it('does nothing without a live tray', async () => {
+    setPlatform('darwin')
+    const { createSystemTray, destroySystemTray, rebuildSystemTrayMenu } = await loadModule()
+
+    rebuildSystemTrayMenu()
+    createSystemTray(createOptions())
+    destroySystemTray()
+    menuFromTemplateMock.mockClear()
+    rebuildSystemTrayMenu()
+
+    expect(menuFromTemplateMock).not.toHaveBeenCalled()
   })
 })
 
