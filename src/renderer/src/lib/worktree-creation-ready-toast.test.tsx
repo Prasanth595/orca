@@ -307,4 +307,25 @@ describe('showWorktreeCreationReadyToast', () => {
     await Promise.resolve()
     expect(toast.dismiss).not.toHaveBeenCalled()
   })
+
+  it('keeps captured local ownership for legacy rows without a host', async () => {
+    showWorktreeCreationReadyToast(worktree, 'local')
+    store.setState({
+      activeWorktreeId: worktree.id,
+      activeWorkspaceExecutionHostId: 'runtime:remote-a'
+    })
+    await Promise.resolve()
+    expect(toast.dismiss).not.toHaveBeenCalled()
+    toasts[0]?.onClick()
+    expect(activateAndRevealWorktree).toHaveBeenCalledWith(worktree.id, {
+      sidebarRevealBehavior: 'auto',
+      navigationIntent: 'user-open',
+      executionHostId: 'local'
+    })
+    store.setState({ activeWorktreeId: null })
+    showWorktreeCreationReadyToast(worktree, 'local')
+    store.setState({ activeWorktreeId: worktree.id, activeWorkspaceExecutionHostId: 'local' })
+    await Promise.resolve()
+    expect(toast.dismiss).toHaveBeenCalledExactlyOnceWith(toasts[1]?.id)
+  })
 })

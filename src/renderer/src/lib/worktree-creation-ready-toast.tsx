@@ -25,7 +25,7 @@ export function showWorktreeCreationReadyToast(
     owner.kind === 'ambiguous' && creationHostId === undefined
       ? null
       : ownerHostId
-        ? withRepoHostOwnership(worktree, ownerHostId).hostId
+        ? (withRepoHostOwnership(worktree, ownerHostId).hostId ?? ownerHostId)
         : worktree.hostId
   const isViewingWorktree = (state: ReturnType<typeof useAppStore.getState>): boolean =>
     state.activeView === 'terminal' &&
