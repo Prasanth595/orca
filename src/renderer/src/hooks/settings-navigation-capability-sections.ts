@@ -44,6 +44,8 @@ export function buildCapabilitySettingsSections({
       searchEntries: getAgentsPaneSearchEntries({
         includeAgentAwake: !isWebClient,
         includeAgentRuntime: isLocalWindowsHost,
+        includeAgentWorkspaceTrust: !isWebClient,
+        includeCodexTerminalServerIsolation: !isWebClient,
         includeKeepDisplayAwake: isMac
       }),
       group: 'capabilities'

@@ -82,8 +82,10 @@ vi.mock('@/lib/worktree-runtime-owner', () => ({
   getRuntimeEnvironmentIdForWorktree: mocks.getRuntimeEnvironmentIdForWorktree
 }))
 
-vi.mock('@/runtime/web-runtime-session', () => ({
-  activateWebRuntimeSessionTab: mocks.activateWebRuntimeSessionTab,
+vi.mock('@/runtime/web-runtime-session-tab-lifecycle', () => ({
+  activateWebRuntimeSessionTab: mocks.activateWebRuntimeSessionTab
+}))
+vi.mock('@/runtime/web-runtime-session-environment', () => ({
   isWebRuntimeSessionActive: mocks.isWebRuntimeSessionActive
 }))
 
@@ -183,7 +185,7 @@ describe('activateWorkspaceTabPaletteResult', () => {
       worktreeId: 'wt-1'
     })
     expect(mocks.store.setActiveTab).toHaveBeenCalledWith('terminal-1')
-    expect(mocks.store.setActiveTabType).toHaveBeenCalledWith('terminal')
+    expect(mocks.store.setActiveTabType).toHaveBeenCalledWith('terminal', 'wt-1')
     expect(mocks.focusTerminalTabSurface).toHaveBeenCalledWith('terminal-1')
   })
 
@@ -293,7 +295,7 @@ describe('activateWorkspaceTabPaletteResult', () => {
     expect(mocks.store.focusGroup).toHaveBeenCalledWith('wt-1', 'group-2')
     expect(mocks.store.setActiveFile).toHaveBeenCalledWith('/tmp/wt-1/src/app.ts')
     expect(mocks.store.activateTab).toHaveBeenLastCalledWith('diff-tab-1', { worktreeId: 'wt-1' })
-    expect(mocks.store.setActiveTabType).toHaveBeenCalledWith('editor')
+    expect(mocks.store.setActiveTabType).toHaveBeenCalledWith('editor', 'wt-1')
     expect(mocks.focusTerminalTabSurface).not.toHaveBeenCalled()
   })
 
@@ -344,7 +346,7 @@ describe('activateWorkspaceTabPaletteResult', () => {
     expect(mocks.store.focusGroup).toHaveBeenCalledWith('wt-1', 'group-2')
     expect(mocks.store.setActiveFile).toHaveBeenCalledWith(entityId)
     expect(mocks.store.activateTab).toHaveBeenLastCalledWith(tabId, { worktreeId: 'wt-1' })
-    expect(mocks.store.setActiveTabType).toHaveBeenCalledWith('editor')
+    expect(mocks.store.setActiveTabType).toHaveBeenCalledWith('editor', 'wt-1')
   })
 
   it('returns stale failures before focusing a removed group or tab', () => {
