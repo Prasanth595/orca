@@ -169,3 +169,67 @@ describe('useIpcEvents session tab close requests', () => {
     expect(respondSessionTabClose).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('file close IPC requests', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.unstubAllGlobals()
+  })
+
+  it.each([false, true])('refuses a dirty draft unless force is explicit (%s)', async (force) => {
+    const listenerRef: { current: SessionTabCloseRequestListener | null } = { current: null }
+    const closeFile = vi.fn()
+    const respondSessionTabClose = vi.fn()
+    await useIpcEventsForCloseRouting({
+      sessionTabCloseRequestListenerRef: listenerRef,
+      respondSessionTabClose,
+      getState: () => ({
+        closeFile,
+        editorDrafts: { 'file-1': 'unsaved' },
+        openFiles: [{ id: 'file-1', worktreeId: 'wt-1', relativePath: 'a.ts', isDirty: false }],
+        unifiedTabsByWorktree: {
+          'wt-1': [{ id: 'tab-1', entityId: 'file-1', contentType: 'editor' }]
+        }
+      })
+    })
+    listenerRef.current?.({
+      requestId: 'file-close',
+      tabId: 'tab-1',
+      worktreeId: 'wt-1',
+      fileClose: { tabIds: ['tab-1'], force }
+    })
+    if (force) {
+      expect(closeFile).toHaveBeenCalledWith('file-1')
+      expect(respondSessionTabClose).toHaveBeenCalledWith({ requestId: 'file-close' })
+    } else {
+      expect(closeFile).not.toHaveBeenCalled()
+      expect(respondSessionTabClose).toHaveBeenCalledWith({
+        requestId: 'file-close',
+        error: 'Unsaved changes: a.ts. Use --force to discard.'
+      })
+    }
+  })
+
+  it('does not apply an expired file close request', async () => {
+    const listenerRef: { current: SessionTabCloseRequestListener | null } = { current: null }
+    const closeFile = vi.fn()
+    const respondSessionTabClose = vi.fn()
+    await useIpcEventsForCloseRouting({
+      sessionTabCloseRequestListenerRef: listenerRef,
+      respondSessionTabClose,
+      getState: () => ({ closeFile })
+    })
+    listenerRef.current?.({
+      requestId: 'expired',
+      tabId: 'tab-1',
+      worktreeId: 'wt-1',
+      expiresAt: Date.now() - 1,
+      fileClose: { tabIds: ['tab-1'], force: true }
+    })
+    expect(closeFile).not.toHaveBeenCalled()
+    expect(respondSessionTabClose).toHaveBeenCalledWith({
+      requestId: 'expired',
+      error: 'session_tab_close_timeout'
+    })
+  })
+})

@@ -118,4 +118,28 @@ describe('requestSessionTabCloseFromRenderer', () => {
     await rejection
     expect(ipcEmitter.listenerCount('ui:sessionTabCloseResponse')).toBe(0)
   })
+  it('carries the complete file batch and reports unsaved-file refusal', async () => {
+    const { requestSessionTabCloseFromRenderer } = await import('./session-tab-close-request-relay')
+    const { mainWindow, webContents } = createMainWindow()
+    const fileClose = { tabIds: ['file-a', 'file-b'], force: false }
+    const pending = requestSessionTabCloseFromRenderer(
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: The emitter fixture implements every BrowserWindow member this relay reads.
+      mainWindow as never,
+      'file-a',
+      'wt-1',
+      fileClose
+    )
+    const request = webContents.send.mock.calls[0]?.[1]
+    expect(request.fileClose).toEqual(fileClose)
+    ipcEmitter.emit(
+      'ui:sessionTabCloseResponse',
+      { sender: webContents },
+      {
+        requestId: request.requestId,
+        error: 'Unsaved changes: b.ts. Use --force to discard.'
+      }
+    )
+    await expect(pending).rejects.toThrow('Unsaved changes: b.ts')
+    expect(ipcMainMock.removeListener).toHaveBeenCalled()
+  })
 })

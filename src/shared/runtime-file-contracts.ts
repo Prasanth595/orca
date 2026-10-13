@@ -77,3 +77,14 @@ export type RuntimeFileReadChunkResult = {
   bytesRead: number
   eof: boolean
 }
+
+export type RuntimeFileCloseOptions = {
+  relativePath?: string
+  all?: boolean
+  force?: boolean
+}
+
+export type RuntimeFileCloseResult = {
+  worktree: string
+  closed: string[]
+}

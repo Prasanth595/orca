@@ -203,9 +203,13 @@ For long output, use cursor reads. Save `nextCursor` from one stream read, then 
 orca file open src/App.tsx --worktree active --json
 orca file diff src/App.tsx --staged --worktree active --json
 orca file open-changed --mode both --worktree active --json
+orca file close src/App.tsx --worktree active --json
+orca file close --all --worktree active --json
 ```
 
 Paths are relative to the selected worktree. `open-changed` reads git status and opens changed files in edit, diff, or both modes. Tabs open without changing what you are looking at; pass `--focus` to be brought to them.
+
+Close accepts a file path for one tab, preferring the editable file when a diff is also open, or `--all` for every file tab in one worktree. Unsaved changes, including unflushed drafts, refuse the close request; use `--force` only when you intend to discard them. Pinned tabs also require `--force` when pin confirmation is enabled. Paired editor tabs use the same host notification and close intent as the tab X, so a stale host snapshot does not reopen them. Remote CLI calls require `--worktree`.
 
 ## Built-in browser
 

@@ -13,6 +13,7 @@ import {
   DocPreviewFileRead,
   FileListAll,
   FileOpenDiff,
+  FileClose,
   FileOpenTab,
   FilePathSearch,
   FileReadChunk,
@@ -67,6 +68,12 @@ export const FILE_METHODS = [
     params: FileOpenTab,
     handler: async (params, { runtime }) =>
       runtime.openMobileFile(params.worktree, params.relativePath, params.navigation)
+  }),
+  defineMethod({
+    name: 'files.close',
+    permission: 'workspace',
+    params: FileClose,
+    handler: async (params, { runtime }) => runtime.closeFileTabs(params.worktree, params)
   }),
   defineMethod({
     name: 'files.openDiff',

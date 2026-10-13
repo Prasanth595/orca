@@ -1,3 +1,4 @@
+import { closeFileTabsInStore } from '@/runtime/file-tab-close-command'
 import { isLocalSessionTabCloseOwned } from '@/runtime/local-session-tab-close-owner'
 import { closeMobileSessionTabInStore } from '@/runtime/mobile-session-tab-close'
 import {
@@ -44,7 +45,28 @@ export function registerSessionTabIpcBridge(unsubs: (() => void)[]): void {
   )
 
   unsubs.push(
-    window.api.ui.onSessionTabCloseRequest(({ requestId, tabId, worktreeId, expiresAt }) => {
+    window.api.ui.onSessionTabCloseRequest((request) => {
+      const { requestId, tabId, worktreeId, expiresAt, fileClose } = request
+      if (fileClose) {
+        try {
+          if (expiresAt !== undefined && Date.now() >= expiresAt) {
+            throw new Error(SESSION_TAB_CLOSE_TIMEOUT_ERROR)
+          }
+          closeFileTabsInStore(
+            useAppStore.getState(),
+            worktreeId,
+            fileClose.tabIds.map((id) => resolveWindowTabIdForHostTab(worktreeId, id)),
+            fileClose.force
+          )
+          window.api.ui.respondSessionTabClose({ requestId })
+        } catch (error) {
+          window.api.ui.respondSessionTabClose({
+            requestId,
+            error: error instanceof Error ? error.message : SESSION_TAB_CLOSE_FAILED_ERROR
+          })
+        }
+        return
+      }
       const localTabId = resolveWindowTabIdForHostTab(worktreeId, tabId)
       const store = useAppStore.getState()
       const browserTarget = resolveBrowserSessionTabTarget(store, worktreeId, localTabId)

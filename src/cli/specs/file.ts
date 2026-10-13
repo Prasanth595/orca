@@ -3,6 +3,20 @@ import { GLOBAL_FLAGS } from '../args'
 
 export const FILE_COMMAND_SPECS: CommandSpec[] = [
   {
+    path: ['file', 'close'],
+    destructive: true,
+    summary: 'Close file tabs in one worktree; refuse unsaved changes unless --force is explicit',
+    usage: 'orca file close [<path> | --all] [--worktree <selector>] [--force] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'path', 'worktree', 'all', 'force'],
+    positionalArgs: ['path'],
+    notes: [
+      'Choose a worktree-relative file path, an absolute path inside it, or --all for every file tab in that worktree. Local calls infer the worktree from cwd; remote calls require --worktree.',
+      'Unsaved changes and drafts refuse the whole close request. Pass --force to discard unsaved changes and close pinned tabs explicitly.',
+      'Uses the same editor close transaction as the tab X, including paired host notification.'
+    ],
+    examples: ['orca file close src/App.tsx', 'orca file close --all --worktree active --json']
+  },
+  {
     path: ['file', 'open'],
     summary:
       'Open a file as a tab in its worktree without changing your view; --focus brings you to it',

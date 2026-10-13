@@ -37,6 +37,7 @@ export const EXECUTION_HOST_METHODS = [
   'files.createFile',
   'files.list',
   'files.open',
+  'files.close',
   'files.openDiff',
   'files.read',
   'files.readChunk',

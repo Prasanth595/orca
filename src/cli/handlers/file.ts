@@ -1,3 +1,4 @@
+import type { RuntimeFileCloseResult } from '../../shared/runtime-file-contracts'
 import type { GitStatusEntry, GitStatusResult } from '../../shared/git-status-types'
 import type { RuntimeFileOpenResult, RuntimeWorktreeRecord } from '../../shared/runtime-types'
 import type { RuntimeNavigationTarget } from '../../shared/runtime-navigation'
@@ -211,6 +212,26 @@ function formatFileDiff(result: RuntimeFileOpenResult): string {
 }
 
 export const FILE_HANDLERS: Record<string, CommandHandler> = {
+  'file close': async (ctx) => {
+    const all = ctx.flags.get('all') === true
+    const path = ctx.flags.has('path') ? getRequiredStringFlag(ctx.flags, 'path') : undefined
+    if (Boolean(path) === all) {
+      throw new RuntimeClientError('invalid_argument', 'Choose a file path or --all.')
+    }
+    const worktree = await getFileWorktreeSelector(ctx)
+    const relativePath = path ? await resolveFilePath(ctx, worktree, path) : undefined
+    const result = await ctx.client.call<RuntimeFileCloseResult>('files.close', {
+      worktree,
+      ...(relativePath ? { relativePath } : {}),
+      all,
+      force: ctx.flags.get('force') === true
+    })
+    printResult(
+      result,
+      ctx.json,
+      (closed) => `Closed ${closed.closed.length} file tab${closed.closed.length === 1 ? '' : 's'}.`
+    )
+  },
   'file open': async (ctx) => {
     const path = getRequiredStringFlag(ctx.flags, 'path')
     const worktree = await getFileWorktreeSelector(ctx)

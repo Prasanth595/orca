@@ -7,6 +7,7 @@ export type SessionTabCloseRequest = {
   requestId: string
   tabId: string
   worktreeId: string
+  fileClose?: { tabIds: string[]; force: boolean }
   expiresAt?: number
 }
 
