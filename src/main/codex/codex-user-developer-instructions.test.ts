@@ -1,8 +1,11 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { codexConfigBlocksBrowserGuidance } from './codex-user-developer-instructions'
+
+const system = vi.hoisted(() => ({ home: '' }))
+vi.mock('./codex-home-paths', () => ({ getSystemCodexHomePath: () => system.home }))
 
 describe('codexConfigBlocksBrowserGuidance', () => {
   let root: string
@@ -16,6 +19,7 @@ describe('codexConfigBlocksBrowserGuidance', () => {
     codexHome = join(root, 'codex-home')
     mkdirSync(cwd)
     mkdirSync(codexHome)
+    system.home = join(root, 'system-home')
     savedCodexHome = process.env.CODEX_HOME
     process.env.CODEX_HOME = codexHome
   })
@@ -91,5 +95,16 @@ describe('codexConfigBlocksBrowserGuidance', () => {
         systemConfigPath
       })
     ).resolves.toBe(true)
+  })
+
+  it('also checks ~/.codex when CODEX_HOME points elsewhere', async () => {
+    writeHome(system.home, 'developer_instructions = "x"\n')
+    await expect(check()).resolves.toBe(true)
+  })
+
+  it('reads the system home once when CODEX_HOME is unset', async () => {
+    delete process.env.CODEX_HOME
+    writeHome(system.home, 'model = "x"\n')
+    await expect(check()).resolves.toBe(false)
   })
 })

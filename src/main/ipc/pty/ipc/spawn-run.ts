@@ -10,7 +10,10 @@ import { planPaneAgentLaunch } from './spawn-agent-launch'
 import { endPaneAgentLaunch } from './spawn-agent-launch-end'
 import { preparePtyIpcSpawnPreflight } from './spawn-preflight'
 import { assemblePtyIpcSpawnEnv } from './spawn-env'
-import { gateCodexBrowserGuidance } from '../../../codex/codex-browser-guidance-spawn-gate'
+import {
+  gateCodexBrowserGuidance,
+  stripSequencedCodexBrowserGuidance
+} from '../../../codex/codex-browser-guidance-spawn-gate'
 import { preparePtyIpcQoderCommand } from './spawn-qoder-command'
 import { buildPtyIpcSpawnOptions } from './spawn-options'
 import { executePtyIpcSpawn } from './spawn-execute'
@@ -70,13 +73,21 @@ export async function runPtyIpcSpawn(deps: PtySpawnIpcDeps, args: PtySpawnIpcArg
     await preparePtyIpcSpawnPreflight(ctx)
     await assemblePtyIpcSpawnEnv(ctx)
     await preparePtyIpcQoderCommand(ctx)
-    ctx.launchCommand = await gateCodexBrowserGuidance({
+    const gated = await gateCodexBrowserGuidance({
       command: ctx.launchCommand,
+      env: ctx.env,
       connectionId: args.connectionId,
       cwd: ctx.cwd,
       runtime: ctx.codexSelectionTarget.runtime,
       codexHomePaths: [ctx.selectedCodexHomePath, ctx.baseEnv?.CODEX_HOME]
     })
+    ctx.launchCommand = gated.command
+    if (gated.env !== ctx.env) {
+      // Why: baseEnv may be a separate object from the spawn env, and either can carry the sequenced command.
+      ctx.baseEnv =
+        ctx.baseEnv === ctx.env ? gated.env : stripSequencedCodexBrowserGuidance(ctx.baseEnv)
+      ctx.env = gated.env
+    }
     const earlyReserved = await buildPtyIpcSpawnOptions(ctx).catch((error: unknown) => {
       restoreProvisionalPtySize(ctx)
       throw error

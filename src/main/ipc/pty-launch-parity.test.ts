@@ -57,6 +57,10 @@ import {
 } from '../opencode/opencode-model-availability'
 import { probeOpenCodeLaunchModelContext } from '../opencode/opencode-launch-model-context'
 
+// Why: the gate would otherwise read the developer's real ~/.codex and /etc/codex.
+vi.mock('../codex/codex-user-developer-instructions', () => ({
+  codexConfigBlocksBrowserGuidance: vi.fn().mockResolvedValue(false)
+}))
 vi.mock('electron', () => import('./pty-ipc-mock-registry').then((m) => m.electronModuleMock()))
 vi.mock('fs', () => import('./pty-ipc-mock-registry').then((m) => m.fsModuleMock()))
 vi.mock('node-pty', () => import('./pty-ipc-mock-registry').then((m) => m.nodePtyModuleMock()))

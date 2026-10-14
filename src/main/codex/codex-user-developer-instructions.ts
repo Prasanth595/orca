@@ -34,7 +34,9 @@ function userConfigPaths(
   systemConfigPath: string | null
 ): string[] {
   const paths = [
-    join(process.env.CODEX_HOME?.trim() || getSystemCodexHomePath(), 'config.toml'),
+    // Why: Codex reads ~/.codex when the PTY drops CODEX_HOME, so both homes are checked.
+    ...(process.env.CODEX_HOME?.trim() ? [join(process.env.CODEX_HOME.trim(), 'config.toml')] : []),
+    join(getSystemCodexHomePath(), 'config.toml'),
     ...homePaths.filter((home): home is string => Boolean(home)).map((h) => join(h, 'config.toml')),
     ...(systemConfigPath ? [systemConfigPath] : [])
   ]

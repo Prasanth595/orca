@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const pairedWeb = vi.hoisted(() => vi.fn<() => boolean>())
 const runtimeOwner = vi.hoisted(() => vi.fn<(state: unknown, id: string) => string | null>())
 
 vi.mock('@/store', () => ({ useAppStore: { getState: () => ({}) } }))
+vi.mock('./desktop-window-chrome', () => ({ isPairedWebClientWindow: pairedWeb }))
 vi.mock('./worktree-runtime-owner', () => ({
   getRuntimeEnvironmentIdForWorktree: runtimeOwner
 }))
@@ -14,6 +16,7 @@ const ON = { useOrcaBrowserForAgentWork: true }
 describe('orcaBrowserGuidanceLaunchOptions', () => {
   beforeEach(() => {
     runtimeOwner.mockReset().mockReturnValue(null)
+    pairedWeb.mockReset().mockReturnValue(false)
   })
 
   it('is off when the setting is off', () => {
@@ -47,6 +50,13 @@ describe('orcaBrowserGuidanceLaunchOptions', () => {
       orcaBrowserGuidance: true
     })
     expect(orcaBrowserGuidanceLaunchOptions(ON, 'codex', null)).toEqual({
+      orcaBrowserGuidance: true
+    })
+  })
+
+  it('leaves Codex ungated in the paired web client', () => {
+    pairedWeb.mockReturnValue(true)
+    expect(orcaBrowserGuidanceLaunchOptions(ON, 'codex', 'wt')).toEqual({
       orcaBrowserGuidance: true
     })
   })
