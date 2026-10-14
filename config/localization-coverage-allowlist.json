@@ -278,5 +278,117 @@
     "text": "name",
     "dynamic": false,
     "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowHttpCurlImportDialog.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "curl -X POST https://api.example.com -H 'Content-Type: application/json' -d '{}'",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowHttpRequestFields.tsx",
+    "kind": "object-property:label",
+    "text": "JSON",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowHttpRequestFields.tsx",
+    "kind": "jsx-attribute:label",
+    "text": "URL",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowHttpRequestFields.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "https://api.example.com/items/{{steps.node.json.id}}",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowHttpRequestFields.tsx",
+    "kind": "jsx-attribute:label",
+    "text": "JSON",
+    "dynamic": false,
+    "count": 3
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowHttpRequestFields.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "{\"limit\": 10, \"ids\": [1, 2]}",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowHttpRequestFields.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "{\"Accept\": \"application/json\"}",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowHttpRequestFields.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "{\"name\": \"{{steps.node.json.name}}\"}",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowHttpRequestFields.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "a=1&b=2",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowHttpRequestFields.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "text/plain",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowHttpRequestFields.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "/path/to/file",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowHttpRequestOptions.tsx",
+    "kind": "object-property:label",
+    "text": "JSON",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowHttpRequestOptions.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "/tmp/download.bin",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowHttpRequestOptions.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "http://user:pass@proxy:8080",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowHttpRequestOptions.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "{{$response.body.next}}",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowHttpRequestOptions.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "!{{$response.body.hasMore}}",
+    "dynamic": false,
+    "count": 1
   }
 ]

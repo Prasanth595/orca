@@ -5,6 +5,7 @@ import type {
   StepOutputs
 } from '../../shared/workflow-types'
 import { resolveTemplateExpr } from '../../shared/workflow-template-path'
+import { executeHttpRequestNode } from './workflow-node-runner-http'
 import { runShellCommandNode } from './workflow-node-runner-shell'
 import { runPythonScriptNode } from './workflow-node-runner-python'
 import { runAgentCallNode } from './workflow-node-runner-agent'
@@ -184,6 +185,10 @@ export async function executeNode(
         resolveField(node.data.body, steps)
       )
       return { stdout: r.message, stderr: '', outputValue: r, exitCode: 0 }
+    }
+    case 'http_request': {
+      const r = await executeHttpRequestNode(node.data, steps, remoteExec, signal)
+      return { ...r, stderr: '', exitCode: 0 }
     }
     case 'json_transform': {
       const r = runJsonTransformNode(

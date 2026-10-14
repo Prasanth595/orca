@@ -15,6 +15,8 @@ import WorkflowFileWriteFields from './WorkflowFileWriteFields'
 import WorkflowShellCommandFields from './WorkflowShellCommandFields'
 import WorkflowRetryFields from './WorkflowRetryFields'
 import WorkflowForEachFields from './WorkflowForEachFields'
+import WorkflowHttpRequestFields from './WorkflowHttpRequestFields'
+import { normalizeHttpRequestData } from '../../../../shared/workflow-http-request-defaults'
 import { NODE_TYPE_LABELS } from './workflow-canvas-node-config'
 import { getMonacoFields, coerceNodeData, getGenericFieldKeys } from './workflow-node-editor-config'
 import { useLastRunSteps } from './use-last-run-steps'
@@ -76,6 +78,9 @@ export default function WorkflowNodeEditorPanel({
     return (node.data as FormInputData).fields
   })
 
+  const isHttpRequest = node?.type === 'http_request'
+  const [httpData, setHttpData] = useState(() => normalizeHttpRequestData(node?.data))
+
   const isAgentCall = node?.type === 'agent_call'
   const isShellCommand = node?.type === 'shell_command'
   const isPythonScript = node?.type === 'python_script'
@@ -115,7 +120,15 @@ export default function WorkflowNodeEditorPanel({
       ? { conditions: branchValues.conditions, defaultLabel: branchValues.defaultLabel }
       : isFormInput
         ? { fields: formFields }
-        : coerceNodeData(localData)
+        : isHttpRequest
+          ? {
+              ...httpData,
+              ...coerceNodeData({
+                retryCount: localData['retryCount'] ?? '0',
+                retryDelaySeconds: localData['retryDelaySeconds'] ?? '1'
+              })
+            }
+          : coerceNodeData(localData)
 
     const updatedNodes = workflow.nodes.map((n) =>
       n.id === nodeId
@@ -144,6 +157,8 @@ export default function WorkflowNodeEditorPanel({
     branchValues,
     isFormInput,
     formFields,
+    isHttpRequest,
+    httpData,
     workflow,
     onWorkflowChange
   ])
@@ -277,6 +292,10 @@ export default function WorkflowNodeEditorPanel({
             localData={localData}
             onDataChange={(patch) => setLocalData((prev) => ({ ...prev, ...patch }))}
           />
+        )}
+
+        {isHttpRequest && (
+          <WorkflowHttpRequestFields data={httpData} onChange={setHttpData} exprHint={exprHint} />
         )}
 
         {isForEach && (
