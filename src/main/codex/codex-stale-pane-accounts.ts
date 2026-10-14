@@ -24,7 +24,8 @@ export function listStaleCodexPanes(args: {
   const records = listRecordedCodexPaneAccounts(args.ptyIds)
   for (const ptyId of args.ptyIds) {
     const record = records.get(ptyId)
-    if (!record) {
+    // Why: a kept pane stays on its account by choice, so it is never stale.
+    if (!record || record.kept) {
       continue
     }
     const activeAccountId = getSelectedCodexAccountIdForTarget(

@@ -129,7 +129,9 @@ function parseRegistry(parsed: unknown): CodexPaneAccountRegistryFile {
       empty.panes[ptyId] = {
         selectionKey: record.selectionKey,
         accountId: record.accountId,
-        ...(homeRoute ? { homeRoute } : {})
+        ...(homeRoute ? { homeRoute } : {}),
+        // Why: only a literal true keeps a pane; anything else reads as follow.
+        ...(record.kept === true ? { kept: true } : {})
       }
     }
   }
@@ -197,6 +199,32 @@ export function recordCodexPaneAccount(ptyId: string, record: CodexPaneAccountRe
   // unreadable, then merge it with the recovered file instead of dropping it
   // or rebuilding from an empty stand-in.
   mutations.record(ptyId, record)
+}
+
+export type SetCodexPaneKeptResult = 'kept' | 'released' | 'no-record' | 'unavailable'
+
+/**
+ * Marks or clears a person's choice to keep a pane on the account it launched under.
+ * Why read first: the flag lives on the launch record, so an unreadable registry
+ * must refuse rather than queue a record it never saw.
+ */
+export function setCodexPaneKept(ptyId: string, kept: boolean): SetCodexPaneKeptResult {
+  mutations.flush()
+  const registry = readRegistryOrNull()
+  if (!registry) {
+    return 'unavailable'
+  }
+  const record = registry.panes[ptyId]
+  if (!record) {
+    return 'no-record'
+  }
+  mutations.record(ptyId, {
+    selectionKey: record.selectionKey,
+    accountId: record.accountId,
+    ...(record.homeRoute ? { homeRoute: record.homeRoute } : {}),
+    ...(kept ? { kept: true } : {})
+  })
+  return kept ? 'kept' : 'released'
 }
 
 /**

@@ -137,16 +137,19 @@ function recordsEqual(
   return (
     left?.selectionKey === right.selectionKey &&
     left.accountId === right.accountId &&
-    left.homeRoute === right.homeRoute
+    left.homeRoute === right.homeRoute &&
+    left.kept === right.kept
   )
 }
 
 function trimRegistry(registry: CodexPaneAccountRegistryFile): void {
-  const trackedPtyIds = Object.keys(registry.panes)
-  if (trackedPtyIds.length <= MAX_TRACKED_PANES) {
+  // Why: kept panes are a person's explicit choice and never age out; the cap
+  // still bounds the records nobody chose to keep.
+  const trimmablePtyIds = Object.keys(registry.panes).filter((id) => !registry.panes[id]?.kept)
+  if (trimmablePtyIds.length <= MAX_TRACKED_PANES) {
     return
   }
-  for (const staleId of trackedPtyIds.slice(0, trackedPtyIds.length - MAX_TRACKED_PANES)) {
+  for (const staleId of trimmablePtyIds.slice(0, trimmablePtyIds.length - MAX_TRACKED_PANES)) {
     delete registry.panes[staleId]
   }
 }

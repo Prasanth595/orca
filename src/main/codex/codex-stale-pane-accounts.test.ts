@@ -13,7 +13,8 @@ import {
   hasRecordedManagedHostCodexPane,
   isCodexPaneHomeRouteProvenAwayFromSharedHome,
   reconcileCodexPaneAccountsWithLivePtys,
-  recordCodexPaneAccount
+  recordCodexPaneAccount,
+  setCodexPaneKept
 } from './codex-pane-account-registry'
 import { forgetStaleCodexPanes, listStaleCodexPanes } from './codex-stale-pane-accounts'
 
@@ -419,6 +420,24 @@ describe('listStaleCodexPanes', () => {
         activeAccountId: 'account-b'
       }
     ])
+  })
+
+  it('never reports a pane a person kept on its account', () => {
+    recordCodexPaneAccount('pty-kept', { selectionKey: 'host', accountId: 'account-a' })
+    recordCodexPaneAccount('pty-follow', { selectionKey: 'host', accountId: 'account-a' })
+    expect(setCodexPaneKept('pty-kept', true)).toBe('kept')
+
+    expect(
+      listStaleCodexPanes({
+        ptyIds: ['pty-kept', 'pty-follow'],
+        settings: settingsWithSelection('account-b')
+      })
+    ).toEqual([{ ptyId: 'pty-follow', launchAccountId: 'account-a', activeAccountId: 'account-b' }])
+
+    expect(setCodexPaneKept('pty-kept', false)).toBe('released')
+    expect(
+      listStaleCodexPanes({ ptyIds: ['pty-kept'], settings: settingsWithSelection('account-b') })
+    ).toEqual([{ ptyId: 'pty-kept', launchAccountId: 'account-a', activeAccountId: 'account-b' }])
   })
 
   it('compares a WSL pane against its own distro selection', () => {
