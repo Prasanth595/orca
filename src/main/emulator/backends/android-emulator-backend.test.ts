@@ -273,4 +273,49 @@ describe('AndroidEmulatorBackend', () => {
     await android.stopHelperForDevice('emulator-5554')
     expect(close).toHaveBeenCalledTimes(1)
   })
+
+  it('reaps only the stopped device scrcpy forwards and leaves every other forward', async () => {
+    // One adb server holds every device's forwards; `--list` and `--remove-all`
+    // ignore `-s`, and `--remove` matches the local name alone.
+    const forwards = [
+      'emulator-5554 tcp:41234 localabstract:scrcpy_1a2b3c4d',
+      'emulator-5554 tcp:8081 tcp:8081',
+      'emulator-5556 tcp:41235 localabstract:scrcpy_5e6f7a8b',
+      'R58M12345 tcp:9222 localabstract:chrome_devtools_remote'
+    ]
+    runner.mockImplementation(async (binary: string, args: readonly string[]) => {
+      if (binary === SDK.adb && args.join(' ') === 'devices -l') {
+        return ok(RUNNING_ADB)
+      }
+      const [flag, local] = args.includes('forward') ? args.slice(args.indexOf('forward') + 1) : []
+      if (flag === '--list') {
+        return ok(`${forwards.join('\n')}\n\n`)
+      }
+      if (flag === '--remove-all') {
+        forwards.length = 0
+      } else if (flag === '--remove') {
+        const index = forwards.findIndex((line) => line.split(' ')[1] === local)
+        if (index !== -1) {
+          forwards.splice(index, 1)
+        }
+      }
+      return ok('')
+    })
+
+    await backend(runner).stopHelperForDevice('emulator-5554', { includeOrphaned: true })
+
+    expect(runner.mock.calls.flatMap(([, args]) => args)).not.toContain('--remove-all')
+    expect(runner).toHaveBeenCalledWith(SDK.adb, [
+      '-s',
+      'emulator-5554',
+      'forward',
+      '--remove',
+      'tcp:41234'
+    ])
+    expect(forwards).toEqual([
+      'emulator-5554 tcp:8081 tcp:8081',
+      'emulator-5556 tcp:41235 localabstract:scrcpy_5e6f7a8b',
+      'R58M12345 tcp:9222 localabstract:chrome_devtools_remote'
+    ])
+  })
 })

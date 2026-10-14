@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ScrcpyStreamSession } from './scrcpy-stream-session'
+import { ScrcpyStreamSession, removeOrphanedScrcpyForwards } from './scrcpy-stream-session'
 
 const io = vi.hoisted(() => ({ spawn: vi.fn(), connect: vi.fn() }))
 vi.mock('node:child_process', () => ({ spawn: io.spawn }))
@@ -170,5 +170,20 @@ describe('ScrcpyStreamSession video buffering', () => {
     expect(Buffer.isBuffer(data)).toBe(true)
     expect(data.equals(frame.subarray(12))).toBe(true)
     expect(concatenatedBytes).toBeLessThanOrEqual(frame.length * 2)
+  })
+})
+
+describe('removeOrphanedScrcpyForwards', () => {
+  const sdk = { sdkRoot: 'sdk', adb: 'adb', emulator: 'emulator', avdmanager: 'avdmanager' }
+
+  it('removes nothing when adb cannot list forwards', async () => {
+    const runner = vi.fn().mockResolvedValue({ code: 1, stdout: '', stderr: 'adb server down' })
+    await removeOrphanedScrcpyForwards(runner, sdk, 'emulator-5554')
+    expect(runner).toHaveBeenCalledExactlyOnceWith('adb', [
+      '-s',
+      'emulator-5554',
+      'forward',
+      '--list'
+    ])
   })
 })

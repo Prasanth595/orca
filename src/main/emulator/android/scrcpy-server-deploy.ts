@@ -5,6 +5,7 @@
 
 export const SCRCPY_SERVER_VERSION = '2.4'
 export const SCRCPY_DEVICE_JAR_PATH = '/data/local/tmp/scrcpy-server.jar'
+const SCRCPY_FORWARD_REMOTE_PREFIX = 'localabstract:scrcpy_'
 
 // `adb -s <serial> push <localJar> <deviceJar>`
 export function pushScrcpyServerArgs(
@@ -19,11 +20,37 @@ export function pushScrcpyServerArgs(
 // tunnel_forward the server listens on the abstract socket and adb forwards a
 // local TCP port to it.
 export function scrcpyForwardArgs(serial: string, localPort: number, scid: string): string[] {
-  return ['-s', serial, 'forward', `tcp:${localPort}`, `localabstract:scrcpy_${scid}`]
+  return ['-s', serial, 'forward', `tcp:${localPort}`, `${SCRCPY_FORWARD_REMOTE_PREFIX}${scid}`]
 }
 
 export function scrcpyRemoveForwardArgs(serial: string, localPort: number): string[] {
   return ['-s', serial, 'forward', '--remove', `tcp:${localPort}`]
+}
+
+// `-s` does not filter `forward --list`: adb prints every device's forwards, one
+// `<serial> <local> <remote>` line each.
+export function listForwardsArgs(serial: string): string[] {
+  return ['-s', serial, 'forward', '--list']
+}
+
+// Local TCP ports of `serial`'s scrcpy tunnels in `adb forward --list` output.
+export function parseScrcpyForwardPorts(listOutput: string, serial: string): number[] {
+  const ports: number[] = []
+  for (const line of listOutput.split('\n')) {
+    const [lineSerial, local, remote, ...rest] = line.trim().split(/\s+/)
+    if (
+      rest.length > 0 ||
+      lineSerial !== serial ||
+      !remote?.startsWith(SCRCPY_FORWARD_REMOTE_PREFIX)
+    ) {
+      continue
+    }
+    const port = /^tcp:(\d+)$/.exec(local ?? '')?.[1]
+    if (port) {
+      ports.push(Number(port))
+    }
+  }
+  return ports
 }
 
 export type ScrcpyServerOptions = {

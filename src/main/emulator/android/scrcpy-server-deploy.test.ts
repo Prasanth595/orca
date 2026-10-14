@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   SCRCPY_DEVICE_JAR_PATH,
   SCRCPY_SERVER_VERSION,
+  listForwardsArgs,
+  parseScrcpyForwardPorts,
   pushScrcpyServerArgs,
   scrcpyForwardArgs,
   scrcpyRemoveForwardArgs,
@@ -31,6 +33,25 @@ describe('scrcpy deploy args', () => {
       '--remove',
       'tcp:27183'
     ])
+  })
+
+  it('picks only the target device scrcpy tunnel ports out of the host-wide forward list', () => {
+    expect(listForwardsArgs('emulator-5554')).toEqual(['-s', 'emulator-5554', 'forward', '--list'])
+    // adb prints `<serial> <local> <remote>` for every device, then a blank line.
+    const listOutput = [
+      'emulator-5554 tcp:41234 localabstract:scrcpy_1a2b3c4d',
+      'emulator-5554 tcp:8081 tcp:8081',
+      'emulator-5556 tcp:41235 localabstract:scrcpy_5e6f7a8b',
+      'emulator-5554 localabstract:dev localabstract:scrcpy_00000001',
+      'emulator-5554 tcp:41237 localabstract:scrcpy',
+      'emulator-5554 tcp:41236 localabstract:scrcpy_0badf00d\r',
+      'emulator-5554',
+      '',
+      ''
+    ].join('\n')
+    expect(parseScrcpyForwardPorts(listOutput, 'emulator-5554')).toEqual([41234, 41236])
+    expect(parseScrcpyForwardPorts(listOutput, 'emulator-5556')).toEqual([41235])
+    expect(parseScrcpyForwardPorts('', 'emulator-5554')).toEqual([])
   })
 
   it('starts the server with the pinned version and h264 options', () => {

@@ -44,6 +44,7 @@ import {
   type StartAndroidStream
 } from '../android/android-stream-session-starter'
 import { AndroidStreamController } from '../android/android-stream-controller'
+import { removeOrphanedScrcpyForwards } from '../android/scrcpy-stream-session'
 import { scrcpyVideoRegistry } from '../scrcpy-video-registry'
 import type { EmulatorGesturePoint } from '../emulator-gesture-sender'
 
@@ -175,9 +176,9 @@ export class AndroidEmulatorBackend implements EmulatorBackend {
     options: { helperPid?: number; includeOrphaned?: boolean } = {}
   ): Promise<void> {
     this.streams.stop(deviceId)
-    // Reap a port-forward leaked by an unclean exit: the in-memory handle is gone
-    // after a crash, so streams.stop can't remove it. Best-effort, serial-scoped,
-    // and must never throw on this teardown path.
+    // Reap scrcpy port-forwards leaked by an unclean exit: the in-memory handle is
+    // gone after a crash, so streams.stop can't remove them. Best-effort, limited
+    // to this device's scrcpy tunnels, and must never throw on this teardown path.
     if (options.includeOrphaned) {
       const sdk = this.sdkState.resolve()
       if (!sdk) {
@@ -187,8 +188,7 @@ export class AndroidEmulatorBackend implements EmulatorBackend {
       if (!serial) {
         return
       }
-      // `-s <serial>` scopes --remove-all to this device's adb forwards only.
-      await this.runner(sdk.adb, ['-s', serial, 'forward', '--remove-all']).catch(() => {})
+      await removeOrphanedScrcpyForwards(this.runner, sdk, serial).catch(() => {})
     }
   }
 
