@@ -3,11 +3,11 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getLocalExecutionHostLabel } from '../../../../shared/execution-host'
 import type { PlaneConnection, PlaneConnectionStatus } from '../../../../shared/plane-types'
-import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
+import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
+import { getEnvironmentRuntimeContextKey } from '@/lib/provider-runtime-context'
 import { PlaneIntegrationCard } from './plane-integration-card'
 
 type FixtureState = {
-  settings: { activeRuntimeEnvironmentId: string | null }
   runtimeEnvironments: { id: string; name: string }[]
   planeStatus: PlaneConnectionStatus
   planeStatusChecked: boolean
@@ -55,13 +55,14 @@ const CONNECTION: PlaneConnection = {
   connectedAt: 1
 }
 
+const LOCAL: RuntimeClientTarget = { kind: 'local' }
+
 function install(overrides: Partial<FixtureState>): FixtureState {
   const state: FixtureState = {
-    settings: { activeRuntimeEnvironmentId: null },
     runtimeEnvironments: [],
     planeStatus: { connected: false },
     planeStatusChecked: true,
-    planeStatusContextKey: getProviderRuntimeContextKey({ activeRuntimeEnvironmentId: null }),
+    planeStatusContextKey: getEnvironmentRuntimeContextKey(null),
     planeStatusIssue: null,
     checkPlaneConnection: vi.fn(),
     disconnectPlane: vi.fn().mockResolvedValue(undefined),
@@ -97,7 +98,7 @@ afterEach(cleanup)
 
 describe('PlaneIntegrationCard', () => {
   it('offers to connect when Plane is not connected', () => {
-    render(<PlaneIntegrationCard />)
+    render(<PlaneIntegrationCard host={LOCAL} />)
     expect(
       screen.getByText(
         'Browse, start work from and update Plane work items, on Plane Cloud or your own server.'
@@ -111,7 +112,7 @@ describe('PlaneIntegrationCard', () => {
     install({
       planeStatus: statusOf([CONNECTION], 'plaintext')
     })
-    render(<PlaneIntegrationCard />)
+    render(<PlaneIntegrationCard host={LOCAL} />)
     expect(screen.getByText(/Connected to acme on plane\.internal:8080\.$/)).toBeTruthy()
     expect(screen.getByText('Ada · ada@example.com')).toBeTruthy()
     expect(screen.getByText('Self-hosted')).toBeTruthy()
@@ -122,19 +123,19 @@ describe('PlaneIntegrationCard', () => {
 
   it('lists each workspace with its own Edit projects and Remove', () => {
     const state = install({ planeStatus: statusOf([CONNECTION, BETA]) })
-    render(<PlaneIntegrationCard />)
+    render(<PlaneIntegrationCard host={LOCAL} />)
     expect(screen.getByText(/^Browse, start work from .* 2 workspaces connected\.$/)).toBeTruthy()
     expect(screen.getByText('acme')).toBeTruthy()
     expect(screen.getByText('beta')).toBeTruthy()
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit projects' })[1])
     expect(screen.getByTestId('plane-dialog').textContent).toBe('editScope:conn-2')
     fireEvent.click(screen.getByRole('button', { name: 'Remove beta' }))
-    expect(state.disconnectPlane).toHaveBeenCalledWith('conn-2')
+    expect(state.disconnectPlane).toHaveBeenCalledWith(LOCAL, 'conn-2')
   })
 
   it('adds another workspace with the saved token', () => {
     install({ planeStatus: statusOf([{ ...CONNECTION, projectScope: { mode: 'all' } }]) })
-    render(<PlaneIntegrationCard />)
+    render(<PlaneIntegrationCard host={LOCAL} />)
     expect(screen.getByText('All projects')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Add workspace' }))
     expect(screen.getByTestId('plane-dialog').textContent).toBe('addWorkspace:')
@@ -144,14 +145,14 @@ describe('PlaneIntegrationCard', () => {
     install({
       planeStatus: statusOf([{ ...CONNECTION, projectScope: null }])
     })
-    render(<PlaneIntegrationCard />)
+    render(<PlaneIntegrationCard host={LOCAL} />)
     expect(screen.getAllByText('Choose projects').length).toBeGreaterThan(0)
     expect(screen.getByText('No projects chosen')).toBeTruthy()
   })
 
   it('asks an older host to update', () => {
     install({ planeStatusIssue: 'update_required' })
-    render(<PlaneIntegrationCard />)
+    render(<PlaneIntegrationCard host={LOCAL} />)
     expect(screen.getByRole('alert').textContent).toBe(
       `Update the Orca server on ${getLocalExecutionHostLabel()} to use Plane.`
     )

@@ -1,6 +1,6 @@
 import type { StateCreator } from 'zustand'
-import { defaultScopeSource } from '@/lib/default-creation-host'
-import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
+import { getEnvironmentRuntimeContextKey } from '@/lib/provider-runtime-context'
+import { runtimeTargetEnvironmentId } from '@/runtime/runtime-client-target'
 import {
   isPlaneRuntimeUpdateRequiredError,
   planeConnectForTarget,
@@ -9,7 +9,6 @@ import {
   planeSetProjectScopeForTarget,
   planeStatusForTarget
 } from '@/runtime/runtime-plane-client'
-import { getPlaneRuntimeTarget } from '@/runtime/runtime-plane-target'
 import type { PlaneConnectionStatus, PlaneProject } from '../../../../shared/plane-types'
 import { normalizeVisibleTaskProviders } from '../../../../shared/task-providers'
 import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
@@ -42,12 +41,8 @@ function clientErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-function currentTarget(get: PlaneSliceGet): { target: RuntimeClientTarget; contextKey: string } {
-  const settings = get().settings
-  return {
-    target: getPlaneRuntimeTarget(defaultScopeSource(settings)),
-    contextKey: getProviderRuntimeContextKey(settings)
-  }
+function targetContextKey(target: RuntimeClientTarget): string {
+  return getEnvironmentRuntimeContextKey(runtimeTargetEnvironmentId(target))
 }
 
 // Why: connecting is an explicit ask to use Plane, so it re-shows a tab hidden earlier; a
@@ -100,9 +95,12 @@ function withProjects(
 }
 
 export const createPlaneSlice: StateCreator<AppState, [], [], PlaneSlice> = (set, get) => {
-  const isCurrent = (generation: number, contextKey: string): boolean =>
-    generation === planeRequestGeneration &&
-    getProviderRuntimeContextKey(get().settings) === contextKey
+  // Why recompute the key: a host switch moves the runtime session generation it carries.
+  const isCurrent = (
+    generation: number,
+    target: RuntimeClientTarget,
+    contextKey: string
+  ): boolean => generation === planeRequestGeneration && targetContextKey(target) === contextKey
 
   return {
     planeStatus: DISCONNECTED,
@@ -112,20 +110,21 @@ export const createPlaneSlice: StateCreator<AppState, [], [], PlaneSlice> = (set
     planeProjectsByConnection: {},
     planeProjectsContextKey: null,
     planeWorkItemFiltersByConnection: {},
+    planeTasksWorkspaceId: null,
 
-    checkPlaneConnection: async () => {
+    checkPlaneConnection: async (target) => {
       const generation = planeRequestGeneration
-      const { target, contextKey } = currentTarget(get)
+      const contextKey = targetContextKey(target)
       if (get().planeStatusContextKey !== contextKey) {
         set({ planeStatusChecked: false })
       }
       try {
         const status = await planeStatusForTarget(target)
-        if (isCurrent(generation, contextKey)) {
+        if (isCurrent(generation, target, contextKey)) {
           set(statusPatch(get, contextKey, status))
         }
       } catch (error) {
-        if (isCurrent(generation, contextKey)) {
+        if (isCurrent(generation, target, contextKey)) {
           set({
             ...statusPatch(get, contextKey, DISCONNECTED),
             planeStatusIssue: clientErrorKind(error)
@@ -134,12 +133,12 @@ export const createPlaneSlice: StateCreator<AppState, [], [], PlaneSlice> = (set
       }
     },
 
-    connectPlane: async (args) => {
+    connectPlane: async (target, args) => {
       const generation = ++planeRequestGeneration
-      const { target, contextKey } = currentTarget(get)
+      const contextKey = targetContextKey(target)
       try {
         const result = await planeConnectForTarget(target, args)
-        if (result.ok && isCurrent(generation, contextKey)) {
+        if (result.ok && isCurrent(generation, target, contextKey)) {
           set({
             ...statusPatch(get, contextKey, result.status),
             ...withProjects(get, contextKey, result.connection.id, result.projects)
@@ -152,21 +151,21 @@ export const createPlaneSlice: StateCreator<AppState, [], [], PlaneSlice> = (set
       }
     },
 
-    disconnectPlane: async (connectionId) => {
+    disconnectPlane: async (target, connectionId) => {
       const generation = ++planeRequestGeneration
-      const { target, contextKey } = currentTarget(get)
+      const contextKey = targetContextKey(target)
       const status = await planeDisconnectForTarget(target, connectionId)
-      if (isCurrent(generation, contextKey)) {
+      if (isCurrent(generation, target, contextKey)) {
         set(statusPatch(get, contextKey, status))
       }
     },
 
-    setPlaneProjectScope: async (scope, connectionId) => {
+    setPlaneProjectScope: async (target, scope, connectionId) => {
       const generation = ++planeRequestGeneration
-      const { target, contextKey } = currentTarget(get)
+      const contextKey = targetContextKey(target)
       try {
         const result = await planeSetProjectScopeForTarget(target, scope, connectionId)
-        if (result.ok && isCurrent(generation, contextKey)) {
+        if (result.ok && isCurrent(generation, target, contextKey)) {
           set(statusPatch(get, contextKey, result.value))
         }
         return result
@@ -178,18 +177,14 @@ export const createPlaneSlice: StateCreator<AppState, [], [], PlaneSlice> = (set
       }
     },
 
-    loadPlaneProjects: async (options) => {
-      const { target, contextKey } = currentTarget(get)
+    loadPlaneProjects: async (target, options) => {
+      const contextKey = targetContextKey(target)
       try {
         const result = await planeListProjectsForTarget(target, options)
         const status = get().planeStatus
         const connectionId =
           options?.connectionId ?? (status.connected ? status.connection.id : null)
-        if (
-          result.ok &&
-          connectionId &&
-          getProviderRuntimeContextKey(get().settings) === contextKey
-        ) {
+        if (result.ok && connectionId && targetContextKey(target) === contextKey) {
           set(withProjects(get, contextKey, connectionId, result.value))
         }
         return result
@@ -200,6 +195,8 @@ export const createPlaneSlice: StateCreator<AppState, [], [], PlaneSlice> = (set
         }
       }
     },
+
+    setPlaneTasksWorkspaceId: (workspaceId) => set({ planeTasksWorkspaceId: workspaceId }),
 
     setPlaneWorkItemFilters: (connectionId, patch) =>
       set((state) => ({

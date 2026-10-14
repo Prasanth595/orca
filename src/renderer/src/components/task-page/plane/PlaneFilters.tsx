@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { LoaderCircle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -136,7 +137,8 @@ export function PlaneFilters({
   refreshing,
   onChange,
   onJumpToIdentifier,
-  onRefresh
+  onRefresh,
+  projectFilterHint
 }: {
   filters: PlaneWorkItemFilters
   projects: readonly PlaneProject[]
@@ -146,17 +148,25 @@ export function PlaneFilters({
   onChange: (patch: Partial<PlaneWorkItemFilters>) => void
   onJumpToIdentifier: (identifier: string) => void
   onRefresh: () => void
+  /** Set when project choices do not apply (several workspaces); disables the project filter. */
+  projectFilterHint?: string
 }): React.JSX.Element {
+  const projectHintId = useId()
   return (
     <div className="rounded-md rounded-b-none border border-border/50 bg-muted/50 px-3 py-2 shadow-sm">
       <div className="flex flex-wrap items-center gap-2">
         <Select
           value={filters.projectId ?? ALL_PROJECTS}
+          disabled={projectFilterHint !== undefined}
           onValueChange={(value) =>
             onChange({ projectId: value === ALL_PROJECTS ? null : value, stateId: null })
           }
         >
-          <SelectTrigger size="sm" aria-label={translate('plane.filters.project', 'Project')}>
+          <SelectTrigger
+            size="sm"
+            aria-label={translate('plane.filters.project', 'Project')}
+            aria-describedby={projectFilterHint ? projectHintId : undefined}
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -170,6 +180,11 @@ export function PlaneFilters({
             ))}
           </SelectContent>
         </Select>
+        {projectFilterHint ? (
+          <span id={projectHintId} className="text-xs text-muted-foreground">
+            {projectFilterHint}
+          </span>
+        ) : null}
         <PlaneStateFilter filters={filters} states={states} onChange={onChange} />
         <Select value={filters.assignee} onValueChange={(assignee) => onChange({ assignee })}>
           <SelectTrigger size="sm" aria-label={translate('plane.filters.assignee', 'Assignee')}>

@@ -8,14 +8,13 @@ import type {
   PlaneWorkItem,
   PlaneWorkItemList
 } from '../../../../../shared/plane-types'
-import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
+import { getEnvironmentRuntimeContextKey } from '@/lib/provider-runtime-context'
 import type { PlaneWorkItemFilters } from '@/store/slices/plane-slice-contract'
 import { TaskPagePlaneContent } from './TaskPagePlaneContent'
 
-const CONTEXT_KEY = getProviderRuntimeContextKey({ activeRuntimeEnvironmentId: null })
+const CONTEXT_KEY = getEnvironmentRuntimeContextKey(null)
 
 type FixtureState = {
-  settings: { activeRuntimeEnvironmentId: string | null }
   runtimeEnvironments: { id: string; name: string }[]
   planeStatus: PlaneConnectionStatus
   planeStatusChecked: boolean
@@ -109,7 +108,6 @@ function listResult(items: PlaneWorkItem[], extra: Partial<PlaneWorkItemList> = 
 
 function install(planeStatus: PlaneConnectionStatus, overrides: Partial<FixtureState> = {}) {
   mocks.holder.current = {
-    settings: { activeRuntimeEnvironmentId: null },
     runtimeEnvironments: [],
     planeStatus,
     planeStatusChecked: true,
@@ -145,7 +143,7 @@ describe('TaskPagePlaneContent states', () => {
   it('offers to connect or hide when Plane is not connected', () => {
     install({ connected: false })
     const onHide = vi.fn()
-    render(<TaskPagePlaneContent onHide={onHide} />)
+    render(<TaskPagePlaneContent host={{ kind: 'local' }} onHide={onHide} />)
     fireEvent.click(screen.getByRole('button', { name: 'Connect Plane' }))
     expect(screen.getByTestId('plane-dialog').textContent).toBe('connect')
     fireEvent.click(screen.getByRole('button', { name: 'Hide Plane' }))
@@ -155,7 +153,7 @@ describe('TaskPagePlaneContent states', () => {
 
   it('asks for projects when the connection has no usable scope', () => {
     install(connected({ ...CONNECTION, projectScope: null }))
-    render(<TaskPagePlaneContent onHide={vi.fn()} />)
+    render(<TaskPagePlaneContent host={{ kind: 'local' }} onHide={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: 'Choose projects' }))
     expect(screen.getByTestId('plane-dialog').textContent).toBe('editScope')
     expect(mocks.listWorkItems).not.toHaveBeenCalled()
@@ -163,7 +161,7 @@ describe('TaskPagePlaneContent states', () => {
 
   it('asks to reconnect when the saved token cannot be read', () => {
     install({ ...connected(), credentialError: 'unreadable' })
-    render(<TaskPagePlaneContent onHide={vi.fn()} />)
+    render(<TaskPagePlaneContent host={{ kind: 'local' }} onHide={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: 'Reconnect Plane' }))
     expect(screen.getByTestId('plane-dialog').textContent).toBe('connect')
   })
@@ -171,7 +169,7 @@ describe('TaskPagePlaneContent states', () => {
   it('asks to reconnect when Plane rejects the token', async () => {
     install(connected())
     mocks.listWorkItems.mockResolvedValue({ ok: false, error: { kind: 'auth', message: 'x' } })
-    render(<TaskPagePlaneContent onHide={vi.fn()} />)
+    render(<TaskPagePlaneContent host={{ kind: 'local' }} onHide={vi.fn()} />)
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Reconnect Plane' })).toBeTruthy()
     )
@@ -181,7 +179,7 @@ describe('TaskPagePlaneContent states', () => {
     install(connected())
     let resolve: (value: unknown) => void = () => {}
     mocks.listWorkItems.mockReturnValue(new Promise((done) => (resolve = done)))
-    render(<TaskPagePlaneContent onHide={vi.fn()} />)
+    render(<TaskPagePlaneContent host={{ kind: 'local' }} onHide={vi.fn()} />)
     expect(screen.queryByRole('list')).toBeNull()
     resolve(listResult([workItem('12', { name: 'Fix login redirect' })]))
     await waitFor(() => expect(screen.getByText('Fix login redirect')).toBeTruthy())
@@ -192,7 +190,7 @@ describe('TaskPagePlaneContent states', () => {
   it('says when the chosen projects have no work items', async () => {
     install(connected())
     mocks.listWorkItems.mockResolvedValue(listResult([]))
-    render(<TaskPagePlaneContent onHide={vi.fn()} />)
+    render(<TaskPagePlaneContent host={{ kind: 'local' }} onHide={vi.fn()} />)
     await waitFor(() =>
       expect(screen.getByText('No work items in the chosen projects.')).toBeTruthy()
     )
@@ -212,7 +210,7 @@ describe('TaskPagePlaneContent states', () => {
       }
     })
     mocks.listWorkItems.mockResolvedValue(listResult([workItem('1')]))
-    render(<TaskPagePlaneContent onHide={vi.fn()} />)
+    render(<TaskPagePlaneContent host={{ kind: 'local' }} onHide={vi.fn()} />)
     await waitFor(() => expect(screen.getByText('No work items match these filters.')).toBeTruthy())
     fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
     expect(mocks.holder.current?.setPlaneWorkItemFilters).toHaveBeenCalledWith(
@@ -224,7 +222,7 @@ describe('TaskPagePlaneContent states', () => {
   it('switches to the project prompt when the host reports the scope is gone', async () => {
     install(connected())
     mocks.listWorkItems.mockResolvedValue(listResult([], { needsScope: true }))
-    render(<TaskPagePlaneContent onHide={vi.fn()} />)
+    render(<TaskPagePlaneContent host={{ kind: 'local' }} onHide={vi.fn()} />)
     await waitFor(() => expect(screen.getByText('Choose Plane projects')).toBeTruthy())
   })
 })
@@ -235,7 +233,7 @@ describe('TaskPagePlaneContent banners', () => {
     mocks.listWorkItems.mockResolvedValue(
       listResult([workItem('1')], { errors: [{ projectId: 'api', kind: 'forbidden' }] })
     )
-    render(<TaskPagePlaneContent onHide={vi.fn()} />)
+    render(<TaskPagePlaneContent host={{ kind: 'local' }} onHide={vi.fn()} />)
     await waitFor(() =>
       expect(
         screen.getByText('API could not be loaded: This token cannot access that Plane workspace.')
@@ -250,7 +248,7 @@ describe('TaskPagePlaneContent banners', () => {
     mocks.listWorkItems.mockResolvedValue(
       listResult([workItem('1')], { missingProjectIds: ['gone'] })
     )
-    render(<TaskPagePlaneContent onHide={vi.fn()} />)
+    render(<TaskPagePlaneContent host={{ kind: 'local' }} onHide={vi.fn()} />)
     await waitFor(() =>
       expect(screen.getByText('1 selected project is no longer available.')).toBeTruthy()
     )
@@ -267,7 +265,7 @@ describe('TaskPagePlaneContent banners', () => {
         totalCapped: true
       })
     )
-    render(<TaskPagePlaneContent onHide={vi.fn()} />)
+    render(<TaskPagePlaneContent host={{ kind: 'local' }} onHide={vi.fn()} />)
     await waitFor(() =>
       expect(screen.getByText('Showing the newest work items in Web.')).toBeTruthy()
     )
@@ -284,7 +282,7 @@ describe('TaskPagePlaneContent row menu', () => {
   it('opens a context menu with Change state and Open in Plane', async () => {
     install(connected())
     mocks.listWorkItems.mockResolvedValue(listResult([workItem('12', { name: 'Fix login' })]))
-    render(<TaskPagePlaneContent onHide={vi.fn()} />)
+    render(<TaskPagePlaneContent host={{ kind: 'local' }} onHide={vi.fn()} />)
     await waitFor(() => expect(screen.getByText('Fix login')).toBeTruthy())
 
     fireEvent.contextMenu(screen.getByText('Fix login'))
@@ -313,11 +311,11 @@ describe('TaskPagePlaneContent identifier jump', () => {
       ok: true,
       value: { ...workItem('99', { name: 'Deep link' }), descriptionText: 'Body', truncated: false }
     })
-    render(<TaskPagePlaneContent onHide={vi.fn()} />)
+    render(<TaskPagePlaneContent host={{ kind: 'local' }} onHide={vi.fn()} />)
     await waitFor(() => expect(screen.getByText('No work items match these filters.')).toBeTruthy())
     fireEvent.keyDown(screen.getByRole('textbox', { name: 'Search work items' }), { key: 'Enter' })
     await waitFor(() => expect(screen.getByText('Deep link')).toBeTruthy())
-    expect(mocks.lookupWorkItem).toHaveBeenCalledWith({ kind: 'local' }, 'WEB-99')
+    expect(mocks.lookupWorkItem).toHaveBeenCalledWith({ kind: 'local' }, 'WEB-99', 'conn-1')
   })
 
   it('says when the identifier does not exist', async () => {
@@ -335,7 +333,7 @@ describe('TaskPagePlaneContent identifier jump', () => {
     })
     mocks.listWorkItems.mockResolvedValue(listResult([]))
     mocks.lookupWorkItem.mockResolvedValue({ ok: false, error: { kind: 'not_found', message: '' } })
-    render(<TaskPagePlaneContent onHide={vi.fn()} />)
+    render(<TaskPagePlaneContent host={{ kind: 'local' }} onHide={vi.fn()} />)
     await waitFor(() =>
       expect(screen.getByText('No work items in the chosen projects.')).toBeTruthy()
     )

@@ -12,7 +12,7 @@ import { translate } from '@/i18n/i18n'
 export { getIntegrationsPaneSearchEntries } from './integrations-search'
 
 export function IntegrationsPane(): React.JSX.Element {
-  useIntegrationProviderStatusRefresh()
+  const providerHost = useIntegrationProviderStatusRefresh()
 
   return (
     <div className="space-y-5">
@@ -52,7 +52,7 @@ export function IntegrationsPane(): React.JSX.Element {
         <div className="space-y-3">
           <LinearIntegrationCard />
           <JiraIntegrationCard />
-          <PlaneIntegrationCard />
+          <PlaneIntegrationCard host={providerHost} />
         </div>
       </section>
     </div>

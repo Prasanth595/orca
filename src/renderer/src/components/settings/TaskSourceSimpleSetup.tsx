@@ -1,10 +1,15 @@
 import { useState } from 'react'
 import { JiraConnectDialog } from '@/components/jira-connect-dialog'
 import { PlaneConnectDialog } from '@/components/plane/PlaneConnectDialog'
+import {
+  PlaneHostScopeProvider,
+  useResolvedPlaneHostScope
+} from '@/components/plane/plane-host-scope'
 import { Button } from '@/components/ui/button'
 import { TaskSourceShowInTasksStep } from './TaskSourceShowInTasksStep'
 import { TaskSourceStepRow } from './TaskSourceStepRow'
 import { translate } from '@/i18n/i18n'
+import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
 
 type ConnectStepProps = {
   visible: boolean
@@ -126,9 +131,11 @@ export function JiraSetupSteps(
 }
 
 export function PlaneSetupSteps(
-  props: ConnectStepProps & { onOpenIntegrations: () => void }
+  props: ConnectStepProps & { onOpenIntegrations: () => void; host: RuntimeClientTarget }
 ): React.JSX.Element {
   const [dialogOpen, setDialogOpen] = useState(false)
+  // Why: the dialog routes by the Settings scope's host, the same one the Integrations card uses.
+  const hostScope = useResolvedPlaneHostScope(props.host)
 
   return (
     <>
@@ -162,7 +169,9 @@ export function PlaneSetupSteps(
           onToggleVisible={props.onToggleVisible}
         />
       </ol>
-      <PlaneConnectDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      <PlaneHostScopeProvider value={hostScope}>
+        <PlaneConnectDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      </PlaneHostScopeProvider>
     </>
   )
 }

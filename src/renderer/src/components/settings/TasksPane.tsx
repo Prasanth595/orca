@@ -113,7 +113,7 @@ export function TasksPane({ settings, updateSettings }: TasksPaneProps): React.J
   const checkJiraConnection = useAppStore((s) => s.checkJiraConnection)
   const refreshPreflightStatus = useAppStore((s) => s.refreshPreflightStatus)
   const readinessByProvider = useTaskSourceProviderReadiness(visibleProviders)
-  useIntegrationProviderStatusRefresh()
+  const providerHost = useIntegrationProviderStatusRefresh()
 
   // Warn only about started-then-stalled setup; untouched providers are the default.
   const stalledVisible = getStalledVisibleTaskProviders(TASK_PROVIDERS, readinessByProvider)
@@ -249,6 +249,7 @@ export function TasksPane({ settings, updateSettings }: TasksPaneProps): React.J
                     canHide={canHide}
                     onToggleVisible={() => toggleProvider('plane')}
                     onOpenIntegrations={() => openIntegrations(PLANE_INTEGRATION_SECTION_ID)}
+                    host={providerHost}
                   />
                 ) : (
                   <CodeHostSetupSteps

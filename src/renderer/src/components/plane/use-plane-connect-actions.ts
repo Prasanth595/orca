@@ -1,5 +1,6 @@
 import type { RefObject } from 'react'
 import { useAppStore } from '@/store'
+import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
 import type { PlaneConnectFormAction, PlaneConnectFormState } from './plane-connect-form-model'
 import {
   getPlaneScopeToSave,
@@ -20,12 +21,14 @@ type Dispatch = (action: PlaneConnectFormAction) => void
 
 /** Connects each workspace slug in turn with the same token, then saves each project scope. */
 export function usePlaneConnectActions({
+  target,
   state,
   dispatch,
   mountedRef,
   onConnected,
   onDone
 }: {
+  target: RuntimeClientTarget
   state: PlaneConnectFormState
   dispatch: Dispatch
   mountedRef: RefObject<boolean>
@@ -51,7 +54,7 @@ export function usePlaneConnectActions({
         break
       }
       dispatch({ type: 'chipStarted', slug })
-      const result = await connectPlane(args)
+      const result = await connectPlane(target, args)
       if (!mountedRef.current) {
         return
       }
@@ -92,7 +95,7 @@ export function usePlaneConnectActions({
       if (!scope) {
         continue
       }
-      const result = await setPlaneProjectScope(scope, workspace.connectionId)
+      const result = await setPlaneProjectScope(target, scope, workspace.connectionId)
       if (!mountedRef.current) {
         return
       }

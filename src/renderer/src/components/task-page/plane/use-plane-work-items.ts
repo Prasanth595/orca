@@ -1,123 +1,106 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PlaneErrorKind } from '@/components/plane/plane-error-copy'
 import {
   isPlaneRuntimeUpdateRequiredError,
   planeListStatesForTarget,
   planeListWorkItemsForTarget
 } from '@/runtime/runtime-plane-client'
-import {
-  PLANE_API_ERROR_KINDS,
-  type PlaneApiErrorKind,
-  type PlaneListError,
-  type PlaneState,
-  type PlaneWorkItem
-} from '../../../../../shared/plane-types'
+import type { PlaneState, PlaneWorkItem } from '../../../../../shared/plane-types'
 import type { RuntimeClientTarget } from '../../../../../shared/runtime-client-target'
-import { getPlaneWorkItemKey, mergePlaneWorkItems } from './plane-work-item-filters'
+import { runtimeTargetEnvironmentId } from '@/runtime/runtime-client-target'
+import { getPlaneWorkItemKey } from './plane-work-item-filters'
+import {
+  INITIAL_PLANE_WORK_ITEMS_STATE,
+  planeWorkItemsFailed,
+  planeWorkItemsLoaded,
+  planeWorkItemsWithMore,
+  type PlaneWorkItemsState
+} from './plane-work-item-pages'
+
+export type { PlaneWorkItemsState } from './plane-work-item-pages'
 
 /** Focus refreshes are spaced so tab switching never spends the host's Plane rate budget. */
 export const PLANE_FOCUS_REFRESH_MIN_MS = 60_000
 
-export type PlaneWorkItemsState = {
-  status: 'loading' | 'ready' | 'error'
-  error: PlaneErrorKind | null
-  items: PlaneWorkItem[]
-  errors: PlaneListError[]
-  missingProjectIds: string[]
-  truncatedProjectIds: string[]
-  nextCursorByProject: Record<string, string>
-  totalCapped: boolean
-  needsScope: boolean
-  refreshing: boolean
-  loadingMoreProjectId: string | null
-}
+/** One workspace connection to list, optionally narrowed to one of its projects. */
+export type PlaneWorkItemSource = { connectionId: string; projectId: string | null }
 
-function toListErrorKind(kind: string): PlaneApiErrorKind {
-  return PLANE_API_ERROR_KINDS.find((known) => known === kind) ?? 'network'
-}
-
-const INITIAL_STATE: PlaneWorkItemsState = {
-  status: 'loading',
-  error: null,
-  items: [],
-  errors: [],
-  missingProjectIds: [],
-  truncatedProjectIds: [],
-  nextCursorByProject: {},
-  totalCapped: false,
-  needsScope: false,
-  refreshing: false,
-  loadingMoreProjectId: null
-}
+type StatesByConnection = Record<string, PlaneWorkItemsState>
 
 function clientErrorKind(error: unknown): PlaneErrorKind {
   return isPlaneRuntimeUpdateRequiredError(error) ? 'update_required' : 'runtime_error'
 }
 
+function initialStates(sources: readonly PlaneWorkItemSource[]): StatesByConnection {
+  return Object.fromEntries(
+    sources.map((source) => [source.connectionId, INITIAL_PLANE_WORK_ITEMS_STATE])
+  )
+}
+
 /**
- * Loads one listWorkItems page per project. A new target, scope or project choice aborts the
- * request in flight; nothing polls — refresh is manual or on window focus at most once a minute.
+ * Loads one listWorkItems page per project of each source connection; every connection is one
+ * request through the host's own Plane gate. A new target, scope or project choice aborts what is
+ * in flight; nothing polls — refresh is manual or on window focus at most once a minute.
  */
 export function usePlaneWorkItems(args: {
   target: RuntimeClientTarget
-  /** Changes whenever the host, connection or saved scope changes. */
+  /** Changes whenever the host, connections or saved scopes change. */
   sourceKey: string
-  projectId: string | null
+  sources: readonly PlaneWorkItemSource[]
 }): {
-  state: PlaneWorkItemsState
+  states: StatesByConnection
+  items: PlaneWorkItem[]
   refresh: () => void
-  loadMore: (projectId: string) => void
+  loadMore: (connectionId: string, projectId: string) => void
   replaceItem: (item: PlaneWorkItem) => void
 } {
-  const { target, sourceKey, projectId } = args
-  const [state, setState] = useState<PlaneWorkItemsState>(INITIAL_STATE)
+  const { target, sourceKey, sources } = args
+  const sourcesKey = JSON.stringify(sources)
+  const [states, setStates] = useState<StatesByConnection>(() => initialStates(sources))
   const controllerRef = useRef<AbortController | null>(null)
   const lastRequestAtRef = useRef(0)
+  const loadingMoreRef = useRef(false)
 
   const load = useCallback(
     (refresh: boolean) => {
       controllerRef.current?.abort()
+      // Why: the aborted load-more never settles into this state, so it must not keep blocking.
+      loadingMoreRef.current = false
       const controller = new AbortController()
       controllerRef.current = controller
       lastRequestAtRef.current = Date.now()
-      setState((previous) =>
-        refresh && previous.status === 'ready'
-          ? { ...previous, refreshing: true }
-          : { ...INITIAL_STATE }
+      const current: readonly PlaneWorkItemSource[] = JSON.parse(sourcesKey)
+      setStates((previous) =>
+        Object.fromEntries(
+          current.map(({ connectionId }) => {
+            const before = previous[connectionId]
+            return [
+              connectionId,
+              refresh && before?.status === 'ready'
+                ? { ...before, refreshing: true }
+                : INITIAL_PLANE_WORK_ITEMS_STATE
+            ]
+          })
+        )
       )
-      const params = {
-        ...(projectId ? { projectIds: [projectId] } : {}),
-        ...(refresh ? { refresh: true } : {})
-      }
-      planeListWorkItemsForTarget(target, params).then(
-        (result) => {
-          if (controller.signal.aborted) {
-            return
-          }
-          setState(
-            result.ok
-              ? {
-                  ...INITIAL_STATE,
-                  status: 'ready',
-                  items: result.value.items,
-                  errors: result.value.errors,
-                  missingProjectIds: result.value.missingProjectIds,
-                  truncatedProjectIds: result.value.truncatedProjectIds,
-                  nextCursorByProject: result.value.nextCursorByProject ?? {},
-                  totalCapped: result.value.totalCapped,
-                  needsScope: result.value.needsScope === true
-                }
-              : { ...INITIAL_STATE, status: 'error', error: result.error.kind }
-          )
-        },
-        (error: unknown) => {
+      for (const { connectionId, projectId } of current) {
+        const params = {
+          connectionId,
+          ...(projectId ? { projectIds: [projectId] } : {}),
+          ...(refresh ? { refresh: true } : {})
+        }
+        const settle = (next: PlaneWorkItemsState): void => {
           if (!controller.signal.aborted) {
-            setState({ ...INITIAL_STATE, status: 'error', error: clientErrorKind(error) })
+            setStates((previous) => ({ ...previous, [connectionId]: next }))
           }
         }
-      )
+        planeListWorkItemsForTarget(target, params).then(
+          (result) => settle(planeWorkItemsLoaded(result)),
+          (error: unknown) => settle(planeWorkItemsFailed(clientErrorKind(error)))
+        )
+      }
     },
-    [projectId, target]
+    [sourcesKey, target]
   )
 
   useEffect(() => {
@@ -136,77 +119,80 @@ export function usePlaneWorkItems(args: {
   }, [load])
 
   const loadMore = useCallback(
-    (moreProjectId: string) => {
-      const cursor = state.nextCursorByProject[moreProjectId]
+    (connectionId: string, projectId: string) => {
+      const cursor = states[connectionId]?.nextCursorByProject[projectId]
       const controller = controllerRef.current
-      if (!cursor || !controller || state.loadingMoreProjectId) {
+      if (!cursor || !controller || loadingMoreRef.current) {
         return
       }
-      setState((previous) => ({ ...previous, loadingMoreProjectId: moreProjectId }))
-      const params = { projectIds: [moreProjectId], cursorByProject: { [moreProjectId]: cursor } }
-      const settle = (patch: (previous: PlaneWorkItemsState) => PlaneWorkItemsState): void => {
-        if (!controller.signal.aborted) {
-          setState((previous) => ({ ...patch(previous), loadingMoreProjectId: null }))
+      loadingMoreRef.current = true
+      const patch = (update: (previous: PlaneWorkItemsState) => PlaneWorkItemsState): void => {
+        setStates((previous) => {
+          const before = previous[connectionId]
+          return before ? { ...previous, [connectionId]: update(before) } : previous
+        })
+      }
+      patch((previous) => ({ ...previous, loadingMoreProjectId: projectId }))
+      const settle = (update: (previous: PlaneWorkItemsState) => PlaneWorkItemsState): void => {
+        // Why: after a reload the flag belongs to the new load, possibly to a newer load-more.
+        if (controller.signal.aborted) {
+          return
         }
+        loadingMoreRef.current = false
+        patch((previous) => ({ ...update(previous), loadingMoreProjectId: null }))
+      }
+      const params = {
+        connectionId,
+        projectIds: [projectId],
+        cursorByProject: { [projectId]: cursor }
       }
       planeListWorkItemsForTarget(target, params).then(
-        (result) =>
-          settle((previous) => {
-            if (!result.ok) {
-              const error = { projectId: moreProjectId, kind: toListErrorKind(result.error.kind) }
-              const known = previous.errors.some(
-                (entry) => entry.projectId === error.projectId && entry.kind === error.kind
-              )
-              return known ? previous : { ...previous, errors: [...previous.errors, error] }
-            }
-            const nextCursorByProject = { ...previous.nextCursorByProject }
-            delete nextCursorByProject[moreProjectId]
-            Object.assign(nextCursorByProject, result.value.nextCursorByProject ?? {})
-            const stillTruncated = result.value.truncatedProjectIds.includes(moreProjectId)
-            return {
-              ...previous,
-              items: mergePlaneWorkItems(previous.items, result.value.items),
-              nextCursorByProject,
-              truncatedProjectIds: stillTruncated
-                ? previous.truncatedProjectIds
-                : previous.truncatedProjectIds.filter((id) => id !== moreProjectId)
-            }
-          }),
+        (result) => settle((previous) => planeWorkItemsWithMore(previous, projectId, result)),
         () => settle((previous) => previous)
       )
     },
-    [state.loadingMoreProjectId, state.nextCursorByProject, target]
+    [states, target]
   )
 
   // Why by key: ids repeat across workspaces, so a change targets one connection's item only.
   const replaceItem = useCallback((next: PlaneWorkItem) => {
     const key = getPlaneWorkItemKey(next)
-    setState((previous) => ({
-      ...previous,
-      items: previous.items.map((entry) => (getPlaneWorkItemKey(entry) === key ? next : entry))
-    }))
+    setStates((previous) => {
+      const before = previous[next.connectionId]
+      if (!before) {
+        return previous
+      }
+      const items = before.items.map((entry) => (getPlaneWorkItemKey(entry) === key ? next : entry))
+      return { ...previous, [next.connectionId]: { ...before, items } }
+    })
   }, [])
 
-  return { state, refresh: useCallback(() => load(true), [load]), loadMore, replaceItem }
+  const items = useMemo(() => Object.values(states).flatMap((state) => state.items), [states])
+  const refresh = useCallback(() => load(true), [load])
+  return { states, items, refresh, loadMore, replaceItem }
 }
 
-/** States are fetched only for the one chosen project, so the exact-state filter costs one call. */
+/** States are fetched only for one chosen project, so the exact-state filter costs one call. */
 export function usePlaneProjectStates(
   target: RuntimeClientTarget,
+  connectionId: string,
   projectId: string | null
 ): PlaneState[] {
   const [statesByProject, setStatesByProject] = useState<Record<string, PlaneState[]>>({})
-  const loaded = projectId ? statesByProject[projectId] : undefined
+  // Why the host: a base URL like localhost or a private IP names a different server per host.
+  const hostKey = runtimeTargetEnvironmentId(target) ?? 'local'
+  const key = projectId ? `${hostKey}:${connectionId}:${projectId}` : null
+  const loaded = key ? statesByProject[key] : undefined
 
   useEffect(() => {
-    if (!projectId || loaded) {
+    if (!key || !projectId || loaded) {
       return
     }
     let cancelled = false
-    planeListStatesForTarget(target, projectId).then(
+    planeListStatesForTarget(target, projectId, connectionId).then(
       (result) => {
         if (!cancelled && result.ok) {
-          setStatesByProject((previous) => ({ ...previous, [projectId]: result.value }))
+          setStatesByProject((previous) => ({ ...previous, [key]: result.value }))
         }
       },
       () => {}
@@ -214,7 +200,7 @@ export function usePlaneProjectStates(
     return () => {
       cancelled = true
     }
-  }, [loaded, projectId, target])
+  }, [connectionId, key, loaded, projectId, target])
 
   return loaded ?? []
 }

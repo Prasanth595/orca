@@ -8,7 +8,9 @@ import type {
   PlaneHostKind,
   PlaneProject
 } from '../../../../shared/plane-types'
+import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
 import { PlaneConnectDialog } from './PlaneConnectDialog'
+import { PlaneHostScopeProvider, useResolvedPlaneHostScope } from './plane-host-scope'
 
 const PROJECTS: PlaneProject[] = [
   { id: '11111111-1111-4111-8111-111111111111', name: 'Web', identifier: 'WEB' },
@@ -40,7 +42,7 @@ function connectedStatus(...connections: PlaneConnection[]): PlaneConnectionStat
 
 /** connectPlane answers per slug: listed ones connect, the rest are not reachable. */
 function answerBySlug(hostKind: PlaneHostKind, reachable: string[]): void {
-  mocks.state.connectPlane.mockImplementation(async (args: { workspaceSlug: string }) =>
+  mocks.state.connectPlane.mockImplementation(async (_target, args: { workspaceSlug: string }) =>
     reachable.includes(args.workspaceSlug)
       ? {
           ok: true,
@@ -53,7 +55,6 @@ function answerBySlug(hostKind: PlaneHostKind, reachable: string[]): void {
 }
 
 type FixtureState = {
-  settings: { activeRuntimeEnvironmentId: string | null }
   runtimeEnvironments: { id: string; name: string }[]
   planeProjectsByConnection: Record<string, PlaneProject[]>
   planeStatus: PlaneConnectionStatus
@@ -64,7 +65,6 @@ type FixtureState = {
 
 const mocks = vi.hoisted(() => {
   const state: FixtureState = {
-    settings: { activeRuntimeEnvironmentId: null },
     runtimeEnvironments: [{ id: 'env-1', name: 'Build box' }],
     planeProjectsByConnection: {},
     planeStatus: { connected: false },
@@ -80,12 +80,25 @@ const mocks = vi.hoisted(() => {
 vi.mock('@/store', () => ({ useAppStore: mocks.useAppStore }))
 
 beforeEach(() => {
-  mocks.state.settings.activeRuntimeEnvironmentId = null
   mocks.state.connectPlane.mockReset()
   mocks.state.setPlaneProjectScope.mockReset().mockResolvedValue({ ok: true, value: {} })
   mocks.state.loadPlaneProjects.mockReset().mockResolvedValue({ ok: true, value: PROJECTS })
 })
 afterEach(cleanup)
+
+const LOCAL: RuntimeClientTarget = { kind: 'local' }
+
+function Scoped({ target, children }: { target: RuntimeClientTarget; children: React.ReactNode }) {
+  return (
+    <PlaneHostScopeProvider value={useResolvedPlaneHostScope(target)}>
+      {children}
+    </PlaneHostScopeProvider>
+  )
+}
+
+function renderDialog(ui: React.ReactElement, target: RuntimeClientTarget = LOCAL): void {
+  render(<Scoped target={target}>{ui}</Scoped>)
+}
 
 function chooseHost(hostKind: PlaneHostKind): void {
   fireEvent.click(
@@ -116,7 +129,7 @@ const connectButton = () => screen.getByRole('button', { name: 'Connect' })
 
 describe('PlaneConnectDialog credentials', () => {
   it('offers Cloud and self-hosted as equal choices with nothing preselected', () => {
-    render(<PlaneConnectDialog open onOpenChange={vi.fn()} />)
+    renderDialog(<PlaneConnectDialog open onOpenChange={vi.fn()} />)
     const radios = screen.getAllByRole('radio')
     expect(radios).toHaveLength(2)
     expect(radios.every((radio) => radio.getAttribute('aria-checked') === 'false')).toBe(true)
@@ -124,7 +137,7 @@ describe('PlaneConnectDialog credentials', () => {
   })
 
   it('has no URL field for Plane Cloud', () => {
-    render(<PlaneConnectDialog open onOpenChange={vi.fn()} />)
+    renderDialog(<PlaneConnectDialog open onOpenChange={vi.fn()} />)
     chooseHost('cloud')
     expect(screen.queryByLabelText('Server URL')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Advanced' })).toBeNull()
@@ -132,7 +145,7 @@ describe('PlaneConnectDialog credentials', () => {
   })
 
   it('asks self-hosted for a server URL with the API base under Advanced', () => {
-    render(<PlaneConnectDialog open onOpenChange={vi.fn()} />)
+    renderDialog(<PlaneConnectDialog open onOpenChange={vi.fn()} />)
     chooseHost('self-hosted')
     expect(screen.getByLabelText('Server URL')).toBeTruthy()
     expect(screen.queryByLabelText('API base URL')).toBeNull()
@@ -142,7 +155,7 @@ describe('PlaneConnectDialog credentials', () => {
 
   it('requires consent before sending a token over plain http', async () => {
     mocks.state.connectPlane.mockResolvedValue({ ok: false, error: 'auth', message: 'x' })
-    render(<PlaneConnectDialog open onOpenChange={vi.fn()} />)
+    renderDialog(<PlaneConnectDialog open onOpenChange={vi.fn()} />)
     fillCredentials('self-hosted', 'http://plane.example.com')
     expect(connectButton()).toHaveProperty('disabled', true)
     fireEvent.click(screen.getByLabelText('Send my token over unencrypted HTTP'))
@@ -150,13 +163,14 @@ describe('PlaneConnectDialog credentials', () => {
     fireEvent.click(connectButton())
     await waitFor(() =>
       expect(mocks.state.connectPlane).toHaveBeenCalledWith(
+        LOCAL,
         expect.objectContaining({ insecureHttpAcknowledged: true })
       )
     )
   })
 
   it('fills the server and a chip from a pasted Plane URL', () => {
-    render(<PlaneConnectDialog open onOpenChange={vi.fn()} />)
+    renderDialog(<PlaneConnectDialog open onOpenChange={vi.fn()} />)
     chooseHost('self-hosted')
     fireEvent.paste(screen.getByLabelText('Workspaces'), {
       clipboardData: { getData: () => 'https://plane.example.com/plane/acme/projects/' }
@@ -174,13 +188,13 @@ describe.each<PlaneHostKind>(['cloud', 'self-hosted'])(
   (hostKind) => {
     it('connects every chip with one token, one call per workspace', async () => {
       answerBySlug(hostKind, ['acme', 'beta'])
-      render(<PlaneConnectDialog open onOpenChange={vi.fn()} />)
+      renderDialog(<PlaneConnectDialog open onOpenChange={vi.fn()} />)
       fillCredentials(hostKind)
       const input = screen.getByLabelText('Workspaces')
       fireEvent.change(input, { target: { value: 'beta,' } })
       fireEvent.click(connectButton())
       await waitFor(() => expect(screen.getByText('Choose Plane projects')).toBeTruthy())
-      expect(mocks.state.connectPlane.mock.calls.map(([args]) => args)).toEqual([
+      expect(mocks.state.connectPlane.mock.calls.map(([, args]) => args)).toEqual([
         expect.objectContaining({ workspaceSlug: 'acme', apiToken: 'plane_api_secret' }),
         expect.objectContaining({ workspaceSlug: 'beta', apiToken: 'plane_api_secret' })
       ])
@@ -191,7 +205,7 @@ describe.each<PlaneHostKind>(['cloud', 'self-hosted'])(
 
     it('marks a workspace it cannot reach without blocking the others', async () => {
       answerBySlug(hostKind, ['acme'])
-      render(<PlaneConnectDialog open onOpenChange={vi.fn()} />)
+      renderDialog(<PlaneConnectDialog open onOpenChange={vi.fn()} />)
       fillCredentials(hostKind)
       addSlugs('nope')
       fireEvent.click(connectButton())
@@ -209,20 +223,24 @@ describe.each<PlaneHostKind>(['cloud', 'self-hosted'])(
     it('saves all projects by default for each workspace, by connection', async () => {
       answerBySlug(hostKind, ['acme'])
       const onOpenChange = vi.fn()
-      render(<PlaneConnectDialog open onOpenChange={onOpenChange} />)
+      renderDialog(<PlaneConnectDialog open onOpenChange={onOpenChange} />)
       fillCredentials(hostKind)
       fireEvent.click(connectButton())
       await waitFor(() => expect(screen.getByText('Choose Plane projects')).toBeTruthy())
       fireEvent.click(screen.getByRole('button', { name: 'Save projects' }))
       await waitFor(() =>
-        expect(mocks.state.setPlaneProjectScope).toHaveBeenCalledWith({ mode: 'all' }, 'conn-acme')
+        expect(mocks.state.setPlaneProjectScope).toHaveBeenCalledWith(
+          LOCAL,
+          { mode: 'all' },
+          'conn-acme'
+        )
       )
       expect(onOpenChange).toHaveBeenCalledWith(false)
     })
 
     it('saves a chosen project for one workspace', async () => {
       answerBySlug(hostKind, ['acme'])
-      render(<PlaneConnectDialog open onOpenChange={vi.fn()} />)
+      renderDialog(<PlaneConnectDialog open onOpenChange={vi.fn()} />)
       fillCredentials(hostKind)
       fireEvent.click(connectButton())
       await waitFor(() => expect(screen.getByText('Choose Plane projects')).toBeTruthy())
@@ -231,6 +249,7 @@ describe.each<PlaneHostKind>(['cloud', 'self-hosted'])(
       fireEvent.click(screen.getByRole('button', { name: 'Save projects' }))
       await waitFor(() =>
         expect(mocks.state.setPlaneProjectScope).toHaveBeenCalledWith(
+          LOCAL,
           { mode: 'selected', projectIds: [PROJECTS[0].id] },
           'conn-acme'
         )
@@ -240,13 +259,13 @@ describe.each<PlaneHostKind>(['cloud', 'self-hosted'])(
     it('adds workspaces with the token saved on the host', async () => {
       mocks.state.planeStatus = connectedStatus(connectionFor(hostKind))
       answerBySlug(hostKind, ['beta'])
-      render(<PlaneConnectDialog open onOpenChange={vi.fn()} mode="addWorkspace" />)
+      renderDialog(<PlaneConnectDialog open onOpenChange={vi.fn()} mode="addWorkspace" />)
       expect(screen.queryByLabelText('Personal access token')).toBeNull()
       expect(screen.getByText(/Uses the token saved for acme on plane.example.com/)).toBeTruthy()
       addSlugs('beta')
       fireEvent.click(connectButton())
       await waitFor(() => expect(screen.getByText('Choose Plane projects')).toBeTruthy())
-      expect(mocks.state.connectPlane).toHaveBeenCalledWith({
+      expect(mocks.state.connectPlane).toHaveBeenCalledWith(LOCAL, {
         reuseTokenFromConnectionId: 'conn-acme',
         workspaceSlug: 'beta'
       })
@@ -272,7 +291,7 @@ describe('PlaneConnectDialog error messages', () => {
     ['update_required', `Update the Orca server on ${localHost} to use Plane.`]
   ])('shows copy for %s once for the whole form', async (kind, copy) => {
     mocks.state.connectPlane.mockResolvedValue({ ok: false, error: kind, message: 'raw host text' })
-    render(<PlaneConnectDialog open onOpenChange={vi.fn()} />)
+    renderDialog(<PlaneConnectDialog open onOpenChange={vi.fn()} />)
     fillCredentials('cloud')
     addSlugs('beta')
     fireEvent.click(connectButton())
@@ -282,9 +301,11 @@ describe('PlaneConnectDialog error messages', () => {
   })
 
   it('names the remote server that failed the TLS check', async () => {
-    mocks.state.settings.activeRuntimeEnvironmentId = 'env-1'
     mocks.state.connectPlane.mockResolvedValue({ ok: false, error: 'tls', message: 'raw' })
-    render(<PlaneConnectDialog open onOpenChange={vi.fn()} />)
+    renderDialog(<PlaneConnectDialog open onOpenChange={vi.fn()} />, {
+      kind: 'environment',
+      environmentId: 'env-1'
+    })
     fillCredentials('self-hosted')
     fireEvent.click(connectButton())
     await waitFor(() =>

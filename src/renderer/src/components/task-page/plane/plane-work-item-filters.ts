@@ -128,3 +128,13 @@ export function mergePlaneWorkItems(
   const seen = new Set(existing.map(getPlaneWorkItemKey))
   return [...existing, ...more.filter((item) => !seen.has(getPlaneWorkItemKey(item)))]
 }
+
+/** "Me" means a different viewer in each workspace, so each group filters with its own viewer. */
+export function filterPlaneWorkItemsAcross(
+  groups: readonly { items: readonly PlaneWorkItem[]; viewerId: string }[],
+  filters: PlaneWorkItemFilters
+): PlaneWorkItem[] {
+  return groups
+    .flatMap((group) => filterPlaneWorkItems(group.items, filters, group.viewerId))
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+}

@@ -1,3 +1,4 @@
+import { Badge } from '@/components/ui/badge'
 import { translate } from '@/i18n/i18n'
 import { formatUiRelativeTimeFromDate } from '@/i18n/relative-time-format'
 import type { PlaneMember, PlaneWorkItem } from '../../../../../shared/plane-types'
@@ -56,13 +57,18 @@ export function PlaneStatePill({ item }: { item: PlaneWorkItem }): React.JSX.Ele
   )
 }
 
+export type PlaneRowWorkspace = { slug: string; label: string }
+
 export function PlaneWorkItemRow({
   item,
   onOpen,
   actions,
+  workspace,
   ...liProps
 }: Omit<React.ComponentProps<'li'>, 'children' | 'className'> & {
   item: PlaneWorkItem
+  /** Shown when items from several workspaces share one list. */
+  workspace?: PlaneRowWorkspace
   onOpen: (item: PlaneWorkItem) => void
   /** Per-row actions slot (e.g. starting a workspace); rendered outside the row button. */
   actions?: React.ReactNode
@@ -80,6 +86,11 @@ export function PlaneWorkItemRow({
         <span className="w-20 shrink-0 font-mono text-xs text-muted-foreground">
           {item.identifier}
         </span>
+        {workspace ? (
+          <Badge variant="outline" title={workspace.label}>
+            {workspace.slug}
+          </Badge>
+        ) : null}
         <span className="min-w-0 flex-1 truncate text-foreground">{item.name}</span>
         <PlaneStatePill item={item} />
         <PlaneAssigneeAvatars assignees={item.assignees} />
@@ -118,13 +129,15 @@ export function PlaneWorkItemList({
   items,
   onOpen,
   renderActions,
-  stateChange
+  stateChange,
+  workspaceFor
 }: {
   items: readonly PlaneWorkItem[]
   onOpen: (item: PlaneWorkItem) => void
   renderActions?: (item: PlaneWorkItem) => React.ReactNode
   /** Enables the row context menu that changes an item's state. */
   stateChange?: { target: RuntimeClientTarget; onItemChange: (item: PlaneWorkItem) => void }
+  workspaceFor?: (item: PlaneWorkItem) => PlaneRowWorkspace | undefined
 }): React.JSX.Element {
   return (
     <ul
@@ -139,6 +152,7 @@ export function PlaneWorkItemList({
             item={item}
             onOpen={onOpen}
             actions={renderActions?.(item)}
+            workspace={workspaceFor?.(item)}
           />
         )
         return stateChange ? (

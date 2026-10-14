@@ -12,7 +12,6 @@ import {
 import { useMountedRef } from '@/hooks/useMountedRef'
 import { translate } from '@/i18n/i18n'
 import { preventOutsideDismissWhenDirty } from '@/lib/outside-dismiss-guard'
-import { hasRemoteProviderRuntime } from '@/lib/provider-runtime-context'
 import { useAppStore } from '@/store'
 import type { PlaneConnection, PlaneConnectionStatus } from '../../../../shared/plane-types'
 import {
@@ -25,7 +24,7 @@ import { PlaneConnectCredentialsStep } from './plane-connect-credentials-step'
 import { PlaneConnectScopeStep } from './PlaneConnectScopeStep'
 import { allPlaneChipsConnected } from './plane-workspace-chips'
 import { usePlaneConnectActions } from './use-plane-connect-actions'
-import { usePlaneHostLabel } from './use-plane-host-label'
+import { usePlaneHostScope } from './plane-host-scope'
 
 export type PlaneConnectDialogMode = 'connect' | 'addWorkspace' | 'editScope'
 
@@ -97,11 +96,12 @@ export function PlaneConnectDialog({
   onConnected
 }: PlaneConnectDialogProps): React.JSX.Element {
   const loadPlaneProjects = useAppStore((s) => s.loadPlaneProjects)
-  const remoteRuntime = useAppStore((s) => hasRemoteProviderRuntime(s.settings))
-  const hostLabel = usePlaneHostLabel()
+  const { target, label: hostLabel } = usePlaneHostScope()
+  const remoteRuntime = target.kind === 'environment'
   const mountedRef = useMountedRef()
   const [state, dispatch] = useReducer(planeConnectFormReducer, INITIAL_PLANE_CONNECT_FORM)
   const { connect, saveScopes } = usePlaneConnectActions({
+    target,
     state,
     dispatch,
     mountedRef,
@@ -142,17 +142,19 @@ export function PlaneConnectDialog({
         }
       ]
     })
-    void loadPlaneProjects({ refresh: true, connectionId: connection.id }).then((result) => {
-      if (!mountedRef.current) {
-        return
+    void loadPlaneProjects(target, { refresh: true, connectionId: connection.id }).then(
+      (result) => {
+        if (!mountedRef.current) {
+          return
+        }
+        if (result.ok) {
+          dispatch({ type: 'projectsLoaded', connectionId: connection.id, projects: result.value })
+        } else {
+          dispatch({ type: 'submitFailed', error: { kind: result.error.kind } })
+        }
       }
-      if (result.ok) {
-        dispatch({ type: 'projectsLoaded', connectionId: connection.id, projects: result.value })
-      } else {
-        dispatch({ type: 'submitFailed', error: { kind: result.error.kind } })
-      }
-    })
-  }, [connectionId, loadPlaneProjects, mode, mountedRef, open])
+    )
+  }, [connectionId, loadPlaneProjects, mode, mountedRef, open, target])
 
   const handleOpenChange = (nextOpen: boolean): void => {
     if (!state.submitting) {

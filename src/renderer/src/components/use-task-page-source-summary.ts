@@ -16,6 +16,8 @@ import {
   getTaskSourceContextSummary
 } from './task-source-context-summary'
 import { getRepoBackedTaskEmptyState } from '@/components/task-page-empty-state'
+import { getPlaneTasksSourceLabel } from '@/components/task-page/plane/plane-workspace-selection'
+import { useAppStore } from '@/store'
 export function useTaskPageSourceSummary(model: TaskPageSourceAvailabilityPreludeModel) {
   const {
     preflightStatus,
@@ -33,9 +35,12 @@ export function useTaskPageSourceSummary(model: TaskPageSourceAvailabilityPrelud
     hostLabelById,
     taskSourceHostAvailability,
     accountBackedTaskSourceHostId,
-    accountBackedTaskSourceHostAvailability,
-    planeTaskSourceContext
+    accountBackedTaskSourceHostAvailability
   } = model
+  // Why the switcher's choice: the chip must name the workspace(s) the list shows, not the active one.
+  const planeSourceLabel = useAppStore((s) =>
+    getPlaneTasksSourceLabel(s.planeStatus, s.planeTasksWorkspaceId)
+  )
   const taskSourceAvailabilityNoticeByProvider = useMemo<
     Partial<Record<TaskProvider, TaskSourceAvailabilityNotice>>
   >(() => {
@@ -133,10 +138,10 @@ export function useTaskPageSourceSummary(model: TaskPageSourceAvailabilityPrelud
       linearWorkspaceName:
         selectedLinearWorkspace?.organizationName ?? selectedLinearWorkspace?.id ?? null,
       jiraSiteName: selectedJiraSite?.displayName ?? selectedJiraSite?.siteUrl ?? null,
-      planeWorkspaceSlug: planeTaskSourceContext?.accountLabel ?? null
+      planeWorkspaceSlug: planeSourceLabel
     })
   }, [
-    planeTaskSourceContext,
+    planeSourceLabel,
     selectedJiraSite,
     selectedLinearWorkspace,
     selectedRepos.length,

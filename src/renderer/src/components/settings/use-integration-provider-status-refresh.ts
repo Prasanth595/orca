@@ -1,9 +1,13 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
+import { defaultScopeHost } from '@/lib/default-creation-host'
 import { getLocalPreflightContext, localPreflightContextKey } from '@/lib/local-preflight-context'
-import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
+import { getEnvironmentRuntimeContextKey } from '@/lib/provider-runtime-context'
+import { runtimeTargetEnvironmentId } from '@/runtime/runtime-client-target'
 import { useAppStore } from '@/store'
+import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
 
-export function useIntegrationProviderStatusRefresh(): void {
+/** Re-checks provider accounts on the Settings provider host, which it returns for the cards. */
+export function useIntegrationProviderStatusRefresh(): RuntimeClientTarget {
   const settings = useAppStore((s) => s.settings)
   const preflightStatusChecked = useAppStore((s) => s.preflightStatusChecked)
   const preflightStatusContextKey = useAppStore((s) => s.preflightStatusContextKey)
@@ -20,7 +24,10 @@ export function useIntegrationProviderStatusRefresh(): void {
   const expectedPreflightContextKey = useAppStore((s) =>
     localPreflightContextKey(getLocalPreflightContext(s))
   )
-  const providerRuntimeContextKey = getProviderRuntimeContextKey(settings)
+  const providerHost = useMemo(() => defaultScopeHost(settings), [settings])
+  const providerRuntimeContextKey = getEnvironmentRuntimeContextKey(
+    runtimeTargetEnvironmentId(providerHost)
+  )
   const preflightStatusCurrent = preflightStatusContextKey === expectedPreflightContextKey
   const linearStatusCurrent = linearStatusContextKey === providerRuntimeContextKey
   const jiraStatusCurrent = jiraStatusContextKey === providerRuntimeContextKey
@@ -34,7 +41,7 @@ export function useIntegrationProviderStatusRefresh(): void {
       void checkJiraConnection()
     }
     if (!planeStatusCurrent || !planeStatusChecked) {
-      void checkPlaneConnection()
+      void checkPlaneConnection(providerHost)
     }
     if (!preflightStatusCurrent || !preflightStatusChecked) {
       void refreshPreflightStatus()
@@ -56,7 +63,9 @@ export function useIntegrationProviderStatusRefresh(): void {
     preflightStatusChecked,
     preflightStatusContextKey,
     preflightStatusCurrent,
+    providerHost,
     providerRuntimeContextKey,
     refreshPreflightStatus
   ])
+  return providerHost
 }

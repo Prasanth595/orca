@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { bumpProviderRuntimeSessionGeneration } from '@/lib/provider-runtime-context'
 import type { PlaneConnection, PlaneConnectionStatus } from '../../../../shared/plane-types'
+import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
 import type { TaskProvider } from '../../../../shared/task-providers'
 import type { AppState } from '../types'
 import { DEFAULT_PLANE_WORK_ITEM_FILTERS, createPlaneSlice } from './plane'
@@ -40,6 +42,7 @@ const connectedResult = (
   connection: conn,
   projects
 })
+const LOCAL: RuntimeClientTarget = { kind: 'local' }
 const PROJECT = { id: '11111111-1111-4111-8111-111111111111', name: 'Web', identifier: 'WEB' }
 
 const plane = {
@@ -76,7 +79,7 @@ describe('plane slice', () => {
     plane.connect.mockResolvedValue(connectedResult(CONNECTED, ACME, [PROJECT]))
     const store = createTestStore()
 
-    await store.getState().connectPlane({
+    await store.getState().connectPlane(LOCAL, {
       hostKind: 'cloud',
       workspaceSlug: 'acme',
       apiToken: 'plane_api_secret'
@@ -93,7 +96,7 @@ describe('plane slice', () => {
     plane.status.mockResolvedValue(undefined)
     const store = createTestStore()
 
-    await store.getState().checkPlaneConnection()
+    await store.getState().checkPlaneConnection(LOCAL)
 
     expect(store.getState()).toMatchObject({
       planeStatus: { connected: false },
@@ -106,7 +109,7 @@ describe('plane slice', () => {
     plane.status.mockRejectedValue(new Error('socket closed'))
     const store = createTestStore()
 
-    await store.getState().checkPlaneConnection()
+    await store.getState().checkPlaneConnection(LOCAL)
 
     expect(store.getState().planeStatusIssue).toBe('runtime_error')
   })
@@ -116,7 +119,9 @@ describe('plane slice', () => {
     const store = createTestStore()
 
     await expect(
-      store.getState().connectPlane({ hostKind: 'cloud', workspaceSlug: 'acme', apiToken: 't' })
+      store
+        .getState()
+        .connectPlane(LOCAL, { hostKind: 'cloud', workspaceSlug: 'acme', apiToken: 't' })
     ).resolves.toEqual({ ok: false, error: 'runtime_error', message: 'socket closed' })
   })
 
@@ -124,9 +129,11 @@ describe('plane slice', () => {
     plane.connect.mockResolvedValue(connectedResult(CONNECTED, ACME, [PROJECT]))
     plane.disconnect.mockResolvedValue({ connected: false })
     const store = createTestStore()
-    await store.getState().connectPlane({ hostKind: 'cloud', workspaceSlug: 'acme', apiToken: 't' })
+    await store
+      .getState()
+      .connectPlane(LOCAL, { hostKind: 'cloud', workspaceSlug: 'acme', apiToken: 't' })
 
-    await store.getState().disconnectPlane()
+    await store.getState().disconnectPlane(LOCAL)
 
     expect(store.getState()).toMatchObject({
       planeStatus: { connected: false },
@@ -138,7 +145,9 @@ describe('plane slice', () => {
     plane.connect.mockResolvedValue(connectedResult(CONNECTED, ACME, []))
     const store = createTestStore(['github', 'jira'])
 
-    await store.getState().connectPlane({ hostKind: 'cloud', workspaceSlug: 'acme', apiToken: 't' })
+    await store
+      .getState()
+      .connectPlane(LOCAL, { hostKind: 'cloud', workspaceSlug: 'acme', apiToken: 't' })
 
     expect(updateSettings).toHaveBeenCalledWith({
       visibleTaskProviders: ['github', 'jira', 'plane']
@@ -150,13 +159,13 @@ describe('plane slice', () => {
     const listed = createTestStore(['plane', 'github'])
     await listed
       .getState()
-      .connectPlane({ hostKind: 'cloud', workspaceSlug: 'acme', apiToken: 't' })
+      .connectPlane(LOCAL, { hostKind: 'cloud', workspaceSlug: 'acme', apiToken: 't' })
 
     plane.connect.mockResolvedValue({ ok: false, error: 'auth', message: 'Invalid token' })
     const failed = createTestStore(['github', 'jira'])
     await failed
       .getState()
-      .connectPlane({ hostKind: 'cloud', workspaceSlug: 'acme', apiToken: 't' })
+      .connectPlane(LOCAL, { hostKind: 'cloud', workspaceSlug: 'acme', apiToken: 't' })
 
     expect(updateSettings).not.toHaveBeenCalled()
   })
@@ -168,16 +177,18 @@ describe('plane slice', () => {
       .mockResolvedValueOnce(connectedResult(both, BETA, []))
     plane.disconnect.mockResolvedValue(statusOf(BETA))
     const store = createTestStore()
-    await store.getState().connectPlane({ hostKind: 'cloud', workspaceSlug: 'acme', apiToken: 't' })
     await store
       .getState()
-      .connectPlane({ reuseTokenFromConnectionId: 'conn-1', workspaceSlug: 'beta' })
+      .connectPlane(LOCAL, { hostKind: 'cloud', workspaceSlug: 'acme', apiToken: 't' })
+    await store
+      .getState()
+      .connectPlane(LOCAL, { reuseTokenFromConnectionId: 'conn-1', workspaceSlug: 'beta' })
     expect(store.getState().planeProjectsByConnection).toEqual({
       'conn-1': [PROJECT],
       'conn-2': []
     })
 
-    await store.getState().disconnectPlane('conn-1')
+    await store.getState().disconnectPlane(LOCAL, 'conn-1')
 
     expect(plane.disconnect).toHaveBeenCalledWith({ connectionId: 'conn-1' })
     expect(store.getState().planeProjectsByConnection).toEqual({ 'conn-2': [] })
@@ -189,8 +200,8 @@ describe('plane slice', () => {
     plane.listProjects.mockResolvedValue({ ok: true, value: [PROJECT] })
     const store = createTestStore()
 
-    await store.getState().setPlaneProjectScope({ mode: 'all' }, 'conn-2')
-    await store.getState().loadPlaneProjects({ refresh: true, connectionId: 'conn-2' })
+    await store.getState().setPlaneProjectScope(LOCAL, { mode: 'all' }, 'conn-2')
+    await store.getState().loadPlaneProjects(LOCAL, { refresh: true, connectionId: 'conn-2' })
 
     expect(plane.setProjectScope).toHaveBeenCalledWith({
       scope: { mode: 'all' },
@@ -198,6 +209,31 @@ describe('plane slice', () => {
     })
     expect(plane.listProjects).toHaveBeenCalledWith({ refresh: true, connectionId: 'conn-2' })
     expect(store.getState().planeProjectsByConnection['conn-2']).toEqual([PROJECT])
+  })
+
+  it('drops a status answer that lands after the host switched', async () => {
+    let answer: (status: PlaneConnectionStatus) => void = () => {}
+    plane.status.mockReturnValue(new Promise((resolve) => (answer = resolve)))
+    const store = createTestStore()
+
+    const check = store.getState().checkPlaneConnection(LOCAL)
+    bumpProviderRuntimeSessionGeneration()
+    answer(CONNECTED)
+    await check
+
+    expect(store.getState()).toMatchObject({
+      planeStatusChecked: false,
+      planeStatusContextKey: null
+    })
+  })
+
+  it('remembers the Tasks workspace choice', () => {
+    const store = createTestStore()
+    expect(store.getState().planeTasksWorkspaceId).toBeNull()
+
+    store.getState().setPlaneTasksWorkspaceId('conn-2')
+
+    expect(store.getState().planeTasksWorkspaceId).toBe('conn-2')
   })
 
   it('keeps work-item filters per connection', () => {

@@ -20264,7 +20264,8 @@
       "noMatch": "No work items match these filters.",
       "clearFilters": "Clear filters",
       "createWorkspaceFor": "Create workspace from {{value0}}",
-      "linkSourceUnavailable": "Couldn’t link this Plane work item. Reconnect Plane, then try again."
+      "linkSourceUnavailable": "Couldn’t link this Plane work item. Reconnect Plane, then try again.",
+      "idNotFoundAnywhere": "{{identifier}} was not found in any connected workspace."
     },
     "stateGroup": {
       "backlog": "Backlog",
@@ -20345,6 +20346,15 @@
       "unavailable": "States are unavailable.",
       "trigger": "Change state: {{state}}",
       "changeState": "Change state"
+    },
+    "workspaceSwitcher": {
+      "projectFilterHint": "Choose one workspace to filter by project or exact state.",
+      "label": "Plane workspace",
+      "all": "All workspaces",
+      "cloud": "Plane Cloud"
+    },
+    "workspaceBanner": {
+      "needsScope": "Choose which projects to list."
     }
   }
 }

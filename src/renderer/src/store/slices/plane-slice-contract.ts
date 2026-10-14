@@ -9,6 +9,7 @@ import type {
   PlaneResult,
   PlaneStateGroup
 } from '../../../../shared/plane-types'
+import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
 import type { AppState } from '../types'
 
 /** Failures the renderer sees before a Plane host answers: an old host or an unreachable one. */
@@ -55,22 +56,33 @@ export type PlaneSlice = {
   planeProjectsContextKey: string | null
   /** Tasks-tab filters, keyed by connection id; never change the saved project scope. */
   planeWorkItemFiltersByConnection: Record<string, PlaneWorkItemFilters>
+  /** The Tasks tab's workspace choice: a connection id or PLANE_ALL_WORKSPACES; kept in memory. */
+  planeTasksWorkspaceId: string | null
 
-  checkPlaneConnection: () => Promise<void>
-  connectPlane: (args: PlaneConnectArgs) => Promise<PlaneConnectAttempt>
+  // Why a target on every action: the page or settings card resolves the Plane host once.
+  checkPlaneConnection: (target: RuntimeClientTarget) => Promise<void>
+  connectPlane: (
+    target: RuntimeClientTarget,
+    args: PlaneConnectArgs
+  ) => Promise<PlaneConnectAttempt>
   /** One workspace, or every workspace when no connectionId is given. */
-  disconnectPlane: (connectionId?: string) => Promise<void>
+  disconnectPlane: (target: RuntimeClientTarget, connectionId?: string) => Promise<void>
   /** Without a connectionId the host applies it to its active connection. */
   setPlaneProjectScope: (
+    target: RuntimeClientTarget,
     scope: PlaneProjectScope,
     connectionId?: string
   ) => Promise<PlaneClientResult<PlaneConnectionStatus>>
-  loadPlaneProjects: (options?: {
-    refresh?: boolean
-    connectionId?: string
-  }) => Promise<PlaneClientResult<PlaneProject[]>>
+  loadPlaneProjects: (
+    target: RuntimeClientTarget,
+    options?: { refresh?: boolean; connectionId?: string }
+  ) => Promise<PlaneClientResult<PlaneProject[]>>
   setPlaneWorkItemFilters: (connectionId: string, patch: Partial<PlaneWorkItemFilters>) => void
+  setPlaneTasksWorkspaceId: (workspaceId: string) => void
 }
+
+/** The Tasks tab's merged view over every connected workspace; also its filters' key. */
+export const PLANE_ALL_WORKSPACES = '__all__'
 
 type PlaneStateCreator = StateCreator<AppState, [], [], PlaneSlice>
 export type PlaneSliceSet = Parameters<PlaneStateCreator>[0]
