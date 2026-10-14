@@ -28,7 +28,7 @@ import { managedResultAfterUpdate, unservedManagedResult } from './managed-serve
 import {
   classifyOrcadHostUnavailable,
   ORCAD_TUNNEL_UNAVAILABLE_REASON
-} from './orcad-host-unavailable'
+} from '../orcad/orcad-host-unavailable'
 import {
   decidedEvent,
   reportHostServerConversion,
@@ -52,7 +52,7 @@ export type HostServerOnConnectResult =
       fenceHeld?: true
     }
   | {
-      route: 'relay'
+      route: 'unserved'
       reason: SshManagedServerRelayReason
       /** A blocker the user must act on, or why orcad can't run on this host. */
       detail?: string
@@ -129,7 +129,7 @@ async function decide(
   trace: HostServerDecisionTrace
 ): Promise<HostServerOnConnectResult> {
   if (target.orcadFence?.sourceChangedAt) {
-    return { route: 'relay', reason: 'source_changed' }
+    return { route: 'unserved', reason: 'source_changed' }
   }
   const existing = deps.managedEnvironmentId(target)
   if (existing) {
@@ -146,7 +146,7 @@ async function decide(
         await deps.releaseUnreachableSetup(target)
         deps.recordUnavailable(target, ORCAD_TUNNEL_UNAVAILABLE_REASON)
         return {
-          route: 'relay',
+          route: 'unserved',
           reason: 'orcad_unavailable',
           detail: ORCAD_TUNNEL_UNAVAILABLE_REASON
         }
@@ -177,10 +177,10 @@ async function decide(
   const recorded = deps.recordedUnavailable(target)
   if (recorded) {
     trace.recorded = true
-    return { route: 'relay', reason: 'orcad_unavailable', detail: recorded }
+    return { route: 'unserved', reason: 'orcad_unavailable', detail: recorded }
   }
   if (!deps.hasTemplate()) {
-    return { route: 'relay', reason: 'orcad_unavailable', detail: 'artifacts_unavailable' }
+    return { route: 'unserved', reason: 'orcad_unavailable', detail: 'artifacts_unavailable' }
   }
   if (deps.isEmptyHost(target)) {
     try {
@@ -188,7 +188,7 @@ async function decide(
       deps.progress(target, 'deploying')
       const deployed = await deps.deploy(target)
       reportHostServerDeploy(deps.report, target, trace, deployed)
-      return await afterDeploy(target, deps, deployed)
+      return await afterDeploy(target, deps, trace, deployed)
     } catch (error) {
       return setupFailed(target, deps, trace, error, true)
     }
@@ -207,7 +207,7 @@ async function convertHost(
     if (terminals && terminals.verdict !== 'exited' && !terminals.bridged) {
       // Why unverifiable too: loss of contact is never evidence that a relay terminal exited.
       return {
-        route: 'relay',
+        route: 'unserved',
         reason: terminalReason(terminals.verdict),
         terminals: terminals.count,
         ...(terminals.elsewhere ? { terminalsElsewhere: true } : {})
@@ -249,12 +249,23 @@ function terminalReason(verdict: 'live' | 'unverifiable'): SshManagedServerRelay
 async function afterDeploy(
   target: SshTarget,
   deps: HostServerOnConnectDeps,
+  trace: HostServerDecisionTrace,
   result: OrcadManagedDeployResult
 ): Promise<HostServerOnConnectResult> {
   if (result.outcome === 'deferred') {
     return deferred(target, deps, result, true)
   }
-  return { route: 'managed', environmentId: result.environment.id }
+  const environmentId = result.environment.id
+  if (result.outcome !== 'already-current') {
+    return { route: 'managed', environmentId }
+  }
+  // Another Orca version may serve it; only the now-paired server can say whether it may update.
+  const update = await checkManagedServerUpdate(target, environmentId, deps, () =>
+    deps.progress(target, 'updating')
+  )
+  trace.update = update.reason
+  trace.recorded = update.recorded
+  return managedResultAfterUpdate(environmentId, { state: 'serving' }, update)
 }
 
 async function afterConversion(
@@ -269,9 +280,9 @@ async function afterConversion(
       return deferred(target, deps, result, false)
     case 'refused':
       if (result.code === 'orcad_migration_terminals') {
-        return { route: 'relay', reason: terminalReason(result.verdict) }
+        return { route: 'unserved', reason: terminalReason(result.verdict) }
       }
-      return { route: 'relay', reason: 'refused', detail: result.reason }
+      return { route: 'unserved', reason: 'refused', detail: result.reason }
   }
 }
 
@@ -306,10 +317,10 @@ async function unfinished(
   }
   if (!unavailable) {
     // Shown under the SSH host, with the host's orcad.log tail when the failure carries one.
-    return { route: 'relay', reason, detail: boundedDetail(failure) }
+    return { route: 'unserved', reason, detail: boundedDetail(failure) }
   }
   deps.recordUnavailable(target, unavailable)
-  return { route: 'relay', reason: 'orcad_unavailable', detail: unavailable }
+  return { route: 'unserved', reason: 'orcad_unavailable', detail: unavailable }
 }
 
 function boundedDetail(text: string): string {

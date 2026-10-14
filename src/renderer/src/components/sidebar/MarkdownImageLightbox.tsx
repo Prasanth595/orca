@@ -19,6 +19,7 @@ type ExpandableMarkdownImageProps = {
   alt?: string
   className?: string
   triggerClassName?: string
+  onError?: () => void
 }
 
 /**
@@ -32,7 +33,8 @@ export function ExpandableMarkdownImage({
   height,
   alt,
   className,
-  triggerClassName
+  triggerClassName,
+  onError
 }: ExpandableMarkdownImageProps): React.JSX.Element {
   const [open, setOpen] = React.useState(false)
   const size = markdownImageSize(width, height)
@@ -65,6 +67,7 @@ export function ExpandableMarkdownImage({
             height={height}
             alt={alt ?? ''}
             className={cn(className, 'pointer-events-none')}
+            onError={onError}
           />
         </button>
       </DialogTrigger>

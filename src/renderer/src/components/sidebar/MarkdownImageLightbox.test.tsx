@@ -87,3 +87,24 @@ it.each([undefined, () => {}])(
     expect(image.getAttribute('height')).toBeNull()
   }
 )
+
+it('forwards preview failures while retaining percentage dimensions', () => {
+  const onError = vi.fn()
+  render(
+    <ExpandableMarkdownImage
+      src="data:image/png;base64,abc"
+      alt="preview"
+      width="75%"
+      height="50%"
+      onError={onError}
+    />
+  )
+  const image = screen.getByAltText('preview')
+  expect(screen.getByRole('button', { name: 'Expand image' }).style.width).toBe('75%')
+  expect(image.style.width).toBe('100%')
+  Object.defineProperty(image, 'naturalHeight', { configurable: true, value: 400 })
+  fireEvent.load(image)
+  expect(image.style.height).toBe('200px')
+  fireEvent.error(image)
+  expect(onError).toHaveBeenCalledOnce()
+})

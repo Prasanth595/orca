@@ -188,7 +188,7 @@ jobs:
         # The Azure archive took 16 minutes for one font package; bound setup
         # separately so a slow mirror cannot consume the shard's test budget.
         env: &e2e_tool_packages
-          ORCA_E2E_APT_PACKAGES: build-essential fonts-noto-cjk openssh-client python3 ripgrep xvfb zsh openbox x11-utils
+          ORCA_E2E_APT_PACKAGES: build-essential fonts-noto-cjk openssh-client python3 ripgrep xvfb zsh openbox x11-utils xdotool
         run: *install_e2e_tools
 
       - uses: ./.github/actions/install-node-dependencies
@@ -494,11 +494,11 @@ jobs:
       - name: Build the e2e app, CLI, orcad slot and template
         shell: bash
         run: |
-          pnpm run build:relay
+          pnpm run build:wsl-guest
           pnpm exec electron-vite build --mode e2e
           pnpm run build:cli
           pnpm build:orcad
-          node config/scripts/build-windows-process-tree-relay-addon.mjs --arch=x64
+          node config/scripts/build-windows-process-tree-addon.mjs --arch=x64
           node config/scripts/build-orcad-template.mjs --targets win32-x64
       # A profile-less Windows session has no roaming AppData; Electron 43 used to crash natively there.
       - name: Start serve with no AppData folder
