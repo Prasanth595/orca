@@ -34,6 +34,7 @@ import {
 } from './pty-launch-parity-host.test-cases'
 import { isHiddenRendererPty } from './pty-hidden-delivery-gate'
 import { ptySizes } from './pty/delivery/visibility-state'
+import { agentSessionOwners } from './pty/pane/agent-session-owners'
 import {
   makePaneSpawnReservationKey,
   paneSpawnReservationsByOwnerKey
@@ -391,6 +392,26 @@ describe('launch facts outside the tables', () => {
     expect(trackMock.mock.calls.filter(([event]) => event === 'agent_error')).toEqual([
       ['agent_error', { agent_kind: 'claude-code', error_class: 'binary_not_found' }]
     ])
+  })
+
+  it('host lane: a Claude resume its claim refuses counts one failed start', async () => {
+    setMainPlatform('darwin')
+    classifyErrorMock.mockReturnValue({ error_class: 'unknown' })
+    const lanes = startParityLanes(suite, { workspace: POSIX_REPO })
+    vi.spyOn(agentSessionOwners, 'ensure').mockRejectedValueOnce(
+      new Error('agent_session_conflict')
+    )
+
+    await expect(
+      lanes.runtime.ensureAgentSession({
+        kind: 'explicit',
+        worktree: `id:${launchWorkspaceId(POSIX_REPO)}`,
+        agent: 'claude',
+        providerSession: { key: 'session_id', id: '22222222-2222-4222-8222-222222222222' }
+      })
+    ).rejects.toThrow('agent_session_conflict')
+    expect(lanes.provider).not.toHaveBeenCalled()
+    expect(trackMock.mock.calls.filter(([event]) => event === 'agent_error')).toHaveLength(1)
   })
 
   // C5e (presentation merge): a worker asks the window to reveal its titled tab without activating it.
