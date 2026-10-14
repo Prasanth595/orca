@@ -1,6 +1,10 @@
 import { agentRunAccountsEqual, type AgentRunAccount } from '../../../shared/agent-run-account'
 import type { AgentProviderSessionMetadata } from '../../../shared/agent-session-resume'
 import type { AgentType } from '../../../shared/agent-status-types'
+import {
+  parseClaudeStatusLinePane,
+  type ClaudeStatusLinePane
+} from '../../../shared/claude-statusline-rate-limits'
 import type { EnrichedAgentHookEventPayload } from './server-types'
 import { AgentHookServerAgentPresence } from './server-agent-presence'
 
@@ -13,6 +17,31 @@ export type AgentRunAccountRow = {
 }
 
 export abstract class AgentHookServerRunAccount extends AgentHookServerAgentPresence {
+  private readonly statusLinePaneListeners = new Set<(event: ClaudeStatusLinePane) => void>()
+
+  /** Statusline posts name the folder the pane's Claude runs in, with or without usage. */
+  subscribeClaudeStatusLinePanes(listener: (event: ClaudeStatusLinePane) => void): () => void {
+    this.statusLinePaneListeners.add(listener)
+    return () => {
+      this.statusLinePaneListeners.delete(listener)
+    }
+  }
+
+  protected override noteClaudeStatusLinePane(body: unknown): void {
+    const event = this.statusLinePaneListeners.size > 0 ? parseClaudeStatusLinePane(body) : null
+    if (!event) {
+      return
+    }
+    const resolved = { ...event, paneKey: this.resolvePaneKeyAlias(event.paneKey) }
+    for (const listener of this.statusLinePaneListeners) {
+      try {
+        listener(resolved)
+      } catch (error) {
+        console.error('[agent-hooks] statusline pane listener threw', error)
+      }
+    }
+  }
+
   /**
    * Restates a local row with a new run-account facet. Only the facet changes: timestamps,
    * observation and state stay as they were, and only the row, persistence and the renderer

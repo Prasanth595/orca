@@ -13,6 +13,8 @@ import {
 } from '../host-env/codex-home'
 import { registerPty } from '../../../memory/pty-registry'
 import { rememberPaneKeyForPty } from '../pane/key-state'
+import { noteAgentPaneLaunch } from '../../../agent-accounts/agent-run-accounts-installed'
+import { getCodexSelectionLaneKey } from '../../../../shared/codex-selection-lane'
 import {
   pendingByPaneKey,
   pendingPtyIdBySerializerGeneration,
@@ -233,6 +235,13 @@ async function commitReservedRuntimePtySpawn(ctx: RuntimePtySpawnState) {
   }
   // Why: runtime-owned CLI PTYs bypass the renderer pty:spawn handler; record paneKey here too since hook titles and cache cleanup need this reverse lookup.
   const paneKey = rememberPaneKeyForPty(ctx.result.id, ctx.env?.ORCA_PANE_KEY)
+  if (paneKey) {
+    noteAgentPaneLaunch({
+      paneKey,
+      lane: getCodexSelectionLaneKey(ctx.codexSelectionTarget),
+      fresh: ctx.result.isReattach !== true
+    })
+  }
   const pendingSerializer = paneKey ? pendingByPaneKey.get(paneKey) : undefined
   const inheritRendererReadiness =
     ctx.result.isReattach === true &&

@@ -1,0 +1,377 @@
+import { describe, expect, it } from 'vitest'
+import type { AgentRunAccount } from '../../shared/agent-run-account'
+import type { CodexPaneAccountRecord } from '../codex/codex-pane-account-registry'
+import type { ClaudeManagedAccount, CodexManagedAccount } from '../../shared/managed-account-types'
+import { computeAgentRunAccount, type AgentRunAccountInput } from './agent-run-account-compute'
+import {
+  AgentRunAccounts,
+  type AgentRunAccountSettings,
+  type AgentRunAccountStatusRow
+} from './agent-run-accounts'
+
+const PANE = 'tab-1:11111111-1111-4111-8111-111111111111'
+const DATA = '/data'
+const SYSTEM_HOME = '/home/user/.claude'
+
+function input(overrides: Partial<AgentRunAccountInput>): AgentRunAccountInput {
+  return {
+    agentType: 'codex',
+    connectionId: null,
+    structured: false,
+    providerSessionId: 's1',
+    hasManagedAccounts: true,
+    lane: 'host',
+    codexRecord: null,
+    claude: null,
+    current: undefined,
+    claudeKeptAccountId: undefined,
+    ...overrides
+  }
+}
+
+const ACCOUNT_HOME_RECORD: CodexPaneAccountRecord = {
+  selectionKey: 'host',
+  accountId: 'acc-a',
+  homeRoute: 'account-home'
+}
+
+describe('computeAgentRunAccount', () => {
+  it.each<[string, Partial<AgentRunAccountInput>, AgentRunAccount | null]>([
+    [
+      'a Codex pane that follows',
+      { codexRecord: ACCOUNT_HOME_RECORD },
+      { provider: 'codex', lane: 'host', accountId: 'acc-a', mode: 'follow' }
+    ],
+    [
+      'a kept Codex pane',
+      { codexRecord: { ...ACCOUNT_HOME_RECORD, kept: true } },
+      { provider: 'codex', lane: 'host', accountId: 'acc-a', mode: 'kept' }
+    ],
+    [
+      'a Codex pane on the shared home',
+      { codexRecord: { selectionKey: 'host', accountId: null, homeRoute: 'shared-home' } },
+      {
+        provider: 'codex',
+        lane: 'host',
+        accountId: null,
+        mode: 'follow',
+        keepUnavailable: 'codex-home-not-keepable'
+      }
+    ],
+    [
+      'a WSL Codex record',
+      { codexRecord: { ...ACCOUNT_HOME_RECORD, selectionKey: 'wsl:U' } },
+      null
+    ],
+    ['a Codex pane with no record and no facet', {}, null],
+    ['a relay row', { connectionId: 'ssh-1', codexRecord: ACCOUNT_HOME_RECORD }, null],
+    ['a structured row', { structured: true, codexRecord: ACCOUNT_HOME_RECORD }, null],
+    [
+      'a provider with no saved accounts',
+      { hasManagedAccounts: false, codexRecord: ACCOUNT_HOME_RECORD },
+      null
+    ],
+    ['a pane launched on a WSL lane', { lane: 'wsl:U', codexRecord: ACCOUNT_HOME_RECORD }, null],
+    ['another agent', { agentType: 'gemini', codexRecord: ACCOUNT_HOME_RECORD }, null],
+    [
+      'a Claude session this runtime saw start',
+      { agentType: 'claude', claude: { accountId: 'acc-a', shellRoute: 'selected' } },
+      {
+        provider: 'claude',
+        lane: 'host',
+        accountId: 'acc-a',
+        mode: 'follow',
+        shellRoute: 'selected'
+      }
+    ],
+    [
+      'a Claude session nobody saw start',
+      { agentType: 'claude', claude: { accountId: undefined, shellRoute: 'selected' } },
+      null
+    ],
+    [
+      'a Claude statusline from a folder no account owns',
+      {
+        agentType: 'claude',
+        claude: { accountId: 'acc-a', statusLine: 'unknown-folder', shellRoute: 'selected' }
+      },
+      null
+    ],
+    [
+      'a Claude statusline correcting the start account',
+      {
+        agentType: 'claude',
+        claude: {
+          accountId: 'acc-a',
+          statusLine: { accountId: 'acc-b' },
+          shellRoute: 'selected'
+        }
+      },
+      {
+        provider: 'claude',
+        lane: 'host',
+        accountId: 'acc-b',
+        mode: 'follow',
+        shellRoute: 'selected'
+      }
+    ],
+    [
+      'a Claude pane with no session yet',
+      {
+        agentType: 'claude',
+        providerSessionId: null,
+        claude: { accountId: 'acc-a', shellRoute: 'account' }
+      },
+      {
+        provider: 'claude',
+        lane: 'host',
+        accountId: 'acc-a',
+        mode: 'follow',
+        shellRoute: 'account',
+        keepUnavailable: 'no-session'
+      }
+    ],
+    [
+      'a kept Claude conversation on its account',
+      {
+        agentType: 'claude',
+        claude: { accountId: 'acc-a', shellRoute: 'account' },
+        claudeKeptAccountId: 'acc-a'
+      },
+      { provider: 'claude', lane: 'host', accountId: 'acc-a', mode: 'kept', shellRoute: 'account' }
+    ],
+    [
+      'a Claude conversation kept elsewhere than it runs',
+      {
+        agentType: 'claude',
+        claude: { accountId: 'acc-b', shellRoute: 'selected' },
+        claudeKeptAccountId: 'acc-a'
+      },
+      {
+        provider: 'claude',
+        lane: 'host',
+        accountId: 'acc-b',
+        mode: 'follow',
+        shellRoute: 'selected'
+      }
+    ]
+  ])('%s', (_label, overrides, expected) => {
+    expect(computeAgentRunAccount(input(overrides))).toEqual(expected)
+  })
+
+  it('keeps a persisted Codex facet until the launch record can be read', () => {
+    const current: AgentRunAccount = {
+      provider: 'codex',
+      lane: 'host',
+      accountId: 'acc-a',
+      mode: 'kept'
+    }
+    expect(computeAgentRunAccount(input({ current }))).toEqual(current)
+  })
+})
+
+function claudeAccount(id: string): ClaudeManagedAccount {
+  return {
+    id,
+    email: `${id}@example.com`,
+    managedAuthPath: `${DATA}/claude-accounts/${id}`,
+    authMethod: 'subscription-oauth',
+    createdAt: 1,
+    updatedAt: 1,
+    lastAuthenticatedAt: 1
+  }
+}
+
+function codexAccount(id: string): CodexManagedAccount {
+  return {
+    id,
+    email: `${id}@example.com`,
+    managedHomePath: `${DATA}/codex-accounts/${id}/home`,
+    createdAt: 1,
+    updatedAt: 1,
+    lastAuthenticatedAt: 1
+  }
+}
+
+type Harness = {
+  producer: AgentRunAccounts
+  rows: Map<string, AgentRunAccountStatusRow>
+  settings: AgentRunAccountSettings
+  records: Map<string, CodexPaneAccountRecord>
+  covered: Set<string>
+  republished: (AgentRunAccount | null)[]
+  emit: (row: Partial<AgentRunAccountStatusRow> & { sessionId?: string | null }) => void
+}
+
+function harness(): Harness {
+  const rows = new Map<string, AgentRunAccountStatusRow>()
+  const records = new Map<string, CodexPaneAccountRecord>()
+  const covered = new Set<string>()
+  const republished: (AgentRunAccount | null)[] = []
+  const settings: AgentRunAccountSettings = {
+    claudeManagedAccounts: [claudeAccount('acc-a'), claudeAccount('acc-b')],
+    codexManagedAccounts: [codexAccount('acc-a')],
+    activeClaudeManagedAccountId: 'acc-a',
+    activeClaudeManagedAccountIdsByRuntime: undefined
+  }
+  const producer = new AgentRunAccounts({
+    republish: (paneKey, runAccount) => {
+      const row = rows.get(paneKey)
+      if (row) {
+        rows.set(paneKey, { ...row, runAccount })
+      }
+      republished.push(runAccount)
+      return true
+    },
+    getRow: (paneKey) => {
+      const row = rows.get(paneKey)
+      return row
+        ? {
+            paneKey,
+            agentType: row.payload.agentType,
+            providerSession: row.providerSession,
+            runAccount: row.runAccount ?? undefined,
+            connectionId: row.connectionId
+          }
+        : null
+    },
+    listRows: () => [...rows.values()],
+    getSettings: () => settings,
+    getPtyIdForPaneKey: (paneKey) => (paneKey === PANE ? 'pty-1' : undefined),
+    readCodexRecord: (ptyId) => records.get(ptyId) ?? null,
+    claudeFolders: {
+      accountHome: (id) => `${DATA}/claude-profiles/${id}/home`,
+      systemDefaultHome: () => SYSTEM_HOME,
+      coveredBySystemDefault: (id) => covered.has(id)
+    }
+  })
+  const emit: Harness['emit'] = ({ sessionId = 's1', ...overrides }) => {
+    const previous = rows.get(PANE)
+    const row: AgentRunAccountStatusRow = {
+      paneKey: PANE,
+      connectionId: null,
+      payload: { agentType: 'claude' },
+      ...(sessionId ? { providerSession: { key: 'session_id', id: sessionId } } : {}),
+      ...(previous?.runAccount !== undefined ? { runAccount: previous.runAccount } : {}),
+      ...overrides
+    }
+    rows.set(PANE, row)
+    producer.noteStatus(row)
+  }
+  return { producer, rows, settings, records, covered, republished, emit }
+}
+
+function facet(h: Harness): AgentRunAccount | null | undefined {
+  return h.rows.get(PANE)?.runAccount
+}
+
+describe('AgentRunAccounts', () => {
+  it('dates a Claude session to the selection when this runtime saw it start', () => {
+    const h = harness()
+    h.producer.notePaneLaunch({ paneKey: PANE, lane: 'host', fresh: true })
+    h.emit({})
+    expect(facet(h)).toMatchObject({ accountId: 'acc-a', shellRoute: 'selected', mode: 'follow' })
+
+    // A switch moves the next start, not the running session.
+    h.settings.activeClaudeManagedAccountId = 'acc-b'
+    h.emit({})
+    expect(facet(h)).toMatchObject({ accountId: 'acc-a' })
+
+    h.emit({ sessionId: 's2' })
+    expect(facet(h)).toMatchObject({ accountId: 'acc-b' })
+  })
+
+  it('claims nothing for a session that was already running when it was first seen', () => {
+    const h = harness()
+    h.producer.notePaneLaunch({ paneKey: PANE, lane: 'host', fresh: false })
+    h.emit({})
+    expect(facet(h)).toBeUndefined()
+    expect(h.republished).toEqual([])
+
+    h.producer.noteClaudeStatusLine({
+      paneKey: PANE,
+      configDir: `${DATA}/claude-profiles/acc-b/home`
+    })
+    expect(facet(h)).toMatchObject({ accountId: 'acc-b' })
+  })
+
+  it('keeps the facet a previous runtime recorded for the same session', () => {
+    const h = harness()
+    const persisted: AgentRunAccount = {
+      provider: 'claude',
+      lane: 'host',
+      accountId: 'acc-b',
+      mode: 'follow',
+      shellRoute: 'selected'
+    }
+    h.emit({ runAccount: persisted })
+    expect(facet(h)).toEqual(persisted)
+    expect(h.republished).toEqual([])
+  })
+
+  it('withdraws the facet when the statusline names a folder no account owns', () => {
+    const h = harness()
+    h.producer.notePaneLaunch({ paneKey: PANE, lane: 'host', fresh: true })
+    h.emit({})
+    h.producer.noteClaudeStatusLine({ paneKey: PANE, configDir: '/somewhere/else' })
+    expect(facet(h)).toBeNull()
+  })
+
+  it('maps System default to the start account only while that account is covered', () => {
+    const h = harness()
+    h.producer.notePaneLaunch({ paneKey: PANE, lane: 'host', fresh: true })
+    h.emit({})
+    h.producer.noteClaudeStatusLine({ paneKey: PANE, configDir: null })
+    expect(facet(h)).toMatchObject({ accountId: null })
+
+    h.covered.add('acc-a')
+    h.producer.noteClaudeStatusLine({ paneKey: PANE, configDir: SYSTEM_HOME })
+    expect(facet(h)).toMatchObject({ accountId: 'acc-a' })
+  })
+
+  it('reads a pane started on an account pointer from that pointer, not the selection', () => {
+    const h = harness()
+    h.producer.notePaneLaunch({
+      paneKey: PANE,
+      lane: 'host',
+      fresh: true,
+      claudeShellAccount: { accountId: 'acc-b' }
+    })
+    h.emit({})
+    expect(facet(h)).toMatchObject({ accountId: 'acc-b', shellRoute: 'account' })
+    h.emit({ sessionId: 's2' })
+    expect(facet(h)).toMatchObject({ accountId: 'acc-b', shellRoute: 'account' })
+  })
+
+  it('publishes nothing for a Claude pane launched on a WSL lane', () => {
+    const h = harness()
+    h.producer.notePaneLaunch({ paneKey: PANE, lane: 'wsl:Ubuntu', fresh: true })
+    h.emit({})
+    expect(facet(h)).toBeUndefined()
+  })
+
+  it('follows the Codex launch record, including a later keep', () => {
+    const h = harness()
+    h.records.set('pty-1', ACCOUNT_HOME_RECORD)
+    h.emit({ payload: { agentType: 'codex' } })
+    expect(facet(h)).toEqual({
+      provider: 'codex',
+      lane: 'host',
+      accountId: 'acc-a',
+      mode: 'follow'
+    })
+
+    h.records.set('pty-1', { ...ACCOUNT_HOME_RECORD, kept: true })
+    expect(h.producer.refresh(PANE)).toMatchObject({ mode: 'kept' })
+    expect(facet(h)).toMatchObject({ mode: 'kept' })
+  })
+
+  it('withdraws every facet once a provider has no saved accounts left', () => {
+    const h = harness()
+    h.records.set('pty-1', ACCOUNT_HOME_RECORD)
+    h.emit({ payload: { agentType: 'codex' } })
+    h.settings.codexManagedAccounts = []
+    h.producer.refreshAll()
+    expect(facet(h)).toBeNull()
+  })
+})

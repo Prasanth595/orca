@@ -32,6 +32,7 @@ import { prewarmStructuredAgentModelCatalogs } from '../runtime/structured-agent
 import { agentModelCatalogStore } from '../native-chat/agent-model-catalog/agent-model-catalog-store'
 import { createAgentModelCatalogSettingsExpiry } from '../native-chat/agent-model-catalog/agent-model-catalog-account-expiry'
 import { mainProcessState as state } from './main-process-state'
+import { startAgentRunAccounts } from './main-process-agent-run-accounts'
 
 // Settings that change which account or binary a new chat's agent runs under.
 const MODEL_CATALOG_ACCOUNT_SETTINGS = [
@@ -79,6 +80,12 @@ export function initializeMainProcessAccountServices(): void {
   state.codexSessionMigration.scheduleInitialRun()
   state.claudeRuntimeAuth = new ClaudeRuntimeAuthService(store)
   state.claudeAccounts = new ClaudeAccountService(store, state.rateLimits, state.claudeRuntimeAuth)
+  startAgentRunAccounts({
+    server: agentHookServer,
+    getSettings: () => store.getSettings(),
+    onSettingsChanged: (listener) => store.onSettingsChanged(listener),
+    claudeRouter: state.claudeRuntimeAuth.router
+  })
   // Why: quota polls are background work and must not boot a stopped distro; user-driven
   // resets call prepareForRateLimitFetch directly.
   state.rateLimits.setCodexHomePathResolver(async (target) =>

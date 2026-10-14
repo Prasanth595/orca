@@ -9,6 +9,8 @@ import {
   codexReattachedHomeRouteField
 } from '../host-env/codex-home'
 import { rememberPaneKeyForPty } from '../pane/key-state'
+import { noteAgentPaneLaunch } from '../../../agent-accounts/agent-run-accounts-installed'
+import { getCodexSelectionLaneKey } from '../../../../shared/codex-selection-lane'
 import { resolvePaneSpawnReservation } from '../pane/spawn-reservation'
 import { seedTerminalRestoreRecordsFromSpawnResult } from '../pane/agent-session-owners'
 import {
@@ -173,6 +175,13 @@ async function commitReservedPtyIpcSpawn(ctx: PtyIpcSpawnState): Promise<PtySpaw
         ? spawnedPid
         : null
   })
+  if (rememberedPaneKey) {
+    noteAgentPaneLaunch({
+      paneKey: rememberedPaneKey,
+      lane: getCodexSelectionLaneKey(ctx.codexSelectionTarget),
+      fresh: ctx.result.isReattach !== true
+    })
+  }
   // Why: telemetry-plan.md§Agent launch semantics — fire agent_started only after spawn resolved; safeParse each field so a spoofed IPC payload can't poison the event (missing required field skips it).
   if (args.telemetry && !ctx.stablePaneOwner) {
     recordPtySpawnTelemetry(args.telemetry)

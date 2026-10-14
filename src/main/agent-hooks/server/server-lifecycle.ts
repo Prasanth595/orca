@@ -17,6 +17,9 @@ import { AgentHookServerStatusHookLifecycle } from './server-status-hook-lifecyc
 import { OPENCODE_STARTUP_PROMPT_CLAIM_PATH } from '../../../shared/opencode-startup-prompt'
 
 export abstract class AgentHookServerLifecycle extends AgentHookServerStatusHookLifecycle {
+  /** Which account folder a pane's Claude reports from; the run-account layer listens. */
+  protected noteClaudeStatusLinePane(_body: unknown): void {}
+
   /** Start the loopback listener after hydration and spool replay have settled. */
   async start(options?: {
     env?: string
@@ -88,6 +91,7 @@ export abstract class AgentHookServerLifecycle extends AgentHookServerStatusHook
           if (statusLineEvent) {
             this.onClaudeStatusLine?.(statusLineEvent)
           }
+          this.noteClaudeStatusLinePane(body)
           res.writeHead(204)
           res.end()
           return
