@@ -20,8 +20,12 @@ import {
   getStatusBarToggles,
   getUsagePercentageDisplayEntry
 } from './appearance-search'
-import { USAGE_PERCENTAGE_DISPLAY_SETTING_ID } from './appearance-usage-percentage-search'
+import {
+  getStatusBarProviderColorsEntry,
+  USAGE_PERCENTAGE_DISPLAY_SETTING_ID
+} from './appearance-usage-percentage-search'
 import { LeftSidebarAppearanceSetting } from './LeftSidebarAppearanceSetting'
+import { StatusBarProviderColorSetting } from './StatusBarProviderColorSetting'
 import {
   getLeftSidebarAppearanceEntry,
   getShowPinnedWorktreesInGroupsEntry,
@@ -76,6 +80,7 @@ export function AppearanceWindowSidebarSection({
   const setWorktreeCardMode = useAppStore((state) => state.setWorktreeCardMode)
   const visibleStatusBarToggles = useAvailableStatusBarToggles(getStatusBarToggles())
   const usagePercentageDisplayEntry = getUsagePercentageDisplayEntry()
+  const providerColorsEntry = getStatusBarProviderColorsEntry()
   const leftSidebarAppearanceEntry = getLeftSidebarAppearanceEntry()
   const sidebarEntries = getSidebarEntries()
   const workspaceCardLayoutEntry = getWorkspaceCardLayoutEntry()
@@ -97,6 +102,7 @@ export function AppearanceWindowSidebarSection({
   })
   const statusBarControlMatches =
     matchesSettingsSearch(searchQuery, usagePercentageDisplayEntry) ||
+    matchesSettingsSearch(searchQuery, providerColorsEntry) ||
     visibleStatusBarToggles.some((toggle) =>
       matchesSettingsSearch(searchQuery, {
         title: toggle.title,
@@ -168,6 +174,14 @@ export function AppearanceWindowSidebarSection({
                     />
                   }
                 />
+              </SearchableSetting>
+
+              <SearchableSetting
+                title={providerColorsEntry.title}
+                description={providerColorsEntry.description}
+                keywords={providerColorsEntry.keywords}
+              >
+                <StatusBarProviderColorSetting settings={settings} updateSettings={updateSettings} />
               </SearchableSetting>
 
               {visibleStatusBarToggles.map((toggle) => {

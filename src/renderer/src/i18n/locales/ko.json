@@ -12430,6 +12430,12 @@
           "label": "호스트",
           "unavailable": "{{value0}} (사용 불가)",
           "unavailableNotice": "이 서버는 더 이상 저장되어 있지 않아 정보를 표시할 수 없습니다. 설정 상단에서 다른 호스트를 선택하세요."
+        },
+        "StatusBarProviderColorSetting": {
+          "title": "AI별 사용량 색상",
+          "description": "상태 바의 사용량 표시에 AI 제공자별 색을 입힙니다.",
+          "keywordProvider": "제공자",
+          "keywordColor": "색상"
         }
       },
       "right": {

@@ -12806,6 +12806,12 @@
           "connect": "Connect",
           "remove": "Remove",
           "turnOn": "Turn on in Experimental"
+        },
+        "StatusBarProviderColorSetting": {
+          "title": "Color usage by provider",
+          "description": "Tint each usage meter in the status bar with its AI provider’s color.",
+          "keywordProvider": "provider",
+          "keywordColor": "color"
         }
       },
       "right": {

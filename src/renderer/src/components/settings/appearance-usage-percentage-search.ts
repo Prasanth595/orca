@@ -35,3 +35,26 @@ export const getUsagePercentageDisplayEntry = createLocalizedCatalog(() => ({
     ...translateSearchKeyword('auto.components.settings.appearance.search.896eb53fd4', 'status bar')
   ]
 }))
+
+export const getStatusBarProviderColorsEntry = createLocalizedCatalog(() => ({
+  title: translate(
+    'auto.components.settings.StatusBarProviderColorSetting.title',
+    'Color usage by provider'
+  ),
+  description: translate(
+    'auto.components.settings.StatusBarProviderColorSetting.description',
+    'Tint each usage meter in the status bar with its AI provider’s color.'
+  ),
+  keywords: [
+    ...translateSearchKeyword(
+      'auto.components.settings.StatusBarProviderColorSetting.keywordProvider',
+      'provider'
+    ),
+    ...translateSearchKeyword(
+      'auto.components.settings.StatusBarProviderColorSetting.keywordColor',
+      'color'
+    ),
+    ...translateSearchKeyword('auto.components.settings.appearance.search.00a028f25f', 'usage'),
+    ...translateSearchKeyword('auto.components.settings.appearance.search.896eb53fd4', 'status bar')
+  ]
+}))
