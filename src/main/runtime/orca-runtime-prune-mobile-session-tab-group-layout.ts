@@ -264,6 +264,10 @@ export class OrcaRuntimeWithPruneMobileSessionTabGroupLayout extends OrcaRuntime
   getAgentStatusOrchestrationContextForPaneKey(
     paneKey: string
   ): AgentStatusOrchestrationContext | undefined {
+    const structured = this.agentOrchestrationProjection.getForStructuredPaneKey(paneKey)
+    if (structured) {
+      return structured
+    }
     const handle = this.getTerminalHandleForPaneKey(paneKey)
     if (!handle) {
       return undefined
