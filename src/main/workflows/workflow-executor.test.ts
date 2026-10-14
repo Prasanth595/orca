@@ -428,3 +428,47 @@ describe('executeWorkflow — file nodes (mocked runners)', () => {
     expect(remoteExec).toHaveBeenCalledWith('echo test', expect.any(Object))
   })
 })
+
+describe('executeWorkflow — retries', () => {
+  afterEach(() => {
+    mockFileRead.mockReset()
+  })
+
+  function failOnceWorkflow(retry: Record<string, unknown>, legacyData: Record<string, unknown>) {
+    return makeWorkflow({
+      nodes: [
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: fixture adds legacy retry keys inside data that the type does not declare
+        {
+          id: 'read',
+          type: 'file_read',
+          pos: { x: 0, y: 0 },
+          data: { filePath: '/x', ...legacyData },
+          ...retry
+        } as AgentWorkflow['nodes'][number]
+      ]
+    })
+  }
+
+  it.each([
+    ['node-level settings', { retryCount: 1, retryDelaySeconds: 0 }, {}],
+    ['settings older editors saved in data', {}, { retryCount: 1, retryDelaySeconds: 0 }]
+  ])('retries a failed node using %s', async (_label, retry, legacyData) => {
+    mockFileRead.mockRejectedValueOnce(new Error('flaky')).mockResolvedValue({ content: 'ok' })
+    const workflow = failOnceWorkflow(retry, legacyData)
+    const { ops, runId } = makeOps(workflow)
+    await executeWorkflow(workflow, runId, ops)
+    const run = ops.state.agentWorkflowRuns.find((r) => r.id === runId)!
+    expect(run.status).toBe('completed')
+    expect(mockFileRead).toHaveBeenCalledTimes(2)
+    expect(run.nodeRuns[0]!.retryAttempt).toBe(1)
+  })
+
+  it('does not retry when no retries are configured', async () => {
+    mockFileRead.mockRejectedValueOnce(new Error('flaky')).mockResolvedValue({ content: 'ok' })
+    const workflow = failOnceWorkflow({}, {})
+    const { ops, runId } = makeOps(workflow)
+    await executeWorkflow(workflow, runId, ops)
+    expect(ops.state.agentWorkflowRuns.find((r) => r.id === runId)!.status).toBe('failed')
+    expect(mockFileRead).toHaveBeenCalledTimes(1)
+  })
+})

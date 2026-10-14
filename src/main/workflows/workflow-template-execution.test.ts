@@ -1,21 +1,34 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { mockShellRun, mockPythonRun, mockFileRead, mockFileWrite } = vi.hoisted(() => ({
-  mockShellRun: vi.fn(),
-  mockPythonRun: vi.fn(),
-  mockFileRead: vi.fn(),
-  mockFileWrite: vi.fn().mockResolvedValue({ bytesWritten: 0 })
-}))
+const { mockShellRun, mockPythonRun, mockFileRead, mockFileWrite, mockHttpSend } = vi.hoisted(
+  () => ({
+    mockShellRun: vi.fn(),
+    mockPythonRun: vi.fn(),
+    mockFileRead: vi.fn(),
+    mockFileWrite: vi.fn().mockResolvedValue({ bytesWritten: 0 }),
+    mockHttpSend: vi.fn()
+  })
+)
 vi.mock('./workflow-node-runner-shell', () => ({ runShellCommandNode: mockShellRun }))
 vi.mock('./workflow-node-runner-python', () => ({ runPythonScriptNode: mockPythonRun }))
 vi.mock('./workflow-node-runner-file', () => ({
   runFileReadNode: mockFileRead,
   runFileWriteNode: mockFileWrite
 }))
+// Only the network hop is faked; request building and response parsing run for real.
+vi.mock('./workflow-http-transport', () => ({
+  localHttpTransport: { send: mockHttpSend, readFile: vi.fn(), writeFile: vi.fn() }
+}))
 
 import { executeWorkflow } from './workflow-executor'
 import { createWorkflowRun } from './workflow-run-store'
 import { materializeTemplate, WORKFLOW_TEMPLATES } from '../../shared/workflow-templates'
+import {
+  HTTP_EXAMPLE_REPORT_PATH,
+  TODO_SUMMARY_SCRIPT
+} from '../../shared/workflow-template-http-api-report'
+import { existsSync } from 'node:fs'
+import { runProcess } from '../../shared/child-process/run-process'
 import type { AgentWorkflow } from '../../shared/workflow-types'
 import type { WorkflowStoreOperations } from './workflow-run-store'
 import type { PersistedState } from '../../shared/persisted-state-types'
@@ -88,7 +101,8 @@ describe('materializeTemplate', () => {
     { id: 'system-snapshot', nodes: 4, edges: 3, namedEdges: 0 },
     { id: 'number-squarer', nodes: 6, edges: 5, namedEdges: 2 },
     { id: 'random-branch', nodes: 5, edges: 4, namedEdges: 2 },
-    { id: 'csv-to-json', nodes: 6, edges: 5, namedEdges: 0 }
+    { id: 'csv-to-json', nodes: 6, edges: 5, namedEdges: 0 },
+    { id: 'http-api-report', nodes: 6, edges: 5, namedEdges: 0 }
   ])(
     '$id has $nodes nodes, $edges edges, $namedEdges named edges',
     ({ id, nodes, edges, namedEdges }) => {
@@ -391,5 +405,110 @@ describe('CSV to JSON template', () => {
       expect.any(String),
       undefined
     )
+  })
+})
+
+describe('HTTP API Report template', () => {
+  const todos = [
+    { id: 1, title: 'a', completed: true },
+    { id: 2, title: 'b', completed: false },
+    { id: 3, title: 'c', completed: true },
+    { id: 4, title: 'd', completed: false }
+  ]
+  const summary = { total: 4, completed: 2, open: 2, completionRate: 50, nextUp: ['b', 'd'] }
+
+  function jsonResponse(statusCode: number, body: unknown) {
+    return {
+      statusCode,
+      statusMessage: statusCode === 201 ? 'Created' : 'OK',
+      headers: { 'content-type': 'application/json; charset=utf-8' },
+      body: Buffer.from(JSON.stringify(body))
+    }
+  }
+
+  it('chains shell → HTTP GET → python → HTTP POST → shell with templates resolved', async () => {
+    mockShellRun
+      .mockResolvedValueOnce({ stdout: 'my-host', stderr: '', exitCode: 0 })
+      .mockResolvedValueOnce({ stdout: 'Published report #101\n', stderr: '', exitCode: 0 })
+    mockPythonRun.mockResolvedValue({ stdout: JSON.stringify(summary), stderr: '', exitCode: 0 })
+    mockHttpSend
+      .mockResolvedValueOnce(jsonResponse(200, todos))
+      .mockImplementationOnce(async (req: { body: Buffer }) =>
+        jsonResponse(201, { id: 101, ...JSON.parse(req.body.toString('utf8')) })
+      )
+
+    const workflow = templateWorkflow('http-api-report')
+    const { ops, runId } = makeOps(workflow)
+    await executeWorkflow(workflow, runId, ops, {})
+    const run = ops.state.agentWorkflowRuns.find((r) => r.id === runId)!
+    expect(run.status).toBe('completed')
+    expect(run.nodeRuns.every((n) => n.status === 'completed')).toBe(true)
+
+    // GET carries the query parameter.
+    const [getReq] = mockHttpSend.mock.calls[0]!
+    expect(getReq).toMatchObject({
+      method: 'GET',
+      url: 'https://jsonplaceholder.typicode.com/todos?userId=1',
+      body: null
+    })
+    // Python receives the GET response body on stdin.
+    expect(JSON.parse(mockPythonRun.mock.calls[0]![1])).toEqual(todos)
+
+    // POST body and header are built from the shell and python outputs.
+    const [postReq] = mockHttpSend.mock.calls[1]!
+    expect(postReq.method).toBe('POST')
+    expect(postReq.url).toBe('https://jsonplaceholder.typicode.com/posts')
+    expect(postReq.headers).toMatchObject({
+      'content-type': 'application/json',
+      'x-report-host': 'my-host'
+    })
+    expect(JSON.parse(postReq.body.toString('utf8'))).toEqual({
+      title: 'Todo report from my-host',
+      body: '2 of 4 todos done (50%)',
+      userId: 1
+    })
+
+    // The final shell command gets the POST response values.
+    const finalCommand = mockShellRun.mock.calls[1]![0].command
+    expect(finalCommand).toContain("'101' '2 of 4 todos done (50%)'")
+    expect(finalCommand).toContain(HTTP_EXAMPLE_REPORT_PATH)
+  })
+
+  it('fails the run when the API returns an error status', async () => {
+    mockShellRun.mockResolvedValue({ stdout: 'my-host', stderr: '', exitCode: 0 })
+    mockHttpSend.mockResolvedValue(jsonResponse(503, { error: 'down' }))
+    const workflow = templateWorkflow('http-api-report')
+    const { ops, runId } = makeOps(workflow)
+    await executeWorkflow(workflow, runId, ops, {})
+    const run = ops.state.agentWorkflowRuns.find((r) => r.id === runId)!
+    expect(run.status).toBe('failed')
+    expect(run.error).toMatch(/status code 503/)
+    expect(mockPythonRun).not.toHaveBeenCalled()
+  })
+})
+
+const hasPython3 = process.platform !== 'win32' && existsSync('/usr/bin/python3')
+
+describe.skipIf(!hasPython3)('HTTP API Report summary script', () => {
+  it('summarizes todos with real python3', async () => {
+    const r = await runProcess({
+      program: '/usr/bin/python3',
+      args: ['-c', TODO_SUMMARY_SCRIPT],
+      input: JSON.stringify([
+        { title: 'a', completed: true },
+        { title: 'b', completed: false },
+        { title: 'c', completed: false },
+        { title: 'd', completed: false },
+        { title: 'e', completed: false }
+      ])
+    })
+    expect(r.code).toBe(0)
+    expect(JSON.parse(r.stdout)).toEqual({
+      total: 5,
+      completed: 1,
+      open: 4,
+      completionRate: 20,
+      nextUp: ['b', 'c', 'd']
+    })
   })
 })
