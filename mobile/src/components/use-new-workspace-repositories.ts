@@ -14,6 +14,10 @@ import type { MobileWorkspaceRepo } from './new-worktree-modal-types'
 
 const NO_SERVER_CLIENTS: ReadonlyMap<ExecutionHostId, RpcClient> = new Map()
 
+function isServerExecutionHostId(host: string | null | undefined): host is ExecutionHostId {
+  return Boolean(host && host.startsWith('runtime:'))
+}
+
 /**
  * The desktop's repos, then each reachable server's as it answers: a slow server never holds back
  * the desktop's own list.
@@ -37,17 +41,29 @@ export function useNewWorkspaceRepositories(args: {
   )
   const [desktopRepos, setDesktopRepos] = useState<MobileWorkspaceRepo[]>(initialRepos ?? [])
   const lastCachedDesktopRepos = useRef(desktopRepos)
+  const addedReposRef = useRef<Map<string, MobileWorkspaceRepo>>(new Map())
+  const [addedServerRepos, setAddedServerRepos] = useState<
+    ReadonlyMap<ExecutionHostId, MobileWorkspaceRepo[]>
+  >(() => new Map())
   const serverRepos = useServerRepos<MobileWorkspaceRepo>(serverClients, visible)
   const [pickedRepo, setSelectedRepo] = useState<MobileWorkspaceRepo | null>(null)
   const [loading, setLoading] = useState(initialRepos == null)
   const lastVisitedRepo = useLastVisitedWorktreeRepoId(hostId, visible)
-  const repos = useMemo(
-    () =>
-      serverRepos.size === 0
-        ? desktopRepos
-        : [...desktopRepos, ...[...serverRepos.values()].flat()],
-    [desktopRepos, serverRepos]
-  )
+
+  const repos = useMemo(() => {
+    const allServerHosts = new Set([...serverRepos.keys(), ...addedServerRepos.keys()])
+    const combinedServerRepos: MobileWorkspaceRepo[] = []
+    for (const host of allServerHosts) {
+      const base = serverRepos.get(host) ?? []
+      const added = addedServerRepos.get(host) ?? []
+      const addedIds = new Set(added.map((r) => r.id))
+      combinedServerRepos.push(...added, ...base.filter((r) => !addedIds.has(r.id)))
+    }
+    return combinedServerRepos.length === 0
+      ? desktopRepos
+      : [...desktopRepos, ...combinedServerRepos]
+  }, [desktopRepos, serverRepos, addedServerRepos])
+
   // Why derived: the pick follows its repo's latest listing, and goes once its host stops listing it.
   const selectedRepo = useMemo(
     () => refreshMobileNewWorkspaceDialogSelectedRepo(repos, pickedRepo),
@@ -80,7 +96,13 @@ export function useNewWorkspaceRepositories(args: {
         if (stale || !listed) {
           return
         }
-        setDesktopRepos(listed)
+        setDesktopRepos((previous) => {
+          const listedIds = new Set(listed.map((r) => r.id))
+          const addedPreserved = previous.filter(
+            (r) => !listedIds.has(r.id) && addedReposRef.current.has(r.id)
+          )
+          return [...addedPreserved, ...listed]
+        })
       })
       .catch(() => undefined)
       .finally(() => {
@@ -104,12 +126,26 @@ export function useNewWorkspaceRepositories(args: {
   }, [desktopRepos, hostId])
 
   function upsertRepo(repo: MobileWorkspaceRepo): void {
-    setDesktopRepos((previous) => {
-      const existingIndex = previous.findIndex((candidate) => candidate.id === repo.id)
-      return existingIndex !== -1
-        ? previous.map((candidate, index) => (index === existingIndex ? repo : candidate))
-        : [repo, ...previous]
-    })
+    addedReposRef.current.set(repo.id, repo)
+    const host = repo.executionHostId
+    if (isServerExecutionHostId(host)) {
+      setAddedServerRepos((previous) => {
+        const currentList = previous.get(host) ?? []
+        const existingIndex = currentList.findIndex((candidate) => candidate.id === repo.id)
+        const nextList =
+          existingIndex !== -1
+            ? currentList.map((candidate, index) => (index === existingIndex ? repo : candidate))
+            : [repo, ...currentList]
+        return new Map(previous).set(host, nextList)
+      })
+    } else {
+      setDesktopRepos((previous) => {
+        const existingIndex = previous.findIndex((candidate) => candidate.id === repo.id)
+        return existingIndex !== -1
+          ? previous.map((candidate, index) => (index === existingIndex ? repo : candidate))
+          : [repo, ...previous]
+      })
+    }
     setSelectedRepo(repo)
   }
 

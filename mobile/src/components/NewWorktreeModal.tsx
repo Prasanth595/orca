@@ -291,8 +291,13 @@ function NewWorktreeModalContent(props: NewWorktreeModalProps) {
         onRepoChange={(repo) => selectRepo(repo, true)}
         onOpenAddProject={() => openPicker('addProject')}
         onProjectAdded={(repo) => {
-          upsertRepo(repo)
-          selectRepo(repo, true)
+          const taggedRepo = repo.executionHostId
+            ? repo
+            : repoServer
+              ? { ...repo, executionHostId: repoServer }
+              : repo
+          upsertRepo(taggedRepo)
+          selectRepo(taggedRepo, true)
           navigation.transitionDrawer('form')
         }}
         onAgentChange={(agent) => {

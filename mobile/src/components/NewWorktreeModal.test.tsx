@@ -749,11 +749,15 @@ describe('NewWorktreeModal project targets', () => {
     expect(sourceInputs(renderer).map((input) => input.props.value)).toEqual(['', ''])
   })
 
-  function makeBrowseClient(listedRepos: unknown[] = repos, addedRepo?: unknown) {
+  function makeBrowseClient(
+    listedRepos: unknown[] | Promise<unknown> = repos,
+    addedRepo?: unknown
+  ) {
     return requestsOnly(
       vi.fn(async (method: string) => {
         if (method === 'repo.list') {
-          return { ok: true, result: { repos: listedRepos } }
+          const res = await listedRepos
+          return Array.isArray(res) ? { ok: true, result: { repos: res } } : res
         }
         if (method === 'status.get') {
           return { ok: true, result: { hostPlatform: 'darwin' } }
@@ -770,6 +774,24 @@ describe('NewWorktreeModal project targets', () => {
         return { ok: true, result: {} }
       })
     )
+  }
+
+  async function triggerAddProjectFromPicker(target: ReactTestRenderer) {
+    const picker = target.root.find(
+      (n) => n.type === 'PickerListDrawer' && n.props.title === 'Project'
+    )
+    await act(async () => picker.props.footer.props.onPress())
+    await flushDrawerTransition()
+    await flushUpdates()
+    const addBtn = target.root
+      .findAll(
+        (n) =>
+          n.type === 'Pressable' && n.findAll((c) => c.props.children === 'Add project').length > 0
+      )
+      .find((b) => !b.props.disabled && b.props.onPress)!
+    await act(async () => addBtn.props.onPress())
+    await flushUpdates()
+    await flushDrawerTransition()
   }
 
   it('opens addProject drawer from the empty projects state', async () => {
@@ -812,22 +834,8 @@ describe('NewWorktreeModal project targets', () => {
       )
     })
     await flushUpdates()
-    const picker = renderer.root.find(
-      (n) => n.type === 'PickerListDrawer' && n.props.title === 'Project'
-    )
-    await act(async () => picker.props.footer.props.onPress())
-    await flushDrawerTransition()
-    await flushUpdates()
+    await triggerAddProjectFromPicker(renderer)
     expect(client.sendRequest).toHaveBeenCalledWith('files.browseServerDir', { path: '~' })
-    const addBtn = renderer.root
-      .findAll(
-        (n) =>
-          n.type === 'Pressable' && n.findAll((c) => c.props.children === 'Add project').length > 0
-      )
-      .find((b) => !b.props.disabled && b.props.onPress)!
-    await act(async () => addBtn.props.onPress())
-    await flushUpdates()
-    await flushDrawerTransition()
     expect(client.sendRequest).toHaveBeenCalledWith('repo.add', {
       path: '/Users/test',
       kind: 'git'
@@ -837,6 +845,48 @@ describe('NewWorktreeModal project targets', () => {
     )
     expect(getCachedRepos('host-1')).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'repo-added-1' })])
+    )
+  })
+
+  it('preserves an added project when an older in-flight repo.list resolves later', async () => {
+    let resolveList: ((value: unknown) => void) | undefined
+    const listPromise = new Promise((resolve) => {
+      resolveList = resolve
+    })
+    const added = {
+      id: 'repo-added-late',
+      displayName: 'late-orca',
+      path: '/Users/test',
+      kind: 'git'
+    }
+    const client = makeBrowseClient(listPromise, added)
+    setCachedRepos('host-late', repos)
+    await act(async () => {
+      renderer = create(
+        createElement(NewWorktreeModal, {
+          visible: true,
+          client,
+          hostId: 'host-late',
+          onCreated: () => {},
+          onClose: () => {}
+        })
+      )
+    })
+    await flushUpdates()
+    await triggerAddProjectFromPicker(renderer)
+
+    expect(pickerItems(renderer, 'Project')).toEqual(
+      expect.arrayContaining([expect.objectContaining({ label: 'late-orca' })])
+    )
+
+    await act(async () => {
+      resolveList?.({ ok: true, result: { repos } })
+      await Promise.resolve()
+    })
+    await flushUpdates()
+
+    expect(pickerItems(renderer, 'Project')).toEqual(
+      expect.arrayContaining([expect.objectContaining({ label: 'late-orca' })])
     )
   })
 })
