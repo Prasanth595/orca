@@ -1,6 +1,6 @@
 import { MobileFileMediaPreview } from './MobileFileMediaPreview'
 import type { MobileFilePreviewRpcSender } from './mobile-file-preview-operations'
-import { ActivityIndicator, Pressable, Text, View } from 'react-native'
+import { ActivityIndicator, Text, View } from 'react-native'
 import { colors } from '../theme/mobile-theme'
 import type { MobileFilePreviewResult } from './mobile-file-preview-request'
 import { MobileFileMarkdownPreview } from './MobileFileMarkdownPreview'
@@ -9,6 +9,7 @@ import { MobileFilePreviewEditableSource } from './MobileFilePreviewEditableSour
 import { MobileFilePreviewSourceText } from './MobileFilePreviewSourceText'
 import type { MobileFilePreviewLineColumn } from './mobile-file-preview-line-column'
 import { filePreviewStyles as styles } from './mobile-file-preview-styles'
+import { MobileLoadErrorState } from '../components/MobileLoadErrorState'
 
 type Props = {
   preview: MobileFilePreviewResult
@@ -39,16 +40,7 @@ export function MobileFilePreviewBody({ preview, ...options }: Props) {
     )
   }
   if (preview.status === 'error' || preview.status === 'waiting') {
-    return (
-      <View style={styles.state}>
-        <Text style={styles.errorText}>{preview.message}</Text>
-        {options.onRetry ? (
-          <Pressable style={styles.retryButton} onPress={options.onRetry}>
-            <Text style={styles.retryText}>Retry</Text>
-          </Pressable>
-        ) : null}
-      </View>
-    )
+    return <MobileLoadErrorState message={preview.message} onRetry={options.onRetry} />
   }
   if (preview.status === 'empty') {
     return options.editable ? (
