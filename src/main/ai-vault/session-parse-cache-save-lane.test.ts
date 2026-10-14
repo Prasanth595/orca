@@ -172,6 +172,37 @@ it('does not acknowledge a serializer refusal or spin and permits one explicit r
   expect(await diskEntries()).toEqual([['entry', expect.objectContaining({ mtimeMs: 1 })]])
 })
 
+it('retries once when a flush joins an automatic save of the same revision that fails', async () => {
+  commit(0)
+  await flushSessionParseCachePersist()
+  vi.clearAllMocks()
+  let started = (): void => {}
+  const serializing = new Promise<void>((resolve) => {
+    started = resolve
+  })
+  const held = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  vi.mocked(serializeSessionParseCacheSnapshotPiecesCooperatively).mockImplementationOnce(
+    async () => {
+      started()
+      await held
+      return null
+    }
+  )
+  commit(1)
+  await vi.advanceTimersByTimeAsync(1_500)
+  await serializing
+  const flushing = flushSessionParseCachePersist()
+  release?.()
+  await flushing
+  expect(serializeSessionParseCacheSnapshotPiecesCooperatively).toHaveBeenCalledTimes(2)
+  expect(fsPromises.rename).toHaveBeenCalledTimes(1)
+  expect(await diskEntries()).toEqual([['entry', expect.objectContaining({ mtimeMs: 1 })]])
+  await vi.advanceTimersByTimeAsync(60_000)
+  expect(serializeSessionParseCacheSnapshotPiecesCooperatively).toHaveBeenCalledTimes(2)
+})
+
 it('reconciles live changes across initialization and loading while seed-only work stays quiet', async () => {
   seedSessionParseCache([
     ['seeded', { mtimeMs: 0, sizeBytes: null, platform: process.platform, session: null }]

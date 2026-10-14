@@ -65,7 +65,7 @@ export class SessionParseCacheSaveLane {
     const running = this.active
     if (running) {
       await running.promise
-      if (running.revision >= target || this.savedRevision >= target) {
+      if (this.savedRevision >= target) {
         return
       }
     }
