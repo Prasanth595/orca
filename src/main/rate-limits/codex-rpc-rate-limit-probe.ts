@@ -15,7 +15,10 @@ import {
 import { mapCodexCredits } from './codex-credit-balance'
 import { classifyCodexRpcErrorFailureKind } from './codex-rpc-failure-kind'
 import type { CodexRateLimitFetchOptions } from './codex-rate-limit-fetch-options'
-import { abortedCodexRateLimitResult } from './codex-rate-limit-fetch-result'
+import {
+  abortedCodexRateLimitResult,
+  codexRateLimitErrorResult
+} from './codex-rate-limit-fetch-result'
 import { mapCodexRateLimitWindow } from './codex-rate-limit-window-mapper'
 import {
   mapRpcRateLimitResetCredits,
@@ -260,17 +263,9 @@ export function readCodexRateLimitsViaRpc(
             typeof rateLimits?.planType === 'string' ? rateLimits.planType.trim() : undefined
           const isUnlimited = rateLimits?.credits?.unlimited === true
           if (!session && !weekly && !isUnlimited) {
-            settle(
-              {
-                provider: 'codex',
-                session: null,
-                weekly: null,
-                updatedAt: Date.now(),
-                error: 'RPC response did not include rate-limit windows',
-                status: 'error'
-              },
-              { kill: true }
-            )
+            settle(codexRateLimitErrorResult('RPC response did not include rate-limit windows'), {
+              kill: true
+            })
             return
           }
           settle(
