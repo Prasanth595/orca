@@ -10,6 +10,7 @@ import {
   timeoutForDeadline
 } from './mobile-structured-agent-session-rpc'
 import { mobileStructuredSendDelivery } from './mobile-structured-send-delivery'
+import type { MobileNativeChatSendErrorReporter } from './use-mobile-native-chat-send-error'
 
 export async function sendMobileStructuredAgentSessionMessage(input: {
   client: RpcClient
@@ -20,14 +21,16 @@ export async function sendMobileStructuredAgentSessionMessage(input: {
   /** Sent only when the host advertises `agent-session.queued-messages.v1`. */
   delivery?: 'queue-if-active'
   deadline?: number
-  onError: (message: string) => void
+  /** The id the host records the message under. */
+  clientMessageId: string
+  onError: MobileNativeChatSendErrorReporter
 }): Promise<MobileNativeChatSendOutcome> {
   const timeoutMs = timeoutForDeadline(input.deadline)
   if (timeoutMs === null) {
     input.onError('Message not sent')
     return 'rejected'
   }
-  // Each Send is a new action; the shared mutation sender mints its operation id once.
+  // Each Send is a new action, under one operation id.
   const result = await requestStructuredAgentSessionMutation<AgentSessionSendResult>({
     client: input.client,
     method: 'agentSession.send',
@@ -38,6 +41,7 @@ export async function sendMobileStructuredAgentSessionMessage(input: {
       body: structuredAgentSessionSendBody(input.text, input.attachments),
       ...(input.delivery ? { delivery: input.delivery } : {})
     },
+    clientOperationId: input.clientMessageId,
     timeoutMs
   })
   const outcome = mobileStructuredSendDelivery(result)
