@@ -3,7 +3,11 @@ import type { CodexAccountAddTarget, CodexAccountService } from '../codex-accoun
 import type { CodexAccountSelectionTarget } from '../codex-accounts/runtime-selection'
 import { broadcastCodexPendingLoginUrl } from './codex-pending-login-url-broadcast'
 import { listRecordedCodexPaneLanes } from '../codex/codex-pane-account-registry'
-import { keepStaleCodexPanes, listStaleCodexPanes } from '../codex/codex-stale-pane-accounts'
+import {
+  forgetStaleCodexPanes,
+  keepStaleCodexPanes,
+  listStaleCodexPanes
+} from '../codex/codex-stale-pane-accounts'
 import type { GlobalSettings } from '../../shared/global-settings-types'
 import { keepStaleCodexPanesAndConversations } from '../agent-accounts/agent-account-keep'
 import { installedAgentKeepDeps } from '../agent-accounts/agent-account-keep-wiring'
@@ -29,6 +33,12 @@ export function registerCodexAccountHandlers(
     return listRecordedCodexPaneLanes(
       args.ptyIds.filter((ptyId): ptyId is string => typeof ptyId === 'string')
     )
+  })
+  ipcMain.handle('codexAccounts:forgetStalePanes', (_event, args: { ptyIds?: unknown }) => {
+    if (!Array.isArray(args?.ptyIds)) {
+      return
+    }
+    forgetStaleCodexPanes(args.ptyIds.filter((ptyId): ptyId is string => typeof ptyId === 'string'))
   })
   ipcMain.handle('codexAccounts:keepStalePanes', (_event, args: { panes?: unknown }) => {
     const panes = readKeepStalePanes(args?.panes)

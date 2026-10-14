@@ -7,7 +7,8 @@ const state = vi.hoisted(() => {
     handlers: new Map<string, (event: unknown, ...args: unknown[]) => unknown>(),
     deps,
     keepWithConversations: vi.fn(),
-    keepRegistryOnly: vi.fn((_ptyIds: readonly string[]): string[] => [])
+    keepRegistryOnly: vi.fn((_ptyIds: readonly string[]): string[] => []),
+    forget: vi.fn()
   }
 })
 
@@ -25,6 +26,7 @@ vi.mock('../agent-accounts/agent-account-keep', () => ({
   keepStaleCodexPanesAndConversations: state.keepWithConversations
 }))
 vi.mock('../codex/codex-stale-pane-accounts', () => ({
+  forgetStaleCodexPanes: state.forget,
   keepStaleCodexPanes: state.keepRegistryOnly,
   listStaleCodexPanes: vi.fn(() => [])
 }))
@@ -40,6 +42,7 @@ beforeEach(() => {
   state.deps.current = null
   state.keepWithConversations.mockReset()
   state.keepRegistryOnly.mockReset()
+  state.forget.mockReset()
   const service = { onPendingLoginUrlChanged: vi.fn() }
   // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: registration only subscribes to pending login URLs; no other service method runs here.
   registerCodexAccountHandlers(service as unknown as CodexAccountService)
@@ -65,6 +68,16 @@ describe('codexAccounts:keepStalePanes', () => {
     keepStalePanes({ ptyIds: ['pty-1'] })
     expect(state.keepRegistryOnly).not.toHaveBeenCalled()
     expect(state.keepWithConversations).not.toHaveBeenCalled()
+  })
+})
+
+describe('codexAccounts:forgetStalePanes', () => {
+  it('forgets a dismissed pane without keeping it or its conversation', () => {
+    state.deps.current = { marker: true }
+    state.handlers.get('codexAccounts:forgetStalePanes')!({}, { ptyIds: ['pty-1', 7] })
+    expect(state.forget).toHaveBeenCalledWith(['pty-1'])
+    expect(state.keepWithConversations).not.toHaveBeenCalled()
+    expect(state.keepRegistryOnly).not.toHaveBeenCalled()
   })
 })
 

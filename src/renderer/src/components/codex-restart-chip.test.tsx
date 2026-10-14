@@ -20,6 +20,7 @@ const PTY_TWO = 'worktree-1@@pty-2'
 
 let container: HTMLDivElement
 let keepStalePanes: ReturnType<typeof vi.fn>
+let forgetStalePanes: ReturnType<typeof vi.fn>
 let root: Root
 
 function notice(previousAccountLabel: string, nextAccountLabel: string) {
@@ -43,9 +44,10 @@ beforeEach(() => {
   document.body.appendChild(container)
   root = createRoot(container)
   keepStalePanes = vi.fn(() => Promise.resolve())
+  forgetStalePanes = vi.fn(() => Promise.resolve())
   Object.defineProperty(window, 'api', {
     configurable: true,
-    value: { codexAccounts: { keepStalePanes } }
+    value: { codexAccounts: { keepStalePanes, forgetStalePanes } }
   })
 })
 
@@ -294,8 +296,15 @@ describe('CodexRestartChip pane focus', () => {
       expect(document.activeElement).toBe(terminalInput)
       expect(container.querySelector('[role="dialog"]')).toBeNull()
       expect(returnFocus).toHaveBeenCalledOnce()
-      if (action !== 'restart') {
+      if (action === 'keep') {
         expect(keepStalePanes).toHaveBeenCalledExactlyOnceWith({ panes: [{ ptyId: PTY_ONE }] })
+        expect(forgetStalePanes).not.toHaveBeenCalled()
+      } else if (action !== 'restart') {
+        // Escape or a stray click only dismisses; it never pins the conversation.
+        expect(forgetStalePanes).toHaveBeenCalledExactlyOnceWith({ ptyIds: [PTY_ONE] })
+        expect(keepStalePanes).not.toHaveBeenCalled()
+      }
+      if (action !== 'restart') {
         expect(useAppStore.getState().pendingCodexPaneRestartIds).toEqual({})
       }
     }
@@ -311,6 +320,7 @@ describe('CodexRestartChip pane focus', () => {
     expect(container.querySelector('[role="dialog"]')).not.toBeNull()
     expect(returnFocus).not.toHaveBeenCalled()
     expect(keepStalePanes).not.toHaveBeenCalled()
+    expect(forgetStalePanes).not.toHaveBeenCalled()
   })
 
   it('does not dismiss when a card text selection ends on the backdrop', async () => {
@@ -324,6 +334,7 @@ describe('CodexRestartChip pane focus', () => {
     expect(container.querySelector('[role="dialog"]')).not.toBeNull()
     expect(returnFocus).not.toHaveBeenCalled()
     expect(keepStalePanes).not.toHaveBeenCalled()
+    expect(forgetStalePanes).not.toHaveBeenCalled()
   })
 
   it('does not dismiss on a secondary mouse button press', async () => {
