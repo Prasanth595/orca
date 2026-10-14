@@ -17,6 +17,12 @@ import WorkflowRetryFields from './WorkflowRetryFields'
 import WorkflowForEachFields from './WorkflowForEachFields'
 import WorkflowHttpRequestFields from './WorkflowHttpRequestFields'
 import { normalizeHttpRequestData } from '../../../../shared/workflow-http-request-defaults'
+import {
+  applyNodeEdit,
+  getNodeRetryConfig,
+  nodeTypeSupportsRetry,
+  parseRetryConfig
+} from '../../../../shared/workflow-node-retry'
 import { NODE_TYPE_LABELS } from './workflow-canvas-node-config'
 import { getMonacoFields, coerceNodeData, getGenericFieldKeys } from './workflow-node-editor-config'
 import { useLastRunSteps } from './use-last-run-steps'
@@ -55,6 +61,10 @@ export default function WorkflowNodeEditorPanel({
       : {}
   )
   const [nodeLabel, setNodeLabel] = useState<string>(node?.label ?? '')
+  const [retryValues, setRetryValues] = useState(() => {
+    const r = node ? getNodeRetryConfig(node) : parseRetryConfig()
+    return { retryCount: String(r.retryCount), retryDelaySeconds: String(r.retryDelaySeconds) }
+  })
 
   const isBranchNode = node?.type === 'branch'
   const [branchValues, setBranchValues] = useState<{
@@ -121,18 +131,11 @@ export default function WorkflowNodeEditorPanel({
       : isFormInput
         ? { fields: formFields }
         : isHttpRequest
-          ? {
-              ...httpData,
-              ...coerceNodeData({
-                retryCount: localData['retryCount'] ?? '0',
-                retryDelaySeconds: localData['retryDelaySeconds'] ?? '1'
-              })
-            }
+          ? httpData
           : coerceNodeData(localData)
-
     const updatedNodes = workflow.nodes.map((n) =>
       n.id === nodeId
-        ? { ...n, data: { ...n.data, ...nodeDataPatch }, label: nodeLabel || undefined }
+        ? { ...applyNodeEdit(n, nodeDataPatch, retryValues), label: nodeLabel || undefined }
         : n
     )
     const schedulePatch =
@@ -159,6 +162,7 @@ export default function WorkflowNodeEditorPanel({
     formFields,
     isHttpRequest,
     httpData,
+    retryValues,
     workflow,
     onWorkflowChange
   ])
@@ -180,12 +184,7 @@ export default function WorkflowNodeEditorPanel({
   }
 
   const isCronTrigger = node.type === 'trigger_cron'
-  const hasRetry =
-    node.type !== 'trigger_cron' &&
-    node.type !== 'trigger_manual' &&
-    node.type !== 'branch' &&
-    node.type !== 'collect' &&
-    node.type !== 'form_input'
+  const hasRetry = nodeTypeSupportsRetry(node.type)
 
   const genericFields = getGenericFieldKeys(Object.keys(localData), node.type)
 
@@ -376,9 +375,9 @@ export default function WorkflowNodeEditorPanel({
 
         {hasRetry && (
           <WorkflowRetryFields
-            retryCount={localData['retryCount'] ?? '0'}
-            retryDelaySeconds={localData['retryDelaySeconds'] ?? '1'}
-            onChange={(patch) => setLocalData((prev) => ({ ...prev, ...patch }))}
+            retryCount={retryValues.retryCount}
+            retryDelaySeconds={retryValues.retryDelaySeconds}
+            onChange={(patch) => setRetryValues((prev) => ({ ...prev, ...patch }))}
           />
         )}
       </div>

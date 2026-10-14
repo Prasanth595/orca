@@ -5,6 +5,7 @@ import type {
   StepOutputs
 } from '../../shared/workflow-types'
 import { topologicalSort } from '../../shared/workflow-graph-topology'
+import { getNodeRetryConfig } from '../../shared/workflow-node-retry'
 import type { WorkflowStoreOperations } from './workflow-run-store'
 import { patchNodeRun, finalizeWorkflowRun } from './workflow-run-store'
 import type { RemoteExecFn } from './workflow-remote-exec'
@@ -26,9 +27,8 @@ async function executeNodeWithRetry(
   signal: AbortSignal,
   remoteExec?: RemoteExecFn
 ): Promise<ExecuteNodeResult> {
-  const retryCount = 'retryCount' in node && node.retryCount ? node.retryCount : 0
-  const retryDelayMs =
-    'retryDelaySeconds' in node && node.retryDelaySeconds ? node.retryDelaySeconds * 1000 : 1000
+  const { retryCount, retryDelaySeconds } = getNodeRetryConfig(node)
+  const retryDelayMs = retryDelaySeconds * 1000
 
   let lastError: unknown
   for (let attempt = 0; attempt <= retryCount; attempt++) {
