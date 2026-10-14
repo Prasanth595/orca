@@ -24,6 +24,8 @@ export async function executeRuntimePtySpawn(ctx: RuntimePtySpawnState): Promise
         refuseSleptWorktree: args.refuseSleptWorktree
       })
     : undefined
+  let awaitingClaimedStart = false
+  let ranOwnSpawn = false
   try {
     if (args.preAllocatedHandle) {
       ctx.deps.trustedTerminalHandleEnv.add(args.preAllocatedHandle)
@@ -79,10 +81,12 @@ export async function executeRuntimePtySpawn(ctx: RuntimePtySpawnState): Promise
         ctx.pendingRegistrationPtyId = recoveredOwner.ptyId
       }
       let providerResult: PtySpawnResult | null = null
+      awaitingClaimedStart = true
       const ensured = await agentSessionOwners.ensure({
         claim: args.agentSessionEnsure.claim,
         surface: args.agentSessionEnsure.surface,
         spawn: async () => {
+          ranOwnSpawn = true
           assertClientStillConnected()
           providerResult = await ctx.provider.spawn(ctx.spawnOptions)
           ctx.rejectedRegistrationCandidate = providerResult
@@ -118,6 +122,7 @@ export async function executeRuntimePtySpawn(ctx: RuntimePtySpawnState): Promise
           return await isProviderAgentSessionOwnerLive(ownerProvider, owner)
         }
       })
+      awaitingClaimedStart = false
       ctx.result = providerResult ?? {
         id: ensured.owner.ptyId,
         isReattach: true,
@@ -199,7 +204,8 @@ export async function executeRuntimePtySpawn(ctx: RuntimePtySpawnState): Promise
     throw failPtySpawnExecute(ctx, err, {
       sessionId: ctx.sessionId,
       ownsNewSession: ctx.isNewDaemonSession,
-      telemetry: args.telemetry
+      telemetry: args.telemetry,
+      joinedAnotherStart: awaitingClaimedStart && !ranOwnSpawn
     })
   } finally {
     if (args.preAllocatedHandle) {

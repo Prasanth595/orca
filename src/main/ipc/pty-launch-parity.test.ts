@@ -365,6 +365,34 @@ describe('launch facts outside the tables', () => {
     }
   )
 
+  // C5a-2: requests that join one claimed start share its failure; only the request that started it counts it.
+  it('host lane: concurrent resumes of one Claude session count one failed start once', async () => {
+    setMainPlatform('darwin')
+    classifyErrorMock.mockReturnValue({ error_class: 'binary_not_found' })
+    const lanes = startParityLanes(suite, { workspace: POSIX_REPO })
+    lanes.provider.mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      throw new Error('spawn boom')
+    })
+    const resume = {
+      kind: 'explicit' as const,
+      worktree: `id:${launchWorkspaceId(POSIX_REPO)}`,
+      agent: 'claude' as const,
+      providerSession: { key: 'session_id' as const, id: '11111111-1111-4111-8111-111111111111' }
+    }
+
+    const results = await Promise.allSettled([
+      lanes.runtime.ensureAgentSession(resume),
+      lanes.runtime.ensureAgentSession(resume)
+    ])
+
+    expect(results.map((r) => r.status)).toEqual(['rejected', 'rejected'])
+    expect(lanes.provider).toHaveBeenCalledOnce()
+    expect(trackMock.mock.calls.filter(([event]) => event === 'agent_error')).toEqual([
+      ['agent_error', { agent_kind: 'claude-code', error_class: 'binary_not_found' }]
+    ])
+  })
+
   // C5e (presentation merge): a worker asks the window to reveal its titled tab without activating it.
   it('row 10: an orchestration worker requests a titled, inactive reveal', async () => {
     setMainPlatform(WORKER.os)
