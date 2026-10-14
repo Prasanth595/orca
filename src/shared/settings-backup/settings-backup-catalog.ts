@@ -197,6 +197,7 @@ export const SETTINGS_BACKUP_KEY_CLASSES = {
   agentHibernationIdleMs: 'experimental',
   experimentalNewWorktreeCardStyle: 'experimental',
   experimentalEphemeralVms: 'experimental',
+  experimentalWslHosts: 'experimental',
   experimentalMobile: 'experimental',
   pluginSystemEnabled: 'experimental',
 
@@ -293,6 +294,7 @@ export const SETTINGS_BACKUP_KEY_CLASSES = {
   claudeAgentTeamsDefaultDisabledMigrated: 'internal',
   visibleTaskProvidersDefaultedForJira: 'internal',
   agentYoloDefaultsMigrated: 'internal',
+  newWorkspaceSetupOnly: 'internal',
   terminalMacOptionAsAltMigrated: 'internal',
   experimentalActivityDefaultedOffForAllUsers: 'internal'
 } as const satisfies Record<keyof GlobalSettings, SettingsBackupKeyClass>

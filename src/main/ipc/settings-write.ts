@@ -3,6 +3,7 @@ import type { Store } from '../persistence'
 import type { GlobalSettings } from '../../shared/global-settings-types'
 import { setMainUiLanguage } from '../i18n/main-i18n'
 import { rebuildAppMenu } from '../menu/register-app-menu'
+import { rebuildSystemTrayMenu } from '../tray/system-tray'
 import { track } from '../telemetry/client'
 import { SETTINGS_CHANGED_WHITELIST, type SettingsChangedKey } from '../../shared/telemetry-events'
 import type { AgentAwakeService } from '../agent-awake-service'
@@ -206,6 +207,7 @@ export async function applySettingsWrite(
   if ('uiLanguage' in sanitizedArgs && before.uiLanguage !== result.uiLanguage) {
     await setMainUiLanguage(result.uiLanguage)
     rebuildAppMenu()
+    rebuildSystemTrayMenu()
   }
   if (
     ('workspaceDir' in sanitizedArgs && before.workspaceDir !== result.workspaceDir) ||
