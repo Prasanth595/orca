@@ -149,6 +149,25 @@ describe('local filesystem watcher re-arm after a watcher error', () => {
     }
   })
 
+  it('restarts the backoff once a re-armed watcher stays healthy as long as its last wait', async () => {
+    await watch(new Sender(1))
+    let subscribes = 1
+    for (const [healthyMs, delayMs] of [
+      [100, 1000],
+      [100, 2000],
+      [100, 4000],
+      [3999, 8000],
+      [8000, 1000]
+    ]) {
+      await advance(healthyMs)
+      lastCallback()(new Error('watcher broke'), [])
+      await advance(delayMs - 1)
+      expect(subscribeViaWatcherProcessMock).toHaveBeenCalledTimes(subscribes)
+      await advance(1)
+      expect(subscribeViaWatcherProcessMock).toHaveBeenCalledTimes(++subscribes)
+    }
+  })
+
   it('never re-subscribes when the watched root was deleted', async () => {
     const sender = new Sender(1)
     await watch(sender)

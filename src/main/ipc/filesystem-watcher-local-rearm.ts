@@ -16,9 +16,9 @@ export function scheduleLocalWatcherRearm(
 ): void {
   const now = Date.now()
   const prev = watcherLifecycleState.localWatcherRearmBackoff.get(rootKey)
-  // Why: an error long after the last re-arm fired is a new incident, so the backoff restarts.
+  // Why: a re-armed watcher that stayed healthy as long as its last wait is a new incident, so the backoff restarts.
   const delayMs =
-    !prev || now - prev.erroredAt - prev.delayMs > LOCAL_WATCH_REARM_MAX_MS
+    !prev || now - prev.erroredAt - prev.delayMs >= prev.delayMs
       ? LOCAL_WATCH_REARM_MS
       : Math.min(prev.delayMs * 2, LOCAL_WATCH_REARM_MAX_MS)
   watcherLifecycleState.localWatcherRearmBackoff.set(rootKey, { delayMs, erroredAt: now })
