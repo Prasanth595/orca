@@ -24,7 +24,8 @@ export async function writeStructuredAgentSessionOption(
       context.deps.store
         .replaceSessionOptions({ sessionId, fence, options, now: context.now() })
         .then(() => undefined),
-    publish: () => session && context.publish(sessionId, session.journal)
+    publish: () => session && context.publish(sessionId, session.journal),
+    now: () => context.now()
   }
   if (input.key === AGENT_CHAT_PERMISSION_MODE_OPTION_ID || !session?.child) {
     return recordStructuredAgentSessionOptionIntent(context.deps, ctx, input)
