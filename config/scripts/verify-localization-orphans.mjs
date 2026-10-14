@@ -147,7 +147,9 @@ export async function findOrphanedKeys(root = process.cwd(), extracted) {
   const english = flattenCatalog(JSON.parse(await fs.readFile(path.join(root, EN_CATALOG), 'utf8')))
   const referenced = extracted ?? (await extractReferencedKeys(root))
   const literals = await collectLiteralStrings(await collectSourceFiles(root))
-  const orphans = [...english.keys()].filter((key) => !isKeyReferenced(key, { referenced, literals }))
+  const orphans = [...english.keys()].filter(
+    (key) => !isKeyReferenced(key, { referenced, literals })
+  )
   return { total: english.size, referenced: referenced.size, orphans }
 }
 
