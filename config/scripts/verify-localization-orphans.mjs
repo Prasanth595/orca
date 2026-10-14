@@ -29,8 +29,8 @@ const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mts', '.cts']
 // assertion pin a key no screen renders.
 const NON_RUNTIME_DIR = new Set(['node_modules', 'locales', '__tests__', '__snapshots__', 'assets'])
 const NON_RUNTIME_FILE = /\.(test|spec)\./
-// A catalog key never looks like a word; require a dot and a reasonable length so
-// the literal scan does not drown in ordinary strings.
+// A catalog key never looks like a word; require a dot so the literal scan does
+// not drown in ordinary strings.
 const CATALOG_KEY_PATTERN = /^[A-Za-z][A-Za-z0-9._-]*\.[A-Za-z0-9._-]+$/
 // i18next appends a CLDR category to the base key and resolves it at runtime, so
 // `…count_one` never appears in a source file even though `…count` does. Judge
@@ -86,7 +86,9 @@ async function collectSourceFiles(root) {
 // extraction cannot see it — a key held in a data structure or passed as a
 // variable — so its shape filter deserves cases of its own.
 export function collectLiteralKeys(text, found = new Set()) {
-  const literal = /['"`]([A-Za-z][A-Za-z0-9._-]{6,})['"`]/g
+  // Why no length floor: this capture only finds candidates. A minimum here
+  // that CATALOG_KEY_PATTERN does not share would call a short live key an orphan.
+  const literal = /['"`]([A-Za-z][A-Za-z0-9._-]*)['"`]/g
   for (const match of text.matchAll(literal)) {
     if (CATALOG_KEY_PATTERN.test(match[1])) {
       found.add(match[1])

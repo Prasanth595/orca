@@ -62,12 +62,18 @@ describe('collectLiteralKeys', () => {
 
   // Why: a catalog key always carries a dot, so requiring one keeps the scan
   // from drowning in ordinary strings and pinning keys nothing references.
-  it.each(['sonnet', 'pnpm install', 'a.b', 'Some sentence.'])(
+  it.each(['sonnet', 'pnpm install', 'Some sentence.', 'a.', '.b', '1.2'])(
     'ignores the non-key literal %p',
     (text) => {
       expect(collectLiteralKeys(`const x = '${text}'`).size).toBe(0)
     }
   )
+
+  // Why: a short key is still a key. The scan once required seven characters,
+  // which would have reported a live `ui.get` held in a data structure.
+  it.each(['a.b', 'ui.get'])('accepts the short key %p', (text) => {
+    expect([...collectLiteralKeys(`const x = { key: '${text}' }`)]).toEqual([text])
+  })
 
   it('accumulates across calls into one set', () => {
     const found = collectLiteralKeys("t('first.keyname')")
