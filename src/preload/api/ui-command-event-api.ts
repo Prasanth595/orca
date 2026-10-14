@@ -1,3 +1,4 @@
+import type { RuntimeFileOpenPosition } from '../../shared/runtime-file-contracts'
 import type { MarkdownDocument } from '../../shared/filesystem-entry-types'
 import type { PersistedUIState } from '../../shared/persisted-ui-state-types'
 import type { TuiAgent } from '../../shared/tui-agent'
@@ -237,6 +238,7 @@ export type UiCommandEventApi = {
       relativePath: string
       runtimeEnvironmentId?: string | null
       navigation?: RuntimeNavigationTarget
+      position?: RuntimeFileOpenPosition
     }) => void
   ) => () => void
   onOpenDiffFromMobile: (
