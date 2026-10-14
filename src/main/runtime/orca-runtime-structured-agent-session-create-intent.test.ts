@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const applyAgentWorkspaceTrust = vi.hoisted(() => vi.fn(async () => ({})))
 vi.mock('../agent-workspace-trust', () => ({ applyAgentWorkspaceTrust }))
+const resolveLocalAiVaultSessionTitles = vi.hoisted(() => vi.fn())
+vi.mock('../ai-vault/session-title-resolver', () => ({ resolveLocalAiVaultSessionTitles }))
 
 import { OrcaRuntimeService } from './orca-runtime'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../shared/constants'
@@ -12,6 +14,7 @@ import { attachFingerprintFields } from '../native-chat/agent-session-wire/struc
 
 beforeEach(() => {
   applyAgentWorkspaceTrust.mockClear()
+  resolveLocalAiVaultSessionTitles.mockReset()
 })
 
 afterEach(() => {
@@ -381,6 +384,77 @@ describe('adopting a conversation recorded outside Orca', () => {
     } finally {
       await rm(root, { recursive: true, force: true })
     }
+  })
+
+  describe('naming the adopted chat', () => {
+    const threadId = '0198c2a4-7d1e-7c3a-9a4b-1f2e3d4c5b6a'
+
+    async function adoptCodexConversation(lookup: string | null | Error) {
+      const root = await mkdtemp(join(tmpdir(), 'orca-codex-create-intent-'))
+      try {
+        const accountHome = join(root, 'home')
+        vi.stubEnv('ORCA_USER_DATA_PATH', root)
+        const sessionsDir = join(accountHome, 'sessions', '2026', '10', '14')
+        await mkdir(sessionsDir, { recursive: true })
+        await writeFile(
+          join(sessionsDir, `rollout-2026-10-14T00-00-00-${threadId}.jsonl`),
+          `${JSON.stringify({ type: 'session_meta', payload: { id: threadId, cwd: root } })}\n`
+        )
+        if (lookup instanceof Error) {
+          resolveLocalAiVaultSessionTitles.mockRejectedValue(lookup)
+        } else {
+          resolveLocalAiVaultSessionTitles.mockResolvedValue({
+            titles: lookup ? [{ agent: 'codex', sessionId: threadId, title: lookup }] : []
+          })
+        }
+        const runtime = new OrcaRuntimeService(
+          // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: create intent only reads getSettings from the store.
+          { getSettings: () => ({ agentDefaultEnv: { codex: {} } }) } as never,
+          undefined,
+          { prepareCodexStructuredLaunch: vi.fn(() => accountHome) }
+        )
+        vi.spyOn(runtime, 'getStructuredAgentSessionCreateSupport').mockResolvedValue({
+          supported: true
+        })
+        Object.assign(runtime, {
+          resolveStructuredAgentSessionLocation: vi.fn(async () => ({
+            executionHostId: 'local',
+            wslDistro: null,
+            workspaceId: 'workspace-1',
+            workspaceKind: 'git-worktree' as const
+          })),
+          resolveRuntimeFileTarget: vi.fn(async () => ({ worktree: { path: root } }))
+        })
+        return await runtime.resolveStructuredAgentSessionCreateIntent({
+          envelope: { sessionId: 'chat-1', clientOperationId: 'operation-1' },
+          worktree: 'id:workspace-1',
+          agent: 'codex',
+          resumeFrom: { providerSessionId: threadId }
+        })
+      } finally {
+        await rm(root, { recursive: true, force: true })
+      }
+    }
+
+    it('names the chat after the conversation title Session History shows', async () => {
+      const intent = await adoptCodexConversation('Fix the flaky login test')
+
+      expect(intent.adopt?.conversationName).toBe('Fix the flaky login test')
+    })
+
+    it('leaves a conversation with no title unnamed rather than seeding History placeholder', async () => {
+      const intent = await adoptCodexConversation(`Codex ${threadId.slice(0, 8)}`)
+
+      expect(intent.adopt).toBeDefined()
+      expect(intent.adopt?.conversationName).toBeUndefined()
+    })
+
+    it('still adopts with the default name when the title lookup fails', async () => {
+      const intent = await adoptCodexConversation(new Error('AI Vault service timed out'))
+
+      expect(intent.adopt?.providerHandle).toMatchObject({ agent: 'codex', nativeId: threadId })
+      expect(intent.adopt?.conversationName).toBeUndefined()
+    })
   })
 
   it('refuses an agent registered with no transcript importer before any adoption work', async () => {
