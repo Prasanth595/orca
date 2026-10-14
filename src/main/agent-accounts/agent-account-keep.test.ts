@@ -1,0 +1,185 @@
+import { describe, expect, it, vi } from 'vitest'
+import type { AgentRunAccount } from '../../shared/agent-run-account'
+import type { AgentRunAccountRow } from '../agent-hooks/server/server-run-account'
+import type { CodexPaneAccountRecord } from '../codex/codex-pane-account-registry'
+import {
+  keepStaleCodexPanesAndConversations,
+  setAgentKept,
+  type AgentKeepDeps
+} from './agent-account-keep'
+
+const PANE = 'tab-1:11111111-1111-4111-8111-111111111111'
+const OTHER_PANE = 'tab-2:22222222-2222-4222-8222-222222222222'
+
+const CODEX_FACET: AgentRunAccount = {
+  provider: 'codex',
+  lane: 'host',
+  accountId: 'acc-a',
+  mode: 'follow'
+}
+const CLAUDE_FACET: AgentRunAccount = {
+  provider: 'claude',
+  lane: 'host',
+  accountId: 'acc-b',
+  mode: 'follow',
+  shellRoute: 'selected'
+}
+
+function row(overrides: Partial<AgentRunAccountRow> = {}): AgentRunAccountRow {
+  return {
+    paneKey: PANE,
+    agentType: 'codex',
+    providerSession: { key: 'session_id', id: 's1', transcriptPath: '/t/s1.jsonl' },
+    runAccount: CODEX_FACET,
+    connectionId: null,
+    ...overrides
+  }
+}
+
+function deps(overrides: Partial<AgentKeepDeps> = {}) {
+  const record: CodexPaneAccountRecord = {
+    selectionKey: 'host',
+    accountId: 'acc-a',
+    homeRoute: 'account-home'
+  }
+  const kept = { keep: vi.fn(), release: vi.fn() }
+  const base: AgentKeepDeps = {
+    getRow: vi.fn(() => row()),
+    refresh: vi.fn((): AgentRunAccount => ({ ...CODEX_FACET, mode: 'kept' })),
+    kept,
+    getPtyIdForPaneKey: vi.fn((paneKey: string) => (paneKey === PANE ? 'pty-1' : undefined)),
+    getPaneKeyForPty: vi.fn((ptyId: string) => (ptyId === 'pty-1' ? PANE : undefined)),
+    readCodexRecord: vi.fn(() => record),
+    setCodexPaneKept: vi.fn(() => 'kept' as const),
+    keepStaleCodexPanes: vi.fn((ptyIds: readonly string[]) => [...ptyIds]),
+    now: () => 7,
+    ...overrides
+  }
+  return { ...base, kept }
+}
+
+describe('setAgentKept', () => {
+  it('keeps a Codex pane and its conversation on the account it launched under', () => {
+    const d = deps()
+    expect(setAgentKept(d, { paneKey: PANE, ptyId: 'pty-1', kept: true })).toEqual({
+      ok: true,
+      runAccount: { ...CODEX_FACET, mode: 'kept' }
+    })
+    expect(d.setCodexPaneKept).toHaveBeenCalledWith('pty-1', true)
+    expect(d.kept.keep).toHaveBeenCalledWith('codex', 's1', {
+      lane: 'host',
+      accountId: 'acc-a',
+      keptAt: 7,
+      transcriptPath: '/t/s1.jsonl'
+    })
+    expect(d.refresh).toHaveBeenCalledWith(PANE)
+  })
+
+  it('releases a Codex pane and its conversation', () => {
+    const d = deps()
+    setAgentKept(d, { paneKey: PANE, kept: false })
+    expect(d.setCodexPaneKept).toHaveBeenCalledWith('pty-1', false)
+    expect(d.kept.release).toHaveBeenCalledWith('codex', 's1')
+    expect(d.kept.keep).not.toHaveBeenCalled()
+  })
+
+  it('refuses a Codex pane whose home cannot be kept, without touching anything', () => {
+    const d = deps({
+      readCodexRecord: vi.fn(() => ({
+        selectionKey: 'host',
+        accountId: null,
+        homeRoute: 'shared-home' as const
+      }))
+    })
+    expect(setAgentKept(d, { paneKey: PANE, kept: true })).toEqual({
+      ok: false,
+      reason: 'not-keepable'
+    })
+    expect(d.setCodexPaneKept).not.toHaveBeenCalled()
+    expect(d.kept.keep).not.toHaveBeenCalled()
+  })
+
+  it('reports an unreadable launch registry instead of keeping the conversation alone', () => {
+    const d = deps({ setCodexPaneKept: vi.fn(() => 'unavailable' as const) })
+    expect(setAgentKept(d, { paneKey: PANE, kept: true })).toEqual({
+      ok: false,
+      reason: 'unavailable'
+    })
+    expect(d.kept.keep).not.toHaveBeenCalled()
+  })
+
+  it('refuses a terminal that is not the one the request names', () => {
+    const d = deps()
+    expect(setAgentKept(d, { paneKey: PANE, ptyId: 'pty-9', kept: true })).toEqual({
+      ok: false,
+      reason: 'unknown-pane'
+    })
+    expect(d.setCodexPaneKept).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['a relay row', row({ connectionId: 'ssh-1' })],
+    ['a row with no account facet', row({ runAccount: undefined })],
+    ['no row', null]
+  ])('refuses %s', (_label, current) => {
+    const d = deps({ getRow: vi.fn(() => current) })
+    expect(setAgentKept(d, { paneKey: PANE, kept: true })).toEqual({
+      ok: false,
+      reason: 'unknown-pane'
+    })
+  })
+
+  it('keeps a Claude conversation on the account its row says it runs on', () => {
+    const d = deps({
+      getRow: vi.fn(() => row({ agentType: 'claude', runAccount: CLAUDE_FACET })),
+      refresh: vi.fn(() => ({ ...CLAUDE_FACET, mode: 'kept' as const }))
+    })
+    expect(setAgentKept(d, { paneKey: PANE, kept: true })).toMatchObject({ ok: true })
+    expect(d.kept.keep).toHaveBeenCalledWith('claude', 's1', {
+      lane: 'host',
+      accountId: 'acc-b',
+      keptAt: 7,
+      transcriptPath: '/t/s1.jsonl'
+    })
+    expect(d.setCodexPaneKept).not.toHaveBeenCalled()
+  })
+
+  it('waits for a Claude agent to report its session before keeping it', () => {
+    const d = deps({
+      getRow: vi.fn(() =>
+        row({ agentType: 'claude', runAccount: CLAUDE_FACET, providerSession: undefined })
+      )
+    })
+    expect(setAgentKept(d, { paneKey: PANE, kept: true })).toEqual({
+      ok: false,
+      reason: 'no-session'
+    })
+    expect(d.kept.keep).not.toHaveBeenCalled()
+  })
+})
+
+describe('keepStaleCodexPanesAndConversations', () => {
+  it('keeps the conversation of each pane the registry kept, found by pty when needed', () => {
+    const d = deps({ keepStaleCodexPanes: vi.fn(() => ['pty-1']) })
+    keepStaleCodexPanesAndConversations(d, [
+      // A stale pane key from the renderer still resolves through the pty.
+      { ptyId: 'pty-1', paneKey: OTHER_PANE },
+      { ptyId: 'pty-2' }
+    ])
+    expect(d.keepStaleCodexPanes).toHaveBeenCalledWith(['pty-1', 'pty-2'])
+    expect(d.getRow).toHaveBeenCalledWith(PANE)
+    expect(d.kept.keep).toHaveBeenCalledTimes(1)
+    expect(d.kept.keep).toHaveBeenCalledWith(
+      'codex',
+      's1',
+      expect.objectContaining({ accountId: 'acc-a' })
+    )
+    expect(d.refresh).toHaveBeenCalledWith(PANE)
+  })
+
+  it('keeps no conversation for a pane the registry could not keep', () => {
+    const d = deps({ keepStaleCodexPanes: vi.fn(() => []) })
+    keepStaleCodexPanesAndConversations(d, [{ ptyId: 'pty-1', paneKey: PANE }])
+    expect(d.kept.keep).not.toHaveBeenCalled()
+  })
+})

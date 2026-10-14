@@ -5,6 +5,8 @@ import { broadcastCodexPendingLoginUrl } from './codex-pending-login-url-broadca
 import { listRecordedCodexPaneLanes } from '../codex/codex-pane-account-registry'
 import { keepStaleCodexPanes, listStaleCodexPanes } from '../codex/codex-stale-pane-accounts'
 import type { GlobalSettings } from '../../shared/global-settings-types'
+import { keepStaleCodexPanesAndConversations } from '../agent-accounts/agent-account-keep'
+import { installedAgentKeepDeps } from '../agent-accounts/agent-account-keep-wiring'
 
 export function registerCodexAccountHandlers(
   codexAccounts: CodexAccountService,
@@ -30,7 +32,13 @@ export function registerCodexAccountHandlers(
   })
   ipcMain.handle('codexAccounts:keepStalePanes', (_event, args: { panes?: unknown }) => {
     const panes = readKeepStalePanes(args?.panes)
-    if (panes.length > 0) {
+    if (panes.length === 0) {
+      return
+    }
+    const deps = installedAgentKeepDeps()
+    if (deps) {
+      keepStaleCodexPanesAndConversations(deps, panes)
+    } else {
       keepStaleCodexPanes(panes.map((pane) => pane.ptyId))
     }
   })

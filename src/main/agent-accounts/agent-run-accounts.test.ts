@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { AgentRunAccount } from '../../shared/agent-run-account'
 import type { CodexPaneAccountRecord } from '../codex/codex-pane-account-registry'
 import type { ClaudeManagedAccount, CodexManagedAccount } from '../../shared/managed-account-types'
+import type { KeptConversation } from './kept-agent-conversations'
 import { computeAgentRunAccount, type AgentRunAccountInput } from './agent-run-account-compute'
 import {
   AgentRunAccounts,
@@ -194,6 +195,7 @@ function codexAccount(id: string): CodexManagedAccount {
 }
 
 type Harness = {
+  kept: Map<string, KeptConversation>
   producer: AgentRunAccounts
   rows: Map<string, AgentRunAccountStatusRow>
   settings: AgentRunAccountSettings
@@ -208,6 +210,7 @@ function harness(): Harness {
   const records = new Map<string, CodexPaneAccountRecord>()
   const covered = new Set<string>()
   const republished: (AgentRunAccount | null)[] = []
+  const kept = new Map<string, KeptConversation>()
   const settings: AgentRunAccountSettings = {
     claudeManagedAccounts: [claudeAccount('acc-a'), claudeAccount('acc-b')],
     codexManagedAccounts: [codexAccount('acc-a')],
@@ -243,7 +246,14 @@ function harness(): Harness {
       accountHome: (id) => `${DATA}/claude-profiles/${id}/home`,
       systemDefaultHome: () => SYSTEM_HOME,
       coveredBySystemDefault: (id) => covered.has(id)
-    }
+    },
+    kept: {
+      get: (provider, sessionId) => kept.get(`${provider}:${sessionId}`) ?? null,
+      keep: (provider, sessionId, entry) => {
+        kept.set(`${provider}:${sessionId}`, entry)
+      }
+    },
+    now: () => 42
   })
   const emit: Harness['emit'] = ({ sessionId = 's1', ...overrides }) => {
     const previous = rows.get(PANE)
@@ -258,7 +268,7 @@ function harness(): Harness {
     rows.set(PANE, row)
     producer.noteStatus(row)
   }
-  return { producer, rows, settings, records, covered, republished, emit }
+  return { kept, producer, rows, settings, records, covered, republished, emit }
 }
 
 function facet(h: Harness): AgentRunAccount | null | undefined {
@@ -373,5 +383,71 @@ describe('AgentRunAccounts', () => {
     h.settings.codexManagedAccounts = []
     h.producer.refreshAll()
     expect(facet(h)).toBeNull()
+  })
+
+  it('carries a keep to the next session when it runs on the kept account', () => {
+    const h = harness()
+    h.producer.notePaneLaunch({ paneKey: PANE, lane: 'host', fresh: true })
+    h.emit({})
+    h.kept.set('claude:s1', { lane: 'host', accountId: 'acc-a', keptAt: 1 })
+    h.emit({})
+    expect(facet(h)).toMatchObject({ mode: 'kept', accountId: 'acc-a' })
+
+    h.emit({ sessionId: 's2' })
+    expect(h.kept.get('claude:s2')).toEqual({ lane: 'host', accountId: 'acc-a', keptAt: 42 })
+    expect(facet(h)).toMatchObject({ mode: 'kept', accountId: 'acc-a' })
+  })
+
+  it('never carries a keep to a session that runs on another account', () => {
+    const h = harness()
+    h.producer.notePaneLaunch({ paneKey: PANE, lane: 'host', fresh: true })
+    h.emit({})
+    h.kept.set('claude:s1', { lane: 'host', accountId: 'acc-a', keptAt: 1 })
+
+    // A `claude` typed after a switch in a selection-following terminal runs on the selection.
+    h.settings.activeClaudeManagedAccountId = 'acc-b'
+    h.emit({ sessionId: 's2' })
+
+    expect(h.kept.has('claude:s2')).toBe(false)
+    expect(facet(h)).toMatchObject({ mode: 'follow', accountId: 'acc-b' })
+  })
+
+  it('never carries a Claude keep to another agent in the same pane', () => {
+    const h = harness()
+    h.producer.notePaneLaunch({ paneKey: PANE, lane: 'host', fresh: true })
+    h.emit({})
+    h.kept.set('claude:s1', { lane: 'host', accountId: 'acc-a', keptAt: 1 })
+    h.records.set('pty-1', ACCOUNT_HOME_RECORD)
+
+    h.emit({ sessionId: 's9', payload: { agentType: 'codex' } })
+
+    expect([...h.kept.keys()]).toEqual(['claude:s1'])
+  })
+
+  it('keeps the renamed session of a kept start', () => {
+    const h = harness()
+    h.kept.set('claude:resumed', { lane: 'host', accountId: 'acc-b', keptAt: 1 })
+    h.producer.notePaneLaunch({
+      paneKey: PANE,
+      lane: 'host',
+      fresh: true,
+      claudeShellAccount: { accountId: 'acc-b' },
+      resumedSessionId: 'resumed'
+    })
+
+    h.emit({ sessionId: 'renamed' })
+
+    expect(h.kept.get('claude:renamed')).toMatchObject({ accountId: 'acc-b' })
+    expect(facet(h)).toMatchObject({ mode: 'kept', accountId: 'acc-b', shellRoute: 'account' })
+  })
+
+  it('keeps every session a kept Codex pane reports', () => {
+    const h = harness()
+    h.records.set('pty-1', { ...ACCOUNT_HOME_RECORD, kept: true })
+    h.emit({ sessionId: 'c1', payload: { agentType: 'codex' } })
+    h.emit({ sessionId: 'c2', payload: { agentType: 'codex' } })
+
+    expect(h.kept.get('codex:c1')).toMatchObject({ accountId: 'acc-a' })
+    expect(h.kept.get('codex:c2')).toMatchObject({ accountId: 'acc-a' })
   })
 })

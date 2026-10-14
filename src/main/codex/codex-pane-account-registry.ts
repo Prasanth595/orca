@@ -227,6 +227,21 @@ export function setCodexPaneKept(ptyId: string, kept: boolean): SetCodexPaneKept
   return kept ? 'kept' : 'released'
 }
 
+/** After an account is removed, its kept panes follow the selection again; returns their ids. */
+export function releaseKeptCodexPanesForAccount(accountId: string): string[] {
+  const released: string[] = []
+  for (const [ptyId, record] of Object.entries(readRegistry().panes)) {
+    if (
+      record.kept &&
+      record.accountId === accountId &&
+      setCodexPaneKept(ptyId, false) === 'released'
+    ) {
+      released.push(ptyId)
+    }
+  }
+  return released
+}
+
 /**
  * Drops a PTY's record once it exits.
  */

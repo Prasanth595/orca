@@ -5,14 +5,17 @@ import { join } from 'node:path'
 import { AgentHookServer } from '../agent-hooks/server'
 import type { GlobalSettings } from '../../shared/global-settings-types'
 import type { AgentRunAccountSettings } from '../agent-accounts/agent-run-accounts'
-import type { CodexManagedAccount } from '../../shared/managed-account-types'
+import type { ClaudeManagedAccount, CodexManagedAccount } from '../../shared/managed-account-types'
 import {
   _internals as registryInternals,
-  recordCodexPaneAccount
+  getCodexPaneAccount,
+  recordCodexPaneAccount,
+  setCodexPaneKept
 } from '../codex/codex-pane-account-registry'
 import { paneKeyPtyId, ptyPaneKey, rememberPaneKeyForPty } from '../ipc/pty/pane/key-state'
 import {
   getAgentRunAccounts,
+  getKeptAgentConversations,
   installAgentRunAccounts
 } from '../agent-accounts/agent-run-accounts-installed'
 import { startAgentRunAccounts } from './main-process-agent-run-accounts'
@@ -27,6 +30,18 @@ function codexAccount(id: string): CodexManagedAccount {
     id,
     email: `${id}@example.com`,
     managedHomePath: `/data/codex-accounts/${id}/home`,
+    createdAt: 1,
+    updatedAt: 1,
+    lastAuthenticatedAt: 1
+  }
+}
+
+function claudeAccount(id: string): ClaudeManagedAccount {
+  return {
+    id,
+    email: `${id}@example.com`,
+    managedAuthPath: `/data/claude-accounts/${id}`,
+    authMethod: 'subscription-oauth',
     createdAt: 1,
     updatedAt: 1,
     lastAuthenticatedAt: 1
@@ -67,7 +82,8 @@ describe('startAgentRunAccounts', () => {
       server,
       getSettings: () => settings,
       onSettingsChanged: (listener) => settingsListeners.push(listener),
-      claudeRouter: null
+      claudeRouter: null,
+      keptFilePath: join(userDataPath, 'kept.json')
     })
     expect(getAgentRunAccounts()).toBeDefined()
     rememberPaneKeyForPty('pty-1', PANE)
@@ -96,5 +112,62 @@ describe('startAgentRunAccounts', () => {
       listener({ codexManagedAccounts: [] })
     }
     expect(server.getRunAccountRow(PANE)?.runAccount).toBeUndefined()
+  })
+
+  it('releases what was kept on a removed account and leaves other accounts alone', () => {
+    const server = new AgentHookServer()
+    let settings: AgentRunAccountSettings = {
+      codexManagedAccounts: [codexAccount('acc-a'), codexAccount('acc-b')],
+      claudeManagedAccounts: [claudeAccount('acc-a')],
+      activeClaudeManagedAccountId: null,
+      activeClaudeManagedAccountIdsByRuntime: undefined
+    }
+    const settingsListeners: ((updates: Partial<GlobalSettings>) => void)[] = []
+    startAgentRunAccounts({
+      server,
+      getSettings: () => settings,
+      onSettingsChanged: (listener) => settingsListeners.push(listener),
+      claudeRouter: null,
+      keptFilePath: join(userDataPath, 'kept.json')
+    })
+    const kept = getKeptAgentConversations()!
+    const record = { selectionKey: 'host', homeRoute: 'account-home' } as const
+    rememberPaneKeyForPty('pty-1', PANE)
+    recordCodexPaneAccount('pty-1', { ...record, accountId: 'acc-a' })
+    recordCodexPaneAccount('pty-2', { ...record, accountId: 'acc-b' })
+    setCodexPaneKept('pty-1', true)
+    setCodexPaneKept('pty-2', true)
+    kept.keep('codex', 'c1', { lane: 'host', accountId: 'acc-a', keptAt: 1 })
+    kept.keep('codex', 'c2', { lane: 'host', accountId: 'acc-b', keptAt: 1 })
+    kept.keep('claude', 'k1', { lane: 'host', accountId: 'acc-a', keptAt: 1 })
+    server.ingestTerminalStatus({
+      paneKey: PANE,
+      tabId: 'tab-1',
+      worktreeId: 'wt',
+      connectionId: null,
+      payload: { state: 'working', prompt: 'go', agentType: 'codex' }
+    })
+    expect(server.getRunAccountRow(PANE)?.runAccount).toMatchObject({ mode: 'kept' })
+
+    settings = { ...settings, codexManagedAccounts: [codexAccount('acc-b')] }
+    for (const listener of settingsListeners) {
+      listener({ codexManagedAccounts: settings.codexManagedAccounts })
+    }
+
+    expect(kept.get('codex', 'c1')).toBeNull()
+    expect(kept.get('codex', 'c2')).toMatchObject({ accountId: 'acc-b' })
+    expect(kept.get('claude', 'k1')).toMatchObject({ accountId: 'acc-a' })
+    expect(getCodexPaneAccount('pty-1')).not.toHaveProperty('kept')
+    expect(getCodexPaneAccount('pty-2')).toMatchObject({ kept: true })
+    expect(server.getRunAccountRow(PANE)?.runAccount).toMatchObject({
+      accountId: 'acc-a',
+      mode: 'follow'
+    })
+
+    settings = { ...settings, claudeManagedAccounts: [] }
+    for (const listener of settingsListeners) {
+      listener({ claudeManagedAccounts: [] })
+    }
+    expect(kept.get('claude', 'k1')).toBeNull()
   })
 })

@@ -12,6 +12,12 @@ import {
   type ClaudePaneObservation,
   type ClaudeStatusLineReport
 } from './agent-run-account-compute'
+import {
+  adoptClaudeSession,
+  adoptCodexSession,
+  keptConversationAccount,
+  type KeptConversationLookup
+} from './agent-run-account-adoption'
 
 // Why: launch facts only bridge a spawn to its first row; losing the oldest one only
 // delays that pane's facet until it reports a new session.
@@ -42,6 +48,8 @@ export type AgentRunAccountsDeps = {
     systemDefaultHome: () => string
     coveredBySystemDefault: (accountId: string) => boolean
   } | null
+  kept: KeptConversationLookup
+  now?: () => number
 }
 
 export type PaneLaunchFact = {
@@ -52,6 +60,8 @@ export type PaneLaunchFact = {
   fresh: boolean
   /** Set when the pane was started with a per-account Claude pointer (kept start). */
   claudeShellAccount?: { accountId: string | null }
+  /** The provider session a kept start resumed; Claude may report it under a new id. */
+  resumedSessionId?: string
 }
 
 type ClaudePaneState = ClaudePaneObservation & {
@@ -106,8 +116,19 @@ export class AgentRunAccounts {
 
   noteStatus(row: AgentRunAccountStatusRow): void {
     const provider = runAccountProvider(row.payload.agentType)
-    if (provider === 'claude' && row.connectionId === null && !row.structuredHost) {
-      this.observeClaudeSession(row)
+    if (row.connectionId === null && !row.structuredHost) {
+      if (provider === 'claude') {
+        this.observeClaudeSession(row)
+      } else if (provider === 'codex') {
+        const ptyId = this.deps.getPtyIdForPaneKey(row.paneKey)
+        adoptCodexSession({
+          kept: this.deps.kept,
+          record: ptyId ? this.deps.readCodexRecord(ptyId) : null,
+          sessionId: sessionIdOf(row),
+          transcriptPath: row.providerSession?.transcriptPath,
+          now: this.now()
+        })
+      }
     }
     this.publish(row)
   }
@@ -168,7 +189,10 @@ export class AgentRunAccounts {
       codexRecord: ptyId ? this.deps.readCodexRecord(ptyId) : null,
       claude: provider === 'claude' ? (this.claudePanes.get(row.paneKey) ?? null) : null,
       current: row.runAccount ?? undefined,
-      claudeKeptAccountId: undefined
+      claudeKeptAccountId:
+        provider === 'claude'
+          ? keptConversationAccount(this.deps.kept, 'claude', sessionIdOf(row))
+          : undefined
     })
   }
 
@@ -187,24 +211,47 @@ export class AgentRunAccounts {
       const pointerAccountId =
         fact?.claudeShellAccount?.accountId ??
         (shellRoute === 'account' ? persisted?.accountId : undefined)
+      // Why: only a session this runtime saw start may be dated to the selection now;
+      // one that was already running keeps what an earlier runtime recorded, or nothing.
+      const accountId = fact?.fresh
+        ? this.claudeStartAccount(shellRoute, pointerAccountId)
+        : persisted?.accountId
       setBounded(this.claudePanes, row.paneKey, {
         sessionId,
         shellRoute,
         pointerAccountId,
-        // Why: only a session this runtime saw start may be dated to the selection now;
-        // one that was already running keeps what an earlier runtime recorded, or nothing.
-        accountId: fact?.fresh
-          ? this.claudeStartAccount(shellRoute, pointerAccountId)
-          : persisted?.accountId
+        accountId
       })
+      this.adoptClaude(row, fact?.fresh ? fact.resumedSessionId : undefined, accountId)
       return
     }
+    const accountId = this.claudeStartAccount(existing.shellRoute, existing.pointerAccountId)
     setBounded(this.claudePanes, row.paneKey, {
       sessionId,
       shellRoute: existing.shellRoute,
       pointerAccountId: existing.pointerAccountId,
-      accountId: this.claudeStartAccount(existing.shellRoute, existing.pointerAccountId)
+      accountId
     })
+    this.adoptClaude(row, existing.sessionId, accountId)
+  }
+
+  private adoptClaude(
+    row: AgentRunAccountStatusRow,
+    previousSessionId: string | null | undefined,
+    accountId: string | null | undefined
+  ): void {
+    adoptClaudeSession({
+      kept: this.deps.kept,
+      previousSessionId,
+      sessionId: sessionIdOf(row),
+      accountId,
+      transcriptPath: row.providerSession?.transcriptPath,
+      now: this.now()
+    })
+  }
+
+  private now(): number {
+    return (this.deps.now ?? Date.now)()
   }
 
   /** The account a `claude` started now in this pane reads: its own pointer, or the selection. */
