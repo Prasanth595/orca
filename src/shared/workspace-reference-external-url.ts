@@ -1,3 +1,4 @@
+import { buildPlaneBrowseUrl } from './plane-url'
 import type { WorkspaceAttachment } from './worktree/types'
 
 export function getWorkspaceReferenceIdentifier(item: WorkspaceAttachment): string | undefined {
@@ -27,9 +28,14 @@ export function getWorkspaceReferenceExternalUrl(item: WorkspaceAttachment): str
       return identity.siteUrl && identifier
         ? `${identity.siteUrl.replace(/\/+$/, '')}/browse/${identifier}`
         : undefined
-    // Why: Plane links are always stored with their URL; the identity has no web base to rebuild one.
-    case 'linear':
     case 'plane':
+      return identity.webBaseUrl && identity.workspaceSlug && identifier
+        ? buildPlaneBrowseUrl(
+            { webBaseUrl: identity.webBaseUrl, workspaceSlug: identity.workspaceSlug },
+            identifier
+          )
+        : undefined
+    case 'linear':
       return undefined
   }
 }

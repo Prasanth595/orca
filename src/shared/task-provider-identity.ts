@@ -33,6 +33,8 @@ export type PlaneTaskProviderIdentity = {
   provider: 'plane'
   connectionId?: string | null
   apiBaseUrl?: string | null
+  /** Where work item links point; lets a host check a link belongs to this connection. */
+  webBaseUrl?: string | null
   workspaceSlug?: string | null
   projectId?: string | null
 }
@@ -93,6 +95,7 @@ export function normalizeTaskProviderIdentity(
         provider,
         connectionId: normalizeNonEmptyString(raw.connectionId),
         apiBaseUrl: normalizeNonEmptyString(raw.apiBaseUrl),
+        webBaseUrl: normalizeNonEmptyString(raw.webBaseUrl),
         workspaceSlug: normalizeNonEmptyString(raw.workspaceSlug),
         projectId: normalizeNonEmptyString(raw.projectId)
       }
@@ -139,7 +142,7 @@ const TASK_PROVIDER_IDENTITY_FIELDS: Record<TaskProvider, readonly string[]> = {
   gitlab: ['projectId', 'namespace', 'project', 'webUrl'],
   linear: ['workspaceId', 'workspaceName', 'teamId', 'teamKey'],
   jira: ['siteId', 'siteUrl', 'projectKey'],
-  plane: ['connectionId', 'apiBaseUrl', 'workspaceSlug', 'projectId']
+  plane: ['connectionId', 'apiBaseUrl', 'webBaseUrl', 'workspaceSlug', 'projectId']
 }
 
 export function areTaskProviderIdentitiesEqual(

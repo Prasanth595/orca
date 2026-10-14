@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { translate } from '@/i18n/i18n'
 import { isScreenSubmitShortcut } from '@/lib/screen-submit-shortcut'
+import { useAppStore } from '@/store'
 import type { WorkspaceAttachment } from '../../../../shared/worktree/types'
 import { isIdentifierKeyedProvider } from '../../../../shared/task-providers'
 import type { RowEntry } from '../new-workspace/smart-workspace-name-field-model'
@@ -51,6 +52,7 @@ export function WorkspaceAttachmentSearch({
 }): React.JSX.Element {
   const [selection, setSelection] = useState('')
   const inputId = useId()
+  const planeStatus = useAppStore((s) => s.planeStatus)
   const contexts = useMemo(
     () => ({
       github: getWorkspaceAttachmentSourceContext('github', props.repo, props.workspace),
@@ -115,7 +117,7 @@ export function WorkspaceAttachmentSearch({
     }
   }
   const rows = controller.rows
-  const parsedDirect = parseWorkspaceAttachmentInput(query, kind)
+  const parsedDirect = parseWorkspaceAttachmentInput(query, kind, planeStatus)
   const resolvedDirectRow =
     !controller.isQueryStale && parsedDirect
       ? rows.find((row) => {
@@ -130,8 +132,11 @@ export function WorkspaceAttachmentSearch({
   const scopeError = direct ? props.getScopeError(direct) : null
   const directValue = direct ? `attachment-direct:${getWorkspaceAttachmentKey(direct)}` : ''
   const ambiguousNumber = /^#?\d+$/.test(query.trim())
+  // Why not Plane: it has no attachment search, so a pasted Plane URL attaches as parsed.
   const taskUrlProvider =
-    /^https?:\/\//i.test(query.trim()) && isIdentifierKeyedProvider(parsedDirect?.provider)
+    /^https?:\/\//i.test(query.trim()) &&
+    isIdentifierKeyedProvider(parsedDirect?.provider) &&
+    parsedDirect.provider !== 'plane'
       ? parsedDirect.provider
       : null
   const directEnabled = Boolean(

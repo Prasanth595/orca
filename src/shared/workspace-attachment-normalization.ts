@@ -3,7 +3,7 @@ import {
   mergeWorkspaceAttachmentOrigins
 } from './workspace-attachment-origins'
 import type { WorkspaceAttachment, WorkspaceLinkedItem } from './worktree/types'
-import { isIdentifierKeyedProvider } from './task-providers'
+import { isIdentifierKeyedProvider, isTaskProvider } from './task-providers'
 import { getTaskSourceCacheScope, normalizeStoredTaskSourceContext } from './task-source-context'
 import { normalizeWorkspaceLinkedItem } from './workspace-linked-item'
 import { getProvenWorkspaceReferenceIdentity } from './workspace-reference-identity'
@@ -22,11 +22,9 @@ export function normalizeWorkspaceAttachment(value: unknown): WorkspaceAttachmen
   }
   const raw: Record<string, unknown> = Object.fromEntries(Object.entries(value))
   const provider = raw.provider
+  // Why isTaskProvider: every task provider, Plane included, can be attached; a hand list drifted.
   if (
-    provider !== 'github' &&
-    provider !== 'gitlab' &&
-    provider !== 'linear' &&
-    provider !== 'jira' &&
+    !isTaskProvider(provider) &&
     provider !== 'bitbucket' &&
     provider !== 'azure-devops' &&
     provider !== 'gitea'
@@ -48,7 +46,9 @@ export function normalizeWorkspaceAttachment(value: unknown): WorkspaceAttachmen
   }
   const identifier =
     nonEmpty(raw.identifier) ?? nonEmpty(raw.linearIdentifier) ?? nonEmpty(raw.jiraIdentifier)
-  if (raw.number === 0 && (!identifier || !isIdentifierKeyedProvider(provider))) {
+  // Why the Plane URL case: a work item pasted as its project URL has no readable ID yet.
+  const planeUrlOnly = provider === 'plane' && typeof raw.url === 'string'
+  if (raw.number === 0 && (!(identifier || planeUrlOnly) || !isIdentifierKeyedProvider(provider))) {
     return null
   }
   if (raw.url !== undefined) {

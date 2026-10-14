@@ -7,6 +7,7 @@ import { TaskPageGitLabTodoList } from './gitlab/TodoList'
 import { TaskPageGitLabItemList } from './gitlab/ItemList'
 import { TaskPageJiraContent } from './jira/Content'
 import { TaskPagePlaneContent } from './plane/TaskPagePlaneContent'
+import { planeCreateWorkspaceActionSlots } from './plane/plane-create-workspace-action-slots'
 export function TaskPageContent({
   model
 }: {
@@ -79,7 +80,10 @@ export function TaskPageContent({
     // Why: the Jira content component also routes Linear to its own view.
     <TaskPageJiraContent model={model} />
   ) : taskSource === 'plane' ? (
-    <TaskPagePlaneContent onHide={() => hideTaskSource('plane', 'Plane')} />
+    <TaskPagePlaneContent
+      onHide={() => hideTaskSource('plane', 'Plane')}
+      {...planeCreateWorkspaceActionSlots(model.planeTaskSourceContext)}
+    />
   ) : (
     unhandledTaskSource(taskSource)
   )

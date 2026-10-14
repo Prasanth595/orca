@@ -1,4 +1,6 @@
 import { parseJiraIssueUrl } from './jira-issue-url'
+import { parsePlaneWorkItemIdentifier } from './plane-ids'
+import { parsePlaneWorkItemUrl } from './plane-url'
 import { getWorkspaceSourceProvider } from './new-workspace/workspace-source'
 import type { TaskSourceContext } from './task-source-context'
 import type { WorkspaceLinkedItem } from './worktree/types'
@@ -36,6 +38,9 @@ export function isWorkspaceLinkedItemSourceContextMatch(
   if (itemProvider !== context.provider) {
     return false
   }
+  if (itemProvider === 'plane') {
+    return isPlaneLinkedItemSourceContextMatch(item, context)
+  }
   if (itemProvider !== 'jira') {
     return true
   }
@@ -64,4 +69,32 @@ export function isWorkspaceLinkedItemSourceContextMatch(
     itemUrl.origin === siteUrl.origin &&
     itemUrl.sitePath === siteUrl.sitePath
   )
+}
+
+// Why: the link must point into the connection's own web base and workspace, so a source
+// context for one Plane workspace can never vouch for an item from another.
+function isPlaneLinkedItemSourceContextMatch(
+  item: Pick<WorkspaceLinkedItem, 'type' | 'number' | 'url'> & Partial<WorkspaceLinkedItem>,
+  context: TaskSourceContext
+): boolean {
+  const identity = context.providerIdentity
+  if (
+    item.type !== 'issue' ||
+    item.number !== 0 ||
+    identity?.provider !== 'plane' ||
+    !identity.connectionId ||
+    !identity.webBaseUrl ||
+    !identity.workspaceSlug ||
+    !parsePlaneWorkItemIdentifier(item.identifier)
+  ) {
+    return false
+  }
+  const ref = parsePlaneWorkItemUrl(item.url, identity.webBaseUrl)
+  if (!ref || ref.workspaceSlug !== identity.workspaceSlug.toLowerCase()) {
+    return false
+  }
+  if (ref.kind === 'identifier') {
+    return ref.identifier === parsePlaneWorkItemIdentifier(item.identifier)?.identifier
+  }
+  return !identity.projectId || ref.projectId === identity.projectId.toLowerCase()
 }

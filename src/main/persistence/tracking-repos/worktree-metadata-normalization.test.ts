@@ -163,6 +163,23 @@ describe('normalizeWorktreeLinkedItemMetadata', () => {
     expect(normalizeWorktreeLinkedItemMetadata(state)).toBe(false)
     expect(state.worktreeMeta['r1::/tmp/wt'].linkedWorkItem).toEqual(linkedWorkItem)
   })
+
+  it('keeps a Plane work item link across a reload', () => {
+    const linkedWorkItem = {
+      provider: 'plane' as const,
+      type: 'issue' as const,
+      number: 0,
+      title: 'WEB-12 Fix login',
+      url: 'https://plane.example.test/acme/projects/0b5c7c4e-2f0a-4c1e-9d55-0d6c1a2b3c4d/issues/9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d',
+      identifier: 'WEB-12'
+    }
+    const state = makeState({
+      worktreeMeta: { 'r1::/tmp/wt': { ...makeMeta(), linkedWorkItem } }
+    })
+
+    expect(normalizeWorktreeLinkedItemMetadata(state)).toBe(false)
+    expect(state.worktreeMeta['r1::/tmp/wt'].linkedWorkItem).toEqual(linkedWorkItem)
+  })
 })
 
 describe('gcStaleWorktreeMeta', () => {

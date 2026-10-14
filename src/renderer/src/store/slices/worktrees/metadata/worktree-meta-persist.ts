@@ -1,4 +1,7 @@
-import { assertWorkspaceAttachmentWriteCapability } from '../../../../runtime/runtime-workspace-attachment-capabilities'
+import {
+  assertPlaneLinkRuntimeCapability,
+  assertWorkspaceAttachmentWriteCapability
+} from '../../../../runtime/runtime-workspace-attachment-capabilities'
 import type { WorkspaceAttachmentMutation } from '../../../../../../shared/workspace-attachment-mutation'
 import { getLegacyWorkspaceReviewSelectionUpdates } from '../../../../../../shared/workspace-attachment-legacy'
 import { WORKTREE_LINKED_ITEMS_RUNTIME_CAPABILITY } from '../../../../../../shared/workspace-attachment-capabilities'
@@ -96,6 +99,7 @@ async function persistWorktreeMetaUntracked(
     return
   }
   await assertWorkspaceAttachmentWriteCapability(target, updates)
+  await assertPlaneLinkRuntimeCapability(target, updates)
   // Why: `worktree.set` parses in strip mode, so an older runtime drops the key
   // and applies the rest. Both gates key off presence, not value — a dropped
   // *clear* strands a stale link that the Issue row then hides.

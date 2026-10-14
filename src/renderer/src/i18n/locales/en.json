@@ -19974,7 +19974,9 @@
       "checksPassing": "Passing",
       "checksUnknown": "Unknown",
       "checksNeutral": "Neutral",
-      "allReviewChecks": "Reviews: {{count}} · Checks: {{status}}"
+      "allReviewChecks": "Reviews: {{count}} · Checks: {{status}}",
+      "linkedPlane": "Linked Plane {{value0}}",
+      "planeWorkItem": "Plane work item"
     },
     "attachments": {
       "updateRuntime": "Update the remote runtime to change workspace links",
@@ -20227,6 +20229,7 @@
     },
     "tasks": {
       "empty": "No work items in the chosen projects.",
+      "createWorkspace": "Create workspace",
       "listTitle": "Plane work items",
       "shown": "{{count}} shown",
       "needsScopeTitle": "Choose Plane projects",
@@ -20242,7 +20245,9 @@
       "idNotFound": "{{identifier}} was not found in this workspace.",
       "unknownProject": "A project",
       "noMatch": "No work items match these filters.",
-      "clearFilters": "Clear filters"
+      "clearFilters": "Clear filters",
+      "createWorkspaceFor": "Create workspace from {{value0}}",
+      "linkSourceUnavailable": "Couldn’t link this Plane work item. Reconnect Plane, then try again."
     },
     "stateGroup": {
       "backlog": "Backlog",
@@ -20307,6 +20312,9 @@
     },
     "list": {
       "label": "Plane work items"
+    },
+    "link": {
+      "updateRequired": "Update the remote runtime to link Plane work items"
     }
   }
 }

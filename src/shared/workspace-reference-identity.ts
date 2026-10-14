@@ -1,6 +1,7 @@
 import { parseJiraIssueUrl, JIRA_ISSUE_KEY_PATTERN } from './jira-issue-url'
 import { parseLinearIssueInput, parseLinearIssueUrlIntent } from './linear/links'
 import { getTaskSourceCacheScope } from './task-source-context'
+import { parsePlaneReferenceRoute } from './workspace-reference-plane'
 import type { WorkspaceAttachment } from './worktree/types'
 import {
   getWorkspaceReferenceExternalUrl,
@@ -19,6 +20,7 @@ const HOST_PROVIDERS: Readonly<Record<string, WorkspaceAttachment['provider']>> 
   'github.com': 'github',
   'gitlab.com': 'gitlab',
   'linear.app': 'linear',
+  'app.plane.so': 'plane',
   'codeberg.org': 'gitea',
   'bitbucket.org': 'bitbucket',
   'dev.azure.com': 'azure-devops'
@@ -96,6 +98,10 @@ function parseReferenceRoute(
       linearOrganizationUrlKey: linear.organizationUrlKey.toLowerCase(),
       url: url.href
     }
+  }
+  const plane = providerHint === 'plane' ? parsePlaneReferenceRoute(url) : null
+  if (plane) {
+    return plane
   }
   // Git hosts (and Bitbucket Server /repos/ file views) also serve /browse/KEY-1 paths.
   const jira =
