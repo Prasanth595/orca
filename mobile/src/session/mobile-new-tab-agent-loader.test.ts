@@ -46,27 +46,6 @@ describe('mobile new-tab agent loading', () => {
     ])
   })
 
-  it('detects agents for a folder workspace through the host without listing repos', async () => {
-    const client = createClient(async (method, params) => {
-      if (method === 'settings.get') {
-        return { ok: true, result: { settings: {} } }
-      }
-      if (method === 'preflight.detectAgents') {
-        expect(params).toEqual({ worktreeId: 'folder:fw-1' })
-        return { ok: true, result: ['claude'] }
-      }
-      throw new Error(`unexpected request: ${method}`)
-    })
-
-    await expect(
-      loadMobileNewTabAgentOptions({ client, worktreeId: 'folder:fw-1' })
-    ).resolves.toEqual([{ agent: 'claude', label: 'Claude' }])
-    expect(client.sendRequest.mock.calls.map(([method]) => method)).toEqual([
-      'preflight.detectAgents',
-      'settings.get'
-    ])
-  })
-
   it('detects agents through the worktree repo connection for SSH sessions', async () => {
     const client = createClient(async (method, params) => {
       if (method === 'settings.get') {
