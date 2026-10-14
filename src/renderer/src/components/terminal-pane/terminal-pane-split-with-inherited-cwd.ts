@@ -1,6 +1,7 @@
 import type { TerminalPaneSplitSource } from '../../../../shared/feature-education-telemetry'
 import type { ManagedPane, PaneManager } from '@/lib/pane-manager/pane-manager'
 import { splitWebRuntimeTerminal } from '@/runtime/web-runtime-terminal-actions'
+import { useAppStore } from '@/store'
 import type { PtyTransport } from './pty-transport-types'
 import { resolveSplitCwd, type PaneCwdMap } from './resolve-split-cwd'
 import { recordCreatedTerminalPaneSplit } from './terminal-pane-split-completion'
@@ -31,9 +32,14 @@ export function splitTerminalPaneWithInheritedCwd(args: {
   if (!manager) {
     return
   }
+  const focusNewPane = useAppStore.getState().settings?.terminalFocusNewSplitPane !== false
+  const focusOption = focusNewPane ? {} : { focusNewPane: false }
   const cached = args.paneCwdMap.get(args.pane.id)
   if (cached?.confirmed && cached.cwd) {
-    const createdPane = manager.splitPane(args.pane.id, args.direction, { cwd: cached.cwd })
+    const createdPane = manager.splitPane(args.pane.id, args.direction, {
+      cwd: cached.cwd,
+      ...focusOption
+    })
     recordCreatedTerminalPaneSplit(createdPane, {
       source: args.source,
       direction: args.direction
@@ -49,7 +55,10 @@ export function splitTerminalPaneWithInheritedCwd(args: {
       sourcePtyId: ptyId,
       fallbackCwd: args.fallbackCwd
     })
-  const createdPane = manager.splitPane(paneId, args.direction, { cwdPromise })
+  const createdPane = manager.splitPane(paneId, args.direction, {
+    cwdPromise,
+    ...focusOption
+  })
   recordCreatedTerminalPaneSplit(createdPane, {
     source: args.source,
     direction: args.direction
