@@ -210,10 +210,21 @@ async function piHost() {
       options: opts.saved ?? {},
       events: rig.eventSink
     })
-    if (!acquired.catalogListing) {
+    const started = await adapter
+      .open({
+        sessionId,
+        fence: 1,
+        acquisitionGeneration: acquired.acquisitionGeneration ?? null,
+        signal: new AbortController().signal
+      })
+      .catch(async (error: unknown) => {
+        await adapter.closeSession(sessionId)
+        throw error
+      })
+    if (!started.catalogListing) {
       throw new Error('a Pi start hands the host its listing')
     }
-    catalog.recordLiveListing(sessionId, acquired.catalogListing)
+    catalog.recordLiveListing(sessionId, started.catalogListing)
     if (opts.afterStart && child) {
       await opts.afterStart({ child, adapter, sessionId })
     }
@@ -224,7 +235,7 @@ async function piHost() {
       }
     }
     await read()
-    return { listing: acquired.catalogListing, read }
+    return { listing: started.catalogListing, read }
   }
   return { catalog, chat, store, clock }
 }
@@ -301,12 +312,12 @@ describe('Pi’s default comes from what a chat with no pick runs', () => {
     const { catalog, chat } = await piHost()
     const clean = workspace('clean')
     await catalog.read({ agent: 'pi', waitForListing: true })
-    expect((await chat(clean, { available: [] })).listing).not.toHaveProperty('configuredDefault')
+    await expect(chat(clean, { available: [] })).rejects.toMatchObject({ reason: 'notSignedIn' })
     expect(firstFrame(await catalog.read({ agent: 'pi', workspacePath: clean }))).toEqual(NOTHING)
 
     // Nor does it forget one a signed-in chat taught.
     await chat(clean)
-    await chat(clean, { available: [] })
+    await expect(chat(clean, { available: [] })).rejects.toMatchObject({ reason: 'notSignedIn' })
     expect(firstFrame(await catalog.read({ agent: 'pi', workspacePath: clean }))).toEqual({
       model: 'openai/gpt-6',
       effort: 'high'

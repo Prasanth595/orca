@@ -25,11 +25,13 @@ import { PI_SESSION_HISTORY } from './pi-session-history'
 function createPiRpcAdapter(context: StructuredAgentAdapterContext): StructuredAgentRuntimeAdapter {
   const { deps } = context
   return new PiRpcSessionAdapter({
-    resolveLaunch: composeStructuredLaunch(
-      PI_RPC_AGENT,
-      structuredAgentLaunchSources(context),
-      piRpcLaunchPart({})
-    ),
+    resolveLaunch:
+      deps.resolvePiLaunch ??
+      composeStructuredLaunch(
+        PI_RPC_AGENT,
+        structuredAgentLaunchSources(context),
+        piRpcLaunchPart({})
+      ),
     ...(deps.openPiConnection ? { openConnection: deps.openPiConnection } : {}),
     ...(deps.readProcessStartTime ? { readProcessStartTime: deps.readProcessStartTime } : {}),
     onLifecycle: context.deliverLifecycle,

@@ -94,7 +94,6 @@ export function createStructuredAgentSessionConversationDelivery(input: {
           },
           providerHoldsDispatch: () => deps.adapter.holdsDispatch?.(sessionId) === true
         },
-        startUnavailable: () => deps.adapter.startUnavailable?.(sessionId),
         launchPermission: async () => {
           const record = deps.store.getRecord(sessionId)
           return record ? structuredAgentSessionLaunchPermission(deps, record) : null
@@ -205,7 +204,7 @@ export function createStructuredAgentSessionConversationDelivery(input: {
  * A rewind found prepared when the conversation opens was started under a child this process no
  * longer has — the open runs only when none is indexed — so nothing will finish it, and left alone
  * it refuses every send until a view attaches. Settled here instead of by a start inside
- * acceptance. A Codex rewind only its provider can prove stays for the attach.
+ * acceptance. A Codex rewind only its provider can prove stays for the next proven start.
  */
 async function settleInterruptedCommands(
   deps: StructuredAgentSessionHostDeps,
