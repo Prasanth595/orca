@@ -133,7 +133,10 @@ export function MobileSessionCommandDock({ controller }: { controller: MobileSes
               const isFirstRow = rowIndex === 0
               const isLastRow = rowIndex === displayedAccessoryRows.length - 1
               return (
-                <View key={`accessory-row-${rowIndex}`} style={styles.accessoryRow}>
+                <View
+                  key={`accessory-row-${displayedAccessoryRows.length}-${rowIndex}`}
+                  style={styles.accessoryRow}
+                >
                   {/* Why: fixed keyboard escape hatch; outside ScrollView + shortcut path so it can't scroll away or be hidden (#5106). */}
                   {isFirstRow && keyboardLift > 0 && (
                     <Pressable
