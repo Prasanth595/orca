@@ -28,47 +28,15 @@ import type { MobileSessionController } from './use-mobile-session-controller'
 
 export function MobileSessionCommandDock({ controller }: { controller: MobileSessionController }) {
   const {
-    insets,
-    bufferedTerminalDraftState,
-    autocompleteEnabled,
-    liveInputCapture,
-    activeHandle,
-    setShowCustomKeyModal,
-    setDeleteKeyTarget,
-    visibleAccessoryRows,
-    terminalModes,
-    canPaste,
-    dictationMode,
-    bindCommandField,
-    handleLiveInputChange,
-    handleLiveInputKeyPress,
-    bindLiveInputField,
-    submitLiveInput,
-    canSend,
-    canCompose,
-    liveInputEnabled,
-    focusLiveInput,
-    showNativeChat,
-    dictation,
-    cancelDictation,
-    handleDictationToggle,
-    handleDictationPressIn,
-    handleDictationPressOut,
-    toggleDisplayMode,
-    handleSend,
-    handleAccessoryKey,
-    dismissSoftwareKeyboard,
-    toggleLiveInput,
-    stopAccessoryRepeat,
-    startAccessoryRepeat,
-    consumeAccessoryRepeatHandled,
-    handlePaste,
-    isAttaching,
-    attachImage,
-    activeMarkdownTab,
-    activeFileTab,
-    activeBrowserTab,
-    keyboardLift
+    insets, bufferedTerminalDraftState, autocompleteEnabled, liveInputCapture,
+    activeHandle, setShowCustomKeyModal, setDeleteKeyTarget, visibleAccessoryRows,
+    terminalModes, canPaste, dictationMode, bindCommandField, handleLiveInputChange,
+    handleLiveInputKeyPress, bindLiveInputField, submitLiveInput, canSend, canCompose,
+    liveInputEnabled, focusLiveInput, showNativeChat, dictation, cancelDictation,
+    handleDictationToggle, handleDictationPressIn, handleDictationPressOut, toggleDisplayMode,
+    handleSend, handleAccessoryKey, dismissSoftwareKeyboard, toggleLiveInput,
+    stopAccessoryRepeat, startAccessoryRepeat, consumeAccessoryRepeatHandled, handlePaste,
+    isAttaching, attachImage, activeMarkdownTab, activeFileTab, activeBrowserTab, keyboardLift
   } = controller
   const [isAccessoryRowsCollapsed, setIsAccessoryRowsCollapsed] = useState(false)
   const hasMultipleAccessoryRows = visibleAccessoryRows.length > 1
@@ -79,10 +47,7 @@ export function MobileSessionCommandDock({ controller }: { controller: MobileSes
   const accessoryBarKeepsKeyboard = useKeyboardPersistingTaps('always')
   const isPhoneMode = isTerminalPhoneDisplayMode(activeHandle, terminalModes)
   const inputActionsProps = {
-    canSend,
-    isAttaching,
-    dictation,
-    dictationMode,
+    canSend, isAttaching, dictation, dictationMode,
     buttonStyle: styles.dictationButton,
     activeButtonStyle: styles.dictationButtonActive,
     disabledButtonStyle: styles.sendButtonDisabled,
@@ -140,10 +105,7 @@ export function MobileSessionCommandDock({ controller }: { controller: MobileSes
                   {/* Why: fixed keyboard escape hatch; outside ScrollView + shortcut path so it can't scroll away or be hidden (#5106). */}
                   {isFirstRow && keyboardLift > 0 && (
                     <Pressable
-                      style={({ pressed }) => [
-                        styles.keyboardDismissKey,
-                        pressed && styles.accessoryKeyPressed
-                      ]}
+                      style={({ pressed }) => [styles.keyboardDismissKey, pressed && styles.accessoryKeyPressed]}
                       onPress={dismissSoftwareKeyboard}
                       hitSlop={8}
                       accessibilityRole="button"
@@ -152,12 +114,7 @@ export function MobileSessionCommandDock({ controller }: { controller: MobileSes
                     >
                       <View style={styles.keyboardDismissGlyph}>
                         <KeyboardIcon size={15} color={colors.textSecondary} strokeWidth={2} />
-                        <ChevronDown
-                          size={10}
-                          color={colors.textSecondary}
-                          strokeWidth={2.5}
-                          style={styles.keyboardDismissChevron}
-                        />
+                        <ChevronDown size={10} color={colors.textSecondary} strokeWidth={2.5} style={styles.keyboardDismissChevron} />
                       </View>
                     </Pressable>
                   )}
@@ -188,15 +145,9 @@ export function MobileSessionCommandDock({ controller }: { controller: MobileSes
                         }
                       >
                         {isPhoneMode ? (
-                          <Monitor
-                            size={14}
-                            color={canSend ? colors.textSecondary : colors.textMuted}
-                          />
+                          <Monitor size={14} color={canSend ? colors.textSecondary : colors.textMuted} />
                         ) : (
-                          <Smartphone
-                            size={14}
-                            color={canSend ? colors.textSecondary : colors.textMuted}
-                          />
+                          <Smartphone size={14} color={canSend ? colors.textSecondary : colors.textMuted} />
                         )}
                       </Pressable>
                       <Pressable
@@ -237,12 +188,7 @@ export function MobileSessionCommandDock({ controller }: { controller: MobileSes
                           onPress={() => void handlePaste()}
                           accessibilityLabel="Paste from clipboard"
                         >
-                          <Text
-                            style={[
-                              styles.accessoryKeyText,
-                              !canSend && styles.accessoryKeyTextDisabled
-                            ]}
-                          >
+                          <Text style={[styles.accessoryKeyText, !canSend && styles.accessoryKeyTextDisabled]}>
                             Paste
                           </Text>
                         </Pressable>
