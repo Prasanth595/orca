@@ -138,4 +138,41 @@ describe('terminal.create RPC idempotency', () => {
       expect.objectContaining({ presentation: 'focused', focus: true, activate: true })
     )
   })
+
+  it('forwards the sidebar opt-out and omits it by default', async () => {
+    const createTerminal = vi.fn(
+      async (_worktree: string | undefined, _opts: Record<string, unknown>) => ({
+        handle: 'terminal-quiet'
+      })
+    )
+    const dedupeTerminalCreate = vi.fn(
+      async (
+        _owner: string,
+        _worktree: string | undefined,
+        _mutationId: string | undefined,
+        _reconcile: boolean,
+        run: (worktree: string | undefined, handle: string | undefined) => Promise<unknown>
+      ) => run('id:worktree-1', undefined)
+    )
+    const method = eraseRpcMethods(TERMINAL_METHODS).find(
+      (candidate) => candidate.name === 'terminal.create'
+    )
+    if (!method) {
+      throw new Error('terminal.create method missing')
+    }
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: terminal.create reads only `createTerminal` and `dedupeTerminalCreate`, both stubbed here.
+    const context = { runtime: { createTerminal, dedupeTerminalCreate } } as unknown as RpcContext
+
+    await method.handler({ worktree: 'id:worktree-1', surfaceOwner: false }, context, vi.fn())
+    await method.handler({ worktree: 'id:worktree-1' }, context, vi.fn())
+    await method.handler({ worktree: 'id:worktree-1', surfaceOwner: true }, context, vi.fn())
+
+    expect(createTerminal).toHaveBeenNthCalledWith(
+      1,
+      'id:worktree-1',
+      expect.objectContaining({ surfaceOwner: false })
+    )
+    expect(createTerminal.mock.calls[1]?.[1]).not.toHaveProperty('surfaceOwner')
+    expect(createTerminal.mock.calls[2]?.[1]).not.toHaveProperty('surfaceOwner')
+  })
 })

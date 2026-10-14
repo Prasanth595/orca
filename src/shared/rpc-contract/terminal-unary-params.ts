@@ -192,6 +192,9 @@ export const TerminalCreateParams = z.object({
   rendererBacked: z.unknown().optional(),
   activate: z.unknown().optional(),
   presentation: z.enum(['background', 'focused']).optional(),
+  // Why: `false` adds the tab without revealing or expanding its worktree in the sidebar; absent or
+  // `true` keeps the default reveal, so a peer spelling the default out is not refused.
+  surfaceOwner: z.boolean().optional(),
   tabId: OptionalString,
   leafId: OptionalString,
   spawnIntent: SpawnIntentParam.optional(),

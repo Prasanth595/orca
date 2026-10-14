@@ -158,6 +158,13 @@ export const TERMINAL_HANDLERS: Record<string, CommandHandler> = {
     const useRendererBackedInteractiveTerminal =
       !client.isRemote && shouldUseRendererBackedInteractiveTerminal(command)
     const focus = flags.get('focus') === true
+    const noReveal = flags.get('no-reveal') === true
+    if (focus && noReveal) {
+      throw new RuntimeClientError(
+        'invalid_argument',
+        'Choose either --focus or --no-reveal, not both.'
+      )
+    }
     const shell = getOptionalStringFlag(flags, 'shell')
     if (shell !== undefined) {
       if (!isSupportedWindowsShellOverride(shell)) {
@@ -198,6 +205,8 @@ export const TERMINAL_HANDLERS: Record<string, CommandHandler> = {
       // unless the caller explicitly asks for focus.
       focus,
       ...(focus ? { presentation: 'focused' } : {}),
+      // Why: an older host strips this and reveals as before, which is harmless.
+      ...(noReveal ? { surfaceOwner: false } : {}),
       ...(useRendererBackedInteractiveTerminal ? { rendererBacked: true, activate: focus } : {})
     })
     printResult(result, json, formatTerminalCreate)

@@ -65,7 +65,7 @@ export const ROOT_HELP_TEXT_SECONDARY = [
   '  orca terminal send [--terminal <handle>] [--text <text>] [--enter] [--interrupt] [--wait-submit <seconds>] [--retry-request <id>] [--json]',
   '  orca terminal wait [--terminal <handle>] --for exit|tui-idle [--timeout-ms <ms>] [--json]',
   '  orca agent launch --agent <id> [--worktree <selector>] [--prompt <text>] [--model <id>] [--effort <level>] [--focus] [--json]',
-  '  orca terminal create [--worktree <selector>] [--title <name>] [--command <text>] [--shell <shell>] [--focus] [--json]',
+  '  orca terminal create [--worktree <selector>] [--title <name>] [--command <text>] [--shell <shell>] [--focus|--no-reveal] [--json]',
   '  orca terminal split [--terminal <handle>] [--direction horizontal|vertical] [--json]',
   '  orca terminal switch [--terminal <handle>] [--json]',
   '  orca terminal close ([--terminal <handle>] [--tab] | --worktree <selector> --all) [--json]',

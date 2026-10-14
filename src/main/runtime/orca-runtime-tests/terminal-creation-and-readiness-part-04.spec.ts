@@ -576,4 +576,66 @@ describe('OrcaRuntimeService', () => {
       expect.any(Function)
     )
   })
+
+  it('forwards surfaceOwner: false to a renderer-backed create so the sidebar stays put', async () => {
+    const webContents = { send: vi.fn() }
+    let nextTab = 0
+    const send = vi.fn((_channel: string, payload: { requestId: string }) => {
+      nextTab += 1
+      const tabId = `tab-renderer-${nextTab}`
+      runtime.syncWindowGraph(1, {
+        tabs: [
+          {
+            tabId,
+            worktreeId: TEST_WORKTREE_ID,
+            title: 'Worker',
+            activeLeafId: 'pane:1',
+            layout: null
+          }
+        ],
+        leaves: [
+          {
+            tabId,
+            worktreeId: TEST_WORKTREE_ID,
+            leafId: 'pane:1',
+            paneRuntimeId: nextTab,
+            ptyId: `pty-renderer-${nextTab}`,
+            paneTitle: null
+          }
+        ]
+      })
+      ipcMain.emit(
+        'terminal:tabCreateReply',
+        { sender: webContents },
+        { requestId: payload.requestId, tabId, title: 'Worker' }
+      )
+    })
+    webContents.send = send
+    const runtime = new OrcaRuntimeService(store)
+    runtime.attachWindow(1)
+    runtime.syncWindowGraph(1, { tabs: [], leaves: [] })
+    electronMocks.BrowserWindow.fromId.mockReturnValue({
+      isDestroyed: () => false,
+      webContents
+    })
+
+    await runtime.createTerminal(`id:${TEST_WORKTREE_ID}`, {
+      command: 'codex',
+      rendererBacked: true,
+      title: 'Worker',
+      surfaceOwner: false
+    })
+    expect(send).toHaveBeenLastCalledWith(
+      'terminal:requestTabCreate',
+      expect.objectContaining({ activate: false, surfaceOwner: false })
+    )
+
+    // Control: without the opt-out the renderer keeps its default reveal.
+    await runtime.createTerminal(`id:${TEST_WORKTREE_ID}`, {
+      command: 'codex',
+      rendererBacked: true,
+      title: 'Worker'
+    })
+    expect(send.mock.lastCall?.[1]).not.toHaveProperty('surfaceOwner')
+  })
 })

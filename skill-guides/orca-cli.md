@@ -198,6 +198,7 @@ ORCA terminal wait --terminal <handle> --for tui-idle --timeout-ms 300000 --json
 ORCA terminal create --json
 ORCA terminal create --title "Worker" --json
 ORCA terminal create --worktree active --command "pnpm dev" --json
+ORCA terminal create --worktree active --command "pnpm test" --no-reveal --json
 ORCA terminal split --terminal <handle> --direction vertical --json
 ORCA terminal split --terminal <handle> --direction horizontal --command "npm test" --json
 ORCA terminal rename --terminal <handle> --title "New Name" --json
@@ -209,6 +210,7 @@ ORCA terminal close --worktree id:<repoId>::<worktreePath> --all --json
 Terminal rules:
 
 - `--terminal` is optional for most commands; omitted means the active terminal in the current worktree.
+- `terminal create` reveals the new tab's worktree in the sidebar and expands its collapsed repo group. Pass `--no-reveal` for background terminals the user did not ask to see; it cannot be combined with `--focus`.
 - Use `terminal close --terminal <handle>` to close one terminal. Use `terminal close --worktree <selector> --all` to stop every terminal process in exactly that workspace and durably remove its terminal tabs, layouts, and agent-resume records.
 - A bulk close fails when the execution host cannot confirm every PTY stopped. Treat that as `unverifiable`; do not report the processes as exited or retry against another host.
 - Use workspace Sleep, not close, when the terminals and agent sessions should resume later. `terminal stop` is legacy compatibility plumbing and should not be used in new agent workflows.

@@ -660,4 +660,64 @@ describe('orca cli worktree awareness', () => {
       focus: false
     })
   })
+
+  it.each([
+    { command: 'npm test', rendererBacked: {} },
+    { command: 'codex', rendererBacked: { rendererBacked: true, activate: false } }
+  ])(
+    'asks terminal.create not to reveal the worktree for --no-reveal ($command)',
+    async ({ command, rendererBacked }) => {
+      queueFixtures(
+        callMock,
+        okFixture('req_terminal_create', {
+          terminal: { handle: 'term_1', worktreeId: 'repo-1::/tmp/repo/feature', title: 'worker' }
+        })
+      )
+      vi.spyOn(console, 'log').mockImplementation(() => {})
+
+      await main(
+        [
+          'terminal',
+          'create',
+          '--worktree',
+          'path:/tmp/repo/feature',
+          '--title',
+          'worker',
+          '--command',
+          command,
+          '--no-reveal',
+          '--json'
+        ],
+        '/tmp/repo'
+      )
+
+      expect(callMock).toHaveBeenCalledWith('terminal.create', {
+        worktree: 'path:/tmp/repo/feature',
+        command,
+        title: 'worker',
+        focus: false,
+        surfaceOwner: false,
+        ...rendererBacked
+      })
+    }
+  )
+
+  it('rejects --focus with --no-reveal before creating a terminal', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const priorExitCode = process.exitCode
+
+    await main(
+      ['terminal', 'create', '--worktree', 'path:/tmp/repo/feature', '--focus', '--no-reveal'],
+      '/tmp/repo'
+    )
+
+    expect(callMock).not.toHaveBeenCalledWith('terminal.create', expect.anything())
+    expect([...logSpy.mock.calls, ...errSpy.mock.calls].flat().join('\n')).toContain(
+      'Choose either --focus or --no-reveal, not both.'
+    )
+    expect(process.exitCode).toBe(1)
+
+    process.exitCode = priorExitCode
+  })
 })

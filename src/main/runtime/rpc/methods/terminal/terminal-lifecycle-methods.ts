@@ -76,6 +76,7 @@ export const TERMINAL_LIFECYCLE_METHODS = [
               rendererBacked: params.rendererBacked === true,
               activate,
               presentation,
+              ...(params.surfaceOwner === false ? { surfaceOwner: false as const } : {}),
               tabId: params.tabId,
               leafId: params.leafId,
               ...(params.spawnIntent ? { spawnIntent: params.spawnIntent } : {}),
