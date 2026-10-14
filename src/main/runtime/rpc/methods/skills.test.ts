@@ -14,6 +14,12 @@ import {
   discoverSkillsOnTarget,
   resolveSkillDiscoveryTarget
 } from '../../../skills/skill-discovery-target'
+import { agentSessionRecordFixture } from '../../../../shared/agent-session-record.test-fixture'
+import { discoverDshChatSkills } from '../../../skills/dsh-chat-skill-discovery'
+
+vi.mock('../../../skills/dsh-chat-skill-discovery', () => ({
+  discoverDshChatSkills: vi.fn(async () => ({ skills: [], sources: [], scannedAt: 1 }))
+}))
 
 const WSL_RUNTIME = {
   status: 'resolved',
@@ -65,6 +71,33 @@ function method(name: string) {
 }
 
 describe('skills.discover RPC', () => {
+  it('accepts an optional chat identity and reads its account on the owning runtime', async () => {
+    const context = makeContext({})
+    const record = {
+      ...agentSessionRecordFixture(),
+      provider: 'dsh',
+      accountHome: { variable: 'DSH_HOME', path: '/account/pinned' }
+    }
+    const getRecord = vi.fn(() => record)
+    Object.assign(context.runtime, {
+      openedAgentSessionRecordStore: () => ({
+        getRecord
+      }),
+      getClientSettings: () => ({ agentDefaultEnv: { dsh: { DSH_AGENTS_HOME: '/agent-config' } } })
+    })
+    const params = discoverMethod().params?.parse({
+      agentSessionId: 'session-dsh',
+      cwd: '/workspace'
+    })
+    await discoverMethod().handler(params, context)
+    expect(getRecord).toHaveBeenCalledWith('session-dsh')
+    expect(discoverDshChatSkills).toHaveBeenCalledWith({
+      record,
+      cwd: '/workspace',
+      launchEnv: { DSH_AGENTS_HOME: '/agent-config' }
+    })
+  })
+
   it('resolves the project runtime from the owning runtime store when the caller omits it', async () => {
     const resolveProjectRuntimeForWorktree = vi.fn(() => WSL_RUNTIME)
     await discoverMethod().handler(

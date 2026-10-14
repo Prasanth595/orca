@@ -17,6 +17,12 @@ function entry(
 }
 
 describe('resolveNativeChatSession', () => {
+  it('does not resolve a DSH terminal as a readable transcript session', () => {
+    expect(
+      resolveNativeChatSession({ paneKey: 'tab:pane', launchAgent: 'dsh', ptyId: 'pty-1' })
+    ).toBeNull()
+  })
+
   it('resolves a pane with a captured Claude session', () => {
     const paneKey = 'tab-1:11111111-1111-4111-8111-111111111111'
     expect(

@@ -7,6 +7,16 @@ import {
 } from './structured-agent-session-composer'
 
 describe('structuredSlashCommands', () => {
+  it('offers DSH goal and plan as messages, while keeping model and effort controls', () => {
+    expect(structuredSlashCommands([], 'dsh').map((entry) => entry.name)).toEqual([
+      'model',
+      'effort',
+      'goal',
+      'plan'
+    ])
+    expect(isStructuredAgentSessionComposerCommand('/goal ship it', 'dsh')).toBe(false)
+    expect(isStructuredAgentSessionComposerCommand('/plan inspect it', 'dsh')).toBe(false)
+  })
   const hostController = {
     snapshot: [],
     invokeAction: async () => true,

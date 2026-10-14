@@ -3,6 +3,13 @@ import { canToggleNativeChat } from './native-chat-availability'
 import { isNativeChatTranscriptLocalReadable } from '@/lib/native-chat-transcript-readability'
 
 describe('canToggleNativeChat', () => {
+  it('keeps DSH terminal panes out of transcript chat, while allowing an existing chat to close', () => {
+    expect(canToggleNativeChat({ contentType: 'terminal', launchAgent: 'dsh' })).toBe(false)
+    expect(
+      canToggleNativeChat({ contentType: 'terminal', launchAgent: 'dsh', isChatViewMode: true })
+    ).toBe(true)
+  })
+
   it('allows a terminal launched with a supported coding agent', () => {
     expect(
       canToggleNativeChat({

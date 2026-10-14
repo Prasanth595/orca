@@ -139,10 +139,10 @@ const cleanups: (() => Promise<void>)[] = []
 
 /** Call from `afterEach`. */
 export async function closeProviderTimelineRigs(): Promise<void> {
+  await journals.closeAll()
   for (const cleanup of cleanups.splice(0)) {
     await cleanup()
   }
-  await journals.closeAll()
 }
 
 /** An assembler whose sink binds to the rig's journal only when `bind` is called, as a lane that

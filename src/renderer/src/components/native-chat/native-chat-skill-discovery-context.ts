@@ -30,7 +30,12 @@ export type NativeChatSkillStateInputs = Pick<
   | 'worktreesByRepo'
 >
 
-type NativeChatSkillTab = { id: string; startupCwd?: string }
+type NativeChatSkillTab = {
+  id: string
+  startupCwd?: string
+  entityId?: string
+  agentSessionAgent?: unknown
+}
 
 type NativeChatSkillWorktreeState = NativeChatTabDirectoryState & {
   tabsByWorktree: Record<string, readonly NativeChatSkillTab[]>
@@ -135,13 +140,16 @@ export function resolveNativeChatSkillDiscoveryContext(
     projectRuntime?.status === 'resolved'
       ? projectRuntime.runtime.cacheKey
       : projectRuntime?.repair.cacheKey
+  const tab = findNativeChatTab(state, terminalTabId)?.tab
+  const agentSessionId = tab?.agentSessionAgent === 'dsh' ? tab.entityId : undefined
   return {
     key: JSON.stringify([
       runtimeTarget.kind,
       runtimeTarget.kind === 'environment' ? runtimeTarget.environmentId : null,
       hostId,
       projectRuntimeKey ?? null,
-      cwd
+      cwd,
+      ...(agentSessionId ? [agentSessionId] : [])
     ]),
     cwd,
     executionHostKind: runtimeEnvironmentId ? 'runtime' : 'local',
@@ -149,7 +157,12 @@ export function resolveNativeChatSkillDiscoveryContext(
     // Why: worktreeId lets the owning runtime resolve its own WSL project
     // preference when this client cannot supply projectRuntime (environment-
     // owned panes resolve host semantics on the runtime, never here).
-    discoveryTarget: { cwd, worktreeId, ...(projectRuntime ? { projectRuntime } : {}) }
+    discoveryTarget: {
+      cwd,
+      worktreeId,
+      ...(projectRuntime ? { projectRuntime } : {}),
+      ...(agentSessionId ? { agentSessionId } : {})
+    }
   }
 }
 

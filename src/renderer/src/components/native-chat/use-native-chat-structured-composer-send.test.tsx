@@ -59,6 +59,22 @@ function harness(
 // would be dropped without a word. A pass-through command IS the message, so the
 // attachments ride along with it.
 describe('attachment guard follows what the host claims', () => {
+  it('sends DSH goal/plan instructions with attachments and preserves literal skill invocation', async () => {
+    const { send, structuredTransport } = harness('dsh')
+    await send('/plan implement the fix')
+    expect(structuredTransport.send).toHaveBeenCalledWith(
+      expect.stringContaining('wait for my confirmation'),
+      [ATTACHMENT]
+    )
+    await send('/goal ship the fix')
+    expect(structuredTransport.send).toHaveBeenCalledWith(expect.stringContaining('ship the fix'), [
+      ATTACHMENT
+    ])
+    await send('/archify draw the workflow')
+    expect(structuredTransport.send).toHaveBeenCalledWith('/archify draw the workflow', [
+      ATTACHMENT
+    ])
+  })
   it.each([
     ['claude', '/clear'],
     ['claude', '/model'],

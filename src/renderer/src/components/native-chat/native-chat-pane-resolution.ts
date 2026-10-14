@@ -1,6 +1,7 @@
 import type { AgentStatusEntry, AgentType } from '../../../../shared/agent-status-types'
 import type { TuiAgent } from '../../../../shared/tui-agent'
 import { isNativeChatSupportedAgent } from './native-chat-availability'
+import { resolveNativeChatTranscriptAgent } from '../../../../shared/native-chat-agent-support'
 
 /** Inputs that resolve the active pane to the agent/session/pty triple the
  *  native-chat data + input layers need. Kept as a plain shape (not the live
@@ -47,7 +48,7 @@ export function resolveNativeChatSession(
   input: NativeChatPaneResolutionInput
 ): NativeChatPaneResolution | null {
   const agent = input.agentStatusEntry?.agentType ?? input.launchAgent ?? input.resolvedAgent
-  if (!agent || !isNativeChatSupportedAgent(agent)) {
+  if (!agent || !isNativeChatSupportedAgent(agent) || !resolveNativeChatTranscriptAgent(agent)) {
     return null
   }
   return {

@@ -47,6 +47,10 @@ function discovery(owner: string | null, rootPath = '/Users/test/.agents/skills'
 }
 
 describe('isNativeChatSkillForAgent', () => {
+  it('shows DSH skill roots and excludes another agent account', () => {
+    expect(isNativeChatSkillForAgent('dsh', skill({}), discovery('dsh'))).toBe(true)
+    expect(isNativeChatSkillForAgent('dsh', skill({}), discovery('claude'))).toBe(false)
+  })
   it('shows Codex-native and generic agent skills for Codex chat', () => {
     expect(isNativeChatSkillForAgent('codex', skill({ providers: ['codex'] }))).toBe(true)
     expect(isNativeChatSkillForAgent('codex', skill({ providers: ['agent-skills'] }))).toBe(true)
@@ -238,6 +242,24 @@ describe('floating workspace skill discovery', () => {
       runtimeTarget: { kind: 'local' },
       discoveryTarget: { cwd: '/home/me/pinned', worktreeId: FLOATING_TERMINAL_WORKTREE_ID }
     })
+  })
+
+  it('keys DSH discovery by the owning chat identity', () => {
+    const inputs = {
+      ...floatingInputs,
+      unifiedTabsByWorktree: {
+        [FLOATING_TERMINAL_WORKTREE_ID]: [{ ...floatingTab, agentSessionAgent: 'dsh' }]
+      },
+      structuredSessionLaunchDirectoryByTabId: {
+        'floating-chat-1': { sessionId: 'session-1', launchDirectory: '/workspace' }
+      }
+    }
+    const context = resolveNativeChatSkillDiscoveryContext(inputs, 'floating-chat-1')
+    expect(context?.discoveryTarget).toMatchObject({
+      agentSessionId: 'session-1',
+      cwd: '/workspace'
+    })
+    expect(context?.key).toContain('session-1')
   })
 
   it('stays not-ready until the floating directory resolves', () => {

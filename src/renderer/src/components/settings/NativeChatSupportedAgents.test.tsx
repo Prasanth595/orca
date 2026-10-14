@@ -20,7 +20,8 @@ const EXPECTED_SUPPORTED_AGENTS = [
   'omp',
   'opencode',
   'opencode2',
-  'zcode'
+  'zcode',
+  'dsh'
 ] as const satisfies readonly TuiAgent[]
 const SUPPORTED_AGENTS_LABEL_KEY = 'auto.components.settings.NativeChatSupportedAgents.label'
 

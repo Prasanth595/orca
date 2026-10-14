@@ -28,6 +28,11 @@ describe('resolveNativeChatTranscriptAgent', () => {
 })
 
 describe('isNativeChatSupportedAgent', () => {
+  it('supports DSH structured chat without claiming a terminal transcript reader', () => {
+    expect(isNativeChatSupportedAgent('dsh')).toBe(true)
+    expect(resolveNativeChatTranscriptAgent('dsh')).toBeNull()
+  })
+
   it('recognizes the parseable agents and rejects unknown / nullish input', () => {
     expect(isNativeChatSupportedAgent('opencode')).toBe(true)
     expect(isNativeChatSupportedAgent('opencode2')).toBe(true)
