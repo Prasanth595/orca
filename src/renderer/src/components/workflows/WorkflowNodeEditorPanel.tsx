@@ -1,31 +1,22 @@
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
-import { X } from 'lucide-react'
+import { X, Pencil, Eye } from 'lucide-react'
 import Editor from '@monaco-editor/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select'
 import { translate } from '@/i18n/i18n'
 import { useDocumentDarkTheme } from '@/hooks/use-document-dark-theme'
 import WorkflowCronScheduleField from './WorkflowCronScheduleField'
 import WorkflowAgentNodeFields from './WorkflowAgentNodeFields'
 import WorkflowBranchConditionEditor from './WorkflowBranchConditionEditor'
 import WorkflowFormInputEditor from './WorkflowFormInputEditor'
+import WorkflowFormFillEditor from './WorkflowFormFillEditor'
+import WorkflowFileWriteFields from './WorkflowFileWriteFields'
+import WorkflowShellCommandFields from './WorkflowShellCommandFields'
 import WorkflowRetryFields from './WorkflowRetryFields'
 import WorkflowForEachFields from './WorkflowForEachFields'
 import { NODE_TYPE_LABELS } from './workflow-canvas-node-config'
-import {
-  getMonacoFields,
-  getAvailableShells,
-  coerceNodeData,
-  getGenericFieldKeys
-} from './workflow-node-editor-config'
+import { getMonacoFields, coerceNodeData, getGenericFieldKeys } from './workflow-node-editor-config'
 import { useLastRunSteps } from './use-last-run-steps'
 import type {
   AgentWorkflow,
@@ -93,6 +84,8 @@ export default function WorkflowNodeEditorPanel({
   const isCollect = node?.type === 'collect'
   const isTriggerManual = node?.type === 'trigger_manual'
   const isRemote = workflow.executionTargetType === 'ssh'
+
+  const [formMode, setFormMode] = useState<'fill' | 'edit'>('fill')
 
   const { steps, resolveExpr } = useLastRunSteps(workflow.id)
 
@@ -202,9 +195,26 @@ export default function WorkflowNodeEditorPanel({
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
         <span className="text-[13px] font-semibold">{NODE_TYPE_LABELS[node.type]}</span>
-        <Button size="icon" variant="ghost" className="size-6" onClick={onClose}>
-          <X className="size-3.5" />
-        </Button>
+        <div className="flex items-center gap-0.5">
+          {isFormInput && (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="size-6"
+              onClick={() => setFormMode((m) => (m === 'fill' ? 'edit' : 'fill'))}
+              title={
+                formMode === 'fill'
+                  ? translate('workflows.nodeEditor.editFields', 'Edit fields')
+                  : translate('workflows.nodeEditor.fillValues', 'Fill values')
+              }
+            >
+              {formMode === 'fill' ? <Pencil className="size-3.5" /> : <Eye className="size-3.5" />}
+            </Button>
+          )}
+          <Button size="icon" variant="ghost" className="size-6" onClick={onClose}>
+            <X className="size-3.5" />
+          </Button>
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto scrollbar-sleek p-3 space-y-3">
         <div className="space-y-1">
@@ -253,82 +263,20 @@ export default function WorkflowNodeEditorPanel({
           </p>
         )}
 
-        {isShellCommand && (
-          <div className="space-y-1">
-            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              {translate('workflows.nodeEditor.shell', 'Shell')}
-            </span>
-            <Select
-              value={localData['shell'] ?? ''}
-              onValueChange={(v) => setLocalData((prev) => ({ ...prev, shell: v }))}
-            >
-              <SelectTrigger className="h-7">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {getAvailableShells(isRemote).map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
         {(isShellCommand || isPythonScript) && (
-          <label className="flex items-center gap-2 text-[12px] cursor-pointer">
-            <input
-              type="checkbox"
-              checked={localData['failOnNonZeroExit'] === 'true'}
-              onChange={(e) =>
-                setLocalData((prev) => ({
-                  ...prev,
-                  failOnNonZeroExit: e.target.checked ? 'true' : 'false'
-                }))
-              }
-            />
-            {translate('workflows.nodeEditor.failOnNonZeroExit', 'Fail node if exit code ≠ 0')}
-          </label>
+          <WorkflowShellCommandFields
+            showShellSelector={isShellCommand}
+            isRemote={isRemote}
+            localData={localData}
+            onDataChange={(patch) => setLocalData((prev) => ({ ...prev, ...patch }))}
+          />
         )}
 
         {isFileWrite && (
-          <>
-            <div className="space-y-1">
-              <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                {translate('workflows.nodeEditor.fileWriteMode', 'Mode')}
-              </span>
-              <Select
-                value={localData['mode'] ?? 'overwrite'}
-                onValueChange={(v) => setLocalData((prev) => ({ ...prev, mode: v }))}
-              >
-                <SelectTrigger className="h-7">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="overwrite">
-                    {translate('workflows.nodeEditor.fileWriteModeOverwrite', 'Overwrite')}
-                  </SelectItem>
-                  <SelectItem value="append">
-                    {translate('workflows.nodeEditor.fileWriteModeAppend', 'Append')}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <label className="flex items-center gap-2 text-[12px] cursor-pointer">
-              <input
-                type="checkbox"
-                checked={localData['createParents'] !== 'false'}
-                onChange={(e) =>
-                  setLocalData((prev) => ({
-                    ...prev,
-                    createParents: e.target.checked ? 'true' : 'false'
-                  }))
-                }
-              />
-              {translate('workflows.nodeEditor.createParents', 'Create parent directories')}
-            </label>
-          </>
+          <WorkflowFileWriteFields
+            localData={localData}
+            onDataChange={(patch) => setLocalData((prev) => ({ ...prev, ...patch }))}
+          />
         )}
 
         {isForEach && (
@@ -349,13 +297,16 @@ export default function WorkflowNodeEditorPanel({
           />
         )}
 
-        {isFormInput && (
-          <WorkflowFormInputEditor
-            initialFields={formFields}
-            onChange={setFormFields}
-            resolveExpr={resolveExpr}
-          />
-        )}
+        {isFormInput &&
+          (formMode === 'fill' ? (
+            <WorkflowFormFillEditor fields={formFields} onChange={setFormFields} />
+          ) : (
+            <WorkflowFormInputEditor
+              initialFields={formFields}
+              onChange={setFormFields}
+              resolveExpr={resolveExpr}
+            />
+          ))}
 
         {genericFields.map((key) => {
           const monacoConfig = getMonacoFields()[key]

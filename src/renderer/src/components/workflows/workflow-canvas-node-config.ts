@@ -266,6 +266,11 @@ export function buildDefaultNode(
     case 'collect':
       return { id, type, pos, data: {} }
     case 'form_input':
-      return { id, type, pos, data: { fields: [] } }
+      return {
+        id,
+        type,
+        pos,
+        data: { fields: [{ id: `${id}_f1`, label: 'name', type: 'string', value: '' }] }
+      }
   }
 }
