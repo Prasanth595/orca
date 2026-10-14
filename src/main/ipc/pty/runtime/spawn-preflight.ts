@@ -1,4 +1,9 @@
-import { withClaudeProfileTerminalEnv } from '../../../claude-accounts/claude-profile-installed-router'
+import {
+  codexKeptAccountArg,
+  prepareSpawnClaudeAuth,
+  resolveSpawnAccountLaunch,
+  withSpawnClaudeTerminalEnv
+} from '../host-env/agent-account-launch'
 import { inheritOmpLaunchEnvironment } from '../host-env/omp-launch-environment'
 import { getAppEnvironment } from '../../../../shared/app-environment'
 import type { PtySpawnResult } from '../../../providers/pty-provider-contract'
@@ -99,6 +104,15 @@ export async function prepareRuntimePtySpawn(
     ctx.cwd,
     ctx.expectedWslDistro
   )
+  ctx.accountLaunch = ctx.preAdoptedStablePane
+    ? { kind: 'follow' }
+    : resolveSpawnAccountLaunch({
+        connectionId: args.connectionId,
+        launchAgent: args.launchAgent,
+        resumeProviderSession: args.resumeProviderSession,
+        target: ctx.codexSelectionTarget,
+        settings: ctx.deps.getSettings?.()
+      })
   const codexResumePreparation = ctx.preAdoptedStablePane
     ? null
     : ctx.deps.prepareCodexResumeHome({
@@ -106,7 +120,8 @@ export async function prepareRuntimePtySpawn(
         launchAgent: args.launchAgent,
         providerSession: args.resumeProviderSession,
         target: ctx.codexSelectionTarget,
-        launchEnv: args.env
+        launchEnv: args.env,
+        ...codexKeptAccountArg(ctx.accountLaunch)
       })
   const codexResumeLaunch = codexResumePreparation
     ? await ctx.deps.resolveCodexResumeLaunch(args.command, codexResumePreparation)
@@ -115,11 +130,15 @@ export async function prepareRuntimePtySpawn(
   // Why: the drop still applies here, but this controller's result has no field for
   // notifyResumeUnavailable — runtime/relay panes start fresh without the notice.
   ctx.launchCommand = codexResumeLaunch.command
-  args.env = withClaudeProfileTerminalEnv(args.env, ctx.codexSelectionTarget)
-  ctx.claudeAuth =
-    ctx.isClaudeLaunch && ctx.deps.prepareClaudeAuth
-      ? await ctx.deps.prepareClaudeAuth(ctx.codexSelectionTarget)
-      : null
+  args.env = withSpawnClaudeTerminalEnv(args.env, ctx.accountLaunch, ctx.codexSelectionTarget)
+  const claudeAuth = ctx.isClaudeLaunch
+    ? prepareSpawnClaudeAuth(
+        ctx.accountLaunch,
+        ctx.codexSelectionTarget,
+        ctx.deps.prepareClaudeAuth
+      )
+    : null
+  ctx.claudeAuth = claudeAuth ? await claudeAuth : null
 
   ctx.shouldPersistHostSessionBinding = args.persistHostSessionBinding === true
   if (ctx.shouldPersistHostSessionBinding) {

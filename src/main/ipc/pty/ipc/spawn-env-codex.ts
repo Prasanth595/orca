@@ -20,6 +20,7 @@ import {
 import { promoteAgentTeamsShimPath } from '../host-env/path'
 import { clearProviderPtyState } from '../provider/state-cleanup'
 import type { PtyIpcSpawnState } from './spawn-state'
+import { codexKeptAccountArg } from '../host-env/agent-account-launch'
 
 export async function assemblePtyIpcSpawnCodexEnv(ctx: PtyIpcSpawnState): Promise<void> {
   const args = ctx.args
@@ -42,7 +43,8 @@ export async function assemblePtyIpcSpawnCodexEnv(ctx: PtyIpcSpawnState): Promis
         providerSession: args.resumeProviderSession,
         target: ctx.codexSelectionTarget,
         launchEnv: ctx.baseEnv,
-        ...(args.replacesPtyId ? { useSelectedAccount: true } : {})
+        ...(args.replacesPtyId ? { useSelectedAccount: true } : {}),
+        ...codexKeptAccountArg(ctx.accountLaunch)
       })
   ctx.codexResumeLaunch = codexResumePreparation
     ? await ctx.deps.resolveCodexResumeLaunch(args.command, codexResumePreparation)

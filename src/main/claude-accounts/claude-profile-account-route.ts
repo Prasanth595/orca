@@ -149,3 +149,13 @@ export async function removeClaudeAccountFolder(
     throw error
   }
 }
+
+/** A kept launch on this host's router; refuses where none is installed rather than falling back. */
+export function prepareInstalledClaudeLaunchForAccount(
+  accountId: string | null
+): Promise<ClaudeRuntimeAuthPreparation> {
+  const router = getClaudeProfileRouter()
+  return router
+    ? prepareClaudeLaunchForAccount(router, accountId)
+    : Promise.reject(keptAccountRefusals.accountRemoved())
+}

@@ -1,4 +1,8 @@
-import { withClaudeProfileTerminalEnv } from '../../../claude-accounts/claude-profile-installed-router'
+import {
+  prepareSpawnClaudeAuth,
+  resolveSpawnAccountLaunch,
+  withSpawnClaudeTerminalEnv
+} from '../host-env/agent-account-launch'
 import {
   isWslShellName,
   resolveLocalWindowsTerminalRuntimeOptions
@@ -204,10 +208,19 @@ export async function preparePtyIpcSpawnPreflight(ctx: PtyIpcSpawnState): Promis
     ctx.cwd,
     ctx.expectedWslDistro
   )
-  args.env = withClaudeProfileTerminalEnv(args.env, initialSelectionTarget)
-  ctx.claudeAuth =
-    ctx.isClaudeLaunch && ctx.deps.prepareClaudeAuth
-      ? await ctx.deps.prepareClaudeAuth(initialSelectionTarget)
-      : null
+  ctx.accountLaunch = ctx.preAdoptedStablePane
+    ? { kind: 'follow' }
+    : resolveSpawnAccountLaunch({
+        connectionId: args.connectionId,
+        launchAgent: args.launchAgent,
+        resumeProviderSession: args.resumeProviderSession,
+        target: initialSelectionTarget,
+        settings: ctx.deps.getSettings?.()
+      })
+  args.env = withSpawnClaudeTerminalEnv(args.env, ctx.accountLaunch, initialSelectionTarget)
+  const claudeAuth = ctx.isClaudeLaunch
+    ? prepareSpawnClaudeAuth(ctx.accountLaunch, initialSelectionTarget, ctx.deps.prepareClaudeAuth)
+    : null
+  ctx.claudeAuth = claudeAuth ? await claudeAuth : null
   ctx.spawnTiming.mark('auth')
 }

@@ -14,6 +14,7 @@ import {
 import { registerPty } from '../../../memory/pty-registry'
 import { rememberPaneKeyForPty } from '../pane/key-state'
 import { noteAgentPaneLaunch } from '../../../agent-accounts/agent-run-accounts-installed'
+import { codexKeptAccountArg, keptLaunchFact } from '../host-env/agent-account-launch'
 import { getCodexSelectionLaneKey } from '../../../../shared/codex-selection-lane'
 import {
   pendingByPaneKey,
@@ -222,7 +223,8 @@ async function commitReservedRuntimePtySpawn(ctx: RuntimePtySpawnState) {
     pinnedByResume: ctx.codexResumeHomeSelected,
     launchCodexHomePath: ctx.selectedCodexHomePath,
     target: ctx.codexSelectionTarget,
-    settings: ctx.deps.getSettings?.()
+    settings: ctx.deps.getSettings?.(),
+    kept: codexKeptAccountArg(ctx.accountLaunch).keptAccount !== undefined
   })
   // Why: runtime-controller creates (headless serve, CLI, splits) adopt surviving daemon sessions too; without this seed their records stay blank.
   seedTerminalRestoreRecordsFromSpawnResult(ctx.deps.runtime, ctx.result)
@@ -239,7 +241,10 @@ async function commitReservedRuntimePtySpawn(ctx: RuntimePtySpawnState) {
     noteAgentPaneLaunch({
       paneKey,
       lane: getCodexSelectionLaneKey(ctx.codexSelectionTarget),
-      fresh: ctx.result.isReattach !== true
+      fresh: ctx.result.isReattach !== true,
+      ...(ctx.result.isReattach
+        ? {}
+        : keptLaunchFact(ctx.accountLaunch, args.resumeProviderSession))
     })
   }
   const pendingSerializer = paneKey ? pendingByPaneKey.get(paneKey) : undefined
