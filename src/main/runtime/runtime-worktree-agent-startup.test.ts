@@ -408,7 +408,7 @@ describe('buildWorktreeStartupForAgent Orca browser guidance for Codex', () => {
       settings: guidanceSettings,
       agent: 'codex',
       ...(launchPath ? { launchPath } : {}),
-      getLaunchPlatform: () => 'linux',
+      getLaunchRuntime: () => LINUX,
       toSessionOptions: () => undefined
     }).startup.command
 

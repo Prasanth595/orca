@@ -166,6 +166,7 @@ describe('resolveAgentStartupPlanInputs Orca browser guidance', () => {
       settings,
       platform: 'linux',
       isRemote: false,
+      shell: undefined,
       ...(codexUserDeveloperInstructions !== undefined ? { codexUserDeveloperInstructions } : {})
     })
 
