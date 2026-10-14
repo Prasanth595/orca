@@ -11,6 +11,10 @@ import { normalizeWindowsTerminalCwd } from '../../../providers/windows-shell-ar
 import { wslUncDirectoryExistsAsync } from '../../../wsl'
 import { getCodexSelectionTargetForPty } from '../host-env/codex-home'
 import {
+  dropAgentLaunch,
+  nativeChatSpawnResumeOwnership
+} from '../host-env/native-chat-owned-resume'
+import {
   isClaudeLaunchCommand,
   recoverFreshSpawnProviderRouting,
   routesFreshSpawnsToLocalProvider
@@ -200,6 +204,19 @@ export async function preparePtyIpcSpawnPreflight(ctx: PtyIpcSpawnState): Promis
       shellOverride: ctx.terminalRuntimeOptions.shellOverride,
       terminalWindowsWslDistro: ctx.terminalRuntimeOptions.terminalWindowsWslDistro
     })?.distro ?? null
+  const ownership = ctx.preAdoptedStablePane
+    ? null
+    : await nativeChatSpawnResumeOwnership(ctx.deps.runtime, args, ctx.expectedWslDistro)
+  // Why an unknown owner refuses only what admission already calls an automatic restore: bookkeeping
+  // must not block a resume the user asked for, and the refused restore keeps its saved session.
+  if (
+    ownership?.verdict === 'owned' ||
+    (ownership?.verdict === 'unverifiable' && args.spawnIntent === 'automatic-restore')
+  ) {
+    ctx.resumeRefusal = ownership
+    dropAgentLaunch(args)
+    ctx.isClaudeLaunch = false
+  }
   const initialSelectionTarget = getCodexSelectionTargetForPty(
     initialShellOverride,
     ctx.cwd,
