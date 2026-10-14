@@ -72,6 +72,17 @@ describe('countTerminalAgentsByAccount', () => {
       countTerminalAgentsByAccount({ rows: ROWS, tabsByWorktree: TABS, provider, accountId })
     ).toBe(expected)
   })
+
+  it('counts nothing, rather than throwing, in a store that never loaded tabs', () => {
+    expect(
+      countTerminalAgentsByAccount({
+        rows: ROWS,
+        tabsByWorktree: undefined,
+        provider: 'claude',
+        accountId: 'a'
+      })
+    ).toBe(0)
+  })
 })
 
 describe('AccountAgentCount', () => {

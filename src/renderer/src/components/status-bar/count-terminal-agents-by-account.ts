@@ -6,10 +6,11 @@ import { getTabIdToWorktreeId } from '../sidebar/worktree-agent-row-selectors'
 
 type CountCache = {
   rows: Readonly<Record<string, AgentStatusEntry>>
-  tabsByWorktree: Readonly<Record<string, TerminalTab[]>>
+  tabsByWorktree: Readonly<Record<string, TerminalTab[]>> | undefined
   counts: Map<string, number>
 }
 
+const NO_TABS: Readonly<Record<string, TerminalTab[]>> = {}
 let cache: CountCache | null = null
 
 function countKey(
@@ -23,14 +24,15 @@ function countKey(
 /** Terminal agents on this host per provider and account, counting only rows whose tab is open. */
 export function countTerminalAgentsByAccount(args: {
   rows: Readonly<Record<string, AgentStatusEntry>>
-  tabsByWorktree: Readonly<Record<string, TerminalTab[]>>
+  /** Undefined in stores that never loaded tabs; no tab is open then. */
+  tabsByWorktree: Readonly<Record<string, TerminalTab[]>> | undefined
   provider: AgentRunAccountProvider
   accountId: string | null
   /** Only agents a person kept on the account. */
   keptOnly?: boolean
 }): number {
   if (!cache || cache.rows !== args.rows || cache.tabsByWorktree !== args.tabsByWorktree) {
-    const openTabs = getTabIdToWorktreeId(args.tabsByWorktree)
+    const openTabs = getTabIdToWorktreeId(args.tabsByWorktree ?? NO_TABS)
     const counts = new Map<string, number>()
     for (const [paneKey, row] of Object.entries(args.rows)) {
       const facet = row.runAccount
