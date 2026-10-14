@@ -1,4 +1,5 @@
 import type { SecretAtRestProtection } from '../../shared/secret-at-rest-protection'
+import type { SetAgentKeptRequest, SetAgentKeptResult } from '../../shared/agent-run-account'
 import type {
   ClaudeRateLimitAccountsState,
   CodexRateLimitAccountsState
@@ -40,6 +41,11 @@ export type CodexAccountsApi = {
   listRecordedPaneLanes: (args: { ptyIds: string[] }) => Promise<Record<string, string>>
   /** "Keep old account": keeps each pane on its launch account, so the prompt stays answered. */
   keepStalePanes: (args: { panes: { ptyId: string; paneKey?: string }[] }) => Promise<void>
+}
+
+/** Keeping a local terminal agent on the account it runs on. */
+export type AgentAccountKeepApi = {
+  setKept: (args: SetAgentKeptRequest) => Promise<SetAgentKeptResult>
 }
 
 export type ClaudeAccountsApi = {

@@ -78,3 +78,10 @@ export function agentRunAccountsEqual(
     left.keepUnavailable === right.keepUnavailable
   )
 }
+
+/** Renderer -> host: keep (or release) one local terminal agent on the account it runs on. */
+export type SetAgentKeptRequest = { paneKey: string; ptyId?: string; kept: boolean }
+
+export type SetAgentKeptResult =
+  | { ok: true; runAccount: AgentRunAccount }
+  | { ok: false; reason: 'unknown-pane' | 'not-keepable' | 'no-session' | 'unavailable' }

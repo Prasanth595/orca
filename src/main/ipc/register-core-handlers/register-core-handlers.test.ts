@@ -33,6 +33,7 @@ const {
   registerAiVaultSearchHandlersMock,
   registerOrcaProfileHandlersMock,
   registerCodexAccountHandlersMock,
+  registerAgentAccountKeepHandlersMock,
   registerAgentHookHandlersMock,
   registerClaudeAccountHandlersMock,
   registerOpenCodeGoCredentialsHandlersMock,
@@ -102,6 +103,7 @@ const {
   registerAiVaultSearchHandlersMock: vi.fn(),
   registerOrcaProfileHandlersMock: vi.fn(),
   registerCodexAccountHandlersMock: vi.fn(),
+  registerAgentAccountKeepHandlersMock: vi.fn(),
   registerAgentHookHandlersMock: vi.fn(),
   registerClaudeAccountHandlersMock: vi.fn(),
   registerOpenCodeGoCredentialsHandlersMock: vi.fn(),
@@ -333,6 +335,10 @@ vi.mock('../codex-accounts', () => ({
   registerCodexAccountHandlers: registerCodexAccountHandlersMock
 }))
 
+vi.mock('../agent-account-keep', () => ({
+  registerAgentAccountKeepHandlers: registerAgentAccountKeepHandlersMock
+}))
+
 vi.mock('../agent-hooks', () => ({
   registerAgentHookHandlers: registerAgentHookHandlersMock
 }))
@@ -461,6 +467,7 @@ describe('registerCoreHandlers', () => {
     registerAiVaultHandlersMock.mockReset()
     registerOrcaProfileHandlersMock.mockReset()
     registerCodexAccountHandlersMock.mockReset()
+    registerAgentAccountKeepHandlersMock.mockReset()
     registerAgentHookHandlersMock.mockReset()
     registerClaudeAccountHandlersMock.mockReset()
     registerOpenCodeGoCredentialsHandlersMock.mockReset()
@@ -563,6 +570,7 @@ describe('registerCoreHandlers', () => {
       codexAccounts,
       expect.any(Function)
     )
+    expect(registerAgentAccountKeepHandlersMock).toHaveBeenCalledOnce()
     expect(registerAgentHookHandlersMock).toHaveBeenCalledWith(runtime, {
       getPtyIdForPaneKey: expect.any(Function)
     })

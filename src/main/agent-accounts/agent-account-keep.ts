@@ -1,4 +1,4 @@
-import type { AgentRunAccount } from '../../shared/agent-run-account'
+import type { AgentRunAccount, SetAgentKeptResult } from '../../shared/agent-run-account'
 import { normalizeAgentProviderSession } from '../../shared/agent-session-resume'
 import type { AgentRunAccountRow } from '../agent-hooks/server/server-run-account'
 import type {
@@ -8,9 +8,7 @@ import type {
 import { isCodexPaneKeepable } from '../codex/codex-stale-pane-accounts'
 import type { KeptAgentConversations } from './kept-agent-conversations'
 
-export type SetAgentKeptResult =
-  | { ok: true; runAccount: AgentRunAccount }
-  | { ok: false; reason: 'unknown-pane' | 'not-keepable' | 'no-session' | 'unavailable' }
+export type { SetAgentKeptResult }
 
 export type AgentKeepDeps = {
   getRow: (paneKey: string) => AgentRunAccountRow | null
