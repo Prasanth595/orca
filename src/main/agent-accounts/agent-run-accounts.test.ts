@@ -251,6 +251,11 @@ function harness(): Harness {
       get: (provider, sessionId) => kept.get(`${provider}:${sessionId}`) ?? null,
       keep: (provider, sessionId, entry) => {
         kept.set(`${provider}:${sessionId}`, entry)
+      },
+      releaseCarried: (provider, sessionId, keptAt) => {
+        if (kept.get(`${provider}:${sessionId}`)?.keptAt === keptAt) {
+          kept.delete(`${provider}:${sessionId}`)
+        }
       }
     },
     now: () => 42
@@ -394,7 +399,12 @@ describe('AgentRunAccounts', () => {
     expect(facet(h)).toMatchObject({ mode: 'kept', accountId: 'acc-a' })
 
     h.emit({ sessionId: 's2' })
-    expect(h.kept.get('claude:s2')).toEqual({ lane: 'host', accountId: 'acc-a', keptAt: 42 })
+    expect(h.kept.get('claude:s2')).toEqual({
+      lane: 'host',
+      accountId: 'acc-a',
+      keptAt: 42,
+      keptVia: 'claude:s1'
+    })
     expect(facet(h)).toMatchObject({ mode: 'kept', accountId: 'acc-a' })
   })
 
@@ -407,6 +417,81 @@ describe('AgentRunAccounts', () => {
     // A `claude` typed after a switch in a selection-following terminal runs on the selection.
     h.settings.activeClaudeManagedAccountId = 'acc-b'
     h.emit({ sessionId: 's2' })
+
+    expect(h.kept.has('claude:s2')).toBe(false)
+    expect(facet(h)).toMatchObject({ mode: 'follow', accountId: 'acc-b' })
+  })
+
+  it('carries a keep through /clear after a switch, inside the same Claude process', () => {
+    const h = harness()
+    const process = { pid: 4242, platform: 'linux', startTime: 'boot-1' } as const
+    const presence = { agentPresence: { agent: 'claude', process } } as const
+    h.producer.notePaneLaunch({ paneKey: PANE, lane: 'host', fresh: true })
+    h.emit({ ...presence })
+    h.kept.set('claude:s1', { lane: 'host', accountId: 'acc-a', keptAt: 1 })
+    h.settings.activeClaudeManagedAccountId = 'acc-b'
+
+    h.emit({ sessionId: 's2', ...presence })
+
+    expect(h.kept.get('claude:s2')).toMatchObject({ accountId: 'acc-a', keptVia: 'claude:s1' })
+    expect(facet(h)).toMatchObject({ mode: 'kept', accountId: 'acc-a' })
+  })
+
+  it('carries a keep through /clear once the statusline proves the kept account', () => {
+    const h = harness()
+    h.producer.notePaneLaunch({ paneKey: PANE, lane: 'host', fresh: true })
+    h.emit({})
+    h.kept.set('claude:s1', { lane: 'host', accountId: 'acc-a', keptAt: 1 })
+    h.settings.activeClaudeManagedAccountId = 'acc-b'
+    // No process identity: s2 is dated to the selection until its folder is known.
+    h.emit({ sessionId: 's2' })
+    expect(h.kept.has('claude:s2')).toBe(false)
+
+    h.producer.noteClaudeStatusLine({
+      paneKey: PANE,
+      configDir: `${DATA}/claude-profiles/acc-a/home`
+    })
+
+    expect(h.kept.get('claude:s2')).toMatchObject({ accountId: 'acc-a', keptVia: 'claude:s1' })
+    expect(facet(h)).toMatchObject({ mode: 'kept', accountId: 'acc-a' })
+  })
+
+  it('drops a carried keep the statusline proves runs on another account', () => {
+    const h = harness()
+    const old = {
+      agentPresence: { agent: 'claude', process: { pid: 7, platform: 'linux', startTime: 'a' } }
+    } as const
+    h.producer.notePaneLaunch({ paneKey: PANE, lane: 'host', fresh: true })
+    h.emit({ ...old })
+    h.kept.set('claude:s1', { lane: 'host', accountId: 'acc-a', keptAt: 1 })
+    h.settings.activeClaudeManagedAccountId = 'acc-b'
+    // A new claude whose hooks still name the old, unended owner looks like the same process.
+    h.emit({ sessionId: 's2', ...old })
+    expect(h.kept.get('claude:s2')).toMatchObject({ accountId: 'acc-a' })
+
+    h.producer.noteClaudeStatusLine({
+      paneKey: PANE,
+      configDir: `${DATA}/claude-profiles/acc-b/home`
+    })
+
+    expect(h.kept.has('claude:s2')).toBe(false)
+    expect(h.kept.has('claude:s1')).toBe(true)
+    expect(facet(h)).toMatchObject({ mode: 'follow', accountId: 'acc-b' })
+  })
+
+  it('never carries a keep to a new Claude process typed after a switch', () => {
+    const h = harness()
+    h.producer.notePaneLaunch({ paneKey: PANE, lane: 'host', fresh: true })
+    h.emit({
+      agentPresence: { agent: 'claude', process: { pid: 7, platform: 'linux', startTime: 'a' } }
+    })
+    h.kept.set('claude:s1', { lane: 'host', accountId: 'acc-a', keptAt: 1 })
+    h.settings.activeClaudeManagedAccountId = 'acc-b'
+
+    h.emit({
+      sessionId: 's2',
+      agentPresence: { agent: 'claude', process: { pid: 8, platform: 'linux', startTime: 'b' } }
+    })
 
     expect(h.kept.has('claude:s2')).toBe(false)
     expect(facet(h)).toMatchObject({ mode: 'follow', accountId: 'acc-b' })
@@ -441,13 +526,16 @@ describe('AgentRunAccounts', () => {
     expect(facet(h)).toMatchObject({ mode: 'kept', accountId: 'acc-b', shellRoute: 'account' })
   })
 
-  it('keeps every session a kept Codex pane reports', () => {
+  it('keeps every session a kept Codex pane reports, each traced to the first', () => {
     const h = harness()
     h.records.set('pty-1', { ...ACCOUNT_HOME_RECORD, kept: true })
     h.emit({ sessionId: 'c1', payload: { agentType: 'codex' } })
     h.emit({ sessionId: 'c2', payload: { agentType: 'codex' } })
+    h.emit({ sessionId: 'c3', payload: { agentType: 'codex' } })
 
     expect(h.kept.get('codex:c1')).toMatchObject({ accountId: 'acc-a' })
-    expect(h.kept.get('codex:c2')).toMatchObject({ accountId: 'acc-a' })
+    expect(h.kept.get('codex:c1')).not.toHaveProperty('keptVia')
+    expect(h.kept.get('codex:c2')).toMatchObject({ accountId: 'acc-a', keptVia: 'codex:c1' })
+    expect(h.kept.get('codex:c3')).toMatchObject({ accountId: 'acc-a', keptVia: 'codex:c1' })
   })
 })

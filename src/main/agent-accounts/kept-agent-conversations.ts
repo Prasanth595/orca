@@ -6,12 +6,14 @@ import { isDefinitiveAbsence } from '../../shared/definitive-filesystem-absence'
 import { writeFileAtomically } from '../codex-accounts/fs-utils'
 import { PersistRetryBackoff } from '../persist-retry-backoff'
 
-/** A conversation a person kept on an account. Only explicit keeps are stored. */
+/** A conversation kept on an account, by a person or carried on from one they kept. */
 export type KeptConversation = {
   lane: string
   accountId: string | null
   keptAt: number
   transcriptPath?: string
+  /** Key of the person's keep this one carried on from; absent on the person's own keep. */
+  keptVia?: string
 }
 
 type KeptConversationsFile = {
@@ -22,11 +24,14 @@ type KeptConversationsFile = {
 type Mutation =
   | { kind: 'keep'; key: string; entry: KeptConversation }
   | { kind: 'release'; key: string; keptAt?: number }
+  | { kind: 'release-lineage'; key: string }
   | { kind: 'release-account'; provider: AgentRunAccountProvider; accountId: string }
 
 const PRUNE_MIN_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
-function conversationKey(provider: AgentRunAccountProvider, sessionId: string): string {
+const CONVERSATION_KEY = /^(claude|codex):./
+
+export function keptConversationKey(provider: AgentRunAccountProvider, sessionId: string): string {
   return `${provider}:${sessionId}`
 }
 
@@ -38,6 +43,7 @@ function readEntry(value: unknown): KeptConversation | null {
   const accountId = 'accountId' in value ? value.accountId : undefined
   const keptAt = 'keptAt' in value ? value.keptAt : undefined
   const transcriptPath = 'transcriptPath' in value ? value.transcriptPath : undefined
+  const keptVia = 'keptVia' in value ? value.keptVia : undefined
   if (
     (lane !== 'host' && !(typeof lane === 'string' && /^wsl:.{1,256}$/.test(lane))) ||
     (accountId !== null && !isAgentRunAccountId(accountId)) ||
@@ -52,6 +58,9 @@ function readEntry(value: unknown): KeptConversation | null {
     keptAt,
     ...(typeof transcriptPath === 'string' && transcriptPath.length <= 4096
       ? { transcriptPath }
+      : {}),
+    ...(typeof keptVia === 'string' && keptVia.length <= 600 && CONVERSATION_KEY.test(keptVia)
+      ? { keptVia }
       : {})
   }
 }
@@ -77,7 +86,7 @@ function parseFile(raw: string): Map<string, KeptConversation> | 'corrupt' | 'un
   const entries = new Map<string, KeptConversation>()
   for (const [key, value] of Object.entries(conversations)) {
     const entry = readEntry(value)
-    if (entry && /^(claude|codex):./.test(key)) {
+    if (entry && CONVERSATION_KEY.test(key)) {
       entries.set(key, entry)
     }
   }
@@ -99,16 +108,23 @@ export class KeptAgentConversations {
     sessionId: string
   ): KeptConversation | null | 'unavailable' {
     const entries = this.load()
-    return entries ? (entries.get(conversationKey(provider, sessionId)) ?? null) : 'unavailable'
+    return entries ? (entries.get(keptConversationKey(provider, sessionId)) ?? null) : 'unavailable'
   }
 
   keep(provider: AgentRunAccountProvider, sessionId: string, entry: KeptConversation): void {
-    this.queue.push({ kind: 'keep', key: conversationKey(provider, sessionId), entry })
+    this.queue.push({ kind: 'keep', key: keptConversationKey(provider, sessionId), entry })
     this.flush()
   }
 
+  /** Releases a kept conversation and every session that carried its keep on. */
   release(provider: AgentRunAccountProvider, sessionId: string): void {
-    this.queue.push({ kind: 'release', key: conversationKey(provider, sessionId) })
+    this.queue.push({ kind: 'release-lineage', key: keptConversationKey(provider, sessionId) })
+    this.flush()
+  }
+
+  /** Releases one carried-on keep, unless it was kept again since `keptAt`. */
+  releaseCarried(provider: AgentRunAccountProvider, sessionId: string, keptAt: number): void {
+    this.queue.push({ kind: 'release', key: keptConversationKey(provider, sessionId), keptAt })
     this.flush()
   }
 
@@ -223,7 +239,8 @@ function applyMutation(entries: Map<string, KeptConversation>, mutation: Mutatio
     if (
       existing?.lane === mutation.entry.lane &&
       existing.accountId === mutation.entry.accountId &&
-      existing.transcriptPath === mutation.entry.transcriptPath
+      existing.transcriptPath === mutation.entry.transcriptPath &&
+      existing.keptVia === mutation.entry.keptVia
     ) {
       return false
     }
@@ -235,6 +252,17 @@ function applyMutation(entries: Map<string, KeptConversation>, mutation: Mutatio
     return mutation.keptAt === undefined || existing?.keptAt === mutation.keptAt
       ? entries.delete(mutation.key)
       : false
+  }
+  if (mutation.kind === 'release-lineage') {
+    const root = entries.get(mutation.key)?.keptVia ?? mutation.key
+    let changed = entries.delete(mutation.key)
+    for (const [key, entry] of entries) {
+      if (key === root || entry.keptVia === root) {
+        entries.delete(key)
+        changed = true
+      }
+    }
+    return changed
   }
   let changed = false
   for (const [key, entry] of entries) {

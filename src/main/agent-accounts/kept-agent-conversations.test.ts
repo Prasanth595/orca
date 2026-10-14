@@ -70,6 +70,48 @@ describe('KeptAgentConversations', () => {
     expect(reloaded.get('codex', 's4')).toEqual(entry())
   })
 
+  it('un-keeping any session of an agent releases every session that carried its keep', () => {
+    const index = open()
+    index.keep('codex', 'c1', entry())
+    index.keep('codex', 'c2', entry({ keptVia: 'codex:c1' }))
+    index.keep('codex', 'c3', entry({ keptVia: 'codex:c1' }))
+    index.keep('codex', 'other', entry())
+
+    index.release('codex', 'c3')
+
+    const reloaded = open()
+    expect(reloaded.get('codex', 'c1')).toBeNull()
+    expect(reloaded.get('codex', 'c2')).toBeNull()
+    expect(reloaded.get('codex', 'c3')).toBeNull()
+    expect(reloaded.get('codex', 'other')).toEqual(entry())
+  })
+
+  it('drops one carried keep only while it is the one that was carried', () => {
+    const index = open()
+    index.keep('claude', 's2', entry({ keptAt: 5, keptVia: 'claude:s1' }))
+    index.releaseCarried('claude', 's2', 4)
+    expect(index.get('claude', 's2')).toEqual(entry({ keptAt: 5, keptVia: 'claude:s1' }))
+
+    index.releaseCarried('claude', 's2', 5)
+    expect(open().get('claude', 's2')).toBeNull()
+  })
+
+  it('reads back where a keep was carried from, and ignores a malformed origin', () => {
+    writeFileSync(
+      filePath,
+      JSON.stringify({
+        version: 1,
+        conversations: {
+          'claude:s2': entry({ keptVia: 'claude:s1' }),
+          'claude:s3': { ...entry(), keptVia: 'not a key' }
+        }
+      })
+    )
+    const index = open()
+    expect(index.get('claude', 's2')).toEqual(entry({ keptVia: 'claude:s1' }))
+    expect(index.get('claude', 's3')).toEqual(entry())
+  })
+
   it('reports an unreadable file as unavailable, uncached, and merges a queued keep later', async () => {
     vi.useFakeTimers()
     const seed = open()

@@ -1,4 +1,5 @@
 import { agentRunAccountsEqual, type AgentRunAccount } from '../../shared/agent-run-account'
+import { isSameAgentProcess, type AgentProcessIdentity } from '../../shared/agent-process-presence'
 import { normalizeAgentProviderSession } from '../../shared/agent-session-resume'
 import { normalizeRuntimePathForComparison } from '../../shared/cross-platform-path'
 import type { GlobalSettings } from '../../shared/global-settings-types'
@@ -15,6 +16,7 @@ import {
 import {
   adoptClaudeSession,
   adoptCodexSession,
+  dropMisplacedClaudeKeep,
   keptConversationAccount,
   type KeptConversationLookup
 } from './agent-run-account-adoption'
@@ -33,7 +35,7 @@ export type AgentRunAccountSettings = Pick<
 
 export type AgentRunAccountStatusRow = Pick<
   EnrichedAgentHookEventPayload,
-  'paneKey' | 'connectionId' | 'providerSession' | 'runAccount' | 'structuredHost'
+  'paneKey' | 'connectionId' | 'providerSession' | 'runAccount' | 'structuredHost' | 'agentPresence'
 > & { payload: { agentType?: string } }
 
 export type AgentRunAccountsDeps = {
@@ -66,9 +68,13 @@ export type PaneLaunchFact = {
 
 type ClaudePaneState = ClaudePaneObservation & {
   sessionId: string | null
+  /** The pane's session before this one, whose keep this one may carry on. */
+  previousSessionId?: string | null
   /** Account the pane's own pointer names, for panes started kept. */
   pointerAccountId?: string | null
   lastConfigDir?: string | null
+  /** The Claude process the pane's hooks named while this session ran. */
+  process?: AgentProcessIdentity
 }
 
 function setBounded<V>(map: Map<string, V>, key: string, value: V): void {
@@ -86,6 +92,18 @@ function sessionIdOf(row: Pick<AgentRunAccountStatusRow, 'providerSession'>): st
   return normalizeAgentProviderSession(row.providerSession)?.id ?? null
 }
 
+function liveProcess(row: AgentRunAccountStatusRow): AgentProcessIdentity | undefined {
+  return row.agentPresence?.ended ? undefined : row.agentPresence?.process
+}
+
+/** The account a pane's Claude runs on as far as this runtime can tell; undefined = unknown. */
+function runningAccount(state: ClaudePaneObservation): string | null | undefined {
+  if (state.statusLine === 'unknown-folder') {
+    return undefined
+  }
+  return state.statusLine ? state.statusLine.accountId : state.accountId
+}
+
 function samePath(left: string, right: string): boolean {
   return normalizeRuntimePathForComparison(left) === normalizeRuntimePathForComparison(right)
 }
@@ -94,6 +112,7 @@ function samePath(left: string, right: string): boolean {
 export class AgentRunAccounts {
   private readonly launches = new Map<string, PaneLaunchFact>()
   private readonly claudePanes = new Map<string, ClaudePaneState>()
+  private readonly codexSessions = new Map<string, string>()
 
   constructor(private readonly deps: AgentRunAccountsDeps) {}
 
@@ -102,6 +121,7 @@ export class AgentRunAccounts {
     if (fact.fresh) {
       // Why: a fresh spawn starts a new process, so nothing observed for the old one applies.
       this.claudePanes.delete(fact.paneKey)
+      this.codexSessions.delete(fact.paneKey)
     }
     this.refresh(fact.paneKey)
   }
@@ -112,14 +132,7 @@ export class AgentRunAccounts {
       if (provider === 'claude') {
         this.observeClaudeSession(row)
       } else if (provider === 'codex') {
-        const ptyId = this.deps.getPtyIdForPaneKey(row.paneKey)
-        adoptCodexSession({
-          kept: this.deps.kept,
-          record: ptyId ? this.deps.readCodexRecord(ptyId) : null,
-          sessionId: sessionIdOf(row),
-          transcriptPath: row.providerSession?.transcriptPath,
-          now: this.now()
-        })
+        this.observeCodexSession(row)
       }
     }
     this.publish(row)
@@ -132,6 +145,13 @@ export class AgentRunAccounts {
     }
     state.lastConfigDir = event.configDir
     state.statusLine = this.accountForClaudeConfigDir(event.configDir, state.accountId)
+    if (state.statusLine !== 'unknown-folder') {
+      // Why: the folder is proof, so a session dated to the selection may still carry a keep, or lose one.
+      dropMisplacedClaudeKeep(this.deps.kept, state.sessionId, state.statusLine.accountId)
+      const row = this.deps.getRow(event.paneKey)
+      const session = normalizeAgentProviderSession(row?.providerSession)
+      this.adoptClaude(state, session?.id === state.sessionId ? session.transcriptPath : undefined)
+    }
     this.refresh(event.paneKey)
   }
 
@@ -188,13 +208,34 @@ export class AgentRunAccounts {
     })
   }
 
+  private observeCodexSession(row: AgentRunAccountStatusRow): void {
+    const sessionId = sessionIdOf(row)
+    const ptyId = this.deps.getPtyIdForPaneKey(row.paneKey)
+    const fact = this.launches.get(row.paneKey)
+    adoptCodexSession({
+      kept: this.deps.kept,
+      record: ptyId ? this.deps.readCodexRecord(ptyId) : null,
+      previousSessionId:
+        this.codexSessions.get(row.paneKey) ?? (fact?.fresh ? fact.resumedSessionId : undefined),
+      sessionId,
+      transcriptPath: row.providerSession?.transcriptPath,
+      now: this.now()
+    })
+    if (sessionId) {
+      setBounded(this.codexSessions, row.paneKey, sessionId)
+    }
+  }
+
   private observeClaudeSession(row: AgentRunAccountStatusRow): void {
     const sessionId = sessionIdOf(row)
+    const process = liveProcess(row)
     const existing = this.claudePanes.get(row.paneKey)
     if (existing && (sessionId === null || sessionId === existing.sessionId)) {
+      existing.process ??= process
       return
     }
     const fact = this.launches.get(row.paneKey)
+    let next: ClaudePaneState
     if (!existing) {
       const persisted = row.runAccount?.provider === 'claude' ? row.runAccount : undefined
       const shellRoute = fact?.claudeShellAccount
@@ -203,41 +244,42 @@ export class AgentRunAccounts {
       const pointerAccountId =
         fact?.claudeShellAccount?.accountId ??
         (shellRoute === 'account' ? persisted?.accountId : undefined)
-      // Why: only a session this runtime saw start may be dated to the selection now;
-      // one that was already running keeps what an earlier runtime recorded, or nothing.
-      const accountId = fact?.fresh
-        ? this.claudeStartAccount(shellRoute, pointerAccountId)
-        : persisted?.accountId
-      setBounded(this.claudePanes, row.paneKey, {
+      next = {
         sessionId,
+        previousSessionId: fact?.fresh ? fact.resumedSessionId : undefined,
         shellRoute,
         pointerAccountId,
-        accountId
-      })
-      this.adoptClaude(row, fact?.fresh ? fact.resumedSessionId : undefined, accountId)
-      return
+        // Why: only a session this runtime saw start may be dated to the selection now;
+        // one that was already running keeps what an earlier runtime recorded, or nothing.
+        accountId: fact?.fresh
+          ? this.claudeStartAccount(shellRoute, pointerAccountId)
+          : persisted?.accountId,
+        process
+      }
+    } else if (existing.process && process && isSameAgentProcess(existing.process, process)) {
+      // Why: /clear and /resume change sessions inside one process, whose folder was fixed at its start.
+      next = { ...existing, sessionId, previousSessionId: existing.sessionId }
+    } else {
+      next = {
+        sessionId,
+        previousSessionId: existing.sessionId,
+        shellRoute: existing.shellRoute,
+        pointerAccountId: existing.pointerAccountId,
+        accountId: this.claudeStartAccount(existing.shellRoute, existing.pointerAccountId),
+        process
+      }
     }
-    const accountId = this.claudeStartAccount(existing.shellRoute, existing.pointerAccountId)
-    setBounded(this.claudePanes, row.paneKey, {
-      sessionId,
-      shellRoute: existing.shellRoute,
-      pointerAccountId: existing.pointerAccountId,
-      accountId
-    })
-    this.adoptClaude(row, existing.sessionId, accountId)
+    setBounded(this.claudePanes, row.paneKey, next)
+    this.adoptClaude(next, row.providerSession?.transcriptPath)
   }
 
-  private adoptClaude(
-    row: AgentRunAccountStatusRow,
-    previousSessionId: string | null | undefined,
-    accountId: string | null | undefined
-  ): void {
+  private adoptClaude(state: ClaudePaneState, transcriptPath: string | undefined): void {
     adoptClaudeSession({
       kept: this.deps.kept,
-      previousSessionId,
-      sessionId: sessionIdOf(row),
-      accountId,
-      transcriptPath: row.providerSession?.transcriptPath,
+      previousSessionId: state.previousSessionId,
+      sessionId: state.sessionId,
+      accountId: runningAccount(state),
+      transcriptPath,
       now: this.now()
     })
   }
