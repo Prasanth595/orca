@@ -191,6 +191,26 @@ describe('Keep on <account> in the tab menu', () => {
     })
   })
 
+  it("answers a Codex pane's account-switched prompt once the pane is kept", async () => {
+    setKept.mockResolvedValue({
+      ok: true,
+      runAccount: { ...CODEX, accountId: 'work', mode: 'kept' }
+    })
+    seed([row(LEFT, { ...CODEX, accountId: 'work', mode: 'follow' })])
+    useAppStore
+      .getState()
+      .markCodexRestartNotices([
+        { ptyId: `pty-${LEFT}`, previousAccountLabel: 'work', nextAccountLabel: 'personal' }
+      ])
+    render(<TabAgentAccountMenuItems tabId={TAB} />)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitemcheckbox'))
+    })
+
+    expect(useAppStore.getState().codexRestartNoticeByPtyId[`pty-${LEFT}`]?.dismissed).toBe(true)
+  })
+
   it('says why the host refused', async () => {
     setKept.mockResolvedValue({ ok: false, reason: 'unavailable' })
     seed([row(LEFT, { ...CODEX, accountId: 'work', mode: 'follow' })])

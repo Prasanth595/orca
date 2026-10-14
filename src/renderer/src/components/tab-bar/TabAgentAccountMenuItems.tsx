@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { DropdownMenuCheckboxItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { translate } from '@/i18n/i18n'
+import { useAppStore } from '../../store'
 import type { SetAgentKeptResult } from '../../../../shared/agent-run-account'
 import type { TabAgentAccount } from './tab-agent-accounts'
 import { useTabAgentAccounts } from './use-tab-agent-accounts'
@@ -74,8 +75,12 @@ export function TabAgentAccountMenuItems({ tabId }: { tabId: string }): React.JS
           toast.error(failureMessage(result.reason))
           return
         }
-        // Why: a released Codex pane may already sit behind the selection, so it gets today's prompt.
         const ptyId = account.ptyId
+        if (kept && account.provider === 'codex' && ptyId) {
+          // Why: a kept pane is answered; its "Restart on <new account>" would now restart on the kept one.
+          useAppStore.getState().dismissCodexRestartNotices([ptyId])
+        }
+        // Why: a released Codex pane may already sit behind the selection, so it gets today's prompt.
         if (!kept && account.provider === 'codex' && ptyId) {
           // Why lazy: the restart scan's module graph is only needed after a release.
           void import('@/lib/codex-session-restart').then(
