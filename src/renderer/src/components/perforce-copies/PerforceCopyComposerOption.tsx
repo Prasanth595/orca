@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { LoaderCircle, TriangleAlert } from 'lucide-react'
 import { translate } from '@/i18n/i18n'
 import { useAppStore } from '@/store'
@@ -89,7 +89,6 @@ export function PerforceCopyComposerOption({
   const [readiness, setReadiness] = useState<WorkspaceCopyReadiness | null>(null)
   // Only an answer from the host says it cannot make copies; a failed check is shown as an error.
   const [unsupported, setUnsupported] = useState<{ windows: boolean } | null>(null)
-  const labelId = useId()
 
   useEffect(() => {
     if (!isPerforce) {
@@ -136,13 +135,9 @@ export function PerforceCopyComposerOption({
   }
   return (
     <div className="min-w-0 space-y-1.5">
-      <span id={labelId} className="block text-xs font-medium text-muted-foreground">
-        {translate('perforce.copies.createFrom', 'Create from')}
-      </span>
       <PerforceStreamPicker
         repoId={repoId}
         hostId={hostId}
-        labelId={labelId}
         value={choice?.stream ?? { kind: 'child' }}
         onChange={(stream) => setChoice(choiceKey, { stream })}
       />
