@@ -17,15 +17,23 @@
  * daemon-user-manager-lifetime.ts). Everywhere else keeps the direct-fork
  * launch, so this module fails closed to "not supported" rather than guessing.
  */
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { runProcessSync } from '@orca/process-host'
 import type { ProcessResult } from '@orca/process-host/process-spec'
 import { removeChromiumDisabledSessionBus } from '../pty/chromium-session-bus-env'
-import { cgroupPathFromProcLine, userManagerOutlivesCaller } from './daemon-user-manager-lifetime'
+import { userManagerOutlivesCaller } from './daemon-user-manager-lifetime'
+import { UNIT_NAME_PREFIX, readLegacyDaemonScopeProcesses } from './daemon-scope-cgroup-membership'
+import {
+  busctlOomPolicyProperties,
+  parseSystemdMajorVersion,
+  parseSystemdManagerVersion,
+  supportsScopeOomPolicy,
+  systemdRunOomPolicyArgs,
+  type DurableDaemonScopeOptions
+} from './systemd-scope-oom-policy'
 
 const SYSTEMD_RUN_BINARY = 'systemd-run'
-const UNIT_NAME_PREFIX = 'orca-daemon-'
 /** The marker that distinguishes "booted under systemd" from a plain container. A test seam so
  *  the capability tests stay hermetic off a systemd host. */
 const SYSTEMD_BOOT_PATH = '/run/systemd/system'
@@ -33,7 +41,6 @@ const SYSTEMD_BOOT_PATH = '/run/systemd/system'
  *  cannot stall the launch lane. */
 const SYSTEMD_RUN_PROBE_TIMEOUT_MS = 2_000
 const SYSTEMD_SCOPE_MIGRATION_TIMEOUT_MS = 5_000
-const LEGACY_SCOPE_PREFIX = 'app-orca-'
 
 /** The conventional per-UID runtime dir every login session (and `loginctl enable-linger`)
  *  provisions, from `getuid()` rather than from the environment. The exported functions'
@@ -94,22 +101,34 @@ function resolveUserRuntimeDir(env: NodeJS.ProcessEnv, canonicalDir: string | nu
  */
 
 /** The slice of `ProcessResult` the capability probe consumes; narrow so a test stub carries no
- *  stdout/stderr/signal baggage. */
-type SystemdRunVersionProbe = (
-  binary: string,
-  timeoutMs: number
-) => Pick<ProcessResult, 'code' | 'timedOut'>
+ *  stderr/signal baggage. `stdout` is optional so a version-less stub still means "supported". */
+type SystemdProbeResult = Pick<ProcessResult, 'code' | 'timedOut'> & { stdout?: string }
+
+type SystemdRunVersionProbe = (binary: string, timeoutMs: number) => SystemdProbeResult
+
+type SystemdManagerVersionProbe = (timeoutMs: number, env: NodeJS.ProcessEnv) => SystemdProbeResult
 
 type SystemdScopeMigrationRunner = (
   command: DurableDaemonScopeCommand,
   timeoutMs: number
 ) => Pick<ProcessResult, 'code' | 'timedOut'>
 
-function runSystemdRunVersionProbe(
-  binary: string,
-  timeoutMs: number
-): Pick<ProcessResult, 'code' | 'timedOut'> {
-  return runProcessSync({ program: binary, args: ['--version'], stdio: 'ignore', timeoutMs })
+function runSystemdRunVersionProbe(binary: string, timeoutMs: number): SystemdProbeResult {
+  return runProcessSync({ program: binary, args: ['--version'], timeoutMs, maxOutputBytes: 4096 })
+}
+
+// The user manager, not the systemd-run binary, accepts the scope properties; it can lag after an upgrade.
+function runSystemdManagerVersionProbe(
+  timeoutMs: number,
+  env: NodeJS.ProcessEnv
+): SystemdProbeResult {
+  return runProcessSync({
+    program: 'systemctl',
+    args: ['--user', 'show', '-p', 'Version', '--value'],
+    env,
+    timeoutMs,
+    maxOutputBytes: 4096
+  })
 }
 
 /** Test seams shared by the scope probe and the legacy migration; each defaults to the real host. */
@@ -119,8 +138,18 @@ type ScopeProbeDeps = {
   canonicalRuntimeDir?: string | null
   systemdBootPath?: string
   runVersionProbe?: SystemdRunVersionProbe
+  runManagerVersionProbe?: SystemdManagerVersionProbe
   outlivesCaller?: () => boolean
 }
+
+export type DurableDaemonScopeCapability =
+  | { supported: false }
+  | {
+      supported: true
+      systemdMajorVersion: number | null
+      managerMajorVersion: number | null
+      oomPolicyContinue: boolean
+    }
 
 // Why not `??`: an explicit null means "no canonical dir", not "use the real one".
 function resolveCanonicalRuntimeDir(deps: ScopeProbeDeps): string | null {
@@ -129,7 +158,7 @@ function resolveCanonicalRuntimeDir(deps: ScopeProbeDeps): string | null {
     : CANONICAL_USER_RUNTIME_DIR
 }
 
-export function isDurableDaemonScopeSupported(deps: ScopeProbeDeps = {}): boolean {
+function probeScopeClient(deps: ScopeProbeDeps): { systemdMajorVersion: number | null } | null {
   const {
     env = process.env,
     platform = process.platform,
@@ -137,33 +166,79 @@ export function isDurableDaemonScopeSupported(deps: ScopeProbeDeps = {}): boolea
     runVersionProbe = runSystemdRunVersionProbe,
     outlivesCaller = userManagerOutlivesCaller
   } = deps
-  const canonicalRuntimeDir = resolveCanonicalRuntimeDir(deps)
   if (platform !== 'linux') {
-    return false
+    return null
   }
   if (!existsSync(systemdBootPath)) {
     // Not booted under systemd (e.g. a plain container without systemd as PID 1) — a unit
     // restart isn't the failure mode there, and systemd-run has nothing to talk to anyway.
-    return false
+    return null
   }
-  if (!resolveUserRuntimeDir(env, canonicalRuntimeDir)) {
+  if (!resolveUserRuntimeDir(env, resolveCanonicalRuntimeDir(deps))) {
     // No reachable user bus/session at the real per-UID path or the process's own env var —
     // systemd-run --user would just fail to connect.
-    return false
+    return null
   }
   if (!outlivesCaller()) {
     // A bus only proves a login session is open now; without linger the scope dies at logout.
-    return false
+    return null
   }
   try {
     const probe = runVersionProbe(SYSTEMD_RUN_BINARY, SYSTEMD_RUN_PROBE_TIMEOUT_MS)
     // A non-zero exit is data here rather than a throw, and a timeout kill leaves an exit behind
     // that answers nothing — both mean "cannot be trusted to place the daemon in a scope".
-    return probe.code === 0 && !probe.timedOut
+    if (probe.code !== 0 || probe.timedOut) {
+      return null
+    }
+    return {
+      systemdMajorVersion:
+        probe.stdout === undefined ? null : parseSystemdMajorVersion(probe.stdout)
+    }
   } catch {
     // Throws only when the binary could not be started at all.
-    return false
+    return null
   }
+}
+
+function probeManagerMajorVersion(deps: ScopeProbeDeps): number | null {
+  const { env = process.env, runManagerVersionProbe = runSystemdManagerVersionProbe } = deps
+  try {
+    const probe = runManagerVersionProbe(
+      SYSTEMD_RUN_PROBE_TIMEOUT_MS,
+      userManagerEnv(env, resolveCanonicalRuntimeDir(deps))
+    )
+    if (probe.code !== 0 || probe.timedOut || probe.stdout === undefined) {
+      return null
+    }
+    return parseSystemdManagerVersion(probe.stdout)
+  } catch {
+    return null
+  }
+}
+
+// Why skipped below 253: the manager cannot be newer than a client that already rejects the property.
+function probeManagerForClient(clientVersion: number | null, deps: ScopeProbeDeps): number | null {
+  return supportsScopeOomPolicy(clientVersion) ? probeManagerMajorVersion(deps) : null
+}
+
+/** Scope support plus whether both systemd-run and the user manager accept `OOMPolicy=`. */
+export function probeDurableDaemonScope(deps: ScopeProbeDeps = {}): DurableDaemonScopeCapability {
+  const client = probeScopeClient(deps)
+  if (!client) {
+    return { supported: false }
+  }
+  const managerMajorVersion = probeManagerForClient(client.systemdMajorVersion, deps)
+  return {
+    supported: true,
+    systemdMajorVersion: client.systemdMajorVersion,
+    managerMajorVersion,
+    oomPolicyContinue: supportsScopeOomPolicy(managerMajorVersion)
+  }
+}
+
+/** Boolean-only view; skips the manager version probe. */
+export function isDurableDaemonScopeSupported(deps: ScopeProbeDeps = {}): boolean {
+  return probeScopeClient(deps) !== null
 }
 
 /** The environment that reaches this user's systemd manager (see resolveUserRuntimeDir). */
@@ -177,72 +252,27 @@ export function userManagerEnv(
   return next
 }
 
+export {
+  detectOwnCgroupScopeUnit,
+  isLegacyDaemonScopeUnit,
+  readLegacyDaemonScopeProcesses,
+  type LegacyDaemonScopeProcesses
+} from './daemon-scope-cgroup-membership'
+
 export type DurableDaemonScopeCommand = {
   command: string
   args: string[]
   env: NodeJS.ProcessEnv
 }
 
-export function isLegacyDaemonScopeUnit(unit: string | null): boolean {
-  return unit?.startsWith(LEGACY_SCOPE_PREFIX) === true && unit.endsWith('.scope')
-}
-
-function cgroupPathFromProc(contents: string): string | null {
-  const paths: { path: string; priority: number }[] = []
-  for (const line of contents.split('\n')) {
-    const fields = line.split(':')
-    const path = cgroupPathFromProcLine(line)
-    if (fields.length >= 3 && path) {
-      const controllers = fields[1]?.split(',') ?? []
-      const priority = fields[0] === '0' ? 0 : controllers.includes('name=systemd') ? 1 : 2
-      paths.push({ path, priority })
-    }
-  }
-  return paths.sort((left, right) => left.priority - right.priority)[0]?.path ?? null
-}
-
-function scopeUnitFromCgroupPath(path: string): string | null {
-  const unit = path.split('/').at(-1)?.trim()
-  return unit?.endsWith('.scope') ? unit : null
-}
-
-export type LegacyDaemonScopeProcesses = {
-  unit: string
-  pids: number[]
-}
-
-export function readLegacyDaemonScopeProcesses(
-  pid: number,
-  procRoot = '/proc',
-  cgroupRoot = '/sys/fs/cgroup'
-): LegacyDaemonScopeProcesses | null {
-  if (!Number.isSafeInteger(pid) || pid <= 0) {
-    return null
-  }
-  try {
-    const cgroup = readFileSync(join(procRoot, String(pid), 'cgroup'), 'utf8')
-    const path = cgroupPathFromProc(cgroup)
-    const unit = path ? scopeUnitFromCgroupPath(path) : null
-    if (unit === null || !isLegacyDaemonScopeUnit(unit) || !path) {
-      return null
-    }
-    const legacyUnit = unit
-    const pids = readFileSync(join(cgroupRoot, path.replace(/^\/+/, ''), 'cgroup.procs'), 'utf8')
-      .split(/\s+/)
-      .map(Number)
-      .filter((value) => Number.isSafeInteger(value) && value > 0)
-    return pids.length > 0 ? { unit: legacyUnit, pids } : null
-  } catch {
-    return null
-  }
-}
-
 export function buildLegacyScopeMigrationCommand(
   launchNonce: string,
   pids: readonly number[],
   env: NodeJS.ProcessEnv,
-  canonicalRuntimeDir: string | null = CANONICAL_USER_RUNTIME_DIR
+  canonicalRuntimeDir: string | null = CANONICAL_USER_RUNTIME_DIR,
+  scopeOptions: DurableDaemonScopeOptions = {}
 ): DurableDaemonScopeCommand {
+  const oomPolicy = busctlOomPolicyProperties(scopeOptions)
   const runtimeDir = resolveUserRuntimeDir(env, canonicalRuntimeDir)
   const migrationEnv: NodeJS.ProcessEnv = runtimeDir
     ? { ...env, XDG_RUNTIME_DIR: runtimeDir }
@@ -262,11 +292,12 @@ export function buildLegacyScopeMigrationCommand(
       'ssa(sv)a(sa(sv))',
       daemonScopeUnitName(launchNonce),
       'fail',
-      '1',
+      String(1 + oomPolicy.count),
       'PIDs',
       'au',
       String(pids.length),
       ...pids.map(String),
+      ...oomPolicy.args,
       '0'
     ],
     env: migrationEnv
@@ -294,20 +325,26 @@ export function migrateLegacyDaemonScope(
         stdio: 'ignore'
       })
   } = deps
-  if (platform !== 'linux' || !isDurableDaemonScopeSupported(deps)) {
+  const client = platform === 'linux' ? probeScopeClient(deps) : null
+  if (!client) {
     return false
   }
   const legacy = readProcesses(pid)
   if (!legacy) {
     return false
   }
+  // Why after readProcesses: adopting a healthy non-legacy daemon must not spawn systemctl.
+  const oomPolicyContinue = supportsScopeOomPolicy(
+    probeManagerForClient(client.systemdMajorVersion, deps)
+  )
   try {
     const result = runMigration(
       buildLegacyScopeMigrationCommand(
         launchNonce,
         legacy.pids,
         env,
-        resolveCanonicalRuntimeDir(deps)
+        resolveCanonicalRuntimeDir(deps),
+        { oomPolicyContinue }
       ),
       SYSTEMD_SCOPE_MIGRATION_TIMEOUT_MS
     )
@@ -327,7 +364,8 @@ export function buildDurableDaemonScopeCommand(
   scriptArgs: string[],
   launchNonce: string,
   env: NodeJS.ProcessEnv,
-  canonicalRuntimeDir: string | null = CANONICAL_USER_RUNTIME_DIR
+  canonicalRuntimeDir: string | null = CANONICAL_USER_RUNTIME_DIR,
+  scopeOptions: DurableDaemonScopeOptions = {}
 ): DurableDaemonScopeCommand {
   const runtimeDir = resolveUserRuntimeDir(env, canonicalRuntimeDir)
   const scopeEnv: NodeJS.ProcessEnv = runtimeDir
@@ -342,6 +380,7 @@ export function buildDurableDaemonScopeCommand(
       '--scope',
       `--unit=${daemonScopeUnitName(launchNonce)}`,
       '--property=TimeoutStopSec=5s',
+      ...systemdRunOomPolicyArgs(scopeOptions),
       '--collect',
       '--quiet',
       '--',
@@ -353,34 +392,4 @@ export function buildDurableDaemonScopeCommand(
     // `XDG_RUNTIME_DIR` says (see `resolveUserRuntimeDir` for why that value can be wrong).
     env: scopeEnv
   }
-}
-
-/**
- * The daemon's own cgroup membership, read from /proc rather than trusted from the launcher's
- * intent, so a daemon that fell back (or was adopted from before this fix) cannot misreport
- * isolation it does not have. The owning unit name when isolated; null when it sits in the
- * parent's service unit, is not on Linux, or has unreadable cgroup membership.
- */
-export function detectOwnCgroupScopeUnit(
-  platform: NodeJS.Platform = process.platform,
-  cgroupPath = '/proc/self/cgroup'
-): string | null {
-  if (platform !== 'linux') {
-    return null
-  }
-  let contents: string
-  try {
-    contents = readFileSync(cgroupPath, 'utf8')
-  } catch {
-    return null
-  }
-  for (const line of contents.split('\n')) {
-    // cgroup v2 unified hierarchy: "0::/user.slice/.../orca-daemon-<nonce>.scope"
-    // cgroup v1 systemd controller: "1:name=systemd:/user.slice/.../orca-daemon-<nonce>.scope"
-    const last = line.split('/').at(-1)?.trim()
-    if (last && (last.startsWith(UNIT_NAME_PREFIX) || isLegacyDaemonScopeUnit(last))) {
-      return last
-    }
-  }
-  return null
 }

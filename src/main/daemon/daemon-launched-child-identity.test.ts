@@ -1,19 +1,22 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { DAEMON_EXIT_ENDPOINT_OCCUPIED } from './daemon-endpoint-ownership'
+import type { DurableDaemonScopeCapability } from './daemon-cgroup-scope'
 import { launchDaemonChild } from './daemon-launched-child'
 import type { DaemonChildSpawnOptions } from './daemon-launched-child-spawn'
 
-const { spawnDaemonChildProcessMock, isDurableDaemonScopeSupportedMock } = vi.hoisted(() => ({
+const { spawnDaemonChildProcessMock, probeDurableDaemonScopeMock } = vi.hoisted(() => ({
   spawnDaemonChildProcessMock: vi.fn(),
-  isDurableDaemonScopeSupportedMock: vi.fn(() => false)
+  probeDurableDaemonScopeMock: vi.fn<() => DurableDaemonScopeCapability>(() => ({
+    supported: false
+  }))
 }))
 
 vi.mock('./daemon-launched-child-spawn', () => ({
   spawnDaemonChildProcess: spawnDaemonChildProcessMock
 }))
 vi.mock('./daemon-cgroup-scope', () => ({
-  isDurableDaemonScopeSupported: isDurableDaemonScopeSupportedMock
+  probeDurableDaemonScope: probeDurableDaemonScopeMock
 }))
 vi.mock('./daemon-spawner', () => ({ unlinkOwnedDaemonPidFile: vi.fn(() => true) }))
 
@@ -37,6 +40,13 @@ const LAUNCH_OPTIONS: DaemonChildSpawnOptions = {
   macosLoginSessionWatch: false
 }
 
+const SUPPORTED_SCOPE = {
+  supported: true,
+  systemdMajorVersion: 255,
+  managerMajorVersion: 255,
+  oomPolicyContinue: true
+}
+
 function fakeDaemonChild(pid: number): FakeDaemonChild {
   const child = new EventEmitter()
   return Object.assign(child, {
@@ -51,14 +61,14 @@ function fakeDaemonChild(pid: number): FakeDaemonChild {
 afterEach(() => {
   vi.clearAllMocks()
   spawnDaemonChildProcessMock.mockReset()
-  isDurableDaemonScopeSupportedMock.mockReturnValue(false)
+  probeDurableDaemonScopeMock.mockReturnValue({ supported: false })
 })
 
 describe('launchDaemonChild identity', () => {
   it('takes the PID the daemon reports for itself, not the immediate child PID', async () => {
     // The immediate child of a durable-scope launch is `systemd-run`, so its PID is only ever
     // the daemon's by way of systemd-run's exec. The identity must not depend on that.
-    isDurableDaemonScopeSupportedMock.mockReturnValue(true)
+    probeDurableDaemonScopeMock.mockReturnValue(SUPPORTED_SCOPE)
     const child = fakeDaemonChild(4242)
     spawnDaemonChildProcessMock.mockReturnValue(child)
 
@@ -72,7 +82,11 @@ describe('launchDaemonChild identity', () => {
     })
     const launched = await launch
 
-    expect(spawnDaemonChildProcessMock).toHaveBeenCalledWith(LAUNCH_OPTIONS, true)
+    expect(probeDurableDaemonScopeMock).toHaveBeenCalledTimes(1)
+    expect(spawnDaemonChildProcessMock).toHaveBeenCalledWith(
+      { ...LAUNCH_OPTIONS, durableScopeOomPolicyContinue: true },
+      true
+    )
     expect(launched.identity).toEqual({
       pid: 9999,
       startedAtMs: 1_700_000_000_000,
@@ -103,6 +117,40 @@ describe('launchDaemonChild identity', () => {
   })
 })
 
+describe('launchDaemonChild OOMPolicy skip log', () => {
+  const run = async (scope: DurableDaemonScopeCapability) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    probeDurableDaemonScopeMock.mockReturnValue(scope)
+    const child = fakeDaemonChild(1)
+    spawnDaemonChildProcessMock.mockReturnValue(child)
+    const launch = launchDaemonChild(LAUNCH_OPTIONS)
+    child.emit('message', { type: 'ready', pid: 1, startedAtMs: 1 })
+    await launch
+    const calls = warn.mock.calls.filter(([m]) => String(m).includes('durable scope')).length
+    warn.mockRestore()
+    return calls
+  }
+
+  it('logs once when a supported scope omits OOMPolicy', async () => {
+    const calls = await run({
+      supported: true,
+      oomPolicyContinue: false,
+      systemdMajorVersion: 249,
+      managerMajorVersion: null
+    })
+    expect(calls).toBe(1)
+    expect(spawnDaemonChildProcessMock).toHaveBeenCalledWith(
+      { ...LAUNCH_OPTIONS, durableScopeOomPolicyContinue: false },
+      true
+    )
+  })
+
+  it('stays silent when OOMPolicy applies or the scope is unsupported', async () => {
+    expect(await run(SUPPORTED_SCOPE)).toBe(0)
+    expect(await run({ supported: false })).toBe(0)
+  })
+})
+
 describe('launchDaemonChild startup budget', () => {
   it('waits for readiness past the default 10 s when the caller allows it', async () => {
     vi.useFakeTimers()
@@ -121,7 +169,7 @@ describe('launchDaemonChild startup budget', () => {
 
 describe('launchDaemonChild durable-scope fallback', () => {
   it('retries once without cgroup isolation when the scoped attempt fails', async () => {
-    isDurableDaemonScopeSupportedMock.mockReturnValue(true)
+    probeDurableDaemonScopeMock.mockReturnValue(SUPPORTED_SCOPE)
     const scoped = fakeDaemonChild(4242)
     const unscoped = fakeDaemonChild(4343)
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -156,7 +204,7 @@ describe('launchDaemonChild durable-scope fallback', () => {
   it('does not retry when another daemon already owns the endpoint', async () => {
     // A lost endpoint race is not a scope failure: the caller adopts the winner, and a second
     // child would only lose the same race.
-    isDurableDaemonScopeSupportedMock.mockReturnValue(true)
+    probeDurableDaemonScopeMock.mockReturnValue(SUPPORTED_SCOPE)
     const scoped = fakeDaemonChild(4242)
     spawnDaemonChildProcessMock.mockImplementation(() => {
       queueMicrotask(() => {
@@ -174,7 +222,7 @@ describe('launchDaemonChild durable-scope fallback', () => {
 
   // Outside AppImage the cleanup veto must not apply: the unscoped retry stays as it was.
   it('still retries unscoped when a scoped attempt and its cleanup both fail', async () => {
-    isDurableDaemonScopeSupportedMock.mockReturnValue(true)
+    probeDurableDaemonScopeMock.mockReturnValue(SUPPORTED_SCOPE)
     const scoped = fakeDaemonChild(4242)
     const unscoped = fakeDaemonChild(4343)
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -218,7 +266,7 @@ describe('launchDaemonChild AppImage fallback', () => {
   }
 
   it('retries from the current mount under a scope name the failed attempt never used', async () => {
-    isDurableDaemonScopeSupportedMock.mockReturnValue(true)
+    probeDurableDaemonScopeMock.mockReturnValue(SUPPORTED_SCOPE)
     const failed = fakeDaemonChild(4242)
     const inMount = fakeDaemonChild(4343)
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -257,7 +305,7 @@ describe('launchDaemonChild AppImage fallback', () => {
   })
 
   it('does not retry beside an AppImage attempt whose cleanup failed', async () => {
-    isDurableDaemonScopeSupportedMock.mockReturnValue(true)
+    probeDurableDaemonScopeMock.mockReturnValue(SUPPORTED_SCOPE)
     const alive = fakeDaemonChild(4242)
     spawnDaemonChildProcessMock.mockImplementation(() => {
       queueMicrotask(() => alive.emit('message', { type: 'ready', startedAtMs: 1 }))

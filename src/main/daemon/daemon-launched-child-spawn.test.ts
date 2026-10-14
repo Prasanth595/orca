@@ -39,6 +39,14 @@ describe('daemon launch scope ownership', () => {
     )
   })
 
+  it('adds OOMPolicy=continue to the scope only when requested', () => {
+    spawnDaemonChildProcess({ ...options, durableScopeOomPolicyContinue: true }, true)
+    expect(spawn.mock.calls[0][0].args).toContain('--property=OOMPolicy=continue')
+    spawn.mockClear()
+    spawnDaemonChildProcess(options, true)
+    expect(spawn.mock.calls[0][0].args).not.toContain('--property=OOMPolicy=continue')
+  })
+
   it('does not arm cleanup on the direct launch fallback', () => {
     spawnDaemonChildProcess(options, false)
     expect(spawn).not.toHaveBeenCalled()

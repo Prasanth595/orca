@@ -1,6 +1,7 @@
 import type { ChildProcess } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { isDurableDaemonScopeSupported } from './daemon-cgroup-scope'
+import { probeDurableDaemonScope } from './daemon-cgroup-scope'
+import { scopeOomPolicyReason } from './systemd-scope-oom-policy'
 import { DAEMON_EXIT_ENDPOINT_OCCUPIED } from './daemon-endpoint-ownership'
 import type { DaemonEndpointIdentity } from './daemon-hello-protocol'
 import {
@@ -35,10 +36,21 @@ export type LaunchedDaemonChild = {
 }
 
 export async function launchDaemonChild(
-  options: DaemonChildSpawnOptions
+  baseOptions: DaemonChildSpawnOptions
 ): Promise<LaunchedDaemonChild> {
   // Why once: the probe is a synchronous systemd-run spawn; the AppImage fallbacks must not repeat it.
-  const scopeSupported = isDurableDaemonScopeSupported()
+  const scope = probeDurableDaemonScope()
+  const scopeSupported = scope.supported
+  // stderr only: launcher stdout is a JSON channel for driver fixtures.
+  if (scope.supported && !scope.oomPolicyContinue) {
+    console.warn(
+      `[daemon] durable scope: ${scopeOomPolicyReason(scope.systemdMajorVersion, scope.managerMajorVersion)}`
+    )
+  }
+  const options: DaemonChildSpawnOptions = {
+    ...baseOptions,
+    durableScopeOomPolicyContinue: scope.supported && scope.oomPolicyContinue
+  }
   const appImageRungs = [
     ...(options.extractedGeneration
       ? [{ from: 'the extracted AppImage copy', options: { ...options, appImage: undefined } }]

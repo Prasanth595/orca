@@ -33,6 +33,8 @@ export type DaemonChildSpawnOptions = {
   spawnAdmission?: 'observe' | 'enforce'
   /** Defaults to 10 s; a cold first exec on Windows can need longer. */
   startupTimeoutMs?: number
+  /** Scope gets `OOMPolicy=continue` so one OOM-killed PTY child cannot stop the daemon. */
+  durableScopeOomPolicyContinue?: boolean
 }
 
 export function buildDaemonScriptArgs(
@@ -138,7 +140,14 @@ export function spawnDaemonChildProcess(
           env: daemonEnv
         }
   const scoped = useDurableScope
-    ? buildDurableDaemonScopeCommand(direct.command, direct.args, launchNonce, direct.env)
+    ? buildDurableDaemonScopeCommand(
+        direct.command,
+        direct.args,
+        launchNonce,
+        direct.env,
+        undefined,
+        { oomPolicyContinue: options.durableScopeOomPolicyContinue }
+      )
     : direct
   return spawnProcess({
     ...childOptions,

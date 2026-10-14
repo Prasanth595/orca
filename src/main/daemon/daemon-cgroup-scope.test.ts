@@ -9,6 +9,7 @@ import {
   daemonScopeUnitName,
   detectOwnCgroupScopeUnit,
   isDurableDaemonScopeSupported,
+  probeDurableDaemonScope,
   migrateLegacyDaemonScope,
   readLegacyDaemonScopeProcesses
 } from './daemon-cgroup-scope'
@@ -267,6 +268,189 @@ describe('buildDurableDaemonScopeCommand', () => {
       perUidDir
     )
     expect(result.env.XDG_RUNTIME_DIR).toBe(perUidDir)
+  })
+})
+
+describe('probeDurableDaemonScope', () => {
+  function probeDeps(
+    runVersionProbe: () => { code: number | null; timedOut: boolean; stdout?: string },
+    runManagerVersionProbe?: (
+      timeoutMs: number,
+      env: NodeJS.ProcessEnv
+    ) => { code: number | null; timedOut: boolean; stdout?: string }
+  ) {
+    const perUidDir = fakeRuntimeDirWithBus()
+    return {
+      env: { XDG_RUNTIME_DIR: perUidDir },
+      platform: 'linux' as const,
+      canonicalRuntimeDir: perUidDir,
+      systemdBootPath: fakeSystemdBootPath(),
+      runVersionProbe,
+      runManagerVersionProbe,
+      outlivesCaller: () => true
+    }
+  }
+  const client = (v: number) => () => ({
+    code: 0,
+    timedOut: false,
+    stdout: `systemd ${v} (${v}.1)\n+PAM`
+  })
+  const manager = (stdout: string) => () => ({ code: 0, timedOut: false, stdout })
+
+  it('enables OOMPolicy when client and manager are both >= 253', () => {
+    expect(probeDurableDaemonScope(probeDeps(client(255), manager('259.5-0ubuntu3.4\n')))).toEqual({
+      supported: true,
+      systemdMajorVersion: 255,
+      managerMajorVersion: 259,
+      oomPolicyContinue: true
+    })
+  })
+
+  it('omits OOMPolicy when the manager is older than the client', () => {
+    expect(probeDurableDaemonScope(probeDeps(client(255), manager('249.11\n')))).toMatchObject({
+      supported: true,
+      managerMajorVersion: 249,
+      oomPolicyContinue: false
+    })
+  })
+
+  it('probes the manager with the timeout and the canonical runtime dir', () => {
+    const managerProbe = vi.fn((_timeoutMs: number, _env: NodeJS.ProcessEnv) => ({
+      code: 0,
+      timedOut: false,
+      stdout: '259'
+    }))
+    const deps = probeDeps(client(255), managerProbe)
+    probeDurableDaemonScope({ ...deps, env: { XDG_RUNTIME_DIR: '/run/user/other' } })
+    expect(managerProbe).toHaveBeenCalledTimes(1)
+    const [timeoutMs, env] = managerProbe.mock.calls[0]
+    expect(timeoutMs).toBe(2000)
+    expect(env.XDG_RUNTIME_DIR).toBe(deps.canonicalRuntimeDir)
+  })
+
+  it('skips the manager probe for an old client', () => {
+    const managerProbe = vi.fn(manager('259'))
+    expect(probeDurableDaemonScope(probeDeps(client(245), managerProbe))).toMatchObject({
+      supported: true,
+      systemdMajorVersion: 245,
+      managerMajorVersion: null,
+      oomPolicyContinue: false
+    })
+    expect(managerProbe).not.toHaveBeenCalled()
+  })
+
+  it('keeps the scope when the manager probe throws, times out, or is unparsable', () => {
+    const throwing = () => {
+      throw new Error('no systemctl')
+    }
+    for (const probe of [
+      throwing,
+      () => ({ code: null, timedOut: true }),
+      () => ({ code: 1, timedOut: false, stdout: '' }),
+      manager('garbage')
+    ]) {
+      expect(probeDurableDaemonScope(probeDeps(client(255), probe))).toMatchObject({
+        supported: true,
+        managerMajorVersion: null,
+        oomPolicyContinue: false
+      })
+    }
+  })
+
+  it('treats a stub without stdout as supported with unknown versions', () => {
+    const managerProbe = vi.fn(manager('259'))
+    expect(
+      probeDurableDaemonScope(probeDeps(() => ({ code: 0, timedOut: false }), managerProbe))
+    ).toEqual({
+      supported: true,
+      systemdMajorVersion: null,
+      managerMajorVersion: null,
+      oomPolicyContinue: false
+    })
+    expect(managerProbe).not.toHaveBeenCalled()
+  })
+
+  it('is unsupported when the client probe fails, and the boolean wrapper never probes the manager', () => {
+    const managerProbe = vi.fn(manager('259'))
+    expect(
+      probeDurableDaemonScope(probeDeps(() => ({ code: 1, timedOut: false }), managerProbe))
+    ).toEqual({ supported: false })
+    expect(isDurableDaemonScopeSupported(probeDeps(client(255), managerProbe))).toBe(true)
+    expect(managerProbe).not.toHaveBeenCalled()
+  })
+})
+
+describe('OOMPolicy in scope commands', () => {
+  it('places the systemd-run property right after TimeoutStopSec only when on', () => {
+    const on = buildDurableDaemonScopeCommand('/n', [], 'x', {}, null, { oomPolicyContinue: true })
+    expect(on.args.slice(3, 6)).toEqual([
+      '--property=TimeoutStopSec=5s',
+      '--property=OOMPolicy=continue',
+      '--collect'
+    ])
+    const off = buildDurableDaemonScopeCommand('/n', [], 'x', {}, null, {})
+    expect(off.args.join(' ')).not.toContain('OOMPolicy')
+  })
+
+  it('adds a second busctl property to the legacy migration call', () => {
+    const on = buildLegacyScopeMigrationCommand('x', [1, 2], {}, null, { oomPolicyContinue: true })
+    expect(on.args.slice(9)).toEqual([
+      '2',
+      'PIDs',
+      'au',
+      '2',
+      '1',
+      '2',
+      'OOMPolicy',
+      's',
+      'continue',
+      '0'
+    ])
+    const off = buildLegacyScopeMigrationCommand('x', [1, 2], {}, null)
+    expect(off.args.slice(9)).toEqual(['1', 'PIDs', 'au', '2', '1', '2', '0'])
+  })
+
+  it('migrateLegacyDaemonScope applies the probed policy', () => {
+    const runtimeDir = fakeRuntimeDirWithBus()
+    const run = (managerVersion: string) => {
+      let migrationArgs: string[] = []
+      const ok = migrateLegacyDaemonScope(321, 'n', {
+        env: { XDG_RUNTIME_DIR: runtimeDir },
+        platform: 'linux',
+        canonicalRuntimeDir: runtimeDir,
+        readProcesses: () => ({ unit: 'app-orca-1.scope', pids: [321] }),
+        systemdBootPath: fakeSystemdBootPath(),
+        runVersionProbe: () => ({ code: 0, timedOut: false, stdout: 'systemd 255 (255)\n' }),
+        runManagerVersionProbe: () => ({ code: 0, timedOut: false, stdout: managerVersion }),
+        runMigration: (command) => {
+          migrationArgs = command.args
+          return { code: 0, timedOut: false }
+        },
+        outlivesCaller: () => true
+      })
+      return { ok, args: migrationArgs }
+    }
+    const on = run('259.5')
+    expect(on.ok).toBe(true)
+    expect(on.args).toContain('OOMPolicy')
+    expect(run('249').args).not.toContain('OOMPolicy')
+  })
+
+  it('migrateLegacyDaemonScope skips the manager probe for a non-legacy daemon', () => {
+    const runtimeDir = fakeRuntimeDirWithBus()
+    const managerProbe = vi.fn(() => ({ code: 0, timedOut: false, stdout: '259' }))
+    const ok = migrateLegacyDaemonScope(321, 'n', {
+      env: { XDG_RUNTIME_DIR: runtimeDir },
+      platform: 'linux',
+      canonicalRuntimeDir: runtimeDir,
+      readProcesses: () => null,
+      systemdBootPath: fakeSystemdBootPath(),
+      runVersionProbe: () => ({ code: 0, timedOut: false, stdout: 'systemd 255 (255)\n' }),
+      runManagerVersionProbe: managerProbe,
+      outlivesCaller: () => true
+    })
+    expect(ok).toBe(false)
+    expect(managerProbe).not.toHaveBeenCalled()
   })
 })
 
