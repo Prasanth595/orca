@@ -123,7 +123,8 @@ describe('a paired-server link outside its own workspace', () => {
     expect(openFilePathMock).not.toHaveBeenCalled()
     expect(downloadAndOpenRemoteTerminalFile).toHaveBeenCalledWith(
       expect.objectContaining({ worktreeId: 'wt-main', worktreePath: '/repo' }),
-      '/repo/src/index.ts'
+      '/repo/src/index.ts',
+      expect.any(Function)
     )
   })
 
