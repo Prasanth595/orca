@@ -27,6 +27,10 @@ import {
   CLAUDE_INFORMATIONAL_FRAME_KIND,
   claudeInformationalRowBody
 } from './claude-informational-row'
+import {
+  CLAUDE_INIT_FRAME_KIND,
+  createClaudeMcpConnectFailureRows
+} from './claude-mcp-connect-failure-row'
 
 export function claudeProviderFrameKind(message: Record<string, unknown>): string {
   const type = claudeText(message.type) ?? 'unknown'
@@ -154,6 +158,7 @@ export function createClaudeProviderFrameFallback(
 } {
   let sequence = 0
   const retryRun = createClaudeApiRetryRuns()
+  const mcpConnectFailureRow = createClaudeMcpConnectFailureRows()
   return {
     append: (kind, payload, displayText, beforeAppend, options, stamp) => {
       sequence += 1
@@ -170,9 +175,14 @@ export function createClaudeProviderFrameFallback(
         sink.publish()
         return true
       }
-      if (kind === CLAUDE_INFORMATIONAL_FRAME_KIND) {
-        // Never the frame as a row: a warning in its own words, any other level nothing.
-        const body = claudeInformationalRowBody(claudeRecord(payload) ?? {})
+      if (kind === CLAUDE_INFORMATIONAL_FRAME_KIND || kind === CLAUDE_INIT_FRAME_KIND) {
+        // Never the frame as a row: a warning in its own words, or for init one naming the MCP
+        // servers that newly failed to connect; otherwise nothing.
+        const frame = claudeRecord(payload) ?? {}
+        const body =
+          kind === CLAUDE_INIT_FRAME_KIND
+            ? mcpConnectFailureRow(frame)
+            : claudeInformationalRowBody(frame)
         if (!body) {
           return false
         }
