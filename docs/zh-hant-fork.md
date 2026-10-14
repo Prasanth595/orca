@@ -26,7 +26,13 @@ This fork carries a Traditional Chinese (Taiwan) UI for personal use. Upstream `
 - Builds are for the user's own machines only. There is no GitHub Release and no public distribution.
 - Do not point the auto-updater or the electron-builder `owner` at the fork. The user still wants official updates, and an official update overwriting a test build is expected.
 - On macOS, use `--build-mac`. A plain `pnpm build:mac` fails on x64 because only host-arch native modules are installed.
-- On Windows, `git switch release`, then run `pnpm install` and `pnpm build:win`. The installer lands in `dist\`.
+- On Windows, `git switch release`, then run, in order:
+  1. `pnpm install`
+  2. `pnpm install --frozen-lockfile` inside `mobile/`. It is a separate pnpm project, and the mobile web bundle resolves React Native and Expo from it.
+  3. `node config/scripts/build-windows-agent-hook.mjs`. This needs `cargo`; packaging fails without `orca-agent-hook.exe`.
+  4. `pnpm build:win`
+
+  The installer lands in `dist\orca-windows-setup.exe`.
 
 ## zh-Hant wording (Taiwan)
 
