@@ -84,10 +84,11 @@ export const mobileSessionCommandInputStyles = StyleSheet.create({
     borderTopColor: colors.borderSubtle
   },
   accessoryScroll: {
-    flex: 1,
-    minWidth: 0
+    flexGrow: 0,
+    flexShrink: 0
   },
   accessoryContent: {
+    alignItems: 'center',
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     gap: spacing.xs
@@ -98,6 +99,8 @@ export const mobileSessionCommandInputStyles = StyleSheet.create({
     paddingVertical: spacing.xs,
     borderRadius: radii.button,
     minWidth: 36,
+    minHeight: 28,
+    justifyContent: 'center',
     alignItems: 'center'
   },
   accessoryKeyPressed: {
