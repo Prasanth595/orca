@@ -75,6 +75,14 @@ export const mobileSessionCommandInputStyles = StyleSheet.create({
     borderTopColor: colors.borderSubtle,
     backgroundColor: colors.bgPanel
   },
+  accessoryRowsContainer: {
+    flex: 1,
+    minWidth: 0
+  },
+  accessoryRowDivider: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.borderSubtle
+  },
   accessoryScroll: {
     flex: 1,
     minWidth: 0
