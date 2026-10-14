@@ -53,6 +53,7 @@
       },
       "JiraIssueWorkspace": {
         "2a829a2f00": "priority",
+        "54649eaeab": "+ Assignee",
         "693be070d0": "transition",
         "9ebee71962": "labels",
         "b8e2079d96": "assignee",
@@ -1396,8 +1397,11 @@
         "ProjectWindowsRuntimeSetting": {
           "activeTaskPlural": "{{count}} active tasks",
           "activeTaskSingular": "{{count}} active task",
+          "distroMissing": "{{value0}} is not installed in WSL. Choose an installed distro or switch this project to Windows.",
+          "distroRequired": "Choose a WSL distro or switch this project to Windows.",
           "liveTerminalPlural": "{{count}} live terminals",
-          "liveTerminalSingular": "{{count}} live terminal"
+          "liveTerminalSingular": "{{count}} live terminal",
+          "wslUnavailable": "WSL is not available. Switch this project to Windows or repair WSL."
         },
         "QuickCommandsPane": {
           "44923dd982": "destructive",
@@ -2869,6 +2873,8 @@
         "attachmentTotalTooLarge": "The images on this message are too large together, so the message was not sent.",
         "attachmentUnreadable": "An attachment on this message couldn't be read, so the message was not sent.",
         "attachmentUnsupportedType": "{{agent}} accepts only PNG, JPEG, GIF, and WebP images, so this message was not sent.",
+        "backgroundTaskNotStopped": "The background task wasn't stopped.",
+        "backgroundTasksNotStopped": "The background tasks weren't stopped.",
         "cancelUnconfirmed": "Cancellation was not confirmed.",
         "cancelled": "This message was withdrawn before the agent started it.",
         "chatClosed": "The chat closed before this message was sent.",
@@ -2891,6 +2897,8 @@
         "compactionUnconfirmed": "Compaction completion is unconfirmed.",
         "couldNotRestart": "{{agent}} couldn't restart.",
         "couldNotStart": "{{agent}} couldn't start.",
+        "couldNotStop": "Couldn't stop {{agent}}.",
+        "couldNotStopTheAgent": "Couldn't stop the agent.",
         "editSavedArguments": "Edit them in Settings > Agents > Arguments.",
         "emptyMessage": "This message is empty, so it was not sent.",
         "historyInOtherAccount": "This chat's history is in another Claude account. Switch back to that account to continue it.",
@@ -3020,6 +3028,7 @@
         "answerFirst": "Answer the question or approval first.",
         "attachmentExpired": "This attachment expired.",
         "backgroundTasksRunning": "Background tasks are still running.",
+        "cancelNotSaved": "Couldn't cancel this question or approval.",
         "cannotRunHere": "Orca can't run this agent in a chat here.",
         "capacity": "Orca on the computer running this chat has hit a request limit. Update Orca there, then try again.",
         "chatNotFound": "Orca can't find this chat.",
@@ -3147,6 +3156,11 @@
       "omittedFiles": "Files omitted by sparse checkout are not searched.",
       "viewOnly": "Sparse checkout · View changes do not change checked-out files.",
       "viewing": "Viewing: {{path}}"
+    }
+  },
+  "jira": {
+    "workspace": {
+      "open": "Open workspace linked to {{key}}"
     }
   },
   "menu": {
