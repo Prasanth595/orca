@@ -15,6 +15,10 @@ function setsAny(table: Record<string, unknown>, keys: readonly string[]): boole
   return keys.some((key) => table[key] !== undefined)
 }
 
+// yaml's duplicate-key check and alias resolution are quadratic. Only key presence matters, and a
+// file with aliases counts as unreadable.
+const YAML_OPTIONS = { uniqueKeys: false, maxAliasCount: 0 } as const
+
 // Claude settings keys that pick the model, its effort or effort cap, or which models Default may
 // resolve to; `agent` applies that agent's model to the main thread.
 const CLAUDE_MODEL_SETTINGS = [
@@ -129,7 +133,7 @@ export function openCodeAgentFileMayPickModel(text: string): boolean {
     return false
   }
   try {
-    const frontmatter = record(parseYaml(match[1] ?? ''))
+    const frontmatter = record(parseYaml(match[1] ?? '', YAML_OPTIONS))
     return frontmatter !== null && setsAny(frontmatter, OPENCODE_AGENT_MODEL_KEYS)
   } catch {
     return true
@@ -162,7 +166,11 @@ export function ompSettingsMayPickModel(text: string, format: 'json' | 'yaml' | 
   let settings: Record<string, unknown> | null
   try {
     const parsed: unknown =
-      format === 'json' ? JSON.parse(text) : format === 'yaml' ? parseYaml(text) : parseToml(text)
+      format === 'json'
+        ? JSON.parse(text)
+        : format === 'yaml'
+          ? parseYaml(text, YAML_OPTIONS)
+          : parseToml(text)
     // An empty YAML file is no settings.
     settings = parsed === null && format === 'yaml' ? {} : record(parsed)
   } catch {
