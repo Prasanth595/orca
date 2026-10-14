@@ -14,6 +14,8 @@ import {
   type ExecutionHostKind
 } from './execution-host'
 import type { RuntimeCompatVerdict } from './protocol-compat'
+import { REQUIRED_RUNTIME_SERVER_CAPABILITIES } from './protocol-version'
+import { liveRuntimeHostStatus, runtimeHostContactForEntry } from './runtime-host-contact'
 import { evaluateRuntimeStatusCompat } from './runtime-status-compat'
 import type { RuntimeStatus } from './runtime-types'
 import type { SshConnectionState, SshConnectionStatus } from './ssh-types'
@@ -60,12 +62,14 @@ type RuntimeStatusByEnvironmentId = ReadonlyMap<string, RuntimeEnvironmentStatus
 export type ExecutionHostSource = 'configured-only' | 'include-references'
 
 function runtimeCompatibility(
-  status: RuntimeStatus | null | undefined
+  status: RuntimeStatus | null | undefined,
+  live: boolean
 ): RuntimeCompatVerdict | null {
   if (!status) {
     return null
   }
-  return evaluateRuntimeStatusCompat(status)
+  // Why: required capabilities never block an unverifiable host; only a live answer can refuse it.
+  return evaluateRuntimeStatusCompat(status, live ? REQUIRED_RUNTIME_SERVER_CAPABILITIES : [])
 }
 
 function runtimeHealth(
@@ -132,7 +136,8 @@ function addRuntimeHost(
   const status = runtimeStatus?.status
   const snapshot = runtimeStatus?.snapshot
   const metadata = status ?? snapshot?.status
-  const compatibility = runtimeCompatibility(metadata)
+  const live = liveRuntimeHostStatus(runtimeHostContactForEntry(runtimeStatus)) !== null
+  const compatibility = runtimeCompatibility(metadata, live)
   const remoteControl = runtimeStatus?.remoteControl ?? status?.remoteControl
   // Why: the status owner withdraws `verified` whenever a ready socket drops, so a verified
   // answer proves the host reachable while shared control is still connecting (#10704).

@@ -224,32 +224,35 @@ describe('execution host registry', () => {
     ])
   })
 
-  it('never blocks an unreachable host on the capabilities its last reply lacked', () => {
-    const hosts = buildExecutionHostRegistry({
-      repos: [],
-      settings: null,
-      runtimeEnvironments: [{ id: 'host', name: 'Host' }],
-      runtimeStatusByEnvironmentId: new Map([
-        [
-          'host',
-          {
-            checkedAt: 0,
-            status: null,
-            snapshot: {
-              environmentId: 'host',
-              pairingRevision: 1,
-              sequence: 2,
+  it.each(['disconnected', 'ready'] as const)(
+    'never blocks an unverifiable host on the capabilities its last reply lacked (transport %s)',
+    (transport) => {
+      const hosts = buildExecutionHostRegistry({
+        repos: [],
+        settings: null,
+        runtimeEnvironments: [{ id: 'host', name: 'Host' }],
+        runtimeStatusByEnvironmentId: new Map([
+          [
+            'host',
+            {
               checkedAt: 0,
-              status: preFloorStatus(),
-              verification: 'unavailable',
-              transport: 'disconnected'
+              status: null,
+              snapshot: {
+                environmentId: 'host',
+                pairingRevision: 1,
+                sequence: 2,
+                checkedAt: 0,
+                status: preFloorStatus(),
+                verification: 'unavailable',
+                transport
+              }
             }
-          }
-        ]
-      ])
-    })
-    expect(hosts.find((host) => host.id === 'runtime:host')?.health).not.toBe('blocked')
-  })
+          ]
+        ])
+      })
+      expect(hosts.find((host) => host.id === 'runtime:host')?.health).not.toBe('blocked')
+    }
+  )
 
   it('uses shared-control diagnostics to show reconnecting runtime host health', () => {
     const hosts = buildExecutionHostRegistry({
