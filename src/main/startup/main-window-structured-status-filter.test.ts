@@ -8,10 +8,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EnrichedAgentHookEventPayload } from '../agent-hooks/server'
 
 const hooks = vi.hoisted(() => ({
-  listener: null as ((payload: EnrichedAgentHookEventPayload) => void) | null,
-  rename: vi.fn(),
-  record: vi.fn()
+  listener: null as ((payload: EnrichedAgentHookEventPayload) => void) | null
 }))
+const rename = vi.fn()
+const record = vi.fn()
 
 vi.mock('electron', () => ({
   app: { getPath: () => '', on: vi.fn(), isReady: () => true }
@@ -66,13 +66,13 @@ beforeEach(() => {
       send: (channel: string, event: { paneKey: string }) => sent.push({ channel, event })
     }
   } as unknown as typeof mainProcessState.mainWindow
-  hooks.rename.mockReset()
-  hooks.record.mockReset()
+  rename.mockReset()
+  record.mockReset()
   vi.mocked(driveSyntheticTitleFromHook).mockReset()
   installMainWindowAgentStatusListeners({
     window: mainProcessState.mainWindow!,
-    maybeAutoRenameBranchOnFirstWork: hooks.rename,
-    onRecordAgentState: hooks.record
+    maybeAutoRenameBranchOnFirstWork: rename,
+    onRecordAgentState: record
   })
 })
 
@@ -127,8 +127,8 @@ it('forwards a facet-only restatement without re-driving titles, bells or teleme
   hooks.listener!(statusPayload({ payload: waiting, runAccount: facet, isReplay: true }))
   expect(driveSyntheticTitleFromHook).toHaveBeenCalledOnce()
   vi.mocked(driveSyntheticTitleFromHook).mockClear()
-  hooks.record.mockClear()
-  hooks.rename.mockClear()
+  record.mockClear()
+  rename.mockClear()
   sent.length = 0
 
   hooks.listener!(
@@ -139,6 +139,6 @@ it('forwards a facet-only restatement without re-driving titles, bells or teleme
     expect.objectContaining({ paneKey: 'pane-1', runAccount: facet })
   ])
   expect(driveSyntheticTitleFromHook).not.toHaveBeenCalled()
-  expect(hooks.record).not.toHaveBeenCalled()
-  expect(hooks.rename).not.toHaveBeenCalled()
+  expect(record).not.toHaveBeenCalled()
+  expect(rename).not.toHaveBeenCalled()
 })
