@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { toast } from 'sonner'
+import { translate } from '@/i18n/i18n'
 import type { TerminalTab } from '../../../../shared/terminal-tab-types'
 import { useAppStore } from '../../store'
 import { focusTerminalTabSurface } from '../../lib/focus-terminal-tab-surface'
@@ -153,10 +154,20 @@ export function useTabGroupCreationCommands({
           worktreeId,
           environmentId,
           targetGroupId: groupId,
-          command: shellOverride,
+          shell: shellOverride,
           activate: true
         })
-        if (outcome.status === 'created' || isWebRuntimeSessionActive(environmentId)) {
+        if (outcome.status === 'created') {
+          return
+        }
+        if (isWebRuntimeSessionActive(environmentId)) {
+          // Why: the host's refusal text is written for the CLI (--shell flags), not this menu.
+          toast.error(
+            translate(
+              'auto.components.tab.group.useTabGroupCreationCommands.newTerminalFailed',
+              "Couldn't open a new terminal."
+            )
+          )
           return
         }
         const terminal = createTab(worktreeId, groupId, shellOverride)
