@@ -113,7 +113,8 @@ function parsePowerShellEnvironment(output: Buffer): NodeJS.ProcessEnv | null {
 
 function spawnShellAndReadEnvironment(
   shell: string,
-  env: NodeJS.ProcessEnv
+  env: NodeJS.ProcessEnv,
+  timeoutMs = SPAWN_TIMEOUT_MS
 ): Promise<NodeJS.ProcessEnv | null> {
   const args = shellProbe(shell)
   if (!args) {
@@ -138,7 +139,7 @@ function spawnShellAndReadEnvironment(
         // Best-effort timeout cleanup.
       }
       finish(null)
-    }, SPAWN_TIMEOUT_MS)
+    }, timeoutMs)
     child.stdin.on('error', () => {})
     child.stdout.on('error', () => finish(null))
     child.stderr.on('error', () => {})
@@ -166,6 +167,8 @@ export type ResolveLoginShellEnvironmentOptions = {
   keepCaptured?: boolean
   shellOverride?: string | null
   env?: NodeJS.ProcessEnv
+  /** Per-shell probe budget; defaults to 5 s. */
+  timeoutMs?: number
   spawner?: (shell: string, env: NodeJS.ProcessEnv) => Promise<NodeJS.ProcessEnv | null>
 }
 
@@ -192,7 +195,10 @@ export function captureLoginShellEnvironment(
   const entry = cachedEnvironment(`${shell}\0${fallback ?? ''}\0${envKey}`)
   const run = (): Promise<LoginShellEnvironmentCapture> => {
     const startedAt = Date.now()
-    const spawner = options.spawner ?? spawnShellAndReadEnvironment
+    const spawner =
+      options.spawner ??
+      ((probeShell: string, probeEnv: NodeJS.ProcessEnv) =>
+        spawnShellAndReadEnvironment(probeShell, probeEnv, options.timeoutMs))
     const capture = spawner(shell, env)
       .then(async (environment): Promise<LoginShellEnvironmentCapture> => {
         const captured = environment ?? (fallback ? await spawner(fallback, env) : null)

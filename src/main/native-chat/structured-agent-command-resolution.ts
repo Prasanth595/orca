@@ -13,6 +13,7 @@ import {
   AgentSessionPreSpawnError,
   isAgentSessionPreSpawnError
 } from './agent-session-wire/structured-agent-session-adapter'
+import { guestNativePathEnv } from '../ipc/wsl-guest-windows-drive-path'
 
 export type StructuredAgentCommandSettings = Partial<
   Pick<GlobalSettings, 'agentCmdOverrides' | 'agentDefaultEnv'>
@@ -30,7 +31,7 @@ function resolveOverride(
   return token
     ? resolveExecutableCommand(token, {
         ...options,
-        pathEnv: options.pathEnv ?? overlay?.PATH ?? overlay?.Path
+        pathEnv: guestNativePathEnv(options.pathEnv ?? overlay?.PATH ?? overlay?.Path)
       })
     : null
 }
@@ -51,7 +52,12 @@ export function resolveStructuredAgentCommand(
   stock: { command?: string; resolve?: typeof resolveCliCommand } = {}
 ): string {
   if (!hasExplicitTuiLaunchCommand(settings, agent)) {
-    return (stock.resolve ?? resolveCliCommand)(stock.command ?? agent, options)
+    // Why: inside a WSL guest the inherited PATH ends in /mnt/<drive> dirs holding Windows shims.
+    const pathEnv = guestNativePathEnv(options.pathEnv)
+    return (stock.resolve ?? resolveCliCommand)(
+      stock.command ?? agent,
+      pathEnv === options.pathEnv ? options : { ...options, pathEnv }
+    )
   }
   const command = resolveOverride(agent, settings, options)
   if (!command || !spawnableOn(options.platform ?? process.platform, command)) {
