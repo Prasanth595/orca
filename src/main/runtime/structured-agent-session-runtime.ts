@@ -39,6 +39,7 @@ import {
   installAgentSessionAttachments,
   stopAgentSessionAttachments
 } from './structured-agent-session-attachment-wiring'
+import { installStructuredAgentSessionAttentionDelivery } from './structured-agent-session-attention-wiring'
 import {
   openAgentSessionRecordStoreOnce,
   releaseAgentSessionRecordStore,
@@ -125,7 +126,7 @@ export type StructuredAgentSessionRuntimeDeps = {
   resolveLaunchArgs: (provider: AgentSessionRecord['provider']) => Promise<string[]> | string[]
   /** Required, and asserted at install time — an absent policy must not degrade to a guess. */
   resolveClaudeAuthPolicy: () => Promise<ClaudeStructuredAuthPolicy> | ClaudeStructuredAuthPolicy
-  /** Agent Permissions for an ACP agent; Claude and Codex chats run their own permission mode. */
+  /** Agent Permissions for an ACP agent; also fills Claude and Codex chats saved before modes. */
   resolveAgentFullAccess?: (agent: string) => boolean
   /** The user's per-agent environment overlay from settings, laid over every agent's base env. */
   resolveAgentLaunchEnv?: (agent: string) => Record<string, string>
@@ -267,6 +268,18 @@ async function install(deps: StructuredAgentSessionRuntimeDeps): Promise<Install
     hostId: deps.hostId,
     logger
   })
+  try {
+    // Without the Arguments source there is nothing to fill from; missing modes run Ask.
+    if (deps.resolveAgentFullAccess) {
+      await recordStore.store.backfillChatPermissionModes(deps.resolveAgentFullAccess)
+    }
+  } catch (error) {
+    // Missing choices safely run Ask; the next host install retries this pass.
+    logger.warn('saving existing chat permission choices failed', {
+      scope: 'permission-mode-backfill',
+      error
+    })
+  }
   return await installOnJournal({ ...deps, logger }, recordStore)
 }
 
@@ -328,24 +341,7 @@ async function installOnJournal(
       environment: envResolvers
     }))
   })
-  if (deps.attentionDelivery) {
-    const installed = host
-    const delivery = deps.attentionDelivery
-    // Lives exactly as long as the host: teardown drops the host and its subscribers together.
-    installed.subscribeTurnCompletions({
-      id: 'host-attention-delivery',
-      includePrompts: true,
-      emit: (event) => {
-        if (event.type === 'end') {
-          return
-        }
-        const sessionId =
-          event.type === 'prompt' ? event.prompt.sessionId : event.completion.sessionId
-        delivery.deliver(event, installed.readStatusSummary(sessionId))
-      },
-      onState: delivery.reconcile
-    })
-  }
+  installStructuredAgentSessionAttentionDelivery({ host, delivery: deps.attentionDelivery })
   setStructuredAgentSessionHost(host)
   // The host starts with its runtime, local or remote, so this is the runtime-start listing.
   const modelCatalog = host.deps.modelCatalog

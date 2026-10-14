@@ -23,7 +23,7 @@ import type { AiVaultSessionResumeTargetState } from './ai-vault-session-resume'
 import { prepareAiVaultSessionContinuation } from './ai-vault-session-continuation'
 import type { AgentSessionContinuationRequest } from '@/lib/agent-session-continuation'
 import { activateAiVaultStructuredSession } from '@/lib/activate-ai-vault-structured-session'
-import { isAgentSessionHandleProvider } from '../../../../shared/agent-session-provider-handle'
+import { adoptsCliConversations } from '../../../../shared/structured-agent-cli-conversation-adoption'
 import { openAiVaultSessionHistoryChatForRow } from './ai-vault-session-history-chat-open'
 import { newAgentLaunchRequestId } from '@/lib/agent-launch-request-id'
 import {
@@ -210,7 +210,7 @@ export function useAiVaultSessionLaunchActions({
       if (route !== 'structured' && openAiVaultSessionHistoryChatForRow(session, worktreeId)) {
         return
       }
-      if (!isAgentSessionHandleProvider(session.agent)) {
+      if (!adoptsCliConversations(session.agent)) {
         return
       }
       if (!worktreeId) {

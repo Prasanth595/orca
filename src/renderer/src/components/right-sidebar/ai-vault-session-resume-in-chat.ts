@@ -9,7 +9,7 @@ import { canOpenAiVaultSessionHistoryChat } from './ai-vault-session-history-cha
 import { isWslStoredAiVaultSessionFile } from '@/lib/ai-vault-resume-target'
 import { normalizeRuntimePathForComparison } from '../../../../shared/cross-platform-path'
 import { LOCAL_EXECUTION_HOST_ID } from '../../../../shared/execution-host'
-import { isAgentSessionHandleProvider } from '../../../../shared/agent-session-provider-handle'
+import { adoptsCliConversations } from '../../../../shared/structured-agent-cli-conversation-adoption'
 import {
   isAiVaultSessionResumableContent,
   type AiVaultSession
@@ -29,17 +29,17 @@ export type AiVaultResumeInChatEligibility =
   | { available: false; reason: AiVaultResumeInChatBlockedReason }
 
 /**
- * Claude and Codex do not have the same freedom about *where* a conversation may be resumed.
+ * Agents do not have the same freedom about *where* a conversation may be resumed.
  *
- * Codex is handed the rollout file and a cwd, so it can resume into any workspace. Claude's SDK
- * stores transcripts under a project key derived from the launch cwd, so resuming from a workspace
- * other than the one the conversation was recorded in looks in a directory the transcript is not in.
+ * Codex is handed the rollout file and a cwd, so it can resume into any workspace. Claude, Grok and
+ * OMP store conversations under a folder derived from the launch cwd, so resuming from a workspace
+ * other than the one the conversation was recorded in looks in a folder the conversation is not in.
  * That is a resume that silently yields nothing, which is worse than a disabled affordance.
  */
 export function aiVaultSessionResumeInChatWorkspaceMatters(
   agent: AiVaultSession['agent']
 ): boolean {
-  return agent === 'claude'
+  return agent === 'claude' || agent === 'grok' || agent === 'omp'
 }
 
 /**
@@ -74,24 +74,19 @@ export function resolveAiVaultSessionResumeInChatEligibility(args: {
   structuredRouteAvailable: boolean
 }): AiVaultResumeInChatEligibility {
   const { session } = args
+  if (isAntigravityReferenceSession(session) || !adoptsCliConversations(session.agent)) {
+    return { available: false, reason: 'agent' }
+  }
+  // An already-adopted row reopens its own chat instead; offering a second resume of it would ask
+  // for a conflict the host would rightly refuse.
+  if (session.structuredSession) {
+    return { available: false, reason: 'already-structured' }
+  }
   // A ZCode row rides two paths: an unadopted local conversation adopts into the live structured
   // chat like Claude's and Codex's (its transcript proof is the provider's SQLite store, checked by
   // the host at create), while a conversation the host cannot adopt — one whose database is stored
   // inside WSL, which no local app-server child can open — keeps the read-only history tab.
   const isZcodeRow = canOpenAiVaultSessionHistoryChat(session)
-  if (!isZcodeRow) {
-    if (isAntigravityReferenceSession(session) || !isAgentSessionHandleProvider(session.agent)) {
-      return { available: false, reason: 'agent' }
-    }
-    // An already-adopted row reopens its own chat instead; offering a second resume of it would ask
-    // for a conflict the host would rightly refuse.
-    if (session.structuredSession) {
-      return { available: false, reason: 'already-structured' }
-    }
-  } else if (session.structuredSession) {
-    // An adopted ZCode row reopens its own chat, never a second one.
-    return { available: false, reason: 'already-structured' }
-  }
   const route: AiVaultResumeInChatRoute = isZcodeRow
     ? zcodeAdoptionAvailable(session) && args.structuredRouteAvailable
       ? 'structured'

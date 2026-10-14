@@ -23,7 +23,7 @@ import {
   canUseLocalAiVaultSessionPathActions
 } from './ai-vault-session-path-actions'
 import { canContinueAiVaultSessionInNewSession } from './ai-vault-session-continuation'
-import { resolveAiVaultSessionSurfaceSwitchTargets } from './ai-vault-session-surface-switch'
+import { resolveAiVaultSessionRowChatActions } from './ai-vault-session-chat-action'
 import type { AiVaultResumeInChatEligibility } from './ai-vault-session-resume-in-chat'
 import type { AiVaultSearchHit } from '../../../../shared/ai-vault-search-types'
 import { canResumeAiVaultSearchHit, hasAiVaultSearchHitPath } from './ai-vault-search-session'
@@ -133,10 +133,28 @@ export function AiVaultVirtualRow({
       ? aiVaultSessionRowResumeGating(row.session, resumeState)
       : { resumeDisabled: true, canCopyResumeCommand: false }
   const resumeLabel = resumeState ? aiVaultSessionResumeLabel(resumeState) : ''
-  const { resumeInNewChatWorkspaceId, resumeInNewChatRoute, resumeInNewCliWorktreeId } =
+  const searchHit = row.type === 'session' ? searchHits?.get(row.session.id) : undefined
+  const {
+    canJumpToOriginalPane,
+    resumeDisabled,
+    resumeWorktreeId,
+    resumeInNewChatWorkspaceId,
+    resumeInNewChatRoute,
+    resumeInNewCliWorktreeId
+  } =
     row.type === 'session'
-      ? resolveAiVaultSessionSurfaceSwitchTargets(row.session, resumeState, resumeInChat)
+      ? resolveAiVaultSessionRowChatActions({
+          session: row.session,
+          originalPaneTarget,
+          structuredSessionOpen,
+          resumeState,
+          resumeInChat,
+          searchHit
+        })
       : {
+          canJumpToOriginalPane: false,
+          resumeDisabled: true,
+          resumeWorktreeId: null,
           resumeInNewChatWorkspaceId: null,
           resumeInNewChatRoute: null,
           resumeInNewCliWorktreeId: null
@@ -147,7 +165,6 @@ export function AiVaultVirtualRow({
   // identities that have no single file to open, while Reveal/CWD stay on the
   // existing local-path gate.
   const canOpenLogInOrca = row.type === 'session' && canOpenAiVaultSessionLogInOrca(row.session)
-  const searchHit = row.type === 'session' ? searchHits?.get(row.session.id) : undefined
   const searchResumeAllowed = searchHit ? canResumeAiVaultSearchHit(searchHit) : true
   const searchPathAllowed = searchHit ? hasAiVaultSearchHitPath(searchHit) : true
   const usesLegacyResumeCommand = row.type === 'session' && !row.session.structuredSession
@@ -197,22 +214,20 @@ export function AiVaultVirtualRow({
           worktreeInfo={worktreeInfo}
           vaultScope={vaultScope}
           detailsExpanded={expandedSessionIds.has(row.session.id)}
-          resumeDisabled={!searchResumeAllowed || resumeGating.resumeDisabled}
+          resumeDisabled={resumeDisabled}
           resumeLabel={resumeLabel}
           resumeActions={visibleResumeActions}
           onToggleDetails={() => onToggleSessionDetails(row.session.id)}
           onJumpToOriginalPane={
-            originalPaneTarget || structuredSessionOpen
-              ? () => onJumpToOriginalPane(row.session)
-              : undefined
+            canJumpToOriginalPane ? () => onJumpToOriginalPane(row.session) : undefined
           }
           resumeHidden={structuredSessionOpen}
           showJumpToWorktree={showJumpToWorktree}
           onJumpToWorktree={worktreeJumpId ? () => onJumpToWorktree(worktreeJumpId) : undefined}
           subagentResume={{ getState: getSessionResumeState, onResume }}
           onResume={() => {
-            if (resumeState?.worktreeId) {
-              onResume(row.session, resumeState.worktreeId)
+            if (resumeWorktreeId) {
+              onResume(row.session, resumeWorktreeId)
             }
           }}
           onContinueInNewSession={
@@ -221,7 +236,7 @@ export function AiVaultVirtualRow({
               : undefined
           }
           onResumeInNewChat={
-            searchResumeAllowed && resumeInNewChatWorkspaceId
+            resumeInNewChatWorkspaceId
               ? () =>
                   onResumeInNewChat(
                     row.session,
@@ -231,7 +246,7 @@ export function AiVaultVirtualRow({
               : undefined
           }
           onResumeInNewCli={
-            searchResumeAllowed && resumeInNewCliWorktreeId
+            resumeInNewCliWorktreeId
               ? () => onResumeInNewCli(row.session, resumeInNewCliWorktreeId)
               : undefined
           }
