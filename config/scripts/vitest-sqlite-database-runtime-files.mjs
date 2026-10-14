@@ -37,6 +37,7 @@ export const SQLITE_DATABASE_RUNTIME_INCLUDE = [
   'src/main/runtime/exit-provenance-audit.test.ts',
   'src/main/runtime/orchestration-cli-subprocess.test.ts',
   'src/main/runtime/orchestration-dispatch-mailbox-delivery.test.ts',
+  'src/main/runtime/terminal-mailbox-native-runtime.test.ts',
   'src/main/runtime/orchestration-mailbox-crash-recovery.test.ts',
   'src/main/runtime/orchestration-mailbox-notification-consistency.test.ts',
   'src/main/runtime/orchestration-message-delivery-identity.test.ts',

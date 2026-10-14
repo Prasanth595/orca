@@ -38,12 +38,18 @@ export function stageOrchestrationMailboxPointer<TWaiter extends OrchestrationMe
   if (!ptyId) {
     return
   }
-  const expectedTarget = args.deps.resolveSubmitTarget(args.leaf, ptyId)
+  const expectedTarget = args.deps.resolveSubmitTarget(args.leaf, ptyId, args.mailboxHandle)
   if (!expectedTarget) {
     return
   }
   const bare = isTerminalMailbox(args.mailboxHandle)
-  if (bare && !args.deps.terminalSubscriptions?.matches(args.mailboxHandle, expectedTarget)) {
+  if (
+    bare &&
+    (!args.deps.terminalSubscriptions?.matches(args.mailboxHandle, expectedTarget) ||
+      args.deps.mailboxOwner.resolve(expectedTarget.leaf, undefined, {
+        terminalHandle: expectedTarget.terminalHandle
+      }) !== args.mailboxHandle)
+  ) {
     return
   }
   const subscriptionGeneration = args.deps.terminalSubscriptions?.generation(args.mailboxHandle)

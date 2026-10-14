@@ -30,7 +30,9 @@ export function resumePendingOrchestrationMailboxPointer<
 }): boolean {
   const ptyId = args.leaf.ptyId
   const newestSequence = args.messages.at(-1)?.sequence
-  const expectedTarget = ptyId ? args.deps.resolveSubmitTarget(args.leaf, ptyId) : null
+  const expectedTarget = ptyId
+    ? args.deps.resolveSubmitTarget(args.leaf, ptyId, args.mailboxHandle)
+    : null
   const staged = args.messages[0]
   const messageIds = args.messages.map((message) => message.id)
   const phases = new Set(args.messages.map((message) => message.pointer_enter_pending))

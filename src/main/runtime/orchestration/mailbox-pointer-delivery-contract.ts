@@ -18,6 +18,7 @@ export type OrchestrationMailboxPointerMessage = {
 
 export type PointerDeliveryDependencies<TWaiter extends OrchestrationMessageWaiter> = {
   terminalSubscriptions?: TerminalMailboxSubscriptions
+  resolveSubscriptionTarget?: (handle: string) => OrchestrationMailboxPointerSubmitTarget | null
   mailboxOwner: Pick<OrchestrationMailboxOwner, 'resolve'>
   deliveryTarget: Pick<
     OrchestrationMailboxDeliveryTarget,
@@ -35,7 +36,8 @@ export type PointerDeliveryDependencies<TWaiter extends OrchestrationMessageWait
   getTerminalHandleForLeafKey: (leafKey: string) => string | undefined
   resolveSubmitTarget: (
     leaf: OrchestrationMailboxLeaf,
-    ptyId: string
+    ptyId: string,
+    mailboxHandle?: string
   ) => OrchestrationMailboxPointerSubmitTarget | null
   isLeafPtyProvenAbsent: (ptyId: string) => Promise<boolean>
   redriveMailbox: (mailboxHandle: string, reservedTypes?: ReadonlySet<string>) => void

@@ -89,17 +89,24 @@ test('a managed SSH host preserves its subscription and pending mail across a vi
     })
 
     const body = 'MANAGED_HOST_BODY_MUST_NOT_ENTER_PTY'
-    const sent = Sent.parse(
-      JSON.parse(
-        await call('orchestration.send', {
-          to: handle,
-          from: 'ssh-e2e-sender',
-          subject: 'queued while the receiver is working',
-          body,
-          type: 'status'
-        })
-      )
-    )
+    // The CLI supplies the mutation contract and caller evidence omitted by passive renderer RPC.
+    agent.runCli('send', [
+      'orchestration',
+      'send',
+      '--to',
+      handle,
+      '--subject',
+      'queued while the receiver is working',
+      '--body',
+      body,
+      '--type',
+      'status',
+      '--json'
+    ])
+    await expect
+      .poll(() => agent.readCliResult('send'), { timeout: 30_000 })
+      .toMatchObject({ status: 0 })
+    const sent = Sent.parse(JSON.parse(agent.readCliResult('send')?.stdout ?? ''))
     // inbox is a non-consuming history read; check would acknowledge the delivery under test.
     const message = async () => {
       const inbox = Inbox.parse(JSON.parse(await call('orchestration.inbox', { terminal: handle })))

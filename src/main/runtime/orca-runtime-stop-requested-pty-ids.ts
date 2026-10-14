@@ -3,6 +3,7 @@ import {
   TerminalMailboxSubscriptions,
   type CurrentTerminalMailboxAuthority
 } from './orchestration/terminal-mailbox-subscriptions'
+import { resolveTerminalMailboxSubscriptionLeaf } from './orchestration/terminal-mailbox-subscription-target'
 import type { OrchestrationCompatibilityEvidence } from '../../shared/orchestration-compatibility-evidence'
 import { OrchestrationStructuredMailboxPointerDelivery } from './orchestration/structured-mailbox-pointer-delivery'
 import { createStructuredMailboxPointerHost } from './orchestration/structured-mailbox-pointer-host'
@@ -278,6 +279,24 @@ export class OrcaRuntimeWithStopRequestedPtyIds extends OrcaRuntimeWithRuntimeId
     }
   }
 
+  protected resolveTerminalMailboxSubscriptionTarget(
+    handle: string,
+    binding = this.terminalMailboxSubscriptions.binding(handle)
+  ) {
+    if (!binding) {
+      return null
+    }
+    const leaf = resolveTerminalMailboxSubscriptionLeaf({
+      binding,
+      current: this.getOrchestrationDispatchAuthority(handle),
+      ptys: this.ptysById.values(),
+      leaves: this.leaves.values(),
+      handleForPty: (ptyId) => this.handleByPtyId.get(ptyId),
+      handleForLeaf: (tabId, leafId) => this.handleByLeafKey.get(this.getLeafKey(tabId, leafId))
+    })
+    return leaf?.ptyId ? this.resolveOrchestrationPointerSubmitTarget(leaf, leaf.ptyId) : null
+  }
+
   terminalMailboxSubscription(
     action: 'subscribe' | 'unsubscribe' | 'status',
     evidence: OrchestrationCompatibilityEvidence | undefined
@@ -294,14 +313,16 @@ export class OrcaRuntimeWithStopRequestedPtyIds extends OrcaRuntimeWithRuntimeId
       this.terminalMailboxSubscriptions.remove(handle)
     }
     if (action === 'subscribe') {
-      const { leaf } = this.getLiveLeafForHandle(handle)
-      const target = leaf.ptyId
-        ? this.resolveOrchestrationPointerSubmitTarget(leaf, leaf.ptyId)
-        : null
+      const target = this.resolveTerminalMailboxSubscriptionTarget(handle, currentBinding)
       if (target && target.leaf.ptyId !== currentBinding.ptyId) {
         throw new Error('The attested terminal identity changed before subscription registration.')
       }
-      if (!target || this.orchestrationMailboxOwner.resolve(leaf) !== handle) {
+      if (
+        !target ||
+        this.orchestrationMailboxOwner.resolve(target.leaf, undefined, {
+          terminalHandle: handle
+        }) !== handle
+      ) {
         throw new Error('Mailbox subscriptions require a live bare terminal mailbox.')
       }
       this.terminalMailboxSubscriptions.register(target, {
@@ -315,6 +336,7 @@ export class OrcaRuntimeWithStopRequestedPtyIds extends OrcaRuntimeWithRuntimeId
 
   protected readonly orchestrationMailboxPointerDelivery = new OrchestrationMailboxPointerDelivery({
     terminalSubscriptions: this.terminalMailboxSubscriptions,
+    resolveSubscriptionTarget: (handle) => this.resolveTerminalMailboxSubscriptionTarget(handle),
     mailboxOwner: this.orchestrationMailboxOwner,
     deliveryTarget: this.orchestrationMailboxDeliveryTarget,
     getDb: () => this._orchestrationDb,
@@ -326,7 +348,12 @@ export class OrcaRuntimeWithStopRequestedPtyIds extends OrcaRuntimeWithRuntimeId
     getTabTitle: (tabId) => this.tabs.get(tabId)?.title,
     getCliCommand: (terminalHandle) => this.getTerminalOrchestrationCliCommand(terminalHandle),
     getTerminalHandleForLeafKey: (leafKey) => this.handleByLeafKey.get(leafKey),
-    resolveSubmitTarget: (leaf, ptyId) => this.resolveOrchestrationPointerSubmitTarget(leaf, ptyId),
+    resolveSubmitTarget: (leaf, ptyId, mailboxHandle) => {
+      const handle = this.terminalMailboxSubscriptions.handleForPane(`${leaf.tabId}:${leaf.leafId}`)
+      return handle && mailboxHandle === handle
+        ? this.resolveTerminalMailboxSubscriptionTarget(handle)
+        : this.resolveOrchestrationPointerSubmitTarget(leaf, ptyId)
+    },
     isLeafPtyProvenAbsent: (ptyId) => this.isLeafPtyProvenAbsent(ptyId),
     redriveMailbox: (mailboxHandle, reservedTypes) =>
       this.deliverPendingMessagesForHandle(mailboxHandle, reservedTypes),

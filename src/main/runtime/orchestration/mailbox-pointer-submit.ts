@@ -27,7 +27,8 @@ type PointerSubmitDependencies<TWaiter extends OrchestrationMessageWaiter> = {
   getDb: () => OrchestrationDb | null
   resolveSubmitTarget: (
     leaf: OrchestrationMailboxLeaf,
-    ptyId: string
+    ptyId: string,
+    mailboxHandle?: string
   ) => OrchestrationMailboxPointerSubmitTarget | null
   getMessageWaiters: (mailboxHandle: string) => ReadonlySet<TWaiter> | undefined
   isLeafPtyProvenAbsent: (ptyId: string) => Promise<boolean>
@@ -80,7 +81,7 @@ export function submitOrchestrationMailboxPointer<TWaiter extends OrchestrationM
         finalizeReservation = false
         return
       }
-      const target = deps.resolveSubmitTarget(input.leaf, input.ptyId)
+      const target = deps.resolveSubmitTarget(input.leaf, input.ptyId, input.mailboxHandle)
       const exactTarget =
         target?.terminalHandle === input.expectedTarget.terminalHandle &&
         target.processIncarnation === input.expectedTarget.processIncarnation

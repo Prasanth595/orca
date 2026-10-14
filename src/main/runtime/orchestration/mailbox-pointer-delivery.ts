@@ -39,20 +39,25 @@ export class OrchestrationMailboxPointerDelivery<TWaiter extends OrchestrationMe
       return
     }
     try {
-      const leaf = this.deps.getLiveLeafForHandle(terminalHandle)
+      const leaf =
+        isTerminalMailbox(handle) && this.deps.resolveSubscriptionTarget
+          ? this.deps.resolveSubscriptionTarget(handle)?.leaf
+          : this.deps.getLiveLeafForHandle(terminalHandle)
+      if (!leaf) {
+        return
+      }
       if (leaf.lastAgentStatus !== 'idle' || !leaf.lastAgentStatusObservedLive) {
-        const generation = this.deps.terminalSubscriptions?.generation(handle)
         this.deps.terminalSubscriptions?.record(
           handle,
           leaf.lastAgentStatus === 'working' ? 'blocked_working' : 'host_unverifiable',
           'deferred',
           'live_idle_not_observed',
           [],
-          generation
+          this.deps.terminalSubscriptions?.generation(handle)
         )
         return
       }
-      const mailboxHandle = this.deps.mailboxOwner.resolve(leaf, handle)
+      const mailboxHandle = this.deps.mailboxOwner.resolve(leaf, handle, { terminalHandle })
       if (mailboxHandle) {
         this.deliver(leaf, { mailboxHandle, reservedTypes })
       }
@@ -71,16 +76,18 @@ export class OrchestrationMailboxPointerDelivery<TWaiter extends OrchestrationMe
   ): void {
     const db = this.deps.getDb()
     const mailboxHandle = options.mailboxHandle
-    const terminalHandle = this.deps.getTerminalHandleForLeafKey(this.leafKey(leaf))
     const bare = isTerminalMailbox(mailboxHandle)
-    const target = bare && leaf.ptyId ? this.deps.resolveSubmitTarget(leaf, leaf.ptyId) : null
+    const target =
+      bare && leaf.ptyId ? this.deps.resolveSubmitTarget(leaf, leaf.ptyId, mailboxHandle) : null
+    const terminalHandle =
+      target?.terminalHandle ?? this.deps.getTerminalHandleForLeafKey(this.leafKey(leaf))
     if (
       !db ||
       !terminalHandle ||
       (bare
         ? !target ||
           !this.deps.terminalSubscriptions?.matches(mailboxHandle, target) ||
-          this.deps.mailboxOwner.resolve(leaf) !== mailboxHandle
+          this.deps.mailboxOwner.resolve(leaf, undefined, { terminalHandle }) !== mailboxHandle
         : !mailboxHandle.startsWith('run:') && !mailboxHandle.startsWith('dispatch:'))
     ) {
       return
@@ -240,7 +247,8 @@ export class OrchestrationMailboxPointerDelivery<TWaiter extends OrchestrationMe
         return
       }
       this.retireDeliveryState(ptyId)
-      this.deps.getDb()?.releasePendingMailboxPointerForPty(ptyId)
+      const db = this.deps.getDb()
+      db?.releasePendingMailboxPointerForPty(ptyId, { preserveBareTerminalAttempts: true })
     } catch {
       // Runtime teardown can close the DB before the final PTY frame is drained.
     }
@@ -266,7 +274,10 @@ export class OrchestrationMailboxPointerDelivery<TWaiter extends OrchestrationMe
     ptyId: string,
     mailboxHandle: string
   ): void {
-    const currentLeaf = this.deps.getLeaf(this.leafKey(leaf))
+    const currentLeaf =
+      isTerminalMailbox(mailboxHandle) && this.deps.resolveSubscriptionTarget
+        ? this.deps.resolveSubscriptionTarget(mailboxHandle)?.leaf
+        : this.deps.getLeaf(this.leafKey(leaf))
     if (
       currentLeaf?.ptyId === ptyId &&
       currentLeaf.lastAgentStatus === 'idle' &&
@@ -282,10 +293,15 @@ export class OrchestrationMailboxPointerDelivery<TWaiter extends OrchestrationMe
       return
     }
     for (const [mailboxHandle, delivery] of parked) {
-      const currentLeaf = this.deps.getLeaf(this.leafKey(delivery.leaf))
+      const currentLeaf =
+        isTerminalMailbox(mailboxHandle) && this.deps.resolveSubscriptionTarget
+          ? this.deps.resolveSubscriptionTarget(mailboxHandle)?.leaf
+          : this.deps.getLeaf(this.leafKey(delivery.leaf))
       if (
         currentLeaf?.ptyId !== ptyId ||
-        this.deps.mailboxOwner.resolve(currentLeaf, mailboxHandle) !== mailboxHandle
+        this.deps.mailboxOwner.resolve(currentLeaf, mailboxHandle, {
+          terminalHandle: isTerminalMailbox(mailboxHandle) ? mailboxHandle : undefined
+        }) !== mailboxHandle
       ) {
         this.parkRedelivery(mailboxHandle, delivery.reservedTypes)
         this.redrive(mailboxHandle)

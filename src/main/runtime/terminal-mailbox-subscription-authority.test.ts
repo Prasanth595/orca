@@ -34,6 +34,9 @@ function fixture() {
       (left, right) => JSON.stringify(left) === JSON.stringify(right)
     ),
     getLiveLeafForHandle: vi.fn().mockReturnValue({ leaf }),
+    resolveTerminalMailboxSubscriptionTarget: vi
+      .fn()
+      .mockReturnValue({ leaf, terminalHandle: 'term_self', processIncarnation: 'inc' }),
     resolveOrchestrationPointerSubmitTarget: vi
       .fn()
       .mockReturnValue({ leaf, terminalHandle: 'term_self', processIncarnation: 'inc' }),

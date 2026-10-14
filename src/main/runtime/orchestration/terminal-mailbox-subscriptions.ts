@@ -70,6 +70,22 @@ export class TerminalMailboxSubscriptions {
     })
   }
 
+  binding(handle: string): CurrentTerminalMailboxAuthority | undefined {
+    const entry = this.entries.get(handle)
+    return entry && this.refreshCurrent(handle, entry) ? entry.binding : undefined
+  }
+
+  handlesForPty(ptyId: string): string[] {
+    return [...this.entries]
+      .filter(([, entry]) => entry.binding.ptyId === ptyId)
+      .map(([handle]) => handle)
+  }
+
+  handleForPane(paneKey: string): string | undefined {
+    const matches = [...this.entries].filter(([, entry]) => entry.binding.paneKey === paneKey)
+    return matches.length === 1 ? matches[0][0] : undefined
+  }
+
   generation(handle: string): number | undefined {
     return this.entries.get(handle)?.generation
   }

@@ -20,7 +20,7 @@ stays in the inbox.
 
 Registration is ephemeral and belongs to the execution runtime. Repeating
 `subscribe` for the same live identity is idempotent. Runtime restart, process
-replacement, PTY exit, handle remint or invalid host authority requires explicit
+replacement, PTY exit, handle remint or changed host authority requires explicit
 registration again. If the execution runtime cannot verify the current terminal authority, it keeps
 the subscription and durable mail while reporting `host_unverifiable`; this is not
 evidence of process exit. A paired-client disconnect alone does not invalidate a
@@ -75,7 +75,8 @@ reconciled and a newly registered process can receive a fresh pointer. No messag
 body is replayed, and no old handle is rebound to a new recipient.
 
 For managed SSH workspaces, subscribe from the receiving terminal on the managed
-server. That execution runtime owns the subscription, mailbox and PTY writes;
+server. A verified receiver can subscribe its runtime-owned PTY without an attached
+viewer. That execution runtime owns the subscription, mailbox and PTY writes;
 reconnecting a viewer does not move them into the desktop runtime.
 
 This first version supports bare terminal recipients that the runtime can resolve
@@ -84,7 +85,8 @@ It does not add separate background PTY discovery, restart slept panes, introduc
 Codex app-server controller, or migrate mail between handles. Related work: Orca issues/PRs #18206, #8057, #12033, #18731,
 and #18208.
 
-The live provider validation covers Codex and Claude Code. Antigravity CLI 1.2.7 is
+Earlier live provider validation covered Codex and Claude Code; those vendor TUI
+runs have not been repeated after the managed-server migration. Antigravity CLI 1.2.7 is
 outside the v1 automatic-wake scope: after a successful receiver subscription it can
 temporarily make the current terminal authority unverifiable. Orca therefore leaves
 the mail unread and writes no pointer or Enter. Antigravity sessions should inspect
