@@ -30,6 +30,7 @@ import {
 // Why: DragReorderList absolutely positions rows, so every row in a
 // reorderable section must share one fixed height.
 const REORDER_ROW_HEIGHT = 56
+const DEFAULT_LAYOUT = getDefaultTerminalAccessoryLayout()
 
 type UnifiedShortcutItem =
   | { kind: 'built-in'; id: string; shortcutKey: TerminalAccessoryKey }
@@ -42,39 +43,48 @@ function useSequencedStorage<T>(
   save: (value: T) => Promise<void>
 ) {
   const [value, setValue] = useState<T>(initial)
+  const [ready, setReady] = useState(false)
   const chainRef = useRef<Promise<void>>(Promise.resolve())
   const seqRef = useRef(0)
   const pendingRef = useRef(0)
+  const refreshCountRef = useRef(0)
 
   const commit = useCallback(
     (next: T, persist = true) => {
       seqRef.current += 1
       setValue(next)
-      if (!persist) {
-        return
+      if (persist) {
+        pendingRef.current += 1
+        chainRef.current = chainRef.current
+          .catch(() => {})
+          .then(() => save(next))
+          .catch(() => {})
+          .finally(() => {
+            pendingRef.current -= 1
+          })
       }
-      pendingRef.current += 1
-      chainRef.current = chainRef.current
-        .catch(() => {})
-        .then(() => save(next))
-        .catch(() => {})
-        .finally(() => {
-          pendingRef.current -= 1
-        })
     },
     [save]
   )
 
   const refresh = useCallback(() => {
     const refreshSeq = seqRef.current
-    void load().then((loaded) => {
-      if (pendingRef.current === 0 && refreshSeq === seqRef.current) {
-        setValue(loaded)
-      }
-    })
+    refreshCountRef.current += 1
+    setReady(false)
+    void load()
+      .then((loaded) => {
+        if (pendingRef.current === 0 && refreshSeq === seqRef.current) {
+          setValue(loaded)
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        refreshCountRef.current -= 1
+        setReady(refreshCountRef.current === 0)
+      })
   }, [load])
 
-  return { value, commit, refresh }
+  return { value, ready, commit, refresh }
 }
 
 type Props = {
@@ -92,12 +102,13 @@ export function TerminalShortcutSettings({
 }: Props): React.JSX.Element {
   const [showCustomKeyModal, setShowCustomKeyModal] = useState(false)
   const layoutStore = useSequencedStorage<TerminalAccessoryLayout>(
-    getDefaultTerminalAccessoryLayout,
+    DEFAULT_LAYOUT,
     loadTerminalAccessoryLayout,
     saveTerminalAccessoryLayout
   )
   const customKeysStore = useSequencedStorage<CustomKey[]>([], loadCustomKeys, saveCustomKeys)
   const customKeys = customKeysStore.value
+  const canEdit = layoutStore.ready && customKeysStore.ready
 
   const refreshAll = useCallback(() => {
     layoutStore.refresh()
@@ -115,43 +126,38 @@ export function TerminalShortcutSettings({
     return () => sub.remove()
   }, [refreshAll])
 
+  const customKeyIds = useMemo(() => customKeys.map((key) => key.id), [customKeys])
   const effectiveLayout = useMemo(
-    () =>
-      reconcileTerminalAccessoryLayoutCustomKeys(
-        layoutStore.value,
-        customKeys.map((key) => key.id)
-      ),
-    [layoutStore.value, customKeys]
+    () => reconcileTerminalAccessoryLayoutCustomKeys(layoutStore.value, customKeyIds),
+    [layoutStore.value, customKeyIds]
   )
 
   const syncCustomKeys = useCallback(
     (keys: CustomKey[], persistKeys = true) => {
-      customKeysStore.commit(keys, persistKeys)
-      layoutStore.commit(
-        reconcileTerminalAccessoryLayoutCustomKeys(
-          effectiveLayout,
-          keys.map((k) => k.id)
-        )
-      )
+      if (canEdit) {
+        customKeysStore.commit(keys, persistKeys)
+        const nextIds = keys.map((k) => k.id)
+        layoutStore.commit(reconcileTerminalAccessoryLayoutCustomKeys(layoutStore.value, nextIds))
+      }
     },
-    [customKeysStore, effectiveLayout, layoutStore]
+    [canEdit, customKeysStore, layoutStore]
   )
 
   const handleUnifiedReorder = useCallback(
     (orderedIds: string[]) => {
+      if (!canEdit) {
+        return
+      }
       const nextRows = parseTerminalAccessoryReorderIds(orderedIds, effectiveLayout.rowCount)
       const nextLayout = updateTerminalAccessoryRows(effectiveLayout, nextRows)
       layoutStore.commit(nextLayout)
       const byId = new Map(customKeys.map((key) => [key.id, key]))
-      const orderedCustomIds = nextLayout.rows.flat().filter((id) => byId.has(id))
-      if (
-        orderedCustomIds.length === customKeys.length &&
-        !orderedCustomIds.every((id, index) => customKeys[index]?.id === id)
-      ) {
-        customKeysStore.commit(orderedCustomIds.flatMap((id) => byId.get(id) ?? []))
+      const nextCustom = nextLayout.rows.flat().flatMap((id) => byId.get(id) ?? [])
+      if (nextCustom.some((key, index) => customKeys[index]?.id !== key.id)) {
+        customKeysStore.commit(nextCustom)
       }
     },
-    [customKeys, customKeysStore, effectiveLayout, layoutStore]
+    [canEdit, customKeys, customKeysStore, effectiveLayout, layoutStore]
   )
 
   const visibleBuiltInSet = useMemo(
@@ -162,18 +168,17 @@ export function TerminalShortcutSettings({
   const unifiedItems = useMemo((): UnifiedShortcutItem[] => {
     const builtInById = new Map(TERMINAL_ACCESSORY_KEYS.map((key) => [key.id, key]))
     const customById = new Map(customKeys.map((key) => [key.id, key]))
-    return effectiveLayout.rows.flatMap((rowIds, rowIndex) => {
-      const divider: UnifiedShortcutItem[] =
-        rowIndex > 0
-          ? [
-              {
-                kind: 'row-divider',
-                id: `${ROW_DIVIDER_ID_PREFIX}${rowIndex}__`,
-                rowNumber: rowIndex + 1
-              }
-            ]
-          : []
-      const rowItems = rowIds.flatMap((id): UnifiedShortcutItem[] => {
+    return effectiveLayout.rows.flatMap((rowIds, rowIndex) => [
+      ...(rowIndex > 0
+        ? [
+            {
+              kind: 'row-divider' as const,
+              id: `${ROW_DIVIDER_ID_PREFIX}${rowIndex}__`,
+              rowNumber: rowIndex + 1
+            }
+          ]
+        : []),
+      ...rowIds.flatMap((id): UnifiedShortcutItem[] => {
         const builtIn = builtInById.get(id)
         const custom = customById.get(id)
         return builtIn
@@ -182,12 +187,11 @@ export function TerminalShortcutSettings({
             ? [{ kind: 'custom', id, customKey: custom }]
             : []
       })
-      return [...divider, ...rowItems]
-    })
+    ])
   }, [effectiveLayout.rows, customKeys])
 
-  const canDecreaseRows = effectiveLayout.rowCount > MIN_TERMINAL_ACCESSORY_ROWS
-  const canIncreaseRows = effectiveLayout.rowCount < MAX_TERMINAL_ACCESSORY_ROWS
+  const canDecreaseRows = canEdit && effectiveLayout.rowCount > MIN_TERMINAL_ACCESSORY_ROWS
+  const canIncreaseRows = canEdit && effectiveLayout.rowCount < MAX_TERMINAL_ACCESSORY_ROWS
   const renderStepButton = (delta: -1 | 1, enabled: boolean, label: string, Icon: typeof Minus) => (
     <Pressable
       style={({ pressed }) => [
@@ -197,6 +201,7 @@ export function TerminalShortcutSettings({
       ]}
       disabled={!enabled}
       onPress={() =>
+        enabled &&
         layoutStore.commit(
           setTerminalAccessoryRowCount(effectiveLayout, effectiveLayout.rowCount + delta)
         )
@@ -205,6 +210,24 @@ export function TerminalShortcutSettings({
       accessibilityLabel={label}
     >
       <Icon size={15} color={enabled ? colors.textPrimary : colors.textMuted} strokeWidth={2.2} />
+    </Pressable>
+  )
+  const renderActionRow = (
+    label: string,
+    sublabel: string,
+    onPress: () => void,
+    showChevron = false
+  ) => (
+    <Pressable
+      disabled={!canEdit}
+      style={({ pressed }) => [baseStyles.row, pressed && canEdit && baseStyles.rowPressed]}
+      onPress={() => canEdit && onPress()}
+    >
+      <View style={baseStyles.rowContent}>
+        <Text style={baseStyles.rowLabel}>{label}</Text>
+        <Text style={baseStyles.rowSublabel}>{sublabel}</Text>
+      </View>
+      {showChevron && <ChevronRight size={16} color={colors.textMuted} />}
     </Pressable>
   )
 
@@ -240,7 +263,7 @@ export function TerminalShortcutSettings({
           items={unifiedItems}
           itemKey={(item) => item.id}
           rowHeight={REORDER_ROW_HEIGHT}
-          isItemDraggable={(item) => item.kind !== 'row-divider'}
+          isItemDraggable={(item) => canEdit && item.kind !== 'row-divider'}
           scrollRef={scrollRef}
           scrollOffsetY={scrollOffsetY}
           scrollContentHeight={scrollContentHeight}
@@ -272,8 +295,10 @@ export function TerminalShortcutSettings({
                 </View>
                 {item.kind === 'built-in' ? (
                   <Switch
+                    disabled={!canEdit}
                     value={visibleBuiltInSet.has(item.shortcutKey.id)}
                     onValueChange={(visible) =>
+                      canEdit &&
                       layoutStore.commit(
                         setTerminalAccessoryBuiltInVisible(
                           effectiveLayout,
@@ -287,9 +312,11 @@ export function TerminalShortcutSettings({
                   />
                 ) : (
                   <Pressable
+                    disabled={!canEdit}
                     style={({ pressed }) => [
                       styles.deleteButton,
-                      pressed && styles.deleteButtonPressed
+                      pressed && canEdit && styles.deleteButtonPressed,
+                      !canEdit && styles.stepperButtonDisabled
                     ]}
                     onPress={() => syncCustomKeys(customKeys.filter((k) => k.id !== item.id))}
                     accessibilityRole="button"
@@ -302,39 +329,25 @@ export function TerminalShortcutSettings({
             )
           }
         />
-        <Pressable
-          style={({ pressed }) => [baseStyles.row, pressed && baseStyles.rowPressed]}
-          onPress={() => setShowCustomKeyModal(true)}
-        >
-          <View style={baseStyles.rowContent}>
-            <Text style={baseStyles.rowLabel}>Add Custom Shortcut…</Text>
-            <Text style={baseStyles.rowSublabel}>Create key combo or text macro</Text>
-          </View>
-          <ChevronRight size={16} color={colors.textMuted} />
-        </Pressable>
+        {renderActionRow(
+          'Add Custom Shortcut…',
+          'Create key combo or text macro',
+          () => setShowCustomKeyModal(true),
+          true
+        )}
         <View style={baseStyles.separator} />
-        <Pressable
-          style={({ pressed }) => [baseStyles.row, pressed && baseStyles.rowPressed]}
-          onPress={() =>
+        {renderActionRow(
+          'Reset Defaults',
+          'Show every built-in shortcut key in the original order',
+          () =>
             layoutStore.commit(
-              reconcileTerminalAccessoryLayoutCustomKeys(
-                getDefaultTerminalAccessoryLayout(),
-                customKeys.map((key) => key.id)
-              )
+              reconcileTerminalAccessoryLayoutCustomKeys(DEFAULT_LAYOUT, customKeyIds)
             )
-          }
-        >
-          <View style={baseStyles.rowContent}>
-            <Text style={baseStyles.rowLabel}>Reset Defaults</Text>
-            <Text style={baseStyles.rowSublabel}>
-              Show every built-in shortcut key in the original order
-            </Text>
-          </View>
-        </Pressable>
+        )}
       </View>
 
       <CustomKeyModal
-        visible={showCustomKeyModal}
+        visible={canEdit && showCustomKeyModal}
         onClose={() => setShowCustomKeyModal(false)}
         onKeysChanged={(keys) => syncCustomKeys(keys, false)}
       />
@@ -357,17 +370,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md + 2,
     backgroundColor: colors.bgBase
   },
-  rowHeaderText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.textMuted,
-    letterSpacing: 0.5
-  },
-  stepper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm
-  },
+  rowHeaderText: { fontSize: 11, fontWeight: '600', color: colors.textMuted, letterSpacing: 0.5 },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   stepperButton: {
     width: 32,
     height: 32,
