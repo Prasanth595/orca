@@ -103,10 +103,10 @@ export function HostDirectoryBrowserDrawer({
   }, [entries, isDirectPath, pathInput])
 
   const atRoot = isAtHostBrowseRoot(resolvedPath)
-  const canAdd = Boolean(client && resolvedPath && !atRoot)
+  const canAdd = Boolean(client && resolvedPath && !atRoot && !loading)
 
   async function handleAddProject() {
-    if (!canAdd || !client) {
+    if (!canAdd || !client || loading) {
       return
     }
     setAdding(true)
