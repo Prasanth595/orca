@@ -1,6 +1,7 @@
 import {
   notifyAiVaultSessionPreparationFailure,
-  notifyAiVaultSessionQueued
+  notifyAiVaultSessionQueued,
+  resolveAiVaultSessionLaunchTargetOrNotify
 } from './ai-vault-session-launch-feedback'
 import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
@@ -34,15 +35,12 @@ import type { AgentSessionContinuationRequest } from '@/lib/agent-session-contin
 import { activateAiVaultStructuredSession } from '@/lib/activate-ai-vault-structured-session'
 import { adoptsCliConversations } from '../../../../shared/structured-agent-cli-conversation-adoption'
 import { newAgentLaunchRequestId } from '@/lib/agent-launch-request-id'
+import { describeAiVaultResumeFailure } from '@/lib/ai-vault-resume-refusal'
 import {
   activateAiVaultResumeWorkspace,
   resumeAiVaultSessionInNewChat
 } from './ai-vault-session-resume-in-chat-launch'
-import {
-  aiVaultResumeUnsupportedMessage,
-  resolveAiVaultSessionLaunchTarget,
-  resolveAiVaultTargetWorkspacePath
-} from './ai-vault-session-launch-target'
+import { resolveAiVaultTargetWorkspacePath } from './ai-vault-session-launch-target'
 
 export function useAiVaultSessionLaunchActions({
   activeWorktree,
@@ -298,24 +296,4 @@ export function useAiVaultSessionLaunchActions({
     continuationRequest,
     handleContinuationDialogOpenChange
   }
-}
-
-function resolveAiVaultSessionLaunchTargetOrNotify(
-  args: Parameters<typeof resolveAiVaultSessionLaunchTarget>[0]
-): Extract<ReturnType<typeof resolveAiVaultSessionLaunchTarget>, { status: 'ready' }> | null {
-  const target = resolveAiVaultSessionLaunchTarget(args)
-  if (target.status === 'missing') {
-    toast.error(
-      translate(
-        'auto.components.right.sidebar.AiVaultPanel.openWorkspaceBeforeResuming',
-        'Open a workspace before resuming a session.'
-      )
-    )
-    return null
-  }
-  if (target.status === 'unsupported') {
-    toast.error(aiVaultResumeUnsupportedMessage(target.targetStatus))
-    return null
-  }
-  return target
 }

@@ -156,7 +156,7 @@ describe('Resume in New CLI launch', () => {
   it.each(['omp', 'opencode2'] as const)(
     'opens the %s copy with the actual CLI in the chosen workspace',
     async (agent) => {
-      const chat = { ...owned, agent }
+      const chat = { ...owned, agent, executionHostId: 'runtime:paired-host' as const }
       const copy = {
         ...chat,
         agent: agent === 'omp' ? ('omp' as const) : ('opencode' as const),
@@ -168,7 +168,10 @@ describe('Resume in New CLI launch', () => {
       }
       mocks.prepareAiVaultSessionForFork.mockResolvedValue({ session: copy, copied: true })
       mocks.buildAiVaultResumeStartupForWorktree.mockReturnValue(startup)
-      renderActions().handleResumeInNewCli(chat, 'worktree-2')
+      renderActions({ opencode: 'opencode --server http://synthetic-server' }).handleResumeInNewCli(
+        chat,
+        'worktree-2'
+      )
       await waitFor(() => expect(mocks.launchAiVaultSessionInNewTab).toHaveBeenCalledTimes(1))
       expect(mocks.launchAiVaultSessionInNewTab).toHaveBeenCalledWith({
         agent: copy.agent,

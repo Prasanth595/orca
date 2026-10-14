@@ -1,3 +1,4 @@
+import { parseExecutionHostId } from '../../../shared/execution-host'
 import { assertOpenCodeCopyUsesLocalStore } from '../../../shared/opencode-launch-command'
 import { findOptionOccurrence } from '../../../shared/command-option-occurrence'
 import {
@@ -128,9 +129,12 @@ export function buildAiVaultCopiedSessionStartupForWorktree(
   }
 }
 
-/** Check effective client launch choices before asking the host to save a copy. */
+/** Runtime hosts validate their own launch settings when making the copy. */
 export function assertAiVaultCopiedSessionLaunchAllowed(args: AiVaultResumeWorktreeArgs): void {
   if (args.session.agent !== 'opencode' && args.session.agent !== 'opencode2') {
+    return
+  }
+  if (parseExecutionHostId(args.session.executionHostId)?.kind === 'runtime') {
     return
   }
   const { platform, liveShell } = resolveAiVaultResumeHost(args)

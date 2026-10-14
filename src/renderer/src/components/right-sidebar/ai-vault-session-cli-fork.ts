@@ -32,7 +32,5 @@ export function aiVaultSessionCliForkWorktreeId(
 export function describeAiVaultCliForkFailure(message: string): string {
   // The desktop preparation's refusal arrives inside Electron's IPC wrapper.
   const code = compactIpcErrorMessage(message)
-  return isAiVaultOwnershipRefusal(message)
-    ? aiVaultCliForkHostTooOldMessage()
-    : (code ?? message)
+  return isAiVaultOwnershipRefusal(message) ? aiVaultCliForkHostTooOldMessage() : (code ?? message)
 }
