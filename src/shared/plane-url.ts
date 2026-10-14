@@ -1,4 +1,4 @@
-import type { PlaneHostKind } from './plane-types'
+import type { PlaneHostKind, PlaneUrlErrorKind } from './plane-types'
 import { isPlaneUuid, normalizePlaneWorkspaceSlug, parsePlaneWorkItemIdentifier } from './plane-ids'
 import { isInsecureRemoteWebOrigin } from './web-origin-security'
 
@@ -42,11 +42,7 @@ export type PlaneConnectionUrlInput =
   | { hostKind: 'cloud' }
   | { hostKind: 'self-hosted'; serverUrl: string; apiBaseUrl?: string }
 
-export type PlaneUrlErrorKind =
-  | 'empty'
-  | 'invalid_url'
-  | 'unsupported_protocol'
-  | 'credentials_in_url'
+export type { PlaneUrlErrorKind }
 
 export type PlaneConnectionUrls =
   | {

@@ -40,3 +40,10 @@ describe('Plane ids', () => {
     expect(isPlaneConnectionId('short')).toBe(false)
   })
 })
+
+describe('non-ASCII project identifiers', () => {
+  it('accepts uppercase letters Plane allows beyond ASCII', () => {
+    expect(isPlaneProjectIdentifier('ÇAĞ1')).toBe(true)
+    expect(parsePlaneWorkItemIdentifier('çağ-3')?.identifier).toBe('ÇAĞ-3')
+  })
+})

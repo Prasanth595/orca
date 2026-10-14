@@ -118,3 +118,26 @@ export type PlaneWorkItemList = {
   truncatedProjectIds: string[]
   totalCapped: boolean
 }
+
+export type PlaneUrlErrorKind =
+  | 'empty'
+  | 'invalid_url'
+  | 'unsupported_protocol'
+  | 'credentials_in_url'
+
+export type PlaneConnectErrorKind =
+  | PlaneApiErrorKind
+  | PlaneUrlErrorKind
+  // Plain http to a non-loopback host without the user's explicit consent.
+  | 'insecure_http_unconfirmed'
+  // The token works but the workspace slug does not resolve for it.
+  | 'workspace_not_found'
+
+export type PlaneConnectResult =
+  | { ok: true; status: PlaneConnectionStatus; projects: PlaneProject[] }
+  | {
+      ok: false
+      error: PlaneConnectErrorKind
+      message: string
+      field?: 'serverUrl' | 'apiBaseUrl' | 'workspaceSlug' | 'apiToken'
+    }

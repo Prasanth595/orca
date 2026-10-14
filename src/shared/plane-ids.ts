@@ -4,8 +4,9 @@
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 // Plane slugs are lowercase url-safe names; the length cap matches its 48-char limit.
 const WORKSPACE_SLUG_PATTERN = /^[a-z0-9][a-z0-9_-]{0,47}$/
-const PROJECT_IDENTIFIER_PATTERN = /^[A-Z0-9]{1,12}$/
-const WORK_ITEM_IDENTIFIER_PATTERN = /^([A-Z0-9]{1,12})-(\d{1,9})$/
+// Plane accepts uppercase letters beyond ASCII (e.g. Turkish) in project identifiers.
+const PROJECT_IDENTIFIER_PATTERN = /^[\p{Lu}0-9]{1,12}$/u
+const WORK_ITEM_IDENTIFIER_PATTERN = /^([\p{Lu}0-9]{1,12})-(\d{1,9})$/u
 // Plane's cursor is `{per_page}:{page}:{offset}`.
 const CURSOR_PATTERN = /^\d{1,4}:\d{1,9}:\d{1,9}$/
 // base64url of a sha256 digest, truncated.
