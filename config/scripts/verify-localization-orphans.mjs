@@ -121,21 +121,21 @@ async function extractReferencedKeys(root) {
 
 // Exported for the unit tests: the plural rule is the one place where a key
 // absent from every source is still live, so it has to stay provable on its own.
-export function isKeyReferenced(key, { referenced, literals, english }) {
+// A base key that only the catalog carries is no evidence: nothing can reach its
+// variants either, and counting it would hide them until the base key is pruned.
+export function isKeyReferenced(key, { referenced, literals }) {
   if (referenced.has(key) || literals.has(key)) {
     return true
   }
   const base = key.replace(PLURAL_SUFFIX, '')
-  return base !== key && (referenced.has(base) || literals.has(base) || english.has(base))
+  return base !== key && (referenced.has(base) || literals.has(base))
 }
 
 export async function findOrphanedKeys(root = process.cwd()) {
   const english = flattenCatalog(JSON.parse(await fs.readFile(path.join(root, EN_CATALOG), 'utf8')))
   const referenced = await extractReferencedKeys(root)
   const literals = await collectLiteralStrings(await collectSourceFiles(root))
-  const orphans = [...english.keys()].filter(
-    (key) => !isKeyReferenced(key, { referenced, literals, english })
-  )
+  const orphans = [...english.keys()].filter((key) => !isKeyReferenced(key, { referenced, literals }))
   return { total: english.size, referenced: referenced.size, orphans }
 }
 
@@ -153,7 +153,7 @@ async function main(root = process.cwd()) {
   }
   if (check && orphans.length > 0) {
     console.error(
-      `\n${orphans.length} catalog ${orphans.length === 1 ? 'key is' : 'keys are'} unreachable. Delete them from every locale, then regenerate with \`pnpm run sync:localization-runtime-catalog\`. Removing a base key can strand its plural variants, so re-run until this reports none.`
+      `\n${orphans.length} catalog ${orphans.length === 1 ? 'key is' : 'keys are'} unreachable. Delete them from every locale, then regenerate with \`pnpm run sync:localization-runtime-catalog\`. The override tables in config/scripts/locale-*key-overrides.* are outside this scan and may still name them.`
     )
     process.exitCode = 1
   }

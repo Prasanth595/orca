@@ -2,10 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import { collectLiteralKeys, isKeyReferenced } from './verify-localization-orphans.mjs'
 
-const sets = ({ referenced = [], literals = [], english = [] } = {}) => ({
+const sets = ({ referenced = [], literals = [] } = {}) => ({
   referenced: new Set(referenced),
-  literals: new Set(literals),
-  english: new Set(english)
+  literals: new Set(literals)
 })
 
 describe('isKeyReferenced', () => {
@@ -32,10 +31,12 @@ describe('isKeyReferenced', () => {
     }
   )
 
-  it('keeps a plural variant whose base key only the catalog carries', () => {
-    expect(isKeyReferenced('a.count_one', sets({ english: ['a.count'] }))).toBe(true)
+  it('keeps a plural variant whose base key only a source literal spells out', () => {
+    expect(isKeyReferenced('a.count_one', sets({ literals: ['a.count'] }))).toBe(true)
   })
 
+  // Why: a base key no source reaches cannot make its variants live, so the
+  // variants surface in the same pass instead of after the base key is pruned.
   it('reports a plural variant whose base key is itself unreachable', () => {
     expect(isKeyReferenced('a.count_one', sets({ referenced: ['a.other'] }))).toBe(false)
   })
@@ -44,9 +45,7 @@ describe('isKeyReferenced', () => {
   // `_one` here would leave `a.b`, which nothing references either way — but a
   // key ending in a non-CLDR word has no base to fall back on at all.
   it('gives a key ending in a non-CLDR word no base-key fallback', () => {
-    expect(isKeyReferenced('a.b_single', sets({ referenced: ['a.b'], english: ['a.b'] }))).toBe(
-      false
-    )
+    expect(isKeyReferenced('a.b_single', sets({ referenced: ['a.b'] }))).toBe(false)
   })
 })
 
