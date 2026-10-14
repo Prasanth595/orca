@@ -2,14 +2,10 @@ import type { editor } from 'monaco-editor'
 
 export type VimAttachment = { dispose: () => void }
 
-type FocusedWrite = {
-  editor: editor.IStandaloneCodeEditor
-  onWriteRef: { readonly current: () => void }
-}
+type WriteRef = { readonly current: () => void }
+type VimExRegistrar = (name: string, prefix: string, command: (adapter: object) => void) => void
 
-type VimExRegistrar = (name: string, prefix: string, command: () => void) => void
-
-let focusedWrite: FocusedWrite | null = null
+const adapterWrites = new WeakMap<object, WriteRef>()
 let exRegistered = false
 
 const noopAttachment: VimAttachment = {
@@ -56,17 +52,14 @@ export async function attachMonacoVimMode(args: {
   }
 
   let escapeCleanup: (() => void) | null = null
-  let focusSubscription: { dispose: () => void } | null = null
   let vim: { dispose: () => void } | null = null
   const codeEditor = args.editor
 
   const dispose = (): void => {
     escapeCleanup?.()
     escapeCleanup = null
-    focusSubscription?.dispose()
-    focusSubscription = null
-    if (focusedWrite?.editor === codeEditor) {
-      focusedWrite = null
+    if (vim) {
+      adapterWrites.delete(vim)
     }
     const attached = vim
     vim = null
@@ -93,25 +86,18 @@ export async function attachMonacoVimMode(args: {
     escapeCleanup = () => container.removeEventListener('keydown', onEscape, true)
 
     vim = monacoVim.initVimMode(codeEditor, args.statusNode)
+    adapterWrites.set(vim, args.onWriteRef)
     if (args.signal.aborted) {
       dispose()
       return noopAttachment
     }
 
     if (!exRegistered) {
-      readDefineEx(monacoVim.VimMode)('write', 'w', () => {
-        focusedWrite?.onWriteRef.current()
+      readDefineEx(monacoVim.VimMode)('write', 'w', (adapter) => {
+        adapterWrites.get(adapter)?.current()
       })
       exRegistered = true
     }
-
-    const claim = (): void => {
-      focusedWrite = { editor: codeEditor, onWriteRef: args.onWriteRef }
-    }
-    if (codeEditor.hasTextFocus()) {
-      claim()
-    }
-    focusSubscription = codeEditor.onDidFocusEditorText(claim)
 
     if (!args.statusNode.textContent?.includes('--NORMAL--')) {
       container.dispatchEvent(

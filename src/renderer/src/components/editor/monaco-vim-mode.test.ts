@@ -123,6 +123,43 @@ describe('attachMonacoVimMode', () => {
     status.remove()
   })
 
+  it('saves the originating split editor even when another editor last claimed focus', async () => {
+    const first = createEditor('first\n')
+    const second = createEditor('second\n')
+    const focusedSpy = vi.spyOn(first.editor, 'hasTextFocus').mockReturnValue(true)
+    const focusEventSpy = vi
+      .spyOn(second.editor, 'onDidFocusEditorText')
+      .mockReturnValue({ dispose() {} })
+    const firstVim = await attachVim(first.editor, first.status)
+    const secondVim = await attachVim(second.editor, second.status)
+    try {
+      const input = second.host.querySelector('textarea')
+      if (!input) {
+        throw new Error('Missing second editor input')
+      }
+      key(input, { key: ':', code: 'Semicolon', shiftKey: true })
+      const exInput = second.status.querySelector('input')
+      if (!exInput) {
+        throw new Error('Missing second editor Ex input')
+      }
+      exInput.value = 'w'
+      key(exInput, { key: 'Enter', code: 'Enter', keyCode: 13 })
+      expect(secondVim.onWrite).toHaveBeenCalledTimes(1)
+      expect(firstVim.onWrite).not.toHaveBeenCalled()
+    } finally {
+      firstVim.attachment.dispose()
+      secondVim.attachment.dispose()
+      focusedSpy.mockRestore()
+      focusEventSpy.mockRestore()
+      for (const surface of [first, second]) {
+        surface.editor.dispose()
+        surface.model.dispose()
+        surface.host.remove()
+        surface.status.remove()
+      }
+    }
+  })
+
   it('keeps Escape on find-widget close instead of vim, and normal Escape passes through', async () => {
     const { host, model, editor, status } = createEditor('hello\n')
     const { attachment } = await attachVim(editor, status)
