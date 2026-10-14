@@ -3,6 +3,10 @@ import { SQLITE_DATABASE_RUNTIME_INCLUDE } from './vitest-sqlite-database-runtim
 // Real SQLite fixtures keep Node publication and close semantics.
 export const SQLITE_RUNTIME_INCLUDE = [
   ...SQLITE_DATABASE_RUNTIME_INCLUDE,
+  'src/main/ipc/repos/project-host-setup-wsl-move-fence.test.ts',
+  'src/main/ipc/repos/repo-ipc-wsl-move-fence.test.ts',
+  'src/main/runtime/runtime-managed-worktree-metadata-wsl-move.test.ts',
+  'src/main/persistence/moving-wsl-projects/wsl-move-session-freeze.test.ts',
   'src/main/acp/acp-structured-host-live-listing.test.ts',
   'src/main/acp/acp-structured-host-configured-default.test.ts',
   'src/main/pi/rpc-configured-default.test.ts',
@@ -120,6 +124,7 @@ export const SQLITE_RUNTIME_INCLUDE = [
   'src/main/native-chat/agent-session-wire/structured-agent-session-main-agent-working-agreement.test.ts',
   'src/main/native-chat/agent-session-wire/structured-agent-session-newer-content-host.test.ts',
   'src/main/native-chat/agent-session-wire/structured-agent-session-option-settlement.test.ts',
+  'src/main/native-chat/agent-session-wire/structured-agent-session-send-options.test.ts',
   'src/main/native-chat/agent-session-wire/structured-agent-session-owed-work-release.test.ts',
   'src/main/native-chat/agent-session-wire/structured-agent-session-pre-spawn-first-answer.test.ts',
   'src/main/native-chat/agent-session-wire/structured-agent-session-processless-reservation.test.ts',
