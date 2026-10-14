@@ -44,7 +44,8 @@ export function installMainWindowAgentStatusListeners(options: MainWindowAgentSt
       observation,
       isReplay,
       authorityRestartId,
-      structuredHost
+      structuredHost,
+      runAccount
     }) => {
       if (state.mainWindow?.isDestroyed()) {
         return
@@ -95,7 +96,8 @@ export function installMainWindowAgentStatusListeners(options: MainWindowAgentSt
         ...(promptInteractionKey ? { promptInteractionKey } : {}),
         ...(restoredUnconfirmed ? { restoredUnconfirmed: true } : {}),
         ...(observation ? { observation } : {}),
-        ...(orchestration ? { orchestration } : {})
+        ...(orchestration ? { orchestration } : {}),
+        ...(runAccount !== undefined ? { runAccount } : {})
       }
       state.mainWindow?.webContents.send('agentStatus:set', statusEvent)
       getDashboardPopoutWindow()?.webContents.send('agentStatus:set', statusEvent)

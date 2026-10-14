@@ -102,3 +102,15 @@ it("forwards the host's turn start, and nothing when the host stamped none", () 
   expect(sent[0].event).toHaveProperty('turnStartedAt', 1)
   expect(sent[1].event).not.toHaveProperty('turnStartedAt')
 })
+
+it('forwards the host account facet, including a withdrawal, and nothing when absent', () => {
+  const facet = { provider: 'codex', lane: 'host', accountId: 'a', mode: 'kept' } as const
+  hooks.listener!(statusPayload({ paneKey: 'kept', runAccount: facet }))
+  hooks.listener!(statusPayload({ paneKey: 'withdrawn', runAccount: null }))
+  hooks.listener!(statusPayload({ paneKey: 'plain' }))
+
+  const byPane = new Map(sent.map((entry) => [entry.event.paneKey, entry.event]))
+  expect(byPane.get('kept')).toMatchObject({ runAccount: facet })
+  expect(byPane.get('withdrawn')).toMatchObject({ runAccount: null })
+  expect(byPane.get('plain')).not.toHaveProperty('runAccount')
+})
