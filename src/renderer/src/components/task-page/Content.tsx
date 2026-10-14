@@ -73,7 +73,14 @@ export function TaskPageContent({
     <TaskPageGitLabTodoList model={model} />
   ) : taskSource === 'gitlab' ? (
     <TaskPageGitLabItemList model={model} />
-  ) : (
+  ) : taskSource === 'jira' || taskSource === 'linear' ? (
+    // Why: the Jira content component also routes Linear to its own view.
     <TaskPageJiraContent model={model} />
+  ) : (
+    unhandledTaskSource(taskSource)
   )
+}
+
+function unhandledTaskSource(_taskSource: never): null {
+  return null
 }

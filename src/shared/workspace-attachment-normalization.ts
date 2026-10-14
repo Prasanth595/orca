@@ -3,6 +3,7 @@ import {
   mergeWorkspaceAttachmentOrigins
 } from './workspace-attachment-origins'
 import type { WorkspaceAttachment, WorkspaceLinkedItem } from './worktree/types'
+import { isIdentifierKeyedProvider } from './task-providers'
 import { getTaskSourceCacheScope, normalizeStoredTaskSourceContext } from './task-source-context'
 import { normalizeWorkspaceLinkedItem } from './workspace-linked-item'
 import { getProvenWorkspaceReferenceIdentity } from './workspace-reference-identity'
@@ -33,7 +34,7 @@ export function normalizeWorkspaceAttachment(value: unknown): WorkspaceAttachmen
   if (type !== 'issue' && type !== 'pr' && type !== 'mr') {
     return null
   }
-  if ((provider === 'linear' || provider === 'jira') && type !== 'issue') {
+  if (isIdentifierKeyedProvider(provider) && type !== 'issue') {
     return null
   }
   if (type === 'mr' && provider !== 'gitlab') {
@@ -44,7 +45,7 @@ export function normalizeWorkspaceAttachment(value: unknown): WorkspaceAttachmen
   }
   const identifier =
     nonEmpty(raw.identifier) ?? nonEmpty(raw.linearIdentifier) ?? nonEmpty(raw.jiraIdentifier)
-  if (raw.number === 0 && (!identifier || (provider !== 'linear' && provider !== 'jira'))) {
+  if (raw.number === 0 && (!identifier || !isIdentifierKeyedProvider(provider))) {
     return null
   }
   if (raw.url !== undefined) {
@@ -98,7 +99,7 @@ function attachmentIdentity(item: WorkspaceAttachment): string {
   return JSON.stringify([
     item.provider,
     item.type,
-    item.provider === 'linear' || item.provider === 'jira'
+    isIdentifierKeyedProvider(item.provider)
       ? (item.identifier ?? item.linearIdentifier ?? item.jiraIdentifier ?? item.number)
       : item.number
   ])

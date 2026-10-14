@@ -16,6 +16,7 @@ import {
   type TaskSourceContext
 } from './task-source-context'
 import { TaskSourceContextSchema } from './task-source-context-schema'
+import { TASK_PROVIDERS } from './task-providers'
 
 describe('task source context', () => {
   it('defaults source context to the local host', () => {
@@ -286,5 +287,17 @@ describe('areTaskSourceContextsEqual', () => {
       providerIdentity: { provider: 'github', owner: 'acme', repo: 'orca' }
     }
     expect(areTaskSourceContextsEqual(github, { ...github, provider: 'gitlab' })).toBe(false)
+  })
+})
+
+describe('task source context providers', () => {
+  it.each(TASK_PROVIDERS)('round-trips the %s provider', (provider) => {
+    const context = normalizeStoredTaskSourceContext({ provider, projectId: 'project-1' })
+    expect(context?.provider).toBe(provider)
+    expect(normalizeStoredTaskSourceContext(context)).toEqual(context)
+  })
+
+  it.each(['bitbucket', 'GitHub', '', null])('rejects unknown provider %j', (provider) => {
+    expect(normalizeStoredTaskSourceContext({ provider, projectId: 'project-1' })).toBeNull()
   })
 })

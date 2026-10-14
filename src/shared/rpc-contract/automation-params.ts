@@ -10,6 +10,7 @@ import {
 } from './rpc-param-primitives'
 import { normalizeExecutionHostId } from '../execution-host'
 import { isValidAutomationSchedule } from '../automation-schedule-parsing'
+import { AUTOMATION_TASK_PROVIDERS } from '../automation-task-providers'
 import {
   MAX_AUTOMATION_PRECHECK_TIMEOUT_SECONDS,
   normalizeAutomationPrecheckTimeoutSeconds
@@ -108,7 +109,7 @@ export const TaskProviderIdentity = z
 export const TaskSourceContext = z
   .object({
     kind: z.literal('task-source'),
-    provider: z.enum(['github', 'gitlab', 'linear', 'jira']),
+    provider: z.enum(AUTOMATION_TASK_PROVIDERS),
     projectId: requiredString('Missing source project id'),
     hostId: ExecutionHostId,
     projectHostSetupId: OptionalNullablePlainString,

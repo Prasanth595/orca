@@ -4,6 +4,7 @@ import type { JiraIssue } from '../jira-types'
 import type { LinearIssue } from '../linear/issue-types'
 import type { LinearCollectionResult } from '../linear/workspace-types'
 import type { BaseRefSearchResult } from '../repo-types'
+import type { TaskProvider } from '../task-providers'
 import { parseJiraIssueUrl } from '../jira-issue-url'
 import { buildJiraTextMatchJql } from '../jira-search-input-jql'
 import type { GitHubIssueOrPRLink } from '../github/links'
@@ -18,7 +19,7 @@ export {
   isSmartWorkspaceSourceQueryWithinLimit
 } from './smart-workspace-source-query'
 
-export type SmartNameMode = 'smart' | 'github' | 'gitlab' | 'branches' | 'linear' | 'jira' | 'text'
+export type SmartNameMode = 'smart' | 'branches' | 'text' | TaskProvider
 
 export type SmartWorkspaceSourceRow =
   | { kind: 'use-name'; value: string; name: string }

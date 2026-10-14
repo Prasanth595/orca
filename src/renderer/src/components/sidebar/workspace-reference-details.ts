@@ -1,5 +1,6 @@
 import type { WorkspaceAttachment, Worktree } from '../../../../shared/worktree/types'
 import type { Repo } from '../../../../shared/repo-types'
+import { isIdentifierKeyedProvider } from '../../../../shared/task-providers'
 import {
   type TaskSourceContext,
   getTaskSourceCacheScope,
@@ -125,7 +126,7 @@ export function workspaceReferenceReview(
   item: WorkspaceAttachment,
   details: WorkspaceReferenceDetails | undefined
 ): WorktreeCardPrDisplay | null {
-  if (item.provider === 'linear' || item.provider === 'jira' || item.type === 'issue') {
+  if (isIdentifierKeyedProvider(item.provider) || item.type === 'issue') {
     return null
   }
   return (

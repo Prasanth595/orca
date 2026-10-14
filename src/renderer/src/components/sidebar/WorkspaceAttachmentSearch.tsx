@@ -12,6 +12,7 @@ import {
 import { translate } from '@/i18n/i18n'
 import { isScreenSubmitShortcut } from '@/lib/screen-submit-shortcut'
 import type { WorkspaceAttachment } from '../../../../shared/worktree/types'
+import { isIdentifierKeyedProvider } from '../../../../shared/task-providers'
 import type { RowEntry } from '../new-workspace/smart-workspace-name-field-model'
 import type { SmartNameMode } from '../../../../shared/new-workspace/smart-workspace-source-results'
 import { useWorkItemSourceSearch } from '../new-workspace/use-work-item-source-search'
@@ -130,8 +131,7 @@ export function WorkspaceAttachmentSearch({
   const directValue = direct ? `attachment-direct:${getWorkspaceAttachmentKey(direct)}` : ''
   const ambiguousNumber = /^#?\d+$/.test(query.trim())
   const taskUrlProvider =
-    /^https?:\/\//i.test(query.trim()) &&
-    (parsedDirect?.provider === 'linear' || parsedDirect?.provider === 'jira')
+    /^https?:\/\//i.test(query.trim()) && isIdentifierKeyedProvider(parsedDirect?.provider)
       ? parsedDirect.provider
       : null
   const directEnabled = Boolean(

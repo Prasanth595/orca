@@ -1,11 +1,73 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
+  ACCOUNT_BACKED_TASK_PROVIDERS,
+  IDENTIFIER_KEYED_PROVIDERS,
+  TASK_PROVIDER_LABELS,
+  TASK_PROVIDERS,
   filterAvailableTaskProviders,
+  isAccountBackedTaskProvider,
+  isIdentifierKeyedProvider,
+  isTaskProvider,
   normalizeTaskProviderSettings,
   normalizeVisibleTaskProviders,
   restoreAvailableDefaultTaskProvider,
-  resolveVisibleTaskProvider
+  resolveVisibleTaskProvider,
+  type TaskProvider,
+  type TaskProviderAvailability
 } from './task-providers'
+
+const NO_AVAILABILITY: TaskProviderAvailability = { gitlabInstalled: false, linearConnected: false }
+const FULL_AVAILABILITY: TaskProviderAvailability = { gitlabInstalled: true, linearConnected: true }
+
+// Why: a Record forces every new provider to declare its availability here.
+const EXPECTED_AVAILABILITY: Record<TaskProvider, { none: boolean; full: boolean }> = {
+  github: { none: true, full: true },
+  gitlab: { none: false, full: true },
+  linear: { none: false, full: true },
+  jira: { none: true, full: true }
+}
+
+const UNKNOWN_PROVIDERS: unknown[] = ['bitbucket', 'GitHub', '', null, undefined, 1, {}]
+
+describe('task provider registry', () => {
+  it.each(TASK_PROVIDERS)('%s declares explicit availability', (provider) => {
+    const expected = EXPECTED_AVAILABILITY[provider]
+    expect(filterAvailableTaskProviders([provider], NO_AVAILABILITY)).toEqual(
+      expected.none ? [provider] : ['github']
+    )
+    expect(filterAvailableTaskProviders([provider], FULL_AVAILABILITY)).toEqual(
+      expected.full ? [provider] : ['github']
+    )
+  })
+
+  it.each(TASK_PROVIDERS)('%s round-trips through the provider guard', (provider) => {
+    expect(isTaskProvider(provider)).toBe(true)
+    expect(TASK_PROVIDER_LABELS[provider]).toBeTruthy()
+  })
+
+  it.each(UNKNOWN_PROVIDERS)('rejects unknown provider %j', (value) => {
+    expect(isTaskProvider(value)).toBe(false)
+    expect(isAccountBackedTaskProvider(value)).toBe(false)
+    expect(isIdentifierKeyedProvider(value)).toBe(false)
+    expect(normalizeVisibleTaskProviders([value])).toEqual([...TASK_PROVIDERS])
+  })
+
+  it('keeps provider subsets inside the provider list', () => {
+    for (const provider of [...ACCOUNT_BACKED_TASK_PROVIDERS, ...IDENTIFIER_KEYED_PROVIDERS]) {
+      expect(TASK_PROVIDERS).toContain(provider)
+    }
+    expect(TASK_PROVIDERS.filter(isAccountBackedTaskProvider)).toEqual(['linear', 'jira'])
+    expect(TASK_PROVIDERS.filter(isIdentifierKeyedProvider)).toEqual(['linear', 'jira'])
+  })
+
+  it('types provider-keyed records over every provider', () => {
+    expectTypeOf(TASK_PROVIDER_LABELS).toEqualTypeOf<Readonly<Record<TaskProvider, string>>>()
+    expectTypeOf(EXPECTED_AVAILABILITY).toEqualTypeOf<
+      Record<TaskProvider, { none: boolean; full: boolean }>
+    >()
+    expectTypeOf<keyof typeof TASK_PROVIDER_LABELS>().toEqualTypeOf<TaskProvider>()
+  })
+})
 
 describe('task providers', () => {
   it('normalizes provider lists while preserving supported order', () => {

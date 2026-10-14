@@ -1,3 +1,4 @@
+import { isTaskProvider } from './task-providers'
 import type { WorkspaceLinkedItem } from './worktree/types'
 
 export function areWorkspaceLinkedItemsEqual(
@@ -27,12 +28,7 @@ export function normalizeWorkspaceLinkedItem(value: unknown): WorkspaceLinkedIte
     return null
   }
   const raw = value as Partial<WorkspaceLinkedItem>
-  if (
-    raw.provider !== 'github' &&
-    raw.provider !== 'gitlab' &&
-    raw.provider !== 'linear' &&
-    raw.provider !== 'jira'
-  ) {
+  if (!isTaskProvider(raw.provider)) {
     return null
   }
   if (raw.type !== 'issue' && raw.type !== 'pr' && raw.type !== 'mr') {

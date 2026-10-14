@@ -17,6 +17,7 @@ import {
   isSmartWorkspaceSourceQueryWithinLimit
 } from '../../../../shared/new-workspace/smart-workspace-source-results'
 import { RESULT_LIMIT, type RowEntry } from './smart-workspace-name-field-model'
+import type { TaskProvider } from '../../../../shared/task-providers'
 import type { useWorkItemSourceFoundation } from './use-work-item-source-foundation'
 
 type Foundation = ReturnType<typeof useWorkItemSourceFoundation>
@@ -175,7 +176,7 @@ export function useWorkItemSourcePresentation(
   const isQueryStale =
     !linearUrlIntentOwnsInput && trimmedValue.length > 0 && trimmedDebouncedQuery !== trimmedValue
   // Why: unambiguous refs highlight their source row instead of the typed-text fallback.
-  const sourceIntent = useMemo<'github' | 'gitlab' | 'linear' | 'jira' | null>(() => {
+  const sourceIntent = useMemo<TaskProvider | null>(() => {
     if (!isSmartWorkspaceSourceQueryWithinLimit(value)) {
       return null
     }

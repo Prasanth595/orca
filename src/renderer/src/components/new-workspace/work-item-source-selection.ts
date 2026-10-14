@@ -1,4 +1,5 @@
 import type { TaskSourceContext } from '../../../../shared/task-source-context'
+import type { TaskProvider } from '../../../../shared/task-providers'
 import { getMatchingJiraSites, parseJiraIssueUrl } from '../../../../shared/jira-issue-url'
 import type { JiraSite } from '../../../../shared/jira-types'
 import {
@@ -13,10 +14,7 @@ import { parseGitLabIssueOrMRLink } from '../../../../shared/new-workspace/gitla
 import { bindJiraIssueSourceContext } from './use-jira-url-source'
 import type { RowEntry } from './smart-workspace-name-field-model'
 
-export type WorkItemSourceContexts = Record<
-  'github' | 'gitlab' | 'linear' | 'jira',
-  TaskSourceContext | null
->
+export type WorkItemSourceContexts = Record<TaskProvider, TaskSourceContext | null>
 export function resolveWorkItemSourceRow(
   row: RowEntry,
   contexts: WorkItemSourceContexts,
