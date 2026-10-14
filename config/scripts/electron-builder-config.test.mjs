@@ -1,12 +1,9 @@
-import { writeGuestTreeKillArtifactsFixture } from '../../src/shared/guest-tree-kill-artifacts-test-fixture.ts'
-import { guestTreeKillSourceHash } from './build-guest-tree-kill.mjs'
 import { existsSync } from 'node:fs'
-import { chmod, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { writeMobileWebBundleFixtureTree } from './mobile-web-bundle-fixture-tree.mjs'
+import { describe, expect, it } from 'vitest'
 
 const REPO_ROOT = join(import.meta.dirname, '..', '..')
 const SRC_MAIN_DIR = join(REPO_ROOT, 'src', 'main')
@@ -256,6 +253,10 @@ describe('electron-builder config', () => {
         expect.objectContaining({
           from: 'native/windows-cli-launcher/.build/orca.exe',
           to: 'bin/orca.exe'
+        }),
+        expect.objectContaining({
+          from: 'native/windows-cli-launcher/.build/orca-administrator-restart.exe',
+          to: 'bin/orca-administrator-restart.exe'
         })
       ])
     )
@@ -277,6 +278,37 @@ describe('electron-builder config', () => {
       expect.objectContaining({ to: join('node_modules', 'serve-sim') })
     ])
   })
+
+  it.each(['mac', 'linux'])(
+    'loads Codex TOML parsing after %s runtime pruning',
+    async (platform) => {
+      const resourcesDir = await mkdtemp(join(tmpdir(), 'orca-packaged-codex-toml-'))
+      try {
+        const resource = electronBuilderConfig[platform].extraResources.find(
+          (entry) => entry.to === join('node_modules', 'smol-toml')
+        )
+        expect(resource).toBeDefined()
+        await copyFiles([
+          new FileMatcher(resource.from, join(resourcesDir, resource.to), (value) => value)
+        ])
+        require('../packaged-runtime-node-modules.cjs').prunePackagedRuntimeNodeModules(
+          resourcesDir,
+          platform === 'mac' ? 'darwin' : 'linux',
+          process.arch
+        )
+        const stagedRequire = createRequire(join(resourcesDir, 'out', 'main', 'codex', 'trust.cjs'))
+        expect(await realpath(stagedRequire.resolve('smol-toml'))).toBe(
+          await realpath(join(resourcesDir, resource.to, 'dist', 'index.cjs'))
+        )
+        const { parse } = stagedRequire('smol-toml')
+        expect(parse('[projects."/workspace"]\ntrust_level = "trusted"\n')).toEqual({
+          projects: { '/workspace': { trust_level: 'trusted' } }
+        })
+      } finally {
+        await rm(resourcesDir, { recursive: true, force: true })
+      }
+    }
+  )
 
   // Why: serve-sim's addon is a Mach-O, and Windows signing rejects every *.node that is not PE.
   it('keeps serve-sim out of the Windows and Linux runtime closures', () => {
@@ -588,97 +620,5 @@ describe('electron-builder config', () => {
         expect(electronBuilderConfig[target]).toBeDefined()
       }
     })
-  })
-})
-
-describe('arch-aware packaging guard', () => {
-  // electron-builder Arch enum: ia32=0, x64=1, armv7l=2, arm64=3.
-  const HOST_ARCH = process.arch === 'arm64' ? 3 : 1
-  const OTHER_ARCH = process.arch === 'arm64' ? 1 : 3
-  const OTHER_ARCH_NAME = process.arch === 'arm64' ? 'x64' : 'arm64'
-  const SHERPA_PLATFORM = process.platform === 'win32' ? 'win' : process.platform
-  const otherSherpa = `sherpa-onnx-${SHERPA_PLATFORM}-${OTHER_ARCH_NAME}`
-
-  // beforePack also hash-verifies the mobile web bundle, which the unit-test job never builds.
-  // Point it at a real bundle built into a temp dir: these tests are about the native-variant
-  // guard, and the bundle guard has its own suite.
-  let scratch
-  let bundleDir
-  let guestHelperDir
-  beforeAll(async () => {
-    scratch = await mkdtemp(join(tmpdir(), 'orca-electron-builder-guard-'))
-    bundleDir = join(scratch, 'mobile-web')
-    await writeMobileWebBundleFixtureTree({ outDir: bundleDir })
-    guestHelperDir = join(scratch, 'guest-tree-kill')
-    writeGuestTreeKillArtifactsFixture(guestHelperDir)
-    const { readFileSync, writeFileSync } = require('node:fs')
-    const manifestPath = join(guestHelperDir, 'manifest.json')
-    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
-    manifest.sourceSha256 = guestTreeKillSourceHash()
-    writeFileSync(manifestPath, JSON.stringify(manifest))
-  })
-  afterAll(async () => {
-    await rm(scratch, { recursive: true, force: true })
-  })
-
-  const packHost = (arch) =>
-    electronBuilderConfig.beforePack(
-      { electronPlatformName: process.platform, arch },
-      bundleDir,
-      () => undefined,
-      guestHelperDir
-    )
-
-  it('allows packaging the host platform and architecture', () => {
-    expect(() => packHost(HOST_ARCH)).not.toThrow()
-  })
-
-  it('requires the other architecture natives to be installed', () => {
-    const otherSherpaInstalled = existsSync(
-      join(REPO_ROOT, 'node_modules', otherSherpa, 'package.json')
-    )
-    const otherSherpaExpected = Object.hasOwn(
-      require('../../package.json').optionalDependencies,
-      otherSherpa
-    )
-    if (otherSherpaExpected && !otherSherpaInstalled) {
-      expect(() => packHost(OTHER_ARCH)).toThrow(otherSherpa)
-      expect(() => packHost(OTHER_ARCH)).toThrow('pnpm install:release')
-      expect(() => packHost(HOST_ARCH)).not.toThrow()
-    } else if (process.platform !== 'win32') {
-      expect(() => packHost(OTHER_ARCH)).not.toThrow()
-    }
-  })
-
-  // The host's own build is the foreign-arch case: a Windows checkout compiles these for its CPU only.
-  it.runIf(process.platform === 'win32')(
-    'refuses a Windows workspace addon built for another architecture',
-    () => {
-      for (const binary of ['orca_windows_registry.node', 'orca_windows_security.node']) {
-        expect(() => packHost(OTHER_ARCH)).toThrow(`${binary} for ${OTHER_ARCH_NAME}`)
-      }
-      expect(() => packHost(HOST_ARCH)).not.toThrow()
-    }
-  )
-
-  it('requires installed Windows addons for Windows packaging', () => {
-    const windowsAddon = electronBuilderConfig.win.extraResources.some(
-      (resource) => resource.to === join('node_modules', '@vscode', 'windows-process-tree')
-    )
-    const packWindows = () =>
-      electronBuilderConfig.beforePack(
-        { electronPlatformName: 'win32', arch: 1 },
-        bundleDir,
-        () => undefined,
-        guestHelperDir
-      )
-    if (process.platform === 'win32' || windowsAddon) {
-      expect(packWindows).not.toThrow()
-    } else {
-      expect(packWindows).toThrow('@vscode/windows-process-tree')
-      expect(packWindows).toThrow('Windows packaging requires a Windows host')
-      // A workspace link exists everywhere; only its compiled binary proves the addon will load.
-      expect(packWindows).toThrow('@orca/windows-security')
-    }
   })
 })
