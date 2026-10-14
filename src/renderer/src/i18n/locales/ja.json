@@ -196,7 +196,8 @@
       "readFailed": "Agent設定を読み込めませんでした。ホストへの接続を確認して再試行してください。",
       "saveFailed": "Agent設定を保存できませんでした。ホストへの接続を確認して再試行してください。",
       "hostDefaults": "選択したホストで起動する新しいAgentの既定値。",
-      "save": "保存"
+      "save": "保存",
+      "clearDefault": "デフォルトの Agent をクリア"
     },
     "followSymlinkedDirectoriesKeywords": {
       "symlink": "シンボリックリンク",
@@ -1052,6 +1053,10 @@
             }
           }
         }
+      },
+      "aiVaultResumeRefusal": {
+        "openInChat": "この {{value0}} の会話はチャットで開かれています。開くにはセッション履歴を更新してください。",
+        "ownershipUnknown": "Orca はこの {{value0}} の会話の所有者を確認できませんでした。セッション履歴を更新して、もう一度お試しください。"
       }
     },
     "hooks": {
@@ -3442,7 +3447,8 @@
             "sessionQueued": "セッションをキューに追加しました",
             "openSupportedWorkspace": "セッションを再開する前に、ワークスペースを開いてください。",
             "localSessionSshWorkspaceUnsupported": "このセッションの履歴はこのマシンに保存されているため、SSH ワークスペースでは再開できません。代わりにローカルワークスペースにドロップしてください。",
-            "sessionHostMismatchUnsupported": "このセッションは別のホストに属しています。同じホスト上のワークスペースにドロップしてください。"
+            "sessionHostMismatchUnsupported": "このセッションは別のホストに属しています。同じホスト上のワークスペースにドロップしてください。",
+            "oldPayload": "このセッションは古い Orca ウィンドウからドラッグされました。代わりにセッション履歴から再開してください。"
           },
           "TabGroupDropOverlay": {
             "paneColumnLabel": "新規分割"
@@ -3844,7 +3850,9 @@
             "codexSignInError": "Codex のサインインに失敗しました。もう一度お試しください。",
             "cursorUsageMenu": "Cursor の使用状況",
             "hiddenUsageProviders": "ほかに: {{value0}}",
-            "zcodeUsageMenu": "ZCode の使用量"
+            "zcodeUsageMenu": "ZCode の使用量",
+            "4025a6f62f": "無制限",
+            "a95969101f": "{{value0}} クレジット"
           },
           "StatusBarUsageEmptyCta": {
             "828c764a79": "アカウントを接続する",
@@ -4039,7 +4047,15 @@
                 "label": "サインインの有効期限切れ",
                 "message": "Claude の使用状況が期限切れです。このアカウントで Claude を起動して更新してください。"
               }
-            }
+            },
+            "fbc80d8be2": "Zen の残高",
+            "c03c61f53f": "残高",
+            "f6a27a3c0a": "{{value0}} 利用可能",
+            "7404abbece": "使用クレジット",
+            "473d45cd0f": "残高 {{value0}}",
+            "f21b2ba897": "クレジット",
+            "56c0d70577": "無制限",
+            "87b5bda4d3": "{{value0}} クレジット利用可能"
           },
           "SshTargetStatusRow": {
             "sshHost": "SSH ホスト"
@@ -4170,7 +4186,8 @@
             "extra": {
               "usage": {
                 "section": {
-                  "135d51c19f": "上限 {{value0}}"
+                  "135d51c19f": "上限 {{value0}}",
+                  "apiKeyBalanceUnavailable": "この使用状況の応答には残高が含まれていません。"
                 }
               }
             }
@@ -7318,7 +7335,9 @@
             "shellEnvToggleLabel": "シェル環境の使用の切り替え",
             "resumeTitle": "再起動後に作業中のチャットを自動的に再開する",
             "resumeCopy": "Orca が終了するかアップデートをインストールすると、Orca が再度開かれたときに作業中だったチャットが自動的に再開されます。",
-            "resumeToggleLabel": "再起動後の自動再開の切り替え"
+            "resumeToggleLabel": "再起動後の自動再開の切り替え",
+            "description": "対応する新規 Agent を Chat UI で開きます。",
+            "copy": "対応する新規 Agent は構造化チャットで開きます。その他の Agent はターミナルで開き、既存のチャットは引き続き利用できます。"
           },
           "agentDashboard": {
             "title": "Agent ダッシュボード",
@@ -9776,7 +9795,8 @@
               "omp": "ああ",
               "terminal": "ターミナル",
               "agent": "Agent",
-              "queue": "キュー"
+              "queue": "キュー",
+              "description": "対応する新規 Agent を Chat UI で開きます。"
             },
             "agentDashboard": {
               "title": "Agent ダッシュボード",
@@ -19057,6 +19077,13 @@
     },
     "automations": {
       "runTerminalUnavailable": "実行ターミナルを利用できません。"
+    },
+    "agentCombobox": {
+      "clearSelection": "Agent の選択をクリア"
+    },
+    "newWorkspace": {
+      "agentOptional": "Agent [オプション]",
+      "createDescription": "プロジェクトとワークスペース名を選択してください。Agent を起動する場合は選択してください。"
     }
   },
   "dashboardPopout": {

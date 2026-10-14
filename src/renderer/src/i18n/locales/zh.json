@@ -196,7 +196,8 @@
       "readFailed": "无法读取智能体设置。请检查主机连接并重试。",
       "saveFailed": "无法保存智能体设置。请检查主机连接并重试。",
       "hostDefaults": "所选主机上新智能体的默认设置。",
-      "save": "保存"
+      "save": "保存",
+      "clearDefault": "清除默认智能体"
     },
     "followSymlinkedDirectoriesKeywords": {
       "symlink": "符号链接",
@@ -1052,6 +1053,10 @@
             }
           }
         }
+      },
+      "aiVaultResumeRefusal": {
+        "openInChat": "此 {{value0}} 对话已在聊天中打开。请刷新会话历史以将其打开。",
+        "ownershipUnknown": "Orca 无法确认此 {{value0}} 对话的所有者。请刷新会话历史后重试。"
       }
     },
     "hooks": {
@@ -3442,7 +3447,8 @@
             "sessionQueued": "会话已排队",
             "openSupportedWorkspace": "在恢复会话之前，请先打开一个工作区。",
             "localSessionSshWorkspaceUnsupported": "此会话的历史记录存储在本机上，因此无法在 SSH 工作区中恢复。请改为将其拖放到本地工作区。",
-            "sessionHostMismatchUnsupported": "此会话属于其他主机。请将其拖放到同一主机上的工作区。"
+            "sessionHostMismatchUnsupported": "此会话属于其他主机。请将其拖放到同一主机上的工作区。",
+            "oldPayload": "此会话是从较旧的 Orca 窗口拖入的。请改为从会话历史中恢复。"
           },
           "TabGroupDropOverlay": {
             "paneColumnLabel": "新建拆分"
@@ -3844,7 +3850,9 @@
             "codexSignInError": "Codex 登录失败，请重试。",
             "cursorUsageMenu": "Cursor 用量",
             "hiddenUsageProviders": "另有：{{value0}}",
-            "zcodeUsageMenu": "Z代码使用"
+            "zcodeUsageMenu": "Z代码使用",
+            "4025a6f62f": "无限制",
+            "a95969101f": "{{value0}} 点额度"
           },
           "StatusBarUsageEmptyCta": {
             "828c764a79": "连接账户",
@@ -4039,7 +4047,15 @@
                 "label": "登录已过期",
                 "message": "Claude 用量已过期。请在此账户中启动 Claude 以刷新。"
               }
-            }
+            },
+            "fbc80d8be2": "Zen 余额",
+            "c03c61f53f": "余额",
+            "f6a27a3c0a": "可用 {{value0}}",
+            "7404abbece": "用量额度",
+            "473d45cd0f": "余额 {{value0}}",
+            "f21b2ba897": "额度",
+            "56c0d70577": "无限制",
+            "87b5bda4d3": "可用额度 {{value0}}"
           },
           "SshTargetStatusRow": {
             "sshHost": "SSH 主机"
@@ -4170,7 +4186,8 @@
             "extra": {
               "usage": {
                 "section": {
-                  "135d51c19f": "限额 {{value0}}"
+                  "135d51c19f": "限额 {{value0}}",
+                  "apiKeyBalanceUnavailable": "此用量响应中不包含余额。"
                 }
               }
             }
@@ -7318,7 +7335,9 @@
             "shellEnvToggleLabel": "切换使用 shell 环境",
             "resumeTitle": "重启后自动恢复工作聊天",
             "resumeCopy": "当 Orca 退出或安装更新时，重新打开 Orca 后，正在工作的聊天会自动恢复。",
-            "resumeToggleLabel": "重启后切换自动恢复"
+            "resumeToggleLabel": "重启后切换自动恢复",
+            "description": "在 Chat UI 中打开受支持的新智能体。",
+            "copy": "受支持的新智能体会在结构化聊天中打开。其他智能体在终端中打开；现有聊天仍可使用。"
           },
           "agentDashboard": {
             "title": "智能体仪表盘",
@@ -9739,7 +9758,8 @@
               "omp": "奥普",
               "terminal": "终端",
               "agent": "智能体",
-              "queue": "队列"
+              "queue": "队列",
+              "description": "在 Chat UI 中打开受支持的新智能体。"
             },
             "agentDashboard": {
               "title": "智能体仪表盘",
@@ -19057,6 +19077,13 @@
     },
     "automations": {
       "runTerminalUnavailable": "运行终端不可用。"
+    },
+    "agentCombobox": {
+      "clearSelection": "清除智能体选择"
+    },
+    "newWorkspace": {
+      "agentOptional": "智能体 [可选]",
+      "createDescription": "选择项目和工作区名称。如需启动智能体，请选择一个。"
     }
   },
   "dashboardPopout": {

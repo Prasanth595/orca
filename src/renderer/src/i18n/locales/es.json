@@ -196,7 +196,8 @@
       "readFailed": "No se pudo leer la configuración de agentes. Comprueba la conexión con el host e inténtalo de nuevo.",
       "saveFailed": "No se pudo guardar la configuración de agentes. Comprueba la conexión con el host e inténtalo de nuevo.",
       "hostDefaults": "Valores predeterminados para nuevos agentes en el host seleccionado.",
-      "save": "Guardar"
+      "save": "Guardar",
+      "clearDefault": "Borrar agente predeterminado"
     },
     "followSymlinkedDirectoriesKeywords": {
       "symlink": "enlace simbólico",
@@ -1052,6 +1053,10 @@
             }
           }
         }
+      },
+      "aiVaultResumeRefusal": {
+        "openInChat": "Esta conversación de {{value0}} está abierta en un chat. Actualiza el historial de sesiones para abrirla.",
+        "ownershipUnknown": "Orca no pudo confirmar a quién pertenece esta conversación de {{value0}}. Actualiza el historial de sesiones e inténtalo de nuevo."
       }
     },
     "hooks": {
@@ -3442,7 +3447,8 @@
             "sessionQueued": "Sesión en cola",
             "openSupportedWorkspace": "Abre un espacio de trabajo antes de reanudar una sesión.",
             "localSessionSshWorkspaceUnsupported": "El historial de esta sesión solo existe en este equipo. Para reanudarla, arrástrala a un workspace local. Los workspaces SSH no tienen acceso a ese historial.",
-            "sessionHostMismatchUnsupported": "Esta sesión pertenece a un host diferente. Suéltala en un espacio de trabajo del mismo host."
+            "sessionHostMismatchUnsupported": "Esta sesión pertenece a un host diferente. Suéltala en un espacio de trabajo del mismo host.",
+            "oldPayload": "Esta sesión se arrastró desde una ventana de Orca más antigua. Reanúdala desde el historial de sesiones."
           },
           "TabGroupDropOverlay": {
             "paneColumnLabel": "Nueva división"
@@ -3844,7 +3850,9 @@
             "codexSignInError": "No se pudo iniciar sesión en Codex. Inténtalo de nuevo.",
             "cursorUsageMenu": "Uso de Cursor",
             "hiddenUsageProviders": "También: {{value0}}",
-            "zcodeUsageMenu": "Uso del código Z"
+            "zcodeUsageMenu": "Uso del código Z",
+            "4025a6f62f": "Ilimitado",
+            "a95969101f": "{{value0}} créditos"
           },
           "StatusBarUsageEmptyCta": {
             "828c764a79": "Conectar una cuenta",
@@ -4039,7 +4047,15 @@
                 "label": "Inicio de sesión caducado",
                 "message": "El uso de Claude ha caducado. Inicia Claude en esta cuenta para actualizarlo."
               }
-            }
+            },
+            "fbc80d8be2": "Saldo de Zen",
+            "c03c61f53f": "Saldo",
+            "f6a27a3c0a": "{{value0}} disponible",
+            "7404abbece": "Créditos de uso",
+            "473d45cd0f": "Saldo {{value0}}",
+            "f21b2ba897": "Créditos",
+            "56c0d70577": "Ilimitado",
+            "87b5bda4d3": "{{value0}} créditos disponibles"
           },
           "SshTargetStatusRow": {
             "sshHost": "Host SSH"
@@ -4170,7 +4186,8 @@
             "extra": {
               "usage": {
                 "section": {
-                  "135d51c19f": "Límite {{value0}}"
+                  "135d51c19f": "Límite {{value0}}",
+                  "apiKeyBalanceUnavailable": "El saldo no está incluido en esta respuesta de uso."
                 }
               }
             }
@@ -7333,7 +7350,9 @@
             "shellEnvToggleLabel": "Alternar el uso del entorno de tu shell",
             "resumeCopy": "Cuando Orca se cierra o instala una actualización, los chats que estaban trabajando se reanudan automáticamente al volver a abrir Orca.",
             "resumeTitle": "Reanudar los chats de trabajo automáticamente después de reiniciar",
-            "resumeToggleLabel": "Alternar reanudación automática después de un reinicio"
+            "resumeToggleLabel": "Alternar reanudación automática después de un reinicio",
+            "description": "Abre los agentes nuevos compatibles en Chat UI.",
+            "copy": "Los agentes nuevos compatibles se abren en el chat estructurado. Los demás agentes se abren en la terminal; los chats existentes siguen disponibles."
           },
           "agentDashboard": {
             "title": "Panel de agentes",
@@ -9754,7 +9773,8 @@
               "openclaude": "claudia abierta",
               "omp": "omp",
               "terminal": "Terminal",
-              "agent": "agente"
+              "agent": "agente",
+              "description": "Abre los agentes nuevos compatibles en Chat UI."
             },
             "agentDashboard": {
               "title": "Panel de agentes",
@@ -19057,6 +19077,13 @@
     },
     "automations": {
       "runTerminalUnavailable": "La terminal de ejecución no está disponible."
+    },
+    "agentCombobox": {
+      "clearSelection": "Borrar selección de agente"
+    },
+    "newWorkspace": {
+      "agentOptional": "Agente [Opcional]",
+      "createDescription": "Elige el proyecto y el nombre del espacio de trabajo. Selecciona un agente si quieres iniciar uno."
     }
   },
   "dashboardPopout": {

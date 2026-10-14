@@ -300,7 +300,8 @@
       "readFailed": "Impossible de lire les paramètres des agents. Vérifiez la connexion à l’hôte et réessayez.",
       "saveFailed": "Impossible d’enregistrer les paramètres des agents. Vérifiez la connexion à l’hôte et réessayez.",
       "hostDefaults": "Paramètres par défaut des nouveaux agents sur l’hôte sélectionné.",
-      "save": "Enregistrer"
+      "save": "Enregistrer",
+      "clearDefault": "Effacer l'agent par défaut"
     },
     "followSymlinkedDirectoriesKeywords": {
       "symlink": "lien symbolique",
@@ -1156,6 +1157,10 @@
             }
           }
         }
+      },
+      "aiVaultResumeRefusal": {
+        "openInChat": "Cette conversation {{value0}} est ouverte dans un chat. Actualisez l'historique des sessions pour l'ouvrir.",
+        "ownershipUnknown": "Orca n'a pas pu confirmer à qui appartient cette conversation {{value0}}. Actualisez l'historique des sessions et réessayez."
       }
     },
     "hooks": {
@@ -3550,7 +3555,8 @@
             "sessionQueued": "Session en attente",
             "openSupportedWorkspace": "Ouvrez un espace de travail avant de reprendre une session.",
             "sessionHostMismatchUnsupported": "Cette session appartient à un autre hôte. Déposez-la sur un espace de travail du même hôte.",
-            "localSessionSshWorkspaceUnsupported": "L'historique de cette session est stocké sur cette machine ; la reprise est impossible dans un espace de travail SSH. Déposez-la plutôt sur un espace de travail local."
+            "localSessionSshWorkspaceUnsupported": "L'historique de cette session est stocké sur cette machine ; la reprise est impossible dans un espace de travail SSH. Déposez-la plutôt sur un espace de travail local.",
+            "oldPayload": "Cette session a été glissée depuis une ancienne fenêtre d'Orca. Reprenez-la plutôt depuis l'historique des sessions."
           },
           "TabGroupDropOverlay": {
             "paneColumnLabel": "Nouvelle scission"
@@ -3944,7 +3950,9 @@
             "codexSignInError": "Échec de la connexion à Codex. Veuillez réessayer.",
             "cursorUsageMenu": "Utilisation Cursor",
             "hiddenUsageProviders": "Aussi : {{value0}}",
-            "zcodeUsageMenu": "Utilisation du code Z"
+            "zcodeUsageMenu": "Utilisation du code Z",
+            "4025a6f62f": "Illimité",
+            "a95969101f": "{{value0}} crédits"
           },
           "StatusBarUsageEmptyCta": {
             "828c764a79": "Connecter un compte",
@@ -4155,7 +4163,15 @@
                 "label": "Connexion expirée",
                 "message": "L'utilisation de Claude a expiré. Démarrez Claude dans ce compte pour l'actualiser."
               }
-            }
+            },
+            "fbc80d8be2": "Solde Zen",
+            "c03c61f53f": "Solde",
+            "f6a27a3c0a": "{{value0}} disponible",
+            "7404abbece": "Crédits d'utilisation",
+            "473d45cd0f": "Solde {{value0}}",
+            "f21b2ba897": "Crédits",
+            "56c0d70577": "Illimité",
+            "87b5bda4d3": "{{value0}} crédits disponibles"
           },
           "SshTargetStatusRow": {
             "sshHost": "Hôte SSH"
@@ -4278,7 +4294,8 @@
             "extra": {
               "usage": {
                 "section": {
-                  "135d51c19f": "Limite {{value0}}"
+                  "135d51c19f": "Limite {{value0}}",
+                  "apiKeyBalanceUnavailable": "Le solde n'est pas inclus dans cette réponse d'utilisation."
                 }
               }
             }
@@ -7441,7 +7458,9 @@
             "shellEnvToggleLabel": "Activer l'utilisation de l'environnement de votre shell",
             "resumeTitle": "Reprendre automatiquement les discussions de travail après un redémarrage",
             "resumeCopy": "Lorsqu'Orca quitte ou installe une mise à jour, les discussions en cours reprennent automatiquement à la réouverture d'Orca.",
-            "resumeToggleLabel": "Activer la reprise automatique après un redémarrage"
+            "resumeToggleLabel": "Activer la reprise automatique après un redémarrage",
+            "description": "Ouvrir les nouveaux agents compatibles dans Chat UI.",
+            "copy": "Les nouveaux agents compatibles s'ouvrent dans le chat structuré. Les autres agents s'ouvrent dans le terminal ; les chats existants restent disponibles."
           },
           "agentDashboard": {
             "title": "Tableau de bord des agents",
@@ -9904,7 +9923,8 @@
               "omp": "omp",
               "terminal": "Terminal",
               "agent": "agent",
-              "queue": "file d'attente"
+              "queue": "file d'attente",
+              "description": "Ouvrir les nouveaux agents compatibles dans Chat UI."
             },
             "agentDashboard": {
               "title": "Tableau de bord des agents",
@@ -19161,6 +19181,13 @@
     },
     "automations": {
       "runTerminalUnavailable": "Le terminal d'exécution est indisponible."
+    },
+    "agentCombobox": {
+      "clearSelection": "Effacer la sélection d'agent"
+    },
+    "newWorkspace": {
+      "agentOptional": "Agent [Optionnel]",
+      "createDescription": "Choisissez le projet et le nom de l'espace de travail. Sélectionnez un agent si vous souhaitez en démarrer un."
     }
   },
   "dashboardPopout": {
