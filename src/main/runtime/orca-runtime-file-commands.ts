@@ -59,7 +59,7 @@ export class OrcaRuntimeWithFileCommands extends OrcaRuntimeWithPreservedBranchC
         absolutePath
       }),
     resolveRuntimeGitTarget: (selector) => this.resolveRuntimeGitTarget(selector),
-    openFile: (worktreeId, filePath, relativePath, runtimeEnvironmentId, navigation) => {
+    openFile: (worktreeId, filePath, relativePath, runtimeEnvironmentId, navigation, position) => {
       // The UI cannot open a tab in a workspace that has no row.
       if (isChatScratchWorktreeId(worktreeId)) {
         throw new Error('chat_scratch_not_openable')
@@ -67,7 +67,14 @@ export class OrcaRuntimeWithFileCommands extends OrcaRuntimeWithPreservedBranchC
       if (!this.notifier?.openFile) {
         throw new Error('renderer_unavailable')
       }
-      this.notifier.openFile(worktreeId, filePath, relativePath, runtimeEnvironmentId, navigation)
+      this.notifier.openFile(
+        worktreeId,
+        filePath,
+        relativePath,
+        runtimeEnvironmentId,
+        navigation,
+        ...(position ? [position] : [])
+      )
     },
     openDiff: (worktreeId, filePath, relativePath, staged, runtimeEnvironmentId, navigation) => {
       if (isChatScratchWorktreeId(worktreeId)) {
