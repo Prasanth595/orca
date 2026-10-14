@@ -150,6 +150,7 @@ function Harness({ tab }: { tab: TerminalTab }): ReactElement {
       hasTabsToLeft={false}
       isActive
       isPinned={false}
+      pinnedIconOnly={false}
       isExpanded={false}
       onActivate={vi.fn()}
       onClose={vi.fn()}

@@ -25,6 +25,7 @@ type TabBarItemRowProps = {
   hasTabsToLeft: boolean
   hasTabsToRight: boolean
   isActive: boolean
+  pinnedIconOnly: boolean
   isExpanded: boolean
   dropIndicator: DropIndicator
   includeTopTabBorder: boolean
@@ -47,6 +48,7 @@ function TabBarItemRow({
   hasTabsToLeft,
   hasTabsToRight,
   isActive,
+  pinnedIconOnly,
   isExpanded,
   dropIndicator,
   includeTopTabBorder,
@@ -75,6 +77,7 @@ function TabBarItemRow({
   const shared = {
     isActive,
     isPinned: item.isPinned,
+    pinnedIconOnly,
     hasTabsToRight,
     hasTabsToLeft,
     tabCount,
