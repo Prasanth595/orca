@@ -1,6 +1,7 @@
+import { isRemoteRuntimePtyId } from '../../../../../shared/remote-runtime-pty-id'
 import { scheduleRuntimeGraphSync } from '@/runtime/sync-runtime-graph'
 import { useAppStore } from '@/store'
-import { isWebTerminalSurfaceTabId } from '@/runtime/web-terminal-surface-id'
+import { isWebTerminalSurfaceTabId } from '../../../../../shared/terminal-surface-id'
 import { getEagerPtyBufferHandle } from '../pty-dispatcher'
 
 import {
@@ -9,7 +10,6 @@ import {
   recordPtyConnectDiagnostic
 } from './pty-connect-limits'
 import {
-  isRemoteRuntimePtyId,
   canRestorePairedParkedTerminal,
   isSessionOwnedByWorktree
 } from './paired-parked-terminal-restore'
@@ -19,6 +19,11 @@ import { attachDetachedOrEagerPty } from './eager-pty-adopt-attach'
 import type { ConnectPanePtySession } from './connect-pane-pty-session'
 
 export function runDeferredSessionReattachChoice(session: ConnectPanePtySession): void {
+  // An explicit replacement owns its startup; saved recovery state must not substitute another agent.
+  if (session.pendingReplacedPtyId) {
+    session.startFreshSpawn()
+    return
+  }
   // Why: re-read session IDs here rather than at connect scheduling — cleanup during the caller's one-frame gap could otherwise reattach a dead session.
   const restoredPtyId =
     session.deps.restoredLeafId && session.deps.restoredPtyIdByLeafId
@@ -28,7 +33,10 @@ export function runDeferredSessionReattachChoice(session: ConnectPanePtySession)
   const existingPtyId = storeSnapshot.tabsByWorktree[session.deps.worktreeId]?.find(
     (t) => t.id === session.deps.tabId
   )?.ptyId
-  const hasSleepingAgentSession = Boolean(session.getSleepingRecordForPane(storeSnapshot))
+  // Why: the host owns a mirrored tab's agent liveness and answers it at connect; a client note must not divert its start.
+  const resumesFromSleepingNote =
+    !isWebTerminalSurfaceTabId(session.deps.tabId) &&
+    Boolean(session.getSleepingRecordForPane(storeSnapshot))
 
   // Why: the tab-level fallback must not steal a PTY a setup sibling already published while the main pane waited for split geometry.
   const tabFallbackPtyId =
@@ -42,7 +50,7 @@ export function runDeferredSessionReattachChoice(session: ConnectPanePtySession)
 
   const restoredSessionId = restoredPtyId ?? null
   const sleptRemoteRuntimeSessionId =
-    restoredSessionId && isRemoteRuntimePtyId(restoredSessionId) && hasSleepingAgentSession
+    restoredSessionId && isRemoteRuntimePtyId(restoredSessionId) && resumesFromSleepingNote
       ? restoredSessionId
       : null
   const detachedLivePtyId =
@@ -54,7 +62,7 @@ export function runDeferredSessionReattachChoice(session: ConnectPanePtySession)
         : tabFallbackPtyId
       : null
   const detachedRemoteLeafPtyId =
-    restoredSessionId && isRemoteRuntimePtyId(restoredSessionId) && !hasSleepingAgentSession
+    restoredSessionId && isRemoteRuntimePtyId(restoredSessionId) && !resumesFromSleepingNote
       ? restoredSessionId
       : null
   const candidateReattachSessionId =
@@ -133,7 +141,6 @@ export function runDeferredSessionReattachChoice(session: ConnectPanePtySession)
         return
       }
       recordPtyConnectDiagnostic(`pane=${session.pane.id} -> PENDING SPAWN`)
-      session.armDirectSshPaneRetryTimeout(pendingSpawn, session.directSshRetryAttempt)
       void pendingSpawn
         .then((spawnedPtyId) => {
           if (session.disposed) {
@@ -150,14 +157,11 @@ export function runDeferredSessionReattachChoice(session: ConnectPanePtySession)
                 `Pending PTY spawn for tab ${session.deps.tabId} resolved without a PTY id, retrying fresh spawn`
               )
             }
-            if (sleptRemoteColdRestoreStartup || hasSleepingAgentSession) {
+            if (sleptRemoteColdRestoreStartup || resumesFromSleepingNote) {
               session.startFreshColdRestoreAgentResume(sleptRemoteColdRestoreStartup ?? undefined)
             } else {
               session.startFreshSpawn()
             }
-            return
-          }
-          if (!session.canAdoptCapturedDirectSshRetryPty(spawnedPtyId)) {
             return
           }
           session.clearPaneMode2031State()
@@ -181,7 +185,7 @@ export function runDeferredSessionReattachChoice(session: ConnectPanePtySession)
         })
     } else {
       recordPtyConnectDiagnostic(`pane=${session.pane.id} -> FRESH SPAWN`)
-      if (sleptRemoteColdRestoreStartup || hasSleepingAgentSession) {
+      if (sleptRemoteColdRestoreStartup || resumesFromSleepingNote) {
         session.startFreshColdRestoreAgentResume(sleptRemoteColdRestoreStartup ?? undefined)
       } else {
         session.startFreshSpawn()

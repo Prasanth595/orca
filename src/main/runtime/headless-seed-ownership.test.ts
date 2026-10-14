@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest'
 import { HeadlessEmulator } from '../daemon/headless-emulator'
 import { deferred, makeDeferred, syncSinglePty } from './orca-runtime-test-fixtures.spec'
-import type { PtyProviderBufferSnapshot } from '../providers/types'
+import type { PtyProviderBufferSnapshot } from '../providers/pty-provider-contract'
 import {
   createHydrationRuntime,
   EMPTY_RETAINED_STATE,
@@ -184,13 +184,15 @@ it.each([false, true])(
     const started = makeDeferred()
     const release = makeDeferred()
     const original = HeadlessEmulator.prototype.write
-    vi.spyOn(HeadlessEmulator.prototype, 'write').mockImplementationOnce(
-      async function (this: HeadlessEmulator, data, options) {
-        started.resolve()
-        await release.promise
-        return original.call(this, data, options)
-      }
-    )
+    vi.spyOn(HeadlessEmulator.prototype, 'write').mockImplementationOnce(async function (
+      this: HeadlessEmulator,
+      data,
+      options
+    ) {
+      started.resolve()
+      await release.promise
+      return original.call(this, data, options)
+    })
     const read = runtime.providerTail(visibleOnly)
     snapshot.resolve(PROVIDER_SNAPSHOT)
     await started.promise

@@ -32,7 +32,8 @@ describe('createIpcPtyTransport', () => {
 
   it('suppresses attention side effects when replaying eager-buffered data during attach', async () => {
     // Why: replayed eager output must not raise fresh alerts — bell/idle suppressed, title still restores.
-    const { createIpcPtyTransport, registerEagerPtyBuffer } = await import('./pty-transport')
+    const { createIpcPtyTransport } = await import('./pty-transport')
+    const { registerEagerPtyBuffer } = await import('./pty-dispatcher')
     const onTitleChange = vi.fn()
     const onBell = vi.fn()
     const onAgentBecameIdle = vi.fn()
@@ -63,7 +64,8 @@ describe('createIpcPtyTransport', () => {
 
   it('resets replay parser state after deferred side effects drain', async () => {
     // Why: cleanup must await deferred replay side effects, else a partial OSC makes the first live BEL look like an OSC terminator.
-    const { createIpcPtyTransport, registerEagerPtyBuffer } = await import('./pty-transport')
+    const { createIpcPtyTransport } = await import('./pty-transport')
+    const { registerEagerPtyBuffer } = await import('./pty-dispatcher')
     const onBell = vi.fn()
 
     registerEagerPtyBuffer('pty-restored', vi.fn())
@@ -86,8 +88,8 @@ describe('createIpcPtyTransport', () => {
   })
 
   it('keeps exit sidecars after eager-buffered PTYs attach to a terminal', async () => {
-    const { createIpcPtyTransport, registerEagerPtyBuffer, subscribeToPtyExit } =
-      await import('./pty-transport')
+    const { createIpcPtyTransport } = await import('./pty-transport')
+    const { registerEagerPtyBuffer, subscribeToPtyExit } = await import('./pty-dispatcher')
     const eagerExit = vi.fn()
     const sidecarExit = vi.fn()
 
@@ -105,7 +107,7 @@ describe('createIpcPtyTransport', () => {
   })
 
   it('bounds the eager buffer to its cap and keeps the most recent output', async () => {
-    const { registerEagerPtyBuffer } = await import('./pty-transport')
+    const { registerEagerPtyBuffer } = await import('./pty-dispatcher')
     const cap = 512 * 1024
     const handle = registerEagerPtyBuffer('pty-restored', vi.fn())
 
@@ -125,7 +127,7 @@ describe('createIpcPtyTransport', () => {
     // Why: attach-time replay re-parses eager-buffered bytes at the grid the
     // background PTY was spawned at, so inline-TUI cursor rows survive
     // adoption into a differently-sized pane.
-    const { registerEagerPtyBuffer, getEagerPtyBufferHandle } = await import('./pty-transport')
+    const { registerEagerPtyBuffer, getEagerPtyBufferHandle } = await import('./pty-dispatcher')
 
     const handle = registerEagerPtyBuffer('pty-restored', vi.fn(), {
       captureDims: { cols: 120, rows: 40 }
@@ -139,7 +141,7 @@ describe('createIpcPtyTransport', () => {
   })
 
   it('peeks eager-buffered bytes without clearing them', async () => {
-    const { registerEagerPtyBuffer } = await import('./pty-transport')
+    const { registerEagerPtyBuffer } = await import('./pty-dispatcher')
     const handle = registerEagerPtyBuffer('pty-peek', vi.fn())
     onData?.({ id: 'pty-peek', data: 'Cursor Agent\x1b[?25l' })
 
@@ -150,7 +152,7 @@ describe('createIpcPtyTransport', () => {
   })
 
   it('caps a single oversized eager chunk to its most-recent tail', async () => {
-    const { registerEagerPtyBuffer } = await import('./pty-transport')
+    const { registerEagerPtyBuffer } = await import('./pty-dispatcher')
     const cap = 512 * 1024
     const handle = registerEagerPtyBuffer('pty-restored', vi.fn())
 
@@ -163,7 +165,7 @@ describe('createIpcPtyTransport', () => {
   })
 
   it('drains pre-handler data and exit into eager buffers for fast background PTYs', async () => {
-    const { ensurePtyDispatcher, registerEagerPtyBuffer } = await import('./pty-transport')
+    const { ensurePtyDispatcher, registerEagerPtyBuffer } = await import('./pty-dispatcher')
     const onEagerExit = vi.fn()
 
     ensurePtyDispatcher()
@@ -178,7 +180,7 @@ describe('createIpcPtyTransport', () => {
   })
 
   it('enforces the eager buffer cap in UTF-8 bytes for multi-byte output', async () => {
-    const { registerEagerPtyBuffer } = await import('./pty-transport')
+    const { registerEagerPtyBuffer } = await import('./pty-dispatcher')
     const cap = 512 * 1024
     const handle = registerEagerPtyBuffer('pty-restored', vi.fn())
     const output = `${'界'.repeat(cap)}PROMPT$`
@@ -194,7 +196,7 @@ describe('createIpcPtyTransport', () => {
   })
 
   it('preserves a BOM when it starts the retained oversized eager-buffer tail', async () => {
-    const { registerEagerPtyBuffer } = await import('./pty-transport')
+    const { registerEagerPtyBuffer } = await import('./pty-dispatcher')
     const cap = 512 * 1024
     const handle = registerEagerPtyBuffer('pty-restored', vi.fn())
 
@@ -206,7 +208,7 @@ describe('createIpcPtyTransport', () => {
   })
 
   it('does not use Array.shift while trimming many eager chunks', async () => {
-    const { registerEagerPtyBuffer } = await import('./pty-transport')
+    const { registerEagerPtyBuffer } = await import('./pty-dispatcher')
     const handle = registerEagerPtyBuffer('pty-restored', vi.fn())
     const originalShift = Array.prototype.shift
 
@@ -234,7 +236,8 @@ describe('createIpcPtyTransport', () => {
   })
 
   it('routes eager-buffered bytes through onReplayData so the renderer can engage the replay guard', async () => {
-    const { createIpcPtyTransport, registerEagerPtyBuffer } = await import('./pty-transport')
+    const { createIpcPtyTransport } = await import('./pty-transport')
+    const { registerEagerPtyBuffer } = await import('./pty-dispatcher')
 
     // Why: eager bytes carry DA1-style query sequences; onData bypasses the replay guard so xterm auto-replies, leaking input.
     const bufferedPayload = 'hello\x1b[cworld'
@@ -263,7 +266,8 @@ describe('createIpcPtyTransport', () => {
   })
 
   it('replays display-bearing eager-buffered output with default clear semantics', async () => {
-    const { createIpcPtyTransport, registerEagerPtyBuffer } = await import('./pty-transport')
+    const { createIpcPtyTransport } = await import('./pty-transport')
+    const { registerEagerPtyBuffer } = await import('./pty-dispatcher')
 
     const bufferedPayload = '\x1b[?1049hAutomation agent is running'
     registerEagerPtyBuffer('pty-automation', vi.fn())
@@ -286,7 +290,8 @@ describe('createIpcPtyTransport', () => {
   })
 
   it('does not clear before replaying title-only eager-buffered output', async () => {
-    const { createIpcPtyTransport, registerEagerPtyBuffer } = await import('./pty-transport')
+    const { createIpcPtyTransport } = await import('./pty-transport')
+    const { registerEagerPtyBuffer } = await import('./pty-dispatcher')
 
     const bufferedPayload = '\x1b]0;Restored title\x07'
     registerEagerPtyBuffer('pty-title-only', vi.fn())
@@ -314,7 +319,8 @@ describe('createIpcPtyTransport', () => {
   })
 
   it('does not write an unterminated title-only eager buffer into replay', async () => {
-    const { createIpcPtyTransport, registerEagerPtyBuffer } = await import('./pty-transport')
+    const { createIpcPtyTransport } = await import('./pty-transport')
+    const { registerEagerPtyBuffer } = await import('./pty-dispatcher')
 
     const bufferedPayload = '\x1b]0;partial restored title'
     registerEagerPtyBuffer('pty-partial-title', vi.fn())
@@ -339,7 +345,8 @@ describe('createIpcPtyTransport', () => {
   })
 
   it('does not let an unterminated OSC 9999 eager buffer swallow live output', async () => {
-    const { createIpcPtyTransport, registerEagerPtyBuffer } = await import('./pty-transport')
+    const { createIpcPtyTransport } = await import('./pty-transport')
+    const { registerEagerPtyBuffer } = await import('./pty-dispatcher')
 
     registerEagerPtyBuffer('pty-partial-status', vi.fn())
     onData?.({
@@ -370,7 +377,8 @@ describe('createIpcPtyTransport', () => {
   })
 
   it('does not clear before replaying OSC 9999-only eager-buffered output', async () => {
-    const { createIpcPtyTransport, registerEagerPtyBuffer } = await import('./pty-transport')
+    const { createIpcPtyTransport } = await import('./pty-transport')
+    const { registerEagerPtyBuffer } = await import('./pty-dispatcher')
 
     registerEagerPtyBuffer('pty-status-only', vi.fn())
     onData?.({
@@ -415,7 +423,8 @@ describe('createIpcPtyTransport', () => {
   })
 
   it('does not clear on attach when the eager buffer is empty', async () => {
-    const { createIpcPtyTransport, registerEagerPtyBuffer } = await import('./pty-transport')
+    const { createIpcPtyTransport } = await import('./pty-transport')
+    const { registerEagerPtyBuffer } = await import('./pty-dispatcher')
 
     registerEagerPtyBuffer('pty-attached', vi.fn())
     const transport = createIpcPtyTransport()
@@ -436,7 +445,8 @@ describe('createIpcPtyTransport', () => {
   })
 
   it('skips the attach-time clear sequence for alternate-screen sessions', async () => {
-    const { createIpcPtyTransport, registerEagerPtyBuffer } = await import('./pty-transport')
+    const { createIpcPtyTransport } = await import('./pty-transport')
+    const { registerEagerPtyBuffer } = await import('./pty-dispatcher')
 
     const bufferedPayload = '\x1b[?1049hAlternate screen is already restored'
     registerEagerPtyBuffer('pty-alt-screen', vi.fn())

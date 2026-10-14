@@ -8,7 +8,8 @@ export function getPiAgentStatusUiPromptHandlerSourceLines(kind: PiAgentKind): s
 
   return [
     "  onStatus('ui_prompt_start', () => {",
-    '    if (isOmpRuntime()) return',
+    '    // Idle utility dialogs are not agent work; do not create a completion boundary for them.',
+    '    if (isOmpRuntime() || !piTurnInFlight) return',
     '    piUiPromptDepth++',
     '    if (piUiPromptDepth > 1) return',
     "    post('ui_prompt_start')",
@@ -28,18 +29,9 @@ export function getPiAgentStatusUiPromptHandlerSourceLines(kind: PiAgentKind): s
     '    } catch {',
     '      // Why: a runner this very modal invalidated cannot answer; keep the local verdict.',
     '    }',
+    '    // Why: Pi reports idle once its own turn settles, but children still hold the run open.',
+    '    isIdle &&= !isHeldByChildren()',
     "    post('ui_prompt_end', { is_idle: isIdle })",
-    '  })',
-    '',
-    "  onStatus('session_shutdown', () => {",
-    '    resetPostQueue()',
-    '    clearPendingAgentEndCheck()',
-    '    if (isOmpRuntime()) return',
-    '    // Why: pi tears an open dialog down through resetExtensionUI without resolving its',
-    '    // promise, so a replaced session never emits the matching ui_prompt_end and the wait',
-    '    // would stick forever. Reset without posting: shutdown is not a turn boundary, and',
-    '    // the session_start that follows republishes the corrected state.',
-    '    piUiPromptDepth = 0',
     '  })',
     ''
   ]

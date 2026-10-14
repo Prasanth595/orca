@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Repo } from '../../../../shared/repo-types'
 import { CreateFromPicker } from './CreateFromPicker'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import {
   getRuntimeRepoBaseRefDefault,
   searchRuntimeRepoBaseRefs
@@ -74,13 +75,15 @@ function makeRepo(overrides: Partial<Repo>): Repo {
 async function renderPicker(repo: Repo): Promise<void> {
   await act(async () => {
     root.render(
-      <CreateFromPicker
-        repoId={repo.id}
-        repoMap={repoMapFor(repo)}
-        worktrees={[]}
-        value=""
-        onValueChange={vi.fn()}
-      />
+      <TooltipProvider>
+        <CreateFromPicker
+          repoId={repo.id}
+          repoMap={repoMapFor(repo)}
+          worktrees={[]}
+          value=""
+          onValueChange={vi.fn()}
+        />
+      </TooltipProvider>
     )
   })
 }
@@ -107,10 +110,7 @@ describe('CreateFromPicker host routing', () => {
 
     await renderPicker(repo)
 
-    expect(getRuntimeRepoBaseRefDefault).toHaveBeenCalledWith(
-      { activeRuntimeEnvironmentId: 'owner-runtime' },
-      repo.id
-    )
+    expect(getRuntimeRepoBaseRefDefault).toHaveBeenCalledWith('runtime:owner-runtime', repo.id)
   })
 
   // Why: the composer's Branch tab already lists on an empty query; a minimum-length gate left
@@ -127,12 +127,7 @@ describe('CreateFromPicker host routing', () => {
       await new Promise((resolve) => setTimeout(resolve, 250))
     })
 
-    expect(searchRuntimeRepoBaseRefs).toHaveBeenCalledWith(
-      { activeRuntimeEnvironmentId: null },
-      repo.id,
-      '',
-      30
-    )
+    expect(searchRuntimeRepoBaseRefs).toHaveBeenCalledWith('local', repo.id, '', 30)
   })
 
   it('keeps an explicit local repo on the local client even when a runtime is focused', async () => {
@@ -141,10 +136,7 @@ describe('CreateFromPicker host routing', () => {
 
     await renderPicker(repo)
 
-    expect(getRuntimeRepoBaseRefDefault).toHaveBeenCalledWith(
-      { activeRuntimeEnvironmentId: null },
-      repo.id
-    )
+    expect(getRuntimeRepoBaseRefDefault).toHaveBeenCalledWith('local', repo.id)
     expect(searchRuntimeRepoBaseRefs).not.toHaveBeenCalled()
   })
 })

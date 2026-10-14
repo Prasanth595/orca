@@ -4,7 +4,7 @@ import { replayPayloadEndsWithCursorHidden } from '../../../../../shared/termina
 import { resolvePositiveTerminalDimensions } from '../terminal-snapshot-replay-paint'
 import { getEagerPtyBufferHandle } from '../pty-dispatcher'
 import { CURSOR_HIDE_SEQUENCE } from './foreground-output-scan'
-import { isRemoteRuntimePtyId } from './paired-parked-terminal-restore'
+import { isRemoteRuntimePtyId } from '../../../../../shared/remote-runtime-pty-id'
 
 import type { ConnectPanePtySession } from './connect-pane-pty-session'
 
