@@ -1,3 +1,5 @@
+import type { AcpStructuredSessionAdapterDeps } from '../acp/acp-structured-session-adapter-deps'
+import type { AcpStructuredLaunchPartDeps } from '../acp/acp-structured-launch-resolution'
 import type { ClaudeStructuredSessionAdapterDeps } from '../claude/claude-structured-session-adapter'
 import type { CodexStructuredSessionAdapterDeps } from '../codex/codex-structured-session-adapter'
 import type { readCodexCliInstallation } from '../preflight/codex-cli-installation'
@@ -10,6 +12,10 @@ export type StructuredAgentSessionTransportOverrides = {
   openCodexConnection?: CodexStructuredSessionAdapterDeps['openConnection']
   /** Scripted transports must also replace the real host's version probe. */
   readCodexInstallation?: typeof readCodexCliInstallation
+  openAcpConnection?: AcpStructuredSessionAdapterDeps['connect']
+  /** Answers an ACP launch's command lookup and version probe for a scripted child; every launch
+   *  still resolves and checks through them. Unset, the real binary is found and probed. */
+  acpLaunchCommand?: Pick<AcpStructuredLaunchPartDeps, 'resolveCommand' | 'probeVersion'>
   openClaudeConnection?: ClaudeStructuredSessionAdapterDeps['openConnection']
   /** Scripted app-servers carry fake pids the real start-time read cannot answer for. */
   readProcessStartTime?: CodexStructuredSessionAdapterDeps['readProcessStartTime']

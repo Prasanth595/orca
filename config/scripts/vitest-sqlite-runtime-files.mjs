@@ -2,6 +2,7 @@ import { SQLITE_DATABASE_RUNTIME_INCLUDE } from './vitest-sqlite-database-runtim
 
 // Real SQLite fixtures keep Node publication and close semantics.
 export const SQLITE_RUNTIME_INCLUDE = [
+  'src/main/acp/acp-structured-publish-at-spawn.test.ts',
   'tests/e2e/native-chat-startup-option-pickers.unit.test.ts',
   ...SQLITE_DATABASE_RUNTIME_INCLUDE,
   'src/main/acp/acp-structured-host-live-listing.test.ts',
@@ -23,6 +24,7 @@ export const SQLITE_RUNTIME_INCLUDE = [
   'src/main/acp/acp-structured-child-work.test.ts',
   'src/main/acp/acp-structured-host-subagent-stop.test.ts',
   'src/main/acp/acp-timeline-grok-subagent-retention.test.ts',
+  'src/main/acp/acp-scripted-child-runtime.test.ts',
   'src/main/active-view-persistence-boundary.test.ts',
   'src/main/automations/automation-dispatch-host-fence.test.ts',
   'src/main/automations/automation-owner-fencing.test.ts',
