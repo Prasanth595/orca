@@ -125,7 +125,8 @@ function Harness({
       queuedCommands: false,
       statusFeed: false,
       quietRepeatedStop: false,
-      sendOptions: false
+      sendOptions: false,
+      conversationStop: false
     },
     onSendError: vi.fn()
   })

@@ -91,7 +91,8 @@ const HOST_SUPPORT = {
   queuedCommands: false,
   statusFeed: true,
   quietRepeatedStop: true,
-  sendOptions: false
+  sendOptions: false,
+  conversationStop: false
 }
 
 type Phone = {

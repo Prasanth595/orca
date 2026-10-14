@@ -1,4 +1,5 @@
-// The capabilities that gate what an `agentSession.create` or `agentSession.send` may carry.
+// The capabilities that gate what an agent-session create (structured or terminal) or an
+// `agentSession.send` may carry.
 
 // Why: `agentSession.create` is a strict object, so an older host refuses a payload carrying the
 // reserved `tabId` rather than ignoring it. A client sends the field only to a host advertising this.
@@ -14,8 +15,13 @@ export const AGENT_SESSION_CREATE_MESSAGE_RUNTIME_CAPABILITY =
 export const AGENT_SESSION_SEND_OPTIONS_RUNTIME_CAPABILITY =
   'agent-session.send-options.v1' as const
 
+// Why: terminal.createAgentSession and terminal.ensureAgentSession are strict objects too, so an
+// older host refuses `accountEnv`. A client sends it only to a host advertising this.
+export const AGENT_SESSION_ACCOUNT_ENV_RUNTIME_CAPABILITY = 'agent-session.account-env.v1' as const
+
 export const AGENT_SESSION_CREATE_RUNTIME_CAPABILITIES = [
   AGENT_SESSION_CREATE_TAB_ID_RUNTIME_CAPABILITY,
   AGENT_SESSION_CREATE_MESSAGE_RUNTIME_CAPABILITY,
-  AGENT_SESSION_SEND_OPTIONS_RUNTIME_CAPABILITY
+  AGENT_SESSION_SEND_OPTIONS_RUNTIME_CAPABILITY,
+  AGENT_SESSION_ACCOUNT_ENV_RUNTIME_CAPABILITY
 ] as const
