@@ -24,10 +24,10 @@ const mocks = vi.hoisted(() => ({
   callStructuredAgentSession: vi.fn()
 }))
 
-vi.mock('@/runtime/runtime-git-client', () => ({
-  discoverRuntimeCommitMessageModels: mocks.discoverRuntimeCommitMessageModels,
-  getRuntimeGitScope: vi.fn()
+vi.mock('@/runtime/runtime-git-generation-client', () => ({
+  discoverRuntimeCommitMessageModels: mocks.discoverRuntimeCommitMessageModels
 }))
+vi.mock('@/runtime/runtime-git-client-context', () => ({ getRuntimeGitScope: vi.fn() }))
 
 vi.mock('@/runtime/structured-agent-session-client', () => ({
   callStructuredAgentSession: mocks.callStructuredAgentSession

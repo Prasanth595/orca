@@ -127,9 +127,11 @@ vi.mock('../runtime/orca-runtime', () => ({
       return 'headless-runtime'
     }
     rehydrateClientHostedBrowserPages() {}
+    restoreHostAccountLaunchEnv() {}
     async refreshRestoredOrchestrationAuthority() {}
     async reconcileLegacyWorkerTerminals() {}
     async stopLegacyWorkerTerminalRecovery() {}
+    async closeNotificationDismissals() {}
     syncWindowGraph() {}
     setMobilePushRegistrar(
       registrar: Parameters<RuntimeMobileNotificationController['setPushRegistrar']>[0]
