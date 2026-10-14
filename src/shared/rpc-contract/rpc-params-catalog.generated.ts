@@ -180,8 +180,10 @@ import {
   TypeParams
 } from './emulator-params'
 import {
+  CompleteRecord,
   Connect,
   ConnectionSelection,
+  DiscoverTables,
   GetRecord,
   ListFields,
   ListRecords,
@@ -833,8 +835,10 @@ export const RPC_PARAMS_BY_METHOD = {
   'emulator.tap': TapParams,
   'emulator.type': TypeParams,
   'emulator.unregisterActive': EmulatorUnregisterActiveParams,
+  'feishuBitable.completeRecord': CompleteRecord,
   'feishuBitable.connect': Connect,
   'feishuBitable.disconnect': ConnectionSelection,
+  'feishuBitable.discoverTables': DiscoverTables,
   'feishuBitable.getRecord': GetRecord,
   'feishuBitable.listFields': ListFields,
   'feishuBitable.listRecords': ListRecords,

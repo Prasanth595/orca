@@ -1174,6 +1174,13 @@
             }
           }
         }
+      },
+      "feishuBitable": {
+        "record": {
+          "workspace": {
+            "open": "Unable to open the workspace attached to this record."
+          }
+        }
       }
     },
     "hooks": {
@@ -2499,7 +2506,24 @@
         "linearModeHasWorktreeTooltip": "Linear tickets linked to an Orca workspace",
         "linearEmptyHasWorktree": "No Linear tickets are linked to an Orca workspace yet. Start work from a Linear issue to see it here.",
         "linearOpenAttachedWorkspace": "Open workspace attached to {{value0}}",
-        "linearWorktreesColumn": "Workspaces"
+        "linearWorktreesColumn": "Workspaces",
+        "feishuBitableConnectTitle": "Connect Feishu Bitable",
+        "feishuBitableConnectBody": "Browse Bitable records through an enterprise self-built app and start workspaces from them.",
+        "feishuBitableConnectAction": "Connect Feishu",
+        "feishuBitableHide": "Hide Feishu Bitable",
+        "feishuBitableRecords": "Bitable records",
+        "feishuBitableRefresh": "Refresh",
+        "feishuBitableRetry": "Retry",
+        "feishuBitableEmpty": "No Bitable records found",
+        "feishuBitableEmptyBody": "Check the table mapping or field mapping in Settings → Tasks.",
+        "feishuBitableLoadMore": "Load more",
+        "feishuBitableBack": "Records",
+        "feishuBitableOpenRecord": "Open record",
+        "feishuBitableDescription": "Description",
+        "feishuBitableAcceptance": "Acceptance criteria",
+        "feishuBitableUse": "Start workspace",
+        "feishuBitable": "Feishu Bitable",
+        "feishuBitableLinkUnavailable": "Couldn’t link this Feishu record. Reconnect Feishu Bitable, then try again."
       },
       "Terminal": {
         "73768427cf": "Close",
@@ -8884,7 +8908,9 @@
           "integrationsHint": "Credentials for all providers also live under",
           "integrationsLink": "Integrations",
           "skillHint": ". After Linear is connected, usage examples stay under Settings → Linear.",
-          "incompleteBannerBodyWithLinear": "Hide providers you do not use, or expand a card and finish its steps. For Linear: API access, the agent skill, and Show in Tasks."
+          "incompleteBannerBodyWithLinear": "Hide providers you do not use, or expand a card and finish its steps. For Linear: API access, the agent skill, and Show in Tasks.",
+          "feishuBitable": "Feishu Bitable",
+          "feishuBitableDescription": "Connect a Feishu Bitable table and start workspaces from its records."
         },
         "TerminalAppearanceSection": {
           "a14a427ae4": "Thickness of the pane divider line.",
@@ -12684,6 +12710,26 @@
           "unavailable": "{{value0}} (unavailable)",
           "description": "Accounts, detected agents and terminal options below are for this host.",
           "unavailableNotice": "This server is no longer saved, so nothing can be shown for it. Choose another host at the top of Settings."
+        },
+        "feishu": {
+          "connection": "Active table",
+          "disconnect": "Disconnect",
+          "plaintext": "This host stores the app secret without encryption."
+        },
+        "FeishuBitableSetupSteps": {
+          "titleField": "Title",
+          "descriptionField": "Description",
+          "acceptanceCriteriaField": "Acceptance criteria",
+          "urlField": "Link",
+          "connectTitle": "Connect Feishu Bitable",
+          "connectDescription": "Add an enterprise self-built app with access to the Bitable base and table.",
+          "addAnother": "Add another table",
+          "connect": "Add Feishu access",
+          "mappingTitle": "Field mapping",
+          "mappingDescription": "Pick which Bitable columns feed each task slot for {{connection}}.",
+          "saving": "Saving…",
+          "saveMapping": "Save mapping",
+          "noneField": "(none)"
         }
       },
       "right": {
@@ -17907,6 +17953,28 @@
         "resuming": "Resuming automatically after the restart.",
         "resumed": "Resumed automatically after the restart.",
         "changeInSettings": "Change in Settings"
+      },
+      "feishuBitable": {
+        "connect": {
+          "title": "Connect Feishu Bitable",
+          "description": "Use an enterprise app (App ID + secret), paste your Bitable link, then load and choose a data table.",
+          "labelField": "Name (optional)",
+          "labelPlaceholder": "Team task board",
+          "appId": "App ID",
+          "appSecret": "App secret",
+          "appSecretPlaceholder": "Enterprise app secret",
+          "grantHint": "The app needs Bitable read scopes and the base must be shared with the app or its tenant.",
+          "cancel": "Cancel",
+          "verifying": "Verifying…",
+          "submit": "Connect",
+          "baseLink": "Bitable link or app token",
+          "loadingTables": "Loading tables…",
+          "loadTables": "Load data tables",
+          "dataTable": "Data table",
+          "chooseTable": "Choose a data table",
+          "noTables": "No data tables found. Check the app’s access to this base.",
+          "manualTableId": "Table ID (or enter manually)"
+        }
       }
     },
     "i18n": {
@@ -19798,5 +19866,82 @@
     "browser": "Browser",
     "editor": "Editor",
     "terminal": "Terminal"
+  },
+  "feishu": {
+    "connect": {
+      "remoteSecret": "Your app secret is sent to the selected remote runtime and stored there with runtime-supported encryption.",
+      "localSecret": "Your app secret is stored locally and encrypted when local runtime storage supports it.",
+      "appIdHint": "App ID starting with cli_",
+      "baseHint": "Paste a Feishu Bitable link",
+      "tableIdHint": "Table ID starting with tbl"
+    },
+    "mapping": {
+      "statusField": "Status field (optional)",
+      "completedValue": "Completion value",
+      "completionHint": "Completion is manual. Choose a text or single-select status field; no other columns are changed. Read-only access is sufficient until you mark a record complete.",
+      "disabled": "Do not update status",
+      "chooseValue": "Choose an existing option"
+    },
+    "completion": {
+      "saving": "Updating status…",
+      "completed": "Marked complete",
+      "action": "Mark complete",
+      "hint": "Updates only {{field}} to {{value}} when you click Mark complete. The app needs record write permission.",
+      "configure": "Configure a status field and completion value in Settings → Tasks to enable completion updates.",
+      "saved": "The record status was updated in Feishu."
+    },
+    "rows": {
+      "shown": "{{count}} records shown",
+      "actions": "Actions",
+      "details": "View record: {{title}}",
+      "untitled": "Feishu record {{id}}"
+    },
+    "workspace": {
+      "reload": "Reload the Feishu record after switching connections.",
+      "reloadAgent": "Reload the Feishu record before starting an agent."
+    },
+    "errors": {
+      "identityMismatch": "The record does not belong to this connection.",
+      "configureCompletion": "Configure a status field and completion value in Settings → Tasks.",
+      "missingSecret": "The saved Feishu Bitable app secret is missing. Reconnect the connection.",
+      "missingStatusField": "The mapped status field no longer exists. Update the mapping.",
+      "unsupportedStatusType": "Completion requires a text or single-select status field.",
+      "missingCompletedOption": "The completion value is not an existing status option. Update the mapping.",
+      "missingRecord": "The Feishu record no longer exists.",
+      "unverifiedWrite": "Could not verify the saved status. Refresh the record before retrying.",
+      "writePermission": "The app needs record write permission and access to this status field. Reading remains available.",
+      "writeFailed": "Could not update the Feishu status. Refresh the record and check app access before retrying.",
+      "appCredentials": "App ID and app secret are required.",
+      "invalidTable": "Feishu returned an invalid table ID.",
+      "invalidPagination": "Feishu returned an invalid table pagination token.",
+      "tooManyTables": "Too many data tables. Enter the table ID manually.",
+      "loadTables": "Could not load tables.",
+      "loadDataTables": "Could not load data tables.",
+      "loadFields": "Could not load fields.",
+      "saveMapping": "Could not save mapping.",
+      "noConnection": "No Feishu Bitable connection is configured.",
+      "unknownConnection": "Unknown Feishu Bitable connection.",
+      "recordId": "A record ID is required.",
+      "completeReference": "A complete record reference is required.",
+      "mappingRequired": "A connection ID and field mapping are required.",
+      "credentialsRequired": "App ID, app secret, Bitable app token, and table ID are required.",
+      "connectRequired": "App ID, app secret, app token, and table ID are required.",
+      "discoverRequired": "App ID, app secret, and Bitable link are required.",
+      "baseLink": "Enter a Feishu Bitable link or app token.",
+      "baseFormat": "Use a Feishu Bitable link containing /base/, or enter its app token.",
+      "missingToken": "Feishu did not return a tenant access token.",
+      "fieldLimit": "Too many fields. Cannot verify the table schema.",
+      "oldHost": "Feishu Bitable is not available on this Orca host. Update Orca on the remote host first.",
+      "connectionCheck": "Feishu connection check failed.",
+      "connectionUpdate": "Could not update connection.",
+      "readFailed": "Feishu Bitable read failed.",
+      "connectionFailed": "Connection failed",
+      "access": "Feishu denied access. Check the app permissions and sharing settings for this base.",
+      "credential": "The host could not read the saved app secret. Reconnect Feishu on this host.",
+      "request": "Feishu request failed. Check the connection and app access, then retry."
+    },
+    "details": {
+      "openWorkspace": "Open workspace"
+    }
   }
 }

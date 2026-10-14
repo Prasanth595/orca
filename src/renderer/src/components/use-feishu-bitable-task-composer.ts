@@ -1,3 +1,4 @@
+import { feishuBitableTaskTitle } from '@/lib/feishu-bitable-task-title'
 import { isWorkspaceLinkedItemSourceContextMatch } from '../../../shared/workspace-linked-item-source-context'
 import { useCallback } from 'react'
 import { useAppStore } from '@/store'
@@ -38,7 +39,7 @@ export function useFeishuBitableTaskComposer(args: FeishuBitableTaskComposerArgs
         type: 'issue',
         provider: 'feishu-bitable',
         number: 0,
-        title: task.title,
+        title: feishuBitableTaskTitle(task),
         url: task.url ?? '',
         feishuRecord: task.record,
         feishuTask: {
@@ -52,7 +53,12 @@ export function useFeishuBitableTaskComposer(args: FeishuBitableTaskComposerArgs
       if (
         !isWorkspaceLinkedItemSourceContextMatch(linkedWorkItem, feishuBitableTaskSourceContext)
       ) {
-        toast.error('Reload the Feishu record after switching connections.')
+        toast.error(
+          translate(
+            'feishu.workspace.reload',
+            'Reload the Feishu record after switching connections.'
+          )
+        )
         return
       }
       const seed = getLinkedWorkItemWorkspaceName(linkedWorkItem)

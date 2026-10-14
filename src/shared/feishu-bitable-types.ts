@@ -27,12 +27,15 @@ export type FeishuBitableFieldMapping = {
   descriptionField: string | null
   acceptanceCriteriaField: string | null
   urlField: string | null
+  statusField?: string | null
+  completedValue?: string | null
 }
 
 export type FeishuBitableField = {
   fieldName: string
   type: number
   uiType?: string | null
+  options?: string[]
 }
 
 export type FeishuBitableConnectionSummary = {
@@ -60,6 +63,7 @@ export type FeishuBitableConnectionStatus = {
 }
 
 export type FeishuBitableRecordPage = {
+  fields?: FeishuBitableField[]
   tasks: FeishuBitableTask[]
   nextPageToken: string | null
   totalFetched: number
@@ -67,6 +71,8 @@ export type FeishuBitableRecordPage = {
 
 /** A Bitable record converted through the connection's field mapping. */
 export type FeishuBitableTask = FeishuBitableTaskSnapshot & {
+  titleMissing?: boolean
+  fieldValues?: Record<string, string>
   record: FeishuBitableRecordReference
   connectionLabel: string
   updatedAt?: string | null
@@ -146,7 +152,13 @@ export function normalizeFeishuBitableFieldMapping(value: unknown): FeishuBitabl
     titleField: nonEmpty(raw.titleField),
     descriptionField: nonEmpty(raw.descriptionField),
     acceptanceCriteriaField: nonEmpty(raw.acceptanceCriteriaField),
-    urlField: nonEmpty(raw.urlField)
+    urlField: nonEmpty(raw.urlField),
+    ...(raw.statusField !== undefined || raw.completedValue !== undefined
+      ? {
+          statusField: nonEmptyVerbatim(raw.statusField),
+          completedValue: nonEmptyVerbatim(raw.completedValue)
+        }
+      : {})
   }
 }
 
@@ -219,4 +231,13 @@ function normalizeCredentialProtection(value: unknown): SecretAtRestProtection |
 
 function nonEmpty(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+export type FeishuBitableCompleteArgs = { record: FeishuBitableRecordReference }
+export type FeishuBitableCompleteResult =
+  | { ok: true; task: FeishuBitableTask }
+  | { ok: false; error: string }
+
+function nonEmptyVerbatim(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value : null
 }

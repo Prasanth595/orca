@@ -990,6 +990,13 @@
             }
           }
         }
+      },
+      "feishuBitable": {
+        "record": {
+          "workspace": {
+            "open": "无法打开此记录关联的工作区。"
+          }
+        }
       }
     },
     "hooks": {
@@ -2267,7 +2274,24 @@
         "jiraLinkSourceUnavailable": "无法关联此 Jira 议题。请重新连接 Jira 或选择匹配的站点，然后重试。",
         "loadPageUnreachable": "第 {{value0}} 页超出了 GitHub 搜索可返回的范围。",
         "loadPageFailed": "无法从 GitHub 加载第 {{value0}} 页。",
-        "loadPageNoMoreResults": "第 {{value0}} 页没有更多结果。"
+        "loadPageNoMoreResults": "第 {{value0}} 页没有更多结果。",
+        "feishuBitableConnectTitle": "连接飞书多维表格",
+        "feishuBitableConnectBody": "通过企业自建应用浏览多维表格记录，并从记录创建工作区。",
+        "feishuBitableConnectAction": "连接飞书",
+        "feishuBitableHide": "隐藏飞书多维表格",
+        "feishuBitableRecords": "多维表格记录",
+        "feishuBitableRefresh": "刷新",
+        "feishuBitableRetry": "重试",
+        "feishuBitableEmpty": "未找到多维表格记录",
+        "feishuBitableEmptyBody": "请在“设置 → 任务”中检查数据表或字段映射。",
+        "feishuBitableLoadMore": "加载更多",
+        "feishuBitableBack": "记录",
+        "feishuBitableOpenRecord": "打开飞书记录",
+        "feishuBitableDescription": "描述",
+        "feishuBitableAcceptance": "验收条件",
+        "feishuBitableUse": "启动工作区",
+        "feishuBitable": "飞书多维表格",
+        "feishuBitableLinkUnavailable": "无法关联此飞书记录。请重新连接飞书多维表格后重试。"
       },
       "Terminal": {
         "73768427cf": "关闭",
@@ -8552,7 +8576,9 @@
           "integrationsHint": "所有提供商的凭据也可在此管理：",
           "integrationsLink": "集成",
           "skillHint": "。连接 Linear 后，可在设置 → Linear 中查看使用示例。",
-          "incompleteBannerBodyWithLinear": "隐藏不使用的提供商，或展开卡片并完成其中的步骤。Linear 需要 API 访问权限、智能体技能以及在任务中显示。"
+          "incompleteBannerBodyWithLinear": "隐藏不使用的提供商，或展开卡片并完成其中的步骤。Linear 需要 API 访问权限、智能体技能以及在任务中显示。",
+          "feishuBitable": "飞书多维表格",
+          "feishuBitableDescription": "连接飞书多维表格，并从表格记录创建工作区。"
         },
         "TerminalAppearanceSection": {
           "a14a427ae4": "窗格分隔线的厚度。",
@@ -12402,6 +12428,26 @@
           "description": "此主机将按原样恢复为使用其受管服务器。较旧版本的 Orca 在此处添加或更改的内容不会被迁移；它们只会保留在这台电脑保存的设置中，直到被清理。",
           "cancel": "取消",
           "confirm": "保留服务器的版本"
+        },
+        "feishu": {
+          "connection": "当前数据表",
+          "disconnect": "断开连接",
+          "plaintext": "此主机未加密存储应用密钥。"
+        },
+        "FeishuBitableSetupSteps": {
+          "titleField": "标题",
+          "descriptionField": "描述",
+          "acceptanceCriteriaField": "验收条件",
+          "urlField": "链接",
+          "connectTitle": "连接飞书多维表格",
+          "connectDescription": "添加有权访问该多维表格及数据表的企业自建应用。",
+          "addAnother": "添加其他数据表",
+          "connect": "添加飞书访问权限",
+          "mappingTitle": "字段映射",
+          "mappingDescription": "为 {{connection}} 选择任务各项内容对应的原始表格字段。",
+          "saving": "正在保存…",
+          "saveMapping": "保存映射",
+          "noneField": "（无）"
         }
       },
       "right": {
@@ -17663,6 +17709,28 @@
         "resuming": "重启后正在自动恢复。",
         "resumed": "重启后已自动恢复。",
         "changeInSettings": "在设置中更改"
+      },
+      "feishuBitable": {
+        "connect": {
+          "title": "连接飞书多维表格",
+          "description": "输入企业应用的 ID 和密钥，粘贴多维表格链接，然后加载并选择数据表。",
+          "labelField": "名称（可选）",
+          "labelPlaceholder": "团队任务看板",
+          "appId": "应用 ID",
+          "appSecret": "应用密钥",
+          "appSecretPlaceholder": "企业应用密钥",
+          "grantHint": "应用需要多维表格读取权限，并且该表格须向应用或其租户开放访问。",
+          "cancel": "取消",
+          "verifying": "正在验证…",
+          "submit": "连接",
+          "baseLink": "多维表格链接或表格令牌",
+          "loadingTables": "正在加载数据表…",
+          "loadTables": "加载数据表",
+          "dataTable": "数据表",
+          "chooseTable": "选择数据表",
+          "noTables": "未找到数据表。请检查应用是否有权访问此多维表格。",
+          "manualTableId": "数据表 ID（也可手动输入）"
+        }
       }
     },
     "i18n": {
@@ -19548,5 +19616,82 @@
   "settings.agents.readFailed": "无法读取代理设置。请检查主机连接并重试。",
   "settings.agents.saveFailed": "无法保存代理设置。请检查主机连接并重试。",
   "settings.agents.hostDefaults": "所选主机上新代理的默认设置。",
-  "settings.agents.save": "保存"
+  "settings.agents.save": "保存",
+  "feishu": {
+    "connect": {
+      "remoteSecret": "应用密钥将发送至所选远端运行环境，并使用该运行环境支持的加密方式存储。",
+      "localSecret": "应用密钥存储在本地；本地运行环境支持加密存储时会进行加密。",
+      "appIdHint": "以 cli_ 开头的应用 ID",
+      "baseHint": "粘贴飞书多维表格链接",
+      "tableIdHint": "以 tbl 开头的数据表 ID"
+    },
+    "mapping": {
+      "statusField": "状态字段（可选）",
+      "completedValue": "完成值",
+      "completionHint": "完成状态由你手动更新。请选择文本或单选状态字段，其他列不会被修改。在标记记录完成之前，只读权限即可使用。",
+      "disabled": "不更新状态",
+      "chooseValue": "选择已有选项"
+    },
+    "completion": {
+      "saving": "正在更新状态…",
+      "completed": "已标记完成",
+      "action": "标记完成",
+      "hint": "点击“标记完成”时，仅将 {{field}} 更新为 {{value}}。应用需要记录写入权限。",
+      "configure": "请在“设置 → 任务”中配置状态字段和完成值，以启用完成状态更新。",
+      "saved": "已更新飞书中的记录状态。"
+    },
+    "rows": {
+      "shown": "已显示 {{count}} 条记录",
+      "actions": "操作",
+      "details": "查看记录：{{title}}",
+      "untitled": "飞书记录 {{id}}"
+    },
+    "workspace": {
+      "reload": "切换连接后，请重新加载飞书记录。",
+      "reloadAgent": "启动代理前，请重新加载飞书记录。"
+    },
+    "errors": {
+      "identityMismatch": "此记录不属于该连接。",
+      "configureCompletion": "请在“设置 → 任务”中配置状态字段和完成值。",
+      "missingSecret": "已保存的飞书多维表格应用密钥缺失。请重新连接。",
+      "missingStatusField": "映射的状态字段已不存在。请更新映射。",
+      "unsupportedStatusType": "完成状态更新需要文本或单选类型的状态字段。",
+      "missingCompletedOption": "完成值不是已有的状态选项。请更新映射。",
+      "missingRecord": "此飞书记录已不存在。",
+      "unverifiedWrite": "无法验证保存后的状态。请先刷新记录，再决定是否重试。",
+      "writePermission": "应用需要记录写入权限和该状态字段的访问权限。读取功能仍可使用。",
+      "writeFailed": "无法更新飞书状态。请先刷新记录并检查应用访问权限，再决定是否重试。",
+      "appCredentials": "必须填写应用 ID 和应用密钥。",
+      "invalidTable": "飞书返回了无效的数据表 ID。",
+      "invalidPagination": "飞书返回了无效的数据表分页令牌。",
+      "tooManyTables": "数据表数量过多。请手动输入数据表 ID。",
+      "loadTables": "无法加载数据表。",
+      "loadDataTables": "无法加载数据表。",
+      "loadFields": "无法加载字段。",
+      "saveMapping": "无法保存映射。",
+      "noConnection": "尚未配置飞书多维表格连接。",
+      "unknownConnection": "无法识别此飞书多维表格连接。",
+      "recordId": "必须提供记录 ID。",
+      "completeReference": "必须提供完整的记录引用。",
+      "mappingRequired": "必须提供连接 ID 和字段映射。",
+      "credentialsRequired": "必须填写应用 ID、应用密钥、多维表格令牌和数据表 ID。",
+      "connectRequired": "必须填写应用 ID、应用密钥、多维表格令牌和数据表 ID。",
+      "discoverRequired": "必须填写应用 ID、应用密钥和多维表格链接。",
+      "baseLink": "请输入飞书多维表格链接或表格令牌。",
+      "baseFormat": "请使用包含 /base/ 的飞书多维表格链接，或输入其表格令牌。",
+      "missingToken": "飞书未返回租户访问令牌。",
+      "fieldLimit": "字段数量过多，无法验证数据表结构。",
+      "oldHost": "此 Orca 主机不支持飞书多维表格。请先更新远端主机上的 Orca。",
+      "connectionCheck": "飞书连接检查失败。",
+      "connectionUpdate": "无法更新连接。",
+      "readFailed": "飞书多维表格读取失败。",
+      "connectionFailed": "连接失败",
+      "access": "飞书拒绝访问。请检查应用权限和该多维表格的共享设置。",
+      "credential": "主机无法读取已保存的应用密钥。请在此主机上重新连接飞书。",
+      "request": "飞书请求失败。请检查连接和应用访问权限后重试。"
+    },
+    "details": {
+      "openWorkspace": "打开工作区"
+    }
+  }
 }

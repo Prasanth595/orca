@@ -1,5 +1,12 @@
 import type {
+  FeishuBitableTableDiscoveryArgs,
+  FeishuBitableTableDiscoveryResult
+} from '../../shared/feishu-bitable-table-discovery'
+import type {
   FeishuBitableConnectResult,
+  FeishuBitableCompleteArgs,
+  FeishuBitableCompleteResult,
+  FeishuBitableField,
   FeishuBitableConnectionStatus,
   FeishuBitableFieldMapping,
   FeishuBitableReadResult,
@@ -7,6 +14,10 @@ import type {
 } from '../../shared/feishu-bitable-types'
 
 export type FeishuBitableApi = {
+  completeRecord: (args: FeishuBitableCompleteArgs) => Promise<FeishuBitableCompleteResult>
+  discoverTables: (
+    args: FeishuBitableTableDiscoveryArgs
+  ) => Promise<FeishuBitableTableDiscoveryResult>
   connect: (args: {
     label?: string
     appId: string
@@ -33,10 +44,7 @@ export type FeishuBitableApi = {
   }) => Promise<FeishuBitableRecordResult>
   listFields: (args?: {
     connectionId?: string
-  }) => Promise<
-    | { ok: true; fields: { fieldName: string; type: number; uiType?: string | null }[] }
-    | { ok: false; error: string }
-  >
+  }) => Promise<{ ok: true; fields: FeishuBitableField[] } | { ok: false; error: string }>
   updateFieldMapping: (args: {
     connectionId: string
     fieldMapping: FeishuBitableFieldMapping

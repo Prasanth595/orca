@@ -1,7 +1,21 @@
+import type {
+  FeishuBitableCompleteArgs,
+  FeishuBitableFieldMapping
+} from '../../shared/feishu-bitable-types'
+import type {
+  FeishuBitableTableDiscoveryArgs,
+  FeishuBitableTableDiscoveryResult
+} from '../../shared/feishu-bitable-table-discovery'
 import { ipcRenderer } from 'electron'
 import type { PreloadApi } from '../api-types'
 
 export const feishuBitableApi = {
+  completeRecord: (args: FeishuBitableCompleteArgs) =>
+    ipcRenderer.invoke('feishuBitable:completeRecord', args),
+  discoverTables: (
+    args: FeishuBitableTableDiscoveryArgs
+  ): Promise<FeishuBitableTableDiscoveryResult> =>
+    ipcRenderer.invoke('feishuBitable:discoverTables', args),
   connect: (args: {
     label?: string
     appId: string
@@ -9,12 +23,7 @@ export const feishuBitableApi = {
     appToken: string
     tableId: string
     viewId?: string
-    fieldMapping?: {
-      titleField: string | null
-      descriptionField: string | null
-      acceptanceCriteriaField: string | null
-      urlField: string | null
-    }
+    fieldMapping?: FeishuBitableFieldMapping
   }) => ipcRenderer.invoke('feishuBitable:connect', args),
 
   disconnect: (args?: { connectionId?: string }): Promise<{ ok: true }> =>
@@ -36,13 +45,6 @@ export const feishuBitableApi = {
   listFields: (args?: { connectionId?: string }) =>
     ipcRenderer.invoke('feishuBitable:listFields', args),
 
-  updateFieldMapping: (args: {
-    connectionId: string
-    fieldMapping: {
-      titleField: string | null
-      descriptionField: string | null
-      acceptanceCriteriaField: string | null
-      urlField: string | null
-    }
-  }) => ipcRenderer.invoke('feishuBitable:updateFieldMapping', args)
+  updateFieldMapping: (args: { connectionId: string; fieldMapping: FeishuBitableFieldMapping }) =>
+    ipcRenderer.invoke('feishuBitable:updateFieldMapping', args)
 } satisfies PreloadApi['feishuBitable']

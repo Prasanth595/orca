@@ -1,3 +1,4 @@
+import { translate } from '@/i18n/i18n'
 import type { FeishuBitableTaskSnapshot } from '../../../shared/feishu-bitable-task-contract'
 import { buildFeishuBitableExecutionPlan } from '../../../shared/feishu-bitable-execution-plan'
 import type { TaskProvider } from '../../../shared/task-providers'
@@ -193,7 +194,12 @@ export function resolveQuickCreateLinkedWorkItemPrompt(
 ): { prompt: string; draftPrompt: string | null } {
   if (linkedWorkItem?.provider === 'feishu-bitable') {
     if (!linkedWorkItem.feishuTask) {
-      throw new Error('Reload the Feishu record before starting an agent.')
+      throw new Error(
+        translate(
+          'feishu.workspace.reloadAgent',
+          'Reload the Feishu record before starting an agent.'
+        )
+      )
     }
     const plan = buildFeishuBitableExecutionPlan({
       task: linkedWorkItem.feishuTask,

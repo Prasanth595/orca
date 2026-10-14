@@ -1,7 +1,10 @@
+import type { RuntimeFeishuBitableSettings } from '@/runtime/runtime-feishu-bitable-client'
 import type { StateCreator } from 'zustand'
 import type { AppState } from '../types'
 import type {
   FeishuBitableConnectResult,
+  FeishuBitableCompleteArgs,
+  FeishuBitableCompleteResult,
   FeishuBitableConnectionStatus,
   FeishuBitableField,
   FeishuBitableFieldMapping,
@@ -14,6 +17,7 @@ export type FeishuBitableSlice = {
   feishuBitableStatus: FeishuBitableConnectionStatus
   feishuBitableStatusChecked: boolean
   feishuBitableStatusContextKey: string | null
+  feishuBitableFields: FeishuBitableField[]
   feishuBitableTasks: FeishuBitableTask[]
   feishuBitableNextPageToken: string | null
   feishuBitableLoading: boolean
@@ -21,6 +25,10 @@ export type FeishuBitableSlice = {
   feishuBitableConnectOpen: boolean
   selectedFeishuBitableTask: FeishuBitableTask | null
 
+  completeFeishuBitableRecord: (
+    args: FeishuBitableCompleteArgs,
+    source: RuntimeFeishuBitableSettings
+  ) => Promise<FeishuBitableCompleteResult>
   setFeishuBitableConnectOpen: (open: boolean) => void
   setSelectedFeishuBitableTask: (task: FeishuBitableTask | null) => void
   checkFeishuBitableConnection: () => Promise<void>

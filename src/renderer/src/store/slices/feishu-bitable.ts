@@ -1,8 +1,11 @@
+import { feishuBitableRecordKey } from '../../../../shared/feishu-bitable-types'
 import type { StateCreator } from 'zustand'
 import type { AppState } from '../types'
 import type { FeishuBitableSlice } from './feishu-bitable-slice-contract'
 import {
   feishuBitableConnect,
+  feishuBitableCompleteRecord,
+  getFeishuBitableRuntimeTarget,
   feishuBitableDisconnect,
   feishuBitableGetRecord,
   feishuBitableListFields,
@@ -26,6 +29,7 @@ export const createFeishuBitableSlice: StateCreator<AppState, [], [], FeishuBita
     feishuBitableStatus: { connected: false, connections: [], activeConnectionId: null },
     feishuBitableStatusChecked: false,
     feishuBitableStatusContextKey: null,
+    feishuBitableFields: [],
     feishuBitableTasks: [],
     feishuBitableNextPageToken: null,
     feishuBitableLoading: false,
@@ -33,6 +37,33 @@ export const createFeishuBitableSlice: StateCreator<AppState, [], [], FeishuBita
     feishuBitableConnectOpen: false,
     selectedFeishuBitableTask: null,
 
+    completeFeishuBitableRecord: async (args, source) => {
+      const contextKey = getProviderRuntimeContextKey(get().settings)
+      const activeConnectionId = get().feishuBitableStatus.activeConnectionId
+      const result = await feishuBitableCompleteRecord(source, args)
+      if (
+        result.ok &&
+        contextKey === getProviderRuntimeContextKey(get().settings) &&
+        activeConnectionId === get().feishuBitableStatus.activeConnectionId &&
+        JSON.stringify(getFeishuBitableRuntimeTarget(source)) ===
+          JSON.stringify(getFeishuBitableRuntimeTarget(defaultScopeSource(get().settings)))
+      ) {
+        readGeneration += 1
+        const key = feishuBitableRecordKey(args.record)
+        set((state) => ({
+          feishuBitableLoading: false,
+          feishuBitableTasks: state.feishuBitableTasks.map((task) =>
+            feishuBitableRecordKey(task.record) === key ? result.task : task
+          ),
+          selectedFeishuBitableTask:
+            state.selectedFeishuBitableTask &&
+            feishuBitableRecordKey(state.selectedFeishuBitableTask.record) === key
+              ? result.task
+              : state.selectedFeishuBitableTask
+        }))
+      }
+      return result
+    },
     setFeishuBitableConnectOpen: (open) => set({ feishuBitableConnectOpen: open }),
     setSelectedFeishuBitableTask: (task) => set({ selectedFeishuBitableTask: task }),
 
@@ -44,6 +75,7 @@ export const createFeishuBitableSlice: StateCreator<AppState, [], [], FeishuBita
         set({
           feishuBitableStatusChecked: false,
           feishuBitableStatus: { connected: false, connections: [], activeConnectionId: null },
+          feishuBitableFields: [],
           feishuBitableTasks: [],
           selectedFeishuBitableTask: null,
           feishuBitableNextPageToken: null,
@@ -101,6 +133,7 @@ export const createFeishuBitableSlice: StateCreator<AppState, [], [], FeishuBita
       }
       set({
         feishuBitableLoading: false,
+        feishuBitableFields: [],
         feishuBitableTasks: [],
         feishuBitableNextPageToken: null,
         selectedFeishuBitableTask: null
@@ -128,6 +161,7 @@ export const createFeishuBitableSlice: StateCreator<AppState, [], [], FeishuBita
         feishuBitableStatus: status,
         feishuBitableStatusChecked: true,
         feishuBitableStatusContextKey: getProviderRuntimeContextKey(get().settings),
+        feishuBitableFields: [],
         feishuBitableTasks: [],
         feishuBitableNextPageToken: null,
         feishuBitableError: null,
@@ -155,6 +189,7 @@ export const createFeishuBitableSlice: StateCreator<AppState, [], [], FeishuBita
         }
         if (result.ok) {
           set((state) => ({
+            feishuBitableFields: result.page.fields ?? (append ? state.feishuBitableFields : []),
             feishuBitableTasks: append
               ? [...state.feishuBitableTasks, ...result.page.tasks]
               : result.page.tasks,

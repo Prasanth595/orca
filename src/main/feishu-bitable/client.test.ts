@@ -204,7 +204,14 @@ describe('feishu bitable client', () => {
           code: 0,
           msg: 'ok',
           data: {
-            items: [{ field_name: '状态', type: 3, ui_type: 'single_select' }],
+            items: [
+              {
+                field_name: '状态',
+                type: 3,
+                ui_type: 'single_select',
+                property: { options: [{ name: 'Todo' }, { name: 'Done' }, { name: 42 }] }
+              }
+            ],
             has_more: false
           }
         })
@@ -217,6 +224,7 @@ describe('feishu bitable client', () => {
     })
     expect(fields.map((field) => field.fieldName)).toEqual(['标题', '状态'])
     expect(fields[0]?.uiType).toBe('text')
+    expect(fields[1]?.options).toEqual(['Todo', 'Done'])
   })
 })
 
@@ -236,4 +244,24 @@ it('retries an expired tenant token at most once', async () => {
     })
   ).rejects.toThrow('expired')
   expect(fetchMock).toHaveBeenCalledTimes(4)
+})
+
+it('sends a narrow PUT with token authorization and never sends app credentials as record data', async () => {
+  const client = await loadClient()
+  fetchMock
+    .mockResolvedValueOnce(jsonResponse(tokenBody()))
+    .mockResolvedValueOnce(
+      jsonResponse({ code: 0, data: { record: { record_id: 'r', fields: { Status: 'Done' } } } })
+    )
+  await client.feishuRequest('/open-apis/bitable/v1/apps/a/tables/t/records/r', {
+    method: 'PUT',
+    auth: { appId: 'fixture-app', appSecret: 'fixture-secret' },
+    json: { fields: { Status: 'Done' } }
+  })
+  expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({
+    method: 'PUT',
+    headers: { Authorization: 'Bearer tenant-token' },
+    body: JSON.stringify({ fields: { Status: 'Done' } })
+  })
+  expect(fetchMock.mock.calls[1]?.[1]?.body).not.toContain('fixture-secret')
 })

@@ -1,4 +1,8 @@
+import { normalizeFeishuBitableFieldMapping } from '../../shared/feishu-bitable-types'
 import { ipcMain } from 'electron'
+import { CompleteRecord, DiscoverTables } from '../../shared/rpc-contract/feishu-bitable-params'
+import { completeRecord } from '../feishu-bitable/record-completion'
+import { discoverTables } from '../feishu-bitable/table-discovery'
 import type {
   FeishuBitableConnectArgs,
   FeishuBitableFieldMapping,
@@ -24,17 +28,7 @@ function normalizeFieldMapping(value: unknown): FeishuBitableFieldMapping | unde
     return undefined
   }
   const raw: Record<string, unknown> = Object.fromEntries(Object.entries(value))
-  const mapping: FeishuBitableFieldMapping = {
-    titleField: normalizeOptionalFieldName(raw.titleField),
-    descriptionField: normalizeOptionalFieldName(raw.descriptionField),
-    acceptanceCriteriaField: normalizeOptionalFieldName(raw.acceptanceCriteriaField),
-    urlField: normalizeOptionalFieldName(raw.urlField)
-  }
-  return mapping
-}
-
-function normalizeOptionalFieldName(value: unknown): string | null {
-  return typeof value === 'string' && value.trim() ? value.trim() : null
+  return normalizeFeishuBitableFieldMapping(raw)
 }
 
 /** Narrows untrusted connect payloads to the fields the host accepts. */
@@ -77,6 +71,19 @@ function normalizeMappingUpdate(value: unknown): FeishuBitableFieldMappingUpdate
 
 /** Registers every `feishuBitable:*` IPC handler on the main process. */
 export function registerFeishuBitableHandlers(): void {
+  ipcMain.handle('feishuBitable:completeRecord', async (_event, args: unknown) => {
+    const parsed = CompleteRecord.safeParse(args)
+    return parsed.success
+      ? completeRecord(parsed.data)
+      : { ok: false as const, error: 'A complete record reference is required.' }
+  })
+  ipcMain.handle('feishuBitable:discoverTables', async (_event, args: unknown) => {
+    const parsed = DiscoverTables.safeParse(args)
+    return parsed.success
+      ? discoverTables(parsed.data)
+      : { ok: false as const, error: 'App ID, app secret, and Bitable link are required.' }
+  })
+
   ipcMain.handle('feishuBitable:connect', async (_event, args: unknown) => {
     const normalized = normalizeConnectArgs(args)
     if (!normalized) {

@@ -1,5 +1,11 @@
 import type {
+  FeishuBitableTableDiscoveryArgs,
+  FeishuBitableTableDiscoveryResult
+} from '../../../shared/feishu-bitable-table-discovery'
+import type {
   FeishuBitableConnectResult,
+  FeishuBitableCompleteArgs,
+  FeishuBitableCompleteResult,
   FeishuBitableConnectionStatus,
   FeishuBitableField,
   FeishuBitableFieldMapping,
@@ -162,4 +168,29 @@ export async function feishuBitableUpdateFieldMapping(
         15_000
       )
     : window.api.feishuBitable.updateFieldMapping(args)
+}
+
+export async function feishuBitableDiscoverTables(
+  settings: RuntimeFeishuBitableSettings,
+  args: FeishuBitableTableDiscoveryArgs
+): Promise<FeishuBitableTableDiscoveryResult> {
+  const target = getFeishuBitableRuntimeTarget(settings)
+  return target.kind === 'environment'
+    ? dispatch<FeishuBitableTableDiscoveryResult>(
+        target,
+        'feishuBitable.discoverTables',
+        args,
+        30_000
+      )
+    : window.api.feishuBitable.discoverTables(args)
+}
+
+export async function feishuBitableCompleteRecord(
+  source: RuntimeFeishuBitableSettings,
+  args: FeishuBitableCompleteArgs
+): Promise<FeishuBitableCompleteResult> {
+  const target = getFeishuBitableRuntimeTarget(source)
+  return target.kind === 'environment'
+    ? dispatch<FeishuBitableCompleteResult>(target, 'feishuBitable.completeRecord', args, 30_000)
+    : window.api.feishuBitable.completeRecord(args)
 }

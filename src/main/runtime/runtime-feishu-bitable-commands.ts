@@ -1,5 +1,9 @@
+import { completeRecord } from '../feishu-bitable/record-completion'
+import { discoverTables } from '../feishu-bitable/table-discovery'
+import type { FeishuBitableTableDiscoveryArgs } from '../../shared/feishu-bitable-table-discovery'
 import type {
   FeishuBitableConnectArgs,
+  FeishuBitableCompleteArgs,
   FeishuBitableFieldMappingUpdate
 } from '../../shared/feishu-bitable-types'
 import {
@@ -14,6 +18,16 @@ import {
 } from '../feishu-bitable/service'
 
 export class RuntimeFeishuBitableCommands {
+  feishuBitableCompleteRecord(args: FeishuBitableCompleteArgs): ReturnType<typeof completeRecord> {
+    return completeRecord(args)
+  }
+
+  feishuBitableDiscoverTables(
+    args: FeishuBitableTableDiscoveryArgs
+  ): ReturnType<typeof discoverTables> {
+    return discoverTables(args)
+  }
+
   feishuBitableConnect(args: FeishuBitableConnectArgs): ReturnType<typeof connect> {
     return connect(args)
   }

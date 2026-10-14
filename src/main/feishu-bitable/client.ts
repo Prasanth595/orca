@@ -178,7 +178,14 @@ export async function listFieldsPage(args: {
     params.set('page_token', args.pageToken)
   }
   const data = await feishuRequest<{
-    items?: { field_name?: string; type?: number; ui_type?: string }[] | null
+    items?:
+      | {
+          field_name?: string
+          type?: number
+          ui_type?: string
+          property?: { options?: { name?: unknown }[] }
+        }[]
+      | null
     has_more?: boolean
     page_token?: string
   }>(
@@ -195,7 +202,14 @@ export async function listFieldsPage(args: {
       return {
         fieldName: item.field_name,
         type: typeof item.type === 'number' ? item.type : 0,
-        uiType: typeof item.ui_type === 'string' ? item.ui_type : null
+        uiType: typeof item.ui_type === 'string' ? item.ui_type : null,
+        ...(Array.isArray(item.property?.options)
+          ? {
+              options: item.property.options.flatMap((option) =>
+                typeof option.name === 'string' ? [option.name] : []
+              )
+            }
+          : {})
       }
     })
     .filter((field): field is FeishuBitableField => field !== null)
@@ -222,17 +236,17 @@ export async function listAllFields(args: {
       return fields
     }
   }
-  return fields
+  throw new Error('Too many fields. Cannot verify the table schema.')
 }
 
 type FeishuRequestOptions = {
-  method: 'GET' | 'POST'
+  method: 'GET' | 'POST' | 'PUT'
   json?: unknown
   auth: { appId: string; appSecret: string } | null
   signal?: AbortSignal
 }
 
-async function feishuRequest<T extends object>(
+export async function feishuRequest<T extends object>(
   path: string,
   options: FeishuRequestOptions,
   retriedAuth = false

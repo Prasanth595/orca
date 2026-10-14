@@ -1,3 +1,4 @@
+import { formatFeishuBitableError } from '@/lib/feishu-bitable-error-copy'
 import { useState } from 'react'
 import { useAppStore } from '@/store'
 import { Button } from '@/components/ui/button'
@@ -69,7 +70,7 @@ export function FeishuBitableConnectionPicker(): React.JSX.Element {
       ) : null}
       {status.credentialError || error ? (
         <p role="alert" className="text-xs text-destructive">
-          {error ?? status.credentialError}
+          {formatFeishuBitableError(error ?? status.credentialError)}
         </p>
       ) : null}
     </div>

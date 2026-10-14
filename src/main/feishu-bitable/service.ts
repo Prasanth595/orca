@@ -78,7 +78,13 @@ function resolveInitialFieldMapping(
       titleField: provided.titleField,
       descriptionField: provided.descriptionField,
       acceptanceCriteriaField: provided.acceptanceCriteriaField,
-      urlField: provided.urlField
+      urlField: provided.urlField,
+      ...(provided.statusField !== undefined || provided.completedValue !== undefined
+        ? {
+            statusField: provided.statusField,
+            completedValue: provided.completedValue
+          }
+        : {})
     }
   }
   // Sensible default: the first text-ish column becomes the title.
@@ -127,17 +133,28 @@ export async function listRecords(args: {
     }
   }
   try {
-    const page = await listRecordsPage({
-      appId: connection.appId,
-      appSecret: secret,
-      reference: connection,
-      pageToken: args.pageToken ?? null,
-      pageSize: args.pageSize ?? FEISHU_BITABLE_RECORDS_PAGE_SIZE,
-      signal: args.signal
-    })
+    const [page, fields] = await Promise.all([
+      listRecordsPage({
+        appId: connection.appId,
+        appSecret: secret,
+        reference: connection,
+        pageToken: args.pageToken ?? null,
+        pageSize: args.pageSize ?? FEISHU_BITABLE_RECORDS_PAGE_SIZE,
+        signal: args.signal
+      }),
+      args.pageToken
+        ? Promise.resolve(undefined)
+        : listAllFields({
+            appId: connection.appId,
+            appSecret: secret,
+            reference: connection,
+            signal: args.signal
+          })
+    ])
     const tasks = applyFieldMappingToRecords({ connection, records: page.records })
     const result: FeishuBitableRecordPage = {
       tasks,
+      ...(fields ? { fields } : {}),
       nextPageToken: page.nextPageToken,
       totalFetched: tasks.length
     }

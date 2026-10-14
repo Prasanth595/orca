@@ -1,6 +1,8 @@
 import { defineMethod } from '../core'
 import {
   Connect,
+  CompleteRecord,
+  DiscoverTables,
   ConnectionSelection,
   GetRecord,
   ListFields,
@@ -8,23 +10,28 @@ import {
   SelectConnection,
   UpdateFieldMapping
 } from '../../../../shared/rpc-contract/feishu-bitable-params'
-import type { FeishuBitableFieldMapping } from '../../../../shared/feishu-bitable-types'
+import {
+  normalizeFeishuBitableFieldMapping,
+  type FeishuBitableFieldMapping
+} from '../../../../shared/feishu-bitable-types'
 
-function toFieldMapping(value: {
-  titleField?: string
-  descriptionField?: string
-  acceptanceCriteriaField?: string
-  urlField?: string
-}): FeishuBitableFieldMapping {
-  return {
-    titleField: value.titleField?.trim() || null,
-    descriptionField: value.descriptionField?.trim() || null,
-    acceptanceCriteriaField: value.acceptanceCriteriaField?.trim() || null,
-    urlField: value.urlField?.trim() || null
-  }
+function toFieldMapping(value: unknown): FeishuBitableFieldMapping {
+  return normalizeFeishuBitableFieldMapping(value)
 }
 
 export const FEISHU_BITABLE_METHODS = [
+  defineMethod({
+    name: 'feishuBitable.completeRecord',
+    permission: 'workspace',
+    params: CompleteRecord,
+    handler: async (params, { runtime }) => runtime.feishuBitableCompleteRecord(params)
+  }),
+  defineMethod({
+    name: 'feishuBitable.discoverTables',
+    permission: 'accounts-admin',
+    params: DiscoverTables,
+    handler: async (params, { runtime }) => runtime.feishuBitableDiscoverTables(params)
+  }),
   defineMethod({
     name: 'feishuBitable.connect',
     permission: 'accounts-admin',

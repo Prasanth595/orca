@@ -1,3 +1,6 @@
+import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
+import { formatFeishuBitableError } from '@/lib/feishu-bitable-error-copy'
+import { FeishuBitableCompletionMapping } from './FeishuBitableCompletionMapping'
 import { FeishuBitableConnectionPicker } from './FeishuBitableConnectionPicker'
 import { useEffect, useMemo, useState } from 'react'
 import { LoaderCircle } from 'lucide-react'
@@ -30,36 +33,34 @@ type FeishuBitableSetupStepsProps = {
   onConnected: () => void
 }
 
-type MappingSlot = keyof FeishuBitableFieldMapping
+type MappingSlot = 'titleField' | 'descriptionField' | 'acceptanceCriteriaField' | 'urlField'
 
-const MAPPING_SLOTS: { slot: MappingSlot; label: string; required: boolean }[] = [
-  {
-    slot: 'titleField',
-    label: translate('auto.components.settings.FeishuBitableSetupSteps.titleField', 'Title'),
-    required: true
-  },
-  {
-    slot: 'descriptionField',
-    label: translate(
-      'auto.components.settings.FeishuBitableSetupSteps.descriptionField',
-      'Description'
-    ),
-    required: false
-  },
-  {
-    slot: 'acceptanceCriteriaField',
-    label: translate(
-      'auto.components.settings.FeishuBitableSetupSteps.acceptanceCriteriaField',
-      'Acceptance criteria'
-    ),
-    required: false
-  },
-  {
-    slot: 'urlField',
-    label: translate('auto.components.settings.FeishuBitableSetupSteps.urlField', 'Link'),
-    required: false
-  }
-]
+function mappingSlots(): { slot: MappingSlot; label: string }[] {
+  return [
+    {
+      slot: 'titleField',
+      label: translate('auto.components.settings.FeishuBitableSetupSteps.titleField', 'Title')
+    },
+    {
+      slot: 'descriptionField',
+      label: translate(
+        'auto.components.settings.FeishuBitableSetupSteps.descriptionField',
+        'Description'
+      )
+    },
+    {
+      slot: 'acceptanceCriteriaField',
+      label: translate(
+        'auto.components.settings.FeishuBitableSetupSteps.acceptanceCriteriaField',
+        'Acceptance criteria'
+      )
+    },
+    {
+      slot: 'urlField',
+      label: translate('auto.components.settings.FeishuBitableSetupSteps.urlField', 'Link')
+    }
+  ]
+}
 
 export function FeishuBitableSetupSteps(props: FeishuBitableSetupStepsProps): React.JSX.Element {
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -124,6 +125,7 @@ export function FeishuBitableSetupSteps(props: FeishuBitableSetupStepsProps): Re
  * "(none)" until remapped, which is the visible failure mode we want.
  */
 function FeishuBitableMappingStep(): React.JSX.Element | null {
+  const runtimeKey = useAppStore((s) => getProviderRuntimeContextKey(s.settings))
   const status = useAppStore((s) => s.feishuBitableStatus)
   const fetchFields = useAppStore((s) => s.fetchFeishuBitableFields)
   const updateMapping = useAppStore((s) => s.updateFeishuBitableFieldMapping)
@@ -175,7 +177,7 @@ function FeishuBitableMappingStep(): React.JSX.Element | null {
     return () => {
       cancelled = true
     }
-  }, [connectionId, fetchFields, mountedRef])
+  }, [connectionId, runtimeKey, fetchFields, mountedRef])
 
   // Track the saved mapping; draft picks it up on connection change or after save.
   useEffect(() => {
@@ -192,8 +194,10 @@ function FeishuBitableMappingStep(): React.JSX.Element | null {
     draft.titleField !== savedMapping?.titleField ||
     draft.descriptionField !== savedMapping?.descriptionField ||
     draft.acceptanceCriteriaField !== savedMapping?.acceptanceCriteriaField ||
-    draft.urlField !== savedMapping?.urlField
-  const canSave = Boolean(draft.titleField) && isDirty && !saving
+    draft.urlField !== savedMapping?.urlField ||
+    draft.statusField !== savedMapping?.statusField ||
+    draft.completedValue !== savedMapping?.completedValue
+  const canSave = isDirty && !saving && fieldsState === 'ready'
 
   const handleSave = async (): Promise<void> => {
     if (!canSave) {
@@ -229,7 +233,7 @@ function FeishuBitableMappingStep(): React.JSX.Element | null {
       )}
       description={
         fieldsState === 'error' && fieldsError
-          ? fieldsError
+          ? formatFeishuBitableError(fieldsError)
           : translate(
               'auto.components.settings.FeishuBitableSetupSteps.mappingDescription',
               'Pick which Bitable columns feed each task slot for {{connection}}.',
@@ -259,12 +263,9 @@ function FeishuBitableMappingStep(): React.JSX.Element | null {
       }
     >
       <div className="mt-2 grid gap-2 sm:grid-cols-2">
-        {MAPPING_SLOTS.map(({ slot, label, required }) => (
+        {mappingSlots().map(({ slot, label }) => (
           <div key={slot} className="space-y-1">
-            <p className="text-xs font-medium text-foreground">
-              {label}
-              {required ? <span className="text-destructive"> *</span> : null}
-            </p>
+            <p className="text-xs font-medium text-foreground">{label}</p>
             <Select
               value={draft[slot] ?? 'none'}
               onValueChange={(value) => {
@@ -293,7 +294,10 @@ function FeishuBitableMappingStep(): React.JSX.Element | null {
           </div>
         ))}
       </div>
-      {saveError ? <p className="mt-2 text-xs text-destructive">{saveError}</p> : null}
+      <FeishuBitableCompletionMapping fields={fields} draft={draft} onChange={setDraft} />
+      {saveError ? (
+        <p className="mt-2 text-xs text-destructive">{formatFeishuBitableError(saveError)}</p>
+      ) : null}
     </TaskSourceStepRow>
   )
 }

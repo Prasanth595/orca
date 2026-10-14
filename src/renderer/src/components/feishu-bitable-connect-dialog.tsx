@@ -1,4 +1,5 @@
-import { useId, useLayoutEffect, useState } from 'react'
+import { formatFeishuBitableError } from '@/lib/feishu-bitable-error-copy'
+import { useId, useLayoutEffect, useMemo, useState } from 'react'
 import { LoaderCircle, Lock } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { useMountedRef } from '@/hooks/useMountedRef'
@@ -16,6 +17,9 @@ import { Label } from '@/components/ui/label'
 import { hasRemoteProviderRuntime } from '@/lib/provider-runtime-context'
 import { preventOutsideDismissWhenDirty } from '@/lib/outside-dismiss-guard'
 import { translate } from '@/i18n/i18n'
+import { defaultScopeSource } from '@/lib/default-creation-host'
+import { FeishuBitableTablePicker } from './feishu-bitable-table-picker'
+import { parseFeishuBitableBase } from '../../../shared/feishu-bitable-table-discovery'
 
 type FeishuBitableConnectDialogProps = {
   open: boolean
@@ -34,12 +38,11 @@ export function FeishuBitableConnectDialog({
 }: FeishuBitableConnectDialogProps): React.JSX.Element {
   const connectFeishuBitable = useAppStore((s) => s.connectFeishuBitable)
   const settings = useAppStore((s) => s.settings)
+  const discoverySource = useMemo(() => defaultScopeSource(settings), [settings])
   const mountedRef = useMountedRef()
   const labelId = useId()
   const appIdId = useId()
   const appSecretId = useId()
-  const appTokenId = useId()
-  const tableIdId = useId()
   const errorId = useId()
 
   const [label, setLabel] = useState('')
@@ -73,8 +76,14 @@ export function FeishuBitableConnectDialog({
     Boolean(tableId.trim()) &&
     connectState !== 'connecting'
   const credentialStorageCopy = hasRemoteProviderRuntime(settings)
-    ? 'Your app secret is sent to the selected remote runtime and stored there with runtime-supported encryption.'
-    : 'Your app secret is stored locally and encrypted when local runtime storage supports it.'
+    ? translate(
+        'feishu.connect.remoteSecret',
+        'Your app secret is sent to the selected remote runtime and stored there with runtime-supported encryption.'
+      )
+    : translate(
+        'feishu.connect.localSecret',
+        'Your app secret is stored locally and encrypted when local runtime storage supports it.'
+      )
 
   const clearErrorOnEdit = (): void => {
     if (connectState === 'error') {
@@ -116,7 +125,7 @@ export function FeishuBitableConnectDialog({
       const result = await connectFeishuBitable({
         appId: trimmedAppId,
         appSecret: trimmedSecret,
-        appToken: trimmedAppToken,
+        appToken: parseFeishuBitableBase(trimmedAppToken).appToken,
         tableId: trimmedTableId,
         ...(trimmedLabel ? { label: trimmedLabel } : {})
       })
@@ -152,7 +161,7 @@ export function FeishuBitableConnectDialog({
           <DialogDescription>
             {translate(
               'auto.components.feishuBitable.connect.description',
-              'Use an enterprise self-built app (App ID + secret) with a Bitable app token and table ID to browse records.'
+              'Use an enterprise app (App ID + secret), paste your Bitable link, then load and choose a data table.'
             )}
           </DialogDescription>
         </DialogHeader>
@@ -190,10 +199,11 @@ export function FeishuBitableConnectDialog({
               <Input
                 id={appIdId}
                 autoFocus
-                placeholder="cli_a1b2c3d4e5f6"
+                placeholder={translate('feishu.connect.appIdHint', 'App ID starting with cli_')}
                 value={appId}
                 onChange={(event) => {
                   setAppId(event.target.value)
+                  setTableId('')
                   clearErrorOnEdit()
                 }}
                 disabled={connectState === 'connecting'}
@@ -213,6 +223,7 @@ export function FeishuBitableConnectDialog({
                 value={appSecret}
                 onChange={(event) => {
                   setAppSecret(event.target.value)
+                  setTableId('')
                   clearErrorOnEdit()
                 }}
                 disabled={connectState === 'connecting'}
@@ -220,42 +231,26 @@ export function FeishuBitableConnectDialog({
                 aria-describedby={connectState === 'error' ? errorId : undefined}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor={appTokenId}>
-                {translate('auto.components.feishuBitable.connect.appToken', 'Bitable app token')}
-              </Label>
-              <Input
-                id={appTokenId}
-                placeholder={translate(
-                  'auto.components.feishuBitable.connect.appTokenPlaceholder',
-                  'From the base URL after /base/'
-                )}
-                value={appToken}
-                onChange={(event) => {
-                  setAppToken(event.target.value)
-                  clearErrorOnEdit()
-                }}
-                disabled={connectState === 'connecting'}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={tableIdId}>
-                {translate('auto.components.feishuBitable.connect.tableId', 'Table ID')}
-              </Label>
-              <Input
-                id={tableIdId}
-                placeholder="tblXXXXXXXXXXXX"
-                value={tableId}
-                onChange={(event) => {
-                  setTableId(event.target.value)
-                  clearErrorOnEdit()
-                }}
-                disabled={connectState === 'connecting'}
-              />
-            </div>
+            <FeishuBitableTablePicker
+              open={open}
+              settings={discoverySource}
+              appId={appId}
+              appSecret={appSecret}
+              appToken={appToken}
+              tableId={tableId}
+              onAppTokenChange={(value) => {
+                setAppToken(value)
+                clearErrorOnEdit()
+              }}
+              onTableIdChange={(value) => {
+                setTableId(value)
+                clearErrorOnEdit()
+              }}
+              disabled={connectState === 'connecting'}
+            />
             {connectState === 'error' && connectError ? (
               <p id={errorId} className="text-xs text-destructive">
-                {connectError}
+                {formatFeishuBitableError(connectError)}
               </p>
             ) : null}
             <p className="text-xs text-muted-foreground">
@@ -264,7 +259,7 @@ export function FeishuBitableConnectDialog({
                 'The app needs Bitable read scopes and the base must be shared with the app or its tenant.'
               )}
             </p>
-            <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70">
+            <p className="flex items-center gap-1.5 text-2xs text-muted-foreground">
               <Lock className="size-3 shrink-0" />
               {credentialStorageCopy}
             </p>

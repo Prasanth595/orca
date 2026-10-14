@@ -53,6 +53,35 @@ describe('mapRecordToTask', () => {
     expect(task.description).toBe('true')
   })
 
+  it('preserves unmapped columns including numbers, checkbox values and structured fields', () => {
+    const task = mapRecordToTask({
+      connection: CONNECTION,
+      record: recordWith({
+        标题: [{ text: 'Fix' }, { text: ' login' }],
+        负责人: [{ name: 'Alice' }, { name: 'Bob' }],
+        标签: ['Bug', 'Urgent'],
+        分数: 0,
+        完成: false,
+        公式: { value: 42 },
+        附件: [{ name: 'report.pdf', file_token: 'attachment-token' }],
+        其他: { custom: 'value' },
+        空列: null
+      })
+    })
+    expect(task.fieldValues).toEqual({
+      标题: 'Fix login',
+      负责人: 'Alice, Bob',
+      标签: 'Bug, Urgent',
+      分数: '0',
+      完成: 'false',
+      公式: '42',
+      附件: 'report.pdf',
+      其他: '{"custom":"value"}',
+      空列: ''
+    })
+    expect(task.record.recordId).toBe('rec-0001')
+  })
+
   it('caps runaway text length', () => {
     const task = mapRecordToTask({
       connection: CONNECTION,

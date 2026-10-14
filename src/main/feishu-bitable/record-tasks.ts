@@ -125,9 +125,13 @@ export function mapRecordToTask(args: {
     // Why: a missing title field must never fall back to the record id or row
     // number as identity; this display fallback is only for humans.
     title: title || `${TITLE_FALLBACK_PREFIX} ${record.recordId}`,
+    ...(!title ? { titleMissing: true } : {}),
     description,
     ...(acceptanceCriteria ? { acceptanceCriteria } : {}),
     url: mappedUrl ?? buildRecordUrl(reference),
+    fieldValues: Object.fromEntries(
+      Object.entries(record.fields).map(([name, value]) => [name, formatColumnValue(value)])
+    ),
     connectionLabel: connection.label,
     updatedAt: record.lastModifiedTime ?? null
   }
@@ -145,4 +149,21 @@ export function applyFieldMappingToRecords(args: {
   records: readonly RawFeishuBitableRecord[]
 }): FeishuBitableTask[] {
   return args.records.map((record) => mapRecordToTask({ connection: args.connection, record }))
+}
+
+function formatColumnValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    const textSegments = value.every((item) => item && typeof item === 'object' && 'text' in item)
+    return textSegments ? fieldText(value) : fieldText(value.map(formatColumnValue).join(', '))
+  }
+  if (value && typeof value === 'object') {
+    const raw: Record<string, unknown> = Object.fromEntries(Object.entries(value))
+    for (const key of ['text', 'name', 'full_address', 'address', 'link', 'value']) {
+      if (raw[key] !== undefined && raw[key] !== null) {
+        return formatColumnValue(raw[key])
+      }
+    }
+    return fieldText(JSON.stringify(value))
+  }
+  return fieldText(value)
 }
