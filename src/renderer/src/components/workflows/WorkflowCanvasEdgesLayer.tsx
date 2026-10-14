@@ -26,7 +26,8 @@ export default function WorkflowCanvasEdgesLayer({
   }
   return (
     <svg
-      className="absolute inset-0"
+      className="absolute top-0 left-0"
+      overflow="visible"
       style={{ width: CANVAS_W, height: CANVAS_H, pointerEvents: 'none' }}
     >
       {edges.map((edge) => {
