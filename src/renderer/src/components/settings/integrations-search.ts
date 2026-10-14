@@ -191,6 +191,37 @@ export const getIntegrationsPaneSearchEntries = createLocalizedCatalog(() => [
     ]
   },
   {
+    title: translate('plane.settingsSearch.title', 'Plane Integration'),
+    description: translate(
+      'plane.settingsSearch.description',
+      'Connect Plane Cloud or a self-hosted Plane server and choose its projects.'
+    ),
+    keywords: [
+      ...translateSearchKeyword('plane.settingsSearch.keywordPlane', 'plane'),
+      ...translateSearchKeyword(
+        'auto.components.settings.integrations.search.33180e8c10',
+        'self-hosted'
+      ),
+      ...translateSearchKeyword(
+        'auto.components.settings.integrations.search.c450244ad7',
+        'integration'
+      ),
+      ...translateSearchKeyword('plane.settingsSearch.keywordWorkItems', 'work items'),
+      ...translateSearchKeyword(
+        'auto.components.settings.integrations.search.af5ae87847',
+        'access token'
+      ),
+      ...translateSearchKeyword(
+        'auto.components.settings.integrations.search.3c3d3d8ffa',
+        'connect'
+      ),
+      ...translateSearchKeyword(
+        'auto.components.settings.integrations.search.a626990bd2',
+        'disconnect'
+      )
+    ]
+  },
+  {
     title: translate(
       'auto.components.settings.integrations.search.b027b4b318',
       'Linear Integration'
