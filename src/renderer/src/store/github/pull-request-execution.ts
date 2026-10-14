@@ -1,5 +1,5 @@
 import type { StateCreator } from 'zustand'
-import type { RuntimeClientTarget } from '@/runtime/runtime-client-target'
+import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
 import type { AppState } from '../types'
 import type { GitHubSlice } from './slice-types'
 import type { Repo } from '../../../../shared/repo-types'
@@ -171,6 +171,7 @@ export function startPullRequestLookup(args: {
             hasRepoOwner: repo !== undefined,
             pr,
             fetchedAt: outcome.fetchedAt,
+            rejectedPRUrls: outcome.kind === 'no-pr' ? outcome.rejectedPRUrls : undefined,
             fetchedHeadOid: requestHeadOid,
             worktreeId: options?.worktreeId,
             linkedPRNumber,
@@ -270,8 +271,7 @@ export function startPullRequestLookup(args: {
           state: get(),
           worktreeId: options?.worktreeId,
           linkedPRNumber,
-          fallbackPRNumber,
-          fallbackPRSource
+          rejectedPRUrls: outcome.kind === 'no-pr' ? outcome.rejectedPRUrls : undefined
         })
       ) {
         return get().prCache[cacheKey]?.data ?? null

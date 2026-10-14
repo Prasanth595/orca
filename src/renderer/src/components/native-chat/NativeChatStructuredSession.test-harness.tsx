@@ -134,6 +134,7 @@ export function createStructuredSessionMocks() {
       structuredTransport?: Record<string, unknown> & {
         queueResume?: QueueResumeMock
         onError?: NativeChatStructuredComposerTransport['onError']
+        optionPickerRequest?: NativeChatStructuredComposerTransport['optionPickerRequest']
       }
       isWorking?: boolean
       isStopping?: boolean
@@ -230,7 +231,8 @@ export function createStructuredSessionMocks() {
               tasks: mocks.backgroundTasks,
               settledTasks: mocks.settledBackgroundTasks,
               supportsStop: mocks.supportsBackgroundTaskStop,
-              supportsStopAll: mocks.supportsBackgroundTaskStopAll
+              offersStopAll:
+                !mocks.supportsBackgroundTaskStop && mocks.supportsBackgroundTaskStopAll
             },
             turnId: mocks.turnId,
             commandRefusalCauses: {
@@ -360,6 +362,7 @@ export function createStructuredSessionMocks() {
 
   const resetStructuredSessionMocks = (): void => {
     mocks.call.mockReset()
+    mocks.fileLinkClick.mockClear()
     mocks.launchLifecycle = null
     mocks.ownerWorktreeId = 'wt-1'
     mocks.fileLinkContext = DEFAULT_FILE_LINK_CONTEXT
@@ -402,6 +405,10 @@ export function createStructuredSessionMocks() {
     mocks.loadingOlder = false
     mocks.olderHistoryGeneration = 0
     mocks.loadOlder.mockReset()
+    mocks.queuedCards = []
+    mocks.queuedSteer.mockClear()
+    mocks.queuedRemove.mockClear()
+    mocks.queuedEdit.mockClear()
     Object.assign(mocks, { queuedResumable: false, queueSendsNext: false, unavailable: null })
     mocks.queuedResume.mockReset()
     mocks.revealLatest.mockReset()

@@ -14,10 +14,7 @@ import type { AgentSessionRecordStore } from './agent-session-record-store'
 import { peekOpenedAgentSessionRecordStore } from './agent-session-record-store-slot'
 import { createAgentLaunchRecordWarmupGate } from './agent-launch-record-warmup-gate'
 import { WorkspaceLayoutStream } from './workspace-layout-stream'
-import {
-  shouldWatchLayoutRoundTrip,
-  watchLayoutRoundTrip
-} from './workspace-layout-round-trip-watch'
+import type { RemoteLayoutSnapshot } from '../../shared/remote-layout-snapshot'
 import { registerDetectedWorktreeScanInvalidation } from '../ipc/worktrees/listing/register-detected-worktree-scan-invalidation'
 import {
   listReferenceWorkspaces,
@@ -28,6 +25,7 @@ import { findWorkspaceReferences } from './runtime-reference-find'
 import { createReferenceAgentIndex, referenceConnectionHosts } from './runtime-reference-agents'
 import type { RuntimeReferenceFindParams } from '../../shared/runtime-reference-contracts'
 import { getRepoExecutionHostId } from '../../shared/execution-host'
+import type { TerminalCreateOptions } from './runtime-terminal-contracts'
 
 class OrcaRuntimeService extends OrcaRuntimeWithMigrationCatalog {
   private async selectReferenceCatalogWorkspace(selector: string, cwd?: string) {
@@ -90,9 +88,6 @@ class OrcaRuntimeService extends OrcaRuntimeWithMigrationCatalog {
     // module registers the generation bump at load; a headless host never loads it.
     registerDetectedWorktreeScanInvalidation()
     registerWorktreeChangeInvalidator((repoId) => this.invalidateWorktreeCatalog(repoId))
-    if (this.store && shouldWatchLayoutRoundTrip()) {
-      watchLayoutRoundTrip(this.store)
-    }
   }
 
   /** Whether a window owns the layout and can show a launch's tab ahead of its process. */
@@ -135,6 +130,16 @@ class OrcaRuntimeService extends OrcaRuntimeWithMigrationCatalog {
     this.agentLaunchRecordWarmup.launchClientReady()
   }
 
+  /** Plans an agent launch a window pane's own spawn asks for, with the planner every host launch
+   *  uses, including its runtime fact. */
+  async planAgentPaneLaunch(
+    worktreeId: string,
+    opts: TerminalCreateOptions
+  ): Promise<TerminalCreateOptions> {
+    const workspace = await this.resolveTerminalWorkspaceLaunchScope(`id:${worktreeId}`)
+    return this.resolveAgentTerminalCreateOptions(workspace, opts)
+  }
+
   /** Whether a running process holds this pane now: such a pane is attached to, never launched into. */
   hasLiveTerminalForPaneKey(paneKey: string): boolean {
     return this.getPtyRecordForPaneKey(paneKey)?.connected === true
@@ -150,6 +155,11 @@ class OrcaRuntimeService extends OrcaRuntimeWithMigrationCatalog {
     listener: Parameters<WorkspaceLayoutStream['subscribe']>[0]
   ): ReturnType<WorkspaceLayoutStream['subscribe']> {
     return this.workspaceLayoutStream.subscribe(listener)
+  }
+
+  /** This desktop's display-only copy of each paired server's layout (`layout.getRemoteSnapshots`). */
+  getRemoteLayoutSnapshots(): Record<string, RemoteLayoutSnapshot> {
+    return this.store?.getRemoteLayoutSnapshots?.() ?? {}
   }
 
   /** The launch record when it is already open, for a reader that must not wait for it. */
@@ -174,7 +184,6 @@ export type { SubscriptionRegistration } from './runtime-subscription-registry'
 export type {
   OrchestrationCompatibilityCallerAuthority,
   OrchestrationCompatibilityTerminalAuthority,
-  RuntimePtyDataAdmission,
   RuntimeTerminalAgentStatusEvent
 } from './runtime-terminal-contracts'
 export type { MessageWaitResult } from './runtime-message-waiters'

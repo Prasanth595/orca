@@ -28,7 +28,7 @@ import { captureAcknowledgedTerminalTabRetirement } from './workspace-session-te
 import { closeLeafOrTab } from '../persistence/terminal-topology/terminal-topology-commit'
 import { markAgentLaunchesClosedByUser } from '../agent-launch/agent-launch-pane-attachment'
 
-export class OrcaRuntimeWithBuildHeadlessMobileSessionBrowserTabs extends OrcaRuntimeWithPersistTerminalSurfaceRetirements {
+export abstract class OrcaRuntimeWithBuildHeadlessMobileSessionBrowserTabs extends OrcaRuntimeWithPersistTerminalSurfaceRetirements {
   // Why: headless serve backs browser panes with offscreen WebContents that live
   // only in the BrowserManager, never in a renderer graph. Without surfacing them
   // as session tabs, a session.tabs snapshot (e.g. on terminal open) prunes the
@@ -257,29 +257,6 @@ export class OrcaRuntimeWithBuildHeadlessMobileSessionBrowserTabs extends OrcaRu
       this.storeMobileSessionSnapshot(worktreeId, retired.snapshot)
       this.notifyMobileSessionTabsChanged(worktreeId)
     }
-  }
-
-  protected persistHeadlessTerminalTabOrder(worktreeId: string, tabOrder: readonly string[]): void {
-    const session = this.getWorkspaceSessionForWorktree(worktreeId)
-    if (!session || !this.store?.setWorkspaceSession) {
-      return
-    }
-    const orderIndexByTabId = new Map(tabOrder.map((tabId, index) => [tabId, index]))
-    const tabs = session.tabsByWorktree[worktreeId] ?? []
-    const reordered = [...tabs]
-      .sort((a, b) => {
-        const aIndex = orderIndexByTabId.get(a.id) ?? Number.MAX_SAFE_INTEGER
-        const bIndex = orderIndexByTabId.get(b.id) ?? Number.MAX_SAFE_INTEGER
-        return aIndex - bIndex || a.sortOrder - b.sortOrder || a.createdAt - b.createdAt
-      })
-      .map((tab, index) => ({ ...tab, sortOrder: index }))
-    this.setWorkspaceSessionForWorktree(worktreeId, {
-      ...session,
-      tabsByWorktree: {
-        ...session.tabsByWorktree,
-        [worktreeId]: reordered
-      }
-    })
   }
 
   protected emitMobileSessionTabsSnapshot(snapshot: RuntimeMobileSessionTabsSnapshot): void {

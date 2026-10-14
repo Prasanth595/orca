@@ -19,7 +19,7 @@ import {
   reconcileReadoptedSshWorktreeState,
   reconcileSupersededSshRepos
 } from './repo-catalog-merge'
-import { getRuntimeTargetHostId } from '../runtime-target-host'
+import { getRuntimeTargetHostId } from '../../runtime/runtime-client-target'
 import { mergeFetchedProjectCompatibilityForHost } from '../projects/project-compatibility-host-merge'
 import { scheduleSafeAutoForkSync } from './safe-auto-fork-sync'
 
@@ -121,7 +121,7 @@ export function createRuntimeRepoCatalogActions(
             )
           }
         })
-        scheduleSafeAutoForkSync(get, finalizedHostRepos)
+        scheduleSafeAutoForkSync(finalizedHostRepos)
         return finalizedHostRepos
       } catch (err) {
         console.error(`Failed to fetch repos for runtime environment ${environmentId}:`, err)

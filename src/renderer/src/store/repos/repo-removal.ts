@@ -6,16 +6,14 @@ import { getRepoIdFromWorktreeId } from '../../../../shared/worktree/id'
 import { getWorktreeIdFromVisitKey, getWorktreeVisitKey } from '@/lib/worktree-visit-recency'
 import { omitSparsePresetsForRepos } from '../slices/sparse-presets'
 import { repoMatchesHostIdentity } from '../slices/repo-host-identity'
-import { callRuntimeRpc, hasRuntimeRpcErrorCode } from '../../runtime/runtime-rpc-client'
-import { runtimeTargetForOwnerHostId } from '../../runtime/runtime-client-target'
-import { toRuntimeWorktreeSelector } from '../../runtime/runtime-worktree-selector'
+import { callRuntimeRpc } from '../../runtime/runtime-rpc-client'
+import { hasRuntimeRpcErrorCode } from '../../runtime/runtime-rpc-result'
+import { ipcOrRuntimeTargetForHostId } from '../../runtime/runtime-client-target'
 import { translate } from '@/i18n/i18n'
-import {
-  getRepoExecutionHostId,
-  isRuntimeOwnedSshTargetId,
-  LOCAL_EXECUTION_HOST_ID
-} from '../../../../shared/execution-host'
-import { cleanupEphemeralVmRuntimesForDeleted } from '@/lib/ephemeral-vm-runtime-cleanup'
+import { readIpcErrorMessage } from '@/lib/ipc-error'
+import { getRepoExecutionHostId, LOCAL_EXECUTION_HOST_ID } from '../../../../shared/execution-host'
+import { destroyRecipeVmBeforeProjectRemoval } from './recipe-vm-project-removal'
+import { stopRuntimeProjectTerminalsBeforeRemoval } from './runtime-project-terminal-stop'
 import type { RepoSlice } from './repo-state'
 import { ERROR_TOAST_DURATION } from './repo-state'
 import { mergeProjectCompatibilityForHostRepoChange } from './repo-catalog-identity'
@@ -91,21 +89,16 @@ export function createRepoRemovalActions(
           return
         }
         const ownerHostId = getRepoExecutionHostId(ownerRepo)
-        const runtimeSshTargetId = ownerRepo.connectionId
-        // Why: an SSH per-workspace-env's workspace is the repo's main worktree, so removal routes here; tear down its ephemeral runtime first so it doesn't leak.
-        if (runtimeSshTargetId && isRuntimeOwnedSshTargetId(runtimeSshTargetId)) {
-          const cleanup = await cleanupEphemeralVmRuntimesForDeleted({
-            workspaceIds: getKnownRepoWorktreeIds(get(), projectId, ownerHostId),
-            runtimeOwnedSshTargetIds: [runtimeSshTargetId]
-          })
-          if (cleanup.retainedSshTargetIds.includes(runtimeSshTargetId)) {
-            throw new Error(
-              'The cloud VM could not be destroyed. Retry cleanup before removing it.'
-            )
-          }
-        }
+        // Why only awaited for a VM: concurrent removals of one row must reach the host together.
+        const vmDestroy = destroyRecipeVmBeforeProjectRemoval(
+          get(),
+          ownerRepo,
+          ownerHostId,
+          getKnownRepoWorktreeIds(get(), projectId, ownerHostId)
+        )
+        const vmServerDestroyed = vmDestroy !== false && (await vmDestroy)
         // Why: derive the target from the owner row's host so an SSH host removal never routes repo.rm to the focused runtime.
-        const target = runtimeTargetForOwnerHostId(ownerHostId)
+        const target = ipcOrRuntimeTargetForHostId(ownerHostId)
         if (!target) {
           throw new Error('The project host is unresolved. Refresh and retry.')
         }
@@ -117,11 +110,21 @@ export function createRepoRemovalActions(
             executionHostId: ownerHostId
           }))
         )
+        if (target.kind === 'environment' && !vmServerDestroyed) {
+          await stopRuntimeProjectTerminalsBeforeRemoval(
+            target.environmentId,
+            projectId,
+            getKnownRepoWorktreeIds(get(), projectId, ownerHostId)
+          )
+        }
         try {
-          // Why: always host-scoped; this catalog may be stale and miss a same-id row on another host (#13071).
-          await (target.kind === 'local'
-            ? window.api.repos.removeForHost({ repoId: projectId, hostId: ownerHostId })
-            : callRuntimeRpc(target, 'repo.rm', { repo: projectId }, { timeoutMs: 15_000 }))
+          // Why: destroying the VM took its server, and the catalog holding this row, with it.
+          if (!vmServerDestroyed) {
+            // Why: always host-scoped; this catalog may be stale and miss a same-id row on another host (#13071).
+            await (target.kind === 'local'
+              ? window.api.repos.removeForHost({ repoId: projectId, hostId: ownerHostId })
+              : callRuntimeRpc(target, 'repo.rm', { repo: projectId }, { timeoutMs: 15_000 }))
+          }
         } catch (err) {
           // Why: the owner already dropped this project, so purge the local ghost row instead of aborting (#11994).
           if (!hasRuntimeRpcErrorCode(err, 'repo_not_found')) {
@@ -163,18 +166,6 @@ export function createRepoRemovalActions(
               ]
             : []
         const killedTabIds = new Set<string>()
-        if (target.kind === 'environment') {
-          await Promise.allSettled(
-            worktreeIds.map((worktreeId) =>
-              callRuntimeRpc(
-                target,
-                'terminal.stop',
-                { worktree: toRuntimeWorktreeSelector(worktreeId) },
-                { timeoutMs: 15_000 }
-              )
-            )
-          )
-        }
         for (const wId of worktreeIds) {
           const tabs = get().tabsByWorktree[wId] ?? []
           for (const tab of tabs) {
@@ -310,7 +301,7 @@ export function createRepoRemovalActions(
           toast.error(
             translate('auto.store.slices.repos.removeProjectFailed', 'Failed to remove project'),
             {
-              description: err instanceof Error ? err.message : String(err),
+              description: readIpcErrorMessage(err) ?? String(err),
               duration: ERROR_TOAST_DURATION
             }
           )

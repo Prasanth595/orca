@@ -26,13 +26,7 @@ vi.mock('@/runtime/runtime-linear-project-client', () => ({
   linearTeamMembers: linearMocks.linearTeamMembers
 }))
 
-vi.mock('@/runtime/runtime-rpc-client', () => ({
-  callRuntimeRpc: runtimeMocks.callRuntimeRpc,
-  getActiveRuntimeTarget: (settings?: { activeRuntimeEnvironmentId?: string | null } | null) =>
-    settings?.activeRuntimeEnvironmentId
-      ? { kind: 'environment', environmentId: settings.activeRuntimeEnvironmentId }
-      : { kind: 'local' }
-}))
+vi.mock('@/runtime/runtime-rpc-client', () => ({ callRuntimeRpc: runtimeMocks.callRuntimeRpc }))
 
 const roots: Root[] = []
 

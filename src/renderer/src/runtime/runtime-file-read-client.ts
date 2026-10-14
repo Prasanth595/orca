@@ -3,7 +3,8 @@ import type {
   RuntimeFileReadChunkResult,
   RuntimeFileReadResult
 } from '../../../shared/runtime-types'
-import { callRuntimeRpc, RuntimeRpcCallError } from './runtime-rpc-client'
+import { callRuntimeRpc } from './runtime-rpc-client'
+import { RuntimeRpcCallError } from './runtime-rpc-result'
 import type {
   RuntimeFileDownloadResult,
   RuntimeFileOperationArgs,
@@ -19,6 +20,7 @@ import {
 import { toRuntimeWorktreeSelector } from './runtime-worktree-selector'
 import { isAgentSessionAttachmentStorePath } from '../../../shared/agent-session-attachments'
 import type { LocalFileAccess } from '../../../shared/local-file-access'
+import { readRuntimeTerminalArtifactContent } from './runtime-terminal-artifact-read'
 
 const REMOTE_DOWNLOAD_CHUNK_BYTES = 384 * 1024
 const REMOTE_DOWNLOAD_UPDATE_REQUIRED_MESSAGE =
@@ -42,7 +44,8 @@ export async function readRuntimeFileContent({
   connectionId,
   expectedExternalSshTargetId,
   includeLocalLogMetadata,
-  access
+  access,
+  terminalArtifactGrantId
 }: RuntimeFileReadArgs): Promise<RuntimeReadableFileContent> {
   assertExternalSshReadOwnership(target, connectionId, expectedExternalSshTargetId)
   if (target.kind !== 'environment' || !worktreeId) {
@@ -51,6 +54,14 @@ export async function readRuntimeFileContent({
       connectionId,
       includeLocalLogMetadata,
       ...localAccess(connectionId, access)
+    })
+  }
+  if (terminalArtifactGrantId) {
+    return readRuntimeTerminalArtifactContent({
+      target,
+      worktreeId,
+      absolutePath: filePath,
+      grantId: terminalArtifactGrantId
     })
   }
   if (!canReadRelativeRuntimeFile(relativePath)) {

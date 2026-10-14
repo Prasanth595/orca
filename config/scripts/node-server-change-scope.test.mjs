@@ -12,7 +12,7 @@ import { nodeServerTestPaths } from './node-server-test-paths.mjs'
 import { ORCAD_CHILD_ENTRY_POINTS } from './orcad-entry-build.mjs'
 import { NODE_RUNTIME_PIN } from '../../src/shared/node-runtime-pin.ts'
 import { runProcessSync } from '@orca/process-host'
-import { NODE_SERVER_RUNNERS } from './node-server-qualification.mjs'
+import { NODE_SERVER_RUNNERS, nodeServerQualification } from './node-server-qualification.mjs'
 
 const temporaryDirs = []
 afterEach(() => {
@@ -337,6 +337,133 @@ it.each([
   }
 })
 
+const registry = 'config/scripts/vitest-node-runtime-files.mjs'
+const unrelatedSshUnit = 'src/main/ssh/pinned-runtime-materializer-context.test.ts'
+
+function qualificationTree(extra = {}) {
+  return moduleTree({
+    'entry.ts': `import './${registry}'; throw Error('never execute')`,
+    [registry]: 'export const NODE_RUNTIME_INCLUDE = []',
+    [unrelatedSshUnit]: 'throw Error("never execute unrelated test")',
+    ...extra
+  })
+}
+
+it('keeps a Node harness smoke without widening it for an unrelated modified SSH unit', async () => {
+  const root = qualificationTree()
+  writeFileSync(join(root, registry), 'export const NODE_RUNTIME_INCLUDE = ["new.unit.test.ts"]')
+  const changed = [registry, unrelatedSshUnit]
+  const scope = await classifyNodeServerChanges(
+    changed,
+    () => collectNodeServerInputs({ root, entryPoints: ['entry.ts'] }),
+    { modifiedFiles: changed }
+  )
+  expect(scope.shouldRun).toBe(true)
+  expect(nodeServerQualification(changed, scope)).toEqual({
+    qualification: false,
+    runners: ['ubuntu-22.04']
+  })
+  expect(nodeServerQualification(changed, scope, { fullQualification: true })).toEqual({
+    qualification: true,
+    runners: NODE_SERVER_RUNNERS
+  })
+})
+
+it.each([
+  ['src/main/daemon/daemon-authenticated-client-activity.test.ts', NODE_SERVER_RUNNERS, true],
+  [
+    'src/main/daemon/daemon-endpoint-windows.test.ts',
+    ['ubuntu-22.04', 'windows-2022', 'windows-11-arm'],
+    false
+  ]
+])('retains daemon platform coverage: %s', async (daemon, runners, qualification) => {
+  const root = qualificationTree({ [daemon]: 'throw Error("unselected")' })
+  const diff = [registry, daemon, unrelatedSshUnit]
+  const g = await collectNodeServerInputs({ root, entryPoints: ['entry.ts'] })
+  expect(g.has(registry)).toBe(true)
+  expect(g.has(daemon)).toBe(false)
+  const s = await classifyNodeServerChanges(diff, async () => g, { modifiedFiles: diff })
+  expect(s.shouldRun).toBe(true)
+  expect(nodeServerQualification(diff, s)).toEqual({ qualification, runners })
+})
+
+it('keeps every host when the modified SSH production module is an actual consumer', async () => {
+  const ssh = 'src/main/ssh/pinned-runtime-materializer.ts'
+  const root = qualificationTree({
+    'entry.ts': `import './${registry}'; import './${ssh}'; throw Error('never execute')`,
+    [ssh]: 'export const materializer = 1'
+  })
+  const changed = [registry, ssh, unrelatedSshUnit]
+  const scope = await classifyNodeServerChanges(
+    changed,
+    () => collectNodeServerInputs({ root, entryPoints: ['entry.ts'] }),
+    { modifiedFiles: changed }
+  )
+  expect(scope.shouldRun).toBe(true)
+  expect(scope).toMatchObject({ graphResolved: true, matchedFiles: [registry, ssh] })
+  expect(nodeServerQualification(changed, scope)).toEqual({
+    qualification: true,
+    runners: NODE_SERVER_RUNNERS
+  })
+})
+
+it.each(['added', 'deleted', 'renamed', 'unknown', 'duplicate', 'foreign'])(
+  'retains complete-path qualification when modification evidence is %s',
+  async (status) => {
+    const root = qualificationTree()
+    const changed = [registry, unrelatedSshUnit]
+    let modifiedFiles = [registry]
+    if (status === 'deleted' || status === 'renamed') {
+      rmSync(join(root, unrelatedSshUnit))
+    }
+    if (status === 'renamed') {
+      const renamed = 'src/main/ssh/renamed-context.test.ts'
+      writeFileSync(join(root, renamed), 'throw Error("never execute renamed test")')
+      changed.push(renamed)
+    }
+    if (status === 'duplicate') {
+      modifiedFiles = [registry, registry]
+    }
+    if (status === 'foreign') {
+      modifiedFiles = [registry, 'src/main/ssh/foreign.test.ts']
+    }
+    const scope = await classifyNodeServerChanges(
+      changed,
+      () => collectNodeServerInputs({ root, entryPoints: ['entry.ts'] }),
+      status === 'unknown' ? {} : { modifiedFiles }
+    )
+    expect(scope.shouldRun).toBe(true)
+    expect(nodeServerQualification(changed, scope)).toEqual({
+      qualification: true,
+      runners: NODE_SERVER_RUNNERS
+    })
+  }
+)
+
+it('retains protected server tests and broken imports despite complete modification evidence', async () => {
+  const protectedTest = 'src/main/sqlite/example.test.ts'
+  const root = qualificationTree({ [protectedTest]: 'export const value = 1' })
+  const changed = [registry, protectedTest, unrelatedSshUnit]
+  const collect = () => collectNodeServerInputs({ root, entryPoints: ['entry.ts'] })
+  const protectedScope = await classifyNodeServerChanges(changed, collect, {
+    modifiedFiles: changed
+  })
+  expect(nodeServerQualification(changed, protectedScope)).toEqual({
+    qualification: true,
+    runners: NODE_SERVER_RUNNERS
+  })
+  writeFileSync(join(root, 'entry.ts'), `import './${registry}'; import './missing'`)
+  const brokenChanged = [registry, unrelatedSshUnit]
+  const brokenScope = await classifyNodeServerChanges(brokenChanged, collect, {
+    modifiedFiles: brokenChanged
+  })
+  expect(brokenScope.graphUnavailable).toBe(true)
+  expect(nodeServerQualification(brokenChanged, brokenScope)).toEqual({
+    qualification: true,
+    runners: NODE_SERVER_RUNNERS
+  })
+})
+
 describe('the actual Bun build and profile-test dependency graph', () => {
   let inputs
   beforeAll(async () => {
@@ -373,7 +500,7 @@ describe('the actual Bun build and profile-test dependency graph', () => {
     'src/main/worker-thread-entry-path.ts',
     'config/scripts/zip-extractor-command.mjs',
     'config/scripts/windows-process-tree-gyp-rebuild.mjs',
-    'config/scripts/relay-windows-process-tree-prepared-addon.mjs',
+    'config/scripts/windows-process-tree-prepared-addon.mjs',
     'config/scripts/orcad-windows-prebuild-cache.mjs',
     'config/scripts/profile-state-worker-smoke.mjs',
     'config/scripts/vitest-host-ports-setup.ts',
@@ -398,6 +525,9 @@ it('keeps every platform job and runs them when detection is skipped or fails', 
     readFileSync(new URL('../../.github/workflows/node-server-tests.yml', import.meta.url), 'utf8')
   )
   expect(workflow.on).toHaveProperty('workflow_dispatch')
+  expect(workflow.on).toHaveProperty('workflow_call')
+  expect(workflow.on).not.toHaveProperty('push')
+  expect(workflow.on).not.toHaveProperty('schedule')
   expect(workflow.jobs.changes.if).toBe(
     "github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.draft != true)"
   )
@@ -410,11 +540,7 @@ it('keeps every platform job and runs them when detection is skipped or fails', 
   expect(detect.run).toContain('git diff --name-only --no-renames -z "$PUSH_BASE" HEAD')
   expect(detect.run).toContain('node-server-changes" --defer-graph --full-qualification')
   expect(workflow.on.pull_request.types).toContain('ready_for_review')
-  expect(workflow.on.schedule).toHaveLength(1)
-  // A pull request may qualify one platform, so the merged commit must re-qualify all six.
-  expect(workflow.on.push.branches).toEqual(['main'])
-  expect(workflow.on.push.paths).toEqual(workflow.on.pull_request.paths)
-  // The push and schedule paths must not rest on a null property comparison.
+  // Release callers can inherit push or schedule events without a pull request.
   expect(workflow.jobs.persistence.if).toContain(
     "github.event_name != 'pull_request' || github.event.pull_request.draft != true"
   )
@@ -468,8 +594,7 @@ it('runs the Bun and Node cross-runtime tests on Linux against pinned inputs', (
   const steps = workflow.jobs.persistence.steps
   const setupBun = steps.find((step) => String(step.uses).startsWith('oven-sh/setup-bun@'))
   expect(setupBun.uses).toMatch(/^oven-sh\/setup-bun@[0-9a-f]{40}$/)
-  // Mirrors LAST_BUN_ORCAD_VERSION in src/main/orcad/orcad-node-slot-fixture.ts.
-  expect(setupBun.with['bun-version']).toBe('1.4.2')
+  expect(setupBun.with['bun-version-file']).toBe('config/.bun-version')
   const build = steps.find((step) => String(step.run).includes('build-orcad-bun.mjs'))
   expect(build.env.BUN_ORCAD_COMMIT).toMatch(/^[0-9a-f]{40}$/)
   expect(setupBun.if).toBe("runner.os == 'Linux'")

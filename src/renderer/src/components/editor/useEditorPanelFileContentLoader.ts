@@ -3,10 +3,10 @@ import type { OpenFile } from '@/store/slices/editor'
 import { getConnectionIdForFile, isWorktreeConnectionResolved } from '@/lib/connection-context'
 import { useAppStore } from '@/store'
 import { getDiskBaselineSignature } from './diff-content-signature'
-import { getRuntimeFileReadScope } from '@/runtime/runtime-file-client'
+import { getRuntimeFileReadScope } from '@/runtime/runtime-file-routing'
 import { readEditorCsvFileContent } from './csv/csv-file-content'
-import { RuntimeRpcCallError } from '@/runtime/runtime-rpc-client'
-import type { RuntimeClientTarget } from '@/runtime/runtime-client-target'
+import { RuntimeRpcCallError } from '@/runtime/runtime-rpc-result'
+import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
 import { requireRuntimeTargetForFileOwner } from '@/lib/file-owner-runtime-target'
 import { findWorkspaceFileRoute } from '@/lib/runtime-workspace-file-route'
 import { selectWorktreeHostConnectionPhase } from '@/lib/worktree-host-connection-phase'
@@ -185,7 +185,7 @@ export function useEditorPanelFileContentLoader({
               await reownRestoredFile(route, runtimeEnvironmentId ?? null)
               return
             }
-            if (runtimeEnvironmentId && !route) {
+            if (runtimeEnvironmentId && !route && !restoredOpenFile.terminalArtifactGrantId) {
               throw new Error('External local files are not available for remote workspaces.')
             }
             if (!externalSshOwnerId) {
@@ -225,7 +225,8 @@ export function useEditorPanelFileContentLoader({
               connectionId: readConnectionId,
               expectedExternalSshTargetId: restoredOpenFile?.externalSshTargetId,
               includeLocalLogMetadata: isLiveTailLogTab,
-              access
+              access,
+              terminalArtifactGrantId: restoredOpenFile?.terminalArtifactGrantId
             },
             allowPagedPreview
           )
