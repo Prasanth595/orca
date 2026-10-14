@@ -1,6 +1,7 @@
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { GlobalSettings } from '../../shared/global-settings-types'
+import { CLAUDE_REMOVED_ACCOUNT_POINTER } from '../../shared/claude-profile-routing'
 import { isDefinitiveAbsence } from '../../shared/definitive-filesystem-absence'
 import { writeFileAtomically } from '../codex-accounts/fs-utils'
 import { findClaudeAccount } from './runtime-selection'
@@ -23,12 +24,7 @@ type AccountFolders = {
   coveredBySystemDefault: (accountId: string) => boolean
 }
 
-/**
- * One which-account file per account, for agents started kept on it; `claude` typed in such a
- * pane reads it on every launch. Keyed by account, never by pane, so moving or closing a tab
- * cannot unpin an agent. Orca never deletes these files: a missing file reads as System
- * default, so removing an account points its file at an empty placeholder folder instead.
- */
+/** One which-account file per account, read by `claude` in panes started kept on it; never deleted, since a missing file reads as System default. */
 export class ClaudeAccountPointers {
   readonly root: string
   /** Account ids with a file on disk; read once, so people who never kept anything pay nothing. */
@@ -78,19 +74,29 @@ export class ClaudeAccountPointers {
   refreshExisting(): void {
     for (const accountId of this.listExisting()) {
       const route = this.retired.has(accountId) ? null : this.routeFor(accountId)
-      if (route !== null) {
+      if (route === null) {
+        continue
+      }
+      try {
         this.writeContent(accountId, route)
+      } catch (error) {
+        // Why: one kept account's file must never fail the selection's own launches.
+        console.warn('[claude-profile] Could not refresh a kept account pointer:', error)
       }
     }
   }
 
-  /** Before an account's folder goes, its file names an empty folder: a re-typed `claude` signs in there. */
+  isRetired(accountId: string): boolean {
+    return this.retired.has(accountId)
+  }
+
+  /** Before an account's folder goes, its file names no folder, so a re-typed `claude` starts nothing. */
   retire(accountId: string): void {
     this.retired.add(accountId)
     if (!this.listExisting().has(accountId) && isDefinitivelyAbsent(this.pointerPath(accountId))) {
       return
     }
-    this.writeContent(accountId, join(this.root, 'removed-account-home'))
+    this.writeContent(accountId, CLAUDE_REMOVED_ACCOUNT_POINTER)
   }
 
   /** A removal that failed leaves the account saved, so its kept agents point at it again. */

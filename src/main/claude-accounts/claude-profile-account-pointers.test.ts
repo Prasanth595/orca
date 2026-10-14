@@ -14,7 +14,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ClaudeManagedAccount } from '../../shared/managed-account-types'
 import type { ClaudeProfileSetupReport } from './claude-profile-setup'
 import { claudeProfileMarkerPath, type ClaudeProfileDescriptor } from './claude-profile-paths'
-import { CLAUDE_PROFILE_SETUP_FAILED_MESSAGE } from '../../shared/claude-profile-routing'
+import {
+  CLAUDE_PROFILE_SETUP_FAILED_MESSAGE,
+  CLAUDE_REMOVED_ACCOUNT_POINTER
+} from '../../shared/claude-profile-routing'
 import { ClaudeProfileRouter, type ClaudeProfileRouterSettings } from './claude-profile-router'
 import {
   claudeTerminalEnvForAccount,
@@ -139,7 +142,7 @@ describe('per-account Claude pointers', () => {
     expect(existsSync(join(f.dataRoot, 'claude-profile-pointers'))).toBe(false)
   })
 
-  it("points a removed account's file at an empty folder before deleting, and never deletes it", async () => {
+  it("points a removed account's file at no folder before deleting, and never deletes it", async () => {
     const f = fixture()
     signIn(f.home('a'), 'a@example.com')
     f.router.accountPointers.update('a')
@@ -155,10 +158,39 @@ describe('per-account Claude pointers', () => {
     f.settings.claudeManagedAccounts = []
     f.router.publish()
 
-    const placeholder = join(f.dataRoot, 'claude-profile-pointers', 'removed-account-home')
-    expect(pointerDuringDelete).toBe(placeholder)
-    expect(readFileSync(f.pointer('a'), 'utf8')).toBe(placeholder)
+    expect(pointerDuringDelete).toBe(CLAUDE_REMOVED_ACCOUNT_POINTER)
+    expect(readFileSync(f.pointer('a'), 'utf8')).toBe(CLAUDE_REMOVED_ACCOUNT_POINTER)
     expect(f.router.accountPointers.routeFor('a')).toBeNull()
+  })
+
+  it('refuses a kept launch on an account while its folder is being removed', async () => {
+    const f = fixture()
+    signIn(f.home('a'), 'a@example.com')
+    f.router.accountPointers.update('a')
+    let launchDuringDelete: Promise<unknown> = Promise.resolve()
+    let envDuringDelete: unknown
+    vi.spyOn(f.router, 'removeAccount').mockImplementation(async () => {
+      // The account is still saved here: settings drop it only after the folder is gone.
+      envDuringDelete = claudeTerminalEnvForAccount(f.router, 'a')
+      rmSync(join(f.dataRoot, 'claude-profiles', 'a'), { recursive: true, force: true })
+      launchDuringDelete = prepareClaudeLaunchForAccount(f.router, 'a')
+    })
+
+    await removeClaudeAccountFolder(f.router, 'a')
+
+    await expect(launchDuringDelete).rejects.toThrow(/no longer saved/)
+    expect(envDuringDelete).toEqual({ ORCA_CLAUDE_PROFILE_POINTER: f.pointer('a') })
+    expect(existsSync(join(f.dataRoot, 'claude-profiles', 'a'))).toBe(false)
+    expect(readFileSync(f.pointer('a'), 'utf8')).toBe(CLAUDE_REMOVED_ACCOUNT_POINTER)
+  })
+
+  it("starts the selection even when a kept account's file cannot be rewritten", async () => {
+    const f = fixture()
+    mkdirSync(f.pointer('a'), { recursive: true })
+    signIn(f.home('b'), 'b@example.com')
+
+    await expect(f.router.prepareLaunch()).resolves.toMatchObject({ configDir: f.home('b') })
+    expect(readFileSync(f.router.pointerPath, 'utf8')).toBe(f.home('b'))
   })
 
   it('points the file back at the account when its removal fails', async () => {

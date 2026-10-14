@@ -25,11 +25,7 @@ type AccountRouter = Pick<
   | 'userConfigDir'
 >
 
-/**
- * A kept pane's spawn env: the same shape as the selection's, but naming the account's own
- * pointer. Never throws and never names the selection's pointer, even when the account's
- * folder is missing, so a re-typed `claude` cannot reach another account.
- */
+/** A kept pane's spawn env, naming its account's own pointer; never throws, never names the selection's. */
 export function claudeTerminalEnvForAccount(
   router: AccountRouter,
   accountId: string | null
@@ -41,6 +37,9 @@ export function claudeTerminalEnvForAccount(
   } catch {
     // Why: an id that names no file still must not fall back to the selection.
     return { [CLAUDE_PROFILE_POINTER_ENV]: pointers.pointerPath(null) }
+  }
+  if (accountId !== null && pointers.isRetired(accountId)) {
+    return { [CLAUDE_PROFILE_POINTER_ENV]: pointer }
   }
   try {
     pointers.update(accountId)
@@ -69,17 +68,18 @@ export function withClaudeKeptAccountTerminalEnv<Env extends Record<string, stri
   return router ? { ...env, ...claudeTerminalEnvForAccount(router, accountId) } : env
 }
 
-/**
- * The selection's launch preparation, for a given account: the same first-setup wait, capped
- * refresh and refusals, with the account's pointer written before the agent starts.
- */
+/** The selection's launch preparation for a given account, with that account's pointer written first. */
 export async function prepareClaudeLaunchForAccount(
   router: AccountRouter,
   accountId: string | null,
   options: { refreshWaitMs?: number } = {}
 ): Promise<ClaudeRuntimeAuthPreparation> {
   const pointers = router.accountPointers
-  if (accountId !== null && pointers.routeFor(accountId) === null) {
+  // Why retired too: setup would recreate the folder its removal is deleting.
+  if (
+    accountId !== null &&
+    (pointers.isRetired(accountId) || pointers.routeFor(accountId) === null)
+  ) {
     throw keptAccountRefusals.accountRemoved()
   }
   // Why: whether System default covers an account depends on the login shell's env.

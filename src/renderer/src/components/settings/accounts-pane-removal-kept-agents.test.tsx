@@ -94,11 +94,11 @@ describe('removing an account with agents kept on it', () => {
     ).toBeTruthy()
   })
 
-  it('counts kept Claude agents with the plural sentence', () => {
+  it('counts kept Claude agents, and says claude typed in their terminals will not run', () => {
     render(<Dialogs claude={HOST_TARGET} />)
     expect(
       screen.getByText(
-        '2 terminal agents are kept on this account. After removal they follow the selected account from their next start.'
+        '2 terminal agents are kept on this account. After removal, Orca starts them on the selected account, but claude typed in their open terminals will not run.'
       )
     ).toBeTruthy()
   })

@@ -16,6 +16,7 @@ import {
   getFishClaudeShellFunction,
   getPowerShellClaudeShellFunction
 } from './claude-shell-function'
+import { CLAUDE_REMOVED_ACCOUNT_POINTER } from './claude-profile-routing'
 // Why filtered: CI images lack zsh and fish; a missing shell skips rather than exits 127.
 const POSIX_SHELLS = ['/bin/bash', '/bin/zsh'].filter((shell) => existsSync(shell))
 const FISH = ['/opt/homebrew/bin/fish', '/usr/local/bin/fish', '/usr/bin/fish'].find(existsSync)
@@ -148,13 +149,13 @@ describe.each(SHELLS)('the claude function in %s', (shell) => {
     expect(statSync(fresh).mode & 0o777).toBe(0o700)
   })
 
-  it('runs a removed account’s placeholder folder, never System default or another account', () => {
+  it('starts nothing for a removed account, never System default or another account', () => {
     const f = fixture()
-    const placeholder = join(f.a, 'claude-profile-pointers', 'removed-account-home')
-    writeFileSync(f.pointer, placeholder)
+    writeFileSync(f.pointer, CLAUDE_REMOVED_ACCOUNT_POINTER)
     const result = f.run(shell, injected(f.b))
-    expect(result.stdout).toBe(`HOME=${placeholder} KEY=fake TWIN=${placeholder}\n`)
-    expect(existsSync(placeholder)).toBe(true)
+    expect(result.status).toBe(1)
+    expect(result.stdout).toBe('')
+    expect(existsSync(join(f.a, '..', CLAUDE_REMOVED_ACCOUNT_POINTER))).toBe(false)
   })
 
   it('still runs Claude only in the selected folder when that folder cannot be created', () => {

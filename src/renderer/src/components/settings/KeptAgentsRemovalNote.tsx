@@ -5,6 +5,32 @@ import { countTerminalAgentsByAccount } from '../status-bar/count-terminal-agent
 
 const EMPTY_ROWS = {}
 
+function noteText(provider: AgentRunAccountProvider, count: number): string {
+  // Why Claude differs: its open terminals read the removed account's file, which starts nothing.
+  if (provider === 'claude') {
+    return count === 1
+      ? translate(
+          'components.settings.accountsPaneRemoval.keptClaudeAgentsOne',
+          '1 terminal agent is kept on this account. After removal, Orca starts it on the selected account, but claude typed in its open terminal will not run.'
+        )
+      : translate(
+          'components.settings.accountsPaneRemoval.keptClaudeAgentsOther',
+          '{{value0}} terminal agents are kept on this account. After removal, Orca starts them on the selected account, but claude typed in their open terminals will not run.',
+          { value0: count }
+        )
+  }
+  return count === 1
+    ? translate(
+        'components.settings.accountsPaneRemoval.keptAgentsOne',
+        '1 terminal agent is kept on this account. After removal it follows the selected account from its next start.'
+      )
+    : translate(
+        'components.settings.accountsPaneRemoval.keptAgentsOther',
+        '{{value0}} terminal agents are kept on this account. After removal they follow the selected account from their next start.',
+        { value0: count }
+      )
+}
+
 /** Says what removal does to agents kept on the account: they follow the selection again. */
 export function KeptAgentsRemovalNote({
   provider,
@@ -32,16 +58,7 @@ export function KeptAgentsRemovalNote({
   }
   return (
     <p className="text-sm text-muted-foreground" data-kept-agents-removal-note>
-      {count === 1
-        ? translate(
-            'components.settings.accountsPaneRemoval.keptAgentsOne',
-            '1 terminal agent is kept on this account. After removal it follows the selected account from its next start.'
-          )
-        : translate(
-            'components.settings.accountsPaneRemoval.keptAgentsOther',
-            '{{value0}} terminal agents are kept on this account. After removal they follow the selected account from their next start.',
-            { value0: count }
-          )}
+      {noteText(provider, count)}
     </p>
   )
 }
