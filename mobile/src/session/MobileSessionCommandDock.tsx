@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { View, Text, ScrollView, TextInput, Pressable } from 'react-native'
 import { hostOs } from '../platform/host-os'
 import {
   ArrowUp,
   ChevronDown,
+  ChevronUp,
   ChevronsRight,
   Keyboard as KeyboardIcon,
   Monitor,
@@ -68,6 +70,12 @@ export function MobileSessionCommandDock({ controller }: { controller: MobileSes
     activeBrowserTab,
     keyboardLift
   } = controller
+  const [isAccessoryRowsCollapsed, setIsAccessoryRowsCollapsed] = useState(false)
+  const hasMultipleAccessoryRows = visibleAccessoryRows.length > 1
+  const displayedAccessoryRows =
+    hasMultipleAccessoryRows && isAccessoryRowsCollapsed
+      ? [visibleAccessoryRows.flat()]
+      : visibleAccessoryRows
   const accessoryBarKeepsKeyboard = useKeyboardPersistingTaps('always')
   const isPhoneMode = isTerminalPhoneDisplayMode(activeHandle, terminalModes)
   const inputActionsProps = {
@@ -100,14 +108,32 @@ export function MobileSessionCommandDock({ controller }: { controller: MobileSes
         <View ref={accessoryBarKeepsKeyboard} style={styles.accessoryBar}>
           {/* Why: default tap handling makes the first accessory-key tap dismiss the keyboard and get swallowed (#5106). */}
           <View style={styles.accessoryRowsContainer}>
-            {visibleAccessoryRows.map((rowItems, rowIndex) => {
+            {hasMultipleAccessoryRows && (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.accessoryCollapseStrip,
+                  pressed && styles.accessoryKeyPressed
+                ]}
+                onPress={() => setIsAccessoryRowsCollapsed((prev) => !prev)}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  isAccessoryRowsCollapsed
+                    ? 'Expand shortcut rows'
+                    : 'Collapse shortcut rows to single row'
+                }
+              >
+                {isAccessoryRowsCollapsed ? (
+                  <ChevronUp size={12} color={colors.textSecondary} strokeWidth={2.2} />
+                ) : (
+                  <ChevronDown size={12} color={colors.textSecondary} strokeWidth={2.2} />
+                )}
+              </Pressable>
+            )}
+            {displayedAccessoryRows.map((rowItems, rowIndex) => {
               const isFirstRow = rowIndex === 0
-              const isLastRow = rowIndex === visibleAccessoryRows.length - 1
+              const isLastRow = rowIndex === displayedAccessoryRows.length - 1
               return (
-                <View
-                  key={`accessory-row-${rowIndex}`}
-                  style={[styles.accessoryRow, !isFirstRow && styles.accessoryRowDivider]}
-                >
+                <View key={`accessory-row-${rowIndex}`} style={styles.accessoryRow}>
                   {/* Why: fixed keyboard escape hatch; outside ScrollView + shortcut path so it can't scroll away or be hidden (#5106). */}
                   {isFirstRow && keyboardLift > 0 && (
                     <Pressable

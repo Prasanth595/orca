@@ -298,16 +298,17 @@ export function TerminalShortcutSettings({
                   <Switch
                     disabled={!canEdit}
                     value={visibleBuiltInSet.has(item.shortcutKey.id)}
-                    onValueChange={(visible) =>
-                      canEdit &&
-                      layoutStore.commit(
-                        setTerminalAccessoryBuiltInVisible(
-                          effectiveLayout,
-                          item.shortcutKey.id,
-                          visible
+                    onValueChange={(visible) => {
+                      if (canEdit) {
+                        layoutStore.commit(
+                          setTerminalAccessoryBuiltInVisible(
+                            effectiveLayout,
+                            item.shortcutKey.id,
+                            visible
+                          )
                         )
-                      )
-                    }
+                      }
+                    }}
                     trackColor={{ false: colors.borderSubtle, true: colors.textSecondary }}
                     thumbColor={colors.textPrimary}
                   />

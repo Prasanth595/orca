@@ -77,15 +77,21 @@ export const mobileSessionCommandInputStyles = StyleSheet.create({
   },
   accessoryRowsContainer: {
     flex: 1,
-    minWidth: 0
+    minWidth: 0,
+    paddingVertical: 2,
+    gap: 2
+  },
+  accessoryCollapseStrip: {
+    height: 14,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.borderSubtle
   },
   accessoryRow: {
     flexDirection: 'row',
     alignItems: 'center'
-  },
-  accessoryRowDivider: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.borderSubtle
   },
   accessoryScroll: {
     flex: 1,
@@ -94,16 +100,16 @@ export const mobileSessionCommandInputStyles = StyleSheet.create({
   accessoryContent: {
     alignItems: 'center',
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    paddingVertical: 1,
     gap: spacing.xs
   },
   accessoryKey: {
     backgroundColor: colors.bgRaised,
     paddingHorizontal: spacing.sm + 2,
-    paddingVertical: spacing.xs,
+    paddingVertical: 2,
     borderRadius: radii.button,
     minWidth: 36,
-    minHeight: 28,
+    minHeight: 26,
     justifyContent: 'center',
     alignItems: 'center'
   },
@@ -136,13 +142,13 @@ export const mobileSessionCommandInputStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: spacing.sm,
-    marginVertical: spacing.xs,
+    marginVertical: 1,
     backgroundColor: colors.bgRaised,
     paddingHorizontal: spacing.sm + 2,
     paddingVertical: 0,
     borderRadius: radii.button,
     minWidth: 36,
-    height: 28
+    height: 26
   },
   keyboardDismissGlyph: {
     alignItems: 'center',
