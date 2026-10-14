@@ -78,16 +78,25 @@ function syncRelease() {
     )
   }
   const incoming = git(['log', '--oneline', `${TARGET_BRANCH}..${SOURCE_REF}`])
-  if (!incoming) {
-    console.log(`\n✓ ${TARGET_BRANCH} already matches ${SOURCE_REF}.`)
+  if (incoming) {
+    console.log(`\nCommits ${SOURCE_REF} brings into ${TARGET_BRANCH}:\n${incoming}\n`)
+    if (run('git', ['merge', '--ff-only', SOURCE_REF]) !== 0) {
+      fail(`Fast-forwarding ${TARGET_BRANCH} to ${SOURCE_REF} failed. Stop and check.`)
+    }
+    console.log(`\n✓ ${TARGET_BRANCH} fast-forwarded to ${git(['log', '--oneline', '-1'])}`)
+  }
+  // Why: an earlier --no-push run may have fast-forwarded the local branch already.
+  const remoteRef = `origin/${TARGET_BRANCH}`
+  const unpushed = git(['log', '--oneline', `${remoteRef}..${TARGET_BRANCH}`])
+  if (!unpushed) {
+    console.log(`\n✓ ${remoteRef} already matches ${SOURCE_REF}.`)
     return
   }
-  console.log(`\nCommits ${SOURCE_REF} brings into ${TARGET_BRANCH}:\n${incoming}\n`)
-  if (run('git', ['merge', '--ff-only', SOURCE_REF]) !== 0) {
-    fail(`Fast-forwarding ${TARGET_BRANCH} to ${SOURCE_REF} failed. Stop and check.`)
+  if (!push) {
+    console.log(`\n--no-push: ${TARGET_BRANCH} is ahead of ${remoteRef} locally only.`)
+    return
   }
-  console.log(`\n✓ ${TARGET_BRANCH} fast-forwarded to ${git(['log', '--oneline', '-1'])}`)
-  if (push && run('git', ['push', 'origin', TARGET_BRANCH]) !== 0) {
+  if (run('git', ['push', 'origin', TARGET_BRANCH]) !== 0) {
     fail(`Push failed. ${TARGET_BRANCH} is updated locally; push it manually.`)
   }
 }
