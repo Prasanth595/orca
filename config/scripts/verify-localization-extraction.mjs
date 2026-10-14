@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'
-import { findOrphanedKeys } from './find-orphaned-catalog-keys.mjs'
+import { findOrphanedKeys } from './verify-localization-orphans.mjs'
 
 const EN_CATALOG_PATH = path.join('src', 'renderer', 'src', 'i18n', 'locales', 'en.json')
 const PLACEHOLDER_RE = /\{\{[^}]+\}\}/g
