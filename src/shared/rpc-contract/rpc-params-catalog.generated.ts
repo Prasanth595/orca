@@ -276,6 +276,7 @@ import {
   RequestPrReviewers,
   SetPrAutoMerge,
   UpdatePr,
+  UpdatePrBranch,
   UpdatePrState,
   UpdatePrTitle
 } from './github-pull-request-update-params'
@@ -948,6 +949,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'github.setPRFileViewed': PullRequestFileViewed,
   'github.updateIssue': UpdateIssue,
   'github.updatePR': UpdatePr,
+  'github.updatePRBranch': UpdatePrBranch,
   'github.updatePRState': UpdatePrState,
   'github.updatePRTitle': UpdatePrTitle,
   'github.validateAccountBinding': ValidateAccountBinding,
