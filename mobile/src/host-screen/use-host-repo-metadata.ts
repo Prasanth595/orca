@@ -16,6 +16,7 @@ import {
   hostRepoCatalogRead,
   hostSshTargetSummariesRead
 } from './host-screen-operations'
+import type { HostRepoCatalog } from './host-screen-reply-schema'
 import type { HostScreenState } from './use-host-screen-state'
 
 const REPO_METADATA_REFRESH_MS = 60_000
@@ -51,8 +52,9 @@ export function useHostRepoMetadata(args: {
   connState: ConnectionState
   hostId: string | undefined
   state: HostScreenState
+  onRepoCatalog?: (repos: HostRepoCatalog) => void
 }) {
-  const { client, connState, hostId, state } = args
+  const { client, connState, hostId, state, onRepoCatalog } = args
   const {
     clientRef,
     fetchRepoMetadataInFlightRef,
@@ -100,6 +102,7 @@ export function useHostRepoMetadata(args: {
           }
           const catalog = repos.value
           repoMetadataFetchedAtRef.current = Date.now()
+          onRepoCatalog?.(catalog)
           setCachedRepos(requestHostId, catalog)
           setRepoColorsByName(
             new Map(

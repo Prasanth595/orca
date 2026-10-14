@@ -7,6 +7,7 @@ import {
   type Section,
   type Worktree
 } from './workspace-list-sections'
+import type { MobileProjectGroup, MobileRepoGrouping } from './workspace-list-project-groups'
 import { repoColor } from './repo-color'
 
 export type WorkspaceSectionRepo = {
@@ -27,6 +28,8 @@ export function useWorkspaceSections(args: {
   repoColorsByName: Map<string, string>
   collapsedGroups: Set<string>
   workspaceStatuses: readonly WorkspaceStatusDefinition[]
+  projectGroups?: readonly MobileProjectGroup[]
+  repoGroupingById?: ReadonlyMap<string, MobileRepoGrouping>
 }): {
   sections: Section[]
   rawSections: Section[]
@@ -44,7 +47,9 @@ export function useWorkspaceSections(args: {
     repoIdsByName,
     repoColorsByName,
     collapsedGroups,
-    workspaceStatuses
+    workspaceStatuses,
+    projectGroups = [],
+    repoGroupingById = new Map()
   } = args
 
   const uniqueRepos = useMemo(() => {
@@ -77,7 +82,9 @@ export function useWorkspaceSections(args: {
         repoIdsByName,
         workspaceStatuses,
         collapsedGroups,
-        showPinnedInGroups
+        showPinnedInGroups,
+        projectGroups,
+        repoGroupingById
       ),
     [
       displayWorktrees,
@@ -89,7 +96,9 @@ export function useWorkspaceSections(args: {
       repoIdsByName,
       workspaceStatuses,
       collapsedGroups,
-      showPinnedInGroups
+      showPinnedInGroups,
+      projectGroups,
+      repoGroupingById
     ]
   )
 

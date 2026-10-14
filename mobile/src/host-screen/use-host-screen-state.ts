@@ -13,6 +13,10 @@ import type {
   MobileViewState
 } from '../worktree/workspace-view-settings'
 import type { FilterState, Worktree } from '../worktree/workspace-list-sections'
+import type {
+  MobileProjectGroup,
+  MobileRepoGrouping
+} from '../worktree/workspace-list-project-groups'
 import type { MobileHostRepoIcon } from './host-screen-reply-schema'
 import { NO_SERVER_WORKSPACES, type ServerWorkspaces } from '../worktree/server-workspaces'
 
@@ -97,6 +101,10 @@ export function useHostScreenState(hostId: string | undefined, action: string | 
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   // Desktop's "Also show pinned worktrees in their original lists"; off by default.
   const [showPinnedInGroups, setShowPinnedInGroups] = useState(false)
+  const [projectGroups, setProjectGroups] = useState<MobileProjectGroup[]>([])
+  const [repoGroupingById, setRepoGroupingById] = useState<Map<string, MobileRepoGrouping>>(
+    new Map()
+  )
   // Why: ref so the ui.get merge and ui.set writes read the latest values without re-creating callbacks on every state change.
   const viewStateRef = useRef<MobileViewState>({
     groupMode: 'repo',
@@ -133,7 +141,9 @@ export function useHostScreenState(hostId: string | undefined, action: string | 
     newWorktreeModalVisibleRef,
     optimisticActiveWorktreeIdentity,
     pinnedIds,
+    projectGroups,
     repoColorsByName,
+    repoGroupingById,
     repoHostIdByRepoId,
     repoIconsByName,
     repoIdsByName,
@@ -159,7 +169,9 @@ export function useHostScreenState(hostId: string | undefined, action: string | 
     setLastKnownWorktrees,
     setOptimisticActiveWorktreeIdentity,
     setPinnedIds,
+    setProjectGroups,
     setRepoColorsByName,
+    setRepoGroupingById,
     setRepoHostIdByRepoId,
     setRepoIconsByName,
     setRepoIdsByName,
