@@ -345,7 +345,7 @@ describe('a delete that fails after Git dropped the registration', () => {
     await expect(
       retryFailedRemovalUnlessRegistered(worktreeId, checkout, [mainWorktree], retry)
     ).rejects.toThrow(
-      `Git no longer tracks ${checkout}, so Orca won't delete it. Remove the folder yourself, and Orca will drop this workspace from the list.`
+      `${checkout} is no longer a Git worktree, so its folder was left on disk. Delete the folder yourself to finish removing this workspace.`
     )
 
     expect(retry).not.toHaveBeenCalled()

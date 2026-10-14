@@ -138,7 +138,7 @@ async function deleteRow(purged: string[], stopPtys = vi.fn(async () => {})): Pr
 }
 
 const refusal = (): string =>
-  `Git no longer tracks ${worktreePath}, so Orca won't delete it. Remove the folder yourself, and Orca will drop this workspace from the list.`
+  `${worktreePath} is no longer a Git worktree, so its folder was left on disk. Delete the folder yourself to finish removing this workspace.`
 
 /** A delete a quit interrupted, finished at the next start, where Git fails on the locked file. */
 function failStartupFinish(): Promise<unknown> {

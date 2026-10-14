@@ -88,7 +88,7 @@ describe('runtime Delete on a failed delete’s leftover', () => {
           waitForBackgroundRemoval: false
         })
       ).rejects.toThrow(
-        `Git no longer tracks ${leftover}, so Orca won't delete it. Remove the folder yourself, and Orca will drop this workspace from the list.`
+        `${leftover} is no longer a Git worktree, so its folder was left on disk. Delete the folder yourself to finish removing this workspace.`
       )
     }
     await _settlePendingWorktreeRemovalsForTests()

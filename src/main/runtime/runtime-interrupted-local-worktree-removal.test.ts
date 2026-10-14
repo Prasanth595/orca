@@ -219,7 +219,7 @@ describe('finishing an interrupted worktree removal after a restart', () => {
 
       const { outcome, purged, records } = await finishAfterRestart({ force })
 
-      const refusal = `Git no longer tracks ${worktreePath}, so Orca won't delete it. Remove the folder yourself, and Orca will drop this workspace from the list.`
+      const refusal = `${worktreePath} is no longer a Git worktree, so its folder was left on disk. Delete the folder yourself to finish removing this workspace.`
       expect(outcome).toEqual({ status: 'failed', error: `Error: ${refusal}` })
       expect(existsSync(join(worktreePath, '.git'))).toBe(false)
       expect(existsSync(join(worktreePath, 'seed.txt'))).toBe(true)
@@ -261,7 +261,7 @@ describe('finishing an interrupted worktree removal after a restart', () => {
 
     const { outcome, purged, records } = await finishAfterRestart({ force: true })
 
-    const refusal = `Git no longer tracks ${worktreePath}, so Orca won't delete it. Remove the folder yourself, and Orca will drop this workspace from the list.`
+    const refusal = `${worktreePath} is no longer a Git worktree, so its folder was left on disk. Delete the folder yourself to finish removing this workspace.`
     expect(outcome).toEqual({ status: 'failed', error: `Error: ${refusal}` })
     expect(await readFile(join(worktreePath, 'notes.txt'), 'utf8')).toBe('mine\n')
     expect(removeHostTree).not.toHaveBeenCalled()

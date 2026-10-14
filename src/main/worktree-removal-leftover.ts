@@ -56,7 +56,7 @@ export async function isCheckoutRegistered(record: {
  */
 export function unregisteredFolderRefusal(worktreePath: string): Error {
   return new Error(
-    `Git no longer tracks ${worktreePath}, so Orca won't delete it. Remove the folder yourself, and Orca will drop this workspace from the list.`
+    `${worktreePath} is no longer a Git worktree, so its folder was left on disk. Delete the folder yourself to finish removing this workspace.`
   )
 }
 
