@@ -1,6 +1,10 @@
 import type { Dirent } from 'node:fs'
-import { readdir, readFile, stat } from 'node:fs/promises'
+import { readdir, stat } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
+import {
+  openLocalRegularFile,
+  readLocalFileBounded
+} from '../../ipc/filesystem/local-regular-file-read'
 import {
   claudeSettingsMayPickModel,
   codexConfigMayPickModel,
@@ -127,14 +131,24 @@ function isMissing(error: unknown): boolean {
   return code === 'ENOENT' || code === 'ENOTDIR'
 }
 
-/** A missing file is no layer; one that exists but can't be read might pick anything. */
+// Larger files are not parsed, since parsing blocks the event loop; they may pick anything.
+const MAX_PROJECT_FILE_BYTES = 256 * 1024
+
+/** A missing file is no layer; one that exists but can't be read, or is too large to parse, might
+ *  pick anything. */
 async function fileMayPickModel(
   path: string,
   mayPickModel: (text: string) => boolean
 ): Promise<boolean> {
   let text: string
   try {
-    text = await readFile(path, 'utf8')
+    const { handle, stats } = await openLocalRegularFile(path)
+    try {
+      const bytes = await readLocalFileBounded(handle, MAX_PROJECT_FILE_BYTES, stats.size)
+      text = bytes.toString('utf8')
+    } finally {
+      await handle.close()
+    }
   } catch (error) {
     return !isMissing(error)
   }
