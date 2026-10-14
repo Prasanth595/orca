@@ -251,8 +251,10 @@ export function openDetectedFilePath(
       }
     }
 
+    // Why: a grant serves only text and images, so a granted binary stays in Orca, as upstream does.
     if (
       !openWithSystemDefault &&
+      hostGrantId === null &&
       (await openOsViewerOnlyTerminalFile(
         fileContext,
         mappedFilePath,
