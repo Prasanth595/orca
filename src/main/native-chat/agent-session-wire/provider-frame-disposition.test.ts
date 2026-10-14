@@ -57,6 +57,20 @@ describe('provider frame classification catalog', () => {
     ).toBe('error-surface')
   })
 
+  it('keeps a Claude init frame chrome when one of its MCP servers failed to connect', () => {
+    const init = {
+      type: 'system',
+      subtype: 'init',
+      mcp_servers: [
+        { name: 'playwright', status: 'connected' },
+        { name: 'marimo', status: 'failed' }
+      ]
+    }
+    expect(classifyProviderFrame('claude', 'message:system:init', init)).toBe('status-chrome')
+    // The exemption is the init kind's alone: the same payload under any other kind still surfaces.
+    expect(classifyProviderFrame('claude', 'message:system:status', init)).toBe('error-surface')
+  })
+
   it('keeps command queue bookkeeping off the transcript without hiding a failed one', () => {
     expect(
       classifyProviderFrame('claude', 'message:command_lifecycle', {
