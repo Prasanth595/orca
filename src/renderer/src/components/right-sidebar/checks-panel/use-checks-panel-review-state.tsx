@@ -18,9 +18,9 @@ import {
 import {
   getPullRequestGenerationRecordKey,
   getPullRequestGenerationSeedRestoreKey,
-  markPullRequestGenerationRequiresPushBeforeCreate,
   type PullRequestGenerationContext
 } from '@/store/slices/pull-request-generation'
+import { markPullRequestGenerationRequiresPushBeforeCreate } from '@/store/slices/pull-request-generation-push-gate'
 import { getCommitMessageModelDiscoveryHostKeyForScope } from '../../../../../shared/commit-message-host-key'
 import {
   DEFAULT_SOURCE_CONTROL_AI_PR_CREATION_DEFAULTS,

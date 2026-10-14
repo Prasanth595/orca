@@ -63,6 +63,10 @@ import { MOBILE_RELAY_RUNTIME_CAPABILITIES } from './mobile-desktop-relay-contra
 import { SKILL_RUNTIME_CAPABILITIES } from './skill-install-capability'
 import { ACCOUNT_RUNTIME_CAPABILITIES } from './account-runtime-capabilities'
 import {
+  GITHUB_MARK_PR_READY_RUNTIME_CAPABILITY,
+  GITLAB_READY_FOR_REVIEW_RUNTIME_CAPABILITY
+} from './review-ready-runtime-capabilities'
+import {
   AGENT_LAUNCH_RUNTIME_CAPABILITIES,
   AGENT_LAUNCH_RUNTIME_CAPABILITY
 } from './agent-launch-runtime-capability'
@@ -299,13 +303,7 @@ export const AGENT_SESSION_BACKGROUND_TASK_ROW_STOP_CAPABILITY =
 export const FILE_MUTATION_OWNERSHIP_RUNTIME_CAPABILITY = 'files.mutation-ownership.v1' as const
 export const FILE_MUTATION_OWNERSHIP_UPDATE_REQUIRED_MESSAGE =
   'Remote file changes require a newer Orca server. Update the HUB and try again.'
-export const GITHUB_MARK_PR_READY_RUNTIME_CAPABILITY = 'github.markPRReadyForReview' as const
-export const GITHUB_MARK_PR_READY_UPDATE_REQUIRED_MESSAGE =
-  'Marking a pull request ready requires a newer Orca server. Update the server and try again.'
-export const GITLAB_READY_FOR_REVIEW_RUNTIME_CAPABILITY =
-  'gitlab.updateMR.readyForReview.v1' as const
-export const GITLAB_READY_FOR_REVIEW_UPDATE_REQUIRED_MESSAGE =
-  'Marking a merge request ready requires a newer Orca server. Update the server and try again.'
+export * from './review-ready-runtime-capabilities'
 export const WORKTREE_VISIBILITY_DEFAULTS_RUNTIME_CAPABILITY =
   'worktree.visibility-defaults.v1' as const
 export const WORKTREE_VISIBILITY_SOURCE_DEFAULTS_RUNTIME_CAPABILITY =

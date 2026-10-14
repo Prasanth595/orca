@@ -3,15 +3,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import * as VisuallyHidden from 'radix-ui/visually-hidden'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
-import {
-  getCommentBodySubmitState,
-  hasBoundedCommentBodyText
-} from '@/lib/comment-body-submit-state'
-
-import { createBrowserUuid } from '@/lib/browser-uuid'
+import { hasBoundedCommentBodyText } from '@/lib/comment-body-submit-state'
 import { useAppStore } from '@/store'
 import {
-  jiraAddIssueCommentForTarget,
   jiraGetIssueForTarget,
   jiraListAssignableUsersForTarget,
   jiraListPrioritiesForTarget,
@@ -40,6 +34,7 @@ import {
 import { enqueueJiraIssueMutation, jiraIssueRequestScope } from './jira-issue-mutation-queue'
 import { useJiraIssueRemoteDetails } from './use-jira-issue-remote-details'
 import { useJiraIssueMutationState } from './use-jira-issue-mutation-state'
+import { useJiraIssueCommentSubmission } from './use-jira-issue-comment-submission'
 import { getTaskSourceCacheScope } from '../../../shared/task-source-context'
 
 type JiraIssueWorkspaceProps = {
@@ -69,8 +64,6 @@ export default function JiraIssueWorkspace({
   const [pendingField, setPendingField] = useState<string | null>(null)
   const [titleDraft, setTitleDraft] = useState('')
   const [labelsDraft, setLabelsDraft] = useState('')
-  const [commentDraft, setCommentDraft] = useState('')
-  const [commentSubmitting, setCommentSubmitting] = useState(false)
   const requestIdRef = useRef(0)
   const optimisticCommentsRef = useRef<JiraComment[]>([])
   const {
@@ -91,6 +84,19 @@ export default function JiraIssueWorkspace({
   } = useJiraIssueRemoteDetails(owner, requestIdRef, optimisticCommentsRef)
 
   const displayed = fullIssue ?? issue
+  const {
+    commentDraft,
+    setCommentDraft,
+    commentSubmitting,
+    setCommentSubmitting,
+    handleSubmitComment
+  } = useJiraIssueCommentSubmission({
+    displayed,
+    owner,
+    requestIdRef,
+    optimisticCommentsRef,
+    setComments
+  })
   const siteId = displayed?.siteId ?? undefined
   const metadataKey = JSON.stringify([
     sourceContext ? getTaskSourceCacheScope(sourceContext) : owner,
@@ -183,6 +189,8 @@ export default function JiraIssueWorkspace({
     loadTransitions,
     owner,
     requestKey,
+    setCommentDraft,
+    setCommentSubmitting,
     setComments,
     setCommentsError,
     setCommentsLoading,
@@ -301,60 +309,6 @@ export default function JiraIssueWorkspace({
       .filter(Boolean)
     void mutateIssue('labels', { labels }, { labels })
   }, [displayed, labelsDraft, mutateIssue])
-
-  const handleSubmitComment = useCallback(async (): Promise<void> => {
-    if (!displayed || commentSubmitting) {
-      return
-    }
-    const bodyState = getCommentBodySubmitState(commentDraft)
-    if (bodyState.status === 'empty') {
-      return
-    }
-    if (bodyState.status === 'too-large-leading-whitespace') {
-      toast.error(
-        translate(
-          'auto.components.JiraIssueWorkspace.commentTooLarge',
-          'Comment is too large to submit safely.'
-        )
-      )
-      return
-    }
-    setCommentSubmitting(true)
-    const requestId = requestIdRef.current
-    try {
-      const result = await jiraAddIssueCommentForTarget(
-        owner,
-        displayed.key,
-        bodyState.body,
-        displayed.siteId
-      )
-      if (!result.ok) {
-        throw new Error(result.error)
-      }
-      if (requestId !== requestIdRef.current) {
-        return
-      }
-      const comment: JiraComment = {
-        id: result.id || createBrowserUuid(),
-        body: bodyState.body,
-        createdAt: new Date().toISOString(),
-        user: { accountId: 'local', displayName: 'You' }
-      }
-      optimisticCommentsRef.current.push(comment)
-      setComments((prev) => [...prev, comment])
-      setCommentDraft('')
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : translate('auto.components.JiraIssueWorkspace.fa132c8aed', 'Failed to add comment.')
-      )
-    } finally {
-      if (requestId === requestIdRef.current) {
-        setCommentSubmitting(false)
-      }
-    }
-  }, [commentDraft, commentSubmitting, displayed, owner, optimisticCommentsRef, setComments])
 
   const actionItems = useMemo(
     () => (displayed ? getJiraIssueWorkspaceActions(displayed) : []),

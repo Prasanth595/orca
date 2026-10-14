@@ -2,13 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { create } from 'zustand'
 import {
   arePullRequestGenerationFieldsEqual,
-  clearPullRequestGenerationRequiresPushBeforeCreate,
   createPullRequestGenerationSlice,
   createRunningPullRequestGenerationRecord,
   getPullRequestGenerationRecordKey,
   getPullRequestGenerationSeedRestoreKey,
   getPullRequestGenerationWorktreeKey,
-  markPullRequestGenerationRequiresPushBeforeCreate,
   markPullRequestGenerationTerminalSeedRestored,
   resolvePullRequestGenerationCancel,
   resolvePullRequestGenerationSuccess,
@@ -17,6 +15,10 @@ import {
   type PullRequestGenerationSlice,
   type PullRequestGenerationRecord
 } from '@/store/slices/pull-request-generation'
+import {
+  clearPullRequestGenerationRequiresPushBeforeCreate,
+  markPullRequestGenerationRequiresPushBeforeCreate
+} from '@/store/slices/pull-request-generation-push-gate'
 
 const seed = {
   base: 'main',
