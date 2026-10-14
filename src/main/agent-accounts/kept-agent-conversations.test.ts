@@ -154,6 +154,41 @@ describe('KeptAgentConversations', () => {
     expect(reloaded.get('claude', 'queued')).toEqual(entry({ accountId: 'acc-b' }))
   })
 
+  it('shows a keep and a release queued while the file was unreadable to the first read after', () => {
+    vi.useFakeTimers()
+    const seed = open()
+    seed.keep('claude', 'earlier', entry())
+    const persisted = readFileSync(filePath, 'utf-8')
+    rmSync(filePath)
+    mkdirSync(filePath)
+
+    const index = open()
+    expect(index.get('claude', 'earlier')).toBe('unavailable')
+    index.keep('claude', 'queued', entry({ accountId: 'acc-b' }))
+    index.release('claude', 'earlier')
+
+    rmSync(filePath, { recursive: true })
+    writeFileSync(filePath, persisted)
+    // Why no timer advance: the retry has not fired, so only this read can apply the queue.
+    expect(index.get('claude', 'queued')).toEqual(entry({ accountId: 'acc-b' }))
+    expect(index.get('claude', 'earlier')).toBeNull()
+  })
+
+  it('persists a mutation queued past every retry once a read finds the file readable', async () => {
+    vi.useFakeTimers()
+    mkdirSync(filePath)
+
+    const index = open()
+    index.keep('claude', 'queued', entry())
+    await vi.advanceTimersByTimeAsync(100 + 1_000 + 5_000 + 30_000)
+    rmSync(filePath, { recursive: true })
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(existsSync(filePath)).toBe(false)
+
+    expect(index.get('claude', 'queued')).toEqual(entry())
+    expect(open().get('claude', 'queued')).toEqual(entry())
+  })
+
   it('sets a corrupt file aside and starts empty', () => {
     writeFileSync(filePath, '{ not json')
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})

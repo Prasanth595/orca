@@ -120,6 +120,10 @@ export class KeptAgentConversations {
     sessionId: string
   ): KeptConversation | null | 'unavailable' {
     const entries = this.load()
+    // Why: a mutation queued while the file was unreadable must show in the first read after.
+    if (entries && this.queue.length > 0) {
+      this.flush()
+    }
     return entries ? (entries.get(keptConversationKey(provider, sessionId)) ?? null) : 'unavailable'
   }
 
