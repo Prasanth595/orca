@@ -1,16 +1,22 @@
 import { randomUUID } from 'node:crypto'
 import type { TuiAgent } from '../../shared/tui-agent'
 import type { RuntimeMobileSessionTabsResult } from '../../shared/runtime-types'
+import type { AgentLaunchExecution } from './agent-launch-execution'
 import type { AgentLaunchWorkspaceFactory } from './agent-launch-surface-factories'
 
 export type InitialSurfaceLaunch = NonNullable<
   RuntimeMobileSessionTabsResult['initialSurfaceLaunch']
 >
 
-const liveLaunches = new WeakMap<object, Map<string, InitialSurfaceLaunch>>()
+type AgentLaunchRuntimeOwner = Pick<
+  AgentLaunchExecution['runtime'],
+  'getStructuredAgentSessionCreateSupport'
+>
+
+const liveLaunches = new WeakMap<AgentLaunchRuntimeOwner, Map<string, InitialSurfaceLaunch>>()
 
 export function beginCreatedWorkspaceLaunch(
-  runtime: object,
+  runtime: AgentLaunchRuntimeOwner,
   agent: TuiAgent
 ): {
   onWorkspaceCreated: (worktreeId: string) => void
@@ -47,7 +53,7 @@ export function beginCreatedWorkspaceLaunch(
 }
 
 export function readCreatedWorkspaceLaunch(
-  runtime: object,
+  runtime: AgentLaunchRuntimeOwner,
   worktreeId: string
 ): InitialSurfaceLaunch | undefined {
   return liveLaunches.get(runtime)?.get(worktreeId)
