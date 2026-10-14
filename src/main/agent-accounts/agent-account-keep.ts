@@ -96,15 +96,16 @@ function releaseAgent(
   facet: AgentRunAccount,
   ptyId: string | undefined
 ): SetAgentKeptResult {
-  const codexPtyId =
-    facet.provider === 'codex' && ptyId && deps.readCodexRecord(ptyId) ? ptyId : null
+  // Why: an unreadable registry is not "no record"; only the release's own answer can tell them apart.
+  const codexRelease =
+    facet.provider === 'codex' && ptyId ? deps.setCodexPaneKept(ptyId, false) : 'no-record'
+  if (codexRelease === 'unavailable') {
+    return { ok: false, reason: 'unavailable' }
+  }
   const listAcceptsChanges = deps.kept.acceptsChanges()
   // Why: a newer Orca's list drops a release; only a Codex pane's own launch record can still let go.
-  if (!listAcceptsChanges && !codexPtyId) {
+  if (!listAcceptsChanges && codexRelease === 'no-record') {
     return { ok: false, reason: 'read-only' }
-  }
-  if (codexPtyId && deps.setCodexPaneKept(codexPtyId, false) === 'unavailable') {
-    return { ok: false, reason: 'unavailable' }
   }
   if (listAcceptsChanges) {
     keepConversation(deps, row, facet.provider, facet.accountId, false)

@@ -1,10 +1,16 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AgentRunAccount } from '../../shared/agent-run-account'
 import type { AgentRunAccountRow } from '../agent-hooks/server/server-run-account'
-import type { CodexPaneAccountRecord } from '../codex/codex-pane-account-registry'
+import {
+  _internals as codexRegistryInternals,
+  getCodexPaneAccount,
+  recordCodexPaneAccount,
+  setCodexPaneKept,
+  type CodexPaneAccountRecord
+} from '../codex/codex-pane-account-registry'
 import {
   keepStaleCodexPanesAndConversations,
   setAgentKept,
@@ -66,6 +72,8 @@ function deps(overrides: Partial<AgentKeepDeps> = {}) {
 
 const dirs: string[] = []
 afterEach(() => {
+  vi.unstubAllEnvs()
+  codexRegistryInternals.resetCache()
   dirs.splice(0).forEach((dir) => rmSync(dir, { recursive: true, force: true }))
 })
 
@@ -176,7 +184,10 @@ describe('setAgentKept', () => {
       'a Claude conversation',
       { getRow: vi.fn(() => row({ agentType: 'claude', runAccount: CLAUDE_FACET })) }
     ],
-    ['a Codex conversation with no launch record', { readCodexRecord: vi.fn(() => null) }]
+    [
+      'a Codex conversation with no launch record',
+      { setCodexPaneKept: vi.fn(() => 'no-record' as const) }
+    ]
   ])('refuses to un-keep %s while a newer Orca owns the list, touching nothing', (_l, over) => {
     const d = deps(over)
     d.kept.acceptsChanges.mockReturnValue(false)
@@ -184,7 +195,6 @@ describe('setAgentKept', () => {
       ok: false,
       reason: 'read-only'
     })
-    expect(d.setCodexPaneKept).not.toHaveBeenCalled()
     expect(d.kept.release).not.toHaveBeenCalled()
     expect(d.withdraw).not.toHaveBeenCalled()
   })
@@ -218,14 +228,59 @@ describe('setAgentKept', () => {
     expect(d.withdraw).not.toHaveBeenCalled()
   })
 
-  it('reports an unreadable launch registry instead of keeping the conversation alone', () => {
-    const d = deps({ setCodexPaneKept: vi.fn(() => 'unavailable' as const) })
-    expect(setAgentKept(d, { paneKey: PANE, kept: true })).toEqual({
-      ok: false,
-      reason: 'unavailable'
-    })
-    expect(d.kept.keep).not.toHaveBeenCalled()
-  })
+  it.each([
+    ['keeping', true, 'keep'],
+    ['un-keeping', false, 'release']
+  ] as const)(
+    'reports an unreadable launch registry when %s, leaving the list alone',
+    (_l, kept, op) => {
+      const d = deps({ setCodexPaneKept: vi.fn(() => 'unavailable' as const) })
+      expect(setAgentKept(d, { paneKey: PANE, kept })).toEqual({
+        ok: false,
+        reason: 'unavailable'
+      })
+      expect(d.kept[op]).not.toHaveBeenCalled()
+      expect(d.withdraw).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([[true], [false]])(
+    'un-keeping against an unreadable real launch registry leaves the keep in place (list writable: %s)',
+    (listWritable) => {
+      const userData = mkdtempSync(join(tmpdir(), 'orca-unkeep-registry-'))
+      dirs.push(userData)
+      vi.stubEnv('ORCA_USER_DATA_PATH', userData)
+      codexRegistryInternals.resetCache()
+      const registryFile = join(userData, 'codex-pane-accounts.json')
+      recordCodexPaneAccount('pty-1', {
+        selectionKey: 'host',
+        accountId: 'acc-a',
+        homeRoute: 'account-home'
+      })
+      expect(setCodexPaneKept('pty-1', true)).toBe('kept')
+      const persisted = readFileSync(registryFile, 'utf-8')
+      rmSync(registryFile)
+      // Why: a directory in the file's place fails the read with EISDIR, not absence.
+      mkdirSync(registryFile)
+      codexRegistryInternals.resetCache()
+      const d = deps({
+        getRow: vi.fn(() => row({ runAccount: { ...CODEX_FACET, mode: 'kept' } })),
+        readCodexRecord: getCodexPaneAccount,
+        setCodexPaneKept
+      })
+      d.kept.acceptsChanges.mockReturnValue(listWritable)
+
+      expect(setAgentKept(d, { paneKey: PANE, kept: false })).toEqual({
+        ok: false,
+        reason: 'unavailable'
+      })
+      expect(d.kept.release).not.toHaveBeenCalled()
+      expect(d.withdraw).not.toHaveBeenCalled()
+      rmSync(registryFile, { recursive: true })
+      writeFileSync(registryFile, persisted)
+      expect(getCodexPaneAccount('pty-1')).toMatchObject({ kept: true })
+    }
+  )
 
   it('refuses a terminal that is not the one the request names', () => {
     const d = deps()
