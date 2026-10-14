@@ -71,8 +71,51 @@ describe('subscription RPC identity boundary', () => {
   })
 
   it.each(['unary', 'streaming'] as const)(
-    'binds durable replay to the verified receiver over %s',
+    'rejects mobile subscription calls before authority or ledger access over %s',
     async (transport) => {
+      const runtime = new OrcaRuntimeService()
+      const binding = vi.spyOn(runtime, 'getTerminalMailboxSubscriptionBinding')
+      const handler = vi.spyOn(runtime, 'terminalMailboxSubscription')
+      const ledger = vi.spyOn(runtime, 'getOrchestrationDb')
+      const dispatcher = new RpcDispatcher({
+        runtime,
+        methods: ORCHESTRATION_SUBSCRIPTION_METHODS,
+        callerScope: { kind: 'mobile' }
+      })
+      for (const method of ORCHESTRATION_SUBSCRIPTION_METHODS) {
+        const request = { id: method.name, authToken: 'token', method: method.name, params: {} }
+        if (transport === 'unary') {
+          await expect(dispatcher.dispatch(request)).resolves.toMatchObject({
+            ok: false,
+            error: { code: 'forbidden' }
+          })
+        } else {
+          const replies: unknown[] = []
+          await dispatcher.dispatchStreaming(request, (message) =>
+            replies.push(JSON.parse(message))
+          )
+          expect(replies).toEqual([
+            expect.objectContaining({
+              ok: false,
+              error: expect.objectContaining({ code: 'forbidden' })
+            })
+          ])
+        }
+      }
+      expect(binding).not.toHaveBeenCalled()
+      expect(handler).not.toHaveBeenCalled()
+      expect(ledger).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    ['unary', 'owner'],
+    ['streaming', 'owner'],
+    ['unary', 'runtime-paired'],
+    ['streaming', 'runtime-paired']
+  ] as const)(
+    'binds durable replay to the verified receiver over %s for %s callers',
+    async (transport, callerKind) => {
       const db = new OrchestrationDb(':memory:')
       const states = new Map<string, TerminalMailboxSubscriptionStatus>()
       const evidence = (paneKey: string): OrchestrationCompatibilityEvidence => ({
@@ -112,7 +155,9 @@ describe('subscription RPC identity boundary', () => {
           })
         const dispatcher = new RpcDispatcher({
           runtime,
-          methods: ORCHESTRATION_SUBSCRIPTION_METHODS
+          methods: ORCHESTRATION_SUBSCRIPTION_METHODS,
+          callerScope:
+            callerKind === 'owner' ? { kind: 'owner' } : { kind: 'runtime-paired', grants: [] }
         })
         return {
           dispatcher: {
@@ -155,9 +200,11 @@ describe('subscription RPC identity boundary', () => {
           ok: true,
           result: { subscribed: true, mutation: { replayed: false } }
         })
+        const completeReceipt = vi.spyOn(db, 'completeMutationReceipt')
         await firstRuntime.dispatcher.dispatch(
           request('orchestration.unsubscribe', 'unsubscribe-a', evidence('pane-a'), 'rpc-2')
         )
+        completeReceipt.mockClear()
         await expect(
           firstRuntime.dispatcher.dispatch(
             request('orchestration.subscribe', 'receiver-bound', evidence('pane-a'), 'rpc-3')
@@ -176,6 +223,7 @@ describe('subscription RPC identity boundary', () => {
           )
         ).resolves.toMatchObject({ ok: false, error: { code: 'request_mismatch' } })
         expect(states.has('pane-b')).toBe(false)
+        expect(completeReceipt).not.toHaveBeenCalled()
 
         await firstRuntime.dispatcher.dispatch(
           request('orchestration.subscribe', 'subscribe-again', evidence('pane-a'), 'rpc-8')
@@ -220,12 +268,16 @@ describe('subscription RPC identity boundary', () => {
         expect(replaced.mutate).not.toHaveBeenCalled()
 
         const invalid = createDispatcher({ rejectBinding: true })
+        const beginReceipt = vi.spyOn(db, 'beginMutationReceipt')
+        const readReceipt = vi.spyOn(db, 'getMutationReceipt')
         await expect(
           invalid.dispatcher.dispatch(
             request('orchestration.subscribe', 'receiver-bound', evidence('pane-a'), 'rpc-7')
           )
         ).resolves.toMatchObject({ ok: false })
         expect(invalid.mutate).not.toHaveBeenCalled()
+        expect(beginReceipt).not.toHaveBeenCalled()
+        expect(readReceipt).not.toHaveBeenCalled()
       } finally {
         db.close()
       }

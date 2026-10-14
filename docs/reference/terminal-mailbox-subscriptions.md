@@ -21,9 +21,10 @@ stays in the inbox.
 Registration is ephemeral and belongs to the execution runtime. Repeating
 `subscribe` for the same live identity is idempotent. Runtime restart, process
 replacement, PTY exit, handle remint or invalid host authority requires explicit
-registration again. A transport outage leaves the subscription and durable mail
-intact while status reports `host_unverifiable`; it is not evidence of process
-exit. A new client against a host without
+registration again. If the execution runtime cannot verify the current terminal authority, it keeps
+the subscription and durable mail while reporting `host_unverifiable`; this is not
+evidence of process exit. A paired-client disconnect alone does not invalidate a
+live subscription on the execution host. A new client against a host without
 `orchestration.terminal-subscription.v1` reports `unsupported` without attempting
 registration. Existing Run/Dispatch mail keeps its original delivery path.
 The original receiver may still inspect or remove its subscription after ownership
@@ -73,10 +74,14 @@ host positively reports a replacement incarnation or exit, the old tuple is
 reconciled and a newly registered process can receive a fresh pointer. No message
 body is replayed, and no old handle is rebound to a new recipient.
 
+For managed SSH workspaces, subscribe from the receiving terminal on the managed
+server. That execution runtime owns the subscription, mailbox and PTY writes;
+reconnecting a viewer does not move them into the desktop runtime.
+
 This first version supports bare terminal recipients that the runtime can resolve
-through its existing live-leaf delivery path. It does not add background PTY
-resolution, restart slept panes, introduce a Codex app-server controller, or migrate
-mail between handles. Related work: Orca issues/PRs #18206, #8057, #12033, #18731,
+through its existing delivery path, including its parked-PTY target resolution.
+It does not add separate background PTY discovery, restart slept panes, introduce a
+Codex app-server controller, or migrate mail between handles. Related work: Orca issues/PRs #18206, #8057, #12033, #18731,
 and #18208.
 
 The live provider validation covers Codex and Claude Code. Antigravity CLI 1.2.7 is

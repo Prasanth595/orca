@@ -4,6 +4,7 @@ import { defineMethod } from '../../../core'
 export const ORCHESTRATION_SUBSCRIPTION_METHODS = [
   defineMethod({
     name: 'orchestration.subscribe',
+    permission: 'workspace',
     params: TerminalSubscriptionParams,
     handler: (
       _params,
@@ -30,6 +31,7 @@ export const ORCHESTRATION_SUBSCRIPTION_METHODS = [
   }),
   defineMethod({
     name: 'orchestration.unsubscribe',
+    permission: 'workspace',
     params: TerminalSubscriptionParams,
     handler: (
       _params,
@@ -56,6 +58,7 @@ export const ORCHESTRATION_SUBSCRIPTION_METHODS = [
   }),
   defineMethod({
     name: 'orchestration.subscriptionStatus',
+    permission: 'workspace',
     params: TerminalSubscriptionParams,
     handler: (_params, { runtime, orchestrationCompatibilityEvidence }) =>
       runtime.terminalMailboxSubscription('status', orchestrationCompatibilityEvidence)

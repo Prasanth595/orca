@@ -1,7 +1,7 @@
 import type { PtyRendererDelivery } from '../session'
 import type { OrcaRuntimeService } from '../../../runtime/orca-runtime'
 import type { Store } from '../../../persistence'
-import type { IPtyProvider } from '../../../providers/types'
+import type { IPtyProvider } from '../../../providers/pty-provider-contract'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import type { TuiAgent } from '../../../../shared/tui-agent'
 import type { AgentProviderSessionMetadata } from '../../../../shared/agent-session-resume'
@@ -18,20 +18,20 @@ import type { CodexResumeLaunch, PreparedCodexResumeHome } from '../host-env/cod
 import type { StablePaneOwner } from '../pane/stable-owner'
 import type { AdoptStablePaneArgs, AdoptStablePaneResult } from '../ipc/spawn-types'
 import type { finishPtyShutdown } from '../provider/liveness'
+import type { ResolvedPtyHost } from '../provider/registry'
 
 export type PtyRuntimeControllerDeps = {
   runtime?: OrcaRuntimeService
   store?: Store
   adoptStablePane: (args: AdoptStablePaneArgs) => Promise<AdoptStablePaneResult | null>
-  getLocalPtyStartupPromise: (connectionId?: string | null) => Promise<void> | undefined
-  getLocalPtyProviderStartupPromise: (connectionId?: string | null) => Promise<void> | undefined
+  getLocalPtyStartupPromise: (hostId?: ResolvedPtyHost) => Promise<void> | undefined
+  getLocalPtyProviderStartupPromise: (hostId?: ResolvedPtyHost) => Promise<void> | undefined
   prepareCodexResumeHome: (args: {
     connectionId?: string | null
     launchAgent?: TuiAgent
     providerSession?: AgentProviderSessionMetadata
     target: CodexAccountSelectionTarget
     launchEnv?: NodeJS.ProcessEnv
-    workspacePath?: string
   }) => PreparedCodexResumeHome | null
   resolveCodexResumeLaunch: (
     command: string | undefined,
@@ -82,7 +82,6 @@ export type PtyRuntimeControllerDeps = {
   }
   trustedTerminalHandleEnv: Set<string>
   retiredRejectedPtyIds: Map<string, NodeJS.Timeout>
-  reversibleStopOwnersByPtyId: Map<string, number>
   mainWindow?: PtyRendererDelivery
   transitionSpawnHiddenRendererPtyDeliveryState?: (id: string, hidden: boolean) => void
   syncPtyBackgroundedDelivery?: (id: string, caller: string) => void

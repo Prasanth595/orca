@@ -142,13 +142,17 @@ test('Windows Orca delivers subscribed mailbox pointers to a native WSL PTY', as
     writeWslFile(control, '')
     writeWslFile(cli, `#!/bin/sh\nexec ${quote(nodePath)} ${quote(CLI_ENTRY)} "$@"\n`, true)
     const launchCommand = `/usr/bin/python3 ${[script, ledger, title, control, cli].map(quote).join(' ')}`
-    await orcaPage.evaluate(async (command) => {
-      await window.__store?.getState().updateSettings({
-        defaultTuiAgent: 'codex',
-        agentCmdOverrides: { codex: command },
-        disabledTuiAgents: []
-      })
-    }, launchCommand)
+    await client.call('settings.mutateAgentLaunch', {
+      type: 'command',
+      agent: 'codex',
+      value: launchCommand
+    })
+    await client.call('settings.mutateAgentLaunch', {
+      type: 'availability',
+      agent: 'codex',
+      enabled: true
+    })
+    await client.call('settings.mutateAgentLaunch', { type: 'default', agent: 'codex' })
 
     await orcaPage.getByRole('button', { name: /^(New tab|새 탭)$/ }).click({ force: true })
     const codexLaunch = orcaPage.getByRole('menuitem', { name: /^Codex(?:\s|$)/i }).first()

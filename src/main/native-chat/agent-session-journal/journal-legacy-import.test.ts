@@ -1,3 +1,4 @@
+import { AGENT_JOURNAL_THREAD_SCOPE } from '../../../shared/agent-session-journal-types'
 // Legacy import runs the existing per-agent transcript decoders and keys the
 // results by identity read off the same raw lines. Fixtures are shaped like the
 // files the providers actually write.
@@ -7,10 +8,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { agentJournalItemKey } from '../../../shared/agent-session-journal-item-key'
-import type {
-  AgentSessionJournalIdentity,
-  AgentSessionProviderHandle
-} from '../../../shared/agent-session-journal-types'
+import type { AgentSessionJournalIdentity } from '../../../shared/agent-session-journal-types'
+import type { AgentSessionProviderHandle } from '../../../shared/agent-session-provider-handle'
 import type { NativeChatMessage } from '../../../shared/native-chat-types'
 import type * as TranscriptLineDecoders from '../transcript-line-decoders'
 import { createLegacyIdentityTracker } from './journal-legacy-identity'
@@ -18,6 +17,11 @@ import { importLegacyTranscriptIntoJournal } from './journal-legacy-import'
 import { DEFAULT_JOURNAL_PAYLOAD_LIMITS } from './journal-payload-bounds'
 import { openAgentSessionJournal } from './journal-store-factory'
 import type { AgentSessionJournal } from './journal-store'
+import { openTestJournalHostDatabase } from './journal-host-database-test-support'
+import {
+  claudeProviderHandle,
+  codexProviderHandle
+} from '../../../shared/agent-session-provider-handle-encoding'
 
 // No shipped decoder emits a subagent roster, so the roster bounds are reached by standing one in.
 const decodedClaudeOverride = vi.hoisted((): { message: NativeChatMessage | null } => ({
@@ -48,11 +52,11 @@ type ImportAgent = 'claude' | 'codex' | 'grok' | 'omp'
 
 function providerHandle(agent: ImportAgent, sessionId: string): AgentSessionProviderHandle {
   if (agent === 'claude') {
-    return { kind: 'claude', sessionId, leafUuid: null }
+    return claudeProviderHandle(sessionId, null)
   }
   return agent === 'codex'
-    ? { kind: 'codex', threadId: sessionId }
-    : { kind: 'opaque', agent, value: sessionId }
+    ? codexProviderHandle(sessionId)
+    : { transport: 'terminal-transcript', agent, nativeId: sessionId }
 }
 
 function identity(agent: ImportAgent, sessionId: string): AgentSessionJournalIdentity {
@@ -72,7 +76,7 @@ async function open(
 ): Promise<AgentSessionJournal> {
   return openAgentSessionJournal({
     identity: identity(agent, sessionId),
-    journalDir: root,
+    database: openTestJournalHostDatabase(root),
     now: tick,
     mintEpoch: () => `epoch-${clock}`,
     ...overrides
@@ -423,14 +427,17 @@ describe('payload bounds on import', () => {
     })
 
     const item = journal.snapshot().items[0]
-    expect(item?.body).toMatchObject({ kind: 'tool-call', state: 'completed' })
+    expect(item?.body).toMatchObject({ kind: 'message', role: 'tool' })
     const body = item?.body
-    if (body?.kind !== 'tool-call' || !body.output) {
-      throw new Error('expected a bounded tool-call output')
+    const result = body?.kind === 'message' ? body.blocks[0] : undefined
+    if (result?.type !== 'tool-result') {
+      throw new Error('expected a bounded tool result')
     }
-    expect(body.output.truncated).toBe(true)
-    expect(body.output.byteLength).toBe(64 * 1024)
-    expect(body.output.head).toHaveLength(1_024)
+    expect(result.callId).toBe('toolu_9')
+    expect(result.output.startsWith('y'.repeat(1_024))).toBe(true)
+    expect(result.output).toContain('65536 bytes')
+    expect(result.output).toContain('output truncated')
+    expect(result.output.length).toBeLessThan(1_200)
   })
 
   it('bounds an imported subagent roster by entry count, label and id', async () => {
@@ -477,7 +484,9 @@ describe('payload bounds on import', () => {
 describe('import failures', () => {
   it('rejects a legacy source above the fixed 16 MiB import cap before decoding', async () => {
     const journalDir = join(root, 'oversized-source-journal')
-    const journal = await open('claude', CLAUDE_SESSION, { journalDir })
+    const journal = await open('claude', CLAUDE_SESSION, {
+      database: openTestJournalHostDatabase(journalDir)
+    })
     const filePath = join(root, 'oversized-source.jsonl')
     await writeFile(filePath, 'x'.repeat(16 * 1024 * 1024 + 1), 'utf8')
     const epoch = journal.epoch
@@ -501,7 +510,9 @@ describe('import failures', () => {
   it('bounds oversized legacy tool-call input before journal publication', async () => {
     const journalDir = join(root, 'bounded-tool-input-journal')
     const limits = { ...DEFAULT_JOURNAL_PAYLOAD_LIMITS, inlineHeadBytes: 64 }
-    const journal = await open('claude', CLAUDE_SESSION, { journalDir })
+    const journal = await open('claude', CLAUDE_SESSION, {
+      database: openTestJournalHostDatabase(journalDir)
+    })
     const filePath = await writeFixture('oversized-tool-input.jsonl', [
       {
         parentUuid: null,
@@ -560,14 +571,13 @@ describe('import failures', () => {
   })
 
   // A transcript with no decodable messages recovers nothing. Publishing an
-  // empty replacement would roll the epoch and drop whatever the journal held —
-  // including a repair's own anchor and disclosure.
+  // empty replacement would roll the epoch and drop whatever the journal held.
   it('leaves the epoch untouched when the transcript decodes to no messages', async () => {
     const journal = await open('codex', CODEX_SESSION)
     await journal.appendItem(
       { provider: 'codex', threadId: CODEX_SESSION, turnId: 'turn-1', ordinal: 1 },
       { kind: 'message', role: 'assistant', blocks: [{ type: 'text', text: 'kept' }] },
-      { fence: 1 }
+      { fence: 1, turnScope: AGENT_JOURNAL_THREAD_SCOPE }
     )
     const before = journal.epoch
     const metadataOnly = await writeFixture('metadata-only.jsonl', [
@@ -629,7 +639,7 @@ describe('multi-block legacy messages', () => {
 
   it('bounds a Claude tool call that shares its message with narration', async () => {
     const journal = await open('claude', CLAUDE_SESSION, {
-      journalDir: join(root, 'claude-mixed-journal')
+      database: openTestJournalHostDatabase(join(root, 'claude-mixed-journal'))
     })
     const filePath = await writeFixture('claude-mixed.jsonl', [
       {
@@ -675,7 +685,7 @@ describe('multi-block legacy messages', () => {
 
   it('bounds a Grok tool call that shares its row with assistant text', async () => {
     const journal = await open('grok', CODEX_SESSION, {
-      journalDir: join(root, 'grok-mixed-journal')
+      database: openTestJournalHostDatabase(join(root, 'grok-mixed-journal'))
     })
     const filePath = await writeFixture('grok-mixed.jsonl', [
       {
@@ -703,7 +713,7 @@ describe('multi-block legacy messages', () => {
 
   it('bounds an omp execution cell, whose invocation always ships with its output', async () => {
     const journal = await open('omp', CODEX_SESSION, {
-      journalDir: join(root, 'omp-mixed-journal')
+      database: openTestJournalHostDatabase(join(root, 'omp-mixed-journal'))
     })
     const filePath = await writeFixture('omp-mixed.jsonl', [
       {

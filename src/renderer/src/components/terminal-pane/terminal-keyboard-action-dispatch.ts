@@ -1,6 +1,6 @@
 import type { ManagedPane, PaneManager } from '@/lib/pane-manager/pane-manager'
 import type { PaneCwdMap } from './resolve-split-cwd'
-import type { PtyTransport } from './pty-transport'
+import type { PtyTransport } from './pty-transport-types'
 import { copyTerminalSelection } from './terminal-selection-copy'
 import { splitTerminalPaneWithInheritedCwd } from './terminal-pane-split-with-inherited-cwd'
 import {
@@ -79,10 +79,6 @@ export function dispatchTerminalShortcutAction(
     event.stopImmediatePropagation()
     return
   }
-  if (event.repeat) {
-    return
-  }
-
   if (action.type === 'copySelection') {
     const pane = manager.getActivePane() ?? manager.getPanes()[0]
     if (!pane || !pane.terminal.getSelection()) {
@@ -90,10 +86,16 @@ export function dispatchTerminalShortcutAction(
     }
     event.preventDefault()
     event.stopImmediatePropagation()
-    void copyTerminalSelection({
-      terminal: pane.terminal,
-      writeClipboardText: window.api.ui.writeTerminalClipboardText
-    }).catch(() => {})
+    if (!event.repeat) {
+      armNativeOnlyShortcut(event)
+      void copyTerminalSelection({
+        terminal: pane.terminal,
+        writeClipboardText: window.api.ui.writeTerminalClipboardText
+      }).catch(() => {})
+    }
+    return
+  }
+  if (event.repeat) {
     return
   }
   if (action.type === 'toggleSearch') {

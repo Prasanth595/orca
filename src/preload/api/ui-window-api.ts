@@ -1,7 +1,6 @@
-import type { MouseShortcutInput } from '../../shared/mouse-shortcut-input'
+import type { AgentSessionAttachmentClipboardTarget } from '../../shared/agent-session-attachments'
 import type { ClipboardImageThumbnail } from '../../shared/clipboard-image'
 import type { ReadClipboardTextOptions } from '../../shared/clipboard-text'
-import type { NativeFileDropPayload } from '../../shared/native-file-drop'
 import type {
   RichMarkdownContextMenuCommandPayload,
   RichMarkdownContextMenuTableTarget
@@ -13,7 +12,17 @@ export type UiWindowApi = {
   saveClipboardImageAsTempFile: (args?: {
     connectionId?: string | null
     runtimeEnvironmentId?: string | null
+    agentSessionAttachment?: AgentSessionAttachmentClipboardTarget
+    /** A native-chat composer paste, kept where its draft can bring it back. */
+    forNativeChatDraft?: boolean
   }) => Promise<string | null>
+  clipboardHasImage: () => Promise<boolean | null>
+  /** Paths of files a file manager copied; empty when there are none or the host cannot list them. */
+  readClipboardFilePaths: () => Promise<string[]>
+  /** Which restored draft pastes are still kept: files really in Orca's paste folder. */
+  restoreNativeChatPastes: (
+    paths: string[]
+  ) => Promise<{ path: string; kept: boolean; exists: boolean }[]>
   readClipboardImageThumbnail: () => Promise<ClipboardImageThumbnail | null>
   writeClipboardText: (text: string) => Promise<void>
   writeTerminalClipboardText: (text: string) => Promise<void>
@@ -29,7 +38,6 @@ export type UiWindowApi = {
         }
       | string
   ) => Promise<{ ok: boolean; reason?: string }>
-  onFileDrop: (callback: (data: NativeFileDropPayload) => void) => () => void
   getZoomLevel: () => number
   setZoomLevel: (level: number) => void
   syncTrafficLights: (zoomFactor: number) => void
@@ -37,7 +45,6 @@ export type UiWindowApi = {
   setRichMarkdownContextMenuTarget: (target: RichMarkdownContextMenuTableTarget | null) => void
   setTerminalInputFocused: (focused: boolean) => void
   setFloatingFocus: (state: { panelFocused: boolean; terminalFocused: boolean }) => void
-  dispatchMouseShortcut?: (input: MouseShortcutInput) => void
   setShortcutRecorderFocused: (focused: boolean) => void
   onRichMarkdownContextCommand: (
     callback: (payload: RichMarkdownContextMenuCommandPayload) => void

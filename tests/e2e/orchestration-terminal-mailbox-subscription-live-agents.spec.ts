@@ -158,16 +158,17 @@ test.describe('live terminal mailbox subscription agents', () => {
         `When it finishes, reply exactly SUBSCRIBED_${marker}.`
       ].join(' ')
       const liveCommand = live.command(credentialDir, prompt)
-      await orcaPage.evaluate(
-        async ({ agent, command }) => {
-          await window.__store?.getState().updateSettings({
-            agentCmdOverrides: { [agent]: command },
-            agentStatusHooksEnabled: true,
-            disabledTuiAgents: []
-          })
-        },
-        { agent: live.agent, command: liveCommand }
-      )
+      await client.call('settings.mutateAgentLaunch', {
+        type: 'command',
+        agent: live.agent,
+        value: liveCommand
+      })
+      await client.call('settings.mutateAgentLaunch', {
+        type: 'availability',
+        agent: live.agent,
+        enabled: true
+      })
+      await client.call('settings.update', { agentStatusHooksEnabled: true })
 
       let createdTerminalHandle: string | null = null
       let handle: string | null = null

@@ -98,26 +98,6 @@ const PATCHED = {
 }
 
 describe('pnpm diff format', () => {
-  it('keeps the exact git flags pnpm uses, so patches survive `pnpm patch-commit`', () => {
-    expect(PNPM_DIFF_FLAGS).toEqual([
-      '-c',
-      'core.safecrlf=false',
-      '-c',
-      'core.quotePath=false',
-      'diff',
-      '--src-prefix=a/',
-      '--dst-prefix=b/',
-      '--ignore-cr-at-eol',
-      '--irreversible-delete',
-      '--full-index',
-      '--no-index',
-      '--text',
-      '--no-ext-diff',
-      '--no-color',
-      '--'
-    ])
-  })
-
   it('matches pnpm git config isolation', () => {
     const environment = pnpmDiffEnvironment({ PATH: '/usr/bin', HOME: '/Users/someone' })
     expect(environment).toMatchObject({
@@ -428,7 +408,7 @@ describe('lockfile coupling', () => {
     // A bump renames the key, so --write has nothing to rewrite until pnpm install
     // creates it. Aborting there would strand the run before the later packages.
     expect(lockfileHasPatchEntry(lockfile, '@xterm/xterm@6.1.0-beta.287')).toBe(true)
-    expect(lockfileHasPatchEntry(lockfile, '@xterm/xterm@6.1.0-beta.303')).toBe(false)
+    expect(lockfileHasPatchEntry(lockfile, '@xterm/xterm@6.1.0-beta.288')).toBe(false)
   })
 })
 

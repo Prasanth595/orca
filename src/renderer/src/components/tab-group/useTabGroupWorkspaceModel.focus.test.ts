@@ -70,25 +70,25 @@ vi.mock('../../lib/focus-terminal-tab-surface', () => ({
   focusTerminalTabSurface: mocks.focusTerminalTabSurface
 }))
 
-vi.mock('../../runtime/web-runtime-session', () => ({
+vi.mock('../../runtime/web-runtime-session-tab-lifecycle', () => ({
   activateWebRuntimeSessionTab: mocks.activateWebRuntimeSessionTab,
-  closeWebRuntimeSessionTab: mocks.closeWebRuntimeSessionTab,
-  createWebRuntimeSessionBrowserTab: vi.fn(),
-  createWebRuntimeSessionTerminal: mocks.createWebRuntimeSessionTerminal,
-  isWebRuntimeSessionActive: mocks.isWebRuntimeSessionActive,
+  closeWebRuntimeSessionTab: mocks.closeWebRuntimeSessionTab
+}))
+vi.mock('../../runtime/web-runtime-browser-creation', () => ({
+  createWebRuntimeSessionBrowserTab: vi.fn()
+}))
+vi.mock('../../runtime/web-runtime-terminal-creation', () => ({
+  createWebRuntimeSessionTerminal: mocks.createWebRuntimeSessionTerminal
+}))
+vi.mock('../../runtime/web-runtime-session-environment', () => ({
+  isWebRuntimeSessionActive: mocks.isWebRuntimeSessionActive
+}))
+vi.mock('../../../../shared/terminal-surface-id', () => ({
   toHostSessionTabId: (tabId: string) => tabId
 }))
 
 vi.mock('@/runtime/runtime-rpc-client', () => ({
   callRuntimeRpc: mocks.callRuntimeRpc,
-  getActiveRuntimeTarget: ({
-    activeRuntimeEnvironmentId
-  }: {
-    activeRuntimeEnvironmentId?: string | null
-  }) =>
-    activeRuntimeEnvironmentId
-      ? { kind: 'environment', environmentId: activeRuntimeEnvironmentId }
-      : { kind: 'local' },
   runtimeEnvironmentSupportsCapability: mocks.runtimeEnvironmentSupportsCapability
 }))
 
@@ -659,13 +659,13 @@ describe('useTabGroupWorkspaceModel terminal activation focus', () => {
     const { useTabGroupWorkspaceModel } = await import('./useTabGroupWorkspaceModel')
     const model = useTabGroupWorkspaceModel({ groupId: 'group-1', worktreeId: 'wt-1' })
 
-    model.commands.duplicateBrowserTab('browser-workspace-1')
+    model.commands.duplicateBrowserTab('browser-workspace-1', 'browser-unified-1')
 
     expect(mocks.createBrowserTab).toHaveBeenCalledWith('wt-1', 'https://example.com', {
       title: 'Example',
       sessionProfileId: 'profile-1',
       sessionPartition: 'persist:orca-browser-session-profile-1',
-      targetGroupId: 'group-1'
+      afterTabId: 'browser-unified-1'
     })
   })
 

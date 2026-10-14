@@ -10,7 +10,7 @@ import type {
   RuntimeVisibleTerminalState
 } from './runtime-terminal-state-records'
 import type { TerminalKittyKeyboardModeTracker } from '../../shared/terminal-kitty-keyboard-mode-tracker'
-import type { PtyProviderBufferSnapshot } from '../providers/types'
+import type { PtyProviderBufferSnapshot } from '../providers/pty-provider-contract'
 import type { WaitBlockedCheckState } from './wait-blocked-check-state'
 import type { createAgentStatusOscProcessor } from '../../shared/agent-status-osc'
 import { RuntimeTerminalViewSubscribers } from './runtime-terminal-view-subscribers'
@@ -74,7 +74,6 @@ export class OrcaRuntimeWithFitOverrideListeners extends OrcaRuntimeWithStopRequ
   protected providerSnapshotsWithLiveModeTransition = new WeakSet<PtyProviderBufferSnapshot>()
 
   protected ptyLifecycleGenerationById = new Map<string, number>()
-  protected pendingPtySurfaceRetirementsByPtyId = new Map<string, object>()
 
   protected nextPtyLifecycleGeneration = 1
 

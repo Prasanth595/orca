@@ -68,15 +68,16 @@ async function launchAttestedAgentPane(
   client: RuntimeClient,
   agent: MailPaneAgent
 ): Promise<AgentPane> {
-  await page.evaluate(
-    async ({ agentCommand }) => {
-      await window.__store?.getState().updateSettings({
-        agentCmdOverrides: { codex: agentCommand },
-        disabledTuiAgents: []
-      })
-    },
-    { agentCommand: agent.launchCommand }
-  )
+  await client.call('settings.mutateAgentLaunch', {
+    type: 'command',
+    agent: 'codex',
+    value: agent.launchCommand
+  })
+  await client.call('settings.mutateAgentLaunch', {
+    type: 'availability',
+    agent: 'codex',
+    enabled: true
+  })
   await page.getByRole('button', { name: /^(New tab|새 탭)$/i }).click({ force: true })
   const launchOption = page.getByRole('menuitem', { name: /^Codex(?:\s|$)/i }).first()
   await expect(launchOption).toBeVisible({ timeout: 15_000 })
@@ -96,17 +97,20 @@ async function launchAttestedAgentPane(
 }
 
 async function launchBackgroundCursorPane(
-  page: Page,
   client: RuntimeClient,
   parentWorktreeId: string,
   agent: MailPaneAgent
 ): Promise<{ pane: AgentPane; worktreeId: string }> {
-  await page.evaluate(async (agentCommand) => {
-    await window.__store?.getState().updateSettings({
-      agentCmdOverrides: { cursor: agentCommand },
-      disabledTuiAgents: []
-    })
-  }, agent.launchCommand)
+  await client.call('settings.mutateAgentLaunch', {
+    type: 'command',
+    agent: 'cursor',
+    value: agent.launchCommand
+  })
+  await client.call('settings.mutateAgentLaunch', {
+    type: 'availability',
+    agent: 'cursor',
+    enabled: true
+  })
   const parent = await client.call<{ worktree: { repoId: string } }>('worktree.show', {
     worktree: `id:${parentWorktreeId}`
   })
@@ -327,7 +331,7 @@ test('positive Cursor identity receives the pointer without synthesized Enter', 
   })
   let createdWorktreeId: string | null = null
   try {
-    const launched = await launchBackgroundCursorPane(orcaPage, client, worktreeId, agent)
+    const launched = await launchBackgroundCursorPane(client, worktreeId, agent)
     const pane = launched.pane
     createdWorktreeId = launched.worktreeId
     agent.setTitle(CURSOR_IDLE_TITLE)
