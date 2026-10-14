@@ -107,7 +107,8 @@ export function setLocalWorkspaceSession(
       prior,
       session,
       context.runtime.terminalScrollbackSnapshotStorage,
-      retainedScrollbackRefs(context.runtime)
+      retainedScrollbackRefs(context.runtime),
+      context.runtime.deferredMutationScrollbackDeletions
     )
   }
   // Why last: the steps above rebase rows on the stored ones; the groups set the order.
@@ -191,8 +192,10 @@ export function enqueueTerminalScrollbackSnapshotWork(
 
 function retainedScrollbackRefs(runtime: {
   retainedScrollbackRefsByMigrationId: ReadonlyMap<string, ReadonlySet<string>>
+  deferredMutationScrollbackDeletions: ReadonlySet<string> | null
 }): ReadonlySet<string> {
-  return new Set(
-    [...runtime.retainedScrollbackRefsByMigrationId.values()].flatMap((refs) => [...refs])
-  )
+  return new Set([
+    ...(runtime.deferredMutationScrollbackDeletions ?? []),
+    ...[...runtime.retainedScrollbackRefsByMigrationId.values()].flatMap((refs) => [...refs])
+  ])
 }

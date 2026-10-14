@@ -9,7 +9,10 @@ import { findSnapshotBytes } from './orcad-source-scrollback-state'
 
 type RetentionRuntime = Pick<
   StoreRuntimeState,
-  'state' | 'terminalScrollbackSnapshotStorage' | 'retainedScrollbackRefsByMigrationId'
+  | 'state'
+  | 'terminalScrollbackSnapshotStorage'
+  | 'retainedScrollbackRefsByMigrationId'
+  | 'deferredMutationScrollbackDeletions'
 >
 
 /**

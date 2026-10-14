@@ -10,11 +10,15 @@ import { sessionPartitions } from './orcad-source-workspace-session-fragments'
 export function deleteUnreferencedOrcadMigrationScrollback(
   runtime: Pick<
     StoreRuntimeState,
-    'state' | 'terminalScrollbackSnapshotStorage' | 'retainedScrollbackRefsByMigrationId'
+    | 'state'
+    | 'terminalScrollbackSnapshotStorage'
+    | 'retainedScrollbackRefsByMigrationId'
+    | 'deferredMutationScrollbackDeletions'
   >,
   refs: Iterable<string>
 ): void {
   const live = new Set([
+    ...(runtime.deferredMutationScrollbackDeletions ?? []),
     ...sessionPartitions(runtime.state, LOCAL_EXECUTION_HOST_ID).flatMap(([, session]) => [
       ...collectTerminalScrollbackSnapshotRefs(session)
     ]),
