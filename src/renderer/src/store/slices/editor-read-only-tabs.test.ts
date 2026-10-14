@@ -149,6 +149,8 @@ describe('read-only editor tabs (AI Vault View Log)', () => {
       worktreesByRepo: { 'repo-1': [{ id: 'wt-1' }] },
       folderWorkspaces: []
     } as never)
+    // Why: editor hydration also reconciles the tab model, which this bare store lacks.
+    store.setState({ unifiedTabsByWorktree: {}, groupsByWorktree: {} })
 
     store.getState().hydrateEditorSession({
       openFilesByWorktree: {

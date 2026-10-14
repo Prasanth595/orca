@@ -1,7 +1,18 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useAppStore } from '@/store'
+import { makeWorktree } from '@/store/slices/store-test-helpers'
 import { remapOpenEditorTabsForPathChange } from './remap-open-editor-tabs-for-path-change'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../shared/constants'
+import {
+  SAME_PATH_FROM,
+  SAME_PATH_TO,
+  SAME_PATH_WORKTREE_ID,
+  expectOnlyOwnerMoved,
+  seedSamePathEditorOwners,
+  type SamePathOwner,
+  type SamePathWorkspaceRoute
+} from './same-path-editor-owners-test-fixture'
+import { resolveWorktreeOperationRoute } from './worktree-operation-route'
 
 function ownedEditorFileId(
   filePath: string,
@@ -12,9 +23,27 @@ function ownedEditorFileId(
   return `editor:${encodeURIComponent(worktreeId)}:${encodeURIComponent(runtimeKey)}:${encodeURIComponent(filePath)}`
 }
 
+const LOCAL_MOVE = { runtimeEnvironmentId: null, sshTargetId: null }
+
 describe('remapOpenEditorTabsForPathChange', () => {
   beforeEach(() => {
     useAppStore.setState(useAppStore.getInitialState(), true)
+    // Why: a record is placed by its workspace rows; `wt-1` is stamped as this machine's.
+    useAppStore.setState({
+      repos: [
+        {
+          id: 'repo-1',
+          path: '/repo',
+          displayName: 'Repo',
+          badgeColor: 'gray',
+          addedAt: 0,
+          executionHostId: 'local'
+        }
+      ],
+      worktreesByRepo: {
+        'repo-1': [makeWorktree({ id: 'wt-1', repoId: 'repo-1', path: '/repo', hostId: 'local' })]
+      }
+    })
   })
 
   it('preserves runtime owners, drafts, dirty state, and markdown preview sources', () => {
@@ -71,11 +100,26 @@ describe('remapOpenEditorTabsForPathChange', () => {
       { anchor: 'heading', sourceFileId: remoteEdit!.id }
     )
 
+    // Each host renames its own disk; one host's rename must not retarget the other's record.
     remapOpenEditorTabsForPathChange({
       fromPath: '/repo/docs',
       toPath: '/repo/notes',
       worktreePath,
-      worktreeId
+      worktreeId,
+      operationOwner: LOCAL_MOVE
+    })
+    expect(
+      useAppStore
+        .getState()
+        .openFiles.filter((file) => file.filePath === oldPath)
+        .map((file) => file.runtimeEnvironmentId)
+    ).toEqual(['env-remote', 'env-remote'])
+    remapOpenEditorTabsForPathChange({
+      fromPath: '/repo/docs',
+      toPath: '/repo/notes',
+      worktreePath,
+      worktreeId,
+      operationOwner: { runtimeEnvironmentId: 'env-remote', sshTargetId: null }
     })
 
     const nextState = useAppStore.getState()
@@ -129,6 +173,7 @@ describe('remapOpenEditorTabsForPathChange', () => {
       filePath: oldPath,
       relativePath: 'docs/readme.md',
       worktreeId: 'wt-1',
+      runtimeEnvironmentId: null,
       language: 'markdown'
     })
     state.openMarkdownPreview({
@@ -149,7 +194,8 @@ describe('remapOpenEditorTabsForPathChange', () => {
       fromPath: '/repo/docs',
       toPath: '/repo/notes',
       worktreePath,
-      worktreeId: 'wt-1'
+      worktreeId: 'wt-1',
+      operationOwner: LOCAL_MOVE
     })
 
     const floatingPreview = useAppStore
@@ -203,7 +249,8 @@ describe('remapOpenEditorTabsForPathChange', () => {
       fromPath: '/repo/a.md',
       toPath: '/repo/b.md',
       worktreePath: '/repo',
-      worktreeId: 'wt-a'
+      worktreeId: 'wt-a',
+      operationOwner: { runtimeEnvironmentId: null, sshTargetId: 'connA' }
     })
     expect(result.ok).toBe(true)
 
@@ -215,6 +262,78 @@ describe('remapOpenEditorTabsForPathChange', () => {
     expect(tabB.filePath).toBe('/repo/a.md')
     expect(tabB.isDirty).toBe(true)
     expect(useAppStore.getState().editorDrafts[idB]).toBe('draft B')
+  })
+
+  it.each(
+    (['local', 'runtime'] as const).flatMap((route) =>
+      (
+        [
+          ['local', { runtimeEnvironmentId: null, sshTargetId: null }],
+          ['runtime', { runtimeEnvironmentId: 'env-1', sshTargetId: null }],
+          ['ssh', { runtimeEnvironmentId: null, sshTargetId: 'ssh-x' }]
+        ] as const
+      ).map(([owner, operationOwner]) => [owner, route, operationOwner] as const)
+    )
+  )(
+    'moves only the %s-owned record when same-path owners share a %s-routed workspace',
+    (owner: SamePathOwner, route: SamePathWorkspaceRoute, operationOwner) => {
+      seedSamePathEditorOwners(route)
+      // Precondition: the workspace route comes from its rows, not the Active Server setting.
+      expect(
+        resolveWorktreeOperationRoute(
+          { ...useAppStore.getState(), settings: null, activeWorktreeId: null },
+          SAME_PATH_WORKTREE_ID
+        )?.executionHostId
+      ).toBe(route === 'runtime' ? 'runtime:env-1' : 'local')
+
+      const result = remapOpenEditorTabsForPathChange({
+        fromPath: SAME_PATH_FROM,
+        toPath: SAME_PATH_TO,
+        worktreePath: '/ws',
+        worktreeId: SAME_PATH_WORKTREE_ID,
+        operationOwner
+      })
+
+      expect(result).toEqual({ ok: true })
+      expectOnlyOwnerMoved(owner)
+    }
+  )
+
+  it('refuses to retarget anything when an open copy has no placeable host', () => {
+    const file = {
+      filePath: '/repo/a.md',
+      relativePath: 'a.md',
+      language: 'markdown',
+      isDirty: false,
+      mode: 'edit'
+    } as const
+    useAppStore.setState({
+      openFiles: [
+        { ...file, id: 'mover', worktreeId: 'wt-uncataloged' },
+        { ...file, id: 'bystander', worktreeId: 'wt-other' }
+      ]
+    })
+
+    const result = remapOpenEditorTabsForPathChange({
+      fromPath: '/repo/a.md',
+      toPath: '/repo/b.md',
+      worktreePath: '/repo',
+      worktreeId: 'wt-uncataloged',
+      operationOwner: LOCAL_MOVE
+    })
+
+    // Why: no row names the record's host; it may be this host's own copy, so the move cannot say
+    // whether it moved. The coordinator refuses before the disk rename on this answer.
+    expect(result).toEqual({ ok: false, reason: 'unresolved' })
+    const files = useAppStore.getState().openFiles
+    expect(files.find((f) => f.worktreeId === 'wt-uncataloged')).toMatchObject({
+      id: 'mover',
+      filePath: '/repo/a.md'
+    })
+    expect(files.find((f) => f.worktreeId === 'wt-other')).toMatchObject({
+      id: 'bystander',
+      filePath: '/repo/a.md'
+    })
   })
 
   it('selects a Windows tab whose path differs only in case from the move root', () => {
@@ -240,7 +359,8 @@ describe('remapOpenEditorTabsForPathChange', () => {
       fromPath: 'c:\\repo\\src',
       toPath: 'c:\\repo\\dst',
       worktreePath: 'c:\\repo',
-      worktreeId: 'wt-1'
+      worktreeId: 'wt-1',
+      operationOwner: LOCAL_MOVE
     })
 
     expect(result.ok).toBe(true)
@@ -273,7 +393,8 @@ describe('remapOpenEditorTabsForPathChange', () => {
       fromPath: '\\\\wsl$\\Ubuntu\\repo\\src',
       toPath: '\\\\wsl$\\Ubuntu\\repo\\dst',
       worktreePath: '\\\\wsl$\\Ubuntu\\repo',
-      worktreeId: 'wt-1'
+      worktreeId: 'wt-1',
+      operationOwner: LOCAL_MOVE
     })
 
     expect(result.ok).toBe(true)
@@ -301,7 +422,8 @@ describe('remapOpenEditorTabsForPathChange', () => {
       fromPath: '/repo/src',
       toPath: '/repo/dst',
       worktreePath: '/repo',
-      worktreeId: 'wt-1'
+      worktreeId: 'wt-1',
+      operationOwner: LOCAL_MOVE
     })
 
     expect(useAppStore.getState().openFiles[0]!.filePath).toBe('/repo/dst/a\\b.txt')
@@ -338,7 +460,8 @@ describe('remapOpenEditorTabsForPathChange', () => {
       fromPath: '/repo/src',
       toPath: '/repo/dst',
       worktreePath: '/repo',
-      worktreeId: 'wt-1'
+      worktreeId: 'wt-1',
+      operationOwner: LOCAL_MOVE
     })
 
     const floating = useAppStore
@@ -369,7 +492,8 @@ describe('remapOpenEditorTabsForPathChange', () => {
       fromPath: '/repo/src',
       toPath: '/repo/dst\\',
       worktreePath: '/repo',
-      worktreeId: 'wt-1'
+      worktreeId: 'wt-1',
+      operationOwner: LOCAL_MOVE
     })
 
     expect(useAppStore.getState().openFiles[0]!.filePath).toBe('/repo/dst\\/a.ts')
@@ -392,7 +516,8 @@ describe('remapOpenEditorTabsForPathChange', () => {
       fromPath: '/srv/team\\repo/src',
       toPath: '/srv/team\\repo/dst',
       worktreePath: '/srv/team\\repo',
-      worktreeId: 'wt-1'
+      worktreeId: 'wt-1',
+      operationOwner: LOCAL_MOVE
     })
 
     // POSIX flavor: the separator stays `/`; the ancestor backslash is untouched.
@@ -416,7 +541,8 @@ describe('remapOpenEditorTabsForPathChange', () => {
       fromPath: 'C:\\Repo\\\\Src',
       toPath: 'C:\\Repo\\Dst',
       worktreePath: 'C:\\Repo',
-      worktreeId: 'wt-1'
+      worktreeId: 'wt-1',
+      operationOwner: LOCAL_MOVE
     })
 
     // Nested suffix preserved, no dropped or doubled separator.
@@ -432,6 +558,7 @@ describe('remapOpenEditorTabsForPathChange', () => {
       filePath: oldPath,
       relativePath: 'untitled.md',
       worktreeId: 'wt-1',
+      runtimeEnvironmentId: null,
       language: 'markdown',
       isUntitled: true,
       mode: 'edit'
@@ -441,7 +568,8 @@ describe('remapOpenEditorTabsForPathChange', () => {
       fromPath: oldPath,
       toPath: newPath,
       worktreePath: '/repo',
-      worktreeId: 'wt-1'
+      worktreeId: 'wt-1',
+      operationOwner: LOCAL_MOVE
     })
 
     expect(useAppStore.getState().openFiles).toHaveLength(1)
@@ -473,7 +601,13 @@ describe('remapOpenEditorTabsForPathChange', () => {
     state.setLastKnownDiskSignature(oldId, 'sig-abc')
     state.setExternalMutation(oldId, 'changed')
 
-    remapOpenEditorTabsForPathChange({ fromPath: oldPath, toPath: newPath, worktreePath: '/repo' })
+    remapOpenEditorTabsForPathChange({
+      fromPath: oldPath,
+      toPath: newPath,
+      worktreePath: '/repo',
+      worktreeId: 'wt-1',
+      operationOwner: LOCAL_MOVE
+    })
 
     const moved = useAppStore.getState().openFiles.find((f) => f.filePath === newPath)
     expect(moved).toBeTruthy()
@@ -503,7 +637,8 @@ describe('remapOpenEditorTabsForPathChange', () => {
       fromPath: '/repo/docs',
       toPath: '/repo/notes',
       worktreePath: '/repo',
-      worktreeId: 'wt-1'
+      worktreeId: 'wt-1',
+      operationOwner: LOCAL_MOVE
     })
 
     const moved = useAppStore.getState().openFiles.find((f) => f.mode === 'diff')

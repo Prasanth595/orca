@@ -13,10 +13,22 @@ vi.mock('@/components/editor/editor-autosave', async (importOriginal) => {
 })
 
 import { useAppStore } from '@/store'
+import { makeWorktree } from '@/store/slices/store-test-helpers'
 import { executeOpenEditorPathMove } from './execute-open-editor-path-move'
 import { __activeEditorPathMoveCountForTests } from '@/components/editor/editor-path-move-inflight'
 import { getDiskBaselineSignature } from '@/components/editor/diff-content-signature'
 import { buildEditorExternalWatchEventHandler as createExternalWatchEventHandler } from '@/hooks/editor-external-watch-event-reconciliation'
+import { requestEditorSaveQuiesce } from '@/components/editor/editor-autosave'
+import {
+  SAME_PATH_FROM,
+  SAME_PATH_OWNER_IDS,
+  SAME_PATH_TO,
+  SAME_PATH_WORKTREE_ID,
+  expectOnlyOwnerMoved,
+  seedSamePathEditorOwners,
+  type SamePathOwner,
+  type SamePathWorkspaceRoute
+} from './same-path-editor-owners-test-fixture'
 
 const CONTEXT = {
   target: { kind: 'local' as const },
@@ -48,6 +60,22 @@ function openDirtyTab(): string {
 describe('executeOpenEditorPathMove', () => {
   beforeEach(() => {
     useAppStore.setState(useAppStore.getInitialState(), true)
+    // Why: a record is placed by its workspace rows; `wt-1` is stamped as this machine's.
+    useAppStore.setState({
+      repos: [
+        {
+          id: 'repo-1',
+          path: '/repo',
+          displayName: 'Repo',
+          badgeColor: 'gray',
+          addedAt: 0,
+          executionHostId: 'local'
+        }
+      ],
+      worktreesByRepo: {
+        'repo-1': [makeWorktree({ id: 'wt-1', repoId: 'repo-1', path: '/repo', hostId: 'local' })]
+      }
+    })
     mocks.renameRuntimePath.mockReset().mockResolvedValue(undefined)
   })
 
@@ -249,6 +277,120 @@ describe('executeOpenEditorPathMove', () => {
       documentPath: '/repo/b.md'
     })
   })
+
+  it.each(
+    (['local', 'runtime'] as const).flatMap((workspaceRoute) =>
+      (
+        [
+          ['local', { target: { kind: 'local' } }],
+          ['runtime', { target: { kind: 'environment', environmentId: 'env-1' } }],
+          [
+            'ssh',
+            {
+              target: { kind: 'local' },
+              connectionId: 'ssh-x',
+              expectedExecutionHostId: 'ssh:ssh-x',
+              expectedSshTargetId: 'ssh-x'
+            }
+          ]
+        ] as const
+      ).map(([owner, route]) => [owner, workspaceRoute, route] as const)
+    )
+  )(
+    'quiesces and moves only the %s-owned record of a shared path in a %s-routed workspace',
+    async (owner: SamePathOwner, workspaceRoute: SamePathWorkspaceRoute, route) => {
+      seedSamePathEditorOwners(workspaceRoute)
+      vi.mocked(requestEditorSaveQuiesce).mockClear()
+
+      await executeOpenEditorPathMove({
+        context: { ...route, worktreeId: SAME_PATH_WORKTREE_ID, worktreePath: '/ws' },
+        fromPath: SAME_PATH_FROM,
+        toPath: SAME_PATH_TO,
+        worktreeId: SAME_PATH_WORKTREE_ID,
+        worktreePath: '/ws'
+      })
+
+      expect(vi.mocked(requestEditorSaveQuiesce).mock.calls).toEqual([
+        [{ fileId: SAME_PATH_OWNER_IDS[owner] }]
+      ])
+      expectOnlyOwnerMoved(owner)
+      expect(__activeEditorPathMoveCountForTests()).toBe(0)
+    }
+  )
+
+  it.each([
+    ['no catalog row names the workspace', { repos: [], worktreesByRepo: {} }],
+    [
+      'rival local and SSH rows name the workspace',
+      {
+        repos: [
+          {
+            id: 'repo-1',
+            path: '/repo',
+            displayName: 'Repo',
+            badgeColor: 'gray',
+            addedAt: 0,
+            executionHostId: 'local' as const
+          },
+          {
+            id: 'repo-ssh',
+            path: '/repo',
+            displayName: 'Repo (ssh)',
+            badgeColor: 'gray',
+            addedAt: 0,
+            executionHostId: 'ssh:ssh-x' as const
+          }
+        ],
+        worktreesByRepo: {
+          'repo-1': [
+            makeWorktree({ id: 'wt-1', repoId: 'repo-1', path: '/repo', hostId: 'local' })
+          ],
+          'repo-ssh': [
+            makeWorktree({ id: 'wt-1', repoId: 'repo-ssh', path: '/repo', hostId: 'ssh:ssh-x' })
+          ]
+        }
+      }
+    ]
+  ])(
+    'refuses before the disk rename when a restored copy has no placeable host (%s)',
+    async (_label, rows) => {
+      // A restored record: no provenance, "no runtime transport", in a workspace whose rows cannot place it.
+      useAppStore.setState({
+        ...rows,
+        openFiles: [
+          {
+            id: '/repo/a.md',
+            filePath: '/repo/a.md',
+            relativePath: 'a.md',
+            worktreeId: 'wt-1',
+            language: 'markdown',
+            isDirty: true,
+            mode: 'edit',
+            runtimeEnvironmentId: null
+          }
+        ],
+        editorDrafts: { '/repo/a.md': 'unsaved work' }
+      })
+      vi.mocked(requestEditorSaveQuiesce).mockClear()
+      const before = useAppStore.getState().openFiles.map((f) => ({ ...f }))
+
+      await expect(
+        executeOpenEditorPathMove({
+          context: CONTEXT,
+          fromPath: '/repo/a.md',
+          toPath: '/repo/b.md',
+          worktreeId: 'wt-1',
+          worktreePath: '/repo'
+        })
+      ).rejects.toThrow(/verify which host owns the open copy of a\.md/)
+
+      expect(mocks.renameRuntimePath).not.toHaveBeenCalled()
+      expect(vi.mocked(requestEditorSaveQuiesce)).not.toHaveBeenCalled()
+      expect(useAppStore.getState().openFiles).toEqual(before)
+      expect(useAppStore.getState().editorDrafts['/repo/a.md']).toBe('unsaved work')
+      expect(__activeEditorPathMoveCountForTests()).toBe(0)
+    }
+  )
 
   it('leaves the store untouched and settles the transaction when the rename fails', async () => {
     openDirtyTab()
