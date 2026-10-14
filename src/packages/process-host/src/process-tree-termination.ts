@@ -4,6 +4,11 @@ import { windowsSystem32Binary } from './windows-system-binary'
 
 const PROBE_INTERVAL_MS = 25
 const SUBPROCESS_TIMEOUT_MS = 2_000
+/**
+ * taskkill /t answers in ~50 ms idle but took 4.6-18 s on a CPU-loaded windows-2022 runner. Killing
+ * it at 2 s left the tree half-walked: the root died by handle and its grandchild survived, every time.
+ */
+const WINDOWS_TASKKILL_TIMEOUT_MS = 15_000
 const MAX_PS_OUTPUT_BYTES = 8 * 1024 * 1024
 
 /**
@@ -131,7 +136,7 @@ function taskkillTree(
     const timer = setTimeout(() => {
       killer.kill()
       finish(true)
-    }, SUBPROCESS_TIMEOUT_MS)
+    }, WINDOWS_TASKKILL_TIMEOUT_MS)
     timer.unref?.()
   })
 }

@@ -105,6 +105,39 @@ describe('forceTerminateProcessTree', () => {
     })
   })
 
+  it('waits out a taskkill slowed by CPU load instead of abandoning the tree', async () => {
+    await withWindows(async () => {
+      vi.useFakeTimers()
+      const child = mockProcess(1234)
+      const taskkill = mockProcess(5678)
+      spawnMock.mockReturnValue(taskkill)
+      const pending = signalProcessTree(child)
+
+      await vi.advanceTimersByTimeAsync(7_000)
+      expect(taskkill.kill).not.toHaveBeenCalled()
+      taskkill.emit('close', 0)
+
+      await expect(pending).resolves.toBe(true)
+      expect(child.kill).not.toHaveBeenCalled()
+    })
+  })
+
+  it('still gives up on a wedged taskkill and falls back to the root', async () => {
+    await withWindows(async () => {
+      vi.useFakeTimers()
+      const child = mockProcess(1234)
+      const taskkill = mockProcess(5678)
+      spawnMock.mockReturnValue(taskkill)
+      const pending = signalProcessTree(child)
+
+      await vi.advanceTimersByTimeAsync(15_000)
+
+      await expect(pending).resolves.toBe(false)
+      expect(taskkill.kill).toHaveBeenCalled()
+      expect(child.kill).toHaveBeenCalled()
+    })
+  })
+
   it.skipIf(process.platform === 'win32')(
     'stops waiting when a POSIX process group cannot become quiescent',
     async () => {

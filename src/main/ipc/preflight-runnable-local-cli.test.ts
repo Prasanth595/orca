@@ -273,7 +273,7 @@ describe.runIf(process.platform === 'win32')('Windows preflight batch shims', ()
     const name = `${COMMAND}.CMD`
     await writeFile(
       path.join(first, 'hang.js'),
-      `require('node:fs').writeFileSync(require('node:path').join(__dirname, 'child.pid'), String(process.pid)); setTimeout(function () {}, 30000);`
+      `require('node:fs').writeFileSync(require('node:path').join(__dirname, 'child.pid'), String(process.pid)); setInterval(function () {}, 60000);`
     )
     await writeFile(path.join(first, name), `@echo off\r\n"${process.execPath}" "%~dp0hang.js"\r\n`)
     await writeFile(
@@ -290,5 +290,6 @@ describe.runIf(process.platform === 'win32')('Windows preflight batch shims', ()
     const childPid = Number(await readFile(path.join(first, 'child.pid'), 'utf8'))
     expect(Number.isSafeInteger(childPid) && childPid > 0).toBe(true)
     expect(() => process.kill(childPid, 0)).toThrow()
-  }, 15_000)
+    // 5 s probe deadline, then taskkill (up to 15 s on a loaded runner), then the next probe.
+  }, 30_000)
 })
