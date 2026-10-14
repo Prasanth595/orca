@@ -5,6 +5,7 @@ import {
   CLAUDE_AGENT_PROMPT_RENDER_TIMEOUT_MS
 } from './orca-runtime-core'
 import type { RuntimeTerminalWait, RuntimeTerminalWaitCondition } from '../../shared/runtime-types'
+import type { TerminalCursorContext } from '../../shared/terminal-composer-draft'
 
 export abstract class OrcaRuntimeWithCreateAgentPromptRenderGate extends OrcaRuntimeWithWriteTerminalAgentPrompt {
   protected createAgentPromptRenderGate(
@@ -125,6 +126,25 @@ export abstract class OrcaRuntimeWithCreateAgentPromptRenderGate extends OrcaRun
         clearGateTimers()
       }
     }
+  }
+
+  /** The composer once the screen model has parsed what arrived so far, then after each later
+   *  output chunk, until stopped. Always called back asynchronously. */
+  protected watchAgentPromptComposer(
+    ptyId: string,
+    onParsed: (context: TerminalCursorContext | null | undefined) => void
+  ): () => void {
+    const readParsed = (): void => {
+      // Why judgeable only: a hydrating or provider-restored screen proves nothing either way.
+      const state = this.getJudgeableHeadlessTerminal(ptyId)
+      void state?.writeChain.then(() => {
+        if (this.getJudgeableHeadlessTerminal(ptyId) === state) {
+          onParsed(state.emulator.getCursorLineContext())
+        }
+      })
+    }
+    readParsed()
+    return this.subscribeToTerminalData(ptyId, readParsed)
   }
 
   waitForTerminal(
