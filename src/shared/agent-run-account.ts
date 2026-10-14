@@ -85,4 +85,8 @@ export type SetAgentKeptRequest = { paneKey: string; ptyId?: string; kept: boole
 export type SetAgentKeptResult =
   /** `runAccount` null = released with no live process to report on, so the facet was withdrawn. */
   | { ok: true; runAccount: AgentRunAccount | null }
-  | { ok: false; reason: 'unknown-pane' | 'not-keepable' | 'no-session' | 'unavailable' }
+  | {
+      ok: false
+      /** 'read-only' = a newer Orca owns the list of kept agents. */
+      reason: 'unknown-pane' | 'not-keepable' | 'no-session' | 'unavailable' | 'read-only'
+    }

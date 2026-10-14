@@ -22,17 +22,22 @@ export function resolveAgentLaunchAccount(input: {
   resumeProviderSession: AgentProviderSessionMetadata | undefined
   /** The pane's selection lane ('host' | 'wsl:<distro>'). */
   lane: string
-  kept: Pick<KeptAgentConversations, 'get'> | undefined
+  kept: Pick<KeptAgentConversations, 'get' | 'filePath'> | undefined
   settings: Pick<GlobalSettings, 'claudeManagedAccounts' | 'codexManagedAccounts'> | undefined
 }): AgentLaunchAccount {
   const provider = input.launchAgent
   const session = normalizeAgentProviderSession(input.resumeProviderSession)
-  if (input.connectionId || (provider !== 'claude' && provider !== 'codex') || !session) {
+  if (
+    input.connectionId ||
+    (provider !== 'claude' && provider !== 'codex') ||
+    !session ||
+    !input.kept
+  ) {
     return { kind: 'follow' }
   }
-  const entry = input.kept?.get(provider, session.id)
+  const entry = input.kept.get(provider, session.id)
   if (entry === 'unavailable') {
-    return { kind: 'refuse', error: keptAccountRefusals.indexUnavailable() }
+    return { kind: 'refuse', error: keptAccountRefusals.indexUnavailable(input.kept.filePath) }
   }
   if (!entry) {
     return { kind: 'follow' }

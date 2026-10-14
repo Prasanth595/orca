@@ -6,8 +6,10 @@ function refusal(message: string): AgentSessionPreSpawnError {
 }
 
 export const keptAccountRefusals = {
-  indexUnavailable: (): AgentSessionPreSpawnError =>
-    refusal('Orca could not read which account this agent is kept on. Try again in a moment.'),
+  indexUnavailable: (filePath: string): AgentSessionPreSpawnError =>
+    refusal(
+      `Orca could not read which account this agent is kept on (${filePath}). Make sure Orca can read that file, or move it aside to start agents on the selected account.`
+    ),
   laneMismatch: (): AgentSessionPreSpawnError =>
     refusal(
       'This agent is kept on an account from another environment (host or WSL). Open it there, or un-keep it from the tab menu.'

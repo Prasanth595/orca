@@ -47,7 +47,7 @@ function deps(overrides: Partial<AgentKeepDeps> = {}) {
     accountId: 'acc-a',
     homeRoute: 'account-home'
   }
-  const kept = { keep: vi.fn(), release: vi.fn() }
+  const kept = { keep: vi.fn(), release: vi.fn(), acceptsChanges: vi.fn(() => true) }
   const base: AgentKeepDeps = {
     getRow: vi.fn(() => row()),
     refresh: vi.fn((): AgentRunAccount => ({ ...CODEX_FACET, mode: 'kept' })),
@@ -155,6 +155,17 @@ describe('setAgentKept', () => {
     expect(setAgentKept(d, { paneKey: PANE, kept: true })).toEqual({
       ok: false,
       reason: 'not-keepable'
+    })
+    expect(d.setCodexPaneKept).not.toHaveBeenCalled()
+    expect(d.kept.keep).not.toHaveBeenCalled()
+  })
+
+  it('refuses to keep while a newer Orca owns the list, touching nothing', () => {
+    const d = deps()
+    d.kept.acceptsChanges.mockReturnValue(false)
+    expect(setAgentKept(d, { paneKey: PANE, kept: true })).toEqual({
+      ok: false,
+      reason: 'read-only'
     })
     expect(d.setCodexPaneKept).not.toHaveBeenCalled()
     expect(d.kept.keep).not.toHaveBeenCalled()

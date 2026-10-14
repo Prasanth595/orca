@@ -35,6 +35,12 @@ function disabledReason(account: TabAgentAccount): string | null {
 }
 
 function failureMessage(reason: Extract<SetAgentKeptResult, { ok: false }>['reason']): string {
+  if (reason === 'read-only') {
+    return translate(
+      'components.tab.bar.TabAgentAccountMenuItems.readOnly',
+      'A newer version of Orca saved the list of kept agents, so this version cannot change it.'
+    )
+  }
   return reason === 'unavailable'
     ? translate(
         'components.tab.bar.TabAgentAccountMenuItems.unavailable',

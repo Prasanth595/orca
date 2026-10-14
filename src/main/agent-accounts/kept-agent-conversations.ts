@@ -100,8 +100,20 @@ export class KeptAgentConversations {
   private needsWrite = false
   private readonly retry = new PersistRetryBackoff(() => this.flush())
   private reportedCorruption = false
+  /** A newer build's file: read as empty and never written, so neither build loses the other's keeps. */
+  private readOnly = false
 
   constructor(private readonly deps: { filePath: string; now?: () => number }) {}
+
+  get filePath(): string {
+    return this.deps.filePath
+  }
+
+  /** False while the file belongs to a newer Orca, whose keeps this build must not rewrite. */
+  acceptsChanges(): boolean {
+    this.load()
+    return !this.readOnly
+  }
 
   get(
     provider: AgentRunAccountProvider,
@@ -178,7 +190,12 @@ export class KeptAgentConversations {
     }
     const parsed = parseFile(raw)
     if (parsed === 'unsupported') {
-      return null
+      console.warn(
+        `[kept-conversations] ${this.deps.filePath} is from a newer Orca; keeps are read-only`
+      )
+      this.readOnly = true
+      this.entries = new Map()
+      return this.entries
     }
     if (parsed === 'corrupt') {
       return this.setAsideUnreadableFile()
@@ -208,6 +225,10 @@ export class KeptAgentConversations {
     const entries = this.load()
     if (!entries) {
       this.retry.schedule()
+      return
+    }
+    if (this.readOnly) {
+      this.queue.length = 0
       return
     }
     for (const mutation of this.queue.splice(0)) {

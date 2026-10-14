@@ -32,9 +32,11 @@ const SETTINGS = {
 }
 
 function keptIndex(entries: Record<string, KeptConversation> | 'unavailable'): {
+  filePath: string
   get: (provider: string, sessionId: string) => KeptConversation | null | 'unavailable'
 } {
   return {
+    filePath: '/data/agent-kept-conversations.json',
     get: (provider, sessionId) =>
       entries === 'unavailable' ? 'unavailable' : (entries[`${provider}:${sessionId}`] ?? null)
   }
@@ -89,6 +91,10 @@ describe('resolveAgentLaunchAccount', () => {
     const result = resolve({ kept: keptIndex('unavailable') })
     expect(result.kind).toBe('refuse')
     expect(result.kind === 'refuse' && result.error.message).toMatch(/could not read/)
+    // Says which file, and the way out when it never becomes readable.
+    expect(result.kind === 'refuse' && result.error.message).toContain(
+      '/data/agent-kept-conversations.json'
+    )
   })
 
   it('refuses a conversation kept on another lane', () => {

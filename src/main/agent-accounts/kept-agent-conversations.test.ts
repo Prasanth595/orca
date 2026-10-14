@@ -112,6 +112,24 @@ describe('KeptAgentConversations', () => {
     expect(index.get('claude', 's3')).toEqual(entry())
   })
 
+  it('reads a newer version as nothing kept, and never rewrites it', () => {
+    const newer = JSON.stringify({ version: 2, conversations: { 'claude:s1': entry() } })
+    writeFileSync(filePath, newer)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const index = open()
+
+    // Nothing is refused: conversations follow the selection as before anything was kept.
+    expect(index.get('claude', 's1')).toBeNull()
+    expect(index.acceptsChanges()).toBe(false)
+    index.keep('claude', 's2', entry())
+    index.release('claude', 's1')
+
+    expect(readFileSync(filePath, 'utf-8')).toBe(newer)
+    expect(readdirSync(dir)).toEqual(['agent-kept-conversations.json'])
+    expect(warn).toHaveBeenCalledTimes(1)
+    warn.mockRestore()
+  })
+
   it('reports an unreadable file as unavailable, uncached, and merges a queued keep later', async () => {
     vi.useFakeTimers()
     const seed = open()
@@ -145,16 +163,6 @@ describe('KeptAgentConversations', () => {
     expect(readdirSync(dir).some((name) => name.includes('.corrupt-'))).toBe(true)
     expect(warn).toHaveBeenCalledTimes(1)
     warn.mockRestore()
-  })
-
-  it('never reads or overwrites a version it does not understand', () => {
-    const newer = JSON.stringify({ version: 2, conversations: {} })
-    writeFileSync(filePath, newer)
-    const index = open()
-
-    expect(index.get('claude', 's1')).toBe('unavailable')
-    index.keep('claude', 's1', entry())
-    expect(readFileSync(filePath, 'utf-8')).toBe(newer)
   })
 
   it('drops malformed entries and keeps their valid siblings', () => {

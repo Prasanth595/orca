@@ -14,7 +14,7 @@ export type AgentKeepDeps = {
   getRow: (paneKey: string) => AgentRunAccountRow | null
   refresh: (paneKey: string) => AgentRunAccount | null
   withdraw: (paneKey: string) => void
-  kept: Pick<KeptAgentConversations, 'keep' | 'release'>
+  kept: Pick<KeptAgentConversations, 'keep' | 'release' | 'acceptsChanges'>
   getPtyIdForPaneKey: (paneKey: string) => string | undefined
   getPaneKeyForPty: (ptyId: string) => string | undefined
   readCodexRecord: (ptyId: string) => CodexPaneAccountRecord | null
@@ -62,6 +62,9 @@ export function setAgentKept(
   }
   if (args.ptyId !== undefined && args.ptyId !== ptyId) {
     return { ok: false, reason: 'unknown-pane' }
+  }
+  if (!deps.kept.acceptsChanges()) {
+    return { ok: false, reason: 'read-only' }
   }
   if (facet.provider === 'codex') {
     const record = ptyId ? deps.readCodexRecord(ptyId) : null

@@ -18899,6 +18899,7 @@
           "keepOn": "Keep on {{value0}}",
           "noSession": "Available once the agent reports its session",
           "customCodexHome": "Not available while CODEX_HOME is set",
+          "readOnly": "A newer version of Orca saved the list of kept agents, so this version cannot change it.",
           "unavailable": "Orca could not save this right now. Try again in a moment.",
           "failed": "This agent cannot be kept on its account right now."
         },

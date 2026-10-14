@@ -42,9 +42,13 @@ export function resolveKeptCodexHomeForSession(
   sessionId: string,
   runtimeHome: KeptCodexHomeRuntime | null | undefined
 ): string | undefined {
-  const entry = getKeptAgentConversations()?.get('codex', sessionId)
+  const kept = getKeptAgentConversations()
+  if (!kept) {
+    return undefined
+  }
+  const entry = kept.get('codex', sessionId)
   if (entry === 'unavailable') {
-    throw keptAccountRefusals.indexUnavailable()
+    throw keptAccountRefusals.indexUnavailable(kept.filePath)
   }
   if (!entry) {
     return undefined
