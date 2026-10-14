@@ -164,7 +164,7 @@ describe('ExperimentalPane', () => {
     root.unmount()
   })
 
-  it('keeps idle-agent visibility out of global settings', () => {
+  it('keeps gear-only Agent Dashboard settings out of global settings', () => {
     const markup = renderToStaticMarkup(
       <ExperimentalPane
         settings={{ ...getDefaultSettings('/tmp'), experimentalAgentDashboardPopout: true }}
@@ -173,6 +173,7 @@ describe('ExperimentalPane', () => {
     )
 
     expect(markup).not.toContain('Show idle agents')
+    expect(markup).not.toContain('Close terminal view with Esc')
   })
 
   it('renders Cloud VM as an off-by-default experimental subsection', () => {
