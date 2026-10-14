@@ -111,9 +111,10 @@ export function ClientHostedBrowserPagePane({
       placement,
       isActive,
       unavailable: Boolean(attachmentError) || restoredPageUnrecovered,
-      showFailureOverlay
+      showFailureOverlay,
+      documentUrl: browserTab.url
     })
-  const clearAnnotationsOnLoad = useEffectEvent(tools.clearAnnotationsOnLoad)
+  const bindAnnotationDocument = useEffectEvent(tools.bindAnnotationDocument)
   // Why: a client-hosted guest is created by main's host runtime, so there is no local guest to
   // recreate — a lost one is page unavailability, whose panel offers the reopen-on-server escape.
   const retryGuestRecoveryRef = useRef<() => void>(() => {})
@@ -276,7 +277,6 @@ export function ClientHostedBrowserPagePane({
     }
     const onStart = (): void => {
       activeLoadFailureRef.current = null
-      clearAnnotationsOnLoad()
       updatePageStateFromGuest(browserTab.id, { loading: true, loadError: null })
       const startMetadata = readBrowserClientPageGuestMetadataIfLive(webview, undefined, true)
       if (!startMetadata) {
@@ -293,7 +293,9 @@ export function ClientHostedBrowserPagePane({
         updatePageStateFromGuest(browserTab.id, { loading: false, loadError })
       }
     )
+    const unbindAnnotationDocument = bindAnnotationDocument(webview)
     const cleanupGuest = (): void => {
+      unbindAnnotationDocument()
       webview.removeEventListener('did-start-loading', onStart)
       webview.removeEventListener('did-stop-loading', syncNavigation)
       webview.removeEventListener('did-navigate', syncNavigation)
@@ -353,22 +355,18 @@ export function ClientHostedBrowserPagePane({
         <ClientHostedBrowserPageToolbar
           browserPageId={browserTab.id}
           runtimeEnvironmentId={runtimeEnvironmentId}
-          controls={{
-            canGoBack: browserTab.canGoBack,
-            canGoForward: browserTab.canGoForward,
-            // Why the unrecovered case reads not-loading: nothing is coming, and a spinner nobody
-            // will ever stop is the one state this pane must not sit in.
-            loading: !restoredPageUnrecovered && (placement === null || browserTab.loading),
-            goBack: () => webviewRef.current?.goBack(),
-            goForward: () => webviewRef.current?.goForward(),
-            reload: () => reload.runReloadTrigger('button'),
-            navigate: navigateToUrl
-          }}
+          canGoBack={browserTab.canGoBack}
+          canGoForward={browserTab.canGoForward}
+          // Why the unrecovered case reads not-loading: nothing is coming, and a spinner nobody
+          // will ever stop is the one state this pane must not sit in.
+          loading={!restoredPageUnrecovered && (placement === null || browserTab.loading)}
+          webviewRef={webviewRef}
+          reload={reload}
+          navigate={navigateToUrl}
           addressBarValue={addressBarValue}
           onAddressBarChange={setAddressBarValue}
           addressBarInputRef={addressBarInputRef}
           addressBarEditSession={addressBarEditSession}
-          reloadLabel={reload.reloadButtonLabel}
           elementTools={tools.elementTools}
           markup={tools.markupTool}
         />
