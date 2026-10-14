@@ -42,6 +42,8 @@ export type WorkspaceLinkedItem = {
   number: number
   title: string
   url: string
+  /** Provider-neutral work item key (e.g. ENG-12); linear/jiraIdentifier stay for older peers. */
+  identifier?: string
   linearIdentifier?: string
   jiraIdentifier?: string
   repoId?: string

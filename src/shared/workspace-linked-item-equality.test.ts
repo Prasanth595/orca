@@ -23,7 +23,8 @@ describe('areWorkspaceLinkedItemsEqual', () => {
         number: 0,
         type: 'issue',
         provider: 'jira',
-        linearIdentifier: undefined
+        linearIdentifier: undefined,
+        identifier: undefined
       })
     ).toBe(true)
   })
@@ -35,6 +36,13 @@ describe('areWorkspaceLinkedItemsEqual', () => {
 
   it('separates items that differ by identifier, title, url, provider, or repo', () => {
     expect(areWorkspaceLinkedItemsEqual(item, { ...item, jiraIdentifier: 'ORCA-124' })).toBe(false)
+    expect(areWorkspaceLinkedItemsEqual(item, { ...item, identifier: 'ORCA-123' })).toBe(false)
+    expect(
+      areWorkspaceLinkedItemsEqual(
+        { ...item, identifier: 'ORCA-123' },
+        { ...item, identifier: 'ORCA-124' }
+      )
+    ).toBe(false)
     expect(areWorkspaceLinkedItemsEqual(item, { ...item, title: 'Renamed' })).toBe(false)
     expect(areWorkspaceLinkedItemsEqual(item, { ...item, url: 'https://other/browse/X-1' })).toBe(
       false

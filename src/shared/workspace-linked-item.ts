@@ -17,6 +17,7 @@ export function areWorkspaceLinkedItemsEqual(
     a.number === b.number &&
     a.title === b.title &&
     a.url === b.url &&
+    (a.identifier ?? null) === (b.identifier ?? null) &&
     (a.linearIdentifier ?? null) === (b.linearIdentifier ?? null) &&
     (a.jiraIdentifier ?? null) === (b.jiraIdentifier ?? null) &&
     (a.repoId ?? null) === (b.repoId ?? null)
@@ -50,6 +51,9 @@ export function normalizeWorkspaceLinkedItem(value: unknown): WorkspaceLinkedIte
     number: raw.number,
     title: raw.title.trim(),
     url: raw.url.trim(),
+    ...(typeof raw.identifier === 'string' && raw.identifier.trim().length > 0
+      ? { identifier: raw.identifier.trim() }
+      : {}),
     ...(typeof raw.linearIdentifier === 'string' && raw.linearIdentifier.trim().length > 0
       ? { linearIdentifier: raw.linearIdentifier.trim() }
       : {}),

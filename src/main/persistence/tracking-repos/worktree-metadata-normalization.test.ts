@@ -145,6 +145,24 @@ describe('normalizeWorktreeLinkedItemMetadata', () => {
 
     expect(normalizeWorktreeLinkedItemMetadata(state)).toBe(false)
   })
+
+  it('preserves the generic identifier on a linked work item', () => {
+    const linkedWorkItem = {
+      provider: 'jira' as const,
+      type: 'issue' as const,
+      number: 0,
+      title: 'ENG-12 Fix the thing',
+      url: 'https://example.atlassian.net/browse/ENG-12',
+      identifier: 'ENG-12',
+      jiraIdentifier: 'ENG-12'
+    }
+    const state = makeState({
+      worktreeMeta: { 'r1::/tmp/wt': { ...makeMeta(), linkedWorkItem } }
+    })
+
+    expect(normalizeWorktreeLinkedItemMetadata(state)).toBe(false)
+    expect(state.worktreeMeta['r1::/tmp/wt'].linkedWorkItem).toEqual(linkedWorkItem)
+  })
 })
 
 describe('gcStaleWorktreeMeta', () => {
