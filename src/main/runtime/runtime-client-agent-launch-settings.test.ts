@@ -127,6 +127,17 @@ describe('execution-host agent launch settings', () => {
     expect(host.newWorkspaceSetupOnly).toBe(false)
   })
 
+  it('clears None when a legacy client explicitly picks Blank Terminal', async () => {
+    const { controller, host } = fixture()
+    await controller.mutateAgentLaunch({ type: 'default', agent: 'blank', setupOnly: true })
+    await controller.update({ defaultTuiAgent: 'blank' })
+    expect(host.newWorkspaceSetupOnly).toBe(false)
+    expect(controller.getAgentLaunch()).toMatchObject({
+      defaultTuiAgent: 'blank',
+      newWorkspaceSetupOnly: false
+    })
+  })
+
   it('clears the host default when disabling that agent and preserves others', async () => {
     const { controller, host } = fixture()
     host.defaultTuiAgent = 'claude'
