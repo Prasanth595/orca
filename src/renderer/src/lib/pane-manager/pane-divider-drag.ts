@@ -1,4 +1,5 @@
 import { holdPtyResizesForPaneSubtrees } from './pane-pty-resize-hold'
+import { equalizeSameAxisPaneRun } from './pane-tree-equalization'
 import type { PaneLayoutEditIntent } from '../../../../shared/rpc-contract/session-tabs-schemas-params'
 
 export type DividerCallbacks = {
@@ -63,6 +64,7 @@ export function createDividerFlexFrameScheduler({
   }
 }
 
+/** Wires a pane divider's drag-to-resize and double-click-to-equalize gestures. */
 export function attachDividerDrag(
   divider: HTMLElement,
   isVertical: boolean,
@@ -260,18 +262,17 @@ export function attachDividerDrag(
     }
   }
 
+  /** Equalizes the panes in this divider's row or column. */
   const onDoubleClick = (): void => {
-    const prev = divider.previousElementSibling as HTMLElement | null
-    const next = divider.nextElementSibling as HTMLElement | null
-    if (!prev || !next) {
+    const split = divider.parentElement
+    // Why: panes nest as a binary tree, so equalizing only this divider's two
+    // siblings leaves three side-by-side panes at 50/25/25.
+    const runRoot = split ? equalizeSameAxisPaneRun(split) : null
+    if (!runRoot) {
       return
     }
 
-    prev.style.flex = '1 1 0%'
-    next.style.flex = '1 1 0%'
-
-    callbacks.refitPanesUnder(prev)
-    callbacks.refitPanesUnder(next)
+    callbacks.refitPanesUnder(runRoot)
     callbacks.onLayoutChanged?.('gesture')
   }
 

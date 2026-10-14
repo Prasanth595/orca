@@ -7,14 +7,17 @@ import type { HoveredTabInsertion } from './useTabDragSplit'
 const MIN_RATIO = 0.15
 const MAX_RATIO = 0.85
 
+/** Divider between two tab groups: drag to resize, double-click to equalize the row or column. */
 function ResizeHandle({
   direction,
   onResizeStart,
-  onRatioChange
+  onRatioChange,
+  onEqualize
 }: {
   direction: 'horizontal' | 'vertical'
   onResizeStart: () => void
   onRatioChange: (ratio: number) => void
+  onEqualize: () => void
 }): React.JSX.Element {
   const isHorizontal = direction === 'horizontal'
   const [dragging, setDragging] = useState(false)
@@ -133,10 +136,12 @@ function ResizeHandle({
         isHorizontal ? 'is-vertical' : 'is-horizontal'
       }${dragging ? ' is-dragging' : ''}`}
       onPointerDown={onPointerDown}
+      onDoubleClick={onEqualize}
     />
   )
 }
 
+/** Renders one split of the tab-group layout tree and its resize handle. */
 function SplitNode({
   node,
   nodePath,
@@ -175,6 +180,7 @@ function SplitNode({
   hoveredTabInsertion: HoveredTabInsertion | null
 }): React.JSX.Element {
   const setTabGroupSplitRatio = useAppStore((state) => state.setTabGroupSplitRatio)
+  const equalizeTabGroupSplitRun = useAppStore((state) => state.equalizeTabGroupSplitRun)
   const recordFeatureInteraction = useAppStore((state) => state.recordFeatureInteraction)
 
   if (node.type === 'leaf') {
@@ -242,6 +248,7 @@ function SplitNode({
         direction={node.direction}
         onResizeStart={() => recordFeatureInteraction('terminal-panes')}
         onRatioChange={(nextRatio) => setTabGroupSplitRatio(worktreeId, nodePath, nextRatio)}
+        onEqualize={() => equalizeTabGroupSplitRun(worktreeId, nodePath)}
       />
       <div className="flex min-w-0 min-h-0 overflow-hidden" style={{ flex: `${1 - ratio} 1 0%` }}>
         <SplitNode

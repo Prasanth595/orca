@@ -11,13 +11,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
 const setTabGroupSplitRatioMock = vi.fn()
+const equalizeTabGroupSplitRunMock = vi.fn()
 const recordFeatureInteractionMock = vi.fn()
 
 vi.mock('../../store', () => ({
   useAppStore: (selector: (state: Record<string, unknown>) => unknown) =>
     selector({
       recordFeatureInteraction: recordFeatureInteractionMock,
-      setTabGroupSplitRatio: setTabGroupSplitRatioMock
+      setTabGroupSplitRatio: setTabGroupSplitRatioMock,
+      equalizeTabGroupSplitRun: equalizeTabGroupSplitRunMock
     })
 }))
 
@@ -64,6 +66,7 @@ describe('TabGroupSplitLayout divider drag', () => {
 
   beforeEach(async () => {
     setTabGroupSplitRatioMock.mockClear()
+    equalizeTabGroupSplitRunMock.mockClear()
     recordFeatureInteractionMock.mockClear()
     resizeObserverDisconnectMock.mockClear()
     resizeObserverCallback = null
@@ -243,5 +246,68 @@ describe('TabGroupSplitLayout divider drag', () => {
 
     expect(setTabGroupSplitRatioMock).toHaveBeenCalledWith('wt-1', '', 0.45)
     expect(resizeObserverDisconnectMock).toHaveBeenCalledOnce()
+  })
+
+  it('equalizes the run on double-click without committing a ratio', async () => {
+    await act(async () => {
+      handle.dispatchEvent(pointerEvent('pointerdown', { pointerId: 1 }))
+      handle.dispatchEvent(pointerEvent('pointerup', { pointerId: 1 }))
+      handle.dispatchEvent(pointerEvent('pointerdown', { pointerId: 1 }))
+      handle.dispatchEvent(pointerEvent('pointerup', { pointerId: 1 }))
+      handle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+    })
+
+    expect(equalizeTabGroupSplitRunMock).toHaveBeenCalledExactlyOnceWith('wt-1', '')
+    expect(setTabGroupSplitRatioMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('TabGroupSplitLayout nested divider double-click', () => {
+  let container: HTMLDivElement
+  let root: Root
+
+  beforeEach(async () => {
+    equalizeTabGroupSplitRunMock.mockClear()
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    await act(async () => {
+      root.render(
+        <TabGroupSplitLayout
+          layout={{
+            type: 'split',
+            direction: 'horizontal',
+            first: { type: 'leaf', groupId: 'a' },
+            second: {
+              type: 'split',
+              direction: 'vertical',
+              first: { type: 'leaf', groupId: 'b' },
+              second: { type: 'leaf', groupId: 'c' }
+            }
+          }}
+          worktreeId="wt-1"
+          isWorktreeActive={true}
+        />
+      )
+    })
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it.each([
+    ['is-vertical', ''],
+    ['is-horizontal', 'second']
+  ])('passes the %s handle its own node path', async (handleClass, nodePath) => {
+    const handle = container.querySelector(`.tab-group-split-resize-handle.${handleClass}`)
+    expect(handle).not.toBeNull()
+
+    await act(async () => {
+      handle?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+    })
+
+    expect(equalizeTabGroupSplitRunMock).toHaveBeenCalledExactlyOnceWith('wt-1', nodePath)
   })
 })
