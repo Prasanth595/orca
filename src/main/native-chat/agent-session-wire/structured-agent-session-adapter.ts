@@ -199,6 +199,11 @@ export type StructuredAgentSessionEndedEvent = {
    *  Orca fault. Absent reads as a provider exit with nothing to add. */
   failure?: SubmissionRejectionFact
   cause: 'unexpected-exit' | 'requested-close'
+  /** Execution-host observations from a requested provider close, when available. */
+  processExit?: {
+    root: 'live' | 'unverifiable' | 'exited'
+    workload: 'live' | 'unverifiable' | 'exited'
+  }
   fence: number
   acquisitionGeneration: string
   /** Host receipt of the child exit: the end time of a turn it interrupted. */

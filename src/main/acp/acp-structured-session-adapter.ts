@@ -224,10 +224,7 @@ export class AcpStructuredSessionAdapter implements StructuredAgentSessionAdapte
     return { cancelled: true }
   }
 
-  // Stop is a session boundary: a cancel ends only the running turn, and background work could
-  // begin another turn. The next send reloads the session.
-  stopEndsSession = (): boolean => true
-
+  // Stop closes the session because background work can start a new turn after cancel.
   awaitStoppedRequestEnd = async (sessionId: string, stoppedAt: number): Promise<void> => {
     const session = this.children.sessions.get(sessionId)
     if (session && isAcpReadySession(session)) {

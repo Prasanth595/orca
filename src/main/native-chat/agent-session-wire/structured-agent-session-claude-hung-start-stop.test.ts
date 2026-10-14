@@ -156,6 +156,11 @@ it('holds the message from a start that never answers, and a Stop ends it: stopp
   const stopped = await host.cancel(CALLER, { envelope: envelope('agentSession.cancel', {}) })
 
   expect(stopped).toMatchObject({ ok: true, value: { cancelled: true } })
+  expect(
+    (await host.journalSnapshot(SESSION)).items.flatMap((item) =>
+      item.body.kind === 'status' ? [item.body.text] : []
+    )
+  ).toEqual(['Cancellation requested.'])
   await vi.waitFor(() => expect(host['sessions'].get(SESSION)?.child).toBeNull())
   expect(connection!.closeCount).toBeGreaterThan(0)
   // Withdrawn, not in doubt: it was never handed over.

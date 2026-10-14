@@ -1,3 +1,4 @@
+import type { StructuredAgentSessionEndedEvent } from '../native-chat/agent-session-wire/structured-agent-session-adapter'
 import type {
   AgentSessionBackgroundTask,
   AgentSessionBackgroundTaskState
@@ -165,9 +166,9 @@ export class CodexBackgroundTaskTracker {
     return this.refresh()
   }
 
-  clear(): boolean {
+  clear(processExit?: StructuredAgentSessionEndedEvent['processExit']): boolean {
+    this.childWork.clear(this.commands.clear(), processExit)
     this.executions.clear()
-    this.childWork.clear(this.commands.clear())
     return this.refresh()
   }
 

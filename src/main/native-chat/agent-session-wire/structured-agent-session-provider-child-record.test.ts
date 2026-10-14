@@ -163,12 +163,12 @@ async function accept(text: string, options: { person?: true } = {}): Promise<st
   return params.envelope.clientOperationId
 }
 
-function stop() {
+function stop(clientOperationId = hostTestOperationId()) {
   const turnId = 'turn-none'
   return host.cancel(CALLER, {
     envelope: {
       sessionId: SESSION,
-      clientOperationId: hostTestOperationId(),
+      clientOperationId,
       expectedRuntimeFence: null,
       payloadFingerprint: computeAgentSessionPayloadFingerprint({
         method: 'agentSession.cancel',
@@ -298,7 +298,8 @@ describe('Stop on a child still proving its start', () => {
     await eventually(() => expect(conversation()?.child?.phase).toBe('starting'))
     expect((await submission(first))?.handedOverAt).toBeUndefined()
 
-    expect(await stop()).toMatchObject({ ok: true, value: { cancelled: true } })
+    const stopId = hostTestOperationId()
+    expect(await stop(stopId)).toMatchObject({ ok: true, value: { cancelled: true } })
 
     // The same conversation: no reopen, and the chat told it is idle again.
     expect(conversation()?.journal).toBe(journal)
@@ -310,8 +311,12 @@ describe('Stop on a child still proving its start', () => {
       dispatchState: 'rejected',
       reason: DISPATCH_REJECTED_CANCELLED
     })
-    // A Stop is not a failure: no row, and the loop is gone.
-    expect(await statusRows()).toEqual([])
+    expect(await statusRows()).toEqual([
+      {
+        itemId: `orca:stop%3A${stopId}`,
+        text: 'Cancellation requested.'
+      }
+    ])
     await eventually(() => expect(host['conversationDelivery'].loop.isRunning(SESSION)).toBe(false))
 
     const next = await accept('after stop')
@@ -734,13 +739,20 @@ describe('how a stopped child ends the start its loop was waiting on', () => {
   }
 
   it("goes on after a user's Stop and delivers what was sent since (R2)", async () => {
+    let stopId = ''
     const second = await stoppedWhileStarting(async () => {
-      expect(await stop()).toMatchObject({ ok: true })
+      stopId = hostTestOperationId()
+      expect(await stop(stopId)).toMatchObject({ ok: true })
     })
 
     await eventually(async () => expect((await submission(second))?.dispatchState).toBe('accepted'))
     expect(conversation()?.lastEndedChild).toMatchObject({ cause: 'user-stop', reason: null })
-    expect(await statusRows()).toEqual([])
+    expect(await statusRows()).toEqual([
+      {
+        itemId: `orca:stop%3A${stopId}`,
+        text: 'Cancellation requested.'
+      }
+    ])
   })
 
   /** The close's stop alone: a close that aborts after it leaves the conversation indexed. */

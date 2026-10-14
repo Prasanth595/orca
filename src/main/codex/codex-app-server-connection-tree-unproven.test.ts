@@ -2,20 +2,27 @@ import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { spawnProcess } from '@orca/process-host'
-import type { ProviderProcessTeardownVerdict } from '../provider-process/provider-process-teardown'
+import type { DescendantTreeVerdict } from '../pty-descendant-exit-verification'
 import { openCodexAppServerConnection } from './codex-app-server-connection'
 
 const teardown = vi.hoisted(() => {
-  const state: { verdict: ProviderProcessTeardownVerdict; rootExits: () => void } = {
-    verdict: null,
+  const state: { verdict: DescendantTreeVerdict; rootExits: () => void } = {
+    verdict: 'unverifiable',
     rootExits: () => {}
   }
   return state
 })
-vi.mock('../provider-process/provider-process-teardown', () => ({
-  terminateProviderProcessTree: vi.fn(async () => {
-    teardown.rootExits()
-    return teardown.verdict
+vi.mock('../claude/claude-agent-sdk-exit-proof', () => ({
+  createClaudeChildTreeReaper: () => ({
+    capture: async () => {},
+    refresh: async () => {},
+    reap: async () => {
+      teardown.rootExits()
+      return teardown.verdict
+    },
+    get treeVerdict() {
+      return teardown.verdict
+    }
   })
 }))
 
@@ -44,8 +51,7 @@ describe('Codex process-tree diagnostic after a forced close', () => {
   it.each([
     ['unverifiable', true],
     ['live', true],
-    ['exited', false],
-    [null, false]
+    ['exited', false]
   ] as const)('teardown observing %s reads unproven=%s', async (verdict, unproven) => {
     vi.useFakeTimers()
     teardown.verdict = verdict
@@ -63,5 +69,28 @@ describe('Codex process-tree diagnostic after a forced close', () => {
     // A repeat close answers from the memo and keeps the diagnostic.
     await expect(connection.close()).resolves.toBe(true)
     expect(connection.processTreeUnproven).toBe(unproven)
+  })
+
+  it('reports a root exit that arrives after an unproven close', async () => {
+    vi.useFakeTimers()
+    teardown.verdict = 'unverifiable'
+    teardown.rootExits = () => {}
+    const { child, spawnImpl } = stubChild()
+    const onExit = vi.fn()
+    const connection = await openCodexAppServerConnection(
+      { command: 'codex', args: ['app-server'] },
+      { onExit },
+      spawnImpl
+    )
+    const closing = connection.close()
+    await vi.advanceTimersByTimeAsync(10_000)
+    await expect(closing).resolves.toBe(false)
+    expect(onExit).not.toHaveBeenCalled()
+    child.emit('exit', 0, null)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(onExit).toHaveBeenCalledTimes(1)
+    expect(onExit).toHaveBeenCalledWith(expect.any(Error), { expected: true })
+    expect(connection.closeResult).toMatchObject({ root: 'exited', tree: 'unverifiable' })
+    expect(connection.processTreeUnproven).toBe(true)
   })
 })

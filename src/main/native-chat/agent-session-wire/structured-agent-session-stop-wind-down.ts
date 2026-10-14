@@ -25,6 +25,7 @@ export type StructuredAgentSessionStopWindDown = {
   stoppedAt: number
   /** The note the Stop wrote, which a failed wind-down revises. */
   stopNote: AgentJournalItemIdentity
+  stopNoteWrite?: Promise<void>
   /** Closes the Stop's settle once the wind-down finishes, whether or not the child's exit was
    *  proven, marking the turn running on after an end that failed (`JournalStopSettle.failedOn`):
    *  until then, what ends is the Stop's. */
@@ -49,9 +50,11 @@ export async function endStoppedStructuredAgentSession(
       await ctx.adapter.awaitStoppedRequestEnd?.(ctx.sessionId, windDown.stoppedAt)
     }
     await stopChild()
+    await windDown.stopNoteWrite?.catch(onError)
   } catch (error) {
     onError(error)
     failedOn = structuredAgentSessionFailedStopMark(ctx.journal)
+    await windDown.stopNoteWrite?.catch(onError)
     await reviseStopNoteUnconfirmed(ctx, windDown.stopNote).catch(onError)
   } finally {
     windDown.settled?.(failedOn)

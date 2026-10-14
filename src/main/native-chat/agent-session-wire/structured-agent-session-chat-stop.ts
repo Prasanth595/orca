@@ -150,7 +150,7 @@ export function mutateWithChatStop<TValue>(
     const target = captureChatStopTarget(ctx, {
       child: context.sessions.get(ctx.sessionId)?.child ?? null,
       ...named,
-      endsSession: ctx.adapter.stopEndsSession?.(ctx.sessionId) === true,
+      endsSession: true,
       stoppedPrePrompt: params.stoppedPrePrompt
     })
     if (!target) {
@@ -161,7 +161,10 @@ export function mutateWithChatStop<TValue>(
     if (!accepted.ok) {
       return accepted
     }
-    if (params.stoppedPrePrompt && target.reach === 'withdraw') {
+    if (
+      target.reach === 'starting' ||
+      (target.reach === 'withdraw' && (target.queued || params.stoppedPrePrompt))
+    ) {
       await writeStructuredAgentSessionStopNote(
         ctx,
         accepted.value.turnId ?? envelope.clientOperationId,

@@ -1,3 +1,4 @@
+import { settleCodexRequestEndWaiters } from './codex-request-end-wait'
 import { agentSessionFailureFact, providerDiagnosticOf } from '../../shared/agent-session-failure'
 import type { CodexAppServerConnection } from './codex-app-server-connection-types'
 import { closeProcessRegistry } from '@orca/process-host/close-process-registry'
@@ -39,6 +40,14 @@ export function handleCodexSessionExit(input: {
       ? agentSessionFailureFact('hostFault')
       : agentSessionFailureFact('providerExited', { detail: providerDiagnosticOf(input.error) }),
     cause: session.orcaClose?.requested ? 'requested-close' : 'unexpected-exit',
+    ...(input.closedByOrca && input.connection?.closeResult
+      ? {
+          processExit: {
+            root: input.connection.closeResult.root,
+            workload: input.connection.closeResult.tree ?? 'unverifiable'
+          }
+        }
+      : {}),
     fence: session.fence,
     acquisitionGeneration: session.acquisitionGeneration,
     observedAt: session.exitObservedAt
@@ -55,10 +64,11 @@ export function handleCodexSessionExit(input: {
     })
   }
   session.ended = true
+  settleCodexRequestEndWaiters(session)
   // Nothing can echo for this child any more; the journal's pending-submission
   // recovery is what settles the sends these were armed for.
   session.dispatchEchoes.clear()
-  session.backgroundTasks.clear()
+  session.backgroundTasks.clear(event.processExit)
   // Every close path funnels here, so the session's children end with it on each one.
   session.backgroundTasks.publishChildWork()
   session.unbindReadingControl?.()
