@@ -83,7 +83,7 @@ export function AgentDefaultSetting({
             onClick={() => onSetDefault('setup-only')}
             title={translate(
               'auto.components.settings.AgentsPane.setupOnlyHint',
-              'New workspaces open only the setup script tab; without a setup script they get a blank terminal'
+              'Runs setup without an extra blank terminal in new-tab mode. Split mode keeps a shell pane; skipped or missing setup opens a blank terminal.'
             )}
           >
             <Ban className="size-3.5" />
