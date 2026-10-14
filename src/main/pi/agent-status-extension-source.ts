@@ -20,8 +20,8 @@ import { getPiSubagentSnapshotSourceLines } from './agent-status-subagent-roster
 export const ORCA_PI_AGENT_STATUS_EXTENSION_FILE = 'orca-agent-status.ts'
 
 /** Source of the status extension installed into a Pi-family agent's extension
- *  dir: it POSTs lifecycle, tool, and (under OMP) model events to Orca's hook
- *  endpoint. Returned as one self-contained string — it runs inside the agent. */
+ *  dir: it POSTs lifecycle/tool events, plus native OMP model and root-scoped
+ *  registry snapshots. Returned as one self-contained string — it runs inside the agent. */
 export function getPiAgentStatusExtensionSource(kind: PiAgentKind = 'pi'): string {
   // OMP resumes by id; its persistent file path lets native chat skip discovery.
   const sessionMetadataSourceLines =
@@ -124,8 +124,8 @@ export function getPiAgentStatusExtensionSource(kind: PiAgentKind = 'pi'): strin
   // Why: Pi resumes from an existing transcript; OMP resumes directly by session id (#8962).
   const payloadLine =
     kind !== 'omp'
-      ? '    payload: { hook_event_name: hookEventName, ...(ompRuntime ? metadata : getPersistedSessionMetadata(metadata)), ...(final ? {} : subagentPayload()), ...extra },'
-      : '    payload: { hook_event_name: hookEventName, ...metadata, ...(final ? {} : subagentPayload()), ...extra },'
+      ? '    payload: { hook_event_name: hookEventName, ...(ompRuntime ? metadata : getPersistedSessionMetadata(metadata)), ...rosterPayload, ...extra },'
+      : '    payload: { hook_event_name: hookEventName, ...metadata, ...rosterPayload, ...extra },'
 
   // Why: keep this string self-contained — it runs inside the pi process,
   // so it cannot import from Orca's main bundle. fs/http coords come from
@@ -217,8 +217,12 @@ export function getPiAgentStatusExtensionSource(kind: PiAgentKind = 'pi'): strin
     '  cancelPostRetry()',
     // Why: a new turn supersedes a same-session completion even when /reload preserved its delivery.
     "  if (hookEventName === 'before_agent_start' || hookEventName === 'agent_start') retireTurnCompletionPosts(metadata)",
-    '// Model changes must not erase an unacknowledged completion in the latest-only slot.',
-    "  const previousCompletion = postQueue.latestPost?.hookEventName === 'agent_end' && !postQueue.latestPost.delivered && postQueue.latestPost.metadata.session_id === metadata.session_id",
+    '// Model changes retain completion; native registry snapshots must remain their own event.',
+    "  const previousCompletion = postQueue.latestPost?.hookEventName === 'agent_end' && !postQueue.latestPost.delivered && postQueue.latestPost.metadata.session_id === metadata.session_id ? postQueue.latestPost : null",
+    "  if (ompRuntime && hookEventName === 'subagents_update' && previousCompletion && !previousCompletion.final) {",
+    '    previousCompletion.final = true',
+    '    postQueue.finalPosts.push(previousCompletion)',
+    '  }',
     '  postQueue.pendingPost = {',
     '    revision: ++postQueue.postRevision,',
     '    attempts: 0,',
@@ -245,7 +249,10 @@ export function getPiAgentStatusExtensionSource(kind: PiAgentKind = 'pi'): strin
     '  const coords = resolveHookCoords()',
     '  const paneKey = process.env.ORCA_PANE_KEY',
     '  if (!coords.port || !coords.token || !paneKey) return',
+    '  // A failed native read cannot renew the last verified child roster through a retry.',
+    "  if (ompRuntime && !(final && extra.session_boundary === true) && isOmpRegistryReadUnavailable()) throw new Error('OMP registry snapshot is unavailable')",
     '  const url = `http://127.0.0.1:${coords.port}${resolveHookPath(ompRuntime)}`',
+    '  const rosterPayload = final ? undefined : subagentPayload(hookEventName)',
     '  const body = JSON.stringify({',
     '    paneKey,',
     "    launchToken: process.env.ORCA_AGENT_LAUNCH_TOKEN || '',",
@@ -286,6 +293,8 @@ export function getPiAgentStatusExtensionSource(kind: PiAgentKind = 'pi'): strin
     '  } finally {',
     '    if (timeout) clearTimeout(timeout)',
     '  }',
+    '  // Binding identity survives coalescing until Orca accepts its native snapshot.',
+    "  if (ompRuntime && hookEventName === 'subagents_update' && rosterPayload?.omp_status) acknowledgeOmpRegistrySnapshot(metadata)",
     '}',
     '',
     ...getPiAgentStatusWslCurlSourceLines(),

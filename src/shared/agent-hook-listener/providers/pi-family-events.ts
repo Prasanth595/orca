@@ -3,7 +3,11 @@ import {
   type ParsedAgentStatusPayload
 } from '../../agent-status-types'
 import { isAskUserQuestionTool } from '../../agent-question-answered-intent'
+import { continueMainAgentStatus } from '../../agent-lead-status-fold'
+import { foldMainAgentWithRowChildWork } from '../../agent-hook-row-child-work-fold'
+import { extractAgentProviderSession } from '../../agent-session-resume'
 import { clearPaneTurnCacheState, type HookListenerState } from '../listener-state'
+import type { ToolSnapshot } from '../listener-event'
 import { resolvePrompt, resolveToolState } from '../prompt-fields'
 import { extractToolFields, isNewTurnEvent } from '../provider-event-routing'
 import { readString } from '../tool-input-preview'
@@ -27,6 +31,14 @@ export function normalizePiCompatibleEvent(
     if (agentType !== 'pi' || hookPayload.ui_prompt_active !== true) {
       return null
     }
+  }
+
+  if (
+    agentType === 'omp' &&
+    eventName === 'subagents_update' &&
+    Object.hasOwn(hookPayload, 'omp_status')
+  ) {
+    return normalizeOmpRegistrySnapshot(state, paneKey, hookPayload)
   }
 
   // Why: the OMP extension stamps `provider/id` on every post; Pi posts carry none.
@@ -126,6 +138,143 @@ export function normalizePiCompatibleEvent(
       ? { sessionBoundary: true }
       : {})
   })
+}
+
+/** Native root evidence can restore a missed row, but never borrow another session's details. */
+function normalizeOmpRegistrySnapshot(
+  state: HookListenerState,
+  paneKey: string,
+  hookPayload: Record<string, unknown>
+): ParsedAgentStatusPayload | null {
+  const rawRoot = hookPayload.omp_status
+  if (typeof rawRoot !== 'object' || rawRoot === null || Array.isArray(rawRoot)) {
+    return null
+  }
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Shape-checked hook JSON object; its fields remain unknown until normalized.
+  const rootPayload = rawRoot as Record<string, unknown>
+  const root = normalizeAgentStatusPayload({ state: rootPayload.state })
+  if (!root) {
+    return null
+  }
+  const session = extractAgentProviderSession('omp', hookPayload)
+  const previous = state.lastStatusByPaneKey.get(paneKey)
+  if (!session?.transcriptPath || (previous && previous.payload.agentType !== 'omp')) {
+    return null
+  }
+  const previousSession = previous?.providerSession
+  const sessionChanged =
+    previousSession !== undefined &&
+    (previousSession.key !== session.key ||
+      previousSession.id !== session.id ||
+      (previousSession.transcriptPath !== undefined &&
+        previousSession.transcriptPath !== session.transcriptPath))
+  if (sessionChanged && rootPayload.session_boundary !== true) {
+    return null
+  }
+  const previousPayload = sessionChanged ? undefined : previous?.payload
+  const previousRootState = previousPayload?.mainAgent?.state ?? previousPayload?.state
+  // Native busy evidence is not proof that a human answered an outstanding root prompt.
+  const heldInputState =
+    root.state === 'working' &&
+    rootPayload.input_pending !== false &&
+    (previousRootState === 'blocked' || previousRootState === 'waiting')
+      ? previousRootState
+      : undefined
+  const rootState = heldInputState ?? root.state
+  if (!previousPayload) {
+    clearPaneTurnCacheState(state, paneKey)
+  } else if (heldInputState === undefined && !state.lastToolByPaneKey.has(paneKey)) {
+    resolveToolState(state, paneKey, previousPayload, { resetOnNewTurn: false })
+  }
+  let toolUpdate: ToolSnapshot
+  if (heldInputState !== undefined && previousPayload) {
+    toolUpdate = {
+      toolName: previousPayload.toolName,
+      toolInput: previousPayload.toolInput,
+      interactivePrompt: previousPayload.interactivePrompt,
+      lastAssistantMessage: previousPayload.lastAssistantMessage,
+      lastAssistantMessageIsToolOutput: previousPayload.lastAssistantMessageIsToolOutput,
+      hasToolUpdate: true,
+      hasToolInputField: true,
+      clearLastAssistantMessage: previousPayload.lastAssistantMessage === undefined
+    }
+  } else {
+    const hasToolFields =
+      Object.hasOwn(rootPayload, 'tool_name') || Object.hasOwn(rootPayload, 'tool_input')
+    const toolFields = hasToolFields
+      ? extractToolFields(
+          'omp',
+          rootState === 'blocked' || rootState === 'waiting'
+            ? 'tool_execution_start'
+            : 'tool_execution_end',
+          rootPayload
+        )
+      : {
+          interactivePrompt:
+            rootState === 'blocked' || rootState === 'waiting'
+              ? previousPayload?.interactivePrompt
+              : undefined
+        }
+    toolUpdate = { ...toolFields, ...extractToolFields('omp', 'message_end', rootPayload) }
+  }
+  const snapshot = resolveToolState(state, paneKey, toolUpdate, { resetOnNewTurn: false })
+  const previousMainAgent =
+    previousPayload?.mainAgent ??
+    (previousPayload &&
+    previous &&
+    'stateStartedAt' in previous &&
+    typeof previous.stateStartedAt === 'number' &&
+    Number.isFinite(previous.stateStartedAt)
+      ? { state: previousPayload.state, stateStartedAt: previous.stateStartedAt }
+      : undefined)
+  const mainAgent = continueMainAgentStatus(
+    previousMainAgent,
+    {
+      state: rootState,
+      ...(rootState === 'done' && previousMainAgent?.state === 'done'
+        ? { outcome: previousPayload?.mainAgent?.outcome }
+        : {})
+    },
+    Date.now()
+  )
+  const payload = normalizeAgentStatusPayload({
+    ...previousPayload,
+    state: rootState,
+    agentType: 'omp',
+    prompt: resolvePrompt(
+      state,
+      paneKey,
+      heldInputState !== undefined
+        ? (previousPayload?.prompt ?? '')
+        : (readString(rootPayload, 'prompt') ?? previousPayload?.prompt ?? '')
+    ),
+    model: readString(hookPayload, 'model') ?? previousPayload?.model,
+    modelSwitchCommand:
+      hookPayload.model_switch_command === 'orca-model'
+        ? 'orca-model'
+        : previousPayload?.modelSwitchCommand,
+    toolName: snapshot.toolName,
+    toolInput: snapshot.toolInput,
+    interactivePrompt: snapshot.interactivePrompt,
+    lastAssistantMessage: snapshot.lastAssistantMessage,
+    lastAssistantMessageIsToolOutput: snapshot.lastAssistantMessageIsToolOutput,
+    sessionBoundary: rootPayload.session_boundary === true,
+    subagents: hookPayload.subagents,
+    mainAgent
+  })
+  if (!payload) {
+    return null
+  }
+  const { stateName, workingMode } = foldMainAgentWithRowChildWork(rootState, { payload })
+  return {
+    ...payload,
+    state: stateName,
+    workingMode,
+    interrupted: stateName === 'done' ? payload.interrupted : undefined,
+    sessionBoundary: stateName === 'done' ? payload.sessionBoundary : undefined,
+    turnCompletedAt:
+      stateName === 'working' || stateName === 'done' ? payload.turnCompletedAt : undefined
+  }
 }
 
 const OMP_APPROVAL_RELEASE_EVENTS: ReadonlySet<unknown> = new Set([

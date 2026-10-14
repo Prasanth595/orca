@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { extractAgentProviderSession } from '../../shared/agent-session-resume'
 
 import {
   AGENT_STATUS_EXTENSION_SELF_PID as SELF_PID,
@@ -198,27 +199,39 @@ describe('getPiAgentStatusExtensionSource', () => {
     let sessionFile: string | undefined = '/tmp/s'
     const sessionManager = { getSessionId: () => sessionId, getSessionFile: () => sessionFile }
 
+    const latestPayload = () =>
+      JSON.parse(String(harness.fetchMock.mock.lastCall?.[1]?.body)).payload
     await harness.callHook('agent_start', undefined, { sessionManager })
+    await vi.waitFor(() =>
+      expect(extractAgentProviderSession('omp', latestPayload())).toEqual({
+        key: 'session_id',
+        id: 'omp-session-8',
+        transcriptPath: '/tmp/s'
+      })
+    )
     sessionId = 'omp-session-9'
     await harness.callHook('before_agent_start', { prompt: 'hi' }, { sessionManager })
-    await vi.waitFor(() => expect(harness.fetchMock).toHaveBeenCalledTimes(2))
-    sessionId = 'omp-ephemeral'
-    sessionFile = undefined
-    await harness.callHook('agent_end', undefined, { sessionManager })
-
-    await vi.waitFor(() => expect(harness.fetchMock).toHaveBeenCalledTimes(3))
-    expect(
-      harness.fetchMock.mock.calls.map(([_event, init]) => JSON.parse(String(init?.body)).payload)
-    ).toEqual([
-      { hook_event_name: 'agent_start', session_id: 'omp-session-8', session_file: '/tmp/s' },
-      {
+    await vi.waitFor(() =>
+      expect(latestPayload()).toMatchObject({
         hook_event_name: 'before_agent_start',
         prompt: 'hi',
         session_id: 'omp-session-9',
         session_file: '/tmp/s'
-      },
-      { hook_event_name: 'agent_end' }
-    ])
+      })
+    )
+    await harness.callHook('agent_start', undefined, { sessionManager })
+    sessionId = 'omp-ephemeral'
+    sessionFile = undefined
+    await harness.callHook('agent_start', undefined, { sessionManager })
+    await harness.callHook('agent_end', undefined, { sessionManager })
+    await vi.waitFor(() => {
+      const payload = latestPayload()
+      expect(payload.hook_event_name).toBe('agent_end')
+      expect(payload.session_boundary).not.toBe(true)
+      expect(payload).not.toHaveProperty('session_id')
+      expect(payload).not.toHaveProperty('session_file')
+      expect(extractAgentProviderSession('omp', payload)).toBeNull()
+    })
   })
 
   it('does not let a nested OMP session replace the root resume identity', async () => {
@@ -256,15 +269,12 @@ describe('getPiAgentStatusExtensionSource', () => {
   ])(
     'keeps queued %s status bound to the session active when it was posted',
     async (_name, args) => {
-      const finishDeliveries: (() => void)[] = []
+      const { promise: delivery, resolve: finishDelivery } = Promise.withResolvers<{
+        ok: boolean
+      }>()
       const harness = createHarness({
         ...args,
-        fetchImpl: vi.fn(
-          () =>
-            new Promise((resolve) => {
-              finishDeliveries.push(() => resolve({ ok: true }))
-            })
-        )
+        fetchImpl: vi.fn(async () => ({ ok: true })).mockImplementationOnce(() => delivery)
       })
 
       let sessionId = 'omp-session-8'
@@ -281,19 +291,32 @@ describe('getPiAgentStatusExtensionSource', () => {
       )
       await harness.callHook('message_end', { message: { role: 'user', content: 'next' } }, {})
 
-      finishDeliveries[0]?.()
-      await vi.waitFor(() => expect(harness.fetchMock).toHaveBeenCalledTimes(2))
-      const body = JSON.parse(String(harness.fetchMock.mock.calls[1]?.[1]?.body))
-      expect(body.payload).toEqual({
-        hook_event_name: 'message_end',
-        role: 'assistant',
-        text: 'done',
-        session_id: 'omp-session-9',
-        session_file: '/tmp/omp-session-9.jsonl'
+      finishDelivery({ ok: true })
+      await vi.waitFor(() =>
+        expect(JSON.parse(String(harness.fetchMock.mock.lastCall?.[1]?.body)).payload).toEqual({
+          hook_event_name: 'message_end',
+          role: 'assistant',
+          text: 'done',
+          session_id: 'omp-session-9',
+          session_file: '/tmp/omp-session-9.jsonl'
+        })
+      )
+      const payloads = harness.fetchMock.mock.calls.map(
+        ([_event, init]) => JSON.parse(String(init?.body)).payload
+      )
+      expect(payloads).toContainEqual({
+        hook_event_name: 'agent_end',
+        session_boundary: true,
+        session_id: 'omp-session-8',
+        session_file: '/tmp/omp-session-8.jsonl'
       })
-      expect(harness.fetchMock.mock.calls[1]?.[0]).toBe('http://127.0.0.1:4321/hook/omp')
+      expect(extractAgentProviderSession('omp', payloads.at(-1))).toEqual({
+        key: 'session_id',
+        id: 'omp-session-9',
+        transcriptPath: '/tmp/omp-session-9.jsonl'
+      })
+      expect(harness.fetchMock.mock.lastCall?.[0]).toBe('http://127.0.0.1:4321/hook/omp')
       expect(harness.spawnMock).not.toHaveBeenCalled()
-      finishDeliveries[1]?.()
     }
   )
 

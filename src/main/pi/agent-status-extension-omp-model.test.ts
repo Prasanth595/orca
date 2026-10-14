@@ -96,29 +96,36 @@ describe('OMP model reporting', () => {
     }
 
     await harness.callHook('agent_start', undefined, { ...session('omp-a'), model: DEEPSEEK })
-    await settled(harness.fetchMock, 1)
-    await harness.callHook('agent_start', undefined, { ...session('omp-b'), model: null })
-    await settled(harness.fetchMock, 2)
-    await harness.callHook('agent_start', undefined, { ...session('omp-b'), model: MINIMAX })
-    await settled(harness.fetchMock, 3)
-
-    expect(postedPayloads(harness.fetchMock)).toEqual([
-      {
+    await vi.waitFor(() =>
+      expect(postedPayloads(harness.fetchMock).at(-1)).toMatchObject({
         hook_event_name: 'agent_start',
         session_id: 'omp-a',
         session_file: '/tmp/omp-a.jsonl',
         model: 'deepseek/deepseek-v4-pro',
         model_switch_command: 'orca-model'
-      },
-      { hook_event_name: 'agent_start', session_id: 'omp-b', session_file: '/tmp/omp-b.jsonl' },
-      {
+      })
+    )
+    await harness.callHook('agent_start', undefined, { ...session('omp-b'), model: null })
+    await vi.waitFor(() => {
+      const payload = postedPayloads(harness.fetchMock).at(-1)
+      expect(payload).toMatchObject({
+        hook_event_name: 'agent_start',
+        session_id: 'omp-b',
+        session_file: '/tmp/omp-b.jsonl'
+      })
+      expect(payload).not.toHaveProperty('model')
+      expect(payload).not.toHaveProperty('model_switch_command')
+    })
+    await harness.callHook('agent_start', undefined, { ...session('omp-b'), model: MINIMAX })
+    await vi.waitFor(() =>
+      expect(postedPayloads(harness.fetchMock).at(-1)).toMatchObject({
         hook_event_name: 'agent_start',
         session_id: 'omp-b',
         session_file: '/tmp/omp-b.jsonl',
         model: 'minimax-cn/MiniMax-M3',
         model_switch_command: 'orca-model'
-      }
-    ])
+      })
+    )
   })
 
   it('posts model_select with the newly selected model', async () => {
