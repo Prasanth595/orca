@@ -80,6 +80,47 @@ describe('rememberCommandInferredPaneAgent', () => {
     expect(useAppStore.getState().agentStatusByPaneKey[PANE_KEY]).toBeUndefined()
   })
 
+  it('retires a stale active hook at a single-leaf shell retarget and keeps shell evidence', () => {
+    useAppStore.setState({
+      agentStatusByPaneKey: { [PANE_KEY]: codexStatus('working') },
+      paneForegroundAgentByPaneKey: {
+        [PANE_KEY]: { agent: null, shellForeground: true }
+      }
+    })
+    const session = buildSession()
+    session.appendPendingShellCommandInput('omp')
+    session.rememberCommandInferredPaneAgent()
+
+    const state = useAppStore.getState()
+    expect(session.commandInferredPaneAgent).toBe('omp')
+    expect(state.agentStatusByPaneKey[PANE_KEY]).toBeUndefined()
+    expect(state.recentlyRetiredAgentStatusPaneKeys[PANE_KEY]).toEqual(expect.any(String))
+    expect(state.paneForegroundAgentByPaneKey[PANE_KEY]).toEqual({
+      agent: null,
+      shellForeground: true
+    })
+  })
+
+  it('preserves a fresh active hook at the same shell retarget boundary', () => {
+    const fresh = {
+      ...codexStatus('working'),
+      updatedAt: Date.now(),
+      stateStartedAt: Date.now()
+    }
+    useAppStore.setState({
+      agentStatusByPaneKey: { [PANE_KEY]: fresh },
+      paneForegroundAgentByPaneKey: {
+        [PANE_KEY]: { agent: null, shellForeground: true }
+      }
+    })
+    const session = buildSession()
+    session.appendPendingShellCommandInput('omp')
+    session.rememberCommandInferredPaneAgent()
+
+    expect(useAppStore.getState().agentStatusByPaneKey[PANE_KEY]).toBe(fresh)
+    expect(useAppStore.getState().recentlyRetiredAgentStatusPaneKeys[PANE_KEY]).toBeUndefined()
+  })
+
   it('keeps same-family typed inference off the launch latch (pi under omp)', () => {
     useAppStore.setState({
       tabsByWorktree: {

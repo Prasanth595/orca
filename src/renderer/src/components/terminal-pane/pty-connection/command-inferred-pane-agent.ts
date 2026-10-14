@@ -72,6 +72,7 @@ export function installCommandInferredPaneAgent(session: ConnectPanePtySession):
     }
     session.startAcceptedInferredCommand(nextAgent)
     const currentLaunchAgent = tab?.launchAgent ?? registeredLaunchAgent
+    let retargetedSingleLeafTab = false
     if (currentLaunchAgent && !shareCompatibleTitleIdentityGroup(nextAgent, currentLaunchAgent)) {
       const layoutRoot = state.terminalLayoutsByTabId[session.deps.tabId]?.root
       // Why: launchAgent is tab-scoped; retargeting it from one split pane would rebrand siblings.
@@ -81,11 +82,14 @@ export function installCommandInferredPaneAgent(session: ConnectPanePtySession):
         layoutRoot.leafId === parsePaneKey(session.cacheKey)?.leafId
       ) {
         state.replaceTabLaunchAgent(session.deps.tabId, nextAgent)
+        retargetedSingleLeafTab = true
       }
       // Why not re-register: the old harness's resume args must not ride on the new identity.
       state.clearAgentLaunchConfig(session.cacheKey)
     }
-    retireSupersededHarnessStatus(session.cacheKey, nextAgent)
+    retireSupersededHarnessStatus(session.cacheKey, nextAgent, {
+      allowStaleNonDone: paneAtShell && retargetedSingleLeafTab
+    })
   }
   session.clearCommandInferredPaneAgent = (): void => {
     session.commandInferredPaneAgent = null

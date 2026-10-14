@@ -43,16 +43,43 @@ describe('retireSupersededHarnessStatus', () => {
     })
     retireSupersededHarnessStatus(PANE_KEY, 'omp')
     expect(useAppStore.getState().agentStatusByPaneKey[PANE_KEY]).toBeUndefined()
+    expect(useAppStore.getState().recentlyRetiredAgentStatusPaneKeys[PANE_KEY]).toEqual(
+      expect.any(String)
+    )
     expect(useAppStore.getState().retentionSuppressedPaneKeys[PANE_KEY]).toBe(true)
   })
 
-  it('dismisses the retained snapshot for the same superseded pane', () => {
+  it('fences a retained-only snapshot against old replay', () => {
     useAppStore.setState({
       agentStatusByPaneKey: {},
       retainedAgentsByPaneKey: { [PANE_KEY]: retainedSnapshot('codex') }
     })
     retireSupersededHarnessStatus(PANE_KEY, 'omp')
     expect(useAppStore.getState().retainedAgentsByPaneKey[PANE_KEY]).toBeUndefined()
+    expect(useAppStore.getState().recentlyRetiredAgentStatusPaneKeys[PANE_KEY]).toEqual(
+      expect.any(String)
+    )
+  })
+
+  it('preserves the occupant launch config and process-read foreground during fenced retirement', () => {
+    const launchConfig = {
+      launchConfig: { agentArgs: '--new', agentEnv: {} },
+      identity: { agentType: 'omp' }
+    }
+    const foreground = {
+      agent: 'omp' as const,
+      agentEvidence: 'process-read' as const,
+      shellForeground: false
+    }
+    useAppStore.setState({
+      agentStatusByPaneKey: { [PANE_KEY]: doneStatus('codex') },
+      retainedAgentsByPaneKey: {},
+      agentLaunchConfigByPaneKey: { [PANE_KEY]: launchConfig },
+      paneForegroundAgentByPaneKey: { [PANE_KEY]: foreground }
+    })
+    retireSupersededHarnessStatus(PANE_KEY, 'omp')
+    expect(useAppStore.getState().agentLaunchConfigByPaneKey[PANE_KEY]).toBe(launchConfig)
+    expect(useAppStore.getState().paneForegroundAgentByPaneKey[PANE_KEY]).toBe(foreground)
   })
 
   it('never drops a non-done live hook or a same-family snapshot', () => {
