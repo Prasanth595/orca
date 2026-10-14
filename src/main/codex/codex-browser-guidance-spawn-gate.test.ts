@@ -130,21 +130,28 @@ describe('gateCodexBrowserGuidance', () => {
       return { command: ptyCommand, env }
     }
     const POSIX_CASES = [
-      ['posix', WITH],
-      ['posix with env prefix', `FOO=1 ${WITH}`],
-      ['posix chained', `${WITH} && echo done`]
+      ['posix', WITH, WITHOUT],
+      ['posix with env prefix', `FOO=1 ${WITH}`, `FOO=1 ${WITHOUT}`],
+      ['posix chained', `${WITH} && echo done`, `${WITHOUT} && echo done`]
     ] as const
 
-    it.each(POSIX_CASES)('strips command, COMMAND and SCRIPT when blocked: %s', async (_n, cmd) => {
-      writeConfig(join(cwd, '.codex'), 'developer_instructions = "x"\n')
-      const input = sequenced('posix', cmd)
-      expect(input.env.ORCA_SEQUENCED_STARTUP_SCRIPT).toContain(ORCA_BROWSER_AGENT_GUIDANCE)
-      const out = await gateFull(input)
-      expect(out.command).toBe(input.command)
-      expect(out.env?.ORCA_SEQUENCED_STARTUP_COMMAND).not.toContain(ORCA_BROWSER_AGENT_GUIDANCE)
-      expect(out.env?.ORCA_SEQUENCED_STARTUP_SCRIPT).not.toContain(ORCA_BROWSER_AGENT_GUIDANCE)
-      expect(out.env?.KEEP).toBe('1')
-    })
+    it.each(POSIX_CASES)(
+      'strips command, COMMAND and SCRIPT when blocked: %s',
+      async (_n, cmd, clean) => {
+        writeConfig(join(cwd, '.codex'), 'developer_instructions = "x"\n')
+        const input = sequenced('posix', cmd)
+        expect(input.env.ORCA_SEQUENCED_STARTUP_SCRIPT).toContain(ORCA_BROWSER_AGENT_GUIDANCE)
+        const out = await gateFull(input)
+        expect(out.command).toBe(input.command)
+        expect(out.env?.ORCA_SEQUENCED_STARTUP_COMMAND).not.toContain(ORCA_BROWSER_AGENT_GUIDANCE)
+        expect(out.env?.ORCA_SEQUENCED_STARTUP_SCRIPT).not.toContain(ORCA_BROWSER_AGENT_GUIDANCE)
+        // A fail-closed script would also lack the guidance; it must equal one built without it.
+        expect(out.env?.ORCA_SEQUENCED_STARTUP_SCRIPT).toBe(
+          sequenced('posix', clean).env.ORCA_SEQUENCED_STARTUP_SCRIPT
+        )
+        expect(out.env?.KEEP).toBe('1')
+      }
+    )
 
     it('strips the Windows sequenced command when blocked', async () => {
       writeConfig(join(cwd, '.codex'), 'developer_instructions = "x"\n')
