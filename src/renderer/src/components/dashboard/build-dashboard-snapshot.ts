@@ -270,6 +270,7 @@ export function buildDashboardSnapshot(
     cards,
     ...(workspaces ? { workspaces } : {}),
     showIdle,
+    openAgentsInApp: state.settings?.experimentalAgentDashboardOpenInApp === true,
     filterOptions,
     // Only the dashboard surfaces offer a launcher; the count-only rebuild that
     // feeds the sidebar must not pay for host-detection lookups.

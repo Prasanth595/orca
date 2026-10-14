@@ -192,6 +192,8 @@ export type DashboardSnapshot = {
    *  optional for preload compatibility with older snapshot producers. */
   workspaces?: DashboardWorkspace[]
   showIdle?: boolean
+  /** Pop-out click destination. Optional for snapshots from older hosts. */
+  openAgentsInApp?: boolean
   /** Available filter dimensions are store-derived so zero-card projects and
    *  statuses remain selectable. Optional for preload-version compatibility. */
   filterOptions?: DashboardFilterOptions

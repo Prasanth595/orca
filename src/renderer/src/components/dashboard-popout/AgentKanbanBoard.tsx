@@ -120,6 +120,8 @@ function KanbanColumn({
 
 type AgentKanbanBoardProps = {
   snapshot: DashboardSnapshot
+  /** Only the pop-out host opts into opening cards in the main window. */
+  openAgentsInApp?: boolean
   /** Sizing for the outermost container. The pop-out fills the window
    *  (h-screen w-screen); the in-window drawer fills its host (h-full w-full). */
   containerClassName?: string
@@ -132,16 +134,14 @@ type AgentKanbanBoardProps = {
   /** When provided, renders a close control in the header (in-window mode). The
    *  pop-out relies on its native window controls, so it omits this. */
   onClose?: () => void
-  /** Header controls rendered before the close button. The in-window host
-   *  passes its settings menu; the pop-out renderer has no store to drive it. */
+  /** Host-supplied header controls, rendered before the close button. */
   headerActions?: React.ReactNode
 }
 
-/** The agent board: status columns fed by a snapshot. Shared by the pop-out
- *  window and the in-window drawer — the two differ only in sizing and
- *  how ack/reveal are routed. */
+/** Status columns shared by the pop-out window and the in-window drawer. */
 export function AgentKanbanBoard({
   snapshot,
+  openAgentsInApp = false,
   containerClassName = 'h-screen w-screen',
   onAckAgent = ackAgentViaPopoutRelay,
   onRevealAgent = revealAgentViaPopoutRelay,
@@ -226,16 +226,26 @@ export function AgentKanbanBoard({
   }, [])
 
   // Seen-state is the app-wide ack map (same signal as the sidebar's bold/mute
-  // rows): opening a dialog acks the agent, and the next snapshot comes back
+  // rows): opening an agent acks it, and the next snapshot comes back
   // with unseen=false.
   const clickAcked = useRef<{ paneKey: string; stateChangedAt: number } | null>(null)
   const handleOpenTerminal = useCallback(
     (card: DashboardCard) => {
       onAckAgent(card.paneKey, 'explicit')
       clickAcked.current = { paneKey: card.paneKey, stateChangedAt: card.stateChangedAt }
+      if (openAgentsInApp) {
+        onRevealAgent({
+          repoId: card.repoId,
+          worktreeId: card.worktreeId,
+          executionHostId: card.executionHostId,
+          tabId: card.tabId,
+          leafId: card.leafId
+        })
+        return
+      }
       setOpenedCard(card)
     },
-    [onAckAgent]
+    [onAckAgent, onRevealAgent, openAgentsInApp]
   )
   // Watching the open dialog counts as seeing state changes as they happen —
   // without this, an agent finishing while you watch would re-flag its card.

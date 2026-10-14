@@ -188,13 +188,11 @@ type AgentKanbanCardProps = {
   /** The card repo's icon. null renders the default folder glyph. */
   repoIcon?: RepoIcon | null
   now: number
-  /** Opens the board-level terminal dialog. The dialog is NOT owned by the
-   *  card: bucket moves remount the card, and an embedded dialog would close
-   *  the chat mid-conversation. */
+  /** The board owns click routing and any preview so bucket moves cannot close it. */
   onOpenTerminal: (card: DashboardCard) => void
 }
 
-/** One agent on the kanban board. Clicking opens the board's live terminal dialog. */
+/** One agent on the kanban board; its host chooses the click destination. */
 export const AgentKanbanCard = memo(
   function AgentKanbanCard({
     card,
