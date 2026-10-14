@@ -145,3 +145,15 @@ export type PlaneConnectResult =
       message: string
       field?: 'serverUrl' | 'apiBaseUrl' | 'workspaceSlug' | 'apiToken'
     }
+
+export type PlaneOperationErrorKind =
+  | PlaneApiErrorKind
+  // No active connection on the executing host.
+  | 'not_connected'
+  // The saved token exists but this host cannot decrypt it (e.g. keychain access denied).
+  | 'credential_unreadable'
+
+export type PlaneOperationError = { kind: PlaneOperationErrorKind; message: string }
+
+/** Every Plane read and write answers in this shape over IPC and runtime RPC alike. */
+export type PlaneResult<T> = { ok: true; value: T } | { ok: false; error: PlaneOperationError }

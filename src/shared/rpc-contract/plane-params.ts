@@ -69,6 +69,8 @@ export const PlaneProjectScopeParam = z.discriminatedUnion('mode', [
 
 export const SetProjectScope = z.object({ scope: PlaneProjectScopeParam })
 
+export const ListProjects = z.object({ refresh: OptionalBoolean }).optional()
+
 export const ListWorkItems = z
   .object({
     projectIds: z.array(PlaneUuid).max(PLANE_SELECTED_PROJECTS_MAX).optional(),
@@ -113,6 +115,8 @@ export const LookupIdentifier = z.object({
 
 export type PlaneConnectParams = z.infer<typeof Connect>
 export type PlaneSetProjectScopeParams = z.infer<typeof SetProjectScope>
+export type PlaneListProjectsParams = z.infer<typeof ListProjects>
+export type PlaneProjectRefParams = z.infer<typeof ProjectRef>
 export type PlaneListWorkItemsParams = z.infer<typeof ListWorkItems>
 export type PlaneWorkItemRefParams = z.infer<typeof WorkItemRef>
 export type PlaneUpdateStateParams = z.infer<typeof UpdateState>

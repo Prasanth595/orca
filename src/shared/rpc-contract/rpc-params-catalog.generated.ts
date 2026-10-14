@@ -442,6 +442,17 @@ import {
 import { WorkerStartParams } from './orchestration-worker-start-params'
 import { WorkerDispatchParams as WorkerDispatchParamsOfOrchestrationWorkerStopParams } from './orchestration-worker-stop-params'
 import {
+  AddComment,
+  Connect as ConnectOfPlaneParams,
+  ListProjects as ListProjectsOfPlaneParams,
+  ListWorkItems,
+  LookupIdentifier,
+  ProjectRef as ProjectRefOfPlaneParams,
+  SetProjectScope,
+  UpdateState,
+  WorkItemRef
+} from './plane-params'
+import {
   PluginInvokeCommandParams,
   PluginReadPanelEntryParams,
   PluginSetEnabledParams,
@@ -1146,6 +1157,19 @@ export const RPC_PARAMS_BY_METHOD = {
   'pairing.getEndpoints': PairingGetEndpointsParamsSchema,
   'pairing.provisionRelay': PairingProvisionRelayParamsSchema,
   'pairing.registerDeviceKey': RegisterDeviceKeyParamsSchema,
+  'plane.addComment': AddComment,
+  'plane.connect': ConnectOfPlaneParams,
+  'plane.disconnect': null,
+  'plane.getWorkItem': WorkItemRef,
+  'plane.listComments': WorkItemRef,
+  'plane.listMembers': ProjectRefOfPlaneParams,
+  'plane.listProjects': ListProjectsOfPlaneParams,
+  'plane.listStates': ProjectRefOfPlaneParams,
+  'plane.listWorkItems': ListWorkItems,
+  'plane.lookupWorkItem': LookupIdentifier,
+  'plane.setProjectScope': SetProjectScope,
+  'plane.status': null,
+  'plane.updateState': UpdateState,
   'plugins.consent': pluginConsentRequestSchema,
   'plugins.invokeCommand': PluginInvokeCommandParams,
   'plugins.list': null,
