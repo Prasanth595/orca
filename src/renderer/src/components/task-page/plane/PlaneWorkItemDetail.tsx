@@ -26,6 +26,9 @@ import type {
 import type { RuntimeClientTarget } from '../../../../../shared/runtime-client-target'
 import { PlaneAssigneeAvatars, PlaneStatePill } from './PlaneWorkItemRow'
 import { getPlanePriorityLabel } from './plane-work-item-labels'
+import { getPlaneWorkItemKey } from './plane-work-item-filters'
+import { PlaneCommentComposer } from './PlaneCommentComposer'
+import { PlaneStatePicker } from './PlaneStatePicker'
 
 type DetailState = {
   detail: PlaneWorkItemDetailValue | null
@@ -33,22 +36,24 @@ type DetailState = {
   error: PlaneErrorKind | null
 }
 
+type DetailData = DetailState & { addComment: (comment: PlaneComment) => void }
+
 function isDetail(item: PlaneWorkItem): item is PlaneWorkItemDetailValue {
   return 'descriptionText' in item
 }
 
-function usePlaneWorkItemDetail(
-  target: RuntimeClientTarget,
-  item: PlaneWorkItem | null
-): DetailState {
-  const [state, setState] = useState<DetailState>({ detail: null, comments: null, error: null })
+// Why the first item only: the body remounts per work item, and later prop updates (an optimistic
+// state change) must not refetch the description and comments.
+function usePlaneWorkItemDetail(target: RuntimeClientTarget, firstItem: PlaneWorkItem): DetailData {
+  const [item] = useState(firstItem)
+  const [state, setState] = useState<DetailState>({
+    detail: isDetail(item) ? item : null,
+    comments: null,
+    error: null
+  })
 
   useEffect(() => {
-    if (!item) {
-      return
-    }
     let cancelled = false
-    setState({ detail: isDetail(item) ? item : null, comments: null, error: null })
     const ref = { projectId: item.projectId, workItemId: item.id }
     const fail = (error: unknown): void => {
       if (!cancelled) {
@@ -81,7 +86,9 @@ function usePlaneWorkItemDetail(
     }
   }, [item, target])
 
-  return state
+  const addComment = (comment: PlaneComment): void =>
+    setState((previous) => ({ ...previous, comments: [...(previous.comments ?? []), comment] }))
+  return { ...state, addComment }
 }
 
 function MetadataRow({ label, children }: { label: string; children: React.ReactNode }) {
@@ -196,65 +203,93 @@ function PlaneDescription({
   )
 }
 
+function PlaneWorkItemDetailBody({
+  item,
+  target,
+  onItemChange,
+  renderActions
+}: {
+  item: PlaneWorkItem
+  target: RuntimeClientTarget
+  onItemChange?: (item: PlaneWorkItem) => void
+  renderActions?: (item: PlaneWorkItem | PlaneWorkItemDetailValue) => React.ReactNode
+}): React.JSX.Element {
+  const { detail, comments, error, addComment } = usePlaneWorkItemDetail(target, item)
+  const hostLabel = usePlaneHostLabel()
+  // Why merge: the list owns the live state (optimistic changes); the detail adds the description.
+  const shown = detail ? { ...detail, state: item.state, updatedAt: item.updatedAt } : item
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto scrollbar-sleek">
+      <SheetHeader>
+        <SheetDescription>
+          <span className="font-mono">{shown.identifier}</span>
+        </SheetDescription>
+        <SheetTitle>{shown.name}</SheetTitle>
+      </SheetHeader>
+      <div className="flex flex-wrap items-center gap-2 px-4">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void window.api.shell.openUrl(shown.url)}
+        >
+          <ExternalLink />
+          {translate('plane.detail.openInPlane', 'Open in Plane')}
+        </Button>
+        {/* Why the loaded detail: actions such as starting a workspace need the description. */}
+        {renderActions?.(shown)}
+      </div>
+      <PlaneWorkItemMetadata
+        item={shown}
+        stateControl={
+          onItemChange ? (
+            <PlaneStatePicker item={item} target={target} onItemChange={onItemChange} />
+          ) : undefined
+        }
+      />
+      <PlaneDescription detail={detail} failed={error !== null} />
+      {error ? (
+        <p role="alert" className="px-4 text-xs text-destructive">
+          {getPlaneErrorCopy(error, hostLabel)}
+        </p>
+      ) : null}
+      <section className="space-y-2 px-4 pb-6">
+        <h3 className="text-xs font-medium text-muted-foreground">
+          {translate('plane.detail.comments', 'Comments')}
+        </h3>
+        <PlaneComments comments={comments} />
+        <PlaneCommentComposer item={item} target={target} onCommentAdded={addComment} />
+      </section>
+    </div>
+  )
+}
+
 export function PlaneWorkItemDetail({
   item,
   target,
   onClose,
-  actions,
-  stateControl,
-  commentComposer
+  onItemChange,
+  renderActions
 }: {
   item: PlaneWorkItem | PlaneWorkItemDetailValue | null
   target: RuntimeClientTarget
   onClose: () => void
-  /** Header actions slot, e.g. starting a workspace from this item. */
-  actions?: React.ReactNode
-  /** Replaces the read-only state pill when the state can be changed here. */
-  stateControl?: React.ReactNode
-  /** Shown under the comments when commenting is available. */
-  commentComposer?: React.ReactNode
+  /** Receives optimistic and settled state changes so the list stays in step. */
+  onItemChange?: (item: PlaneWorkItem) => void
+  /** Header actions slot, e.g. starting a workspace; gets the detail once it has loaded. */
+  renderActions?: (item: PlaneWorkItem | PlaneWorkItemDetailValue) => React.ReactNode
 }): React.JSX.Element {
-  const { detail, comments, error } = usePlaneWorkItemDetail(target, item)
-  const hostLabel = usePlaneHostLabel()
-  const shown = detail ?? item
-
   return (
     <Sheet open={item !== null} onOpenChange={(open) => (open ? undefined : onClose())}>
       <SheetContent side="right" className="w-full sm:max-w-[560px]">
-        {shown ? (
-          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto scrollbar-sleek">
-            <SheetHeader>
-              <SheetDescription>
-                <span className="font-mono">{shown.identifier}</span>
-              </SheetDescription>
-              <SheetTitle>{shown.name}</SheetTitle>
-            </SheetHeader>
-            <div className="flex flex-wrap items-center gap-2 px-4">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void window.api.shell.openUrl(shown.url)}
-              >
-                <ExternalLink />
-                {translate('plane.detail.openInPlane', 'Open in Plane')}
-              </Button>
-              {actions}
-            </div>
-            <PlaneWorkItemMetadata item={shown} stateControl={stateControl} />
-            <PlaneDescription detail={detail} failed={error !== null} />
-            {error ? (
-              <p role="alert" className="px-4 text-xs text-destructive">
-                {getPlaneErrorCopy(error, hostLabel)}
-              </p>
-            ) : null}
-            <section className="space-y-2 px-4 pb-6">
-              <h3 className="text-xs font-medium text-muted-foreground">
-                {translate('plane.detail.comments', 'Comments')}
-              </h3>
-              <PlaneComments comments={comments} />
-              {commentComposer}
-            </section>
-          </div>
+        {item ? (
+          <PlaneWorkItemDetailBody
+            key={getPlaneWorkItemKey(item)}
+            item={item}
+            target={target}
+            onItemChange={onItemChange}
+            renderActions={renderActions}
+          />
         ) : null}
       </SheetContent>
     </Sheet>

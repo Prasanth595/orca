@@ -97,3 +97,13 @@ export function getPlaneErrorCopy(kind: PlaneErrorKind, hostLabel: string): stri
       )
   }
 }
+
+/** Same as getPlaneErrorCopy, but a 403 on a write names the missing permission. */
+export function getPlaneMutationErrorCopy(kind: PlaneErrorKind, hostLabel: string): string {
+  return kind === 'forbidden'
+    ? translate(
+        'plane.error.mutationForbidden',
+        "You don't have permission to change this work item in Plane."
+      )
+    : getPlaneErrorCopy(kind, hostLabel)
+}

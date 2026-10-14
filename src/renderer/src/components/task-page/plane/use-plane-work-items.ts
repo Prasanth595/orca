@@ -13,7 +13,7 @@ import {
   type PlaneWorkItem
 } from '../../../../../shared/plane-types'
 import type { RuntimeClientTarget } from '../../../../../shared/runtime-client-target'
-import { mergePlaneWorkItems } from './plane-work-item-filters'
+import { getPlaneWorkItemKey, mergePlaneWorkItems } from './plane-work-item-filters'
 
 /** Focus refreshes are spaced so tab switching never spends the host's Plane rate budget. */
 export const PLANE_FOCUS_REFRESH_MIN_MS = 60_000
@@ -67,6 +67,7 @@ export function usePlaneWorkItems(args: {
   state: PlaneWorkItemsState
   refresh: () => void
   loadMore: (projectId: string) => void
+  replaceItem: (item: PlaneWorkItem) => void
 } {
   const { target, sourceKey, projectId } = args
   const [state, setState] = useState<PlaneWorkItemsState>(INITIAL_STATE)
@@ -177,7 +178,16 @@ export function usePlaneWorkItems(args: {
     [state.loadingMoreProjectId, state.nextCursorByProject, target]
   )
 
-  return { state, refresh: useCallback(() => load(true), [load]), loadMore }
+  // Why by key: ids repeat across workspaces, so a change targets one connection's item only.
+  const replaceItem = useCallback((next: PlaneWorkItem) => {
+    const key = getPlaneWorkItemKey(next)
+    setState((previous) => ({
+      ...previous,
+      items: previous.items.map((entry) => (getPlaneWorkItemKey(entry) === key ? next : entry))
+    }))
+  }, [])
+
+  return { state, refresh: useCallback(() => load(true), [load]), loadMore, replaceItem }
 }
 
 /** States are fetched only for the one chosen project, so the exact-state filter costs one call. */

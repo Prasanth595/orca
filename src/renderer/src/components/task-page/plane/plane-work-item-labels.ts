@@ -1,6 +1,7 @@
 import { translate } from '@/i18n/i18n'
 import type { PlanePriority, PlaneStateGroup } from '../../../../../shared/plane-types'
 
+/** Plane's own names for state groups, shared by the filters and the state picker. */
 export function getPlaneStateGroupLabel(group: PlaneStateGroup): string {
   switch (group) {
     case 'backlog':

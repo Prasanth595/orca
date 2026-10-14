@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { LoaderCircle } from 'lucide-react'
 import { PlaneIcon } from '@/components/icons/PlaneIcon'
 import { PlaneConnectDialog } from '@/components/plane/PlaneConnectDialog'
@@ -12,7 +12,11 @@ import { planeLookupWorkItemForTarget } from '@/runtime/runtime-plane-client'
 import { getPlaneRuntimeTarget } from '@/runtime/runtime-plane-target'
 import { useAppStore } from '@/store'
 import { DEFAULT_PLANE_WORK_ITEM_FILTERS } from '@/store/slices/plane-slice-contract'
-import type { PlaneConnection, PlaneWorkItem } from '../../../../../shared/plane-types'
+import type {
+  PlaneConnection,
+  PlaneWorkItem,
+  PlaneWorkItemDetail as PlaneWorkItemDetailValue
+} from '../../../../../shared/plane-types'
 import { PlaneFilters } from './PlaneFilters'
 import { PlaneListBanners } from './PlaneListBanners'
 import { PlaneWorkItemDetail } from './PlaneWorkItemDetail'
@@ -20,6 +24,7 @@ import { PlaneWorkItemList } from './PlaneWorkItemRow'
 import {
   filterPlaneWorkItems,
   getPlaneAssigneeOptions,
+  getPlaneWorkItemKey,
   getScopedPlaneProjects,
   hasActivePlaneFilters
 } from './plane-work-item-filters'
@@ -30,11 +35,13 @@ import {
 } from './use-plane-work-items'
 
 type DialogMode = 'connect' | 'editScope'
+type PlaneListStateChange = NonNullable<Parameters<typeof PlaneWorkItemList>[0]['stateChange']>
 
 /** Slots later features fill in; this view renders them as given. */
 export type PlaneWorkItemActionSlots = {
   renderRowActions?: (item: PlaneWorkItem) => React.ReactNode
-  renderDetailActions?: (item: PlaneWorkItem) => React.ReactNode
+  /** Receives the loaded detail (with description) once it arrives, else the list item. */
+  renderDetailActions?: (item: PlaneWorkItem | PlaneWorkItemDetailValue) => React.ReactNode
 }
 
 const CREDENTIAL_ERRORS: ReadonlySet<PlaneErrorKind> = new Set(['auth', 'credential_unreadable'])
@@ -126,7 +133,8 @@ function PlaneListBody({
   hostLabel,
   onOpen,
   onClearFilters,
-  renderRowActions
+  renderRowActions,
+  stateChange
 }: {
   state: PlaneWorkItemsState
   shown: PlaneWorkItem[]
@@ -135,6 +143,7 @@ function PlaneListBody({
   onOpen: (item: PlaneWorkItem) => void
   onClearFilters: () => void
   renderRowActions?: (item: PlaneWorkItem) => React.ReactNode
+  stateChange: PlaneListStateChange
 }): React.JSX.Element {
   return (
     <div className="min-h-0 flex-1 overflow-auto scrollbar-sleek">
@@ -146,6 +155,7 @@ function PlaneListBody({
         onOpen={onOpen}
         onClearFilters={onClearFilters}
         renderRowActions={renderRowActions}
+        stateChange={stateChange}
       />
     </div>
   )
@@ -173,6 +183,7 @@ function PlaneListBodyContent(props: Parameters<typeof PlaneListBody>[0]): React
         items={shown}
         onOpen={props.onOpen}
         renderActions={props.renderRowActions}
+        stateChange={props.stateChange}
       />
     )
   }
@@ -230,7 +241,24 @@ function PlaneConnectedTasks({
       : null
   const effectiveFilters = useMemo(() => ({ ...filters, projectId }), [filters, projectId])
   const sourceKey = JSON.stringify([contextKey, connection.id, connection.projectScope])
-  const { state, refresh, loadMore } = usePlaneWorkItems({ target, sourceKey, projectId })
+  const { state, refresh, loadMore, replaceItem } = usePlaneWorkItems({
+    target,
+    sourceKey,
+    projectId
+  })
+  const handleItemChange = useCallback(
+    (next: PlaneWorkItem) => {
+      replaceItem(next)
+      setSelected((previous) =>
+        previous && getPlaneWorkItemKey(previous) === getPlaneWorkItemKey(next) ? next : previous
+      )
+    },
+    [replaceItem]
+  )
+  const stateChange = useMemo(
+    () => ({ target, onItemChange: handleItemChange }),
+    [handleItemChange, target]
+  )
   const states = usePlaneProjectStates(target, projectId)
   const shown = useMemo(
     () => filterPlaneWorkItems(state.items, effectiveFilters, connection.viewer.id),
@@ -296,13 +324,15 @@ function PlaneConnectedTasks({
           onOpen={setSelected}
           onClearFilters={() => setFilters(DEFAULT_PLANE_WORK_ITEM_FILTERS)}
           renderRowActions={renderRowActions}
+          stateChange={stateChange}
         />
       </div>
       <PlaneWorkItemDetail
         item={selected}
         target={target}
         onClose={() => setSelected(null)}
-        actions={selected ? renderDetailActions?.(selected) : undefined}
+        onItemChange={handleItemChange}
+        renderActions={renderDetailActions}
       />
     </div>
   )

@@ -2,6 +2,8 @@ import { translate } from '@/i18n/i18n'
 import { formatUiRelativeTimeFromDate } from '@/i18n/relative-time-format'
 import type { PlaneMember, PlaneWorkItem } from '../../../../../shared/plane-types'
 import { getPlaneStateGroup, getPlaneWorkItemKey } from './plane-work-item-filters'
+import { PlaneWorkItemContextMenu } from './PlaneStatePicker'
+import type { RuntimeClientTarget } from '../../../../../shared/runtime-client-target'
 
 function initials(member: PlaneMember): string {
   const parts = member.displayName.trim().split(/\s+/).filter(Boolean)
@@ -57,15 +59,17 @@ export function PlaneStatePill({ item }: { item: PlaneWorkItem }): React.JSX.Ele
 export function PlaneWorkItemRow({
   item,
   onOpen,
-  actions
-}: {
+  actions,
+  ...liProps
+}: Omit<React.ComponentProps<'li'>, 'children' | 'className'> & {
   item: PlaneWorkItem
   onOpen: (item: PlaneWorkItem) => void
   /** Per-row actions slot (e.g. starting a workspace); rendered outside the row button. */
   actions?: React.ReactNode
 }): React.JSX.Element {
+  // Why spread: a context-menu trigger wraps the row and passes its ref and handlers through.
   return (
-    <li className="group flex items-center gap-2 px-2 hover:bg-accent/40">
+    <li {...liProps} className="group flex items-center gap-2 px-2 hover:bg-accent/40">
       <button
         type="button"
         data-plane-row
@@ -113,11 +117,14 @@ function moveRowFocus(event: React.KeyboardEvent<HTMLUListElement>): void {
 export function PlaneWorkItemList({
   items,
   onOpen,
-  renderActions
+  renderActions,
+  stateChange
 }: {
   items: readonly PlaneWorkItem[]
   onOpen: (item: PlaneWorkItem) => void
   renderActions?: (item: PlaneWorkItem) => React.ReactNode
+  /** Enables the row context menu that changes an item's state. */
+  stateChange?: { target: RuntimeClientTarget; onItemChange: (item: PlaneWorkItem) => void }
 }): React.JSX.Element {
   return (
     <ul
@@ -125,14 +132,28 @@ export function PlaneWorkItemList({
       aria-label={translate('plane.list.label', 'Plane work items')}
       onKeyDown={moveRowFocus}
     >
-      {items.map((item) => (
-        <PlaneWorkItemRow
-          key={getPlaneWorkItemKey(item)}
-          item={item}
-          onOpen={onOpen}
-          actions={renderActions?.(item)}
-        />
-      ))}
+      {items.map((item) => {
+        const row = (
+          <PlaneWorkItemRow
+            key={getPlaneWorkItemKey(item)}
+            item={item}
+            onOpen={onOpen}
+            actions={renderActions?.(item)}
+          />
+        )
+        return stateChange ? (
+          <PlaneWorkItemContextMenu
+            key={getPlaneWorkItemKey(item)}
+            item={item}
+            target={stateChange.target}
+            onItemChange={stateChange.onItemChange}
+          >
+            {row}
+          </PlaneWorkItemContextMenu>
+        ) : (
+          row
+        )
+      })}
     </ul>
   )
 }

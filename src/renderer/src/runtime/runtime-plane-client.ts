@@ -8,6 +8,7 @@ import type {
   PlaneProjectScope,
   PlaneResult,
   PlaneState,
+  PlaneWorkItem,
   PlaneWorkItemDetail,
   PlaneWorkItemList
 } from '../../../shared/plane-types'
@@ -25,6 +26,8 @@ export const PLANE_RUNTIME_UPDATE_REQUIRED_MESSAGE =
 const PLANE_CONNECT_TIMEOUT_MS = 60_000
 const PLANE_READ_TIMEOUT_MS = 30_000
 const PLANE_STATUS_TIMEOUT_MS = 15_000
+// Why longer: a mutation that times out client-side may still land, and it is never retried.
+const PLANE_MUTATION_TIMEOUT_MS = 45_000
 
 type EnvironmentTarget = Extract<RuntimeClientTarget, { kind: 'environment' }>
 
@@ -169,4 +172,24 @@ export async function planeLookupWorkItemForTarget(
   return target.kind === 'environment'
     ? callPlaneRpc(target, 'plane.lookupWorkItem', { identifier }, PLANE_READ_TIMEOUT_MS)
     : window.api.plane.lookupWorkItem({ identifier })
+}
+
+/** Mutations are sent once; a failure is reported, never retried. */
+export async function planeUpdateStateForTarget(
+  target: RuntimeClientTarget,
+  args: PlaneWorkItemRef & { stateId: string }
+): Promise<PlaneResult<PlaneWorkItem>> {
+  return target.kind === 'environment'
+    ? callPlaneRpc(target, 'plane.updateState', args, PLANE_MUTATION_TIMEOUT_MS)
+    : window.api.plane.updateState(args)
+}
+
+/** The text goes as typed; the host escapes it before it reaches Plane. */
+export async function planeAddCommentForTarget(
+  target: RuntimeClientTarget,
+  args: PlaneWorkItemRef & { text: string }
+): Promise<PlaneResult<PlaneComment>> {
+  return target.kind === 'environment'
+    ? callPlaneRpc(target, 'plane.addComment', args, PLANE_MUTATION_TIMEOUT_MS)
+    : window.api.plane.addComment(args)
 }

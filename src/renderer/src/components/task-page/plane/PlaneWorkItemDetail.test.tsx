@@ -7,13 +7,20 @@ import { PlaneWorkItemDetail } from './PlaneWorkItemDetail'
 const mocks = vi.hoisted(() => ({
   getWorkItem: vi.fn(),
   listComments: vi.fn(),
+  addComment: vi.fn(),
+  listStates: vi.fn(),
+  updateState: vi.fn(),
   openUrl: vi.fn()
 }))
 vi.mock('@/runtime/runtime-plane-client', () => ({
   planeGetWorkItemForTarget: mocks.getWorkItem,
   planeListCommentsForTarget: mocks.listComments,
+  planeAddCommentForTarget: mocks.addComment,
+  planeListStatesForTarget: mocks.listStates,
+  planeUpdateStateForTarget: mocks.updateState,
   isPlaneRuntimeUpdateRequiredError: () => false
 }))
+vi.mock('sonner', () => ({ toast: { error: vi.fn() } }))
 vi.mock('@/components/plane/use-plane-host-label', () => ({
   usePlaneHostLabel: () => 'Local Mac'
 }))
@@ -98,10 +105,83 @@ describe('PlaneWorkItemDetail', () => {
         item={ITEM}
         target={TARGET}
         onClose={vi.fn()}
-        actions={<button type="button">Slot action</button>}
+        renderActions={() => <button type="button">Slot action</button>}
       />
     )
     expect(screen.getByRole('button', { name: 'Slot action' })).toBeTruthy()
+  })
+
+  it('posts a comment and shows it in the list without refetching', async () => {
+    mocks.addComment.mockResolvedValue({
+      ok: true,
+      value: { id: 'c2', authorName: 'Ada', text: 'Shipped', createdAt: '2026-01-04T00:00:00Z' }
+    })
+    render(<PlaneWorkItemDetail item={ITEM} target={TARGET} onClose={vi.fn()} />)
+    await waitFor(() => expect(mocks.listComments).toHaveBeenCalledOnce())
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Comment' }), {
+      target: { value: 'Shipped' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Comment' }))
+
+    await waitFor(() => expect(screen.getByText('Shipped')).toBeTruthy())
+    expect(mocks.listComments).toHaveBeenCalledOnce()
+  })
+
+  it('offers the state picker when changes can flow back to the list', () => {
+    const { rerender } = render(
+      <PlaneWorkItemDetail item={ITEM} target={TARGET} onClose={vi.fn()} />
+    )
+    expect(screen.queryByRole('button', { name: 'Change state: In Progress' })).toBeNull()
+
+    rerender(
+      <PlaneWorkItemDetail item={ITEM} target={TARGET} onClose={vi.fn()} onItemChange={vi.fn()} />
+    )
+    expect(screen.getByRole('button', { name: 'Change state: In Progress' })).toBeTruthy()
+  })
+
+  it('shows an optimistic state from the list without refetching the item', async () => {
+    const onItemChange = vi.fn()
+    const { rerender } = render(
+      <PlaneWorkItemDetail
+        item={ITEM}
+        target={TARGET}
+        onClose={vi.fn()}
+        onItemChange={onItemChange}
+      />
+    )
+    await waitFor(() => expect(mocks.getWorkItem).toHaveBeenCalledOnce())
+    const done = { id: 'done', name: 'Done', group: 'completed' as const, color: '', sequence: 1 }
+
+    rerender(
+      <PlaneWorkItemDetail
+        item={{ ...ITEM, state: done }}
+        target={TARGET}
+        onClose={vi.fn()}
+        onItemChange={onItemChange}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Change state: Done' })).toBeTruthy()
+    expect(mocks.getWorkItem).toHaveBeenCalledOnce()
+  })
+
+  it('hands detail actions the loaded description, and the list item until then', async () => {
+    const renderActions = vi.fn(() => null)
+    render(
+      <PlaneWorkItemDetail
+        item={ITEM}
+        target={TARGET}
+        onClose={vi.fn()}
+        renderActions={renderActions}
+      />
+    )
+    expect(renderActions).toHaveBeenCalledWith(ITEM)
+    await waitFor(() =>
+      expect(renderActions).toHaveBeenLastCalledWith(
+        expect.objectContaining({ id: ITEM.id, descriptionText: HTML })
+      )
+    )
   })
 
   it('names the failure by kind', async () => {

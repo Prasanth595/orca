@@ -279,6 +279,20 @@ describe('TaskPagePlaneContent banners', () => {
   })
 })
 
+describe('TaskPagePlaneContent row menu', () => {
+  it('opens a context menu with Change state and Open in Plane', async () => {
+    install(connected())
+    mocks.listWorkItems.mockResolvedValue(listResult([workItem('12', { name: 'Fix login' })]))
+    render(<TaskPagePlaneContent onHide={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Fix login')).toBeTruthy())
+
+    fireEvent.contextMenu(screen.getByText('Fix login'))
+
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: 'Change state' })).toBeTruthy())
+    expect(screen.getByRole('menuitem', { name: 'Open in Plane' })).toBeTruthy()
+  })
+})
+
 describe('TaskPagePlaneContent identifier jump', () => {
   it('looks up an identifier the list has not loaded and opens its detail', async () => {
     install(connected(), {

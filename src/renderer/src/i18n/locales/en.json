@@ -20184,7 +20184,8 @@
       "notConnected": "Plane is not connected on {{host}}.",
       "credentialUnreadable": "{{host}} could not read the saved Plane token. Reconnect Plane to save it again.",
       "updateRequired": "Update the Orca server on {{host}} to use Plane.",
-      "runtime": "Orca could not reach {{host}}. Check the connection and try again."
+      "runtime": "Orca could not reach {{host}}. Check the connection and try again.",
+      "mutationForbidden": "You don't have permission to change this work item in Plane."
     },
     "host": {
       "remoteServerFallback": "the remote server"
@@ -20315,6 +20316,19 @@
     },
     "link": {
       "updateRequired": "Update the remote runtime to link Plane work items"
+    },
+    "comment": {
+      "label": "Comment",
+      "placeholder": "Add a comment…",
+      "tooLong": "Comments can be at most {{max}} characters.",
+      "shortcut": "{{shortcut}} to comment",
+      "submit": "Comment"
+    },
+    "statePicker": {
+      "loading": "Loading states…",
+      "unavailable": "States are unavailable.",
+      "trigger": "Change state: {{state}}",
+      "changeState": "Change state"
     }
   }
 }
