@@ -160,6 +160,10 @@ export function MobileSessionHeader({ controller }: { controller: MobileSessionC
             {visibleTabs.map((t) => (
               <Pressable
                 key={t.id}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: t.id === activeSessionTabId }}
+                aria-selected={t.id === activeSessionTabId}
+                accessibilityLabel={getMobileSessionTabTitle(t)}
                 style={[styles.tab, t.id === activeSessionTabId && styles.tabActive]}
                 onLayout={(e) => {
                   const { x, width } = e.nativeEvent.layout
