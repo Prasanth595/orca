@@ -25,10 +25,15 @@ const badgeVariants = cva(
         /** A skill or file sitting inline in the chat message box, ringed while selected. */
         promptPill:
           'max-w-full border-border bg-secondary px-1.5 py-0 align-baseline text-muted-foreground data-[selected=true]:ring-1 data-[selected=true]:ring-ring'
+      },
+      size: {
+        default: '',
+        count: 'h-3.5 min-w-3.5 px-0.5 py-0 text-3xs leading-none tabular-nums'
       }
     },
     defaultVariants: {
-      variant: 'default'
+      variant: 'default',
+      size: 'default'
     }
   }
 )
@@ -36,6 +41,7 @@ const badgeVariants = cva(
 function Badge({
   className,
   variant = 'default',
+  size = 'default',
   asChild = false,
   ...props
 }: React.ComponentProps<'span'> & VariantProps<typeof badgeVariants> & { asChild?: boolean }) {
@@ -45,7 +51,7 @@ function Badge({
     <Comp
       data-slot="badge"
       data-variant={variant}
-      className={cn(badgeVariants({ variant }), className)}
+      className={cn(badgeVariants({ variant, size }), className)}
       {...props}
     />
   )

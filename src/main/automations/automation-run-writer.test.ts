@@ -8,6 +8,7 @@ import { createAutomationRunWriter } from './automation-run-writer'
 import { collectAutomationRunUsage } from './run-usage-collection'
 import { buildProfileStateCutoverFixture } from '../persistence/profile-state-cutover-fixture'
 import type { Store } from '../persistence'
+import type { AutomationRun } from '../../shared/automations-types'
 
 const SSH_SELECTOR = { kind: 'ssh', targetId: 'ssh-1' } as const
 
@@ -15,16 +16,26 @@ const data = buildProfileStateCutoverFixture('/fixture')
 const automation = { ...data.automations[0], id: 'auto-1' }
 const run = { ...data.automationRuns[0], id: 'run-1', automationId: automation.id }
 
-function writerWith(selector: ReturnType<Store['automationChangeSelector']>) {
+function writerWith(
+  selector: ReturnType<Store['automationChangeSelector']>,
+  initial: Partial<AutomationRun> = {}
+) {
+  let current: AutomationRun = { ...run, status: 'dispatched', ...initial }
   const publish = vi.fn()
   const automationChangeSelector = vi.fn(() => selector)
   const store = {
     flushPendingOrThrowAsync: vi.fn().mockResolvedValue(undefined),
     createAutomationRun: vi.fn(() => run),
-    updateAutomationRun: vi.fn(() => run),
+    listAutomationRuns: vi.fn(() => [current]),
+    updateAutomationRun: vi.fn((result: Parameters<Store['updateAutomationRun']>[0]) => {
+      const updated = { ...current, ...result }
+      current = updated
+      return updated
+    }),
     recordRepeatedAutomationSkip: vi.fn(() => null),
     advanceAutomationNextRun: vi.fn(() => automation),
-    automationChangeSelector
+    automationChangeSelector,
+    automationAlertsEnabled: vi.fn(() => true)
   }
   return {
     publish,
@@ -35,6 +46,84 @@ function writerWith(selector: ReturnType<Store['automationChangeSelector']>) {
 }
 
 describe('automation run writer publications', () => {
+  it.each(['failed', 'needs_attention'] as const)(
+    'stores an opted-out %s report without publishing an alert',
+    async (status) => {
+      const { writer, store, publish } = writerWith(SSH_SELECTOR)
+      store.automationAlertsEnabled.mockReturnValue(false)
+      const updated = await writer.updateRun({
+        runId: run.id,
+        status: 'dispatched',
+        result: { status, message: 'Check this run', reportedAt: 1 }
+      })
+      expect(updated.result?.status).toBe(status)
+      expect(store.flushPendingOrThrowAsync).toHaveBeenCalled()
+      expect(publish).toHaveBeenCalledWith({ reason: 'run', selector: SSH_SELECTOR })
+    }
+  )
+
+  it('suppresses a launch failure when the automation has opted out', async () => {
+    const { writer, store, publish } = writerWith(SSH_SELECTOR)
+    store.automationAlertsEnabled.mockReturnValue(false)
+    const updated = await writer.updateRun({
+      runId: run.id,
+      status: 'dispatch_failed',
+      error: 'Missing folder'
+    })
+    expect(updated.error).toBe('Missing folder')
+    expect(publish).toHaveBeenCalledWith({ reason: 'run', selector: SSH_SELECTOR })
+  })
+
+  it('honors disabling reminders while persistence is pending without replaying later', async () => {
+    const { writer, store, publish } = writerWith(SSH_SELECTOR)
+    const acknowledgement = Promise.withResolvers<void>()
+    store.flushPendingOrThrowAsync.mockReturnValueOnce(acknowledgement.promise)
+    const result = { runId: run.id, status: 'dispatch_failed' as const, error: 'Launch failed' }
+    const pending = writer.updateRun(result)
+    store.automationAlertsEnabled.mockReturnValue(false)
+    acknowledgement.resolve()
+    await pending
+    store.automationAlertsEnabled.mockReturnValue(true)
+    await writer.updateRun(result)
+    expect(publish.mock.calls.filter(([payload]) => payload.alert)).toHaveLength(0)
+  })
+
+  it('publishes the original execution host separately from the current catalog', async () => {
+    const { writer, publish } = writerWith({ kind: 'self' }, { reportHostId: 'ssh:ssh-1' })
+    await writer.updateRun({ runId: run.id, status: 'dispatch_failed', error: 'Launch failed' })
+    expect(publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        selector: { kind: 'self' },
+        alert: expect.objectContaining({ executionHostId: 'ssh:ssh-1' })
+      })
+    )
+  })
+  it('announces a failed run once, after persistence, including its error and identity', async () => {
+    const { store, writer, publish } = writerWith(SSH_SELECTOR)
+    const acknowledgement = Promise.withResolvers<void>()
+    store.flushPendingOrThrowAsync.mockReturnValueOnce(acknowledgement.promise)
+    const pending = writer.updateRun({
+      runId: run.id,
+      status: 'dispatch_failed',
+      error: 'Login expired'
+    })
+    expect(publish).not.toHaveBeenCalled()
+    acknowledgement.resolve()
+    await pending
+    expect(publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        selector: SSH_SELECTOR,
+        alert: expect.objectContaining({
+          automationId: 'auto-1',
+          runId: 'run-1',
+          message: 'Login expired',
+          status: 'failed'
+        })
+      })
+    )
+    await writer.updateRun({ runId: run.id, status: 'dispatch_failed', error: 'Login expired' })
+    expect(publish.mock.calls.filter(([payload]) => payload.alert)).toHaveLength(1)
+  })
   it('waits for durable acknowledgement before publishing or returning a run', async () => {
     const { store, writer, publish } = writerWith(SSH_SELECTOR)
     const acknowledgement = Promise.withResolvers<void>()
@@ -48,6 +137,76 @@ describe('automation run writer publications', () => {
     await pending
     expect(publish).toHaveBeenCalledOnce()
     expect(completed).toHaveBeenCalledOnce()
+  })
+
+  it('retains a failed alert until a retried write is acknowledged', async () => {
+    const { writer, store, publish } = writerWith(SSH_SELECTOR)
+    store.flushPendingOrThrowAsync.mockRejectedValueOnce(new Error('disk full'))
+    const result = { runId: run.id, status: 'dispatch_failed' as const, error: 'Launch failed' }
+    await expect(writer.updateRun(result)).rejects.toThrow('disk full')
+    expect(publish).not.toHaveBeenCalled()
+    await writer.updateRun(result)
+    expect(publish).toHaveBeenCalledWith(
+      expect.objectContaining({ alert: expect.objectContaining({ message: 'Launch failed' }) })
+    )
+  })
+
+  it('retains an attention-to-failure alert through a persistence retry', async () => {
+    const { writer, store, publish } = writerWith(SSH_SELECTOR, {
+      result: { status: 'needs_attention', message: 'Review the policy', reportedAt: 1 }
+    })
+    store.flushPendingOrThrowAsync.mockRejectedValueOnce(new Error('disk full'))
+    const failure = { runId: run.id, status: 'dispatch_failed' as const, error: 'Terminal lost' }
+    await expect(writer.updateRun(failure)).rejects.toThrow('disk full')
+    expect(publish).not.toHaveBeenCalled()
+    await writer.updateRun(failure)
+    await writer.updateRun(failure)
+    expect(
+      publish.mock.calls.flatMap(([payload]) => (payload.alert ? [payload.alert] : []))
+    ).toEqual([expect.objectContaining({ status: 'failed', message: 'Terminal lost' })])
+  })
+
+  it('does not let an older acknowledgement publish a newer uncommitted failure', async () => {
+    const { writer, store, publish } = writerWith(SSH_SELECTOR)
+    const attentionAck = Promise.withResolvers<void>()
+    const failureAck = Promise.withResolvers<void>()
+    store.flushPendingOrThrowAsync
+      .mockReturnValueOnce(attentionAck.promise)
+      .mockReturnValueOnce(failureAck.promise)
+    const attentionWrite = writer.updateRun({
+      runId: run.id,
+      status: 'dispatched',
+      result: { status: 'needs_attention', message: 'Review the policy', reportedAt: 1 }
+    })
+    const failure = { runId: run.id, status: 'dispatch_failed' as const, error: 'Terminal lost' }
+    const failureWrite = expect(writer.updateRun(failure)).rejects.toThrow('disk full')
+    attentionAck.resolve()
+    await attentionWrite
+    expect(publish.mock.calls.some(([payload]) => payload.alert?.status === 'failed')).toBe(false)
+    failureAck.reject(new Error('disk full'))
+    await failureWrite
+    await writer.updateRun(failure)
+    expect(
+      publish.mock.calls.flatMap(([payload]) => (payload.alert ? [payload.alert] : []))
+    ).toEqual([expect.objectContaining({ status: 'failed', message: 'Terminal lost' })])
+  })
+
+  it('does not repeat a reported failure when the terminal subsequently fails', async () => {
+    const { writer, publish } = writerWith(SSH_SELECTOR)
+    await writer.updateRun({
+      runId: run.id,
+      status: 'dispatched',
+      result: { status: 'failed', message: 'Task failed', reportedAt: 1 }
+    })
+    await writer.updateRun({ runId: run.id, status: 'dispatch_failed', error: 'Terminal lost' })
+    expect(publish.mock.calls.filter(([payload]) => payload.alert)).toHaveLength(1)
+  })
+
+  it('does not alert for completed or skipped runs', async () => {
+    const { writer, publish } = writerWith(SSH_SELECTOR)
+    await writer.updateRun({ runId: run.id, status: 'completed' })
+    await writer.updateRun({ runId: run.id, status: 'skipped_precheck' })
+    expect(publish.mock.calls.every(([payload]) => !payload.alert)).toBe(true)
   })
 
   it('rejects a failed write without publishing success', async () => {

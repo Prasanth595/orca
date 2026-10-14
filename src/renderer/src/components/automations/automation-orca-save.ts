@@ -160,6 +160,7 @@ export async function saveOrcaAutomation(
     prompt: draft.prompt,
     precheck,
     agentId: draft.agentId,
+    ...(draft.notifyOnFailure !== undefined ? { notifyOnFailure: draft.notifyOnFailure } : {}),
     // Sent only when it carries or clears extras, so other edits stay legacy-shaped.
     ...(hasExtraAgentArgs(draft.extraAgentArgs) || currentAutomation?.extraAgentArgs
       ? { extraAgentArgs: draft.extraAgentArgs }
@@ -183,6 +184,7 @@ export async function saveOrcaAutomation(
     prompt: draft.prompt,
     precheck,
     agentId: draft.agentId,
+    ...(draft.notifyOnFailure !== undefined ? { notifyOnFailure: draft.notifyOnFailure } : {}),
     ...(hasExtraAgentArgs(draft.extraAgentArgs) ? { extraAgentArgs: draft.extraAgentArgs } : {}),
     runContext,
     projectId: draft.projectId,

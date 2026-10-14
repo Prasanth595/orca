@@ -1,3 +1,4 @@
+import { useActivityInboxReadControls } from '@/components/activity/use-activity-inbox-read-controls'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
@@ -96,6 +97,11 @@ export default function SidebarAgentsList({
     setSelectedPaneKey
   })
 
+  const { hasUnreadEntries, markAllReadEntries } = useActivityInboxReadControls(
+    hasUnreadThreads,
+    markAllThreadsRead
+  )
+
   const canJumpToWorkspace = useCallback(
     (thread: Parameters<typeof hasActivityThreadWorkspace>[0]) =>
       hasActivityThreadWorkspace(thread, {
@@ -149,10 +155,10 @@ export default function SidebarAgentsList({
         onReadFilterChange={setReadFilter}
         compactMode={compactMode}
         showChildAgents={showChildAgents}
-        hasUnreadThreads={hasUnreadThreads}
+        hasUnreadThreads={hasUnreadEntries}
         onCompactModeChange={setCompactMode}
         onShowChildAgentsChange={setShowChildAgents}
-        onMarkAllThreadsRead={markAllThreadsRead}
+        onMarkAllThreadsRead={markAllReadEntries}
         hasCompletedThreads={hasCompletedThreads}
         onClearCompleted={handleClearCompleted}
         visibleThreadGroups={visibleThreadGroups}
@@ -179,11 +185,11 @@ export default function SidebarAgentsList({
               onGroupByChange={setGroupBy}
               compactMode={compactMode}
               showChildAgents={showChildAgents}
-              hasUnreadThreads={hasUnreadThreads}
+              hasUnreadThreads={hasUnreadEntries}
               hasCompletedThreads={hasCompletedThreads}
               onCompactModeChange={setCompactMode}
               onShowChildAgentsChange={setShowChildAgents}
-              onMarkAllThreadsRead={markAllThreadsRead}
+              onMarkAllThreadsRead={markAllReadEntries}
               onClearCompleted={handleClearCompleted}
               showSearch={showSearch}
               onShowSearchChange={handleShowSearchChange}

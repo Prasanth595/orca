@@ -1,6 +1,8 @@
 import type { TuiAgent } from './tui-agent'
 import type { SetupDecision } from './worktree/create-types'
 import type { TaskSourceContext, WorkspaceRunContext } from './task-source-context'
+import type { AutomationRunResult, AutomationRunReporting } from './automation-run-result'
+import type { AutomationRunInboxAlert } from './automation-run-inbox-alert'
 
 export type AutomationWorkspaceMode = 'existing' | 'new_per_run'
 export type AutomationExecutionTargetType = 'local' | 'ssh'
@@ -20,14 +22,7 @@ export type AutomationRunTrigger = 'scheduled' | 'manual'
 
 /** Statuses a run can never leave; only these are safe to evict from history. */
 export function isFinalAutomationRunStatus(status: AutomationRunStatus): boolean {
-  return (
-    status === 'completed' ||
-    status === 'dispatch_failed' ||
-    status === 'skipped_precheck' ||
-    status === 'skipped_missed' ||
-    status === 'skipped_unavailable' ||
-    status === 'skipped_needs_interactive_auth'
-  )
+  return status === 'completed' || status === 'dispatch_failed' || status.startsWith('skipped_')
 }
 
 export type AutomationSchedulePreset = 'hourly' | 'daily' | 'weekdays' | 'weekly' | 'custom'
@@ -98,6 +93,8 @@ export type Automation = {
   agentId: TuiAgent
   /** Saved text appended to the host's default agent Arguments on each fresh run; absent means none. */
   extraAgentArgs?: string
+  /** Opt-in for failed and needs-attention run alerts; absent means off. */
+  notifyOnFailure?: boolean
   /** Why: runContext carries the logical project + host setup identity for
    *  multi-host projects; projectId remains only as the legacy repo-id storage
    *  field for pre-host-context automations.
@@ -134,7 +131,8 @@ export type Automation = {
   updatedAt: number
 }
 
-export type AutomationRun = {
+export type AutomationRun = AutomationRunReporting & {
+  inboxAlert?: AutomationRunInboxAlert
   id: string
   automationId: string
   runContext?: WorkspaceRunContext | null
@@ -187,6 +185,7 @@ export type AutomationCreateInput = {
   agentId: TuiAgent
   /** Empty or whitespace means no extras. */
   extraAgentArgs?: string
+  notifyOnFailure?: boolean
   runContext?: WorkspaceRunContext | null
   sourceContext?: TaskSourceContext | null
   /** @deprecated Legacy repo-id compatibility field required for older stored
@@ -212,6 +211,7 @@ export type AutomationUpdateInput = Partial<
     | 'precheck'
     | 'agentId'
     | 'extraAgentArgs'
+    | 'notifyOnFailure'
     | 'runContext'
     | 'sourceContext'
     | 'projectId'
@@ -235,6 +235,7 @@ export type AutomationDispatchRequest = {
 }
 
 export type AutomationDispatchResult = {
+  result?: AutomationRunResult
   runId: string
   status: AutomationRunStatus
   workspaceId?: string | null

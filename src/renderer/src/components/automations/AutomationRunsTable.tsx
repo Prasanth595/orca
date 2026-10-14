@@ -1,3 +1,4 @@
+import { getAutomationRunDisplayStatus } from '../../../../shared/automation-run-result'
 import React, { useEffect, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChevronRight, Loader2 } from 'lucide-react'
@@ -142,8 +143,14 @@ export function AutomationRunsTable({
                         )}
                     </div>
                     <div className="flex items-center justify-between gap-2">
-                      <Badge variant={getAutomationRunStatusVariant(entry.run.status)}>
-                        {getAutomationRunStatusLabel(entry.run.status)}
+                      <Badge
+                        variant={getAutomationRunStatusVariant(
+                          getAutomationRunDisplayStatus(entry.run.status, entry.run.result?.status)
+                        )}
+                      >
+                        {getAutomationRunStatusLabel(
+                          getAutomationRunDisplayStatus(entry.run.status, entry.run.result?.status)
+                        )}
                       </Badge>
                       <ChevronRight className="size-3.5 text-muted-foreground" />
                     </div>

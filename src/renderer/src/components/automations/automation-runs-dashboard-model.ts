@@ -1,11 +1,12 @@
-import type { AutomationRun, AutomationRunStatus } from '../../../../shared/automations-types'
+import type { AutomationRun } from '../../../../shared/automations-types'
+import { getAutomationRunDisplayStatus } from '../../../../shared/automation-run-result'
 import { parseExecutionHostId } from '../../../../shared/execution-host'
 import type { AutomationActionNotice } from './automation-row-action-dispatch'
 import type { AutomationListRow } from './automation-list-row-identity'
 
 export type AutomationRunsDashboardRun = Pick<
   AutomationRun,
-  'id' | 'title' | 'scheduledFor' | 'status' | 'trigger'
+  'id' | 'title' | 'scheduledFor' | 'status' | 'trigger' | 'result'
 >
 
 export function projectAutomationRunsDashboardRun(run: AutomationRun): AutomationRunsDashboardRun {
@@ -14,12 +15,19 @@ export function projectAutomationRunsDashboardRun(run: AutomationRun): Automatio
     title: run.title,
     scheduledFor: run.scheduledFor,
     status: run.status,
+    ...(run.result ? { result: run.result } : {}),
     trigger: run.trigger
   }
 }
 
 export type AutomationRunsScope = 'local' | 'remote'
-export type AutomationRunsStatusFilter = 'all' | 'successful' | 'failed' | 'active' | 'skipped'
+export type AutomationRunsStatusFilter =
+  | 'all'
+  | 'successful'
+  | 'failed'
+  | 'needs_attention'
+  | 'active'
+  | 'skipped'
 
 export type AutomationRunsDashboardEntry = {
   key: string
@@ -83,7 +91,11 @@ export function buildAutomationRunsDashboardEntries(
     .sort((left, right) => right.run.scheduledFor - left.run.scheduledFor)
 }
 
-function matchesStatus(status: AutomationRunStatus, filter: AutomationRunsStatusFilter): boolean {
+function matchesStatus(
+  run: AutomationRunsDashboardRun,
+  filter: AutomationRunsStatusFilter
+): boolean {
+  const status = getAutomationRunDisplayStatus(run.status, run.result?.status)
   if (filter === 'all') {
     return true
   }
@@ -91,12 +103,15 @@ function matchesStatus(status: AutomationRunStatus, filter: AutomationRunsStatus
     return status === 'completed'
   }
   if (filter === 'failed') {
-    return status === 'dispatch_failed'
+    return status === 'dispatch_failed' || status === 'failed'
+  }
+  if (filter === 'needs_attention') {
+    return status === 'needs_attention'
   }
   if (filter === 'skipped') {
     return status.startsWith('skipped')
   }
-  return status === 'pending' || status === 'dispatching' || status === 'dispatched'
+  return run.status === 'pending' || run.status === 'dispatching' || run.status === 'dispatched'
 }
 
 export function filterAutomationRunsDashboardEntries({
@@ -114,7 +129,7 @@ export function filterAutomationRunsDashboardEntries({
   const selectedHosts = new Set(hostKeys)
   return entries.filter((entry) => {
     if (
-      !matchesStatus(entry.run.status, status) ||
+      !matchesStatus(entry.run, status) ||
       (selectedHosts.size > 0 && !selectedHosts.has(entry.hostKey))
     ) {
       return false
@@ -138,8 +153,9 @@ export function countAutomationRunOutcomes(
     if (entry.run.scheduledFor > now) {
       continue
     }
-    const successful = entry.run.status === 'completed'
-    const failed = entry.run.status === 'dispatch_failed'
+    const status = getAutomationRunDisplayStatus(entry.run.status, entry.run.result?.status)
+    const successful = status === 'completed'
+    const failed = status === 'dispatch_failed' || status === 'failed'
     if (entry.run.scheduledFor >= weekAgo) {
       counts.successful7d += successful ? 1 : 0
       counts.failed7d += failed ? 1 : 0

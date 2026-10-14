@@ -14,6 +14,7 @@ import { handleActivityFilterFocusShortcut } from './activity-filter-focus-short
 import { hasActivityThreadWorkspace } from './activity-thread-actions'
 import { useActivityThreadActionBindings } from './use-activity-thread-action-bindings'
 import { ActivityThreadListPane } from './activity-thread-list-pane'
+import { useActivityInboxReadControls } from './use-activity-inbox-read-controls'
 import { ActivityThreadDetailPane } from './activity-thread-detail-pane'
 import {
   otherActivityTerminalSlot,
@@ -277,6 +278,11 @@ export default function ActivityPrototypePage(): React.JSX.Element {
     ]
   )
 
+  const { hasUnreadEntries, markAllReadEntries } = useActivityInboxReadControls(
+    hasUnreadThreads,
+    markAllThreadsRead
+  )
+
   useEffect(() => {
     if (
       !selectedThread ||
@@ -328,10 +334,10 @@ export default function ActivityPrototypePage(): React.JSX.Element {
           onReadFilterChange={setReadFilter}
           compactMode={compactMode}
           showChildAgents={showChildAgents}
-          hasUnreadThreads={hasUnreadThreads}
+          hasUnreadThreads={hasUnreadEntries}
           onCompactModeChange={setCompactMode}
           onShowChildAgentsChange={setShowChildAgents}
-          onMarkAllThreadsRead={markAllThreadsRead}
+          onMarkAllThreadsRead={markAllReadEntries}
           hasCompletedThreads={hasCompletedThreads}
           onClearCompleted={handleClearCompleted}
           visibleThreadGroups={visibleThreadGroups}

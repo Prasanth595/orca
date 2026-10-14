@@ -1,6 +1,7 @@
 import type { Store } from '../persistence'
 import type { PublishAutomationsChanged } from '../../shared/runtime-client-events'
 import type { AutomationDispatchResult, AutomationRun } from '../../shared/automations-types'
+import { newAutomationRunAlert, type AutomationRunAlert } from '../../shared/automation-run-alert'
 
 type DurableWrite<T extends (...args: never[]) => unknown> = (
   ...args: Parameters<T>
@@ -25,18 +26,25 @@ export function createAutomationRunWriter(
     | 'recordRepeatedAutomationSkip'
     | 'advanceAutomationNextRun'
     | 'automationChangeSelector'
+    | 'automationAlertsEnabled'
     | 'flushPendingOrThrowAsync'
+    | 'listAutomationRuns'
   >,
   publish: PublishAutomationsChanged | null
 ): AutomationRunWriter {
+  const pendingAlerts = new Map<string, AutomationRunAlert>()
   // A run write never moves the record, so its own host is the whole publication.
   // A record that can no longer be named degrades to the authority-wide event.
-  const announce = (automationId: string, reason: 'run' | 'usage'): void => {
+  const announce = (
+    automationId: string,
+    reason: 'run' | 'usage',
+    alert?: AutomationRunAlert
+  ): void => {
     if (!publish) {
       return
     }
     const selector = store.automationChangeSelector(automationId)
-    publish({ reason, ...(selector ? { selector } : {}) })
+    publish({ reason, ...(selector ? { selector } : {}), ...(alert ? { alert } : {}) })
   }
   return {
     advanceNextRun: async (id, now) => {
@@ -51,9 +59,27 @@ export function createAutomationRunWriter(
       return run
     },
     updateRun: async (result: AutomationDispatchResult): Promise<AutomationRun> => {
+      const previous = publish
+        ? store.listAutomationRuns().find((entry) => entry.id === result.runId)
+        : null
       const run = store.updateAutomationRun(result)
+      const alert = newAutomationRunAlert(previous, run)
+      if (publish && alert && store.automationAlertsEnabled(run.automationId)) {
+        pendingAlerts.set(run.id, alert)
+      }
+      const pending = pendingAlerts.get(run.id)
       await store.flushPendingOrThrowAsync({ drainToStableGeneration: false })
-      announce(run.automationId, result.usage ? 'usage' : 'run')
+      const acknowledgedAlert = pendingAlerts.get(run.id) === pending ? pending : undefined
+      if (acknowledgedAlert) {
+        pendingAlerts.delete(run.id)
+      }
+      announce(
+        run.automationId,
+        result.usage ? 'usage' : 'run',
+        acknowledgedAlert && store.automationAlertsEnabled(run.automationId)
+          ? acknowledgedAlert
+          : undefined
+      )
       return run
     },
     repeatSkip: async (automationId, error, scheduledFor): Promise<AutomationRun | null> => {

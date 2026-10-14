@@ -72,6 +72,7 @@ export type RuntimeStore = {
   automationOwnerPrecondition?: Store['automationOwnerPrecondition']
   automationChangeSelector?: Store['automationChangeSelector']
   listAutomationRuns?: Store['listAutomationRuns']
+  listAutomationInbox?: Store['listAutomationInbox']
   listAutomationRunsPage?: Store['listAutomationRunsPage']
   createAutomation?: Store['createAutomation']
   updateAutomation?: Store['updateAutomation']

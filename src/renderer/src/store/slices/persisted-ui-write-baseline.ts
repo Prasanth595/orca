@@ -1,4 +1,5 @@
 import type { PersistedUIState } from '../../../../shared/persisted-ui-state-types'
+import { automationInboxEntriesEqual } from '../../../../shared/automation-inbox'
 
 /**
  * Mirror-shaped snapshot of the fields the debounced persisted-UI writer owns.
@@ -33,6 +34,7 @@ export type PersistedUIWriteBaseline = {
   showDotfilesByWorktree: Record<string, boolean>
   filterRepoIds: readonly string[]
   acknowledgedAgentsByPaneKey: Record<string, number>
+  automationInboxEntries?: PersistedUIState['automationInboxEntries']
   activityClearedAtByPaneKey: Record<string, number>
   manuallyUnreadTurnsByPaneKey: Record<string, number>
 }
@@ -66,6 +68,7 @@ const PERSISTED_UI_WRITE_BASELINE_FIELD_SET = {
   showDotfilesByWorktree: true,
   filterRepoIds: true,
   acknowledgedAgentsByPaneKey: true,
+  automationInboxEntries: true,
   activityClearedAtByPaneKey: true,
   manuallyUnreadTurnsByPaneKey: true
 } satisfies Record<keyof PersistedUIWriteBaseline, true>
@@ -105,6 +108,9 @@ function stringArrayEqual(a: readonly string[], b: readonly string[]): boolean {
 
 /** Compares collection fields by value so hydration does not produce redundant persistence writes from new identities. */
 function writeFieldEqual(field: keyof PersistedUIWriteBaseline, a: unknown, b: unknown): boolean {
+  if (field === 'automationInboxEntries') {
+    return automationInboxEntriesEqual(a, b)
+  }
   if (field === 'filterRepoIds') {
     return stringArrayEqual(a as readonly string[], b as readonly string[])
   }

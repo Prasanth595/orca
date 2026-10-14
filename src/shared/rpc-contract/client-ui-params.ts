@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { normalizeAutomationInboxEntries } from '../automation-inbox'
 import { isFeatureTipId } from '../feature-tips'
 import {
   WORKTREE_CARD_PROPERTIES,
@@ -207,6 +208,7 @@ export const UiUpdateFields = z
     updateReassuranceSeen: z.boolean().optional(),
     osc52ClipboardDefaultOnNoticePending: z.boolean().optional(),
     acknowledgedAgentsByPaneKey: z.record(z.string(), z.number().finite()).optional(),
+    automationInboxEntries: z.unknown().transform(normalizeAutomationInboxEntries).optional(),
     activityClearedAtByPaneKey: z.record(z.string(), z.number().finite()).optional(),
     manuallyUnreadTurnsByPaneKey: z.record(z.string(), z.number().finite()).optional(),
     browserDefaultUrl: NullableString.optional(),

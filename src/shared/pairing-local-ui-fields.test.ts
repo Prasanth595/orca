@@ -22,6 +22,7 @@ describe('pairing-local UI fields', () => {
       'agentsReadFilter',
       'agentsGroupBy',
       'activityClearedAtByPaneKey',
+      'automationInboxEntries',
       'manuallyUnreadTurnsByPaneKey'
     ])
   })

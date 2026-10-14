@@ -2,6 +2,7 @@ import type { StructuredAttentionRead, StructuredAttentionOrigin } from './agent
 import type { AgentStatusState, AgentType } from './agent-status-types'
 import type { AgentTurnOutcome } from './agent-turn-outcome'
 import type { NotificationSourceId } from './notification-source'
+import type { AutomationRunAlert } from './automation-run-alert'
 
 export type NotificationSettings = {
   enabled: boolean
@@ -33,6 +34,7 @@ export type StructuredNotificationRead = StructuredAttentionRead & {
 }
 
 export type NotificationDispatchRequest = {
+  automationRun?: AutomationRunAlert
   source: NotificationEventSource
   notificationId?: string
   /** Why: useful for fast native failures, but macOS can still drop notifications after 'show'. */

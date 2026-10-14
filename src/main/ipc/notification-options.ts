@@ -33,6 +33,17 @@ export function buildNotificationOptions(
   silent?: boolean
   sound?: string
 } {
+  if (args.automationRun) {
+    const alert = args.automationRun
+    const status =
+      alert.status === 'failed'
+        ? translate('notifications.agentStatus.failed', 'failed')
+        : translate('notifications.agentStatus.needsInput', 'needs input')
+    return {
+      title: `${normalizeNotificationText(alert.title, NOTIFICATION_TITLE_CONTEXT_MAX_LENGTH)} — ${status}`,
+      body: normalizeNotificationText(alert.message, NOTIFICATION_BODY_PREVIEW_MAX_LENGTH)
+    }
+  }
   if (args.source === 'terminal-bell') {
     return {
       title: `Bell in ${args.worktreeLabel ?? 'workspace'}`,

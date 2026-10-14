@@ -9,6 +9,7 @@ import {
 import { cn } from '@/lib/utils'
 import { translate } from '@/i18n/i18n'
 import { ActivityThreadListToolbar } from './activity-thread-list-toolbar'
+import { AutomationInboxSection } from './AutomationInboxSection'
 import {
   getActiveStickyHeaderIndex,
   getActiveStickyHeaderIndexForScroll,
@@ -329,6 +330,7 @@ export function ActivityThreadListPane({
         showOptionsMenu={showOptionsMenu}
         showInlineActions={showInlineActions}
       />
+      <AutomationInboxSection query={query} readFilter={readFilter} />
       <div className="relative min-h-0 flex-1">
         <div
           ref={scrollContainerRef}

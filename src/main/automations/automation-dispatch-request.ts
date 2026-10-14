@@ -10,6 +10,7 @@ import { runHeadlessAutomationDispatch } from './headless-dispatch-runner'
 import type { AutomationRunTargetResult } from './run-target-resolution'
 import { createAutomationDispatchToken } from './dispatch-tokens'
 import { NO_DISPATCH_HOST, sendRendererDispatch } from './dispatch-refusal'
+import { buildAutomationRunReportPrompt } from '../../shared/automation-run-report-prompt'
 
 export type AutomationRendererChannel = Pick<WebContents, 'isDestroyed' | 'send'>
 
@@ -119,11 +120,15 @@ export async function requestAutomationDispatch(
     return refuse(target.error)
   }
   const renderer = ctx.getRenderer()
+  const dispatchedAutomation = {
+    ...automation,
+    prompt: buildAutomationRunReportPrompt(automation.prompt, run)
+  }
   if (renderer) {
     return sendRendererDispatch(
       renderer,
       {
-        automation,
+        automation: dispatchedAutomation,
         run,
         dispatchToken: createAutomationDispatchToken(automation.id, run.id)
       },
@@ -137,7 +142,7 @@ export async function requestAutomationDispatch(
   }
   return runHeadlessAutomationDispatch({
     ...ctx,
-    automation,
+    automation: dispatchedAutomation,
     run,
     target,
     dispatcher: (request) => {

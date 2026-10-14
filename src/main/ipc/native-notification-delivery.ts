@@ -85,6 +85,7 @@ export function deliverNativeNotification(
   // Why: only a "repoId::worktreePath" id has a repo to activate. Folder and floating workspaces have
   // none; a pane reveal shows its workspace where it lives on its own, so it still binds the click.
   const repoId = worktreeId?.includes('::') ? getRepoIdFromWorktreeId(worktreeId) : null
+  if (args.automationRun || (worktreeId && (repoId !== null || chatTarget))) {
   if (worktreeId && (repoId !== null || paneTarget)) {
     clickHandler = () => {
       release()
@@ -96,6 +97,10 @@ export function deliverNativeNotification(
         app.focus({ steal: true })
       }
       safelyRevealWindow(win)
+      if (args.automationRun) {
+        win.webContents.send('automations:openRun', args.automationRun)
+        return
+      }
       if (repoId !== null) {
         win.webContents.send('ui:activateWorktree', { repoId, worktreeId })
       }

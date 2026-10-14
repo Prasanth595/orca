@@ -8,6 +8,7 @@ import {
   formatAutomationLastRunCell,
   getExternalAutomationLastRunSnapshot,
   getLocalAutomationLastRunSnapshot,
+  getAutomationRowLastRunSnapshot,
   getToneForAutomationRunStatus,
   indexLatestAutomationRuns
 } from './automation-list-last-run'
@@ -114,6 +115,26 @@ describe('automation-list-last-run', () => {
     expect(snapshot.tone).toBe('failed')
     expect(snapshot.at).toBe(40)
     expect(snapshot.statusLabel).toBe('Failed')
+  })
+
+  it('shows the same reported result from local history and remote catalog projections', () => {
+    const automation = makeAutomation()
+    const run = makeRun({
+      result: { status: 'needs_attention', message: 'Review', reportedAt: 40 }
+    })
+    const snapshot = getLocalAutomationLastRunSnapshot(automation, run)
+    expect(snapshot.statusLabel).toBe('Needs attention')
+    expect(snapshot.tone).toBe('failed')
+    expect(
+      getAutomationRowLastRunSnapshot({
+        automation,
+        usageSummary: {
+          lastRunStatus: run.status,
+          lastRunResult: run.result?.status,
+          lastRunAt: run.dispatchedAt
+        }
+      })
+    ).toEqual(snapshot)
   })
 
   it('falls back to lastRunAt when no run history exists', () => {

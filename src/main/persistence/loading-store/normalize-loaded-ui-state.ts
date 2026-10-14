@@ -21,6 +21,7 @@ import {
 } from '../applying-settings/onboarding-normalization'
 import type { PersistedState } from '../../../shared/persisted-state-types'
 import type { OnboardingState } from '../../../shared/onboarding-state-types'
+import { normalizeAutomationInboxEntries } from '../../../shared/automation-inbox'
 
 /** Normalizes legacy UI payloads and marks one-time migrations for saving without replacing explicit user choices. */
 export function normalizeLoadedUiState(
@@ -203,6 +204,7 @@ export function normalizeLoadedUiState(
       loadedCompactWorktreeCards ? 'Compact' : 'Default'
     ),
     ...stripMainOwnedTelemetryMarkerFromUI(parsed.ui),
+    automationInboxEntries: normalizeAutomationInboxEntries(parsed.ui?.automationInboxEntries),
     // Why: migrate once from the retired Appearance setting only when no explicit chrome preference exists yet.
     rightSidebarOpen,
     rightSidebarTab: normalizeRightSidebarTab(parsed.ui?.rightSidebarTab),

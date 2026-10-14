@@ -2,6 +2,7 @@ import type { StateCreator } from 'zustand'
 import type { AppState } from '../../types'
 import type { UISliceCore } from './ui-slice-contract-core'
 import type { UISliceContextual } from './ui-slice-contract-contextual'
+import type { AutomationInboxActions } from './ui-slice-automation-inbox-actions'
 import type {
   UISlicePersistence,
   UISlicePreferences,
@@ -25,7 +26,8 @@ export type {
   UISliceSurfaces
 } from './ui-slice-contract-preferences'
 
-export type UISlice = UISliceCore &
+export type UISlice = AutomationInboxActions &
+  UISliceCore &
   UISliceContextual &
   UISlicePreferences &
   UISliceSurfaces &

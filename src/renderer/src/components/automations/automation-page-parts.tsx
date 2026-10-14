@@ -1,7 +1,7 @@
 import React from 'react'
 import type { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import type { AutomationRun } from '../../../../shared/automations-types'
+import type { AutomationRunDisplayStatus } from '../../../../shared/automation-run-result'
 
 // Frozen at module scope: every run row formats a date, and constructing a
 // DateTimeFormat per cell dominates the render of a long runs table.
@@ -58,7 +58,7 @@ export function formatAutomationDateTimeWithRelative(
 }
 
 export function getAutomationRunStatusVariant(
-  status: AutomationRun['status']
+  status: AutomationRunDisplayStatus
 ): React.ComponentProps<typeof Badge>['variant'] {
   if (status === 'dispatched' || status === 'completed') {
     return 'secondary'
@@ -66,13 +66,16 @@ export function getAutomationRunStatusVariant(
   if (status.startsWith('skipped')) {
     return 'outline'
   }
-  if (status === 'dispatch_failed') {
+  if (status === 'dispatch_failed' || status === 'failed') {
     return 'destructive'
+  }
+  if (status === 'needs_attention') {
+    return 'outline'
   }
   return 'dot'
 }
 
-export function getAutomationRunStatusLabel(status: AutomationRun['status']): string {
+export function getAutomationRunStatusLabel(status: AutomationRunDisplayStatus): string {
   switch (status) {
     case 'pending':
       return 'Queued'
@@ -91,7 +94,10 @@ export function getAutomationRunStatusLabel(status: AutomationRun['status']): st
     case 'skipped_needs_interactive_auth':
       return 'Needs credentials'
     case 'dispatch_failed':
+    case 'failed':
       return 'Failed'
+    case 'needs_attention':
+      return 'Needs attention'
   }
 }
 

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { MAX_AUTOMATION_RESULT_MESSAGE_LENGTH } from '../automation-run-result'
 import { isTuiAgent } from '../tui-agent-config'
 import {
   OptionalBoolean,
@@ -183,6 +184,13 @@ export const AutomationRuns = z.object({
   cursor: OptionalString
 })
 
+export const AutomationRunReport = z.object({
+  runId: requiredString('Missing automation run id'),
+  token: requiredString('Missing automation run token'),
+  status: z.enum(['failed', 'needs_attention']),
+  message: z.string().trim().min(1).max(MAX_AUTOMATION_RESULT_MESSAGE_LENGTH)
+})
+
 // Why strict: null or a non-string must fail rather than fall back to "omitted", which preserves.
 const ExtraAgentArgs = z.string({ message: 'Extra agent arguments must be text.' }).optional()
 
@@ -193,6 +201,7 @@ export const AutomationCreate = z.object({
   precheck: AutomationPrecheck,
   agentId: TuiAgent,
   extraAgentArgs: ExtraAgentArgs,
+  notifyOnFailure: OptionalBoolean,
   runContext: WorkspaceRunContext,
   sourceContext: TaskSourceContext,
   repo: OptionalString,
@@ -215,6 +224,7 @@ export const AutomationUpdateFields = z.object({
   precheck: AutomationPrecheck,
   agentId: TuiAgent.optional(),
   extraAgentArgs: ExtraAgentArgs,
+  notifyOnFailure: OptionalBoolean,
   runContext: WorkspaceRunContext,
   sourceContext: TaskSourceContext,
   repo: OptionalString,

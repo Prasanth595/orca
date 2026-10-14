@@ -5,6 +5,10 @@ import { migrationUnsupportedToAgentStatusEntry } from '@/lib/migration-unsuppor
 import { useAppStore } from '@/store'
 import type { AppState } from '@/store/types'
 import type { AgentStatusEntry } from '../../../../shared/agent-status-types'
+import {
+  countAutomationInboxUnread,
+  type AutomationInboxEntries
+} from '../../../../shared/automation-inbox'
 
 import { freshActivityLiveAgentState, isHistoricalActivityState } from './activity-event-state'
 
@@ -17,15 +21,15 @@ type ActivityUnreadCountSource = Pick<
 > & {
   /** Per-pane "Clear completed" cutoffs; hidden events must not count as unread. */
   activityClearedAtByPaneKey?: Record<string, number>
+  automationInboxEntries?: AutomationInboxEntries
 }
 
 /** Counts unread historical activity and fresh current turns. */
 export function countActivityUnread(source: ActivityUnreadCountSource, now = Date.now()): number {
-  let count = 0
+  let count = countAutomationInboxUnread(source.automationInboxEntries ?? {})
   const seenPaneKeys = new Set<string>()
 
-  // Why no worktree.isUnread here: Activity lists only agent threads, so a worktree
-  // unread would light a badge with no row to read and no way to clear it.
+  // Workspace flags alone do not establish an inbox entry the user can read.
   const countEntry = (entry: AgentStatusEntry, ackAt: number, live = false): void => {
     // Why: "Clear completed" hides events at or before the pane's cutoff from the feed,
     // so a hidden event must not keep the badge lit; treat the cutoff like an ack floor.
@@ -80,7 +84,8 @@ export function useActivityUnreadCount(): number {
     migrationUnsupportedByPtyId,
     retainedAgentsByPaneKey,
     acknowledgedAgentsByPaneKey,
-    activityClearedAtByPaneKey
+    activityClearedAtByPaneKey,
+    automationInboxEntries
   } = useAppStore(
     useShallow((state) => ({
       // Why not the status map: the receipt is keyed on stateStartedAt, so same-turn heartbeats
@@ -90,7 +95,8 @@ export function useActivityUnreadCount(): number {
       migrationUnsupportedByPtyId: state.migrationUnsupportedByPtyId,
       retainedAgentsByPaneKey: state.retainedAgentsByPaneKey,
       acknowledgedAgentsByPaneKey: state.acknowledgedAgentsByPaneKey,
-      activityClearedAtByPaneKey: state.activityClearedAtByPaneKey
+      activityClearedAtByPaneKey: state.activityClearedAtByPaneKey,
+      automationInboxEntries: state.automationInboxEntries
     }))
   )
 
@@ -101,13 +107,15 @@ export function useActivityUnreadCount(): number {
       migrationUnsupportedByPtyId,
       retainedAgentsByPaneKey,
       acknowledgedAgentsByPaneKey,
-      activityClearedAtByPaneKey
+      activityClearedAtByPaneKey,
+      automationInboxEntries
     })
   }, [
     acknowledgedAgentsByPaneKey,
     activityClearedAtByPaneKey,
     migrationUnsupportedByPtyId,
     retainedAgentsByPaneKey,
-    agentStatusEpoch
+    agentStatusEpoch,
+    automationInboxEntries
   ])
 }

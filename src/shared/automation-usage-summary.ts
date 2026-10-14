@@ -1,4 +1,5 @@
 import type { AutomationRun, AutomationRunStatus } from './automations-types'
+import type { AutomationRunResultStatus } from './automation-run-result'
 
 export type AutomationUsageSummary = {
   knownRuns: number
@@ -11,6 +12,7 @@ export type AutomationUsageSummary = {
   estimatedCostUsd: number | null
   /** Newest retained run's status, so list filters never fetch run history. Optional: older projections omit it. */
   lastRunStatus?: AutomationRunStatus | null
+  lastRunResult?: AutomationRunResultStatus
   lastRunAt?: number | null
 }
 
@@ -60,6 +62,7 @@ export function summarizeAutomationRunUsage(
     totalTokens,
     estimatedCostUsd: hasKnownCost ? estimatedCostUsd : null,
     lastRunStatus: latest?.status ?? null,
+    ...(latest?.result ? { lastRunResult: latest.result.status } : {}),
     lastRunAt: latest ? (latest.dispatchedAt ?? latest.startedAt ?? latest.createdAt ?? null) : null
   }
 }

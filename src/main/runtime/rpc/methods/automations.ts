@@ -6,6 +6,7 @@ import {
   AutomationId,
   AutomationList,
   AutomationRuns,
+  AutomationRunReport,
   AutomationUpdate
 } from '../../../../shared/rpc-contract/automation-params'
 
@@ -26,6 +27,20 @@ function mutationOwner(
 }
 
 export const AUTOMATION_METHODS = [
+  defineMethod({
+    name: 'automation.inbox',
+    permission: 'workspace',
+    params: null,
+    handler: async (_params, { runtime }) => ({ alerts: await runtime.listAutomationInbox() })
+  }),
+  defineMethod({
+    name: 'automation.reportRun',
+    permission: 'workspace',
+    params: AutomationRunReport,
+    handler: async (params, { runtime }) => ({
+      run: await runtime.reportAutomationRunResult(params)
+    })
+  }),
   defineMethod({
     name: 'automation.list',
     permission: 'workspace',

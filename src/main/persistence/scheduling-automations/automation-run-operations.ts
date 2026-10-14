@@ -1,4 +1,9 @@
 import { randomUUID } from 'node:crypto'
+import { newAutomationRunAlert } from '../../../shared/automation-run-alert'
+import { snapshotAutomationRunInboxAlert } from '../../../shared/automation-run-inbox-alert'
+import { toSshExecutionHostId } from '../../../shared/execution-host'
+import { automationWorkspaceSshPin } from './automation-owner-projection'
+import { normalizeAutomationRunResult } from '../../../shared/automation-run-result'
 import { isFinalAutomationRunStatus } from '../../../shared/automations-types'
 import { invalidateLocalWorktreeMetadataPruneInputs } from '../../local-worktree-metadata-prune-gate'
 import type {
@@ -47,6 +52,7 @@ function sortedAutomationRuns(state: PersistedState, automationId?: string): Aut
   return [...(automationId ? runs.filter((run) => run.automationId === automationId) : runs)]
     .map((run) => ({
       ...run,
+      ...(run.result ? { result: normalizeAutomationRunResult(run.result) } : {}),
       precheckResult: normalizeAutomationPrecheckResult(run.precheckResult)
     }))
     .sort(compareAutomationRunsNewestFirst)
@@ -82,8 +88,15 @@ export function createAutomationRun(
   const runNumber = nextAutomationRunNumber(
     (operations.state.automationRuns ?? []).filter((run) => run.automationId === automation.id)
   )
+  const workspacePin = automationWorkspaceSshPin(operations.state, automation.workspaceId)
   const run: AutomationRun = {
     id: randomUUID(),
+    reportToken: randomUUID(),
+    reportHostId: workspacePin
+      ? toSshExecutionHostId(workspacePin.targetId)
+      : automation.executionTargetType === 'ssh'
+        ? toSshExecutionHostId(automation.executionTargetId)
+        : (automation.runContext?.hostId ?? 'local'),
     automationId: automation.id,
     runNumber,
     runContext: automation.runContext ?? null,
@@ -175,6 +188,13 @@ export function updateAutomationRun(
     : null
   const updated: AutomationRun = {
     ...current,
+    ...(current.result || result.result
+      ? {
+          result:
+            normalizeAutomationRunResult(current.result) ??
+            normalizeAutomationRunResult(result.result)
+        }
+      : {}),
     status: result.status,
     workspaceId,
     workspaceDisplayName:
@@ -199,7 +219,20 @@ export function updateAutomationRun(
     usage: Object.hasOwn(result, 'usage') ? (result.usage ?? null) : (current.usage ?? null),
     error: result.error ?? null,
     startedAt: current.startedAt ?? now,
-    dispatchedAt: result.status === 'dispatched' ? now : current.dispatchedAt
+    // Reports and usage updates must keep the launch time used for usage attribution.
+    dispatchedAt: current.dispatchedAt ?? (result.status === 'dispatched' ? now : null)
+  }
+  if (result.status === 'dispatch_failed' || result.result) {
+    const alert = newAutomationRunAlert(current, updated)
+    if (
+      alert &&
+      operations.state.automations.some(
+        (automation) =>
+          automation.id === updated.automationId && automation.notifyOnFailure === true
+      )
+    ) {
+      updated.inboxAlert = snapshotAutomationRunInboxAlert({ ...alert, createdAt: now })
+    }
   }
   // Replaced, not patched in place: the list projection caches on array identity.
   operations.state.automationRuns = operations.state.automationRuns.map((run) =>

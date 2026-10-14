@@ -11,8 +11,10 @@ function makeRequest(method: string, params?: unknown): RpcRequest {
 
 describe('automation RPC methods', () => {
   it('routes automation CRUD and run operations to the runtime server', async () => {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: This dispatcher fixture supplies the runtime members invoked by the selected methods.
     const runtime = {
       getRuntimeId: () => 'test-runtime',
+      automationOwnerPrecondition: vi.fn().mockReturnValue(null),
       listAutomations: vi.fn().mockReturnValue([{ id: 'auto-1', name: 'Daily review' }]),
       listAutomationsForScope: vi.fn().mockReturnValue({
         automations: [{ id: 'auto-1', name: 'Daily review' }],
@@ -23,11 +25,22 @@ describe('automation RPC methods', () => {
       updateAutomation: vi.fn().mockResolvedValue({ id: 'auto-1', name: 'Paused' }),
       deleteAutomation: vi.fn().mockReturnValue({ removed: true, id: 'auto-1' }),
       runAutomationNow: vi.fn().mockResolvedValue({ id: 'run-1', automationId: 'auto-1' }),
-      listAutomationRuns: vi.fn().mockReturnValue([{ id: 'run-1', automationId: 'auto-1' }])
+      reportAutomationRunResult: vi
+        .fn()
+        .mockResolvedValue({ id: 'run-1', result: { status: 'failed' } }),
+      listAutomationRuns: vi.fn().mockReturnValue([{ id: 'run-1', automationId: 'auto-1' }]),
+      listAutomationInbox: vi
+        .fn()
+        .mockResolvedValue([{ selector: { kind: 'self' }, alert: { runId: 'run-1' } }])
     } as unknown as OrcaRuntimeService
     const dispatcher = new RpcDispatcher({ runtime, methods: AUTOMATION_METHODS })
 
     await dispatcher.dispatch(makeRequest('automation.list'))
+    await expect(dispatcher.dispatch(makeRequest('automation.inbox'))).resolves.toMatchObject({
+      ok: true,
+      result: { alerts: [{ selector: { kind: 'self' }, alert: { runId: 'run-1' } }] }
+    })
+    expect(runtime.listAutomationInbox).toHaveBeenCalledTimes(1)
     await dispatcher.dispatch(makeRequest('automation.show', { id: 'auto-1' }))
     await dispatcher.dispatch(
       makeRequest('automation.create', {
@@ -74,6 +87,22 @@ describe('automation RPC methods', () => {
     await dispatcher.dispatch(makeRequest('automation.delete', { id: 'auto-1' }))
     await dispatcher.dispatch(makeRequest('automation.runNow', { id: 'auto-1' }))
     await dispatcher.dispatch(makeRequest('automation.runs', { automationId: 'auto-1' }))
+    await expect(
+      dispatcher.dispatch(
+        makeRequest('automation.reportRun', {
+          runId: 'run-1',
+          token: 'run-token',
+          status: 'failed',
+          message: 'Login expired'
+        })
+      )
+    ).resolves.toMatchObject({ ok: true, result: { run: { result: { status: 'failed' } } } })
+    expect(runtime.reportAutomationRunResult).toHaveBeenCalledWith({
+      runId: 'run-1',
+      token: 'run-token',
+      status: 'failed',
+      message: 'Login expired'
+    })
 
     expect(runtime.listAutomationsForScope).toHaveBeenCalledWith({})
     // A legacy client sends no precondition, so each call forwards an absent expected owner.
@@ -131,6 +160,22 @@ describe('automation RPC methods', () => {
       createAutomation: vi.fn()
     } as unknown as OrcaRuntimeService
     const dispatcher = new RpcDispatcher({ runtime, methods: AUTOMATION_METHODS })
+
+    for (const report of [
+      { status: 'completed', message: 'Success' },
+      { status: 'failed', message: ' ' },
+      { status: 'needs_attention', message: 'x'.repeat(2001) }
+    ]) {
+      await expect(
+        dispatcher.dispatch(
+          makeRequest('automation.reportRun', {
+            runId: 'run-1',
+            token: 'run-token',
+            ...report
+          })
+        )
+      ).resolves.toMatchObject({ ok: false, error: { code: 'invalid_argument' } })
+    }
 
     await expect(
       dispatcher.dispatch(

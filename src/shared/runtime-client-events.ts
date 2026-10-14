@@ -8,6 +8,7 @@ import type { SshConnectionState } from './ssh-types'
 import type { TerminalSideEffectBatch } from './terminal-side-effect-facts'
 import type { RuntimeNativeChatLaunchDraftResolution } from './runtime-types'
 import type { RuntimeNavigationTarget } from './runtime-navigation'
+import type { AutomationRunAlert } from './automation-run-alert'
 
 export type RuntimeClientEvent =
   | { type: 'reposChanged' }
@@ -32,6 +33,7 @@ export type RuntimeClientEvent =
       type: 'automationsChanged'
       selector?: { kind: 'self' } | { kind: 'ssh'; targetId: string } | { kind: 'orphan' }
       reason?: 'definition' | 'run' | 'usage'
+      alert?: AutomationRunAlert
     }
   | {
       type: 'linearLinkedIssueUpdated'

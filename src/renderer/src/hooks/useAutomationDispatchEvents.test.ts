@@ -171,7 +171,7 @@ vi.mock('@/lib/browser-uuid', () => ({
 vi.mock('@/store', () => ({
   useAppStore: {
     getState: () => state,
-    subscribe: mockStoreSubscribe
+    subscribe: (listener: () => void) => mockStoreSubscribe(listener)
   }
 }))
 

@@ -172,6 +172,7 @@ export function usePersistedUIWriter(): void {
       // Without persisting, agent rows that survive restart come back bold even when the
       // user had already visited them.
       acknowledgedAgentsByPaneKey: s.acknowledgedAgentsByPaneKey,
+      automationInboxEntries: s.automationInboxEntries,
       // Why: "Clear completed" must survive restart, or cleared done/interrupted rows return.
       activityClearedAtByPaneKey: s.activityClearedAtByPaneKey,
       // Why: an explicit "mark unread" must survive restart, or the row comes back read.

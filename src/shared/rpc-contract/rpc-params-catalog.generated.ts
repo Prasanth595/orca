@@ -70,6 +70,7 @@ import {
   AutomationCreate,
   AutomationId,
   AutomationList,
+  AutomationRunReport,
   AutomationRuns,
   AutomationUpdate
 } from './automation-params'
@@ -691,7 +692,9 @@ export const RPC_PARAMS_BY_METHOD = {
   'artifacts.update': WriteRequest,
   'automation.create': AutomationCreate,
   'automation.delete': AutomationId,
+  'automation.inbox': null,
   'automation.list': AutomationList,
+  'automation.reportRun': AutomationRunReport,
   'automation.runNow': AutomationId,
   'automation.runs': AutomationRuns,
   'automation.show': AutomationId,

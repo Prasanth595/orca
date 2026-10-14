@@ -76,6 +76,10 @@ export function hostStableKey(ref: StableAutomationCatalogRef): string {
   ].join(SEPARATOR)
 }
 
+export function automationInboxKey(ref: StableAutomationCatalogRef, runId: string): string {
+  return ['inbox', ...stableAuthorityParts(ref.authority), encodePart(runId)].join(SEPARATOR)
+}
+
 /** Key for fetched rows, mutations, secondary reads, and commit fences; includes incarnations. */
 export function ownerKey(owner: AutomationOwnerRef): string {
   return [

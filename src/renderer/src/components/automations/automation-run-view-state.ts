@@ -43,6 +43,7 @@ export function canRerunAutomationRun({
   }
   return (
     run.status === 'dispatch_failed' ||
+    (run.status === 'completed' && Boolean(run.result)) ||
     run.status === 'skipped_unavailable' ||
     run.status === 'skipped_needs_interactive_auth'
   )

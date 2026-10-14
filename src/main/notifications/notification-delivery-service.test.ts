@@ -6,6 +6,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BrowserWindow } from 'electron'
 import { createNotificationDeliveryService } from './notification-delivery-service'
+import { automationRunNotificationRequest } from '../../shared/automation-run-alert'
 import type { NotificationDeliveryDependencies } from './notification-delivery-service'
 import type {
   NotificationDispatchRequest,
@@ -203,6 +204,30 @@ describe('createNotificationDeliveryService', () => {
       delivered: true
     })
     expect(harness.dispatchMobileNotification).not.toHaveBeenCalled()
+  })
+
+  it('delivers an automation failure immediately after attention, deduping repeated failure', () => {
+    const harness = makeHarness(makeSettings())
+    const service = createNotificationDeliveryService(harness.deps)
+    const alert = {
+      automationId: 'auto-1',
+      runId: 'run-1',
+      title: 'Daily check',
+      message: 'Review the changed policy',
+      status: 'needs_attention' as const,
+      workspaceId: 'wt-1',
+      paneKey: null,
+      createdAt: now
+    }
+    expect(service.dispatch(automationRunNotificationRequest(alert))).toEqual({ delivered: true })
+    const failure = automationRunNotificationRequest({
+      ...alert,
+      status: 'failed',
+      message: 'Automation agent is blocked: agent-approval-prompt.'
+    })
+    expect(service.dispatch(failure)).toEqual({ delivered: true })
+    expect(service.dispatch(failure)).toEqual({ delivered: false, reason: 'cooldown' })
+    expect(harness.deliverNative).toHaveBeenCalledTimes(2)
   })
 
   it('skips mobile fan-out entirely when no runtime is paired', () => {

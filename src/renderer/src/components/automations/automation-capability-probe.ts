@@ -15,6 +15,10 @@ import {
 } from '../../../../shared/automation-extra-agent-args'
 import { automationAuthorityCatalogKey } from './automation-host-catalog-types'
 import { automationHostDiagnostics } from './automation-host-diagnostics'
+import {
+  AUTOMATION_NOTIFICATION_POLICY_RUNTIME_CAPABILITY,
+  AUTOMATION_NOTIFICATION_POLICY_UPDATE_REQUIRED_MESSAGE
+} from '../../../../shared/automation-runtime-capabilities'
 
 export const REQUEST_TIMEOUT_MS = 15_000
 
@@ -161,17 +165,42 @@ export async function assertExtraAgentArgsSupported(
 }
 
 /** Same gate for the legacy unfenced path, which knows only the environment id. */
-export async function assertEnvironmentSupportsExtraAgentArgs(
+export async function assertEnvironmentSupportsAutomationOptions(
   environmentId: string,
-  extraAgentArgs: string | undefined
+  input: { extraAgentArgs?: string; notifyOnFailure?: boolean }
 ): Promise<void> {
-  if (!hasExtraAgentArgs(extraAgentArgs)) {
+  if (!hasExtraAgentArgs(input.extraAgentArgs) && input.notifyOnFailure === undefined) {
     return
   }
   const status = await getRuntimeEnvironmentStatus(environmentId, REQUEST_TIMEOUT_MS)
-  if (!status.capabilities?.includes(AUTOMATION_EXTRA_AGENT_ARGS_RUNTIME_CAPABILITY)) {
+  if (
+    hasExtraAgentArgs(input.extraAgentArgs) &&
+    !status.capabilities?.includes(AUTOMATION_EXTRA_AGENT_ARGS_RUNTIME_CAPABILITY)
+  ) {
     throw new AutomationHostScopeUnsupportedError(EXTRA_AGENT_ARGS_HOST_UPDATE_REQUIRED)
   }
+  if (
+    input.notifyOnFailure !== undefined &&
+    !status.capabilities?.includes(AUTOMATION_NOTIFICATION_POLICY_RUNTIME_CAPABILITY)
+  ) {
+    throw new AutomationHostScopeUnsupportedError(
+      AUTOMATION_NOTIFICATION_POLICY_UPDATE_REQUIRED_MESSAGE
+    )
+  }
+}
+
+export async function assertAutomationNotificationPolicySupported(
+  authority: AutomationAuthorityRef,
+  notifyOnFailure: boolean | undefined
+): Promise<void> {
+  if (notifyOnFailure === undefined) {
+    return
+  }
+  await assertAuthorityCapability(
+    authority,
+    AUTOMATION_NOTIFICATION_POLICY_RUNTIME_CAPABILITY,
+    AUTOMATION_NOTIFICATION_POLICY_UPDATE_REQUIRED_MESSAGE
+  )
 }
 
 export {

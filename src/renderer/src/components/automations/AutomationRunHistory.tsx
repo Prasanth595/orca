@@ -1,3 +1,4 @@
+import { getAutomationRunDisplayStatus } from '../../../../shared/automation-run-result'
 import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Badge } from '@/components/ui/badge'
@@ -76,7 +77,9 @@ export function AutomationRunHistory({
     runId: null
   }))
   const runCountLabel = useMemo(() => {
-    const completed = runs.filter((run) => run.status === 'completed').length
+    const completed = runs.filter(
+      (run) => getAutomationRunDisplayStatus(run.status, run.result?.status) === 'completed'
+    ).length
     return `${runs.length} ${runs.length === 1 ? 'run' : 'runs'} · ${completed} completed`
   }, [runs])
 
@@ -358,8 +361,14 @@ export function AutomationRunHistory({
                           )}
                     </div>
                     <div className="flex justify-start">
-                      <Badge variant={getAutomationRunStatusVariant(run.status)}>
-                        {getAutomationRunStatusLabel(run.status)}
+                      <Badge
+                        variant={getAutomationRunStatusVariant(
+                          getAutomationRunDisplayStatus(run.status, run.result?.status)
+                        )}
+                      >
+                        {getAutomationRunStatusLabel(
+                          getAutomationRunDisplayStatus(run.status, run.result?.status)
+                        )}
                       </Badge>
                     </div>
                   </button>

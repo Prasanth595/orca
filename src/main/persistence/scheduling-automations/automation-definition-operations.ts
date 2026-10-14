@@ -94,6 +94,7 @@ export function createAutomation(
     precheck: normalizeAutomationPrecheck(input.precheck),
     agentId: input.agentId,
     ...(extraAgentArgs !== undefined ? { extraAgentArgs } : {}),
+    notifyOnFailure: input.notifyOnFailure === true,
     // Why own contexts win: a wire context speaks the client's perspective —
     // 'runtime:<id>' is a client-assigned name this store cannot interpret, and
     // persisting it makes the projection orphan a record this authority owns.
