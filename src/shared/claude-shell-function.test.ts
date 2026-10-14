@@ -148,6 +148,15 @@ describe.each(SHELLS)('the claude function in %s', (shell) => {
     expect(statSync(fresh).mode & 0o777).toBe(0o700)
   })
 
+  it('runs a removed account’s placeholder folder, never System default or another account', () => {
+    const f = fixture()
+    const placeholder = join(f.a, 'claude-profile-pointers', 'removed-account-home')
+    writeFileSync(f.pointer, placeholder)
+    const result = f.run(shell, injected(f.b))
+    expect(result.stdout).toBe(`HOME=${placeholder} KEY=fake TWIN=${placeholder}\n`)
+    expect(existsSync(placeholder)).toBe(true)
+  })
+
   it('still runs Claude only in the selected folder when that folder cannot be created', () => {
     const f = fixture()
     const blocked = join(f.a, 'file', 'home')

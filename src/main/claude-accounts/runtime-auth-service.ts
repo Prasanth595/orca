@@ -13,6 +13,10 @@ import {
 } from './claude-profile-installed-router'
 import type { ClaudeAccountSelectionTarget } from './runtime-selection'
 import type { ClaudeRuntimeAuthPreparation } from './runtime-auth/runtime-auth-types'
+import {
+  prepareClaudeLaunchForAccount,
+  removeClaudeAccountFolder
+} from './claude-profile-account-route'
 
 export type { ClaudeRuntimeAuthPreparation } from './runtime-auth/runtime-auth-types'
 
@@ -45,6 +49,13 @@ export class ClaudeRuntimeAuthService {
   ): Promise<ClaudeRuntimeAuthPreparation> {
     const wsl = this.wslRouteFor(target)
     return wsl ? wsl.router.prepareLaunch(wsl.distro) : this.router.prepareLaunch()
+  }
+
+  /** A launch on the account a person kept the agent on; host only, as Keep is. */
+  prepareForClaudeLaunchForAccount(
+    accountId: string | null
+  ): Promise<ClaudeRuntimeAuthPreparation> {
+    return prepareClaudeLaunchForAccount(this.router, accountId)
   }
 
   async prepareForRateLimitFetch(
@@ -117,7 +128,7 @@ export class ClaudeRuntimeAuthService {
   ): Promise<void> {
     const wsl = this.wslRouteFor(target)
     if (!wsl) {
-      await this.router.removeAccount(accountId)
+      await removeClaudeAccountFolder(this.router, accountId)
       return
     }
     // Why never thrown: a deleted distro must not block removing its accounts.
