@@ -7,7 +7,10 @@ import { isIdentifierKeyedProvider } from './task-providers'
 import { getTaskSourceCacheScope, normalizeStoredTaskSourceContext } from './task-source-context'
 import { normalizeWorkspaceLinkedItem } from './workspace-linked-item'
 import { getProvenWorkspaceReferenceIdentity } from './workspace-reference-identity'
+import { getWorkspaceAttachmentUrlScope } from './workspace-reference-external-url'
 import { isWorkspaceLinkedItemSourceContextMatch } from './workspace-linked-item-source-context'
+
+export { getWorkspaceAttachmentUrlScope } from './workspace-reference-external-url'
 
 function nonEmpty(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
@@ -114,26 +117,6 @@ export function getWorkspaceAttachmentKey(item: WorkspaceAttachment): string {
     item.linearOrganizationUrlKey ?? '',
     getWorkspaceAttachmentUrlScope(item)
   ])
-}
-
-export function getWorkspaceAttachmentUrlScope(item: WorkspaceAttachment): string {
-  if (!item.url) {
-    return ''
-  }
-  try {
-    const url = new URL(item.url)
-    return (
-      url.origin +
-      url.pathname
-        .replace(
-          /\/(?:pull|pulls|issues|merge_requests|pull-requests|pullrequest|browse|issue)\/[^/]+(?:\/.*)?$/,
-          ''
-        )
-        .replace(/\/-$/, '')
-    )
-  } catch {
-    return ''
-  }
 }
 
 /** One entry per proven external reference and source context; local repo IDs never split it. */

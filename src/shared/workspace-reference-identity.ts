@@ -2,6 +2,12 @@ import { parseJiraIssueUrl, JIRA_ISSUE_KEY_PATTERN } from './jira-issue-url'
 import { parseLinearIssueInput, parseLinearIssueUrlIntent } from './linear/links'
 import { getTaskSourceCacheScope } from './task-source-context'
 import type { WorkspaceAttachment } from './worktree/types'
+import {
+  getWorkspaceReferenceExternalUrl,
+  getWorkspaceReferenceIdentifier
+} from './workspace-reference-external-url'
+
+export { getWorkspaceReferenceIdentifier } from './workspace-reference-external-url'
 
 export type WorkspaceReferenceQuery =
   | { kind: 'url'; identity: string }
@@ -161,41 +167,9 @@ function parseReferenceRoute(
   )
 }
 
-export function getWorkspaceReferenceIdentifier(item: WorkspaceAttachment): string | undefined {
-  return item.identifier ?? item.linearIdentifier ?? item.jiraIdentifier
-}
-
-function externalUrl(item: WorkspaceAttachment): string | undefined {
-  if (item.url) {
-    return item.url
-  }
-  const identity = item.taskSourceContext?.providerIdentity
-  const identifier = getWorkspaceReferenceIdentifier(item)
-  if (item.provider === 'linear' && item.linearOrganizationUrlKey && identifier) {
-    return `https://linear.app/${encodeURIComponent(item.linearOrganizationUrlKey)}/issue/${encodeURIComponent(identifier)}`
-  }
-  if (!identity || identity.provider !== item.provider) {
-    return undefined
-  }
-  switch (identity.provider) {
-    case 'github':
-      return `https://${identity.host ?? 'github.com'}/${identity.owner}/${identity.repo}/${item.type === 'pr' ? 'pull' : 'issues'}/${item.number}`
-    case 'gitlab':
-      return identity.webUrl
-        ? `${identity.webUrl.replace(/\/+$/, '')}/-/${item.type === 'mr' ? 'merge_requests' : 'issues'}/${item.number}`
-        : undefined
-    case 'jira':
-      return identity.siteUrl && identifier
-        ? `${identity.siteUrl.replace(/\/+$/, '')}/browse/${identifier}`
-        : undefined
-    case 'linear':
-      return undefined
-  }
-}
-
 /** Provider-proven external identity, or undefined when the source cannot be proven. */
 export function getProvenWorkspaceReferenceIdentity(item: WorkspaceAttachment): string | undefined {
-  const candidate = externalUrl(item)
+  const candidate = getWorkspaceReferenceExternalUrl(item)
   if (candidate) {
     try {
       const parsed = parseWorkspaceReferenceUrl(candidate, item.provider)
