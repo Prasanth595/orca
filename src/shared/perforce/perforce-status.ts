@@ -204,7 +204,8 @@ export async function getPerforceStatus(cwd: string): Promise<PerforceStatusResu
       ['-ztag', 'fstat', '-Ro', '-T', 'depotFile,clientFile,action,change,type', '...'],
       { cwd }
     ).catch(() => ''),
-    runReconcilePreview(cwd),
+    // A failed/timed-out unopened scan must not break the panel; degrade to opened + changelists.
+    runReconcilePreview(cwd).catch(() => ({ code: null, stdout: '', stderr: '' })),
     readChangelists(cwd, detected.info),
     readStream(cwd),
     readHaveChange(cwd)
