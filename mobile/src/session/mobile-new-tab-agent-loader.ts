@@ -13,6 +13,7 @@ import type { RpcClient } from '../transport/rpc-client'
 import type { RpcResponse } from '../transport/types'
 import { isFloatingWorkspaceWorktreeId } from './floating-workspace'
 import { getRepoIdFromMobileWorktreeId } from './mobile-session-route-helpers'
+import { isSyntheticWorkspaceRoute } from './synthetic-workspace-route'
 import {
   buildMobileNewTabAgentOptions,
   type MobileNewTabAgentOption,
@@ -96,6 +97,15 @@ async function loadDetectedAgents(
   if (isFloatingWorkspaceWorktreeId(worktreeId)) {
     return {
       reply: await preflightDetectAgentsRead.request(client),
+      interpret: preflightDetectAgentsRead.interpret,
+      repo: null
+    }
+  }
+  // Why: a folder workspace has no git repo, so repo.list never holds it; the host resolves the
+  // folder's own execution host from the id.
+  if (isSyntheticWorkspaceRoute(worktreeId)) {
+    return {
+      reply: await preflightDetectAgentsRead.request(client, { worktreeId }),
       interpret: preflightDetectAgentsRead.interpret,
       repo: null
     }
