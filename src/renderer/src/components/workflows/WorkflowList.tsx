@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react'
-import { Plus, Trash2, Play, Pencil, Square } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Plus, Trash2, Play, Pencil, Square, Download, Upload } from 'lucide-react'
+import { toast } from 'sonner'
 import WorkflowTipsCard from './WorkflowTipsCard'
 import WorkflowCreateDialog from './WorkflowCreateDialog'
+import WorkflowImportSshDialog from './WorkflowImportSshDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -13,8 +15,15 @@ import {
 } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { translate } from '@/i18n/i18n'
+import { downloadWorkflowJson, importWorkflowJson } from './workflow-export-import'
 import type { AgentWorkflow, WorkflowRun } from '../../../../shared/workflow-types'
 import { isFinalWorkflowRunStatus } from '../../../../shared/workflow-types'
+
+type PendingSshImport = {
+  name: string
+  nodes: AgentWorkflow['nodes']
+  edges: AgentWorkflow['edges']
+}
 
 type Props = {
   selectedWorkflowId: string | null
@@ -56,6 +65,8 @@ export default function WorkflowList({ selectedWorkflowId, onSelect }: Props): R
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [pendingSshImport, setPendingSshImport] = useState<PendingSshImport | null>(null)
+  const importInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     void window.api.workflows.list().then(setWorkflows)
@@ -104,6 +115,72 @@ export default function WorkflowList({ selectedWorkflowId, onSelect }: Props): R
     setRenamingId(null)
   }
 
+  async function handleImport(file: File): Promise<void> {
+    try {
+      const raw = await file.text()
+      const { name, executionTargetType, nodes, edges } = importWorkflowJson(raw)
+      if (executionTargetType === 'ssh') {
+        setPendingSshImport({ name, nodes, edges })
+        return
+      }
+      await createImportedWorkflow({
+        name,
+        executionTargetType: 'local',
+        executionTargetId: 'local',
+        nodes,
+        edges
+      })
+    } catch {
+      toast.error(translate('workflows.list.importError', 'Failed to import workflow'))
+    }
+  }
+
+  async function createImportedWorkflow({
+    name,
+    executionTargetType,
+    executionTargetId,
+    nodes,
+    edges
+  }: {
+    name: string
+    executionTargetType: 'local' | 'ssh'
+    executionTargetId: string
+    nodes: AgentWorkflow['nodes']
+    edges: AgentWorkflow['edges']
+  }): Promise<void> {
+    const wf = await window.api.workflows.create({
+      name,
+      description: '',
+      schedule: null,
+      enabled: false,
+      executionTargetType,
+      executionTargetId,
+      nodes,
+      edges
+    })
+    onSelect(wf)
+    toast.success(translate('workflows.list.importSuccess', 'Workflow imported'))
+  }
+
+  async function handleSshImportConfirm(targetId: string): Promise<void> {
+    if (!pendingSshImport) {
+      return
+    }
+    const { name, nodes, edges } = pendingSshImport
+    setPendingSshImport(null)
+    try {
+      await createImportedWorkflow({
+        name,
+        executionTargetType: 'ssh',
+        executionTargetId: targetId,
+        nodes,
+        edges
+      })
+    } catch {
+      toast.error(translate('workflows.list.importError', 'Failed to import workflow'))
+    }
+  }
+
   return (
     <>
       <WorkflowCreateDialog
@@ -112,19 +189,49 @@ export default function WorkflowList({ selectedWorkflowId, onSelect }: Props): R
         onClose={() => setCreateDialogOpen(false)}
         onCreate={handleCreated}
       />
+      <WorkflowImportSshDialog
+        open={pendingSshImport !== null}
+        workflowName={pendingSshImport?.name ?? ''}
+        onClose={() => setPendingSshImport(null)}
+        onImport={(targetId) => void handleSshImportConfirm(targetId)}
+      />
       <div className="flex flex-col h-full min-h-0">
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".json"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) {
+              void handleImport(file)
+            }
+            e.target.value = ''
+          }}
+        />
         <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
           <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             {translate('workflows.list.title', 'Workflows')}
           </span>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="size-6"
-            onClick={() => setCreateDialogOpen(true)}
-          >
-            <Plus className="size-3.5" />
-          </Button>
+          <div className="flex items-center gap-0.5">
+            <Button
+              size="icon"
+              variant="ghost"
+              className="size-6"
+              onClick={() => importInputRef.current?.click()}
+              title={translate('workflows.list.import', 'Import workflow')}
+            >
+              <Upload className="size-3.5" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="size-6"
+              onClick={() => setCreateDialogOpen(true)}
+            >
+              <Plus className="size-3.5" />
+            </Button>
+          </div>
         </div>
         <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
           <div className="flex-1 overflow-y-auto scrollbar-sleek min-h-0">
@@ -147,6 +254,18 @@ export default function WorkflowList({ selectedWorkflowId, onSelect }: Props): R
                     <WorkflowStatusDot status={status} />
                     <span className="flex-1 text-[13px] truncate font-medium">{wf.name}</span>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-5"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          downloadWorkflowJson(wf)
+                        }}
+                        title={translate('workflows.list.export', 'Export workflow')}
+                      >
+                        <Download className="size-3" />
+                      </Button>
                       <Button
                         size="icon"
                         variant="ghost"

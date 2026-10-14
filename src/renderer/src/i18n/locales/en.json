@@ -19420,7 +19420,17 @@
       "renameTitle": "Rename Workflow",
       "namePlaceholder": "Workflow name",
       "cancel": "Cancel",
-      "save": "Save"
+      "save": "Save",
+      "export": "Export workflow",
+      "import": "Import workflow",
+      "importSuccess": "Workflow imported",
+      "importError": "Failed to import workflow"
+    },
+    "import": {
+      "sshTitle": "Select SSH Connection",
+      "sshHint": "\"{name}\" was configured for SSH. Choose a connection to run it on.",
+      "noSshConnections": "No SSH connections saved. Add one in Settings → SSH.",
+      "importButton": "Import"
     },
     "node": {
       "save": "Save",
