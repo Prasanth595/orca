@@ -1,5 +1,6 @@
 import { isAbsolute } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { windowsPowerShellPath } from '@orca/process-host/windows-system-binary'
 import { quotePowerShellLiteral } from '../../shared/powershell-native-argument'
 
 export type ClipboardFileResult = { ok: boolean; reason?: string }
@@ -51,7 +52,7 @@ export async function writeFileToClipboard(
     // file. Guard the spawn so a missing/erroring PowerShell surfaces as a
     // result, not a throw.
     try {
-      await deps.runCommand('powershell.exe', [
+      await deps.runCommand(windowsPowerShellPath(), [
         '-NoProfile',
         '-NonInteractive',
         '-Command',

@@ -6,8 +6,8 @@ import {
   type IpcMainInvokeEvent,
   type WebContents
 } from 'electron'
-import { spawn } from 'node:child_process'
 import { open, stat } from 'node:fs/promises'
+import { runProcess } from '@orca/process-host'
 import type { Store } from '../persistence'
 import { PATH_ACCESS_DENIED_MESSAGE } from '../ipc/filesystem-auth'
 import { resolveDesktopAuthorizedPath } from '../ipc/local-file-access-resolution'
@@ -87,17 +87,24 @@ export function setTrustedClipboardRendererWebContentsId(webContentsId: number |
   trustedClipboardRendererWebContentsId = webContentsId
 }
 
+// Covers a cold Windows PowerShell start under antivirus scanning.
+const CLIPBOARD_COMMAND_TIMEOUT_MS = 15_000
+
 // Run a short-lived OS clipboard helper (PowerShell / wl-copy / xclip), feeding
 // it stdin when provided; resolves only on a clean exit.
-function runCommand(command: string, args: string[], stdin?: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { stdio: ['pipe', 'ignore', 'ignore'] })
-    child.on('error', reject)
-    child.on('exit', (code) =>
-      code === 0 ? resolve() : reject(new Error(`${command} exited with ${code}`))
-    )
-    child.stdin?.end(stdin ?? '')
+async function runCommand(command: string, args: string[], stdin?: string): Promise<void> {
+  const result = await runProcess({
+    program: command,
+    args,
+    input: stdin,
+    // Why ignored: wl-copy and xclip fork a background server by default, and an
+    // inherited output pipe would hold the run open until that server exits.
+    stdio: ['pipe', 'ignore', 'ignore'],
+    timeoutMs: CLIPBOARD_COMMAND_TIMEOUT_MS
   })
+  if (result.code !== 0 || result.timedOut) {
+    throw new Error(`${command} exited with ${result.code}`)
+  }
 }
 
 export function registerClipboardHandlers(store: Store): void {

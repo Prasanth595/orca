@@ -86,9 +86,21 @@ describe('writeFileToClipboard', () => {
       makeDeps({ platform: 'win32', runCommand })
     )
     expect(result).toEqual({ ok: true })
-    const [command, args] = runCommand.mock.calls[0]
-    expect(command).toBe('powershell.exe')
+    const [, args] = runCommand.mock.calls[0]
     expect(args.join(' ')).toContain("Set-Clipboard -LiteralPath '/repo/o''brien.png'")
+  })
+
+  it('runs Windows PowerShell by absolute path, never a bare name resolved on PATH', async () => {
+    vi.stubEnv('SystemRoot', 'D:\\Win')
+    try {
+      const runCommand = vi.fn(async (_command: string, _args: string[]) => {})
+      await writeFileToClipboard('/repo/a.png', makeDeps({ platform: 'win32', runCommand }))
+      expect(runCommand.mock.calls[0][0]).toBe(
+        'D:\\Win\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+      )
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 
   it('doubles typographic single quotes, which PowerShell also treats as delimiters', async () => {

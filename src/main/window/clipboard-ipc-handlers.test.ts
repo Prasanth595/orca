@@ -1,4 +1,7 @@
+import type * as ChildProcess from 'node:child_process'
+import { pathToFileURL } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as ProcessHost from '@orca/process-host'
 import { installFakeAppEnvironment } from '../../../config/scripts/vitest-host-ports-setup'
 import {
   CLIPBOARD_IMAGE_MAX_BASE64_CHARS,
@@ -9,8 +12,8 @@ import {
 const {
   removeHandlerMock,
   handleMock,
-  spawnMock,
-  childStdinEndMock,
+  runProcessMock,
+  directSpawnMock,
   resolveAuthorizedPathMock,
   fsAccessMock,
   fsLstatMock,
@@ -33,19 +36,8 @@ const {
 } = vi.hoisted(() => ({
   removeHandlerMock: vi.fn(),
   handleMock: vi.fn(),
-  childStdinEndMock: vi.fn(),
-  spawnMock: vi.fn(() => {
-    const child = {
-      stdin: { end: childStdinEndMock },
-      on: vi.fn((event: string, callback: (code?: number) => void) => {
-        if (event === 'exit') {
-          queueMicrotask(() => callback(0))
-        }
-        return child
-      })
-    }
-    return child
-  }),
+  runProcessMock: vi.fn<typeof ProcessHost.runProcess>(),
+  directSpawnMock: vi.fn(),
   resolveAuthorizedPathMock: vi.fn(),
   fsAccessMock: vi.fn(),
   fsLstatMock: vi.fn(),
@@ -67,8 +59,16 @@ const {
   callRuntimeEnvironmentMock: vi.fn()
 }))
 
-vi.mock('node:child_process', () => ({
-  spawn: spawnMock
+vi.mock('@orca/process-host', async (importOriginal) => ({
+  ...(await importOriginal<typeof ProcessHost>()),
+  runProcess: runProcessMock
+}))
+
+// Why: a direct spawn would skip process-host's hidden Windows console, and in
+// a test it would also overwrite the developer's real clipboard.
+vi.mock('node:child_process', async (importOriginal) => ({
+  ...(await importOriginal<typeof ChildProcess>()),
+  spawn: directSpawnMock
 }))
 
 vi.mock('node:fs/promises', () => ({
@@ -177,8 +177,15 @@ describe('registerClipboardHandlers', () => {
     vi.spyOn(Date, 'now').mockReturnValue(1760000000000)
     removeHandlerMock.mockReset()
     handleMock.mockReset()
-    spawnMock.mockClear()
-    childStdinEndMock.mockClear()
+    directSpawnMock.mockClear()
+    runProcessMock.mockReset()
+    runProcessMock.mockResolvedValue({
+      code: 0,
+      signal: null,
+      stdout: '',
+      stderr: '',
+      timedOut: false
+    })
     resolveAuthorizedPathMock.mockReset()
     resolveAuthorizedPathMock.mockImplementation(async (path: string) => path)
     fsLstatMock.mockReset()
@@ -302,8 +309,88 @@ describe('registerClipboardHandlers', () => {
         Buffer.from('file:///tmp/copied-file.txt', 'utf8')
       )
     } else {
-      expect(spawnMock).toHaveBeenCalled()
+      expect(runProcessMock).toHaveBeenCalled()
     }
+    expect(directSpawnMock).not.toHaveBeenCalled()
+  })
+
+  it('copies a file on Windows through process-host, by the absolute PowerShell path', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    vi.stubEnv('SystemRoot', 'C:\\Windows')
+    registerClipboardHandlers({} as never)
+
+    await expect(
+      getRegisteredHandlers().get('clipboard:writeFile')?.(
+        makeClipboardEvent(),
+        '/tmp/copied-file.txt'
+      )
+    ).resolves.toEqual({ ok: true })
+
+    expect(runProcessMock).toHaveBeenCalledTimes(1)
+    expect(runProcessMock).toHaveBeenCalledWith({
+      program: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+      args: [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        "Set-Clipboard -LiteralPath '/tmp/copied-file.txt'"
+      ],
+      input: undefined,
+      stdio: ['pipe', 'ignore', 'ignore'],
+      timeoutMs: expect.any(Number)
+    })
+    expect(directSpawnMock).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['exits non-zero', { code: 1, timedOut: false }],
+    ['times out', { code: null, timedOut: true }]
+  ])('reports a Windows file copy whose PowerShell run %s as failed', async (_, outcome) => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    runProcessMock.mockResolvedValueOnce({ signal: null, stdout: '', stderr: '', ...outcome })
+    registerClipboardHandlers({} as never)
+
+    await expect(
+      getRegisteredHandlers().get('clipboard:writeFile')?.(
+        makeClipboardEvent(),
+        '/tmp/copied-file.txt'
+      )
+    ).resolves.toEqual({ ok: false, reason: 'clipboard-command-failed' })
+  })
+
+  it('copies a file on Linux with wl-copy, falling back to xclip, payload on stdin', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
+    vi.stubEnv('XDG_CURRENT_DESKTOP', 'GNOME')
+    runProcessMock.mockRejectedValueOnce(
+      Object.assign(new Error('spawn wl-copy ENOENT'), { code: 'ENOENT' })
+    )
+    registerClipboardHandlers({} as never)
+
+    await expect(
+      getRegisteredHandlers().get('clipboard:writeFile')?.(
+        makeClipboardEvent(),
+        '/tmp/copied-file.txt'
+      )
+    ).resolves.toEqual({ ok: true })
+
+    const input = `copy\n${pathToFileURL('/tmp/copied-file.txt').href}`
+    expect(runProcessMock.mock.calls.map(([spec]) => spec)).toEqual([
+      {
+        program: 'wl-copy',
+        args: ['--type', 'x-special/gnome-copied-files'],
+        input,
+        stdio: ['pipe', 'ignore', 'ignore'],
+        timeoutMs: expect.any(Number)
+      },
+      {
+        program: 'xclip',
+        args: ['-selection', 'clipboard', '-t', 'x-special/gnome-copied-files'],
+        input,
+        stdio: ['pipe', 'ignore', 'ignore'],
+        timeoutMs: expect.any(Number)
+      }
+    ])
+    expect(directSpawnMock).not.toHaveBeenCalled()
   })
 
   it('rejects unauthorized local files before touching the OS clipboard', async () => {
@@ -321,7 +408,7 @@ describe('registerClipboardHandlers', () => {
 
     expect(fsStatMock).not.toHaveBeenCalled()
     expect(clipboardWriteBufferMock).not.toHaveBeenCalled()
-    expect(spawnMock).not.toHaveBeenCalled()
+    expect(runProcessMock).not.toHaveBeenCalled()
   })
 
   it('rejects clipboard IPC from destroyed, browser, and mismatched dev-origin senders', async () => {
