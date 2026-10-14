@@ -63,7 +63,7 @@ const SETUP_ONLY_VALUE = '__setup_only__'
 const TRIGGER_MIN_WIDTH_CLASS = '!min-w-[260px]'
 
 function setupOnlyLabel(): string {
-  return translate('auto.components.agent.AgentCombobox.setupOnly', 'None (setup script only)')
+  return translate('auto.components.agent.AgentCombobox.setupOnly', 'None')
 }
 
 export default function AgentCombobox({
@@ -252,7 +252,9 @@ export default function AgentCombobox({
           isDefault={
             setupOnlySelected
               ? setupOnly.isDefault
-              : selectedDefaultPreference !== null && defaultAgent === selectedDefaultPreference
+              : selectedDefaultPreference !== null &&
+                defaultAgent === selectedDefaultPreference &&
+                !(selectedDefaultPreference === 'blank' && setupOnly?.isDefault)
           }
           onSetDefault={
             setupOnlySelected

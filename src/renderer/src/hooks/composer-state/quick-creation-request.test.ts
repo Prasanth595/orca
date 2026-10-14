@@ -60,6 +60,7 @@ describe('quick composer creation request', () => {
       linkedTaskSourceContext: null,
       name: 'characterize-request',
       setupDecision: 'inherit',
+      setupOnly: false,
       agent: null,
       pendingFirstAgentMessageRename: false,
       note: '',
@@ -148,6 +149,6 @@ describe('quick composer creation request', () => {
     expect(
       buildQuickCreationRequest(createInput({ setupOnly: true, agent: 'claude' }))
     ).not.toHaveProperty('setupOnly')
-    expect(buildQuickCreationRequest(createInput())).not.toHaveProperty('setupOnly')
+    expect(buildQuickCreationRequest(createInput())).toHaveProperty('setupOnly', false)
   })
 })

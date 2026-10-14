@@ -7083,7 +7083,7 @@
           "storedDefaultUndetected": "Saved as your default, but not detected right now",
           "noAgentsDetected": "No agents detected. If one is installed, the probe may have timed out.",
           "setupOnlyHint": "New workspaces open only the setup script tab; without a setup script they get a blank terminal",
-          "setupOnly": "None (setup script only)"
+          "setupOnly": "None"
         },
         "AppIconSelector": {
           "d5a112dc9b": "Next icon",
@@ -17212,7 +17212,7 @@
           "48c6a5a9b4": "Search agents...",
           "9c6b59fe58": "Set as default",
           "1b0d6965fa": "Current default",
-          "setupOnly": "None (setup script only)"
+          "setupOnly": "None"
         },
         "AgentSettingsDialog": {
           "50cdb57c03": "Manage AI agents, set a default, and customize commands.",

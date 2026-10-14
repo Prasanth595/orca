@@ -119,6 +119,6 @@ export function buildQuickCreationRequest(
     promptDelivery: input.promptDelivery,
     quickTelemetry: input.quickTelemetry,
     ...(input.suppressTerminalFocusOnCompletion ? { suppressTerminalFocusOnCompletion: true } : {}),
-    ...(input.setupOnly && input.agent === null ? { setupOnly: true } : {})
+    ...(input.agent === null ? { setupOnly: input.setupOnly } : {})
   }
 }

@@ -627,6 +627,7 @@ describe('staged background worktree creation', () => {
         expect.objectContaining({ setup, providesInitialSurface: true })
       )
     )
+    expect(store.createWorktree.mock.calls[0]?.at(-1)).toMatchObject({ setupOnly: true })
   })
 
   it('falls back to a blank terminal for None when no setup runs', async () => {

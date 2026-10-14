@@ -42,6 +42,7 @@ export type WorktreeTerminalProvisioningArgs = {
   defaultTabs?: CreateWorktreeResult['defaultTabs']
   primaryTerminalHandle?: string | null
   hasStartupTerminal: boolean
+  setupOnly?: boolean
   setupCommandPlatform: 'windows' | 'posix'
   observeSetupCompletion?: boolean
   // Why: setup and startup must use the same wrapper when startup waits for setup.
@@ -135,7 +136,7 @@ export async function provisionWorktreeTerminals(
     const setupOnly =
       args.setup !== undefined &&
       setupLaunchMode === 'new-tab' &&
-      isNewWorkspaceSetupOnlyDefault(settings)
+      (args.setupOnly ?? isNewWorkspaceSetupOnlyDefault(settings))
     if (!args.hasStartupTerminal && !primaryHandle) {
       if (setupOnly) {
         shellSkippedForSetup = true

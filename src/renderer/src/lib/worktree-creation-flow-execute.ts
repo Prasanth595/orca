@@ -60,10 +60,10 @@ export async function executeWorktreeCreation(
     return
   }
 
+  const structuredLaunch = preparedRequest.agentLaunchRoute === 'structured-native-chat'
   let result: CreateWorktreeResult
   try {
     const provisionedRoot = getProvisionedRootCreateOptions(preparedRequest)
-    const structuredLaunch = preparedRequest.agentLaunchRoute === 'structured-native-chat'
     const backendStartup =
       provisionedRoot || structuredLaunch ? undefined : resolveBackendDraftStartup(preparedRequest)
     result = await useAppStore
@@ -95,6 +95,7 @@ export async function executeWorktreeCreation(
         preparedRequest.linkedGiteaPR,
         preparedRequest.compareBaseRef,
         {
+          setupOnly: preparedRequest.setupOnly,
           executionHostId:
             preparedRequest.workspaceRunContext?.hostId ?? preparedRequest.executionHostId,
           ...(preparedRequest.nameWasGenerated ? { nameWasGenerated: true } : {}),
@@ -146,7 +147,6 @@ export async function executeWorktreeCreation(
   }
 
   const worktree = result.worktree
-  const structuredLaunch = preparedRequest.agentLaunchRoute === 'structured-native-chat'
   // Why: cancellation can race a successful backend adoption; clean up again after it settles so an adopted workspace cannot outlive its destroyed VM.
   if (!useAppStore.getState().pendingWorktreeCreations[creationId]) {
     if (preparedRequest.ephemeralVmRuntimeId) {

@@ -41,8 +41,10 @@ export function AgentDefaultSetting({
   enabledDetectedAgents,
   catalog,
   description,
-  onSetDefault
+  onSetDefault,
+  allowSetupOnly = true
 }: {
+  allowSetupOnly?: boolean
   defaultAgent: TuiAgent | 'blank' | 'setup-only' | null
   detectedIds: Set<string> | null
   enabledDetectedAgents: AgentCatalogEntry[]
@@ -75,18 +77,20 @@ export function AgentDefaultSetting({
           {translate('auto.components.settings.AgentsPane.110b74b022', 'No agent (blank terminal)')}
           {defaultAgent === 'blank' && <Check className="size-3.5" />}
         </DefaultAgentPill>
-        <DefaultAgentPill
-          active={defaultAgent === 'setup-only'}
-          onClick={() => onSetDefault('setup-only')}
-          title={translate(
-            'auto.components.settings.AgentsPane.setupOnlyHint',
-            'New workspaces open only the setup script tab; without a setup script they get a blank terminal'
-          )}
-        >
-          <Ban className="size-3.5" />
-          {translate('auto.components.settings.AgentsPane.setupOnly', 'None (setup script only)')}
-          {defaultAgent === 'setup-only' && <Check className="size-3.5" />}
-        </DefaultAgentPill>
+        {allowSetupOnly && (
+          <DefaultAgentPill
+            active={defaultAgent === 'setup-only'}
+            onClick={() => onSetDefault('setup-only')}
+            title={translate(
+              'auto.components.settings.AgentsPane.setupOnlyHint',
+              'New workspaces open only the setup script tab; without a setup script they get a blank terminal'
+            )}
+          >
+            <Ban className="size-3.5" />
+            {translate('auto.components.settings.AgentsPane.setupOnly', 'None')}
+            {defaultAgent === 'setup-only' && <Check className="size-3.5" />}
+          </DefaultAgentPill>
+        )}
         {defaultAgentPills.map((agent) => {
           const isActive = defaultAgent === agent.id
           const isUndetected = detectedIds !== null && !detectedIds.has(agent.id)
