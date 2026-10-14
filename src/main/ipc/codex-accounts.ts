@@ -3,7 +3,7 @@ import type { CodexAccountAddTarget, CodexAccountService } from '../codex-accoun
 import type { CodexAccountSelectionTarget } from '../codex-accounts/runtime-selection'
 import { broadcastCodexPendingLoginUrl } from './codex-pending-login-url-broadcast'
 import { listRecordedCodexPaneLanes } from '../codex/codex-pane-account-registry'
-import { forgetStaleCodexPanes, listStaleCodexPanes } from '../codex/codex-stale-pane-accounts'
+import { keepStaleCodexPanes, listStaleCodexPanes } from '../codex/codex-stale-pane-accounts'
 import type { GlobalSettings } from '../../shared/global-settings-types'
 
 export function registerCodexAccountHandlers(
@@ -28,11 +28,11 @@ export function registerCodexAccountHandlers(
       args.ptyIds.filter((ptyId): ptyId is string => typeof ptyId === 'string')
     )
   })
-  ipcMain.handle('codexAccounts:forgetStalePanes', (_event, args: { ptyIds?: unknown }) => {
-    if (!Array.isArray(args?.ptyIds)) {
-      return
+  ipcMain.handle('codexAccounts:keepStalePanes', (_event, args: { panes?: unknown }) => {
+    const panes = readKeepStalePanes(args?.panes)
+    if (panes.length > 0) {
+      keepStaleCodexPanes(panes.map((pane) => pane.ptyId))
     }
-    forgetStaleCodexPanes(args.ptyIds.filter((ptyId): ptyId is string => typeof ptyId === 'string'))
   })
   ipcMain.handle('codexAccounts:list', () => codexAccounts.listAccounts())
   ipcMain.handle('codexAccounts:add', (_event, args?: CodexAccountAddTarget) =>
@@ -65,4 +65,27 @@ export function registerCodexAccountHandlers(
       return codexAccounts.selectAccountForTarget(args.accountId, args)
     }
   )
+}
+
+export type KeepStaleCodexPane = { ptyId: string; paneKey?: string }
+
+export function readKeepStalePanes(value: unknown): KeepStaleCodexPane[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+  const panes: KeepStaleCodexPane[] = []
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') {
+      continue
+    }
+    const ptyId = 'ptyId' in entry ? entry.ptyId : undefined
+    const paneKey = 'paneKey' in entry ? entry.paneKey : undefined
+    if (typeof ptyId === 'string' && ptyId.length > 0 && ptyId.length <= 512) {
+      panes.push({
+        ptyId,
+        ...(typeof paneKey === 'string' && paneKey.length <= 512 ? { paneKey } : {})
+      })
+    }
+  }
+  return panes
 }

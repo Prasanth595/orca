@@ -19,7 +19,7 @@ const PTY_ONE = 'worktree-1@@pty-1'
 const PTY_TWO = 'worktree-1@@pty-2'
 
 let container: HTMLDivElement
-let forgetStalePanes: ReturnType<typeof vi.fn>
+let keepStalePanes: ReturnType<typeof vi.fn>
 let root: Root
 
 function notice(previousAccountLabel: string, nextAccountLabel: string) {
@@ -42,10 +42,10 @@ beforeEach(() => {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
-  forgetStalePanes = vi.fn(() => Promise.resolve())
+  keepStalePanes = vi.fn(() => Promise.resolve())
   Object.defineProperty(window, 'api', {
     configurable: true,
-    value: { codexAccounts: { forgetStalePanes } }
+    value: { codexAccounts: { keepStalePanes } }
   })
 })
 
@@ -141,11 +141,28 @@ describe('CodexRestartChip pane ownership', () => {
     })
 
     expect(returnFocus).toHaveBeenCalledOnce()
-    expect(forgetStalePanes).toHaveBeenCalledExactlyOnceWith({ ptyIds: [PTY_ONE] })
+    expect(keepStalePanes).toHaveBeenCalledExactlyOnceWith({ panes: [{ ptyId: PTY_ONE }] })
     expect(useAppStore.getState().codexRestartNoticeByPtyId[PTY_ONE]?.dismissed).toBe(true)
     expect(useAppStore.getState().codexRestartNoticeByPtyId[PTY_TWO]?.dismissed).toBeUndefined()
     expect(firstPane.textContent).toBe('')
     expect(secondPane.textContent).toContain('old-two@example.com')
+  })
+
+  it('keeps the pane through its pane key so the host can keep its conversation too', async () => {
+    useAppStore.setState({
+      codexRestartNoticeByPtyId: { [PTY_ONE]: notice('old@example.com', 'new@example.com') }
+    })
+    await act(async () => {
+      root.render(<CodexRestartChip ptyId={PTY_ONE} paneKey="tab-1:leaf-1" />)
+    })
+
+    await act(async () => {
+      button(container, 'Keep old account').click()
+    })
+
+    expect(keepStalePanes).toHaveBeenCalledExactlyOnceWith({
+      panes: [{ ptyId: PTY_ONE, paneKey: 'tab-1:leaf-1' }]
+    })
   })
 
   it('follows a pane replacement id without acting on the retired PTY', async () => {
@@ -278,7 +295,7 @@ describe('CodexRestartChip pane focus', () => {
       expect(container.querySelector('[role="dialog"]')).toBeNull()
       expect(returnFocus).toHaveBeenCalledOnce()
       if (action !== 'restart') {
-        expect(forgetStalePanes).toHaveBeenCalledExactlyOnceWith({ ptyIds: [PTY_ONE] })
+        expect(keepStalePanes).toHaveBeenCalledExactlyOnceWith({ panes: [{ ptyId: PTY_ONE }] })
         expect(useAppStore.getState().pendingCodexPaneRestartIds).toEqual({})
       }
     }
@@ -293,7 +310,7 @@ describe('CodexRestartChip pane focus', () => {
     })
     expect(container.querySelector('[role="dialog"]')).not.toBeNull()
     expect(returnFocus).not.toHaveBeenCalled()
-    expect(forgetStalePanes).not.toHaveBeenCalled()
+    expect(keepStalePanes).not.toHaveBeenCalled()
   })
 
   it('does not dismiss when a card text selection ends on the backdrop', async () => {
@@ -306,7 +323,7 @@ describe('CodexRestartChip pane focus', () => {
     })
     expect(container.querySelector('[role="dialog"]')).not.toBeNull()
     expect(returnFocus).not.toHaveBeenCalled()
-    expect(forgetStalePanes).not.toHaveBeenCalled()
+    expect(keepStalePanes).not.toHaveBeenCalled()
   })
 
   it('does not dismiss on a secondary mouse button press', async () => {

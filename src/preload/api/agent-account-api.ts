@@ -38,8 +38,8 @@ export type CodexAccountsApi = {
   >
   /** The selection lane each PTY launched from, keyed by pty id; unrecorded panes are absent. */
   listRecordedPaneLanes: (args: { ptyIds: string[] }) => Promise<Record<string, string>>
-  /** Drops launch records so a dismissed prompt stays dismissed across restarts. */
-  forgetStalePanes: (args: { ptyIds: string[] }) => Promise<void>
+  /** "Keep old account": keeps each pane on its launch account, so the prompt stays answered. */
+  keepStalePanes: (args: { panes: { ptyId: string; paneKey?: string }[] }) => Promise<void>
 }
 
 export type ClaudeAccountsApi = {

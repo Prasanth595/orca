@@ -16,7 +16,11 @@ import {
   recordCodexPaneAccount,
   setCodexPaneKept
 } from './codex-pane-account-registry'
-import { forgetStaleCodexPanes, listStaleCodexPanes } from './codex-stale-pane-accounts'
+import {
+  forgetStaleCodexPanes,
+  keepStaleCodexPanes,
+  listStaleCodexPanes
+} from './codex-stale-pane-accounts'
 
 let userDataPath: string
 let previousUserDataPath: string | undefined
@@ -438,6 +442,65 @@ describe('listStaleCodexPanes', () => {
     expect(
       listStaleCodexPanes({ ptyIds: ['pty-kept'], settings: settingsWithSelection('account-b') })
     ).toEqual([{ ptyId: 'pty-kept', launchAccountId: 'account-a', activeAccountId: 'account-b' }])
+  })
+
+  it('keeps panes whose own home carries the account and drops the rest as before', () => {
+    recordCodexPaneAccount('pty-account', {
+      selectionKey: 'host',
+      accountId: 'account-a',
+      homeRoute: 'account-home'
+    })
+    recordCodexPaneAccount('pty-real', {
+      selectionKey: 'host',
+      accountId: null,
+      homeRoute: 'real-home'
+    })
+    recordCodexPaneAccount('pty-shared', {
+      selectionKey: 'host',
+      accountId: null,
+      homeRoute: 'shared-home'
+    })
+    recordCodexPaneAccount('pty-legacy', { selectionKey: 'host', accountId: 'account-a' })
+    recordCodexPaneAccount('pty-wsl-home', {
+      selectionKey: 'wsl:Ubuntu',
+      accountId: 'account-a',
+      homeRoute: 'wsl-home'
+    })
+    recordCodexPaneAccount('pty-wsl-account', {
+      selectionKey: 'wsl:Ubuntu',
+      accountId: 'account-a',
+      homeRoute: 'account-home'
+    })
+
+    expect(
+      keepStaleCodexPanes([
+        'pty-account',
+        'pty-real',
+        'pty-shared',
+        'pty-legacy',
+        'pty-wsl-home',
+        'pty-wsl-account',
+        'pty-unrecorded'
+      ])
+    ).toEqual(['pty-account', 'pty-real'])
+    _internals.resetCache()
+
+    expect(getCodexPaneAccount('pty-account')).toEqual({
+      selectionKey: 'host',
+      accountId: 'account-a',
+      homeRoute: 'account-home',
+      kept: true
+    })
+    expect(getCodexPaneAccount('pty-real')).toEqual({
+      selectionKey: 'host',
+      accountId: null,
+      homeRoute: 'real-home',
+      kept: true
+    })
+    for (const ptyId of ['pty-shared', 'pty-legacy', 'pty-wsl-home', 'pty-wsl-account']) {
+      expect(getCodexPaneAccount(ptyId)).toBeNull()
+    }
+    expect(getCodexPaneAccount('pty-unrecorded')).toBeNull()
   })
 
   it('compares a WSL pane against its own distro selection', () => {

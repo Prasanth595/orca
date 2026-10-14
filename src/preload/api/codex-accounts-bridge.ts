@@ -34,6 +34,6 @@ export const codexAccountsApi = {
   > => ipcRenderer.invoke('codexAccounts:listStalePanes', args),
   listRecordedPaneLanes: (args: { ptyIds: string[] }): Promise<Record<string, string>> =>
     ipcRenderer.invoke('codexAccounts:listRecordedPaneLanes', args),
-  forgetStalePanes: (args: { ptyIds: string[] }): Promise<void> =>
-    ipcRenderer.invoke('codexAccounts:forgetStalePanes', args)
+  keepStalePanes: (args: { panes: { ptyId: string; paneKey?: string }[] }): Promise<void> =>
+    ipcRenderer.invoke('codexAccounts:keepStalePanes', args)
 } satisfies PreloadApi['codexAccounts']

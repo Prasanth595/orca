@@ -18,11 +18,14 @@ type RestartNotice = {
 export default function CodexRestartChip({
   isVisible = true,
   ptyId,
+  paneKey,
   onReturnFocus,
   shouldFocus = false
 }: {
   isVisible?: boolean
   ptyId: string
+  /** Lets the host keep this pane's conversation, not just its terminal. */
+  paneKey?: string
   onReturnFocus: () => void
   shouldFocus?: boolean
 }): React.JSX.Element | null {
@@ -41,11 +44,13 @@ export default function CodexRestartChip({
   const handleDismiss = (): void => {
     useAppStore.getState().dismissCodexRestartNotices([ptyId])
     onReturnFocus()
-    // Why: notices are renderer-only, so the persisted launch record must be
-    // cleared for this pane or the startup sweep re-raises its answered prompt.
-    void window.api.codexAccounts.forgetStalePanes({ ptyIds: [ptyId] }).catch((err: unknown) => {
-      console.warn('Failed to forget dismissed Codex pane account:', err)
-    })
+    // Why: notices are renderer-only, so the answer must be persisted on the
+    // host or the startup sweep re-raises the answered prompt.
+    void window.api.codexAccounts
+      .keepStalePanes({ panes: [{ ptyId, ...(paneKey ? { paneKey } : {}) }] })
+      .catch((err: unknown) => {
+        console.warn('Failed to keep Codex pane on its account:', err)
+      })
   }
 
   return (

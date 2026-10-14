@@ -2,7 +2,10 @@ import type { GlobalSettings } from '../../shared/global-settings-types'
 import { getSelectedCodexAccountIdForTarget } from '../codex-accounts/runtime-selection'
 import {
   forgetCodexPaneAccount,
-  listRecordedCodexPaneAccounts
+  getCodexPaneAccount,
+  listRecordedCodexPaneAccounts,
+  setCodexPaneKept,
+  type CodexPaneAccountRecord
 } from './codex-pane-account-registry'
 
 export type StaleCodexPane = {
@@ -50,6 +53,36 @@ export function forgetStaleCodexPanes(ptyIds: readonly string[]): void {
   for (const ptyId of ptyIds) {
     forgetCodexPaneAccount(ptyId)
   }
+}
+
+/**
+ * True when a pane's own home can carry it on its account after the selection moves.
+ * Why not the shared home: it mirrors whichever account is selected, and a WSL
+ * pane's home is owned by the distro, so neither can stay on a kept account.
+ */
+export function isCodexPaneKeepable(record: CodexPaneAccountRecord): boolean {
+  return (
+    record.selectionKey === 'host' &&
+    (record.homeRoute === 'account-home' || record.homeRoute === 'real-home')
+  )
+}
+
+/**
+ * Answers the restart prompt with "Keep old account": marks keepable panes kept,
+ * and drops the record of every other pane exactly as before.
+ * Returns the pty ids that are now kept.
+ */
+export function keepStaleCodexPanes(ptyIds: readonly string[]): string[] {
+  const kept: string[] = []
+  for (const ptyId of ptyIds) {
+    const record = getCodexPaneAccount(ptyId)
+    if (record && isCodexPaneKeepable(record) && setCodexPaneKept(ptyId, true) === 'kept') {
+      kept.push(ptyId)
+      continue
+    }
+    forgetStaleCodexPanes([ptyId])
+  }
+  return kept
 }
 
 function parseSelectionLaneKey(selectionKey: string): {
