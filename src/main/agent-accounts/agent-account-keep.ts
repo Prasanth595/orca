@@ -13,6 +13,7 @@ export type { SetAgentKeptResult }
 export type AgentKeepDeps = {
   getRow: (paneKey: string) => AgentRunAccountRow | null
   refresh: (paneKey: string) => AgentRunAccount | null
+  withdraw: (paneKey: string) => void
   kept: Pick<KeptAgentConversations, 'keep' | 'release'>
   getPtyIdForPaneKey: (paneKey: string) => string | undefined
   getPaneKeyForPty: (ptyId: string) => string | undefined
@@ -56,6 +57,9 @@ export function setAgentKept(
     return { ok: false, reason: 'unknown-pane' }
   }
   const ptyId = deps.getPtyIdForPaneKey(row.paneKey)
+  if (!args.kept) {
+    return releaseAgent(deps, row, facet, ptyId)
+  }
   if (args.ptyId !== undefined && args.ptyId !== ptyId) {
     return { ok: false, reason: 'unknown-pane' }
   }
@@ -80,6 +84,28 @@ export function setAgentKept(
   }
   const runAccount = deps.refresh(row.paneKey)
   return runAccount ? { ok: true, runAccount } : { ok: false, reason: 'unknown-pane' }
+}
+
+/** Needs no live terminal: a refused kept resume has none, and un-keeping is its way out. */
+function releaseAgent(
+  deps: AgentKeepDeps,
+  row: AgentRunAccountRow,
+  facet: AgentRunAccount,
+  ptyId: string | undefined
+): SetAgentKeptResult {
+  if (facet.provider === 'codex' && ptyId && deps.readCodexRecord(ptyId)) {
+    if (deps.setCodexPaneKept(ptyId, false) === 'unavailable') {
+      return { ok: false, reason: 'unavailable' }
+    }
+  }
+  keepConversation(deps, row, facet.provider, facet.accountId, false)
+  const runAccount = deps.refresh(row.paneKey)
+  if (runAccount?.mode === 'follow') {
+    return { ok: true, runAccount }
+  }
+  // Why: with no process to observe, the stored facet still says kept; nothing honours it now.
+  deps.withdraw(row.paneKey)
+  return { ok: true, runAccount: null }
 }
 
 /** "Keep old account": keeps each pane that can be kept, and its current conversation. */

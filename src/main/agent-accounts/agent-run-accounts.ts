@@ -170,6 +170,10 @@ export class AgentRunAccounts {
     })
   }
 
+  withdraw(paneKey: string): void {
+    this.deps.republish(paneKey, null)
+  }
+
   refreshAll(): void {
     for (const row of this.deps.listRows()) {
       this.publish(row)

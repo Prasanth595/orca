@@ -1,4 +1,7 @@
-import { describe, expect, it, vi } from 'vitest'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AgentRunAccount } from '../../shared/agent-run-account'
 import type { AgentRunAccountRow } from '../agent-hooks/server/server-run-account'
 import type { CodexPaneAccountRecord } from '../codex/codex-pane-account-registry'
@@ -7,6 +10,8 @@ import {
   setAgentKept,
   type AgentKeepDeps
 } from './agent-account-keep'
+import { resolveAgentLaunchAccount } from './agent-launch-account'
+import { KeptAgentConversations } from './kept-agent-conversations'
 
 const PANE = 'tab-1:11111111-1111-4111-8111-111111111111'
 const OTHER_PANE = 'tab-2:22222222-2222-4222-8222-222222222222'
@@ -46,6 +51,7 @@ function deps(overrides: Partial<AgentKeepDeps> = {}) {
   const base: AgentKeepDeps = {
     getRow: vi.fn(() => row()),
     refresh: vi.fn((): AgentRunAccount => ({ ...CODEX_FACET, mode: 'kept' })),
+    withdraw: vi.fn(),
     kept,
     getPtyIdForPaneKey: vi.fn((paneKey: string) => (paneKey === PANE ? 'pty-1' : undefined)),
     getPaneKeyForPty: vi.fn((ptyId: string) => (ptyId === 'pty-1' ? PANE : undefined)),
@@ -57,6 +63,11 @@ function deps(overrides: Partial<AgentKeepDeps> = {}) {
   }
   return { ...base, kept }
 }
+
+const dirs: string[] = []
+afterEach(() => {
+  dirs.splice(0).forEach((dir) => rmSync(dir, { recursive: true, force: true }))
+})
 
 describe('setAgentKept', () => {
   it('keeps a Codex pane and its conversation on the account it launched under', () => {
@@ -76,11 +87,61 @@ describe('setAgentKept', () => {
   })
 
   it('releases a Codex pane and its conversation', () => {
-    const d = deps()
-    setAgentKept(d, { paneKey: PANE, kept: false })
+    const d = deps({ refresh: vi.fn(() => CODEX_FACET) })
+    expect(setAgentKept(d, { paneKey: PANE, kept: false })).toEqual({
+      ok: true,
+      runAccount: CODEX_FACET
+    })
     expect(d.setCodexPaneKept).toHaveBeenCalledWith('pty-1', false)
     expect(d.kept.release).toHaveBeenCalledWith('codex', 's1')
     expect(d.kept.keep).not.toHaveBeenCalled()
+    expect(d.withdraw).not.toHaveBeenCalled()
+  })
+
+  it('un-keeps a refused kept Codex resume, which has no terminal, so it can resume again', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'orca-unkeep-'))
+    dirs.push(dir)
+    const index = new KeptAgentConversations({ filePath: join(dir, 'kept.json') })
+    index.keep('codex', 's1', { lane: 'host', accountId: 'acc-a', keptAt: 1 })
+    const keptFacet: AgentRunAccount = { ...CODEX_FACET, mode: 'kept' }
+    const d = deps({
+      getRow: vi.fn(() => row({ runAccount: keptFacet })),
+      getPtyIdForPaneKey: vi.fn(() => undefined),
+      readCodexRecord: vi.fn(() => null),
+      // With no launch record the producer can only restate the stored facet.
+      refresh: vi.fn(() => keptFacet)
+    })
+
+    expect(
+      setAgentKept({ ...d, kept: index }, { paneKey: PANE, ptyId: 'pty-gone', kept: false })
+    ).toEqual({
+      ok: true,
+      runAccount: null
+    })
+    expect(d.setCodexPaneKept).not.toHaveBeenCalled()
+    expect(d.withdraw).toHaveBeenCalledWith(PANE)
+    expect(
+      resolveAgentLaunchAccount({
+        connectionId: null,
+        launchAgent: 'codex',
+        resumeProviderSession: { key: 'session_id', id: 's1' },
+        lane: 'host',
+        kept: index,
+        settings: { claudeManagedAccounts: [], codexManagedAccounts: [] }
+      })
+    ).toEqual({ kind: 'follow' })
+  })
+
+  it('reports a released Claude agent no runtime is observing as released, not failed', () => {
+    const d = deps({
+      getRow: vi.fn(() =>
+        row({ agentType: 'claude', runAccount: { ...CLAUDE_FACET, mode: 'kept' } })
+      ),
+      getPtyIdForPaneKey: vi.fn(() => undefined),
+      refresh: vi.fn(() => null)
+    })
+    expect(setAgentKept(d, { paneKey: PANE, kept: false })).toEqual({ ok: true, runAccount: null })
+    expect(d.kept.release).toHaveBeenCalledWith('claude', 's1')
   })
 
   it('refuses a Codex pane whose home cannot be kept, without touching anything', () => {

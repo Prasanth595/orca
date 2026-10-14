@@ -83,5 +83,6 @@ export function agentRunAccountsEqual(
 export type SetAgentKeptRequest = { paneKey: string; ptyId?: string; kept: boolean }
 
 export type SetAgentKeptResult =
-  | { ok: true; runAccount: AgentRunAccount }
+  /** `runAccount` null = released with no live process to report on, so the facet was withdrawn. */
+  | { ok: true; runAccount: AgentRunAccount | null }
   | { ok: false; reason: 'unknown-pane' | 'not-keepable' | 'no-session' | 'unavailable' }

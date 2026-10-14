@@ -15,6 +15,7 @@ export function installedAgentKeepDeps(): AgentKeepDeps | null {
   return {
     getRow: (paneKey) => agentHookServer.getRunAccountRow(paneKey),
     refresh: (paneKey) => producer.refresh(paneKey),
+    withdraw: (paneKey) => producer.withdraw(paneKey),
     kept,
     getPtyIdForPaneKey,
     getPaneKeyForPty: (ptyId) => ptyPaneKey.get(ptyId),
