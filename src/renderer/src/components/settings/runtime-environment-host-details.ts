@@ -1,13 +1,11 @@
 import { translate } from '@/i18n/i18n'
 import {
   describeRuntimeCompatBlock,
-  evaluateRuntimeCompat,
   type RuntimeCompatVerdict
 } from '../../../../shared/protocol-compat'
+import { evaluateRuntimeStatusCompat } from '../../../../shared/runtime-status-compat'
 import {
-  MIN_COMPATIBLE_RUNTIME_SERVER_VERSION,
   PROJECT_HOST_SETUP_RUNTIME_CAPABILITY,
-  RUNTIME_PROTOCOL_VERSION,
   TASK_SOURCE_CONTEXT_RUNTIME_CAPABILITY,
   WORKSPACE_RUN_CONTEXT_RUNTIME_CAPABILITY
 } from '../../../../shared/protocol-version'
@@ -32,13 +30,7 @@ function isTransportConnected(details: RuntimeHostDetails): boolean {
 }
 
 export function evaluateHostDetails(status: RuntimeStatus): RuntimeCompatVerdict {
-  return evaluateRuntimeCompat({
-    clientProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-    minCompatibleServerProtocolVersion: MIN_COMPATIBLE_RUNTIME_SERVER_VERSION,
-    serverProtocolVersion: status.runtimeProtocolVersion ?? status.protocolVersion,
-    serverMinCompatibleClientProtocolVersion:
-      status.minCompatibleRuntimeClientVersion ?? status.minCompatibleMobileVersion
-  })
+  return evaluateRuntimeStatusCompat(status)
 }
 
 export function getHostDetailsSummary(details: RuntimeHostDetails | undefined): string {

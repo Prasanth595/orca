@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildExecutionHostRegistry } from './execution-host-registry'
-import { RUNTIME_PROTOCOL_VERSION } from './protocol-version'
+import { REQUIRED_RUNTIME_SERVER_CAPABILITIES, RUNTIME_PROTOCOL_VERSION } from './protocol-version'
 import type { RemoteRuntimeSharedConnectionDiagnostics } from './remote-runtime-shared-control-types'
 import type { RuntimeHostStatusSnapshot } from './runtime-host-status'
 import { RuntimeHostStatusOwner } from './runtime-host-status-owner'
@@ -14,7 +14,8 @@ const STATUS: RuntimeStatus = {
   liveTabCount: 0,
   liveLeafCount: 0,
   runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-  minCompatibleRuntimeClientVersion: 1
+  minCompatibleRuntimeClientVersion: 1,
+  capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
 }
 
 function diagnostics(

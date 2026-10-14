@@ -8,7 +8,8 @@ import {
 } from '@/runtime/runtime-file-client-test-harness'
 import {
   RUNTIME_PROTOCOL_VERSION,
-  MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+  MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES
 } from '../../../shared/protocol-version'
 installRuntimeFileClientEnvironment()
 const context = {
@@ -26,7 +27,7 @@ function status(capabilities: string[]) {
           result: {
             runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
             minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
-            capabilities
+            capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES, ...capabilities]
           },
           _meta: { runtimeId: 'owner-runtime' }
         }

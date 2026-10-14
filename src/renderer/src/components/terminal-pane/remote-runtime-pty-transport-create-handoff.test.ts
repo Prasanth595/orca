@@ -436,66 +436,28 @@ describe('createRemoteRuntimePtyTransport', () => {
     })
   })
 
-  it('preserves the connect-time legacy payload when host authority is unavailable', async () => {
-    runtimeCall.mockImplementation(async (args: { method?: string }) =>
-      args.method === 'status.get'
-        ? {
-            ok: true,
-            result: {
-              runtimeProtocolVersion: 3,
-              minCompatibleRuntimeClientVersion: 2,
-              capabilities: []
-            }
-          }
-        : { ok: true, result: { terminal: { handle: 'terminal-legacy' } } }
-    )
+  it('refuses an agent launch on a server without host authority before creating anything', async () => {
+    runtimeCall.mockImplementation(async () => ({
+      ok: true,
+      result: { runtimeProtocolVersion: 3, minCompatibleRuntimeClientVersion: 2, capabilities: [] }
+    }))
+    const onError = vi.fn()
     const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'tab-1',
       leafId: 'pane:1',
-      command: "codex 'old'",
-      launchConfig: { agentArgs: '--old', agentEnv: {} },
-      launchToken: 'old-token',
       launchAgent: 'codex'
     })
 
     await transport.connect({
       url: '',
-      command: "codex '--model' 'gpt-5' 'resume' 'session-1'",
-      env: { CODEX_PROFILE: 'captured', ORCA_AGENT_LAUNCH_TOKEN: 'fresh-token' },
-      launchConfig: {
-        agentArgs: '--model gpt-5',
-        agentEnv: { CODEX_PROFILE: 'captured' }
-      },
-      launchToken: 'fresh-token',
+      command: "codex 'resume' 'session-1'",
       launchAgent: 'codex',
-      callbacks: {}
+      callbacks: { onError }
     })
 
-    expect(runtimeCall).toHaveBeenCalledWith({
-      selector: 'env-1',
-      method: 'terminal.create',
-      params: {
-        worktree: 'id:wt-1',
-        clientMutationId: expect.any(String),
-        command: "codex '--model' 'gpt-5' 'resume' 'session-1'",
-        env: { CODEX_PROFILE: 'captured', ORCA_AGENT_LAUNCH_TOKEN: 'fresh-token' },
-        launchConfig: {
-          agentArgs: '--model gpt-5',
-          agentEnv: { CODEX_PROFILE: 'captured' }
-        },
-        launchToken: 'fresh-token',
-        launchAgent: 'codex',
-        tabId: 'tab-1',
-        leafId: 'pane:1',
-        focus: false,
-        presentation: 'background'
-      },
-      timeoutMs: 15_000
-    })
-    expect(runtimeCall).not.toHaveBeenCalledWith(
-      expect.objectContaining({ method: 'terminal.createAgentSession' })
-    )
+    expect(onError).toHaveBeenCalledWith(expect.stringContaining('Update Orca on the server host.'))
+    expect(runtimeCall.mock.calls.map(([args]) => args.method)).toEqual(['status.get'])
   })
 })

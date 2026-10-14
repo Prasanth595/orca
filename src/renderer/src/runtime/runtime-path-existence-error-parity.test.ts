@@ -8,7 +8,8 @@ import {
 } from './runtime-file-client-test-harness'
 import {
   RUNTIME_PROTOCOL_VERSION,
-  MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+  MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES
 } from '../../../shared/protocol-version'
 installRuntimeFileClientEnvironment()
 for (const mode of ['scalar', 'batch'] as const) {
@@ -21,7 +22,7 @@ for (const mode of ['scalar', 'batch'] as const) {
             result: {
               runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
               minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
-              capabilities: ['files.pathsExist']
+              capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES, 'files.pathsExist']
             },
             _meta: { runtimeId: 'owner-runtime' }
           }
@@ -59,7 +60,7 @@ for (const stage of ['status', 'operation'] as const) {
               result: {
                 runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
                 minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
-                capabilities: ['files.pathsExist']
+                capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES, 'files.pathsExist']
               },
               _meta: { runtimeId: 'owner-runtime' }
             }

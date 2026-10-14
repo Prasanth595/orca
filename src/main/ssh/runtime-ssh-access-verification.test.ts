@@ -71,6 +71,14 @@ describe('existing paired host verification over SSH', () => {
     expect(original).toEqual(environment())
   })
 
+  it('proves an older server without the capabilities pairing requires', async () => {
+    // Why: refusing it here would read as another server holding the port, not "update it".
+    expect(success().result).not.toHaveProperty('capabilities')
+    await expect(verifyRuntimeEnvironmentSshTunnel(environment(), 41000)).resolves.toMatchObject({
+      verifiedRuntimeId: 'host-runtime'
+    })
+  })
+
   it('can learn an unrecorded runtime id only after authenticated status verification', async () => {
     const original = { ...environment(), runtimeId: null }
     expect((await verifyRuntimeEnvironmentSshTunnel(original, 41000)).verifiedRuntimeId).toBe(

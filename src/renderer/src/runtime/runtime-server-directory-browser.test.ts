@@ -3,6 +3,7 @@ import { browseRuntimeServerDirectory } from './runtime-server-directory-browser
 import { clearRuntimeCompatibilityCacheForTests } from './runtime-rpc-client'
 import {
   MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES,
   RUNTIME_PROTOCOL_VERSION
 } from '../../../shared/protocol-version'
 import { stubRuntimeEnvironmentBridge } from './runtime-environment-bridge-fixture'
@@ -19,7 +20,8 @@ beforeEach(() => {
         ok: true,
         result: {
           runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-          minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+          minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+          capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
         },
         _meta: { runtimeId: 'remote-runtime' }
       })

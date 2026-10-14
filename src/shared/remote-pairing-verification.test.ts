@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { MIN_COMPATIBLE_RUNTIME_SERVER_VERSION, RUNTIME_PROTOCOL_VERSION } from './protocol-version'
+import {
+  MIN_COMPATIBLE_RUNTIME_SERVER_VERSION,
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES,
+  RUNTIME_PROTOCOL_VERSION
+} from './protocol-version'
 import { verifyRemotePairingRuntimeStatus } from './remote-pairing-verification'
 
 function runtimeStatus(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -11,6 +15,7 @@ function runtimeStatus(overrides: Record<string, unknown> = {}): Record<string, 
     liveTabCount: 0,
     liveLeafCount: 0,
     runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
+    capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES],
     ...overrides
   }
 }
@@ -29,7 +34,10 @@ describe('verifyRemotePairingRuntimeStatus', () => {
       )
     ).toMatchObject({ ok: false, kind: 'connection-interrupted' })
     expect(
-      verifyRemotePairingRuntimeStatus({ runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION })
+      verifyRemotePairingRuntimeStatus({
+        runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
+        capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
+      })
     ).toMatchObject({ ok: false, kind: 'connection-interrupted' })
     expect(
       verifyRemotePairingRuntimeStatus(runtimeStatus({ capabilities: 'runtime.status.compat.v1' }))
@@ -60,6 +68,11 @@ describe('verifyRemotePairingRuntimeStatus', () => {
         })
       )
     ).toMatchObject({ ok: false, kind: 'protocol-incompatible' })
+    expect(verifyRemotePairingRuntimeStatus(runtimeStatus({ capabilities: [] }))).toEqual({
+      ok: false,
+      kind: 'protocol-incompatible',
+      message: 'Update Orca on the remote host before adding it.'
+    })
   })
 
   it('accepts a compatible runtime status', () => {

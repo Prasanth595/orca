@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import {
   MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES,
   RUNTIME_PROTOCOL_VERSION
 } from '../../../shared/protocol-version'
 import { callRuntimeRpc, clearRuntimeCompatibilityCacheForTests } from './runtime-rpc-client'
@@ -43,7 +44,8 @@ it('captures the pairing revision before awaiting the compatibility probe', asyn
       runtimeId: 'remote-runtime',
       graphStatus: 'ready',
       runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-      minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+      minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+      capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
     },
     _meta: { runtimeId: 'remote-runtime' }
   })

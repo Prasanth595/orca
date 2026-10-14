@@ -5,6 +5,7 @@ import { getRuntimeAgentInventoryKey } from './runtime-agent-inventory-key'
 import {
   MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
   PREFLIGHT_WORKSPACE_SCOPED_RUNTIME_CAPABILITY,
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES,
   RUNTIME_PROTOCOL_VERSION
 } from '../../../../shared/protocol-version'
 import { clearRuntimeCompatibilityCacheForTests } from '@/runtime/runtime-rpc-client'
@@ -29,7 +30,12 @@ function serveHost(host: ServedHostStatus): void {
             liveLeafCount: 0,
             runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
             minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
-            capabilities: host.scoped ? [PREFLIGHT_WORKSPACE_SCOPED_RUNTIME_CAPABILITY] : [],
+            capabilities: host.scoped
+              ? [
+                  ...REQUIRED_RUNTIME_SERVER_CAPABILITIES,
+                  PREFLIGHT_WORKSPACE_SCOPED_RUNTIME_CAPABILITY
+                ]
+              : [...REQUIRED_RUNTIME_SERVER_CAPABILITIES],
             ...(host.hostPlatform ? { hostPlatform: host.hostPlatform } : {})
           }
         : method === 'preflight.refreshAgents'

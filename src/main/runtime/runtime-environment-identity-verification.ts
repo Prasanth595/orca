@@ -45,7 +45,11 @@ export async function verifyRuntimePairingIdentity(
   if (!response.ok) {
     throw new Error(`Runtime identity verification failed: ${response.error.message}`)
   }
-  const status = verifyRemotePairingRuntimeStatus(response.result)
+  // Why no required capabilities: this answers which server holds the endpoint, and an old one
+  // refused here would read as a foreign server; status and pairing refuse it with the update path.
+  const status = verifyRemotePairingRuntimeStatus(response.result, {
+    requiredServerCapabilities: []
+  })
   if (!status.ok) {
     throw new Error(status.message)
   }

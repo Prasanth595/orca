@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { DELEGATED_MOBILE_DEVICES_RUNTIME_CAPABILITY } from '../../../shared/delegated-mobile-device-contract'
-import { RUNTIME_PROTOCOL_VERSION } from '../../../shared/protocol-version'
+import {
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES,
+  RUNTIME_PROTOCOL_VERSION
+} from '../../../shared/protocol-version'
 import {
   runtimeEnvironmentStatusFromSnapshot,
   type RuntimeHostStatusSnapshot
@@ -20,7 +23,9 @@ function answer(capable: boolean): RuntimeStatus {
     liveTabCount: 0,
     liveLeafCount: 0,
     runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-    capabilities: capable ? [DELEGATED_MOBILE_DEVICES_RUNTIME_CAPABILITY] : []
+    capabilities: capable
+      ? [...REQUIRED_RUNTIME_SERVER_CAPABILITIES, DELEGATED_MOBILE_DEVICES_RUNTIME_CAPABILITY]
+      : [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
   }
 }
 

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES,
   RUNTIME_PROTOCOL_VERSION
 } from '../../../../shared/protocol-version'
 import type { PortForwardEntry } from '../../../../shared/ssh-types'
@@ -62,7 +63,7 @@ const compatibleStatus = {
   graphStatus: 'ready',
   runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
   minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
-  capabilities: ['browser.screencast.v1']
+  capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES, 'browser.screencast.v1']
 }
 
 const localScan = vi.fn()
@@ -382,7 +383,7 @@ describe('PortsPanel runtime routing', () => {
       Promise.resolve({
         id: method,
         ok: true,
-        result: { ...compatibleStatus, capabilities: [] },
+        result: { ...compatibleStatus, capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES] },
         _meta: { runtimeId: 'runtime-1' }
       })
     )

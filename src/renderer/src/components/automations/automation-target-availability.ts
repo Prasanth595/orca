@@ -1,13 +1,7 @@
 import type { Automation } from '../../../../shared/automations-types'
 import { getRepoExecutionHostId, parseExecutionHostId } from '../../../../shared/execution-host'
-import {
-  describeRuntimeCompatBlock,
-  evaluateRuntimeCompat
-} from '../../../../shared/protocol-compat'
-import {
-  MIN_COMPATIBLE_RUNTIME_SERVER_VERSION,
-  RUNTIME_PROTOCOL_VERSION
-} from '../../../../shared/protocol-version'
+import { describeRuntimeCompatBlock } from '../../../../shared/protocol-compat'
+import { evaluateRuntimeStatusCompat } from '../../../../shared/runtime-status-compat'
 import type { AutomationHostTarget } from './automation-host-client'
 import type { SshConnectionState } from '../../../../shared/ssh-types'
 import type { TaskSourceContext } from '../../../../shared/task-source-context'
@@ -285,13 +279,7 @@ export function getRuntimeAutomationAvailability(
       'The selected remote server is not ready to run automations yet.'
     )
   }
-  const compat = evaluateRuntimeCompat({
-    clientProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-    minCompatibleServerProtocolVersion: MIN_COMPATIBLE_RUNTIME_SERVER_VERSION,
-    serverProtocolVersion: entry.status.runtimeProtocolVersion ?? entry.status.protocolVersion,
-    serverMinCompatibleClientProtocolVersion:
-      entry.status.minCompatibleRuntimeClientVersion ?? entry.status.minCompatibleMobileVersion
-  })
+  const compat = evaluateRuntimeStatusCompat(entry.status)
   if (compat.kind === 'blocked') {
     return unavailable('runtime-update-required', describeRuntimeCompatBlock(compat))
   }

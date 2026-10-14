@@ -146,10 +146,19 @@ import {
 // refuse older clients. Bump MIN_COMPATIBLE_RUNTIME_SERVER_VERSION when
 // this client build requires a newer server. Exact app-version equality is
 // never required; these numbers define the supported compatibility window.
+//
+// To raise the server floor: add the capability this client now relies on to
+// REQUIRED_RUNTIME_SERVER_CAPABILITIES; servers without it are refused through
+// the existing update path. Bump MIN_COMPATIBLE_RUNTIME_SERVER_VERSION only for
+// protocol-number breaks.
 
 export const RUNTIME_PROTOCOL_VERSION = 3
 export const MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION = 2
 export const MIN_COMPATIBLE_RUNTIME_SERVER_VERSION = 2
+// Agent launch plans come from the host; servers before 2026-07-21 cannot start them.
+export const REQUIRED_RUNTIME_SERVER_CAPABILITIES = [
+  AGENT_SESSION_HOST_AUTHORITY_RUNTIME_CAPABILITY
+] as const
 
 export * from './runtime-capability-constants'
 export { REMOTE_SERVER_UPDATE_CAPABILITY } from './remote-server-update'

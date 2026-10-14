@@ -1,6 +1,7 @@
 import { expect, it, vi } from 'vitest'
 import {
   MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES,
   RUNTIME_PROTOCOL_VERSION
 } from '../../../../shared/protocol-version'
 import { createTestStore } from './store-test-helpers'
@@ -12,7 +13,8 @@ function compatibleStatus(runtimeId: string) {
       runtimeId,
       graphStatus: 'ready',
       runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-      minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+      minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+      capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
     },
     _meta: { runtimeId }
   }

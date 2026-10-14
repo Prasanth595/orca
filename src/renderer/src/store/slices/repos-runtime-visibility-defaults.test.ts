@@ -1,6 +1,7 @@
 import { expect, it, vi } from 'vitest'
 import {
   MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES,
   RUNTIME_PROTOCOL_VERSION,
   WORKTREE_VISIBILITY_SOURCE_DEFAULTS_RUNTIME_CAPABILITY
 } from '../../../../shared/protocol-version'
@@ -19,7 +20,10 @@ it('hydrates a runtime owner default when refreshing its repositories', async ()
               graphStatus: 'ready',
               runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
               minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
-              capabilities: [WORKTREE_VISIBILITY_SOURCE_DEFAULTS_RUNTIME_CAPABILITY]
+              capabilities: [
+                ...REQUIRED_RUNTIME_SERVER_CAPABILITIES,
+                WORKTREE_VISIBILITY_SOURCE_DEFAULTS_RUNTIME_CAPABILITY
+              ]
             }
           : method === 'repo.list'
             ? { repos: [] }
@@ -62,7 +66,8 @@ it('clears focused support when a runtime omits the default', async () => {
                 runtimeId: 'runtime-1',
                 graphStatus: 'ready',
                 runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-                minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+                minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+                capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
               }
             : method === 'repo.list'
               ? { repos: [] }
@@ -103,7 +108,8 @@ it('preserves focused support when runtime default hydration fails', async () =>
                     runtimeId: 'runtime-1',
                     graphStatus: 'ready',
                     runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-                    minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+                    minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+                    capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
                   }
                 : { repos: [] },
             _meta: { runtimeId: 'runtime-1' }

@@ -4,6 +4,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import {
   MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES,
   RUNTIME_PROTOCOL_VERSION
 } from '../../../../shared/protocol-version'
 import type {
@@ -41,7 +42,8 @@ function answeredStatus(): RuntimeStatus {
     // Why real versions: an omitted protocol version is a compat block, which is its own
     // disconnected verdict and would mask what this file is measuring.
     runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-    minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+    minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+    capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
   }
 }
 

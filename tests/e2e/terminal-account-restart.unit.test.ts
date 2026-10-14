@@ -370,90 +370,87 @@ describe('account restart through renderer connection and host spawn', () => {
       }
     }
   })
-  it.each([false, true])(
-    'paired restart retains the old owner (host authority: %s)',
-    async (hostAuthority) => {
-      const host = installRestartHarness()
-      registerWithFakes(mainWindow, host.runtime, host.store)
-      rendererState = createInitialStoreState(() => rendererState)
-      await installTerminalTestGlobals()
-      const runtimeCall = vi.fn(
-        async (args: { method: string; params?: Record<string, unknown> }) => {
-          if (args.method === 'status.get') {
-            return {
-              id: 'status',
-              ok: true,
-              result: {
-                runtimeProtocolVersion: 3,
-                minCompatibleRuntimeClientVersion: 2,
-                capabilities: hostAuthority ? ['agent-session.host-authority.v1'] : []
-              },
-              _meta: { runtimeId: 'fake-host' }
-            }
-          }
-          if (args.method !== 'terminal.create' && args.method !== 'terminal.createAgentSession') {
-            throw new Error(`Unexpected host method: ${args.method}`)
-          }
-          // Both host create routes ultimately use stable-pane adoption; keep that real here.
-          await handlers.get('pty:spawn')!(null, {
-            cols: 80,
-            rows: 24,
-            cwd,
-            tabId,
-            leafId,
-            worktreeId,
-            command: 'codex',
-            launchAgent: 'codex',
-            startupCommandDelivery: 'shell-ready'
-          })
+  it('paired restart retains the old owner', async () => {
+    const host = installRestartHarness()
+    registerWithFakes(mainWindow, host.runtime, host.store)
+    rendererState = createInitialStoreState(() => rendererState)
+    await installTerminalTestGlobals()
+    const runtimeCall = vi.fn(
+      async (args: { method: string; params?: Record<string, unknown> }) => {
+        if (args.method === 'status.get') {
           return {
-            id: 'create',
+            id: 'status',
             ok: true,
             result: {
-              terminal: { handle: 'term-old', worktreeId, title: null, surface: 'background' }
+              runtimeProtocolVersion: 3,
+              minCompatibleRuntimeClientVersion: 2,
+              capabilities: ['agent-session.host-authority.v1']
             },
             _meta: { runtimeId: 'fake-host' }
           }
         }
-      )
-      const subscribe = vi.fn(
-        async (_args: unknown, callbacks: { onResponse: (value: unknown) => void }) => {
-          queueMicrotask(() =>
-            callbacks.onResponse({
-              id: 'stream',
-              ok: true,
-              result: { type: 'ready' },
-              _meta: { runtimeId: 'fake-host' }
-            })
-          )
-          return { unsubscribe: vi.fn(), sendBinary: vi.fn() }
+        if (args.method !== 'terminal.create' && args.method !== 'terminal.createAgentSession') {
+          throw new Error(`Unexpected host method: ${args.method}`)
         }
-      )
-      Object.assign(window.api, { runtimeEnvironments: { call: runtimeCall, subscribe } })
-      const { createRemoteRuntimePtyTransport } =
-        await import('../../src/renderer/src/components/terminal-pane/remote-runtime-pty-transport')
-      const { releasePaneTransportForRestart } =
-        await import('../../src/renderer/src/components/terminal-pane/pane-restart-transport-handoff')
-      const { CODEX_ACCOUNT_RESTART_STARTUP } =
-        await import('../../src/renderer/src/lib/codex-session-restart')
-      const options = { worktreeId, tabId, leafId, ...CODEX_ACCOUNT_RESTART_STARTUP }
-      const old = createRemoteRuntimePtyTransport('fake-host', options)
-      await old.connect({ url: '', callbacks: {} })
-      expect(old.getPtyId()).toBe('remote:fake-host@@term-old')
-      const replacesPtyId = releasePaneTransportForRestart(old)
-      expect(replacesPtyId).toBeNull()
-      const replacement = createRemoteRuntimePtyTransport('fake-host', options)
-      try {
-        await replacement.connect({ url: '', callbacks: {} })
-        expect(replacement.getPtyId()).toBe('remote:fake-host@@term-old')
-        expect(host.shutdown).not.toHaveBeenCalled()
-        expect(host.providerSpawn.mock.calls.every(([options]) => options.attachOnly)).toBe(true)
-        expect(
-          runtimeCall.mock.calls.filter(([args]) => args.method.startsWith('terminal.create'))
-        ).toHaveLength(2)
-      } finally {
-        replacement.detach?.()
+        // Both host create routes ultimately use stable-pane adoption; keep that real here.
+        await handlers.get('pty:spawn')!(null, {
+          cols: 80,
+          rows: 24,
+          cwd,
+          tabId,
+          leafId,
+          worktreeId,
+          command: 'codex',
+          launchAgent: 'codex',
+          startupCommandDelivery: 'shell-ready'
+        })
+        return {
+          id: 'create',
+          ok: true,
+          result: {
+            terminal: { handle: 'term-old', worktreeId, title: null, surface: 'background' }
+          },
+          _meta: { runtimeId: 'fake-host' }
+        }
       }
+    )
+    const subscribe = vi.fn(
+      async (_args: unknown, callbacks: { onResponse: (value: unknown) => void }) => {
+        queueMicrotask(() =>
+          callbacks.onResponse({
+            id: 'stream',
+            ok: true,
+            result: { type: 'ready' },
+            _meta: { runtimeId: 'fake-host' }
+          })
+        )
+        return { unsubscribe: vi.fn(), sendBinary: vi.fn() }
+      }
+    )
+    Object.assign(window.api, { runtimeEnvironments: { call: runtimeCall, subscribe } })
+    const { createRemoteRuntimePtyTransport } =
+      await import('../../src/renderer/src/components/terminal-pane/remote-runtime-pty-transport')
+    const { releasePaneTransportForRestart } =
+      await import('../../src/renderer/src/components/terminal-pane/pane-restart-transport-handoff')
+    const { CODEX_ACCOUNT_RESTART_STARTUP } =
+      await import('../../src/renderer/src/lib/codex-session-restart')
+    const options = { worktreeId, tabId, leafId, ...CODEX_ACCOUNT_RESTART_STARTUP }
+    const old = createRemoteRuntimePtyTransport('fake-host', options)
+    await old.connect({ url: '', callbacks: {} })
+    expect(old.getPtyId()).toBe('remote:fake-host@@term-old')
+    const replacesPtyId = releasePaneTransportForRestart(old)
+    expect(replacesPtyId).toBeNull()
+    const replacement = createRemoteRuntimePtyTransport('fake-host', options)
+    try {
+      await replacement.connect({ url: '', callbacks: {} })
+      expect(replacement.getPtyId()).toBe('remote:fake-host@@term-old')
+      expect(host.shutdown).not.toHaveBeenCalled()
+      expect(host.providerSpawn.mock.calls.every(([options]) => options.attachOnly)).toBe(true)
+      expect(
+        runtimeCall.mock.calls.filter(([args]) => args.method.startsWith('terminal.create'))
+      ).toHaveLength(2)
+    } finally {
+      replacement.detach?.()
     }
-  )
+  })
 })

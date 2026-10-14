@@ -7,6 +7,7 @@ import { useAppStore } from '@/store'
 import { useDetectedAgents, type UseDetectedAgentsResult } from './useDetectedAgents'
 import {
   MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES,
   RUNTIME_PROTOCOL_VERSION
 } from '../../../shared/protocol-version'
 import type { PublicKnownRuntimeEnvironment } from '../../../shared/runtime-environments'
@@ -68,7 +69,8 @@ const STATUS = {
   liveTabCount: 0,
   liveLeafCount: 0,
   runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-  minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+  minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+  capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
 }
 
 /** Answers status.get; hands each detect call to `detect` with its 1-based index. */

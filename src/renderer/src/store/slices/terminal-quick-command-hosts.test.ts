@@ -4,6 +4,7 @@ import type { TerminalQuickCommand } from '../../../../shared/terminal-quick-com
 import { getDefaultSettings } from '../../../../shared/constants'
 import {
   MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES,
   RUNTIME_PROTOCOL_VERSION,
   TERMINAL_QUICK_COMMANDS_RUNTIME_CAPABILITY
 } from '../../../../shared/protocol-version'
@@ -34,7 +35,9 @@ function installRuntime(supported = true): ReturnType<typeof vi.fn> {
           graphStatus: 'ready',
           runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
           minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
-          capabilities: supported ? [TERMINAL_QUICK_COMMANDS_RUNTIME_CAPABILITY] : []
+          capabilities: supported
+            ? [...REQUIRED_RUNTIME_SERVER_CAPABILITIES, TERMINAL_QUICK_COMMANDS_RUNTIME_CAPABILITY]
+            : [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
         })
       )
     }
@@ -121,7 +124,10 @@ describe('terminal quick command host collections', () => {
             graphStatus: 'ready',
             runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
             minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
-            capabilities: [TERMINAL_QUICK_COMMANDS_RUNTIME_CAPABILITY]
+            capabilities: [
+              ...REQUIRED_RUNTIME_SERVER_CAPABILITIES,
+              TERMINAL_QUICK_COMMANDS_RUNTIME_CAPABILITY
+            ]
           })
         )
       }

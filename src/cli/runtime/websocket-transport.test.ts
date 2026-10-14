@@ -26,6 +26,7 @@ import {
   AUTOMATION_OWNER_FENCING_RUNTIME_CAPABILITY,
   MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
   REPO_SEARCH_QUALIFIED_REFS_RUNTIME_CAPABILITY,
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES,
   RUNTIME_PROTOCOL_VERSION,
   SESSION_TABS_AUTHORITATIVE_INVENTORY_RUNTIME_CAPABILITY,
   SESSION_TAB_CLOSE_INTENT_RUNTIME_CAPABILITY,
@@ -107,7 +108,7 @@ describe('CLI remote WebSocket transport', () => {
         automatic: false,
         reason: 'manual-service-update-required'
       },
-      capabilities: ['updater.remote-control.v1'],
+      capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES, 'updater.remote-control.v1'],
       degradations: [
         {
           code: 'browser_unavailable',
@@ -137,7 +138,7 @@ describe('CLI remote WebSocket transport', () => {
     expect(status.result.runtime).toMatchObject({
       appVersion: '1.5.0',
       remoteUpdateSupport: { automatic: false, reason: 'manual-service-update-required' },
-      capabilities: ['updater.remote-control.v1'],
+      capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES, 'updater.remote-control.v1'],
       degradations: [expect.objectContaining({ code: 'browser_unavailable' })]
     })
   })
@@ -186,8 +187,11 @@ describe('CLI remote WebSocket transport', () => {
     expect(status.result.runtime.runtimeId).toBe('runtime-env-1')
   })
 
-  it('blocks remote RPCs when the server protocol is too old', async () => {
-    const runtime = await startTestRuntime('runtime-old', { runtimeProtocolVersion: 1 })
+  it.each([
+    ['protocol', { runtimeProtocolVersion: 1 }],
+    ['capabilities', { capabilities: [] }]
+  ])('blocks remote RPCs when the server %s is too old', async (_, statusOverrides) => {
+    const runtime = await startTestRuntime('runtime-old', statusOverrides)
     servers.push(runtime)
 
     const client = new RuntimeClient(
@@ -232,7 +236,9 @@ describe('CLI remote WebSocket transport', () => {
   })
 
   it('blocks orchestration mutations when a remote runtime lacks the contract capability', async () => {
-    const runtime = await startTestRuntime('runtime-old-orchestration', { capabilities: [] })
+    const runtime = await startTestRuntime('runtime-old-orchestration', {
+      capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
+    })
     servers.push(runtime)
     const client = new RuntimeClient(
       '/tmp/unused',
@@ -340,7 +346,9 @@ async function startTestRuntime(
                   MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
                 appVersion: statusOverrides.appVersion,
                 remoteUpdateSupport: statusOverrides.remoteUpdateSupport,
-                capabilities: statusOverrides.capabilities,
+                capabilities: statusOverrides.capabilities ?? [
+                  ...REQUIRED_RUNTIME_SERVER_CAPABILITIES
+                ],
                 degradations: statusOverrides.degradations
               },
               _meta: { runtimeId }

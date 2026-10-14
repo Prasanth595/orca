@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RuntimeRpcResponse } from '../../../shared/runtime-rpc-envelope'
-import { MIN_COMPATIBLE_RUNTIME_SERVER_VERSION } from '../../../shared/protocol-version'
+import {
+  MIN_COMPATIBLE_RUNTIME_SERVER_VERSION,
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES
+} from '../../../shared/protocol-version'
 import {
   encodePairingCode,
   installBrowserGlobals,
@@ -391,7 +394,8 @@ describe('web runtime environment identity', () => {
               authoritativeWindowId: 1,
               liveTabCount: 0,
               liveLeafCount: 0,
-              runtimeProtocolVersion: MIN_COMPATIBLE_RUNTIME_SERVER_VERSION
+              runtimeProtocolVersion: MIN_COMPATIBLE_RUNTIME_SERVER_VERSION,
+              capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
             },
             _meta: { runtimeId: 'runtime-new' }
           })
@@ -434,7 +438,8 @@ describe('web runtime environment identity', () => {
         authoritativeWindowId: 1,
         liveTabCount: 0,
         liveLeafCount: 0,
-        runtimeProtocolVersion: MIN_COMPATIBLE_RUNTIME_SERVER_VERSION
+        runtimeProtocolVersion: MIN_COMPATIBLE_RUNTIME_SERVER_VERSION,
+        capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
       },
       _meta: { runtimeId: 'runtime-new' }
     })

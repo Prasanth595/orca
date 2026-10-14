@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import {
   MIN_COMPATIBLE_RUNTIME_SERVER_VERSION,
   MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES,
   RUNTIME_PROTOCOL_VERSION
 } from '../../../../shared/protocol-version'
 import { clearRuntimeCompatibilityCacheForTests } from '../../runtime/runtime-rpc-client'
@@ -78,7 +79,8 @@ beforeEach(() => {
       runtimeId: 'runtime-2',
       graphStatus: 'ready',
       runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-      minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+      minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+      capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
     },
     _meta: { runtimeId: 'runtime-2' }
   })
@@ -94,7 +96,8 @@ beforeEach(() => {
               runtimeId: 'runtime-2',
               graphStatus: 'ready',
               runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-              minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+              minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+              capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
             }
           : method === 'repo.list'
             ? {
@@ -779,7 +782,8 @@ describe('fetchSettings runtime catalog probe', () => {
               runtimeId: 'runtime-a',
               graphStatus: 'ready',
               runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-              minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+              minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+              capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
             },
             _meta: { runtimeId: 'runtime-a' }
           })

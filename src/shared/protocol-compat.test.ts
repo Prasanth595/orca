@@ -5,12 +5,15 @@ import {
   evaluateRuntimeCompat
 } from './protocol-compat'
 import {
+  AGENT_SESSION_HOST_AUTHORITY_RUNTIME_CAPABILITY,
   DESKTOP_PROTOCOL_VERSION,
   MIN_COMPATIBLE_MOBILE_VERSION,
   MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
   MIN_COMPATIBLE_RUNTIME_SERVER_VERSION,
+  RUNTIME_CAPABILITIES,
   RUNTIME_PROTOCOL_VERSION
 } from './protocol-version'
+import { evaluateRuntimeStatusCompat } from './runtime-status-compat'
 
 const MOBILE_V = 1
 
@@ -203,5 +206,34 @@ describe('evaluateRuntimeCompat', () => {
       reason: 'server-too-old',
       serverProtocolVersion: 0
     })
+  })
+})
+
+describe('evaluateRuntimeStatusCompat', () => {
+  const currentProtocol = {
+    runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
+    minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+  }
+
+  it('accepts a current server, which advertises every capability this client requires', () => {
+    expect(
+      evaluateRuntimeStatusCompat({ ...currentProtocol, capabilities: [...RUNTIME_CAPABILITIES] })
+    ).toMatchObject({ kind: 'ok' })
+  })
+
+  it.each([
+    ['lacks a required capability', ['runtime.status.compat.v1']],
+    ['omits its capabilities', undefined]
+  ])('refuses a server that %s through the existing update verdict', (_, capabilities) => {
+    const verdict = evaluateRuntimeStatusCompat({ ...currentProtocol, capabilities })
+
+    expect(verdict).toMatchObject({
+      kind: 'blocked',
+      reason: 'server-too-old',
+      missingServerCapabilities: [AGENT_SESSION_HOST_AUTHORITY_RUNTIME_CAPABILITY]
+    })
+    expect(describeRuntimeCompatBlock(verdict)).toBe(
+      `This Orca server is too old for this version of Orca. Update Orca on the server host. Missing server capability: ${AGENT_SESSION_HOST_AUTHORITY_RUNTIME_CAPABILITY}.`
+    )
   })
 })

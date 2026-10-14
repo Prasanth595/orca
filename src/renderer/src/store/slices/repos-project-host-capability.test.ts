@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Repo } from '../../../../shared/repo-types'
-import { PROJECT_HOST_SETUP_RUNTIME_CAPABILITY } from '../../../../shared/protocol-version'
+import {
+  PROJECT_HOST_SETUP_RUNTIME_CAPABILITY,
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES
+} from '../../../../shared/protocol-version'
 import { clearRuntimeCompatibilityCacheForTests } from '../../runtime/runtime-rpc-client'
 import type { RuntimeEnvironmentCallRequest } from '../../runtime/runtime-compatibility-test-fixture'
 import { createTestStore } from './store-test-helpers'
@@ -32,7 +35,7 @@ function runtimeStatusWithoutProjectHostSetup() {
       liveLeafCount: 0,
       runtimeProtocolVersion: 3,
       minCompatibleRuntimeClientVersion: 2,
-      capabilities: runtimeCapabilities
+      capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES, ...runtimeCapabilities]
     },
     _meta: { runtimeId: 'runtime-remote' }
   }

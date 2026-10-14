@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getExecutionHostLabel, toSshExecutionHostId } from '../../../../shared/execution-host'
 import {
   PROJECT_HOST_SETUP_RUNTIME_CAPABILITY,
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES,
   RUNTIME_PROTOCOL_VERSION,
   WORKSPACE_RUN_CONTEXT_RUNTIME_CAPABILITY
 } from '../../../../shared/protocol-version'
@@ -264,7 +265,7 @@ describe('RepositoryHostSetupsSection', () => {
               liveLeafCount: 0,
               runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
               minCompatibleRuntimeClientVersion: 1,
-              capabilities: []
+              capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
             }
           }
         ]
@@ -655,6 +656,7 @@ describe('RepositoryHostSetupsSection', () => {
               runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
               minCompatibleRuntimeClientVersion: 1,
               capabilities: [
+                ...REQUIRED_RUNTIME_SERVER_CAPABILITIES,
                 PROJECT_HOST_SETUP_RUNTIME_CAPABILITY,
                 WORKSPACE_RUN_CONTEXT_RUNTIME_CAPABILITY
               ]
@@ -723,7 +725,7 @@ describe('RepositoryHostSetupsSection', () => {
               liveLeafCount: 0,
               runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
               minCompatibleRuntimeClientVersion: 1,
-              capabilities: []
+              capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
             }
           }
         ]
@@ -798,6 +800,7 @@ describe('RepositoryHostSetupsSection', () => {
               runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
               minCompatibleRuntimeClientVersion: 1,
               capabilities: [
+                ...REQUIRED_RUNTIME_SERVER_CAPABILITIES,
                 PROJECT_HOST_SETUP_RUNTIME_CAPABILITY,
                 WORKSPACE_RUN_CONTEXT_RUNTIME_CAPABILITY
               ]

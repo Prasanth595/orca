@@ -1,6 +1,7 @@
 import { vi } from 'vitest'
 import {
   MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES,
   RUNTIME_PROTOCOL_VERSION
 } from '../../../../shared/protocol-version'
 import { preparePendingSplitClose } from './pending-split-close-test-fixture'
@@ -48,7 +49,8 @@ export async function preparePendingRuntimeClose(id = 'remote:env-1@@term_origin
       ok: true,
       result: {
         runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-        minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+        minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+        capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
       }
     })
   return {

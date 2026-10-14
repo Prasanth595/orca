@@ -1,9 +1,27 @@
 import { describe, expect, it } from 'vitest'
 import { getExecutionHostLabel } from './execution-host'
-import { MIN_COMPATIBLE_RUNTIME_SERVER_VERSION, RUNTIME_PROTOCOL_VERSION } from './protocol-version'
+import {
+  AGENT_SESSION_HOST_AUTHORITY_RUNTIME_CAPABILITY,
+  MIN_COMPATIBLE_RUNTIME_SERVER_VERSION,
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES,
+  RUNTIME_PROTOCOL_VERSION
+} from './protocol-version'
 import { buildExecutionHostRegistry } from './execution-host-registry'
 
 const LOCAL_HOST_LABEL = getExecutionHostLabel('local')
+
+function preFloorStatus() {
+  return {
+    runtimeId: 'runtime-pre-floor',
+    rendererGraphEpoch: 1,
+    graphStatus: 'ready' as const,
+    authoritativeWindowId: 1,
+    liveTabCount: 0,
+    liveLeafCount: 0,
+    runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
+    capabilities: ['terminal.binary-stream.v1']
+  }
+}
 
 describe('execution host registry', () => {
   it('returns only the local host for local-only state', () => {
@@ -148,7 +166,7 @@ describe('execution host registry', () => {
               liveLeafCount: 0,
               runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
               minCompatibleRuntimeClientVersion: 1,
-              capabilities: ['terminal.binary-stream.v1'],
+              capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES, 'terminal.binary-stream.v1'],
               hostPlatform: 'linux'
             }
           }
@@ -170,7 +188,8 @@ describe('execution host registry', () => {
               capabilities: []
             }
           }
-        ]
+        ],
+        ['pre-floor-server', { checkedAt: 0, status: preFloorStatus() }]
       ])
     })
 
@@ -182,7 +201,7 @@ describe('execution host registry', () => {
         health: 'available',
         appVersion: '1.8.0',
         protocolVersion: RUNTIME_PROTOCOL_VERSION,
-        capabilities: ['terminal.binary-stream.v1'],
+        capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES, 'terminal.binary-stream.v1'],
         platform: 'linux',
         compatibility: { kind: 'ok' }
       },
@@ -192,8 +211,44 @@ describe('execution host registry', () => {
         health: 'blocked',
         appVersion: '1.6.0',
         compatibility: { kind: 'blocked', reason: 'server-too-old' }
+      },
+      {
+        id: 'runtime:pre-floor-server',
+        health: 'blocked',
+        compatibility: {
+          kind: 'blocked',
+          reason: 'server-too-old',
+          missingServerCapabilities: [AGENT_SESSION_HOST_AUTHORITY_RUNTIME_CAPABILITY]
+        }
       }
     ])
+  })
+
+  it('never blocks an unreachable host on the capabilities its last reply lacked', () => {
+    const hosts = buildExecutionHostRegistry({
+      repos: [],
+      settings: null,
+      runtimeEnvironments: [{ id: 'host', name: 'Host' }],
+      runtimeStatusByEnvironmentId: new Map([
+        [
+          'host',
+          {
+            checkedAt: 0,
+            status: null,
+            snapshot: {
+              environmentId: 'host',
+              pairingRevision: 1,
+              sequence: 2,
+              checkedAt: 0,
+              status: preFloorStatus(),
+              verification: 'unavailable',
+              transport: 'disconnected'
+            }
+          }
+        ]
+      ])
+    })
+    expect(hosts.find((host) => host.id === 'runtime:host')?.health).not.toBe('blocked')
   })
 
   it('uses shared-control diagnostics to show reconnecting runtime host health', () => {
@@ -372,7 +427,7 @@ describe('execution host registry', () => {
               liveLeafCount: 0,
               runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
               minCompatibleRuntimeClientVersion: 1,
-              capabilities: ['project-host-setup.v1'],
+              capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES, 'project-host-setup.v1'],
               hostPlatform: 'linux'
             }
           }
@@ -387,7 +442,7 @@ describe('execution host registry', () => {
         kind: 'runtime',
         label: 'gpu',
         health: 'available',
-        capabilities: ['project-host-setup.v1'],
+        capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES, 'project-host-setup.v1'],
         platform: 'linux'
       }
     ])

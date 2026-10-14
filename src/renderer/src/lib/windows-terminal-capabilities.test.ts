@@ -16,6 +16,7 @@ import {
   useWindowsTerminalCapabilities
 } from './windows-terminal-capabilities'
 import { stubRuntimeEnvironmentBridge } from '../runtime/runtime-environment-bridge-fixture'
+import { REQUIRED_RUNTIME_SERVER_CAPABILITIES } from '../../../shared/protocol-version'
 
 describe('Windows terminal capability host ownership', () => {
   it.each([
@@ -286,7 +287,8 @@ describe('windows terminal capabilities', () => {
         'status.get': {
           hostPlatform: 'win32',
           runtimeProtocolVersion: 3,
-          minCompatibleRuntimeClientVersion: 2
+          minCompatibleRuntimeClientVersion: 2,
+          capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
         },
         'host.wsl.isAvailable': true,
         'host.wsl.listDistros': ['Ubuntu'],
@@ -459,7 +461,8 @@ describe('windows terminal capabilities', () => {
         'status.get': {
           hostPlatform: 'linux',
           runtimeProtocolVersion: 3,
-          minCompatibleRuntimeClientVersion: 2
+          minCompatibleRuntimeClientVersion: 2,
+          capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
         },
         'preflight.detectRemoteWindowsTerminalCapabilities': {
           wslAvailable: true,

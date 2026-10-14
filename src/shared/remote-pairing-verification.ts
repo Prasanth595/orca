@@ -1,5 +1,4 @@
-import { evaluateRuntimeCompat } from './protocol-compat'
-import { MIN_COMPATIBLE_RUNTIME_SERVER_VERSION, RUNTIME_PROTOCOL_VERSION } from './protocol-version'
+import { evaluateRuntimeStatusCompat } from './runtime-status-compat'
 import type { PublicKnownRuntimeEnvironment } from './runtime-environments'
 import type { RuntimeStatus } from './runtime-types'
 
@@ -44,15 +43,21 @@ function hasValidRuntimeStatus(status: Record<string, unknown>): boolean {
     isNonNegativeSafeInteger(status.liveLeafCount) &&
     (status.deviceScope === undefined ||
       status.deviceScope === 'mobile' ||
-      status.deviceScope === 'runtime') &&
-    (status.capabilities === undefined ||
-      (Array.isArray(status.capabilities) &&
-        status.capabilities.every((capability) => typeof capability === 'string')))
+      status.deviceScope === 'runtime')
+  )
+}
+
+function hasValidCapabilities(status: Record<string, unknown>): boolean {
+  return (
+    status.capabilities === undefined ||
+    (Array.isArray(status.capabilities) &&
+      status.capabilities.every((capability) => typeof capability === 'string'))
   )
 }
 
 export function verifyRemotePairingRuntimeStatus(
-  value: unknown
+  value: unknown,
+  options: { requiredServerCapabilities?: readonly string[] } = {}
 ): { ok: true; runtimeStatus: RuntimeStatus } | RemotePairingFailure {
   if (typeof value !== 'object' || value === null) {
     return {
@@ -86,13 +91,15 @@ export function verifyRemotePairingRuntimeStatus(
       message: 'The remote host returned an invalid protocol version.'
     }
   }
-  const compatibility = evaluateRuntimeCompat({
-    clientProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-    minCompatibleServerProtocolVersion: MIN_COMPATIBLE_RUNTIME_SERVER_VERSION,
-    serverProtocolVersion: status.runtimeProtocolVersion ?? status.protocolVersion,
-    serverMinCompatibleClientProtocolVersion:
-      status.minCompatibleRuntimeClientVersion ?? status.minCompatibleMobileVersion
-  })
+  // Before the compat verdict, which reads the capabilities list.
+  if (!hasValidCapabilities(status)) {
+    return {
+      ok: false,
+      kind: 'connection-interrupted',
+      message: 'The remote host returned an invalid status response.'
+    }
+  }
+  const compatibility = evaluateRuntimeStatusCompat(status, options.requiredServerCapabilities)
   if (compatibility.kind === 'blocked') {
     return {
       ok: false,

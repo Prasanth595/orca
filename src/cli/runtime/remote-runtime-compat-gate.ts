@@ -1,9 +1,6 @@
 import type { PairedRuntimeConnection } from '../../shared/paired-runtime-connection'
-import { describeRuntimeCompatBlock, evaluateRuntimeCompat } from '../../shared/protocol-compat'
-import {
-  MIN_COMPATIBLE_RUNTIME_SERVER_VERSION,
-  RUNTIME_PROTOCOL_VERSION
-} from '../../shared/protocol-version'
+import { describeRuntimeCompatBlock } from '../../shared/protocol-compat'
+import { evaluateRuntimeStatusCompat } from '../../shared/runtime-status-compat'
 import type { RuntimeOrchestrationEnvelope } from '../../shared/runtime-rpc-envelope'
 import type { RuntimeStatus } from '../../shared/runtime-types'
 import { markEnvironmentUsed } from './environments'
@@ -64,13 +61,7 @@ export class RemoteRuntimeCompatGate {
   }
 
   noteVerifiedStatus(status: RuntimeStatus): void {
-    const verdict = evaluateRuntimeCompat({
-      clientProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-      minCompatibleServerProtocolVersion: MIN_COMPATIBLE_RUNTIME_SERVER_VERSION,
-      serverProtocolVersion: status.runtimeProtocolVersion ?? status.protocolVersion,
-      serverMinCompatibleClientProtocolVersion:
-        status.minCompatibleRuntimeClientVersion ?? status.minCompatibleMobileVersion
-    })
+    const verdict = evaluateRuntimeStatusCompat(status)
     if (verdict.kind === 'blocked') {
       throw new RuntimeClientError('incompatible_runtime', describeRuntimeCompatBlock(verdict))
     }

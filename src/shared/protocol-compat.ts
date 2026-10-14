@@ -15,6 +15,7 @@ export type RuntimeCompatVerdict =
       serverProtocolVersion: number
       requiredClientProtocolVersion?: number
       requiredServerProtocolVersion?: number
+      missingServerCapabilities?: string[]
     }
 
 export function evaluateRuntimeCompat(input: {
@@ -22,6 +23,8 @@ export function evaluateRuntimeCompat(input: {
   minCompatibleServerProtocolVersion: number
   serverProtocolVersion: number | undefined
   serverMinCompatibleClientProtocolVersion: number | undefined
+  serverCapabilities?: readonly string[]
+  requiredServerCapabilities?: readonly string[]
 }): RuntimeCompatVerdict {
   // Why: absent fields are protocol 0. New clients can give old servers a
   // clear "update server" error instead of attempting partially-supported RPCs.
@@ -46,6 +49,20 @@ export function evaluateRuntimeCompat(input: {
       requiredServerProtocolVersion: input.minCompatibleServerProtocolVersion
     }
   }
+  // Why absent = none: a build's capabilities never change, so a server that omits them lacks them.
+  const serverCapabilities = input.serverCapabilities ?? []
+  const missingServerCapabilities = (input.requiredServerCapabilities ?? []).filter(
+    (capability) => !serverCapabilities.includes(capability)
+  )
+  if (missingServerCapabilities.length > 0) {
+    return {
+      kind: 'blocked',
+      reason: 'server-too-old',
+      clientProtocolVersion: input.clientProtocolVersion,
+      serverProtocolVersion,
+      missingServerCapabilities
+    }
+  }
   return {
     kind: 'ok',
     clientProtocolVersion: input.clientProtocolVersion,
@@ -59,6 +76,9 @@ export function describeRuntimeCompatBlock(verdict: RuntimeCompatVerdict): strin
   }
   if (verdict.reason === 'client-too-old') {
     return `This Orca client is too old for the selected server. Update Orca on this machine. Client protocol ${verdict.clientProtocolVersion}, server requires client protocol ${verdict.requiredClientProtocolVersion}.`
+  }
+  if (verdict.missingServerCapabilities) {
+    return `This Orca server is too old for this version of Orca. Update Orca on the server host. Missing server capability: ${verdict.missingServerCapabilities.join(', ')}.`
   }
   return `The selected Orca server is too old for this client. Update Orca on the server. Server protocol ${verdict.serverProtocolVersion}, client requires server protocol ${verdict.requiredServerProtocolVersion}.`
 }

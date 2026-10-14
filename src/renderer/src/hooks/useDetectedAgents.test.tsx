@@ -11,6 +11,7 @@ import {
 } from './useDetectedAgents'
 import {
   MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES,
   RUNTIME_PROTOCOL_VERSION
 } from '../../../shared/protocol-version'
 import { clearRuntimeCompatibilityCacheForTests } from '@/runtime/runtime-rpc-client'
@@ -88,7 +89,8 @@ beforeEach(() => {
             liveTabCount: 0,
             liveLeafCount: 0,
             runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-            minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+            minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+            capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
           }
         : []
     return Promise.resolve({
@@ -312,7 +314,8 @@ describe('useDetectedAgents (runtime call site)', () => {
               liveTabCount: 0,
               liveLeafCount: 0,
               runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-              minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+              minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+              capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
             }
           : {
               agents: ['claude', 'devin'],
@@ -367,7 +370,8 @@ describe('useDetectedAgents (runtime call site)', () => {
           liveTabCount: 0,
           liveLeafCount: 0,
           runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-          minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+          minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+          capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
         }
       } else if (method === 'preflight.refreshAgents') {
         refreshCalls += 1
@@ -417,7 +421,8 @@ describe('useDetectedAgents (runtime call site)', () => {
           liveTabCount: 0,
           liveLeafCount: 0,
           runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-          minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+          minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+          capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
         }
       } else {
         detectCalls += 1

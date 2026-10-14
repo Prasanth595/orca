@@ -13,6 +13,7 @@ import type { RuntimeClientTarget } from '../../../../shared/runtime-client-targ
 import {
   AGENT_SESSION_STATUS_FEED_RUNTIME_CAPABILITY,
   MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES,
   RUNTIME_PROTOCOL_VERSION
 } from '../../../../shared/protocol-version'
 
@@ -217,8 +218,11 @@ beforeEach(() => {
               runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
               minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
               capabilities: transport.unsupported
-                ? []
-                : [AGENT_SESSION_STATUS_FEED_RUNTIME_CAPABILITY]
+                ? [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
+                : [
+                    ...REQUIRED_RUNTIME_SERVER_CAPABILITIES,
+                    AGENT_SESSION_STATUS_FEED_RUNTIME_CAPABILITY
+                  ]
             }
           : method === 'orchestration.partyLocation'
             ? {

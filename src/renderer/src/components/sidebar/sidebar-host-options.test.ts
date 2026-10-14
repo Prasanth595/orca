@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { getExecutionHostLabel } from '../../../../shared/execution-host'
+import { REQUIRED_RUNTIME_SERVER_CAPABILITIES } from '../../../../shared/protocol-version'
 import {
   buildSidebarHostOptions,
   buildSidebarHostScopeOptions,
@@ -163,7 +164,8 @@ describe('sidebar host options', () => {
               liveTabCount: 0,
               liveLeafCount: 0,
               runtimeProtocolVersion: 3,
-              minCompatibleRuntimeClientVersion: 3
+              minCompatibleRuntimeClientVersion: 3,
+              capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
             }
           }
         ]

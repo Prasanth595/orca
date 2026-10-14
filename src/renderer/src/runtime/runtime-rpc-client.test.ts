@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { RuntimeStatus } from '../../../shared/runtime-types'
 import {
   callRuntimeRpc,
   assertRuntimeEnvironmentCapability,
@@ -9,7 +8,9 @@ import {
 } from './runtime-rpc-client'
 import { RuntimeRpcCallError, unwrapRuntimeRpcResult } from './runtime-rpc-result'
 import {
+  AGENT_SESSION_CURSOR_RESUME_RUNTIME_CAPABILITY,
   MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES,
   RUNTIME_PROTOCOL_VERSION
 } from '../../../shared/protocol-version'
 import {
@@ -36,6 +37,12 @@ beforeEach(() => {
     }
   })
 })
+
+const CURRENT_SERVER = {
+  runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
+  minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+  capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
+}
 
 describe('runtime RPC client routing', () => {
   it('routes local runtime calls through window.api.runtime.call', async () => {
@@ -150,8 +157,7 @@ describe('runtime RPC client routing', () => {
           ? {
               runtimeId: 'remote-runtime',
               graphStatus: 'ready',
-              runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-              minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+              ...CURRENT_SERVER
             }
           : { repos: [{ id: 'repo-1' }] }
       return Promise.resolve({
@@ -220,8 +226,7 @@ describe('runtime RPC client routing', () => {
             result: {
               runtimeId: 'remote-runtime',
               graphStatus: 'ready',
-              runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-              minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+              ...CURRENT_SERVER
             },
             _meta: { runtimeId: 'remote-runtime' }
           })
@@ -272,8 +277,7 @@ describe('runtime RPC client routing', () => {
           result: {
             runtimeId: 'remote-runtime',
             graphStatus: 'ready',
-            runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-            minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+            ...CURRENT_SERVER
           },
           _meta: { runtimeId: 'remote-runtime' }
         })
@@ -337,8 +341,7 @@ describe('runtime RPC client routing', () => {
           result: {
             runtimeId: 'remote-runtime',
             graphStatus: 'ready',
-            runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-            minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+            ...CURRENT_SERVER
           },
           _meta: { runtimeId: 'remote-runtime' }
         })
@@ -378,8 +381,7 @@ describe('runtime RPC client routing', () => {
           result: {
             runtimeId: 'remote-runtime',
             graphStatus: 'ready',
-            runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-            minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+            ...CURRENT_SERVER
           },
           _meta: { runtimeId: 'remote-runtime' }
         })
@@ -425,8 +427,7 @@ describe('runtime RPC client routing', () => {
           result: {
             runtimeId: 'remote-runtime',
             graphStatus: 'ready',
-            runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-            minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+            ...CURRENT_SERVER
           },
           _meta: { runtimeId: 'remote-runtime' }
         })
@@ -477,7 +478,7 @@ describe('runtime RPC client routing', () => {
         graphStatus: 'ready',
         runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
         minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
-        capabilities: ['project-host-setup.v1']
+        capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES, 'project-host-setup.v1']
       },
       _meta: { runtimeId: 'remote-runtime' }
     })
@@ -512,7 +513,10 @@ describe('runtime RPC client routing', () => {
             graphStatus: 'ready',
             runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
             minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
-            capabilities: ['linear.issue-attribute-filter.v1']
+            capabilities: [
+              ...REQUIRED_RUNTIME_SERVER_CAPABILITIES,
+              'linear.issue-attribute-filter.v1'
+            ]
           },
           _meta: { runtimeId: 'remote-runtime' }
         })
@@ -545,7 +549,10 @@ describe('runtime RPC client routing', () => {
           graphStatus: 'ready',
           runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
           minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
-          capabilities: statusCalls === 1 ? [] : ['linear.issue-attribute-filter.v1']
+          capabilities: [
+            ...REQUIRED_RUNTIME_SERVER_CAPABILITIES,
+            ...(statusCalls === 1 ? [] : ['linear.issue-attribute-filter.v1'])
+          ]
         },
         _meta: { runtimeId: 'remote-runtime' }
       })
@@ -571,9 +578,7 @@ describe('runtime RPC client routing', () => {
           result: {
             runtimeId: 'old-runtime',
             graphStatus: 'ready',
-            runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-            minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
-            capabilities: []
+            ...CURRENT_SERVER
           },
           _meta: { runtimeId: 'old-runtime' }
         })
@@ -588,7 +593,10 @@ describe('runtime RPC client routing', () => {
     const target = { kind: 'environment', environmentId: 'env-legacy' } as const
 
     await expect(
-      runtimeEnvironmentSupportsCapability('env-legacy', 'agent-session.host-authority.v1')
+      runtimeEnvironmentSupportsCapability(
+        'env-legacy',
+        AGENT_SESSION_CURSOR_RESUME_RUNTIME_CAPABILITY
+      )
     ).resolves.toBe(false)
     await callRuntimeRpc(target, 'terminal.create', {}, { skipCompatibilityCheck: true })
 
@@ -607,7 +615,10 @@ describe('runtime RPC client routing', () => {
           graphStatus: 'ready',
           runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
           minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
-          capabilities: ['linear.issue-attribute-filter.v1']
+          capabilities: [
+            ...REQUIRED_RUNTIME_SERVER_CAPABILITIES,
+            'linear.issue-attribute-filter.v1'
+          ]
         },
         _meta: { runtimeId: 'remote-runtime' }
       })
@@ -644,7 +655,10 @@ describe('runtime RPC client routing', () => {
             graphStatus: 'ready',
             runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
             minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
-            capabilities: statusCalls === 1 ? ['linear.issue-attribute-filter.v1'] : []
+            capabilities: [
+              ...REQUIRED_RUNTIME_SERVER_CAPABILITIES,
+              ...(statusCalls === 1 ? ['linear.issue-attribute-filter.v1'] : [])
+            ]
           },
           _meta: { runtimeId: 'remote-runtime' }
         })
@@ -689,7 +703,10 @@ describe('runtime RPC client routing', () => {
           graphStatus: 'ready',
           runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
           minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
-          capabilities: statusCalls === 1 ? ['agent-session.host-authority.v1'] : []
+          capabilities: [
+            ...REQUIRED_RUNTIME_SERVER_CAPABILITIES,
+            ...(statusCalls === 1 ? [AGENT_SESSION_CURSOR_RESUME_RUNTIME_CAPABILITY] : [])
+          ]
         },
         _meta: { runtimeId }
       })
@@ -698,19 +715,22 @@ describe('runtime RPC client routing', () => {
     await expect(
       runtimeEnvironmentSupportsCapability(
         'env-runtime-replaced',
-        'agent-session.host-authority.v1'
+        AGENT_SESSION_CURSOR_RESUME_RUNTIME_CAPABILITY
       )
     ).resolves.toBe(true)
     clearRecentRuntimeCompatibilityFailure('env-runtime-replaced', {
       runtimeId: 'runtime-after-restart',
+      rendererGraphEpoch: 1,
       graphStatus: 'ready',
-      runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-      minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
-    } as RuntimeStatus)
+      authoritativeWindowId: null,
+      liveTabCount: 0,
+      liveLeafCount: 0,
+      ...CURRENT_SERVER
+    })
     await expect(
       runtimeEnvironmentSupportsCapability(
         'env-runtime-replaced',
-        'agent-session.host-authority.v1'
+        AGENT_SESSION_CURSOR_RESUME_RUNTIME_CAPABILITY
       )
     ).resolves.toBe(false)
     expect(statusCalls).toBe(2)
@@ -723,9 +743,7 @@ describe('runtime RPC client routing', () => {
       result: {
         runtimeId: 'remote-runtime',
         graphStatus: 'ready',
-        runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-        minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
-        capabilities: []
+        ...CURRENT_SERVER
       },
       _meta: { runtimeId: 'remote-runtime' }
     })
@@ -746,8 +764,7 @@ describe('runtime RPC client routing', () => {
           ? {
               runtimeId: 'remote-runtime',
               graphStatus: 'ready',
-              runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-              minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+              ...CURRENT_SERVER
             }
           : { ok: true }
       return Promise.resolve({
@@ -783,8 +800,7 @@ describe('runtime RPC client routing', () => {
           ? {
               runtimeId: 'remote-runtime',
               graphStatus: 'ready',
-              runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-              minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+              ...CURRENT_SERVER
             }
           : { ok: true }
       return Promise.resolve({
@@ -812,8 +828,7 @@ describe('runtime RPC client routing', () => {
           ? {
               runtimeId: 'remote-runtime',
               graphStatus: 'ready',
-              runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-              minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+              ...CURRENT_SERVER
             }
           : { ok: true }
       return Promise.resolve({

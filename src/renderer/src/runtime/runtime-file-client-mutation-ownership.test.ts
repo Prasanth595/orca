@@ -14,6 +14,7 @@ import {
   FILE_MUTATION_OWNERSHIP_RUNTIME_CAPABILITY,
   FILE_MUTATION_OWNERSHIP_UPDATE_REQUIRED_MESSAGE,
   MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES,
   RUNTIME_PROTOCOL_VERSION
 } from '../../../shared/protocol-version'
 import {
@@ -119,7 +120,7 @@ describe('runtime file client', () => {
           result: {
             runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
             minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
-            capabilities: []
+            capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
           },
           _meta: { runtimeId: 'old-hub-runtime' }
         })
@@ -158,7 +159,7 @@ describe('runtime file client', () => {
           result: {
             runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
             minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
-            capabilities: []
+            capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
           },
           _meta: { runtimeId: 'old-hub-runtime' }
         })
@@ -200,7 +201,7 @@ describe('runtime file client', () => {
           result: {
             runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
             minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
-            capabilities: []
+            capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
           },
           _meta: { runtimeId: 'old-hub-runtime' }
         })
@@ -244,7 +245,7 @@ describe('runtime file client', () => {
           result: {
             runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
             minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
-            capabilities: []
+            capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
           },
           _meta: { runtimeId: 'old-hub-runtime' }
         })
@@ -283,7 +284,13 @@ describe('runtime file client', () => {
           result: {
             runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
             minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
-            capabilities: statusCalls === 1 ? [FILE_MUTATION_OWNERSHIP_RUNTIME_CAPABILITY] : []
+            capabilities:
+              statusCalls === 1
+                ? [
+                    ...REQUIRED_RUNTIME_SERVER_CAPABILITIES,
+                    FILE_MUTATION_OWNERSHIP_RUNTIME_CAPABILITY
+                  ]
+                : [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
           },
           _meta: { runtimeId: statusCalls === 1 ? 'new-hub-runtime' : 'old-hub-runtime' }
         })
@@ -344,7 +351,10 @@ describe('runtime file client', () => {
             result: {
               runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
               minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
-              capabilities: [FILE_MUTATION_OWNERSHIP_RUNTIME_CAPABILITY]
+              capabilities: [
+                ...REQUIRED_RUNTIME_SERVER_CAPABILITIES,
+                FILE_MUTATION_OWNERSHIP_RUNTIME_CAPABILITY
+              ]
             },
             _meta: { runtimeId: 'new-hub-runtime' }
           })

@@ -320,49 +320,26 @@ describe('launchAgentBackgroundSession remote runtime and SSH startup delivery',
     )
   })
 
-  it('preserves the legacy background spawn on an old remote host', async () => {
+  it('refuses a background launch on a server without host authority before creating anything', async () => {
     useRemoteAgentBackgroundRuntime(state)
-    mockRuntimeEnvironmentTransportCall.mockImplementation((request: { method: string }) => {
-      if (request.method === 'status.get') {
-        return Promise.resolve({
-          id: 'status',
-          ok: true,
-          result: {
-            runtimeId: 'old-runtime',
-            graphStatus: 'ready',
-            runtimeProtocolVersion: 3,
-            minCompatibleRuntimeClientVersion: 2,
-            capabilities: []
-          }
-        })
+    mockRuntimeEnvironmentTransportCall.mockResolvedValue({
+      id: 'status',
+      ok: true,
+      result: {
+        runtimeId: 'old-runtime',
+        graphStatus: 'ready',
+        runtimeProtocolVersion: 3,
+        minCompatibleRuntimeClientVersion: 2,
+        capabilities: []
       }
-      return Promise.resolve({
-        id: 'create',
-        ok: true,
-        result: { terminal: { handle: 'legacy-terminal-1' } }
-      })
     })
     const { launchAgentBackgroundSession } = await import('./launch-agent-background-session')
 
     await expect(
-      launchAgentBackgroundSession({
-        agent: 'claude',
-        worktreeId: 'wt-1',
-        prompt: 'run remotely'
-      })
-    ).resolves.toMatchObject({ ptyId: 'remote:env-1@@legacy-terminal-1' })
-
-    expect(mockRuntimeEnvironmentTransportCall).toHaveBeenCalledWith(
-      expect.objectContaining({
-        method: 'terminal.create',
-        params: expect.objectContaining({
-          worktree: 'id:wt-1',
-          command: "claude '--dangerously-skip-permissions' 'run remotely'",
-          terminalKittyKeyboardProtocol: true,
-          launchAgent: 'claude',
-          presentation: 'background'
-        })
-      })
+      launchAgentBackgroundSession({ agent: 'claude', worktreeId: 'wt-1', prompt: 'run remotely' })
+    ).rejects.toThrow('Update Orca on the server host.')
+    expect(mockRuntimeEnvironmentTransportCall).not.toHaveBeenCalledWith(
+      expect.objectContaining({ method: 'terminal.create' })
     )
   })
 

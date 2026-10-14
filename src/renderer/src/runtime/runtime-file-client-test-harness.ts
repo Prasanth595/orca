@@ -5,6 +5,7 @@ import { replaceRuntimeEnvironmentRevisions } from './runtime-environment-revisi
 import { clearLegacyQuickOpenInventoryCacheForTests } from './runtime-legacy-quick-open-inventory'
 import {
   FILE_MUTATION_OWNERSHIP_RUNTIME_CAPABILITY,
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES,
   MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
   RUNTIME_PROTOCOL_VERSION
 } from '../../../shared/protocol-version'
@@ -106,7 +107,10 @@ export function installRuntimeFileClientEnvironment(): void {
             runtimeId: 'remote-runtime',
             runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
             minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
-            capabilities: [FILE_MUTATION_OWNERSHIP_RUNTIME_CAPABILITY]
+            capabilities: [
+              ...REQUIRED_RUNTIME_SERVER_CAPABILITIES,
+              FILE_MUTATION_OWNERSHIP_RUNTIME_CAPABILITY
+            ]
           },
           _meta: { runtimeId: 'remote-runtime' }
         })

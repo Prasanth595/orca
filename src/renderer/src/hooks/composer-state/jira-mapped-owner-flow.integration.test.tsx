@@ -25,7 +25,8 @@ import { projectHostSetupProjectionFromRepos } from '../../../../shared/project-
 import { EMPTY_RETIRED_NAME_REGISTRY } from '../../../../shared/worktree/retired-name-registry'
 import {
   RUNTIME_PROTOCOL_VERSION,
-  MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+  MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES
 } from '../../../../shared/protocol-version'
 import * as decisions from './composer-decisions'
 import { useComposerTargetState } from './composer-target-state'
@@ -363,7 +364,8 @@ describe('mapped Jira owner A to SSH execution owner B', () => {
           _meta: { runtimeId: 'jira-b' },
           result: {
             runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-            minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+            minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+            capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
           }
         }
       }

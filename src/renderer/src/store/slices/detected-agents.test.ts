@@ -10,6 +10,7 @@ import {
 } from './runtime-detected-agents'
 import {
   MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+  REQUIRED_RUNTIME_SERVER_CAPABILITIES,
   RUNTIME_PROTOCOL_VERSION
 } from '../../../../shared/protocol-version'
 import { clearRuntimeCompatibilityCacheForTests } from '@/runtime/runtime-rpc-client'
@@ -500,7 +501,8 @@ describe('createDetectedAgentsSlice remote detection', () => {
               liveTabCount: 0,
               liveLeafCount: 0,
               runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-              minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+              minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+              capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
             }
           : ['codex']
       return Promise.resolve({
@@ -640,7 +642,8 @@ describe('createDetectedAgentsSlice remote detection', () => {
           liveTabCount: 0,
           liveLeafCount: 0,
           runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-          minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+          minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+          capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
         }
       } else {
         detectCalls += 1
@@ -675,7 +678,8 @@ describe('createDetectedAgentsSlice remote detection', () => {
           liveTabCount: 0,
           liveLeafCount: 0,
           runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-          minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+          minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+          capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
         }
       } else if (method === 'preflight.refreshAgents') {
         result = {
@@ -728,7 +732,8 @@ describe('createDetectedAgentsSlice remote detection', () => {
             liveTabCount: 0,
             liveLeafCount: 0,
             runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-            minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+            minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+            capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
           },
           _meta: { runtimeId: 'remote-runtime' }
         })
@@ -815,7 +820,8 @@ describe('createDetectedAgentsSlice remote detection', () => {
               liveTabCount: 0,
               liveLeafCount: 0,
               runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-              minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+              minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+              capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
             }
           : ['kilo']
       return Promise.resolve({
@@ -847,7 +853,8 @@ describe('createDetectedAgentsSlice remote detection', () => {
             liveTabCount: 0,
             liveLeafCount: 0,
             runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-            minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
+            minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+            capabilities: [...REQUIRED_RUNTIME_SERVER_CAPABILITIES]
           },
           _meta: { runtimeId: 'remote-runtime' }
         })

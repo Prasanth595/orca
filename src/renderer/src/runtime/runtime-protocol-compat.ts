@@ -1,8 +1,5 @@
-import { describeRuntimeCompatBlock, evaluateRuntimeCompat } from '../../../shared/protocol-compat'
-import {
-  MIN_COMPATIBLE_RUNTIME_SERVER_VERSION,
-  RUNTIME_PROTOCOL_VERSION
-} from '../../../shared/protocol-version'
+import { describeRuntimeCompatBlock } from '../../../shared/protocol-compat'
+import { evaluateRuntimeStatusCompat } from '../../../shared/runtime-status-compat'
 import type { RuntimeStatus } from '../../../shared/runtime-types'
 
 /** Marker on the compat-gate block error. Tagged as a `.code` on a plain Error
@@ -17,13 +14,7 @@ export function isRuntimeCompatBlockError(error: unknown): boolean {
 }
 
 export function assertRuntimeStatusCompatible(status: RuntimeStatus): void {
-  const verdict = evaluateRuntimeCompat({
-    clientProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-    minCompatibleServerProtocolVersion: MIN_COMPATIBLE_RUNTIME_SERVER_VERSION,
-    serverProtocolVersion: status.runtimeProtocolVersion ?? status.protocolVersion,
-    serverMinCompatibleClientProtocolVersion:
-      status.minCompatibleRuntimeClientVersion ?? status.minCompatibleMobileVersion
-  })
+  const verdict = evaluateRuntimeStatusCompat(status)
   if (verdict.kind === 'blocked') {
     // Preserve the descriptive message; add a `.code` marker so callers can
     // distinguish a version block from a transport failure.

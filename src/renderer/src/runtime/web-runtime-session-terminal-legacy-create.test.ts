@@ -251,133 +251,27 @@ describe('createWebRuntimeSessionTerminal', () => {
     expect(setStateResults).not.toContainEqual({ activeWorktreeId: WORKTREE_ID })
   })
 
-  it('preserves the legacy fresh-agent path when host authority is unavailable', async () => {
-    const runtimeCall = vi.fn(async (request: { method: string; params?: unknown }) => {
-      if (request.method === 'status.get') {
-        return {
-          id: 'status',
-          ok: true,
-          result: {
-            runtimeId: 'old-runtime',
-            graphStatus: 'ready',
-            runtimeProtocolVersion: 3,
-            minCompatibleRuntimeClientVersion: 2,
-            capabilities: []
-          }
-        }
+  it('refuses an agent launch on a server without host authority before creating anything', async () => {
+    const runtimeCall = vi.fn(async (request: { method: string }) => ({
+      id: request.method,
+      ok: true,
+      result: {
+        runtimeId: 'old-runtime',
+        graphStatus: 'ready',
+        runtimeProtocolVersion: 3,
+        minCompatibleRuntimeClientVersion: 2,
+        capabilities: []
       }
-      if (request.method === 'session.tabs.createTerminal') {
-        return {
-          id: 'legacy-create',
-          ok: true,
-          result: {
-            tab: { id: 'legacy-tab-1' },
-            publicationEpoch: 'epoch-1',
-            snapshotVersion: 1
-          }
-        }
-      }
-      return { id: 'list', ok: true, result: makeSnapshot() }
-    })
+    }))
     stubRuntimeEnvironmentBridge({ call: runtimeCall })
 
     await expect(
-      createWebRuntimeSessionTerminal({
-        worktreeId: WORKTREE_ID,
-        launchAgent: 'codex',
-        targetGroupId: 'group-left'
-      })
-    ).resolves.toEqual({ status: 'created' })
-
-    expect(runtimeCall).toHaveBeenNthCalledWith(2, {
-      selector: ENVIRONMENT_ID,
-      method: 'session.tabs.createTerminal',
-      params: {
-        worktree: `id:${WORKTREE_ID}`,
-        afterTabId: undefined,
-        targetGroupId: 'group-left',
-        command: undefined,
-        cwd: undefined,
-        startupCommandDelivery: undefined,
-        launchAgent: 'codex',
-        activate: false,
-        select: true,
-        navigation: 'caller'
-      },
-      timeoutMs: 15_000
+      createWebRuntimeSessionTerminal({ worktreeId: WORKTREE_ID, launchAgent: 'codex' })
+    ).resolves.toMatchObject({
+      status: 'failed',
+      message: expect.stringContaining('Update Orca on the server host.')
     })
-    expect(runtimeCall.mock.calls.map(([request]) => request.method)).toEqual([
-      'status.get',
-      'session.tabs.createTerminal',
-      'session.tabs.list'
-    ])
-  })
-
-  it('preserves the opaque legacy resume payload on an old host', async () => {
-    const runtimeCall = vi.fn(async (request: { method: string }) => {
-      if (request.method === 'status.get') {
-        return {
-          id: 'status',
-          ok: true,
-          result: {
-            runtimeId: 'old-runtime',
-            graphStatus: 'ready',
-            runtimeProtocolVersion: 3,
-            minCompatibleRuntimeClientVersion: 2,
-            capabilities: []
-          }
-        }
-      }
-      if (request.method === 'session.tabs.createTerminal') {
-        return {
-          id: 'legacy-create',
-          ok: true,
-          result: { tab: { id: 'legacy-tab-1' }, publicationEpoch: 'epoch-1', snapshotVersion: 1 }
-        }
-      }
-      return { id: 'list', ok: true, result: makeSnapshot() }
-    })
-    stubRuntimeEnvironmentBridge({ call: runtimeCall })
-
-    await expect(
-      createWebRuntimeSessionTerminal({
-        worktreeId: WORKTREE_ID,
-        agentSessionKind: 'resume',
-        launchAgent: 'codex',
-        command: "codex resume 'session-1'",
-        env: { CODEX_PROFILE: 'captured' },
-        launchConfig: {
-          agentCommand: 'codex',
-          agentArgs: '',
-          agentEnv: { CODEX_PROFILE: 'captured' }
-        },
-        providerSession: { key: 'session_id', id: 'session-1' }
-      })
-    ).resolves.toEqual({ status: 'created' })
-
-    expect(runtimeCall).toHaveBeenNthCalledWith(2, {
-      selector: ENVIRONMENT_ID,
-      method: 'session.tabs.createTerminal',
-      params: {
-        worktree: `id:${WORKTREE_ID}`,
-        afterTabId: undefined,
-        targetGroupId: undefined,
-        command: "codex resume 'session-1'",
-        cwd: undefined,
-        env: { CODEX_PROFILE: 'captured' },
-        startupCommandDelivery: undefined,
-        launchConfig: {
-          agentCommand: 'codex',
-          agentArgs: '',
-          agentEnv: { CODEX_PROFILE: 'captured' }
-        },
-        launchAgent: 'codex',
-        activate: false,
-        select: true,
-        navigation: 'caller'
-      },
-      timeoutMs: 15_000
-    })
+    expect(runtimeCall.mock.calls.map(([request]) => request.method)).toEqual(['status.get'])
   })
 
   it('uses the exact legacy OMP resume when an older host only advertises base authority', async () => {
