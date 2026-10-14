@@ -10,9 +10,9 @@ import {
 type Reply = { ok: boolean; result?: unknown; error?: { code: string; message: string } }
 
 type HostFixture = {
-  repos?: unknown[]
-  groups?: unknown[]
-  folderWorkspaces?: unknown[]
+  repos?: unknown
+  groups?: unknown
+  folderWorkspaces?: unknown
   refused?: string
   hostPlatform?: string
   detectAgents?: (params: unknown) => Reply
@@ -133,6 +133,13 @@ describe('mobile new-tab agents for a folder workspace', () => {
         { folderWorkspaces: [{ id: 'fw-1', executionHostId: 'runtime:env-b' }] }
       ],
       ['a placement value is malformed', { groups: [{ id: 'pg-1', connectionId: 42 }] }],
+      ['a repo with no id runs over SSH', { repos: [{ id: 'repo-1' }, { connectionId: 'box' }] }],
+      [
+        'a folder with no id is on another runtime',
+        { folderWorkspaces: [{ id: 'fw-1' }, { executionHostId: 'runtime:env-b' }] }
+      ],
+      ['a list holds a row that is not an object', { groups: [{ id: 'pg-1' }, 'pg-2'] }],
+      ['the repo list is not a list', { repos: 'repo-1' }],
       ['the host is Windows, where a folder may run in WSL', { hostPlatform: 'win32' }],
       ['the host reports no platform it can name', { hostPlatform: 'plan9' }],
       ['the host does not list the folder', { folderWorkspaces: [{ id: 'fw-2' }] }],

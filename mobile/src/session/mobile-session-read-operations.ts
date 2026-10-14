@@ -6,6 +6,7 @@ import {
   hostStatusSchema,
   markdownTabDocumentSchema,
   projectGroupPlacementListSchema,
+  repoPlacementListSchema,
   runtimeRepoListSchema,
   sessionForwardedReplySchema,
   sessionTerminalInventorySchema,
@@ -105,9 +106,19 @@ export const preflightDetectRemoteAgentsRead = bindDeferredRpcOperation(
 
 /**
  * What the agent loader checks a folder workspace against on a host too old to resolve it: the
- * folders, the project groups and the host's platform. Each skips on refusal, because the loader
- * then asks for a desktop update rather than guessing.
+ * repos, folders and project groups, unsalvaged, and the host's platform. Each skips on refusal,
+ * because the loader then asks for a desktop update rather than guessing.
  */
+export const newTabRepoPlacementListRead = bindDeferredRpcOperation(
+  defineRpcOperation({
+    name: 'repo.list-placements-for-new-tab-or-skip',
+    method: 'repo.list',
+    acceptance: 'success-result-or-skip',
+    barrier: 'after-caller-barrier',
+    read: rpcResultVariant('repo-placements', repoPlacementListSchema)
+  })
+)
+
 export const newTabFolderWorkspaceListRead = bindDeferredRpcOperation(
   defineRpcOperation({
     name: 'folderWorkspace.list-for-new-tab-or-skip',

@@ -1,10 +1,10 @@
 import type { RpcClient } from '../transport/rpc-client'
 import { readMobileRuntimeHostPlatform } from '../transport/mobile-runtime-host-platform'
 import {
-  nativeChatRepoListRead,
   newTabFolderWorkspaceListRead,
   newTabHostStatusRead,
-  newTabProjectGroupListRead
+  newTabProjectGroupListRead,
+  newTabRepoPlacementListRead
 } from './mobile-session-read-operations'
 
 /**
@@ -18,7 +18,7 @@ export async function legacyHostAnswersForFolder(
   worktreeId: string
 ): Promise<boolean> {
   const [repos, groups, folders, status] = await Promise.all([
-    nativeChatRepoListRead.request(client).then(nativeChatRepoListRead.interpret),
+    newTabRepoPlacementListRead.request(client).then(newTabRepoPlacementListRead.interpret),
     newTabProjectGroupListRead.request(client).then(newTabProjectGroupListRead.interpret),
     newTabFolderWorkspaceListRead.request(client).then(newTabFolderWorkspaceListRead.interpret),
     newTabHostStatusRead.request(client).then(newTabHostStatusRead.interpret)
@@ -26,17 +26,27 @@ export async function legacyHostAnswersForFolder(
   if (!repos.accepted || !groups.accepted || !folders.accepted || !status.accepted) {
     return false
   }
+  if (repos.value === null || groups.value === null || folders.value === null) {
+    return false
+  }
   const hostPlatform = readMobileRuntimeHostPlatform(status.value)
   const folderWorkspaceId = worktreeId.slice('folder:'.length)
   return (
     hostPlatform !== null &&
     hostPlatform !== 'win32' &&
-    folders.value.some((folder) => folder.id === folderWorkspaceId) &&
+    folders.value.some((folder) => isRecord(folder) && folder.id === folderWorkspaceId) &&
     [...repos.value, ...groups.value, ...folders.value].every(runsOnHost)
   )
 }
 
-function runsOnHost(row: Record<string, unknown>): boolean {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function runsOnHost(row: unknown): boolean {
+  if (!isRecord(row)) {
+    return false
+  }
   const { connectionId, executionHostId } = row
   // Why fail closed: a malformed placement value is unknown placement, not local.
   const noConnection =

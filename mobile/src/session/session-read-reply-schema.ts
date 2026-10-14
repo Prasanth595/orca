@@ -36,19 +36,19 @@ export const runtimeRepoListSchema = z
   .transform((reply) => reply.repos)
 
 /**
- * The folder workspaces and project groups an older host's agent detection is checked against
- * (legacy-host-folder-agent-trust.ts). Rows pass through: that check reads placement values raw so
- * a malformed one fails closed instead of reading as absent. A row without an id drops.
+ * The repos, project groups and folder workspaces an older host's agent detection is checked
+ * against (legacy-host-folder-agent-trust.ts). Nothing drops: that check must see every row, so a
+ * malformed row or list reaches it (a list as null) and fails closed instead of vanishing.
  */
-const placementRowSchema = z.looseObject({ id: z.string() })
+function placementListSchema<const Key extends string>(key: Key) {
+  return z
+    .looseObject({ [key]: salvagedOptional(key, z.array(z.unknown())) })
+    .transform((reply): unknown[] | null => reply[key] ?? null)
+}
 
-export const folderWorkspacePlacementListSchema = z
-  .looseObject({ folderWorkspaces: salvagingArray(placementRowSchema) })
-  .transform((reply) => reply.folderWorkspaces)
-
-export const projectGroupPlacementListSchema = z
-  .looseObject({ groups: salvagingArray(placementRowSchema) })
-  .transform((reply) => reply.groups)
+export const repoPlacementListSchema = placementListSchema('repos')
+export const projectGroupPlacementListSchema = placementListSchema('groups')
+export const folderWorkspacePlacementListSchema = placementListSchema('folderWorkspaces')
 
 /** `status.get`, passed whole to readMobileRuntimeHostPlatform, which owns the platform domain. */
 export const hostStatusSchema = z.looseObject({})
