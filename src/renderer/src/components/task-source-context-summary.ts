@@ -85,15 +85,18 @@ export function getTaskSourceAvailabilityNotice(args: {
   const hostStatusLabels = unavailableHosts.map((host) => `${host.hostLabel} ${host.statusLabel}`)
   const target =
     unavailableHosts.length === 1 ? hostStatusLabels[0] : `${unavailableHosts.length} source hosts`
-  const labelKey = blocking
-    ? 'auto.components.taskSourceContextSummary.sourceUnavailable'
-    : 'auto.components.taskSourceContextSummary.someSourceHostsUnavailable'
-  const labelFallback = blocking
-    ? '{{value0}} source unavailable: {{value1}}'
-    : 'Some {{value0}} source hosts unavailable: {{value1}}'
-
   return {
-    label: translate(labelKey, labelFallback, { value0: args.providerLabel, value1: target }),
+    label: blocking
+      ? translate(
+          'auto.components.taskSourceContextSummary.sourceUnavailable',
+          '{{value0}} source unavailable: {{value1}}',
+          { value0: args.providerLabel, value1: target }
+        )
+      : translate(
+          'auto.components.taskSourceContextSummary.someSourceHostsUnavailable',
+          'Some {{value0}} source hosts unavailable: {{value1}}',
+          { value0: args.providerLabel, value1: target }
+        ),
     title: translate(
       'auto.components.taskSourceContextSummary.reconnectOrUpdateTitle',
       'Reconnect or update {{value0}} to load this source.',
@@ -238,29 +241,38 @@ function getUnavailableHosts(
   return unavailableHosts
 }
 
-const REASON_LABELS: Record<string, string> = {
-  'checking-task-source-capability': 'checking server capabilities',
-  'missing-task-source-capability': 'server update needed for task sources',
-  'missing-provider-auth': 'provider auth needed',
-  'unavailable-source-tool': 'source tool unavailable',
-  'unsupported-provider': 'provider unsupported on this host'
-}
+const REASON_LABELS = new Map<string, string>([
+  ['checking-task-source-capability', 'checking server capabilities'],
+  ['missing-task-source-capability', 'server update needed for task sources'],
+  ['missing-provider-auth', 'provider auth needed'],
+  ['unavailable-source-tool', 'source tool unavailable'],
+  ['unsupported-provider', 'provider unsupported on this host']
+])
 
-const HEALTH_LABELS: Record<string, string> = {
-  connecting: 'connecting',
-  blocked: 'server update needed',
-  disconnected: 'disconnected',
-  error: 'connection issue'
-}
+const HEALTH_LABELS = new Map<string, string>([
+  ['connecting', 'connecting'],
+  ['blocked', 'server update needed'],
+  ['disconnected', 'disconnected'],
+  ['error', 'connection issue']
+])
+
+const SSH_STATUS_LABELS = new Map<string, string>([
+  ['connected', 'connected'],
+  ['connecting', 'connecting'],
+  ['deploying-relay', 'connecting'],
+  ['reconnecting', 'connecting'],
+  ['auth-failed', 'auth needed'],
+  ['disconnected', 'disconnected']
+])
 
 function getAvailabilityStatusLabel(availability: TaskSourceHostAvailability): string | null {
   if (availability.reason) {
-    return REASON_LABELS[availability.reason] ?? null
+    return REASON_LABELS.get(availability.reason) ?? null
   }
   if (availability.status) {
     return availability.status === 'connected' ? null : getSshStatusLabel(availability.status)
   }
-  return (availability.health && HEALTH_LABELS[availability.health]) ?? null
+  return (availability.health && HEALTH_LABELS.get(availability.health)) ?? null
 }
 
 function getAvailabilityLabel(
@@ -274,24 +286,12 @@ function getAvailabilityLabel(
     : `${unavailableHosts.length} unavailable`
 }
 
-const SSH_STATUS_LABELS: Record<string, string> = {
-  connected: 'connected',
-  connecting: 'connecting',
-  'deploying-relay': 'connecting',
-  reconnecting: 'connecting',
-  'auth-failed': 'auth needed',
-  disconnected: 'disconnected'
-}
-
 function getSshStatusLabel(status: SshConnectionStatus): string {
-  return SSH_STATUS_LABELS[status] ?? 'connection issue'
+  return SSH_STATUS_LABELS.get(status) ?? 'connection issue'
 }
 
 function formatShortList(labels: readonly string[]): string {
-  if (labels.length <= 2) {
-    return labels.join(', ')
-  }
-  return `${labels[0]} +${labels.length - 1}`
+  return labels.length <= 2 ? labels.join(', ') : `${labels[0]} +${labels.length - 1}`
 }
 
 function formatLongList(labels: readonly string[]): string {

@@ -1385,7 +1385,9 @@
         "automationsDescription": "Schedule agent work and choose whether Automations appears in the sidebar.",
         "shareSkillsTitle": "Share Skills",
         "shareSkillsDescription": "Share your skills with an unlisted link. Anyone who has it can install them.",
-        "floatingWorkspaceWebDescription": "Global terminal and markdown tabs."
+        "floatingWorkspaceWebDescription": "Global terminal and markdown tabs.",
+        "planeTitle": "Plane",
+        "planeDescription": "How Plane works in Orca, setup checklist, agent skill, and example prompts."
       },
       "useAppMenuPaste": {
         "pasteTooLarge": "Paste is too large."
@@ -5780,7 +5782,8 @@
           "fee535205b": "Tasks",
           "d599269755": "Hide from sidebar",
           "artifacts": "Artifacts",
-          "skills": "Skills"
+          "skills": "Skills",
+          "openPlaneTasks": "Open Plane tasks"
         },
         "SidebarRepositoryFilterSection": {
           "d3a9c4cea1": "Clear",
@@ -9028,7 +9031,9 @@
           "integrationsHint": "Credentials for all providers also live under",
           "integrationsLink": "Integrations",
           "skillHint": ". After Linear is connected, usage examples stay under Settings → Linear.",
-          "incompleteBannerBodyWithLinear": "Hide providers you do not use, or expand a card and finish its steps. For Linear: API access, the agent skill, and Show in Tasks."
+          "incompleteBannerBodyWithLinear": "Hide providers you do not use, or expand a card and finish its steps. For Linear: API access, the agent skill, and Show in Tasks.",
+          "plane": "Plane",
+          "planeDescription": "Connect Plane Cloud or self-hosted Plane and show it in Tasks."
         },
         "TerminalAppearanceSection": {
           "a14a427ae4": "Thickness of the pane divider line.",
@@ -10415,7 +10420,10 @@
             "7166b9090c": "GitHub authentication via the gh CLI.",
             "f16e41cc72": "GitHub Integration",
             "760e2446e0": "Bitbucket Cloud authentication with a saved API token or environment variables.",
-            "af5ae87847": "access token"
+            "af5ae87847": "access token",
+            "plane_title": "Plane Integration",
+            "plane_description": "Connect Plane Cloud or self-hosted to browse and link issues.",
+            "plane_keyword": "plane"
           }
         },
         "jira": {
@@ -10930,7 +10938,8 @@
             "setup": "setup",
             "apiKey": "api key",
             "skill": "skill",
-            "connect": "connect"
+            "connect": "connect",
+            "plane": "plane"
           }
         },
         "terminal": {
@@ -11383,7 +11392,10 @@
                 "connectedSiteSingular": "{{count}} site connected",
                 "connectedSitePlural": "{{count}} sites connected",
                 "connectedWorkspaceSingular": "{{count}} workspace connected",
-                "connectedWorkspacePlural": "{{count}} workspaces connected"
+                "connectedWorkspacePlural": "{{count}} workspaces connected",
+                "e1f5e6424c": "{{value0}} workspace{{value1}} connected",
+                "checkingPlane": "Checking Plane access before showing setup actions.",
+                "addPlaneAccess": "Connect Plane Cloud or a self-hosted instance using an API token."
               }
             }
           }
@@ -12904,6 +12916,24 @@
           "remove": "Remove",
           "forceUpdate": "Force update",
           "turnOn": "Turn on in Experimental"
+        },
+        "plane": {
+          "agent": {
+            "skill": {
+              "search": {
+                "title": "Plane",
+                "description": "Plane skill status, usage examples, and links to Task Sources setup.",
+                "plane": "plane",
+                "tickets": "tickets",
+                "issues": "issues",
+                "skill": "skill",
+                "orcaPlane": "orca-plane"
+              }
+            }
+          },
+          "cloud": "Plane Cloud",
+          "connectionFailed": "Connection failed",
+          "cardFooter": "Browse issues and open worktrees with ticket context directly from Plane Cloud or your self-hosted instance."
         }
       },
       "right": {
@@ -17706,6 +17736,20 @@
                 }
               }
             }
+          },
+          "plane": {
+            "connectTitle": "Connect your Plane workspace",
+            "connectDescription": "Browse, track, and start work from Plane issues directly in isolated worktrees.",
+            "connectButton": "Connect Plane",
+            "selectWorkspace": "Select workspace",
+            "allProjects": "All Projects",
+            "refreshIssues": "Refresh issues",
+            "openInPlane": "Open in Plane",
+            "noIssuesFound": "No issues found",
+            "createIssueHint": "Create an issue in Plane to see it here.",
+            "backlog": "Backlog",
+            "openInWorktree": "Open in Worktree",
+            "viewInPlane": "View in Plane"
           }
         }
       },
@@ -18121,6 +18165,23 @@
         "a62f9db53d": "Cancel",
         "c77189bc0c": "Update filter",
         "19af906d12": "Save filter"
+      },
+      "plane": {
+        "connect": {
+          "dialog": {
+            "title": "Connect Plane",
+            "description": "Connect your Plane workspace to browse issues and open worktrees with ticket context.",
+            "deploymentType": "Deployment Type",
+            "planeCloud": "Plane Cloud",
+            "selfHosted": "Self-Hosted",
+            "instanceUrl": "Instance URL",
+            "instanceUrlPlaceholder": "https://plane.yourcompany.com",
+            "personalApiToken": "Personal API Token",
+            "createApiToken": "Create API Token",
+            "apiTokenPlaceholder": "plane_api_...",
+            "connecting": "Connecting..."
+          }
+        }
       }
     },
     "i18n": {
@@ -19697,7 +19758,9 @@
   },
   "common": {
     "retry": "Retry",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "connect": "Connect",
+    "disconnect": "Disconnect"
   },
   "terminal": {
     "sessionSaveFailure": {
