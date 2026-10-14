@@ -3,6 +3,7 @@ import { classifyTitleActivity } from '@/lib/pane-agent-evidence'
 import { tabHasLivePty } from '@/lib/tab-has-live-pty'
 import {
   collectRuntimePaneLeafIds,
+  isRuntimePaneTitleOrphan,
   resolveRuntimePaneTitleLeafIdFromRoot
 } from '@/lib/runtime-pane-title-leaf-id'
 import { containsAgentSpinnerGlyph } from '../../../shared/agent-title-core'
@@ -99,7 +100,7 @@ function tabHasStatus(
           : freshPaneIds
       const leafId = resolveRuntimePaneTitleLeafIdFromRoot(tabLayoutRoot, runtimePaneId)
       // A removed pane's last title is no longer evidence for this tab.
-      if (layoutLeafIds && (leafId === null || !layoutLeafIds.has(leafId))) {
+      if (layoutLeafIds && isRuntimePaneTitleOrphan(tabLayoutRoot, runtimePaneId, layoutLeafIds)) {
         continue
       }
       hasCurrentPaneTitle = true

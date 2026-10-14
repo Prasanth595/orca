@@ -1,5 +1,6 @@
 import {
   collectRuntimePaneLeafIds,
+  isRuntimePaneTitleOrphan,
   resolveRuntimePaneTitleLeafId
 } from '@/lib/runtime-pane-title-leaf-id'
 import { makePaneKey } from '../../../../shared/stable-pane-id'
@@ -83,6 +84,10 @@ export function buildMirroredRuntimePaneTitlePatch(
         if (title === hostTitle) {
           continue
         }
+      }
+      // Why: a slot the layout cannot place is not proof the pane was removed.
+      if (leafId === null && !isRuntimePaneTitleOrphan(layout.root, runtimePaneId, leaves)) {
+        continue
       }
       if (nextPaneTitles === paneTitles) {
         nextPaneTitles = { ...paneTitles }
