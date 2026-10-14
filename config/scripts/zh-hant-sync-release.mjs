@@ -1,12 +1,13 @@
 #!/usr/bin/env node
-// Fork-only (TW199501/orca): merge dev into release, push both, and optionally build a local macOS app.
+// Fork-only (TW199501/orca): fast-forward release to origin/dev, push release, and optionally build a local macOS app.
 // Usage: node config/scripts/zh-hant-sync-release.mjs [--no-push] [--build-mac]
 import { execFileSync, spawnSync } from 'node:child_process'
 import { readdirSync, rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
 
-const SOURCE_BRANCH = 'dev'
+// Why: release only ever fast-forwards to the dev that was pushed and tested, never a local dev.
+const SOURCE_REF = 'origin/dev'
 const TARGET_BRANCH = 'release'
 // Why: pnpm keeps re-adding @pnpm/exe here locally; it must never be committed or block a checkout.
 const LOCKFILE_NOISE = 'pnpm-lock.yaml'
@@ -58,15 +59,30 @@ function assertCleanTree() {
 }
 
 function syncRelease() {
-  git(['switch', TARGET_BRANCH], { stdio: 'inherit' })
-  if (run('git', ['merge', '--no-edit', SOURCE_BRANCH]) !== 0) {
-    fail(`Merge conflict on ${TARGET_BRANCH}. Resolve it, commit, then rerun.`)
+  if (run('git', ['fetch', 'origin']) !== 0) {
+    fail('git fetch origin failed.')
   }
-  console.log(
-    `\n✓ ${SOURCE_BRANCH} merged into ${TARGET_BRANCH}: ${git(['log', '--oneline', '-1'])}`
-  )
-  if (push && run('git', ['push', 'origin', SOURCE_BRANCH, TARGET_BRANCH]) !== 0) {
-    fail('Push failed. The merge is kept locally; push manually.')
+  git(['switch', TARGET_BRANCH], { stdio: 'inherit' })
+  if (run('git', ['merge', '--ff-only', `origin/${TARGET_BRANCH}`]) !== 0) {
+    fail(
+      `Local ${TARGET_BRANCH} has commits that are not on origin/${TARGET_BRANCH}. Stop and check.`
+    )
+  }
+  const incoming = git(['log', '--oneline', `${TARGET_BRANCH}..${SOURCE_REF}`])
+  if (!incoming) {
+    console.log(`\n✓ ${TARGET_BRANCH} already matches ${SOURCE_REF}.`)
+    return
+  }
+  console.log(`\nCommits ${SOURCE_REF} brings into ${TARGET_BRANCH}:\n${incoming}\n`)
+  if (run('git', ['merge', '--ff-only', SOURCE_REF]) !== 0) {
+    fail(
+      `${TARGET_BRANCH} has commits that are not on ${SOURCE_REF}, so it cannot fast-forward. ` +
+        `Get them into dev through a PR first; never commit to ${TARGET_BRANCH}.`
+    )
+  }
+  console.log(`\n✓ ${TARGET_BRANCH} fast-forwarded to ${git(['log', '--oneline', '-1'])}`)
+  if (push && run('git', ['push', 'origin', TARGET_BRANCH]) !== 0) {
+    fail(`Push failed. ${TARGET_BRANCH} is updated locally; push it manually.`)
   }
 }
 

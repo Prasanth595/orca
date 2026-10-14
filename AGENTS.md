@@ -138,3 +138,5 @@ Be mindful of the user's `gh` CLI API rate limit — batch requests where possib
 ## zh-Hant Fork
 
 This is the TW199501 zh-Hant fork. Before syncing, translating, building, or opening upstream PRs, read [`docs/zh-hant-fork.md`](./docs/zh-hant-fork.md).
+
+動手前先讀 [`BRANCHING.md`](./BRANCHING.md)，依 elf-team-rule 規範操作分支。
