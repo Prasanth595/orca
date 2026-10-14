@@ -1,9 +1,7 @@
 // @ts-nocheck -- mechanically split declarations.
+import type { RuntimeFileOpenPosition } from '../../shared/runtime-file-contracts'
 import type { Store } from '../persistence'
-import type {
-  ResolvedRuntimeFileTarget,
-  ResolvedRuntimeFileWorktree
-} from './runtime-file-command-target'
+import type { ResolvedRuntimeFileTarget, ResolvedRuntimeFileWorktree } from './files/file-target'
 import type { ExecutionHostId } from '../../shared/execution-host'
 import type { RuntimeNativeChatFileContext } from '../../shared/runtime-types'
 import type { RuntimeNavigationTarget } from '../../shared/runtime-navigation'
@@ -16,7 +14,7 @@ import {
 } from './runtime-file-commands-mobile-file-list-limit'
 import { watch as watchFs } from 'node:fs'
 import { WatcherProcessFailure } from '../ipc/parcel-watcher-process-failure'
-import { basenameFromRelativePath } from './runtime-file-paths'
+import { basenameFromRelativePath } from './files/file-paths'
 
 export type RuntimeFileCommandHost = {
   getRuntimeId(): string
@@ -54,7 +52,8 @@ export type RuntimeFileCommandHost = {
     filePath: string,
     relativePath: string,
     runtimeEnvironmentId?: string | null,
-    navigation?: RuntimeNavigationTarget
+    navigation?: RuntimeNavigationTarget,
+    position?: RuntimeFileOpenPosition
   ): void
   openDiff(
     worktreeId: string,

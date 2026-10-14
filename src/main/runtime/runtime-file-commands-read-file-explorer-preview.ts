@@ -1,5 +1,5 @@
 // @ts-nocheck -- mechanically split class members.
-import { RuntimeFileCommandsWithAssertRemoteTerminalFileGrantPathStillCanonical } from './runtime-file-commands-assert-remote-terminal-file-grant-path-still-canonical'
+import { RuntimeFileExplorerWatchCommands } from './runtime-file-explorer-watch-commands'
 import type {
   RuntimeFilePreviewResult,
   RuntimeFileReadChunkResult
@@ -11,10 +11,7 @@ import {
   assertPreviewWithinTransportBudget,
   previewableBinaryByteLimit
 } from './runtime-file-commands-mobile-file-list-limit'
-import {
-  requireLocalRuntimeFileRoute,
-  requireRuntimeFileProvider
-} from './runtime-file-command-target'
+import { requireLocalRuntimeFileRoute, requireRuntimeFileProvider } from './files/file-target'
 import { readLocalFileRange } from '../ipc/filesystem/local-file-range-read'
 import { resolveAuthorizedPath } from '../ipc/filesystem-auth'
 import { extname } from 'node:path'
@@ -28,7 +25,7 @@ import type {
   DocPreviewFileAccessResult
 } from '../../shared/doc-preview-file-access'
 
-export class RuntimeFileCommandsWithReadFileExplorerPreview extends RuntimeFileCommandsWithAssertRemoteTerminalFileGrantPathStillCanonical {
+export class RuntimeFileCommandsWithReadFileExplorerPreview extends RuntimeFileExplorerWatchCommands {
   async readFileExplorerPreview(
     worktreeSelector: string,
     relativePath: string,
