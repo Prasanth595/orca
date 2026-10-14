@@ -116,7 +116,11 @@ export type PlaneWorkItemList = {
   errors: PlaneListError[]
   missingProjectIds: string[]
   truncatedProjectIds: string[]
+  /** Where "load more" resumes, for each project in `truncatedProjectIds`. */
+  nextCursorByProject?: Record<string, string>
   totalCapped: boolean
+  /** The saved scope is missing or no longer usable; the user must choose projects. */
+  needsScope?: true
 }
 
 export type PlaneUrlErrorKind =

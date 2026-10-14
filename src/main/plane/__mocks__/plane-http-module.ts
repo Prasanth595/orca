@@ -69,12 +69,13 @@ export async function loadPlaneMainModule(
   })
   const { setMainHttpClient } = await import('../../network/http-client')
   setMainHttpClient({ fetch: (url, init) => fetchMock(url, init), proxySession: () => null })
-  const [commands, store, session, rateLimit] = await Promise.all([
+  const [commands, workItems, store, session, rateLimit] = await Promise.all([
     import('../plane-commands'),
+    import('../plane-work-item-commands'),
     import('../plane-connection-store'),
     import('../plane-session'),
     import('../plane-rate-limit')
   ])
   rateLimit.resetPlaneRequestLanesForTests()
-  return { commands, store, session }
+  return { commands, workItems, store, session }
 }

@@ -19,6 +19,7 @@ import {
   writePlaneConnectionFile
 } from './plane-connection-store'
 import { PlaneVerificationError, verifyPlaneConnection } from './plane-credential-verification'
+import { forgetPlaneProjectMetadata } from './plane-project-metadata'
 import { forgetPlaneProjects, getPlaneProjects, primePlaneProjects } from './plane-projects'
 import { redactPlaneSecrets } from './plane-redact'
 import { getActivePlaneSession, PlaneNotConnectedError } from './plane-session'
@@ -44,6 +45,7 @@ function forgetConnection(connectionId: string): void {
   deletePlaneToken(connectionId)
   forgetPlaneApiFlavor(connectionId)
   forgetPlaneProjects(connectionId)
+  forgetPlaneProjectMetadata(connectionId)
 }
 
 export async function planeConnect(

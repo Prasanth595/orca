@@ -13,6 +13,7 @@ const MESSAGES: Record<PlaneApiErrorKind, string> = {
   invalid_response: 'This URL serves the Plane web app, not its API. Set the API base URL.',
   rejected: 'Plane rejected the request.'
 }
+const WRITE_FORBIDDEN_MESSAGE = 'You have no permission to change this Plane work item.'
 
 // Node/undici certificate failures; Chromium reports them only through the message.
 const TLS_ERROR_CODES = new Set([
@@ -31,6 +32,8 @@ export type PlaneApiErrorOptions = {
   retryAfterMs?: number
   /** For a 404: whether the body was a JSON object, i.e. the API route exists. */
   jsonBody?: boolean
+  /** The request tried to change something, which words a 403 as a missing permission. */
+  write?: boolean
 }
 
 export class PlaneApiError extends Error {
@@ -40,9 +43,8 @@ export class PlaneApiError extends Error {
   readonly jsonBody?: boolean
 
   constructor(kind: PlaneApiErrorKind, options: PlaneApiErrorOptions = {}) {
-    super(
-      options.status === undefined ? MESSAGES[kind] : `${MESSAGES[kind]} (HTTP ${options.status})`
-    )
+    const message = kind === 'forbidden' && options.write ? WRITE_FORBIDDEN_MESSAGE : MESSAGES[kind]
+    super(options.status === undefined ? message : `${message} (HTTP ${options.status})`)
     this.name = 'PlaneApiError'
     this.kind = kind
     if (options.status !== undefined) {
