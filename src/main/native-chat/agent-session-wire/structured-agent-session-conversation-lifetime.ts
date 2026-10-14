@@ -68,7 +68,7 @@ export function createStructuredAgentSessionConversationLifetime(host: {
     if (await releaseLeaseOfEndedStructuredAgentSessionChild(host.context(), sessionId)) {
       return false
     }
-    const closed = await closeStructuredAgentSessionConversationUnderSerialize(
+    return closeStructuredAgentSessionConversationUnderSerialize(
       {
         sessions,
         closeStatus: (id) => {
@@ -80,7 +80,6 @@ export function createStructuredAgentSessionConversationLifetime(host: {
       sessionId,
       atRest
     )
-    return closed
   }
 
   const idleSweep = new StructuredAgentSessionIdleSweep({

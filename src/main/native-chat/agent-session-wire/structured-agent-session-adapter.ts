@@ -48,6 +48,7 @@ export type {
   StructuredAgentSessionStopCause
 } from './structured-agent-session-stop-cause'
 import type { AgentJournalDispatchRejection } from '../../../shared/agent-session-failure-words'
+import type { AgentSessionExecutionOptions } from '../../../shared/agent-session-execution-options'
 import type { AgentSessionPromptResponse } from '../../../shared/agent-session-question-answer'
 import type { ProviderHistoryWindow } from '../agent-session-journal/journal-submission-reconciler'
 import type { StructuredAgentSessionStartupAttempt } from './structured-agent-session-startup-attempt-contract'
@@ -282,6 +283,10 @@ export type StructuredAgentSessionAdapter = StructuredAgentSessionAdapterStop & 
     sessionId: string
     clientMessageId: string
     body: AgentJournalMessageItem
+    /** Immutable choices of this submission; adapters apply them only to this dispatch. */
+    executionOptions?: AgentSessionExecutionOptions
+    /** Host-local cancellation while choices are applied before prompt admission. */
+    signal?: AbortSignal
     fence: number
     /** Host clock on the submission row this send came from; the origin the turn
      *  it opens records as `requestedAt`. */
@@ -405,8 +410,6 @@ export type StructuredAgentSessionAdapter = StructuredAgentSessionAdapterStop & 
     | Promise<Readonly<Record<string, string>> | undefined>
     | Readonly<Record<string, string>>
     | undefined
-  /** Option keys skipped after a provider rejected their persisted restore value. */
-  readOptionRestoreFailures?(sessionId: string): readonly string[]
   /** Provider history for restart reconciliation, bounded to what the provider
    *  recorded after the journal's last committed item. Only the adapter can say
    *  whether the read has a proven start and whether a turn is still running, so

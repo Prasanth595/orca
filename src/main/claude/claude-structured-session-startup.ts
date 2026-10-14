@@ -21,6 +21,7 @@ import {
   claudeResolvedCatalogListing,
   claudeStructuredSessionOptionsFrom,
   observeClaudeSettingsApplied,
+  readClaudeSettingsApplied,
   readClaudeFastModeFacts,
   readClaudeSettingsEffort
 } from './claude-structured-session-options'
@@ -29,10 +30,6 @@ import type {
   ClaudeSession,
   ClaudeStructuredSessionEvent
 } from './claude-structured-session-state'
-import {
-  admitClaudeStartFastMode,
-  applyClaudeStartFastMode
-} from './claude-structured-start-fast-mode'
 
 export type ClaudeOpenFacts = Pick<
   StructuredAgentSessionProviderOpenResult,
@@ -132,6 +129,13 @@ function applyClaudeSettingsFacts(
   const { settings, prepared } = facts
   const effort = readClaudeSettingsEffort(settings)
   const published = claudeStructuredSessionPublicationOptions(prepared)
+  if (!writtenSinceRead) {
+    const applied = readClaudeSettingsApplied(settings)
+    session.configuredDefaults = {
+      ...(!session.options.has('model') && applied?.model ? { model: applied.model } : {}),
+      ...(!session.options.has('effort') && applied?.effort ? { effort: applied.effort } : {})
+    }
+  }
   observeClaudeSettingsApplied(session, settings)
   if (published.fastModePerSessionOptIn !== null) {
     session.fastModePerSessionOptIn = published.fastModePerSessionOptIn
@@ -245,7 +249,6 @@ async function settleClaudeStartupSettings(
   input.diagnose(claudeAuthDiagnostic(facts.initialization, facts.init, settings))
   const writtenSinceRead = sequence !== session.optionMutationSequence
   applyClaudeSettingsFacts(session, facts, writtenSinceRead)
-  const startFastMode = writtenSinceRead ? null : admitClaudeStartFastMode(session, facts)
   input.report({
     type: 'options-reported',
     // Open already returned the initialize listing to the host.
@@ -254,7 +257,4 @@ async function settleClaudeStartupSettings(
     // The one report of what the config resolved: the readback just applied it.
     ...claudeResolvedCatalogListing(session, readClaudeModels(facts.initialization))
   })
-  if (startFastMode !== null) {
-    void applyClaudeStartFastMode(session, facts, startFastMode)
-  }
 }

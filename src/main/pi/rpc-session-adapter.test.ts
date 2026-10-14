@@ -125,7 +125,7 @@ describe('Pi RPC session ownership and delivery', () => {
       origin: 'created',
       mintedAtFence: 7
     })
-    expect(h.adapter.readOptionRestoreFailures(sessionId)).toEqual(['unknown', 'effort'])
+    expect(h.connection.requests).not.toContain('set_thinking_level')
     expect(h.connection.requests).toContain('get_commands')
   })
 
@@ -150,6 +150,22 @@ describe('Pi RPC session ownership and delivery', () => {
       }
     })
     expect(h.connection.sent[0]).toMatchObject({ type: 'prompt', message: 'hello' })
+  })
+
+  it('applies each sent model before effort and before prompting Pi', async () => {
+    const h = await setup()
+    h.connection.requestOverride = (command) =>
+      command === 'set_thinking_level' ? Promise.resolve({}) : undefined
+    const result = await h.adapter.dispatch({
+      sessionId,
+      fence: 7,
+      clientMessageId: 'choice-send',
+      body: { kind: 'message', role: 'user', blocks: [{ type: 'text', text: 'chosen' }] },
+      executionOptions: { model: 'anthropic/model-2', effort: 'low' }
+    })
+    expect(result).toEqual({ state: 'admitted' })
+    expect(h.connection.requests.slice(-2)).toEqual(['set_model', 'set_thinking_level'])
+    expect(h.connection.sent).toMatchObject([{ type: 'prompt', message: 'chosen' }])
   })
 
   it('rejects stale fences and a Stop for a different turn before sending abort', async () => {

@@ -220,6 +220,7 @@ describe('a Stop that names no turn', () => {
     const catalogReads = codex.connections[0].calls.filter(
       (call) => call.method === 'model/list'
     ).length
+    await pickOption('serviceTier', 'priority')
     const first = send('first send')
     await first.result
     await eventually(() =>
@@ -235,9 +236,7 @@ describe('a Stop that names no turn', () => {
 
     const followUp = send('follow-up')
     await followUp.result
-    await eventually(() =>
-      expect(codex.connections[0].calls.some((call) => call.method === 'turn/steer')).toBe(true)
-    )
+    expect(codex.connections[0].calls.some((call) => call.method === 'turn/steer')).toBe(false)
     expect(await stop()).toMatchObject({ ok: true, value: { cancelled: true } })
     codex.connections[0].handlers.onNotification?.('turn/completed', {
       threadId: THREAD_ID,

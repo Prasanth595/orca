@@ -203,7 +203,7 @@ function NativeChatSessionOptionPickersInner({
   pickerRequest,
   focusComposer
 }: NativeChatSessionOptionPickersProps): React.JSX.Element | null {
-  const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(() => new Set())
+  const [pendingId, setPendingId] = useState<string | null>(null)
   const modelMenuFocus = useNativeChatPickerFocusReturn(focusComposer)
   const optionsMenuFocus = useNativeChatPickerFocusReturn(focusComposer)
   const model = snapshot.find((descriptor) => descriptor.category === 'model')
@@ -211,30 +211,18 @@ function NativeChatSessionOptionPickersInner({
   if (!surface || !model) {
     return null
   }
-  const modelPending = pendingIds.has(model.id)
   const requestedModelSequence = pickerRequest?.id === model.id ? pickerRequest.sequence : null
   const requestedOptionsSequence = options.some((descriptor) => descriptor.id === pickerRequest?.id)
     ? (pickerRequest?.sequence ?? null)
     : null
 
-  const markPending = (id: string) => (pendingId: string | null) => {
-    setPendingIds((current) => {
-      const next = new Set(current)
-      if (pendingId === null) {
-        next.delete(id)
-      } else {
-        next.add(id)
-      }
-      return next
-    })
-  }
   const setOption = (descriptor: SessionOptionDescriptor, value: SessionOptionValue): void => {
-    runSessionOptionSurfaceCall(descriptor.id, markPending(descriptor.id), () =>
+    runSessionOptionSurfaceCall(descriptor.id, setPendingId, () =>
       surface.setOption(descriptor.id, value)
     )
   }
   const invokeAction = (descriptor: SessionOptionDescriptor): void => {
-    runSessionOptionSurfaceCall(descriptor.id, markPending(descriptor.id), () =>
+    runSessionOptionSurfaceCall(descriptor.id, setPendingId, () =>
       surface.invokeAction(descriptor.id)
     )
   }
@@ -246,7 +234,7 @@ function NativeChatSessionOptionPickersInner({
   const modelTrigger = {
     label: nativeChatModelPillLabel(model),
     tooltipLabel: translate('components.native-chat.composer.model', 'Model'),
-    disabled: isWorking || modelPending,
+    disabled: isWorking || pendingId !== null,
     disabledReason: modelReason,
     dispatched: sessionOptionDispatchUnconfirmed(model)
   }
@@ -264,7 +252,7 @@ function NativeChatSessionOptionPickersInner({
           defaultOpen={modelPickerDefaultOpen}
           choices={model.kind.choices}
           currentValue={model.kind.currentValue}
-          readOnly={!model.settable || modelPending}
+          readOnly={!model.settable || pendingId !== null}
           readOnlyReason={modelReason}
           onSelect={(value) => setOption(model, value)}
           focusComposer={focusComposer}
@@ -287,7 +275,7 @@ function NativeChatSessionOptionPickersInner({
             ) : null}
             <DescriptorMenuRows
               descriptor={model}
-              pending={modelPending}
+              pending={pendingId !== null}
               setValue={(value) => setOption(model, value)}
               invokeAction={() => invokeAction(model)}
               notePick={modelMenuFocus.notePick}
@@ -304,7 +292,7 @@ function NativeChatSessionOptionPickersInner({
             Trigger={DropdownMenuTrigger}
             label={nativeChatOptionsPillLabel(options)}
             tooltipLabel={optionsTooltip}
-            disabled={isWorking || options.every((descriptor) => pendingIds.has(descriptor.id))}
+            disabled={isWorking || pendingId !== null}
             disabledReason={optionsReason}
             dispatched={options.some(sessionOptionDispatchUnconfirmed)}
           />
@@ -330,7 +318,7 @@ function NativeChatSessionOptionPickersInner({
                   ) : null}
                   <DescriptorMenuRows
                     descriptor={descriptor}
-                    pending={pendingIds.has(descriptor.id)}
+                    pending={pendingId !== null}
                     setValue={(value) => setOption(descriptor, value)}
                     invokeAction={() => invokeAction(descriptor)}
                     notePick={optionsMenuFocus.notePick}

@@ -76,6 +76,7 @@ export type AttachFlowInput = {
   ) => StructuredAgentSessionStartupProgress
   /** A completed acquisition's start listing. */
   onStartCatalogListing?: (listing: AgentModelCatalogLiveListing) => void
+  startupOptions?: Readonly<Record<string, string>>
   /** The permission mode a start of this record launches with; absent or undefined for none. */
   launchPermissionMode?: (
     record: AgentSessionRecord

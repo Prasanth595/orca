@@ -159,8 +159,7 @@ export function noteStructuredAgentSessionProviderStarted(
   }
 }
 
-/** What a ready child reports later, such as a read that came after its start: persisted as the
- *  start's report is, never ahead of a send. */
+/** A ready child's later read can enrich the saved account catalog. */
 export async function settleStructuredAgentSessionOptionsReported(
   context: StructuredAgentSessionProviderStartedContext,
   event: StructuredAgentSessionOptionsReportedEvent

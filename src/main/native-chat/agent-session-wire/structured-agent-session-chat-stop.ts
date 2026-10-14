@@ -29,7 +29,11 @@ import {
   structuredAgentSessionFailureWordsContext
 } from './structured-agent-session-send-preparation'
 import { acceptChatStop, acceptStopTarget } from './structured-agent-session-stop-acceptance'
-import { noteStructuredAgentSessionStopUnconfirmed } from './structured-agent-session-stop-unconfirmed-note'
+import {
+  noteStructuredAgentSessionStopUnconfirmed,
+  writeStructuredAgentSessionStopNote
+} from './structured-agent-session-stop-unconfirmed-note'
+import { STOP_NOTE_CANCELLATION_REQUESTED } from './structured-agent-session-turn-stop-notes'
 import {
   endStoppedStructuredAgentSession,
   type StructuredAgentSessionStopWindDown
@@ -46,7 +50,7 @@ export type StructuredAgentSessionChatStopRun = { outcome: ChatStopOutcome; ends
 export function mutateWithChatStop<TValue>(
   context: StructuredAgentSessionMutationContext,
   caller: StructuredAgentSessionCaller,
-  params: { envelope: AgentSessionMutationEnvelope; turnId?: string },
+  params: { envelope: AgentSessionMutationEnvelope; turnId?: string; stoppedPrePrompt?: boolean },
   plan: MutationPlan<TValue>,
   run: (
     ctx: AgentSessionTurnContext,
@@ -89,7 +93,13 @@ export function mutateWithChatStop<TValue>(
       })
     })
     return accepted.ok
-      ? { ok: true, value: { settled: target.queued, turnId: accepted.value.turnId } }
+      ? {
+          ok: true,
+          value: {
+            settled: target.queued || params.stoppedPrePrompt === true,
+            turnId: accepted.value.turnId
+          }
+        }
       : accepted
   }
   /** After the acceptance commits: only while what it captured still stands. */
@@ -140,7 +150,8 @@ export function mutateWithChatStop<TValue>(
     const target = captureChatStopTarget(ctx, {
       child: context.sessions.get(ctx.sessionId)?.child ?? null,
       ...named,
-      endsSession: ctx.adapter.stopEndsSession?.(ctx.sessionId) === true
+      endsSession: ctx.adapter.stopEndsSession?.(ctx.sessionId) === true,
+      stoppedPrePrompt: params.stoppedPrePrompt
     })
     if (!target) {
       // Late, or nothing to stop: answered as a no-op, its receipt committed before the answer.
@@ -149,6 +160,14 @@ export function mutateWithChatStop<TValue>(
     const accepted = await accept(ctx, target)
     if (!accepted.ok) {
       return accepted
+    }
+    if (params.stoppedPrePrompt && target.reach === 'withdraw') {
+      await writeStructuredAgentSessionStopNote(
+        ctx,
+        accepted.value.turnId ?? envelope.clientOperationId,
+        { kind: 'status', text: STOP_NOTE_CANCELLATION_REQUESTED },
+        ctx.journal.liveTurnScope()
+      )
     }
     try {
       return await act(ctx, target, accepted.value.settled)

@@ -1,5 +1,5 @@
 import * as codexRewind from './codex-structured-rewind'
-import type { AgentJournalMessageItem } from '../../shared/agent-session-journal-types'
+import { waitForPromiseWithSignal } from '../../shared/abort-signal-reason'
 import type { AgentSessionBackgroundTaskState } from '../../shared/agent-session-wire'
 import { isCodexAppServerRequestError } from './codex-app-server-connection'
 import type {
@@ -21,6 +21,7 @@ import {
   readLiveCodexSessionOptions,
   readCodexAcquisitionOptions
 } from './codex-structured-session-options'
+import { resolvedCodexMessageOptions } from './codex-structured-message-options'
 import {
   CodexAcquisitionRegistry,
   requireLiveCodexSession,
@@ -223,19 +224,20 @@ export class CodexStructuredSessionAdapter implements StructuredAgentSessionAdap
         turnId
       )
 
-  async dispatch(input: {
-    sessionId: string
-    clientMessageId: string
-    body: AgentJournalMessageItem
-    fence: number
-    requestedAt?: number
-    beforeDispatch?: () => Promise<void>
-  }): Promise<AgentSessionDispatchOutcome> {
+  async dispatch(
+    input: Parameters<StructuredAgentSessionAdapter['dispatch']>[0]
+  ): Promise<AgentSessionDispatchOutcome> {
     const session = this.session(input.sessionId)
     session.dispatchPending = true
     try {
       await input.beforeDispatch?.()
-      return await dispatchCodexTurn(session, input, this.deps.requestTimeoutMs)
+      input.signal?.throwIfAborted()
+      const turnOptions = await waitForPromiseWithSignal(
+        resolvedCodexMessageOptions(session, input.executionOptions),
+        input.signal
+      )
+      input.signal?.throwIfAborted()
+      return await dispatchCodexTurn(session, { ...input, turnOptions }, this.deps.requestTimeoutMs)
     } finally {
       session.dispatchPending = false
     }

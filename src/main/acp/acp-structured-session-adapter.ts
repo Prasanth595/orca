@@ -5,7 +5,6 @@
 import { randomUUID } from 'node:crypto'
 import { agentSessionFailureFact, withProviderDiagnostic } from '../../shared/agent-session-failure'
 import { agentSessionFailureWords } from '../../shared/agent-session-failure-words'
-import type { AgentJournalMessageItem } from '../../shared/agent-session-journal-types'
 import type { AgentSessionExecutionLocation } from '../../shared/agent-session-record'
 import {
   AgentSessionAcquisitionExitProvenError,
@@ -27,6 +26,8 @@ import type { AcpStructuredSession } from './acp-structured-session'
 import type { ProviderStartAttempt } from '../provider-process/provider-acquisition-starts'
 import { waitForAcpExit, type AcpStructuredConnection } from './acp-structured-connection'
 import { AcpConnectionClosedError } from './acp-errors'
+import { applyAcpMessageOptions } from './acp-message-execution-options'
+import { AgentSessionOptionRejectedError } from '../native-chat/agent-session-wire/structured-agent-session-option-error'
 import { awaitAcpTurnEnd, interruptAcpTurn } from './acp-structured-stop'
 import { acpDispatchPrompt } from './acp-prompt-content'
 import {
@@ -162,14 +163,9 @@ export class AcpStructuredSessionAdapter implements StructuredAgentSessionAdapte
     }
   }
 
-  async dispatch(input: {
-    sessionId: string
-    clientMessageId: string
-    body: AgentJournalMessageItem
-    fence: number
-    requestedAt?: number
-    beforeDispatch?: () => Promise<void>
-  }): Promise<AgentSessionDispatchOutcome> {
+  async dispatch(
+    input: Parameters<StructuredAgentSessionAdapter['dispatch']>[0]
+  ): Promise<AgentSessionDispatchOutcome> {
     const lost = this.children.sessions.get(input.sessionId)
     if (lost && lost.journalClosed !== null) {
       // The connection broke and the exit is not yet proven: the message never left Orca.
@@ -184,7 +180,20 @@ export class AcpStructuredSessionAdapter implements StructuredAgentSessionAdapte
       // The child ended while its attachments were read: nothing left Orca.
       return this.rejected(session, 'providerExited')
     }
+    const { sessionId, fence, signal } = input
+    const optionsApplied = await applyAcpMessageOptions(
+      session,
+      input.executionOptions,
+      (key, value) => this.setOption({ sessionId, fence, key, value, signal }),
+      () =>
+        this.children.sessions.get(input.sessionId) === session && session.journalClosed === null
+    )
+    if (!optionsApplied) {
+      return this.rejected(session, 'providerExited')
+    }
+    input.signal?.throwIfAborted()
     await input.beforeDispatch?.()
+    input.signal?.throwIfAborted()
     session.turns.dispatch({
       clientMessageId: input.clientMessageId,
       prompt,
@@ -235,7 +244,9 @@ export class AcpStructuredSessionAdapter implements StructuredAgentSessionAdapte
     const session = this.live(input.sessionId)
     const write = session.options.write(input.key, input.value)
     if (!write) {
-      throw new Error(`${session.spec.agent} offers no session option named ${input.key}`)
+      throw new AgentSessionOptionRejectedError(
+        `${session.spec.agent} offers no session option named ${input.key}`
+      )
     }
     session.options.notePick(input.key)
     // Bounded, and abandoned by a close or Stop: the session's queue waits on it.
@@ -249,11 +260,6 @@ export class AcpStructuredSessionAdapter implements StructuredAgentSessionAdapte
 
   readOptions = async (input: { sessionId: string; fence: number }) =>
     readAcpLiveOptions(this.live(input.sessionId))
-
-  readOptionRestoreFailures = (sessionId: string): readonly string[] => {
-    const session = this.children.sessions.get(sessionId)
-    return session && isAcpReadySession(session) ? session.restoreSkipped : []
-  }
 
   readCommands = (sessionId: string) => {
     const session = this.children.sessions.get(sessionId)
