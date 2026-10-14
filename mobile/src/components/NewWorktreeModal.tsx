@@ -76,12 +76,14 @@ function NewWorktreeModalContent(props: NewWorktreeModalProps) {
     onCreated,
     onClose
   } = props
-  const { repos, selectedRepo, setSelectedRepo, loading } = useNewWorkspaceRepositories({
-    client: desktopClient,
-    serverClients,
-    hostId,
-    visible
-  })
+  const { repos, selectedRepo, setSelectedRepo, upsertRepo, loading } = useNewWorkspaceRepositories(
+    {
+      client: desktopClient,
+      serverClients,
+      hostId,
+      visible
+    }
+  )
   // Why: everything about the picked repo runs where it does; the routing table keeps the
   // desktop's own concerns (settings, accounts) on the desktop.
   const repoServer = selectedRepo ? serverOf(selectedRepo) : undefined
@@ -197,7 +199,7 @@ function NewWorktreeModalContent(props: NewWorktreeModalProps) {
     !executionTarget.sshGate.requiresConnection &&
     (!needsSetupChoice || setupScript.setupDecisionChoice != null)
 
-  function openPicker(view: 'project' | 'runTarget' | 'agent'): void {
+  function openPicker(view: 'project' | 'addProject' | 'runTarget' | 'agent'): void {
     Keyboard.dismiss()
     navigation.transitionDrawer(view)
   }
@@ -253,6 +255,7 @@ function NewWorktreeModalContent(props: NewWorktreeModalProps) {
         onClose={onClose}
         onOpenExternalUrl={openExternalUrl}
         onOpenProject={() => openPicker('project')}
+        onOpenAddProject={() => openPicker('addProject')}
         onOpenRunTarget={() => openPicker('runTarget')}
         onOpenSource={navigation.openSourceDrawer}
         onClearError={() => setError('')}
@@ -286,6 +289,12 @@ function NewWorktreeModalContent(props: NewWorktreeModalProps) {
         creating={createSubmit.creating}
         onSourceRepoChange={(repo) => selectRepo(repo, false)}
         onRepoChange={(repo) => selectRepo(repo, true)}
+        onOpenAddProject={() => openPicker('addProject')}
+        onProjectAdded={(repo) => {
+          upsertRepo(repo)
+          selectRepo(repo, true)
+          navigation.transitionDrawer('form')
+        }}
         onAgentChange={(agent) => {
           agentSelection.setAgentOverridden(true)
           agentSelection.setSelectedAgent(agent)

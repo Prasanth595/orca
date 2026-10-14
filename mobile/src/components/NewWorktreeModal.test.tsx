@@ -45,7 +45,7 @@ vi.mock('./PickerListDrawer', () => ({ PickerListDrawer: 'PickerListDrawer' }))
 vi.mock('./MobileAgentIcon', () => ({ MobileAgentIcon: 'MobileAgentIcon' }))
 vi.mock('./TaskProviderLogo', () => ({ TaskProviderLogo: 'TaskProviderLogo' }))
 
-import { setCachedRepos } from '../cache/repo-cache'
+import { getCachedRepos, setCachedRepos } from '../cache/repo-cache'
 import { recordHostDescriptor } from '../transport/host-descriptor-store'
 import { FakeSession } from '../transport/mobile-endpoint-supervisor-test-fakes'
 import { getLocalExecutionHostLabel } from '../../../src/shared/execution-host'
@@ -93,13 +93,17 @@ function runTargetPicker(renderer: ReactTestRenderer) {
     .find((node) => node.props.title === 'Run on')!
 }
 
-async function flushUpdates(): Promise<void> {
-  await act(async () => {
-    await Promise.resolve()
-    await Promise.resolve()
-    await Promise.resolve()
+const flushUpdates = async () =>
+  act(async () => {
+    for (let i = 0; i < 3; i++) {
+      await Promise.resolve()
+    }
   })
-}
+
+const flushDrawerTransition = async () =>
+  act(async () => {
+    await new Promise((r) => setTimeout(r, 200))
+  })
 
 describe('NewWorktreeModal project targets', () => {
   let renderer: ReactTestRenderer
@@ -743,5 +747,96 @@ describe('NewWorktreeModal project targets', () => {
     act(() => renderer.update(createElement(NewWorktreeModal, { ...modalProps, visible: true })))
 
     expect(sourceInputs(renderer).map((input) => input.props.value)).toEqual(['', ''])
+  })
+
+  function makeBrowseClient(listedRepos: unknown[] = repos, addedRepo?: unknown) {
+    return requestsOnly(
+      vi.fn(async (method: string) => {
+        if (method === 'repo.list') {
+          return { ok: true, result: { repos: listedRepos } }
+        }
+        if (method === 'status.get') {
+          return { ok: true, result: { hostPlatform: 'darwin' } }
+        }
+        if (method === 'files.browseServerDir') {
+          return {
+            ok: true,
+            result: { resolvedPath: '/Users/test', entries: [], pathFlavor: 'posix' }
+          }
+        }
+        if (method === 'repo.add') {
+          return { ok: true, result: { repo: addedRepo } }
+        }
+        return { ok: true, result: {} }
+      })
+    )
+  }
+
+  it('opens addProject drawer from the empty projects state', async () => {
+    setCachedRepos('host-empty', [])
+    const client = makeBrowseClient([])
+    await act(async () => {
+      renderer = create(
+        createElement(NewWorktreeModal, {
+          visible: true,
+          client,
+          hostId: 'host-empty',
+          onCreated: () => {},
+          onClose: () => {}
+        })
+      )
+    })
+    await flushUpdates()
+    const addBtn = renderer.root.findAll(
+      (n) =>
+        n.type === 'Pressable' && n.findAll((c) => c.props.children === 'Add project').length > 0
+    )[0]!
+    await act(async () => addBtn.props.onPress())
+    await flushDrawerTransition()
+    await flushUpdates()
+    expect(client.sendRequest).toHaveBeenCalledWith('files.browseServerDir', { path: '~' })
+  })
+
+  it('opens addProject from picker footer, upserts and selects the added project', async () => {
+    const added = { id: 'repo-added-1', displayName: 'new-orca', path: '/Users/test', kind: 'git' }
+    const client = makeBrowseClient(repos, added)
+    await act(async () => {
+      renderer = create(
+        createElement(NewWorktreeModal, {
+          visible: true,
+          client,
+          hostId: 'host-1',
+          onCreated: () => {},
+          onClose: () => {}
+        })
+      )
+    })
+    await flushUpdates()
+    const picker = renderer.root.find(
+      (n) => n.type === 'PickerListDrawer' && n.props.title === 'Project'
+    )
+    await act(async () => picker.props.footer.props.onPress())
+    await flushDrawerTransition()
+    await flushUpdates()
+    expect(client.sendRequest).toHaveBeenCalledWith('files.browseServerDir', { path: '~' })
+    const addBtn = renderer.root
+      .findAll(
+        (n) =>
+          n.type === 'Pressable' && n.findAll((c) => c.props.children === 'Add project').length > 0
+      )
+      .find((b) => !b.props.disabled && b.props.onPress)!
+    await act(async () => addBtn.props.onPress())
+    await flushUpdates()
+    await flushDrawerTransition()
+    expect(client.sendRequest).toHaveBeenCalledWith('repo.add', {
+      path: '/Users/test',
+      kind: 'git'
+    })
+    expect(pickerItems(renderer, 'Project')).toEqual(
+      expect.arrayContaining([expect.objectContaining({ label: 'new-orca' })])
+    )
+    expect(getCachedRepos('host-1')).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'repo-added-1' })])
+    )
   })
 })

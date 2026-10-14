@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ExecutionHostId } from '../../../src/shared/execution-host'
 import type { RpcClient } from '../transport/rpc-client'
 import { getCachedRepos, setCachedRepos } from '../cache/repo-cache'
@@ -28,6 +28,7 @@ export function useNewWorkspaceRepositories(args: {
   repos: MobileWorkspaceRepo[]
   selectedRepo: MobileWorkspaceRepo | null
   setSelectedRepo: (repo: MobileWorkspaceRepo | null) => void
+  upsertRepo: (repo: MobileWorkspaceRepo) => void
   loading: boolean
 } {
   const { client, serverClients = NO_SERVER_CLIENTS, hostId, visible } = args
@@ -35,6 +36,7 @@ export function useNewWorkspaceRepositories(args: {
     hostId ? (getCachedRepos(hostId) as MobileWorkspaceRepo[] | null) : null
   )
   const [desktopRepos, setDesktopRepos] = useState<MobileWorkspaceRepo[]>(initialRepos ?? [])
+  const lastCachedDesktopRepos = useRef(desktopRepos)
   const serverRepos = useServerRepos<MobileWorkspaceRepo>(serverClients, visible)
   const [pickedRepo, setSelectedRepo] = useState<MobileWorkspaceRepo | null>(null)
   const [loading, setLoading] = useState(initialRepos == null)
@@ -79,9 +81,6 @@ export function useNewWorkspaceRepositories(args: {
           return
         }
         setDesktopRepos(listed)
-        if (hostId) {
-          setCachedRepos(hostId, listed)
-        }
       })
       .catch(() => undefined)
       .finally(() => {
@@ -94,5 +93,31 @@ export function useNewWorkspaceRepositories(args: {
     }
   }, [visible, client, hostId])
 
-  return { repos, selectedRepo, setSelectedRepo, loading: loading && repos.length === 0 }
+  useEffect(() => {
+    if (lastCachedDesktopRepos.current === desktopRepos) {
+      return
+    }
+    lastCachedDesktopRepos.current = desktopRepos
+    if (hostId) {
+      setCachedRepos(hostId, desktopRepos)
+    }
+  }, [desktopRepos, hostId])
+
+  function upsertRepo(repo: MobileWorkspaceRepo): void {
+    setDesktopRepos((previous) => {
+      const existingIndex = previous.findIndex((candidate) => candidate.id === repo.id)
+      return existingIndex !== -1
+        ? previous.map((candidate, index) => (index === existingIndex ? repo : candidate))
+        : [repo, ...previous]
+    })
+    setSelectedRepo(repo)
+  }
+
+  return {
+    repos,
+    selectedRepo,
+    setSelectedRepo,
+    upsertRepo,
+    loading: loading && repos.length === 0
+  }
 }
