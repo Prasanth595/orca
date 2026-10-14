@@ -1,5 +1,7 @@
 import { toast } from 'sonner'
 import { translate } from '@/i18n/i18n'
+import { describeAiVaultResumeFailure } from '@/lib/ai-vault-resume-refusal'
+import type { AiVaultAgent } from '../../../../shared/ai-vault-types'
 import {
   aiVaultResumeUnsupportedMessage,
   resolveAiVaultSessionLaunchTarget
@@ -7,16 +9,11 @@ import {
 
 export function notifyAiVaultSessionPreparationFailure(
   error: unknown,
+  agent: AiVaultAgent,
   describeFailure: (message: string) => string = (message) => message
 ): void {
-  toast.error(
-    error instanceof Error
-      ? describeFailure(error.message)
-      : translate(
-          'auto.components.right.sidebar.AiVaultPanel.prepareSessionResumeFailed',
-          'Could not prepare this session for resume.'
-        )
-  )
+  const described = error instanceof Error ? new Error(describeFailure(error.message)) : error
+  toast.error(describeAiVaultResumeFailure(described, agent))
 }
 
 export function resolveAiVaultSessionLaunchTargetOrNotify(

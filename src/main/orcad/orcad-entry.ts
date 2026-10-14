@@ -106,7 +106,6 @@ async function startOrcadRuntime(
   const { OrcaRuntimeRpcServer } = await import('../runtime/runtime-rpc')
   const { registerHeadlessPtyRuntime } = await import('../ipc/pty/register-headless-runtime')
   const { getLocalPtyProvider } = await import('../ipc/pty/provider/registry')
-  const { getAppEnvironment } = await import('../../shared/app-environment')
   const { installOrcadObservability } = await import('./orcad-observability')
   closeOrcadObservability = installOrcadObservability()
   const { ServeReadinessPublisher } = await import('../server/serve-readiness')
@@ -226,12 +225,8 @@ async function startOrcadRuntime(
   })
 
   // Why before any launch: a desktop that owns this host's accounts pushed them on an earlier run.
-  const { readOrcadHostAccountLaunchEnv, writeOrcadHostAccountLaunchEnv } =
-    await import('./orcad-host-account-launch-env-store')
-  runtime.restoreHostAccountLaunchEnv(
-    readOrcadHostAccountLaunchEnv(runtimeUserDataPath),
-    (launchEnv) => writeOrcadHostAccountLaunchEnv(runtimeUserDataPath, launchEnv)
-  )
+  const { restoreOrcadHostAccountLaunchEnv } = await import('./orcad-host-account-launch-env-store')
+  restoreOrcadHostAccountLaunchEnv(runtime, runtimeUserDataPath)
 
   const { installOrcadSessionSearchService } = await import('./orcad-session-search')
   sessionSearch = await installOrcadSessionSearchService({

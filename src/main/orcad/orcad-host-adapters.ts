@@ -1,36 +1,35 @@
-/**
- * The Node stand-ins `orcad` installs for Electron's `AppEnvironment` and `SecretStore`,
- * and the will-quit handlers the installed environment collects.
- */
+/** The Node host's stand-ins for Electron's app environment and secret store. */
 import process from 'node:process'
 import { setAppEnvironment, type AppEnvironment } from '../../shared/app-environment'
 import { setSecretStore, type SecretStore } from '../../shared/secret-store'
-import { describeOrcadSecretProtectionGap } from './orcad-secret-protection-gap'
 import { resolveOrcadInstallRoot, resolveOrcadPath } from './orcad-app-paths'
 import { getOrcadCliLauncherPath } from './orcad-cli-launcher'
+import { describeOrcadSecretProtectionGap } from './orcad-secret-protection-gap'
 
-let quitHandlers: (() => void)[] = []
+let quitRegisteredHandlers = (): void => {}
 
-// The main signal handler awaits runtime and browser teardown before process.exit.
-// Keep will-quit callbacks synchronous, but never let them pre-empt that async barrier.
 export function runOrcadQuitHandlers(): void {
-  const errors: unknown[] = []
-  for (const handler of quitHandlers.splice(0)) {
-    try {
-      handler()
-    } catch (error) {
-      errors.push(error)
-    }
-  }
-  // Why throw: a quit handler that failed may leave a writer running, which keeps the lock.
-  if (errors.length > 0) {
-    throw new AggregateError(errors, 'orcad_quit_handlers_failed')
-  }
+  quitRegisteredHandlers()
 }
 
 function createNodeAppEnvironment(): AppEnvironment {
-  // A fresh environment owns a fresh handler list; a re-install must not inherit the last one.
-  quitHandlers = []
+  const quitHandlers: (() => void)[] = []
+  // The main signal handler awaits runtime and browser teardown before process.exit.
+  // Keep will-quit callbacks synchronous, but never let them pre-empt that async barrier.
+  quitRegisteredHandlers = (): void => {
+    const errors: unknown[] = []
+    for (const handler of quitHandlers.splice(0)) {
+      try {
+        handler()
+      } catch (error) {
+        errors.push(error)
+      }
+    }
+    // Why throw: a quit handler that failed may leave a writer running, which keeps the lock.
+    if (errors.length > 0) {
+      throw new AggregateError(errors, 'orcad_quit_handlers_failed')
+    }
+  }
   return {
     getPath: resolveOrcadPath,
     getAppPath: () => resolveOrcadInstallRoot(),
