@@ -4,13 +4,13 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import {
+  directoryTranscriptImport,
   resumeInvocationFromOptions,
   type StructuredAgentCliConversations,
-  type StructuredAgentSessionHistory,
-  type StructuredAgentTranscriptImport
+  type StructuredAgentSessionHistory
 } from '../native-chat/structured-agent-cli-conversations'
 
-const ZCODE_TRANSCRIPT_IMPORT: StructuredAgentTranscriptImport = {
+const ZCODE_TRANSCRIPT_IMPORT = directoryTranscriptImport({
   // One store per account home: the launch already pinned where the chat runs.
   accountHomeCandidates: ({ selectedAccountHomePath }) => [selectedAccountHomePath],
   // ZCode's conversation lives in its own SQLite store, which the adapter reads back through
@@ -19,7 +19,7 @@ const ZCODE_TRANSCRIPT_IMPORT: StructuredAgentTranscriptImport = {
     const database = join(accountHomePath, 'cli', 'db', 'db.sqlite')
     return existsSync(database) ? database : null
   }
-}
+})
 
 const ZCODE_SESSION_HISTORY: StructuredAgentSessionHistory = {
   rowAgents: ['zcode'],
