@@ -64,35 +64,78 @@ export function getOmpRegistryObserverSourceLines(): string[] {
         byId.set(ref.id, ref)
       }
       if (byId.get(root.id) !== root) throw new Error('Native root missing from snapshot')
-      observation.rootExecuting = root.session?.isStreaming === true
+      observation.rootExecuting = isOmpNativeSessionExecuting(root.session)
+      // An uncaptured baseline needs a successful native execution read.
+      if (observation.rootBaselinePending) {
+        observation.status.state = observation.rootExecuting ? 'working' : 'done'
+        observation.rootBaselinePending = false
+        observation.dirty = true
+      }
       const paths = require('path')
       const rootArtifactFile = paths.resolve(observation.sessionFile)
       // Parent links prove tree ownership; the native artifact directory fences
       // retained generations whose stable Main id was reused by a session switch.
-      const scope = (ref: OmpNativeRef): 'owned' | 'pending' | 'foreign' => {
+      type Ownership = 'owned' | 'pending' | 'foreign'
+      // Memo belongs to this native read only; checking markers detect cycles
+      // without recursion or revisiting shared inactive ancestry.
+      const ownershipByRef = new Map<OmpNativeRef, Ownership | 'checking' | 'attaching'>([[root, 'owned']])
+      const scope = (ref: OmpNativeRef): Ownership => {
+        const cached = ownershipByRef.get(ref)
+        if (cached === 'owned' || cached === 'pending' || cached === 'foreign') return cached
+        const trail: OmpNativeRef[] = []
         let current: OmpNativeRef | undefined = ref
-        let pending = false
-        for (let depth = 0; current && depth <= byId.size; depth++) {
-          if (current === root) return pending ? 'pending' : 'owned'
-          if (current.kind !== 'sub') return 'foreign'
+        let result: Ownership = 'foreign'
+        while (current) {
+          const known = ownershipByRef.get(current)
+          if (known !== undefined) {
+            if (known === 'owned' || known === 'pending') result = known
+            break
+          }
+          if (current.kind !== 'sub') {
+            ownershipByRef.set(current, 'foreign')
+            break
+          }
           if (registry.get(current.id) !== current) throw new Error('Native child identity changed during snapshot')
+          let attaching = false
           if (typeof current.sessionFile === 'string' && current.sessionFile) {
-            if (!isNestedTaskTranscript(rootArtifactFile, paths.resolve(current.sessionFile))) return 'foreign'
+            if (!isNestedTaskTranscript(rootArtifactFile, paths.resolve(current.sessionFile))) {
+              ownershipByRef.set(current, 'foreign')
+              break
+            }
           } else if (current.status === 'running' && !current.session) {
-            pending = true
-          } else return 'foreign'
+            attaching = true
+          } else {
+            ownershipByRef.set(current, 'foreign')
+            break
+          }
+          trail.push(current)
+          ownershipByRef.set(current, attaching ? 'attaching' : 'checking')
           current = current.parentId ? byId.get(current.parentId) : undefined
         }
-        return 'foreign'
+        for (let index = trail.length - 1; index >= 0; index--) {
+          const ancestor = trail[index]!
+          if (result !== 'foreign' && ownershipByRef.get(ancestor) === 'attaching') result = 'pending'
+          ownershipByRef.set(ancestor, result)
+        }
+        return result
       }
       next = new Map<string, SubagentDetail>()
       let pending = false
       for (const ref of refs) {
-        if (ref.kind !== 'sub' || ref.status !== 'running') continue
+        if (ref.kind !== 'sub' || (ref.status !== 'running' && ref.status !== 'idle')) continue
+        // SDK terminalAt also marks async idle pauses; positive execution wins.
+        let running: boolean
+        try {
+          running = !!ref.session && (isOmpNativeSessionExecuting(ref.session) || (typeof registry.isRunning === 'function' && registry.isRunning(ref) === true))
+        } catch (error) {
+          // Foreign sessions cannot make this root's membership unavailable.
+          if (scope(ref) === 'foreign') continue
+          throw error
+        }
+        if (!running && ref.status === 'idle') continue
         const ownership = scope(ref)
         if (ownership === 'foreign') continue
-        const running = !!ref.session && (typeof registry.isRunning === 'function' ? registry.isRunning(ref) : ref.session.isStreaming === true)
-        if (ownership === 'pending' || (!running && ref.lifecycle?.acceptedAt === undefined && ref.lifecycle?.terminalAt === undefined)) {
+        if (ownership === 'pending' || (ref.status === 'running' && !running && ref.lifecycle?.acceptedAt === undefined && ref.lifecycle?.terminalAt === undefined)) {
           pending = true
           continue
         }
@@ -181,19 +224,27 @@ export function getOmpRegistryObserverSourceLines(): string[] {
     }
     const priorStatus = sameScope ? previous.status : undefined
     const approvalPending = sameScope ? previous.approvalPending : false
+    const approvalDetails = sameScope ? previous.approvalDetails : undefined
     const questionToolName = sameScope ? previous.questionToolName : undefined
     const identityBoundaryPending = sameScope ? previous.identityBoundaryPending : true
-    const readUnavailable = sameScope ? previous.readUnavailable : false
+    let readUnavailable = sameScope ? previous.readUnavailable : false
+    let rootExecuting = false
+    let rootBaselinePending = sameScope ? previous.rootBaselinePending === true : false
+    try { rootExecuting = isOmpNativeSessionExecuting(root.session) } catch {
+      readUnavailable = true
+      if (!priorStatus) rootBaselinePending = true
+    }
     if (previous) {
       if (previous.roster !== lifecycleState) previous.roster.ownsPane = false
       retireOmpRegistryObservation(previous)
     }
     const observation: OmpRegistryObservation = {
       owner: ompRegistryOwner, roster: lifecycleState, registry, root, manager, sessionId, sessionFile,
-      status: priorStatus ?? { state: root.status === 'idle' ? 'done' : 'working', session_boundary: true },
+      // Native registration starts at running even before the first prompt.
+      status: priorStatus ?? { state: rootExecuting ? 'working' : 'done', session_boundary: true },
       identityBoundaryPending, readUnavailable,
-      approvalPending, questionToolName, subscribed: false, stopped: false, verified: false, pending: true,
-      rootExecuting: root.session?.isStreaming === true, dirty: true, changeTimer: null, refreshTimer: null
+      approvalPending, approvalDetails, questionToolName, subscribed: false, stopped: false, verified: false, pending: true,
+      rootExecuting, rootBaselinePending, dirty: true, changeTimer: null, refreshTimer: null
     }
     lifecycleState.ompRegistryObserver = observation
     ompRegistryObservation = observation

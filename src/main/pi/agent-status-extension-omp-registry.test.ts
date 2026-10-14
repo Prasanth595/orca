@@ -69,7 +69,7 @@ describe('OMP native registry roster', () => {
           hook_event_name: 'subagents_update',
           session_id: 'root-session',
           session_file: root.file,
-          omp_status: { state: 'working', session_boundary: true }
+          omp_status: { state: 'done', session_boundary: true }
         })
         expect(childIds(update.payload)).toEqual(['RegistryProofChild', 'RegistryProofSibling'])
         expect(update.payload.subagents).toEqual(

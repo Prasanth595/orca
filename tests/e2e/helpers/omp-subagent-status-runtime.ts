@@ -8,6 +8,7 @@ import type { AgentHookEndpoint } from '../../../src/shared/agent-hook-endpoint-
 import { spawnProcess, runProcess } from '../../../src/shared/child-process/run-process'
 import { resolveExecutableCommand } from '../../../src/shared/node-cli-command-resolution'
 import type { NativeObservation } from './omp-native-observation'
+import { writeOmpDeterministicRuntimeConfig } from './omp-deterministic-runtime-config'
 
 type RpcFrame = {
   type: string
@@ -34,6 +35,10 @@ export async function startOmpStatusRuntime(options: {
   endpoint: AgentHookEndpoint
   paneKey: string
   worktreeId: string
+  maxConcurrency?: number
+  observerEnabled?: boolean
+  measurements?: boolean
+  asyncChildNames?: string[]
 }): Promise<OmpStatusRuntime> {
   const { directory, endpoint } = options
   const home = path.join(directory, 'home')
@@ -59,39 +64,12 @@ export async function startOmpStatusRuntime(options: {
   await writeFile(observationPath, '')
   await writeFile(generated, getPiAgentStatusExtensionSource('omp'))
   await writeFile(fixture, options.fixtureSource)
-  await writeFile(
-    path.join(agentDir, 'config.yml'),
-    JSON.stringify(
-      {
-        async: { enabled: true },
-        task: { batch: true, structured: false, maxConcurrency: 3, isolation: { enabled: false } },
-        retry: { enabled: false, modelFallback: false },
-        modelRoles: {
-          default: 'orca-status-smoke/deterministic',
-          task: 'orca-status-smoke/deterministic',
-          smol: 'orca-status-smoke/label',
-          tiny: 'orca-status-smoke/label'
-        },
-        approval: { mode: 'yolo' }
-      },
-      null,
-      2
-    )
-  )
-  await writeFile(
-    path.join(workspace, '.omp', 'agents', 'status-smoke.md'),
-    [
-      '---',
-      'name: status-smoke',
-      'description: Deterministic native status smoke',
-      'model: orca-status-smoke/deterministic',
-      'thinkingLevel: off',
-      'tools: []',
-      'spawns: []',
-      '---',
-      'Return the deterministic response without tools.'
-    ].join('\n')
-  )
+  await writeOmpDeterministicRuntimeConfig({
+    agentDir,
+    workspace,
+    maxConcurrency: options.maxConcurrency,
+    asyncChildNames: options.asyncChildNames
+  })
 
   // Whitelist executable lookup/system keys, never ambient providers, credentials or Orca ownership.
   const env: NodeJS.ProcessEnv = {
@@ -124,6 +102,8 @@ export async function startOmpStatusRuntime(options: {
     ORCA_OMP_SMOKE_OBSERVATIONS: observationPath,
     ORCA_OMP_SMOKE_ROOT_LABEL: options.rootLabel,
     ORCA_OMP_SMOKE_GATES: gates,
+    ORCA_OMP_SMOKE_MEASUREMENTS: options.measurements ? '1' : '0',
+    ORCA_OMP_SMOKE_ASYNC_NAMES: JSON.stringify(options.asyncChildNames ?? []),
     ORCA_OMP_SMOKE_NAMES: JSON.stringify(options.names)
   }
   const program = resolveExecutableCommand(process.env.ORCA_OMP_PROOF_BINARY ?? 'omp', {
@@ -154,8 +134,7 @@ export async function startOmpStatusRuntime(options: {
       '--no-extensions',
       '--extension',
       fixture,
-      '--extension',
-      generated,
+      ...(options.observerEnabled === false ? [] : ['--extension', generated]),
       '--no-skills',
       '--no-rules',
       '--no-lsp',
@@ -199,7 +178,9 @@ export async function startOmpStatusRuntime(options: {
     appendFileSync(path.join(directory, 'rpc.jsonl'), `${line}\n`)
     try {
       const frame: RpcFrame = JSON.parse(line)
-      frames.push(frame)
+      if (frame.type === 'ready' || frame.type === 'response') {
+        frames.push(frame)
+      }
     } catch {
       // Installed OMP may print startup diagnostics before its RPC readiness frame.
     }
@@ -214,6 +195,27 @@ export async function startOmpStatusRuntime(options: {
   }
   const stop = async () => {
     closing = true
+    if (options.asyncChildNames?.length) {
+      // Real native bash jobs must not outlive a failed assertion or their owning OMP process.
+      await Promise.all(
+        options.asyncChildNames.map((name) => writeFile(path.join(gates, name), ''))
+      )
+      await expect
+        .poll(
+          () => {
+            const rows: NativeObservation[] = readFileSync(observationPath, 'utf8')
+              .split('\n')
+              .slice(0, -1)
+              .map((line) => JSON.parse(line))
+            return !rows
+              .findLast((row) => row.kind === 'registry')
+              ?.refs?.some((ref) => ref.pendingAsync)
+          },
+          { timeout: 5_000 }
+        )
+        .toBe(true)
+        .catch(() => undefined)
+    }
     const timer = setTimeout(() => child.kill('SIGKILL'), 5_000)
     try {
       if (child.exitCode === null && child.signalCode === null) {

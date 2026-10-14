@@ -28,18 +28,16 @@ export function getOmpRootStatusSourceLines(): string[] {
     } catch { return }
     let status = { ...observation.status }
     const toolName = boundedOmpRootText(event?.toolName, OMP_STATUS_TOOL_LIMIT)
-    if (name === 'session_start') {
-      // A baseline never resolves a retained human wait. Only native idle is
-      // settled evidence; running/nonstreaming can be approval/tool/child work.
-    } else if (name === 'session_switch' || name === 'session_branch') {
-      status = { state: observation.root.status === 'idle' ? 'done' : 'working', session_boundary: true }
-      observation.approvalPending = false
-      observation.questionToolName = undefined
+    const baseline = name === 'session_start' || name === 'session_switch' || name === 'session_branch'
+    if (baseline) {
+      // Binding seeded a changed scope from native execution, not registration.
+      // Same-scope baselines never replace captured turn or human-wait facts.
     } else if (name === 'before_agent_start') {
       status = { state: 'working', input_pending: false }
       const prompt = boundedOmpRootText(event?.prompt, OMP_STATUS_TEXT_LIMIT)
       if (prompt !== undefined) status.prompt = prompt
       observation.approvalPending = false
+      observation.approvalDetails = undefined
       observation.questionToolName = undefined
     } else if (name === 'agent_start') {
       status.state = 'working'
@@ -48,14 +46,17 @@ export function getOmpRootStatusSourceLines(): string[] {
       delete status.tool_name
       delete status.tool_input
       observation.approvalPending = false
+      observation.approvalDetails = undefined
       observation.questionToolName = undefined
     } else if (name === 'tool_approval_requested') {
       observation.approvalPending = true
+      observation.approvalDetails = { tool_name: toolName, tool_input: boundedOmpRootText(event?.reason, OMP_STATUS_INPUT_LIMIT) }
       status.state = 'blocked'
       status.input_pending = true
-      if (toolName && !observation.questionToolName) status.tool_name = toolName
+      if (!observation.questionToolName) Object.assign(status, observation.approvalDetails)
     } else if (name === 'tool_approval_resolved') {
       observation.approvalPending = false
+      observation.approvalDetails = undefined
       status.state = observation.questionToolName ? 'blocked' : 'working'
       status.input_pending = !!observation.questionToolName
       if (toolName && !observation.questionToolName) status.tool_name = toolName
@@ -68,7 +69,7 @@ export function getOmpRootStatusSourceLines(): string[] {
       status.state = observation.approvalPending || observation.questionToolName ? 'blocked' : 'working'
       // Parallel/unrelated tool traffic must not replace the human prompt or
       // permission details before its own native resolution arrives.
-      if (question || (!observation.approvalPending && !observation.questionToolName) || toolName === status.tool_name) {
+      if (question || (!observation.approvalPending && !observation.questionToolName)) {
         if (toolName) status.tool_name = toolName
         status.tool_input = boundedOmpRootInput(name === 'tool_call' ? event?.input : event?.args)
       }
@@ -76,6 +77,12 @@ export function getOmpRootStatusSourceLines(): string[] {
       if (toolName && toolName === observation.questionToolName) {
         observation.questionToolName = undefined
         status.input_pending = observation.approvalPending
+        if (observation.approvalPending) {
+          // A resolved ask reveals the still-pending native permission, not its old question.
+          delete status.tool_name
+          delete status.tool_input
+          Object.assign(status, observation.approvalDetails)
+        }
       }
       status.state = observation.approvalPending || observation.questionToolName ? 'blocked' : 'working'
       if (!observation.approvalPending && !observation.questionToolName) delete status.tool_input
@@ -93,16 +100,17 @@ export function getOmpRootStatusSourceLines(): string[] {
       delete status.tool_name
       delete status.tool_input
       observation.approvalPending = false
+      observation.approvalDetails = undefined
       observation.questionToolName = undefined
     } else return
     observation.status = status
+    if (!baseline && name !== 'message_end') observation.rootBaselinePending = false
     observation.dirty = true
     if (name === 'agent_end' || name === 'agent_settled') {
       // The completion gate must see native children even when starts were missed.
       if (observation.changeTimer !== null) clearTimeout(observation.changeTimer)
       observation.changeTimer = null
       reconcileOmpRegistry(observation)
-      observation.rootExecuting = false
     } else scheduleOmpRegistryChange(observation)
     scheduleOmpRegistryRefresh(observation)
   }

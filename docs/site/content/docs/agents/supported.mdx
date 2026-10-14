@@ -31,7 +31,7 @@ To restore prompts for one agent only, edit that agent's default arguments or en
 | GitHub Copilot CLI | Auto-setup                                                                                                                 | [GitHub](https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli)                   |
 | OpenCode           | Auto-setup, status                                                                                                         | [OpenCode](https://opencode.ai/docs/cli/)                                                         |
 | Pi                 | Auto-setup, hooks, status                                                                                                  | [Pi](https://pi.dev)                                                                              |
-| OMP                | Auto-setup, hooks, live subagent status                                                                                     | [OMP](https://omp.sh)                                                                             |
+| OMP                | Auto-setup, hooks, live subagent status                                                                                    | [OMP](https://omp.sh)                                                                             |
 | Prime Agent        | Auto-setup, hooks, status, session history                                                                                 | [Prime Intellect](https://github.com/PrimeIntellect-ai/prime-agent)                               |
 | Gemini             | Auto-setup                                                                                                                 | [Google](https://github.com/google-gemini/gemini-cli)                                             |
 | Antigravity        | Auto-setup, hooks, status                                                                                                  | [Google](https://antigravity.google/docs/cli-overview)                                            |
@@ -71,6 +71,8 @@ Orca's managed status extension observes OMP's own agent registry. Children appe
 IDs rather than repeated role names, and completed or cancelled children leave the live roster.
 Registry changes are coalesced for about 200 ms; active work is rechecked every five seconds, including
 when the parent is silently waiting. These checks verify running agents, not new model activity.
+Children waiting for background tool results remain live even when OMP temporarily marks their
+model loop idle. Opening an unprompted OMP session does not count as working.
 
 After upgrading Orca, restart OMP to load the updated extension. No additional tracking tool, daemon,
 or model instruction is needed. Native tracking is capability-detected and has been verified with
@@ -80,12 +82,23 @@ Snapshots belong to one root and its current session. Session changes retire the
 and observation refreshes preserve the root's prompt, input waits, and turn timing. Failed registry
 reads or hook delivery cannot refresh stale child evidence or declare an agent exited.
 
+The existing compact sidebar layout is unchanged. When OMP reports a new session ID and transcript,
+the renderer cannot inherit the previous session's turn clock. The root's own completion time
+remains separate from its children's.
+
+Delivery keeps current and adjacent closing scopes rather than replaying an unbounded history after
+an outage. Older retired updates may be discarded; the status feed is not a durable notification log.
+
 For SSH workspaces, the execution host owns the registry and hook store; use an updated Orca host and
 a compatible OMP there. Losing client contact remains `unverifiable`, not `exited`. The adapter does
 not require a git worktree, so the same observation works in folder workspaces.
 
 The shared roster displays up to 32 children. Root completion accounts for all discovered native
 children, including those beyond that display limit.
+
+Local native E2E checks cover eight sessions with six simultaneous children each, and sixteen
+sessions with eight each, using OMP 18.10.3. These checks exercise quiet work, background tool jobs,
+cancellation, completion and session replacement without disturbing other running roots.
 
 ## ZCode: pick a CLI that ships the TUI
 

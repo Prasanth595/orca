@@ -16,13 +16,18 @@ export function getOmpRegistrySnapshotSourceLines(): string[] {
     ...String.raw`
 type OmpRootStatus = { state: 'working' | 'blocked' | 'waiting' | 'done'; prompt?: string; tool_name?: string; tool_input?: unknown; role?: 'assistant'; text?: string; session_boundary?: true; input_pending?: boolean }
 type OmpNativeManager = { getSessionId?: () => unknown; getSessionFile?: () => unknown }
-type OmpNativeRef = { id: string; displayName?: string; kind: string; parentId?: string; status: string; session?: { sessionManager?: OmpNativeManager; isStreaming?: boolean } | null; sessionFile?: string | null; createdAt?: number; history?: { agent?: string }; lifecycle?: { acceptedAt?: number; terminalAt?: number } }
+type OmpNativeSession = { sessionManager?: OmpNativeManager; isStreaming?: boolean; hasPendingAsyncWork?: () => boolean }
+type OmpNativeRef = { id: string; displayName?: string; kind: string; parentId?: string; status: string; session?: OmpNativeSession | null; sessionFile?: string | null; createdAt?: number; history?: { agent?: string }; lifecycle?: { acceptedAt?: number; terminalAt?: number } }
 type OmpNativeRegistry = { list: () => OmpNativeRef[]; get: (id: string) => OmpNativeRef | undefined; onChange: (handler: (event: { type?: string; ref?: OmpNativeRef }) => void) => (() => void); isRunning?: (ref: OmpNativeRef) => boolean }
 type OmpRegistryApi = { pi?: { MAIN_AGENT_ID?: unknown; AgentRegistry?: { global?: () => unknown } } }
 type OmpRegistryContext = { agent?: { id?: unknown; kind?: unknown }; agentKind?: unknown; sessionManager?: OmpNativeManager }
-type OmpRootEvent = { prompt?: unknown; toolName?: unknown; input?: unknown; args?: unknown; message?: { role?: unknown; content?: unknown }; willContinue?: boolean }
-type OmpRegistryObservation = { owner: object; roster: SubagentRoster; registry: OmpNativeRegistry; root: OmpNativeRef; manager: OmpNativeManager; sessionId: string; sessionFile: string; status: OmpRootStatus; identityBoundaryPending: boolean; approvalPending: boolean; questionToolName?: string; subscribed: boolean; stopped: boolean; verified: boolean; pending: boolean; readUnavailable: boolean; rootExecuting: boolean; dirty: boolean; unsubscribe?: () => void; changeTimer: NodeJS.Timeout | null; refreshTimer: NodeJS.Timeout | null }
+type OmpRootEvent = { prompt?: unknown; toolName?: unknown; input?: unknown; args?: unknown; reason?: unknown; message?: { role?: unknown; content?: unknown }; willContinue?: boolean }
+type OmpRegistryObservation = { owner: object; roster: SubagentRoster; registry: OmpNativeRegistry; root: OmpNativeRef; manager: OmpNativeManager; sessionId: string; sessionFile: string; status: OmpRootStatus; identityBoundaryPending: boolean; approvalPending: boolean; approvalDetails?: { tool_name?: string; tool_input?: string }; questionToolName?: string; subscribed: boolean; stopped: boolean; verified: boolean; pending: boolean; readUnavailable: boolean; rootExecuting: boolean; rootBaselinePending: boolean; dirty: boolean; unsubscribe?: () => void; changeTimer: NodeJS.Timeout | null; refreshTimer: NodeJS.Timeout | null }
 let ompRegistryObservation: OmpRegistryObservation | null = null
+
+function isOmpNativeSessionExecuting(session: OmpNativeSession | null | undefined): boolean {
+  return session?.isStreaming === true || (typeof session?.hasPendingAsyncWork === 'function' && session.hasPendingAsyncWork() === true)
+}
 
 function isOmpNativeRegistry(registry: unknown): registry is OmpNativeRegistry {
   return typeof registry === 'object' && registry !== null &&
@@ -94,6 +99,7 @@ function retireOmpRegistryObservation(observation: OmpRegistryObservation): void
   observation.pending = false
   observation.readUnavailable = false
   observation.subscribed = false
+  observation.approvalDetails = undefined
   if (observation.changeTimer !== null) clearTimeout(observation.changeTimer)
   if (observation.refreshTimer !== null) clearTimeout(observation.refreshTimer)
   observation.changeTimer = null

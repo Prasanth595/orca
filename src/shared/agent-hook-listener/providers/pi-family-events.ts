@@ -41,6 +41,20 @@ export function normalizePiCompatibleEvent(
     return normalizeOmpRegistrySnapshot(state, paneKey, hookPayload)
   }
 
+  const ompPrevious = agentType === 'omp' ? state.lastStatusByPaneKey.get(paneKey) : undefined
+  const ompSession = ompPrevious && extractAgentProviderSession('omp', hookPayload)
+  const previousSession = ompPrevious?.providerSession
+  const sameSession =
+    ompSession?.transcriptPath &&
+    ompSession.key === previousSession?.key &&
+    ompSession.id === previousSession?.id &&
+    ompSession.transcriptPath === previousSession?.transcriptPath
+  const ompSessionChanged = ompSession?.transcriptPath && previousSession && !sameSession
+  // Ordinary completion can precede the new scope's authoritative snapshot.
+  if (ompSessionChanged) {
+    clearPaneTurnCacheState(state, paneKey)
+  }
+
   // Why: the OMP extension stamps `provider/id` on every post; Pi posts carry none.
   const model = readString(hookPayload, 'model')
   const modelSwitchCommand =
@@ -51,7 +65,12 @@ export function normalizePiCompatibleEvent(
     // Why: a model switch or a child ending happens between lead events, so it rides on the
     // pane's last visible row instead of inventing a state. Before any row exists there is
     // nothing to describe, and a providerSessionOnly placeholder is a hidden resume record.
-    const previous = state.lastStatusByPaneKey.get(paneKey)
+    const previous =
+      agentType === 'omp'
+        ? ompSessionChanged
+          ? undefined
+          : ompPrevious
+        : state.lastStatusByPaneKey.get(paneKey)
     if (
       !previous ||
       previous.providerSessionOnly === true ||
@@ -107,7 +126,9 @@ export function normalizePiCompatibleEvent(
 
   if (
     !stateName ||
-    (stateName === 'working' && holdsOmpApproval(state, agentType, eventName, paneKey))
+    (stateName === 'working' &&
+      !ompSessionChanged &&
+      holdsOmpApproval(state, agentType, eventName, paneKey))
   ) {
     return null
   }
@@ -118,6 +139,21 @@ export function normalizePiCompatibleEvent(
     extractToolFields(agentType, eventName, hookPayload),
     { resetOnNewTurn: isNewTurnEvent(agentType, eventName) }
   )
+
+  // The root settled before its children; the ordinary aggregate end cannot redate that fact.
+  const isOrdinaryOmpEnd =
+    agentType === 'omp' && eventName === 'agent_end' && hookPayload.session_boundary !== true
+  let settledMainAgent =
+    isOrdinaryOmpEnd &&
+    sameSession &&
+    ompPrevious?.payload.agentType === 'omp' &&
+    ompPrevious.payload.mainAgent?.state === 'done'
+      ? ompPrevious.payload.mainAgent
+      : undefined
+  if (isOrdinaryOmpEnd && ompSessionChanged) {
+    // A done-to-done scope replacement cannot borrow the old aggregate row clock.
+    settledMainAgent = continueMainAgentStatus(undefined, { state: 'done' }, Date.now())
+  }
 
   return normalizeAgentStatusPayload({
     state: stateName,
@@ -133,6 +169,7 @@ export function normalizePiCompatibleEvent(
     lastAssistantMessage: snapshot.lastAssistantMessage,
     lastAssistantMessageIsToolOutput: snapshot.lastAssistantMessageIsToolOutput,
     subagents,
+    mainAgent: settledMainAgent,
     // Why: the extension ends a run whose session was replaced; that is not a completed turn.
     ...(eventName === 'agent_end' && hookPayload.session_boundary === true
       ? { sessionBoundary: true }

@@ -294,9 +294,9 @@ describe('OMP native registry uncertainty and attachment', () => {
         postedPayloads(fixture.harness).filter((payload) => payload.hook_event_name === 'agent_end')
       ).toEqual([])
 
+      // Native attachSession is silent: managed refresh must discover it.
       pending.session = attachedSession
-      fixture.notify('metadata_changed', pending)
-      await vi.advanceTimersByTimeAsync(1_000)
+      await vi.advanceTimersByTimeAsync(6_000)
       expect(childIds(latestSnapshot(fixture).payload)).toEqual(['AttachingChild'])
       expect(childRows(latestSnapshot(fixture).payload)).toEqual([
         expect.objectContaining({ id: 'AttachingChild', displayState: 'working' })
@@ -306,6 +306,69 @@ describe('OMP native registry uncertainty and attachment', () => {
       ).toEqual([])
 
       fixture.setStatus(pending, 'aborted')
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(childIds(latestSnapshot(fixture).payload)).toEqual([])
+      expect(
+        postedPayloads(fixture.harness).filter((payload) => payload.hook_event_name === 'agent_end')
+      ).toHaveLength(1)
+    } finally {
+      await fixture.harness.callHook('session_shutdown', { reason: 'quit' }, root.context)
+      await vi.advanceTimersByTimeAsync(0)
+    }
+  })
+
+  it('keeps shared descendants unavailable until a native attaching ancestor silently acquires its artifact scope', async () => {
+    const root = nativeRoot('attaching-ancestor-root', true)
+    const first = nativeChild('PreviouslyVerifiedChild', root.file)
+    const ancestor: NativeRef = nativeChild('AttachingAncestor', root.file)
+    const attachedSession = ancestor.session!
+    const attachedFile = ancestor.sessionFile
+    ancestor.session = null
+    ancestor.sessionFile = ''
+    const descendants = ['AttachedLeft', 'AttachedRight'].map((id) => {
+      const child = nativeChild(id, attachedFile)
+      child.parentId = ancestor.id
+      return child
+    })
+    const fixture = createNativeFixture(root, [first])
+    try {
+      await fixture.harness.callHook('session_start', { reason: 'startup' }, root.context)
+      await fixture.harness.callHook('agent_start', {}, root.context)
+      await vi.advanceTimersByTimeAsync(1_000)
+      root.session.isStreaming = false
+      await fixture.harness.callHook('agent_end', { willContinue: false }, root.context)
+      await vi.advanceTimersByTimeAsync(1_000)
+      const verified = latestSnapshot(fixture)
+      for (const ref of [ancestor, ...descendants]) {
+        fixture.refs.set(ref.id, ref)
+        fixture.notify('registered', ref)
+      }
+      fixture.setStatus(first, 'idle')
+      await vi.advanceTimersByTimeAsync(6_000)
+      expect(latestSnapshot(fixture).observedAt).toBe(verified.observedAt)
+      expect(childIds(latestSnapshot(fixture).payload)).toEqual(['PreviouslyVerifiedChild'])
+      expect(
+        postedPayloads(fixture.harness).filter((payload) => payload.hook_event_name === 'agent_end')
+      ).toEqual([])
+
+      ancestor.session = attachedSession
+      ancestor.sessionFile = attachedFile
+      ancestor.status = 'idle'
+      attachedSession.isStreaming = false
+      // No attachSession or metadata callback: the pending refresh owns recovery.
+      await vi.advanceTimersByTimeAsync(6_000)
+      expect(childIds(latestSnapshot(fixture).payload)).toEqual(['AttachedLeft', 'AttachedRight'])
+      expect(childRows(latestSnapshot(fixture).payload)).toEqual([
+        expect.objectContaining({ id: 'AttachedLeft', displayState: 'working' }),
+        expect.objectContaining({ id: 'AttachedRight', displayState: 'working' })
+      ])
+      expect(
+        postedPayloads(fixture.harness).filter((payload) => payload.hook_event_name === 'agent_end')
+      ).toEqual([])
+
+      for (const ref of descendants) {
+        fixture.setStatus(ref, 'idle')
+      }
       await vi.advanceTimersByTimeAsync(1_000)
       expect(childIds(latestSnapshot(fixture).payload)).toEqual([])
       expect(

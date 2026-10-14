@@ -36,6 +36,7 @@ type NativeSession = {
     getHeader: () => { id: string; parentSession?: string }
   }
   isStreaming: boolean
+  hasPendingAsyncWork?: () => boolean
 }
 
 export type NativeRef = {
@@ -49,6 +50,7 @@ export type NativeRef = {
   createdAt: number
   lastActivity: number
   history?: { agent: string; resolvedModel: string }
+  lifecycle?: { acceptedAt?: number; terminalAt?: number }
 }
 
 type NativeAttachedRef = NativeRef & { session: NativeSession }
@@ -58,7 +60,7 @@ type NativeChange = {
   ref: NativeRef
 }
 
-type NativeRoot = {
+export type NativeRoot = {
   ref: NativeAttachedRef
   session: NativeSession
   file: string
@@ -159,7 +161,7 @@ type NativeFixture = {
   accepted: DeliveredPost[]
   notify: (type: NativeChange['type'], ref: NativeRef) => void
   failList: (error?: Error) => void
-  setStatus: (ref: NativeRef, status: 'idle' | 'aborted') => void
+  setStatus: (ref: NativeRef, status: 'idle' | 'aborted' | 'running') => void
   captureNotification: () => (type: NativeChange['type'], ref: NativeRef) => void
 }
 
@@ -231,10 +233,19 @@ export function createNativeFixture(
       listFailure = error
     },
     setStatus: (ref, status) => {
+      if (ref.status === 'aborted' || ref.status === status) {
+        return
+      }
+      ref.lastActivity = Date.now()
+      if (status === 'running') {
+        ref.lifecycle = undefined
+      } else if (ref.status === 'running') {
+        ref.lifecycle = { ...ref.lifecycle, terminalAt: ref.lastActivity }
+      }
       ref.status = status
       if (status === 'aborted') {
         ref.session = null
-      } else if (ref.session) {
+      } else if (status === 'idle' && ref.session) {
         ref.session.isStreaming = false
       }
       notify('status_changed', ref)

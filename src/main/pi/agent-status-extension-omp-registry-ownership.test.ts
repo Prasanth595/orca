@@ -9,7 +9,8 @@ import {
   nativeChild,
   nativeRoot,
   postedPayloads,
-  type NativeDeliveryResponse
+  type NativeDeliveryResponse,
+  type NativeRef
 } from './agent-status-extension-omp-registry-fixture'
 
 vi.mock('../telemetry/client', () => ({ track: vi.fn() }))
@@ -608,4 +609,97 @@ describe('OMP native registry root ownership and session acknowledgement', () =>
       }
     }
   )
+
+  it('keeps deep shared inactive ancestry exact across current and foreign roots without retaining snapshot ownership', async () => {
+    const root = nativeRoot('deep-ancestry-root')
+    const ancestors: NativeRef[] = []
+    let parentId = root.ref.id
+    for (let index = 0; index < 640; index++) {
+      const ancestor = nativeChild(`RetainedAncestor${index}`, root.file)
+      ancestor.parentId = parentId
+      ancestor.status = 'idle'
+      ancestor.session.isStreaming = false
+      ancestor.lifecycle = { terminalAt: NATIVE_TIME - 10 }
+      ancestors.push(ancestor)
+      parentId = ancestor.id
+    }
+    const shared = ancestors.at(-1)!
+    const leaves = ['CurrentLeft', 'CurrentRight', 'CurrentThird'].map((id) => {
+      const child = nativeChild(id, shared.sessionFile)
+      child.parentId = shared.id
+      return child
+    })
+    const foreignRoot = nativeRoot('foreign-ancestry-root', true)
+    foreignRoot.ref.id = 'OtherMain'
+    const foreignAncestor = nativeChild('ForeignAncestor', root.file)
+    foreignAncestor.parentId = foreignRoot.ref.id
+    foreignAncestor.status = 'idle'
+    foreignAncestor.session.isStreaming = false
+    const foreignLeaf = nativeChild('ForeignLeaf', root.file)
+    foreignLeaf.parentId = foreignAncestor.id
+    foreignLeaf.session.isStreaming = false
+    foreignLeaf.session.hasPendingAsyncWork = () => {
+      throw new Error('Another root cannot verify its pending work')
+    }
+    const oldAncestor = nativeChild('OldArtifactAncestor', '/sessions/old-ancestry-root.jsonl')
+    oldAncestor.status = 'idle'
+    oldAncestor.session.isStreaming = false
+    const oldLeaf = nativeChild('CurrentPathUnderOldArtifact', root.file)
+    oldLeaf.parentId = oldAncestor.id
+    const cycleLeft = nativeChild('CycleLeft', root.file)
+    const cycleRight = nativeChild('CycleRight', root.file)
+    cycleLeft.parentId = cycleRight.id
+    cycleRight.parentId = cycleLeft.id
+    const fixture = createNativeFixture(root, [
+      ...ancestors,
+      ...leaves,
+      foreignRoot.ref,
+      foreignAncestor,
+      foreignLeaf,
+      oldAncestor,
+      oldLeaf,
+      cycleLeft,
+      cycleRight
+    ])
+    try {
+      await fixture.harness.callHook('session_start', { reason: 'startup' }, root.context)
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(childIds(latestSnapshot(fixture).payload)).toEqual([
+        'CurrentLeft',
+        'CurrentRight',
+        'CurrentThird'
+      ])
+      expect(childRows(latestSnapshot(fixture).payload)).toEqual(
+        leaves.map(({ id }) => expect.objectContaining({ id, displayState: 'working' }))
+      )
+
+      const currentFile = shared.sessionFile
+      const currentParent = shared.parentId
+      shared.sessionFile = '/sessions/old-ancestry-root/RetainedAncestor.jsonl'
+      fixture.notify('metadata_changed', shared)
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(childIds(latestSnapshot(fixture).payload)).toEqual([])
+
+      shared.sessionFile = currentFile
+      shared.parentId = foreignRoot.ref.id
+      fixture.notify('metadata_changed', shared)
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(childIds(latestSnapshot(fixture).payload)).toEqual([])
+
+      shared.parentId = currentParent
+      fixture.notify('metadata_changed', shared)
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(childIds(latestSnapshot(fixture).payload)).toEqual([
+        'CurrentLeft',
+        'CurrentRight',
+        'CurrentThird'
+      ])
+      expect(
+        postedPayloads(fixture.harness).filter((payload) => payload.hook_event_name === 'agent_end')
+      ).toEqual([])
+    } finally {
+      await fixture.harness.callHook('session_shutdown', { reason: 'quit' }, root.context)
+      await vi.advanceTimersByTimeAsync(0)
+    }
+  })
 })
