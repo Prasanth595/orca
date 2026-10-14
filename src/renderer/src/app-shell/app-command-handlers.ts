@@ -1,5 +1,6 @@
 import { useShallow } from 'zustand/react/shallow'
 import { canShowRightSidebarForView } from '@/lib/right-sidebar-visibility'
+import { openActiveWorkspaceInVSCode } from './app-command-open-in-vscode'
 import { isFloatingWorkspacePanelFocused } from '@/lib/floating-workspace-terminal-actions'
 import { hasVisibleOverlay } from '@/lib/visible-overlay'
 import { requestScrollToCurrentWorkspaceRevealAndRename } from '@/lib/scroll-to-current-workspace-status'
@@ -63,7 +64,6 @@ export type AppShortcutState = {
 }
 
 export function useAppShortcutActions() {
-  // Why: consolidate action refs into one useShallow subscription so React runs one equality check per store mutation instead of one per action.
   return useAppStore(
     useShallow((s) => ({
       toggleSidebar: s.toggleSidebar,
@@ -119,7 +119,6 @@ export function createAppCommandHandlers(
     actions,
     creationLayoutActive,
     floatingTerminalEnabled,
-    floatingTerminalOpen,
     keybindings,
     openFloatingWorkspaceMaximized,
     terminalShortcutPolicy,
@@ -219,7 +218,7 @@ export function createAppCommandHandlers(
     [
       'floatingWorkspace.maximize',
       () => {
-        if (floatingTerminalOpen || !floatingTerminalEnabled) {
+        if (state.floatingTerminalOpen || !floatingTerminalEnabled) {
           return false
         }
         return claim('floatingWorkspace.maximize', openFloatingWorkspaceMaximized)
@@ -279,6 +278,10 @@ export function createAppCommandHandlers(
           window.dispatchEvent(new CustomEvent(TOGGLE_WORKSPACE_BOARD_EVENT))
         })
       }
+    ],
+    [
+      'workspace.openInVSCode',
+      () => openActiveWorkspaceInVSCode(state, floatingWorkspaceFocused, claim)
     ],
     [
       'view.tasks',

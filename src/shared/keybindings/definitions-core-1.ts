@@ -121,6 +121,15 @@ export const KEYBINDING_DEFINITION_CORE_1: readonly KeybindingDefinition[] = [
     allowInTerminal: true
   },
   {
+    id: 'workspace.openInVSCode',
+    title: 'Open Workspace in VS Code',
+    group: 'Global',
+    scope: 'global',
+    searchKeywords: ['shortcut', 'workspace', 'worktree', 'folder', 'open', 'vscode', 'editor'],
+    defaultBindings: platformBindings([]),
+    allowInTerminal: true
+  },
+  {
     id: 'dashboard.toggle',
     title: 'Toggle Agent Dashboard',
     group: 'Global',

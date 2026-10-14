@@ -115,6 +115,39 @@ describe('keybindings', () => {
     )
   })
 
+  it.each(['darwin', 'linux', 'win32'] as const)(
+    'opens VS Code only after users assign a shortcut on %s',
+    (platform) => {
+      const binding = {
+        key: 'v',
+        code: 'KeyV',
+        meta: platform === 'darwin',
+        control: platform !== 'darwin',
+        alt: true,
+        shift: false
+      }
+      const overrides = { 'workspace.openInVSCode': ['Mod+Alt+V'] }
+
+      expect(getEffectiveKeybindingsForAction('workspace.openInVSCode', platform)).toEqual([])
+      expect(keybindingMatchesAction('workspace.openInVSCode', binding, platform)).toBe(false)
+      expect(keybindingMatchesAction('workspace.openInVSCode', binding, platform, overrides)).toBe(
+        true
+      )
+      expect(
+        keybindingMatchesAction('workspace.openInVSCode', binding, platform, overrides, {
+          context: 'terminal',
+          terminalShortcutPolicy: 'orca-first'
+        })
+      ).toBe(true)
+      expect(
+        keybindingMatchesAction('workspace.openInVSCode', binding, platform, overrides, {
+          context: 'terminal',
+          terminalShortcutPolicy: 'terminal-first'
+        })
+      ).toBe(true)
+    }
+  )
+
   it('keeps the agent dashboard toggle unassigned until users customize it', () => {
     const platforms: readonly KeybindingPlatform[] = ['darwin', 'linux', 'win32']
 
