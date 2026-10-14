@@ -24,10 +24,7 @@ import type { AiVaultSessionResumeTargetState } from './ai-vault-session-resume'
 import { prepareAiVaultSessionContinuation } from './ai-vault-session-continuation'
 import type { AgentSessionContinuationRequest } from '@/lib/agent-session-continuation'
 import { activateAiVaultStructuredSession } from '@/lib/activate-ai-vault-structured-session'
-import {
-  adoptsCliConversations,
-  CLI_CONVERSATION_ADOPTING_AGENTS
-} from '../../../../shared/structured-agent-cli-conversation-adoption'
+import { adoptsCliConversations } from '../../../../shared/structured-agent-cli-conversation-adoption'
 import { newAgentLaunchRequestId } from '@/lib/agent-launch-request-id'
 import { describeAiVaultResumeFailure } from '@/lib/ai-vault-resume-refusal'
 import {
@@ -223,7 +220,7 @@ export function useAiVaultSessionLaunchActions({
       }
       void resumeAiVaultSessionInNewChat(
         session,
-        CLI_CONVERSATION_ADOPTING_AGENTS[session.agent],
+        session.agent,
         worktreeId,
         newAgentLaunchRequestId()
       )
