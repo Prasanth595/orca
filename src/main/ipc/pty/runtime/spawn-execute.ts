@@ -199,8 +199,7 @@ export async function executeRuntimePtySpawn(ctx: RuntimePtySpawnState): Promise
     throw failPtySpawnExecute(ctx, err, {
       sessionId: ctx.sessionId,
       ownsNewSession: ctx.isNewDaemonSession,
-      telemetry: args.telemetry,
-      recordsAgentError: false
+      telemetry: args.telemetry
     })
   } finally {
     if (args.preAllocatedHandle) {

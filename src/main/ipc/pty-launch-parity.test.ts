@@ -311,7 +311,7 @@ describe('launch facts outside the tables', () => {
   // C5a (one execute) keeps this on both lanes; C5a-2 flips only the host's agent_error.
   const FAILED_START_AGENT_ERROR: Record<'window' | 'host', unknown[]> = {
     window: [['agent_error', { agent_kind: 'claude-code', error_class: 'binary_not_found' }]],
-    host: []
+    host: [['agent_error', { agent_kind: 'claude-code', error_class: 'binary_not_found' }]]
   }
   it.each(['window', 'host'] as const)(
     '%s lane: a start the provider fails undoes everything it claimed',
