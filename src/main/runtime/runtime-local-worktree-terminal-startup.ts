@@ -142,6 +142,7 @@ export async function startRuntimeLocalWorktreeTerminals(args: {
     if (agentStartFailed && !provisionInBackground) {
       ports.activate(repo.id, worktree.id, startup, setup, defaultTabs)
     } else {
+      let failedSetup: CreateWorktreeResult['setup']
       const runtimeWillProvision =
         ports.canSpawn &&
         (request.awaitTerminalProvisioning === true ||
@@ -154,21 +155,19 @@ export async function startRuntimeLocalWorktreeTerminals(args: {
         })
         didSpawnSetup = provisioned.setupSpawned
         setupTerminalHandle = provisioned.setupTerminalHandle
+        if (setup && !didSpawnSetup) {
+          failedSetup = {
+            ...setup,
+            ...(didSpawnStartup && wrappedSetupCommand ? { command: wrappedSetupCommand } : {})
+          }
+        }
       }
-      const failedSetup = didSpawnSetup
-        ? undefined
-        : setup
-          ? {
-              ...setup,
-              ...(didSpawnStartup && wrappedSetupCommand ? { command: wrappedSetupCommand } : {})
-            }
-          : undefined
       ports.activate(
         repo.id,
         worktree.id,
         startup && !didSpawnStartup ? startup : undefined,
         failedSetup,
-        runtimeWillProvision ? undefined : defaultTabs,
+        undefined,
         ...(args.promisedAgentChat && !startup ? ([true] as const) : [])
       )
     }
