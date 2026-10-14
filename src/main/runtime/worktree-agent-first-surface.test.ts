@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { getDefaultWorkspaceSession } from '../../shared/constants'
 import type { RuntimePtyController } from './runtime-pty-controller-contract'
+import { beginCreatedWorkspaceLaunch } from '../agent-launch/agent-launch-created-workspace'
 
 const {
   OrcaRuntimeService,
@@ -77,11 +78,13 @@ describe('host-created workspaces awaiting their agent chat', () => {
         { path, head: 'abc', branch: 'chat-create', isBare: false, isMainWorktree: false }
       ])
 
+      const launch = beginCreatedWorkspaceLaunch(runtime, 'claude')
       const result = await runtime.createManagedWorktree({
         repoSelector: 'id:repo-1',
         name: 'chat-create',
         createdWithAgent: 'claude',
         promisedAgentChat: true,
+        onWorkspaceCreated: launch.onWorkspaceCreated,
         setupDecision: 'run',
         awaitTerminalProvisioning: true,
         observeSetupCompletion: true,
@@ -101,6 +104,23 @@ describe('host-created workspaces awaiting their agent chat', () => {
         terminalHandle: expect.any(String)
       })
       const snapshot = await runtime.listMobileSessionTabs(`id:${result.worktree.id}`)
+      const query = await runtime
+        .listMobileSessionTabs(`id:${result.worktree.id}`, undefined, {
+          includeInitialSurfaceLaunch: true
+        })
+        .then((sampled) => {
+          launch.release()
+          return sampled
+        })
+      expect(query.initialSurfaceLaunch).toMatchObject({ agent: 'claude' })
+      expect(snapshot.initialSurfaceLaunch).toBeUndefined()
+      expect(
+        (
+          await runtime.listMobileSessionTabs(`id:${result.worktree.id}`, undefined, {
+            includeInitialSurfaceLaunch: true
+          })
+        ).initialSurfaceLaunch
+      ).toBeUndefined()
       expect(snapshot.tabs).toHaveLength(commandCount)
       if (setupScriptLaunchMode === 'new-tab' && !withDefaults) {
         expect(snapshot.tabs[0]?.title).toBe('Setup')

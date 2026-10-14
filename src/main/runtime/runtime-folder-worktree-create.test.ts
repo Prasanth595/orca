@@ -58,6 +58,20 @@ async function startupTerminalOptions(startupPaneKey?: string): Promise<Record<s
 }
 
 describe('a folder workspace create with a startup agent', () => {
+  it('registers a folder launch before announcing its workspace', async () => {
+    const { deps } = createDeps()
+    const order: string[] = []
+    vi.mocked(deps.notifyWorktreesChanged).mockImplementation(() => order.push('notify'))
+    const result = await createRuntimeFolderWorktree({
+      request: { repoSelector: `id:${repo.id}`, name: 'chat', activate: true },
+      repo,
+      promisedAgentChat: true,
+      onWorkspaceCreated: (id) => order.push(`register:${id}`),
+      deps
+    })
+    expect(order).toEqual([`register:${result.worktree.id}`, 'notify'])
+  })
+
   it('only promises a chat when the caller explicitly plans one', async () => {
     const { deps } = createDeps()
     await createRuntimeFolderWorktree({

@@ -36,6 +36,7 @@ export async function createWorkerWorktree(args: {
    *  bracketed paste. The renderer's own structured worktree create skips both the same way. */
   withAgentTerminal: boolean
   promisedAgentChat?: boolean
+  onWorkspaceCreated?: (worktreeId: string) => void
   launchPreferences?: AgentLaunchPreferences
   effects: WorkerEffect[]
 }): Promise<{
@@ -60,6 +61,7 @@ export async function createWorkerWorktree(args: {
     observeSetupCompletion: true,
     createdWithAgent: args.agent,
     ...(args.promisedAgentChat ? { promisedAgentChat: true } : {}),
+    ...(args.onWorkspaceCreated ? { onWorkspaceCreated: args.onWorkspaceCreated } : {}),
     ...(args.withAgentTerminal
       ? {
           startupAgent: args.agent,

@@ -99,6 +99,7 @@ export class OrcaRuntimeWithCreateManagedWorktree extends OrcaRuntimeWithGetWork
         startupLaunchRuntime,
         createdWithAgent: effectiveCreatedWithAgent,
         promisedAgentChat: args.promisedAgentChat,
+        onWorkspaceCreated: args.onWorkspaceCreated,
         draftPaste: effectiveDraftPaste,
         deps: {
           store: this.store,
@@ -149,8 +150,10 @@ export class OrcaRuntimeWithCreateManagedWorktree extends OrcaRuntimeWithGetWork
         this.getOrStartRemoteTrackingBaseRefresh(path, base, ...options),
       fetchRemote: (path, remote, ...options) =>
         this.fetchRemoteWithCache(path, remote, ...options),
-      onWorktreeMetadataPersisted: (persistedWorktree) =>
-        this.recordCreatedWorktreeLineage(persistedWorktree, lineageResolution),
+      onWorktreeMetadataPersisted: (persistedWorktree) => {
+        args.onWorkspaceCreated?.(persistedWorktree.id)
+        return this.recordCreatedWorktreeLineage(persistedWorktree, lineageResolution)
+      },
       rearm,
       timing
     })

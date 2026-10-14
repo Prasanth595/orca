@@ -13,6 +13,7 @@ import { executeAgentLaunch, type AgentLaunchExecution } from './agent-launch-ex
 import { AgentLaunchStructuredSessionRefusedError } from './agent-launch-surface-factories'
 import type { AgentLaunchIntent, AgentLaunchResult } from '../../shared/agent-launch-intent'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../shared/constants'
+import { readCreatedWorkspaceLaunch } from './agent-launch-created-workspace'
 
 const STRUCTURED_PREFERENCE = {
   experimentalNativeChat: true
@@ -28,6 +29,9 @@ function harness(options: {
   terminalPromptDelivered?: boolean
   /** Whether the surface reports that its typed line took the offered prompt. */
   lineCarriesPrompt?: boolean
+  worktreeCreateError?: Error
+  onStructuredCreate?: () => void
+  onStructuredPromptDelivery?: () => void
   onSurfacePublished?: AgentLaunchExecution['onSurfacePublished']
   /** A worktree-only factory, as orchestration workers and `worktree.create` pass. */
   worktreeOnlyFactory?: boolean
@@ -41,8 +45,13 @@ function harness(options: {
       startupAgent: string | undefined
       promisedAgentChat?: boolean
       startupPrompt?: string
+      onWorkspaceCreated?: (worktreeId: string) => void
     }) => {
       calls.push(`createWorktree(startupAgent=${String(args.startupAgent)})`)
+      args.onWorkspaceCreated?.('wt-new')
+      if (options.worktreeCreateError) {
+        throw options.worktreeCreateError
+      }
       return {
         worktreeId: 'wt-new',
         connectionId: null,
@@ -67,6 +76,7 @@ function harness(options: {
   })
   const createStructuredSession = vi.fn(async () => {
     calls.push('createStructuredSession')
+    options.onStructuredCreate?.()
     if (options.structuredCreateError) {
       throw options.structuredCreateError
     }
@@ -81,6 +91,7 @@ function harness(options: {
   })
   const deliverStructuredPrompt = vi.fn(async () => {
     calls.push('deliverStructuredPrompt')
+    options.onStructuredPromptDelivery?.()
     return options.deliveredMessageId === undefined ? 'msg-1' : options.deliveredMessageId
   })
   const deliverTerminalPrompt = vi.fn(async () => {
@@ -94,6 +105,7 @@ function harness(options: {
   }
   return {
     calls,
+    runtime,
     createWorktree,
     createFolderWorkspace,
     createRecoveryShell,
@@ -126,6 +138,29 @@ const CREATE_INTENT: AgentLaunchIntent = {
 }
 
 describe('a structured launch that creates its own worktree', () => {
+  it('keeps its live inventory through publication and clears it before prompt delivery', async () => {
+    let duringCreate: unknown
+    let duringPrompt: unknown
+    const h = harness({
+      onStructuredCreate: () => (duringCreate = readCreatedWorkspaceLaunch(h.runtime, 'wt-new')),
+      onStructuredPromptDelivery: () =>
+        (duringPrompt = readCreatedWorkspaceLaunch(h.runtime, 'wt-new'))
+    })
+    await h.run({ ...CREATE_INTENT, prompt: { text: 'start', delivery: 'submit' } })
+    expect(duringCreate).toMatchObject({ agent: 'claude', launchId: expect.any(String) })
+    expect(duringPrompt).toBeUndefined()
+    expect(readCreatedWorkspaceLaunch(h.runtime, 'wt-new')).toBeUndefined()
+  })
+
+  it('recovers once and releases intent when creation fails after metadata registration', async () => {
+    const failure = new Error('materialization failed')
+    const h = harness({ worktreeCreateError: failure })
+    await expect(h.run(CREATE_INTENT)).rejects.toBe(failure)
+    expect(h.createRecoveryShell).toHaveBeenCalledExactlyOnceWith('wt-new')
+    expect(h.createStructuredSession).not.toHaveBeenCalled()
+    expect(readCreatedWorkspaceLaunch(h.runtime, 'wt-new')).toBeUndefined()
+  })
+
   it('creates the worktree with no startup agent, then asks the host, then opens a session', async () => {
     const h = harness({})
     const result = await h.run(CREATE_INTENT)

@@ -200,8 +200,16 @@ export async function provisionWorktreeTerminals(
     console.warn(
       `[worktree-create] Failed to create setup/default terminals for ${args.worktreePath}: ${message}`
     )
-    // A cleared choice still needs a shell if Setup fails to spawn.
-    if (shellSkippedForSetup && !setupSpawned) {
+    // A cleared choice needs a shell after failed Setup only when this create owes the surface.
+    if (
+      shellSkippedForSetup &&
+      !setupSpawned &&
+      shouldSeedWorktreePrimaryTerminal({
+        hasPrimarySurface: false,
+        callerProvidesSurface: args.callerProvidesSurface === true,
+        startupNeedsTerminal: args.startupNeedsTerminal
+      })
+    ) {
       await host
         .createTerminal(args.worktreeSelector, surfacing)
         .catch((fallbackError: unknown) => {
