@@ -39,7 +39,10 @@ function createPane(id: number): ManagedPaneInternal {
   return pane as unknown as ManagedPaneInternal
 }
 
-function splitWithoutFocusing(focusedElement: (source: HTMLElement) => HTMLElement | null) {
+function splitWithoutFocusing(
+  focusedElement: (source: HTMLElement) => HTMLElement | null,
+  initialActivePaneId = 1
+) {
   const root = document.createElement('div')
   const source = createPane(1)
   const created = createPane(2)
@@ -47,7 +50,10 @@ function splitWithoutFocusing(focusedElement: (source: HTMLElement) => HTMLEleme
   document.body.append(root)
   focusedElement(source.container)?.focus()
   const panes = new Map([[source.id, source]])
-  const setActivePaneId = vi.fn()
+  let activePaneId = initialActivePaneId
+  const setActivePaneId = vi.fn((id: number | null) => {
+    activePaneId = id ?? initialActivePaneId
+  })
   const publishPaneCreated = vi.fn()
   // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: updateMultiPaneState is mocked, so the callbacks are never read.
   const dragCallbacks = {} as DragReorderCallbacks
@@ -67,10 +73,10 @@ function splitWithoutFocusing(focusedElement: (source: HTMLElement) => HTMLEleme
     publishPaneCreated,
     getDragCallbacks: () => dragCallbacks,
     setActivePaneId,
-    getActivePaneId: () => source.id,
+    getActivePaneId: () => activePaneId,
     isDestroyed: () => false
   })
-  return { source, created, setActivePaneId, publishPaneCreated }
+  return { source, created, setActivePaneId, publishPaneCreated, activePaneId }
 }
 
 describe('splitManagedPane with focusNewPane: false', () => {
@@ -83,6 +89,17 @@ describe('splitManagedPane with focusNewPane: false', () => {
     expect(publishPaneCreated).toHaveBeenCalledWith(created, {
       placement: { kind: 'split', parentLeafId: source.leafId, direction: 'vertical' }
     })
+  })
+
+  it('activates an inactive split source without stealing focus from another input', () => {
+    const input = document.createElement('input')
+    document.body.append(input)
+    const { source, created, activePaneId } = splitWithoutFocusing(() => input, 3)
+    expect(activePaneId).toBe(source.id)
+    expect(applyPaneOpacity).toHaveBeenCalledWith(expect.anything(), source.id, {})
+    expect(source.terminal.focus).not.toHaveBeenCalled()
+    expect(created.terminal.focus).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(input)
   })
 
   it('restores focus to the source pane when it held DOM focus', () => {

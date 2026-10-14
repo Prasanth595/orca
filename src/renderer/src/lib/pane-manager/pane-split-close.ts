@@ -68,7 +68,7 @@ export function splitManagedPane(args: SplitManagedPaneArgs): ManagedPane | null
   const divider = args.createDivider(isVertical)
 
   const activateNewPane = args.opts?.focusNewPane !== false
-  const retainedActivePaneId = activateNewPane ? newPane.id : (args.getActivePaneId() ?? newPane.id)
+  const retainedActivePaneId = activateNewPane ? newPane.id : existing.id
   // Why: wrapInSplit reparents the source, which drops its DOM focus; restore it afterwards.
   const sourceHeldDomFocus =
     !activateNewPane &&
@@ -83,6 +83,8 @@ export function splitManagedPane(args: SplitManagedPaneArgs): ManagedPane | null
   })
   if (activateNewPane) {
     args.setActivePaneId(newPane.id)
+  } else if (args.getActivePaneId() !== existing.id) {
+    args.setActivePaneId(existing.id)
   }
   openSplitPane(args, newPane, existing.leafId, {
     cwd: args.opts?.cwd,
