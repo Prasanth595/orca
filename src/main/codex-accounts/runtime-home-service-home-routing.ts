@@ -82,10 +82,7 @@ export abstract class CodexRuntimeHomeRouting extends CodexRuntimeHomeManagedHom
     return resolved.homePath
   }
 
-  /**
-   * The home of an account a person kept a conversation on. Refuses instead of falling back,
-   * and never clears the selection: the kept account is not the selected one.
-   */
+  /** A kept conversation's account home; refuses rather than fall back, and never touches the selection. */
   resolveHostAccountCodexHomePathForKeptResume(accountId: string): string {
     const settings = this.store.getSettings()
     const account = settings.codexManagedAccounts.find((candidate) => candidate.id === accountId)

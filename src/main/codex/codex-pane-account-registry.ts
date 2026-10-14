@@ -203,11 +203,7 @@ export function recordCodexPaneAccount(ptyId: string, record: CodexPaneAccountRe
 
 export type SetCodexPaneKeptResult = 'kept' | 'released' | 'no-record' | 'unavailable'
 
-/**
- * Marks or clears a person's choice to keep a pane on the account it launched under.
- * Why read first: the flag lives on the launch record, so an unreadable registry
- * must refuse rather than queue a record it never saw.
- */
+/** Marks or clears a pane's keep; reads first, since a flag must never be queued onto an unseen record. */
 export function setCodexPaneKept(ptyId: string, kept: boolean): SetCodexPaneKeptResult {
   mutations.flush()
   const registry = readRegistryOrNull()

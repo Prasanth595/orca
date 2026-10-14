@@ -21,11 +21,7 @@ export function codexAccountLabel(
   )
 }
 
-/**
- * The CODEX_HOME a kept conversation must resume in. Refuses rather than falling back:
- * any other home would run the conversation on another account, and the System default
- * mirror used under a custom CODEX_HOME would be a second copy of its credentials.
- */
+/** The CODEX_HOME a kept conversation resumes in; refuses rather than run elsewhere or copy credentials. */
 export function resolveKeptCodexHome(args: {
   accountId: string | null
   runtimeHome: KeptCodexHomeRuntime

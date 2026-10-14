@@ -15,11 +15,7 @@ export type AgentLaunchAccount =
   | { kind: 'bound'; provider: AgentRunAccountProvider; accountId: string | null; mode: 'kept' }
   | { kind: 'refuse'; error: AgentSessionPreSpawnError }
 
-/**
- * One resolver for both spawn paths, so they cannot drift. Pure and synchronous: a spawn must
- * not gain an await here. With no keep for the conversation the spawn follows the selection
- * exactly as before; a keep that cannot be honoured refuses rather than falling back.
- */
+/** Both spawn paths' resolver; synchronous so a follow spawn gains no await, and a keep it cannot honour refuses. */
 export function resolveAgentLaunchAccount(input: {
   connectionId: string | null | undefined
   launchAgent: TuiAgent | undefined

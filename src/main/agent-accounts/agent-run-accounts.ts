@@ -1,6 +1,6 @@
-import { resolve } from 'node:path'
 import { agentRunAccountsEqual, type AgentRunAccount } from '../../shared/agent-run-account'
 import { normalizeAgentProviderSession } from '../../shared/agent-session-resume'
+import { normalizeRuntimePathForComparison } from '../../shared/cross-platform-path'
 import type { GlobalSettings } from '../../shared/global-settings-types'
 import type { EnrichedAgentHookEventPayload } from '../agent-hooks/server'
 import type { AgentRunAccountRow } from '../agent-hooks/server/server-run-account'
@@ -87,18 +87,10 @@ function sessionIdOf(row: Pick<AgentRunAccountStatusRow, 'providerSession'>): st
 }
 
 function samePath(left: string, right: string): boolean {
-  const normalize = (value: string): string => {
-    const resolved = resolve(value)
-    return process.platform === 'win32' ? resolved.toLowerCase() : resolved
-  }
-  return normalize(left) === normalize(right)
+  return normalizeRuntimePathForComparison(left) === normalizeRuntimePathForComparison(right)
 }
 
-/**
- * The single producer of the run-account facet on Agent Status rows. It joins what a
- * spawn knew (launch facts, the Codex launch record) with what the agent later reports
- * (session ids, the Claude statusline folder) and republishes only when the facet changes.
- */
+/** The single producer of the run-account facet: joins launch facts with what agents report. */
 export class AgentRunAccounts {
   private readonly launches = new Map<string, PaneLaunchFact>()
   private readonly claudePanes = new Map<string, ClaudePaneState>()

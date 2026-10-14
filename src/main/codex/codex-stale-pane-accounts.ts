@@ -55,11 +55,7 @@ export function forgetStaleCodexPanes(ptyIds: readonly string[]): void {
   }
 }
 
-/**
- * True when a pane's own home can carry it on its account after the selection moves.
- * Why not the shared home: it mirrors whichever account is selected, and a WSL
- * pane's home is owned by the distro, so neither can stay on a kept account.
- */
+/** Only a pane's own home can stay on its account; the shared home mirrors the selection, WSL's the distro's. */
 export function isCodexPaneKeepable(record: CodexPaneAccountRecord): boolean {
   return (
     record.selectionKey === 'host' &&
@@ -67,11 +63,7 @@ export function isCodexPaneKeepable(record: CodexPaneAccountRecord): boolean {
   )
 }
 
-/**
- * Answers the restart prompt with "Keep old account": marks keepable panes kept,
- * and drops the record of every other pane exactly as before.
- * Returns the pty ids that are now kept.
- */
+/** "Keep old account": keeps each keepable pane and forgets the rest as before; returns the kept ids. */
 export function keepStaleCodexPanes(ptyIds: readonly string[]): string[] {
   const kept: string[] = []
   for (const ptyId of ptyIds) {

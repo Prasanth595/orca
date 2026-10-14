@@ -20,10 +20,7 @@ function countKey(
   return `${provider}:${accountId ?? ''}${keptOnly ? ':kept' : ''}`
 }
 
-/**
- * Terminal agents on this host per provider and account, counting only rows whose tab is open
- * (the sidebar's own tab index). Chats publish no account, so they are never counted.
- */
+/** Terminal agents on this host per provider and account, counting only rows whose tab is open. */
 export function countTerminalAgentsByAccount(args: {
   rows: Readonly<Record<string, AgentStatusEntry>>
   tabsByWorktree: Readonly<Record<string, TerminalTab[]>>

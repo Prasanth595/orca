@@ -4,6 +4,7 @@ import { dirname } from 'node:path'
 import { isAgentRunAccountId, type AgentRunAccountProvider } from '../../shared/agent-run-account'
 import { isDefinitiveAbsence } from '../../shared/definitive-filesystem-absence'
 import { writeFileAtomically } from '../codex-accounts/fs-utils'
+import { PersistRetryBackoff } from '../persist-retry-backoff'
 
 /** A conversation a person kept on an account. Only explicit keeps are stored. */
 export type KeptConversation = {
@@ -23,7 +24,6 @@ type Mutation =
   | { kind: 'release'; key: string; keptAt?: number }
   | { kind: 'release-account'; provider: AgentRunAccountProvider; accountId: string }
 
-const RETRY_DELAYS_MS = [100, 1_000, 5_000, 30_000] as const
 const PRUNE_MIN_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
 function conversationKey(provider: AgentRunAccountProvider, sessionId: string): string {
@@ -84,20 +84,12 @@ function parseFile(raw: string): Map<string, KeptConversation> | 'corrupt' | 'un
   return entries
 }
 
-/**
- * Conversations a person kept on an account, by provider session id, so every start
- * Orca makes of one (restore, wake, history resume) runs on that account.
- *
- * Why the read discipline: an unreadable file is not an empty one. Mapping it to empty
- * would silently start kept conversations on whatever account is selected, so callers
- * get 'unavailable' and mutations wait until the file can be read.
- */
+/** Conversations kept on an account, by session id; an unreadable file is 'unavailable', never empty. */
 export class KeptAgentConversations {
   private entries: Map<string, KeptConversation> | null = null
   private readonly queue: Mutation[] = []
   private needsWrite = false
-  private retryTimer: ReturnType<typeof setTimeout> | null = null
-  private retryAttempt = 0
+  private readonly retry = new PersistRetryBackoff(() => this.flush())
   private reportedCorruption = false
 
   constructor(private readonly deps: { filePath: string; now?: () => number }) {}
@@ -140,6 +132,7 @@ export class KeptAgentConversations {
         continue
       }
       try {
+        // Why one at a time: this runs at startup, where a burst of stats would compete with launch.
         await stat(entry.transcriptPath)
       } catch (error) {
         if (isDefinitiveAbsence(error)) {
@@ -198,14 +191,14 @@ export class KeptAgentConversations {
   private flush(): void {
     const entries = this.load()
     if (!entries) {
-      this.scheduleRetry()
+      this.retry.schedule()
       return
     }
     for (const mutation of this.queue.splice(0)) {
       this.needsWrite = applyMutation(entries, mutation) || this.needsWrite
     }
     if (!this.needsWrite) {
-      this.clearRetry()
+      this.retry.clear()
       return
     }
     try {
@@ -216,31 +209,11 @@ export class KeptAgentConversations {
       }
       writeFileAtomically(this.deps.filePath, `${JSON.stringify(file)}\n`, { mode: 0o600 })
       this.needsWrite = false
-      this.clearRetry()
+      this.retry.clear()
     } catch (error) {
       console.warn('[kept-conversations] Failed to persist kept conversations:', error)
-      this.scheduleRetry()
+      this.retry.schedule()
     }
-  }
-
-  private scheduleRetry(): void {
-    if (this.retryTimer || this.retryAttempt >= RETRY_DELAYS_MS.length) {
-      return
-    }
-    this.retryTimer = setTimeout(() => {
-      this.retryTimer = null
-      this.flush()
-    }, RETRY_DELAYS_MS[this.retryAttempt])
-    this.retryAttempt += 1
-    this.retryTimer.unref?.()
-  }
-
-  private clearRetry(): void {
-    if (this.retryTimer) {
-      clearTimeout(this.retryTimer)
-      this.retryTimer = null
-    }
-    this.retryAttempt = 0
   }
 }
 

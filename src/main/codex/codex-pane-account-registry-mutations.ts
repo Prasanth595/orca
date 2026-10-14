@@ -1,3 +1,4 @@
+import { PersistRetryBackoff } from '../persist-retry-backoff'
 import type {
   CodexPaneAccountRecord,
   CodexPaneAccountRegistryFile
@@ -5,7 +6,6 @@ import type {
 
 // Why: bounds both crash-leaked disk records and mutations retained while the file is unavailable.
 const MAX_TRACKED_PANES = 2000
-const RETRY_DELAYS_MS = [100, 1_000, 5_000, 30_000] as const
 
 type MutationStoreDependencies = {
   read: () => CodexPaneAccountRegistryFile | null
@@ -14,8 +14,7 @@ type MutationStoreDependencies = {
 
 export class CodexPaneAccountRegistryMutations {
   private readonly pending = new Map<string, CodexPaneAccountRecord | null>()
-  private retryTimer: ReturnType<typeof setTimeout> | null = null
-  private retryAttempt = 0
+  private readonly retry = new PersistRetryBackoff(() => this.flush())
   private needsPersistence = false
 
   constructor(private readonly dependencies: MutationStoreDependencies) {}
@@ -35,12 +34,12 @@ export class CodexPaneAccountRegistryMutations {
 
   flush(): void {
     if (this.pending.size === 0 && !this.needsPersistence) {
-      this.clearRetryState()
+      this.retry.clear()
       return
     }
     const registry = this.dependencies.read()
     if (!registry) {
-      this.scheduleRetry()
+      this.retry.schedule()
       return
     }
     let changed = false
@@ -50,12 +49,12 @@ export class CodexPaneAccountRegistryMutations {
     trimRegistry(registry)
     if ((changed || this.needsPersistence) && !this.dependencies.write(registry)) {
       this.needsPersistence = true
-      this.scheduleRetry()
+      this.retry.schedule()
       return
     }
     this.needsPersistence = false
     this.pending.clear()
-    this.clearRetryState()
+    this.retry.clear()
   }
 
   getPendingRegistry(): CodexPaneAccountRegistryFile | null {
@@ -75,38 +74,18 @@ export class CodexPaneAccountRegistryMutations {
     }
     if (!this.dependencies.write(registry)) {
       this.needsPersistence = true
-      this.scheduleRetry()
+      this.retry.schedule()
       return
     }
     this.needsPersistence = false
     this.pending.clear()
-    this.clearRetryState()
+    this.retry.clear()
   }
 
   reset(): void {
     this.needsPersistence = false
     this.pending.clear()
-    this.clearRetryState()
-  }
-
-  private scheduleRetry(): void {
-    if (this.retryTimer || this.retryAttempt >= RETRY_DELAYS_MS.length) {
-      return
-    }
-    this.retryTimer = setTimeout(() => {
-      this.retryTimer = null
-      this.flush()
-    }, RETRY_DELAYS_MS[this.retryAttempt])
-    this.retryAttempt += 1
-    this.retryTimer.unref?.()
-  }
-
-  private clearRetryState(): void {
-    if (this.retryTimer) {
-      clearTimeout(this.retryTimer)
-      this.retryTimer = null
-    }
-    this.retryAttempt = 0
+    this.retry.clear()
   }
 }
 
