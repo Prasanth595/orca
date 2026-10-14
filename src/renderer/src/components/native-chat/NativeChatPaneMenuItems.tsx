@@ -13,6 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuShortcut
 } from '@/components/ui/dropdown-menu'
+import { ClearPaneTitleMenuItem } from '@/components/terminal-pane/ClearPaneTitleMenuItem'
 import { translate } from '@/i18n/i18n'
 import type { NativeChatContextMenuActions } from './use-native-chat-context-menu'
 
@@ -75,6 +76,9 @@ export function NativeChatPaneMenuItems({
         <Pencil />
         {translate('auto.components.terminal.pane.TerminalContextMenu.39809d152f', 'Set Title…')}
       </DropdownMenuItem>
+      {actions.canClearPaneTitle ? (
+        <ClearPaneTitleMenuItem onSelect={actions.onClearPaneTitle} />
+      ) : null}
       {actions.canCopyAgentSessionId ? (
         <DropdownMenuItem onSelect={actions.onCopyAgentSessionId}>
           <Copy />
