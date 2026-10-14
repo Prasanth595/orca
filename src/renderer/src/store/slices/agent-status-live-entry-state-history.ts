@@ -37,6 +37,7 @@ export function resolveAgentStatusLiveEntryStateHistory(
         prompt: existing.prompt,
         startedAt: existing.stateStartedAt,
         observedAt: existing.stateObservedAt,
+        providerSession: existing.providerSession,
         ...agentVerdictFields(existing)
       }
     ]
