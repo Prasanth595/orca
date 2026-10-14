@@ -61,6 +61,21 @@ describe('terminal.reveal', () => {
     })
   })
 
+  it.each(['runtime', 'mobile'] as const)(
+    'refuses a paired %s client without touching the window',
+    async (clientKind) => {
+      const { revealTerminalPane, dispatcher } = createDispatcher()
+
+      const response = await dispatcher.dispatch(
+        request({ worktreeId: 'repo-1::/srv/app', tabId: 'tab-1' }),
+        { clientKind }
+      )
+
+      expect(response).toMatchObject({ ok: false, error: { code: 'forbidden' } })
+      expect(revealTerminalPane).not.toHaveBeenCalled()
+    }
+  )
+
   it.each([
     [{ tabId: 'tab-1' }],
     [{ worktreeId: 'repo-1::/srv/app' }],

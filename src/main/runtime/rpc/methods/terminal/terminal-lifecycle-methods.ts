@@ -169,14 +169,24 @@ export const TERMINAL_LIFECYCLE_METHODS = [
     name: 'terminal.reveal',
     permission: 'workspace',
     params: TerminalReveal,
-    handler: async (params, { runtime }) => ({
-      reveal: await runtime.revealTerminalPane({
-        worktreeId: params.worktreeId,
-        tabId: params.tabId,
-        leafId: params.leafId ?? null,
-        executionHostId: params.executionHostId ?? null
-      })
-    })
+    handler: async (params, { runtime, clientKind }) => {
+      // Why local callers only: it moves this host's window, which terminal.focus lets a paired
+      // client do only by asking for host navigation, and a CLI or companion app here needs no more.
+      if (clientKind !== undefined) {
+        throw Object.assign(
+          new Error('terminal.reveal is available only to callers on this machine.'),
+          { code: 'forbidden' }
+        )
+      }
+      return {
+        reveal: await runtime.revealTerminalPane({
+          worktreeId: params.worktreeId,
+          tabId: params.tabId,
+          leafId: params.leafId ?? null,
+          executionHostId: params.executionHostId ?? null
+        })
+      }
+    }
   }),
   defineMethod({
     name: 'terminal.close',
