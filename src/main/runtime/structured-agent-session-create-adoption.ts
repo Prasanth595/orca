@@ -11,6 +11,9 @@ import {
   resolveStructuredAgentSessionAdoption,
   structuredAdoptionConflictError
 } from '../native-chat/structured-agent-session-history-adoption'
+import { isAiVaultTitleAgent } from '../../shared/ai-vault-session-title'
+import { generatedSessionTitle } from '../ai-vault/session-scanner-accumulator'
+import { resolveLocalAiVaultSessionTitles } from '../ai-vault/session-title-resolver'
 import type {
   StructuredAgentTranscriptImport,
   StructuredAgentTranscriptImportSettings
@@ -87,4 +90,33 @@ export async function resolveStructuredAgentSessionAdoptionForCreate(input: {
     launchEnv: input.launchEnv,
     workspaceCwd: input.workspaceCwd
   })
+}
+
+/** The title Session History shows for the conversation, so the adopting chat is named after it
+ *  until the user renames it. Null for an agent History does not title, or a conversation with
+ *  nothing to title it by. */
+export async function resolveAdoptedConversationName(input: {
+  agent: StructuredAgentId
+  providerSessionId: string
+  transcriptPath: string
+}): Promise<string | null> {
+  if (!isAiVaultTitleAgent(input.agent)) {
+    return null
+  }
+  // Naming is cosmetic: a failed or timed-out lookup must not fail the resume.
+  const titles = await resolveLocalAiVaultSessionTitles([
+    {
+      agent: input.agent,
+      sessionId: input.providerSessionId,
+      transcriptPath: input.transcriptPath
+    }
+  ]).then(
+    (result) => result.titles,
+    () => []
+  )
+  const title = titles[0]?.title
+  // History falls back to "<Agent> <id prefix>" for an untitled conversation; that names nothing.
+  return title && title !== generatedSessionTitle(input.agent, input.providerSessionId)
+    ? title
+    : null
 }

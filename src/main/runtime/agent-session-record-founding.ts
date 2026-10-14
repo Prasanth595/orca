@@ -1,4 +1,5 @@
 import { AGENT_CHAT_PERMISSION_MODE_OPTION_ID } from '../../shared/agent-chat-permission-mode'
+import { normalizeAgentSessionConversationName } from '../../shared/agent-session-conversation-name'
 import {
   AGENT_SESSION_RECORD_SCHEMA_VERSION,
   type AgentSessionRecord
@@ -14,6 +15,7 @@ export type AgentSessionRecordIdentity = Pick<
   | 'options'
   | 'launchArgs'
   | 'launchDirectory'
+  | 'conversationName'
 >
 
 export function agentSessionRecordIdentityFields(
@@ -23,6 +25,7 @@ export function agentSessionRecordIdentityFields(
   // Callers name the mode among the options, as the wire does; the record keeps it as its own field.
   const { [AGENT_CHAT_PERMISSION_MODE_OPTION_ID]: permissionMode, ...options } =
     identity.options ?? {}
+  const conversationName = normalizeAgentSessionConversationName(identity.conversationName)
   return {
     schemaVersion: AGENT_SESSION_RECORD_SCHEMA_VERSION,
     sessionId: identity.sessionId,
@@ -34,6 +37,7 @@ export function agentSessionRecordIdentityFields(
     ...(identity.launchArgs ? { launchArgs: [...identity.launchArgs] } : {}),
     // A /clear continues in the same tab, so it stays in the folder the chat ran in.
     ...(identity.launchDirectory ? { launchDirectory: identity.launchDirectory } : {}),
+    ...(conversationName ? { conversationName } : {}),
     createdAt: now,
     updatedAt: now
   }

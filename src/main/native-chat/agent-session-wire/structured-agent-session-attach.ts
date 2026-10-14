@@ -81,6 +81,9 @@ export type AgentSessionAttachParams = {
     providerHandle: AgentSessionProviderHandle
     /** Omitted only when the exact committed operation replays an already-imported journal. */
     transcriptPath?: string
+    /** The source conversation's title, seeded as the new record's name so the chat does not read
+     *  as the agent's default label. Not on the attach fingerprint: it is derived, not requested. */
+    conversationName?: string
   }
 }
 
@@ -314,6 +317,7 @@ export function reserveRequestFor(input: {
     ...(authority.launchArgs ? { launchArgs: authority.launchArgs } : {}),
     ...(authority.launchEnv ? { launchEnv: authority.launchEnv } : {}),
     ...(authority.launchDirectory ? { launchDirectory: authority.launchDirectory } : {}),
+    ...(params.adopt?.conversationName ? { conversationName: params.adopt.conversationName } : {}),
     ...(params.adopt
       ? {
           // Fence 1 is a new record's first, and the owner probe requires the head link to carry

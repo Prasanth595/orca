@@ -3,6 +3,7 @@ import { agentSessionRefusalError } from '../../shared/agent-session-wire-refusa
 import { OrcaRuntimeWithGetWorktreePs } from './orca-runtime-get-worktree-ps'
 import { getStructuredAgentSessionHost } from '../native-chat/agent-session-wire/structured-agent-session-registry'
 import {
+  resolveAdoptedConversationName,
   resolveCommittedStructuredAgentSessionAdoptionIntent,
   resolveStructuredAgentSessionAdoptionForCreate
 } from './structured-agent-session-create-adoption'
@@ -239,6 +240,14 @@ export class OrcaRuntimeWithGetStructuredAgentSessionCreateSupport extends OrcaR
             workspaceCwd: (await this.resolveRuntimeFileTarget(input.worktree)).worktree.path
           })
         : null
+    const conversationName =
+      input.resumeFrom && adoption
+        ? await resolveAdoptedConversationName({
+            agent: input.agent,
+            providerSessionId: input.resumeFrom.providerSessionId,
+            transcriptPath: adoption.transcriptPath
+          })
+        : null
     return {
       envelope: {
         sessionId: input.envelope.sessionId,
@@ -262,7 +271,8 @@ export class OrcaRuntimeWithGetStructuredAgentSessionCreateSupport extends OrcaR
                 agent: definition.agent,
                 nativeId: input.resumeFrom.providerSessionId
               },
-              transcriptPath: adoption.transcriptPath
+              transcriptPath: adoption.transcriptPath,
+              ...(conversationName ? { conversationName } : {})
             }
           }
         : {}),

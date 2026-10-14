@@ -108,6 +108,17 @@ it('imports adoption at rest and resumes its original provider identity after it
   expect(rig.store.getRecord(SESSION)?.accountHome).toEqual(params.accountHome)
 })
 
+it('names an adopting chat after its source conversation', async () => {
+  const params = await adoptedParams()
+  expect(
+    await rig.host.create(CALLER, {
+      ...params,
+      adopt: params.adopt && { ...params.adopt, conversationName: '  Fix the flaky\nlogin test ' }
+    })
+  ).toMatchObject({ ok: true })
+  expect(rig.store.getRecord(SESSION)?.conversationName).toBe('Fix the flaky login test')
+})
+
 it('refuses concurrent adoption of a provider conversation by another session', async () => {
   const params = await adoptedParams()
   const results = await Promise.all([
