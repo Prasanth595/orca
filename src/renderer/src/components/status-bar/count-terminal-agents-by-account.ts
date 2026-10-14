@@ -12,8 +12,12 @@ type CountCache = {
 
 let cache: CountCache | null = null
 
-function countKey(provider: AgentRunAccountProvider, accountId: string | null): string {
-  return `${provider}:${accountId ?? ''}`
+function countKey(
+  provider: AgentRunAccountProvider,
+  accountId: string | null,
+  keptOnly = false
+): string {
+  return `${provider}:${accountId ?? ''}${keptOnly ? ':kept' : ''}`
 }
 
 /**
@@ -25,6 +29,8 @@ export function countTerminalAgentsByAccount(args: {
   tabsByWorktree: Readonly<Record<string, TerminalTab[]>>
   provider: AgentRunAccountProvider
   accountId: string | null
+  /** Only agents a person kept on the account. */
+  keptOnly?: boolean
 }): number {
   if (!cache || cache.rows !== args.rows || cache.tabsByWorktree !== args.tabsByWorktree) {
     const openTabs = getTabIdToWorktreeId(args.tabsByWorktree)
@@ -37,8 +43,12 @@ export function countTerminalAgentsByAccount(args: {
       }
       const key = countKey(facet.provider, facet.accountId)
       counts.set(key, (counts.get(key) ?? 0) + 1)
+      if (facet.mode === 'kept') {
+        const keptKey = countKey(facet.provider, facet.accountId, true)
+        counts.set(keptKey, (counts.get(keptKey) ?? 0) + 1)
+      }
     }
     cache = { rows: args.rows, tabsByWorktree: args.tabsByWorktree, counts }
   }
-  return cache.counts.get(countKey(args.provider, args.accountId)) ?? 0
+  return cache.counts.get(countKey(args.provider, args.accountId, args.keptOnly)) ?? 0
 }
