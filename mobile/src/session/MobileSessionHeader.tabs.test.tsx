@@ -68,6 +68,15 @@ function renderHeader(activeId: string) {
   return { root: renderer.root, switchSessionTab, openSessionTabActionSheetAfterKeyboardDismiss }
 }
 
+const hasAncestorRole = (node: ReactTestInstance, role: string) => {
+  for (let parent = node.parent; parent; parent = parent.parent) {
+    if (parent.props.accessibilityRole === role) {
+      return true
+    }
+  }
+  return false
+}
+
 const tabsOf = (root: ReactTestInstance) =>
   root.findAll((node) => node.props.accessibilityRole === 'tab')
 
@@ -79,6 +88,14 @@ describe('MobileSessionHeader tab strip', () => {
     expect(tabs.map((tab) => tab.props.accessibilityLabel)).toEqual(TITLES)
     expect(tabs.map((tab) => tab.props.accessibilityState.selected)).toEqual(selected)
     expect(tabs.map((tab) => tab.props['aria-selected'])).toEqual(selected)
+  })
+
+  it('groups the tabs inside one tablist', () => {
+    const { root } = renderHeader('tab-0')
+    const tabs = tabsOf(root)
+    expect(root.findAll((node) => node.props.accessibilityRole === 'tablist')).toHaveLength(1)
+    expect(tabs).toHaveLength(TITLES.length)
+    expect(tabs.every((tab) => hasAncestorRole(tab, 'tablist'))).toBe(true)
   })
 
   it('hands the pressed and long-pressed tab to its handlers', () => {

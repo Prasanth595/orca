@@ -139,6 +139,7 @@ export function MobileSessionHeader({ controller }: { controller: MobileSessionC
           {/* Why: tab taps must register on first press with the keyboard open instead of being eaten by dismissal (#5106). */}
           <ScrollView
             ref={tabStripRef}
+            accessibilityRole="tablist"
             horizontal
             showsHorizontalScrollIndicator={false}
             style={styles.tabScroll}
