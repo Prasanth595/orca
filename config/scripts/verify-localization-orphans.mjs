@@ -23,6 +23,8 @@ const LOCALES_DIR = path.join('src', 'renderer', 'src', 'i18n', 'locales')
 const EN_CATALOG = path.join(LOCALES_DIR, 'en.json')
 // Every root that can reference a catalog key at runtime.
 const SOURCE_GLOBS = ['src', 'mobile']
+// A checkout without the mobile app is still a complete desktop scan.
+const OPTIONAL_SOURCE_GLOB = 'mobile'
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mts', '.cts'])
 // Mirror the ignore list in config/i18next.config.ts. A key named only by a test
 // is dead for the product, and counting it as live would let an obsolete
@@ -51,14 +53,20 @@ function flattenCatalog(value, prefix = '', entries = new Map()) {
   return entries
 }
 
-async function collectSourceFiles(root) {
+// Exported for the unit tests: a directory this walk skips hides its literals,
+// and a key named only there would be reported as dead.
+export async function collectSourceFiles(root) {
   const files = []
+  const optionalRoot = path.join(root, OPTIONAL_SOURCE_GLOB)
   async function walk(dir) {
     let entries
     try {
       entries = await fs.readdir(dir, { withFileTypes: true })
-    } catch {
-      return
+    } catch (error) {
+      if (dir === optionalRoot && error.code === 'ENOENT') {
+        return
+      }
+      throw error
     }
     for (const entry of entries) {
       const full = path.join(dir, entry.name)

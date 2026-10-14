@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import {
   collectLiteralKeys,
+  collectSourceFiles,
   findOrphanedKeys,
   isKeyReferenced
 } from './verify-localization-orphans.mjs'
@@ -86,6 +87,31 @@ describe('collectLiteralKeys', () => {
     const found = collectLiteralKeys("t('first.keyname')")
     collectLiteralKeys("t('second.keyname')", found)
     expect([...found].sort()).toEqual(['first.keyname', 'second.keyname'])
+  })
+})
+
+describe('collectSourceFiles', () => {
+  let root
+
+  afterEach(async () => {
+    await fs.rm(root, { recursive: true, force: true })
+  })
+
+  it('scans a checkout that has no mobile app', async () => {
+    root = await fs.mkdtemp(path.join(os.tmpdir(), 'orca-orphan-roots-'))
+    await fs.mkdir(path.join(root, 'src'))
+    await fs.writeFile(path.join(root, 'src', 'tabs.ts'), '')
+
+    expect(await collectSourceFiles(root)).toEqual([path.join(root, 'src', 'tabs.ts')])
+  })
+
+  // Why: a root the walk cannot read contributes no literals, so every key
+  // named only there would be reported as safe to delete. Stop instead.
+  it('fails when a required source root cannot be read', async () => {
+    root = await fs.mkdtemp(path.join(os.tmpdir(), 'orca-orphan-roots-'))
+    await fs.mkdir(path.join(root, 'mobile'))
+
+    await expect(collectSourceFiles(root)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 })
 
