@@ -32,9 +32,6 @@ export const AGENT_SESSION_RPC_ERROR_CODES = [
 
 export const AGENT_SESSION_CLAIM_DIGEST_VERSION = 1 as const
 
-export const AGENT_SESSION_EXECUTION_OWNER_PROTOCOL_VERSION = 2 as const
-export const AGENT_SESSION_CREATE_OPERATION_PROTOCOL_VERSION = 1 as const
-
 export const AGENT_SESSION_OPERATION_FUTURE_SKEW_MS = 5 * 60 * 1000
 export const AGENT_SESSION_MAX_NEW_OPERATION_AGE_MS = 24 * 60 * 60 * 1000
 /** Oldest an operation can be when admitted, plus the host tombstone lifetime after admission. */
@@ -119,6 +116,8 @@ export type RuntimeEnsureAgentSessionRequest =
       presentation?: RuntimeTerminalPresentation
       placement?: { tabId?: string; leafId?: string }
       spawnIntent?: SpawnIntent
+      /** Account routing env a desktop prepared for a host with no account services (WSL orcad). */
+      accountEnv?: Record<string, string>
     }
 
 export type RuntimeEnsureAgentSessionResult = {
@@ -140,6 +139,8 @@ export type RuntimeCreateAgentSessionRequest = {
   presentation?: RuntimeTerminalPresentation
   placement?: { tabId?: string; leafId?: string }
   viewMode?: 'terminal' | 'chat'
+  /** Account routing env a desktop prepared for a host with no account services (WSL orcad). */
+  accountEnv?: Record<string, string>
 }
 
 export type RuntimeCreateAgentSessionResult = {

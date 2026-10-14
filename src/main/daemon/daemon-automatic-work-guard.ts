@@ -8,10 +8,14 @@ import type { ProcessGrowthTrip } from '../../shared/process-growth-breaker'
 import { AutomaticWorkRunMarker } from './automatic-work-run-marker-store'
 import type { AutomaticWorkRequestType } from './daemon-automatic-work-protocol'
 import { DaemonProcessGrowthMonitor } from './daemon-process-growth-monitor'
+import { HostTerminalLedger, resolveMaxHostTerminals } from './host-terminal-ledger'
+import { LegacyRestoreRecords, legacyRestoreRecordsPathFor } from './legacy-restore-records'
 import { TerminalSpawnGate, type TerminalSpawnAdmissionMode } from './terminal-spawn-gate'
 
 type DaemonAutomaticWorkGuardOptions = {
   markerPath: string | undefined
+  /** Where every daemon on this host shares its terminal count; undefined caps this one alone. */
+  hostTerminalLedgerDir?: string | undefined
   mode: TerminalSpawnAdmissionMode
   log: { log: (event: string, details: Record<string, unknown>) => void }
   listSessions: () => readonly { sessionId: string; pid: number | null }[]
@@ -27,11 +31,16 @@ type DaemonAutomaticWorkGuardOptions = {
 export class DaemonAutomaticWorkGuard {
   readonly gate: TerminalSpawnGate
   private readonly marker: AutomaticWorkRunMarker
+  private readonly legacyRestores: LegacyRestoreRecords
   private readonly monitor: DaemonProcessGrowthMonitor
   private pressurePausedSince: number | null = null
 
   constructor(private readonly options: DaemonAutomaticWorkGuardOptions) {
     this.marker = new AutomaticWorkRunMarker(options.markerPath, options.log, options.ownsEndpoint)
+    this.legacyRestores = new LegacyRestoreRecords(
+      options.markerPath ? legacyRestoreRecordsPathFor(options.markerPath) : undefined,
+      options.log
+    )
     this.monitor =
       options.monitor ??
       new DaemonProcessGrowthMonitor({
@@ -46,7 +55,13 @@ export class DaemonAutomaticWorkGuard {
       mode: options.mode,
       pressure: () => this.monitor.level,
       automaticWorkMode: () => this.automaticWorkMode(),
-      armAutomaticWork: () => this.marker.arm()
+      armAutomaticWork: () => this.marker.arm(),
+      legacyRestores: this.legacyRestores,
+      hostTerminals: new HostTerminalLedger({
+        dir: options.hostTerminalLedgerDir ?? null,
+        maxTerminals: resolveMaxHostTerminals(),
+        log: (event, details) => options.log.log(event, details)
+      })
     })
   }
 
@@ -54,22 +69,34 @@ export class DaemonAutomaticWorkGuard {
   start(): void {
     this.marker.open()
     this.monitor.start()
+    this.gate.startHostTerminals()
   }
 
   /** Called after every session was disposed on an orderly shutdown. */
   stop(): void {
     this.monitor.stop()
+    this.gate.stopHostTerminals()
     this.marker.markCleanExit()
   }
 
   /** An exit on purpose that skips teardown (macOS login-session retirement). */
   recordOrderlyExit(): void {
     this.monitor.stop()
+    this.gate.stopHostTerminals()
     this.marker.markCleanExit()
   }
 
+  /** A stop requested from outside (SIGTERM/SIGINT), recorded before the teardown starts. */
+  recordStopRequested(): void {
+    this.marker.recordStopRequested()
+  }
+
   status(): AutomaticWorkStatus {
-    return { admission: this.options.mode, mode: this.automaticWorkMode() }
+    return {
+      admission: this.options.mode,
+      mode: this.automaticWorkMode(),
+      legacyRestores: this.legacyRestores.list()
+    }
   }
 
   handle(type: AutomaticWorkRequestType): AutomaticWorkStatus | AutomaticWorkResumeResult {

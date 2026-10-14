@@ -16,10 +16,26 @@ export type AutomaticWorkMode =
       since: number
     }
 
+/** An automatic restore from a client that predates `spawnIntent`, which the host refused.
+ *  That client already cleared its own resume record, so this is the only copy left. */
+export type LegacyRestoreRecord = {
+  sessionId: string
+  reason: 'pressure' | 'host_cap'
+  refusedAt: number
+  agent: string | null
+  cwd: string | null
+  worktreeId: string | null
+  /** The resume command line the client sent; running it in `cwd` resumes the agent. */
+  command: string | null
+  identityDigest: string | null
+}
+
 /** What a daemon reports about automatic restores; `admission` says whether its gate enforces. */
 export type AutomaticWorkStatus = {
   admission: 'observe' | 'enforce'
   mode: AutomaticWorkMode
+  /** Absent from daemons that predate the record; clients treat absence as none. */
+  legacyRestores?: readonly LegacyRestoreRecord[]
 }
 
 /** `cleared` is the pause the resume lifted, or null when automatic restores were running. */
@@ -226,10 +242,12 @@ export function decideSpawnAdmission(args: {
       ? { kind: 'refuse_retryable' }
       : { kind: 'wait', charge, retryAt: null }
   }
-  if (negotiated && mode.kind === 'paused') {
+  // Why: a user's resume past its allowance is paced, never put back to sleep in front of them.
+  const mayDefer = negotiated && facts.declaredIntent !== 'user-resume'
+  if (mayDefer && mode.kind === 'paused') {
     return { kind: 'defer', reason: 'paused' }
   }
-  if (negotiated && state.liveAutomatic + state.inFlight.automatic >= limits.maxLiveAutomatic) {
+  if (mayDefer && state.liveAutomatic + state.inFlight.automatic >= limits.maxLiveAutomatic) {
     return { kind: 'defer', reason: 'live_cap' }
   }
   const bucket = refill(
@@ -247,7 +265,7 @@ export function decideSpawnAdmission(args: {
     : now + Math.ceil((1 - bucket.tokens) / automaticTokensPerMs(limits))
   if (retryAt !== null ? retryAt > facts.deadlineAt : now >= facts.deadlineAt) {
     // Why: an old caller is admitted at its deadline rather than refused (degraded pacing).
-    return negotiated ? { kind: 'defer', reason: 'deadline' } : { kind: 'admit', charge }
+    return mayDefer ? { kind: 'defer', reason: 'deadline' } : { kind: 'admit', charge }
   }
   return { kind: 'wait', charge, retryAt }
 }

@@ -12,6 +12,7 @@ export const PAIRED_DESKTOP_METHODS = [
   'notifications.unsubscribe',
   'pairing.getEndpoints',
   'pairing.provisionRelay',
+  'pairing.registerDeviceKey',
   // The configured servers the desktop shows, and their workspace lists as it last fetched them.
   'mobileRelay.hosts.list',
   'mobileRelay.hosts.worktrees',
@@ -28,7 +29,6 @@ export const PAIRED_DESKTOP_METHODS = [
   // The Mac republishes host changes it already observes.
   'runtime.clientEvents.subscribe',
   'runtime.clientEvents.unsubscribe',
-  'status.get',
   'diagnostics.memory',
   'stats.summary',
   'ui.get',

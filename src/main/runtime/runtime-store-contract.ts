@@ -50,6 +50,7 @@ export type RuntimeStore = {
   getWorkspaceSessionHostIds?: Store['getWorkspaceSessionHostIds']
   onWorkspaceSessionWritten?: Store['onWorkspaceSessionWritten']
   setWorkspaceSession?: Store['setWorkspaceSession']
+  getRemoteLayoutSnapshots?: Store['getRemoteLayoutSnapshots']
   runDurableMutation?: Store['runDurableMutation']
   flushOrThrow?: Store['flushOrThrow']
   flushPendingOrThrowAsync?: Store['flushPendingOrThrowAsync']
@@ -90,6 +91,8 @@ export type RuntimeStore = {
     branchPrefix: string
     branchPrefixCustom: string
     defaultTuiAgent?: GlobalSettings['defaultTuiAgent']
+    newWorkspaceSetupOnly?: GlobalSettings['newWorkspaceSetupOnly']
+    setupScriptLaunchMode?: GlobalSettings['setupScriptLaunchMode']
     disabledTuiAgents?: GlobalSettings['disabledTuiAgents']
     agentCmdOverrides?: GlobalSettings['agentCmdOverrides']
     agentDefaultArgs?: GlobalSettings['agentDefaultArgs']
@@ -132,6 +135,7 @@ export type RuntimeStore = {
     hostSettingOverrides?: GlobalSettings['hostSettingOverrides']
     agentSkillSharingEnabled?: GlobalSettings['agentSkillSharingEnabled']
     nativeChatSessionOptions?: GlobalSettings['nativeChatSessionOptions']
+    nativeChatPermissionMode?: GlobalSettings['nativeChatPermissionMode']
     nativeChatInlineVisuals?: GlobalSettings['nativeChatInlineVisuals']
     nativeChatInheritShellEnvironment?: GlobalSettings['nativeChatInheritShellEnvironment']
     nativeChatShellEnvironmentVariables?: GlobalSettings['nativeChatShellEnvironmentVariables']
