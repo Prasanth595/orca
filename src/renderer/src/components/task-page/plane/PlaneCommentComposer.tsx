@@ -24,7 +24,7 @@ export function PlaneCommentComposer({
   target,
   onCommentAdded
 }: {
-  item: Pick<PlaneWorkItem, 'projectId' | 'id'>
+  item: Pick<PlaneWorkItem, 'projectId' | 'id' | 'connectionId'>
   target: RuntimeClientTarget
   onCommentAdded: (comment: PlaneComment) => void
 }): React.JSX.Element {
@@ -50,6 +50,7 @@ export function PlaneCommentComposer({
     planeAddCommentForTarget(target, {
       projectId: item.projectId,
       workItemId: item.id,
+      connectionId: item.connectionId,
       text: trimmed
     }).then(
       (result) => {

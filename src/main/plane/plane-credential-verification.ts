@@ -1,4 +1,4 @@
-import type { PlaneConnectParams } from '../../shared/rpc-contract/plane-params'
+import type { PlaneConnectWithTokenParams } from '../../shared/rpc-contract/plane-params'
 import type {
   PlaneApiFlavor,
   PlaneConnectErrorKind,
@@ -61,7 +61,8 @@ function toViewer(raw: unknown): PlaneViewer {
   }
 }
 
-// Why rewrap: the stage decides what a status means, e.g. a 404 on projects is the slug.
+// Why rewrap: the stage decides what a status means. Plane answers a wrong slug, or one the
+// token's user cannot see, with 403 on the projects list, so that is about the slug, not the token.
 function stageError(error: unknown, stage: 'viewer' | 'projects' | 'flavor'): never {
   if (!isPlaneApiError(error)) {
     throw error
@@ -71,22 +72,23 @@ function stageError(error: unknown, stage: 'viewer' | 'projects' | 'flavor'): ne
   }
   if (stage === 'projects' && (error.kind === 'not_found' || error.kind === 'forbidden')) {
     throw new PlaneVerificationError(
-      'workspace_not_found',
-      'This token has no access to a Plane workspace with that slug.',
+      'workspace_unavailable',
+      "Workspace not found or you don't have access.",
       'workspaceSlug'
     )
   }
   throw new PlaneVerificationError(error.kind, error.message)
 }
 
-/**
- * Checks URL, token, workspace and API flavor in that order, without saving anything.
- * Throws PlaneVerificationError, or the caller's abort.
- */
-export async function verifyPlaneConnection(
-  params: PlaneConnectParams,
-  signal?: AbortSignal
-): Promise<VerifiedPlaneConnection> {
+export type PlaneVerifiedUrls = {
+  hostKind: PlaneConnection['hostKind']
+  apiBaseUrl: string
+  webBaseUrl: string
+  insecure: boolean
+}
+
+/** Normalizes the typed URLs; throws PlaneVerificationError before anything is sent. */
+export function resolvePlaneConnectUrls(params: PlaneConnectWithTokenParams): PlaneVerifiedUrls {
   const urls = normalizePlaneConnectionUrls(
     params.hostKind === 'cloud'
       ? { hostKind: 'cloud' }
@@ -106,9 +108,20 @@ export async function verifyPlaneConnection(
       'serverUrl'
     )
   }
-  const target: PlaneHttpTarget = { apiBaseUrl: urls.apiBaseUrl, apiToken: params.apiToken }
-  const slug = params.workspaceSlug
+  return urls
+}
 
+/**
+ * Checks token, workspace and API flavor in that order against already resolved URLs, without
+ * saving anything. Throws PlaneVerificationError, or the caller's abort.
+ */
+export async function verifyPlaneWorkspace(
+  urls: PlaneVerifiedUrls,
+  apiToken: string,
+  slug: string,
+  signal?: AbortSignal
+): Promise<VerifiedPlaneConnection> {
+  const target: PlaneHttpTarget = { apiBaseUrl: urls.apiBaseUrl, apiToken }
   const viewer = await planeRequest(target, planeApiPath('users', 'me'), { signal }).then(
     toViewer,
     (error: unknown) => stageError(error, 'viewer')
@@ -135,4 +148,17 @@ export async function verifyPlaneConnection(
     projects,
     flavor
   }
+}
+
+/** Checks URL, token, workspace and API flavor for a connect that brings its own token. */
+export async function verifyPlaneConnection(
+  params: PlaneConnectWithTokenParams,
+  signal?: AbortSignal
+): Promise<VerifiedPlaneConnection> {
+  return verifyPlaneWorkspace(
+    resolvePlaneConnectUrls(params),
+    params.apiToken,
+    params.workspaceSlug,
+    signal
+  )
 }

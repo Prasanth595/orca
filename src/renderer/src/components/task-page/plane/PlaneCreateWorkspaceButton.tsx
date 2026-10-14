@@ -18,8 +18,9 @@ export function PlaneCreateWorkspaceButton({
   const openModal = useAppStore((s) => s.openModal)
   // Why by the item's connectionId: the link must name the connection the item came from.
   const connection = useAppStore((s) =>
-    s.planeStatus.connected && s.planeStatus.connection.id === item.connectionId
-      ? s.planeStatus.connection
+    s.planeStatus.connected
+      ? (s.planeStatus.connections.find((entry) => entry.connection.id === item.connectionId)
+          ?.connection ?? null)
       : null
   )
   const label = translate('plane.tasks.createWorkspaceFor', 'Create workspace from {{value0}}', {

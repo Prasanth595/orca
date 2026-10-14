@@ -59,6 +59,19 @@ describe.each(PLANE_FIXTURE_BASES)('Plane connect verification on $name', (base)
     expect(JSON.stringify(result)).not.toContain(PLANE_FIXTURE_TOKEN)
   })
 
+  it("reads Plane's 403 on the projects list as an unavailable workspace", async () => {
+    const result = await plane.commands.planeConnect({
+      ...planeConnectParams(base),
+      workspaceSlug: 'not-mine'
+    })
+    expect(result).toMatchObject({
+      ok: false,
+      error: 'workspace_unavailable',
+      message: "Workspace not found or you don't have access."
+    })
+    expect(fixture.requests.at(-1)?.path).toBe('/workspaces/not-mine/projects/')
+  })
+
   it('saves nothing for a slug the token cannot reach', async () => {
     const result = await plane.commands.planeConnect({
       ...planeConnectParams(base),
@@ -66,7 +79,7 @@ describe.each(PLANE_FIXTURE_BASES)('Plane connect verification on $name', (base)
     })
     expect(result).toEqual({
       ok: false,
-      error: 'workspace_not_found',
+      error: 'workspace_unavailable',
       message: expect.any(String),
       field: 'workspaceSlug'
     })
@@ -75,7 +88,7 @@ describe.each(PLANE_FIXTURE_BASES)('Plane connect verification on $name', (base)
 
   it.each([
     ['/users/me/', 401, 'auth', 'apiToken'],
-    ['/projects/', 403, 'workspace_not_found', 'workspaceSlug'],
+    ['/projects/', 403, 'workspace_unavailable', 'workspaceSlug'],
     ['/users/me/', 502, 'network', undefined],
     ['/work-items/', 403, 'forbidden', undefined]
   ])('maps HTTP %s %i to %s', async (path, status, error, field) => {

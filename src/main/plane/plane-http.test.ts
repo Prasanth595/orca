@@ -99,13 +99,18 @@ describe.each([
     expect(cancel).toHaveBeenCalled()
   })
 
-  it('tells a JSON 404 from a missing route', async () => {
+  it('tells a missing object from a missing route by the 404 body', async () => {
     fetchMock.mockResolvedValueOnce(planeJsonResponse({ detail: SECRET_BODY }, { status: 404 }))
+    fetchMock.mockResolvedValueOnce(
+      planeJsonResponse({ error: 'Page not found.' }, { status: 404 })
+    )
     fetchMock.mockResolvedValueOnce(planeHtmlResponse(404))
     const resource = await mod.http.planeRequest(target, '/x/').catch((e: unknown) => e)
-    const route = await mod.http.planeRequest(target, '/x/').catch((e: unknown) => e)
-    expect(resource).toMatchObject({ kind: 'not_found', jsonBody: true })
-    expect(route).toMatchObject({ kind: 'not_found', jsonBody: false })
+    const jsonRoute = await mod.http.planeRequest(target, '/x/').catch((e: unknown) => e)
+    const htmlRoute = await mod.http.planeRequest(target, '/x/').catch((e: unknown) => e)
+    expect(resource).toMatchObject({ kind: 'not_found', routeMissing: false })
+    expect(jsonRoute).toMatchObject({ kind: 'not_found', routeMissing: true })
+    expect(htmlRoute).toMatchObject({ kind: 'not_found', routeMissing: true })
     expect(String(resource)).not.toContain(SECRET_BODY)
   })
 

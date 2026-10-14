@@ -70,9 +70,7 @@ describe.each(PLANE_FIXTURE_BASES)('Plane connection store on $name', (base) => 
   it('reports a token it cannot decrypt', async () => {
     const { plane, connection } = await connect()
     writeFileSync(plane.store.getPlaneTokenPath(connection.id), Buffer.from([0x00, 0x09, 0xfa]))
-    expect(() => plane.session.getActivePlaneSession()).toThrow(
-      credentialDecryptionMessage('Plane')
-    )
+    expect(() => plane.session.getPlaneSession()).toThrow(credentialDecryptionMessage('Plane'))
     expect(plane.commands.planeStatus()).toMatchObject({
       connected: true,
       credentialError: credentialDecryptionMessage('Plane')

@@ -104,6 +104,7 @@ describe('usePlaneStateChange', () => {
     expect(mocks.updateState).toHaveBeenCalledWith(TARGET, {
       projectId: 'project-1',
       workItemId: 'item-1',
+      connectionId: ITEM.connectionId,
       stateId: 'Doing'
     })
     expect(mocks.toastError).not.toHaveBeenCalled()
@@ -157,7 +158,7 @@ describe('PlaneStatePicker', () => {
     fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false, pointerType: 'mouse' })
     await waitFor(() => expect(screen.getByRole('group', { name: 'Started' })).toBeTruthy())
     expect(screen.getByRole('group', { name: 'Completed' })).toBeTruthy()
-    expect(mocks.listStates).toHaveBeenCalledWith(TARGET, 'project-1')
+    expect(mocks.listStates).toHaveBeenCalledWith(TARGET, 'project-1', ITEM.connectionId)
 
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'Done' }))
     await waitFor(() =>

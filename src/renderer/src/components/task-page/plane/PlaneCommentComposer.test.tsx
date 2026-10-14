@@ -18,7 +18,7 @@ vi.mock('@/components/plane/use-plane-host-label', () => ({
 }))
 
 const TARGET = { kind: 'local' } as const
-const ITEM = { projectId: 'project-1', id: 'item-1' }
+const ITEM = { projectId: 'project-1', id: 'item-1', connectionId: 'conn-2' }
 const COMMENT = {
   id: 'c1',
   authorName: 'Ada',
@@ -53,6 +53,7 @@ describe('PlaneCommentComposer', () => {
     fireEvent.keyDown(box, { key: 'Enter', metaKey: true })
     await waitFor(() => expect(onCommentAdded).toHaveBeenCalledWith(COMMENT))
     expect(mocks.addComment).toHaveBeenCalledWith(TARGET, {
+      connectionId: 'conn-2',
       projectId: 'project-1',
       workItemId: 'item-1',
       text: 'Looks good'

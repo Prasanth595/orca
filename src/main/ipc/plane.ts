@@ -3,6 +3,7 @@ import type { z } from 'zod'
 import {
   AddComment,
   Connect,
+  Disconnect,
   ListProjects,
   ListWorkItems,
   LookupIdentifier,
@@ -45,7 +46,7 @@ function handle<S extends z.ZodType>(
 export function registerPlaneHandlers(): void {
   handle('plane:connect', Connect, (params) => planeOperations.connect(params))
   ipcMain.handle('plane:status', () => planeOperations.status())
-  ipcMain.handle('plane:disconnect', () => planeOperations.disconnect())
+  handle('plane:disconnect', Disconnect, (params) => planeOperations.disconnect(params))
   handle('plane:setProjectScope', SetProjectScope, (params) =>
     planeOperations.setProjectScope(params)
   )

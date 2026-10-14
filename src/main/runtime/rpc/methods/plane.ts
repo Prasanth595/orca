@@ -1,6 +1,7 @@
 import {
   AddComment,
   Connect,
+  Disconnect,
   ListProjects,
   ListWorkItems,
   LookupIdentifier,
@@ -24,8 +25,8 @@ export const PLANE_METHODS = [
   defineMethod({
     name: 'plane.disconnect',
     permission: 'accounts-admin',
-    params: null,
-    handler: async (_params, { runtime }) => runtime.planeDisconnect()
+    params: Disconnect,
+    handler: async (params, { runtime }) => runtime.planeDisconnect(params)
   }),
   defineMethod({
     name: 'plane.setProjectScope',

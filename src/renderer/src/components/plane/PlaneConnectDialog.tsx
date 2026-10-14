@@ -14,66 +14,145 @@ import { translate } from '@/i18n/i18n'
 import { preventOutsideDismissWhenDirty } from '@/lib/outside-dismiss-guard'
 import { hasRemoteProviderRuntime } from '@/lib/provider-runtime-context'
 import { useAppStore } from '@/store'
+import type { PlaneConnection, PlaneConnectionStatus } from '../../../../shared/plane-types'
 import {
   INITIAL_PLANE_CONNECT_FORM,
-  canSubmitPlaneCredentials,
-  getPlaneScopeToSave,
   planeConnectFormReducer,
-  toPlaneConnectArgs
+  type PlaneConnectFormState
 } from './plane-connect-form-model'
+import { canSubmitPlaneCredentials, getPlaneScopeToSave } from './plane-connect-form-selectors'
 import { PlaneConnectCredentialsStep } from './plane-connect-credentials-step'
-import { getPlaneErrorCopy } from './plane-error-copy'
-import { PlaneProjectScopePicker } from './PlaneProjectScopePicker'
+import { PlaneConnectScopeStep } from './PlaneConnectScopeStep'
+import { allPlaneChipsConnected } from './plane-workspace-chips'
+import { usePlaneConnectActions } from './use-plane-connect-actions'
 import { usePlaneHostLabel } from './use-plane-host-label'
+
+export type PlaneConnectDialogMode = 'connect' | 'addWorkspace' | 'editScope'
 
 type PlaneConnectDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** `editScope` skips the credentials and opens on the saved project scope. */
-  mode?: 'connect' | 'editScope'
+  /**
+   * `addWorkspace` reuses the saved token of `connectionId`; `editScope` opens on the project
+   * scope of `connectionId`. Both fall back to the active connection.
+   */
+  mode?: PlaneConnectDialogMode
+  connectionId?: string
   onConnected?: () => void
+}
+
+function findConnection(
+  status: PlaneConnectionStatus,
+  connectionId: string | undefined
+): PlaneConnection | null {
+  if (!status.connected) {
+    return null
+  }
+  const id = connectionId ?? status.connection.id
+  return status.connections.find((entry) => entry.connection.id === id)?.connection ?? null
+}
+
+function serverHost(connection: PlaneConnection): string {
+  try {
+    return new URL(connection.webBaseUrl).host
+  } catch {
+    return connection.webBaseUrl
+  }
+}
+
+function dialogCopy(state: PlaneConnectFormState): { title: string; description: string } {
+  if (state.step === 'scope') {
+    return {
+      title: translate('plane.connect.scopeTitle', 'Choose Plane projects'),
+      description: translate(
+        'plane.connect.scopeDescription',
+        'Pick the projects whose work items Orca lists. You can change this later.'
+      )
+    }
+  }
+  if (state.reuseFrom) {
+    return {
+      title: translate('plane.connect.addTitle', 'Add Plane workspaces'),
+      description: translate(
+        'plane.connect.addDescription',
+        'Add more workspaces on {{server}} with the token you already saved.',
+        { server: state.reuseFrom.server }
+      )
+    }
+  }
+  return {
+    title: translate('plane.connect.title', 'Connect Plane'),
+    description: translate(
+      'plane.connect.description',
+      'Use a personal access token to browse Plane work items and start workspaces from them.'
+    )
+  }
 }
 
 export function PlaneConnectDialog({
   open,
   onOpenChange,
   mode = 'connect',
+  connectionId,
   onConnected
 }: PlaneConnectDialogProps): React.JSX.Element {
-  const connectPlane = useAppStore((s) => s.connectPlane)
-  const setPlaneProjectScope = useAppStore((s) => s.setPlaneProjectScope)
   const loadPlaneProjects = useAppStore((s) => s.loadPlaneProjects)
   const remoteRuntime = useAppStore((s) => hasRemoteProviderRuntime(s.settings))
   const hostLabel = usePlaneHostLabel()
   const mountedRef = useMountedRef()
   const [state, dispatch] = useReducer(planeConnectFormReducer, INITIAL_PLANE_CONNECT_FORM)
+  const { connect, saveScopes } = usePlaneConnectActions({
+    state,
+    dispatch,
+    mountedRef,
+    onConnected,
+    onDone: () => onOpenChange(false)
+  })
 
   // Why before paint: a token typed into an earlier open must never render again.
   useLayoutEffect(() => {
     if (!open) {
       return
     }
-    if (mode === 'connect') {
+    const { planeProjectsByConnection, planeStatus } = useAppStore.getState()
+    const connection = mode === 'connect' ? null : findConnection(planeStatus, connectionId)
+    if (!connection) {
       dispatch({ type: 'reset' })
       return
     }
-    const { planeProjects, planeStatus } = useAppStore.getState()
+    if (mode === 'addWorkspace') {
+      dispatch({
+        type: 'addWorkspace',
+        source: {
+          connectionId: connection.id,
+          slug: connection.workspaceSlug,
+          server: serverHost(connection)
+        }
+      })
+      return
+    }
     dispatch({
       type: 'editScope',
-      projects: planeProjects,
-      scope: planeStatus.connected ? planeStatus.connection.projectScope : null
+      workspaces: [
+        {
+          connectionId: connection.id,
+          slug: connection.workspaceSlug,
+          projects: planeProjectsByConnection[connection.id] ?? [],
+          scope: connection.projectScope
+        }
+      ]
     })
-    void loadPlaneProjects({ refresh: true }).then((result) => {
+    void loadPlaneProjects({ refresh: true, connectionId: connection.id }).then((result) => {
       if (!mountedRef.current) {
         return
       }
       if (result.ok) {
-        dispatch({ type: 'projectsLoaded', projects: result.value })
+        dispatch({ type: 'projectsLoaded', connectionId: connection.id, projects: result.value })
       } else {
         dispatch({ type: 'submitFailed', error: { kind: result.error.kind } })
       }
     })
-  }, [loadPlaneProjects, mode, mountedRef, open])
+  }, [connectionId, loadPlaneProjects, mode, mountedRef, open])
 
   const handleOpenChange = (nextOpen: boolean): void => {
     if (!state.submitting) {
@@ -82,55 +161,30 @@ export function PlaneConnectDialog({
   }
   const isDirty = (): boolean =>
     state.step === 'credentials' &&
-    Boolean(state.serverUrl || state.apiBaseUrl || state.workspaceSlug || state.apiToken)
+    Boolean(
+      state.serverUrl || state.apiBaseUrl || state.slugDraft || state.chips.length || state.apiToken
+    )
   const guardOutsideDismiss = preventOutsideDismissWhenDirty(isDirty)
 
-  const handleConnect = async (): Promise<void> => {
-    const args = toPlaneConnectArgs(state)
-    if (!args) {
-      return
-    }
-    dispatch({ type: 'submitStarted' })
-    const result = await connectPlane(args)
-    if (!mountedRef.current) {
-      return
-    }
-    if (!result.ok) {
-      dispatch({
-        type: 'submitFailed',
-        error: { kind: result.error, ...('field' in result ? { field: result.field } : {}) }
-      })
-      return
-    }
-    dispatch({
-      type: 'connected',
-      projects: result.projects,
-      scope: result.status.connected ? result.status.connection.projectScope : null
-    })
-    onConnected?.()
-  }
-
-  const handleSaveScope = async (): Promise<void> => {
-    const scope = getPlaneScopeToSave(state.scope)
-    if (!scope || state.submitting) {
-      return
-    }
-    dispatch({ type: 'submitStarted' })
-    const result = await setPlaneProjectScope(scope)
-    if (!mountedRef.current) {
-      return
-    }
-    if (!result.ok) {
-      dispatch({ type: 'submitFailed', error: { kind: result.error.kind } })
-      return
-    }
-    onOpenChange(false)
-  }
-
   const onScopeStep = state.step === 'scope'
+  const readyToContinue = allPlaneChipsConnected(state.chips) && !state.slugDraft.trim()
   const canSubmit = onScopeStep
-    ? !state.submitting && getPlaneScopeToSave(state.scope) !== null
-    : canSubmitPlaneCredentials(state)
+    ? !state.submitting &&
+      state.workspaces.length > 0 &&
+      state.workspaces.every((w) => getPlaneScopeToSave(w.scope) !== null)
+    : readyToContinue
+      ? !state.submitting
+      : canSubmitPlaneCredentials(state)
+  const handleSubmit = (): void => {
+    if (onScopeStep) {
+      void saveScopes()
+    } else if (readyToContinue) {
+      dispatch({ type: 'goToScope' })
+    } else {
+      void connect()
+    }
+  }
+  const { title, description } = dialogCopy(state)
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -142,45 +196,19 @@ export function PlaneConnectDialog({
         onInteractOutside={guardOutsideDismiss}
       >
         <DialogHeader>
-          <DialogTitle>
-            {onScopeStep
-              ? translate('plane.connect.scopeTitle', 'Choose Plane projects')
-              : translate('plane.connect.title', 'Connect Plane')}
-          </DialogTitle>
-          <DialogDescription>
-            {onScopeStep
-              ? translate(
-                  'plane.connect.scopeDescription',
-                  'Pick the projects whose work items Orca lists. You can change this later.'
-                )
-              : translate(
-                  'plane.connect.description',
-                  'Use a personal access token to browse Plane work items and start workspaces from them.'
-                )}
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <form
           className="flex flex-col gap-4"
           noValidate
           onSubmit={(event) => {
             event.preventDefault()
-            void (onScopeStep ? handleSaveScope() : handleConnect())
+            handleSubmit()
           }}
         >
           {onScopeStep ? (
-            <div className="flex flex-col gap-3">
-              <PlaneProjectScopePicker
-                projects={state.projects}
-                value={state.scope}
-                disabled={state.submitting}
-                onChange={(scope) => dispatch({ type: 'setScope', scope })}
-              />
-              {state.error ? (
-                <p role="alert" className="text-xs text-destructive">
-                  {getPlaneErrorCopy(state.error.kind, hostLabel)}
-                </p>
-              ) : null}
-            </div>
+            <PlaneConnectScopeStep state={state} dispatch={dispatch} hostLabel={hostLabel} />
           ) : (
             <PlaneConnectCredentialsStep
               state={state}
@@ -196,7 +224,7 @@ export function PlaneConnectDialog({
               onClick={() => onOpenChange(false)}
               disabled={state.submitting}
             >
-              {onScopeStep && mode === 'connect'
+              {onScopeStep && mode !== 'editScope'
                 ? translate('plane.connect.later', 'Choose later')
                 : translate('plane.connect.cancel', 'Cancel')}
             </Button>
@@ -206,7 +234,9 @@ export function PlaneConnectDialog({
                 ? translate('plane.connect.saveScope', 'Save projects')
                 : state.submitting
                   ? translate('plane.connect.verifying', 'Verifying…')
-                  : translate('plane.connect.connect', 'Connect')}
+                  : readyToContinue
+                    ? translate('plane.connect.continue', 'Continue')
+                    : translate('plane.connect.connect', 'Connect')}
             </Button>
           </DialogFooter>
         </form>

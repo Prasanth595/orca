@@ -30,8 +30,8 @@ const REDIRECT_MESSAGE_PATTERN = /redirect/i
 export type PlaneApiErrorOptions = {
   status?: number
   retryAfterMs?: number
-  /** For a 404: whether the body was a JSON object, i.e. the API route exists. */
-  jsonBody?: boolean
+  /** For a 404: whether the route itself is missing, not just the object it names. */
+  routeMissing?: boolean
   /** The request tried to change something, which words a 403 as a missing permission. */
   write?: boolean
 }
@@ -40,7 +40,7 @@ export class PlaneApiError extends Error {
   readonly kind: PlaneApiErrorKind
   readonly status?: number
   readonly retryAfterMs?: number
-  readonly jsonBody?: boolean
+  readonly routeMissing?: boolean
 
   constructor(kind: PlaneApiErrorKind, options: PlaneApiErrorOptions = {}) {
     const message = kind === 'forbidden' && options.write ? WRITE_FORBIDDEN_MESSAGE : MESSAGES[kind]
@@ -53,8 +53,8 @@ export class PlaneApiError extends Error {
     if (options.retryAfterMs !== undefined) {
       this.retryAfterMs = options.retryAfterMs
     }
-    if (options.jsonBody !== undefined) {
-      this.jsonBody = options.jsonBody
+    if (options.routeMissing !== undefined) {
+      this.routeMissing = options.routeMissing
     }
   }
 }

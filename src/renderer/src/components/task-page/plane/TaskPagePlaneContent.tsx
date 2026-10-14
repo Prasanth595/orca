@@ -18,6 +18,7 @@ import type {
   PlaneWorkItemDetail as PlaneWorkItemDetailValue
 } from '../../../../../shared/plane-types'
 import { PlaneFilters } from './PlaneFilters'
+import { usePlaneConnectionProjects } from './use-plane-connection-projects'
 import { PlaneListBanners } from './PlaneListBanners'
 import { PlaneWorkItemDetail } from './PlaneWorkItemDetail'
 import { PlaneWorkItemList } from './PlaneWorkItemRow'
@@ -216,9 +217,6 @@ function PlaneConnectedTasks({
   onReconnect: () => void
 }): React.JSX.Element {
   const settings = useAppStore((s) => s.settings)
-  const planeProjects = useAppStore((s) => s.planeProjects)
-  const planeProjectsContextKey = useAppStore((s) => s.planeProjectsContextKey)
-  const loadPlaneProjects = useAppStore((s) => s.loadPlaneProjects)
   const savedFilters = useAppStore((s) => s.planeWorkItemFiltersByConnection[connection.id])
   const setPlaneWorkItemFilters = useAppStore((s) => s.setPlaneWorkItemFilters)
   const hostLabel = usePlaneHostLabel()
@@ -226,11 +224,7 @@ function PlaneConnectedTasks({
   const target = useMemo(() => getPlaneRuntimeTarget(defaultScopeSource(settings)), [settings])
   const [selected, setSelected] = useState<PlaneWorkItem | null>(null)
 
-  useEffect(() => {
-    if (planeProjectsContextKey !== contextKey) {
-      void loadPlaneProjects()
-    }
-  }, [contextKey, loadPlaneProjects, planeProjectsContextKey])
+  const planeProjects = usePlaneConnectionProjects(connection.id, contextKey)
 
   const filters = savedFilters ?? DEFAULT_PLANE_WORK_ITEM_FILTERS
   const projects = getScopedPlaneProjects(planeProjects, connection.projectScope)

@@ -1,44 +1,58 @@
 import type {
   PlaneConnectParams,
+  PlaneDisconnectParams,
   PlaneSetProjectScopeParams
 } from '../../shared/rpc-contract/plane-params'
 import type {
   PlaneConnectResult,
   PlaneConnection,
+  PlaneConnectionEntry,
   PlaneConnectionStatus,
   PlaneProject
 } from '../../shared/plane-types'
+import { CredentialDecryptionError } from '../integration-credential-file'
 import { forgetPlaneApiFlavor, rememberPlaneApiFlavor } from './plane-api-flavor'
 import {
   deletePlaneToken,
-  getActivePlaneConnection,
+  getPlaneConnection,
   getPlaneCredentialError,
   getPlaneTokenProtection,
   readPlaneConnectionFile,
+  readPlaneToken,
   savePlaneToken,
   writePlaneConnectionFile
 } from './plane-connection-store'
-import { PlaneVerificationError, verifyPlaneConnection } from './plane-credential-verification'
+import {
+  PlaneVerificationError,
+  resolvePlaneConnectUrls,
+  verifyPlaneWorkspace,
+  type PlaneVerifiedUrls
+} from './plane-credential-verification'
 import { forgetPlaneProjectMetadata } from './plane-project-metadata'
 import { forgetPlaneProjects, getPlaneProjects, primePlaneProjects } from './plane-projects'
 import { redactPlaneSecrets } from './plane-redact'
-import { getActivePlaneSession, PlaneNotConnectedError } from './plane-session'
+import { getPlaneSession, PlaneNotConnectedError } from './plane-session'
 
 // Why one module: IPC (local) and runtime RPC (remote host) both call these, so the two
 // paths cannot drift on validation, persistence or what the result exposes.
 
-export function planeStatus(): PlaneConnectionStatus {
-  const connection = getActivePlaneConnection()
-  if (!connection) {
-    return { connected: false }
-  }
+function toEntry(connection: PlaneConnection): PlaneConnectionEntry {
   const credentialError = getPlaneCredentialError(connection.id)
   return {
-    connected: true,
     connection,
     ...(credentialError ? { credentialError } : {}),
     credentialProtection: getPlaneTokenProtection(connection.id)
   }
+}
+
+export function planeStatus(): PlaneConnectionStatus {
+  const file = readPlaneConnectionFile()
+  const entries = file.connections.map(toEntry)
+  const active = entries.find((entry) => entry.connection.id === file.activeConnectionId)
+  if (!active) {
+    return { connected: false }
+  }
+  return { connected: true, ...active, connections: entries }
 }
 
 function forgetConnection(connectionId: string): void {
@@ -48,45 +62,85 @@ function forgetConnection(connectionId: string): void {
   forgetPlaneProjectMetadata(connectionId)
 }
 
+type ConnectSource = { urls: PlaneVerifiedUrls; apiToken: string; secrets: string[] }
+
+// Why the source's URLs on reuse: a saved token may only ever go back to its own server.
+function connectSource(params: PlaneConnectParams): ConnectSource {
+  if ('apiToken' in params) {
+    return {
+      urls: resolvePlaneConnectUrls(params),
+      apiToken: params.apiToken,
+      secrets: [params.apiToken]
+    }
+  }
+  const source = getPlaneConnection(params.reuseTokenFromConnectionId)
+  let apiToken: string | null = null
+  try {
+    apiToken = source ? readPlaneToken(source.id) : null
+  } catch (error) {
+    if (error instanceof CredentialDecryptionError) {
+      throw new PlaneVerificationError('credential_unreadable', error.message)
+    }
+    throw error
+  }
+  if (!source || !apiToken) {
+    throw new PlaneVerificationError('not_connected', 'That Plane connection is no longer saved.')
+  }
+  return {
+    urls: {
+      hostKind: source.hostKind,
+      apiBaseUrl: source.apiBaseUrl,
+      webBaseUrl: source.webBaseUrl,
+      insecure: source.insecureHttpAcknowledged === true
+    },
+    apiToken,
+    secrets: [apiToken]
+  }
+}
+
+/** Adds the workspace, or updates it when the same account reconnects; others are untouched. */
 export async function planeConnect(
   params: PlaneConnectParams,
   signal?: AbortSignal
 ): Promise<PlaneConnectResult> {
+  let secrets: string[] = []
   try {
-    const verified = await verifyPlaneConnection(params, signal)
+    const source = connectSource(params)
+    secrets = source.secrets
+    const verified = await verifyPlaneWorkspace(
+      source.urls,
+      source.apiToken,
+      params.workspaceSlug,
+      signal
+    )
     const previous = readPlaneConnectionFile()
     const sameConnection = previous.connections.find((c) => c.id === verified.connection.id)
     const connection: PlaneConnection = {
       ...verified.connection,
-      // Reconnecting the same account keeps its scope; a new one starts by choosing.
+      // Reconnecting the same account keeps its scope; a new workspace starts by choosing.
       projectScope: sameConnection?.projectScope ?? null,
       connectedAt: Date.now()
     }
-    savePlaneToken(connection.id, params.apiToken)
-    // Why replace the others: v1 shows one connection, and a hidden one would keep a token
-    // nobody can disconnect.
-    for (const other of previous.connections) {
-      if (other.id !== connection.id) {
-        forgetConnection(other.id)
-      }
-    }
+    savePlaneToken(connection.id, source.apiToken)
     writePlaneConnectionFile({
       version: 1,
-      activeConnectionId: connection.id,
-      connections: [connection]
+      activeConnectionId: previous.activeConnectionId ?? connection.id,
+      connections: sameConnection
+        ? previous.connections.map((c) => (c.id === connection.id ? connection : c))
+        : [...previous.connections, connection]
     })
     forgetPlaneProjects(connection.id)
     primePlaneProjects(connection.id, verified.projects)
     if (verified.flavor) {
       rememberPlaneApiFlavor(connection.id, verified.flavor)
     }
-    return { ok: true, status: planeStatus(), projects: verified.projects }
+    return { ok: true, status: planeStatus(), connection, projects: verified.projects }
   } catch (error) {
     if (error instanceof PlaneVerificationError) {
       return {
         ok: false,
         error: error.kind,
-        message: redactPlaneSecrets(error.message, [params.apiToken]),
+        message: redactPlaneSecrets(error.message, secrets),
         ...(error.field ? { field: error.field } : {})
       }
     }
@@ -94,39 +148,49 @@ export async function planeConnect(
   }
 }
 
-export function planeDisconnect(): PlaneConnectionStatus {
+/** Removes one workspace, or every workspace when no connectionId is given. */
+export function planeDisconnect(params?: PlaneDisconnectParams): PlaneConnectionStatus {
   const file = readPlaneConnectionFile()
-  for (const connection of file.connections) {
+  const removed = params?.connectionId
+    ? file.connections.filter((c) => c.id === params.connectionId)
+    : file.connections
+  for (const connection of removed) {
     forgetConnection(connection.id)
   }
-  writePlaneConnectionFile({ version: 1, activeConnectionId: null, connections: [] })
+  const removedIds = new Set(removed.map((c) => c.id))
+  const connections = file.connections.filter((c) => !removedIds.has(c.id))
+  writePlaneConnectionFile({
+    version: 1,
+    activeConnectionId: removedIds.has(file.activeConnectionId ?? '')
+      ? (connections[0]?.id ?? null)
+      : file.activeConnectionId,
+    connections
+  })
   return planeStatus()
 }
 
 export function planeSetProjectScope(params: PlaneSetProjectScopeParams): PlaneConnectionStatus {
   const file = readPlaneConnectionFile()
-  const active = file.connections.find((c) => c.id === file.activeConnectionId)
-  if (!active) {
+  const target = getPlaneConnection(params.connectionId)
+  if (!target) {
     throw new PlaneNotConnectedError()
   }
   writePlaneConnectionFile({
     ...file,
     connections: file.connections.map((c) =>
-      c.id === active.id ? { ...c, projectScope: params.scope } : c
+      c.id === target.id ? { ...c, projectScope: params.scope } : c
     )
   })
   return planeStatus()
 }
 
-/** Every live project, unscoped: the scope picker needs the full list. */
+/** Every live project of one workspace, unscoped: the scope picker needs the full list. */
 export function planeListProjects(
-  options: { refresh?: boolean; signal?: AbortSignal } = {}
+  options: { refresh?: boolean; connectionId?: string; signal?: AbortSignal } = {}
 ): Promise<PlaneProject[]> {
-  const session = getActivePlaneSession()
-  return getPlaneProjects(
-    session.connection.id,
-    session.target,
-    session.connection.workspaceSlug,
-    options
-  )
+  const session = getPlaneSession(options.connectionId)
+  return getPlaneProjects(session.connection.id, session.target, session.connection.workspaceSlug, {
+    refresh: options.refresh,
+    signal: options.signal
+  })
 }

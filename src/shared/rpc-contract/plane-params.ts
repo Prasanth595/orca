@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import {
+  isPlaneConnectionId,
   isPlaneCursor,
   isPlaneUuid,
   normalizePlaneWorkspaceSlug,
@@ -32,21 +33,27 @@ const PlaneWorkspaceSlug = z.unknown().transform((value, ctx) => {
   return slug
 })
 
-export const Connect = z
+const PlaneConnectionId = z.string().refine(isPlaneConnectionId, 'Invalid Plane connection id')
+// Absent = the host's active connection, which keeps single-workspace callers unchanged.
+const ConnectionScoped = { connectionId: PlaneConnectionId.optional() }
+
+const PlaneApiToken = requiredString('API token is required')
+  .transform((value) => value.trim())
+  .pipe(
+    z
+      .string()
+      .min(1, 'API token is required')
+      .max(PLANE_API_TOKEN_MAX_LENGTH, 'API token is too long')
+      .regex(/^\S+$/, 'API token cannot contain spaces')
+  )
+
+const ConnectWithToken = z
   .object({
     hostKind: z.enum(['cloud', 'self-hosted']),
     serverUrl: PlaneUrlField.optional(),
     apiBaseUrl: PlaneUrlField.optional(),
     workspaceSlug: PlaneWorkspaceSlug,
-    apiToken: requiredString('API token is required')
-      .transform((value) => value.trim())
-      .pipe(
-        z
-          .string()
-          .min(1, 'API token is required')
-          .max(PLANE_API_TOKEN_MAX_LENGTH, 'API token is too long')
-          .regex(/^\S+$/, 'API token cannot contain spaces')
-      ),
+    apiToken: PlaneApiToken,
     insecureHttpAcknowledged: OptionalBoolean
   })
   .superRefine((value, ctx) => {
@@ -54,6 +61,17 @@ export const Connect = z
       ctx.addIssue({ code: 'custom', path: ['serverUrl'], message: 'Server URL is required' })
     }
   })
+
+// Why: adding another workspace reuses a saved token on the host, so it never returns to the
+// client; the server comes from that connection too, so the token cannot reach a new host.
+const ConnectReusingToken = z.object({
+  reuseTokenFromConnectionId: PlaneConnectionId,
+  workspaceSlug: PlaneWorkspaceSlug
+})
+
+export const Connect = z.union([ConnectWithToken, ConnectReusingToken])
+
+export const Disconnect = z.object(ConnectionScoped).optional()
 
 export const PlaneProjectScopeParam = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('all') }),
@@ -67,9 +85,9 @@ export const PlaneProjectScopeParam = z.discriminatedUnion('mode', [
   })
 ])
 
-export const SetProjectScope = z.object({ scope: PlaneProjectScopeParam })
+export const SetProjectScope = z.object({ scope: PlaneProjectScopeParam, ...ConnectionScoped })
 
-export const ListProjects = z.object({ refresh: OptionalBoolean }).optional()
+export const ListProjects = z.object({ refresh: OptionalBoolean, ...ConnectionScoped }).optional()
 
 export const ListWorkItems = z
   .object({
@@ -77,13 +95,15 @@ export const ListWorkItems = z
     cursorByProject: z
       .record(PlaneUuid, z.string().refine(isPlaneCursor, 'Invalid Plane cursor'))
       .optional(),
-    refresh: OptionalBoolean
+    refresh: OptionalBoolean,
+    ...ConnectionScoped
   })
   .optional()
 
 export const WorkItemRef = z.object({
   projectId: PlaneUuid,
-  workItemId: PlaneUuid
+  workItemId: PlaneUuid,
+  ...ConnectionScoped
 })
 
 export const UpdateState = WorkItemRef.extend({ stateId: PlaneUuid })
@@ -100,7 +120,7 @@ export const AddComment = WorkItemRef.extend({
     )
 })
 
-export const ProjectRef = z.object({ projectId: PlaneUuid })
+export const ProjectRef = z.object({ projectId: PlaneUuid, ...ConnectionScoped })
 
 export const LookupIdentifier = z.object({
   identifier: z.unknown().transform((value, ctx) => {
@@ -110,10 +130,13 @@ export const LookupIdentifier = z.object({
       return z.NEVER
     }
     return parsed.identifier
-  })
+  }),
+  ...ConnectionScoped
 })
 
 export type PlaneConnectParams = z.infer<typeof Connect>
+export type PlaneConnectWithTokenParams = z.infer<typeof ConnectWithToken>
+export type PlaneDisconnectParams = z.infer<typeof Disconnect>
 export type PlaneSetProjectScopeParams = z.infer<typeof SetProjectScope>
 export type PlaneListProjectsParams = z.infer<typeof ListProjects>
 export type PlaneProjectRefParams = z.infer<typeof ProjectRef>

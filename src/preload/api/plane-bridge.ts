@@ -4,7 +4,7 @@ import type { PreloadApi } from '../api-types'
 export const planeApi = {
   connect: (args) => ipcRenderer.invoke('plane:connect', args),
   status: () => ipcRenderer.invoke('plane:status'),
-  disconnect: () => ipcRenderer.invoke('plane:disconnect'),
+  disconnect: (args) => ipcRenderer.invoke('plane:disconnect', args),
   setProjectScope: (args) => ipcRenderer.invoke('plane:setProjectScope', args),
   listProjects: (args) => ipcRenderer.invoke('plane:listProjects', args),
   listWorkItems: (args) => ipcRenderer.invoke('plane:listWorkItems', args),

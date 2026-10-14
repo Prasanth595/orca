@@ -19,7 +19,7 @@ export function createWebPlaneApi(): PreloadApi['plane'] {
   return {
     connect: (args) => planeCall('connect', args),
     status: () => planeCall('status', undefined, PLANE_SETTINGS_TIMEOUT_MS),
-    disconnect: () => planeCall('disconnect', undefined, PLANE_SETTINGS_TIMEOUT_MS),
+    disconnect: (args) => planeCall('disconnect', args, PLANE_SETTINGS_TIMEOUT_MS),
     setProjectScope: (args) => planeCall('setProjectScope', args, PLANE_SETTINGS_TIMEOUT_MS),
     listProjects: (args) => planeCall('listProjects', args),
     // Why the chunk reader: a 500-item list can exceed the 1 MiB socket frame. The wire shape

@@ -4,7 +4,7 @@ import { parseWorkspaceReferenceUrl } from '../../../shared/workspace-reference-
 import type { WorkspaceAttachment } from '../../../shared/worktree/types'
 
 /**
- * 'plane' when a pasted URL belongs to the connected Plane workspace. A self-hosted
+ * 'plane' when a pasted URL belongs to one of the connected Plane workspaces. A self-hosted
  * `/browse/KEY-N` link reads as Jira otherwise, so only a match on the connection's own web
  * base and slug may claim it.
  */
@@ -15,9 +15,11 @@ export function resolvePlaneReferenceHint(
   if (!planeStatus?.connected) {
     return undefined
   }
-  const { webBaseUrl, workspaceSlug } = planeStatus.connection
-  const ref = parsePlaneWorkItemUrl(url, webBaseUrl)
-  return ref?.workspaceSlug === workspaceSlug ? 'plane' : undefined
+  const matches = planeStatus.connections.some(({ connection }) => {
+    const ref = parsePlaneWorkItemUrl(url, connection.webBaseUrl)
+    return ref?.workspaceSlug === connection.workspaceSlug
+  })
+  return matches ? 'plane' : undefined
 }
 
 /** A pasted Plane work item URL as an attachment, or null when it is not one. */

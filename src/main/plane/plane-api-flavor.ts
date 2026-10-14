@@ -15,10 +15,10 @@ function probe(
   return planeRequest(target, path, { query: { per_page: '1' }, signal })
 }
 
-// Why only a non-JSON 404 counts: Django answers a missing route with an HTML page, while a
-// missing project or a permission gap is a JSON error that says nothing about the route.
+// Why only a missing route counts: a missing project or a permission gap says nothing about
+// which path serves work items.
 function isMissingRoute(error: unknown): boolean {
-  return isPlaneApiError(error) && error.kind === 'not_found' && error.jsonBody === false
+  return isPlaneApiError(error) && error.kind === 'not_found' && error.routeMissing === true
 }
 
 /**

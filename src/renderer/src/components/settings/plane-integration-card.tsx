@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { TriangleAlert, Unlink } from 'lucide-react'
 import { PlaneIcon } from '@/components/icons/PlaneIcon'
-import { PlaneConnectDialog } from '@/components/plane/PlaneConnectDialog'
+import {
+  PlaneConnectDialog,
+  type PlaneConnectDialogMode
+} from '@/components/plane/PlaneConnectDialog'
 import { getPlaneErrorCopy, type PlaneErrorKind } from '@/components/plane/plane-error-copy'
 import { usePlaneHostLabel } from '@/components/plane/use-plane-host-label'
 import { Badge } from '@/components/ui/badge'
@@ -11,7 +14,11 @@ import { translate } from '@/i18n/i18n'
 import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
 import { isPlaneRuntimeUpdateRequiredError } from '@/runtime/runtime-plane-client'
 import { useAppStore } from '@/store'
-import type { PlaneConnection, PlaneProjectScope } from '../../../../shared/plane-types'
+import type {
+  PlaneConnection,
+  PlaneConnectionEntry,
+  PlaneProjectScope
+} from '../../../../shared/plane-types'
 import type { SecretAtRestProtection } from '../../../../shared/secret-at-rest-protection'
 import { IntegrationCardDetails, IntegrationCardShell } from './integration-card-shell'
 import { useIntegrationSubordinateRowClass } from './integration-card-presentation'
@@ -20,7 +27,7 @@ import { ProviderHostScopeControl } from './ProviderHostScopeControl'
 import { PLANE_INTEGRATION_SECTION_ID } from './task-provider-integration-section-ids'
 import { UnsealedCredentialNotice } from './UnsealedCredentialNotice'
 
-type DialogMode = 'connect' | 'editScope'
+type DialogRequest = { mode: PlaneConnectDialogMode; connectionId?: string }
 type CardState = 'checking' | 'disconnected' | 'needsScope' | 'connected'
 
 function serverHost(connection: PlaneConnection): string {
@@ -43,12 +50,26 @@ function scopeLabel(scope: PlaneProjectScope | null): string {
     : translate('plane.card.scopeMany', '{{count}} projects', { count: scope.projectIds.length })
 }
 
-function cardDescription(state: CardState, connection: PlaneConnection | null): string {
-  if (connection) {
-    return translate('plane.card.connectedDescription', '{{slug}} on {{server}}', {
-      slug: connection.workspaceSlug,
-      server: serverHost(connection)
-    })
+function connectedSummary(connections: readonly PlaneConnection[]): string {
+  return connections.length === 1
+    ? translate('plane.card.connectedOne', 'Connected to {{slug}} on {{server}}.', {
+        slug: connections[0].workspaceSlug,
+        server: serverHost(connections[0])
+      })
+    : translate('plane.card.connectedCount', '{{count}} workspaces connected.', {
+        count: connections.length
+      })
+}
+
+// Why the same sentence first: the card reads like the other task providers', with the
+// connection summary after it.
+function cardDescription(state: CardState, connections: readonly PlaneConnection[]): string {
+  if (connections.length > 0) {
+    const purpose = translate(
+      'plane.card.purpose',
+      'Browse, start work from and update Plane work items, on Plane Cloud or your own server.'
+    )
+    return `${purpose} ${connectedSummary(connections)}`
   }
   return state === 'checking'
     ? translate('plane.card.checking', 'Checking Plane access before showing setup actions.')
@@ -112,23 +133,22 @@ function PlaneConnectionBadges({
 }
 
 function PlaneConnectionRow({
-  connection,
-  credentialProtection,
+  entry,
   onEditScope
 }: {
-  connection: PlaneConnection
-  credentialProtection: SecretAtRestProtection | null
+  entry: PlaneConnectionEntry
   onEditScope: () => void
 }): React.JSX.Element {
+  const { connection, credentialProtection } = entry
   const disconnectPlane = useAppStore((s) => s.disconnectPlane)
   const mountedRef = useMountedRef()
   const rowClass = useIntegrationSubordinateRowClass('space-y-2')
   const [disconnectFailed, setDisconnectFailed] = useState<PlaneErrorKind | null>(null)
 
-  const handleDisconnect = async (): Promise<void> => {
+  const handleRemove = async (): Promise<void> => {
     setDisconnectFailed(null)
     try {
-      await disconnectPlane()
+      await disconnectPlane(connection.id)
     } catch (error) {
       if (mountedRef.current) {
         setDisconnectFailed(
@@ -139,7 +159,7 @@ function PlaneConnectionRow({
   }
 
   return (
-    <div className={rowClass}>
+    <div className={rowClass} data-plane-connection={connection.id}>
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-foreground">{connection.workspaceSlug}</p>
@@ -156,8 +176,8 @@ function PlaneConnectionRow({
         <Button
           variant="ghost"
           size="icon-sm"
-          onClick={() => void handleDisconnect()}
-          aria-label={translate('plane.card.disconnect', 'Disconnect {{value0}}', {
+          onClick={() => void handleRemove()}
+          aria-label={translate('plane.card.remove', 'Remove {{value0}}', {
             value0: connection.workspaceSlug
           })}
         >
@@ -192,15 +212,15 @@ function PlaneSetupNotice(): React.JSX.Element {
 function getCardState(
   contextMatches: boolean,
   checked: boolean,
-  connection: PlaneConnection | null
+  connections: readonly PlaneConnection[]
 ): CardState {
   if (!contextMatches || !checked) {
     return 'checking'
   }
-  if (!connection) {
+  if (connections.length === 0) {
     return 'disconnected'
   }
-  return connection.projectScope ? 'connected' : 'needsScope'
+  return connections.every((c) => c.projectScope) ? 'connected' : 'needsScope'
 }
 
 export function PlaneIntegrationCard(): React.JSX.Element {
@@ -210,28 +230,37 @@ export function PlaneIntegrationCard(): React.JSX.Element {
   const planeStatusIssue = useAppStore((s) => s.planeStatusIssue)
   const settings = useAppStore((s) => s.settings)
   const accountScopeRowClass = useIntegrationSubordinateRowClass('text-xs')
-  const [dialogMode, setDialogMode] = useState<DialogMode | null>(null)
+  const [dialog, setDialog] = useState<DialogRequest | null>(null)
 
   const contextMatches = planeStatusContextKey === getProviderRuntimeContextKey(settings)
-  const connection = contextMatches && planeStatus.connected ? planeStatus.connection : null
-  const credentialProtection = planeStatus.connected ? planeStatus.credentialProtection : null
-  const state = getCardState(contextMatches, planeStatusChecked, connection)
+  const entries = contextMatches && planeStatus.connected ? planeStatus.connections : []
+  const connections = entries.map((entry) => entry.connection)
+  // Why any: sealing is host-wide, so one plaintext token means this host does not seal.
+  const credentialProtection = entries.some((e) => e.credentialProtection === 'plaintext')
+    ? 'plaintext'
+    : (entries[0]?.credentialProtection ?? null)
+  const state = getCardState(contextMatches, planeStatusChecked, connections)
+  const credentialError = entries.some((e) => e.credentialError) || planeStatus.credentialError
   const issue: PlaneErrorKind | null =
-    planeStatusIssue ?? (planeStatus.credentialError ? 'credential_unreadable' : null)
+    planeStatusIssue ?? (credentialError ? 'credential_unreadable' : null)
 
   return (
     <IntegrationCardShell
       settingsSectionId={PLANE_INTEGRATION_SECTION_ID}
       icon={<PlaneIcon className="size-5" />}
       name="Plane"
-      description={cardDescription(state, connection)}
+      description={cardDescription(state, connections)}
       checking={state === 'checking'}
       statusTone={state === 'connected' ? 'connected' : 'attention'}
       statusLabel={cardStatusLabel(state)}
       actions={
         state === 'disconnected' ? (
-          <Button size="sm" onClick={() => setDialogMode('connect')}>
+          <Button size="sm" onClick={() => setDialog({ mode: 'connect' })}>
             {translate('plane.card.connect', 'Connect Plane')}
+          </Button>
+        ) : state !== 'checking' ? (
+          <Button size="sm" variant="outline" onClick={() => setDialog({ mode: 'addWorkspace' })}>
+            {translate('plane.card.addWorkspace', 'Add workspace')}
           </Button>
         ) : null
       }
@@ -247,22 +276,23 @@ export function PlaneIntegrationCard(): React.JSX.Element {
           className={accountScopeRowClass}
         />
         <PlaneIssueAlert issue={state === 'checking' ? null : issue} />
-        {connection ? (
+        {entries.map((entry) => (
           <PlaneConnectionRow
-            connection={connection}
-            credentialProtection={credentialProtection}
-            onEditScope={() => setDialogMode('editScope')}
+            key={entry.connection.id}
+            entry={entry}
+            onEditScope={() => setDialog({ mode: 'editScope', connectionId: entry.connection.id })}
           />
-        ) : null}
+        ))}
         {state === 'disconnected' ? <PlaneSetupNotice /> : null}
       </IntegrationCardDetails>
 
       <PlaneConnectDialog
-        open={dialogMode !== null}
-        mode={dialogMode ?? 'connect'}
+        open={dialog !== null}
+        mode={dialog?.mode ?? 'connect'}
+        connectionId={dialog?.connectionId}
         onOpenChange={(open) => {
           if (!open) {
-            setDialogMode(null)
+            setDialog(null)
           }
         }}
       />

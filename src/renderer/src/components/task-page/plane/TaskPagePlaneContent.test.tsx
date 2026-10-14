@@ -20,7 +20,7 @@ type FixtureState = {
   planeStatus: PlaneConnectionStatus
   planeStatusChecked: boolean
   planeStatusContextKey: string | null
-  planeProjects: PlaneProject[]
+  planeProjectsByConnection: Record<string, PlaneProject[]>
   planeProjectsContextKey: string | null
   planeWorkItemFiltersByConnection: Record<string, PlaneWorkItemFilters>
   checkPlaneConnection: ReturnType<typeof vi.fn>
@@ -114,7 +114,7 @@ function install(planeStatus: PlaneConnectionStatus, overrides: Partial<FixtureS
     planeStatus,
     planeStatusChecked: true,
     planeStatusContextKey: CONTEXT_KEY,
-    planeProjects: [WEB, API],
+    planeProjectsByConnection: { [CONNECTION.id]: [WEB, API] },
     planeProjectsContextKey: CONTEXT_KEY,
     planeWorkItemFiltersByConnection: {},
     checkPlaneConnection: vi.fn(),
@@ -127,7 +127,8 @@ function install(planeStatus: PlaneConnectionStatus, overrides: Partial<FixtureS
 const connected = (connection: PlaneConnection = CONNECTION): PlaneConnectionStatus => ({
   connected: true,
   connection,
-  credentialProtection: 'sealed'
+  credentialProtection: 'sealed',
+  connections: [{ connection, credentialProtection: 'sealed' }]
 })
 
 beforeEach(() => {

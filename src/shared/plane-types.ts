@@ -37,13 +37,23 @@ export type PlaneConnectionFile = {
   connections: PlaneConnection[]
 }
 
+/** One saved workspace connection as the host reports it; never carries the token. */
+export type PlaneConnectionEntry = {
+  connection: PlaneConnection
+  credentialError?: string
+  credentialProtection: SecretAtRestProtection | null
+}
+
 export type PlaneConnectionStatus =
   | { connected: false; credentialError?: string }
   | {
       connected: true
+      /** The active connection: what single-workspace readers use. */
       connection: PlaneConnection
       credentialError?: string
       credentialProtection: SecretAtRestProtection | null
+      /** Every saved workspace, active one included, in saved order. */
+      connections: PlaneConnectionEntry[]
     }
 
 export type PlaneProject = { id: string; name: string; identifier: string }
@@ -134,11 +144,20 @@ export type PlaneConnectErrorKind =
   | PlaneUrlErrorKind
   // Plain http to a non-loopback host without the user's explicit consent.
   | 'insecure_http_unconfirmed'
-  // The token works but the workspace slug does not resolve for it.
-  | 'workspace_not_found'
+  // The slug does not exist or the token's user is not a member (Plane answers 403 for both).
+  | 'workspace_unavailable'
+  // Adding a workspace with a saved token: that connection is gone or its token is unreadable.
+  | 'not_connected'
+  | 'credential_unreadable'
 
 export type PlaneConnectResult =
-  | { ok: true; status: PlaneConnectionStatus; projects: PlaneProject[] }
+  | {
+      ok: true
+      status: PlaneConnectionStatus
+      /** The workspace this call added or updated. */
+      connection: PlaneConnection
+      projects: PlaneProject[]
+    }
   | {
       ok: false
       error: PlaneConnectErrorKind

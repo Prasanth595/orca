@@ -22,8 +22,8 @@ import type {
   PlaneWorkItemList
 } from '../../shared/plane-types'
 
-/** What the renderer sends to connect; the token goes to main once and never comes back. */
-export type PlaneConnectArgs = {
+/** A new token for one workspace; it goes to the host once and never comes back. */
+export type PlaneConnectWithTokenArgs = {
   hostKind: PlaneHostKind
   serverUrl?: string
   apiBaseUrl?: string
@@ -32,10 +32,19 @@ export type PlaneConnectArgs = {
   insecureHttpAcknowledged?: boolean
 }
 
+/** Another workspace on a saved connection's server, using that connection's token on the host. */
+export type PlaneConnectReusingTokenArgs = {
+  reuseTokenFromConnectionId: string
+  workspaceSlug: string
+}
+
+export type PlaneConnectArgs = PlaneConnectWithTokenArgs | PlaneConnectReusingTokenArgs
+
 export type PlaneApi = {
   connect: (args: PlaneConnectArgs) => Promise<PlaneConnectResult>
   status: () => Promise<PlaneConnectionStatus>
-  disconnect: () => Promise<PlaneConnectionStatus>
+  /** One workspace, or every workspace when no connectionId is given. */
+  disconnect: (args?: { connectionId?: string }) => Promise<PlaneConnectionStatus>
   setProjectScope: (args: PlaneSetProjectScopeParams) => Promise<PlaneResult<PlaneConnectionStatus>>
   listProjects: (args?: PlaneListProjectsParams) => Promise<PlaneResult<PlaneProject[]>>
   listWorkItems: (args?: PlaneListWorkItemsParams) => Promise<PlaneResult<PlaneWorkItemList>>

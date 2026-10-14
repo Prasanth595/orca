@@ -187,9 +187,11 @@ export function writePlaneConnectionFile(file: PlaneConnectionFile): void {
   connectionFileCache.invalidate()
 }
 
-export function getActivePlaneConnection(): PlaneConnection | null {
+/** A saved connection by id, or the active one when no id is given. */
+export function getPlaneConnection(connectionId?: string): PlaneConnection | null {
   const file = readPlaneConnectionFile()
-  return file.connections.find((c) => c.id === file.activeConnectionId) ?? null
+  const id = connectionId ?? file.activeConnectionId
+  return file.connections.find((c) => c.id === id) ?? null
 }
 
 /** Throws CredentialDecryptionError when the sealed token cannot be opened. */

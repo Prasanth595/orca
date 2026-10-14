@@ -88,6 +88,40 @@ describe('runtime Plane client', () => {
     expect(runtimeCall).not.toHaveBeenCalled()
   })
 
+  it('scopes disconnect, project scope and projects to one workspace connection', async () => {
+    local.disconnect.mockResolvedValue(DISCONNECTED)
+    local.setProjectScope.mockResolvedValue({ ok: true, value: DISCONNECTED })
+    local.listProjects.mockResolvedValue({ ok: true, value: [] })
+
+    await planeDisconnectForTarget(LOCAL, 'conn-2')
+    await planeSetProjectScopeForTarget(LOCAL, { mode: 'all' }, 'conn-2')
+    await planeListProjectsForTarget(LOCAL, { connectionId: 'conn-2' })
+
+    expect(local.disconnect).toHaveBeenCalledWith({ connectionId: 'conn-2' })
+    expect(local.setProjectScope).toHaveBeenCalledWith({
+      scope: { mode: 'all' },
+      connectionId: 'conn-2'
+    })
+    expect(local.listProjects).toHaveBeenCalledWith({ connectionId: 'conn-2' })
+
+    remoteHost({ plane: true, result: DISCONNECTED })
+    await planeDisconnectForTarget(REMOTE, 'conn-2')
+    expect(runtimeCall).toHaveBeenLastCalledWith(
+      expect.objectContaining({ method: 'plane.disconnect', params: { connectionId: 'conn-2' } })
+    )
+  })
+
+  it('adds a workspace with a saved token without sending one', async () => {
+    remoteHost({ plane: true, result: { ok: false, error: 'not_connected', message: 'x' } })
+    const reuse = { reuseTokenFromConnectionId: 'conn-1', workspaceSlug: 'beta' }
+
+    await planeConnectForTarget(REMOTE, reuse)
+
+    expect(runtimeCall).toHaveBeenLastCalledWith(
+      expect.objectContaining({ method: 'plane.connect', params: reuse })
+    )
+  })
+
   it('routes a remote target over runtime RPC after checking the Plane capability', async () => {
     remoteHost({ plane: true, result: { ok: true, value: [] } })
 

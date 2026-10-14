@@ -1,6 +1,7 @@
 import type {
   PlaneAddCommentParams,
   PlaneConnectParams,
+  PlaneDisconnectParams,
   PlaneListProjectsParams,
   PlaneListWorkItemsParams,
   PlaneLookupIdentifierParams,
@@ -73,13 +74,15 @@ export const planeOperations = {
       return await planeConnect(params, signal)
     } catch (error) {
       if (error instanceof Error && error.name !== 'AbortError') {
-        throw new Error(redactPlaneSecrets(error.message, [params.apiToken]))
+        throw new Error(
+          redactPlaneSecrets(error.message, 'apiToken' in params ? [params.apiToken] : [])
+        )
       }
       throw error
     }
   },
   status: (): PlaneConnectionStatus => planeStatus(),
-  disconnect: (): PlaneConnectionStatus => planeDisconnect(),
+  disconnect: (params?: PlaneDisconnectParams): PlaneConnectionStatus => planeDisconnect(params),
   setProjectScope: (
     params: PlaneSetProjectScopeParams
   ): Promise<PlaneResult<PlaneConnectionStatus>> => planeResult(() => planeSetProjectScope(params)),
@@ -87,7 +90,13 @@ export const planeOperations = {
     params: PlaneListProjectsParams,
     signal?: AbortSignal
   ): Promise<PlaneResult<PlaneProject[]>> =>
-    planeResult(() => planeListProjects({ refresh: params?.refresh === true, signal })),
+    planeResult(() =>
+      planeListProjects({
+        refresh: params?.refresh === true,
+        connectionId: params?.connectionId,
+        signal
+      })
+    ),
   listWorkItems: (
     params: PlaneListWorkItemsParams,
     signal?: AbortSignal

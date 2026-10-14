@@ -10,7 +10,7 @@ import {
   planeStatusForTarget
 } from '@/runtime/runtime-plane-client'
 import { getPlaneRuntimeTarget } from '@/runtime/runtime-plane-target'
-import type { PlaneConnectionStatus } from '../../../../shared/plane-types'
+import type { PlaneConnectionStatus, PlaneProject } from '../../../../shared/plane-types'
 import { normalizeVisibleTaskProviders } from '../../../../shared/task-providers'
 import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
 import type { AppState } from '../types'
@@ -60,13 +60,42 @@ function showPlaneInTasks(get: PlaneSliceGet): void {
   }
 }
 
-function statusPatch(contextKey: string, status: PlaneConnectionStatus): Partial<PlaneSlice> {
+// Why prune: a removed workspace's projects must not linger for a later one to read.
+function keepLiveProjects(
+  projects: Record<string, PlaneProject[]>,
+  status: PlaneConnectionStatus
+): Record<string, PlaneProject[]> {
+  const live = new Set(status.connected ? status.connections.map((e) => e.connection.id) : [])
+  return Object.fromEntries(Object.entries(projects).filter(([id]) => live.has(id)))
+}
+
+function statusPatch(
+  get: PlaneSliceGet,
+  contextKey: string,
+  status: PlaneConnectionStatus
+): Partial<PlaneSlice> {
   return {
     planeStatus: status,
     planeStatusChecked: true,
     planeStatusContextKey: contextKey,
     planeStatusIssue: null,
-    ...(status.connected ? {} : { planeProjects: [], planeProjectsContextKey: null })
+    ...(status.connected
+      ? { planeProjectsByConnection: keepLiveProjects(get().planeProjectsByConnection, status) }
+      : { planeProjectsByConnection: {}, planeProjectsContextKey: null })
+  }
+}
+
+function withProjects(
+  get: PlaneSliceGet,
+  contextKey: string,
+  connectionId: string,
+  projects: PlaneProject[]
+): Partial<PlaneSlice> {
+  const current =
+    get().planeProjectsContextKey === contextKey ? get().planeProjectsByConnection : {}
+  return {
+    planeProjectsByConnection: { ...current, [connectionId]: projects },
+    planeProjectsContextKey: contextKey
   }
 }
 
@@ -80,7 +109,7 @@ export const createPlaneSlice: StateCreator<AppState, [], [], PlaneSlice> = (set
     planeStatusChecked: false,
     planeStatusContextKey: null,
     planeStatusIssue: null,
-    planeProjects: [],
+    planeProjectsByConnection: {},
     planeProjectsContextKey: null,
     planeWorkItemFiltersByConnection: {},
 
@@ -93,12 +122,12 @@ export const createPlaneSlice: StateCreator<AppState, [], [], PlaneSlice> = (set
       try {
         const status = await planeStatusForTarget(target)
         if (isCurrent(generation, contextKey)) {
-          set(statusPatch(contextKey, status))
+          set(statusPatch(get, contextKey, status))
         }
       } catch (error) {
         if (isCurrent(generation, contextKey)) {
           set({
-            ...statusPatch(contextKey, DISCONNECTED),
+            ...statusPatch(get, contextKey, DISCONNECTED),
             planeStatusIssue: clientErrorKind(error)
           })
         }
@@ -112,9 +141,8 @@ export const createPlaneSlice: StateCreator<AppState, [], [], PlaneSlice> = (set
         const result = await planeConnectForTarget(target, args)
         if (result.ok && isCurrent(generation, contextKey)) {
           set({
-            ...statusPatch(contextKey, result.status),
-            planeProjects: result.projects,
-            planeProjectsContextKey: contextKey
+            ...statusPatch(get, contextKey, result.status),
+            ...withProjects(get, contextKey, result.connection.id, result.projects)
           })
           showPlaneInTasks(get)
         }
@@ -124,22 +152,22 @@ export const createPlaneSlice: StateCreator<AppState, [], [], PlaneSlice> = (set
       }
     },
 
-    disconnectPlane: async () => {
+    disconnectPlane: async (connectionId) => {
       const generation = ++planeRequestGeneration
       const { target, contextKey } = currentTarget(get)
-      const status = await planeDisconnectForTarget(target)
+      const status = await planeDisconnectForTarget(target, connectionId)
       if (isCurrent(generation, contextKey)) {
-        set(statusPatch(contextKey, status))
+        set(statusPatch(get, contextKey, status))
       }
     },
 
-    setPlaneProjectScope: async (scope) => {
+    setPlaneProjectScope: async (scope, connectionId) => {
       const generation = ++planeRequestGeneration
       const { target, contextKey } = currentTarget(get)
       try {
-        const result = await planeSetProjectScopeForTarget(target, scope)
+        const result = await planeSetProjectScopeForTarget(target, scope, connectionId)
         if (result.ok && isCurrent(generation, contextKey)) {
-          set(statusPatch(contextKey, result.value))
+          set(statusPatch(get, contextKey, result.value))
         }
         return result
       } catch (error) {
@@ -154,8 +182,15 @@ export const createPlaneSlice: StateCreator<AppState, [], [], PlaneSlice> = (set
       const { target, contextKey } = currentTarget(get)
       try {
         const result = await planeListProjectsForTarget(target, options)
-        if (result.ok && getProviderRuntimeContextKey(get().settings) === contextKey) {
-          set({ planeProjects: result.value, planeProjectsContextKey: contextKey })
+        const status = get().planeStatus
+        const connectionId =
+          options?.connectionId ?? (status.connected ? status.connection.id : null)
+        if (
+          result.ok &&
+          connectionId &&
+          getProviderRuntimeContextKey(get().settings) === contextKey
+        ) {
+          set(withProjects(get, contextKey, connectionId, result.value))
         }
         return result
       } catch (error) {

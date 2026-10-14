@@ -1,6 +1,7 @@
 import type {
   PlaneAddCommentParams,
   PlaneConnectParams,
+  PlaneDisconnectParams,
   PlaneListProjectsParams,
   PlaneListWorkItemsParams,
   PlaneLookupIdentifierParams,
@@ -23,8 +24,8 @@ export class RuntimePlaneCommands {
     return planeOperations.status()
   }
 
-  planeDisconnect(): Answer<'disconnect'> {
-    return planeOperations.disconnect()
+  planeDisconnect(params?: PlaneDisconnectParams): Answer<'disconnect'> {
+    return planeOperations.disconnect(params)
   }
 
   planeSetProjectScope(params: PlaneSetProjectScopeParams): Answer<'setProjectScope'> {

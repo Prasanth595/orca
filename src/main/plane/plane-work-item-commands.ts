@@ -2,6 +2,7 @@ import type {
   PlaneAddCommentParams,
   PlaneListWorkItemsParams,
   PlaneLookupIdentifierParams,
+  PlaneProjectRefParams,
   PlaneUpdateStateParams,
   PlaneWorkItemRefParams
 } from '../../shared/rpc-contract/plane-params'
@@ -14,7 +15,7 @@ import type {
   PlaneWorkItemList
 } from '../../shared/plane-types'
 import { getPlaneMembers, getPlaneProjectStates } from './plane-project-metadata'
-import { getActivePlaneSession } from './plane-session'
+import { getPlaneSession } from './plane-session'
 import {
   getPlaneWorkItem,
   listPlaneComments,
@@ -24,52 +25,52 @@ import {
 import { addPlaneWorkItemComment, updatePlaneWorkItemState } from './plane-work-item-mutations'
 import { listPlaneWorkItems } from './plane-work-items'
 
-// Work item commands on the active connection, shared by IPC and runtime RPC like
-// plane-commands.ts. Params arrive already validated by the plane-params schemas.
+// Work item commands on one connection (the active one without a connectionId), shared by IPC
+// and runtime RPC like plane-commands.ts. Params arrive validated by the plane-params schemas.
 
 export function planeListWorkItems(
   params?: PlaneListWorkItemsParams,
   signal?: AbortSignal
 ): Promise<PlaneWorkItemList> {
-  return listPlaneWorkItems(getActivePlaneSession(), params, signal)
+  return listPlaneWorkItems(getPlaneSession(params?.connectionId), params, signal)
 }
 
 export function planeGetWorkItem(
   params: PlaneWorkItemRefParams,
   signal?: AbortSignal
 ): Promise<PlaneWorkItemDetail> {
-  return getPlaneWorkItem(getActivePlaneSession(), params, signal)
+  return getPlaneWorkItem(getPlaneSession(params.connectionId), params, signal)
 }
 
 export function planeLookupWorkItem(
   params: PlaneLookupIdentifierParams,
   signal?: AbortSignal
 ): Promise<PlaneWorkItemDetail> {
-  return lookupPlaneWorkItem(getActivePlaneSession(), params.identifier, signal)
+  return lookupPlaneWorkItem(getPlaneSession(params.connectionId), params.identifier, signal)
 }
 
 export function planeListComments(
   params: PlaneWorkItemRefParams,
   signal?: AbortSignal
 ): Promise<PlaneComment[]> {
-  return listPlaneComments(getActivePlaneSession(), params, signal)
+  return listPlaneComments(getPlaneSession(params.connectionId), params, signal)
 }
 
 /** States of a live project; a project outside the workspace is a not_found. */
 export async function planeListStates(
-  params: { projectId: string },
+  params: PlaneProjectRefParams,
   signal?: AbortSignal
 ): Promise<PlaneState[]> {
-  const session = getActivePlaneSession()
+  const session = getPlaneSession(params.connectionId)
   await planeProjectContext(session, (p) => p.id === params.projectId, signal)
   return getPlaneProjectStates(session, params.projectId, { signal })
 }
 
 export async function planeListMembers(
-  params: { projectId: string },
+  params: PlaneProjectRefParams,
   signal?: AbortSignal
 ): Promise<PlaneMember[]> {
-  const session = getActivePlaneSession()
+  const session = getPlaneSession(params.connectionId)
   await planeProjectContext(session, (p) => p.id === params.projectId, signal)
   return getPlaneMembers(session, params.projectId, { signal })
 }
@@ -78,12 +79,12 @@ export function planeUpdateState(
   params: PlaneUpdateStateParams,
   signal?: AbortSignal
 ): Promise<PlaneWorkItem> {
-  return updatePlaneWorkItemState(getActivePlaneSession(), params, signal)
+  return updatePlaneWorkItemState(getPlaneSession(params.connectionId), params, signal)
 }
 
 export function planeAddComment(
   params: PlaneAddCommentParams,
   signal?: AbortSignal
 ): Promise<PlaneComment> {
-  return addPlaneWorkItemComment(getActivePlaneSession(), params, signal)
+  return addPlaneWorkItemComment(getPlaneSession(params.connectionId), params, signal)
 }

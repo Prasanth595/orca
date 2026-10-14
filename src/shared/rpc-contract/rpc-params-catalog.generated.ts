@@ -444,6 +444,7 @@ import { WorkerDispatchParams as WorkerDispatchParamsOfOrchestrationWorkerStopPa
 import {
   AddComment,
   Connect as ConnectOfPlaneParams,
+  Disconnect,
   ListProjects as ListProjectsOfPlaneParams,
   ListWorkItems,
   LookupIdentifier,
@@ -1159,7 +1160,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'pairing.registerDeviceKey': RegisterDeviceKeyParamsSchema,
   'plane.addComment': AddComment,
   'plane.connect': ConnectOfPlaneParams,
-  'plane.disconnect': null,
+  'plane.disconnect': Disconnect,
   'plane.getWorkItem': WorkItemRef,
   'plane.listComments': WorkItemRef,
   'plane.listMembers': ProjectRefOfPlaneParams,

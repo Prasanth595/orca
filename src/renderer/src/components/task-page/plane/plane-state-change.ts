@@ -61,7 +61,7 @@ export function usePlaneStateChange(args: {
       return
     }
     setLoadingStates(true)
-    planeListStatesForTarget(target, item.projectId).then(
+    planeListStatesForTarget(target, item.projectId, item.connectionId).then(
       (result) => {
         setLoadingStates(false)
         if (result.ok) {
@@ -93,6 +93,7 @@ export function usePlaneStateChange(args: {
     planeUpdateStateForTarget(target, {
       projectId: item.projectId,
       workItemId: item.id,
+      connectionId: item.connectionId,
       stateId: state.id
     }).then(
       (result) =>

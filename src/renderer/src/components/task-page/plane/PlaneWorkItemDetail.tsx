@@ -54,7 +54,7 @@ function usePlaneWorkItemDetail(target: RuntimeClientTarget, firstItem: PlaneWor
 
   useEffect(() => {
     let cancelled = false
-    const ref = { projectId: item.projectId, workItemId: item.id }
+    const ref = { projectId: item.projectId, workItemId: item.id, connectionId: item.connectionId }
     const fail = (error: unknown): void => {
       if (!cancelled) {
         const kind = isPlaneRuntimeUpdateRequiredError(error) ? 'update_required' : 'runtime_error'

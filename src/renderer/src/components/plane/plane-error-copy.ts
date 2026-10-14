@@ -20,10 +20,10 @@ export function getPlaneErrorCopy(kind: PlaneErrorKind, hostLabel: string): stri
         'plane.error.notFound',
         'Plane could not find that item. It may have been moved or deleted.'
       )
-    case 'workspace_not_found':
+    case 'workspace_unavailable':
       return translate(
-        'plane.error.workspaceNotFound',
-        'No Plane workspace with that slug is available to this token.'
+        'plane.error.workspaceUnavailable',
+        "Workspace not found or you don't have access."
       )
     case 'rate_limited':
       return translate(

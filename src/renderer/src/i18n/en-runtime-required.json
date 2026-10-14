@@ -3165,6 +3165,16 @@
   "menu": {
     "quitApp": "Quit {{appName}}"
   },
+  "plane": {
+    "card": {
+      "disconnect": "Disconnect {{value0}}"
+    },
+    "connect": {
+      "workspaceSlug": "Workspace slug",
+      "workspaceSlugDescription": "The first part of the path in your Plane URL, like acme in /acme/projects.",
+      "workspaceSlugPlaceholder": "acme"
+    }
+  },
   "runtimeRpc": {
     "startupFailure": {
       "guidance": {

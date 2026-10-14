@@ -48,22 +48,28 @@ async function discardBody(response: Response): Promise<void> {
   await response.body?.cancel().catch(() => undefined)
 }
 
-function isJsonObject(value: unknown): boolean {
+function isJsonObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 // Why look at a 404 body at all: callers must tell a missing route (older API flavor) from a
-// missing resource. Only the shape is kept; the content never leaves this function.
-async function notFoundHasJsonBody(response: Response): Promise<boolean> {
+// missing resource. Plane 1.4 answers an unknown route with JSON `{"error": ...}` while a DRF
+// view answers a missing object with `{"detail": ...}`; a proxy may answer with HTML. Only the
+// shape is kept; the content never leaves this function.
+async function notFoundIsMissingRoute(response: Response): Promise<boolean> {
   if (!/json/i.test(response.headers.get('content-type') ?? '')) {
     await discardBody(response)
-    return false
+    return true
   }
   try {
     const text = await readFetchResponseTextWithinLimit(response, MAX_NOT_FOUND_PROBE_BYTES)
-    return isJsonObject(JSON.parse(text))
+    const body: unknown = JSON.parse(text)
+    if (!isJsonObject(body)) {
+      return true
+    }
+    return 'error' in body && !('detail' in body)
   } catch {
-    return false
+    return true
   }
 }
 
@@ -75,8 +81,8 @@ async function readResponse(response: Response): Promise<unknown> {
   if (!response.ok) {
     const kind = planeErrorKindForStatus(response.status)
     if (kind === 'not_found') {
-      const jsonBody = await notFoundHasJsonBody(response)
-      throw new PlaneApiError(kind, { status: response.status, jsonBody })
+      const routeMissing = await notFoundIsMissingRoute(response)
+      throw new PlaneApiError(kind, { status: response.status, routeMissing })
     }
     await discardBody(response)
     throw new PlaneApiError(kind, { status: response.status })

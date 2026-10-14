@@ -50,18 +50,25 @@ export type PlaneSlice = {
   planeStatusChecked: boolean
   planeStatusContextKey: string | null
   planeStatusIssue: PlaneClientErrorKind | null
-  planeProjects: PlaneProject[]
+  /** Live projects per workspace connection, for the runtime context in planeProjectsContextKey. */
+  planeProjectsByConnection: Record<string, PlaneProject[]>
   planeProjectsContextKey: string | null
   /** Tasks-tab filters, keyed by connection id; never change the saved project scope. */
   planeWorkItemFiltersByConnection: Record<string, PlaneWorkItemFilters>
 
   checkPlaneConnection: () => Promise<void>
   connectPlane: (args: PlaneConnectArgs) => Promise<PlaneConnectAttempt>
-  disconnectPlane: () => Promise<void>
+  /** One workspace, or every workspace when no connectionId is given. */
+  disconnectPlane: (connectionId?: string) => Promise<void>
+  /** Without a connectionId the host applies it to its active connection. */
   setPlaneProjectScope: (
-    scope: PlaneProjectScope
+    scope: PlaneProjectScope,
+    connectionId?: string
   ) => Promise<PlaneClientResult<PlaneConnectionStatus>>
-  loadPlaneProjects: (options?: { refresh?: boolean }) => Promise<PlaneClientResult<PlaneProject[]>>
+  loadPlaneProjects: (options?: {
+    refresh?: boolean
+    connectionId?: string
+  }) => Promise<PlaneClientResult<PlaneProject[]>>
   setPlaneWorkItemFilters: (connectionId: string, patch: Partial<PlaneWorkItemFilters>) => void
 }
 

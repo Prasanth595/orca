@@ -64,6 +64,8 @@ export type PlaneApiFixture = {
   apiBaseUrl: string
   projects: Record<string, unknown>[]
   flavor: PlaneApiFlavor
+  /** Workspaces the token's user belongs to; any other slug answers 403. */
+  workspaceSlugs: Set<string>
   /** Status to answer for any path containing the key. */
   failures: Map<string, number>
   routes: PlaneFixtureRoute[]
@@ -84,6 +86,7 @@ export function createPlaneApiFixture(apiBaseUrl: string): PlaneApiFixture {
     apiBaseUrl,
     projects: [rawPlaneProject(1), rawPlaneProject(2)],
     flavor: 'work-items',
+    workspaceSlugs: new Set([PLANE_FIXTURE_SLUG]),
     failures: new Map(),
     routes: [],
     requests: [],
@@ -120,26 +123,37 @@ export function createPlaneApiFixture(apiBaseUrl: string): PlaneApiFixture {
   return fixture
 }
 
+// What Plane 1.4 answers: an unknown route is a JSON 404 with `error`, an unknown or
+// inaccessible workspace a 403 with DRF's `detail`.
+export const PLANE_MISSING_ROUTE_BODY = { error: 'Page not found.' }
+export const PLANE_NO_PERMISSION_BODY = {
+  detail: 'You do not have permission to perform this action.'
+}
+
+function missingRoute(): Response {
+  return planeJsonResponse(PLANE_MISSING_ROUTE_BODY, { status: 404 })
+}
+
 function defaultRoute(fixture: PlaneApiFixture, request: PlaneFixtureRequest): Response {
-  const ws = `/workspaces/${PLANE_FIXTURE_SLUG}`
   if (request.path === '/users/me/') {
     return planeJsonResponse(PLANE_FIXTURE_VIEWER)
   }
-  if (request.path === `${ws}/projects/`) {
-    return planeJsonResponse(envelope(fixture.projects))
+  const workspace = /^\/workspaces\/([^/]+)\//.exec(request.path)
+  if (workspace && !fixture.workspaceSlugs.has(workspace[1])) {
+    return planeJsonResponse(PLANE_NO_PERMISSION_BODY, { status: 403 })
   }
-  if (request.path.startsWith('/workspaces/') && !request.path.startsWith(`${ws}/`)) {
-    return planeJsonResponse({ detail: 'Not found.' }, { status: 404 })
+  if (/^\/workspaces\/[^/]+\/projects\/$/.test(request.path)) {
+    return planeJsonResponse(envelope(fixture.projects))
   }
   const list = /^\/workspaces\/[^/]+\/projects\/([^/]+)\/(work-items|issues)\/$/.exec(request.path)
   if (list) {
     if (list[2] !== fixture.flavor) {
-      return planeHtmlResponse(404)
+      return missingRoute()
     }
     const known = fixture.projects.some((project) => project.id === list[1])
     return known
       ? planeJsonResponse(envelope([]))
       : planeJsonResponse({ detail: 'Not found.' }, { status: 404 })
   }
-  return planeHtmlResponse(404)
+  return missingRoute()
 }

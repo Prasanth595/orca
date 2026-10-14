@@ -3,19 +3,21 @@ import type { PlaneConnectionStatus } from '../../../shared/plane-types'
 import { parsePlaneAttachmentInput, resolvePlaneReferenceHint } from './plane-reference-hint'
 
 function status(webBaseUrl: string): PlaneConnectionStatus {
+  const connection = {
+    id: 'abcdefghijklmnopqrstuvwx',
+    hostKind: 'self-hosted' as const,
+    apiBaseUrl: webBaseUrl,
+    webBaseUrl,
+    workspaceSlug: 'acme',
+    viewer: { id: 'v', displayName: 'Ada', email: null },
+    projectScope: { mode: 'all' as const },
+    connectedAt: 1
+  }
   return {
     connected: true,
     credentialProtection: null,
-    connection: {
-      id: 'abcdefghijklmnopqrstuvwx',
-      hostKind: 'self-hosted',
-      apiBaseUrl: webBaseUrl,
-      webBaseUrl,
-      workspaceSlug: 'acme',
-      viewer: { id: 'v', displayName: 'Ada', email: null },
-      projectScope: { mode: 'all' },
-      connectedAt: 1
-    }
+    connection,
+    connections: [{ connection, credentialProtection: null }]
   }
 }
 

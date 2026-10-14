@@ -32,8 +32,15 @@ vi.mock('@/store', () => ({
   }
 }))
 vi.mock('@/components/plane/PlaneConnectDialog', () => ({
-  PlaneConnectDialog: ({ open, mode }: { open: boolean; mode: string }) =>
-    open ? <div data-testid="plane-dialog">{mode}</div> : null
+  PlaneConnectDialog: ({
+    open,
+    mode,
+    connectionId
+  }: {
+    open: boolean
+    mode: string
+    connectionId?: string
+  }) => (open ? <div data-testid="plane-dialog">{`${mode}:${connectionId ?? ''}`}</div> : null)
 }))
 
 const CONNECTION: PlaneConnection = {
@@ -66,6 +73,25 @@ function install(overrides: Partial<FixtureState>): FixtureState {
   return state
 }
 
+function statusOf(
+  connections: PlaneConnection[],
+  credentialProtection: 'sealed' | 'plaintext' = 'sealed'
+): PlaneConnectionStatus {
+  return {
+    connected: true,
+    connection: connections[0],
+    credentialProtection,
+    connections: connections.map((connection) => ({ connection, credentialProtection }))
+  }
+}
+
+const BETA: PlaneConnection = {
+  ...CONNECTION,
+  id: 'conn-2',
+  workspaceSlug: 'beta',
+  projectScope: { mode: 'all' }
+}
+
 beforeEach(() => install({}))
 afterEach(cleanup)
 
@@ -78,15 +104,15 @@ describe('PlaneIntegrationCard', () => {
       )
     ).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Connect Plane' }))
-    expect(screen.getByTestId('plane-dialog').textContent).toBe('connect')
+    expect(screen.getByTestId('plane-dialog').textContent).toBe('connect:')
   })
 
   it('shows host, slug, viewer, scope and the warning badges', () => {
     install({
-      planeStatus: { connected: true, connection: CONNECTION, credentialProtection: 'plaintext' }
+      planeStatus: statusOf([CONNECTION], 'plaintext')
     })
     render(<PlaneIntegrationCard />)
-    expect(screen.getByText('acme on plane.internal:8080')).toBeTruthy()
+    expect(screen.getByText(/Connected to acme on plane\.internal:8080\.$/)).toBeTruthy()
     expect(screen.getByText('Ada · ada@example.com')).toBeTruthy()
     expect(screen.getByText('Self-hosted')).toBeTruthy()
     expect(screen.getByText('2 projects')).toBeTruthy()
@@ -94,29 +120,29 @@ describe('PlaneIntegrationCard', () => {
     expect(screen.getByText('Token stored unencrypted')).toBeTruthy()
   })
 
-  it('opens the project step from Edit projects and disconnects', () => {
-    const state = install({
-      planeStatus: {
-        connected: true,
-        connection: { ...CONNECTION, projectScope: { mode: 'all' } },
-        credentialProtection: 'sealed'
-      }
-    })
+  it('lists each workspace with its own Edit projects and Remove', () => {
+    const state = install({ planeStatus: statusOf([CONNECTION, BETA]) })
+    render(<PlaneIntegrationCard />)
+    expect(screen.getByText(/^Browse, start work from .* 2 workspaces connected\.$/)).toBeTruthy()
+    expect(screen.getByText('acme')).toBeTruthy()
+    expect(screen.getByText('beta')).toBeTruthy()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit projects' })[1])
+    expect(screen.getByTestId('plane-dialog').textContent).toBe('editScope:conn-2')
+    fireEvent.click(screen.getByRole('button', { name: 'Remove beta' }))
+    expect(state.disconnectPlane).toHaveBeenCalledWith('conn-2')
+  })
+
+  it('adds another workspace with the saved token', () => {
+    install({ planeStatus: statusOf([{ ...CONNECTION, projectScope: { mode: 'all' } }]) })
     render(<PlaneIntegrationCard />)
     expect(screen.getByText('All projects')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Edit projects' }))
-    expect(screen.getByTestId('plane-dialog').textContent).toBe('editScope')
-    fireEvent.click(screen.getByRole('button', { name: 'Disconnect acme' }))
-    expect(state.disconnectPlane).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Add workspace' }))
+    expect(screen.getByTestId('plane-dialog').textContent).toBe('addWorkspace:')
   })
 
   it('asks for projects when the saved scope no longer resolves', () => {
     install({
-      planeStatus: {
-        connected: true,
-        connection: { ...CONNECTION, projectScope: null },
-        credentialProtection: 'sealed'
-      }
+      planeStatus: statusOf([{ ...CONNECTION, projectScope: null }])
     })
     render(<PlaneIntegrationCard />)
     expect(screen.getAllByText('Choose projects').length).toBeGreaterThan(0)

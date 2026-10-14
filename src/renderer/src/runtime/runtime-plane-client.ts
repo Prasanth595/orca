@@ -86,35 +86,46 @@ export async function planeConnectForTarget(
     : window.api.plane.connect(args)
 }
 
+/** One workspace, or every workspace when no connectionId is given. */
 export async function planeDisconnectForTarget(
-  target: RuntimeClientTarget
+  target: RuntimeClientTarget,
+  connectionId?: string
 ): Promise<PlaneConnectionStatus> {
+  const params = connectionId ? { connectionId } : undefined
   return toPlaneConnectionStatus(
     target.kind === 'environment'
       ? await callPlaneRpc<PlaneConnectionStatus | undefined>(
           target,
           'plane.disconnect',
-          undefined,
+          params,
           PLANE_STATUS_TIMEOUT_MS
         )
-      : await window.api.plane.disconnect()
+      : await window.api.plane.disconnect(params)
   )
 }
 
 export async function planeSetProjectScopeForTarget(
   target: RuntimeClientTarget,
-  scope: PlaneProjectScope
+  scope: PlaneProjectScope,
+  connectionId?: string
 ): Promise<PlaneResult<PlaneConnectionStatus>> {
+  const params = { scope, ...(connectionId ? { connectionId } : {}) }
   return target.kind === 'environment'
-    ? callPlaneRpc(target, 'plane.setProjectScope', { scope }, PLANE_STATUS_TIMEOUT_MS)
-    : window.api.plane.setProjectScope({ scope })
+    ? callPlaneRpc(target, 'plane.setProjectScope', params, PLANE_STATUS_TIMEOUT_MS)
+    : window.api.plane.setProjectScope(params)
 }
 
 export async function planeListProjectsForTarget(
   target: RuntimeClientTarget,
-  options: { refresh?: boolean } = {}
+  options: { refresh?: boolean; connectionId?: string } = {}
 ): Promise<PlaneResult<PlaneProject[]>> {
-  const params = options.refresh ? { refresh: true } : undefined
+  const params =
+    options.refresh || options.connectionId
+      ? {
+          ...(options.refresh ? { refresh: true } : {}),
+          ...(options.connectionId ? { connectionId: options.connectionId } : {})
+        }
+      : undefined
   return target.kind === 'environment'
     ? callPlaneRpc(target, 'plane.listProjects', params, PLANE_READ_TIMEOUT_MS)
     : window.api.plane.listProjects(params)
@@ -136,7 +147,8 @@ export async function planeListWorkItemsForTarget(
   )
 }
 
-export type PlaneWorkItemRef = { projectId: string; workItemId: string }
+/** `connectionId` names the workspace; without it the host uses its active connection. */
+export type PlaneWorkItemRef = { projectId: string; workItemId: string; connectionId?: string }
 
 export async function planeGetWorkItemForTarget(
   target: RuntimeClientTarget,
@@ -158,20 +170,24 @@ export async function planeListCommentsForTarget(
 
 export async function planeListStatesForTarget(
   target: RuntimeClientTarget,
-  projectId: string
+  projectId: string,
+  connectionId?: string
 ): Promise<PlaneResult<PlaneState[]>> {
+  const params = { projectId, ...(connectionId ? { connectionId } : {}) }
   return target.kind === 'environment'
-    ? callPlaneRpc(target, 'plane.listStates', { projectId }, PLANE_READ_TIMEOUT_MS)
-    : window.api.plane.listStates({ projectId })
+    ? callPlaneRpc(target, 'plane.listStates', params, PLANE_READ_TIMEOUT_MS)
+    : window.api.plane.listStates(params)
 }
 
 export async function planeLookupWorkItemForTarget(
   target: RuntimeClientTarget,
-  identifier: string
+  identifier: string,
+  connectionId?: string
 ): Promise<PlaneResult<PlaneWorkItemDetail>> {
+  const params = { identifier, ...(connectionId ? { connectionId } : {}) }
   return target.kind === 'environment'
-    ? callPlaneRpc(target, 'plane.lookupWorkItem', { identifier }, PLANE_READ_TIMEOUT_MS)
-    : window.api.plane.lookupWorkItem({ identifier })
+    ? callPlaneRpc(target, 'plane.lookupWorkItem', params, PLANE_READ_TIMEOUT_MS)
+    : window.api.plane.lookupWorkItem(params)
 }
 
 /** Mutations are sent once; a failure is reported, never retried. */

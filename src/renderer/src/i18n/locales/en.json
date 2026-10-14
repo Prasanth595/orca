@@ -20150,7 +20150,20 @@
       "insecureConsent": "Send my token over unencrypted HTTP",
       "insecureWarning": "Anyone on the network between {{host}} and this server can read the token.",
       "storageRemote": "The token is sent to {{host}} and stored there with the encryption it supports.",
-      "storageLocal": "The token is stored on this computer and encrypted when the system keychain is available."
+      "storageLocal": "The token is stored on this computer and encrypted when the system keychain is available.",
+      "addTitle": "Add Plane workspaces",
+      "addDescription": "Add more workspaces on {{server}} with the token you already saved.",
+      "continue": "Continue",
+      "scopeFor": "Projects in {{slug}}",
+      "chipProjects": "{{slug}} · {{count}} projects",
+      "workspaces": "Workspaces",
+      "removeWorkspace": "Remove {{slug}}",
+      "workspacesPlaceholder": "acme, or paste a Plane URL",
+      "invalidSlug": "{{value}} is not a workspace slug or a Plane URL.",
+      "workspacesDescription": "Type each workspace slug and press Enter or comma, or paste a Plane URL. One token is used for all of them.",
+      "chipFailed": "{{slug}}: {{reason}}",
+      "reuseNotice": "Uses the token saved for {{slug}} on {{server}}. It stays on {{host}}.",
+      "useDifferentToken": "Use a different token or server"
     },
     "scope": {
       "groupLabel": "Which Plane projects Orca shows",
@@ -20169,7 +20182,6 @@
       "auth": "Plane rejected this token. Create a new one and try again.",
       "forbidden": "This token cannot access that Plane workspace.",
       "notFound": "Plane could not find that item. It may have been moved or deleted.",
-      "workspaceNotFound": "No Plane workspace with that slug is available to this token.",
       "rateLimited": "Plane is rate limiting requests. Wait a minute and try again.",
       "network": "{{host}} could not reach the Plane server. Check the URL and that {{host}} can reach it.",
       "tls": "The Orca runtime on {{host}} doesn't trust this server's certificate.",
@@ -20185,7 +20197,8 @@
       "credentialUnreadable": "{{host}} could not read the saved Plane token. Reconnect Plane to save it again.",
       "updateRequired": "Update the Orca server on {{host}} to use Plane.",
       "runtime": "Orca could not reach {{host}}. Check the connection and try again.",
-      "mutationForbidden": "You don't have permission to change this work item in Plane."
+      "mutationForbidden": "You don't have permission to change this work item in Plane.",
+      "workspaceUnavailable": "Workspace not found or you don't have access."
     },
     "host": {
       "remoteServerFallback": "the remote server"
@@ -20201,7 +20214,8 @@
       "scopeAll": "All projects",
       "scopeOne": "1 project",
       "scopeMany": "{{count}} projects",
-      "connectedDescription": "{{slug}} on {{server}}",
+      "connectedOne": "Connected to {{slug}} on {{server}}.",
+      "connectedCount": "{{count}} workspaces connected.",
       "checking": "Checking Plane access before showing setup actions.",
       "purpose": "Browse, start work from and update Plane work items, on Plane Cloud or your own server.",
       "statusNeedsScope": "Choose projects",
@@ -20218,7 +20232,9 @@
       "insecureHttp": "Unencrypted HTTP",
       "plaintextToken": "Token stored unencrypted",
       "setupCopy": "Connect Plane Cloud or a self-hosted Plane server with a personal access token. The token is stored by {{host}}.",
-      "recheck": "Re-check"
+      "recheck": "Re-check",
+      "remove": "Remove {{value0}}",
+      "addWorkspace": "Add workspace"
     },
     "tasksSetup": {
       "connectTitle": "Connect Plane",
