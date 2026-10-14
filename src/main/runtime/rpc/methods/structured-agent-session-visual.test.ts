@@ -48,7 +48,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   clearStructuredHostStub()
-  closeTestStores()
+  await closeTestStores()
   await rm(stateDirectory, { recursive: true, force: true, maxRetries: 3 })
 })
 
