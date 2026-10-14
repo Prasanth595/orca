@@ -72,6 +72,8 @@ export function TerminalPane({
     showWindowsHostSettings && windowsShell === 'powershell.exe'
 
   const [shellValidationError, setShellValidationError] = useState<string | null>(null)
+  // Why: settings writes come back trimmed, so the field shows what was typed until it loses focus.
+  const [shellDraft, setShellDraft] = useState<string | null>(null)
   const configuredShell = settings.terminalDefaultShell?.trim() ?? ''
   const shellMode = configuredShell ? 'custom' : 'system'
   const configuredShellArgs = settings.terminalDefaultShellArgs ?? []
@@ -171,21 +173,20 @@ export function TerminalPane({
           {shellMode === 'custom' ? (
             <div className="space-y-1.5">
               <Input
-                value={settings.terminalDefaultShell ?? ''}
+                value={shellDraft ?? settings.terminalDefaultShell ?? ''}
                 placeholder={translate(
                   'auto.components.settings.TerminalPane.c2bf02ce2f',
                   'fish, nu, or /bin/zsh'
                 )}
                 onChange={(event) => {
+                  const next = event.target.value.trimStart()
                   setShellValidationError(null)
-                  updateSettings({ terminalDefaultShell: event.target.value.trimStart() })
+                  // Why: clearing the field switches to System shell and unmounts it without a blur.
+                  setShellDraft(next || null)
+                  updateSettings({ terminalDefaultShell: next })
                 }}
-                onBlur={(event) => {
-                  // Why: trailing spaces are kept while typing (a path may contain one) and dropped on commit.
-                  const trimmed = event.target.value.trim()
-                  if (trimmed !== event.target.value) {
-                    updateSettings({ terminalDefaultShell: trimmed })
-                  }
+                onBlur={() => {
+                  setShellDraft(null)
                   void validateShell()
                 }}
                 className="w-full"

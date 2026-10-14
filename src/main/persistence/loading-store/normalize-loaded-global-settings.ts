@@ -6,6 +6,7 @@ import { normalizeOpenInApplications } from '../../../shared/open-in-application
 import { normalizeTerminalShortcutPolicy } from '../../../shared/keybindings'
 import { normalizeAppIconId } from '../../../shared/app-icon'
 import { normalizeTerminalCustomThemes } from '../../../shared/terminal-custom-themes'
+import { normalizeTerminalDefaultShell } from '../../../shared/terminal-default-shell'
 import { projectSourceControlAiToLegacyCommitMessageAi } from '../../../shared/source-control-ai'
 import { normalizeUiLanguage } from '../../../shared/ui-language'
 import { normalizeNativeChatShellEnvironmentVariables } from '../../../shared/native-chat-shell-environment'
@@ -118,11 +119,7 @@ export function normalizeLoadedGlobalSettings(
     floatingTerminalTrustedCwds: migratedFloatingTerminalTrustedCwds,
     floatingTerminalCwdMigratedToAppWorkspace: true,
     terminalScrollbackRows: migratedTerminalScrollback.rows,
-    // Why: every launch path reads this raw, so a hand-edited padded value must not reach any of them.
-    terminalDefaultShell:
-      typeof parsed.settings?.terminalDefaultShell === 'string'
-        ? parsed.settings.terminalDefaultShell.trim()
-        : defaults.settings.terminalDefaultShell,
+    terminalDefaultShell: normalizeTerminalDefaultShell(parsed.settings?.terminalDefaultShell),
     terminalQuickCommands: normalizeTerminalQuickCommands(parsed.settings?.terminalQuickCommands),
     terminalCustomThemes: normalizeTerminalCustomThemes(parsed.settings?.terminalCustomThemes),
     appIcon: normalizeAppIconId(parsed.settings?.appIcon),
