@@ -68,6 +68,7 @@ function useSequencedStorage<T>(
   )
 
   const refresh = useCallback(() => {
+    seqRef.current += 1
     const refreshSeq = seqRef.current
     refreshCountRef.current += 1
     setReady(false)

@@ -38,12 +38,17 @@ const hosts = vi.hoisted(() => {
     Host.displayName = name
     return Host
   }
+  const DragReorderList = (props: {
+    items?: unknown[]
+    renderRow?: (item: unknown, index: number) => ReactNode
+  }): ReactNode => (props.items && props.renderRow ? props.items.map(props.renderRow) : null)
+  DragReorderList.displayName = 'DragReorderList'
   return {
     View: make('View'),
     Text: make('Text'),
     Pressable: make('Pressable'),
     Switch: make('Switch'),
-    DragReorderList: make('DragReorderList'),
+    DragReorderList,
     CustomKeyModal: make('CustomKeyModal')
   }
 })
@@ -119,10 +124,22 @@ describe('TerminalShortcutSettings refresh gating', () => {
     mocks.focusEffectCb = null
   })
 
-  it('disables edits until both layout and custom-key refreshes settle, including overlapping refreshes', async () => {
+  it('disables edits until both refreshes settle and discards stale refresh results', async () => {
     const builtIns = getDefaultTerminalAccessoryBuiltInIds()
-    const customKey: CustomKey = { id: 'custom-1', label: 'C1', bytes: 'ls\r' }
-    const savedLayout = createTerminalAccessoryLayoutPreference({
+    const staleCustomKey: CustomKey = {
+      id: 'custom-stale',
+      label: 'Old',
+      bytes: 'pwd\r',
+      enter: true
+    }
+    const freshCustomKey: CustomKey = { id: 'custom-1', label: 'C1', bytes: 'ls\r', enter: true }
+    const staleLayout = createTerminalAccessoryLayoutPreference({
+      rowCount: 1,
+      rows: [[...builtIns, 'custom-stale']],
+      orderedBuiltInIds: builtIns,
+      visibleBuiltInIds: builtIns
+    })
+    const freshLayout = createTerminalAccessoryLayoutPreference({
       rowCount: 2,
       rows: [builtIns, ['custom-1']],
       orderedBuiltInIds: builtIns,
@@ -151,7 +168,7 @@ describe('TerminalShortcutSettings refresh gating', () => {
 
     // Layout resolves first while custom keys are still loading.
     await act(async () => {
-      layout1.resolve(savedLayout)
+      layout1.resolve(staleLayout)
       await layout1.promise
     })
 
@@ -168,33 +185,33 @@ describe('TerminalShortcutSettings refresh gating', () => {
     })
     expect(mocks.saveLayout).not.toHaveBeenCalled()
 
-    // Start an overlapping second refresh before custom1 settles.
+    // Start an overlapping second refresh before custom1 settles, and resolve the newer refresh first.
     act(() => {
       mocks.focusEffectCb?.()
     })
 
     await act(async () => {
-      custom1.resolve([customKey])
-      layout2.resolve(savedLayout)
-      await Promise.all([custom1.promise, layout2.promise])
+      layout2.resolve(freshLayout)
+      custom2.resolve([freshCustomKey])
+      await Promise.all([layout2.promise, custom2.promise])
     })
 
-    // First custom load and second layout load finished, but custom2 is still in flight.
+    // Newer refresh settled, but custom1 from the older refresh is still in flight.
     const dragListDuringOverlap = renderer.root.findByType(hosts.DragReorderList)
     expect(
       dragListDuringOverlap.props.isItemDraggable({ kind: 'built-in', id: 'esc' })
     ).toBe(false)
 
-    // Settle the final in-flight custom-key refresh.
+    // Resolve the older custom1 last; its stale value must be discarded in favor of custom2.
     await act(async () => {
-      custom2.resolve([customKey])
-      await custom2.promise
+      custom1.resolve([staleCustomKey])
+      await custom1.promise
     })
 
     const dragListAfterReady = renderer.root.findByType(hosts.DragReorderList)
     expect(dragListAfterReady.props.isItemDraggable({ kind: 'built-in', id: 'esc' })).toBe(true)
 
-    // Now an edit persists with custom-1 intact in Row 2.
+    // Now an edit persists the fresh layout (2 rows with custom-1 in Row 2, not custom-stale).
     act(() => {
       const firstSwitch = renderer.root.findAllByType(hosts.Switch)[0]!
       firstSwitch.props.onValueChange(false)
