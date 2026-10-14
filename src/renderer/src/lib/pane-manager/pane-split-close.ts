@@ -73,7 +73,8 @@ export function splitManagedPane(args: SplitManagedPaneArgs): ManagedPane | null
   const sourceHeldDomFocus =
     !activateNewPane &&
     typeof document !== 'undefined' &&
-    existingContainer.contains(document.activeElement)
+    document.activeElement?.matches('.xterm-helper-textarea') === true &&
+    existing.container.contains(document.activeElement)
 
   const movedPaneStates = prepareMovedPanesForSplit(existingContainer, existing, args.panes)
 

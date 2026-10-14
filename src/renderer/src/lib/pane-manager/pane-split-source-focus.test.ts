@@ -33,7 +33,9 @@ function createPane(id: number): ManagedPaneInternal {
   const container = document.createElement('div')
   container.className = 'pane'
   container.dataset.paneId = String(id)
-  container.append(document.createElement('textarea'))
+  const textarea = document.createElement('textarea')
+  textarea.className = 'xterm-helper-textarea'
+  container.append(textarea)
   const pane = { id, leafId: `leaf-${id}`, terminal: { focus: vi.fn() }, container }
   // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: splitManagedPane reads only id, leafId, container and terminal.focus once its collaborators are mocked.
   return pane as unknown as ManagedPaneInternal
@@ -109,6 +111,20 @@ describe('splitManagedPane with focusNewPane: false', () => {
     expect(source.terminal.focus).toHaveBeenCalledOnce()
     expect(created.terminal.focus).not.toHaveBeenCalled()
   })
+
+  it.each(['input', 'textarea'] as const)(
+    'does not take focus from a non-terminal %s inside the source pane',
+    (tagName) => {
+      const input = document.createElement(tagName)
+      const { source, created } = splitWithoutFocusing((container) => {
+        container.append(input)
+        return input
+      })
+      expect(source.terminal.focus).not.toHaveBeenCalled()
+      expect(created.terminal.focus).not.toHaveBeenCalled()
+      expect(document.activeElement).toBe(input)
+    }
+  )
 
   it('does not grab focus when the source pane was not focused', () => {
     const { source, created } = splitWithoutFocusing(() => null)
