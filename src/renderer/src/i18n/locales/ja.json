@@ -19955,7 +19955,9 @@
       "checksPassing": "成功",
       "checksUnknown": "不明",
       "checksNeutral": "中立",
-      "allReviewChecks": "レビュー: {{count}} · チェック: {{status}}"
+      "allReviewChecks": "レビュー: {{count}} · チェック: {{status}}",
+      "linkedPlane": "リンク済みの Plane {{value0}}",
+      "planeWorkItem": "Plane の作業項目"
     },
     "attachments": {
       "updateRuntime": "ワークスペースのリンクを変更するには、リモートランタイムを更新してください",
@@ -20074,6 +20076,250 @@
       "waitingAriaLabel": "他の Orca インスタンスを待機中の更新。クリックして展開します。",
       "preparingLabel": "更新を準備中",
       "preparingAriaLabel": "更新を準備中。クリックして展開します。"
+    }
+  },
+  "plane": {
+    "connect": {
+      "scopeTitle": "Plane のプロジェクトを選択",
+      "title": "Plane に接続",
+      "scopeDescription": "Orca が作業項目を一覧表示するプロジェクトを選択します。後から変更できます。",
+      "description": "パーソナルアクセストークンを使って Plane の作業項目を閲覧し、そこからワークスペースを開始します。",
+      "later": "後で選択",
+      "cancel": "キャンセル",
+      "saveScope": "プロジェクトを保存",
+      "verifying": "確認中…",
+      "connect": "接続",
+      "hostGroupLabel": "Plane ワークスペースの実行場所",
+      "cloudTitle": "Plane Cloud",
+      "cloudDescription": "Plane が app.plane.so でホストするワークスペース。",
+      "selfHostedTitle": "セルフホスト",
+      "selfHostedDescription": "あなたやチームが運用する Plane サーバー。",
+      "serverUrl": "サーバー URL",
+      "serverUrlPlaceholder": "https://plane.example.com",
+      "serverUrlDescription": "Plane を開くときのアドレス。/plane のようなパスのプレフィックスは保持されます。",
+      "cloudUrlNotice": "これは Plane Cloud のアドレスです。",
+      "useCloud": "Plane Cloud を使用",
+      "advanced": "詳細設定",
+      "apiBaseUrl": "API ベース URL",
+      "apiBaseUrlPlaceholder": "サーバー URL と同じ",
+      "apiBaseUrlDescription": "Plane API が別のアドレスで提供されている場合にのみ必要です。",
+      "workspaceSlug": "Workspace slug",
+      "workspaceSlugPlaceholder": "acme",
+      "workspaceSlugDescription": "Plane の URL のパスの最初の部分です（例: /acme/projects の acme）。",
+      "apiToken": "パーソナルアクセストークン",
+      "apiTokenPlaceholder": "plane_api_…",
+      "createToken": "Plane でトークンを作成",
+      "insecureConsent": "暗号化されていない HTTP でトークンを送信する",
+      "insecureWarning": "{{host}} とこのサーバー間のネットワーク上の誰でもトークンを読み取れます。",
+      "storageRemote": "トークンは {{host}} に送信され、そこでサポートされている暗号化方式で保存されます。",
+      "storageLocal": "トークンはこのコンピュータに保存され、システムのキーチェーンが利用できる場合は暗号化されます。",
+      "addTitle": "Plane ワークスペースを追加",
+      "addDescription": "保存済みのトークンで {{server}} のワークスペースをさらに追加します。",
+      "continue": "続行",
+      "scopeFor": "{{slug}} のプロジェクト",
+      "chipProjects": "{{slug}} · {{count}} 件のプロジェクト",
+      "workspaces": "ワークスペース",
+      "removeWorkspace": "{{slug}} を削除",
+      "workspacesPlaceholder": "acme、または Plane の URL を貼り付け",
+      "invalidSlug": "{{value}} は workspace slug でも Plane の URL でもありません。",
+      "workspacesDescription": "各 workspace slug を入力して Enter またはカンマを押すか、Plane の URL を貼り付けます。すべてに 1 つのトークンを使用します。",
+      "chipFailed": "{{slug}}: {{reason}}",
+      "reuseNotice": "{{server}} の {{slug}} に保存済みのトークンを使用します。トークンは {{host}} に残ります。",
+      "useDifferentToken": "別のトークンまたはサーバーを使用"
+    },
+    "scope": {
+      "groupLabel": "Orca が表示する Plane のプロジェクト",
+      "allTitle": "すべてのプロジェクト（後から追加されたプロジェクトを含む）",
+      "allDescription": "このトークンで参照できるすべてのプロジェクト。更新のたびに再確認されます。",
+      "chooseTitle": "プロジェクトを選択",
+      "chooseDescription": "チェックしたプロジェクトのみ。1 つだけ選ぶと単一のプロジェクトで作業できます。",
+      "counter": "{{total}} 件中 {{count}} 件を選択",
+      "selectAll": "すべて選択",
+      "selectNone": "選択を解除",
+      "search": "プロジェクトを検索",
+      "noProjects": "このトークンで利用できるプロジェクトはありません。",
+      "noMatch": "検索条件に一致するプロジェクトはありません。"
+    },
+    "error": {
+      "auth": "Plane がこのトークンを拒否しました。新規トークンを作成して再試行してください。",
+      "forbidden": "このトークンではその Plane ワークスペースにアクセスできません。",
+      "notFound": "Plane でその項目が見つかりませんでした。移動または削除された可能性があります。",
+      "rateLimited": "Plane がリクエストを制限しています。1 分待ってから再試行してください。",
+      "network": "{{host}} から Plane サーバーに接続できませんでした。URL と、{{host}} からサーバーに到達できるかを確認してください。",
+      "tls": "{{host}} 上の Orca ランタイムはこのサーバーの証明書を信頼していません。",
+      "redirect": "Plane サーバーがリダイレクトを返しました。https を含む最終的な URL を使用してください。",
+      "invalidResponse": "この URL は Plane の API ではなく Web アプリを提供しています。詳細設定で API ベース URL を設定してください。",
+      "rejected": "Plane がリクエストを拒否しました。",
+      "urlEmpty": "Plane サーバーの URL を入力してください。",
+      "urlInvalid": "https://plane.example.com のような有効な URL を入力してください。",
+      "urlProtocol": "http または https の URL を使用してください。",
+      "urlCredentials": "URL からユーザー名とパスワードを削除してください。",
+      "insecureHttp": "トークンを暗号化されていない HTTP で送信してよいことを確認してください。",
+      "notConnected": "{{host}} で Plane が接続されていません。",
+      "credentialUnreadable": "{{host}} が保存済みの Plane トークンを読み取れませんでした。Plane に再接続して保存し直してください。",
+      "updateRequired": "Plane を使用するには {{host}} 上の Orca サーバーを更新してください。",
+      "runtime": "Orca が {{host}} に接続できませんでした。接続を確認して再試行してください。",
+      "mutationForbidden": "Plane でこの作業項目を変更する権限がありません。",
+      "workspaceUnavailable": "ワークスペースが見つからないか、アクセス権がありません。"
+    },
+    "host": {
+      "remoteServerFallback": "リモートサーバー"
+    },
+    "settingsSearch": {
+      "title": "Plane との連携",
+      "description": "Plane Cloud またはセルフホストの Plane サーバーに接続し、プロジェクトを選択します。",
+      "keywordPlane": "plane",
+      "keywordWorkItems": "作業項目"
+    },
+    "card": {
+      "scopeNone": "プロジェクト未選択",
+      "scopeAll": "すべてのプロジェクト",
+      "scopeOne": "1 件のプロジェクト",
+      "scopeMany": "{{count}} 件のプロジェクト",
+      "checking": "セットアップ操作を表示する前に Plane へのアクセスを確認しています。",
+      "statusNeedsScope": "プロジェクトを選択",
+      "statusConnected": "接続済み",
+      "statusNotConnected": "未接続",
+      "connect": "Plane に接続",
+      "tokenName": "Plane のトークン",
+      "accountScopePrefix": "アカウントスコープ",
+      "chooseProjects": "プロジェクトを選択",
+      "editProjects": "プロジェクトを編集",
+      "disconnect": "{{value0}} の接続を解除",
+      "hostCloud": "Plane Cloud",
+      "hostSelfHosted": "セルフホスト",
+      "insecureHttp": "暗号化されていない HTTP",
+      "plaintextToken": "トークンが暗号化されずに保存されています",
+      "setupCopy": "パーソナルアクセストークンで Plane Cloud またはセルフホストの Plane サーバーに接続します。トークンは {{host}} に保存されます。",
+      "recheck": "再確認",
+      "remove": "{{value0}} を削除",
+      "addWorkspace": "ワークスペースを追加",
+      "purpose": "Plane Cloud または自分のサーバーで、Plane の作業項目を閲覧し、そこから作業を開始し、更新できます。",
+      "connectedOne": "{{server}} の {{slug}} に接続済み。",
+      "connectedCount": "{{count}} 件のワークスペースに接続済み。"
+    },
+    "tasksSetup": {
+      "connectTitle": "Plane に接続",
+      "connectDescription": "パーソナルアクセストークンで Plane Cloud またはセルフホストの Plane サーバーを追加し、プロジェクトを選択します。",
+      "manage": "接続を管理",
+      "connect": "Plane に接続",
+      "label": "Plane",
+      "description": "Plane Cloud またはセルフホストの Plane サーバーに接続し、タスクに表示します。"
+    },
+    "tasks": {
+      "empty": "選択したプロジェクトに作業項目はありません。",
+      "listTitle": "Plane の作業項目",
+      "shown": "{{count}} 件を表示",
+      "needsScopeTitle": "Plane のプロジェクトを選択",
+      "needsScopeBody": "Orca が一覧表示するプロジェクトを選択してください。保存済みの選択が利用できなくなったか、まだ選択されていません。",
+      "chooseProjects": "プロジェクトを選択",
+      "connectTitle": "Plane に接続",
+      "connectBody": "Plane Cloud またはセルフホストの Plane サーバーの作業項目を閲覧し、そこからワークスペースを開始します。",
+      "connect": "Plane に接続",
+      "hide": "Plane を非表示",
+      "sourceLabel": "Plane",
+      "credentialTitle": "Plane に再接続",
+      "reconnect": "Plane に再接続",
+      "idNotFound": "このワークスペースで {{identifier}} が見つかりませんでした。",
+      "unknownProject": "あるプロジェクト",
+      "noMatch": "これらのフィルターに一致する作業項目はありません。",
+      "clearFilters": "フィルターをクリア",
+      "createWorkspaceFor": "{{value0}} からワークスペースを作成",
+      "linkSourceUnavailable": "この Plane の作業項目をリンクできませんでした。Plane に再接続してから再試行してください。",
+      "idNotFoundAnywhere": "接続済みのどのワークスペースでも {{identifier}} が見つかりませんでした。",
+      "createWorkspace": "ワークスペースを作成"
+    },
+    "stateGroup": {
+      "backlog": "バックログ",
+      "unstarted": "未着手",
+      "started": "開始済み",
+      "completed": "完了",
+      "cancelled": "キャンセル済み",
+      "triage": "トリアージ"
+    },
+    "filters": {
+      "stateOpen": "オープン",
+      "stateAll": "すべての状態",
+      "stateTrigger": "状態: {{value}}",
+      "stateGroups": "状態グループ",
+      "exactState": "特定の状態",
+      "anyState": "グループ内の任意の状態",
+      "project": "プロジェクト",
+      "allInScope": "範囲内のすべて",
+      "assignee": "担当者",
+      "anyone": "全員",
+      "me": "自分",
+      "unassigned": "未割り当て",
+      "priority": "優先度",
+      "anyPriority": "任意の優先度",
+      "search": "作業項目を検索",
+      "searchPlaceholder": "タイトルで絞り込むか、WEB-12 のような ID を入力",
+      "refresh": "更新"
+    },
+    "banner": {
+      "projectError": "{{project}} を読み込めませんでした: {{reason}}",
+      "missingOne": "選択したプロジェクトのうち 1 件が利用できなくなりました。",
+      "missingMany": "選択したプロジェクトのうち {{count}} 件が利用できなくなりました。",
+      "editProjects": "プロジェクトを編集",
+      "truncated": "{{project}} の最新の作業項目を表示しています。",
+      "loadMore": "さらに読み込む",
+      "totalCapped": "最初の 500 件の作業項目を表示しています。さらに表示するにはプロジェクトを 1 つ選択してください。"
+    },
+    "priority": {
+      "urgent": "緊急",
+      "high": "高",
+      "medium": "中",
+      "low": "低",
+      "none": "優先度なし"
+    },
+    "detail": {
+      "noComments": "コメントはまだありません。",
+      "openInPlane": "Plane で開く",
+      "state": "状態",
+      "priority": "優先度",
+      "assignees": "担当者",
+      "unassigned": "未割り当て",
+      "labels": "ラベル",
+      "updated": "更新済み",
+      "description": "説明",
+      "noDescription": "説明はありません。",
+      "truncated": "説明は短縮されています。全文を読むには Plane で開いてください。",
+      "comments": "コメント"
+    },
+    "row": {
+      "assignees": "担当者: {{names}}",
+      "noState": "状態なし"
+    },
+    "list": {
+      "label": "Plane の作業項目"
+    },
+    "link": {
+      "updateRequired": "Plane の作業項目をリンクするにはリモートランタイムを更新してください"
+    },
+    "comment": {
+      "label": "コメント",
+      "placeholder": "コメントを追加…",
+      "tooLong": "コメントは最大 {{max}} 文字までです。",
+      "shortcut": "{{shortcut}} でコメント",
+      "submit": "コメント"
+    },
+    "statePicker": {
+      "loading": "状態を読み込み中…",
+      "unavailable": "状態を利用できません。",
+      "trigger": "状態を変更: {{state}}",
+      "changeState": "状態を変更"
+    },
+    "workspaceSwitcher": {
+      "projectFilterHint": "プロジェクトや特定の状態で絞り込むには、ワークスペースを 1 つ選択してください。",
+      "label": "Plane ワークスペース",
+      "all": "すべてのワークスペース",
+      "cloud": "Plane Cloud"
+    },
+    "workspaceBanner": {
+      "needsScope": "表示するプロジェクトを選択してください。"
+    },
+    "sidebar": {
+      "openTasks": "Plane タスクを開く"
     }
   }
 }
