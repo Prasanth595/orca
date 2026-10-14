@@ -96,12 +96,19 @@ function releaseAgent(
   facet: AgentRunAccount,
   ptyId: string | undefined
 ): SetAgentKeptResult {
-  if (facet.provider === 'codex' && ptyId && deps.readCodexRecord(ptyId)) {
-    if (deps.setCodexPaneKept(ptyId, false) === 'unavailable') {
-      return { ok: false, reason: 'unavailable' }
-    }
+  const codexPtyId =
+    facet.provider === 'codex' && ptyId && deps.readCodexRecord(ptyId) ? ptyId : null
+  const listAcceptsChanges = deps.kept.acceptsChanges()
+  // Why: a newer Orca's list drops a release; only a Codex pane's own launch record can still let go.
+  if (!listAcceptsChanges && !codexPtyId) {
+    return { ok: false, reason: 'read-only' }
   }
-  keepConversation(deps, row, facet.provider, facet.accountId, false)
+  if (codexPtyId && deps.setCodexPaneKept(codexPtyId, false) === 'unavailable') {
+    return { ok: false, reason: 'unavailable' }
+  }
+  if (listAcceptsChanges) {
+    keepConversation(deps, row, facet.provider, facet.accountId, false)
+  }
   const runAccount = deps.refresh(row.paneKey)
   if (runAccount?.mode === 'follow') {
     return { ok: true, runAccount }

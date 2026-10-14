@@ -171,6 +171,53 @@ describe('setAgentKept', () => {
     expect(d.kept.keep).not.toHaveBeenCalled()
   })
 
+  it.each([
+    [
+      'a Claude conversation',
+      { getRow: vi.fn(() => row({ agentType: 'claude', runAccount: CLAUDE_FACET })) }
+    ],
+    ['a Codex conversation with no launch record', { readCodexRecord: vi.fn(() => null) }]
+  ])('refuses to un-keep %s while a newer Orca owns the list, touching nothing', (_l, over) => {
+    const d = deps(over)
+    d.kept.acceptsChanges.mockReturnValue(false)
+    expect(setAgentKept(d, { paneKey: PANE, kept: false })).toEqual({
+      ok: false,
+      reason: 'read-only'
+    })
+    expect(d.setCodexPaneKept).not.toHaveBeenCalled()
+    expect(d.kept.release).not.toHaveBeenCalled()
+    expect(d.withdraw).not.toHaveBeenCalled()
+  })
+
+  it('un-keeps a Codex pane kept in its launch registry while a newer Orca owns the list', () => {
+    const launched: CodexPaneAccountRecord = {
+      selectionKey: 'host',
+      accountId: 'acc-a',
+      homeRoute: 'account-home'
+    }
+    let record: CodexPaneAccountRecord = { ...launched, kept: true }
+    const d = deps({
+      getRow: vi.fn(() => row({ runAccount: { ...CODEX_FACET, mode: 'kept' } })),
+      readCodexRecord: vi.fn(() => record),
+      setCodexPaneKept: vi.fn((_ptyId: string, kept: boolean) => {
+        record = kept ? { ...launched, kept: true } : launched
+        return kept ? ('kept' as const) : ('released' as const)
+      }),
+      refresh: vi.fn((): AgentRunAccount => ({
+        ...CODEX_FACET,
+        mode: record.kept ? 'kept' : 'follow'
+      }))
+    })
+    d.kept.acceptsChanges.mockReturnValue(false)
+    expect(setAgentKept(d, { paneKey: PANE, kept: false })).toEqual({
+      ok: true,
+      runAccount: CODEX_FACET
+    })
+    expect(record.kept).toBeUndefined()
+    expect(d.kept.release).not.toHaveBeenCalled()
+    expect(d.withdraw).not.toHaveBeenCalled()
+  })
+
   it('reports an unreadable launch registry instead of keeping the conversation alone', () => {
     const d = deps({ setCodexPaneKept: vi.fn(() => 'unavailable' as const) })
     expect(setAgentKept(d, { paneKey: PANE, kept: true })).toEqual({
