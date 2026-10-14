@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { collectLiteralKeys, isKeyReferenced } from './find-orphaned-catalog-keys.mjs'
+import { collectLiteralKeys, isKeyReferenced } from './verify-localization-orphans.mjs'
 
 const sets = ({ referenced = [], literals = [], english = [] } = {}) => ({
   referenced: new Set(referenced),
