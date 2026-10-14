@@ -23,7 +23,7 @@ import {
   resolveCodexPaneSelectionLane
 } from './codex-pane-selection-lane'
 import type { CodexAccountSelectionTarget } from '../../../shared/codex-selection-lane'
-import type { RuntimeClientTarget } from '@/runtime/runtime-client-target'
+import type { RuntimeClientTarget } from '../../../shared/runtime-client-target'
 import type { TuiAgent } from '../../../shared/tui-agent'
 
 // Why: prompt integrations such as Starship can outlast the daemon's 300ms
@@ -92,7 +92,6 @@ async function readRecordedCodexPaneLanes(
  * null (scan failed or unsupported) both keep today's ineligible outcome.
  */
 async function isConfirmedCodexForegroundDespiteShellReading(
-  state: AppState,
   ptyId: string,
   launchAgent: TuiAgent | undefined,
   inspection: RuntimeTerminalProcessInspection
@@ -105,7 +104,7 @@ async function isConfirmedCodexForegroundDespiteShellReading(
   ) {
     return false
   }
-  const confirmed = await confirmRuntimeTerminalForegroundProcess(state.settings, ptyId)
+  const confirmed = await confirmRuntimeTerminalForegroundProcess(ptyId)
   return isCodexForegroundProcess(confirmed)
 }
 
@@ -159,7 +158,7 @@ async function scanCodexPanes(
           laneSource: lane.source
         }
       }
-      const inspection = await inspectRuntimeTerminalProcess(state.settings, ptyId).then(
+      const inspection = await inspectRuntimeTerminalProcess(ptyId).then(
         (result) => result,
         // Why: one stale remote pane must not hide restart notices for other confirmed Codex panes.
         () => null
@@ -167,12 +166,7 @@ async function scanCodexPanes(
       const eligible =
         inspection !== null &&
         (isCodexRestartEligiblePane({ inspection, launchAgent: tab.launchAgent }) ||
-          (await isConfirmedCodexForegroundDespiteShellReading(
-            state,
-            ptyId,
-            tab.launchAgent,
-            inspection
-          )))
+          (await isConfirmedCodexForegroundDespiteShellReading(ptyId, tab.launchAgent, inspection)))
       return {
         ptyId,
         eligible,

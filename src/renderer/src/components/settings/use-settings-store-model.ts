@@ -31,7 +31,9 @@ import {
   buildSettingsProjectList,
   removeSettingsProjectFromAllHosts
 } from './settings-project-list'
-import { resolveSettingsHostScope, type SettingsHostChoice } from './settings-host-scope'
+import { resolveSettingsHostScope } from './settings-host-scope'
+import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
+import { defaultScopeHost } from '@/lib/default-creation-host'
 
 export function useSettingsStoreModel() {
   const settings = useAppStore((s) => s.settings)
@@ -147,8 +149,10 @@ export function useSettingsStoreModel() {
   const confirm = useConfirmationDialog()
   // Why: session-only (deliberately not persisted) unlock — Option-click the Experimental page title reveals the hidden group.
   const [hiddenExperimentalUnlocked, setHiddenExperimentalUnlocked] = useState(false)
-  const [settingsHostChoice, setSettingsHostChoice] = useState<SettingsHostChoice | null>(null)
-  const defaultRuntimeEnvironmentId = settings?.activeRuntimeEnvironmentId
+  const [settingsHostChoice, setSettingsHostChoice] = useState<RuntimeClientTarget | null>(null)
+  const defaultScope = defaultScopeHost(settings)
+  const defaultRuntimeEnvironmentId =
+    defaultScope.kind === 'environment' ? defaultScope.environmentId : null
   // Why: keyed on ids so status-only catalog updates keep the scope (and its loads) stable.
   const savedEnvironmentIdsKey = runtimeEnvironments.map((environment) => environment.id).join('\n')
   // Why: the web client's only host is its server, so it never offers a choice.
