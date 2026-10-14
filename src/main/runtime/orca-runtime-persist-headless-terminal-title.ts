@@ -25,6 +25,27 @@ export class OrcaRuntimeWithPersistHeadlessTerminalTitle extends OrcaRuntimeWith
     tabId: string,
     title: string | null
   ): void {
+    const normalizedTitle = title?.trim() || null
+    const inMemoryTab = this.tabs.get(tabId)
+    if (inMemoryTab) {
+      inMemoryTab.customTitle = normalizedTitle
+      if (normalizedTitle !== null) {
+        inMemoryTab.title = normalizedTitle
+      }
+    }
+    const snapshot = this.mobileSessionTabsByWorktree.get(worktreeId)
+    if (snapshot) {
+      snapshot.tabs = snapshot.tabs.map((tab) => {
+        if (tab.type === 'terminal' && tab.parentTabId === tabId) {
+          return {
+            ...tab,
+            customTitle: normalizedTitle,
+            ...(normalizedTitle !== null ? { title: normalizedTitle } : {})
+          }
+        }
+        return tab
+      })
+    }
     const session = this.getWorkspaceSessionForWorktree(worktreeId)
     if (!session || !this.store?.setWorkspaceSession) {
       return
@@ -37,7 +58,7 @@ export class OrcaRuntimeWithPersistHeadlessTerminalTitle extends OrcaRuntimeWith
       ...session,
       tabsByWorktree: {
         ...session.tabsByWorktree,
-        [worktreeId]: tabs.map((tab) => (tab.id === tabId ? { ...tab, customTitle: title } : tab))
+        [worktreeId]: tabs.map((tab) => (tab.id === tabId ? { ...tab, customTitle: normalizedTitle } : tab))
       }
     })
   }

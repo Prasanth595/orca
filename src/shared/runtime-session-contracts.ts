@@ -140,6 +140,7 @@ export type RuntimeSyncedTab = {
   tabId: string
   worktreeId: string
   title: string | null
+  customTitle?: string | null
   activeLeafId: string | null
   layout: TerminalPaneLayoutNode | null
 }
