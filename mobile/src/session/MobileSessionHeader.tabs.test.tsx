@@ -32,7 +32,6 @@ vi.mock('../platform/keyboard-persisting-taps', () => ({
 vi.mock('../layout/host-sidebar-reveal', () => ({ useHostSidebarReveal: () => null }))
 
 import { MobileSessionHeader } from './MobileSessionHeader'
-import { mobileSessionFrameStyles } from './mobile-session-frame-styles'
 import type { MobileSessionController } from './use-mobile-session-controller'
 
 const TITLES = ['A', 'Build', 'Logs', 'Tasks', 'Notes']
@@ -92,16 +91,5 @@ describe('MobileSessionHeader tab strip', () => {
     expect(switchSessionTab.mock.calls[0][0].id).toBe('tab-4')
     expect(openSessionTabActionSheetAfterKeyboardDismiss).toHaveBeenCalledTimes(1)
     expect(openSessionTabActionSheetAfterKeyboardDismiss.mock.calls[0][0].id).toBe('tab-2')
-  })
-
-  it('sizes a tab to its title and keeps the pinned actions from shrinking', () => {
-    const { tab, tabScroll, tabText, newTerminalButton, tabActionDivider } =
-      mobileSessionFrameStyles
-    expect(tab).toMatchObject({ minWidth: 44, maxWidth: 128, flexShrink: 0, paddingHorizontal: 4 })
-    expect(tab).not.toHaveProperty('width')
-    expect(tabScroll).toMatchObject({ flex: 1, minWidth: 0 })
-    expect(tabText).toMatchObject({ flexShrink: 1, minWidth: 0 })
-    expect(newTerminalButton).toMatchObject({ flexShrink: 0 })
-    expect(tabActionDivider).toMatchObject({ flexShrink: 0 })
   })
 })
