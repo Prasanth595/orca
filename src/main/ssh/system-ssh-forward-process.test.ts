@@ -1,11 +1,18 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 
-const { existsSyncMock, spawnMock, connectMock, createServerMock } = vi.hoisted(() => ({
-  existsSyncMock: vi.fn(),
-  spawnMock: vi.fn(),
-  connectMock: vi.fn(),
-  createServerMock: vi.fn()
+const { existsSyncMock, spawnMock, connectMock, createServerMock, stopOrphanMock } = vi.hoisted(
+  () => ({
+    existsSyncMock: vi.fn(),
+    spawnMock: vi.fn(),
+    connectMock: vi.fn(),
+    createServerMock: vi.fn(),
+    stopOrphanMock: vi.fn()
+  })
+)
+
+vi.mock('./system-ssh-orphaned-forward', () => ({
+  stopOrphanedOrcaSshForward: stopOrphanMock
 }))
 
 vi.mock('fs', async (importOriginal) => {
@@ -30,6 +37,7 @@ import {
   SYSTEM_SSH_FORWARD_POST_KILL_TIMEOUT_MS,
   SYSTEM_SSH_FORWARD_STARTUP_GRACE_MS,
   SYSTEM_SSH_FORWARD_STOP_TIMEOUT_MS,
+  buildSystemSshPortForwardArgs,
   spawnSystemSshPortForward,
   startSystemSshPortForwardProcess,
   waitForSystemSshForwardStartup,
@@ -113,6 +121,7 @@ describe('system SSH forward process', () => {
     spawnMock.mockReset()
     connectMock.mockReset()
     createServerMock.mockReset().mockImplementation(createFakeServer)
+    stopOrphanMock.mockReset().mockResolvedValue(false)
     mockSystemSshExists()
   })
 
@@ -151,6 +160,16 @@ describe('system SSH forward process', () => {
       expect.any(Array),
       expect.objectContaining({ stdio: ['ignore', 'ignore', 'pipe'] })
     )
+  })
+
+  it('spawns exactly the argv the orphan matcher is given, LogLevel=INFO included', () => {
+    spawnMock.mockReturnValue(createFakeProcess())
+    const options = { logChannelFailures: true }
+    spawnSystemSshPortForward(createTarget(), 5173, '127.0.0.1', 3000, options)
+
+    const built = buildSystemSshPortForwardArgs(createTarget(), 5173, '127.0.0.1', 3000, options)
+    expect(spawnMock.mock.calls[0][1]).toEqual(built)
+    expect(built).toContain('LogLevel=INFO')
   })
 
   it('suppresses Orca mux flags for port forwards without disabling ssh_config muxing', () => {
@@ -229,6 +248,43 @@ describe('system SSH forward process', () => {
     await expect(
       startSystemSshPortForwardProcess(createTarget(), 5173, '127.0.0.1', 3000)
     ).rejects.toThrow('Local port 127.0.0.1:5173 is not available')
+    expect(spawnMock).not.toHaveBeenCalled()
+  })
+
+  it('stops a forward an earlier Orca orphaned on the port, then binds it', async () => {
+    const busy = createFakeServer()
+    busy.listen.mockImplementation(() => {
+      queueMicrotask(() =>
+        busy.emit('error', Object.assign(new Error('EADDRINUSE'), { code: 'EADDRINUSE' }))
+      )
+      return busy
+    })
+    createServerMock.mockReturnValueOnce(busy)
+    stopOrphanMock.mockResolvedValue(true)
+    spawnMock.mockReturnValue(createFakeProcess())
+
+    const forward = await startSystemSshPortForwardProcess(createTarget(), 5173, '127.0.0.1', 3000)
+
+    expect(stopOrphanMock).toHaveBeenCalledWith(5173, expect.any(Array))
+    expect(spawnMock.mock.calls[0][1]).toEqual(stopOrphanMock.mock.calls[0][1])
+    expect(forward.localPort).toBe(5173)
+    expect(spawnMock).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the port error when nothing Orca orphaned holds the port', async () => {
+    const server = createFakeServer()
+    server.listen.mockImplementation(() => {
+      queueMicrotask(() =>
+        server.emit('error', Object.assign(new Error('EADDRINUSE'), { code: 'EADDRINUSE' }))
+      )
+      return server
+    })
+    createServerMock.mockReturnValue(server)
+
+    await expect(
+      startSystemSshPortForwardProcess(createTarget(), 5173, '127.0.0.1', 3000)
+    ).rejects.toThrow('Local port 127.0.0.1:5173 is not available')
+    expect(stopOrphanMock).toHaveBeenCalledWith(5173, expect.any(Array))
     expect(spawnMock).not.toHaveBeenCalled()
   })
 
