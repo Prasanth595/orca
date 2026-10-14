@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { runInNewContext } from 'node:vm'
 import { expect, it } from 'vitest'
 import { parse } from 'yaml'
@@ -7,10 +7,11 @@ import { classifyPrJobs } from './pr-code-change-scope.mjs'
 const workflow = parse(readFileSync('.github/workflows/pr.yml', 'utf8'))
 const preflight = workflow.jobs.preflight
 const steps = preflight.steps
-const compiler = steps.find((step) => step.run === 'pnpm run typecheck')
+const compiler = steps.find((step) => step.id === 'typecheck')
+const compilerJoin = steps.findIndex((step) => step.wait === 'typecheck')
 const plan = steps.find((step) => step.id === 'unit-plan')
 
-it('shares one setup and runs the unchanged compiler after static checks finish', () => {
+it('shares one setup and overlaps the compiler only after type-aware checks finish', () => {
   expect(workflow.jobs.static_analysis).toBeUndefined()
   expect(workflow.jobs.typecheck).toBeUndefined()
   expect(preflight.needs).toEqual(['code_paths'])
@@ -25,23 +26,64 @@ it('shares one setup and runs the unchanged compiler after static checks finish'
     expect(install.with['persist-native-cache']).not.toBe('false')
   }
   expect(steps[0].with['fetch-depth']).toBeGreaterThanOrEqual(2)
-  expect(compiler.background).toBeUndefined()
+  expect(compiler.background).toBe(true)
+  expect(compiler.run).toContain('pnpm run typecheck:ci')
+  const bunSetup = steps.find((step) => step.name === 'Set up Bun for preflight checks')
+  expect(bunSetup.with['bun-version-file']).toBe('config/.bun-version')
+  expect(bunSetup.if).toBeUndefined()
   expect(plan.background).toBe(true)
   expect(plan.run.trim().split('\n')).toEqual([
     'if [ "$PREFLIGHT_PHASE_SELECTED" != true ] || [ "$PREFLIGHT_PRIOR_SUCCESS" != true ]; then exit 0; fi',
     'node config/scripts/ci-unit-plan.mjs'
   ])
   expect(plan.env.ORCA_UNIT_SELECTION_MODE).toContain('vars.ORCA_UNIT_SELECTION_MODE')
-  expect(steps.indexOf(plan)).toBeLessThan(steps.indexOf(compiler))
+  expect(plan.env.ORCA_UNIT_FULL_SHARD_COUNT).toBe("${{ vars.ORCA_UNIT_FULL_SHARD_COUNT || '5' }}")
+  expect(steps.indexOf(plan)).toBeLessThan(compilerJoin)
   expect(steps.indexOf(compiler)).toBeGreaterThan(
+    steps.findIndex((step) => step.wait === 'changed-code-quality')
+  )
+  expect(steps.indexOf(compiler)).toBeLessThan(
+    steps.findIndex((step) => step.id === 'localization-extraction')
+  )
+  expect(compilerJoin).toBeGreaterThan(
     steps.findIndex((step) => step.wait?.includes('localization-extraction'))
   )
+})
+
+it('uses the shared Bun pin for every current-toolchain workflow', () => {
+  expect(readFileSync('config/.bun-version', 'utf8').trim()).toBe('1.4.3')
+  for (const file of readdirSync('.github/workflows').filter((name) => /\.ya?ml$/.test(name))) {
+    const current = parse(readFileSync(`.github/workflows/${file}`, 'utf8'))
+    for (const job of Object.values(current.jobs)) {
+      for (const step of job.steps ?? []) {
+        if (!String(step.uses).startsWith('oven-sh/setup-bun@')) {
+          continue
+        }
+        expect(step.with['bun-version-file'], file).toBe('config/.bun-version')
+        expect(step.with['bun-version'], file).toBeUndefined()
+      }
+    }
+  }
+})
+
+it('keeps the Bun anti-slop scan aligned with the local audit', () => {
+  const audit = steps.find((step) => step.name === 'Reject low-evidence patterns')
+  const manifest = JSON.parse(readFileSync('package.json', 'utf8'))
+  const localCommand = manifest.scripts['audit:anti-slop'].split('&&').at(-1).trim()
+  expect(audit.run.trim().split('\n')[0]).toBe('node config/scripts/sync-anti-slop-plugin.mjs')
+  expect(
+    audit.run
+      .trim()
+      .split('\n')
+      .at(-1)
+      .replace('bun --smol node_modules/oxlint/bin/oxlint', 'oxlint')
+  ).toBe(localCommand)
 })
 
 it('requires physical preflight success before publishing shards and admitting consumers', () => {
   const join = steps.findIndex((step) => step.wait === 'unit-plan')
   const upload = steps.findIndex((step) => step.uses === 'actions/upload-artifact@v7')
-  expect(join).toBeGreaterThan(steps.indexOf(compiler))
+  expect(join).toBeGreaterThan(compilerJoin)
   expect(upload).toBeGreaterThan(join)
   expect(steps[upload]['continue-on-error']).toBeUndefined()
   expect(steps[upload].with.name).toBe('unit-selection-attempt-${{ github.run_attempt }}')
@@ -53,7 +95,7 @@ it('requires physical preflight success before publishing shards and admitting c
   for (const result of ['success', 'failure', 'cancelled', 'skipped']) {
     const admitted = runInNewContext(workflow.jobs.test.if, {
       cancelled: () => false,
-      needs: { code_paths: { outputs: { test: 'true' } }, preflight: { result } }
+      needs: { code_paths: { result: 'success', outputs: { test: 'true' } }, preflight: { result } }
     })
     expect(admitted, result).toBe(result === 'success')
   }
@@ -68,6 +110,113 @@ it('requires physical preflight success before publishing shards and admitting c
   expect(workflow.jobs.verify.needs).toContain('preflight')
   expect(workflow.jobs.verify.needs).not.toContain('typecheck')
 })
+
+it.each([
+  { name: 'both phases succeed', phases: ['true', 'true'], result: 'success', admitted: true },
+  { name: 'static-only succeeds', phases: ['true', 'false'], result: 'success', admitted: true },
+  { name: 'type-only succeeds', phases: ['false', 'true'], result: 'success', admitted: true },
+  { name: 'static-only fails', phases: ['true', 'false'], result: 'failure', admitted: false },
+  { name: 'type-only fails', phases: ['false', 'true'], result: 'failure', admitted: false },
+  { name: 'both phases fail', phases: ['true', 'true'], result: 'failure', admitted: false },
+  { name: 'preflight is cancelled', result: 'cancelled', admitted: false },
+  { name: 'preflight is unfinished', result: undefined, admitted: false },
+  { name: 'both phases unselected', phases: ['false', 'false'], result: 'skipped', admitted: true },
+  { name: 'required static skips', phases: ['true', 'false'], result: 'skipped', admitted: false },
+  {
+    name: 'required compiler skips',
+    phases: ['false', 'true'],
+    result: 'skipped',
+    admitted: false
+  },
+  { name: 'both required phases skip', result: 'skipped', admitted: false },
+  {
+    name: 'unselected preflight fails',
+    phases: ['false', 'false'],
+    result: 'failure',
+    admitted: false
+  },
+  {
+    name: 'static selection missing',
+    phases: [undefined, 'false'],
+    result: 'skipped',
+    admitted: false
+  },
+  {
+    name: 'compiler selection missing',
+    phases: ['false', undefined],
+    result: 'skipped',
+    admitted: false
+  },
+  { name: 'selection unknown', phases: ['', 'false'], result: 'skipped', admitted: false },
+  {
+    name: 'docs have no route',
+    phases: ['false', 'false'],
+    result: 'skipped',
+    route: 'false',
+    admitted: false
+  },
+  { name: 'source has no route', result: 'success', route: 'false', admitted: false },
+  { name: 'route missing', result: 'success', route: '', admitted: false },
+  { name: 'path detection fails', result: 'success', pathsResult: 'failure', admitted: false },
+  { name: 'path detection skips', result: 'skipped', pathsResult: 'skipped', admitted: false },
+  { name: 'workflow cancelled after success', result: 'success', cancelled: true, admitted: false },
+  {
+    name: 'workflow cancelled with unselected phases',
+    phases: ['false', 'false'],
+    result: 'skipped',
+    cancelled: true,
+    admitted: false
+  }
+])('admits advisory E2E only after eligible preflight: $name', (scenario) => {
+  const [static_analysis, typecheck] = scenario.phases ?? ['true', 'true']
+  expect(workflow.jobs.e2e.needs).toEqual(['code_paths', 'preflight'])
+  const admitted = runInNewContext(workflow.jobs.e2e.if, {
+    cancelled: () => scenario.cancelled ?? false,
+    needs: {
+      code_paths: {
+        result: scenario.pathsResult ?? 'success',
+        outputs: { static_analysis, typecheck, e2e_should_run: scenario.route ?? 'true' }
+      },
+      preflight: { result: scenario.result }
+    }
+  })
+  expect(admitted).toBe(scenario.admitted)
+})
+
+it.each(['true', 'false'])(
+  'preserves advisory E2E on ready-for-review only with proven required-check reuse: %s',
+  (reused) => {
+    const scope = classifyPrJobs(['src/main/runtime/orca-runtime.ts'])
+    const context = {
+      steps: {
+        readiness: { outputs: { reused } },
+        filter: {
+          outputs: Object.fromEntries(
+            Object.entries(scope).map(([key, value]) => [key, String(value)])
+          )
+        },
+        e2e_filter: { outputs: { should_run: 'true' } }
+      }
+    }
+    const outputs = Object.fromEntries(
+      ['static_analysis', 'typecheck', 'e2e_should_run'].map((name) => [
+        name,
+        String(runInNewContext(workflow.jobs.code_paths.outputs[name].slice(3, -2), context))
+      ])
+    )
+    expect(outputs).toEqual({
+      static_analysis: reused === 'true' ? 'false' : 'true',
+      typecheck: reused === 'true' ? 'false' : 'true',
+      e2e_should_run: 'true'
+    })
+    const needs = { code_paths: { result: 'success', outputs }, preflight: { result: 'skipped' } }
+    expect(runInNewContext(preflight.if, { needs })).toBe(reused !== 'true')
+    expect(runInNewContext(workflow.jobs.e2e.if, { needs, cancelled: () => false })).toBe(
+      reused === 'true'
+    )
+    expect(workflow.jobs.verify.needs).not.toContain('e2e')
+  }
+)
 
 it('pins every foreground and background step to its selected phase', () => {
   const staticPhase = "needs.code_paths.outputs.static_analysis == 'true'"
@@ -90,17 +239,18 @@ it('pins every foreground and background step to its selected phase', () => {
     ['Enforce max-lines ratchet', staticPhase],
     ['Enforce ts-nocheck ratchet', staticPhase],
     ['Enforce runtime Electron-import ratchet', staticPhase],
+    ['Enforce focus-read ratchet', staticPhase],
+    ['Enforce layout-writer ratchets', staticPhase],
     ['Check Node runtime pin', staticPhase],
     ['Boot orcad and round-trip a terminal', staticPhase],
     ['Verify the generated RPC params catalog', staticPhase],
+    ['Verify the generated ACP protocol schema', staticPhase],
     ['Verify bundled skill guides', staticPhase],
     ['Verify skill freshness manifest', staticPhase],
     ['Verify localization coverage', staticPhase],
     ['Guard against project-owned .d.ts in preload/shared', staticPhase],
     ['Check feature wall asset budget', staticPhase],
     ['Verify macOS entitlements', staticPhase],
-    ['Cache TypeScript incremental state', typePhase],
-    ['pnpm run typecheck', typePhase],
     ['actions/upload-artifact@v7', typePhase]
   ])
   expect(
@@ -108,9 +258,12 @@ it('pins every foreground and background step to its selected phase', () => {
       .filter((step) => step.background)
       .map((step) => [step.id, step.env.PREFLIGHT_PHASE_SELECTED])
   ).toEqual([
+    ['process-host-imports', `\${{ ${staticPhase} }}`],
+    ['main-sync-spawn-ratchet', `\${{ ${staticPhase} }}`],
     ['root-lint', `\${{ ${staticPhase} }}`],
     ['native-code-quality', `\${{ ${staticPhase} }}`],
     ['changed-code-quality', `\${{ ${staticPhase} }}`],
+    ['typecheck', `\${{ ${typePhase} }}`],
     ['localization-extraction', `\${{ ${staticPhase} }}`],
     ['localization-catalogs', `\${{ ${staticPhase} }}`],
     ['unit-plan', `\${{ ${typePhase} }}`]
@@ -159,7 +312,9 @@ it.each([
   expect(runInNewContext(preflight.if, { needs })).toBe(
     expected.static_analysis || expected.typecheck
   )
-  expect(runInNewContext(compiler.if, { needs })).toBe(expected.typecheck)
+  expect(runInNewContext(compiler.env.PREFLIGHT_PHASE_SELECTED.slice(3, -2), { needs })).toBe(
+    expected.typecheck
+  )
   expect(scope.test).toBe(expected.typecheck)
 })
 
@@ -172,4 +327,13 @@ it('registers successful no-op background work when a phase is unselected or alr
       'if [ "$PREFLIGHT_PHASE_SELECTED" != true ] || [ "$PREFLIGHT_PRIOR_SUCCESS" != true ]; then exit 0; fi'
     )
   }
+})
+
+it('shares import analysis without dropping either boundary gate', () => {
+  const imports = steps.find((step) => step.id === 'process-host-imports')
+  expect(imports.run).toContain('bun config/scripts/check-import-boundaries.mjs')
+  expect(steps.some((step) => step.name === 'Check compatibility-folder imports')).toBe(false)
+  expect(steps.find((step) => step.name === 'Verify localization coverage').run).toBe(
+    'bun config/scripts/audit-localization-coverage.mjs --check'
+  )
 })

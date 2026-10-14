@@ -69,12 +69,12 @@ export function BrowserGuestAnnotateOverlays({
   const markupTarget = markupPortalContainer ?? containerRef.current
   const {
     browserAnnotations,
-    browserAnnotationTrayOpen,
     annotationTraySendOpen,
     handleAnnotationTraySendOpenChange,
     activeGroupId,
     browserAnnotationsPrompt,
     handleBrowserAnnotationsSentToAgent,
+    handleBrowserAnnotationsHandedOff,
     handleCopyBrowserAnnotations,
     browserAnnotationsCopied,
     handleClearBrowserAnnotations,
@@ -98,18 +98,21 @@ export function BrowserGuestAnnotateOverlays({
       {pendingAnnotationPayload ? (
         <PendingBrowserAnnotationCard
           payload={pendingAnnotationPayload}
-          anchor={getBrowserOverlayAnchor(
-            pendingAnnotationPayload,
-            containerRef.current,
-            webviewRef.current,
-            browserOverlayViewport
-          )}
+          resolveAnchor={(cardHeight) =>
+            getBrowserOverlayAnchor(
+              pendingAnnotationPayload,
+              containerRef.current,
+              webviewRef.current,
+              browserOverlayViewport,
+              cardHeight
+            )
+          }
           portalContainer={containerRef.current}
           onAdd={handleAddBrowserAnnotation}
           onCancel={handleCancelPendingBrowserAnnotation}
         />
       ) : null}
-      {browserAnnotations.length > 0 && browserAnnotationTrayOpen ? (
+      {browserAnnotations.length > 0 ? (
         <BrowserPageAnnotationTray
           browserAnnotations={browserAnnotations}
           currentUrl={currentUrl}
@@ -119,6 +122,7 @@ export function BrowserGuestAnnotateOverlays({
           activeGroupId={activeGroupId}
           browserAnnotationsPrompt={browserAnnotationsPrompt}
           handleBrowserAnnotationsSentToAgent={handleBrowserAnnotationsSentToAgent}
+          handleBrowserAnnotationsHandedOff={handleBrowserAnnotationsHandedOff}
           handleCopyBrowserAnnotations={handleCopyBrowserAnnotations}
           browserAnnotationsCopied={browserAnnotationsCopied}
           handleClearBrowserAnnotations={handleClearBrowserAnnotations}

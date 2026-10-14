@@ -19,6 +19,11 @@ import { resolveLocalWindowsAgentStartupShell } from '../../shared/windows-termi
 import { resolveStartupShell, type AgentStartupShell } from '../../shared/tui-agent-startup-shell'
 import { isTuiAgent } from '../../shared/tui-agent-config'
 import { resolveConfiguredWorkerAgent } from './orchestration/configured-worker-agent-selector'
+import { resolveAgentLaunchRuntime } from './agent-launch-scope-runtime'
+import { parseWslUncPath } from '../../shared/wsl-paths'
+
+import { prepareOpenCodeModelStartupInputs } from '../opencode/opencode-model-startup-plan'
+import { resolveAgentStartupPlanInputs } from '../../shared/agent-startup-plan-inputs'
 
 export class OrcaRuntimeWithGetTerminalInteractiveWait extends OrcaRuntimeWithAdoptTerminalOrphansFromInventory {
   async getTerminalInteractiveWait(
@@ -221,6 +226,54 @@ export class OrcaRuntimeWithGetTerminalInteractiveWait extends OrcaRuntimeWithAd
       })
     )
     return this.resolveOrchestrationAgentLauncher(selector, platform, shell)
+  }
+
+  async probeOrchestrationOpenCodeModelLaunchSupport(target: {
+    worktree?: string
+    model?: string
+  }): Promise<boolean> {
+    if (!target.model || !target.worktree) {
+      return false
+    }
+    const workspace = await this.resolveTerminalWorkspaceLaunchScope(target.worktree)
+    const executionRepo = workspace?.repo
+    if (
+      workspace?.connectionId ||
+      (executionRepo?.executionHostId && executionRepo.executionHostId !== 'local')
+    ) {
+      return false
+    }
+    const store = this.requireStore()
+    const path = workspace?.path
+    if (!path) {
+      return false
+    }
+    // The launch's own platform, and `isWsl` from the path alone, as main read it.
+    let launchRuntime
+    try {
+      launchRuntime = resolveAgentLaunchRuntime(store, workspace, undefined, 'opencode')
+    } catch {
+      return false
+    }
+    try {
+      await prepareOpenCodeModelStartupInputs({
+        inputs: resolveAgentStartupPlanInputs({
+          agent: 'opencode',
+          settings: store.getSettings(),
+          platform: launchRuntime.platform,
+          isRemote: false,
+          // A yes/no model probe; nothing is typed into a shell.
+          shell: undefined,
+          sessionOptions: { model: target.model }
+        }),
+        cwd: path,
+        isWsl: Boolean(parseWslUncPath(path)),
+        hostIdentity: this.getRuntimeId()
+      })
+      return true
+    } catch {
+      return false
+    }
   }
 
   validateOrchestrationAgentLauncher(agent: TuiAgent): void {
