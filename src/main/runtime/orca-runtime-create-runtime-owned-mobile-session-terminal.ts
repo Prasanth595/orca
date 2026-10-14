@@ -2,7 +2,10 @@
 import { OrcaRuntimeWithResolveMobileSessionTerminalCommand } from './orca-runtime-resolve-mobile-session-terminal-command'
 import type { WorktreeStartupLaunch } from '../../shared/worktree/launch-types'
 import type { TuiAgent } from '../../shared/tui-agent'
-import type { SleepingAgentLaunchConfig } from '../../shared/agent-session-resume'
+import type {
+  AgentProviderSessionMetadata,
+  SleepingAgentLaunchConfig
+} from '../../shared/agent-session-resume'
 import type { AgentLaunchRuntime } from '../../shared/agent-launch-runtime'
 import type {
   RuntimeMobileSessionCreateTerminalResult,
@@ -60,6 +63,7 @@ export class OrcaRuntimeWithCreateRuntimeOwnedMobileSessionTerminal extends Orca
       supportsSplitGroupPlacement?: boolean
       launchConfig?: SleepingAgentLaunchConfig
       launchRuntime?: AgentLaunchRuntime
+      resumeProviderSession?: AgentProviderSessionMetadata
       signal?: AbortSignal
       refuseSleptWorktree?: boolean
     } = {}
@@ -110,6 +114,7 @@ export class OrcaRuntimeWithCreateRuntimeOwnedMobileSessionTerminal extends Orca
         cwd,
         env: opts.env,
         envToDelete: opts.envToDelete,
+        resumeProviderSession: opts.resumeProviderSession,
         ...(opts.launchConfig ? { launchConfig: opts.launchConfig } : {}),
         ...(opts.launchAgent ? { launchAgent: opts.launchAgent } : {}),
         ...(opts.launchRuntime ? { launchRuntime: opts.launchRuntime } : {}),

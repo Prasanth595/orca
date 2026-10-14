@@ -3,7 +3,16 @@ import { OrcaRuntimeWithRunCreateMobileSessionTerminal } from './orca-runtime-ru
 import type { TerminalWorkspaceLaunchScope } from './runtime-legacy-worker-terminal-recovery-types'
 import type { WorktreeStartupLaunch } from '../../shared/worktree/launch-types'
 import type { TuiAgent } from '../../shared/tui-agent'
-import type { SleepingAgentLaunchConfig } from '../../shared/agent-session-resume'
+import { isResumableTuiAgent } from '../../shared/agent-session-resume'
+import {
+  resolveTuiAgentLaunchArgs,
+  resolveTuiAgentLaunchEnv
+} from '../../shared/tui-agent-launch-defaults'
+import type {
+  AgentProviderSessionMetadata,
+  SleepingAgentLaunchConfig
+} from '../../shared/agent-session-resume'
+import { buildAgentResumeStartupPlan } from '../../shared/tui-agent-resume-startup'
 import { isTuiAgentEnabled } from '../../shared/tui-agent-selection'
 import { buildAgentStartupPlan } from '../../shared/tui-agent-startup'
 import { resolveAgentStartupPlanInputs } from '../../shared/agent-startup-plan-inputs'
@@ -21,10 +30,12 @@ export class OrcaRuntimeWithResolveMobileSessionTerminalCommand extends OrcaRunt
       agentPrompt?: string
       launchConfig?: SleepingAgentLaunchConfig
       launchAgent?: TuiAgent
+      resumeProviderSession?: AgentProviderSessionMetadata
     }
   ): Promise<{
     command?: string
     env?: Record<string, string>
+    resumeProviderSession?: AgentProviderSessionMetadata
     envToDelete?: string[]
     startupCommandDelivery?: WorktreeStartupLaunch['startupCommandDelivery']
     launchConfig?: SleepingAgentLaunchConfig
@@ -48,6 +59,44 @@ export class OrcaRuntimeWithResolveMobileSessionTerminalCommand extends OrcaRunt
     const settings = this.store.getSettings()
     if (!isTuiAgentEnabled(opts.agent, settings.disabledTuiAgents)) {
       throw new Error('Selected agent is disabled. Choose an enabled agent before creating.')
+    }
+    if (opts.resumeProviderSession && isResumableTuiAgent(opts.agent)) {
+      const launchRuntime = this.resolveAgentLaunchRuntime(workspace, opts.agent)
+      const startupPlan = buildAgentResumeStartupPlan({
+        agent: opts.agent,
+        providerSession: opts.resumeProviderSession,
+        cmdOverrides: settings.agentCmdOverrides ?? {},
+        agentArgs:
+          opts.launchConfig !== undefined
+            ? opts.launchConfig.agentArgs
+            : resolveTuiAgentLaunchArgs(opts.agent, settings.agentDefaultArgs),
+        agentEnv:
+          opts.launchConfig !== undefined
+            ? opts.launchConfig.agentEnv
+            : resolveTuiAgentLaunchEnv(opts.agent, settings.agentDefaultEnv),
+        ...(opts.launchConfig?.agentCommand
+          ? { agentCommand: opts.launchConfig.agentCommand }
+          : {}),
+        ...(opts.launchConfig?.ompResumeFilePath
+          ? { ompResumeFilePath: opts.launchConfig.ompResumeFilePath }
+          : {}),
+        platform: launchRuntime.platform,
+        shell: agentLaunchQuotingShell(launchRuntime),
+        isRemote: Boolean(workspace.connectionId)
+      })
+      if (!startupPlan) {
+        throw new Error(`Could not build resume command for ${opts.agent}.`)
+      }
+      return {
+        command: startupPlan.launchCommand,
+        env: startupPlan.env,
+        envToDelete: opts.envToDelete,
+        launchConfig: startupPlan.launchConfig,
+        launchAgent: opts.agent,
+        startupCommandDelivery: startupPlan.startupCommandDelivery,
+        launchRuntime,
+        resumeProviderSession: opts.resumeProviderSession
+      }
     }
     const launchRuntime = this.resolveAgentLaunchRuntime(workspace, opts.agent)
     const startupPlan = buildAgentStartupPlan({
