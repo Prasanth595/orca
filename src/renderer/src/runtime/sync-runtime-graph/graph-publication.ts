@@ -118,6 +118,7 @@ export async function syncRuntimeGraph(): Promise<void> {
         leafId,
         paneRuntimeId: pane.id,
         ptyId,
+        surface: registeredTab.getIsVisible?.() === false ? 'background' : 'visible',
         paneTitle: paneTitles[pane.id] ?? null,
         title: resolveRuntimeTerminalTitle(
           tab,
@@ -188,6 +189,7 @@ export async function syncRuntimeGraph(): Promise<void> {
           paneRuntimeId: parkedPaneId ?? index + 1,
           ptyId,
           parked: true,
+          surface: 'background',
           paneTitle: (parkedPaneId === undefined ? null : parkedPaneTitles[parkedPaneId]) ?? null,
           title
         })
