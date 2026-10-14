@@ -42,12 +42,7 @@ export abstract class AgentHookServerRunAccount extends AgentHookServerAgentPres
     }
   }
 
-  /**
-   * Restates a local row with a new run-account facet. Only the facet changes: timestamps,
-   * observation and state stay as they were, and only the row, persistence and the renderer
-   * see it — plugin and recorder listeners get nothing because no status changed.
-   * `null` withdraws a facet the host published earlier.
-   */
+  /** Restates a local row with a new facet (`null` withdraws it); nothing but the facet changes. */
   republishRunAccount(paneKey: string, runAccount: AgentRunAccount | null): boolean {
     const resolved = this.resolvePaneKeyAlias(paneKey)
     // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Main admits enriched legacy rows; the shared view declares their base event type.
@@ -66,8 +61,8 @@ export abstract class AgentHookServerRunAccount extends AgentHookServerAgentPres
     }
     this.commitStatusRowMutation(previous, next)
     this.scheduleStatusPersist()
-    // Why a replay: the status is restated, not changed, so first-work effects must skip it.
-    this.onAgentStatus?.({ ...next, isReplay: true })
+    // Why flagged: the status did not change, so no title, bell, telemetry or first-work effect may run.
+    this.onAgentStatus?.({ ...next, isReplay: true, runAccountOnly: true })
     return true
   }
 

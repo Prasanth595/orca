@@ -8,7 +8,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EnrichedAgentHookEventPayload } from '../agent-hooks/server'
 
 const hooks = vi.hoisted(() => ({
-  listener: null as ((payload: EnrichedAgentHookEventPayload) => void) | null
+  listener: null as ((payload: EnrichedAgentHookEventPayload) => void) | null,
+  rename: vi.fn(),
+  record: vi.fn()
 }))
 
 vi.mock('electron', () => ({
@@ -34,6 +36,7 @@ vi.mock('./synthetic-title-runtime', () => ({
 }))
 
 import { installMainWindowAgentStatusListeners } from './main-window-agent-status'
+import { driveSyntheticTitleFromHook } from './synthetic-title-runtime'
 import { mainProcessState } from './main-process-state'
 
 const sent: { channel: string; event: { paneKey: string } }[] = []
@@ -63,10 +66,13 @@ beforeEach(() => {
       send: (channel: string, event: { paneKey: string }) => sent.push({ channel, event })
     }
   } as unknown as typeof mainProcessState.mainWindow
+  hooks.rename.mockReset()
+  hooks.record.mockReset()
+  vi.mocked(driveSyntheticTitleFromHook).mockReset()
   installMainWindowAgentStatusListeners({
     window: mainProcessState.mainWindow!,
-    maybeAutoRenameBranchOnFirstWork: vi.fn(),
-    onRecordAgentState: vi.fn()
+    maybeAutoRenameBranchOnFirstWork: hooks.rename,
+    onRecordAgentState: hooks.record
   })
 })
 
@@ -113,4 +119,26 @@ it('forwards the host account facet, including a withdrawal, and nothing when ab
   expect(byPane.get('kept')).toMatchObject({ runAccount: facet })
   expect(byPane.get('withdrawn')).toMatchObject({ runAccount: null })
   expect(byPane.get('plain')).not.toHaveProperty('runAccount')
+})
+
+it('forwards a facet-only restatement without re-driving titles, bells or telemetry', () => {
+  const facet = { provider: 'codex', lane: 'host', accountId: 'a', mode: 'kept' } as const
+  const waiting = { state: 'waiting', prompt: '', agentType: 'codex' } as const
+  hooks.listener!(statusPayload({ payload: waiting, runAccount: facet, isReplay: true }))
+  expect(driveSyntheticTitleFromHook).toHaveBeenCalledOnce()
+  vi.mocked(driveSyntheticTitleFromHook).mockClear()
+  hooks.record.mockClear()
+  hooks.rename.mockClear()
+  sent.length = 0
+
+  hooks.listener!(
+    statusPayload({ payload: waiting, runAccount: facet, isReplay: true, runAccountOnly: true })
+  )
+
+  expect(sent.map((entry) => entry.event)).toEqual([
+    expect.objectContaining({ paneKey: 'pane-1', runAccount: facet })
+  ])
+  expect(driveSyntheticTitleFromHook).not.toHaveBeenCalled()
+  expect(hooks.record).not.toHaveBeenCalled()
+  expect(hooks.rename).not.toHaveBeenCalled()
 })

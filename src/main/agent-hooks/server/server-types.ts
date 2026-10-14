@@ -32,6 +32,8 @@ export type EnrichedAgentHookEventPayload = AgentHookEventPayload & {
   /** The account a local agent runs on; only the host's run-account producer writes it.
    *  `null` = a facet the host published was withdrawn. */
   runAccount?: AgentRunAccount | null
+  /** Only on a facet restatement handed to the window listener; never stored. */
+  runAccountOnly?: true
 }
 
 // `claudeRunningNonAgentTask` is persisted on purpose: it is the one child-work fact the row's

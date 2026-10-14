@@ -69,12 +69,14 @@ describe('run-account facet on status rows', () => {
       runAccount: KEPT,
       receivedAt: before.receivedAt,
       stateStartedAt: before.stateStartedAt,
-      isReplay: true
+      isReplay: true,
+      runAccountOnly: true
     })
     expect(enriched).not.toHaveBeenCalled()
     expect(statusChanges).not.toHaveBeenCalled()
     expect(mutations).not.toHaveBeenCalled()
     expect(JSON.parse(server.serialized()).entries[PANE_KEY].runAccount).toEqual(KEPT)
+    expect(JSON.parse(server.serialized()).entries[PANE_KEY]).not.toHaveProperty('runAccountOnly')
   })
 
   it('is a no-op for an equal facet, an unknown pane and a relay row', () => {

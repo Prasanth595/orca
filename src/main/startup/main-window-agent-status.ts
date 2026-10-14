@@ -45,7 +45,8 @@ export function installMainWindowAgentStatusListeners(options: MainWindowAgentSt
       isReplay,
       authorityRestartId,
       structuredHost,
-      runAccount
+      runAccount,
+      runAccountOnly
     }) => {
       if (state.mainWindow?.isDestroyed()) {
         return
@@ -73,7 +74,7 @@ export function installMainWindowAgentStatusListeners(options: MainWindowAgentSt
         })
         return
       }
-      if (!restoredUnconfirmed) {
+      if (!restoredUnconfirmed && !runAccountOnly) {
         options.maybeAutoRenameBranchOnFirstWork({ paneKey, tabId, worktreeId, payload, isReplay })
       }
       const runtime = state.runtime
@@ -101,6 +102,9 @@ export function installMainWindowAgentStatusListeners(options: MainWindowAgentSt
       }
       state.mainWindow?.webContents.send('agentStatus:set', statusEvent)
       getDashboardPopoutWindow()?.webContents.send('agentStatus:set', statusEvent)
+      if (runAccountOnly) {
+        return
+      }
       options.onRecordAgentState(payload.agentType ?? 'unknown', payload.state)
       // Why: native OSC titles miss some idle/permission frames, so inject hook-derived ones to keep the renderer title tracker in sync.
       const profile = getSyntheticAgentTitleProfile(payload.agentType)
