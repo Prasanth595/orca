@@ -13,6 +13,7 @@ import { AgentDashboardExperimentalSetting } from './AgentDashboardExperimentalS
 import { EphemeralVmsExperimentalSetting } from './EphemeralVmsExperimentalSetting'
 import { WslHostsExperimentalSetting } from './WslHostsExperimentalSetting'
 import { wslHostsAvailable } from '../sidebar/use-wsl-hosts-enabled'
+import { PetSpeechBubbleSetting } from './PetSpeechBubbleSetting'
 import {
   MAX_AGENT_HIBERNATION_IDLE_MS,
   MIN_AGENT_HIBERNATION_IDLE_MS,
@@ -98,6 +99,9 @@ export function ExperimentalPane({
               }}
             />
           </div>
+          {settings.experimentalPet ? (
+            <PetSpeechBubbleSetting settings={settings} updateSettings={updateSettings} />
+          ) : null}
         </SearchableSetting>
       ) : null}
 

@@ -12806,6 +12806,16 @@
           "connect": "Connect",
           "remove": "Remove",
           "turnOn": "Turn on in Experimental"
+        },
+        "PetSpeechBubbleSetting": {
+          "title": "Speech bubbles",
+          "description": "The pet speaks up when an agent finishes or needs your input. Click a bubble to dismiss it.",
+          "doneLabel": "When an agent finishes",
+          "waitingLabel": "When an agent needs input",
+          "reminderLabel": "Reminder",
+          "reminderMinutesLabel": "Remind every",
+          "reminderMinutesDescription": "Repeat the reminder while finished or waiting agents stay unchecked. {count} in the text becomes the number of agents. 0 turns reminders off.",
+          "reminderMinutesSuffix": "minutes"
         }
       },
       "right": {
@@ -14388,6 +14398,11 @@
             "a84d5677ff": "OpenCode",
             "2528586aa7": "Claudino"
           }
+        },
+        "PetSpeechBubble": {
+          "doneDefault": "All done! Come take a look.",
+          "waitingDefault": "An agent needs your input.",
+          "reminderDefault": "{count} agent(s) still waiting for you."
         }
       },
       "onboarding": {
