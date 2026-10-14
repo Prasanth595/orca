@@ -1,12 +1,13 @@
 #!/usr/bin/env node
-// Fork-only (TW199501/orca): merge dev into release, push both, and optionally build a local macOS app.
+// Fork-only (TW199501/orca): fast-forward release to origin/dev, push release, and optionally build a local macOS app.
 // Usage: node config/scripts/zh-hant-sync-release.mjs [--no-push] [--build-mac]
 import { execFileSync, spawnSync } from 'node:child_process'
 import { readdirSync, rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
 
-const SOURCE_BRANCH = 'dev'
+// Why: release only ever fast-forwards to the dev that was pushed and tested, never a local dev.
+const SOURCE_REF = 'origin/dev'
 const TARGET_BRANCH = 'release'
 // Why: pnpm keeps re-adding @pnpm/exe here locally; it must never be committed or block a checkout.
 const LOCKFILE_NOISE = 'pnpm-lock.yaml'
@@ -38,9 +39,11 @@ function run(command, commandArgs, env = {}) {
   return result.status ?? 1
 }
 
+class SyncAbort extends Error {}
+
+// Why: throw instead of process.exit so the finally block can switch back to the start branch.
 function fail(message) {
-  console.error(`\n✗ ${message}`)
-  process.exit(1)
+  throw new SyncAbort(message)
 }
 
 function assertCleanTree() {
@@ -58,15 +61,43 @@ function assertCleanTree() {
 }
 
 function syncRelease() {
-  git(['switch', TARGET_BRANCH], { stdio: 'inherit' })
-  if (run('git', ['merge', '--no-edit', SOURCE_BRANCH]) !== 0) {
-    fail(`Merge conflict on ${TARGET_BRANCH}. Resolve it, commit, then rerun.`)
+  if (run('git', ['fetch', 'origin']) !== 0) {
+    fail('git fetch origin failed.')
   }
-  console.log(
-    `\n✓ ${SOURCE_BRANCH} merged into ${TARGET_BRANCH}: ${git(['log', '--oneline', '-1'])}`
-  )
-  if (push && run('git', ['push', 'origin', SOURCE_BRANCH, TARGET_BRANCH]) !== 0) {
-    fail('Push failed. The merge is kept locally; push manually.')
+  git(['switch', TARGET_BRANCH], { stdio: 'inherit' })
+  if (run('git', ['merge', '--ff-only', `origin/${TARGET_BRANCH}`]) !== 0) {
+    fail(
+      `Local ${TARGET_BRANCH} has commits that are not on origin/${TARGET_BRANCH}. Stop and check.`
+    )
+  }
+  const releaseOnly = git(['log', '--oneline', `${SOURCE_REF}..${TARGET_BRANCH}`])
+  if (releaseOnly) {
+    fail(
+      `${TARGET_BRANCH} has commits that are not on ${SOURCE_REF}:\n${releaseOnly}\n` +
+        `Get them into dev through a PR first; never commit to ${TARGET_BRANCH}.`
+    )
+  }
+  const incoming = git(['log', '--oneline', `${TARGET_BRANCH}..${SOURCE_REF}`])
+  if (incoming) {
+    console.log(`\nCommits ${SOURCE_REF} brings into ${TARGET_BRANCH}:\n${incoming}\n`)
+    if (run('git', ['merge', '--ff-only', SOURCE_REF]) !== 0) {
+      fail(`Fast-forwarding ${TARGET_BRANCH} to ${SOURCE_REF} failed. Stop and check.`)
+    }
+    console.log(`\n✓ ${TARGET_BRANCH} fast-forwarded to ${git(['log', '--oneline', '-1'])}`)
+  }
+  // Why: an earlier --no-push run may have fast-forwarded the local branch already.
+  const remoteRef = `origin/${TARGET_BRANCH}`
+  const unpushed = git(['log', '--oneline', `${remoteRef}..${TARGET_BRANCH}`])
+  if (!unpushed) {
+    console.log(`\n✓ ${remoteRef} already matches ${SOURCE_REF}.`)
+    return
+  }
+  if (!push) {
+    console.log(`\n--no-push: ${TARGET_BRANCH} is ahead of ${remoteRef} locally only.`)
+    return
+  }
+  if (run('git', ['push', 'origin', TARGET_BRANCH]) !== 0) {
+    fail(`Push failed. ${TARGET_BRANCH} is updated locally; push it manually.`)
   }
 }
 
@@ -121,16 +152,24 @@ function safeReaddir(dir) {
   }
 }
 
-const startBranch = git(['branch', '--show-current'])
-assertCleanTree()
 try {
-  syncRelease()
-  if (buildMac) {
-    buildMacApp()
+  const startBranch = git(['branch', '--show-current'])
+  assertCleanTree()
+  try {
+    syncRelease()
+    if (buildMac) {
+      buildMacApp()
+    }
+  } finally {
+    if (startBranch && git(['branch', '--show-current']) !== startBranch) {
+      assertCleanTree()
+      git(['switch', startBranch], { stdio: 'inherit' })
+    }
   }
-} finally {
-  if (startBranch && git(['branch', '--show-current']) !== startBranch) {
-    assertCleanTree()
-    git(['switch', startBranch], { stdio: 'inherit' })
+} catch (error) {
+  if (!(error instanceof SyncAbort)) {
+    throw error
   }
+  console.error(`\n✗ ${error.message}`)
+  process.exitCode = 1
 }
