@@ -255,8 +255,8 @@ describe('connectPanePty eager adopt', () => {
     pane.terminal.resize = vi.fn((cols: number, rows: number) => {
       pane.terminal.cols = cols
       pane.terminal.rows = rows
-    }) as typeof pane.terminal.resize
-    pane.fitAddon.proposeDimensions = vi.fn(() => ({ cols: 80, rows: 24 })) as never
+    })
+    pane.fitAddon.proposeDimensions = vi.fn(() => ({ cols: 80, rows: 24 }))
     pane.fitAddon.fit = vi.fn(() => {
       pane.terminal.cols = 80
       pane.terminal.rows = 24
@@ -285,7 +285,7 @@ describe('connectPanePty eager adopt', () => {
     )
     const attachOrder = transport.attach.mock.invocationCallOrder[0]
     expect(resizeToCaptureCall).toBeDefined()
-    expect(resizeToCaptureCall as number).toBeLessThan(attachOrder)
+    expect(resizeToCaptureCall).toBeLessThan(attachOrder)
     const fitOrders = vi.mocked(pane.fitAddon.fit).mock.invocationCallOrder
     expect(fitOrders.some((order) => order > attachOrder)).toBe(true)
     expect(transport.resize).toHaveBeenCalledWith(80, 24)
@@ -343,7 +343,7 @@ describe('connectPanePty eager adopt', () => {
     const pane = createPane(1)
     pane.terminal.cols = 80
     pane.terminal.rows = 24
-    pane.fitAddon.proposeDimensions = vi.fn(() => ({ cols: 80, rows: 24 })) as never
+    pane.fitAddon.proposeDimensions = vi.fn(() => ({ cols: 80, rows: 24 }))
     pane.fitAddon.fit = vi.fn(() => {
       pane.terminal.cols = 80
       pane.terminal.rows = 24
@@ -415,7 +415,7 @@ describe('connectPanePty eager adopt', () => {
     const pane = createPane(1)
     pane.terminal.cols = 80
     pane.terminal.rows = 24
-    pane.fitAddon.proposeDimensions = vi.fn(() => ({ cols: 80, rows: 24 })) as never
+    pane.fitAddon.proposeDimensions = vi.fn(() => ({ cols: 80, rows: 24 }))
     pane.fitAddon.fit = vi.fn(() => {
       pane.terminal.cols = 80
       pane.terminal.rows = 24
@@ -485,7 +485,7 @@ describe('connectPanePty eager adopt', () => {
     const pane = createPane(1)
     pane.terminal.cols = 80
     pane.terminal.rows = 24
-    pane.fitAddon.proposeDimensions = vi.fn(() => ({ cols: 80, rows: 24 })) as never
+    pane.fitAddon.proposeDimensions = vi.fn(() => ({ cols: 80, rows: 24 }))
     pane.fitAddon.fit = vi.fn(() => {
       pane.terminal.cols = 80
       pane.terminal.rows = 24
@@ -494,9 +494,9 @@ describe('connectPanePty eager adopt', () => {
     // slow live frame cannot complete before that frame does.
     const parseQueue: { data: string; callback: () => void }[] = []
     let liveFrameParseReleased = false
-    pane.terminal.write = function write(data: string, callback?: () => void): void {
+    pane.terminal.write = vi.fn((data: string, callback?: () => void): void => {
       parseQueue.push({ data, callback: callback ?? (() => {}) })
-    } as typeof pane.terminal.write
+    })
     const parseAvailable = async (): Promise<void> => {
       for (let step = 0; step < 40; step += 1) {
         const next = parseQueue[0]
@@ -535,7 +535,7 @@ describe('connectPanePty eager adopt', () => {
       ...mockStoreState,
       tabsByWorktree: { 'wt-1': [{ id: 'tab-1', ptyId: eagerPtyId }] },
       ptyIdsByTabId: { 'tab-1': [eagerPtyId] }
-    } as StoreState
+    }
     const deps = createDeps({
       restoredLeafId: LEAF_1,
       restoredPtyIdByLeafId: { [LEAF_1]: eagerPtyId }
