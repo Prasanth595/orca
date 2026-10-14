@@ -211,7 +211,13 @@ const delegationNoticeSchema = z.looseObject({
     _meta: z.looseObject({
       hermes: z.looseObject({
         subagents: z.array(
-          z.looseObject({ id: z.string().min(1), state: z.string(), summary: z.string().optional() })
+          z.looseObject({
+            id: z.string().min(1),
+            state: z.string(),
+            summary: z.string().optional(),
+            label: z.string().optional(),
+            activity: z.string().optional()
+          })
         )
       })
     })
@@ -225,7 +231,14 @@ function hermesDelegationNotice(_method: string, params: unknown): AcpDialectNot
   for (const row of parsed.data.update._meta.hermes.subagents) {
     const state = HERMES_SUBAGENT_STATES.find((known) => known === row.state)
     if (!state) continue
-    subagents.push({ id: row.id, state, ...(row.summary ? { result: row.summary } : {}) })
+    subagents.push({
+      id: row.id,
+      state,
+      ...(row.summary ? { result: row.summary } : {}),
+      ...(row.label ? { label: row.label } : {}),
+      // A progress notice names the tool each child is in; the settle that follows carries none.
+      ...(row.activity ? { activity: row.activity } : {})
+    })
   }
   return subagents.length > 0 ? { disposition: 'map', subagents } : undefined
 }

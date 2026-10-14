@@ -39,6 +39,8 @@ export type AcpSubagentUpdate = {
   turn?: string
   /** The subagent's final reply, once it completed. */
   result?: string
+  /** The tool the child is in right now, as the provider last reported it. Absent: unchanged. */
+  activity?: string
   /** For a report that cannot tell a subagent from a background task: applies only to a known one. */
   knownOnly?: true
 }

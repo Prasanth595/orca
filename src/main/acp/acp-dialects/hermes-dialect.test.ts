@@ -230,6 +230,36 @@ describe('hermes delegation notices', () => {
     })
   })
 
+  it('carries what each child is in while the batch runs', () => {
+    const mapped = HERMES_ACP_DIALECT.notification?.(
+      'session/update',
+      {
+        sessionId: 'session-1',
+        update: {
+          sessionUpdate: 'session_info_update',
+          _meta: {
+            hermes: {
+              progress: true,
+              subagents: [
+                { id: 'deleg_abc:0', state: 'working', label: 'say one', activity: 'search_files' },
+                { id: 'deleg_abc:1', state: 'working', label: 'say two', activity: 'read_file' }
+              ]
+            }
+          }
+        }
+      },
+      1
+    )
+
+    expect(mapped).toEqual({
+      disposition: 'map',
+      subagents: [
+        { id: 'deleg_abc:0', state: 'working', label: 'say one', activity: 'search_files' },
+        { id: 'deleg_abc:1', state: 'working', label: 'say two', activity: 'read_file' }
+      ]
+    })
+  })
+
   it('drops a state the roster does not have, keeping the rows it does', () => {
     const mapped = HERMES_ACP_DIALECT.notification?.(
       'session/update',
