@@ -4,7 +4,6 @@ import type { AgentRunAccountProvider } from '../../../../shared/agent-run-accou
 import { countTerminalAgentsByAccount } from '../status-bar/count-terminal-agents-by-account'
 
 const EMPTY_ROWS = {}
-const EMPTY_TABS = {}
 
 /** Says what removal does to agents kept on the account: they follow the selection again. */
 export function KeptAgentsRemovalNote({
@@ -21,7 +20,7 @@ export function KeptAgentsRemovalNote({
     enabled
       ? countTerminalAgentsByAccount({
           rows: state.agentStatusByPaneKey ?? EMPTY_ROWS,
-          tabsByWorktree: state.tabsByWorktree ?? EMPTY_TABS,
+          tabsByWorktree: state.tabsByWorktree,
           provider,
           accountId,
           keptOnly: true

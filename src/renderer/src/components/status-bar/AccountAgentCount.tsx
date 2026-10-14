@@ -4,7 +4,6 @@ import type { AgentRunAccountProvider } from '../../../../shared/agent-run-accou
 import { countTerminalAgentsByAccount } from './count-terminal-agents-by-account'
 
 const EMPTY_ROWS = {}
-const EMPTY_TABS = {}
 
 /** "N terminal agents" on an account row; this host's local panes only, hidden at zero. */
 export function AccountAgentCount({
@@ -21,7 +20,7 @@ export function AccountAgentCount({
     enabled
       ? countTerminalAgentsByAccount({
           rows: state.agentStatusByPaneKey ?? EMPTY_ROWS,
-          tabsByWorktree: state.tabsByWorktree ?? EMPTY_TABS,
+          tabsByWorktree: state.tabsByWorktree,
           provider,
           accountId
         })
