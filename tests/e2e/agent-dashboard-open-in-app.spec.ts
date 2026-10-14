@@ -57,6 +57,7 @@ test('pop-out click destination persists and leaves the board open', async ({
   ).toHaveAttribute('aria-current', 'page')
   await popout.screenshot({ path: testInfo.outputPath('preview-before.png') })
   await popout.getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(card).not.toHaveAttribute('aria-current')
 
   await popout.getByRole('button', { name: 'Agent Dashboard settings' }).click()
   const openInApp = popout.getByRole('menuitemcheckbox', { name: 'Open agents in main window' })
@@ -78,6 +79,7 @@ test('pop-out click destination persists and leaves the board open', async ({
   await expect(terminal).toBeVisible()
   await expect(popout.getByRole('dialog')).toHaveCount(0)
   await expect(card).toBeVisible()
+  await expect(card).toHaveAttribute('aria-current', 'true')
   await popout.screenshot({ path: testInfo.outputPath('dashboard-after.png') })
   await orcaPage.screenshot({ path: testInfo.outputPath('main-window-after.png') })
 
@@ -108,4 +110,28 @@ test('pop-out click destination persists and leaves the board open', async ({
   await expect(selectedTab).toHaveAttribute('data-active', 'true')
   await expect(terminal).toBeVisible()
   await expect(popout.getByRole('dialog')).toHaveCount(0)
+  await expect(card).toHaveAttribute('aria-current', 'true')
+  await orcaPage.locator(`[role="option"][data-worktree-id="${originalWorktreeId}"]`).click()
+  await expect(card).not.toHaveAttribute('aria-current')
+  await card.click()
+  await expect(card).toHaveAttribute('aria-current', 'true')
+  await expect(selectedTab).toHaveAttribute('data-active', 'true')
+  await expect(terminal).toBeVisible()
+  await orcaPage.evaluate((agent) => {
+    window.__store
+      ?.getState()
+      .setAgentStatus(
+        `${agent.tabId}:${agent.leafId}`,
+        { state: 'waiting', prompt: 'Dashboard navigation check', agentType: 'codex' },
+        'Codex',
+        { updatedAt: Date.now(), stateStartedAt: Date.now() },
+        { tabId: agent.tabId, worktreeId: agent.worktreeId, terminalHandle: 'dashboard-navigation' }
+      )
+  }, agent)
+  await expect(
+    popout
+      .getByRole('region', { name: 'Needs You' })
+      .getByRole('button', { name: /Dashboard navigation check/ })
+  ).toHaveAttribute('aria-current', 'true')
+  await popout.screenshot({ path: testInfo.outputPath('selected-agent-after.png') })
 })

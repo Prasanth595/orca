@@ -72,12 +72,16 @@ function KanbanColumn({
   cards,
   repoIconsByRepoId,
   now,
+  selectedPaneKey,
+  selectedExecutionHostId,
   onOpenTerminal
 }: {
   bucket: DashboardBucket
   cards: DashboardCard[]
   repoIconsByRepoId: Record<string, RepoIcon | null> | undefined
   now: number
+  selectedPaneKey: string | undefined
+  selectedExecutionHostId: DashboardCard['executionHostId']
   onOpenTerminal: (card: DashboardCard) => void
 }): React.JSX.Element {
   const label = bucketLabel(bucket)
@@ -105,9 +109,12 @@ function KanbanColumn({
         ) : (
           cards.map((card) => (
             <AgentKanbanCard
-              key={card.paneKey}
+              key={`${card.executionHostId ?? 'local'}:${card.paneKey}`}
               card={card}
               repoIcon={repoIconsByRepoId?.[card.repoId] ?? null}
+              isSelected={
+                card.paneKey === selectedPaneKey && card.executionHostId === selectedExecutionHostId
+              }
               now={now}
               onOpenTerminal={onOpenTerminal}
             />
@@ -212,7 +219,12 @@ export function AgentKanbanBoard({
       return null
     }
     return (
-      snapshot.cards.find((c) => c.paneKey === openedCard.paneKey) ?? {
+      snapshot.cards.find(
+        (c) =>
+          c.paneKey === openedCard.paneKey &&
+          c.worktreeId === openedCard.worktreeId &&
+          c.executionHostId === openedCard.executionHostId
+      ) ?? {
         ...openedCard,
         ptyId: null,
         leafId: null
@@ -315,6 +327,10 @@ export function AgentKanbanBoard({
                 bucket={bucket}
                 cards={grouped[bucket]}
                 repoIconsByRepoId={snapshot.repoIconsByRepoId}
+                selectedPaneKey={dialogCard?.paneKey ?? snapshot.selectedPaneKey}
+                selectedExecutionHostId={
+                  dialogCard ? dialogCard.executionHostId : snapshot.selectedExecutionHostId
+                }
                 now={now}
                 onOpenTerminal={handleOpenTerminal}
               />
