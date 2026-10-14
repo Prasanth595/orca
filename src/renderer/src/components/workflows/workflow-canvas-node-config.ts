@@ -58,8 +58,11 @@ export function getPortYOffset(node: WorkflowNode, outputSelector?: string): num
     return SINGLE_PORT_MID
   }
   const idx = ports.findIndex((p) => p.selector === outputSelector)
-  const i = idx !== -1 ? idx : 0
-  return PORT_Y_BASE + i * PORT_ROW_H + PORT_ROW_H / 2
+  if (idx === -1) {
+    // Input side (no matching output selector) — center on the full node height
+    return (PORT_Y_BASE + ports.length * PORT_ROW_H) / 2
+  }
+  return PORT_Y_BASE + idx * PORT_ROW_H + PORT_ROW_H / 2
 }
 
 function defaultShell(): string {

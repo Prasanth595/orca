@@ -58,7 +58,7 @@ export default function WorkflowCanvasNode({
 }: Props): React.JSX.Element {
   const ports = getOutputPorts(node)
   const isMultiPort = ports.length > 1
-  const inputY = isMultiPort ? PORT_Y_BASE / 2 : SINGLE_PORT_MID
+  const inputY = isMultiPort ? (PORT_Y_BASE + ports.length * PORT_ROW_H) / 2 : SINGLE_PORT_MID
 
   return (
     <div
