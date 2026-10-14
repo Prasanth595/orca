@@ -68,7 +68,7 @@ export function buildFolderWorkspaceLinkedStartupPlan(
         shell: args.shell,
         isRemote: args.isRemote,
         orcaBrowserGuidance: args.orcaBrowserGuidance,
-        codexUserDeveloperInstructions: args.codexUserDeveloperInstructions
+        codexGuidanceSpawnGated: args.codexGuidanceSpawnGated
       })
     : null
   if (draftLaunchPlan) {
@@ -96,7 +96,7 @@ export function buildFolderWorkspaceLinkedStartupPlan(
     shell: args.shell,
     isRemote: args.isRemote,
     orcaBrowserGuidance: args.orcaBrowserGuidance,
-    codexUserDeveloperInstructions: args.codexUserDeveloperInstructions,
+    codexGuidanceSpawnGated: args.codexGuidanceSpawnGated,
     allowEmptyPromptLaunch: true
   })
   if (startupPlan && linkedDraftPrompt) {

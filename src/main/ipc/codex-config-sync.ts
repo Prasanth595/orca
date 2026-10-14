@@ -1,8 +1,6 @@
 import { ipcMain } from 'electron'
 import { join } from 'node:path'
 import { getSystemCodexHomePath } from '../codex/codex-home-paths'
-import { isWslUncPath } from '../../shared/wsl-paths'
-import { codexUserConfigDefinesDeveloperInstructionsAsync } from '../codex/codex-user-developer-instructions'
 import { getCodexConfigSyncStatus } from '../codex/config-sync-stall'
 import type { CodexConfigSyncStatus } from '../../shared/codex-config-sync-types'
 import type { CodexMirroredHomeStatus } from '../codex-accounts/runtime-home-service'
@@ -15,14 +13,6 @@ type CodexMirroredHomeResolver = {
 /** Registers the read-only IPC channel the settings pane reads once per mount for Codex config sync health. */
 export function registerCodexConfigSyncHandlers(runtimeHome: CodexMirroredHomeResolver): void {
   ipcMain.removeHandler('codexConfigSync:status')
-  ipcMain.removeHandler('codexConfigSync:userDefinesDeveloperInstructions')
-  ipcMain.handle('codexConfigSync:userDefinesDeveloperInstructions', (_event, cwd?: unknown) => {
-    const launchCwd = typeof cwd === 'string' && cwd ? cwd : undefined
-    // Why: a WSL launch reads the distro's Codex config, which this host cannot see.
-    return launchCwd !== undefined && isWslUncPath(launchCwd)
-      ? true
-      : codexUserConfigDefinesDeveloperInstructionsAsync(undefined, launchCwd)
-  })
   ipcMain.handle('codexConfigSync:status', (): CodexConfigSyncStatus => {
     const systemHomePath = getSystemCodexHomePath()
     const mirrored = runtimeHome.getMirroredHostHomePathForStatus()

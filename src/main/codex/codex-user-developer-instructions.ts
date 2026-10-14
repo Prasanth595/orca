@@ -1,18 +1,9 @@
-import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { parse as parseToml } from 'smol-toml'
-import type { AgentStartupSettings } from '../../shared/agent-startup-plan-inputs'
-import type { TuiAgent } from '../../shared/tui-agent'
-import { isWslUncPath } from '../../shared/wsl-paths'
 import { getSystemCodexHomePath } from './codex-home-paths'
 
-function resolveCodexConfigPath(homePath?: string): string {
-  return join(
-    homePath ?? (process.env.CODEX_HOME?.trim() || getSystemCodexHomePath()),
-    'config.toml'
-  )
-}
+const SYSTEM_CODEX_CONFIG_PATH = '/etc/codex/config.toml'
 
 function hasDeveloperInstructions(value: unknown): boolean {
   return (
@@ -38,13 +29,25 @@ function isMissingFile(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT'
 }
 
-function projectConfigPaths(cwd: string, userConfigPath: string): string[] {
+function userConfigPaths(
+  homePaths: readonly (string | null | undefined)[],
+  systemConfigPath: string | null
+): string[] {
+  const paths = [
+    join(process.env.CODEX_HOME?.trim() || getSystemCodexHomePath(), 'config.toml'),
+    ...homePaths.filter((home): home is string => Boolean(home)).map((h) => join(h, 'config.toml')),
+    ...(systemConfigPath ? [systemConfigPath] : [])
+  ]
+  return [...new Set(paths)]
+}
+
+function projectConfigPaths(cwd: string, excluded: ReadonlySet<string>): string[] {
   const paths: string[] = []
   let dir = resolve(cwd)
   for (;;) {
     const candidate = join(dir, '.codex', 'config.toml')
-    // Why: the user's own config is read once, as the user config.
-    if (candidate !== userConfigPath) {
+    // Why: a user config is read once, as a user layer.
+    if (!excluded.has(candidate)) {
       paths.push(candidate)
     }
     const parent = dirname(dir)
@@ -55,31 +58,26 @@ function projectConfigPaths(cwd: string, userConfigPath: string): string[] {
   }
 }
 
-/** Project `.codex/config.toml` files from cwd to the root are checked regardless of Codex trust. */
-function configPathsToCheck(homePath: string | undefined, cwd: string | undefined): string[] {
-  const userConfigPath = resolveCodexConfigPath(homePath)
-  return [userConfigPath, ...(cwd ? projectConfigPaths(cwd, userConfigPath) : [])]
-}
-
-/** True when any Codex config layer (user, or a project from cwd to root) sets `developer_instructions` or a profile. */
-export function codexUserConfigDefinesDeveloperInstructions(
-  homePath?: string,
-  cwd?: string
-): boolean {
-  return configPathsToCheck(homePath, cwd).some((path) => {
-    try {
-      return configContentBlocksGuidance(readFileSync(path, 'utf8'))
-    } catch (error) {
-      return !isMissingFile(error)
-    }
-  })
-}
-
-export async function codexUserConfigDefinesDeveloperInstructionsAsync(
-  homePath?: string,
-  cwd?: string
-): Promise<boolean> {
-  for (const path of configPathsToCheck(homePath, cwd)) {
+/**
+ * True when any Codex config layer this host would load (user homes, system, or project
+ * `.codex/config.toml` from cwd to root, regardless of Codex trust) sets `developer_instructions`
+ * or selects a profile, or cannot be read.
+ */
+export async function codexConfigBlocksBrowserGuidance(input: {
+  homePaths: readonly (string | null | undefined)[]
+  cwd: string
+  /** Defaults to /etc/codex/config.toml outside Windows; null skips the system layer. */
+  systemConfigPath?: string | null
+}): Promise<boolean> {
+  const systemConfigPath =
+    input.systemConfigPath !== undefined
+      ? input.systemConfigPath
+      : process.platform === 'win32'
+        ? null
+        : SYSTEM_CODEX_CONFIG_PATH
+  const userPaths = userConfigPaths(input.homePaths, systemConfigPath)
+  const paths = [...userPaths, ...projectConfigPaths(input.cwd, new Set(userPaths))]
+  for (const path of paths) {
     try {
       if (configContentBlocksGuidance(await readFile(path, 'utf8'))) {
         return true
@@ -91,29 +89,4 @@ export async function codexUserConfigDefinesDeveloperInstructionsAsync(
     }
   }
   return false
-}
-
-/**
- * Launch-plan input for a Codex launch that would receive the guidance.
- * Remote and WSL hosts keep their own config that is not read here, so they skip; a paired
- * headless runtime host is not detectable at these call sites and still reads the local config.
- */
-export function codexUserDeveloperInstructionsInput(
-  agent: TuiAgent,
-  settings: AgentStartupSettings,
-  host: { isRemote: boolean; path?: string }
-): { codexUserDeveloperInstructions?: boolean } {
-  if (agent !== 'codex' || settings.useOrcaBrowserForAgentWork !== true) {
-    return {}
-  }
-  // Why: no launch directory means project configs cannot be checked, so skip.
-  if (host.isRemote || host.path === undefined || isWslUncPath(host.path)) {
-    return { codexUserDeveloperInstructions: true }
-  }
-  return {
-    codexUserDeveloperInstructions: codexUserConfigDefinesDeveloperInstructions(
-      undefined,
-      host.path
-    )
-  }
 }

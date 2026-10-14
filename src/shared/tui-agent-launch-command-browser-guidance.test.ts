@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { ORCA_BROWSER_AGENT_GUIDANCE as TEXT } from './agent-browser-guidance'
+import {
+  ORCA_BROWSER_AGENT_GUIDANCE as TEXT,
+  stripCodexBrowserGuidance
+} from './agent-browser-guidance'
 import { resolveAgentLaunchCommand } from './tui-agent-launch-command'
 
 function resolve(overrides: Partial<Parameters<typeof resolveAgentLaunchCommand>[0]> = {}) {
@@ -39,16 +42,19 @@ describe('resolveAgentLaunchCommand Orca browser guidance', () => {
 
   it('quotes Codex TOML literal guidance per shell', () => {
     const value = `developer_instructions='${TEXT}'`
+    expect(resolve({ agent: 'codex', shell: 'posix', codexGuidanceSpawnGated: true }).command).toBe(
+      `codex '-c' 'developer_instructions='"'"'${TEXT}'"'"`
+    )
     expect(
-      resolve({ agent: 'codex', shell: 'posix', codexUserDeveloperInstructions: false }).command
-    ).toBe(`codex '-c' 'developer_instructions='"'"'${TEXT}'"'"`)
-    expect(
-      resolve({ agent: 'codex', shell: 'powershell', codexUserDeveloperInstructions: false })
-        .command
+      resolve({
+        agent: 'codex',
+        shell: 'powershell',
+        codexGuidanceSpawnGated: true
+      }).command
     ).toBe(`codex '-c' '${value.replaceAll("'", "''")}'`)
-    expect(
-      resolve({ agent: 'codex', shell: 'cmd', codexUserDeveloperInstructions: false }).command
-    ).toBe(`codex "-c" "${value}"`)
+    expect(resolve({ agent: 'codex', shell: 'cmd', codexGuidanceSpawnGated: true }).command).toBe(
+      `codex "-c" "${value}"`
+    )
   })
 
   it('places guidance before the terminator and user args', () => {
@@ -75,18 +81,44 @@ describe('resolveAgentLaunchCommand Orca browser guidance', () => {
       resolve({
         agent: 'codex',
         agentArgs: '-c developer_instructions=x',
-        codexUserDeveloperInstructions: false
+        codexGuidanceSpawnGated: true
       }).command
     ).not.toContain(TEXT)
   })
 
-  it('skips Codex guidance unless the user config is explicitly clear', () => {
+  it('skips Codex guidance unless the launch is spawn-gated', () => {
     expect(resolve({ agent: 'codex' }).command).toBe('codex')
+    expect(resolve({ agent: 'codex', codexGuidanceSpawnGated: false }).command).toBe('codex')
   })
 
-  it('skips guidance when Codex user config defines developer instructions', () => {
-    expect(resolve({ agent: 'codex', codexUserDeveloperInstructions: true }).command).toBe('codex')
-  })
+  it.each(['posix', 'powershell', 'cmd'] as const)(
+    'strip(with) equals without across argument shapes for %s',
+    (shell) => {
+      const cases: Partial<Parameters<typeof resolveAgentLaunchCommand>[0]>[] = [
+        {},
+        { agentArgs: '--model x' },
+        { agentArgs: '--model x -- hi' },
+        {
+          agentArgs: '--model x -- hi',
+          sessionOptionsOverrideAgentArgs: true,
+          sessionOptions: {}
+        }
+      ]
+      for (const extra of cases) {
+        const base = { agent: 'codex' as const, shell, ...extra }
+        const withGuidance = resolve({
+          ...base,
+          codexGuidanceSpawnGated: true
+        }).command
+        const without = resolve({
+          ...base,
+          orcaBrowserGuidance: false
+        }).command
+        expect(withGuidance).not.toBe(without)
+        expect(stripCodexBrowserGuidance(withGuidance)).toBe(without)
+      }
+    }
+  )
 
   it('skips guidance when the command override cannot be tokenized', () => {
     expect(resolve({ cmdOverrides: { claude: '"unfinished' } }).command).not.toContain(TEXT)

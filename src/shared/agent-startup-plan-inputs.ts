@@ -30,7 +30,7 @@ export type AgentStartupPlanInputs = {
   sessionOptions?: Record<string, SessionOptionValue>
   sessionOptionsOverrideAgentArgs: boolean
   orcaBrowserGuidance: boolean
-  codexUserDeveloperInstructions?: boolean
+  codexGuidanceSpawnGated?: boolean
 }
 
 /**
@@ -56,8 +56,8 @@ export function resolveAgentStartupPlanInputs(args: {
    *  right only where the Settings shell is the one the PTY gets. */
   shell: AgentStartupShell | undefined
   sessionOptions?: Record<string, SessionOptionValue> | undefined
-  /** The user's own Codex config defines developer_instructions; only read when guidance is on. */
-  codexUserDeveloperInstructions?: boolean
+  /** See OrcaBrowserGuidanceOptions.codexGuidanceSpawnGated. */
+  codexGuidanceSpawnGated?: boolean
 }): AgentStartupPlanInputs {
   const { agent, settings, platform, isRemote, sessionOptions } = args
   // A per-launch override wins over the Settings default; `null` is "no arguments", so this
@@ -98,8 +98,8 @@ export function resolveAgentStartupPlanInputs(args: {
     // without this the two spellings of the same flag both reach argv and the last one wins.
     sessionOptionsOverrideAgentArgs: Boolean(sessionOptions),
     orcaBrowserGuidance: settings.useOrcaBrowserForAgentWork === true,
-    ...(args.codexUserDeveloperInstructions !== undefined
-      ? { codexUserDeveloperInstructions: args.codexUserDeveloperInstructions }
+    ...(args.codexGuidanceSpawnGated !== undefined
+      ? { codexGuidanceSpawnGated: args.codexGuidanceSpawnGated }
       : {})
   }
 }

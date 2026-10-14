@@ -1,6 +1,3 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Repo } from '../../shared/repo-types'
 import { tuiAgentToAgentKind } from '../../shared/agent-kind'
@@ -402,31 +399,20 @@ describe('resolveWorktreeStartupDraftAgent', () => {
 
 describe('buildWorktreeStartupForAgent Orca browser guidance for Codex', () => {
   const guidanceSettings = { ...settings, useOrcaBrowserForAgentWork: true }
-  const build = (repo: Repo, launchPath?: string) =>
+  const build = (repo: Repo) =>
     buildWorktreeStartupForAgent({
       repo,
       settings: guidanceSettings,
       agent: 'codex',
-      ...(launchPath ? { launchPath } : {}),
       getLaunchRuntime: () => LINUX,
       toSessionOptions: () => undefined
     }).startup.command
 
-  let dir: string
-  beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), 'codex-launch-'))
-  })
-  afterEach(() => {
-    rmSync(dir, { recursive: true, force: true })
+  it('includes the guidance fragment for a local repo; the spawn gate decides at launch', () => {
+    expect(build(makeRepo({}))).toContain('developer_instructions')
   })
 
-  it('skips guidance for a git repo when the worktree path is not known yet', () => {
-    expect(build(makeRepo({ path: dir }))).not.toContain('developer_instructions')
-  })
-
-  it('checks the real launch directory, so a worktree-root config blocks guidance', () => {
-    mkdirSync(join(dir, '.codex'))
-    writeFileSync(join(dir, '.codex', 'config.toml'), 'developer_instructions = "x"\n')
-    expect(build(makeRepo({}), dir)).not.toContain('developer_instructions')
+  it('omits the guidance fragment for a remote repo', () => {
+    expect(build(makeRepo({ connectionId: 'ssh-1' }))).not.toContain('developer_instructions')
   })
 })

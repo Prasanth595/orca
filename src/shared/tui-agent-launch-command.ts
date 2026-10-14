@@ -26,8 +26,8 @@ export type ResolvedAgentLaunchCommand =
 export type OrcaBrowserGuidanceOptions = {
   /** Advisory Orca-browser guidance for fresh local launches; never part of resume commands. */
   orcaBrowserGuidance?: boolean
-  /** The user's own Codex config already defines developer_instructions. */
-  codexUserDeveloperInstructions?: boolean
+  /** Launch spawns through an Orca host whose pty pipeline strips Codex guidance that would override config. */
+  codexGuidanceSpawnGated?: boolean
 }
 
 export function resolveAgentLaunchCommand(
@@ -150,7 +150,7 @@ function resolveGuidanceArgs(
   return {
     ok: true,
     args: orcaBrowserGuidanceArgs(args.agent, [...overrideTokens, ...trailingTokens], {
-      codexUserDeveloperInstructions: args.codexUserDeveloperInstructions
+      codexGuidanceSpawnGated: args.codexGuidanceSpawnGated
     })
   }
 }

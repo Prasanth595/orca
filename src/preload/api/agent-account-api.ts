@@ -113,5 +113,4 @@ export type ZcodePlanCredentialsApi = {
 
 export type CodexConfigSyncApi = {
   status: () => Promise<CodexConfigSyncStatus>
-  userDefinesDeveloperInstructions: (cwd?: string) => Promise<boolean>
 }

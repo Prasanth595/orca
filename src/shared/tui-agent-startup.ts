@@ -71,7 +71,7 @@ export function buildAgentStartupPlan(
     sessionOptionsOverrideAgentArgs: args.sessionOptionsOverrideAgentArgs,
     isRemote: args.isRemote,
     orcaBrowserGuidance: args.orcaBrowserGuidance,
-    codexUserDeveloperInstructions: args.codexUserDeveloperInstructions
+    codexGuidanceSpawnGated: args.codexGuidanceSpawnGated
   })
   if (!baseCommand.ok) {
     return null
@@ -251,7 +251,7 @@ export function buildAgentDraftLaunchPlan(
     sessionOptionsOverrideAgentArgs: args.sessionOptionsOverrideAgentArgs,
     isRemote: args.isRemote,
     orcaBrowserGuidance: args.orcaBrowserGuidance,
-    codexUserDeveloperInstructions: args.codexUserDeveloperInstructions
+    codexGuidanceSpawnGated: args.codexGuidanceSpawnGated
   })
   if (!baseCommand.ok) {
     return null

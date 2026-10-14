@@ -1,78 +1,53 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  orcaBrowserGuidanceLaunchOptions,
-  resetCodexUserDeveloperInstructionsCache
-} from './orca-browser-guidance-launch-options'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const runtimeOwner = vi.hoisted(() => vi.fn<(state: unknown, id: string) => string | null>())
+
+vi.mock('@/store', () => ({ useAppStore: { getState: () => ({}) } }))
+vi.mock('./worktree-runtime-owner', () => ({
+  getRuntimeEnvironmentIdForWorktree: runtimeOwner
+}))
+
+import { orcaBrowserGuidanceLaunchOptions } from './orca-browser-guidance-launch-options'
+
+const ON = { useOrcaBrowserForAgentWork: true }
 
 describe('orcaBrowserGuidanceLaunchOptions', () => {
-  const userDefines = vi.fn()
-
   beforeEach(() => {
-    resetCodexUserDeveloperInstructionsCache()
-    userDefines.mockReset().mockResolvedValue(false)
-    vi.stubGlobal('window', {
-      api: {
-        codexConfigSync: { userDefinesDeveloperInstructions: userDefines }
-      }
-    })
-  })
-  afterEach(() => {
-    vi.unstubAllGlobals()
+    runtimeOwner.mockReset().mockReturnValue(null)
   })
 
-  it('is off when the setting is off and never reads the Codex config', () => {
-    expect(orcaBrowserGuidanceLaunchOptions({}, 'codex')).toEqual({
+  it('is off when the setting is off', () => {
+    expect(orcaBrowserGuidanceLaunchOptions({}, 'codex', 'wt')).toEqual({
       orcaBrowserGuidance: false
     })
-    expect(userDefines).not.toHaveBeenCalled()
   })
 
-  it('needs no Codex config check for other agents', () => {
-    expect(
-      orcaBrowserGuidanceLaunchOptions({ useOrcaBrowserForAgentWork: true }, 'claude')
-    ).toEqual({
+  it('needs no spawn gate for other agents', () => {
+    expect(orcaBrowserGuidanceLaunchOptions(ON, 'claude', 'wt')).toEqual({
       orcaBrowserGuidance: true
     })
-    expect(userDefines).not.toHaveBeenCalled()
   })
 
-  it('skips Codex guidance until the config check answers, then follows it', async () => {
-    const settings = { useOrcaBrowserForAgentWork: true }
-    expect(orcaBrowserGuidanceLaunchOptions(settings, 'codex', '/repo')).toEqual({
+  it('gates Codex guidance for a worktree this app owns', () => {
+    expect(orcaBrowserGuidanceLaunchOptions(ON, 'codex', 'wt')).toEqual({
       orcaBrowserGuidance: true,
-      codexUserDeveloperInstructions: true
-    })
-    await vi.waitFor(() => expect(userDefines).toHaveBeenCalledTimes(1))
-    await Promise.resolve()
-    expect(orcaBrowserGuidanceLaunchOptions(settings, 'codex', '/repo')).toEqual({
-      orcaBrowserGuidance: true,
-      codexUserDeveloperInstructions: false
+      codexGuidanceSpawnGated: true
     })
   })
 
-  it('skips Codex guidance without a launch cwd since project config is unknown', () => {
-    expect(orcaBrowserGuidanceLaunchOptions({ useOrcaBrowserForAgentWork: true }, 'codex')).toEqual(
-      {
-        orcaBrowserGuidance: true,
-        codexUserDeveloperInstructions: true
-      }
-    )
-    expect(userDefines).not.toHaveBeenCalled()
+  it('leaves Codex ungated when a paired runtime owns the worktree', () => {
+    runtimeOwner.mockReturnValue('env-1')
+    expect(orcaBrowserGuidanceLaunchOptions(ON, 'codex', 'wt')).toEqual({
+      orcaBrowserGuidance: true
+    })
   })
 
-  it('caches the config answer per launch cwd', async () => {
-    const settings = { useOrcaBrowserForAgentWork: true }
-    userDefines.mockImplementation((cwd?: string) => Promise.resolve(cwd === '/repo/a'))
-    orcaBrowserGuidanceLaunchOptions(settings, 'codex', '/repo/a')
-    orcaBrowserGuidanceLaunchOptions(settings, 'codex', '/repo/b')
-    await vi.waitFor(() => expect(userDefines).toHaveBeenCalledTimes(2))
-    await Promise.resolve()
-    expect(userDefines).toHaveBeenCalledWith('/repo/a')
-    expect(
-      orcaBrowserGuidanceLaunchOptions(settings, 'codex', '/repo/a').codexUserDeveloperInstructions
-    ).toBe(true)
-    expect(
-      orcaBrowserGuidanceLaunchOptions(settings, 'codex', '/repo/b').codexUserDeveloperInstructions
-    ).toBe(false)
+  it('leaves Codex ungated without a worktree', () => {
+    expect(orcaBrowserGuidanceLaunchOptions(ON, 'codex')).toEqual({
+      orcaBrowserGuidance: true
+    })
+    expect(orcaBrowserGuidanceLaunchOptions(ON, 'codex', null)).toEqual({
+      orcaBrowserGuidance: true
+    })
   })
 })

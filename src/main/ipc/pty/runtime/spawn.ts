@@ -1,3 +1,4 @@
+import { gateCodexBrowserGuidance } from '../../../codex/codex-browser-guidance-spawn-gate'
 import type { AgentSessionClaimedSpawnResult } from '../../../../shared/agent-session-host-authority'
 import { isTerminalLeafId, makePaneKey } from '../../../../shared/stable-pane-id'
 import { isValidTerminalTabId } from '../../../../shared/terminal-tab-id'
@@ -91,6 +92,13 @@ export async function spawnPtyFromRuntimeController(
     if (earlyAdopt) {
       return toRuntimeSpawnReply(earlyAdopt)
     }
+    ctx.launchCommand = await gateCodexBrowserGuidance({
+      command: ctx.launchCommand,
+      connectionId: args.connectionId,
+      cwd: ctx.cwd,
+      runtime: ctx.codexSelectionTarget.runtime,
+      codexHomePaths: [ctx.selectedCodexHomePath, ctx.env?.CODEX_HOME, args.env?.CODEX_HOME]
+    })
     const earlyReserved = await buildRuntimePtySpawnOptions(ctx).catch((error: unknown) => {
       restoreProvisionalPtySize(ctx)
       throw error

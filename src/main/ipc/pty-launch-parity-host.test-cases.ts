@@ -1,5 +1,7 @@
 // Test-only: the host-lane launch parity table (rows 3, 4, 7, 8, 10). Each case is the call a host
 // producer makes and the facts main hands the provider, the phone and telemetry for it.
+import { ORCA_BROWSER_AGENT_GUIDANCE } from '../../shared/agent-browser-guidance'
+import { quoteStartupArg } from '../../shared/tui-agent-startup-shell'
 import type { TerminalCreateOptions } from '../runtime/runtime-terminal-contracts'
 import type { LaunchWorkspace } from '../../shared/launch-parity-window-request.test-fixture'
 import { POSIX_PATH, WSL_PATH } from '../../shared/launch-parity-window-cases.test-fixture'
@@ -103,6 +105,9 @@ const BOB_ARGS = {
   agentDefaultArgs: { claude: `--dangerously-skip-permissions --name "Bob's box"` }
 }
 const BOB_POSIX = `${POSIX_CLAUDE} '--name' 'Bob'"'"'s box'`
+const CODEX_GUIDANCE = ['-c', `developer_instructions='${ORCA_BROWSER_AGENT_GUIDANCE}'`]
+  .map((arg) => quoteStartupArg(arg, 'posix'))
+  .join(' ')
 const CODEX = "codex '--dangerously-bypass-approvals-and-sandbox'"
 
 /** Row 3: agent.launch with no prompt; `command` + shell are what the provider gets. */
@@ -152,6 +157,22 @@ export const HOST_LAUNCH_CASES: HostLaunchCase[] = [
     call: mobileQuickCommand("fix Bob's branch"),
     provider: {
       command: `${CODEX} 'fix Bob'"'"'s branch'`,
+      startupCommandDelivery: 'shell-ready',
+      ...ZSH
+    },
+    telemetry: QUICK_COMMAND,
+    phone: { ...AGENT_PHONE, launchAgent: 'codex' }
+  },
+  {
+    // The spawn gate keeps the Codex guidance when no config layer on this host overrides it.
+    name: 'mobile quick command, macOS repo, codex guidance kept for a clean cwd',
+    row: '10',
+    os: 'darwin',
+    workspace: repo(POSIX_PATH),
+    settings: { useOrcaBrowserForAgentWork: true },
+    call: mobileQuickCommand("fix Bob's branch"),
+    provider: {
+      command: `codex ${CODEX_GUIDANCE} '--dangerously-bypass-approvals-and-sandbox' 'fix Bob'"'"'s branch'`,
       startupCommandDelivery: 'shell-ready',
       ...ZSH
     },

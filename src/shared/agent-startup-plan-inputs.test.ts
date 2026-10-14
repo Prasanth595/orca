@@ -160,14 +160,14 @@ describe('a picked session option outranks configured launch arguments', () => {
 })
 
 describe('resolveAgentStartupPlanInputs Orca browser guidance', () => {
-  const resolve = (settings: AgentStartupSettings, codexUserDeveloperInstructions?: boolean) =>
+  const resolve = (settings: AgentStartupSettings, codexGuidanceSpawnGated?: boolean) =>
     resolveAgentStartupPlanInputs({
       agent: 'codex',
       settings,
       platform: 'linux',
       isRemote: false,
       shell: undefined,
-      ...(codexUserDeveloperInstructions !== undefined ? { codexUserDeveloperInstructions } : {})
+      ...(codexGuidanceSpawnGated !== undefined ? { codexGuidanceSpawnGated } : {})
     })
 
   it('maps the setting and defaults to off', () => {
@@ -175,20 +175,20 @@ describe('resolveAgentStartupPlanInputs Orca browser guidance', () => {
     expect(resolve({ useOrcaBrowserForAgentWork: true }).orcaBrowserGuidance).toBe(true)
   })
 
-  it('carries the Codex user config answer only when supplied', () => {
-    expect(resolve({}, true).codexUserDeveloperInstructions).toBe(true)
-    expect(resolve({})).not.toHaveProperty('codexUserDeveloperInstructions')
+  it('carries the spawn-gated flag only when supplied', () => {
+    expect(resolve({}, true).codexGuidanceSpawnGated).toBe(true)
+    expect(resolve({})).not.toHaveProperty('codexGuidanceSpawnGated')
   })
 
   it('flows through to the built launch command', () => {
     const plan = buildAgentStartupPlan({
-      ...resolve({ useOrcaBrowserForAgentWork: true }, false),
+      ...resolve({ useOrcaBrowserForAgentWork: true }, true),
       prompt: '',
       allowEmptyPromptLaunch: true
     })
     expect(plan?.launchCommand).toContain('developer_instructions=')
     const skipped = buildAgentStartupPlan({
-      ...resolve({ useOrcaBrowserForAgentWork: true }, true),
+      ...resolve({ useOrcaBrowserForAgentWork: true }, false),
       prompt: '',
       allowEmptyPromptLaunch: true
     })

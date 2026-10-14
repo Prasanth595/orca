@@ -5,7 +5,6 @@ import type { TuiAgent } from '../../shared/tui-agent'
 import type { SleepingAgentLaunchConfig } from '../../shared/agent-session-resume'
 import { isTuiAgentEnabled } from '../../shared/tui-agent-selection'
 import { buildAgentStartupPlan } from '../../shared/tui-agent-startup'
-import { codexUserDeveloperInstructionsInput } from '../codex/codex-user-developer-instructions'
 import { resolveAgentStartupPlanInputs } from '../../shared/agent-startup-plan-inputs'
 import { agentLaunchQuotingShell, type AgentLaunchRuntime } from '../../shared/agent-launch-runtime'
 
@@ -59,10 +58,7 @@ export abstract class OrcaRuntimeWithResolveMobileSessionTerminalCommand extends
         shell: agentLaunchQuotingShell(launchRuntime),
         // Why: SSH runs the CLI through the relay shim (plain `orca`), so the Linux-only `orca-ide` rename must not apply.
         isRemote: Boolean(workspace.connectionId),
-        ...codexUserDeveloperInstructionsInput(opts.agent, settings, {
-          isRemote: Boolean(workspace.connectionId),
-          path: workspace.path
-        })
+        codexGuidanceSpawnGated: true
       }),
       prompt: opts.agentPrompt ?? '',
       allowEmptyPromptLaunch: true

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BrowserAgentWorkSetting } from './BrowserAgentWorkSetting'
 
 vi.mock('../../store', () => ({
@@ -13,18 +13,8 @@ vi.mock('@/store', () => ({
 }))
 
 describe('BrowserAgentWorkSetting', () => {
-  const userDefinesDeveloperInstructions = vi.fn(() => Promise.resolve(false))
-
-  beforeEach(() => {
-    vi.stubGlobal('window', {
-      ...window,
-      api: { codexConfigSync: { userDefinesDeveloperInstructions } }
-    })
-  })
   afterEach(() => {
     cleanup()
-    vi.unstubAllGlobals()
-    userDefinesDeveloperInstructions.mockClear()
   })
 
   it('is off by default and turns the setting on', () => {

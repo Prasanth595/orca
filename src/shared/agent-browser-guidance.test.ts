@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { ORCA_BROWSER_AGENT_GUIDANCE, orcaBrowserGuidanceArgs } from './agent-browser-guidance'
+import {
+  ORCA_BROWSER_AGENT_GUIDANCE,
+  orcaBrowserGuidanceArgs,
+  stripCodexBrowserGuidance
+} from './agent-browser-guidance'
+import { quoteStartupArg } from './tui-agent-startup-shell'
 
 const CLAUDE_ARGS = ['--append-system-prompt', ORCA_BROWSER_AGENT_GUIDANCE]
-const NOT_DEFINED = { codexUserDeveloperInstructions: false }
+const GATED = { codexGuidanceSpawnGated: true }
 const CODEX_ARGS = ['-c', `developer_instructions='${ORCA_BROWSER_AGENT_GUIDANCE}'`]
 
 describe('ORCA_BROWSER_AGENT_GUIDANCE', () => {
@@ -32,8 +37,8 @@ describe('orcaBrowserGuidanceArgs', () => {
   })
 
   it('injects Codex developer instructions', () => {
-    expect(orcaBrowserGuidanceArgs('codex', [], NOT_DEFINED)).toEqual(CODEX_ARGS)
-    expect(orcaBrowserGuidanceArgs('codex', ['-c', 'model=x'], NOT_DEFINED)).toEqual(CODEX_ARGS)
+    expect(orcaBrowserGuidanceArgs('codex', [], GATED)).toEqual(CODEX_ARGS)
+    expect(orcaBrowserGuidanceArgs('codex', ['-c', 'model=x'], GATED)).toEqual(CODEX_ARGS)
   })
 
   it.each([
@@ -43,34 +48,44 @@ describe('orcaBrowserGuidanceArgs', () => {
     [['-cdeveloper_instructions=x']],
     [['-c', 'model=x', '-c', 'developer_instructions=x']]
   ])('skips Codex when the user sets developer_instructions: %j', (tokens) => {
-    expect(orcaBrowserGuidanceArgs('codex', tokens, NOT_DEFINED)).toEqual([])
+    expect(orcaBrowserGuidanceArgs('codex', tokens, GATED)).toEqual([])
   })
 
-  it('skips Codex when the user config file defines developer_instructions', () => {
-    expect(orcaBrowserGuidanceArgs('codex', [], { codexUserDeveloperInstructions: true })).toEqual(
-      []
-    )
-  })
-
-  it('skips Codex when the user config answer is unknown', () => {
+  it('skips Codex unless the launch is spawn-gated', () => {
     expect(orcaBrowserGuidanceArgs('codex', [])).toEqual([])
+    expect(orcaBrowserGuidanceArgs('codex', [], { codexGuidanceSpawnGated: false })).toEqual([])
   })
 
   it.each([[['-p', 'work']], [['--profile', 'work']], [['--profile=work']]])(
     'skips Codex when a profile is selected: %j',
     (tokens) => {
-      expect(orcaBrowserGuidanceArgs('codex', tokens, NOT_DEFINED)).toEqual([])
+      expect(orcaBrowserGuidanceArgs('codex', tokens, GATED)).toEqual([])
     }
   )
 
   it('ignores Codex config after the terminator', () => {
     expect(
-      orcaBrowserGuidanceArgs('codex', ['--', '-c', 'developer_instructions=x'], NOT_DEFINED)
+      orcaBrowserGuidanceArgs('codex', ['--', '-c', 'developer_instructions=x'], GATED)
     ).toEqual(CODEX_ARGS)
   })
 
   it('does nothing for other agents', () => {
     expect(orcaBrowserGuidanceArgs('gemini', [])).toEqual([])
     expect(orcaBrowserGuidanceArgs('opencode', [])).toEqual([])
+  })
+})
+
+describe('stripCodexBrowserGuidance', () => {
+  it.each(['posix', 'powershell', 'cmd'] as const)('removes the fragment for %s', (shell) => {
+    const fragment = CODEX_ARGS.map((arg) => quoteStartupArg(arg, shell)).join(' ')
+    expect(stripCodexBrowserGuidance(`codex ${fragment} --model x`)).toBe('codex --model x')
+  })
+
+  it('leaves a user developer_instructions flag and Claude guidance untouched', () => {
+    const user = "codex -c 'developer_instructions=mine'"
+    const claude = `claude --append-system-prompt '${ORCA_BROWSER_AGENT_GUIDANCE}'`
+    expect(stripCodexBrowserGuidance(user)).toBe(user)
+    expect(stripCodexBrowserGuidance(claude)).toBe(claude)
+    expect(stripCodexBrowserGuidance('codex')).toBe('codex')
   })
 })

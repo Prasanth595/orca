@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { ORCA_BROWSER_AGENT_GUIDANCE as TEXT } from './agent-browser-guidance'
+import {
+  ORCA_BROWSER_AGENT_GUIDANCE as TEXT,
+  stripCodexBrowserGuidance
+} from './agent-browser-guidance'
 import {
   buildAgentDraftLaunchPlan,
   buildAgentResumeStartupPlan,
@@ -52,4 +55,25 @@ describe('Orca browser guidance in startup plans', () => {
       buildAgentStartupPlan({ ...base, orcaBrowserGuidance: true, isRemote: true })?.launchCommand
     ).not.toContain(TEXT)
   })
+
+  it.each(['posix', 'powershell', 'cmd'] as const)(
+    'strips back to the unguided Codex plan with a prompt for %s',
+    (shell) => {
+      const base = {
+        agent: 'codex' as const,
+        prompt: 'fix it',
+        cmdOverrides: {},
+        platform: 'linux' as const,
+        shell
+      }
+      const guided = buildAgentStartupPlan({
+        ...base,
+        orcaBrowserGuidance: true,
+        codexGuidanceSpawnGated: true
+      })
+      const plain = buildAgentStartupPlan(base)
+      expect(guided?.launchCommand).toContain('developer_instructions=')
+      expect(stripCodexBrowserGuidance(guided?.launchCommand ?? '')).toBe(plain?.launchCommand)
+    }
+  )
 })

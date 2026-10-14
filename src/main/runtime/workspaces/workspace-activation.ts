@@ -178,7 +178,6 @@ export abstract class OrcaRuntimeWithActivateManagedWorktree extends OrcaRuntime
       agentArgs?: string | null
       extraAgentArgs?: string
       launchSource?: string
-      launchPath?: string
       onPromptCarry?: (carried: boolean) => void
       /** The existing workspace it starts in; absent is a new workspace of `repo`. */
       launchScope?: TerminalWorkspaceLaunchScope
@@ -195,7 +194,6 @@ export abstract class OrcaRuntimeWithActivateManagedWorktree extends OrcaRuntime
       ...(launchInputs?.agentArgs !== undefined ? { agentArgs: launchInputs.agentArgs } : {}),
       ...(launchInputs?.extraAgentArgs ? { extraAgentArgs: launchInputs.extraAgentArgs } : {}),
       ...(launchInputs?.launchSource ? { launchSource: launchInputs.launchSource } : {}),
-      ...(launchInputs?.launchPath ? { launchPath: launchInputs.launchPath } : {}),
       ...(launchInputs?.onPromptCarry ? { onPromptCarry: launchInputs.onPromptCarry } : {}),
       settings: this.store.getSettings(),
       getLaunchRuntime: (agent) =>

@@ -3,12 +3,10 @@ import type { AgentLaunchPreferences } from '../../shared/agent-session-host-aut
 import type { Repo } from '../../shared/repo-types'
 import type { TuiAgent } from '../../shared/tui-agent'
 import type { WorktreeStartupLaunch } from '../../shared/worktree/launch-types'
-import { isFolderRepo } from '../../shared/repo-kind'
 import { repoIsRemote } from '../../shared/agent-launch-remote'
 import { getRepoSshConnectionId } from '../../shared/execution-host'
 import { isTuiAgent } from '../../shared/tui-agent-config'
 import { isTuiAgentEnabled, pickTuiAgent } from '../../shared/tui-agent-selection'
-import { codexUserDeveloperInstructionsInput } from '../codex/codex-user-developer-instructions'
 import { resolveAgentStartupPlanInputs } from '../../shared/agent-startup-plan-inputs'
 import type { AgentLaunchRuntime } from '../../shared/agent-launch-runtime'
 import type { resolveStartupAgentLaunchRuntime } from './agent-launch-scope-runtime'
@@ -42,8 +40,6 @@ type StartupEnvironment = {
   extraAgentArgs?: string
   /** Caller-supplied telemetry attribution, validated leniently at the host boundary. */
   launchSource?: string
-  /** Directory the agent will start in; absent for a git repo whose worktree does not exist yet. */
-  launchPath?: string
 }
 
 /** The agent a linked draft starts: the requested one, else the default, else one detected on the
@@ -75,13 +71,6 @@ export async function resolveWorktreeStartupDraftAgent(
   return pickTuiAgent(null, detected.filter(isTuiAgent), settings.disabledTuiAgents)
 }
 
-// Why: a folder repo starts in its own path; a git repo's agent starts in a worktree path only the caller knows.
-function worktreeStartupLaunchPath(environment: StartupEnvironment): string | undefined {
-  return (
-    environment.launchPath ?? (isFolderRepo(environment.repo) ? environment.repo.path : undefined)
-  )
-}
-
 export async function buildWorktreeStartupForDraft(
   environment: StartupEnvironment & { draft: string; requestedAgent?: TuiAgent }
 ): Promise<{
@@ -108,10 +97,7 @@ export async function buildWorktreeStartupForDraft(
     shell,
     isRemote: repoIsRemote(repo),
     ...(environment.agentArgs !== undefined ? { agentArgs: environment.agentArgs } : {}),
-    ...codexUserDeveloperInstructionsInput(agent, settings, {
-      isRemote: repoIsRemote(repo),
-      path: worktreeStartupLaunchPath(environment)
-    })
+    codexGuidanceSpawnGated: true
   })
   const telemetry = agentStartedTelemetry(agent, environment.launchSource)
   const draftPlan = buildAgentDraftLaunchPlan({ ...launchArgs, draft: content })
@@ -186,10 +172,7 @@ export function buildWorktreeStartupForAgent(
     ...(environment.agentArgs !== undefined ? { agentArgs: environment.agentArgs } : {}),
     ...(environment.extraAgentArgs ? { extraAgentArgs: environment.extraAgentArgs } : {}),
     sessionOptions: environment.toSessionOptions(environment.launchPreferences),
-    ...codexUserDeveloperInstructionsInput(agent, settings, {
-      isRemote: repoIsRemote(repo),
-      path: worktreeStartupLaunchPath(environment)
-    })
+    codexGuidanceSpawnGated: true
   })
   const prompt = environment.prompt ?? ''
   let startupPlan: ReturnType<typeof buildAgentStartupPlan>
