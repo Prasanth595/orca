@@ -211,6 +211,7 @@ export class OrcaRuntimeWithResolveWorktreeRemovalTarget extends OrcaRuntimeWith
     const normalizedTitle = title?.trim() || null
     const pty = this.getLivePtyForHandle(handle)
     if (pty) {
+      pty.pty.customTitle = normalizedTitle
       pty.pty.title = normalizedTitle
       // Why: a manual rename must outrank later agent OSC title updates (which
       // win by timestamp), so stamp it as the freshest title.
@@ -255,6 +256,7 @@ export class OrcaRuntimeWithResolveWorktreeRemovalTarget extends OrcaRuntimeWith
     const { leaf } = this.getLiveLeafForHandle(handle)
     const boundPty = leaf.ptyId ? this.ptysById.get(leaf.ptyId) : null
     if (boundPty) {
+      boundPty.customTitle = normalizedTitle
       boundPty.title = normalizedTitle
       boundPty.titleUpdatedAt = Date.now()
       this.touchMobileSessionSnapshotsForPty(boundPty.ptyId)

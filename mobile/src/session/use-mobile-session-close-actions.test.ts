@@ -1,7 +1,6 @@
 import { createElement } from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { RpcClient } from '../transport/rpc-client'
 import { useMobileSessionCloseActions } from './use-mobile-session-close-actions'
 import type { MobileSessionTab, Terminal } from './mobile-session-route-types'
 
@@ -10,12 +9,12 @@ describe('useMobileSessionCloseActions', () => {
   afterEach(() => renderer?.unmount())
 
   it('optimistically updates sessionTabs and schedules fetchSessionTabs upon terminal rename', async () => {
-    const client: RpcClient = {
+    const client = {
       sendRequest: vi.fn(async () => ({ ok: true, result: {} }))
-    } as unknown as RpcClient
+    }
 
     const initialTerminals: Terminal[] = [
-      { handle: 'term-1', title: 'Claude Code', cwd: '/work' } as Terminal
+      { handle: 'term-1', title: 'Claude Code', isActive: true }
     ]
     const initialSessionTabs: MobileSessionTab[] = [
       {
@@ -26,7 +25,7 @@ describe('useMobileSessionCloseActions', () => {
         parentTabId: 'tab-1',
         leafId: 'pane:1',
         isActive: true
-      } as MobileSessionTab,
+      },
       {
         type: 'terminal',
         id: 'tab-2::pane:2',
@@ -35,7 +34,7 @@ describe('useMobileSessionCloseActions', () => {
         parentTabId: 'tab-2',
         leafId: 'pane:2',
         isActive: false
-      } as MobileSessionTab
+      }
     ]
 
     const setTerminals = vi.fn()
@@ -67,7 +66,7 @@ describe('useMobileSessionCloseActions', () => {
       setActiveSessionTabId: vi.fn(),
       activeSessionTabIdRef: { current: 'tab-1::pane:1' },
       selectedSessionTabIdRef: { current: 'tab-1::pane:1' },
-      renameTarget: { handle: 'term-1', title: 'Claude Code' } as Terminal,
+      renameTarget: { handle: 'term-1', title: 'Claude Code', isActive: true },
       setRenameTarget,
       terminalRefs: { current: new Map() },
       activeHandleRef: { current: 'term-1' },
@@ -83,6 +82,7 @@ describe('useMobileSessionCloseActions', () => {
 
     let actions: ReturnType<typeof useMobileSessionCloseActions> | undefined
     function Harness() {
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Test harness provides mocked subset of hook scope.
       actions = useMobileSessionCloseActions(scope as never)
       return null
     }

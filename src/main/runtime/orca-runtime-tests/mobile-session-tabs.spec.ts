@@ -692,11 +692,30 @@ describe('OrcaRuntimeService', () => {
       launchAgent: 'claude',
       agentStatus: expect.objectContaining({ state: 'working', agentType: 'claude' })
     })
-    const terminalHandle = (initialTab as { terminal: string }).terminal
-    expect(typeof terminalHandle).toBe('string')
+    expect(initialTab?.type).toBe('terminal')
+    if (!initialTab || initialTab.type !== 'terminal' || !initialTab.terminal) {
+      throw new Error('expected ready terminal tab')
+    }
+    const terminalHandle = initialTab.terminal
 
-    const initialTerminals = await runtime.listTerminals(`id:${TEST_WORKTREE_ID}`)
-    expect(initialTerminals.terminals[0]?.title).toBe('✳ Claude Code')
+    // Controller title recorded on PTY without manual rename does not lock customTitle
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Test fixture invokes protected runtime method to simulate controller state.
+    const internals = runtime as unknown as {
+      recordPtyWorktree: (
+        ptyId: string,
+        worktreeId: string,
+        state: Record<string, unknown>
+      ) => void
+    }
+    internals.recordPtyWorktree('pty-claude', TEST_WORKTREE_ID, {
+      title: 'Controller Seeded Title'
+    })
+    const beforeRename = await runtime.listMobileSessionTabs(`id:${TEST_WORKTREE_ID}`)
+    const beforeRenameTab = beforeRename.tabs[0]
+    expect(beforeRenameTab?.type).toBe('terminal')
+    if (beforeRenameTab?.type === 'terminal') {
+      expect(beforeRenameTab.customTitle).toBeUndefined()
+    }
 
     // 1. Rename to custom title
     const renamed = await runtime.renameTerminal(terminalHandle, 'Auth Fix')

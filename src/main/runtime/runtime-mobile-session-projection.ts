@@ -180,7 +180,7 @@ export function projectRuntimeMobileSessionTabs(
       ownerRecord?.agent ?? liveLeafPty?.foregroundAgent ?? pty?.foregroundAgent ?? null
     const ownerOptions = { ownerIsLaunch: ownerRecord?.ownerIsLaunch === true }
     const manualTitle =
-      (liveLeafPty ?? pty)?.title?.trim() ||
+      (liveLeafPty ?? pty)?.customTitle?.trim() ||
       syncedTab?.customTitle?.trim() ||
       tab.customTitle?.trim() ||
       null
