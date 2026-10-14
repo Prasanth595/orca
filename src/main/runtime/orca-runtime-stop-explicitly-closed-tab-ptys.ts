@@ -139,7 +139,12 @@ export class OrcaRuntimeWithStopExplicitlyClosedTabPtys extends OrcaRuntimeWithF
             authorizedPty: ptyCloseAuthority.pty
           })
         } catch (error) {
-          if (!(error instanceof Error) || error.message !== 'workspace_session_unavailable') {
+          // Why: without a published surface the authority came from the saved tab, which an uncommitted stop would strand.
+          if (
+            !ptyCloseAuthority.surface ||
+            !(error instanceof Error) ||
+            error.message !== 'workspace_session_unavailable'
+          ) {
             throw error
           }
         }

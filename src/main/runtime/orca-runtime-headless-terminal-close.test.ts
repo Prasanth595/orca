@@ -184,6 +184,30 @@ describe('closing a terminal by PTY on a host without a renderer tab', () => {
     expect(harness.kill).not.toHaveBeenCalled()
   })
 
+  it('keeps the saved tab and its process when the session is unavailable at commit', async () => {
+    const harness = headlessPtyTab()
+    harness.syncEmptyGraph()
+    const close = harness.runtime.closeTerminal(recoveredHandle(harness))
+    harness.makeSessionUnavailable()
+
+    await expect(close).rejects.toThrow('workspace_session_unavailable')
+
+    expect(harness.getSession().terminalLayoutsByTabId[TAB_ID]).toBeDefined()
+    expect(harness.stopAndWait).not.toHaveBeenCalled()
+    expect(harness.kill).not.toHaveBeenCalled()
+  })
+
+  it('still stops a published surface when the session is unavailable at commit', async () => {
+    const harness = createHarness({ registerPtyBacked: true, publishMobileSurface: true })
+    harness.setVerifiedStopResult(true)
+    harness.syncEmptyGraph()
+    const close = harness.runtime.closeTerminal(recoveredHandle(harness))
+    harness.makeSessionUnavailable()
+
+    await expect(close).resolves.toMatchObject({ tabId: TAB_ID, ptyKilled: true })
+    expect(harness.stopAndWait).toHaveBeenCalledExactlyOnceWith(PTY_ID, expect.anything())
+  })
+
   it('does not stop a replacement process registered during the durable flush', async () => {
     const harness = headlessPtyTab()
     harness.syncEmptyGraph()
