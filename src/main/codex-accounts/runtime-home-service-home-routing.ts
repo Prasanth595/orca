@@ -25,6 +25,8 @@ import { syncLegacySharedCodexConfigForRetainedPanes } from './legacy-shared-con
 import type { CodexManagedAccount } from '../../shared/managed-account-types'
 import type { CodexRateLimitHomeResolution } from './runtime-home-service-types'
 import { CodexRuntimeHomeManagedHome } from './runtime-home-service-managed-home'
+import { keptAccountRefusals } from '../agent-accounts/kept-account-refusals'
+import { codexAccountLabel } from '../agent-accounts/kept-codex-home'
 
 export abstract class CodexRuntimeHomeRouting extends CodexRuntimeHomeManagedHome {
   getHostCodexHomePathsForSessionDiscovery(): string[] {
@@ -76,6 +78,26 @@ export abstract class CodexRuntimeHomeRouting extends CodexRuntimeHomeManagedHom
     if (resolved.kind === 'untrusted') {
       this.clearSelfContainedManagedSelection(selfContainedAccount)
       return null
+    }
+    return resolved.homePath
+  }
+
+  /**
+   * The home of an account a person kept a conversation on. Refuses instead of falling back,
+   * and never clears the selection: the kept account is not the selected one.
+   */
+  resolveHostAccountCodexHomePathForKeptResume(accountId: string): string {
+    const settings = this.store.getSettings()
+    const account = settings.codexManagedAccounts.find((candidate) => candidate.id === accountId)
+    if (!account || this.getWslManagedHomePath(account)) {
+      throw keptAccountRefusals.accountRemoved()
+    }
+    const resolved = this.resolveSelfContainedManagedHome(account)
+    if (resolved.kind === 'indeterminate') {
+      throw new ManagedCodexHomeTemporarilyUnavailableError()
+    }
+    if (resolved.kind === 'untrusted') {
+      throw keptAccountRefusals.codexHomeUntrusted(codexAccountLabel(settings, accountId))
     }
     return resolved.homePath
   }

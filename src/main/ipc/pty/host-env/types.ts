@@ -58,6 +58,7 @@ export type PrepareCodexSessionResume = (args: {
   target: CodexAccountSelectionTarget
   launchEnv?: NodeJS.ProcessEnv
   useSelectedAccount?: boolean
+  keptAccount?: { accountId: string | null }
 }) => Promise<CodexSessionResumePreparation | null>
 
 export type CodexHomePtySpawnedLifecycleArgs = {

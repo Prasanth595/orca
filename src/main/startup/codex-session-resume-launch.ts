@@ -17,12 +17,16 @@ import { isAgentStatusHooksEnabledForAgent } from '../agent-hooks/managed-agent-
 import { getOrcaManagedCodexHomePath, getSystemCodexHomePath } from '../codex/codex-home-paths'
 import { normalizeRuntimePathForComparison } from '../../shared/cross-platform-path'
 import { mainProcessState as state } from './main-process-state'
+import { keptAccountRefusals } from '../agent-accounts/kept-account-refusals'
+import { codexAccountLabel, resolveKeptCodexHome } from '../agent-accounts/kept-codex-home'
 
 export async function prepareCodexSessionResumeForLaunch(args: {
   providerSession: AgentProviderSessionMetadata
   target: CodexAccountSelectionTarget
   launchEnv?: NodeJS.ProcessEnv
   useSelectedAccount?: boolean
+  /** A person kept this conversation on an account: resume there or refuse. */
+  keptAccount?: { accountId: string | null }
 }): Promise<CodexSessionResumePreparation | null> {
   const runtimeHome = state.codexRuntimeHome
   const store = state.store
@@ -31,6 +35,15 @@ export async function prepareCodexSessionResumeForLaunch(args: {
   }
   const systemHomePath = getSystemCodexHomePath()
   const trustedHomes = trustedCodexResumeHomes(runtimeHome, systemHomePath)
+  // Why before ranking and with no fallback: a kept conversation runs on its account or not at all.
+  const keptHome = args.keptAccount
+    ? resolveKeptCodexHome({
+        accountId: args.keptAccount.accountId,
+        runtimeHome,
+        systemCodexHomePath: systemHomePath,
+        launchEnv: args.launchEnv
+      })
+    : undefined
   // Why: resolved eagerly, once, before any ranking or provenance match. The
   // marker read used to be deferred into the ranking thunk so a
   // provenance-present resume never paid for it, but that optimisation let an
@@ -38,7 +51,12 @@ export async function prepareCodexSessionResumeForLaunch(args: {
   // branch simply omits the account from `trustedHomes` and another account's
   // readable alias wins. A throw here refuses the whole resume instead
   // (#STA-4422).
-  const selectedAccountCodexHome = runtimeHome.resolveSelectedHostAccountCodexHomePathForResume()
+  const selectedAccountCodexHome =
+    keptHome === undefined
+      ? runtimeHome.resolveSelectedHostAccountCodexHomePathForResume()
+      : args.keptAccount?.accountId
+        ? keptHome
+        : null
   // Why: a `fresh` outcome must skip migration and hook repair entirely — there is
   // no verified origin home to prepare, so the PTY layer drops the resume argv (#10793).
   const preparation = await prepareCodexSessionResume({
@@ -79,20 +97,32 @@ export async function prepareCodexSessionResumeForLaunch(args: {
           error
         )
       }
-      const resumeHome = args.useSelectedAccount
+      const resumeHome = keptHome
         ? await prepareCodexAccountRestartResume({
             sourceHome: sessionSource.homePath,
             transcriptPath: sessionSource.transcriptPath,
-            targetHome: selectedAccountCodexHome ?? systemHomePath,
+            targetHome: keptHome,
             systemCodexHomePath: systemHomePath
           })
-        : migrated.useRealCodexHome
-          ? systemHomePath
-          : sessionSource.homePath
+        : args.useSelectedAccount
+          ? await prepareCodexAccountRestartResume({
+              sourceHome: sessionSource.homePath,
+              transcriptPath: sessionSource.transcriptPath,
+              targetHome: selectedAccountCodexHome ?? systemHomePath,
+              systemCodexHomePath: systemHomePath
+            })
+          : migrated.useRealCodexHome
+            ? systemHomePath
+            : sessionSource.homePath
       await prepareCodexPinnedLaunchHome(resumeHome, systemHomePath)
       return resumeHome
     }
   })
+  if (keptHome && preparation.outcome === 'fresh') {
+    throw keptAccountRefusals.codexConversationMissing(
+      codexAccountLabel(store.getSettings(), args.keptAccount?.accountId ?? null)
+    )
+  }
   return preparation.outcome === 'resume'
     ? {
         ...preparation,
