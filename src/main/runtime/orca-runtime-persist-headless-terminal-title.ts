@@ -107,7 +107,7 @@ export abstract class OrcaRuntimeWithPersistHeadlessTerminalTitle extends Runtim
         const liveTab = tab.browserPageId
           ? liveBrowserTabsByPageId.get(tab.browserPageId)
           : undefined
-        if (!liveTab) {
+        if (!liveTab && !this.isRendererOwnedMobileBrowserTab(snapshot, tab)) {
           continue
         }
         ids.add(tab.id)
