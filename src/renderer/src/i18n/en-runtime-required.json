@@ -28,6 +28,7 @@
         "9263e75f49": "Codex is using the previous account"
       },
       "GitHubItemDialog": {
+        "03d7216d62": "{{value0}} PR #{{value1}}?",
         "04539beb48": "issue",
         "307c98e8e3": "Show {{value0}} more lines above",
         "3853476a97": "GitHub item",
@@ -122,6 +123,7 @@
         "e1f3641bfd": "from",
         "e295a78c11": "Show {{value0}} more lines above",
         "e6996f4024": "· updated",
+        "eec3706a6a": "{{value0}} PR #{{value1}}?",
         "ff84e1f54c": "{{value0}} {{value1}} as viewed"
       },
       "StarNagCard": {
@@ -156,6 +158,7 @@
         "68df347677": "you@example.com",
         "6edf402e11": "overview",
         "7799ad9ab6": "draft",
+        "844dc193c7": "{{value0}} PR #{{value1}}?",
         "887efe9140": "Connect",
         "937b29fa35": "items",
         "93d5f21fc1": "pr",
@@ -1210,20 +1213,6 @@
           "a05bcdaf57": "Agents View",
           "f63ea281e3": "Threaded left-sidebar feed for agent completions and blocking states.",
           "fb82ea1d7a": "Automatically materialize configured files or folders into newly created worktrees.",
-          "nativeChat": {
-            "resumeCopy": "When Orca quits or installs an update, chats that were working are automatically resumed when Orca is reopened.",
-            "resumeTitle": "Resume working chats automatically after a restart",
-            "resumeToggleLabel": "Toggle automatic resume after a restart",
-            "shellEnvCopy": "Codex and Claude chats start with every variable your login shell exports, the same as a terminal. Turn off to choose which ones they get.",
-            "shellEnvNameAdd": "Add",
-            "shellEnvNamePlaceholder": "Variable name",
-            "shellEnvNameRemove": "Remove {{value0}}",
-            "shellEnvNamesAlwaysPassed": "PATH, locale, and SSH_AUTH_SOCK are always passed. Applies the next time a chat starts or resumes.",
-            "shellEnvNamesEmpty": "No variables added yet.",
-            "shellEnvNamesLabel": "Variables to pass from your shell",
-            "shellEnvTitle": "Use your shell environment",
-            "shellEnvToggleLabel": "Toggle using your shell environment"
-          },
           "newWorktreeCardStyle": {
             "copy": "Preview updated worktree-card layout, metadata placement, card-display menu options, and status presentation."
           }
@@ -2858,8 +2847,7 @@
       },
       "composer": {
         "effort": "Effort",
-        "imageUnsupported": "Image paste is not supported for this agent.",
-        "permissions": "Permissions"
+        "imageUnsupported": "Image paste is not supported for this agent."
       },
       "failureWords": {
         "accountSwitchInProgress": "A Claude account switch is in progress. Try again after it finishes.",
@@ -2883,9 +2871,9 @@
         "attachmentTotalTooLarge": "The images on this message are too large together, so the message was not sent.",
         "attachmentUnreadable": "An attachment on this message couldn't be read, so the message was not sent.",
         "attachmentUnsupportedType": "{{agent}} accepts only PNG, JPEG, GIF, and WebP images, so this message was not sent.",
-        "cancelUnconfirmed": "Cancellation was not confirmed.",
         "backgroundTaskNotStopped": "The background task wasn't stopped.",
         "backgroundTasksNotStopped": "The background tasks weren't stopped.",
+        "cancelUnconfirmed": "Cancellation was not confirmed.",
         "cancelled": "This message was withdrawn before the agent started it.",
         "chatClosed": "The chat closed before this message was sent.",
         "chooseClaudeAccount": "Choose or add one in Claude Accounts settings.",
