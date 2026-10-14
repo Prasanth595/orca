@@ -1,3 +1,4 @@
+import { isMobileSupportedTaskProvider } from './mobile-task-providers'
 import { settingsRead } from '../transport/settings-read-operations'
 import type { ClientSettingsActionsModel } from './use-mobile-tasks-client-settings-actions'
 import { jiraConnectionStatusProbe } from './mobile-jira-operations'
@@ -296,7 +297,7 @@ export function useMobileTasksRuntimeHydration(model: ClientSettingsActionsModel
       const availableProviders = filterAvailableTaskProviders(preferredProviders, {
         gitlabInstalled: preflight?.glab?.installed === true,
         linearConnected: linearIsConnected
-      })
+      }).filter(isMobileSupportedTaskProvider)
       const nextVisibleProviders =
         preferredProviders.includes('linear') && !availableProviders.includes('linear')
           ? [...availableProviders, 'linear' as const]

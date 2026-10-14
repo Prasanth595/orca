@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PlaneConnectionStatus } from '../../../../shared/plane-types'
+import type { TaskProvider } from '../../../../shared/task-providers'
 import type { AppState } from '../types'
 import { DEFAULT_PLANE_WORK_ITEM_FILTERS, createPlaneSlice } from './plane'
 
@@ -28,14 +29,18 @@ const plane = {
   listProjects: vi.fn()
 }
 
-function createTestStore() {
+const updateSettings = vi.fn()
+
+function createTestStore(visibleTaskProviders: TaskProvider[] | null = null) {
+  const settings = visibleTaskProviders ? { visibleTaskProviders } : null
   return create<AppState>()((...args) => {
-    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Plane actions read only settings and the fully initialized Plane slice.
-    return { settings: null, ...createPlaneSlice(...args) } as AppState
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Plane actions read only settings, updateSettings and the fully initialized Plane slice.
+    return { settings, updateSettings, ...createPlaneSlice(...args) } as unknown as AppState
   })
 }
 
 beforeEach(() => {
+  updateSettings.mockReset().mockResolvedValue(undefined)
   for (const fn of Object.values(plane)) {
     fn.mockReset()
   }
@@ -103,6 +108,33 @@ describe('plane slice', () => {
     await store.getState().disconnectPlane()
 
     expect(store.getState()).toMatchObject({ planeStatus: { connected: false }, planeProjects: [] })
+  })
+
+  it('shows Plane in Tasks after the first successful connect', async () => {
+    plane.connect.mockResolvedValue({ ok: true, status: CONNECTED, projects: [] })
+    const store = createTestStore(['github', 'jira'])
+
+    await store.getState().connectPlane({ hostKind: 'cloud', workspaceSlug: 'acme', apiToken: 't' })
+
+    expect(updateSettings).toHaveBeenCalledWith({
+      visibleTaskProviders: ['github', 'jira', 'plane']
+    })
+  })
+
+  it('leaves a saved provider list alone when Plane is already there or the connect fails', async () => {
+    plane.connect.mockResolvedValue({ ok: true, status: CONNECTED, projects: [] })
+    const listed = createTestStore(['plane', 'github'])
+    await listed
+      .getState()
+      .connectPlane({ hostKind: 'cloud', workspaceSlug: 'acme', apiToken: 't' })
+
+    plane.connect.mockResolvedValue({ ok: false, error: 'auth', message: 'Invalid token' })
+    const failed = createTestStore(['github', 'jira'])
+    await failed
+      .getState()
+      .connectPlane({ hostKind: 'cloud', workspaceSlug: 'acme', apiToken: 't' })
+
+    expect(updateSettings).not.toHaveBeenCalled()
   })
 
   it('keeps work-item filters per connection', () => {

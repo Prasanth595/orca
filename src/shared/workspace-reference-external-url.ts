@@ -27,7 +27,9 @@ export function getWorkspaceReferenceExternalUrl(item: WorkspaceAttachment): str
       return identity.siteUrl && identifier
         ? `${identity.siteUrl.replace(/\/+$/, '')}/browse/${identifier}`
         : undefined
+    // Why: Plane links are always stored with their URL; the identity has no web base to rebuild one.
     case 'linear':
+    case 'plane':
       return undefined
   }
 }

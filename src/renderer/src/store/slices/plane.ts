@@ -11,6 +11,7 @@ import {
 } from '@/runtime/runtime-plane-client'
 import { getPlaneRuntimeTarget } from '@/runtime/runtime-plane-target'
 import type { PlaneConnectionStatus } from '../../../../shared/plane-types'
+import { normalizeVisibleTaskProviders } from '../../../../shared/task-providers'
 import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
 import type { AppState } from '../types'
 import {
@@ -46,6 +47,16 @@ function currentTarget(get: PlaneSliceGet): { target: RuntimeClientTarget; conte
   return {
     target: getPlaneRuntimeTarget(defaultScopeSource(settings)),
     contextKey: getProviderRuntimeContextKey(settings)
+  }
+}
+
+// Why: connecting is an explicit ask to use Plane, so it re-shows a tab hidden earlier; a
+// profile that never connects keeps whatever the one-time load migration and the user chose.
+function showPlaneInTasks(get: PlaneSliceGet): void {
+  const settings = get().settings
+  const visible = normalizeVisibleTaskProviders(settings?.visibleTaskProviders)
+  if (settings && !visible.includes('plane')) {
+    void get().updateSettings({ visibleTaskProviders: [...visible, 'plane'] })
   }
 }
 
@@ -105,6 +116,7 @@ export const createPlaneSlice: StateCreator<AppState, [], [], PlaneSlice> = (set
             planeProjects: result.projects,
             planeProjectsContextKey: contextKey
           })
+          showPlaneInTasks(get)
         }
         return result
       } catch (error) {

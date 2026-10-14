@@ -6,6 +6,7 @@ import { extractWorktreePaletteCommentSnippet } from './worktree-palette-comment
 import type { MatchRange } from './palette-match/normalized-text'
 import type { HostedReviewInfo } from '../../../shared/hosted-review'
 import type { WorkspaceAttachment, Worktree } from '../../../shared/worktree/types'
+import { isIdentifierKeyedProvider } from '../../../shared/task-providers'
 
 /** Chip label kinds the worktree row can render for a supporting-evidence unit. */
 export type PaletteSupportingKind =
@@ -205,7 +206,7 @@ export function buildWorktreePortEvidence(
 export function buildWorktreeAttachmentEvidence(
   item: WorkspaceAttachment
 ): PaletteComposedEvidence | null {
-  if (item.type !== 'issue' && item.provider !== 'linear' && item.provider !== 'jira') {
+  if (item.type !== 'issue' && !isIdentifierKeyedProvider(item.provider)) {
     return buildWorktreeReviewEvidence({
       provider: item.provider,
       number: item.number,

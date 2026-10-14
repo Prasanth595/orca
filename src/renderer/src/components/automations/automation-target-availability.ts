@@ -11,6 +11,7 @@ import {
 import type { AutomationHostTarget } from './automation-host-client'
 import type { SshConnectionState } from '../../../../shared/ssh-types'
 import { TASK_PROVIDER_LABELS } from '../../../../shared/task-providers'
+import { isAutomationTaskProvider } from '../../../../shared/automation-task-providers'
 import type { TaskSourceContext } from '../../../../shared/task-source-context'
 import type { ProjectHostSetup } from '../../../../shared/project-types'
 import type { Repo } from '../../../../shared/repo-types'
@@ -189,6 +190,11 @@ function getAutomationSourceAvailability(
 ): AutomationTargetAvailability | null {
   if (!sourceContext) {
     return null
+  }
+  // Why: only opted-in providers can feed automations; anything else names an unsupported source.
+  if (!isAutomationTaskProvider(sourceContext.provider)) {
+    const label = TASK_PROVIDER_LABELS[sourceContext.provider]
+    return unavailable('source-provider-unsupported', `${label} cannot be an automation source.`)
   }
   const availability = sourceHostAvailability?.find(
     (entry) => entry.hostId === sourceContext.hostId

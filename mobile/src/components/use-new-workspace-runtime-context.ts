@@ -1,3 +1,4 @@
+import { isMobileSupportedTaskProvider } from '../tasks/mobile-task-providers'
 import { optionalSettingsRead } from '../transport/settings-read-operations'
 import { useEffect, useState } from 'react'
 import type { PersistedTrustedOrcaHooks } from '../../../src/shared/orca-yaml-hook-types'
@@ -111,7 +112,9 @@ export function useNewWorkspaceRuntimeContext(
         filterAvailableTaskProviders(visibleProviders, {
           gitlabInstalled: glabInstalled,
           linearConnected
-        }).filter((provider) => visibleProviders.includes(provider))
+        })
+          .filter((provider) => visibleProviders.includes(provider))
+          .filter(isMobileSupportedTaskProvider)
       )
       const [jiraRes] = await jiraProbe
       if (!stale) {

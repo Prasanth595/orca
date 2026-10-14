@@ -1,3 +1,4 @@
+import { isMobileSupportedTaskProvider } from '../tasks/mobile-task-providers'
 import { settingsRead } from '../transport/settings-read-operations'
 import { decodeAccountsSnapshot, type AccountsSnapshot } from '../components/AccountUsage'
 import type { HomeStatsRow } from '../stats/home-stats-total'
@@ -91,7 +92,7 @@ export function fetchMobileHomeTaskProviders(
           gitlabInstalled: preflight?.glab?.installed === true,
           linearConnected: linear?.connected === true
         }
-      )
+      ).filter(isMobileSupportedTaskProvider)
       setProviders((previous) => ({ ...previous, [hostId]: providers }))
     })
     .catch(() => {

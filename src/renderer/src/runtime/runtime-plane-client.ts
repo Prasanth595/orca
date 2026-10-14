@@ -5,9 +5,12 @@ import type {
   PlaneConnectionStatus,
   PlaneProject,
   PlaneProjectScope,
-  PlaneResult
+  PlaneResult,
+  PlaneWorkItemList
 } from '../../../shared/plane-types'
+import type { PlaneListWorkItemsParams } from '../../../shared/rpc-contract/plane-params'
 import type { RuntimeClientTarget } from '../../../shared/runtime-client-target'
+import { readRuntimeJiraPayload } from './runtime-jira-payload-stream'
 import { assertRuntimeEnvironmentCapability, callRuntimeRpc } from './runtime-rpc-client'
 
 export type { PlaneConnectArgs } from '../../../preload/api/plane-api'
@@ -22,18 +25,22 @@ const PLANE_STATUS_TIMEOUT_MS = 15_000
 
 type EnvironmentTarget = Extract<RuntimeClientTarget, { kind: 'environment' }>
 
+// Why: hosts without `plane.*` would answer "unknown method"; name the fix instead.
+async function assertPlaneRuntime(target: EnvironmentTarget): Promise<void> {
+  await assertRuntimeEnvironmentCapability(
+    target.environmentId,
+    PLANE_RUNTIME_CAPABILITY,
+    PLANE_RUNTIME_UPDATE_REQUIRED_MESSAGE
+  )
+}
+
 async function callPlaneRpc<T>(
   target: EnvironmentTarget,
   method: string,
   params: unknown,
   timeoutMs: number
 ): Promise<T> {
-  // Why: hosts without `plane.*` would answer "unknown method"; name the fix instead.
-  await assertRuntimeEnvironmentCapability(
-    target.environmentId,
-    PLANE_RUNTIME_CAPABILITY,
-    PLANE_RUNTIME_UPDATE_REQUIRED_MESSAGE
-  )
+  await assertPlaneRuntime(target)
   return callRuntimeRpc<T>(target, method, params, { timeoutMs })
 }
 
@@ -105,4 +112,20 @@ export async function planeListProjectsForTarget(
   return target.kind === 'environment'
     ? callPlaneRpc(target, 'plane.listProjects', params, PLANE_READ_TIMEOUT_MS)
     : window.api.plane.listProjects(params)
+}
+
+/** Streamed in chunks on a remote host, because a full list can approach the frame cap. */
+export async function planeListWorkItemsForTarget(
+  target: RuntimeClientTarget,
+  params?: PlaneListWorkItemsParams
+): Promise<PlaneResult<PlaneWorkItemList>> {
+  if (target.kind !== 'environment') {
+    return window.api.plane.listWorkItems(params)
+  }
+  await assertPlaneRuntime(target)
+  return readRuntimeJiraPayload<PlaneResult<PlaneWorkItemList>>(
+    target,
+    'plane.listWorkItems',
+    params
+  )
 }

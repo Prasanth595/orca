@@ -8,6 +8,7 @@ import type { LinearIssue } from '../../../../shared/linear/issue-types'
 import type { BaseRefSearchResult } from '../../../../shared/repo-types'
 import type { TaskSourceContext } from '../../../../shared/task-source-context'
 import type { AccountBackedTaskProvider } from '../../../../shared/task-providers'
+import type { SmartWorkspaceSourceProvider } from '../../../../shared/new-workspace/smart-workspace-command-value'
 import type {
   SmartNameMode,
   SmartWorkspaceSourceRow
@@ -55,7 +56,7 @@ export type SmartWorkspaceNameSelection = {
     | 'gitlab-mr'
     | 'gitlab-issue'
     | 'branch'
-    | AccountBackedTaskProvider
+    | Extract<AccountBackedTaskProvider, SmartWorkspaceSourceProvider>
   label: string
   url?: string
 }

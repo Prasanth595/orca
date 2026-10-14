@@ -4,6 +4,7 @@ import {
   IDENTIFIER_KEYED_PROVIDERS,
   TASK_PROVIDER_LABELS,
   TASK_PROVIDERS,
+  appendTaskProviderOnce,
   filterAvailableTaskProviders,
   isAccountBackedTaskProvider,
   isIdentifierKeyedProvider,
@@ -24,7 +25,8 @@ const EXPECTED_AVAILABILITY: Record<TaskProvider, { none: boolean; full: boolean
   github: { none: true, full: true },
   gitlab: { none: false, full: true },
   linear: { none: false, full: true },
-  jira: { none: true, full: true }
+  jira: { none: true, full: true },
+  plane: { none: true, full: true }
 }
 
 const UNKNOWN_PROVIDERS: unknown[] = ['bitbucket', 'GitHub', '', null, undefined, 1, {}]
@@ -38,6 +40,31 @@ describe('task provider registry', () => {
     expect(filterAvailableTaskProviders([provider], FULL_AVAILABILITY)).toEqual(
       expected.full ? [provider] : ['github']
     )
+  })
+
+  it('shows Plane while disconnected without making it the default', () => {
+    expect(
+      restoreAvailableDefaultTaskProvider(['github', 'plane'], NO_AVAILABILITY, 'github')
+    ).toEqual(['github', 'plane'])
+    const visible = normalizeVisibleTaskProviders(undefined)
+    expect(resolveVisibleTaskProvider(undefined, visible)).toBe('github')
+    expect(resolveVisibleTaskProvider('jira', visible)).toBe('jira')
+    expect(
+      normalizeTaskProviderSettings({
+        visibleTaskProviders: undefined,
+        defaultTaskSource: undefined
+      })
+    ).toMatchObject({ defaultTaskSource: 'github' })
+  })
+
+  it('appends a provider to a saved list only once', () => {
+    expect(appendTaskProviderOnce(['github', 'jira'], 'plane', false)).toEqual([
+      'github',
+      'jira',
+      'plane'
+    ])
+    expect(appendTaskProviderOnce(['plane', 'github'], 'plane', false)).toEqual(['plane', 'github'])
+    expect(appendTaskProviderOnce(['github'], 'plane', true)).toEqual(['github'])
   })
 
   it.each(TASK_PROVIDERS)('%s round-trips through the provider guard', (provider) => {
@@ -56,8 +83,8 @@ describe('task provider registry', () => {
     for (const provider of [...ACCOUNT_BACKED_TASK_PROVIDERS, ...IDENTIFIER_KEYED_PROVIDERS]) {
       expect(TASK_PROVIDERS).toContain(provider)
     }
-    expect(TASK_PROVIDERS.filter(isAccountBackedTaskProvider)).toEqual(['linear', 'jira'])
-    expect(TASK_PROVIDERS.filter(isIdentifierKeyedProvider)).toEqual(['linear', 'jira'])
+    expect(TASK_PROVIDERS.filter(isAccountBackedTaskProvider)).toEqual(['linear', 'jira', 'plane'])
+    expect(TASK_PROVIDERS.filter(isIdentifierKeyedProvider)).toEqual(['linear', 'jira', 'plane'])
   })
 
   it('types provider-keyed records over every provider', () => {
@@ -78,7 +105,13 @@ describe('task providers', () => {
   })
 
   it('falls back to all providers when none are visible', () => {
-    expect(normalizeVisibleTaskProviders([])).toEqual(['github', 'gitlab', 'linear', 'jira'])
+    expect(normalizeVisibleTaskProviders([])).toEqual([
+      'github',
+      'gitlab',
+      'linear',
+      'jira',
+      'plane'
+    ])
   })
 
   it('restores a valid saved default when provider settings drifted', () => {

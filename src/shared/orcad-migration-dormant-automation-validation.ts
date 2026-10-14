@@ -230,6 +230,7 @@ function parseContext(value: unknown, kind: 'workspace-run' | 'task-source'): vo
     requiredString(record.repoId, 'orcad_migration_dormant_automation_context_repo_invalid')
     requiredString(record.path, 'orcad_migration_dormant_automation_context_path_invalid')
   } else if (!isAutomationTaskProvider(String(record.provider))) {
+    // Why: a task provider (e.g. Plane) is not an automation source unless it opted in.
     throw new Error('orcad_migration_dormant_automation_context_provider_invalid')
   }
 }

@@ -15,7 +15,10 @@ export type SmartWorkspaceCommandRow = {
   value: string
 }
 
-export type SmartWorkspaceSourceIntent = TaskProvider | null
+// Why: Plane work items are not offered as new-workspace sources yet.
+export type SmartWorkspaceSourceProvider = Exclude<TaskProvider, 'plane'>
+
+export type SmartWorkspaceSourceIntent = SmartWorkspaceSourceProvider | null
 
 export function resolveSmartWorkspaceCommandValue({
   currentValue,

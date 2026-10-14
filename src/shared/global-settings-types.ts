@@ -5,7 +5,7 @@ import type { GitHubProjectSettings } from './github/project-types'
 import type { VoiceSettings } from './speech-types'
 import type { AiVaultSearchSettings } from './ai-vault-search-settings'
 import type { GitLabProjectSettings } from './gitlab-types'
-import type { TaskProvider } from './task-providers'
+import type { TaskProviderGlobalSettings } from './task-providers'
 import type { KeybindingOverrides, TerminalShortcutPolicy } from './keybindings'
 import type { AppIconId } from './app-icon'
 import type { SourceControlAiSettings } from './source-control-ai-types'
@@ -49,7 +49,9 @@ export type { WorktreeVisibilityDefaults } from './repo-types'
 /** MiniMax account region used to select the quota endpoint. */
 export type MiniMaxEndpoint = 'overseas' | 'cn'
 
-export type GlobalSettings = NativeChatGlobalSettings & {
+type GlobalSettingsBase = NativeChatGlobalSettings & TaskProviderGlobalSettings
+
+export type GlobalSettings = GlobalSettingsBase & {
   workspaceDir: string
   /** Host-owned defaults used when a repository has no explicit visibility override. */
   worktreeVisibilityDefaults?: WorktreeVisibilityDefaults
@@ -380,12 +382,6 @@ export type GlobalSettings = NativeChatGlobalSettings & {
   skipCodexRateLimitResetConfirm: boolean
   /** Default preset in the new-workspace GitHub task view. */
   defaultTaskViewPreset: TaskViewPresetId
-  /** Persisted last-used task source so Tasks reopens to the same provider instead of defaulting to GitHub. */
-  defaultTaskSource: TaskProvider
-  /** Persisted visible task providers; hides unused providers from Tasks chrome and sidebar shortcuts. */
-  visibleTaskProviders: TaskProvider[]
-  /** Why: one-shot guard to make Jira visible for existing profiles once, without re-adding after a later opt-out. */
-  visibleTaskProvidersDefaultedForJira: boolean
   /** Persisted repo selection (cross-repo tasks view). null = sticky-all (includes future-added repos);
    *  string[] = frozen curated subset (ineligible ids dropped on load; empty after drop is treated as null). */
   defaultRepoSelection: string[] | null

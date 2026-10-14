@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { JiraConnectDialog } from '@/components/jira-connect-dialog'
+import { PlaneConnectDialog } from '@/components/plane/PlaneConnectDialog'
 import { Button } from '@/components/ui/button'
 import { TaskSourceShowInTasksStep } from './TaskSourceShowInTasksStep'
 import { TaskSourceStepRow } from './TaskSourceStepRow'
@@ -120,6 +121,48 @@ export function JiraSetupSteps(
         onOpenChange={setDialogOpen}
         onConnected={props.onConnected}
       />
+    </>
+  )
+}
+
+export function PlaneSetupSteps(
+  props: ConnectStepProps & { onOpenIntegrations: () => void }
+): React.JSX.Element {
+  const [dialogOpen, setDialogOpen] = useState(false)
+
+  return (
+    <>
+      <ol className="divide-y divide-border/50">
+        <TaskSourceStepRow
+          index={1}
+          state={getConnectStepState(props)}
+          title={translate('plane.tasksSetup.connectTitle', 'Connect Plane')}
+          description={translate(
+            'plane.tasksSetup.connectDescription',
+            'Add Plane Cloud or a self-hosted Plane server with a personal access token, then choose its projects.'
+          )}
+          action={
+            <Button
+              type="button"
+              size="sm"
+              variant={props.connected ? 'outline' : 'default'}
+              onClick={props.connected ? props.onOpenIntegrations : () => setDialogOpen(true)}
+            >
+              {props.connected
+                ? translate('plane.tasksSetup.manage', 'Manage connection')
+                : translate('plane.tasksSetup.connect', 'Connect Plane')}
+            </Button>
+          }
+        />
+        <TaskSourceShowInTasksStep
+          index={2}
+          providerLabel={translate('plane.tasksSetup.label', 'Plane')}
+          visible={props.visible}
+          canHide={props.canHide}
+          onToggleVisible={props.onToggleVisible}
+        />
+      </ol>
+      <PlaneConnectDialog open={dialogOpen} onOpenChange={setDialogOpen} />
     </>
   )
 }

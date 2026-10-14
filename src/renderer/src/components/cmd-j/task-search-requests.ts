@@ -146,6 +146,8 @@ export function createCmdJTaskSearchRequests(args: {
     if (filter.repoIds.length && !initialRepo) {
       continue
     }
+    // Why not Plane: its search fans out one request per project, and per-keystroke palette
+    // queries would spend the shared API rate budget the Tasks tab depends on.
     for (const provider of ['linear', 'jira'] as const) {
       if (!providers.includes(provider) || (provider === 'linear' && parsed.kind === 'ssh')) {
         continue

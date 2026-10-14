@@ -20112,6 +20112,9 @@
     }
   },
   "plane": {
+    "sidebar": {
+      "openTasks": "Open Plane tasks"
+    },
     "connect": {
       "scopeTitle": "Choose Plane projects",
       "title": "Connect Plane",
@@ -20213,6 +20216,27 @@
       "plaintextToken": "Token stored unencrypted",
       "setupCopy": "Connect Plane Cloud or a self-hosted Plane server with a personal access token. The token is stored by {{host}}.",
       "recheck": "Re-check"
+    },
+    "tasksSetup": {
+      "connectTitle": "Connect Plane",
+      "connectDescription": "Add Plane Cloud or a self-hosted Plane server with a personal access token, then choose its projects.",
+      "manage": "Manage connection",
+      "connect": "Connect Plane",
+      "label": "Plane",
+      "description": "Connect Plane Cloud or a self-hosted Plane server and show it in Tasks."
+    },
+    "tasks": {
+      "empty": "No work items in the chosen projects.",
+      "listTitle": "Plane work items",
+      "shown": "{{count}} shown",
+      "needsScopeTitle": "Choose Plane projects",
+      "needsScopeBody": "Pick which projects Orca lists. Your saved choice is no longer available, or none was made yet.",
+      "chooseProjects": "Choose projects",
+      "connectTitle": "Connect Plane",
+      "connectBody": "Browse work items from Plane Cloud or your self-hosted Plane server and start workspaces from them.",
+      "connect": "Connect Plane",
+      "hide": "Hide Plane",
+      "sourceLabel": "Plane"
     }
   }
 }

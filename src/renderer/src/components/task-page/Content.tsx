@@ -6,6 +6,7 @@ import { TaskPageGitHubList } from './github/List'
 import { TaskPageGitLabTodoList } from './gitlab/TodoList'
 import { TaskPageGitLabItemList } from './gitlab/ItemList'
 import { TaskPageJiraContent } from './jira/Content'
+import { TaskPagePlaneContent } from './plane/TaskPagePlaneContent'
 export function TaskPageContent({
   model
 }: {
@@ -21,6 +22,7 @@ export function TaskPageContent({
     dialogRepoPath,
     dialogSourceContext,
     accountBackedTaskSourceHostId,
+    hideTaskSource,
     setDialogWorkItem,
     handleDialogReviewRequestsChange,
     closeTaskDetailPage,
@@ -76,6 +78,8 @@ export function TaskPageContent({
   ) : taskSource === 'jira' || taskSource === 'linear' ? (
     // Why: the Jira content component also routes Linear to its own view.
     <TaskPageJiraContent model={model} />
+  ) : taskSource === 'plane' ? (
+    <TaskPagePlaneContent onHide={() => hideTaskSource('plane', 'Plane')} />
   ) : (
     unhandledTaskSource(taskSource)
   )

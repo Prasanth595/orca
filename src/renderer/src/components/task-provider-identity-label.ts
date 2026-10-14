@@ -17,5 +17,7 @@ export function getTaskProviderIdentityLabel(
       return identity.workspaceName ?? identity.workspaceId ?? null
     case 'jira':
       return identity.siteUrl ?? identity.siteId ?? null
+    case 'plane':
+      return identity.workspaceSlug ?? identity.apiBaseUrl ?? null
   }
 }
