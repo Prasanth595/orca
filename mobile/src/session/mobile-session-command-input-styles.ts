@@ -79,13 +79,17 @@ export const mobileSessionCommandInputStyles = StyleSheet.create({
     flex: 1,
     minWidth: 0
   },
+  accessoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
   accessoryRowDivider: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.borderSubtle
   },
   accessoryScroll: {
-    flexGrow: 0,
-    flexShrink: 0
+    flex: 1,
+    minWidth: 0
   },
   accessoryContent: {
     alignItems: 'center',

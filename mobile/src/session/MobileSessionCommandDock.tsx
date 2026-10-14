@@ -98,45 +98,48 @@ export function MobileSessionCommandDock({ controller }: { controller: MobileSes
       >
         {/* Accessory keys */}
         <View ref={accessoryBarKeepsKeyboard} style={styles.accessoryBar}>
-          {/* Why: fixed keyboard escape hatch; outside ScrollView + shortcut path so it can't scroll away or be hidden (#5106). */}
-          {keyboardLift > 0 && (
-            <Pressable
-              style={({ pressed }) => [
-                styles.keyboardDismissKey,
-                pressed && styles.accessoryKeyPressed
-              ]}
-              onPress={dismissSoftwareKeyboard}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Dismiss keyboard"
-              accessibilityHint="Hides the software keyboard and keeps the current terminal session open."
-            >
-              <View style={styles.keyboardDismissGlyph}>
-                <KeyboardIcon size={15} color={colors.textSecondary} strokeWidth={2} />
-                <ChevronDown
-                  size={10}
-                  color={colors.textSecondary}
-                  strokeWidth={2.5}
-                  style={styles.keyboardDismissChevron}
-                />
-              </View>
-            </Pressable>
-          )}
           {/* Why: default tap handling makes the first accessory-key tap dismiss the keyboard and get swallowed (#5106). */}
           <View style={styles.accessoryRowsContainer}>
             {visibleAccessoryRows.map((rowItems, rowIndex) => {
               const isFirstRow = rowIndex === 0
               const isLastRow = rowIndex === visibleAccessoryRows.length - 1
               return (
-                <ScrollView
+                <View
                   key={`accessory-row-${rowIndex}`}
-                  style={[styles.accessoryScroll, !isFirstRow && styles.accessoryRowDivider]}
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.accessoryContent}
-                  keyboardShouldPersistTaps="always"
-                  onScrollBeginDrag={stopAccessoryRepeat}
+                  style={[styles.accessoryRow, !isFirstRow && styles.accessoryRowDivider]}
                 >
+                  {/* Why: fixed keyboard escape hatch; outside ScrollView + shortcut path so it can't scroll away or be hidden (#5106). */}
+                  {isFirstRow && keyboardLift > 0 && (
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.keyboardDismissKey,
+                        pressed && styles.accessoryKeyPressed
+                      ]}
+                      onPress={dismissSoftwareKeyboard}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Dismiss keyboard"
+                      accessibilityHint="Hides the software keyboard and keeps the current terminal session open."
+                    >
+                      <View style={styles.keyboardDismissGlyph}>
+                        <KeyboardIcon size={15} color={colors.textSecondary} strokeWidth={2} />
+                        <ChevronDown
+                          size={10}
+                          color={colors.textSecondary}
+                          strokeWidth={2.5}
+                          style={styles.keyboardDismissChevron}
+                        />
+                      </View>
+                    </Pressable>
+                  )}
+                  <ScrollView
+                    style={styles.accessoryScroll}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.accessoryContent}
+                    keyboardShouldPersistTaps="always"
+                    onScrollBeginDrag={stopAccessoryRepeat}
+                  >
                   {isFirstRow && (
                     <>
                       <Pressable
@@ -298,7 +301,8 @@ export function MobileSessionCommandDock({ controller }: { controller: MobileSes
                       <Plus size={14} color={colors.textSecondary} strokeWidth={2.2} />
                     </Pressable>
                   )}
-                </ScrollView>
+                  </ScrollView>
+                </View>
               )
             })}
           </View>
