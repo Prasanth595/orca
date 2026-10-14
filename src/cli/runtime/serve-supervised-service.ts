@@ -4,6 +4,7 @@ import {
   clearServeSupervisorBrake,
   readServeSupervisorBrake,
   recordSupervisedFailure,
+  SERVE_GAVE_UP_ADVICE,
   standbyDelayMs,
   writeServeSupervisorBrake,
   type ServeSupervisorBrake
@@ -14,7 +15,14 @@ import {
   SERVE_INSTALL_HOLD_REASON_TEXT,
   type ServeInstallEvidence
 } from './serve-install-hold'
-import { requestSupervisedServeStop, resetSupervisedServeStop } from './serve-supervised-stop'
+import {
+  currentServeChild,
+  requestSupervisedServeStop,
+  resetSupervisedServeStop
+} from './serve-supervised-stop'
+import type { ServeBundlePark } from './serve-bundle-park'
+import { createSupervisedParkWatch } from './serve-supervised-park-watch'
+import type { AppImageBuildState } from './serve-appimage-update'
 
 export const SERVE_INSTALL_HOLD_POLL_MS = 2_000
 /** A hold this long is reported as stuck; it still never times out into a spawn. */
@@ -42,6 +50,18 @@ export type SupervisedServeOptions = {
   setTimer?: (callback: () => void, ms: number) => () => void
   onStopSignal?: (listener: StopListener) => () => void
   log?: (line: string) => void
+  /** The desktop-install park protocol; null when this supervisor does not take part. */
+  park?: ServeBundlePark | null
+  currentChild?: typeof currentServeChild
+  setRepeating?: (callback: () => void, ms: number) => () => void
+  /** The AppImage this build was unpacked from, checked before each start; null elsewhere. */
+  appImageUpdate?: SupervisedAppImageUpdate | null
+}
+
+export type SupervisedAppImageUpdate = {
+  inspect: () => AppImageBuildState
+  /** Re-execs into the new build and never returns; otherwise resolves with why it could not. */
+  restart: (isStopped: () => boolean) => Promise<string>
 }
 
 export function getServeSuperviseValidationError(input: {
@@ -79,6 +99,19 @@ function defaultSetTimer(callback: () => void, ms: number): () => void {
   return () => clearTimeout(timer)
 }
 
+function defaultSetRepeating(callback: () => void, ms: number): () => void {
+  const timer = setInterval(callback, ms)
+  return () => clearInterval(timer)
+}
+
+async function settle(run: () => Promise<number>): Promise<PromiseSettledResult<number>> {
+  try {
+    return { status: 'fulfilled', value: await run() }
+  } catch (reason) {
+    return { status: 'rejected', reason }
+  }
+}
+
 /**
  * `orca serve --supervise`: the restart owner for a service manager. It never exits because its
  * child died; it exits on a stop signal, or with 0 after giving up so the manager stops too.
@@ -103,15 +136,25 @@ export async function superviseServeService(options: SupervisedServeOptions): Pr
     record = null
   }
   const refuseGaveUp = (gaveUp: { reason: string }): number => {
-    log(
-      `[serve] Not starting: ${gaveUp.reason} Fix the cause, then run \`orca serve --supervise --force\` once, or reinstall Orca.`
-    )
+    log(`[serve] Not starting: ${gaveUp.reason} ${SERVE_GAVE_UP_ADVICE}`)
     return 0
   }
-  if (record?.gaveUp && record.build === identify(options.executable)) {
+  // Why the AppImage check: a replaced AppImage is a new build, which a give-up must not block.
+  if (
+    record?.gaveUp &&
+    record.build === identify(options.executable) &&
+    (options.appImageUpdate?.inspect() ?? 'current') === 'current'
+  ) {
     return refuseGaveUp(record.gaveUp)
   }
 
+  const parkWatch = options.park
+    ? createSupervisedParkWatch(options.park, {
+        currentChild: options.currentChild ?? currentServeChild,
+        setRepeating: options.setRepeating ?? defaultSetRepeating,
+        now
+      })
+    : null
   let stopped = false
   let wake: (() => void) | null = null
   const removeStopListener = (options.onStopSignal ?? defaultOnStopSignal)(() => {
@@ -139,7 +182,9 @@ export async function superviseServeService(options: SupervisedServeOptions): Pr
   const awaitClearToSpawn = async (): Promise<boolean> => {
     const since = now()
     while (!stopped) {
-      const evidence = await readEvidence(options.executable)
+      const evidence: ServeInstallEvidence = parkWatch?.idle()
+        ? { kind: 'hold', reason: 'install-park' }
+        : await readEvidence(options.executable)
       if (evidence.kind === 'clear') {
         return !stopped
       }
@@ -154,15 +199,18 @@ export async function superviseServeService(options: SupervisedServeOptions): Pr
     }
     return false
   }
-  resetSupervisedServeStop(awaitClearToSpawn)
+  resetSupervisedServeStop(awaitClearToSpawn, () => options.park?.holds() ?? false)
 
+  let appImageUpdate = options.appImageUpdate ?? null
   try {
     let standbyAttempt = 0
     const hold: { current: { reason: string; since: number; reportedStuck: boolean } | null } = {
       current: null
     }
     while (!stopped) {
-      const evidence = await readEvidence(options.executable)
+      const evidence: ServeInstallEvidence = parkWatch?.idle()
+        ? { kind: 'hold', reason: 'install-park' }
+        : await readEvidence(options.executable)
       if (stopped) {
         break
       }
@@ -192,17 +240,37 @@ export async function superviseServeService(options: SupervisedServeOptions): Pr
         continue
       }
       hold.current = null
+      const appImage = appImageUpdate?.inspect() ?? 'current'
+      if (appImage === 'settling') {
+        // Why: the AppImage file is still being written; starting either build now would be wrong.
+        await sleep(SERVE_INSTALL_HOLD_POLL_MS)
+        continue
+      }
+      if (appImage === 'superseded' && appImageUpdate) {
+        const reason = await appImageUpdate.restart(() => stopped)
+        // One attempt per supervisor: a failed restart keeps serving the running build.
+        appImageUpdate = null
+        log(`[serve] Kept the running build: ${reason}.`)
+        continue
+      }
       record = brakeForBuild(record, identify(options.executable))
       if (record.gaveUp) {
         return refuseGaveUp(record.gaveUp)
       }
 
+      const attempt = parkWatch
+        ? await parkWatch.during(options.runOnce)
+        : { parked: false, settled: await settle(options.runOnce) }
+      if (stopped) {
+        break
+      }
+      if (attempt.parked) {
+        // Why not a failure: the desktop stopped this server to install an update.
+        continue
+      }
       let failure: string
-      try {
-        const code = await options.runOnce()
-        if (stopped) {
-          break
-        }
+      if (attempt.settled.status === 'fulfilled') {
+        const code = attempt.settled.value
         if (code === SINGLE_INSTANCE_ALREADY_RUNNING_EXIT_CODE) {
           // Why not a failure: another Orca serves this profile, so wait for it instead of racing it.
           const delayMs = standbyDelayMs(standbyAttempt++, random)
@@ -213,11 +281,12 @@ export async function superviseServeService(options: SupervisedServeOptions): Pr
           continue
         }
         failure = `exited with code ${code}`
-      } catch (error) {
-        if (stopped) {
-          break
-        }
-        failure = error instanceof Error ? error.message : String(error)
+      } else {
+        const error: unknown = attempt.settled.reason
+        // Why: the child's own errors read "Orca serve exited via SIGKILL."; the log line names serve once.
+        failure = (error instanceof Error ? error.message : String(error))
+          .replace(/^Orca serve /, '')
+          .replace(/\.$/, '')
       }
       standbyAttempt = 0
       const next = recordSupervisedFailure(record, { now: now(), reason: failure, random })
@@ -236,5 +305,6 @@ export async function superviseServeService(options: SupervisedServeOptions): Pr
   } finally {
     removeStopListener()
     resetSupervisedServeStop()
+    parkWatch?.close()
   }
 }
