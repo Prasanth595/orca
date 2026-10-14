@@ -59,8 +59,20 @@ export function createQueuedRigProvider(
     async () => true
   )
   let events: StructuredAgentSessionEventSink | undefined
+  let proveOpen: (() => void) | null = null
 
   const scripted: StructuredAgentSessionAdapter = {
+    open: () =>
+      options.starting
+        ? new Promise((resolve) => {
+            proveOpen = () =>
+              resolve({
+                reportedOptions: { model: 'default' }
+              })
+          })
+        : Promise.resolve({
+            reportedOptions: { model: 'default' }
+          }),
     acquire: async ({ identity, fence, spawnToken, events: sink }) => {
       starts()
       const hold = startHold
@@ -79,7 +91,6 @@ export function createQueuedRigProvider(
         ? `${THREAD}-context-${record!.providerContextBoundary!.operationId}`
         : (context?.head?.handle.nativeId ?? THREAD)
       return {
-        providerChildPhase: 'starting' as const,
         process: {
           hostId: 'local',
           pid: 4242,
@@ -171,6 +182,7 @@ export function createQueuedRigProvider(
 
   return {
     adapter,
+    proveOpen: () => proveOpen?.(),
     dispatch,
     starts,
     holdNextStart,
