@@ -3,6 +3,7 @@ import {
   foldWorkspaceNameWhitespaceToHyphen
 } from './workspace-name-text-scanner'
 import { escapeRegex } from './string-utils'
+import type { JiraIssueKeyCasing } from './ui-chrome-types'
 
 function normalizeApostrophes(input: string): string {
   return input.replace(/[‘’]/g, "'")
@@ -55,6 +56,32 @@ export type WorkspaceIntentWorkItem = {
 export type WorkspaceIntentName = {
   displayName: string
   seedName: string
+}
+
+export type WorkspaceSeedNameOptions = {
+  jiraIssueKeyCasing?: JiraIssueKeyCasing
+}
+
+const JIRA_ISSUE_KEY_PATTERN = /^[A-Z][A-Z0-9_]*-\d+$/
+
+/**
+ * Restore the canonical uppercase Jira key at the start of an already-slugified
+ * seed when the user opted into `preserve`. Any other value keeps the lowercase seed.
+ */
+export function applyJiraIssueKeyCasing(
+  seedName: string,
+  jiraIdentifier: string | undefined,
+  casing: JiraIssueKeyCasing | undefined
+): string {
+  const key = jiraIdentifier?.trim().toUpperCase()
+  if (casing !== 'preserve' || !key || !JIRA_ISSUE_KEY_PATTERN.test(key)) {
+    return seedName
+  }
+  // Why: slugify only lowercases a key (its characters survive the strip), so re-uppercasing the leading segment is lossless.
+  const lowerKey = key.toLowerCase()
+  return seedName === lowerKey || seedName.startsWith(`${lowerKey}-`)
+    ? `${key}${seedName.slice(key.length)}`
+    : seedName
 }
 
 function getLinkedWorkItemTitleSubject(item: { title: string }): string {
@@ -172,7 +199,8 @@ function workItemIdentity(item: WorkspaceIntentWorkItem): string {
 }
 
 export function getLinkedWorkItemWorkspaceName(
-  item: WorkspaceIntentWorkItem
+  item: WorkspaceIntentWorkItem,
+  options: WorkspaceSeedNameOptions = {}
 ): WorkspaceIntentName | null {
   const identifier = item.linearIdentifier ?? item.jiraIdentifier
   let subject = getLinkedWorkItemTitleSubject(item) || item.title.trim()
@@ -182,7 +210,11 @@ export function getLinkedWorkItemWorkspaceName(
       .trim()
   }
   const displayName = [identifier, subject].filter(Boolean).join(' ') || workItemIdentity(item)
-  const seedName = slugifyForWorkspaceName(displayName)
+  const seedName = applyJiraIssueKeyCasing(
+    slugifyForWorkspaceName(displayName),
+    item.jiraIdentifier,
+    options.jiraIssueKeyCasing
+  )
   if (!seedName) {
     return null
   }
