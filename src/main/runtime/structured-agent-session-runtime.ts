@@ -69,7 +69,7 @@ import {
 import type { ClaudeCliFlagSupport } from '../claude/claude-cli-flag-support'
 import {
   scheduleNativeChatVisualsSweep,
-  type NativeChatVisualsSweepDeps
+  type NativeChatVisualsHostDeps
 } from '../native-chat/native-chat-visuals-sweep'
 
 /** Whether this profile holds a structured chat: a record or tab in the journal database. */
@@ -105,11 +105,7 @@ export type StructuredAgentSessionRuntimeDeps = {
   claudeCliFlags?: ClaudeCliFlagSupport
   /** Gives each chat a scratch folder and the visuals skill that teaches it, and sweeps folders
    *  whose chat is gone. Wired by the real hosts only, so a test runtime never loads the bundled skill. */
-  nativeChatVisuals?: {
-    /** Read this host's preference when a chat starts a provider process. */
-    isEnabled: () => boolean
-    workspaceVerdicts: NonNullable<NativeChatVisualsSweepDeps['workspaceVerdicts']>
-  }
+  nativeChatVisuals?: NativeChatVisualsHostDeps
   /** Provider transports are overridden only to drive the runtime against scripted children. */
   openCodexConnection?: CodexStructuredSessionAdapterDeps['openConnection']
   /** Scripted transports must also replace the real host's version probe. */

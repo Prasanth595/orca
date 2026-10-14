@@ -68,7 +68,7 @@ function serviceTierOption(tiers: readonly AgentSessionOptionChoice[]): CatalogO
   }
 }
 
-export function discoveredModel(
+function discoveredModel(
   model: AgentSessionOptionsResult['models'][number],
   sessionSupportsFastMode: boolean
 ): CatalogModel {
@@ -109,9 +109,13 @@ export function discoveredModel(
   }
 }
 
-export function withStructuredConversationMode(
-  model: CatalogModel,
+/** Each listed model's picker options, with the agent's conversation mode last when it has one. */
+export function discoveredModels(
+  listing: Pick<AgentSessionOptionsResult, 'models' | 'fastModeSupport'>,
   mode: CatalogOption | undefined
-): CatalogModel {
-  return mode ? { ...model, options: [...model.options, mode] } : model
+): CatalogModel[] {
+  return listing.models.map((listed) => {
+    const model = discoveredModel(listed, listing.fastModeSupport?.supported === true)
+    return mode ? { ...model, options: [...model.options, mode] } : model
+  })
 }

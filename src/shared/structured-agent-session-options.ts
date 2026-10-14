@@ -1,8 +1,5 @@
-import type { AgentSessionOptionCatalog, CatalogModel } from './agent-session-option-catalog'
-import {
-  discoveredModel,
-  withStructuredConversationMode
-} from './structured-agent-session-discovered-model'
+import type { AgentSessionOptionCatalog } from './agent-session-option-catalog'
+import { discoveredModels } from './structured-agent-session-discovered-model'
 import {
   buildNativeChatSessionOptionSnapshot,
   resolveEffectiveNativeChatModelId,
@@ -36,12 +33,7 @@ export function structuredAgentSessionOptionCatalog(
   result: AgentSessionOptionsResult
 ): AgentSessionOptionCatalog {
   const mode = seed.structuredConversationMode
-  const models: CatalogModel[] = result.models.map((model) =>
-    withStructuredConversationMode(
-      discoveredModel(model, result.fastModeSupport?.supported === true),
-      mode
-    )
-  )
+  const models = discoveredModels(result, mode)
   if (result.current.model && !models.some((model) => model.id === result.current.model)) {
     models.push({
       id: result.current.model,
@@ -139,16 +131,8 @@ export function applyStructuredAgentSessionModelCatalog(
   if (state.catalogSource === 'live') {
     return withVerifiedModelIds(state, verifiedModelIds)
   }
-  const mode = seed.structuredConversationMode
   const models =
-    catalog.origin === 'unknown'
-      ? []
-      : catalog.models.map((model) =>
-          withStructuredConversationMode(
-            discoveredModel(model, catalog.fastModeSupport?.supported === true),
-            mode
-          )
-        )
+    catalog.origin === 'unknown' ? [] : discoveredModels(catalog, seed.structuredConversationMode)
   if (catalog.origin === 'unknown' || models.length === 0) {
     return settleStructuredAgentSessionBuiltinCatalog(state)
   }

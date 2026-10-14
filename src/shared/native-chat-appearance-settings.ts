@@ -15,6 +15,8 @@ export type NativeChatGlobalSettings = {
   nativeChatAppearance?: NativeChatAppearanceSettings
   /** Off keeps chats unnamed without running a naming agent. Absent means on. */
   nativeChatAutoName?: boolean
+  /** Optional Cursor SDK key for structured chat. Empty uses the browser login on this host. */
+  cursorSdkApiKey?: string
 }
 
 export const DEFAULT_NATIVE_CHAT_FONT_SIZE = 14

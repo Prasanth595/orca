@@ -1,9 +1,8 @@
 import type { AgentSessionUnavailable } from './agent-session-availability'
 import type {
   AgentSessionCurrentModelParameters,
-  AgentSessionModelParameterOptions,
-  AgentSessionOptionChoice
-} from './agent-session-model-parameters'
+  AgentSessionModelOption
+} from './agent-session-model-option'
 import type {
   AgentSessionBackgroundTask,
   AgentSessionBackgroundTaskState
@@ -389,24 +388,10 @@ export type AgentSessionOptionResult = {
   options?: Record<string, string>
 }
 
-export type { AgentSessionOptionChoice }
-
-export type AgentSessionModelOption = AgentSessionModelParameterOptions & {
-  id: string
-  label: string
-  description?: string
-  isDefault: boolean
-  defaultEffort?: string
-  efforts: AgentSessionOptionChoice[]
-  /** Provider catalog fact. Absent means the host could not determine support. */
-  supportsFastMode?: boolean
-  /** Whether the model runs Approve for me; absent is unknown, which neither offers nor launches it. */
-  supportsAutoMode?: boolean
-  /** Service tiers the provider lists for this model besides its standard one, each valued by the
-   *  provider's own tier id. Absent means unknown; a client that reads it offers one speed choice
-   *  (`default` for standard) in place of the Fast toggle. */
-  serviceTiers?: AgentSessionOptionChoice[]
-}
+export type {
+  AgentSessionModelOption,
+  AgentSessionOptionChoice
+} from './agent-session-model-option'
 
 export type AgentSessionFastModeState = 'off' | 'cooldown' | 'on'
 

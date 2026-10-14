@@ -21,3 +21,20 @@ export type AgentSessionCurrentModelParameters = {
   /** Cursor structured chat: agent or plan. */
   conversationMode?: 'agent' | 'plan'
 }
+
+export type AgentSessionModelOption = AgentSessionModelParameterOptions & {
+  id: string
+  label: string
+  description?: string
+  isDefault: boolean
+  defaultEffort?: string
+  efforts: AgentSessionOptionChoice[]
+  /** Provider catalog fact. Absent means the host could not determine support. */
+  supportsFastMode?: boolean
+  /** Whether the model runs Approve for me; absent is unknown, which neither offers nor launches it. */
+  supportsAutoMode?: boolean
+  /** Service tiers the provider lists for this model besides its standard one, each valued by the
+   *  provider's own tier id. Absent means unknown; a client that reads it offers one speed choice
+   *  (`default` for standard) in place of the Fast toggle. */
+  serviceTiers?: AgentSessionOptionChoice[]
+}
