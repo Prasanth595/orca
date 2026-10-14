@@ -20236,7 +20236,77 @@
       "connectBody": "Browse work items from Plane Cloud or your self-hosted Plane server and start workspaces from them.",
       "connect": "Connect Plane",
       "hide": "Hide Plane",
-      "sourceLabel": "Plane"
+      "sourceLabel": "Plane",
+      "credentialTitle": "Reconnect Plane",
+      "reconnect": "Reconnect Plane",
+      "idNotFound": "{{identifier}} was not found in this workspace.",
+      "unknownProject": "A project",
+      "noMatch": "No work items match these filters.",
+      "clearFilters": "Clear filters"
+    },
+    "stateGroup": {
+      "backlog": "Backlog",
+      "unstarted": "Unstarted",
+      "started": "Started",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "triage": "Triage"
+    },
+    "filters": {
+      "stateOpen": "Open",
+      "stateAll": "All states",
+      "stateTrigger": "State: {{value}}",
+      "stateGroups": "State groups",
+      "exactState": "Exact state",
+      "anyState": "Any state in the groups",
+      "project": "Project",
+      "allInScope": "All in scope",
+      "assignee": "Assignee",
+      "anyone": "Anyone",
+      "me": "Me",
+      "unassigned": "Unassigned",
+      "priority": "Priority",
+      "anyPriority": "Any priority",
+      "search": "Search work items",
+      "searchPlaceholder": "Filter by title, or type an ID like WEB-12",
+      "refresh": "Refresh"
+    },
+    "banner": {
+      "projectError": "{{project}} could not be loaded: {{reason}}",
+      "missingOne": "1 selected project is no longer available.",
+      "missingMany": "{{count}} selected projects are no longer available.",
+      "editProjects": "Edit projects",
+      "truncated": "Showing the newest work items in {{project}}.",
+      "loadMore": "Load more",
+      "totalCapped": "Showing the first 500 work items. Choose one project to see more."
+    },
+    "priority": {
+      "urgent": "Urgent",
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low",
+      "none": "No priority"
+    },
+    "detail": {
+      "noComments": "No comments yet.",
+      "openInPlane": "Open in Plane",
+      "state": "State",
+      "priority": "Priority",
+      "assignees": "Assignees",
+      "unassigned": "Unassigned",
+      "labels": "Labels",
+      "updated": "Updated",
+      "description": "Description",
+      "noDescription": "No description.",
+      "truncated": "The description was shortened. Open in Plane to read all of it.",
+      "comments": "Comments"
+    },
+    "row": {
+      "assignees": "Assigned to {{names}}",
+      "noState": "No state"
+    },
+    "list": {
+      "label": "Plane work items"
     }
   }
 }

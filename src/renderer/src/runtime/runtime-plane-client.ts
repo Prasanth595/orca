@@ -1,11 +1,14 @@
 import type { PlaneConnectArgs } from '../../../preload/api/plane-api'
 import { PLANE_RUNTIME_CAPABILITY } from '../../../shared/plane-runtime-capabilities'
 import type {
+  PlaneComment,
   PlaneConnectResult,
   PlaneConnectionStatus,
   PlaneProject,
   PlaneProjectScope,
   PlaneResult,
+  PlaneState,
+  PlaneWorkItemDetail,
   PlaneWorkItemList
 } from '../../../shared/plane-types'
 import type { PlaneListWorkItemsParams } from '../../../shared/rpc-contract/plane-params'
@@ -128,4 +131,42 @@ export async function planeListWorkItemsForTarget(
     'plane.listWorkItems',
     params
   )
+}
+
+export type PlaneWorkItemRef = { projectId: string; workItemId: string }
+
+export async function planeGetWorkItemForTarget(
+  target: RuntimeClientTarget,
+  ref: PlaneWorkItemRef
+): Promise<PlaneResult<PlaneWorkItemDetail>> {
+  return target.kind === 'environment'
+    ? callPlaneRpc(target, 'plane.getWorkItem', ref, PLANE_READ_TIMEOUT_MS)
+    : window.api.plane.getWorkItem(ref)
+}
+
+export async function planeListCommentsForTarget(
+  target: RuntimeClientTarget,
+  ref: PlaneWorkItemRef
+): Promise<PlaneResult<PlaneComment[]>> {
+  return target.kind === 'environment'
+    ? callPlaneRpc(target, 'plane.listComments', ref, PLANE_READ_TIMEOUT_MS)
+    : window.api.plane.listComments(ref)
+}
+
+export async function planeListStatesForTarget(
+  target: RuntimeClientTarget,
+  projectId: string
+): Promise<PlaneResult<PlaneState[]>> {
+  return target.kind === 'environment'
+    ? callPlaneRpc(target, 'plane.listStates', { projectId }, PLANE_READ_TIMEOUT_MS)
+    : window.api.plane.listStates({ projectId })
+}
+
+export async function planeLookupWorkItemForTarget(
+  target: RuntimeClientTarget,
+  identifier: string
+): Promise<PlaneResult<PlaneWorkItemDetail>> {
+  return target.kind === 'environment'
+    ? callPlaneRpc(target, 'plane.lookupWorkItem', { identifier }, PLANE_READ_TIMEOUT_MS)
+    : window.api.plane.lookupWorkItem({ identifier })
 }

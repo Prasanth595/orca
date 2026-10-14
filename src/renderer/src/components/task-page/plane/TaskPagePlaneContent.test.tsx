@@ -4,10 +4,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   PlaneConnection,
   PlaneConnectionStatus,
-  PlaneWorkItem
+  PlaneProject,
+  PlaneWorkItem,
+  PlaneWorkItemList
 } from '../../../../../shared/plane-types'
 import { getProviderRuntimeContextKey } from '@/lib/provider-runtime-context'
+import type { PlaneWorkItemFilters } from '@/store/slices/plane-slice-contract'
 import { TaskPagePlaneContent } from './TaskPagePlaneContent'
+
+const CONTEXT_KEY = getProviderRuntimeContextKey({ activeRuntimeEnvironmentId: null })
 
 type FixtureState = {
   settings: { activeRuntimeEnvironmentId: string | null }
@@ -15,12 +20,23 @@ type FixtureState = {
   planeStatus: PlaneConnectionStatus
   planeStatusChecked: boolean
   planeStatusContextKey: string | null
+  planeProjects: PlaneProject[]
+  planeProjectsContextKey: string | null
+  planeWorkItemFiltersByConnection: Record<string, PlaneWorkItemFilters>
   checkPlaneConnection: ReturnType<typeof vi.fn>
+  loadPlaneProjects: ReturnType<typeof vi.fn>
+  setPlaneWorkItemFilters: ReturnType<typeof vi.fn>
 }
 
 const mocks = vi.hoisted(() => {
   const holder: { current: FixtureState | null } = { current: null }
-  return { holder, listWorkItems: vi.fn() }
+  return {
+    holder,
+    listWorkItems: vi.fn(),
+    lookupWorkItem: vi.fn(),
+    listComments: vi.fn(),
+    getWorkItem: vi.fn()
+  }
 })
 vi.mock('@/store', () => ({
   useAppStore: (selector: (state: FixtureState) => unknown) => {
@@ -32,6 +48,10 @@ vi.mock('@/store', () => ({
 }))
 vi.mock('@/runtime/runtime-plane-client', () => ({
   planeListWorkItemsForTarget: mocks.listWorkItems,
+  planeListStatesForTarget: vi.fn().mockResolvedValue({ ok: true, value: [] }),
+  planeLookupWorkItemForTarget: mocks.lookupWorkItem,
+  planeGetWorkItemForTarget: mocks.getWorkItem,
+  planeListCommentsForTarget: mocks.listComments,
   isPlaneRuntimeUpdateRequiredError: () => false
 }))
 vi.mock('@/components/plane/PlaneConnectDialog', () => ({
@@ -39,58 +59,92 @@ vi.mock('@/components/plane/PlaneConnectDialog', () => ({
     open ? <div data-testid="plane-dialog">{mode}</div> : null
 }))
 
+const WEB: PlaneProject = { id: 'web', name: 'Web', identifier: 'WEB' }
+const API: PlaneProject = { id: 'api', name: 'API', identifier: 'API' }
+
 const CONNECTION: PlaneConnection = {
   id: 'conn-1',
-  hostKind: 'cloud',
-  apiBaseUrl: 'https://api.plane.so',
-  webBaseUrl: 'https://app.plane.so',
+  hostKind: 'self-hosted',
+  apiBaseUrl: 'https://plane.example.com',
+  webBaseUrl: 'https://plane.example.com',
   workspaceSlug: 'acme',
   viewer: { id: 'viewer-1', displayName: 'Ada', email: null },
   projectScope: { mode: 'all' },
   connectedAt: 1
 }
 
-const ITEM: PlaneWorkItem = {
-  connectionId: 'conn-1',
-  id: 'item-1',
-  projectId: 'project-1',
-  projectIdentifier: 'WEB',
-  sequenceId: 12,
-  identifier: 'WEB-12',
-  name: 'Fix login redirect',
-  state: { id: 'state-1', name: 'In Progress', group: 'started', color: '#000', sequence: 1 },
-  priority: 'high',
-  assignees: [],
-  labels: [],
-  createdAt: '2026-01-01T00:00:00Z',
-  updatedAt: '2026-01-02T00:00:00Z',
-  url: 'https://app.plane.so/acme/projects/project-1/issues/item-1'
+function workItem(id: string, overrides: Partial<PlaneWorkItem> = {}): PlaneWorkItem {
+  return {
+    connectionId: 'conn-1',
+    id,
+    projectId: 'web',
+    projectIdentifier: 'WEB',
+    sequenceId: Number(id),
+    identifier: `WEB-${id}`,
+    name: `Item ${id}`,
+    state: { id: 's', name: 'In Progress', group: 'started', color: '', sequence: 1 },
+    priority: 'none',
+    assignees: [],
+    labels: [],
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-02T00:00:00Z',
+    url: `https://plane.example.com/acme/projects/web/issues/${id}`,
+    ...overrides
+  }
 }
 
-function install(planeStatus: PlaneConnectionStatus): FixtureState {
-  const state: FixtureState = {
+function listResult(items: PlaneWorkItem[], extra: Partial<PlaneWorkItemList> = {}) {
+  return {
+    ok: true,
+    value: {
+      items,
+      errors: [],
+      missingProjectIds: [],
+      truncatedProjectIds: [],
+      totalCapped: false,
+      ...extra
+    }
+  }
+}
+
+function install(planeStatus: PlaneConnectionStatus, overrides: Partial<FixtureState> = {}) {
+  mocks.holder.current = {
     settings: { activeRuntimeEnvironmentId: null },
     runtimeEnvironments: [],
     planeStatus,
     planeStatusChecked: true,
-    planeStatusContextKey: getProviderRuntimeContextKey({ activeRuntimeEnvironmentId: null }),
-    checkPlaneConnection: vi.fn()
+    planeStatusContextKey: CONTEXT_KEY,
+    planeProjects: [WEB, API],
+    planeProjectsContextKey: CONTEXT_KEY,
+    planeWorkItemFiltersByConnection: {},
+    checkPlaneConnection: vi.fn(),
+    loadPlaneProjects: vi.fn(),
+    setPlaneWorkItemFilters: vi.fn(),
+    ...overrides
   }
-  mocks.holder.current = state
-  return state
 }
+
+const connected = (connection: PlaneConnection = CONNECTION): PlaneConnectionStatus => ({
+  connected: true,
+  connection,
+  credentialProtection: 'sealed'
+})
 
 beforeEach(() => {
   mocks.listWorkItems.mockReset()
+  mocks.lookupWorkItem.mockReset()
+  mocks.getWorkItem
+    .mockReset()
+    .mockResolvedValue({ ok: false, error: { kind: 'network', message: '' } })
+  mocks.listComments.mockReset().mockResolvedValue({ ok: true, value: [] })
 })
 afterEach(cleanup)
 
-describe('TaskPagePlaneContent', () => {
+describe('TaskPagePlaneContent states', () => {
   it('offers to connect or hide when Plane is not connected', () => {
     install({ connected: false })
     const onHide = vi.fn()
     render(<TaskPagePlaneContent onHide={onHide} />)
-
     fireEvent.click(screen.getByRole('button', { name: 'Connect Plane' }))
     expect(screen.getByTestId('plane-dialog').textContent).toBe('connect')
     fireEvent.click(screen.getByRole('button', { name: 'Hide Plane' }))
@@ -99,67 +153,180 @@ describe('TaskPagePlaneContent', () => {
   })
 
   it('asks for projects when the connection has no usable scope', () => {
-    install({
-      connected: true,
-      connection: { ...CONNECTION, projectScope: null },
-      credentialProtection: 'sealed'
-    })
+    install(connected({ ...CONNECTION, projectScope: null }))
     render(<TaskPagePlaneContent onHide={vi.fn()} />)
-
     fireEvent.click(screen.getByRole('button', { name: 'Choose projects' }))
     expect(screen.getByTestId('plane-dialog').textContent).toBe('editScope')
     expect(mocks.listWorkItems).not.toHaveBeenCalled()
   })
 
-  it('lists work items with identifier, title and state', async () => {
-    install({ connected: true, connection: CONNECTION, credentialProtection: 'sealed' })
-    mocks.listWorkItems.mockResolvedValue({
-      ok: true,
-      value: {
-        items: [ITEM],
-        errors: [],
-        missingProjectIds: [],
-        truncatedProjectIds: [],
-        totalCapped: false
-      }
-    })
+  it('asks to reconnect when the saved token cannot be read', () => {
+    install({ ...connected(), credentialError: 'unreadable' })
     render(<TaskPagePlaneContent onHide={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Reconnect Plane' }))
+    expect(screen.getByTestId('plane-dialog').textContent).toBe('connect')
+  })
 
+  it('asks to reconnect when Plane rejects the token', async () => {
+    install(connected())
+    mocks.listWorkItems.mockResolvedValue({ ok: false, error: { kind: 'auth', message: 'x' } })
+    render(<TaskPagePlaneContent onHide={vi.fn()} />)
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Reconnect Plane' })).toBeTruthy()
+    )
+  })
+
+  it('shows a spinner while loading, then the list', async () => {
+    install(connected())
+    let resolve: (value: unknown) => void = () => {}
+    mocks.listWorkItems.mockReturnValue(new Promise((done) => (resolve = done)))
+    render(<TaskPagePlaneContent onHide={vi.fn()} />)
+    expect(screen.queryByRole('list')).toBeNull()
+    resolve(listResult([workItem('12', { name: 'Fix login redirect' })]))
     await waitFor(() => expect(screen.getByText('Fix login redirect')).toBeTruthy())
     expect(screen.getByText('WEB-12')).toBeTruthy()
-    expect(screen.getByText('In Progress')).toBeTruthy()
+    expect(screen.getByText('1 shown')).toBeTruthy()
+  })
+
+  it('says when the chosen projects have no work items', async () => {
+    install(connected())
+    mocks.listWorkItems.mockResolvedValue(listResult([]))
+    render(<TaskPagePlaneContent onHide={vi.fn()} />)
+    await waitFor(() =>
+      expect(screen.getByText('No work items in the chosen projects.')).toBeTruthy()
+    )
+  })
+
+  it('offers to clear filters that hide every loaded item', async () => {
+    install(connected(), {
+      planeWorkItemFiltersByConnection: {
+        'conn-1': {
+          projectId: null,
+          stateGroups: ['completed'],
+          stateId: null,
+          assignee: 'anyone',
+          priority: 'any',
+          text: ''
+        }
+      }
+    })
+    mocks.listWorkItems.mockResolvedValue(listResult([workItem('1')]))
+    render(<TaskPagePlaneContent onHide={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('No work items match these filters.')).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+    expect(mocks.holder.current?.setPlaneWorkItemFilters).toHaveBeenCalledWith(
+      'conn-1',
+      expect.objectContaining({ stateGroups: ['backlog', 'unstarted', 'started'] })
+    )
   })
 
   it('switches to the project prompt when the host reports the scope is gone', async () => {
-    install({ connected: true, connection: CONNECTION, credentialProtection: 'sealed' })
-    mocks.listWorkItems.mockResolvedValue({
-      ok: true,
-      value: {
-        items: [],
-        errors: [],
-        missingProjectIds: [],
-        truncatedProjectIds: [],
-        totalCapped: false,
-        needsScope: true
-      }
-    })
+    install(connected())
+    mocks.listWorkItems.mockResolvedValue(listResult([], { needsScope: true }))
     render(<TaskPagePlaneContent onHide={vi.fn()} />)
-
     await waitFor(() => expect(screen.getByText('Choose Plane projects')).toBeTruthy())
   })
+})
 
-  it('shows copy for a failed list instead of the host message', async () => {
-    install({ connected: true, connection: CONNECTION, credentialProtection: 'sealed' })
-    mocks.listWorkItems.mockResolvedValue({
-      ok: false,
-      error: { kind: 'auth', message: 'raw host text' }
+describe('TaskPagePlaneContent banners', () => {
+  it('names the project that failed and why', async () => {
+    install(connected())
+    mocks.listWorkItems.mockResolvedValue(
+      listResult([workItem('1')], { errors: [{ projectId: 'api', kind: 'forbidden' }] })
+    )
+    render(<TaskPagePlaneContent onHide={vi.fn()} />)
+    await waitFor(() =>
+      expect(
+        screen.getByText('API could not be loaded: This token cannot access that Plane workspace.')
+      ).toBeTruthy()
+    )
+  })
+
+  it('reports missing selected projects with an Edit projects action', async () => {
+    install(
+      connected({ ...CONNECTION, projectScope: { mode: 'selected', projectIds: ['web', 'gone'] } })
+    )
+    mocks.listWorkItems.mockResolvedValue(
+      listResult([workItem('1')], { missingProjectIds: ['gone'] })
+    )
+    render(<TaskPagePlaneContent onHide={vi.fn()} />)
+    await waitFor(() =>
+      expect(screen.getByText('1 selected project is no longer available.')).toBeTruthy()
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Edit projects' }))
+    expect(screen.getByTestId('plane-dialog').textContent).toBe('editScope')
+  })
+
+  it('loads more of a truncated project and says when the total is capped', async () => {
+    install(connected())
+    mocks.listWorkItems.mockResolvedValueOnce(
+      listResult([workItem('1')], {
+        truncatedProjectIds: ['web'],
+        nextCursorByProject: { web: '100:1:0' },
+        totalCapped: true
+      })
+    )
+    render(<TaskPagePlaneContent onHide={vi.fn()} />)
+    await waitFor(() =>
+      expect(screen.getByText('Showing the newest work items in Web.')).toBeTruthy()
+    )
+    expect(
+      screen.getByText('Showing the first 500 work items. Choose one project to see more.')
+    ).toBeTruthy()
+    mocks.listWorkItems.mockResolvedValueOnce(listResult([workItem('2')]))
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await waitFor(() => expect(screen.getByText('Item 2')).toBeTruthy())
+  })
+})
+
+describe('TaskPagePlaneContent identifier jump', () => {
+  it('looks up an identifier the list has not loaded and opens its detail', async () => {
+    install(connected(), {
+      planeWorkItemFiltersByConnection: {
+        'conn-1': {
+          projectId: null,
+          stateGroups: ['backlog', 'unstarted', 'started'],
+          stateId: null,
+          assignee: 'anyone',
+          priority: 'any',
+          text: 'WEB-99'
+        }
+      }
+    })
+    mocks.listWorkItems.mockResolvedValue(listResult([workItem('1')]))
+    mocks.lookupWorkItem.mockResolvedValue({
+      ok: true,
+      value: { ...workItem('99', { name: 'Deep link' }), descriptionText: 'Body', truncated: false }
     })
     render(<TaskPagePlaneContent onHide={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('No work items match these filters.')).toBeTruthy())
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Search work items' }), { key: 'Enter' })
+    await waitFor(() => expect(screen.getByText('Deep link')).toBeTruthy())
+    expect(mocks.lookupWorkItem).toHaveBeenCalledWith({ kind: 'local' }, 'WEB-99')
+  })
 
+  it('says when the identifier does not exist', async () => {
+    install(connected(), {
+      planeWorkItemFiltersByConnection: {
+        'conn-1': {
+          projectId: null,
+          stateGroups: [],
+          stateId: null,
+          assignee: 'anyone',
+          priority: 'any',
+          text: 'WEB-404'
+        }
+      }
+    })
+    mocks.listWorkItems.mockResolvedValue(listResult([]))
+    mocks.lookupWorkItem.mockResolvedValue({ ok: false, error: { kind: 'not_found', message: '' } })
+    render(<TaskPagePlaneContent onHide={vi.fn()} />)
     await waitFor(() =>
-      expect(screen.getByRole('alert').textContent).toBe(
-        'Plane rejected this token. Create a new one and try again.'
-      )
+      expect(screen.getByText('No work items in the chosen projects.')).toBeTruthy()
+    )
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Search work items' }), { key: 'Enter' })
+    await waitFor(() =>
+      expect(screen.getByText('WEB-404 was not found in this workspace.')).toBeTruthy()
     )
   })
 })

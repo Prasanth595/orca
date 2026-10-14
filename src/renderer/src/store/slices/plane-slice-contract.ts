@@ -25,8 +25,8 @@ export type PlaneClientResult<T> =
 export type PlaneWorkItemFilters = {
   /** Null = every project in the saved scope. */
   projectId: string | null
-  /** 'open' = backlog + unstarted + started. */
-  stateGroup: 'open' | 'all' | PlaneStateGroup
+  /** Empty = every group. The default "Open" set is backlog + unstarted + started. */
+  stateGroups: PlaneStateGroup[]
   /** Exact state, only meaningful while one project is chosen. */
   stateId: string | null
   /** 'me', 'unassigned', 'anyone', or a member id. */
@@ -37,7 +37,7 @@ export type PlaneWorkItemFilters = {
 
 export const DEFAULT_PLANE_WORK_ITEM_FILTERS: PlaneWorkItemFilters = {
   projectId: null,
-  stateGroup: 'open',
+  stateGroups: ['backlog', 'unstarted', 'started'],
   stateId: null,
   assignee: 'anyone',
   priority: 'any',
