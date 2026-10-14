@@ -143,6 +143,18 @@ describe('agent scan roots from environment overrides', () => {
     expect(roots).toEqual([join(relocated, 'sessions'), join(homedir(), '.hermes', 'sessions')])
   })
 
+  it('folds a HERMES_HOME that only respells the dotfolder on Windows', async () => {
+    const dotfolder = join(homedir(), '.hermes')
+    // The same directory on Windows, a different one on a case-sensitive host.
+    const respelled = dotfolder.replace(/\.hermes$/, '.HERMES').replace(/\\/g, '/')
+    const roots = await rootDirsFor('hermes', { HERMES_HOME: respelled })
+    expect(roots).toEqual(
+      process.platform === 'win32'
+        ? [join(respelled, 'sessions')]
+        : [join(respelled, 'sessions'), join(dotfolder, 'sessions')]
+    )
+  })
+
   it('keeps an explicit transcript root isolated and discovers both WSL layouts', async () => {
     const { AI_VAULT_AGENT_SOURCES } = await import('./session-scanner-agent-sources')
     const custom = join(homedir(), 'custom-devin')

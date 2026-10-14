@@ -2,7 +2,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AI_VAULT_AGENT_SOURCES } from './session-scanner-agent-sources'
-import { ompSessionsRootDirs } from './session-scanner-roots'
+import { ompSessionsRootDirs, uniqueNativeDirs } from './session-scanner-roots'
 
 describe('claude session roots', () => {
   afterEach(() => {
@@ -31,6 +31,32 @@ describe('claude session roots', () => {
         []
       )
     ).toEqual(['/scan/projects'])
+  })
+})
+
+describe('uniqueNativeDirs', () => {
+  // A merged scan walks each root it is given, so a respelled alias doubles every
+  // session it finds there and the duplicates crowd out the per-agent limit.
+  it('collapses Windows roots that differ only in case or separator', () => {
+    expect(
+      uniqueNativeDirs(
+        [
+          'C:\\Users\\Ada\\.hermes\\sessions',
+          'C:/Users/ada/.HERMES/sessions',
+          'C:\\Users\\Ada\\AppData\\Local\\hermes\\sessions'
+        ],
+        'win32'
+      )
+    ).toEqual([
+      'C:\\Users\\Ada\\.hermes\\sessions',
+      'C:\\Users\\Ada\\AppData\\Local\\hermes\\sessions'
+    ])
+  })
+
+  it('keeps case-distinct roots everywhere else', () => {
+    expect(
+      uniqueNativeDirs(['/home/ada/.hermes/sessions', '/home/Ada/.hermes/sessions'], 'linux')
+    ).toEqual(['/home/ada/.hermes/sessions', '/home/Ada/.hermes/sessions'])
   })
 })
 

@@ -1,6 +1,6 @@
 import { claudeProfileHistoryDirs } from '../claude-accounts/claude-profile-installed-router'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { join, win32 } from 'node:path'
 import { resolveAbsoluteDirOverride } from '../../shared/absolute-dir-override'
 import { WSL_CODEX_RUNTIME_HOME_SEGMENTS } from '../pty/codex-home-wsl-env'
 import { resolveOmpSessionsDir } from './omp-session-root'
@@ -72,6 +72,31 @@ export function wslHomeSessionDirs(
 
 export function uniqueDirs(dirs: readonly string[]): string[] {
   return dirs.filter((dir, index) => dirs.indexOf(dir) === index)
+}
+
+/**
+ * Dedupes native host roots the way the host's own filesystem compares them, so an
+ * override that only respells a default root is not scanned twice. The first spelling
+ * survives; the key is for matching only. Not for WSL roots — those stay case-sensitive.
+ *
+ * Callers pass roots already through `join`, which is what settles separators, `..` and
+ * a trailing one; `resolve` is avoided here because it would bind the key to the cwd.
+ */
+export function uniqueNativeDirs(
+  dirs: readonly string[],
+  platform: NodeJS.Platform = process.platform
+): string[] {
+  const seen = new Set<string>()
+  const unique: string[] = []
+  for (const dir of dirs) {
+    const key = platform === 'win32' ? win32.normalize(dir).toLowerCase() : dir
+    if (seen.has(key)) {
+      continue
+    }
+    seen.add(key)
+    unique.push(dir)
+  }
+  return unique
 }
 
 // The local host and each WSL distro's OMP sessions root. Callers reading OMP

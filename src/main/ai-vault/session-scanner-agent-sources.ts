@@ -27,7 +27,7 @@ import {
   codexHomeSessionsDir,
   ompSessionsRootDirs,
   sessionRootDirs,
-  uniqueDirs,
+  uniqueNativeDirs,
   wslHomeSessionDirs
 } from './session-scanner-roots'
 import { SUBAGENT_DIR_NAME } from './session-scanner-subagent-transcripts'
@@ -207,16 +207,17 @@ export const AI_VAULT_AGENT_SOURCES: AiVaultAgentSourceTable = {
     contentDependencyPath: devinSessionsDbDependencyPath
   },
   hermes: {
-    rootDirs: (options, wslHomeDirs) =>
-      uniqueDirs([
-        ...sessionRootDirs(options.hermesSessionsDir ?? HERMES_SESSIONS_DIR, wslHomeDirs, [
-          '.hermes',
-          'sessions'
-        ]),
-        // The dotfolder stays listed on Windows too: snapshots written there
-        // before the home was resolved correctly are still history.
+    rootDirs: (options, wslHomeDirs) => [
+      // The dotfolder stays listed on Windows too: snapshots written there before the
+      // home was resolved correctly are still history. A HERMES_HOME that only respells
+      // it must not become a second root — mergeRootDiscoveries would walk the one
+      // directory twice and its doubled sessions would eat the per-agent limit.
+      ...uniqueNativeDirs([
+        options.hermesSessionsDir ?? HERMES_SESSIONS_DIR,
         ...(options.hermesSessionsDir ? [] : [join(homedir(), '.hermes', 'sessions')])
       ]),
+      ...wslHomeDirs.map((homeDir) => join(homeDir, '.hermes', 'sessions'))
+    ],
     mergeRootDiscoveries: true,
     extensions: ['.json'],
     filePredicate: (filePath) => basename(filePath).startsWith('session_')
