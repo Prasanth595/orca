@@ -264,5 +264,19 @@
     "text": "json.",
     "dynamic": false,
     "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowFormFillEditor.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "{\"key\": \"value\"}",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/workflow-canvas-node-config.ts",
+    "kind": "object-property:label",
+    "text": "name",
+    "dynamic": false,
+    "count": 1
   }
 ]
