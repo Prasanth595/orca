@@ -2,7 +2,8 @@ import type { BrowserWindow } from 'electron'
 import { ipcMain } from 'electron'
 import type { Store } from '../../persistence'
 import type { Project, ProjectUpdateArgs } from '../../../shared/project-types'
-import { normalizeExecutionHostId } from '../../../shared/execution-host'
+import { LOCAL_EXECUTION_HOST_ID, normalizeExecutionHostId } from '../../../shared/execution-host'
+import { getLspSessionManager } from '../../lsp/lsp-session-registry'
 import { enrichRepoGitUsernames } from '../../repo-git-username-enrichment'
 import { enrichMissingRepoGitRemoteIdentities } from '../../repo-git-remote-identity-enrichment'
 import { invalidateAuthorizedRootsCache } from '../registered-worktree-roots-cache'
@@ -84,6 +85,10 @@ export function registerRepoCatalogHandlers(mainWindow: BrowserWindow, store: St
         throw new Error(`Invalid host ID: ${args.hostId}`)
       }
       store.removeProjectForHost(args.repoId, hostId)
+      // Why: servers only run for local repos; a remote forget must not stop the local twin's.
+      if (hostId === LOCAL_EXECUTION_HOST_ID) {
+        getLspSessionManager()?.disposeForRepo(args.repoId)
+      }
       invalidateAuthorizedRootsCache()
       notifyReposChanged(mainWindow)
     }

@@ -3,11 +3,12 @@ import { getLocalPtyProvider } from '../../pty/provider/registry'
 import { clearProviderPtyState } from '../../pty/provider/state-cleanup'
 import { killAllProcessesForWorktree } from '../../../runtime/worktree-teardown'
 import type { Store } from '../../../persistence/loading-store/store'
-import { getRepoExecutionHostId } from '../../../../shared/execution-host'
+import { getRepoExecutionHostId, LOCAL_EXECUTION_HOST_ID } from '../../../../shared/execution-host'
 import type { ExecutionHostId } from '../../../../shared/execution-host'
 import type { Repo } from '../../../../shared/repo-types'
 import { hasWorktreeRemovalRepoOwnerOnOtherHost } from '../../../worktree-removal-repo-owner'
 import { getRepoIdFromWorktreeId } from '../../../../shared/worktree/id'
+import { getLspSessionManager } from '../../../lsp/lsp-session-registry'
 import { advertisedUrlWatcher } from '../../../ports/advertised-url-watcher'
 import { agentHookServer } from '../../../agent-hooks/server'
 import { localhostWorktreeLabelProxy } from '../../../localhost-worktree-label-proxy'
@@ -87,6 +88,10 @@ export function removeWorktreeMetadataAndTransientState(
     store.removeWorktreeMeta(worktreeId, hostId)
   } else {
     store.removeWorktreeMeta(worktreeId)
+  }
+  // Why: sessions are local-only; a remote removal must not kill a local session that shares the path-derived ID.
+  if (!hostId || hostId === LOCAL_EXECUTION_HOST_ID) {
+    getLspSessionManager()?.disposeForWorktree(worktreeId)
   }
   // Why outside the same-id gate: retirement is per host and per pane, so a surviving owner keeps its own.
   agentHookServer.dropStatusEntriesForRemovedWorktree(worktreeId, hostId ?? persistedHostId)

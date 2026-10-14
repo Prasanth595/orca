@@ -1,8 +1,9 @@
-import { getRepoExecutionHostId } from '../../shared/execution-host'
+import { getRepoExecutionHostId, LOCAL_EXECUTION_HOST_ID } from '../../shared/execution-host'
 import { isFolderRepo } from '../../shared/repo-kind'
 import type { Repo } from '../../shared/repo-types'
 import type { GhAccountBinding } from '../../shared/github/account-binding'
 import { invalidateAuthorizedRootsCache } from '../ipc/filesystem-auth'
+import { getLspSessionManager } from '../lsp/lsp-session-registry'
 import { prepareLocalWorktreeRootForRepo } from '../worktree-root-preparation'
 import type { RuntimeStore } from './runtime-store-contract'
 
@@ -109,7 +110,12 @@ export class RuntimeRepositorySettingsController {
       throw new Error('runtime_unavailable')
     }
     const repo = await this.deps.resolveRepo(repoSelector)
-    store.removeProjectForHost(repo.id, getRepoExecutionHostId(repo))
+    const hostId = getRepoExecutionHostId(repo)
+    store.removeProjectForHost(repo.id, hostId)
+    // Why: servers only run for local repos; a remote removal must not stop the local twin's.
+    if (hostId === LOCAL_EXECUTION_HOST_ID) {
+      getLspSessionManager()?.disposeForRepo(repo.id)
+    }
     this.deps.forgetTerminalTopology(repo.id)
     this.deps.invalidateResolvedWorktrees()
     this.deps.invalidateWorktreeScan(repo.id)

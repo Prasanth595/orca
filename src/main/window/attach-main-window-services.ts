@@ -12,6 +12,8 @@ import { setRepoRemoteClientNotifier } from '../ipc/repos/repos-changed-notifica
 import { setWorktreeCatalogRemoteClientNotifier } from '../ipc/watched-worktree-catalog-notification'
 import { registerWorktreeHandlers } from '../ipc/worktrees'
 import { registerWorkspaceCleanupHandlers } from '../ipc/workspace-cleanup'
+import { registerLspHandlers } from '../ipc/lsp'
+import { installLspSessionManager } from '../lsp/lsp-session-registry'
 import { registerPtyHandlers } from '../ipc/pty/register-handlers'
 import type {
   CodexHomePtySpawnedLifecycleArgs,
@@ -85,6 +87,7 @@ export function attachMainWindowServices(
   // marker poll to upgrade them without a restart (#11477).
   startFolderRepoGitUpgradeWatch(store, mainWindow)
   registerWorkspaceCleanupHandlers(store)
+  registerLspHandlers(installLspSessionManager(store), store)
   registerPtyHandlers(
     mainWindow,
     runtime,

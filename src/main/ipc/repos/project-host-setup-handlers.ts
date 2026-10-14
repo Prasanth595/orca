@@ -14,7 +14,12 @@ import type {
 } from '../../../shared/project-types'
 import { getProjectIdForProviderIdentity } from '../../../shared/project-host-setup-projection'
 import { getProjectHostSetupForRepo } from '../../../shared/project-host-setup-lookup'
-import { getRepoExecutionHostId, parseExecutionHostId } from '../../../shared/execution-host'
+import {
+  getRepoExecutionHostId,
+  LOCAL_EXECUTION_HOST_ID,
+  parseExecutionHostId
+} from '../../../shared/execution-host'
+import { getLspSessionManager } from '../../lsp/lsp-session-registry'
 import { prepareLocalWorktreeRootForRepo } from '../../worktree-root-preparation'
 import { invalidateAuthorizedRootsCache } from '../registered-worktree-roots-cache'
 import { emitRepoAdded } from './repo-added-telemetry'
@@ -127,6 +132,10 @@ export function registerProjectHostSetupHandlers(mainWindow: BrowserWindow, stor
       const result = store.deleteProjectHostSetup(args)
       if (!result) {
         throw new Error(`Project host setup not found: ${args.setupId}`)
+      }
+      // Why: servers only run for local repos; a remote removal must not stop the local twin's.
+      if (result.repo && getRepoExecutionHostId(result.repo) === LOCAL_EXECUTION_HOST_ID) {
+        getLspSessionManager()?.disposeForRepo(result.repo.id)
       }
       notifyReposChanged(mainWindow)
       return result

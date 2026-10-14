@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { loadNodeOniguruma } from '../syntax-highlighting/oniguruma-test-harness'
 import { loadNimTextMateGrammar } from './register-nim'
+import { loadRubyTextMateGrammar } from './register-ruby'
 import { loadTypstTextMateGrammar } from './register-typst'
 import { createTextMateTokensProvider } from './textmate-token-provider'
 
@@ -100,6 +101,75 @@ describe('createTextMateTokensProvider', () => {
     state = provider.tokenize('*/ still outer', state).endState
     expect(provider.tokenize('#let hidden = 2', state).tokens.map((token) => token.scopes)).toEqual(
       ['comment.block.typst']
+    )
+  })
+
+  it('tokenizes Ruby with the vendored VS Code grammar', async () => {
+    const provider = await createTextMateTokensProvider({ loadGrammar: loadRubyTextMateGrammar })
+    let state = provider.getInitialState()
+    const tokensOf = (line: string) => {
+      const result = provider.tokenize(line, state)
+      state = result.endState
+      return result.tokens.map((token, index) => ({
+        text: line.slice(token.startIndex, result.tokens[index + 1]?.startIndex),
+        scope: token.scopes
+      }))
+    }
+
+    expect(tokensOf('  def greet(name)')).toEqual(
+      expect.arrayContaining([
+        { text: 'def', scope: 'keyword.control.def.ruby' },
+        { text: 'greet', scope: 'entity.name.function.ruby' }
+      ])
+    )
+    expect(tokensOf('    @count = :ready')).toEqual(
+      expect.arrayContaining([
+        { text: 'count', scope: 'variable.other.readwrite.instance.ruby' },
+        { text: 'ready', scope: 'constant.language.symbol.ruby' }
+      ])
+    )
+    expect(tokensOf('    puts "Hi #{name}"')).toEqual(
+      expect.arrayContaining([
+        { text: '#{', scope: 'punctuation.section.embedded.begin.ruby' },
+        { text: 'name', scope: 'source.ruby' },
+        { text: '}', scope: 'punctuation.section.embedded.end.ruby' }
+      ])
+    )
+    expect(tokensOf('    text = <<~TEXT')).toContainEqual({
+      text: '<<~TEXT',
+      scope: 'string.definition.begin.ruby'
+    })
+    expect(tokensOf('      Hello')).toEqual([
+      { text: '      Hello', scope: 'string.unquoted.heredoc.ruby' }
+    ])
+    expect(tokensOf('    TEXT')).toEqual([
+      { text: '    TEXT', scope: 'string.definition.end.ruby' }
+    ])
+    expect(tokensOf('  end')).toContainEqual({ text: 'end', scope: 'keyword.control.ruby' })
+  })
+
+  it('keeps tokenizing Ruby heredocs that embed unvendored grammars', async () => {
+    const provider = await createTextMateTokensProvider({ loadGrammar: loadRubyTextMateGrammar })
+    const lines = [
+      'sql = <<~SQL',
+      '  SELECT * FROM users',
+      'SQL',
+      'html = <<~HTML',
+      '  <p>hi</p>',
+      'HTML'
+    ]
+    let state = provider.getInitialState()
+    const lineTokens = lines.map((line) => {
+      const result = provider.tokenize(line, state)
+      state = result.endState
+      return result.tokens
+    })
+
+    expect(lineTokens.every((tokens) => tokens.length > 0)).toBe(true)
+    expect(lineTokens[1]).toEqual([{ startIndex: 0, scopes: 'source.sql' }])
+    expect(lineTokens[2].map((token) => token.scopes)).toEqual(['string.definition.end.ruby'])
+    expect(provider.tokenize('x = 1', state).tokens.map((token) => token.scopes)).toContain(
+      'constant.numeric.ruby'
     )
   })
 
