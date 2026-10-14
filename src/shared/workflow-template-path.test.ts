@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { resolveTemplateExpr, buildTemplateExpr } from './workflow-template-path'
+import {
+  resolveTemplateExpr,
+  buildTemplateExpr,
+  resolveTemplatesDeep
+} from './workflow-template-path'
 
 const STEPS = {
   n1: { output: 'hello', json: { field: 'value', nested: { deep: 42 }, arr: ['x', 'y'] } }
@@ -62,5 +66,27 @@ describe('buildTemplateExpr', () => {
 
   it('builds json expression with array index', () => {
     expect(buildTemplateExpr('n1', ['arr', 0])).toBe('{{steps.n1.json.arr[0]}}')
+  })
+})
+
+describe('resolveTemplatesDeep', () => {
+  it('resolves strings nested in objects and arrays, leaving other values intact', () => {
+    const input = {
+      url: 'https://x/{{steps.n1.json.field}}',
+      list: [{ name: 'k', value: '{{steps.n1.json.arr[1]}}' }],
+      nested: { deep: { s: '{{steps.n1.output}}', n: 5, b: true, z: null } }
+    }
+    expect(resolveTemplatesDeep(input, STEPS)).toEqual({
+      url: 'https://x/value',
+      list: [{ name: 'k', value: 'y' }],
+      nested: { deep: { s: 'hello', n: 5, b: true, z: null } }
+    })
+  })
+
+  it('does not mutate the input and leaves non-step placeholders alone', () => {
+    const input = { page: '{{$pageCount + 1}}', next: '{{$response.body.next}}' }
+    const out = resolveTemplatesDeep(input, STEPS)
+    expect(out).toEqual(input)
+    expect(out).not.toBe(input)
   })
 })

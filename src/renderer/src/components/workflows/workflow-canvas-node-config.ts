@@ -7,6 +7,7 @@ import {
   FileText,
   FilePen,
   Mail,
+  Globe,
   Braces,
   GitBranch,
   Repeat,
@@ -15,6 +16,7 @@ import {
   type LucideIcon
 } from 'lucide-react'
 import type { WorkflowNode, WorkflowNodeType } from '../../../../shared/workflow-types'
+import { defaultHttpRequestData } from '../../../../shared/workflow-http-request-defaults'
 
 // ─── Port layout ─────────────────────────────────────────────────────────────
 
@@ -84,6 +86,7 @@ export const NODE_TYPE_LABELS: Record<WorkflowNodeType, string> = {
   file_read: 'File Read',
   file_write: 'File Write',
   email_send: 'Email Send',
+  http_request: 'HTTP Request',
   json_transform: 'JSON Transform',
   branch: 'Branch',
   for_each: 'For Each',
@@ -100,6 +103,7 @@ export const NODE_TYPE_ICON_COLORS: Record<WorkflowNodeType, string> = {
   file_read: 'text-amber-500',
   file_write: 'text-orange-500',
   email_send: 'text-pink-500',
+  http_request: 'text-sky-500',
   json_transform: 'text-cyan-500',
   branch: 'text-yellow-500',
   for_each: 'text-teal-500',
@@ -116,6 +120,7 @@ export const NODE_TYPE_ICONS: Record<WorkflowNodeType, LucideIcon> = {
   file_read: FileText,
   file_write: FilePen,
   email_send: Mail,
+  http_request: Globe,
   json_transform: Braces,
   branch: GitBranch,
   for_each: Repeat,
@@ -132,6 +137,7 @@ export const NODE_TYPE_COLORS: Record<WorkflowNodeType, string> = {
   file_read: 'border-amber-400 bg-amber-50 dark:bg-amber-950/30',
   file_write: 'border-orange-400 bg-orange-50 dark:bg-orange-950/30',
   email_send: 'border-pink-400 bg-pink-50 dark:bg-pink-950/30',
+  http_request: 'border-sky-400 bg-sky-50 dark:bg-sky-950/30',
   json_transform: 'border-cyan-400 bg-cyan-50 dark:bg-cyan-950/30',
   branch: 'border-yellow-400 bg-yellow-50 dark:bg-yellow-950/30',
   for_each: 'border-teal-400 bg-teal-50 dark:bg-teal-950/30',
@@ -157,6 +163,8 @@ export function nodeLabel(node: WorkflowNode): string {
       return node.label || 'Manual'
     case 'email_send':
       return node.label || node.data.to || node.id.slice(0, 8)
+    case 'http_request':
+      return node.label || (node.data.url ? `${node.data.method} ${node.data.url}` : 'HTTP Request')
     case 'json_transform':
       return node.label || node.data.expression.slice(0, 30) || node.id.slice(0, 8)
     case 'branch':
@@ -179,6 +187,7 @@ export const ADD_NODE_TYPES: WorkflowNodeType[] = [
   'file_read',
   'file_write',
   'email_send',
+  'http_request',
   'json_transform',
   'form_input',
   'branch',
@@ -194,6 +203,7 @@ export const ACTION_NODE_TYPES: WorkflowNodeType[] = [
   'agent_call',
   'file_read',
   'file_write',
+  'http_request',
   'json_transform',
   'email_send',
   'form_input'
@@ -249,6 +259,8 @@ export function buildDefaultNode(
       }
     case 'email_send':
       return { id, type, pos, data: { to: '', subject: '', body: '', smtpProfileId: null } }
+    case 'http_request':
+      return { id, type, pos, data: defaultHttpRequestData() }
     case 'json_transform':
       return { id, type, pos, data: { expression: '' } }
     case 'branch':

@@ -22,6 +22,7 @@ const NODE_TYPE_LABELS: Record<string, string> = {
   file_read: 'File Read',
   file_write: 'File Write',
   email_send: 'Email',
+  http_request: 'HTTP',
   json_transform: 'JSON'
 }
 

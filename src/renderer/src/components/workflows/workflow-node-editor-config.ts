@@ -45,7 +45,7 @@ export function operatorNeedsValue(op: BranchConditionOperator): boolean {
 }
 
 export function getGenericFieldKeys(keys: string[], nodeType: string): string[] {
-  if (nodeType === 'branch' || nodeType === 'form_input') {
+  if (nodeType === 'branch' || nodeType === 'form_input' || nodeType === 'http_request') {
     return []
   }
   const excluded = new Set(['retryCount', 'retryDelaySeconds'])

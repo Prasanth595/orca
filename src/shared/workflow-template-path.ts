@@ -98,3 +98,25 @@ export function resolveTemplateExpr(
     return match
   })
 }
+
+/** Resolves templates in every string nested inside `value`, preserving its shape. */
+export function resolveTemplatesDeep<T>(
+  value: T,
+  steps: Record<string, { output: string; json: unknown }>
+): T {
+  if (typeof value === 'string') {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: T is string in this branch
+    return resolveTemplateExpr(value, steps) as T
+  }
+  if (Array.isArray(value)) {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: mapping preserves element shape
+    return value.map((v: unknown) => resolveTemplatesDeep(v, steps)) as T
+  }
+  if (value !== null && typeof value === 'object') {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: rebuilds the same keys with same-shaped values
+    return Object.fromEntries(
+      Object.entries(value).map(([k, v]) => [k, resolveTemplatesDeep(v, steps)])
+    ) as T
+  }
+  return value
+}

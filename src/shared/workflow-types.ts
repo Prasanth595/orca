@@ -1,4 +1,7 @@
 import type { TuiAgent } from './tui-agent'
+import type { HttpRequestData } from './workflow-http-request-types'
+
+export type { HttpRequestData } from './workflow-http-request-types'
 
 // ─── Node type discriminants ─────────────────────────────────────────────────
 
@@ -11,6 +14,7 @@ export type WorkflowNodeType =
   | 'file_read'
   | 'file_write'
   | 'email_send'
+  | 'http_request'
   | 'json_transform'
   | 'branch'
   | 'for_each'
@@ -136,6 +140,7 @@ export type WorkflowNodeData =
   | FileReadData
   | FileWriteData
   | EmailSendData
+  | HttpRequestData
   | JsonTransformData
   | BranchData
   | ForEachData
@@ -202,6 +207,15 @@ export type WorkflowNode =
       type: 'email_send'
       pos: Vec2
       data: EmailSendData
+      label?: string
+      retryCount?: number
+      retryDelaySeconds?: number
+    }
+  | {
+      id: string
+      type: 'http_request'
+      pos: Vec2
+      data: HttpRequestData
       label?: string
       retryCount?: number
       retryDelaySeconds?: number
