@@ -3,10 +3,8 @@ import { defaultAgentChatLabel } from '../../shared/agent-session-chat-label'
 import { OrcaRuntimeWithGetStructuredAgentSessionCreateSupport } from './orca-runtime-get-structured-agent-session-create-support'
 import { getStructuredAgentSessionHost } from '../native-chat/agent-session-wire/structured-agent-session-registry'
 import { collectSavedStructuredAgentSessionIds } from './saved-structured-agent-session-restoration'
-import {
-  chatTabChangesMatchingIndex,
-  seedStructuredAgentSessionTabIndex
-} from './structured-agent-session-tab-index-seed'
+import { restoreStructuredAgentSessionTabPublications } from './structured-agent-session-tab-restoration'
+import { chatTabChangesMatchingIndex } from './structured-agent-session-tab-index-seed'
 import { chatTabId } from './agent-session-tab-layout'
 import { structuredSessionTabRetired } from './structured-worker-custody'
 import { LOCAL_EXECUTION_HOST_ID } from '../../shared/execution-host'
@@ -42,59 +40,48 @@ export type AgentLaunchScope = Parameters<
 
 export class OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce extends OrcaRuntimeWithGetStructuredAgentSessionCreateSupport {
   protected async restoreStructuredAgentSessionTabsOnce(): Promise<void> {
-    await this.prepareStructuredAgentSessionStartupRestoration()
-    const host = getStructuredAgentSessionHost()
-    const persistedVisibleIndex =
-      typeof host?.getPersistedVisibleSessionTabIndex === 'function'
-        ? host.getPersistedVisibleSessionTabIndex()
-        : { present: false, sessionIds: [] }
     const profileIds = collectSavedStructuredAgentSessionIds(
       this.store?.getWorkspaceSession?.(LOCAL_EXECUTION_HOST_ID) ?? null
     )
-    const targets = persistedVisibleIndex.present ? persistedVisibleIndex.sessionIds : profileIds
-    await host?.restoreReadableSessions(targets)
-    for (const worktreeId of this.getKnownWorkspaceSessionWorktreeIds()) {
-      this.hydrateHeadlessMobileSessionTabsFromWorkspaceSession(worktreeId, {
-        allowAttachedWindow: true,
-        onlyRuntimeOwnedTerminals: true
-      })
-    }
-    this.hydrateHeadlessMobileSessionTabsFromWorkspaceSession()
-    // Every session here is of an agent this host registered: its store holds no other agent's records.
-    const restored = (host?.listSessionTabs() ?? []).flatMap((session) => {
-      let sessionId = session.sessionId
-      while (sessionId.startsWith('agent-session:')) {
-        sessionId = sessionId.slice('agent-session:'.length)
-      }
-      return [{ ...session, agent: session.agent, sessionId }]
-    })
-    await seedStructuredAgentSessionTabIndex(
-      host,
-      targets,
-      restored.map((session) => session.sessionId)
-    )
-    const changes = chatTabChangesMatchingIndex(
-      this.store?.getWorkspaceSession?.(LOCAL_EXECUTION_HOST_ID)?.unifiedTabs ?? {},
-      restored.map((session) => ({
-        worktreeId: session.workspaceId,
-        open: {
-          sessionId: session.sessionId,
-          agent: session.agent,
-          tabId: chatTabId(session.sessionId)
+    await restoreStructuredAgentSessionTabPublications({
+      runtime: this,
+      getHost: getStructuredAgentSessionHost,
+      profileIds,
+      prepare: () => this.prepareStructuredAgentSessionStartupRestorationStage(),
+      hydrate: () => {
+        for (const worktreeId of this.getKnownWorkspaceSessionWorktreeIds()) {
+          this.hydrateHeadlessMobileSessionTabsFromWorkspaceSession(worktreeId, {
+            allowAttachedWindow: true,
+            onlyRuntimeOwnedTerminals: true
+          })
         }
-      })),
-      // A chat a newer Orca wrote is only unreadable here, so it keeps its tab.
-      (sessionId) =>
-        !!host &&
-        structuredSessionTabRetired(host, sessionId) &&
-        !host.deps?.store?.isSessionUnreadable?.(sessionId)
-    )
-    for (const [worktreeId, worktreeChanges] of changes) {
-      this.changeWindowlessChatTabs(worktreeId, worktreeChanges)
-    }
-    for (const session of restored) {
-      this.projectStructuredAgentSessionTab({ ...session, activate: false, notify: false })
-    }
+        this.hydrateHeadlessMobileSessionTabsFromWorkspaceSession()
+      },
+      reconcile: (restored) => {
+        const host = getStructuredAgentSessionHost()
+        const changes = chatTabChangesMatchingIndex(
+          this.store?.getWorkspaceSession?.(LOCAL_EXECUTION_HOST_ID)?.unifiedTabs ?? {},
+          restored.map((session) => ({
+            worktreeId: session.workspaceId,
+            open: {
+              sessionId: session.sessionId,
+              agent: session.agent,
+              tabId: chatTabId(session.sessionId)
+            }
+          })),
+          (sessionId) =>
+            !!host &&
+            structuredSessionTabRetired(host, sessionId) &&
+            !host.deps?.store?.isSessionUnreadable?.(sessionId)
+        )
+        for (const [worktreeId, worktreeChanges] of changes) {
+          this.changeWindowlessChatTabs(worktreeId, worktreeChanges)
+        }
+      },
+      project: (session) =>
+        this.projectStructuredAgentSessionTab({ ...session, activate: false, notify: false })
+    })
+    const host = getStructuredAgentSessionHost()
     const wasUnverifiable = this.structuredAgentSessionInventoryUnverifiable
     // No host means no one can say which chats exist; with none on disk, empty is the answer.
     this.structuredAgentSessionInventoryUnverifiable =
@@ -113,7 +100,11 @@ export class OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce extends OrcaRu
     notify?: boolean
     /** The host tab id a create reserved; a session that already has a tab keeps its own. */
     tabId?: string
+    signal?: AbortSignal
   }): Promise<void> {
+    if (input.signal?.aborted) {
+      return
+    }
     const host = getStructuredAgentSessionHost()
     if (typeof host?.setSessionTabVisibility === 'function') {
       // The restore index is bookkeeping: one that cannot be written (a newer Orca's records, a
@@ -128,8 +119,10 @@ export class OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce extends OrcaRu
           })
         })
     }
-    this.saveWindowlessAgentSessionTab(input.workspaceId, input)
-    this.projectStructuredAgentSessionTab(input)
+    if (!input.signal?.aborted) {
+      this.saveWindowlessAgentSessionTab(input.workspaceId, input)
+      this.projectStructuredAgentSessionTab(input)
+    }
   }
 
   /** The runtime's own snapshot of a chat tab. Records nothing: the caller owns the store write. */
