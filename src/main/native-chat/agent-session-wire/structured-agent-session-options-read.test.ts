@@ -1,8 +1,10 @@
-// A chat's options at rest come from the host catalog without waiting on a listing.
+// A chat's options at rest come from the host catalog without waiting on a listing, unless its
+// agent starts on the first send and the listing is its picker's only source.
 
 import { describe, expect, it, vi } from 'vitest'
 import type { AgentSessionRecord } from '../../../shared/agent-session-record'
 import { createAgentModelCatalogService } from '../agent-model-catalog/agent-model-catalog-service'
+import { workspaceMayOverrideDefaultModel } from '../agent-model-catalog/agent-project-model-override'
 import {
   AgentModelCatalogStore,
   type AgentModelCatalogSuccess
@@ -11,6 +13,9 @@ import type { StructuredAgentSessionMutationContext } from './structured-agent-s
 import { readStructuredAgentSessionOptions } from './structured-agent-session-options-read'
 import { StructuredAgentSessionTaskQueue } from './structured-agent-session-task-queue'
 import { NO_STRUCTURED_AGENTS } from './structured-agent-session-adapter-router-test-support'
+import { StructuredAgentRegistry } from './structured-agent-registry'
+import type { StructuredAgentSessionAdapter } from './structured-agent-session-adapter'
+import { CURSOR_STRUCTURED_AGENT } from '../../cursor/cursor-structured-agent-definition'
 
 const SESSION = 'session-1'
 
@@ -73,6 +78,52 @@ describe('options at rest', () => {
       })
     }
   )
+
+  it('waits for the first listing where the agent starts on the first send', async () => {
+    const record = {
+      ...restingRecord(),
+      provider: 'cursor',
+      accountHome: { variable: 'CURSOR_SDK_HOME', path: '/homes/cursor' }
+    }
+    const listed = Promise.withResolvers<AgentModelCatalogSuccess>()
+    const modelCatalog = createAgentModelCatalogService({
+      store: new AgentModelCatalogStore(),
+      getRecord: () => record,
+      drivesRecord: () => true,
+      resolveAccountHome: async () => ({ variable: 'CURSOR_SDK_HOME', path: '/homes/cursor' }),
+      probes: { cursor: () => listed.promise },
+      recordWorkspacePath: async () => '/repo',
+      workspaceMayOverrideDefaultModel
+    })
+    const resting = {
+      child: null,
+      params: { provider: 'cursor' },
+      journal: { context: { floor: () => null }, contextUsage: () => null }
+    }
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: a registry entry reads only the optional methods its definition declares; Cursor's resting read declares none.
+    const adapter = {} as StructuredAgentSessionAdapter
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the resting read touches only these members.
+    const context = {
+      deps: {
+        adapter: {},
+        agents: new StructuredAgentRegistry([{ definition: CURSOR_STRUCTURED_AGENT, adapter }]),
+        store: { getRecord: () => record },
+        modelCatalog
+      },
+      serialize: (_sessionId: string, task: () => Promise<unknown>) => task(),
+      openConversation: async () => resting,
+      conversation: async () => resting
+    } as unknown as StructuredAgentSessionMutationContext
+
+    const read = readStructuredAgentSessionOptions(context, SESSION, { readsWithoutModel: true })
+    listed.resolve({
+      models: [{ id: 'composer-2.5', label: 'Composer 2.5', isDefault: true, efforts: [] }],
+      origin: 'probe'
+    })
+    const result = await read
+    expect(result.models.map((model) => model.id)).toEqual(['composer-2.5'])
+    expect(result.current.model).toBe('composer-2.5')
+  })
 })
 
 describe('live Codex option reads', () => {

@@ -251,6 +251,7 @@ export class OrcaRuntimeWithGetWorktreePs extends OrcaRuntimeWithStartTuiIdleVis
         nativeChatShellEnvironmentPolicy(this.requireStore().getSettings()),
       resolveClaudeAuthPolicy: () =>
         claudeStructuredAuthPolicyForSettings(this.requireStore().getSettings()),
+      resolveCursorApiKey: () => this.requireStore().getSettings().cursorSdkApiKey,
       resolveAgentFullAccess: (agent) =>
         isTuiAgent(agent) &&
         resolvedTuiAgentArgsBypassPermissions(

@@ -3,6 +3,7 @@ import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import type { AgentPermissionMode } from '../../../../shared/tui-agent-permissions'
 import { getLocalExecutionHostLabel } from '../../../../shared/execution-host'
 import { useAppStore } from '@/store'
+import { DebouncedSettingsTextInput } from './DebouncedSettingsTextInput'
 import { AgentAwakeSetting } from './AgentAwakeSetting'
 import { AgentCacheTimerSection } from './AgentCacheTimerSection'
 import { AgentRuntimeSetting } from './AgentRuntimeSetting'
@@ -156,6 +157,29 @@ export function AgentsPane({
           wslDistros={wslDistros}
           wslCapabilitiesLoading={wslCapabilitiesLoading}
         />
+        <section className="space-y-2">
+          <SettingsSubsectionHeader
+            title={translate(
+              'auto.components.settings.AgentsPane.cursorSdkApiKey',
+              'Cursor API key'
+            )}
+            description={translate(
+              'auto.components.settings.AgentsPane.cursorSdkApiKeyDescription',
+              'Optional. Structured Cursor chat uses this key instead of a browser login. Leave it empty to sign in in the browser.'
+            )}
+          />
+          <DebouncedSettingsTextInput
+            value={settings.cursorSdkApiKey ?? ''}
+            commit={(next) => updateSettings({ cursorSdkApiKey: next.trim() })}
+            type="password"
+            autoComplete="off"
+            spellCheck={false}
+            aria-label={translate(
+              'auto.components.settings.AgentsPane.cursorSdkApiKey',
+              'Cursor API key'
+            )}
+          />
+        </section>
         <AgentStatusHooksSetting settings={settings} updateSettings={updateSettings} />
         {!isPairedWebClientWindow() ? (
           <>

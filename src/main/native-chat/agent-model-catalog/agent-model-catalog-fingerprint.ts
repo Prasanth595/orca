@@ -13,12 +13,15 @@ import {
  * Everything that changes which models a listing can answer with: the agent,
  * the account home the CLI reads credentials/config from, and the execution
  * host that runs the binary. Login-state or CLI-version drift under the same
- * key is corrected by the next refresh, never by the fingerprint.
+ * key is corrected by the next refresh, never by the fingerprint. `credentialScope`
+ * is the exception: a hashed API key must not reuse the previous listing.
  */
 export type AgentModelCatalogIdentity = {
   agent: string
   /** Null on the native host; WSL distros each carry their own CLI. */
   wslDistro: string | null
+  /** Secret-free credential id. Absent for agents whose login is the account home. */
+  credentialScope?: string
 } & (
   | { accountHomeVariable: string; accountHomePath: string; accountHome?: never }
   | { accountHome: AgentSessionAccountHome; accountHomeVariable?: never; accountHomePath?: never }
@@ -31,9 +34,20 @@ export function agentModelCatalogFingerprint(identity: AgentModelCatalogIdentity
       ? [account.variable, account.path]
       : [account.kind, account.locator]
     : [identity.accountHomeVariable, identity.accountHomePath]
-  return createHash('sha256')
-    .update(JSON.stringify([identity.agent, ...parts, identity.wslDistro ?? '']))
-    .digest('hex')
+  const hashed = [identity.agent, ...parts, identity.wslDistro ?? '']
+  if (identity.credentialScope) {
+    hashed.push(identity.credentialScope)
+  }
+  return createHash('sha256').update(JSON.stringify(hashed)).digest('hex')
+}
+
+/** Cursor's listing also depends on the API key setting, named by `cursorCredentialScope`. */
+export function agentModelCatalogScopedFingerprint(
+  identity: AgentModelCatalogIdentity,
+  cursorCredentialScope?: () => string
+): string {
+  const credentialScope = identity.agent === 'cursor' ? cursorCredentialScope?.() : undefined
+  return agentModelCatalogFingerprint(credentialScope ? { ...identity, credentialScope } : identity)
 }
 
 /** The durable record pins the account home at launch, so this names the
@@ -49,9 +63,13 @@ export function agentModelCatalogIdentityForRecord(
 }
 
 export function agentModelCatalogFingerprintForRecord(
-  record: Pick<AgentSessionRecord, 'provider' | 'accountHome' | 'location'>
+  record: Pick<AgentSessionRecord, 'provider' | 'accountHome' | 'location'>,
+  cursorCredentialScope?: () => string
 ): string {
-  return agentModelCatalogFingerprint(agentModelCatalogIdentityForRecord(record))
+  return agentModelCatalogScopedFingerprint(
+    agentModelCatalogIdentityForRecord(record),
+    cursorCredentialScope
+  )
 }
 
 /** A live session's store handle, pinned to the account home it spawned under.

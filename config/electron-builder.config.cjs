@@ -375,10 +375,17 @@ module.exports = {
     'out/main/orcad/orcad-local-serve-selection-entry.js',
     'out/main/chunks/**',
     'resources/**',
+    'out/main/cursor-sdk-sidecar.js',
     'node_modules/ws/**',
     'node_modules/tweetnacl/**',
     'node_modules/zod/**',
-    'node_modules/yaml/**'
+    'node_modules/yaml/**',
+    // Why: the sidecar runs as plain Node, so the SDK and the packages it
+    // requires at runtime have to sit outside app.asar.
+    'node_modules/@cursor/**',
+    'node_modules/@bufbuild/**',
+    'node_modules/@connectrpc/**',
+    'node_modules/@statsig/**'
   ],
   artifactBuildCompleted: ({ file, arch }) => {
     if (file.endsWith('.AppImage')) {

@@ -17,6 +17,13 @@ import { nativeChatScratchFolderName, nativeChatScratchRootFor } from './native-
 /** `removed` only on positive proof from the host that owns the workspace. */
 export type NativeChatVisualsWorkspaceVerdict = 'present' | 'removed' | 'unverifiable'
 
+/** A real host's scratch-folder wiring for the structured-session runtime. */
+export type NativeChatVisualsHostDeps = {
+  /** Read this host's preference when a chat starts a provider process. */
+  isEnabled: () => boolean
+  workspaceVerdicts: NonNullable<NativeChatVisualsSweepDeps['workspaceVerdicts']>
+}
+
 export type NativeChatVisualsSweepDeps = {
   stateDirectory: string
   /** Every chat this host holds a row for, readable or not; null when that can't be trusted. */
