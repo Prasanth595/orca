@@ -30,6 +30,8 @@ export function registerTerminalPaneRevealIpcBridge(unsubs: (() => void)[]): voi
       let revealed = false
       try {
         revealed = revealTerminalPane({ ...target, tabId: toWindowTabId(target) })
+      } catch (error) {
+        console.error('Failed to reveal terminal pane:', error)
       } finally {
         // Why: main holds the caller's RPC open until this reply, so a throw must still answer.
         window.api.ui.replyTerminalPaneReveal({ requestId, revealed })

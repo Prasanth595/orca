@@ -113,7 +113,11 @@ describe('registerTerminalPaneRevealIpcBridge', () => {
       throw new Error('store unavailable')
     })
 
-    expect(() => deliver(request)).toThrow('store unavailable')
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    expect(() => deliver(request)).not.toThrow()
     expect(reply).toHaveBeenCalledWith({ requestId: 'request-1', revealed: false })
+    expect(consoleError).toHaveBeenCalledWith('Failed to reveal terminal pane:', expect.any(Error))
+    consoleError.mockRestore()
   })
 })
