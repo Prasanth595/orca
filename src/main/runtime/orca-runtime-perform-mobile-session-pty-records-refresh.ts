@@ -16,6 +16,11 @@ import { parseWorkspaceKey } from '../../shared/workspace-scope'
 import { navigationTargetsHost } from '../../shared/runtime-navigation'
 import { isAutomaticTabActivation } from '../../shared/tab-activation-intent'
 import { parseAppSshPtyId } from '../../shared/ssh-pty-id'
+import { isTuiAgentEnabled } from '../../shared/tui-agent-selection'
+import {
+  isResumableTuiAgent,
+  normalizeAgentProviderSession
+} from '../../shared/agent-session-resume'
 import { isWorktreeTerminalsSleepingError } from './worktree-terminals-sleeping-error'
 
 export class OrcaRuntimeWithPerformMobileSessionPtyRecordsRefresh extends OrcaRuntimeWithBuildHeadlessMobileSessionBrowserTabs {
@@ -174,19 +179,44 @@ export class OrcaRuntimeWithPerformMobileSessionPtyRecordsRefresh extends OrcaRu
           ReturnType<OrcaRuntimeService['resolveMobileSessionTerminalCommand']>
         > = {}
         if (tab.launchAgent) {
-          let workspace
-          try {
-            workspace = await this.resolveTerminalWorkspaceLaunchScope(`id:${worktreeId}`)
-            agentStartup = await this.resolveMobileSessionTerminalCommand(workspace, {
-              agent: tab.launchAgent
-            })
-          } catch {
-            // Why: a disabled or unresolvable agent must not make the tab
-            // untappable; fall back to the plain-shell materialize. A runtime that needs repair
-            // rethrows its message here instead of leaving a plain shell under the agent icon.
-            if (workspace) {
-              this.resolveAgentLaunchRuntime(workspace, tab.launchAgent)
+          const workspace = await this.resolveTerminalWorkspaceLaunchScope(`id:${worktreeId}`)
+          const paneKey = `${tab.parentTabId}:${tab.leafId}`
+          const savedRecord = this.getWorkspaceSessionForWorktree(worktreeId)
+            ?.sleepingAgentSessionsByPaneKey?.[paneKey]
+          const hasSavedAgentSession =
+            savedRecord?.agent === tab.launchAgent && savedRecord.worktreeId === worktreeId
+          const resumeProviderSession =
+            hasSavedAgentSession &&
+            savedRecord.paneKey === paneKey &&
+            isResumableTuiAgent(savedRecord.agent) &&
+            (savedRecord.connectionId ?? null) === (workspace.connectionId ?? null)
+              ? normalizeAgentProviderSession(savedRecord.providerSession)
+              : null
+          if (hasSavedAgentSession && !resumeProviderSession) {
+            if (automatic) {
+              return this.applyMobileSessionTabNavigation(
+                this.getMobileSessionTabsForWorktree(worktreeId),
+                tab.id,
+                navigation,
+                opts.clientNavigationId
+              )
             }
+            throw new Error('agent_resume_identity_unavailable')
+          }
+          if (!this.store) {
+            throw new Error('runtime_unavailable')
+          }
+          if (
+            isTuiAgentEnabled(tab.launchAgent, this.store.getSettings().disabledTuiAgents)
+          ) {
+            agentStartup = await this.resolveMobileSessionTerminalCommand(workspace, {
+              agent: tab.launchAgent,
+              ...(resumeProviderSession
+                ? { resumeProviderSession, launchConfig: savedRecord.launchConfig }
+                : {})
+            })
+          } else if (hasSavedAgentSession) {
+            throw new Error('Selected agent is disabled. Choose an enabled agent before creating.')
           }
         }
         try {
@@ -199,6 +229,7 @@ export class OrcaRuntimeWithPerformMobileSessionPtyRecordsRefresh extends OrcaRu
             cwd: tab.startupCwd,
             command: agentStartup.command,
             env: agentStartup.env,
+            resumeProviderSession: agentStartup.resumeProviderSession,
             startupCommandDelivery: agentStartup.startupCommandDelivery,
             launchConfig: agentStartup.launchConfig,
             launchAgent: tab.launchAgent,

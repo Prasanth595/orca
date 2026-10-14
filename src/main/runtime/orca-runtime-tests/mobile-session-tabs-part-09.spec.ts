@@ -30,6 +30,24 @@ describe('OrcaRuntimeService', () => {
     ) {
       return makeRuntimeStoreWithWorkspaceSession(
         makeWorkspaceSessionWithHeadlessTerminal({
+          tabsByWorktree: {
+            [TEST_WORKTREE_ID]: [
+              {
+                id: 'host-tab',
+                ptyId: 'persisted-pty',
+                worktreeId: TEST_WORKTREE_ID,
+                title: 'Persisted Claude tab',
+                customTitle: null,
+                color: null,
+                sortOrder: 0,
+                createdAt: 1,
+                launchAgent: 'claude'
+              }
+            ]
+          },
+          terminalLayoutsByTabId: {
+            'host-tab': makeHeadlessTerminalLayout({ [HEADLESS_LEAF_ID]: 'persisted-pty' })
+          },
           sleepingAgentSessionsByPaneKey: {
             [`host-tab:${HEADLESS_LEAF_ID}`]: {
               paneKey: `host-tab:${HEADLESS_LEAF_ID}`,
@@ -187,7 +205,37 @@ describe('OrcaRuntimeService', () => {
       const activated = await userActivate(runtime)
 
       expect(spawn).toHaveBeenCalledOnce()
+      expect(spawn.mock.calls[0]![0].command).toMatch(/--resume.*provider-session-1/)
+      expect(spawn.mock.calls[0]![0].resumeProviderSession).toEqual({
+        key: 'session_id',
+        id: 'provider-session-1'
+      })
       expect(activated.tabs[0]).toMatchObject({ status: 'ready' })
+    })
+
+    it('does not start a fresh agent when the saved pane identity is inconsistent', async () => {
+      const { runtimeStore } = makeParkedSessionStore(
+        'worktree-sleep',
+        { paneKey: 'another-tab:another-leaf' }
+      )
+      const { runtime, spawn } = makeParkedRuntime(runtimeStore)
+
+      await expect(userActivate(runtime)).rejects.toThrow('agent_resume_identity_unavailable')
+
+      expect(spawn).not.toHaveBeenCalled()
+    })
+
+    it('keeps an invalid same-worktree record pending during an automatic probe', async () => {
+      const { runtimeStore } = makeParkedSessionStore(
+        'worktree-sleep',
+        { paneKey: 'another-tab:another-leaf' }
+      )
+      const { runtime, spawn } = makeParkedRuntime(runtimeStore)
+
+      const activated = await automaticActivate(runtime)
+
+      expect(spawn).not.toHaveBeenCalled()
+      expect(activated.tabs[0]).toMatchObject({ status: 'pending-handle', terminal: null })
     })
 
     // Why: manual sleep of a finished agent stamps restoreOnTabOpenOnly, which the
@@ -288,6 +336,8 @@ describe('OrcaRuntimeService', () => {
       const activated = await automaticActivate(runtime)
 
       expect(spawn).toHaveBeenCalledOnce()
+      expect(spawn.mock.calls[0]![0].command).toMatch(/claude/)
+      expect(spawn.mock.calls[0]![0].command).not.toMatch(/--resume/)
       expect(activated.tabs[0]).toMatchObject({ status: 'ready' })
     })
 
