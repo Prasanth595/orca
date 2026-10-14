@@ -6,10 +6,10 @@ import type { TerminalPaneLayoutNode } from '../../../shared/terminal-tab-types'
 import type { PaneLayoutEditIntent } from '../../../shared/rpc-contract/session-tabs-schemas-params'
 import { getRuntimeEnvironmentIdForWorktree } from '../lib/worktree-runtime-owner'
 import { useAppStore } from '../store'
-import { unwrapRuntimeRpcResult } from './runtime-rpc-client'
+import { unwrapRuntimeRpcResult } from './runtime-rpc-result'
 import { parseRemoteRuntimePtyId } from './runtime-terminal-stream'
 import { toRuntimeWorktreeSelector } from './runtime-worktree-selector'
-import { isWebTerminalSurfaceTabId, toHostSessionTabId } from './web-terminal-surface-id'
+import { isWebTerminalSurfaceTabId, toHostSessionTabId } from '../../../shared/terminal-surface-id'
 import {
   captureRuntimeEnvironmentCall,
   captureWebSessionIntentOwner,

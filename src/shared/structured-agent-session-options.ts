@@ -15,7 +15,12 @@ import {
   setTrackedSessionOption,
   type NativeChatSessionOptionRecord
 } from './native-chat-session-option-state'
-import { STRUCTURED_LAUNCH_SEED_OPTION_IDS } from './native-chat-session-option-defaults'
+import {
+  STRUCTURED_LAUNCH_OPTION_IDS,
+  STRUCTURED_LAUNCH_SEED_OPTION_IDS
+} from './native-chat-session-option-defaults'
+import { AGENT_CHAT_PERMISSION_MODE_OPTION_ID } from './agent-chat-permission-mode'
+import { structuredAgentSessionPermissionDescriptor } from './structured-agent-session-permission-option'
 import type { SessionOptionDescriptor, SessionOptionValue } from './native-chat-session-options'
 import type {
   AgentSessionModelCatalogResult,
@@ -53,7 +58,12 @@ export type StructuredAgentSessionOptionState = {
    *  built-in list before the host answered (shown as the quiet placeholder); `builtin` is the
    *  same list once the host said it has none, usable but naming nothing the host may replace. */
   catalogSource: 'seed' | 'builtin' | 'host' | 'live' | null
+  /** The models the host's latest answer names when it is a finished, well-formed listing: the
+   *  only rows that can stand in for a model it lacks, whatever list the picker shows. */
+  verifiedModelIds?: readonly string[]
   record: NativeChatSessionOptionRecord
+  /** The permission mode the host or launch last stated; null shows no picker. */
+  permissionMode: string | null
   pendingId: string | null
 }
 
@@ -67,6 +77,7 @@ export function createStructuredAgentSessionOptionState(
     catalog: seedCatalog ?? null,
     catalogSource: seedCatalog ? 'seed' : null,
     record: createNativeChatSessionOptionRecord(agent),
+    permissionMode: null,
     pendingId: null
   }
 }
@@ -76,7 +87,40 @@ export function createStructuredAgentSessionOptionState(
 export function settleStructuredAgentSessionBuiltinCatalog(
   state: StructuredAgentSessionOptionState
 ): StructuredAgentSessionOptionState {
-  return state.catalogSource === 'seed' ? { ...state, catalogSource: 'builtin' } : state
+  const settled = withVerifiedModelIds(state, undefined)
+  return settled.catalogSource === 'seed' ? { ...settled, catalogSource: 'builtin' } : settled
+}
+
+function withVerifiedModelIds(
+  state: StructuredAgentSessionOptionState,
+  ids: readonly string[] | undefined
+): StructuredAgentSessionOptionState {
+  return String(state.verifiedModelIds) === String(ids)
+    ? state
+    : { ...state, verifiedModelIds: ids }
+}
+
+function isListedModelRow(row: unknown): row is { id: string } {
+  return (
+    typeof row === 'object' &&
+    row !== null &&
+    'id' in row &&
+    typeof row.id === 'string' &&
+    'efforts' in row &&
+    Array.isArray(row.efforts)
+  )
+}
+
+/** The ids a finished listing names; undefined for one still running, failed, empty or malformed. */
+function finishedListingIds(catalog: AgentSessionModelCatalogResult): string[] | undefined {
+  const rows: unknown = catalog.origin === 'unknown' ? null : catalog.models
+  return Array.isArray(rows) &&
+    rows.length > 0 &&
+    rows.every(isListedModelRow) &&
+    !catalog.listingInProgress &&
+    !catalog.unavailable
+    ? rows.map((row) => row.id)
+    : undefined
 }
 
 /**
@@ -91,8 +135,9 @@ export function applyStructuredAgentSessionModelCatalog(
   catalog: AgentSessionModelCatalogResult,
   options: { newLaunch: boolean }
 ): StructuredAgentSessionOptionState {
+  const verifiedModelIds = finishedListingIds(catalog)
   if (state.catalogSource === 'live') {
-    return state
+    return withVerifiedModelIds(state, verifiedModelIds)
   }
   const mode = seed.structuredConversationMode
   const models =
@@ -121,7 +166,8 @@ export function applyStructuredAgentSessionModelCatalog(
       models,
       ...(namesDefault ? { defaultModelIsCliDefault: true } : {})
     },
-    catalogSource: 'host'
+    catalogSource: 'host',
+    verifiedModelIds
   }
 }
 
@@ -154,7 +200,8 @@ export function applyStructuredAgentSessionOptions(
   return {
     ...state,
     catalog: structuredAgentSessionOptionCatalog(seed, result),
-    catalogSource: 'live'
+    catalogSource: 'live',
+    permissionMode: result.current.permissionMode ?? null
   }
 }
 
@@ -174,6 +221,12 @@ const PROVIDER_DEFAULT_MODEL_PLACEHOLDER: SessionOptionDescriptor = {
 export function structuredAgentSessionOptionSnapshot(
   state: StructuredAgentSessionOptionState
 ): SessionOptionDescriptor[] {
+  const permission = structuredAgentSessionPermissionDescriptor(state)
+  const options = modelOptionSnapshot(state)
+  return permission ? [...options, permission] : options
+}
+
+function modelOptionSnapshot(state: StructuredAgentSessionOptionState): SessionOptionDescriptor[] {
   if (!state.catalog) {
     return []
   }
@@ -227,6 +280,9 @@ export function commitStructuredAgentSessionOption(
   id: string,
   value: string
 ): StructuredAgentSessionOptionState {
+  if (id === AGENT_CHAT_PERMISSION_MODE_OPTION_ID) {
+    return { ...state, permissionMode: value, pendingId: null }
+  }
   if (!state.catalog) {
     return state
   }
@@ -248,7 +304,7 @@ export function commitStructuredAgentSessionOptionValues(
   values: Readonly<Record<string, string>>
 ): StructuredAgentSessionOptionState {
   let next = state
-  for (const id of STRUCTURED_LAUNCH_SEED_OPTION_IDS) {
+  for (const id of STRUCTURED_LAUNCH_OPTION_IDS) {
     const value = values[id]
     if (value !== undefined) {
       next = commitStructuredAgentSessionOption(next, id, value)

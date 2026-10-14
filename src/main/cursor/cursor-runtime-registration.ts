@@ -11,6 +11,7 @@ import { cursorSidecarLaunchPart } from './cursor-sidecar-launch'
 import { CURSOR_STRUCTURED_AGENT } from './cursor-structured-agent-definition'
 import { supportsCursorStructuredLocation } from './cursor-structured-location-support'
 import { CursorStructuredSessionAdapter } from './cursor-structured-session-adapter'
+import { CURSOR_SESSION_HISTORY } from './cursor-session-history'
 
 export const CURSOR_RUNTIME_REGISTRATION: StructuredAgentRuntimeRegistration = {
   definition: CURSOR_STRUCTURED_AGENT,
@@ -21,6 +22,8 @@ export const CURSOR_RUNTIME_REGISTRATION: StructuredAgentRuntimeRegistration = {
     probe: createCursorModelCatalogProbe({ resolveApiKey: deps.resolveCursorApiKey })
   }),
   supportsLocation: supportsCursorStructuredLocation,
+  transcriptImport: null,
+  sessionHistory: CURSOR_SESSION_HISTORY,
   resolveAccountHome: async () =>
     agentSessionAccountHome(CURSOR_STRUCTURED_AGENT, resolveStructuredCursorAccountHomePath()),
   createAdapter: (context) => {

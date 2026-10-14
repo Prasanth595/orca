@@ -1,5 +1,8 @@
 import { requireLegacyAgentSessionAccountHome } from '../../shared/agent-session-account-home'
-import { NATIVE_CHAT_VISUALS_DIR_ENV } from '../native-chat/native-chat-visuals-delivery'
+import {
+  LEGACY_NATIVE_CHAT_VISUALS_DIR_ENV,
+  NATIVE_CHAT_SCRATCH_DIR_ENV
+} from '../native-chat/native-chat-visuals-delivery'
 import type { StructuredAgentLaunchPartResolver } from '../runtime/structured-agent-launch-composition'
 import { STRUCTURED_CHILD_ENV_TO_DELETE } from '../runtime/structured-session-child-env'
 
@@ -20,10 +23,11 @@ export const cursorSidecarLaunchPart: StructuredAgentLaunchPartResolver<
     CURSOR_SDK_HOME: requireLegacyAgentSessionAccountHome(basis.record.accountHome).path,
     ELECTRON_RUN_AS_NODE: '1'
   },
-  // Cursor gets no visuals skill; a registered worker's handle comes back through the seal.
+  // Cursor gets no scratch-folder skill; a registered worker's handle comes back through the seal.
   inheritedEnvToDelete: [
     ...STRUCTURED_CHILD_ENV_TO_DELETE,
     'ORCA_TERMINAL_HANDLE',
-    NATIVE_CHAT_VISUALS_DIR_ENV
+    NATIVE_CHAT_SCRATCH_DIR_ENV,
+    LEGACY_NATIVE_CHAT_VISUALS_DIR_ENV
   ]
 })
