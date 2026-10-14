@@ -13,7 +13,9 @@ export function verifyRequiredPrContext(parseYaml) {
         .map(([id]) => `${file}:${id}`)
     })
   if (providers.length !== 1 || providers[0] !== 'pr.yml:verify') {
-    throw new Error(`Required PR context must belong only to pr.yml:verify; found ${providers}`)
+    throw new Error(
+      `Required PR context must belong only to pr.yml:verify; found ${providers.join(', ')}`
+    )
   }
 }
 
