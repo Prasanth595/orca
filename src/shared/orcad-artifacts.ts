@@ -19,6 +19,8 @@ export const ORCAD_WINDOWS_GUEST_TREE_KILL_ARTIFACTS = [
   'guest-tree-kill/licenses/musl-COPYRIGHT',
   'guest-tree-kill/licenses/zig-LICENSE'
 ] as const
+/** native/windows-security: secure-file ACLs without spawning icacls. */
+export const ORCAD_WINDOWS_SECURITY_FILENAME = 'windows-security.node'
 /** native/windows-cli-launcher: cmd.exe and .ps1 shims cannot carry every argv intact. */
 export const ORCAD_WINDOWS_CLI_LAUNCHER_FILENAME = 'bin/orca.exe'
 
@@ -215,6 +217,7 @@ export function orcadArtifactFilenames(target: string): string[] {
   if (isWindowsTarget(target)) {
     filenames.push(
       ORCAD_WINDOWS_PROCESS_TREE_FILENAME,
+      ORCAD_WINDOWS_SECURITY_FILENAME,
       ORCAD_WINDOWS_CLI_LAUNCHER_FILENAME,
       ...ORCAD_WINDOWS_GUEST_TREE_KILL_ARTIFACTS
     )

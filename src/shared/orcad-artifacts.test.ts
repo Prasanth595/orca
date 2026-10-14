@@ -9,8 +9,11 @@ import {
   ORCAD_NODE_PTY_JS_ARTIFACTS,
   ORCAD_NODE_RUNTIME_MARKER_FILENAME,
   ORCAD_RIPGREP_ARTIFACTS,
+  ORCAD_WINDOWS_CLI_LAUNCHER_FILENAME,
   ORCAD_WINDOWS_GUEST_TREE_KILL_ARTIFACTS,
+  ORCAD_WINDOWS_PROCESS_TREE_FILENAME,
   ORCAD_RIPGREP_LICENSE_ARTIFACTS,
+  ORCAD_WINDOWS_SECURITY_FILENAME,
   orcadArtifactFilenames,
   orcadBunRuntimeFilename,
   orcadNodeRuntimeRelativePath,
@@ -53,6 +56,28 @@ describe('standalone runtime artifacts', () => {
     expect(guestArtifacts(orcadTemplateCommonFilenames())).toEqual([])
   })
 
+  it.each(['win32-x64', 'win32-arm64'])(
+    'keeps all Windows addons and guest cleanup together in the %s slot',
+    (target) => {
+      const required = [
+        ORCAD_WINDOWS_PROCESS_TREE_FILENAME,
+        ORCAD_WINDOWS_SECURITY_FILENAME,
+        ORCAD_WINDOWS_CLI_LAUNCHER_FILENAME,
+        ...ORCAD_WINDOWS_GUEST_TREE_KILL_ARTIFACTS
+      ]
+      for (const filenames of [
+        orcadArtifactFilenames(target),
+        orcadTemplateTargetFilenames(target)
+      ]) {
+        expect(filenames.slice(-required.length)).toEqual(required)
+        expect(new Set(filenames).size).toBe(filenames.length)
+      }
+      for (const filename of required) {
+        expect(orcadTemplateCommonFilenames()).not.toContain(filename)
+      }
+    }
+  )
+
   it('ships the binary redistribution notices with every install', () => {
     const sourceDir = join(__dirname, '../../resources/licenses/ripgrep')
     expect(ORCAD_RIPGREP_LICENSE_ARTIFACTS.map((path) => path.split('/').at(-1)).sort()).toEqual(
@@ -86,6 +111,16 @@ describe('standalone runtime artifacts', () => {
       'conpty/conpty.dll',
       'conpty/OpenConsole.exe'
     ])
+  })
+
+  // Without it orcad's data-root privacy check fails closed and a Windows slot never starts.
+  it('requires the Windows security addon in every Windows slot and nowhere else', () => {
+    for (const target of ['win32-x64', 'win32-arm64']) {
+      expect(orcadArtifactFilenames(target)).toContain(ORCAD_WINDOWS_SECURITY_FILENAME)
+      expect(orcadTemplateTargetFilenames(target)).toContain(ORCAD_WINDOWS_SECURITY_FILENAME)
+    }
+    expect(orcadArtifactFilenames('linux-x64-glibc')).not.toContain(ORCAD_WINDOWS_SECURITY_FILENAME)
+    expect(orcadArtifactFilenames('darwin-arm64')).not.toContain(ORCAD_WINDOWS_SECURITY_FILENAME)
   })
 
   it('keeps the runtime executable under its upstream name in the shared store', () => {

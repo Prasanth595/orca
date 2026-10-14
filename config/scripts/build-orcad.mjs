@@ -34,6 +34,7 @@ import { materializeWatcherPackage } from './orcad-watcher-package.mjs'
 import { stageOrcadWindowsProcessTree } from './orcad-windows-process-tree.mjs'
 import { buildGuestTreeKill } from './build-guest-tree-kill.mjs'
 import { stageOrcadWindowsCliLauncher } from './orcad-windows-cli-launcher.mjs'
+import { stageOrcadWindowsSecurity } from './orcad-windows-security.mjs'
 import {
   ORCAD_EMOJI_SHORTCODE_DATASET,
   ORCAD_CLI_ENTRY_FILENAME,
@@ -168,6 +169,7 @@ if (targetIsWindows) {
   cpSync(helperRoot, join(OUT_DIR, 'guest-tree-kill'), { recursive: true })
 }
 stageOrcadWindowsCliLauncher(ROOT, OUT_DIR, BUILD_TARGET)
+stageOrcadWindowsSecurity(ROOT, OUT_DIR, BUILD_TARGET)
 const emojiDatasetOutput = join(OUT_DIR, ORCAD_EMOJI_SHORTCODE_DATASET)
 mkdirSync(dirname(emojiDatasetOutput), { recursive: true })
 copyFileSync(
