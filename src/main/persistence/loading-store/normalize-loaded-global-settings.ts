@@ -118,6 +118,11 @@ export function normalizeLoadedGlobalSettings(
     floatingTerminalTrustedCwds: migratedFloatingTerminalTrustedCwds,
     floatingTerminalCwdMigratedToAppWorkspace: true,
     terminalScrollbackRows: migratedTerminalScrollback.rows,
+    // Why: every launch path reads this raw, so a hand-edited padded value must not reach any of them.
+    terminalDefaultShell:
+      typeof parsed.settings?.terminalDefaultShell === 'string'
+        ? parsed.settings.terminalDefaultShell.trim()
+        : defaults.settings.terminalDefaultShell,
     terminalQuickCommands: normalizeTerminalQuickCommands(parsed.settings?.terminalQuickCommands),
     terminalCustomThemes: normalizeTerminalCustomThemes(parsed.settings?.terminalCustomThemes),
     appIcon: normalizeAppIconId(parsed.settings?.appIcon),

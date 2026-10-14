@@ -180,7 +180,14 @@ export function TerminalPane({
                   setShellValidationError(null)
                   updateSettings({ terminalDefaultShell: event.target.value.trimStart() })
                 }}
-                onBlur={() => void validateShell()}
+                onBlur={(event) => {
+                  // Why: trailing spaces are kept while typing (a path may contain one) and dropped on commit.
+                  const trimmed = event.target.value.trim()
+                  if (trimmed !== event.target.value) {
+                    updateSettings({ terminalDefaultShell: trimmed })
+                  }
+                  void validateShell()
+                }}
                 className="w-full"
                 aria-label={translate(
                   'auto.components.settings.TerminalPane.5e06e87730',
