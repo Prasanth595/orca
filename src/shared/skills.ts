@@ -57,6 +57,8 @@ export type SkillDiscoveryTarget = {
   /** Optional inventory filter for callers that only need known installed skills. */
   names?: string[]
   sourceKinds?: SkillSourceKind[]
+  /** Optional owning chat identity for agent-specific discovery under its pinned account. */
+  agentSessionId?: string
 }
 
 const ResolvedProjectRuntimeSchema = z.object({
@@ -112,7 +114,8 @@ export const SkillDiscoveryTargetSchema: z.ZodType<SkillDiscoveryTarget> = z.obj
   sourceKinds: z
     .array(z.enum(['home', 'repo', 'bundled', 'plugin']))
     .max(4)
-    .optional()
+    .optional(),
+  agentSessionId: z.string().min(1).max(128).optional()
 })
 
 export type SkillFrontmatterSummary = {

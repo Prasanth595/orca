@@ -5,6 +5,7 @@ import {
   isNativeChatSupportedAgent,
   nativeChatRequiresLocalTranscript
 } from '@/lib/native-chat-supported-agent'
+import { resolveNativeChatTranscriptAgent } from '../../../../shared/native-chat-agent-support'
 
 export { isNativeChatSupportedAgent }
 
@@ -51,5 +52,5 @@ export function canToggleNativeChat(input: NativeChatAvailabilityInput): boolean
   ) {
     return false
   }
-  return isNativeChatSupportedAgent(agent)
+  return isNativeChatSupportedAgent(agent) && resolveNativeChatTranscriptAgent(agent) !== null
 }

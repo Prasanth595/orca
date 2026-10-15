@@ -3,6 +3,7 @@
 
 import { join } from 'node:path'
 import type { AcpDialect } from './acp-dialects/acp-dialect'
+import { GENERIC_ACP_DIALECT } from './acp-dialects/acp-dialect'
 import { GROK_ACP_DIALECT } from './acp-dialects/grok-dialect'
 import { OMP_ACP_DIALECT } from './acp-dialects/omp-dialect'
 import { OPENCODE_ACP_DIALECT } from './acp-dialects/opencode-dialect'
@@ -211,10 +212,36 @@ const OMP_LAUNCH_SPEC: AcpLaunchSpec = {
   sessionHistory: OMP_SESSION_HISTORY
 }
 
+const DSH_LAUNCH_SPEC: AcpLaunchSpec = {
+  agent: 'dsh',
+  command: 'dsh',
+  // Full access answers the standard one-shot permission requests in the shared adapter.
+  args: () => ['--profile', 'acp'],
+  env: {},
+  dialect: GENERIC_ACP_DIALECT,
+  // The ACP profile uses DSH's configured providers; it has no interactive sign-in method.
+  loginCommand: [],
+  account: directoryAccountBinding('DSH_HOME', (homePath) => join(homePath, '.dsh')),
+  installDirectories: () => [],
+  imagePrompts: true,
+  modelDiscovery: {
+    kind: 'unavailable',
+    reason: 'dsh lists its models through session configuration, not a session-free listing'
+  },
+  transcriptImport: null,
+  // DSH has no CLI transcript scanner in Orca; native chats retain their own journal.
+  sessionHistory: {
+    rowAgents: [],
+    rowSessionId: (link) => link.handle.nativeId,
+    parseResumeArgs: () => null
+  }
+}
+
 export const ACP_LAUNCH_SPECS: readonly AcpLaunchSpec[] = [
   GROK_LAUNCH_SPEC,
   OPENCODE_LAUNCH_SPEC,
-  OMP_LAUNCH_SPEC
+  OMP_LAUNCH_SPEC,
+  DSH_LAUNCH_SPEC
 ]
 
 export function acpLaunchSpecFor(agent: string): AcpLaunchSpec | null {

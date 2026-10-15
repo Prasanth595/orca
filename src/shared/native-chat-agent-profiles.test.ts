@@ -4,10 +4,25 @@ import {
   getHostClaimedNativeChatCommands,
   getNativeChatAgentProfile,
   getNativeChatCommandReply,
+  nativeChatMessageCommand,
   getVerifiedNativeChatCommands
 } from './native-chat-agent-profiles'
 
 describe('native chat agent picker profiles', () => {
+  it('expands DSH goal and plan shortcuts into ordinary instructions', () => {
+    expect(nativeChatMessageCommand('dsh', '/goal fix the tests').text).toContain('goal')
+    expect(nativeChatMessageCommand('dsh', '/goal fix the tests').text).toContain('fix the tests')
+    expect(nativeChatMessageCommand('dsh', '/plan add a feature').text).toContain(
+      'wait for my confirmation'
+    )
+    expect(nativeChatMessageCommand('dsh', '/plan').error).toContain('after /plan')
+    expect(nativeChatMessageCommand('codex', '/goal fix the tests')).toEqual({
+      text: '/goal fix the tests'
+    })
+    expect(nativeChatMessageCommand('dsh', '/archify draw this')).toEqual({
+      text: '/archify draw this'
+    })
+  })
   // The composer types the same `/` for every agent; skillPrefix is only the
   // form a picked skill is written as.
   it('keeps Codex skills invocable as dollar tokens', () => {
@@ -31,6 +46,15 @@ describe('native chat agent picker profiles', () => {
 
   it('does not grant custom or unverified agents a skill grammar', () => {
     expect(getNativeChatAgentProfile('custom-agent')).toBeNull()
+    expect(getNativeChatAgentProfile('dsh')).toMatchObject({
+      skillPrefix: '/',
+      skillSourceOwner: 'dsh'
+    })
+    expect(getVerifiedNativeChatCommands('dsh').map((command) => command.name)).toEqual([
+      'goal',
+      'plan'
+    ])
+    expect(getHostClaimedNativeChatCommands('dsh')).toEqual([])
   })
 })
 

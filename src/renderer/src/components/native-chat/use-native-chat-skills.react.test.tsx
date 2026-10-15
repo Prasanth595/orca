@@ -64,6 +64,35 @@ function DraftProbe({ draft }: { draft: string }): React.JSX.Element {
 }
 
 describe('useNativeChatSkills', () => {
+  it('sends the DSH chat identity through the existing discovery RPC', async () => {
+    mocks.state = {
+      ...stateForHost('local'),
+      tabsByWorktree: {},
+      unifiedTabsByWorktree: {
+        'worktree-1': [
+          {
+            id: 'dsh-tab',
+            entityId: 'session-dsh',
+            contentType: 'agent-session',
+            agentSessionAgent: 'dsh'
+          }
+        ]
+      }
+    }
+    function DshProbe(): null {
+      mocks.snapshots.push(useNativeChatSkills('dsh', 'dsh-tab', true))
+      return null
+    }
+    render(<DshProbe />)
+    await waitFor(() => expect(mocks.snapshots.at(-1)?.status).toBe('ready'))
+    expect(mocks.callRuntimeRpc).toHaveBeenCalledWith(
+      { kind: 'local' },
+      'skills.discover',
+      { cwd: '/repo/worktree', worktreeId: 'worktree-1', agentSessionId: 'session-dsh' },
+      { timeoutMs: 10000 }
+    )
+  })
+
   beforeEach(() => {
     mocks.state = stateForHost('local')
     mocks.snapshots = []

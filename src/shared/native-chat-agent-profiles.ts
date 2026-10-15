@@ -15,6 +15,8 @@ export type NativeChatAgentProfile = {
   /** Catalog commands the model acts on when they arrive as prose, even though
    *  the runtime has no slash parser of its own. */
   textDrivenCommands?: readonly string[]
+  /** Composer shortcuts expanded into ordinary user instructions before sending. */
+  messageCommandPrompts?: Readonly<Record<string, string>>
 }
 
 const NATIVE_CHAT_AGENT_PROFILES: Partial<Record<AgentType, NativeChatAgentProfile>> = {
@@ -44,6 +46,15 @@ const NATIVE_CHAT_AGENT_PROFILES: Partial<Record<AgentType, NativeChatAgentProfi
   grok: {
     skillPrefix: '/',
     skillSourceOwner: 'grok'
+  },
+  dsh: {
+    skillPrefix: '/',
+    skillSourceOwner: 'dsh',
+    textDrivenCommands: ['goal', 'plan'],
+    messageCommandPrompts: {
+      goal: 'Work toward the following goal. State success criteria, then carry out the task and report the result:',
+      plan: 'Create a plan for the following task. Explain the steps and wait for my confirmation before implementing it:'
+    }
   }
 }
 
@@ -54,10 +65,38 @@ export function getNativeChatAgentProfile(
 }
 
 /** The catalog that send classification, collision detection, and transcript
- *  envelope surfacing key off. Grok has no verified catalog yet, so its slash
- *  surface stays skills-only — this is the single place that policy lives. */
+ *  envelope surfacing key off. DSH's goal and plan entries are message shortcuts. */
 export function getVerifiedNativeChatCommands(agent: AgentType): readonly SlashCommandSuggestion[] {
+  if (agent === 'dsh') {
+    return [
+      {
+        name: 'goal',
+        description: 'Describe a task goal in a message',
+        argumentHint: '<objective>'
+      },
+      { name: 'plan', description: 'Ask for a plan before implementation', argumentHint: '<task>' }
+    ]
+  }
   return agent === 'grok' ? [] : getAgentSlashCommands(agent)
+}
+
+export function nativeChatMessageCommand(
+  agent: AgentType | undefined,
+  text: string
+): {
+  text: string
+  error?: string
+} {
+  const match = /^\/([^\s]+)(?:\s+([\s\S]*))?$/.exec(text)
+  const command = match?.[1]?.toLowerCase()
+  const prompt = command && getNativeChatAgentProfile(agent)?.messageCommandPrompts?.[command]
+  if (!prompt) {
+    return { text }
+  }
+  const argument = match?.[2]?.trim()
+  return argument
+    ? { text: `${prompt}\n\n${argument}` }
+    : { text, error: `Describe the task after /${command}.` }
 }
 
 /** How the chat finds the reply to a verified command over a terminal session;

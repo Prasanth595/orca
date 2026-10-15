@@ -27,6 +27,7 @@ import {
   resolveSkillDiscoveryTarget
 } from '../../../skills/skill-discovery-target'
 import { SKILL_INSTALL_RESULT_V2_CAPABILITY } from '../../../../shared/skill-install-capability'
+import { discoverDshChatSkills } from '../../../skills/dsh-chat-skill-discovery'
 import type { OrcaRuntimeService } from '../../orca-runtime'
 import {
   AGENT_SKILL_SHARING_UNSUPPORTED_ENVIRONMENT_CODE,
@@ -69,7 +70,18 @@ export const SKILL_METHODS = [
     name: 'skills.discover',
     permission: 'workspace',
     params: SkillsDiscoverParams,
-    handler: async (params, { runtime }) => {
+    handler: async (params, { runtime, signal }) => {
+      if (params.agentSessionId) {
+        const store = runtime.openedAgentSessionRecordStore()
+        return discoverDshChatSkills({
+          record: store?.getRecord(params.agentSessionId) ?? null,
+          cwd: params.cwd,
+          launchEnv: runtime.getClientSettings().agentDefaultEnv?.dsh ?? {},
+          ...(params.names ? { names: params.names } : {}),
+          ...(params.sourceKinds ? { sourceKinds: params.sourceKinds } : {}),
+          ...(signal ? { signal } : {})
+        })
+      }
       // Why: the executing runtime owns WSL project preferences. Remote callers
       // send worktree identity only; trusting their projectRuntime absence
       // would scan this host's native filesystem for a WSL-configured project.
