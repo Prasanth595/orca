@@ -2,8 +2,8 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { runProcessSync } from './child-process/run-process'
-import { windowsSystem32Binary } from './child-process/windows-system-binary'
+import { runProcessSync } from '@orca/process-host'
+import { windowsSystem32Binary } from '@orca/process-host/windows-system-binary'
 import { retargetClaudeAgentTeamsPaneCommand } from './claude-agent-teams-pane-command'
 
 // Why real PowerShell: a failed Set-Location is non-terminating, which only running it shows.
