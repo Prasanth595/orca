@@ -208,6 +208,7 @@ jobs:
     # 39->14s. Both lint engines ship linux-arm64 and the Bun target follows process.arch, so
     # the whole toolchain resolves. Free for public repositories.
     runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
     outputs:
       shards: ${{ steps.unit-plan.outputs.shards }}
 
@@ -562,6 +563,7 @@ jobs:
       needs.code_paths.outputs.git_compatibility == 'true' &&
       needs.preflight.result == 'success'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -634,6 +636,7 @@ jobs:
       needs.preflight.result == 'success'
     # Why ARM: @openai/codex ships @openai/codex-linux-arm64.
     runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
     env:
       CODEX_CLI_VERSION: '0.150.1'
       # Why a second pin: --no-daemon only exists from 0.156, and Orca's codex wrapper relies on it.
@@ -735,6 +738,7 @@ jobs:
     # checked-in bundles. Those were generated on Linux x64 and reproduce byte-for-byte on
     # darwin-arm64, so the output is neither host-arch nor host-OS dependent.
     runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
 
     steps:
       - name: Checkout
@@ -922,6 +926,7 @@ jobs:
     needs: [code_paths]
     if: needs.code_paths.outputs.mobile_web_app == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -1002,6 +1007,7 @@ jobs:
       needs.preflight.result == 'success'
     # Why ARM: source-only: tagged checkout plus in-process vitest, no docker or browser.
     runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
 
     steps:
       # Why fetch-depth 0: the harness extracts the newest release tag to skew
@@ -1050,6 +1056,7 @@ jobs:
       needs.preflight.result == 'success'
     # Why ARM: Node 18 publishes linux-arm64; the per-platform runtime files are read as data.
     runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
 
     steps:
       - name: Checkout

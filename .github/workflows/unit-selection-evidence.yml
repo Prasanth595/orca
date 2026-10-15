@@ -16,6 +16,7 @@ jobs:
     if: ${{ !cancelled() }}
     continue-on-error: true
     runs-on: ubuntu-slim
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
         with:

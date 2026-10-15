@@ -39,6 +39,7 @@ jobs:
             skills-cli: latest
     continue-on-error: ${{ matrix.skills-cli == 'latest' }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
         id: checkout

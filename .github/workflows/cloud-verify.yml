@@ -31,6 +31,7 @@ jobs:
   security:
     name: Secret scan
     runs-on: ubuntu-22.04
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
@@ -80,6 +81,7 @@ jobs:
   # database, and the service container costs ~13s of startup.
   build:
     runs-on: ubuntu-22.04
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
 
@@ -100,6 +102,7 @@ jobs:
   # `pnpm build` having run.
   test:
     runs-on: ubuntu-22.04
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:16-alpine
@@ -136,6 +139,7 @@ jobs:
   # holds a credential. Only the relay root ships here; foundation and apps stay private.
   terraform:
     runs-on: ubuntu-22.04
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
 
