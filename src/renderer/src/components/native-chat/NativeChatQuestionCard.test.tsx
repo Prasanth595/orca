@@ -436,6 +436,14 @@ describe('NativeChatQuestionCard', () => {
     )
     expect(document.activeElement?.textContent).toContain('Tabs')
     expect(optionPressed('Tabs')).toBe('false')
+    const conversation = container.appendChild(document.createElement('div'))
+    conversation.tabIndex = 0
+    act(() => conversation.focus())
+    for (const key of ['ArrowUp', 'ArrowDown']) {
+      expect(pressKey({ key }, conversation).defaultPrevented).toBe(false)
+      expect(document.activeElement).toBe(conversation)
+    }
+    act(() => container.querySelector<HTMLButtonElement>('button[aria-pressed]')!.focus())
     pressKey({ key: 'ArrowDown' }, document.activeElement!)
     expect(document.activeElement?.textContent).toContain('Spaces')
     expect(optionPressed('Spaces')).toBe('false')

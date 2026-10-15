@@ -12,17 +12,18 @@ export function useNativeChatQuestionKeys(
   const onKeyDown = useEffectEvent((event: KeyboardEvent): void => {
     const target = event.target instanceof Element ? event.target : null
     const card = cardRef.current
+    const isNumberKey = /^[1-9]$/.test(event.key)
     if (
       event.defaultPrevented ||
       isEditableTarget(target) ||
       target?.closest('[data-native-chat-find-bar], [data-queued-message-editor]') ||
-      !isInNativeChatPaneOf(card, target)
+      !isInNativeChatPaneOf(card, target) ||
+      (!isNumberKey && !card?.contains(target))
     ) {
       return
     }
     const rows = Array.from(card?.querySelectorAll<HTMLButtonElement>('button[aria-pressed]') ?? [])
     const focusedIndex = rows.findIndex((row) => row.contains(target))
-    const isNumberKey = /^[1-9]$/.test(event.key)
     if (
       event.repeat ||
       event.isComposing ||
