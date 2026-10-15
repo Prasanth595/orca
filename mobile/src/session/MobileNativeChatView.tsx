@@ -1,7 +1,6 @@
 import { useMobileTheme } from '../theme/use-mobile-theme'
 import { useCallback, useMemo, useState } from 'react'
 import {
-  ActivityIndicator,
   FlatList,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -38,6 +37,7 @@ import { MobileAgentWorkingIndicator } from './MobileAgentWorkingIndicator'
 import { MobileNativeChatComposer } from './MobileNativeChatComposer'
 import { MobileNativeChatPromptCard } from './MobileNativeChatPromptCard'
 import { NO_COMPOSER_TRAY } from './use-mobile-native-chat-composer-tray'
+import { MobileNativeChatLoading } from './MobileNativeChatLoading'
 import { MobileNativeChatScrollHold } from './MobileNativeChatScrollHold'
 import { useMobileNativeChatRowRenderer } from './use-mobile-native-chat-row-renderer'
 
@@ -242,14 +242,13 @@ export function MobileNativeChatView({
   return (
     <View style={[styles.root, { paddingBottom: bottomPad }]}>
       {status === 'loading' && messages.length === 0 ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={colors.textSecondary} />
-        </View>
+        <MobileNativeChatLoading />
       ) : (
         <GestureHandlerRootView style={styles.listWrap}>
           <MobileNativeChatScrollHold headKey={turns.listMessages[0]?.id} listRef={listRef} />
           <GestureDetector gesture={pinchGesture}>
             <FlatList
+              key={sendSurfaceId}
               ref={listRef}
               initialNumToRender={history.listRows.length}
               style={data.length > 0 && !initialPositionReady ? { opacity: 0 } : undefined}
@@ -286,6 +285,7 @@ export function MobileNativeChatView({
               ListEmptyComponent={emptyStateView}
             />
           </GestureDetector>
+          {data.length > 0 && !initialPositionReady ? <MobileNativeChatLoading restoring /> : null}
           {/* Jump-to-latest control. */}
           {showJumpToTail ? (
             <Pressable

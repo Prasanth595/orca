@@ -10,11 +10,14 @@ export function useMobileChatInitialPosition(
     null
   )
   const geometry = useRef({ scope, height: 0, viewport: 0, offset: 0, savedOffset })
+  const observedScroll = useRef<{ height: number; viewport: number; offset: number } | null>(null)
   const visit = useRef(0)
   const frame = useRef<number | null>(null)
   const revision = useRef(0)
+  const settling = useRef<{ height: number; viewport: number; target: number } | null>(null)
   const clear = useCallback(() => {
     revision.current++
+    settling.current = null
     if (frame.current !== null) {
       cancelAnimationFrame(frame.current)
       frame.current = null
@@ -22,13 +25,13 @@ export function useMobileChatInitialPosition(
   }, [])
   if (geometry.current.scope !== scope) {
     visit.current++
+    observedScroll.current = null
     geometry.current = { scope, height: 0, viewport: 0, offset: 0, savedOffset }
   }
   const currentVisit = visit.current
   const ready =
     readyScope !== null && readyScope.scope === scope && readyScope.visit === currentVisit
   const confirm = useCallback(() => {
-    clear()
     const measured = geometry.current
     if (
       ready ||
@@ -37,17 +40,40 @@ export function useMobileChatInitialPosition(
       measured.height <= 0 ||
       measured.viewport <= 0
     ) {
+      clear()
       return
+    }
+    const observed = observedScroll.current
+    if (
+      observed &&
+      Math.abs(observed.height - measured.height) <= 2 &&
+      Math.abs(observed.viewport - measured.viewport) <= 2
+    ) {
+      measured.offset = observed.offset
     }
     const end = Math.max(0, measured.height - measured.viewport)
-    const target = measured.savedOffset === null ? end : Math.min(measured.savedOffset, end)
+    const target =
+      measured.savedOffset === null ? end : Math.max(0, Math.min(measured.savedOffset, end))
     if (Math.abs(measured.offset - target) > 2) {
+      clear()
       return
     }
+    // Repeated native measurements must not restart the two-frame reveal.
+    const pending = settling.current
+    if (
+      pending?.height === measured.height &&
+      pending.viewport === measured.viewport &&
+      pending.target === target
+    ) {
+      return
+    }
+    clear()
+    settling.current = { height: measured.height, viewport: measured.viewport, target }
     const version = revision.current
     frame.current = requestAnimationFrame(() => {
       frame.current = requestAnimationFrame(() => {
         frame.current = null
+        settling.current = null
         if (
           version === revision.current &&
           geometry.current.scope === scope &&
@@ -83,6 +109,12 @@ export function useMobileChatInitialPosition(
       (event: NativeScrollEvent) => {
         if (geometry.current.scope === scope && visit.current === currentVisit) {
           const measured = geometry.current
+          // Native scrolling can report the new geometry before onContentSizeChange does.
+          observedScroll.current = {
+            height: event.contentSize.height,
+            viewport: event.layoutMeasurement.height,
+            offset: event.contentOffset.y
+          }
           // A throttled event from before the last layout must not confirm its old bottom.
           if (
             (measured.height > 0 && Math.abs(event.contentSize.height - measured.height) > 2) ||
