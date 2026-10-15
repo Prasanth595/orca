@@ -95,6 +95,8 @@ Orca checks that the foreground has returned to a shell before retiring that OMP
 unverifiable foreground read does not close its status channel.
 If the controller is temporarily absent, Orca retries when it reattaches, using the original launch
 and title identity. Newer completion markers supersede pending checks, and PTY exit discards them.
+Overlapping checks publish only the newest completion marker and exit code, including reattached
+OMP terminals without a launch token.
 
 Delivery keeps current and adjacent closing scopes rather than replaying an unbounded history after
 an outage. Older retired updates may be discarded; the status feed is not a durable notification log.

@@ -239,7 +239,7 @@ describe('native OMP delivery consumer', () => {
           providerSession: { id: 'shutdown-retry', transcriptPath: root.file }
         })
         const completion = fixture.accepted.find(
-          ({ payload }) => payload.hook_event_name === 'agent_end'
+          ({ payload }) => payload.hook_event_name === 'agent_end' && !payload.session_boundary
         )
         expect(completion).toMatchObject({
           payload: { hook_event_name: 'agent_end', session_id: 'shutdown-retry' }

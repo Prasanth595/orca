@@ -27,6 +27,7 @@ import type { PtyForegroundProcessRead } from '../../runtime-terminal-contracts'
 export abstract class OrcaRuntimeWithEmitDaemonPtyTransientFact extends OrcaRuntimeWithScheduleWaitBlockedCheck {
   protected abstract retirePtyAgentLaunchAuthority(ptyId: string): void
   protected pendingOmpCommandFinishes?: Map<string, () => void>
+  private ompCommandFinishGenerationByPty?: WeakMap<RuntimePtyWorktreeRecord, number>
 
   override setPtyController(controller: RuntimePtyController | null): void {
     super.setPtyController(controller)
@@ -73,6 +74,10 @@ export abstract class OrcaRuntimeWithEmitDaemonPtyTransientFact extends OrcaRunt
       this.applyPtyCommandFinished(ptyId, exitCode)
       return
     }
+    // Foreground reads are shared; only the newest marker may publish completion.
+    const generations = (this.ompCommandFinishGenerationByPty ??= new WeakMap())
+    const generation = (generations.get(pty) ?? 0) + 1
+    generations.set(pty, generation)
     // OMP also paints OSC 133;D inside user bubbles; it does not prove process exit.
     const incarnationId = pty.incarnationId
     const launchToken = pty.launchToken
@@ -81,6 +86,7 @@ export abstract class OrcaRuntimeWithEmitDaemonPtyTransientFact extends OrcaRunt
       const current = this.ptysById.get(ptyId)
       if (
         current !== pty ||
+        generations.get(pty) !== generation ||
         !current.connected ||
         current.incarnationId !== incarnationId ||
         current.launchToken !== launchToken ||
