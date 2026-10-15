@@ -50,11 +50,9 @@ export async function writeFileToClipboard(
   }
 
   if (deps.platform === 'win32') {
-    // Set-Clipboard -LiteralPath publishes CF_HDROP, which Explorer pastes as a
-    // file. Why a process: Electron's writeBuffer can only register custom
-    // formats, and Explorer pastes nothing from those. The path travels in the
-    // environment so it is never parsed as script.
-    const copied = await runClipboardHelper(deps, {
+    // Set-Clipboard publishes CF_HDROP; Electron's writeBuffer only registers custom formats Explorer can't paste.
+    // The path travels in the environment so it is never parsed as script.
+    const copied = await runClipboardHelper(deps.runProcess, {
       program: windowsPowerShellPath(),
       args: [
         '-NoProfile',
@@ -78,7 +76,7 @@ export async function writeFileToClipboard(
     ['wl-copy', ['--type', mime]],
     ['xclip', ['-selection', 'clipboard', '-t', mime]]
   ] as const) {
-    if (await runClipboardHelper(deps, { program, args, input: payload })) {
+    if (await runClipboardHelper(deps.runProcess, { program, args, input: payload })) {
       return { ok: true }
     }
   }
@@ -87,11 +85,11 @@ export async function writeFileToClipboard(
 
 // True only on a clean exit; a helper that cannot start, fails or times out is false.
 async function runClipboardHelper(
-  deps: ClipboardFileDeps,
-  spec: Pick<ProcessSpec, 'program' | 'args' | 'env' | 'input'>
+  runProcess: ClipboardFileDeps['runProcess'],
+  spec: ProcessSpec
 ): Promise<boolean> {
   try {
-    const result = await deps.runProcess({
+    const result = await runProcess({
       ...spec,
       // Why ignored: wl-copy and xclip fork a background selection owner, and an
       // inherited output pipe would hold the run open until that owner exits.

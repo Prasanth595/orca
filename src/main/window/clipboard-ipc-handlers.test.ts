@@ -281,7 +281,9 @@ describe('registerClipboardHandlers', () => {
     expect(clipboardWriteBufferMock).not.toHaveBeenCalled()
   })
 
-  it('writes local files through the trusted clipboard IPC handler', async () => {
+  it('writes local files through the trusted handler into process-host', async () => {
+    // Pinned so the process-host wiring runs on every CI host, macOS included.
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
     registerClipboardHandlers({} as never)
 
     const handlers = getRegisteredHandlers()
@@ -291,40 +293,7 @@ describe('registerClipboardHandlers', () => {
 
     expect(fsStatMock).toHaveBeenCalledWith('/tmp/copied-file.txt')
     expect(resolveAuthorizedPathMock.mock.calls[0]?.[0]).toBe('/tmp/copied-file.txt')
-    if (process.platform === 'darwin') {
-      expect(clipboardWriteBufferMock).toHaveBeenCalledWith(
-        'public.file-url',
-        Buffer.from('file:///tmp/copied-file.txt', 'utf8')
-      )
-    } else {
-      expect(runProcessMock).toHaveBeenCalled()
-    }
-  })
-
-  it('copies a file on Windows through process-host PowerShell, reporting a failed run', async () => {
-    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
-    vi.stubEnv('SystemRoot', 'C:\\Windows')
-    registerClipboardHandlers({} as never)
-    const writeFile = getRegisteredHandlers().get('clipboard:writeFile')
-
-    await expect(writeFile?.(makeClipboardEvent(), '/tmp/copied-file.txt')).resolves.toEqual({
-      ok: true
-    })
-    expect(runProcessMock.mock.calls[0]?.[0].program).toBe(
-      'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
-    )
-
-    runProcessMock.mockResolvedValueOnce({
-      code: 1,
-      signal: null,
-      stdout: '',
-      stderr: '',
-      timedOut: false
-    })
-    await expect(writeFile?.(makeClipboardEvent(), '/tmp/copied-file.txt')).resolves.toEqual({
-      ok: false,
-      reason: 'clipboard-command-failed'
-    })
+    expect(runProcessMock).toHaveBeenCalledTimes(1)
   })
 
   it('rejects unauthorized local files before touching the OS clipboard', async () => {

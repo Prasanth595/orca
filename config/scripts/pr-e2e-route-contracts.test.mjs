@@ -362,7 +362,11 @@ describe('orcad-e2e-routing', () => {
 
   it('routes the Windows file-copy spec from its clipboard sources', () => {
     expectRouted(
-      ['src/main/window/clipboard-file-copy.ts', 'src/main/window/clipboard-ipc-handlers.ts'],
+      [
+        'src/main/window/clipboard-file-copy.ts',
+        'src/main/window/clipboard-ipc-handlers.ts',
+        'src/renderer/src/components/right-sidebar/file-explorer-row-file-transfer.ts'
+      ],
       WINDOWS_COPY_FILE_E2E_SPEC
     )
   })

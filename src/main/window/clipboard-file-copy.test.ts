@@ -90,6 +90,7 @@ describe('writeFileToClipboard', () => {
 
   it('copies on Windows with Set-Clipboard, passing the path as data, never as script', async () => {
     vi.stubEnv('SystemRoot', 'D:\\Win')
+    vi.stubEnv('ORCA_TEST_INHERITED', 'kept')
     const runProcess = vi.fn(async (_spec: ProcessSpec) => exited(0))
     const result = await writeFileToClipboard(
       "/repo/o'brien $(calc).png",
@@ -106,6 +107,8 @@ describe('writeFileToClipboard', () => {
       'Set-Clipboard -LiteralPath $env:ORCA_CLIPBOARD_FILE'
     ])
     expect(spec.env?.ORCA_CLIPBOARD_FILE).toBe("/repo/o'brien $(calc).png")
+    // PowerShell cannot start without the inherited environment.
+    expect(spec.env?.ORCA_TEST_INHERITED).toBe('kept')
   })
 
   it.each([
@@ -150,7 +153,7 @@ describe('writeFileToClipboard', () => {
     expect(spec.input).toBe('copy\nfile:///repo/a.png')
   })
 
-  it('keeps clipboard helper output detached so a forked selection owner cannot hold the run', async () => {
+  it('ignores helper stdout/stderr so a forked selection owner cannot hold the run open', async () => {
     const runProcess = vi.fn(async (_spec: ProcessSpec) => exited(0))
     await writeFileToClipboard('/repo/a.png', makeDeps({ platform: 'linux', runProcess }))
     expect(runProcess.mock.calls[0][0].stdio).toEqual(['pipe', 'ignore', 'ignore'])
@@ -166,7 +169,7 @@ describe('writeFileToClipboard', () => {
     expect(runProcess.mock.calls.map(([spec]) => spec.program)).toEqual(['wl-copy', 'xclip'])
   })
 
-  it('falls back to xclip when wl-copy is unavailable', async () => {
+  it('falls back to xclip when wl-copy fails', async () => {
     const runProcess = vi.fn(async (spec: ProcessSpec) =>
       spec.program === 'xclip' ? exited(0) : exited(1)
     )

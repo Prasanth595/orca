@@ -1,11 +1,9 @@
-import { execFile } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { promisify } from 'node:util'
+import { runProcess } from '@orca/process-host'
+import { windowsPowerShellPath } from '@orca/process-host/windows-system-binary'
 import { test, expect } from './helpers/orca-app'
-
-const execFileAsync = promisify(execFile)
 
 test.use({ seedTestRepo: false })
 
@@ -16,22 +14,18 @@ const FILE_NAME = "o'brien $(exit 7) ü.txt"
 // Explorer pastes only a real CF_HDROP; FileNameW alone reads back fine but
 // pastes nothing, so prove the copy with the shell's own paste verb.
 async function shellPasteInto(folder: string): Promise<void> {
-  await execFileAsync(
-    path.join(
-      process.env.SystemRoot ?? 'C:\\Windows',
-      'System32',
-      'WindowsPowerShell',
-      'v1.0',
-      'powershell.exe'
-    ),
-    [
+  const result = await runProcess({
+    program: windowsPowerShellPath(),
+    args: [
       '-NoProfile',
       '-NonInteractive',
       '-Command',
       '(New-Object -ComObject Shell.Application).NameSpace($env:PASTE_TARGET).Self.InvokeVerb("paste")'
     ],
-    { env: { ...process.env, PASTE_TARGET: folder }, windowsHide: true, timeout: 30_000 }
-  )
+    env: { ...process.env, PASTE_TARGET: folder },
+    timeoutMs: 30_000
+  })
+  expect(result.code, result.stderr).toBe(0)
 }
 
 test.describe('file explorer Copy on Windows', () => {
@@ -42,7 +36,8 @@ test.describe('file explorer Copy on Windows', () => {
     electronApp,
     registerPostElectronShutdownCleanup
   }) => {
-    const folder = await mkdtemp(path.join(os.tmpdir(), 'orca-copy-file-'))
+    // Native realpath: runners hand out an 8.3 temp path, but the app copies the long one.
+    const folder = await realpath(await mkdtemp(path.join(os.tmpdir(), 'orca-copy-file-')))
     registerPostElectronShutdownCleanup(() => rm(folder, { recursive: true, force: true }))
     const source = path.join(folder, 'workspace')
     const pasteTarget = path.join(folder, 'paste-target')
@@ -60,6 +55,7 @@ test.describe('file explorer Copy on Windows', () => {
       .click({ button: 'right' })
     await page.getByRole('menuitem', { name: 'Copy', exact: true }).click()
 
+    // Waits for the copy to land; the paste below is what proves it.
     await expect
       .poll(() =>
         electronApp.evaluate(({ clipboard }) =>
@@ -67,7 +63,6 @@ test.describe('file explorer Copy on Windows', () => {
         )
       )
       .toBe(path.join(source, FILE_NAME))
-    await expect(page.getByText('Could not copy the file to the clipboard')).toHaveCount(0)
 
     await shellPasteInto(pasteTarget)
     await expect
