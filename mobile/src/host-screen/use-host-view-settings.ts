@@ -132,6 +132,12 @@ export function useHostViewSettings(args: {
     persistViewSettings({ hideDefaultBranch: !viewStateRef.current.hideDefaultBranch })
   }, [persistViewSettings])
 
+  const toggleAlwaysShowDefaultBranch = useCallback(() => {
+    persistViewSettings({
+      alwaysShowDefaultBranch: !viewStateRef.current.alwaysShowDefaultBranch
+    })
+  }, [persistViewSettings])
+
   const toggleRepoFilter = useCallback(
     (repoId: string) => {
       const next = new Set(viewStateRef.current.filterRepoIds)
@@ -146,13 +152,21 @@ export function useHostViewSettings(args: {
   )
 
   const clearFilters = useCallback(() => {
-    persistViewSettings({ hideSleeping: false, hideDefaultBranch: false, filterRepoIds: [] })
+    persistViewSettings({
+      hideSleeping: false,
+      hideDefaultBranch: false,
+      filterRepoIds: [],
+      alwaysShowDefaultBranch: true
+    })
   }, [persistViewSettings])
 
   const activeFilterCount = useMemo(() => {
     let count = 0
     if (filters.hideSleeping) {
       count++
+      if (filters.alwaysShowDefaultBranch === false) {
+        count++
+      }
     }
     if (filters.hideDefaultBranch) {
       count++
@@ -193,6 +207,7 @@ export function useHostViewSettings(args: {
     selectedSortLabel,
     syncViewSettingsFromDesktop,
     toggleCollapsed,
+    toggleAlwaysShowDefaultBranch,
     toggleHideDefaultBranch,
     toggleHideSleeping,
     toggleRepoFilter,
