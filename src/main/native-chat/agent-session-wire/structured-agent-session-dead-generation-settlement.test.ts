@@ -14,6 +14,7 @@ import type { AgentSessionJournal } from '../agent-session-journal/journal-store
 import { settleStructuredAgentSessionDeadGeneration } from './structured-agent-session-dead-generation-settlement'
 import {
   captureUnfinishedStructuredAgentSessionWork,
+  type DeadGenerationJournal,
   unfinishedStructuredAgentSessionWorkWasInterrupted
 } from './structured-agent-session-unfinished-work'
 import { openTestJournalHostDatabase } from '../agent-session-journal/journal-host-database-test-support'
@@ -277,19 +278,14 @@ describe('dead structured-session generation settlement', () => {
       }
     }
     const settledSnapshot = journal.snapshot()
-    const closedJournal: Pick<
-      AgentSessionJournal,
-      'snapshot' | 'submissions' | 'rejectQueuedSubmissions' | 'appendLifecycleBatch' | 'itemFence'
-    > = {
+    const closedJournal: DeadGenerationJournal = {
       itemFence: () => undefined,
+      stopMarks: journal.stopMarks,
       snapshot: () => ({
         ...settledSnapshot,
         items: [settledItem]
       }),
       submissions: () => [],
-      rejectQueuedSubmissions: async () => {
-        throw new Error('journal_closed')
-      },
       appendLifecycleBatch: async () => {
         throw new Error('journal_closed')
       }

@@ -173,6 +173,7 @@ describe('provider-exit settlement', () => {
         itemBody: () => null,
         itemFence: () => undefined,
         snapshot: () => ({ items }),
+        stopMarks: { personStopDecides: () => false },
         appendLifecycleBatch
       }
     } as unknown as StructuredAgentSessionHostSession
@@ -248,6 +249,7 @@ describe('provider-exit settlement', () => {
             kind: 'turn',
             turnId: 'turn-2',
             state: 'interrupted',
+            outcome: 'failure',
             startedAt: 30,
             completedAt: 1_234
           },
@@ -290,6 +292,7 @@ describe('provider-exit settlement', () => {
           itemBody: () => null,
           itemFence: () => undefined,
           snapshot: () => ({ items }),
+          stopMarks: { personStopDecides: () => false },
           appendLifecycleBatch
         }
       }
@@ -333,6 +336,9 @@ describe('provider-exit settlement', () => {
               failure: { kind: 'providerExited' },
               tone: 'error'
             }
+          }),
+          expect.objectContaining({
+            body: expect.objectContaining({ state: 'interrupted', outcome: 'failure' })
           })
         ])
       }
@@ -347,6 +353,7 @@ describe('provider-exit settlement', () => {
         itemBody: () => null,
         itemFence: () => undefined,
         snapshot: () => ({ items: [] }),
+        stopMarks: { personStopDecides: () => false },
         appendLifecycleBatch: vi.fn(async () => ({ epoch: 'epoch-1', sequence: 1 })),
         submissions: () => [{ clientMessageId: 'client-1', dispatchState: 'pending' }]
       }
@@ -406,6 +413,7 @@ describe('provider-exit settlement', () => {
         snapshot: () => ({
           items: [lifecycleItem('turn-failing', 1, { state: 'running', startedAt: 1 })]
         }),
+        stopMarks: { personStopDecides: () => false },
         appendLifecycleBatch: vi.fn(async () => {
           throw new Error('journal still unavailable')
         })

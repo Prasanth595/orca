@@ -43,8 +43,7 @@ describe('describeNativeChatTurnStatus', () => {
     ['cancellation', 'interruptedAfter'],
     ['superseded', 'interruptedAfter'],
     ['failure', 'failedAfter'],
-    // A crash or restart cut it off: the turn reads finished and the chat's notice row says why.
-    ['interruption', 'workedFor'],
+    ['interruption', 'interruptedAfter'],
     ['success', 'workedFor'],
     ['unconfirmed', 'workedFor'],
     [undefined, 'workedFor']
@@ -121,14 +120,7 @@ describe('formatNativeChatTurnStatusLabel', () => {
   })
 
   // The phone's turn bar renders through this function, so it reads the same as desktop.
-  it('reads a crash-cut turn as worked and a Stop as interrupted in English', () => {
-    expect(
-      formatNativeChatTurnStatusLabel({
-        workedSeconds: 222,
-        elapsedSeconds: 0,
-        verdict: 'interruption'
-      })
-    ).toBe('Worked for 3m 42s')
+  it('reads a cut turn as interrupted in English', () => {
     expect(
       formatNativeChatTurnStatusLabel({
         workedSeconds: 222,

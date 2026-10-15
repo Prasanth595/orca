@@ -52,7 +52,11 @@ export type StructuredAgentSessionTurnCompletionFeedDeps = {
   ) => StructuredAgentSessionStatusState | null
 }
 
-type RequestMark = Pick<StructuredAgentSessionLatestRequest, 'kind' | 'id'>
+/** `awaitingVerdict`: the request ran and settled under this feed's watch without a verdict, so
+ *  the first one recorded on it is news. */
+type RequestMark = Pick<StructuredAgentSessionLatestRequest, 'kind' | 'id'> & {
+  awaitingVerdict: boolean
+}
 
 /** Per-session baseline. `settled` is the last settled request this feed has accounted for and
  *  `prompts` the prompts already pending; absence of the whole entry — not an empty field — is
@@ -60,10 +64,17 @@ type RequestMark = Pick<StructuredAgentSessionLatestRequest, 'kind' | 'id'>
 type SessionBaseline = CompletionFeedCursor & {
   settled: RequestMark | null
   prompts: ReadonlySet<string>
+  /** The request already latest at the baseline: history, so no verdict a restore adds is news. */
+  history: string | null
 }
 
-function settledMark(request: StructuredAgentSessionLatestRequest | null): RequestMark | null {
-  return request && request.turnState !== 'running' ? { kind: request.kind, id: request.id } : null
+function settledMark(
+  request: StructuredAgentSessionLatestRequest | null,
+  watched = false
+): RequestMark | null {
+  return request && request.turnState !== 'running'
+    ? { kind: request.kind, id: request.id, awaitingVerdict: watched && request.outcome === null }
+    : null
 }
 
 export class StructuredAgentSessionTurnCompletionFeed {
@@ -104,7 +115,8 @@ export class StructuredAgentSessionTurnCompletionFeed {
    *
    * The first observation of a session only records where it is, so restore, restart, rewind and
    * a re-read of history all pass through silently. An already-settled request republished by an
-   * in-place revision carries the same identity and so cannot fire twice; nor can a prompt.
+   * in-place revision carries the same identity and so cannot fire twice; nor can a prompt. A
+   * verdict first recorded on a request this feed watched run and settle without one fires once.
    */
   observe(
     sessionId: string,
@@ -126,7 +138,8 @@ export class StructuredAgentSessionTurnCompletionFeed {
     }
     if (!baseline || options?.historical) {
       // Baseline only. Whatever the session was already holding is history, not news.
-      this.baselines.set(sessionId, { ...cursor, settled: settledMark(request), prompts })
+      const history = request?.id ?? null
+      this.baselines.set(sessionId, { ...cursor, settled: settledMark(request), prompts, history })
       return
     }
     if (baseline.epoch !== cursor.epoch || cursor.sequence < baseline.sequence) {
@@ -137,6 +150,7 @@ export class StructuredAgentSessionTurnCompletionFeed {
       baseline.sequence = cursor.sequence
       baseline.settled = settledMark(request)
       baseline.prompts = prompts
+      baseline.history = request?.id ?? null
       return
     }
     baseline.sequence = cursor.sequence
@@ -201,15 +215,19 @@ export class StructuredAgentSessionTurnCompletionFeed {
     // Owed work waits, so sends refused one commit at a time announce once, when the last is
     // answered. A pending prompt does not wait: the event says so itself, and answering it keeps
     // the same identity.
-    // A withdrawn send leaves the older request latest.
+    // A withdrawn send leaves the older request latest. The host's exit settlement can add a
+    // turn's verdict after the adapter's outcome-less end was published; that verdict is the news.
+    const known = baseline.settled
     if (
       state.owesWork ||
       !request ||
-      (baseline.settled?.kind === request.kind && baseline.settled.id === request.id)
+      (known?.kind === request.kind &&
+        known.id === request.id &&
+        (!known.awaitingVerdict || request.outcome === null))
     ) {
       return null
     }
-    baseline.settled = settledMark(request)
+    baseline.settled = settledMark(request, request.id !== baseline.history)
     // ABSENT OUTCOME IS UNKNOWN: a turn the host only saw stop carries no verdict and gets no
     // event. Inferring success here is the one mistake that would light the dot on a failure.
     if (!request.outcome) {

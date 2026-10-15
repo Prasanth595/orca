@@ -63,12 +63,12 @@ describe('agentDotState', () => {
     )
   })
 
-  it('reads a crash-cut turn as failed and an unproven end as unconfirmed', () => {
+  it('reads an Orca-cut turn as interrupted and an unproven end as unconfirmed', () => {
     expect(agentDotState(row({ state: 'done', ...mainAgentDone('interruption') }), 0)).toBe(
-      'failed'
+      'interrupted'
     )
     expect(agentDisplayLabel(row({ state: 'done', ...mainAgentDone('interruption') }), 0)).toBe(
-      'Failed'
+      'Interrupted'
     )
     expect(agentDotState(row({ state: 'done', ...mainAgentDone('unconfirmed') }), 0)).toBe(
       'unconfirmed'
@@ -88,9 +88,6 @@ describe('agentDotState', () => {
   it('shows a main agent that failed while its subagents still run as failed', () => {
     expect(agentDotState(row({ state: 'working', ...mainAgentDone('failure') }), 0)).toBe('failed')
     expect(agentDotState(row({ state: 'waiting', ...mainAgentDone('failure') }), 0)).toBe('failed')
-    expect(agentDotState(row({ state: 'working', ...mainAgentDone('interruption') }), 0)).toBe(
-      'failed'
-    )
     // Only a fault outranks live work; a success or a stop with live subagents reads working.
     expect(agentDotState(row({ state: 'working', ...mainAgentDone('success') }), 0)).toBe('working')
     expect(
@@ -143,7 +140,7 @@ describe('agentDotState', () => {
     expect(agentDotState(row({ state: 'done', updatedAt: 0 }), stale)).toBe('done')
     expect(
       agentDotState(row({ state: 'done', updatedAt: 0, ...mainAgentDone('interruption') }), stale)
-    ).toBe('failed')
+    ).toBe('interrupted')
   })
 })
 

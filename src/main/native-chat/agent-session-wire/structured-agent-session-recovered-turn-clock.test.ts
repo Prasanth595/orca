@@ -17,8 +17,6 @@ import {
   agentTurnEndedOnPurpose,
   agentVerdictDisplayMark
 } from '../../../shared/agent-main-agent-verdict'
-import { formatNativeChatTurnStatusLabel } from '../../../shared/native-chat-turn-status'
-import { selectStructuredAgentSettledTurns } from '../../../shared/structured-agent-session-turn-timing'
 import { AgentHookServer, _internals } from '../../agent-hooks/server'
 import { createTrackedJournalOpener } from '../agent-session-journal/journal-host-database-test-support'
 import type { AgentSessionJournal } from '../agent-session-journal/journal-store'
@@ -32,12 +30,19 @@ import { indexedStatusFeedSession } from './structured-agent-session-status-feed
 import { StructuredAgentSessionTurnCompletionFeed } from './structured-agent-session-turn-completion-feed'
 import { createStructuredAgentSessionLogger } from './structured-agent-session-logger'
 import { codexProviderHandle } from '../../../shared/agent-session-provider-handle-encoding'
+import {
+  agentSessionLeaseFixture,
+  agentSessionRecordFixture
+} from '../../../shared/agent-session-record.test-fixture'
+import { settleStructuredAgentSessionChildExit } from './structured-agent-session-child-exit'
+import type { AgentJournalTurnLifecycle } from '../../../shared/agent-session-journal-types'
 
 const SESSION = 'recovered-turn-session'
 const THREAD = 'thread-1'
 const TURN_STARTED = 1_000
 const EXIT_OBSERVED = 2_000
 const RECOVERED = 9_000
+const RESTORED = { state: 'completed', outcome: 'success', completedAt: EXIT_OBSERVED } as const
 
 let root: string
 const journals = createTrackedJournalOpener()
@@ -69,11 +74,6 @@ async function sessionWithRunningTurn() {
   await journal.appendItem(
     { provider: 'orca', clientMessageId: 'prompt-1' },
     { kind: 'message', role: 'user', blocks: [{ type: 'text', text: 'long job' }] },
-    { fence: 1, turnScope: AGENT_JOURNAL_THREAD_SCOPE }
-  )
-  await journal.appendItem(
-    { provider: 'codex', threadId: THREAD, turnId: 'turn-1', ordinal: 9 },
-    { kind: 'turn', turnId: 'turn-1', state: 'running', startedAt: TURN_STARTED },
     { fence: 1, turnScope: AGENT_JOURNAL_THREAD_SCOPE }
   )
   const server = new AgentHookServer()
@@ -108,17 +108,27 @@ async function sessionWithRunningTurn() {
   completions.subscribe({ id: 'dot-1', emit: (event) => completionEvents.push(event) })
   // Both feeds have seen the turn running, so its settlement is a transition they must judge.
   completions.observe(SESSION, journal)
-  expect(summaries.at(-1)).toMatchObject({ status: 'working', statusStartedAt: TURN_STARTED })
   const publish = (): void => {
     feed.publish(SESSION, journal)
     completions.observe(SESSION, journal)
   }
+  const writeTurn = async (turn: Omit<AgentJournalTurnLifecycle, 'turnId'>, fence = 1) => {
+    await journal.appendItem(
+      { provider: 'codex', threadId: THREAD, turnId: 'turn-1', ordinal: 9 },
+      { kind: 'turn', turnId: 'turn-1', startedAt: TURN_STARTED, ...turn },
+      { fence, turnScope: AGENT_JOURNAL_THREAD_SCOPE }
+    )
+    publish()
+  }
+  await writeTurn({ state: 'running' })
   return {
     journal,
     server,
     summaries,
     completionEvents,
     publish,
+    writeTurn,
+    reopen: () => completions.observe(SESSION, journal, { historical: true }),
     recoverAt: (at: number) => {
       clock = at
     }
@@ -146,19 +156,19 @@ describe('a turn recovery settled after its host went away', () => {
       'an exit observed before the restart',
       { state: 'interrupted', completedAt: EXIT_OBSERVED },
       'interruption',
-      // A turn the user did not stop is a fault, marked as a failure is.
-      'failed'
+      'interrupted'
     ]
   ] satisfies [
     string,
     StructuredAgentSessionTurnVerdict,
     'unconfirmed' | 'interruption',
-    'unconfirmed' | 'failed'
+    'unconfirmed' | 'interrupted'
   ][])(
     'is done as of the recovery with the end the host observed, never a success: %s',
     async (_label, verdict, outcome, mark) => {
       const session = await sessionWithRunningTurn()
       session.recoverAt(RECOVERED)
+      session.reopen()
       expect(await settleDeadGeneration(session.journal, verdict)).toEqual({ ok: true })
       session.publish()
 
@@ -180,50 +190,8 @@ describe('a turn recovery settled after its host went away', () => {
       expect(row && agentVerdictDisplayMark(row)).toBe(mark)
       expect(row && agentTurnEndedOnPurpose(row)).toBe(false)
       // The dot and the OS notification come only from a completion event, and none is sent.
+      await session.writeTurn(RESTORED, 2)
       expect(session.completionEvents).toEqual([])
-    }
-  )
-
-  // The tab's mark reads a turn nobody stopped as failed; the chat's turn bar reads it like a
-  // finished turn, since the chat's notice row says why it stopped.
-  it.each([
-    [
-      'a restart',
-      (journal: AgentSessionJournal) =>
-        settleDeadGeneration(journal, { state: 'interrupted', completedAt: EXIT_OBSERVED })
-    ],
-    [
-      'quitting Orca',
-      // A quit evicts the child, writing no Stop event, and its adapter settles the open turn.
-      (journal: AgentSessionJournal) =>
-        journal.appendItem(
-          { provider: 'codex', threadId: THREAD, turnId: 'turn-1', ordinal: 9 },
-          {
-            kind: 'turn',
-            turnId: 'turn-1',
-            startedAt: TURN_STARTED,
-            state: 'interrupted',
-            completedAt: EXIT_OBSERVED
-          },
-          { fence: 1, turnScope: AGENT_JOURNAL_THREAD_SCOPE }
-        )
-    ]
-  ] as const)(
-    'reads Worked for N, marked failed, for a turn cut off by %s',
-    async (_label, cut) => {
-      const session = await sessionWithRunningTurn()
-      session.recoverAt(RECOVERED)
-      await cut(session.journal)
-      session.publish()
-
-      const [row] = session.server.getStatusSnapshot()
-      expect(row && agentVerdictDisplayMark(row)).toBe('failed')
-      const [settled] = [
-        ...selectStructuredAgentSettledTurns(session.journal.snapshot().items).values()
-      ]
-      expect(settled && formatNativeChatTurnStatusLabel({ elapsedSeconds: 0, ...settled })).toBe(
-        'Worked for 1s'
-      )
     }
   )
 
@@ -285,5 +253,50 @@ describe('a turn recovery settled after its host went away', () => {
         completion: expect.objectContaining({ outcome: 'success' })
       })
     ])
+  })
+})
+
+describe('a turn whose provider exited on its own', () => {
+  it.each([
+    ['fails, announced once as any failure', false, undefined, 'failed', ['failure']],
+    ["stays a person's earlier Stop", true, undefined, 'interrupted', ['cancellation']],
+    ['stays interrupted when Orca cut it', false, { kind: 'hostFault' }, 'interrupted', []]
+  ] as const)('%s', async (_label, stopFirst, failure, mark, announced) => {
+    const session = await sessionWithRunningTurn()
+    if (stopFirst) {
+      await session.journal.appendStopEvent({ reason: 'user-stop', turnId: 'turn-1' }, 1)
+    }
+    const record = agentSessionRecordFixture(agentSessionLeaseFixture())
+    const child = { generation: 'gen-1', fence: 1, phase: 'ready' as const }
+    await settleStructuredAgentSessionChildExit(
+      {
+        logger: createStructuredAgentSessionLogger(),
+        store: { getRecord: () => record, transitionHandoff: async () => record },
+        sessions: new Map([[SESSION, { child, journal: session.journal }]]),
+        // The adapter's own outcome-less end lands and is published before the host settles.
+        flushLifecycle: async () => {
+          await session.writeTurn({ state: 'interrupted', completedAt: EXIT_OBSERVED })
+          return { ok: true }
+        },
+        publishFence: () => {},
+        serialize: async (_sessionId, task) => task(),
+        now: () => EXIT_OBSERVED
+      },
+      {
+        type: 'ended',
+        sessionId: SESSION,
+        reason: 'exited',
+        cause: 'unexpected-exit',
+        fence: 1,
+        acquisitionGeneration: 'gen-1',
+        ...(failure ? { failure } : {})
+      }
+    )
+    session.publish()
+
+    expect(agentVerdictDisplayMark(session.server.getStatusSnapshot()[0]!)).toBe(mark)
+    expect(session.completionEvents).toMatchObject(
+      announced.map((outcome) => ({ completion: { outcome } }))
+    )
   })
 })
