@@ -388,8 +388,8 @@ describe('browserManager', () => {
     const rendererSendMock = vi.fn()
     let state: 'progressing' | 'interrupted' = 'progressing'
     const item = createDownloadItem({
-      getState: vi.fn(() => state) as never,
-      canResume: vi.fn(() => state === 'interrupted') as never
+      getState: vi.fn(() => state),
+      canResume: vi.fn(() => state === 'interrupted')
     })
     const guest = {
       id: 420,
@@ -412,7 +412,8 @@ describe('browserManager', () => {
     browserManager.handleGuestWillDownload({ guestWebContentsId: guest.id, item })
     const interrupt = (): void => {
       state = 'interrupted'
-      getDownloadItemEventHandler(item, 'on', 'updated')?.({} as Electron.Event, 'interrupted')
+      const event = { preventDefault: () => {}, defaultPrevented: false }
+      getDownloadItemEventHandler(item, 'on', 'updated')?.(event, 'interrupted')
     }
     const nextTick = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
 
