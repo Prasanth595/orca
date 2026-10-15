@@ -19719,6 +19719,12 @@
     }
   },
   "fileExplorer": {
+    "navigation": {
+      "up": "Up",
+      "openFolder": "Open Folder…",
+      "outsideWorkspace": "Outside the workspace · read-only",
+      "backToWorkspace": "Back to workspace"
+    },
     "root": {
       "label": "Explorer root",
       "full": "Repository root",
