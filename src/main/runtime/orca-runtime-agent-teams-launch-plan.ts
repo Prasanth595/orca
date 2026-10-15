@@ -15,7 +15,14 @@ import {
  * caller's claimed stable-pane-create slot on failure so the claim never leaks past this step.
  */
 export async function resolveAgentTeamsLaunchPlanForTerminalCreate(args: {
-  store: { getSettings?: () => { terminalWindowsShell?: unknown; claudeAgentTeamsMode?: ClaudeAgentTeamsMode } } | undefined
+  store:
+    | {
+        getSettings?: () => {
+          terminalWindowsShell?: unknown
+          claudeAgentTeamsMode?: ClaudeAgentTeamsMode
+        }
+      }
+    | undefined
   claudeAgentTeams: {
     createLaunchEnv: (args: {
       leaderHandle: string
