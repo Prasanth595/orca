@@ -13,8 +13,8 @@ import {
   type ExecutionHostId,
   type ExecutionHostKind
 } from './execution-host'
-import { evaluateRuntimeCompat, type RuntimeCompatVerdict } from './protocol-compat'
-import { MIN_COMPATIBLE_RUNTIME_SERVER_VERSION, RUNTIME_PROTOCOL_VERSION } from './protocol-version'
+import type { RuntimeCompatVerdict } from './protocol-compat'
+import { evaluateRuntimeStatusCompat } from './runtime-status-compat'
 import type { RuntimeStatus } from './runtime-types'
 import type { SshConnectionState, SshConnectionStatus } from './ssh-types'
 import type { RuntimeEnvironmentSource } from './runtime-environments'
@@ -62,16 +62,7 @@ export type ExecutionHostSource = 'configured-only' | 'include-references'
 function runtimeCompatibility(
   status: RuntimeStatus | null | undefined
 ): RuntimeCompatVerdict | null {
-  if (!status) {
-    return null
-  }
-  return evaluateRuntimeCompat({
-    clientProtocolVersion: RUNTIME_PROTOCOL_VERSION,
-    minCompatibleServerProtocolVersion: MIN_COMPATIBLE_RUNTIME_SERVER_VERSION,
-    serverProtocolVersion: status.runtimeProtocolVersion ?? status.protocolVersion,
-    serverMinCompatibleClientProtocolVersion:
-      status.minCompatibleRuntimeClientVersion ?? status.minCompatibleMobileVersion
-  })
+  return status ? evaluateRuntimeStatusCompat(status) : null
 }
 
 function runtimeHealth(

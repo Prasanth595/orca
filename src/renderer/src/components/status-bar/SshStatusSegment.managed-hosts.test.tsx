@@ -217,6 +217,7 @@ describe('the status menu for a managed SSH host', () => {
     })
     render(<SshStatusSegment compact={false} iconOnly={false} />)
     expect(screen.getByText('Disconnected')).toBeTruthy()
+    expect(screen.getByText('Update server required')).toBeTruthy()
     expect(screen.getByText(/The selected Orca server is too old for this client/)).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Connect' })).toBeNull()
     expect(

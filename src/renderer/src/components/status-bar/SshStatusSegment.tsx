@@ -18,7 +18,6 @@ import {
   toSshExecutionHostId
 } from '../../../../shared/execution-host'
 import { buildExecutionHostRegistry } from '../../../../shared/execution-host-registry'
-import { describeRuntimeCompatBlock } from '../../../../shared/protocol-compat'
 import { pickerExecutionHosts } from '../../../../shared/managed-orcad-execution-host'
 import { isListedRemoteServer } from '../../../../shared/runtime-environments'
 import { RuntimeHostStatusRow } from './RuntimeHostStatusRow'
@@ -33,7 +32,8 @@ import {
 } from './remote-host-connection-status'
 import {
   isConnectedRuntimeHostState,
-  runtimeHostConnectionStateForEntry,
+  runtimeHostIncompatibility,
+  runtimeHostPresentedStateForEntry,
   runtimeStatusForOverall
 } from '@/runtime/runtime-host-connection-state'
 
@@ -58,26 +58,19 @@ export function SshStatusSegment({
   const hostLabelOverrides = useMemo(() => getHostDisplayLabelOverrides(settings), [settings])
   const userManagedEnvironments = runtimeEnvironments.filter(isListedRemoteServer)
   // Why the registry: a managed server and its SSH host are one machine, shown on its active route.
-  const visibleHosts = pickerExecutionHosts(
-    buildExecutionHostRegistry({
-      repos: [],
-      settings,
-      hostSource: 'configured-only',
-      sshTargetLabels,
-      sshConnectionStates,
-      runtimeEnvironments: userManagedEnvironments,
-      runtimeStatusByEnvironmentId,
-      hostLabelOverrides
-    })
-  )
-  const visibleHostLabels = new Map(visibleHosts.map((host) => [host.id, host.label]))
-  // Why the registry's verdict: Settings already shows an incompatible server as disconnected.
-  const blockedHostMessages = new Map(
-    visibleHosts.flatMap((host) =>
-      host.health === 'blocked' && host.compatibility?.kind === 'blocked'
-        ? [[host.id, describeRuntimeCompatBlock(host.compatibility)] as const]
-        : []
-    )
+  const visibleHostLabels = new Map(
+    pickerExecutionHosts(
+      buildExecutionHostRegistry({
+        repos: [],
+        settings,
+        hostSource: 'configured-only',
+        sshTargetLabels,
+        sshConnectionStates,
+        runtimeEnvironments: userManagedEnvironments,
+        runtimeStatusByEnvironmentId,
+        hostLabelOverrides
+      })
+    ).map((host) => [host.id, host.label])
   )
   const targets = Array.from(sshTargetLabels.entries())
     // Why: runtime-owned (per-workspace-env) SSH targets are hidden — never list them
@@ -106,22 +99,17 @@ export function SshStatusSegment({
         snapshot: statusEntry?.snapshot,
         status: statusEntry?.status ?? null,
         active: settings?.activeRuntimeEnvironmentId === environment.id,
-        blockedMessage: blockedHostMessages.get(toRuntimeExecutionHostId(environment.id)),
+        incompatibility: runtimeHostIncompatibility(statusEntry),
+        state: runtimeHostPresentedStateForEntry(statusEntry),
         remoteControl: statusEntry?.remoteControl ?? statusEntry?.status?.remoteControl ?? null
       }
     })
-  const runtimeHostRows = runtimeHosts.map((host) => ({
-    ...host,
-    state: host.blockedMessage
-      ? ('disconnected' as const)
-      : runtimeHostConnectionStateForEntry(runtimeStatusByEnvironmentId.get(host.id))
-  }))
   // Available remote servers are online even when they are not the active runtime.
   // Keep host health separate from the advanced active-server selection.
-  const connectedRuntimeHosts = runtimeHostRows.filter((host) =>
+  const connectedRuntimeHosts = runtimeHosts.filter((host) =>
     isConnectedRuntimeHostState(host.state)
   )
-  const inactiveRuntimeHosts = runtimeHostRows.filter(
+  const inactiveRuntimeHosts = runtimeHosts.filter(
     (host) => !isConnectedRuntimeHostState(host.state)
   )
   const connectedTargets = targets.filter((target) => target.status === 'connected')
@@ -160,7 +148,7 @@ export function SshStatusSegment({
 
   const statuses = [
     ...targets.map((t) => sshStatusForOverall(t.status)),
-    ...runtimeHostRows.map((host) => runtimeStatusForOverall(host.state))
+    ...runtimeHosts.map((host) => runtimeStatusForOverall(host.state))
   ]
   const overall = overallStatus(statuses)
   const connectedHostCount = statuses.filter((status) => status === 'connected').length
@@ -236,7 +224,6 @@ export function SshStatusSegment({
             label={host.label}
             state={host.state}
             detail={runtimeHostConnectionDetail(host.remoteControl)}
-            blockedMessage={host.blockedMessage}
             diagnostics={host.remoteControl}
             onConnect={() => connectRuntimeHost(host.id)}
             onDisconnect={() => disconnectRuntimeHost(host.id)}
@@ -251,7 +238,7 @@ export function SshStatusSegment({
             label={host.label}
             state={host.state}
             detail={runtimeHostConnectionDetail(host.remoteControl)}
-            blockedMessage={host.blockedMessage}
+            incompatibility={host.incompatibility}
             diagnostics={host.remoteControl}
             onConnect={() => connectRuntimeHost(host.id)}
             onDisconnect={() => disconnectRuntimeHost(host.id)}

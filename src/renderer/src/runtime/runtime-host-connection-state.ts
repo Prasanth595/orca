@@ -1,5 +1,11 @@
-import { runtimeHostContactFromSnapshot } from '../../../shared/runtime-host-contact'
+import type { RuntimeCompatVerdict } from '../../../shared/protocol-compat'
+import {
+  liveRuntimeHostStatus,
+  runtimeHostContactForEntry,
+  runtimeHostContactFromSnapshot
+} from '../../../shared/runtime-host-contact'
 import type { RuntimeHostStatusSnapshot } from '../../../shared/runtime-host-status'
+import { evaluateRuntimeStatusCompat } from '../../../shared/runtime-status-compat'
 import type { RuntimeStatus } from '../../../shared/runtime-types'
 import { isRuntimeWorkspaceWindowClosed } from '../../../shared/runtime-workspace-window-availability'
 
@@ -18,8 +24,8 @@ export type RuntimeHostConnectionState =
   | 'reconnecting'
   | 'disconnected'
 
-// Why: one derivation for every host surface (status bar + Settings > Available Hosts),
-// so a degraded host can never read "Connected" in one place and "Ready" in the other.
+// Why: one transport derivation for every host surface (status bar + Settings > Available
+// Hosts); surfaces show it through runtimeHostPresentedStateForEntry, which adds compatibility.
 export function runtimeHostConnectionState({
   hasStatusEntry,
   status,
@@ -151,4 +157,30 @@ export function runtimeHostConnectionStateForEntry(
     ...(snapshot?.transport === 'connecting' ? { transportStatus: 'checking' as const } : {}),
     remoteControl: entry?.remoteControl ?? entry?.status?.remoteControl ?? null
   })
+}
+
+type RuntimeHostStatusEntry = Parameters<typeof runtimeHostConnectionStateForEntry>[0]
+
+/**
+ * A reachable server this client cannot use. Why live answers only: a retained answer from a
+ * host that dropped says nothing about the server now, so that host reads as reconnecting.
+ */
+export function runtimeHostIncompatibility(
+  entry: RuntimeHostStatusEntry
+): Extract<RuntimeCompatVerdict, { kind: 'blocked' }> | null {
+  const status = liveRuntimeHostStatus(runtimeHostContactForEntry(entry))
+  const verdict = status ? evaluateRuntimeStatusCompat(status) : null
+  return verdict?.kind === 'blocked' ? verdict : null
+}
+
+/**
+ * What every host surface shows. Why not fold this into the transport derivation: session
+ * mirrors and event subscriptions read that one, and a refused server's socket is still up.
+ */
+export function runtimeHostPresentedStateForEntry(
+  entry: RuntimeHostStatusEntry
+): RuntimeHostConnectionState {
+  return runtimeHostIncompatibility(entry)
+    ? 'disconnected'
+    : runtimeHostConnectionStateForEntry(entry)
 }

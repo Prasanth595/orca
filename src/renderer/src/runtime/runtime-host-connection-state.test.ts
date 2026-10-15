@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import type { RuntimeHostStatusSnapshot } from '../../../shared/runtime-host-status'
+import { MIN_COMPATIBLE_RUNTIME_SERVER_VERSION } from '../../../shared/protocol-version'
+import {
+  runtimeEnvironmentStatusFromSnapshot,
+  type RuntimeHostStatusSnapshot
+} from '../../../shared/runtime-host-status'
 import type { RuntimeStatus } from '../../../shared/runtime-types'
 import {
   isConnectedRuntimeHostState,
   isDisconnectedRuntimeHostState,
   runtimeHostConnectionState,
   runtimeHostConnectionStateForEntry,
+  runtimeHostIncompatibility,
+  runtimeHostPresentedStateForEntry,
   runtimeStatusForOverall
 } from './runtime-host-connection-state'
 
@@ -324,5 +330,32 @@ describe('snapshot transport evidence', () => {
         snapshot: snapshotWith('connecting', 'unavailable')
       })
     ).toBe('disconnected')
+  })
+})
+
+describe('a server too old for this client', () => {
+  const oldServerEntry = (transport: RuntimeHostStatusSnapshot['transport']) =>
+    runtimeEnvironmentStatusFromSnapshot({
+      environmentId: 'old-server',
+      pairingRevision: 1,
+      sequence: 1,
+      checkedAt: 1,
+      status: makeStatus({ runtimeProtocolVersion: MIN_COMPATIBLE_RUNTIME_SERVER_VERSION - 1 }),
+      verification: 'verified',
+      transport
+    })
+
+  it('reads disconnected on every host surface while its socket is up', () => {
+    const entry = oldServerEntry('ready')
+    expect(runtimeHostConnectionStateForEntry(entry)).toBe('connected')
+    expect(runtimeHostPresentedStateForEntry(entry)).toBe('disconnected')
+    expect(runtimeHostIncompatibility(entry)?.reason).toBe('server-too-old')
+  })
+
+  // Why: a retained answer from a host that dropped says nothing about the server now.
+  it('reads reconnecting, not refused, once its socket drops', () => {
+    const entry = oldServerEntry('disconnected')
+    expect(runtimeHostPresentedStateForEntry(entry)).toBe('reconnecting')
+    expect(runtimeHostIncompatibility(entry)).toBeNull()
   })
 })

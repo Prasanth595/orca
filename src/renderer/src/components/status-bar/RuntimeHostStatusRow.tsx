@@ -13,6 +13,11 @@ import {
   isConnectedRuntimeHostState,
   type RuntimeHostConnectionState
 } from '@/runtime/runtime-host-connection-state'
+import { runtimeCompatBlockTitle } from '@/runtime/runtime-compat-block-title'
+import {
+  describeRuntimeCompatBlock,
+  type RuntimeCompatVerdict
+} from '../../../../shared/protocol-compat'
 import type { RemoteRuntimeSharedConnectionDiagnostics } from '../../../../shared/remote-runtime-shared-control-types'
 
 function runtimeStatusLabel(state: RuntimeHostConnectionState): string {
@@ -139,7 +144,7 @@ export function RuntimeHostStatusRow({
   label,
   state,
   detail,
-  blockedMessage,
+  incompatibility,
   diagnostics,
   onConnect,
   onDisconnect
@@ -148,7 +153,7 @@ export function RuntimeHostStatusRow({
   state: RuntimeHostConnectionState
   detail?: string
   /** Why this client cannot use the server; replaces the connect action, which cannot help. */
-  blockedMessage?: string
+  incompatibility?: Extract<RuntimeCompatVerdict, { kind: 'blocked' }> | null
   diagnostics?: RemoteRuntimeSharedConnectionDiagnostics | null
   onConnect?: () => Promise<void>
   onDisconnect?: () => Promise<void>
@@ -157,7 +162,7 @@ export function RuntimeHostStatusRow({
   const [submenuOpen, setSubmenuOpen] = useState(false)
   const actionPointerActiveRef = useRef(false)
   const mountedRef = useMountedRef()
-  const actionLabel = blockedMessage ? null : runtimeActionLabel(state)
+  const actionLabel = incompatibility ? null : runtimeActionLabel(state)
 
   const handleAction = useCallback(async () => {
     const action = isConnectedRuntimeHostState(state) ? onDisconnect : onConnect
@@ -193,10 +198,15 @@ export function RuntimeHostStatusRow({
         )
       : null
   const diagnosticLabel = [lastConnectedLabel, reconnectAttemptLabel].filter(Boolean).join(' · ')
-  const rawDetail = blockedMessage
+  const rawDetail = incompatibility
     ? null
     : (diagnostics?.lastError ?? diagnostics?.lastClose?.reason ?? detail)
-  const failureExplanation = blockedMessage ? null : runtimeFailureExplanation(state)
+  const failureSummary = incompatibility
+    ? runtimeCompatBlockTitle(incompatibility.reason)
+    : runtimeFailureSummary(state)
+  const failureExplanation = incompatibility
+    ? describeRuntimeCompatBlock(incompatibility)
+    : runtimeFailureExplanation(state)
 
   const rowDetails = (
     <>
@@ -275,7 +285,7 @@ export function RuntimeHostStatusRow({
     )
   ) : null
 
-  if (!detail && !blockedMessage) {
+  if (!detail && !incompatibility) {
     return (
       <div className="flex items-center gap-2.5 px-2 py-1.5">
         {rowDetails}
@@ -299,9 +309,7 @@ export function RuntimeHostStatusRow({
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent className="w-[min(18rem,calc(100vw-1rem))] p-1.5">
         <div className="px-1.5 pt-0.5 pb-1.5">
-          <div className="text-[11px] font-semibold">
-            {blockedMessage ?? runtimeFailureSummary(state)}
-          </div>
+          <div className="text-[11px] font-semibold">{failureSummary}</div>
           {failureExplanation ? (
             <div className="mt-1 text-[11px] leading-4 text-muted-foreground">
               {failureExplanation}

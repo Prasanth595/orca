@@ -35,18 +35,7 @@ import { buildHostHeaderMenuModel } from './host-header-menu-items'
 import { HostRenameDialog } from './HostRenameDialog'
 import { HostRemoveDialog } from './HostRemoveDialog'
 import { resolveHostRemoval } from './host-rename-remove'
-
-function blockedTitle(reason: 'client-too-old' | 'server-too-old'): string {
-  return reason === 'server-too-old'
-    ? translate(
-        'auto.components.sidebar.HostSectionHeaderMenu.5b8b4b6a01',
-        'Update server required'
-      )
-    : translate(
-        'auto.components.sidebar.HostSectionHeaderMenu.9b3c1d2e44',
-        'Update client required'
-      )
-}
+import { runtimeCompatBlockTitle } from '@/runtime/runtime-compat-block-title'
 
 // Why: SSH and paired runtime hosts share the sidebar model, but Settings keeps
 // their management pages separate so each connection type can explain itself.
@@ -213,7 +202,7 @@ export function HostSectionHeaderMenu({ row }: { row: HostHeaderRow }): React.JS
                   onSelect={() => openManageHost(row)}
                 >
                   <AlertTriangle className="size-3.5" />
-                  {blockedTitle(model.blocked.reason)}
+                  {runtimeCompatBlockTitle(model.blocked.reason)}
                 </DropdownMenuItem>
               </TooltipTrigger>
               <TooltipContent side="right" sideOffset={6} className="max-w-72">
