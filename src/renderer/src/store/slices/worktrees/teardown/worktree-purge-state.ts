@@ -25,6 +25,7 @@ import {
   structuredAgentSessionTargetForHost
 } from '@/runtime/structured-agent-session-owner'
 import { removeTabsAttention } from '../../workspace-attention/subject-attention-transitions'
+import { removeWorktreeLayout } from '../../tabs/worktree-layout-lifecycle'
 
 /** Builds a bulk cleanup patch and clears auxiliary warning records without requiring individual terminal teardown. */
 export function buildWorktreePurgeState(
@@ -120,13 +121,8 @@ export function buildWorktreePurgeState(
     omitByFileId
   } = createWorktreePurgeOmitters(s, worktreeIdSet, doomed)
 
-  const nextOpenFiles = s.openFiles.some((f) => worktreeIdSet.has(f.worktreeId))
-    ? s.openFiles.filter((f) => !worktreeIdSet.has(f.worktreeId))
-    : s.openFiles
-
   const removedActive = s.activeWorktreeId != null && worktreeIdSet.has(s.activeWorktreeId)
   const activeFileCleared = s.activeFileId != null && doomed.removedFileIds.has(s.activeFileId)
-  const activeTabCleared = s.activeTabId != null && doomed.doomedTabIds.has(s.activeTabId)
 
   const nextEverActivatedWorktreeIds = (() => {
     let hit = false
@@ -148,14 +144,16 @@ export function buildWorktreePurgeState(
   const nextAgentStatusByPaneKey = omitByPaneKeyTabPrefix(s.agentStatusByPaneKey)
 
   return {
+    ...removeWorktreeLayout(s, {
+      worktreeIds: worktreeIdSet,
+      tabIds: doomed.doomedTabIds,
+      activeFileCleared
+    }),
     // Worktree-scoped terminal/tab state
     worktreeLineageById: omitByWorktree(s.worktreeLineageById),
     workspaceLineageByChildKey: omitWorkspaceLineageByWorktree(s.workspaceLineageByChildKey),
-    tabsByWorktree: omitByWorktree(s.tabsByWorktree),
-    terminalLayoutsByTabId: omitByTabId(s.terminalLayoutsByTabId),
     localOnlyScrollbackByTabId: omitByTabId(s.localOnlyScrollbackByTabId),
     detachedTerminalByTabId: omitByTabId(s.detachedTerminalByTabId),
-    ptyIdsByTabId: omitByTabId(s.ptyIdsByTabId),
     runtimePaneTitlesByTabId: omitByTabId(s.runtimePaneTitlesByTabId),
     automaticAgentResumeClaimsByTabId: omitByTabId(s.automaticAgentResumeClaimsByTabId),
     nativeChatLaunchPromptByTabId: omitByTabId(s.nativeChatLaunchPromptByTabId),
@@ -201,10 +199,8 @@ export function buildWorktreePurgeState(
     // File search
     fileSearchStateByWorktree: omitByWorktree(s.fileSearchStateByWorktree),
     // Browser state
-    browserTabsByWorktree: omitByWorktree(s.browserTabsByWorktree),
     browserPagesByWorkspace: omitByBrowserWorkspaceId(s.browserPagesByWorkspace),
     recentlyClosedBrowserTabsByWorktree: omitByWorktree(s.recentlyClosedBrowserTabsByWorktree),
-    activeBrowserTabIdByWorktree: omitByWorktree(s.activeBrowserTabIdByWorktree),
     // Why: keyed by page/workspace id, only cleaned by closeBrowserTab on the single-removal path; the bulk reconcile missed them, orphaning an entry per page of externally-removed worktrees.
     browserAnnotationsByPageId: omitByPageId(s.browserAnnotationsByPageId),
     browserAnnotationMarkerIdsByPageId: omitByPageId(s.browserAnnotationMarkerIdsByPageId),
@@ -218,18 +214,9 @@ export function buildWorktreePurgeState(
       s.recentlyClosedBrowserPagesByWorkspace
     ),
     // Editor state
-    activeFileIdByWorktree: omitByWorktree(s.activeFileIdByWorktree),
-    activeTabTypeByWorktree: omitByWorktree(s.activeTabTypeByWorktree),
-    activeTabIdByWorktree: omitByWorktree(s.activeTabIdByWorktree),
-    tabBarOrderByWorktree: omitByWorktree(s.tabBarOrderByWorktree),
     pendingReconnectTabByWorktree: omitByWorktree(s.pendingReconnectTabByWorktree),
     rightSidebarTabByWorktree: pruneRightSidebarTabByWorktree(),
     rightSidebarExplorerViewByWorktree: omitByWorktree(s.rightSidebarExplorerViewByWorktree ?? {}),
-    // Split-tab / unified tab state
-    unifiedTabsByWorktree: omitByWorktree(s.unifiedTabsByWorktree),
-    groupsByWorktree: omitByWorktree(s.groupsByWorktree),
-    layoutByWorktree: omitByWorktree(s.layoutByWorktree),
-    activeGroupIdByWorktree: omitByWorktree(s.activeGroupIdByWorktree),
     // Git status caches
     gitStatusByWorktree: omitByWorktree(s.gitStatusByWorktree),
     // Why: keyed by worktreeId; re-keyed on rename but missed by both removal paths (upstream-status entry).
@@ -263,7 +250,6 @@ export function buildWorktreePurgeState(
     recentlyClosedTerminalTabsByWorktree: omitByWorktree(s.recentlyClosedTerminalTabsByWorktree),
     recentlyClosedTabKindsByWorktree: omitByWorktree(s.recentlyClosedTabKindsByWorktree),
     // Top-level actives
-    openFiles: nextOpenFiles,
     everActivatedWorktreeIds: nextEverActivatedWorktreeIds,
     lastVisitedAtByWorktreeId: removeWorktreeVisitEntriesForTargets(
       s.lastVisitedAtByWorktreeId,
@@ -283,10 +269,6 @@ export function buildWorktreePurgeState(
       return activeScope?.type === 'worktree' && worktreeIdSet.has(activeScope.worktreeId)
         ? null
         : s.activeWorkspaceKey
-    })(),
-    activeFileId: activeFileCleared ? null : s.activeFileId,
-    activeBrowserTabId: removedActive ? null : s.activeBrowserTabId,
-    activeTabId: activeTabCleared ? null : s.activeTabId,
-    activeTabType: removedActive || activeFileCleared ? 'terminal' : s.activeTabType
+    })()
   }
 }
