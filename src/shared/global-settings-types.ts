@@ -47,9 +47,14 @@ import type { WorktreeVisibilityDefaults } from './repo-types'
 export type { WorktreeVisibilityDefaults } from './repo-types'
 
 /** MiniMax account region used to select the quota endpoint. */
+import type { AgentLaunchDefaultsGlobalSettings } from './agent-launch-defaults-settings'
+import type { OrchestrationWorkerGlobalSettings } from './orchestration-worker-model-settings'
+
 export type MiniMaxEndpoint = 'overseas' | 'cn'
 
-export type GlobalSettings = NativeChatGlobalSettings & {
+export type GlobalSettings = NativeChatGlobalSettings &
+  AgentLaunchDefaultsGlobalSettings &
+  OrchestrationWorkerGlobalSettings & {
   workspaceDir: string
   /** Host-owned defaults used when a repository has no explicit visibility override. */
   worktreeVisibilityDefaults?: WorktreeVisibilityDefaults
@@ -406,8 +411,6 @@ export type GlobalSettings = NativeChatGlobalSettings & {
   zcodePlanSite?: ZcodePlanSite
   /** Extract OAuth credentials from the local Gemini CLI for rate-limit fetching. Off by default (explicit opt-in). */
   geminiCliOAuthEnabled: boolean
-  /** Per-agent CLI command overrides. A missing key means use the catalog default binary name. */
-  agentCmdOverrides: Partial<Record<TuiAgent, string>>
   /** Custom CODEX_HOME for Codex session-history discovery (defaults to ~/.codex).
    *  History-only: does not change which account/config/hooks Orca uses. */
   codexSessionSourceHome?: {
@@ -416,18 +419,6 @@ export type GlobalSettings = NativeChatGlobalSettings & {
     /** Per-WSL-distro absolute Linux path; missing distro falls back to <wslHome>/.codex. */
     wsl?: Record<string, string>
   }
-  /** Per-agent default CLI arguments appended after the binary/path and before prompts. */
-  agentDefaultArgs?: Partial<Record<TuiAgent, string>>
-  /** Provider preference stored for orchestration worker settings. */
-  orchestrationDefaultWorkerAgent?: TuiAgent | null
-  /** Per-agent model preferences stored for orchestration worker settings. */
-  orchestrationWorkerModels?: Partial<Record<TuiAgent, string>>
-  /** Per-agent reasoning-effort preferences stored for orchestration worker settings. */
-  orchestrationWorkerEfforts?: Partial<Record<TuiAgent, string>>
-  /** Per-agent launch environment defaults used when yolo mode is exposed as env. */
-  agentDefaultEnv?: Partial<Record<TuiAgent, Record<string, string>>>
-  /** One-shot guard for adding yolo-mode default args to untouched agent launch profiles. */
-  agentYoloDefaultsMigrated?: boolean
   /** Why: disabling must persist so startup doesn't reinstall global agent hook entries the user just removed. */
   agentStatusHooksEnabled: boolean
   /** A local agent-state-rules.json that replaces downloaded and bundled rules, for testing a rule

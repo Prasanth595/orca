@@ -10,6 +10,16 @@ import type { TuiAgent } from './tui-agent'
 
 export type OrchestrationWorkerModels = Partial<Record<TuiAgent, string>>
 export type OrchestrationWorkerEfforts = Partial<Record<TuiAgent, string>>
+/** The Settings > Orchestration worker preferences, as GlobalSettings stores them. */
+export type OrchestrationWorkerGlobalSettings = {
+  /** Provider preference stored for orchestration worker settings. */
+  orchestrationDefaultWorkerAgent?: TuiAgent | null
+  /** Per-agent model preferences stored for orchestration worker settings. */
+  orchestrationWorkerModels?: OrchestrationWorkerModels
+  /** Per-agent reasoning-effort preferences stored for orchestration worker settings. */
+  orchestrationWorkerEfforts?: OrchestrationWorkerEfforts
+}
+
 export type OrchestrationWorkerLaunchDefaults = {
   agent: TuiAgent | null
   models: OrchestrationWorkerModels
