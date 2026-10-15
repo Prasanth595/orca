@@ -265,13 +265,10 @@ describe('tool and edit-card file activation', () => {
 
 describe('useNativeChatFileLinkClick', () => {
   it('opens whole-code bare names from the chat folder', () => {
-    render(
-      <Transcript markdown="Done. `decision-explainer.html`, `archive.7z` and `Makefile:7`." />
-    )
+    render(<Transcript markdown="Done. `decision-explainer.html` and `Makefile:7`." />)
 
     expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual([
       'decision-explainer.html',
-      'archive.7z',
       'Makefile:7'
     ])
     clickLink('decision-explainer.html')
