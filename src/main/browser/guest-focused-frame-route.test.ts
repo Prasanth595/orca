@@ -5,6 +5,7 @@ import {
   resolveFocusedFrameRoute,
   type GuestSessionCdpSender
 } from './guest-focused-frame-route'
+import { sendFrameSessionInput } from './guest-frame-input-sessions'
 
 function fakeGuest(): WebContents {
   // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the route only uses the guest as a cache key.
@@ -204,5 +205,28 @@ describe('isOrcaFrameSessionTraffic', () => {
     expect(
       isOrcaFrameSessionTraffic(guest, 'Target.detachedFromTarget', { sessionId: 'S1' }, undefined)
     ).toBe(true)
+  })
+})
+
+describe('sendFrameSessionInput', () => {
+  it('enables focus emulation once, retrying after a failure', async () => {
+    const guest = fakeGuest()
+    let failEmulation = true
+    const send = vi.fn<GuestSessionCdpSender>(async (method) => {
+      if (method === 'Emulation.setFocusEmulationEnabled' && failEmulation) {
+        failEmulation = false
+        throw new Error('Inspected target navigated or closed')
+      }
+      return {}
+    })
+
+    for (let i = 0; i < 3; i += 1) {
+      await sendFrameSessionInput(guest, send, 'S1', 'Input.insertText', { text: 'x' })
+    }
+
+    expect(
+      send.mock.calls.filter(([method]) => method === 'Emulation.setFocusEmulationEnabled')
+    ).toHaveLength(2)
+    expect(send.mock.calls.filter(([method]) => method === 'Input.insertText')).toHaveLength(3)
   })
 })

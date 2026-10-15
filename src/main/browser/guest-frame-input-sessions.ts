@@ -200,10 +200,18 @@ export async function sendFrameSessionInput(
   const sessions = frameSessionsFor(webContents)
   if (!sessions.emulatedSessionIds.has(sessionId)) {
     // Why: the frame must treat itself as focused for editors that check document.hasFocus().
-    await send('Emulation.setFocusEmulationEnabled', { enabled: true }, sessionId).catch(
-      () => undefined
+    // Why: recorded only on success, so a failure mid-navigation is retried on the next key.
+    const enabled = await send(
+      'Emulation.setFocusEmulationEnabled',
+      { enabled: true },
+      sessionId
+    ).then(
+      () => true,
+      () => false
     )
-    sessions.emulatedSessionIds.add(sessionId)
+    if (enabled) {
+      sessions.emulatedSessionIds.add(sessionId)
+    }
   }
   return await send(method, params, sessionId)
 }
