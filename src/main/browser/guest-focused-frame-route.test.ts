@@ -209,7 +209,7 @@ describe('isOrcaFrameSessionTraffic', () => {
 })
 
 describe('sendFrameSessionInput', () => {
-  it('enables focus emulation once, retrying after a failure', async () => {
+  it('enables focus emulation once, retrying a failed enable before sending', async () => {
     const guest = fakeGuest()
     let failEmulation = true
     const send = vi.fn<GuestSessionCdpSender>(async (method) => {
@@ -224,6 +224,11 @@ describe('sendFrameSessionInput', () => {
       await sendFrameSessionInput(guest, send, 'S1', 'Input.insertText', { text: 'x' })
     }
 
+    expect(send.mock.calls.slice(0, 3).map(([method]) => method)).toEqual([
+      'Emulation.setFocusEmulationEnabled',
+      'Emulation.setFocusEmulationEnabled',
+      'Input.insertText'
+    ])
     expect(
       send.mock.calls.filter(([method]) => method === 'Emulation.setFocusEmulationEnabled')
     ).toHaveLength(2)

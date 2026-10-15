@@ -199,17 +199,14 @@ export async function sendFrameSessionInput(
 ): Promise<unknown> {
   const sessions = frameSessionsFor(webContents)
   if (!sessions.emulatedSessionIds.has(sessionId)) {
-    // Why: the frame must treat itself as focused for editors that check document.hasFocus().
-    // Why: recorded only on success, so a failure mid-navigation is retried on the next key.
-    const enabled = await send(
-      'Emulation.setFocusEmulationEnabled',
-      { enabled: true },
-      sessionId
-    ).then(
-      () => true,
-      () => false
-    )
-    if (enabled) {
+    // Why: editors that check document.hasFocus() need it. Retried once and recorded only on
+    // success; input is sent either way, as a frame failing twice is navigating and loses it anyway.
+    const enable = (): Promise<boolean> =>
+      send('Emulation.setFocusEmulationEnabled', { enabled: true }, sessionId).then(
+        () => true,
+        () => false
+      )
+    if ((await enable()) || (await enable())) {
       sessions.emulatedSessionIds.add(sessionId)
     }
   }
