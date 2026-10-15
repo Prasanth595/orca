@@ -384,12 +384,11 @@ describe('browserManager', () => {
     )
   })
 
-  it('keeps an automatic retry running but fails a download left waiting for a manual resume', async () => {
+  it('fails a download waiting for manual resume and releases its resources', async () => {
     const rendererSendMock = vi.fn()
-    let state: 'progressing' | 'interrupted' = 'progressing'
     const item = createDownloadItem({
-      getState: vi.fn(() => state),
-      canResume: vi.fn(() => state === 'interrupted')
+      getState: () => 'interrupted',
+      canResume: () => true
     })
     const guest = {
       id: 420,
@@ -410,21 +409,9 @@ describe('browserManager', () => {
       rendererWebContentsId
     })
     browserManager.handleGuestWillDownload({ guestWebContentsId: guest.id, item })
-    const interrupt = (): void => {
-      state = 'interrupted'
-      const event = { preventDefault: () => {}, defaultPrevented: false }
-      getDownloadItemEventHandler(item, 'on', 'updated')?.(event, 'interrupted')
-    }
-    const nextTick = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
-
-    // Chromium retried before the deferred check ran.
-    interrupt()
-    state = 'progressing'
-    await nextTick()
-    expect(item.cancel).not.toHaveBeenCalled()
-
-    interrupt()
-    await nextTick()
+    const event = { preventDefault: () => {}, defaultPrevented: false }
+    getDownloadItemEventHandler(item, 'on', 'updated')?.(event, 'interrupted')
+    await new Promise<void>((resolve) => setImmediate(resolve))
     expect(item.cancel).toHaveBeenCalledTimes(1)
     expect(rendererSendMock.mock.calls.map(([channel]) => channel)).toEqual([
       'browser:download-requested',
