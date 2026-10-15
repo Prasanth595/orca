@@ -12,12 +12,15 @@ import {
 } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { runKeyedSerializedOperation } from '../cli/keyed-promise-queue'
 import type { StructuredAgentSessionLogger } from './agent-session-wire/structured-agent-session-logger'
 import { nativeChatScratchFolderFor, nativeChatScratchRootFor } from './native-chat-scratch-folder'
-import { runNativeChatScratchSave } from './native-chat-scratch-folder-lock'
+import {
+  runNativeChatScratchSave,
+  trackNativeChatScratchExpiryCandidate
+} from './native-chat-scratch-folder-lock'
 import {
   attach,
   hostTestState
@@ -169,6 +172,8 @@ describe('the visuals folder sweep', () => {
     await sweepNativeChatVisualsFolders({
       ...sweep,
       runWhileExecutionIdle: async (sessionId, task) => {
+        // An overlapping sweep of the same folder ends first; this sweep's candidate must survive.
+        trackNativeChatScratchExpiryCandidate(basename(folder)).dispose()
         // Settles between the scan and the locked recheck, which does not scan again.
         await runNativeChatScratchSave(state, join(folder, 'chart.html'), () =>
           writeFile(join(folder, 'chart.html'), '<p>saved</p>')

@@ -56,7 +56,9 @@ export class RuntimeFileMutations {
       expectedSshTargetId,
       expectedSshConnectionGeneration
     )
-    await requireRuntimeFileProvider(target, this.host).writeFileBase64(target.path, contentBase64)
+    await runNativeChatScratchSave(getProfileUserDataPath(), target.path, () =>
+      requireRuntimeFileProvider(target, this.host).writeFileBase64(target.path, contentBase64)
+    )
     return { ok: true }
   }
 
@@ -76,10 +78,12 @@ export class RuntimeFileMutations {
       expectedSshTargetId,
       expectedSshConnectionGeneration
     )
-    await requireRuntimeFileProvider(target, this.host).writeFileBase64Chunk(
-      target.path,
-      contentBase64,
-      append
+    await runNativeChatScratchSave(getProfileUserDataPath(), target.path, () =>
+      requireRuntimeFileProvider(target, this.host).writeFileBase64Chunk(
+        target.path,
+        contentBase64,
+        append
+      )
     )
     return { ok: true }
   }

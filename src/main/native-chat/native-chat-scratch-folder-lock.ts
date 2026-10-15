@@ -10,9 +10,12 @@ import {
   nativeChatScratchRootFor
 } from './native-chat-scratch-folder'
 
+type ExpiryCandidate = { current: boolean }
+
 const folderQueues = new Map<string, Promise<void>>()
 // The age scan runs outside the lock, so a save that settles after it starts makes it stale.
-const expiryCandidates = new Map<string, { current: boolean }>()
+// A set per folder: each runtime install runs its own sweep, so two can scan one folder at once.
+const expiryCandidates = new Map<string, Set<ExpiryCandidate>>()
 
 /** The scratch folder `filePath` lies inside, or null for any other path. */
 function scratchFolderNameOf(stateDirectory: string, filePath: string): string | null {
@@ -34,8 +37,7 @@ export function runNativeChatScratchSave<T>(
     try {
       return await save()
     } finally {
-      const candidate = expiryCandidates.get(folderName)
-      if (candidate) {
+      for (const candidate of expiryCandidates.get(folderName) ?? []) {
         candidate.current = false
       }
     }
@@ -54,10 +56,17 @@ export function trackNativeChatScratchExpiryCandidate(folderName: string): {
   isCurrent: () => boolean
   dispose: () => void
 } {
-  const candidate = { current: true }
-  expiryCandidates.set(folderName, candidate)
+  const candidate: ExpiryCandidate = { current: true }
+  const candidates = expiryCandidates.get(folderName) ?? new Set<ExpiryCandidate>()
+  candidates.add(candidate)
+  expiryCandidates.set(folderName, candidates)
   return {
     isCurrent: () => candidate.current,
-    dispose: () => expiryCandidates.delete(folderName)
+    dispose: () => {
+      candidates.delete(candidate)
+      if (candidates.size === 0) {
+        expiryCandidates.delete(folderName)
+      }
+    }
   }
 }
