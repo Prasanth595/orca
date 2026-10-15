@@ -276,7 +276,6 @@ export function installMainWindowFocusLifecycle(args: {
     resetShortcutRecorderFocus()
   })
   mainWindow.webContents.on('did-finish-load', () => {
-    closeAllDetachedTerminalWindows()
     rendererProcessGone = false
     attachBrowserClientPageRenderer(rendererWebContents)
     clearRendererRecoveryTimer()

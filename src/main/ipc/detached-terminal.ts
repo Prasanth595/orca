@@ -5,10 +5,11 @@ import {
   isDetachedTerminalRendererForTab,
   type DetachedTerminalWindowArgs
 } from '../window/detached-terminal-window'
+import {
+  MAX_DETACHED_TERMINAL_ID_LENGTH,
+  MAX_DETACHED_TERMINAL_TITLE_LENGTH
+} from '../../shared/detached-terminal-limits'
 import { isTrustedUIRenderer } from './ui'
-
-const MAX_ID_LENGTH = 4096
-const MAX_TITLE_LENGTH = 512
 
 function isNonEmptyString(value: unknown, maxLength: number): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= maxLength
@@ -22,9 +23,9 @@ function admitOpenArgs(value: unknown): DetachedTerminalWindowArgs | null {
   const ptyId = 'ptyId' in value ? value.ptyId : null
   const title = 'title' in value ? value.title : null
   if (
-    !isNonEmptyString(tabId, MAX_ID_LENGTH) ||
-    !isNonEmptyString(ptyId, MAX_ID_LENGTH) ||
-    !isNonEmptyString(title, MAX_TITLE_LENGTH)
+    !isNonEmptyString(tabId, MAX_DETACHED_TERMINAL_ID_LENGTH) ||
+    !isNonEmptyString(ptyId, MAX_DETACHED_TERMINAL_ID_LENGTH) ||
+    !isNonEmptyString(title, MAX_DETACHED_TERMINAL_TITLE_LENGTH)
   ) {
     return null
   }
@@ -36,15 +37,17 @@ function admitTabId(value: unknown): string | null {
     return null
   }
   const tabId = 'tabId' in value ? value.tabId : null
-  return isNonEmptyString(tabId, MAX_ID_LENGTH) ? tabId : null
+  return isNonEmptyString(tabId, MAX_DETACHED_TERMINAL_ID_LENGTH) ? tabId : null
 }
 
 export function registerDetachedTerminalHandlers(): void {
-  ipcMain.handle('detachedTerminal:open', (event, value: unknown): void => {
+  ipcMain.handle('detachedTerminal:open', (event, value: unknown): boolean => {
     const args = admitOpenArgs(value)
     if (args && isTrustedUIRenderer(event.sender)) {
       createOrFocusDetachedTerminalWindow(args)
+      return true
     }
+    return false
   })
   ipcMain.handle('detachedTerminal:close', (event, value: unknown): void => {
     const tabId = admitTabId(value)

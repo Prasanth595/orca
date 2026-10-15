@@ -1,9 +1,11 @@
+import { MAX_DETACHED_TERMINAL_TITLE_LENGTH } from '../../../../shared/detached-terminal-limits'
 import { isRemoteExecutionHostPtyId } from '../../../../shared/remote-execution-host-pty-id'
 import type { TerminalLayoutSnapshot } from '../../../../shared/terminal-tab-types'
 import { collectLeafIdsInOrder } from '@/components/terminal-pane/terminal-layout-leaf-ids'
 import type { AppState } from '../types'
 import type { TerminalStoreGet, TerminalStoreSet } from './terminal-state'
 import { resolvePrimaryLayoutPtyId } from './terminal-pty-identities'
+import { locateTerminalTab } from './terminal-tab-location'
 
 export type TerminalDetachTarget = {
   ptyId: string | null
@@ -38,7 +40,10 @@ export function resolveTerminalDetachTarget(
     ptyId,
     remoteUnsupported: ptyId ? isRemoteExecutionHostPtyId(ptyId) : false,
     splitUnsupported: countLayoutLeaves(layout) > 1,
-    title: tab.customTitle ?? tab.title
+    title: ((tab.customTitle ?? tab.title) || 'Terminal').slice(
+      0,
+      MAX_DETACHED_TERMINAL_TITLE_LENGTH
+    )
   }
 }
 
@@ -62,11 +67,19 @@ export function createTerminalDetachmentActions(set: TerminalStoreSet, get: Term
       if (!target || !ptyId || target.remoteUnsupported || target.splitUnsupported) {
         return false
       }
-      await window.api.detachedTerminal.open({
+      const opened = await window.api.detachedTerminal.open({
         tabId,
         ptyId,
         title: target.title
       })
+      if (!opened) {
+        return false
+      }
+      // Why: tab or worktree may have closed while the companion window was opening.
+      if (!locateTerminalTab(get().tabsByWorktree, tabId)) {
+        void window.api.detachedTerminal.close(tabId)
+        return false
+      }
       set((state) => ({
         detachedTerminalByTabId: {
           ...state.detachedTerminalByTabId,

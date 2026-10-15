@@ -198,6 +198,10 @@ describe('createMainWindow', () => {
       true
     )
     expect(closeAllDetachedTerminalWindowsMock).toHaveBeenCalledTimes(2)
+
+    // Document load completion should NOT close detached windows (a companion may have opened during load)
+    webContentsHandlers.get('did-finish-load')?.()
+    expect(closeAllDetachedTerminalWindowsMock).toHaveBeenCalledTimes(2)
   })
 
   it('enables renderer sandboxing and opens external links safely', () => {

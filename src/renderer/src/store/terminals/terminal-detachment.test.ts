@@ -5,7 +5,7 @@ import { resolveTerminalDetachTarget } from './terminal-detachment'
 
 const detachedTerminalApi = {
   close: vi.fn(async () => undefined),
-  open: vi.fn(async () => undefined),
+  open: vi.fn(async () => true),
   returnToMain: vi.fn(async () => undefined),
   onClosed: vi.fn(() => () => undefined)
 }
@@ -45,6 +45,86 @@ describe('terminal detachment state', () => {
     expect(store.getState().tabsByWorktree['wt-1']).toHaveLength(1)
 
     store.getState().redockDetachedTerminalTab('tab-1')
+    expect(store.getState().detachedTerminalByTabId).toEqual({})
+  })
+
+  it('does not detach tab when IPC open fails', async () => {
+    detachedTerminalApi.open.mockResolvedValueOnce(false)
+    const store = createTestStore()
+    seedStore(store, {
+      tabsByWorktree: {
+        'wt-1': [makeTab({ id: 'tab-1', worktreeId: 'wt-1', title: 'Shell' })]
+      },
+      terminalLayoutsByTabId: {
+        'tab-1': {
+          ...makeLayout(),
+          activeLeafId: 'leaf-1',
+          ptyIdsByLeafId: { 'leaf-1': 'pty-1' }
+        }
+      }
+    })
+
+    await expect(store.getState().detachTerminalTab('tab-1')).resolves.toBe(false)
+    expect(store.getState().detachedTerminalByTabId).toEqual({})
+  })
+
+  it('truncates custom title to 512 characters when opening companion', async () => {
+    const longTitle = 'x'.repeat(600)
+    const store = createTestStore()
+    seedStore(store, {
+      tabsByWorktree: {
+        'wt-1': [makeTab({ id: 'tab-1', worktreeId: 'wt-1', customTitle: longTitle })]
+      },
+      terminalLayoutsByTabId: {
+        'tab-1': {
+          ...makeLayout(),
+          activeLeafId: 'leaf-1',
+          ptyIdsByLeafId: { 'leaf-1': 'pty-1' }
+        }
+      }
+    })
+
+    await expect(store.getState().detachTerminalTab('tab-1')).resolves.toBe(true)
+    expect(detachedTerminalApi.open).toHaveBeenCalledWith({
+      tabId: 'tab-1',
+      ptyId: 'pty-1',
+      title: 'x'.repeat(512)
+    })
+    expect(store.getState().detachedTerminalByTabId).toEqual({
+      'tab-1': { ptyId: 'pty-1' }
+    })
+  })
+
+  it('closes companion and does not record detachment if tab is closed while opening', async () => {
+    let resolveOpen: (value: boolean) => void
+    detachedTerminalApi.open.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveOpen = resolve
+        })
+    )
+    const store = createTestStore()
+    seedStore(store, {
+      tabsByWorktree: {
+        'wt-1': [makeTab({ id: 'tab-1', worktreeId: 'wt-1', title: 'Shell' })]
+      },
+      terminalLayoutsByTabId: {
+        'tab-1': {
+          ...makeLayout(),
+          activeLeafId: 'leaf-1',
+          ptyIdsByLeafId: { 'leaf-1': 'pty-1' }
+        }
+      }
+    })
+
+    const detachPromise = store.getState().detachTerminalTab('tab-1')
+
+    store.getState().closeTab('tab-1')
+
+    resolveOpen!(true)
+    await expect(detachPromise).resolves.toBe(false)
+
+    expect(detachedTerminalApi.close).toHaveBeenCalledWith('tab-1')
     expect(store.getState().detachedTerminalByTabId).toEqual({})
   })
 
