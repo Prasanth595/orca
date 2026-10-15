@@ -62,7 +62,7 @@ it('asks Git to create the exact marker atomically and only verifies its ownersh
       '/prepared',
       'refs/heads/main'
     ],
-    { cwd: '/repo', ...options }
+    { cwd: '/repo', ...options, terminationBarrier: true }
   )
   expect(mocks.verify).toHaveBeenCalledExactlyOnceWith('/prepared', reason, options)
   expect(mocks.lock).not.toHaveBeenCalled()

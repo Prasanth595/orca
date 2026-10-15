@@ -71,9 +71,15 @@ export async function prepareWorktreeCreateCheckout(
             await verifyWorktreePreparationLockAtPath(lockPath, lockReason, options.signal)
           }
           // Why: reset materializes files without running user post-checkout hooks before submit.
+          // The barrier makes a cancel wait for WSL's guest git too, not just wsl.exe, so the
+          // discard below never races a reset that is still writing the tree.
           await gitExecFileAsync(
             [...windowsLongPathGitArgs(worktreePath), 'reset', '--hard', materializationBase],
-            { ...gitExecOptions(worktreePath, options), timeout: resolveWorktreeAddTimeoutMs() }
+            {
+              ...gitExecOptions(worktreePath, options),
+              timeout: resolveWorktreeAddTimeoutMs(),
+              terminationBarrier: true
+            }
           )
           await verifyWorktreePreparationLockAtPath(lockPath, lockReason, options.signal)
         } catch (error) {

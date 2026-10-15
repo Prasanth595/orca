@@ -55,7 +55,8 @@ export function addLockedWorktreePreparation(
           worktreePath,
           baseRef
         ],
-        gitExecOptions(repoPath, options)
+        // Why: a cancel must stop WSL's guest git, not just wsl.exe, before the discard below.
+        { ...gitExecOptions(repoPath, options), terminationBarrier: true }
       )
     } finally {
       invalidateWslLinkedWorktreeGitRouting(worktreePath)

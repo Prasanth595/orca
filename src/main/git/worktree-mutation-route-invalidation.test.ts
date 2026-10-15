@@ -163,6 +163,27 @@ describe('worktree mutations invalidate the WSL linked-worktree Git route', () =
     )
   })
 
+  it('discards a cancelled checkout only after its reset waited for the guest Git to stop', async () => {
+    const controller = new AbortController()
+    gitExecFileAsyncMock.mockImplementation(async (args: string[]) => {
+      if (args.includes('reset')) {
+        controller.abort()
+        throw new Error('The operation was aborted.')
+      }
+      return { stdout: '', stderr: '' }
+    })
+    await expect(
+      prepareWorktreeCreateCheckout(REPO, PREPARED, 'origin/main', 'owner', {
+        wslDistro: 'Ubuntu',
+        signal: controller.signal
+      })
+    ).rejects.toThrow('aborted')
+    const calls = gitExecFileAsyncMock.mock.calls
+    const reset = calls.findIndex(([args]) => args.includes('reset'))
+    expect(calls[reset][1]).toMatchObject({ terminationBarrier: true, signal: controller.signal })
+    expect(calls[reset + 1][0]).toEqual(expect.arrayContaining(['worktree', 'remove']))
+  })
+
   it('drops both routes after the prepared checkout is moved into place', async () => {
     seedWslLinkedWorktreeGitRoutingForTests(PREPARED)
     seedWslLinkedWorktreeGitRoutingForTests(LINKED)
