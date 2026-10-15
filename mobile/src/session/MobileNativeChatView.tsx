@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler'
 import { ArrowDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-react-native'
 import type { AskAnswerSelection, AskPrompt } from '../../../src/shared/native-chat-ask'
+import { createNativeChatMessageReuse } from '../../../src/shared/native-chat-row-reuse'
 import type { NativeChatMessage } from '../../../src/shared/native-chat-types'
 import type {
   NativeChatLiveTurnIndicator,
@@ -29,6 +30,7 @@ import {
 } from './mobile-native-chat-render-data'
 import { useMobileNativeChatPageHistory } from './use-mobile-native-chat-page-history'
 import { useMobileNativeChatPinchGesture } from './use-mobile-native-chat-pinch-gesture'
+import { useMobileNativeChatRowRenderers } from './use-mobile-native-chat-row-renderers'
 import {
   mobileNativeChatRowAnchor,
   useMobileNativeChatTailFollow
@@ -48,7 +50,6 @@ import { NO_COMPOSER_TRAY, type ComposerTrayProps } from './use-mobile-native-ch
 import type { MobileChatPermission } from './mobile-native-chat-permission'
 import type { MobileChatQuestion } from './mobile-native-chat-question'
 import type { MobileNativeChatSessionOptionPickersProps } from './MobileNativeChatSessionOptionPickers'
-import { MobileNativeChatMessage } from './MobileNativeChatMessage'
 import { MobileNativeChatScrollHold } from './MobileNativeChatScrollHold'
 import { mobileNativeChatUnsentNotices } from './mobile-native-chat-unsent-notices'
 import type { MobileNativeChatStatus } from './use-mobile-native-chat-session'
@@ -225,18 +226,21 @@ export function MobileNativeChatView({
   const { fontScale, pinchGesture } = useMobileNativeChatPinchGesture()
 
   // `data` is the list source: folded transcript + synthetic streaming bubble +
-  // route-owned accepted echoes. Memoize on the same deps so the
-  // downstream autoscroll effects/`renderItem` keep referential stability.
-  const { data } = useMemo(
+  // route-owned accepted echoes. Rows unchanged since the last batch keep their
+  // identity, so a streamed batch re-renders only the rows it changed.
+  const [reuseRows] = useState(createNativeChatMessageReuse)
+  const data = useMemo(
     () =>
-      buildMobileNativeChatTransientData({
-        messages,
-        folded,
-        streaming,
-        pending,
-        imagePreviewsByMessageId
-      }),
-    [messages, folded, streaming, pending, imagePreviewsByMessageId]
+      reuseRows(
+        buildMobileNativeChatTransientData({
+          messages,
+          folded,
+          streaming,
+          pending,
+          imagePreviewsByMessageId
+        }).data
+      ),
+    [reuseRows, messages, folded, streaming, pending, imagePreviewsByMessageId]
   )
   const {
     listRef,
@@ -305,20 +309,11 @@ export function MobileNativeChatView({
     () => mobileNativeChatUnsentNotices(turnJournal, agent),
     [turnJournal, agent]
   )
-  const renderItem = useCallback(
-    ({ item, index }: { item: NativeChatMessage; index: number }) => (
-      <MobileNativeChatMessage
-        message={item}
-        toolsExpanded={toolsExpanded}
-        fontScale={fontScale}
-        onOpenFile={onOpenFile}
-        structuredActivityUi={structuredActivityUi}
-        onToggleTurn={turns.onToggleTurn}
-        unsentNotice={item.unsent ? unsentNotices.get(item.id) : undefined}
-        {...turns.resolveRow(index, item)}
-      />
-    ),
-    [toolsExpanded, fontScale, onOpenFile, structuredActivityUi, turns, unsentNotices]
+  const { renderItem, renderWaitingRow } = useMobileNativeChatRowRenderers(
+    turns.listMessages,
+    turns.resolveRow,
+    unsentNotices,
+    { toolsExpanded, fontScale, onOpenFile, structuredActivityUi, onToggleTurn: turns.onToggleTurn }
   )
 
   const history = useMobileNativeChatPageHistory(turns.listMessages, renderItem)
@@ -368,6 +363,8 @@ export function MobileNativeChatView({
               data={history.listRows}
               keyExtractor={(item) => item.id}
               renderItem={history.renderListRow}
+              // Why: without it FlatList re-renders every mounted cell, stable `renderItem` or not.
+              strictMode
               contentContainerStyle={styles.listContent}
               // Let link/file taps land while the composer keyboard is up
               // instead of being swallowed by the dismiss gesture.
@@ -387,7 +384,7 @@ export function MobileNativeChatView({
               ListFooterComponent={mobileNativeChatListFooter(
                 liveStatus,
                 turns.waitingRows,
-                renderItem
+                renderWaitingRow
               )}
               ListEmptyComponent={emptyStateView}
             />
