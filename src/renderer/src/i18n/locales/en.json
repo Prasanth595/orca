@@ -1197,6 +1197,9 @@
           "webClientUnavailable": "Document previews aren't available in the web client."
         }
       },
+      "tabMoveToSplitCopy": {
+        "shortcutTitle": "{{label}}: {{direction}}"
+      },
       "clipboardWriteFailure": {
         "tooLarge": "The text is too large to copy."
       },

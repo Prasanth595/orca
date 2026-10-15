@@ -25,6 +25,7 @@ import type {
   PhysicalModifierToken
 } from '../../../shared/keybindings'
 import { shortcutPlatform } from './app-window-chrome'
+import { createTabMoveToSplitHandlers } from './tab-move-to-split-command-handlers'
 
 type AppStoreState = ReturnType<typeof useAppStore.getState>
 
@@ -240,6 +241,7 @@ export function createAppCommandHandlers(
         return claim('tab.rename', () => requestTerminalTabRename(tabId))
       }
     ],
+    ...createTabMoveToSplitHandlers(workspaceChromeActive && !floatingWorkspaceFocused, claim),
     [
       'workspace.rename',
       () => {
