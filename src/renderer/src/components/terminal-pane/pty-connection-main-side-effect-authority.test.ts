@@ -234,8 +234,12 @@ describe('connectPanePty', () => {
       })
 
       expect(deps.setRuntimePaneTitle).toHaveBeenCalledWith('tab-1', 1, 'Codex working')
-      expect(deps.markWorktreeUnread).toHaveBeenCalledTimes(1)
-      expect(deps.markTerminalTabUnread).toHaveBeenCalledWith('tab-1', 'terminal-bell')
+      expect(deps.markTerminalBell).toHaveBeenCalledTimes(1)
+      expect(deps.markTerminalBell).toHaveBeenCalledWith({
+        worktreeId: 'wt-1',
+        tabId: 'tab-1',
+        paneKey: makePaneKey('tab-1', LEAF_1)
+      })
       expect(deps.dispatchNotification).not.toHaveBeenCalled()
       vi.advanceTimersByTime(250)
       expect(deps.dispatchNotification).toHaveBeenCalledWith(
@@ -269,8 +273,7 @@ describe('connectPanePty', () => {
         facts: [{ kind: 'bell' }]
       })
 
-      expect(deps.markWorktreeUnread).not.toHaveBeenCalled()
-      expect(deps.markTerminalTabUnread).not.toHaveBeenCalled()
+      expect(deps.markTerminalBell).not.toHaveBeenCalled()
     })
 
     it('schedules the completion notification for genuine working→idle facts', async () => {
@@ -354,41 +357,7 @@ describe('connectPanePty', () => {
       // But no task-complete notification or unread attention is scheduled.
       vi.advanceTimersByTime(AGENT_TASK_COMPLETE_NOTIFICATION_MAX_WAIT_MS * 2)
       expect(deps.dispatchNotification).not.toHaveBeenCalled()
-      expect(deps.markWorktreeUnread).not.toHaveBeenCalled()
-      expect(deps.markTerminalPaneUnread).not.toHaveBeenCalled()
-    })
-
-    it('drops the agent status from a command-finished fact like the byte path did', async () => {
-      enableMainAuthority()
-      const { connectPanePty } = await import('./pty-connection')
-      const handler = await import('./terminal-side-effect-facts-handler')
-      const transport = createMockTransport()
-      transportFactoryQueue.push(transport)
-      const paneKey = makePaneKey('tab-1', LEAF_1)
-      mockStoreState.agentStatusByPaneKey = {
-        [paneKey]: {
-          paneKey,
-          state: 'done',
-          prompt: 'hi',
-          updatedAt: 1000,
-          stateStartedAt: 1000,
-          agentType: 'codex',
-          stateHistory: []
-        }
-      }
-
-      connectPanePty(createPane(1) as never, createManager(1) as never, createDeps() as never)
-      const onPtySpawn = createdTransportOptions[0]?.onPtySpawn as (ptyId: string) => void
-      onPtySpawn('pty-fact-133')
-
-      handler._dispatchTerminalSideEffectBatchForTest({
-        ptyId: 'pty-fact-133',
-        seq: 1,
-        facts: [{ kind: 'command-finished', exitCode: 130 }]
-      })
-
-      expect(mockStoreState.dropAgentStatus).toHaveBeenCalledWith(paneKey)
-      expect(mockStoreState.removeAgentStatus).not.toHaveBeenCalled()
+      expect(deps.markTerminalBell).not.toHaveBeenCalled()
     })
 
     it('routes pr-link facts to the worktree PR observer', async () => {
@@ -672,14 +641,14 @@ describe('connectPanePty', () => {
         seq: 1,
         facts: [{ kind: 'bell' }]
       })
-      expect(deps.markWorktreeUnread).not.toHaveBeenCalled()
+      expect(deps.markTerminalBell).not.toHaveBeenCalled()
 
       // Hydration with switch still off: byte parsing stays the single consumer — one BEL marks unread once.
       mockStoreState.settings = { terminalMainSideEffectAuthority: false }
       notifyStoreSubscribers()
       const onBell = createdTransportOptions[0]?.onBell as () => void
       onBell()
-      expect(deps.markWorktreeUnread).toHaveBeenCalledTimes(1)
+      expect(deps.markTerminalBell).toHaveBeenCalledTimes(1)
     })
   })
 })

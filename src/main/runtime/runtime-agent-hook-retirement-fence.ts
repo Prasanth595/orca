@@ -21,8 +21,8 @@ function sameAgentHookObservation(
 
 function readAgentHookRowsForPaneKeys(
   paneKeys: ReadonlySet<string>,
-  readRowsForPane: ((paneKey: string) => AgentStatusIpcPayload[]) | undefined,
-  readSnapshot: (() => AgentStatusIpcPayload[]) | undefined
+  readRowsForPane: ((paneKey: string) => AgentStatusIpcPayload[]) | null | undefined,
+  readSnapshot: (() => AgentStatusIpcPayload[]) | null | undefined
 ): AgentStatusIpcPayload[] {
   if (readRowsForPane) {
     const rows: AgentStatusIpcPayload[] = []
@@ -36,8 +36,8 @@ function readAgentHookRowsForPaneKeys(
 
 export function captureAgentHookRetirementFence(
   paneKeys: ReadonlySet<string>,
-  readRowsForPane: ((paneKey: string) => AgentStatusIpcPayload[]) | undefined,
-  readSnapshot: (() => AgentStatusIpcPayload[]) | undefined
+  readRowsForPane: ((paneKey: string) => AgentStatusIpcPayload[]) | null | undefined,
+  readSnapshot: (() => AgentStatusIpcPayload[]) | null | undefined
 ): () => boolean {
   const before = readAgentHookRowsForPaneKeys(paneKeys, readRowsForPane, readSnapshot)
   return () => {
