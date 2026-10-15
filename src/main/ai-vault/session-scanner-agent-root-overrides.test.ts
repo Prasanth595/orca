@@ -1,10 +1,11 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { resolveDefaultHermesHomeDir } from '../../shared/hermes-home'
 import type { AiVaultScanOptions } from './session-scanner-types'
 
 /**
- * The six env-derived scan roots must ignore a non-absolute value (#13082).
+ * The seven env-derived scan roots must ignore a non-absolute value (#13082).
  *
  * These assert at the *call sites*, not on the shared helper: four of the roots are module-level
  * consts evaluated at import time, so a helper that exists but is no longer wired into one of them
@@ -15,7 +16,7 @@ const NO_OPTIONS: AiVaultScanOptions = {}
 const NO_WSL: readonly string[] = []
 
 async function rootDirsFor(
-  agent: 'codex' | 'copilot' | 'devin' | 'openclaw' | 'kimi' | 'grok',
+  agent: 'codex' | 'copilot' | 'devin' | 'openclaw' | 'kimi' | 'grok' | 'hermes',
   env: Record<string, string>
 ): Promise<string[]> {
   vi.resetModules()
@@ -86,6 +87,15 @@ const CASES = [
     defaultRoot: () => join(homedir(), '.kimi-code', 'sessions')
   },
   {
+    agent: 'hermes',
+    envVar: 'HERMES_HOME',
+    absolute: '/srv/hermes',
+    absoluteRoot: join('/srv/hermes', 'sessions'),
+    // Platform-aware like the Devin case: %LOCALAPPDATA%\hermes on Windows,
+    // ~/.hermes elsewhere, which is what the source must stay wired to.
+    defaultRoot: () => join(resolveDefaultHermesHomeDir(), 'sessions')
+  },
+  {
     agent: 'grok',
     envVar: 'GROK_HOME',
     absolute: '/srv/grok',
@@ -123,6 +133,25 @@ describe('agent scan roots from environment overrides', () => {
         : join(homedir(), '.local', 'share')
     expect(roots).toEqual(
       ['transcripts', 'agent_logs'].map((dir) => join(dataDir, 'devin', 'cli', dir))
+    )
+  })
+
+  it('keeps the Hermes dotfolder listed beside a relocated home', async () => {
+    const relocated = join(homedir(), 'relocated-hermes')
+    const roots = await rootDirsFor('hermes', { HERMES_HOME: relocated })
+    // Snapshots already sitting in ~/.hermes/sessions stay discoverable.
+    expect(roots).toEqual([join(relocated, 'sessions'), join(homedir(), '.hermes', 'sessions')])
+  })
+
+  it('folds a HERMES_HOME that only respells the dotfolder on Windows', async () => {
+    const dotfolder = join(homedir(), '.hermes')
+    // The same directory on Windows, a different one on a case-sensitive host.
+    const respelled = dotfolder.replace(/\.hermes$/, '.HERMES').replace(/\\/g, '/')
+    const roots = await rootDirsFor('hermes', { HERMES_HOME: respelled })
+    expect(roots).toEqual(
+      process.platform === 'win32'
+        ? [join(respelled, 'sessions')]
+        : [join(respelled, 'sessions'), join(dotfolder, 'sessions')]
     )
   })
 
