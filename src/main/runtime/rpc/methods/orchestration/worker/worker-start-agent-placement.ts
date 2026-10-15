@@ -137,7 +137,7 @@ async function launchWorkerAgent(
             tabId: shell.tabId
           })
         },
-        createWorktree: async ({ startupAgent, promisedAgentChat, onWorkspaceCreated }) => {
+        createWorktree: async (launch) => {
           created = await createWorkerWorktree({
             runtime: args.runtime,
             db: args.db,
@@ -146,10 +146,7 @@ async function launchWorkerAgent(
             coordinatorWorktree: requireWorktree(args.creationWorktree),
             params: args.params,
             agent,
-            // The executor withholds the startup agent exactly when the worker is to be a session.
-            withAgentTerminal: startupAgent !== undefined,
-            promisedAgentChat,
-            onWorkspaceCreated,
+            launch,
             ...(args.launchPreferences ? { launchPreferences: args.launchPreferences } : {}),
             effects: args.effects
           })

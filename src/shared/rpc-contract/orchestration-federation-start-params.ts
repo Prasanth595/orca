@@ -11,6 +11,10 @@ export const FederationAttachStartParams = z.object({
   /** Depth stamped by the Run home; omitted by older clients and defaults to 1. */
   depth: z.number().int().min(1).optional(),
   protocolVersion: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+  /** Sent only to a peer advertising the federation agent-session capability. */
+  supportsAgentSession: z.boolean().optional(),
+  /** The coordinator's chat preference; the execution host still checks launch support. */
+  nativeChatDefault: z.boolean().optional(),
   worktree: requiredString('Missing remote worktree selector'),
   name: OptionalString,
   repo: OptionalString,

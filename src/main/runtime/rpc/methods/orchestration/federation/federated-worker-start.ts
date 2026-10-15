@@ -3,12 +3,13 @@ import { isTuiAgent } from '../../../../../../shared/tui-agent-config'
 import type { RuntimeStatus } from '../../../../../../shared/runtime-types'
 import {
   ORCHESTRATION_CONTRACT_RUNTIME_CAPABILITY,
-  ORCHESTRATION_FEDERATION_CONTROL_MAIL_PROTOCOL_VERSION,
-  ORCHESTRATION_FEDERATION_CONTROL_MAIL_RUNTIME_CAPABILITY,
-  ORCHESTRATION_FEDERATION_LIFECYCLE_SETTLEMENT_PROTOCOL_VERSION,
-  ORCHESTRATION_FEDERATION_LIFECYCLE_SETTLEMENT_RUNTIME_CAPABILITY,
-  ORCHESTRATION_FEDERATION_RUNTIME_CAPABILITY
+  ORCHESTRATION_FEDERATION_AGENT_SESSION_RUNTIME_CAPABILITY,
+  ORCHESTRATION_FEDERATION_RUNTIME_CAPABILITY,
+  STRUCTURED_AGENT_SESSION_CLIENT_LAUNCH_MODE_CAPABILITY
 } from '../../../../../../shared/protocol-version'
+import { resolveFederationProtocolVersion } from '../../../../../../shared/orchestration-runtime-capabilities'
+import { isNativeChatEnabled } from '../../../../../../shared/structured-native-chat-launch-route'
+import { readAgentLaunchModeSettings } from '../../../../../agent-launch/agent-launch-mode'
 import { orchestrationMigrationData } from '../../../../../../shared/orchestration-rpc-contract'
 import type { OrcaRuntimeService } from '../../../../orca-runtime'
 import type { OrchestrationDb } from '../../../../orchestration/db'
@@ -29,6 +30,7 @@ import {
 } from './federated-attach-receipt'
 import { isWorkerStartTimeoutWithinTimerLimit } from '../../../../../../shared/orchestration-timing-budgets'
 import {
+  federatedReadySurfaceReceipt,
   federatedUnknownReceipt,
   isKnownRemoteStartFailure
 } from './federated-worker-start-receipts'
@@ -108,16 +110,11 @@ export async function startFederatedWorker(args: {
     capabilities: status.capabilities,
     serverName: server.name
   })
-  const supportsControlMail = status.capabilities?.includes(
-    ORCHESTRATION_FEDERATION_CONTROL_MAIL_RUNTIME_CAPABILITY
-  )
-  const federationProtocolVersion =
-    supportsControlMail &&
-    status.capabilities?.includes(ORCHESTRATION_FEDERATION_LIFECYCLE_SETTLEMENT_RUNTIME_CAPABILITY)
-      ? ORCHESTRATION_FEDERATION_LIFECYCLE_SETTLEMENT_PROTOCOL_VERSION
-      : supportsControlMail
-        ? ORCHESTRATION_FEDERATION_CONTROL_MAIL_PROTOCOL_VERSION
-        : 1
+  const federationProtocolVersion = resolveFederationProtocolVersion(status.capabilities)
+  const supportsAgentSession =
+    status.capabilities?.includes(ORCHESTRATION_FEDERATION_AGENT_SESSION_RUNTIME_CAPABILITY) ??
+    false
+  const nativeChatDefault = isNativeChatEnabled(readAgentLaunchModeSettings(runtime))
 
   const setupDecision = createsWorktree ? (params.setup ?? 'run') : 'not_applicable'
   const started = db.createStartingWorkerDispatch({
@@ -176,6 +173,11 @@ export async function startFederatedWorker(args: {
           // remote worker cannot be mistaken for a root when it dispatches again.
           depth: started.dispatch.depth,
           protocolVersion: federationProtocolVersion,
+          ...(supportsAgentSession ? { supportsAgentSession: true } : {}),
+          ...(supportsAgentSession &&
+          status.capabilities?.includes(STRUCTURED_AGENT_SESSION_CLIENT_LAUNCH_MODE_CAPABILITY)
+            ? { nativeChatDefault }
+            : {}),
           worktree,
           name: params.name,
           repo: params.repo,
@@ -199,7 +201,8 @@ export async function startFederatedWorker(args: {
         budgets.attachDeadlineMs,
         { orchestrationRequestId: orchestrationMutation.requestId },
         { contractVerified: true, ...pairingFence }
-      )
+      ),
+      { supportsAgentSession }
     )
     if (remote.dispatchId !== started.dispatch.id) {
       throw new OrchestrationError(
@@ -239,6 +242,7 @@ export async function startFederatedWorker(args: {
         server: { environmentId: server.environmentId, name: server.name },
         setup: remote.setup,
         launch,
+        ...federatedReadySurfaceReceipt(remote, nativeChatDefault),
         timeoutMs: budgets.readinessTimeoutMs,
         effects: remote.effects ?? [],
         residualResources: remote.residualResources ?? []
@@ -250,7 +254,7 @@ export async function startFederatedWorker(args: {
         remote.failedStage ?? 'remote_attach',
         remote.lastError ?? 'The worker server reported an unknown start outcome.'
       )
-      return federatedUnknownReceipt(worker, taskForRemote.id, server.name, launch)
+      return federatedUnknownReceipt(worker, taskForRemote.id, server.name, launch, remote)
     }
     const worker = db.failWorkerStart(
       started.dispatch.id,
@@ -268,6 +272,8 @@ export async function startFederatedWorker(args: {
       lastError: worker.last_error,
       setup: remote.setup,
       launch,
+      ...(remote.mode ? { mode: remote.mode } : {}),
+      ...(remote.agentSession ? { agentSession: remote.agentSession } : {}),
       effects: remote.effects ?? [],
       residualResources: remote.residualResources ?? []
     }

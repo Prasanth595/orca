@@ -1,3 +1,4 @@
+import type { AgentLaunchResult } from '../../../../../../shared/agent-launch-intent'
 import type { OrchestrationDb } from '../../../../orchestration/db'
 import { isFederationEffectUnknown } from './federation-effects'
 import type { WorkerSetupReceipt } from '../worker/worker-topology'
@@ -11,9 +12,21 @@ export function failFederatedAttachmentWithReceipt(args: {
   error: unknown
   setup: WorkerSetupReceipt
   launch: OrchestrationWorkerLaunchReceipt
+  mode?: AgentLaunchResult['receipt']
+  agentSession?: AgentLaunchResult['outcome']
+  discardedSessionHandle?: string
 }): unknown {
   const reason = args.error instanceof Error ? args.error.message : String(args.error)
   const unknown = isFederationEffectUnknown(args.error, args.failedStage)
+  if (args.discardedSessionHandle) {
+    const current = args.db.getRemoteDispatchAttachment(args.dispatchId)
+    const residualResources: { id?: string }[] = JSON.parse(current?.residual_resources ?? '[]')
+    args.db.recordRemoteAttachmentStage({
+      dispatchId: args.dispatchId,
+      stage: args.failedStage,
+      residualResources: residualResources.filter(({ id }) => id !== args.discardedSessionHandle)
+    })
+  }
   const attachment = args.db.failRemoteAttachment(
     args.dispatchId,
     args.failedStage,
@@ -29,6 +42,10 @@ export function failFederatedAttachmentWithReceipt(args: {
     lastError: reason,
     setup: args.setup,
     launch: args.launch,
+    ...(args.mode ? { mode: args.mode } : {}),
+    ...(args.agentSession
+      ? { agentSession: args.agentSession, terminalHandle: args.agentSession.handle }
+      : {}),
     effects: JSON.parse(attachment.effects) as unknown[],
     residualResources: JSON.parse(attachment.residual_resources) as unknown[]
   }

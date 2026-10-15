@@ -13,8 +13,12 @@ vi.mock('../native-chat/agent-session-wire/structured-agent-session-registry', (
   getStructuredAgentSessionHost: () => hostRef.current
 }))
 
-const { observeStructuredWorker, resolveStructuredWorkerAuthority, structuredSessionCloseSettled } =
-  await import('./structured-worker-authority')
+const {
+  observeStructuredWorker,
+  resolveStructuredWorkerAuthority,
+  resolveStructuredWorkerIdentity,
+  structuredSessionCloseSettled
+} = await import('./structured-worker-authority')
 const { structuredWorkerOpenTaskTitle, structuredWorkerOwesWork, structuredWorkerOwned } =
   await import('./structured-worker-custody')
 const {
@@ -27,6 +31,8 @@ const { listAddressableStructuredWorkers } =
   await import('./orchestration/structured-worker-group-addressing')
 const { closeStructuredAgentSessionChild } = await import('./structured-agent-session-close')
 const { resolveGroupAddress } = await import('./orchestration/groups')
+const { structuredSessionOwnedMailboxes, structuredWorkerMailboxDispatchId } =
+  await import('./orchestration/structured-session-mail-target')
 const { createRestTestRig, foundRestTestChat, IDLE_MS, REST_TEST_SESSION, sweepTicks } =
   await import('../native-chat/agent-session-wire/structured-agent-session-rest-test-rig')
 
@@ -55,7 +61,7 @@ function running(current: AgentSessionRecord): RunningStructuredSession {
 
 function installHost(current: AgentSessionRecord | null, tabs: string[]) {
   const host = {
-    deps: { store: { getRecord: () => current } },
+    deps: { store: { getRecord: () => current, listRecords: () => (current ? [current] : []) } },
     hasSession: () => false,
     getPersistedVisibleSessionTabIndex: () => ({ present: true, sessionIds: tabs }),
     setSessionTabVisibility: vi.fn(async (_id: string, visible: boolean) => {
@@ -127,6 +133,51 @@ describe('an open dispatch keeps its worker running (P2-19 i)', () => {
     expect(structuredWorkerOwesWork(db, record({}))).toBe(true)
     db.settleWorkerStop(dispatch.id)
     expect(structuredWorkerOwesWork(db, record({}))).toBe(false)
+  })
+
+  it('rehydrates a remote structured worker and keeps its child running until the attachment settles', () => {
+    const handle = mintStructuredWorkerHandle()
+    const workerPane = mintStructuredWorkerPaneKey(SESSION)
+    const remote = db.createRemoteDispatchAttachment({
+      runId: 'run_home',
+      dispatchId: 'ctx_remote_structured',
+      taskId: 'task_remote_structured',
+      homePeerFingerprint: 'home-peer',
+      protocolVersion: 2,
+      runtimeEpoch: 'epoch_worker',
+      mutationReceipt: {
+        callerFingerprint: 'home-peer',
+        requestId: 'start-remote-structured',
+        method: 'orchestration.federationAttachStart',
+        payloadHash: 'payload'
+      }
+    })
+    db.prepareRemoteAttachmentAuthority({
+      dispatchId: remote.dispatch_id,
+      paneKey: workerPane,
+      processIncarnation: structuredWorkerProcessIncarnation(SESSION),
+      worktreeId: 'wt_1',
+      terminalHandle: handle,
+      setupState: 'not_configured',
+      effects: [],
+      hostScope: LOCAL,
+      terminalOwnership: 'created'
+    })
+    structuredWorkerIdentities.clear()
+    expect(resolveStructuredWorkerIdentity(handle, db)?.sessionId).toBe(SESSION)
+    installHost(record({}), [SESSION])
+    expect(structuredSessionOwnedMailboxes(SESSION, db)).toContain(`dispatch:${remote.dispatch_id}`)
+    expect(structuredWorkerMailboxDispatchId(handle, workerPane, db)).toBe(remote.dispatch_id)
+    expect(structuredWorkerOwesWork(db, record({}))).toBe(true)
+    db.markRemoteAttachmentReady(remote.dispatch_id)
+    expect(structuredWorkerOwesWork(db, record({}))).toBe(true)
+    db.beginRemoteAttachmentStop(remote.dispatch_id)
+    expect(structuredWorkerOwesWork(db, record({}))).toBe(true)
+    db.settleRemoteAttachmentStop(remote.dispatch_id)
+    expect(structuredWorkerOwesWork(db, record({}))).toBe(false)
+    expect(structuredSessionOwnedMailboxes(SESSION, db)).not.toContain(
+      `dispatch:${remote.dispatch_id}`
+    )
   })
 
   it('names the worker after the task it still owes, and nothing once that settles', () => {
