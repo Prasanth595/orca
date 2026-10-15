@@ -132,6 +132,29 @@ describe('useListMultiSelection', () => {
     expect(selection.selectedItems).toEqual([c])
   })
 
+  it('replaces the selection with one key and anchors a later range there', () => {
+    setPlatform(false)
+    render([a, b, c, d])
+    act(() => selection.updateSelectionForGesture(gesture({ ctrlKey: true }), a))
+    act(() => selection.updateSelectionForGesture(gesture({ ctrlKey: true }), b))
+
+    act(() => selection.selectOnly('c'))
+    expect(selection.selectedItems).toEqual([c])
+    act(() => selection.updateSelectionForGesture(gesture({ shiftKey: true }), d))
+    expect(selection.selectedItems).toEqual([c, d])
+  })
+
+  it('keeps the selection identity when it already holds only that key', () => {
+    setPlatform(false)
+    render([a, b])
+    act(() => selection.selectOnly('a'))
+    const { selectedKeys, selectOnly } = selection
+
+    act(() => selection.selectOnly('a'))
+    expect(selection.selectedKeys).toBe(selectedKeys)
+    expect(selection.selectOnly).toBe(selectOnly)
+  })
+
   it('clears on a pointerdown outside the scope only', () => {
     setPlatform(false)
     render([a, b])
