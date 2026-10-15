@@ -65,7 +65,7 @@ import {
 import {
   ACCOUNT_IMPORT_RUNTIME_CAPABILITY,
   CLAUDE_SIGN_IN_RUNTIME_CAPABILITY
-} from '../../shared/protocol-version'
+} from '../../shared/account-runtime-capabilities'
 
 function successfulChild(): EventEmitter {
   const child = new EventEmitter()
@@ -694,7 +694,7 @@ describe('account CLI handlers', () => {
 
     expect(logSpy).toHaveBeenCalledWith(
       expect.stringContaining(
-        '  old@example.com (active) (sign in again in Orca Settings > Accounts)\n  ok@example.com\n'
+        '  old@example.com (active) (sign in again in Orca Settings > AI Provider Accounts)\n  ok@example.com\n'
       )
     )
   })

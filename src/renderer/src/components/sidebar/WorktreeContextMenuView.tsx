@@ -27,7 +27,7 @@ import {
   FolderTree
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { WorktreeOpenInSubMenu } from './WorktreeOpenInMenu'
+import { WorktreeRowOpenInSubMenu } from './WorktreeRowOpenInSubMenu'
 import { WorktreeDeveloperMenu } from './WorktreeDeveloperMenu'
 import { WorkspaceSleepMenuItems } from './WorkspaceSleepMenuItems'
 import { WorkspaceArchiveMenuItem } from './WorkspaceArchiveMenuItem'
@@ -175,8 +175,8 @@ export default function WorktreeContextMenuView({ model }: { model: WorktreeCont
           <DropdownMenuSeparator />
           {!isMultiContext && (
             <>
-              <WorktreeOpenInSubMenu
-                worktreePath={worktree.path}
+              <WorktreeRowOpenInSubMenu
+                worktree={worktree}
                 connectionId={repo?.connectionId ?? null}
                 disabled={isDeleting}
               />
