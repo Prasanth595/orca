@@ -23,7 +23,6 @@ function worktree(overrides: Partial<Worktree> = {}): Worktree {
     path: worktreePath,
     liveTerminalCount: 0,
     hasAttachedPty: false,
-    preview: '',
     unread: false,
     isPinned: false,
     linkedPR: null,
@@ -211,6 +210,19 @@ describe('filterWorktrees', () => {
         ''
       )
     ).toEqual([folder])
+  })
+
+  it("drops rows the desktop's Hide other-client workspaces hides", () => {
+    const mine = worktree({ worktreeId: 'mine' })
+    const other = worktree({ worktreeId: 'other', desktopOtherClient: true })
+
+    expect(
+      filterWorktrees(
+        [mine, other],
+        { filterRepoIds: new Set(), hideSleeping: false, hideDefaultBranch: false },
+        ''
+      )
+    ).toEqual([mine])
   })
 })
 

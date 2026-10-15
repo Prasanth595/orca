@@ -14,8 +14,13 @@ import {
 
 const discoverRuntimeCommitMessageModels = vi.hoisted(() => vi.fn())
 
-vi.mock('@/runtime/runtime-git-client', () => ({
+vi.mock('@/runtime/runtime-git-generation-client', () => ({
   discoverRuntimeCommitMessageModels
+}))
+
+// Discovery now asks the workspace's owner, which the bare test store cannot name.
+vi.mock('@/lib/resolve-owner', () => ({
+  runtimeTargetForWorkspaceOwner: () => ({ kind: 'local' }) as const
 }))
 
 afterEach(() => {
