@@ -351,10 +351,6 @@ describe('DaemonPtyAdapter (IPtyProvider)', () => {
         const client = (healingAdapter as unknown as { client: DaemonClient }).client
 
         await server.shutdown()
-        await waitFor(() => !client.isConnected())
-        expect(() => healingAdapter.write('pane-a', 'first-death')).toThrow(
-          PtyWriteUnavailableError
-        )
         await waitFor(() => respawn.mock.calls.length === 1)
         await waitFor(() => client.isConnected())
 
@@ -363,17 +359,156 @@ describe('DaemonPtyAdapter (IPtyProvider)', () => {
         recovered.length = 0
 
         await server.shutdown()
-        await waitFor(() => !client.isConnected())
 
         // Why revert-sensitive: the storm latch is otherwise only released when the
         // awaiting set empties, which a never-rebinding background session prevents
         // forever. That silently downgrades the fix to one-shot — every daemon death
         // after the first would respawn nothing and leave siblings frozen again.
+        await waitFor(() => respawn.mock.calls.length === 2)
+        expect(recovered).toContain('pane-a')
         expect(() => healingAdapter.write('pane-a', 'second-death')).toThrow(
           PtyWriteUnavailableError
         )
-        expect(recovered).toContain('pane-a')
+      } finally {
+        healingAdapter.dispose()
+      }
+    })
+
+    it('starts recovery as soon as the daemon dies, before any pane is written', async () => {
+      const respawn = vi.fn(async () => {
+        restartServerOnRespawn()
+        await server.start()
+      })
+      const healingAdapter = new DaemonPtyAdapter({ socketPath, tokenPath, respawn })
+      const recovered: string[] = []
+      healingAdapter.onWriteUnavailable(({ id }) => recovered.push(id))
+      try {
+        await healingAdapter.spawn({ sessionId: 'pane-a', cols: 80, rows: 24 })
+        await healingAdapter.spawn({ sessionId: 'pane-b', cols: 80, rows: 24 })
+
+        await server.shutdown()
+
+        // Why revert-sensitive: recovery used to wait for a keystroke, leaving every pane
+        // frozen on its last frame and every agent unresumed until the user typed.
+        await waitFor(() => respawn.mock.calls.length === 1)
+        expect(recovered).toEqual(expect.arrayContaining(['pane-a', 'pane-b']))
+      } finally {
+        healingAdapter.dispose()
+      }
+    })
+
+    it('does not respawn on a disconnect while no session is active', async () => {
+      const respawn = vi.fn(async () => {})
+      const idleAdapter = new DaemonPtyAdapter({ socketPath, tokenPath, respawn })
+      try {
+        const client = (idleAdapter as unknown as { client: DaemonClient }).client
+        await idleAdapter.listProcesses()
+
+        await server.shutdown()
+        await waitFor(() => !client.isConnected())
+        await new Promise((r) => setTimeout(r, 50))
+
+        expect(respawn).not.toHaveBeenCalled()
+      } finally {
+        idleAdapter.dispose()
+      }
+    })
+
+    it('does not respawn on a disconnect once the adapter has let go of its daemon', async () => {
+      const respawn = vi.fn(async () => {})
+      const closingAdapter = new DaemonPtyAdapter({ socketPath, tokenPath, respawn })
+      try {
+        await closingAdapter.spawn({ sessionId: 'pane-a', cols: 80, rows: 24 })
+        await closingAdapter.disconnectOnly()
+
+        await server.shutdown()
+        await new Promise((r) => setTimeout(r, 50))
+
+        expect(respawn).not.toHaveBeenCalled()
+      } finally {
+        closingAdapter.dispose()
+      }
+    })
+
+    it('starts one recovery per daemon death even when the respawn fails', async () => {
+      const respawn = vi.fn(async () => {
+        throw new Error('daemon unavailable')
+      })
+      const healingAdapter = new DaemonPtyAdapter({ socketPath, tokenPath, respawn })
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      try {
+        const { id } = await healingAdapter.spawn({ cols: 80, rows: 24 })
+
+        await server.shutdown()
+        await waitFor(() => respawn.mock.calls.length === 1)
+        for (let i = 0; i < 20; i += 1) {
+          expect(() => healingAdapter.write(id, 'typed')).toThrow(PtyWriteUnavailableError)
+        }
+        await new Promise((r) => setTimeout(r, 50))
+
+        expect(respawn).toHaveBeenCalledTimes(1)
+      } finally {
+        warn.mockRestore()
+        healingAdapter.dispose()
+      }
+    })
+
+    it('recovers again when the new daemon dies before the first recovery settles', async () => {
+      const respawn = vi.fn(async () => {
+        restartServerOnRespawn()
+        await server.start()
+      })
+      const healingAdapter = new DaemonPtyAdapter({ socketPath, tokenPath, respawn })
+      try {
+        await healingAdapter.spawn({ sessionId: 'pane-a', cols: 80, rows: 24 })
+        const client = (healingAdapter as unknown as { client: DaemonClient }).client
+        let releaseFirstRecovery!: () => void
+        const firstRecoveryHeld = new Promise<void>((resolve) => {
+          releaseFirstRecovery = resolve
+        })
+        const connect = client.ensureConnected.bind(client)
+        // Holds the first recovery open once it has reached the respawned daemon.
+        vi.spyOn(client, 'ensureConnected').mockImplementation(async () => {
+          await connect()
+          if (respawn.mock.calls.length === 1) {
+            await firstRecoveryHeld
+          }
+        })
+
+        await server.shutdown()
+        await waitFor(() => respawn.mock.calls.length === 1 && client.isConnected())
+        await server.shutdown()
+        await waitFor(() => !client.isConnected())
+        releaseFirstRecovery()
+
+        // Why revert-sensitive: the second death arrived while recovery was in flight and was dropped.
         await waitFor(() => respawn.mock.calls.length === 2)
+        await new Promise((r) => setTimeout(r, 50))
+        expect(respawn).toHaveBeenCalledTimes(2)
+      } finally {
+        healingAdapter.dispose()
+      }
+    })
+
+    it('reconnects without a respawn when only the socket drops, so the pane reattaches', async () => {
+      const respawn = vi.fn(async () => {})
+      const healingAdapter = new DaemonPtyAdapter({ socketPath, tokenPath, respawn })
+      const recovered: string[] = []
+      healingAdapter.onWriteUnavailable(({ id }) => recovered.push(id))
+      try {
+        const { id } = await healingAdapter.spawn({ sessionId: 'pane-a', cols: 80, rows: 24 })
+        const client = (healingAdapter as unknown as { client: DaemonClient }).client
+
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the client owns this socket; destroying it drops the connection while the daemon lives.
+        ;(client as unknown as { controlSocket: { destroy: () => void } }).controlSocket.destroy()
+        await waitFor(() => recovered.includes(id))
+        await waitFor(() => client.isConnected())
+
+        // Lost contact is not death: the live session reattaches, so nothing is resumed.
+        await expect(
+          healingAdapter.spawn({ sessionId: id, cols: 80, rows: 24 })
+        ).resolves.toMatchObject({ id, isReattach: true })
+        expect(respawn).not.toHaveBeenCalled()
       } finally {
         healingAdapter.dispose()
       }
