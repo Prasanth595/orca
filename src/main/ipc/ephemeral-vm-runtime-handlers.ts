@@ -33,7 +33,9 @@ import { getRuntimeRecipeContext } from './ephemeral-vm-recipe-context'
 import { invalidateRuntimeEnvironmentTransport } from './runtime-environments'
 import {
   ensureRemoteRuntimeSharedControlConnection,
+  forceRefreshRemoteRuntimeSharedControlConnection,
   getRemoteRuntimeSharedControlDiagnostics,
+  probeRemoteRuntimeSharedControlConnection,
   reconnectRemoteRuntimeSharedControlConnection
 } from './runtime-environment-request-connections'
 import { attachEphemeralVmRuntimeToWorkspace } from '../ephemeral-vm-runtime-attachment'
@@ -225,7 +227,9 @@ export function registerEphemeralVmRuntimeHandlers(store: Store): void {
             runtimeEnvironmentId: runtime.runtimeEnvironmentId,
             getDiagnostics: getRemoteRuntimeSharedControlDiagnostics,
             reconnect: reconnectRemoteRuntimeSharedControlConnection,
-            ensureConnection: ensureRemoteRuntimeSharedControlConnection
+            ensureConnection: ensureRemoteRuntimeSharedControlConnection,
+            probe: probeRemoteRuntimeSharedControlConnection,
+            forceRefresh: forceRefreshRemoteRuntimeSharedControlConnection
           })
           if (!wake.ok) {
             throw new Error(

@@ -37,9 +37,12 @@ function wakeArgs(
     getDiagnostics: vi.fn((): RemoteRuntimeSharedConnectionDiagnostics | null => null),
     reconnect: vi.fn(),
     ensureConnection: vi.fn(),
+    probe: vi.fn(async () => ({ ok: true })),
+    forceRefresh: vi.fn(),
     resolvePairing: vi.fn(pairingFixture),
     waitForReadyTimeoutMs: 1_000,
     pollIntervalMs: 100,
+    probeTimeoutMs: 500,
     now: (() => {
       let current = 0
       return () => {
@@ -53,16 +56,66 @@ function wakeArgs(
 }
 
 describe('ensureEphemeralVmRuntimeControlConnection', () => {
-  it('accepts an already-ready connection without touching the transport', async () => {
+  it('accepts a ready connection that answers the probe without touching the transport', async () => {
     const args = wakeArgs({ getDiagnostics: vi.fn(() => diagnostics('ready')) })
 
     const result = await ensureEphemeralVmRuntimeControlConnection(args)
 
     expect(result).toEqual({ ok: true })
+    expect(args.probe).toHaveBeenCalledTimes(1)
+    expect(args.probe).toHaveBeenCalledWith(ENVIRONMENT_ID, pairingFixture(), 500)
+    expect(args.forceRefresh).not.toHaveBeenCalled()
     expect(args.reconnect).not.toHaveBeenCalled()
     expect(args.ensureConnection).not.toHaveBeenCalled()
-    expect(args.resolvePairing).not.toHaveBeenCalled()
     expect(args.sleep).not.toHaveBeenCalled()
+  })
+
+  it('refreshes a ready connection whose probe goes unanswered, then waits for ready', async () => {
+    let state: RemoteRuntimeSharedConnectionDiagnostics['state'] = 'ready'
+    let reads = 0
+    const args = wakeArgs({
+      getDiagnostics: vi.fn(() => {
+        reads += 1
+        // The refreshed socket authenticates on the second poll.
+        if (state === 'awaiting_ready' && reads > 2) {
+          state = 'ready'
+        }
+        return diagnostics(state)
+      }),
+      probe: vi.fn(async () => {
+        throw new Error('Remote runtime request timed out.')
+      }),
+      forceRefresh: vi.fn(() => {
+        state = 'awaiting_ready'
+      })
+    })
+
+    const result = await ensureEphemeralVmRuntimeControlConnection(args)
+
+    expect(result).toEqual({ ok: true })
+    expect(args.forceRefresh).toHaveBeenCalledTimes(1)
+    expect(args.forceRefresh).toHaveBeenCalledWith(ENVIRONMENT_ID)
+    expect(args.sleep).toHaveBeenCalledTimes(2)
+    expect(args.reconnect).not.toHaveBeenCalled()
+    expect(args.ensureConnection).not.toHaveBeenCalled()
+  })
+
+  it('reports the terminal state when a refreshed connection never becomes ready', async () => {
+    let state: RemoteRuntimeSharedConnectionDiagnostics['state'] = 'ready'
+    const args = wakeArgs({
+      getDiagnostics: vi.fn(() => diagnostics(state)),
+      probe: vi.fn(async () => {
+        throw new Error('Remote runtime request timed out.')
+      }),
+      forceRefresh: vi.fn(() => {
+        state = 'awaiting_ready'
+      })
+    })
+
+    const result = await ensureEphemeralVmRuntimeControlConnection(args)
+
+    expect(result).toEqual({ ok: false, connectionState: 'awaiting_ready' })
+    expect(args.forceRefresh).toHaveBeenCalledTimes(1)
   })
 
   it('creates a missing connection from the stored pairing offer', async () => {
@@ -81,6 +134,7 @@ describe('ensureEphemeralVmRuntimeControlConnection', () => {
     expect(args.ensureConnection).toHaveBeenCalledWith(ENVIRONMENT_ID, pairingFixture())
     expect(args.resolvePairing).toHaveBeenCalledWith('/user-data', ENVIRONMENT_ID)
     expect(args.reconnect).not.toHaveBeenCalled()
+    expect(args.probe).not.toHaveBeenCalled()
   })
 
   it('forces a reconnect when the cached connection is not ready', async () => {
@@ -104,6 +158,8 @@ describe('ensureEphemeralVmRuntimeControlConnection', () => {
     expect(args.reconnect).toHaveBeenCalledTimes(1)
     expect(args.reconnect).toHaveBeenCalledWith(ENVIRONMENT_ID)
     expect(args.ensureConnection).not.toHaveBeenCalled()
+    expect(args.probe).not.toHaveBeenCalled()
+    expect(args.forceRefresh).not.toHaveBeenCalled()
   })
 
   it('reports the terminal state when the connection never becomes ready', async () => {

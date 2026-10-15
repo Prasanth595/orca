@@ -177,6 +177,25 @@ export function reconnectRemoteRuntimeSharedControlConnection(environmentId: str
   sharedControlConnections.get(environmentId)?.connection.reconnectNow()
 }
 
+// Why: reuse the status owner's `status.get` reachability call rather than add an RPC.
+export function probeRemoteRuntimeSharedControlConnection(
+  environmentId: string,
+  pairing: PairingOffer,
+  timeoutMs: number
+): Promise<unknown> {
+  return sendRemoteRuntimeSharedControlRequest(
+    environmentId,
+    pairing,
+    'status.get',
+    undefined,
+    timeoutMs
+  )
+}
+
+export function forceRefreshRemoteRuntimeSharedControlConnection(environmentId: string): void {
+  sharedControlConnections.get(environmentId)?.connection.reconnectNow({ force: true })
+}
+
 export function retryRemoteRuntimeSharedControlConnectionNow(environmentId: string): void {
   sharedControlConnections.get(environmentId)?.connection.retryNow()
 }
