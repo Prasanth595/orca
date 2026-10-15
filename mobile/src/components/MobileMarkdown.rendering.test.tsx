@@ -73,7 +73,7 @@ describe('MobileMarkdown rendering', () => {
     [
       'C1: nested lists keep their own markers and numbers',
       '1. **Frontend**\n   - React\n   - Vite\n2. Backend',
-      ['1.', 'Frontend', '-', 'React', '-', 'Vite', '2.', 'Backend']
+      ['1.', 'Frontend', '•', 'React', '•', 'Vite', '2.', 'Backend']
     ],
     [
       'C1: blank lines keep one list, and a list cut short keeps its numbers',
@@ -83,7 +83,7 @@ describe('MobileMarkdown rendering', () => {
     [
       'C1: a wrapped item stays one item',
       '- a long item\nwrapped at sixty\n- next',
-      ['-', 'a long item\nwrapped at sixty', '-', 'next']
+      ['•', 'a long item\nwrapped at sixty', '•', 'next']
     ],
     [
       'C1: a number starting a wrapped line is not a list',
@@ -127,7 +127,7 @@ describe('MobileMarkdown rendering', () => {
     [
       'C18: blocks inside a quote',
       '> - a\n>\n> ```sh\n> ls\n> ```\n> > inner',
-      ['-', 'a', 'sh', 'ls', 'inner']
+      ['•', 'a', 'sh', 'ls', 'inner']
     ],
     ['C19: underlined headings and closing hashes', 'Title\n=====\n\n## Sub ##', ['Title', 'Sub']],
     [

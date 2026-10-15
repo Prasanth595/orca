@@ -5,7 +5,7 @@ import { colors, radii, spacing, typography } from '../theme/mobile-theme'
 export const styles = createThemedStyles(() =>
   StyleSheet.create({
     root: {
-      gap: spacing.sm
+      gap: spacing.md
     },
     paragraph: {
       fontSize: 13,
@@ -51,8 +51,12 @@ export const styles = createThemedStyles(() =>
     quote: {
       borderLeftWidth: 2,
       borderLeftColor: colors.borderSubtle,
-      paddingLeft: spacing.sm,
-      gap: spacing.xs
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      backgroundColor: colors.bgRaised,
+      borderTopRightRadius: radii.row,
+      borderBottomRightRadius: radii.row,
+      gap: spacing.sm
     },
     quoteText: {
       fontSize: 13,
@@ -93,8 +97,9 @@ export const styles = createThemedStyles(() =>
       color: colors.textSecondary
     },
     table: {
-      borderTopWidth: 1,
-      borderLeftWidth: 1,
+      alignSelf: 'stretch',
+      minWidth: 0,
+      borderWidth: 1,
       borderColor: colors.borderSubtle,
       borderRadius: radii.input,
       overflow: 'hidden',
@@ -107,14 +112,15 @@ export const styles = createThemedStyles(() =>
       borderRightWidth: 1,
       borderBottomWidth: 1,
       borderColor: colors.borderSubtle,
-      paddingHorizontal: spacing.sm,
-      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm
+    },
+    tableText: {
       fontSize: 12,
-      lineHeight: 17,
+      lineHeight: 18,
       color: colors.textPrimary
     },
     tableHeader: {
-      fontWeight: '700',
       backgroundColor: colors.bgRaised
     },
     list: {
@@ -147,6 +153,7 @@ export const styles = createThemedStyles(() =>
       color: colors.textSecondary
     },
     rule: {
+      marginVertical: spacing.xs,
       height: StyleSheet.hairlineWidth,
       backgroundColor: colors.borderSubtle
     }

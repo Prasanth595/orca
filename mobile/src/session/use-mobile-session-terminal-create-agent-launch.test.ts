@@ -181,6 +181,41 @@ function awaitingReply(surface: Record<string, unknown>): unknown {
 }
 
 describe('the + menu', () => {
+  it('creates a native chat through a released desktop relay that overrides launch mode', async () => {
+    const created: string[] = []
+    const client = requestPortRpcClient(async (method, params) => {
+      // Captured behavior of Mac 1.4.226: agent.launchReplay inherits the desktop default.
+      if (method === 'agent.launchReplay') {
+        created.push('terminal')
+        return launchReply({ kind: 'terminal', handle: 'ssh-terminal' })
+      }
+      if (method === 'agentSession.createSupport') {
+        return ok({ supported: true })
+      }
+      if (
+        method === 'agentSession.create' &&
+        params &&
+        typeof params === 'object' &&
+        'envelope' in params
+      ) {
+        created.push('structured')
+        return ok({ ok: true, value: { sessionId: 'codex_devbox_chat' } })
+      }
+      throw new Error(`Unexpected request: ${method}`)
+    })
+    const state = scope(client, [
+      ...LAUNCH_CAPABILITIES,
+      'agent-session.structured.v1',
+      'agent-session.structured.client-launch-mode.v1'
+    ])
+    await create_(state, 'codex')
+    expect(created).toEqual(['structured'])
+    expect(state.pendingSelectionRef.current).toEqual(
+      awaitingReply({ sessionId: 'codex_devbox_chat' })
+    )
+    expect(state.subscribeToTerminal).not.toHaveBeenCalled()
+  })
+
   it.each(['chat', 'terminal'])(
     'creates a structured chat even when the legacy transcript view is %s',
     async (view) => {

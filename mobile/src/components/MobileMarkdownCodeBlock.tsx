@@ -89,7 +89,12 @@ export const MobileMarkdownCodeBlock = memo(function MobileMarkdownCodeBlock({
         >
           {numbers}
         </Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scroll}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator
+          nestedScrollEnabled
+          style={styles.scroll}
+        >
           <MobileSelectableText
             selectable={selectable}
             style={[
@@ -113,6 +118,8 @@ export const MobileMarkdownCodeBlock = memo(function MobileMarkdownCodeBlock({
 const styles = createThemedStyles(() =>
   StyleSheet.create({
     root: {
+      alignSelf: 'stretch',
+      minWidth: 0,
       backgroundColor: colors.bgRaised,
       borderWidth: 1,
       borderColor: colors.borderSubtle,
@@ -123,17 +130,22 @@ const styles = createThemedStyles(() =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingLeft: spacing.sm,
+      paddingLeft: spacing.md,
       paddingRight: 4,
-      minHeight: 32,
+      minHeight: 40,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.borderSubtle
     },
-    language: { fontSize: 10, color: colors.textMuted, textTransform: 'uppercase', flexShrink: 1 },
+    language: {
+      fontSize: typography.metaSize,
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      flexShrink: 1
+    },
     copyStatus: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     copy: { minWidth: 32, minHeight: 32, alignItems: 'center', justifyContent: 'center' },
     error: { fontSize: 10, color: colors.statusRed },
-    body: { flexDirection: 'row', paddingVertical: spacing.sm },
+    body: { flexDirection: 'row', paddingVertical: spacing.md },
     numbers: {
       fontFamily: typography.monoFamily,
       color: colors.textMuted,
