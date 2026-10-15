@@ -29,9 +29,7 @@ export const styles = StyleSheet.create({
     paddingVertical: spacing.sm
   },
   hostNotice: {
-    color: colors.textMuted,
-    fontSize: TEXT_SIZE,
-    lineHeight: TEXT_SIZE + 6
+    color: colors.textMuted
   },
   reasoning: {
     opacity: 0.7,

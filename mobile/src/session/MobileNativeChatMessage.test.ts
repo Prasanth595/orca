@@ -379,9 +379,11 @@ describe('MobileNativeChatMessage', () => {
       )
       expect(text.props.children).toBe(AGENT_SESSION_HOST_STATUS_COPY['history-item-too-large'])
       expect(text.props.selectable).toBe(true)
+      // Zoomed 1.5× with its leading zoomed too, so wrapped lines never overlap.
       expect(Object.assign({}, ...text.props.style)).toMatchObject({
         color: colors.textMuted,
-        fontSize: 25.5
+        fontSize: 25.5,
+        lineHeight: 34.5
       })
     }
   )

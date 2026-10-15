@@ -78,7 +78,11 @@ function Prose({
       return (
         <Text
           selectable={INLINE_TEXT_SELECTION}
-          style={[styles.hostNotice, { fontSize: TEXT_SIZE * fontScale }]}
+          // Zoomed type keeps its leading, so its lines never overlap.
+          style={[
+            styles.hostNotice,
+            { fontSize: TEXT_SIZE * fontScale, lineHeight: (TEXT_SIZE + 6) * fontScale }
+          ]}
         >
           {AGENT_SESSION_HOST_STATUS_COPY[block.presentation]}
         </Text>
