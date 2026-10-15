@@ -1,3 +1,5 @@
+import { latestStructuredAgentSessionTurn } from '../../../src/shared/structured-agent-session-live-turn'
+import { mergeSubmissions } from '../../../src/shared/structured-agent-session-item-retention'
 import type { NativeChatMessage } from '../../../src/shared/native-chat-types'
 import { EMPTY_STRUCTURED_AGENT_SESSION } from '../../../src/shared/structured-agent-session-reducer'
 import { createMobileChatReadCache } from '../cache/mobile-chat-read-cache'
@@ -42,14 +44,25 @@ export const structuredChatCache = createMobileChatReadCache<MobileChatHistorySt
       typeof value.cursor.epoch === 'string' &&
       'sequence' in value.cursor &&
       typeof value.cursor.sequence === 'number',
-    compact: (state) => ({
-      ...EMPTY_STRUCTURED_AGENT_SESSION,
-      epoch: state.epoch,
-      cursor: state.cursor,
-      items: recentRows(state.items),
-      hasOlder: state.hasOlder || recentRows(state.items).length < state.items.length,
-      status: 'ready'
-    })
+    compact: (state) => {
+      const items = recentRows(state.items)
+      return {
+        ...EMPTY_STRUCTURED_AGENT_SESSION,
+        epoch: state.epoch,
+        cursor: state.cursor,
+        items,
+        submissions: mergeSubmissions([], state.submissions, items),
+        latestTurn:
+          state.latestTurn === undefined
+            ? latestStructuredAgentSessionTurn(state.items)
+            : state.latestTurn,
+        working: state.working,
+        activity: state.activity,
+        hostClock: state.hostClock,
+        hasOlder: state.hasOlder || items.length < state.items.length,
+        status: 'ready'
+      }
+    }
   }
 )
 

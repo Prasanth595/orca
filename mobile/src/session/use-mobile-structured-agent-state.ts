@@ -7,14 +7,9 @@ import { structuredChatCache } from './mobile-chat-transcript-cache'
 import { useMobileChatCheckpoint } from './use-mobile-chat-checkpoint'
 import { reduceMobileChatHistory, type MobileChatHistoryState } from './mobile-chat-history-window'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { AgentJournalCursor } from '../../../src/shared/agent-session-journal-types'
 import { isRootAgentJournalItem } from '../../../src/shared/agent-session-journal-producer'
-import type {
-  AgentSessionHistoryPage,
-  AgentSessionHistoryResult,
-  AgentSessionSubscribeEvent
-} from '../../../src/shared/agent-session-wire'
-import { AGENT_SESSION_HISTORY_MAX_LIMIT } from '../../../src/shared/agent-session-wire'
+import { readOlderStructuredChatHistory } from './mobile-structured-history-read'
+import type { AgentSessionSubscribeEvent } from '../../../src/shared/agent-session-wire'
 import { structuredAgentSessionHolderId } from '../../../src/shared/structured-agent-session-holder'
 import {
   EMPTY_STRUCTURED_AGENT_SESSION,
@@ -34,10 +29,6 @@ import {
 } from './mobile-structured-queued-message-feed'
 
 const MAX_RETAINED_SESSION_STATES = 32
-/** Bounded so a busy stream cannot turn one Load-earlier tap into an endless read chain. */
-const OLDER_PAGE_ANCHOR_ATTEMPTS = 3
-/** Bounds the pages one Load-earlier reads past that hold only subagent rows. */
-const OLDER_PAGES_PER_LOAD = 8
 
 export function useMobileStructuredAgentState(
   args: MobileStructuredAgentStateArgs
@@ -65,6 +56,7 @@ export function useMobileStructuredAgentState(
   const { messages: queuedMessages, pause: queuePause } =
     (enabled && sessionKey ? queuedBySession.get(sessionKey) : undefined) ?? NO_QUEUED_FEED
   const [loadingOlder, setLoadingOlder] = useState(false)
+  const olderReadGeneration = useRef<number | null>(null)
   const stateRef = useRef(state)
   const sessionKeyRef = useRef(sessionKey)
   const streamGenerationRef = useRef(0)
@@ -162,7 +154,7 @@ export function useMobileStructuredAgentState(
           previous.get(sessionKey ?? '')?.items.length ||
           previous.get(sessionKey ?? '')?.fence != null
             ? previous
-            : new Map(previous).set(sessionKey ?? '', cached)
+            : new Map(previous).set(sessionKey ?? '', { ...cached, fence: null, status: 'loading' })
         )
       }
     })
@@ -231,6 +223,7 @@ export function useMobileStructuredAgentState(
       !sessionKey ||
       sessionKeyRef.current !== sessionKey ||
       loadingOlder ||
+      olderReadGeneration.current === streamGenerationRef.current ||
       !current.hasOlder
     ) {
       return
@@ -243,57 +236,9 @@ export function useMobileStructuredAgentState(
     const isCurrentRead = (): boolean =>
       sessionKeyRef.current === requestSessionKey &&
       streamGenerationRef.current === requestGeneration
+    olderReadGeneration.current = requestGeneration
     setLoadingOlder(true)
-    void (async () => {
-      // A live batch can head-trim past the anchor mid-read, and the reducer drops that
-      // page rather than leave a hole in the transcript. Re-anchor and retry.
-      for (let attempt = 0; attempt < OLDER_PAGE_ANCHOR_ATTEMPTS; attempt += 1) {
-        const cursor = oldestStructuredAgentSessionCursor(stateRef.current)
-        if (!cursor || !isCurrentRead()) {
-          return
-        }
-        // Mobile draws only the session's own rows, so a page of a subagent's rows alone
-        // would land as nothing; read on until a page adds a row the reader can see. Older
-        // hosts send one for any burst; current ones when the page's byte bound cuts it short.
-        const pages: { requestedCursor: AgentJournalCursor; page: AgentSessionHistoryPage }[] = []
-        let requestedCursor = cursor
-        while (pages.length < OLDER_PAGES_PER_LOAD) {
-          const result = await callAgentSession<AgentSessionHistoryResult>(
-            client,
-            'agentSession.history',
-            {
-              sessionId,
-              direction: 'before',
-              cursor: requestedCursor,
-              limit: AGENT_SESSION_HISTORY_MAX_LIMIT
-            }
-          )
-          if (!result.ok || !isCurrentRead()) {
-            break
-          }
-          pages.push({ requestedCursor, page: result.page })
-          if (
-            !result.page.hasOlder ||
-            result.page.items.length === 0 ||
-            result.page.items.some(isRootAgentJournalItem)
-          ) {
-            break
-          }
-          requestedCursor = result.page.window.nextCursor
-        }
-        if (pages.length === 0 || !isCurrentRead()) {
-          return
-        }
-        // The reducer drops a page whose anchor slid, so only an intact anchor lands;
-        // each later page abuts the one before it.
-        if (oldestStructuredAgentSessionCursor(stateRef.current)?.sequence === cursor.sequence) {
-          for (const { requestedCursor: pageCursor, page } of pages) {
-            apply({ type: 'older-page', requestedCursor: pageCursor, page })
-          }
-          return
-        }
-      }
-    })()
+    void readOlderStructuredChatHistory({ client, sessionId, stateRef, isCurrentRead, apply })
       .catch((error: unknown) => {
         if (isCurrentRead()) {
           applyReadFailure(error)
@@ -301,6 +246,7 @@ export function useMobileStructuredAgentState(
       })
       .finally(() => {
         if (isCurrentRead()) {
+          olderReadGeneration.current = null
           setLoadingOlder(false)
         }
       })

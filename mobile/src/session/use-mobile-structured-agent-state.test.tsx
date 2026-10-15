@@ -5,7 +5,11 @@ import type {
   AgentJournalCursor,
   AgentJournalRenderItem
 } from '../../../src/shared/agent-session-journal-types'
-import type { AgentSessionHistoryPage } from '../../../src/shared/agent-session-wire'
+import { structuredChatCache } from './mobile-chat-transcript-cache'
+import type {
+  AgentSessionHistoryPage,
+  AgentSessionHistoryResult
+} from '../../../src/shared/agent-session-wire'
 import type { RpcClient } from '../transport/rpc-client'
 import { useMobileStructuredAgentState } from './use-mobile-structured-agent-state'
 
@@ -61,7 +65,10 @@ describe('useMobileStructuredAgentState older history', () => {
   /** Mounts the hook on a session whose newest rows are `newest` (by default one of the
    *  session's own, at 1000), with the host serving `older` by the cursor each read asks before. */
   async function mountWithOlderPages(
-    older: Record<number, AgentSessionHistoryPage | undefined>,
+    older: Record<
+      number,
+      AgentSessionHistoryPage | Extract<AgentSessionHistoryResult, { ok: false }> | undefined
+    >,
     newest: AgentJournalRenderItem[] = [said(1_000)]
   ) {
     let onFrame: ((value: unknown) => void) | null = null
@@ -74,7 +81,11 @@ describe('useMobileStructuredAgentState older history', () => {
       const olderPage = older[params.cursor.sequence]
       return {
         ok: true,
-        result: olderPage ? { ok: true, page: olderPage } : { ok: false, reset: 'cursor_ahead' }
+        result: olderPage
+          ? 'ok' in olderPage
+            ? olderPage
+            : { ok: true, page: olderPage }
+          : { ok: false, reset: 'cursor_ahead' }
       }
     })
     const subscribe = vi.fn(
@@ -114,6 +125,70 @@ describe('useMobileStructuredAgentState older history', () => {
     return { hook, historyCursors }
   }
 
+  it('adopts a host history reset rather than silently retrying the stale page cursor', async () => {
+    const resetCursor = { epoch: 'epoch-2', sequence: 50 }
+    const resetPage = {
+      ...page([said(50)], false),
+      epoch: 'epoch-2',
+      fence: 2,
+      liveCursor: resetCursor,
+      window: { oldest: resetCursor, newest: resetCursor, nextCursor: resetCursor }
+    }
+    const { hook } = await mountWithOlderPages({
+      1000: {
+        ok: false,
+        reset: 'cursor_compacted',
+        page: resetPage,
+        fence: 2
+      }
+    })
+    act(() => hook.current!.loadEarlier())
+    await vi.waitFor(() => expect(hook.current!.state.epoch).toBe('epoch-2'))
+    expect(hook.current!.state.items.map((row) => row.sequence)).toEqual([50])
+  })
+
+  it('keeps restored rows visibly refreshing until the live subscription answers', async () => {
+    const restore = vi.spyOn(structuredChatCache, 'restore').mockResolvedValue({
+      epoch: 'epoch-1',
+      cursor: cursorAt(1000),
+      fence: null,
+      items: [said(1000)],
+      submissions: [],
+      retainedOwnItemLimit: 100,
+      retainedItemCap: 100,
+      hasOlder: true,
+      status: 'ready',
+      working: true
+    })
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: this read-only hook calls only these RPC methods.
+    const client = {
+      sendRequest: async () => ({ ok: true, result: {} }),
+      subscribe: () => () => {}
+    } as unknown as RpcClient
+    let state: ReturnType<typeof useMobileStructuredAgentState> | undefined
+    function Harness() {
+      state = useMobileStructuredAgentState({
+        client,
+        sessionId: 'session-restore',
+        sessionKey: 'restore',
+        enabled: true,
+        connected: true
+      })
+      return null
+    }
+    try {
+      await act(async () => {
+        renderer = create(createElement(Harness))
+      })
+      expect(state?.state.items).toHaveLength(1)
+      expect(state?.state.working).toBe(true)
+      expect(state?.state.status).toBe('loading')
+      expect(state?.state.fence).toBeNull()
+    } finally {
+      restore.mockRestore()
+    }
+  })
+
   it("reads past pages of a subagent's rows to the session's own older rows", async () => {
     const { hook, historyCursors } = await mountWithOlderPages({
       1000: page(range(800, 1_000, 'task-1'), true),
@@ -134,7 +209,10 @@ describe('useMobileStructuredAgentState older history', () => {
       800: page(range(600, 800), true)
     })
 
-    act(() => hook.current!.loadEarlier())
+    act(() => {
+      hook.current!.loadEarlier()
+      hook.current!.loadEarlier()
+    })
 
     await vi.waitFor(() => expect(hook.current!.state.items[0]?.sequence).toBe(800))
     expect(historyCursors).toEqual([1_000])

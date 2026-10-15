@@ -1,5 +1,5 @@
 import { useMobileTheme } from '../theme/use-mobile-theme'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import {
   FlatList,
   type NativeScrollEvent,
@@ -37,6 +37,7 @@ import { MobileAgentWorkingIndicator } from './MobileAgentWorkingIndicator'
 import { MobileNativeChatComposer } from './MobileNativeChatComposer'
 import { MobileNativeChatPromptCard } from './MobileNativeChatPromptCard'
 import { NO_COMPOSER_TRAY } from './use-mobile-native-chat-composer-tray'
+import { MobileNativeChatRefreshStatus } from './MobileNativeChatRefreshStatus'
 import { MobileNativeChatLoading } from './MobileNativeChatLoading'
 import { MobileNativeChatScrollHold } from './MobileNativeChatScrollHold'
 import { useMobileNativeChatRowRenderer } from './use-mobile-native-chat-row-renderer'
@@ -164,6 +165,11 @@ export function MobileNativeChatView({
   )
 
   const loadEarlier = useCallback(() => onLoadEarlier?.(), [onLoadEarlier])
+  const historyRequestedDuringDrag = useRef(false)
+  const onScrollBeginDrag = useCallback(() => {
+    historyRequestedDuringDrag.current = false
+    beginUserScroll()
+  }, [beginUserScroll])
 
   const onScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -171,10 +177,23 @@ export function MobileNativeChatView({
       recordScrollMetrics(e.nativeEvent)
       // Near the top — page in older history. Only the reader's scroll: a pin reports offsets too.
       if (contentOffset.y < 60 && hasMore && !loadingEarlier && readerIsScrolling()) {
+        historyRequestedDuringDrag.current = true
         loadEarlier()
       }
     },
     [hasMore, loadingEarlier, loadEarlier, readerIsScrolling, recordScrollMetrics]
+  )
+
+  const onScrollEndDrag = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (historyRequestedDuringDrag.current) {
+        recordScrollMetrics(event.nativeEvent)
+      } else {
+        onScroll(event)
+      }
+      endUserDrag(event)
+    },
+    [onScroll, endUserDrag, recordScrollMetrics]
   )
 
   // Per-turn status rows: one live indicator while the turn runs, then a settled
@@ -241,6 +260,7 @@ export function MobileNativeChatView({
 
   return (
     <View style={[styles.root, { paddingBottom: bottomPad }]}>
+      {messages.length > 0 ? <MobileNativeChatRefreshStatus status={status} error={error} /> : null}
       {status === 'loading' && messages.length === 0 ? (
         <MobileNativeChatLoading />
       ) : (
@@ -263,9 +283,11 @@ export function MobileNativeChatView({
               // Let link/file taps land while the composer keyboard is up
               // instead of being swallowed by the dismiss gesture.
               keyboardShouldPersistTaps="handled"
+              onRefresh={hasMore ? loadEarlier : undefined}
+              refreshing={loadingEarlier === true}
               onScroll={onScroll}
-              onScrollBeginDrag={beginUserScroll}
-              onScrollEndDrag={endUserDrag}
+              onScrollBeginDrag={onScrollBeginDrag}
+              onScrollEndDrag={onScrollEndDrag}
               onMomentumScrollBegin={beginMomentum}
               onMomentumScrollEnd={endMomentum}
               scrollEventThrottle={32}

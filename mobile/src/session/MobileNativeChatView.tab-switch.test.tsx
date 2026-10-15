@@ -156,3 +156,59 @@ it('shows progress while cached rows are being positioned', () => {
       .length
   ).toBeGreaterThan(0)
 })
+
+it('loads older history when a short transcript cannot emit a scroll movement', () => {
+  const onLoadEarlier = vi.fn()
+  act(() => {
+    renderer = create(
+      createElement(MobileNativeChatView, {
+        ...view('short').props,
+        hasMore: true,
+        onLoadEarlier
+      })
+    )
+  })
+  act(() => {
+    list().props.onScrollBeginDrag()
+    list().props.onScrollEndDrag({
+      nativeEvent: {
+        contentOffset: { x: 0, y: 0 },
+        contentSize: { width: 320, height: 400 },
+        layoutMeasurement: { width: 320, height: 500 },
+        contentInset: { top: 0, bottom: 0, left: 0, right: 0 },
+        zoomScale: 1
+      }
+    })
+  })
+  expect(onLoadEarlier).toHaveBeenCalledOnce()
+})
+
+it('labels cached content as updating until the live host answers', () => {
+  act(() => {
+    renderer = create(
+      createElement(MobileNativeChatView, { ...view('cached').props, status: 'loading' })
+    )
+  })
+  expect(
+    renderer!.root.findAll((node) => node.props.accessibilityLabel === 'Updating conversation…')
+      .length
+  ).toBeGreaterThan(0)
+  act(() => renderer!.update(view('cached')))
+  expect(
+    renderer!.root.findAll((node) => node.props.accessibilityLabel === 'Updating conversation…')
+  ).toHaveLength(0)
+})
+
+it('offers native pull-to-load even when a short list emits no drag events', () => {
+  const onLoadEarlier = vi.fn()
+  act(() => {
+    renderer = create(
+      createElement(MobileNativeChatView, { ...view('pull').props, hasMore: true, onLoadEarlier })
+    )
+  })
+  expect(list().props.refreshing).toBe(false)
+  act(() => list().props.onRefresh())
+  expect(onLoadEarlier).toHaveBeenCalledOnce()
+  act(() => renderer!.update(view('pull')))
+  expect(list().props.onRefresh).toBeUndefined()
+})
