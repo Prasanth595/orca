@@ -388,8 +388,18 @@ describe('in-flight structured session close', () => {
       // A close left in flight would be joined by the next test's close of the same chat.
       onTestFinished(() => handleClose())
 
+      const captureRetirement = (): Promise<boolean> | null =>
+        isLocalSessionTabCloseOwned(WORKTREE, 'agent-session:chat-b')
+          ? retireStructuredAgentSessionTab({
+              target: { kind: 'local' },
+              worktreeId: WORKTREE,
+              sessionId: 'chat-b'
+            })
+          : null
+      let retirement: Promise<boolean> | null = null
       try {
         useAppStore.getState().closeUnifiedTab(tabIdOf('chat-b'))
+        retirement = captureRetirement()
         expect(strip()).toEqual([tabIdOf('chat-a'), tabIdOf('chat-c')])
 
         // The host has not handled the close yet, so its next frame still lists chat-b.
@@ -410,13 +420,7 @@ describe('in-flight structured session close', () => {
         runtime.touchMobileSessionTabsForWorktree(WORKTREE, { immediate: true })
         expect(strip()).toEqual([tabIdOf('chat-a'), tabIdOf('chat-c')])
       } finally {
-        const retirement = isLocalSessionTabCloseOwned(WORKTREE, 'agent-session:chat-b')
-          ? retireStructuredAgentSessionTab({
-              target: { kind: 'local' },
-              worktreeId: WORKTREE,
-              sessionId: 'chat-b'
-            })
-          : null
+        retirement ??= captureRetirement()
         handleClose()
         await retirement
       }
