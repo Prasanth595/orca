@@ -10,9 +10,10 @@ const toastMocks = vi.hoisted(() => ({
 
 vi.mock('sonner', () => ({ toast: toastMocks }))
 
-const store = vi.hoisted(() => ({
-  state: { remoteBrowserPageHandlesByPageId: {} as Record<string, unknown> }
-}))
+const store = vi.hoisted(() => {
+  const remoteBrowserPageHandlesByPageId: Record<string, unknown> = {}
+  return { state: { remoteBrowserPageHandlesByPageId } }
+})
 vi.mock('@/store', () => ({ useAppStore: { getState: () => store.state } }))
 
 import type {
