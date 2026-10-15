@@ -69,7 +69,6 @@ describe('OMP native session clocks through host IPC and RootStore', () => {
         paneKey: PANE,
         statusLane: 'hook',
         getPtyId: () => null,
-        getSettings: () => null,
         inspectProcess: vi.fn(),
         dispatchCompletion,
         shouldPollProcessCadence: () => false,
