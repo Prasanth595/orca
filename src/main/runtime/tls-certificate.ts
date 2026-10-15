@@ -3,9 +3,9 @@
 // cert is generated once on first run and reused across restarts. The mobile
 // app pins the certificate fingerprint received during QR pairing.
 import { createHash } from 'node:crypto'
+import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, chmodSync } from 'node:fs'
 import { join } from 'node:path'
-import { runProcessSync } from '@orca/process-host'
 
 const TLS_CERT_FILENAME = 'orca-tls-cert.pem'
 const TLS_KEY_FILENAME = 'orca-tls-key.pem'
@@ -37,9 +37,9 @@ export function loadOrCreateTlsCertificate(userDataPath: string): TlsCertificate
   // Why: argv-based spawning avoids shell redirection/quoting differences for
   // Windows temp paths while keeping OpenSSL as the certificate generator.
   const openSslConfigPath = resolveOpenSslConfigPath()
-  const openSsl = runProcessSync({
-    program: resolveOpenSslExecutable(),
-    args: [
+  execFileSync(
+    resolveOpenSslExecutable(),
+    [
       'req',
       '-new',
       '-x509',
@@ -57,12 +57,11 @@ export function loadOrCreateTlsCertificate(userDataPath: string): TlsCertificate
       '-out',
       certPath_
     ],
-    env: openSslConfigPath ? { ...process.env, OPENSSL_CONF: openSslConfigPath } : process.env,
-    stdio: 'ignore'
-  })
-  if (openSsl.code !== 0 || openSsl.timedOut) {
-    throw new Error(`openssl exited with ${openSsl.code ?? openSsl.signal}`)
-  }
+    {
+      env: openSslConfigPath ? { ...process.env, OPENSSL_CONF: openSslConfigPath } : process.env,
+      stdio: 'ignore'
+    }
+  )
 
   chmodSync(keyPath_, 0o600)
   chmodSync(certPath_, 0o600)

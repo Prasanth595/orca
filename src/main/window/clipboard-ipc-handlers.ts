@@ -87,26 +87,6 @@ export function setTrustedClipboardRendererWebContentsId(webContentsId: number |
   trustedClipboardRendererWebContentsId = webContentsId
 }
 
-// Covers a cold Windows PowerShell start under antivirus scanning.
-const CLIPBOARD_COMMAND_TIMEOUT_MS = 15_000
-
-// Run a short-lived OS clipboard helper (PowerShell / wl-copy / xclip), feeding
-// it stdin when provided; resolves only on a clean exit.
-async function runCommand(command: string, args: string[], stdin?: string): Promise<void> {
-  const result = await runProcess({
-    program: command,
-    args,
-    input: stdin,
-    // Why ignored: wl-copy and xclip fork a background server by default, and an
-    // inherited output pipe would hold the run open until that server exits.
-    stdio: ['pipe', 'ignore', 'ignore'],
-    timeoutMs: CLIPBOARD_COMMAND_TIMEOUT_MS
-  })
-  if (result.code !== 0 || result.timedOut) {
-    throw new Error(`${command} exited with ${result.code}`)
-  }
-}
-
 export function registerClipboardHandlers(store: Store): void {
   ipcMain.removeHandler('clipboard:readText')
   ipcMain.removeHandler('clipboard:readSelectionText')
@@ -295,7 +275,7 @@ function makeClipboardFileDeps(
     desktop: process.env.XDG_CURRENT_DESKTOP,
     resolveFilePath,
     writeBuffer: (format, buffer) => clipboard.writeBuffer(format, buffer),
-    runCommand
+    runProcess
   }
 }
 
