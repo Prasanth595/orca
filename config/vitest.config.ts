@@ -29,7 +29,12 @@ const transforms = {
 const testOptions = {
   environment: 'node',
   clearMocks: false,
-  fsModuleCache: true,
+  ...(balancedShards ? { silent: 'passed-only' as const } : {}),
+  // Persistent transforms can miss source additions; only explicit cache experiments opt in.
+  fsModuleCache: Boolean(process.env.ORCA_UNIT_MODULE_CACHE_PATH),
+  ...(process.env.ORCA_UNIT_MODULE_CACHE_PATH
+    ? { fsModuleCachePath: process.env.ORCA_UNIT_MODULE_CACHE_PATH }
+    : {}),
   env: { ORCA_VITEST_RUNTIME: 'node' },
   // Why: monaco-vim must be inlined so vite resolves its extensionless monaco internal imports; externalized deps bypass vite resolution.
   server: { deps: { inline: ['zod', 'monaco-vim'] } },
@@ -38,8 +43,7 @@ const testOptions = {
   setupFiles: [
     resolve('config/scripts/vitest-real-agent-home-write-guard.ts'),
     resolve('config/scripts/vitest-bun-node-builtins.ts'),
-    resolve('config/scripts/happy-dom-offscreen-canvas.ts'),
-    resolve('config/scripts/happy-dom-mutation-observer-retention.ts'),
+    resolve('config/scripts/vitest-dom-setup.ts'),
     resolve('config/scripts/vitest-host-ports-setup.ts'),
     resolve('config/scripts/vitest-caller-identity-env-setup.ts')
   ],
