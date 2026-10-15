@@ -1,4 +1,4 @@
-import type { AgentStatusState, AgentSubagentSnapshot } from '../../shared/agent-status-types'
+import type { AgentSubagentSnapshot } from '../../shared/agent-status-types'
 import {
   createAgentStatusExtensionHarness,
   type HookContext
@@ -25,8 +25,7 @@ export type NativeRef = {
   session: NativeSession | null
   sessionFile: string
   createdAt: number
-  lastActivity: number
-  history?: { agent: string; resolvedModel: string }
+  history?: { agent: string }
   lifecycle?: { acceptedAt?: number; terminalAt?: number }
 }
 
@@ -35,21 +34,9 @@ type NativeChange = {
   ref: NativeRef
 }
 
-type PostedOmpPayload = {
+type PostedOmpPayload = Record<string, unknown> & {
   hook_event_name: string
-  session_id?: string
-  session_file?: string
-  session_boundary?: true
-  omp_status?: {
-    state: AgentStatusState
-    session_boundary?: true
-    input_pending?: boolean
-    prompt?: string
-    tool_name?: string
-    tool_input?: unknown
-    role?: 'assistant'
-    text?: string
-  }
+  omp_status?: Record<string, unknown>
   subagents?: AgentSubagentSnapshot[]
 }
 
@@ -91,18 +78,16 @@ export function nativeRoot(id = 'root-session', isStreaming = false): NativeRoot
     status: 'running',
     session,
     sessionFile: identity.file,
-    createdAt: NATIVE_TIME - 127,
-    lastActivity: NATIVE_TIME - 120
-  }
-  const context: HookContext = {
-    agent: { id: 'Main', kind: 'main', depth: 0 },
-    sessionManager: session.sessionManager,
-    isIdle: () => !session.isStreaming
+    createdAt: NATIVE_TIME - 127
   }
   return {
     ref,
     session,
-    context,
+    context: {
+      agent: { id: 'Main', kind: 'main', depth: 0 },
+      sessionManager: session.sessionManager,
+      isIdle: () => !session.isStreaming
+    },
     get file() {
       return identity.file
     },
@@ -132,8 +117,7 @@ export function nativeChild(
     session: nativeSession({ id: sessionId, file: sessionFile, parentSession: rootFile }, true),
     sessionFile,
     createdAt,
-    lastActivity: createdAt + 3,
-    history: { agent: 'registry-proof', resolvedModel: 'orca-registry-proof/child' }
+    history: { agent: 'registry-proof' }
   }
 }
 
@@ -142,7 +126,6 @@ export function createNativeFixture(
   children: NativeRef[],
   options: {
     runtime?: { kind: 'omp' | 'pi'; title?: string; argv?: readonly string[] }
-    registryAvailable?: boolean
     env?: Record<string, string | undefined>
     delivery?: (payload: PostedOmpPayload) => Promise<NativeDeliveryResponse>
   } = {}
@@ -160,7 +143,6 @@ export function createNativeFixture(
       return [...refs.values()]
     },
     get: (id: string) => refs.get(id),
-    isRunning: (ref: NativeRef) => ref.status === 'running' && ref.session?.isStreaming === true,
     onChange: (listener: (event: NativeChange) => void) => {
       listeners.add(listener)
       return () => listeners.delete(listener)
@@ -169,24 +151,22 @@ export function createNativeFixture(
   const harness = createAgentStatusExtensionHarness({
     ...(options.runtime ?? { kind: 'omp' }),
     env: options.env,
-    nativeExtensionNamespace:
-      options.registryAvailable === false
-        ? undefined
-        : { MAIN_AGENT_ID: 'Main', AgentRegistry: { global: () => registry } },
+    nativeExtensionNamespace: { MAIN_AGENT_ID: 'Main', AgentRegistry: { global: () => registry } },
     fetchImpl: async (_url, init) => {
-      const body: { payload: PostedOmpPayload } = JSON.parse(String(init?.body))
-      delivered.push({ payload: body.payload, observedAt: Date.now() })
-      const response = await (options.delivery?.(body.payload) ?? { ok: true })
+      const post: DeliveredPost = {
+        payload: JSON.parse(String(init?.body)).payload,
+        observedAt: Date.now()
+      }
+      delivered.push(post)
+      const response = await (options.delivery?.(post.payload) ?? { ok: true })
       if (response.ok) {
-        accepted.push({ payload: body.payload, observedAt: Date.now() })
+        accepted.push({ ...post, observedAt: Date.now() })
       }
       return response
     }
   })
   const notify = (type: NativeChange['type'], ref: NativeRef): void => {
-    for (const listener of listeners) {
-      listener({ type, ref })
-    }
+    listeners.forEach((listener) => listener({ type, ref }))
   }
   return {
     harness,
@@ -201,12 +181,11 @@ export function createNativeFixture(
       if (ref.status === 'aborted' || ref.status === status) {
         return
       }
-      ref.lastActivity = Date.now()
       if (status === 'running') {
         ref.lifecycle = undefined
       } else if (ref.status === 'running') {
         // The SDK stamps terminalAt even for an idle pause with pending async work.
-        ref.lifecycle = { ...ref.lifecycle, terminalAt: ref.lastActivity }
+        ref.lifecycle = { ...ref.lifecycle, terminalAt: Date.now() }
       }
       ref.status = status
       if (status === 'aborted') {
@@ -218,11 +197,8 @@ export function createNativeFixture(
     },
     captureNotification: () => {
       const dispatched = [...listeners]
-      return (type: NativeChange['type'], ref: NativeRef) => {
-        for (const listener of dispatched) {
-          listener({ type, ref })
-        }
-      }
+      return (type: NativeChange['type'], ref: NativeRef) =>
+        dispatched.forEach((listener) => listener({ type, ref }))
     }
   }
 }

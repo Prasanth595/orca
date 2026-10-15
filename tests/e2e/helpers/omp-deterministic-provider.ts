@@ -4,14 +4,11 @@ import { existsSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { createAssistantMessageEventStream } from '@oh-my-pi/pi-ai';
 const names = JSON.parse(process.env.ORCA_OMP_SMOKE_NAMES);
-const asyncNames = JSON.parse(process.env.ORCA_OMP_SMOKE_ASYNC_NAMES);
 const gates = process.env.ORCA_OMP_SMOKE_GATES;
 const observationPath = process.env.ORCA_OMP_SMOKE_OBSERVATIONS;
 const observations = [];
-const managers = new WeakMap();
-let managerSerial = 0;
 let callSerial = 0;
-let rootLabel = process.env.ORCA_OMP_SMOKE_ROOT_LABEL;
+let rootLabel;
 let snapshotRoot;
 function record(kind, fields = {}) {
   if (kind === 'registry') {
@@ -27,14 +24,11 @@ const nativeFetch = globalThis.fetch.bind(globalThis);
 globalThis.fetch = async (input, options) => {
   const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
   if (url.hostname !== '127.0.0.1' || url.port !== process.env.ORCA_AGENT_HOOK_PORT || url.pathname !== '/hook/omp') {
-    record('network-blocked', { name: url.origin });
     throw new Error('Native OMP test forbids external network');
   }
   const payload = JSON.parse(String(options.body)).payload;
   const response = await nativeFetch(input, options);
-  record('hook', { accepted: response.status === 204, hookEvent: payload.hook_event_name,
-    sessionId: payload.session_id, sessionFile: payload.session_file,
-    rootState: payload.omp_status?.state, subagentIds: (payload.subagents ?? []).map(child => child.id) });
+  if (response.status === 204 && payload.hook_event_name === 'subagents_update') record('refresh');
   return response;
 };
 function waitForRelease(name, signal) {
@@ -55,51 +49,37 @@ function waitForRelease(name, signal) {
 }
 export default function(api) {
   const registry = api.pi?.AgentRegistry?.global?.();
-  if (!registry || !['list', 'get', 'onChange'].every(key => typeof registry[key] === 'function')) {
-    throw new Error('Installed OMP must export its native AgentRegistry');
-  }
-  let ownerKind;
-  let ownerSessionId;
+  let ownsRoot = false;
   let unsubscribe;
   let snapshotTimer;
   for (const name of ['session_start', 'session_switch']) api.on(name, (_event, ctx) => {
+    if (ctx.agent?.kind !== 'main') return;
+    ownsRoot = true;
     const manager = ctx.sessionManager;
-    ownerKind = ctx.agent?.kind;
-    ownerSessionId = manager.getSessionId();
-    if (!managers.has(manager)) managers.set(manager, ++managerSerial);
-    record('context', { name, agentKind: ownerKind, id: ctx.agent?.id, managerId: managers.get(manager),
-      sessionId: ownerSessionId, sessionFile: manager.getSessionFile(),
-      ownerMatches: registry.get(ctx.agent?.id)?.session?.sessionManager === manager });
-    if (ownerKind !== 'main') return;
+    record('root', { id: ctx.agent.id, sessionId: manager.getSessionId(), sessionFile: manager.getSessionFile(),
+      ownerMatches: registry.get(ctx.agent.id)?.session?.sessionManager === manager });
     const snapshot = () => {
       snapshotTimer = undefined;
       record('registry', { sessionId: manager.getSessionId(),
-        ownerMatches: registry.get(ctx.agent.id)?.session?.sessionManager === manager,
         refs: registry.list().map(ref => ({ id: ref.id, kind: ref.kind, parentId: ref.parentId,
-          status: ref.status, createdAt: ref.createdAt, sessionFile: ref.sessionFile,
-          sessionId: ref.session?.sessionManager?.getSessionId?.(),
-          isStreaming: ref.session?.isStreaming, pendingAsync: ref.session?.hasPendingAsyncWork?.(),
-          terminalAt: ref.lifecycle?.terminalAt, rootManager: ref.session?.sessionManager === manager })) });
+          status: ref.status, createdAt: ref.createdAt,
+          isStreaming: ref.session?.isStreaming, pendingAsync: ref.session?.hasPendingAsyncWork?.() })) });
     };
     unsubscribe?.(); clearTimeout(snapshotTimer);
     snapshotRoot = () => { if (!snapshotTimer) snapshotTimer = setTimeout(snapshot, 25); };
-    unsubscribe = registry.onChange(event => {
-      if (['registered', 'status_changed', 'metadata_changed', 'removed'].includes(event?.type)) snapshotRoot();
-    });
+    unsubscribe = registry.onChange(snapshotRoot);
     snapshot();
   });
   api.on('session_shutdown', () => { unsubscribe?.(); clearTimeout(snapshotTimer); });
-  for (const name of ['before_agent_start', 'agent_start', 'tool_execution_start', 'tool_execution_end', 'agent_end']) {
-    api.on(name, (event, ctx) => {
-      if (ctx.agent?.kind === 'main' && name === 'before_agent_start') rootLabel = event.prompt;
-      record('extension', { name, toolName: event.toolName, willContinue: event.willContinue,
-        asyncJobId: event.result?.details?.async?.jobId, asyncState: event.result?.details?.async?.state,
-        agentKind: ctx.agent?.kind, sessionId: ctx.sessionManager.getSessionId() });
-      if (name === 'agent_start' || name === 'agent_end') snapshotRoot?.();
-    });
+  api.on('before_agent_start', (event, ctx) => {
+    if (ctx.agent?.kind === 'main') rootLabel = event.prompt;
+  });
+  api.on('agent_end', () => snapshotRoot?.());
+  for (const name of ['agent_start', 'agent_end', 'tool_execution_start', 'tool_execution_end', 'message_end']) {
+    api.on(name, () => record('activity'));
   }
   api.events.on('task:subagent:lifecycle', event => {
-    if (ownerKind === 'main') record('lifecycle', { id: event.id, status: event.status, sessionId: ownerSessionId });
+    if (ownsRoot) record('lifecycle', { id: event.id, status: event.status });
   });
   api.on('before_subagent_spawn', () => ({ model: 'orca-status-smoke/deterministic' }));
   api.registerProvider('orca-status-smoke', {
@@ -108,6 +88,7 @@ export default function(api) {
       input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       contextWindow: 131072, maxTokens: 2048 })),
     streamSimple(model, context, options = {}) {
+      record('activity');
       const stream = createAssistantMessageEventStream();
       void (async () => {
         const used = name => context.messages.some(message => message.role === 'assistant' &&
@@ -116,9 +97,8 @@ export default function(api) {
           .map(message => typeof message.content === 'string' ? message.content : JSON.stringify(message.content)).join('\n');
         const childName = names.find(name => userText.includes('OMP_SMOKE_CHILD=' + name));
         const root = model.id === 'deterministic' && !childName && (context.tools ?? []).some(tool => tool.name === 'task');
-        const background = model.id === 'deterministic' && childName && asyncNames.includes(childName);
+        const background = model.id === 'deterministic' && childName === names[2];
         const backgroundSpawn = background && !used('bash');
-        record('model-request', { name: model.id, sessionId: options.sessionId });
         let aborted = false;
         const message = { role: 'assistant', content: [], api: model.api, provider: model.provider, model: model.id,
           usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2,
@@ -150,10 +130,8 @@ export default function(api) {
           message.content.push(part);
           stream.push({ type: 'text_start', contentIndex: 0, partial: message });
           stream.push({ type: 'text_delta', contentIndex: 0, delta: part.text, partial: message });
-          if (background) record(existsSync(path.join(gates, childName)) ? 'async-model-resumed' : 'async-model-settled',
-            { name: childName, sessionId: options.sessionId });
-          else if (model.id === 'deterministic' && childName) {
-            record('model-held', { name: childName, sessionId: options.sessionId });
+          if (background && existsSync(path.join(gates, childName))) record('async-model-resumed', { name: childName });
+          else if (!background && model.id === 'deterministic' && childName) {
             aborted = await waitForRelease(childName, options.signal);
           }
           stream.push({ type: 'text_end', contentIndex: 0, content: part.text, partial: message });

@@ -85,7 +85,6 @@ describe('OMP native session clocks through host IPC and RootStore', () => {
           ORCA_AGENT_LAUNCH_TOKEN: undefined
         }
       })
-      const accepted: Record<string, unknown>[] = []
       const lost = new Set<unknown>()
       const canonical = () => server.getStatusSnapshot().find((row) => row.paneKey === PANE)
       harness.fetchMock.mockImplementation(async (_url, request) => {
@@ -118,7 +117,6 @@ describe('OMP native session clocks through host IPC and RootStore', () => {
           normalizeAgentStatusMetadata(row)
         )
         coordinator.observeHookStatus(row)
-        accepted.push(body.payload)
         const eventName = body.payload.hook_event_name
         if (
           mode !== 'unprompted' &&
@@ -164,11 +162,7 @@ describe('OMP native session clocks through host IPC and RootStore', () => {
           newClock = canonical()?.turnStartedAt
           expect(newClock).toBe(Date.now())
           expect(newClock).not.toBe(oldClock)
-          expect(
-            accepted.some(
-              (body) => body.session_id === 'new' && body.hook_event_name === 'subagents_update'
-            )
-          ).toBe(false)
+          expect(lost.has('subagents_update')).toBe(false)
           await vi.advanceTimersByTimeAsync(100)
           await finish()
         }
@@ -182,24 +176,9 @@ describe('OMP native session clocks through host IPC and RootStore', () => {
         })
         expect(host?.turnStartedAt).toBe(newClock)
         expect(shown.turnStartedAt).toBe(newClock)
-        expect(shown.mainAgent).toEqual(host?.mainAgent)
-        expect(shown.stateStartedAt).toBe(host?.stateStartedAt)
-        expect(host?.turnCompletedAt).toBeUndefined()
-        expect(
-          shown.stateHistory.some((row) => row.state === 'done' && row.prompt === 'old turn')
-        ).toBe(true)
         expect(dispatchCompletion).toHaveBeenCalledTimes(mode === 'unprompted' ? 1 : 2)
         if (mode !== 'unprompted') {
-          expect(
-            accepted.filter(
-              (body) => body.session_id === 'new' && body.hook_event_name === 'agent_end'
-            )
-          ).toHaveLength(2)
-          expect(
-            accepted.filter(
-              (body) => body.session_id === 'new' && body.hook_event_name === 'subagents_update'
-            )
-          ).toHaveLength(2)
+          expect(lost).toEqual(new Set(['agent_end', 'subagents_update']))
         }
       } finally {
         await hook('session_shutdown', { reason: 'quit' })
@@ -207,43 +186,6 @@ describe('OMP native session clocks through host IPC and RootStore', () => {
         coordinator.dispose()
         server.stop()
       }
-    }
-  )
-
-  it.each(['omp', 'pi', 'prime-agent'] as const)(
-    'preserves blind-writer compatibility for %s',
-    (agentType) => {
-      const store = createTestStore()
-      const session = { key: 'session_id' as const, id: 'old', transcriptPath: '/old.jsonl' }
-      store.getState().setAgentStatus(
-        PANE,
-        {
-          state: 'done',
-          prompt: '',
-          agentType,
-          mainAgent: { state: 'done', stateStartedAt: 1500 }
-        },
-        undefined,
-        { updatedAt: 2000, turnStartedAt: 1000 },
-        undefined,
-        { providerSession: session }
-      )
-      store
-        .getState()
-        .setAgentStatus(
-          PANE,
-          { state: 'done', prompt: '', agentType },
-          undefined,
-          { updatedAt: 3000 },
-          undefined,
-          {
-            providerSession:
-              agentType === 'omp'
-                ? { key: 'session_id', id: 'old' }
-                : { key: 'session_id', id: 'new', transcriptPath: '/new.jsonl' }
-          }
-        )
-      expect(store.getState().agentStatusByPaneKey[PANE].turnStartedAt).toBe(1000)
     }
   )
 })

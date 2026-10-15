@@ -76,7 +76,7 @@ model loop idle. Opening an unprompted OMP session does not count as working.
 
 After upgrading Orca, restart OMP to load the updated extension. No additional tracking tool, daemon,
 or model instruction is needed. Native tracking is capability-detected and has been verified with
-OMP 18.10.3; runtimes without the registry API retain lifecycle-only tracking.
+OMP 18.10.3 and 18.10.4; runtimes without the registry API retain lifecycle-only tracking.
 
 Snapshots belong to one root and its current session. Session changes retire the previous roster,
 and observation refreshes preserve the root's prompt, input waits, and turn timing. Failed registry
@@ -96,11 +96,12 @@ not require a git worktree, so the same observation works in folder workspaces.
 The shared roster displays up to 32 children. Root completion accounts for all discovered native
 children, including those beyond that display limit.
 
-The optional installed-OMP E2E uses one scenario: two sessions with three children by default,
-eight with six when `ORCA_OMP_SCALE=1`, or sixteen with eight when `ORCA_OMP_SCALE_STRESS=1`.
-It exercises compact UI, quiet and background work, cancellation, completion and session replacement.
+The optional installed-OMP E2E uses one core scenario: two sessions with three children by default.
+`ORCA_OMP_SCALE=1` adds eight sessions with six children; `ORCA_OMP_SCALE_STRESS=1` adds sixteen with eight.
+It checks live rosters, quiet/background work, cancellation/completion and session isolation, with a
+smoke check of the existing compact UI rather than repeating its disclosure or accessibility tests.
 Run `ORCA_BACKGROUND_LAUNCH=1 ORCA_REAL_OMP_CLI_TEST=1 pnpm run test:e2e omp-subagent-status.spec.ts --workers=1`.
-These workloads were verified with OMP 18.10.3; the suite is a functional check, not a benchmark harness.
+The core suite was verified with OMP 18.10.4; it is a functional check, not a benchmark harness.
 
 ## ZCode: pick a CLI that ships the TUI
 

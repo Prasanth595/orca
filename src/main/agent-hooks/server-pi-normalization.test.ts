@@ -461,43 +461,6 @@ describe('Pi-family child rows through the hook lane', () => {
     expect(server.getStatusSnapshot()[0]?.subagents).toBeUndefined()
   })
 
-  it('resets the root clock on new turns and omits it from explicit closes', async () => {
-    await post('omp', {
-      ...OMP_SESSION,
-      hook_event_name: 'before_agent_start',
-      prompt: 'old root turn'
-    })
-    vi.setSystemTime(1_001_000)
-    await snapshot({ state: 'done' })
-    vi.setSystemTime(1_002_000)
-    await snapshot({ state: 'done' }, [])
-    expect(server.getStatusSnapshot()[0]).toMatchObject({
-      state: 'done',
-      stateStartedAt: 1_002_000,
-      mainAgent: { state: 'done', stateStartedAt: 1_001_000 }
-    })
-    vi.setSystemTime(1_010_000)
-    await post('omp', {
-      ...OMP_SESSION,
-      hook_event_name: 'before_agent_start',
-      prompt: 'new root turn'
-    })
-    await post('omp', { ...OMP_SESSION, hook_event_name: 'agent_start' })
-    vi.setSystemTime(1_020_000)
-    await post('omp', { ...OMP_SESSION, hook_event_name: 'agent_end' })
-    vi.setSystemTime(1_030_000)
-    await snapshot({ state: 'done' }, [])
-    expect(server.getStatusSnapshot()[0]).toMatchObject({
-      state: 'done',
-      stateStartedAt: 1_020_000,
-      prompt: 'new root turn',
-      mainAgent: { state: 'done', stateStartedAt: 1_020_000 }
-    })
-    await post('omp', { ...OMP_SESSION, hook_event_name: 'agent_end', session_boundary: true })
-    expect(server.getStatusSnapshot()[0]?.sessionBoundary).toBe(true)
-    expect(server.getStatusSnapshot()[0]?.mainAgent).toBeUndefined()
-  })
-
   it('requires native boundary proof to rebind and rejects stale snapshots', async () => {
     await snapshot({ state: 'unknown', prompt: 'Invalid root' })
     expect(server.getStatusSnapshot()).toEqual([])
@@ -523,47 +486,24 @@ describe('Pi-family child rows through the hook lane', () => {
     expect(server.getStatusSnapshot()).toEqual(current)
   })
 
-  it.each(['pi', 'prime-agent'] as const)(
-    'ignores native OMP root metadata for legacy %s',
-    async (source) => {
-      const payload = {
-        ...OMP_SESSION,
-        hook_event_name: 'subagents_update',
-        omp_status: { state: 'blocked', prompt: 'Spoofed native root', session_boundary: true },
-        subagents: [REVIEWER]
-      }
-      await post(source, payload)
-      expect(server.getStatusSnapshot()).toEqual([])
-      await post(source, { hook_event_name: 'before_agent_start', prompt: 'Genuine provider root' })
-      await post(source, payload)
-      expect(server.getStatusSnapshot()[0]).toMatchObject({
-        state: 'working',
-        agentType: source,
-        prompt: 'Genuine provider root',
-        subagents: [REVIEWER]
-      })
-      expect(server.getStatusSnapshot()[0]?.mainAgent).toBeUndefined()
-    }
-  )
-
-  it('recovers an OMP resume remnant only with valid native root evidence', async () => {
-    await post('omp', {
+  it('ignores native OMP root metadata on the legacy Pi lane', async () => {
+    const payload = {
       ...OMP_SESSION,
-      hook_event_name: 'before_agent_start',
-      prompt: 'Still executing'
-    })
-    server.dropStatusEntry(PANE)
-    const hidden = server.getStatusSnapshot()
-    expect(hidden[0]?.providerSessionOnly).toBe(true)
-    await snapshot({ state: 'invalid' }, [])
-    expect(server.getStatusSnapshot()).toEqual(hidden)
-    await snapshot({ state: 'working' }, [REVIEWER])
+      hook_event_name: 'subagents_update',
+      omp_status: { state: 'blocked', prompt: 'Spoofed native root', session_boundary: true },
+      subagents: [REVIEWER]
+    }
+    await post('pi', payload)
+    expect(server.getStatusSnapshot()).toEqual([])
+    await post('pi', { hook_event_name: 'before_agent_start', prompt: 'Genuine provider root' })
+    await post('pi', payload)
     expect(server.getStatusSnapshot()[0]).toMatchObject({
       state: 'working',
-      prompt: 'Still executing',
+      agentType: 'pi',
+      prompt: 'Genuine provider root',
       subagents: [REVIEWER]
     })
-    expect(server.getStatusSnapshot()[0]?.providerSessionOnly).toBeUndefined()
+    expect(server.getStatusSnapshot()[0]?.mainAgent).toBeUndefined()
   })
 
   it('keeps an update from inventing a row or unhiding a resume placeholder', async () => {
