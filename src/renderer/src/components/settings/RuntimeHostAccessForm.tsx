@@ -1,7 +1,7 @@
 import { ChevronDown, Loader2, Plus } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { parseHostAccessLink } from '../../../../shared/remote-pairing-address'
-import type { RemotePairingFailureKind } from '../../../../shared/remote-pairing-verification'
+import type { RemotePairingFailureDetail } from '../../../../shared/remote-pairing-verification'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { Checkbox } from '../ui/checkbox'
@@ -14,10 +14,7 @@ import {
   translateRemotePairingFailureDescription
 } from '@/lib/remote-pairing-copy'
 
-export type RuntimeHostAccessFailure = {
-  kind: RemotePairingFailureKind
-  message: string
-}
+export type RuntimeHostAccessFailure = RemotePairingFailureDetail
 
 type RuntimeHostAccessFormProps = {
   name: string

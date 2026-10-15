@@ -2,7 +2,7 @@ import type {
   HostAccessLinkErrorKind,
   RemotePairingEndpointKind
 } from '../../../shared/remote-pairing-address'
-import type { RemotePairingFailure } from '../../../shared/remote-pairing-verification'
+import type { RemotePairingFailureDetail } from '../../../shared/remote-pairing-verification'
 import { translate } from '@/i18n/i18n'
 
 export function translateHostAccessLinkError(kind: HostAccessLinkErrorKind): string {
@@ -51,7 +51,7 @@ export function translateRemotePairingEndpointKind(kind: RemotePairingEndpointKi
 }
 
 export function translateRemotePairingFailureDescription(
-  failure: Pick<RemotePairingFailure, 'kind' | 'compatibilityReason'>,
+  failure: RemotePairingFailureDetail,
   endpoint: string | null
 ): string {
   switch (failure.kind) {

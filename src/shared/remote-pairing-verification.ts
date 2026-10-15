@@ -11,13 +11,16 @@ export type RemotePairingFailureKind =
   | 'connection-interrupted'
   | 'environment-save-failed'
 
-export type RemotePairingFailure = {
-  ok: false
-  kind: RemotePairingFailureKind
-  message: string
-  /** Which side must update, for `protocol-incompatible`. */
-  compatibilityReason?: Extract<RuntimeCompatVerdict, { kind: 'blocked' }>['reason']
-}
+/** A failed pairing as the form shows it; an incompatible host always says which side must update. */
+export type RemotePairingFailureDetail =
+  | { kind: Exclude<RemotePairingFailureKind, 'protocol-incompatible'>; message: string }
+  | {
+      kind: 'protocol-incompatible'
+      message: string
+      compatibilityReason: Extract<RuntimeCompatVerdict, { kind: 'blocked' }>['reason']
+    }
+
+export type RemotePairingFailure = { ok: false } & RemotePairingFailureDetail
 
 export type VerifyAndAddRuntimeEnvironmentResult =
   | {

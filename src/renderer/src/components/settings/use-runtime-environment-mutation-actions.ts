@@ -81,7 +81,7 @@ export function useRuntimeEnvironmentMutationActions({
       })
       if (!result.ok) {
         if (mountedRef.current) {
-          setAddServerFailure({ kind: result.kind, message: result.message })
+          setAddServerFailure(result)
         }
         return
       }
