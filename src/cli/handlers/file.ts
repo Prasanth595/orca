@@ -76,7 +76,7 @@ function toWorktreeRootPathFlavor(rootPath: string, cwd: string, path: string): 
   return toWindowsWslPath(path, distro)
 }
 
-async function resolveFilePath(
+export async function resolveFilePath(
   ctx: HandlerContext,
   worktree: string,
   path: string

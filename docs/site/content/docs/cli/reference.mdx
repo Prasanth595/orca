@@ -208,6 +208,18 @@ orca file open-changed --mode both --worktree active --json
 
 Paths are relative to the selected worktree. `--line` and `--column` are 1-based; a column requires a line. Positions are applied when you select the file, or immediately with `--focus`. Markdown switches to source view for positioning. Older hosts open the file without positioning. `open-changed` reads git status and opens changed files in edit, diff, or both modes. Tabs open without changing what you are looking at; pass `--focus` to be brought to them.
 
+## Comments
+
+Read and clear the comments (review notes) left on lines of a file in Orca, markdown and diff alike. The app saves the change and refreshes any open window, so a session can answer a comment and clear it without touching Orca's data file.
+
+```bash
+orca comment list notes/status.md --worktree active --json
+orca comment edit <id> --body "done" --worktree active --json
+orca comment rm <id> --worktree active --json
+```
+
+`list` takes an optional file (relative to the worktree, or absolute inside it) and `--source markdown|diff`. Each comment has `id`, `filePath`, `source`, `line`, `body` and `createdAt`, plus `startLine`, `selectedText`, `updatedAt` and `sentAt` when set. `rm` is also spelled `delete`. Like an edit in the app, `edit` clears a comment's sent mark.
+
 ## Built-in browser
 
 Browser commands control Orca's embedded browser tab for the selected worktree. They do not control Chrome, Safari, or the Orca desktop UI.

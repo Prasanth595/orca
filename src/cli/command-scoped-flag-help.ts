@@ -53,6 +53,17 @@ const COMMAND_SCOPED_FLAG_HELP: Record<string, Record<string, string>> = {
   'file open-changed': {
     focus: FILE_OPEN_FOCUS_HELP
   },
+  'comment list': {
+    file: '--file <path>          Only comments on this file; also accepted as the positional argument',
+    source: '--source <kind>        markdown or diff; omit to list both'
+  },
+  'comment rm': {
+    id: '--id <id>              Comment id from orca comment list; also accepted as the positional argument'
+  },
+  'comment edit': {
+    id: '--id <id>              Comment id from orca comment list; also accepted as the positional argument',
+    body: '--body <text>          New comment text; replaces the old text'
+  },
   'skills install': {
     agent: '--agent <names>        Comma-separated install targets; default is detected agents'
   },

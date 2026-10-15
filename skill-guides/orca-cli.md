@@ -181,6 +181,18 @@ is refused on `create`. Folder-based repos can store numeric links, but missing
 source/remote identity prevents URL validation and may leave provider links unavailable.
 Old runtimes that predate these existing fields may ignore them; verify with `worktree show --json`.
 
+## Review Comments
+
+People leave comments (review notes) on lines of a file in Orca, markdown and diff alike. They are separate from the worktree comment above. Read the ones on a file, act on them, then clear the ones you handled:
+
+```text
+ORCA comment list notes/status.md --json
+ORCA comment edit <id> --body "done" --json
+ORCA comment rm <id> --json
+```
+
+`list` returns `id`, `filePath`, `source`, `line`, `body` and `createdAt` for each comment, plus `startLine` and `selectedText` when set. Delete only a comment you have acted on. An edit clears the comment's sent mark, the same as an edit in the app. Never edit Orca's data file to change comments while Orca runs.
+
 ## Terminals
 
 Common commands:

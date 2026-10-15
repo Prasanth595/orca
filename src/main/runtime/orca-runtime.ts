@@ -26,6 +26,11 @@ import { createReferenceAgentIndex, referenceConnectionHosts } from './runtime-r
 import type { RuntimeReferenceFindParams } from '../../shared/runtime-reference-contracts'
 import { getRepoExecutionHostId } from '../../shared/execution-host'
 import type { TerminalCreateOptions } from './runtime-terminal-contracts'
+import {
+  editRuntimeWorktreeComment,
+  listRuntimeWorktreeComments,
+  removeRuntimeWorktreeComment
+} from './runtime-worktree-comments'
 
 class OrcaRuntimeService extends OrcaRuntimeWithMigrationCatalog {
   private async selectReferenceCatalogWorkspace(selector: string, cwd?: string) {
@@ -78,6 +83,44 @@ class OrcaRuntimeService extends OrcaRuntimeWithMigrationCatalog {
           workspaceKeys,
           referenceConnectionHosts(this.listRepos())
         )
+    })
+  }
+
+  private worktreeCommentPorts() {
+    return {
+      resolveWorktree: (selector: string) => this.resolveWorktreeSelector(selector),
+      invalidateResolved: () => this.invalidateResolvedWorktreeCache(),
+      // Why no git rescan: a note change leaves every scan result valid.
+      notifyChanged: (repoId: string) =>
+        this.notifyWorktreesChanged(repoId, { invalidateGitScans: false })
+    }
+  }
+
+  async listWorktreeComments(args: {
+    selector: string
+    filePath?: string
+    source?: 'markdown' | 'diff'
+  }) {
+    return listRuntimeWorktreeComments({
+      ...args,
+      store: this.requireStore(),
+      ports: this.worktreeCommentPorts()
+    })
+  }
+
+  async removeWorktreeComment(args: { selector: string; id: string }) {
+    return removeRuntimeWorktreeComment({
+      ...args,
+      store: this.requireStore(),
+      ports: this.worktreeCommentPorts()
+    })
+  }
+
+  async editWorktreeComment(args: { selector: string; id: string; body: string }) {
+    return editRuntimeWorktreeComment({
+      ...args,
+      store: this.requireStore(),
+      ports: this.worktreeCommentPorts()
     })
   }
 

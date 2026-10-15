@@ -2,6 +2,7 @@ import type { CommandHandler } from './dispatch'
 import { BROWSER_HANDLER_GROUPS } from './browser-handler-groups'
 import { JIRA_HANDLER_GROUP } from './jira-handler-group'
 import { REFERENCE_HANDLER_GROUP } from './reference-handler-group'
+import { FILE_HANDLER_GROUPS } from './file-handler-groups'
 
 export type HandlerGroup = {
   name: string
@@ -98,11 +99,7 @@ export const HANDLER_GROUPS: readonly HandlerGroup[] = [
     ],
     load: async () => (await import('./handlers/worktree.js')).WORKTREE_HANDLERS
   },
-  {
-    name: 'file',
-    keys: ['file open', 'file diff', 'file open-changed'],
-    load: async () => (await import('./handlers/file.js')).FILE_HANDLERS
-  },
+  ...FILE_HANDLER_GROUPS,
   {
     name: 'terminal',
     keys: [

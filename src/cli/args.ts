@@ -151,6 +151,7 @@ export function supportsBrowserPageFlag(commandPath: string[]): boolean {
       'worktree',
       'terminal',
       'file',
+      'comment',
       'orchestration',
       'computer',
       'emulator',
