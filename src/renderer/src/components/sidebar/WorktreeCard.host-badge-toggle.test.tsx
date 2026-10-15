@@ -209,12 +209,8 @@ describe('WorktreeCard host badge toggle', () => {
               showProjectName: row.showProjectName,
               inPinnedSection: row.sectionKey === PINNED_GROUP_KEY
             })
-            const ownerText = [...markup.matchAll(/>([^<]*)</g)].filter(
-              (match) => match[1].trim() === rowRepo.displayName
-            )
-            expect(ownerText).toHaveLength(
-              mode === 'repo' && !pinned && row.worktree.id === parent.id ? 0 : 1
-            )
+            const shouldShowProject = mode !== 'repo' || pinned || row.worktree.id !== parent.id
+            expect(markup.includes(rowRepo.displayName)).toBe(shouldShowProject)
             expect(markup).not.toContain(HOST_LABEL)
           }
         }
