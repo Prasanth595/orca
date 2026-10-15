@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { PairingOffer } from '../shared/pairing'
+import {
+  pairedRuntimeConnectionFromOffer,
+  type PairedRuntimeConnection
+} from '../shared/paired-runtime-connection'
 import type { RemoteRuntimeSharedConnectionDiagnostics } from '../shared/remote-runtime-shared-control-types'
 import { ensureEphemeralVmRuntimeControlConnection } from './ephemeral-vm-runtime-wake'
 
@@ -19,13 +22,13 @@ function diagnostics(
   }
 }
 
-function pairingFixture(): PairingOffer {
-  return {
+function pairedConnectionFixture(): PairedRuntimeConnection {
+  return pairedRuntimeConnectionFromOffer({
     v: 2,
     endpoint: 'ws://192.168.0.25:7400',
     deviceToken: 'token',
     publicKeyB64: 'key'
-  } satisfies PairingOffer
+  })
 }
 
 function wakeArgs(
@@ -39,7 +42,7 @@ function wakeArgs(
     ensureConnection: vi.fn(),
     probe: vi.fn(async () => ({ ok: true })),
     forceRefresh: vi.fn(),
-    resolvePairing: vi.fn(pairingFixture),
+    resolvePairedConnection: vi.fn(pairedConnectionFixture),
     waitForReadyTimeoutMs: 1_000,
     pollIntervalMs: 100,
     probeTimeoutMs: 500,
@@ -63,7 +66,7 @@ describe('ensureEphemeralVmRuntimeControlConnection', () => {
 
     expect(result).toEqual({ ok: true })
     expect(args.probe).toHaveBeenCalledTimes(1)
-    expect(args.probe).toHaveBeenCalledWith(ENVIRONMENT_ID, pairingFixture(), 500)
+    expect(args.probe).toHaveBeenCalledWith(ENVIRONMENT_ID, pairedConnectionFixture(), 500)
     expect(args.forceRefresh).not.toHaveBeenCalled()
     expect(args.reconnect).not.toHaveBeenCalled()
     expect(args.ensureConnection).not.toHaveBeenCalled()
@@ -131,8 +134,8 @@ describe('ensureEphemeralVmRuntimeControlConnection', () => {
 
     expect(result).toEqual({ ok: true })
     expect(args.ensureConnection).toHaveBeenCalledTimes(1)
-    expect(args.ensureConnection).toHaveBeenCalledWith(ENVIRONMENT_ID, pairingFixture())
-    expect(args.resolvePairing).toHaveBeenCalledWith('/user-data', ENVIRONMENT_ID)
+    expect(args.ensureConnection).toHaveBeenCalledWith(ENVIRONMENT_ID, pairedConnectionFixture())
+    expect(args.resolvePairedConnection).toHaveBeenCalledWith('/user-data', ENVIRONMENT_ID)
     expect(args.reconnect).not.toHaveBeenCalled()
     expect(args.probe).not.toHaveBeenCalled()
   })

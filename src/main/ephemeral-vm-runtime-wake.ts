@@ -1,6 +1,7 @@
-import type { PairingOffer } from '../shared/pairing'
+import type { PairedRuntimeConnection } from '../shared/paired-runtime-connection'
 import type { RemoteRuntimeSharedConnectionDiagnostics } from '../shared/remote-runtime-shared-control-types'
-import { resolveEnvironmentPairingOffer } from '../shared/runtime-environment-store'
+import { resolveEnvironment } from '../shared/runtime-environment-store'
+import { getPreferredPairedRuntimeConnection } from '../shared/runtime-environments'
 
 /** Result of verifying a runtime's control connection: `{ ok: true }`, or the
  * terminal connection state after the bounded wait expired. */
@@ -34,12 +35,16 @@ export async function ensureEphemeralVmRuntimeControlConnection(args: {
   runtimeEnvironmentId: string
   getDiagnostics: (environmentId: string) => RemoteRuntimeSharedConnectionDiagnostics | null
   reconnect: (environmentId: string) => void
-  ensureConnection: (environmentId: string, pairing: PairingOffer) => void
+  ensureConnection: (environmentId: string, pairedConnection: PairedRuntimeConnection) => void
   /** Sends a cheap request over the cached connection; settles ok only on a server reply. */
-  probe: (environmentId: string, pairing: PairingOffer, timeoutMs: number) => Promise<unknown>
+  probe: (
+    environmentId: string,
+    pairedConnection: PairedRuntimeConnection,
+    timeoutMs: number
+  ) => Promise<unknown>
   /** Replaces the transport even when it reads `ready`. */
   forceRefresh: (environmentId: string) => void
-  resolvePairing?: (userDataPath: string, selector: string) => PairingOffer
+  resolvePairedConnection?: (userDataPath: string, selector: string) => PairedRuntimeConnection
   waitForReadyTimeoutMs?: number
   pollIntervalMs?: number
   probeTimeoutMs?: number
@@ -53,7 +58,10 @@ export async function ensureEphemeralVmRuntimeControlConnection(args: {
   const now = args.now ?? Date.now
   const sleep =
     args.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)))
-  const resolvePairing = args.resolvePairing ?? resolveEnvironmentPairingOffer
+  const resolvePairedConnection =
+    args.resolvePairedConnection ??
+    ((path: string, selector: string) =>
+      getPreferredPairedRuntimeConnection(resolveEnvironment(path, selector)))
 
   const current = getDiagnostics(runtimeEnvironmentId)
   if (current?.state === 'ready') {
@@ -61,7 +69,7 @@ export async function ensureEphemeralVmRuntimeControlConnection(args: {
     const answered = await args
       .probe(
         runtimeEnvironmentId,
-        resolvePairing(userDataPath, runtimeEnvironmentId),
+        resolvePairedConnection(userDataPath, runtimeEnvironmentId),
         probeTimeoutMs
       )
       .then(
@@ -76,7 +84,10 @@ export async function ensureEphemeralVmRuntimeControlConnection(args: {
     // No cached connection. ensureConnection itself refuses when the
     // environment is manually disconnected, so the bounded wait below reports
     // that state instead of fighting the user's own disconnect.
-    ensureConnection(runtimeEnvironmentId, resolvePairing(userDataPath, runtimeEnvironmentId))
+    ensureConnection(
+      runtimeEnvironmentId,
+      resolvePairedConnection(userDataPath, runtimeEnvironmentId)
+    )
   } else {
     reconnect(runtimeEnvironmentId)
   }

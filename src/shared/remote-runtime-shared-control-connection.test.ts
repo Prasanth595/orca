@@ -153,12 +153,14 @@ describe('RemoteRuntimeSharedControlConnection', () => {
   })
 
   it('replaces a ready socket only when the refresh is forced', () => {
-    const connection = new RemoteRuntimeSharedControlConnection({
-      v: 2,
-      endpoint: 'ws://127.0.0.1:1',
-      deviceToken: 'token',
-      publicKeyB64: Buffer.from(new Uint8Array(32).fill(1)).toString('base64')
-    })
+    const connection = new RemoteRuntimeSharedControlConnection(
+      pairedRuntimeConnectionFromOffer({
+        v: 2,
+        endpoint: 'ws://127.0.0.1:1',
+        deviceToken: 'token',
+        publicKeyB64: Buffer.from(new Uint8Array(32).fill(1)).toString('base64')
+      })
+    )
     const close = vi.fn()
     const cleanup = vi.fn()
     const open = vi.fn()
@@ -166,13 +168,13 @@ describe('RemoteRuntimeSharedControlConnection', () => {
     const unsafe = connection as unknown as {
       state: string
       ws: { readyState: number; close: () => void } | null
-      sharedKey: Uint8Array | null
+      handshake: object | null
       socketCleanup: (() => void) | null
       open: () => void
     }
     unsafe.state = 'ready'
     unsafe.ws = { readyState: 1, close }
-    unsafe.sharedKey = new Uint8Array(32)
+    unsafe.handshake = {}
     unsafe.socketCleanup = cleanup
     unsafe.open = open
 

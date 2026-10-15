@@ -180,12 +180,12 @@ export function reconnectRemoteRuntimeSharedControlConnection(environmentId: str
 // Why: reuse the status owner's `status.get` reachability call rather than add an RPC.
 export function probeRemoteRuntimeSharedControlConnection(
   environmentId: string,
-  pairing: PairingOffer,
+  pairedConnection: PairedRuntimeConnection,
   timeoutMs: number
 ): Promise<unknown> {
   return sendRemoteRuntimeSharedControlRequest(
     environmentId,
-    pairing,
+    pairedConnection,
     'status.get',
     undefined,
     timeoutMs
