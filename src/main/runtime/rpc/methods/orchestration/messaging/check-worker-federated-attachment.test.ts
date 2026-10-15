@@ -175,6 +175,52 @@ describe('orchestration.check on a federated attachment across a restart', () =>
     expect((await check(ctx, { ack: delivered.deliveryId })).count).toBe(0)
   })
 
+  it('carries a steered control message to the worker server and keeps plain mail byte-identical', () => {
+    launch(':memory:')
+    const store = db as OrchestrationDb
+    const run = store.createRun({
+      objective: 'steer coordinator',
+      coordinatorHandle: 'term_coord',
+      coordinatorPaneKey: 'tab_coord:pane_coord'
+    })
+    const task = store.createTask({ runId: run.id, spec: 'steer task' })
+    const { dispatch } = store.createStartingWorkerDispatch({
+      creator: { kind: 'system' },
+      maxDepth: Number.MAX_SAFE_INTEGER,
+      taskId: task.id,
+      startOptions: {}
+    })
+    attach(store, dispatch.id, run.id)
+    const fields = {
+      from: 'term_coord',
+      subject: 'stop',
+      body: 'wrong file',
+      type: 'status' as const,
+      priority: 'normal' as const,
+      threadId: null,
+      payload: null
+    }
+    // An older worker server parses exactly what it always did; absent reads as queue.
+    expect(encodeFederatedControlMessage({ ...fields, pointerDelivery: 'queue' })).toBe(
+      encodeFederatedControlMessage(fields)
+    )
+    const steered = {
+      dispatchId: dispatch.id,
+      messageId: 'msg_steered',
+      payload: encodeFederatedControlMessage({ ...fields, pointerDelivery: 'now' })
+    }
+    expect(importFederatedControlMessage(store, steered).imported).toBe(true)
+    expect(importFederatedControlMessage(store, steered).imported).toBe(false)
+    expect(store.getMessageById('msg_steered')?.pointer_delivery).toBe('now')
+    // The same id relayed again with another delivery is a different message.
+    expect(() =>
+      importFederatedControlMessage(store, {
+        ...steered,
+        payload: encodeFederatedControlMessage(fields)
+      })
+    ).toThrow(/conflicts/)
+  })
+
   it('refuses an attachment with no home Run before writing a Delivery', async () => {
     const ctx = launch(':memory:')
     const store = db as OrchestrationDb

@@ -140,6 +140,7 @@ async function syncFederatedDispatchPages(
         body: message.body,
         type: message.type,
         priority: message.priority,
+        pointerDelivery: message.pointerDelivery,
         threadId: message.threadId ?? undefined,
         payload: bindCoordinatorMutationPayload(message.type, message.payload, dispatchId)
       },

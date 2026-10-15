@@ -1,4 +1,9 @@
-import { MESSAGE_TYPES, type MessagePriority, type MessageType } from './types'
+import {
+  MESSAGE_TYPES,
+  type MessagePointerDelivery,
+  type MessagePriority,
+  type MessageType
+} from './types'
 import type { OrchestrationDb } from './db'
 import { OrchestrationError } from './orchestration-error'
 
@@ -12,10 +17,13 @@ export type FederatedControlMessage = {
   priority: MessagePriority
   threadId: string | null
   payload: string | null
+  /** Written only as `now`; absent is `queue`, which is all an older peer sends or reads. */
+  pointerDelivery?: MessagePointerDelivery
 }
 
 export function encodeFederatedControlMessage(message: FederatedControlMessage): string {
-  return JSON.stringify(message)
+  const { pointerDelivery, ...rest } = message
+  return JSON.stringify(pointerDelivery === 'now' ? { ...rest, pointerDelivery } : rest)
 }
 
 export function parseFederatedControlMessage(payload: string): FederatedControlMessage {
@@ -46,7 +54,8 @@ export function parseFederatedControlMessage(payload: string): FederatedControlM
     priority:
       message.priority === 'high' || message.priority === 'urgent' ? message.priority : 'normal',
     threadId: typeof message.threadId === 'string' ? message.threadId : null,
-    payload: typeof message.payload === 'string' ? message.payload : null
+    payload: typeof message.payload === 'string' ? message.payload : null,
+    pointerDelivery: message.pointerDelivery === 'now' ? 'now' : 'queue'
   }
 }
 
@@ -79,7 +88,8 @@ export function importFederatedControlMessage(
       existing.type !== message.type ||
       existing.priority !== message.priority ||
       existing.thread_id !== message.threadId ||
-      existing.payload !== message.payload
+      existing.payload !== message.payload ||
+      (existing.pointer_delivery ?? 'queue') !== message.pointerDelivery
     ) {
       throw new OrchestrationError(
         'request_mismatch',
@@ -98,7 +108,8 @@ export function importFederatedControlMessage(
     type: message.type,
     priority: message.priority,
     threadId: message.threadId ?? undefined,
-    payload: message.payload ?? undefined
+    payload: message.payload ?? undefined,
+    pointerDelivery: message.pointerDelivery
   })
   return { imported: true, type: message.type }
 }

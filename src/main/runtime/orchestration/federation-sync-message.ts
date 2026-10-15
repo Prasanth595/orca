@@ -1,5 +1,6 @@
 import {
   MESSAGE_TYPES,
+  type MessagePointerDelivery,
   type MessagePriority,
   type MessageType,
   type WorkerReportOutcome
@@ -15,6 +16,8 @@ export type RelayedMessage = {
   priority: MessagePriority
   threadId: string | null
   payload: string | null
+  /** On the wire only as `now`; an older peer's relay, which never names it, reads as `queue`. */
+  pointerDelivery: MessagePointerDelivery
 }
 
 const MESSAGE_TYPE_SET = new Set<MessageType>(MESSAGE_TYPES)
@@ -47,7 +50,8 @@ export function parseRelayedMessage(payload: string): RelayedMessage {
     priority:
       message.priority === 'high' || message.priority === 'urgent' ? message.priority : 'normal',
     threadId: typeof message.threadId === 'string' ? message.threadId : null,
-    payload: typeof message.payload === 'string' ? message.payload : null
+    payload: typeof message.payload === 'string' ? message.payload : null,
+    pointerDelivery: message.pointerDelivery === 'now' ? 'now' : 'queue'
   }
 }
 

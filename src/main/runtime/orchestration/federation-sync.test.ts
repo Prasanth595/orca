@@ -20,7 +20,16 @@ describe('federation relay parsing', () => {
       parseRelayedMessage(
         JSON.stringify({ subject: 'done', body: 'Finished', type: 'worker_done' })
       )
-    ).toMatchObject({ type: 'worker_done', priority: 'normal' })
+    ).toMatchObject({ type: 'worker_done', priority: 'normal', pointerDelivery: 'queue' })
+  })
+
+  it('reads a steered relay as now and anything else as queue', () => {
+    const relayed = (pointerDelivery: unknown) =>
+      parseRelayedMessage(
+        JSON.stringify({ subject: 'stop', body: 'b', type: 'status', pointerDelivery })
+      ).pointerDelivery
+    expect(relayed('now')).toBe('now')
+    expect(relayed('later')).toBe('queue')
   })
 
   it('rejects an unsupported type before it reaches the database constraint', () => {

@@ -64,6 +64,7 @@ export function sendPointToPointMessage(args: {
       body: params.body,
       type: messageType,
       priority: params.priority as MessagePriority,
+      pointerDelivery: params.deliver,
       threadId: params.threadId,
       payload: dispatch
         ? bindCoordinatorMutationPayload(messageType, params.payload, dispatch.id)

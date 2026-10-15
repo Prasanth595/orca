@@ -16,6 +16,11 @@ export type MessageType = (typeof MESSAGE_TYPES)[number]
 
 export type MessagePriority = 'normal' | 'high' | 'urgent'
 
+/** How a chat-mode recipient's nudge reaches a busy agent: held for its turn's end, or steered in. */
+export const MESSAGE_POINTER_DELIVERIES = ['queue', 'now'] as const
+
+export type MessagePointerDelivery = (typeof MESSAGE_POINTER_DELIVERIES)[number]
+
 export type MessageDeliveryContract = 'legacy_direct' | 'current_delivery' | 'audit_only'
 
 export type TaskStatus = 'pending' | 'ready' | 'dispatched' | 'completed' | 'failed' | 'blocked'
@@ -256,6 +261,8 @@ export type MessageRow = {
   pointer_enter_pending?: number
   pointer_pty_id?: string | null
   pointer_process_incarnation?: string | null
+  /** Absent on a database an older build migrated; read it as `queue`. */
+  pointer_delivery?: MessagePointerDelivery
 }
 
 export type TaskRow = {

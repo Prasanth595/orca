@@ -7,7 +7,7 @@ import {
 } from '../../../../../shared/rpc-contract/rpc-param-primitives'
 import type { TaskStatus } from '../../../orchestration/db'
 import { isGroupAddress } from '../../../orchestration/groups'
-import { MESSAGE_TYPES } from '../../../orchestration/types'
+import { MESSAGE_POINTER_DELIVERIES, MESSAGE_TYPES } from '../../../orchestration/types'
 import { OrchestrationError } from '../../../orchestration/orchestration-error'
 import {
   getLifecycleGroupRecipientError,
@@ -105,6 +105,9 @@ export const SendParams = z
       })
       .optional(),
     priority: z.enum(['normal', 'high', 'urgent']).optional(),
+    deliver: z
+      .enum(MESSAGE_POINTER_DELIVERIES, { error: 'Invalid --deliver; use queue or now.' })
+      .optional(),
     threadId: OptionalString,
     payload: OptionalString,
     // Why: pane key is the remint-stable identity used to verify worker_done/heartbeat ownership; the from handle stays routing metadata.

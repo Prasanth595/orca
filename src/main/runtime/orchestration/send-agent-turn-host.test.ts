@@ -183,4 +183,26 @@ describe('sendAgentTurn through the real host', () => {
     })
     expect(await rig.drafts()).toEqual([])
   })
+
+  it('replays a retried `now` steer instead of sending it twice', async () => {
+    await openRigTurnFor(rig, await rig.workingSend())
+    const operationId = hostTestOperationId()
+    await sendTurnAccepted('now', operationId)
+    await expect(sendTurn('now', operationId)).resolves.toMatchObject({
+      kind: 'sent',
+      clientMessageId: operationId,
+      submission: { clientMessageId: operationId, dispatchState: 'accepted' }
+    })
+    const { submissions } = await rig.host.journalSnapshot(SESSION)
+    expect(submissions.filter((entry) => entry.clientMessageId === operationId)).toHaveLength(1)
+    expect(await rig.drafts()).toEqual([])
+  })
+
+  // Why the pointer lane derives delivery from the batch: the id's fingerprint covers it.
+  it('refuses a retry that names another delivery under the same id', async () => {
+    await openRigTurnFor(rig, await rig.workingSend())
+    const operationId = hostTestOperationId()
+    await sendTurnAccepted('now', operationId)
+    await expect(sendTurn('queue', operationId)).resolves.toMatchObject({ kind: 'refused' })
+  })
 })

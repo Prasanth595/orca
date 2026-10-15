@@ -86,4 +86,36 @@ describe('structured pointer schema migration', () => {
       db.close()
     }
   })
+
+  it('adds the chat-nudge delivery to a v43 database, reading its mail as queued', () => {
+    const root = mkdtempSync(join(tmpdir(), 'orca-pointer-delivery-migration-'))
+    tempRoots.push(root)
+    const path = join(root, 'orchestration.db')
+    // A current database with the column taken back out and a v43 stamp: ONLY v44 runs.
+    const seeded = new OrchestrationDb(path)
+    const old = seeded.insertMessage({ from: 'term_coord', to: 'dispatch:d1', subject: 'before' })
+    seeded.close()
+    const raw = new Database(path)
+    raw.exec('ALTER TABLE messages DROP COLUMN pointer_delivery')
+    raw.pragma('user_version = 43')
+    raw.close()
+
+    const db = new OrchestrationDb(path)
+    try {
+      expect(db.db.pragma('user_version', { simple: true })).toBe(SCHEMA_VERSION)
+      expect(db.getMessageById(old.id)?.pointer_delivery).toBe('queue')
+      const steered = db.insertMessage({
+        from: 'term_coord',
+        to: 'dispatch:d1',
+        subject: 'after',
+        pointerDelivery: 'now'
+      })
+      expect(db.getMessageById(steered.id)?.pointer_delivery).toBe('now')
+      expect(() =>
+        db.db.prepare("UPDATE messages SET pointer_delivery = 'later' WHERE id = ?").run(old.id)
+      ).toThrow(/CHECK/)
+    } finally {
+      db.close()
+    }
+  })
 })

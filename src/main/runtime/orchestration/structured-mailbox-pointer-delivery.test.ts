@@ -32,6 +32,8 @@ function harness(options: {
   /** The mailbox this worker owns; its own handle for direct peer mail outside a dispatch. */
   mailbox?: string
   dispatchId?: string | null
+  /** How the first message asked to reach a busy chat (`send --deliver`). */
+  pointerDelivery?: 'queue' | 'now'
 }) {
   const mailbox = options.mailbox ?? 'dispatch:d1'
   const dispatchId = options.dispatchId === undefined ? 'd1' : options.dispatchId
@@ -40,7 +42,14 @@ function harness(options: {
   let submissions: StructuredPointerSubmission[] = []
   // The mailbox's unread mail; a pointed message is no longer selected for a pointer.
   const mail = [
-    { id: 'm1', type: 'status', sequence: 3, from_handle: 'term_coord', run_id: 'run_1' }
+    {
+      id: 'm1',
+      type: 'status',
+      sequence: 3,
+      from_handle: 'term_coord',
+      run_id: 'run_1',
+      pointer_delivery: options.pointerDelivery ?? 'queue'
+    }
   ]
   const pointed = new Set<string>()
   const markAsDelivered = vi.fn((ids: string[]) => {
@@ -93,8 +102,15 @@ function harness(options: {
     setAttached: (next: boolean) => {
       attached = next
     },
-    receive: (id: string, sequence: number) => {
-      mail.push({ id, type: 'status', sequence, from_handle: 'term_coord', run_id: 'run_1' })
+    receive: (id: string, sequence: number, pointerDelivery: 'queue' | 'now' = 'queue') => {
+      mail.push({
+        id,
+        type: 'status',
+        sequence,
+        from_handle: 'term_coord',
+        run_id: 'run_1',
+        pointer_delivery: pointerDelivery
+      })
     },
     setSubmissions: (next: StructuredPointerSubmission[]) => {
       submissions = next
@@ -289,6 +305,44 @@ describe('structured mailbox pointer delivery', () => {
     await flush()
     expect(send).toHaveBeenCalledTimes(2)
     expect(send.mock.calls[1]![0].operationId).toBe(first)
+  })
+
+  it('queues the pointer by default, as a person`s message is', async () => {
+    const { delivery, send } = harness({})
+    delivery.deliverForHandle('dispatch:d1')
+    await flush()
+    expect(send.mock.calls[0]![0].delivery).toBe('queue')
+  })
+
+  it('steers the pointer into the running turn when any batched message asked for now', async () => {
+    const { delivery, send, receive } = harness({})
+    receive('m2', 4, 'now')
+    delivery.deliverForHandle('dispatch:d1')
+    await flush()
+    expect(send).toHaveBeenCalledTimes(1)
+    expect(send.mock.calls[0]![0].delivery).toBe('now')
+  })
+
+  it('resends an unsettled now pointer under the same id and delivery, so the host replays it', async () => {
+    // Delivery joins the host's operation fingerprint: a retry under the minted id with another
+    // delivery would be refused as a conflict, and a fresh id would land as a second turn.
+    const { delivery, send, markAsDelivered, stored } = harness({
+      pointerDelivery: 'now',
+      dispatchState: 'unknown'
+    })
+    delivery.deliverForHandle('dispatch:d1')
+    await flush()
+    const first = send.mock.calls[0]![0]
+    expect(first.delivery).toBe('now')
+    expect(markAsDelivered).not.toHaveBeenCalled()
+    delivery.onJournalActivity('session-1')
+    await flush()
+    expect(send).toHaveBeenCalledTimes(2)
+    expect(send.mock.calls[1]![0]).toMatchObject({
+      operationId: first.operationId,
+      delivery: 'now'
+    })
+    expect(stored.get('dispatch:d1')?.operation_id).toBe(first.operationId)
   })
 
   it('points again under a new id once a later send ran', async () => {

@@ -26,6 +26,7 @@ import {
 } from './structured-pointer-operation-id'
 import { structuredMailSource } from './structured-mail-source'
 import type { SenderNameResolver } from './agent-message-sender'
+import type { AgentTurnDelivery } from './send-agent-turn'
 import {
   retainReasonForDispatch,
   structuredDispatchDelivered,
@@ -70,6 +71,7 @@ export type StructuredMailboxPointerHost = {
     expectedRuntimeFence: number
     /** Names its senders as `from`. */
     body: AgentJournalMessageItem
+    delivery: AgentTurnDelivery
   }) => Promise<StructuredPointerSendOutcome>
   /** Current lease fence; `null` when no record backs the session any more. */
   currentFence: (sessionId: string) => number | null
@@ -96,6 +98,16 @@ type StructuredPointerDeliveryDependencies<TWaiter extends OrchestrationMessageW
     sessionId: string
     reason: StructuredPointerRetainReason
   }) => void
+}
+
+/**
+ * One `--deliver now` row steers the whole batch's nudge into a busy turn.
+ *
+ * Read off the batch's own rows, whose delivery never changes, so a reused operation id is always
+ * resent with the delivery it was minted with: delivery joins the host's operation fingerprint.
+ */
+export function structuredPointerDelivery(batch: readonly MessageRow[]): AgentTurnDelivery {
+  return batch.some((message) => message.pointer_delivery === 'now') ? 'now' : 'queue'
 }
 
 export class OrchestrationStructuredMailboxPointerDelivery<
@@ -313,7 +325,8 @@ export class OrchestrationStructuredMailboxPointerDelivery<
       dispatchId: target.dispatchId,
       operationId: operation.operationId,
       expectedRuntimeFence: fence,
-      body
+      body,
+      delivery: structuredPointerDelivery(unread)
     })
     if (outcome.kind === 'unattached') {
       this.retain(mailboxHandle, sessionId, 'session-not-attached', reservedTypes)
