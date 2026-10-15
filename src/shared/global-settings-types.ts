@@ -1,4 +1,5 @@
 import type { NativeChatGlobalSettings } from './native-chat-appearance-settings'
+import type { FileExplorerGlobalSettings } from './file-explorer-settings-types'
 import type { ExecutionHostId } from './execution-host'
 import type { OrcaWorkspaceLayout } from './orca-workspace-layout'
 import type { GitHubProjectSettings } from './github/project-types'
@@ -49,7 +50,9 @@ export type { WorktreeVisibilityDefaults } from './repo-types'
 /** MiniMax account region used to select the quota endpoint. */
 export type MiniMaxEndpoint = 'overseas' | 'cn'
 
-export type GlobalSettings = NativeChatGlobalSettings & {
+type GlobalSettingsParts = NativeChatGlobalSettings & FileExplorerGlobalSettings
+
+export type GlobalSettings = GlobalSettingsParts & {
   workspaceDir: string
   /** Host-owned defaults used when a repository has no explicit visibility override. */
   worktreeVisibilityDefaults?: WorktreeVisibilityDefaults
@@ -244,8 +247,6 @@ export type GlobalSettings = NativeChatGlobalSettings & {
   openInApplications?: OpenInApplication[]
   /** Deprecated: migration/backward-compat only. Use PersistedUIState.rightSidebarOpen. */
   rightSidebarOpenByDefault: boolean
-  followSymlinkedDirectories?: boolean
-  showGitIgnoredFiles?: boolean
   /** Preferred Source Control changes layout. Per-user, not per-workspace. */
   sourceControlViewMode: SourceControlViewMode
   /** Preferred Source Control group order. Per-user, not per-workspace. */
