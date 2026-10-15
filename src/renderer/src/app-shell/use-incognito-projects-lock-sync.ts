@@ -30,13 +30,18 @@ function leaveConcealedWorkspace(state: AppState): void {
 export function useIncognitoProjectsLockSync(): void {
   useEffect(() => {
     let disposed = false
+    let receivedStateChange = false
     leaveConcealedWorkspace(useAppStore.getState())
     const unsubscribeStore = useAppStore.subscribe(leaveConcealedWorkspace)
-    const unsubscribe = window.api.incognitoProjects.onStateChanged(applyLockState)
+    const unsubscribe = window.api.incognitoProjects.onStateChanged((state) => {
+      receivedStateChange = true
+      applyLockState(state)
+    })
     void window.api.incognitoProjects
       .getState()
       .then((state) => {
-        if (!disposed) {
+        // Why: a lock or unlock pushed while this read was in flight is newer than its reply.
+        if (!disposed && !receivedStateChange) {
           applyLockState(state)
         }
       })

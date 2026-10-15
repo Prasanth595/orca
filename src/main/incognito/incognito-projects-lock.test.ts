@@ -113,6 +113,20 @@ describe('IncognitoProjectsLock', () => {
     await expect(lock.getState()).resolves.toMatchObject({ unlocked: true, passcodeSet: true })
   })
 
+  it('requires Touch ID before a first passcode when Touch ID guards the projects', async () => {
+    const promptTouchId = vi.fn().mockRejectedValueOnce(new Error('cancel'))
+    const { lock, clearPasscode } = createLock({ canPromptTouchId: () => true, promptTouchId })
+    clearPasscode()
+    await expect(lock.setPasscode('first-pass')).resolves.toMatchObject({
+      ok: false,
+      reason: 'cancelled'
+    })
+    await expect(lock.getState()).resolves.toMatchObject({ unlocked: false, passcodeSet: false })
+    promptTouchId.mockResolvedValueOnce(undefined)
+    await expect(lock.setPasscode('first-pass')).resolves.toEqual({ ok: true })
+    expect(promptTouchId).toHaveBeenCalledTimes(2)
+  })
+
   it('unlocks with Touch ID only when the prompt succeeds', async () => {
     const promptTouchId = vi.fn().mockRejectedValueOnce(new Error('cancel'))
     const { lock } = createLock({ canPromptTouchId: () => true, promptTouchId })

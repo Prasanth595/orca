@@ -39,18 +39,26 @@ function sectionRepo(repo: Repo): MobileProjectSectionRepo {
   }
 }
 
-/** Projects whose every setup is an incognito repo: their names would name the hidden repo. */
+/** Projects whose every setup and source repo is incognito: their names would name the hidden repo. */
 function incognitoOnlyProjectIds(
-  setups: ProjectHostSetupProjection['setups'],
+  projection: ProjectHostSetupProjection,
   incognitoRepoIds: ReadonlySet<string>
 ): Set<string> {
   const projectIds = new Set<string>()
   const visibleProjectIds = new Set<string>()
-  for (const setup of setups) {
-    if (incognitoRepoIds.has(setup.repoId)) {
-      projectIds.add(setup.projectId)
+  const classify = (projectId: string, repoId: string): void => {
+    if (incognitoRepoIds.has(repoId)) {
+      projectIds.add(projectId)
     } else {
-      visibleProjectIds.add(setup.projectId)
+      visibleProjectIds.add(projectId)
+    }
+  }
+  for (const setup of projection.setups) {
+    classify(setup.projectId, setup.repoId)
+  }
+  for (const project of projection.projects) {
+    for (const repoId of project.sourceRepoIds) {
+      classify(project.id, repoId)
     }
   }
   for (const projectId of visibleProjectIds) {
@@ -70,7 +78,7 @@ export function buildMobileProjectSectionCatalog(
 ): MobileProjectSectionCatalog {
   const incognitoRepoIds = new Set(allRepos.filter(isIncognitoRepo).map((repo) => repo.id))
   const repos = withoutIncognitoRepos(allRepos)
-  const hiddenProjectIds = incognitoOnlyProjectIds(projection.setups, incognitoRepoIds)
+  const hiddenProjectIds = incognitoOnlyProjectIds(projection, incognitoRepoIds)
   const setups = projection.setups.filter((setup) => !incognitoRepoIds.has(setup.repoId))
   const projects = projection.projects.filter((project) => !hiddenProjectIds.has(project.id))
   return {

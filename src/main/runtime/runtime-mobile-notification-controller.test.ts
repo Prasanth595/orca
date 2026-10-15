@@ -36,6 +36,22 @@ describe('RuntimeMobileNotificationController incognito gate', () => {
     ).toBe(false)
   })
 
+  it('stops replaying a workspace that became hidden after it was recorded', () => {
+    const hidden = new Set<string>()
+    const controller = new RuntimeMobileNotificationController({
+      isWorktreeHiddenFromPhones: (worktreeId) => hidden.has(worktreeId)
+    })
+    controller.dispatch(notification('secret::/repo/secret'))
+    controller.dispatch(notification('open::/repo/open'))
+    hidden.add('secret::/repo/secret')
+
+    expect(
+      controller
+        .getMissedSince(0, controller.getEpoch())
+        .map((event) => (event.type === 'notification' ? event.worktreeId : null))
+    ).toEqual(['open::/repo/open'])
+  })
+
   it('still delivers dismissals, which name no workspace', () => {
     const controller = new RuntimeMobileNotificationController({
       isWorktreeHiddenFromPhones: () => true

@@ -169,7 +169,15 @@ export class RuntimeMobileNotificationController {
   }
 
   getMissedSince(lastSeenSeq: number, epoch?: string) {
-    return this.replay.getMissedSince(lastSeenSeq, epoch)
+    const missed = this.replay.getMissedSince(lastSeenSeq, epoch)
+    const isHidden = this.options.isWorktreeHiddenFromPhones
+    // Why: a project made incognito after the event was recorded must not reach a reconnecting phone.
+    return isHidden
+      ? missed.filter(
+          (event) =>
+            event.type !== 'notification' || !event.worktreeId || !isHidden(event.worktreeId)
+        )
+      : missed
   }
 
   getEpoch(): string {

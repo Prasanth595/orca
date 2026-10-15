@@ -14,12 +14,12 @@ function repo(id: string, incognito?: boolean): Repo {
   }
 }
 
-function project(id: string): Project {
+function project(id: string, sourceRepoIds: string[] = []): Project {
   return {
     id,
     displayName: id,
     badgeColor: '#000000',
-    sourceRepoIds: [],
+    sourceRepoIds,
     createdAt: 0,
     updatedAt: 0
   }
@@ -60,5 +60,22 @@ describe('buildMobileProjectSectionCatalog', () => {
     expect(catalog.setups.map((entry) => entry.repoId)).toEqual(['open', 'mixed-open'])
     expect(catalog.projects.map((entry) => entry.id)).toEqual(['p-open', 'p-mixed', 'p-empty'])
     expect(JSON.stringify(catalog)).not.toContain('secret')
+  })
+
+  it('hides a setup-less project whose source repos are all incognito', () => {
+    const catalog = buildMobileProjectSectionCatalog(
+      [repo('open'), repo('secret', true)],
+      {
+        projects: [
+          project('p-secret', ['secret']),
+          project('p-mixed', ['secret', 'open']),
+          project('p-empty')
+        ],
+        setups: []
+      },
+      'manual'
+    )
+
+    expect(catalog.projects.map((entry) => entry.id)).toEqual(['p-mixed', 'p-empty'])
   })
 })

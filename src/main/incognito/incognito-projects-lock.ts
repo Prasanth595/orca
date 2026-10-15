@@ -80,8 +80,18 @@ export class IncognitoProjectsLock {
 
   /** First-time setup, or a change while unlocked; never a way around a forgotten passcode. */
   async setPasscode(passcode: string): Promise<IncognitoUnlockResult> {
-    if ((await this.deps.passcodes.hasPasscode()) && !this.unlocked) {
-      return { ok: false, reason: 'locked' }
+    if (!this.unlocked) {
+      if (await this.deps.passcodes.hasPasscode()) {
+        return { ok: false, reason: 'locked' }
+      }
+      // Why: Touch ID may already guard hidden projects, so a first passcode must not unlock past it.
+      if (this.deps.canPromptTouchId()) {
+        try {
+          await this.deps.promptTouchId('set a passcode for incognito projects')
+        } catch {
+          return { ok: false, reason: 'cancelled' }
+        }
+      }
     }
     try {
       await this.deps.passcodes.setPasscode(passcode)
