@@ -20,6 +20,7 @@ export function attachRuntimeWorktreeAgentRows(args: {
     readonly RuntimeWorkingTerminalEvidence[]
   >
   orchestrationByPaneKey: Record<string, OrchestrationDisplay> | null | undefined
+  conversationNameByPaneKey?: ReadonlyMap<string, string>
   getSummary: RuntimeWorktreePsSummaryLookup
 }): void {
   const { rowSources } = args
@@ -35,6 +36,7 @@ export function attachRuntimeWorktreeAgentRows(args: {
       continue
     }
     const orchestration = args.orchestrationByPaneKey?.[source.paneKey]
+    const conversationName = args.conversationNameByPaneKey?.get(source.paneKey)
     const row: RuntimeWorktreeAgentRow = {
       paneKey: source.paneKey,
       parentPaneKey: orchestration?.parentPaneKey ?? null,
@@ -44,6 +46,7 @@ export function attachRuntimeWorktreeAgentRows(args: {
       prompt: source.prompt,
       taskTitle: orchestration?.taskTitle ?? null,
       displayName: orchestration?.displayName ?? null,
+      ...(conversationName ? { conversationName } : {}),
       lastAssistantMessage: source.lastAssistantMessage,
       toolName: source.toolName,
       toolInput: source.toolInput,
