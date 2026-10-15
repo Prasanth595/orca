@@ -5,7 +5,6 @@ import { collectLeafIdsInOrder } from '@/components/terminal-pane/terminal-layou
 import type { AppState } from '../types'
 import type { TerminalStoreGet, TerminalStoreSet } from './terminal-state'
 import { resolvePrimaryLayoutPtyId } from './terminal-pty-identities'
-import { locateTerminalTab } from './terminal-tab-location'
 
 export type TerminalDetachTarget = {
   ptyId: string | null
@@ -81,12 +80,16 @@ export function createTerminalDetachmentActions(set: TerminalStoreSet, get: Term
         if (!opened) {
           return false
         }
-        // Why: companion closed or re-docked while open was in flight.
+        // Why: re-docked while opening leaves a companion window unless a newer open superseded this one.
         if (pendingOpenTokenByTabId.get(tabId) !== openToken) {
+          if (!pendingOpenTokenByTabId.has(tabId)) {
+            void window.api.detachedTerminal.close(tabId)
+          }
           return false
         }
-        // Why: tab or worktree may have closed while the companion window was opening.
-        if (!locateTerminalTab(get().tabsByWorktree, tabId)) {
+        // Why: tab may have closed, split, or replaced its PTY while the companion window was opening.
+        const currentTarget = resolveTerminalDetachTarget(get(), tabId)
+        if (!currentTarget || currentTarget.ptyId !== ptyId || currentTarget.splitUnsupported) {
           void window.api.detachedTerminal.close(tabId)
           return false
         }
