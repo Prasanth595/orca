@@ -29,7 +29,7 @@ export type HostDirectoryBrowserDrawerProps = {
   visible: boolean
   client: RpcClient | null
   onClose: () => void
-  onAdded: (repo: MobileWorkspaceRepo) => void
+  onAdded: (repo: MobileWorkspaceRepo) => void | Promise<void>
 }
 
 export function HostDirectoryBrowserDrawer({
@@ -117,7 +117,7 @@ export function HostDirectoryBrowserDrawer({
         kind
       })
       const result = newWorkspaceAddRepoOperation.interpret(reply)
-      onAdded(result.repo)
+      await onAdded(result.repo)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {

@@ -48,7 +48,7 @@ export function NewWorktreeModalDrawers(props: {
   onRepoChange: (repo: MobileWorkspaceRepo) => void
   onAgentChange: (agent: NewWorktreeAgentOption) => void
   onOpenAddProject: () => void
-  onProjectAdded: (repo: MobileWorkspaceRepo) => void
+  onProjectAdded: (repo: MobileWorkspaceRepo) => void | Promise<void>
   onTransitionToForm: () => void
   onApproveSetupTrust: (alwaysTrust: boolean) => void
   onSkipSetupTrust: () => void

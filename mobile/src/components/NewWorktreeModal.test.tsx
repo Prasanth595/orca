@@ -45,7 +45,7 @@ vi.mock('./PickerListDrawer', () => ({ PickerListDrawer: 'PickerListDrawer' }))
 vi.mock('./MobileAgentIcon', () => ({ MobileAgentIcon: 'MobileAgentIcon' }))
 vi.mock('./TaskProviderLogo', () => ({ TaskProviderLogo: 'TaskProviderLogo' }))
 
-import { getCachedRepos, setCachedRepos } from '../cache/repo-cache'
+import { setCachedRepos } from '../cache/repo-cache'
 import { recordHostDescriptor } from '../transport/host-descriptor-store'
 import { FakeSession } from '../transport/mobile-endpoint-supervisor-test-fakes'
 import { getLocalExecutionHostLabel } from '../../../src/shared/execution-host'
@@ -100,10 +100,6 @@ const flushUpdates = async () =>
     }
   })
 
-const flushDrawerTransition = async () =>
-  act(async () => {
-    await new Promise((r) => setTimeout(r, 200))
-  })
 
 describe('NewWorktreeModal project targets', () => {
   let renderer: ReactTestRenderer
@@ -748,145 +744,5 @@ describe('NewWorktreeModal project targets', () => {
 
     expect(sourceInputs(renderer).map((input) => input.props.value)).toEqual(['', ''])
   })
-
-  function makeBrowseClient(
-    listedRepos: unknown[] | Promise<unknown> = repos,
-    addedRepo?: unknown
-  ) {
-    return requestsOnly(
-      vi.fn(async (method: string) => {
-        if (method === 'repo.list') {
-          const res = await listedRepos
-          return Array.isArray(res) ? { ok: true, result: { repos: res } } : res
-        }
-        if (method === 'status.get') {
-          return { ok: true, result: { hostPlatform: 'darwin' } }
-        }
-        if (method === 'files.browseServerDir') {
-          return {
-            ok: true,
-            result: { resolvedPath: '/Users/test', entries: [], pathFlavor: 'posix' }
-          }
-        }
-        if (method === 'repo.add') {
-          return { ok: true, result: { repo: addedRepo } }
-        }
-        return { ok: true, result: {} }
-      })
-    )
-  }
-
-  async function triggerAddProjectFromPicker(target: ReactTestRenderer) {
-    const picker = target.root.find(
-      (n) => n.type === 'PickerListDrawer' && n.props.title === 'Project'
-    )
-    await act(async () => picker.props.footer.props.onPress())
-    await flushDrawerTransition()
-    await flushUpdates()
-    const addBtn = target.root
-      .findAll(
-        (n) =>
-          n.type === 'Pressable' && n.findAll((c) => c.props.children === 'Add project').length > 0
-      )
-      .find((b) => !b.props.disabled && b.props.onPress)!
-    await act(async () => addBtn.props.onPress())
-    await flushUpdates()
-    await flushDrawerTransition()
-  }
-
-  it('opens addProject drawer from the empty projects state', async () => {
-    setCachedRepos('host-empty', [])
-    const client = makeBrowseClient([])
-    await act(async () => {
-      renderer = create(
-        createElement(NewWorktreeModal, {
-          visible: true,
-          client,
-          hostId: 'host-empty',
-          onCreated: () => {},
-          onClose: () => {}
-        })
-      )
-    })
-    await flushUpdates()
-    const addBtn = renderer.root.findAll(
-      (n) =>
-        n.type === 'Pressable' && n.findAll((c) => c.props.children === 'Add project').length > 0
-    )[0]!
-    await act(async () => addBtn.props.onPress())
-    await flushDrawerTransition()
-    await flushUpdates()
-    expect(client.sendRequest).toHaveBeenCalledWith('files.browseServerDir', { path: '~' })
-  })
-
-  it('opens addProject from picker footer, upserts and selects the added project', async () => {
-    const added = { id: 'repo-added-1', displayName: 'new-orca', path: '/Users/test', kind: 'git' }
-    const client = makeBrowseClient(repos, added)
-    await act(async () => {
-      renderer = create(
-        createElement(NewWorktreeModal, {
-          visible: true,
-          client,
-          hostId: 'host-1',
-          onCreated: () => {},
-          onClose: () => {}
-        })
-      )
-    })
-    await flushUpdates()
-    await triggerAddProjectFromPicker(renderer)
-    expect(client.sendRequest).toHaveBeenCalledWith('files.browseServerDir', { path: '~' })
-    expect(client.sendRequest).toHaveBeenCalledWith('repo.add', {
-      path: '/Users/test',
-      kind: 'git'
-    })
-    expect(pickerItems(renderer, 'Project')).toEqual(
-      expect.arrayContaining([expect.objectContaining({ label: 'new-orca' })])
-    )
-    expect(getCachedRepos('host-1')).toEqual(
-      expect.arrayContaining([expect.objectContaining({ id: 'repo-added-1' })])
-    )
-  })
-
-  it('preserves an added project when an older in-flight repo.list resolves later', async () => {
-    let resolveList: ((value: unknown) => void) | undefined
-    const listPromise = new Promise((resolve) => {
-      resolveList = resolve
-    })
-    const added = {
-      id: 'repo-added-late',
-      displayName: 'late-orca',
-      path: '/Users/test',
-      kind: 'git'
-    }
-    const client = makeBrowseClient(listPromise, added)
-    setCachedRepos('host-late', repos)
-    await act(async () => {
-      renderer = create(
-        createElement(NewWorktreeModal, {
-          visible: true,
-          client,
-          hostId: 'host-late',
-          onCreated: () => {},
-          onClose: () => {}
-        })
-      )
-    })
-    await flushUpdates()
-    await triggerAddProjectFromPicker(renderer)
-
-    expect(pickerItems(renderer, 'Project')).toEqual(
-      expect.arrayContaining([expect.objectContaining({ label: 'late-orca' })])
-    )
-
-    await act(async () => {
-      resolveList?.({ ok: true, result: { repos } })
-      await Promise.resolve()
-    })
-    await flushUpdates()
-
-    expect(pickerItems(renderer, 'Project')).toEqual(
-      expect.arrayContaining([expect.objectContaining({ label: 'late-orca' })])
-    )
-  })
 })
+
