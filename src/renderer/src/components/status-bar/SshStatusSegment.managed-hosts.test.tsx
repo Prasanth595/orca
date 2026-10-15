@@ -206,7 +206,7 @@ describe('the status menu for a managed SSH host', () => {
     await waitFor(() => expect(mocks.connectRuntime).toHaveBeenCalledWith('server-openclaw'))
   })
 
-  it('shows an incompatible server as disconnected with the update reason, not a connect action', () => {
+  it('shows an incompatible server as needing an update, not a connect action', () => {
     const blocked = readyStatus()
     state.runtimeStatusByEnvironmentId.set('server-windows', {
       ...blocked,
@@ -216,7 +216,6 @@ describe('the status menu for a managed SSH host', () => {
       }
     })
     render(<SshStatusSegment compact={false} iconOnly={false} />)
-    expect(screen.getByText('Disconnected')).toBeTruthy()
     expect(screen.getByText('Update server required')).toBeTruthy()
     expect(screen.getByText(/The selected Orca server is too old for this client/)).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Connect' })).toBeNull()

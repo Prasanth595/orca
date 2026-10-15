@@ -201,9 +201,11 @@ export function RuntimeHostStatusRow({
   const rawDetail = incompatibility
     ? null
     : (diagnostics?.lastError ?? diagnostics?.lastClose?.reason ?? detail)
-  const failureSummary = incompatibility
+  // Why the row names the update: a refused server otherwise reads exactly like one that is down.
+  const statusLabel = incompatibility
     ? runtimeCompatBlockTitle(incompatibility.reason)
-    : runtimeFailureSummary(state)
+    : runtimeStatusLabel(state)
+  const failureSummary = incompatibility ? null : runtimeFailureSummary(state)
   const failureExplanation = incompatibility
     ? describeRuntimeCompatBlock(incompatibility)
     : runtimeFailureExplanation(state)
@@ -228,7 +230,7 @@ export function RuntimeHostStatusRow({
             {state === 'checking' || state === 'reconnecting' ? (
               <Loader2 className="size-2.5 shrink-0 animate-spin" />
             ) : null}
-            <span className="truncate">{runtimeStatusLabel(state)}</span>
+            <span className="truncate">{statusLabel}</span>
           </span>
         </div>
       </div>
@@ -309,7 +311,9 @@ export function RuntimeHostStatusRow({
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent className="w-[min(18rem,calc(100vw-1rem))] p-1.5">
         <div className="px-1.5 pt-0.5 pb-1.5">
-          <div className="text-[11px] font-semibold">{failureSummary}</div>
+          {failureSummary ? (
+            <div className="text-[11px] font-semibold">{failureSummary}</div>
+          ) : null}
           {failureExplanation ? (
             <div className="mt-1 text-[11px] leading-4 text-muted-foreground">
               {failureExplanation}
