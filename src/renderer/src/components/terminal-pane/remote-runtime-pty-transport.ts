@@ -70,6 +70,7 @@ import {
 } from './remote-runtime-pty-batching'
 import {
   REMOTE_RUNTIME_AUTO_RECOVERY_TIMEOUT_MS,
+  REMOTE_RUNTIME_RECOVERY_DELAYS_MS,
   RemoteRuntimePtyRecoveryState,
   type RemoteRuntimePtyRecoveryPhase
 } from './remote-runtime-pty-recovery-state'
@@ -118,14 +119,24 @@ const HOST_SESSION_POLL_MAX_MS = 1_000
 const HOST_SESSION_ATTACH_TIMEOUT_MS = 15_000
 const HOST_SESSION_INVENTORY_MAX_WINDOWS_PER_RECOVERY = 2
 const HOST_SESSION_SAME_HANDLE_END_REUSE_LIMIT = 2
+// Why: a live host still reporting the ended handle ready means its PTY survived; a relaunch republishes
+// the surface unmaterialized instead, so a replacement only needs a short grace, not the whole wait (#27178).
+const HOST_SESSION_SAME_HANDLE_REPLACEMENT_GRACE_MS = 1_000
+// Why: kept below HOST_SESSION_ATTACH_TIMEOUT_MS so a flapping pane slows down inside one bounded wait instead of parking.
+const HOST_SESSION_SAME_HANDLE_FLAP_MAX_DELAY_MS = 8_000
 // Why its own constant: this fences how long an end-then-reattach on the same handle still counts as
-// one recovery, which is unrelated to how long auto-recovery keeps retrying. It read the recovery
-// budget before that budget became a derived value, and must not drift with it.
-const HOST_SESSION_SAME_HANDLE_END_REUSE_WINDOW_MS = 60_000
+// one recovery, which is unrelated to how long auto-recovery keeps retrying. Only an end this soon after
+// reattach is a flap; a healthy pane ending a minute later must not pay a growing delay (#27178).
+const HOST_SESSION_SAME_HANDLE_END_REUSE_WINDOW_MS = 10_000
 const MAX_SURFACED_TERMINAL_ERRORS = 8
 const TERMINAL_CREATE_RETRY_DELAYS_MS = [250, 500, 1000, 2000, 4000, 8000, 15_000, 30_000] as const
 
-type HostHandleReplacementPolicy = 'reuse' | 'prefer-replacement' | 'require-replacement'
+// 'reuse-after-backoff' is the flap fence: unlike a stale handle, a still-ready one is reattached, just later.
+type HostHandleReplacementPolicy =
+  | 'reuse'
+  | 'prefer-replacement'
+  | 'reuse-after-backoff'
+  | 'require-replacement'
 
 type PersistedHostPaneResolution =
   | { kind: 'resolved'; terminal: RuntimeTerminalResolvePane }
@@ -144,7 +155,8 @@ function stricterReplacementPolicy(
   const rank: Record<HostHandleReplacementPolicy, number> = {
     reuse: 0,
     'prefer-replacement': 1,
-    'require-replacement': 2
+    'reuse-after-backoff': 2,
+    'require-replacement': 3
   }
   return rank[left] >= rank[right] ? left : right
 }
@@ -380,6 +392,19 @@ export function createRemoteRuntimePtyTransport(
   let lastAttachOptions: Parameters<PtyTransport['attach']>[0] | null = null
   let resolvePaneUnavailable = false
   let recoveringPaneHandle: string | null = null
+  // Why: an unanswered send can still come back terminal_handle_stale, so its handle is not yet safe to reuse early.
+  const terminalSendsInFlight = new Map<string, number>()
+  const trackTerminalSend = <T>(targetHandle: string, request: Promise<T>): Promise<T> => {
+    terminalSendsInFlight.set(targetHandle, (terminalSendsInFlight.get(targetHandle) ?? 0) + 1)
+    return request.finally(() => {
+      const remaining = (terminalSendsInFlight.get(targetHandle) ?? 1) - 1
+      if (remaining > 0) {
+        terminalSendsInFlight.set(targetHandle, remaining)
+      } else {
+        terminalSendsInFlight.delete(targetHandle)
+      }
+    })
+  }
   const getRecoveryReplacementPolicy = (targetHandle: string): HostHandleReplacementPolicy =>
     recoveryReplacementPolicyHandle === targetHandle ? recoveryReplacementPolicy : 'reuse'
   const resetRecoveryReplacementPolicy = (): void => {
@@ -430,10 +455,30 @@ export function createRemoteRuntimePtyTransport(
       resetSameHandleEndReuse()
       return 'prefer-replacement'
     }
+    // Why: a repeat end proves only attachment churn, so fence it with growing delays; parking it idled out the deadline (#27178).
     return sameHandleEndReuseCount >= HOST_SESSION_SAME_HANDLE_END_REUSE_LIMIT
-      ? 'require-replacement'
+      ? 'reuse-after-backoff'
       : 'prefer-replacement'
   }
+  const sameHandleReuseDelayMs = (policy: HostHandleReplacementPolicy): number => {
+    if (policy !== 'reuse-after-backoff') {
+      return HOST_SESSION_SAME_HANDLE_REPLACEMENT_GRACE_MS
+    }
+    const flapIndex = Math.max(
+      0,
+      sameHandleEndReuseCount - HOST_SESSION_SAME_HANDLE_END_REUSE_LIMIT
+    )
+    const backoffMs =
+      REMOTE_RUNTIME_RECOVERY_DELAYS_MS[
+        Math.min(flapIndex, REMOTE_RUNTIME_RECOVERY_DELAYS_MS.length - 1)
+      ]
+    return Math.max(
+      HOST_SESSION_SAME_HANDLE_REPLACEMENT_GRACE_MS,
+      Math.min(backoffMs, HOST_SESSION_SAME_HANDLE_FLAP_MAX_DELAY_MS)
+    )
+  }
+  const reusesEndedHandle = (policy: HostHandleReplacementPolicy): boolean =>
+    policy === 'prefer-replacement' || policy === 'reuse-after-backoff'
   const adoptExecutionMetadata = (terminal: {
     executionHostId?: ExecutionHostId
     hostPlatform?: NodeJS.Platform
@@ -831,7 +876,8 @@ export function createRemoteRuntimePtyTransport(
 
   async function waitForHostSessionHandleWithRecovery(
     hostTabId: string,
-    isCurrent: () => boolean
+    isCurrent: () => boolean,
+    outcome: { boundedWaitEnded: boolean }
   ): Promise<string | undefined | false> {
     let recoveryEpoch = recovery.isActive ? recovery.currentEpoch : undefined
     while (isCurrent()) {
@@ -842,8 +888,14 @@ export function createRemoteRuntimePtyTransport(
         }
         if (recoveryEpoch !== undefined) {
           if (!recovery.isCurrent(recoveryEpoch)) {
+            if (hostHandle === undefined) {
+              outcome.boundedWaitEnded = true
+            }
             return undefined
           }
+        }
+        if (hostHandle === undefined) {
+          outcome.boundedWaitEnded = true
         }
         return hostHandle
       } catch (error) {
@@ -883,7 +935,11 @@ export function createRemoteRuntimePtyTransport(
         replacementPolicy,
         getRecoveryReplacementPolicy(previousHandle)
       )
-      if (effectivePolicy === 'prefer-replacement' && lastReadyHandle) {
+      if (
+        reusesEndedHandle(effectivePolicy) &&
+        lastReadyHandle &&
+        !terminalSendsInFlight.has(lastReadyHandle)
+      ) {
         return { handle: lastReadyHandle, inventoryFailed: false }
       }
       if (lastRequestError) {
@@ -938,6 +994,14 @@ export function createRemoteRuntimePtyTransport(
           getRecoveryReplacementPolicy(previousHandle)
         )
         if (nextHandle && (effectivePolicy === 'reuse' || nextHandle !== previousHandle)) {
+          return { handle: nextHandle, inventoryFailed: false }
+        }
+        if (
+          nextHandle === previousHandle &&
+          reusesEndedHandle(effectivePolicy) &&
+          !terminalSendsInFlight.has(previousHandle) &&
+          Date.now() - startedAt >= sameHandleReuseDelayMs(effectivePolicy)
+        ) {
           return { handle: nextHandle, inventoryFailed: false }
         }
         if (request === 'list') {
@@ -1040,19 +1104,29 @@ export function createRemoteRuntimePtyTransport(
       (expectedAttachGeneration === undefined || expectedAttachGeneration === attachGeneration) &&
       (expectedLifecycleEpoch === undefined || expectedLifecycleEpoch === lifecycleEpoch)
     const hostTabId = toHostSessionTabId(tabId)
-    const hostHandle = await waitForHostSessionHandleWithRecovery(hostTabId, isCurrent)
+    const waitOutcome = { boundedWaitEnded: false }
+    const hostHandle = await waitForHostSessionHandleWithRecovery(hostTabId, isCurrent, waitOutcome)
     if (!isCurrent()) {
       return undefined
     }
     if (hostHandle === undefined) {
       connecting = false
-      // Why: no handle and no removal evidence is unknown liveness, so own an epoch and keep an unarmed retry parked for the
-      // banner and online/resume to fire — a silent 'connecting' renders no banner and retryRecovery() refuses to run.
-      if (recovery.currentPhase !== 'disconnected') {
+      // Why: no handle and no removal evidence is unknown liveness, so own an epoch — a silent 'connecting' renders no banner
+      // and retryRecovery() refuses to run. Schedule, not park: a healthy link fires no online/resume, so a parked retry
+      // idled out the whole deadline before Reconnect (#27178). schedule() still leaves it revivable after the latch.
+      const replayAttach = (): void => {
+        replayLastTransportEntryPoint()
+      }
+      if (recovery.currentPhase === 'disconnected') {
+        // Why: a replayable attach that outlived the cutoff stays revivable; a settled single-shot retry wait does not.
+        if (waitOutcome.boundedWaitEnded) {
+          recovery.parkRetryAfterDeadline(replayAttach)
+        }
+      } else {
         const recoveryEpoch = recovery.isActive ? recovery.currentEpoch : recovery.begin()
-        recovery.parkRetryForExternalTrigger(recoveryEpoch, () => {
-          replayLastTransportEntryPoint()
-        })
+        if (!recovery.schedule(recoveryEpoch, replayAttach)) {
+          recovery.parkRetryForExternalTrigger(recoveryEpoch, replayAttach)
+        }
       }
       emitRecoveryState()
       return undefined
@@ -1691,12 +1765,15 @@ export function createRemoteRuntimePtyTransport(
           return false
         }
         // Why: acknowledged sends order behind pending debounce text but must not collapse large paste back into one remote RPC.
-        const result = await callRuntime<{ send: RuntimeTerminalSend }>('terminal.send', {
-          terminal: targetHandle,
-          text: chunk,
-          client: { id: clientId, type: 'desktop' },
-          ...(desiredViewport ? { viewport: desiredViewport, claimViewport: true as const } : {})
-        })
+        const result = await trackTerminalSend(
+          targetHandle,
+          callRuntime<{ send: RuntimeTerminalSend }>('terminal.send', {
+            terminal: targetHandle,
+            text: chunk,
+            client: { id: clientId, type: 'desktop' },
+            ...(desiredViewport ? { viewport: desiredViewport, claimViewport: true as const } : {})
+          })
+        )
         if (result.send.accepted !== true) {
           return false
         }
@@ -1756,12 +1833,15 @@ export function createRemoteRuntimePtyTransport(
       queuePendingClaimInput(text, queryReply)
       return true
     }
-    void callRuntime<{ send: RuntimeTerminalSend }>('terminal.send', {
-      terminal: targetHandle,
-      text,
-      client: { id: clientId, type: 'desktop' },
-      ...(desiredViewport ? { viewport: desiredViewport, claimViewport: true as const } : {})
-    })
+    void trackTerminalSend(
+      targetHandle,
+      callRuntime<{ send: RuntimeTerminalSend }>('terminal.send', {
+        terminal: targetHandle,
+        text,
+        client: { id: clientId, type: 'desktop' },
+        ...(desiredViewport ? { viewport: desiredViewport, claimViewport: true as const } : {})
+      })
+    )
       .then((result) => {
         if (
           connected &&
@@ -1937,9 +2017,9 @@ export function createRemoteRuntimePtyTransport(
             return
           }
           if (!autoRecoveryWindowSpent) {
-            // Why: a published surface is the evidence a parked wait (not a scheduled backoff) is waiting for, unless it needs a replacement handle.
+            // Why: a published surface is the evidence a pending retry is waiting for, so skip the rest of its backoff — unless it needs a replacement handle.
             if (
-              recovery.currentPhase === 'recovering' &&
+              recovery.isActive &&
               getRecoveryReplacementPolicy(previousHandle) !== 'require-replacement'
             ) {
               recovery.retryNow()
@@ -2052,12 +2132,52 @@ export function createRemoteRuntimePtyTransport(
     return true
   }
 
+  // Why: a flapping handle waits out its backoff, and any handle waits out unanswered sends that may still report it stale.
+  async function waitForSameHandleReuseFence(
+    previousHandle: string,
+    policy: HostHandleReplacementPolicy,
+    recoveryEpoch: number
+  ): Promise<boolean> {
+    const startedAt = Date.now()
+    const delayMs = policy === 'reuse-after-backoff' ? sameHandleReuseDelayMs(policy) : 0
+    while (
+      !destroyed &&
+      connected &&
+      handle === previousHandle &&
+      recovery.isCurrent(recoveryEpoch)
+    ) {
+      const elapsedMs = Date.now() - startedAt
+      if (elapsedMs >= delayMs && !terminalSendsInFlight.has(previousHandle)) {
+        return true
+      }
+      const remainingMs = HOST_SESSION_ATTACH_TIMEOUT_MS - elapsedMs
+      if (remainingMs <= 0) {
+        return false
+      }
+      await new Promise((resolve) =>
+        setTimeout(
+          resolve,
+          Math.min(Math.max(delayMs - elapsedMs, HOST_SESSION_ATTACH_POLL_MS), remainingMs)
+        )
+      )
+    }
+    return false
+  }
+
   // Why: after a transport drop the host may have re-minted this handle; re-derive from the snapshot so we don't mirror/type into whatever PTY now sits behind the stale one (#7718).
   async function resubscribeAfterTransportClose(
     previousHandle: string,
     replacementPolicy: HostHandleReplacementPolicy,
     recoveryEpoch: number
   ): Promise<void> {
+    const retryResubscribe = (nextEpoch: number): void => {
+      // Why: a retry is a fresh attempt, not a repeated stale send, so it takes over this epoch's snapshot wait.
+      clearPublishedHandleWait()
+      scheduleResubscribeAfterTransportClose(
+        handle ? getRecoveryReplacementPolicy(handle) : 'reuse',
+        nextEpoch
+      )
+    }
     if (tabId && isWebTerminalSurfaceTabId(tabId)) {
       const hostTabId = toHostSessionTabId(tabId)
       const inventoryWindow = beginResubscribeInventoryWindow(recoveryEpoch)
@@ -2090,15 +2210,15 @@ export function createRemoteRuntimePtyTransport(
             code: 'remote_runtime_unavailable'
           })
         }
-        // Why: liveness is unknown, so auto-retry stops here; keep an unarmed retry parked for online/resume/reconnect to fire.
-        recovery.parkRetryForExternalTrigger(recoveryEpoch, (nextEpoch) => {
-          // Why: an external trigger is a fresh attempt, not a repeated stale send, so it takes over this epoch's snapshot wait.
-          clearPublishedHandleWait()
-          scheduleResubscribeAfterTransportClose(
-            handle ? getRecoveryReplacementPolicy(handle) : 'reuse',
-            nextEpoch
-          )
-        })
+        // Why: park only when re-polling cannot help — a fenced handle waits for the host to publish its replacement, and a
+        // failing inventory is capped above. A host that answered without a ready handle is reachable, so keep retrying (#27178).
+        if (
+          effectivePolicy === 'require-replacement' ||
+          waitResult.inventoryFailed ||
+          !recovery.schedule(recoveryEpoch, retryResubscribe)
+        ) {
+          recovery.parkRetryForExternalTrigger(recoveryEpoch, retryResubscribe)
+        }
         return
       }
       if (!nextHandle) {
@@ -2122,37 +2242,57 @@ export function createRemoteRuntimePtyTransport(
       clearPublishedHandleWait()
       await subscribeToHandle(
         recoveryEpoch,
-        nextHandle === previousHandle && effectivePolicy === 'prefer-replacement'
+        nextHandle === previousHandle && reusesEndedHandle(effectivePolicy)
       )
       return
     } else if (tabId && leafId && worktreeId) {
-      const resolution = await resolvePersistedHostPane()
-      const resolved = resolution.kind === 'resolved' ? resolution.terminal : null
-      if (destroyed || !connected || handle !== previousHandle) {
+      let reuseFenced = false
+      for (;;) {
+        const resolution = await resolvePersistedHostPane()
+        const resolved = resolution.kind === 'resolved' ? resolution.terminal : null
+        if (destroyed || !connected || handle !== previousHandle) {
+          return
+        }
+        const effectivePolicy = stricterReplacementPolicy(
+          replacementPolicy,
+          getRecoveryReplacementPolicy(previousHandle)
+        )
+        if (
+          !resolved ||
+          (effectivePolicy === 'require-replacement' && resolved.handle === previousHandle)
+        ) {
+          // A failed pane resolution leaves process liveness unknown.
+          retireRemoteTerminalId(-1)
+          return
+        }
+        const reusesPrevious =
+          resolved.handle === previousHandle && reusesEndedHandle(effectivePolicy)
+        if (reusesPrevious && !reuseFenced) {
+          // Why: no inventory poll paces this path, so fence the ended handle here, then re-resolve in case the host replaced it.
+          if (
+            !(await waitForSameHandleReuseFence(previousHandle, effectivePolicy, recoveryEpoch))
+          ) {
+            if (
+              !destroyed &&
+              connected &&
+              handle === previousHandle &&
+              !recovery.schedule(recoveryEpoch, retryResubscribe)
+            ) {
+              recovery.parkRetryForExternalTrigger(recoveryEpoch, retryResubscribe)
+            }
+            return
+          }
+          reuseFenced = true
+          continue
+        }
+        if (resolved.handle !== previousHandle) {
+          adoptExecutionMetadata(resolved)
+          rebindRemoteTerminalHandle(resolved.handle, resolved.incarnationId ?? null)
+        }
+        clearPublishedHandleWait()
+        await subscribeToHandle(recoveryEpoch, reusesPrevious)
         return
       }
-      const effectivePolicy = stricterReplacementPolicy(
-        replacementPolicy,
-        getRecoveryReplacementPolicy(previousHandle)
-      )
-      if (
-        !resolved ||
-        (effectivePolicy === 'require-replacement' && resolved.handle === previousHandle)
-      ) {
-        // A failed pane resolution leaves process liveness unknown.
-        retireRemoteTerminalId(-1)
-        return
-      }
-      if (resolved.handle !== previousHandle) {
-        adoptExecutionMetadata(resolved)
-        rebindRemoteTerminalHandle(resolved.handle, resolved.incarnationId ?? null)
-      }
-      clearPublishedHandleWait()
-      await subscribeToHandle(
-        recoveryEpoch,
-        resolved.handle === previousHandle && effectivePolicy === 'prefer-replacement'
-      )
-      return
     }
     clearPublishedHandleWait()
     await subscribeToHandle(recoveryEpoch)
