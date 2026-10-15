@@ -1,4 +1,12 @@
 import type { InputEvent, KeyboardInputEvent, WebContents } from 'electron'
+import { enablePageFocusEmulation, type AgentInputFocusGuard } from './agent-input-focus-guard'
+import { withAgentInputInjection } from './agent-input-injection'
+import {
+  resolveFocusedFrameRoute,
+  settleWithin,
+  type GuestSessionCdpSender
+} from './guest-focused-frame-route'
+import { sendFrameSessionInput } from './guest-frame-input-sessions'
 
 // Why: Chromium routes main-session CDP key and text input on a <webview> guest by the
 // window's focus, so it lands in whatever the user is typing into (#20595). Events sent to
@@ -20,7 +28,7 @@ type GuestKeyPlan = {
   commands: GuestEditCommand[]
 }
 
-export type GuestCdpSender = (method: string, params: Record<string, unknown>) => Promise<unknown>
+export type GuestCdpSender = GuestSessionCdpSender
 
 const CDP_MODIFIER_NAMES: [number, ElectronModifier][] = [
   [1, 'alt'],
@@ -172,46 +180,6 @@ export function planInsertText(text: unknown): GuestKeyboardEvent[] | null {
   return typeableText(text) ? charEvents(text, []) : null
 }
 
-// Why: walks open shadow roots too, so a frame inside a web component still counts.
-const SUBFRAME_FOCUS_EXPRESSION = `(() => {
-  let element = document.activeElement
-  while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement
-  const tag = element?.tagName
-  return tag === 'IFRAME' || tag === 'FRAME' || tag === 'OBJECT' || tag === 'EMBED' || tag === 'FENCEDFRAME'
-})()`
-
-// Why: a page paused in a debugger or blocked on a dialog never answers; input must not wait on it.
-const PAGE_PROBE_TIMEOUT_MS = 500
-
-async function settleWithin<T>(probe: Promise<T>, fallback: T): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  try {
-    return await Promise.race([
-      probe.catch(() => fallback),
-      new Promise<T>((resolve) => {
-        timer = setTimeout(() => resolve(fallback), PAGE_PROBE_TIMEOUT_MS)
-      })
-    ])
-  } finally {
-    clearTimeout(timer)
-  }
-}
-
-// Why: widget events reach the guest's main frame only. Focus inside a child frame (often a
-// separate process) needs the fallback, and webContents.insertText crashes the guest there.
-// A probe that fails (navigation tore down the context) means the main frame.
-async function isFocusInSubframe(send: GuestCdpSender): Promise<boolean> {
-  const response = await settleWithin(
-    send('Runtime.evaluate', { expression: SUBFRAME_FOCUS_EXPRESSION, returnByValue: true }),
-    null
-  )
-  if (response === null || typeof response !== 'object' || !('result' in response)) {
-    return false
-  }
-  const { result } = response
-  return result !== null && typeof result === 'object' && 'value' in result && result.value === true
-}
-
 // Why: sendInputEvent returns before the page handles the event, but CDP input replies only after.
 // A task-queue round trip in the page lets callers read the result of what they just typed.
 async function waitForPageToHandleInput(send: GuestCdpSender): Promise<void> {
@@ -251,54 +219,145 @@ function runEditCommand(webContents: WebContents, command: GuestEditCommand): vo
   }
 }
 
+const NO_FOCUS_GUARD: AgentInputFocusGuard = async () => () => {}
+
+// Why: the fallback needs the guest natively focused for CDP to reach it; the guard hands the
+// user's focus back afterwards, and emulation keeps the page from seeing that as a blur.
+async function focusGuestForCdpInput(
+  webContents: WebContents,
+  send: GuestCdpSender,
+  guardFocus: AgentInputFocusGuard
+): Promise<() => void> {
+  await enablePageFocusEmulation(send)
+  const release = await guardFocus()
+  webContents.focus()
+  return release
+}
+
+// Why: CDP input on a cross-site frame's own session reaches that frame without the user's focus.
+async function sendToFrameSession(
+  webContents: WebContents,
+  send: GuestCdpSender,
+  sessionId: string,
+  method: string,
+  params: Record<string, unknown>
+): Promise<unknown> {
+  return await withAgentInputInjection(webContents, () =>
+    sendFrameSessionInput(webContents, send, sessionId, method, params)
+  )
+}
+
 /**
- * Delivers a CDP key event to a page. Embedded guests get widget events; anything those
- * cannot express keeps the CDP path after focusing the guest, so it still reaches the page.
+ * Delivers a CDP key event to a page. Embedded guests get widget events, or CDP on a focused
+ * cross-site frame's own session; anything else keeps the CDP path while borrowing focus.
  */
 export async function dispatchPageKeyEvent(
   webContents: WebContents,
   params: Record<string, unknown>,
-  send: GuestCdpSender
+  send: GuestCdpSender,
+  guardFocus: AgentInputFocusGuard = NO_FOCUS_GUARD
 ): Promise<unknown> {
   if (!isEmbeddedGuest(webContents)) {
     return await send('Input.dispatchKeyEvent', params)
   }
+  const route = await resolveFocusedFrameRoute(webContents, send)
+  if (route.kind === 'session') {
+    // Why: Tab from a frame's last field can move focus out of the guest into Orca's window.
+    const isTabDown =
+      params.key === 'Tab' && (params.type === 'keyDown' || params.type === 'rawKeyDown')
+    const release = isTabDown ? await guardFocus() : () => {}
+    try {
+      return await sendToFrameSession(
+        webContents,
+        send,
+        route.sessionId,
+        'Input.dispatchKeyEvent',
+        params
+      )
+    } finally {
+      release()
+    }
+  }
   const plan = planCdpKeyEvent(params)
-  if (plan && !(await isFocusInSubframe(send))) {
-    for (const event of plan.events) {
-      webContents.sendInputEvent(event)
-    }
-    if (plan.commands.length > 0 || plan.events.length > 0) {
-      await waitForPageToHandleInput(send)
-    }
-    for (const command of plan.commands) {
-      runEditCommand(webContents, command)
+  if (plan && route.kind === 'widget') {
+    // Why: Tab from the page's last field moves focus out of the guest into Orca's window.
+    const release = plan.events.some((event) => event.type === 'keyDown' && event.keyCode === 'Tab')
+      ? await guardFocus()
+      : () => {}
+    try {
+      await withAgentInputInjection(webContents, async () => {
+        for (const event of plan.events) {
+          webContents.sendInputEvent(event)
+        }
+        if (plan.commands.length > 0 || plan.events.length > 0) {
+          await waitForPageToHandleInput(send)
+        }
+        for (const command of plan.commands) {
+          runEditCommand(webContents, command)
+        }
+      })
+    } finally {
+      release()
     }
     return {}
   }
-  webContents.focus()
-  return await send('Input.dispatchKeyEvent', params)
+  const release = await focusGuestForCdpInput(webContents, send, guardFocus)
+  try {
+    return await withAgentInputInjection(webContents, () => send('Input.dispatchKeyEvent', params))
+  } finally {
+    release()
+  }
+}
+
+export type TextInsertionRoute = {
+  deliver: (params: Record<string, unknown>) => Promise<unknown>
+  // Why: the fallback holds borrowed focus from routing until delivery; an insert abandoned in
+  // between must still give it back.
+  release: () => void
 }
 
 /**
  * Chooses how Input.insertText reaches a page: guest widget events for embedded guests, else
- * CDP after focusing the guest. Call before any DOM.focus replay; the fallback's focus blurs.
+ * CDP with the guest focused. Call before any DOM.focus replay; the fallback's focus blurs.
  */
 export async function routePageTextInsertion(
   webContents: WebContents,
   params: Record<string, unknown>,
-  send: GuestCdpSender
-): Promise<(params: Record<string, unknown>) => Promise<unknown>> {
-  const events = isEmbeddedGuest(webContents) ? planInsertText(params.text) : null
-  if (events && !(await isFocusInSubframe(send))) {
-    return async () => {
-      for (const event of events) {
-        webContents.sendInputEvent(event)
-      }
-      await waitForPageToHandleInput(send)
-      return {}
+  send: GuestCdpSender,
+  guardFocus: AgentInputFocusGuard = NO_FOCUS_GUARD
+): Promise<TextInsertionRoute> {
+  const sendText = (insertParams: Record<string, unknown>): Promise<unknown> =>
+    send('Input.insertText', insertParams)
+  if (!isEmbeddedGuest(webContents)) {
+    webContents.focus()
+    return { deliver: sendText, release: () => {} }
+  }
+  const route = await resolveFocusedFrameRoute(webContents, send)
+  if (route.kind === 'session') {
+    const { sessionId } = route
+    return {
+      deliver: (insertParams) =>
+        sendToFrameSession(webContents, send, sessionId, 'Input.insertText', insertParams),
+      release: () => {}
     }
   }
-  webContents.focus()
-  return (insertParams) => send('Input.insertText', insertParams)
+  const events = planInsertText(params.text)
+  if (events && route.kind === 'widget') {
+    return {
+      deliver: () =>
+        withAgentInputInjection(webContents, async () => {
+          for (const event of events) {
+            webContents.sendInputEvent(event)
+          }
+          await waitForPageToHandleInput(send)
+          return {}
+        }),
+      release: () => {}
+    }
+  }
+  const release = await focusGuestForCdpInput(webContents, send, guardFocus)
+  return {
+    deliver: (insertParams) => withAgentInputInjection(webContents, () => sendText(insertParams)),
+    release
+  }
 }

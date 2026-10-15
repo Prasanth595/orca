@@ -1,7 +1,10 @@
 // Database opening and lifecycle fixtures exercise Node SQLite behavior.
 export const SQLITE_DATABASE_RUNTIME_INCLUDE = [
+  'src/main/ai-vault-search/session-search-dependent-transcripts.test.ts',
   'src/main/ai-vault-search/session-search-file-write.test.ts',
   'src/main/ai-vault-search/session-search-live-transcript.test.ts',
+  'src/main/ai-vault-search/session-search-list-reparse.test.ts',
+  'src/main/ai-vault-search/session-search-transcript-dependencies.test.ts',
   'src/main/ai-vault/session-scanner-devin-contention.test.ts',
   'src/main/ai-vault/session-scanner-opencode-native-worker.test.ts',
   'src/main/ai-vault/session-scanner-opencode-sqlite-bounds.test.ts',
@@ -37,8 +40,8 @@ export const SQLITE_DATABASE_RUNTIME_INCLUDE = [
   'src/main/runtime/claude-structured-startup-fault-is-not-an-exit.test.ts',
   'src/main/runtime/exit-provenance-audit.test.ts',
   'src/main/runtime/orchestration-cli-subprocess.test.ts',
-  'src/main/runtime/orchestration-dispatch-mailbox-delivery.test.ts',
-  'src/main/runtime/orchestration-mailbox-crash-recovery.test.ts',
+  'src/main/runtime/orchestration-mailbox-delivery.test.ts',
+  'src/main/runtime/orchestration-mailbox-routing.test.ts',
   'src/main/runtime/orchestration-mailbox-notification-consistency.test.ts',
   'src/main/runtime/orchestration-message-delivery-identity.test.ts',
   'src/main/runtime/orchestration-messages-fake-parity.test.ts',
