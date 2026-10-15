@@ -163,7 +163,7 @@ describe('worktree mutations invalidate the WSL linked-worktree Git route', () =
     )
   })
 
-  it('discards a cancelled checkout only after its reset waited for the guest Git to stop', async () => {
+  it('discards a cancelled checkout only after its reset waited for guest Git', async () => {
     const controller = new AbortController()
     gitExecFileAsyncMock.mockImplementation(async (args: string[]) => {
       if (args.includes('reset')) {
