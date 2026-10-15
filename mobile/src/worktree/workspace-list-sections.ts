@@ -254,8 +254,11 @@ export function buildMobileWorkspacePlan(
         for (const w of canonicalGroupWorktrees) {
           const key = getWorkspaceStatus(w, renderableWorkspaceStatuses)
           const list = byStatus.get(key)
-          if (list) list.push(w)
-          else byStatus.set(key, [w])
+          if (list) {
+            list.push(w)
+          } else {
+            byStatus.set(key, [w])
+          }
         }
         for (const status of renderableWorkspaceStatuses) {
           const items = byStatus.get(status.id)
@@ -268,8 +271,11 @@ export function buildMobileWorkspacePlan(
         for (const w of canonicalGroupWorktrees) {
           const key = getPRGroupKeyForState(w.linkedPR?.state)
           const list = byGroup.get(key)
-          if (list) list.push(w)
-          else byGroup.set(key, [w])
+          if (list) {
+            list.push(w)
+          } else {
+            byGroup.set(key, [w])
+          }
         }
         for (const groupKey of PR_GROUP_ORDER) {
           const items = byGroup.get(groupKey)
