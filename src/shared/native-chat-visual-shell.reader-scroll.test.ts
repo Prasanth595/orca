@@ -1,5 +1,5 @@
 import { Window } from 'happy-dom'
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   NATIVE_CHAT_VISUAL_READER_SCROLL_TYPE,
   buildNativeChatVisualDocument
@@ -60,7 +60,17 @@ function bootShell(html: string): Shell {
     },
     root: document.documentElement,
     wheel: (target, deltaY, init = {}) => {
-      target.dispatchEvent(new shellWindow.WheelEvent('wheel', { bubbles: true, deltaY, ...init }))
+      const event = new shellWindow.WheelEvent('wheel', {
+        bubbles: true,
+        composed: true,
+        deltaY,
+        ...init
+      })
+      // happy-dom's WheelEvent drops the modifier from its init.
+      Object.defineProperty(event, 'ctrlKey', { value: init.ctrlKey === true })
+      target.dispatchEvent(event)
+      // The report waits for the dispatch to finish.
+      vi.runAllTimers()
     }
   }
 }
@@ -77,6 +87,13 @@ function scrollable(
     clientHeight: { value: clientHeight, configurable: true }
   })
 }
+
+beforeEach(() => {
+  vi.useFakeTimers()
+})
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 describe('visual shell reader scroll', () => {
   it('reports a wheel only once nothing in the page can scroll that way', () => {
@@ -101,6 +118,24 @@ describe('visual shell reader scroll', () => {
     expect(shell.sent).toHaveLength(2)
   })
 
+  it('sees a scroller inside a shadow root, which the retargeted event hides', () => {
+    const shell = bootShell('<body><div id="host"></div></body>')
+    scrollable(shell.root, 0, 100)
+    const root = shell.byId('host').attachShadow({ mode: 'open' })
+    root.innerHTML = '<div id="inner" style="overflow-y:auto"><p id="deep">chart</p></div>'
+    const inner = root.getElementById('inner')
+    const deep = root.getElementById('deep')
+    if (!inner || !deep) {
+      throw new Error('no shadow content')
+    }
+    scrollable(inner, 70, 1000)
+    shell.wheel(deep, -10)
+    expect(shell.sent).toEqual([])
+    scrollable(inner, 0, 1000)
+    shell.wheel(deep, -10)
+    expect(shell.sent).toHaveLength(1)
+  })
+
   it('treats a page taller than the frame as a scroller of its own, hidden scrollbar and all', () => {
     const shell = bootShell('<body><p id="text">long</p></body>')
     scrollable(shell.root, 300, 3000)
@@ -111,27 +146,47 @@ describe('visual shell reader scroll', () => {
     expect(shell.sent).toHaveLength(1)
   })
 
-  it('leaves a wheel the visual cancelled with the visual, as a chart zoom does', () => {
+  it('reports through a root the page hid from the reader, whatever offset it holds', () => {
+    const shell = bootShell('<body><p id="text">pinned</p></body>')
+    shell.root.setAttribute('style', 'overflow-y:hidden')
+    scrollable(shell.root, 300, 3000)
+    shell.wheel(shell.byId('text'), -10)
+    expect(shell.sent).toHaveLength(1)
+  })
+
+  it('leaves a wheel the visual cancelled with the visual, wherever it cancels it', () => {
     const shell = bootShell('<body><div id="chart">chart</div></body>')
     scrollable(shell.root, 0, 100)
     const chart = shell.byId('chart')
     chart.addEventListener('wheel', (event) => event.preventDefault())
     shell.wheel(chart, -10, { cancelable: true })
-    expect(shell.sent).toEqual([])
+    expect(shell.sent, 'cancelled on the chart').toEqual([])
     chart.dispatchEvent(new shell.window.WheelEvent('wheel', { bubbles: true, deltaY: -10 }))
-    expect(shell.sent).toHaveLength(1)
+    vi.runAllTimers()
+    expect(shell.sent, 'not cancelled').toHaveLength(1)
+    // A handler the visual installs on the window runs after the shell's own.
+    shell.window.addEventListener('wheel', (event) => event.preventDefault())
+    shell.wheel(shell.byId('chart'), -10, { cancelable: true })
+    expect(shell.sent, 'cancelled at the window').toHaveLength(1)
   })
 
-  it('keeps a zoom wheel, a still wheel, and a contained scroller to the page', () => {
+  it('keeps a zoom wheel and a still wheel to the page', () => {
+    const shell = bootShell('<body><p id="text">chart</p></body>')
+    scrollable(shell.root, 0, 100)
+    shell.wheel(shell.byId('text'), -10, { ctrlKey: true })
+    shell.wheel(shell.byId('text'), 0)
+    expect(shell.sent).toEqual([])
+    shell.wheel(shell.byId('text'), -10)
+    expect(shell.sent, 'the same page reports a plain wheel').toHaveLength(1)
+  })
+
+  it('keeps a wheel inside a contained scroller to the page', () => {
     const shell = bootShell(
       '<body><div id="box" style="overflow-y:auto;overscroll-behavior-y:contain"><p id="text">chart</p></div></body>'
     )
     scrollable(shell.root, 0, 100)
     scrollable(shell.byId('box'), 0, 100)
     shell.wheel(shell.byId('text'), -10)
-    expect(shell.sent, 'contained').toEqual([])
-    shell.wheel(shell.byId('text'), -10, { ctrlKey: true })
-    shell.wheel(shell.byId('text'), 0)
     expect(shell.sent).toEqual([])
   })
 

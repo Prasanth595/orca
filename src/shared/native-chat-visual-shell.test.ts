@@ -112,16 +112,6 @@ describe('buildNativeChatVisualDocument', () => {
     expect(document).toContain(`"ping":"${NATIVE_CHAT_VISUAL_PING_TYPE}"`)
     expect(document).toContain('send({ type: C.pong, id: data.id })')
   })
-
-  it('reports a wheel the page cannot take and a touch drag, without blocking either', () => {
-    expect(document).toContain(`"scroll":"${NATIVE_CHAT_VISUAL_READER_SCROLL_TYPE}"`)
-    expect(document).toContain("send({ type: C.scroll, input: 'wheel', deltaY: event.deltaY })")
-    expect(document).toContain("send({ type: C.scroll, input: 'touch' })")
-    expect(document).toContain(
-      'if (event.defaultPrevented || event.ctrlKey || !event.deltaY) return'
-    )
-    expect(document.match(/\}, \{ passive: true \}\)/g)).toHaveLength(2)
-  })
 })
 
 describe('nativeChatVisualThemeCss', () => {
