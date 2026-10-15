@@ -150,9 +150,7 @@ export class OrcaRuntimeWithGetUnpersistedTrackedTitleForPty extends OrcaRuntime
         },
         onCommandFinished: (exitCode: number | null) => {
           void this.recheckHookAgentPresenceForPty(ptyId)
-          this.retirePtyAgentLaunchAuthority(ptyId)
-          this.recordTerminalSideEffectFact(ptyId, { kind: 'command-finished', exitCode })
-          this.openCodeRunLifetime.onCommandFinished(ptyId, exitCode)
+          this.handlePtyCommandFinished(ptyId, exitCode)
         },
         onBell: () => {
           this.recordTerminalSideEffectFact(ptyId, { kind: 'bell' })

@@ -8,6 +8,7 @@ import type {
 import {
   detectAgentStatusFromTitle,
   isCursorNativeAgentTitle,
+  isShellProcess,
   normalizeTerminalTitle
 } from '../../shared/agent-detection'
 import {
@@ -17,6 +18,7 @@ import {
 } from './runtime-worktree-status-projection'
 import type { RuntimeLeafRecord, RuntimePtyWorktreeRecord } from './runtime-terminal-state-records'
 import type { TerminalTitleFactMeta } from '../../shared/terminal-output-side-effects'
+import { recognizeAgentProcessFromCommandLine } from '../../shared/agent-process-recognition'
 
 export class OrcaRuntimeWithEmitDaemonPtyTransientFact extends OrcaRuntimeWithScheduleWaitBlockedCheck {
   /** A transient fact the daemon detected while it held scan authority —
@@ -28,12 +30,7 @@ export class OrcaRuntimeWithEmitDaemonPtyTransientFact extends OrcaRuntimeWithSc
         this.recordTerminalSideEffectFact(ptyId, { kind: 'bell' })
         return
       case 'command-finished':
-        this.retirePtyAgentLaunchAuthority(ptyId)
-        this.recordTerminalSideEffectFact(ptyId, {
-          kind: 'command-finished',
-          exitCode: fact.exitCode
-        })
-        this.openCodeRunLifetime.onCommandFinished(ptyId, fact.exitCode)
+        this.handlePtyCommandFinished(ptyId, fact.exitCode)
         return
       case 'pr-link':
         this.recordTerminalSideEffectFact(ptyId, { kind: 'pr-link', link: fact.link })
@@ -44,6 +41,46 @@ export class OrcaRuntimeWithEmitDaemonPtyTransientFact extends OrcaRuntimeWithSc
       case '2031-unsubscribe':
         this.recordTerminalSideEffectFact(ptyId, { kind: '2031-unsubscribe' })
     }
+  }
+
+  protected handlePtyCommandFinished(ptyId: string, exitCode: number | null): void {
+    const pty = this.ptysById.get(ptyId)
+    const isOmp =
+      pty?.launchAgent === 'omp' ||
+      pty?.foregroundAgent === 'omp' ||
+      recognizeAgentProcessFromCommandLine(pty?.launchConfig?.agentCommand)?.agent === 'omp'
+    if (!isOmp) {
+      this.applyPtyCommandFinished(ptyId, exitCode)
+      return
+    }
+    // OMP also paints OSC 133;D inside user bubbles; it does not prove process exit.
+    const incarnationId = pty.incarnationId
+    const launchToken = pty.launchToken
+    const titleObservedAt = pty.lastOscTitleAt
+    const read = this.readPtyForegroundProcessFromController(ptyId, titleObservedAt ?? 0)
+    void read?.then((result) => {
+      const current = this.ptysById.get(ptyId)
+      if (
+        current !== pty ||
+        !current.connected ||
+        current.incarnationId !== incarnationId ||
+        current.launchToken !== launchToken ||
+        result.controller !== this.ptyController ||
+        !result.available ||
+        typeof result.process !== 'string' ||
+        !isShellProcess(result.process) ||
+        (current.lastOscTitleAt !== titleObservedAt && current.lastAgentStatus !== null)
+      ) {
+        return
+      }
+      this.applyPtyCommandFinished(ptyId, exitCode)
+    })
+  }
+
+  private applyPtyCommandFinished(ptyId: string, exitCode: number | null): void {
+    this.retirePtyAgentLaunchAuthority(ptyId)
+    this.recordTerminalSideEffectFact(ptyId, { kind: 'command-finished', exitCode })
+    this.openCodeRunLifetime.onCommandFinished(ptyId, exitCode)
   }
 
   /** The daemon keep-tail dropped this PTY's oldest undelivered output; the

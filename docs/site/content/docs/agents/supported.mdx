@@ -74,17 +74,23 @@ when the parent is silently waiting. These checks verify running agents, not new
 Children waiting for background tool results remain live even when OMP temporarily marks their
 model loop idle. Opening an unprompted OMP session does not count as working.
 
-After upgrading Orca, restart OMP to load the updated extension. No additional tracking tool, daemon,
-or model instruction is needed. Native tracking is capability-detected and has been verified with
-OMP 18.10.3 and 18.10.4; runtimes without the registry API retain lifecycle-only tracking.
+After upgrading Orca, fully restart the app and OMP to load the updated tracking code and extension.
+No additional tracking tool, daemon, or model instruction is needed. Native tracking is
+capability-detected and has been verified with OMP 18.10.3, 18.10.4, and 18.11.0; runtimes without the
+registry API retain lifecycle-only tracking. Agent roles do not restrict which children are tracked.
 
 Snapshots belong to one root and its current session. Session changes retire the previous roster,
 and observation refreshes preserve the root's prompt, input waits, and turn timing. Failed registry
 reads or hook delivery cannot refresh stale child evidence or declare an agent exited.
 
-The existing compact sidebar layout is unchanged. When OMP reports a new session ID and transcript,
-the renderer cannot inherit the previous session's turn clock. The root's own completion time
-remains separate from its children's.
+The existing compact sidebar layout is unchanged. Expand the worktree's agent count, then use the
+chevron on an OMP parent row to show or hide its children; there is no separate subagent switch.
+When OMP reports a new session ID and transcript, the renderer cannot inherit the previous session's
+turn clock. The root's own completion time remains separate from its children's.
+
+OMP paints shell-completion markers inside its prompt bubbles while the process is still running.
+Orca checks that the foreground has returned to a shell before retiring that OMP launch; an
+unverifiable foreground read does not close its status channel.
 
 Delivery keeps current and adjacent closing scopes rather than replaying an unbounded history after
 an outage. Older retired updates may be discarded; the status feed is not a durable notification log.
