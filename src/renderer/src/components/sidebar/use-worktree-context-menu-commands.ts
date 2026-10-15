@@ -55,9 +55,14 @@ export function useWorktreeContextMenuCommands(args: {
     )
   }, [args])
   const handleTogglePin = useCallback(() => {
-    // The clicked row names its own host, so qualify the write like the sibling meta updates do.
+    // Qualify the write by the row's own host; a row without one keeps the bare-id lookup, since
+    // the owner index has no 'local' entry for a runtime-owned row that names no host.
     args.setWorktreesPinnedAndReveal(
-      [{ worktreeId: args.worktree.id, executionHostId: args.worktree.hostId ?? 'local' }],
+      [
+        args.worktree.hostId
+          ? { worktreeId: args.worktree.id, executionHostId: args.worktree.hostId }
+          : args.worktree.id
+      ],
       !args.worktree.isPinned
     )
   }, [args])
