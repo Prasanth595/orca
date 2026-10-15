@@ -223,6 +223,8 @@ test('a relay-era desktop wakes the server another version left stopped', async 
     // 2. B must start A's server and pair with it; its own deploy would defer on a terminal
     //    count no running server can give.
     const { seeded } = await joinFromRelayEraProfile(desktopB, host, (next) => (app = next))
+    // Paired with A's server, woken, rather than replaced by a deploy of B's own.
+    expect(hostRecord(host).active).toBe(versionA)
     expect(orcadPids(host)).not.toBe('')
     expect(
       findOrcadMigrationSourceCutoverForTarget(desktopB.userDataDir, seeded.targetId)
