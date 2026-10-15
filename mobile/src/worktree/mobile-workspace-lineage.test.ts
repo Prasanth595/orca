@@ -43,9 +43,15 @@ describe('applyMobileWorkspaceLineage', () => {
       })
       const grandchild = { ...child, worktreeId: 'grandchild', parentWorktreeId: child.worktreeId }
       const filters = {
-        filterRepoIds: new Set<string>(),
-        hideSleeping: false,
-        hideDefaultBranch: false
+        hideSleepingWorkspaces: false,
+        alwaysShowDefaultBranchWorkspace: true,
+        hideDefaultBranchWorkspace: false,
+        hideAutomationGeneratedWorkspaces: false,
+        hideCliCreatedWorkspaces: false,
+        hideDetachedHeadWorkspaces: false,
+        hideWorkspacesFromOtherDevices: false,
+        filterRepoIds: [],
+        visibleHostIds: null
       }
       const plan = buildMobileWorkspacePlan(
         [grandchild, child, parent],
@@ -82,7 +88,7 @@ describe('applyMobileWorkspaceLineage', () => {
       const filtered = buildSections(
         [parent, child, { ...grandchild, repoId: 'repo-3' }],
         'name',
-        { ...filters, filterRepoIds: new Set(['repo-1', 'repo-3']) },
+        { ...filters, filterRepoIds: ['repo-1', 'repo-3'] },
         '',
         'repo',
         new Set()

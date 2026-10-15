@@ -6,15 +6,11 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Repo } from '../../../../shared/repo-types'
-import type { Project, ProjectHostSetup } from '../../../../shared/project-types'
-import { project, projectHostSetups, repo } from './worktree-list-groups-test-fixtures'
 import type { WorktreeLineage } from '../../../../shared/worktree/lineage-types'
 import type { WorktreeRemovalTarget } from '../../../../shared/worktree/removal'
 import type { Worktree } from '../../../../shared/worktree/types'
 
 const mocks = vi.hoisted(() => {
-  const projects: Project[] = []
-  const projectHostSetups: ProjectHostSetup[] = []
   const state = {
     activeModal: 'delete-worktree',
     modalData: {} as Record<string, unknown>,
@@ -23,8 +19,6 @@ const mocks = vi.hoisted(() => {
     clearWorktreeDeleteState: vi.fn(),
     allWorktrees: vi.fn<() => Worktree[]>(() => []),
     repos: [] as Repo[],
-    projects,
-    projectHostSetups,
     worktreeLineageById: {} as Record<string, WorktreeLineage>,
     updateSettings: vi.fn(),
     openSettingsTarget: vi.fn(),
@@ -183,8 +177,6 @@ describe('DeleteWorktreeDialog lineage copy', () => {
     mocks.state.modalData = {}
     mocks.state.allWorktrees.mockReturnValue([])
     mocks.state.repos = []
-    mocks.state.projects = []
-    mocks.state.projectHostSetups = []
     mocks.state.sshTargetLabels = new Map()
     mocks.state.sshConnectionStates = new Map()
     mocks.state.runtimeEnvironments = []
@@ -250,18 +242,9 @@ describe('DeleteWorktreeDialog lineage copy', () => {
     })
   })
 
-  it('names the other project and deletes both real repository targets', async () => {
+  it('shows child-delete copy and only a delete-all action when the workspace has children', async () => {
     const parent = makeWorktree('Parent workspace', '/workspaces/parent')
-    const child = { ...makeWorktree('Child workspace', '/workspaces/child'), repoId: 'repo-2' }
-    mocks.state.repos = [
-      {
-        id: 'repo-2',
-        path: '/workspaces/backend',
-        displayName: 'Backend',
-        badgeColor: 'gray',
-        addedAt: 1
-      }
-    ]
+    const child = makeWorktree('Child workspace', '/workspaces/child')
     mocks.state.modalData = {
       worktreeId: parent.id,
       worktreeDeleteIdentities: [{ id: parent.id, instanceId: parent.instanceId }],
@@ -278,7 +261,6 @@ describe('DeleteWorktreeDialog lineage copy', () => {
     expect(markup).toContain('Child workspaces will be deleted')
     expect(markup).toContain('Deleting this workspace also deletes 1 child workspace.')
     expect(markup).toContain('Child workspace')
-    expect(markup).toContain('Backend')
     expect(markup).toContain('from git and delete their workspace folders.')
     expect(markup).not.toContain('from git and delete its workspace folder.')
     expect(markup).toContain('Delete 2 Workspaces')
@@ -324,11 +306,20 @@ describe('DeleteWorktreeDialog lineage copy', () => {
   })
 
   it('names a different checkout of the same project in the delete disclosure', async () => {
-    const checkout = { ...repo, id: 'second-checkout', displayName: 'Second checkout', path: '/second' }
-    mocks.state.projects = [project]
-    mocks.state.projectHostSetups = [repo, checkout].map((entry) => ({
-      ...projectHostSetups[0]!, id: entry.id, repoId: entry.id, path: entry.path
-    }))
+    const repo: Repo = {
+      id: 'repo-1',
+      path: '/parent',
+      displayName: 'Parent project',
+      badgeColor: 'gray',
+      addedAt: 1
+    }
+    const checkout: Repo = {
+      id: 'second-checkout',
+      displayName: 'Second checkout',
+      path: '/second',
+      badgeColor: 'gray',
+      addedAt: 2
+    }
     const parent = { ...makeWorktree('parent', '/parent'), repoId: repo.id }
     const child = { ...makeWorktree('child', '/child'), repoId: checkout.id }
     const { DeleteWorktreeLineageNotice } = await import('./DeleteWorktreeLineageNotice')
