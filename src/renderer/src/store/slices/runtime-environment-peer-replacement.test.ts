@@ -8,19 +8,28 @@ import {
 afterEach(() => resetDeferredPeerChecksForTests())
 
 function managed(
-  overrides: { generation?: number; pairingRevision?: number; hostKey?: string | null } = {}
+  overrides: { generation?: number; pairingRevision?: number; hostKey?: string | null } = {},
+  wsl = false
 ) {
   return {
     id: 'env-1',
     createdAt: 1,
     pairingRevision: overrides.pairingRevision ?? 1,
     ...(overrides.hostKey === null ? {} : { hostKeyFingerprint: overrides.hostKey ?? 'key-a' }),
-    orcadDeployment: {
-      sshTargetId: 'box',
-      sshTargetGeneration: overrides.generation ?? 1,
-      localPort: 46_768,
-      remotePort: 6_768
-    }
+    orcadDeployment: wsl
+      ? {
+          kind: 'wsl' as const,
+          distro: 'Ubuntu',
+          distroId: '0e3a7f2c-1b4d-4c5e-9f60-7a8b9c0d1e2f',
+          localPort: 46_768,
+          remotePort: 6_768
+        }
+      : {
+          sshTargetId: 'box',
+          sshTargetGeneration: overrides.generation ?? 1,
+          localPort: 46_768,
+          remotePort: 6_768
+        }
   }
 }
 
@@ -33,7 +42,7 @@ function retired(previous: ReturnType<typeof managed>, next: ReturnType<typeof m
 }
 
 describe('which re-paired environments name a different machine', () => {
-  it('keeps a managed server whose update re-paired it with the same proven host key', () => {
+  it('keeps open work when a managed server re-pairs with the same proven host key', () => {
     expect(retired(managed(), managed({ pairingRevision: 2 }))).toEqual([])
   })
 
@@ -74,8 +83,8 @@ describe('which re-pairs a live pane may follow', () => {
   const classify = (previous: ReturnType<typeof managed>, next: ReturnType<typeof managed>) =>
     classifyPeerReplacements([previous], [next], replacedRuntimeEnvironmentIds([previous], [next]))
 
-  it('reports a same-key update as a same-host rotation from the old pairing', () => {
-    expect(classify(managed(), managed({ pairingRevision: 2 }))).toEqual({
+  it.each([false, true])('reports the exact same-host continuation (WSL: %s)', (wsl) => {
+    expect(classify(managed({}, wsl), managed({ pairingRevision: 2 }, wsl))).toEqual({
       retired: [],
       sameHost: [{ id: 'env-1', fromRevision: 1, toRevision: 2 }]
     })

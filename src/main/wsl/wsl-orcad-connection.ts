@@ -5,19 +5,14 @@
  * deployment record (C7) persists what `onChange` reports.
  */
 import { errorMessage } from '../../shared/error-message'
-import { parsePairingCode, type PairingOffer } from '../../shared/pairing'
-import type { ServeReadiness } from '../server/serve-readiness'
+import { parsePairingCode } from '../../shared/pairing'
 import type { OrcadHostTransport } from '../ssh/orcad-host-transport'
-import type { OrcadTunnelIdentity } from '../ssh/orcad-managed-tunnel-identity'
 import type { StartedPortForward } from '../ssh/ssh-port-forward-provider'
-import type { WslDistroHolder } from './wsl-distro-holder'
 import type { WslOrcadConnectionStatus } from './wsl-orcad-connection-status'
 import { wslDistroHolderKey } from './wsl-distro-holder-record'
 import {
   defaultWslOrcadEnvironmentId,
   deployAndLaunchWslOrcad,
-  type WslOrcadDeferredUpdate,
-  type WslOrcadDeployOptions,
   type WslOrcadLaunch
 } from './wsl-orcad-deploy'
 import type { WslOrcadHostTarget } from './wsl-orcad-host-target'
@@ -29,22 +24,18 @@ import {
   type WslOrcadStdioBridgeOptions
 } from './wsl-orcad-stdio-bridge'
 
-export type WslOrcadConnection = {
-  distro: string
-  environmentId: string
-  /** The loopback port on this machine the pairing offer points at. */
-  localPort: number
-  /** orcad's port inside the distro. */
-  remotePort: number
-  fullVersion: string
-  /** orcad's pid inside the distro, from its pid file; null when unreadable. */
-  pid: number | null
-  /** orcad's pairing code, with its endpoint rewritten to `ws://127.0.0.1:<localPort>`. */
-  pairingOffer: string
-  /** An app update the incumbent `fullVersion` is waiting to take (live terminals). */
-  deferredUpdate: WslOrcadDeferredUpdate | null
-  close(): Promise<void>
-}
+import type {
+  WslOrcadConnection,
+  WslOrcadConnectOptions,
+  WslOrcadConnectStatus,
+  WslOrcadConnectionDependencies
+} from './wsl-orcad-connection-contract'
+
+export type {
+  WslOrcadConnection,
+  WslOrcadConnectOptions,
+  WslOrcadConnectionDependencies
+} from './wsl-orcad-connection-contract'
 
 type WslOrcadDeferredLaunch = Extract<WslOrcadLaunch, { outcome: 'deferred' }>
 
@@ -63,39 +54,8 @@ export class WslOrcadConnectionSupersededError extends Error {
   }
 }
 
-export type WslOrcadConnectOptions = {
-  environmentId?: string
-  label?: string
-  /** Rebinds a port a persisted pairing offer already names; 0 or absent picks a free one. */
-  localPort?: number
-  force?: boolean
-  signal?: AbortSignal
-  /** What `onChange` reports while this connect runs and once it is ready (liveness recovery). */
-  status?: WslOrcadConnectStatus
-}
-
-type WslOrcadConnectStatus = { pending: WslOrcadConnectionStatus; ready: WslOrcadConnectionStatus }
-
 const CONNECTING: WslOrcadConnectionStatus = { state: 'connecting' }
 const READY: WslOrcadConnectionStatus = { state: 'ready', census: null }
-
-export type WslOrcadConnectionDependencies = {
-  holder?: WslDistroHolder
-  getPairingOffer?: (environmentId: string) => PairingOffer | null
-  deployAndLaunch?: (distro: string, options: WslOrcadDeployOptions) => Promise<WslOrcadLaunch>
-  createTransport?: (target: WslOrcadHostTarget) => OrcadHostTransport
-  listen?: (
-    transport: OrcadHostTransport,
-    options: WslOrcadStdioBridgeOptions
-  ) => Promise<StartedPortForward>
-  verifyIdentity?: (pairingOffer: string, readiness: ServeReadiness) => Promise<OrcadTunnelIdentity>
-  /** A connection (re)opened, its offer changed, or its status moved; null once it closed. */
-  onChange?: (
-    distro: string,
-    connection: WslOrcadConnection | null,
-    status: WslOrcadConnectionStatus
-  ) => void
-}
 
 type ActiveWslOrcadConnection = {
   connection: WslOrcadConnection
@@ -135,7 +95,7 @@ export class WslOrcadConnectionManager {
     const status = options.status ?? { pending: CONNECTING, ready: READY }
     // A refresh of a live connection stays quiet; liveness recovery always reports.
     if (options.status || !this.active.has(key)) {
-      this.dependencies.onChange?.(name, this.get(name), status.pending)
+      this.dependencies.onChange?.(name, this.get(name), status.pending, 'status')
     }
     const operation = this.connect(name, key, options, status).catch((error: unknown) => {
       // Liveness owns the status of its own reconnects; a superseded connect was closed.
@@ -144,7 +104,7 @@ export class WslOrcadConnectionManager {
           state: 'failed',
           reason: errorMessage(error),
           terminals: 'unverifiable'
-        })
+        }, 'status')
       }
       throw error
     })
@@ -163,7 +123,7 @@ export class WslOrcadConnectionManager {
 
   /** Liveness reports a status change for a distro, with whatever connection it has now. */
   publish(distro: string, status: WslOrcadConnectionStatus): void {
-    this.dependencies.onChange?.(distro, this.get(distro), status)
+    this.dependencies.onChange?.(distro, this.get(distro), status, 'status')
   }
 
   list(): WslOrcadConnection[] {
@@ -180,7 +140,7 @@ export class WslOrcadConnectionManager {
     this.active.delete(key)
     await entry.forward.close()
     trackWslOrcadHostEnvironment(entry.connection, null)
-    this.dependencies.onChange?.(entry.connection.distro, null, { state: 'closed' })
+    this.dependencies.onChange?.(entry.connection.distro, null, { state: 'closed' }, 'status')
   }
 
   async dispose(): Promise<void> {
@@ -247,7 +207,7 @@ export class WslOrcadConnectionManager {
       this.active.delete(key)
       await current.forward.close()
       trackWslOrcadHostEnvironment(current.connection, null)
-      this.dependencies.onChange?.(distro, null, status.pending)
+      this.dependencies.onChange?.(distro, null, status.pending, 'status')
     }
     const forward = await this.listen(transport, {
       environmentId,
@@ -269,6 +229,7 @@ export class WslOrcadConnectionManager {
         forward,
         connection: {
           distro,
+          distroId: launch.distroId,
           environmentId,
           localPort: forward.entry.localPort,
           remotePort: launch.port,
@@ -281,7 +242,7 @@ export class WslOrcadConnectionManager {
       }
       this.active.set(key, entry)
       trackWslOrcadHostEnvironment(entry.connection, entry.connection)
-      this.dependencies.onChange?.(distro, entry.connection, status.ready)
+      await this.publishReady(entry, status.ready)
       return entry.connection
     } catch (error) {
       await forward.close()
@@ -289,30 +250,47 @@ export class WslOrcadConnectionManager {
     }
   }
 
-  private refreshOffer(
+  private async refreshOffer(
     key: string,
     entry: ActiveWslOrcadConnection,
     launch: Extract<WslOrcadLaunch, { outcome: 'ready' }>,
     pairingOffer: string,
     /** Reported even when nothing changed; null stays quiet then. */
     announce: WslOrcadConnectionStatus | null
-  ): WslOrcadConnection {
+  ): Promise<WslOrcadConnection> {
     const deferredUpdate = launch.deferredUpdate ?? null
     const changed =
+      launch.distroId !== entry.connection.distroId ||
       pairingOffer !== entry.connection.pairingOffer ||
       launch.fullVersion !== entry.connection.fullVersion ||
       launch.pid !== entry.connection.pid ||
       JSON.stringify(deferredUpdate) !== JSON.stringify(entry.connection.deferredUpdate)
     if (changed) {
-      const { fullVersion, pid } = launch
-      entry.connection = { ...entry.connection, pairingOffer, fullVersion, pid, deferredUpdate }
+      const { distroId, fullVersion, pid } = launch
+      entry.connection = {
+        ...entry.connection,
+        distroId, pairingOffer, fullVersion, pid, deferredUpdate
+      }
       this.active.set(key, entry)
     }
     trackWslOrcadHostEnvironment(entry.connection, entry.connection)
-    if (changed || announce) {
-      this.dependencies.onChange?.(entry.connection.distro, entry.connection, announce ?? READY)
+    if (changed || announce || !launch.distroId) {
+      await this.publishReady(entry, announce ?? READY)
     }
     return entry.connection
+  }
+
+  private async publishReady(
+    entry: ActiveWslOrcadConnection,
+    status: WslOrcadConnectionStatus
+  ): Promise<void> {
+    try {
+      this.dependencies.onChange?.(entry.connection.distro, entry.connection, status)
+    } catch (error) {
+      // A bridge must not serve another installation before its identity is published.
+      await this.closeEntry(wslDistroHolderKey(entry.connection.distro), entry)
+      throw error
+    }
   }
 
   /** A persisted local port may be taken by now; a free one beats no connection. */

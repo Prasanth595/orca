@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { connect, type Server, type Socket } from 'node:net'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { encodePairingOffer, parsePairingCode, PAIRING_OFFER_VERSION } from '../../shared/pairing'
@@ -17,6 +20,19 @@ import type { WslOrcadLaunch } from './wsl-orcad-deploy'
 import { createWslOrcadHostTransport } from './wsl-orcad-host-transport'
 import { listenWslOrcadStdioBridge } from './wsl-orcad-stdio-bridge'
 import { wslOrcadHostDistro } from './wsl-orcad-host-environments'
+import { WslHostService } from './wsl-host-service'
+import {
+  addWslHostEnvironment,
+  findWslHostDeployment
+} from '../../shared/runtime-environment-wsl-host-store'
+import { listEnvironments } from '../../shared/runtime-environment-store'
+import * as environmentStore from '../../shared/runtime-environment-store-file'
+import { publicRuntimeEnvironmentWithHostKey } from '../ipc/runtime-environment-host-key'
+import { runtimeEnvironmentRevisionFailure } from '../ipc/runtime-environment-revision-guard'
+import {
+  classifyPeerReplacements,
+  replacedRuntimeEnvironmentIds
+} from '../../renderer/src/store/slices/runtime-environment-peer-replacement'
 
 let first: { server: Server; port: number }
 let second: { server: Server; port: number }
@@ -69,7 +85,7 @@ function ready(port: number, deviceToken?: string): Extract<WslOrcadLaunch, { ou
   return {
     outcome: 'ready',
     distro: 'Ubuntu',
-    distroId: null,
+    distroId: '00000000-0000-4000-8000-000000000001',
     port,
     fullVersion: '1.0.0',
     pid: 42,
@@ -152,11 +168,86 @@ describe('WslOrcadConnectionManager', () => {
       pairedDeviceId: 'device-1'
     })
     expect(onChange.mock.calls).toEqual([
-      ['Ubuntu', null, { state: 'connecting' }],
+      ['Ubuntu', null, { state: 'connecting' }, 'status'],
       ['Ubuntu', connection, { state: 'ready', census: null }]
     ])
     expect(connection.pid).toBe(42)
     expect(await roundTrip(connection, 'hello')).toBe('hello')
+  })
+
+  it('publishes observed installation changes through catalog retirement, even with the same pairing', async () => {
+    const profile = mkdtempSync(join(tmpdir(), 'wsl-installation-'))
+    const g1 = '00000000-0000-4000-8000-000000000001'
+    const g2 = '00000000-0000-4000-8000-000000000002'
+    const invalidated = vi.fn()
+    const hostReady = vi.fn()
+    const service = new WslHostService({
+      userDataPath: () => profile,
+      isEnabled: () => true,
+      hasServerFiles: () => true,
+      publish: vi.fn(), pairingChanged: invalidated, ready: hostReady, removed: vi.fn()
+    })
+    const { manager, launches } = setup({ onChange: service.handleConnectionChange.bind(service) })
+    try {
+      launches.push({ ...ready(first.port), distroId: g1 })
+      const firstConnection = await manager.ensure('Ubuntu')
+      addWslHostEnvironment(profile, {
+        id: 'wsl:ubuntu',
+        name: 'Ubuntu',
+        pairingCode: firstConnection.pairingOffer,
+        record: {
+          kind: 'wsl', distro: 'Ubuntu', distroId: firstConnection.distroId ?? undefined,
+          localPort: firstConnection.localPort, remotePort: first.port
+        }
+      })
+      const enrolled = listEnvironments(profile).map(publicRuntimeEnvironmentWithHostKey)
+      launches.push({ ...ready(first.port), distroId: g2 })
+      const refreshed = await manager.ensure('Ubuntu')
+      const [environment] = listEnvironments(profile)
+      const after = [publicRuntimeEnvironmentWithHostKey(environment)]
+      expect(refreshed.pairingOffer).toBe(firstConnection.pairingOffer)
+      expect(environment.orcadDeployment).toMatchObject({ distroId: g2 })
+      expect(invalidated).toHaveBeenCalledWith('wsl:ubuntu')
+      expect(classifyPeerReplacements(enrolled, after, replacedRuntimeEnvironmentIds(enrolled, after)))
+        .toEqual({ retired: ['wsl:ubuntu'], sameHost: [] })
+      const before = listEnvironments(profile).map(publicRuntimeEnvironmentWithHostKey)
+      const fail = vi.spyOn(environmentStore, 'writeEnvironmentStore').mockImplementationOnce(() => {
+        throw new Error('disk full')
+      })
+      launches.push({ ...ready(first.port), distroId: null })
+      await expect(manager.ensure('Ubuntu')).rejects.toThrow('disk full')
+      fail.mockRestore()
+      expect(manager.get('Ubuntu')).toBeNull()
+      const partial = listEnvironments(profile).map(publicRuntimeEnvironmentWithHostKey)
+      expect(partial[0].orcadDeployment).toMatchObject({ kind: 'wsl' })
+      expect(findWslHostDeployment(profile, 'wsl:ubuntu')?.distroId).toBeUndefined()
+      expect(
+        classifyPeerReplacements(before, partial, replacedRuntimeEnvironmentIds(before, partial))
+      ).toEqual({ retired: ['wsl:ubuntu'], sameHost: [] })
+      launches.push({ ...ready(first.port), distroId: null })
+      await manager.ensure('Ubuntu', {
+        localPort: firstConnection.localPort,
+        status: { pending: { state: 'connecting' }, ready: {
+          state: 'reconnecting', reason: 'census', attempt: 1,
+          retryInMs: null, terminals: 'unverifiable'
+        } }
+      })
+      expect(
+        runtimeEnvironmentRevisionFailure(listEnvironments(profile)[0], before[0].pairingRevision, 'test')
+      ).toMatchObject({ ok: false })
+      const revision = listEnvironments(profile)[0].pairingRevision
+      hostReady.mockClear()
+      manager.publish('Ubuntu', { state: 'ready', census: null })
+      expect(hostReady).toHaveBeenCalledWith('wsl:ubuntu')
+      expect(listEnvironments(profile)[0].pairingRevision).toBe(revision)
+      launches.push({ ...ready(first.port), distroId: null })
+      await manager.ensure('Ubuntu')
+      expect(listEnvironments(profile)[0].pairingRevision).toBeGreaterThan(revision ?? 0)
+    } finally {
+      vi.restoreAllMocks()
+      await manager.dispose()
+      rmSync(profile, { recursive: true, force: true })
+    }
   })
 
   it('shares one deploy and one bridge between concurrent connects to a distro', async () => {
@@ -281,7 +372,8 @@ describe('WslOrcadConnectionManager', () => {
     expect(onChange).toHaveBeenLastCalledWith(
       'Ubuntu',
       null,
-      expect.objectContaining({ state: 'failed', terminals: 'unverifiable' })
+      expect.objectContaining({ state: 'failed', terminals: 'unverifiable' }),
+      'status'
     )
     await until(() => children.live() === 0)
   })
@@ -300,14 +392,13 @@ describe('WslOrcadConnectionManager', () => {
     const census = { ...pending, reason: 'census' } as const
     await manager.ensure('Ubuntu', { status: { pending, ready: census } })
     expect(onChange.mock.calls.slice(-2)).toEqual([
-      ['Ubuntu', connection, pending],
+      ['Ubuntu', connection, pending, 'status'],
       ['Ubuntu', connection, census]
     ])
     manager.publish('Ubuntu', { state: 'ready', census: null })
-    expect(onChange).toHaveBeenLastCalledWith('Ubuntu', connection, {
-      state: 'ready',
-      census: null
-    })
+    expect(onChange).toHaveBeenLastCalledWith(
+      'Ubuntu', connection, { state: 'ready', census: null }, 'status'
+    )
   })
 
   it('drops a connect that a close overtook', async () => {
@@ -338,7 +429,7 @@ describe('WslOrcadConnectionManager', () => {
     await connection.close()
     await until(() => children.live() === 0)
     expect(manager.get('Ubuntu')).toBeNull()
-    expect(onChange).toHaveBeenLastCalledWith('Ubuntu', null, { state: 'closed' })
+    expect(onChange).toHaveBeenLastCalledWith('Ubuntu', null, { state: 'closed' }, 'status')
     await expect(dial(connection.localPort)).rejects.toThrow()
   })
 
