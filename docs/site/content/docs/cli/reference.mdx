@@ -230,6 +230,7 @@ Tab and capture commands:
 ```bash
 orca tab list --worktree active --json
 orca tab create --url http://localhost:3000 --worktree active --json
+orca tab create --url http://localhost:3000 --activate --json   # also select the new tab
 orca tab switch --index 1 --worktree active --json
 orca capture start --worktree active --json
 orca console --limit 50 --worktree active --json

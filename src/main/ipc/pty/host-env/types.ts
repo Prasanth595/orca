@@ -34,6 +34,8 @@ export type BuildPtyHostEnvOptions = {
   networkProxySettings?: NetworkProxySettings
   /** Headless paired runtimes hand browser launches to the client-hosted Orca browser. */
   routeBrowserOpensToClient?: boolean
+  /** User opted into Orca-browser agent work: force BROWSER to an Orca CLI command on local PTYs. */
+  forceOrcaBrowserOpens?: boolean
   /** Keep indexed Git config off the sparse daemon wire; the daemon appends guard entries after merging its inherited env. */
   deferGitConfigGuardToDaemon?: boolean
 }

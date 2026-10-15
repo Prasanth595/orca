@@ -142,7 +142,8 @@ export class OrcaRuntimeWithCreateAgentSession extends OrcaRuntimeWithGetAgentSe
         // shape must match the PTY route this scope already resolved.
         isRemote: Boolean(workspace.connectionId),
         ...(request.agentArgs !== undefined ? { agentArgs: request.agentArgs } : {}),
-        sessionOptions: this.toAgentSessionOptions(request.launchPreferences)
+        sessionOptions: this.toAgentSessionOptions(request.launchPreferences),
+        codexGuidanceSpawnGated: true
       })
       const startup = await buildExecutionHostAgentStartupPlan({
         inputs: startupArgs,

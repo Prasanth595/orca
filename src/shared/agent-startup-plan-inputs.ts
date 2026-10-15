@@ -10,7 +10,11 @@ import { resolveLocalWindowsAgentStartupShell } from './windows-terminal-shell'
 export type AgentStartupSettings = Partial<
   Pick<
     GlobalSettings,
-    'agentCmdOverrides' | 'agentDefaultArgs' | 'agentDefaultEnv' | 'terminalWindowsShell'
+    | 'agentCmdOverrides'
+    | 'agentDefaultArgs'
+    | 'agentDefaultEnv'
+    | 'terminalWindowsShell'
+    | 'useOrcaBrowserForAgentWork'
   >
 >
 
@@ -25,6 +29,8 @@ export type AgentStartupPlanInputs = {
   isRemote: boolean
   sessionOptions?: Record<string, SessionOptionValue>
   sessionOptionsOverrideAgentArgs: boolean
+  orcaBrowserGuidance: boolean
+  codexGuidanceSpawnGated?: boolean
 }
 
 /**
@@ -50,6 +56,8 @@ export function resolveAgentStartupPlanInputs(args: {
    *  right only where the Settings shell is the one the PTY gets. */
   shell: AgentStartupShell | undefined
   sessionOptions?: Record<string, SessionOptionValue> | undefined
+  /** See OrcaBrowserGuidanceOptions.codexGuidanceSpawnGated. */
+  codexGuidanceSpawnGated?: boolean
 }): AgentStartupPlanInputs {
   const { agent, settings, platform, isRemote, sessionOptions } = args
   // A per-launch override wins over the Settings default; `null` is "no arguments", so this
@@ -88,6 +96,10 @@ export function resolveAgentStartupPlanInputs(args: {
     ...(sessionOptions ? { sessionOptions } : {}),
     // Why: session options are an explicit per-launch pick, so they outrank configured args —
     // without this the two spellings of the same flag both reach argv and the last one wins.
-    sessionOptionsOverrideAgentArgs: Boolean(sessionOptions)
+    sessionOptionsOverrideAgentArgs: Boolean(sessionOptions),
+    orcaBrowserGuidance: settings.useOrcaBrowserForAgentWork === true,
+    ...(args.codexGuidanceSpawnGated !== undefined
+      ? { codexGuidanceSpawnGated: args.codexGuidanceSpawnGated }
+      : {})
   }
 }

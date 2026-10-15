@@ -9,8 +9,11 @@ import {
   startParityLanes,
   type ParityLanes
 } from './pty-launch-parity.test-fixture'
+import { ORCA_BROWSER_AGENT_GUIDANCE } from '../../shared/agent-browser-guidance'
+import { quoteStartupArg } from '../../shared/tui-agent-startup-shell'
 import {
   POSIX_PATH,
+  WSL_PATH,
   WINDOW_LAUNCH_CASES
 } from '../../shared/launch-parity-window-cases.test-fixture'
 import { PLUS_LAUNCH_CASES } from '../../shared/launch-parity-plus-cases.test-fixture'
@@ -54,6 +57,10 @@ import {
 } from '../opencode/opencode-model-availability'
 import { probeOpenCodeLaunchModelContext } from '../opencode/opencode-launch-model-context'
 
+// Why: the gate would otherwise read the developer's real ~/.codex and /etc/codex.
+vi.mock('../codex/codex-user-developer-instructions', () => ({
+  codexConfigBlocksBrowserGuidance: vi.fn().mockResolvedValue(false)
+}))
 vi.mock('electron', () => import('./pty-ipc-mock-registry').then((m) => m.electronModuleMock()))
 vi.mock('fs', () => import('./pty-ipc-mock-registry').then((m) => m.fsModuleMock()))
 vi.mock('node-pty', () => import('./pty-ipc-mock-registry').then((m) => m.nodePtyModuleMock()))
@@ -272,6 +279,9 @@ describe('host lane: producer call -> runtime controller -> provider', () => {
   })
 })
 
+const CODEX_GUIDANCE_FRAGMENT = ['-c', `developer_instructions='${ORCA_BROWSER_AGENT_GUIDANCE}'`]
+  .map((arg) => quoteStartupArg(arg, 'posix'))
+  .join(' ')
 const POSIX_REPO = { kind: 'repo', path: POSIX_PATH } as const
 const WORKER = HOST_LAUNCH_CASES.find((c) => c.name.startsWith('orchestration worker'))!
 
@@ -412,6 +422,37 @@ describe('launch facts outside the tables', () => {
     ).rejects.toThrow('agent_session_conflict')
     expect(lanes.provider).not.toHaveBeenCalled()
     expect(trackMock.mock.calls.filter(([event]) => event === 'agent_error')).toHaveLength(1)
+  })
+
+  // The spawn gate runs in the window lane too: the same Codex guidance command is kept for a clean
+  // local cwd and dropped for a WSL cwd, whose Codex config this host cannot read.
+  it.each([
+    {
+      cwd: POSIX_PATH,
+      os: 'darwin' as const,
+      workspace: POSIX_REPO,
+      kept: true
+    },
+    {
+      cwd: WSL_PATH,
+      os: 'win32' as const,
+      workspace: { kind: 'repo' as const, path: WSL_PATH },
+      kept: false
+    }
+  ])('window lane: Codex guidance for cwd $cwd is kept=$kept', async (c) => {
+    setMainPlatform(c.os)
+    const lanes = startParityLanes(suite, { workspace: c.workspace })
+    const guided = `codex ${CODEX_GUIDANCE_FRAGMENT} --model x`
+    await lanes.spawnWindow({
+      cols: 80,
+      rows: 24,
+      cwd: c.cwd,
+      worktreeId: launchWorkspaceId(c.workspace),
+      command: guided,
+      telemetry: { agent_kind: 'codex' }
+    })
+    const command = recordOf(lanes.provider.mock.calls.at(-1)?.[0]).command
+    expect(command).toBe(c.kept ? guided : 'codex --model x')
   })
 
   // C5e (presentation merge): a worker asks the window to reveal its titled tab without activating it.

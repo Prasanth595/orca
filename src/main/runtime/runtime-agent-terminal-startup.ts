@@ -179,7 +179,8 @@ async function buildRuntimeAgentTerminalStartupOptions(
       isRemote,
       ...(opts.agentArgs !== undefined ? { agentArgs: opts.agentArgs } : {}),
       shell: agentLaunchQuotingShell(runtime),
-      sessionOptions: host.toSessionOptions(opts.launchPreferences)
+      sessionOptions: host.toSessionOptions(opts.launchPreferences),
+      codexGuidanceSpawnGated: true
     }),
     prompt: opts.startupPrompt ?? '',
     cwd: resolveTerminalStartupCwd(workspace.path, opts.cwd) ?? workspace.path,

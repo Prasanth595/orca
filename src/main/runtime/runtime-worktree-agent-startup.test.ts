@@ -396,3 +396,23 @@ describe('resolveWorktreeStartupDraftAgent', () => {
     await expect(resolve({})).resolves.toBeNull()
   })
 })
+
+describe('buildWorktreeStartupForAgent Orca browser guidance for Codex', () => {
+  const guidanceSettings = { ...settings, useOrcaBrowserForAgentWork: true }
+  const build = (repo: Repo) =>
+    buildWorktreeStartupForAgent({
+      repo,
+      settings: guidanceSettings,
+      agent: 'codex',
+      getLaunchRuntime: () => LINUX,
+      toSessionOptions: () => undefined
+    }).startup.command
+
+  it('includes the guidance fragment for a local repo; the spawn gate decides at launch', () => {
+    expect(build(makeRepo({}))).toContain('developer_instructions')
+  })
+
+  it('omits the guidance fragment for a remote repo', () => {
+    expect(build(makeRepo({ connectionId: 'ssh-1' }))).not.toContain('developer_instructions')
+  })
+})

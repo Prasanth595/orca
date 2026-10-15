@@ -10,6 +10,7 @@ import {
   resolveTuiAgentLaunchEnv
 } from '../../../../shared/tui-agent-launch-defaults'
 import { tuiAgentToAgentKind } from '@/lib/telemetry'
+import { orcaBrowserGuidanceLaunchOptions } from '@/lib/orca-browser-guidance-launch-options'
 import {
   requireExecutionHostPlatform,
   type ExecutionHostPlatformFact
@@ -46,7 +47,8 @@ export function buildQuickComposerStartup(input: QuickComposerStartupInput): Qui
           agentEnv: resolveTuiAgentLaunchEnv(agent, settings?.agentDefaultEnv),
           platform: requireExecutionHostPlatform(input.launchHost),
           shell: input.shell ?? undefined,
-          isRemote: input.isRemote
+          isRemote: input.isRemote,
+          ...orcaBrowserGuidanceLaunchOptions(settings, agent)
         })
   let startupPlan: AgentStartupPlan | null = null
   if (draftLaunchPlan) {
@@ -71,6 +73,7 @@ export function buildQuickComposerStartup(input: QuickComposerStartupInput): Qui
       platform: requireExecutionHostPlatform(input.launchHost),
       shell: input.shell ?? undefined,
       isRemote: input.isRemote,
+      ...orcaBrowserGuidanceLaunchOptions(settings, agent),
       allowEmptyPromptLaunch: true
     })
     if (startupPlan && draftPrompt) {

@@ -57,7 +57,8 @@ export abstract class OrcaRuntimeWithResolveMobileSessionTerminalCommand extends
         platform: launchRuntime.platform,
         shell: agentLaunchQuotingShell(launchRuntime),
         // Why: SSH runs the CLI through the relay shim (plain `orca`), so the Linux-only `orca-ide` rename must not apply.
-        isRemote: Boolean(workspace.connectionId)
+        isRemote: Boolean(workspace.connectionId),
+        codexGuidanceSpawnGated: true
       }),
       prompt: opts.agentPrompt ?? '',
       allowEmptyPromptLaunch: true

@@ -175,6 +175,10 @@
         "optionNativeTooltip": "정리된 ID를 거부하는 사이트에 대해 Electron의 내장 ID를 유지합니다. 기본 모드에서는 Google 로그인을 사용할 수 없습니다.",
         "restartRequired": "다시 시작해야 함",
         "unavailable": "브라우저 ID를 사용할 수 없습니다."
+      },
+      "agentWork": {
+        "title": "에이전트 작업에 Orca 브라우저 사용",
+        "description": "새 터미널에서 도구의 링크를 Orca 브라우저 탭으로 열고, 새로 실행하는 Claude와 Codex에는 Orca 브라우저를 사용하도록 안내합니다. 로컬 터미널에 적용됩니다."
       }
     },
     "agents": {
@@ -9554,6 +9558,15 @@
               "native": "네이티브",
               "cleaned": "정리됨",
               "restart": "다시 시작"
+            },
+            "agentWork": {
+              "agent": "에이전트",
+              "claude": "claude",
+              "codex": "codex",
+              "terminal": "터미널",
+              "links": "링크",
+              "playwright": "playwright",
+              "automation": "자동화"
             }
           },
           "use": {

@@ -1,5 +1,6 @@
 import { toast } from 'sonner'
 import { track, tuiAgentToAgentKind } from '@/lib/telemetry'
+import { orcaBrowserGuidanceLaunchOptions } from '@/lib/orca-browser-guidance-launch-options'
 import {
   buildAgentDraftLaunchPlan,
   buildAgentStartupPlan,
@@ -26,6 +27,7 @@ export function buildDirectWorkItemAgentStartupPlan(args: {
         agentCmdOverrides?: Partial<Record<TuiAgent, string>>
         agentDefaultArgs?: Partial<Record<TuiAgent, string>>
         agentDefaultEnv?: Partial<Record<TuiAgent, Record<string, string>>>
+        useOrcaBrowserForAgentWork?: boolean
       }
     | null
     | undefined
@@ -57,7 +59,8 @@ export function buildDirectWorkItemAgentStartupPlan(args: {
           platform: args.launchPlatform,
           isRemote: args.isRemote,
           agentArgs: effectiveAgentArgs,
-          agentEnv: effectiveAgentEnv
+          agentEnv: effectiveAgentEnv,
+          ...orcaBrowserGuidanceLaunchOptions(args.settings, args.agent)
         })
 
   if (draftLaunchPlan) {
@@ -86,6 +89,7 @@ export function buildDirectWorkItemAgentStartupPlan(args: {
     isRemote: args.isRemote,
     agentArgs: effectiveAgentArgs,
     agentEnv: effectiveAgentEnv,
+    ...orcaBrowserGuidanceLaunchOptions(args.settings, args.agent),
     allowEmptyPromptLaunch: true
   })
   if (startupPlan && args.promptDelivery === 'draft') {

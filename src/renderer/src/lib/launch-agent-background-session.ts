@@ -8,6 +8,7 @@ import type {
 import { tuiAgentToAgentKind } from '@/lib/telemetry'
 import { scheduleAgentBackgroundDraft } from '@/lib/agent-background-draft-delivery'
 import { requestBackgroundTerminalWorktreeMount } from '@/components/terminal/background-terminal-worktree-mount'
+import { orcaBrowserGuidanceLaunchOptions } from '@/lib/orca-browser-guidance-launch-options'
 import { resolveAgentStartupPlanInputs } from '../../../shared/agent-startup-plan-inputs'
 import { requireTuiAgentConfig } from '../../../shared/require-tui-agent-config'
 import { resolveAgentBackgroundLaunchHost } from '@/lib/agent-background-session-launch-host'
@@ -76,7 +77,9 @@ export async function launchAgentBackgroundSession(
     isRemote,
     // The window quotes by its Settings shell, which its pane's spawn also reads.
     shell: undefined,
-    extraAgentArgs: args.extraAgentArgs
+    extraAgentArgs: args.extraAgentArgs,
+    codexGuidanceSpawnGated: orcaBrowserGuidanceLaunchOptions(store.settings, agent, worktreeId)
+      .codexGuidanceSpawnGated
   })
   const trimmedPrompt = prompt?.trim() ?? ''
   const hasPrompt = trimmedPrompt.length > 0

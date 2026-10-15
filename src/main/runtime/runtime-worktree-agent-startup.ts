@@ -96,7 +96,8 @@ export async function buildWorktreeStartupForDraft(
     platform,
     shell,
     isRemote: repoIsRemote(repo),
-    ...(environment.agentArgs !== undefined ? { agentArgs: environment.agentArgs } : {})
+    ...(environment.agentArgs !== undefined ? { agentArgs: environment.agentArgs } : {}),
+    codexGuidanceSpawnGated: true
   })
   const telemetry = agentStartedTelemetry(agent, environment.launchSource)
   const draftPlan = buildAgentDraftLaunchPlan({ ...launchArgs, draft: content })
@@ -170,7 +171,8 @@ export function buildWorktreeStartupForAgent(
     isRemote: repoIsRemote(repo),
     ...(environment.agentArgs !== undefined ? { agentArgs: environment.agentArgs } : {}),
     ...(environment.extraAgentArgs ? { extraAgentArgs: environment.extraAgentArgs } : {}),
-    sessionOptions: environment.toSessionOptions(environment.launchPreferences)
+    sessionOptions: environment.toSessionOptions(environment.launchPreferences),
+    codexGuidanceSpawnGated: true
   })
   const prompt = environment.prompt ?? ''
   let startupPlan: ReturnType<typeof buildAgentStartupPlan>

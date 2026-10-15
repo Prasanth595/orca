@@ -279,6 +279,10 @@
         "optionNativeTooltip": "Conserve l'identité intégrée d'Electron pour les sites qui rejettent l'identité nettoyée. La connexion Google n'est pas disponible en mode natif.",
         "restartRequired": "Redémarrage requis",
         "unavailable": "L'identité du navigateur n'est pas disponible."
+      },
+      "agentWork": {
+        "title": "Utiliser le navigateur Orca pour le travail des agents",
+        "description": "Les nouveaux terminaux ouvrent les liens des outils dans un onglet du navigateur Orca, et les nouveaux Claude et Codex reçoivent la consigne d'utiliser le navigateur Orca. S'applique aux terminaux locaux."
       }
     },
     "agents": {
@@ -9719,6 +9723,15 @@
               "native": "natif",
               "cleaned": "nettoyé",
               "restart": "redémarrage"
+            },
+            "agentWork": {
+              "agent": "agent",
+              "claude": "claude",
+              "codex": "codex",
+              "terminal": "terminal",
+              "links": "liens",
+              "playwright": "playwright",
+              "automation": "automatisation"
             }
           },
           "use": {

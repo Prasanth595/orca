@@ -152,6 +152,27 @@ describe('orca cli browser page targeting', () => {
     expect(call[1]).not.toHaveProperty('focus')
   })
 
+  it('passes activate to tab create only when --activate is set', async () => {
+    queueFixtures(callMock, okFixture('req_create', { browserPageId: 'page-3' }))
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await main(
+      [
+        'tab',
+        'create',
+        '--url',
+        'https://example.com',
+        '--activate',
+        '--worktree',
+        'all',
+        '--json'
+      ],
+      '/tmp/not-an-orca-worktree'
+    )
+
+    expect(callMock.mock.calls[0][1]).toMatchObject({ activate: true })
+  })
+
   it('passes explicit profile ids to tab create', async () => {
     queueFixtures(callMock, okFixture('req_create', { browserPageId: 'page-3' }))
     vi.spyOn(console, 'log').mockImplementation(() => {})

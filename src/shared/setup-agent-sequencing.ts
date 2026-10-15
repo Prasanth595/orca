@@ -299,7 +299,7 @@ function encodePowerShellInvocation(script: string): string {
   return `powershell.exe -NoProfile -NonInteractive -EncodedCommand ${encodePowerShellCommand(script)}`
 }
 
-function quotePosixArg(value: string): string {
+export function quotePosixArg(value: string): string {
   if (/^[A-Za-z0-9_./:-]+$/.test(value)) {
     return value
   }

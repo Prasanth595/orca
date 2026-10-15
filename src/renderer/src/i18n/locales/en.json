@@ -343,6 +343,10 @@
         "optionNativeTooltip": "Keeps Electron's built-in identity for sites that reject the cleaned identity. Google sign-in is unavailable in Native mode.",
         "restartRequired": "Restart required",
         "unavailable": "Browser identity is unavailable."
+      },
+      "agentWork": {
+        "title": "Use Orca Browser for Agent Work",
+        "description": "New terminals open links from tools in an Orca browser tab, and new Claude and Codex launches are told to use the Orca browser. Applies to local terminals."
       }
     },
     "agents": {
@@ -9845,6 +9849,15 @@
               "native": "native",
               "cleaned": "cleaned",
               "restart": "restart"
+            },
+            "agentWork": {
+              "agent": "agent",
+              "claude": "claude",
+              "codex": "codex",
+              "terminal": "terminal",
+              "links": "links",
+              "playwright": "playwright",
+              "automation": "automation"
             }
           },
           "use": {

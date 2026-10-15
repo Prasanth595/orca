@@ -255,6 +255,63 @@ describe('registerPtyHandlers', () => {
       }
     })
 
+    describe('forceOrcaBrowserOpens', () => {
+      const build = (
+        baseEnv: Record<string, string>,
+        opts: { isWsl?: boolean; routeBrowserOpensToClient?: boolean; force?: boolean }
+      ) =>
+        buildPtyHostEnv('pty-force-browser', baseEnv, {
+          isPackaged: true,
+          userDataPath: '/tmp/orca-user-data',
+          selectedCodexHomePath: null,
+          agentStatusHooksEnabled: false,
+          isWsl: opts.isWsl,
+          routeBrowserOpensToClient: opts.routeBrowserOpensToClient,
+          forceOrcaBrowserOpens: opts.force
+        })
+
+      it('overrides inherited BROWSER from baseEnv and process.env', () => {
+        const inheritedBrowser = process.env.BROWSER
+        process.env.BROWSER = 'firefox %s'
+        try {
+          expect(build({ BROWSER: 'custom %s' }, { force: true }).BROWSER).toBe(
+            'orca tab create --activate --url %s'
+          )
+          expect(build({}, { force: true }).BROWSER).toBe('orca tab create --activate --url %s')
+        } finally {
+          if (inheritedBrowser === undefined) {
+            delete process.env.BROWSER
+          } else {
+            process.env.BROWSER = inheritedBrowser
+          }
+        }
+      })
+
+      it('uses the WSL CLI name', () => {
+        expect(build({}, { force: true, isWsl: true }).BROWSER).toBe(
+          'orca-ide tab create --activate --url %s'
+        )
+      })
+
+      it('keeps open-url when browser opens are relayed to a client', () => {
+        const env = build(
+          { BROWSER: 'custom %s' },
+          { force: true, routeBrowserOpensToClient: true }
+        )
+        expect(env.BROWSER).toBe('orca open-url --url %s')
+      })
+
+      it('does not add remote-viewer env', () => {
+        const env = build({}, { force: true })
+        expect(env.SSH_CONNECTION).toBeUndefined()
+        expect(env.ORCA_CODEX_REMOTE_VIEWER).toBeUndefined()
+      })
+
+      it('leaves BROWSER untouched when off', () => {
+        expect(build({ BROWSER: 'custom %s' }, {}).BROWSER).toBe('custom %s')
+      })
+    })
+
     describe('Codex terminal clipboard on headless runtimes (#23530)', () => {
       const buildEnv = (launchAgent: 'codex' | 'claude', routeBrowserOpensToClient: boolean) =>
         buildPtyHostEnv(

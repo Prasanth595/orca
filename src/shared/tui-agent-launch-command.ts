@@ -3,6 +3,7 @@ import {
   resolveAgentSessionOptionLaunch
 } from './agent-session-option-launch'
 import type { SessionOptionValue } from './native-chat-session-options'
+import { orcaBrowserGuidanceArgs } from './agent-browser-guidance'
 import { agentArgTerminatorIndex } from './agent-session-option-agent-args'
 import { getTuiAgentLaunchCommand, TUI_AGENT_CONFIG } from './tui-agent-config'
 import {
@@ -22,16 +23,25 @@ export type ResolvedAgentLaunchCommand =
     }
   | { ok: false; error: string }
 
-export function resolveAgentLaunchCommand(args: {
-  agent: TuiAgent
-  cmdOverrides: Partial<Record<TuiAgent, string>>
-  platform: NodeJS.Platform
-  shell: AgentStartupShell
-  agentArgs?: string | null
-  sessionOptions?: Record<string, SessionOptionValue>
-  sessionOptionsOverrideAgentArgs?: boolean
-  isRemote?: boolean
-}): ResolvedAgentLaunchCommand {
+export type OrcaBrowserGuidanceOptions = {
+  /** Advisory Orca-browser guidance for fresh local launches; never part of resume commands. */
+  orcaBrowserGuidance?: boolean
+  /** Launch spawns through an Orca host whose pty pipeline strips Codex guidance that would override config. */
+  codexGuidanceSpawnGated?: boolean
+}
+
+export function resolveAgentLaunchCommand(
+  args: {
+    agent: TuiAgent
+    cmdOverrides: Partial<Record<TuiAgent, string>>
+    platform: NodeJS.Platform
+    shell: AgentStartupShell
+    agentArgs?: string | null
+    sessionOptions?: Record<string, SessionOptionValue>
+    sessionOptionsOverrideAgentArgs?: boolean
+    isRemote?: boolean
+  } & OrcaBrowserGuidanceOptions
+): ResolvedAgentLaunchCommand {
   const override = args.cmdOverrides[args.agent]
   const command =
     override ||
@@ -77,14 +87,19 @@ export function resolveAgentLaunchCommand(args: {
       }
     }
   }
-  const optionSuffix = resolvedOptions.args.map((arg) => quoteStartupArg(arg, args.shell)).join(' ')
+  const guidanceArgs = resolveGuidanceArgs(args, override, trailingTokens.tokens)
+  if (!guidanceArgs.ok) {
+    return guidanceArgs
+  }
+  const launchArgs = [...guidanceArgs.args, ...resolvedOptions.args]
+  const optionSuffix = launchArgs.map((arg) => quoteStartupArg(arg, args.shell)).join(' ')
   const commandWithoutSessionOptions = suffix.suffix ? `${command} ${suffix.suffix}` : command
   const commandWithOptions = optionSuffix ? `${command} ${optionSuffix}` : command
   const overrideTokens = args.sessionOptionsOverrideAgentArgs
     ? insertBeforeTerminator(
         args.agent,
         removeOverriddenAgentSessionArgs(args.agent, args.sessionOptions, trailingTokens.tokens),
-        resolvedOptions.args
+        launchArgs
       )
     : []
   const commandWithOverrides = overrideTokens.length
@@ -109,4 +124,33 @@ function insertBeforeTerminator(
 ): string[] {
   const terminator = agentArgTerminatorIndex(agent, tokens)
   return [...tokens.slice(0, terminator), ...inserted, ...tokens.slice(terminator)]
+}
+
+function resolveGuidanceArgs(
+  args: OrcaBrowserGuidanceOptions & {
+    agent: TuiAgent
+    shell: AgentStartupShell
+    isRemote?: boolean
+  },
+  override: string | undefined,
+  trailingTokens: readonly string[]
+): { ok: true; args: string[] } | { ok: false; error: string } {
+  if (!args.orcaBrowserGuidance || args.isRemote) {
+    return { ok: true, args: [] }
+  }
+  let overrideTokens: readonly string[] = []
+  if (override) {
+    const tokenized = tokenizeStartupCommand(override, args.shell)
+    if (!tokenized.ok) {
+      // Why: guidance is advisory; an unparsable override is reported by its own path, not here.
+      return { ok: true, args: [] }
+    }
+    overrideTokens = tokenized.tokens
+  }
+  return {
+    ok: true,
+    args: orcaBrowserGuidanceArgs(args.agent, [...overrideTokens, ...trailingTokens], {
+      codexGuidanceSpawnGated: args.codexGuidanceSpawnGated
+    })
+  }
 }

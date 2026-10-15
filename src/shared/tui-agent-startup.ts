@@ -16,7 +16,10 @@ import { planHermesStartupQuery } from './hermes-startup-query'
 import { inlineAgentDraftFitsPlatform } from './agent-draft-platform-limit'
 import type { TuiAgent } from './tui-agent'
 import type { SessionOptionValue } from './native-chat-session-options'
-import { resolveAgentLaunchCommand } from './tui-agent-launch-command'
+import {
+  resolveAgentLaunchCommand,
+  type OrcaBrowserGuidanceOptions
+} from './tui-agent-launch-command'
 import { appliedSessionOptionProps, buildFlagPromptStartupPlan } from './flag-prompt-startup'
 
 export { buildAgentResumeStartupPlan } from './tui-agent-resume-startup'
@@ -36,21 +39,23 @@ export type AgentStartupPlan = {
   sessionOptions?: Record<string, SessionOptionValue>
 }
 
-export function buildAgentStartupPlan(args: {
-  agent: TuiAgent
-  prompt: string
-  cmdOverrides: Partial<Record<TuiAgent, string>>
-  platform: NodeJS.Platform
-  shell?: AgentStartupShell
-  allowEmptyPromptLaunch?: boolean
-  agentArgs?: string | null
-  agentEnv?: Record<string, string> | null
-  sessionOptions?: Record<string, SessionOptionValue>
-  sessionOptionsOverrideAgentArgs?: boolean
-  /** Why: SSH remotes deploy the CLI shim as plain `orca`, so the Linux-only
-   * `orca-ide` rename must be skipped for remote launches. */
-  isRemote?: boolean
-}): AgentStartupPlan | null {
+export function buildAgentStartupPlan(
+  args: {
+    agent: TuiAgent
+    prompt: string
+    cmdOverrides: Partial<Record<TuiAgent, string>>
+    platform: NodeJS.Platform
+    shell?: AgentStartupShell
+    allowEmptyPromptLaunch?: boolean
+    agentArgs?: string | null
+    agentEnv?: Record<string, string> | null
+    sessionOptions?: Record<string, SessionOptionValue>
+    sessionOptionsOverrideAgentArgs?: boolean
+    /** Why: SSH remotes deploy the CLI shim as plain `orca`, so the Linux-only
+     * `orca-ide` rename must be skipped for remote launches. */
+    isRemote?: boolean
+  } & OrcaBrowserGuidanceOptions
+): AgentStartupPlan | null {
   const { agent, prompt, cmdOverrides, platform, allowEmptyPromptLaunch = false } = args
   const shell = resolveStartupShell(platform, args.shell)
   const trimmedPrompt = prompt.trim()
@@ -64,7 +69,9 @@ export function buildAgentStartupPlan(args: {
     agentArgs: usesQuery ? null : args.agentArgs,
     sessionOptions: args.sessionOptions,
     sessionOptionsOverrideAgentArgs: args.sessionOptionsOverrideAgentArgs,
-    isRemote: args.isRemote
+    isRemote: args.isRemote,
+    orcaBrowserGuidance: args.orcaBrowserGuidance,
+    codexGuidanceSpawnGated: args.codexGuidanceSpawnGated
   })
   if (!baseCommand.ok) {
     return null
@@ -212,19 +219,21 @@ export type AgentDraftLaunchPlan = {
   sessionOptions?: Record<string, SessionOptionValue>
 }
 
-export function buildAgentDraftLaunchPlan(args: {
-  agent: TuiAgent
-  draft: string
-  cmdOverrides: Partial<Record<TuiAgent, string>>
-  platform: NodeJS.Platform
-  shell?: AgentStartupShell
-  agentArgs?: string | null
-  agentEnv?: Record<string, string> | null
-  sessionOptions?: Record<string, SessionOptionValue>
-  sessionOptionsOverrideAgentArgs?: boolean
-  /** Why: see buildAgentStartupPlan — remote launches use the plain `orca` shim. */
-  isRemote?: boolean
-}): AgentDraftLaunchPlan | null {
+export function buildAgentDraftLaunchPlan(
+  args: {
+    agent: TuiAgent
+    draft: string
+    cmdOverrides: Partial<Record<TuiAgent, string>>
+    platform: NodeJS.Platform
+    shell?: AgentStartupShell
+    agentArgs?: string | null
+    agentEnv?: Record<string, string> | null
+    sessionOptions?: Record<string, SessionOptionValue>
+    sessionOptionsOverrideAgentArgs?: boolean
+    /** Why: see buildAgentStartupPlan — remote launches use the plain `orca` shim. */
+    isRemote?: boolean
+  } & OrcaBrowserGuidanceOptions
+): AgentDraftLaunchPlan | null {
   const { agent, draft, cmdOverrides, platform } = args
   const shell = resolveStartupShell(platform, args.shell)
   const config = TUI_AGENT_CONFIG[agent]
@@ -240,7 +249,9 @@ export function buildAgentDraftLaunchPlan(args: {
     agentArgs: args.agentArgs,
     sessionOptions: args.sessionOptions,
     sessionOptionsOverrideAgentArgs: args.sessionOptionsOverrideAgentArgs,
-    isRemote: args.isRemote
+    isRemote: args.isRemote,
+    orcaBrowserGuidance: args.orcaBrowserGuidance,
+    codexGuidanceSpawnGated: args.codexGuidanceSpawnGated
   })
   if (!baseCommand.ok) {
     return null

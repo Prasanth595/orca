@@ -12,6 +12,7 @@ import { wslInteropHealthMonitor } from '../../../wsl/wsl-interop-health'
 import { piTitlebarExtensionService } from '../../../pi/titlebar-extension-service'
 import { prependOrcaCliDirToChildPath } from '../../../cli/orca-cli-child-path'
 import { getManagedWslCliDir, getWslCliCommandName } from '../../../cli/wsl-managed-cli'
+import { applyTerminalBrowserEnv } from './terminal-browser-env'
 import { stripLegacyTerminalShimEnv } from '../../../pty/legacy-terminal-shim-dir'
 import { mergePersistedWindowsPath } from '../../../pty/windows-environment-path'
 import { resolveCodexShellLaunchPreflightCommand } from '../../../pty/codex-shell-launch-preflight'
@@ -287,14 +288,12 @@ export function buildPtyHostEnv(
     resourcesPath: opts.resourcesPath
   })
 
-  if (
-    opts.routeBrowserOpensToClient === true &&
-    baseEnv.BROWSER === undefined &&
-    process.env.BROWSER === undefined
-  ) {
-    const cliCommand = opts.isWsl ? getWslCliCommandName(opts.isPackaged) : 'orca'
-    baseEnv.BROWSER = `${cliCommand} open-url --url %s`
-  }
+  applyTerminalBrowserEnv(baseEnv, {
+    isWsl: opts.isWsl === true,
+    isPackaged: opts.isPackaged,
+    routeBrowserOpensToClient: opts.routeBrowserOpensToClient === true,
+    forceOrcaBrowserOpens: opts.forceOrcaBrowserOpens === true
+  })
   // Why the browser-relay flag: both mean a headless runtime whose viewer is another machine.
   applyCodexRemoteViewerClipboardEnv(baseEnv, {
     launchAgent: opts.launchAgent,

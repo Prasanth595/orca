@@ -35,7 +35,7 @@ ORCA wait --selector <css> --json
 ORCA wait --load networkidle --json
 ORCA eval --expression <js> --json
 ORCA tab list --json
-ORCA tab create --url <url> --json
+ORCA tab create --url <url> [--activate] --json
 ORCA tab switch --index <n> --json
 ORCA tab close --index <n> --json
 ORCA cookie get --json
