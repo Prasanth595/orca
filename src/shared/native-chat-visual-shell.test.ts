@@ -117,7 +117,10 @@ describe('buildNativeChatVisualDocument', () => {
     expect(document).toContain(`"scroll":"${NATIVE_CHAT_VISUAL_READER_SCROLL_TYPE}"`)
     expect(document).toContain("send({ type: C.scroll, input: 'wheel', deltaY: event.deltaY })")
     expect(document).toContain("send({ type: C.scroll, input: 'touch' })")
-    expect(document.match(/\{ capture: true, passive: true \}/g)).toHaveLength(2)
+    expect(document).toContain(
+      'if (event.defaultPrevented || event.ctrlKey || !event.deltaY) return'
+    )
+    expect(document.match(/\}, \{ passive: true \}\)/g)).toHaveLength(2)
   })
 })
 

@@ -14,7 +14,11 @@ type Shell = {
   window: Window
   byId: (id: string) => ShellElement
   root: ShellElement
-  wheel: (target: ShellElement, deltaY: number, init?: { ctrlKey?: boolean }) => void
+  wheel: (
+    target: ShellElement,
+    deltaY: number,
+    init?: { ctrlKey?: boolean; cancelable?: boolean }
+  ) => void
 }
 
 /** Runs the shell's bootstrap in a window of its own, with the host being that same window. */
@@ -104,6 +108,17 @@ describe('visual shell reader scroll', () => {
     expect(shell.sent).toEqual([])
     scrollable(shell.root, 0, 3000)
     shell.wheel(shell.byId('text'), -10)
+    expect(shell.sent).toHaveLength(1)
+  })
+
+  it('leaves a wheel the visual cancelled with the visual, as a chart zoom does', () => {
+    const shell = bootShell('<body><div id="chart">chart</div></body>')
+    scrollable(shell.root, 0, 100)
+    const chart = shell.byId('chart')
+    chart.addEventListener('wheel', (event) => event.preventDefault())
+    shell.wheel(chart, -10, { cancelable: true })
+    expect(shell.sent).toEqual([])
+    chart.dispatchEvent(new shell.window.WheelEvent('wheel', { bubbles: true, deltaY: -10 }))
     expect(shell.sent).toHaveLength(1)
   })
 

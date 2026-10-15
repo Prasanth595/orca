@@ -163,7 +163,8 @@ window.addEventListener('message', function (event) {
   document.documentElement.classList.toggle('dark', data.colorScheme === 'dark')
 })
 // Scrolling: a wheel nothing in the page can take chains on to the transcript, which never sees
-// the wheel itself, so the host hears of it here. A touch drag reports as it moves.
+// the wheel itself, so the host hears of it here. Heard at the window after the page's own handlers,
+// so a wheel the visual cancelled (a chart zoom) stays with the visual. A touch drag reports as it moves.
 function scrollsWithin(node, direction) {
   for (; node && node.nodeType === 1; node = node.parentNode) {
     var style = getComputedStyle(node)
@@ -174,11 +175,11 @@ function scrollsWithin(node, direction) {
   return false
 }
 window.addEventListener('wheel', function (event) {
-  if (event.ctrlKey || !event.deltaY) return
+  if (event.defaultPrevented || event.ctrlKey || !event.deltaY) return
   var target = event.target && event.target.nodeType === 1 ? event.target : document.documentElement
   if (!scrollsWithin(target, event.deltaY)) send({ type: C.scroll, input: 'wheel', deltaY: event.deltaY })
-}, { capture: true, passive: true })
-window.addEventListener('touchmove', function () { send({ type: C.scroll, input: 'touch' }) }, { capture: true, passive: true })
+}, { passive: true })
+window.addEventListener('touchmove', function () { send({ type: C.scroll, input: 'touch' }) }, { passive: true })
 // Height: report the document's own height whenever layout changes; the host fits the frame.
 var reported = -1
 var pending = false
