@@ -1,13 +1,13 @@
 /** Durable single-writer session records and their operation ledger, as rows in the host's chat
  *  journal database. */
 
+import { backfillAgentSessionPermissionModes } from './agent-session-permission-backfill'
 import { agentSessionRefusalError } from '../../shared/agent-session-wire-refusals'
 import { createAgentSessionConversationReceipts } from './agent-session-conversation-receipts'
 import { commitConversationCommandRecord } from './agent-session-conversation-command-record'
 import { pinAgentSessionRecordLaunchDirectory } from './agent-session-record-launch-directory'
 import {
   agentSessionOperationKey,
-  type AgentSessionOperationClaim,
   type AgentSessionOperationDecision,
   type AgentSessionOperationRow
 } from '../../shared/agent-session-operation-ledger'
@@ -71,6 +71,7 @@ import {
 } from './agent-session-tab-table'
 import type { JournalHostDatabase } from '../native-chat/agent-session-journal/journal-host-database'
 import type { JournalOperationReceipt } from '../native-chat/agent-session-journal/journal-row-writer'
+import { agentSessionOperationOutcomeReceipt } from './agent-session-operation-receipt'
 import { loadAgentSessionStoreRows } from './agent-session-record-rows'
 import { AgentSessionStoreTransactions } from './agent-session-store-transactions'
 import { createAgentSessionFoundingStore } from './agent-session-founding-store'
@@ -79,8 +80,6 @@ import {
   type CompareAndSetConversationName,
   setAgentSessionRecordConversationName
 } from './agent-session-record-conversation-name'
-
-type AgentSessionOperationSettlement = Parameters<typeof settleAgentSessionOperationInto>[1]
 
 export const AGENT_SESSION_LEASE_TTL_MS = 30_000,
   AGENT_SESSION_LEASE_RENEW_INTERVAL_MS = 10_000
@@ -104,7 +103,7 @@ export class AgentSessionRecordStore {
     hostId: string
   }): AgentSessionRecordStore {
     const rows = loadAgentSessionStoreRows(args.journalDatabase.db)
-    const transactions = new AgentSessionStoreTransactions(args.journalDatabase, rows)
+    const transactions = new AgentSessionStoreTransactions(args.journalDatabase, rows, args.hostId)
     return new AgentSessionRecordStore(transactions, args.hostId)
   }
 
@@ -117,10 +116,16 @@ export class AgentSessionRecordStore {
     return this.transactions.readOnly
   }
 
+  backfillChatPermissionModes = (ranWithFullAccess: (provider: string) => boolean): Promise<void> =>
+    backfillAgentSessionPermissionModes(this.transactions, ranWithFullAccess)
+
   getRecord = (sessionId: string): AgentSessionRecord | null =>
     this.state.records.get(sessionId) ?? null
 
   listRecords = (): AgentSessionRecord[] => [...this.state.records.values()]
+
+  /** The runtimes this one replaced for a chat, as found at load; absent for a chat it began. */
+  replacedRuntime = (sessionId: string) => this.transactions.replacedRuntimes.get(sessionId)
 
   /** Every chat this host holds a row for, readable or not. */
   listHeldSessionIds = (): string[] => heldAgentSessionIds(this.state)
@@ -183,9 +188,7 @@ export class AgentSessionRecordStore {
     )
 
   /** A record this build cannot validate: readable as present, never grantable as a writer. */
-  isSessionUnreadable(sessionId: string): boolean {
-    return this.state.unreadableRecords.has(sessionId)
-  }
+  isSessionUnreadable = (sessionId: string): boolean => this.state.unreadableRecords.has(sessionId)
 
   listOperationRows = (): AgentSessionOperationRow[] => [...this.state.operations.values()]
 
@@ -295,10 +298,7 @@ export class AgentSessionRecordStore {
   /** Durable compare-and-swap for the right to run an admitted operation's effect: two replays both
    *  read `pending`, and only a conditional swap tells the one that may run from the one that must
    *  replay. */
-  claimOperation = (args: {
-    callerKey: string
-    operationId: string
-  }): Promise<AgentSessionOperationClaim> =>
+  claimOperation = (args: Parameters<typeof claimAgentSessionOperationInto>[1]) =>
     this.transact((draft) => claimAgentSessionOperationInto(draft, args))
 
   /** Admission and, when `claimAfter` allows, the claim: one durable write before the effect. */
@@ -307,13 +307,20 @@ export class AgentSessionRecordStore {
     claimAfter: ClaimAfterAdmission
   ) => this.transact((draft) => admitAndClaimAgentSessionOperationInto(draft, args, claimAfter))
 
-  recordOperationOutcome = (args: AgentSessionOperationSettlement): Promise<void> =>
-    this.transact((draft) => settleAgentSessionOperationInto(draft, args))
+  recordOperationOutcome = (
+    args: Parameters<typeof settleAgentSessionOperationInto>[1]
+  ): Promise<void> => this.transact((draft) => settleAgentSessionOperationInto(draft, args))
 
-  /** The same settlement, committed by the journal write that makes it true. It changes only the
-   *  ledger, so no record listener is owed. */
-  operationOutcomeReceipt = (args: AgentSessionOperationSettlement): JournalOperationReceipt =>
-    this.transactions.receipt((draft) => settleAgentSessionOperationInto(draft, args))
+  /** That settlement, or an accepted row inserted if absent, committed by the journal write that
+   *  makes it true. It changes only the ledger, so no record listener is owed. */
+  operationOutcomeReceipt = (args: Parameters<typeof agentSessionOperationOutcomeReceipt>[1]) =>
+    agentSessionOperationOutcomeReceipt(this.transactions, args)
+
+  commitOperationReceipt = (receipt: JournalOperationReceipt) =>
+    this.transactions.commitReceipt(receipt)
+
+  readCommandReceipt = (...args: Parameters<AgentSessionStoreTransactions['readCommandReceipt']>) =>
+    this.transactions.readCommandReceipt(...args)
 
   replaceSessionOptions = (args: AgentSessionOptionsReplacement): Promise<AgentSessionRecord> =>
     this.mutate(args.sessionId, (record) => replaceAgentSessionRecordOptions(record, args))

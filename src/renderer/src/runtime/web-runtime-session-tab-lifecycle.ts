@@ -4,7 +4,7 @@ import type {
   RuntimeSessionTabCloseReason
 } from '../../../shared/runtime-types'
 import { useAppStore } from '../store'
-import { hasRuntimeRpcErrorCode, unwrapRuntimeRpcResult } from './runtime-rpc-client'
+import { hasRuntimeRpcErrorCode, unwrapRuntimeRpcResult } from './runtime-rpc-result'
 import { toRuntimeWorktreeSelector } from './runtime-worktree-selector'
 import {
   clearWebSessionCloseIntent,
@@ -14,11 +14,12 @@ import {
   rememberUserEmptiedWorktree
 } from './web-session-close-intent'
 import {
+  clearWebSessionFocusIntent,
   clearWebSessionFocusIntentIfMatches,
   recordWebSessionFocusIntent
 } from './web-session-focus-intent'
 import { WEB_SESSION_TAB_RPC_TIMEOUT_MS } from './web-session-tab-rpc-timeout'
-import { isWebTerminalSurfaceTabId, toHostSessionTabId } from './web-terminal-surface-id'
+import { isWebTerminalSurfaceTabId, toHostSessionTabId } from '../../../shared/terminal-surface-id'
 import {
   captureRuntimeEnvironmentCall,
   captureWebSessionIntentOwner,
@@ -30,8 +31,34 @@ export async function activateWebRuntimeSessionTab(args: {
   worktreeId: string
   tabId: string
   environmentId?: string | null
+  /** The split pane the user picked; without it the host and focus intent pick the first. */
+  leafId?: string | null
+  /** The local tab visible at the gesture; later navigation away cancels the deferred focus. */
+  expectedCurrentLocalTabId?: string | null
 }): Promise<boolean> {
-  return (await callWebRuntimeSessionTabMethod('session.tabs.activate', args)) === 'applied'
+  // COMPAT(legacy-relay-bridge, revisit 2027-01-15): an older relay runs a pane in this tab, and
+  // activating that pane on the managed server would start a second shell there that no tab shows.
+  // A click names no leaf, so the pane on screen does; the server would otherwise pick the first.
+  // Loaded lazily: the module subscribes to main's pane list on import, and terminal panes load it.
+  const { hasLegacyRelayBridgedPane, isLegacyRelayBridgedTab } =
+    await import('../components/terminal-pane/legacy-relay-bridge-panes')
+  const leafId =
+    args.leafId ??
+    (hasLegacyRelayBridgedPane(args.tabId)
+      ? useAppStore.getState().terminalLayoutsByTabId?.[args.tabId]?.activeLeafId
+      : null)
+  if (isLegacyRelayBridgedTab(args.tabId, leafId)) {
+    // This gesture still supersedes an earlier tab's pending focus, as recording its own would.
+    const environmentId = resolveTabEnvironmentId(args.environmentId)
+    if (environmentId) {
+      clearWebSessionFocusIntent(captureWebSessionIntentOwner(environmentId), args.worktreeId)
+    }
+    return true
+  }
+  return (
+    (await callWebRuntimeSessionTabMethod('session.tabs.activate', { ...args, leafId })) ===
+    'applied'
+  )
 }
 
 /**
@@ -53,6 +80,14 @@ export async function closeWebRuntimeSessionTab(args: {
   return callWebRuntimeSessionTabMethod('session.tabs.close', args)
 }
 
+function resolveTabEnvironmentId(environmentId: string | null | undefined): string | null {
+  return (
+    environmentId?.trim() ??
+    useAppStore.getState().settings?.activeRuntimeEnvironmentId?.trim() ??
+    null
+  )
+}
+
 async function callWebRuntimeSessionTabMethod(
   method: 'session.tabs.activate' | 'session.tabs.close',
   args: {
@@ -62,12 +97,11 @@ async function callWebRuntimeSessionTabMethod(
     reason?: RuntimeSessionTabCloseReason
     publicationEpoch?: string | null
     terminalHandle?: string | null
+    leafId?: string | null
+    expectedCurrentLocalTabId?: string | null
   }
 ): Promise<WebRuntimeSessionTabCloseOutcome> {
-  const environmentId =
-    args.environmentId?.trim() ??
-    useAppStore.getState().settings?.activeRuntimeEnvironmentId?.trim() ??
-    null
+  const environmentId = resolveTabEnvironmentId(args.environmentId)
   if (!environmentId || !isWebRuntimeSessionActive(environmentId)) {
     return 'failed'
   }
@@ -81,7 +115,8 @@ async function callWebRuntimeSessionTabMethod(
   if (isLifecycleClose && (!args.publicationEpoch || !args.terminalHandle)) {
     // Why: missing host-generation or terminal-incarnation evidence means keep;
     // a tab id alone can be stale or reused after reconnect.
-    const { acceptReplayedWebSessionTabsSnapshot } = await import('./web-session-tabs-sync')
+    const { acceptReplayedWebSessionTabsSnapshot } =
+      await import('./web-session-tabs-sync/tracking-lifecycle')
     acceptReplayedWebSessionTabsSnapshot(environmentId, args.worktreeId)
     await refreshWebRuntimeSessionTabsSnapshot(environmentId, args.worktreeId)
     console.warn('[web-runtime-session] suppressed lifecycle close without incarnation evidence', {
@@ -98,7 +133,8 @@ async function callWebRuntimeSessionTabMethod(
   }
 
   try {
-    const { resolveHostSessionTabIdForWebSessionTab } = await import('./web-session-tabs-sync')
+    const { resolveHostSessionTabIdForWebSessionTab } =
+      await import('./web-session-tabs-sync/tracking-mappings')
     const state = useAppStore.getState()
     const hostTabId =
       resolveHostSessionTabIdForWebSessionTab(state, {
@@ -128,7 +164,13 @@ async function callWebRuntimeSessionTabMethod(
       }
     } else {
       activationHostTabId = hostTabId
-      recordWebSessionFocusIntent(intentOwner, args.worktreeId, hostTabId)
+      recordWebSessionFocusIntent(
+        intentOwner,
+        args.worktreeId,
+        hostTabId,
+        args.leafId ?? undefined,
+        args.expectedCurrentLocalTabId
+      )
     }
     const response = await callEnvironment({
       // Why: old hosts cannot route this additive method, so a generation
@@ -139,6 +181,7 @@ async function callWebRuntimeSessionTabMethod(
         tabId: hostTabId,
         ...(method === 'session.tabs.activate'
           ? {
+              ...(args.leafId ? { leafId: args.leafId } : {}),
               // Why: the additive navigation target protects new hosts while notifyClients:false protects old hosts.
               notifyClients: false,
               navigation: 'caller' as const,
@@ -170,7 +213,8 @@ async function callWebRuntimeSessionTabMethod(
         clearWebSessionCloseIntent(intentOwner, args.worktreeId, hostTabId)
         // Why: the live PTY means this close did not empty the workspace.
         forgetUserEmptiedWorktree(args.worktreeId)
-        const { acceptReplayedWebSessionTabsSnapshot } = await import('./web-session-tabs-sync')
+        const { acceptReplayedWebSessionTabsSnapshot } =
+          await import('./web-session-tabs-sync/tracking-lifecycle')
         acceptReplayedWebSessionTabsSnapshot(environmentId, args.worktreeId)
       }
       await refreshWebRuntimeSessionTabsSnapshot(environmentId, args.worktreeId, {
@@ -203,7 +247,8 @@ async function callWebRuntimeSessionTabMethod(
       forgetUserEmptiedWorktree(args.worktreeId)
     }
     if (isLifecycleClose) {
-      const { acceptReplayedWebSessionTabsSnapshot } = await import('./web-session-tabs-sync')
+      const { acceptReplayedWebSessionTabsSnapshot } =
+        await import('./web-session-tabs-sync/tracking-lifecycle')
       acceptReplayedWebSessionTabsSnapshot(environmentId, args.worktreeId)
       await refreshWebRuntimeSessionTabsSnapshot(environmentId, args.worktreeId, {
         expectedEnvironmentPairingRevision: intentOwner.pairingRevision

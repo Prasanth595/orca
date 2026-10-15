@@ -40,22 +40,28 @@ import {
   ACP_STOP_GRACE_MS,
   type AcpStructuredSessionAdapterDeps
 } from './acp-structured-session-adapter-deps'
-import { writeAcpSessionOption } from './acp-structured-options'
+import { readAcpLiveOptions, writeAcpSessionOption } from './acp-structured-options'
 import { readAcpRecoveryHistory } from './acp-recovery-history'
-import { withLiveCatalogListing } from '../native-chat/agent-model-catalog/agent-model-catalog-store'
 import { stopAcpChildren, acpChildStopCapabilities } from './acp-structured-child-stop'
+import { AcpConversationCopies } from './acp-conversation-copies'
 
 export class AcpStructuredSessionAdapter implements StructuredAgentSessionAdapter {
   /** Live children, and ones whose exit is not yet proven; a proven exit removes its entry. */
   private readonly sessions = new Map<string, AcpStructuredSession>()
   private readonly starts = new ProviderAcquisitionStarts<AcpStructuredConnection>()
+  private readonly copies: AcpConversationCopies
 
-  constructor(private readonly deps: AcpStructuredSessionAdapterDeps) {}
+  constructor(private readonly deps: AcpStructuredSessionAdapterDeps) {
+    this.copies = new AcpConversationCopies(deps)
+  }
 
   /** Restart recovery's evidence; null for an agent whose own store Orca cannot read. */
-  providerHistoryWindow: NonNullable<StructuredAgentSessionAdapter['providerHistoryWindow']> = ({
-    identity
-  }) => readAcpRecoveryHistory(this.deps, identity)
+  providerHistoryWindow: NonNullable<StructuredAgentSessionAdapter['providerHistoryWindow']> = (
+    input
+  ) => readAcpRecoveryHistory(this.deps, input.identity)
+
+  copyConversation: NonNullable<StructuredAgentSessionAdapter['copyConversation']> = (input) =>
+    this.copies.copy(input)
 
   // The child runs on this runtime's own machine; Windows needs process start-time proof.
   supportsLocation = (location: AgentSessionExecutionLocation): boolean =>
@@ -105,7 +111,8 @@ export class AcpStructuredSessionAdapter implements StructuredAgentSessionAdapte
         throw new Error('closed while starting')
       }
       this.sessions.set(sessionId, session)
-      return acquisition
+      // Its saved picks restored: what it runs now is what its start resolved.
+      return { ...acquisition, catalogListing: session.options.startListing() }
     } catch (error) {
       const { connection } = attempt
       if (connection && error instanceof AcpConnectionClosedError) {
@@ -176,9 +183,9 @@ export class AcpStructuredSessionAdapter implements StructuredAgentSessionAdapte
 
   cancelTurn: StructuredAgentSessionAdapter['cancelTurn'] = async (input) => {
     const session = this.live(input.sessionId)
-    // The Stop ends the child unless it is declined here. Claude's rule: a Stop naming an ended turn
-    // while another one is live stops nothing; in the gap before a follow-up's turn opens, which no
-    // client can name, it stops what is in flight.
+    // The Stop ends the child unless it is declined here. The host forwards a named Stop only for
+    // the live turn or one with no journal row yet; for the latter, in the gap before a follow-up's
+    // turn opens, it stops what is in flight. A named turn other than the live one stops nothing.
     const liveTurnId = input.resolveLiveTurnId?.() ?? session.lane.openTurnId
     if (input.turnId !== undefined && liveTurnId !== null && input.turnId !== liveTurnId) {
       return { cancelled: false, refusal: { turnNotRunning: true } }
@@ -225,10 +232,8 @@ export class AcpStructuredSessionAdapter implements StructuredAgentSessionAdapte
     return session.options.reported()
   }
 
-  readOptions = async (input: { sessionId: string; fence: number }) => {
-    const { options } = this.live(input.sessionId)
-    return withLiveCatalogListing(options.read(), options.configuredDefault())
-  }
+  readOptions = async (input: { sessionId: string; fence: number }) =>
+    readAcpLiveOptions(this.live(input.sessionId))
 
   readOptionRestoreFailures = (sessionId: string): readonly string[] =>
     this.sessions.get(sessionId)?.restoreSkipped ?? []
@@ -237,7 +242,7 @@ export class AcpStructuredSessionAdapter implements StructuredAgentSessionAdapte
 
   stopBackgroundTasks: NonNullable<StructuredAgentSessionAdapter['stopBackgroundTasks']> = (
     input
-  ) => stopAcpChildren(this.live(input.sessionId), input.fence, input.taskIds, () => this.now())
+  ) => stopAcpChildren(this.live(input.sessionId), input.fence, input.taskIds, input.acknowledge)
 
   backgroundTaskStops: NonNullable<StructuredAgentSessionAdapter['backgroundTaskStops']> = (
     sessionId
@@ -250,10 +255,11 @@ export class AcpStructuredSessionAdapter implements StructuredAgentSessionAdapte
   forceCloseSession = (sessionId: string): Promise<boolean> => this.stop(sessionId, false)
 
   async closeAll(): Promise<void> {
+    const copiedChildren = this.copies.closeAll()
     const ids = new Set([...this.sessions.keys(), ...this.starts.failedSessionIds()])
     // A start still under way is the host's to abort: its teardown does, before this runs.
     const proven = await Promise.all([...ids].map((sessionId) => this.stop(sessionId, true)))
-    if (proven.includes(false)) {
+    if (!(await copiedChildren) || proven.includes(false)) {
       throw new Error('an ACP agent child could not be proven stopped')
     }
   }
@@ -332,13 +338,14 @@ export class AcpStructuredSessionAdapter implements StructuredAgentSessionAdapte
     void this.stop(session.sessionId, false)
   }
 
+  /** Only for a send refused before its prompt was written. */
   private rejected(
     session: AcpStructuredSession,
     kind: 'providerExited'
   ): AgentSessionDispatchOutcome {
     return {
       state: 'rejected',
-      ...agentSessionFailureWords(agentSessionFailureFact(kind), {
+      ...agentSessionFailureWords(agentSessionFailureFact(kind, { neverReachedAgent: true }), {
         surface: 'rejection',
         agentName: acpAgentName(session.spec.agent)
       })
@@ -353,11 +360,6 @@ export class AcpStructuredSessionAdapter implements StructuredAgentSessionAdapte
     return session
   }
 
-  private stopGraceMs(): number {
-    return this.deps.stopGraceMs ?? ACP_STOP_GRACE_MS
-  }
-
-  private now(): number {
-    return (this.deps.now ?? Date.now)()
-  }
+  private readonly stopGraceMs = (): number => this.deps.stopGraceMs ?? ACP_STOP_GRACE_MS
+  private readonly now = (): number => (this.deps.now ?? Date.now)()
 }
