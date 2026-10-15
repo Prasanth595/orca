@@ -34,20 +34,20 @@ export default function NativeChatSettingsScreen({ onBack }: { onBack?: () => vo
         contentContainerStyle={{ paddingBottom: insets.bottom + spacing.lg }}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.groupHeading}>DEFAULT VIEW</Text>
+        <Text style={styles.groupHeading}>TERMINAL SESSIONS</Text>
         <Text style={styles.groupDescription}>
-          Choose how supported agent sessions (Claude, Codex, and other chat-capable agents) open on
-          this device. Terminal shows the raw CLI; Chat UI shows a chat interface like the desktop
-          app. You can still switch any individual session from its long-press menu.
+          Choose how existing terminal-based agent sessions open on this device. You can switch
+          their view from the tab menu. New supported agents created here open as Chat with model
+          and session controls.
         </Text>
         <View style={[styles.section, styles.sectionTopGap]}>
           <View style={styles.row}>
             <View style={styles.rowContent}>
-              <Text style={styles.rowLabel}>Open sessions in Chat UI</Text>
+              <Text style={styles.rowLabel}>Show terminal sessions as chat</Text>
               <Text style={styles.rowSublabel}>{chatDefault ? 'On' : 'Off'}</Text>
             </View>
             <Switch
-              accessibilityLabel="Open sessions in Chat UI"
+              accessibilityLabel="Show terminal sessions as chat"
               value={chatDefault}
               onValueChange={(next) => setDefaultView(next ? 'chat' : 'terminal')}
               trackColor={{ false: colors.bgRaised, true: colors.textSecondary }}
