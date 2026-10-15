@@ -50,6 +50,9 @@ export function normalizeLoadedGlobalSettings(
     migratePrimarySelectionPlatformDefault,
     stampPrimarySelectionTerminalDefaults,
     migratedDisabledTuiAgents,
+    migratedOrchestrationDefaultWorkerAgent,
+    migratedOrchestrationWorkerModels,
+    migratedOrchestrationWorkerEfforts,
     migratedAgentYoloDefaults,
     migratedWindowsRuntimeDefault,
     migratedLocalAccountRuntime,
@@ -152,6 +155,9 @@ export function normalizeLoadedGlobalSettings(
       parsed.settings?.terminalShortcutPolicy
     ),
     disabledTuiAgents: migratedDisabledTuiAgents,
+    orchestrationDefaultWorkerAgent: migratedOrchestrationDefaultWorkerAgent,
+    orchestrationWorkerModels: migratedOrchestrationWorkerModels,
+    orchestrationWorkerEfforts: migratedOrchestrationWorkerEfforts,
     ...migratedAgentYoloDefaults,
     claudeAgentTeamsDefaultDisabledMigrated: true,
     openInApplications: normalizeOpenInApplications(parsed.settings?.openInApplications, {

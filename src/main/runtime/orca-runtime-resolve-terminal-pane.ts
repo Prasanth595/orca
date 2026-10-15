@@ -1,6 +1,6 @@
 // @ts-nocheck -- mechanically split from OrcaRuntimeService; behavior is covered by AST equivalence and characterization tests.
 import type { OrcaRuntimeWithCreateTerminal } from './orca-runtime-create-terminal'
-import { OrcaRuntimeWithGetTerminalInteractiveWait } from './terminal/wait/terminal-interactive-wait'
+import { OrcaRuntimeWithGetOrchestrationWorkerLaunchDefaults } from './orca-runtime-get-orchestration-worker-launch-defaults'
 import type {
   RuntimeTerminalRead,
   RuntimeTerminalResolvePane,
@@ -16,7 +16,7 @@ import {
 import { getTerminalState } from './terminal-wait-results'
 import { readStructuredWorkerTerminal } from './structured-worker-terminal-read'
 
-export abstract class OrcaRuntimeWithResolveTerminalPane extends OrcaRuntimeWithGetTerminalInteractiveWait {
+export abstract class OrcaRuntimeWithResolveTerminalPane extends OrcaRuntimeWithGetOrchestrationWorkerLaunchDefaults {
   protected abstract assertLiveTerminalHandleTargetsPty(handle: string, expectedPtyId: string): void
   abstract createTerminal(
     ...args: Parameters<OrcaRuntimeWithCreateTerminal['createTerminal']>
