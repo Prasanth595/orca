@@ -339,6 +339,12 @@
           }
         }
       },
+      "clickup": {
+        "filters": {
+          "allSprints": "All sprints",
+          "sprint": "Sprint"
+        }
+      },
       "contextual": {
         "tours": {
           "ContextualTourControl": {
@@ -460,6 +466,9 @@
             "c11dda000b": "Approved",
             "d8401975b1": "approved",
             "f27676a92c": "status:"
+          },
+          "ConnectIntegrationsList": {
+            "code_host_tasks_summary": "issues available as tasks · add Linear or Jira if your team plans work there"
           },
           "FeatureWallSetupChecklist": {
             "b1f1981c5e": "See tasks"
@@ -1977,6 +1986,7 @@
           "c7591b6014": "repo"
         },
         "WorkspaceKanbanSettingsMenu": {
+          "4c2eaa78cc": "Moving a linked workspace updates its Linear issue status when a matching workflow state exists.",
           "b45b350eb0": "Move {{value0}} left"
         },
         "WorkspaceStatusAppearancePopover": {
@@ -2911,8 +2921,8 @@
         "notDeliveredSendAgain": "This message was not delivered. Send it again to continue.",
         "notSignedIn": "{{agent}} is not signed in.",
         "previousExitUnverifiable": "Couldn't stop {{agent}} from before.",
-        "providerExitedRejection": "{{agent}} stopped before this message was sent.",
         "providerExitedAnswer": "{{agent}} has stopped, so your answer was not sent. Send a message to continue.",
+        "providerExitedRejection": "{{agent}} stopped before this message was sent.",
         "providerExitedRow": "{{agent}} stopped while this response was in progress. You can continue in this conversation.",
         "providerRateLimited": "{{agent}} is rate-limited and retrying.",
         "providerRejected": "{{agent}} didn't accept this message.",
