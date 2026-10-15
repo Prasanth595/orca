@@ -1657,7 +1657,7 @@ exports[`native-chat launch parity > omp floating fresh 1`] = `
     },
   },
   "launchPosture": {
-    "fullAccess": false,
+    "fullAccess": true,
   },
   "pinnedLaunchDirectories": [
     "<root>/floating",
@@ -1728,7 +1728,7 @@ exports[`native-chat launch parity > omp floating resumed 1`] = `
     },
   },
   "launchPosture": {
-    "fullAccess": false,
+    "fullAccess": true,
   },
   "pinnedLaunchDirectories": [],
 }
@@ -1797,7 +1797,7 @@ exports[`native-chat launch parity > omp worktree fresh 1`] = `
     },
   },
   "launchPosture": {
-    "fullAccess": false,
+    "fullAccess": true,
   },
   "pinnedLaunchDirectories": [],
 }
@@ -1932,7 +1932,7 @@ exports[`native-chat launch parity > omp worktree fresh worker 1`] = `
     },
   },
   "launchPosture": {
-    "fullAccess": false,
+    "fullAccess": true,
   },
   "pinnedLaunchDirectories": [],
 }
@@ -2001,7 +2001,7 @@ exports[`native-chat launch parity > omp worktree resumed 1`] = `
     },
   },
   "launchPosture": {
-    "fullAccess": false,
+    "fullAccess": true,
   },
   "pinnedLaunchDirectories": [],
 }
