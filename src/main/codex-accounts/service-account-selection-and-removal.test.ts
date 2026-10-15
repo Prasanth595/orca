@@ -141,6 +141,93 @@ describe('CodexAccountService config sync', () => {
     expect(existsSync(join(testState.userDataDir, 'codex-runtime-home', 'active'))).toBe(false)
   })
 
+  it('automatic selection uses the normal launch selection and preserves running account credentials', async () => {
+    const firstAuth = createCodexAuthJson('one@example.com', 'acct-one', 'one')
+    const secondAuth = createCodexAuthJson('two@example.com', 'acct-two', 'two')
+    const firstManagedHomePath = createManagedHome(
+      testState.userDataDir,
+      'account-1',
+      '',
+      firstAuth
+    )
+    const secondManagedHomePath = createManagedHome(
+      testState.userDataDir,
+      'account-2',
+      '',
+      secondAuth
+    )
+    const settings = createSettings({
+      codexManagedAccounts: [
+        {
+          id: 'account-1',
+          email: 'one@example.com',
+          managedHomePath: firstManagedHomePath,
+          providerAccountId: 'acct-one',
+          workspaceLabel: null,
+          workspaceAccountId: 'acct-one',
+          createdAt: 1,
+          updatedAt: 1,
+          lastAuthenticatedAt: 1
+        },
+        {
+          id: 'account-2',
+          email: 'two@example.com',
+          managedHomePath: secondManagedHomePath,
+          providerAccountId: 'acct-two',
+          workspaceLabel: null,
+          workspaceAccountId: 'acct-two',
+          createdAt: 2,
+          updatedAt: 2,
+          lastAuthenticatedAt: 2
+        }
+      ],
+      activeCodexManagedAccountId: 'account-1'
+    })
+    const store = createStore(settings)
+    const rateLimits = createRateLimits()
+
+    const { CodexRuntimeHomeService } = await import('./runtime-home-service')
+    const runtimeHome = new CodexRuntimeHomeService(
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: The fixture implements every store method runtime homes use.
+      store as never
+    )
+    const runtimeAuthPath = join(testState.userDataDir, 'codex-runtime-home', 'home', 'auth.json')
+    expect(existsSync(runtimeAuthPath)).toBe(false)
+
+    const { CodexAccountService } = await import('./service')
+    const service = new CodexAccountService(
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: The fixture implements every store method this service uses.
+      store as never,
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: The fixture implements all account refresh operations.
+      rateLimits as never,
+      runtimeHome
+    )
+
+    const queued = service.autoSelectAccountForTarget('account-2', { runtime: 'host' }, () => true)
+    await service.selectAccount('account-1')
+    expect(await queued).toBe(false)
+    expect(store.getSettings().activeCodexManagedAccountId).toBe('account-1')
+    expect(
+      await service.autoSelectAccountForTarget('account-2', { runtime: 'host' }, () => false)
+    ).toBe(false)
+
+    expect(
+      await service.autoSelectAccountForTarget('account-2', { runtime: 'host' }, () => true)
+    ).toBe(true)
+    expect(store.getSettings().activeCodexManagedAccountId).toBe('account-2')
+    expect(rateLimits.refreshForCodexAccountChange).toHaveBeenCalledWith('account-1', {
+      runtime: 'host'
+    })
+
+    // Each managed host account launches against its own home, so a switch must
+    // leave both credential files alone and never copy either into the mirror.
+    expect(existsSync(runtimeAuthPath)).toBe(false)
+    expect(readFileSync(join(firstManagedHomePath, 'auth.json'), 'utf-8')).toBe(firstAuth)
+    expect(readFileSync(join(secondManagedHomePath, 'auth.json'), 'utf-8')).toBe(secondAuth)
+    expect(existsSync(join(testState.userDataDir, 'codex-runtime-home', 'launch'))).toBe(false)
+    expect(existsSync(join(testState.userDataDir, 'codex-runtime-home', 'active'))).toBe(false)
+  })
+
   it('keeps Windows and WSL active Codex account selections separate', async () => {
     const hostManagedHomePath = createManagedHome(
       testState.userDataDir,

@@ -21,6 +21,7 @@ export abstract class RateLimitServiceFullCycleApplication extends RateLimitServ
       codexFetchGated,
       codexStateBeforeFetch,
       codexProvenance,
+      codexManagedAccountId,
       codexGeneration,
       opencodeConfigChanged,
       opencodeGeneration,
@@ -174,7 +175,10 @@ export abstract class RateLimitServiceFullCycleApplication extends RateLimitServ
         ? this.resolveClaudeFetchApply(claude, previousState.claude)
         : this.state.claude,
       codex: shouldApplyCodex
-        ? this.applyStalePolicy(codex, previousState.codex)
+        ? this.withCodexAccountProvenance(
+            this.applyStalePolicy(codex, previousState.codex),
+            codexManagedAccountId
+          )
         : codexBecameUnavailable
           ? codexStateBeforeFetch
           : this.state.codex,

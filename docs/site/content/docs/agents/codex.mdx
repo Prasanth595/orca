@@ -18,6 +18,8 @@ Pick **Codex** from the agent combobox. Orca launches `codex` with the worktree 
 
 Many Codex users run multiple accounts to stretch rate limits. Orca's account switcher swaps the active account without re-login or config edits. See [Hot-swap Codex accounts](/docs/agents/codex-hot-swap).
 
+With two or more managed Codex accounts, enable **Switch accounts before a usage limit** in **Settings → Accounts → Codex** to move new sessions to the account with the most room when the selected account reaches 90% of its session or weekly limit. Running sessions keep their account.
+
 ## System default vs extra accounts
 
 **System default** uses your real `~/.codex` login (the same home a bare `codex` outside Orca would use). Extra accounts Orca manages get their own home under Orca's account data so credentials and rollouts stay isolated. New Codex launches follow the active account; already-running sessions keep the home they started with until you restart them.

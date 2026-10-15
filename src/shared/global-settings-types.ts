@@ -316,6 +316,8 @@ export type GlobalSettings = NativeChatGlobalSettings & {
   /** Prompt-cache TTL (ms); only 300000 (5 min standard) or 3600000 (1 hr, extended-TTL plans). */
   promptCacheTtlMs: number
   /** Why: durable main-owned pref so Orca can prepare shared ~/.codex before the renderer hydrates. */
+  /** Opt-in automatic account selection for new Codex sessions. */
+  codexAutoSwitchEnabled?: boolean
   codexManagedAccounts: CodexManagedAccount[]
   activeCodexManagedAccountId: string | null
   activeCodexManagedAccountIdsByRuntime?: CodexManagedAccountRuntimeSelection
@@ -325,6 +327,8 @@ export type GlobalSettings = NativeChatGlobalSettings & {
   activeClaudeManagedAccountIdsByRuntime?: ClaudeManagedAccountRuntimeSelection
   /** Dismissed the "System default may hold a copied login" notice in Settings > Accounts. */
   claudeCopiedSystemDefaultNoticeDismissed?: boolean
+  /** Opt-in: new Claude sessions move to the managed account with the most room before a usage limit; optional for legacy settings. */
+  claudeAutoSwitchEnabled?: boolean
   /** Per-worktree shell history so ArrowUp doesn't surface other worktrees' commands (a HISTFILE for
    *  bash/zsh, a `fish_history` session name for fish). Defaults to true. */
   terminalScopeHistoryByWorktree: boolean

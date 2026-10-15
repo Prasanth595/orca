@@ -99,6 +99,25 @@ describe('RateLimitService', () => {
     )
   })
 
+  it.each([
+    ['account refresh', (service: RateLimitService) => service.refreshForCodexAccountChange(null)],
+    ['full refresh', (service: RateLimitService) => service.refresh()]
+  ])(
+    'tags the resolved managed account without publishing its path during %s',
+    async (_label, refresh) => {
+      const service = new RateLimitService()
+      service.setCodexHomePathResolver(() => ({
+        kind: 'ready',
+        codexHomePath: '/managed/synthetic-home',
+        managedAccountId: 'account-a'
+      }))
+      vi.mocked(fetchCodexRateLimits).mockResolvedValueOnce(okProvider('codex', 95, Date.now()))
+      vi.mocked(fetchClaudeRateLimits).mockResolvedValueOnce(okProvider('claude', 0))
+      await refresh(service)
+      expect(service.getState().codex?.usageMetadata).toEqual({ managedAccountId: 'account-a' })
+    }
+  )
+
   it('passes the selected WSL Codex home into active account rate-limit fetches', async () => {
     const service = new RateLimitService()
     const wslCodexHome =

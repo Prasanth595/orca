@@ -5,6 +5,11 @@ import { isHiddenRendererPty } from './pty-hidden-delivery-gate'
 import { OrcaRuntimeService } from '../runtime/orca-runtime'
 import { registerPtyHandlers } from './pty/register-handlers'
 
+// Keep the first spawn independent of host shell startup and the resolver's cached result.
+vi.mock('../startup/login-shell-environment', () => ({
+  resolveLoginShellEnvironment: async () => ({})
+}))
+
 vi.mock('electron', () => import('./pty-ipc-mock-registry').then((m) => m.electronModuleMock()))
 vi.mock('fs', () => import('./pty-ipc-mock-registry').then((m) => m.fsModuleMock()))
 vi.mock('node-pty', () => import('./pty-ipc-mock-registry').then((m) => m.nodePtyModuleMock()))

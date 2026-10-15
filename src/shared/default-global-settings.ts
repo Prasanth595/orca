@@ -184,6 +184,8 @@ export function buildDefaultSettings(args: {
     activeCodexManagedAccountIdsByRuntime: { host: null, wsl: {} },
     claudeManagedAccounts: [],
     activeClaudeManagedAccountId: null,
+    claudeAutoSwitchEnabled: false,
+    codexAutoSwitchEnabled: false,
     terminalScopeHistoryByWorktree: true,
     terminalHiddenViewParking: true,
     // C1 kill switches — runtime reads stay `!== false` so older persisted

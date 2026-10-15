@@ -4,6 +4,7 @@ import { selectCodexProviderAccount } from '@/runtime/runtime-provider-accounts-
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { Label } from '../ui/label'
+import { Switch } from '../ui/switch'
 import { OpenAIIcon } from '../status-bar/icons'
 import { CodexLoginLinkNotice } from './CodexLoginLinkNotice'
 import { SearchableSetting } from './SearchableSetting'
@@ -14,6 +15,8 @@ import { renderCodexAccountRow } from './accounts-pane-codex-account-row'
 
 export function renderCodexAccountsSection(model: AccountsPaneSectionModel): React.JSX.Element {
   const {
+    settings,
+    updateSettings,
     accountRuntime,
     accountRuntimeSentenceLabel,
     accountRuntimeUnavailable,
@@ -283,6 +286,37 @@ export function renderCodexAccountsSection(model: AccountsPaneSectionModel): Rea
           )}
         </div>
       </SearchableSetting>
+      {!isRemoteAccountScope && visibleCodexAccounts.length > 1 ? (
+        <SearchableSetting
+          title={translate('accounts.codex.autoSwitch', 'Switch accounts before a usage limit')}
+          description={translate(
+            'accounts.codex.autoSwitchDescription',
+            'When the selected account passes 90% of its 5-hour or weekly limit, new Codex sessions start on the account with the most room left. Running sessions keep their account.'
+          )}
+          keywords={['codex', 'account', 'auto', 'switch', 'rate limit', 'quota', 'usage']}
+          className="flex items-center justify-between gap-4 py-2"
+        >
+          <div className="space-y-0.5">
+            <Label>
+              {translate('accounts.codex.autoSwitch', 'Switch accounts before a usage limit')}
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              {translate(
+                'accounts.codex.autoSwitchDescription',
+                'When the selected account passes 90% of its 5-hour or weekly limit, new Codex sessions start on the account with the most room left. Running sessions keep their account.'
+              )}
+            </p>
+          </div>
+          <Switch
+            aria-label={translate(
+              'accounts.codex.autoSwitch',
+              'Switch accounts before a usage limit'
+            )}
+            checked={settings.codexAutoSwitchEnabled === true}
+            onCheckedChange={(checked) => updateSettings({ codexAutoSwitchEnabled: checked })}
+          />
+        </SearchableSetting>
+      ) : null}
     </section>
   )
 }

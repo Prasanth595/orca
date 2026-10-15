@@ -15,7 +15,10 @@ vi.mock('./settings-search-keywords', () => ({
   translateSearchKeyword: (_key: string, fallback: string) => [fallback]
 }))
 
+import { matchesSettingsSearch } from './settings-search'
+import { getAccountsClaudeSearchEntries } from './accounts-claude-search'
 import {
+  getAccountsCodexSearchEntries,
   getAccountsMiniMaxSearchEntries,
   getAccountsOpencodeSearchEntries,
   getAccountsPaneSearchEntries
@@ -36,6 +39,15 @@ describe('getAccountsPaneSearchEntries', () => {
     expect(entries.find((entry) => entry.title === 'GLM Coding Plan')?.keywords).toEqual(
       expect.arrayContaining(['glm', 'zai', 'zhipu', 'bigmodel', 'coding plan'])
     )
+  })
+})
+
+describe('getAccountsClaudeSearchEntries', () => {
+  it('finds the Claude section by the auto-switch setting', () => {
+    expect(matchesSettingsSearch('before a usage limit', getAccountsClaudeSearchEntries())).toBe(
+      true
+    )
+    expect(matchesSettingsSearch('auto', getAccountsClaudeSearchEntries())).toBe(true)
   })
 })
 
@@ -78,5 +90,14 @@ describe('getAccountsOpencodeSearchEntries', () => {
     expect(cookieEntry?.keywords).toEqual(
       expect.arrayContaining(['opencode', 'cookie', 'session', 'console', 'rate limit'])
     )
+  })
+})
+
+describe('getAccountsCodexSearchEntries', () => {
+  it('finds the Codex section by its auto-switch setting', () => {
+    expect(matchesSettingsSearch('before a usage limit', getAccountsCodexSearchEntries())).toBe(
+      true
+    )
+    expect(matchesSettingsSearch('auto', getAccountsCodexSearchEntries())).toBe(true)
   })
 })
