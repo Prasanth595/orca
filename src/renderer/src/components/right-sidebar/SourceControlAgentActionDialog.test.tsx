@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 
+import type * as RuntimeGitStatusClientModule from '@/runtime/runtime-git-status-client'
 import path from 'node:path'
 import React, { type ReactNode, useState, act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
@@ -20,7 +21,12 @@ const mocks = vi.hoisted(() => ({
   onLaunched: vi.fn(),
   onStart: vi.fn(),
   checkSourceControlAgentActionLaunch: vi.fn(),
-  toastError: vi.fn()
+  toastError: vi.fn(),
+  mutationInFlight: vi.fn()
+}))
+vi.mock('@/runtime/runtime-git-status-client', async (importOriginal) => ({
+  ...(await importOriginal<typeof RuntimeGitStatusClientModule>()),
+  getRuntimeGitMutationInFlight: mocks.mutationInFlight
 }))
 vi.mock('@/components/agent/AgentCombobox', () => ({
   default: ({ value }: { value: string | null }) =>
@@ -62,6 +68,12 @@ import { useAppStore, type AppState } from '@/store'
 import { setLocalRuntimeCapabilitiesForTests } from '@/runtime/local-runtime-capabilities'
 import { SourceControlAgentActionDialog } from './SourceControlAgentActionDialog'
 import { makeWorktree } from '@/store/slices/worktrees-slice-test-fixtures'
+import { deferred } from './source-control-hook-test-harness'
+const recoveryContext = {
+  target: { kind: 'local' as const },
+  worktreeId: 'repo-1::/repo-1',
+  worktreePath: '/repo-1'
+}
 let container: HTMLDivElement
 let root: Root
 let initialState: AppState
@@ -139,6 +151,7 @@ function renderControlledDialog(
           setOpen(nextOpen)
         }}
         actionId="resolveConflicts"
+        recoveryContext={recoveryContext}
         title="Launch agent"
         description="Review the launch recipe before starting."
         baseCommandInput="Resolve conflicts."
@@ -185,6 +198,7 @@ describe('SourceControlAgentActionDialog', () => {
     mocks.ensureRemoteDetectedAgents.mockResolvedValue(['codex'])
     mocks.ensureRuntimeDetectedAgents.mockResolvedValue(['codex'])
     mocks.onStart.mockResolvedValue(true)
+    mocks.mutationInFlight.mockResolvedValue({ inFlight: false })
     mocks.checkSourceControlAgentActionLaunch.mockReturnValue({ ok: true })
     container = document.createElement('div')
     document.body.appendChild(container)
@@ -389,5 +403,50 @@ describe('SourceControlAgentActionDialog', () => {
     await flushEffects()
     expect(mocks.onStart).toHaveBeenCalledTimes(1)
     expect(mocks.onLaunched).toHaveBeenCalledTimes(1)
+  })
+
+  it('blocks saved-recipe auto-start when Git starts during agent detection', async () => {
+    const detection = deferred<TuiAgent[]>()
+    mocks.ensureDetectedAgents.mockReturnValue(detection.promise)
+    renderControlledDialog()
+    mocks.mutationInFlight.mockResolvedValue({ inFlight: true })
+    await act(async () => detection.resolve(['codex']))
+
+    await vi.waitFor(() => expect(container.textContent).toContain('Launch agent'))
+    expect(mocks.onStart).not.toHaveBeenCalled()
+    expect(mocks.onLaunched).not.toHaveBeenCalled()
+    expect(mocks.onOpenChange).not.toHaveBeenCalledWith(false)
+    expect(mocks.toastError).toHaveBeenCalledWith('Wait for the running Git operation to finish.')
+  })
+
+  it('blocks manual start if Git starts during the repeated agent check', async () => {
+    resetStore(settingsWithGlobalRecipe(null))
+    renderControlledDialog()
+    await vi.waitFor(() => expect(container.textContent).toContain('Save & start agent'))
+    await flushEffects()
+    const detection = deferred<TuiAgent[]>()
+    mocks.ensureDetectedAgents.mockReturnValue(detection.promise)
+    const button = Array.from(container.querySelectorAll('button')).find((entry) =>
+      entry.textContent?.includes('Save & start agent')
+    )
+    if (!button) {
+      throw new Error('Missing start button')
+    }
+    act(() => button.click())
+    expect(mocks.ensureDetectedAgents).toHaveBeenCalledTimes(2)
+    mocks.mutationInFlight.mockResolvedValue({ inFlight: true })
+    await act(async () => detection.resolve(['codex']))
+    await flushEffects()
+
+    expect(button.disabled).toBe(false)
+    expect(mocks.onStart).not.toHaveBeenCalled()
+    expect(mocks.onLaunched).not.toHaveBeenCalled()
+    expect(mocks.onOpenChange).not.toHaveBeenCalledWith(false)
+
+    mocks.mutationInFlight.mockResolvedValue({ inFlight: false })
+    await flushEffects()
+    expect(button.disabled).toBe(false)
+    act(() => button.click())
+    await vi.waitFor(() => expect(mocks.onStart).toHaveBeenCalledTimes(1))
   })
 })

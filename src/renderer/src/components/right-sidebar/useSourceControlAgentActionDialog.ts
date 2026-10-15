@@ -40,6 +40,7 @@ export function useSourceControlAgentActionDialog({
   promptDelivery = 'submit-after-ready',
   launchPlatform,
   launchSource,
+  recoveryContext,
   savedAgentId,
   onSaveAgentDefault,
   onLaunchAccepted,
@@ -207,6 +208,7 @@ export function useSourceControlAgentActionDialog({
       // label aligned with the real remote launch (no `orca-ide` rename).
       isRemote: typeof connectionId === 'string',
       launchSource,
+      recoveryContext,
       connectionUnavailable,
       refreshDetectedAgents,
       onStart,
@@ -218,8 +220,7 @@ export function useSourceControlAgentActionDialog({
     })
 
   const canStart =
-    Boolean(trimmedCommandInput) &&
-    Boolean(selectedAgent) &&
+    Boolean(trimmedCommandInput && selectedAgent) &&
     !selectedAgentUnavailable &&
     !connectionUnavailable &&
     !detecting &&
