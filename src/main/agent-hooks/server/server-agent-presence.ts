@@ -29,9 +29,15 @@ export abstract class AgentHookServerAgentPresence extends AgentHookServerLifecy
     return presence?.process !== undefined && !presence.ended
   }
 
-  checkAgentPresence(paneKey: string): Promise<AgentProcessVerdict | null> {
+  checkAgentPresence(
+    paneKey: string,
+    options: { includeEnded?: boolean } = {}
+  ): Promise<AgentProcessVerdict | null> {
     const resolved = this.resolvePaneKeyAlias(paneKey)
     const row = this.state.lastStatusByPaneKey.get(resolved)
+    if (options.includeEnded && row?.agentPresence?.ended) {
+      return Promise.resolve('exited')
+    }
     // Why: an ended owner already published its exit, and an owner no hook identified cannot be checked.
     if (!row?.agentPresence?.process || row.agentPresence.ended) {
       return Promise.resolve(null)

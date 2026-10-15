@@ -3,6 +3,8 @@ import { opendir } from 'node:fs/promises'
 import { join } from 'node:path'
 
 export type CodexSessionBridgeIncrementalOptions = {
+  /** Include symlink leaves so deletion can reject unsupported aliases. */
+  includeSymlinkFiles?: boolean
   /** Directory entries to process before yielding back to the event loop. */
   batchSize?: number
   /** Delay after each processed batch; zero still yields on a timer turn. */
@@ -103,7 +105,10 @@ async function* listCodexSessionFilesIncrementally(
         const childPath = join(currentDirectory, entry.name)
         if (entry.isDirectory()) {
           pendingDirectories.push(childPath)
-        } else if (entry.isFile() && isSessionFile(entry.name)) {
+        } else if (
+          (entry.isFile() || (options.includeSymlinkFiles && entry.isSymbolicLink())) &&
+          isSessionFile(entry.name)
+        ) {
           yield childPath
         }
         entriesSinceYield += 1

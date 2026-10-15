@@ -7,8 +7,12 @@ import {
   createCodexAccountStateDb,
   healCodexAccountSessionIndex
 } from './codex-account-session-index-heal'
-import { parseCodexRolloutThreadId } from './codex-session-index-heal-state'
+import { parseCodexRolloutThreadId } from './codex-rollout-identity'
 import { linkCodexSessionFile } from './codex-session-link'
+import {
+  createCodexRolloutVisibilityPredicate,
+  withCodexRolloutPublication
+} from './codex-session-deletion-record'
 import {
   countCodexSessionFilesUpTo,
   findNewestCodexStateDbPath,
@@ -153,6 +157,7 @@ export async function bridgeCodexSessionsIntoAccountHome(args: {
     linkedFiles: 0,
     bridgedThreads: new Map()
   }
+  const canPublish = await createCodexRolloutVisibilityPredicate({ includePending: true })
   const targetSessionsRoot = join(args.targetCodexHomePath, 'sessions')
   for (const sourceHomePath of dedupeSourceHomes(
     args.sourceCodexHomePaths,
@@ -166,6 +171,9 @@ export async function bridgeCodexSessionsIntoAccountHome(args: {
       sourceSessionsRoot,
       args.options ?? {}
     )) {
+      if (!canPublish(sourceFilePath)) {
+        continue
+      }
       summary.scannedFiles += 1
       const result = bridgeRolloutIntoAccountHome(
         sourceSessionsRoot,
@@ -193,18 +201,27 @@ function bridgeRolloutIntoAccountHome(
   sourceFilePath: string
 ): 'linked' | 'existing' | 'failed' {
   const targetFilePath = join(targetSessionsRoot, relative(sourceSessionsRoot, sourceFilePath))
-  // Why: rollout names carry the session UUID, so an existing target path is the
-  // same conversation already bridged (often the same inode) — never a conflict.
   if (existsSync(targetFilePath)) {
     return 'existing'
   }
-  try {
-    mkdirSync(dirname(targetFilePath), { recursive: true })
-  } catch (error) {
-    console.warn('[codex-account-session-bridge] Failed to create session directory:', error)
-    return 'failed'
-  }
-  return linkCodexSessionFile(sourceFilePath, targetFilePath) ? 'linked' : 'failed'
+  return withCodexRolloutPublication<'linked' | 'existing' | 'failed'>(
+    sourceFilePath,
+    'failed',
+    () => {
+      // Why: rollout names carry the session UUID, so an existing target path is the
+      // same conversation already bridged (often the same inode) — never a conflict.
+      if (existsSync(targetFilePath)) {
+        return 'existing'
+      }
+      try {
+        mkdirSync(dirname(targetFilePath), { recursive: true })
+      } catch (error) {
+        console.warn('[codex-account-session-bridge] Failed to create session directory:', error)
+        return 'failed'
+      }
+      return linkCodexSessionFile(sourceFilePath, targetFilePath) ? 'linked' : 'failed'
+    }
+  )
 }
 
 /**

@@ -50,7 +50,7 @@ export function validateAiVaultSessionDeleteTarget(
   if (!filePath) {
     return rejected(agent, 'invalid-path')
   }
-  if (!isAiVaultDeletableAgent(agent)) {
+  if (agent === 'codex' || !isAiVaultDeletableAgent(agent)) {
     return rejected(agent, 'unsupported-agent')
   }
   // Electron shell/fs APIs only act on this computer; an ssh/runtime session's

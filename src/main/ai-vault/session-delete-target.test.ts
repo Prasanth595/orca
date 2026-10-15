@@ -171,7 +171,7 @@ describe('validateAiVaultSessionDeleteTarget', () => {
     expect(result).toEqual({ allowed: false, agent: 'openclaw', reason: 'undiscoverable-path' })
   })
 
-  it('rejects an agent whose own registry would keep a dangling entry (codex)', () => {
+  it('keeps Codex out of the generic file-trash executor', () => {
     const result = validateAiVaultSessionDeleteTarget({
       agent: 'codex',
       filePath: join(HOME, '.codex', 'sessions', 'rollout-1.jsonl'),

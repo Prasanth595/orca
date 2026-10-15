@@ -1,5 +1,6 @@
 import { lstatSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import { isCodexSessionDeletionRecorded } from './codex-session-deletion-record'
 import {
   getRuntimePathBasename,
   normalizeRuntimePathForComparison,
@@ -152,6 +153,9 @@ export async function resolveCodexSessionResumeProvenance(args: {
   | { outcome: 'resume'; homePath: string; transcriptPath: string }
   | { outcome: 'fresh'; claimedCodexProvenance: boolean }
 > {
+  if (isCodexSessionDeletionRecorded(args.sessionId)) {
+    return { outcome: 'fresh', claimedCodexProvenance: true }
+  }
   const sessionSource = await findTrustedCodexSessionResume(args)
   return sessionSource
     ? { outcome: 'resume', ...sessionSource }

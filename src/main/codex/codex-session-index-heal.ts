@@ -5,6 +5,10 @@ import { CODEX_SHORT_LIVED_PROBE_APP_SERVER_ARGS } from '../codex-cli/codex-read
 import { getCodexSessionBackfillStateDirPath } from './codex-home-paths'
 import { resolveCodexSessionBackfillPaths } from './codex-session-backfill'
 import {
+  isCodexSessionDeletionRecorded,
+  withCodexSessionHistoryMutation
+} from './codex-session-deletion-record'
+import {
   appendHealLedgerRecord,
   collectPendingHealThreads,
   isHealMarkerCurrent,
@@ -40,7 +44,7 @@ const HEAL_BATCH_TIMEOUT_BASE_MS = 15_000
 const HEAL_BATCH_TIMEOUT_PER_READ_MS = 2_000
 
 export type CodexSessionIndexHealSummary = {
-  outcome: 'completed' | 'stopped' | 'unsupported' | 'aborted' | 'up-to-date'
+  outcome: 'completed' | 'stopped' | 'unsupported' | 'aborted' | 'up-to-date' | 'deferred'
   pendingThreads: number
   healedThreads: number
   missingThreads: number
@@ -62,7 +66,12 @@ export type CodexSessionIndexHealOptions = {
 
 export type CodexThreadReadOutcome = HealLedgerOutcome
 
-export type CodexThreadReadPassOutcome = 'completed' | 'stopped' | 'unsupported' | 'aborted'
+export type CodexThreadReadPassOutcome =
+  | 'completed'
+  | 'stopped'
+  | 'unsupported'
+  | 'aborted'
+  | 'deferred'
 
 let backgroundHealTask: Promise<CodexSessionIndexHealSummary | null> | null = null
 
@@ -196,6 +205,7 @@ export async function readCodexThreadsForIndexHeal<T extends { threadId: string 
   const readConcurrency = resolveHealWorkLimit(options.readConcurrency, HEAL_READ_CONCURRENCY)
   const interBatchDelayMs = options.interBatchDelayMs ?? HEAL_INTER_BATCH_DELAY_MS
   const shouldStop = options.shouldStop ?? ((): boolean => false)
+  let deferred = false
 
   for (let offset = 0; offset < threads.length; offset += readsPerServerSession) {
     if (shouldStop()) {
@@ -218,7 +228,23 @@ export async function readCodexThreadsForIndexHeal<T extends { threadId: string 
           while (nextIndex < batch.length && !shouldStop()) {
             const thread = batch[nextIndex]
             nextIndex += 1
-            onOutcome(thread, await readOneThread(rpc, thread.threadId))
+            const outcome = await withCodexSessionHistoryMutation<CodexThreadReadOutcome | null>(
+              thread.threadId,
+              () =>
+                isCodexSessionDeletionRecorded(thread.threadId)
+                  ? Promise.resolve('missing')
+                  : readOneThread(rpc, thread.threadId),
+              {
+                onBusy: () => {
+                  deferred = true
+                  return null
+                }
+              }
+            )
+            if (outcome === null) {
+              continue
+            }
+            onOutcome(thread, outcome)
           }
         }
         await Promise.all(Array.from({ length: readConcurrency }, () => worker()))
@@ -236,7 +262,7 @@ export async function readCodexThreadsForIndexHeal<T extends { threadId: string 
       return 'aborted'
     }
   }
-  return 'completed'
+  return deferred ? 'deferred' : 'completed'
 }
 
 async function readOneThread(
