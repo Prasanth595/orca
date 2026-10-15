@@ -3,11 +3,13 @@ import type { PaneManager } from '@/lib/pane-manager/pane-manager'
 import type { TerminalPasteSource } from './terminal-paste-model'
 import { copyTerminalSelection } from './terminal-selection-copy'
 import { CLOSE_ALL_CONTEXT_MENUS_EVENT } from '@/lib/close-all-context-menus'
+import type { TerminalContextMenuFileLinkResolver } from './terminal-context-menu-file-link-resolver'
 
 type UseTerminalContextMenuTriggerDeps = {
   managerRef: React.RefObject<PaneManager | null>
   containerRef: React.RefObject<HTMLDivElement | null>
   contextPaneIdRef: React.RefObject<number | null>
+  resolveContextMenuFileLinkRef: React.RefObject<TerminalContextMenuFileLinkResolver | null>
   rightClickToPaste: boolean
   pasteResolvedPane: (
     source: Extract<TerminalPasteSource, 'context-menu' | 'right-click'>
@@ -19,6 +21,7 @@ type TerminalContextMenuTrigger = {
   setOpen: React.Dispatch<React.SetStateAction<boolean>>
   point: { x: number; y: number }
   menuOpenedAtRef: React.RefObject<number>
+  contextMenuFilePathRef: React.RefObject<string | null>
   onContextMenuCapture: (event: React.MouseEvent<HTMLDivElement>) => void
   onPaneTitleContextMenu: (event: React.MouseEvent<HTMLElement>, paneId: number) => void
 }
@@ -27,10 +30,12 @@ export function useTerminalContextMenuTrigger({
   managerRef,
   containerRef,
   contextPaneIdRef,
+  resolveContextMenuFileLinkRef,
   rightClickToPaste,
   pasteResolvedPane
 }: UseTerminalContextMenuTriggerDeps): TerminalContextMenuTrigger {
   const menuOpenedAtRef = useRef(0)
+  const contextMenuFilePathRef = useRef<string | null>(null)
   const [open, setOpen] = useState(false)
   const [point, setPoint] = useState({ x: 0, y: 0 })
 
@@ -48,13 +53,15 @@ export function useTerminalContextMenuTrigger({
   const openContextMenu = (
     event: React.MouseEvent<HTMLElement>,
     clickedPaneId: number | null,
-    boundsElement: HTMLElement
+    boundsElement: HTMLElement,
+    resolveFileLink: boolean
   ): void => {
     event.preventDefault()
     window.dispatchEvent(new Event(CLOSE_ALL_CONTEXT_MENUS_EVENT))
     const manager = managerRef.current
     if (!manager) {
       contextPaneIdRef.current = null
+      contextMenuFilePathRef.current = null
       return
     }
     const clickedPane =
@@ -84,6 +91,10 @@ export function useTerminalContextMenuTrigger({
       return
     }
 
+    contextMenuFilePathRef.current =
+      resolveFileLink && clickedPane
+        ? (resolveContextMenuFileLinkRef.current?.(clickedPane.id, event.nativeEvent) ?? null)
+        : null
     menuOpenedAtRef.current = Date.now()
     const bounds = boundsElement.getBoundingClientRect()
     setPoint({ x: event.clientX - bounds.left, y: event.clientY - bounds.top })
@@ -104,7 +115,7 @@ export function useTerminalContextMenuTrigger({
       return
     }
     const clickedPane = manager.getPanes().find((pane) => pane.container.contains(target)) ?? null
-    openContextMenu(event, clickedPane?.id ?? null, event.currentTarget)
+    openContextMenu(event, clickedPane?.id ?? null, event.currentTarget, true)
   }
 
   const onPaneTitleContextMenu = (event: React.MouseEvent<HTMLElement>, paneId: number): void => {
@@ -113,8 +124,16 @@ export function useTerminalContextMenuTrigger({
       event.preventDefault()
       return
     }
-    openContextMenu(event, paneId, boundsElement)
+    openContextMenu(event, paneId, boundsElement, false)
   }
 
-  return { open, setOpen, point, menuOpenedAtRef, onContextMenuCapture, onPaneTitleContextMenu }
+  return {
+    open,
+    setOpen,
+    point,
+    menuOpenedAtRef,
+    contextMenuFilePathRef,
+    onContextMenuCapture,
+    onPaneTitleContextMenu
+  }
 }
