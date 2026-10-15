@@ -32,7 +32,10 @@ export class RuntimeBrowserProfiles {
   constructor(
     private readonly host: Pick<
       RuntimeBrowserCommandHost,
-      'getAuthoritativeWindow' | 'getRuntimeBrowserPageRegistry'
+      | 'getAuthoritativeWindow'
+      | 'getRuntimeBrowserPageRegistry'
+      | 'getBrowserHostLeaseRegistry'
+      | 'notifyHeadlessBrowserSessionTabsChanged'
     >,
     private readonly targets: Pick<
       RuntimeBrowserCommandTargets,
@@ -75,11 +78,27 @@ export class RuntimeBrowserProfiles {
       if (clientPage.browserProfileId === profile.id) {
         return { browserPageId, profileId: profile.id, profileLabel: profile.label }
       }
-      // Close/restore destroys the working guest before replacement admission can fail.
-      throw new BrowserError(
-        'browser_error',
-        'Client-hosted profile switching requires staged replacement support on both peers'
+      const authority = this.host.getBrowserHostLeaseRegistry()
+      const placement = await authority.switchClientPageProfile(
+        {
+          authorityRuntimeId: authority.authorityRuntimeId,
+          authorityEpoch: authority.authorityEpoch,
+          browserPageId,
+          browserHostClientId: clientPage.placement.browserHostClientId,
+          browserHostGeneration: clientPage.placement.browserHostGeneration,
+          pageHostGeneration: clientPage.placement.pageHostGeneration
+        },
+        { id: profile.id, label: profile.label, scope: profile.scope }
       )
+      pages.replaceClientPagePlacement(
+        browserPageId,
+        clientPage.placement,
+        placement,
+        undefined,
+        profile.id
+      )
+      this.host.notifyHeadlessBrowserSessionTabsChanged?.(clientPage.workspaceId)
+      return { browserPageId, profileId: profile.id, profileLabel: profile.label }
     }
 
     // Why: short-circuit no-op switches so the renderer doesn't needlessly tear down and remount the webview.

@@ -1,3 +1,4 @@
+import { BrowserHostLeaseRegistry } from '../browser-host-lease-registry'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { RuntimeBrowserPageRegistry } from '../runtime-browser-page-registry'
 
@@ -27,8 +28,8 @@ vi.mock('../../ipc/browser-tab-registration-wait', () => ({
 import { RuntimeBrowserProfiles } from './browser-profiles'
 
 const profiles = [
-  { id: 'default', label: 'Default', partition: 'persist:local-default' },
-  { id: 'isolated', label: 'Isolated', partition: 'persist:local-isolated' }
+  { scope: 'default', id: 'default', label: 'Default', partition: 'persist:local-default' },
+  { scope: 'isolated', id: 'isolated', label: 'Isolated', partition: 'persist:local-isolated' }
 ]
 
 function fixture(currentProfile = 'isolated') {
@@ -54,8 +55,18 @@ function fixture(currentProfile = 'isolated') {
   const bridge = vi.fn(() => {
     throw new Error('must not require local bridge')
   })
+  const leases = new BrowserHostLeaseRegistry({ authorityRuntimeId: 'runtime' })
+  const switchProfile = vi
+    .spyOn(leases, 'switchClientPageProfile')
+    .mockRejectedValue(new Error('requires staged replacement support on both peers'))
+  const notify = vi.fn()
   const runtime = new RuntimeBrowserProfiles(
-    { getRuntimeBrowserPageRegistry: () => pages, getAuthoritativeWindow: window },
+    {
+      getRuntimeBrowserPageRegistry: () => pages,
+      getAuthoritativeWindow: window,
+      getBrowserHostLeaseRegistry: () => leases,
+      notifyHeadlessBrowserSessionTabsChanged: notify
+    },
     {
       resolveBrowserCommandTarget: async (params) => ({
         browserPageId: params.page,
@@ -65,7 +76,7 @@ function fixture(currentProfile = 'isolated') {
     },
     { describeBrowserTab: vi.fn() }
   )
-  return { pages, runtime, window, bridge }
+  return { pages, runtime, window, bridge, switchProfile, notify }
 }
 
 describe('client placement profile switch safety', () => {
@@ -91,6 +102,26 @@ describe('client placement profile switch safety', () => {
     expect(mocks.getLocalProfile).not.toHaveBeenCalled()
     expect(mocks.on).not.toHaveBeenCalled()
     expect(mocks.wait).not.toHaveBeenCalled()
+  })
+
+  it('commits a proven replacement profile and generation before notifying session readers', async () => {
+    const { pages, runtime, switchProfile, notify } = fixture()
+    const previous = pages.getPage('remote-page')!
+    const replacement = { ...previous.placement, pageHostGeneration: 2 }
+    switchProfile.mockResolvedValue(replacement)
+    await expect(
+      runtime.browserTabSetProfile({ page: 'remote-page', profileId: 'default' })
+    ).resolves.toMatchObject({ profileId: 'default' })
+    expect(switchProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ browserPageId: 'remote-page', pageHostGeneration: 1 }),
+      { id: 'default', label: 'Default', scope: 'default' }
+    )
+    expect(pages.getPage('remote-page')).toMatchObject({
+      browserProfileId: 'default',
+      placement: replacement,
+      metadataRevision: 0
+    })
+    expect(notify).toHaveBeenCalledWith('workspace')
   })
 
   it('uses authoritative profile identity for an actual no-op', async () => {

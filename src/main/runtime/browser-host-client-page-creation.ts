@@ -1,3 +1,4 @@
+import { BROWSER_HOST_WEBVIEW_CAPABILITY } from './browser-host-capability-selection'
 import type { BrowserClientHostCommandResult } from '../../shared/browser-client-host-protocol'
 import {
   DEFAULT_CLIENT_PAGE_CREATION_TIMEOUT_MS,
@@ -38,10 +39,10 @@ export async function createBrowserHostClientPage(
   }
 ): Promise<RuntimeBrowserClientPlacement> {
   const timeoutMs = clientPageCreationTimeout(options.timeoutMs)
-  const lease = dependencies.selectLease(
-    options.browserHostClientId,
-    options.requiredCapabilities ?? []
-  )
+  const lease = dependencies.selectLease(options.browserHostClientId, [
+    BROWSER_HOST_WEBVIEW_CAPABILITY,
+    ...(options.requiredCapabilities ?? [])
+  ])
   if (lease.pairedDeviceId !== options.pairedDeviceId) {
     throw new Error('browser_host_lease_stale')
   }
