@@ -478,6 +478,14 @@ describe('MobileNativeChatMessage', () => {
     })
     act(() => renderer!.root.findByProps({ accessibilityRole: 'imagebutton' }).props.onPress())
     expect(openImage).toHaveBeenCalledWith({ uri: 'file:///a.jpg', label: 'a photo' })
+    // Only the picture is in the bubble, so its gap leaves no space under it.
+    const bubble = renderer!.root.find(
+      (node) =>
+        String(node.type) === 'View' && [node.props.style].flat().includes(styles.userBubble)
+    )
+    expect(bubble.findAll((node) => node !== bubble && String(node.type) === 'View')).toHaveLength(
+      0
+    )
   })
 
   it('folds a long message of yours until opened, as desktop does', () => {

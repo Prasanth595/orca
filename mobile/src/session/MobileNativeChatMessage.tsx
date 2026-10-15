@@ -44,7 +44,7 @@ import { MobileNativeChatSubagentGroup } from './MobileNativeChatSubagentGroup'
 import { ToolRun } from './MobileNativeChatToolRun'
 import type { NativeChatTurnStatus } from './use-mobile-native-chat-turn-status'
 import { isRenderableImageUri } from './mobile-native-chat-image-preview'
-import { styles, TEXT_SIZE } from './mobile-native-chat-message-styles'
+import { scaledType, styles, TEXT_SIZE } from './mobile-native-chat-message-styles'
 import { agentMessageAttribution } from './mobile-agent-message-attribution'
 import { withoutPendingNativeChatVisualDirectiveTail } from '../../../src/shared/native-chat-visual-directive'
 import {
@@ -78,11 +78,7 @@ function Prose({
       return (
         <Text
           selectable={INLINE_TEXT_SELECTION}
-          // Zoomed type keeps its leading, so its lines never overlap.
-          style={[
-            styles.hostNotice,
-            { fontSize: TEXT_SIZE * fontScale, lineHeight: (TEXT_SIZE + 6) * fontScale }
-          ]}
+          style={[styles.hostNotice, scaledType(TEXT_SIZE, fontScale)]}
         >
           {AGENT_SESSION_HOST_STATUS_COPY[block.presentation]}
         </Text>
@@ -117,7 +113,7 @@ function Prose({
     )
   }
   if (isImageRefBlock(block)) {
-    return <ImageAttachment block={block} fontScale={fontScale} />
+    return <ImageAttachment block={block} fontScale={fontScale} onLongPress={onLongPress} />
   }
   return null
 }
@@ -126,10 +122,12 @@ function Prose({
  *  host path (not loadable on the device) falls back to a text placeholder. */
 function ImageAttachment({
   block,
-  fontScale
+  fontScale,
+  onLongPress
 }: {
   block: NativeChatImageRefBlock
   fontScale: number
+  onLongPress?: () => void
 }): React.JSX.Element {
   const openImage = useContext(MobileNativeChatImageViewerContext)
   const uri = block.url ?? block.path
@@ -144,6 +142,7 @@ function ImageAttachment({
   return (
     <Pressable
       onPress={openImage ? () => openImage({ uri, label }) : undefined}
+      onLongPress={onLongPress}
       disabled={!openImage}
       accessibilityRole="imagebutton"
       accessibilityLabel={label}

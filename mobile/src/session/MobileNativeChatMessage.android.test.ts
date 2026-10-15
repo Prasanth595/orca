@@ -93,6 +93,28 @@ describe('MobileNativeChatMessage on Android', () => {
     expect(byType('MessageActionsSheet')).toHaveLength(0)
   })
 
+  it('opens the actions sheet from a long press on an attached picture, not the viewer', () => {
+    act(() => {
+      renderer = create(
+        createElement(MobileNativeChatMessage, {
+          message: {
+            ...message,
+            role: 'user',
+            blocks: [
+              { type: 'text', text: 'Here is the screen.' },
+              { type: 'image-ref', url: 'file:///a.jpg', alt: 'a photo' }
+            ]
+          }
+        })
+      )
+    })
+    const [bubble] = byType('Pressable')
+    const picture = renderer!.root.findByProps({ accessibilityRole: 'imagebutton' })
+    expect(picture.props.onLongPress).toBe(bubble!.props.onLongPress)
+    act(() => picture.props.onLongPress())
+    expect(byType('MessageActionsSheet')).toHaveLength(1)
+  })
+
   it('disables inline selection for host notices too', () => {
     act(() => {
       renderer = create(

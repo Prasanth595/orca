@@ -24,8 +24,11 @@ export function MobileNativeChatUserMessageFold({
   const [open, setOpen] = useState(false)
   // The text rule can pick a message that already fits the fold; that one gets no toggle.
   const [height, setHeight] = useState<number | null>(null)
+  if (!longText) {
+    return <>{children}</>
+  }
   const clip = FOLDED_HEIGHT * fontScale
-  const folds = longText && (height === null || height > clip)
+  const folds = height === null || height > clip
   return (
     <>
       <View style={folds && !open ? { maxHeight: clip, overflow: 'hidden' } : undefined}>
