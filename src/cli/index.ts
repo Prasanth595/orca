@@ -185,9 +185,11 @@ export async function main(
     })
   } catch (error) {
     const worktreeSelector = parsed.flags.get('worktree')
+    const terminalHandle = parsed.flags.get('terminal')
     reportCliError(error, json, {
       commandPath: parsed.commandPath,
-      ...(typeof worktreeSelector === 'string' ? { worktreeSelector } : {})
+      ...(typeof worktreeSelector === 'string' ? { worktreeSelector } : {}),
+      ...(typeof terminalHandle === 'string' ? { terminalHandle } : {})
     })
     process.exitCode = 1
   }
