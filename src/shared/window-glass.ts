@@ -1,5 +1,20 @@
 const WINDOW_GLASS_ARGUMENT = '--orca-window-glass'
 
+/** GlobalSettings for the window's see-through backdrop; kept here because that file is at its
+ *  max-lines ceiling. */
+export type WindowGlassGlobalSettings = {
+  terminalBackgroundOpacity?: number
+  windowBackgroundBlur?: boolean
+  /** macOS window glass: native chat background opacity over the blurred backdrop. */
+  nativeChatGlassOpacity?: number
+  /** macOS window glass: terminals take the chat glass tint instead of their theme background. */
+  terminalChatGlass?: boolean
+  /** macOS window glass: sidebars, tab strip, status bar and full pages also show the blurred backdrop. */
+  interfaceGlass?: boolean
+  /** macOS window glass: background opacity of those interface surfaces. */
+  interfaceGlassOpacity?: number
+}
+
 export const DEFAULT_NATIVE_CHAT_GLASS_OPACITY = 0.6
 export const DEFAULT_INTERFACE_GLASS_OPACITY = 0.75
 export const MIN_GLASS_OPACITY = 0.2
