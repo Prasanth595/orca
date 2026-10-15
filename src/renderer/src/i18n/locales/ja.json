@@ -13816,7 +13816,8 @@
             "resumeInChatFailed": "新規チャットでこのセッションを再開できませんでした。",
             "resumeInNewCliUnavailable": "このセッションは CLI で開けません。",
             "resumeInNewCliHostTooOld": "このチャットを新しい CLI で再開するには、チャットを実行しているホストの Orca を更新してください。",
-            "folderWorkspaceUnavailable": "フォルダーワークスペースは利用できなくなりました。"
+            "folderWorkspaceUnavailable": "フォルダーワークスペースは利用できなくなりました。",
+            "resumeInNewCliFailed": "新規 CLI でこのセッションを再開できませんでした。"
           },
           "AiVaultPanelControls": {
             "scanningSessions": "セッションをスキャンしています",
@@ -19078,6 +19079,12 @@
     },
     "automations": {
       "runTerminalUnavailable": "実行ターミナルを利用できません。"
+    },
+    "tabBar": {
+      "sessionSwitch": {
+        "loading": "会話を読み込み中…",
+        "opening": "開いています…"
+      }
     },
     "jiraIssueTitleField": {
       "generate": "説明からタイトルを生成",

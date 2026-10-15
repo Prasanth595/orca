@@ -1,3 +1,4 @@
+import type { SelectedTranscriptRead } from './selected-transcript-lines'
 import { parseQoderSessionFile } from './session-scanner-qoder-parser'
 import { parseCodebuddySessionFile } from './session-scanner-codebuddy-parser'
 import type { AiVaultSession } from '../../shared/ai-vault-types'
@@ -88,7 +89,8 @@ export async function parseAgentSessionFile(
   candidate: SessionFileCandidate,
   platform: NodeJS.Platform,
   messages?: TranscriptMessageSink,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  selectedRead?: SelectedTranscriptRead
 ): Promise<AiVaultSession | null> {
   switch (candidate.agent) {
     case 'qoder':
@@ -96,14 +98,15 @@ export async function parseAgentSessionFile(
     case 'codebuddy':
       return parseCodebuddySessionFile(candidate.file, platform, messages)
     case 'claude':
-      return parseClaudeSessionFile(candidate.file, platform, messages)
+      return parseClaudeSessionFile(candidate.file, platform, messages, selectedRead)
     case 'codex':
       return parseCodexSessionFile(
         candidate.file,
         platform,
         candidate.codexHome,
         undefined,
-        messages
+        messages,
+        selectedRead
       )
     case 'gemini':
       return parseGeminiSessionFile(candidate.file, platform, messages)
@@ -148,9 +151,9 @@ export async function parseAgentSessionFile(
     case 'openclaw':
       return parseMessageGraphSessionFile('openclaw', candidate.file, platform, messages)
     case 'pi':
-      return parseMessageGraphSessionFile('pi', candidate.file, platform, messages)
+      return parseMessageGraphSessionFile('pi', candidate.file, platform, messages, selectedRead)
     case 'omp':
-      return parseMessageGraphSessionFile('omp', candidate.file, platform, messages)
+      return parseMessageGraphSessionFile('omp', candidate.file, platform, messages, selectedRead)
     case 'prime-agent':
       return parseMessageGraphSessionFile('prime-agent', candidate.file, platform, messages)
     case 'droid':

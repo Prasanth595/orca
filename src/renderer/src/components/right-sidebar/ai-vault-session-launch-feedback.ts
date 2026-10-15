@@ -4,6 +4,7 @@ import {
 } from './ai-vault-session-launch-target'
 import { toast } from 'sonner'
 import { describeAiVaultResumeFailure } from '@/lib/ai-vault-resume-refusal'
+import { readIpcErrorMessage } from '@/lib/ipc-error'
 import { translate } from '@/i18n/i18n'
 import { agentLabel } from './ai-vault-session-filters'
 import type { AiVaultAgent } from '../../../../shared/ai-vault-types'
@@ -23,7 +24,8 @@ export function notifyAiVaultSessionPreparationFailure(
   agent: AiVaultAgent,
   describeFailure: (message: string) => string = (message) => message
 ): void {
-  const described = error instanceof Error ? new Error(describeFailure(error.message)) : error
+  const message = readIpcErrorMessage(error)
+  const described = message ? new Error(describeFailure(message)) : undefined
   toast.error(describeAiVaultResumeFailure(described, agent))
 }
 

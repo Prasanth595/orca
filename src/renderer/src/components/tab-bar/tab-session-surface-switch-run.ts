@@ -1,0 +1,276 @@
+import { aiVaultSessionListArgs } from '../right-sidebar/ai-vault-session-list-request'
+import { useSyncExternalStore } from 'react'
+import { toast } from 'sonner'
+import { translate } from '@/i18n/i18n'
+import { createBrowserUuid } from '@/lib/browser-uuid'
+import { readIpcErrorMessage } from '@/lib/ipc-error'
+import { activateAiVaultStructuredSession } from '@/lib/activate-ai-vault-structured-session'
+import { useAppStore } from '@/store'
+import {
+  adoptsCliConversations,
+  CLI_CONVERSATION_ADOPTING_AGENTS
+} from '../../../../shared/structured-agent-cli-conversation-adoption'
+import { parseRoutableExecutionHostId } from '../../../../shared/execution-host'
+import {
+  captureWebSessionIntentOwner,
+  matchesWebSessionIntentOwner
+} from '@/runtime/web-runtime-session-environment'
+import {
+  onRuntimeEnvironmentRevisionsChanged,
+  onRuntimeEnvironmentsRetired
+} from '@/runtime/runtime-environment-revision'
+import { isAiVaultSessionResumableContent } from '../../../../shared/ai-vault-types'
+import type {
+  AiVaultSessionLaunchContext,
+  AiVaultSelectedSessionSource
+} from '../../../../shared/ai-vault-selected-session'
+import { LEGACY_SELECTED_SESSION_LOOKUP_TIMEOUT_MS } from '../../../../shared/ai-vault-selected-session'
+import { waitForPromiseWithSignal } from '../../../../shared/abort-signal-reason'
+import type { AiVaultSurfaceSwitchOperation } from '@/lib/ai-vault-surface-switch-operation'
+import { formatAgentTypeLabel } from '../../../../shared/agent-type-label'
+import {
+  resolveTabSessionSwitch,
+  type TabSessionSelectedSource
+} from './tab-session-selected-source'
+
+type Stage = 'loading' | 'opening'
+type PendingSwitch = { stage: Stage; controller: AbortController }
+const runningSwitches = new Map<string, PendingSwitch>()
+const listeners = new Set<() => void>()
+const changed = () => listeners.forEach((listener) => listener())
+
+export function isTabStillOpen(tab: { id: string; worktreeId: string }): boolean {
+  const state = useAppStore.getState()
+  const matches = (candidate: { id: string }) => candidate.id === tab.id
+  return (
+    (state.tabsByWorktree[tab.worktreeId]?.some(matches) ?? false) ||
+    (state.unifiedTabsByWorktree[tab.worktreeId]?.some(matches) ?? false)
+  )
+}
+
+function subjectKey(subject: TabSessionSelectedSource): string {
+  return [
+    subject.executionHostId,
+    subject.kind,
+    subject.kind === 'cli' ? CLI_CONVERSATION_ADOPTING_AGENTS[subject.agent] : subject.agent,
+    subject.kind === 'chat' ? subject.sessionId : subject.providerSessionId
+  ].join('\0')
+}
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
+}
+
+export function useTabSessionSurfaceSwitchPending(
+  subject: TabSessionSelectedSource | null
+): Stage | null {
+  return useSyncExternalStore(
+    subscribe,
+    () => (subject ? (runningSwitches.get(subjectKey(subject))?.stage ?? null) : null),
+    () => null
+  )
+}
+
+function sourceIdentityIsCurrent(
+  subject: TabSessionSelectedSource,
+  tab: { id: string; worktreeId: string }
+): boolean {
+  if (!isTabStillOpen(tab)) {
+    return false
+  }
+  if (subject.kind === 'chat') {
+    const source = useAppStore
+      .getState()
+      .unifiedTabsByWorktree[tab.worktreeId]?.find((candidate) => candidate.id === tab.id)
+    return source?.contentType === 'agent-session' && source.entityId === subject.sessionId
+  }
+  const current = useAppStore.getState().agentStatusByPaneKey[subject.paneKey]
+  return (
+    adoptsCliConversations(current?.agentType) &&
+    CLI_CONVERSATION_ADOPTING_AGENTS[current.agentType] ===
+      CLI_CONVERSATION_ADOPTING_AGENTS[subject.agent] &&
+    current.providerSession?.id === subject.providerSessionId
+  )
+}
+
+export function tabSessionSwitchPendingLabel(stage: Stage): string {
+  return stage === 'loading'
+    ? translate('components.tabBar.sessionSwitch.loading', 'Loading conversation…')
+    : translate('components.tabBar.sessionSwitch.opening', 'Opening…')
+}
+
+function notifyFailure(subject: TabSessionSelectedSource, error: unknown): void {
+  const description = readIpcErrorMessage(error)
+  toast.error(
+    subject.kind === 'chat'
+      ? translate(
+          'auto.components.right.sidebar.AiVaultPanel.resumeInNewCliFailed',
+          'Could not resume this session in a new CLI.'
+        )
+      : translate(
+          'auto.components.right.sidebar.AiVaultPanel.resumeInChatFailed',
+          'Could not resume this session in a new chat.'
+        ),
+    description ? { description } : undefined
+  )
+}
+
+export async function runTabSessionSurfaceSwitch(args: {
+  subject: TabSessionSelectedSource
+  sourceTab: { id: string; worktreeId: string }
+  intent?: 'new-chat' | 'open-or-resume-chat'
+  launch: (
+    row: AiVaultSessionLaunchContext,
+    worktreeId: string,
+    operation: AiVaultSurfaceSwitchOperation
+  ) => Promise<void>
+}): Promise<void> {
+  const { subject, sourceTab } = args
+  const key = subjectKey(subject)
+  if (runningSwitches.has(key) || !sourceIdentityIsCurrent(subject, sourceTab)) {
+    return
+  }
+  const host = parseRoutableExecutionHostId(subject.executionHostId)
+  const intentOwner =
+    host?.kind === 'runtime' ? captureWebSessionIntentOwner(host.environmentId) : null
+  const bindingIsCurrent = () => !intentOwner || matchesWebSessionIntentOwner(intentOwner)
+  const owner: PendingSwitch = { stage: 'loading', controller: new AbortController() }
+  const requestToken = createBrowserUuid()
+  const release = () => {
+    if (runningSwitches.get(key) === owner) {
+      runningSwitches.delete(key)
+      changed()
+    }
+  }
+  const abandon = () => {
+    owner.controller.abort()
+    release()
+    void window.api.aiVault.cancelResolveSession({ requestToken }).catch(() => undefined)
+  }
+  runningSwitches.set(key, owner)
+  changed()
+  const retirePairing = (ids: readonly string[]) => {
+    if (intentOwner && ids.includes(intentOwner.environmentId)) {
+      abandon()
+    }
+  }
+  const stopRetirement = onRuntimeEnvironmentsRetired(retirePairing)
+  const stopRevision = onRuntimeEnvironmentRevisionsChanged(retirePairing)
+  const stopPairing = () => {
+    stopRetirement()
+    stopRevision()
+  }
+  const stopWatching = useAppStore.subscribe(() => {
+    if (!sourceIdentityIsCurrent(subject, sourceTab) || !bindingIsCurrent()) {
+      abandon()
+    }
+  })
+  const timer = setTimeout(() => {
+    owner.controller.abort(new Error('Conversation lookup timed out.'))
+    void window.api.aiVault.cancelResolveSession({ requestToken }).catch(() => undefined)
+  }, LEGACY_SELECTED_SESSION_LOOKUP_TIMEOUT_MS)
+  try {
+    const source: AiVaultSelectedSessionSource =
+      subject.kind === 'chat'
+        ? { kind: 'chat', workspaceId: subject.workspaceId, sessionId: subject.sessionId }
+        : {
+            kind: 'cli',
+            workspaceId: subject.workspaceId,
+            paneKey: subject.paneKey,
+            agent: subject.agent,
+            providerSessionId: subject.providerSessionId
+          }
+    const result = await waitForPromiseWithSignal(
+      window.api.aiVault.resolveSession({
+        source,
+        executionHostId: subject.executionHostId,
+        expectedEnvironmentPairingRevision: intentOwner?.pairingRevision,
+        requestToken,
+        legacyList: aiVaultSessionListArgs(subject.legacyListRequest, { requestToken })
+      }),
+      owner.controller.signal
+    )
+    clearTimeout(timer)
+    if (!sourceIdentityIsCurrent(subject, sourceTab) || !bindingIsCurrent()) {
+      return
+    }
+    if (result.status === 'cancelled') {
+      throw new Error('Conversation lookup was cancelled.')
+    }
+    const row = result.status === 'ready' ? result.session : null
+    if (subject.kind === 'cli' && row?.structuredSession) {
+      if (args.intent === 'open-or-resume-chat') {
+        owner.stage = 'opening'
+        changed()
+        await waitForPromiseWithSignal(
+          activateAiVaultStructuredSession(row),
+          owner.controller.signal
+        )
+      } else {
+        toast.error(
+          translate(
+            'auto.components.right.sidebar.AiVaultPanel.resumeInChatConflict',
+            'Another chat is already holding this conversation.'
+          )
+        )
+      }
+      return
+    }
+    if (!row || !isAiVaultSessionResumableContent(row)) {
+      toast.error(
+        translate(
+          'components.native-chat.resumeInNewChat.notSavedYet',
+          "{{agent}} hasn't saved this conversation yet. Try again after it replies.",
+          { agent: formatAgentTypeLabel(subject.agent) }
+        )
+      )
+      return
+    }
+    const move = resolveTabSessionSwitch(useAppStore.getState(), row, subject)
+    if (!move) {
+      toast.error(
+        subject.kind === 'chat'
+          ? translate(
+              'auto.components.right.sidebar.AiVaultPanel.resumeInNewCliUnavailable',
+              'This session cannot be opened in the CLI.'
+            )
+          : translate(
+              'components.native-chat.resumeInNewChat.cannotResume',
+              "This {{agent}} conversation can't be resumed in a native chat.",
+              { agent: formatAgentTypeLabel(subject.agent) }
+            )
+      )
+      return
+    }
+    owner.stage = 'opening'
+    changed()
+    await waitForPromiseWithSignal(
+      args.launch(row, move.worktreeId, {
+        signal: owner.controller.signal,
+        requestContext: {
+          requestToken,
+          expectedEnvironmentPairingRevision: intentOwner?.pairingRevision
+        },
+        isSourceOpen: () =>
+          !owner.controller.signal.aborted &&
+          bindingIsCurrent() &&
+          sourceIdentityIsCurrent(subject, sourceTab),
+        onDispatch: stopPairing
+      }),
+      owner.controller.signal
+    )
+  } catch (error) {
+    if (runningSwitches.get(key) === owner && sourceIdentityIsCurrent(subject, sourceTab)) {
+      notifyFailure(
+        subject,
+        owner.controller.signal.aborted ? owner.controller.signal.reason : error
+      )
+    }
+  } finally {
+    clearTimeout(timer)
+    stopPairing()
+    stopWatching()
+    release()
+  }
+}

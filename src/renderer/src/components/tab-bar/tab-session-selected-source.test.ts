@@ -4,28 +4,18 @@ import type { AppState } from '@/store/types'
 import { makeRepo, makeTerminalTab, makeWorktree } from '../worktree-jump-palette-test-fixtures'
 import { makeAgentStatusEntry } from '@/runtime/sync-runtime-graph-test-harness'
 import { collectAiVaultTitleRequests } from '@/lib/ai-vault-tab-title-requests'
-import type { AiVaultListArgs, AiVaultSession } from '../../../../shared/ai-vault-types'
+import type { AiVaultSession } from '../../../../shared/ai-vault-types'
 import { getDefaultSettings } from '../../../../shared/constants'
 import {
   STRUCTURED_AGENT_SESSION_REGISTERED_AGENTS_RUNTIME_CAPABILITY,
   STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY
 } from '../../../../shared/protocol-version'
 import {
-  claimAiVaultForcedRescan,
-  resetAiVaultForcedRescanThrottleForTest
-} from '../right-sidebar/ai-vault-session-refresh'
-import {
-  cacheAiVaultSessionList,
-  readCachedAiVaultSessionList
-} from '../right-sidebar/ai-vault-session-list-request'
-import {
   canPaneOfferResumeInNewChat,
-  findTabSessionHistoryRow,
-  lookupTabSessionHistoryRow,
-  resolveTabSessionHistorySubject,
+  resolveTabSessionSelectedSource,
   resolveTabSessionSwitch,
-  type TabSessionHistorySubject
-} from './tab-session-history-switch'
+  type TabSessionSelectedSource
+} from './tab-session-selected-source'
 
 const mocks = vi.hoisted(() => {
   const state: {
@@ -53,7 +43,7 @@ vi.mock('@/runtime/host-structured-agents', async (importOriginal) => ({
 }))
 vi.mock('@/lib/renderer-app-platform', () => ({ getRendererAppPlatform: () => mocks.platform }))
 
-// Parity with the panel's real composition is pinned in tab-session-history-switch.parity.test.ts.
+// Parity with the panel's real composition is pinned in tab-session-selected-source.parity.test.ts.
 vi.mock('../right-sidebar/ai-vault-session-resume-in-chat-workspace', () => ({
   resolveAiVaultHistoryRowResume: () => ({
     resumeState: { ...mocks.resumeState, usesSessionWorktree: true },
@@ -132,23 +122,26 @@ const liveClaudeEntry = {
   })
 }
 
-const chatSubject: TabSessionHistorySubject = {
+const chatSubject: TabSessionSelectedSource = {
   kind: 'chat',
+  agent: 'codex',
   sessionId: 'orca-chat-1',
   workspaceId: WORKTREE_ID,
-  request: PANEL_REQUEST
+  executionHostId: 'local',
+  legacyListRequest: PANEL_REQUEST
 }
 
-const cliSubject: TabSessionHistorySubject = {
+const cliSubject: TabSessionSelectedSource = {
   kind: 'cli',
   agent: 'claude',
+  paneKey: 'term-1:leaf-1',
   providerSessionId: 'claude-session-1',
   workspaceId: WORKTREE_ID,
-  request: PANEL_REQUEST
+  executionHostId: 'local',
+  legacyListRequest: PANEL_REQUEST
 }
 
 beforeEach(() => {
-  resetAiVaultForcedRescanThrottleForTest()
   mocks.resumeState = { blocked: false, worktreeId: WORKTREE_ID }
   mocks.platform = 'darwin'
   mocks.resumeInChat.mockReset()
@@ -185,10 +178,10 @@ const exitedAgentRecords: Record<string, Partial<AppState>> = {
   }
 }
 
-describe('resolveTabSessionHistorySubject', () => {
+describe('resolveTabSessionSelectedSource', () => {
   it('finds a native chat tab by the chat it shows', () => {
     expect(
-      resolveTabSessionHistorySubject(makeState(), {
+      resolveTabSessionSelectedSource(makeState(), {
         tab: { id: 'unified-1', worktreeId: WORKTREE_ID },
         nativeChat: { sessionId: 'orca-chat-1', agent: 'codex' }
       })
@@ -199,17 +192,17 @@ describe('resolveTabSessionHistorySubject', () => {
     'finds a %s chat, whose conversation can be copied to its CLI',
     (agent) => {
       expect(
-        resolveTabSessionHistorySubject(makeState(), {
+        resolveTabSessionSelectedSource(makeState(), {
           tab: { id: 'unified-1', worktreeId: WORKTREE_ID },
           nativeChat: { sessionId: 'orca-chat-1', agent }
         })
-      ).toEqual({ ...chatSubject })
+      ).toEqual({ ...chatSubject, agent })
     }
   )
 
   it('finds a terminal tab by the conversation its agent reported', () => {
     expect(
-      resolveTabSessionHistorySubject(makeState(liveClaudeEntry), {
+      resolveTabSessionSelectedSource(makeState(liveClaudeEntry), {
         tab: { id: 'term-1', worktreeId: WORKTREE_ID }
       })
     ).toEqual(cliSubject)
@@ -218,7 +211,7 @@ describe('resolveTabSessionHistorySubject', () => {
   it('finds an agent a restart reattached to before it reports again', () => {
     const [[paneKey, entry]] = Object.entries(liveClaudeEntry)
     expect(
-      resolveTabSessionHistorySubject(
+      resolveTabSessionSelectedSource(
         makeState({ [paneKey]: { ...entry, restoredUnconfirmed: true } }),
         { tab: { id: 'term-1', worktreeId: WORKTREE_ID } }
       )
@@ -232,7 +225,7 @@ describe('resolveTabSessionHistorySubject', () => {
       useAppStore.setState(exitedAgentRecords[kind])
       const state = useAppStore.getState()
       expect(
-        resolveTabSessionHistorySubject(state, { tab: { id: 'term-1', worktreeId: WORKTREE_ID } })
+        resolveTabSessionSelectedSource(state, { tab: { id: 'term-1', worktreeId: WORKTREE_ID } })
       ).toBeNull()
       expect(collectAiVaultTitleRequests(state)).toEqual([
         expect.objectContaining({
@@ -275,10 +268,10 @@ describe('resolveTabSessionHistorySubject', () => {
       }
     })
     expect(
-      resolveTabSessionHistorySubject(useAppStore.getState(), {
+      resolveTabSessionSelectedSource(useAppStore.getState(), {
         tab: { id: 'term-1', worktreeId: WORKTREE_ID }
       })
-    ).toEqual(cliSubject)
+    ).toEqual({ ...cliSubject, paneKey: 'term-1:leaf-2' })
   })
 
   it.each(['grok', 'omp', 'opencode', 'opencode2', 'pi'] as const)(
@@ -294,7 +287,7 @@ describe('resolveTabSessionHistorySubject', () => {
         })
       })
       expect(
-        resolveTabSessionHistorySubject(state, { tab: { id: 'term-1', worktreeId: WORKTREE_ID } })
+        resolveTabSessionSelectedSource(state, { tab: { id: 'term-1', worktreeId: WORKTREE_ID } })
       ).toEqual({ ...cliSubject, agent: agentType, providerSessionId: `${agentType}-session-1` })
     }
   )
@@ -312,7 +305,7 @@ describe('resolveTabSessionHistorySubject', () => {
         })
       })
       expect(
-        resolveTabSessionHistorySubject(state, { tab: { id: 'term-1', worktreeId: WORKTREE_ID } })
+        resolveTabSessionSelectedSource(state, { tab: { id: 'term-1', worktreeId: WORKTREE_ID } })
       ).toBeNull()
     }
   )
@@ -320,12 +313,12 @@ describe('resolveTabSessionHistorySubject', () => {
   it('looks nothing up over SSH, where neither move is ever offered', () => {
     const state = makeState(liveClaudeEntry, { connectionId: 'dev-box' })
     expect(
-      resolveTabSessionHistorySubject(state, {
+      resolveTabSessionSelectedSource(state, {
         tab: { id: 'term-1', worktreeId: WORKTREE_ID }
       })
     ).toBeNull()
     expect(
-      resolveTabSessionHistorySubject(state, {
+      resolveTabSessionSelectedSource(state, {
         tab: { id: 'unified-1', worktreeId: WORKTREE_ID },
         nativeChat: { sessionId: 'orca-chat-1', agent: 'claude' }
       })
@@ -337,16 +330,17 @@ describe('resolveTabSessionHistorySubject', () => {
       executionHostId: 'runtime:server-1'
     })
     expect(
-      resolveTabSessionHistorySubject(state, {
+      resolveTabSessionSelectedSource(state, {
         tab: { id: 'unified-1', worktreeId: WORKTREE_ID },
         nativeChat: { sessionId: 'orca-chat-1', agent: 'claude' }
       })
     ).toMatchObject({
       kind: 'chat',
-      request: { executionHostScope: 'runtime:server-1' }
+      executionHostId: 'runtime:server-1',
+      legacyListRequest: { executionHostScope: 'runtime:server-1' }
     })
     expect(
-      resolveTabSessionHistorySubject(state, {
+      resolveTabSessionSelectedSource(state, {
         tab: { id: 'term-1', worktreeId: WORKTREE_ID }
       })
     ).toBeNull()
@@ -354,7 +348,7 @@ describe('resolveTabSessionHistorySubject', () => {
 
   it('skips a plain shell tab', () => {
     expect(
-      resolveTabSessionHistorySubject(makeState(), {
+      resolveTabSessionSelectedSource(makeState(), {
         tab: { id: 'term-1', worktreeId: WORKTREE_ID }
       })
     ).toBeNull()
@@ -381,7 +375,7 @@ describe('one pane of a terminal tab', () => {
     return useAppStore.getState()
   }
   const paneSubject = (state: AppState, paneKey: string) =>
-    resolveTabSessionHistorySubject(state, {
+    resolveTabSessionSelectedSource(state, {
       tab: { id: 'term-1', worktreeId: WORKTREE_ID },
       paneKey
     })
@@ -392,7 +386,7 @@ describe('one pane of a terminal tab', () => {
     const state = splitTab('leaf-2')
     // The tab as a whole maps to the Claude pane; the Gemini pane on its own has nothing.
     expect(
-      resolveTabSessionHistorySubject(state, { tab: { id: 'term-1', worktreeId: WORKTREE_ID } })
+      resolveTabSessionSelectedSource(state, { tab: { id: 'term-1', worktreeId: WORKTREE_ID } })
     ).toEqual(cliSubject)
     expect(paneSubject(state, geminiPane)).toBeNull()
     expect(paneGate(state, geminiPane)).toBe(false)
@@ -435,7 +429,7 @@ describe('one pane of a terminal tab', () => {
       expect(paneSubject(exited, claudePane)).toBeNull()
       expect(paneGate(exited, claudePane)).toBe(false)
       expect(
-        resolveTabSessionHistorySubject(exited, { tab: { id: 'term-1', worktreeId: WORKTREE_ID } })
+        resolveTabSessionSelectedSource(exited, { tab: { id: 'term-1', worktreeId: WORKTREE_ID } })
       ).toBeNull()
     }
   )
@@ -451,62 +445,18 @@ describe('one pane of a terminal tab', () => {
       })
       return useAppStore.getState()
     }
+    const tabSubject = (state: AppState) =>
+      resolveTabSessionSelectedSource(state, { tab: { id: 'term-1', worktreeId: WORKTREE_ID } })
     expect(paneGate(onWindows({ kind: 'windows-host' }), claudePane)).toBe(true)
+    expect(tabSubject(onWindows({ kind: 'windows-host' }))).toEqual(cliSubject)
     expect(paneGate(onWindows({ kind: 'wsl', distro: 'Ubuntu' }), claudePane)).toBe(false)
+    expect(tabSubject(onWindows({ kind: 'wsl', distro: 'Ubuntu' }))).toBeNull()
   })
 
   it('offers nothing over SSH', () => {
     expect(paneGate(makeState(liveClaudeEntry, { connectionId: 'dev-box' }), claudePane)).toBe(
       false
     )
-  })
-})
-
-describe('findTabSessionHistoryRow', () => {
-  const chatRow = row({
-    id: 'chat-row',
-    structuredSession: { sessionId: 'orca-chat-1', workspaceId: WORKTREE_ID }
-  })
-  const cliRow = row({ id: 'cli-row' })
-
-  it('matches a chat tab to the row its chat owns', () => {
-    expect(findTabSessionHistoryRow([cliRow, chatRow], chatSubject)?.id).toBe('chat-row')
-  })
-
-  it('matches a terminal tab to the row of the same agent and conversation', () => {
-    expect(findTabSessionHistoryRow([cliRow], cliSubject)?.id).toBe('cli-row')
-    // A chat that resumed the conversation owns its row; the move's gate refuses it from there.
-    const ownedRow = row({
-      id: 'owned-row',
-      structuredSession: { sessionId: 'orca-chat-1', workspaceId: WORKTREE_ID }
-    })
-    expect(findTabSessionHistoryRow([ownedRow], cliSubject)?.id).toBe('owned-row')
-    expect(findTabSessionHistoryRow([row({ agent: 'codex' })], cliSubject)).toBeNull()
-    // An OpenCode 2.x pane reports `opencode`; Session History lists its conversation as `opencode2`.
-    const openCodeSubject = {
-      ...cliSubject,
-      agent: 'opencode' as const,
-      providerSessionId: 'ses_1'
-    }
-    expect(
-      findTabSessionHistoryRow(
-        [row({ id: 'oc2-row', agent: 'opencode2', sessionId: 'ses_1' })],
-        openCodeSubject
-      )?.id
-    ).toBe('oc2-row')
-    expect(
-      findTabSessionHistoryRow([row({ agent: 'grok', sessionId: 'ses_1' })], openCodeSubject)
-    ).toBeNull()
-    expect(
-      findTabSessionHistoryRow(
-        [
-          row({
-            subagent: { parentSessionId: 'p', agentType: null, status: null }
-          })
-        ],
-        cliSubject
-      )
-    ).toBeNull()
   })
 })
 
@@ -548,139 +498,28 @@ describe('resolveTabSessionSwitch', () => {
   })
 })
 
-describe('lookupTabSessionHistoryRow', () => {
-  const listResult = (sessions: AiVaultSession[], cancelled = false) => ({
-    sessions,
-    issues: [],
-    scannedAt: 'now',
-    ...(cancelled ? { cancelled: true as const } : {})
-  })
-  const emptyRow = row({ messageCount: 0, previewMessages: [] })
-  const lookupOptions = { requestToken: 't', isCancelled: () => false }
-
-  it("sends the panel's own request without writing the panel's cache", async () => {
-    const listSessions = vi.fn(async (_args: AiVaultListArgs) => listResult([row()]))
-    await expect(
-      lookupTabSessionHistoryRow(cliSubject, listSessions, lookupOptions)
-    ).resolves.toMatchObject({
-      id: 'row-1'
+it.each(['grok', 'omp', 'opencode', 'opencode2'] as const)(
+  'tab and exact-pane header retain the registered %s source',
+  (agent) => {
+    const state = makeState({
+      'term-1:leaf-1': makeAgentStatusEntry({
+        agentType: agent,
+        paneKey: 'term-1:leaf-1',
+        tabId: 'term-1',
+        worktreeId: WORKTREE_ID,
+        providerSession: { key: 'session_id', id: 'provider-1' }
+      })
     })
-    expect(listSessions).toHaveBeenCalledTimes(1)
-    expect(listSessions).toHaveBeenCalledWith({
-      includeAntigravityIdeSessions: true,
-      limit: 250,
-      unlimited: false,
-      scopePaths: PANEL_REQUEST.scopePaths,
-      executionHostScope: 'local',
-      force: undefined,
-      requestToken: 't'
+    expect(
+      resolveTabSessionSelectedSource(state, { tab: { id: 'term-1', worktreeId: WORKTREE_ID } })
+    ).toMatchObject({
+      kind: 'cli',
+      agent,
+      providerSessionId: 'provider-1',
+      paneKey: 'term-1:leaf-1'
     })
-    expect(readCachedAiVaultSessionList(PANEL_REQUEST)).toBeNull()
-  })
-
-  it("leaves the panel's cached list as it was, even after a forced rescan", async () => {
-    cacheAiVaultSessionList(PANEL_REQUEST, listResult([row({ id: 'panel-row' })]), {
-      replaceHostEntries: false
-    })
-    const listSessions = vi.fn(async (_args: AiVaultListArgs) => listResult([emptyRow]))
-    await lookupTabSessionHistoryRow(cliSubject, listSessions, lookupOptions)
-
-    expect(listSessions).toHaveBeenLastCalledWith(expect.objectContaining({ force: true }))
-    expect(readCachedAiVaultSessionList(PANEL_REQUEST)?.sessions.map((s) => s.id)).toEqual([
-      'panel-row'
-    ])
-  })
-
-  it('rescans once on a miss, from the shared forced-rescan budget', async () => {
-    const listSessions = vi
-      .fn()
-      .mockResolvedValueOnce(listResult([emptyRow]))
-      .mockResolvedValueOnce(listResult([row()]))
-    await expect(
-      lookupTabSessionHistoryRow(cliSubject, listSessions, lookupOptions)
-    ).resolves.toMatchObject({
-      messageCount: 2
-    })
-    expect(listSessions).toHaveBeenCalledTimes(2)
-    expect(listSessions).toHaveBeenLastCalledWith(expect.objectContaining({ force: true }))
-  })
-
-  it('does not force another scan while the budget is spent', async () => {
-    const listSessions = vi.fn(async (_args: AiVaultListArgs) => listResult([emptyRow]))
-    await lookupTabSessionHistoryRow(cliSubject, listSessions, lookupOptions)
-    listSessions.mockClear()
-    await expect(
-      lookupTabSessionHistoryRow(cliSubject, listSessions, lookupOptions)
-    ).resolves.toMatchObject({
-      messageCount: 0
-    })
-    expect(listSessions).toHaveBeenCalledTimes(1)
-    expect(listSessions).toHaveBeenCalledWith(expect.objectContaining({ force: undefined }))
-  })
-
-  it('starts no forced scan once the menu has closed, and leaves the budget free', async () => {
-    let menuOpen = true
-    const listSessions = vi.fn(async (_args: AiVaultListArgs) => {
-      menuOpen = false
-      return listResult([emptyRow])
-    })
-    await lookupTabSessionHistoryRow(cliSubject, listSessions, {
-      requestToken: 't',
-      isCancelled: () => !menuOpen
-    })
-    expect(listSessions).toHaveBeenCalledTimes(1)
-    expect(claimAiVaultForcedRescan()).toBe(true)
-  })
-
-  it('forces no scan on a remote Orca server', async () => {
-    const listSessions = vi.fn(async (_args: AiVaultListArgs) => listResult([]))
-    await lookupTabSessionHistoryRow(
-      {
-        ...chatSubject,
-        request: { ...PANEL_REQUEST, executionHostScope: 'runtime:server-1' }
-      },
-      listSessions,
-      lookupOptions
-    )
-    expect(listSessions).toHaveBeenCalledTimes(1)
-  })
-
-  it('finds a chat-owned row without spending a forced rescan', async () => {
-    const owned = row({ structuredSession: { sessionId: 'orca-chat-1', workspaceId: WORKTREE_ID } })
-    const listSessions = vi.fn(async (_args: AiVaultListArgs) => listResult([owned]))
-    await expect(
-      lookupTabSessionHistoryRow(cliSubject, listSessions, lookupOptions)
-    ).resolves.toMatchObject({ structuredSession: { sessionId: 'orca-chat-1' } })
-    expect(listSessions).toHaveBeenCalledTimes(1)
-    expect(claimAiVaultForcedRescan()).toBe(true)
-  })
-
-  it('forces a rescan for a click even while the budget is spent, and takes the budget', async () => {
-    expect(claimAiVaultForcedRescan()).toBe(true)
-    const listSessions = vi
-      .fn()
-      .mockResolvedValueOnce(listResult([emptyRow]))
-      .mockResolvedValueOnce(listResult([row()]))
-    const clickOptions = { ...lookupOptions, userRequested: true }
-    await expect(
-      lookupTabSessionHistoryRow(cliSubject, listSessions, clickOptions)
-    ).resolves.toMatchObject({ messageCount: 2 })
-    expect(listSessions).toHaveBeenLastCalledWith(expect.objectContaining({ force: true }))
-    resetAiVaultForcedRescanThrottleForTest()
-    await lookupTabSessionHistoryRow(
-      cliSubject,
-      vi.fn().mockResolvedValue(listResult([])),
-      clickOptions
-    )
-    expect(claimAiVaultForcedRescan()).toBe(false)
-  })
-
-  it('reports no answer when the lookup is cancelled', async () => {
-    const listSessions = vi.fn().mockResolvedValue(listResult([], true))
-    await expect(
-      lookupTabSessionHistoryRow(cliSubject, listSessions, lookupOptions)
-    ).resolves.toBeUndefined()
-    expect(listSessions).toHaveBeenCalledTimes(1)
-    expect(readCachedAiVaultSessionList(PANEL_REQUEST)).toBeNull()
-  })
-})
+    expect(
+      canPaneOfferResumeInNewChat(state, { worktreeId: WORKTREE_ID, paneKey: 'term-1:leaf-1' })
+    ).toBe(true)
+  }
+)

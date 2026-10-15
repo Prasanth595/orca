@@ -1,4 +1,10 @@
 import {
+  adoptsCliConversations,
+  CLI_CONVERSATION_ADOPTING_AGENTS
+} from '../../../../shared/structured-agent-cli-conversation-adoption'
+import { SelectedSessionParams } from '../../../../shared/ai-vault-selected-session-contract'
+import { requireStructuredAgentAudience } from './structured-agent-session-gate'
+import {
   AiVaultSearchRequestSchema,
   AiVaultSearchStatusRequestSchema,
   AiVaultSetSearchEnabledParamsSchema
@@ -36,6 +42,33 @@ import {
 export { AiVaultListSessionsParams, AiVaultPrepareSessionResumeParams, AiVaultSessionTitlesParams }
 
 export const AI_VAULT_METHODS = [
+  defineMethod({
+    name: 'aiVault.resolveSession',
+    permission: 'workspace',
+    params: SelectedSessionParams,
+    handler: async (params, context) => {
+      const result = await context.runtime.resolveAiVaultSelectedSession(
+        params.source,
+        context.signal
+      )
+      if (result.status === 'ready') {
+        requireStructuredAgentAudience(
+          context,
+          adoptsCliConversations(result.session.agent)
+            ? CLI_CONVERSATION_ADOPTING_AGENTS[result.session.agent]
+            : result.session.agent
+        )
+        return {
+          ...result,
+          session: {
+            ...result.session,
+            ...(params.executionHostId ? { executionHostId: params.executionHostId } : {})
+          }
+        }
+      }
+      return result
+    }
+  }),
   defineMethod({
     name: 'aiVault.searchSessions',
     permission: 'workspace',

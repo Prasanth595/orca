@@ -185,7 +185,7 @@ export function findResumeOwnership(
   if (!host) {
     return null
   }
-  const exact = args.sessionId ? findOwnership(owner, args.sessionId) : null
+  const exact = args.sessionId ? findStructuredAiVaultOwnership(owner, args.sessionId) : null
   if (exact) {
     return exact
   }
@@ -197,7 +197,7 @@ export function findResumeOwnership(
   )
 }
 
-function findOwnership(
+export function findStructuredAiVaultOwnership(
   provider: StructuredAgentId,
   providerSessionId: string
 ): StructuredProviderSessionOwnership | null {

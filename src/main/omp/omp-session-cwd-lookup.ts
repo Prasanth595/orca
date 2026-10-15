@@ -54,12 +54,15 @@ export async function findOmpSessionByCwd(input: {
   cwd: string
   homeDir: string
   env: NodeJS.ProcessEnv
+  signal?: AbortSignal
 }): Promise<string | null> {
+  input.signal?.throwIfAborted()
   const sessionId = input.sessionId.trim()
   if (!sessionId || !isAbsolute(input.cwd)) {
     return null
   }
   for (const bucket of await cwdBuckets(input.cwd, input.homeDir, input.env)) {
+    input.signal?.throwIfAborted()
     const dirPath = join(input.sessionsDir, bucket)
     try {
       const stat = await lstat(dirPath)
@@ -68,6 +71,7 @@ export async function findOmpSessionByCwd(input: {
       }
       const directory = await opendir(dirPath)
       for await (const entry of directory) {
+        input.signal?.throwIfAborted()
         if (
           !entry.isFile() ||
           entry.isSymbolicLink() ||
@@ -80,7 +84,17 @@ export async function findOmpSessionByCwd(input: {
           return file
         }
       }
-    } catch {
+    } catch (error) {
+      input.signal?.throwIfAborted()
+      if (
+        input.signal &&
+        error instanceof Error &&
+        'code' in error &&
+        error.code !== 'ENOENT' &&
+        error.code !== 'ENOTDIR'
+      ) {
+        throw error
+      }
       // A stale or unreadable bucket must not replace a missing history with a blank chat.
     }
   }

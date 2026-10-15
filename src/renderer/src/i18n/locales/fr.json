@@ -13924,7 +13924,8 @@
             "resumeInChatFailed": "Impossible de reprendre cette session dans un nouveau chat.",
             "resumeInNewCliUnavailable": "Impossible d'ouvrir cette session dans la CLI.",
             "resumeInNewCliHostTooOld": "Mettez à jour Orca sur l'hôte qui exécute ce chat pour le reprendre dans une nouvelle CLI.",
-            "folderWorkspaceUnavailable": "L'espace de travail de type dossier n'est plus disponible."
+            "folderWorkspaceUnavailable": "L'espace de travail de type dossier n'est plus disponible.",
+            "resumeInNewCliFailed": "Impossible de reprendre cette session dans une nouvelle CLI."
           },
           "AiVaultPanelControls": {
             "scanningSessions": "Analyse des sessions",
@@ -19182,6 +19183,12 @@
     },
     "automations": {
       "runTerminalUnavailable": "Le terminal d'exécution est indisponible."
+    },
+    "tabBar": {
+      "sessionSwitch": {
+        "loading": "Chargement de la conversation…",
+        "opening": "Ouverture…"
+      }
     },
     "jiraIssueTitleField": {
       "generate": "Générer le titre à partir de la description",

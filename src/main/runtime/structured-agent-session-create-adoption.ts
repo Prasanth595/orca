@@ -1,6 +1,17 @@
+import { prepareSelectedCodexAdoption } from '../native-chat/selected-codex-adoption-preparation'
+import type { AiVaultSessionResumePreparation } from '../../shared/ai-vault-resume-preparation'
+import type { SelectedCliSessionSource } from '../../shared/ai-vault-selected-session'
+import type { AgentStatusIpcPayload } from '../../shared/agent-status-types'
+import { resolveSelectedCliTranscript } from '../native-chat/selected-cli-transcript'
+import { withSelectedSessionDeadline } from '../ai-vault/selected-session-deadline'
+import {
+  adoptsCliConversations,
+  CLI_CONVERSATION_ADOPTING_AGENTS
+} from '../../shared/structured-agent-cli-conversation-adoption'
 import type { AgentSessionAccountHome } from '../../shared/agent-session-account-home'
 import type { AgentSessionExecutionLocation } from '../../shared/agent-session-record'
 import type { StructuredAgentId } from '../../shared/agent-session-provider-handle'
+import type { StructuredAgentSessionResumeSource } from '../../shared/structured-agent-session-create'
 import { agentSessionExecutionLocationsEqual } from '../../shared/agent-session-record'
 import type { AgentSessionAttachParams } from '../native-chat/agent-session-wire/structured-agent-session-attach'
 import type { StructuredAgentSessionHost } from '../native-chat/agent-session-wire/structured-agent-session-host'
@@ -16,6 +27,24 @@ import type {
   StructuredAgentTranscriptImport,
   StructuredAgentTranscriptImportSettings
 } from '../native-chat/structured-agent-cli-conversations'
+
+export type StructuredAgentSessionCreateIntent = {
+  envelope: { sessionId: string; clientOperationId: string }
+  worktree: string
+  agent: StructuredAgentId
+  callerKey?: string
+  resumeFrom?: StructuredAgentSessionResumeSource
+}
+
+export type StructuredAgentSessionCreateAccountResolver = (context: {
+  launchEnv: NodeJS.ProcessEnv
+  location: {
+    executionHostId: string
+    wslDistro: string | null
+    workspaceId: string
+    workspaceKind: 'folder' | 'git-worktree'
+  }
+}) => AgentSessionAccountHome | Promise<AgentSessionAccountHome>
 
 export function resolveCommittedStructuredAgentSessionAdoptionIntent(input: {
   host: StructuredAgentSessionHost | null
@@ -68,6 +97,10 @@ export async function resolveStructuredAgentSessionAdoptionForCreate(input: {
   transcriptImport: StructuredAgentTranscriptImport
   providerSessionId: string
   selfSessionId: string
+  selectedSource?: SelectedCliSessionSource
+  sourceRows?: readonly AgentStatusIpcPayload[]
+  sourceCwd?: string | null
+  prepareSessionResume?: AiVaultSessionResumePreparation
   selectedAccountHome: AgentSessionAccountHome
   launchEnv: NodeJS.ProcessEnv
   workspaceCwd: string
@@ -82,6 +115,38 @@ export async function resolveStructuredAgentSessionAdoptionForCreate(input: {
     : null
   if (conflict) {
     throw structuredAdoptionConflictError(conflict)
+  }
+  const source = input.selectedSource
+  if (source) {
+    const agent = input.agent
+    if (
+      !adoptsCliConversations(agent) ||
+      CLI_CONVERSATION_ADOPTING_AGENTS[agent] !== agent ||
+      !input.sourceCwd
+    ) {
+      throw new Error('The source conversation is unavailable on this host.')
+    }
+    return withSelectedSessionDeadline(async (signal) => {
+      const resolved = await resolveSelectedCliTranscript({
+        agent,
+        providerSessionId: input.providerSessionId,
+        source,
+        rows: input.sourceRows ?? [],
+        workspaceCwd: input.sourceCwd ?? '',
+        launchEnv: input.launchEnv,
+        selectedAccountHome: input.selectedAccountHome,
+        settings: input.settings,
+        signal
+      })
+      return agent === 'codex'
+        ? prepareSelectedCodexAdoption(
+            resolved,
+            input.providerSessionId,
+            input.prepareSessionResume,
+            signal
+          )
+        : resolved
+    })
   }
   return resolveStructuredAgentSessionAdoption({
     providerSessionId: input.providerSessionId,

@@ -1,3 +1,4 @@
+import { registerAiVaultSelectedSessionHandlers } from '../ai-vault-selected-session'
 import { app } from 'electron'
 import { registerAppHandlers } from '../app'
 import { registerCliHandlers } from '../cli'
@@ -261,7 +262,12 @@ export function registerCoreHandlers(
       callRuntimeSessionSearch(app.getPath('userData'), environmentId, method, params),
     ensureStructuredSessionOwnership
   })
+  const selectedRequestCancellations = registerAiVaultSelectedSessionHandlers(
+    runtime,
+    app.getPath('userData')
+  )
   registerAiVaultHandlers({
+    selectedRequestCancellations,
     ensureStructuredSessionOwnership,
     getAdditionalCodexHomePaths: lifecycleOptions.getAdditionalAiVaultCodexHomePaths,
     prepareSessionResume: lifecycleOptions.prepareAiVaultSessionResume,
@@ -271,8 +277,8 @@ export function registerCoreHandlers(
       scanRuntimeAiVaultSessions(app.getPath('userData'), environmentId, args, options),
     resolveRuntimeAiVaultSessionTitles: async (environmentId, args) =>
       resolveRuntimeAiVaultSessionTitles(app.getPath('userData'), environmentId, args),
-    prepareRuntimeSessionResume: async (environmentId, args) =>
-      prepareRuntimeAiVaultSessionResume(app.getPath('userData'), environmentId, args)
+    prepareRuntimeSessionResume: async (environmentId, args, options) =>
+      prepareRuntimeAiVaultSessionResume(app.getPath('userData'), environmentId, args, options)
   })
   registerNativeChatHandlers()
   registerClipboardHandlers(store)

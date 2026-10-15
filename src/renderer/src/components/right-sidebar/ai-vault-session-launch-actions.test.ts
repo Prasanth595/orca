@@ -20,10 +20,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/ai-vault-session-fork-startup', async (importOriginal) => ({
   ...(await importOriginal<typeof ForkStartup>()),
-  buildAiVaultCopiedSessionStartupForWorktree: (args: { session: AiVaultSession }) => ({
-    ...mocks.buildAiVaultResumeStartupForWorktree(args),
-    agent: args.session.agent
-  }),
   buildAiVaultForkStartupForWorktree: mocks.buildAiVaultForkStartupForWorktree
 }))
 vi.mock('@/lib/ai-vault-resume-command', () => ({
@@ -160,7 +156,9 @@ describe('Resume in New CLI launch', () => {
       const copy = {
         ...chat,
         agent: agent === 'omp' ? ('omp' as const) : ('opencode' as const),
-        sessionId: 'copy-1'
+        sessionId: 'copy-1',
+        filePath: '/host/copy-1.jsonl',
+        structuredSession: undefined
       }
       const startup = {
         command: `${copy.agent} --resume copy-1`,
@@ -180,6 +178,23 @@ describe('Resume in New CLI launch', () => {
       })
       expect(mocks.buildAiVaultForkStartupForWorktree).not.toHaveBeenCalled()
       expect(mocks.toastError).not.toHaveBeenCalled()
+      expect(chat.structuredSession).toEqual(owned.structuredSession)
+      if (agent === 'opencode2') {
+        await renderActions().handleResumeInNewCli(chat, 'worktree-2')
+        expect(mocks.buildAiVaultResumeStartupForWorktree).toHaveBeenLastCalledWith(
+          expect.objectContaining({ session: copy, agentArgs: "'--standalone'" })
+        )
+        const controller = new AbortController()
+        mocks.prepareAiVaultSessionForFork.mockImplementationOnce(async () => {
+          controller.abort()
+          return { session: copy, copied: true }
+        })
+        await renderActions().handleResumeInNewCli(chat, 'worktree-2', {
+          signal: controller.signal,
+          isSourceOpen: () => !controller.signal.aborted
+        })
+        expect(mocks.launchAiVaultSessionInNewTab).toHaveBeenCalledTimes(2)
+      }
     }
   )
 

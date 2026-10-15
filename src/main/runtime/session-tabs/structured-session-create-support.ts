@@ -1,10 +1,12 @@
-import type { OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce as RestoreStructuredAgentSessionTabsOnceMethods } from './structured-session-tab-restoration'
+import type { OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce as SessionTabRestoration } from './structured-session-tab-restoration'
 import { agentSessionRefusalError } from '../../../shared/agent-session-wire-refusals'
 import { OrcaRuntimeWithGetWorktreePs } from '../workspaces/workspace-process-listing'
 import { getStructuredAgentSessionHost } from '../../native-chat/agent-session-wire/structured-agent-session-registry'
 import {
   resolveCommittedStructuredAgentSessionAdoptionIntent,
-  resolveStructuredAgentSessionAdoptionForCreate
+  resolveStructuredAgentSessionAdoptionForCreate,
+  type StructuredAgentSessionCreateIntent,
+  type StructuredAgentSessionCreateAccountResolver
 } from '../structured-agent-session-create-adoption'
 import { isNativeLocalLocation, LOCAL_EXECUTION_HOST_ID } from '../../../shared/execution-host'
 import { getLocalProjectWorktreeGitOptions } from '../../project-runtime-git-options'
@@ -30,12 +32,8 @@ import { readPiSessionHeader, samePiDirectory } from '../../pi/rpc-launch-resolu
 
 export abstract class OrcaRuntimeWithGetStructuredAgentSessionCreateSupport extends OrcaRuntimeWithGetWorktreePs {
   protected abstract restoreStructuredAgentSessionTabsOnce(
-    ...args: Parameters<
-      RestoreStructuredAgentSessionTabsOnceMethods['restoreStructuredAgentSessionTabsOnce']
-    >
-  ): ReturnType<
-    RestoreStructuredAgentSessionTabsOnceMethods['restoreStructuredAgentSessionTabsOnce']
-  >
+    ...args: Parameters<SessionTabRestoration['restoreStructuredAgentSessionTabsOnce']>
+  ): ReturnType<SessionTabRestoration['restoreStructuredAgentSessionTabsOnce']>
 
   async getStructuredAgentSessionCreateSupport(
     worktreeSelector: string,
@@ -144,13 +142,9 @@ export abstract class OrcaRuntimeWithGetStructuredAgentSessionCreateSupport exte
     return (await this.resolveRuntimeFileTarget(worktreeSelector)).worktree.path
   }
 
-  async resolveStructuredAgentSessionCreateIntent(input: {
-    envelope: { sessionId: string; clientOperationId: string }
-    worktree: string
-    agent: StructuredAgentId
-    callerKey?: string
-    resumeFrom?: { providerSessionId: string }
-  }): Promise<AgentSessionAttachParams & { hostLaunchDirectory?: string }> {
+  async resolveStructuredAgentSessionCreateIntent(
+    input: StructuredAgentSessionCreateIntent
+  ): Promise<AgentSessionAttachParams & { hostLaunchDirectory?: string }> {
     const hostLaunchDirectory = isFloatingWorkspaceSelector(input.worktree)
       ? (await this.resolveRuntimeFileTarget(input.worktree)).worktree.path
       : undefined
@@ -175,7 +169,8 @@ export abstract class OrcaRuntimeWithGetStructuredAgentSessionCreateSupport exte
    * Same resolver as the create intent above — never a second copy.
    */
   async resolveStructuredAgentAccountHome(
-    agent: StructuredAgentId
+    agent: StructuredAgentId,
+    hostLaunchEnv?: NodeJS.ProcessEnv
   ): Promise<AgentSessionAccountHome> {
     const resolveAccountHome = this.structuredAgentAccountHomeResolver(agent, '', 'read')
     if (!resolveAccountHome) {
@@ -183,27 +178,28 @@ export abstract class OrcaRuntimeWithGetStructuredAgentSessionCreateSupport exte
         reason: 'hostUnsupported'
       })
     }
-    const launchEnv = this.structuredAgentLaunchEnv(agent, this.requireStore().getSettings())
+    const launchEnv =
+      hostLaunchEnv ?? this.structuredAgentLaunchEnv(agent, this.requireStore().getSettings())
     return resolveAccountHome({ launchEnv, location: null })
   }
 
+  async resolveStructuredAgentTranscriptImportContext(agent: StructuredAgentId, worktree: string) {
+    const workspaceCwd = await this.resolveStructuredAgentSessionLocalWorkspacePath(worktree)
+    if (!workspaceCwd) {
+      throw new Error('The conversation workspace is unavailable on this host.')
+    }
+    return {
+      workspaceCwd,
+      launchEnv: await resolveHostStructuredAgentLaunchEnvironment(
+        agent,
+        this.requireStore().getSettings()
+      )
+    }
+  }
+
   protected async resolveStructuredAgentSessionIntent(
-    input: {
-      envelope: { sessionId: string; clientOperationId: string }
-      worktree: string
-      agent: StructuredAgentId
-      callerKey?: string
-      resumeFrom?: { providerSessionId: string }
-    },
-    resolveAccountHome: (context: {
-      launchEnv: NodeJS.ProcessEnv
-      location: {
-        executionHostId: string
-        wslDistro: string | null
-        workspaceId: string
-        workspaceKind: 'folder' | 'git-worktree'
-      }
-    }) => AgentSessionAccountHome | Promise<AgentSessionAccountHome>
+    input: StructuredAgentSessionCreateIntent,
+    resolveAccountHome: StructuredAgentSessionCreateAccountResolver
   ): Promise<AgentSessionAttachParams> {
     const support = await this.getStructuredAgentSessionCreateSupport(input.worktree, input.agent)
     // Adopting a conversation reads the agent's own transcript, so only an agent registered with an
@@ -243,9 +239,21 @@ export abstract class OrcaRuntimeWithGetStructuredAgentSessionCreateSupport exte
             transcriptImport,
             providerSessionId: input.resumeFrom.providerSessionId,
             selfSessionId: input.envelope.sessionId,
+            ...(input.resumeFrom.selectedSource
+              ? {
+                  selectedSource: input.resumeFrom.selectedSource,
+                  sourceRows: this.getAgentProviderSessionRows(),
+                  prepareSessionResume: this.prepareAiVaultSessionResumeFn ?? undefined,
+                  sourceCwd: await this.resolveStructuredAgentSessionLocalWorkspacePath(
+                    input.resumeFrom.selectedSource.workspaceId
+                  )
+                }
+              : {}),
             selectedAccountHome,
-            launchEnv: await resolveHostStructuredAgentLaunchEnvironment(input.agent, settings),
-            workspaceCwd: (await this.resolveRuntimeFileTarget(input.worktree)).worktree.path
+            ...(await this.resolveStructuredAgentTranscriptImportContext(
+              input.agent,
+              input.worktree
+            ))
           })
         : null
     if (input.agent === 'pi' && adoption) {

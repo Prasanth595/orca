@@ -13816,7 +13816,8 @@
             "resumeInChatFailed": "새 채팅에서 이 세션을 재개할 수 없습니다.",
             "resumeInNewCliUnavailable": "이 세션은 CLI에서 열 수 없습니다.",
             "resumeInNewCliHostTooOld": "이 채팅을 새 CLI에서 재개하려면 채팅을 실행하는 호스트의 Orca를 업데이트하세요.",
-            "folderWorkspaceUnavailable": "폴더 워크스페이스는 더 이상 사용할 수 없습니다."
+            "folderWorkspaceUnavailable": "폴더 워크스페이스는 더 이상 사용할 수 없습니다.",
+            "resumeInNewCliFailed": "새 CLI에서 이 세션을 재개할 수 없습니다."
           },
           "AiVaultPanelControls": {
             "scanningSessions": "세션 스캔 중",
@@ -19078,6 +19079,12 @@
     },
     "automations": {
       "runTerminalUnavailable": "실행 터미널을 사용할 수 없습니다."
+    },
+    "tabBar": {
+      "sessionSwitch": {
+        "loading": "대화 불러오는 중…",
+        "opening": "여는 중…"
+      }
     },
     "jiraIssueTitleField": {
       "generate": "설명에서 제목 생성",

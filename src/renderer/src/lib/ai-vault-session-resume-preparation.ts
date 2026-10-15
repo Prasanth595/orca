@@ -1,8 +1,9 @@
-import type { AiVaultSession } from '../../../shared/ai-vault-types'
+import type { AiVaultSurfaceSwitchOperation } from './ai-vault-surface-switch-operation'
 import type {
   AiVaultPrepareSessionResumeArgs,
   AiVaultPrepareSessionResumeResult
 } from '../../../shared/ai-vault-resume-preparation'
+import type { AiVaultSessionLaunchContext } from '../../../shared/ai-vault-selected-session'
 import {
   isLegacySharedCodexHome,
   isPerAccountManagedCodexHome
@@ -17,15 +18,18 @@ import type { AiVaultResumeCommandSession } from './ai-vault-resume-command'
 import { agentForksThroughChat } from '../../../shared/agent-resume-argv'
 import { translate } from '@/i18n/i18n'
 
-export function prepareAiVaultSessionForResume(session: AiVaultSession): Promise<AiVaultSession> {
+export function prepareAiVaultSessionForResume<T extends AiVaultSessionLaunchContext>(
+  session: T,
+  operation?: AiVaultSurfaceSwitchOperation
+): Promise<T> {
   return session.structuredSession || !aiVaultSessionNeedsResumePreparation(session)
     ? Promise.resolve(session)
-    : prepareAiVaultSessionHome(session, false)
+    : prepareAiVaultSessionHome(session, false, false, operation)
 }
 
-export function prepareAiVaultSessionForTerminalResume(
-  session: AiVaultSession
-): Promise<AiVaultSession> {
+export function prepareAiVaultSessionForTerminalResume<T extends AiVaultSessionLaunchContext>(
+  session: T
+): Promise<T> {
   return prepareAiVaultSessionHome(session, false, true)
 }
 
@@ -87,19 +91,35 @@ function isMissingPairedResumePreparation(error: unknown): boolean {
  * copy, which a plain resume opens and no chat owns (`copied: true`).
  */
 export async function prepareAiVaultSessionForFork(
-  session: AiVaultSession
-): Promise<{ session: AiVaultSession; copied: boolean }> {
+  session: AiVaultSessionLaunchContext,
+  operation?: AiVaultSurfaceSwitchOperation
+): Promise<{
+  session: AiVaultSessionLaunchContext & AiVaultResumeCommandSession
+  copied: boolean
+}> {
   if (!agentForksThroughChat(session.agent)) {
-    return { session: await prepareAiVaultSessionHome(session, true), copied: false }
+    return {
+      session: await prepareAiVaultSessionHome(session, true, false, operation),
+      copied: false
+    }
   }
-  const result = await window.api.aiVault.prepareSessionResume({
+  operation?.signal.throwIfAborted()
+  if (operation && !operation.isSourceOpen()) {
+    throw new Error('The source conversation is no longer available.')
+  }
+  const result = await prepareAiVaultSessionResumeRequest({
     agent: session.agent,
     sessionId: session.sessionId,
     filePath: session.filePath,
     codexHome: session.codexHome,
     executionHostId: session.executionHostId,
-    fork: true
+    fork: true,
+    ...(operation?.requestContext ? { requestContext: operation.requestContext } : {})
   })
+  operation?.signal.throwIfAborted()
+  if (operation && !operation.isSourceOpen()) {
+    throw new Error('The source conversation is no longer available.')
+  }
   if (!result.forkedSession || (session.agent === 'omp' && !result.forkedSession.filePath)) {
     // A host that predates chat copies makes none; resuming the chat's own would be a second writer.
     throw new Error(aiVaultCliForkHostTooOldMessage())
@@ -120,13 +140,18 @@ export function aiVaultCliForkHostTooOldMessage(): string {
   )
 }
 
-async function prepareAiVaultSessionHome(
-  session: AiVaultSession,
+async function prepareAiVaultSessionHome<T extends AiVaultSessionLaunchContext>(
+  session: T,
   fork: boolean,
-  terminalResume = false
-): Promise<AiVaultSession> {
+  terminalResume = false,
+  operation?: AiVaultSurfaceSwitchOperation
+): Promise<T> {
   if (fork && !aiVaultSessionNeedsResumePreparation(session)) {
     return session
+  }
+  operation?.signal.throwIfAborted()
+  if (operation && !operation.isSourceOpen()) {
+    throw new Error('The source conversation is no longer available.')
   }
   const args: AiVaultPrepareSessionResumeArgs = {
     agent: session.agent,
@@ -134,22 +159,34 @@ async function prepareAiVaultSessionHome(
     filePath: session.filePath,
     codexHome: session.codexHome,
     executionHostId: session.executionHostId,
-    ...(fork ? { fork: true } : {})
+    ...(fork ? { fork: true } : {}),
+    ...(operation?.requestContext ? { requestContext: operation.requestContext } : {})
   }
   const result = await (terminalResume
     ? prepareAiVaultTerminalResumeRequest(args)
     : prepareAiVaultSessionResumeRequest(args))
+  operation?.signal.throwIfAborted()
   if (result.useRealCodexHome) {
-    return { ...session, codexHome: null }
+    return {
+      ...session,
+      codexHome: null,
+      ...(session.accountHome ? { accountHome: undefined } : {})
+    }
   }
   if (result.substituteCodexHome) {
-    return { ...session, codexHome: result.substituteCodexHome }
+    return {
+      ...session,
+      codexHome: result.substituteCodexHome,
+      ...(session.accountHome
+        ? { accountHome: { variable: 'CODEX_HOME', path: result.substituteCodexHome } }
+        : {})
+    }
   }
   return session
 }
 
 export function aiVaultSessionNeedsResumePreparation(
-  session: Pick<AiVaultSession, 'agent' | 'codexHome' | 'executionHostId'>
+  session: Pick<AiVaultSessionLaunchContext, 'agent' | 'codexHome' | 'executionHostId'>
 ): boolean {
   if (session.agent !== 'codex') {
     return false
@@ -167,7 +204,10 @@ export function aiVaultSessionNeedsResumePreparation(
 
 // Why: these sessions are keyed by their folder. Elsewhere Kimi rejects the resume or (1.52+) opens
 // a new empty session under the same id, so the visible `cd` failure is the honest outcome.
-const RESUMES_ONLY_IN_RECORDED_CWD: ReadonlySet<AiVaultSession['agent']> = new Set(['kimi', 'muse'])
+const RESUMES_ONLY_IN_RECORDED_CWD: ReadonlySet<AiVaultSessionLaunchContext['agent']> = new Set([
+  'kimi',
+  'muse'
+])
 
 /**
  * Drops an SSH session's recorded folder once its host confirms the folder is gone, so the resume

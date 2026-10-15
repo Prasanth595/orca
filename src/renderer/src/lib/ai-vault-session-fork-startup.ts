@@ -1,3 +1,4 @@
+import { isLegacyAgentSessionAccountHome } from '../../../shared/agent-session-account-home'
 import { parseExecutionHostId } from '../../../shared/execution-host'
 import { assertOpenCodeCopyUsesLocalStore } from '../../../shared/opencode-launch-command'
 import { findOptionOccurrence } from '../../../shared/command-option-occurrence'
@@ -60,7 +61,12 @@ export function buildAiVaultForkStartupForWorktree(
     platform,
     shell: liveShell,
     agentArgs: resolveTuiAgentLaunchArgs(session.agent, state.settings?.agentDefaultArgs),
-    agentEnv: resolveTuiAgentLaunchEnv(session.agent, state.settings?.agentDefaultEnv),
+    agentEnv: {
+      ...resolveTuiAgentLaunchEnv(session.agent, state.settings?.agentDefaultEnv),
+      ...(session.accountHome && isLegacyAgentSessionAccountHome(session.accountHome)
+        ? { [session.accountHome.variable]: session.accountHome.path }
+        : {})
+    },
     resumeInLaunchCwd: true,
     fork: true
   })

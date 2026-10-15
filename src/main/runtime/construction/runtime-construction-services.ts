@@ -41,6 +41,8 @@ import type { WorkspaceSessionState } from '../../../shared/workspace-session-st
 import type { AgentStatusIpcPayload } from '../../../shared/agent-status-types'
 import type * as PtyControllerContract from '../runtime-pty-controller-contract'
 import type { RuntimeClientEventBus } from '../runtime-client-event-bus'
+import type { SelectedSessionRuntime } from '../../ai-vault/selected-session-resolver'
+import type { FolderWorkspace } from '../../../shared/folder-workspace-types'
 
 export abstract class RuntimeConstructionServices {
   abstract getOrchestrationDb(): OrchestrationDb
@@ -49,6 +51,22 @@ export abstract class RuntimeConstructionServices {
   abstract invalidateWorktreeScanCacheForRepo(repoId: string): void
   protected abstract notifyReposChanged(): void
   protected abstract isPtyKnownExited(ptyId: string): boolean
+  protected abstract runWorktreeTerminalMutation<T>(
+    worktreeId: string,
+    operation: () => Promise<T>
+  ): Promise<T>
+  protected abstract folderWorkspaceToResolvedWorktree(
+    folderWorkspace: FolderWorkspace
+  ): ResolvedWorktree
+  abstract resolveStructuredAgentAccountHome(
+    ...args: Parameters<SelectedSessionRuntime['resolveStructuredAgentAccountHome']>
+  ): ReturnType<SelectedSessionRuntime['resolveStructuredAgentAccountHome']>
+  abstract resolveStructuredAgentSessionLocalWorkspacePath(
+    ...args: Parameters<SelectedSessionRuntime['resolveStructuredAgentSessionLocalWorkspacePath']>
+  ): ReturnType<SelectedSessionRuntime['resolveStructuredAgentSessionLocalWorkspacePath']>
+  abstract resolveStructuredAgentTranscriptImportContext(
+    ...args: Parameters<SelectedSessionRuntime['resolveStructuredAgentTranscriptImportContext']>
+  ): ReturnType<SelectedSessionRuntime['resolveStructuredAgentTranscriptImportContext']>
 
   abstract getPtyLivenessVerdict(
     ...args: Calls.GetPtyLivenessVerdictArgs

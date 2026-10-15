@@ -9,8 +9,8 @@ import type { LegacyWorkerRecoveryCandidate } from '../runtime-legacy-worker-ter
 import type { LegacyWorkerTerminalRecoveryPlan } from '../orchestration/orchestration-legacy-worker-terminal-recovery'
 
 import { OrcaRuntimeWithTerminalDrivers } from '../terminal/driver/terminal-driver-resources'
+import { resolveSelectedSessionOnHost } from '../../ai-vault/selected-session-resolver'
 import type { FolderWorkspace } from '../../../shared/folder-workspace-types'
-import type { ResolvedWorktree } from '../runtime-worktree-path-identity'
 import { confirmRunTerminalShellAlone, readRunTerminalClientUse } from '../run-terminal-client-use'
 import { ALL_EXECUTION_HOSTS_SCOPE } from '../../../shared/execution-host'
 import { RuntimePreservedBranchCleanup } from '../runtime-preserved-branch-cleanup'
@@ -78,14 +78,6 @@ export abstract class OrcaRuntimeWithPreservedBranchCleanup extends OrcaRuntimeW
     ...args: Calls.UpdateLegacyWorkerTerminalRecoveryRetryArgs
   ): Calls.UpdateLegacyWorkerTerminalRecoveryRetryResult
   protected abstract resolveFolderWorkspaceConnectionId(workspace: FolderWorkspace): string | null
-
-  protected abstract runWorktreeTerminalMutation<T>(
-    worktreeId: string,
-    operation: () => Promise<T>
-  ): Promise<T>
-  protected abstract folderWorkspaceToResolvedWorktree(
-    folderWorkspace: FolderWorkspace
-  ): ResolvedWorktree
 
   readonly preservedBranchCleanup = new RuntimePreservedBranchCleanup(() =>
     this.store ? this.requireStore() : null
@@ -366,7 +358,11 @@ export abstract class OrcaRuntimeWithPreservedBranchCleanup extends OrcaRuntimeW
       this.workspaceSessionWorktreeHasRuntimeOwnedPtyCandidate(session, worktreeId, tabs)
   })
 
-  protected readonly aiVault = new RuntimeAiVaultCommands(() => this.prepareAiVaultSessionResumeFn)
+  protected readonly aiVault = new RuntimeAiVaultCommands(
+    () => this.prepareAiVaultSessionResumeFn,
+    (source, signal) =>
+      resolveSelectedSessionOnHost(source, this, this.requireStore().getSettings(), signal)
+  )
 
   protected readonly claudeAgentTeams = new ClaudeAgentTeamsService()
 

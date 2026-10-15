@@ -148,13 +148,20 @@ export async function resolveRuntimeAiVaultSessionTitles(
 export async function prepareRuntimeAiVaultSessionResume(
   userDataPath: string,
   environmentId: string,
-  args: AiVaultPrepareSessionResumeArgs
+  args: AiVaultPrepareSessionResumeArgs,
+  options?: { signal?: AbortSignal; expectedEnvironmentPairingRevision?: number }
 ): Promise<AiVaultPrepareSessionResumeResult> {
+  const { requestContext, ...request } = args
   const response = await callRuntimeEnvironment(
     userDataPath,
     environmentId,
     'aiVault.prepareSessionResume',
-    args
+    request,
+    undefined,
+    options?.expectedEnvironmentPairingRevision ??
+      requestContext?.expectedEnvironmentPairingRevision,
+    undefined,
+    options
   )
   if (response.ok !== true) {
     if (

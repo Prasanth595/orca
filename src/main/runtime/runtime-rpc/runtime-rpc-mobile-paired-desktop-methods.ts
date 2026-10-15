@@ -93,6 +93,7 @@ export const PAIRED_DESKTOP_METHODS = [
   'github.project.viewTable',
   'github.project.workItemDetailsBySlug',
   // Desktop main federates session history across hosts itself (executionHostId / scope params).
+  'aiVault.resolveSession',
   'aiVault.listSessions',
   'aiVault.prepareSessionResume',
   'aiVault.resolveSessionTitles',

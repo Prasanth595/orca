@@ -1,3 +1,5 @@
+import type { SenderScopedRequestCancellations } from './sender-scoped-request-cancellation'
+import { waitForPromiseWithSignal } from '../../shared/abort-signal-reason'
 import { ipcMain } from 'electron'
 import type {
   AiVaultPrepareSessionResumeArgs,
@@ -11,30 +13,55 @@ import { tryEnsureStructuredAgentSessionHostForResume } from '../runtime/structu
 import { copyStructuredChatConversation } from '../ai-vault/structured-chat-conversation-copy'
 
 export type AiVaultResumeHandlerOptions = {
+  selectedRequestCancellations?: SenderScopedRequestCancellations
   ensureStructuredSessionOwnership?: () => Promise<void>
   prepareSessionResume?: AiVaultSessionResumePreparation
   prepareRuntimeSessionResume?: (
     environmentId: string,
-    args: AiVaultPrepareSessionResumeArgs
+    args: AiVaultPrepareSessionResumeArgs,
+    options?: { signal?: AbortSignal; expectedEnvironmentPairingRevision?: number }
   ) => Promise<AiVaultPrepareSessionResumeResult>
 }
 
 export function registerAiVaultResumeHandler(options: AiVaultResumeHandlerOptions): void {
-  ipcMain.handle('aiVault:prepareSessionResume', (_event, args: AiVaultPrepareSessionResumeArgs) =>
-    prepareAiVaultSessionResume(args, options)
+  ipcMain.handle(
+    'aiVault:prepareSessionResume',
+    async (event, args: AiVaultPrepareSessionResumeArgs) => {
+      const token = args.requestContext?.requestToken
+      const controller =
+        typeof token === 'string' && token.length <= 128
+          ? (options.selectedRequestCancellations?.begin(event, token) ?? null)
+          : null
+      try {
+        return await waitForPromiseWithSignal(
+          prepareAiVaultSessionResume(args, options, controller?.signal),
+          controller?.signal
+        )
+      } finally {
+        options.selectedRequestCancellations?.finish(event, token, controller)
+      }
+    }
   )
 }
 
 export async function prepareAiVaultSessionResume(
   args: AiVaultPrepareSessionResumeArgs,
-  options: AiVaultResumeHandlerOptions
+  options: AiVaultResumeHandlerOptions,
+  signal?: AbortSignal
 ): Promise<AiVaultPrepareSessionResumeResult> {
+  const { requestContext, ...request } = args
+  signal?.throwIfAborted()
   const executionHost = parseExecutionHostId(args.executionHostId)
   if (executionHost?.kind === 'runtime') {
     if (!options.prepareRuntimeSessionResume || isUnresolvedOwnerHostId(executionHost.id)) {
       throw new Error('The session host is unavailable. Reconnect it and retry resume.')
     }
-    return options.prepareRuntimeSessionResume(executionHost.environmentId, args)
+    return requestContext || signal
+      ? options.prepareRuntimeSessionResume(executionHost.environmentId, request, {
+          signal,
+          expectedEnvironmentPairingRevision: requestContext?.expectedEnvironmentPairingRevision
+        })
+      : options.prepareRuntimeSessionResume(executionHost.environmentId, request)
   }
   // Why: the desktop process must never materialize transcript paths owned by an SSH host.
   if (executionHost?.kind === 'ssh') {
@@ -46,10 +73,11 @@ export async function prepareAiVaultSessionResume(
         ? tryEnsureStructuredAgentSessionHostForResume(options.ensureStructuredSessionOwnership)
         : options.ensureStructuredSessionOwnership())
     }
-    assertLegacyAiVaultResumeAllowed(args)
+    signal?.throwIfAborted()
+    assertLegacyAiVaultResumeAllowed(request)
   }
-  return (
-    (await copyStructuredChatConversation(args)) ??
-    options.prepareSessionResume?.(args) ?? { useRealCodexHome: false }
-  )
+  signal?.throwIfAborted()
+  const copy = await copyStructuredChatConversation(request)
+  signal?.throwIfAborted()
+  return copy ?? options.prepareSessionResume?.(request) ?? { useRealCodexHome: false }
 }

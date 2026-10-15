@@ -251,3 +251,32 @@ function session(overrides: Partial<AiVaultSession> = {}): AiVaultSession {
     ...overrides
   }
 }
+
+it.each(['codex', 'opencode2'] as const)(
+  'selected %s preparation carries its owner and never starts after abandonment',
+  async (agent) => {
+    const prepareSessionResume = vi.fn().mockResolvedValue({
+      useRealCodexHome: false,
+      forkedSession: { sessionId: 'independent-copy', agent: 'opencode' }
+    })
+    stubPreparation(prepareSessionResume)
+    const controller = new AbortController()
+    const operation = {
+      signal: controller.signal,
+      isSourceOpen: () => !controller.signal.aborted,
+      requestContext: { requestToken: 'selected-1', expectedEnvironmentPairingRevision: 1 }
+    }
+    const source = session({
+      agent,
+      executionHostId: 'runtime:host-1',
+      codexHome: '/account/codex-runtime-home/home'
+    })
+    await prepareAiVaultSessionForFork(source, operation)
+    expect(prepareSessionResume).toHaveBeenCalledWith(
+      expect.objectContaining({ requestContext: operation.requestContext, fork: true })
+    )
+    controller.abort()
+    await expect(prepareAiVaultSessionForFork(source, operation)).rejects.toThrow()
+    expect(prepareSessionResume).toHaveBeenCalledOnce()
+  }
+)

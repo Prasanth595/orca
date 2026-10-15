@@ -14046,7 +14046,8 @@
             "resumeInChatFailed": "Could not resume this session in a new chat.",
             "resumeInNewCliUnavailable": "This session cannot be opened in the CLI.",
             "resumeInNewCliHostTooOld": "Update Orca on the host that runs this chat to resume it in a new CLI.",
-            "folderWorkspaceUnavailable": "Folder workspace is no longer available."
+            "folderWorkspaceUnavailable": "Folder workspace is no longer available.",
+            "resumeInNewCliFailed": "Could not resume this session in a new CLI."
           },
           "AiVaultPanelControls": {
             "scanningSessions": "Scanning sessions",
@@ -19276,6 +19277,12 @@
     "newWorkspace": {
       "agentOptional": "Agent [Optional]",
       "createDescription": "Choose the project and workspace name. Select an agent if you want to start one."
+    },
+    "tabBar": {
+      "sessionSwitch": {
+        "loading": "Loading conversation…",
+        "opening": "Opening…"
+      }
     },
     "JiraIssueWorkspace": {
       "pendingChange": "Another issue change is in progress."

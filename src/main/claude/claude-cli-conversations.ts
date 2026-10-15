@@ -1,3 +1,5 @@
+import { readSelectedSessionInBackground } from '../ai-vault/selected-session-reader-client'
+import { findSelectedTranscriptPath } from '../native-chat/selected-transcript-path'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { getClaudeProfileRouter } from '../claude-accounts/claude-profile-installed-router'
@@ -11,15 +13,27 @@ import {
 } from '../native-chat/structured-agent-cli-conversations'
 
 const CLAUDE_TRANSCRIPT_IMPORT = directoryTranscriptImport({
+  transcriptRoot: ({ accountHomePath }) => join(accountHomePath, 'projects'),
+  readSelectedSession: ({ transcriptPath, signal }) =>
+    readSelectedSessionInBackground(
+      {
+        agent: 'claude',
+        filePath: transcriptPath,
+        codexHome: null
+      },
+      signal
+    ),
   accountHomeCandidates: ({ selectedAccountHomePath }) => [
     selectedAccountHomePath,
     join(homedir(), '.claude'),
     ...(getClaudeProfileRouter()?.accountHomes() ?? [])
   ],
-  findTranscript: ({ providerSessionId, accountHomePath }) =>
-    resolveSessionFilePath('claude', providerSessionId, {
-      claudeProjectsDir: join(accountHomePath, 'projects')
-    })
+  findTranscript: ({ providerSessionId, accountHomePath, selected }) =>
+    selected
+      ? findSelectedTranscriptPath('claude', providerSessionId, accountHomePath, selected)
+      : resolveSessionFilePath('claude', providerSessionId, {
+          claudeProjectsDir: join(accountHomePath, 'projects')
+        })
 })
 
 const CLAUDE_SESSION_HISTORY: StructuredAgentSessionHistory = {
