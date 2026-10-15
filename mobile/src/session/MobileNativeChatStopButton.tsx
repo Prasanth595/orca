@@ -1,3 +1,4 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
 import { Pressable, Text } from 'react-native'
 import { Square } from 'lucide-react-native'
 import { NATIVE_CHAT_TURN_STATUS_COPY } from '../../../src/shared/native-chat-turn-status'
@@ -12,6 +13,8 @@ export function MobileNativeChatStopButton({
   onStop?: () => void
   held: boolean
 }): React.JSX.Element {
+  useMobileTheme()
+
   const label = held ? NATIVE_CHAT_TURN_STATUS_COPY.stopping : 'Stop'
   return (
     <Pressable

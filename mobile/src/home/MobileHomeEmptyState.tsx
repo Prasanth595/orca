@@ -124,7 +124,7 @@ const styles = createThemedStyles(() =>
       width: 28,
       height: 28,
       borderRadius: 8,
-      backgroundColor: 'rgba(255,255,255,0.04)',
+      backgroundColor: colors.bgRaised,
       borderWidth: 1,
       borderColor: colors.borderSubtle,
       alignItems: 'center',

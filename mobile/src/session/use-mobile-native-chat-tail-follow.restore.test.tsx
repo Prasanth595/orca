@@ -51,7 +51,10 @@ it('restores a detached reading offset when returning to a tab and rejects its o
     })
   })
   const oldPin = scroll.pinToTail
+  const oldReaderIsScrolling = scroll.readerIsScrolling
   render('b')
+  act(() => scroll.beginUserScroll())
+  expect(oldReaderIsScrolling()).toBe(false)
   nativeList.scrollToEnd.mockClear()
   oldPin()
   expect(nativeList.scrollToEnd).not.toHaveBeenCalled()

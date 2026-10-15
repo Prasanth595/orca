@@ -46,6 +46,34 @@ describe('useMobileNativeChatTurnDisclosure', () => {
     expect(map).not.toHaveBeenCalled()
   })
 
+  it('folds the completed turn process and keeps only its final answer', () => {
+    const messages: NativeChatMessage[] = [
+      userMessage('u1'),
+      { ...userMessage('reason'), role: 'reasoning' },
+      { ...userMessage('progress'), role: 'assistant' },
+      { ...userMessage('answer'), role: 'assistant' }
+    ]
+    act(() => {
+      renderer = create(
+        createElement(Harness, {
+          messages,
+          enabled: true,
+          isWorking: false,
+          settledTurns: new Map([['u1', { startedAt: 500, workedSeconds: 4 }]])
+        })
+      )
+    })
+    const read = () => renderer!.root.findByType(Result).props.disclosure
+    expect(read().listMessages.map((row: NativeChatMessage) => row.id)).toEqual(['u1', 'answer'])
+    act(() => read().onToggleTurn('u1'))
+    expect(read().listMessages.map((row: NativeChatMessage) => row.id)).toEqual([
+      'u1',
+      'reason',
+      'progress',
+      'answer'
+    ])
+  })
+
   it('keeps a settled turn handler stable for NUL-delimited scope keys', () => {
     vi.useFakeTimers()
     try {

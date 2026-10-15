@@ -1,3 +1,5 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
+import { createThemedStyles } from '../theme/mobile-themed-styles'
 import { StyleSheet, View } from 'react-native'
 import { MessageSquareMore } from 'lucide-react-native'
 import {
@@ -25,6 +27,8 @@ export function MobileNativeChatAwaitingInputRow({
   /** False when the caller already shows each question of a grouped prompt. */
   listsQuestions?: boolean
 }): React.JSX.Element {
+  useMobileTheme()
+
   const label = !pending
     ? NATIVE_CHAT_ASK_ROW_COPY.asked
     : subject === null
@@ -70,18 +74,20 @@ export function MobileNativeChatAwaitingInputRow({
   )
 }
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.sm,
-    paddingVertical: 3
-  },
-  label: {
-    flex: 1,
-    color: colors.textMuted
-  },
-  question: {
-    color: colors.textPrimary
-  }
-})
+const styles = createThemedStyles(() =>
+  StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: spacing.sm,
+      paddingVertical: 3
+    },
+    label: {
+      flex: 1,
+      color: colors.textMuted
+    },
+    question: {
+      color: colors.textPrimary
+    }
+  })
+)

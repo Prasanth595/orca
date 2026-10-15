@@ -262,13 +262,22 @@ describe('useMobileNativeChatTurnDisclosure with a turn journal', () => {
             })
           )
         })
-        const disclosure = renderer!.root.findByType(Result).props.disclosure
-        const list: NativeChatMessage[] = disclosure.listMessages
-        const drawn = list.map((entry, index) => {
-          const row = disclosure.resolveRow(index, entry)
-          return [entry.id, row.turnStatus?.workedSeconds, row.activeTurnIsWorking]
-        })
-        expect(drawn).toEqual([
+        const drawn = () => {
+          const disclosure = renderer!.root.findByType(Result).props.disclosure
+          const list: NativeChatMessage[] = disclosure.listMessages
+          return list.map((entry, index) => {
+            const row = disclosure.resolveRow(index, entry)
+            return [entry.id, row.turnStatus?.workedSeconds, row.activeTurnIsWorking]
+          })
+        }
+        expect(drawn()).toEqual([
+          ['A', 17, false],
+          ['FIRST DONE', undefined, false],
+          ['B', null, true],
+          ['b-answer', undefined, true]
+        ])
+        act(() => renderer!.root.findByType(Result).props.disclosure.onToggleTurn('A'))
+        expect(drawn()).toEqual([
           ['A', 17, false],
           ['a-tool-1', undefined, false],
           ['a-tool-2', undefined, false],

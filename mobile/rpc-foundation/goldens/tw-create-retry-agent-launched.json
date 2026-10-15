@@ -4,64 +4,10 @@
   "family": "worktree.agent-launch-create",
   "namedDeltas": [],
   "values": {
-    "1f2cef40fb78": {
-      "name": "agent.launch#1",
-      "ordinal": 1,
-      "args": [
-        {
-          "name": "method",
-          "value": "agent.launch"
-        },
-        {
-          "name": "params",
-          "value": {
-            "agent": "codex",
-            "nativeChatDefault": false,
-            "target": {
-              "create": {
-                "clientMutationId": "mutation-1",
-                "name": "kestrel",
-                "repo": "id:repo-1"
-              },
-              "kind": "create-worktree"
-            }
-          }
-        },
-        {
-          "name": "options",
-          "value": {
-            "timeoutMs": 600000
-          }
-        }
-      ],
-      "settlement": {
-        "status": "pending",
-        "startedAt": 0
-      }
-    },
     "3f946ad0279c": {
       "outcome": "uncreated"
     },
-    "585b080fd9a4": {
-      "name": "agent.launch#1",
-      "ordinal": 2,
-      "json": "{\"id\":\"frame-1\",\"deviceToken\":\"recording-device\",\"method\":\"agent.launch\",\"params\":{\"agent\":\"codex\",\"nativeChatDefault\":false,\"target\":{\"kind\":\"create-worktree\",\"create\":{\"repo\":\"id:repo-1\",\"name\":\"kestrel\",\"clientMutationId\":\"mutation-1\"}}}}"
-    },
-    "9270aeb7d9c6": {
-      "status": "pending",
-      "startedAt": 0
-    },
-    "97555d579c32": {
-      "status": "fulfilled",
-      "startedAt": 0,
-      "settledAt": 0,
-      "value": {
-        "name": "kestrel",
-        "warning": "startup terminal failed",
-        "worktreeId": "repo-1::/w"
-      }
-    },
-    "ae3d37c63562": {
+    "51eb0e5cd4e2": {
       "name": "agent.launch#1",
       "ordinal": 1,
       "args": [
@@ -73,7 +19,7 @@
           "name": "params",
           "value": {
             "agent": "codex",
-            "nativeChatDefault": false,
+            "nativeChatDefault": true,
             "target": {
               "create": {
                 "clientMutationId": "mutation-1",
@@ -116,6 +62,60 @@
         }
       }
     },
+    "7b5745560906": {
+      "name": "agent.launch#1",
+      "ordinal": 1,
+      "args": [
+        {
+          "name": "method",
+          "value": "agent.launch"
+        },
+        {
+          "name": "params",
+          "value": {
+            "agent": "codex",
+            "nativeChatDefault": true,
+            "target": {
+              "create": {
+                "clientMutationId": "mutation-1",
+                "name": "kestrel",
+                "repo": "id:repo-1"
+              },
+              "kind": "create-worktree"
+            }
+          }
+        },
+        {
+          "name": "options",
+          "value": {
+            "timeoutMs": 600000
+          }
+        }
+      ],
+      "settlement": {
+        "status": "pending",
+        "startedAt": 0
+      }
+    },
+    "9270aeb7d9c6": {
+      "status": "pending",
+      "startedAt": 0
+    },
+    "97555d579c32": {
+      "status": "fulfilled",
+      "startedAt": 0,
+      "settledAt": 0,
+      "value": {
+        "name": "kestrel",
+        "warning": "startup terminal failed",
+        "worktreeId": "repo-1::/w"
+      }
+    },
+    "f19cc9a9e99a": {
+      "name": "agent.launch#1",
+      "ordinal": 2,
+      "json": "{\"id\":\"frame-1\",\"deviceToken\":\"recording-device\",\"method\":\"agent.launch\",\"params\":{\"agent\":\"codex\",\"nativeChatDefault\":true,\"target\":{\"kind\":\"create-worktree\",\"create\":{\"repo\":\"id:repo-1\",\"name\":\"kestrel\",\"clientMutationId\":\"mutation-1\"}}}}"
+    },
     "f800fc04633e": {
       "outcome": {
         "name": "kestrel",
@@ -130,8 +130,8 @@
       {
         "id": "sent",
         "observation": {
-          "sender": ["1f2cef40fb78"],
-          "payloads": ["585b080fd9a4"],
+          "sender": ["7b5745560906"],
+          "payloads": ["f19cc9a9e99a"],
           "settlements": {
             "create": "9270aeb7d9c6"
           },
@@ -142,8 +142,8 @@
       {
         "id": "launched",
         "observation": {
-          "sender": ["ae3d37c63562"],
-          "payloads": ["585b080fd9a4"],
+          "sender": ["51eb0e5cd4e2"],
+          "payloads": ["f19cc9a9e99a"],
           "settlements": {
             "create": "97555d579c32"
           },

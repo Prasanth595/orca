@@ -1,3 +1,4 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
 import { WebView } from 'react-native-webview'
 import { mobileMediaPreviewDocument } from './mobile-media-preview-document'
 import { filePreviewStyles as styles } from './mobile-file-preview-styles'
@@ -5,6 +6,8 @@ import { filePreviewStyles as styles } from './mobile-file-preview-styles'
 export type MobileMediaPlaybackProps = { uri: string; mimeType: string; title: string }
 
 export function MobileMediaPlayback({ uri, mimeType, title }: MobileMediaPlaybackProps) {
+  useMobileTheme()
+
   return (
     <WebView
       style={styles.container}

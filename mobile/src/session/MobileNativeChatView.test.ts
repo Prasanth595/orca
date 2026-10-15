@@ -654,6 +654,14 @@ describe('MobileNativeChatView', () => {
   it('anchors the first visible row, which the header above it is not', async () => {
     const folded = [assistantTurn('a1', 'History')]
     await render({ folded, hasMore: true })
+    expect(list().props.style).toEqual({ opacity: 0 })
+    expect(list().props.maintainVisibleContentPosition).toBeUndefined()
+    await act(async () => {
+      list().props.onLayout({ nativeEvent: { layout: { height: 500 } } })
+      list().props.onContentSizeChange(320, 400)
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+    expect(list().props.style).toBeUndefined()
     expect(list().props.maintainVisibleContentPosition).toEqual({ minIndexForVisible: 1 })
 
     await update({ folded, hasMore: false })
@@ -726,7 +734,7 @@ describe('MobileNativeChatView', () => {
       act(() => list().props.onContentSizeChange(320, 1_000))
       scrollToEnd.mockClear()
 
-      act(() => list().props.onLayout?.({}))
+      act(() => list().props.onLayout?.({ nativeEvent: { layout: { height: 500 } } }))
 
       expect(scrollToEnd).not.toHaveBeenCalled()
       expect(scrollToOffset).toHaveBeenLastCalledWith({ animated: false, offset: 1_000 })

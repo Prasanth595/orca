@@ -182,14 +182,14 @@ function awaitingReply(surface: Record<string, unknown>): unknown {
 
 describe('the + menu', () => {
   it.each(['chat', 'terminal'])(
-    'passes the device %s preference to the host launch',
+    'creates a structured chat even when the legacy transcript view is %s',
     async (view) => {
       sessionView.load.mockResolvedValueOnce(view)
       const { client, sendRequest } = scriptedClient(
         launchReply({ kind: 'structured', sessionId: 'chat-1', handle: 'h' })
       )
-      await create_(scope(client), 'claude')
-      expect(launchParams(sendRequest)).toMatchObject({ nativeChatDefault: view === 'chat' })
+      await create_(scope(client), 'codex')
+      expect(launchParams(sendRequest)).toMatchObject({ agent: 'codex', nativeChatDefault: true })
       expect(methods(sendRequest)).toEqual(['agent.launchReplay'])
     }
   )

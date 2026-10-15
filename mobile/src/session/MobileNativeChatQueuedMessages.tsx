@@ -1,3 +1,5 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
+import { createThemedStyles } from '../theme/mobile-themed-styles'
 import { useRef, useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import {
@@ -49,6 +51,8 @@ export function MobileNativeChatQueuedMessages({
   onResume,
   steerHeld = false
 }: MobileNativeChatQueuedMessagesProps): React.JSX.Element | null {
+  useMobileTheme()
+
   // One in-flight action per card; a second tap must not double-consume. The ref
   // closes the same-frame double tap the disabled state cannot.
   const [busyIds, setBusyIds] = useState<ReadonlySet<string>>(() => new Set())
@@ -228,6 +232,8 @@ export function MobileNativeChatQueuedMessages({
  *  never read, and Steer or Delete must not be a blind choice. Opened, a long one scrolls in a
  *  capped box. */
 function MobileQueuedCardText({ text }: { text: string }): React.JSX.Element {
+  useMobileTheme()
+
   const [expanded, setExpanded] = useState(false)
   const [clipped, setClipped] = useState(false)
   // The whole text laid out unseen at the card's width: more than two lines is what clips.
@@ -283,86 +289,88 @@ function MobileQueuedCardText({ text }: { text: string }): React.JSX.Element {
 // outside the parent, so the row is at least that tall and nothing overhangs it.
 const MIN_TOUCH_TARGET = 44
 
-const styles = StyleSheet.create({
-  list: {
-    marginHorizontal: spacing.lg,
-    marginVertical: spacing.xs
-  },
-  box: {
-    backgroundColor: colors.bgPanel,
-    borderRadius: radii.row,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle,
-    overflow: 'hidden'
-  },
-  row: {
-    minHeight: MIN_TOUCH_TARGET,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingLeft: spacing.md
-  },
-  divided: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.borderSubtle
-  },
-  pauseLabel: {
-    flex: 1,
-    color: colors.textMuted,
-    fontSize: typography.metaSize
-  },
-  textColumn: {
-    flex: 1,
-    minWidth: 0,
-    paddingVertical: spacing.sm,
-    gap: 2
-  },
-  body: {
-    color: colors.textPrimary,
-    fontSize: typography.bodySize
-  },
-  expandedBody: {
-    maxHeight: 240
-  },
-  measure: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    opacity: 0
-  },
-  caption: {
-    color: colors.textMuted,
-    fontSize: typography.metaSize
-  },
-  captionReturned: {
-    color: colors.statusRed
-  },
-  textAction: {
-    minHeight: MIN_TOUCH_TARGET,
-    minWidth: MIN_TOUCH_TARGET,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radii.button
-  },
-  iconAction: {
-    minHeight: MIN_TOUCH_TARGET,
-    minWidth: MIN_TOUCH_TARGET,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radii.button
-  },
-  actionLabel: {
-    color: colors.textPrimary,
-    fontSize: typography.metaSize,
-    fontWeight: '500'
-  },
-  pressed: {
-    backgroundColor: colors.bgRaised
-  },
-  disabled: {
-    opacity: 0.5
-  }
-})
+const styles = createThemedStyles(() =>
+  StyleSheet.create({
+    list: {
+      marginHorizontal: spacing.lg,
+      marginVertical: spacing.xs
+    },
+    box: {
+      backgroundColor: colors.bgPanel,
+      borderRadius: radii.row,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSubtle,
+      overflow: 'hidden'
+    },
+    row: {
+      minHeight: MIN_TOUCH_TARGET,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      paddingLeft: spacing.md
+    },
+    divided: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.borderSubtle
+    },
+    pauseLabel: {
+      flex: 1,
+      color: colors.textMuted,
+      fontSize: typography.metaSize
+    },
+    textColumn: {
+      flex: 1,
+      minWidth: 0,
+      paddingVertical: spacing.sm,
+      gap: 2
+    },
+    body: {
+      color: colors.textPrimary,
+      fontSize: typography.bodySize
+    },
+    expandedBody: {
+      maxHeight: 240
+    },
+    measure: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      opacity: 0
+    },
+    caption: {
+      color: colors.textMuted,
+      fontSize: typography.metaSize
+    },
+    captionReturned: {
+      color: colors.statusRed
+    },
+    textAction: {
+      minHeight: MIN_TOUCH_TARGET,
+      minWidth: MIN_TOUCH_TARGET,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.xs,
+      paddingHorizontal: spacing.sm,
+      borderRadius: radii.button
+    },
+    iconAction: {
+      minHeight: MIN_TOUCH_TARGET,
+      minWidth: MIN_TOUCH_TARGET,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: radii.button
+    },
+    actionLabel: {
+      color: colors.textPrimary,
+      fontSize: typography.metaSize,
+      fontWeight: '500'
+    },
+    pressed: {
+      backgroundColor: colors.bgRaised
+    },
+    disabled: {
+      opacity: 0.5
+    }
+  })
+)

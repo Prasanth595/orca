@@ -1,6 +1,7 @@
 import { createElement } from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { applyMobileColorScheme, lightColors, darkColors } from '../theme/mobile-theme'
 import type { AgentSessionQueuePause } from '../../../src/shared/agent-session-wire'
 import type { ActionSheetAction } from '../components/ActionSheetModal'
 import { MobileNativeChatQueuedMessages } from './MobileNativeChatQueuedMessages'
@@ -48,6 +49,7 @@ describe('MobileNativeChatQueuedMessages', () => {
   afterEach(() => {
     act(() => renderer?.unmount())
     renderer = null
+    applyMobileColorScheme('dark')
   })
 
   async function mount(
@@ -130,6 +132,12 @@ describe('MobileNativeChatQueuedMessages', () => {
     expect(body().props.numberOfLines).toBeUndefined()
     expect(toggle().props.accessibilityState).toEqual({ expanded: true })
     expect(texts(mounted)).toContain('Show less')
+    for (const scheme of ['light', 'dark', 'light'] as const) {
+      act(() => applyMobileColorScheme(scheme))
+      const palette = scheme === 'light' ? lightColors : darkColors
+      expect(flatStyle(body().props.style).color).toBe(palette.textPrimary)
+      expect(toggle().props.accessibilityState).toEqual({ expanded: true })
+    }
     // A long message scrolls inside a capped box rather than pushing the composer away.
     const scroll = mounted.root.find((node) => String(node.type) === 'ScrollView')
     expect(flatStyle(scroll.props.style).maxHeight).toBeGreaterThan(0)

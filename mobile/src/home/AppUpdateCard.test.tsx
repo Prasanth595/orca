@@ -1,6 +1,7 @@
 import { createElement } from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { applyMobileColorScheme, lightColors, darkColors } from '../theme/mobile-theme'
 import { AppUpdateCard } from './AppUpdateCard'
 
 vi.mock('react-native', () => ({
@@ -16,6 +17,7 @@ describe('AppUpdateCard', () => {
   afterEach(() => {
     act(() => renderer?.unmount())
     renderer = null
+    applyMobileColorScheme('dark')
   })
 
   function render() {
@@ -35,6 +37,20 @@ describe('AppUpdateCard', () => {
     const { root, texts } = render()
     expect(texts).toEqual(['Orca 0.0.51 is available', 'Tap to update'])
     expect(root.find((node) => String(node.type) === 'ArrowUpFromLine').props.color).toBe('#e0e0e0')
+  })
+
+  it('updates a mounted card and its icon without changing its props', () => {
+    const { root } = render()
+    for (const scheme of ['light', 'dark', 'light'] as const) {
+      act(() => applyMobileColorScheme(scheme))
+      const palette = scheme === 'light' ? lightColors : darkColors
+      expect(
+        root.findAll((node) => String(node.type) === 'View')[0].props.style.backgroundColor
+      ).toBe(palette.bgPanel)
+      expect(root.find((node) => String(node.type) === 'ArrowUpFromLine').props.color).toBe(
+        palette.textPrimary
+      )
+    }
   })
 
   it('opens the update from the card body and dismisses from the X', () => {

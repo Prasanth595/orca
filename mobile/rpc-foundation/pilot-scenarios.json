@@ -5994,7 +5994,7 @@
                 "clientMutationId": "mutation-1"
               }
             },
-            "nativeChatDefault": false
+            "nativeChatDefault": true
           },
           "reply": {
             "ok": true,
@@ -22213,7 +22213,7 @@
             },
             "paneKey": "00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000002",
             "sessionId": "claude_00000000_0000_4000_8000_000000000003",
-            "nativeChatDefault": false
+            "nativeChatDefault": true
           },
           "reply": {
             "ok": true,
@@ -22360,7 +22360,7 @@
             "launchSource": "diff_notes_send",
             "paneKey": "00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000002",
             "sessionId": "codex_00000000_0000_4000_8000_000000000003",
-            "nativeChatDefault": false
+            "nativeChatDefault": true
           },
           "reply": {
             "ok": true,
@@ -22439,7 +22439,7 @@
             "launchSource": "diff_notes_send",
             "paneKey": "00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000002",
             "sessionId": "codex_00000000_0000_4000_8000_000000000003",
-            "nativeChatDefault": false
+            "nativeChatDefault": true
           },
           "reply": {
             "ok": true,

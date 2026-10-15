@@ -1,6 +1,7 @@
 import { createElement } from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { applyMobileColorScheme, darkColors, lightColors } from '../theme/mobile-theme'
 import { AppUpdateSettingsRows, type AppUpdateCheckRowStatus } from './app-update-settings-rows'
 
 vi.mock('react-native', () => ({
@@ -18,6 +19,7 @@ describe('AppUpdateSettingsRows', () => {
   afterEach(() => {
     act(() => renderer?.unmount())
     renderer = null
+    applyMobileColorScheme('dark')
   })
 
   function render(opts: {
@@ -52,6 +54,19 @@ describe('AppUpdateSettingsRows', () => {
       pressables: root.findAll((node) => String(node.type) === 'Pressable')
     }
   }
+
+  it('repaints the mounted version and update rows in both directions', () => {
+    const { root } = render({ available: { version: '0.0.51', url: 'https://example.test' } })
+    const panel = () => root.findAll((node) => String(node.type) === 'View')[0].props.style
+    const labels = () => root.findAll((node) => String(node.type) === 'Text')
+    for (const scheme of ['light', 'dark', 'light'] as const) {
+      act(() => applyMobileColorScheme(scheme))
+      const palette = scheme === 'light' ? lightColors : darkColors
+      expect(panel().backgroundColor).toBe(palette.bgPanel)
+      expect(labels()[0].props.style.color).toBe(palette.textPrimary)
+      expect(labels().at(-1)!.props.style.color).toBe(palette.textSecondary)
+    }
+  })
 
   it('offers the known update as a tappable row with an Update action', () => {
     const { texts, pressables, onUpdate } = render({

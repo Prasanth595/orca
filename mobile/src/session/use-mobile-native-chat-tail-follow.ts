@@ -1,7 +1,9 @@
+import { useMobileChatInitialPosition } from './use-mobile-chat-initial-position'
 import { MobileChatScrollPositions } from './mobile-chat-scroll-position'
 import { useCallback, useContext, useEffect, useRef, useState, type RefObject } from 'react'
 import {
   Platform,
+  type LayoutChangeEvent,
   type FlatList,
   type NativeScrollEvent,
   type NativeSyntheticEvent
@@ -42,7 +44,8 @@ export type MobileNativeChatTailFollow<TItem> = {
   /** Render flag for the jump-to-latest control. */
   showJumpToTail: boolean
   /** Passive maintenance: re-pin after the viewport resizes. */
-  pinToTail: () => void
+  initialPositionReady: boolean
+  pinToTail: (event?: LayoutChangeEvent) => void
   /** Content-size maintenance using the list's authoritative measured height. */
   pinToTailAfterContentResize: (_width: number, height: number) => void
   /** Explicit jump — send, or the jump-to-latest control. Resumes following. */
@@ -108,6 +111,7 @@ export function useMobileNativeChatTailFollow<TItem>(args: {
     setFollowingFlag(followingRef.current)
     setAtTailFlag(atTailRef.current)
   }
+  const initial = useMobileChatInitialPosition(args.scopeKey, restoring.current)
   const current = generation.current
   const isCurrent = () => generation.current === current
 
@@ -128,30 +132,37 @@ export function useMobileNativeChatTailFollow<TItem>(args: {
     setAtTailFlag(next)
   }, [])
 
-  const pinToTail = useCallback(() => {
-    if (!isCurrent()) {
-      return
-    }
-    if (restoring.current !== null && hasItems) {
-      listRef.current?.scrollToOffset({ animated: false, offset: restoring.current })
-      return
-    }
-    if (!followingRef.current || !hasItems) {
-      return
-    }
-    if (listReportsGestures()) {
-      listRef.current?.scrollToEnd({ animated: false })
-      return
-    }
-    // Why not `scrollToEnd`: its estimate can land short, and the page reads a move up as the reader's.
-    listRef.current?.scrollToOffset({ animated: false, offset: pageContentHeightRef.current })
-  }, [hasItems, current])
+  const pinToTail = useCallback(
+    (event?: LayoutChangeEvent) => {
+      if (event) {
+        initial.recordInitialViewport(event.nativeEvent.layout.height)
+      }
+      if (!isCurrent()) {
+        return
+      }
+      if (restoring.current !== null && hasItems) {
+        listRef.current?.scrollToOffset({ animated: false, offset: restoring.current })
+        return
+      }
+      if (!followingRef.current || !hasItems) {
+        return
+      }
+      if (listReportsGestures()) {
+        listRef.current?.scrollToEnd({ animated: false })
+        return
+      }
+      // Why not `scrollToEnd`: its estimate can land short, and the page reads a move up as the reader's.
+      listRef.current?.scrollToOffset({ animated: false, offset: pageContentHeightRef.current })
+    },
+    [hasItems, current, initial.recordInitialViewport]
+  )
 
   const pinToTailAfterContentResize = useCallback(
     (_width: number, height: number) => {
       if (!isCurrent()) {
         return
       }
+      initial.recordInitialContent(height)
       if (restoring.current !== null && hasItems) {
         listRef.current?.scrollToOffset({ animated: false, offset: restoring.current })
         return
@@ -162,7 +173,7 @@ export function useMobileNativeChatTailFollow<TItem>(args: {
       }
       listRef.current?.scrollToOffset({ animated: false, offset: height })
     },
-    [hasItems, current]
+    [hasItems, current, initial.recordInitialContent]
   )
 
   const clearUserScrollSettle = useCallback(() => {
@@ -177,6 +188,7 @@ export function useMobileNativeChatTailFollow<TItem>(args: {
       if (!isCurrent()) {
         return
       }
+      initial.recordInitialScroll(event)
       offset.current = event.contentOffset.y
       if (restoring.current !== null && Math.abs(offset.current - restoring.current) < 2) {
         restoring.current = null
@@ -198,7 +210,7 @@ export function useMobileNativeChatTailFollow<TItem>(args: {
         setFollowing(true)
       }
     },
-    [setAtTail, setFollowing, current]
+    [setAtTail, setFollowing, current, initial.recordInitialScroll]
   )
 
   const jumpToTail = useCallback(() => {
@@ -267,8 +279,10 @@ export function useMobileNativeChatTailFollow<TItem>(args: {
   )
 
   const readerIsScrolling = useCallback(
-    () => (listReportsGestures() ? userScrollActiveRef.current : pageReaderMovedUpRef.current),
-    []
+    () =>
+      isCurrent() &&
+      (listReportsGestures() ? userScrollActiveRef.current : pageReaderMovedUpRef.current),
+    [current]
   )
 
   useEffect(() => {
@@ -283,6 +297,7 @@ export function useMobileNativeChatTailFollow<TItem>(args: {
 
   return {
     listRef,
+    initialPositionReady: initial.initialPositionReady,
     showJumpToTail: !following && !atTail,
     pinToTail,
     pinToTailAfterContentResize,

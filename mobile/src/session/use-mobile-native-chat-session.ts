@@ -245,7 +245,14 @@ export function useMobileNativeChatSession(args: {
   }, [client, agent, sessionId, transcriptPath, identity, setList])
 
   const loadEarlier = useCallback(() => {
-    if (!client || !agent || !sessionId || loadingEarlierRef.current || !hasMore) {
+    if (
+      !client ||
+      !agent ||
+      !sessionId ||
+      sessionIdRef.current !== sessionId ||
+      loadingEarlierRef.current ||
+      !hasMore
+    ) {
       return
     }
     // Capture the session this page belongs to; a swap underneath us must not

@@ -62,9 +62,8 @@ export function useMobileStructuredAgentState(
         (client ? structuredChatCache.get(client, sessionKey) : null) ??
         EMPTY_STRUCTURED_AGENT_SESSION)
       : EMPTY_STRUCTURED_AGENT_SESSION
-  const queued =
+  const { messages: queuedMessages, pause: queuePause } =
     (enabled && sessionKey ? queuedBySession.get(sessionKey) : undefined) ?? NO_QUEUED_FEED
-  const queuedMessages = queued.messages
   const [loadingOlder, setLoadingOlder] = useState(false)
   const stateRef = useRef(state)
   const sessionKeyRef = useRef(sessionKey)
@@ -226,7 +225,14 @@ export function useMobileStructuredAgentState(
 
   const loadEarlier = useCallback(() => {
     const current = stateRef.current
-    if (!client || !sessionId || !sessionKey || loadingOlder || !current.hasOlder) {
+    if (
+      !client ||
+      !sessionId ||
+      !sessionKey ||
+      sessionKeyRef.current !== sessionKey ||
+      loadingOlder ||
+      !current.hasOlder
+    ) {
       return
     }
     if (!oldestStructuredAgentSessionCursor(current)) {
@@ -316,5 +322,5 @@ export function useMobileStructuredAgentState(
     loadEarlier()
   }, [drawsNothingFrom, loadEarlier, loadingOlder])
 
-  return { state, stateRef, queuedMessages, queuePause: queued.pause, loadingOlder, loadEarlier }
+  return { state, stateRef, queuedMessages, queuePause, loadingOlder, loadEarlier }
 }

@@ -1,4 +1,3 @@
-import { loadDefaultSessionView } from '../storage/session-view-preferences'
 import type { TuiAgent } from '../../../src/shared/tui-agent'
 import type { RpcClient } from '../transport/rpc-client'
 import type { RpcResponse } from '../transport/types'
@@ -72,7 +71,7 @@ export async function createWorktreeWithNameRetry(
   // Why: the route must settle before the first create, so a name-collision retry cannot land on
   // a different method than the attempt it replaces.
   let launch = await resolveAgentLaunchRoute(args.agentLaunch)
-  const nativeChatDefault = launch ? (await loadDefaultSessionView()) === 'chat' : undefined
+  const nativeChatDefault = launch ? true : undefined
   const maxAttempts = args.maxAttempts ?? CLIENT_WORKTREE_CREATE_MAX_ATTEMPTS
   const mintMutationId = args.mintMutationId ?? defaultWorktreeCreateMutationId
   const mintLaunchOperationId = args.mintLaunchOperationId ?? structuredSessionOperationId

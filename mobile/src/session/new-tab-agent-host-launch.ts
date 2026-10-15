@@ -1,4 +1,3 @@
-import { loadDefaultSessionView } from '../storage/session-view-preferences'
 import type { MobileQuickCommandLaunch } from '../terminal/quick-commands'
 import type { MobileSessionTab } from './mobile-session-route-types'
 import type { TuiAgent } from '../../../src/shared/tui-agent'
@@ -84,7 +83,7 @@ export async function launchNewTabAgentThroughHost(args: {
     worktreeId: args.worktreeId,
     agent: args.agent,
     reservation,
-    nativeChatDefault: (await loadDefaultSessionView()) === 'chat',
+    nativeChatDefault: true,
     ...(afterTabId ? { placement: { afterTabId } } : {}),
     ...(prompt?.trim() ? { prompt: { text: prompt, delivery: 'submit' as const } } : {}),
     ...(options?.agentPrompt

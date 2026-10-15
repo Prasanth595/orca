@@ -4,10 +4,71 @@
   "family": "session.create-terminal",
   "namedDeltas": [],
   "values": {
-    "120afddf8527": {
+    "0fa4a03860d2": {
       "name": "agent.launchReplay#1",
       "ordinal": 2,
-      "json": "{\"id\":\"frame-1\",\"deviceToken\":\"recording-device\",\"method\":\"agent.launchReplay\",\"params\":{\"agent\":\"codex\",\"nativeChatDefault\":false,\"operationId\":\"1767225600000-00000000000040008000000000000004\",\"target\":{\"kind\":\"existing\",\"worktree\":\"id:wt-1\"},\"prompt\":{\"text\":\"review these notes\",\"delivery\":\"submit\"},\"launchSource\":\"diff_notes_send\",\"paneKey\":\"00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000002\",\"sessionId\":\"codex_00000000_0000_4000_8000_000000000003\"}}"
+      "json": "{\"id\":\"frame-1\",\"deviceToken\":\"recording-device\",\"method\":\"agent.launchReplay\",\"params\":{\"agent\":\"codex\",\"nativeChatDefault\":true,\"operationId\":\"1767225600000-00000000000040008000000000000004\",\"target\":{\"kind\":\"existing\",\"worktree\":\"id:wt-1\"},\"prompt\":{\"text\":\"review these notes\",\"delivery\":\"submit\"},\"launchSource\":\"diff_notes_send\",\"paneKey\":\"00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000002\",\"sessionId\":\"codex_00000000_0000_4000_8000_000000000003\"}}"
+    },
+    "514909f84656": {
+      "name": "agent.launchReplay#1",
+      "ordinal": 1,
+      "args": [
+        {
+          "name": "method",
+          "value": "agent.launchReplay"
+        },
+        {
+          "name": "params",
+          "value": {
+            "agent": "codex",
+            "launchSource": "diff_notes_send",
+            "nativeChatDefault": true,
+            "operationId": "1767225600000-00000000000040008000000000000004",
+            "paneKey": "00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000002",
+            "prompt": {
+              "delivery": "submit",
+              "text": "review these notes"
+            },
+            "sessionId": "codex_00000000_0000_4000_8000_000000000003",
+            "target": {
+              "kind": "existing",
+              "worktree": "id:wt-1"
+            }
+          }
+        },
+        {
+          "name": "options",
+          "value": {
+            "timeoutMs": 90000
+          }
+        }
+      ],
+      "settlement": {
+        "status": "fulfilled",
+        "startedAt": 0,
+        "settledAt": 0,
+        "value": {
+          "id": "frame-1",
+          "ok": true,
+          "result": {
+            "outcome": {
+              "handle": "terminal-1",
+              "kind": "terminal"
+            },
+            "prompt": {
+              "delivery": "submit",
+              "outcome": "not-delivered"
+            },
+            "receipt": {
+              "detail": "Started a terminal agent.",
+              "mode": "terminal",
+              "preferred": "terminal",
+              "reason": "user_default"
+            },
+            "worktreeId": "wt-1"
+          }
+        }
+      }
     },
     "553cfc6cdea5": {
       "activeHandle": "terminal-0",
@@ -74,7 +135,7 @@
       "status": "pending",
       "startedAt": 0
     },
-    "b04452342284": {
+    "c242b4e1ef65": {
       "name": "agent.launchReplay#1",
       "ordinal": 1,
       "args": [
@@ -87,68 +148,7 @@
           "value": {
             "agent": "codex",
             "launchSource": "diff_notes_send",
-            "nativeChatDefault": false,
-            "operationId": "1767225600000-00000000000040008000000000000004",
-            "paneKey": "00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000002",
-            "prompt": {
-              "delivery": "submit",
-              "text": "review these notes"
-            },
-            "sessionId": "codex_00000000_0000_4000_8000_000000000003",
-            "target": {
-              "kind": "existing",
-              "worktree": "id:wt-1"
-            }
-          }
-        },
-        {
-          "name": "options",
-          "value": {
-            "timeoutMs": 90000
-          }
-        }
-      ],
-      "settlement": {
-        "status": "fulfilled",
-        "startedAt": 0,
-        "settledAt": 0,
-        "value": {
-          "id": "frame-1",
-          "ok": true,
-          "result": {
-            "outcome": {
-              "handle": "terminal-1",
-              "kind": "terminal"
-            },
-            "prompt": {
-              "delivery": "submit",
-              "outcome": "not-delivered"
-            },
-            "receipt": {
-              "detail": "Started a terminal agent.",
-              "mode": "terminal",
-              "preferred": "terminal",
-              "reason": "user_default"
-            },
-            "worktreeId": "wt-1"
-          }
-        }
-      }
-    },
-    "bb7e5e653e32": {
-      "name": "agent.launchReplay#1",
-      "ordinal": 1,
-      "args": [
-        {
-          "name": "method",
-          "value": "agent.launchReplay"
-        },
-        {
-          "name": "params",
-          "value": {
-            "agent": "codex",
-            "launchSource": "diff_notes_send",
-            "nativeChatDefault": false,
+            "nativeChatDefault": true,
             "operationId": "1767225600000-00000000000040008000000000000004",
             "paneKey": "00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000002",
             "prompt": {
@@ -189,8 +189,8 @@
       {
         "id": "creating",
         "observation": {
-          "sender": ["bb7e5e653e32"],
-          "payloads": ["120afddf8527"],
+          "sender": ["c242b4e1ef65"],
+          "payloads": ["0fa4a03860d2"],
           "settlements": {
             "mount": "eb79a9b3682a",
             "create": "9270aeb7d9c6"
@@ -202,8 +202,8 @@
       {
         "id": "notes-kept",
         "observation": {
-          "sender": ["b04452342284"],
-          "payloads": ["120afddf8527"],
+          "sender": ["514909f84656"],
+          "payloads": ["0fa4a03860d2"],
           "settlements": {
             "mount": "eb79a9b3682a",
             "create": "eb79a9b3682a"
@@ -215,8 +215,8 @@
       {
         "id": "tabs-refreshed",
         "observation": {
-          "sender": ["b04452342284"],
-          "payloads": ["120afddf8527"],
+          "sender": ["514909f84656"],
+          "payloads": ["0fa4a03860d2"],
           "settlements": {
             "mount": "eb79a9b3682a",
             "create": "eb79a9b3682a"

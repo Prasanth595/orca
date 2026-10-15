@@ -1,6 +1,7 @@
 import { createElement } from 'react'
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { applyMobileColorScheme, lightColors, darkColors } from '../theme/mobile-theme'
 import { agentChildRowContextForSessionStream } from '../../../src/shared/agent-child-row-stream-context'
 import type { AgentChildWorkView } from '../../../src/shared/agent-status-child-work-view'
 import type { AgentSessionBackgroundTaskState } from '../../../src/shared/agent-session-wire'
@@ -86,6 +87,7 @@ describe('MobileNativeChatBackgroundTasks', () => {
     act(() => renderer?.unmount())
     renderer = null
     windowWidth.value = 430
+    applyMobileColorScheme('dark')
   })
 
   function mount(tasks: Props['tasks']): ReactTestRenderer {
@@ -137,6 +139,20 @@ describe('MobileNativeChatBackgroundTasks', () => {
         node.props.accessibilityLabel.startsWith('Stop')
     )
   }
+
+  it('repaints an expanded task group without collapsing it', () => {
+    const mounted = mount(tasksFor({ state: 'monitoring', children: [view('a')] }))
+    expand(mounted)
+    for (const scheme of ['light', 'dark', 'light'] as const) {
+      act(() => applyMobileColorScheme(scheme))
+      const palette = scheme === 'light' ? lightColors : darkColors
+      const box = mounted.root
+        .findAll((node) => String(node.type) === 'View')
+        .find((node) => styleOf(node).borderRadius !== undefined)!
+      expect(styleOf(box).backgroundColor).toBe(palette.bgPanel)
+      expect(header(mounted).props.accessibilityState.expanded).toBe(true)
+    }
+  })
 
   it('draws nothing while no child work runs', () => {
     expect(mount(tasksFor(null)).toJSON()).toBeNull()
