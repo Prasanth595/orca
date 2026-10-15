@@ -1,10 +1,10 @@
+import { sourceControlAgentCompletion } from './source-control-agent-completion'
 import { isMissingProviderExecutable } from '../provider-process/provider-executable-missing'
 import { mergeCommandEnvironment } from '../../shared/command-environment'
 import type { CommandTemplateBackslash } from '../../shared/commit-message-prompt'
 import { getAgentModelProbeSpec } from '../../shared/agent-model-probe-spec'
 import type { TuiAgent } from '../../shared/tui-agent'
 import { resolveCodexHomeProcessLockKeyForSpawnEnv } from '../codex-cli/codex-home-process-lock'
-import { supervisedProviderSpawnFailure } from '../provider-process/provider-spawn-failure-report'
 import {
   finalizeModelDiscoveryOutput,
   planModelDiscovery,
@@ -105,7 +105,7 @@ export async function discoverModelsLocal(input: {
         terminationComplete ??= killSourceControlAgentProcess(child)
       }
       const markClosedAfterTermination = (): void => {
-        void (terminationComplete ?? Promise.resolve()).then(markProcessClosed)
+        void sourceControlAgentCompletion(child, terminationComplete).then(markProcessClosed)
       }
       const finish = (value: DiscoverCommitMessageModelsResult): void => {
         if (settled) {
@@ -160,24 +160,17 @@ export async function discoverModelsLocal(input: {
         })
       }
       const onClose = (code: number | null): void => {
+        void finishClose(code)
+      }
+      const finishClose = async (code: number | null): Promise<void> => {
+        const reaped = await sourceControlAgentCompletion(child, terminationComplete)
         markClosedAfterTermination()
-        // A supervised spawn failure reads as the same failure a direct spawn reports.
-        const spawnFailure = outputLimitExceeded
-          ? null
-          : supervisedProviderSpawnFailure(code, stderr)
-        if (spawnFailure?.thrown) {
-          console.error('[commit-message] Failed to spawn model discovery:', spawnFailure.error)
-          finish(startFailure(spawnFailure.error))
-          return
-        }
-        if (spawnFailure) {
-          onError(spawnFailure.error)
-          return
-        }
         finish(
-          outputLimitExceeded
-            ? { success: false, error: `${spec.label} returned too much model data.` }
-            : finalizeModelDiscoveryOutput(spec, stdout, stderr, code)
+          !reaped
+            ? { success: false, error: `${spec.label} model discovery cleanup could not be confirmed. Try again.` }
+            : outputLimitExceeded
+              ? { success: false, error: `${spec.label} returned too much model data.` }
+              : finalizeModelDiscoveryOutput(spec, stdout, stderr, code)
         )
       }
       child.stdout?.on('data', onStdoutData)

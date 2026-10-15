@@ -1,7 +1,7 @@
 import { spawnProcess } from '@orca/process-host'
 import { withCliRuntimeOnPath } from '../../shared/node-cli-command-resolution'
 import { resolveCliCommand } from '../codex-cli/command'
-import { createProviderSpawnSpec } from '../provider-process/provider-process-supervisor'
+import { createProviderSpawnSpec } from '../provider-process/provider-process-group'
 import { wslAwareSpawn } from '../git/runner'
 import { getSpawnArgsForWindows } from '../win32-utils'
 import type {
@@ -86,7 +86,7 @@ function spawnWindowsAgent(
   })
 }
 
-// Under the provider supervisor, an Orca that quits or dies mid-run still stops the agent's group.
+// The agent leads its own group, so an Orca that quits or dies mid-run still stops it.
 function spawnSupervisedAgent(
   input: SourceControlAgentSpawnInput,
   spawnEnv: NodeJS.ProcessEnv
@@ -107,7 +107,7 @@ function spawnSupervisedAgent(
     env: spec.env,
     cwd: spec.cwd,
     detached: spec.detached,
-    stdio: ['pipe', 'pipe', 'pipe']
+    stdio: ['pipe', 'pipe', 'pipe', ...spec.extraStdio]
   })
-  return Object.assign(child, { supervised: spec.supervised })
+  return Object.assign(child, { group: spec.adopt(child) })
 }

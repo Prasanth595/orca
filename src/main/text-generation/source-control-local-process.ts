@@ -1,5 +1,5 @@
+import { sourceControlAgentCompletion } from './source-control-agent-completion'
 import type { CommitMessagePlan } from '../../shared/commit-message-plan'
-import { supervisedProviderSpawnFailure } from '../provider-process/provider-spawn-failure-report'
 import { stopSupervisedChildProcess } from '../provider-process/supervised-child-process-stop'
 import { UnsafeWindowsBatchArgumentsError } from '../win32-utils'
 import { terminateWindowsProcessTree } from '../windows-process-tree-kill'
@@ -33,8 +33,8 @@ export async function killSourceControlAgentProcess(
   if (!pid) {
     return
   }
-  if (child.supervised) {
-    await stopSupervisedChildProcess(child, { site: SOURCE_CONTROL_KILL_SITE })
+  if (child.group) {
+    await stopSupervisedChildProcess(child, child.group, { site: SOURCE_CONTROL_KILL_SITE })
     return
   }
   if (process.platform === 'win32') {
@@ -149,7 +149,7 @@ export function runLocalSourceControlPlan(input: {
       terminationComplete ??= killSourceControlAgentProcess(child)
     }
     const markClosedAfterTermination = (): void => {
-      void (terminationComplete ?? Promise.resolve()).then(markProcessClosed)
+      void sourceControlAgentCompletion(child, terminationComplete).then(markProcessClosed)
     }
     const finalize = (value: InternalTextGenerationResult): void => {
       if (settled) {
@@ -217,7 +217,15 @@ export function runLocalSourceControlPlan(input: {
       })
     }
     const onClose = (code: number | null): void => {
+      void finishClose(code)
+    }
+    const finishClose = async (code: number | null): Promise<void> => {
+      const reaped = await sourceControlAgentCompletion(child, terminationComplete)
       markClosedAfterTermination()
+      if (!reaped) {
+        finalize({ success: false, error: `${plan.label} cleanup could not be confirmed. Try again.` })
+        return
+      }
       if (canceledByUser) {
         finalize({ success: false, error: 'Generation canceled.', canceled: true })
         return
@@ -227,17 +235,6 @@ export function runLocalSourceControlPlan(input: {
           success: false,
           error: `${plan.label} CLI command produced too much output. Check the agent CLI configuration and try again.`
         })
-        return
-      }
-      // A supervised spawn failure reads as the same failure a direct spawn reports.
-      const spawnFailure = supervisedProviderSpawnFailure(code, stderr)
-      if (spawnFailure?.thrown) {
-        console.error('[commit-message] Failed to spawn local generator:', spawnFailure.error)
-        finalize({ success: false, error: couldNotStart })
-        return
-      }
-      if (spawnFailure) {
-        onError(spawnFailure.error)
         return
       }
       finalize(

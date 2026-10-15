@@ -1,3 +1,4 @@
+import { providerGroupOutlivedRoot, retainProviderGroupProbe } from '../../provider-process/provider-process-group-probe'
 /**
  * Exits from the `recovering` stage. A session lands there when evidence about its owner was
  * unavailable; this re-asks with present-time evidence and always concludes. A dead owner is
@@ -16,7 +17,7 @@ import {
   type AgentSessionOwnerProbe
 } from '../../../shared/agent-session-lease-adjudication'
 import type { AgentSessionRecord } from '../../../shared/agent-session-record'
-import { PROVIDER_SUPERVISOR_MAX_STOP_MS } from '../../provider-process/provider-process-supervisor'
+import { PROVIDER_GROUP_MAX_STOP_MS } from '../../provider-process/provider-group-watchdog'
 import { releaseUnprovenAgentSessionOwner } from '../../runtime/agent-session-lease-transitions'
 import type { AgentSessionRecordStore } from '../../runtime/agent-session-record-store'
 
@@ -32,11 +33,11 @@ export type StructuredSessionRecoveryResolutionDeps = {
 }
 
 const STOP_PROBE_INTERVAL_MS = 250
-// POSIX only: Windows never signals a recorded owner. The owner is its provider supervisor, which
-// exits only after its provider group. A SIGKILL that lands first leaves the group running, so
-// SIGTERM outlasts its stop.
+// POSIX only: Windows never signals a recorded owner. The owner leads its own group, and an older
+// build's owner is a supervisor that exits only after its provider's group, so SIGTERM outlasts
+// the longest group stop before a SIGKILL could leave that group running.
 const STOP_PROBES: Record<StructuredSessionRecoveryStopSignal, number> = {
-  SIGTERM: Math.ceil(PROVIDER_SUPERVISOR_MAX_STOP_MS / STOP_PROBE_INTERVAL_MS) + 1,
+  SIGTERM: Math.ceil(PROVIDER_GROUP_MAX_STOP_MS / STOP_PROBE_INTERVAL_MS) + 1,
   SIGKILL: 4
 }
 
@@ -55,7 +56,7 @@ export async function resolveStructuredSessionRecovery(
   if (record?.lease.handoffStage !== 'recovering') {
     return 'not-applicable'
   }
-  let probe = await deps.probeRecord(record)
+  let probe = await probeOwner(deps, record)
   const owner = record.lease.ownerProcess
   if (owner && record.lease.claimStatus === 'conflicted' && !isProvenDeadProbe(probe)) {
     // A terminal agent keeps its transport across a restart, so only proof of its exit is a way in.
@@ -67,6 +68,16 @@ export async function resolveStructuredSessionRecovery(
     }
     if ((deps.platform ?? process.platform) !== 'win32') {
       probe = await stopOwnerAndReprobe(deps, record, owner.pid)
+    }
+  }
+  if (owner && owner.hostId === deps.store.hostId &&
+    (deps.platform ?? process.platform) !== 'win32' &&
+    probe.outcome === 'indeterminate' && providerGroupOutlivedRoot(owner.pid)) {
+    // A saved number cannot establish a rootless group's identity; its existing watcher owns stop.
+    const delay = deps.delay ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)))
+    for (let attempt = 0; attempt < STOP_PROBES.SIGTERM && !isProvenDeadProbe(probe); attempt += 1) {
+      await delay(STOP_PROBE_INTERVAL_MS)
+      probe = await probeOwner(deps, record)
     }
   }
   try {
@@ -106,7 +117,7 @@ async function stopOwnerAndReprobe(
   for (const signal of ['SIGTERM', 'SIGKILL'] as const) {
     stop(pid, signal)
     for (let attempt = 0; attempt < STOP_PROBES[signal]; attempt += 1) {
-      probe = await deps.probeRecord(record)
+      probe = await probeOwner(deps, record)
       if (isProvenDeadProbe(probe)) {
         return probe
       }
@@ -116,10 +127,26 @@ async function stopOwnerAndReprobe(
   return probe
 }
 
+/** Signals the group the verified owner leads, so its helpers stop with it; a root that leads
+ *  none (an older build's in-group spawn) is signalled alone. */
 function defaultStopOwnerProcess(pid: number, signal: StructuredSessionRecoveryStopSignal): void {
-  try {
-    process.kill(pid, signal)
-  } catch {
-    // Already gone or not ours to signal; the next probe supplies the actual proof.
+  for (const target of [-pid, pid]) {
+    try {
+      process.kill(target, signal)
+      return
+    } catch {
+      // Already gone or not ours to signal; the next probe supplies the actual proof.
+    }
   }
+}
+
+async function probeOwner(
+  deps: StructuredSessionRecoveryResolutionDeps,
+  record: AgentSessionRecord
+): Promise<AgentSessionOwnerProbe> {
+  const probe = await deps.probeRecord(record)
+  const owner = record.lease.ownerProcess
+  return owner?.hostId === deps.store.hostId
+    ? retainProviderGroupProbe(owner.pid, probe, deps.platform ?? process.platform)
+    : probe
 }
