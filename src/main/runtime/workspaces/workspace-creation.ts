@@ -1,10 +1,9 @@
-import type { RuntimeRemoteFetchController } from '../runtime-remote-fetch-controller'
 import type { Repo } from '../../../shared/repo-types'
 import type {
   WorktreeLineageInput,
   WorktreeLineageResolution
 } from '../runtime-worktree-lineage-resolution'
-import { OrcaRuntimeWithGetWorktreeTerminalProvisioningHost } from '../orca-runtime-get-worktree-terminal-provisioning-host'
+import { OrcaRuntimeWithGetWorktreeTerminalProvisioningHost } from './startup/workspace-terminal-provisioning'
 import type { RuntimeManagedWorktreeCreateArgs } from '../runtime-managed-worktree-create-types'
 import type { CreateWorktreeResult } from '../../../shared/worktree/create-types'
 import { isTuiAgentEnabled } from '../../../shared/tui-agent-selection'
@@ -23,24 +22,13 @@ import { assertOpenCodeModelLaunchPreferencesAbsent } from '../../opencode/openc
 import { resolveWorktreeCreateAgentStartup } from '../runtime-worktree-agent-startup'
 import type { RuntimeWorkspaceCreateEvents } from '../../workspace-create-telemetry'
 import { createdWorkspaceActivationCallbacks } from './workspace-create-activation'
+import { assertWslMoveRepoWritable } from '../../persistence/moving-wsl-projects/wsl-move-scope-guard'
 
 export abstract class OrcaRuntimeWithCreateManagedWorktree extends OrcaRuntimeWithGetWorktreeTerminalProvisioningHost {
   protected abstract resolveLineageForWorktreeCreate(
     input?: WorktreeLineageInput,
     childRepo?: Repo
   ): Promise<WorktreeLineageResolution>
-  abstract resolveRemoteTrackingBase(
-    ...args: Parameters<RuntimeRemoteFetchController['resolveRemoteTrackingBase']>
-  ): ReturnType<RuntimeRemoteFetchController['resolveRemoteTrackingBase']>
-  abstract hasRemoteTrackingRef(
-    ...args: Parameters<RuntimeRemoteFetchController['hasRemoteTrackingRef']>
-  ): ReturnType<RuntimeRemoteFetchController['hasRemoteTrackingRef']>
-  abstract getOrStartRemoteTrackingBaseRefresh(
-    ...args: Parameters<RuntimeRemoteFetchController['getOrStartRemoteTrackingBaseRefresh']>
-  ): ReturnType<RuntimeRemoteFetchController['getOrStartRemoteTrackingBaseRefresh']>
-  abstract fetchRemoteWithCache(
-    ...args: Parameters<RuntimeRemoteFetchController['fetchRemoteWithCache']>
-  ): ReturnType<RuntimeRemoteFetchController['fetchRemoteWithCache']>
 
   async createManagedWorktree(
     args: RuntimeManagedWorktreeCreateArgs
@@ -71,6 +59,7 @@ export abstract class OrcaRuntimeWithCreateManagedWorktree extends OrcaRuntimeWi
     )
 
     const repo = await this.resolveRepoSelector(args.repoSelector)
+    assertWslMoveRepoWritable(this.store, repo)
     const createSettings = this.store.getSettings()
     const requestedAgent = args.startupAgent ?? args.createdWithAgent
     const requestedAgentEnabled =
