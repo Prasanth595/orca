@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react'
-import { useShallow } from 'zustand/react/shallow'
 import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { createBrowserUuid } from '@/lib/browser-uuid'
 import { useAppStore } from '../../store'
 import type { AiVaultSession } from '../../../../shared/ai-vault-types'
 import type { TerminalTab } from '../../../../shared/terminal-tab-types'
 import { AiVaultSessionSurfaceSwitchMenuItems } from '../right-sidebar/AiVaultSessionSurfaceSwitchMenuItems'
-import { useAiVaultSessionLaunchActions } from '../right-sidebar/ai-vault-session-launch-actions'
+import { useTabSessionLaunchActions } from './use-tab-session-launch-actions'
 import {
   lookupTabSessionHistoryRow,
   resolveTabSessionHistorySubject,
@@ -79,22 +78,7 @@ export function TabSessionSurfaceSwitchMenuItems({
   leadingSeparator: boolean
 }): React.JSX.Element | null {
   const resolved = useTabSessionSwitch(tab, nativeChat)
-  const targetState = useAppStore(
-    useShallow((state) => ({
-      projects: state.projects,
-      settings: state.settings,
-      folderWorkspaces: state.folderWorkspaces,
-      projectGroups: state.projectGroups,
-      repos: state.repos,
-      worktreesByRepo: state.worktreesByRepo
-    }))
-  )
-  const launchActions = useAiVaultSessionLaunchActions({
-    activeWorktree: null,
-    activeWorktreeId: tab.worktreeId,
-    targetState,
-    agentCmdOverrides: targetState.settings?.agentCmdOverrides
-  })
+  const launchActions = useTabSessionLaunchActions(tab.worktreeId)
   if (!resolved) {
     return null
   }
