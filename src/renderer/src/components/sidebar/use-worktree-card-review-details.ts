@@ -1,8 +1,9 @@
 import { useMemo } from 'react'
+import { getDetachedWorkspaceReviewRequest } from './workspace-detached-review-request'
 import { getLinearReadScope, scopedLinearCacheKey } from '@/store/slices/linear/linear-slice-scope'
 import { getWorkspaceAttachmentSourceContext } from './workspace-attachment-source-result'
 import { getWorkspaceReferenceLinearWorkspaceId } from './workspace-reference-details'
-import { getWorktreeGitIdentityDisplay } from '@/lib/worktree-git-identity-display'
+import { getWorktreeGitIdentityDisplay } from '../../../../shared/worktree/git-identity-display'
 import { useAppStore } from '@/store'
 import { getGitHubPRCacheKey } from '@/store/slices/github-cache-key'
 import { issueCacheKey as getIssueCacheKey } from '@/store/github/cache-identity'
@@ -52,8 +53,10 @@ export function useWorktreeCardReviewDetails({
   const folderMetaRowContent = newCardStyle
     ? hasPathIdentityEnabled && Boolean(perforceStreamIdentityDisplay ?? folderPathIdentityDisplay)
     : isFolder
+  const hostedReviewExactKey = getDetachedWorkspaceReviewRequest(worktree, repo)?.key
   const hostedReviewCacheKey =
-    repo && branch
+    hostedReviewExactKey ??
+    (repo && branch
       ? getHostedReviewCacheKey(
           repo.path,
           branch,
@@ -63,7 +66,7 @@ export function useWorktreeCardReviewDetails({
           repo.executionHostId,
           true
         )
-      : ''
+      : '')
   const prCacheKey =
     repo && branch
       ? getGitHubPRCacheKey(

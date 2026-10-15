@@ -31,6 +31,7 @@ import { findExactRepoOwner, isCapturedRepoCurrent } from '../listing/worktree-h
 import { requireWorktreeCreateRoute } from '../../../worktree-create-execution-host-route'
 import type { WorktreeIpcContext } from '../worktree-ipc-context'
 import { beginWorkspaceCreateTelemetry } from '../../../workspace-create-telemetry'
+import { assertWslMoveRepoWritable } from '../../../persistence/moving-wsl-projects/wsl-move-scope-guard'
 
 export function registerWorktreeCreateHandlers(context: WorktreeIpcContext): void {
   const { mainWindow, store, runtime, options } = context
@@ -45,6 +46,7 @@ export function registerWorktreeCreateHandlers(context: WorktreeIpcContext): voi
         if (!repo) {
           throw new Error(`Repo not found: ${args.repoId}`)
         }
+        assertWslMoveRepoWritable(store, repo)
 
         const automationProvenance = resolveAutomationWorkspaceProvenance({
           authority: runtime,
@@ -132,6 +134,7 @@ export function registerWorktreeCreateHandlers(context: WorktreeIpcContext): voi
         if (!repo || isFolderRepo(repo)) {
           throw new Error('Provisioned-root repository ownership is missing or ambiguous.')
         }
+        assertWslMoveRepoWritable(store, repo)
         const sourceParse = workspaceSourceSchema.safeParse(args.telemetrySource)
         const source: WorkspaceSource = sourceParse.success ? sourceParse.data : 'unknown'
         const automationProvenance = resolveAutomationWorkspaceProvenance({

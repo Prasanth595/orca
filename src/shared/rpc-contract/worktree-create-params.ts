@@ -99,6 +99,7 @@ export const WorktreeCreate = z
         coordinatorHandle: OptionalString
       })
       .optional(),
+    setupOnly: z.boolean().optional(),
     setupDecision: z
       .unknown()
       .transform((v) =>
