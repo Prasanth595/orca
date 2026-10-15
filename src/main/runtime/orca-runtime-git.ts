@@ -11,6 +11,8 @@ export type {
 } from './runtime-git-command-target'
 
 export class RuntimeGitCommands {
+  readonly stashRuntimeGit: RuntimeGitSyncCommands['stashRuntimeGit']
+  readonly listRuntimeGitStashes: RuntimeGitSyncCommands['listRuntimeGitStashes']
   readonly getRuntimeGitStatus: RuntimeGitStatusCommands['getRuntimeGitStatus']
   readonly getRuntimeGitSubmoduleStatus: RuntimeGitStatusCommands['getRuntimeGitSubmoduleStatus']
   readonly checkRuntimeGitIgnoredPaths: RuntimeGitStatusCommands['checkRuntimeGitIgnoredPaths']
@@ -69,6 +71,8 @@ export class RuntimeGitCommands {
     this.getRuntimeGitRemoteFileUrl = diff.getRuntimeGitRemoteFileUrl.bind(diff)
     this.getRuntimeGitRemoteCommitUrl = diff.getRuntimeGitRemoteCommitUrl.bind(diff)
     this.abortRuntimeGitMerge = sync.abortRuntimeGitMerge.bind(sync)
+    this.stashRuntimeGit = sync.stashRuntimeGit.bind(sync)
+    this.listRuntimeGitStashes = sync.listRuntimeGitStashes.bind(sync)
     this.abortRuntimeGitRebase = sync.abortRuntimeGitRebase.bind(sync)
     this.getRuntimeGitUpstreamStatus = sync.getRuntimeGitUpstreamStatus.bind(sync)
     this.fetchRuntimeGit = sync.fetchRuntimeGit.bind(sync)

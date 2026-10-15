@@ -1,4 +1,5 @@
 import { ipcRenderer } from 'electron'
+import type { GitStashOptions, GitStashResult, GitStashListResult } from '../../shared/git-stash'
 import type { GitForkSyncExpectedUpstream, GitForkSyncResult } from '../../shared/git-fork-sync'
 import type { GitStagingArea, GitUpstreamStatus } from '../../shared/git-status-types'
 import type { GitPushTarget } from '../../shared/worktree/types'
@@ -7,6 +8,14 @@ import type { GitHistoryOptions, GitHistoryResult } from '../../shared/git-histo
 import type { PreloadApi } from '../api-types'
 
 export const gitApi = {
+  stash: (
+    args: {
+      worktreePath: string
+      connectionId?: string
+    } & GitStashOptions
+  ): Promise<GitStashResult> => ipcRenderer.invoke('git:stash', args),
+  stashList: (args: { worktreePath: string; connectionId?: string }): Promise<GitStashListResult> =>
+    ipcRenderer.invoke('git:stashList', args),
   status: (args: {
     worktreePath: string
     connectionId?: string

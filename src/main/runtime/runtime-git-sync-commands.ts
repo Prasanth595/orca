@@ -1,5 +1,7 @@
 import type { GitForkSyncExpectedUpstream, GitForkSyncResult } from '../../shared/git-fork-sync'
 import type { GitUpstreamStatus } from '../../shared/git-status-types'
+import type { GitStashOptions, GitStashResult, GitStashListResult } from '../../shared/git-stash'
+import { gitStash, listGitStashes } from '../git/stash'
 import type { GitPushTarget } from '../../shared/worktree/types'
 import { materializeWorktreePushTargetRemote } from '../ipc/worktree-remote'
 import type { LocalGitProvider } from '../providers/local-git-provider'
@@ -12,6 +14,24 @@ import {
 
 export class RuntimeGitSyncCommands {
   constructor(private readonly host: RuntimeGitCommandHost) {}
+
+  async listRuntimeGitStashes(worktreeSelector: string): Promise<GitStashListResult> {
+    const target = await this.host.resolveRuntimeGitTarget(worktreeSelector)
+    requireRuntimeGitProvider(target)
+    return listGitStashes(target.worktree.path, localGitOptionsForTarget(target))
+  }
+
+  async stashRuntimeGit(
+    worktreeSelector: string,
+    request: GitStashOptions
+  ): Promise<GitStashResult> {
+    const target = await this.host.resolveRuntimeGitTarget(worktreeSelector)
+    requireRuntimeGitProvider(target)
+    return gitStash(target.worktree.path, request, {
+      ...localGitOptionsForTarget(target),
+      admissionTier: 'interactive'
+    })
+  }
 
   /**
    * Resolves the provider and mints the push target's remote on the worktree's host.

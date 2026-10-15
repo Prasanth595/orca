@@ -17,12 +17,25 @@ import {
   GitRemoteCommitUrl,
   GitRemoteFileUrl,
   GitStatusParams,
+  GitStash,
   GitSubmoduleStatus,
   GitTargetedRemote,
   WorktreeSelector
 } from '../../../../shared/rpc-contract/git-params'
 
 export const GIT_METHODS = [
+  defineMethod({
+    name: 'git.stash',
+    permission: 'workspace',
+    params: GitStash,
+    handler: async (params, { runtime }) => runtime.stashRuntimeGit(params.worktree, params)
+  }),
+  defineMethod({
+    name: 'git.stashList',
+    permission: 'workspace',
+    params: WorktreeSelector,
+    handler: async (params, { runtime }) => runtime.listRuntimeGitStashes(params.worktree)
+  }),
   defineMethod({
     name: 'git.status',
     permission: 'workspace',

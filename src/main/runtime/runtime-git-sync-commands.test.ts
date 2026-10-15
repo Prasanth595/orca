@@ -15,8 +15,12 @@ const mocks = vi.hoisted(() => ({
   gitSyncForkDefaultBranch: vi.fn(),
   gitFastForward: vi.fn(),
   gitFetch: vi.fn(),
-  gitPull: vi.fn()
+  gitPull: vi.fn(),
+  gitStash: vi.fn(),
+  listGitStashes: vi.fn()
 }))
+
+vi.mock('../git/stash', () => ({ gitStash: mocks.gitStash, listGitStashes: mocks.listGitStashes }))
 
 vi.mock('../git/fork-sync', async () => ({
   ...(await vi.importActual<typeof GitForkSyncModule>('../git/fork-sync')),
@@ -65,6 +69,8 @@ describe('RuntimeGitSyncCommands admission', () => {
     mocks.gitSyncForkDefaultBranch.mockResolvedValue({ status: 'up-to-date' })
 
     await commands.abortRuntimeGitMerge('id:wt-1')
+    await commands.stashRuntimeGit('id:wt-1', { action: 'push_untracked' })
+    await commands.listRuntimeGitStashes('id:wt-1')
     await commands.abortRuntimeGitRebase('id:wt-1')
     await commands.fetchRuntimeGit('id:wt-1', pushTarget)
     await commands.syncRuntimeGitForkDefaultBranch('id:wt-1', expectedUpstream)
@@ -73,6 +79,12 @@ describe('RuntimeGitSyncCommands admission', () => {
     await commands.commitRuntimeGit('id:wt-1', 'feat: prioritize user action')
 
     const options = { admissionTier: 'interactive', wslDistro: 'Ubuntu' }
+    expect(mocks.gitStash).toHaveBeenCalledWith(
+      worktree.path,
+      { action: 'push_untracked' },
+      options
+    )
+    expect(mocks.listGitStashes).toHaveBeenCalledWith(worktree.path, { wslDistro: 'Ubuntu' })
     expect(mocks.abortMerge).toHaveBeenCalledWith(worktree.path, options)
     expect(mocks.abortRebase).toHaveBeenCalledWith(worktree.path, options)
     expect(mocks.gitFetch).toHaveBeenCalledWith(worktree.path, pushTarget, options)
@@ -100,6 +112,12 @@ describe('RuntimeGitSyncCommands admission', () => {
     })
 
     await expect(commands.abortRuntimeGitMerge('id:wt-1')).rejects.toThrow(SshHostNotServedError)
+    await expect(commands.stashRuntimeGit('id:wt-1', { action: 'pop' })).rejects.toThrow(
+      SshHostNotServedError
+    )
+    await expect(commands.listRuntimeGitStashes('id:wt-1')).rejects.toThrow(SshHostNotServedError)
+    expect(mocks.gitStash).not.toHaveBeenCalled()
+    expect(mocks.listGitStashes).not.toHaveBeenCalled()
     await expect(commands.fetchRuntimeGit('id:wt-1', pushTarget)).rejects.toThrow(
       SshHostNotServedError
     )

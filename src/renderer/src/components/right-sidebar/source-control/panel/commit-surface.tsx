@@ -159,6 +159,7 @@ export function SourceControlCommitSurface({
       inFlightRemoteOpKind={inFlightRemoteOpKind}
       primaryAction={primaryAction}
       dropdownItems={dropdownItems}
+      stashActions={model.stashActions}
       fixCommitFailureRecipe={getLaunchActionRecipe('fixCommitFailure')}
       fixPushFailureRecipe={getLaunchActionRecipe('fixPushFailure')}
       onCommitMessageChange={(value) => {

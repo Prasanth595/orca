@@ -9,6 +9,31 @@ export const WorktreeSelector = z.object({
     .pipe(z.string().min(1, 'Missing worktree selector'))
 })
 
+export const GitStash = WorktreeSelector.extend({
+  action: z.enum([
+    'push',
+    'push_untracked',
+    'push_staged',
+    'apply',
+    'pop',
+    'drop',
+    'clear',
+    'show'
+  ]),
+  stash: z
+    .object({
+      ref: z.string().regex(/^stash@\{\d+\}$/),
+      oid: z.string().regex(/^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$/),
+      subject: z.string()
+    })
+    .optional(),
+  message: z.string().max(1000).optional(),
+  expectedStashes: z
+    .array(z.string().regex(/^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$/))
+    .max(200)
+    .optional()
+})
+
 export const GitStatusParams = WorktreeSelector.extend({
   admissionTier: OptionalGitAdmissionTier,
   includeIgnored: z.boolean().optional(),

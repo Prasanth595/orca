@@ -11,6 +11,7 @@ import { useSourceControlCreatePrIntentFlows } from '../review/use-create-pr-int
 import { useSourceControlReviewFlows } from '../review/use-review-flows'
 import { useSourceControlUpstreamStatusFetch } from '../sync/use-upstream-status-fetch'
 import { useSourceControlPanelFoundation } from './use-panel-foundation'
+import { useSourceControlStashActions } from '../stash/use-stash-actions'
 
 /**
  * The panel's single entry point: foundation, then the flows that act on it, then the action model
@@ -18,6 +19,7 @@ import { useSourceControlPanelFoundation } from './use-panel-foundation'
  */
 export function useSourceControlPanelModel() {
   const foundation = useSourceControlPanelFoundation()
+  const stashActions = useSourceControlStashActions(foundation)
   const commitFlows = useSourceControlCommitFlows(foundation)
   const reviewFlows = useSourceControlReviewFlows(foundation)
   const createPrIntentFlows = useSourceControlCreatePrIntentFlows(
@@ -189,6 +191,7 @@ export function useSourceControlPanelModel() {
     ...noteOpening,
     ...entryMutations,
     ...discardConfirmation,
+    stashActions,
     handleRelinkSuppressedGitHubPR
   }
 }

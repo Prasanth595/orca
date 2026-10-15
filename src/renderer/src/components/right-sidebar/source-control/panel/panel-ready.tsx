@@ -1,4 +1,5 @@
 import { BulkActionBar } from '../commit/bulk-action-bar'
+import { StashDialogs } from '../stash/stash-dialogs'
 import { SourceControlHeaderToolbar } from './header-toolbar'
 import { SourceControlNotesShelf } from '../notes/notes-shelf'
 import { SourceControlPanelContent } from './panel-content'
@@ -57,6 +58,7 @@ export function SourceControlPanelReady(props: SourceControlPanelReadyProps) {
 
   return (
     <>
+      <StashDialogs actions={model.stashActions} />
       <div
         ref={setSourceControlRoot}
         className="relative flex h-full flex-col overflow-hidden"

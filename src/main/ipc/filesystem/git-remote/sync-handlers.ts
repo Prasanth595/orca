@@ -1,4 +1,6 @@
 import { ipcMain } from 'electron'
+import { gitStash, listGitStashes } from '../../../git/stash'
+import { GitStash } from '../../../../shared/rpc-contract/git-params'
 import type {
   GitForkSyncExpectedUpstream,
   GitForkSyncResult
@@ -19,6 +21,35 @@ import { getConnectionExecutionHostId } from '../../../../shared/execution-host'
 
 export function registerGitRemoteSyncHandlers(context: FilesystemHandlerContext): void {
   const { store } = context
+
+  ipcMain.handle(
+    'git:stash',
+    async (_event, args: { worktreePath: string; connectionId?: string; action: unknown }) => {
+      const request = GitStash.parse({ ...args, worktree: args.worktreePath })
+      requireReachableGitRoute(getConnectionExecutionHostId(args.connectionId))
+      const worktreePath = await resolveRegisteredWorktreePath(args.worktreePath, store)
+      const gitOptions = getLocalGitOptionsForRegisteredWorktree(
+        store,
+        args.worktreePath,
+        worktreePath
+      )
+      return gitStash(worktreePath, request, { ...gitOptions, admissionTier: 'interactive' })
+    }
+  )
+
+  ipcMain.handle(
+    'git:stashList',
+    async (_event, args: { worktreePath: string; connectionId?: string }) => {
+      requireReachableGitRoute(getConnectionExecutionHostId(args.connectionId))
+      const worktreePath = await resolveRegisteredWorktreePath(args.worktreePath, store)
+      const gitOptions = getLocalGitOptionsForRegisteredWorktree(
+        store,
+        args.worktreePath,
+        worktreePath
+      )
+      return listGitStashes(worktreePath, gitOptions)
+    }
+  )
 
   ipcMain.handle(
     'git:upstreamStatus',

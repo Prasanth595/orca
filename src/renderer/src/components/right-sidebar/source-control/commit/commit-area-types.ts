@@ -1,4 +1,5 @@
 import type { DropdownActionKind, DropdownEntry } from '../../source-control-dropdown-item-types'
+import type { SourceControlStashActions } from '../stash/use-stash-actions'
 import type { PrimaryAction, RemoteOpKind } from '../../source-control-primary-action'
 import type { SourceControlPushRecovery } from '../sync/push-recovery'
 import type {
@@ -14,6 +15,7 @@ export type CreatePrIntentNotice = {
 }
 
 export type CommitAreaProps = {
+  stashActions?: SourceControlStashActions
   worktreeId: string | null
   groupId: string | null
   connectionId?: string | null

@@ -38,6 +38,8 @@ describe('resolveDropdownItems', () => {
       'commit_push',
       'commit_sync',
       'separator',
+      'stash',
+      'separator',
       'push',
       'force_push',
       'create_pr',

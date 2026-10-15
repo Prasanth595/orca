@@ -30,6 +30,7 @@ import { encodeGitPathspecs } from './git-pathspec-stdin'
 import { GitBinaryTestFixture } from './git-binary.test-fixture'
 import { registerGitRepositoryRegistrationBinaryCompatibilityCase } from './git-repository-registration-binary-compatibility.test-cases'
 import { registerGitResolutionBinaryCompatibilityCases } from './git-resolution-binary-compatibility.test-cases'
+import { registerGitStashBinaryCompatibilityCases } from './git-stash-binary-compatibility.test-cases'
 
 const image = process.env.ORCA_GIT_COMPAT_IMAGE
 const binary = process.env.ORCA_GIT_COMPAT_BINARY
@@ -98,6 +99,7 @@ describeBinaryCompatibility('real Git binary compatibility', () => {
   })
 
   registerGitRepositoryRegistrationBinaryCompatibilityCase(runGit, () => repoPath, Boolean(image))
+  registerGitStashBinaryCompatibilityCases(runGit, () => repoPath, supports, Boolean(image))
 
   it('stages, unstages and restores NUL-delimited literal pathspecs from stdin', async () => {
     const fixturePath = join(repoPath, 'stdin-pathspec')
