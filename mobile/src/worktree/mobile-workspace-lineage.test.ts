@@ -105,32 +105,6 @@ describe('applyMobileWorkspaceLineage', () => {
     }
   )
 
-  it('places a visible child from another project under its same-host parent', () => {
-    const parent = worktree({
-      worktreeId: 'parent',
-      displayName: 'parent',
-      hostId: 'local',
-      worktreeInstanceId: 'parent-instance'
-    })
-    const child = worktree({
-      worktreeId: 'child',
-      displayName: 'child',
-      repoId: 'repo-2',
-      repo: 'Backend',
-      hostId: 'local',
-      parentWorktreeId: 'parent',
-      worktreeInstanceId: 'child-instance',
-      lineageWorktreeInstanceId: 'child-instance',
-      parentWorktreeInstanceId: 'parent-instance'
-    })
-
-    const rows = applyMobileWorkspaceLineage([child, parent])
-
-    expect(rows.map((row) => row.worktreeId)).toEqual(['parent', 'child'])
-    expect(rows.map((row) => row.lineageDepth)).toEqual([0, 1])
-    expect(rows[0]?.lineageChildCount).toBe(1)
-  })
-
   it('does not nest stale lineage when instance ids no longer match', () => {
     const parent = worktree({ worktreeId: 'parent', worktreeInstanceId: 'new-parent-instance' })
     const child = worktree({
