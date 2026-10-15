@@ -25,11 +25,9 @@ const CALLER_ENV_TO_DELETE = [
   ORCA_AGENT_SESSION_SPAWN_TOKEN_ENV
 ]
 
-/** What a structured Pi session strips from its inheritance; the seal keeps a worker's handle.
- *  Pi gets no scratch folder, so an inherited one can only name another chat's. */
+/** What a structured Pi session strips beyond the seal's pane identity: Pi gets no scratch
+ *  folder, so an inherited one can only name another chat's. */
 export const PI_RPC_SESSION_ENV_TO_DELETE: readonly string[] = [
-  ...STRUCTURED_CHILD_ENV_TO_DELETE,
-  'ORCA_TERMINAL_HANDLE',
   NATIVE_CHAT_SCRATCH_DIR_ENV,
   LEGACY_NATIVE_CHAT_VISUALS_DIR_ENV
 ]
