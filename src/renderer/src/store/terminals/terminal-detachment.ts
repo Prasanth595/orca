@@ -35,7 +35,7 @@ export function resolveTerminalDetachTarget(
     return null
   }
   const layout = state.terminalLayoutsByTabId[tabId]
-  const ptyId = layout ? resolvePrimaryLayoutPtyId(layout) : tab.ptyId
+  const ptyId = (layout ? resolvePrimaryLayoutPtyId(layout) : null) ?? tab.ptyId
   return {
     ptyId,
     remoteUnsupported: ptyId ? isRemoteExecutionHostPtyId(ptyId) : false,
@@ -46,6 +46,9 @@ export function resolveTerminalDetachTarget(
     )
   }
 }
+
+const pendingOpenTokenByTabId = new Map<string, number>()
+let nextOpenToken = 0
 
 function withoutTab(
   detachedTerminalByTabId: AppState['detachedTerminalByTabId'],
@@ -67,28 +70,41 @@ export function createTerminalDetachmentActions(set: TerminalStoreSet, get: Term
       if (!target || !ptyId || target.remoteUnsupported || target.splitUnsupported) {
         return false
       }
-      const opened = await window.api.detachedTerminal.open({
-        tabId,
-        ptyId,
-        title: target.title
-      })
-      if (!opened) {
-        return false
-      }
-      // Why: tab or worktree may have closed while the companion window was opening.
-      if (!locateTerminalTab(get().tabsByWorktree, tabId)) {
-        void window.api.detachedTerminal.close(tabId)
-        return false
-      }
-      set((state) => ({
-        detachedTerminalByTabId: {
-          ...state.detachedTerminalByTabId,
-          [tabId]: { ptyId }
+      const openToken = ++nextOpenToken
+      pendingOpenTokenByTabId.set(tabId, openToken)
+      try {
+        const opened = await window.api.detachedTerminal.open({
+          tabId,
+          ptyId,
+          title: target.title
+        })
+        if (!opened) {
+          return false
         }
-      }))
-      return true
+        // Why: companion closed or re-docked while open was in flight.
+        if (pendingOpenTokenByTabId.get(tabId) !== openToken) {
+          return false
+        }
+        // Why: tab or worktree may have closed while the companion window was opening.
+        if (!locateTerminalTab(get().tabsByWorktree, tabId)) {
+          void window.api.detachedTerminal.close(tabId)
+          return false
+        }
+        set((state) => ({
+          detachedTerminalByTabId: {
+            ...state.detachedTerminalByTabId,
+            [tabId]: { ptyId }
+          }
+        }))
+        return true
+      } finally {
+        if (pendingOpenTokenByTabId.get(tabId) === openToken) {
+          pendingOpenTokenByTabId.delete(tabId)
+        }
+      }
     },
     redockDetachedTerminalTab: (tabId: string): void => {
+      pendingOpenTokenByTabId.delete(tabId)
       set((state) => ({
         detachedTerminalByTabId: withoutTab(state.detachedTerminalByTabId, tabId)
       }))

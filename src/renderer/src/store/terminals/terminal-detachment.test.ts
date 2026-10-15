@@ -218,4 +218,104 @@ describe('terminal detachment state', () => {
     expect(detachedTerminalApi.close).toHaveBeenCalledWith('tab-1')
     expect(store.getState().tabsByWorktree['wt-1']).toEqual([])
   })
+
+  it('falls back to tab ptyId when layout has no pty id', async () => {
+    const store = createTestStore()
+    seedStore(store, {
+      tabsByWorktree: {
+        'wt-1': [makeTab({ id: 'tab-1', worktreeId: 'wt-1', ptyId: 'pty-tab', title: 'Shell' })]
+      },
+      terminalLayoutsByTabId: {
+        'tab-1': {
+          ...makeLayout(),
+          activeLeafId: 'leaf-1',
+          ptyIdsByLeafId: {}
+        }
+      }
+    })
+
+    const target = resolveTerminalDetachTarget(store.getState(), 'tab-1')
+    expect(target?.ptyId).toBe('pty-tab')
+
+    await expect(store.getState().detachTerminalTab('tab-1')).resolves.toBe(true)
+    expect(detachedTerminalApi.open).toHaveBeenCalledWith({
+      tabId: 'tab-1',
+      ptyId: 'pty-tab',
+      title: 'Shell'
+    })
+    expect(store.getState().detachedTerminalByTabId).toEqual({
+      'tab-1': { ptyId: 'pty-tab' }
+    })
+  })
+
+  it('does not record detachment or re-close companion if closed/re-docked while opening', async () => {
+    let resolveOpen: (value: boolean) => void
+    detachedTerminalApi.open.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveOpen = resolve
+        })
+    )
+    const store = createTestStore()
+    seedStore(store, {
+      tabsByWorktree: {
+        'wt-1': [makeTab({ id: 'tab-1', worktreeId: 'wt-1', title: 'Shell' })]
+      },
+      terminalLayoutsByTabId: {
+        'tab-1': {
+          ...makeLayout(),
+          activeLeafId: 'leaf-1',
+          ptyIdsByLeafId: { 'leaf-1': 'pty-1' }
+        }
+      }
+    })
+
+    const detachPromise = store.getState().detachTerminalTab('tab-1')
+
+    store.getState().redockDetachedTerminalTab('tab-1')
+
+    resolveOpen!(true)
+    await expect(detachPromise).resolves.toBe(false)
+
+    expect(detachedTerminalApi.close).not.toHaveBeenCalled()
+    expect(store.getState().detachedTerminalByTabId).toEqual({})
+  })
+
+  it('does not invalidate pending open when another tab is re-docked', async () => {
+    let resolveOpen: (value: boolean) => void
+    detachedTerminalApi.open.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveOpen = resolve
+        })
+    )
+    const store = createTestStore()
+    seedStore(store, {
+      tabsByWorktree: {
+        'wt-1': [
+          makeTab({ id: 'tab-1', worktreeId: 'wt-1', title: 'Shell 1' }),
+          makeTab({ id: 'tab-2', worktreeId: 'wt-1', title: 'Shell 2' })
+        ]
+      },
+      terminalLayoutsByTabId: {
+        'tab-1': {
+          ...makeLayout(),
+          activeLeafId: 'leaf-1',
+          ptyIdsByLeafId: { 'leaf-1': 'pty-1' }
+        }
+      },
+      detachedTerminalByTabId: { 'tab-2': { ptyId: 'pty-2' } }
+    })
+
+    const detachPromise = store.getState().detachTerminalTab('tab-1')
+
+    store.getState().redockDetachedTerminalTab('tab-2')
+
+    resolveOpen!(true)
+    await expect(detachPromise).resolves.toBe(true)
+
+    expect(store.getState().detachedTerminalByTabId).toEqual({
+      'tab-1': { ptyId: 'pty-1' }
+    })
+  })
 })
