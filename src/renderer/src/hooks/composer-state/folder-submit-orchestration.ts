@@ -2,6 +2,7 @@ import type { ComposerModel } from './composer-model'
 
 type FolderSubmitOrchestrationInput = Pick<
   ComposerModel,
+  | 'agentPrompt'
   | 'clearNewWorkspaceDraft'
   | 'createFolderWorkspace'
   | 'decisions'
@@ -44,6 +45,7 @@ import { toast } from 'sonner'
 
 export function useFolderSubmitOrchestration(input: FolderSubmitOrchestrationInput) {
   const {
+    agentPrompt,
     clearNewWorkspaceDraft,
     createFolderWorkspace,
     decisions,
@@ -107,6 +109,7 @@ export function useFolderSubmitOrchestration(input: FolderSubmitOrchestrationInp
           linkedWorkItem: submitLinkedWorkItem,
           linkedTaskSourceContext: taskSourceContext,
           note,
+          agentPrompt,
           quickAgent: agent,
           autoRenameBranchFromWork: settings?.autoRenameBranchFromWork,
           agentCmdOverrides: settings?.agentCmdOverrides,
@@ -155,6 +158,7 @@ export function useFolderSubmitOrchestration(input: FolderSubmitOrchestrationInp
       }
     },
     [
+      agentPrompt,
       clearNewWorkspaceDraft,
       createFolderWorkspace,
       canResolveFolderSmartGitHubSubmit,

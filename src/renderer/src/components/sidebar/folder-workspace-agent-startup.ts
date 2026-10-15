@@ -4,7 +4,7 @@ import {
   type ExecutionHostPlatformFact
 } from '@/lib/execution-host-facts'
 import type { AppState } from '@/store/types'
-import { resolveQuickCreateLinkedWorkItemPrompt } from '@/lib/linked-work-item-context'
+import { resolveQuickCreateAgentPrompt } from '@/lib/linked-work-item-context'
 import {
   buildAgentDraftLaunchPlan,
   buildAgentStartupPlan,
@@ -36,9 +36,10 @@ export function getFolderWorkspaceAgentLaunchFact(
 /** Resolve the linked context that should appear in the agent input without submitting. */
 export function resolveFolderWorkspaceLaunchDraft(
   linkedWorkItem: LinkedWorkItemSummary,
-  note: string
+  note: string,
+  agentPrompt = ''
 ): string | null {
-  const { prompt, draftPrompt } = resolveQuickCreateLinkedWorkItemPrompt(linkedWorkItem, note)
+  const { prompt, draftPrompt } = resolveQuickCreateAgentPrompt(linkedWorkItem, note, agentPrompt)
   return (draftPrompt ?? prompt.trim()) || null
 }
 
@@ -46,6 +47,7 @@ export function buildFolderWorkspaceLinkedStartupPlan(args: {
   agent: TuiAgent
   linkedWorkItem: LinkedWorkItemSummary
   note: string
+  agentPrompt?: string
   agentCmdOverrides: Record<string, string> | undefined
   agentArgs?: string | null
   agentEnv?: Record<string, string>
@@ -53,7 +55,11 @@ export function buildFolderWorkspaceLinkedStartupPlan(args: {
   shell?: AgentStartupShell
   isRemote: boolean
 }): AgentStartupPlan | null {
-  const linkedDraftPrompt = resolveFolderWorkspaceLaunchDraft(args.linkedWorkItem, args.note)
+  const linkedDraftPrompt = resolveFolderWorkspaceLaunchDraft(
+    args.linkedWorkItem,
+    args.note,
+    args.agentPrompt
+  )
   const draftLaunchPlan = linkedDraftPrompt
     ? buildAgentDraftLaunchPlan({
         agent: args.agent,

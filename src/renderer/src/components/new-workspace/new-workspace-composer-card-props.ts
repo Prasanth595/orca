@@ -36,6 +36,9 @@ export type NewWorkspaceComposerCardProps = {
   composerRef?: React.RefObject<HTMLDivElement | null>
   onComposerNodeChange?: (node: HTMLDivElement | null) => void
   nameInputRef?: React.RefObject<HTMLInputElement | null>
+  promptTextareaRef?: React.RefObject<HTMLTextAreaElement | null>
+  agentPrompt?: string
+  onAgentPromptChange?: (value: string) => void
   quickAgent: TuiAgent | null
   onQuickAgentChange: (agent: TuiAgent | null) => void
   /** Cleared picker: skip the agent and the extra shell when setup runs. */

@@ -4,7 +4,6 @@ import type { WorktreeCreationRequest } from '@/lib/pending-worktree-creation'
 import type { QuickSubmitOptions } from './quick-creation-request'
 import { findPendingLinkedWorkItemCreationId } from '@/lib/pending-worktree-creation'
 import { useAppStore } from '@/store'
-import { getWorkspaceSeedName } from '@/lib/new-workspace'
 import { settleComposerSubmit } from '@/lib/composer-submit-cancellation'
 import {
   formatWorkspaceCreateError,
@@ -18,11 +17,8 @@ type QuickSubmitActionInput = Pick<
   ComposerModel,
   | 'effectiveLinkedPR'
   | 'executeQuickCreation'
-  | 'fallbackCreatureName'
   | 'isProjectGroupTarget'
   | 'isSubmissionCancelled'
-  | 'linkedPR'
-  | 'name'
   | 'onCreated'
   | 'parsedLinkedIssueNumber'
   | 'repoId'
@@ -38,17 +34,15 @@ type QuickSubmitActionInput = Pick<
   | 'sourceIntentBlocksCreate'
   | 'sparseError'
   | 'submitFolderTarget'
+  | 'workspaceSeedName'
 >
 
 export function useQuickSubmitAction(input: QuickSubmitActionInput) {
   const {
     effectiveLinkedPR,
     executeQuickCreation,
-    fallbackCreatureName,
     isProjectGroupTarget,
     isSubmissionCancelled,
-    linkedPR,
-    name,
     onCreated,
     parsedLinkedIssueNumber,
     repoId,
@@ -63,7 +57,8 @@ export function useQuickSubmitAction(input: QuickSubmitActionInput) {
     showProjectRequiredError,
     sourceIntentBlocksCreate,
     sparseError,
-    submitFolderTarget
+    submitFolderTarget,
+    workspaceSeedName
   } = input
 
   const submitQuick = useCallback(
@@ -73,21 +68,13 @@ export function useQuickSubmitAction(input: QuickSubmitActionInput) {
         return
       }
 
-      const workspaceNameSeed = getWorkspaceSeedName({
-        explicitName: name,
-        prompt: '',
-        linkedIssueNumber: parsedLinkedIssueNumber,
-        linkedPR,
-        fallbackName: fallbackCreatureName
-      })
-
       if (!repoId || !selectedRepo) {
         showProjectRequiredError()
         return
       }
 
       if (
-        !workspaceNameSeed ||
+        !workspaceSeedName ||
         sourceIntentBlocksCreate ||
         selectedRepoRequiresConnection ||
         (requiresExplicitSetupChoice && !setupDecision) ||
@@ -142,7 +129,7 @@ export function useQuickSubmitAction(input: QuickSubmitActionInput) {
         await executeQuickCreation(
           smartGitHubSettlement.value,
           requestedAgent,
-          workspaceNameSeed,
+          workspaceSeedName,
           workspaceRunContext,
           repoId,
           options
@@ -161,11 +148,8 @@ export function useQuickSubmitAction(input: QuickSubmitActionInput) {
     [
       effectiveLinkedPR,
       executeQuickCreation,
-      fallbackCreatureName,
       isProjectGroupTarget,
       isSubmissionCancelled,
-      linkedPR,
-      name,
       onCreated,
       parsedLinkedIssueNumber,
       repoId,
@@ -180,7 +164,8 @@ export function useQuickSubmitAction(input: QuickSubmitActionInput) {
       showProjectRequiredError,
       sourceIntentBlocksCreate,
       sparseError,
-      submitFolderTarget
+      submitFolderTarget,
+      workspaceSeedName
     ]
   )
 
