@@ -1,14 +1,19 @@
 // @ts-nocheck -- mechanically split from OrcaRuntimeService; behavior is covered by AST equivalence and characterization tests.
+import { resolveStructuredCodexAccountKind } from './structured-agent-account-home'
 import { collectRuntimeWorktreeAgentSources } from './runtime-worktree-agent-sources'
-import { OrcaRuntimeWithStartTuiIdleVisibleReadProbe } from './orca-runtime-start-tui-idle-visible-read-probe'
+import { OrcaRuntimeWithStartTuiIdleVisibleReadProbe } from './terminal/wait/terminal-wait-visible-probe'
 import { DEFAULT_WORKTREE_PS_LIMIT } from './orca-runtime-postlude'
 import type { RuntimeWorktreePsResult } from '../../shared/runtime-types'
 import { buildRuntimeWorktreePsSummaries } from './runtime-worktree-ps-summaries'
-import { buildRuntimeWorktreeSummaryPathIndex } from './runtime-worktree-summary-paths'
+import {
+  buildRuntimeWorktreeSummaryPathIndex,
+  createRuntimeWorktreePsSummaryLookup
+} from './runtime-worktree-summary-paths'
 import {
   applyRuntimeWorktreePsSessionActivity,
   applyRuntimeWorktreePsTerminalActivity
 } from './runtime-worktree-ps-activity'
+import { applyRuntimeWorktreePsUnverifiableTerminals } from './runtime-worktree-ps-unverifiable-terminals'
 import { attachRuntimeWorktreeAgentRows } from './runtime-worktree-agent-rows'
 import { compareWorktreePs } from './runtime-worktree-status-projection'
 import type { Repo } from '../../shared/repo-types'
@@ -31,15 +36,26 @@ import { structuredChatNamingDeps } from './structured-chat-naming-runtime'
 import { getProfileUserDataPath } from '../orca-profiles/profile-storage-paths'
 import { LOCAL_EXECUTION_HOST_ID } from '../../shared/execution-host'
 import { buildWorktreeListingPage } from './worktree-listing-host-scope'
-import { structuredWorkerOwesWork } from './structured-worker-custody'
-import { resolveTuiAgentLaunchEnv } from '../../shared/tui-agent-launch-defaults'
+import {
+  structuredWorkerOpenTaskTitle,
+  structuredWorkerOwesWork
+} from './structured-worker-custody'
+import {
+  resolvedTuiAgentArgsBypassPermissions,
+  resolveTuiAgentLaunchEnv
+} from '../../shared/tui-agent-launch-defaults'
+import { isTuiAgent } from '../../shared/tui-agent-config'
 import { nativeChatShellEnvironmentPolicy } from '../../shared/native-chat-shell-environment'
-import { claudeStructuredPermissionModeForSettings } from '../claude/claude-structured-permission-mode'
-import { codexStructuredPermissionPolicyForSettings } from '../codex/codex-structured-permission-policy'
 import { claudeStructuredAuthPolicyForSettings } from '../claude-accounts/claude-structured-auth-policy'
 import { resolveStructuredAgentCommand } from '../native-chat/structured-agent-command-resolution'
 import { structuredAgentConfiguredArgs } from '../native-chat/structured-agent-configured-args'
-import { claudeThinkingDisplaySupport } from '../claude/claude-thinking-display-support'
+import {
+  runtimeHiddenHostIds,
+  runtimeHiddenRepoIds,
+  runtimeVisibleRepos,
+  withoutHiddenHosts
+} from './runtime-visible-catalog'
+import { claudeCliFlagSupport } from '../claude/claude-cli-flag-support'
 
 export class OrcaRuntimeWithGetWorktreePs extends OrcaRuntimeWithStartTuiIdleVisibleReadProbe {
   async getWorktreePs(
@@ -56,13 +72,16 @@ export class OrcaRuntimeWithGetWorktreePs extends OrcaRuntimeWithStartTuiIdleVis
       sourceDefaultsSupported,
       visibilitySettings
     )
-    const resolvedWorktrees = resolvedWorktreeSnapshot.worktrees.filter((worktree) =>
-      this.isRuntimeWorktreeVisible(
-        worktree,
-        visibilitySourceMatchersByRepoId.get(worktree.repoId),
-        sourceDefaultsSupported,
-        visibilitySettings
-      )
+    const hiddenRepoIds = runtimeHiddenRepoIds(this.store)
+    const resolvedWorktrees = resolvedWorktreeSnapshot.worktrees.filter(
+      (worktree) =>
+        !hiddenRepoIds.has(worktree.repoId) &&
+        this.isRuntimeWorktreeVisible(
+          worktree,
+          visibilitySourceMatchersByRepoId.get(worktree.repoId),
+          sourceDefaultsSupported,
+          visibilitySettings
+        )
     )
     // Why: worktree.ps backs the mobile sidebar, so it must use the same
     // host-owned imported-worktree visibility gate as worktree.list/desktop.
@@ -75,44 +94,42 @@ export class OrcaRuntimeWithGetWorktreePs extends OrcaRuntimeWithStartTuiIdleVis
       platformByRepoId
     })
 
-    const runtimeWorktreeSummaryPathIndex = buildRuntimeWorktreeSummaryPathIndex(
+    const getSummary = createRuntimeWorktreePsSummaryLookup(
       summaries,
-      resolvedWorktrees,
-      platformByRepoId
+      buildRuntimeWorktreeSummaryPathIndex(summaries, resolvedWorktrees, platformByRepoId)
     )
-    const missingRuntimeWorktreeIds = new Set<string>()
     const session = this.store?.getWorkspaceSession?.()
+    const countedPtyIds = new Set<string>()
     const workingTerminalEvidenceByWorktreeId = applyRuntimeWorktreePsTerminalActivity({
-      summaries,
-      pathIndex: runtimeWorktreeSummaryPathIndex,
-      missingIds: missingRuntimeWorktreeIds,
       freshPtyLiveness,
+      countedPtyIds,
       leaves: this.leaves.values(),
       ptysById: this.ptysById,
       tabs: this.tabs,
       session,
       getPaneKey: (leaf) => this.makeRuntimePaneKey(leaf),
       getTitleDisplayClear: (ptyId) => this.getPtyTitleDisplayClear(ptyId),
-      getSummary: (summaryMap, pathIndex, missingIds, worktreeId) =>
-        this.getSummaryForRuntimeWorktreeId(summaryMap, pathIndex, missingIds, worktreeId)
+      getSummary
+    })
+    applyRuntimeWorktreePsUnverifiableTerminals({
+      countedPtyIds,
+      leaves: this.leaves.values(),
+      ptysById: this.ptysById,
+      getLivenessVerdict: (ptyId) => this.getPtyLivenessVerdict(ptyId),
+      getSummary
     })
     const { mirroredWorktreeIdByTabId, connectedPtyEvidence } =
       applyRuntimeWorktreePsSessionActivity({
         store: this.store,
         summaries,
         repoById,
-        pathIndex: runtimeWorktreeSummaryPathIndex,
-        missingIds: missingRuntimeWorktreeIds,
         ptysById: this.ptysById,
         tabs: this.tabs,
         getTerminalHandlesForPty: (ptyId) => this.getExistingTerminalHandlesForPtyId(ptyId),
-        getSummary: (summaryMap, pathIndex, missingIds, worktreeId) =>
-          this.getSummaryForRuntimeWorktreeId(summaryMap, pathIndex, missingIds, worktreeId)
+        getSummary
       })
     attachRuntimeWorktreeAgentRows({
       summaries,
-      pathIndex: runtimeWorktreeSummaryPathIndex,
-      missingWorktreeIds: missingRuntimeWorktreeIds,
       workingTerminalEvidenceByWorktreeId,
       rowSources: collectRuntimeWorktreeAgentSources({
         mirroredWorktreeIdByTabId,
@@ -121,18 +138,35 @@ export class OrcaRuntimeWithGetWorktreePs extends OrcaRuntimeWithStartTuiIdleVis
         hookSnapshots: this.getAgentStatusSnapshotFn?.() ?? []
       }),
       orchestrationByPaneKey: this.agentOrchestrationProjection.buildByPaneKey(),
-      getSummary: (summaryMap, pathIndex, missingIds, worktreeId) =>
-        this.getSummaryForRuntimeWorktreeId(summaryMap, pathIndex, missingIds, worktreeId)
+      getSummary
     })
 
     const sorted = [...summaries.values()].sort(compareWorktreePs)
     // Why: the same cap starvation as worktree.list — a host whose rows all sort last gets no
     // page at all, which is indistinguishable from it having no workspaces (#18104).
-    return buildWorktreeListingPage(sorted, limit, this.listKnownExecutionHostIds())
+    return buildWorktreeListingPage(
+      sorted,
+      limit,
+      withoutHiddenHosts(this.listKnownExecutionHostIds(), runtimeHiddenHostIds(this.store))
+    )
+  }
+
+  /** The agent's configured env, with the account a desktop that owns this host's accounts chose
+   *  laid over it, as its own launches here carry. */
+  protected structuredAgentLaunchEnv(agent: StructuredAgentId, settings) {
+    return {
+      ...resolveTuiAgentLaunchEnv(agent, settings.agentDefaultEnv),
+      ...this.accounts.hostLaunchEnvFor(agent)
+    }
   }
 
   listRepos(): Repo[] {
     return this.store?.getRepos() ?? []
+  }
+
+  /** What a client may list: the desktop's visible rows, never a retained source. */
+  listVisibleRepos(): Repo[] {
+    return runtimeVisibleRepos(this.store)
   }
 
   enrichMissingRepoGitRemoteIdentities(): void {
@@ -176,8 +210,8 @@ export class OrcaRuntimeWithGetWorktreePs extends OrcaRuntimeWithStartTuiIdleVis
             return { path: target.worktree.path, executionHostId: target.executionHostId }
           },
           getAgentEnvResolvers: () => this.getCommitMessageAgentEnvironmentResolvers(),
-          hasOpenDispatch: (record) =>
-            structuredWorkerOwesWork(this.getOrchestrationDbIfAvailable?.() ?? null, record),
+          workerTaskTitle: (record) =>
+            structuredWorkerOpenTaskTitle(this.getOrchestrationDbIfAvailable?.() ?? null, record),
           retitleOpenTab: (workspaceId, sessionId) =>
             this.refreshStructuredConversationTabTitle(workspaceId, sessionId)
         },
@@ -194,31 +228,39 @@ export class OrcaRuntimeWithGetWorktreePs extends OrcaRuntimeWithStartTuiIdleVis
       // in a plain folder lands in the folder rather than failing to resolve.
       resolveWorkspacePath: async (workspaceId) =>
         (await this.resolveRuntimeFileTarget(`id:${workspaceId}`)).worktree.path,
-      resolveClaudeCommand: () =>
-        resolveStructuredAgentCommand('claude', this.requireStore().getSettings()),
+      resolveClaudeCommand: (options) =>
+        resolveStructuredAgentCommand('claude', this.requireStore().getSettings(), options),
       resolveCodexCommand: (options) =>
         resolveStructuredAgentCommand('codex', this.requireStore().getSettings(), options),
       resolveLaunchArgs: (agent) =>
         structuredAgentConfiguredArgs(agent, this.requireStore().getSettings()),
-      resolveLaunchEnvOverlay: () =>
-        resolveTuiAgentLaunchEnv('codex', this.requireStore().getSettings().agentDefaultEnv),
-      resolveClaudeLaunchEnv: () =>
-        resolveTuiAgentLaunchEnv('claude', this.requireStore().getSettings().agentDefaultEnv),
       // Wired only here, so a test runtime never runs a real `claude --version`.
-      claudeThinkingDisplay: claudeThinkingDisplaySupport,
+      claudeCliFlags: claudeCliFlagSupport,
+      nativeChatVisuals: {
+        isEnabled: () => this.requireStore().getSettings().nativeChatInlineVisuals !== false
+      },
       resolveShellEnvironmentPolicy: () =>
         nativeChatShellEnvironmentPolicy(this.requireStore().getSettings()),
       resolveClaudeAuthPolicy: () =>
         claudeStructuredAuthPolicyForSettings(this.requireStore().getSettings()),
-      // Re-read per acquisition, like the auth policy above it: the Agent Permissions setting is
-      // the one copy of this fact, even when Arguments contain permission flags.
-      resolveClaudePermissionMode: () =>
-        claudeStructuredPermissionModeForSettings(this.requireStore().getSettings()),
-      resolveCodexPermissionPolicy: () =>
-        codexStructuredPermissionPolicyForSettings(this.requireStore().getSettings()),
-      // Same gate and same settings as agentSession.createSupport, re-read on every acquisition.
-      getClaudeManagedAccountGateSettings: () => this.requireStore().getSettings(),
+      resolveAgentFullAccess: (agent) =>
+        isTuiAgent(agent) &&
+        resolvedTuiAgentArgsBypassPermissions(
+          agent,
+          this.requireStore().getSettings(),
+          process.platform
+        ),
+      resolveAgentLaunchEnv: (agent) =>
+        isTuiAgent(agent)
+          ? this.structuredAgentLaunchEnv(agent, this.requireStore().getSettings())
+          : {},
+      resolveAgentCommandSettings: () => this.requireStore().getSettings(),
+      resolveCodexAccountKind: (home) =>
+        resolveStructuredCodexAccountKind(home, this.requireStore().getSettings()),
       resolveAgentAccountHome: (agent) => this.resolveStructuredAgentAccountHome(agent),
+      ...(this.prepareCodexCatalogProbeHomeFn
+        ? { prepareCodexCatalogProbeHome: this.prepareCodexCatalogProbeHomeFn }
+        : {}),
       // Structured chat has no agent CLI hooks, so this projection is what the first-work
       // workspace rename listens to instead of `agentStatus:set`.
       onSessionStatusChanged: (summary, options) => {

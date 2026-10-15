@@ -230,6 +230,7 @@ export class OrcaRuntimeWithGetPtyRecordForPaneKey extends OrcaRuntimeWithPruneM
    * the work.
    */
   onStructuredSessionTabHidden(sessionId: string): void {
+    this.removeWindowlessAgentSessionTab(sessionId)
     try {
       const db = this.getExistingOrchestrationDb()
       for (const dispatch of db ? exitedChatDispatchesForSession(sessionId, db) : []) {
@@ -313,8 +314,8 @@ export class OrcaRuntimeWithGetPtyRecordForPaneKey extends OrcaRuntimeWithPruneM
    * success and the peer waiting on a reply hangs.
    *
    * The worker's ACTIVE dispatch is preferred when it has one, so peer and coordinator nudges share
-   * one operation-ledger budget and one set of retain rules. A worker BETWEEN dispatches is still
-   * nudged, under a session-scoped budget: the mail is durable, the session is live, and a dispatch
+   * one caller key and one set of retain rules. A worker BETWEEN dispatches is still nudged, under
+   * a session-scoped caller key: the mail is durable, the session is live, and a dispatch
    * says nothing about whether delivery is safe — the idle gate and the writer lease do that.
    */
   protected resolveStructuredWorkerDirectMailboxTarget(

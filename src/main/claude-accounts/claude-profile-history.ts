@@ -2,12 +2,13 @@ import {
   mkdirSync,
   readdirSync,
   realpathSync,
-  renameSync,
   rmdirSync,
   statSync,
-  symlinkSync
+  symlinkSync,
+  unlinkSync
 } from 'node:fs'
 import { join } from 'node:path'
+import { renameFileWithWindowsRetry } from '../codex-accounts/fs-utils'
 import { resolveClaudeDefaultHome } from './claude-profile-paths'
 import {
   ClaudeProfileSurfaceError,
@@ -19,13 +20,14 @@ import {
 } from './claude-profile-report'
 import {
   CLAUDE_PROFILE_MERGE_SUFFIX,
+  crossFilesystem,
   lstatIfPresent,
   mergeClaudeProfilePromptHistory
 } from './claude-profile-prompt-history'
 
+// Not `sessions`: Claude's live-process registry, bound to its own folder's daemon.
 export const CLAUDE_PROFILE_HISTORY_DIRS = [
   'projects',
-  'sessions',
   'session-env',
   'file-history',
   'shell-snapshots',
@@ -46,7 +48,7 @@ function moveHistoryTree(source: string, destination: string, result: MoveResult
     try {
       const existing = lstatIfPresent(to)
       if (!existing) {
-        renameSync(from, to)
+        renameFileWithWindowsRetry(from, to)
       } else if (item.isDirectory() && existing.isDirectory()) {
         moveHistoryTree(from, to, result)
       } else {
@@ -78,17 +80,11 @@ function drainDirectory(
   }
 }
 
-function crossFilesystem(): ClaudeProfileSurfaceError {
-  return new ClaudeProfileSurfaceError(
-    'cross-filesystem',
-    'History stays private across filesystems'
-  )
-}
-
 function mergeDirectory(
   profile: string,
   home: string,
   name: (typeof CLAUDE_PROFILE_HISTORY_DIRS)[number],
+  platform: NodeJS.Platform,
   report: ClaudeProfileReport
 ): ClaudeProfileSurfaceOutcome {
   const source = join(profile, name)
@@ -99,7 +95,7 @@ function mergeDirectory(
   if (lstatIfPresent(pending)?.isDirectory()) {
     if (!sameDevice(pending)) {
       if (!lstatIfPresent(source)) {
-        renameSync(pending, source)
+        renameFileWithWindowsRetry(pending, source)
       }
       throw crossFilesystem()
     }
@@ -127,14 +123,15 @@ function mergeDirectory(
         `Earlier conflicts kept in ${pending}`
       )
     }
-    renameSync(source, pending)
+    renameFileWithWindowsRetry(source, pending)
   }
   try {
-    symlinkSync(destination, source)
+    // Why: a junction needs no Windows privilege; Node's lstat reports it as a symlink.
+    symlinkSync(destination, source, platform === 'win32' ? 'junction' : 'dir')
   } catch (error) {
     if (current) {
       if (!lstatIfPresent(source)) {
-        renameSync(pending, source)
+        renameFileWithWindowsRetry(pending, source)
       } else if (lstatIfPresent(source)?.isDirectory()) {
         moveHistoryTree(pending, source, { retained: 0, failed: [] })
       }
@@ -147,10 +144,27 @@ function mergeDirectory(
   return 'linked'
 }
 
+/** Undoes an earlier build's `sessions` link into the default home; Claude recreates the folder. */
+function unlinkSharedSessions(profile: string, home: string): ClaudeProfileSurfaceOutcome {
+  const source = join(profile, 'sessions')
+  if (!lstatIfPresent(source)?.isSymbolicLink()) {
+    return 'unchanged'
+  }
+  if (realpathSync(source) !== realpathSync(join(home, 'sessions'))) {
+    return 'user-owned'
+  }
+  try {
+    unlinkSync(source)
+  } catch {
+    // A Windows junction is removed as a directory.
+    rmdirSync(source)
+  }
+  return 'synced'
+}
+
 /**
  * Pools a profile's sessions and prompt history into the default home. Execution-host paths only;
  * callers go through provisionClaudeAccountProfile, which gates and creates the profile.
- * Windows keeps each profile's history private: its links are junctions and hardlinks.
  */
 export async function shareClaudeProfileHistory(args: {
   profileHome: string
@@ -160,18 +174,19 @@ export async function shareClaudeProfileHistory(args: {
   platform?: NodeJS.Platform
 }): Promise<ClaudeProfileReport> {
   const report = createClaudeProfileReport()
-  if ((args.platform ?? process.platform) === 'win32') {
-    return report
-  }
+  const platform = args.platform ?? process.platform
   const defaultHome = resolveClaudeDefaultHome(args.userHome, args.userConfigDir)
   mkdirSync(defaultHome, { recursive: true, mode: 0o700 })
   for (const name of CLAUDE_PROFILE_HISTORY_DIRS) {
     await runClaudeProfileSurface(report, name, () =>
-      mergeDirectory(args.profileHome, defaultHome, name, report)
+      mergeDirectory(args.profileHome, defaultHome, name, platform, report)
     )
   }
+  await runClaudeProfileSurface(report, 'sessions', () =>
+    unlinkSharedSessions(args.profileHome, defaultHome)
+  )
   await runClaudeProfileSurface(report, 'history.jsonl', () =>
-    mergeClaudeProfilePromptHistory(args.profileHome, defaultHome, report)
+    mergeClaudeProfilePromptHistory(args.profileHome, defaultHome, platform, report)
   )
   return report
 }

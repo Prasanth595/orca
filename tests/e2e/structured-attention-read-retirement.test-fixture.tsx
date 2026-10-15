@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import '../../src/main/runtime/rpc/unused-default-rpc-methods.test-fixture'
 import { transport } from './__mocks__/structured-attention-read-surfaces'
 import { cleanup } from '@testing-library/react'
 import { beforeEach, afterEach, vi } from 'vitest'
@@ -36,7 +37,7 @@ import {
 } from '@/store/slices/store-test-helpers'
 
 import { useAppStore } from '@/store'
-import { useAutoAckViewedAgent } from '@/hooks/useAutoAckViewedAgent'
+import { useReadOnScreenAttention } from '@/hooks/useReadOnScreenAttention'
 import { useStructuredAgentSessionRead } from '@/components/native-chat/use-structured-agent-session-read'
 import { resetStructuredAgentSessionReadOwnersForTests } from '@/components/native-chat/structured-agent-session-read-owner'
 import { resetStructuredAgentSessionTurnCompletionFeedsForTests } from '@/runtime/structured-agent-session-turn-completion-feed'
@@ -66,6 +67,7 @@ export const SCOPE = {
 export let fixture: {
   directory: string
   controller: RuntimeMobileNotificationController
+  relayControllers: RuntimeMobileNotificationController[]
   events: MobileNotificationEvent[]
   items: AgentJournalRenderItem[]
   sequence: number
@@ -161,7 +163,7 @@ export function ReadSurface({
   return null
 }
 export function AttentionPolicy(): null {
-  useAutoAckViewedAgent()
+  useReadOnScreenAttention()
   return null
 }
 export function readCalls(): number {
@@ -227,6 +229,7 @@ beforeEach(() => {
   fixture = {
     directory,
     controller,
+    relayControllers: [],
     events,
     items,
     sequence,
@@ -338,7 +341,7 @@ beforeEach(() => {
     settings: createGlobalSettingsFixture({ experimentalTerminalAttention: true })
   })
 })
-afterEach(() => {
+afterEach(async () => {
   cleanup()
   clearStructuredHostStub()
   resetStructuredAgentSessionReadOwnersForTests()
@@ -346,5 +349,10 @@ afterEach(() => {
   resetStructuredAgentSessionStatusFeedsForTests()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
+  await Promise.all(
+    [fixture.controller, ...fixture.relayControllers].map((controller) =>
+      controller.closeDismissals()
+    )
+  )
   rmSync(fixture.directory, { recursive: true, force: true })
 })
