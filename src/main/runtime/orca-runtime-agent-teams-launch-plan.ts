@@ -1,6 +1,7 @@
 // @ts-nocheck -- the launch-plan adapter is kept independent from the runtime mixin chain.
 import type { ClaudeAgentTeamsMode } from '../../shared/claude-agent-teams-tmux-compat'
 import type { AgentStartupShell } from '../../shared/tui-agent-startup-shell'
+import { resolveLocalWindowsAgentStartupShell } from '../../shared/windows-terminal-shell'
 import type { TerminalCreateOptions } from './runtime-terminal-contracts'
 import {
   addClaudeTeammateModeAuto,
@@ -8,6 +9,67 @@ import {
   buildClaudeAgentTeamsLaunchPlan,
   inferCapturedClaudeAgentTeamsMode
 } from './orca-runtime-create-terminal-dependencies'
+
+/**
+ * Resolves the pane shell and launch plan for a background terminal create, releasing the
+ * caller's claimed stable-pane-create slot on failure so the claim never leaks past this step.
+ */
+export async function resolveAgentTeamsLaunchPlanForTerminalCreate(args: {
+  store: { getSettings?: () => { terminalWindowsShell?: unknown; claudeAgentTeamsMode?: ClaudeAgentTeamsMode } } | undefined
+  claudeAgentTeams: {
+    createLaunchEnv: (args: {
+      leaderHandle: string
+      baseEnv: Record<string, string | undefined>
+      shimDir: string
+      shimBin: string | null
+      paneShell?: AgentStartupShell
+    }) => { env: Record<string, string> }
+  }
+  launchOpts: {
+    launchConfig: TerminalCreateOptions['launchConfig']
+    command?: string
+    claudeAgentTeamsSourceCommand?: string
+  }
+  baseEnv: Record<string, string | undefined>
+  adoptedBeforeLaunch: boolean
+  preAllocatedHandle: string
+  onError: () => void
+}): Promise<{
+  agentTeamsPlan: Awaited<ReturnType<typeof buildClaudeAgentTeamsLaunchPlan>> | undefined
+  sequencedStartupCommand?: string
+  effectiveLaunchConfig: TerminalCreateOptions['launchConfig']
+}> {
+  // Why: teammate panes launch on the local host, so the local Windows shell preference decides their grammar.
+  const paneShell = resolveLocalWindowsAgentStartupShell({
+    platform: process.platform,
+    isRemote: false,
+    terminalWindowsShell: args.store?.getSettings?.().terminalWindowsShell ?? null
+  })
+  try {
+    const { plan, sequencedStartupCommand, effectiveLaunchConfig } =
+      await buildRuntimeAgentTeamsLaunchPlan({
+        launchConfig: args.launchOpts.launchConfig,
+        command: args.launchOpts.command,
+        claudeAgentTeamsSourceCommand: args.launchOpts.claudeAgentTeamsSourceCommand,
+        claudeAgentTeamsMode: args.store?.getSettings?.().claudeAgentTeamsMode,
+        baseEnv: args.baseEnv,
+        adoptedBeforeLaunch: args.adoptedBeforeLaunch,
+        paneShell,
+        createTeamEnv: (shimDir, shimBin) =>
+          args.claudeAgentTeams.createLaunchEnv({
+            leaderHandle: args.preAllocatedHandle,
+            baseEnv: args.baseEnv,
+            shimDir,
+            shimBin,
+            paneShell
+          }).env
+      })
+    return { agentTeamsPlan: plan, sequencedStartupCommand, effectiveLaunchConfig }
+  } catch (error) {
+    args.onError()
+    throw error
+  }
+}
 
 export async function buildRuntimeAgentTeamsLaunchPlan(args: {
   launchConfig: TerminalCreateOptions['launchConfig']

@@ -5,7 +5,7 @@ import {
   runtimeWorktreeIdsEqual
 } from './runtime-worktree-path-identity'
 import { makePaneKey } from '../../shared/stable-pane-id'
-import { terminalLayoutContainsLeaf } from './headless-terminal-split-layout'
+import { terminalLayoutContainsLeaf } from '../../shared/workspace-session-pane-ownership'
 import type {
   AgentTeamsTmuxCompatRequest,
   AgentTeamsTmuxCompatResponse
@@ -55,12 +55,13 @@ export class OrcaRuntimeWithResolveTerminalSplitSourceAuthority extends OrcaRunt
     )
     const rendererTab = this.tabs.get(tabId)
     const rendererLeaf = this.leaves.get(this.getLeafKey(tabId, leafId))
+    // A mounted pane can publish before its PTY binds; persisted identity fences that gap.
     const rendererMounted = Boolean(
       rendererTab &&
       rendererLeaf &&
       runtimeWorktreeIdsEqual(rendererTab.worktreeId, worktreeId) &&
       runtimeWorktreeIdsEqual(rendererLeaf.worktreeId, worktreeId) &&
-      rendererLeaf.ptyId === ptyId
+      (rendererLeaf.ptyId === ptyId || (persisted && rendererLeaf.ptyId === null))
     )
     if (persisted && persistedLayout) {
       return {
@@ -101,7 +102,7 @@ export class OrcaRuntimeWithResolveTerminalSplitSourceAuthority extends OrcaRunt
     return await this.claudeAgentTeams.handleTmuxCompat(request, {
       splitTerminal: (handle, opts) => this.splitTerminal(handle, opts),
       readTerminal: (handle, opts) => this.readTerminal(handle, opts),
-      sendTerminal: (handle, action) => this.sendTerminal(handle, action),
+      sendTerminal: (handle, action, options) => this.sendTerminal(handle, action, options),
       focusTerminal: (handle) => this.focusTerminal(handle),
       closeTerminal: (handle) => this.closeAgentTeamsPaneTerminal(handle),
       showTerminal: (handle) => this.showTerminal(handle)
@@ -185,21 +186,16 @@ export class OrcaRuntimeWithResolveTerminalSplitSourceAuthority extends OrcaRunt
     prepareAuth?: boolean
   }): Promise<{
     env: Record<string, string>
-    envToDelete?: string[]
     mode: ClaudeAgentTeamsLaunchPlan['mode']
   }> {
     const baseEnv = {
       ...process.env,
       ...args.baseEnv
     }
-    const inheritedEnvKeys = new Set(Object.keys(baseEnv))
     const auth = args.prepareAuth && this.prepareClaudeAuth ? await this.prepareClaudeAuth() : null
     if (auth) {
-      applyClaudeEnvPatch(baseEnv, auth.envPatch, { stripAuthEnv: auth.stripAuthEnv })
+      applyClaudeEnvPatch(baseEnv, auth.envPatch)
     }
-    const envToDelete = auth?.stripAuthEnv
-      ? [...inheritedEnvKeys].filter((key) => !(key in baseEnv))
-      : undefined
     // Why: teammate panes launch on the local host, so the local Windows shell preference decides their grammar.
     const paneShell = resolveLocalWindowsAgentStartupShell({
       platform: process.platform,
@@ -218,7 +214,7 @@ export class OrcaRuntimeWithResolveTerminalSplitSourceAuthority extends OrcaRunt
         }).env
       : { CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1' }
     const env = auth ? { ...auth.envPatch, ...launchEnv } : launchEnv
-    return envToDelete ? { env, envToDelete, mode } : { env, mode }
+    return { env, mode }
   }
 
   // Why: a leader handle that never binds to a PTY (lost pane race) has no exit

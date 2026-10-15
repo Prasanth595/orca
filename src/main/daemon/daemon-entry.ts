@@ -26,8 +26,10 @@ import { MacosLoginSessionDeathWatch } from './macos-login-session-death-watch'
 import { readCurrentProcessMacSystemResolverHealth } from '../network/macos-system-resolver-health'
 import { readCurrentDaemonReadyIdentity } from './daemon-ready-identity'
 import { publishDaemonPidFile } from './daemon-spawner'
+import { initializePtyProcessCeiling } from './pty-process-ceiling-runtime'
 import { isNativePtyException } from './daemon-native-pty-exception'
 import { startDaemonScopeDeathWatch } from './daemon-scope-death-watch'
+import { isWindowsProcessTableAvailable } from '../windows/windows-process-table'
 
 export type ParsedDaemonArgs = {
   socketPath: string
@@ -134,9 +136,11 @@ async function main(): Promise<void> {
   // Fail-open: a broken log path must never block daemon startup.
   const daemonLog = logFilePath ? createDaemonFileLog(logFilePath) : createNoopDaemonFileLog()
   daemonLog.log('startup', { protocolVersion: PROTOCOL_VERSION, socketPath })
+  const processCeiling = initializePtyProcessCeiling(launchNonce ?? '')
   startDaemonScopeDeathWatch({
     freshScope: freshDaemonScope === true,
     launchNonce,
+    ceilingSlice: processCeiling.state === 'on' ? processCeiling.unit : null,
     log: (event, details) => daemonLog.log(event, details)
   })
   void warmPwshAvailabilityCache()
@@ -259,6 +263,7 @@ async function main(): Promise<void> {
           onRetire: (details) => {
             shuttingDown = true
             daemonLog.log('login-session-dead-retire', details)
+            daemon?.recordOrderlyExit()
             daemonLog.close()
             // Why: crash-style exit (no PTY teardown) keeps session meta unclean so the
             // replacement daemon cold-restores scrollback; stale socket/pid files ride
@@ -289,6 +294,7 @@ async function main(): Promise<void> {
               // where the daemon's own cgroup landed, verified from inside the process that
               // matters. See daemon-cgroup-scope.ts.
               cgroupUnit: detectOwnCgroupScopeUnit(),
+              processCeiling,
               launchNonce
             })
         }
@@ -334,6 +340,13 @@ async function main(): Promise<void> {
   daemonLog.log('ready')
 
   warmWindowsConptyOnce()
+  // Whether the addon loads is fixed for this process, and a detached daemon has
+  // no stderr, so the module's own warn cannot report it here. Both answers, so a
+  // bundle can tell "native" from "never asked" (#16905). Loading it now also pays
+  // the dlopen off the first teardown.
+  if (process.platform === 'win32') {
+    daemonLog.log('windows-process-table', { native: isWindowsProcessTableAvailable() })
+  }
 }
 
 // Only auto-run when executed directly (not imported for testing, or for the build guard's
