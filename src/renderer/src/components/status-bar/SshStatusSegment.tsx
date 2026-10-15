@@ -18,6 +18,7 @@ import {
   toSshExecutionHostId
 } from '../../../../shared/execution-host'
 import { buildExecutionHostRegistry } from '../../../../shared/execution-host-registry'
+import { describeRuntimeCompatBlock } from '../../../../shared/protocol-compat'
 import { pickerExecutionHosts } from '../../../../shared/managed-orcad-execution-host'
 import { isListedRemoteServer } from '../../../../shared/runtime-environments'
 import { RuntimeHostStatusRow } from './RuntimeHostStatusRow'
@@ -57,19 +58,26 @@ export function SshStatusSegment({
   const hostLabelOverrides = useMemo(() => getHostDisplayLabelOverrides(settings), [settings])
   const userManagedEnvironments = runtimeEnvironments.filter(isListedRemoteServer)
   // Why the registry: a managed server and its SSH host are one machine, shown on its active route.
-  const visibleHostLabels = new Map(
-    pickerExecutionHosts(
-      buildExecutionHostRegistry({
-        repos: [],
-        settings,
-        hostSource: 'configured-only',
-        sshTargetLabels,
-        sshConnectionStates,
-        runtimeEnvironments: userManagedEnvironments,
-        runtimeStatusByEnvironmentId,
-        hostLabelOverrides
-      })
-    ).map((host) => [host.id, host.label])
+  const visibleHosts = pickerExecutionHosts(
+    buildExecutionHostRegistry({
+      repos: [],
+      settings,
+      hostSource: 'configured-only',
+      sshTargetLabels,
+      sshConnectionStates,
+      runtimeEnvironments: userManagedEnvironments,
+      runtimeStatusByEnvironmentId,
+      hostLabelOverrides
+    })
+  )
+  const visibleHostLabels = new Map(visibleHosts.map((host) => [host.id, host.label]))
+  // Why the registry's verdict: Settings already shows an incompatible server as disconnected.
+  const blockedHostMessages = new Map(
+    visibleHosts.flatMap((host) =>
+      host.health === 'blocked' && host.compatibility?.kind === 'blocked'
+        ? [[host.id, describeRuntimeCompatBlock(host.compatibility)] as const]
+        : []
+    )
   )
   const targets = Array.from(sshTargetLabels.entries())
     // Why: runtime-owned (per-workspace-env) SSH targets are hidden — never list them
@@ -98,12 +106,15 @@ export function SshStatusSegment({
         snapshot: statusEntry?.snapshot,
         status: statusEntry?.status ?? null,
         active: settings?.activeRuntimeEnvironmentId === environment.id,
+        blockedMessage: blockedHostMessages.get(toRuntimeExecutionHostId(environment.id)),
         remoteControl: statusEntry?.remoteControl ?? statusEntry?.status?.remoteControl ?? null
       }
     })
   const runtimeHostRows = runtimeHosts.map((host) => ({
     ...host,
-    state: runtimeHostConnectionStateForEntry(runtimeStatusByEnvironmentId.get(host.id))
+    state: host.blockedMessage
+      ? ('disconnected' as const)
+      : runtimeHostConnectionStateForEntry(runtimeStatusByEnvironmentId.get(host.id))
   }))
   // Available remote servers are online even when they are not the active runtime.
   // Keep host health separate from the advanced active-server selection.
@@ -225,6 +236,7 @@ export function SshStatusSegment({
             label={host.label}
             state={host.state}
             detail={runtimeHostConnectionDetail(host.remoteControl)}
+            blockedMessage={host.blockedMessage}
             diagnostics={host.remoteControl}
             onConnect={() => connectRuntimeHost(host.id)}
             onDisconnect={() => disconnectRuntimeHost(host.id)}
@@ -239,6 +251,7 @@ export function SshStatusSegment({
             label={host.label}
             state={host.state}
             detail={runtimeHostConnectionDetail(host.remoteControl)}
+            blockedMessage={host.blockedMessage}
             diagnostics={host.remoteControl}
             onConnect={() => connectRuntimeHost(host.id)}
             onDisconnect={() => disconnectRuntimeHost(host.id)}

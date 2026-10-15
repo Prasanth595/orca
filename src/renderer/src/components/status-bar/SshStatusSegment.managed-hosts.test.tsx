@@ -7,6 +7,11 @@ import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import type { PublicKnownRuntimeEnvironment } from '../../../../shared/runtime-environments'
 import type { RuntimeEnvironmentStatus } from '../../../../shared/runtime-host-status'
 import type { SshConnectionState } from '../../../../shared/ssh-types'
+import {
+  MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION,
+  MIN_COMPATIBLE_RUNTIME_SERVER_VERSION,
+  RUNTIME_PROTOCOL_VERSION
+} from '../../../../shared/protocol-version'
 import { SshStatusSegment } from './SshStatusSegment'
 
 const mocks = vi.hoisted(() => ({
@@ -87,7 +92,9 @@ function readyStatus(): RuntimeEnvironmentStatus {
       authoritativeWindowId: 1,
       desktopWindowStatus: 'available',
       liveTabCount: 0,
-      liveLeafCount: 0
+      liveLeafCount: 0,
+      runtimeProtocolVersion: RUNTIME_PROTOCOL_VERSION,
+      minCompatibleRuntimeClientVersion: MIN_COMPATIBLE_RUNTIME_CLIENT_VERSION
     },
     checkedAt: 1,
     remoteControl: {
@@ -197,6 +204,24 @@ describe('the status menu for a managed SSH host', () => {
     ).toContain('1 host')
     fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
     await waitFor(() => expect(mocks.connectRuntime).toHaveBeenCalledWith('server-openclaw'))
+  })
+
+  it('shows an incompatible server as disconnected with the update reason, not a connect action', () => {
+    const blocked = readyStatus()
+    state.runtimeStatusByEnvironmentId.set('server-windows', {
+      ...blocked,
+      status: blocked.status && {
+        ...blocked.status,
+        runtimeProtocolVersion: MIN_COMPATIBLE_RUNTIME_SERVER_VERSION - 1
+      }
+    })
+    render(<SshStatusSegment compact={false} iconOnly={false} />)
+    expect(screen.getByText('Disconnected')).toBeTruthy()
+    expect(screen.getByText(/The selected Orca server is too old for this client/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Connect' })).toBeNull()
+    expect(
+      screen.getByRole('button', { name: 'Remote host connection status' }).textContent
+    ).toContain('1 host')
   })
 
   it('does not merge an independently paired server just because its name matches', () => {

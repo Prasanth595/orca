@@ -139,6 +139,7 @@ export function RuntimeHostStatusRow({
   label,
   state,
   detail,
+  blockedMessage,
   diagnostics,
   onConnect,
   onDisconnect
@@ -146,6 +147,8 @@ export function RuntimeHostStatusRow({
   label: string
   state: RuntimeHostConnectionState
   detail?: string
+  /** Why this client cannot use the server; replaces the connect action, which cannot help. */
+  blockedMessage?: string
   diagnostics?: RemoteRuntimeSharedConnectionDiagnostics | null
   onConnect?: () => Promise<void>
   onDisconnect?: () => Promise<void>
@@ -154,7 +157,7 @@ export function RuntimeHostStatusRow({
   const [submenuOpen, setSubmenuOpen] = useState(false)
   const actionPointerActiveRef = useRef(false)
   const mountedRef = useMountedRef()
-  const actionLabel = runtimeActionLabel(state)
+  const actionLabel = blockedMessage ? null : runtimeActionLabel(state)
 
   const handleAction = useCallback(async () => {
     const action = isConnectedRuntimeHostState(state) ? onDisconnect : onConnect
@@ -190,8 +193,10 @@ export function RuntimeHostStatusRow({
         )
       : null
   const diagnosticLabel = [lastConnectedLabel, reconnectAttemptLabel].filter(Boolean).join(' · ')
-  const rawDetail = diagnostics?.lastError ?? diagnostics?.lastClose?.reason ?? detail
-  const failureExplanation = runtimeFailureExplanation(state)
+  const rawDetail = blockedMessage
+    ? null
+    : (diagnostics?.lastError ?? diagnostics?.lastClose?.reason ?? detail)
+  const failureExplanation = blockedMessage ? null : runtimeFailureExplanation(state)
 
   const rowDetails = (
     <>
@@ -270,7 +275,7 @@ export function RuntimeHostStatusRow({
     )
   ) : null
 
-  if (!detail) {
+  if (!detail && !blockedMessage) {
     return (
       <div className="flex items-center gap-2.5 px-2 py-1.5">
         {rowDetails}
@@ -294,7 +299,9 @@ export function RuntimeHostStatusRow({
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent className="w-[min(18rem,calc(100vw-1rem))] p-1.5">
         <div className="px-1.5 pt-0.5 pb-1.5">
-          <div className="text-[11px] font-semibold">{runtimeFailureSummary(state)}</div>
+          <div className="text-[11px] font-semibold">
+            {blockedMessage ?? runtimeFailureSummary(state)}
+          </div>
           {failureExplanation ? (
             <div className="mt-1 text-[11px] leading-4 text-muted-foreground">
               {failureExplanation}
