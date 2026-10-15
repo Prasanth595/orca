@@ -21,6 +21,7 @@ import { structuredQuestionTranscript } from '../../../src/shared/structured-age
 import type { NativeChatResolvedPrompt } from '../../../src/shared/native-chat-resolution-receipt'
 import { colors, typography } from '../theme/mobile-theme'
 import { ANSWERED_PROMPT_ITEMS } from './mobile-native-chat-answered-prompts.test-fixture'
+import { MobileNativeChatImageViewerContext } from './mobile-native-chat-image-viewer-context'
 import { styles } from './mobile-native-chat-message-styles'
 
 vi.mock('react-native', async () => {
@@ -112,6 +113,10 @@ describe('MobileNativeChatMessage', () => {
     return renderer!
   }
 
+  const markdownIn = (node: ReactTestInstance): string[] =>
+    node
+      .findAll((child) => String(child.type) === 'MobileMarkdown')
+      .map((markdown) => markdown.props.content)
   const textIn = (node: ReactTestInstance): string[] =>
     node.findAllByType('Text' as never).map((text) => String(text.children.join('')))
 
@@ -413,10 +418,9 @@ describe('MobileNativeChatMessage', () => {
       )
 
     it('says why under the bubble, and draws no line without a reason, as the desktop', () => {
-      expect(textIn(render(notSent, { unsentNotice: 'Claude is not signed in.' }).root)).toEqual([
-        'fix it',
-        'Claude is not signed in.'
-      ])
+      const tree = render(notSent, { unsentNotice: 'Claude is not signed in.' })
+      expect(markdownIn(tree.root)).toEqual(['fix it'])
+      expect(textIn(tree.root)).toEqual(['Claude is not signed in.'])
       expect(lineIn(render(notSent))).toHaveLength(0)
     })
 
@@ -451,7 +455,53 @@ describe('MobileNativeChatMessage', () => {
     const tree = render(userMessage([{ type: 'image-ref', url: 'file:///a.jpg', alt: 'a photo' }]))
     const image = tree.root.findByType('Image' as never)
     expect(image.props.source).toEqual({ uri: 'file:///a.jpg' })
-    expect(image.props.accessibilityLabel).toBe('a photo')
+    expect(image.parent?.props).toMatchObject({
+      accessibilityRole: 'imagebutton',
+      accessibilityLabel: 'a photo'
+    })
+  })
+
+  it('opens an attachment full size when tapped', () => {
+    const openImage = vi.fn()
+    act(() => {
+      renderer = create(
+        createElement(
+          MobileNativeChatImageViewerContext.Provider,
+          { value: openImage },
+          createElement(MobileNativeChatMessage, {
+            message: userMessage([{ type: 'image-ref', url: 'file:///a.jpg', alt: 'a photo' }])
+          })
+        )
+      )
+    })
+    act(() => renderer!.root.findByProps({ accessibilityRole: 'imagebutton' }).props.onPress())
+    expect(openImage).toHaveBeenCalledWith({ uri: 'file:///a.jpg', label: 'a photo' })
+  })
+
+  it('folds a long message of yours until opened, as desktop does', () => {
+    const long = Array.from({ length: 12 }, (_, line) => `line ${line + 1}`).join('\n')
+    const tree = render(userMessage([{ type: 'text', text: long }]))
+    const clips = () =>
+      tree.root.findAll(
+        (node) => String(node.type) === 'View' && node.props.style?.overflow === 'hidden'
+      )
+    expect(clips()).toHaveLength(1)
+    // Laid out taller than its fold, it offers the rest.
+    act(() =>
+      clips()[0]!
+        .find((node) => node.props.onLayout !== undefined)
+        .props.onLayout({ nativeEvent: { layout: { height: 400 } } })
+    )
+    expect(textIn(tree.root)).toContain('Show full message')
+    act(() =>
+      tree.root
+        .find(
+          (node) => String(node.type) === 'Pressable' && textIn(node).includes('Show full message')
+        )
+        .props.onPress()
+    )
+    expect(clips()).toHaveLength(0)
+    expect(textIn(tree.root)).toContain('Show less')
   })
 
   it('prefers the url over the path when both are present', () => {
@@ -473,12 +523,15 @@ describe('MobileNativeChatMessage', () => {
     expect(texts.some((text) => text.includes('/tmp/host.png'))).toBe(true)
   })
 
-  it('makes user message text selectable', () => {
-    const tree = render(userMessage([{ type: 'text', text: 'Prompt I typed' }]))
-    const text = tree.root
-      .findAllByType('Text' as never)
-      .find((node) => String(node.children.join('')) === 'Prompt I typed')
-    expect(text?.props.selectable).toBe(true)
+  it('draws your message as selectable Markdown in the bubble’s dark-on-light colours', () => {
+    const tree = render(userMessage([{ type: 'text', text: '**Fix** `src/a.ts`' }]))
+    const markdown = tree.root.findByType('MobileMarkdown' as never)
+    expect(markdown.props).toMatchObject({
+      content: '**Fix** `src/a.ts`',
+      tone: 'onBright',
+      rangeSelectable: true
+    })
+    expect(markdown.props.renderVisual).toBeUndefined()
   })
 
   it('routes assistant prose through selectable Markdown', () => {
@@ -697,7 +750,8 @@ describe('MobileNativeChatMessage', () => {
       const tree = render(userMessage([{ type: 'text', text: 'go' }]), {
         structuredActivityUi: true
       })
-      expect(textIn(tree.root)).toEqual(['go'])
+      expect(markdownIn(tree.root)).toEqual(['go'])
+      expect(textIn(tree.root)).toEqual([])
     })
   })
 

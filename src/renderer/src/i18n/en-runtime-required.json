@@ -3039,6 +3039,10 @@
         "usedManySummary": "Used {{toolCount}} tools",
         "usedOneSummary": "Used 1 tool"
       },
+      "userMessage": {
+        "showFull": "Show full message",
+        "showLess": "Show less"
+      },
       "writeNotice": {
         "agentRefused": "The agent turned this down.",
         "agentStarting": "The agent is still starting.",

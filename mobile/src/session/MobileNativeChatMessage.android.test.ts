@@ -173,11 +173,11 @@ describe('MobileNativeChatMessage on Android', () => {
         createElement(MobileNativeChatMessage, { message: { ...message, id: 'u1', role: 'user' } })
       )
     })
-    const texts = byType('Text').filter((node) => node.props.selectable !== undefined)
-    expect(texts.length).toBeGreaterThan(0)
-    for (const node of texts) {
-      expect(node.props.selectable).toBe(false)
-    }
+    // Markdown owns the bubble's text; on Android a long press on a link span opens the sheet.
+    const [markdown, ...others] = byType('MobileMarkdown')
+    expect(others).toHaveLength(0)
+    expect(markdown?.props).toMatchObject({ rangeSelectable: true, tone: 'onBright' })
+    expect(markdown?.props.onLongPress).toEqual(expect.any(Function))
     expect(
       byType('Pressable').filter((node) => node.props.accessibilityLabel === 'Copy message')
     ).toHaveLength(1)

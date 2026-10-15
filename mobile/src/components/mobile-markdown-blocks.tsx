@@ -69,7 +69,7 @@ function renderList(node: List, key: number, ctx: MarkdownBlockContext, depth: n
     <View key={key} style={styles.list}>
       {node.children.map((item, itemIndex) => (
         <View key={itemIndex} style={styles.listItem}>
-          <NativeText style={styles.listMarker}>
+          <NativeText style={[styles.listMarker, ctx.tone.secondary]}>
             {item.checked == null
               ? node.ordered
                 ? `${(node.start ?? 1) + itemIndex}.`
@@ -173,7 +173,7 @@ function renderBlock(
         <MarkdownText
           key={key}
           selectable
-          style={[styles.heading, node.depth <= 2 ? styles.headingLarge : null]}
+          style={[styles.heading, node.depth <= 2 ? styles.headingLarge : null, ctx.tone.text]}
         >
           {renderInline(node.children, ctx)}
         </MarkdownText>
@@ -184,7 +184,7 @@ function renderBlock(
           {renderBlocks(
             node.children,
             ctx,
-            { style: styles.quoteText, selectable: true },
+            { style: [styles.quoteText, ctx.tone.secondary], selectable: true },
             depth + 1
           )}
         </View>
@@ -200,7 +200,9 @@ function renderBlock(
     case 'footnoteDefinition':
       return (
         <View key={key} style={styles.listItem}>
-          <NativeText style={styles.listMarker}>{`[${node.label ?? node.identifier}]`}</NativeText>
+          <NativeText style={[styles.listMarker, ctx.tone.secondary]}>
+            {`[${node.label ?? node.identifier}]`}
+          </NativeText>
           <View style={styles.listItemBody}>
             {renderBlocks(node.children, ctx, { style: ctx.listText, selectable: true }, depth + 1)}
           </View>

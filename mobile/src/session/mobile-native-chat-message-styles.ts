@@ -28,12 +28,6 @@ export const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm
   },
-  userText: {
-    color: colors.bgBase,
-    fontSize: TEXT_SIZE,
-    lineHeight: TEXT_SIZE + 6,
-    fontWeight: '500'
-  },
   hostNotice: {
     color: colors.textMuted,
     fontSize: TEXT_SIZE,

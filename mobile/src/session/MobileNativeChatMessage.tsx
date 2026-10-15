@@ -1,6 +1,6 @@
 import { MobileSelectableText as Text } from '../components/MobileSelectableText'
 import { memo, useCallback, useContext, useState } from 'react'
-import { Image, Text as NativeText, View } from 'react-native'
+import { Image, Pressable, Text as NativeText, View } from 'react-native'
 import { INLINE_TEXT_SELECTION } from '../components/inline-text-selection'
 import { MobileNativeChatMessageActionsSheet } from './MobileNativeChatMessageActionsSheet'
 import { MobileNativeChatLongPressContent as Content } from './MobileNativeChatLongPressContent'
@@ -15,7 +15,11 @@ import {
   isRenderableSubagentGroup,
   withoutSubagentGroupTwins
 } from '../../../src/shared/native-chat-subagent-summary'
-import type { NativeChatBlock, NativeChatMessage } from '../../../src/shared/native-chat-types'
+import type {
+  NativeChatBlock,
+  NativeChatImageRefBlock,
+  NativeChatMessage
+} from '../../../src/shared/native-chat-types'
 import { MobileMarkdown } from '../components/MobileMarkdown'
 import { MobileSourceCopyButton } from '../components/MobileSourceCopyButton'
 import { nativeChatMessagePlainText } from './mobile-native-chat-message-plain-text'
@@ -27,6 +31,8 @@ import {
 } from '../../../src/shared/agent-session-host-status-rows'
 import { MobileNativeChatTurnStatus } from './MobileNativeChatTurnStatus'
 import { MobileNativeChatNoticeRow } from './MobileNativeChatNoticeRow'
+import { MobileNativeChatImageViewerContext } from './mobile-native-chat-image-viewer-context'
+import { MobileNativeChatUserMessageFold } from './MobileNativeChatUserMessageFold'
 import { MobileNativeChatAwaitingInputRow } from './MobileNativeChatAwaitingInputRow'
 import { MobileNativeChatResolutionReceipt } from './MobileNativeChatResolutionReceipt'
 import {
@@ -78,16 +84,17 @@ function Prose({
         </Text>
       )
     }
-    // Inverted (user) bubbles use a fixed dark-on-light text rather than the
-    // markdown renderer's light-on-dark palette.
+    // Your own message: markdown in the bubble's dark-on-light colours, never a visual.
     if (invert) {
       return (
-        <Text
-          selectable={INLINE_TEXT_SELECTION}
-          style={[styles.userText, { fontSize: TEXT_SIZE * fontScale }]}
-        >
-          {block.text}
-        </Text>
+        <MobileMarkdown
+          content={block.text}
+          tone="onBright"
+          rangeSelectable
+          textScale={1.25 * fontScale}
+          onOpenFile={onOpenFile}
+          onLongPress={onLongPress}
+        />
       )
     }
     return (
@@ -106,26 +113,41 @@ function Prose({
     )
   }
   if (isImageRefBlock(block)) {
-    // A local preview (composer echo) or real URL renders as a thumbnail; a bare
-    // host path (not loadable on the device) falls back to a text placeholder.
-    const uri = block.url ?? block.path
-    if (isRenderableImageUri(uri)) {
-      return (
-        <Image
-          source={{ uri }}
-          style={styles.imageThumb}
-          resizeMode="contain"
-          accessibilityLabel={block.alt ?? 'Attached image'}
-        />
-      )
-    }
+    return <ImageAttachment block={block} fontScale={fontScale} />
+  }
+  return null
+}
+
+/** A local preview (composer echo) or real URL draws as a thumbnail that opens full size; a bare
+ *  host path (not loadable on the device) falls back to a text placeholder. */
+function ImageAttachment({
+  block,
+  fontScale
+}: {
+  block: NativeChatImageRefBlock
+  fontScale: number
+}): React.JSX.Element {
+  const openImage = useContext(MobileNativeChatImageViewerContext)
+  const uri = block.url ?? block.path
+  const label = block.alt ?? 'Attached image'
+  if (!isRenderableImageUri(uri)) {
     return (
       <NativeText style={[styles.imageRef, { fontSize: TEXT_SIZE * fontScale }]}>
         🖼 {block.alt ?? block.path ?? block.url ?? 'image'}
       </NativeText>
     )
   }
-  return null
+  return (
+    <Pressable
+      onPress={openImage ? () => openImage({ uri, label }) : undefined}
+      disabled={!openImage}
+      accessibilityRole="imagebutton"
+      accessibilityLabel={label}
+      accessibilityHint="Opens the image full size"
+    >
+      <Image source={{ uri }} style={styles.imageThumb} resizeMode="contain" />
+    </Pressable>
+  )
 }
 
 function MobileNativeChatMessageImpl({
@@ -296,6 +318,28 @@ function MobileNativeChatMessageImpl({
     message.role === 'user' || message.role === 'assistant'
       ? nativeChatMessagePlainText(message)
       : ''
+  const proseRows = (blocks: NativeChatBlock[]) =>
+    blocks.map((block, index) =>
+      isSubagentGroupBlock(block) && isRenderableSubagentGroup(block) ? (
+        <MobileNativeChatSubagentGroup
+          key={`subagent-group:${block.groupId}`}
+          block={block}
+          open={subagentGroupsOpen?.has(block.groupId) === true}
+          onToggle={onToggleSubagentGroup}
+        />
+      ) : isSystem ? null : (
+        <Prose
+          key={index}
+          block={block}
+          invert={isUser}
+          fontScale={fontScale}
+          onOpenFile={onOpenFile}
+          onLongPress={onLongPress}
+          renderVisual={message.role === 'assistant' ? renderVisual : undefined}
+          holdPendingVisual={block === growingBlock}
+        />
+      )
+    )
   return (
     <>
       {/* A turn with no user bubble carries its bar above its first row. */}
@@ -323,26 +367,16 @@ function MobileNativeChatMessageImpl({
               onLongPress={onLongPress}
             />
           ) : null}
-          {drawnProse.map((block, index) =>
-            isSubagentGroupBlock(block) && isRenderableSubagentGroup(block) ? (
-              <MobileNativeChatSubagentGroup
-                key={`subagent-group:${block.groupId}`}
-                block={block}
-                open={subagentGroupsOpen?.has(block.groupId) === true}
-                onToggle={onToggleSubagentGroup}
-              />
-            ) : isSystem ? null : (
-              <Prose
-                key={index}
-                block={block}
-                invert={isUser}
-                fontScale={fontScale}
-                onOpenFile={onOpenFile}
-                onLongPress={onLongPress}
-                renderVisual={message.role === 'assistant' ? renderVisual : undefined}
-                holdPendingVisual={block === growingBlock}
-              />
-            )
+          {isUser ? (
+            // As desktop draws it: the pictures, then the words, folded when long.
+            <>
+              {proseRows(drawnProse.filter(isImageRefBlock))}
+              <MobileNativeChatUserMessageFold text={copyText} fontScale={fontScale}>
+                {proseRows(drawnProse.filter((block) => !isImageRefBlock(block)))}
+              </MobileNativeChatUserMessageFold>
+            </>
+          ) : (
+            proseRows(drawnProse)
           )}
           {askRow}
           {showToolRun ? (

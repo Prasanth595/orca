@@ -2,7 +2,7 @@ import { INLINE_TEXT_SELECTION } from './inline-text-selection'
 import { MobileSelectableText } from './MobileSelectableText'
 import { memo, useContext, useMemo, type ReactNode } from 'react'
 import { Text as NativeText, View } from 'react-native'
-import { styles } from './mobile-markdown-styles'
+import { MARKDOWN_TONES, styles } from './mobile-markdown-styles'
 import { renderBlocks, type MarkdownBlockContext } from './mobile-markdown-blocks'
 import { MarkdownText } from './mobile-markdown-text'
 import { MarkdownTextContext, type MarkdownTextSetup } from './mobile-markdown-text-setup'
@@ -30,6 +30,8 @@ type Props = {
   /** The text is still being appended to: markup its end leaves open is closed, as on desktop,
    *  and a diagram stays code until the text stops. */
   growing?: boolean
+  /** The surface under the text: `onBright` for your own message's light fill. */
+  tone?: keyof typeof MARKDOWN_TONES
 }
 
 function MobileMarkdownContent({
@@ -39,7 +41,8 @@ function MobileMarkdownContent({
   textScale = 1,
   onOpenFile,
   renderVisual,
-  growing = false
+  growing = false,
+  tone: toneName = 'default'
 }: Props) {
   // Interactive children own their touches and must forward the row action.
   const setup = useContext(MarkdownTextContext)
@@ -55,10 +58,12 @@ function MobileMarkdownContent({
   // Scale prose sizes; inline spans inherit fontSize from the wrapping Text.
   const scaled = (size: number): { fontSize: number; lineHeight: number } | null =>
     textScale !== 1 ? { fontSize: size * textScale, lineHeight: (size + 6) * textScale } : null
+  const tone = MARKDOWN_TONES[toneName]
   const ctx: MarkdownBlockContext = {
     growing,
     onOpenFile,
-    listText: [styles.listText, scaled(14)],
+    tone,
+    listText: [styles.listText, scaled(14), tone.text],
     rowLongPress: setup.androidTranscript ? setup.onLongPress : undefined,
     directives,
     renderVisual,
@@ -68,7 +73,7 @@ function MobileMarkdownContent({
   return (
     <View style={styles.root}>
       {renderBlocks(root.children, ctx, {
-        style: [styles.paragraph, scaled(13)],
+        style: [styles.paragraph, scaled(13), tone.text],
         selectable: rangeSelectable
       })}
     </View>

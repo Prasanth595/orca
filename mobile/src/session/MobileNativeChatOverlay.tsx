@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet } from 'react-native'
 import { MobileNativeChatView, type MobileNativeChatInputLockReason } from './MobileNativeChatView'
 import { foldMobileNativeChatMessages } from './mobile-native-chat-render-data'
 import type { MobileNativeChatImageAttachments } from './use-mobile-native-chat-image-attachments'
@@ -8,6 +8,7 @@ import { useMobileNativeChatStreamingBubble } from './use-mobile-native-chat-str
 import { useMobileNativeChatComposerTray } from './use-mobile-native-chat-composer-tray'
 import { useMobileNativeChatVisualRenderer } from './MobileNativeChatVisual'
 import { MobileNativeChatVisualContext } from './mobile-native-chat-visual-context'
+import { MobileNativeChatImageViewerHost } from './MobileNativeChatImageViewer'
 
 type Props = {
   controller: MobileNativeChatController
@@ -89,7 +90,7 @@ export function MobileNativeChatOverlay({
     return null
   }
   return (
-    <View style={styles.overlay}>
+    <MobileNativeChatImageViewerHost style={styles.overlay}>
       <MobileNativeChatVisualContext.Provider value={visuals}>
         <MobileNativeChatView
           messages={session.messages}
@@ -158,7 +159,7 @@ export function MobileNativeChatOverlay({
           keyboardInset={keyboardInset}
         />
       </MobileNativeChatVisualContext.Provider>
-    </View>
+    </MobileNativeChatImageViewerHost>
   )
 }
 

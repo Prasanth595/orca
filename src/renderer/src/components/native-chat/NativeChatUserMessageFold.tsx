@@ -3,7 +3,10 @@ import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
 import { cn } from '@/lib/utils'
 import { useNativeChatDisclosure } from './native-chat-disclosure-store'
-import { nativeChatUserMessageFolds } from './native-chat-user-message-fold'
+import {
+  NATIVE_CHAT_USER_MESSAGE_FOLD_COPY,
+  nativeChatUserMessageFolds
+} from '../../../../shared/native-chat-user-message-fold'
 
 export function NativeChatUserMessageFold({
   messageId,
@@ -76,8 +79,14 @@ export function NativeChatUserMessageFold({
             }}
           >
             {disclosure.open
-              ? translate('components.native-chat.userMessage.showLess', 'Show less')
-              : translate('components.native-chat.userMessage.showFull', 'Show full message')}
+              ? translate(
+                  'components.native-chat.userMessage.showLess',
+                  NATIVE_CHAT_USER_MESSAGE_FOLD_COPY.showLess
+                )
+              : translate(
+                  'components.native-chat.userMessage.showFull',
+                  NATIVE_CHAT_USER_MESSAGE_FOLD_COPY.showFull
+                )}
           </Button>
         </div>
       ) : null}

@@ -1,0 +1,98 @@
+import { useState } from 'react'
+import {
+  Image,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewStyle
+} from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { X } from 'lucide-react-native'
+import { colors, spacing } from '../theme/mobile-theme'
+import {
+  MobileNativeChatImageViewerContext,
+  type MobileNativeChatViewedImage
+} from './mobile-native-chat-image-viewer-context'
+
+/** The chat surface, from which any row can open an attachment full size. */
+export function MobileNativeChatImageViewerHost({
+  style,
+  children
+}: {
+  style: StyleProp<ViewStyle>
+  children: React.ReactNode
+}): React.JSX.Element {
+  const [image, setImage] = useState<MobileNativeChatViewedImage | null>(null)
+  return (
+    <MobileNativeChatImageViewerContext.Provider value={setImage}>
+      <View style={style}>{children}</View>
+      {image ? <MobileNativeChatImageViewer {...image} onClose={() => setImage(null)} /> : null}
+    </MobileNativeChatImageViewerContext.Provider>
+  )
+}
+
+/** An attached image at full size, over everything, until closed. Desktop opens the same
+ *  picture in its full-size preview dialog. iOS also zooms it with a pinch. */
+function MobileNativeChatImageViewer({
+  uri,
+  label,
+  onClose
+}: {
+  uri: string
+  label: string
+  onClose: () => void
+}): React.JSX.Element {
+  const insets = useSafeAreaInsets()
+  return (
+    <Modal visible animationType="fade" onRequestClose={onClose}>
+      <View style={styles.backdrop}>
+        <ScrollView
+          contentContainerStyle={styles.stage}
+          maximumZoomScale={4}
+          minimumZoomScale={1}
+          centerContent
+        >
+          <Image
+            source={{ uri }}
+            style={styles.image}
+            resizeMode="contain"
+            accessibilityLabel={label}
+          />
+        </ScrollView>
+        <Pressable
+          style={[styles.close, { top: insets.top + spacing.sm }]}
+          onPress={onClose}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Close image"
+        >
+          <X size={22} color={colors.textPrimary} strokeWidth={2} />
+        </Pressable>
+      </View>
+    </Modal>
+  )
+}
+
+const styles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: colors.bgBase
+  },
+  stage: {
+    flexGrow: 1
+  },
+  image: {
+    flex: 1,
+    width: '100%'
+  },
+  close: {
+    position: 'absolute',
+    right: spacing.lg,
+    padding: spacing.sm,
+    borderRadius: 999,
+    backgroundColor: colors.bgRaised
+  }
+})
