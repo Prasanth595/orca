@@ -6,6 +6,7 @@ import { delimiter, join } from 'node:path'
 import type * as CodexCliCommandModule from '../shared/node-cli-command-resolution'
 import { WINDOWS_BATCH_UNSAFE_CHARACTERS_LABEL } from '../shared/windows-batch-spawn'
 import { SKILLS_CLI_VERSION } from '../shared/agent-feature-install-commands'
+import { UNTRANSLATED_GIT_OUTPUT_ENV } from '../shared/git-output-locale'
 
 const COMMIT = '0123456789abcdef0123456789abcdef01234567'
 const PINNED_ADD = [
@@ -641,7 +642,7 @@ describe('orca skills CLI', () => {
     expect(String(errorSpy.mock.calls[0]?.[0])).toContain('writes to the machine that runs it')
   })
 
-  it('puts the resolved npx directory on the child PATH', async () => {
+  it('puts the resolved npx directory on the child PATH and pins untranslated git', async () => {
     // Why a real directory with a real sibling node: pairing only fires when the
     // node it would add actually exists, so a fictional path proves nothing.
     const npxBin = mkdtempSync(join(tmpdir(), 'orca-npx-'))
@@ -653,6 +654,7 @@ describe('orca skills CLI', () => {
     spawnMock.mockReturnValue(child)
     resolveCliCommandMock.mockReturnValue(join(npxBin, 'npx'))
     vi.stubEnv('PATH', `/usr/bin${delimiter}/bin`)
+    vi.stubEnv('LC_ALL', 'ko_KR.UTF-8')
     vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
 
     const resultPromise = main(['skills', 'install', '--skill', 'alpha'], '/tmp/repo')
@@ -667,6 +669,8 @@ describe('orca skills CLI', () => {
     // environment; replacing it outright breaks git, node, HOME and npm config.
     expect(env?.PATH).toBe(`${npxBin}${delimiter}/usr/bin${delimiter}/bin`)
     expect(env?.HOME ?? env?.USERPROFILE).toBe(process.env.HOME ?? process.env.USERPROFILE)
+    // Why: skills only fetches a pinned commit when git's errors are in English.
+    expect(env).toMatchObject(UNTRANSLATED_GIT_OUTPUT_ENV)
   })
 
   it('leaves PATH untouched when no node ships beside the resolved npx', async () => {

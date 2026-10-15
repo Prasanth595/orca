@@ -17,6 +17,7 @@ import {
   detectSkillsCliUpdateAgentKeys
 } from '../../shared/skills-cli-agent-detection'
 import { buildAgentFeatureSkillInstallArgs } from '../../shared/agent-feature-install-commands'
+import { UNTRANSLATED_GIT_OUTPUT_ENV } from '../../shared/git-output-locale'
 import { readOrcaCliBuildCommit } from '../cli-version'
 
 function resolveSelectedSkillNames(
@@ -91,7 +92,8 @@ function runNpxSkills(args: string[]): Promise<number> {
       // Why the shared helper: it verifies the sibling node actually exists,
       // skips a bare-name fallback whose dirname is '.', and writes the key
       // Windows will really read — all of which a local join got wrong.
-      env: withCliRuntimeOnPath(resolved, { ...process.env })
+      // Why: skills only fetches a pinned commit on git's English errors (vercel-labs/skills#2505).
+      env: withCliRuntimeOnPath(resolved, { ...process.env, ...UNTRANSLATED_GIT_OUTPUT_ENV })
     })
     // Why: a missing npx/Node on a headless host surfaces as a raw spawn ENOENT;
     // wrap it so the CLI reports an actionable message like every other failure here.

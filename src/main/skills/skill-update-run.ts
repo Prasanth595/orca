@@ -8,6 +8,7 @@ import { buildAgentFeatureSkillInstallArgs } from '../../shared/agent-feature-in
 import { detectSkillsCliUpdateAgentKeys } from '../../shared/skills-cli-agent-detection'
 import { resolveCliCommand } from '../codex-cli/command'
 import { withCliRuntimeOnPath } from '../../shared/node-cli-command-resolution'
+import { UNTRANSLATED_GIT_OUTPUT_ENV } from '../../shared/git-output-locale'
 import { killWithDescendantSweep } from '../pty-descendant-termination'
 import { getSpawnArgsForWindows, WINDOWS_BATCH_UNSAFE_CHARACTERS_LABEL } from '../win32-utils'
 
@@ -146,7 +147,8 @@ export class SkillUpdateRunner {
       windowsHide: true,
       // Why: npx is an `#!/usr/bin/env node` script — without its own node ahead of
       // PATH it loads under whatever version leads, and a native dep dies on ABI.
-      env: withCliRuntimeOnPath(npxCommand, { ...process.env })
+      // Why: skills only fetches a pinned commit on git's English errors (vercel-labs/skills#2505).
+      env: withCliRuntimeOnPath(npxCommand, { ...process.env, ...UNTRANSLATED_GIT_OUTPUT_ENV })
     })
     this.child = child
 

@@ -7,6 +7,7 @@ import {
 } from '../../shared/windows-batch-spawn'
 import { CANCEL_RELEASE_TIMEOUT_MS, SkillUpdateRunner } from './skill-update-run'
 import { SKILLS_CLI_VERSION } from '../../shared/agent-feature-install-commands'
+import { UNTRANSLATED_GIT_OUTPUT_ENV } from '../../shared/git-output-locale'
 
 class FakeChild extends EventEmitter {
   stdout = new EventEmitter()
@@ -79,6 +80,18 @@ describe('SkillUpdateRunner', () => {
     runner.start(['orca-cli'])
 
     expect(spawnCalls[0].options.stdio).toEqual(['ignore', 'pipe', 'pipe'])
+  })
+
+  it('pins git to untranslated output so the skills CLI can fetch a pinned commit', () => {
+    vi.stubEnv('LC_ALL', 'ko_KR.UTF-8')
+    const { runner, spawnCalls } = makeRunner()
+    try {
+      runner.start(['orca-cli'])
+    } finally {
+      vi.unstubAllEnvs()
+    }
+
+    expect(spawnCalls[0].options.env).toMatchObject(UNTRANSLATED_GIT_OUTPUT_ENV)
   })
 
   it('rejects names that could carry shell syntax', () => {
