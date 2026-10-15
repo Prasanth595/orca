@@ -36,7 +36,7 @@ const IN_TURN = { kind: 'turn' as const, turnItemId: TURN_KEY }
 export const APPROVAL: AgentJournalItemIdentity = { ...TURN, ordinal: 2 }
 /** Refuses every row a settlement writes: its rows are all `recovered`. */
 export const REJECT_RECOVERED_ROWS = `
-  CREATE TEMP TRIGGER reject_recovered BEFORE INSERT ON journal_rows
+  CREATE TEMP TRIGGER reject_recovered BEFORE INSERT ON journal_rows_data
   WHEN json_extract(NEW.row_json, '$.recovered') = 1
   BEGIN SELECT RAISE(ABORT, 'temporary storage failure'); END;
 `

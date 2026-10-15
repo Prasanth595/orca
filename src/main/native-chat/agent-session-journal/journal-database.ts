@@ -16,6 +16,10 @@ import { JournalUnreleasedSchemaError } from './journal-open-failure'
 import { ensureQueuedMessagesTable } from './queued-message-schema'
 import { ensureCommandReceiptsTable } from './command-receipt-schema'
 import { ensureAgentSessionAttachmentClaimTables } from '../agent-session-attachments/agent-session-attachment-claims'
+import { ensureJournalTextPieceSchema } from './journal-text-piece-schema'
+import { runJournalTransaction } from './journal-transaction'
+
+export { runJournalTransaction } from './journal-transaction'
 
 export const JOURNAL_BUSY_TIMEOUT_MS = 5000
 /** Bounds the WAL a checkpoint leaves behind; SQLite truncates it back to this after a reset. */
@@ -78,6 +82,7 @@ export function openJournalDatabase(dbPath: string): OpenJournalDatabase {
     }
     configureJournalPragmas(probe, stored)
     migrateJournalSchema(probe, stored)
+    ensureJournalTextPieceSchema(probe)
     // Outside `migrateJournalSchema` on purpose: its early return skips a db
     // already at the current version, and this table must exist at EVERY
     // writable open with no `user_version` bump (see `ensureQueuedMessagesTable`).
@@ -127,40 +132,4 @@ function migrateJournalSchema(db: Database.Database, stored: number): void {
     db.exec(createAgentSessionRecordTablesSql())
     db.pragma(`user_version = ${JOURNAL_DB_SCHEMA_VERSION}`)
   })
-}
-
-/**
- * One IMMEDIATE transaction, its COMMIT inside the failure boundary: SQLite can leave a transaction
- * open after a failed COMMIT, and on the shared connection every later BEGIN would then fail. The
- * caller gets the original error; a ROLLBACK that fails too goes to `onStranded`. `run` is
- * synchronous by contract: an await inside it would let another chat's statements land in this
- * transaction.
- */
-export function runJournalTransaction<T>(
-  db: Database.Database,
-  run: (db: Database.Database) => T,
-  onStranded: () => void = () => undefined
-): T {
-  db.exec('BEGIN IMMEDIATE')
-  try {
-    const result = run(db)
-    if (result instanceof Promise) {
-      throw new Error('a chat journal transaction must not await')
-    }
-    db.exec('COMMIT')
-    return result
-  } catch (error) {
-    if (db.isTransaction) {
-      try {
-        db.exec('ROLLBACK')
-      } catch (rollbackError) {
-        console.warn(
-          '[agent-session-journal] rolling back a failed transaction failed',
-          rollbackError
-        )
-        onStranded()
-      }
-    }
-    throw error
-  }
 }

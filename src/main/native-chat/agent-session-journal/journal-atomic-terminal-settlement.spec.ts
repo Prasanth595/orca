@@ -156,7 +156,7 @@ export function registerJournalAtomicTerminalSettlementTests(): void {
             }
           })
         )
-        database.db.exec(`CREATE TEMP TRIGGER reject_later_settlement BEFORE INSERT ON journal_rows
+        database.db.exec(`CREATE TEMP TRIGGER reject_later_settlement BEFORE INSERT ON journal_rows_data
         WHEN NEW.session_id = '${SESSION}' AND json_extract(NEW.row_json, '$.recovered') = 1
           AND json_extract(NEW.row_json, '$.kind') = '${kind}'
           AND NEW.seq > ${before.cursor.sequence + 1}
@@ -394,7 +394,7 @@ export function registerJournalAtomicTerminalSettlementTests(): void {
         const published: AgentJournalSnapshot[] = []
         journal.observeCommits(() => published.push(journal.snapshot()))
         database.db.exec(`CREATE TEMP TRIGGER reject_submission_settlement_item
-      BEFORE INSERT ON journal_rows
+      BEFORE INSERT ON journal_rows_data
       WHEN NEW.session_id = '${SESSION}' AND json_extract(NEW.row_json, '$.recovered') = 1
         AND json_extract(NEW.row_json, '$.kind') = 'item'
       BEGIN SELECT RAISE(ABORT, 'item rejected after submission'); END`)
