@@ -14,6 +14,10 @@ import type { StructuredAgentSessionComposerOptions } from '../../../src/shared/
 import type { StructuredAgentSessionState } from '../../../src/shared/structured-agent-session-reducer'
 import type { RpcClient } from '../transport/rpc-client'
 import type { MobileNativeChatSendOutcome } from './mobile-native-chat-send'
+import {
+  resolveNativeChatFollowUpDelivery,
+  type NativeChatFollowUpDelivery
+} from '../../../src/shared/native-chat-follow-up-delivery'
 import { dispatchMobileStructuredCommand } from './mobile-structured-composer-command'
 import type { MobileNativeChatSendErrorReporter } from './use-mobile-native-chat-send-error'
 import { sendMobileStructuredAgentSessionMessage } from './mobile-structured-agent-session-send'
@@ -30,9 +34,10 @@ import {
  *  one this build cannot answer would hold the send forever, so it starts a turn instead. */
 export function mobileStructuredSendQueues(
   queueCapable: boolean,
-  items: StructuredAgentSessionState['items']
+  items: StructuredAgentSessionState['items'],
+  delivery: NativeChatFollowUpDelivery = resolveNativeChatFollowUpDelivery({ alternate: false })
 ): boolean {
-  return queueCapable && !pendingPromptsAllUnanswerableHere(items)
+  return queueCapable && delivery === 'queue' && !pendingPromptsAllUnanswerableHere(items)
 }
 
 export type StructuredMobileSendAttachment = StructuredAgentSessionAttachment & {
@@ -64,7 +69,8 @@ export function useMobileStructuredSendWithOutcome(args: {
   text: string,
   images?: string[],
   deadline?: number,
-  attachments?: readonly StructuredMobileSendAttachment[]
+  attachments?: readonly StructuredMobileSendAttachment[],
+  delivery?: NativeChatFollowUpDelivery
 ) => Promise<MobileNativeChatSendOutcome> {
   const {
     accept,
@@ -87,7 +93,8 @@ export function useMobileStructuredSendWithOutcome(args: {
       text: string,
       images?: string[],
       deadline?: number,
-      attachments?: readonly StructuredMobileSendAttachment[]
+      attachments?: readonly StructuredMobileSendAttachment[],
+      delivery?: NativeChatFollowUpDelivery
     ): Promise<MobileNativeChatSendOutcome> => {
       const currentFence = stateRef.current.fence
       if (!client || !sessionId || !enabled || currentFence === null) {
@@ -153,7 +160,7 @@ export function useMobileStructuredSendWithOutcome(args: {
         expectedRuntimeFence: currentFence,
         text,
         attachments: sendAttachments,
-        ...(mobileStructuredSendQueues(queueCapable, stateRef.current.items)
+        ...(mobileStructuredSendQueues(queueCapable, stateRef.current.items, delivery)
           ? { delivery: 'queue-if-active' as const }
           : {}),
         ...(options ? { options } : {}),
