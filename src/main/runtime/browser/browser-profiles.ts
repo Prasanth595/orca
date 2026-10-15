@@ -30,7 +30,10 @@ import type { RuntimeBrowserTabCatalog } from './browser-tab-catalog'
 
 export class RuntimeBrowserProfiles {
   constructor(
-    private readonly host: Pick<RuntimeBrowserCommandHost, 'getAuthoritativeWindow'>,
+    private readonly host: Pick<
+      RuntimeBrowserCommandHost,
+      'getAuthoritativeWindow' | 'getRuntimeBrowserPageRegistry'
+    >,
     private readonly targets: Pick<
       RuntimeBrowserCommandTargets,
       'requireAgentBrowserBridge' | 'resolveBrowserCommandTarget'
@@ -44,8 +47,11 @@ export class RuntimeBrowserProfiles {
     } & BrowserCommandTargetParams
   ): Promise<BrowserTabSetProfileResult> {
     const target = await this.targets.resolveBrowserCommandTarget(params)
+    const pages = this.host.getRuntimeBrowserPageRegistry()
+    const activeClientPage = pages.listPages(target.worktreeId).find((page) => page.active)
     const browserPageId =
       target.browserPageId ??
+      activeClientPage?.browserPageId ??
       this.targets.requireAgentBrowserBridge().getActivePageId(target.worktreeId)
     if (!browserPageId) {
       throw new BrowserError('browser_no_tab', 'No browser tab open in this worktree')
@@ -58,6 +64,21 @@ export class RuntimeBrowserProfiles {
       throw new BrowserError(
         'invalid_argument',
         `Browser profile ${params.profileId} was not found`
+      )
+    }
+
+    const clientPage = pages.getPage(browserPageId)
+    if (clientPage) {
+      if (target.worktreeId && clientPage.workspaceId !== target.worktreeId) {
+        throw new BrowserError('invalid_argument', 'Browser page belongs to another workspace')
+      }
+      if (clientPage.browserProfileId === profile.id) {
+        return { browserPageId, profileId: profile.id, profileLabel: profile.label }
+      }
+      // Close/restore destroys the working guest before replacement admission can fail.
+      throw new BrowserError(
+        'browser_error',
+        'Client-hosted profile switching requires staged replacement support on both peers'
       )
     }
 
