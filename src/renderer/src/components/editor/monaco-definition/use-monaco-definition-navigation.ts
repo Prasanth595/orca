@@ -3,7 +3,7 @@ import type { editor } from 'monaco-editor'
 import { monaco } from '@/lib/monaco-setup'
 import { useAppStore } from '@/store'
 import { getEditorFileOperationContext } from '@/lib/editor-file-operation-owner'
-import type { RuntimeFileOperationArgs } from '@/runtime/runtime-file-client'
+import type { RuntimeFileOperationArgs } from '@/runtime/runtime-file-client-types'
 import {
   createDefinitionContextLoader,
   createPublishedDefinitionFiles,
@@ -15,16 +15,19 @@ import {
   registerDefinitionSource,
   type DefinitionSource
 } from './definition-editor-opener'
-import { createMonacoDefinitionSink } from './monaco-definition-sink'
+import { createMonacoDefinitionSink, type MonacoDefinitionSink } from './monaco-definition-sink'
+import { extractModuleReferences } from './module-references'
 import { createRuntimeDefinitionFileHost } from './runtime-definition-file-host'
 
 const DEFINITION_LANGUAGES = new Set(['typescript', 'javascript'])
 // Why delayed: opening a tab paints first; the prefetch only matters once the user reaches for Cmd-click.
 const LOAD_DELAY_MS = 300
+// Why longer: typing fires per keystroke, and only a finished import line changes what to load.
+const RELOAD_AFTER_EDIT_DELAY_MS = 1000
 
-const publishedFiles = createPublishedDefinitionFiles()
+let publishedFiles = createPublishedDefinitionFiles()
 const loadersByOwner = new Map<string, DefinitionContextLoader>()
-let sink: ReturnType<typeof createMonacoDefinitionSink> | null = null
+let sink: MonacoDefinitionSink | null = null
 
 /** Experimental: Cmd/Ctrl-click in a TS/JS file follows a definition into another file, node_modules included. */
 export function useMonacoDefinitionNavigation({
@@ -39,6 +42,7 @@ export function useMonacoDefinitionNavigation({
   const enabled = useAppStore((state) => state.settings?.experimentalEditorGoToDefinition === true)
   useEffect(() => {
     if (!enabled) {
+      disposeDefinitionContext()
       return
     }
     const model = codeEditor?.getModel()
@@ -58,17 +62,51 @@ export function useMonacoDefinitionNavigation({
     }
     ensureDefinitionEditorOpener(monaco)
     const unregister = registerDefinitionSource(codeEditor, resolved.source)
-    const timer = window.setTimeout(() => {
-      // Best effort: a failed prefetch leaves Cmd-click as it was before.
-      void getDefinitionContextLoader(resolved.source, resolved.context)
-        .load(fileKey, model.getValue())
-        .catch(() => {})
-    }, LOAD_DELAY_MS)
+    let loadedSpecifiers: string | null = null
+    let timer: number | undefined
+    const scheduleLoad = (delayMs: number): void => {
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => {
+        const text = model.getValue()
+        // Why compare specifiers: edits that leave the imports alone would only re-read the same files.
+        const specifiers = JSON.stringify(
+          extractModuleReferences(text).map((reference) => reference.specifier)
+        )
+        if (specifiers === loadedSpecifiers) {
+          return
+        }
+        loadedSpecifiers = specifiers
+        // Best effort: a failed prefetch leaves Cmd-click as it was before.
+        void getDefinitionContextLoader(resolved.source, resolved.context)
+          .load(fileKey, text)
+          .catch(() => {})
+      }, delayMs)
+    }
+    scheduleLoad(LOAD_DELAY_MS)
+    const contentListener = model.onDidChangeContent(() => scheduleLoad(RELOAD_AFTER_EDIT_DELAY_MS))
+    // Why on focus: path aliases are worker-wide, so the worktree being edited must win a shared alias.
+    const focusListener = codeEditor.onDidFocusEditorText(() =>
+      sink?.preferRoot(resolved.source.root.rootKey)
+    )
     return () => {
       window.clearTimeout(timer)
+      contentListener.dispose()
+      focusListener.dispose()
       unregister()
     }
   }, [codeEditor, enabled, fileId, language])
+}
+
+/** Turning the experiment off hands the TS worker back exactly as Monaco setup left it. */
+function disposeDefinitionContext(): void {
+  if (!sink) {
+    return
+  }
+  sink.dispose()
+  sink = null
+  loadersByOwner.clear()
+  // Replaced, not cleared: a load still in flight keeps writing to the old one.
+  publishedFiles = createPublishedDefinitionFiles()
 }
 
 function resolveDefinitionSource(

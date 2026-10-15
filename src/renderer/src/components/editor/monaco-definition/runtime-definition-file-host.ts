@@ -1,8 +1,6 @@
-import {
-  readRuntimeDirectory,
-  readRuntimeFilePreview,
-  type RuntimeFileOperationArgs
-} from '@/runtime/runtime-file-client'
+import { readRuntimeDirectory } from '@/runtime/runtime-file-mutation-client'
+import { readRuntimeFilePreview } from '@/runtime/runtime-file-read-client'
+import type { RuntimeFileOperationArgs } from '@/runtime/runtime-file-client-types'
 import { keyToFilePath, type DefinitionFileRoot } from './definition-file-keys'
 import type { DefinitionFileHost, DirectoryEntryKind } from './definition-file-host'
 import type { DirEntry } from '../../../../../shared/filesystem-entry-types'

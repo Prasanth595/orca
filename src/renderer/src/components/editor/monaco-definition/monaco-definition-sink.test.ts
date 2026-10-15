@@ -11,7 +11,7 @@ function createLanguageDefaults(): {
   let options: MonacoTypeScript.CompilerOptions = { jsx: 1 }
   const applied: MonacoTypeScript.CompilerOptions[] = []
   return {
-    addExtraLib: vi.fn((_content: string, _filePath?: string) => ({ dispose: () => {} })),
+    addExtraLib: vi.fn((_content: string, _filePath?: string) => ({ dispose: vi.fn() })),
     getCompilerOptions: () => options,
     setCompilerOptions: (next) => {
       options = next
@@ -66,5 +66,34 @@ describe('createMonacoDefinitionSink', () => {
 
     expect(typescriptDefaults.addExtraLib).toHaveBeenCalledWith('export {}', 'file:///a/src/x.ts')
     expect(javascriptDefaults.addExtraLib).toHaveBeenCalledWith('export {}', 'file:///a/src/x.ts')
+  })
+
+  it('moves a known root first on preferRoot without needing a new read', () => {
+    const defaults = createLanguageDefaults()
+    const sink = createMonacoDefinitionSink([defaults])
+    sink.publishPathAliases('file:///a', aliasesOf('file:///a'))
+    sink.publishPathAliases('file:///b', aliasesOf('file:///b'))
+
+    sink.preferRoot('file:///a')
+
+    expect(defaults.getCompilerOptions()).toMatchObject({
+      paths: { '@/*': ['file:///a/src/*', 'file:///b/src/*'] }
+    })
+  })
+
+  it('restores the original options and removes its files on dispose, then ignores late publishes', () => {
+    const defaults = createLanguageDefaults()
+    const sink = createMonacoDefinitionSink([defaults])
+    sink.publishFiles(new Map([['file:///a/src/x.ts', 'export {}']]))
+    sink.publishPathAliases('file:///a', aliasesOf('file:///a'))
+    const lib = vi.mocked(defaults.addExtraLib).mock.results[0].value
+
+    sink.dispose()
+    sink.publishFiles(new Map([['file:///a/src/y.ts', 'export {}']]))
+    sink.publishPathAliases('file:///b', aliasesOf('file:///b'))
+
+    expect(lib.dispose).toHaveBeenCalledOnce()
+    expect(defaults.getCompilerOptions()).toEqual({ jsx: 1 })
+    expect(defaults.addExtraLib).toHaveBeenCalledOnce()
   })
 })
