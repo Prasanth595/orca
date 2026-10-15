@@ -152,36 +152,74 @@ describe('WorktreeCard host badge toggle', () => {
     WORKTREE_CARD_IMPORT_TIMEOUT_MS
   )
 
-  it.each(['detailed', 'compact', 'new'])('renders planned owner text once in %s cards', async (style) => {
-    settings = { compactWorktreeCards: style === 'compact', experimentalNewWorktreeCardStyle: style === 'new' }
-    const owner = makeRepo({ displayName: 'Backend checkout' })
-    const parentRepo = makeRepo({ id: 'parent-repo', displayName: 'Frontend checkout' })
-    const parent = makeWorktree({ id: 'parent', repoId: parentRepo.id, instanceId: 'parent-instance' })
-    const child = makeWorktree({ instanceId: 'child-instance' })
-    const graph = { [child.id]: {
-      worktreeId: child.id, worktreeInstanceId: 'child-instance',
-      parentWorktreeId: parent.id, parentWorktreeInstanceId: 'parent-instance',
-      origin: 'cli' as const, capture: { source: 'explicit-cli-flag' as const, confidence: 'explicit' as const }, createdAt: 1
-    } }
-    for (const mode of ['repo', 'none', 'workspace-status', 'pr-status'] as const) {
-      for (const pinned of [false, true]) {
-        const trees = [{ ...parent, isPinned: pinned }, child]
-        const rows = buildRows(mode, trees, new Map([[owner.id, owner], [parentRepo.id, parentRepo]]),
-          null, new Set(), undefined, undefined, undefined, graph, new Map(trees.map((row) => [row.id, row])), true)
-        for (const row of rows) {
-          if (row.type !== 'item') {
-            continue
-          }
-          const markup = await renderCardMarkup({ worktree: row.worktree, repo: row.repo,
-            hideRepoBadge: mode === 'repo' && !row.showProjectName,
-            showProjectName: row.showProjectName,
-            inPinnedSection: row.sectionKey === PINNED_GROUP_KEY })
-          const ownerText = [...markup.matchAll(/>([^<]*)</g)]
-            .filter((match) => match[1].trim() === row.repo?.displayName)
-          expect(ownerText).toHaveLength(mode === 'repo' && !pinned && row.worktree.id === parent.id ? 0 : 1)
-          expect(markup).not.toContain(HOST_LABEL)
+  it.each(['detailed', 'compact', 'new'])(
+    'renders planned owner text once in %s cards',
+    async (style) => {
+      settings = {
+        compactWorktreeCards: style === 'compact',
+        experimentalNewWorktreeCardStyle: style === 'new'
+      }
+      const owner = makeRepo({ displayName: 'Backend checkout' })
+      const parentRepo = makeRepo({ id: 'parent-repo', displayName: 'Frontend checkout' })
+      const parent = makeWorktree({
+        id: 'parent',
+        repoId: parentRepo.id,
+        instanceId: 'parent-instance'
+      })
+      const child = makeWorktree({ instanceId: 'child-instance' })
+      const graph = {
+        [child.id]: {
+          worktreeId: child.id,
+          worktreeInstanceId: 'child-instance',
+          parentWorktreeId: parent.id,
+          parentWorktreeInstanceId: 'parent-instance',
+          origin: 'cli' as const,
+          capture: { source: 'explicit-cli-flag' as const, confidence: 'explicit' as const },
+          createdAt: 1
         }
       }
-    }
-  }, WORKTREE_CARD_IMPORT_TIMEOUT_MS)
+      for (const mode of ['repo', 'none', 'workspace-status', 'pr-status'] as const) {
+        for (const pinned of [false, true]) {
+          const trees = [{ ...parent, isPinned: pinned }, child]
+          const rows = buildRows(
+            mode,
+            trees,
+            new Map([
+              [owner.id, owner],
+              [parentRepo.id, parentRepo]
+            ]),
+            null,
+            new Set(),
+            undefined,
+            undefined,
+            undefined,
+            graph,
+            new Map(trees.map((row) => [row.id, row])),
+            true
+          )
+          for (const row of rows) {
+            if (row.type !== 'item') {
+              continue
+            }
+            const rowRepo = row.repo ?? owner
+            const markup = await renderCardMarkup({
+              worktree: row.worktree,
+              repo: rowRepo,
+              hideRepoBadge: mode === 'repo' && !row.showProjectName,
+              showProjectName: row.showProjectName,
+              inPinnedSection: row.sectionKey === PINNED_GROUP_KEY
+            })
+            const ownerText = [...markup.matchAll(/>([^<]*)</g)].filter(
+              (match) => match[1].trim() === rowRepo.displayName
+            )
+            expect(ownerText).toHaveLength(
+              mode === 'repo' && !pinned && row.worktree.id === parent.id ? 0 : 1
+            )
+            expect(markup).not.toContain(HOST_LABEL)
+          }
+        }
+      }
+    },
+    WORKTREE_CARD_IMPORT_TIMEOUT_MS
+  )
 })
