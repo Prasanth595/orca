@@ -253,7 +253,10 @@ const WorktreeCardAgentsBody = React.memo(function WorktreeCardAgentsBody({
     const sendTarget = isAgentSendTargetModeActive
       ? (sendTargetsByPaneKey.get(agent.paneKey) ?? {
           status: 'disabled' as const,
-          disabledReason: 'Agent is not available'
+          disabledReason: translate(
+            'auto.components.sidebar.WorktreeCardAgents.agentUnavailable',
+            'Agent is not available'
+          )
         })
       : undefined
     const descendantAncestorPaneKeys = new Set(ancestorPaneKeys)
@@ -311,7 +314,10 @@ const WorktreeCardAgentsBody = React.memo(function WorktreeCardAgentsBody({
     const sendTarget = isAgentSendTargetModeActive
       ? (sendTargetsByPaneKey.get(agent.paneKey) ?? {
           status: 'disabled' as const,
-          disabledReason: 'Agent is not available'
+          disabledReason: translate(
+            'auto.components.sidebar.WorktreeCardAgents.agentUnavailable',
+            'Agent is not available'
+          )
         })
       : undefined
     const descendantAncestorPaneKeys = new Set(ancestorPaneKeys)
