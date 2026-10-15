@@ -149,18 +149,6 @@ describe('client-hosted browser download notices', () => {
     })
   })
 
-  // Why: Chromium sends no finish for an interrupted download Orca never resumes.
-  it('ends the spinner when the download is interrupted', () => {
-    renderNotices()
-    emitRequested()
-
-    emitProgress({ state: 'interrupted' })
-
-    expect(toastMocks.error).toHaveBeenCalledWith("Couldn't finish the download.", {
-      id: 'browser-download:download-1'
-    })
-  })
-
   it('leaves downloads from pages this desktop does not host to their own shelf', () => {
     renderNotices()
 

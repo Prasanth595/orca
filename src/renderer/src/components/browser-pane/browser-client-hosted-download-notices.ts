@@ -49,16 +49,9 @@ export function useBrowserClientHostedDownloadNotices(): void {
         if (filename === undefined) {
           return
         }
-        const id = downloadToastId(event.downloadId)
-        // Why: Orca never resumes an interrupted download, so Chromium never sends its finish.
-        if (event.state === 'interrupted') {
-          toast.error(
-            translate('browser.clientHosted.download.failed', "Couldn't finish the download."),
-            { id }
-          )
-          return
-        }
-        toast.loading(formatBrowserClientHostedDownloadProgress(event, filename), { id })
+        toast.loading(formatBrowserClientHostedDownloadProgress(event, filename), {
+          id: downloadToastId(event.downloadId)
+        })
       }
     )
     const releaseFinished = window.api.browser.onDownloadFinished(
