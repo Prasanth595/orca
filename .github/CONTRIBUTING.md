@@ -26,6 +26,16 @@ pnpm install
 pnpm dev
 ```
 
+`mobile/` is a separate pnpm project with its own lockfile, so `pnpm install` at the root does
+not install its dependencies. `pnpm build` (its mobile web bundle step fails with
+`Could not resolve "react-native-web"` / `"expo-router"`) and the mobile-aware lint checks need
+them. Install them once before building or linting, and again whenever `mobile/pnpm-lock.yaml`
+changes:
+
+```bash
+pnpm -C mobile install --frozen-lockfile
+```
+
 Ordinary installs include native optional dependencies for the current OS and CPU only.
 Before a cross-architecture build (including `pnpm build:mac`, which produces both x64 and
 arm64 artifacts by default), run `pnpm install:release` to add the other CPU's variants.
@@ -51,7 +61,7 @@ Avoid vague names like `test`, `misc`, or `changes`.
 
 ## Before Opening a PR
 
-Run the same checks that CI runs:
+Run the same checks that CI runs (after the mobile install from [Local Setup](#local-setup)):
 
 ```bash
 pnpm lint
