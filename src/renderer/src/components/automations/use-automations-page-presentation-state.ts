@@ -6,6 +6,7 @@ import {
 } from '../../../../shared/execution-host'
 import { getHostDisplayLabelOverrides } from '../../../../shared/host-setting-overrides'
 import type { Repo } from '../../../../shared/repo-types'
+import { isAutomationDraftChanged } from './automation-draft-model'
 import { getAutomationTargetAvailability } from './automation-target-availability'
 import type { AutomationSourceAvailability } from './use-automation-source-availability'
 import type { AutomationsPageDestinationState } from './use-automations-page-destination-state'
@@ -61,12 +62,12 @@ export function useAutomationsPagePresentationState({
         sourceHostAvailability: automationSourceHostAvailabilityByRowKey.get(selectedRow.key)
       })
     : null
-  const canSaveDraft =
-    editingAutomationId === null ||
-    !draftAtOpen ||
-    JSON.stringify(draft) !== JSON.stringify(draftAtOpen) ||
-    (editingAutomationId !== null &&
+  const hasUnsavedChanges =
+    isAutomationDraftChanged(draft, draftAtOpen) ||
+    (draftAtOpen !== null &&
+      editingAutomationId !== null &&
       local.editingHostStableKey !== destination.rowRecoveryHost(local.editingRowKey)?.stableKey)
+  const canSaveDraft = editingAutomationId === null || !draftAtOpen || hasUnsavedChanges
   const getAutomationRepoHostLabel = useCallback(
     (repo: Repo): string => {
       const hostId = getRepoExecutionHostId(repo)
@@ -109,6 +110,7 @@ export function useAutomationsPagePresentationState({
     selectedWorktree,
     selectedRunNowAvailability,
     canSaveDraft,
+    hasUnsavedChanges,
     getAutomationRepoHostLabel,
     hostLabelById,
     dialogRepos: destinationForm.dialogRepos,

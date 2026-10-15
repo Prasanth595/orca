@@ -1,6 +1,7 @@
 import React from 'react'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { getAgentCatalog } from '@/lib/agent-catalog'
+import { preventOutsideDismissWhenDirty } from '@/lib/outside-dismiss-guard'
 import { filterEnabledTuiAgents } from '../../../../shared/tui-agent-selection'
 import type {
   AutomationSchedulePreset,
@@ -64,6 +65,8 @@ type AutomationEditorDialogProps = {
   isEditing: boolean
   isSaving: boolean
   canSave: boolean
+  /** Edits not yet saved; blocks backdrop-click dismissal so a stray click cannot discard them. */
+  hasUnsavedChanges: boolean
   repos: readonly Repo[]
   projectHostSetups: readonly ProjectHostSetup[]
   automationYamlHooksByRepoKey: Record<string, OrcaHooks | null>
@@ -95,6 +98,7 @@ export function AutomationEditorDialog({
   isEditing,
   isSaving,
   canSave,
+  hasUnsavedChanges,
   repos,
   projectHostSetups,
   automationYamlHooksByRepoKey,
@@ -139,6 +143,7 @@ export function AutomationEditorDialog({
         className="flex h-[min(880px,90vh)] w-[min(1080px,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[1080px]"
         aria-describedby={undefined}
         ref={dialogContentRef}
+        onInteractOutside={preventOutsideDismissWhenDirty(() => hasUnsavedChanges)}
         onOpenAutoFocus={(event) => {
           event.preventDefault()
         }}

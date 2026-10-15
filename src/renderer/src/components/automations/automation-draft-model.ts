@@ -37,6 +37,14 @@ export function buildDraftPrecheck(draft: AutomationDraft): AutomationPrecheck |
   }
 }
 
+/** True once the draft differs from what the editor opened with. */
+export function isAutomationDraftChanged(
+  draft: AutomationDraft,
+  draftAtOpen: AutomationDraft | null
+): boolean {
+  return draftAtOpen !== null && JSON.stringify(draft) !== JSON.stringify(draftAtOpen)
+}
+
 export function getAgentLabel(agentId: string): string {
   return getAgentCatalog().find((agent) => agent.id === agentId)?.label ?? agentId
 }
