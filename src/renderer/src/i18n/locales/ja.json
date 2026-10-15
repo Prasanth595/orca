@@ -9810,6 +9810,15 @@
               "board": "ボード",
               "inWindow": "窓内",
               "worktrees": "ワークツリー"
+            },
+            "editorGoToDefinition": {
+              "title": "定義へ移動",
+              "description": "TypeScript と JavaScript のファイルで Cmd/Ctrl+クリックすると、node_modules のパッケージを含めて定義を開きます。",
+              "definition": "定義",
+              "navigation": "ナビゲーション",
+              "import": "インポート",
+              "typescript": "typescript",
+              "javascript": "javascript"
             }
           }
         },
@@ -12564,6 +12573,10 @@
           "description": "このホストはそのまま管理対象サーバーに戻ります。古いバージョンの Orca がここに追加または変更したものは移動されず、クリーンアップされるまでこのコンピュータの保存済み設定にのみ残ります。",
           "cancel": "キャンセル",
           "confirm": "サーバーのバージョンを保持"
+        },
+        "editorGoToDefinitionExperimentalSetting": {
+          "copy": "TypeScript または JavaScript のファイルで名前を Cmd/Ctrl+クリックすると、その名前を定義しているファイルを開きます。node_modules のパッケージも対象です。Orca は開いているファイルがインポートするファイルをバックグラウンドで読み込みます。現在はローカルのワークスペースのみ対応しています。",
+          "toggleLabel": "定義へ移動を切り替える"
         },
         "ZcodeCliSetupSection": {
           "title": "ZCode で GLM を使用する",

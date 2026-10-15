@@ -9788,6 +9788,15 @@
               "board": "junta",
               "inWindow": "en la ventana",
               "worktrees": "árboles de trabajo"
+            },
+            "editorGoToDefinition": {
+              "title": "Ir a la definición",
+              "description": "Cmd/Ctrl-clic en archivos TypeScript y JavaScript abre la definición, incluidos los paquetes de node_modules.",
+              "definition": "definición",
+              "navigation": "navegación",
+              "import": "importación",
+              "typescript": "typescript",
+              "javascript": "javascript"
             }
           }
         },
@@ -12564,6 +12573,10 @@
           "description": "Este host vuelve a su servidor gestionado tal como está. Lo que la versión anterior de Orca agregó o cambió aquí no se mueve; permanece solo en los ajustes guardados de esta computadora hasta que se limpien.",
           "cancel": "Cancelar",
           "confirm": "Conservar la versión del servidor"
+        },
+        "editorGoToDefinitionExperimentalSetting": {
+          "copy": "Haz Cmd/Ctrl-clic en un nombre de un archivo TypeScript o JavaScript para abrir el archivo que lo define, incluidos los paquetes de node_modules. Orca lee en segundo plano los archivos que importa el archivo abierto. Por ahora solo funciona en espacios de trabajo locales.",
+          "toggleLabel": "Activar o desactivar ir a la definición"
         },
         "ZcodeCliSetupSection": {
           "title": "Usar GLM con ZCode",

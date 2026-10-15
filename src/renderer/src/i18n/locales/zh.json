@@ -9773,6 +9773,15 @@
               "board": "木板",
               "inWindow": "窗口内",
               "worktrees": "工作树"
+            },
+            "editorGoToDefinition": {
+              "title": "转到定义",
+              "description": "在 TypeScript 和 JavaScript 文件中按住 Cmd/Ctrl 点击即可打开定义，包括 node_modules 中的包。",
+              "definition": "定义",
+              "navigation": "导航",
+              "import": "导入",
+              "typescript": "typescript",
+              "javascript": "javascript"
             }
           }
         },
@@ -12578,6 +12587,10 @@
           "description": "此主机将按原样恢复为使用其受管服务器。较旧版本的 Orca 在此处添加或更改的内容不会被迁移；它们只会保留在这台电脑保存的设置中，直到被清理。",
           "cancel": "取消",
           "confirm": "保留服务器的版本"
+        },
+        "editorGoToDefinitionExperimentalSetting": {
+          "copy": "在 TypeScript 或 JavaScript 文件中按住 Cmd/Ctrl 点击某个名称，即可打开定义它的文件，包括 node_modules 中的包。Orca 会在后台读取已打开文件导入的文件。目前仅支持本地工作区。",
+          "toggleLabel": "切换转到定义"
         },
         "SettingsHostScopePicker": {
           "label": "主机",

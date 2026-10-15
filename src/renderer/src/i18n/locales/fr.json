@@ -9938,6 +9938,15 @@
               "board": "conseil",
               "inWindow": "dans la fenêtre",
               "worktrees": "arbres de travail"
+            },
+            "editorGoToDefinition": {
+              "title": "Atteindre la définition",
+              "description": "Cmd/Ctrl-clic dans les fichiers TypeScript et JavaScript ouvre la définition, y compris les paquets de node_modules.",
+              "definition": "définition",
+              "navigation": "navigation",
+              "import": "importation",
+              "typescript": "typescript",
+              "javascript": "javascript"
             }
           }
         },
@@ -12672,6 +12681,10 @@
           "description": "Cet hôte revient à son serveur géré tel quel. Ce que la version plus ancienne d'Orca a ajouté ou modifié ici n'est pas déplacé ; cela reste uniquement dans les paramètres enregistrés de cet ordinateur jusqu'à leur nettoyage.",
           "cancel": "Annuler",
           "confirm": "Conserver la version du serveur"
+        },
+        "editorGoToDefinitionExperimentalSetting": {
+          "copy": "Faites Cmd/Ctrl-clic sur un nom dans un fichier TypeScript ou JavaScript pour ouvrir le fichier qui le définit, y compris les paquets de node_modules. Orca lit en arrière-plan les fichiers importés par le fichier ouvert. Pour l'instant, uniquement dans les espaces de travail locaux.",
+          "toggleLabel": "Activer ou désactiver Atteindre la définition"
         },
         "ZcodeCliSetupSection": {
           "title": "Utiliser GLM avec ZCode",

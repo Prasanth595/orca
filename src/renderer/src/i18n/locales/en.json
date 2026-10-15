@@ -10065,6 +10065,15 @@
               "board": "board",
               "inWindow": "in-window",
               "worktrees": "worktrees"
+            },
+            "editorGoToDefinition": {
+              "title": "Go to definition",
+              "description": "Cmd/Ctrl-click in TypeScript and JavaScript files opens the definition, including packages in node_modules.",
+              "definition": "definition",
+              "navigation": "navigation",
+              "import": "import",
+              "typescript": "typescript",
+              "javascript": "javascript"
             }
           }
         },
@@ -12814,6 +12823,10 @@
           "unavailable": "{{value0}} (unavailable)",
           "description": "Accounts, detected agents and terminal options below are for this host.",
           "unavailableNotice": "This server is no longer saved, so nothing can be shown for it. Choose another host at the top of Settings."
+        },
+        "editorGoToDefinitionExperimentalSetting": {
+          "copy": "Cmd/Ctrl-click a name in a TypeScript or JavaScript file to open the file that defines it, including packages in node_modules. Orca reads the files an open file imports in the background. Local workspaces only for now.",
+          "toggleLabel": "Toggle go to definition"
         },
         "wslHostsExperimental": {
           "toggleLabel": "Toggle WSL distros as hosts",

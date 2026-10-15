@@ -507,6 +507,8 @@ export type GlobalSettings = NativeChatGlobalSettings & {
   experimentalNewWorktreeCardStyle?: boolean
   /** Experimental: per-workspace on-demand environment recipes and setup surface. */
   experimentalEphemeralVms?: boolean
+  /** Experimental: Cmd/Ctrl-click in TS/JS editors follows definitions into other files and node_modules. */
+  experimentalEditorGoToDefinition?: boolean
   /** Experimental (Windows): add WSL distros as hosts, each running its own Orca server. */
   experimentalWslHosts?: boolean
   /** Compact worktree cards: hide the metadata row when title and branch say the same thing. */
