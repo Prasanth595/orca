@@ -4,6 +4,7 @@ import { normalizeTerminalLayoutPtyOwnership } from '@/components/terminal-pane/
 import { resolvePaneAgentOwnerRecord } from '../../../../shared/pane-agent-owner'
 import { normalizeCompatibleAgentTitleForOwner } from '../../../../shared/agent-title-owner'
 import { getRemoteRuntimePtyEnvironmentId, toRemoteRuntimePtyId } from '../runtime-terminal-stream'
+import { isTerminalLeafId } from '../../../../shared/stable-pane-id'
 import { toWebTerminalSurfaceTabId } from '../../../../shared/terminal-surface-id'
 import type { MirroredTerminalTab, TerminalSurface, ReadyTerminalSurface } from './state'
 import { chooseRemoteTerminalLayout, isTerminalSurfaceTab } from './terminal-surfaces'
@@ -119,8 +120,8 @@ export function buildMirroredTerminalTabs(
         }
       }
     }
-    const launchAgent =
-      activeSurface.launchAgent ?? surfaces.find((surface) => surface.launchAgent)?.launchAgent
+    const launchAgentSurface = surfaces.find((surface) => surface.launchAgent)
+    const launchAgent = activeSurface.launchAgent ?? launchAgentSurface?.launchAgent
     const ownerRecord = resolvePaneAgentOwnerRecord({
       launchAgent,
       hookAgent: activeSurface.agentStatus?.agentType,
@@ -133,6 +134,12 @@ export function buildMirroredTerminalTabs(
       surfaces
         .map((surface) => existingById.get(toWebTerminalSurfaceTabId(surface.id)))
         .find((tab): tab is TerminalTab => Boolean(tab))
+    const launchAgentLeafId =
+      launchAgentSurface && isTerminalLeafId(launchAgentSurface.leafId)
+        ? launchAgentSurface.leafId
+        : launchAgent && existing?.launchAgentLeafId && isTerminalLeafId(existing.launchAgentLeafId)
+          ? existing.launchAgentLeafId
+          : undefined
     // Why: a headless host publishes the literal "Terminal" while an idle pane
     // has no live PTY. Keep the client's known title until a ready surface reports one.
     const hostTitle = activeSurface.title.trim() || surfaces[0]?.title.trim() || ''
@@ -184,7 +191,8 @@ export function buildMirroredTerminalTabs(
         sortOrder: sortOffset + index,
         createdAt: existing?.createdAt ?? now + index,
         // Why: launchAgent is host-owned lifecycle metadata; once the host omits it, don't resurrect stale startup intent.
-        ...(launchAgent ? { launchAgent } : {})
+        ...(launchAgent ? { launchAgent } : {}),
+        ...(launchAgentLeafId ? { launchAgentLeafId } : {})
       },
       hostTabId: parentTabId,
       ptyIds,

@@ -22,12 +22,17 @@ import {
   resolveCompatibleAgentTypeForOwner,
   type CompatibleAgentOwnerOptions
 } from '../../../../shared/agent-title-owner'
-import { resolvePaneAgentOwner } from '../../../../shared/pane-agent-owner'
+import { collectLeafIds } from '@/components/terminal-pane/terminal-pane-layout-tree'
 import {
   resolveTitleDerivedAgentType,
   resolveTitleDerivedPaneAgent,
   type TitleDerivedPaneForeground
 } from './title-derived-pane-agent-identity'
+import { buildTitleDerivedIdleAgentRow } from './worktree-title-derived-agent-idle-row'
+import {
+  resolveLaunchAgentOwnerLeafId,
+  resolveTitleDerivedPaneOwner
+} from './worktree-title-derived-agent-owner'
 
 /** Fixed, not per-process: title rows are a pure projection of current pane facts, so they are
  *  comparable across restarts in a way a sequenced authority's rows are not. Ordering against
@@ -60,6 +65,11 @@ export function buildTitleDerivedAgentRows(args: {
       continue
     }
     const layout = terminalLayoutsByTabId[tab.id]
+    const layoutLeafIds = collectLeafIds(layout?.root ?? null)
+    // Why: launchAgent is tab-scoped. Idle fallback may only bind to the sole
+    // launch-owning leaf — multi-leaf tabs must not mint Idle rows for every
+    // neutral sibling shell (#10130 / CodeRabbit on #10178).
+    const launchAgentOwnerLeafId = resolveLaunchAgentOwnerLeafId(tab, layout, layoutLeafIds)
     const paneTitles = runtimePaneTitlesByTabId[tab.id]
     const paneTitleEntries =
       paneTitles && Object.keys(paneTitles).length > 0
@@ -90,7 +100,9 @@ export function buildTitleDerivedAgentRows(args: {
           liveSlotIds,
           liveSlotsAreDense,
           paneId: Number(paneId),
-          title
+          title,
+          fallbackLeafId: launchAgentOwnerLeafId,
+          paneTitleCount: paneTitleEntries.length
         })
         if (!leafId) {
           continue
@@ -99,9 +111,10 @@ export function buildTitleDerivedAgentRows(args: {
           tab,
           leafId,
           title,
-          ownerAgentType: resolveTitleDerivedPaneOwner(tab, layout, leafId),
+          ownerAgentType: resolveTitleDerivedPaneOwner({ tab, layout, layoutLeafIds, leafId }),
           paneForegroundAgentByPaneKey,
           now: args.now,
+          allowLaunchAgentIdleFallback: launchAgentOwnerLeafId === leafId,
           runtimeAgentOrchestrationByPaneKey: args.runtimeAgentOrchestrationByPaneKey
         })
         if (!row || args.seenPaneKeys.has(row.paneKey)) {
@@ -113,17 +126,23 @@ export function buildTitleDerivedAgentRows(args: {
       continue
     }
 
-    const leafId = layout?.activeLeafId ?? collectRuntimePaneLeafIds(layout?.root ?? null)[0]
+    // Why: tab-wide title metadata belongs to its retained launch owner even when a split's active leaf or the layout snapshot is unavailable.
+    const leafId =
+      launchAgentOwnerLeafId ??
+      layout?.activeLeafId ??
+      collectRuntimePaneLeafIds(layout?.root ?? null)[0]
     if (!leafId) {
       continue
     }
+    const allowLaunchAgentIdleFallback = launchAgentOwnerLeafId === leafId
     const row = buildTitleDerivedAgentRow({
       tab,
       leafId,
       title: tab.title,
-      ownerAgentType: resolveTitleDerivedPaneOwner(tab, layout, leafId),
+      ownerAgentType: resolveTitleDerivedPaneOwner({ tab, layout, layoutLeafIds, leafId }),
       paneForegroundAgentByPaneKey,
       now: args.now,
+      allowLaunchAgentIdleFallback,
       runtimeAgentOrchestrationByPaneKey: args.runtimeAgentOrchestrationByPaneKey
     })
     if (!row || args.seenPaneKeys.has(row.paneKey)) {
@@ -147,6 +166,8 @@ function buildTitleDerivedAgentRow(args: {
   ownerAgentType: AgentType | null
   paneForegroundAgentByPaneKey: Record<string, TitleDerivedPaneForeground>
   now: number
+  /** Why: idle launchAgent fallback is only safe for the launch-owning leaf. */
+  allowLaunchAgentIdleFallback?: boolean
   runtimeAgentOrchestrationByPaneKey?: Record<string, AgentStatusOrchestrationContext>
 }): DashboardAgentRow | null {
   // Why launchAgent, not ownerAgentType: this only rewrites a title within its own identity
@@ -179,7 +200,7 @@ function buildTitleDerivedAgentRow(args: {
       : isClaudeAgentsTitle
         ? 'claude'
         : resolveTitleDerivedAgentType(title, label, args.ownerAgentType)
-  const agentType = resolveTitleDerivedPaneAgent({
+  const identifiedAgentType = resolveTitleDerivedPaneAgent({
     title,
     defaultTitle: args.tab.defaultTitle,
     titleShowsActivity: Boolean(titleStatus && label),
@@ -187,9 +208,29 @@ function buildTitleDerivedAgentRow(args: {
     launchAgentType: args.ownerAgentType,
     foreground: args.paneForegroundAgentByPaneKey[paneKey]
   })
-  if (!agentType) {
-    return null
+  const launchAgent = args.tab.launchAgent ?? null
+  // Why: SSH Codex can lose hooks after a turn and sit on a cwd title (#10178).
+  // Other agents keep title-based identity, and the fallback stays on the sole leaf.
+  if (!identifiedAgentType) {
+    if (
+      launchAgent !== 'codex' ||
+      !args.allowLaunchAgentIdleFallback ||
+      titleStatus === 'working' ||
+      titleStatus === 'permission'
+    ) {
+      return null
+    }
+    return buildTitleDerivedIdleAgentRow({
+      paneKey,
+      tab: args.tab,
+      title,
+      launchAgent,
+      now: args.now,
+      authorityId: TITLE_DERIVED_AGENT_ROW_AUTHORITY_ID,
+      orchestration
+    })
   }
+  const agentType = identifiedAgentType
   // Why: the title sets activity only; a plain title on a process-identified pane is idle.
   const status = titleStatus ?? 'idle'
   const rowLabel = agentType === titleAgentType && label ? label : formatAgentTypeLabel(agentType)
@@ -239,19 +280,6 @@ function buildTitleDerivedAgentRow(args: {
     // serving stale counts, with no test failing at the point of the change.
     startedAt: 0
   }
-}
-
-function resolveTitleDerivedPaneOwner(
-  tab: TerminalTab,
-  layout: TerminalLayoutSnapshot | undefined,
-  leafId: string
-): AgentType | null {
-  // Why: launchAgent is tab-scoped, so it is pane ownership only while the tab has one
-  // leaf; applying it inside a split would let one pane brand its sibling.
-  if (layout?.root?.type !== 'leaf' || layout.root.leafId !== leafId) {
-    return null
-  }
-  return resolvePaneAgentOwner({ launchAgent: tab.launchAgent })
 }
 
 /**
@@ -306,6 +334,8 @@ function resolveLeafIdForTitleFallback(args: {
   liveSlotsAreDense: boolean
   paneId: number
   title: string
+  fallbackLeafId: string | null
+  paneTitleCount: number
 }): string | null {
   if (args.leafIds.length === 1) {
     return args.leafIds[0]
@@ -344,6 +374,9 @@ function resolveLeafIdForTitleFallback(args: {
     return matchingTitleLeafIds[0]
   }
 
+  if (!args.layout?.root && args.fallbackLeafId && args.paneTitleCount === 1) {
+    return args.fallbackLeafId
+  }
   // Why: in-session pane closes leave the survivors' ids sparse, which creation order
   // cannot resolve. Index within the LIVE slots only — never across both id spaces.
   const paneIndex = args.liveSlotIds.indexOf(args.paneId)
