@@ -405,6 +405,7 @@ export function NativeChatMessageList({
                   context={rowContext}
                   window={transcriptWindow}
                   newRowsMarker={newRowsMarker}
+                  forwardGesture={readerScrollInput.forwardedGesture}
                 />
                 {liveLine ? (
                   <NativeChatTurnActivityLine

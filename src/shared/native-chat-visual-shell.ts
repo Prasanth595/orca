@@ -61,6 +61,7 @@ export const NATIVE_CHAT_VISUAL_OPEN_LINK_TYPE = 'orca-visual-open-link'
 export const NATIVE_CHAT_VISUAL_THEME_TYPE = 'orca-visual-theme'
 export const NATIVE_CHAT_VISUAL_PING_TYPE = 'orca-visual-ping'
 export const NATIVE_CHAT_VISUAL_PONG_TYPE = 'orca-visual-pong'
+export const NATIVE_CHAT_VISUAL_READER_SCROLL_TYPE = 'orca-visual-reader-scroll'
 /** Visuals' own wait for an answer: at 1 s, a busy visual in WebKit answered too late. */
 export const NATIVE_CHAT_VISUAL_PONG_TIMEOUT_MS = 5_000
 
@@ -117,7 +118,8 @@ function bootstrapScript(channel: string): string {
     link: NATIVE_CHAT_VISUAL_OPEN_LINK_TYPE,
     theme: NATIVE_CHAT_VISUAL_THEME_TYPE,
     ping: NATIVE_CHAT_VISUAL_PING_TYPE,
-    pong: NATIVE_CHAT_VISUAL_PONG_TYPE
+    pong: NATIVE_CHAT_VISUAL_PONG_TYPE,
+    scroll: NATIVE_CHAT_VISUAL_READER_SCROLL_TYPE
   })
   // Plain ES5 so it runs before, and independent of, anything the visual loads.
   return `(function () {
@@ -160,6 +162,23 @@ window.addEventListener('message', function (event) {
   themeStyle.textContent = data.css
   document.documentElement.classList.toggle('dark', data.colorScheme === 'dark')
 })
+// Scrolling: a wheel nothing in the page can take chains on to the transcript, which never sees
+// the wheel itself, so the host hears of it here. A touch drag reports as it moves.
+function scrollsWithin(node, direction) {
+  for (; node && node.nodeType === 1; node = node.parentNode) {
+    var style = getComputedStyle(node)
+    if (node !== document.scrollingElement && style.overflowY !== 'auto' && style.overflowY !== 'scroll') continue
+    var canMove = direction < 0 ? node.scrollTop > 0 : node.scrollTop < node.scrollHeight - node.clientHeight
+    if (canMove || style.overscrollBehaviorY === 'contain' || style.overscrollBehaviorY === 'none') return true
+  }
+  return false
+}
+window.addEventListener('wheel', function (event) {
+  if (event.ctrlKey || !event.deltaY) return
+  var target = event.target && event.target.nodeType === 1 ? event.target : document.documentElement
+  if (!scrollsWithin(target, event.deltaY)) send({ type: C.scroll, input: 'wheel', deltaY: event.deltaY })
+}, { capture: true, passive: true })
+window.addEventListener('touchmove', function () { send({ type: C.scroll, input: 'touch' }) }, { capture: true, passive: true })
 // Height: report the document's own height whenever layout changes; the host fits the frame.
 var reported = -1
 var pending = false
@@ -226,6 +245,9 @@ ${args.html}`
 export type NativeChatVisualFrameMessage =
   | { kind: 'size'; height: number }
   | { kind: 'open-link'; url: string }
+  /** A reader input the page could not take: the transcript scrolls for it without an event of its own. */
+  | { kind: 'reader-scroll'; input: 'wheel'; deltaY: number }
+  | { kind: 'reader-scroll'; input: 'touch' }
 
 /** A message from a visual's shell, validated; null for anything else. */
 export function readNativeChatVisualFrameMessage(
@@ -242,6 +264,19 @@ export function readNativeChatVisualFrameMessage(
     const height = 'height' in data ? data.height : undefined
     return typeof height === 'number' && Number.isFinite(height) && height > 0
       ? { kind: 'size', height }
+      : null
+  }
+  if (data.type === NATIVE_CHAT_VISUAL_READER_SCROLL_TYPE) {
+    const input = 'input' in data ? data.input : undefined
+    if (input === 'touch') {
+      return { kind: 'reader-scroll', input }
+    }
+    const deltaY = 'deltaY' in data ? data.deltaY : undefined
+    return input === 'wheel' &&
+      typeof deltaY === 'number' &&
+      Number.isFinite(deltaY) &&
+      deltaY !== 0
+      ? { kind: 'reader-scroll', input, deltaY }
       : null
   }
   if (data.type === NATIVE_CHAT_VISUAL_OPEN_LINK_TYPE) {
