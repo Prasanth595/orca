@@ -38,7 +38,7 @@ export function getShownReposFromState(state: ConcealedRepoState): AppState['rep
   return shown
 }
 
-/** Groups whose only direct members are concealed repos would leak as empty headers. */
+/** Groups holding only concealed repos, directly or through child groups, would leak as empty headers. */
 export function withoutConcealedOnlyProjectGroups(
   groups: readonly ProjectGroup[],
   repos: readonly Pick<Repo, 'id' | 'projectGroupId'>[],
@@ -66,17 +66,36 @@ export function withoutConcealedOnlyProjectGroups(
   for (const folder of folderWorkspaces) {
     groupsWithShown.add(folder.projectGroupId)
   }
+  const childIdsByParent = new Map<string, string[]>()
   for (const group of groups) {
     if (group.parentGroupId) {
-      groupsWithShown.add(group.parentGroupId)
+      const siblings = childIdsByParent.get(group.parentGroupId) ?? []
+      siblings.push(group.id)
+      childIdsByParent.set(group.parentGroupId, siblings)
     }
   }
-  const hidden = [...groupsWithConcealed].filter((id) => !groupsWithShown.has(id))
-  if (hidden.length === 0) {
-    return groups
+  const hiddenById = new Map<string, boolean>()
+  // Why children first: a parent is hidden only when every child it would show is hidden too.
+  const isHidden = (groupId: string, visiting: Set<string>): boolean => {
+    const known = hiddenById.get(groupId)
+    if (known !== undefined) {
+      return known
+    }
+    if (visiting.has(groupId)) {
+      return false
+    }
+    visiting.add(groupId)
+    const children = childIdsByParent.get(groupId) ?? []
+    const childHidden = children.map((childId) => isHidden(childId, visiting))
+    visiting.delete(groupId)
+    const hasConcealed = groupsWithConcealed.has(groupId) || childHidden.some(Boolean)
+    const hasShown = groupsWithShown.has(groupId) || childHidden.some((hidden) => !hidden)
+    const hidden = hasConcealed && !hasShown
+    hiddenById.set(groupId, hidden)
+    return hidden
   }
-  const hiddenIds = new Set(hidden)
-  return groups.filter((group) => !hiddenIds.has(group.id))
+  const visible = groups.filter((group) => !isHidden(group.id, new Set()))
+  return visible.length === groups.length ? groups : visible
 }
 
 /** Drops concealed repo keys from a repo-keyed record; the same record when nothing changes. */

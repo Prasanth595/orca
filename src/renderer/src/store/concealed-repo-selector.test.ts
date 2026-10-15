@@ -70,6 +70,23 @@ describe('concealed repo selectors', () => {
     expect(visible.map((g) => g.id)).toEqual(['mixed', 'with-folder'])
   })
 
+  it('hides a parent group whose only content is a concealed-only child group', () => {
+    const groups = [
+      group('parent'),
+      group('secret-child', 'parent'),
+      group('busy-parent'),
+      group('secret-sibling', 'busy-parent'),
+      group('empty-child', 'busy-parent'),
+      group('empty')
+    ]
+    const members = [
+      repo('s1', { incognito: true, projectGroupId: 'secret-child' }),
+      repo('s2', { incognito: true, projectGroupId: 'secret-sibling' })
+    ]
+    const visible = withoutConcealedOnlyProjectGroups(groups, members, [], new Set(['s1', 's2']))
+    expect(visible.map((g) => g.id)).toEqual(['busy-parent', 'empty-child', 'empty'])
+  })
+
   it('omits concealed repo keys only when present', () => {
     const byRepo = { open: [1], secret: [2] }
     expect(omitConcealedRepoKeys(byRepo, new Set(['missing']))).toBe(byRepo)

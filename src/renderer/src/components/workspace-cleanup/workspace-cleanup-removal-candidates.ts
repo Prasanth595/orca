@@ -7,9 +7,14 @@ type DeletionFlagState = Pick<WorktreeDeleteState, 'isDeleting' | 'executionHost
 
 export function filterWorkspaceCleanupRemovalCandidates(
   candidates: readonly WorkspaceCleanupCandidate[],
-  deleteStateByWorktreeId: Record<string, DeletionFlagState | undefined>
+  deleteStateByWorktreeId: Record<string, DeletionFlagState | undefined>,
+  concealedRepoIds: ReadonlySet<string> = new Set()
 ): WorkspaceCleanupCandidate[] {
   return candidates.filter((candidate) => {
+    // Why: a project relocked after the confirm opened must not be removed unseen.
+    if (concealedRepoIds.has(candidate.repoId)) {
+      return false
+    }
     const hostId = resolveWorkspaceCleanupRemovalHostId(candidate)
     const qualifiedState = hostId
       ? deleteStateByWorktreeId[composeWorktreeHostIdentity(hostId, candidate.worktreeId)]
