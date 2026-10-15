@@ -87,15 +87,10 @@ describe('paired mobile project-group management', () => {
       })
     ])
 
-    expect(replies).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ ok: true }),
-        expect.objectContaining({ ok: true }),
-        expect.objectContaining({ ok: true }),
-        expect.objectContaining({ ok: true }),
-        expect.objectContaining({ ok: true })
-      ])
-    )
+    expect(replies).toHaveLength(5)
+    for (const reply of replies) {
+      expect(reply).toMatchObject({ ok: true })
+    }
     expect(methods.create).toHaveBeenCalledWith({ name: 'Platform' })
     expect(methods.update).toHaveBeenCalledWith(GROUP.id, {
       name: 'Core',
