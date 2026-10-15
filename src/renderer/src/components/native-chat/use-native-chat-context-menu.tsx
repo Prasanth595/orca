@@ -37,13 +37,11 @@ import {
   type NativeChatCopyImage
 } from './native-chat-image-copy'
 import { isMacPlatform, nativeChatToggleShortcutLabel } from './native-chat-shortcut'
-import { TabWorkspaceLayoutMenuSection } from '@/components/tab-bar/TabWorkspaceLayoutMenuSection'
-import { canMoveTabToNewPaneColumn } from '@/components/tab-bar/tab-move-to-pane-column'
 import { isEditableTarget } from '@/lib/editable-target'
 import { NativeChatCopyOrcaSessionIdMenuItem } from './NativeChatCopyOrcaSessionIdMenuItem'
 import { NativeChatSelectionQuote } from './NativeChatSelectionQuote'
 import type { NativeChatComposerHandle } from './native-chat-composer-types'
-import type { TabSplitDirection } from '@/store/slices/tabs'
+import type { useStructuredChatPaneActions } from './use-structured-chat-pane-actions'
 
 type NativeChatContextMenuState = {
   open: boolean
@@ -63,11 +61,7 @@ type UseNativeChatContextMenuArgs = {
   actions: NativeChatContextMenuActions
   showTerminalPaneActions?: boolean
   splitShortcutLabels?: { right: string; down: string }
-  workspaceLayout?: {
-    unifiedTabId: string
-    groupId: string
-    shortcutLabels?: Partial<Record<TabSplitDirection, string>>
-  }
+  chatPaneActions?: ReturnType<typeof useStructuredChatPaneActions>
   /** A structured chat tab's Orca session ID; a chat in a terminal pane is that terminal's agent. */
   resolveOrcaSessionId?: () => Promise<string | null>
 }
@@ -122,7 +116,7 @@ export function useNativeChatContextMenu({
   actions,
   showTerminalPaneActions = true,
   splitShortcutLabels,
-  workspaceLayout,
+  chatPaneActions,
   resolveOrcaSessionId
 }: UseNativeChatContextMenuArgs): {
   onContextMenuCapture: MouseEventHandler<HTMLElement>
@@ -141,13 +135,10 @@ export function useNativeChatContextMenu({
   // Copy, Copy image and Paste each show only when they apply to what was right-clicked.
   const hasSelection = state.selectedText.trim().length > 0
   const hasEditItems = image !== undefined || hasSelection || state.canPaste
-  const showWorkspaceLayout =
-    workspaceLayout !== undefined &&
-    canMoveTabToNewPaneColumn(workspaceLayout.unifiedTabId, workspaceLayout.groupId)
   const hasItems =
     hasEditItems ||
     showTerminalPaneActions ||
-    showWorkspaceLayout ||
+    chatPaneActions !== undefined ||
     resolveOrcaSessionId !== undefined
 
   useEffect(() => {
@@ -265,13 +256,20 @@ export function useNativeChatContextMenu({
               </DropdownMenuItem>
             </>
           ) : null}
-          {workspaceLayout ? (
-            <TabWorkspaceLayoutMenuSection
-              unifiedTabId={workspaceLayout.unifiedTabId}
-              groupId={workspaceLayout.groupId}
-              leadingSeparator={hasEditItems}
-              shortcutLabels={workspaceLayout.shortcutLabels}
-            />
+          {chatPaneActions ? (
+            <>
+              {hasEditItems ? <DropdownMenuSeparator /> : null}
+              <DropdownMenuItem onSelect={chatPaneActions.onSplitRight}>
+                <PanelRightClose />
+                {translate('components.native-chat.splitRight', 'Split Chat Right')}
+                <DropdownMenuShortcut>{splitShortcutLabels?.right}</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={chatPaneActions.onSplitDown}>
+                <PanelBottomClose />
+                {translate('components.native-chat.splitDown', 'Split Chat Down')}
+                <DropdownMenuShortcut>{splitShortcutLabels?.down}</DropdownMenuShortcut>
+              </DropdownMenuItem>
+            </>
           ) : null}
           {showTerminalPaneActions ? (
             <>
@@ -365,8 +363,17 @@ export function useNativeChatContextMenu({
             </>
           ) : resolveOrcaSessionId ? (
             <>
-              {hasEditItems || showWorkspaceLayout ? <DropdownMenuSeparator /> : null}
+              {hasEditItems || chatPaneActions ? <DropdownMenuSeparator /> : null}
               <NativeChatCopyOrcaSessionIdMenuItem resolveOrcaSessionId={resolveOrcaSessionId} />
+            </>
+          ) : null}
+          {!showTerminalPaneActions && chatPaneActions?.canClosePane ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onSelect={chatPaneActions.onClosePane}>
+                <X />
+                {chatPaneActions.closeLabel}
+              </DropdownMenuItem>
             </>
           ) : null}
         </DropdownMenuContent>

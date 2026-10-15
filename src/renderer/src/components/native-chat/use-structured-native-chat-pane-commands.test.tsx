@@ -39,11 +39,17 @@ vi.mock('@/components/ui/tooltip', () => {
   const Pass = ({ children }: { children?: ReactNode }) => children
   return { Tooltip: Pass, TooltipTrigger: Pass, TooltipContent: () => null }
 })
-vi.mock('@/components/tab-bar/TabWorkspaceLayoutMenuSection', () => ({
-  TabWorkspaceLayoutMenuSection: () => null
+vi.mock('./use-structured-chat-pane-actions', () => ({
+  useStructuredChatPaneActions: () => ({
+    onSplitRight: vi.fn(),
+    onSplitDown: vi.fn(),
+    canClosePane: true,
+    closeLabel: 'Close tab',
+    onClosePane: vi.fn()
+  })
 }))
-vi.mock('@/components/tab-bar/tab-move-to-pane-column', () => ({
-  canMoveTabToNewPaneColumn: () => false
+vi.mock('./use-native-chat-tab-owner', () => ({
+  useNativeChatTabOwnerWorktreeId: () => 'worktree-1'
 }))
 vi.mock('@/store', () => ({
   useAppStore: (select: (state: { keybindings: object }) => unknown) => select({ keybindings: {} })
@@ -92,7 +98,10 @@ describe('a structured chat tab', () => {
   })
 
   it("offers Copy Orca Session ID, asking the tab's host for this session's Orca session ID", async () => {
-    renderToStaticMarkup(<StructuredChatTab />)
+    const markup = renderToStaticMarkup(<StructuredChatTab />)
+
+    expect(markup).toContain('Close tab')
+    expect(markup).not.toContain('Close Pane')
 
     const item = items.list.find(
       (candidate) => childrenText(candidate.children) === 'Copy Orca Session ID'
