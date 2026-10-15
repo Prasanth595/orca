@@ -41,6 +41,7 @@ vi.mock('./popup-origin-bar-window', () => ({
 }))
 
 import { browserManager } from './browser-manager'
+import { browserDownloadDestinationReservations } from './browser-download-destination'
 import {
   createDownloadItem,
   getDownloadItemEventHandler,
@@ -381,5 +382,59 @@ describe('browserManager', () => {
         error: 'Failed to set download destination.'
       })
     )
+  })
+
+  it('keeps an automatic retry running but fails a download left waiting for a manual resume', async () => {
+    const rendererSendMock = vi.fn()
+    let state: 'progressing' | 'interrupted' = 'progressing'
+    const item = createDownloadItem({
+      getState: vi.fn(() => state) as never,
+      canResume: vi.fn(() => state === 'interrupted') as never
+    })
+    const guest = {
+      id: 420,
+      isDestroyed: () => false,
+      getType: () => 'webview',
+      on: guestOnMock,
+      off: guestOffMock,
+      setBackgroundThrottling: guestSetBackgroundThrottlingMock,
+      setWindowOpenHandler: guestSetWindowOpenHandlerMock
+    }
+    webContentsFromIdMock.mockImplementation((id: number) =>
+      id === guest.id ? guest : { isDestroyed: () => false, send: rendererSendMock }
+    )
+    browserManager.attachGuestPolicies(guest as never)
+    browserManager.registerGuest({
+      browserPageId: 'browser-1',
+      webContentsId: guest.id,
+      rendererWebContentsId
+    })
+    browserManager.handleGuestWillDownload({ guestWebContentsId: guest.id, item })
+    const interrupt = (): void => {
+      state = 'interrupted'
+      getDownloadItemEventHandler(item, 'on', 'updated')?.({} as Electron.Event, 'interrupted')
+    }
+    const nextTick = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
+
+    // Chromium retried before the deferred check ran.
+    interrupt()
+    state = 'progressing'
+    await nextTick()
+    expect(item.cancel).not.toHaveBeenCalled()
+
+    interrupt()
+    await nextTick()
+    expect(item.cancel).toHaveBeenCalledTimes(1)
+    expect(rendererSendMock.mock.calls.map(([channel]) => channel)).toEqual([
+      'browser:download-requested',
+      'browser:download-finished'
+    ])
+    expect(rendererSendMock).toHaveBeenCalledWith(
+      'browser:download-finished',
+      expect.objectContaining({ status: 'failed', error: 'Download was interrupted.' })
+    )
+    const managerState = browserManager as unknown as { downloadsById: Map<string, unknown> }
+    expect(managerState.downloadsById.size).toBe(0)
+    expect(browserDownloadDestinationReservations.reserve('report.csv').filename).toBe('report.csv')
   })
 })
