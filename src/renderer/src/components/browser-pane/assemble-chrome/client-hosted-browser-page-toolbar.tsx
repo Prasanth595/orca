@@ -1,3 +1,6 @@
+import { useAppStore } from '@/store'
+import { BrowserViewportPresetMenu } from './browser-viewport-preset-menu'
+import type { BrowserViewportPresetId } from '../../../../../shared/browser-workspace-types'
 import { useCallback } from 'react'
 import { MoreHorizontal, RefreshCw, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -24,17 +27,21 @@ import type { BrowserReloadTrigger } from '../navigate/browser-reload-action'
 import type { BrowserAddressBarEditSessionBinding } from './use-browser-address-bar-edit-session'
 
 /**
- * Folded tools plus reload. Profile and cookie rows are left out: a client-hosted page's session
+ * Folded tools, viewport presets and reload. Profile and cookie rows are left out: a client-hosted page's session
  * profile is chosen by the host, not by this desktop's profile list.
  */
 function ClientHostedBrowserOverflowMenu({
   overflow,
   onReload,
-  onHardReload
+  onHardReload,
+  viewportPresetId,
+  onApplyViewportPreset
 }: {
   overflow: BrowserChromeOverflowMenuProps
   onReload: () => void
   onHardReload: () => void
+  viewportPresetId: BrowserViewportPresetId | null
+  onApplyViewportPreset: (id: BrowserViewportPresetId | null) => void
 }): React.JSX.Element {
   return (
     <DropdownMenu modal={false}>
@@ -57,6 +64,10 @@ function ClientHostedBrowserOverflowMenu({
           tools={overflow.tools}
           deferUntilClose={overflow.deferUntilClose}
         />
+        <BrowserViewportPresetMenu
+          viewportPresetId={viewportPresetId}
+          onApplyViewportPreset={onApplyViewportPreset}
+        />
         <DropdownMenuItem onSelect={onReload}>
           <RefreshCw className="size-3.5" />
           {translate('auto.components.browser.pane.BrowserPane.0e080d820e', 'Reload')}
@@ -74,6 +85,7 @@ function ClientHostedBrowserOverflowMenu({
 export function ClientHostedBrowserPageToolbar({
   browserPageId,
   runtimeEnvironmentId,
+  viewportPresetId,
   canGoBack,
   canGoForward,
   loading,
@@ -89,6 +101,7 @@ export function ClientHostedBrowserPageToolbar({
 }: {
   browserPageId: string
   runtimeEnvironmentId: string
+  viewportPresetId: BrowserViewportPresetId | null
   canGoBack: boolean
   canGoForward: boolean
   loading: boolean
@@ -103,15 +116,23 @@ export function ClientHostedBrowserPageToolbar({
   markup: BrowserChromeMarkupTool
 }): React.JSX.Element {
   const { runReloadTrigger } = reload
+  const onApplyViewportPreset = useCallback(
+    (id: BrowserViewportPresetId | null) => {
+      useAppStore.getState().setBrowserPageViewportPreset(browserPageId, id)
+    },
+    [browserPageId]
+  )
   const renderOverflowMenu = useCallback(
     (overflow: BrowserChromeOverflowMenuProps) => (
       <ClientHostedBrowserOverflowMenu
         overflow={overflow}
+        viewportPresetId={viewportPresetId}
+        onApplyViewportPreset={onApplyViewportPreset}
         onReload={() => runReloadTrigger('reload')}
         onHardReload={() => runReloadTrigger('hard-reload')}
       />
     ),
-    [runReloadTrigger]
+    [runReloadTrigger, viewportPresetId, onApplyViewportPreset]
   )
   return (
     <BrowserChromeToolbar
@@ -146,9 +167,14 @@ export function ClientHostedBrowserPageToolbar({
       reloadLabel={reload.reloadButtonLabel}
       elementTools={elementTools}
       markup={markup}
-      // Why null: a page URL may only resolve through the remote host's network (loopback names the
-      // host), so a local default browser could open the wrong machine.
-      viewSource={null}
+      viewSource={{
+        onSelect: () => void window.api.browser.openDevTools({ browserPageId }),
+        label: translate(
+          'auto.components.browser.pane.BrowserPane.ec75d0c412',
+          'Open browser devtools'
+        )
+      }}
+      // Why null: loopback and host-only URLs could open the wrong machine in a local default browser.
       openExternal={null}
       overflowMenu={renderOverflowMenu}
     />

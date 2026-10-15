@@ -1,3 +1,4 @@
+import { useClientHostedBrowserViewport } from './use-client-hosted-browser-viewport'
 import { useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
 import { BrowserPageZoomIndicator } from './assemble-chrome/browser-page-zoom-indicator'
 import { useAppStore } from '@/store'
@@ -5,7 +6,6 @@ import type {
   BrowserLoadError,
   BrowserPage as BrowserPageState
 } from '../../../../shared/browser-workspace-types'
-import { toHttpsRecoveryUrl } from '../../../../shared/browser-url'
 import type { RuntimeBrowserClientPlacement } from '../../../../shared/runtime-browser-placement'
 import {
   readBrowserClientPageGuestMetadataIfLive,
@@ -36,16 +36,12 @@ import { getBrowserPageZoomIndicatorState } from './host-guest/browser-page-zoom
 import { useBrowserPageKeyboardShortcuts } from './host-guest/use-browser-page-keyboard-shortcuts'
 import { useClientHostedGuestActivationFocus } from './host-guest/use-client-hosted-guest-activation-focus'
 import { useBrowserPageZoomFeedback } from './host-guest/use-browser-page-zoom-feedback'
-import { BrowserLoadFailureOverlay } from './navigate/browser-load-failure-overlay'
+import { ClientHostedBrowserLoadFailure } from './client-hosted-browser-load-failure'
 import { useClientHostedPageUrlSubmission } from './navigate/use-client-hosted-page-url-submission'
 import { useBrowserPageReloadActions } from './navigate/use-browser-page-reload-actions'
 import { resolveActiveBrowserLoadFailure } from './navigate/browser-load-failure-for-url'
 import { consumeBrowserPageDeferredNavigation } from './navigate/browser-page-deferred-navigation'
-import {
-  getBrowserDisplayTitle,
-  getOpenableExternalUrl,
-  toDisplayUrl
-} from './describe-page/browser-page-url-display'
+import { getBrowserDisplayTitle, toDisplayUrl } from './describe-page/browser-page-url-display'
 import type {
   BrowserChromeShortcutScope,
   BrowserPageUrlSetter,
@@ -75,6 +71,7 @@ export function ClientHostedBrowserPagePane({
   onSetUrl: BrowserPageUrlSetter
 }): React.JSX.Element {
   const viewportRef = useRef<HTMLDivElement | null>(null)
+  const viewportScrollerRef = useRef<HTMLDivElement | null>(null)
   const webviewRef = useRef<Electron.WebviewTag | null>(null)
   const addressBarInputRef = useRef<HTMLInputElement | null>(null)
   // Why: a worktree switch unmounts this pane while main keeps the guest, so the failure has to
@@ -340,6 +337,15 @@ export function ClientHostedBrowserPagePane({
     isDefaultZoom: zoom.browserZoomPercent === zoom.browserDefaultZoomPercent
   })
 
+  useClientHostedBrowserViewport({
+    browserPageId: browserTab.id,
+    presetId: browserTab.viewportPresetId ?? null,
+    pageHostGeneration,
+    contentRef: viewportRef,
+    scrollerRef: viewportScrollerRef,
+    webviewRef
+  })
+
   return (
     <div className="relative flex h-full min-h-0 flex-1 flex-col bg-background">
       {/* IPC-driven context menu in a Portal so position:fixed escapes ancestor transform/backdrop-filter containing blocks. */}
@@ -355,6 +361,7 @@ export function ClientHostedBrowserPagePane({
         <ClientHostedBrowserPageToolbar
           browserPageId={browserTab.id}
           runtimeEnvironmentId={runtimeEnvironmentId}
+          viewportPresetId={browserTab.viewportPresetId ?? null}
           canGoBack={browserTab.canGoBack}
           canGoForward={browserTab.canGoForward}
           // Why the unrecovered case reads not-loading: nothing is coming, and a spinner nobody
@@ -371,57 +378,49 @@ export function ClientHostedBrowserPagePane({
           markup={tools.markupTool}
         />
       </div>
-      <div ref={viewportRef} className="relative min-h-0 flex-1 overflow-hidden bg-background">
-        <BrowserGuestAnnotateOverlays
-          markup={markup}
-          grab={grab}
-          annotationSend={annotationSend}
-          grabAnnotations={grabAnnotations}
-          containerRef={viewportRef}
-          webviewRef={webviewRef}
-          browserOverlayViewport={browserOverlayViewport}
-          worktreeId={worktreeId}
-        />
-        <BrowserPageZoomIndicator
-          state={browserZoomIndicatorState}
-          percent={zoom.browserZoomPercent}
-        />
-        <BrowserFind
-          isOpen={findOpen}
-          onClose={() => setFindOpen(false)}
-          webviewRef={webviewRef}
-          guestGeneration={pageHostGeneration}
-        />
-        {showFailureOverlay && browserTab.loadError ? (
-          <BrowserLoadFailureOverlay
-            loadError={browserTab.loadError}
-            currentUrl={toDisplayUrl(failedNavigationUrl)}
-            httpsRecoveryUrl={toHttpsRecoveryUrl(failedNavigationUrl)}
-            onRetry={() => reload.runReloadTrigger('reload')}
-            onTryHttps={navigateToUrl}
-            onCopy={(url) => void window.api.ui.writeClipboardText(url)}
-            onOpenExternal={(url) => void window.api.shell.openUrl(url)}
-            externalUrl={getOpenableExternalUrl(failedNavigationUrl)}
-            certificateFailure={certificateFailure}
-            expectedBrowserPageId={browserTab.id}
-            // Why: the guest is a local Electron webview on this desktop, so its certificate
-            // decision is a local session decision — the same IPC the local pane proceeds through.
-            onProceedCertificate={(challengeId) =>
-              window.api.browser.proceedCertificate({
-                browserPageId: browserTab.id,
-                challengeId
-              })
-            }
-          />
-        ) : null}
-        {attachmentError || restoredPageUnrecovered ? (
-          <ClientHostedBrowserUnavailableNotice
-            runtimeEnvironmentId={runtimeEnvironmentId}
+      <div
+        ref={viewportScrollerRef}
+        data-browser-page-scroller=""
+        className="scrollbar-sleek relative min-h-0 min-w-0 flex-1 overflow-hidden bg-background"
+      >
+        <div ref={viewportRef} className="relative mx-auto">
+          <BrowserGuestAnnotateOverlays
+            markup={markup}
+            grab={grab}
+            annotationSend={annotationSend}
+            grabAnnotations={grabAnnotations}
+            containerRef={viewportRef}
+            webviewRef={webviewRef}
+            browserOverlayViewport={browserOverlayViewport}
             worktreeId={worktreeId}
-            lastCommittedUrl={browserTab.url}
-            placementHostClientId={browserHostClientId}
           />
-        ) : null}
+          <BrowserPageZoomIndicator
+            state={browserZoomIndicatorState}
+            percent={zoom.browserZoomPercent}
+          />
+          <BrowserFind
+            isOpen={findOpen}
+            onClose={() => setFindOpen(false)}
+            webviewRef={webviewRef}
+            guestGeneration={pageHostGeneration}
+          />
+          <ClientHostedBrowserLoadFailure
+            visible={showFailureOverlay}
+            browserTab={browserTab}
+            failedNavigationUrl={failedNavigationUrl}
+            certificateFailure={certificateFailure}
+            onRetry={() => reload.runReloadTrigger('reload')}
+            navigateToUrl={navigateToUrl}
+          />
+          {attachmentError || restoredPageUnrecovered ? (
+            <ClientHostedBrowserUnavailableNotice
+              runtimeEnvironmentId={runtimeEnvironmentId}
+              worktreeId={worktreeId}
+              lastCommittedUrl={browserTab.url}
+              placementHostClientId={browserHostClientId}
+            />
+          ) : null}
+        </div>
       </div>
     </div>
   )

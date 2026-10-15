@@ -16,7 +16,8 @@ test('annotates an element of a client-hosted browser page', async ({ testRepoPa
   test.setTimeout(300_000)
   const fixture = await startClientHostedMarkerFixture({
     created: 'Client-hosted annotation',
-    moved: 'Another page'
+    moved: 'Another page',
+    responsive: true
   })
   const host = await launchHeadlessPairedRuntimeHost()
   let client: PairedElectronClient | null = null
@@ -43,6 +44,44 @@ test('annotates an element of a client-hosted browser page', async ({ testRepoPa
       await client.page.waitForTimeout(300)
     }
     await expect(gotIt).toHaveCount(0)
+
+    const menu = client.page.getByRole('button', { name: 'Browser menu', exact: true })
+    await menu.click()
+    await client.page.getByRole('menuitem', { name: 'Viewport Size', exact: true }).hover()
+    await client.page.getByRole('menuitemradio', { name: 'Mobile M', exact: false }).click()
+    await expect
+      .poll(() =>
+        client!.app.evaluate(async ({ webContents }, origin) => {
+          const guest = webContents
+            .getAllWebContents()
+            .find(
+              (contents) => contents.getType() === 'webview' && contents.getURL().startsWith(origin)
+            )
+          return guest?.executeJavaScript('window.innerWidth')
+        }, fixture.origin)
+      )
+      .toBe(375)
+    await client.page.keyboard.press('Escape')
+    await client.page.keyboard.press('Escape')
+    await testInfo.attach('client-hosted-mobile-viewport', {
+      body: await client.page.screenshot({ path: testInfo.outputPath('mobile-viewport.png') }),
+      contentType: 'image/png'
+    })
+    await menu.click()
+    await client.page.getByRole('menuitem', { name: 'Viewport Size', exact: true }).hover()
+    await client.page.getByRole('menuitemradio', { name: 'Default', exact: true }).click()
+    await expect
+      .poll(() =>
+        client!.app.evaluate(async ({ webContents }, origin) => {
+          const guest = webContents
+            .getAllWebContents()
+            .find(
+              (contents) => contents.getType() === 'webview' && contents.getURL().startsWith(origin)
+            )
+          return guest?.executeJavaScript('window.innerWidth')
+        }, fixture.origin)
+      )
+      .toBeGreaterThan(375)
 
     const annotate = client.page.getByRole('button', { name: 'Annotate page element', exact: true })
     await expect(client.page.getByRole('button', { name: 'Grab page element' })).toBeEnabled()
