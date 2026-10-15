@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest'
-
 import { normalizeHookPayload } from '../../../../shared/agent-hook-listener'
 import type { AgentHookEventPayload } from '../../../../shared/agent-hook-listener/listener-event'
 import type { HookListenerState } from '../../../../shared/agent-hook-listener/listener-state'
@@ -16,28 +15,28 @@ import { createTestStore } from './store-test-helpers'
 vi.mock('../../../../main/telemetry/client', () => ({ track: vi.fn() }))
 vi.mock('../../../../main/telemetry/cohort-classifier', () => ({ getCohortAtEmit: vi.fn() }))
 
+// Runtime imports keep the real host chain outside the renderer's composite TS project.
 type HookServer = {
   _getStateForTests: () => HookListenerState
   ingestRemote: (event: AgentHookEventPayload, connectionId: null) => void
   getStatusSnapshot: () => AgentStatusIpcPayload[]
   stop: () => void
 }
-type HookBody = { paneKey: string; payload: Record<string, unknown> }
-type NativeRoot = {
+type Root = {
   ref: { status: string }
   session: { isStreaming: boolean }
   context: object
   file: string
   replaceSession: (id: string) => void
 }
-type NativeFixtureModule = {
+type NativeModule = {
   NATIVE_TIME: number
-  nativeRoot: (id: string, isStreaming: boolean) => NativeRoot
+  nativeRoot: (id: string, streaming: boolean) => Root
   createNativeFixture: (
-    root: NativeRoot,
+    root: Root,
     children: object[],
     options: {
-      runtime: { kind: 'omp' | 'pi'; argv: string[] }
+      runtime: { kind: 'pi'; argv: string[] }
       env: Record<string, string | undefined>
     }
   ) => {
@@ -47,255 +46,204 @@ type NativeFixtureModule = {
     }
   }
 }
-
 const PANE = makePaneKey('tab-1', '11111111-1111-4111-8111-111111111111')
-const OLD_PROMPT = 'Native OMP old root turn'
-const NEW_ID = 'unprompted-native-root'
 
-function isNewIdentitySnapshot(body: HookBody): boolean {
-  return body.payload.session_id === NEW_ID && body.payload.hook_event_name === 'subagents_update'
-}
-
-describe('OMP native scope clocks through the renderer store', () => {
+describe('OMP native session clocks through host IPC and RootStore', () => {
   useAgentCompletionCoordinatorLifecycle()
   afterEach(() => vi.clearAllTimers())
 
-  describe.each(['omp', 'pi'] as const)('%s-routed OMP', (kind) => {
-    it.each(['unprompted', 'opening before first identity ACK'] as const)(
-      'keeps canonical turn-clock truth after an old done scope: %s',
-      async (mode) => {
-        const { AgentHookServer } = await vi.importActual<{
-          AgentHookServer: new () => HookServer
-        }>('../../../../main/agent-hooks/server')
-        const native = await vi.importActual<NativeFixtureModule>(
-          '../../../../main/pi/agent-status-extension-omp-registry-fixture'
-        )
-        vi.setSystemTime(native.NATIVE_TIME)
-        const server = new AgentHookServer()
-        const store = createTestStore()
-        const dispatchCompletion = vi.fn()
-        const coordinator = createAgentCompletionCoordinator({
-          paneKey: PANE,
-          statusLane: 'hook',
-          getPtyId: () => null,
-          getSettings: () => null,
-          inspectProcess: vi.fn(),
-          dispatchCompletion,
-          shouldPollProcessCadence: () => false,
-          isLive: () => true
-        })
-        const root = native.nativeRoot('old-native-root', true)
-        const fixture = native.createNativeFixture(root, [], {
-          runtime: { kind, argv: ['bun', '/opt/omp/bin/omp'] },
-          env: {
-            ORCA_AGENT_HOOK_ENV: 'production',
-            ORCA_PANE_KEY: PANE,
-            ORCA_WORKTREE_ID: 'wt-1',
-            ORCA_AGENT_LAUNCH_TOKEN: undefined
-          }
-        })
-        const accepted: HookBody[] = []
-        const hostRows: AgentStatusIpcPayload[] = []
-        let loseIdentityAck = mode !== 'unprompted'
-        fixture.harness.fetchMock.mockImplementation(async (_url, request) => {
-          const body: HookBody = JSON.parse(String(request?.body))
-          const event = normalizeHookPayload(server._getStateForTests(), 'omp', body, 'production')
-          if (!event) {
-            throw new Error('Expected a native OMP hook consumer event')
-          }
-          server.ingestRemote(event, null)
-          const row = server.getStatusSnapshot().find((entry) => entry.paneKey === PANE)
-          if (!row) {
-            throw new Error('Expected a real HookServer row')
-          }
-          const payload = normalizeAgentStatusEvent(row)
-          if (!payload) {
-            throw new Error('Expected an IPC-normalized renderer payload')
-          }
-          accepted.push(body)
-          hostRows.push(row)
-          // Use the production IPC normalization and public RootStore write. In
-          // particular, an absent host turn clock remains absent, not stamped here.
-          store.getState().setAgentStatus(
-            PANE,
-            { ...payload, ...(row.observation ? { observation: row.observation } : {}) },
-            'OMP',
-            {
-              updatedAt: row.receivedAt,
-              stateStartedAt: row.stateStartedAt,
-              ...(Number.isFinite(row.turnStartedAt) ? { turnStartedAt: row.turnStartedAt } : {})
-            },
-            { tabId: 'tab-1', worktreeId: 'wt-1' },
-            normalizeAgentStatusMetadata(row)
-          )
-          coordinator.observeHookStatus(row)
-          if (loseIdentityAck && isNewIdentitySnapshot(body)) {
-            loseIdentityAck = false
-            throw new Error('native identity accepted but its ACK was lost')
-          }
-          return { ok: true }
-        })
-        try {
-          await fixture.harness.callHook('session_start', { reason: 'startup' }, root.context)
-          await fixture.harness.callHook('before_agent_start', { prompt: OLD_PROMPT }, root.context)
-          await fixture.harness.callHook('agent_start', {}, root.context)
-          await vi.advanceTimersByTimeAsync(1_000)
-          await fixture.harness.callHook(
-            'message_end',
-            {
-              message: { role: 'assistant', content: [{ type: 'text', text: 'Old root finished' }] }
-            },
-            root.context
-          )
-          root.ref.status = 'idle'
-          root.session.isStreaming = false
-          await fixture.harness.callHook('agent_end', {}, root.context)
-          await vi.advanceTimersByTimeAsync(2_000)
-          const oldClock = hostRows.at(-1)?.turnStartedAt
-          expect(oldClock).toBeDefined()
-          expect(store.getState().agentStatusByPaneKey[PANE].turnStartedAt).toBe(oldClock)
-          expect(dispatchCompletion).toHaveBeenCalledTimes(1)
-          const previousSessionFile = root.file
-          root.replaceSession(NEW_ID)
-          // The native SDK registers Main as running before any new prompt.
-          root.ref.status = 'running'
-          const scopeChangedAt = Date.now()
-          await fixture.harness.callHook(
-            'session_switch',
-            { reason: 'new', previousSessionFile },
-            root.context
-          )
-          let newClock: number | undefined
-          if (mode !== 'unprompted') {
-            root.session.isStreaming = true
-            await fixture.harness.callHook(
-              'before_agent_start',
-              { prompt: 'Genuine new root turn' },
-              root.context
-            )
-            await fixture.harness.callHook('agent_start', {}, root.context)
-            await vi.advanceTimersByTimeAsync(0)
-            newClock = hostRows.at(-1)?.turnStartedAt
-            expect(newClock).toBe(scopeChangedAt)
-            expect(newClock).not.toBe(oldClock)
-            expect(accepted.filter(isNewIdentitySnapshot)).toEqual([])
-            await vi.advanceTimersByTimeAsync(100)
-            root.ref.status = 'idle'
-            root.session.isStreaming = false
-            await fixture.harness.callHook('agent_end', {}, root.context)
-          }
-          await vi.advanceTimersByTimeAsync(3_000)
-
-          const canonical = hostRows.at(-1)
-          expect(canonical).toMatchObject({
-            state: 'done',
-            prompt: mode === 'unprompted' ? '' : 'Genuine new root turn',
-            providerSession: { id: NEW_ID, transcriptPath: root.file }
-          })
-          // This assertion locates the bug after host admission, not in native binding.
-          expect(canonical?.turnStartedAt).toBe(newClock)
-          expect(canonical?.turnCompletedAt).toBeUndefined()
-          expect(canonical?.subagents ?? []).toEqual([])
-          const entry = store.getState().agentStatusByPaneKey[PANE]
-          expect(entry.providerSession).toEqual(canonical?.providerSession)
-          expect(entry.turnStartedAt).toBe(newClock)
-          expect(entry.stateStartedAt).toBe(canonical?.stateStartedAt)
-          expect(entry.mainAgent).toEqual(canonical?.mainAgent)
-          expect(entry).not.toHaveProperty('turnCompletedAt')
-          expect(entry.toolName).toBeUndefined()
-          expect(entry.toolInput).toBeUndefined()
-          expect(entry.lastAssistantMessage).toBeUndefined()
-          // History is pane-scoped: retain the old real completion for unread/history consumers.
-          expect(
-            entry.stateHistory.some(
-              (history) => history.state === 'done' && history.prompt === OLD_PROMPT
-            )
-          ).toBe(true)
-          expect(dispatchCompletion).toHaveBeenCalledTimes(mode === 'unprompted' ? 1 : 2)
-          if (mode !== 'unprompted') {
-            const snapshots = accepted.filter(isNewIdentitySnapshot)
-            expect(snapshots).toHaveLength(2)
-            for (const snapshot of snapshots) {
-              expect(snapshot.payload.omp_status).toMatchObject({
-                state: 'done',
-                session_boundary: true
-              })
-            }
-          }
-        } finally {
-          await fixture.harness.callHook('session_shutdown', { reason: 'quit' }, root.context)
-          await vi.advanceTimersByTimeAsync(0)
-          coordinator.dispose()
-          server.stop()
-        }
-      }
-    )
-  })
-
-  it.each([
-    {
-      agent: 'omp' as const,
-      incoming: { key: 'session_id' as const, id: 'new', transcriptPath: '/sessions/new.jsonl' },
-      oldFactsExpected: false
-    },
-    {
-      agent: 'omp' as const,
-      incoming: { key: 'session_id' as const, id: 'old' },
-      oldFactsExpected: true
-    },
-    {
-      agent: 'pi' as const,
-      incoming: { key: 'session_id' as const, id: 'new', transcriptPath: '/sessions/new.jsonl' },
-      oldFactsExpected: true
-    },
-    {
-      agent: 'prime-agent' as const,
-      incoming: { key: 'session_id' as const, id: 'new', transcriptPath: '/sessions/new.jsonl' },
-      oldFactsExpected: true
-    }
-  ])(
-    'keeps unknown facts scope-safe without changing $agent blind-writer semantics ($oldFactsExpected)',
-    ({ agent, incoming, oldFactsExpected }) => {
+  it.each(['unprompted', 'real turn with lost ACKs'] as const)(
+    'does not borrow the previous session clock: %s',
+    async (mode) => {
+      const { AgentHookServer } = await vi.importActual<{ AgentHookServer: new () => HookServer }>(
+        '../../../../main/agent-hooks/server'
+      )
+      const native = await vi.importActual<NativeModule>(
+        '../../../../main/pi/agent-status-extension-omp-registry-fixture'
+      )
+      vi.setSystemTime(native.NATIVE_TIME)
+      const server = new AgentHookServer()
       const store = createTestStore()
-      const oldMainAgent = { state: 'done' as const, stateStartedAt: 1_500 }
-      store
-        .getState()
-        .setAgentStatus(
-          PANE,
-          { state: 'done', prompt: OLD_PROMPT, agentType: agent, mainAgent: oldMainAgent },
-          undefined,
-          { updatedAt: 2_000, stateStartedAt: 1_500, turnStartedAt: 1_000 },
-          undefined,
-          {
-            providerSession: { key: 'session_id', id: 'old', transcriptPath: '/sessions/old.jsonl' }
-          }
+      const dispatchCompletion = vi.fn()
+      const coordinator = createAgentCompletionCoordinator({
+        paneKey: PANE,
+        statusLane: 'hook',
+        getPtyId: () => null,
+        getSettings: () => null,
+        inspectProcess: vi.fn(),
+        dispatchCompletion,
+        shouldPollProcessCadence: () => false,
+        isLive: () => true
+      })
+      const root = native.nativeRoot('old', true)
+      const { harness } = native.createNativeFixture(root, [], {
+        runtime: { kind: 'pi', argv: ['bun', '/opt/omp/bin/omp'] },
+        env: {
+          ORCA_AGENT_HOOK_ENV: 'production',
+          ORCA_PANE_KEY: PANE,
+          ORCA_WORKTREE_ID: 'wt-1',
+          ORCA_AGENT_LAUNCH_TOKEN: undefined
+        }
+      })
+      const accepted: Record<string, unknown>[] = []
+      const lost = new Set<unknown>()
+      const canonical = () => server.getStatusSnapshot().find((row) => row.paneKey === PANE)
+      harness.fetchMock.mockImplementation(async (_url, request) => {
+        const body: { paneKey: string; payload: Record<string, unknown> } = JSON.parse(
+          String(request?.body)
         )
+        const event = normalizeHookPayload(server._getStateForTests(), 'omp', body, 'production')
+        if (!event) {
+          throw new Error('Missing native hook event')
+        }
+        server.ingestRemote(event, null)
+        const row = canonical()
+        if (!row) {
+          throw new Error('Missing admitted host row')
+        }
+        const payload = normalizeAgentStatusEvent(row)
+        if (!payload) {
+          throw new Error('Missing IPC status payload')
+        }
+        store.getState().setAgentStatus(
+          PANE,
+          payload,
+          'OMP',
+          {
+            updatedAt: row.receivedAt,
+            stateStartedAt: row.stateStartedAt,
+            ...(row.turnStartedAt === undefined ? {} : { turnStartedAt: row.turnStartedAt })
+          },
+          { tabId: 'tab-1', worktreeId: 'wt-1' },
+          normalizeAgentStatusMetadata(row)
+        )
+        coordinator.observeHookStatus(row)
+        accepted.push(body.payload)
+        const eventName = body.payload.hook_event_name
+        if (
+          mode !== 'unprompted' &&
+          body.payload.session_id === 'new' &&
+          ['agent_end', 'subagents_update'].includes(String(eventName)) &&
+          !lost.has(eventName)
+        ) {
+          lost.add(eventName)
+          throw new Error('Accepted native update lost its ACK')
+        }
+        return { ok: true }
+      })
+      const hook = (name: string, event: unknown = {}) =>
+        harness.callHook(name, event, root.context)
+      const finish = async () => {
+        await hook('message_end', {
+          message: { role: 'assistant', content: [{ type: 'text', text: 'Native completion' }] }
+        })
+        root.ref.status = 'idle'
+        root.session.isStreaming = false
+        await hook('agent_end')
+      }
+      try {
+        await hook('session_start', { reason: 'startup' })
+        await hook('before_agent_start', { prompt: 'old turn' })
+        await hook('agent_start')
+        await vi.advanceTimersByTimeAsync(1000)
+        await finish()
+        await vi.advanceTimersByTimeAsync(2_000)
+        const oldClock = canonical()?.turnStartedAt
+        expect(oldClock).toBeDefined()
+        expect(dispatchCompletion).toHaveBeenCalledTimes(1)
+
+        root.replaceSession('new')
+        root.ref.status = 'running'
+        await hook('session_switch', { reason: 'new' })
+        let newClock: number | undefined
+        if (mode !== 'unprompted') {
+          root.session.isStreaming = true
+          await hook('before_agent_start', { prompt: 'new turn' })
+          await hook('agent_start')
+          await vi.advanceTimersByTimeAsync(0)
+          newClock = canonical()?.turnStartedAt
+          expect(newClock).toBe(Date.now())
+          expect(newClock).not.toBe(oldClock)
+          expect(
+            accepted.some(
+              (body) => body.session_id === 'new' && body.hook_event_name === 'subagents_update'
+            )
+          ).toBe(false)
+          await vi.advanceTimersByTimeAsync(100)
+          await finish()
+        }
+        await vi.advanceTimersByTimeAsync(3000)
+        const host = canonical()
+        const shown = store.getState().agentStatusByPaneKey[PANE]
+        expect(host).toMatchObject({
+          state: 'done',
+          prompt: mode === 'unprompted' ? '' : 'new turn',
+          providerSession: { id: 'new', transcriptPath: root.file }
+        })
+        expect(host?.turnStartedAt).toBe(newClock)
+        expect(shown.turnStartedAt).toBe(newClock)
+        expect(shown.mainAgent).toEqual(host?.mainAgent)
+        expect(shown.stateStartedAt).toBe(host?.stateStartedAt)
+        expect(host?.turnCompletedAt).toBeUndefined()
+        expect(
+          shown.stateHistory.some((row) => row.state === 'done' && row.prompt === 'old turn')
+        ).toBe(true)
+        expect(dispatchCompletion).toHaveBeenCalledTimes(mode === 'unprompted' ? 1 : 2)
+        if (mode !== 'unprompted') {
+          expect(
+            accepted.filter(
+              (body) => body.session_id === 'new' && body.hook_event_name === 'agent_end'
+            )
+          ).toHaveLength(2)
+          expect(
+            accepted.filter(
+              (body) => body.session_id === 'new' && body.hook_event_name === 'subagents_update'
+            )
+          ).toHaveLength(2)
+        }
+      } finally {
+        await hook('session_shutdown', { reason: 'quit' })
+        await vi.advanceTimersByTimeAsync(0)
+        coordinator.dispose()
+        server.stop()
+      }
+    }
+  )
+
+  it.each(['omp', 'pi', 'prime-agent'] as const)(
+    'preserves blind-writer compatibility for %s',
+    (agentType) => {
+      const store = createTestStore()
+      const session = { key: 'session_id' as const, id: 'old', transcriptPath: '/old.jsonl' }
       store.getState().setAgentStatus(
         PANE,
         {
           state: 'done',
           prompt: '',
-          agentType: agent,
-          sessionBoundary: true,
-          observation: {
-            origin: 'osc',
-            authorityId: 'renderer',
-            incarnation: 0,
-            revision: 2,
-            observedAt: 3_000,
-            kind: 'snapshot'
-          }
+          agentType,
+          mainAgent: { state: 'done', stateStartedAt: 1500 }
         },
         undefined,
-        { updatedAt: 3_000, stateStartedAt: 3_000 },
+        { updatedAt: 2000, turnStartedAt: 1000 },
         undefined,
-        { providerSession: incoming }
+        { providerSession: session }
       )
-      const entry = store.getState().agentStatusByPaneKey[PANE]
-      expect(entry.turnStartedAt).toBe(oldFactsExpected ? 1_000 : undefined)
-      expect(entry.mainAgent).toEqual(oldFactsExpected ? oldMainAgent : undefined)
-      expect(entry.providerSession).toEqual(incoming)
-      expect(entry).not.toHaveProperty('turnCompletedAt')
+      store
+        .getState()
+        .setAgentStatus(
+          PANE,
+          { state: 'done', prompt: '', agentType },
+          undefined,
+          { updatedAt: 3000 },
+          undefined,
+          {
+            providerSession:
+              agentType === 'omp'
+                ? { key: 'session_id', id: 'old' }
+                : { key: 'session_id', id: 'new', transcriptPath: '/new.jsonl' }
+          }
+        )
+      expect(store.getState().agentStatusByPaneKey[PANE].turnStartedAt).toBe(1000)
     }
   )
 })

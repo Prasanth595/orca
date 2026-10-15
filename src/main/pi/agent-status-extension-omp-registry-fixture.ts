@@ -1,31 +1,8 @@
-import { buildLegacyAgentChildRowModels } from '../../shared/agent-child-row-model'
-import {
-  isFreshNonDoneAgentStatus,
-  type AgentStatusState,
-  type AgentSubagentSnapshot
-} from '../../shared/agent-status-types'
+import type { AgentStatusState, AgentSubagentSnapshot } from '../../shared/agent-status-types'
 import {
   createAgentStatusExtensionHarness,
-  type AgentStatusExtensionHarness,
   type HookContext
 } from './agent-status-extension-test-harness'
-
-type PostedOmpPayload = {
-  hook_event_name: string
-  session_id?: string
-  session_file?: string
-  session_boundary?: true
-  omp_status?: {
-    state: AgentStatusState
-    session_boundary?: true
-    prompt?: string
-    tool_name?: string
-    tool_input?: unknown
-    role?: 'assistant'
-    text?: string
-  }
-  subagents?: AgentSubagentSnapshot[]
-}
 
 export const NATIVE_TIME = 1_791_947_032_900
 
@@ -53,44 +30,37 @@ export type NativeRef = {
   lifecycle?: { acceptedAt?: number; terminalAt?: number }
 }
 
-type NativeAttachedRef = NativeRef & { session: NativeSession }
-
 type NativeChange = {
   type: 'registered' | 'status_changed' | 'metadata_changed' | 'removed'
   ref: NativeRef
 }
 
-export type NativeRoot = {
-  ref: NativeAttachedRef
-  session: NativeSession
-  file: string
-  context: HookContext
-  replaceSession: (id: string, parentSession?: string, sessionFile?: string) => void
+type PostedOmpPayload = {
+  hook_event_name: string
+  session_id?: string
+  session_file?: string
+  session_boundary?: true
+  omp_status?: {
+    state: AgentStatusState
+    session_boundary?: true
+    input_pending?: boolean
+    prompt?: string
+    tool_name?: string
+    tool_input?: unknown
+    role?: 'assistant'
+    text?: string
+  }
+  subagents?: AgentSubagentSnapshot[]
 }
+
+export type DeliveredPost = { payload: PostedOmpPayload; observedAt: number }
+export type NativeDeliveryResponse = { ok: boolean; status?: number }
 
 function nativeSession(
-  id: string,
-  file: string,
-  isStreaming: boolean,
-  parentSession?: string
+  identity: { id: string; file: string; parentSession?: string },
+  isStreaming: boolean
 ): NativeSession {
   return {
-    sessionManager: {
-      getSessionId: () => id,
-      getSessionFile: () => file,
-      getHeader: () => ({ id, parentSession })
-    },
-    isStreaming
-  }
-}
-
-export function nativeRoot(id = 'root-session', isStreaming = false): NativeRoot {
-  const identity: { id: string; file: string; parentSession: string | undefined } = {
-    id,
-    file: `/sessions/${id}.jsonl`,
-    parentSession: undefined
-  }
-  const session: NativeSession = {
     sessionManager: {
       getSessionId: () => identity.id,
       getSessionFile: () => identity.file,
@@ -98,7 +68,23 @@ export function nativeRoot(id = 'root-session', isStreaming = false): NativeRoot
     },
     isStreaming
   }
-  const ref: NativeAttachedRef = {
+}
+
+export type NativeRoot = {
+  ref: NativeRef & { session: NativeSession }
+  session: NativeSession
+  file: string
+  context: HookContext
+  replaceSession: (id: string, parentSession?: string, sessionFile?: string) => void
+}
+
+export function nativeRoot(id = 'root-session', isStreaming = false): NativeRoot {
+  const identity: { id: string; file: string; parentSession?: string } = {
+    id,
+    file: `/sessions/${id}.jsonl`
+  }
+  const session = nativeSession(identity, isStreaming)
+  const ref: NativeRef & { session: NativeSession } = {
     id: 'Main',
     displayName: 'Main',
     kind: 'main',
@@ -108,18 +94,19 @@ export function nativeRoot(id = 'root-session', isStreaming = false): NativeRoot
     createdAt: NATIVE_TIME - 127,
     lastActivity: NATIVE_TIME - 120
   }
+  const context: HookContext = {
+    agent: { id: 'Main', kind: 'main', depth: 0 },
+    sessionManager: session.sessionManager,
+    isIdle: () => !session.isStreaming
+  }
   return {
     ref,
     session,
+    context,
     get file() {
       return identity.file
     },
-    context: {
-      agent: { id: 'Main', kind: 'main', depth: 0 },
-      sessionManager: session.sessionManager,
-      isIdle: () => !session.isStreaming
-    },
-    replaceSession(nextId, parentSession, sessionFile) {
+    replaceSession(nextId: string, parentSession?: string, sessionFile?: string) {
       identity.id = nextId
       identity.file = sessionFile ?? `/sessions/${nextId}.jsonl`
       identity.parentSession = parentSession
@@ -134,35 +121,20 @@ export function nativeChild(
   rootFile: string,
   createdAt = NATIVE_TIME - 47,
   sessionId = `${id}-session`
-): NativeAttachedRef {
+): NativeRef & { session: NativeSession } {
   const sessionFile = `${rootFile.slice(0, -6)}/${id}.jsonl`
   return {
     id,
-    // Native displayName can repeat a role; task identity remains the native ID.
     displayName: 'registry-proof',
-    kind: 'sub' as const,
+    kind: 'sub',
     parentId: 'Main',
     status: 'running',
-    session: nativeSession(sessionId, sessionFile, true, rootFile),
+    session: nativeSession({ id: sessionId, file: sessionFile, parentSession: rootFile }, true),
     sessionFile,
     createdAt,
     lastActivity: createdAt + 3,
     history: { agent: 'registry-proof', resolvedModel: 'orca-registry-proof/child' }
   }
-}
-
-type DeliveredPost = { payload: PostedOmpPayload; observedAt: number }
-export type NativeDeliveryResponse = { ok: boolean; status?: number }
-
-type NativeFixture = {
-  harness: AgentStatusExtensionHarness
-  refs: Map<string, NativeRef>
-  delivered: DeliveredPost[]
-  accepted: DeliveredPost[]
-  notify: (type: NativeChange['type'], ref: NativeRef) => void
-  failList: (error?: Error) => void
-  setStatus: (ref: NativeRef, status: 'idle' | 'aborted' | 'running') => void
-  captureNotification: () => (type: NativeChange['type'], ref: NativeRef) => void
 }
 
 export function createNativeFixture(
@@ -174,13 +146,12 @@ export function createNativeFixture(
     env?: Record<string, string | undefined>
     delivery?: (payload: PostedOmpPayload) => Promise<NativeDeliveryResponse>
   } = {}
-): NativeFixture {
+) {
   const refs = new Map<string, NativeRef>([root.ref, ...children].map((ref) => [ref.id, ref]))
   const listeners = new Set<(event: NativeChange) => void>()
   const delivered: DeliveredPost[] = []
   const accepted: DeliveredPost[] = []
   let listFailure: Error | undefined
-  // Fake only the native boundary. Production reads these same mutable AgentRefs.
   const registry = {
     list: () => {
       if (listFailure) {
@@ -192,22 +163,16 @@ export function createNativeFixture(
     isRunning: (ref: NativeRef) => ref.status === 'running' && ref.session?.isStreaming === true,
     onChange: (listener: (event: NativeChange) => void) => {
       listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
+      return () => listeners.delete(listener)
     }
   }
   const harness = createAgentStatusExtensionHarness({
     ...(options.runtime ?? { kind: 'omp' }),
     env: options.env,
-    ...(options.registryAvailable === false
-      ? {}
-      : {
-          nativeExtensionNamespace: {
-            MAIN_AGENT_ID: 'Main',
-            AgentRegistry: { global: () => registry }
-          }
-        }),
+    nativeExtensionNamespace:
+      options.registryAvailable === false
+        ? undefined
+        : { MAIN_AGENT_ID: 'Main', AgentRegistry: { global: () => registry } },
     fetchImpl: async (_url, init) => {
       const body: { payload: PostedOmpPayload } = JSON.parse(String(init?.body))
       delivered.push({ payload: body.payload, observedAt: Date.now() })
@@ -229,10 +194,10 @@ export function createNativeFixture(
     delivered,
     accepted,
     notify,
-    failList: (error) => {
+    failList: (error?: Error) => {
       listFailure = error
     },
-    setStatus: (ref, status) => {
+    setStatus: (ref: NativeRef, status: 'idle' | 'aborted' | 'running') => {
       if (ref.status === 'aborted' || ref.status === status) {
         return
       }
@@ -240,6 +205,7 @@ export function createNativeFixture(
       if (status === 'running') {
         ref.lifecycle = undefined
       } else if (ref.status === 'running') {
+        // The SDK stamps terminalAt even for an idle pause with pending async work.
         ref.lifecycle = { ...ref.lifecycle, terminalAt: ref.lastActivity }
       }
       ref.status = status
@@ -250,59 +216,13 @@ export function createNativeFixture(
       }
       notify('status_changed', ref)
     },
-    // A callback can already be dispatched before its subscription is retired.
     captureNotification: () => {
       const dispatched = [...listeners]
-      return (type, ref) => {
+      return (type: NativeChange['type'], ref: NativeRef) => {
         for (const listener of dispatched) {
           listener({ type, ref })
         }
       }
     }
   }
-}
-
-export function latestSnapshot(fixture: NativeFixture): DeliveredPost {
-  const post = fixture.delivered.findLast(
-    ({ payload }) => payload.hook_event_name === 'subagents_update'
-  )
-  if (!post) {
-    throw new Error('Expected a native subagents_update snapshot')
-  }
-  return post
-}
-
-export function latestPost(fixture: NativeFixture): DeliveredPost {
-  const post = fixture.delivered.at(-1)
-  if (!post) {
-    throw new Error('Expected a delivered status post')
-  }
-  return post
-}
-
-export function childIds(payload: PostedOmpPayload): string[] {
-  return (payload.subagents ?? []).map(({ id }) => id).sort()
-}
-
-export function postedPayloads(harness: AgentStatusExtensionHarness): PostedOmpPayload[] {
-  return harness.fetchMock.mock.calls.map((call) => {
-    const body: { payload: PostedOmpPayload } = JSON.parse(String(call[1]?.body))
-    return body.payload
-  })
-}
-
-export function childRows(
-  payload: PostedOmpPayload | undefined,
-  observedAt = Date.now(),
-  now = Date.now()
-) {
-  return buildLegacyAgentChildRowModels(payload?.subagents ?? [], {
-    parentEvidenceFresh: isFreshNonDoneAgentStatus(
-      { state: 'working', updatedAt: observedAt },
-      now
-    ),
-    transportObservation: 'live',
-    parentObservedAt: observedAt,
-    hostClockOffsetMs: 0
-  })
 }

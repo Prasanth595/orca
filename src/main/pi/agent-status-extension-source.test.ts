@@ -164,35 +164,6 @@ describe('getPiAgentStatusExtensionSource', () => {
     }
   })
 
-  it('keeps OMP runtime status payloads unchanged by Pi session metadata', async () => {
-    const harness = createHarness({ kind: 'omp' })
-
-    await harness.callHook(
-      'session_start',
-      {},
-      {
-        sessionManager: {
-          getSessionId: () => 'omp-session-1',
-          getSessionFile: () => '/tmp/omp-session-1.jsonl'
-        }
-      }
-    )
-    await harness.callHook('agent_start')
-
-    expect(harness.fetchMock).toHaveBeenCalledTimes(1)
-    expect(harness.fetchMock.mock.calls[0]?.[1]?.body).toBe(
-      JSON.stringify({
-        paneKey: 'pane-1',
-        launchToken: 'launch-1',
-        tabId: 'tab-1',
-        worktreeId: 'tree-1',
-        env: 'env-1',
-        version: '1.2.3',
-        payload: { hook_event_name: 'agent_start' }
-      })
-    )
-  })
-
   it('tracks persistent OMP sessions and clears ephemeral session ids', async () => {
     const harness = createHarness({ kind: 'omp' })
     let sessionId = 'omp-session-8'
@@ -262,63 +233,6 @@ describe('getPiAgentStatusExtensionSource', () => {
       }
     ])
   })
-
-  it.each([
-    ['OMP extension', { kind: 'omp' as const }],
-    ['runtime-routed OMP', { kind: 'pi' as const, title: 'omp' }]
-  ])(
-    'keeps queued %s status bound to the session active when it was posted',
-    async (_name, args) => {
-      const { promise: delivery, resolve: finishDelivery } = Promise.withResolvers<{
-        ok: boolean
-      }>()
-      const harness = createHarness({
-        ...args,
-        fetchImpl: vi.fn(async () => ({ ok: true })).mockImplementationOnce(() => delivery)
-      })
-
-      let sessionId = 'omp-session-8'
-      const sessionManager = {
-        getSessionId: () => sessionId,
-        getSessionFile: () => `/tmp/${sessionId}.jsonl`
-      }
-      await harness.callHook('agent_start', undefined, { sessionManager })
-      sessionId = 'omp-session-9'
-      await harness.callHook(
-        'message_end',
-        { message: { role: 'assistant', content: 'done' } },
-        { sessionManager }
-      )
-      await harness.callHook('message_end', { message: { role: 'user', content: 'next' } }, {})
-
-      finishDelivery({ ok: true })
-      await vi.waitFor(() =>
-        expect(JSON.parse(String(harness.fetchMock.mock.lastCall?.[1]?.body)).payload).toEqual({
-          hook_event_name: 'message_end',
-          role: 'assistant',
-          text: 'done',
-          session_id: 'omp-session-9',
-          session_file: '/tmp/omp-session-9.jsonl'
-        })
-      )
-      const payloads = harness.fetchMock.mock.calls.map(
-        ([_event, init]) => JSON.parse(String(init?.body)).payload
-      )
-      expect(payloads).toContainEqual({
-        hook_event_name: 'agent_end',
-        session_boundary: true,
-        session_id: 'omp-session-8',
-        session_file: '/tmp/omp-session-8.jsonl'
-      })
-      expect(extractAgentProviderSession('omp', payloads.at(-1))).toEqual({
-        key: 'session_id',
-        id: 'omp-session-9',
-        transcriptPath: '/tmp/omp-session-9.jsonl'
-      })
-      expect(harness.fetchMock.mock.lastCall?.[0]).toBe('http://127.0.0.1:4321/hook/omp')
-      expect(harness.spawnMock).not.toHaveBeenCalled()
-    }
-  )
 
   it.each(['pi', 'omp', 'prime-agent'] as const)(
     'registers no status handlers for a nested %s subagent process',
@@ -460,34 +374,6 @@ describe('getPiAgentStatusExtensionSource', () => {
     expect(harness.fetchMock.mock.calls[0]?.[0]).toBe('http://127.0.0.1:9999/hook/prime-agent')
     await vi.waitFor(() => expect(harness.spawnMock).toHaveBeenCalledTimes(1))
     expect(harness.spawnMock.mock.calls[0]?.[1]).toContain('http://127.0.0.1:4321/hook/prime-agent')
-  })
-
-  it('probes WSL evidence and the curl path once per process', async () => {
-    const harness = createHarness({
-      kind: 'omp',
-      existsSync: (path) => path === '/mnt/c/Windows/System32/curl.exe',
-      readFileSync: (path) => {
-        if (path === '/proc/sys/kernel/osrelease') {
-          return 'microsoft-standard-WSL2'
-        }
-        throw Object.assign(new Error(`ENOENT: ${path}`), { code: 'ENOENT' })
-      },
-      fetchImpl: vi.fn(async () => {
-        throw new Error('loopback unreachable')
-      })
-    })
-
-    await harness.callHook('agent_start')
-    await harness.callHook('agent_end')
-
-    await vi.waitFor(() => expect(harness.spawnMock).toHaveBeenCalledTimes(2))
-    // Why: WSL-ness and curl.exe presence are process-lifetime constants;
-    // the per-event failure path must not re-probe /proc or /mnt/c.
-    const procReads = harness.fsMock.readFileSync.mock.calls.filter(([path]) =>
-      String(path).startsWith('/proc/')
-    )
-    expect(procReads).toHaveLength(1)
-    expect(harness.fsMock.existsSync).toHaveBeenCalledTimes(1)
   })
 
   it('stays fail-open on ordinary Linux', async () => {

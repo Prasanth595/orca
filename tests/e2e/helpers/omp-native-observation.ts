@@ -8,7 +8,6 @@ export type NativeRef = {
   createdAt?: number
   isStreaming?: boolean
   pendingAsync?: boolean
-  acceptedAt?: number
   terminalAt?: number
   rootManager: boolean
 }
@@ -25,45 +24,12 @@ export type NativeObservation = {
   sessionFile?: string
   managerId?: number
   rootState?: string
-  rootToolName?: string
-  rootPrompt?: string
-  rootText?: string
-  rootBoundary?: boolean
   willContinue?: boolean
   asyncJobId?: string
   asyncState?: string
-  eventType?: string
-  childSessionId?: string
-  createdAt?: number
-  isStreaming?: boolean
-  pendingAsync?: boolean
-  nativeTerminalAt?: number
-  acceptedAt?: number
   ownerMatches?: boolean
   refs?: NativeRef[]
   hookEvent?: string
   accepted?: boolean
-  requestAt?: number
-  durationMs?: number
-  bytes?: number
-  httpStatus?: number
-  subagentCount?: number
-  pid?: number
-  cpuUserMicros?: number
-  cpuSystemMicros?: number
-  rssBytes?: number
-  listCalls?: number
-  listMs?: number
-  getCalls?: number
-  getMs?: number
-  registryChanges?: number
-  posts?: number
-  acceptedPosts?: number
-  subagents?: {
-    id: string
-    agentType?: string
-    description?: string
-    state: string
-    startedAt: number
-  }[]
+  subagentIds?: string[]
 }

@@ -1,52 +1,62 @@
-import { writeFile } from 'node:fs/promises'
-import type { Locator, Page, TestInfo } from '@stablyai/playwright-test'
+import type { Page, TestInfo } from '@stablyai/playwright-test'
+import type { AgentStatusEntry } from '../../src/shared/agent-status-types'
 import { test, expect } from './helpers/orca-app'
 import { readHookEndpoint } from './helpers/agent-hook-endpoint'
-import { deterministicProviderSource } from './helpers/omp-deterministic-provider'
-import type { NativeObservation } from './helpers/omp-native-observation'
+import type { NativeObservation, NativeRef } from './helpers/omp-native-observation'
 import { startOmpStatusRuntime, type OmpStatusRuntime } from './helpers/omp-subagent-status-runtime'
 import { ensureTerminalVisible, waitForActiveWorktree, waitForSessionReady } from './helpers/store'
-import { waitForActivePaneHookDescriptor, waitForActiveTerminalManager } from './helpers/terminal'
+import {
+  waitForActivePaneHookDescriptor,
+  waitForActiveTerminalManager,
+  type ActivePaneHookDescriptor
+} from './helpers/terminal'
 import { worktreeRow } from './worktree-row-locators'
 
-// Capability-detected native registry; verified OMP baseline: 18.10.3. No login/model service.
+// Real installed OMP task/wait/bash/registry/RPC; only model responses are local fixtures.
 // ORCA_BACKGROUND_LAUNCH=1 ORCA_REAL_OMP_CLI_TEST=1 pnpm run test:e2e omp-subagent-status.spec.ts --workers=1
-// Optional ORCA_OMP_PROOF_BINARY=/absolute/path/to/omp; globalSetup builds the e2e app unless SKIP_BUILD=1.
-// Sidebar-only screenshots, native observations, RPC output and generated extension stay in test-results/.
-test.skip(
-  process.env.ORCA_REAL_OMP_CLI_TEST !== '1',
-  'Opt-in installed OMP scheduler/renderer smoke'
-)
+// Opt in to the same scenario at 8×6 with ORCA_OMP_SCALE=1, or 16×8 with ORCA_OMP_SCALE_STRESS=1.
+// Optional ORCA_OMP_PROOF_BINARY=/absolute/path/to/omp; artifacts remain under test-results/.
+const CHILD_NAMES = [
+  'IndexAudit',
+  'ArtifactCheck',
+  'QuietWorker',
+  'DocScan',
+  'BuildCheck',
+  'EdgeAudit',
+  'OwnerCheck',
+  'RootFence'
+]
+const QUIET_MS = 10_500 // Two real five-second authoritative refresh periods, without fake clocks.
+const STABLE_FIELDS = [
+  'state',
+  'prompt',
+  'toolName',
+  'toolInput',
+  'lastAssistantMessage',
+  'stateStartedAt',
+  'turnStartedAt',
+  'stateHistory',
+  'providerSession',
+  'subagents'
+] as const
+declare global {
+  var __ompIsolationCheck: (() => string | undefined) | undefined
+}
+
+test.skip(process.env.ORCA_REAL_OMP_CLI_TEST !== '1', 'Opt-in installed OMP native scenario')
 test.use({ minimumSeededWorktreeCount: 1 })
 test.beforeAll(() => {
   if (process.env.ORCA_BACKGROUND_LAUNCH !== '1' || process.env.ORCA_E2E_FORCE_HEADFUL === '1') {
-    throw new Error(
-      'Native OMP smoke requires ORCA_BACKGROUND_LAUNCH=1 and the hidden renderer fixture'
-    )
+    throw new Error('Native OMP E2E requires ORCA_BACKGROUND_LAUNCH=1 and the hidden renderer')
   }
 })
 
-function rowWithLabel(page: Page, rows: Locator, label: string): Locator {
-  return rows.filter({ has: page.locator('span[title]').filter({ hasText: label }) })
-}
-
-function readPaneStatus(page: Page, paneKey: string) {
-  return page.evaluate((key) => {
-    const row = window.__store?.getState().agentStatusByPaneKey[key]
-    return row
-      ? {
-          state: row.state,
-          prompt: row.prompt,
-          toolName: row.toolName,
-          lastAssistantMessage: row.lastAssistantMessage,
-          updatedAt: row.updatedAt,
-          stateStartedAt: row.stateStartedAt,
-          turnStartedAt: row.turnStartedAt,
-          stateHistory: row.stateHistory,
-          subagents: row.subagents ?? []
-        }
-      : null
-  }, paneKey)
+type Root = ActivePaneHookDescriptor & {
+  runtime: OmpStatusRuntime
+  native: NativeObservation
+  label: string
+  remaining: string[]
+  asyncName: string
 }
 
 function nativeRoot(runtime: OmpStatusRuntime): NativeObservation {
@@ -54,574 +64,498 @@ function nativeRoot(runtime: OmpStatusRuntime): NativeObservation {
     .observations()
     .findLast((row) => row.kind === 'context' && row.agentKind === 'main')
   if (!root?.sessionId || !root.ownerMatches) {
-    throw new Error(
-      `The exported native registry did not prove exact root-manager ownership: ${runtime.directory}`
-    )
+    throw new Error(`No exact native root-manager ownership: ${runtime.directory}`)
   }
   return root
 }
 
-function expectReboundTurnClock(
-  status: { turnStartedAt?: number; updatedAt: number },
-  scopedHooks: NativeObservation[],
-  root: NativeObservation,
-  previousClock: number | undefined
-): void {
-  const opening = scopedHooks.findLast((row) => row.hookEvent === 'before_agent_start')
-  if (opening) {
-    expect(status.turnStartedAt).toBeGreaterThanOrEqual(root.at)
-    expect(status.turnStartedAt).toBeGreaterThan(previousClock ?? 0)
-    expect(status.turnStartedAt).toBeLessThanOrEqual(status.updatedAt)
-  } else {
-    // agent_start and authoritative snapshots are not turn-opening evidence.
-    expect(status.turnStartedAt).toBeUndefined()
-  }
-}
-
-async function capture(page: Page, testInfo: TestInfo, name: string): Promise<void> {
-  const file = testInfo.outputPath(`${name}.png`)
-  await page.locator('[data-worktree-sidebar]').first().screenshot({ path: file })
-  await testInfo.attach(name, { path: file, contentType: 'image/png' })
-}
-
-async function expandNativeChildren(row: Locator): Promise<void> {
-  const disclosure = row.locator('[data-agent-child-disclosure-button]')
-  await expect(disclosure).toBeVisible()
-  if ((await disclosure.getAttribute('aria-expanded')) === 'false') {
-    await disclosure.click()
-  }
-}
-
-async function expectNativeChildren(runtime: OmpStatusRuntime, names: string[]): Promise<void> {
-  const root = nativeRoot(runtime)
-  await expect
-    .poll(
-      () =>
-        runtime
-          .observations()
-          .filter((row) => row.kind === 'model-held' && row.at >= root.at)
-          .map((row) => row.name)
-          .sort(),
-      { timeout: 30_000 }
-    )
-    .toEqual([...names].sort())
-  await expect
-    .poll(
-      () =>
-        runtime
-          .observations()
-          .findLast((row) => row.kind === 'registry' && row.sessionId === root.sessionId)
-          ?.refs?.filter((ref) => ref.kind === 'sub' && ref.status === 'running').length
-    )
-    .toBe(names.length)
-  const contexts = runtime
+function nativeChildren(root: Root): NativeRef[] {
+  const snapshot = root.runtime
     .observations()
-    .filter((row) => row.kind === 'context' && row.agentKind === 'sub' && row.at >= root.at)
-  expect(contexts).toHaveLength(names.length)
-  expect(contexts.every((row) => row.ownerMatches && row.sessionId !== root.sessionId)).toBe(true)
-  const childSessions = new Set(contexts.map((row) => row.sessionId))
-  expect(childSessions.size).toBe(names.length)
-  const refs =
-    runtime
-      .observations()
-      .findLast((row) => row.kind === 'registry' && row.sessionId === root.sessionId)?.refs ?? []
-  expect(refs.filter((ref) => ref.rootManager).map((ref) => ref.id)).toEqual([root.id])
-  for (const name of names) {
-    expect(
-      refs.some(
-        (ref) =>
-          ref.kind === 'sub' &&
-          ref.status === 'running' &&
-          ref.parentId === root.id &&
-          ref.id.includes(name) &&
-          childSessions.has(ref.sessionId)
-      )
-    ).toBe(true)
-  }
-}
-
-async function expectWorkingChildren(page: Page, rows: Locator, names: string[]): Promise<void> {
-  for (const name of names) {
-    const child = rowWithLabel(page, rows, name)
-    await expect(child).toBeVisible()
-    await expect(child.locator('[aria-label="Working"]').first()).toBeVisible()
-  }
-}
-
-async function expectNativeHookScope(
-  runtime: OmpStatusRuntime,
-  since = nativeRoot(runtime).at
-): Promise<void> {
-  const root = nativeRoot(runtime)
-  const observations = runtime.observations().filter((row) => row.at >= since)
-  const hooks = observations.filter((row) => row.kind === 'hook')
-  expect(hooks.every((row) => row.accepted && row.sessionId === root.sessionId)).toBe(true)
-  expect(observations.filter((row) => row.kind === 'network-blocked')).toEqual([])
-  const nativeIds = new Set(
-    observations
-      .filter((row) => row.kind === 'lifecycle' && row.status === 'started')
-      .map((row) => row.id)
+    .findLast((row) => row.kind === 'registry' && row.sessionId === root.native.sessionId)
+  return (snapshot?.refs ?? []).filter(
+    (ref) =>
+      ref.kind === 'sub' &&
+      ref.parentId === root.native.id &&
+      ((ref.status === 'running' && ref.isStreaming === true) || ref.pendingAsync === true)
   )
-  expect(
-    hooks.every((row) =>
-      (row.subagents ?? []).every(
-        (child) => nativeIds.has(child.id) && !JSON.stringify(child).includes('MODEL_ONLY_')
+}
+
+type PaneStatus = AgentStatusEntry & {
+  subagents: NonNullable<AgentStatusEntry['subagents']>
+}
+
+function readStatuses(page: Page, roots: Root[]): Promise<Record<string, PaneStatus | null>> {
+  return page.evaluate(
+    (keys) => {
+      const state = window.__store!.getState()
+      return Object.fromEntries(
+        keys.map((key) => {
+          const row = state.agentStatusByPaneKey[key]
+          return [key, row ? { ...row, subagents: row.subagents ?? [] } : null]
+        })
       )
-    )
-  ).toBe(true)
-  await expect
-    .poll(() =>
-      runtime
-        .observations()
-        .some(
-          (row) =>
-            row.kind === 'hook' &&
-            row.accepted &&
-            row.at >= since &&
-            row.sessionId === root.sessionId &&
-            row.hookEvent === 'agent_end' &&
-            (row.subagents?.length ?? 0) === 0
+    },
+    roots.map((root) => root.paneKey)
+  )
+}
+
+function expectStable(actual: PaneStatus | null | undefined, before: PaneStatus) {
+  expect(STABLE_FIELDS.map((field) => actual?.[field])).toEqual(
+    STABLE_FIELDS.map((field) => before[field])
+  )
+}
+
+async function expectRosters(page: Page, roots: Root[]) {
+  let statuses: Record<string, PaneStatus | null> = {}
+  await expect(async () => {
+    statuses = await readStatuses(page, roots)
+    for (const root of roots) {
+      const row = statuses[root.paneKey]
+      const refs = nativeChildren(root)
+      expect(row).toMatchObject({
+        state: 'working',
+        prompt: root.label,
+        toolName: 'wait',
+        providerSession: { id: root.native.sessionId, transcriptPath: root.native.sessionFile }
+      })
+      expect(refs).toHaveLength(root.remaining.length)
+      expect(root.remaining.every((name) => refs.some((ref) => ref.id.includes(name)))).toBe(true)
+      expect(row!.subagents.map((child) => child.id).sort()).toEqual(
+        refs.map((ref) => ref.id).sort()
+      )
+      expect(new Set(refs.map((ref) => ref.sessionId)).size).toBe(refs.length)
+      expect(refs.every((ref) => ref.sessionId && ref.sessionId !== root.native.sessionId)).toBe(
+        true
+      )
+      for (const child of row!.subagents) {
+        expect(child).toMatchObject({
+          state: 'working',
+          startedAt: refs.find((ref) => ref.id === child.id)?.createdAt
+        })
+      }
+      const paused = refs.find((ref) => ref.id.includes(root.asyncName))
+      expect(paused).toMatchObject({
+        status: 'idle',
+        isStreaming: false,
+        pendingAsync: true,
+        terminalAt: expect.any(Number)
+      })
+      const facts = root.runtime.observations().filter((entry) => entry.at >= root.native.at)
+      const contexts = facts.filter(
+        (entry) => entry.kind === 'context' && entry.agentKind === 'sub'
+      )
+      expect(
+        refs.every((ref) =>
+          contexts.some(
+            (context) =>
+              context.ownerMatches && context.id === ref.id && context.sessionId === ref.sessionId
+          )
         )
+      ).toBe(true)
+      expect(facts).toContainEqual(
+        expect.objectContaining({
+          kind: 'extension',
+          sessionId: paused!.sessionId,
+          name: 'agent_end',
+          willContinue: true
+        })
+      )
+      expect(facts).toContainEqual(
+        expect.objectContaining({
+          kind: 'extension',
+          sessionId: paused!.sessionId,
+          toolName: 'bash',
+          asyncJobId: expect.anything(),
+          asyncState: 'running'
+        })
+      )
+      expect(facts.filter((entry) => entry.kind === 'network-blocked')).toEqual([])
+      expect(
+        facts
+          .filter((entry) => entry.kind === 'hook')
+          .every(
+            (entry) =>
+              entry.accepted &&
+              entry.sessionId === root.native.sessionId &&
+              (!entry.sessionFile || entry.sessionFile === root.native.sessionFile)
+          )
+      ).toBe(true)
+    }
+  }).toPass({ timeout: 90_000 })
+  return statuses
+}
+
+async function expectUnprompted(page: Page, roots: Root[]) {
+  await page.waitForTimeout(6_500)
+  const statuses = await readStatuses(page, roots)
+  for (const root of roots) {
+    const row = statuses[root.paneKey]
+    expect(row?.state).not.toBe('working')
+    expect(row?.subagents ?? []).toEqual([])
+    if (!row || row.providerSession?.id === root.native.sessionId) {
+      expect(row?.turnStartedAt).toBeUndefined()
+    }
+    const facts = root.runtime.observations().filter((entry) => entry.at >= root.native.at)
+    expect(facts.filter((entry) => entry.kind === 'model-request')).toEqual([])
+    expect(facts.filter((entry) => entry.kind === 'hook' && entry.rootState === 'working')).toEqual(
+      []
+    )
+  }
+}
+
+async function finishRoots(page: Page, roots: Root[], names: string[]) {
+  const finishing = roots.map((root) => ({ root, refs: nativeChildren(root) }))
+  await Promise.all(
+    roots.map(async (root) => {
+      await root.runtime.release('root-finish')
+      await Promise.all(names.map((name) => root.runtime.release(name)))
+    })
+  )
+  await expect
+    .poll(
+      async () => {
+        const statuses = await readStatuses(page, roots)
+        return finishing.every(({ root, refs }) => {
+          const facts = root.runtime.observations().filter((row) => row.at >= root.native.at)
+          return (
+            statuses[root.paneKey]?.state === 'done' &&
+            statuses[root.paneKey]?.subagents.length === 0 &&
+            nativeChildren(root).length === 0 &&
+            refs.every((ref) =>
+              facts.some(
+                (row) => row.kind === 'lifecycle' && row.id === ref.id && row.status === 'completed'
+              )
+            ) &&
+            facts.some(
+              (row) => row.kind === 'async-model-resumed' && row.name === root.asyncName
+            ) &&
+            facts.some(
+              (row) =>
+                row.kind === 'hook' &&
+                row.accepted &&
+                row.sessionId === root.native.sessionId &&
+                row.hookEvent === 'agent_end' &&
+                row.subagentIds?.length === 0
+            )
+          )
+        })
+      },
+      { timeout: 30_000 }
     )
     .toBe(true)
 }
 
-test('installed OMP keeps named native children fresh through quiet wait, cancellation and completion', async ({
-  orcaPage,
-  electronApp
-}, testInfo) => {
-  test.setTimeout(180_000)
-  await waitForSessionReady(orcaPage)
-  const worktreeId = await waitForActiveWorktree(orcaPage)
-  await ensureTerminalVisible(orcaPage)
-  await waitForActiveTerminalManager(orcaPage, 30_000)
-  const primaryPane = await waitForActivePaneHookDescriptor(orcaPage)
-  await orcaPage.evaluate((worktreeId) => {
-    const state = window.__store!.getState()
-    state.setAgentActivityDisplayMode('full')
-    if (!state.worktreeCardProperties.includes('inline-agents')) {
-      state.setWorktreeCardProperties([...state.worktreeCardProperties, 'inline-agents'])
-    }
-    const tab = state.createTab(worktreeId)
-    state.setActiveTab(tab.id)
-    state.setActiveTabType('terminal', worktreeId)
-  }, worktreeId)
-  await waitForActiveTerminalManager(orcaPage, 30_000)
-  const isolatedPane = await waitForActivePaneHookDescriptor(orcaPage)
-  expect(isolatedPane.paneKey).not.toBe(primaryPane.paneKey)
-  expect(
-    await electronApp.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows().every((window) => !window.isVisible())
-    )
-  ).toBe(true)
-  const endpoint = await readHookEndpoint(electronApp)
-  const names = ['IndexAudit', 'ArtifactCheck', 'QuietWorker']
-  const primaryLabel = 'Native OMP primary root'
-  const isolatedLabel = 'Native OMP isolated root'
-  const runtimes: OmpStatusRuntime[] = []
-  try {
-    const primary = await startOmpStatusRuntime({
-      directory: testInfo.outputPath('primary-native'),
-      fixtureSource: deterministicProviderSource,
-      rootLabel: primaryLabel,
-      names,
-      endpoint,
-      ...primaryPane
-    })
-    runtimes.push(primary)
-    const isolated = await startOmpStatusRuntime({
-      directory: testInfo.outputPath('isolated-native'),
-      fixtureSource: deterministicProviderSource,
-      rootLabel: isolatedLabel,
-      names: ['IsolatedChild'],
-      endpoint,
-      ...isolatedPane
-    })
-    runtimes.push(isolated)
-    await primary.command('prompt', { message: primaryLabel })
-    await isolated.command('prompt', { message: isolatedLabel })
-    await expectNativeChildren(primary, names)
-    await expectNativeChildren(isolated, ['IsolatedChild'])
-    expect(nativeRoot(primary).sessionId).not.toBe(nativeRoot(isolated).sessionId)
-    await expect
-      .poll(async () => (await readPaneStatus(orcaPage, primaryPane.paneKey))?.toolName)
-      .toBe('wait')
-    await expect
-      .poll(async () => (await readPaneStatus(orcaPage, isolatedPane.paneKey))?.toolName)
-      .toBe('wait')
+async function captureCompact(page: Page, worktreeId: string, info: TestInfo, name: string) {
+  // Crop out account/host/project details; never show or focus a BrowserWindow.
+  const file = info.outputPath(`${name}.png`)
+  await worktreeRow(page, worktreeId)
+    .locator('[data-compact-agent-list]')
+    .screenshot({ path: file, animations: 'disabled' })
+  await info.attach(name, { path: file, contentType: 'image/png' })
+}
 
-    const rows = worktreeRow(orcaPage, worktreeId).locator(
-      '[aria-label="Agents"] .agent-disclosure-row'
-    )
-    const primaryRow = rowWithLabel(orcaPage, rows, primaryLabel)
-    const isolatedRow = rowWithLabel(orcaPage, rows, isolatedLabel)
-    await expect(primaryRow).toHaveCount(1)
-    await expect(isolatedRow).toHaveCount(1)
-    await expandNativeChildren(primaryRow)
-    await expandNativeChildren(isolatedRow)
-    await expectWorkingChildren(orcaPage, rows, [...names, 'IsolatedChild'])
-    await expect(primaryRow).toContainText(/wait/i)
-    await capture(orcaPage, testInfo, 'native-named-children')
-
-    const before = await readPaneStatus(orcaPage, primaryPane.paneKey)
-    const isolatedBefore = await readPaneStatus(orcaPage, isolatedPane.paneKey)
-    if (!before || !isolatedBefore) {
-      throw new Error('Native root hook rows were not ingested')
-    }
-    expect(before.turnStartedAt).toBeGreaterThan(0)
-    const quietSince = Date.now()
-    await expect
-      .poll(
-        () =>
-          primary
-            .observations()
-            .some(
-              (row) =>
-                row.kind === 'hook' &&
-                row.accepted &&
-                row.hookEvent === 'subagents_update' &&
-                row.at >= quietSince + 5_000 &&
-                row.subagents?.length === 3
-            ),
-        { timeout: 20_000, message: 'No authoritative roster refresh during native wait silence' }
-      )
-      .toBe(true)
-    const afterQuiet = await readPaneStatus(orcaPage, primaryPane.paneKey)
-    expect(afterQuiet?.updatedAt).toBeGreaterThan(before.updatedAt)
-    expect(afterQuiet).toMatchObject({
-      state: before.state,
-      prompt: before.prompt,
-      toolName: 'wait',
-      stateStartedAt: before.stateStartedAt,
-      turnStartedAt: before.turnStartedAt,
-      stateHistory: before.stateHistory,
-      lastAssistantMessage: before.lastAssistantMessage
-    })
-    expect(
-      primary
-        .observations()
-        .filter(
-          (row) =>
-            row.kind === 'extension' &&
-            row.agentKind === 'main' &&
-            row.at >= quietSince &&
-            ['before_agent_start', 'agent_start', 'tool_execution_end', 'agent_end'].includes(
-              row.name ?? ''
-            )
-        )
-    ).toEqual([])
-    await expectWorkingChildren(orcaPage, rows, names)
-    await capture(orcaPage, testInfo, 'native-quiet-wait-refreshed')
-
-    const cancelledId = primary
-      .observations()
-      .find(
-        (row) =>
-          row.kind === 'lifecycle' && row.status === 'started' && row.id?.includes('ArtifactCheck')
-      )?.id
-    if (!cancelledId) {
-      throw new Error('Native scheduler did not name the cancellation target')
-    }
-    expect(
-      (await primary.command('cancel_subagent', { subagentId: cancelledId })).data?.cancelled
-    ).toBe(true)
-    await expect
-      .poll(() =>
-        primary
-          .observations()
-          .some(
-            (row) => row.kind === 'lifecycle' && row.id === cancelledId && row.status === 'aborted'
-          )
-      )
-      .toBe(true)
-    await expect(rowWithLabel(orcaPage, rows, 'ArtifactCheck')).toHaveCount(0)
-    await primary.release('IndexAudit')
-    await expect
-      .poll(() =>
-        primary
-          .observations()
-          .some(
-            (row) =>
-              row.kind === 'lifecycle' &&
-              row.id?.includes('IndexAudit') &&
-              row.status === 'completed'
-          )
-      )
-      .toBe(true)
-    await expect(rowWithLabel(orcaPage, rows, 'IndexAudit')).toHaveCount(0)
-    await expect(
-      rowWithLabel(orcaPage, rows, 'QuietWorker').locator('[aria-label="Working"]').first()
-    ).toBeVisible()
-    await expect(
-      rowWithLabel(orcaPage, rows, 'IsolatedChild').locator('[aria-label="Working"]').first()
-    ).toBeVisible()
-    await capture(orcaPage, testInfo, 'native-after-cancellation-and-completion')
-
-    await primary.release('root-finish')
-    await primary.release('QuietWorker')
-    for (const name of names) {
-      await expect(rowWithLabel(orcaPage, rows, name)).toHaveCount(0)
-    }
-    await expect(primaryRow.locator('[aria-label="Done"]').first()).toBeVisible()
-    await expect(
-      rowWithLabel(orcaPage, rows, 'IsolatedChild').locator('[aria-label="Working"]').first()
-    ).toBeVisible()
-    const isolatedAfter = await readPaneStatus(orcaPage, isolatedPane.paneKey)
-    expect(isolatedAfter).toMatchObject({
-      prompt: isolatedBefore.prompt,
-      toolName: 'wait',
-      stateStartedAt: isolatedBefore.stateStartedAt,
-      turnStartedAt: isolatedBefore.turnStartedAt
-    })
-    await capture(orcaPage, testInfo, 'native-primary-cleared-isolated-root-still-working')
-
-    await isolated.release('root-finish')
-    await isolated.release('IsolatedChild')
-    await expect(rowWithLabel(orcaPage, rows, 'IsolatedChild')).toHaveCount(0)
-    await expect(isolatedRow.locator('[aria-label="Done"]').first()).toBeVisible()
-    await expect(rows.locator('[aria-label="Working"]')).toHaveCount(0)
-    for (const runtime of runtimes) {
-      await expectNativeHookScope(runtime)
-    }
-    expect(
-      primary.observations().filter((row) => row.kind === 'lifecycle' && row.status === 'completed')
-    ).toHaveLength(2)
-    expect(
-      primary.observations().filter((row) => row.kind === 'lifecycle' && row.status === 'aborted')
-    ).toHaveLength(1)
-    await capture(orcaPage, testInfo, 'native-original-child-rows-cleared')
-
-    const initialPrimaryRoot = nativeRoot(primary)
-    await expect.poll(async () => (await primary.command('get_state')).data?.isSettled).toBe(true)
-    const initialState = (await primary.command('get_state')).data
-    await primary.resetGates()
-    expect((await primary.command('new_session')).data?.cancelled).toBe(false)
-    const lazyNewState = (await primary.command('get_state')).data
-    const reboundRoot = nativeRoot(primary)
-    expect(reboundRoot).toMatchObject({
-      name: 'session_switch',
-      ownerMatches: true,
-      managerId: initialPrimaryRoot.managerId,
-      sessionId: lazyNewState?.sessionId
-    })
-    expect(reboundRoot.sessionId).not.toBe(initialPrimaryRoot.sessionId)
-    expect(reboundRoot.managerId).toBeGreaterThan(0)
-
-    const reboundLabel = 'Native OMP rebound root'
-    const reboundPromptAt = Date.now()
-    await primary.command('prompt', { message: reboundLabel })
-    await expect
-      .poll(() =>
-        primary
-          .observations()
-          .some((row) => row.kind === 'root-model-held' && row.at >= reboundRoot.at)
-      )
-      .toBe(true)
-    const reboundState = (await primary.command('get_state')).data
-    if (!reboundState?.sessionFile) {
-      throw new Error('New native prompt did not establish a session file')
-    }
-    expect(reboundState.sessionId).toBe(reboundRoot.sessionId)
-    expect(reboundState.sessionFile).not.toBe(initialState?.sessionFile)
-    let reboundSnapshot: NativeObservation | undefined
-    await expect
-      .poll(
-        () => {
-          reboundSnapshot = primary
-            .observations()
-            .find(
-              (row) =>
-                row.kind === 'hook' &&
-                row.accepted &&
-                row.at >= reboundPromptAt &&
-                row.sessionId === reboundRoot.sessionId &&
-                row.sessionFile === reboundState.sessionFile &&
-                row.hookEvent === 'subagents_update' &&
-                row.rootState === 'working' &&
-                row.rootPrompt === reboundLabel
-            )
-          return reboundSnapshot
-        },
-        {
-          timeout: 20_000,
-          message: 'No authoritative native snapshot after the same-manager session switch'
-        }
-      )
-      .toBeDefined()
-    if (!reboundSnapshot) {
-      throw new Error('Missing accepted rebound snapshot')
-    }
-    const preflightSnapshots = primary
-      .observations()
-      .filter(
-        (row) =>
-          row.kind === 'hook' &&
-          row.accepted &&
-          row.at >= reboundPromptAt &&
-          row.sessionId === reboundRoot.sessionId &&
-          row.hookEvent === 'subagents_update' &&
-          row.rootState === 'working'
-      )
-    expect(
-      preflightSnapshots.every(
-        (row) => !row.rootToolName && !row.rootText && (row.subagents?.length ?? 0) === 0
-      )
-    ).toBe(true)
-    const reboundRow = rowWithLabel(orcaPage, rows, reboundLabel)
-    await expect(reboundRow.locator('[aria-label="Working"]').first()).toBeVisible()
-    await expect(reboundRow).not.toContainText(/wait/i)
-    await expect(primaryRow).toHaveCount(0)
-    for (const name of [...names, 'IsolatedChild']) {
-      await expect(rowWithLabel(orcaPage, rows, name)).toHaveCount(0)
-    }
-    const reboundPreflight = await readPaneStatus(orcaPage, primaryPane.paneKey)
-    const preflightHooks = primary
-      .observations()
-      .filter(
-        (row) =>
-          row.kind === 'hook' &&
-          row.accepted &&
-          row.at >= reboundRoot.at &&
-          row.sessionId === reboundRoot.sessionId &&
-          row.sessionFile === reboundState.sessionFile
-      )
-    await writeFile(
-      testInfo.outputPath('native-rebound-preflight.json'),
-      JSON.stringify(
-        {
-          reboundRoot,
-          reboundSnapshot,
-          scopedHooks: preflightHooks,
-          status: reboundPreflight
-        },
-        null,
-        2
-      )
-    )
-    if (!reboundPreflight) {
-      throw new Error('Missing fresh renderer root after authoritative session replacement')
-    }
-    expect(reboundPreflight).toMatchObject({
-      state: 'working',
-      prompt: reboundLabel,
-      toolName: undefined,
-      lastAssistantMessage: undefined,
-      subagents: []
-    })
-    expect(reboundPreflight.stateStartedAt).toBeGreaterThanOrEqual(reboundRoot.at)
-    expect(reboundPreflight.stateStartedAt).toBeGreaterThan(before.stateStartedAt)
-    expectReboundTurnClock(reboundPreflight, preflightHooks, reboundRoot, before.turnStartedAt)
-    await capture(orcaPage, testInfo, 'native-rebound-root-without-stale-children-or-tool')
-
-    await primary.release('root-start')
-    await expectNativeChildren(primary, names)
-    await expect
-      .poll(async () => (await readPaneStatus(orcaPage, primaryPane.paneKey))?.toolName)
-      .toBe('wait')
-    await expandNativeChildren(reboundRow)
-    await expectWorkingChildren(orcaPage, rows, names)
-    const reboundStatus = await readPaneStatus(orcaPage, primaryPane.paneKey)
-    const reboundNativeIds = primary
-      .observations()
-      .filter(
-        (row) => row.kind === 'lifecycle' && row.at >= reboundRoot.at && row.status === 'started'
-      )
-      .map((row) => row.id)
-      .sort()
-    expect(reboundStatus?.subagents.map((child) => child.id).sort()).toEqual(reboundNativeIds)
-    const reboundHooks = primary
-      .observations()
-      .filter(
-        (row) =>
-          row.kind === 'hook' &&
-          row.accepted &&
-          row.at >= reboundRoot.at &&
-          row.sessionId === reboundRoot.sessionId &&
-          row.sessionFile === reboundState.sessionFile
-      )
-    const reboundRefs =
-      primary
-        .observations()
-        .findLast((row) => row.kind === 'registry' && row.sessionId === reboundRoot.sessionId)
-        ?.refs ?? []
-    await writeFile(
-      testInfo.outputPath('native-rebound-clock-evidence.json'),
-      JSON.stringify(
-        {
-          initialClock: before.turnStartedAt,
-          reboundRoot,
-          reboundSnapshot,
-          reboundPreflight,
-          scopedHooks: reboundHooks,
-          nativeRefs: reboundRefs,
-          status: reboundStatus
-        },
-        null,
-        2
-      )
-    )
-    if (!reboundStatus) {
-      throw new Error('Missing renderer root while rebound native children run')
-    }
-    expect(reboundStatus).toMatchObject({
-      state: 'working',
-      prompt: reboundLabel,
-      toolName: 'wait',
-      lastAssistantMessage: undefined,
-      stateStartedAt: reboundPreflight.stateStartedAt
-    })
-    for (const child of reboundStatus.subagents) {
-      const native = reboundRefs.find((ref) => ref.id === child.id)
-      expect(child.startedAt).toBe(native?.createdAt)
-      expect(child.startedAt).toBeGreaterThanOrEqual(reboundRoot.at)
-      expect(child.startedAt).toBeGreaterThan(
-        Math.max(...before.subagents.map((previous) => previous.startedAt))
-      )
-    }
-    expectReboundTurnClock(reboundStatus, reboundHooks, reboundRoot, before.turnStartedAt)
-    await capture(orcaPage, testInfo, 'native-rebound-named-children')
-
-    await primary.release('root-finish')
-    await Promise.all(names.map((name) => primary.release(name)))
-    for (const name of names) {
-      await expect(rowWithLabel(orcaPage, rows, name)).toHaveCount(0)
-    }
-    await expect(reboundRow.locator('[aria-label="Done"]').first()).toBeVisible()
-    await expect(rows.locator('[aria-label="Working"]')).toHaveCount(0)
-    await expectNativeHookScope(primary, reboundSnapshot.at)
-    expect(
-      primary
-        .observations()
-        .filter(
-          (row) =>
-            row.kind === 'lifecycle' && row.at >= reboundRoot.at && row.status === 'completed'
-        )
-    ).toHaveLength(names.length)
-    await writeFile(
-      testInfo.outputPath('native-summary.json'),
-      JSON.stringify(
-        {
-          primaryRoot: initialPrimaryRoot,
-          isolatedRoot: nativeRoot(isolated),
-          reboundRoot,
-          before,
-          afterQuiet,
-          isolatedBefore,
-          isolatedAfter,
-          initialState,
-          lazyNewState,
-          reboundState,
-          reboundSnapshot,
-          reboundStatus,
-          reboundPreflight,
-          evidence: runtimes.map((runtime) => runtime.directory)
-        },
-        null,
-        2
-      )
-    )
-    await capture(orcaPage, testInfo, 'native-final-child-rows-cleared')
-  } finally {
-    await Promise.all(runtimes.map((runtime) => runtime.stop()))
+async function expectCompact(page: Page, roots: Root[], info: TestInfo) {
+  const root = roots[0]!
+  const surface = worktreeRow(page, root.worktreeId).locator('[data-compact-agent-list]')
+  const summary = surface.locator('button.compact-agent-summary-button')
+  await expect(summary).toBeVisible()
+  await expect(summary).toHaveAttribute('aria-expanded', 'false')
+  await captureCompact(page, root.worktreeId, info, 'native-compact-collapsed')
+  await summary.click()
+  await expect(summary).toHaveAttribute('aria-expanded', 'true')
+  const rootRow = surface.locator('.agent-disclosure-row').filter({
+    has: page.locator('span[title]').filter({ hasText: root.label })
+  })
+  await expect(rootRow).toBeVisible()
+  const disclosure = rootRow.locator('[data-agent-child-disclosure-button]')
+  const expansion = rootRow.locator('xpath=following-sibling::*[1]')
+  const childRows = expansion.locator('.agent-disclosure-row')
+  await expect(childRows).toHaveCount(root.remaining.length)
+  await disclosure.click()
+  await expect(disclosure).toHaveAttribute('aria-expanded', 'false')
+  await expect(expansion).toHaveAttribute('aria-hidden', 'true')
+  await expect(expansion).toHaveJSProperty('inert', true)
+  // CompactAgentExpansion intentionally retains its descendants while collapsed.
+  await expect(childRows).toHaveCount(root.remaining.length)
+  await disclosure.click()
+  await expect(disclosure).toHaveAttribute('aria-expanded', 'true')
+  await expect(expansion).toHaveAttribute('aria-hidden', 'false')
+  await expect(expansion).toHaveJSProperty('inert', false)
+  for (const ref of nativeChildren(root)) {
+    await expect(expansion.getByTitle(`${ref.id} - status-smoke`, { exact: true })).toBeVisible()
   }
-})
+  await captureCompact(page, root.worktreeId, info, 'native-compact-expanded')
+  await summary.click()
+  await expect(summary).toHaveAttribute('aria-expanded', 'false')
+}
+
+for (const workload of [
+  { roots: 2, children: 3, enabled: true },
+  { roots: 8, children: 6, enabled: process.env.ORCA_OMP_SCALE === '1' },
+  { roots: 16, children: 8, enabled: process.env.ORCA_OMP_SCALE_STRESS === '1' }
+]) {
+  test(`${workload.roots} roots × ${workload.children} native children keep compact status through quiet refresh and session replacement`, async ({
+    orcaPage,
+    electronApp
+  }, testInfo) => {
+    test.skip(!workload.enabled, 'Opt-in larger native workload')
+    test.setTimeout(600_000)
+    const owned: OmpStatusRuntime[] = []
+    try {
+      await waitForSessionReady(orcaPage)
+      const worktreeId = await waitForActiveWorktree(orcaPage)
+      await ensureTerminalVisible(orcaPage)
+      await orcaPage.evaluate(() => {
+        const state = window.__store!.getState()
+        if (!state.worktreeCardProperties.includes('inline-agents')) {
+          state.setWorktreeCardProperties([...state.worktreeCardProperties, 'inline-agents'])
+        }
+      })
+      const panes: ActivePaneHookDescriptor[] = []
+      for (let index = 0; index < workload.roots; index++) {
+        if (index > 0) {
+          await orcaPage.evaluate((id) => {
+            const state = window.__store!.getState()
+            const tab = state.createTab(id)
+            state.setActiveTab(tab.id)
+            state.setActiveTabType('terminal', id)
+          }, worktreeId)
+        }
+        await waitForActiveTerminalManager(orcaPage, 30_000)
+        panes.push(await waitForActivePaneHookDescriptor(orcaPage))
+      }
+      expect(new Set(panes.map((pane) => pane.paneKey)).size).toBe(workload.roots)
+      expect(
+        await electronApp.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows().every((window) => !window.isVisible())
+        )
+      ).toBe(true)
+      const endpoint = await readHookEndpoint(electronApp)
+      const names = CHILD_NAMES.slice(0, workload.children) // Reuse every name in every root.
+      const starts = await Promise.allSettled(
+        panes.map(async (pane, index): Promise<Root> => {
+          const label = `Native OMP root ${String(index + 1).padStart(2, '0')}`
+          const runtime = await startOmpStatusRuntime({
+            ...pane,
+            directory: testInfo.outputPath(`native-root-${index + 1}`),
+            rootLabel: label,
+            names,
+            endpoint,
+            asyncChildNames: [names[2]!]
+          })
+          owned.push(runtime)
+          return {
+            ...pane,
+            runtime,
+            native: nativeRoot(runtime),
+            label,
+            remaining: names,
+            asyncName: names[2]!
+          }
+        })
+      )
+      const failure = starts.find((result) => result.status === 'rejected')
+      if (failure?.status === 'rejected') {
+        throw failure.reason
+      }
+      const roots = starts.flatMap((result) =>
+        result.status === 'fulfilled' ? [result.value] : []
+      )
+      await testInfo.attach('installed-omp-version', {
+        body: roots[0]!.runtime.version,
+        contentType: 'text/plain'
+      })
+      await expectUnprompted(orcaPage, roots)
+      await Promise.all(
+        roots.map(async (root) => {
+          await root.runtime.command('prompt', { message: root.label })
+          const state = (await root.runtime.command('get_state')).data
+          expect(state?.sessionId).toBe(root.native.sessionId)
+          expect(state?.sessionFile).toBeTruthy()
+          root.native.sessionFile = state?.sessionFile
+        })
+      )
+      expect(new Set(roots.map((root) => root.native.sessionId)).size).toBe(roots.length)
+      expect(new Set(roots.map((root) => root.native.sessionFile)).size).toBe(roots.length)
+      const initial = await expectRosters(orcaPage, roots)
+      await expectCompact(orcaPage, roots, testInfo)
+      const beforeQuiet = await readStatuses(orcaPage, roots)
+      const quietSince = Date.now()
+      await orcaPage.waitForTimeout(QUIET_MS)
+      const afterQuiet = await expectRosters(orcaPage, roots)
+      for (const root of roots) {
+        expectStable(afterQuiet[root.paneKey], beforeQuiet[root.paneKey]!)
+        expect(afterQuiet[root.paneKey]!.updatedAt).toBeGreaterThan(
+          beforeQuiet[root.paneKey]!.updatedAt
+        )
+        const facts = root.runtime.observations().filter((row) => row.at >= quietSince)
+        expect(
+          facts.filter((row) => row.kind === 'model-request' || row.kind === 'extension')
+        ).toEqual([])
+        const refreshes = facts.filter(
+          (row) => row.kind === 'hook' && row.accepted && row.hookEvent === 'subagents_update'
+        )
+        expect(refreshes.length).toBeGreaterThanOrEqual(2)
+        for (const refresh of refreshes) {
+          expect(refresh.subagentIds?.sort()).toEqual(
+            nativeChildren(root)
+              .map((ref) => ref.id)
+              .sort()
+          )
+        }
+      }
+      const changed = roots.filter((_, index) => index % 2 === 0)
+      const unchanged = roots.filter((_, index) => index % 2 === 1)
+      await Promise.all(
+        changed.map(async (root) => {
+          const refs = nativeChildren(root)
+          const cancel = refs.find((ref) => ref.id.includes(names[1]!))!
+          const complete = refs.find((ref) => ref.id.includes(names[0]!))!
+          expect(
+            (await root.runtime.command('cancel_subagent', { subagentId: cancel.id })).data
+              ?.cancelled
+          ).toBe(true)
+          await root.runtime.release(names[0]!)
+          root.remaining = names.slice(2)
+          await expect
+            .poll(() =>
+              [cancel, complete].every((ref, index) =>
+                root.runtime
+                  .observations()
+                  .some(
+                    (row) =>
+                      row.kind === 'lifecycle' &&
+                      row.id === ref.id &&
+                      row.status === (index === 0 ? 'aborted' : 'completed')
+                  )
+              )
+            )
+            .toBe(true)
+        })
+      )
+      const afterBurst = await expectRosters(orcaPage, roots)
+      for (const root of unchanged) {
+        expectStable(afterBurst[root.paneKey], beforeQuiet[root.paneKey]!)
+      }
+      const rebound = changed.filter((_, index) => index % 2 === 0)
+      const live = roots.filter((root) => !rebound.includes(root))
+      // Remember only a violation, not a stream of successful status samples.
+      await orcaPage.evaluate(
+        ({ keys, baseline, fields }) => {
+          let fault: string | undefined
+          const unsubscribe = window.__store!.subscribe((state) => {
+            for (const key of keys) {
+              const row = state.agentStatusByPaneKey[key]
+              if (
+                !row ||
+                JSON.stringify(fields.map((field) => row[field])) !==
+                  JSON.stringify(fields.map((field) => baseline[key]![field]))
+              ) {
+                fault ??= key
+              }
+            }
+          })
+          globalThis.__ompIsolationCheck = () => {
+            unsubscribe()
+            return fault
+          }
+        },
+        { keys: live.map((root) => root.paneKey), baseline: afterBurst, fields: STABLE_FIELDS }
+      )
+      await finishRoots(orcaPage, rebound, names)
+      await Promise.all(
+        rebound.map(async (root) => {
+          await expect
+            .poll(async () => (await root.runtime.command('get_state')).data?.isSettled)
+            .toBe(true)
+          const old = root.native
+          await root.runtime.resetGates()
+          expect((await root.runtime.command('new_session')).data?.cancelled).toBe(false)
+          root.native = nativeRoot(root.runtime)
+          expect(root.native).toMatchObject({ name: 'session_switch', managerId: old.managerId })
+          expect(root.native.sessionId).not.toBe(old.sessionId)
+          root.label = root.label.replace('root', 'rebound root')
+          root.remaining = names
+        })
+      )
+      await expectUnprompted(orcaPage, rebound)
+      await Promise.all(
+        rebound.map(async (root) => {
+          await root.runtime.command('prompt', { message: root.label })
+          await expect
+            .poll(() =>
+              root.runtime
+                .observations()
+                .some((row) => row.kind === 'root-model-held' && row.at >= root.native.at)
+            )
+            .toBe(true)
+          const state = (await root.runtime.command('get_state')).data
+          expect(state?.sessionFile).toBeTruthy()
+          expect(state?.sessionFile).not.toBe(
+            initial[root.paneKey]!.providerSession?.transcriptPath
+          )
+          root.native.sessionFile = state?.sessionFile
+        })
+      )
+      await expect
+        .poll(
+          async () => {
+            const statuses = await readStatuses(orcaPage, rebound)
+            return rebound.every((root) => {
+              const row = statuses[root.paneKey]
+              return (
+                row?.state === 'working' &&
+                row.prompt === root.label &&
+                !row.toolName &&
+                !row.lastAssistantMessage &&
+                row.subagents.length === 0 &&
+                row.providerSession?.id === root.native.sessionId
+              )
+            })
+          },
+          { timeout: 15_000 }
+        )
+        .toBe(true)
+      const preflight = await readStatuses(orcaPage, rebound)
+      for (const root of rebound) {
+        const row = preflight[root.paneKey]!
+        expect(row.stateStartedAt).toBeGreaterThanOrEqual(root.native.at)
+        expect(row.stateStartedAt).toBeGreaterThan(initial[root.paneKey]!.stateStartedAt)
+        if (row.turnStartedAt !== undefined) {
+          expect(row.turnStartedAt).toBeGreaterThanOrEqual(root.native.at)
+          expect(row.turnStartedAt).toBeGreaterThan(initial[root.paneKey]!.turnStartedAt ?? 0)
+        }
+      }
+      await Promise.all(rebound.map((root) => root.runtime.release('root-start')))
+      const afterRebind = await expectRosters(orcaPage, roots)
+      expect(new Set(roots.map((root) => root.native.sessionFile)).size).toBe(roots.length)
+      for (const root of rebound) {
+        expect(
+          afterRebind[root.paneKey]!.subagents.every(
+            (child) =>
+              child.startedAt >
+              Math.max(...initial[root.paneKey]!.subagents.map((previous) => previous.startedAt))
+          )
+        ).toBe(true)
+      }
+      for (const root of live) {
+        expectStable(afterRebind[root.paneKey], afterBurst[root.paneKey]!)
+      }
+      expect(await orcaPage.evaluate(() => globalThis.__ompIsolationCheck?.())).toBeUndefined()
+      await finishRoots(orcaPage, roots, names)
+      const compact = worktreeRow(orcaPage, worktreeId).locator('[data-compact-agent-list]')
+      await expect(compact.locator('[data-agent-child-disclosure-button]')).toHaveCount(0)
+      await expect(compact.locator('[aria-label="Working"]')).toHaveCount(0)
+      expect(
+        await electronApp.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows().every((window) => !window.isVisible())
+        )
+      ).toBe(true)
+    } finally {
+      await orcaPage.evaluate(() => globalThis.__ompIsolationCheck?.()).catch(() => {})
+      // Wait for every start above, and release native bash children even after failed assertions.
+      await Promise.allSettled(owned.map((runtime) => runtime.stop()))
+    }
+  })
+}

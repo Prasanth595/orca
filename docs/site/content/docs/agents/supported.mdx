@@ -96,9 +96,11 @@ not require a git worktree, so the same observation works in folder workspaces.
 The shared roster displays up to 32 children. Root completion accounts for all discovered native
 children, including those beyond that display limit.
 
-Local native E2E checks cover eight sessions with six simultaneous children each, and sixteen
-sessions with eight each, using OMP 18.10.3. These checks exercise quiet work, background tool jobs,
-cancellation, completion and session replacement without disturbing other running roots.
+The optional installed-OMP E2E uses one scenario: two sessions with three children by default,
+eight with six when `ORCA_OMP_SCALE=1`, or sixteen with eight when `ORCA_OMP_SCALE_STRESS=1`.
+It exercises compact UI, quiet and background work, cancellation, completion and session replacement.
+Run `ORCA_BACKGROUND_LAUNCH=1 ORCA_REAL_OMP_CLI_TEST=1 pnpm run test:e2e omp-subagent-status.spec.ts --workers=1`.
+These workloads were verified with OMP 18.10.3; the suite is a functional check, not a benchmark harness.
 
 ## ZCode: pick a CLI that ships the TUI
 

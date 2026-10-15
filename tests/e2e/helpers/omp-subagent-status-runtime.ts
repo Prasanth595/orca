@@ -7,8 +7,8 @@ import { getPiAgentStatusExtensionSource } from '../../../src/main/pi/agent-stat
 import type { AgentHookEndpoint } from '../../../src/shared/agent-hook-endpoint-file'
 import { spawnProcess, runProcess } from '../../../src/shared/child-process/run-process'
 import { resolveExecutableCommand } from '../../../src/shared/node-cli-command-resolution'
+import { deterministicProviderSource } from './omp-deterministic-provider'
 import type { NativeObservation } from './omp-native-observation'
-import { writeOmpDeterministicRuntimeConfig } from './omp-deterministic-runtime-config'
 
 type RpcFrame = {
   type: string
@@ -19,6 +19,7 @@ type RpcFrame = {
 
 export type OmpStatusRuntime = {
   directory: string
+  version: string
   observations: () => NativeObservation[]
   command: (type: string, fields?: Record<string, unknown>) => Promise<RpcFrame>
   release: (name: string) => Promise<void>
@@ -26,19 +27,15 @@ export type OmpStatusRuntime = {
   stop: () => Promise<void>
 }
 
-/** Runs the installed scheduler with an isolated home; only the model output is deterministic. */
+/** Real installed SDK, isolated home and local deterministic model output. */
 export async function startOmpStatusRuntime(options: {
   directory: string
-  fixtureSource: string
   rootLabel: string
   names: string[]
   endpoint: AgentHookEndpoint
   paneKey: string
   worktreeId: string
-  maxConcurrency?: number
-  observerEnabled?: boolean
-  measurements?: boolean
-  asyncChildNames?: string[]
+  asyncChildNames: string[]
 }): Promise<OmpStatusRuntime> {
   const { directory, endpoint } = options
   const home = path.join(directory, 'home')
@@ -47,31 +44,55 @@ export async function startOmpStatusRuntime(options: {
   const sessions = path.join(directory, 'sessions')
   const gates = path.join(directory, 'gates')
   const gateNames = [...options.names, 'root-start', 'root-finish']
-  const observationPath = path.join(directory, 'native-observations.jsonl')
+  const observationPath = path.join(directory, 'native-observations.json')
   const generated = path.join(directory, 'orca-agent-status.ts')
   const fixture = path.join(directory, 'deterministic-provider.ts')
-  for (const folder of [
-    agentDir,
-    sessions,
-    gates,
-    path.join(workspace, '.omp', 'agents'),
-    path.join(home, 'AppData', 'Roaming'),
-    path.join(home, 'AppData', 'Local')
-  ]) {
-    await mkdir(folder, { recursive: true })
-  }
-  await writeFile(path.join(gates, 'root-start'), '')
-  await writeFile(observationPath, '')
-  await writeFile(generated, getPiAgentStatusExtensionSource('omp'))
-  await writeFile(fixture, options.fixtureSource)
-  await writeOmpDeterministicRuntimeConfig({
-    agentDir,
-    workspace,
-    maxConcurrency: options.maxConcurrency,
-    asyncChildNames: options.asyncChildNames
-  })
-
-  // Whitelist executable lookup/system keys, never ambient providers, credentials or Orca ownership.
+  await Promise.all(
+    [agentDir, sessions, gates, path.join(workspace, '.omp', 'agents')].map((folder) =>
+      mkdir(folder, { recursive: true })
+    )
+  )
+  await Promise.all([
+    writeFile(path.join(gates, 'root-start'), ''),
+    writeFile(observationPath, '[]'),
+    writeFile(generated, getPiAgentStatusExtensionSource('omp')),
+    writeFile(fixture, deterministicProviderSource),
+    writeFile(
+      path.join(agentDir, 'config.yml'),
+      JSON.stringify({
+        async: { enabled: true },
+        task: {
+          batch: true,
+          structured: false,
+          maxConcurrency: options.names.length,
+          isolation: { enabled: false }
+        },
+        retry: { enabled: false, modelFallback: false },
+        modelRoles: {
+          default: 'orca-status-smoke/deterministic',
+          task: 'orca-status-smoke/deterministic',
+          smol: 'orca-status-smoke/label',
+          tiny: 'orca-status-smoke/label'
+        },
+        approval: { mode: 'yolo' }
+      })
+    ),
+    writeFile(
+      path.join(workspace, '.omp', 'agents', 'status-smoke.md'),
+      [
+        '---',
+        'name: status-smoke',
+        'description: Deterministic native status test',
+        'model: orca-status-smoke/deterministic',
+        'thinkingLevel: off',
+        'tools: [bash]',
+        'spawns: []',
+        '---',
+        'Return the configured deterministic response.'
+      ].join('\n')
+    )
+  ])
+  // Do not inherit provider credentials or another pane's ownership.
   const env: NodeJS.ProcessEnv = {
     ...Object.fromEntries(
       Object.entries(process.env).filter(([key]) =>
@@ -102,8 +123,7 @@ export async function startOmpStatusRuntime(options: {
     ORCA_OMP_SMOKE_OBSERVATIONS: observationPath,
     ORCA_OMP_SMOKE_ROOT_LABEL: options.rootLabel,
     ORCA_OMP_SMOKE_GATES: gates,
-    ORCA_OMP_SMOKE_MEASUREMENTS: options.measurements ? '1' : '0',
-    ORCA_OMP_SMOKE_ASYNC_NAMES: JSON.stringify(options.asyncChildNames ?? []),
+    ORCA_OMP_SMOKE_ASYNC_NAMES: JSON.stringify(options.asyncChildNames),
     ORCA_OMP_SMOKE_NAMES: JSON.stringify(options.names)
   }
   const program = resolveExecutableCommand(process.env.ORCA_OMP_PROOF_BINARY ?? 'omp', {
@@ -134,7 +154,8 @@ export async function startOmpStatusRuntime(options: {
       '--no-extensions',
       '--extension',
       fixture,
-      ...(options.observerEnabled === false ? [] : ['--extension', generated]),
+      '--extension',
+      generated,
       '--no-skills',
       '--no-rules',
       '--no-lsp',
@@ -154,68 +175,61 @@ export async function startOmpStatusRuntime(options: {
   })
   let failure: Error | undefined
   let serial = 0
+  let ready = false
   let closing = false
-  const frames: RpcFrame[] = []
-  const fail = (error: Error) => {
+  const responses = new Map<string, RpcFrame>()
+  const { promise: closed, resolve: resolveClosed } = Promise.withResolvers<void>()
+  child.on('error', (error) => {
     failure = error
-  }
-  child.on('error', fail)
+  })
   for (const stream of [child.stdin, child.stdout, child.stderr]) {
-    stream.on('error', fail)
+    stream.on('error', (error) => {
+      failure = error
+    })
   }
   child.stderr.on('data', (chunk: Buffer) =>
     appendFileSync(path.join(directory, 'stderr.txt'), chunk)
   )
-  const { promise: closed, resolve: resolveClosed } = Promise.withResolvers<void>()
   child.once('close', () => {
     if (!closing) {
-      failure ??= new Error('Installed OMP exited before smoke completion')
+      failure ??= new Error('Installed OMP exited before scenario completion')
     }
     resolveClosed()
   })
   const lines = createInterface({ input: child.stdout })
   lines.on('line', (line) => {
-    appendFileSync(path.join(directory, 'rpc.jsonl'), `${line}\n`)
     try {
       const frame: RpcFrame = JSON.parse(line)
-      if (frame.type === 'ready' || frame.type === 'response') {
-        frames.push(frame)
+      if (frame.type === 'ready') {
+        ready = true
+      }
+      if (frame.type === 'response' && frame.id) {
+        responses.set(frame.id, frame)
       }
     } catch {
-      // Installed OMP may print startup diagnostics before its RPC readiness frame.
+      // The CLI can emit startup diagnostics before RPC readiness.
     }
   })
+  const observations = (): NativeObservation[] => JSON.parse(readFileSync(observationPath, 'utf8'))
   const assertRunning = () => {
-    if (failure) {
+    if (failure || child.exitCode !== null || child.signalCode !== null) {
       throw new Error(`Installed OMP failed; see ${directory}`, { cause: failure })
-    }
-    if (child.exitCode !== null || child.signalCode !== null) {
-      throw new Error(`Installed OMP exited; see ${directory}`)
     }
   }
   const stop = async () => {
     closing = true
-    if (options.asyncChildNames?.length) {
-      // Real native bash jobs must not outlive a failed assertion or their owning OMP process.
-      await Promise.all(
-        options.asyncChildNames.map((name) => writeFile(path.join(gates, name), ''))
+    // Release real bash loops even when setup/assertions failed, before terminating their owner.
+    await Promise.allSettled(gateNames.map((name) => writeFile(path.join(gates, name), '')))
+    await expect
+      .poll(
+        () =>
+          !observations()
+            .findLast((row) => row.kind === 'registry')
+            ?.refs?.some((ref) => ref.pendingAsync),
+        { timeout: 5_000 }
       )
-      await expect
-        .poll(
-          () => {
-            const rows: NativeObservation[] = readFileSync(observationPath, 'utf8')
-              .split('\n')
-              .slice(0, -1)
-              .map((line) => JSON.parse(line))
-            return !rows
-              .findLast((row) => row.kind === 'registry')
-              ?.refs?.some((ref) => ref.pendingAsync)
-          },
-          { timeout: 5_000 }
-        )
-        .toBe(true)
-        .catch(() => undefined)
-    }
+      .toBe(true)
+      .catch(() => undefined)
     const timer = setTimeout(() => child.kill('SIGKILL'), 5_000)
     try {
       if (child.exitCode === null && child.signalCode === null) {
@@ -232,7 +246,7 @@ export async function startOmpStatusRuntime(options: {
       .poll(
         () => {
           assertRunning()
-          return frames.some((frame) => frame.type === 'ready')
+          return ready
         },
         { timeout: 30_000, message: `Installed OMP never became RPC-ready; see ${directory}` }
       )
@@ -243,35 +257,34 @@ export async function startOmpStatusRuntime(options: {
   }
   return {
     directory,
-    observations: (): NativeObservation[] => {
+    version: version.stdout.trim(),
+    observations: () => {
       assertRunning()
-      return readFileSync(observationPath, 'utf8')
-        .split('\n')
-        .slice(0, -1)
-        .map((line) => JSON.parse(line))
+      return observations()
     },
-    command: async (type: string, fields: Record<string, unknown> = {}) => {
+    command: async (type, fields = {}) => {
       assertRunning()
-      const id = `omp-status-smoke-${++serial}`
+      const id = `omp-status-${++serial}`
       child.stdin.write(`${JSON.stringify({ id, type, ...fields })}\n`)
       await expect
         .poll(
           () => {
             assertRunning()
-            return frames.find((frame) => frame.type === 'response' && frame.id === id)
+            return responses.has(id)
           },
           { timeout: 15_000, message: `No OMP RPC response for ${type}; see ${directory}` }
         )
-        .toBeDefined()
-      const response = frames.find((frame) => frame.type === 'response' && frame.id === id)
-      if (!response?.success) {
-        throw new Error(`OMP RPC ${type} failed; see ${directory}`)
+        .toBe(true)
+      const response = responses.get(id)!
+      responses.delete(id)
+      if (!response.success) {
+        throw new Error(`OMP RPC ${type} failed: ${JSON.stringify(response)}`)
       }
       return response
     },
-    release: async (name: string) => {
+    release: async (name) => {
       if (!gateNames.includes(name)) {
-        throw new Error(`Unknown native smoke gate: ${name}`)
+        throw new Error(`Unknown native test gate: ${name}`)
       }
       await writeFile(path.join(gates, name), '')
     },
