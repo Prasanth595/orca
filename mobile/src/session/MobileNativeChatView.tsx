@@ -249,7 +249,7 @@ export function MobileNativeChatView({
     endUserDrag,
     beginMomentum,
     endMomentum,
-    readerIsScrolling,
+    scrollMayLoadEarlier,
     recordScrollMetrics
   } = useMobileNativeChatTailFollow<NativeChatMessage>({ hasItems: data.length > 0 })
 
@@ -275,13 +275,13 @@ export function MobileNativeChatView({
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
       const { contentOffset } = e.nativeEvent
       recordScrollMetrics(e.nativeEvent)
-      // Near the top — page in older history. Only the reader's scroll: a pin reports offsets too.
+      // Near the top — page in older history. Only the reader's drag: a pin reports offsets too.
       // After a failure only a tap retries, so a reader still at the top can't loop the spinner.
-      if (contentOffset.y < 60 && hasMore && olderPages === 'idle' && readerIsScrolling()) {
+      if (contentOffset.y < 60 && hasMore && olderPages === 'idle' && scrollMayLoadEarlier()) {
         loadEarlier()
       }
     },
-    [hasMore, olderPages, loadEarlier, readerIsScrolling, recordScrollMetrics]
+    [hasMore, olderPages, loadEarlier, scrollMayLoadEarlier, recordScrollMetrics]
   )
 
   // Per-turn status rows: one live indicator while the turn runs, then a settled
