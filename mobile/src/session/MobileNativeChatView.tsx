@@ -298,6 +298,7 @@ export function MobileNativeChatView({
     activityText: turnIndicator?.activityText ?? null,
     stopping,
     lineYields: structuredActivityUi && (ask != null || permission != null || question != null),
+    toolsExpanded,
     scopeKey: sendSurfaceId
   })
 
