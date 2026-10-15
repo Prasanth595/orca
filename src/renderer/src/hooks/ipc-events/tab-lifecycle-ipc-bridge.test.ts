@@ -8,11 +8,11 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('../../store', () => ({ useAppStore: { getState: () => mocks.state } }))
 vi.mock('@/lib/focus-terminal-tab-surface', () => ({ focusTerminalTabSurface: vi.fn() }))
-vi.mock('@/lib/worktree-runtime-owner', () => ({
-  getRuntimeEnvironmentIdForWorktree: () => null
+vi.mock('@/lib/worktree-runtime-owner', () => ({ getRuntimeEnvironmentIdForWorktree: () => null }))
+vi.mock('@/runtime/web-runtime-terminal-creation', () => ({
+  createWebRuntimeSessionTerminal: vi.fn().mockResolvedValue({ status: 'failed', message: '' })
 }))
-vi.mock('@/runtime/web-runtime-session', () => ({
-  createWebRuntimeSessionTerminal: vi.fn().mockResolvedValue({ status: 'failed', message: '' }),
+vi.mock('@/runtime/web-runtime-session-environment', () => ({
   isWebRuntimeSessionActive: () => false
 }))
 vi.mock('@/lib/workspace-tab-commands', () => ({ dispatchWorkspaceTabCommand: vi.fn() }))
@@ -54,9 +54,13 @@ describe('registerTabLifecycleIpcBridge new terminal tab', () => {
       openFiles: [],
       browserTabsByWorktree: { [WORKTREE_ID]: [{ id: 'browser-1' }] },
       tabBarOrderByWorktree: { [WORKTREE_ID]: ['browser-1', 'term-a', 'browser-1'] },
-      createTab: () => {
-        terminals.push({ id: 'term-new' })
-        return { id: 'term-new' }
+      createTab: (
+        _worktreeId: string,
+        _groupId: undefined,
+        _shell: undefined,
+        options: { id: string }
+      ) => {
+        terminals.push({ id: options.id })
       },
       setActiveTabType: vi.fn(),
       setTabBarOrder
@@ -64,6 +68,10 @@ describe('registerTabLifecycleIpcBridge new terminal tab', () => {
     registerTabLifecycleIpcBridge([])
     mocks.listeners.onNewTerminalTab()
     await vi.waitFor(() => expect(setTabBarOrder).toHaveBeenCalled())
-    expect(setTabBarOrder).toHaveBeenCalledWith(WORKTREE_ID, ['browser-1', 'term-a', 'term-new'])
+    expect(setTabBarOrder).toHaveBeenCalledWith(WORKTREE_ID, [
+      'browser-1',
+      'term-a',
+      terminals[1].id
+    ])
   })
 })

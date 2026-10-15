@@ -3,11 +3,10 @@ import { toast } from 'sonner'
 import type { TuiAgent } from '../../../shared/tui-agent'
 import { useAppStore } from '../store'
 import { focusTerminalTabSurface } from '@/lib/focus-terminal-tab-surface'
-import {
-  createWebRuntimeSessionBrowserTab,
-  createWebRuntimeSessionTerminal,
-  isWebRuntimeSessionActive
-} from '@/runtime/web-runtime-session'
+import { createBrowserUuid } from '@/lib/browser-uuid'
+import { createWebRuntimeSessionBrowserTab } from '@/runtime/web-runtime-browser-creation'
+import { createWebRuntimeSessionTerminal } from '@/runtime/web-runtime-terminal-creation'
+import { isWebRuntimeSessionActive } from '@/runtime/web-runtime-session-environment'
 import { openMobileEmulatorTab } from '@/lib/open-mobile-emulator-tab'
 import { launchAgentInNewTab } from '@/lib/launch-agent-in-new-tab'
 import { persistAgentLaunchTabOrder } from '@/lib/launch-agent-tab-order'
@@ -54,10 +53,11 @@ export function useTerminalCreateActions(controller: TerminalColdActivationContr
         void openNewTerminalTabInActiveWorkspace(targetGroupId)
         return
       }
-      const newTab = createTab(activeWorktreeId, undefined, shellOverride)
+      const tabId = createBrowserUuid()
+      createTab(activeWorktreeId, undefined, shellOverride, { id: tabId })
       setActiveTabType('terminal', activeWorktreeId)
-      persistAgentLaunchTabOrder(activeWorktreeId, newTab.id)
-      focusTerminalTabSurface(newTab.id)
+      persistAgentLaunchTabOrder(activeWorktreeId, tabId)
+      focusTerminalTabSurface(tabId)
     },
     [activeWorktreeId, createTab, openNewTerminalTabInActiveWorkspace, setActiveTabType]
   )

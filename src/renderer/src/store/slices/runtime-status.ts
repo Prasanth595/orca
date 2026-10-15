@@ -15,7 +15,7 @@ import {
   dismissRuntimeDisconnectedToast,
   showRuntimeDisconnectedToast
 } from './runtime-environment-disconnect-toast'
-import { reconcileCatalogRows } from './repo-identity-reconcile'
+import { reconcileCatalogRows } from '../../../../shared/catalog-row-reconcile'
 import { createRuntimeStatusHydration } from './runtime-status-hydration'
 import { refreshRuntimeEnvironmentStatus } from './runtime-status-refresh'
 import * as runtimeStatusConnectionGeneration from './runtime-status-connection-generation'
@@ -145,6 +145,7 @@ export const createRuntimeStatusSlice: StateCreator<AppState, [], [], RuntimeSta
     get().retainEnvironmentSshState?.(environments.map((environment) => environment.id))
     for (const id of replacedEnvironmentIds) {
       clearRuntimeCompatibilityCache(id)
+      get().clearRuntimeDetectedAgents?.(id)
       get().markEnvironmentSshStateStale?.(id)
     }
     // Why: a same-id re-pair to another peer retires it as surely as a removal.

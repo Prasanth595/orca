@@ -6,6 +6,26 @@ import { cleanup, fireEvent, render, screen, within, act } from '@testing-librar
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+// Why: these fixtures have neither inline visual owners nor sender navigation.
+const unusedChatLeaves = vi.hoisted(() => ({
+  inlineVisual: vi.fn(() => {
+    throw new Error('Unexpected inline visual in transcript fixture')
+  }),
+  openSender: vi.fn(() => {
+    throw new Error('Unexpected sender navigation in transcript fixture')
+  })
+}))
+vi.mock('./NativeChatInlineVisual', () => ({
+  NativeChatInlineVisual: unusedChatLeaves.inlineVisual
+}))
+vi.mock('@/lib/open-agent-message-sender', () => ({
+  openAgentMessageSender: unusedChatLeaves.openSender
+}))
+afterEach(() => {
+  expect(unusedChatLeaves.inlineVisual).not.toHaveBeenCalled()
+  expect(unusedChatLeaves.openSender).not.toHaveBeenCalled()
+})
+
 import type {
   AgentJournalItemBody,
   AgentJournalProducerLinkage,
@@ -508,7 +528,7 @@ import {
       fireEvent.click(screen.getByRole('button', { name: 'Second prompt' }))
       expect(scrollTo.mock.calls).toEqual([
         [{ top: 6000, behavior: 'auto' }],
-        [{ top: selectedTop, behavior: 'smooth' }]
+        [{ top: selectedTop, behavior: 'auto' }]
       ])
       expect(screen.queryByRole('button', { name: /^Edited .*a\.ts(?:\s|$)/ })).toBeNull()
       scrollTo.mockClear()
@@ -523,9 +543,8 @@ import {
       const diffTop =
         screen.getByText('Edited').closest<HTMLElement>('[data-index]')?.offsetTop ?? 0
       expect(Number.isFinite(diffTop)).toBe(true)
-      expect(scrollTo.mock.calls.filter(([options]) => options?.behavior === 'smooth')).toEqual([
-        [{ top: diffTop, behavior: 'smooth' }]
-      ])
+      expect(scrollTo).toHaveBeenCalledWith({ top: diffTop, behavior: 'auto' })
+      expect(scrollTo.mock.calls.some(([options]) => options?.behavior === 'smooth')).toBe(false)
     })
   })
 

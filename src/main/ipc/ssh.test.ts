@@ -11,7 +11,6 @@ vi.mock('../ssh/ssh-connection-store', () => mocks.sshConnectionStore)
 vi.mock('./ssh-host-server-connect', () => mocks.hostServerConnect)
 vi.mock('../ssh/ssh-connection-manager', () => mocks.sshConnectionManager)
 vi.mock('../ssh/ssh-channel-multiplexer', () => mocks.sshChannelMultiplexer)
-vi.mock('./pty', () => mocks.pty)
 vi.mock('../ssh/ssh-port-forward', () => mocks.sshPortForward)
 vi.mock('../ssh/ssh-port-scanner', () => mocks.sshPortScanner)
 
@@ -64,6 +63,7 @@ describe('SSH IPC handlers', () => {
       'ssh-1',
       'env-test',
       undefined,
+      undefined,
       undefined
     )
     expect(mockConnectionManager.connect).not.toHaveBeenCalled()
@@ -71,7 +71,7 @@ describe('SSH IPC handlers', () => {
 
   it('fails a host the managed server does not serve, with no fallback', async () => {
     const decision = {
-      route: 'relay' as const,
+      route: 'unserved' as const,
       reason: 'orcad_unavailable' as const,
       detail: 'unsupported_host'
     }
