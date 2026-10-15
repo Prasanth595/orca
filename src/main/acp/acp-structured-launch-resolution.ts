@@ -21,7 +21,11 @@ import {
   type StructuredAgentCommandSettings
 } from '../native-chat/structured-agent-command-resolution'
 import { probeAgentCliVersion } from '../agent-cli-version-probe'
-import { resolveInstalledRuntimeRelease } from '../node-runtime/managed-runtime-release'
+import {
+  copyBesidePinnedMembers,
+  resolveInstalledRuntimeRelease
+} from '../node-runtime/managed-runtime-release'
+import { hasExplicitTuiLaunchCommand } from '../../shared/tui-agent-launch-command-override'
 import { readAgentJournalTurn } from '../../shared/agent-session-turn-record'
 import type { JournalLoad } from '../native-chat/agent-session-journal/journal-open'
 import {
@@ -96,9 +100,10 @@ export type AcpLaunchInvocationDeps = {
 >
 
 /** The binary a launch with `env` spawns: the user's Command setting when set, else the stock
- *  binary from PATH, then the agent's own install directories, then its installed managed runtime;
- *  the bare name when none has it. A create's version check resolves through here too, so it asks
- *  about the same file. `dataDirectory` is null only for a spec with no managed runtime. */
+ *  binary from PATH, then the agent's own install directories. A spec with a managed runtime runs
+ *  its installed release before those, and a copy from them only beside every pinned member; the
+ *  bare name when none qualifies. A create's version check resolves through here too, so it asks
+ *  about the same file. A null `dataDirectory` skips the installed release. */
 export function resolveAcpLaunchCommand(
   spec: AcpLaunchSpec,
   env: Readonly<Record<string, string>>,
@@ -113,26 +118,29 @@ export function resolveAcpLaunchCommand(
   const pathEnv = [env.PATH ?? env.Path, ...spec.installDirectories({ env, homePath })]
     .filter((entry): entry is string => Boolean(entry))
     .join(delimiter)
+  const settings = options.commandSettings ?? {}
   const resolve = (searchPath: string) =>
     resolveStructuredAgentCommand(
       spec.agent,
-      options.commandSettings ?? {},
+      settings,
       { pathEnv: searchPath, homePath },
       {
         command: spec.command,
         ...(options.resolveCommand ? { resolve: options.resolveCommand } : {})
       }
     )
-  const command = resolve(pathEnv)
   const { managedRuntime } = spec
-  if (command !== spec.command || !managedRuntime || options.dataDirectory === null) {
-    return command
+  if (!managedRuntime || hasExplicitTuiLaunchCommand(settings, spec.agent)) {
+    return resolve(pathEnv)
   }
-  const { release } = resolveInstalledRuntimeRelease(
-    managedRuntime.root(options.dataDirectory),
-    managedRuntime.pin()
-  )
-  return release ? resolve(release.folder) : command
+  const pin = managedRuntime.pin()
+  const root = options.dataDirectory && managedRuntime.root(options.dataDirectory)
+  const release = root ? resolveInstalledRuntimeRelease(root, pin).release : null
+  if (release) {
+    return resolve(release.folder)
+  }
+  const found = resolve(pathEnv)
+  return (found !== spec.command && copyBesidePinnedMembers(found, pin)) || spec.command
 }
 
 /** Whether `command` is a release the spec runs a structured chat on (true when it names none),

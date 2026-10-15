@@ -2,8 +2,8 @@
 // pinned members and a receipt written before the folder was renamed into place. Read-only, and
 // cheap enough for every launch: a full hash is only ever taken by an install.
 
-import { lstatSync, readFileSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { lstatSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs'
+import { basename, dirname, join } from 'node:path'
 import { z } from 'zod'
 import { isDefinitiveAbsence } from '../../shared/definitive-filesystem-absence'
 
@@ -86,6 +86,24 @@ export function resolveInstalledRuntimeRelease(
       : null,
     broken: reads.filter(({ read }) => read === 'broken').map(({ name }) => name),
     unreadable: reads.some(({ read }) => read === 'unreadable')
+  }
+}
+
+/** `command`'s real path when every pinned member sits beside it, as the server expects its
+ *  companions; null otherwise, so a lone server file found elsewhere is never started. */
+export function copyBesidePinnedMembers(
+  command: string,
+  pin: ManagedRuntimePin | null
+): string | null {
+  try {
+    const real = realpathSync(command)
+    const whole = (pin?.members ?? []).every((member) => {
+      const file = statSync(join(dirname(real), basename(member.path)))
+      return file.isFile() && (process.platform === 'win32' || (file.mode & 0o111) !== 0)
+    })
+    return whole ? real : null
+  } catch {
+    return null
   }
 }
 

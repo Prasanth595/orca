@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, truncate, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, rm, truncate, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -10,7 +10,7 @@ import { GROK, openAcpAdapterRig } from './acp-structured-adapter.test-support'
 
 afterEach(() => closeProviderTimelineRigs())
 
-it('starts from PATH or a whole installed release, and refuses a missing or damaged one', async () => {
+it('starts the installed release first, else a copy beside every pinned member', async () => {
   const dataDirectory = await mkdtemp(join(tmpdir(), 'orca-acp-managed-'))
   const homePath = join(dataDirectory, 'home')
   const command = `orca-managed-${basename(dataDirectory)}`
@@ -20,7 +20,10 @@ it('starts from PATH or a whole installed release, and refuses a missing or dama
     url: 'https://example.test/grok-1.0.zip',
     archiveSha256: 'a'.repeat(64),
     archiveBytes: 10,
-    members: [{ path: command, sha256: 'b'.repeat(64), bytes: 6 }]
+    members: [
+      { path: command, sha256: 'b'.repeat(64), bytes: 6 },
+      { path: 'harness', sha256: 'c'.repeat(64), bytes: 7 }
+    ]
   }
   const spec = {
     ...GROK,
@@ -48,9 +51,16 @@ it('starts from PATH or a whole installed release, and refuses a missing or dama
   }
   await expect(spawn()).rejects.toMatchObject({ reason: 'runtimeNotInstalled' })
 
+  // A server without its companion beside it is no copy.
+  const localBin = join(homePath, '.local', 'bin')
+  await mkdir(localBin, { recursive: true })
+  await writeFile(join(localBin, command), '', { mode: 0o755 })
+  await expect(spawn()).rejects.toMatchObject({ reason: 'runtimeNotInstalled' })
+
   const release = join(root, '1.0')
   await mkdir(release, { recursive: true })
   await writeFile(join(release, command), 'server', { mode: 0o755 })
+  await writeFile(join(release, 'harness'), 'harness', { mode: 0o755 })
   await writeFile(
     join(release, RUNTIME_RELEASE_RECEIPT),
     JSON.stringify({
@@ -58,17 +68,13 @@ it('starts from PATH or a whole installed release, and refuses a missing or dama
       version: '1.0',
       platform: process.platform,
       arch: process.arch,
-      members: [{ path: command, bytes: 6 }]
+      members: pin.members.map(({ path, bytes }) => ({ path, bytes }))
     })
   )
+  await writeFile(join(localBin, 'harness'), '', { mode: 0o755 })
   expect(await spawn()).toBe(join(release, command))
 
   await truncate(join(release, command), 2)
-  await expect(spawn()).rejects.toMatchObject({ reason: 'runtimeNotInstalled' })
-
-  const localBin = join(homePath, '.local', 'bin')
-  await mkdir(localBin, { recursive: true })
-  await writeFile(join(localBin, command), '', { mode: 0o755 })
-  expect(await spawn()).toBe(join(localBin, command))
+  expect(await spawn()).toBe(await realpath(join(localBin, command)))
   await rm(dataDirectory, { recursive: true, force: true })
 })
