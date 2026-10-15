@@ -25,7 +25,7 @@ export type RuntimeHostConnectionState =
   | 'disconnected'
 
 // Why: one transport derivation for every host surface (status bar + Settings > Available
-// Hosts); surfaces show it through runtimeHostPresentedStateForEntry, which adds compatibility.
+// Hosts); the status bar and Repository host setups add compatibility via runtimeHostPresentedStateForEntry.
 export function runtimeHostConnectionState({
   hasStatusEntry,
   status,

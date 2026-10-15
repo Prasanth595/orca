@@ -197,7 +197,9 @@ export function RuntimeHostStatusRow({
           { value0: String(diagnostics.reconnectAttempt + 1) }
         )
       : null
-  const diagnosticLabel = [lastConnectedLabel, reconnectAttemptLabel].filter(Boolean).join(' · ')
+  const diagnosticLabel = incompatibility
+    ? ''
+    : [lastConnectedLabel, reconnectAttemptLabel].filter(Boolean).join(' · ')
   const rawDetail = incompatibility
     ? null
     : (diagnostics?.lastError ?? diagnostics?.lastClose?.reason ?? detail)
