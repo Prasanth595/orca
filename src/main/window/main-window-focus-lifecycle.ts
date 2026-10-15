@@ -24,6 +24,7 @@ import {
 import { registerRendererDocumentNavigation } from './renderer-document-navigation'
 import { createRendererRecoveryReloadWatchdog } from './renderer-recovery-reload-watchdog'
 import { createRendererLaunchFailureBackoff } from './renderer-launch-failure-backoff'
+import { closeAllDetachedTerminalWindows } from './detached-terminal-window'
 
 export type MainWindowFocusLifecycle = {
   dispose: () => void
@@ -139,6 +140,8 @@ export function installMainWindowFocusLifecycle(args: {
   const rendererWebContents = mainWindow.webContents
   registerRendererDocumentNavigation(rendererWebContents, () => {
     const frame = rendererWebContents.mainFrame
+    // Why: renderer reload resets detachment state; close companion windows to prevent them from becoming orphaned.
+    closeAllDetachedTerminalWindows()
     retireBrowserClientPageRenderer(rendererWebContents)
     resetMarkdownEditorFocus()
     resetTerminalInputFocus()
@@ -247,6 +250,8 @@ export function installMainWindowFocusLifecycle(args: {
   }
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     rendererProcessGone = true
+    // Why: renderer crash resets detachment state; close companion windows so tabs can be recovered cleanly.
+    closeAllDetachedTerminalWindows()
     retireBrowserClientPageRenderer(rendererWebContents)
     browserRouteWebContentsRegistry.retireRenderer(rendererWebContentsId)
     resetMarkdownEditorFocus()

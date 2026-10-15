@@ -30,6 +30,10 @@ import type {
 } from './terminal-contracts'
 
 export type TerminalActions = {
+  detachTerminalTab: (tabId: string) => Promise<boolean>
+  redockDetachedTerminalTab: (tabId: string) => void
+  closeDetachedTerminalWindow: (tabId: string) => void
+  focusDetachedTerminalWindow: (tabId: string) => void
   setTerminalStartupRestorationReady: (value: boolean) => void
   setRecentQuickCommandForGroup: (groupId: string, quickCommandId: string) => void
   claimAutomaticAgentResume: (tabId: string, claim: AutomaticAgentResumeClaim) => void

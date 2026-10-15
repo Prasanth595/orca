@@ -104,6 +104,11 @@ export function buildWorktreePurgeState(
   forgetAmbiguousOwnerWarnings(worktreeIdSet)
 
   const doomed = collectWorktreePurgeDoomedIds(s, worktreeIdSet)
+  for (const tabId of doomed.doomedTabIds) {
+    if (s.detachedTerminalByTabId && tabId in s.detachedTerminalByTabId) {
+      void window.api?.detachedTerminal?.close(tabId)
+    }
+  }
   const {
     omitByWorktree,
     omitWorkspaceLineageByWorktree,
@@ -148,6 +153,7 @@ export function buildWorktreePurgeState(
     worktreeLineageById: omitByWorktree(s.worktreeLineageById),
     workspaceLineageByChildKey: omitWorkspaceLineageByWorktree(s.workspaceLineageByChildKey),
     localOnlyScrollbackByTabId: omitByTabId(s.localOnlyScrollbackByTabId),
+    detachedTerminalByTabId: omitByTabId(s.detachedTerminalByTabId),
     runtimePaneTitlesByTabId: omitByTabId(s.runtimePaneTitlesByTabId),
     automaticAgentResumeClaimsByTabId: omitByTabId(s.automaticAgentResumeClaimsByTabId),
     nativeChatLaunchPromptByTabId: omitByTabId(s.nativeChatLaunchPromptByTabId),

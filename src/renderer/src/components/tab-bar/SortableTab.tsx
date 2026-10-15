@@ -34,6 +34,10 @@ import {
 } from './terminal-tab-activity-status'
 import { CLOSE_ALL_CONTEXT_MENUS_EVENT } from '@/lib/close-all-context-menus'
 import type { NativeChatTabSession } from './tab-session-history-switch'
+import {
+  DetachedTerminalTabIndicator,
+  type DetachedTerminalTabWindowModel
+} from './DetachedTerminalTabIndicator'
 
 /** What the strip draws for a terminal or native chat tab; never a source of agent identity. */
 type SortableTabModel = Pick<
@@ -74,6 +78,7 @@ export type SortableTabProps = {
   canSplitTerminal?: boolean
   /** Set only for a native chat tab. */
   nativeChat?: NativeChatTabSession
+  detachedWindow?: DetachedTerminalTabWindowModel
 }
 
 export default function SortableTab({
@@ -103,7 +108,8 @@ export default function SortableTab({
   isChatView = false,
   onToggleViewMode,
   canSplitTerminal = true,
-  nativeChat
+  nativeChat,
+  detachedWindow
 }: SortableTabProps): React.JSX.Element {
   // Why: agent-completion unread exists even with terminal-attention off; collapse both sources to one primitive so unrelated tabs don't re-render.
   const hasUnreadActivity = useAppStore((s) =>
@@ -253,6 +259,7 @@ export default function SortableTab({
         showUnreadActivity={showUnreadActivity}
         isActive={isActive}
       />
+      {detachedWindow?.isDetached ? <DetachedTerminalTabIndicator /> : null}
       {isPinned && !isEditing && (
         <Pin className="mr-1 size-3 shrink-0 text-muted-foreground" aria-hidden />
       )}
@@ -432,6 +439,9 @@ export default function SortableTab({
         onToggleViewMode={onToggleViewMode}
         canSplitTerminal={canSplitTerminal}
         nativeChat={nativeChat}
+        onMoveToNewWindow={detachedWindow?.onMove}
+        moveToNewWindowDisabled={detachedWindow?.disabled}
+        moveToNewWindowLocalOnly={detachedWindow?.localOnly}
       />
     </>
   )

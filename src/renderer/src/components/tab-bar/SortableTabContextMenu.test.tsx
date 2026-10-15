@@ -62,6 +62,7 @@ vi.mock('lucide-react', () => ({
   PanelLeftClose: () => null,
   PanelRightClose: () => null,
   Pencil: () => null,
+  PictureInPicture2: () => null,
   Pin: () => null,
   PinOff: () => null,
   SquareTerminal: () => null,
@@ -266,6 +267,43 @@ describe('SortableTabContextMenu', () => {
 
     expect(container.textContent).not.toContain('Switch to terminal view')
     expect(container.textContent).not.toContain('Switch to chat view')
+  })
+
+  it('shows the terminal-only move action and invokes it', () => {
+    const onMoveToNewWindow = vi.fn()
+    const { container } = renderMenu({ onMoveToNewWindow })
+
+    act(() => getButton(container, 'Move to New Window').click())
+
+    expect(onMoveToNewWindow).toHaveBeenCalledOnce()
+  })
+
+  it('omits the move action when the caller is not a terminal tab', () => {
+    const { container } = renderMenu()
+
+    expect(container.textContent).not.toContain('Move to New Window')
+  })
+
+  it('disables unsupported remote terminals with the Local only hint', () => {
+    const { container } = renderMenu({
+      onMoveToNewWindow: vi.fn(),
+      moveToNewWindowDisabled: true,
+      moveToNewWindowLocalOnly: true
+    })
+
+    expect(getButton(container, 'Move to New Window').disabled).toBe(true)
+    expect(container.textContent).toContain('Local only')
+  })
+
+  it('disables move to new window for split terminals without Local only hint', () => {
+    const { container } = renderMenu({
+      onMoveToNewWindow: vi.fn(),
+      moveToNewWindowDisabled: true,
+      moveToNewWindowLocalOnly: false
+    })
+
+    expect(getButton(container, 'Move to New Window').disabled).toBe(true)
+    expect(container.textContent).not.toContain('Local only')
   })
 
   it('hides switching a terminal-view tab into chat view', () => {

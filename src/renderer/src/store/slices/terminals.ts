@@ -22,6 +22,7 @@ import { createTerminalLayoutActions } from '../terminals/terminal-layout-state'
 import { createTerminalStartupQueueActions } from '../terminals/terminal-startup-queues'
 import { createWorkspaceTerminalHydrationActions } from '../terminals/workspace-terminal-hydration'
 import { createWorkspaceTerminalReconnectActions } from '../terminals/workspace-terminal-reconnect'
+import { createTerminalDetachmentActions } from '../terminals/terminal-detachment'
 
 export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> = (set, get) => ({
   tabsByWorktree: {},
@@ -36,6 +37,7 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
   expandedPaneByTabId: {},
   canExpandPaneByTabId: {},
   terminalLayoutsByTabId: {},
+  detachedTerminalByTabId: {},
   localOnlyScrollbackByTabId: {},
   pendingStartupByTabId: {},
   pendingInitialCwdByTabId: {},
@@ -70,6 +72,7 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
   lastTerminalInputAtByPaneKey: {},
   recentQuickCommandIdByGroup: {},
   ...createTerminalEphemeralActions(set, get),
+  ...createTerminalDetachmentActions(set, get),
   ...createTerminalTabCreationActions(set, get),
   ...createTerminalTabAgentLaunchPaneActions(set),
   ...createActiveWorkspaceTerminalActions(set, get),

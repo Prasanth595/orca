@@ -4,6 +4,7 @@ import {
   Pin,
   PinOff,
   Pencil,
+  PictureInPicture2,
   SquareTerminal,
   X,
   ListX
@@ -25,6 +26,7 @@ import { TabSessionSurfaceSwitchMenuItems } from './TabSessionSurfaceSwitchMenuI
 import type { NativeChatTabSession } from './tab-session-history-switch'
 import { TAB_CONTEXT_MENU_CONTENT_CLASS } from './tab-context-menu-sizing'
 import { CopyTabIdMenuItem } from './CopyTabIdMenuItem'
+import { LocalOnlyMenuHint } from '@/components/local-only-menu-hint'
 
 const TAB_COLORS = [
   {
@@ -123,6 +125,9 @@ type SortableTabContextMenuProps = {
   canSplitTerminal?: boolean
   /** Set only for a native chat tab. */
   nativeChat?: NativeChatTabSession
+  onMoveToNewWindow?: () => void
+  moveToNewWindowDisabled?: boolean
+  moveToNewWindowLocalOnly?: boolean
 }
 
 export function SortableTabContextMenu({
@@ -151,7 +156,10 @@ export function SortableTabContextMenu({
   isChatView = false,
   onToggleViewMode,
   canSplitTerminal = true,
-  nativeChat
+  nativeChat,
+  onMoveToNewWindow,
+  moveToNewWindowDisabled = false,
+  moveToNewWindowLocalOnly = false
 }: SortableTabContextMenuProps): React.JSX.Element {
   const keybindings = useAppStore((state) => state.keybindings)
   const splitRightShortcut = formatShortcutLabel('terminal.splitRight', keybindings)
@@ -203,6 +211,19 @@ export function SortableTabContextMenu({
           nativeChat={nativeChat}
           leadingSeparator={!showTerminalViewSwitch}
         />
+        {onMoveToNewWindow ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onMoveToNewWindow} disabled={moveToNewWindowDisabled}>
+              <PictureInPicture2 className="size-3.5 shrink-0" />
+              {translate(
+                'components.tab.bar.SortableTabContextMenu.moveToNewWindow',
+                'Move to New Window'
+              )}
+              {moveToNewWindowLocalOnly ? <LocalOnlyMenuHint /> : null}
+            </DropdownMenuItem>
+          </>
+        ) : null}
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={onTogglePin}>
           {isPinned ? (

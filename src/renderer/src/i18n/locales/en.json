@@ -18890,7 +18890,8 @@
         "SortableTabContextMenu": {
           "switchToTerminalView": "Switch to terminal view",
           "switchToChatView": "Switch to chat view",
-          "closeTabsToLeft": "Close Tabs To The Left"
+          "closeTabsToLeft": "Close Tabs To The Left",
+          "moveToNewWindow": "Move to New Window"
         },
         "BrowserTab": {
           "closeOthers": "Close Others",
@@ -19203,7 +19204,15 @@
         "underOneMinute": "<1m"
       }
     },
+    "detachedTerminal": {
+      "moveBackToMainWindow": "Move Back to Main Window"
+    },
     "terminalPane": {
+      "detachedPlaceholder": {
+        "message": "This terminal is open in another window",
+        "moveBack": "Move Back to Main Window",
+        "showWindow": "Show Window"
+      },
       "TerminalContextMenu": {
         "copySessionId": "Copy Session ID",
         "copySessionIdSuccess": "Session ID copied",

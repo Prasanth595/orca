@@ -33,6 +33,8 @@ export type TerminalState = {
   expandedPaneByTabId: Record<string, boolean>
   canExpandPaneByTabId: Record<string, boolean>
   terminalLayoutsByTabId: Record<string, TerminalLayoutSnapshot>
+  /** Window-local view state. Deliberately excluded from WorkspaceSessionState. */
+  detachedTerminalByTabId: Record<string, { ptyId: string }>
   /** Ordinary-park scrollback, tabId -> leafId -> buffer. Never uploaded to a peer; see
    *  WorkspaceSessionState.localOnlyScrollbackByTabId. Read via resolveLeafScrollbackBuffers only. */
   localOnlyScrollbackByTabId: Record<string, Record<string, string>>
