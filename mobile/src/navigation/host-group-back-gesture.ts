@@ -13,6 +13,9 @@ function hostStackFocusedIndex(state: unknown): number {
   return 0
 }
 
+/** The root stack's `h` route as its options callback receives it; `state` is the host stack's. */
+export type RootHostGroupRoute = Readonly<{ key: string; name: string; state?: unknown }>
+
 /**
  * Whether the root stack may arm its iOS edge swipe on the `h` screen.
  *
@@ -21,6 +24,6 @@ function hostStackFocusedIndex(state: unknown): number {
  * win and pop the whole host group to Home, while the chevron's `router.back()` correctly pops one
  * host screen. So the root owns the swipe only while the host stack is on its first screen.
  */
-export function rootOwnsHostGroupBackGesture(route: object): boolean {
-  return hostStackFocusedIndex('state' in route ? route.state : undefined) <= 0
+export function rootOwnsHostGroupBackGesture(route: RootHostGroupRoute): boolean {
+  return hostStackFocusedIndex(route.state) <= 0
 }
