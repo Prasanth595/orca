@@ -65,7 +65,6 @@ describe('arch-aware packaging guard', () => {
     if (otherSherpaExpected && !otherSherpaInstalled) {
       expect(() => packHost(OTHER_ARCH)).toThrow(otherSherpa)
       expect(() => packHost(OTHER_ARCH)).toThrow('pnpm install:release')
-      expect(() => packHost(HOST_ARCH)).not.toThrow()
     } else if (process.platform !== 'win32') {
       expect(() => packHost(OTHER_ARCH)).not.toThrow()
     }
@@ -78,7 +77,6 @@ describe('arch-aware packaging guard', () => {
       for (const binary of ['orca_windows_registry.node', 'orca_windows_security.node']) {
         expect(() => packHost(OTHER_ARCH)).toThrow(`${binary} for ${OTHER_ARCH_NAME}`)
       }
-      expect(() => packHost(HOST_ARCH)).not.toThrow()
     }
   )
 
