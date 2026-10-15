@@ -29,6 +29,7 @@ import {
 import { activePaneIsCoveredByNativeChat } from './native-chat-covered-pane'
 
 type UseTerminalPaneGlobalEffectsArgs = {
+  collapseExpandedPane?: () => void
   tabId: string
   cwd?: string
   isActive: boolean
@@ -62,6 +63,7 @@ function reportRendererPtyVisibility(
 }
 
 export function useTerminalPaneGlobalEffects({
+  collapseExpandedPane,
   tabId,
   isActive,
   isVisible,
@@ -230,12 +232,13 @@ export function useTerminalPaneGlobalEffects({
         manager: managerRef.current,
         acknowledgeAgents: (paneKeys) => useAppStore.getState().acknowledgeAgents(paneKeys),
         surfaceStaleAgentRow,
-        scrollToBottomIfOutputSinceLastView: scheduleFollowOutputIfNeeded
+        scrollToBottomIfOutputSinceLastView: scheduleFollowOutputIfNeeded,
+        collapseExpandedPane
       })
     }
     window.addEventListener(FOCUS_TERMINAL_PANE_EVENT, onFocusPane)
     return () => window.removeEventListener(FOCUS_TERMINAL_PANE_EVENT, onFocusPane)
-  }, [tabId, managerRef, scheduleFollowOutputIfNeeded])
+  }, [tabId, managerRef, scheduleFollowOutputIfNeeded, collapseExpandedPane])
 
   useEffect(() => {
     const onPasteText = (event: Event): void => {
