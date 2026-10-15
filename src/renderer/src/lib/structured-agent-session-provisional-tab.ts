@@ -24,6 +24,7 @@ import {
   structuredAgentSessionTargetForHost
 } from '@/runtime/structured-agent-session-owner'
 import type { RuntimeClientTarget } from '../../../shared/runtime-client-target'
+import { isAgentLaunchDestinationLive } from '@/lib/agent-launch-destination'
 import type { NativeChatComposerFocusIntent } from '@/components/native-chat/use-native-chat-composer-reveal-focus'
 
 type LocalProvisionalLaunch = StructuredAgentLaunchHandle & { tab: Tab }
@@ -95,15 +96,18 @@ type ProvisionalLaunchArgs = {
   hooks: StructuredAgentLaunchHooks
   focusIntent?: NativeChatComposerFocusIntent
   target?: AgentSessionLaunchTarget
+  /** A named pane must survive admission; omission keeps default placement. */
   targetGroupId?: string
   activate?: boolean
   /** Lets workspace flows reveal before the chat's tab is owned: before its host is asked, when no
    *  session id exists yet. */
   beforeOpen?: (sessionId?: string) => boolean | void
-  /** The terminal the host's "no" opens; a caller without one gets a new agent tab's. */
-  onHostDeclined?: (
-    target: RuntimeClientTarget
-  ) => Promise<StructuredLaunchTerminal> | StructuredLaunchTerminal
+  /** The terminal the host's "no" opens; omitted uses a new agent tab, null refuses. */
+  onHostDeclined?:
+    | ((
+        target: RuntimeClientTarget
+      ) => Promise<StructuredLaunchTerminal> | StructuredLaunchTerminal)
+    | null
   /** What that default terminal carries from the caller, e.g. a recipe's saved CLI arguments. */
   declinedTerminal?: DeclinedStructuredLaunchTerminalOptions
 }
@@ -135,6 +139,10 @@ export function beginStructuredAgentSessionProvisionalLaunch(
     return launch
   }
   try {
+    if (worktreeId && !isAgentLaunchDestinationLive(worktreeId, args.targetGroupId)) {
+      cancelIfNoTab()
+      return null
+    }
     const owner = worktreeId ? structuredLaunchOwner(args.plan, worktreeId, args.target) : null
     if (owner && worktreeId && args.beforeOpen?.() === false) {
       cancelIfNoTab()
@@ -150,6 +158,7 @@ export function beginStructuredAgentSessionProvisionalLaunch(
       worktreeId,
       executionHostId: owner.executionHostId,
       target: owner.target,
+      targetGroupId: args.targetGroupId,
       openAdmitted: (seedOptions) =>
         open(
           beginLocalProvisionalLaunch({
@@ -164,14 +173,15 @@ export function beginStructuredAgentSessionProvisionalLaunch(
           })
         ),
       onHostDeclined:
-        args.onHostDeclined ??
-        (() =>
-          openDeclinedStructuredLaunchTerminal({
-            plan: args.plan,
-            worktreeId,
-            ...(args.targetGroupId ? { targetGroupId: args.targetGroupId } : {}),
-            ...(args.declinedTerminal ? { terminal: args.declinedTerminal } : {})
-          }))
+        args.onHostDeclined === undefined
+          ? () =>
+              openDeclinedStructuredLaunchTerminal({
+                plan: args.plan,
+                worktreeId,
+                ...(args.targetGroupId ? { targetGroupId: args.targetGroupId } : {}),
+                ...(args.declinedTerminal ? { terminal: args.declinedTerminal } : {})
+              })
+          : args.onHostDeclined
     })
     void launch.settlement.then(cancelIfNoTab, cancelIfNoTab)
     return launch

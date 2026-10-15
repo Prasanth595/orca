@@ -293,6 +293,9 @@ describe('Cmd+J quick action context', () => {
       activeView: 'settings',
       settings: null
     } as unknown as AppState
+    state.unifiedTabsByWorktree['wt-1']?.forEach((tab) => {
+      tab.agentSessionAgent = 'codex'
+    })
 
     const buildContext = (activeView: AppState['activeView']) =>
       buildCmdJQuickActionContext({
