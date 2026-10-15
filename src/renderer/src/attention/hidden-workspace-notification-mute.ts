@@ -14,21 +14,21 @@ import { isFolderWorkspaceFromOtherDevice } from '../../../shared/workspace-crea
  *
  * Asks the sidebar pipeline itself with the project and host filters lifted, so lineage parents
  * and same-id rows on other hosts notify exactly when the sidebar would show them.
- * Fails open: unhydrated settings or UI state, terminals not yet reconnected (every restored
- * workspace would read as sleeping), or a workspace this store has no record of, notify.
+ * Hide sleeping is lifted too: an alerting workspace is awake, so it could only silence alerts
+ * whose activity this renderer cannot see (a chat with no tab, a just-exited agent).
+ * Fails open: unhydrated settings or UI state, or a workspace this store has no record of, notify.
  */
 export function getNotificationHiddenWorkspaceIds(state: AppState): Set<string> {
   const hidden = new Set<string>()
-  if (
-    state.settings?.notifications?.notifyHiddenWorkspaces !== false ||
-    !state.persistedUIReady ||
-    !state.workspaceSessionReady ||
-    !sidebarHasActiveFilters(state)
-  ) {
+  if (state.settings?.notifications?.notifyHiddenWorkspaces !== false || !state.persistedUIReady) {
+    return hidden
+  }
+  const sleepFree = { ...state, showSleepingWorkspaces: true }
+  if (!sidebarHasActiveFilters(sleepFree)) {
     return hidden
   }
   const repoMap = getIndexedRepoMap(state.repos)
-  const inputs = buildVisibleWorktreeOptionsFromState(state, repoMap)
+  const inputs = buildVisibleWorktreeOptionsFromState(sleepFree, repoMap)
   if (inputs.hideWorkspacesFromOtherDevices) {
     for (const folder of state.folderWorkspaces) {
       if (isFolderWorkspaceFromOtherDevice(folder, inputs.pairedDeviceIdsByEnvironment)) {
