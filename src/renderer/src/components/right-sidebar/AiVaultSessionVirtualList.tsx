@@ -1,3 +1,4 @@
+import { aiVaultDisplayedSessionKey } from './ai-vault-displayed-session-key'
 import { SubagentExpansionProvider } from './ai-vault-subagent-expansion'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useCallback, useMemo, useRef, useState } from 'react'
@@ -123,7 +124,7 @@ export function AiVaultSessionVirtualList({
       if (row?.type === 'group') {
         return VAULT_GROUP_HEADER_ROW_HEIGHT
       }
-      if (row?.type === 'session' && expandedSessionIds.has(row.session.id)) {
+      if (row?.type === 'session' && expandedSessionIds.has(aiVaultDisplayedSessionKey(row.session, searchHits !== undefined))) {
         return VAULT_EXPANDED_SESSION_ROW_ESTIMATED_HEIGHT
       }
       return VAULT_SESSION_ROW_HEIGHT
@@ -143,7 +144,7 @@ export function AiVaultSessionVirtualList({
       if (!row) {
         return `missing:${index}`
       }
-      return row.type === 'group' ? `group:${row.group.key}` : `session:${row.session.id}`
+      return row.type === 'group' ? `group:${row.group.key}` : `session:${aiVaultDisplayedSessionKey(row.session, searchHits !== undefined)}`
     }
   })
 

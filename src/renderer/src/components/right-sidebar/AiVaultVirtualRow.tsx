@@ -1,3 +1,4 @@
+import { aiVaultDisplayedSessionKey } from './ai-vault-displayed-session-key'
 import type { AgentStatusState } from '../../../../shared/agent-status-types'
 import { isAntigravityReferenceSession } from '../../../../shared/antigravity-session-origin'
 import type { AiVaultScope, AiVaultSession } from '../../../../shared/ai-vault-types'
@@ -207,11 +208,11 @@ export function AiVaultVirtualRow({
           }
           worktreeInfo={worktreeInfo}
           vaultScope={vaultScope}
-          detailsExpanded={expandedSessionIds.has(row.session.id)}
+          detailsExpanded={expandedSessionIds.has(aiVaultDisplayedSessionKey(row.session, searchHits !== undefined))}
           resumeDisabled={resumeDisabled}
           resumeLabel={resumeLabel}
           resumeActions={visibleResumeActions}
-          onToggleDetails={() => onToggleSessionDetails(row.session.id)}
+          onToggleDetails={() => onToggleSessionDetails(aiVaultDisplayedSessionKey(row.session, searchHits !== undefined))}
           onJumpToOriginalPane={
             canJumpToOriginalPane ? () => onJumpToOriginalPane(row.session) : undefined
           }

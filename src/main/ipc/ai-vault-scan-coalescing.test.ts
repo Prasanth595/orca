@@ -1,3 +1,4 @@
+import { invalidateAiVaultSessionListCache } from '../ai-vault/cached-session-list'
 import { EventEmitter } from 'node:events'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AiVaultListResult } from '../../shared/ai-vault-types'
@@ -9,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   ipcHandle: vi.fn()
 }))
 
-vi.mock('electron', () => ({ app: { on: vi.fn() }, ipcMain: { handle: mocks.ipcHandle } }))
+vi.mock('electron', () => ({ app: { on: vi.fn() }, ipcMain: { handle: mocks.ipcHandle, on: vi.fn() } }))
 vi.mock('../ai-vault/session-scanner-service-spawn', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   scanAiVaultSessionsInService: mocks.scanAiVaultSessionsInService,
@@ -99,6 +100,24 @@ describe('Agent Session History scan coalescing', () => {
     await expect(second).resolves.toEqual(EMPTY_RESULT)
   })
 
+  it.each(['local', 'all', 'runtime:remote-server'] as const)(
+    'local invalidation retires only desktop requests containing local data: %s', async (scope) => {
+      registerRuntimeHost()
+      let release!: (result: AiVaultListResult) => void
+      const scan = scope === 'runtime:remote-server'
+        ? mocks.scanRuntimeAiVaultSessions : mocks.scanAiVaultSessionsInService
+      scan.mockImplementationOnce(() => new Promise((resolve) => { release = resolve }))
+      const response = ipcHandler('aiVault:listSessions')({ sender: Object.assign(new EventEmitter(), {
+        id: 1, isDestroyed: () => false, send: vi.fn()
+      }) }, { executionHostScope: scope, requestToken: 'delete-fence' })
+      await vi.waitFor(() => expect(release).toBeDefined())
+      invalidateAiVaultSessionListCache()
+      release(EMPTY_RESULT)
+      expect(await response).toMatchObject(scope === 'runtime:remote-server'
+        ? { scannedAt: EMPTY_RESULT.scannedAt } : { cancelled: true })
+    }
+  )
+
   it('reports a failed local scan as a host issue rather than rejecting', async () => {
     mocks.scanAiVaultSessionsInService.mockRejectedValue(new Error('transcript root is unreadable'))
     registerAiVaultHandlers()
@@ -107,7 +126,7 @@ describe('Agent Session History scan coalescing', () => {
     // The local leg degrades like the SSH legs above: a rejection reaches the
     // renderer as a raw string painted over the list instead of an issue row.
     const result = await list(
-      { sender: Object.assign(new EventEmitter(), { id: 1 }) },
+      { sender: Object.assign(new EventEmitter(), { id: 1, isDestroyed: () => false, send: vi.fn() }) },
       { executionHostScope: 'local', requestToken: 'scan' }
     )
     expect(result).toMatchObject({

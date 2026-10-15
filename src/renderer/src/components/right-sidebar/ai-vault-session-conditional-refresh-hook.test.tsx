@@ -2,6 +2,8 @@
 import { act, createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AiVaultRowsEvent } from '../../../../shared/ai-vault-scan-rows'
+import { markInputQuietSchedulerInput } from '@/lib/input-quiet-scheduler'
 import type { AiVaultListResult, AiVaultSession } from '../../../../shared/ai-vault-types'
 import type { ExecutionHostScope } from '../../../../shared/execution-host'
 import { useAppStore } from '@/store'
@@ -166,4 +168,56 @@ describe('conditional panel publication', () => {
     await refresh()
     expect(latest?.scanResult).toBe(original)
   })
+})
+
+it('accumulates completed-row deltas before scheduling while final metadata remains authoritative', async () => {
+  let listener: ((event: AiVaultRowsEvent) => void) | undefined
+  window.api.aiVault.onScanRows = (callback) => {
+    listener = callback
+    return () => { listener = undefined }
+  }
+  await render('local')
+  const complete = latest?.scanResult
+  let finish!: (result: AiVaultListResult) => void
+  list.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+  await render('local', 500)
+  const args = list.mock.calls.at(-1)?.[0]
+  if (!args || typeof args !== 'object' || !('requestToken' in args) || typeof args.requestToken !== 'string') {
+    throw new Error('Missing request identity')
+  }
+  const requestToken = args.requestToken
+  const event = (sequence: number, row: AiVaultSession): AiVaultRowsEvent => ({
+    requestToken, scanId: 'current', sequence, reset: sequence === 1,
+    upserts: [row], removed: []
+  })
+  const second = { ...session, id: 'second', sessionId: 'second', title: 'Second' }
+  const third = { ...session, id: 'third', sessionId: 'third', title: 'Third' }
+  act(() => {
+    markInputQuietSchedulerInput()
+    listener?.(event(1, second))
+    listener?.(event(2, third))
+  })
+  await settle()
+  expect(latest?.sessions.map((row) => row.id)).toEqual(expect.arrayContaining([session.id, 'second', 'third']))
+  expect(latest?.scanResult).toBe(complete)
+  expect(latest?.loadedSessionLimit).toBe(250)
+  const final = { sessions: [third], issues: [], scannedAt: 'final' }
+  await act(async () => { finish(final) })
+  await settle()
+  expect(latest?.sessions).toEqual([third])
+  expect(latest?.scanResult?.scannedAt).toBe('final')
+  expect(latest?.loadedSessionLimit).toBe(500)
+  expect(listener).toBeUndefined()
+})
+
+it('does not retain another scope as the current history when the new host leg fails', async () => {
+  await render('runtime:one', 250, ['/repo'])
+  expect(latest?.sessions).toEqual([session])
+  list.mockResolvedValueOnce({
+    sessions: [], scannedAt: 'failed',
+    issues: [{ executionHostId: 'runtime:one', agent: 'codex', kind: 'host', path: 'host', message: 'Unavailable' }]
+  })
+  await render('runtime:one', 250, ['/different-scope'])
+  expect(latest?.sessions).toEqual([])
+  expect(latest?.scanResult?.issues[0]?.kind).toBe('host')
 })

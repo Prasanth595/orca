@@ -1,5 +1,9 @@
+import type { AiVaultScanRows, AiVaultRowDelta } from '../../shared/ai-vault-scan-rows'
+import { AiVaultRowDelivery, acknowledgeAiVaultRows } from './ai-vault-row-delivery'
 import { app, ipcMain } from 'electron'
+import { randomUUID } from 'node:crypto'
 import {
+  aiVaultSessionListGeneration,
   configureAiVaultSessionSources,
   listAiVaultSessions as listCachedLocalAiVaultSessions,
   resetAiVaultSessionListCacheForTests,
@@ -83,7 +87,7 @@ const resolveAiVaultSessionTitles = (
 
 async function listAiVaultSessions(
   args?: AiVaultListArgs,
-  options: { signal?: AbortSignal } = {}
+  options: { signal?: AbortSignal; onRows?: (view: AiVaultScanRows) => void } = {}
 ): Promise<AiVaultListResult> {
   const executionHostScope = requestedExecutionHostScope(args?.executionHostScope)
   // Canonicalize bounded workspace sets so equivalent scopes share a scan.
@@ -105,11 +109,30 @@ async function listAiVaultSessions(
   // coalescing has to survive them — the coordinator hands all same-key callers
   // one scan and only aborts it once every one of them has cancelled.
   return scanCoordinator.run({
-    key: JSON.stringify({ key, depth, afterFingerprint }),
+    key: JSON.stringify({ key, depth, afterFingerprint,
+      localGeneration: executionHostScope === LOCAL_EXECUTION_HOST_ID || executionHostScope === 'all'
+        ? aiVaultSessionListGeneration() : undefined }),
     force: args?.force,
     signal: options.signal,
-    start: (scanSignal) => {
-      const scan = () => scanAiVaultSessionsByHostScope(args, executionHostScope, scanSignal, key)
+    onRows: options.onRows,
+    start: (scanSignal, publish) => {
+      let previous = new Set<string>()
+      const onRows = (view: AiVaultScanRows): void => {
+        if (view.kind === 'delta') {
+          for (const id of view.delta.removed) previous.delete(id)
+          for (const row of view.delta.upserts) previous.add(row.id)
+          publish(view.delta)
+          return
+        }
+        const current = new Set(view.sessions.map((row) => row.id))
+        const delta: AiVaultRowDelta = {
+          removed: [...previous].filter((id) => !current.has(id)),
+          upserts: [...view.sessions]
+        }
+        previous = current
+        publish(delta)
+      }
+      const scan = () => scanAiVaultSessionsByHostScope(args, executionHostScope, scanSignal, key, onRows)
       if (executionHostScope === LOCAL_EXECUTION_HOST_ID) {
         return scan()
       }
@@ -129,18 +152,19 @@ async function scanAiVaultSessionsByHostScope(
   args: AiVaultListArgs | undefined,
   executionHostScope: ExecutionHostScope,
   signal?: AbortSignal,
-  cacheKey = ''
+  cacheKey = '',
+  onRows?: (view: AiVaultScanRows) => void
 ): Promise<AiVaultListResult> {
   const depth = requestedAiVaultSessionDepth(args)
   const scopePaths = args?.scopePaths ?? []
   if (executionHostScope === LOCAL_EXECUTION_HOST_ID) {
-    return scanLocalAiVaultSessionsAsIssue(args, signal)
+    return scanLocalAiVaultSessionsAsIssue(args, signal, onRows)
   }
   if (executionHostScope === 'all') {
     const runtimeHosts = getActiveRuntimeAiVaultHostInfosResult()
     const runtimeResults = runtimeHosts.issue ? [runtimeHosts.issue] : []
     const scannedResults = await Promise.all([
-      scanLocalAiVaultSessionsAsIssue(args, signal),
+      scanLocalAiVaultSessionsAsIssue(args, signal, onRows),
       ...runtimeHosts.hostInfos.map((hostInfo) =>
         scanHostLegWithCache({
           cacheKey: `${cacheKey}|${hostInfo.executionHostId}`,
@@ -198,10 +222,11 @@ export function getActiveRuntimeAiVaultHostInfosResult(): AiVaultHostDiscoveryRe
 // under single-host scope.
 async function scanLocalAiVaultSessionsAsIssue(
   args: AiVaultListArgs | undefined,
-  signal: AbortSignal | undefined
+  signal: AbortSignal | undefined,
+  onRows?: (view: AiVaultScanRows) => void
 ): Promise<AiVaultListResult> {
   try {
-    return await scanLocalAiVaultSessions(args, signal)
+    return await scanLocalAiVaultSessions(args, signal, onRows)
   } catch (error) {
     if (isAiVaultScanCancelledError(error)) {
       throw error
@@ -220,12 +245,18 @@ async function scanLocalAiVaultSessionsAsIssue(
 
 async function scanLocalAiVaultSessions(
   args?: AiVaultListArgs,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onRows?: (view: AiVaultScanRows) => void
 ): Promise<AiVaultListResult> {
   // Why: the shared cache module owns codex-home/WSL sourcing and the local
   // scan cache, so the desktop IPC path and the runtime RPC method (mobile)
   // share one cache instance and one source of managed-Codex homes.
-  return listCachedLocalAiVaultSessions(args, { signal })
+  const generation = aiVaultSessionListGeneration()
+  const result = await listCachedLocalAiVaultSessions(args, { signal, onRows })
+  if (!signal?.aborted && generation === aiVaultSessionListGeneration()) {
+    onRows?.({ kind: 'snapshot', scanId: randomUUID(), revision: 0, sessions: result.sessions })
+  }
+  return result
 }
 
 export function registerAiVaultHandlers(options: AiVaultHandlerOptions = {}): void {
@@ -235,15 +266,22 @@ export function registerAiVaultHandlers(options: AiVaultHandlerOptions = {}): vo
   // WSL injection. The runtime also configures these sources from its deps
   // (serve-mode reachable); this desktop path supplies the same source.
   configureAiVaultSessionSources(options)
+  ipcMain.on('aiVault:rowsAcknowledged', acknowledgeAiVaultRows)
   ipcMain.handle('aiVault:listSessions', async (event, args?: AiVaultListArgs) => {
     const requestToken =
       typeof args?.requestToken === 'string' && args.requestToken.length <= 128
         ? args.requestToken
         : undefined
     const controller = listCancellations.begin(event, requestToken)
+    const hostScope = requestedExecutionHostScope(args?.executionHostScope)
+    const includesLocal = hostScope === LOCAL_EXECUTION_HOST_ID || hostScope === 'all'
+    const generation = includesLocal ? aiVaultSessionListGeneration() : undefined
+    const delivery = requestToken
+      ? new AiVaultRowDelivery(event.sender, requestToken, controller?.signal, includesLocal) : null
     try {
       await handlerOptions.ensureStructuredSessionOwnership?.()
-      const result = await listAiVaultSessions(args, { signal: controller?.signal })
+      const result = await listAiVaultSessions(args, { signal: controller?.signal, onRows: delivery?.observe })
+      if (generation !== undefined && generation !== aiVaultSessionListGeneration()) return cancelledAiVaultListResult()
       return projectStructuredAiVaultSessions(result, OPENS_EVERY_STRUCTURED_CHAT)
     } catch (error) {
       // Why: superseding a scan is normal control flow, but Electron logs every
@@ -253,6 +291,7 @@ export function registerAiVaultHandlers(options: AiVaultHandlerOptions = {}): vo
       }
       return cancelledAiVaultListResult()
     } finally {
+      delivery?.dispose()
       listCancellations.finish(event, requestToken, controller)
     }
   })

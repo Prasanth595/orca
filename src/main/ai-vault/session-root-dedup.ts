@@ -1,24 +1,8 @@
-import { antigravitySessionOrigin } from '../../shared/antigravity-session-origin'
+import { sessionAliasKey } from '../../shared/ai-vault-session-alias'
 import type { AiVaultSession } from '../../shared/ai-vault-types'
-import { codexSessionAliasKey, codexSessionAliasBeats } from './codex-session-root-dedup'
+import { codexSessionAliasBeats } from './codex-session-root-dedup'
 import { sessionSortTime } from './session-scanner-accumulator'
 
-function sessionAliasKey(session: AiVaultSession): string | null {
-  if (session.agent === 'antigravity') {
-    const root = session.filePath
-      .split(/[\\/]+/)
-      .slice(0, -4)
-      .join('/')
-    return `antigravity\0${session.executionHostId}\0${antigravitySessionOrigin(session.filePath) ?? 'cli'}\0${root}\0${session.sessionId}`
-  }
-  if (session.agent !== 'devin') {
-    const codexKey = codexSessionAliasKey(session)
-    return codexKey ? `codex\0${codexKey}` : null
-  }
-  // Sibling exports share an index; different installs and WSL distros do not.
-  const cliDir = session.filePath.split(/[\\/]/).slice(0, -2).join('/')
-  return `devin\0${session.executionHostId}\0${cliDir}\0${session.sessionId}`
-}
 
 function sessionAliasBeats(candidate: AiVaultSession, best: AiVaultSession): boolean {
   if (candidate.agent === 'antigravity') {
@@ -92,6 +76,35 @@ export class ScannedSessionCollection {
 
   values(): IterableIterator<AiVaultSession> {
     return this.sessions.values()
+  }
+
+  winner(session: AiVaultSession): AiVaultSession | undefined {
+    const key = sessionAliasKey(session)
+    if (!key) return undefined
+    const bucket = this.winnersBySessionId.get(session.sessionId)
+    if (bucket instanceof Map) return bucket.get(key)?.session
+    return bucket && sessionAliasKey(bucket.session) === key ? bucket.session : undefined
+  }
+
+  /** Replay only the completed batch slots, in candidate order. */
+  previewWinners(completed: readonly AiVaultSession[]): Map<string, AiVaultSession> {
+    const winners = new Map<string, AiVaultSession>()
+    for (const row of completed) {
+      const key = sessionAliasKey(row) ?? row.id
+      const best = winners.get(key) ?? this.winner(row)
+      winners.set(key, !best || sessionAliasBeats(row, best) ? row : best)
+    }
+    return winners
+  }
+
+  /** Finite-depth selection only: retain authoritative occurrence order. */
+  previewRows(completed: readonly AiVaultSession[]): AiVaultSession[] {
+    const winners = this.previewWinners(completed)
+    const retained = (row: AiVaultSession): boolean => {
+      const key = sessionAliasKey(row)
+      return !key || !winners.has(key) || winners.get(key) === row
+    }
+    return [...this.values()].filter(retained).concat(completed.filter(retained))
   }
 
   add(session: AiVaultSession): void {
