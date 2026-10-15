@@ -1,4 +1,5 @@
 import type { NativeChatGlobalSettings } from './native-chat-appearance-settings'
+import type { WindowGlassGlobalSettings } from './window-glass'
 import type { ExecutionHostId } from './execution-host'
 import type { OrcaWorkspaceLayout } from './orca-workspace-layout'
 import type { GitHubProjectSettings } from './github/project-types'
@@ -49,7 +50,8 @@ export type { WorktreeVisibilityDefaults } from './repo-types'
 /** MiniMax account region used to select the quota endpoint. */
 export type MiniMaxEndpoint = 'overseas' | 'cn'
 
-export type GlobalSettings = NativeChatGlobalSettings & {
+type GlobalSettingsGroups = NativeChatGlobalSettings & WindowGlassGlobalSettings
+export type GlobalSettings = GlobalSettingsGroups & {
   workspaceDir: string
   /** Host-owned defaults used when a repository has no explicit visibility override. */
   worktreeVisibilityDefaults?: WorktreeVisibilityDefaults
@@ -146,7 +148,6 @@ export type GlobalSettings = NativeChatGlobalSettings & {
   terminalActivePaneOpacity: number
   terminalPaneOpacityTransitionMs: number
   terminalDividerThicknessPx: number
-  terminalBackgroundOpacity?: number
   /** xterm minimumContrastRatio floor for terminal panes (#10754). Undefined keeps the automatic,
    *  background-luminance-gated floor (3 dark / 4.5 light); 1 disables contrast correction so TUIs
    *  that rely on deliberately low contrast (Powerline seams, dimmed secondary text) render as sent. */
@@ -158,7 +159,6 @@ export type GlobalSettings = NativeChatGlobalSettings & {
   terminalWordSeparator?: string
   terminalCursorOpacity?: number
   terminalQuickCommands?: TerminalQuickCommand[]
-  windowBackgroundBlur?: boolean
   /** Windows-only: close (X) hides to tray instead of quitting; the tray icon is always present regardless. */
   minimizeToTrayOnClose?: boolean
   /** macOS: toggles the additive menu-bar entry (Orca survives last-window close); doesn't change Dock behavior. */
