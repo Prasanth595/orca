@@ -173,9 +173,9 @@ export function prepareWebSessionTabsSnapshotBase(
   const retainedTerminalIds = new Set(retainedTerminalTabs.map((tab) => tab.id))
   // Why an empty row rather than a deleted key: an explicit empty row is the closed-last-terminal
   // tombstone every seeder reads (initial-terminal.ts), and dropping the key reads back as "never
-  // initialized", which re-seeds the workspace on every focus (STA-6173). `sameTerminalTabs` treats
-  // a missing row and an empty one as equal, so a worktree that never had a terminal still gets no
-  // row. A removal frame really is gone, and a synthesized unpublished frame is "ask me later", not
+  // initialized", which re-seeds the workspace on every focus (STA-6173). Only a remembered user
+  // close selects the empty row, so a worktree that never had a terminal still gets no row, and a
+  // null frame leaves an existing tombstone alone. A removal frame really is gone, and a synthesized unpublished frame is "ask me later", not
   // evidence the user emptied anything — neither may leave a tombstone behind. Neither may an
   // affirming-empty frame on its own: the host reports zero terminals for a session it ended the
   // same as for tabs the user closed, so only the remembered user-emptied state (written at the

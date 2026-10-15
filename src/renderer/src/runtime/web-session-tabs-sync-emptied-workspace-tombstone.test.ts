@@ -119,6 +119,30 @@ describe('applyWebSessionTabsSnapshot emptied-workspace tombstone', () => {
     )
   })
 
+  it('writes the tombstone when the user empties a workspace whose terminal row is missing', () => {
+    rememberUserEmptiedWorktree(WT)
+
+    const patch = applyTabs(makeState(), emptySnapshot())
+
+    expect(patch.tabsByWorktree).toBeDefined()
+    expect(patch.tabsByWorktree![WT]).toEqual([])
+  })
+
+  // Why: a synthesized frame is "ask me later", so it must not undo the user's own emptying.
+  it('keeps the tombstone through a synthesized unpublished frame', () => {
+    rememberUserEmptiedWorktree(WT)
+
+    const patch = applyTabs(
+      makeState({ tabsByWorktree: { [WT]: [] } }),
+      emptySnapshot({
+        publicationEpoch: UNPUBLISHED_WORKTREE_PUBLICATION_EPOCH,
+        snapshotVersion: 0
+      })
+    )
+
+    expect(patch.tabsByWorktree === undefined || patch.tabsByWorktree[WT]?.length === 0).toBe(true)
+  })
+
   it('does not invent a row for a workspace the host has never had terminals in', () => {
     const patch = applyWebSessionTabsSnapshot(
       makeState(),
