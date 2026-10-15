@@ -199,6 +199,58 @@ describe('native OMP delivery consumer', () => {
     }
   })
 
+  it.each(['omp', 'pi'] as const)(
+    'retries %s completion after shutdown releases the pane',
+    async (kind) => {
+      const root = nativeRoot('shutdown-retry', true)
+      const inFlight = Promise.withResolvers<void>()
+      let held = false
+      const fixture = createNativeFixture(root, [], {
+        runtime: { kind, argv: ['bun', '/opt/omp/bin/omp'] },
+        env: CONSUMER_ENV,
+        delivery: async (payload) => {
+          if (!held && payload.hook_event_name === 'agent_end' && !payload.session_boundary) {
+            held = true
+            await inFlight.promise
+          }
+          return receive(payload)
+        }
+      })
+      try {
+        await fixture.harness.callHook('session_start', {}, root.context)
+        await fixture.harness.callHook(
+          'before_agent_start',
+          { prompt: 'Finish before shutdown' },
+          root.context
+        )
+        await fixture.harness.callHook('agent_start', {}, root.context)
+        await vi.advanceTimersByTimeAsync(1_000)
+        root.ref.status = 'idle'
+        root.session.isStreaming = false
+        await fixture.harness.callHook('agent_end', {}, root.context)
+        await vi.advanceTimersByTimeAsync(0)
+        expect(held).toBe(true)
+        await fixture.harness.callHook('session_shutdown', { reason: 'new' }, root.context)
+        inFlight.reject(new Error('completion connection lost before acceptance'))
+        await vi.advanceTimersByTimeAsync(2_000)
+        expect(server.getStatusSnapshot()[0]).toMatchObject({
+          state: 'done',
+          stateStartedAt: NATIVE_TIME + 1_000,
+          providerSession: { id: 'shutdown-retry', transcriptPath: root.file }
+        })
+        const completion = fixture.accepted.find(
+          ({ payload }) => payload.hook_event_name === 'agent_end'
+        )
+        expect(completion).toMatchObject({
+          payload: { hook_event_name: 'agent_end', session_id: 'shutdown-retry' }
+        })
+        expect(completion?.payload.subagents).toBeUndefined()
+      } finally {
+        inFlight.resolve()
+      }
+    }
+  )
+
   it('settles the exact Pi-routed completion after a close is requeued ahead of it', async () => {
     const root = nativeRoot('queued-A', true)
     let inFlight: PromiseWithResolvers<void> | undefined

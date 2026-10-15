@@ -21,9 +21,24 @@ import type {
 } from '../../runtime-terminal-state-records'
 import type { TerminalTitleFactMeta } from '../../../../shared/terminal-output-side-effects'
 import { recognizeAgentProcessFromCommandLine } from '../../../../shared/agent-process-recognition'
+import type { RuntimePtyController } from '../../runtime-pty-controller-contract'
+import type { PtyForegroundProcessRead } from '../../runtime-terminal-contracts'
 
 export abstract class OrcaRuntimeWithEmitDaemonPtyTransientFact extends OrcaRuntimeWithScheduleWaitBlockedCheck {
   protected abstract retirePtyAgentLaunchAuthority(ptyId: string): void
+  protected pendingOmpCommandFinishes?: Map<string, () => void>
+
+  override setPtyController(controller: RuntimePtyController | null): void {
+    super.setPtyController(controller)
+    const pending = this.pendingOmpCommandFinishes
+    if (!controller || !pending) {
+      return
+    }
+    this.pendingOmpCommandFinishes = undefined
+    for (const retry of pending.values()) {
+      retry()
+    }
+  }
 
   /** A transient fact the daemon detected while it held scan authority —
    *  emitted through the same fact channel as byte-scanned facts. Arrives
@@ -48,6 +63,7 @@ export abstract class OrcaRuntimeWithEmitDaemonPtyTransientFact extends OrcaRunt
   }
 
   protected handlePtyCommandFinished(ptyId: string, exitCode: number | null): void {
+    this.pendingOmpCommandFinishes?.delete(ptyId)
     const pty = this.ptysById.get(ptyId)
     const isOmp =
       pty?.launchAgent === 'omp' ||
@@ -61,8 +77,7 @@ export abstract class OrcaRuntimeWithEmitDaemonPtyTransientFact extends OrcaRunt
     const incarnationId = pty.incarnationId
     const launchToken = pty.launchToken
     const titleObservedAt = pty.lastOscTitleAt
-    const read = this.ptyForegroundAgent.read(ptyId, titleObservedAt ?? 0)
-    void read?.then((result) => {
+    const finish = (result: PtyForegroundProcessRead): void => {
       const current = this.ptysById.get(ptyId)
       if (
         current !== pty ||
@@ -78,7 +93,16 @@ export abstract class OrcaRuntimeWithEmitDaemonPtyTransientFact extends OrcaRunt
         return
       }
       this.applyPtyCommandFinished(ptyId, exitCode)
-    })
+    }
+    const read = this.ptyForegroundAgent.read(ptyId, titleObservedAt ?? 0)
+    if (read) {
+      void read.then(finish)
+    } else {
+      // Retain the original identity fences; attachment is the retry trigger, not a timer.
+      ;(this.pendingOmpCommandFinishes ??= new Map()).set(ptyId, () => {
+        void this.ptyForegroundAgent.read(ptyId, titleObservedAt ?? 0)?.then(finish)
+      })
+    }
   }
 
   private applyPtyCommandFinished(ptyId: string, exitCode: number | null): void {

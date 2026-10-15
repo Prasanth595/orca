@@ -243,12 +243,13 @@ describe('OrcaRuntimeService', () => {
         }),
         retireAgentHookCompatibilityAuthority: retireAuthority
       })
-      runtime.setPtyController({
+      const controller = {
         spawn,
         write: () => true,
         kill: () => true,
         getForegroundProcess: async () => foreground
-      })
+      }
+      runtime.setPtyController(controller)
       runtime.setNotifier({
         worktreesChanged: vi.fn(),
         reposChanged: vi.fn(),
@@ -285,7 +286,9 @@ describe('OrcaRuntimeService', () => {
       ])
       if (agent === 'omp') {
         // Captured OMP 18.10.4 user-bubble markers; the process is still running.
+        runtime.setPtyController(null)
         runtime.onPtyData('pty-authority', '\x1b]133;B\x07\x1b]133;C\x07\x1b]133;D;0\x07', 99)
+        runtime.setPtyController(controller)
         await runtime.ptyForegroundProcessReads.get('pty-authority')?.promise
         expect(retireAuthority).not.toHaveBeenCalled()
         expect(runtime.verifyOrchestrationCompatibilityCaller(evidence)).not.toBeNull()
@@ -297,12 +300,18 @@ describe('OrcaRuntimeService', () => {
         await runtime.ptyForegroundProcessReads.get('pty-authority')?.promise
         expect(retireAuthority).not.toHaveBeenCalled()
         foreground = 'zsh'
+        runtime.setPtyController(null)
       }
 
       runtime.onPtyData('pty-authority', '\x1b]133;D;0\x07', 100)
+      if (agent === 'omp') {
+        expect(retireAuthority).not.toHaveBeenCalled()
+        runtime.setPtyController(controller)
+      }
       await runtime.ptyForegroundProcessReads.get('pty-authority')?.promise
 
       expect(retireAuthority).toHaveBeenCalledWith(spawnEnv.ORCA_PANE_KEY)
+      expect(retireAuthority).toHaveBeenCalledTimes(1)
       expect(runtime.verifyOrchestrationCompatibilityCaller(evidence)).toBeNull()
       expect((await runtime.listTerminals()).terminals).toEqual([
         expect.not.objectContaining({ agentIdentity: expect.anything() })

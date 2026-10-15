@@ -258,7 +258,7 @@ export function getPiAgentStatusExtensionSource(kind: PiAgentKind = 'pi'): strin
     '  const paneKey = process.env.ORCA_PANE_KEY',
     '  if (!coords.port || !coords.token || !paneKey) return',
     '  // A failed native read cannot renew the last verified child roster through a retry.',
-    "  if (ompRuntime && !(final && extra.session_boundary === true) && isOmpRegistryReadUnavailable()) throw new Error('OMP registry snapshot is unavailable')",
+    "  if (ompRuntime && !final && isOmpRegistryReadUnavailable()) throw new Error('OMP registry snapshot is unavailable')",
     '  const url = `http://127.0.0.1:${coords.port}${resolveHookPath(ompRuntime)}`',
     '  const rosterPayload = final ? undefined : subagentPayload(hookEventName)',
     '  const body = JSON.stringify({',
