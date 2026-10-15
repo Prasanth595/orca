@@ -13,7 +13,12 @@ import { registerSessionTabIpcBridge } from '../../src/renderer/src/hooks/ipc-ev
 import { registerTerminalUiRoutingIpcBridge } from '../../src/renderer/src/hooks/ipc-events/terminal-ui-routing-ipc-bridge'
 import type { RuntimeClientTarget } from '../../src/shared/runtime-client-target'
 import { applyWebSessionTabsSnapshot } from '../../src/renderer/src/runtime/web-session-tabs-sync/snapshot-api'
-import { acceptPairedHostStructuredSessions } from '../../src/renderer/src/runtime/structured-agent-session-tab-retirement'
+import {
+  acceptPairedHostStructuredSessions,
+  retireStructuredAgentSessionTab
+} from '../../src/renderer/src/runtime/structured-agent-session-tab-retirement'
+import { isLocalSessionTabCloseOwned } from '../../src/renderer/src/runtime/local-session-tab-close-owner'
+import { clearHostSessionMirrorHydration } from '../../src/renderer/src/runtime/host-session-mirror-hydration'
 import { LOCAL_STRUCTURED_SESSION_OWNER } from '../../src/renderer/src/runtime/local-structured-session-owner'
 import {
   isWebSessionCloseIntentPending,
@@ -383,26 +388,38 @@ describe('in-flight structured session close', () => {
       // A close left in flight would be joined by the next test's close of the same chat.
       onTestFinished(() => handleClose())
 
-      useAppStore.getState().closeUnifiedTab(tabIdOf('chat-b'))
-      expect(strip()).toEqual([tabIdOf('chat-a'), tabIdOf('chat-c')])
+      try {
+        useAppStore.getState().closeUnifiedTab(tabIdOf('chat-b'))
+        expect(strip()).toEqual([tabIdOf('chat-a'), tabIdOf('chat-c')])
 
-      // The host has not handled the close yet, so its next frame still lists chat-b.
-      runtime.touchMobileSessionTabsForWorktree(WORKTREE, { immediate: true })
-      expect(strip()).toEqual([tabIdOf('chat-a'), tabIdOf('chat-c')])
+        // The host has not handled the close yet, so its next frame still lists chat-b.
+        runtime.touchMobileSessionTabsForWorktree(WORKTREE, { immediate: true })
+        expect(strip()).toEqual([tabIdOf('chat-a'), tabIdOf('chat-c')])
 
-      handleClose()
-      await vi.waitFor(() => expect(hostSessionCloses).toEqual(['chat-b']))
-      // The host published its removal before it stopped the chat, and that frame lifted the hide.
-      expect(
-        isWebSessionCloseIntentPending(
-          { environmentId: LOCAL_STRUCTURED_SESSION_OWNER },
-          WORKTREE,
-          'agent-session:chat-b',
-          Date.now()
-        )
-      ).toBe(false)
-      runtime.touchMobileSessionTabsForWorktree(WORKTREE, { immediate: true })
-      expect(strip()).toEqual([tabIdOf('chat-a'), tabIdOf('chat-c')])
+        handleClose()
+        await vi.waitFor(() => expect(hostSessionCloses).toEqual(['chat-b']))
+        // The host published its removal before it stopped the chat, and that frame lifted the hide.
+        expect(
+          isWebSessionCloseIntentPending(
+            { environmentId: LOCAL_STRUCTURED_SESSION_OWNER },
+            WORKTREE,
+            'agent-session:chat-b',
+            Date.now()
+          )
+        ).toBe(false)
+        runtime.touchMobileSessionTabsForWorktree(WORKTREE, { immediate: true })
+        expect(strip()).toEqual([tabIdOf('chat-a'), tabIdOf('chat-c')])
+      } finally {
+        const retirement = isLocalSessionTabCloseOwned(WORKTREE, 'agent-session:chat-b')
+          ? retireStructuredAgentSessionTab({
+              target: { kind: 'local' },
+              worktreeId: WORKTREE,
+              sessionId: 'chat-b'
+            })
+          : null
+        handleClose()
+        await retirement
+      }
     })
 
     it('shows the chat again when the host could not close it', async () => {
@@ -465,14 +482,45 @@ describe('in-flight structured session close', () => {
         answerClose = resolve
       })
       onTestFinished(() => answerClose())
+      const snapshots = await import('../../src/renderer/src/runtime/web-runtime-session-snapshot')
+      const reread = vi.spyOn(snapshots, 'refreshWebRuntimeSessionTabsSnapshot')
+      const settledFrame = frame(3)
+      settledFrame.tabs = settledFrame.tabs.filter((tab) => tab.id !== 'agent-session:chat-b')
+      settledFrame.tabGroups?.forEach((group) => {
+        group.tabOrder = group.tabOrder.filter((id) => id !== 'agent-session:chat-b')
+      })
+      vi.stubGlobal('api', {
+        runtimeEnvironments: {
+          call: async () => ({ id: 'paired-close-list', ok: true, result: settledFrame })
+        }
+      })
 
-      useAppStore.getState().closeUnifiedTab(chatB!.id)
-      const after = before.filter((id) => id !== chatB!.id)
-      expect(strip()).toEqual(after)
+      try {
+        useAppStore.getState().closeUnifiedTab(chatB!.id)
+        const after = before.filter((id) => id !== chatB!.id)
+        expect(strip()).toEqual(after)
 
-      // The server has not handled the close yet, so its next frame still lists chat-b.
-      applyServerFrame(frame(2))
-      expect(strip()).toEqual(after)
+        // The server has not handled the close yet, so its next frame still lists chat-b.
+        applyServerFrame(frame(2))
+        expect(strip()).toEqual(after)
+      } finally {
+        answerClose()
+        try {
+          await vi.waitFor(
+            async () => {
+              const result = reread.mock.results[0]
+              if (result?.type !== 'return') {
+                throw new Error('The paired close did not start its follow-up refresh')
+              }
+              await result.value
+            },
+            { timeout: 10_000 }
+          )
+        } finally {
+          reread.mockRestore()
+          clearHostSessionMirrorHydration(SERVER)
+        }
+      }
     })
   })
 })
