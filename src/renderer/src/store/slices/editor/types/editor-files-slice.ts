@@ -43,6 +43,7 @@ export type EditorFilesSlice = {
       recordReplacedPreview?: boolean
       suppressActiveRuntimeFallback?: boolean
       forceContentReload?: boolean
+      forceReadOnly?: boolean
       focusEditor?: boolean
       reopenId?: string
       selection?: EditorTabSelection

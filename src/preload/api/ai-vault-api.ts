@@ -12,6 +12,8 @@ import type {
   AiVaultFirstUserPromptResult,
   AiVaultListArgs,
   AiVaultListResult,
+  AiVaultSessionArtifactListArgs,
+  AiVaultSessionArtifactListResult,
   AiVaultSubagentListArgs,
   AiVaultSubagentListResult
 } from '../../shared/ai-vault-types'
@@ -56,6 +58,10 @@ export type AiVaultApi = {
   getFirstUserPrompt: (args: AiVaultFirstUserPromptArgs) => Promise<AiVaultFirstUserPromptResult>
   /** Moves a deletable session's transcript to the OS trash; local sessions only. */
   deleteSession: (args: AiVaultDeleteSessionArgs) => Promise<AiVaultDeleteSessionResult>
+  /** Lists user-created artifact files in an Antigravity brain conversation directory. */
+  listSessionArtifacts: (
+    args: AiVaultSessionArtifactListArgs
+  ) => Promise<AiVaultSessionArtifactListResult>
   /** Fires when any app window regains OS focus; returns an unsubscribe. */
   onWindowFocused: (callback: () => void) => () => void
 }

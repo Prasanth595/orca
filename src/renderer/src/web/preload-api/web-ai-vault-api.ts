@@ -24,6 +24,7 @@ import { requireActiveEnvironment } from './web-runtime-session'
 import { noopUnsubscribe } from './web-storage'
 import { translate } from '@/i18n/i18n'
 
+/** Creates the browser-side AI Vault API stub backed by runtime RPCs. */
 export function createWebAiVaultApi(): NonNullable<Partial<PreloadApi>['aiVault']> {
   const search = createSessionSearchClient(
     (method, params) => callRuntimeResult(method, params),
@@ -97,6 +98,8 @@ export function createWebAiVaultApi(): NonNullable<Partial<PreloadApi>['aiVault'
         agent: args.agent,
         reason: 'non-local-host' as const
       }),
+    /** Artifacts are local files; the browser has no filesystem access. */
+    listSessionArtifacts: () => Promise.resolve({ artifacts: [] }),
     onWindowFocused: () => noopUnsubscribe
   }
 }

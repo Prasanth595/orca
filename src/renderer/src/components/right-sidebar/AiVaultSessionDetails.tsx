@@ -24,6 +24,7 @@ import { FirstPromptCard } from './ai-vault-first-prompt-card'
 import { ResumeInNewCliTooltipText } from './ai-vault-session-cli-fork-copy'
 import { sessionDetailConversationTurns, sessionPromptPreview } from './ai-vault-session-display'
 import { SessionSubagentsSection } from './AiVaultSessionSubagents'
+import { SessionArtifactsSection } from './AiVaultSessionArtifacts'
 import { SessionUnsavedConversationNotice } from './AiVaultSessionUnsavedNotice'
 import {
   aiVaultResumeInSessionWorkspaceLabel,
@@ -36,6 +37,7 @@ import {
   type AiVaultSessionWorktreeInfo
 } from './ai-vault-session-worktree'
 
+/** Renders the expanded detail view for a single AI Vault session entry. */
 export function SessionInlineDetails({
   id,
   session,
@@ -76,7 +78,6 @@ export function SessionInlineDetails({
     (!resumeActions.worktree.worktreeId || Boolean(resumeActions.newTab.worktreeId))
   const promptPreview = sessionPromptPreview(session)
   const detailTurns = sessionDetailConversationTurns(session, 3)
-  const worktreeDisplay = worktreeInfo
 
   return (
     <div
@@ -95,7 +96,8 @@ export function SessionInlineDetails({
       onContinueInNewSession ||
       onResumeInNewChat ||
       onResumeInNewCli ||
-      onOpenLog ? (
+      onOpenLog ||
+      session.agent === 'antigravity' ? (
         <div className="flex flex-wrap items-center gap-1.5 border-b border-sidebar-border/80 bg-sidebar-accent/15 px-3 py-2">
           {showResumeInWorktree ? (
             <Button
@@ -218,6 +220,7 @@ export function SessionInlineDetails({
               {translate('auto.components.right.sidebar.AiVaultSessionDetails.viewLog', 'View Log')}
             </Button>
           ) : null}
+          <SessionArtifactsSection key={session.id} session={session} />
         </div>
       ) : null}
 
@@ -260,20 +263,20 @@ export function SessionInlineDetails({
 
         <SessionSubagentsSection session={session} resume={subagentResume} />
 
-        {shouldShowAiVaultSessionWorktreeLine(worktreeDisplay, {
+        {shouldShowAiVaultSessionWorktreeLine(worktreeInfo, {
           vaultScope
         }) ? (
           <SessionReceiptSection
             icon={
-              isAiVaultFolderWorkspaceId(worktreeDisplay.worktreeId) ? (
+              isAiVaultFolderWorkspaceId(worktreeInfo.worktreeId) ? (
                 <Folder className="size-3" />
               ) : (
                 <FolderGit2 className="size-3" />
               )
             }
-            label={aiVaultSessionWorkspaceHeading(worktreeDisplay.worktreeId)}
+            label={aiVaultSessionWorkspaceHeading(worktreeInfo.worktreeId)}
           >
-            <WorktreeMetadataLines worktreeInfo={worktreeDisplay} vaultScope={vaultScope} />
+            <WorktreeMetadataLines worktreeInfo={worktreeInfo} vaultScope={vaultScope} />
           </SessionReceiptSection>
         ) : null}
       </div>

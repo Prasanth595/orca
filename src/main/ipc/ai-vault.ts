@@ -21,9 +21,12 @@ import {
   type AiVaultFirstUserPromptArgs,
   type AiVaultListArgs,
   type AiVaultListResult,
+  type AiVaultSessionArtifactListArgs,
+  type AiVaultSessionArtifactListResult,
   type AiVaultSubagentListArgs,
   type AiVaultSubagentListResult
 } from '../../shared/ai-vault-types'
+import { listSessionArtifacts } from '../ai-vault/session-artifact-listing'
 import { handleAiVaultGetFirstUserPrompt } from '../ai-vault/session-first-user-prompt-handler'
 import { registerAiVaultResumeHandler, type AiVaultResumeHandlerOptions } from './ai-vault-resume'
 import {
@@ -228,6 +231,7 @@ async function scanLocalAiVaultSessions(
   return listCachedLocalAiVaultSessions(args, { signal })
 }
 
+/** Registers all AI Vault IPC handlers on the main process. */
 export function registerAiVaultHandlers(options: AiVaultHandlerOptions = {}): void {
   handlerOptions = options
   // Why: configure the SAME shared cache module the runtime RPC method uses so
@@ -277,6 +281,12 @@ export function registerAiVaultHandlers(options: AiVaultHandlerOptions = {}): vo
   )
   ipcMain.handle('aiVault:getFirstUserPrompt', (_event, args?: AiVaultFirstUserPromptArgs) =>
     handleAiVaultGetFirstUserPrompt(args)
+  )
+  /** Lists artifact files for an Antigravity session's conversation directory. */
+  ipcMain.handle(
+    'aiVault:listSessionArtifacts',
+    (_event, args?: AiVaultSessionArtifactListArgs): Promise<AiVaultSessionArtifactListResult> =>
+      listSessionArtifacts(args)
   )
   registerAiVaultDeleteHandler(aiVaultDeleteDeps)
   // macOS app activation skips DOM focus events, so emit the refresh signal here.

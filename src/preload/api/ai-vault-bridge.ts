@@ -9,6 +9,7 @@ import type {
 import type {
   AiVaultFirstUserPromptArgs,
   AiVaultListArgs,
+  AiVaultSessionArtifactListArgs,
   AiVaultSubagentListArgs
 } from '../../shared/ai-vault-types'
 import type { AiVaultSessionTitlesArgs } from '../../shared/ai-vault-session-title'
@@ -52,6 +53,9 @@ export const aiVaultApi = {
     ipcRenderer.invoke('aiVault:getFirstUserPrompt', args),
   deleteSession: (args: AiVaultDeleteSessionArgs): Promise<AiVaultDeleteSessionResult> =>
     ipcRenderer.invoke('aiVault:deleteSession', args),
+  /** Forwards artifact listing request to the main process. */
+  listSessionArtifacts: (args: AiVaultSessionArtifactListArgs) =>
+    ipcRenderer.invoke('aiVault:listSessionArtifacts', args),
   onWindowFocused: (callback: () => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent) => callback()
     ipcRenderer.on('aiVault:windowFocused', listener)

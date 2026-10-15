@@ -217,6 +217,22 @@ export type AiVaultScanIssue = {
   message: string
 }
 
+export type AiVaultSessionArtifact = {
+  readonly name: string
+  readonly filePath: string
+  readonly sizeBytes: number
+}
+
+export type AiVaultSessionArtifactListArgs = {
+  readonly agent: AiVaultAgent
+  readonly filePath: string
+  readonly executionHostId?: ExecutionHostId
+}
+
+export type AiVaultSessionArtifactListResult = {
+  readonly artifacts: AiVaultSessionArtifact[]
+}
+
 export type AiVaultListArgs = {
   /** Opts a selected runtime-host refresh into content-conditional replies. */
   afterFingerprint?: string | null

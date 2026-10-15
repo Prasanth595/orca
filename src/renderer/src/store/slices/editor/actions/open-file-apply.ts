@@ -34,6 +34,7 @@ export type OpenFileApplyScratch = {
   editorItemIsPreview: boolean
 }
 
+/** Applies an open-file action to the editor state, handling tab reuse and creation. */
 export function applyOpenFileToState(
   s: AppState,
   file: Omit<OpenFile, 'id' | 'isDirty'>,
@@ -44,6 +45,7 @@ export function applyOpenFileToState(
         recordReplacedPreview?: boolean
         suppressActiveRuntimeFallback?: boolean
         forceContentReload?: boolean
+        forceReadOnly?: boolean
         focusEditor?: boolean
         reopenId?: string
         selection?: EditorTabSelection
@@ -117,10 +119,16 @@ export function applyOpenFileToState(
     )
       ? (existing.fileContentReloadNonce ?? 0) + 1
       : existing.fileContentReloadNonce
-    // View Log is the only read-only open path. A normal open of the same path
-    // is an explicit request to edit it, so drop the log-only restrictions while
-    // keeping View Log from downgrading an already writable tab.
-    const nextReadOnly = existing.readOnly === true && file.readOnly === true ? true : undefined
+    // View Log and artifact open are read-only paths. A normal open of the same
+    // path is an explicit request to edit it, so drop the log-only restrictions
+    // while keeping View Log from downgrading an already writable tab.
+    // forceReadOnly locks clean tabs into read-only mode for artifact-style opens.
+    const nextReadOnly =
+      options?.forceReadOnly === true && existing.isDirty === false
+        ? true
+        : existing.readOnly === true && file.readOnly === true
+          ? true
+          : undefined
     const nextLiveTail = file.liveTail === true && nextReadOnly === true ? true : undefined
     const needsExistingUpdate =
       existing.mode !== file.mode ||
