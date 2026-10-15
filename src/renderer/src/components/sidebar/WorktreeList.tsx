@@ -180,9 +180,15 @@ const WorktreeList = React.memo(function WorktreeList({
     visibleWorkspaceHostIds: filterState.visibleWorkspaceHostIds,
     workspaceHostScope: filterState.workspaceHostScope
   })
+  // Why: full-page nav views aren't scoped to a worktree, so no sidebar card should look active
+  // or selected; the selection sync reads the same id the cards render from.
+  const activeCardWorktreeId =
+    activeView === 'tasks' || activeView === 'activity' ? null : currentSidebarWorktreeId
   const selection = useSidebarWorktreeSelection({
     sectionRows: rowModel.sectionRows,
-    pinnedDisplayPolicy
+    pinnedDisplayPolicy,
+    activeWorktreeId: activeCardWorktreeId,
+    activeWorkspaceExecutionHostId
   })
   const statusMutations = useWorktreeStatusMutations({
     manualOrderCatalog,
@@ -289,10 +295,7 @@ const WorktreeList = React.memo(function WorktreeList({
         // Why: status headers move during wake (inactive -> active); key only on grouping mode so row identity survives.
         key={`group:${groupBy}:host:${filterState.visibleWorkspaceHostIds?.join(',') ?? 'all'}:lineage`}
         rows={rowModel.sectionRows}
-        // Why: full-page nav views aren't scoped to a worktree, so no sidebar card should look selected.
-        activeWorktreeId={
-          activeView === 'tasks' || activeView === 'activity' ? null : currentSidebarWorktreeId
-        }
+        activeWorktreeId={activeCardWorktreeId}
         activeWorkspaceExecutionHostId={activeWorkspaceExecutionHostId}
         currentWorktreeId={currentSidebarWorktreeId}
         groupBy={groupBy}

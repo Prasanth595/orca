@@ -70,7 +70,9 @@ describe('child workspace shortcut follows canonical rendered chips', () => {
     const hook = renderHook(() =>
       useSidebarWorktreeSelection({
         sectionRows,
-        pinnedDisplayPolicy: getPinnedWorktreeDisplayPolicy(state.settings)
+        pinnedDisplayPolicy: getPinnedWorktreeDisplayPolicy(state.settings),
+        activeWorktreeId: null,
+        activeWorkspaceExecutionHostId: null
       })
     )
     try {
@@ -85,7 +87,9 @@ describe('child workspace shortcut follows canonical rendered chips', () => {
     const hook = renderHook(() =>
       useSidebarWorktreeSelection({
         sectionRows: [],
-        pinnedDisplayPolicy: getPinnedWorktreeDisplayPolicy(state.settings)
+        pinnedDisplayPolicy: getPinnedWorktreeDisplayPolicy(state.settings),
+        activeWorktreeId: null,
+        activeWorkspaceExecutionHostId: null
       })
     )
     try {

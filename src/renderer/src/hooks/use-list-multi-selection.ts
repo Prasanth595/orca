@@ -19,6 +19,8 @@ export type ListMultiSelection<T> = {
   ) => boolean
   /** Right-click inside a 2+ selection acts on all of it; elsewhere it resets to the item. */
   selectForContextMenu: (item: T) => readonly T[]
+  /** Replaces the selection with one visible key; a key outside `visibleKeys` is pruned away. */
+  selectOnly: (key: string) => void
 }
 
 // Click/Cmd/Shift multi-select keyed by id over `items` in render order. `getKey` and
@@ -121,11 +123,21 @@ export function useListMultiSelection<T>({
     [getKey, selectedKeys, selectedItems]
   )
 
+  // Why stable and identity-preserving: callers sync it from effects, and an unchanged
+  // selection must not re-render every memoized row.
+  const selectOnly = useCallback((key: string): void => {
+    setSelectedKeys((previous) =>
+      previous.size === 1 && previous.has(key) ? previous : new Set([key])
+    )
+    setSelectionAnchorKey(key)
+  }, [])
+
   return {
     visibleKeys,
     selectedKeys,
     selectedItems,
     updateSelectionForGesture,
-    selectForContextMenu
+    selectForContextMenu,
+    selectOnly
   }
 }
