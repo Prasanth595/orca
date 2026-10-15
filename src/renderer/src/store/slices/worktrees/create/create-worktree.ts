@@ -21,6 +21,7 @@ import {
 import type { RuntimeClientTarget } from '../../../../../../shared/runtime-client-target'
 import { runtimeTargetForRepoOwner } from '@/lib/repo-runtime-owner'
 import { WORKTREE_LINKED_WORK_ITEM_CONTEXT_RUNTIME_CAPABILITY } from '../../../../../../shared/protocol-version'
+import { getContextOnlyLinkProviderLabel } from '../../../../../../shared/workspace-linked-item'
 import { showLocalBaseRefUpdateSuggestionToast } from '@/components/sidebar/local-base-ref-suggestion-toast'
 import { requestWorktreeBaseFallbackNotice } from '@/components/worktree-base-fallback-notice'
 import { showLocalBaseRefRefreshToast } from './local-base-ref-refresh-toast'
@@ -200,15 +201,15 @@ export function createCreateWorktree(
         requestedHostId: options?.executionHostId,
         resolveOwnHostId: () => repoHostId(get(), repoId)
       })
-      if (
-        target.kind === 'environment' &&
-        (options?.linkedWorkItem?.provider === 'jira' ||
-          options?.linkedTaskSourceContext?.provider === 'jira')
-      ) {
+      const contextOnlyLinkProvider = getContextOnlyLinkProviderLabel(
+        options?.linkedWorkItem?.provider,
+        options?.linkedTaskSourceContext?.provider
+      )
+      if (target.kind === 'environment' && contextOnlyLinkProvider) {
         await assertRuntimeEnvironmentCapability(
           target.environmentId,
           WORKTREE_LINKED_WORK_ITEM_CONTEXT_RUNTIME_CAPABILITY,
-          'Update the remote runtime to link Jira'
+          `Update the remote runtime to link ${contextOnlyLinkProvider}`
         )
       }
       if (

@@ -4,6 +4,7 @@ import type { StateCreator } from 'zustand'
 import type { AppState } from '../types'
 import type { FolderWorkspace } from '../../../../shared/folder-workspace-types'
 import { WORKTREE_LINKED_WORK_ITEM_CONTEXT_RUNTIME_CAPABILITY } from '../../../../shared/protocol-version'
+import { getContextOnlyLinkProviderLabel } from '../../../../shared/workspace-linked-item'
 import {
   assertRuntimeEnvironmentCapability,
   callRuntimeRpc
@@ -70,15 +71,15 @@ export function createFolderWorkspaceMutationActions(
         // Why: a new folder has no row yet, so creation goes to the host the caller picked.
         const target = runtimeTargetForOwnerEnvironment(options.runtimeEnvironmentId)
         await assertWorkspaceAttachmentWriteCapability(target, args)
-        if (
-          target.kind === 'environment' &&
-          (args.linkedTask?.provider === 'jira' ||
-            args.linkedTaskSourceContext?.provider === 'jira')
-        ) {
+        const contextOnlyLinkProvider = getContextOnlyLinkProviderLabel(
+          args.linkedTask?.provider,
+          args.linkedTaskSourceContext?.provider
+        )
+        if (target.kind === 'environment' && contextOnlyLinkProvider) {
           await assertRuntimeEnvironmentCapability(
             target.environmentId,
             WORKTREE_LINKED_WORK_ITEM_CONTEXT_RUNTIME_CAPABILITY,
-            'Update the remote runtime to link Jira'
+            `Update the remote runtime to link ${contextOnlyLinkProvider}`
           )
         }
         const workspace =
@@ -151,16 +152,16 @@ export function createFolderWorkspaceMutationActions(
       if (target.kind === 'environment' && updates.linkedItems !== undefined) {
         await assertWorkspaceAttachmentWriteCapability(target, updates)
       }
-      // Why: same gate as folderWorkspace.create — an older paired runtime would drop the Jira link silently.
-      if (
-        target.kind === 'environment' &&
-        (updates.linkedTask?.provider === 'jira' ||
-          updates.linkedTaskSourceContext?.provider === 'jira')
-      ) {
+      // Why: same gate as folderWorkspace.create — an older paired runtime would drop the Jira/Todoist link silently.
+      const contextOnlyLinkProvider = getContextOnlyLinkProviderLabel(
+        updates.linkedTask?.provider,
+        updates.linkedTaskSourceContext?.provider
+      )
+      if (target.kind === 'environment' && contextOnlyLinkProvider) {
         await assertRuntimeEnvironmentCapability(
           target.environmentId,
           WORKTREE_LINKED_WORK_ITEM_CONTEXT_RUNTIME_CAPABILITY,
-          'Update the remote runtime to link Jira'
+          `Update the remote runtime to link ${contextOnlyLinkProvider}`
         )
       }
       const updateTicket = folderWorkspaceUpdates.begin(
