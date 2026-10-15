@@ -95,6 +95,78 @@ describe('worktree selector recovery', () => {
   })
 })
 
+describe('terminal handle recovery', () => {
+  // The runtime flattens a split whose source pane is gone to a bare runtime_error.
+  const splitSourceNotFound = () =>
+    new RuntimeRpcFailureError({
+      id: 'req_split',
+      ok: false,
+      error: {
+        code: 'runtime_error',
+        message: 'terminal_split_source_not_found'
+      },
+      _meta: { runtimeId: 'runtime_local' }
+    })
+  const handleStale = () =>
+    new RuntimeRpcFailureError({
+      id: 'req_send',
+      ok: false,
+      error: { code: 'terminal_handle_stale', message: 'terminal_handle_stale' },
+      _meta: { runtimeId: 'runtime_local' }
+    })
+
+  it('names the handle and the next step when a split source pane is gone', () => {
+    const output = formatCliError(splitSourceNotFound(), {
+      commandPath: ['terminal', 'split'],
+      terminalHandle: 'term_closed1'
+    })
+
+    expect(output).toContain('terminal_split_source_not_found')
+    expect(output).toContain('"term_closed1" no longer exists')
+    expect(output).toContain('orca terminal list')
+  })
+
+  it('names the handle and the next step when a send targets a stale handle', () => {
+    const output = formatCliError(handleStale(), {
+      commandPath: ['terminal', 'send'],
+      terminalHandle: 'term_old_leader'
+    })
+
+    expect(output).toContain('terminal_handle_stale')
+    expect(output).toContain('"term_old_leader" no longer exists')
+    expect(output).toContain('orca terminal list')
+  })
+
+  it('keeps the error code and adds the handle to the --json failure envelope', () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    reportCliError(handleStale(), true, {
+      commandPath: ['terminal', 'send'],
+      terminalHandle: 'term_old_leader'
+    })
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      error: {
+        code: 'terminal_handle_stale',
+        data: {
+          terminalHandle: 'term_old_leader',
+          nextSteps: [expect.stringContaining('term_old_leader')]
+        }
+      }
+    })
+    log.mockRestore()
+  })
+
+  it('stays silent when no handle was passed or the error is unrelated', () => {
+    expect(formatCliError(handleStale(), { commandPath: ['terminal', 'send'] })).toBe(
+      'terminal_handle_stale'
+    )
+    expect(formatCliError(selectorNotFound(), { terminalHandle: 'term_x' })).toBe(
+      'selector_not_found'
+    )
+  })
+})
+
 describe('CLI error recovery', () => {
   it('prints did-you-mean next steps for an unknown-command error carrying data', () => {
     const error = new RuntimeClientError('invalid_argument', 'Unknown command: worktree remov', {
