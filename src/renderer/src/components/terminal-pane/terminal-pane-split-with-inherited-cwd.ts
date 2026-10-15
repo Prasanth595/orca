@@ -1,6 +1,7 @@
 import type { TerminalPaneSplitSource } from '../../../../shared/feature-education-telemetry'
 import type { ManagedPane, PaneManager } from '@/lib/pane-manager/pane-manager'
 import { splitWebRuntimeTerminal } from '@/runtime/web-runtime-terminal-actions'
+import { useAppStore } from '@/store'
 import type { PtyTransport } from './pty-transport-types'
 import { resolveSplitCwd, type PaneCwdMap } from './resolve-split-cwd'
 import { recordCreatedTerminalPaneSplit } from './terminal-pane-split-completion'
@@ -54,12 +55,15 @@ function splitLocally(args: SplitArgs, ptyId: string | null, leafId?: string): v
   if (!manager) {
     return
   }
+  const focusNewPane = useAppStore.getState().settings?.terminalFocusNewSplitPane !== false
+  const focusOption = focusNewPane ? {} : { focusNewPane: false }
   const placement = leafId ? { leafId } : {}
   const cached = args.paneCwdMap.get(args.pane.id)
   if (cached?.confirmed && cached.cwd) {
     const createdPane = manager.splitPane(args.pane.id, args.direction, {
       ...placement,
-      cwd: cached.cwd
+      cwd: cached.cwd,
+      ...focusOption
     })
     recordCreatedTerminalPaneSplit(createdPane, {
       source: args.source,
@@ -76,7 +80,11 @@ function splitLocally(args: SplitArgs, ptyId: string | null, leafId?: string): v
       sourcePtyId: ptyId,
       fallbackCwd: args.fallbackCwd
     })
-  const createdPane = manager.splitPane(paneId, args.direction, { ...placement, cwdPromise })
+  const createdPane = manager.splitPane(paneId, args.direction, {
+    ...placement,
+    cwdPromise,
+    ...focusOption
+  })
   recordCreatedTerminalPaneSplit(createdPane, {
     source: args.source,
     direction: args.direction
