@@ -1,5 +1,6 @@
 import type { Store } from './persistence'
 import { isFolderRepo } from '../shared/repo-kind'
+import { isIncognitoRepo } from '../shared/incognito-projects'
 import type { Repo } from '../shared/repo-types'
 import type { GitWorktreeInfo, Worktree } from '../shared/worktree/types'
 import type {
@@ -159,10 +160,14 @@ export async function scanWorkspaceSpaceRepo(args: {
   normalizeLocalDuPath: (path: string) => string
 }): Promise<WorkspaceSpaceRepoScanResult> {
   const { repo, scannedAt, store, limiters, progress, options } = args
+  // Why: the status bar shows these names while scanning and cannot tell which repo they belong to.
+  const progressRepoName = isIncognitoRepo(repo) ? null : repo.displayName
+  const progressWorktreeName = (worktree: Worktree): string | null =>
+    isIncognitoRepo(repo) ? null : worktree.displayName
   throwIfWorkspaceSpaceScanAborted(options.signal)
   reportProgress(
     progress,
-    { currentRepoDisplayName: repo.displayName, currentWorktreeDisplayName: null },
+    { currentRepoDisplayName: progressRepoName, currentWorktreeDisplayName: null },
     options.onProgress
   )
   const listed = await listWorktreesForSpaceScan(store, repo, options.signal)
@@ -203,8 +208,8 @@ export async function scanWorkspaceSpaceRepo(args: {
     reportProgress(
       progress,
       {
-        currentRepoDisplayName: repo.displayName,
-        currentWorktreeDisplayName: worktree.displayName
+        currentRepoDisplayName: progressRepoName,
+        currentWorktreeDisplayName: progressWorktreeName(worktree)
       },
       options.onProgress
     )
@@ -250,7 +255,7 @@ export async function scanWorkspaceSpaceRepo(args: {
     progress,
     {
       scannedRepoCount: progress.scannedRepoCount + 1,
-      currentRepoDisplayName: repo.displayName,
+      currentRepoDisplayName: progressRepoName,
       currentWorktreeDisplayName: null
     },
     options.onProgress

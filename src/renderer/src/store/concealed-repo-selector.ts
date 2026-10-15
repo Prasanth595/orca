@@ -2,6 +2,8 @@ import { getConcealedRepoIds, withoutConcealedRepos } from '../../../shared/inco
 import type { FolderWorkspace } from '../../../shared/folder-workspace-types'
 import type { ProjectGroup } from '../../../shared/project-group-types'
 import type { Repo } from '../../../shared/repo-types'
+import type { WorkspaceSpaceAnalysis } from '../../../shared/workspace-space-types'
+import { retainWorkspaceSpaceRows } from './slices/workspace-space-analysis-rows'
 import type { AppState } from './types'
 
 type ConcealedRepoState = Pick<AppState, 'repos' | 'incognitoProjectsUnlocked'>
@@ -88,4 +90,31 @@ export function omitConcealedRepoKeys<T>(
   return Object.fromEntries(
     Object.entries(byRepo).filter(([repoId]) => !concealedRepoIds.has(repoId))
   )
+}
+
+const shownSpaceCache = new WeakMap<
+  WorkspaceSpaceAnalysis,
+  { concealed: ReadonlySet<string>; shown: WorkspaceSpaceAnalysis }
+>()
+
+/** The space analysis without locked incognito repos, so totals and counts never include them. */
+export function getShownWorkspaceSpaceAnalysisFromState(
+  state: ConcealedRepoState & Pick<AppState, 'workspaceSpaceAnalysis'>
+): WorkspaceSpaceAnalysis | null {
+  const analysis = state.workspaceSpaceAnalysis
+  const concealed = getConcealedRepoIdsFromState(state)
+  if (!analysis || concealed.size === 0) {
+    return analysis
+  }
+  const cached = shownSpaceCache.get(analysis)
+  if (cached?.concealed === concealed) {
+    return cached.shown
+  }
+  const shown = retainWorkspaceSpaceRows(
+    analysis,
+    () => true,
+    (repoId) => !concealed.has(repoId)
+  )
+  shownSpaceCache.set(analysis, { concealed, shown })
+  return shown
 }

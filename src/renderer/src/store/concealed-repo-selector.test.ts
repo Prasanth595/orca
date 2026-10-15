@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { ProjectGroup } from '../../../shared/project-group-types'
 import type { Repo } from '../../../shared/repo-types'
+import type {
+  WorkspaceSpaceAnalysis,
+  WorkspaceSpaceWorktree
+} from '../../../shared/workspace-space-types'
 import {
   getConcealedRepoIdsFromState,
   getShownReposFromState,
+  getShownWorkspaceSpaceAnalysisFromState,
   omitConcealedRepoKeys,
   withoutConcealedOnlyProjectGroups
 } from './concealed-repo-selector'
@@ -69,5 +74,62 @@ describe('concealed repo selectors', () => {
     const byRepo = { open: [1], secret: [2] }
     expect(omitConcealedRepoKeys(byRepo, new Set(['missing']))).toBe(byRepo)
     expect(omitConcealedRepoKeys(byRepo, new Set(['secret']))).toEqual({ open: [1] })
+  })
+
+  it('drops locked incognito repos from the space analysis and recomputes its totals', () => {
+    const row = (repoId: string, sizeBytes: number): WorkspaceSpaceWorktree => ({
+      worktreeId: `${repoId}::/w`,
+      repoId,
+      repoDisplayName: repoId,
+      repoPath: `/tmp/${repoId}`,
+      displayName: repoId,
+      path: '/w',
+      branch: 'main',
+      isMainWorktree: false,
+      isRemote: false,
+      isSparse: false,
+      canDelete: true,
+      lastActivityAt: 0,
+      status: 'ok',
+      error: null,
+      scannedAt: 0,
+      sizeBytes,
+      reclaimableBytes: sizeBytes,
+      skippedEntryCount: 0,
+      topLevelItems: [],
+      omittedTopLevelItemCount: 0,
+      omittedTopLevelSizeBytes: 0
+    })
+    const summary = (repoId: string, sizeBytes: number) => ({
+      repoId,
+      displayName: repoId,
+      path: `/tmp/${repoId}`,
+      isRemote: false,
+      worktreeCount: 1,
+      scannedWorktreeCount: 1,
+      unavailableWorktreeCount: 0,
+      totalSizeBytes: sizeBytes,
+      reclaimableBytes: sizeBytes,
+      error: null
+    })
+    const analysis: WorkspaceSpaceAnalysis = {
+      scannedAt: 0,
+      totalSizeBytes: 30,
+      reclaimableBytes: 30,
+      worktreeCount: 2,
+      scannedWorktreeCount: 2,
+      unavailableWorktreeCount: 0,
+      repos: [summary('open', 10), summary('secret', 20)],
+      worktrees: [row('open', 10), row('secret', 20)]
+    }
+
+    const locked = { repos, incognitoProjectsUnlocked: false, workspaceSpaceAnalysis: analysis }
+    const shown = getShownWorkspaceSpaceAnalysisFromState(locked)
+    expect(shown).toMatchObject({ totalSizeBytes: 10, reclaimableBytes: 10, worktreeCount: 1 })
+    expect(JSON.stringify(shown)).not.toContain('secret')
+    expect(getShownWorkspaceSpaceAnalysisFromState(locked)).toBe(shown)
+    expect(
+      getShownWorkspaceSpaceAnalysisFromState({ ...locked, incognitoProjectsUnlocked: true })
+    ).toBe(analysis)
   })
 })
