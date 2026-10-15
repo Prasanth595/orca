@@ -4,7 +4,7 @@ import { mapWithConcurrency } from '../../shared/map-with-concurrency'
 import { PrioritySemaphore } from '../../shared/priority-semaphore'
 import { isWslUncPath } from '../../shared/wsl-paths'
 import { SessionNewestFiles } from './session-newest-files'
-import type { SessionSidecarObservation } from './session-sidecar-stat'
+import { attachKeptSidecars } from './session-scanner-kept-sidecars'
 import type { AiVaultAgent, AiVaultScanIssue } from '../../shared/ai-vault-types'
 import { wslGatedReaddir, wslGatedStat } from '../native-chat/wsl-transcript-fs-access'
 import { WslTranscriptFsError } from '../native-chat/wsl-transcript-fs-gate'
@@ -19,7 +19,7 @@ const NATIVE_DISCOVERY_BATCH_SIZE = 16
 const nativeDiscoverySlots = new PrioritySemaphore(8)
 
 type SessionFileObservation =
-  | { file: Omit<FileWithMtime, 'modifiedAt'>; sidecarPath?: string }
+  | { file: Omit<FileWithMtime, 'modifiedAt'> }
   | { issue: { path: string; message: string } }
 
 async function withNativeDiscoverySlot<T>(read: () => Promise<T>): Promise<T> {
@@ -43,7 +43,7 @@ export async function discoverFiles(args: {
   signal?: AbortSignal
 }): Promise<SessionFileDiscovery> {
   const files = new SessionNewestFiles(args.limit)
-  let refusedSidecar = false
+  const traversal = new Map<string, number>()
   let paths: string[] = []
   let pending: Promise<SessionFileObservation[]> | null = null
   const native = !isWslUncPath(args.rootDir)
@@ -57,18 +57,11 @@ export async function discoverFiles(args: {
         recordSessionScanIssue(args.issues, { agent: args.agent, ...observation.issue })
         continue
       }
-      if (observation.file.sidecar === 'unknown' && !refusedSidecar) {
-        refusedSidecar = true
-        recordSessionScanIssue(args.issues, {
-          agent: args.agent,
-          path: observation.sidecarPath ?? args.rootDir,
-          message: 'Session metadata could not be read this scan.'
-        })
-      }
       try {
         const modifiedAt = new Date(observation.file.mtimeMs)
         if (Number.isNaN(modifiedAt.getTime()) || files.wouldRetain(observation.file.mtimeMs)) {
           files.add({ ...observation.file, modifiedAt: modifiedAt.toISOString() })
+          traversal.set(observation.file.path, traversal.size)
         }
       } catch (err) {
         recordSessionScanIssue(args.issues, {
@@ -113,7 +106,7 @@ export async function discoverFiles(args: {
           if (args.signal?.aborted) {
             break
           }
-          files.push(await observeSessionFile(path, args.contentDependencyPath, args.signal))
+          files.push(await observeSessionFile(path, args.signal))
         }
         return files
       })
@@ -141,8 +134,7 @@ export async function discoverFiles(args: {
         },
         native
           ? queueNativeFile
-          : async (path) =>
-              consume([await observeSessionFile(path, args.contentDependencyPath, args.signal)])
+          : async (path) => consume([await observeSessionFile(path, args.signal)])
       )
     } finally {
       // One read batch overlaps directory traversal; commit in traversal order.
@@ -166,66 +158,37 @@ export async function discoverFiles(args: {
     })
     return { agent: args.agent, rootDir: args.rootDir, files: [] }
   }
-  return { agent: args.agent, rootDir: args.rootDir, files: files.newest() }
+  return {
+    agent: args.agent,
+    rootDir: args.rootDir,
+    files: await attachKeptSidecars(
+      files.newest(),
+      args,
+      traversal,
+      native ? withNativeDiscoverySlot : (read) => read()
+    )
+  }
 }
 
 async function observeSessionFile(
   path: string,
-  contentDependencyPath?: (path: string) => string | undefined | Promise<string | undefined>,
   signal?: AbortSignal
 ): Promise<SessionFileObservation> {
   try {
     const fileStat = await wslGatedStat(path, 'scan', signal)
-    const sidecarPath = contentDependencyPath ? await contentDependencyPath(path) : undefined
-    const sidecar = sidecarPath ? await observeSessionSidecar(sidecarPath, signal) : 'none'
     return {
       file: {
         path,
         mtimeMs: fileStat.mtimeMs,
         sizeBytes: fileStat.size,
-        sidecar,
         dev: fileStat.dev,
         ino: fileStat.ino,
         nlink: fileStat.nlink
-      },
-      sidecarPath
+      }
     }
   } catch (err) {
     return { issue: { path, message: errorMessage(err) } }
   }
-}
-
-/**
- * A sibling that cannot be statted is not "no sibling": it must not take the
- * transcript down with it, and it must not read as absent either, or the parse
- * cache would treat a session enriched from a file nobody can see as current
- * forever. Only a genuinely missing path is `'none'`; every other failure —
- * a stalled WSL distro, EACCES, EIO — is `'unknown'`.
- */
-async function observeSessionSidecar(
-  filePath: string | undefined,
-  signal?: AbortSignal
-): Promise<SessionSidecarObservation> {
-  if (!filePath) {
-    return 'none'
-  }
-  try {
-    const fileStat = await wslGatedStat(filePath, 'scan', signal)
-    return { path: filePath, mtimeMs: fileStat.mtimeMs, sizeBytes: fileStat.size }
-  } catch (error) {
-    return isMissingSidecarError(error) ? 'none' : 'unknown'
-  }
-}
-
-function isMissingSidecarError(error: unknown): boolean {
-  if (error instanceof WslTranscriptFsError) {
-    return false
-  }
-  const code =
-    error && typeof error === 'object' && 'code' in error && typeof error.code === 'string'
-      ? error.code
-      : null
-  return code === 'ENOENT' || code === 'ENOTDIR'
 }
 
 export type SessionFileWalkOptions = {

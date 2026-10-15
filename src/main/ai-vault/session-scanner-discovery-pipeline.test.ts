@@ -78,6 +78,36 @@ describe('fresh discovery pipeline', () => {
     expect((await scan()).files).toHaveLength(60)
   })
 
+  it('stops on cancel among kept sidecars and reports the cut-short reads as no issue', async () => {
+    const files = await createFiles(root, 20)
+    const controller = new AbortController()
+    let sidecarStats = 0
+    fsMocks.stat.mockImplementation(async (path: string) => {
+      if (!path.endsWith('.meta')) {
+        return fs.stat(path)
+      }
+      sidecarStats += 1
+      if (sidecarStats === 3) {
+        controller.abort()
+        throw new DOMException('This operation was aborted', 'AbortError')
+      }
+      throw Object.assign(new Error('EIO'), { code: 'EIO' })
+    })
+    const issues: AiVaultScanIssue[] = []
+    const discovery = discoverFiles({
+      rootDir: root,
+      issues,
+      limit: 100,
+      agent: 'claude',
+      extensions: ['.jsonl'],
+      contentDependencyPath: (path) => `${path}.meta`,
+      signal: controller.signal
+    })
+    await expect(discovery).rejects.toSatisfy(isAiVaultScanCancelledError)
+    expect(issues).toEqual([])
+    expect(sidecarStats).toBeLessThan(files.length)
+  })
+
   it('formats timestamps only for retained files while still reading every candidate', async () => {
     await createFiles(root, 35)
     fsMocks.stat.mockImplementation(async (path: string) =>
@@ -95,7 +125,7 @@ describe('fresh discovery pipeline', () => {
     expect(format).toHaveBeenCalledTimes(35)
   })
 
-  it('reports invalid timestamps even for empty requests, after unavailable sidecar issues', async () => {
+  it('reports invalid timestamps even for empty requests, reading no metadata it does not return', async () => {
     const [file] = await createFiles(root, 1)
     fsMocks.stat.mockImplementation(async (path: string) => {
       if (path.endsWith('.meta')) {
@@ -114,13 +144,9 @@ describe('fresh discovery pipeline', () => {
     })
     expect(discovery.files).toEqual([])
     expect(issues).toEqual([
-      {
-        agent: 'claude',
-        path: `${file}.meta`,
-        message: 'Session metadata could not be read this scan.'
-      },
       { agent: 'claude', path: file, message: expect.stringMatching(/Invalid (?:time value|Date)/) }
     ])
+    expect(fsMocks.stat.mock.calls.map(([path]) => path)).not.toContain(`${file}.meta`)
   })
 
   it('preserves traversal ties when later metadata completes first, including the partial batch', async () => {
