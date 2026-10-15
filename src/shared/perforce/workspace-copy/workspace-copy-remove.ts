@@ -200,7 +200,7 @@ async function disposeChildStream(
   if (!child) {
     return { streamDeleted: false, note: null }
   }
-  if (child.submittedChanges === 0) {
+  if (child.submittedChanges === 0 || child.copiedUp) {
     // Why a note: the client and folder are already gone, and deleting streams can be admin-only.
     const deleted = await host.p4(['stream', '-d', child.stream], { cwd: plan.source.root })
     return deleted.code === 0
@@ -212,6 +212,6 @@ async function disposeChildStream(
   }
   return {
     streamDeleted: false,
-    note: `Kept ${child.stream} because it has submitted changes. To bring them into ${child.parent ?? 'its parent'}, run p4 copy -S ${child.stream} from a workspace on that stream, review and submit; delete the stream afterwards.`
+    note: `Kept ${child.stream} because ${child.parent ?? 'its parent'} does not have its submitted changes yet. Bring them in with p4 copy -S ${child.stream} from a workspace on that stream (or p4-worktree copy-up), review and submit; delete the stream afterwards.`
   }
 }

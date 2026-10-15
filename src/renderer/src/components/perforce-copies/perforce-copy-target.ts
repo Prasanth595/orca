@@ -3,6 +3,7 @@ import { getRepoExecutionHostId, type ExecutionHostId } from '../../../../shared
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import { isFolderRepo } from '../../../../shared/repo-kind'
 import type { Repo } from '../../../../shared/repo-types'
+import { copyOwnStreamParent } from '../../../../shared/perforce/workspace-copy/workspace-copy-stream-choice'
 import {
   getPerforceCopyName,
   isPerforceCopyWorktreeIdForRepo
@@ -17,6 +18,19 @@ export type PerforceCopyDeleteTarget = {
   copyName: string
 }
 
+function copyTargetForRepo(
+  repo: Repo | null | undefined,
+  worktree: Pick<Worktree, 'id' | 'path'>
+): PerforceCopyDeleteTarget | null {
+  if (!repo || !isFolderRepo(repo) || !isPerforceCopyWorktreeIdForRepo(repo, worktree.id)) {
+    return null
+  }
+  const copyName = getPerforceCopyName(worktree.path)
+  return copyName
+    ? { repoId: repo.id, hostId: getRepoExecutionHostId(repo), sourcePath: repo.path, copyName }
+    : null
+}
+
 /** The delete-confirmation target when `worktree` is a Perforce copy of a folder project, else null. */
 export function getPerforceCopyDeleteTarget(
   state: {
@@ -29,11 +43,18 @@ export function getPerforceCopyDeleteTarget(
     hostId: worktree.hostId,
     settings: state.settings
   })
-  if (!repo || !isFolderRepo(repo) || !isPerforceCopyWorktreeIdForRepo(repo, worktree.id)) {
-    return null
-  }
-  const copyName = getPerforceCopyName(worktree.path)
-  return copyName
-    ? { repoId: repo.id, hostId: getRepoExecutionHostId(repo), sourcePath: repo.path, copyName }
-    : null
+  return copyTargetForRepo(repo, worktree)
+}
+
+export type PerforceCopyUpTarget = PerforceCopyDeleteTarget & { stream: string; parent: string }
+
+/** The copy-up target when `worktree` is a Perforce copy of `repo` on a stream of its own, else null. */
+export function getPerforceCopyUpTarget(
+  repo: Repo | null | undefined,
+  worktree: Pick<Worktree, 'id' | 'path' | 'perforceStream'>
+): PerforceCopyUpTarget | null {
+  const copy = copyTargetForRepo(repo, worktree)
+  const stream = worktree.perforceStream
+  const parent = copy && stream ? copyOwnStreamParent(stream, copy.copyName) : null
+  return copy && stream && parent ? { ...copy, stream, parent } : null
 }

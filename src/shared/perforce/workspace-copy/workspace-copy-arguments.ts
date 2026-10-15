@@ -4,7 +4,8 @@ import type {
   WorkspaceCopyCreateOptions,
   WorkspaceCopyHolderConsent,
   WorkspaceCopyRemovalOptions,
-  WorkspaceCopyStreamChoice
+  WorkspaceCopyStreamChoice,
+  WorkspaceCopyUpOptions
 } from './workspace-copy-types'
 
 // Validation for copy requests arriving over IPC or the SSH relay; the engine trusts its arguments.
@@ -95,4 +96,12 @@ export function requireRemovalOptions(value: unknown): WorkspaceCopyRemovalOptio
     deleteShelves: optionalBoolean(raw.deleteShelves),
     ...(endHolders ? { endHolders } : {})
   }
+}
+
+export function requireCopyUpOptions(value: unknown): WorkspaceCopyUpOptions {
+  if (typeof value !== 'object' || value === null) {
+    return {}
+  }
+  const { description }: Record<string, unknown> = { ...value }
+  return typeof description === 'string' && description.trim() ? { description } : {}
 }

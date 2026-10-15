@@ -95,8 +95,16 @@ export function summarizeCopyRemoval(
     )
   }
   if (preview.childStream) {
-    const { stream, submittedChanges, parent } = preview.childStream
-    if (submittedChanges === 0) {
+    const { stream, submittedChanges, parent, copiedUp } = preview.childStream
+    if (copiedUp) {
+      deletes.push(
+        translate(
+          'perforce.copies.deletesCopiedUpStream',
+          "The copy's own stream {{stream}} (its work is already in {{parent}}).",
+          { stream, parent: parent ?? translate('perforce.copies.itsParent', 'its parent') }
+        )
+      )
+    } else if (submittedChanges === 0) {
       deletes.push(
         translate(
           'perforce.copies.deletesStream',
@@ -108,7 +116,7 @@ export function summarizeCopyRemoval(
       keeps.push(
         translate(
           'perforce.copies.keepsStream',
-          'The stream {{stream}}: it has submitted work. Bring it into {{parent}} with p4 copy -S {{stream}}, then delete the stream.',
+          'The stream {{stream}}: it has submitted work {{parent}} does not have yet. To bring it in, cancel and use Copy Up in this workspace’s menu first.',
           { stream, parent: parent ?? translate('perforce.copies.itsParent', 'its parent') }
         )
       )

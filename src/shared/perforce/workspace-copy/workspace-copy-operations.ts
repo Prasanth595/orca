@@ -4,7 +4,10 @@ import type {
   WorkspaceCopyReadiness,
   WorkspaceCopyRemovalOptions,
   WorkspaceCopyRemovalPreview,
-  WorkspaceCopyRemovalResult
+  WorkspaceCopyRemovalResult,
+  WorkspaceCopyUpOptions,
+  WorkspaceCopyUpPreview,
+  WorkspaceCopyUpResult
 } from './workspace-copy-types'
 
 type NoParams = Record<never, never>
@@ -31,6 +34,10 @@ export type PerforceCopyOperations = {
     params: { name: string } & WorkspaceCopyRemovalOptions
     result: WorkspaceCopyRemovalResult
   }
+  /** What copying the copy's own stream up into its parent would submit. */
+  previewCopyUp: { params: { name: string }; result: WorkspaceCopyUpPreview }
+  /** Copies the copy's own stream up into its parent and submits it. */
+  copyUp: { params: { name: string } & WorkspaceCopyUpOptions; result: WorkspaceCopyUpResult }
 }
 
 export type PerforceCopyOperationName = keyof PerforceCopyOperations
@@ -45,7 +52,9 @@ const NAMES: Record<PerforceCopyOperationName, true> = {
   detectProject: true,
   syncCopies: true,
   previewCopyRemoval: true,
-  removeCopy: true
+  removeCopy: true,
+  previewCopyUp: true,
+  copyUp: true
 }
 
 export function isPerforceCopyOperationName(value: unknown): value is PerforceCopyOperationName {

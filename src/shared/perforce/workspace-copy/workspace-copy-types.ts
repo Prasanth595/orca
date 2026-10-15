@@ -162,6 +162,8 @@ export type WorkspaceCopyRemovalPreview = {
     stream: string
     submittedChanges: number
     parent: string | null
+    /** The parent already has its submitted work (copied up), so removal deletes it too; absent from older hosts. */
+    copiedUp?: boolean
   } | null
   /** Labels of the programs holding the copy; Windows will not delete a folder they hold. */
   processesHoldingFolder: string[]
@@ -182,6 +184,34 @@ export type WorkspaceCopyRemovalResult = {
   streamDeleted: boolean
   /** Set when a child stream was kept because it has submitted work. */
   note: string | null
+}
+
+export type WorkspaceCopyUpFile = { depotFile: string; action: string }
+
+/** What copying a copy's own stream up into its parent would submit; read without opening anything. */
+export type WorkspaceCopyUpPreview = {
+  name: string
+  stream: string
+  parent: string
+  /** The parent already has everything on the stream; there is nothing to copy up. */
+  upToDate: boolean
+  files: WorkspaceCopyUpFile[]
+  /** Changes submitted to the copy's stream, for the default changelist description. */
+  changes: { change: number; description: string }[]
+}
+
+export type WorkspaceCopyUpOptions = {
+  /** The parent changelist's description; defaults to the stream's submitted changes. */
+  description?: string
+}
+
+export type WorkspaceCopyUpResult = {
+  name: string
+  stream: string
+  parent: string
+  submittedChange: number
+  files: WorkspaceCopyUpFile[]
+  warnings: string[]
 }
 
 /** Copy IPC results carry the engine's message instead of Electron's wrapped error. */

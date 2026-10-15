@@ -26,7 +26,7 @@ export type WorkspaceCopyMarker = {
 function handBackText(source: CopySource, stream: string, mode: WorkspaceCopyMode): string {
   const submit = `Submit finished work from this copy once it is tested here; sync and retest first if ${stream} has moved on. Shelve instead only to review it in the original workspace.`
   return mode === 'child'
-    ? `This copy is on its own stream ${stream}. ${submit} Bring the work into ${source.stream} with p4 copy -S ${stream} from a workspace on that stream, then remove the copy.`
+    ? `This copy is on its own stream ${stream}. ${submit} The developer brings the work into ${source.stream} with Copy Up in the copy's Orca workspace menu, then removes the copy.`
     : `This copy is on ${stream}. ${submit} Then remove the copy.`
 }
 

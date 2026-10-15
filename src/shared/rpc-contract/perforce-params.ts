@@ -75,6 +75,8 @@ export const PerforceProject = z.object({
 
 export const PerforceCopy = PerforceProject.extend({ name: z.string().min(1, 'Missing copy name') })
 
+export const PerforceCopyUp = PerforceCopy.extend({ description: z.string().optional() })
+
 export const PerforceRemoveCopy = PerforceCopy.extend({
   revertOpenFiles: z.boolean().optional(),
   deleteShelves: z.boolean().optional(),

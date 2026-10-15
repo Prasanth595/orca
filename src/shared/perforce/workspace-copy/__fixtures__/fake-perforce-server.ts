@@ -26,6 +26,8 @@ export class FakePerforceServer {
   heads = new Map<string, Map<string, FileRev>>()
   calls: string[][] = []
   failWhen: ((args: string[]) => boolean) | null = null
+  /** What `p4 istat` reports for every stream; null answers nothing. */
+  istat: { integToParent: string; integFromParent: string } | null = null
   private nextChange = 500
 
   addStream(stream: string, files: Record<string, number>, parent: string | null = null): void {
@@ -143,6 +145,8 @@ export class FakePerforceServer {
         const stream = this.streams.get(rest[0].toLowerCase())
         return ok(stream ? tag({ Stream: rest[0], Parent: stream.parent ?? 'none' }) : '')
       }
+      case 'istat':
+        return ok(this.istat ? tag({ stream: rest.at(-1) ?? '', parent: 'p', ...this.istat }) : '')
       case 'client':
         return this.clientCommand(rest, options)
       case 'stream':

@@ -1,3 +1,4 @@
+import { copyUpWorkspaceCopy, previewWorkspaceCopyUp } from './workspace-copy-copy-up'
 import { createWorkspaceCopy } from './workspace-copy-create'
 import type { WorkspaceCopyHost } from './workspace-copy-host'
 import { listWorkspaceCopies } from './workspace-copy-list'
@@ -14,7 +15,10 @@ import type {
   WorkspaceCopyReadiness,
   WorkspaceCopyRemovalOptions,
   WorkspaceCopyRemovalPreview,
-  WorkspaceCopyRemovalResult
+  WorkspaceCopyRemovalResult,
+  WorkspaceCopyUpOptions,
+  WorkspaceCopyUpPreview,
+  WorkspaceCopyUpResult
 } from './workspace-copy-types'
 
 /** Copy operations, executed where the source workspace lives: this machine or an SSH relay. */
@@ -33,6 +37,12 @@ export type WorkspaceCopyBackend = {
     options: WorkspaceCopyRemovalOptions
   ) => Promise<WorkspaceCopyRemovalResult>
   streams: (cwd: string) => Promise<PerforceStreamList>
+  previewCopyUp: (cwd: string, name: string) => Promise<WorkspaceCopyUpPreview>
+  copyUp: (
+    cwd: string,
+    name: string,
+    options: WorkspaceCopyUpOptions
+  ) => Promise<WorkspaceCopyUpResult>
 }
 
 export function createLocalWorkspaceCopyBackend(host: WorkspaceCopyHost): WorkspaceCopyBackend {
@@ -47,6 +57,8 @@ export function createLocalWorkspaceCopyBackend(host: WorkspaceCopyHost): Worksp
     create: (cwd, options, onProgress) => createWorkspaceCopy(host, cwd, options, onProgress),
     previewRemoval: (cwd, name) => previewWorkspaceCopyRemoval(host, cwd, name),
     remove: (cwd, name, options) => removeWorkspaceCopy(host, cwd, name, options),
-    streams: (cwd) => listCopyStreams(host, cwd)
+    streams: (cwd) => listCopyStreams(host, cwd),
+    previewCopyUp: (cwd, name) => previewWorkspaceCopyUp(host, cwd, name),
+    copyUp: (cwd, name, options) => copyUpWorkspaceCopy(host, cwd, name, options)
   }
 }

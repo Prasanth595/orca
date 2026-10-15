@@ -7,6 +7,7 @@ import {
   openedRecords,
   pendingChanges,
   shelvedFileCount,
+  streamIntegrationState,
   submittedChangeCount,
   unescapeP4Path
 } from './workspace-copy-p4'
@@ -72,10 +73,14 @@ export async function planWorkspaceCopyRemoval(
   let childStream: WorkspaceCopyRemovalPreview['childStream'] = null
   if (stream && isCopyOwnStream(stream, name)) {
     const streamRecord = await findStream(host, stream, source.root)
+    const submittedChanges = await submittedChangeCount(host, stream, source.root)
+    const state =
+      submittedChanges > 0 ? await streamIntegrationState(host, stream, source.root) : null
     childStream = {
       stream,
-      submittedChanges: await submittedChangeCount(host, stream, source.root),
-      parent: streamRecord?.Parent ?? null
+      submittedChanges,
+      parent: streamRecord?.Parent ?? null,
+      copiedUp: state !== null && !state.toParent
     }
   }
   const holders = folderExists ? await processesUnder(host, names.copyRoot) : []

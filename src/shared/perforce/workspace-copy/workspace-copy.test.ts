@@ -345,6 +345,20 @@ describe('removeWorkspaceCopy', () => {
     expect(keptResult.note).toContain(`p4 copy -S ${STREAM}_wt_kept`)
   })
 
+  it('deletes a child stream whose submitted work was copied up', async () => {
+    const host = createFakeCopyHost(server, base)
+    await createWorkspaceCopy(host, ws, { name: 'up', stream: { kind: 'child' } })
+    const up = server.streams.get(`${STREAM}_wt_up`.toLowerCase())
+    if (up) {
+      up.submits = 1
+    }
+    server.istat = { integToParent: 'false', integFromParent: 'false' }
+    const preview = await previewWorkspaceCopyRemoval(host, ws, 'up')
+    expect(preview.childStream?.copiedUp).toBe(true)
+    const removed = await removeWorkspaceCopy(host, ws, 'up', {}, { awaitFolderDeletion: true })
+    expect(removed).toMatchObject({ streamDeleted: true, note: null })
+  })
+
   it('deletes a child stream whose only work was a shelf the removal deletes', async () => {
     const host = createFakeCopyHost(server, base)
     await createWorkspaceCopy(host, ws, { name: 'shelf', stream: { kind: 'child' } })

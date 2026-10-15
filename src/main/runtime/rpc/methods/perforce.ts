@@ -3,6 +3,7 @@ import {
   PerforceChangelist,
   PerforceChangelistFiles,
   PerforceCopy,
+  PerforceCopyUp,
   PerforceCreateChangelist,
   PerforceDiscard,
   PerforceEditDescription,
@@ -238,5 +239,19 @@ export const PERFORCE_METHODS = [
     params: PerforceRemoveCopy,
     handler: (params, { runtime }) =>
       runtime.runPerforceCopyOperation(params.repo, 'removeCopy', params)
+  }),
+  defineMethod({
+    name: 'perforce.previewCopyUp',
+    permission: 'workspace',
+    params: PerforceCopy,
+    handler: (params, { runtime }) =>
+      runtime.runPerforceCopyOperation(params.repo, 'previewCopyUp', params)
+  }),
+  defineMethod({
+    name: 'perforce.copyUp',
+    permission: 'workspace',
+    params: PerforceCopyUp,
+    handler: (params, { runtime }) =>
+      runtime.runPerforceCopyOperation(params.repo, 'copyUp', params)
   })
 ]

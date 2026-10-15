@@ -68,7 +68,23 @@ describe('summarizeCopyRemoval', () => {
       {},
       'D:\\ws'
     )
-    expect(kept.keeps.join(' ')).toContain('p4 copy -S //s/main_wt_copy-1')
+    expect(kept.keeps.join(' ')).toContain('use Copy Up')
+    const copiedUp = summarizeCopyRemoval(
+      {
+        ...PREVIEW,
+        childStream: {
+          stream: '//s/main_wt_copy-1',
+          submittedChanges: 2,
+          parent: '//s/main',
+          copiedUp: true
+        }
+      },
+      {},
+      'D:\\ws'
+    )
+    expect(copiedUp.deletes).toContain(
+      "The copy's own stream //s/main_wt_copy-1 (its work is already in //s/main)."
+    )
     const deleted = summarizeCopyRemoval(
       {
         ...PREVIEW,

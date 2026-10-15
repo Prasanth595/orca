@@ -4,6 +4,7 @@ import { runWithPerforceSettings } from '../../shared/perforce/p4-settings-conte
 import type { PerforceSettings } from '../../shared/perforce/perforce-settings'
 import {
   requireCopyName,
+  requireCopyUpOptions,
   requireRemovalOptions
 } from '../../shared/perforce/workspace-copy/workspace-copy-arguments'
 import type { WorkspaceCopyBackend } from '../../shared/perforce/workspace-copy/workspace-copy-backend'
@@ -143,6 +144,10 @@ export class RuntimePerforceCopyCommands {
         return backend.previewRemoval(repo.path, requireCopyName(params.name))
       case 'removeCopy':
         return this.removeCopy(repo, hostId, backend, params)
+      case 'previewCopyUp':
+        return backend.previewCopyUp(repo.path, requireCopyName(params.name))
+      case 'copyUp':
+        return backend.copyUp(repo.path, requireCopyName(params.name), requireCopyUpOptions(params))
     }
   }
 

@@ -34,7 +34,9 @@ function deferredRemoteBackend(): WorkspaceCopyBackend {
     create: unavailable,
     previewRemoval: unavailable,
     remove: unavailable,
-    streams: unavailable
+    streams: unavailable,
+    previewCopyUp: unavailable,
+    copyUp: unavailable
   }
 }
 

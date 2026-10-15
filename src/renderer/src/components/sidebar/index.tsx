@@ -34,6 +34,7 @@ const ForgetSshWorkspaceDialog = lazyWithRetry(() => import('./ForgetSshWorkspac
 const PerforceCopyDeleteModal = lazyWithRetry(
   () => import('../perforce-copies/PerforceCopyDeleteModal')
 )
+const PerforceCopyUpModal = lazyWithRetry(() => import('../perforce-copies/PerforceCopyUpModal'))
 const PerforceCopiesModal = lazyWithRetry(() => import('../perforce-copies/PerforceCopiesModal'))
 const PerforceOpenForEditDialog = lazyWithRetry(
   () => import('../right-sidebar/perforce/PerforceOpenForEditDialog')
@@ -272,6 +273,7 @@ function Sidebar({
         {activeModal === 'confirm-orca-yaml-hooks' ? <OrcaYamlTrustDialog /> : null}
         {activeModal === 'forget-ssh-workspace' ? <ForgetSshWorkspaceDialog /> : null}
         {activeModal === 'delete-perforce-copy' ? <PerforceCopyDeleteModal /> : null}
+        {activeModal === 'copy-up-perforce-copy' ? <PerforceCopyUpModal /> : null}
         {activeModal === 'perforce-copies' ? <PerforceCopiesModal /> : null}
         {activeModal === 'perforce-open-for-edit' ? <PerforceOpenForEditDialog /> : null}
       </React.Suspense>

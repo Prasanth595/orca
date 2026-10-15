@@ -117,6 +117,25 @@ export async function submittedChangeCount(
   return records.filter((record) => record.change).length
 }
 
+/**
+ * `p4 istat` of a stream against its parent: `toParent` when the stream has work the parent lacks,
+ * `fromParent` the other way. Files only, as copy-up copies. Null when the server names no parent.
+ */
+export async function streamIntegrationState(
+  host: WorkspaceCopyHost,
+  stream: string,
+  cwd: string
+): Promise<{ parent: string; toParent: boolean; fromParent: boolean } | null> {
+  const record = (await p4Tagged(host, ['istat', '-a', '-Af', stream], cwd)).find((r) => r.stream)
+  return record?.parent
+    ? {
+        parent: record.parent,
+        toParent: record.integToParent === 'true',
+        fromParent: record.integFromParent === 'true'
+      }
+    : null
+}
+
 /** Reads `field` for every have-revision of `client` as one `-F` line per file. */
 async function readClientPathMap(
   host: WorkspaceCopyHost,

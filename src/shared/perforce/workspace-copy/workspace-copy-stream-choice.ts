@@ -25,6 +25,11 @@ export function isCopyOwnStream(stream: string, name: string): boolean {
   return stream.toLowerCase().endsWith(`_wt_${name}`.toLowerCase())
 }
 
+/** The parent a copy's own stream was named after; the server's record is the authority. */
+export function copyOwnStreamParent(stream: string, name: string): string | null {
+  return isCopyOwnStream(stream, name) ? stream.slice(0, -`_wt_${name}`.length) : null
+}
+
 async function requireStream(host: WorkspaceCopyHost, stream: string, cwd: string): Promise<void> {
   if (!(await findStream(host, stream, cwd))) {
     throw new WorkspaceCopyError('refused', `Stream ${stream} does not exist.`)
