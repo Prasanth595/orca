@@ -60,6 +60,7 @@ export function createAccumulator(args: {
     totalTokens: 0,
     previewMessages: [],
     previewMessagesTruncated: false,
+    partial: false,
     firstUserPrompt: null,
     lastUserPrompt: null,
     queuedMessageCount: 0,
@@ -161,6 +162,7 @@ export function finalizeSession(
     totalTokens: accumulator.totalTokens,
     previewMessages: accumulator.previewMessages,
     ...(accumulator.previewMessagesTruncated ? { previewMessagesTruncated: true } : {}),
+    ...(accumulator.partial ? { contentCoverage: 'partial' } : {}),
     ...(accumulator.antigravityOpeningPrompt
       ? { antigravityOpeningPrompt: accumulator.antigravityOpeningPrompt }
       : {}),
