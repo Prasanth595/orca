@@ -27,10 +27,7 @@ export const STRUCTURED_SEND_TIMEOUT_MS = 15_000
 export type StructuredAgentSessionMutationCallResult<TValue> =
   | { status: 'accepted'; value: TValue }
   | { status: 'refused'; code: AgentSessionWireRefusalCode; message: string }
-  /** `hostRejectedByRequestSchema`: the host's schema turned this request away before running
-   *  it, so the same request can never be accepted there. An auth refusal does not set it:
-   *  it says nothing about an earlier delivery of the same id. */
-  | { status: 'failed'; message: string; hostRejectedByRequestSchema?: true }
+  | { status: 'failed'; message: string }
   | { status: 'unknown' }
 
 export type StructuredAgentSessionMutationResult<TValue> =
@@ -130,6 +127,8 @@ export async function requestStructuredAgentSessionMutation<TValue>(args: {
   fields: Record<string, unknown>
   clientOperationId?: string
   timeoutMs?: number
+  /** The chat's agent, which a refusal about it names. */
+  agentName?: string
 }): Promise<StructuredAgentSessionMutationCallResult<TValue>> {
   const {
     client,
@@ -139,8 +138,10 @@ export async function requestStructuredAgentSessionMutation<TValue>(args: {
     expectedRuntimeFence,
     fields,
     clientOperationId,
-    timeoutMs
+    timeoutMs,
+    agentName
   } = args
+  const context = agentName ? { agentName } : {}
   try {
     const result = await callAgentSession<AgentSessionMutationResult<TValue>>(
       client,
@@ -174,7 +175,8 @@ export async function requestStructuredAgentSessionMutation<TValue>(args: {
           code: result.refusal.code,
           message: agentSessionRefusalNotice(
             result.refusal,
-            phoneWriteKind(fingerprintMethod, fields)
+            phoneWriteKind(fingerprintMethod, fields),
+            context
           )
         }
   } catch (error) {
@@ -187,11 +189,8 @@ export async function requestStructuredAgentSessionMutation<TValue>(args: {
       return {
         status: 'failed',
         message: agentSessionWriteNoticeEnglish(
-          agentSessionWriteNoticeParts(answered, phoneWriteKind(fingerprintMethod, fields))
-        ),
-        ...(error instanceof AgentSessionRpcResponseError && error.code === 'invalid_argument'
-          ? { hostRejectedByRequestSchema: true }
-          : {})
+          agentSessionWriteNoticeParts(answered, phoneWriteKind(fingerprintMethod, fields), context)
+        )
       }
     }
     if (

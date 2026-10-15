@@ -37,6 +37,7 @@ vi.mock('react-native', async () => {
       React.useImperativeHandle(ref, () => ({ scrollToEnd: vi.fn(), scrollToOffset: vi.fn() }), [])
       return React.createElement('FlatList', props)
     }),
+    Platform: { OS: 'ios' },
     Pressable: 'Pressable',
     StyleSheet: { create: (styles: unknown) => styles, hairlineWidth: 1, absoluteFillObject: {} },
     Text: 'Text',
@@ -64,6 +65,7 @@ vi.mock('./MobileNativeChatMessage', () => ({ MobileNativeChatMessage: 'ChatMess
 vi.mock('./MobileNativeChatLiveLine', () => ({ MobileNativeChatLiveLine: 'LiveStatus' }))
 vi.mock('./MobileNativeChatComposer', () => ({ MobileNativeChatComposer: 'Composer' }))
 vi.mock('./MobileNativeChatQueuedMessages', () => ({ MobileNativeChatQueuedMessages: 'Queued' }))
+vi.mock('./MobileNativeChatVisual', () => ({ useMobileNativeChatVisualRenderer: () => null }))
 vi.mock('../components/ActionSheetModal', () => ({ ActionSheetModal: 'ActionSheetModal' }))
 vi.mock('./MobileNativeChatAsk', () => ({ MobileNativeChatAsk: 'ChatAsk' }))
 vi.mock('./MobileNativeChatPermission', () => ({ MobileNativeChatPermission: 'ChatPermission' }))
@@ -87,8 +89,11 @@ const HOST_SUPPORT = {
   promptCancel: true,
   questionAnswers: true,
   queuedMessages: true,
+  queuedCommands: false,
   statusFeed: true,
-  quietRepeatedStop: true
+  quietRepeatedStop: true,
+  sendOptions: false,
+  conversationStop: false
 }
 
 type Phone = {

@@ -168,10 +168,11 @@ describe('a Codex send while a turn runs', () => {
 
     expect(await send('client-1')).toEqual({
       state: 'rejected',
-      reason: 'The provider did not accept this message: thread not found.',
+      reason: "Codex didn't accept this message: thread not found.",
       rejection: {
         kind: 'providerRejected',
-        detail: { text: 'thread not found', audience: 'person' }
+        detail: { text: 'thread not found', audience: 'person' },
+        neverReachedAgent: true
       }
     })
     expect(methods()).toEqual(['thread/start', 'turn/steer', 'turn/start'])
@@ -214,9 +215,9 @@ describe('a Codex send made after Codex answered an earlier one, before it opene
     const sending = rig.send('client-2')
     expect(await settledWithin(sending)).toBe('held')
     const methods = () =>
-      rig.codex.connections[0]!.calls
-        .map(({ method }) => method)
-        .filter((method) => method !== 'model/list' && method !== 'config/read')
+      rig.codex.connections[0]!.calls.map(({ method }) => method).filter(
+        (method) => method !== 'model/list' && method !== 'config/read'
+      )
     expect(methods()).toEqual(['thread/start', 'turn/start'])
     return { ...rig, sending, methods }
   }

@@ -16,7 +16,11 @@
  */
 
 import { deriveAgentLaunchChildOperationId } from '../../../../shared/agent-launch-operation'
-import { AGENT_LAUNCH_PROMPT_UNCONFIRMED_RUNTIME_CAPABILITY } from '../../../../shared/agent-launch-runtime-capability'
+import {
+  AGENT_LAUNCH_PROMPT_UNCONFIRMED_RUNTIME_CAPABILITY,
+  AGENT_LAUNCH_TAB_CLOSED_CLIENT_CAPABILITY
+} from '../../../../shared/agent-launch-runtime-capability'
+import { AGENT_LAUNCH_TAB_CLOSED_CODE } from '../../../../shared/agent-launch-tab-closed'
 import { isAgentLaunchResult, type AgentLaunchResult } from '../../../../shared/agent-launch-intent'
 import type {
   AgentSessionOperationOutcome,
@@ -25,7 +29,8 @@ import type {
 import { resolveAgentSessionReplayOutcome } from '../../../native-chat/agent-session-wire/structured-agent-session-replay-outcome'
 import type { RpcContext } from '../core'
 import { rpcCallerOperationKey } from '../rpc-caller-identity'
-import type { AgentLaunchParams } from './agent-launch-schemas'
+import { agentLaunchFailureMessage } from './agent-launch-failure-code'
+import type { AgentLaunchParams } from '../../../../shared/rpc-contract/agent-launch-params'
 
 /**
  * The ledger namespace of whoever the transport says is calling. A transport that could not name its
@@ -42,9 +47,10 @@ export function agentLaunchOperationCallerKey(context: Pick<RpcContext, 'caller'
  * `agent.launch` raises its refusals as the thrown code, the way the method's own guards do, so a
  * refusal here carries whatever code the operation recorded rather than the closed `agentSession.*`
  * envelope. An `AgentSessionWireRefusal` still fits, which is how the shared replay resolver's
- * answers pass through unchanged.
+ * answers pass through unchanged. `said` is the words a failed launch was refused with, for its
+ * replay to repeat.
  */
-export type AgentLaunchRefusal = { code: string; message: string }
+export type AgentLaunchRefusal = { code: string; message: string; said?: string }
 
 export type AgentLaunchAdmission =
   /** This caller owns the operation. It alone runs the effect, and it must settle the row. */
@@ -54,7 +60,8 @@ export type AgentLaunchAdmission =
        *  the running agent instead of refusing an unknown outcome. */
       record: (provisional: AgentLaunchResult) => Promise<void>
       settle: (result: AgentLaunchResult) => Promise<void>
-      fail: (code: string) => Promise<void>
+      /** `cause` is the refusal, whose own words a coded one keeps for its replay. */
+      fail: (code: string, cause?: unknown) => Promise<void>
       /** Distinct from the launch id: the inner attach reserves in this same ledger. */
       attachOperationId: string
       callerKey: string
@@ -81,7 +88,8 @@ function answerFromRecordedRow(
       refusal: {
         code: outcome.code,
         message:
-          outcome.message ?? `Launch operation ${operationId} already failed: ${outcome.code}.`
+          outcome.message ?? `Launch operation ${operationId} already failed: ${outcome.code}.`,
+        ...(outcome.message ? { said: outcome.message } : {})
       }
     }
   }
@@ -99,6 +107,16 @@ function answerFromRecordedRow(
   return replay.decision === 'replay'
     ? { decision: 'replay', result: replay.value }
     : { decision: 'refuse', refusal: replay.refusal }
+}
+
+/** A launch whose tab the user closed answers with its own word only to a caller that reads it. */
+export function readsAgentLaunchTabClosed(
+  context: Pick<RpcContext, 'clientKind' | 'clientCapabilities'>
+): boolean {
+  return (
+    context.clientKind === undefined ||
+    context.clientCapabilities?.includes(AGENT_LAUNCH_TAB_CLOSED_CLIENT_CAPABILITY) === true
+  )
 }
 
 /** The CLI (no declared client) ships with this host; any other caller must say it reads the word. */
@@ -144,6 +162,17 @@ function presentRecordedAnswer(
   operationId: string,
   answer: AgentLaunchAdmission
 ): AgentLaunchAdmission {
+  if (
+    answer.decision === 'refuse' &&
+    answer.refusal.code === AGENT_LAUNCH_TAB_CLOSED_CODE &&
+    !readsAgentLaunchTabClosed(context)
+  ) {
+    return refusal(
+      operationId,
+      'agent_session_operation_unknown',
+      'was stopped; its tab was closed'
+    )
+  }
   if (answer.decision !== 'replay') {
     return answer
   }
@@ -230,12 +259,14 @@ export async function admitAgentLaunchOperation(
     // The same row shape twice: a build that predates the first write reads either one.
     record: succeeded,
     settle: succeeded,
-    fail: (code) =>
-      store.recordOperationOutcome({
+    fail: (code, cause) => {
+      const message = agentLaunchFailureMessage(cause)
+      return store.recordOperationOutcome({
         callerKey,
         operationId,
-        outcome: { status: 'failed', code }
+        outcome: { status: 'failed', code, ...(message ? { message } : {}) }
       })
+    }
   }
 }
 

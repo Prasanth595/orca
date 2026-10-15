@@ -9,10 +9,8 @@ import {
   getEphemeralVmRecipeResultConnection,
   getEphemeralVmRecipeResultPairingCode
 } from '../../shared/ephemeral-vm-recipes'
-import {
-  removeEnvironment,
-  updateEnvironmentFromPairingCode
-} from '../../shared/runtime-environment-store'
+import { updateEnvironmentFromPairingCode } from '../../shared/runtime-environment-store'
+import { releaseEphemeralVmRuntimeEnvironments } from '../ephemeral-vm-runtime-environment-release'
 import {
   cleanupEphemeralVmRuntime,
   resumeEphemeralVmRuntime,
@@ -113,9 +111,9 @@ export function registerEphemeralVmRuntimeHandlers(store: Store): void {
           runtimeId: runtime.id
         })
       }
-      if (result.ok && runtime.runtimeEnvironmentId) {
+      if (result.ok) {
         try {
-          removeEnvironment(userDataPath, runtime.runtimeEnvironmentId)
+          await releaseEphemeralVmRuntimeEnvironments(userDataPath, runtime)
         } catch {
           // Cleanup of provider resources matters more than hiding a stale local
           // environment row; users can still remove that manually.
@@ -249,7 +247,9 @@ export function registerEphemeralVmRuntimeHandlers(store: Store): void {
       if (!result.ok) {
         throw new Error(result.error)
       }
-      if (!result.skipped && runtime.runtimeEnvironmentId) {
+      const connection = getEphemeralVmRecipeResultConnection(result.runtime.recipeResult)
+      // Why: an SSH VM's server is reached through its target, so it has no pairing to refresh.
+      if (!result.skipped && connection.type !== 'ssh' && runtime.runtimeEnvironmentId) {
         const pairingCode = getEphemeralVmRecipeResultPairingCode(result.runtime.recipeResult)
         if (!pairingCode) {
           throw new Error('Resume result did not include an Orca Server pairing code.')
@@ -259,7 +259,6 @@ export function registerEphemeralVmRuntimeHandlers(store: Store): void {
         })
         invalidateRuntimeEnvironmentTransport(runtime.runtimeEnvironmentId)
       }
-      const connection = getEphemeralVmRecipeResultConnection(result.runtime.recipeResult)
       if (!result.skipped && connection.type === 'ssh') {
         try {
           const ssh = await connectRuntimeOwnedSshTarget({
@@ -268,7 +267,8 @@ export function registerEphemeralVmRuntimeHandlers(store: Store): void {
           })
           return updateEphemeralVmRuntimeStatus(userDataPath, result.runtime.id, {
             connectionMode: 'ssh',
-            sshTargetId: ssh.targetId
+            sshTargetId: ssh.targetId,
+            runtimeEnvironmentId: ssh.environmentId
           })
         } catch (error) {
           updateEphemeralVmRuntimeStatus(userDataPath, result.runtime.id, {

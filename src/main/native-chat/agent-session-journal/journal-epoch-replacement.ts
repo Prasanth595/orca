@@ -16,6 +16,8 @@ import type { JournalLoad } from './journal-open'
 import { applyJournalRow, createJournalReducerState } from './journal-reducer'
 import { buildJournalItemRow, journalRowBase } from './journal-row-builders'
 import {
+  buildJournalQueueReopenRow,
+  buildJournalQueueClearRow,
   buildJournalQueueResumeRow,
   buildJournalStopEventRow
 } from './journal-stop-and-resume-rows'
@@ -36,6 +38,9 @@ export type JournalReplacementItem = AgentJournalProducerLinkage & {
   /** Absent for history rebuilt from a source that never stated one: derived from position, as
    *  a legacy row's is, and then written down. */
   turnScope?: AgentJournalTurnScope
+  /** Carried from the epoch it came from (`JournalItemRow.ownerFence`), never the replacing
+   *  writer's fence: replacing history does not make it the current generation's work. */
+  ownerFence: number
 }
 
 export function replaceJournalEpoch(input: {
@@ -69,6 +74,7 @@ export function replaceJournalEpoch(input: {
       body: item.body,
       seq: state.lastSequence + 1,
       fence: input.fence,
+      ownerFence: item.ownerFence,
       ts: item.observedAt ?? input.now(),
       linkage: item,
       turnScope: item.turnScope ?? state.derivedTurnScope.scopeFor(item.body)
@@ -77,7 +83,7 @@ export function replaceJournalEpoch(input: {
     applyJournalRow(state, row)
     rows.push(row)
   }
-  const { lifted, liveStop } = input.queuePause
+  const { lifted, liveStop, reopened } = input.queuePause
   const place = () => ({ state, seq: state.lastSequence + 1, fence: input.fence, ts: input.now() })
   if (lifted) {
     const row = buildJournalQueueResumeRow(place())
@@ -86,6 +92,16 @@ export function replaceJournalEpoch(input: {
   }
   if (liveStop) {
     const row = buildJournalStopEventRow({ ...place(), event: liveStop })
+    applyJournalRow(state, row)
+    rows.push(row)
+  }
+  if (reopened) {
+    const row = buildJournalQueueReopenRow(place())
+    applyJournalRow(state, row)
+    rows.push(row)
+  }
+  if (input.queuePause.cleared) {
+    const row = buildJournalQueueClearRow({ ...place(), clear: input.queuePause.cleared })
     applyJournalRow(state, row)
     rows.push(row)
   }

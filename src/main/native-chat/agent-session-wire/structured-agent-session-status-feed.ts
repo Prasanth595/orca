@@ -1,4 +1,3 @@
-import type { StructuredAgentSessionStatusObserverOptions } from './structured-agent-session-status-observation'
 // The host's answer to "what is every structured session doing", fanned out to session lists.
 //
 // A client used to learn whether a turn was running by replaying the journal through its own
@@ -17,9 +16,13 @@ import type {
   AgentSessionStatusSummary
 } from '../../../shared/agent-session-wire'
 import type { AgentChildWorkEvidence } from '../../../shared/agent-status-child-work-evidence'
+import type { AgentChildWorkRecord } from '../../../shared/agent-status-child-work'
 import type { AgentChildWorkView } from '../../../shared/agent-status-child-work-view'
 import type { AgentSessionJournal } from '../agent-session-journal/journal-store'
-import type { StructuredAgentSessionProviderChild } from './structured-agent-session-host-types'
+import type {
+  StatusFeedSession,
+  StructuredAgentSessionStatusFeedDeps
+} from './structured-agent-session-status-feed-deps'
 import { structuredAgentSessionStatusSummary } from './structured-agent-session-status-summary'
 import { structuredStatusChildWork } from './structured-agent-session-status-child-work'
 import {
@@ -27,16 +30,10 @@ import {
   type StructuredAgentSessionJournalProjection
 } from './structured-agent-session-status-journal-projection'
 import { structuredStatusSummariesEqual } from './structured-agent-session-status-summary-equality'
-import {
-  deferredStructuredAgentSessionLogger,
-  type StructuredAgentSessionLogger
-} from './structured-agent-session-logger'
-import {
-  StructuredAgentSessionStatusOwnership,
-  type StructuredAgentSessionStatusSink
-} from './structured-agent-session-status-ownership'
+import { StructuredAgentSessionStatusOwnership } from './structured-agent-session-status-ownership'
 
 export type { StructuredAgentSessionStatusSink } from './structured-agent-session-status-ownership'
+export type { StructuredAgentSessionStatusFeedDeps } from './structured-agent-session-status-feed-deps'
 
 export type { StructuredAgentSessionStatusState } from './structured-agent-session-status-journal-projection'
 
@@ -45,67 +42,12 @@ export type StructuredAgentSessionStatusSubscriber = {
   emit: (event: AgentSessionStatusEvent) => void
 }
 
-type StatusFeedSession = {
-  journal: AgentSessionJournal
-  params: { location: AgentSessionRecord['location']; provider: AgentSessionRecord['provider'] }
-  child?: Pick<StructuredAgentSessionProviderChild, 'phase' | 'generation' | 'fence'> | null
-}
-
-export type StructuredAgentSessionStatusFeedDeps = {
-  sessions: ReadonlyMap<string, StatusFeedSession>
-  getRecord: (sessionId: string) => AgentSessionRecord | null
-  now: () => number
-  /** Where a failing sink or observer is reported; neither may cost subscribers their event. */
-  logger: StructuredAgentSessionLogger
-  /** Every projection change, whether or not anyone is subscribed. `replay` marks a re-projection
-   *  of state the host already knew (restore, an arriving subscriber) rather than a journal edge. */
-  onStatusChanged?: (
-    summary: AgentSessionStatusSummary,
-    options: StructuredAgentSessionStatusObserverOptions
-  ) => void
-  /** Resolved on every call: the host builds this feed in a field initializer, before its own
-   *  deps are assigned. The sink holds the session's child records; the summary reads them there. */
-  statusSink?: () => StructuredAgentSessionStatusSink | undefined
-  /** The session's child records changed, so every other reader of them republishes. */
-  onChildWorkChanged?: (sessionId: string) => void
-  /** The session's agent proved a start: its row's phase became `ready`. */
-  onAgentStarted?: (sessionId: string) => void
-}
-
-/** Wire the host's own deps into a feed; keeps the host at one call site.
- *  `deps` is a thunk because the host builds the feed in a field initializer,
- *  before its constructor parameters are assigned. */
-export function createStructuredAgentSessionHostStatusFeed(args: {
-  sessions: StructuredAgentSessionStatusFeedDeps['sessions']
-  now: () => number
-  deps: () => {
-    store: { getRecord: (sessionId: string) => AgentSessionRecord | null }
-    logger: StructuredAgentSessionLogger
-    onSessionStatusChanged?: StructuredAgentSessionStatusFeedDeps['onStatusChanged']
-    statusSink?: StructuredAgentSessionStatusSink
-  }
-  onAgentStarted?: (sessionId: string) => void
-  onChildWorkChanged?: (sessionId: string) => void
-}): StructuredAgentSessionStatusFeed {
-  return new StructuredAgentSessionStatusFeed({
-    sessions: args.sessions,
-    getRecord: (sessionId) => args.deps().store.getRecord(sessionId),
-    now: args.now,
-    logger: deferredStructuredAgentSessionLogger(() => args.deps().logger),
-    onStatusChanged: (summary, options) => args.deps().onSessionStatusChanged?.(summary, options),
-    // Resolved per call for the same reason the other deps are: the host builds this feed in a
-    // field initializer, before its constructor parameters are assigned.
-    statusSink: () => args.deps().statusSink,
-    ...(args.onAgentStarted ? { onAgentStarted: args.onAgentStarted } : {}),
-    ...(args.onChildWorkChanged ? { onChildWorkChanged: args.onChildWorkChanged } : {})
-  })
-}
-
 export class StructuredAgentSessionStatusFeed {
   private readonly ownership = new StructuredAgentSessionStatusOwnership(() =>
     this.deps.statusSink?.()
   )
   private readonly subscribers = new Map<string, StructuredAgentSessionStatusSubscriber>()
+  // Never evicted: chats are named only while in here, and AI Vault reads closed ones' names here.
   private readonly published = new Map<
     string,
     {
@@ -116,7 +58,10 @@ export class StructuredAgentSessionStatusFeed {
   /** The user's newest accepted send each session was last projected with; a new one retires
    *  settled children. */
   private readonly acceptedSends = new Map<string, string>()
-  private readonly projections = new StructuredAgentSessionJournalProjections()
+  // Read per call: field initializers run before the constructor assigns `deps`.
+  private readonly projections = new StructuredAgentSessionJournalProjections((sessionId) =>
+    this.deps.replacedRuntime?.(sessionId)
+  )
 
   constructor(private readonly deps: StructuredAgentSessionStatusFeedDeps) {}
 
@@ -195,6 +140,7 @@ export class StructuredAgentSessionStatusFeed {
       hostExecutionOwned: _hostExecutionOwned,
       hostExecutionPhase: _hostExecutionPhase,
       stopping: _stopping,
+      restartResume: _restartResume,
       ...retained
     } = previous
     this.published.set(sessionId, {
@@ -208,6 +154,28 @@ export class StructuredAgentSessionStatusFeed {
     })
   }
 
+  /** The record's name changed outside the journal. A closed chat's retained row follows it too,
+   *  so every list still showing that conversation learns the name without a tab. */
+  publishConversationName(sessionId: string): void {
+    if (this.deps.sessions.has(sessionId)) {
+      this.publish(sessionId)
+      return
+    }
+    const publication = this.published.get(sessionId)
+    const name = this.deps.getRecord(sessionId)?.conversationName
+    if (!publication || publication.summary.conversationName === name) {
+      return
+    }
+    const { conversationName: _previous, ...rest } = publication.summary
+    const summary = name ? { ...rest, conversationName: name } : rest
+    this.published.set(sessionId, { ...publication, summary })
+    this.broadcast({ type: 'status', session: summary })
+  }
+
+  /** The summary last published for the session, as every status subscriber last saw it. */
+  readPublished = (sessionId: string): AgentSessionStatusSummary | undefined =>
+    this.published.get(sessionId)?.summary
+
   /** The projection behind the session's row, cached per commit: the latest request it read, so
    *  the completion feed follows it without snapshotting the journal again, and its `stopping`,
    *  which the steer hold reads instead of deriving it again. */
@@ -215,8 +183,9 @@ export class StructuredAgentSessionStatusFeed {
     sessionId: string,
     journal?: AgentSessionJournal
   ): StructuredAgentSessionJournalProjection | null {
-    const source = journal ?? this.deps.sessions.get(sessionId)?.journal
-    return source ? this.projections.read(source, this.deps.getRecord(sessionId)) : null
+    const session = this.deps.sessions.get(sessionId)
+    const source = journal ?? session?.journal
+    return source ? this.projections.read(source, this.deps.getRecord(sessionId), session) : null
   }
 
   /** Re-projects one session after its journal changed; equal projections are not re-sent. */
@@ -227,7 +196,7 @@ export class StructuredAgentSessionStatusFeed {
     }
     const source = journal ?? session.journal
     const record = this.deps.getRecord(sessionId)
-    const projection = this.projections.read(source, record)
+    const projection = this.projections.read(source, record, session)
     this.retireSettledChildrenOnNewTurn(sessionId, session, projection.acceptedSendKey)
     const summary = structuredAgentSessionStatusSummary({
       sessionId,
@@ -333,6 +302,14 @@ export class StructuredAgentSessionStatusFeed {
       return undefined
     }
   }
+
+  childWorkIncomplete = (sessionId: string): boolean =>
+    this.ownership.childWorkIncomplete(sessionId)
+
+  /** The records the views project. Read only from the child-work observer, which already
+   *  reports a failure. */
+  readChildWorkRecords = (sessionId: string): AgentChildWorkRecord[] | undefined =>
+    this.ownership.readChildWorkRecords(sessionId)
 
   private admitChildWork(
     sessionId: string,
