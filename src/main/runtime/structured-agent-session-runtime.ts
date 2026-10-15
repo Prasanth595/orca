@@ -135,6 +135,8 @@ export type StructuredAgentSessionRuntimeDeps = {
   statusSink?: StructuredAgentSessionHostDeps['statusSink']
   /** See `StructuredAgentSessionHostDeps.hasOpenDispatch`. */
   hasOpenDispatch?: StructuredAgentSessionHostDeps['hasOpenDispatch']
+  /** See `StructuredAgentSessionHostDeps.queuedCardOwed`. */
+  queuedCardOwed?: StructuredAgentSessionHostDeps['queuedCardOwed']
   resolveCodexAccountKind?: (home: string) => AgentSessionAccountKind | undefined
   /** Launch prep's sync for a probed home; see `CodexModelCatalogProbeDeps.prepareHome`. */
   prepareCodexCatalogProbeHome?: (homePath: string) => void
@@ -322,6 +324,7 @@ async function installOnJournal(
     ...(deps.onSessionStatusChanged ? { onSessionStatusChanged: deps.onSessionStatusChanged } : {}),
     ...(deps.statusSink ? { statusSink: deps.statusSink } : {}),
     ...(deps.hasOpenDispatch ? { hasOpenDispatch: deps.hasOpenDispatch } : {}),
+    ...(deps.queuedCardOwed ? { queuedCardOwed: deps.queuedCardOwed } : {}),
     ...(deps.onSessionTabHidden ? { onSessionTabHidden: deps.onSessionTabHidden } : {}),
     ...(await modelCatalogHostDeps({
       store,

@@ -91,7 +91,10 @@ export function getUndeliveredUnreadMessages(
   this: OrchestrationDb,
   toHandle: string,
   types?: MessageType[],
-  options?: { excludeTypes?: readonly string[]; limit?: number }
+  options?: {
+    excludeTypes?: readonly string[]
+    limit?: number
+  }
 ): MessageRow[] {
   const conditions = [
     'to_handle = ?',

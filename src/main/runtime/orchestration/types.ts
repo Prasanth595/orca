@@ -68,6 +68,9 @@ export type DeliveryRow = {
   status: DeliveryStatus
   created_at: string
   acknowledged_at: string | null
+  /** Who holds it; see `delivery-holder.ts`. Absent on a database before v44. */
+  /** JSON `DeliveryHolder` (delivery-holder-store.ts); null: no holder. */
+  holder?: string | null
 }
 
 export type LegacyAdoptionRow = {
@@ -256,6 +259,10 @@ export type MessageRow = {
   pointer_enter_pending?: number
   pointer_pty_id?: string | null
   pointer_process_incarnation?: string | null
+  /** JSON `HandOffRef` of the terminal notice that carried it (delivery-holder-store.ts). */
+  pointed_by?: string | null
+  reoffered_by_runtime?: string | null
+  reoffered_after_cut?: number | null
 }
 
 export type TaskRow = {

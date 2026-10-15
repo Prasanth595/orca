@@ -25,6 +25,12 @@ import {
   type StructuredPointerSubmission
 } from './structured-pointer-operation-id'
 import { structuredMailSource } from './structured-mail-source'
+import {
+  reofferCutNotice,
+  settleClaimedDelivery,
+  settleReadsChatTurns,
+  type DeliveryHolderReader
+} from './delivery-holder'
 import type { SenderNameResolver } from './agent-message-sender'
 import {
   retainReasonForDispatch,
@@ -91,6 +97,8 @@ type StructuredPointerDeliveryDependencies<TWaiter extends OrchestrationMessageW
   /** What Orca calls a sender now, snapshotted onto the message; null when it has no name. */
   senderName: SenderNameResolver
   host: StructuredMailboxPointerHost
+  /** How the turns mail was handed to ended (`delivery-holder.ts`). */
+  holders: DeliveryHolderReader
   onRetain?: (input: {
     mailboxHandle: string
     sessionId: string
@@ -172,26 +180,25 @@ export class OrchestrationStructuredMailboxPointerDelivery<
     if (!db || this.inFlight.has(mailboxHandle)) {
       return
     }
-    // Don't re-nudge a mailbox whose consumer still holds an unacknowledged batch. The lookup is
-    // keyed on the exact handle being nudged, so a coordinator's own `run:` delivery is invisible
-    // to a worker's `dispatch:` gate and cannot suppress the nudges a coordinator sends its
-    // workers. Worth more here than in the PTY lane: a structured nudge costs a whole provider
-    // turn, not a line of text into a composer.
-    if (db.hasOutstandingMailboxDelivery?.(mailboxHandle)) {
-      return
-    }
-    const unread = selectOrchestrationPointerBatch({
-      db,
-      mailboxHandle,
-      waiters: this.deps.getMessageWaiters(mailboxHandle),
-      reservedTypes
-    })
-    if (unread.length === 0) {
-      return
-    }
     this.inFlight.add(mailboxHandle)
     let contextKey: string | undefined
     try {
+      // Held mail never holds the notice back: a busy chat queues it as a card, like any message.
+      const { holders } = this.deps
+      const turns = settleReadsChatTurns(db, mailboxHandle)
+        ? await holders.sessionTurns(target.sessionId).catch(() => null)
+        : null
+      settleClaimedDelivery(db, mailboxHandle, holders, turns)
+      reofferCutNotice(db, mailboxHandle, turns, holders.runtimeId())
+      const unread = selectOrchestrationPointerBatch({
+        db,
+        mailboxHandle,
+        waiters: this.deps.getMessageWaiters(mailboxHandle),
+        reservedTypes
+      })
+      if (unread.length === 0) {
+        return
+      }
       const session = await this.deps.host.readSessionFacts(target.sessionId)
       const contextClearOperationId = this.deps.host.currentContextClearOperationId(
         target.sessionId

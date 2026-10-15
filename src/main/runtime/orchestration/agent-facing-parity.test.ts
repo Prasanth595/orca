@@ -127,6 +127,12 @@ async function renderChatPointer(mailbox: string): Promise<string> {
     // The runtime's wiring of the structured lane.
     getCliCommand: localOrchestrationCliCommand,
     senderName: () => null,
+    holders: {
+      holderOf: () => null,
+      sessionTurns: async () => null,
+      terminalTurnEnd: () => 'unknown',
+      runtimeId: () => 'runtime-test'
+    },
     host: {
       readSessionFacts: async () => ({ submissions: [] }),
       currentFence: () => 1,

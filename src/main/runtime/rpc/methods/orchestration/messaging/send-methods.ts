@@ -28,6 +28,40 @@ import { sendGroupMessage } from './send-group'
 import { sendFederatedControlMail } from './send-control-mail'
 import { orchestrationCallerIdentity } from '../runs/run-scope'
 import { assertLifecycleCallerIsNotAnotherParty } from './lifecycle-caller-fence'
+import {
+  observeRunCoordinator,
+  runTakesCoordinator
+} from '../../../../orchestration/run-coordinator-observation'
+import type { OrcaRuntimeService } from '../../../../orca-runtime'
+import type { OrchestrationDb } from '../../../../orchestration/db'
+
+/** Mail into a Run no coordinator will read still queues; the sender is told so it stops guessing. */
+async function runCoordinatorUnreachableWarning(
+  runtime: OrcaRuntimeService,
+  db: OrchestrationDb,
+  to: string
+): Promise<SendRecipientWarning | null> {
+  const run = to.startsWith('run:') ? db.getRun(to.slice('run:'.length)) : undefined
+  if (!run || !runTakesCoordinator(run)) {
+    return null
+  }
+  const coordinator = await observeRunCoordinator(runtime, db, run)
+  // Losing sight of a coordinator is not evidence it is gone, so `unverifiable` stays quiet.
+  if (coordinator && coordinator.status !== 'exited') {
+    return null
+  }
+  // Printed after `Sent msg_...`, so it names the Run; observed reasons are whole sentences.
+  const address = coordinator?.address ? ` ${coordinator.address}` : ''
+  const reason = coordinator?.reason ? ` ${coordinator.reason}` : ''
+  const who = coordinator
+    ? `Run ${run.id}'s coordinator${address} has exited.${reason}`
+    : `Run ${run.id} has no coordinator bound.`
+  return {
+    code: 'recipient_unreachable',
+    recipient: to,
+    message: `${who} This message waits unread in ${to}. Tell the user rather than sending it to someone else.`
+  }
+}
 
 export const ORCHESTRATION_SEND_METHODS = [
   defineMethod({
@@ -194,6 +228,15 @@ export const ORCHESTRATION_SEND_METHODS = [
             messageRunId = runBound.runId
             sendWarnings.push(runBound.warning)
           }
+        }
+        // A heartbeat recurs every few minutes and asks nothing of the coordinator, so it is the one
+        // report that does not repeat the warning; the worker's next real report still carries it.
+        const coordinatorWarning =
+          params.type === 'heartbeat'
+            ? null
+            : await runCoordinatorUnreachableWarning(runtime, db, to)
+        if (coordinatorWarning) {
+          sendWarnings.push(coordinatorWarning)
         }
         const federatedControl = sendFederatedControlMail({
           params,

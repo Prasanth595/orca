@@ -47,7 +47,9 @@ export function selectOrchestrationPointerBatch(input: {
   if (hasUnfilteredOrchestrationWaiter(input.waiters)) {
     return []
   }
-  const excludedTypes = new Set(input.reservedTypes)
+  // A heartbeat is a worker's state, not a request: the runtime records it on arrival, and the
+  // coordinator reads it with its next `check`. Waking a coordinator for one costs a turn for nothing.
+  const excludedTypes = new Set(['heartbeat', ...(input.reservedTypes ?? [])])
   for (const waiter of input.waiters ?? []) {
     for (const type of waiter.typeFilter ?? []) {
       excludedTypes.add(type)
@@ -59,22 +61,25 @@ export function selectOrchestrationPointerBatch(input: {
   })
 }
 
+/** Release a staged pointer once none of its messages is still owed: each was read, or fetched
+ *  into a batch handed out since staging (`batchAtStaging` names the one outstanding then, holder
+ *  or not). Per message, so a batch that only holds other mail never releases it. */
 export function shouldReleaseOrchestrationPointer(
   db: OrchestrationDb | null,
   mailboxHandle: string,
   messages: readonly { id: string; type: string }[],
-  waiters: ReadonlySet<OrchestrationMessageWaiter> | undefined
+  waiters: ReadonlySet<OrchestrationMessageWaiter> | undefined,
+  batchAtStaging: string | undefined
 ): boolean {
-  if (db?.hasOutstandingMailboxDelivery?.(mailboxHandle)) {
-    return true
-  }
   if (messages.some((message) => messageTypeHasOrchestrationWaiter(waiters, message.type))) {
     return true
   }
-  return !(
-    db?.areUnreadMessages?.(
-      mailboxHandle,
-      messages.map((message) => message.id)
-    ) ?? true
+  const ids = messages.map((message) => message.id)
+  const outstanding = db?.getOutstandingMailboxDelivery?.(mailboxHandle)?.id
+  const owed = db?.getPointerOwedMessageIds?.(
+    mailboxHandle,
+    ids,
+    outstanding === batchAtStaging ? undefined : outstanding
   )
+  return owed ? owed.length === 0 : !(db?.areUnreadMessages?.(mailboxHandle, ids) ?? true)
 }

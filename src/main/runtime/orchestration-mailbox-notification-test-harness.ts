@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { expect, vi } from 'vitest'
 import { ORCHESTRATION_CONTRACT_VERSION } from '../../shared/protocol-version'
 import type { AgentStatusIpcPayload } from '../../shared/agent-status-types'
+import type { RuntimeConstructionDependencies } from './construction/runtime-construction-dependencies'
 import type Database from '../sqlite/sync-database'
 import { OrcaRuntimeService } from './orca-runtime'
 import { OrchestrationDb } from './orchestration/db'
@@ -90,10 +91,15 @@ export function createRuntime(
     isWsl?: boolean
     getAgentStatusSnapshot?: () => AgentStatusIpcPayload[]
     checkHookAgentPresence?: (paneKey: string) => Promise<'live' | 'unverifiable' | 'exited' | null>
+    getEndedOpenAgentTurnForPane?: RuntimeConstructionDependencies['getEndedOpenAgentTurnForPane']
+    /** The pane's process and the handle this launch minted for it (a restart can change both). */
+    incarnationId?: string
+    handle?: string
   } = {}
 ): MailboxNotificationHarness {
   const runtime = new OrcaRuntimeService(null, undefined, {
     getAgentStatusSnapshot: options.getAgentStatusSnapshot,
+    getEndedOpenAgentTurnForPane: options.getEndedOpenAgentTurnForPane,
     checkHookAgentPresence: options.checkHookAgentPresence,
     attestAgentHookCompatibilityAuthority: ({ paneKey }) =>
       paneKey === PANE_KEY || paneKey.startsWith(`${SECOND_TAB_ID}:`)
@@ -115,12 +121,12 @@ export function createRuntime(
     {
       tabId: TAB_ID,
       leafId: LEAF_ID,
-      incarnationId: 'mailbox-incarnation',
+      incarnationId: options.incarnationId ?? 'mailbox-incarnation',
       agentLaunchAuthority: { launchToken: LAUNCH_TOKEN, launchAgent: 'codex' }
     },
     options.isWsl
   )
-  runtime.registerPreAllocatedHandleForPty(PTY_ID, TERMINAL_HANDLE)
+  runtime.registerPreAllocatedHandleForPty(PTY_ID, options.handle ?? TERMINAL_HANDLE)
   runtime.attachWindow(1)
   runtime.syncWindowGraph(1, {
     tabs: [

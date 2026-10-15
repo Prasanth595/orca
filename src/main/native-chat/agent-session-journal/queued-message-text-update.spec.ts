@@ -42,10 +42,16 @@ export function registerQueuedMessageTextUpdateTests(): void {
 
   describe('atomic queued text update', () => {
     it('preserves identity, cursor, order, sender, kind, role, send mode and attachment order', () => {
+      const notice = {
+        message: 'mail-notice',
+        mailbox: 'run:r',
+        dispatchId: null,
+        messages: []
+      } as const
       const body: AgentJournalMessageItem = {
         ...initial,
         sentAs: 'goal',
-        from: { kind: 'agent', senders: [], orchestration: null },
+        from: { kind: 'agent', senders: [], orchestration: notice },
         blocks: [
           { type: 'image-ref', path: 'before.png' },
           { type: 'text', text: 'one' },
@@ -60,6 +66,8 @@ export function registerQueuedMessageTextUpdateTests(): void {
         ...before,
         body: {
           ...body,
+          // An edited mail notice is the person's text: the queue never withdraws it as spent mail.
+          from: { kind: 'agent', senders: [], orchestration: null },
           blocks: [body.blocks[0]!, { type: 'text', text: 'edited' }, body.blocks[2]!]
         },
         fingerprint: after.fingerprint

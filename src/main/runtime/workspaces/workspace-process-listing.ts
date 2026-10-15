@@ -1,3 +1,4 @@
+import { structuredHostMailDeps } from '../orchestration/delivery-holder'
 import { resolveStructuredCodexAccountKind } from '../structured-agent-account-home'
 import { collectRuntimeWorktreeAgentSources } from '../runtime-worktree-agent-sources'
 import { OrcaRuntimeWithWorktreePsDependencies } from './workspace-process-listing-dependencies'
@@ -299,7 +300,11 @@ export abstract class OrcaRuntimeWithGetWorktreePs extends OrcaRuntimeWithWorktr
       // Read per sweep tick from the orchestration database: a worker whose dispatch is open keeps
       // its agent running. No database answers no.
       hasOpenDispatch: (record) =>
-        structuredWorkerOwesWork(this.getOrchestrationDbIfAvailable?.() ?? null, record)
+        structuredWorkerOwesWork(this.getOrchestrationDbIfAvailable?.() ?? null, record),
+      ...structuredHostMailDeps(
+        () => this.getOrchestrationDbIfAvailable?.() ?? null,
+        this.deliveryHolderReader
+      )
     })
   }
 }
