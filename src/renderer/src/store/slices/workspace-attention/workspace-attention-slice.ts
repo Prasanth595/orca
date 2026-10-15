@@ -15,7 +15,8 @@ import {
 } from './workspace-unread-flag'
 import { workspaceMarkerTabIds } from './workspace-live-markers'
 import { isTabOnScreen } from '@/hooks/agent-auto-ack-targets'
-import { isWorkspaceNotificationMutedBySidebarFilters } from '@/attention/hidden-workspace-notification-mute'
+import { resolveAgentAttention } from '@/attention/agent-attention-policy'
+import { createTerminalAttentionSurface } from '@/components/terminal-pane/terminal-attention-surface'
 
 export const createWorkspaceAttentionSlice: StateCreator<
   AppState,
@@ -84,8 +85,18 @@ export const createWorkspaceAttentionSlice: StateCreator<
       if (isTabOnScreen(get(), worktreeId, tabId, 'terminal')) {
         return
       }
-      // Why here too: the bell's marker is written before its delayed banner reaches the attention policy.
-      if (isWorkspaceNotificationMutedBySidebarFilters(get(), worktreeId)) {
+      // Why the policy: it owns the workspace rules and liveness. It writes no unread for a bell,
+      // so this action is the only writer of the bell's markers.
+      const admission = resolveAgentAttention(
+        {
+          subject: { workspaceId: worktreeId, surfaceKey: paneKey },
+          reason: 'terminal-bell',
+          settlesTurn: false,
+          hasFreshActivityEvidence: false
+        },
+        createTerminalAttentionSurface(get())
+      )
+      if (!admission.admitted) {
         return
       }
       markWorkspaceUnreadFlag(set, get, worktreeId)

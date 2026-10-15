@@ -152,6 +152,18 @@ describe('resolveAgentAttention', () => {
     expect(sink.calls).toEqual([`deliver:${WORKSPACE}:${SUBJECT}`])
   })
 
+  it('rejects a bell from a workspace that is muted or has no live session', () => {
+    const bell = completion({ reason: 'terminal-bell', settlesTurn: false })
+    expect(resolveAgentAttention(bell, makeSurface({ isWorkspaceMuted: () => true }))).toEqual({
+      admitted: false,
+      cause: 'muted-workspace'
+    })
+    expect(resolveAgentAttention(bell, makeSurface({ hasLiveSession: () => false }))).toEqual({
+      admitted: false,
+      cause: 'no-live-session'
+    })
+  })
+
   it('reports in-app workspace selection to the delivery owner', () => {
     const decision = resolveAgentAttention(
       completion(),
