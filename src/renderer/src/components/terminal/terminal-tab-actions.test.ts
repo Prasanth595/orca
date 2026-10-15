@@ -299,6 +299,9 @@ describe('closeTerminalTab', () => {
       environmentId: 'web-runtime',
       reason: 'user'
     })
+    expect(closeWebRuntimeSessionTabMock.mock.invocationCallOrder[0]).toBeLessThan(
+      closeTab.mock.invocationCallOrder[0]!
+    )
   })
 
   it('lets the HUB snapshot adjudicate a stream exit', () => {
@@ -853,6 +856,12 @@ describe('closeOtherTerminalTabs', () => {
     expect(closeTab).toHaveBeenCalledTimes(2)
     expect(closeTab).toHaveBeenNthCalledWith(1, 'close-a', { remoteCloseOwnedByHost: true })
     expect(closeTab).toHaveBeenNthCalledWith(2, 'close-b', { remoteCloseOwnedByHost: true })
+    expect(closeWebRuntimeSessionTabMock.mock.invocationCallOrder[0]).toBeLessThan(
+      closeTab.mock.invocationCallOrder[0]!
+    )
+    expect(closeWebRuntimeSessionTabMock.mock.invocationCallOrder[1]).toBeLessThan(
+      closeTab.mock.invocationCallOrder[1]!
+    )
   })
 })
 
@@ -896,5 +905,11 @@ describe('closeTerminalTabsToRight', () => {
     expect(closeTab).toHaveBeenCalledTimes(2)
     expect(closeTab).toHaveBeenNthCalledWith(1, 'term-b', { remoteCloseOwnedByHost: true })
     expect(closeTab).toHaveBeenNthCalledWith(2, 'term-c', { remoteCloseOwnedByHost: true })
+    expect(closeWebRuntimeSessionTabMock.mock.invocationCallOrder[0]).toBeLessThan(
+      closeTab.mock.invocationCallOrder[0]!
+    )
+    expect(closeWebRuntimeSessionTabMock.mock.invocationCallOrder[1]).toBeLessThan(
+      closeTab.mock.invocationCallOrder[1]!
+    )
   })
 })

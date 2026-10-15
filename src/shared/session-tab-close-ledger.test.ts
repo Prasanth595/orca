@@ -1,0 +1,227 @@
+import { describe, expect, it } from 'vitest'
+import {
+  SESSION_TAB_CLOSE_SETTLED_TTL_MS,
+  SESSION_TAB_CLOSE_UNSETTLED_BOUND_MS,
+  SESSION_TAB_CLOSE_UNSETTLED_EXPIRY_MS,
+  SessionTabCloseLedger
+} from './session-tab-close-ledger'
+
+type Tab = { id: string; parentTabId?: string }
+
+const P = 'host-a\0wt-1'
+const NOW = 1_800_000_000_000
+const topLevel = (tab: Tab): string => tab.parentTabId ?? tab.id
+const ids = (tabs: readonly Tab[]): string[] => tabs.map((tab) => tab.id)
+
+function apply(ledger: SessionTabCloseLedger, tabs: Tab[], now = NOW): string[] {
+  return ids(ledger.filter(P, tabs, topLevel, now))
+}
+
+describe('SessionTabCloseLedger', () => {
+  it('hides a tab while its close is unanswered, even across lists that omit it', () => {
+    const ledger = new SessionTabCloseLedger()
+    ledger.begin(P, 'b', NOW)
+    expect(apply(ledger, [{ id: 'a' }, { id: 'b' }])).toEqual(['a'])
+    expect(apply(ledger, [{ id: 'a' }])).toEqual(['a'])
+    // A stale list naming it again must not bring it back before the host answers.
+    expect(apply(ledger, [{ id: 'a' }, { id: 'b' }])).toEqual(['a'])
+  })
+
+  it('ends a closed entry at the first list without the tab', () => {
+    const ledger = new SessionTabCloseLedger()
+    const ticket = ledger.begin(P, 'b', NOW)!
+    expect(ledger.settle(ticket, 'closed', NOW)).toBe(true)
+    expect(apply(ledger, [{ id: 'a' }, { id: 'b' }])).toEqual(['a'])
+    expect(apply(ledger, [{ id: 'a' }])).toEqual(['a'])
+    expect(ledger.hasPending(P, NOW)).toBe(false)
+    expect(apply(ledger, [{ id: 'a' }, { id: 'b' }])).toEqual(['a', 'b'])
+  })
+
+  it('ends at once when the removal list was applied before the answer', () => {
+    const ledger = new SessionTabCloseLedger()
+    const ticket = ledger.begin(P, 'b', NOW)!
+    apply(ledger, [{ id: 'a' }])
+    ledger.settle(ticket, 'closed', NOW)
+    expect(ledger.hasPending(P, NOW)).toBe(false)
+  })
+
+  it('lets the tab back when the close fails', () => {
+    const ledger = new SessionTabCloseLedger()
+    const ticket = ledger.begin(P, 'b', NOW)!
+    ledger.settle(ticket, 'failed', NOW)
+    expect(apply(ledger, [{ id: 'a' }, { id: 'b' }])).toEqual(['a', 'b'])
+  })
+
+  it('settles failure without hiding the tab and consumes recovery only once', () => {
+    const ledger = new SessionTabCloseLedger()
+    const ticket = ledger.begin(P, 'b', NOW)!
+    expect(ledger.settle(ticket, 'failed', NOW)).toBe(true)
+    expect(ledger.isPending(P, 'b', NOW)).toBe(false)
+    expect(ledger.hasPending(P, NOW)).toBe(false)
+    expect(apply(ledger, [{ id: 'b' }])).toEqual(['b'])
+    expect(ledger.takeFailed(ticket, NOW)).toBe(true)
+    expect(ledger.takeFailed(ticket, NOW)).toBe(false)
+  })
+
+  it('supersedes deferred recovery even when the newer close also fails', () => {
+    const ledger = new SessionTabCloseLedger()
+    const first = ledger.begin(P, 'b', NOW)!
+    ledger.settle(first, 'failed', NOW)
+    const second = ledger.begin(P, 'b', NOW + 1)!
+    expect(ledger.takeFailed(first, NOW + 1)).toBe(false)
+    expect(apply(ledger, [{ id: 'b' }], NOW + 1)).toEqual([])
+    ledger.settle(second, 'failed', NOW + 2)
+    expect(apply(ledger, [{ id: 'b' }], NOW + 2)).toEqual(['b'])
+    expect(ledger.takeFailed(first, NOW + 2)).toBe(false)
+    expect(ledger.takeFailed(second, NOW + 2)).toBe(true)
+  })
+
+  it('expires or clears deferred recovery without leaving suppression behind', () => {
+    const ledger = new SessionTabCloseLedger()
+    const expired = ledger.begin(P, 'b', NOW)!
+    ledger.settle(expired, 'failed', NOW)
+    const late = NOW + SESSION_TAB_CLOSE_SETTLED_TTL_MS + 1
+    expect(ledger.takeFailed(expired, late)).toBe(false)
+    const cleared = ledger.begin(P, 'b', NOW)!
+    ledger.settle(cleared, 'failed', NOW)
+    ledger.clearPartition(P)
+    expect(ledger.takeFailed(cleared, NOW)).toBe(false)
+    expect(apply(ledger, [{ id: 'b' }])).toEqual(['b'])
+  })
+
+  it('keeps recovery data with the failed operation through visible lists, replacement and omission', () => {
+    const ledger = new SessionTabCloseLedger<{ anchor: string }>()
+    const first = ledger.begin(P, 'b', NOW)!
+    const original = { anchor: 'a' }
+    ledger.settle(first, 'failed', NOW, original)
+    expect(ledger.filter(P, [{ id: 'b' }], topLevel, NOW)).toEqual([{ id: 'b' }])
+    expect(ledger.failedRecoveries(P, NOW)).toEqual([original])
+    const newer = ledger.begin(P, 'b', NOW + 1)!
+    expect(ledger.failedRecoveries(P, NOW + 1)).toEqual([])
+    expect(ledger.isFailed(first, NOW + 1)).toBe(false)
+    const latest = { anchor: 'c' }
+    ledger.settle(newer, 'failed', NOW + 2, latest)
+    expect(ledger.failedRecoveries(P, NOW + 2)).toEqual([latest])
+    ledger.filter(P, [], topLevel, NOW + 2)
+    expect(ledger.failedRecoveries(P, NOW + 2)).toEqual([])
+    expect(ledger.isFailed(newer, NOW + 2)).toBe(false)
+  })
+
+  it('bounds failed recovery data without hiding the tab or leaving a pending obligation', () => {
+    const ledger = new SessionTabCloseLedger<string>()
+    const ticket = ledger.begin(P, 'b', NOW)!
+    ledger.settle(ticket, 'failed', NOW, 'position')
+    expect(ledger.hasPending(P, NOW)).toBe(false)
+    expect(ledger.failedRecoveries(P, NOW + SESSION_TAB_CLOSE_SETTLED_TTL_MS + 1)).toEqual([])
+    ledger.clearPartition(P)
+    expect(ledger.failedRecoveries(P, NOW)).toEqual([])
+  })
+
+  it('keeps an absent tab hidden with no time limit until a list omits it', () => {
+    const ledger = new SessionTabCloseLedger()
+    const ticket = ledger.begin(P, 'b', NOW)!
+    ledger.settle(ticket, 'absent', NOW)
+    const later = NOW + 10 * SESSION_TAB_CLOSE_SETTLED_TTL_MS
+    expect(apply(ledger, [{ id: 'a' }, { id: 'b' }], later)).toEqual(['a'])
+    expect(apply(ledger, [{ id: 'a' }], later)).toEqual(['a'])
+    expect(apply(ledger, [{ id: 'b' }], later)).toEqual(['b'])
+  })
+
+  it("honours an answer that arrives by the caller's own limit", () => {
+    const ledger = new SessionTabCloseLedger()
+    const ticket = ledger.begin(P, 'b', NOW)!
+    expect(SESSION_TAB_CLOSE_UNSETTLED_EXPIRY_MS).toBeGreaterThan(
+      SESSION_TAB_CLOSE_UNSETTLED_BOUND_MS
+    )
+    expect(ledger.settle(ticket, 'absent', NOW + SESSION_TAB_CLOSE_UNSETTLED_BOUND_MS)).toBe(true)
+    expect(apply(ledger, [{ id: 'b' }], NOW + 60_000)).toEqual([])
+  })
+
+  it('ends an absent entry at once when the host list already omitted the tab', () => {
+    const ledger = new SessionTabCloseLedger()
+    const ticket = ledger.begin(P, 'b', NOW)!
+    apply(ledger, [{ id: 'a' }])
+    ledger.settle(ticket, 'absent', NOW)
+    expect(ledger.hasPending(P, NOW)).toBe(false)
+  })
+
+  it('drops an unanswered close after its expiry and ignores its late answer', () => {
+    const ledger = new SessionTabCloseLedger()
+    const ticket = ledger.begin(P, 'b', NOW)!
+    const late = NOW + SESSION_TAB_CLOSE_UNSETTLED_EXPIRY_MS + 1
+    expect(apply(ledger, [{ id: 'b' }], late)).toEqual(['b'])
+    expect(ledger.settle(ticket, 'closed', late)).toBe(false)
+    expect(apply(ledger, [{ id: 'b' }], late)).toEqual(['b'])
+  })
+
+  it('bounds a closed entry no list ever confirms', () => {
+    const ledger = new SessionTabCloseLedger()
+    const ticket = ledger.begin(P, 'b', NOW)!
+    ledger.settle(ticket, 'closed', NOW)
+    expect(apply(ledger, [{ id: 'b' }], NOW + SESSION_TAB_CLOSE_SETTLED_TTL_MS + 1)).toEqual(['b'])
+  })
+
+  it('ends ordinary pending polling when no inventory arrives after expiry', () => {
+    const ledger = new SessionTabCloseLedger()
+    const unanswered = ledger.begin(P, 'b', NOW)!
+    expect(ledger.hasPending(P, NOW + SESSION_TAB_CLOSE_UNSETTLED_EXPIRY_MS)).toBe(true)
+    expect(ledger.hasPending(P, NOW + SESSION_TAB_CLOSE_UNSETTLED_EXPIRY_MS + 1)).toBe(false)
+    expect(ledger.settle(unanswered, 'closed', NOW + 60_000)).toBe(false)
+
+    const accepted = ledger.begin(P, 'b', NOW)!
+    ledger.settle(accepted, 'closed', NOW)
+    expect(ledger.hasPending(P, NOW + SESSION_TAB_CLOSE_SETTLED_TTL_MS + 1)).toBe(false)
+  })
+
+  it('keeps absent suppression when expiring other entries without inventory', () => {
+    const ledger = new SessionTabCloseLedger()
+    const absent = ledger.begin(P, 'a', NOW)!
+    ledger.settle(absent, 'absent', NOW)
+    ledger.begin(P, 'b', NOW)
+    expect(ledger.hasPending(P, NOW + 60_000)).toBe(true)
+    expect(apply(ledger, [{ id: 'a' }, { id: 'b' }], NOW + 60_000)).toEqual(['b'])
+    expect(apply(ledger, [], NOW + 60_000)).toEqual([])
+    expect(ledger.hasPending(P, NOW + 60_000)).toBe(false)
+  })
+
+  it('hides every pane of a closed tab, and only the pane a pane close names', () => {
+    const ledger = new SessionTabCloseLedger()
+    const panes: Tab[] = [
+      { id: 't1::l1', parentTabId: 't1' },
+      { id: 't1::l2', parentTabId: 't1' },
+      { id: 't2::l1', parentTabId: 't2' }
+    ]
+    ledger.begin(P, 't1::l2', NOW)
+    expect(apply(ledger, panes)).toEqual(['t1::l1', 't2::l1'])
+    ledger.begin(P, 't2', NOW)
+    expect(apply(ledger, panes)).toEqual(['t1::l1'])
+  })
+
+  it('a newer close of the same id supersedes the older answer', () => {
+    const ledger = new SessionTabCloseLedger()
+    const first = ledger.begin(P, 'b', NOW)!
+    ledger.begin(P, 'b', NOW + 1)
+    expect(ledger.settle(first, 'failed', NOW + 2)).toBe(false)
+    expect(apply(ledger, [{ id: 'b' }], NOW + 2)).toEqual([])
+  })
+
+  it('scopes entries to their partition and evicts the oldest partition past the cap', () => {
+    const ledger = new SessionTabCloseLedger({ maxPartitions: 2 })
+    ledger.begin('p1', 'b', NOW)
+    ledger.begin('p2', 'b', NOW)
+    expect(ids(ledger.filter('p3', [{ id: 'b' }], topLevel, NOW))).toEqual(['b'])
+    ledger.begin('p3', 'b', NOW)
+    expect(ledger.hasPending('p1', NOW)).toBe(false)
+    expect(ledger.hasPending('p2', NOW)).toBe(true)
+    ledger.clearPartition('p2')
+    expect(ledger.hasPending('p2', NOW)).toBe(false)
+  })
+
+  it('returns the same array when nothing is hidden', () => {
+    const ledger = new SessionTabCloseLedger()
+    const tabs: Tab[] = [{ id: 'a' }]
+    expect(ledger.filter(P, tabs, topLevel, NOW)).toBe(tabs)
+    ledger.begin(P, 'z', NOW)
+    expect(ledger.filter(P, tabs, topLevel, NOW)).toBe(tabs)
+  })
+})

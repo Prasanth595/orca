@@ -1,6 +1,6 @@
 import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
 import type { WorktreeRuntimeOwnerState } from '@/lib/worktree-runtime-owner-state'
-import { recordWebSessionCloseIntent } from './web-session-close-intent'
+import { beginWebSessionCloseIntent } from './web-session-close-intent'
 import { toHostSessionTabId } from '../../../shared/terminal-surface-id'
 import type { OpenFile } from '@/store/slices/editor'
 import type { Tab } from '../../../shared/tab-types'
@@ -40,26 +40,26 @@ export function notifyHostOfMirroredEditorClose(
   if (unifiedTabs.length === 0) {
     return false
   }
-  // Record the close intent SYNCHRONOUSLY so a host snapshot landing before the dynamic import below resolves can't
-  // flash the old-path tab back. closeWebRuntimeSessionTab re-records it idempotently.
-  for (const tab of unifiedTabs) {
-    recordWebSessionCloseIntent(
+  // Capture the operation before the local prune and carry it through the deferred command.
+  const tickets = unifiedTabs.map((tab) =>
+    beginWebSessionCloseIntent(
       { environmentId: runtimeEnvironmentId },
       worktreeId,
       toHostSessionTabId(tab.id),
       Date.now()
     )
-  }
+  )
   // Dynamic import: this helper is imported by the editor slice during store creation, so importing
   // web-runtime-session eagerly imports the store back and trips cyclic init in full-suite import order.
   void import('./web-runtime-session-tab-lifecycle').then(({ closeWebRuntimeSessionTab }) =>
     Promise.all(
-      unifiedTabs.map((tab) =>
+      unifiedTabs.map((tab, index) =>
         closeWebRuntimeSessionTab({
           worktreeId,
           tabId: tab.id,
           environmentId: runtimeEnvironmentId,
-          reason: 'user'
+          reason: 'user',
+          initialCloseTicket: tickets[index]
         })
       )
     )

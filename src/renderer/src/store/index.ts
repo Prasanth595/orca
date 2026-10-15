@@ -1,3 +1,4 @@
+import { registerWebSessionClosePlacementStateReader } from '../runtime/web-session-close-intent'
 import { create, type StateCreator } from 'zustand'
 import type { AppState } from './types'
 import { createRepoSlice } from './slices/repos'
@@ -136,6 +137,7 @@ export const useAppStore = create<AppState>()(
   )
 )
 
+registerWebSessionClosePlacementStateReader(() => useAppStore.getState())
 registerHttpLinkStoreAccessor(() => useAppStore.getState())
 registerWindowsPathAccessEnvironments(() => useAppStore.getState().runtimeEnvironments)
 registerWorkspaceHttpLinkBrowserOpener(async (request) => {

@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import { MAX_SESSION_TAB_CLOSE_PARTITIONS } from '../../../shared/session-tab-close-ledger'
 import {
-  MAX_WEB_SESSION_CLOSE_INTENT_PARTITIONS,
   isWebSessionCloseIntentPending,
-  recordWebSessionCloseIntent,
+  beginWebSessionCloseIntent,
   resetWebSessionCloseIntentForTests
 } from './web-session-close-intent'
 import {
@@ -63,7 +63,7 @@ describe('web session intent ownership', () => {
   })
 
   it('isolates close intents across runtimes and same-id re-pairs', () => {
-    recordWebSessionCloseIntent(OWNER_A, WORKTREE_ID, 'host-tab', 1_000)
+    beginWebSessionCloseIntent(OWNER_A, WORKTREE_ID, 'host-tab', 1_000)
 
     expect(isWebSessionCloseIntentPending(OWNER_A, WORKTREE_ID, 'host-tab', 1_000)).toBe(true)
     expect(isWebSessionCloseIntentPending(OWNER_A_REPAIRED, WORKTREE_ID, 'host-tab', 1_000)).toBe(
@@ -73,8 +73,8 @@ describe('web session intent ownership', () => {
   })
 
   it('bounds close-intent partition churn', () => {
-    for (let index = 0; index < MAX_WEB_SESSION_CLOSE_INTENT_PARTITIONS + 4; index += 1) {
-      recordWebSessionCloseIntent(
+    for (let index = 0; index < MAX_SESSION_TAB_CLOSE_PARTITIONS + 4; index += 1) {
+      beginWebSessionCloseIntent(
         { environmentId: `env-${index}`, pairingRevision: 1 },
         WORKTREE_ID,
         `host-tab-${index}`,
@@ -92,9 +92,9 @@ describe('web session intent ownership', () => {
     ).toBe(false)
     expect(
       isWebSessionCloseIntentPending(
-        { environmentId: `env-${MAX_WEB_SESSION_CLOSE_INTENT_PARTITIONS + 3}`, pairingRevision: 1 },
+        { environmentId: `env-${MAX_SESSION_TAB_CLOSE_PARTITIONS + 3}`, pairingRevision: 1 },
         WORKTREE_ID,
-        `host-tab-${MAX_WEB_SESSION_CLOSE_INTENT_PARTITIONS + 3}`,
+        `host-tab-${MAX_SESSION_TAB_CLOSE_PARTITIONS + 3}`,
         1_000
       )
     ).toBe(true)

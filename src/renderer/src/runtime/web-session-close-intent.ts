@@ -1,71 +1,163 @@
-// Why: closing a remote tab prunes the local mirror immediately for responsiveness, so stale pre-close snapshots must not rematerialize it.
+// Why: closing a host's tab prunes this window's copy at once, so host lists published before the
+// host handled the close must not bring it back. One shared record serves every tab kind and host.
 
+import {
+  SessionTabCloseLedger,
+  type SessionTabCloseOutcome,
+  type SessionTabCloseTicket
+} from '../../../shared/session-tab-close-ledger'
+import { getRuntimeEnvironmentRevision } from './runtime-environment-revision'
 import { webSessionIntentOwnerKey, type WebSessionIntentOwner } from './web-session-intent-owner'
-import { WEB_SESSION_TAB_RPC_TIMEOUT_MS } from './web-session-tab-rpc-timeout'
+import { LOCAL_STRUCTURED_SESSION_OWNER } from './local-structured-session-owner'
+import { localStructuredSessionGeneration } from './local-structured-session-tabs-sync/inventory-generation-fence'
+import {
+  captureHostSessionTabClosePlacement,
+  type HostSessionTabClosePlacement,
+  type HostSessionTabClosePlacementState
+} from './host-session-tab-close-placement'
 
-/**
- * Why derived rather than a literal: `makeWebSessionCloseIntentDurable` can only flip an entry that
- * still exists, and the close RPC may answer `tab_not_found` at any point up to its own timeout. A
- * TTL shorter than that timeout lets a republishing host's pending-check delete the entry mid-call,
- * the durable flip then no-ops, and the pane the user closed comes back (#9194).
- */
-const CLOSE_INTENT_ANSWER_GRACE_MS = 5_000
-export const WEB_SESSION_CLOSE_INTENT_TTL_MS =
-  WEB_SESSION_TAB_RPC_TIMEOUT_MS + CLOSE_INTENT_ANSWER_GRACE_MS
-export const MAX_WEB_SESSION_CLOSE_INTENT_PARTITIONS = 512
+type CloseRecovery = {
+  ticket: WebSessionCloseIntentTicket
+  aliases: readonly WebSessionCloseIntentTicket[]
+}
 
-type CloseIntent = { recordedAt: number; durable: boolean }
+const ledger = new SessionTabCloseLedger<CloseRecovery>()
+let readClosePlacementState: (() => HostSessionTabClosePlacementState) | undefined
 
-const pendingCloseByOwnerAndWorktree = new Map<string, Map<string, CloseIntent>>()
+// Store slices import close records; bind the reader only after store creation finishes.
+export function registerWebSessionClosePlacementStateReader(
+  reader: () => HostSessionTabClosePlacementState
+): void {
+  readClosePlacementState = reader
+}
+// The pairing each partition was recorded under, so an ended pairing's closes can be found.
+const ownerByPartition = new Map<string, Required<WebSessionIntentOwner>>()
 
-function closeIntentPartitionKey(owner: WebSessionIntentOwner, worktreeId: string): string {
+function closePartition(owner: WebSessionIntentOwner, worktreeId: string): string {
   return `${webSessionIntentOwnerKey(owner)}\0${worktreeId}`
 }
 
-export function recordWebSessionCloseIntent(
+export type WebSessionCloseIntentTicket = SessionTabCloseTicket & {
+  owner: WebSessionIntentOwner
+  worktreeId: string
+  localGeneration: number
+  placement?: HostSessionTabClosePlacement
+}
+
+export function beginWebSessionCloseIntent(
   owner: WebSessionIntentOwner,
   worktreeId: string,
   hostTabId: string,
   now: number
-): void {
-  const trimmed = hostTabId.trim()
-  if (!worktreeId || !trimmed) {
-    return
+): WebSessionCloseIntentTicket | null {
+  if (!worktreeId) {
+    return null
   }
-  const partitionKey = closeIntentPartitionKey(owner, worktreeId)
-  let byTab = pendingCloseByOwnerAndWorktree.get(partitionKey)
-  if (!byTab) {
-    byTab = new Map()
-    while (pendingCloseByOwnerAndWorktree.size >= MAX_WEB_SESSION_CLOSE_INTENT_PARTITIONS) {
-      const oldest = pendingCloseByOwnerAndWorktree.keys().next()
-      if (oldest.done || oldest.value === partitionKey) {
-        break
-      }
-      pendingCloseByOwnerAndWorktree.delete(oldest.value)
+  const partition = closePartition(owner, worktreeId)
+  const pairingRevision =
+    owner.pairingRevision ?? getRuntimeEnvironmentRevision(owner.environmentId)
+  if (pairingRevision !== undefined) {
+    ownerByPartition.set(partition, { environmentId: owner.environmentId, pairingRevision })
+  }
+  const ticket = ledger.begin(partition, hostTabId, now)
+  if (!ticket) {
+    return null
+  }
+  let placement: HostSessionTabClosePlacement | undefined
+  try {
+    if (!readClosePlacementState) {
+      throw new Error('closed tab placement state reader is not registered')
     }
-    pendingCloseByOwnerAndWorktree.set(partitionKey, byTab)
+    placement = captureHostSessionTabClosePlacement(
+      readClosePlacementState(),
+      owner.environmentId,
+      worktreeId,
+      hostTabId
+    )
+  } catch (error) {
+    console.warn('[session-tabs] could not capture closed tab position', error)
   }
-  byTab.set(trimmed, { recordedAt: now, durable: byTab.get(trimmed)?.durable === true })
+  return {
+    ...ticket,
+    owner: { environmentId: owner.environmentId, pairingRevision },
+    worktreeId,
+    localGeneration: localStructuredSessionGeneration(),
+    placement
+  }
 }
 
-/**
- * Why no TTL: `tab_not_found` is the host's definitive answer that it does not have this tab, yet a
- * host can keep republishing the surface in its snapshot (#9194). Letting that intent age out
- * re-materializes a pane whose handle is already gone, and the pane the user just closed comes back
- * showing "Remote terminal was closed." with no way to dismiss it. The intent still clears the
- * moment the surface leaves a snapshot, so a host that recovers the tab is never suppressed forever.
- */
-export function makeWebSessionCloseIntentDurable(
+export function settleWebSessionCloseIntent(
+  ticket: WebSessionCloseIntentTicket,
+  outcome: SessionTabCloseOutcome,
+  now: number
+): boolean {
+  return settleWebSessionCloseIntents([ticket], outcome, now)[0]
+}
+
+/** All aliases of one host command share its captured occurrence and operation fence. */
+export function settleWebSessionCloseIntents(
+  tickets: readonly WebSessionCloseIntentTicket[],
+  outcome: SessionTabCloseOutcome,
+  now: number
+): boolean[] {
+  const ticket = tickets.find((candidate) => candidate.placement) ?? tickets[0]
+  const recovery = ticket ? { ticket, aliases: tickets } : undefined
+  return tickets.map((alias) => ledger.settle(alias, outcome, now, recovery))
+}
+
+export function failedWebSessionCloseIntentTickets(
   owner: WebSessionIntentOwner,
   worktreeId: string,
-  hostTabId: string
-): void {
-  const intent = pendingCloseByOwnerAndWorktree
-    .get(closeIntentPartitionKey(owner, worktreeId))
-    ?.get(hostTabId)
-  if (intent) {
-    intent.durable = true
+  now: number
+): WebSessionCloseIntentTicket[] {
+  const recoveries = new Set(ledger.failedRecoveries(closePartition(owner, worktreeId), now))
+  return [...recoveries].flatMap(({ ticket, aliases }) =>
+    isFailedWebSessionCloseIntents(aliases, now) &&
+    (ticket.owner.environmentId === LOCAL_STRUCTURED_SESSION_OWNER
+      ? ticket.localGeneration === localStructuredSessionGeneration()
+      : ticket.owner.pairingRevision === getRuntimeEnvironmentRevision(owner.environmentId))
+      ? [ticket]
+      : []
+  )
+}
+
+export function isFailedWebSessionCloseIntents(
+  tickets: readonly WebSessionCloseIntentTicket[],
+  now: number
+): boolean {
+  return tickets.length > 0 && tickets.every((ticket) => ledger.isFailed(ticket, now))
+}
+
+export function takeFailedWebSessionCloseIntent(
+  ticket: WebSessionCloseIntentTicket,
+  now: number
+): boolean {
+  return ledger.takeFailed(ticket, now)
+}
+
+/** Ends closes the host has confirmed and drops tabs whose close is still pending. */
+export function filterWebSessionCloseIntents<T extends { id: string }>(
+  owner: WebSessionIntentOwner,
+  worktreeId: string,
+  tabs: readonly T[],
+  topLevelIdOf: (tab: T) => string,
+  now: number,
+  confirmOmission: boolean | ((closedId: string) => boolean) = true
+): readonly T[] {
+  const partition = closePartition(owner, worktreeId)
+  const recoveries = ledger.failedRecoveries(partition, now)
+  const confirms = (closedId: string): boolean => {
+    const recovery = recoveries.find(({ aliases }) =>
+      aliases.some((alias) => alias.closedId === closedId && ledger.isFailed(alias, now))
+    )
+    const hostTabId = recovery?.ticket.closedId ?? closedId
+    // A client alias is not host omission while this action's canonical occurrence is still named.
+    if (recovery && tabs.some((tab) => tab.id === hostTabId || topLevelIdOf(tab) === hostTabId)) {
+      return false
+    }
+    return typeof confirmOmission === 'function' ? confirmOmission(hostTabId) : confirmOmission
   }
+  return ledger.filter(partition, tabs, topLevelIdOf, now, confirms)
 }
 
 export function isWebSessionCloseIntentPending(
@@ -74,71 +166,29 @@ export function isWebSessionCloseIntentPending(
   hostTabId: string,
   now: number
 ): boolean {
-  const partitionKey = closeIntentPartitionKey(owner, worktreeId)
-  const byTab = pendingCloseByOwnerAndWorktree.get(partitionKey)
-  const intent = byTab?.get(hostTabId)
-  if (!intent) {
-    return false
-  }
-  if (!intent.durable && now - intent.recordedAt > WEB_SESSION_CLOSE_INTENT_TTL_MS) {
-    byTab!.delete(hostTabId)
-    if (byTab!.size === 0) {
-      pendingCloseByOwnerAndWorktree.delete(partitionKey)
-    }
-    return false
-  }
-  return true
-}
-
-export function reconcileWebSessionCloseIntents(
-  owner: WebSessionIntentOwner,
-  worktreeId: string,
-  presentHostTabIds: ReadonlySet<string>
-): void {
-  const partitionKey = closeIntentPartitionKey(owner, worktreeId)
-  const byTab = pendingCloseByOwnerAndWorktree.get(partitionKey)
-  if (!byTab) {
-    return
-  }
-  for (const hostTabId of byTab.keys()) {
-    if (!presentHostTabIds.has(hostTabId)) {
-      byTab.delete(hostTabId)
-    }
-  }
-  if (byTab.size === 0) {
-    pendingCloseByOwnerAndWorktree.delete(partitionKey)
-  }
-}
-
-export function clearWebSessionCloseIntent(
-  owner: WebSessionIntentOwner,
-  worktreeId: string,
-  hostTabId: string
-): void {
-  const partitionKey = closeIntentPartitionKey(owner, worktreeId)
-  const byTab = pendingCloseByOwnerAndWorktree.get(partitionKey)
-  byTab?.delete(hostTabId)
-  if (byTab?.size === 0) {
-    pendingCloseByOwnerAndWorktree.delete(partitionKey)
-  }
+  return ledger.isPending(closePartition(owner, worktreeId), hostTabId, now)
 }
 
 export function clearWebSessionCloseIntentsForWorktree(
   owner: WebSessionIntentOwner,
   worktreeId: string
 ): void {
-  pendingCloseByOwnerAndWorktree.delete(closeIntentPartitionKey(owner, worktreeId))
+  ledger.clearPartition(closePartition(owner, worktreeId))
 }
 
-export function clearWebSessionCloseIntentsForOwner(owner: WebSessionIntentOwner): void {
-  const prefix = `${webSessionIntentOwnerKey(owner)}\0`
-  for (const key of pendingCloseByOwnerAndWorktree.keys()) {
-    if (key.startsWith(prefix)) {
-      pendingCloseByOwnerAndWorktree.delete(key)
+/** Drops the closes of pairings that ended; a live pairing keeps its closes still in flight. */
+export function clearEndedPairingWebSessionCloseIntents(): void {
+  for (const [partition, owner] of ownerByPartition) {
+    if (getRuntimeEnvironmentRevision(owner.environmentId) !== owner.pairingRevision) {
+      ledger.clearPartition(partition)
+    }
+    if (!ledger.hasPending(partition, Date.now())) {
+      ownerByPartition.delete(partition)
     }
   }
 }
 
 export function resetWebSessionCloseIntentForTests(): void {
-  pendingCloseByOwnerAndWorktree.clear()
+  ledger.reset()
+  ownerByPartition.clear()
 }
