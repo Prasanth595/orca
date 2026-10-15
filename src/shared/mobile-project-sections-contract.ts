@@ -1,3 +1,4 @@
+import { isIncognitoRepo, withoutIncognitoRepos } from './incognito-projects'
 import type { ProjectHostSetupProjection } from './project-host-setup-projection'
 import type { ProjectSectionProject, ProjectSectionSetup } from './project-section-grouping'
 import type { RepoIcon } from './repo-icon'
@@ -38,16 +39,44 @@ function sectionRepo(repo: Repo): MobileProjectSectionRepo {
   }
 }
 
-/** The sidebar's repos, in its order, and the projection its project-header selector produced. */
+/** Projects whose every setup is an incognito repo: their names would name the hidden repo. */
+function incognitoOnlyProjectIds(
+  setups: ProjectHostSetupProjection['setups'],
+  incognitoRepoIds: ReadonlySet<string>
+): Set<string> {
+  const projectIds = new Set<string>()
+  const visibleProjectIds = new Set<string>()
+  for (const setup of setups) {
+    if (incognitoRepoIds.has(setup.repoId)) {
+      projectIds.add(setup.projectId)
+    } else {
+      visibleProjectIds.add(setup.projectId)
+    }
+  }
+  for (const projectId of visibleProjectIds) {
+    projectIds.delete(projectId)
+  }
+  return projectIds
+}
+
+/**
+ * The sidebar's repos, in its order, and the projection its project-header selector produced.
+ * Why incognito repos are dropped: phones have no incognito unlock, so their names never cross.
+ */
 export function buildMobileProjectSectionCatalog(
-  repos: readonly Repo[],
+  allRepos: readonly Repo[],
   projection: ProjectHostSetupProjection,
   projectOrderBy: ProjectOrderBy
 ): MobileProjectSectionCatalog {
+  const incognitoRepoIds = new Set(allRepos.filter(isIncognitoRepo).map((repo) => repo.id))
+  const repos = withoutIncognitoRepos(allRepos)
+  const hiddenProjectIds = incognitoOnlyProjectIds(projection.setups, incognitoRepoIds)
+  const setups = projection.setups.filter((setup) => !incognitoRepoIds.has(setup.repoId))
+  const projects = projection.projects.filter((project) => !hiddenProjectIds.has(project.id))
   return {
     repos: repos.map(sectionRepo),
-    projects: projection.projects.map(({ id, displayName }) => ({ id, displayName })),
-    setups: projection.setups.map((setup) => ({
+    projects: projects.map(({ id, displayName }) => ({ id, displayName })),
+    setups: setups.map((setup) => ({
       id: setup.id,
       projectId: setup.projectId,
       hostId: setup.hostId,

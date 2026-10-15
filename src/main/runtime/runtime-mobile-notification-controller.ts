@@ -62,7 +62,14 @@ export type MobilePushRegistrar = {
   unregister(deviceId: string): Promise<{ unregistered: boolean }>
 }
 
+export type RuntimeMobileNotificationControllerOptions = {
+  /** True for a workspace no paired phone may hear about (an incognito project's). */
+  isWorktreeHiddenFromPhones?: (worktreeId: string) => boolean
+}
+
 export class RuntimeMobileNotificationController {
+  constructor(private readonly options: RuntimeMobileNotificationControllerOptions = {}) {}
+
   private readonly listeners = new Set<(event: MobileNotificationEvent) => void>()
   private readonly legacyCooldown = new Map<string, number>()
   private readonly replay = new MobileNotificationReplayBuffer()
@@ -120,6 +127,10 @@ export class RuntimeMobileNotificationController {
 
   dispatch(event: MobileNotificationEvent): void {
     if (event.type === 'notification') {
+      // Why before the replay record: a lock-screen push or a reconnect replay would name the project.
+      if (event.worktreeId && this.options.isWorktreeHiddenFromPhones?.(event.worktreeId)) {
+        return
+      }
       // Decide once before recording so reconnect and buffer eviction cannot reset cooldown.
       const legacySocketAllowed =
         event.desktopAllowed !== false &&

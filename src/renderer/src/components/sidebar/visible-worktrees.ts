@@ -51,6 +51,7 @@ import { isWorkspaceOwnedBySomeoneElse } from '../../../../shared/workspace-crea
 import { isDefaultBranchWorkspace } from './default-branch-workspace'
 import { getLineageAncestorIndex, getSortedWorktreeRankIndex } from './visible-worktree-indexes'
 import { getWorktreeHostIdentity } from '../../../../shared/worktree/host-qualified-identity'
+import { EMPTY_CONCEALED_REPO_IDS } from '../../../../shared/incognito-projects'
 
 /**
  * Whether the "Hide sleeping" sweep must keep this row (#8873).
@@ -87,6 +88,8 @@ export type VisibleWorktreeOptions = {
   injectLineageAncestors?: boolean
   preserveLineageParentOrder?: boolean
   forcedVisibleWorktreeIds?: readonly string[]
+  /** Locked incognito repos; nothing (forced rows, lineage ancestors) may bring them back. */
+  concealedRepoIds?: ReadonlySet<string>
 }
 
 export function computeVisibleWorktrees(
@@ -96,8 +99,11 @@ export function computeVisibleWorktrees(
 ): Worktree[] {
   let all: Worktree[] = getAllWorktreesFromState({ worktreesByRepo })
 
+  const concealedRepoIds = opts.concealedRepoIds ?? EMPTY_CONCEALED_REPO_IDS
+  const isShown = (w: Worktree): boolean => !concealedRepoIds.has(w.repoId)
+
   // Filter archived
-  all = all.filter((w) => !w.isArchived)
+  all = all.filter((w) => !w.isArchived && isShown(w))
 
   // Why: sidebar lineage is structural. Archived workspaces stay hidden, but
   // every other valid ancestor can bypass filters so children never orphan.
@@ -167,7 +173,7 @@ export function computeVisibleWorktrees(
     const includedIds = new Set(all.map((worktree) => worktree.id))
     for (const worktreeId of opts.forcedVisibleWorktreeIds) {
       const worktree = lineageAncestorById.get(worktreeId)
-      if (worktree && !includedIds.has(worktreeId)) {
+      if (worktree && !includedIds.has(worktreeId) && isShown(worktree)) {
         includedIds.add(worktreeId)
         all.push(worktree)
       }
@@ -187,9 +193,11 @@ export function computeVisibleWorktrees(
     return ai - bi
   })
 
-  return opts.injectLineageAncestors === false || opts.preserveLineageParentOrder
-    ? all
-    : addVisibleLineageAncestors(all, lineageAncestorById, opts.worktreeLineageById)
+  const result =
+    opts.injectLineageAncestors === false || opts.preserveLineageParentOrder
+      ? all
+      : addVisibleLineageAncestors(all, lineageAncestorById, opts.worktreeLineageById)
+  return concealedRepoIds.size === 0 ? result : result.filter(isShown)
 }
 
 function addVisibleLineageAncestors(

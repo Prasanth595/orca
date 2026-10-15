@@ -95,6 +95,8 @@ export type RuntimeWorktreePsSummary = {
   removalError?: string
   /** This host's "Hide other-client workspaces" hides the row; sent only to its own phones. */
   desktopOtherClient?: true
+  /** The row's project is incognito (`Repo.incognito`); clients without an unlock drop it. */
+  repoIncognito?: true
 }
 
 export type RuntimeGitLocalBranches = {

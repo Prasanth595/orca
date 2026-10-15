@@ -44,6 +44,7 @@ import { dashboardApi } from './api/dashboard-bridge'
 import { terminalPreviewApi } from './api/terminal-preview-bridge'
 import { macosTccPromptsApi } from './api/macos-tcc-prompts-bridge'
 import { developerPermissionsApi } from './api/developer-permissions-bridge'
+import { incognitoProjectsApi } from './api/incognito-projects-bridge'
 import { computerUsePermissionsApi } from './api/computer-use-permissions-bridge'
 import { shellApi } from './api/shell-bridge'
 import { skillsApi } from './api/skills-bridge'
@@ -144,6 +145,7 @@ const api = {
   terminalPreview: terminalPreviewApi,
   macosTccPrompts: macosTccPromptsApi,
   developerPermissions: developerPermissionsApi,
+  incognitoProjects: incognitoProjectsApi,
   computerUsePermissions: computerUsePermissionsApi,
   shell: shellApi,
   skills: skillsApi,

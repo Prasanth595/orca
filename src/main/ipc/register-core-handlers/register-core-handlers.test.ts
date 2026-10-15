@@ -225,6 +225,10 @@ vi.mock('../developer-permissions', () => ({
   registerDeveloperPermissionHandlers: registerDeveloperPermissionHandlersMock
 }))
 
+vi.mock('../incognito-projects', () => ({
+  registerIncognitoProjectHandlers: vi.fn()
+}))
+
 vi.mock('../computer-use-permissions', () => ({
   registerComputerUsePermissionHandlers: registerComputerUsePermissionHandlersMock
 }))

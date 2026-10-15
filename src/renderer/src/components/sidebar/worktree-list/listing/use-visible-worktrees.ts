@@ -18,6 +18,7 @@ import {
 import type { SortBy } from '../../smart-sort'
 import type { SidebarWorktreeFilters } from './use-filters'
 import { useReusedArrayIdentity } from './use-reused-array-identity'
+import { getConcealedRepoIdsFromState } from '@/store/concealed-repo-selector'
 
 const EMPTY_WORKTREE_ID_SET: ReadonlySet<string> = new Set()
 
@@ -74,6 +75,7 @@ export function useVisibleSidebarWorktrees(args: {
   const worktreeIdsWithStructuredChat = useAppStore((s) =>
     getStructuredChatWorktreeIds(showSleepingWorkspaces, s.unifiedTabsByWorktree)
   )
+  const concealedRepoIds = useAppStore(getConcealedRepoIdsFromState)
 
   const recomputedVisibleWorktrees = useMemo(() => {
     // Keyed on the epoch, not `agentStatusNow`: two bumps in one millisecond
@@ -109,9 +111,11 @@ export function useVisibleSidebarWorktrees(args: {
       preserveLineageParentOrder: sortBy === 'manual',
       forcedVisibleWorktreeIds: args.agentSendTargetWorktreeId
         ? [args.agentSendTargetWorktreeId]
-        : undefined
+        : undefined,
+      concealedRepoIds
     })
   }, [
+    concealedRepoIds,
     args.agentSendTargetWorktreeId,
     agentStatusEpoch,
     agentStatusNow,
