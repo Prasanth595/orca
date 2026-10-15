@@ -1,0 +1,141 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestStore, makeLayout, makeTab, seedStore } from '../slices/store-test-helpers'
+
+import { resolveTerminalDetachTarget } from './terminal-detachment'
+
+const detachedTerminalApi = {
+  close: vi.fn(async () => undefined),
+  open: vi.fn(async () => undefined),
+  returnToMain: vi.fn(async () => undefined),
+  onClosed: vi.fn(() => () => undefined)
+}
+
+describe('terminal detachment state', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.stubGlobal('window', { api: { detachedTerminal: detachedTerminalApi } })
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('detaches a single-pane PTY and re-docks without changing tab ownership', async () => {
+    const store = createTestStore()
+    seedStore(store, {
+      tabsByWorktree: {
+        'wt-1': [makeTab({ id: 'tab-1', worktreeId: 'wt-1', title: 'Shell' })]
+      },
+      terminalLayoutsByTabId: {
+        'tab-1': {
+          ...makeLayout(),
+          activeLeafId: 'leaf-1',
+          ptyIdsByLeafId: { 'leaf-1': 'pty-1' }
+        }
+      }
+    })
+
+    await expect(store.getState().detachTerminalTab('tab-1')).resolves.toBe(true)
+
+    expect(detachedTerminalApi.open).toHaveBeenCalledWith({
+      tabId: 'tab-1',
+      ptyId: 'pty-1',
+      title: 'Shell'
+    })
+    expect(store.getState().detachedTerminalByTabId).toEqual({
+      'tab-1': { ptyId: 'pty-1' }
+    })
+    expect(store.getState().tabsByWorktree['wt-1']).toHaveLength(1)
+
+    store.getState().redockDetachedTerminalTab('tab-1')
+    expect(store.getState().detachedTerminalByTabId).toEqual({})
+  })
+
+  it('rejects a remote-runtime PTY because the companion has no paired-host transport', async () => {
+    const store = createTestStore()
+    seedStore(store, {
+      tabsByWorktree: {
+        'wt-1': [
+          makeTab({
+            id: 'tab-remote',
+            worktreeId: 'wt-1',
+            ptyId: 'remote:environment@@terminal'
+          })
+        ]
+      }
+    })
+
+    const target = resolveTerminalDetachTarget(store.getState(), 'tab-remote')
+    expect(target?.remoteUnsupported).toBe(true)
+
+    await expect(store.getState().detachTerminalTab('tab-remote')).resolves.toBe(false)
+
+    expect(detachedTerminalApi.open).not.toHaveBeenCalled()
+    expect(store.getState().detachedTerminalByTabId).toEqual({})
+  })
+
+  it('rejects an SSH PTY because the companion has no remote transport', async () => {
+    const store = createTestStore()
+    seedStore(store, {
+      tabsByWorktree: {
+        'wt-1': [
+          makeTab({
+            id: 'tab-ssh',
+            worktreeId: 'wt-1',
+            ptyId: 'ssh:server@@remote-pty'
+          })
+        ]
+      }
+    })
+
+    const target = resolveTerminalDetachTarget(store.getState(), 'tab-ssh')
+    expect(target?.remoteUnsupported).toBe(true)
+
+    await expect(store.getState().detachTerminalTab('tab-ssh')).resolves.toBe(false)
+
+    expect(detachedTerminalApi.open).not.toHaveBeenCalled()
+    expect(store.getState().detachedTerminalByTabId).toEqual({})
+  })
+
+  it('rejects a tab whose layout has more than one leaf (split terminal)', async () => {
+    const store = createTestStore()
+    seedStore(store, {
+      tabsByWorktree: {
+        'wt-1': [makeTab({ id: 'tab-split', worktreeId: 'wt-1', title: 'Split' })]
+      },
+      terminalLayoutsByTabId: {
+        'tab-split': {
+          root: {
+            type: 'split',
+            direction: 'vertical',
+            first: { type: 'leaf', leafId: 'leaf-1' },
+            second: { type: 'leaf', leafId: 'leaf-2' }
+          },
+          activeLeafId: 'leaf-1',
+          expandedLeafId: null,
+          ptyIdsByLeafId: { 'leaf-1': 'pty-1', 'leaf-2': 'pty-2' }
+        }
+      }
+    })
+
+    const target = resolveTerminalDetachTarget(store.getState(), 'tab-split')
+    expect(target?.splitUnsupported).toBe(true)
+
+    await expect(store.getState().detachTerminalTab('tab-split')).resolves.toBe(false)
+
+    expect(detachedTerminalApi.open).not.toHaveBeenCalled()
+    expect(store.getState().detachedTerminalByTabId).toEqual({})
+  })
+
+  it('closes a companion when its terminal tab is closed', () => {
+    const store = createTestStore()
+    seedStore(store, {
+      tabsByWorktree: {
+        'wt-1': [makeTab({ id: 'tab-1', worktreeId: 'wt-1' })]
+      },
+      detachedTerminalByTabId: { 'tab-1': { ptyId: 'pty-1' } }
+    })
+
+    store.getState().closeTab('tab-1')
+
+    expect(detachedTerminalApi.close).toHaveBeenCalledWith('tab-1')
+    expect(store.getState().tabsByWorktree['wt-1']).toEqual([])
+  })
+})
