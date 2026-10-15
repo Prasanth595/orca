@@ -12,11 +12,17 @@ function applyLockState(state: IncognitoLockState): void {
 // Why: a hidden sidebar row must not leave its workspace on screen, whether it was hidden by locking,
 // by "Make incognito" while locked, or by a session restore that reopens it.
 function leaveConcealedWorkspace(state: AppState): void {
-  if (
-    state.activeWorktreeId &&
-    getConcealedRepoIdsFromState(state).has(getRepoIdFromWorktreeId(state.activeWorktreeId))
-  ) {
+  const concealed = getConcealedRepoIdsFromState(state)
+  if (concealed.size === 0) {
+    return
+  }
+  if (state.activeWorktreeId && concealed.has(getRepoIdFromWorktreeId(state.activeWorktreeId))) {
     state.setActiveWorktree(null)
+  }
+  // Why: activeRepoId outlives the workspace and names the project on the setup-script card and others.
+  const next = useAppStore.getState()
+  if (next.activeRepoId && concealed.has(next.activeRepoId)) {
+    next.setActiveRepo(null)
   }
 }
 

@@ -20113,6 +20113,6 @@
     "removeFromIncognito": "Remove from incognito",
     "makeIncognito": "Make incognito",
     "madeIncognitoToast": "Project hidden in incognito",
-    "madeIncognitoToastDescription": "Show it again with \"Show incognito projects\" in the sidebar filter menu."
+    "madeIncognitoToastDescription": "Show it again with \"Show incognito projects\" in the sidebar's Workspace options menu."
   }
 }

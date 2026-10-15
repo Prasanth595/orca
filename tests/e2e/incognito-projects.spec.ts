@@ -60,7 +60,8 @@ async function runIncognitoJourney(
   ).toHaveCount(0)
   await orcaPage.screenshot({ path: testInfo.outputPath('2-project-hidden.png') })
 
-  await orcaPage.evaluate(() => void window.__store!.getState().requestIncognitoProjectsUnlock())
+  await orcaPage.getByRole('button', { name: /^Workspace options/ }).click()
+  await orcaPage.getByRole('switch', { name: /Show incognito projects/ }).click()
   const unlock = orcaPage.getByRole('dialog', { name: 'Show incognito projects' })
   await expect(unlock).toBeVisible()
   await unlock.getByLabel('Passcode', { exact: true }).fill('wrong-code')
@@ -77,6 +78,7 @@ async function runIncognitoJourney(
   ).toBeVisible()
   await orcaPage.screenshot({ path: testInfo.outputPath('3-project-unlocked.png') })
 
-  await orcaPage.evaluate(() => window.__store!.getState().lockIncognitoProjects())
+  await orcaPage.getByRole('button', { name: /^Workspace options/ }).click()
+  await orcaPage.getByRole('switch', { name: /Show incognito projects/ }).click()
   await expect(sidebar.getByText(projectName, { exact: false })).toHaveCount(0)
 }

@@ -53,7 +53,7 @@ export const createIncognitoProjectsSlice: StateCreator<
       {
         description: translate(
           'incognitoProjects.madeIncognitoToastDescription',
-          'Show it again with "Show incognito projects" in the sidebar filter menu.'
+          'Show it again with "Show incognito projects" in the sidebar\'s Workspace options menu.'
         )
       }
     )
