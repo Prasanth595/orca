@@ -181,9 +181,9 @@ describe('ImportedWorktreesVisibilityLine in Japanese', () => {
     const markup = renderLine({ hostContextLabel: 'openclaw' })
 
     expect(markup).toContain('4 件のワークツリーを非表示中')
-    expect(markup).toContain('orca（openclaw） の非表示のワークツリーを展開')
+    expect(markup).toContain('orca（openclaw） の非表示のワークツリー一覧を展開')
     expect(markup).toContain(
-      'orca（openclaw） で検出されたワークツリー 4 件を非表示のままにする（プロジェクトメニューから戻せます）'
+      'orca（openclaw） で検出されたワークツリー 4 件を非表示のままにする（プロジェクトメニューから再表示できます）'
     )
     expect(markup).not.toContain('Hiding')
   })

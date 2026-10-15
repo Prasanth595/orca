@@ -5296,9 +5296,9 @@
           "loadedChangedPaths": "読み込まれた変更済みパス",
           "unresolvedConflict": "未解決の競合",
           "moreLoadedPaths": "ほかに読み込まれたパスが{{value0}}件",
-          "changeCount_one": "コミットされていない変更または未追跡の変更: 1 件",
-          "changeCount_other": "コミットされていない変更または未追跡の変更: {{count}} 件",
-          "changes": "コミットされていない変更または未追跡の変更があります"
+          "changeCount_one": "未コミットまたは未追跡の変更: 1 件",
+          "changeCount_other": "未コミットまたは未追跡の変更: {{count}} 件",
+          "changes": "未コミットまたは未追跡の変更があります"
         },
         "DeleteWorktreeLineageNotice": {
           "ad407c2d55": "件以上",
@@ -5323,15 +5323,15 @@
           "2251d41ebb": "非表示のワークツリーグループ",
           "5a9688802a": "{{value0}} をもっと見る",
           "294de4aeb2": "表示数を減らす",
-          "collapseAriaLabel": "{{repo}} の非表示のワークツリーを折りたたむ",
-          "expandAriaLabel": "{{repo}} の非表示のワークツリーを展開",
+          "collapseAriaLabel": "{{repo}} の非表示のワークツリー一覧を折りたたむ",
+          "expandAriaLabel": "{{repo}} の非表示のワークツリー一覧を展開",
           "hiding_one": "1 件のワークツリーを非表示中",
           "hiding_other": "{{count}} 件のワークツリーを非表示中",
           "hidingInRepo_one": "{{repo}} の 1 件のワークツリーを非表示中",
           "hidingInRepo_other": "{{repo}} の {{count}} 件のワークツリーを非表示中",
-          "keepHiddenAriaLabel_one": "{{repo}} で検出されたワークツリー 1 件を非表示のままにする（プロジェクトメニューから戻せます）",
-          "keepHiddenAriaLabel_other": "{{repo}} で検出されたワークツリー {{count}} 件を非表示のままにする（プロジェクトメニューから戻せます）",
-          "keepHiddenTooltip": "非表示のままにする（プロジェクトメニューから戻せます）",
+          "keepHiddenAriaLabel_one": "{{repo}} で検出されたワークツリー 1 件を非表示のままにする（プロジェクトメニューから再表示できます）",
+          "keepHiddenAriaLabel_other": "{{repo}} で検出されたワークツリー {{count}} 件を非表示のままにする（プロジェクトメニューから再表示できます）",
+          "keepHiddenTooltip": "非表示のままにする（プロジェクトメニューから再表示できます）",
           "repoOnHost": "{{repo}}（{{host}}）"
         },
         "NonGitFolderDialog": {
@@ -5655,7 +5655,7 @@
           "8ad104642b": "空の",
           "3611d1ae7f": "ワークスペースボードの列のサイズを変更する",
           "2df01a03ff": "一致なし",
-          "newWorkspaceIn": "{{status}} に新しいワークスペースを作成"
+          "newWorkspaceIn": "「{{status}}」に新しいワークスペースを作成"
         },
         "WorkspaceStatusAppearancePopover": {
           "514be2f569": "{{value0}} の色を {{value1}} に設定します",
@@ -6614,8 +6614,8 @@
           "showHiddenWorktrees": "非表示のワークツリーを表示する"
         },
         "useWorktreeCardLinkedDetails": {
-          "issueUnavailable": "Issue の詳細を取得できません",
-          "linearIssueUnavailable": "Linear Issue の詳細を取得できません",
+          "issueUnavailable": "Issue の詳細を表示できません",
+          "linearIssueUnavailable": "Linear Issue の詳細を表示できません",
           "loadingIssue": "Issue を読み込み中…",
           "loadingLinearIssue": "Linear Issue を読み込み中…"
         },
@@ -6635,7 +6635,7 @@
           "scanningRepositories": "リポジトリをスキャンしています…",
           "openingProject": "プロジェクトを開いています…",
           "openingFolder": "フォルダーを開いています…",
-          "chooseFolder": "フォルダーを選択…"
+          "chooseFolder": "フォルダーを選択中…"
         }
       },
       "shared": {
