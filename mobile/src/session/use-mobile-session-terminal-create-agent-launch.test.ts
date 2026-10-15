@@ -181,10 +181,10 @@ function awaitingReply(surface: Record<string, unknown>): unknown {
 }
 
 describe('the + menu', () => {
-  it('creates a native chat through a released desktop relay that overrides launch mode', async () => {
+  it('creates a native chat on an SSH runtime predating the launch-mode field', async () => {
     const created: string[] = []
     const client = requestPortRpcClient(async (method, params) => {
-      // Captured behavior of Mac 1.4.226: agent.launchReplay inherits the desktop default.
+      // The deployed SSH runtime strips nativeChatDefault and uses its own terminal default.
       if (method === 'agent.launchReplay') {
         created.push('terminal')
         return launchReply({ kind: 'terminal', handle: 'ssh-terminal' })

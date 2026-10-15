@@ -111,7 +111,7 @@ export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttach
     }
 
     try {
-      // Released desktop relays overwrite agent.launch's mode with their own default.
+      // Older SSH runtimes drop agent.launch's mode field; create is already client-controlled.
       if (
         hostCapabilities?.includes(STRUCTURED_AGENT_SESSION_CLIENT_LAUNCH_MODE_CAPABILITY) &&
         (await launchStructured())
