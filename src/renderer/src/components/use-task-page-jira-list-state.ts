@@ -27,6 +27,7 @@ import {
 } from '@/runtime/runtime-client-target'
 import { getEnvironmentRuntimeContextKey } from '@/lib/provider-runtime-context'
 import { getTaskSourceCacheScope } from '../../../shared/task-source-context'
+import { useTaskPageJiraProjectScope } from './use-task-page-jira-project-scope'
 const EMPTY_JIRA_PRIORITIES: JiraPrioritiesBySite = new Map()
 
 export function useTaskPageJiraListState(model: TaskPageLinearViewStateModel) {
@@ -41,6 +42,13 @@ export function useTaskPageJiraListState(model: TaskPageLinearViewStateModel) {
     () =>
       ipcOrRuntimeTargetForHostId(jiraTaskSourceContext?.hostId ?? accountBackedTaskSourceHostId),
     [accountBackedTaskSourceHostId, jiraTaskSourceContext]
+  )
+  const jiraProjectScope = useTaskPageJiraProjectScope(
+    model.repos,
+    model.selectedRepos,
+    model.pageData.preselectedRepoId,
+    model.accountBackedTaskSourceHostId,
+    selectedJiraSiteId
   )
   // Jira tab state
   const [jiraIssues, setJiraIssues] = useState<JiraIssue[]>([])
@@ -66,6 +74,8 @@ export function useTaskPageJiraListState(model: TaskPageLinearViewStateModel) {
     items: JiraStatusCatalogItem[]
   } | null>(null)
   const [activeJiraPreset, setActiveJiraPreset] = useState<JiraPresetId>('assigned')
+  const [jiraViewMode, setJiraViewMode] = useState<'list' | 'board'>('list')
+  const [jiraCurrentSprint, setJiraCurrentSprint] = useState(false)
   const [jiraRefreshNonce, setJiraRefreshNonce] = useState(0)
   const [jiraProjectStatusOrder, setJiraProjectStatusOrder] = useState<{
     order: JiraProjectStatusOrder
@@ -167,6 +177,7 @@ export function useTaskPageJiraListState(model: TaskPageLinearViewStateModel) {
     ...quickFilters,
     jiraStatusCatalog,
     setJiraStatusCatalog,
+    ...jiraProjectScope,
     jiraIssues,
     setJiraIssues,
     jiraLoading,
@@ -183,6 +194,10 @@ export function useTaskPageJiraListState(model: TaskPageLinearViewStateModel) {
     setAppliedJiraSearch,
     activeJiraPreset,
     setActiveJiraPreset,
+    jiraViewMode,
+    setJiraViewMode,
+    jiraCurrentSprint,
+    setJiraCurrentSprint,
     jiraRefreshNonce,
     setJiraRefreshNonce,
     jiraProjectStatusOrder,

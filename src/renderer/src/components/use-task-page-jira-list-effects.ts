@@ -1,19 +1,28 @@
-import { buildJiraStatusCatalog } from './task-page-jira-status-catalog'
+import { translate } from '@/i18n/i18n'
+import { isRuntimeProviderSearchQueryWithinLimit } from '@/runtime/runtime-provider-search-bounds'
+import { withCurrentSprintClause } from '../../../shared/jira-jql-predicate'
+import {
+  buildJiraStatusCatalog,
+  getJiraStatusCatalogScopeKey
+} from './task-page-jira-status-catalog'
 import type { TaskPageLinearCollectionEffectsModel } from './use-task-page-linear-collection-effects'
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import {
   getSingleJiraProjectScope,
   getTaskPageJiraStatusOrderScopeKey,
+  getTaskPageJiraStatusOrderRuntimeScopeKey,
   loadTaskPageJiraProjectStatusOrder
 } from '@/components/task-page-jira-status-order'
 import { createTaskPageJiraLoadFailureState } from '@/components/task-page-jira-load-state'
 import { searchTaskPageJiraIssues } from '@/components/task-page-jira-search'
 import { JIRA_ITEM_LIMIT, TASK_SEARCH_DEBOUNCE_MS } from './task-page-source-context'
 import { readLinkedJiraIssues } from './task-page-jira-linked-issues'
-import { defaultScopeSource } from '@/lib/default-creation-host'
+import { ipcOrRuntimeTargetForHostId } from '@/runtime/runtime-client-target'
+import { buildJiraPresetJql } from '../../../shared/jira-preset-jql'
+import { restrictJiraQueryToProject } from '../../../shared/jira-project-reference'
 export function useTaskPageJiraListEffects(model: TaskPageLinearCollectionEffectsModel) {
   const {
-    settings,
+    accountBackedTaskSourceHostId,
     jiraHasWorkspace,
     linkedJiraIssueRefs,
     linkedJiraIssueRefsSignature,
@@ -40,6 +49,8 @@ export function useTaskPageJiraListEffects(model: TaskPageLinearCollectionEffect
     appliedJiraSearch,
     setAppliedJiraSearch,
     activeJiraPreset,
+    jiraCurrentSprint,
+    jiraProjectFilter,
     jiraRefreshNonce,
     jiraActiveSavedFilterId,
     jiraSavedFilters,
@@ -50,6 +61,15 @@ export function useTaskPageJiraListEffects(model: TaskPageLinearCollectionEffect
     setJiraProjectStatusOrder,
     displayedJiraIssues
   } = model
+  const statusOrderOwner = useMemo(
+    () =>
+      ipcOrRuntimeTargetForHostId(jiraTaskSourceContext?.hostId ?? accountBackedTaskSourceHostId),
+    [accountBackedTaskSourceHostId, jiraTaskSourceContext]
+  )
+  const statusOrderRuntimeScopeKey = getTaskPageJiraStatusOrderRuntimeScopeKey(
+    jiraTaskSourceScopeKey,
+    statusOrderOwner
+  )
   useEffect(() => {
     if (!taskResumeApplied) {
       return
@@ -86,6 +106,7 @@ export function useTaskPageJiraListEffects(model: TaskPageLinearCollectionEffect
     const force = previousJiraRefreshNonceRef.current !== jiraRefreshNonce
     previousJiraRefreshNonceRef.current = jiraRefreshNonce
     let cancelled = false
+    let queryTooLong = false
     setJiraLoading(true)
     setJiraError(null)
     setJiraJqlRejection(null)
@@ -93,23 +114,53 @@ export function useTaskPageJiraListEffects(model: TaskPageLinearCollectionEffect
     const trimmed = jiraRemoteSearch.trim()
     const savedFilter = jiraSavedFilters.find((filter) => filter.id === jiraActiveSavedFilterId)
     const exactSavedJql = savedFilter?.jql === trimmed
+    const searchWithinLimit = async (query: string) => {
+      if (!isRuntimeProviderSearchQueryWithinLimit(query)) {
+        queryTooLong = true
+        throw new Error('Query exceeds the request limit.')
+      }
+      return searchJiraIssues(query, JIRA_ITEM_LIMIT, {
+        sourceContext: jiraTaskSourceContext,
+        ...(jiraProjectFilter ? { siteId: jiraProjectFilter.siteId } : {}),
+        force
+      })
+    }
     const request = jiraHasWorkspace
       ? readLinkedJiraIssues(linkedJiraIssueRefs, searchJiraIssues, jiraTaskSourceContext, force)
       : trimmed.length > 0
         ? searchTaskPageJiraIssues(
             trimmed,
-            (jql) =>
-              searchJiraIssues(jql, JIRA_ITEM_LIMIT, {
-                sourceContext: jiraTaskSourceContext,
-                force
-              }),
+            async (jql) => {
+              const sprintJql = jiraCurrentSprint ? withCurrentSprintClause(jql) : jql
+              const query = jiraProjectFilter
+                ? restrictJiraQueryToProject(sprintJql, jiraProjectFilter)
+                : sprintJql
+              return searchWithinLimit(query)
+            },
             exactSavedJql ? 'jql' : 'input'
           ).then((result) => ({ ...result, error: null }))
-        : listJiraIssues(activeJiraPreset, JIRA_ITEM_LIMIT, {
-            sourceContext: jiraTaskSourceContext,
-            force,
-            ...(selectedJiraStatuses.length ? { filters: { statuses: selectedJiraStatuses } } : {})
-          }).then((issues) => ({ issues, jqlRejection: null, error: null }))
+        : jiraProjectFilter
+          ? searchWithinLimit(
+              restrictJiraQueryToProject(
+                buildJiraPresetJql(activeJiraPreset, {
+                  statuses: selectedJiraStatuses,
+                  currentSprint: jiraCurrentSprint
+                }),
+                jiraProjectFilter
+              )
+            ).then((issues) => ({ issues, jqlRejection: null, error: null }))
+          : listJiraIssues(activeJiraPreset, JIRA_ITEM_LIMIT, {
+              sourceContext: jiraTaskSourceContext,
+              force,
+              ...(selectedJiraStatuses.length || jiraCurrentSprint
+                ? {
+                    filters: {
+                      ...(selectedJiraStatuses.length ? { statuses: selectedJiraStatuses } : {}),
+                      ...(jiraCurrentSprint ? { currentSprint: true } : {})
+                    }
+                  }
+                : {})
+            }).then((issues) => ({ issues, jqlRejection: null, error: null }))
     void request
       .then((result) => {
         const { issues, jqlRejection } = result
@@ -119,7 +170,12 @@ export function useTaskPageJiraListEffects(model: TaskPageLinearCollectionEffect
         setJiraError(result.error)
         if (!jiraHasWorkspace && !trimmed && selectedJiraStatuses.length === 0) {
           setJiraStatusCatalog({
-            scopeKey: `${jiraTaskSourceScopeKey}::${selectedJiraSiteId}::${activeJiraPreset}`,
+            scopeKey: getJiraStatusCatalogScopeKey(
+              jiraTaskSourceScopeKey,
+              selectedJiraSiteId,
+              activeJiraPreset,
+              jiraProjectFilter
+            ),
             items: buildJiraStatusCatalog(issues)
           })
         }
@@ -127,16 +183,16 @@ export function useTaskPageJiraListEffects(model: TaskPageLinearCollectionEffect
         setJiraJqlRejection(jqlRejection)
         setJiraLoading(false)
         const projectScope = getSingleJiraProjectScope(issues)
-        if (!projectScope) {
+        if (!projectScope || !statusOrderOwner) {
           return
         }
         const statusOrderScopeKey = getTaskPageJiraStatusOrderScopeKey(
-          jiraTaskSourceScopeKey,
+          statusOrderRuntimeScopeKey,
           projectScope
         )
         void loadTaskPageJiraProjectStatusOrder(
-          jiraTaskSourceContext ?? defaultScopeSource(settings),
-          jiraTaskSourceScopeKey,
+          statusOrderOwner,
+          statusOrderRuntimeScopeKey,
           projectScope
         ).then((order) => {
           if (!cancelled) {
@@ -153,7 +209,17 @@ export function useTaskPageJiraListEffects(model: TaskPageLinearCollectionEffect
         }
         const failureState = createTaskPageJiraLoadFailureState(err)
         setJiraIssues(failureState.issues)
-        setJiraError(failureState.error)
+        setJiraError(
+          queryTooLong
+            ? {
+                title: translate(
+                  'jira.board.queryTooLong',
+                  'The Jira query is too long. Shorten the query or clear filters.'
+                ),
+                details: null
+              }
+            : failureState.error
+        )
         setJiraLoading(false)
       })
     return () => {
@@ -168,6 +234,8 @@ export function useTaskPageJiraListEffects(model: TaskPageLinearCollectionEffect
     activeJiraPreset,
     jiraHasWorkspace,
     linkedJiraIssueRefsSignature,
+    jiraCurrentSprint,
+    jiraProjectFilter,
     jiraRefreshNonce,
     jiraActiveSavedFilterId,
     jiraSavedFilters,
@@ -176,7 +244,9 @@ export function useTaskPageJiraListEffects(model: TaskPageLinearCollectionEffect
     jiraQuickFiltersLoading,
     taskResumeApplied,
     jiraTaskSourceContext,
-    jiraTaskSourceScopeKey
+    jiraTaskSourceScopeKey,
+    statusOrderOwner,
+    statusOrderRuntimeScopeKey
   ])
   useEffect(() => {
     if (!taskResumeApplied || taskSource !== 'jira') {
