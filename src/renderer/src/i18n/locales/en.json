@@ -20180,7 +20180,13 @@
       "holderCannotEnd": "Orca cannot end this program; close it yourself.",
       "requirement": "Perforce copies need Windows 11 24H2 or later, with the workspace on a Dev Drive: each copy block-clones the workspace, so it takes almost no extra space. Elsewhere a new workspace shares the project folder.",
       "unavailableHere": "Perforce copies need Windows 11 24H2 or later, with the workspace on a Dev Drive, so this workspace will share the project folder instead of getting its own copy.",
-      "setUpDevDrive": "Set up a Dev Drive"
+      "setUpDevDrive": "Set up a Dev Drive",
+      "modeNew": "New stream",
+      "modeExisting": "Existing stream",
+      "streamField": "Stream",
+      "chooseStream": "Choose a stream…",
+      "modeNewHint": "A new stream of its own, branched from the stream above.",
+      "modeExistingHint": "Works directly on the stream above — no new stream is created."
     }
   },
   "workspace": {
