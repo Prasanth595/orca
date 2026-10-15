@@ -107,7 +107,13 @@ describe('Store', () => {
     expect(store.getSettings().showTasksButton).toBe(true)
     expect(store.getSettings().showAutomationsButton).toBe(true)
     expect(store.getSettings().combinedDiffFileTreeVisibleByDefault).toBe(false)
-    expect(store.getSettings().visibleTaskProviders).toEqual(['github', 'gitlab', 'linear', 'jira'])
+    expect(store.getSettings().visibleTaskProviders).toEqual([
+      'github',
+      'gitlab',
+      'linear',
+      'jira',
+      'plane'
+    ])
     expect(store.getSettings().experimentalActivity).toBe(false)
     expect(store.getSettings().experimentalActivityDefaultedOffForAllUsers).toBe(true)
     expect(store.getSettings().experimentalTerminalAttention).toBe(false)
@@ -474,7 +480,71 @@ describe('Store', () => {
     })
 
     const store = await createStore()
-    expect(store.getSettings().visibleTaskProviders).toEqual(['gitlab', 'jira'])
+    expect(store.getSettings().visibleTaskProviders).toEqual(['gitlab', 'jira', 'plane'])
+  })
+
+  it('adds Plane once to a provider list saved before Plane existed', async () => {
+    writeDataFile({
+      schemaVersion: 1,
+      repos: [],
+      worktreeMeta: {},
+      settings: {
+        defaultTaskSource: 'linear',
+        visibleTaskProviders: ['github', 'linear', 'jira'],
+        visibleTaskProvidersDefaultedForJira: true
+      },
+      ui: {},
+      githubCache: { pr: {}, issue: {} },
+      workspaceSession: {}
+    })
+
+    const store = await createStore()
+    expect(store.getSettings()).toMatchObject({
+      defaultTaskSource: 'linear',
+      visibleTaskProviders: ['github', 'linear', 'jira', 'plane'],
+      visibleTaskProvidersDefaultedForPlane: true
+    })
+    store.flush()
+    expect(readDataFile()).toMatchObject({
+      settings: {
+        visibleTaskProviders: ['github', 'linear', 'jira', 'plane'],
+        visibleTaskProvidersDefaultedForPlane: true
+      }
+    })
+  })
+
+  it('keeps Plane hidden across reloads once the user hides it', async () => {
+    writeDataFile({
+      schemaVersion: 1,
+      repos: [],
+      worktreeMeta: {},
+      settings: { visibleTaskProviders: ['github', 'jira'] },
+      ui: {},
+      githubCache: { pr: {}, issue: {} },
+      workspaceSession: {}
+    })
+    const store = await createStore()
+    expect(store.getSettings().visibleTaskProviders).toEqual(['github', 'jira', 'plane'])
+
+    store.updateSettings({ visibleTaskProviders: ['github', 'jira'] })
+    store.flush()
+    await closeTestStores()
+
+    const reloaded = await createStore()
+    expect(reloaded.getSettings().visibleTaskProviders).toEqual(['github', 'jira'])
+    expect(reloaded.getSettings().visibleTaskProvidersDefaultedForPlane).toBe(true)
+  })
+
+  it('stamps the Plane migration guard on future provider-list updates', async () => {
+    const store = await createStore()
+
+    const updated = store.updateSettings({
+      visibleTaskProviders: ['github'],
+      visibleTaskProvidersDefaultedForPlane: false
+    })
+
+    expect(updated.visibleTaskProviders).toEqual(['github'])
+    expect(updated.visibleTaskProvidersDefaultedForPlane).toBe(true)
   })
 
   it('preserves a deliberate Jira provider opt-out after migration', async () => {
@@ -484,7 +554,8 @@ describe('Store', () => {
       worktreeMeta: {},
       settings: {
         visibleTaskProviders: ['gitlab'],
-        visibleTaskProvidersDefaultedForJira: true
+        visibleTaskProvidersDefaultedForJira: true,
+        visibleTaskProvidersDefaultedForPlane: true
       },
       ui: {},
       githubCache: { pr: {}, issue: {} },
@@ -538,7 +609,7 @@ describe('Store', () => {
 
     const store = await createStore()
     expect(store.getSettings().defaultTaskSource).toBe('github')
-    expect(store.getSettings().visibleTaskProviders).toEqual(['github', 'linear', 'jira'])
+    expect(store.getSettings().visibleTaskProviders).toEqual(['github', 'linear', 'jira', 'plane'])
   })
 
   it('normalizes invalid task provider defaults on load', async () => {
@@ -554,7 +625,7 @@ describe('Store', () => {
 
     const store = await createStore()
     expect(store.getSettings().defaultTaskSource).toBe('gitlab')
-    expect(store.getSettings().visibleTaskProviders).toEqual(['gitlab', 'jira'])
+    expect(store.getSettings().visibleTaskProviders).toEqual(['gitlab', 'jira', 'plane'])
   })
 
   it('normalizes persisted open-in applications on load', async () => {

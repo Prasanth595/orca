@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
     checking: boolean
     onOpenIntegrations: () => void
   }[],
+  planeSetupProps: new Array<{ onOpenIntegrations: () => void }>(),
   jiraSetupProps: [] as { onOpenIntegrations: () => void }[]
 }))
 
@@ -65,6 +66,10 @@ vi.mock('./TaskSourceSimpleSetup', () => ({
   JiraSetupSteps: (props: { onOpenIntegrations: () => void }) => {
     mocks.jiraSetupProps.push(props)
     return <div data-testid="jira-setup">Jira setup</div>
+  },
+  PlaneSetupSteps: (props: { onOpenIntegrations: () => void }) => {
+    mocks.planeSetupProps.push(props)
+    return <div data-testid="plane-setup">Plane setup</div>
   }
 }))
 
@@ -124,6 +129,7 @@ describe('TasksPane', () => {
   beforeEach(() => {
     mocks.linearSetupProps = []
     mocks.jiraSetupProps = []
+    mocks.planeSetupProps = []
     mocks.openSettingsPage.mockClear()
     mocks.openSettingsTarget.mockClear()
     mocks.readiness = {
@@ -137,7 +143,8 @@ describe('TasksPane', () => {
         skillChecking: false,
         visible: true
       },
-      jira: { connected: false, checking: false, visible: false }
+      jira: { connected: false, checking: false, visible: false },
+      plane: { connected: false, checking: false, visible: false }
     }
   })
 
@@ -250,6 +257,25 @@ describe('TasksPane', () => {
       pane: 'integrations',
       repoId: null,
       sectionId: 'integrations-jira'
+    })
+  })
+
+  it('deep-links connected Plane management to its integration card', async () => {
+    mocks.readiness.plane = { connected: true, checking: false, visible: true }
+    await renderInteractivePane()
+    const expandPlane = Array.from(container?.querySelectorAll('button') ?? []).find(
+      (button) => button.getAttribute('aria-label') === 'Show Plane setup steps'
+    )
+
+    await act(async () => {
+      expandPlane?.click()
+    })
+    mocks.planeSetupProps.at(-1)?.onOpenIntegrations()
+
+    expect(mocks.openSettingsTarget).toHaveBeenCalledWith({
+      pane: 'integrations',
+      repoId: null,
+      sectionId: 'integrations-plane'
     })
   })
 

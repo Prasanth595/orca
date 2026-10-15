@@ -1,7 +1,14 @@
 import { parseJiraIssueUrl, JIRA_ISSUE_KEY_PATTERN } from './jira-issue-url'
 import { parseLinearIssueInput, parseLinearIssueUrlIntent } from './linear/links'
 import { getTaskSourceCacheScope } from './task-source-context'
+import { parsePlaneReferenceRoute } from './workspace-reference-plane'
 import type { WorkspaceAttachment } from './worktree/types'
+import {
+  getWorkspaceReferenceExternalUrl,
+  getWorkspaceReferenceIdentifier
+} from './workspace-reference-external-url'
+
+export { getWorkspaceReferenceIdentifier } from './workspace-reference-external-url'
 
 export type WorkspaceReferenceQuery =
   | { kind: 'url'; identity: string }
@@ -13,6 +20,7 @@ const HOST_PROVIDERS: Readonly<Record<string, WorkspaceAttachment['provider']>> 
   'github.com': 'github',
   'gitlab.com': 'gitlab',
   'linear.app': 'linear',
+  'app.plane.so': 'plane',
   'codeberg.org': 'gitea',
   'bitbucket.org': 'bitbucket',
   'dev.azure.com': 'azure-devops'
@@ -91,6 +99,10 @@ function parseReferenceRoute(
       url: url.href
     }
   }
+  const plane = providerHint === 'plane' ? parsePlaneReferenceRoute(url) : null
+  if (plane) {
+    return plane
+  }
   // Git hosts (and Bitbucket Server /repos/ file views) also serve /browse/KEY-1 paths.
   const jira =
     (!providerHint || providerHint === 'jira') && !url.pathname.includes('/repos/')
@@ -161,41 +173,9 @@ function parseReferenceRoute(
   )
 }
 
-export function getWorkspaceReferenceIdentifier(item: WorkspaceAttachment): string | undefined {
-  return item.identifier ?? item.linearIdentifier ?? item.jiraIdentifier
-}
-
-function externalUrl(item: WorkspaceAttachment): string | undefined {
-  if (item.url) {
-    return item.url
-  }
-  const identity = item.taskSourceContext?.providerIdentity
-  const identifier = getWorkspaceReferenceIdentifier(item)
-  if (item.provider === 'linear' && item.linearOrganizationUrlKey && identifier) {
-    return `https://linear.app/${encodeURIComponent(item.linearOrganizationUrlKey)}/issue/${encodeURIComponent(identifier)}`
-  }
-  if (!identity || identity.provider !== item.provider) {
-    return undefined
-  }
-  switch (identity.provider) {
-    case 'github':
-      return `https://${identity.host ?? 'github.com'}/${identity.owner}/${identity.repo}/${item.type === 'pr' ? 'pull' : 'issues'}/${item.number}`
-    case 'gitlab':
-      return identity.webUrl
-        ? `${identity.webUrl.replace(/\/+$/, '')}/-/${item.type === 'mr' ? 'merge_requests' : 'issues'}/${item.number}`
-        : undefined
-    case 'jira':
-      return identity.siteUrl && identifier
-        ? `${identity.siteUrl.replace(/\/+$/, '')}/browse/${identifier}`
-        : undefined
-    case 'linear':
-      return undefined
-  }
-}
-
 /** Provider-proven external identity, or undefined when the source cannot be proven. */
 export function getProvenWorkspaceReferenceIdentity(item: WorkspaceAttachment): string | undefined {
-  const candidate = externalUrl(item)
+  const candidate = getWorkspaceReferenceExternalUrl(item)
   if (candidate) {
     try {
       const parsed = parseWorkspaceReferenceUrl(candidate, item.provider)

@@ -2,11 +2,14 @@
 
 import { cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { JiraSetupSteps } from './TaskSourceSimpleSetup'
+import { usePlaneHostScope } from '@/components/plane/plane-host-scope'
+import { JiraSetupSteps, PlaneSetupSteps } from './TaskSourceSimpleSetup'
 
-const mocks = vi.hoisted(() => ({
-  dialogOpen: [] as boolean[]
-}))
+const mocks = vi.hoisted(() => {
+  const dialogOpen: boolean[] = []
+  const planeDialogTargets: unknown[] = []
+  return { dialogOpen, planeDialogTargets }
+})
 
 vi.mock('@/components/jira-connect-dialog', () => ({
   JiraConnectDialog: ({ open }: { open: boolean }) => {
@@ -15,9 +18,18 @@ vi.mock('@/components/jira-connect-dialog', () => ({
   }
 }))
 
+vi.mock('@/components/plane/PlaneConnectDialog', () => ({
+  PlaneConnectDialog: () => {
+    // Why the real hook: the dialog throws without a host scope above it.
+    mocks.planeDialogTargets.push(usePlaneHostScope().target)
+    return null
+  }
+}))
+
 afterEach(() => {
   cleanup()
   mocks.dialogOpen = []
+  mocks.planeDialogTargets = []
 })
 
 describe('JiraSetupSteps', () => {
@@ -39,5 +51,24 @@ describe('JiraSetupSteps', () => {
 
     expect(onOpenIntegrations).toHaveBeenCalledOnce()
     expect(mocks.dialogOpen.at(-1)).toBe(false)
+  })
+})
+
+describe('PlaneSetupSteps', () => {
+  it('gives the connect dialog the Settings host scope', () => {
+    const rendered = render(
+      <PlaneSetupSteps
+        connected={false}
+        checking={false}
+        visible
+        canHide
+        onToggleVisible={vi.fn()}
+        onOpenIntegrations={vi.fn()}
+        host={{ kind: 'local' }}
+      />
+    )
+
+    expect(rendered.getByRole('button', { name: 'Connect Plane' })).toBeTruthy()
+    expect(mocks.planeDialogTargets.at(-1)).toEqual({ kind: 'local' })
   })
 })

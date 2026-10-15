@@ -214,6 +214,41 @@ describe('worktree remote runtime mutations', () => {
     expect(runtimeEnvironmentCall).not.toHaveBeenCalled()
   })
 
+  it('asks for an update instead of sending a Plane link to a runtime without Plane links', async () => {
+    const oldRuntimeStatus = createCompatibleRuntimeStatusResponse('runtime-old')
+    if (oldRuntimeStatus.ok) {
+      oldRuntimeStatus.result.capabilities = oldRuntimeStatus.result.capabilities?.filter(
+        (capability) => capability !== 'worktree.linked-work-item.plane.v1'
+      )
+    }
+    runtimeEnvironmentTransportCall.mockImplementation((args: RuntimeEnvironmentCallRequest) =>
+      args.method === 'status.get' ? oldRuntimeStatus : runtimeEnvironmentCall(args)
+    )
+    const store = createRepoTestStore()
+    store.setState({
+      settings: { activeRuntimeEnvironmentId: 'env-1' } as never,
+      worktreesByRepo: { repo1: [] }
+    } as Partial<AppState>)
+    seedRepoHost(store, 'runtime:env-1')
+    const createWorktree = store.getState().createWorktree
+    const args: Parameters<typeof createWorktree> = ['repo1', 'plane-link']
+    args[25] = {
+      linkedWorkItem: {
+        provider: 'plane',
+        type: 'issue',
+        number: 0,
+        title: 'WEB-12 Fix login',
+        url: 'https://app.plane.so/acme/browse/WEB-12/',
+        identifier: 'WEB-12'
+      }
+    }
+
+    await expect(createWorktree(...args)).rejects.toThrow(
+      'Update the remote runtime to link Plane work items'
+    )
+    expect(runtimeEnvironmentCall).not.toHaveBeenCalled()
+  })
+
   it('passes startup commands through remote runtime worktree creation', async () => {
     const store = createRepoTestStore()
     const wt = makeWorktree({

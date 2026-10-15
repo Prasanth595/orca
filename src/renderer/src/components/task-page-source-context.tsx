@@ -13,11 +13,11 @@ import {
 import { projectHostSetupProjectionFromRepos } from '../../../shared/project-host-setup-projection'
 import { getRepoExecutionHostId } from '../../../shared/execution-host'
 import type { ExecutionHostRegistryEntry } from '../../../shared/execution-host-registry'
-import {
-  getAccountBackedTaskSourceSummary,
-  type TaskSourceContextSummary,
-  type TaskSourceHostAvailability
+import type {
+  TaskSourceContextSummary,
+  TaskSourceHostAvailability
 } from './task-source-context-summary'
+import { getAccountBackedTaskSourceSummary } from './task-source-account-summary'
 import { TASK_SOURCE_CONTEXT_RUNTIME_CAPABILITY } from '../../../shared/protocol-version'
 import { cn } from '@/lib/utils'
 import { formatUiRelativeTimeFromDate } from '@/i18n/relative-time-format'

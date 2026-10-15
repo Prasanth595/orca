@@ -2,10 +2,13 @@ import type { TaskPageComposerActionsModel } from '../use-task-page-composer-act
 import PullRequestPage from '@/components/PullRequestPage'
 import GitHubItemDialog from '@/components/GitHubItemDialog'
 import ProjectViewWrapper from '@/components/github-project/ProjectViewWrapper'
+import { taskSourceRuntimeTarget } from '@/lib/task-source-runtime-target'
 import { TaskPageGitHubList } from './github/List'
 import { TaskPageGitLabTodoList } from './gitlab/TodoList'
 import { TaskPageGitLabItemList } from './gitlab/ItemList'
 import { TaskPageJiraContent } from './jira/Content'
+import { TaskPagePlaneContent } from './plane/TaskPagePlaneContent'
+import { planeCreateWorkspaceActionSlots } from './plane/plane-create-workspace-action-slots'
 export function TaskPageContent({
   model
 }: {
@@ -21,6 +24,7 @@ export function TaskPageContent({
     dialogRepoPath,
     dialogSourceContext,
     accountBackedTaskSourceHostId,
+    hideTaskSource,
     setDialogWorkItem,
     handleDialogReviewRequestsChange,
     closeTaskDetailPage,
@@ -73,7 +77,22 @@ export function TaskPageContent({
     <TaskPageGitLabTodoList model={model} />
   ) : taskSource === 'gitlab' ? (
     <TaskPageGitLabItemList model={model} />
-  ) : (
+  ) : taskSource === 'jira' || taskSource === 'linear' ? (
+    // Why: the Jira content component also routes Linear to its own view.
     <TaskPageJiraContent model={model} />
+  ) : taskSource === 'plane' ? (
+    <TaskPagePlaneContent
+      host={taskSourceRuntimeTarget(
+        model.planeTaskSourceContext ?? { hostId: accountBackedTaskSourceHostId }
+      )}
+      onHide={() => hideTaskSource('plane', 'Plane')}
+      {...planeCreateWorkspaceActionSlots(model.planeTaskSourceContext)}
+    />
+  ) : (
+    unhandledTaskSource(taskSource)
   )
+}
+
+function unhandledTaskSource(_taskSource: never): null {
+  return null
 }

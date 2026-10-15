@@ -445,6 +445,29 @@ describe('SidebarNav', () => {
     expect(shortcuts?.className).toContain('can-hover:group-focus-within:opacity-100')
   })
 
+  it('offers a Plane shortcut on the Tasks row only while Plane is a visible source', async () => {
+    let container = await renderSidebarNav()
+    const planeShortcut = getButtonByText(
+      container,
+      'Tasks'
+    ).parentElement?.querySelector<HTMLButtonElement>('button[aria-label="Open Plane tasks"]')
+    if (!planeShortcut) {
+      throw new Error('Plane shortcut not found')
+    }
+    await clickButton(planeShortcut)
+    expect(mocks.openTaskPage).toHaveBeenCalledWith({ taskSource: 'plane' })
+
+    setSidebarState({
+      settings: { ...getDefaultSettings('/tmp'), visibleTaskProviders: ['github', 'jira'] }
+    })
+    container = await renderSidebarNav()
+    expect(
+      getButtonByText(container, 'Tasks').parentElement?.querySelector(
+        'button[aria-label="Open Plane tasks"]'
+      )
+    ).toBeNull()
+  })
+
   it('hides available Tasks from its sidebar context menu', async () => {
     const container = await renderSidebarNav()
 

@@ -1,3 +1,5 @@
+import type { TaskProvider } from '../task-providers'
+
 export type SmartWorkspaceCommandRowKind =
   | 'use-name'
   | 'create-branch'
@@ -13,7 +15,10 @@ export type SmartWorkspaceCommandRow = {
   value: string
 }
 
-export type SmartWorkspaceSourceIntent = 'github' | 'gitlab' | 'linear' | 'jira' | null
+// Why: Plane work items are not offered as new-workspace sources yet.
+export type SmartWorkspaceSourceProvider = Exclude<TaskProvider, 'plane'>
+
+export type SmartWorkspaceSourceIntent = SmartWorkspaceSourceProvider | null
 
 export function resolveSmartWorkspaceCommandValue({
   currentValue,

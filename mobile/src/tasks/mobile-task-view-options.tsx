@@ -7,7 +7,8 @@ export const PROVIDER_LABELS: Record<TaskProvider, string> = {
   github: 'GitHub',
   gitlab: 'GitLab',
   linear: 'Linear',
-  jira: 'Jira'
+  jira: 'Jira',
+  plane: 'Plane'
 }
 
 // Records require a label for every task provider.
@@ -15,7 +16,8 @@ export const PROVIDER_EMPTY_LABELS: Record<TaskProvider, string> = {
   github: 'No GitHub tasks',
   gitlab: 'No GitLab tasks',
   linear: 'No Linear tasks',
-  jira: 'No Jira tasks'
+  jira: 'No Jira tasks',
+  plane: 'No Plane tasks'
 }
 
 export const JIRA_FILTER_OPTIONS: PickerOption<JiraIssueFilter>[] = [

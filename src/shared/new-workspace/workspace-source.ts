@@ -2,6 +2,7 @@ import { getLinearOrganizationUrlKeyFromIssueUrl } from '../linear/links'
 import type { FolderWorkspaceLinkedTask } from '../folder-workspace-types'
 import type { JiraIssue } from '../jira-types'
 import type { LinearIssue } from '../linear/issue-types'
+import { isAccountBackedTaskProvider, isIdentifierKeyedProvider } from '../task-providers'
 import {
   getLinkedWorkItemSuggestedName,
   getLinkedWorkItemWorkspaceName,
@@ -37,6 +38,12 @@ export type JiraWorkspaceSource = WorkspaceSourceLinkedItem & {
   type: 'issue'
 }
 
+export type PlaneWorkspaceSource = WorkspaceSourceLinkedItem & {
+  provider: 'plane'
+  type: 'issue'
+  identifier: string
+}
+
 export type WorkspaceSourceItemLike = Omit<WorkspaceSourceLinkedItem, 'provider'> & {
   provider?: WorkspaceSourceProvider
 }
@@ -49,6 +56,7 @@ export type WorkspaceSourceSelectionKind =
   | 'branch'
   | 'linear'
   | 'jira'
+  | 'plane'
 
 export type WorkspaceSourceSelection = {
   kind: WorkspaceSourceSelectionKind
@@ -157,6 +165,22 @@ export function buildJiraWorkspaceSource(
   }
 }
 
+/** Plane links carry their provider explicitly: a `/browse/KEY-N` URL alone reads as Jira. */
+export function buildPlaneWorkspaceSource(item: {
+  identifier: string
+  name: string
+  url: string
+}): PlaneWorkspaceSource {
+  return {
+    provider: 'plane',
+    type: 'issue',
+    number: 0,
+    title: `${item.identifier} ${item.name}`,
+    url: item.url,
+    identifier: item.identifier
+  }
+}
+
 export function shouldApplyWorkspaceSourceAutoName(args: {
   currentName: string
   lastAutoName: string
@@ -198,8 +222,8 @@ export function buildWorkspaceSourceSelection(args: {
   const kind: WorkspaceSourceSelectionKind =
     provider === 'linear'
       ? 'linear'
-      : provider === 'jira'
-        ? 'jira'
+      : provider === 'jira' || provider === 'plane'
+        ? provider
         : provider === 'gitlab'
           ? linkedWorkItem.type === 'mr'
             ? 'gitlab-mr'
@@ -210,7 +234,7 @@ export function buildWorkspaceSourceSelection(args: {
   return {
     kind,
     label:
-      provider === 'linear' || provider === 'jira' || linkedWorkItem.number === 0
+      isIdentifierKeyedProvider(provider) || linkedWorkItem.number === 0
         ? linkedWorkItem.title
         : `#${linkedWorkItem.number} ${linkedWorkItem.title}`,
     url: linkedWorkItem.url
@@ -224,5 +248,5 @@ export function shouldPreserveWorkspaceSourceOnRepoChange(
     return false
   }
   const provider = getWorkspaceSourceProvider(item)
-  return provider === 'linear' || provider === 'jira'
+  return isAccountBackedTaskProvider(provider)
 }

@@ -2,6 +2,7 @@ import type { HostedReviewProvider } from '../../../../shared/hosted-review'
 import type { WorkspaceAttachmentMutation } from '../../../../shared/workspace-attachment-mutation'
 import { translate } from '@/i18n/i18n'
 import type { Repo } from '../../../../shared/repo-types'
+import { isIdentifierKeyedProvider } from '../../../../shared/task-providers'
 import { normalizeGitRemoteUrl } from '../../../../shared/git-remote-identity'
 import type { WorkspaceAttachment, Worktree } from '../../../../shared/worktree/types'
 import type { WorktreeMeta } from '../../../../shared/worktree/meta-types'
@@ -15,6 +16,8 @@ import { parseGitLabIssueOrMRLink } from '../../../../shared/new-workspace/gitla
 import { parseLinearIssueInput } from '../../../../shared/linear/links'
 import { parseJiraIssueUrl } from '../../../../shared/jira-issue-url'
 import { isWorkItemLinkQueryTooLarge } from '../../../../shared/new-workspace/work-item-link-query-bounds'
+import type { PlaneConnectionStatus } from '../../../../shared/plane-types'
+import { parsePlaneAttachmentInput } from '@/lib/plane-reference-hint'
 
 export const ATTACHMENT_INPUT_KINDS = [
   { value: 'github-pr', label: () => translate('workspace.links.kind.github_pr', 'GitHub PR') },
@@ -57,6 +60,7 @@ export function workspaceAttachmentProviderLabel(item: WorkspaceAttachment): str
     gitlab: 'GitLab',
     linear: 'Linear',
     jira: 'Jira',
+    plane: 'Plane',
     bitbucket: 'Bitbucket',
     'azure-devops': 'Azure DevOps',
     gitea: 'Gitea'
@@ -65,8 +69,15 @@ export function workspaceAttachmentProviderLabel(item: WorkspaceAttachment): str
 }
 
 export function workspaceAttachmentLabel(item: WorkspaceAttachment): string {
-  if (item.provider === 'linear' || item.provider === 'jira') {
-    return item.identifier ?? item.linearIdentifier ?? item.jiraIdentifier ?? `#${item.number}`
+  if (isIdentifierKeyedProvider(item.provider)) {
+    return (
+      item.identifier ??
+      item.linearIdentifier ??
+      item.jiraIdentifier ??
+      (item.provider === 'plane'
+        ? translate('workspace.links.planeWorkItem', 'Plane work item')
+        : `#${item.number}`)
+    )
   }
   if (item.type === 'mr') {
     return translate('workspace.links.mrReference', 'MR !{{number}}', { number: item.number })
@@ -79,7 +90,8 @@ export function workspaceAttachmentLabel(item: WorkspaceAttachment): string {
 
 export function parseWorkspaceAttachmentInput(
   input: string,
-  kind: AttachmentInputKind
+  kind: AttachmentInputKind,
+  planeStatus?: PlaneConnectionStatus | null
 ): WorkspaceAttachment | null {
   const value = input.trim()
   if (!value || isWorkItemLinkQueryTooLarge(value)) {
@@ -90,6 +102,11 @@ export function parseWorkspaceAttachmentInput(
   const jira = parseJiraIssueUrl(value)
   const linear = parseLinearIssueInput(value)
   if (/^https?:\/\//i.test(value)) {
+    // Before Jira: a self-hosted Plane /browse/ link is otherwise indistinguishable from Jira's.
+    const plane = parsePlaneAttachmentInput(value, planeStatus)
+    if (plane) {
+      return plane
+    }
     const otherReview = parseOtherReviewUrl(value)
     if (otherReview) {
       return otherReview

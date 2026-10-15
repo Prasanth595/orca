@@ -30,6 +30,9 @@ export function useTaskSourceProviderReadiness(
   const linearConnected = useLinearProviderConnected()
   const linearStatusChecked = useAppStore((s) => s.linearStatusChecked)
   const linearStatusContextKey = useAppStore((s) => s.linearStatusContextKey)
+  const planeStatus = useAppStore((s) => s.planeStatus)
+  const planeStatusChecked = useAppStore((s) => s.planeStatusChecked)
+  const planeStatusContextKey = useAppStore((s) => s.planeStatusContextKey)
   const providerRuntimeContextKey = getProviderRuntimeContextKey(settings)
   const activeSkillRuntime = useActiveProjectSkillRuntime()
 
@@ -61,6 +64,8 @@ export function useTaskSourceProviderReadiness(
   const jiraConnected = !jiraChecking && jiraStatus.connected === true
   const linearChecking =
     linearStatusContextKey !== providerRuntimeContextKey || !linearStatusChecked
+  const planeChecking = planeStatusContextKey !== providerRuntimeContextKey || !planeStatusChecked
+  const planeConnected = !planeChecking && planeStatus.connected
   // Normalization returns a new array, so memoize by provider contents.
   const visibleProvidersKey = visibleProviders.join(',')
 
@@ -91,6 +96,11 @@ export function useTaskSourceProviderReadiness(
         connected: jiraConnected,
         checking: jiraChecking,
         visible: visible.has('jira')
+      },
+      plane: {
+        connected: planeConnected,
+        checking: planeChecking,
+        visible: visible.has('plane')
       }
     }
   }, [
@@ -104,6 +114,8 @@ export function useTaskSourceProviderReadiness(
     linearSkillLoading,
     linearSkillSettled,
     linearSkillUnverifiable,
+    planeChecking,
+    planeConnected,
     reviewChecking,
     reviewUnavailable,
     visibleProvidersKey

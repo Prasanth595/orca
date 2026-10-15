@@ -47,7 +47,11 @@ export function getRemoteAccountsPaneScope(serverName: string | null): ProviderH
 export function getProviderAccountScope(
   settings: Pick<GlobalSettings, 'activeRuntimeEnvironmentId'> | null | undefined
 ): ProviderHostScope {
-  const target = defaultScopeHost(settings)
+  return getProviderAccountScopeForHost(defaultScopeHost(settings))
+}
+
+/** Account scope of a provider host the caller already resolved. */
+export function getProviderAccountScopeForHost(target: RuntimeClientTarget): ProviderHostScope {
   return {
     label: providerHostScopeLabel(target),
     description:

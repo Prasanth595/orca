@@ -18,6 +18,7 @@ describe('getHostOperationOwnership', () => {
     expect(getHostOperationOwnership('accounts.list')).toBe('host')
     expect(getHostOperationOwnership('github.prChecks')).toBe('credential')
     expect(getHostOperationOwnership('jira.getIssueStream')).toBe('scope-picked')
+    expect(getHostOperationOwnership('plane.listWorkItems')).toBe('scope-picked')
   })
 
   it('reads row-less GitHub Projects board methods as scope-picked', () => {

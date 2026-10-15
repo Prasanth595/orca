@@ -1,3 +1,4 @@
+import { isMobileSupportedTaskProvider } from './mobile-task-providers'
 import {
   type GitHubIssueSourceError,
   type GitHubIssueSourceFallback,
@@ -84,7 +85,7 @@ export function useMobileTasksRouteAndItemState() {
     })
   const [provider, setProvider] = useState<TaskProvider>('github')
   const [visibleProviders, setVisibleProviders] = useState<TaskProvider[]>(() =>
-    normalizeVisibleTaskProviders(undefined)
+    normalizeVisibleTaskProviders(undefined).filter(isMobileSupportedTaskProvider)
   )
   const [linearConnected, setLinearConnected] = useState(false)
   const [jiraConnection, setJiraConnection] = useMobileJiraConnectionState(client, connState)

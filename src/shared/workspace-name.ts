@@ -5,6 +5,7 @@ import {
 import { escapeRegex } from './string-utils'
 import type { JiraIssueKeyCasing } from './ui-chrome-types'
 import { JIRA_ISSUE_KEY_PATTERN } from './jira-issue-url'
+import type { TaskProvider } from './task-providers'
 
 function normalizeApostrophes(input: string): string {
   return input.replace(/[‘’]/g, "'")
@@ -49,9 +50,10 @@ export type WorkspaceIntentWorkItem = {
   type: 'issue' | 'pr' | 'mr'
   number: number
   title: string
-  provider?: 'github' | 'gitlab' | 'linear' | 'jira'
+  provider?: TaskProvider
   linearIdentifier?: string
   jiraIdentifier?: string
+  identifier?: string
 }
 
 export type WorkspaceIntentName = {
@@ -160,7 +162,7 @@ function compactWords(input: string, maxWords = 4): string {
 }
 
 function compactWorkItemTitle(title: string, item: WorkspaceIntentWorkItem): string {
-  const identifier = item.linearIdentifier ?? item.jiraIdentifier
+  const identifier = workItemKey(item)
   let withoutPrefix = title
     .trim()
     .replace(/^(?:issue|pr|pull request|mr|merge request)\s*[#!]?\d+\s*[:-]\s*/i, '')
@@ -178,12 +180,14 @@ function compactWorkItemTitle(title: string, item: WorkspaceIntentWorkItem): str
   return compactWords(withoutPrefix || title, 3)
 }
 
+function workItemKey(item: WorkspaceIntentWorkItem): string | undefined {
+  return item.linearIdentifier ?? item.jiraIdentifier ?? item.identifier
+}
+
 function workItemIdentity(item: WorkspaceIntentWorkItem): string {
-  if (item.linearIdentifier) {
-    return item.linearIdentifier.toUpperCase()
-  }
-  if (item.jiraIdentifier) {
-    return item.jiraIdentifier.toUpperCase()
+  const key = workItemKey(item)
+  if (key) {
+    return key.toUpperCase()
   }
   if (item.type === 'pr') {
     return `PR ${item.number}`
@@ -198,7 +202,7 @@ export function getLinkedWorkItemWorkspaceName(
   item: WorkspaceIntentWorkItem,
   options: WorkspaceSeedNameOptions = {}
 ): WorkspaceIntentName | null {
-  const identifier = item.linearIdentifier ?? item.jiraIdentifier
+  const identifier = workItemKey(item)
   let subject = getLinkedWorkItemTitleSubject(item) || item.title.trim()
   if (identifier) {
     subject = subject

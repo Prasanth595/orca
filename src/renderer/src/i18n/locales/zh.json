@@ -19956,7 +19956,9 @@
       "checksPassing": "通过",
       "checksUnknown": "未知",
       "checksNeutral": "中性",
-      "allReviewChecks": "评审：{{count}} · 检查：{{status}}"
+      "allReviewChecks": "评审：{{count}} · 检查：{{status}}",
+      "linkedPlane": "已关联的 Plane {{value0}}",
+      "planeWorkItem": "Plane 工作项"
     },
     "attachments": {
       "updateRuntime": "更新远程运行时以更改工作区链接",
@@ -20075,6 +20077,250 @@
       "waitingAriaLabel": "更新正在等待其他 Orca 实例。点击展开。",
       "preparingLabel": "正在准备更新",
       "preparingAriaLabel": "正在准备更新。点击展开。"
+    }
+  },
+  "plane": {
+    "connect": {
+      "scopeTitle": "选择 Plane 项目",
+      "title": "连接 Plane",
+      "scopeDescription": "选择 Orca 要列出其工作项的项目。之后可以更改。",
+      "description": "使用个人访问令牌浏览 Plane 工作项，并从中启动工作区。",
+      "later": "稍后选择",
+      "cancel": "取消",
+      "saveScope": "保存项目",
+      "verifying": "正在验证…",
+      "connect": "连接",
+      "hostGroupLabel": "你的 Plane 工作区运行在哪里",
+      "cloudTitle": "Plane Cloud",
+      "cloudDescription": "由 Plane 在 app.plane.so 托管的工作区。",
+      "selfHostedTitle": "自托管",
+      "selfHostedDescription": "由你或你的团队运行的 Plane 服务器。",
+      "serverUrl": "服务器 URL",
+      "serverUrlPlaceholder": "https://plane.example.com",
+      "serverUrlDescription": "你打开 Plane 时使用的地址。像 /plane 这样的路径前缀会保留。",
+      "cloudUrlNotice": "这是 Plane Cloud 的地址。",
+      "useCloud": "使用 Plane Cloud",
+      "advanced": "高级",
+      "apiBaseUrl": "API 基础 URL",
+      "apiBaseUrlPlaceholder": "与服务器 URL 相同",
+      "apiBaseUrlDescription": "仅当 Plane API 由其他地址提供时才需要。",
+      "workspaceSlug": "Workspace slug",
+      "workspaceSlugPlaceholder": "acme",
+      "workspaceSlugDescription": "Plane URL 路径的第一部分，例如 /acme/projects 中的 acme。",
+      "apiToken": "个人访问令牌",
+      "apiTokenPlaceholder": "plane_api_…",
+      "createToken": "在 Plane 中创建令牌",
+      "insecureConsent": "通过未加密的 HTTP 发送我的令牌",
+      "insecureWarning": "{{host}} 与此服务器之间网络上的任何人都可以读取该令牌。",
+      "storageRemote": "令牌会发送到 {{host}}，并以其支持的加密方式存储在那里。",
+      "storageLocal": "令牌存储在这台计算机上，并在系统钥匙串可用时加密。",
+      "addTitle": "添加 Plane 工作区",
+      "addDescription": "使用已保存的令牌在 {{server}} 上添加更多工作区。",
+      "continue": "继续",
+      "scopeFor": "{{slug}} 中的项目",
+      "chipProjects": "{{slug}} · {{count}} 个项目",
+      "workspaces": "工作区",
+      "removeWorkspace": "移除 {{slug}}",
+      "workspacesPlaceholder": "acme，或粘贴 Plane URL",
+      "invalidSlug": "{{value}} 不是 workspace slug，也不是 Plane URL。",
+      "workspacesDescription": "输入每个 workspace slug 后按 Enter 或逗号，或粘贴 Plane URL。所有工作区共用一个令牌。",
+      "chipFailed": "{{slug}}：{{reason}}",
+      "reuseNotice": "使用为 {{server}} 上的 {{slug}} 保存的令牌。令牌保留在 {{host}} 上。",
+      "useDifferentToken": "使用其他令牌或服务器"
+    },
+    "scope": {
+      "groupLabel": "Orca 显示哪些 Plane 项目",
+      "allTitle": "所有项目（包括之后添加的项目）",
+      "allDescription": "此令牌可见的所有项目，每次刷新时都会重新检查。",
+      "chooseTitle": "选择项目",
+      "chooseDescription": "仅限你勾选的项目。只选一个即可在单个项目中工作。",
+      "counter": "已选择 {{count}}/{{total}}",
+      "selectAll": "全选",
+      "selectNone": "全不选",
+      "search": "搜索项目",
+      "noProjects": "此令牌没有可用的项目。",
+      "noMatch": "没有符合搜索条件的项目。"
+    },
+    "error": {
+      "auth": "Plane 拒绝了此令牌。请创建新令牌后重试。",
+      "forbidden": "此令牌无法访问该 Plane 工作区。",
+      "notFound": "Plane 找不到该项目。它可能已被移动或删除。",
+      "rateLimited": "Plane 正在限制请求速率。请等待一分钟后重试。",
+      "network": "{{host}} 无法连接到 Plane 服务器。请检查 URL，并确认 {{host}} 能够访问该服务器。",
+      "tls": "{{host}} 上的 Orca 运行时不信任此服务器的证书。",
+      "redirect": "Plane 服务器返回了重定向。请使用包含 https 的最终 URL。",
+      "invalidResponse": "此 URL 提供的是 Plane 网页应用，而不是其 API。请在“高级”中设置 API 基础 URL。",
+      "rejected": "Plane 拒绝了该请求。",
+      "urlEmpty": "请输入你的 Plane 服务器 URL。",
+      "urlInvalid": "请输入有效的 URL，例如 https://plane.example.com。",
+      "urlProtocol": "请使用 http 或 https URL。",
+      "urlCredentials": "请从 URL 中移除用户名和密码。",
+      "insecureHttp": "请确认可以通过未加密的 HTTP 发送令牌。",
+      "notConnected": "Plane 未在 {{host}} 上连接。",
+      "credentialUnreadable": "{{host}} 无法读取已保存的 Plane 令牌。请重新连接 Plane 以再次保存。",
+      "updateRequired": "请更新 {{host}} 上的 Orca 服务器以使用 Plane。",
+      "runtime": "Orca 无法连接到 {{host}}。请检查连接后重试。",
+      "mutationForbidden": "你没有在 Plane 中更改此工作项的权限。",
+      "workspaceUnavailable": "找不到工作区，或你没有访问权限。"
+    },
+    "host": {
+      "remoteServerFallback": "远程服务器"
+    },
+    "settingsSearch": {
+      "title": "Plane 集成",
+      "description": "连接 Plane Cloud 或自托管的 Plane 服务器，并选择其项目。",
+      "keywordPlane": "plane",
+      "keywordWorkItems": "工作项"
+    },
+    "card": {
+      "scopeNone": "未选择项目",
+      "scopeAll": "所有项目",
+      "scopeOne": "1 个项目",
+      "scopeMany": "{{count}} 个项目",
+      "checking": "正在检查 Plane 访问权限，稍后显示设置操作。",
+      "statusNeedsScope": "选择项目",
+      "statusConnected": "已连接",
+      "statusNotConnected": "未连接",
+      "connect": "连接 Plane",
+      "tokenName": "你的 Plane 令牌",
+      "accountScopePrefix": "账户范围",
+      "chooseProjects": "选择项目",
+      "editProjects": "编辑项目",
+      "disconnect": "断开 {{value0}}",
+      "hostCloud": "Plane Cloud",
+      "hostSelfHosted": "自托管",
+      "insecureHttp": "未加密的 HTTP",
+      "plaintextToken": "令牌以未加密方式存储",
+      "setupCopy": "使用个人访问令牌连接 Plane Cloud 或自托管的 Plane 服务器。令牌由 {{host}} 存储。",
+      "recheck": "重新检查",
+      "remove": "移除 {{value0}}",
+      "addWorkspace": "添加工作区",
+      "purpose": "在 Plane Cloud 或你自己的服务器上浏览 Plane 工作项、从中开始工作并更新它们。",
+      "connectedOne": "已连接到 {{server}} 上的 {{slug}}。",
+      "connectedCount": "已连接 {{count}} 个工作区。"
+    },
+    "tasksSetup": {
+      "connectTitle": "连接 Plane",
+      "connectDescription": "使用个人访问令牌添加 Plane Cloud 或自托管的 Plane 服务器，然后选择其项目。",
+      "manage": "管理连接",
+      "connect": "连接 Plane",
+      "label": "Plane",
+      "description": "连接 Plane Cloud 或自托管的 Plane 服务器，并在任务中显示。"
+    },
+    "tasks": {
+      "empty": "所选项目中没有工作项。",
+      "listTitle": "Plane 工作项",
+      "shown": "显示 {{count}} 个",
+      "needsScopeTitle": "选择 Plane 项目",
+      "needsScopeBody": "选择 Orca 要列出的项目。你保存的选择已不可用，或者尚未做出选择。",
+      "chooseProjects": "选择项目",
+      "connectTitle": "连接 Plane",
+      "connectBody": "浏览来自 Plane Cloud 或你的自托管 Plane 服务器的工作项，并从中启动工作区。",
+      "connect": "连接 Plane",
+      "hide": "隐藏 Plane",
+      "sourceLabel": "Plane",
+      "credentialTitle": "重新连接 Plane",
+      "reconnect": "重新连接 Plane",
+      "idNotFound": "在此工作区中找不到 {{identifier}}。",
+      "unknownProject": "某个项目",
+      "noMatch": "没有符合这些筛选条件的工作项。",
+      "clearFilters": "清除筛选",
+      "createWorkspaceFor": "从 {{value0}} 创建工作区",
+      "linkSourceUnavailable": "无法关联此 Plane 工作项。请重新连接 Plane 后重试。",
+      "idNotFoundAnywhere": "在任何已连接的工作区中都找不到 {{identifier}}。",
+      "createWorkspace": "创建工作区"
+    },
+    "stateGroup": {
+      "backlog": "待办",
+      "unstarted": "未开始",
+      "started": "已开始",
+      "completed": "已完成",
+      "cancelled": "已取消",
+      "triage": "分诊"
+    },
+    "filters": {
+      "stateOpen": "开放",
+      "stateAll": "所有状态",
+      "stateTrigger": "状态：{{value}}",
+      "stateGroups": "状态组",
+      "exactState": "具体状态",
+      "anyState": "组内任意状态",
+      "project": "项目",
+      "allInScope": "范围内全部",
+      "assignee": "负责人",
+      "anyone": "任何人",
+      "me": "我",
+      "unassigned": "未分配",
+      "priority": "优先级",
+      "anyPriority": "任意优先级",
+      "search": "搜索工作项",
+      "searchPlaceholder": "按标题筛选，或输入 WEB-12 这样的 ID",
+      "refresh": "刷新"
+    },
+    "banner": {
+      "projectError": "无法加载 {{project}}：{{reason}}",
+      "missingOne": "1 个所选项目已不可用。",
+      "missingMany": "{{count}} 个所选项目已不可用。",
+      "editProjects": "编辑项目",
+      "truncated": "正在显示 {{project}} 中最新的工作项。",
+      "loadMore": "加载更多",
+      "totalCapped": "正在显示前 500 个工作项。选择一个项目以查看更多。"
+    },
+    "priority": {
+      "urgent": "紧急",
+      "high": "高",
+      "medium": "中",
+      "low": "低",
+      "none": "无优先级"
+    },
+    "detail": {
+      "noComments": "还没有评论。",
+      "openInPlane": "在 Plane 中打开",
+      "state": "状态",
+      "priority": "优先级",
+      "assignees": "负责人",
+      "unassigned": "未分配",
+      "labels": "标签",
+      "updated": "更新时间",
+      "description": "描述",
+      "noDescription": "无描述。",
+      "truncated": "描述已被截断。请在 Plane 中打开以阅读全文。",
+      "comments": "评论"
+    },
+    "row": {
+      "assignees": "已分配给 {{names}}",
+      "noState": "无状态"
+    },
+    "list": {
+      "label": "Plane 工作项"
+    },
+    "link": {
+      "updateRequired": "请更新远程运行时以关联 Plane 工作项"
+    },
+    "comment": {
+      "label": "评论",
+      "placeholder": "添加评论…",
+      "tooLong": "评论最多 {{max}} 个字符。",
+      "shortcut": "按 {{shortcut}} 发表评论",
+      "submit": "评论"
+    },
+    "statePicker": {
+      "loading": "正在加载状态…",
+      "unavailable": "状态不可用。",
+      "trigger": "更改状态：{{state}}",
+      "changeState": "更改状态"
+    },
+    "workspaceSwitcher": {
+      "projectFilterHint": "选择一个工作区以按项目或具体状态筛选。",
+      "label": "Plane 工作区",
+      "all": "所有工作区",
+      "cloud": "Plane Cloud"
+    },
+    "workspaceBanner": {
+      "needsScope": "选择要列出的项目。"
+    },
+    "sidebar": {
+      "openTasks": "打开 Plane 任务"
     }
   }
 }

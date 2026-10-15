@@ -1,9 +1,15 @@
 import { useState } from 'react'
 import { JiraConnectDialog } from '@/components/jira-connect-dialog'
+import { PlaneConnectDialog } from '@/components/plane/PlaneConnectDialog'
+import {
+  PlaneHostScopeProvider,
+  useResolvedPlaneHostScope
+} from '@/components/plane/plane-host-scope'
 import { Button } from '@/components/ui/button'
 import { TaskSourceShowInTasksStep } from './TaskSourceShowInTasksStep'
 import { TaskSourceStepRow } from './TaskSourceStepRow'
 import { translate } from '@/i18n/i18n'
+import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
 
 type ConnectStepProps = {
   visible: boolean
@@ -120,6 +126,52 @@ export function JiraSetupSteps(
         onOpenChange={setDialogOpen}
         onConnected={props.onConnected}
       />
+    </>
+  )
+}
+
+export function PlaneSetupSteps(
+  props: ConnectStepProps & { onOpenIntegrations: () => void; host: RuntimeClientTarget }
+): React.JSX.Element {
+  const [dialogOpen, setDialogOpen] = useState(false)
+  // Why: the dialog routes by the Settings scope's host, the same one the Integrations card uses.
+  const hostScope = useResolvedPlaneHostScope(props.host)
+
+  return (
+    <>
+      <ol className="divide-y divide-border/50">
+        <TaskSourceStepRow
+          index={1}
+          state={getConnectStepState(props)}
+          title={translate('plane.tasksSetup.connectTitle', 'Connect Plane')}
+          description={translate(
+            'plane.tasksSetup.connectDescription',
+            'Add Plane Cloud or a self-hosted Plane server with a personal access token, then choose its projects.'
+          )}
+          action={
+            <Button
+              type="button"
+              size="sm"
+              variant={props.connected ? 'outline' : 'default'}
+              onClick={props.connected ? props.onOpenIntegrations : () => setDialogOpen(true)}
+            >
+              {props.connected
+                ? translate('plane.tasksSetup.manage', 'Manage connection')
+                : translate('plane.tasksSetup.connect', 'Connect Plane')}
+            </Button>
+          }
+        />
+        <TaskSourceShowInTasksStep
+          index={2}
+          providerLabel={translate('plane.tasksSetup.label', 'Plane')}
+          visible={props.visible}
+          canHide={props.canHide}
+          onToggleVisible={props.onToggleVisible}
+        />
+      </ol>
+      <PlaneHostScopeProvider value={hostScope}>
+        <PlaneConnectDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      </PlaneHostScopeProvider>
     </>
   )
 }

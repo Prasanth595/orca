@@ -1,6 +1,7 @@
 import { JIRA_AGENT_ACCESS_RUNTIME_CAPABILITY } from './jira-agent-capability'
 import { JIRA_STATUS_FILTER_RUNTIME_CAPABILITY } from './jira-quick-filters'
 import { JIRA_SAVED_FILTER_RUNTIME_CAPABILITY } from './jira-saved-filter-capability'
+import { PLANE_RUNTIME_CAPABILITIES } from './plane-runtime-capabilities'
 import * as jiraDetailCapabilities from './jira-detail-capabilities'
 export * from './jira-detail-capabilities'
 import { WORKSPACE_ATTACHMENT_RUNTIME_CAPABILITIES } from './workspace-attachment-capabilities'
@@ -207,6 +208,7 @@ export const RUNTIME_CAPABILITIES = [
   LINEAR_ISSUE_ATTRIBUTE_FILTER_RUNTIME_CAPABILITY,
   ...jiraDetailCapabilities.JIRA_DETAIL_RUNTIME_CAPABILITIES,
   JIRA_SAVED_FILTER_RUNTIME_CAPABILITY,
+  ...PLANE_RUNTIME_CAPABILITIES,
   JIRA_STATUS_FILTER_RUNTIME_CAPABILITY,
   AI_VAULT_RUNTIME_CAPABILITY,
   AI_VAULT_SESSION_TITLES_RUNTIME_CAPABILITY,

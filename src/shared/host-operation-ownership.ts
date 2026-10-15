@@ -45,6 +45,7 @@ export const HOST_OPERATION_OWNERSHIP = {
   orcad: 'host',
   orchestration: 'host',
   pairing: 'host',
+  plane: 'scope-picked',
   plugins: 'host',
   preflight: 'host',
   project: 'host',

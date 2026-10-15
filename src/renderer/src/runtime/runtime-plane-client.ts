@@ -1,0 +1,211 @@
+import type { PlaneConnectArgs } from '../../../preload/api/plane-api'
+import { PLANE_RUNTIME_CAPABILITY } from '../../../shared/plane-runtime-capabilities'
+import type {
+  PlaneComment,
+  PlaneConnectResult,
+  PlaneConnectionStatus,
+  PlaneProject,
+  PlaneProjectScope,
+  PlaneResult,
+  PlaneState,
+  PlaneWorkItem,
+  PlaneWorkItemDetail,
+  PlaneWorkItemList
+} from '../../../shared/plane-types'
+import type { PlaneListWorkItemsParams } from '../../../shared/rpc-contract/plane-params'
+import type { RuntimeClientTarget } from '../../../shared/runtime-client-target'
+import { readRuntimeJiraPayload } from './runtime-jira-payload-stream'
+import { assertRuntimeEnvironmentCapability, callRuntimeRpc } from './runtime-rpc-client'
+
+export type { PlaneConnectArgs } from '../../../preload/api/plane-api'
+
+export const PLANE_RUNTIME_UPDATE_REQUIRED_MESSAGE =
+  'Update the Orca server on this host to use Plane'
+
+// Why: verification makes several sequential Plane requests (viewer, projects, API flavor).
+const PLANE_CONNECT_TIMEOUT_MS = 60_000
+const PLANE_READ_TIMEOUT_MS = 30_000
+const PLANE_STATUS_TIMEOUT_MS = 15_000
+// Why longer: a mutation that times out client-side may still land, and it is never retried.
+const PLANE_MUTATION_TIMEOUT_MS = 45_000
+
+type EnvironmentTarget = Extract<RuntimeClientTarget, { kind: 'environment' }>
+
+// Why: hosts without `plane.*` would answer "unknown method"; name the fix instead.
+async function assertPlaneRuntime(target: EnvironmentTarget): Promise<void> {
+  await assertRuntimeEnvironmentCapability(
+    target.environmentId,
+    PLANE_RUNTIME_CAPABILITY,
+    PLANE_RUNTIME_UPDATE_REQUIRED_MESSAGE
+  )
+}
+
+async function callPlaneRpc<T>(
+  target: EnvironmentTarget,
+  method: string,
+  params: unknown,
+  timeoutMs: number
+): Promise<T> {
+  await assertPlaneRuntime(target)
+  return callRuntimeRpc<T>(target, method, params, { timeoutMs })
+}
+
+export function isPlaneRuntimeUpdateRequiredError(error: unknown): boolean {
+  return error instanceof Error && error.message === PLANE_RUNTIME_UPDATE_REQUIRED_MESSAGE
+}
+
+// Why: a client whose preload lacks the Plane bridge answers undefined; read that as disconnected.
+function toPlaneConnectionStatus(
+  value: PlaneConnectionStatus | null | undefined
+): PlaneConnectionStatus {
+  return value && typeof value === 'object' ? value : { connected: false }
+}
+
+export async function planeStatusForTarget(
+  target: RuntimeClientTarget
+): Promise<PlaneConnectionStatus> {
+  return toPlaneConnectionStatus(
+    target.kind === 'environment'
+      ? await callPlaneRpc<PlaneConnectionStatus | undefined>(
+          target,
+          'plane.status',
+          undefined,
+          PLANE_STATUS_TIMEOUT_MS
+        )
+      : await window.api.plane.status()
+  )
+}
+
+/** The token travels once, to the host that will store it; nothing returned carries it back. */
+export async function planeConnectForTarget(
+  target: RuntimeClientTarget,
+  args: PlaneConnectArgs
+): Promise<PlaneConnectResult> {
+  return target.kind === 'environment'
+    ? callPlaneRpc(target, 'plane.connect', args, PLANE_CONNECT_TIMEOUT_MS)
+    : window.api.plane.connect(args)
+}
+
+/** One workspace, or every workspace when no connectionId is given. */
+export async function planeDisconnectForTarget(
+  target: RuntimeClientTarget,
+  connectionId?: string
+): Promise<PlaneConnectionStatus> {
+  const params = connectionId ? { connectionId } : undefined
+  return toPlaneConnectionStatus(
+    target.kind === 'environment'
+      ? await callPlaneRpc<PlaneConnectionStatus | undefined>(
+          target,
+          'plane.disconnect',
+          params,
+          PLANE_STATUS_TIMEOUT_MS
+        )
+      : await window.api.plane.disconnect(params)
+  )
+}
+
+export async function planeSetProjectScopeForTarget(
+  target: RuntimeClientTarget,
+  scope: PlaneProjectScope,
+  connectionId?: string
+): Promise<PlaneResult<PlaneConnectionStatus>> {
+  const params = { scope, ...(connectionId ? { connectionId } : {}) }
+  return target.kind === 'environment'
+    ? callPlaneRpc(target, 'plane.setProjectScope', params, PLANE_STATUS_TIMEOUT_MS)
+    : window.api.plane.setProjectScope(params)
+}
+
+export async function planeListProjectsForTarget(
+  target: RuntimeClientTarget,
+  options: { refresh?: boolean; connectionId?: string } = {}
+): Promise<PlaneResult<PlaneProject[]>> {
+  const params =
+    options.refresh || options.connectionId
+      ? {
+          ...(options.refresh ? { refresh: true } : {}),
+          ...(options.connectionId ? { connectionId: options.connectionId } : {})
+        }
+      : undefined
+  return target.kind === 'environment'
+    ? callPlaneRpc(target, 'plane.listProjects', params, PLANE_READ_TIMEOUT_MS)
+    : window.api.plane.listProjects(params)
+}
+
+/** Streamed in chunks on a remote host, because a full list can approach the frame cap. */
+export async function planeListWorkItemsForTarget(
+  target: RuntimeClientTarget,
+  params?: PlaneListWorkItemsParams
+): Promise<PlaneResult<PlaneWorkItemList>> {
+  if (target.kind !== 'environment') {
+    return window.api.plane.listWorkItems(params)
+  }
+  await assertPlaneRuntime(target)
+  return readRuntimeJiraPayload<PlaneResult<PlaneWorkItemList>>(
+    target,
+    'plane.listWorkItems',
+    params
+  )
+}
+
+/** `connectionId` names the workspace; without it the host uses its active connection. */
+export type PlaneWorkItemRef = { projectId: string; workItemId: string; connectionId?: string }
+
+export async function planeGetWorkItemForTarget(
+  target: RuntimeClientTarget,
+  ref: PlaneWorkItemRef
+): Promise<PlaneResult<PlaneWorkItemDetail>> {
+  return target.kind === 'environment'
+    ? callPlaneRpc(target, 'plane.getWorkItem', ref, PLANE_READ_TIMEOUT_MS)
+    : window.api.plane.getWorkItem(ref)
+}
+
+export async function planeListCommentsForTarget(
+  target: RuntimeClientTarget,
+  ref: PlaneWorkItemRef
+): Promise<PlaneResult<PlaneComment[]>> {
+  return target.kind === 'environment'
+    ? callPlaneRpc(target, 'plane.listComments', ref, PLANE_READ_TIMEOUT_MS)
+    : window.api.plane.listComments(ref)
+}
+
+export async function planeListStatesForTarget(
+  target: RuntimeClientTarget,
+  projectId: string,
+  connectionId?: string
+): Promise<PlaneResult<PlaneState[]>> {
+  const params = { projectId, ...(connectionId ? { connectionId } : {}) }
+  return target.kind === 'environment'
+    ? callPlaneRpc(target, 'plane.listStates', params, PLANE_READ_TIMEOUT_MS)
+    : window.api.plane.listStates(params)
+}
+
+export async function planeLookupWorkItemForTarget(
+  target: RuntimeClientTarget,
+  identifier: string,
+  connectionId?: string
+): Promise<PlaneResult<PlaneWorkItemDetail>> {
+  const params = { identifier, ...(connectionId ? { connectionId } : {}) }
+  return target.kind === 'environment'
+    ? callPlaneRpc(target, 'plane.lookupWorkItem', params, PLANE_READ_TIMEOUT_MS)
+    : window.api.plane.lookupWorkItem(params)
+}
+
+/** Mutations are sent once; a failure is reported, never retried. */
+export async function planeUpdateStateForTarget(
+  target: RuntimeClientTarget,
+  args: PlaneWorkItemRef & { stateId: string }
+): Promise<PlaneResult<PlaneWorkItem>> {
+  return target.kind === 'environment'
+    ? callPlaneRpc(target, 'plane.updateState', args, PLANE_MUTATION_TIMEOUT_MS)
+    : window.api.plane.updateState(args)
+}
+
+/** The text goes as typed; the host escapes it before it reaches Plane. */
+export async function planeAddCommentForTarget(
+  target: RuntimeClientTarget,
+  args: PlaneWorkItemRef & { text: string }
+): Promise<PlaneResult<PlaneComment>> {
+  return target.kind === 'environment'
+    ? callPlaneRpc(target, 'plane.addComment', args, PLANE_MUTATION_TIMEOUT_MS)
+    : window.api.plane.addComment(args)
+}

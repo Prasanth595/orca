@@ -87,7 +87,10 @@ beforeEach(() => {
     jiraStatusContextKey: 'local',
     linearStatusChecked: true,
     linearStatusContextKey: 'local',
-    linearConnected: true
+    linearConnected: true,
+    planeStatus: { connected: true },
+    planeStatusChecked: true,
+    planeStatusContextKey: 'local'
   }
   mocks.skill = {
     installed: true,
@@ -120,12 +123,24 @@ describe('useTaskSourceProviderReadiness', () => {
     expect(latest?.github).toMatchObject({ connected: true, checking: false })
     expect(latest?.gitlab).toMatchObject({ connected: true, checking: false })
     expect(latest?.jira).toMatchObject({ connected: true, checking: false })
+    expect(latest?.plane).toMatchObject({ connected: true, checking: false })
     expect(latest?.linear).toMatchObject({
       connected: true,
       checking: false,
       skillInstalled: true,
       skillChecking: false
     })
+  })
+
+  it('reads Plane readiness only from the Plane status of the current host', async () => {
+    mocks.state.planeStatus = { connected: false }
+    await renderProbe()
+    expect(latest?.plane).toMatchObject({ connected: false, checking: false })
+
+    mocks.state.planeStatus = { connected: true }
+    mocks.state.planeStatusContextKey = 'runtime:other#0'
+    await renderProbe()
+    expect(latest?.plane).toMatchObject({ connected: false, checking: true })
   })
 
   it('does not read code-host connection facts out of a failed preflight snapshot', async () => {

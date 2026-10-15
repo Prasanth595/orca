@@ -19975,7 +19975,9 @@
       "checksPassing": "Passing",
       "checksUnknown": "Unknown",
       "checksNeutral": "Neutral",
-      "allReviewChecks": "Reviews: {{count}} · Checks: {{status}}"
+      "allReviewChecks": "Reviews: {{count}} · Checks: {{status}}",
+      "linkedPlane": "Linked Plane {{value0}}",
+      "planeWorkItem": "Plane work item"
     },
     "attachments": {
       "updateRuntime": "Update the remote runtime to change workspace links",
@@ -20110,6 +20112,250 @@
       "truncated": "Some favourites could not be listed. Manage your favourites in Jira to narrow the list.",
       "clear": "Clear Jira favourite",
       "activeLabel": "Jira favourites: {{name}}"
+    }
+  },
+  "plane": {
+    "sidebar": {
+      "openTasks": "Open Plane tasks"
+    },
+    "connect": {
+      "scopeTitle": "Choose Plane projects",
+      "title": "Connect Plane",
+      "scopeDescription": "Pick the projects whose work items Orca lists. You can change this later.",
+      "description": "Use a personal access token to browse Plane work items and start workspaces from them.",
+      "later": "Choose later",
+      "cancel": "Cancel",
+      "saveScope": "Save projects",
+      "verifying": "Verifying…",
+      "connect": "Connect",
+      "hostGroupLabel": "Where your Plane workspace runs",
+      "cloudTitle": "Plane Cloud",
+      "cloudDescription": "A workspace hosted by Plane at app.plane.so.",
+      "selfHostedTitle": "Self-hosted",
+      "selfHostedDescription": "A Plane server that you or your team run.",
+      "serverUrl": "Server URL",
+      "serverUrlPlaceholder": "https://plane.example.com",
+      "serverUrlDescription": "The address you open Plane at. A path prefix like /plane is kept.",
+      "cloudUrlNotice": "This is a Plane Cloud address.",
+      "useCloud": "Use Plane Cloud",
+      "advanced": "Advanced",
+      "apiBaseUrl": "API base URL",
+      "apiBaseUrlPlaceholder": "Same as server URL",
+      "apiBaseUrlDescription": "Only needed when the Plane API is served from a different address.",
+      "workspaceSlug": "Workspace slug",
+      "workspaceSlugPlaceholder": "acme",
+      "workspaceSlugDescription": "The first part of the path in your Plane URL, like acme in /acme/projects.",
+      "apiToken": "Personal access token",
+      "apiTokenPlaceholder": "plane_api_…",
+      "createToken": "Create a token in Plane",
+      "insecureConsent": "Send my token over unencrypted HTTP",
+      "insecureWarning": "Anyone on the network between {{host}} and this server can read the token.",
+      "storageRemote": "The token is sent to {{host}} and stored there with the encryption it supports.",
+      "storageLocal": "The token is stored on this computer and encrypted when the system keychain is available.",
+      "addTitle": "Add Plane workspaces",
+      "addDescription": "Add more workspaces on {{server}} with the token you already saved.",
+      "continue": "Continue",
+      "scopeFor": "Projects in {{slug}}",
+      "chipProjects": "{{slug}} · {{count}} projects",
+      "workspaces": "Workspaces",
+      "removeWorkspace": "Remove {{slug}}",
+      "workspacesPlaceholder": "acme, or paste a Plane URL",
+      "invalidSlug": "{{value}} is not a workspace slug or a Plane URL.",
+      "workspacesDescription": "Type each workspace slug and press Enter or comma, or paste a Plane URL. One token is used for all of them.",
+      "chipFailed": "{{slug}}: {{reason}}",
+      "reuseNotice": "Uses the token saved for {{slug}} on {{server}}. It stays on {{host}}.",
+      "useDifferentToken": "Use a different token or server"
+    },
+    "scope": {
+      "groupLabel": "Which Plane projects Orca shows",
+      "allTitle": "All projects (includes projects added later)",
+      "allDescription": "Every project this token can see, checked again on each refresh.",
+      "chooseTitle": "Choose projects",
+      "chooseDescription": "Only the projects you check. Pick one to work in a single project.",
+      "counter": "{{count}} of {{total}} selected",
+      "selectAll": "Select all",
+      "selectNone": "Select none",
+      "search": "Search projects",
+      "noProjects": "No projects are available to this token.",
+      "noMatch": "No projects match your search."
+    },
+    "error": {
+      "auth": "Plane rejected this token. Create a new one and try again.",
+      "forbidden": "This token cannot access that Plane workspace.",
+      "notFound": "Plane could not find that item. It may have been moved or deleted.",
+      "rateLimited": "Plane is rate limiting requests. Wait a minute and try again.",
+      "network": "{{host}} could not reach the Plane server. Check the URL and that {{host}} can reach it.",
+      "tls": "The Orca runtime on {{host}} doesn't trust this server's certificate.",
+      "redirect": "The Plane server answered with a redirect. Use the final URL, including https.",
+      "invalidResponse": "This URL serves the Plane web app, not its API. Set the API base URL in Advanced.",
+      "rejected": "Plane rejected the request.",
+      "urlEmpty": "Enter the URL of your Plane server.",
+      "urlInvalid": "Enter a valid URL, like https://plane.example.com.",
+      "urlProtocol": "Use an http or https URL.",
+      "urlCredentials": "Remove the username and password from the URL.",
+      "insecureHttp": "Confirm that the token may be sent over unencrypted HTTP.",
+      "notConnected": "Plane is not connected on {{host}}.",
+      "credentialUnreadable": "{{host}} could not read the saved Plane token. Reconnect Plane to save it again.",
+      "updateRequired": "Update the Orca server on {{host}} to use Plane.",
+      "runtime": "Orca could not reach {{host}}. Check the connection and try again.",
+      "mutationForbidden": "You don't have permission to change this work item in Plane.",
+      "workspaceUnavailable": "Workspace not found or you don't have access."
+    },
+    "host": {
+      "remoteServerFallback": "the remote server"
+    },
+    "settingsSearch": {
+      "title": "Plane Integration",
+      "description": "Connect Plane Cloud or a self-hosted Plane server and choose its projects.",
+      "keywordPlane": "plane",
+      "keywordWorkItems": "work items"
+    },
+    "card": {
+      "scopeNone": "No projects chosen",
+      "scopeAll": "All projects",
+      "scopeOne": "1 project",
+      "scopeMany": "{{count}} projects",
+      "connectedOne": "Connected to {{slug}} on {{server}}.",
+      "connectedCount": "{{count}} workspaces connected.",
+      "checking": "Checking Plane access before showing setup actions.",
+      "purpose": "Browse, start work from and update Plane work items, on Plane Cloud or your own server.",
+      "statusNeedsScope": "Choose projects",
+      "statusConnected": "Connected",
+      "statusNotConnected": "Not connected",
+      "connect": "Connect Plane",
+      "tokenName": "Your Plane token",
+      "accountScopePrefix": "Account scope",
+      "chooseProjects": "Choose projects",
+      "editProjects": "Edit projects",
+      "disconnect": "Disconnect {{value0}}",
+      "hostCloud": "Plane Cloud",
+      "hostSelfHosted": "Self-hosted",
+      "insecureHttp": "Unencrypted HTTP",
+      "plaintextToken": "Token stored unencrypted",
+      "setupCopy": "Connect Plane Cloud or a self-hosted Plane server with a personal access token. The token is stored by {{host}}.",
+      "recheck": "Re-check",
+      "remove": "Remove {{value0}}",
+      "addWorkspace": "Add workspace"
+    },
+    "tasksSetup": {
+      "connectTitle": "Connect Plane",
+      "connectDescription": "Add Plane Cloud or a self-hosted Plane server with a personal access token, then choose its projects.",
+      "manage": "Manage connection",
+      "connect": "Connect Plane",
+      "label": "Plane",
+      "description": "Connect Plane Cloud or a self-hosted Plane server and show it in Tasks."
+    },
+    "tasks": {
+      "empty": "No work items in the chosen projects.",
+      "createWorkspace": "Create workspace",
+      "listTitle": "Plane work items",
+      "shown": "{{count}} shown",
+      "needsScopeTitle": "Choose Plane projects",
+      "needsScopeBody": "Pick which projects Orca lists. Your saved choice is no longer available, or none was made yet.",
+      "chooseProjects": "Choose projects",
+      "connectTitle": "Connect Plane",
+      "connectBody": "Browse work items from Plane Cloud or your self-hosted Plane server and start workspaces from them.",
+      "connect": "Connect Plane",
+      "hide": "Hide Plane",
+      "sourceLabel": "Plane",
+      "credentialTitle": "Reconnect Plane",
+      "reconnect": "Reconnect Plane",
+      "idNotFound": "{{identifier}} was not found in this workspace.",
+      "unknownProject": "A project",
+      "noMatch": "No work items match these filters.",
+      "clearFilters": "Clear filters",
+      "createWorkspaceFor": "Create workspace from {{value0}}",
+      "linkSourceUnavailable": "Couldn’t link this Plane work item. Reconnect Plane, then try again.",
+      "idNotFoundAnywhere": "{{identifier}} was not found in any connected workspace."
+    },
+    "stateGroup": {
+      "backlog": "Backlog",
+      "unstarted": "Unstarted",
+      "started": "Started",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "triage": "Triage"
+    },
+    "filters": {
+      "stateOpen": "Open",
+      "stateAll": "All states",
+      "stateTrigger": "State: {{value}}",
+      "stateGroups": "State groups",
+      "exactState": "Exact state",
+      "anyState": "Any state in the groups",
+      "project": "Project",
+      "allInScope": "All in scope",
+      "assignee": "Assignee",
+      "anyone": "Anyone",
+      "me": "Me",
+      "unassigned": "Unassigned",
+      "priority": "Priority",
+      "anyPriority": "Any priority",
+      "search": "Search work items",
+      "searchPlaceholder": "Filter by title, or type an ID like WEB-12",
+      "refresh": "Refresh"
+    },
+    "banner": {
+      "projectError": "{{project}} could not be loaded: {{reason}}",
+      "missingOne": "1 selected project is no longer available.",
+      "missingMany": "{{count}} selected projects are no longer available.",
+      "editProjects": "Edit projects",
+      "truncated": "Showing the newest work items in {{project}}.",
+      "loadMore": "Load more",
+      "totalCapped": "Showing the first 500 work items. Choose one project to see more."
+    },
+    "priority": {
+      "urgent": "Urgent",
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low",
+      "none": "No priority"
+    },
+    "detail": {
+      "noComments": "No comments yet.",
+      "openInPlane": "Open in Plane",
+      "state": "State",
+      "priority": "Priority",
+      "assignees": "Assignees",
+      "unassigned": "Unassigned",
+      "labels": "Labels",
+      "updated": "Updated",
+      "description": "Description",
+      "noDescription": "No description.",
+      "truncated": "The description was shortened. Open in Plane to read all of it.",
+      "comments": "Comments"
+    },
+    "row": {
+      "assignees": "Assigned to {{names}}",
+      "noState": "No state"
+    },
+    "list": {
+      "label": "Plane work items"
+    },
+    "link": {
+      "updateRequired": "Update the remote runtime to link Plane work items"
+    },
+    "comment": {
+      "label": "Comment",
+      "placeholder": "Add a comment…",
+      "tooLong": "Comments can be at most {{max}} characters.",
+      "shortcut": "{{shortcut}} to comment",
+      "submit": "Comment"
+    },
+    "statePicker": {
+      "loading": "Loading states…",
+      "unavailable": "States are unavailable.",
+      "trigger": "Change state: {{state}}",
+      "changeState": "Change state"
+    },
+    "workspaceSwitcher": {
+      "projectFilterHint": "Choose one workspace to filter by project or exact state.",
+      "label": "Plane workspace",
+      "all": "All workspaces",
+      "cloud": "Plane Cloud"
+    },
+    "workspaceBanner": {
+      "needsScope": "Choose which projects to list."
     }
   }
 }

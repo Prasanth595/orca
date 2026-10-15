@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
 import { getJiraSourceStatusMessage } from '../new-workspace/jira-source-status-message'
 import type { WorkItemSourceSearch } from '../new-workspace/use-work-item-source-search'
+import type { IdentifierKeyedProvider } from '../../../../shared/task-providers'
 
 export function WorkspaceAttachmentSourceStatus({
   controller,
@@ -12,7 +13,7 @@ export function WorkspaceAttachmentSourceStatus({
   onRetry
 }: {
   controller: WorkItemSourceSearch
-  taskUrlProvider: 'linear' | 'jira' | null
+  taskUrlProvider: IdentifierKeyedProvider | null
   resolved: boolean
   error: string | null
   onRetry: () => void

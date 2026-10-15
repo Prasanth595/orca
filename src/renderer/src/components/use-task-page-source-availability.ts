@@ -1,6 +1,7 @@
 import type { TaskPageRuntimeHostsModel } from './use-task-page-runtime-hosts'
 import { useCallback, useMemo } from 'react'
 import type { Repo } from '../../../shared/repo-types'
+import { isAccountBackedTaskProvider } from '../../../shared/task-providers'
 import {
   getTaskPageRepoSourceContext,
   getTaskSourceHostAvailabilityForHost
@@ -14,6 +15,7 @@ import {
   getTaskSourceCacheScope
 } from '../../../shared/task-source-context'
 import { useTaskPageSourceSummary } from './use-task-page-source-summary'
+import { useAppStore } from '@/store'
 export type TaskPageSourceAvailabilityPreludeModel = ReturnType<
   typeof useTaskPageSourceAvailabilityPrelude
 >
@@ -138,17 +140,36 @@ export function useTaskPageSourceAvailabilityPrelude(model: TaskPageRuntimeHosts
       selectedJiraSiteId
     ]
   )
+  const planeStatus = useAppStore((s) => s.planeStatus)
+  const planeConnection = planeStatus.connected ? planeStatus.connection : null
+  const planeTaskSourceContext = useMemo(
+    () =>
+      normalizeTaskSourceContext({
+        provider: 'plane',
+        projectId: fallbackTaskSourceProjectId,
+        hostId: accountBackedTaskSourceHostId,
+        providerIdentity: {
+          provider: 'plane',
+          connectionId: planeConnection?.id ?? null,
+          apiBaseUrl: planeConnection?.apiBaseUrl ?? null,
+          workspaceSlug: planeConnection?.workspaceSlug ?? null
+        },
+        accountLabel: planeConnection?.workspaceSlug ?? null
+      }),
+    [accountBackedTaskSourceHostId, fallbackTaskSourceProjectId, planeConnection]
+  )
   const jiraTaskSourceScopeKey = jiraTaskSourceContext
     ? getTaskSourceCacheScope(jiraTaskSourceContext)
     : providerRuntimeContextKey
   const accountBackedTaskSourceHostAvailability = useMemo<TaskSourceHostAvailability[]>(() => {
-    if (taskSource !== 'linear' && taskSource !== 'jira') {
+    if (!isAccountBackedTaskProvider(taskSource)) {
       return []
     }
     const host = hostRegistryById.get(accountBackedTaskSourceHostId)
     const availability = getTaskSourceHostAvailabilityForHost(host, accountBackedTaskSourceHostId)
     return availability ? [availability] : []
   }, [accountBackedTaskSourceHostId, hostRegistryById, taskSource])
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Each field declared here is assigned on the lines below before the model is returned.
   const nextModel = model as typeof model & {
     getTaskPickerRepoHostLabel: typeof getTaskPickerRepoHostLabel
     taskSourceHostAvailability: typeof taskSourceHostAvailability
@@ -158,6 +179,7 @@ export function useTaskPageSourceAvailabilityPrelude(model: TaskPageRuntimeHosts
     linearListInvalidationVersionForSource: typeof linearListInvalidationVersionForSource
     jiraTaskSourceContext: typeof jiraTaskSourceContext
     jiraTaskSourceScopeKey: typeof jiraTaskSourceScopeKey
+    planeTaskSourceContext: typeof planeTaskSourceContext
     accountBackedTaskSourceHostAvailability: typeof accountBackedTaskSourceHostAvailability
   }
   nextModel.getTaskPickerRepoHostLabel = getTaskPickerRepoHostLabel
@@ -168,6 +190,7 @@ export function useTaskPageSourceAvailabilityPrelude(model: TaskPageRuntimeHosts
   nextModel.linearListInvalidationVersionForSource = linearListInvalidationVersionForSource
   nextModel.jiraTaskSourceContext = jiraTaskSourceContext
   nextModel.jiraTaskSourceScopeKey = jiraTaskSourceScopeKey
+  nextModel.planeTaskSourceContext = planeTaskSourceContext
   nextModel.accountBackedTaskSourceHostAvailability = accountBackedTaskSourceHostAvailability
   return nextModel
 }

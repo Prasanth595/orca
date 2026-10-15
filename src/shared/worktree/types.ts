@@ -2,6 +2,7 @@ import type { ExecutionHostId } from '../execution-host'
 import type { WorktreeCatalogVersion } from './catalog-version'
 import type { AutomationExecutionTargetType } from '../automations-types'
 import type { TaskSourceContext } from '../task-source-context'
+import type { TaskProvider } from '../task-providers'
 import type { TuiAgent } from '../tui-agent'
 import type { DiffComment, MobileDiffReviewState } from '../diff-comment-types'
 import type { EphemeralVmCheckoutMode } from '../orca-yaml-hook-types'
@@ -20,7 +21,7 @@ export type WorkspaceAttachmentOrigin = {
 }
 
 export type WorkspaceAttachment = {
-  provider: 'github' | 'gitlab' | 'linear' | 'jira' | 'bitbucket' | 'azure-devops' | 'gitea'
+  provider: TaskProvider | 'bitbucket' | 'azure-devops' | 'gitea'
   type: 'issue' | 'pr' | 'mr'
   number: number
   identifier?: string
@@ -36,11 +37,13 @@ export type WorkspaceAttachment = {
 }
 
 export type WorkspaceLinkedItem = {
-  provider: 'github' | 'gitlab' | 'linear' | 'jira'
+  provider: TaskProvider
   type: 'issue' | 'pr' | 'mr'
   number: number
   title: string
   url: string
+  /** Provider-neutral work item key (e.g. ENG-12); linear/jiraIdentifier stay for older peers. */
+  identifier?: string
   linearIdentifier?: string
   jiraIdentifier?: string
   repoId?: string

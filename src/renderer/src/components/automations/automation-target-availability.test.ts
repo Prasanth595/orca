@@ -444,6 +444,31 @@ describe('automation target availability', () => {
     })
   })
 
+  it('rejects a Plane source even when its host looks ready', () => {
+    expect(
+      getAutomationTargetAvailability({
+        automation: makeAutomation({
+          sourceContext: {
+            kind: 'task-source',
+            provider: 'plane',
+            projectId: 'account-backed-task-source',
+            hostId: 'local',
+            providerIdentity: { provider: 'plane', workspaceSlug: 'acme' }
+          }
+        }),
+        repo: makeRepo(),
+        workspace: makeWorkspace(),
+        projectHostSetups: [],
+        sshConnectionStates: new Map(),
+        sourceHostAvailability: [{ hostId: 'local' }]
+      })
+    ).toMatchObject({
+      canRunNow: false,
+      reason: 'source-provider-unsupported',
+      message: 'Plane cannot be an automation source.'
+    })
+  })
+
   it('explains runtime-host automation availability before the unsupported manual-run fallback', () => {
     const automation = makeAutomation({
       runContext: {

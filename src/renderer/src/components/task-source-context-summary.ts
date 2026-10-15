@@ -1,10 +1,19 @@
 import { translate } from '@/i18n/i18n'
-import { getExecutionHostLabel } from '../../../shared/execution-host'
 import type { ExecutionHostScope } from '../../../shared/execution-host'
-import type { ExecutionHostHealth } from '../../../shared/execution-host-registry'
-import type { SshConnectionStatus } from '../../../shared/ssh-types'
 import type { TaskProvider } from '../../../shared/task-providers'
-import type { TaskProviderIdentity, TaskSourceContext } from '../../../shared/task-source-context'
+import type { TaskSourceContext } from '../../../shared/task-source-context'
+import { getTaskProviderIdentityLabel } from './task-provider-identity-label'
+import { getAccountBackedTaskSourceSummary } from './task-source-account-summary'
+import {
+  formatLongList,
+  getAvailabilityLabel,
+  getHostLabel,
+  getUnavailableHosts,
+  type HostLabelLookup,
+  type TaskSourceHostAvailability
+} from './task-source-host-availability'
+
+export type { TaskSourceHostAvailability } from './task-source-host-availability'
 
 export type TaskSourceContextSummary = {
   label: string
@@ -17,24 +26,6 @@ export type TaskSourceAvailabilityNotice = {
   blocking: boolean
 }
 
-export type TaskSourceHostAvailability = {
-  hostId: ExecutionHostScope
-  status?: SshConnectionStatus
-  health?: ExecutionHostHealth
-  reason?:
-    | 'checking-task-source-capability'
-    | 'missing-task-source-capability'
-    | 'missing-provider-auth'
-    | 'unavailable-source-tool'
-    | 'unsupported-provider'
-}
-
-type HostLabelLookup = ReadonlyMap<string, string> | undefined
-
-function getHostLabel(hostId: ExecutionHostScope, hostLabelById: HostLabelLookup): string {
-  return hostLabelById?.get(hostId) ?? getExecutionHostLabel(hostId)
-}
-
 export function getTaskSourceContextSummary(args: {
   provider: TaskProvider
   providerLabel: string
@@ -45,6 +36,7 @@ export function getTaskSourceContextSummary(args: {
   selectedRepoCount?: number
   linearWorkspaceName?: string | null
   jiraSiteName?: string | null
+  planeWorkspaceSlug?: string | null
 }): TaskSourceContextSummary {
   switch (args.provider) {
     case 'github':
@@ -60,6 +52,13 @@ export function getTaskSourceContextSummary(args: {
     case 'jira':
       return getAccountBackedTaskSourceSummary(args.providerLabel, {
         accountLabel: args.jiraSiteName,
+        accountHostId: args.accountHostId,
+        hostLabelById: args.hostLabelById,
+        hostAvailability: args.hostAvailability
+      })
+    case 'plane':
+      return getAccountBackedTaskSourceSummary(args.providerLabel, {
+        accountLabel: args.planeWorkspaceSlug,
         accountHostId: args.accountHostId,
         hostLabelById: args.hostLabelById,
         hostAvailability: args.hostAvailability
@@ -117,7 +116,7 @@ function getRepoBackedTaskSourceSummary(args: {
   const unavailableHosts = getUnavailableHosts(args.hostAvailability ?? [], args.hostLabelById)
   const availabilityLabel = getAvailabilityLabel(unavailableHosts)
   const identityLabels = uniqueLabels(
-    contexts.map((context) => getProviderIdentityLabel(context.providerIdentity))
+    contexts.map((context) => getTaskProviderIdentityLabel(context.providerIdentity))
   )
   const accountLabels = uniqueLabels(contexts.map((context) => context.accountLabel))
   const repoCount = args.selectedRepoCount ?? contexts.length
@@ -150,57 +149,6 @@ function getRepoBackedTaskSourceSummary(args: {
   }
 }
 
-export function getAccountBackedTaskSourceSummary(
-  providerLabel: string,
-  args: {
-    accountLabel: string | null | undefined
-    accountHostId: ExecutionHostScope | null | undefined
-    hostLabelById?: HostLabelLookup
-    hostAvailability?: readonly TaskSourceHostAvailability[]
-  }
-): TaskSourceContextSummary {
-  const target = args.accountLabel?.trim() || 'Current account'
-  const hostLabel = getHostLabel(args.accountHostId ?? 'local', args.hostLabelById)
-  const unavailableHosts = getUnavailableHosts(args.hostAvailability ?? [], args.hostLabelById)
-  const availabilityLabel = getAvailabilityLabel(unavailableHosts)
-  const titleParts = [
-    `${providerLabel} source`,
-    `Host: ${hostLabel}`,
-    availabilityLabel
-      ? `Availability: ${formatLongList(
-          unavailableHosts.map((host) => `${host.hostLabel} ${host.statusLabel}`)
-        )}`
-      : null,
-    `Account: ${target}`
-  ].filter((part): part is string => Boolean(part))
-  return {
-    label: [providerLabel, hostLabel, availabilityLabel, target]
-      .filter((part): part is string => Boolean(part))
-      .join(' · '),
-    title: titleParts.join(' · ')
-  }
-}
-
-function getProviderIdentityLabel(
-  identity: TaskProviderIdentity | null | undefined
-): string | null {
-  if (!identity) {
-    return null
-  }
-  switch (identity.provider) {
-    case 'github':
-      return `${identity.owner}/${identity.repo}`
-    case 'gitlab':
-      return identity.namespace && identity.project
-        ? `${identity.namespace}/${identity.project}`
-        : (identity.projectId ?? null)
-    case 'linear':
-      return identity.workspaceName ?? identity.workspaceId ?? null
-    case 'jira':
-      return identity.siteUrl ?? identity.siteId ?? null
-  }
-}
-
 function uniqueLabels(labels: readonly (string | null | undefined)[]): string[] {
   const seen = new Set<string>()
   const result: string[] = []
@@ -215,102 +163,9 @@ function uniqueLabels(labels: readonly (string | null | undefined)[]): string[] 
   return result
 }
 
-function getUnavailableHosts(
-  hostAvailability: readonly TaskSourceHostAvailability[],
-  hostLabelById?: HostLabelLookup
-): {
-  hostLabel: string
-  statusLabel: string
-}[] {
-  const seen = new Set<string>()
-  const unavailableHosts: { hostLabel: string; statusLabel: string }[] = []
-  for (const availability of hostAvailability) {
-    const statusLabel = getAvailabilityStatusLabel(availability)
-    if (!statusLabel) {
-      continue
-    }
-    const hostLabel = getHostLabel(availability.hostId, hostLabelById)
-    const key = `${hostLabel}\u0000${statusLabel}`
-    if (seen.has(key)) {
-      continue
-    }
-    seen.add(key)
-    unavailableHosts.push({ hostLabel, statusLabel })
-  }
-  return unavailableHosts
-}
-
-function getAvailabilityStatusLabel(availability: TaskSourceHostAvailability): string | null {
-  switch (availability.reason) {
-    case undefined:
-      break
-    case 'checking-task-source-capability':
-      return 'checking server capabilities'
-    case 'missing-task-source-capability':
-      return 'server update needed for task sources'
-    case 'missing-provider-auth':
-      return 'provider auth needed'
-    case 'unavailable-source-tool':
-      return 'source tool unavailable'
-    case 'unsupported-provider':
-      return 'provider unsupported on this host'
-  }
-  if (availability.status) {
-    return availability.status === 'connected' ? null : getSshStatusLabel(availability.status)
-  }
-  switch (availability.health) {
-    case 'local':
-    case 'available':
-    case undefined:
-      return null
-    case 'connecting':
-      return 'connecting'
-    case 'blocked':
-      return 'server update needed'
-    case 'disconnected':
-      return 'disconnected'
-    case 'error':
-      return 'connection issue'
-  }
-}
-
-function getAvailabilityLabel(
-  unavailableHosts: readonly { hostLabel: string; statusLabel: string }[]
-): string | null {
-  if (unavailableHosts.length === 0) {
-    return null
-  }
-  if (unavailableHosts.length === 1) {
-    return unavailableHosts[0].statusLabel
-  }
-  return `${unavailableHosts.length} unavailable`
-}
-
-function getSshStatusLabel(status: SshConnectionStatus): string {
-  switch (status) {
-    case 'connected':
-      return 'connected'
-    case 'connecting':
-    case 'deploying-relay':
-    case 'reconnecting':
-      return 'connecting'
-    case 'auth-failed':
-      return 'auth needed'
-    case 'reconnection-failed':
-    case 'error':
-      return 'connection issue'
-    case 'disconnected':
-      return 'disconnected'
-  }
-}
-
 function formatShortList(labels: readonly string[]): string {
   if (labels.length <= 2) {
     return labels.join(', ')
   }
   return `${labels[0]} +${labels.length - 1}`
-}
-
-function formatLongList(labels: readonly string[]): string {
-  return labels.join(', ')
 }

@@ -1,6 +1,7 @@
 import { assertAutomationExtraAgentArgs } from './automation-extra-agent-args-record'
 import { isTuiAgent } from './tui-agent-config'
 import type { Automation, AutomationRun } from './automations-types'
+import { isAutomationTaskProvider } from './automation-task-providers'
 import { getAutomationRunRepoId } from './automation-run-identity'
 import {
   assertUnique,
@@ -228,7 +229,8 @@ function parseContext(value: unknown, kind: 'workspace-run' | 'task-source'): vo
     )
     requiredString(record.repoId, 'orcad_migration_dormant_automation_context_repo_invalid')
     requiredString(record.path, 'orcad_migration_dormant_automation_context_path_invalid')
-  } else if (!['github', 'gitlab', 'linear', 'jira'].includes(String(record.provider))) {
+  } else if (!isAutomationTaskProvider(String(record.provider))) {
+    // Why: a task provider (e.g. Plane) is not an automation source unless it opted in.
     throw new Error('orcad_migration_dormant_automation_context_provider_invalid')
   }
 }

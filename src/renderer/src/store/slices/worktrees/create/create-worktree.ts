@@ -20,6 +20,7 @@ import {
 } from '../../../../runtime/runtime-rpc-client'
 import type { RuntimeClientTarget } from '../../../../../../shared/runtime-client-target'
 import { runtimeTargetForRepoOwner } from '@/lib/repo-runtime-owner'
+import { assertPlaneLinkRuntimeCapability } from '@/runtime/runtime-workspace-attachment-capabilities'
 import { WORKTREE_LINKED_WORK_ITEM_CONTEXT_RUNTIME_CAPABILITY } from '../../../../../../shared/protocol-version'
 import { showLocalBaseRefUpdateSuggestionToast } from '@/components/sidebar/local-base-ref-suggestion-toast'
 import { requestWorktreeBaseFallbackNotice } from '@/components/worktree-base-fallback-notice'
@@ -210,6 +211,12 @@ export function createCreateWorktree(
           WORKTREE_LINKED_WORK_ITEM_CONTEXT_RUNTIME_CAPABILITY,
           'Update the remote runtime to link Jira'
         )
+      }
+      if (target.kind === 'environment') {
+        await assertPlaneLinkRuntimeCapability(target, {
+          linkedWorkItem: options?.linkedWorkItem,
+          linkedTaskSourceContext: options?.linkedTaskSourceContext
+        })
       }
       if (
         options?.provisionedRoot &&

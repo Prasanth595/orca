@@ -1,11 +1,12 @@
 import type { MrStateFilter, SmartNameMode } from './mobile-composer-source-types'
+import type { MobileTaskProvider } from './mobile-task-providers'
 
 // Icon each tab renders: lucide glyphs for the neutral modes, the inline brand
 // SVGs (TaskProviderLogo) for the provider modes since lucide dropped its brand
 // icons.
 export type SmartModeIcon =
   | { type: 'lucide'; name: 'sparkles' | 'git-branch' | 'case-sensitive' }
-  | { type: 'provider'; provider: 'github' | 'gitlab' | 'linear' | 'jira' }
+  | { type: 'provider'; provider: MobileTaskProvider }
 
 export type SmartModeOption = {
   id: SmartNameMode

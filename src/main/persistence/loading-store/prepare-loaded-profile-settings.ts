@@ -2,7 +2,10 @@ import type { GlobalSettings } from '../../../shared/global-settings-types'
 import type { PersistedState } from '../../../shared/persisted-state-types'
 import type { ProjectGroup } from '../../../shared/project-group-types'
 import { deriveGlobalWindowsRuntimeDefaultFromLegacySettings } from '../../../shared/project-execution-runtime'
-import { normalizeTaskProviderSettings } from '../../../shared/task-providers'
+import {
+  appendTaskProviderOnce,
+  normalizeTaskProviderSettings
+} from '../../../shared/task-providers'
 import { normalizeAutoRenameBranchFromWorkDefaultOn } from '../../../shared/auto-rename-branch-from-work-settings'
 import {
   addMobilePairingCustomAddress,
@@ -99,11 +102,17 @@ export function prepareLoadedProfileSettings(
   })
   const visibleTaskProvidersDefaultedForJira =
     parsed.settings?.visibleTaskProvidersDefaultedForJira === true
-  const migratedVisibleTaskProviders = visibleTaskProvidersDefaultedForJira
-    ? rawTaskProviderSettings.visibleTaskProviders
-    : rawTaskProviderSettings.visibleTaskProviders.includes('jira')
-      ? rawTaskProviderSettings.visibleTaskProviders
-      : [...rawTaskProviderSettings.visibleTaskProviders, 'jira' as const]
+  const visibleTaskProvidersDefaultedForPlane =
+    parsed.settings?.visibleTaskProvidersDefaultedForPlane === true
+  const migratedVisibleTaskProviders = appendTaskProviderOnce(
+    appendTaskProviderOnce(
+      rawTaskProviderSettings.visibleTaskProviders,
+      'jira',
+      visibleTaskProvidersDefaultedForJira
+    ),
+    'plane',
+    visibleTaskProvidersDefaultedForPlane
+  )
   const taskProviderSettings = normalizeTaskProviderSettings({
     visibleTaskProviders: migratedVisibleTaskProviders,
     defaultTaskSource: rawTaskProviderSettings.defaultTaskSource
@@ -124,7 +133,7 @@ export function prepareLoadedProfileSettings(
   if (migratePrimarySelectionPlatformDefault || stampPrimarySelectionTerminalDefaults) {
     markNeedsSave()
   }
-  if (!visibleTaskProvidersDefaultedForJira) {
+  if (!visibleTaskProvidersDefaultedForJira || !visibleTaskProvidersDefaultedForPlane) {
     markNeedsSave()
   }
   const claudeAgentTeamsDefaultDisabledMigrated =

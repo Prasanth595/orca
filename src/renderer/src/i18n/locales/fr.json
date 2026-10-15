@@ -19956,7 +19956,9 @@
       "checksPassing": "Réussi",
       "checksUnknown": "Inconnu",
       "checksNeutral": "Neutre",
-      "allReviewChecks": "Revues : {{count}} · Vérifications : {{status}}"
+      "allReviewChecks": "Revues : {{count}} · Vérifications : {{status}}",
+      "linkedPlane": "Plane lié {{value0}}",
+      "planeWorkItem": "Élément de travail Plane"
     },
     "attachments": {
       "updateRuntime": "Mettez à jour le runtime distant pour modifier les liens de l'espace de travail",
@@ -20075,6 +20077,250 @@
       "waitingAriaLabel": "Mise à jour en attente d'autres instances Orca. Cliquez pour développer.",
       "preparingLabel": "Préparation de la mise à jour",
       "preparingAriaLabel": "Préparation de la mise à jour. Cliquez pour développer."
+    }
+  },
+  "plane": {
+    "connect": {
+      "scopeTitle": "Choisir les projets Plane",
+      "title": "Connecter Plane",
+      "scopeDescription": "Choisissez les projets dont Orca affiche les éléments de travail. Vous pourrez modifier ce choix plus tard.",
+      "description": "Utilisez un jeton d'accès personnel pour parcourir les éléments de travail Plane et démarrer des espaces de travail à partir de ceux-ci.",
+      "later": "Choisir plus tard",
+      "cancel": "Annuler",
+      "saveScope": "Enregistrer les projets",
+      "verifying": "Vérification…",
+      "connect": "Se connecter",
+      "hostGroupLabel": "Où s'exécute votre espace de travail Plane",
+      "cloudTitle": "Plane Cloud",
+      "cloudDescription": "Un espace de travail hébergé par Plane sur app.plane.so.",
+      "selfHostedTitle": "Auto-hébergé",
+      "selfHostedDescription": "Un serveur Plane que vous ou votre équipe exploitez.",
+      "serverUrl": "URL du serveur",
+      "serverUrlPlaceholder": "https://plane.example.com",
+      "serverUrlDescription": "L'adresse à laquelle vous ouvrez Plane. Un préfixe de chemin comme /plane est conservé.",
+      "cloudUrlNotice": "Il s'agit d'une adresse Plane Cloud.",
+      "useCloud": "Utiliser Plane Cloud",
+      "advanced": "Avancé",
+      "apiBaseUrl": "URL de base de l'API",
+      "apiBaseUrlPlaceholder": "Identique à l'URL du serveur",
+      "apiBaseUrlDescription": "Nécessaire uniquement lorsque l'API Plane est servie depuis une autre adresse.",
+      "workspaceSlug": "Workspace slug",
+      "workspaceSlugPlaceholder": "acme",
+      "workspaceSlugDescription": "La première partie du chemin de votre URL Plane, comme acme dans /acme/projects.",
+      "apiToken": "Jeton d'accès personnel",
+      "apiTokenPlaceholder": "plane_api_…",
+      "createToken": "Créer un jeton dans Plane",
+      "insecureConsent": "Envoyer mon jeton via HTTP non chiffré",
+      "insecureWarning": "Toute personne sur le réseau entre {{host}} et ce serveur peut lire le jeton.",
+      "storageRemote": "Le jeton est envoyé à {{host}} et y est stocké avec le chiffrement qu'il prend en charge.",
+      "storageLocal": "Le jeton est stocké sur cet ordinateur et chiffré lorsque le trousseau du système est disponible.",
+      "addTitle": "Ajouter des espaces de travail Plane",
+      "addDescription": "Ajoutez d'autres espaces de travail sur {{server}} avec le jeton déjà enregistré.",
+      "continue": "Continuer",
+      "scopeFor": "Projets dans {{slug}}",
+      "chipProjects": "{{slug}} · {{count}} projets",
+      "workspaces": "Espaces de travail",
+      "removeWorkspace": "Retirer {{slug}}",
+      "workspacesPlaceholder": "acme, ou collez une URL Plane",
+      "invalidSlug": "{{value}} n'est ni un workspace slug ni une URL Plane.",
+      "workspacesDescription": "Saisissez chaque workspace slug et appuyez sur Entrée ou sur la virgule, ou collez une URL Plane. Un seul jeton est utilisé pour tous.",
+      "chipFailed": "{{slug}} : {{reason}}",
+      "reuseNotice": "Utilise le jeton enregistré pour {{slug}} sur {{server}}. Il reste sur {{host}}.",
+      "useDifferentToken": "Utiliser un autre jeton ou serveur"
+    },
+    "scope": {
+      "groupLabel": "Les projets Plane affichés par Orca",
+      "allTitle": "Tous les projets (y compris ceux ajoutés plus tard)",
+      "allDescription": "Tous les projets visibles avec ce jeton, revérifiés à chaque actualisation.",
+      "chooseTitle": "Choisir des projets",
+      "chooseDescription": "Uniquement les projets que vous cochez. Choisissez-en un pour travailler dans un seul projet.",
+      "counter": "{{count}} sur {{total}} sélectionnés",
+      "selectAll": "Tout sélectionner",
+      "selectNone": "Ne rien sélectionner",
+      "search": "Rechercher des projets",
+      "noProjects": "Aucun projet n'est disponible pour ce jeton.",
+      "noMatch": "Aucun projet ne correspond à votre recherche."
+    },
+    "error": {
+      "auth": "Plane a refusé ce jeton. Créez-en un nouveau et réessayez.",
+      "forbidden": "Ce jeton ne peut pas accéder à cet espace de travail Plane.",
+      "notFound": "Plane n'a pas trouvé cet élément. Il a peut-être été déplacé ou supprimé.",
+      "rateLimited": "Plane limite le nombre de requêtes. Patientez une minute et réessayez.",
+      "network": "{{host}} n'a pas pu joindre le serveur Plane. Vérifiez l'URL et que {{host}} peut y accéder.",
+      "tls": "Le runtime Orca sur {{host}} ne fait pas confiance au certificat de ce serveur.",
+      "redirect": "Le serveur Plane a répondu par une redirection. Utilisez l'URL finale, avec https.",
+      "invalidResponse": "Cette URL sert l'application web Plane, pas son API. Définissez l'URL de base de l'API dans Avancé.",
+      "rejected": "Plane a refusé la requête.",
+      "urlEmpty": "Saisissez l'URL de votre serveur Plane.",
+      "urlInvalid": "Saisissez une URL valide, par exemple https://plane.example.com.",
+      "urlProtocol": "Utilisez une URL http ou https.",
+      "urlCredentials": "Retirez le nom d'utilisateur et le mot de passe de l'URL.",
+      "insecureHttp": "Confirmez que le jeton peut être envoyé via HTTP non chiffré.",
+      "notConnected": "Plane n'est pas connecté sur {{host}}.",
+      "credentialUnreadable": "{{host}} n'a pas pu lire le jeton Plane enregistré. Reconnectez Plane pour l'enregistrer à nouveau.",
+      "updateRequired": "Mettez à jour le serveur Orca sur {{host}} pour utiliser Plane.",
+      "runtime": "Orca n'a pas pu joindre {{host}}. Vérifiez la connexion et réessayez.",
+      "mutationForbidden": "Vous n'avez pas l'autorisation de modifier cet élément de travail dans Plane.",
+      "workspaceUnavailable": "Espace de travail introuvable ou accès refusé."
+    },
+    "host": {
+      "remoteServerFallback": "le serveur distant"
+    },
+    "settingsSearch": {
+      "title": "Intégration Plane",
+      "description": "Connectez Plane Cloud ou un serveur Plane auto-hébergé et choisissez ses projets.",
+      "keywordPlane": "plane",
+      "keywordWorkItems": "éléments de travail"
+    },
+    "card": {
+      "scopeNone": "Aucun projet choisi",
+      "scopeAll": "Tous les projets",
+      "scopeOne": "1 projet",
+      "scopeMany": "{{count}} projets",
+      "checking": "Vérification de l'accès à Plane avant d'afficher les actions de configuration.",
+      "statusNeedsScope": "Choisir des projets",
+      "statusConnected": "Connecté",
+      "statusNotConnected": "Non connecté",
+      "connect": "Connecter Plane",
+      "tokenName": "Votre jeton Plane",
+      "accountScopePrefix": "Portée des comptes",
+      "chooseProjects": "Choisir des projets",
+      "editProjects": "Modifier les projets",
+      "disconnect": "Déconnecter {{value0}}",
+      "hostCloud": "Plane Cloud",
+      "hostSelfHosted": "Auto-hébergé",
+      "insecureHttp": "HTTP non chiffré",
+      "plaintextToken": "Jeton stocké non chiffré",
+      "setupCopy": "Connectez Plane Cloud ou un serveur Plane auto-hébergé avec un jeton d'accès personnel. Le jeton est stocké par {{host}}.",
+      "recheck": "Revérifier",
+      "remove": "Retirer {{value0}}",
+      "addWorkspace": "Ajouter un espace de travail",
+      "purpose": "Parcourez les éléments de travail Plane, démarrez du travail à partir d'eux et mettez-les à jour, sur Plane Cloud ou votre propre serveur.",
+      "connectedOne": "Connecté à {{slug}} sur {{server}}.",
+      "connectedCount": "{{count}} espaces de travail connectés."
+    },
+    "tasksSetup": {
+      "connectTitle": "Connecter Plane",
+      "connectDescription": "Ajoutez Plane Cloud ou un serveur Plane auto-hébergé avec un jeton d'accès personnel, puis choisissez ses projets.",
+      "manage": "Gérer la connexion",
+      "connect": "Connecter Plane",
+      "label": "Plane",
+      "description": "Connectez Plane Cloud ou un serveur Plane auto-hébergé et affichez-le dans Tâches."
+    },
+    "tasks": {
+      "empty": "Aucun élément de travail dans les projets choisis.",
+      "listTitle": "Éléments de travail Plane",
+      "shown": "{{count}} affichés",
+      "needsScopeTitle": "Choisir les projets Plane",
+      "needsScopeBody": "Choisissez les projets qu'Orca affiche. Votre choix enregistré n'est plus disponible, ou aucun choix n'a encore été fait.",
+      "chooseProjects": "Choisir des projets",
+      "connectTitle": "Connecter Plane",
+      "connectBody": "Parcourez les éléments de travail de Plane Cloud ou de votre serveur Plane auto-hébergé et démarrez des espaces de travail à partir de ceux-ci.",
+      "connect": "Connecter Plane",
+      "hide": "Masquer Plane",
+      "sourceLabel": "Plane",
+      "credentialTitle": "Reconnecter Plane",
+      "reconnect": "Reconnecter Plane",
+      "idNotFound": "{{identifier}} est introuvable dans cet espace de travail.",
+      "unknownProject": "Un projet",
+      "noMatch": "Aucun élément de travail ne correspond à ces filtres.",
+      "clearFilters": "Réinitialiser les filtres",
+      "createWorkspaceFor": "Créer un espace de travail à partir de {{value0}}",
+      "linkSourceUnavailable": "Impossible de lier cet élément de travail Plane. Reconnectez Plane, puis réessayez.",
+      "idNotFoundAnywhere": "{{identifier}} est introuvable dans tous les espaces de travail connectés.",
+      "createWorkspace": "Créer un espace de travail"
+    },
+    "stateGroup": {
+      "backlog": "Backlog",
+      "unstarted": "Non commencé",
+      "started": "Commencé",
+      "completed": "Terminé",
+      "cancelled": "Annulé",
+      "triage": "Triage"
+    },
+    "filters": {
+      "stateOpen": "Ouverts",
+      "stateAll": "Tous les états",
+      "stateTrigger": "État : {{value}}",
+      "stateGroups": "Groupes d'état",
+      "exactState": "État exact",
+      "anyState": "N'importe quel état des groupes",
+      "project": "Projet",
+      "allInScope": "Tous dans la portée",
+      "assignee": "Assigné",
+      "anyone": "N'importe qui",
+      "me": "Moi",
+      "unassigned": "Non assigné",
+      "priority": "Priorité",
+      "anyPriority": "Toute priorité",
+      "search": "Rechercher des éléments de travail",
+      "searchPlaceholder": "Filtrez par titre, ou saisissez un ID comme WEB-12",
+      "refresh": "Actualiser"
+    },
+    "banner": {
+      "projectError": "Impossible de charger {{project}} : {{reason}}",
+      "missingOne": "1 projet sélectionné n'est plus disponible.",
+      "missingMany": "{{count}} projets sélectionnés ne sont plus disponibles.",
+      "editProjects": "Modifier les projets",
+      "truncated": "Affichage des éléments de travail les plus récents de {{project}}.",
+      "loadMore": "Charger plus",
+      "totalCapped": "Affichage des 500 premiers éléments de travail. Choisissez un projet pour en voir davantage."
+    },
+    "priority": {
+      "urgent": "Urgente",
+      "high": "Haute",
+      "medium": "Moyenne",
+      "low": "Basse",
+      "none": "Aucune priorité"
+    },
+    "detail": {
+      "noComments": "Aucun commentaire pour l'instant.",
+      "openInPlane": "Ouvrir dans Plane",
+      "state": "État",
+      "priority": "Priorité",
+      "assignees": "Assignés",
+      "unassigned": "Non assigné",
+      "labels": "Étiquettes",
+      "updated": "Mis à jour",
+      "description": "Description",
+      "noDescription": "Aucune description.",
+      "truncated": "La description a été raccourcie. Ouvrez-la dans Plane pour la lire en entier.",
+      "comments": "Commentaires"
+    },
+    "row": {
+      "assignees": "Assigné à {{names}}",
+      "noState": "Aucun état"
+    },
+    "list": {
+      "label": "Éléments de travail Plane"
+    },
+    "link": {
+      "updateRequired": "Mettez à jour le runtime distant pour lier des éléments de travail Plane"
+    },
+    "comment": {
+      "label": "Commentaire",
+      "placeholder": "Ajouter un commentaire…",
+      "tooLong": "Les commentaires ne peuvent pas dépasser {{max}} caractères.",
+      "shortcut": "{{shortcut}} pour commenter",
+      "submit": "Commenter"
+    },
+    "statePicker": {
+      "loading": "Chargement des états…",
+      "unavailable": "Les états ne sont pas disponibles.",
+      "trigger": "Changer l'état : {{state}}",
+      "changeState": "Changer l'état"
+    },
+    "workspaceSwitcher": {
+      "projectFilterHint": "Choisissez un espace de travail pour filtrer par projet ou par état exact.",
+      "label": "Espace de travail Plane",
+      "all": "Tous les espaces de travail",
+      "cloud": "Plane Cloud"
+    },
+    "workspaceBanner": {
+      "needsScope": "Choisissez les projets à afficher."
+    },
+    "sidebar": {
+      "openTasks": "Ouvrir les tâches Plane"
     }
   }
 }

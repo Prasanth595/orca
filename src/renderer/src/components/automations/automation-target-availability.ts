@@ -10,6 +10,8 @@ import {
 } from '../../../../shared/protocol-version'
 import type { AutomationHostTarget } from './automation-host-client'
 import type { SshConnectionState } from '../../../../shared/ssh-types'
+import { TASK_PROVIDER_LABELS } from '../../../../shared/task-providers'
+import { isAutomationTaskProvider } from '../../../../shared/automation-task-providers'
 import type { TaskSourceContext } from '../../../../shared/task-source-context'
 import type { ProjectHostSetup } from '../../../../shared/project-types'
 import type { Repo } from '../../../../shared/repo-types'
@@ -189,13 +191,18 @@ function getAutomationSourceAvailability(
   if (!sourceContext) {
     return null
   }
+  // Why: only opted-in providers can feed automations; anything else names an unsupported source.
+  if (!isAutomationTaskProvider(sourceContext.provider)) {
+    const label = TASK_PROVIDER_LABELS[sourceContext.provider]
+    return unavailable('source-provider-unsupported', `${label} cannot be an automation source.`)
+  }
   const availability = sourceHostAvailability?.find(
     (entry) => entry.hostId === sourceContext.hostId
   )
   if (!availability) {
     return null
   }
-  const providerLabel = getAutomationSourceProviderLabel(sourceContext.provider)
+  const providerLabel = TASK_PROVIDER_LABELS[sourceContext.provider]
   switch (availability.reason) {
     case undefined:
       break
@@ -247,19 +254,6 @@ function getAutomationSourceAvailability(
     )
   }
   return null
-}
-
-function getAutomationSourceProviderLabel(provider: TaskSourceContext['provider']): string {
-  switch (provider) {
-    case 'github':
-      return 'GitHub'
-    case 'gitlab':
-      return 'GitLab'
-    case 'linear':
-      return 'Linear'
-    case 'jira':
-      return 'Jira'
-  }
 }
 
 export function getRuntimeAutomationAvailability(

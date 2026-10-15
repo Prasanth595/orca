@@ -84,3 +84,26 @@ describe('workspace attachment normalization', () => {
     expect(normalizeWorkspaceAttachments(normalized)).toEqual(normalized)
   })
 })
+
+describe('Plane workspace attachments', () => {
+  it('keeps a Plane work item attached by its readable ID', () => {
+    const item: WorkspaceAttachment = {
+      provider: 'plane',
+      type: 'issue',
+      number: 0,
+      identifier: 'WEB-12',
+      url: 'https://plane.example/acme/browse/WEB-12'
+    }
+    expect(normalizeWorkspaceAttachments([item])).toEqual([item])
+  })
+
+  it('keeps a Plane work item attached by its project URL', () => {
+    const item: WorkspaceAttachment = {
+      provider: 'plane',
+      type: 'issue',
+      number: 0,
+      url: 'https://plane.example/acme/projects/11111111-1111-4111-8111-111111111111/issues/22222222-2222-4222-8222-222222222222'
+    }
+    expect(normalizeWorkspaceAttachments([item])).toEqual([item])
+  })
+})

@@ -1,4 +1,7 @@
-import { assertWorkspaceAttachmentWriteCapability } from '../../runtime/runtime-workspace-attachment-capabilities'
+import {
+  assertPlaneLinkRuntimeCapability,
+  assertWorkspaceAttachmentWriteCapability
+} from '../../runtime/runtime-workspace-attachment-capabilities'
 import { getWorkspaceAttachments } from '../../../../shared/workspace-attachments'
 import type { StateCreator } from 'zustand'
 import type { AppState } from '../types'
@@ -81,6 +84,9 @@ export function createFolderWorkspaceMutationActions(
             'Update the remote runtime to link Jira'
           )
         }
+        if (target.kind === 'environment') {
+          await assertPlaneLinkRuntimeCapability(target, args)
+        }
         const workspace =
           target.kind === 'local'
             ? await window.api.folderWorkspaces.create(args)
@@ -162,6 +168,10 @@ export function createFolderWorkspaceMutationActions(
           WORKTREE_LINKED_WORK_ITEM_CONTEXT_RUNTIME_CAPABILITY,
           'Update the remote runtime to link Jira'
         )
+      }
+      // Why: only remote targets await, so local updates keep their synchronous begin() order.
+      if (target.kind === 'environment') {
+        await assertPlaneLinkRuntimeCapability(target, updates)
       }
       const updateTicket = folderWorkspaceUpdates.begin(
         updateIdentity,

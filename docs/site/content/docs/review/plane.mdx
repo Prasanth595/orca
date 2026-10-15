@@ -1,0 +1,163 @@
+---
+title: Plane work items
+description: Connect Plane Cloud or a self-hosted Plane server, browse work items from one or several workspaces, and start workspaces linked to them.
+---
+
+import { Callout } from '@/components/docs/prose'
+
+Plane sits next to GitHub, Linear, and Jira in the task drawer. Connect one or more Plane workspaces with a personal access token, choose which projects Orca shows, then browse work items, change their state, comment, and start a workspace from any of them without leaving Orca.
+
+Plane Cloud and self-hosted Plane servers work the same way. The only difference is where Orca sends requests.
+
+## Connect Plane
+
+1. Open [Settings → Integrations](/docs/settings). Under **Task providers**, find **Plane** and click **Connect Plane**. You can also pick **Plane** from the **Tasks** source picker and click **Connect Plane** there.
+2. In the **Connect Plane** dialog, choose where your Plane workspace runs: **Plane Cloud** or **Self-hosted**.
+3. Add one or more workspaces under **Workspaces**, paste your **Personal access token**, and click **Connect**. Orca checks the token, each workspace, and the server's API before it saves anything.
+4. Choose the projects Orca shows for each workspace (see [Choose projects](#choose-projects)), then click **Save projects**.
+
+| | Plane Cloud | Self-hosted |
+| --- | --- | --- |
+| Server address | Fixed: `app.plane.so` (API at `api.plane.so`). No URL field. | **Server URL**, the address you open Plane at, e.g. `https://plane.example.com`. |
+| Path prefix | Not applicable. | Kept, e.g. `https://example.com/plane`. |
+| API address | Fixed. | Same as **Server URL** unless you set **Advanced → API base URL**. |
+| **Workspaces** | One or more workspace slugs. | One or more workspace slugs. |
+| **Personal access token** | One token for all the workspaces you add. | One token for all the workspaces you add. |
+| Plain `http://` | Not applicable. | Allowed only after you check **Send my token over unencrypted HTTP**. |
+
+### Plane Cloud
+
+- **Workspaces** — the first part of the path in your Plane URL. For `https://app.plane.so/acme/projects/`, the slug is `acme`. Add as many as you like.
+- **Personal access token** — a token that starts with `plane_api_`. See [Create a personal access token](#create-a-personal-access-token).
+
+### Self-hosted
+
+- **Server URL** — the address you open Plane at, such as `https://plane.example.com`. Orca keeps a path prefix (`https://example.com/plane`), a port, and private or IPv6 addresses. If you paste a browser URL such as `https://plane.example.com/acme/projects/`, Orca keeps only the server part and adds `acme` as a workspace. An `app.plane.so` or `api.plane.so` address shows **This is a Plane Cloud address.** with a **Use Plane Cloud** button.
+- **Advanced → API base URL** — only needed when the Plane API is served from a different address than the web app. Leave it empty to use the server URL.
+- **Workspaces** — the first part of the path in your Plane URL, like `acme` in `/acme/projects`.
+- **Personal access token** — a token that starts with `plane_api_`.
+
+### Add several workspaces at once
+
+The **Workspaces** field turns each slug into a chip:
+
+- Type a slug and press **Enter**, a comma, or a space to add it. Click the **×** on a chip to remove it.
+- Paste a Plane browser URL, such as `https://plane.example.com/acme/browse/WEB-12/`, to add its workspace. If the server field is still empty, the pasted URL fills it in too; a Plane Cloud URL picks **Plane Cloud**.
+- One token is used for all of them. Plane has no API that lists your workspaces from a token, so Orca connects exactly the slugs you add. A personal access token works for every workspace you are a member of.
+
+Each workspace is checked on its own. A chip shows a check mark and its project count when it connects. A slug that does not exist, or a workspace you are not a member of, is marked with **Workspace not found or you don't have access.** without stopping the others; remove or fix it, then click **Connect** again or **Continue** with the ones that worked. A problem with the token, the URL, or the network stops the whole attempt and is shown once for the form.
+
+<Callout title="Use HTTPS">
+  Orca sends the token in an `X-API-Key` header on every request. Over plain `http://` to anything
+  other than this computer, anyone on the network path can read it, so Orca asks you to check
+  **Send my token over unencrypted HTTP** first. A connection made this way shows an
+  **Unencrypted HTTP** badge in Settings. Prefer an `https://` address, a VPN, or a trusted tunnel.
+</Callout>
+
+Orca never follows redirects from a Plane server: a token must not be forwarded to another address. If your server redirects (for example from `http://` to `https://`, or to a different path), enter the final URL.
+
+## Create a personal access token
+
+1. In the **Connect Plane** dialog, click **Create a token in Plane**. It opens the API token settings of the first workspace you added (`/<slug>/settings/account/api-tokens`) on the server you entered. You can also open Plane's profile settings and look for **API tokens** yourself.
+2. Create a token, give it a name you will recognize, and copy it. Plane shows the full token only once.
+3. Paste it into **Personal access token** in Orca.
+
+The token acts as your Plane user: Orca sees the projects you can see and can change what you can change, in every workspace you belong to. To stop Orca's access, revoke the token in Plane.
+
+## Choose projects
+
+After connecting, **Choose Plane projects** asks which projects Orca lists. With several workspaces, each one gets its own section:
+
+- **All projects (includes projects added later)** — every project this token can see, checked again on each refresh. Archived projects are left out. This is preselected for a new workspace.
+- **Choose projects** — only the projects you check. Pick one project to work in a single project, or several. Use **Search projects**, **Select all**, and **Select none** for long lists.
+
+Click **Save projects**, or **Choose later** to decide afterwards. Until you choose, that workspace shows **Choose projects** in Settings.
+
+To change a selection later, open [Settings → Integrations](/docs/settings) and click **Edit projects** on that workspace's row. If a project you chose is deleted, archived, or no longer visible to your token, Orca keeps your selection as saved and the Tasks list says **1 selected project is no longer available.** with an **Edit projects** button; it never widens a selection to all projects on its own.
+
+## Manage workspaces
+
+The Plane card in Settings lists one row per connected workspace, with its slug, your Plane name and email, and badges for Cloud or self-hosted, the server, the project selection, and any warnings.
+
+- **Edit projects** changes that workspace's project selection.
+- **Remove** (the unlink icon) disconnects that workspace and deletes its saved token. Other workspaces stay connected.
+- **Add workspace** adds more workspaces on the same server with the token you already saved. The token stays on the host that runs Orca and is never sent back to the app window. To use another token or another Plane server, click **Use a different token or server** in that dialog.
+
+## Where the token is stored
+
+The token is stored on the host that owns Plane for this window: this computer, or the [Remote Orca Server](/docs/remote-servers) set as **Settings → Remote Orca Servers → Advanced → Default host for new projects**. The Plane card's **Account scope** line names that host. The token never comes back to the app window, and it is never written to logs or error messages.
+
+- Connections are saved in `~/.orca/plane-connections.json` and tokens in `~/.orca/plane-tokens/`, one per workspace, readable only by your user.
+- When the system keychain is available, tokens are encrypted with it.
+- When it is not (common on headless Linux servers), Orca stores tokens in plain text with owner-only permissions and shows a **Token stored unencrypted** badge.
+
+## Remote servers and SSH
+
+When a [Remote Orca Server](/docs/remote-servers) is the default host for new projects, that server holds the Plane connections and makes every Plane request. The connect dialog names the server the token is sent to. SSH workspaces do not change this: the token and all Plane requests stay on this computer, or on that default Remote Orca Server, and the SSH host never receives the token.
+
+- **Update the remote Orca.** A server without Plane support reports **Update the Orca server on … to use Plane.** Linking a work item to a workspace on an older server asks you to **Update the remote runtime to link Plane work items** first, and nothing is created until you do.
+- **The remote host must reach Plane.** A self-hosted Plane server on your laptop's VPN or local network may not be reachable from the remote host.
+- **Certificates are checked where requests run.** The desktop app trusts certificates from the operating system's trust store. A headless `orca serve` host uses Node.js certificate authorities; if your Plane server uses a private or company CA, start `orca serve` with `NODE_EXTRA_CA_CERTS=/path/to/ca.pem`.
+
+## Use Plane in the Tasks tab
+
+**Plane** sits in the **Tasks** source picker by default, even before you connect, so you can set it up from there. If you don't use Plane, click **Hide Plane** on the Plane page or turn it off in [Settings → Tasks](/docs/settings).
+
+- The list shows the newest work items from every project in your selection, each with its identifier (such as `WEB-12`), title, state, assignees, and last update.
+- Filters:
+  - **Project** — one project or **All in scope**.
+  - **State** — **Open** by default (Backlog, Unstarted, and Started), **All states**, or any mix of the state groups Backlog, Unstarted, Started, Completed, Cancelled, and Triage. With a single project chosen you can also pick an exact state.
+  - **Assignee** — **Anyone**, **Me**, **Unassigned**, or a member.
+  - **Priority** — **Any priority**, Urgent, High, Medium, Low, or No priority.
+  - **Search work items** — filters by title. Typing an identifier such as `WEB-12` opens that work item, even if it is not in the loaded list.
+- **Refresh** reloads the list. Orca does not poll Plane in the background.
+- Click a work item to open its detail: the description as plain text, state, priority, assignees, labels, last update, and comments. A very long description is shortened, with a note to **Open in Plane** to read all of it. **Open in Plane** opens the work item in your browser.
+- Change the state by clicking the current state in the detail, or right-click a row and choose **Change state**. States are grouped by Backlog, Unstarted, Started, Completed, Cancelled, and Triage. The row menu also has **Open in Plane**.
+- Add a comment in the **Add a comment…** box at the bottom of the detail. Press **⌘ Enter** on macOS or **Ctrl+Enter** on Windows and Linux, or click **Comment**.
+- If Plane refuses a change because your user lacks permission, Orca shows **You don't have permission to change this work item in Plane.** and puts the work item back as it was.
+
+### Switch between workspaces
+
+With two or more workspaces connected, the top of the Plane page has a **Plane workspace** picker. Choose one workspace, shown as its slug and server (for example `acme · Plane Cloud` or `ops · plane.example.com`), or **All workspaces**. Orca remembers the choice while it is running and starts on the active workspace after a restart.
+
+- **All workspaces** merges every workspace's items into one list, newest first, with a workspace badge on each row. **Me** matches you in each workspace.
+- While **All workspaces** is chosen, the **Project** filter and exact states are turned off: **Choose one workspace to filter by project or exact state.**
+- A workspace that needs attention gets its own banner, prefixed with its slug and server, and the others keep listing. The banner offers **Reconnect Plane** for a token Orca cannot use, **Choose projects** when no projects are chosen yet, and **Edit projects** or **Load more** like a single workspace does.
+- Typing an identifier such as `WEB-12` looks in the loaded list first, then asks each workspace in turn. If none has it, Orca says **WEB-12 was not found in any connected workspace.**
+
+### Start a workspace from a work item
+
+Click the **+** button on a row, or in the detail, to create a workspace from that work item. Orca opens the workspace composer with the name filled in from the identifier and title (for example `web-12-fix-login`) and links the work item to the new workspace. The identifier and title show on the workspace card, the link survives restarts, and agents started in the workspace get the work item's title, state, project, and URL as context, plus its description when you start from the detail.
+
+You can also attach a Plane work item to an existing workspace by pasting its URL. Plane Cloud URLs and URLs from a connected self-hosted workspace are recognized as Plane; other `/browse/KEY-123` links are treated as Jira.
+
+## Limits
+
+- **Newest 100 work items per project.** The list loads each project's 100 most recently updated items, up to 500 in total. A project with more shows **Showing the newest work items in …** with **Load more**; past 500, Orca suggests choosing one project. Search by identifier to reach older items directly.
+- **About 60 requests per minute per token.** Plane limits each API key. Orca stays under that budget across all workspaces that share a token, makes at most two requests at a time, and waits when Plane asks it to. Very large selections (more than about 50 projects) can still hit the limit; the projects that did not load show a notice and the rest of the list still loads.
+- **No workspace discovery.** Plane does not let a token list its workspaces, so you add each slug yourself.
+- **No mobile listing yet.** The mobile app does not list Plane work items.
+- Plane is not available as an automation source, and Plane work items do not appear in `Cmd-J` task search.
+
+## Troubleshooting
+
+Plane errors name the host that ran the request: this computer or your remote server.
+
+| Message | What it means | What to do |
+| --- | --- | --- |
+| **Plane rejected this token. Create a new one and try again.** | The token is wrong, expired, or revoked. | Create a new token and connect again. |
+| **Workspace not found or you don't have access.** | The slug is misspelled, or your Plane user is not a member of that workspace. Plane answers both the same way. | Copy the slug from your Plane URL, or ask a workspace admin to invite you. |
+| **This token cannot access that Plane workspace.** | Your Plane user lacks access to a project or resource. | Ask a Plane admin for access, or choose other projects. |
+| **Plane could not find that item. It may have been moved or deleted.** | The work item or project no longer exists. | Refresh the list. |
+| **Plane is rate limiting requests. Wait a minute and try again.** | The token's per-minute limit was reached. | Wait, then refresh. Choose fewer projects if it keeps happening. |
+| **… could not reach the Plane server.** | Network failure, DNS, proxy, or a server error. | Check the URL and that the host running Orca can reach it. |
+| **The Orca runtime on … doesn't trust this server's certificate.** | TLS failure on the host running the request. | Install the CA in the OS trust store (desktop) or set `NODE_EXTRA_CA_CERTS` (`orca serve`). |
+| **The Plane server answered with a redirect. Use the final URL, including https.** | The URL redirects elsewhere; Orca refuses to follow it. | Enter the final address, usually with `https://`. |
+| **This URL serves the Plane web app, not its API. Set the API base URL in Advanced.** | Requests reached the web app instead of the API. | Set **Advanced → API base URL** to the address that serves `/api/v1`. |
+| **… could not read the saved Plane token. Reconnect Plane to save it again.** | The keychain refused to decrypt the saved token. | Approve keychain access, or click **Reconnect Plane**. |
+
+## Next steps
+
+- [Jira items drawer](/docs/review/jira) — the same flow against Jira.
+- [Linear items drawer](/docs/review/linear) — the same flow against Linear.
+- [Remote Orca Servers](/docs/remote-servers) — run Orca, and Plane requests, on another computer.

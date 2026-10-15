@@ -3,10 +3,14 @@ import {
   mergeWorkspaceAttachmentOrigins
 } from './workspace-attachment-origins'
 import type { WorkspaceAttachment, WorkspaceLinkedItem } from './worktree/types'
+import { isIdentifierKeyedProvider, isTaskProvider } from './task-providers'
 import { getTaskSourceCacheScope, normalizeStoredTaskSourceContext } from './task-source-context'
 import { normalizeWorkspaceLinkedItem } from './workspace-linked-item'
 import { getProvenWorkspaceReferenceIdentity } from './workspace-reference-identity'
+import { getWorkspaceAttachmentUrlScope } from './workspace-reference-external-url'
 import { isWorkspaceLinkedItemSourceContextMatch } from './workspace-linked-item-source-context'
+
+export { getWorkspaceAttachmentUrlScope } from './workspace-reference-external-url'
 
 function nonEmpty(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
@@ -18,11 +22,9 @@ export function normalizeWorkspaceAttachment(value: unknown): WorkspaceAttachmen
   }
   const raw: Record<string, unknown> = Object.fromEntries(Object.entries(value))
   const provider = raw.provider
+  // Why isTaskProvider: every task provider, Plane included, can be attached; a hand list drifted.
   if (
-    provider !== 'github' &&
-    provider !== 'gitlab' &&
-    provider !== 'linear' &&
-    provider !== 'jira' &&
+    !isTaskProvider(provider) &&
     provider !== 'bitbucket' &&
     provider !== 'azure-devops' &&
     provider !== 'gitea'
@@ -33,7 +35,7 @@ export function normalizeWorkspaceAttachment(value: unknown): WorkspaceAttachmen
   if (type !== 'issue' && type !== 'pr' && type !== 'mr') {
     return null
   }
-  if ((provider === 'linear' || provider === 'jira') && type !== 'issue') {
+  if (isIdentifierKeyedProvider(provider) && type !== 'issue') {
     return null
   }
   if (type === 'mr' && provider !== 'gitlab') {
@@ -44,7 +46,9 @@ export function normalizeWorkspaceAttachment(value: unknown): WorkspaceAttachmen
   }
   const identifier =
     nonEmpty(raw.identifier) ?? nonEmpty(raw.linearIdentifier) ?? nonEmpty(raw.jiraIdentifier)
-  if (raw.number === 0 && (!identifier || (provider !== 'linear' && provider !== 'jira'))) {
+  // Why the Plane URL case: a work item pasted as its project URL has no readable ID yet.
+  const planeUrlOnly = provider === 'plane' && typeof raw.url === 'string'
+  if (raw.number === 0 && (!(identifier || planeUrlOnly) || !isIdentifierKeyedProvider(provider))) {
     return null
   }
   if (raw.url !== undefined) {
@@ -98,7 +102,7 @@ function attachmentIdentity(item: WorkspaceAttachment): string {
   return JSON.stringify([
     item.provider,
     item.type,
-    item.provider === 'linear' || item.provider === 'jira'
+    isIdentifierKeyedProvider(item.provider)
       ? (item.identifier ?? item.linearIdentifier ?? item.jiraIdentifier ?? item.number)
       : item.number
   ])
@@ -113,26 +117,6 @@ export function getWorkspaceAttachmentKey(item: WorkspaceAttachment): string {
     item.linearOrganizationUrlKey ?? '',
     getWorkspaceAttachmentUrlScope(item)
   ])
-}
-
-export function getWorkspaceAttachmentUrlScope(item: WorkspaceAttachment): string {
-  if (!item.url) {
-    return ''
-  }
-  try {
-    const url = new URL(item.url)
-    return (
-      url.origin +
-      url.pathname
-        .replace(
-          /\/(?:pull|pulls|issues|merge_requests|pull-requests|pullrequest|browse|issue)\/[^/]+(?:\/.*)?$/,
-          ''
-        )
-        .replace(/\/-$/, '')
-    )
-  } catch {
-    return ''
-  }
 }
 
 /** One entry per proven external reference and source context; local repo IDs never split it. */
