@@ -147,11 +147,11 @@ function WorktreeListRowComponent({
           {/* Repo glyph+name only when not already grouped under this repo;
               MobileRepoIcon falls back to a Folder (matching desktop's default)
               rather than a bare colored dot. */}
-          {(!hideRepo || item.projectContextLabel) && (
+          {!hideRepo && (
             <>
               <MobileRepoIcon repoIcon={repoIcon} size={11} color={repoColor} />
               <Text style={styles.repoName} numberOfLines={1}>
-                {hideRepo ? (item.projectContextLabel ?? item.repo) : item.repo}
+                {item.repo}
               </Text>
             </>
           )}

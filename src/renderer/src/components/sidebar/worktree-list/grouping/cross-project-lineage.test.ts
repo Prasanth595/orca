@@ -103,7 +103,7 @@ describe('cross-project sidebar lineage', () => {
       )
       const occurrence = plan.occurrencePlan.preferredByIdentity.get(getWorktreeHostIdentity(grandchild))
       expect(occurrence).toMatchObject({
-        row: { repoId: childRepo.id }, depth: 2, projectContextLabel: childRepo.displayName,
+        row: { repoId: childRepo.id }, depth: 2, showProjectName: false,
         sectionKey: policy === 'single-location' ? PINNED_GROUP_KEY : parentSection
       })
       expect(occurrence?.parent?.row).toBe(child)
@@ -125,8 +125,7 @@ describe('cross-project sidebar lineage', () => {
       const rendered = plan.render(collapsedGroups).filter((row) => row.type === 'item')
       expect(rendered.map((row) => row.worktree.id)).toEqual([parent.id, child.id, grandchild.id])
       expect(rendered[2]?.occurrence).toBe(occurrence)
-      expect(rendered.slice(1).map((row) => row.projectContextLabel))
-        .toEqual([childRepo.displayName, childRepo.displayName])
+      expect(rendered.slice(1).map((row) => row.showProjectName)).toEqual([true, false])
     }
   )
 
@@ -136,7 +135,7 @@ describe('cross-project sidebar lineage', () => {
       lineageById, worktreeMap, true
     )
     expect(rows.filter((row) => row.type === 'item')).toMatchObject([
-      { worktree: child, sectionKey: `repo:${childRepo.id}`, depth: 0, projectContextLabel: undefined }
+      { worktree: child, sectionKey: `repo:${childRepo.id}`, depth: 0, showProjectName: false }
     ])
   })
 })

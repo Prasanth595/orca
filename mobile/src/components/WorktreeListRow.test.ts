@@ -143,7 +143,7 @@ describe('memoized worktree rows', () => {
     await act(async () => {
       renderer = create(
         createElement(WorktreeListRow, {
-          item: { ...baseItem, projectContextLabel: 'Backend checkout', lineageDepth: 1 },
+          item: { ...baseItem, showProjectName: true, lineageDepth: 1 },
           isReadOnly: false,
           now: 2_000,
           repoColor: '#000000',
@@ -156,8 +156,8 @@ describe('memoized worktree rows', () => {
     const ownerNames = renderer!.root
       .findAllByType(Text)
       .map((node) => node.props.children)
-      .filter((text) => text === baseItem.repo || text === 'Backend checkout')
-    expect(ownerNames).toEqual([hideRepo ? 'Backend checkout' : baseItem.repo])
+      .filter((text) => text === baseItem.repo)
+    expect(ownerNames).toEqual([baseItem.repo])
   })
 
   it('skips an unrelated parent render but updates for live item fields and time', async () => {

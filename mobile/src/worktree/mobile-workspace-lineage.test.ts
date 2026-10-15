@@ -75,11 +75,7 @@ describe('applyMobileWorkspaceLineage', () => {
       for (const section of sections) {
         expect(section.data.map((row) => row.worktreeId)).toEqual(['parent', 'child', 'grandchild'])
         expect(section.data.map((row) => row.lineageDepth)).toEqual([0, 1, 2])
-        expect(section.data.map((row) => row.projectContextLabel)).toEqual([
-          section.key === 'pinned' ? 'orca' : undefined,
-          'Backend',
-          'Backend'
-        ])
+        expect(section.data.map((row) => row.showProjectName)).toEqual([false, true, false])
       }
       const keys = sections.flatMap((section) => section.data.map((row) => row.sectionListKey))
       expect(new Set(keys).size).toBe(keys.length)

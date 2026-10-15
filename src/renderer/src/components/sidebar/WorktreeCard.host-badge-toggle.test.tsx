@@ -173,8 +173,9 @@ describe('WorktreeCard host badge toggle', () => {
             continue
           }
           const markup = await renderCardMarkup({ worktree: row.worktree, repo: row.repo,
-            hideRepoBadge: mode === 'repo', inPinnedSection: row.sectionKey === PINNED_GROUP_KEY,
-            projectContextLabel: row.projectContextLabel })
+            hideRepoBadge: mode === 'repo' && !row.showProjectName,
+            showProjectName: row.showProjectName,
+            inPinnedSection: row.sectionKey === PINNED_GROUP_KEY })
           const ownerText = [...markup.matchAll(/>([^<]*)</g)]
             .filter((match) => match[1].trim() === row.repo?.displayName)
           expect(ownerText).toHaveLength(mode === 'repo' && !pinned && row.worktree.id === parent.id ? 0 : 1)

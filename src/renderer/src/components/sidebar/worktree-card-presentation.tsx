@@ -29,7 +29,7 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
     inPinnedSection,
     hideRepoBadge,
     hostContextLabel,
-    projectContextLabel,
+    showProjectName,
     affiliateListMode,
     flushSurface,
     contentIndent,
@@ -86,21 +86,20 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
     showDeleteQuickAction
   } = card
 
-  // Why: pinned trees mix repos, so the repo icon shows regardless of groupBy's hideRepoBadge.
-  const showPinnedRepoIcon = inPinnedSection && !!repo
+  // Why: pinned trees mix repos, so ordinary rows keep the repo icon; cross-repo children use the name.
+  const showPinnedRepoIcon = inPinnedSection && !!repo && !showProjectName
   // Why: new card style retired the Compact/Detailed switch; repo identity uses the compact chip, not a lower pill.
   const showRepoIdentityInTitle = newCardStyle || compactCards
   const showInlineRepoBadge =
     showRepoIdentityInTitle && !!repo && !hideRepoBadge && !isFolder && !showPinnedRepoIcon
   const showRepoBadgeInMetaRow =
     !showRepoIdentityInTitle && !!repo && !hideRepoBadge && !showPinnedRepoIcon
-  const visibleProjectContext = showRepoBadgeInMetaRow ? undefined : projectContextLabel
   const contextLabel = getVisibleContextLabel(
-    visibleProjectContext,
+    undefined,
     hostContextLabel,
     cardProps.includes('host')
   )
-  const showHostContextBadge = !!contextLabel && (!compactCards || !!visibleProjectContext)
+  const showHostContextBadge = !!contextLabel && (!compactCards || !!showProjectName)
   const showDetachedHeadInMetaRow = !compactCards && !isFolder && detachedHeadDisplay !== null
   const showBranch =
     !isFolder &&
@@ -130,7 +129,7 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
     showMetaRowDetails
   )
   const hasMetaRow = compactCards
-    ? hasMetadataBadge || cacheStartedAt != null || !!visibleProjectContext
+    ? hasMetadataBadge || cacheStartedAt != null
     : hasDetailedMetaRowContent
   const showHeaderActions = showTitleRowPrimary || showDeleteQuickAction
   // Why: normalize the title once so title/branch de-dupe and identity-only hover eligibility stay in sync.

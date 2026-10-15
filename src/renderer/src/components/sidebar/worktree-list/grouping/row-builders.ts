@@ -92,7 +92,7 @@ export function appendWorktreeRows(
       groupDepth: options.groupDepth,
       isLastLineageChild: occurrence.isLastChild,
       lineageChildCount: occurrence.childCount,
-      projectContextLabel: occurrence.projectContextLabel,
+      showProjectName: occurrence.showProjectName,
       hostContextLabel:
         options.hostContextLabelByWorktreeIdentity?.get(getWorktreeHostIdentity(worktree)) ??
         options.hostContextLabelByRepoId?.get(worktree.repoId),

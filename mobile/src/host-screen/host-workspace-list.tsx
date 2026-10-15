@@ -193,7 +193,7 @@ export function HostWorkspaceList({ controller }: { controller: HostScreenContro
               status={getWorktreeStatus(item)}
               repoColor={repoLookById.get(item.repoId)?.color ?? repoColor(item.repo)}
               repoIcon={repoLookById.get(item.repoId)?.icon ?? null}
-              hideRepo={state.groupMode === 'repo'}
+              hideRepo={state.groupMode === 'repo' && !item.showProjectName}
               onPress={actions.openWorktreeSession}
               onLongPress={
                 item.workspaceKind === 'folder-workspace' ? undefined : state.setActionTarget

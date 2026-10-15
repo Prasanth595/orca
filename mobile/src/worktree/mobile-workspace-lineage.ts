@@ -74,7 +74,7 @@ export function getMobileOccurrenceRows(
       occurrence.childCount > 0 &&
       collapsedGroups.has(getMobileWorkspaceLineageGroupKey(occurrence.row)),
     isLastLineageChild: occurrence.isLastChild,
-    projectContextLabel: occurrence.projectContextLabel
+    showProjectName: occurrence.showProjectName
   }))
 }
 
@@ -88,7 +88,8 @@ export function applyMobileWorkspaceLineage(
     identityOf: getWorktreeRowIdentity,
     isPinned: () => false,
     duplicatePinned: false,
-    sectionsOf: () => [{ key: 'all', items: worktrees }]
+    sectionsOf: () => [{ key: 'all', items: worktrees }],
+    projectIdOf: (worktree) => worktree.repoId
   })
   return getMobileOccurrenceRows(plan, 'all', collapsedGroups)
 }
