@@ -21,7 +21,7 @@ import { structuredQuestionTranscript } from '../../../src/shared/structured-age
 import type { NativeChatResolvedPrompt } from '../../../src/shared/native-chat-resolution-receipt'
 import { colors, typography } from '../theme/mobile-theme'
 import { ANSWERED_PROMPT_ITEMS } from './mobile-native-chat-answered-prompts.test-fixture'
-import { MobileNativeChatImageViewerContext } from './mobile-native-chat-image-viewer-context'
+import { MobileNativeChatRowOverlaysContext } from './mobile-native-chat-row-overlays'
 import { styles } from './mobile-native-chat-message-styles'
 
 vi.mock('react-native', async () => {
@@ -470,8 +470,8 @@ describe('MobileNativeChatMessage', () => {
     act(() => {
       renderer = create(
         createElement(
-          MobileNativeChatImageViewerContext.Provider,
-          { value: openImage },
+          MobileNativeChatRowOverlaysContext.Provider,
+          { value: { openImage, openActions: vi.fn() } },
           createElement(MobileNativeChatMessage, {
             message: userMessage([{ type: 'image-ref', url: 'file:///a.jpg', alt: 'a photo' }])
           })
