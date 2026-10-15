@@ -35,7 +35,8 @@ it.skipIf(process.platform !== 'win32')(
           }
           const result = await runProcess({
             program: 'cmd.exe',
-            args: ['/d', '/q'],
+            // Echo on like a pane, so a lost `@` would print the config path.
+            args: ['/d'],
             cwd: root,
             env: {
               ...process.env,
@@ -48,6 +49,7 @@ it.skipIf(process.platform !== 'win32')(
           })
           const row = JSON.stringify({ line, present, ...result })
           expect(result.code, row).toBe(present ? 17 : 1)
+          expect(result.stdout, row).not.toContain(config)
           if (present) {
             const argv: string[] = JSON.parse(await readFile(capture, 'utf8'))
             // Carets are the cmd quoter's known leak; this pins only that `%!` is not substituted.
