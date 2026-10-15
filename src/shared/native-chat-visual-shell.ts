@@ -163,8 +163,9 @@ window.addEventListener('message', function (event) {
   document.documentElement.classList.toggle('dark', data.colorScheme === 'dark')
 })
 // Scrolling: a wheel nothing in the page can take chains on to the transcript, which never sees
-// the wheel itself, so the host hears of it here. The page's own handlers may still cancel it (a
-// chart zoom), so the report waits for the dispatch to finish. A touch drag reports as it moves.
+// the wheel itself, so the host hears of it here. Captured, so a handler that stops propagation
+// cannot hide it; the page's own handlers may still cancel it (a chart zoom), so the report waits
+// for the dispatch to finish. A touch drag reports as it moves.
 function overflowOf(node) {
   var overflow = getComputedStyle(node).overflowY
   // The viewport takes its overflow from <body> when <html> leaves it visible.
@@ -194,7 +195,7 @@ window.addEventListener('wheel', function (event) {
   setTimeout(function () {
     if (!event.defaultPrevented) send({ type: C.scroll, input: 'wheel', deltaY: event.deltaY })
   }, 0)
-}, { passive: true })
+}, { capture: true, passive: true })
 window.addEventListener('touchmove', function () { send({ type: C.scroll, input: 'touch' }) }, { passive: true })
 // Height: report the document's own height whenever layout changes; the host fits the frame.
 var reported = -1

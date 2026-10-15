@@ -118,7 +118,8 @@ describe('visual shell reader scroll', () => {
     expect(shell.sent).toHaveLength(2)
   })
 
-  it('sees a scroller inside a shadow root, which the retargeted event hides', () => {
+  // happy-dom does not retarget the event at the window, so only Chromium proves the composed path.
+  it('sees a scroller inside a shadow root', () => {
     const shell = bootShell('<body><div id="host"></div></body>')
     scrollable(shell.root, 0, 100)
     const root = shell.byId('host').attachShadow({ mode: 'open' })
@@ -158,16 +159,25 @@ describe('visual shell reader scroll', () => {
     const shell = bootShell('<body><div id="chart">chart</div></body>')
     scrollable(shell.root, 0, 100)
     const chart = shell.byId('chart')
-    chart.addEventListener('wheel', (event) => event.preventDefault())
+    const cancel = (event: { preventDefault: () => void }): void => event.preventDefault()
+    chart.addEventListener('wheel', cancel)
     shell.wheel(chart, -10, { cancelable: true })
     expect(shell.sent, 'cancelled on the chart').toEqual([])
-    chart.dispatchEvent(new shell.window.WheelEvent('wheel', { bubbles: true, deltaY: -10 }))
-    vi.runAllTimers()
+    chart.removeEventListener('wheel', cancel)
+    shell.wheel(chart, -10, { cancelable: true })
     expect(shell.sent, 'not cancelled').toHaveLength(1)
     // A handler the visual installs on the window runs after the shell's own.
-    shell.window.addEventListener('wheel', (event) => event.preventDefault())
-    shell.wheel(shell.byId('chart'), -10, { cancelable: true })
+    shell.window.addEventListener('wheel', cancel)
+    shell.wheel(chart, -10, { cancelable: true })
     expect(shell.sent, 'cancelled at the window').toHaveLength(1)
+  })
+
+  it('still hears a wheel a handler stopped from bubbling, since the transcript still scrolls', () => {
+    const shell = bootShell('<body><div id="chart">chart</div></body>')
+    scrollable(shell.root, 0, 100)
+    shell.byId('chart').addEventListener('wheel', (event) => event.stopPropagation())
+    shell.wheel(shell.byId('chart'), -10)
+    expect(shell.sent).toHaveLength(1)
   })
 
   it('keeps a zoom wheel and a still wheel to the page', () => {

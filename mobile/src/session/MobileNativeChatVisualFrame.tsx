@@ -140,7 +140,7 @@ export const MobileNativeChatVisualFrame = memo(function MobileNativeChatVisualF
         }
         return
       }
-      // The WebView scrolls the list natively; a reader-scroll report has no host-side meaning here.
+      // The host page relays only size and link messages; this narrows the type.
       if (message.kind !== 'open-link') {
         return
       }
