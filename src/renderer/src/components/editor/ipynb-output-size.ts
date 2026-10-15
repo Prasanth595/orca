@@ -6,8 +6,12 @@ import { isRecord, type IpynbDocument } from './ipynb-parse'
 /** UTF-16 units of output a notebook records; past this its whole text no longer fits a save. */
 export const MAX_RECORDED_OUTPUT_UNITS = 256 * 1024 * 1024
 
+/** 10,000 KB as UTF-16 units: past it a restart doesn't back the notebook up. */
+const MAX_BACKED_UP_OUTPUT_UNITS = 10_000 * 1024
+
 // Why weak keys: outputs and output arrays are replaced, never mutated, so a size never goes stale.
 const sizes = new WeakMap<object, number>()
+const documentSizes = new WeakMap<IpynbDocument, number>()
 const limitNotices = new WeakSet<object>()
 
 function outputSize(output: unknown): number {
@@ -44,7 +48,17 @@ function cellOutputSize(cell: unknown): number {
 
 /** The notebook's recorded output, from sizes cached per output, so asking costs one pass over cells. */
 export function recordedOutputSize(document: IpynbDocument): number {
-  return document.cells.reduce((sum: number, cell) => sum + cellOutputSize(cell), 0)
+  const cached = documentSizes.get(document)
+  if (cached !== undefined) {
+    return cached
+  }
+  const size = document.cells.reduce((sum: number, cell) => sum + cellOutputSize(cell), 0)
+  documentSizes.set(document, size)
+  return size
+}
+
+export function exceedsBackupLimit(document: IpynbDocument): boolean {
+  return recordedOutputSize(document) > MAX_BACKED_UP_OUTPUT_UNITS
 }
 
 /**
