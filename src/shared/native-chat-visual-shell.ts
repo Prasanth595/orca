@@ -196,7 +196,7 @@ window.addEventListener('wheel', function (event) {
     if (!event.defaultPrevented) send({ type: C.scroll, input: 'wheel', deltaY: event.deltaY })
   }, 0)
 }, { capture: true, passive: true })
-window.addEventListener('touchmove', function () { send({ type: C.scroll, input: 'touch' }) }, { passive: true })
+window.addEventListener('touchmove', function () { send({ type: C.scroll, input: 'touch' }) }, { capture: true, passive: true })
 // Height: report the document's own height whenever layout changes; the host fits the frame.
 var reported = -1
 var pending = false

@@ -200,11 +200,15 @@ describe('visual shell reader scroll', () => {
     expect(shell.sent).toEqual([])
   })
 
-  it('reports a touch drag as it moves', () => {
+  it('reports a touch drag as it moves, even one a handler stopped from bubbling', () => {
     const shell = bootShell('<body><p id="text">chart</p></body>')
-    shell.byId('text').dispatchEvent(new shell.window.Event('touchmove', { bubbles: true }))
+    const text = shell.byId('text')
+    text.dispatchEvent(new shell.window.Event('touchmove', { bubbles: true }))
     expect(shell.sent).toEqual([
       { type: NATIVE_CHAT_VISUAL_READER_SCROLL_TYPE, channel: 'c', input: 'touch' }
     ])
+    text.addEventListener('touchmove', (event) => event.stopPropagation())
+    text.dispatchEvent(new shell.window.Event('touchmove', { bubbles: true }))
+    expect(shell.sent).toHaveLength(2)
   })
 })
