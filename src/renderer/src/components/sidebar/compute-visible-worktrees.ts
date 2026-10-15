@@ -4,14 +4,14 @@ import type { WorktreeLineage } from '../../../../shared/worktree/lineage-types'
 import type { Worktree } from '../../../../shared/worktree/types'
 import {
   ALL_EXECUTION_HOSTS_SCOPE,
-  getWorktreeExecutionHostId,
   type ExecutionHostId,
   type ExecutionHostScope
 } from '../../../../shared/execution-host'
 import { getWorktreeHostIdentity } from '../../../../shared/worktree/host-qualified-identity'
 import { EMPTY_CONCEALED_REPO_IDS } from '../../../../shared/incognito-projects'
 import { getIndexedAllWorktrees } from '@/store/worktree-repo-index'
-import { isHiddenBySidebarSwitch } from './sidebar-switch-hidden-workspace'
+import { filterWorkspaceRows } from '../../../../shared/workspace-view/workspace-row-filters'
+import { buildDesktopWorkspaceRowFactReader } from './desktop-workspace-row-facts'
 import { getLineageAncestorIndex, getSortedWorktreeRankIndex } from './visible-worktree-indexes'
 import {
   getCyclicProjectedWorktreeLineageIds,
@@ -57,9 +57,9 @@ export function computeVisibleWorktrees(
 
   const concealedRepoIds = opts.concealedRepoIds ?? EMPTY_CONCEALED_REPO_IDS
   const isShown = (w: Worktree): boolean => !concealedRepoIds.has(w.repoId)
-
-  // Filter archived
-  all = all.filter((w) => !w.isArchived && isShown(w))
+  if (concealedRepoIds.size > 0) {
+    all = all.filter(isShown)
+  }
 
   // Why: sidebar lineage is structural. Archived workspaces stay hidden, but
   // every other valid ancestor can bypass filters so children never orphan.
@@ -68,26 +68,21 @@ export function computeVisibleWorktrees(
   const visibleHostIds =
     opts.visibleWorkspaceHostIds ??
     (opts.workspaceHostScope === ALL_EXECUTION_HOSTS_SCOPE ? null : [opts.workspaceHostScope])
-  if (visibleHostIds) {
-    const visibleHostIdSet = new Set(visibleHostIds)
-    all = all.filter((w) => {
-      const repo = opts.repoMap.get(w.repoId)
-      if (!repo) {
-        return false
-      }
-      const hostId = getWorktreeExecutionHostId(w, repo, opts.defaultHostId)
-      return visibleHostIdSet.has(hostId)
-    })
-  }
-
-  // Filter by repo
-  if (opts.filterRepoIds.length > 0) {
-    const selectedRepoIds = new Set(opts.filterRepoIds)
-    all = all.filter((w) => selectedRepoIds.has(w.repoId))
-  }
-
-  // Why after host and repo: those filters are cheap and shrink the set the sleeping sweep scans.
-  all = all.filter((w) => !isHiddenBySidebarSwitch(w, opts.repoMap.get(w.repoId), opts))
+  all = filterWorkspaceRows(
+    all,
+    {
+      hideSleepingWorkspaces: !opts.showSleepingWorkspaces,
+      alwaysShowDefaultBranchWorkspace: opts.alwaysShowDefaultBranchWorkspace,
+      hideDefaultBranchWorkspace: opts.hideDefaultBranchWorkspace,
+      hideAutomationGeneratedWorkspaces: opts.hideAutomationGeneratedWorkspaces,
+      hideCliCreatedWorkspaces: opts.hideCliCreatedWorkspaces,
+      hideDetachedHeadWorkspaces: opts.hideDetachedHeadWorkspaces,
+      hideWorkspacesFromOtherDevices: opts.hideWorkspacesFromOtherDevices,
+      filterRepoIds: opts.filterRepoIds,
+      visibleHostIds
+    },
+    buildDesktopWorkspaceRowFactReader(opts)
+  )
 
   if (opts.forcedVisibleWorktreeIds && opts.forcedVisibleWorktreeIds.length > 0) {
     const includedIds = new Set(all.map((worktree) => worktree.id))
