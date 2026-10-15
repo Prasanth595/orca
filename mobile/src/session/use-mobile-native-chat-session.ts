@@ -1,3 +1,5 @@
+import { nativeChatCache } from './mobile-chat-transcript-cache'
+import { useMobileChatCheckpoint } from './use-mobile-chat-checkpoint'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   createNativeChatTranscriptRetention,
@@ -118,6 +120,10 @@ export function useMobileNativeChatSession(args: {
   // snapshots on the same subscription are reconnect replays, not fresh bases.
   const snapshotSeenRef = useRef(false)
   const transcriptRetentionRef = useRef(createNativeChatTranscriptRetention())
+  const cached = client ? nativeChatCache.get(client, identity) : null
+  if (cached) {
+    transcriptRetentionRef.current.capture(identity, cached.messages)
+  }
   const settledReady = settled?.status === 'ready'
   useEffect(() => {
     if (settledReady) {
@@ -139,12 +145,13 @@ export function useMobileNativeChatSession(args: {
     streamGenerationRef.current += 1
     limitRef.current = INITIAL_LIMIT
     loadingEarlierRef.current = false
-    snapshotSeenRef.current = false
+    const retained = client ? nativeChatCache.get(client, identity) : null
+    snapshotSeenRef.current = retained !== null
     setLoadingEarlier(false)
-    setList([])
+    setList(retained?.messages ?? [])
     setError(undefined)
-    setHasMore(false)
-    beforeOffsetRef.current = null
+    setHasMore(retained?.hasMore ?? false)
+    beforeOffsetRef.current = retained?.beforeOffset ?? null
     if (!client || !agent) {
       return
     }
@@ -152,6 +159,12 @@ export function useMobileNativeChatSession(args: {
       return
     }
 
+    void nativeChatCache.restore(client, identity).then((restored) => {
+      if (!cancelled && !snapshotSeenRef.current && restored) {
+        setList(restored.messages)
+        transcriptRetentionRef.current.capture(identity, restored.messages)
+      }
+    })
     const unsubscribe = client.subscribe(
       'nativeChat.subscribe',
       {
@@ -310,6 +323,16 @@ export function useMobileNativeChatSession(args: {
       }
     })()
   }, [client, agent, sessionId, transcriptPath, hasMore, setList])
+
+  useMobileChatCheckpoint(() => {
+    if (client && settledReady) {
+      nativeChatCache.set(client, identity, {
+        messages,
+        hasMore,
+        beforeOffset: beforeOffsetRef.current
+      })
+    }
+  })
 
   // Held for any unsettled read, not just an in-flight one: a stream error or a
   // dropped client would otherwise trade the conversation for an error card.

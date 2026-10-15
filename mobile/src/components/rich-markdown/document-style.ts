@@ -1,4 +1,4 @@
-import { colors } from '../../theme/mobile-theme'
+import { richMarkdownEditorThemeProperties } from './document-theme'
 import { TEXT_INPUT_FONT_SIZE } from '../../platform/text-input-font-size'
 
 /**
@@ -15,17 +15,11 @@ import { TEXT_INPUT_FONT_SIZE } from '../../platform/text-input-font-size'
  * of the session. One binding, so a floor that moved would move both halves together.
  */
 export function richMarkdownEditorStyle(): string {
+  const variables = Object.entries(richMarkdownEditorThemeProperties())
+    .map(([key, value]) => `      ${key}: ${value};`)
+    .join('\n')
   return `    :root {
-      color-scheme: dark;
-      --background: ${colors.bgBase};
-      --editor-surface: ${colors.bgBase};
-      --foreground: ${colors.textPrimary};
-      --muted-foreground: ${colors.textSecondary};
-      --muted: ${colors.bgRaised};
-      --border: ${colors.borderSubtle};
-      --primary: ${colors.textPrimary};
-      --primary-foreground: ${colors.bgBase};
-      --accent-link: ${colors.accentBlue};
+${variables}
       --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
       --font-sans: Geist, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }

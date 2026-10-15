@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { colors } from './mobile-theme'
+import { colors, darkColors, lightColors } from './mobile-theme'
 
 function channelLuminance(channel: number): number {
   const value = channel / 255
@@ -24,6 +24,26 @@ function contrastRatio(foreground: string, background: string): number {
 }
 
 describe('mobile text contrast', () => {
+  it.each([
+    ['light', lightColors],
+    ['dark', darkColors]
+  ] as const)('keeps %s captions, prose and filled-action text readable', (_name, palette) => {
+    for (const surface of [palette.bgBase, palette.bgPanel, palette.bgRaised]) {
+      expect(contrastRatio(palette.textMuted, surface)).toBeGreaterThanOrEqual(4.5)
+      expect(contrastRatio(palette.textPrimary, surface)).toBeGreaterThanOrEqual(4.5)
+    }
+    expect(contrastRatio(palette.onAccent, palette.accentBlue)).toBeGreaterThanOrEqual(3)
+  })
+  it.each([
+    ['light', lightColors],
+    ['dark', darkColors]
+  ] as const)('keeps %s agent status indicators distinct from the surface', (_name, palette) => {
+    for (const indicator of [palette.agentWorking, palette.agentDone, palette.agentAttention]) {
+      for (const surface of [palette.bgBase, palette.bgPanel, palette.bgRaised]) {
+        expect(contrastRatio(indicator, surface)).toBeGreaterThanOrEqual(3)
+      }
+    }
+  })
   it('keeps muted text readable on every standard dark surface', () => {
     for (const surface of [colors.bgBase, colors.bgPanel, colors.bgRaised]) {
       expect(contrastRatio(colors.textMuted, surface)).toBeGreaterThanOrEqual(4.5)

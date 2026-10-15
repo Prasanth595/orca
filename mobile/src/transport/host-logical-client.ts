@@ -1,3 +1,7 @@
+import {
+  registerChatCheckpointClient,
+  flushMobileChatCheckpoints
+} from '../cache/mobile-chat-checkpoint-registry'
 import { AppState, Platform } from 'react-native'
 import { connect, type RpcClient } from './rpc-client'
 import { createStableLogicalRpcClient } from './stable-logical-rpc-client'
@@ -12,6 +16,7 @@ export function openHostLogicalClient(host: HostProfile, onLog: ConnectionLogSin
     connect(host.endpoint, host.deviceToken, host.publicKeyB64, { onLog }),
     directPathForEndpoint(host.endpoint)
   )
+  registerChatCheckpointClient(logical, host)
   if (Platform.OS === 'web') {
     return logical
   }
@@ -19,6 +24,9 @@ export function openHostLogicalClient(host: HostProfile, onLog: ConnectionLogSin
   const endpointLifecycle = startMobileEndpointLifecycle(logical, host, onLog)
   endpointLifecycle.setForeground(AppState.currentState === 'active')
   const appStateSubscription = AppState.addEventListener('change', (state) => {
+    if (state !== 'active') {
+      flushMobileChatCheckpoints()
+    }
     endpointLifecycle.setForeground(state === 'active')
   })
   const closeLogical = logical.close

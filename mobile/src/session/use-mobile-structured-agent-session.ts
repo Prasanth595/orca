@@ -291,6 +291,7 @@ export function useMobileStructuredAgentSession(args: {
 
   return {
     ...options,
+    writeReady: connected && state.fence !== null,
     visualSource,
     imagePreviewsByMessageId: sends.imagePreviewsByMessageId,
     session: {

@@ -1,3 +1,5 @@
+import { createThemedStyles } from '../../theme/mobile-themed-styles'
+import { useMobileTheme } from '../../theme/use-mobile-theme'
 import { memo, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import { colors, radii, spacing, typography } from '../../theme/mobile-theme'
@@ -28,6 +30,8 @@ import { loadPageMermaid } from './mermaid-page-engine'
  * already inside the generation the phone downloaded.
  */
 export const MermaidDiagram = memo(function MermaidDiagram({ source, base }: MermaidDiagramProps) {
+  const colorScheme = useMobileTheme()
+
   const hostRef = useRef<View>(null)
   // The source that failed, rather than a flag: a flag would need clearing from the effect that
   // renders the next one, and a render the component has already failed is the only thing the
@@ -69,7 +73,7 @@ export const MermaidDiagram = memo(function MermaidDiagram({ source, base }: Mer
       // previous diagram when the source changes.
       host.replaceChildren()
     }
-  }, [id, source])
+  }, [id, source, colorScheme])
 
   if (failed) {
     return (
@@ -95,6 +99,8 @@ export const MermaidDiagram = memo(function MermaidDiagram({ source, base }: Mer
 
 /** The native component's frame and label, so a diagram and its fallback sit in the same box. */
 function MermaidFrame({ children }: { children: ReactNode }) {
+  useMobileTheme()
+
   return (
     <View style={styles.frame} testID="mermaid-diagram">
       <View style={styles.label}>
@@ -108,28 +114,30 @@ function MermaidFrame({ children }: { children: ReactNode }) {
 // The native component's own styles, so the page's diagram sits in the box that component draws.
 // No rule reaches the SVG: mermaid emits it with `width="100%"` and its own natural `max-width`,
 // and a rule of ours on the element would be a byte the native document's render does not have.
-const styles = StyleSheet.create({
-  frame: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle,
-    borderRadius: radii.row,
-    marginBottom: spacing.sm,
-    overflow: 'hidden',
-    backgroundColor: colors.bgRaised
-  },
-  label: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderSubtle,
-    backgroundColor: colors.bgPanel
-  },
-  labelText: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontFamily: typography.monoFamily
-  },
-  host: { padding: spacing.sm },
-  fallbackScroll: { padding: spacing.sm },
-  fallbackText: { color: colors.textPrimary, fontFamily: typography.monoFamily }
-})
+const styles = createThemedStyles(() =>
+  StyleSheet.create({
+    frame: {
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSubtle,
+      borderRadius: radii.row,
+      marginBottom: spacing.sm,
+      overflow: 'hidden',
+      backgroundColor: colors.bgRaised
+    },
+    label: {
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 2,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.borderSubtle,
+      backgroundColor: colors.bgPanel
+    },
+    labelText: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      fontFamily: typography.monoFamily
+    },
+    host: { padding: spacing.sm },
+    fallbackScroll: { padding: spacing.sm },
+    fallbackText: { color: colors.textPrimary, fontFamily: typography.monoFamily }
+  })
+)

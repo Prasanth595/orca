@@ -1,3 +1,4 @@
+import { useMobileTheme } from '../../../../src/theme/use-mobile-theme'
 import { withWorkspaceRoute } from '../../../../src/navigation/workspace-route'
 import {
   useWorkspaceExecutionHost,
@@ -23,6 +24,8 @@ import { shellSwitchDecision } from '../../../../src/mobile-web-shell/shell-swit
  * whitespace would build a pathname the page refuses and mount nothing.
  */
 export default withWorkspaceRoute(function MobileFileExplorerScreen() {
+  useMobileTheme()
+
   // Through `firstParam`, as the tasks and agent-history switches do: expo-router answers a
   // repeated query key with an array, and a bare read puts it straight into the template, where
   // `String(['a','b'])` is `a,b` and `encodeURIComponent` makes it the single segment `a%2Cb` —

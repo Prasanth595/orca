@@ -1,3 +1,5 @@
+const sessionView = vi.hoisted(() => ({ load: vi.fn(async () => 'terminal') }))
+vi.mock('../storage/session-view-preferences', () => ({ loadDefaultSessionView: sessionView.load }))
 import { createElement } from 'react'
 import { AGENT_LAUNCH_PLACEMENT_RUNTIME_CAPABILITY } from '../../../src/shared/agent-launch-runtime-capability'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
@@ -179,6 +181,19 @@ function awaitingReply(surface: Record<string, unknown>): unknown {
 }
 
 describe('the + menu', () => {
+  it.each(['chat', 'terminal'])(
+    'passes the device %s preference to the host launch',
+    async (view) => {
+      sessionView.load.mockResolvedValueOnce(view)
+      const { client, sendRequest } = scriptedClient(
+        launchReply({ kind: 'structured', sessionId: 'chat-1', handle: 'h' })
+      )
+      await create_(scope(client), 'claude')
+      expect(launchParams(sendRequest)).toMatchObject({ nativeChatDefault: view === 'chat' })
+      expect(methods(sendRequest)).toEqual(['agent.launchReplay'])
+    }
+  )
+
   it('asks the host to start the agent and waits for its terminal by handle', async () => {
     const { client, sendRequest } = scriptedClient(
       launchReply({ kind: 'terminal', handle: 'term_7' })

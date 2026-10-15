@@ -1,3 +1,4 @@
+import { forgetHostChatCheckpoints } from '../cache/mobile-chat-checkpoint-registry'
 import {
   deleteHostPageCache,
   forgetHostUpdateFailures
@@ -21,6 +22,7 @@ export async function removeHostAndCloseClient(
     restorePushRegistration()
     throw error
   }
+  void forgetHostChatCheckpoints(hostId).catch(() => undefined)
   forgetHostClient(hostId)
   forgetHostDescriptor(hostId)
   // Why after the commit and not awaited: state about a host that is gone, never a reason to hold

@@ -1,3 +1,4 @@
+import { useMobileTheme } from '../../../src/theme/use-mobile-theme'
 import { useLocalSearchParams } from 'expo-router'
 import { MobileWebShellScreen } from '../../../src/mobile-web-shell/MobileWebShellScreen'
 import { shellScreenRoute } from '../../../src/mobile-web-shell/shell-screen-route'
@@ -13,6 +14,8 @@ import { MobileTasksScreen } from '../../../src/tasks/MobileTasksScreen'
  * its own URL before the first render.
  */
 export default function MobileTasksRoute() {
+  useMobileTheme()
+
   // Through `firstParam`, as the agent-history switch does: expo-router hands back an array for a
   // repeated query key, and a bare read builds `/h/host-a%2Chost-b/tasks` out of one.
   const params = useLocalSearchParams<{

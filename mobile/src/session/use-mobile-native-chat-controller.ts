@@ -177,7 +177,7 @@ export function useMobileNativeChatController(args: {
   // Every chat write gates on both: the lease proves the input floor is ours, and
   // `connState` collapses a render before the lease does on disconnect.
   const inputSendable = activeChatStructured
-    ? client != null && activeChatSessionId != null && connState === 'connected'
+    ? structuredNativeChat.writeReady
     : nativeChatInputLeaseReady && connState === 'connected'
 
   const {

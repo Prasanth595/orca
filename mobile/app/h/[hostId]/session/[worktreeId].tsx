@@ -1,3 +1,4 @@
+import { useMobileTheme } from '../../../../src/theme/use-mobile-theme'
 import { withWorkspaceRoute } from '../../../../src/navigation/workspace-route'
 import {
   useWorkspaceExecutionHost,
@@ -31,6 +32,8 @@ import { shellSwitchDecision } from '../../../../src/mobile-web-shell/shell-swit
  * later `init` can replay a spent tap.
  */
 export default withWorkspaceRoute(function MobileSessionScreen() {
+  useMobileTheme()
+
   // Through `firstParam` on every param, as every switch does: expo-router answers a repeated query
   // key with an array, and a bare read puts `String(['a','b'])` into the template, where
   // `encodeURIComponent` makes it the single segment `a%2Cb` — which the bridge's segment rule

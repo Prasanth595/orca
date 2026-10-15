@@ -1,3 +1,4 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
 import { Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { hostScreenStyles as styles } from './host-screen-styles'
@@ -7,6 +8,8 @@ import { HostWorkspaceList } from './host-workspace-list'
 import type { HostScreenController } from './use-host-screen-controller'
 
 export function HostScreenView({ controller }: { controller: HostScreenController }) {
+  useMobileTheme()
+
   if (controller.state.error) {
     return (
       <View style={styles.centered}>

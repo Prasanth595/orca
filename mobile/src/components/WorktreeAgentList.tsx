@@ -1,3 +1,4 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
 import { useMemo, useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 import type { RuntimeWorktreeAgentRow } from '../../../src/shared/runtime-types'
@@ -15,6 +16,8 @@ type Props = {
 // a depth-indented WorktreeAgentRow per agent, mirroring the desktop sidebar's
 // WorktreeCardAgents.
 export function WorktreeAgentList({ agents, now, unvisited }: Props) {
+  useMobileTheme()
+
   const nodes = useMemo(() => flattenAgentRowLineage(agents), [agents])
   const summaryAgents = useMemo(() => {
     const lineage = buildAgentRowLineageTree(agents)

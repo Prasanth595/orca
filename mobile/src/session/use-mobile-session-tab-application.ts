@@ -1,3 +1,4 @@
+import { reconcileMobileChatCheckpoints } from './mobile-chat-checkpoint-cleanup'
 import {
   pendingSelectionHandle,
   pendingSelectionTabId,
@@ -91,6 +92,9 @@ export function useMobileSessionTabApplication(scope: MobileSessionTerminalListM
       reconcileBufferedDraftsRef.current(currentSessionTabs, nextTabs, {
         retainMissingSurfaces: result.tabs.length === 0
       })
+      if (clientRef.current) {
+        reconcileMobileChatCheckpoints(clientRef.current, scope.hostId, scope.worktreeId, nextTabs)
+      }
       sessionTabsRef.current = nextTabs
       initialSessionAutoCreateRef.current.sawSessionTabs ||= nextTabs.length > 0
       // Why: subscribe snapshots often repeat identical payloads; skip re-set to avoid a subscription teardown/replay loop.

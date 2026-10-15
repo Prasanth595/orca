@@ -1,3 +1,4 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
 import { MobileSelectableText as Text } from '../components/MobileSelectableText'
 import { memo, useCallback, useContext, useState } from 'react'
 import { Image, Text as NativeText, View } from 'react-native'
@@ -66,7 +67,21 @@ function Prose({
   /** Android only: routes a long press on a link span to the row's actions sheet. */
   onLongPress?: () => void
 }): React.JSX.Element | null {
+  useMobileTheme()
+
   if (isTextBlock(block)) {
+    if (block.presentation === 'compaction') {
+      return (
+        <View style={styles.compaction} accessible accessibilityLabel={block.text}>
+          <View style={styles.compactionLine} />
+          <NativeText style={[styles.compactionLabel, { fontSize: TEXT_SIZE * 0.9 * fontScale }]}>
+            {block.text}
+          </NativeText>
+          <View style={styles.compactionLine} />
+        </View>
+      )
+    }
+
     // A host line standing in for a message too large to send, on the person's own row.
     if (isAgentSessionHostStatusPresentation(block.presentation)) {
       return (
@@ -184,6 +199,8 @@ function MobileNativeChatMessageImpl({
   subagentGroupsOpen?: ReadonlySet<string>
   onToggleSubagentGroup?: (groupId: string) => void
 }): React.JSX.Element {
+  useMobileTheme()
+
   // Another agent's message is set apart from the person's bubble, left-aligned and named.
   const attribution = agentMessageAttribution('Message from', message.from)
   const isUser = message.role === 'user' && attribution === null

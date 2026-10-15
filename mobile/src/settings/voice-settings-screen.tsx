@@ -1,3 +1,4 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
 import { useCallback, useRef, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, Switch, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -32,6 +33,8 @@ export default function VoiceSettingsScreen({
   focused: boolean
   onBack: () => void
 }): React.JSX.Element {
+  useMobileTheme()
+
   const insets = useSafeAreaInsets()
   const [setup, setSetup] = useState<MobileSpeechSetup | null>(null)
   const [loading, setLoading] = useState(true)

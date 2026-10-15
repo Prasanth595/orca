@@ -1,3 +1,5 @@
+import { createThemedStyles } from '../theme/mobile-themed-styles'
+import { useMobileTheme } from '../theme/use-mobile-theme'
 import { memo } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import type { RuntimeWorktreeAgentRow } from '../../../src/shared/runtime-types'
@@ -26,6 +28,8 @@ type Props = {
 // One inline agent row: state dot → identity → last message/prompt → time ago.
 // Mirrors desktop DashboardAgentRow's compact in-card layout.
 function WorktreeAgentRowComponent({ agent, depth, now, unvisited }: Props) {
+  useMobileTheme()
+
   const dotState = agentDotState(agent, now)
   // A visual line renders only in the transcript; the row shows the words around it, and a reply
   // that is only a visual falls back like an empty one.
@@ -54,24 +58,26 @@ function WorktreeAgentRowComponent({ agent, depth, now, unvisited }: Props) {
 
 export const WorktreeAgentRow = memo(WorktreeAgentRowComponent)
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    marginTop: 3
-  },
-  label: {
-    flex: 1,
-    fontSize: 11,
-    color: colors.textMuted
-  },
-  labelUnvisited: {
-    color: colors.textPrimary,
-    fontWeight: '600'
-  },
-  time: {
-    fontSize: 10,
-    color: colors.textMuted
-  }
-})
+const styles = createThemedStyles(() =>
+  StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      marginTop: 3
+    },
+    label: {
+      flex: 1,
+      fontSize: 11,
+      color: colors.textMuted
+    },
+    labelUnvisited: {
+      color: colors.textPrimary,
+      fontWeight: '600'
+    },
+    time: {
+      fontSize: 10,
+      color: colors.textMuted
+    }
+  })
+)

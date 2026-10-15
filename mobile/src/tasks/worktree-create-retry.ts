@@ -1,3 +1,4 @@
+import { loadDefaultSessionView } from '../storage/session-view-preferences'
 import type { TuiAgent } from '../../../src/shared/tui-agent'
 import type { RpcClient } from '../transport/rpc-client'
 import type { RpcResponse } from '../transport/types'
@@ -71,6 +72,7 @@ export async function createWorktreeWithNameRetry(
   // Why: the route must settle before the first create, so a name-collision retry cannot land on
   // a different method than the attempt it replaces.
   let launch = await resolveAgentLaunchRoute(args.agentLaunch)
+  const nativeChatDefault = launch ? (await loadDefaultSessionView()) === 'chat' : undefined
   const maxAttempts = args.maxAttempts ?? CLIENT_WORKTREE_CREATE_MAX_ATTEMPTS
   const mintMutationId = args.mintMutationId ?? defaultWorktreeCreateMutationId
   const mintLaunchOperationId = args.mintLaunchOperationId ?? structuredSessionOperationId
@@ -93,7 +95,8 @@ export async function createWorktreeWithNameRetry(
       launch?.agent ?? null,
       launchOperationId,
       params,
-      worktreeCreateIdempotency
+      worktreeCreateIdempotency,
+      nativeChatDefault
     )
     let response = sent.response
     if (
@@ -190,7 +193,8 @@ function sendWorktreeCreateResilient(
   launchAgent: TuiAgent | null,
   launchOperationId: string | null,
   params: WorkspaceCreateParams,
-  worktreeCreateIdempotency: WorktreeCreateIdempotencySupport | false
+  worktreeCreateIdempotency: WorktreeCreateIdempotencySupport | false,
+  nativeChatDefault?: boolean
 ): Promise<{ response: RpcResponse; replayed: boolean }> {
   // Only the selected method's receipt can authorize replay after an ambiguous delivery.
   const replay: AmbiguousDeliveryReplay | null = launchAgent
@@ -208,14 +212,14 @@ function sendWorktreeCreateResilient(
           ? agentLaunchReplayRun.request(
               client,
               {
-                ...agentLaunchCreateParams(launchAgent, params),
+                ...agentLaunchCreateParams(launchAgent, params, undefined, nativeChatDefault),
                 operationId: launchOperationId
               },
               { timeoutMs: WORKTREE_CREATE_TIMEOUT_MS }
             )
           : agentLaunchRun.request(
               client,
-              agentLaunchCreateParams(launchAgent, params, launchOperationId),
+              agentLaunchCreateParams(launchAgent, params, launchOperationId, nativeChatDefault),
               { timeoutMs: WORKTREE_CREATE_TIMEOUT_MS }
             )
         : worktreeCreateRun.request(client, params, {

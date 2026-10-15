@@ -1,3 +1,4 @@
+import { useMobileTheme } from '../../../src/theme/use-mobile-theme'
 import { useEffect, useState, useCallback } from 'react'
 import {
   View,
@@ -36,6 +37,8 @@ import { CodexResetCreditAction } from '../../../src/components/CodexResetCredit
 import { useCodexResetCreditAction } from '../../../src/components/use-codex-reset-credit-action'
 
 export default function AccountsScreen() {
+  useMobileTheme()
+
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { hostId } = useLocalSearchParams<{ hostId: string }>()

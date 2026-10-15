@@ -18,6 +18,7 @@ export function compiledOperationModule(file: string, source: string, exposure: 
     return cached.evaluate
   }
   const output = ts.transpileModule(source, {
+    fileName: file,
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
       target: ts.ScriptTarget.ES2022,

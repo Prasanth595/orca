@@ -1,3 +1,4 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native'
 import { MessageSquare } from 'lucide-react-native'
 import type { MobileOnboardingStep } from './mobile-onboarding-plan'
@@ -28,6 +29,8 @@ export function MobileOnboardingPage({
   onSessionChoice,
   onNotificationChoice
 }: Props) {
+  useMobileTheme()
+
   const busy = busyChoice !== null
   const isSessionView = step === 'session-view'
 
@@ -92,6 +95,8 @@ function SessionViewChoices({
   disabled: boolean
   onChoice: (view: MobileSessionView) => void
 }) {
+  useMobileTheme()
+
   return (
     <>
       <ChoiceButton
@@ -122,6 +127,8 @@ function NotificationChoices({
   disabled: boolean
   onChoice: (choice: NotificationOnboardingChoice) => void
 }) {
+  useMobileTheme()
+
   return (
     <>
       <ChoiceButton
@@ -158,6 +165,8 @@ function ChoiceButton({
   disabled: boolean
   onPress: () => void
 }) {
+  useMobileTheme()
+
   return (
     <Pressable
       accessibilityRole="button"

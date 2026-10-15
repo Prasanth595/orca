@@ -51,3 +51,6 @@ export function reduceMobileQueuedMessageFeed(
   // on publication order.
   return [...list].sort((left, right) => left.position - right.position)
 }
+
+export type QueuedFeed = { messages: MobileQueuedMessageFeed; pause: MobileQueuePause }
+export const NO_QUEUED_FEED: QueuedFeed = { messages: null, pause: null }

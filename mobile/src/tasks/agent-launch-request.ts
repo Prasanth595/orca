@@ -63,10 +63,12 @@ export type AgentLaunchCreateOutcome = {
 export function agentLaunchCreateParams(
   agent: TuiAgent,
   create: WorkspaceCreateParams,
-  operationId?: string | null
+  operationId?: string | null,
+  nativeChatDefault?: boolean
 ): RpcSendParams<'agent.launch'> {
   return {
     agent,
+    ...(nativeChatDefault !== undefined ? { nativeChatDefault } : {}),
     ...(operationId ? { operationId } : {}),
     target: { kind: 'create-worktree', create: withoutReservedAgentCreateFields(create) }
   }
@@ -86,9 +88,11 @@ export function agentLaunchExistingParams(args: {
   paneKey?: string
   sessionId?: string
   placement?: AgentLaunchPlacement
+  nativeChatDefault?: boolean
 }): RpcSendParams<'agent.launchReplay'> {
   return {
     agent: args.agent,
+    ...(args.nativeChatDefault !== undefined ? { nativeChatDefault: args.nativeChatDefault } : {}),
     operationId: args.operationId,
     target: { kind: 'existing', worktree: `id:${args.worktreeId}` },
     ...(args.prompt ? { prompt: args.prompt } : {}),

@@ -1,3 +1,4 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
 import { openExternalLink } from '../platform/external-link'
 import { Pressable, Text, View } from 'react-native'
 import { Check, Moon } from 'lucide-react-native'
@@ -21,6 +22,8 @@ import { hostScreenStyles as styles } from './host-screen-styles'
 import type { HostScreenController } from './use-host-screen-controller'
 
 export function HostScreenOverlays({ controller }: { controller: HostScreenController }) {
+  useMobileTheme()
+
   const {
     actions,
     catalog,

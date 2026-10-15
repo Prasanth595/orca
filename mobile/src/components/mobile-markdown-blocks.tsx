@@ -1,3 +1,4 @@
+import { MobileMarkdownCodeBlock } from './MobileMarkdownCodeBlock'
 import type { Code, List, RootContent, Table } from 'mdast'
 import { Fragment, type ReactNode } from 'react'
 import {
@@ -31,6 +32,8 @@ const MAX_NESTING = 8
 export type MarkdownBlockContext = MarkdownInlineContext & {
   /** The text is still arriving: a diagram stays code until it stops. */
   growing: boolean
+  codeSelectable: boolean
+  textScale: number
   listText: StyleProp<TextStyle>
   /** Interactive children own their touches and must forward the row action. */
   rowLongPress?: () => void
@@ -54,12 +57,14 @@ function renderCode(node: Code, key: number, ctx: MarkdownBlockContext): ReactNo
     )
   }
   return (
-    <View key={key} style={styles.codeBlock}>
-      {node.lang ? <NativeText style={styles.codeLanguage}>{node.lang}</NativeText> : null}
-      <MarkdownText selectable style={styles.codeText}>
-        {node.value}
-      </MarkdownText>
-    </View>
+    <MobileMarkdownCodeBlock
+      key={key}
+      code={node.value}
+      selectable={ctx.codeSelectable}
+      language={node.lang ?? undefined}
+      fontSize={12 * ctx.textScale}
+      lineHeight={17 * ctx.textScale}
+    />
   )
 }
 
@@ -105,7 +110,12 @@ function renderTable(node: Table, key: number, ctx: MarkdownBlockContext): React
                 style={[
                   styles.tableCell,
                   rowIndex === 0 ? styles.tableHeader : null,
-                  { width, textAlign: node.align?.[cellIndex] ?? 'left' }
+                  {
+                    width,
+                    textAlign: node.align?.[cellIndex] ?? 'left',
+                    fontSize: 12 * ctx.textScale,
+                    lineHeight: 18 * ctx.textScale
+                  }
                 ]}
               >
                 {renderInline(cells[cellIndex]?.children ?? [], ctx)}
@@ -164,7 +174,7 @@ function renderBlock(
       }
       return (
         <MarkdownText key={key} selectable={text.selectable} style={text.style}>
-          {renderInline(node.children, ctx)}
+          {renderInline(node.children, ctx, text.style)}
         </MarkdownText>
       )
     }
@@ -173,7 +183,14 @@ function renderBlock(
         <MarkdownText
           key={key}
           selectable
-          style={[styles.heading, node.depth <= 2 ? styles.headingLarge : null]}
+          style={[
+            styles.heading,
+            node.depth <= 2 ? styles.headingLarge : null,
+            {
+              fontSize: (node.depth <= 2 ? 17 : 15) * ctx.textScale,
+              lineHeight: (node.depth <= 2 ? 23 : 21) * ctx.textScale
+            }
+          ]}
         >
           {renderInline(node.children, ctx)}
         </MarkdownText>
@@ -184,7 +201,13 @@ function renderBlock(
           {renderBlocks(
             node.children,
             ctx,
-            { style: styles.quoteText, selectable: true },
+            {
+              style: [
+                styles.quoteText,
+                { fontSize: 13 * ctx.textScale, lineHeight: 19 * ctx.textScale }
+              ],
+              selectable: true
+            },
             depth + 1
           )}
         </View>

@@ -1,3 +1,11 @@
+import type {
+  MobileStructuredAgentStateArgs,
+  MobileStructuredAgentState
+} from './mobile-structured-agent-state-contract'
+import { openTranscriptAfterHold, isSubscribeEvent } from './mobile-structured-chat-subscription'
+import { structuredChatCache } from './mobile-chat-transcript-cache'
+import { useMobileChatCheckpoint } from './use-mobile-chat-checkpoint'
+import { reduceMobileChatHistory, type MobileChatHistoryState } from './mobile-chat-history-window'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { AgentJournalCursor } from '../../../src/shared/agent-session-journal-types'
 import { isRootAgentJournalItem } from '../../../src/shared/agent-session-journal-producer'
@@ -11,25 +19,19 @@ import { structuredAgentSessionHolderId } from '../../../src/shared/structured-a
 import {
   EMPTY_STRUCTURED_AGENT_SESSION,
   oldestStructuredAgentSessionCursor,
-  reduceStructuredAgentSession,
-  type StructuredAgentSessionAction,
-  type StructuredAgentSessionState
+  type StructuredAgentSessionAction
 } from '../../../src/shared/structured-agent-session-reducer'
-import type { RpcClient } from '../transport/rpc-client'
 import {
   agentSessionReadFailureRefusal,
   agentSessionReadFailureText,
   callAgentSession
 } from './mobile-structured-agent-session-rpc'
 import {
+  NO_QUEUED_FEED,
   reduceMobileQueuePause,
-  reduceMobileQueuedMessageFeed,
-  type MobileQueuedMessageFeed,
-  type MobileQueuePause
+  type QueuedFeed,
+  reduceMobileQueuedMessageFeed
 } from './mobile-structured-queued-message-feed'
-
-type QueuedFeed = { messages: MobileQueuedMessageFeed; pause: MobileQueuePause }
-const NO_QUEUED_FEED: QueuedFeed = { messages: null, pause: null }
 
 const MAX_RETAINED_SESSION_STATES = 32
 /** Bounded so a busy stream cannot turn one Load-earlier tap into an endless read chain. */
@@ -37,69 +39,28 @@ const OLDER_PAGE_ANCHOR_ATTEMPTS = 3
 /** Bounds the pages one Load-earlier reads past that hold only subagent rows. */
 const OLDER_PAGES_PER_LOAD = 8
 
-/**
- * Opens the transcript stream once the hold settles, either way: a refused hold is an older host
- * saying it could not start the agent — which the next send does — never a reason to hide the
- * transcript. Returns what ends the stream, opened or not yet. Outside the effect so its cleanup
- * rule can see the stream is owned.
- */
-function openTranscriptAfterHold(
-  client: RpcClient,
-  sessionId: string,
-  held: Promise<unknown>,
-  onFrame: (raw: unknown) => void
-): () => void {
-  let ended = false
-  let close = (): void => {}
-  void held
-    .catch(() => undefined)
-    .then(() => {
-      if (!ended) {
-        close = client.subscribe('agentSession.subscribe', { sessionId }, onFrame)
-      }
-    })
-  return () => {
-    ended = true
-    close()
-  }
-}
-
-function isSubscribeEvent(value: unknown): value is AgentSessionSubscribeEvent {
-  if (typeof value !== 'object' || value === null) {
-    return false
-  }
-  const type = (value as { type?: unknown }).type
-  return type === 'snapshot' || type === 'batch' || type === 'reset' || type === 'end'
-}
-
-export function useMobileStructuredAgentState(args: {
-  client: RpcClient | null
-  sessionId: string | null
-  sessionKey: string | null
-  enabled: boolean
-  /** Live transport only. The hold dies with the connection and has to be retaken,
-   *  but the transcript must survive the outage rather than blank out with it. */
-  connected: boolean
-}): {
-  state: StructuredAgentSessionState
-  stateRef: { readonly current: StructuredAgentSessionState }
-  /** Host-held queued drafts from the live stream; null until the host claims any. */
-  queuedMessages: MobileQueuedMessageFeed
-  /** The whole queue's pause, published with the drafts. */
-  queuePause: MobileQueuePause
-  loadingOlder: boolean
-  loadEarlier: () => void
-} {
+export function useMobileStructuredAgentState(
+  args: MobileStructuredAgentStateArgs
+): MobileStructuredAgentState {
   const { client, connected, enabled, sessionId, sessionKey } = args
   // Keep a bounded cache so offline tab switches select the right transcript
   // synchronously without growing for the lifetime of the app.
-  const [sessionStates, setSessionStates] = useState<Map<string, StructuredAgentSessionState>>(
-    () => new Map()
-  )
+  const [sessionStates, setSessionStates] = useState<Map<string, MobileChatHistoryState>>(() => {
+    const cached = client && sessionKey ? structuredChatCache.get(client, sessionKey) : null
+    return new Map(cached && sessionKey ? [[sessionKey, cached]] : [])
+  })
   const [queuedBySession, setQueuedBySession] = useState<Map<string, QueuedFeed>>(() => new Map())
+  const cacheClient = useRef(client)
+  if (cacheClient.current !== client) {
+    cacheClient.current = client
+    setSessionStates(new Map())
+    setQueuedBySession(new Map())
+  }
   const state =
     enabled && sessionKey
-      ? (sessionStates.get(sessionKey) ?? EMPTY_STRUCTURED_AGENT_SESSION)
+      ? (sessionStates.get(sessionKey) ??
+        (client ? structuredChatCache.get(client, sessionKey) : null) ??
+        EMPTY_STRUCTURED_AGENT_SESSION)
       : EMPTY_STRUCTURED_AGENT_SESSION
   const queued =
     (enabled && sessionKey ? queuedBySession.get(sessionKey) : undefined) ?? NO_QUEUED_FEED
@@ -119,8 +80,11 @@ export function useMobileStructuredAgentState(args: {
         return
       }
       setSessionStates((current) => {
-        const previous = current.get(sessionKey) ?? EMPTY_STRUCTURED_AGENT_SESSION
-        const next = reduceStructuredAgentSession(previous, action, Date.now())
+        const previous =
+          current.get(sessionKey) ??
+          (client ? structuredChatCache.get(client, sessionKey) : null) ??
+          EMPTY_STRUCTURED_AGENT_SESSION
+        const next = reduceMobileChatHistory(previous, action)
         if (next === previous) {
           return current
         }
@@ -137,7 +101,7 @@ export function useMobileStructuredAgentState(args: {
         return updated
       })
     },
-    [sessionKey]
+    [client, sessionKey]
   )
   // The refusal rides beside its words, so the view can tell a failure no retry gets past.
   const applyReadFailure = useCallback(
@@ -192,23 +156,50 @@ export function useMobileStructuredAgentState(args: {
       // session's transcript visible while another tab can be selected.
       return
     }
+    let cancelled = false
+    void structuredChatCache.restore(client, sessionKey ?? '').then((cached) => {
+      if (!cancelled && cached) {
+        setSessionStates((previous) =>
+          previous.get(sessionKey ?? '')?.items.length ||
+          previous.get(sessionKey ?? '')?.fence != null
+            ? previous
+            : new Map(previous).set(sessionKey ?? '', cached)
+        )
+      }
+    })
+    setSessionStates((previous) => {
+      const next = new Map(previous)
+      const current = next.get(sessionKey ?? '')
+      if (current) {
+        next.set(sessionKey ?? '', { ...current, fence: null })
+      }
+      return next
+    })
     apply({ type: 'loading' })
     const holderId = structuredAgentSessionHolderId('mobile-chat')
     const held = callAgentSession(client, 'agentSession.hold', {
       sessionId,
       holderId
     })
-    const endStream = openTranscriptAfterHold(client, sessionId, held, (raw) => {
-      if (typeof raw === 'object' && raw !== null && 'type' in raw && raw.type === 'error') {
-        applyReadFailure(raw)
-        return
-      }
-      if (isSubscribeEvent(raw)) {
-        apply({ type: 'event', event: raw })
-        applyQueued(raw)
-      }
-    })
+    const resumeCursor = sessionStates.get(sessionKey ?? '')?.cursor
+    const endStream = openTranscriptAfterHold(
+      client,
+      sessionId,
+      held,
+      (raw) => {
+        if (typeof raw === 'object' && raw !== null && 'type' in raw && raw.type === 'error') {
+          applyReadFailure(raw)
+          return
+        }
+        if (isSubscribeEvent(raw)) {
+          apply({ type: 'event', event: raw })
+          applyQueued(raw)
+        }
+      },
+      resumeCursor
+    )
     return () => {
+      cancelled = true
       endStream()
       void held
         .then(() =>
@@ -226,6 +217,12 @@ export function useMobileStructuredAgentState(args: {
         .catch(() => undefined)
     }
   }, [apply, applyQueued, applyReadFailure, client, connected, enabled, sessionId, sessionKey])
+
+  useMobileChatCheckpoint(() => {
+    if (client && sessionKey && state.epoch) {
+      structuredChatCache.set(client, sessionKey, { ...state, fence: null })
+    }
+  })
 
   const loadEarlier = useCallback(() => {
     const current = stateRef.current

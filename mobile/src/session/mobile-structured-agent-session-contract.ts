@@ -15,6 +15,7 @@ import type { MobileStructuredBackgroundTasks } from './use-mobile-structured-ba
 export type StructuredMobileSession = ReturnType<typeof useMobileStructuredAgentOptions> &
   ReturnType<typeof useMobileStructuredAgentTurnTiming> & {
     session: MobileNativeChatSession
+    writeReady: boolean
     isWorking: boolean
     turnId: string | null
     /** What labels the live turn's one indicator row. */

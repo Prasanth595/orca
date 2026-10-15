@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
+import { MobileChatScrollPositions } from './mobile-chat-scroll-position'
+import { useCallback, useContext, useEffect, useRef, useState, type RefObject } from 'react'
 import {
   Platform,
   type FlatList,
@@ -71,6 +72,7 @@ export type MobileNativeChatTailFollow<TItem> = {
 export function useMobileNativeChatTailFollow<TItem>(args: {
   /** Guards `scrollToEnd` against an empty list. */
   hasItems: boolean
+  scopeKey?: string
 }): MobileNativeChatTailFollow<TItem> {
   const { hasItems } = args
   const listRef = useRef<FlatList<TItem> | null>(null)
@@ -85,6 +87,29 @@ export function useMobileNativeChatTailFollow<TItem>(args: {
   const pageOffsetRef = useRef(0)
   const pageContentHeightRef = useRef(0)
   const pageReaderMovedUpRef = useRef(false)
+
+  const positions = useContext(MobileChatScrollPositions)
+  const scope = useRef<string | undefined>(undefined)
+  const generation = useRef(0)
+  const offset = useRef(0)
+  const restoring = useRef<number | null>(null)
+  if (scope.current !== args.scopeKey) {
+    if (scope.current) {
+      positions?.set(scope.current, { offset: offset.current, following: followingRef.current })
+    }
+    const saved = args.scopeKey ? positions?.get(args.scopeKey) : undefined
+    scope.current = args.scopeKey
+    generation.current++
+    offset.current = saved?.offset ?? 0
+    restoring.current = saved && !saved.following ? saved.offset : null
+    followingRef.current = saved?.following ?? true
+    atTailRef.current = followingRef.current
+    userScrollActiveRef.current = false
+    setFollowingFlag(followingRef.current)
+    setAtTailFlag(atTailRef.current)
+  }
+  const current = generation.current
+  const isCurrent = () => generation.current === current
 
   // Single writer, so the event-time ref and the render flag cannot disagree.
   const setFollowing = useCallback((next: boolean) => {
@@ -104,6 +129,13 @@ export function useMobileNativeChatTailFollow<TItem>(args: {
   }, [])
 
   const pinToTail = useCallback(() => {
+    if (!isCurrent()) {
+      return
+    }
+    if (restoring.current !== null && hasItems) {
+      listRef.current?.scrollToOffset({ animated: false, offset: restoring.current })
+      return
+    }
     if (!followingRef.current || !hasItems) {
       return
     }
@@ -113,17 +145,24 @@ export function useMobileNativeChatTailFollow<TItem>(args: {
     }
     // Why not `scrollToEnd`: its estimate can land short, and the page reads a move up as the reader's.
     listRef.current?.scrollToOffset({ animated: false, offset: pageContentHeightRef.current })
-  }, [hasItems])
+  }, [hasItems, current])
 
   const pinToTailAfterContentResize = useCallback(
     (_width: number, height: number) => {
+      if (!isCurrent()) {
+        return
+      }
+      if (restoring.current !== null && hasItems) {
+        listRef.current?.scrollToOffset({ animated: false, offset: restoring.current })
+        return
+      }
       pageContentHeightRef.current = height
       if (!followingRef.current || !hasItems) {
         return
       }
       listRef.current?.scrollToOffset({ animated: false, offset: height })
     },
-    [hasItems]
+    [hasItems, current]
   )
 
   const clearUserScrollSettle = useCallback(() => {
@@ -135,6 +174,13 @@ export function useMobileNativeChatTailFollow<TItem>(args: {
 
   const recordScrollMetrics = useCallback(
     (event: NativeScrollEvent) => {
+      if (!isCurrent()) {
+        return
+      }
+      offset.current = event.contentOffset.y
+      if (restoring.current !== null && Math.abs(offset.current - restoring.current) < 2) {
+        restoring.current = null
+      }
       const endsAtTail = isAtTail(event)
       setAtTail(endsAtTail)
       if (listReportsGestures()) {
@@ -152,26 +198,34 @@ export function useMobileNativeChatTailFollow<TItem>(args: {
         setFollowing(true)
       }
     },
-    [setAtTail, setFollowing]
+    [setAtTail, setFollowing, current]
   )
 
   const jumpToTail = useCallback(() => {
+    if (!isCurrent()) {
+      return
+    }
+    restoring.current = null
     clearUserScrollSettle()
     userScrollActiveRef.current = false
     setAtTail(true)
     setFollowing(true)
     pinToTail()
-  }, [clearUserScrollSettle, pinToTail, setAtTail, setFollowing])
+  }, [clearUserScrollSettle, pinToTail, setAtTail, setFollowing, current])
 
   const beginUserScroll = useCallback(() => {
+    if (!isCurrent()) {
+      return
+    }
+    restoring.current = null
     clearUserScrollSettle()
     userScrollActiveRef.current = true
     setFollowing(false)
-  }, [clearUserScrollSettle, setFollowing])
+  }, [clearUserScrollSettle, setFollowing, current])
 
   const finishUserScroll = useCallback(
     (finishedAtTail: boolean) => {
-      if (!userScrollActiveRef.current) {
+      if (!isCurrent() || !userScrollActiveRef.current) {
         return
       }
       clearUserScrollSettle()
@@ -182,12 +236,12 @@ export function useMobileNativeChatTailFollow<TItem>(args: {
         pinToTail()
       }
     },
-    [clearUserScrollSettle, pinToTail, setAtTail, setFollowing]
+    [clearUserScrollSettle, pinToTail, setAtTail, setFollowing, current]
   )
 
   const endUserDrag = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (!userScrollActiveRef.current) {
+      if (!isCurrent() || !userScrollActiveRef.current) {
         return
       }
       clearUserScrollSettle()
@@ -217,7 +271,15 @@ export function useMobileNativeChatTailFollow<TItem>(args: {
     []
   )
 
-  useEffect(() => clearUserScrollSettle, [clearUserScrollSettle])
+  useEffect(() => {
+    const key = args.scopeKey
+    return () => {
+      clearUserScrollSettle()
+      if (key && scope.current === key) {
+        positions?.set(key, { offset: offset.current, following: followingRef.current })
+      }
+    }
+  }, [args.scopeKey, positions, clearUserScrollSettle])
 
   return {
     listRef,

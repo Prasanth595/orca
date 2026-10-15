@@ -1,3 +1,16 @@
+vi.mock('./MobileMarkdownCodeBlock', () => ({
+  MobileMarkdownCodeBlock: ({ code, language }: { code: string; language?: string }) =>
+    createElement(
+      'View',
+      null,
+      language ? createElement('Text', null, language) : null,
+      createElement('Text', null, code)
+    )
+}))
+vi.mock('../platform/clipboard', () => ({
+  useClipboardWriter: () => ({ writeText: async () => {} })
+}))
+vi.mock('lucide-react-native', () => ({ Check: 'Check', Copy: 'Copy' }))
 import { createElement } from 'react'
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, describe, expect, it, vi } from 'vitest'

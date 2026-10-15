@@ -1,3 +1,6 @@
+vi.mock('../storage/session-view-preferences', () => ({
+  loadDefaultSessionView: async () => 'chat'
+}))
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'

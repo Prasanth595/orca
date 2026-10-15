@@ -1,3 +1,5 @@
+import { createThemedStyles } from '../theme/mobile-themed-styles'
+import { useMobileTheme } from '../theme/use-mobile-theme'
 import { useEffect, useRef } from 'react'
 import { Animated, StyleSheet, Text, View } from 'react-native'
 import { colors, spacing, typography } from '../theme/mobile-theme'
@@ -5,6 +7,8 @@ import { colors, spacing, typography } from '../theme/mobile-theme'
 /** Animated three-dot "agent is working" row, shown while the active agent is
  *  still producing a reply. Pure presentation — visibility is the caller's call. */
 export function MobileAgentWorkingIndicator(): React.JSX.Element {
+  useMobileTheme()
+
   const dots = [
     useRef(new Animated.Value(0.3)).current,
     useRef(new Animated.Value(0.3)).current,
@@ -38,27 +42,29 @@ export function MobileAgentWorkingIndicator(): React.JSX.Element {
   )
 }
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm
-  },
-  label: {
-    color: colors.textMuted,
-    fontSize: typography.metaSize,
-    fontStyle: 'italic'
-  },
-  dots: {
-    flexDirection: 'row',
-    gap: 4
-  },
-  dot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: colors.textSecondary
-  }
-})
+const styles = createThemedStyles(() =>
+  StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm
+    },
+    label: {
+      color: colors.textMuted,
+      fontSize: typography.metaSize,
+      fontStyle: 'italic'
+    },
+    dots: {
+      flexDirection: 'row',
+      gap: 4
+    },
+    dot: {
+      width: 5,
+      height: 5,
+      borderRadius: 2.5,
+      backgroundColor: colors.textSecondary
+    }
+  })
+)

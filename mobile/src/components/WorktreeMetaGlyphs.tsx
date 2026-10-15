@@ -1,3 +1,5 @@
+import { createThemedStyles } from '../theme/mobile-themed-styles'
+import { useMobileTheme } from '../theme/use-mobile-theme'
 import { CircleDot, GitMerge, StickyNote } from 'lucide-react-native'
 import { StyleSheet, Text, View } from 'react-native'
 import { colors } from '../theme/mobile-theme'
@@ -29,6 +31,8 @@ export function WorktreeMetaGlyphs({
   linkedIssue,
   linkedGitLabIssue
 }: Props) {
+  useMobileTheme()
+
   const hasNotes = (comment ?? '').trim().length > 0
   const hasLinear = Boolean(linkedLinearIssue)
   const hasGitLabMR = linkedGitLabMR != null
@@ -46,16 +50,18 @@ export function WorktreeMetaGlyphs({
   )
 }
 
-const styles = StyleSheet.create({
-  metaGlyphs: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginLeft: 2
-  },
-  linearGlyph: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.textMuted
-  }
-})
+const styles = createThemedStyles(() =>
+  StyleSheet.create({
+    metaGlyphs: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      marginLeft: 2
+    },
+    linearGlyph: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.textMuted
+    }
+  })
+)

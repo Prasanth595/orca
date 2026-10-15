@@ -4,7 +4,7 @@
   "family": "session.create-terminal",
   "namedDeltas": [],
   "values": {
-    "0dec6eece95b": {
+    "1a2e3136a126": {
       "name": "agent.launchReplay#1",
       "ordinal": 1,
       "args": [
@@ -16,6 +16,7 @@
           "name": "params",
           "value": {
             "agent": "claude",
+            "nativeChatDefault": true,
             "operationId": "1767225600000-00000000000040008000000000000004",
             "paneKey": "00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000002",
             "sessionId": "claude_00000000_0000_4000_8000_000000000003",
@@ -56,10 +57,10 @@
         }
       }
     },
-    "4e536fd51d5d": {
+    "4a3e1bf282b6": {
       "name": "agent.launchReplay#1",
       "ordinal": 2,
-      "json": "{\"id\":\"frame-1\",\"deviceToken\":\"recording-device\",\"method\":\"agent.launchReplay\",\"params\":{\"agent\":\"claude\",\"operationId\":\"1767225600000-00000000000040008000000000000004\",\"target\":{\"kind\":\"existing\",\"worktree\":\"id:wt-1\"},\"paneKey\":\"00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000002\",\"sessionId\":\"claude_00000000_0000_4000_8000_000000000003\"}}"
+      "json": "{\"id\":\"frame-1\",\"deviceToken\":\"recording-device\",\"method\":\"agent.launchReplay\",\"params\":{\"agent\":\"claude\",\"nativeChatDefault\":true,\"operationId\":\"1767225600000-00000000000040008000000000000004\",\"target\":{\"kind\":\"existing\",\"worktree\":\"id:wt-1\"},\"paneKey\":\"00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000002\",\"sessionId\":\"claude_00000000_0000_4000_8000_000000000003\"}}"
     },
     "58c784334dd1": {
       "activeHandle": "terminal-0",
@@ -94,7 +95,7 @@
       "status": "pending",
       "startedAt": 0
     },
-    "c7778ace6ed5": {
+    "c0685e56c58a": {
       "name": "agent.launchReplay#1",
       "ordinal": 1,
       "args": [
@@ -106,6 +107,7 @@
           "name": "params",
           "value": {
             "agent": "claude",
+            "nativeChatDefault": true,
             "operationId": "1767225600000-00000000000040008000000000000004",
             "paneKey": "00000000-0000-4000-8000-000000000001:00000000-0000-4000-8000-000000000002",
             "sessionId": "claude_00000000_0000_4000_8000_000000000003",
@@ -168,8 +170,8 @@
       {
         "id": "creating",
         "observation": {
-          "sender": ["c7778ace6ed5"],
-          "payloads": ["4e536fd51d5d"],
+          "sender": ["c0685e56c58a"],
+          "payloads": ["4a3e1bf282b6"],
           "settlements": {
             "mount": "eb79a9b3682a",
             "create": "9270aeb7d9c6"
@@ -181,8 +183,8 @@
       {
         "id": "launched",
         "observation": {
-          "sender": ["0dec6eece95b"],
-          "payloads": ["4e536fd51d5d"],
+          "sender": ["1a2e3136a126"],
+          "payloads": ["4a3e1bf282b6"],
           "settlements": {
             "mount": "eb79a9b3682a",
             "create": "eb79a9b3682a"
@@ -194,8 +196,8 @@
       {
         "id": "tabs-refreshed",
         "observation": {
-          "sender": ["0dec6eece95b"],
-          "payloads": ["4e536fd51d5d"],
+          "sender": ["1a2e3136a126"],
+          "payloads": ["4a3e1bf282b6"],
           "settlements": {
             "mount": "eb79a9b3682a",
             "create": "eb79a9b3682a"
