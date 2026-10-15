@@ -73,6 +73,8 @@ export async function prepareStructuredChatCliFork(
     record.location.workspaceId !== args.sourceChat.workspaceId ||
     record.location.executionHostId !== LOCAL_EXECUTION_HOST_ID ||
     record.location.wslDistro !== null ||
+    // A typed locator has no CODEX_HOME path; forking would silently use the default account.
+    (record.provider === 'codex' && !isLegacyAgentSessionAccountHome(record.accountHome)) ||
     !isAiVaultAgent(record.provider) ||
     !agentForksConversations(record.provider)
   ) {
