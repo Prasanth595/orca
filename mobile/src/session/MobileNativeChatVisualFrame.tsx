@@ -140,6 +140,10 @@ export const MobileNativeChatVisualFrame = memo(function MobileNativeChatVisualF
         }
         return
       }
+      // The WebView scrolls the list natively; a reader-scroll report has no host-side meaning here.
+      if (message.kind !== 'open-link') {
+        return
+      }
       const now = Date.now()
       if (now - lastLinkAt.current < MOBILE_NATIVE_CHAT_VISUAL_LINK_INTERVAL_MS) {
         return
