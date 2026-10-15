@@ -105,4 +105,29 @@ describe('Linear issue context', () => {
     })
     expect(getClients).toHaveBeenCalledWith('workspace-stably')
   })
+  it('does not mark null parent or empty labels complete on a GraphQL partial response', async () => {
+    const stably = workspace('workspace-stably', 'stably')
+    const rawRequest = vi.fn().mockResolvedValue({
+      data: {
+        issue: {
+          ...rawIssue('STA-335'),
+          parent: null,
+          labels: { nodes: [], pageInfo: { hasNextPage: false } }
+        }
+      },
+      errors: [{ message: 'parent unavailable' }]
+    })
+    getStatus.mockReturnValue({ workspaces: [stably] })
+    getClients.mockReturnValue([makeEntry({ workspace: stably, rawRequest })])
+    const { resolveIssue } = await import('./issue-context-client')
+    await expect(resolveIssue('STA-335', { workspaceId: stably.id })).resolves.toMatchObject({
+      issue: {
+        identifier: 'STA-335',
+        parent: null,
+        labels: [],
+        parentComplete: false,
+        labelsComplete: false
+      }
+    })
+  })
 })

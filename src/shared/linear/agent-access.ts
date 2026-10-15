@@ -39,6 +39,12 @@ export const LINEAR_ERROR_CODES = [
 
 export type LinearErrorCode = (typeof LINEAR_ERROR_CODES)[number]
 
+export type LinearRetryMetadata = {
+  retryAfterSeconds?: number
+  requestsResetAtMs?: number
+  complexityResetAtMs?: number
+}
+
 export type LinearIssueInclude = 'comments' | 'children' | 'attachments' | 'relations' | 'activity'
 
 export type LinearIncludeErrorCode =

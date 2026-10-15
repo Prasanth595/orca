@@ -1,3 +1,8 @@
+import { readLinearDocumentContent, readLinearProjectContent } from '../linear/linear-content-read'
+import type {
+  LinearContentReadRequest,
+  LinearProjectReadRequest
+} from '../../shared/linear/context-read'
 import type { LinearCustomViewModel } from '../../shared/linear/project-types'
 import type { LinearWorkspaceSelection } from '../../shared/linear/workspace-types'
 import { clampLinearIssueListLimit } from '../../shared/linear/issue-read-limits'
@@ -16,6 +21,18 @@ import {
 import { getTeamLabels, getTeamMembers, getTeamStates, listTeams } from '../linear/teams'
 
 export class RuntimeLinearBrowseCommands {
+  linearDocumentReadForAgents(
+    params: LinearContentReadRequest
+  ): ReturnType<typeof readLinearDocumentContent> {
+    return readLinearDocumentContent(params)
+  }
+
+  linearProjectReadForAgents(
+    params: LinearProjectReadRequest
+  ): ReturnType<typeof readLinearProjectContent> {
+    return readLinearProjectContent(params)
+  }
+
   linearIssueComments(issueId: string, workspaceId?: string): ReturnType<typeof getIssueComments> {
     return getIssueComments(issueId, workspaceId)
   }

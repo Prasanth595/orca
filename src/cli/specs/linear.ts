@@ -5,6 +5,26 @@ import { LINEAR_MCP_COMMAND_SPECS } from './linear-mcp'
 export const LINEAR_COMMAND_SPECS: CommandSpec[] = [
   ...LINEAR_MCP_COMMAND_SPECS,
   {
+    path: ['linear', 'project', 'get'],
+    summary: 'Read project content and optionally its full documents',
+    usage: 'orca linear project get <id> --workspace <uuid> [--full] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'id', 'workspace', 'full'],
+    positionalArgs: ['id'],
+    notes: [
+      'Requires a concrete workspace and project UUID. --full reads up to 20 document bodies; check meta.partial and sections.documents for completeness.'
+    ]
+  },
+  {
+    path: ['linear', 'document', 'get'],
+    summary: 'Read a Linear document body',
+    usage: 'orca linear document get <id-or-slug> --workspace <uuid> [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'id', 'workspace'],
+    positionalArgs: ['id'],
+    notes: [
+      'Requires a concrete workspace UUID. Missing content is not treated as an empty document.'
+    ]
+  },
+  {
     path: ['linear', 'issue'],
     summary: 'Read Linear issue context for agents',
     usage:
@@ -27,6 +47,9 @@ export const LINEAR_COMMAND_SPECS: CommandSpec[] = [
       'orca linear issue ENG-123',
       'orca linear issue --current --comments',
       'orca linear issue https://linear.app/acme/issue/ENG-123 --full --json'
+    ],
+    notes: [
+      'parentComplete and labelsComplete identify fully fetched fields. A null parent with parentComplete=true means no parent; absent completeness fields from older runtimes mean unknown.'
     ]
   },
   {

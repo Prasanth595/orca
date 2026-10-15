@@ -1,3 +1,4 @@
+import { LinearParentIdentity, type LinearParent } from '../../shared/linear/context-read'
 import type {
   LinearCollectionMeta,
   LinearIssueSummary,
@@ -16,6 +17,7 @@ export type RawIssue = {
   title: string
   url: string
   description?: string | null
+  parent?: LinearParent | null
   priority?: number | null
   estimate?: number | null
   dueDate?: string | null
@@ -123,6 +125,7 @@ export const ISSUE_FIELDS = `
   updatedAt
   state { id name type color }
   team { id name key color }
+  parent { id identifier url team { id key } }
   project { id name color }
   cycle { id name }
   assignee { id displayName avatarUrl }
@@ -221,7 +224,12 @@ export const INVERSE_RELATIONS_QUERY = `
 `
 
 export function mapIssue(issue: RawIssue): LinearIssueSummary {
+  const parent = LinearParentIdentity.nullable().safeParse(issue.parent)
   return {
+    ...(parent.success ? { parent: parent.data } : {}),
+    parentComplete: parent.success,
+    labelsComplete:
+      Array.isArray(issue.labels?.nodes) && issue.labels?.pageInfo?.hasNextPage === false,
     id: issue.id,
     identifier: issue.identifier,
     title: issue.title,
