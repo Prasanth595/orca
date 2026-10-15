@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
 import {
   AlertCircle,
   ChevronDown,
@@ -17,10 +17,10 @@ import { colors, radii, spacing, typography } from '../theme/mobile-theme'
 import type { MobileQueuedMessageCard } from './mobile-structured-queued-message-cards'
 import type { MobileQueuePause } from './mobile-structured-queued-message-feed'
 import type { MobileQueuedMessageEdit } from './use-mobile-structured-queued-message-controls'
+import { MobileQueuedCardText } from './MobileQueuedCardText'
 
-/** The header's in-flight keys beside the cards' message ids, which never contain NUL. */
-const RESUME_KEY = '\u0000resume'
-const CLEAR_KEY = '\u0000clear'
+/** Held by Resume and Clear all, so each refuses the other; message ids never contain NUL. */
+const QUEUE_KEY = '\u0000queue'
 
 export type MobileNativeChatQueuedMessagesProps = {
   cards?: MobileQueuedMessageCard[]
@@ -50,8 +50,8 @@ export function MobileNativeChatQueuedMessages({
   onResume,
   steerHeld = false
 }: MobileNativeChatQueuedMessagesProps): React.JSX.Element | null {
-  // One in-flight action per card; a second tap must not double-consume. The ref
-  // closes the same-frame double tap the disabled state cannot.
+  // One in-flight action per control, drawn as busy until it settles; a second tap must not
+  // double-consume. The ref closes the same-frame double tap the disabled state cannot.
   const [busyIds, setBusyIds] = useState<ReadonlySet<string>>(() => new Set())
   const inFlightRef = useRef(new Set<string>())
   const [menuFor, setMenuFor] = useState<string | null>(null)
@@ -63,21 +63,27 @@ export function MobileNativeChatQueuedMessages({
     }
     return null
   }
-  const run = async (messageId: string, action?: (id: string) => Promise<boolean>) => {
-    if (inFlightRef.current.has(messageId) || !action) {
+  const run = async (keys: readonly string[], action?: () => Promise<boolean>) => {
+    const held = inFlightRef.current
+    if (!action || keys.some((key) => held.has(key))) {
       return
     }
-    inFlightRef.current.add(messageId)
-    setBusyIds(new Set(inFlightRef.current))
+    keys.forEach((key) => held.add(key))
+    setBusyIds(new Set(held))
     try {
-      await action(messageId)
+      await action()
     } finally {
-      inFlightRef.current.delete(messageId)
-      setBusyIds(new Set(inFlightRef.current))
+      keys.forEach((key) => held.delete(key))
+      setBusyIds(new Set(held))
     }
   }
-  const resuming = busyIds.has(RESUME_KEY)
-  const clearing = busyIds.has(CLEAR_KEY)
+  const runOnCard = (messageId: string, action?: (id: string) => Promise<boolean>) =>
+    void run([messageId], action && (() => action(messageId)))
+  // Each header action greys during the other: a Resume would send the cards a Clear is deleting.
+  const queueBusy = busyIds.has(QUEUE_KEY)
+  const messageIds = cards.map((card) => card.messageId)
+  const clearKeys = [QUEUE_KEY, ...messageIds]
+  const clearBusy = clearKeys.some((key) => busyIds.has(key))
   // A card that drained or was removed while its menu was open closes the menu, for good: a
   // Stop-requeued draft comes back under the same id and must not reopen it.
   const menuCard = cards.find((card) => card.messageId === menuFor)
@@ -107,17 +113,15 @@ export function MobileNativeChatQueuedMessages({
               {onClearAll ? (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityState={{ disabled: clearing }}
+                  accessibilityState={{ disabled: clearBusy }}
                   accessibilityLabel="Delete every queued message"
                   style={({ pressed }) => [
                     styles.textAction,
                     pressed && styles.pressed,
-                    clearing && styles.disabled
+                    clearBusy && styles.disabled
                   ]}
-                  disabled={clearing}
-                  onPress={() =>
-                    void run(CLEAR_KEY, () => onClearAll(cards.map((card) => card.messageId)))
-                  }
+                  disabled={clearBusy}
+                  onPress={() => void run(clearKeys, () => onClearAll(messageIds))}
                 >
                   <Trash2 size={12} color={colors.textPrimary} strokeWidth={2} />
                   <Text style={styles.actionLabel}>Clear all</Text>
@@ -125,15 +129,15 @@ export function MobileNativeChatQueuedMessages({
               ) : null}
               <Pressable
                 accessibilityRole="button"
-                accessibilityState={{ disabled: resuming }}
+                accessibilityState={{ disabled: queueBusy }}
                 accessibilityLabel="Resume sending the queued messages"
                 style={({ pressed }) => [
                   styles.textAction,
                   pressed && styles.pressed,
-                  resuming && styles.disabled
+                  queueBusy && styles.disabled
                 ]}
-                disabled={resuming}
-                onPress={() => void run(RESUME_KEY, onResume && (() => onResume()))}
+                disabled={queueBusy}
+                onPress={() => void run([QUEUE_KEY], onResume)}
               >
                 <Play size={12} color={colors.textPrimary} strokeWidth={2} />
                 <Text style={styles.actionLabel}>Resume</Text>
@@ -206,7 +210,7 @@ export function MobileNativeChatQueuedMessages({
                     (busy || steerHeld) && styles.disabled
                   ]}
                   disabled={busy || steerHeld}
-                  onPress={() => void run(card.messageId, onSend)}
+                  onPress={() => runOnCard(card.messageId, onSend)}
                 >
                   {steers ? (
                     <CornerDownRight size={12} color={colors.textPrimary} strokeWidth={2} />
@@ -226,7 +230,7 @@ export function MobileNativeChatQueuedMessages({
                   busy && styles.disabled
                 ]}
                 disabled={busy}
-                onPress={() => void run(card.messageId, onDelete)}
+                onPress={() => runOnCard(card.messageId, onDelete)}
               >
                 <Trash2 size={14} color={colors.textPrimary} strokeWidth={2} />
               </Pressable>
@@ -262,68 +266,13 @@ export function MobileNativeChatQueuedMessages({
             closeBeforePress: true,
             onPress: () => {
               if (menuCard) {
-                void run(menuCard.messageId, onEdit)
+                runOnCard(menuCard.messageId, onEdit)
               }
             }
           }
         ]}
         onClose={() => setMenuFor(null)}
       />
-    </View>
-  )
-}
-
-/** Two lines, opening on tap when it clips: a card can hold another agent's message the person
- *  never read, and Steer or Delete must not be a blind choice. Opened, a long one scrolls in a
- *  capped box. */
-function MobileQueuedCardText({ text }: { text: string }): React.JSX.Element {
-  const [expanded, setExpanded] = useState(false)
-  const [clipped, setClipped] = useState(false)
-  // The whole text laid out unseen at the card's width: more than two lines is what clips.
-  const measure = (
-    <Text
-      style={[styles.body, styles.measure]}
-      pointerEvents="none"
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-      onTextLayout={(event) => setClipped(event.nativeEvent.lines.length > 2)}
-    >
-      {text}
-    </Text>
-  )
-  if (!clipped && !expanded) {
-    return (
-      <View>
-        {measure}
-        <Text style={styles.body} numberOfLines={2}>
-          {text}
-        </Text>
-      </View>
-    )
-  }
-  const toggle = (
-    <Pressable
-      testID="queued-card-text"
-      accessibilityRole="button"
-      accessibilityState={{ expanded }}
-      accessibilityHint={expanded ? 'Shows less of the message' : 'Shows the whole message'}
-      onPress={() => setExpanded(!expanded)}
-    >
-      <Text style={styles.body} numberOfLines={expanded ? undefined : 2}>
-        {text}
-      </Text>
-      <Text style={styles.caption}>{expanded ? 'Show less' : 'Show more'}</Text>
-    </Pressable>
-  )
-  // The press sits inside the scroll, so a drag scrolls and only a tap folds it.
-  return expanded ? (
-    <ScrollView style={styles.expandedBody} nestedScrollEnabled>
-      {toggle}
-    </ScrollView>
-  ) : (
-    <View>
-      {measure}
-      {toggle}
     </View>
   )
 }
@@ -377,19 +326,6 @@ const styles = StyleSheet.create({
     minWidth: 0,
     paddingVertical: spacing.sm,
     gap: 2
-  },
-  body: {
-    color: colors.textPrimary,
-    fontSize: typography.bodySize
-  },
-  expandedBody: {
-    maxHeight: 240
-  },
-  measure: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    opacity: 0
   },
   caption: {
     color: colors.textMuted,
