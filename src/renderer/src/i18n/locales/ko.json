@@ -12003,6 +12003,7 @@
           "invalidLinkHelp": "다른 호스트에서 새 액세스 링크를 생성한 후 다시 시도하세요.",
           "incompatible": "Orca 버전이 호환되지 않습니다",
           "incompatibleHelp": "이 기기와 다른 호스트의 Orca를 업데이트한 후 다시 시도하세요.",
+          "serverTooOldHelp": "서버 호스트의 Orca를 업데이트한 후 다시 시도하세요.",
           "interrupted": "연결이 중단되었습니다",
           "interruptedHelp": "확인 중 연결이 중단되었습니다. 네트워크 또는 SSH 터널을 확인한 후 다시 시도하세요.",
           "unavailable": "호스트를 사용할 수 없습니다",

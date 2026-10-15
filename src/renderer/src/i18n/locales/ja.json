@@ -12003,6 +12003,7 @@
           "invalidLinkHelp": "もう一方のホストで新規アクセスリンクを生成し、もう一度お試しください。",
           "incompatible": "Orca のバージョンに互換性がありません",
           "incompatibleHelp": "このデバイスともう一方のホストの Orca を更新し、もう一度お試しください。",
+          "serverTooOldHelp": "サーバーホストの Orca を更新し、もう一度お試しください。",
           "interrupted": "接続が中断されました",
           "interruptedHelp": "検証中に接続が停止しました。ネットワークまたは SSH トンネルを確認して、もう一度お試しください。",
           "unavailable": "ホストを利用できません",

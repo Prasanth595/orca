@@ -59,7 +59,11 @@ describe('verifyRemotePairingRuntimeStatus', () => {
           runtimeProtocolVersion: MIN_COMPATIBLE_RUNTIME_SERVER_VERSION - 1
         })
       )
-    ).toMatchObject({ ok: false, kind: 'protocol-incompatible' })
+    ).toMatchObject({
+      ok: false,
+      kind: 'protocol-incompatible',
+      compatibilityReason: 'server-too-old'
+    })
   })
 
   it('accepts a compatible runtime status', () => {

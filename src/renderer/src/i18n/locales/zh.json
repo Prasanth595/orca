@@ -12003,6 +12003,7 @@
           "invalidLinkHelp": "请在另一台主机上生成新的访问链接，然后重试。",
           "incompatible": "Orca 版本不兼容",
           "incompatibleHelp": "请更新此设备和另一台主机上的 Orca，然后重试。",
+          "serverTooOldHelp": "请更新服务器主机上的 Orca，然后重试。",
           "interrupted": "连接中断",
           "interruptedHelp": "验证期间连接已中断。请检查网络或 SSH 隧道，然后重试。",
           "unavailable": "主机不可用",

@@ -12102,6 +12102,7 @@
           "invalidLinkHelp": "Générez un nouveau lien d'accès sur l'autre hôte et réessayez.",
           "incompatible": "Les versions d'Orca ne sont pas compatibles",
           "incompatibleHelp": "Mettez à jour Orca sur cet appareil et sur l'autre hôte, puis réessayez.",
+          "serverTooOldHelp": "Mettez à jour Orca sur l'hôte du serveur, puis réessayez.",
           "interrupted": "Connexion interrompue",
           "interruptedHelp": "La connexion s'est arrêtée pendant la vérification. Vérifiez le réseau ou le tunnel SSH et réessayez.",
           "unavailable": "Hôte indisponible",

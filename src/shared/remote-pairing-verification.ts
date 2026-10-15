@@ -1,4 +1,4 @@
-import { evaluateRuntimeCompat } from './protocol-compat'
+import { evaluateRuntimeCompat, type RuntimeCompatVerdict } from './protocol-compat'
 import { MIN_COMPATIBLE_RUNTIME_SERVER_VERSION, RUNTIME_PROTOCOL_VERSION } from './protocol-version'
 import type { PublicKnownRuntimeEnvironment } from './runtime-environments'
 import type { RuntimeStatus } from './runtime-types'
@@ -15,6 +15,8 @@ export type RemotePairingFailure = {
   ok: false
   kind: RemotePairingFailureKind
   message: string
+  /** Which side must update, for `protocol-incompatible`. */
+  compatibilityReason?: Extract<RuntimeCompatVerdict, { kind: 'blocked' }>['reason']
 }
 
 export type VerifyAndAddRuntimeEnvironmentResult =
@@ -97,6 +99,7 @@ export function verifyRemotePairingRuntimeStatus(
     return {
       ok: false,
       kind: 'protocol-incompatible',
+      compatibilityReason: compatibility.reason,
       message:
         compatibility.reason === 'client-too-old'
           ? 'Update this Orca client before adding the remote host.'

@@ -2,7 +2,7 @@ import type {
   HostAccessLinkErrorKind,
   RemotePairingEndpointKind
 } from '../../../shared/remote-pairing-address'
-import type { RemotePairingFailureKind } from '../../../shared/remote-pairing-verification'
+import type { RemotePairingFailure } from '../../../shared/remote-pairing-verification'
 import { translate } from '@/i18n/i18n'
 
 export function translateHostAccessLinkError(kind: HostAccessLinkErrorKind): string {
@@ -51,10 +51,10 @@ export function translateRemotePairingEndpointKind(kind: RemotePairingEndpointKi
 }
 
 export function translateRemotePairingFailureDescription(
-  kind: RemotePairingFailureKind,
+  failure: Pick<RemotePairingFailure, 'kind' | 'compatibilityReason'>,
   endpoint: string | null
 ): string {
-  switch (kind) {
+  switch (failure.kind) {
     case 'host-identity-mismatch':
       return translate(
         'auto.components.settings.RuntimeHostAccessForm.identityMismatchHelp',
@@ -67,6 +67,12 @@ export function translateRemotePairingFailureDescription(
         'Generate a new access link on the other host and try again.'
       )
     case 'protocol-incompatible':
+      if (failure.compatibilityReason === 'server-too-old') {
+        return translate(
+          'auto.components.settings.RuntimeHostAccessForm.serverTooOldHelp',
+          'Update Orca on the server host, then try again.'
+        )
+      }
       return translate(
         'auto.components.settings.RuntimeHostAccessForm.incompatibleHelp',
         'Update Orca on this device and the other host, then try again.'

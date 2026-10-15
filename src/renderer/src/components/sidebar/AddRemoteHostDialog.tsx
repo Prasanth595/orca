@@ -276,7 +276,7 @@ export function AddRemoteHostDialog({
           result.kind === 'environment-save-failed'
             ? result.message
             : translateRemotePairingFailureDescription(
-                result.kind,
+                result,
                 parsedServerLink.value.displayEndpoint
               )
         )

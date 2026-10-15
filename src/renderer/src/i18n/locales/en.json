@@ -12257,6 +12257,7 @@
           "invalidLinkHelp": "Generate a new access link on the other host and try again.",
           "incompatible": "Orca versions are not compatible",
           "incompatibleHelp": "Update Orca on this device and the other host, then try again.",
+          "serverTooOldHelp": "Update Orca on the server host, then try again.",
           "interrupted": "Connection interrupted",
           "interruptedHelp": "The connection stopped during verification. Check the network or SSH tunnel and try again.",
           "unavailable": "Host unavailable",

@@ -12003,6 +12003,7 @@
           "invalidLinkHelp": "Genera un enlace de acceso nuevo en el otro host e inténtalo de nuevo.",
           "incompatible": "Las versiones de Orca no son compatibles",
           "incompatibleHelp": "Actualiza Orca en este dispositivo y en el otro host e inténtalo de nuevo.",
+          "serverTooOldHelp": "Actualiza Orca en el host del servidor e inténtalo de nuevo.",
           "interrupted": "Conexión interrumpida",
           "interruptedHelp": "La conexión se detuvo durante la verificación. Comprueba la red o el túnel SSH e inténtalo de nuevo.",
           "unavailable": "Host no disponible",

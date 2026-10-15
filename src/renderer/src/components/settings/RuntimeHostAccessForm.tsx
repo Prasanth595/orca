@@ -278,7 +278,7 @@ export function RuntimeHostAccessForm({
             {failure.kind === 'environment-save-failed'
               ? failure.message
               : translateRemotePairingFailureDescription(
-                  failure.kind,
+                  failure,
                   parsed.ok ? parsed.value.displayEndpoint : null
                 )}
           </p>
