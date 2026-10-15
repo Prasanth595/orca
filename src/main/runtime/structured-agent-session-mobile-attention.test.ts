@@ -114,20 +114,20 @@ describe('structured attention mobile delivery', () => {
     ])
   })
 
-  it('sends nothing for a workspace the desktop Filters hide, unless hidden workspaces notify', () => {
+  it('sends nothing for a workspace the desktop published as hidden, and sends otherwise', () => {
     const isWorkspaceHidden = vi.fn(() => true)
-    const quiet = harness({
-      isWorkspaceHidden,
-      readNotificationSettings: () => settings({ notifyHiddenWorkspaces: false })
-    })
+    const quiet = harness({ isWorkspaceHidden })
     quiet.delivery.deliver(PROMPT, SUMMARY)
     quiet.delivery.deliver(completion('success'), SUMMARY)
     expect(quiet.sent).toEqual([])
     expect(isWorkspaceHidden).toHaveBeenCalledWith(SCOPE)
 
-    const optedIn = harness({ isWorkspaceHidden })
-    optedIn.delivery.deliver(PROMPT, SUMMARY)
-    expect(optedIn.sent).toHaveLength(1)
+    // The renderer folds "Notify About Hidden Workspaces" into the set, so the setting is not read here.
+    const shown = harness({
+      readNotificationSettings: () => settings({ notifyHiddenWorkspaces: false })
+    })
+    shown.delivery.deliver(PROMPT, SUMMARY)
+    expect(shown.sent).toHaveLength(1)
   })
 
   it('still sends when labels cannot be read, worded generically', () => {
@@ -183,11 +183,11 @@ describe('readStructuredAttentionWorkspaceLabels', () => {
     expect(labels).toEqual({ repoLabel: 'orca', worktreeLabel: 'feature' })
   })
 
-  it('reads a folder workspace by its own id', () => {
+  it('reads a folder workspace by the folder:<id> key a folder chat is scoped by', () => {
     const labels = readStructuredAttentionWorkspaceLabels(
       // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: only the read fields are stubbed.
       store as never,
-      { ...SCOPE, workspaceId: 'folder-1', workspaceKind: 'folder' }
+      { ...SCOPE, workspaceId: 'folder:folder-1', workspaceKind: 'folder' }
     )
     expect(labels).toEqual({ worktreeLabel: 'Notes' })
   })

@@ -19,6 +19,7 @@ import { isWebOnlyMirroredTerminalTab } from './mobile-session-surfaces'
 import { resolveRuntimeTerminalTitle } from './sync-projections'
 import { measureTerminalGroupGridSizes } from './terminal-group-grid-sizes'
 import { getProjectSectionCatalogFromState } from './project-section-catalog'
+import { changedNotificationHiddenWorkspaces } from './notification-hidden-workspace-publication'
 import {
   collectAmbiguousTerminalTabIds,
   graphState,
@@ -62,6 +63,7 @@ export async function syncRuntimeGraph(): Promise<void> {
   const publication = partitionMobileSessionPublication(mobileSessionTabs)
   const gridSizes = measureTerminalGroupGridSizes(state.settings?.terminalFontSize ?? 14)
   const projectSectionCatalog = getProjectSectionCatalogFromState(state)
+  const changedHiddenWorkspaces = changedNotificationHiddenWorkspaces(state)
   const graph: RuntimeRendererSyncWindowGraph = {
     tabs: [],
     leaves: [],
@@ -74,6 +76,9 @@ export async function syncRuntimeGraph(): Promise<void> {
       : {}),
     ...(projectSectionCatalog && projectSectionCatalog !== graphState.publishedProjectSectionCatalog
       ? { projectSectionCatalog }
+      : {}),
+    ...(changedHiddenWorkspaces
+      ? { notificationHiddenWorkspaceKeys: [...changedHiddenWorkspaces] }
       : {})
   }
 
@@ -205,6 +210,9 @@ export async function syncRuntimeGraph(): Promise<void> {
     graphState.publishedTerminalGroupGridSizesKey = JSON.stringify(gridSizes ?? null)
     graphState.publishedProjectSectionCatalog =
       projectSectionCatalog ?? graphState.publishedProjectSectionCatalog
+    if (changedHiddenWorkspaces) {
+      graphState.publishedNotificationHiddenWorkspaces = changedHiddenWorkspaces
+    }
     commitMobileSessionPublication(mobileSessionTabs, result?.mobileSessionResyncWorktrees)
     const currentState = graphState.getStoreState()
     currentState?.setRuntimeAgentOrchestrationByPaneKey?.(result?.agentOrchestrationByPaneKey ?? {})

@@ -18,9 +18,13 @@ import { isFolderWorkspaceFromOtherDevice } from '../../../shared/workspace-crea
  * whose activity this renderer cannot see (a chat with no tab, a just-exited agent).
  * Fails open: unhydrated settings or UI state, or a workspace this store has no record of, notify.
  */
-export function getNotificationHiddenWorkspaceIds(state: AppState): Set<string> {
+export function getNotificationHiddenWorkspaceIds(state: AppState): Set<string> | null {
+  // Why null: "not loaded yet" must not read as "nothing hidden" to a publisher.
+  if (!state.settings || !state.persistedUIReady) {
+    return null
+  }
   const hidden = new Set<string>()
-  if (state.settings?.notifications?.notifyHiddenWorkspaces !== false || !state.persistedUIReady) {
+  if (state.settings.notifications?.notifyHiddenWorkspaces !== false) {
     return hidden
   }
   const sleepFree = { ...state, showSleepingWorkspaces: true }
@@ -54,9 +58,32 @@ export function getNotificationHiddenWorkspaceIds(state: AppState): Set<string> 
   return hidden
 }
 
+/** Whether any input the hidden set reads was replaced; filters it lifts are not among them. */
+export function notificationHiddenWorkspaceInputsChanged(
+  state: AppState,
+  previous: AppState
+): boolean {
+  return (
+    state.settings !== previous.settings ||
+    state.persistedUIReady !== previous.persistedUIReady ||
+    state.worktreesByRepo !== previous.worktreesByRepo ||
+    state.repos !== previous.repos ||
+    state.folderWorkspaces !== previous.folderWorkspaces ||
+    state.worktreeLineageById !== previous.worktreeLineageById ||
+    state.hideDefaultBranchWorkspace !== previous.hideDefaultBranchWorkspace ||
+    state.hideAutomationGeneratedWorkspaces !== previous.hideAutomationGeneratedWorkspaces ||
+    state.hideCliCreatedWorkspaces !== previous.hideCliCreatedWorkspaces ||
+    state.hideDetachedHeadWorkspaces !== previous.hideDetachedHeadWorkspaces ||
+    state.hideWorkspacesFromOtherDevices !== previous.hideWorkspacesFromOtherDevices ||
+    state.alwaysShowDefaultBranchWorkspace !== previous.alwaysShowDefaultBranchWorkspace ||
+    state.runtimeEnvironments !== previous.runtimeEnvironments ||
+    state.runtimeStatusByEnvironmentId !== previous.runtimeStatusByEnvironmentId
+  )
+}
+
 export function isWorkspaceNotificationMutedBySidebarFilters(
   state: AppState,
   workspaceId: string
 ): boolean {
-  return getNotificationHiddenWorkspaceIds(state).has(workspaceId)
+  return getNotificationHiddenWorkspaceIds(state)?.has(workspaceId) === true
 }
