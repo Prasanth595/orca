@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AppState, Pressable, StyleSheet, Switch, Text, View } from 'react-native'
+import { AppState, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useFocusEffect } from 'expo-router'
-import { ChevronRight, Minus, Plus, X } from 'lucide-react-native'
+import { ChevronRight, Minus, Plus } from 'lucide-react-native'
 import type Animated from 'react-native-reanimated'
 import type { AnimatedRef, SharedValue } from 'react-native-reanimated'
 import { CustomKeyModal, loadCustomKeys, saveCustomKeys, type CustomKey } from './CustomKeyModal'
 import { DragReorderList } from './DragReorderList'
+import { TerminalShortcutReorderRow } from './terminal-shortcut-reorder-row'
 import { colors, radii, spacing, typography } from '../theme/mobile-theme'
 import { terminalSettingsScreenStyles as baseStyles } from '../terminal/terminal-settings-screen-styles'
 import {
@@ -102,6 +103,7 @@ export function TerminalShortcutSettings({
   onDragActiveChange
 }: Props): React.JSX.Element {
   const [showCustomKeyModal, setShowCustomKeyModal] = useState(false)
+  const [editingCustomKey, setEditingCustomKey] = useState<CustomKey | null>(null)
   const layoutStore = useSequencedStorage<TerminalAccessoryLayout>(
     DEFAULT_LAYOUT,
     loadTerminalAccessoryLayout,
@@ -276,65 +278,41 @@ export function TerminalShortcutSettings({
                 <Text style={styles.rowHeaderText}>{`ROW ${item.rowNumber}`}</Text>
               </View>
             ) : (
-              <View style={styles.reorderRowContent}>
-                <View style={styles.keycap}>
-                  <Text style={styles.keycapText}>
-                    {item.kind === 'built-in' ? item.shortcutKey.label : item.customKey.label}
-                  </Text>
-                </View>
-                <View style={baseStyles.rowContent}>
-                  <Text style={baseStyles.rowLabel}>
-                    {item.kind === 'built-in'
-                      ? (item.shortcutKey.accessibilityLabel ?? item.shortcutKey.label)
-                      : item.customKey.label}
-                  </Text>
-                  {item.kind === 'custom' && (
-                    <Text style={baseStyles.rowSublabel} numberOfLines={1} ellipsizeMode="tail">
-                      {item.customKey.bytes.replace(/\r/g, ' ↵')}
-                    </Text>
-                  )}
-                </View>
-                {item.kind === 'built-in' ? (
-                  <Switch
-                    disabled={!canEdit}
-                    value={visibleBuiltInSet.has(item.shortcutKey.id)}
-                    onValueChange={(visible) => {
-                      if (canEdit) {
-                        layoutStore.commit(
-                          setTerminalAccessoryBuiltInVisible(
-                            effectiveLayout,
-                            item.shortcutKey.id,
-                            visible
-                          )
-                        )
-                      }
-                    }}
-                    trackColor={{ false: colors.borderSubtle, true: colors.textSecondary }}
-                    thumbColor={colors.textPrimary}
-                  />
-                ) : (
-                  <Pressable
-                    disabled={!canEdit}
-                    style={({ pressed }) => [
-                      styles.deleteButton,
-                      pressed && canEdit && styles.deleteButtonPressed,
-                      !canEdit && styles.stepperButtonDisabled
-                    ]}
-                    onPress={() => syncCustomKeys(customKeys.filter((k) => k.id !== item.id))}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Delete ${item.customKey.label}`}
-                  >
-                    <X size={16} color={colors.statusRed} />
-                  </Pressable>
-                )}
-              </View>
+              <TerminalShortcutReorderRow
+                item={item}
+                canEdit={canEdit}
+                builtInVisible={
+                  item.kind === 'built-in' && visibleBuiltInSet.has(item.shortcutKey.id)
+                }
+                onToggleBuiltIn={(visible) => {
+                  if (canEdit && item.kind === 'built-in') {
+                    layoutStore.commit(
+                      setTerminalAccessoryBuiltInVisible(
+                        effectiveLayout,
+                        item.shortcutKey.id,
+                        visible
+                      )
+                    )
+                  }
+                }}
+                onDeleteCustom={() =>
+                  syncCustomKeys(customKeys.filter((key) => key.id !== item.id))
+                }
+                onEditCustom={(customKey) => {
+                  setEditingCustomKey(customKey)
+                  setShowCustomKeyModal(true)
+                }}
+              />
             )
           }
         />
         {renderActionRow(
           'Add Custom Shortcut…',
           'Create key combo or text macro',
-          () => setShowCustomKeyModal(true),
+          () => {
+            setEditingCustomKey(null)
+            setShowCustomKeyModal(true)
+          },
           true
         )}
         <View style={baseStyles.separator} />
@@ -350,7 +328,11 @@ export function TerminalShortcutSettings({
 
       <CustomKeyModal
         visible={canEdit && showCustomKeyModal}
-        onClose={() => setShowCustomKeyModal(false)}
+        editingKey={editingCustomKey}
+        onClose={() => {
+          setShowCustomKeyModal(false)
+          setEditingCustomKey(null)
+        }}
         onKeysChanged={(keys) => syncCustomKeys(keys, false)}
       />
     </>
@@ -358,14 +340,6 @@ export function TerminalShortcutSettings({
 }
 
 const styles = StyleSheet.create({
-  reorderRowContent: {
-    flex: 1,
-    height: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm + 2,
-    paddingLeft: spacing.md + 2
-  },
   rowDividerContent: {
     height: REORDER_ROW_HEIGHT,
     justifyContent: 'center',
@@ -391,27 +365,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.textPrimary,
     fontFamily: typography.monoFamily
-  },
-  keycap: {
-    minWidth: 62,
-    alignItems: 'center',
-    backgroundColor: colors.bgRaised,
-    borderRadius: radii.button,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs
-  },
-  keycapText: {
-    color: colors.textSecondary,
-    fontSize: typography.metaSize,
-    fontFamily: typography.monoFamily
-  },
-  deleteButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(239, 68, 68, 0.1)'
-  },
-  deleteButtonPressed: { backgroundColor: 'rgba(239, 68, 68, 0.2)' }
+  }
 })

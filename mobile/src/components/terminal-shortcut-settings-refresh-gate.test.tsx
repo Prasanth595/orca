@@ -163,6 +163,8 @@ describe('TerminalShortcutSettings refresh gating', () => {
           onDragActiveChange: () => {}
         })
       )
+    })
+    act(() => {
       mocks.focusEffectCb?.()
     })
 
@@ -173,9 +175,9 @@ describe('TerminalShortcutSettings refresh gating', () => {
     })
 
     const dragListWhileHalfLoaded = renderer.root.findByType(hosts.DragReorderList)
-    expect(
-      dragListWhileHalfLoaded.props.isItemDraggable({ kind: 'built-in', id: 'esc' })
-    ).toBe(false)
+    expect(dragListWhileHalfLoaded.props.isItemDraggable({ kind: 'built-in', id: 'esc' })).toBe(
+      false
+    )
 
     // Attempted reorder or switch toggle while custom keys are still loading must not persist.
     act(() => {
@@ -198,9 +200,7 @@ describe('TerminalShortcutSettings refresh gating', () => {
 
     // Newer refresh settled, but custom1 from the older refresh is still in flight.
     const dragListDuringOverlap = renderer.root.findByType(hosts.DragReorderList)
-    expect(
-      dragListDuringOverlap.props.isItemDraggable({ kind: 'built-in', id: 'esc' })
-    ).toBe(false)
+    expect(dragListDuringOverlap.props.isItemDraggable({ kind: 'built-in', id: 'esc' })).toBe(false)
 
     // Resolve the older custom1 last; its stale value must be discarded in favor of custom2.
     await act(async () => {
@@ -216,10 +216,91 @@ describe('TerminalShortcutSettings refresh gating', () => {
       const firstSwitch = renderer.root.findAllByType(hosts.Switch)[0]!
       firstSwitch.props.onValueChange(false)
     })
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
     expect(mocks.saveLayout).toHaveBeenCalledTimes(1)
     expect(mocks.saveLayout.mock.calls[0]?.[0]).toMatchObject({
       rowCount: 2,
       rows: [builtIns, ['custom-1']]
     })
+  })
+})
+
+describe('TerminalShortcutSettings custom key editing', () => {
+  beforeEach(() => {
+    mocks.loadLayoutQueue.length = 0
+    mocks.loadCustomQueue.length = 0
+    mocks.saveLayout.mockClear()
+    mocks.saveCustom.mockClear()
+    mocks.focusEffectCb = null
+  })
+
+  async function renderReady(customKey: CustomKey): Promise<ReturnType<typeof create>> {
+    mocks.loadCustomQueue.push(Promise.resolve([customKey]))
+    let renderer!: ReturnType<typeof create>
+    act(() => {
+      renderer = create(
+        createElement(TerminalShortcutSettings, {
+          scrollRef: dummyScrollRef,
+          scrollOffsetY: dummySharedValue,
+          scrollContentHeight: dummySharedValue,
+          onDragActiveChange: () => {}
+        })
+      )
+    })
+    act(() => {
+      mocks.focusEffectCb?.()
+    })
+    await act(async () => {
+      for (let step = 0; step < 6; step += 1) {
+        await Promise.resolve()
+      }
+    })
+    return renderer
+  }
+
+  it('opens the editor for a custom row and clears it on close without deleting', async () => {
+    const customKey: CustomKey = {
+      id: 'custom-1',
+      label: 'Build',
+      bytes: 'pnpm build\r',
+      enter: true
+    }
+    const renderer = await renderReady(customKey)
+    const edit = renderer.root
+      .findAllByType(hosts.Pressable)
+      .find((node) => node.props.accessibilityLabel === 'Edit Build')
+    const remove = renderer.root
+      .findAllByType(hosts.Pressable)
+      .find((node) => node.props.accessibilityLabel === 'Delete Build')
+    expect(edit).toBeDefined()
+    expect(remove).toBeDefined()
+    expect(edit?.props.disabled).toBe(false)
+
+    act(() => {
+      edit?.props.onPress()
+    })
+    const modal = renderer.root.findByType(hosts.CustomKeyModal)
+    expect(modal.props.visible).toBe(true)
+    expect(modal.props.editingKey).toEqual(customKey)
+
+    act(() => {
+      modal.props.onClose()
+    })
+    const closed = renderer.root.findByType(hosts.CustomKeyModal)
+    expect(closed.props.visible).toBe(false)
+    expect(closed.props.editingKey).toBeNull()
+    expect(mocks.saveCustom).not.toHaveBeenCalled()
+
+    await act(async () => {
+      remove?.props.onPress()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(mocks.saveCustom).toHaveBeenCalledTimes(1)
+    expect(mocks.saveCustom.mock.calls[0]?.[0]).toEqual([])
+    expect(renderer.root.findByType(hosts.CustomKeyModal).props.visible).toBe(false)
   })
 })
