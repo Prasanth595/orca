@@ -5,6 +5,7 @@
 import { lstatSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { z } from 'zod'
+import { isDefinitiveAbsence } from '../../shared/definitive-filesystem-absence'
 
 export type ManagedRuntimePin = {
   version: string
@@ -35,9 +36,7 @@ const runtimeReleaseReceiptSchema = z.object({
   version: z.string().min(1),
   platform: z.string(),
   arch: z.string(),
-  members: z
-    .array(z.object({ path: z.string().min(1), bytes: z.number().int().positive() }))
-    .min(1)
+  members: z.array(z.object({ path: z.string().min(1), bytes: z.number().int().positive() })).min(1)
 })
 
 export type InstalledRuntimeRelease = {
@@ -47,49 +46,65 @@ export type InstalledRuntimeRelease = {
   current: boolean
 }
 
-/** The release a launch runs: the pinned one when installed whole, else the newest other complete
- *  one; null when none is. Staging, links and anything incomplete never count. */
+/** What a release folder read proved: whole, definitively not (absent, mismatched or partial), or
+ *  unknown because the read itself failed. */
+type ReleaseRead = { releaseId: string } | 'broken' | 'unreadable'
+
+export type InstalledRuntimeReleases = {
+  /** The release a launch runs: the pinned one when installed whole, else the newest other whole
+   *  one; null when none is. Staging, links and anything incomplete never count. */
+  release: InstalledRuntimeRelease | null
+  /** Release folders that are definitively not whole, e.g. a member deleted or truncated. */
+  broken: string[]
+  /** Some folder could not be read, so whether it is whole is unknown. */
+  unreadable: boolean
+}
+
 export function resolveInstalledRuntimeRelease(
   root: string,
   pin: ManagedRuntimePin | null
-): InstalledRuntimeRelease | null {
+): InstalledRuntimeReleases {
   let names: string[]
   try {
     names = readdirSync(root)
-  } catch {
-    return null
+  } catch (error) {
+    return { release: null, broken: [], unreadable: !isDefinitiveAbsence(error) }
   }
-  const releases = names
+  const reads = names
     .filter((name) => !name.startsWith('.'))
-    .flatMap((name) => {
-      const releaseId = completeReleaseId(join(root, name), name)
-      return releaseId ? [{ name, releaseId }] : []
-    })
+    .map((name) => ({ name, read: readRelease(join(root, name), name) }))
+  const releases = reads.flatMap(({ name, read }) =>
+    typeof read === 'object' ? [{ name, releaseId: read.releaseId }] : []
+  )
   const pinned = releases.find(
     (release) => release.name === pin?.version && release.releaseId === pin.archiveSha256
   )
-  const chosen =
-    pinned ??
-    releases.sort((a, b) => VERSION_ORDER.compare(b.name, a.name))[0]
-  return chosen
-    ? { folder: join(root, chosen.name), version: chosen.name, current: chosen === pinned }
-    : null
+  const chosen = pinned ?? releases.sort((a, b) => VERSION_ORDER.compare(b.name, a.name))[0]
+  return {
+    release: chosen
+      ? { folder: join(root, chosen.name), version: chosen.name, current: chosen === pinned }
+      : null,
+    broken: reads.filter(({ read }) => read === 'broken').map(({ name }) => name),
+    unreadable: reads.some(({ read }) => read === 'unreadable')
+  }
 }
 
-/** The receipt's release id when `folder` is a whole release for this host, else null. */
-function completeReleaseId(folder: string, version: string): string | null {
+function readRelease(folder: string, version: string): ReleaseRead {
   try {
     const receiptPath = join(folder, RUNTIME_RELEASE_RECEIPT)
     const stat = lstatSync(receiptPath)
     if (!lstatSync(folder).isDirectory() || !stat.isFile() || stat.size > RECEIPT_MAX_BYTES) {
-      return null
+      return 'broken'
     }
-    const receipt = runtimeReleaseReceiptSchema.parse(JSON.parse(readFileSync(receiptPath, 'utf8')))
+    const receipt = runtimeReleaseReceiptSchema.safeParse(
+      parseJson(readFileSync(receiptPath, 'utf8'))
+    )
     const whole =
-      receipt.version === version &&
-      receipt.platform === process.platform &&
-      receipt.arch === process.arch &&
-      receipt.members.every((member) => {
+      receipt.success &&
+      receipt.data.version === version &&
+      receipt.data.platform === process.platform &&
+      receipt.data.arch === process.arch &&
+      receipt.data.members.every((member) => {
         const segments = member.path.split('/')
         if (segments.some((segment) => !segment || segment === '.' || segment === '..')) {
           return false
@@ -101,7 +116,15 @@ function completeReleaseId(folder: string, version: string): string | null {
           (process.platform === 'win32' || (file.mode & 0o111) !== 0)
         )
       })
-    return whole ? receipt.releaseId : null
+    return whole ? { releaseId: receipt.data.releaseId } : 'broken'
+  } catch (error) {
+    return isDefinitiveAbsence(error) ? 'broken' : 'unreadable'
+  }
+}
+
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text)
   } catch {
     return null
   }

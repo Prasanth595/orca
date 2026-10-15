@@ -128,7 +128,7 @@ export function resolveAcpLaunchCommand(
   if (command !== spec.command || !managedRuntime || options.dataDirectory === null) {
     return command
   }
-  const release = resolveInstalledRuntimeRelease(
+  const { release } = resolveInstalledRuntimeRelease(
     managedRuntime.root(options.dataDirectory),
     managedRuntime.pin()
   )
