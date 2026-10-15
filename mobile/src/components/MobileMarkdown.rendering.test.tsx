@@ -1,6 +1,7 @@
 import { createElement } from 'react'
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { colors, onBrightColors } from '../theme/mobile-theme'
 import { MobileMarkdown } from './MobileMarkdown'
 
 const openURL = vi.fn((_url: string) => Promise.resolve())
@@ -160,5 +161,39 @@ describe('MobileMarkdown rendering', () => {
     const tree = render('See [config loader](https://exa', true)
     expect(texts(tree)).toEqual(['See config loader'])
     expect(tree.root.findAll((node) => typeof node.props.onPress === 'function')).toEqual([])
+  })
+})
+
+describe('MobileMarkdown tone', () => {
+  /** The style a span with exactly `text` draws with, nested arrays flattened in order. */
+  function styleOf(root: ReactTestInstance, text: string): Record<string, unknown> {
+    const flattenStyle = (style: unknown): Record<string, unknown> =>
+      Array.isArray(style)
+        ? Object.assign({}, ...style.map(flattenStyle))
+        : typeof style === 'object' && style !== null
+          ? { ...style }
+          : {}
+    const span = root.find(
+      (node) => isText(node) && node.children.length === 1 && node.children[0] === text
+    )
+    return flattenStyle(span.props.style)
+  }
+
+  it("draws your own message dark on its light fill, and leaves the agent's prose as it was", () => {
+    const content = 'Plain **bold** [docs](https://example.com) `code`'
+    act(() => {
+      renderer = create(createElement(MobileMarkdown, { content, tone: 'onBright' }))
+    })
+    const own = renderer!.root
+    expect(styleOf(own, 'bold').color).toBe(colors.bgBase)
+    expect(styleOf(own, 'docs').color).toBe(onBrightColors.link)
+    expect(styleOf(own, 'code')).toMatchObject({
+      color: colors.bgBase,
+      backgroundColor: onBrightColors.codeBackground
+    })
+
+    act(() => renderer!.update(createElement(MobileMarkdown, { content })))
+    expect(styleOf(renderer!.root, 'bold').color).toBe(colors.textPrimary)
+    expect(styleOf(renderer!.root, 'docs').color).toBe(colors.accentBlue)
   })
 })

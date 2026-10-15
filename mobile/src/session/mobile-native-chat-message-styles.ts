@@ -2,6 +2,8 @@ import { StyleSheet } from 'react-native'
 import { colors, radii, spacing, typography } from '../theme/mobile-theme'
 
 export const TEXT_SIZE = 17
+/** Chat prose reads larger than the Markdown renderer's compact base. */
+export const CHAT_PROSE_SCALE = 1.25
 
 /** Pinch-zoomed type keeps its leading, so zoomed lines never overlap. */
 export function scaledType(size: number, fontScale: number, leading = 6) {

@@ -44,7 +44,12 @@ import { MobileNativeChatSubagentGroup } from './MobileNativeChatSubagentGroup'
 import { ToolRun } from './MobileNativeChatToolRun'
 import type { NativeChatTurnStatus } from './use-mobile-native-chat-turn-status'
 import { isRenderableImageUri } from './mobile-native-chat-image-preview'
-import { scaledType, styles, TEXT_SIZE } from './mobile-native-chat-message-styles'
+import {
+  CHAT_PROSE_SCALE,
+  scaledType,
+  styles,
+  TEXT_SIZE
+} from './mobile-native-chat-message-styles'
 import { agentMessageAttribution } from './mobile-agent-message-attribution'
 import { withoutPendingNativeChatVisualDirectiveTail } from '../../../src/shared/native-chat-visual-directive'
 import {
@@ -91,7 +96,7 @@ function Prose({
           content={block.text}
           tone="onBright"
           rangeSelectable
-          textScale={1.25 * fontScale}
+          textScale={CHAT_PROSE_SCALE * fontScale}
           onOpenFile={onOpenFile}
           onLongPress={onLongPress}
         />
@@ -106,7 +111,7 @@ function Prose({
         }
         renderVisual={renderVisual}
         rangeSelectable
-        textScale={1.25 * fontScale}
+        textScale={CHAT_PROSE_SCALE * fontScale}
         onOpenFile={onOpenFile}
         onLongPress={onLongPress}
       />

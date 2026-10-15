@@ -478,7 +478,10 @@ describe('MobileNativeChatMessage', () => {
     })
     act(() => renderer!.root.findByProps({ accessibilityRole: 'imagebutton' }).props.onPress())
     expect(openImage).toHaveBeenCalledWith({ uri: 'file:///a.jpg', label: 'a photo' })
-    // Only the picture is in the bubble, so its gap leaves no space under it.
+  })
+
+  it('draws a picture-only message with nothing else in its bubble, so no gap sits under it', () => {
+    render(userMessage([{ type: 'image-ref', url: 'file:///a.jpg', alt: 'a photo' }]))
     const bubble = renderer!.root.find(
       (node) =>
         String(node.type) === 'View' && [node.props.style].flat().includes(styles.userBubble)

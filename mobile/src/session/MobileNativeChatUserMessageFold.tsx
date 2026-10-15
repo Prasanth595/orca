@@ -1,13 +1,17 @@
 import { useMemo, useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import {
-  NATIVE_CHAT_USER_MESSAGE_FOLD_COPY,
+  NATIVE_CHAT_USER_MESSAGE_MAX_UNFOLDED_LINES,
   nativeChatUserMessageFolds
 } from '../../../src/shared/native-chat-user-message-fold'
+import { styles as markdownStyles } from '../components/mobile-markdown-styles'
 import { onBrightColors, spacing, typography } from '../theme/mobile-theme'
+import { CHAT_PROSE_SCALE } from './mobile-native-chat-message-styles'
 
-/** Eight lines of your message's markdown at its chat size (13 pt prose, 6 pt leading, ×1.25). */
-const FOLDED_HEIGHT = 8 * (13 + 6) * 1.25
+const FOLDED_HEIGHT =
+  NATIVE_CHAT_USER_MESSAGE_MAX_UNFOLDED_LINES *
+  markdownStyles.paragraph.lineHeight *
+  CHAT_PROSE_SCALE
 
 /** A long message of yours, folded to its first lines until opened. Desktop parity:
  *  `NativeChatUserMessageFold`, with the same text rule. */
@@ -42,11 +46,7 @@ export function MobileNativeChatUserMessageFold({
           accessibilityRole="button"
           accessibilityState={{ expanded: open }}
         >
-          <Text style={styles.toggleText}>
-            {open
-              ? NATIVE_CHAT_USER_MESSAGE_FOLD_COPY.showLess
-              : NATIVE_CHAT_USER_MESSAGE_FOLD_COPY.showFull}
-          </Text>
+          <Text style={styles.toggleText}>{open ? 'Show less' : 'Show full message'}</Text>
         </Pressable>
       ) : null}
     </>
