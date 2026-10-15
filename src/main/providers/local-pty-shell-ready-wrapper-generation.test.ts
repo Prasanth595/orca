@@ -397,6 +397,19 @@ describePosix('local PTY shell-ready launch config', () => {
     expectBashOsc133Lifecycle(output)
   })
 
+  itWithBash('normalizes array PROMPT_COMMAND hooks so bash 3.2 still runs cleanup', async () => {
+    writeFileSync(
+      join(userDataPath, '.bash_profile'),
+      'PROMPT_COMMAND=(\'printf "PROMPT_ARRAY_A\\n"\' \'printf "PROMPT_ARRAY_B\\n";  \')\n'
+    )
+
+    const output = runInteractiveBashRcfile(getBashShellReadyRcfileContent(), userDataPath)
+
+    expect(output.split('PROMPT_ARRAY_A')).toHaveLength(4)
+    expect(output.split('PROMPT_ARRAY_B')).toHaveLength(4)
+    expectBashOsc133Lifecycle(output)
+  })
+
   // Why: bash 5.0 and older run the legacy PROMPT_COMMAND dispatch, which a DEBUG trap change upset.
   itWithBash('starts the next command after its prompt when the DEBUG trap is removed', () => {
     writeFileSync(join(userDataPath, '.bash_profile'), "PS1='ORCA_PS1> '\n")
@@ -408,19 +421,6 @@ describePosix('local PTY shell-ready launch config', () => {
 
     expect(output).toContain('ORCA_PS1> ')
     expect(output).not.toMatch(startBeforePrompt)
-    expectBashOsc133Lifecycle(output)
-  })
-
-  itWithBash('normalizes array PROMPT_COMMAND hooks so bash 3.2 still runs cleanup', async () => {
-    writeFileSync(
-      join(userDataPath, '.bash_profile'),
-      'PROMPT_COMMAND=(\'printf "PROMPT_ARRAY_A\\n"\' \'printf "PROMPT_ARRAY_B\\n";  \')\n'
-    )
-
-    const output = runInteractiveBashRcfile(getBashShellReadyRcfileContent(), userDataPath)
-
-    expect(output.split('PROMPT_ARRAY_A')).toHaveLength(4)
-    expect(output.split('PROMPT_ARRAY_B')).toHaveLength(4)
     expectBashOsc133Lifecycle(output)
   })
 
