@@ -117,8 +117,30 @@ export function applyGitHubPRResultToCaches(
   prCache: AppState['prCache']
   hostedReviewCache: AppState['hostedReviewCache']
 } {
+  const hostedReviewCacheKey = getHostedReviewCacheKey(
+    args.repoPath,
+    args.branch,
+    args.settings,
+    args.repoId,
+    args.connectionId,
+    args.executionHostId,
+    args.hasRepoOwner === true
+  )
+  const hostedReviewEntry = args.hostedReviewCache[hostedReviewCacheKey]
+  const current = args.prCache[args.prCacheKey]
+  const prNumber = args.pr?.number ?? null
+  // Why: refreshPRNow broadcasts its outcome and also returns it; re-applying it would read its own write as newer and
+  // delete the PR. Skip only while the review cache still agrees, so a newer different review still reconciles below.
+  if (
+    current?.fetchedAt === args.fetchedAt &&
+    (current.data?.number ?? null) === prNumber &&
+    (hostedReviewEntry?.data?.provider === 'github' ? hostedReviewEntry.data.number : null) ===
+      prNumber
+  ) {
+    return { prCache: args.prCache, hostedReviewCache: args.hostedReviewCache }
+  }
   const preserveExistingPRForFallbackMiss = shouldPreserveExistingPRForFallbackMiss({
-    currentPR: args.prCache[args.prCacheKey]?.data,
+    currentPR: current?.data,
     nextPR: args.pr,
     state: args.state,
     worktreeId: args.worktreeId,
@@ -143,15 +165,6 @@ export function applyGitHubPRResultToCaches(
     requestStartedAt: args.requestStartedAt,
     requestStartedEntry: args.requestStartedEntry
   })
-  const hostedReviewCacheKey = getHostedReviewCacheKey(
-    args.repoPath,
-    args.branch,
-    args.settings,
-    args.repoId,
-    args.connectionId,
-    args.executionHostId,
-    args.hasRepoOwner === true
-  )
   return {
     prCache: applyPRCacheResult(
       args.prCache,
@@ -160,7 +173,7 @@ export function applyGitHubPRResultToCaches(
       args.fetchedAt,
       shouldWritePRCacheForHostedReviewSync({
         hostedReviewSyncAccepted: hostedReviewSync.accepted,
-        hostedReviewEntry: args.hostedReviewCache[hostedReviewCacheKey],
+        hostedReviewEntry,
         pr: args.pr,
         linkedPRNumber: args.linkedPRNumber,
         fallbackPRNumber: args.fallbackPRNumber
