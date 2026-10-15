@@ -162,7 +162,7 @@ export class WslHookRelayManager {
     if (!bundle) {
       if (!this.warnedBundleMissing) {
         this.warnedBundleMissing = true
-        this.deps.warn('[agent-hooks] WSL hook relay bundle not found; run build:relay')
+        this.deps.warn('[agent-hooks] WSL hook relay bundle not found; run build:wsl-guest')
       }
       return
     }
@@ -198,7 +198,7 @@ export class WslHookRelayManager {
       onNoNode: () =>
         this.markFailed(
           state,
-          `no node >= 24 found in distro '${state.distro}'; agent hooks stay degraded there`,
+          `no node >= 18 found in distro '${state.distro}'; agent hooks stay degraded there`,
           { cooldownBaseMs: NO_NODE_COOLDOWN_MS }
         ),
       onFailure: (message) =>

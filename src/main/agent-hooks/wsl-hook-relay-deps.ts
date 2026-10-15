@@ -14,15 +14,15 @@ import { getOpenCode2PluginSource, getOpenCodePluginSource } from '../opencode/h
 import { getPiAgentStatusExtensionSource } from '../pi/agent-status-extension-source'
 import { codexHookService } from '../codex/hook-service'
 import type { AgentHookInstallStatus } from '../../shared/agent-hook-types'
-import type { PluginSources } from '../../relay/plugin-overlay'
+import type { PluginSources } from '../../wsl-guest/plugin-overlay'
 import {
-  isWslDistroRunning,
   resolveWslHookRelayBundle,
   runWslInstallProcess,
   spawnWslRelayProcess
 } from './wsl-hook-relay-launch'
 import { waitForWslRelaySentinel } from './wsl-hook-relay-sentinel'
 import { listWslDistrosAsync } from '../wsl'
+import { isWslDistroRunning } from '../wsl-background-distro-gate'
 import { isRemoteAgentHooksEnabled } from '../../shared/agent-hook-relay'
 
 // Why: fresh WSL intermittently throws "Catastrophic failure (E_UNEXPECTED)"
@@ -33,7 +33,7 @@ export const WSL_RELAY_TRANSIENT_RETRY_DELAY_MS = 2_000
 // Restart/cooldown policy for the manager's state machine.
 export const FAILURE_COOLDOWN_BASE_MS = 60_000
 export const FAILURE_COOLDOWN_MAX_MS = 10 * 60_000
-// Why: a distro without node >= 24 will not grow one mid-session; probe
+// Why: a distro without node >= 18 will not grow one mid-session; probe
 // rarely instead of once per PTY spawn.
 export const NO_NODE_COOLDOWN_MS = 10 * 60_000
 // Why: a previously-healthy relay dying mid-session (mux protocol error, WSL
@@ -60,6 +60,7 @@ export type WslHookRelayManagerDeps = {
   resolveBundle: typeof resolveWslHookRelayBundle
   readBundle: (jsPath: string) => Buffer
   listDistros: () => Promise<string[]>
+  /** Restart timers check this so relay recovery never resurrects a VM the user shut down. */
   isDistroRunning: typeof isWslDistroRunning
   spawnRelay: typeof spawnWslRelayProcess
   runInstall: typeof runWslInstallProcess
