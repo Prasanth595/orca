@@ -55,6 +55,8 @@ export type MobileNativeChatPendingItem = {
    *  that row, so a send whose row never arrives stays where it was sent instead
    *  of trailing every turn that lands afterwards. */
   baselineTailMessageId?: string | null
+  /** When it was sent: the echo's time until the transcript row brings its own. */
+  sentAt?: number
 }
 
 export function foldMobileNativeChatMessages(
@@ -169,7 +171,7 @@ export function buildMobileNativeChatTransientData({
         ...(item.text ? [{ type: 'text' as const, text: item.text }] : []),
         ...(item.images ?? []).map((uri) => ({ type: 'image-ref' as const, url: uri }))
       ],
-      timestamp: null,
+      timestamp: item.sentAt ?? null,
       source: 'transcript'
     }
     // Tool/noise rows fold backward; image-source rows fold into their following prompt.

@@ -82,6 +82,13 @@ describe('buildMobileNativeChatTransientData', () => {
     expect(last.blocks).toEqual([{ type: 'text', text: 'queued' }])
   })
 
+  it('times an echo from when it was sent, as desktop times its pending sends', () => {
+    const data = build([assistant('a1', 'hello')], null, [
+      { id: 'p1', text: 'queued', sentAt: 1_792_024_037_937 }
+    ])
+    expect(data.at(-1)?.timestamp).toBe(1_792_024_037_937)
+  })
+
   it('renders a pending send with images as text followed by image-ref thumbnails', () => {
     const data = build([], null, [
       { id: 'p1', text: 'look', images: ['file:///a.jpg', 'file:///b.jpg'] }

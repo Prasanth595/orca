@@ -23,6 +23,7 @@ import { MobileNativeChatTurnStatus } from './MobileNativeChatTurnStatus'
 import { MobileNativeChatNoticeRow } from './MobileNativeChatNoticeRow'
 import { MobileNativeChatRowOverlaysContext } from './mobile-native-chat-row-overlays'
 import { MobileNativeChatUserMessageFold } from './MobileNativeChatUserMessageFold'
+import { MobileNativeChatMessageTime } from './MobileNativeChatMessageTime'
 import { MobileNativeChatAwaitingInputRow } from './MobileNativeChatAwaitingInputRow'
 import { MobileNativeChatResolutionReceipt } from './MobileNativeChatResolutionReceipt'
 import {
@@ -203,11 +204,8 @@ function MobileNativeChatMessageImpl({
       </>
     )
   }
-  // Always shown, so the row never shifts when copy appears.
-  const copyText =
-    message.role === 'user' || message.role === 'assistant'
-      ? nativeChatMessagePlainText(message)
-      : ''
+  const isChatTurn = message.role === 'user' || message.role === 'assistant'
+  const copyText = isChatTurn ? nativeChatMessagePlainText(message) : ''
   const proseRow = (block: NativeChatBlock, index: number, text: string, revealing = false) =>
     isSubagentGroupBlock(block) && isRenderableSubagentGroup(block) ? (
       <MobileNativeChatSubagentGroup
@@ -297,12 +295,18 @@ function MobileNativeChatMessageImpl({
           ) : null}
         </Content>
         {unsentNotice ? <NativeText style={styles.unsentNotice}>{unsentNotice}</NativeText> : null}
-        {copyText.length > 0 ? (
-          <MobileSourceCopyButton
-            key={message.id}
-            text={copyText}
-            accessibilityLabel="Copy message"
-          />
+        {/* Always shown, so the row never shifts when copy appears. */}
+        {isChatTurn ? (
+          <View style={styles.meta}>
+            {copyText.length > 0 ? (
+              <MobileSourceCopyButton
+                key={message.id}
+                text={copyText}
+                accessibilityLabel="Copy message"
+              />
+            ) : null}
+            <MobileNativeChatMessageTime timestamp={message.timestamp} fontScale={fontScale} />
+          </View>
         ) : null}
       </View>
       {turnStatusAbove ? null : statusRow}
