@@ -1,10 +1,9 @@
 import { focusTerminalTabSurface } from '@/lib/focus-terminal-tab-surface'
+import { createBrowserUuid } from '@/lib/browser-uuid'
 import { persistAgentLaunchTabOrder } from '@/lib/launch-agent-tab-order'
 import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
-import {
-  createWebRuntimeSessionTerminal,
-  isWebRuntimeSessionActive
-} from '@/runtime/web-runtime-session'
+import { createWebRuntimeSessionTerminal } from '@/runtime/web-runtime-terminal-creation'
+import { isWebRuntimeSessionActive } from '@/runtime/web-runtime-session-environment'
 import { dispatchWorkspaceTabCommand } from '@/lib/workspace-tab-commands'
 import {
   createFloatingWorkspaceTerminalTab,
@@ -43,10 +42,11 @@ export function registerTabLifecycleIpcBridge(unsubs: (() => void)[]): void {
         if (outcome.status === 'created' || isWebRuntimeSessionActive(environmentId)) {
           return
         }
-        const newTab = store.createTab(worktreeId)
+        const tabId = createBrowserUuid()
+        store.createTab(worktreeId, undefined, undefined, { id: tabId })
         store.setActiveTabType('terminal', worktreeId)
-        persistAgentLaunchTabOrder(worktreeId, newTab.id)
-        focusTerminalTabSurface(newTab.id)
+        persistAgentLaunchTabOrder(worktreeId, tabId)
+        focusTerminalTabSurface(tabId)
       })()
     })
   )

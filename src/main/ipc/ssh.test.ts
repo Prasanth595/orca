@@ -63,6 +63,7 @@ describe('SSH IPC handlers', () => {
       'ssh-1',
       'env-test',
       undefined,
+      undefined,
       undefined
     )
     expect(mockConnectionManager.connect).not.toHaveBeenCalled()
@@ -70,7 +71,7 @@ describe('SSH IPC handlers', () => {
 
   it('fails a host the managed server does not serve, with no fallback', async () => {
     const decision = {
-      route: 'relay' as const,
+      route: 'unserved' as const,
       reason: 'orcad_unavailable' as const,
       detail: 'unsupported_host'
     }

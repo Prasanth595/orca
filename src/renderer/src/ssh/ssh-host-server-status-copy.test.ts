@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  canEndOldRelayTerminals,
-  sshConnectFailureText,
-  sshHostServerStatusLine
-} from './ssh-host-server-status-copy'
+import { sshConnectFailureText, sshHostServerStatusLine } from './ssh-host-server-status-copy'
 
 const plain = {}
 
@@ -72,6 +68,25 @@ describe('SSH host server status line', () => {
       tone: 'warning',
       detail: 'readiness timed out'
     })
+  })
+
+  it('says which projects the server already had, and what of this desktop’s stayed behind', () => {
+    const linked = (automations: number) =>
+      sshHostServerStatusLine(plain, {
+        managedServer: {
+          kind: 'managed',
+          environmentId: 'e',
+          linked: [
+            { path: '/root/app', automations },
+            { path: '/root/tool', automations: 0 }
+          ]
+        }
+      })
+    expect(linked(2)).toEqual({
+      tone: 'warning',
+      text: 'This host’s Orca server already had /root/app, /root/tool, so this desktop now uses the server’s copy. This desktop’s tabs and 2 automations there were not moved, and worktrees it created there show as external worktrees.'
+    })
+    expect(linked(0)?.text).not.toContain('automation')
   })
 
   it('keeps durable reasons visible without a live state', () => {
@@ -179,49 +194,5 @@ describe('SSH host server status line', () => {
       expect(text).toContain('to connect again')
       expect(text).not.toContain('relay')
     }
-  })
-
-  it('names the exact scoped command and the census pids when old relay terminals block', () => {
-    const live = {
-      managedServer: {
-        kind: 'relay' as const,
-        reason: 'relay_terminals_live' as const,
-        terminals: 2,
-        oldRelays: { hostOs: 'posix' as const, pids: [4101, 4102] }
-      }
-    }
-    const text = sshConnectFailureText(live, 'raw')
-    expect(text).toContain('process IDs 4101, 4102')
-    expect(text).toContain(
-      'pkill -u "$(id -u)" -f "^([^ ]*/)?node[^ /]* relay\\.js --detached .*--sock-path ($HOME/\\.orca-remote|/tmp/\\.orca-relay-$(id -u))/relay-"'
-    )
-    expect(sshHostServerStatusLine(plain, live)?.stopHint?.command).toMatch(/^pkill -u /)
-    expect(canEndOldRelayTerminals(live)).toBe(true)
-  })
-
-  it('refuses the in-app stop when the census is unverifiable, keeping the manual command', () => {
-    const unverifiable = {
-      managedServer: {
-        kind: 'relay' as const,
-        reason: 'relay_terminals_unverifiable' as const,
-        oldRelays: { hostOs: 'posix' as const, pids: [] }
-      }
-    }
-    expect(canEndOldRelayTerminals(unverifiable)).toBe(false)
-    expect(sshConnectFailureText(unverifiable, 'raw')).toContain(
-      'To end them on the host, run: pkill'
-    )
-  })
-
-  it('gives a Windows host its PowerShell command and no in-app stop', () => {
-    const windows = {
-      managedServer: {
-        kind: 'relay' as const,
-        reason: 'relay_terminals_live' as const,
-        oldRelays: { hostOs: 'windows' as const, pids: [] }
-      }
-    }
-    expect(canEndOldRelayTerminals(windows)).toBe(false)
-    expect(sshConnectFailureText(windows, 'raw')).toContain('Get-CimInstance Win32_Process')
   })
 })

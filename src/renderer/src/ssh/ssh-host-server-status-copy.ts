@@ -2,11 +2,10 @@
 import type {
   SSH_MANAGED_SERVER_PHASES,
   SshConnectionState,
+  SshManagedServerLinkedProject,
   SshManagedServerUpdateNote,
-  SshOldRelayProcesses,
   SshTarget
 } from '../../../shared/ssh-types'
-import { oldRelayStopCommand } from '../../../shared/ssh-old-relay-stop-command'
 import { translate } from '@/i18n/i18n'
 import { useAppStore } from '@/store'
 
@@ -15,8 +14,6 @@ export type SshHostServerStatusLine = {
   tone: 'muted' | 'warning' | 'destructive'
   /** Main's untranslated cause, with the host's orcad.log tail when there is one; shown on request. */
   detail?: string
-  /** How to end an older Orca's terminals on the host by hand: a lead-in and the exact command. */
-  stopHint?: { lead: string; command: string }
 }
 
 export function sshHostServerStatusLine(
@@ -40,6 +37,9 @@ export function sshHostServerStatusLine(
   if (status?.kind === 'managed' && status.update) {
     return managedUpdateLine(status.update)
   }
+  if (status?.kind === 'managed' && status.linked?.length) {
+    return linkedProjectsLine(status.linked)
+  }
   // A healthy managed server is the default; the card stays quiet unless something needs attention.
   if (status?.kind === 'managed' || (!status && target.orcadFence)) {
     return null
@@ -62,24 +62,7 @@ export function sshConnectFailureText(
   fallback: string
 ): string {
   const status = state?.managedServer
-  if (status?.kind !== 'relay') {
-    return fallback
-  }
-  const line = unservedLine(status)
-  return line.stopHint ? `${line.text} ${line.stopHint.lead} ${line.stopHint.command}` : line.text
-}
-
-/** Orca can end them itself only on a POSIX host whose census proved them live and named them. */
-export function canEndOldRelayTerminals(
-  state: Pick<SshConnectionState, 'managedServer'> | undefined
-): boolean {
-  const status = state?.managedServer
-  return (
-    status?.kind === 'relay' &&
-    status.reason === 'relay_terminals_live' &&
-    status.oldRelays?.hostOs === 'posix' &&
-    status.oldRelays.pids.length > 0
-  )
+  return status?.kind === 'relay' ? unservedLine(status).text : fallback
 }
 
 export function sshTargetConnectFailureText(
@@ -189,6 +172,29 @@ function retryLine(): SshHostServerStatusLine {
   }
 }
 
+/** Projects the server already had: this desktop's own tabs and automations for them stayed behind. */
+function linkedProjectsLine(
+  linked: readonly SshManagedServerLinkedProject[]
+): SshHostServerStatusLine {
+  const paths = linked.map((project) => project.path).join(', ')
+  const count = linked.reduce((total, project) => total + project.automations, 0)
+  return {
+    tone: 'warning',
+    text:
+      count > 0
+        ? translate(
+            'auto.components.settings.sshHostServer.linkedProjects',
+            'This host’s Orca server already had {{paths}}, so this desktop now uses the server’s copy. This desktop’s tabs and {{count}} automations there were not moved, and worktrees it created there show as external worktrees.',
+            { paths, count }
+          )
+        : translate(
+            'auto.components.settings.sshHostServer.linkedProjectsNoAutomations',
+            'This host’s Orca server already had {{paths}}, so this desktop now uses the server’s copy. This desktop’s tabs there were not moved, and worktrees it created there show as external worktrees.',
+            { paths }
+          )
+  }
+}
+
 function managedUpdateLine(update: SshManagedServerUpdateNote): SshHostServerStatusLine {
   switch (update.state) {
     case 'host-newer':
@@ -257,7 +263,6 @@ function unservedLine(
     case 'relay_terminals_live':
       return {
         tone: 'warning',
-        ...oldRelayStopHint(status.oldRelays),
         // Why: an absent count is unreported, never zero open terminals.
         text: status.terminals
           ? translate(
@@ -273,7 +278,6 @@ function unservedLine(
     case 'relay_terminals_unverifiable':
       return {
         tone: 'warning',
-        ...oldRelayStopHint(status.oldRelays),
         text: translate(
           'auto.components.settings.sshHostServer.olderTerminalsUnverifiable',
           'Orca couldn’t confirm that terminals started by an older version of Orca have exited. Reconnect to try again.'
@@ -297,26 +301,6 @@ function unservedLine(
     case 'failed':
       return { ...retryLine(), ...withDetail(status.detail) }
   }
-}
-
-function oldRelayStopHint(
-  oldRelays: SshOldRelayProcesses | undefined
-): Pick<SshHostServerStatusLine, 'stopHint'> {
-  if (!oldRelays) {
-    return {}
-  }
-  const lead =
-    oldRelays.pids.length > 0
-      ? translate(
-          'auto.components.settings.sshHostServer.oldTerminalsStopLeadPids',
-          'To end them on the host (process IDs {{pids}}), run:',
-          { pids: oldRelays.pids.join(', ') }
-        )
-      : translate(
-          'auto.components.settings.sshHostServer.oldTerminalsStopLead',
-          'To end them on the host, run:'
-        )
-  return { stopHint: { lead, command: oldRelayStopCommand(oldRelays.hostOs) } }
 }
 
 function withDetail(detail: string | undefined): Pick<SshHostServerStatusLine, 'detail'> {
