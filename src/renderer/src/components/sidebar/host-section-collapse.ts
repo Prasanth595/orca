@@ -48,3 +48,28 @@ export function scopeHostSectionCollapse(args: {
     return sectionCollapsed ? [] : [row]
   })
 }
+
+
+/**
+ * Drop persisted `project-group:<id>` collapse keys whose groups no longer exist.
+ * Stale keys survive Cloud/Local parent renames and flat-squad reshuffles; the
+ * TanStack sidebar virtualizer then measures ghost rows and overlaps headers
+ * (see stablyai/orca#13945 / project UI sidebar corruption).
+ */
+export function sanitizeCollapsedGroupsAgainstProjectGroups(
+  collapsedGroups: Iterable<string>,
+  projectGroups: ReadonlyArray<{ id: string }>
+): string[] {
+  const valid = new Set(projectGroups.map((group) => group.id))
+  const next: string[] = []
+  for (const key of collapsedGroups) {
+    if (key.startsWith('project-group:')) {
+      const groupId = key.slice('project-group:'.length)
+      if (!valid.has(groupId)) {
+        continue
+      }
+    }
+    next.push(key)
+  }
+  return next
+}
