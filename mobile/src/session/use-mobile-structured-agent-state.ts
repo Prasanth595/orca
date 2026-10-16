@@ -18,7 +18,9 @@ import type { RpcClient } from '../transport/rpc-client'
 import {
   agentSessionReadFailureRefusal,
   agentSessionReadFailureText,
-  callAgentSession
+  callAgentSession,
+  STRUCTURED_SEND_TIMEOUT_MS,
+  timeoutForDeadline
 } from './mobile-structured-agent-session-rpc'
 import {
   reduceMobileQueuePause,
@@ -241,6 +243,7 @@ export function useMobileStructuredAgentState(args: {
     const isCurrentRead = (): boolean =>
       sessionKeyRef.current === requestSessionKey &&
       streamGenerationRef.current === requestGeneration
+    const deadline = Date.now() + STRUCTURED_SEND_TIMEOUT_MS
     setLoadingOlder(true)
     void (async () => {
       // A live batch can head-trim past the anchor mid-read, and the reducer drops that
@@ -256,16 +259,30 @@ export function useMobileStructuredAgentState(args: {
         const pages: { requestedCursor: AgentJournalCursor; page: AgentSessionHistoryPage }[] = []
         let requestedCursor = cursor
         while (pages.length < OLDER_PAGES_PER_LOAD) {
-          const result = await callAgentSession<AgentSessionHistoryResult>(
-            client,
-            'agentSession.history',
-            {
-              sessionId,
-              direction: 'before',
-              cursor: requestedCursor,
-              limit: OLDER_PAGE_LIMIT
+          const timeoutMs = timeoutForDeadline(deadline)
+          if (timeoutMs === null) {
+            break
+          }
+          let result: AgentSessionHistoryResult
+          try {
+            result = await callAgentSession<AgentSessionHistoryResult>(
+              client,
+              'agentSession.history',
+              {
+                sessionId,
+                direction: 'before',
+                cursor: requestedCursor,
+                limit: OLDER_PAGE_LIMIT
+              },
+              timeoutMs
+            )
+          } catch (error) {
+            if (Date.now() < deadline || pages.length === 0) {
+              throw error
             }
-          )
+            // Keep contiguous pages already received when the shared deadline expires.
+            break
+          }
           if (!result.ok || !isCurrentRead()) {
             break
           }
