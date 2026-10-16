@@ -88,3 +88,69 @@ it('keeps ordinary native text working on older shells without the module', asyn
   expect(native.decorateText).not.toHaveBeenCalled()
   expect(tree!.toJSON()).toBeTruthy()
 })
+
+function renderNestedCode(text = 'src/a.ts') {
+  const element = createElement(
+    MobileMarkdownNativeText,
+    null,
+    'Use ',
+    createElement(
+      MobileMarkdownNativeText,
+      {
+        inlineCode: true,
+        style: { backgroundColor: 'fallback' }
+      },
+      text
+    )
+  )
+  act(() => {
+    if (tree) {
+      tree.update(element)
+    } else {
+      tree = create(element, { createNodeMock: () => ({ tag: 17 }) })
+    }
+  })
+}
+function codeStyle(text = 'src/a.ts') {
+  return JSON.stringify(
+    tree!.root
+      .findAll((node) => String(node.type) === 'Text')
+      .find((node) => node.props.children === text)!.props.style
+  )
+}
+it.each(['refused', 'rejected'])(
+  'keeps the fallback background when native decoration is %s',
+  async (outcome) => {
+    if (outcome === 'refused') {
+      native.decorateText.mockResolvedValue({ applied: false, height: 0 })
+    } else {
+      native.decorateText.mockRejectedValue(new Error('view disappeared'))
+    }
+    renderNestedCode()
+    expect(codeStyle()).not.toContain('transparent')
+    await paint()
+    expect(codeStyle()).not.toContain('transparent')
+  }
+)
+it('removes fallback only after success and restores it while new text awaits decoration', async () => {
+  renderNestedCode()
+  expect(codeStyle()).not.toContain('transparent')
+  await paint()
+  expect(codeStyle()).toContain('transparent')
+  native.decorateText.mockResolvedValue({ applied: false, height: 0 })
+  renderNestedCode('src/b.ts')
+  expect(codeStyle('src/b.ts')).not.toContain('transparent')
+  await paint()
+  expect(codeStyle('src/b.ts')).not.toContain('transparent')
+})
+
+it('keeps fallback during a theme change until the new native decoration succeeds', async () => {
+  renderNestedCode()
+  await paint()
+  expect(codeStyle()).toContain('transparent')
+  native.decorateText.mockResolvedValue({ applied: false, height: 0 })
+  act(() => applyMobileColorScheme('light'))
+  expect(codeStyle()).not.toContain('transparent')
+  await paint()
+  expect(codeStyle()).not.toContain('transparent')
+})

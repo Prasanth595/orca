@@ -22,6 +22,19 @@ describe('responsive markdown column layout', () => {
     expect(widths.every((width) => width >= 72)).toBe(true)
     expect(widths.reduce((sum, width) => sum + width, 0)).toBeGreaterThan(320)
   })
+  it.each([1, 1.5])(
+    'uses the readable column floor for an overflowing table at scale %s',
+    (textScale) => {
+      const widths = mobileMarkdownTableColumnWidths(
+        [Array.from({ length: 5 }, () => 'x'.repeat(100))],
+        {
+          availableWidth: 320,
+          textScale
+        }
+      )
+      expect(widths).toEqual(Array(5).fill(72 * textScale))
+    }
+  )
   it('accounts for text size, CJK, long identifiers and rotation', () => {
     const table = [
       ['A', '文档文档'],

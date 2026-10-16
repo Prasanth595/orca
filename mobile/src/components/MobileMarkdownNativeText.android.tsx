@@ -8,7 +8,7 @@ import { nativeMarkdownCode } from './mobile-markdown-native-code'
 import { colors } from '../theme/mobile-theme'
 import { useMobileTheme } from '../theme/use-mobile-theme'
 
-const InsideText = createContext(false)
+const InsideText = createContext({ nested: false, decorated: false })
 const transparentCode = { backgroundColor: 'transparent', paddingHorizontal: 0 } as const
 
 export function MobileMarkdownNativeText({
@@ -19,12 +19,21 @@ export function MobileMarkdownNativeText({
   ...props
 }: MarkdownTextProps) {
   const scheme = useMobileTheme()
-  const nested = useContext(InsideText)
+  const parent = useContext(InsideText)
+  const nested = parent.nested
   const view = useRef<Text>(null)
   const frame = useRef<number | null>(null)
   const revision = useRef(0)
-  const [measurement, setMeasurement] = useState<{ text: string; height: number } | null>(null)
   const document = useMemo(() => collectMarkdownCodeRanges(children), [children])
+  const [measurement, setMeasurement] = useState<{
+    document: typeof document
+    scheme: typeof scheme
+    height: number
+  } | null>(null)
+  const currentMeasurement =
+    measurement?.document === document && measurement.scheme === scheme ? measurement : null
+  const decorated = nested ? parent.decorated : currentMeasurement !== null
+  const context = useMemo(() => ({ nested: true, decorated }), [decorated])
   const decorate = useCallback(() => {
     const current = ++revision.current
     if (frame.current !== null) {
@@ -44,14 +53,20 @@ export function MobileMarkdownNativeText({
         (result) => {
           if (revision.current === current && result.applied && result.height > 0) {
             setMeasurement((previous) =>
-              previous?.text === document.text && Math.abs(previous.height - result.height) < 0.5
+              previous?.document === document &&
+              previous.scheme === scheme &&
+              Math.abs(previous.height - result.height) < 0.5
                 ? previous
-                : { text: document.text, height: result.height }
+                : { document, scheme, height: result.height }
             )
+          } else if (revision.current === current) {
+            setMeasurement(null)
           }
         },
         () => {
-          /* Native text remains readable if a view disappears during navigation. */
+          if (revision.current === current) {
+            setMeasurement(null)
+          }
         }
       )
     })
@@ -76,15 +91,15 @@ export function MobileMarkdownNativeText({
     decorate()
   }
   return (
-    <InsideText.Provider value={true}>
+    <InsideText.Provider value={context}>
       <Text
         {...props}
         ref={nested ? undefined : view}
         onLayout={nested ? onLayout : layout}
         style={[
           style,
-          inlineCode && nativeMarkdownCode && transparentCode,
-          !nested && measurement?.text === document.text && { minHeight: measurement.height }
+          inlineCode && decorated && transparentCode,
+          !nested && currentMeasurement && { minHeight: currentMeasurement.height }
         ]}
       >
         {children}

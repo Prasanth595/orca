@@ -23,7 +23,12 @@ export type MermaidDiagramProps = {
 // memo: both props are primitives; without it every mounted diagram re-renders
 // per frame during pinch-to-zoom (textScale updates), marshalling the full HTML
 // string across the Fabric boundary each time.
-export const MermaidDiagram = memo(function MermaidDiagram({ source, base }: MermaidDiagramProps) {
+export const MermaidDiagram = memo(function MermaidDiagram(props: MermaidDiagramProps) {
+  const colorScheme = useMobileTheme()
+  return <MermaidDocument key={JSON.stringify([props.source, colorScheme])} {...props} />
+})
+
+function MermaidDocument({ source, base }: MermaidDiagramProps) {
   const colorScheme = useMobileTheme()
 
   const [height, setHeight] = useState(0)
@@ -80,7 +85,7 @@ export const MermaidDiagram = memo(function MermaidDiagram({ source, base }: Mer
       />
     </View>
   )
-})
+}
 
 function MermaidFallback({ source, base }: MermaidDiagramProps) {
   useMobileTheme()

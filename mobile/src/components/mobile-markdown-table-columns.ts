@@ -51,7 +51,7 @@ export function mobileMarkdownTableColumnWidths(
   }
   const floor = minimum * natural.length
   if (availableWidth <= floor) {
-    return natural
+    return natural.map(() => minimum)
   }
   // Wrap prose before asking the reader to scroll; wide tables retain a readable column floor.
   return natural.map(

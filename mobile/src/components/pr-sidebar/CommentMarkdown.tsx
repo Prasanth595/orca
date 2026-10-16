@@ -225,6 +225,7 @@ function renderInline(text: string, base: number) {
   } catch {
     tokens = [{ kind: 'text', text }]
   }
+  const codeOccurrences = new Map<string, number>()
   return (
     <>
       {tokens.map((token, i) => {
@@ -243,9 +244,11 @@ function renderInline(text: string, base: number) {
           )
         }
         if (token.kind === 'code') {
+          const occurrence = codeOccurrences.get(token.text) ?? 0
+          codeOccurrences.set(token.text, occurrence + 1)
           return (
             <Text
-              key={`${token.kind}:${token.text}:${tokens.slice(0, i).filter((previous) => previous.kind === token.kind && previous.text === token.text).length}`}
+              key={`${token.kind}:${token.text}:${occurrence}`}
               inlineCode
               style={[styles.codeInline, { fontSize: base - 1 }]}
             >
