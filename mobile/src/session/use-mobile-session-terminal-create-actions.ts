@@ -8,6 +8,7 @@ import { triggerSuccess, triggerError } from '../platform/haptics'
 import { buildTerminalSendParams } from '../terminal/terminal-send-request'
 import { terminalRecordsEqual } from './mobile-terminal-records'
 import type { MobileNewTabAgentOption } from './mobile-new-tab-agent-options'
+import type { MobileTerminalResumeLaunch } from './mobile-native-chat-cli-fork'
 import type { TerminalQuickCommand } from '../../../src/shared/terminal-quick-command-types'
 import type { MobileSessionTab, Terminal } from './mobile-session-route-types'
 import type { MobileSessionAttachmentsModel } from './use-mobile-session-attachments'
@@ -58,6 +59,8 @@ export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttach
     options?: MobileQuickCommandLaunch['options'] & {
       onPromptSent?: () => void
       errorToast?: string
+      /** A resume's own launch record and environment, sent with its startup command. */
+      resumeLaunch?: MobileTerminalResumeLaunch
     }
   ) {
     if (!client || creatingTerminalRef.current) {
@@ -144,6 +147,7 @@ export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttach
           : {}),
         ...(options?.agentPrompt ? { agentPrompt: options.agentPrompt } : {}),
         ...(agent ? { agent } : {}),
+        ...options?.resumeLaunch,
         activate: false,
         select: true,
         navigation: 'caller'
