@@ -20,10 +20,15 @@ const PRIVATE_MODE = /\x1b\[\?([0-9;]*)([hl])|\x9b\?([0-9;]*)([hl])/
 const KITTY_KEYBOARD = /\x1b\[([<>=])([0-9;]*)u|\x9b([<>=])([0-9;]*)u/
 // oxlint-disable-next-line no-control-regex -- terminal escape sequences require control chars
 const FULL_RESET = /\x1bc/
+// oxlint-disable-next-line no-control-regex -- terminal escape sequences require control chars
+const MODIFY_OTHER_KEYS = /\x1b\[>4(?:;([0-9]*))?m|\x9b>4(?:;([0-9]*))?m/
 
-// Groups: 1 OSC 133 payload, 2/3 and 4/5 private-mode params + final, 6/7 and 8/9 kitty prefix + params.
+// Groups: 1 OSC 133 payload, 2/3 and 4/5 private-mode params + final, 6/7 and 8/9 kitty prefix + params,
+// 10 and 11 modifyOtherKeys level.
 const SEQUENCE_RE = new RegExp(
-  [LIFECYCLE_OSC, PRIVATE_MODE, KITTY_KEYBOARD, FULL_RESET].map((re) => re.source).join('|'),
+  [LIFECYCLE_OSC, PRIVATE_MODE, KITTY_KEYBOARD, FULL_RESET, MODIFY_OTHER_KEYS]
+    .map((re) => re.source)
+    .join('|'),
   'g'
 )
 
@@ -34,6 +39,8 @@ export type ShellLifecycleScanEvents = {
    * and after this index were NOT consumed; the caller re-feeds them.
    */
   uncleanDeathTriggerEnd?: number
+  /** Where that OSC 133;D begins in the chunk; 0 when it began in an earlier one. */
+  uncleanDeathTriggerStart?: number
   /** An OSC 133;D closed a command that had entered the alternate screen and left it cleanly. */
   cleanExitCandidate?: { generation: number }
 }
@@ -54,11 +61,6 @@ export class TerminalShellLifecycleScanner {
   private altActive = false
   private commandEnteredAlternateScreen = false
   private readonly inputModes = new TerminalArmedInputModes()
-  // Why one-shot: a refuted proof leaves the alt screen up (no reset was ever
-  // scanned), and without disarming every later prompt's D would re-open a full
-  // pause-and-inspect episode. Only a fresh alternate-screen enable re-arms; input
-  // modes are one-shot by markCommandEnd's demotion.
-  private uncleanTriggerArmed = false
 
   get owner(): TerminalOwner | undefined {
     return this.ownerState
@@ -97,7 +99,6 @@ export class TerminalShellLifecycleScanner {
       // this a mirror seeded mid-TUI never arms its unclean-death trigger and
       // the whole occupancy loses recovery.
       this.altActive = opts.alternateScreen
-      this.uncleanTriggerArmed = opts.alternateScreen
       this.commandEnteredAlternateScreen = opts.alternateScreen
     }
   }
@@ -123,7 +124,6 @@ export class TerminalShellLifecycleScanner {
         this.inputModes.reset()
         this.altActive = false
         this.commandEnteredAlternateScreen = false
-        this.uncleanTriggerArmed = false
         continue
       }
       if (oscPayload !== undefined) {
@@ -142,13 +142,12 @@ export class TerminalShellLifecycleScanner {
         }
         // An alternate screen or a command's input mode still up at command-finished
         // means the app died without its own teardown; the caller must repair first.
-        const leftInputModes = this.inputModes.markCommandEnd()
-        const uncleanDeath = (this.uncleanTriggerArmed && this.altActive) || leftInputModes
+        // Every D re-asks: a refuted one may be a nested shell's while the app lives.
+        const uncleanDeath = this.inputModes.markCommandEnd() || this.altActive
         const cleanExit = !uncleanDeath && this.commandEnteredAlternateScreen && !this.altActive
         this.revoke()
         this.commandEnteredAlternateScreen = false
         if (uncleanDeath) {
-          this.uncleanTriggerArmed = false
           this.scanTail = ''
           // Why the clamp: a complete OSC can never sit wholly inside the
           // carried tail (extractScanTail keeps incomplete ones only), so this
@@ -158,11 +157,21 @@ export class TerminalShellLifecycleScanner {
             0,
             match.index + match[0].length - previousTailLength
           )
+          events.uncleanDeathTriggerStart = Math.max(0, match.index - previousTailLength)
           return events
         }
         if (cleanExit) {
           events.cleanExitCandidate = { generation: this.generationState }
         }
+        continue
+      }
+      if (match[0].endsWith('m')) {
+        // A disarm (level 0) is part of our own ground, so like kitty only an arm revokes.
+        const level = Number(match[10] ?? match[11] ?? '') || 0
+        if (level > 0) {
+          this.revoke()
+        }
+        this.inputModes.applyModifyOtherKeys(level)
         continue
       }
       const kittyPrefix = match[6] ?? match[8]
@@ -195,7 +204,6 @@ export class TerminalShellLifecycleScanner {
           this.altActive = enabled
           if (enabled) {
             this.commandEnteredAlternateScreen = true
-            this.uncleanTriggerArmed = true
           }
         }
       }

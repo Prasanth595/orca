@@ -27,7 +27,7 @@ export function useMobileSessionNativeChatDictation(
     worktreeId,
     client,
     connState,
-    agentSessionPromptCancelSupported,
+    agentSessionHostSupport,
     setInput,
     liveInputTerminalHandles,
     activeHandle,
@@ -73,12 +73,13 @@ export function useMobileSessionNativeChatDictation(
     nativeChatTranscriptIsLocalReadable,
     nativeChatInputLeaseReady,
     connState,
-    agentSessionPromptCancelSupported,
+    agentSessionHostSupport,
     onSendError: nativeChatSendError.show,
     onSendResolved: nativeChatSendError.clear
   })
   const { toggleTabChatView, showNativeChat, showNativeChatRef } = nativeChatController
   nativeChatSendError.bannerMountedRef.current = showNativeChat
+  nativeChatSendError.keepWhile(nativeChatController.nativeChatCommandRefusalCauses)
   const nativeChatOverlayInputLockReason =
     activeSessionTab?.type === 'agent-session'
       ? connState === 'connected'

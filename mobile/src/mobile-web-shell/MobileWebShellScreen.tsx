@@ -1,13 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import {
-  ActivityIndicator,
-  Linking,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View
-} from 'react-native'
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useNavigation, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
@@ -34,28 +26,34 @@ import { playPageHaptic } from './page-haptics'
 import { useMobileWebShellBridge } from './use-mobile-web-shell-bridge'
 import type { MobileWebShellRuntime } from './mobile-web-shell-runtime'
 import { useKeyboardOcclusion } from '../platform/keyboard-occlusion'
-import { softwareKeyboardWindowInset } from '../platform/software-keyboard-window-inset'
 import { useNativeDeviceVerbs } from '../platform/use-native-device-verbs'
 import { useShellPageBack } from './use-shell-page-back'
 import { useShellStackPop } from './use-shell-stack-pop'
 import { useMobileWebShellSession } from './use-mobile-web-shell-session'
 import { usePageHostSnapshot } from './use-page-host-snapshot'
+import { useReportedHostAreaServing } from './host-area-serving'
+import { isHostRouteOf } from './page-route-policy'
+import { useResponsiveLayout } from '../layout/responsive-layout'
+import { storageReadParamsSchema, type BridgeNativeVerb } from './bridge/bridge-native-verbs'
 import { SHELL_OPENING_LABEL, ShellPageCover, ShellWaitingFrame } from './ShellWaitingFrame'
+import { ShellDownloadProgress } from './ShellDownloadProgress'
 import { pageSafeAreaInsets, usePublishedSafeAreaInsets } from './page-safe-area-insets'
+import { hostProfileUnreadableLine, pageFaultLine } from './shell-lifecycle-log'
+import { recordShellLifecycleLine } from './shell-lifecycle-line-recorder'
 
 function failureMessage(reason: MobileWebShellFailureCause): string {
   switch (reason) {
     case 'isolation-unavailable':
       return "This device's WebView is too old to open the workspace safely."
     case 'download-failed':
-      return 'The workspace could not be downloaded from this host.'
+      return 'The latest app could not be downloaded from this host.'
     case 'status-unreadable':
       return "Could not read this host's status. Go back and reopen it."
     case 'render-process-gone':
       return 'The workspace stopped responding.'
     case 'generation-unreadable':
     case 'document-load-failed':
-      return 'The downloaded workspace could not be opened.'
+      return 'The downloaded app could not be opened.'
   }
 }
 
@@ -64,7 +62,7 @@ function failureMessage(reason: MobileWebShellFailureCause): string {
 function updateNoticeMessage(notice: MobileWebShellUpdateNotice): string {
   switch (notice) {
     case 'update-failed':
-      return "Couldn't update the workspace from this host. Showing the last version that worked."
+      return "Couldn't download the latest app from this host. Showing the last version that worked."
   }
 }
 
@@ -76,18 +74,6 @@ function Waiting({ label }: { label: string }) {
   return (
     <Centered>
       <ShellWaitingFrame label={label} />
-    </Centered>
-  )
-}
-
-function Fetching({ state }: { state: Extract<MobileWebShellSessionState, { kind: 'fetching' }> }) {
-  return (
-    <Centered>
-      <ActivityIndicator color={colors.textSecondary} accessibilityLabel="Downloading workspace" />
-      <Text style={styles.waitingLabel}>Downloading workspace</Text>
-      <Text style={styles.progress} testID="mobile-web-shell-progress">
-        {`${state.completedAssets}/${state.totalAssets} files · ${state.receivedBytes}/${state.totalBytes} bytes`}
-      </Text>
     </Centered>
   )
 }
@@ -178,19 +164,10 @@ export function MobileWebShellScreen({
   runtime
 }: MobileWebShellScreenProps) {
   const insets = useSafeAreaInsets()
-  // The page cannot see the IME for itself: edge-to-edge makes the manifest's `adjustResize` inert,
-  // so the window never shrinks and `visualViewport` inside the WebView reads full height with the
-  // keyboard up — the session route lays its live input row out under the keys. The shell owns the
-  // window, so it takes the strip off the view and the page lays out in what is left.
-  const keyboardHeight = useKeyboardOcclusion()
-  const keyboardInset = softwareKeyboardWindowInset({
-    keyboardHeight,
-    bottomInset: insets.bottom,
-    platform: Platform.OS
-  })
   const router = useRouter()
   const navigation = useNavigation()
   const popShellStack = useShellStackPop()
+  const { isWideLayout } = useResponsiveLayout()
   const { droppedBinaryFrames, reportDroppedBinaryFrames } = useMobileWebShellDroppedFrames()
   const {
     state,
@@ -208,25 +185,35 @@ export function MobileWebShellScreen({
     pageReady,
     pageFrame,
     backClaimed,
-    pageOwnsSafeArea
-  } = useMobileWebShellSession({ hostId, routePathname: route.pathname, runtime })
+    ownsHostArea
+  } = useMobileWebShellSession({
+    hostId,
+    routePathname: route.pathname,
+    wide: isWideLayout,
+    runtime
+  })
+  // Full screen from the download on, as on a phone; while checking, nobody knows the page owns it.
+  useReportedHostAreaServing(ownsHostArea && state.kind !== 'checking')
   // Which mount the notice was dismissed on, not whether it was: a later refusal opens its own
   // generation under a new session id, so it is not silenced by a tap on the one before it.
   const [noticeDismissedFor, setNoticeDismissedFor] = useState<string | null>(null)
   const noticeShown =
     updateNotice !== null && state.kind === 'ready' && noticeDismissedFor !== state.sessionId
-  const pageInsets = pageSafeAreaInsets({
-    insets,
-    keyboardInset,
-    topCovered: noticeShown
-  })
-  const { snapshot, unreadable, readStorage, refreshStorage, writeStorage } = usePageHostSnapshot(
-    hostId,
-    route.pathname
-  )
+  // The page cannot see the IME for itself: edge-to-edge makes `adjustResize` inert and the view's
+  // IME insets are zeroed, so `visualViewport` never shrinks. The keyboard covers the view like a
+  // native screen, and the page lifts by the height native screens read.
+  const keyboardInset = Math.max(0, useKeyboardOcclusion())
+  const pageInsets = pageSafeAreaInsets({ insets, topCovered: noticeShown })
+  const { snapshot, unreadable, readStorage, refreshStorage, writeStorage, readWorkspaceKey } =
+    usePageHostSnapshot(hostId, route.pathname, ownsHostArea)
   // Declared before the bridge so the handler it is handed already belongs to this session: the
   // media verbs hold staged files, and a registry born after the host would outlive the page.
-  const serveNativeVerb = useNativeDeviceVerbs(state.kind === 'ready' ? state.sessionId : null)
+  const serveDeviceVerb = useNativeDeviceVerbs(state.kind === 'ready' ? state.sessionId : null)
+  // The storage read is the shell's own store rather than the device's, scoped to this host.
+  const serveNativeVerb = (verb: BridgeNativeVerb, params: unknown): Promise<unknown> =>
+    verb === 'native.storage.read'
+      ? readWorkspaceKey(storageReadParamsSchema.parse(params).key).then((value) => ({ value }))
+      : serveDeviceVerb(verb, params)
   // Straight to the system handler, and the one opener the shell has: the page's `externalLink`
   // notify and a cancelled top-frame navigation both arrive here already filtered. The only failure
   // left is a device with nothing registered for the scheme -- a `mailto:` on a phone with no mail
@@ -242,9 +229,11 @@ export function MobileWebShellScreen({
     hostId,
     route,
     safeAreaInsets: pageInsets,
+    keyboardInset,
     pageRoutes,
     pageRouteGrants,
     routeGrants,
+    ownsHostArea,
     session: state,
     sessionEstablished: pageReady,
     snapshot,
@@ -258,18 +247,19 @@ export function MobileWebShellScreen({
     // handler on the other, and neither has anywhere to put a throw.
     onPageFault: (error) => {
       console.warn('[web-shell] the page faulted', error)
+      recordShellLifecycleLine(hostId, pageFaultLine(error))
       reportShellFailure('document-load-failed')
     },
     // The `init` this ready is answered with is already built from the app's writes, which reach
     // the map as they are made. This re-seats that map on the store afterwards, for the key whose
     // write never persisted, and it runs on every ask because a document that reloads inside this
     // mount asks again.
-    onPageReady: (ready) => {
-      reportPageReady(ready)
+    onPageReady: () => {
+      reportPageReady()
       void refreshStorage()
     },
     // The one thing that says the page is something to look at. The cover below stays up until it
-    // lands, for a page that declared it would send one.
+    // lands.
     onPagePainted: reportPagePainted,
     // While this is true the key below belongs to the page, not to the stack this screen sits on.
     onPageBackClaim: reportPageBackClaim,
@@ -279,6 +269,7 @@ export function MobileWebShellScreen({
     // `document-load-failed` because that is what happens: the document loads and the page refuses
     // the session, so no tree is ever built. The refetch it costs is wasted on a route this shell
     // produced, and the second report is terminal, which is the failure screen this deserves.
+    // Logged by the host's `route-refused` diagnostic, which carries the issue, in the same call.
     onRouteRefused: (issue) => {
       console.warn('[web-shell] refused to open this screen', issue)
       reportShellFailure('document-load-failed')
@@ -286,6 +277,12 @@ export function MobileWebShellScreen({
     // Pushed, never replaced: the page stays mounted underneath, so Back reveals it with no
     // download and no second `init`.
     onNavigate: (href: string) => {
+      // Wide, this host's route is the area-owning session below: back to it, or in place of this
+      // one from a cold deep link, never a second on top. `dismissTo` takes the href's params.
+      if (isWideLayout && isHostRouteOf(href, hostId)) {
+        router.dismissTo(href)
+        return
+      }
       router.push(href)
     },
     // Answered on this device and never forwarded; the host holds it to the verb table first.
@@ -323,6 +320,11 @@ export function MobileWebShellScreen({
   }, [publishRoute, route])
 
   usePublishedSafeAreaInsets(bridge.publishSafeAreaInsets, pageInsets)
+  // Every keyboard event, a height change while open included, so the page never holds a stale one.
+  const publishKeyboardInset = bridge.publishKeyboardInset
+  useEffect(() => {
+    publishKeyboardInset(keyboardInset)
+  }, [publishKeyboardInset, keyboardInset])
 
   // The navigation object rather than the router: what this takes away is this screen's own place
   // on the stack, which is a screen option, and the router has no member that says it.
@@ -343,6 +345,12 @@ export function MobileWebShellScreen({
       reportShellFailure('document-load-failed')
     }
   }, [reportShellFailure, unreadable])
+  // Log-only and separate, so the failure effect above keeps its own dependencies.
+  useEffect(() => {
+    if (unreadable) {
+      recordShellLifecycleLine(hostId, hostProfileUnreadableLine())
+    }
+  }, [hostId, unreadable])
 
   if (state.kind === 'native-route') {
     return fallback
@@ -357,13 +365,17 @@ export function MobileWebShellScreen({
     return (
       <Centered>
         <Text style={styles.waitingLabel} testID="mobile-web-shell-offline">
-          Connect to this host to download the workspace
+          Connect to this host to download the latest app
         </Text>
       </Centered>
     )
   }
   if (state.kind === 'fetching') {
-    return <Fetching state={state} />
+    return (
+      <Centered>
+        <ShellDownloadProgress state={state} host={snapshot?.host ?? null} />
+      </Centered>
+    )
   }
   if (state.kind !== 'ready') {
     return <Waiting label={state.kind === 'activating' ? SHELL_OPENING_LABEL : 'Checking host'} />
@@ -372,12 +384,9 @@ export function MobileWebShellScreen({
     <View
       style={[
         styles.shellRoot,
-        // Edge-to-edge like a native screen, for a page that pads for the bars itself; an older page
-        // keeps the strips. The keyboard strip stays off either way, since the page cannot see it,
-        // and the banner takes the status bar strip when it shows.
-        pageOwnsSafeArea
-          ? { paddingTop: noticeShown ? insets.top : 0, paddingBottom: keyboardInset }
-          : { paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, keyboardInset) }
+        // Edge-to-edge like a native screen: the page pads for the bars itself from the insets
+        // `init` carries. The banner takes the status bar strip when it shows.
+        { paddingTop: noticeShown ? insets.top : 0 }
       ]}
       testID="mobile-web-shell-ready"
     >
@@ -454,11 +463,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: spacing.md,
     textAlign: 'center'
-  },
-  progress: {
-    fontSize: typography.metaSize,
-    color: colors.textMuted,
-    marginTop: spacing.sm
   },
   failedMessage: {
     fontSize: typography.bodySize,

@@ -140,7 +140,17 @@ export function WorkspaceSpaceManagerTable({
                       deleteState={getDeleteStateForWorktree(worktree)}
                       onToggleSelected={() => toggleSelection(worktree)}
                       onInspect={() => setInspectedWorktreeId(identity)}
-                      onOpenWorkspace={() => activateAndRevealWorktree(worktree.worktreeId)}
+                      onOpenWorkspace={() =>
+                        window.location.pathname.endsWith('/space.html')
+                          ? void window.api.workspaceSpace.revealWorktree?.(
+                              worktree.worktreeId,
+                              worktree.executionHostId
+                            )
+                          : activateAndRevealWorktree(worktree.worktreeId, {
+                              navigationIntent: 'user-open',
+                              executionHostId: worktree.executionHostId
+                            })
+                      }
                       onDelete={() => deleteWorktrees([worktree])}
                       onForceDelete={() => forceDeleteWorktree(worktree)}
                     />
@@ -150,7 +160,7 @@ export function WorkspaceSpaceManagerTable({
             </div>
           </div>
         </div>
-      ) : (
+      ) : !analysis && !scanError ? null : (
         <div className="rounded-lg border border-border/70 bg-background/30 px-4 py-10 text-center text-sm text-muted-foreground">
           {scanError
             ? translate(
