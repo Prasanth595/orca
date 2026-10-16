@@ -69,3 +69,39 @@ it('preserves leading indentation and trailing whitespace after removing a file 
     splitMobileNativeChatFileAttachments([{ type: 'text', text: `    code\n@${path}\n` }])
   ).toEqual({ files: [path], prose: [{ type: 'text', text: '    code\n\n' }] })
 })
+
+it.each(['` @PATH `', '`` a ` @PATH ``', '`\n@PATH\n`'])(
+  'keeps inline code literal while extracting a reference from prose: %s',
+  (literal) => {
+    const path = '/root/.orca/agent-session-attachments/id/report.pdf'
+    const code = literal.replace('@PATH', `@${path}`)
+    const text = `Review ${code} and @${path} please.`
+    expect(splitMobileNativeChatFileAttachments([{ type: 'text', text }])).toEqual({
+      files: [path],
+      prose: [{ type: 'text', text: `Review ${code} and please.` }]
+    })
+  }
+)
+it('does not turn an unmatched backtick into an inline code span', () => {
+  const path = '/root/.orca/agent-session-attachments/id/report.pdf'
+  expect(
+    splitMobileNativeChatFileAttachments([{ type: 'text', text: `Review \` @${path} please.` }])
+  ).toEqual({
+    files: [path],
+    prose: [{ type: 'text', text: 'Review ` please.' }]
+  })
+})
+
+it('does not extract a file tile from a code-only reference', () => {
+  const path = '/root/.orca/agent-session-attachments/id/report.pdf'
+  const block = { type: 'text' as const, text: `Review \` @${path} \`.` }
+  expect(splitMobileNativeChatFileAttachments([block])).toEqual({ files: [], prose: [block] })
+})
+it('does not pair backticks across separate Markdown paragraphs', () => {
+  const path = '/root/.orca/agent-session-attachments/id/report.pdf'
+  const text = `Before \`\n\n@${path}\n\n\` after`
+  expect(splitMobileNativeChatFileAttachments([{ type: 'text', text }])).toEqual({
+    files: [path],
+    prose: [{ type: 'text', text: 'Before `\n\n\n\n` after' }]
+  })
+})
