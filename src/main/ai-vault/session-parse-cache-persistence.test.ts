@@ -459,6 +459,22 @@ describe('session parse cache persistence', () => {
     expect((await parse(transcript)).fullParses).toBe(1)
   })
 
+  it('a forced whole read re-reads even when the database delete fails', async () => {
+    const root = await makeTempDir()
+    const cacheFile = join(root, 'session-parse-cache.json')
+    initSessionParseCachePersistence({ filePath: cacheFile, appVersion: APP_VERSION })
+    const transcript = await writeTranscript(root)
+    await parse(transcript)
+    await flushSessionParseCachePersist()
+
+    simulateRestart(cacheFile)
+    vi.spyOn(SessionParseCacheDatabase.prototype, 'delete').mockImplementation(() => {})
+    const candidate = await claudeCandidate(transcript)
+    const stats = createSessionParseStats()
+    await parseAgentSessionFileCached(candidate, process.platform, stats, 'whole')
+    expect(stats).toMatchObject({ reused: 0, fullParses: 1 })
+  })
+
   it('performs zero disk IO when only configured, as Electron main is', async () => {
     const root = await makeTempDir()
     configureSessionParseCachePersistence({
