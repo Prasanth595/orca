@@ -1,4 +1,5 @@
 import type { Terminal } from '@xterm/xterm'
+import { copySelectedTextFromUserInput } from '@/lib/copy-selected-text-from-user-input'
 import { readTerminalClipboardSelection } from './terminal-clipboard-selection-text'
 
 type TerminalSelectionCopyOptions = {
@@ -25,18 +26,18 @@ export async function copyTerminalSelection({
   return true
 }
 
-export async function copyTerminalSelectionFromKeyboard(
-  terminal: TerminalSelectionCopyOptions['terminal'] & Pick<Terminal, 'focus'>
+export function copyTerminalSelectionFromUserInput(
+  terminal: Pick<Terminal, 'getSelection' | 'focus' | 'textarea'>,
+  source: 'keyboard' | 'selection'
 ): Promise<void> {
-  const platform = window.api.platform?.get?.()
-  if (platform?.platform === 'linux' && platform.displayServer === 'wayland') {
-    // Keep the input serial and clipboard source on the focused Wayland connection.
-    terminal.focus()
-    window.api.ui.performNativeSelectionAction('copy')
-    return
-  }
-  await copyTerminalSelection({
-    terminal,
-    writeClipboardText: window.api.ui.writeTerminalClipboardText
+  const textarea = terminal.textarea
+  return copySelectedTextFromUserInput({
+    text: readTerminalClipboardSelection(terminal),
+    writeClipboardText: window.api.ui.writeTerminalClipboardText,
+    // Search also changes the selection; automatic copy must never move focus.
+    allowNativeCopy:
+      source === 'keyboard' ||
+      (textarea !== undefined && textarea.ownerDocument.activeElement === textarea),
+    beforeNativeCopy: source === 'keyboard' ? () => terminal.focus() : undefined
   })
 }

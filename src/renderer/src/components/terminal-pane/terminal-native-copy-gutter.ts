@@ -7,8 +7,8 @@ type NativeCopyTerminal = Pick<Terminal, 'getSelection' | 'hasSelection'> & {
 
 /**
  * xterm binds its own DOM `copy` listener that writes raw screen cells
- * (CoreBrowserTerminal `_initGlobal`). Native copy, including Wayland keyboard
- * copies routed through Electron, must trim the same gutter as IPC copies (#19770).
+ * (CoreBrowserTerminal `_initGlobal`). Native copy, including Wayland user copies
+ * routed through Electron, must trim the same gutter as IPC copies (#19770).
  * Capture phase, so this wins when the event targets the helper textarea and
  * xterm's element-level listener is next in line.
  */

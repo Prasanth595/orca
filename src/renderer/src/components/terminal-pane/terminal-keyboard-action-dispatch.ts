@@ -1,7 +1,7 @@
 import type { ManagedPane, PaneManager } from '@/lib/pane-manager/pane-manager'
 import type { PaneCwdMap } from './resolve-split-cwd'
 import type { PtyTransport } from './pty-transport-types'
-import { copyTerminalSelectionFromKeyboard } from './terminal-selection-copy'
+import { copyTerminalSelectionFromUserInput } from './terminal-selection-copy'
 import { splitTerminalPaneWithInheritedCwd } from './terminal-pane-split-with-inherited-cwd'
 import {
   markTerminalFollowOutput,
@@ -89,7 +89,7 @@ export function dispatchTerminalShortcutAction(
     event.stopImmediatePropagation()
     if (!event.repeat) {
       armNativeOnlyShortcut(event)
-      void copyTerminalSelectionFromKeyboard(pane.terminal).catch(() => {})
+      void copyTerminalSelectionFromUserInput(pane.terminal, 'keyboard').catch(() => {})
     }
     return
   }
