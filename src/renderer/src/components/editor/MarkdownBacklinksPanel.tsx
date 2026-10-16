@@ -1,9 +1,18 @@
-import { ChevronDown, ChevronRight, Link2, RotateCw } from 'lucide-react'
-import { type ReactNode, useState } from 'react'
+import { ChevronDown, ChevronRight, Link2, Network, RotateCw } from 'lucide-react'
+import { type ReactNode, useMemo, useState } from 'react'
 import { translate } from '@/i18n/i18n'
 import type { OpenFile } from '@/store/slices/editor'
 import type { MarkdownDocument } from '../../../../shared/filesystem-entry-types'
-import { useMarkdownBacklinks } from './use-markdown-backlinks'
+import {
+  collectMarkdownBacklinks,
+  markdownBacklinkSearchOptions,
+  type MarkdownBacklink
+} from './markdown-backlinks'
+import { MarkdownNoteGraphDialog } from './MarkdownNoteGraphDialog'
+import {
+  useMarkdownWorkspaceSearch,
+  type MarkdownWorkspaceSearch
+} from './use-markdown-workspace-search'
 
 type MarkdownBacklinksPanelProps = {
   activeFile: OpenFile
@@ -39,17 +48,26 @@ export function WithMarkdownBacklinks({
 /** Obsidian-style "linked mentions": collapsed by default; only the open list reads the store and searches. */
 export function MarkdownBacklinksPanel(props: MarkdownBacklinksPanelProps): React.JSX.Element {
   const [open, setOpen] = useState(false)
+  const [graphOpen, setGraphOpen] = useState(false)
+  const onOpenGraph = (): void => setGraphOpen(true)
   return (
     <section className="shrink-0 border-t border-border text-xs">
+      <MarkdownNoteGraphDialog open={graphOpen} onOpenChange={setGraphOpen} {...props} />
       {open ? (
         // Why keyed: a reused list would show the previous note's backlinks for a frame.
         <OpenMarkdownBacklinks
           key={props.activeFile.filePath}
           {...props}
           onClose={() => setOpen(false)}
+          onOpenGraph={onOpenGraph}
         />
       ) : (
-        <MarkdownBacklinksHeader open={false} count={null} onToggle={() => setOpen(true)} />
+        <MarkdownBacklinksHeader
+          open={false}
+          count={null}
+          onToggle={() => setOpen(true)}
+          onOpenGraph={onOpenGraph}
+        />
       )}
     </section>
   )
@@ -59,12 +77,14 @@ function MarkdownBacklinksHeader({
   open,
   count,
   onToggle,
-  onRefresh
+  onRefresh,
+  onOpenGraph
 }: {
   open: boolean
   count: number | null
   onToggle: () => void
   onRefresh?: () => void
+  onOpenGraph: () => void
 }): React.JSX.Element {
   return (
     <div className="flex items-center gap-1 px-2 py-1 text-muted-foreground">
@@ -92,6 +112,14 @@ function MarkdownBacklinksHeader({
           <RotateCw size={12} />
         </button>
       ) : null}
+      <button
+        type="button"
+        className="flex items-center gap-1 rounded px-1 py-0.5 hover:bg-accent hover:text-foreground"
+        onClick={onOpenGraph}
+      >
+        <Network size={12} />
+        {translate('auto.components.editor.MarkdownBacklinksPanel.graph', 'Graph')}
+      </button>
     </div>
   )
 }
@@ -100,16 +128,36 @@ function OpenMarkdownBacklinks({
   activeFile,
   markdownDocuments,
   onOpenDocument,
-  onClose
-}: MarkdownBacklinksPanelProps & { onClose: () => void }): React.JSX.Element {
-  const { state, refresh } = useMarkdownBacklinks(activeFile, markdownDocuments)
+  onClose,
+  onOpenGraph
+}: MarkdownBacklinksPanelProps & {
+  onClose: () => void
+  onOpenGraph: () => void
+}): React.JSX.Element {
+  const search = useMemo<MarkdownWorkspaceSearch<MarkdownBacklink[]>>(() => {
+    const findTarget = (documents: MarkdownDocument[]): MarkdownDocument | undefined =>
+      documents.find((document) => document.filePath === activeFile.filePath)
+    return {
+      options: (documents, rootPath) => {
+        const target = findTarget(documents)
+        return target ? markdownBacklinkSearchOptions(target, rootPath) : null
+      },
+      interpret: (documents, result) => {
+        const target = findTarget(documents)
+        return target ? collectMarkdownBacklinks(target, documents, result) : []
+      },
+      empty: []
+    }
+  }, [activeFile.filePath])
+  const { state, refresh } = useMarkdownWorkspaceSearch(activeFile, markdownDocuments, search)
   return (
     <>
       <MarkdownBacklinksHeader
         open
-        count={state.status === 'ready' ? state.backlinks.length : null}
+        count={state.status === 'ready' ? state.value.length : null}
         onToggle={onClose}
         onRefresh={refresh}
+        onOpenGraph={onOpenGraph}
       />
       <div className="scrollbar-editor max-h-48 overflow-y-auto px-2 pb-2">
         {state.status === 'loading' || state.status === 'idle' ? (
@@ -120,7 +168,7 @@ function OpenMarkdownBacklinks({
           <div role="alert" className="px-1 py-1 text-destructive">
             {state.message}
           </div>
-        ) : state.backlinks.length === 0 ? (
+        ) : state.value.length === 0 ? (
           <div className="px-1 py-1 text-muted-foreground">
             {translate(
               'auto.components.editor.MarkdownBacklinksPanel.empty',
@@ -129,7 +177,7 @@ function OpenMarkdownBacklinks({
           </div>
         ) : (
           <ul>
-            {state.backlinks.map((backlink) => (
+            {state.value.map((backlink) => (
               <li key={`${backlink.source.filePath}:${backlink.line}`}>
                 <button
                   type="button"
