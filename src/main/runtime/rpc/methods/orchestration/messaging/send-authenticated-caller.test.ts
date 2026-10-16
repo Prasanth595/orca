@@ -93,8 +93,9 @@ describe('orchestration.send authenticated lifecycle caller', () => {
     })
   })
 
-  it('binds a session caller to its current process and consumer generation', async () => {
+  it('binds an ingress-captured session process and consumer generation', async () => {
     const { db, runtime } = harness.setup()
+    vi.mocked(runtime.getTerminalProcessIncarnation).mockClear()
     const task = db.createTask({ spec: 'session worker' })
     const dispatch = createRootDispatch(
       db,
@@ -115,7 +116,8 @@ describe('orchestration.send authenticated lifecycle caller', () => {
       paneKey: 'tab_outer:leaf_outer',
       orcaSessionId: SESSION_ID,
       sessionId: SESSION_ID,
-      workspaceId: 'workspace-1'
+      workspaceId: 'workspace-1',
+      processIncarnation: 'runtime_test:term_outer:1'
     } as const
     const call = () =>
       harness.call(
@@ -132,14 +134,24 @@ describe('orchestration.send authenticated lifecycle caller', () => {
     await expect(call()).resolves.toMatchObject({
       lifecycle: { action: 'rejected', code: 'worker_identity_changed' }
     })
+    expect(runtime.getTerminalProcessIncarnation).not.toHaveBeenCalled()
 
-    vi.mocked(runtime.getTerminalProcessIncarnation).mockReturnValue('runtime_test:term_outer:2')
+    const currentCaller = {
+      ...caller,
+      processIncarnation: 'runtime_test:term_outer:2'
+    } as const
     const accepted = z
       .object({
         message: z.object({ payload: z.string() }),
         lifecycle: z.object({ action: z.string() })
       })
-      .parse(await call())
+      .parse(
+        await harness.call(
+          'orchestration.send',
+          { from: 'term_outer', subject: 'Done', type: 'worker_done', payload },
+          { runtime, orchestrationCaller: currentCaller }
+        )
+      )
     expect(accepted.lifecycle.action).toBe('completed')
     expect(JSON.parse(accepted.message.payload)).toMatchObject({
       providerSenderAttestation: {

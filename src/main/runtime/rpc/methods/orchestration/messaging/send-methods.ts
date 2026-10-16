@@ -71,11 +71,13 @@ export const ORCHESTRATION_SEND_METHODS = [
           : undefined
       const lifecycleMessage = isDispatchMutationMessageType(params.type)
       const sessionCallerAuthority =
-        orchestrationCaller?.terminalHandle === from && orchestrationCaller.paneKey
+        orchestrationCaller?.terminalHandle === from &&
+        orchestrationCaller.paneKey &&
+        orchestrationCaller.processIncarnation
           ? {
               terminalHandle: from,
               paneKey: orchestrationCaller.paneKey,
-              processIncarnation: runtime.getTerminalProcessIncarnation(from) ?? undefined
+              processIncarnation: orchestrationCaller.processIncarnation
             }
           : undefined
       const providerCallerAuthority = attestedCaller ?? sessionCallerAuthority
