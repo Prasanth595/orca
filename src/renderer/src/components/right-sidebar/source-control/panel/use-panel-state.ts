@@ -1,4 +1,6 @@
+import { useCallback } from 'react'
 import { useSourceControlDiffCommentNotes } from '../notes/use-diff-comment-notes'
+import { useNestedFolderScope } from '../nested/use-nested-folder-scope'
 import { useSourceControlStoreActions } from '../listing/use-store-actions'
 import { useSourceControlWorktreeContext } from '../listing/use-worktree-context'
 import { useSourceControlBranchLineTotalGate } from '../sync/use-branch-line-total-gate'
@@ -44,6 +46,11 @@ export function useSourceControlPanelState() {
     conflictOperationsByWorktree,
     worktreeMap
   })
+  const nestedFolderScope = useNestedFolderScope({
+    worktreeId: activeWorktreeId,
+    worktreePath,
+    connectionId: activeConnectionId
+  })
   useSourceControlBranchLineTotalGate({
     activeWorktreeId,
     branchSummary,
@@ -61,6 +68,12 @@ export function useSourceControlPanelState() {
     activeWorktreeInstanceId,
     worktreeMap
   })
+  const nestedGitTarget = nestedFolderScope.gitTargetPath
+  const refreshNestedFolder = nestedFolderScope.refreshAll
+  const refreshParentGitStatus = statusRefresh.refreshActiveGitStatusAfterMutation
+  const refreshActiveGitStatusAfterMutation = useCallback(async (): Promise<void> => {
+    await Promise.all([refreshParentGitStatus(), refreshNestedFolder()])
+  }, [refreshNestedFolder, refreshParentGitStatus])
 
   return {
     ...context,
@@ -68,7 +81,19 @@ export function useSourceControlPanelState() {
     ...notes,
     ...viewState,
     ...operationState,
-    ...statusRefresh
+    ...statusRefresh,
+    refreshActiveGitStatusAfterMutation,
+    nestedFolderScope,
+    sourceControlWorkspacePath: worktreePath,
+    worktreePath: nestedGitTarget ?? worktreePath,
+    entries: nestedFolderScope.gitTargetEntries ?? context.entries,
+    branchName: nestedFolderScope.gitTargetBranch ?? context.branchName,
+    hasUncommittedEntries: nestedGitTarget
+      ? (nestedFolderScope.gitTargetEntries?.length ?? 0) > 0
+      : context.hasUncommittedEntries,
+    branchEntries: nestedGitTarget ? [] : context.branchEntries,
+    branchSummary: nestedGitTarget ? null : context.branchSummary,
+    branchLineTotal: nestedGitTarget ? null : context.branchLineTotal
   }
 }
 

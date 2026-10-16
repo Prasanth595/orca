@@ -19508,6 +19508,15 @@
     "unlinkedPr": {
       "status": "PR #{{number}} のリンクが解除されました"
     },
+    "nestedFolder": {
+      "workspaceRoot": "このワークスペース",
+      "pickTitle": "フォルダ内の Git リポジトリを表示",
+      "clear": "フォルダをクリア",
+      "scanning": "Git リポジトリを検索しています…",
+      "empty": "このフォルダに Git リポジトリはありません",
+      "outsideWorkspace": "選択したフォルダはこのワークスペースの外です",
+      "commitHint": "コミットと PR 作成は選択中のリポジトリに対して行われます"
+    },
     "discard": {
       "restoreStagedVersionDescription": "これにより、最後にステージングされたバージョンが復元され、削除が破棄されます。これを元に戻すことはできません。",
       "unstagedChangesDescription": "これにより、このファイルに対するステージングされていない変更が元に戻ります。これを元に戻すことはできません。"

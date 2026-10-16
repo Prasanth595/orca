@@ -1,5 +1,7 @@
 import { ipcMain } from 'electron'
 import { posix, resolve } from 'node:path'
+import { relativePathInsideRoot } from '../../shared/cross-platform-path'
+import { isDescendantOrEqual } from './filesystem-path-containment'
 import type {
   CreateHostedReviewArgs,
   CreateStackedHostedReviewArgs,
@@ -75,11 +77,7 @@ async function resolveHostedReviewWorktreePath(
   if (getRepoSshConnectionId(repo)) {
     const remoteWorktreePath = normalizeRemoteHostedReviewPath(worktreePath)
     const repoWorktrees = await listRepoWorktreeGraph(repo)
-    if (
-      !repoWorktrees.some(
-        (worktree) => normalizeRemoteHostedReviewPath(worktree.path) === remoteWorktreePath
-      )
-    ) {
+    if (!remoteWorktreeBelongsToRepo(remoteWorktreePath, repo.path, repoWorktrees)) {
       throw new Error('Access denied: worktree does not belong to repository')
     }
     return remoteWorktreePath
@@ -90,10 +88,49 @@ async function resolveHostedReviewWorktreePath(
     Object.keys(localGitOptions).length > 0
       ? await listRepoWorktreeGraph(repo, localGitOptions)
       : await listRepoWorktreeGraph(repo)
-  if (!repoWorktrees.some((worktree) => resolve(worktree.path) === resolvedWorktreePath)) {
+  if (!localWorktreeBelongsToRepo(resolvedWorktreePath, repo.path, repoWorktrees)) {
     throw new Error('Access denied: worktree does not belong to repository')
   }
   return resolvedWorktreePath
+}
+
+function localWorktreeBelongsToRepo(
+  resolvedWorktreePath: string,
+  repoPath: string,
+  repoWorktrees: { path: string }[]
+): boolean {
+  if (repoWorktrees.some((worktree) => resolve(worktree.path) === resolvedWorktreePath)) {
+    return true
+  }
+  if (isDescendantOrEqual(resolvedWorktreePath, resolve(repoPath))) {
+    return true
+  }
+  return repoWorktrees.some((worktree) =>
+    isDescendantOrEqual(resolvedWorktreePath, resolve(worktree.path))
+  )
+}
+
+function remoteWorktreeBelongsToRepo(
+  remoteWorktreePath: string,
+  repoPath: string,
+  repoWorktrees: { path: string }[]
+): boolean {
+  if (
+    repoWorktrees.some(
+      (worktree) => normalizeRemoteHostedReviewPath(worktree.path) === remoteWorktreePath
+    )
+  ) {
+    return true
+  }
+  const repoRoot = normalizeRemoteHostedReviewPath(repoPath)
+  if (relativePathInsideRoot(repoRoot, remoteWorktreePath) !== null) {
+    return true
+  }
+  return repoWorktrees.some(
+    (worktree) =>
+      relativePathInsideRoot(normalizeRemoteHostedReviewPath(worktree.path), remoteWorktreePath) !==
+      null
+  )
 }
 
 function normalizeRemoteHostedReviewPath(remotePath: string): string {

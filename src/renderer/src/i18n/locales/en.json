@@ -19556,6 +19556,15 @@
     },
     "unlinkedPr": {
       "status": "PR #{{number}} unlinked"
+    },
+    "nestedFolder": {
+      "workspaceRoot": "This workspace",
+      "pickTitle": "Show git repos inside a folder",
+      "clear": "Clear folder",
+      "scanning": "Looking for git repos…",
+      "empty": "No git repos in this folder",
+      "outsideWorkspace": "Selected folder is outside this workspace",
+      "commitHint": "Commit and Create PR use the selected repo"
     }
   },
   "agentsSidebarIntro": {

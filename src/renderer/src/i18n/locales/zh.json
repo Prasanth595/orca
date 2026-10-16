@@ -19508,6 +19508,15 @@
     "unlinkedPr": {
       "status": "PR #{{number}} 未链接"
     },
+    "nestedFolder": {
+      "workspaceRoot": "当前工作区",
+      "pickTitle": "显示文件夹中的 Git 仓库",
+      "clear": "清除文件夹",
+      "scanning": "正在查找 Git 仓库…",
+      "empty": "此文件夹中没有 Git 仓库",
+      "outsideWorkspace": "所选文件夹不在当前工作区内",
+      "commitHint": "提交和创建 PR 作用于所选仓库"
+    },
     "discard": {
       "restoreStagedVersionDescription": "这将恢复最后一个暂存版本并放弃删除。此操作无法撤消。",
       "unstagedChangesDescription": "这将恢复对此文件的未暂存更改。此操作无法撤消。"

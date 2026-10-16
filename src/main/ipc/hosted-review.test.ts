@@ -220,6 +220,47 @@ describe('registerHostedReviewHandlers', () => {
     )
   })
 
+  it('creates a review from a nested git root under the registered repo', async () => {
+    const localRepo = {
+      id: 'repo-local',
+      path: '/workspace/lesspaper',
+      displayName: 'local',
+      badgeColor: '#000',
+      addedAt: 0
+    }
+    const nestedPath = resolve('/workspace/lesspaper/.worktrees/001/theme-a')
+    store.getRepo.mockImplementation((repoId: string) =>
+      repoId === localRepo.id ? localRepo : null
+    )
+    store.getRepos.mockReturnValue([localRepo])
+    resolveRegisteredWorktreePathMock.mockResolvedValue(nestedPath)
+    listRepoWorktreeGraphMock.mockResolvedValue([{ path: resolve(localRepo.path) }])
+    createHostedReviewMock.mockResolvedValueOnce({ ok: true, number: 7, url: 'https://x/7' })
+
+    registerHostedReviewHandlers(store as never, stats as never)
+
+    await handlers['hostedReview:create'](null, {
+      repoPath: localRepo.path,
+      repoId: localRepo.id,
+      worktreePath: nestedPath,
+      provider: 'github',
+      base: 'main',
+      head: 'feat/theme',
+      title: 'Theme'
+    })
+
+    expect(createHostedReviewMock).toHaveBeenCalledWith(
+      nestedPath,
+      expect.objectContaining({
+        provider: 'github',
+        head: 'feat/theme',
+        title: 'Theme'
+      }),
+      'local',
+      { localGitExecOptions: { admissionTier: 'interactive' } }
+    )
+  })
+
   // Why: remote creation never materializes these links, and `repo.path` names a
   // path on the remote host — resolving it locally would read a stranger's file.
   it('does not resolve shared link paths for an SSH repo', async () => {

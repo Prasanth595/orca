@@ -1,4 +1,6 @@
 import { BulkActionBar } from '../commit/bulk-action-bar'
+import { NestedFolderPicker } from '../nested/nested-folder-picker'
+import { NestedRepoList } from '../nested/nested-repo-list'
 import { SourceControlHeaderToolbar } from './header-toolbar'
 import { SourceControlNotesShelf } from '../notes/notes-shelf'
 import { SourceControlPanelContent } from './panel-content'
@@ -34,6 +36,8 @@ export function SourceControlPanelReady(props: SourceControlPanelReadyProps) {
     handleSourceControlKeyDown,
     handleToggleSourceControlViewMode,
     hostedReview,
+    nestedFolderScope,
+    sourceControlWorkspacePath,
     isCreatePrIntentInFlight,
     isCreatingPr,
     isExecutingBulk,
@@ -91,6 +95,16 @@ export function SourceControlPanelReady(props: SourceControlPanelReadyProps) {
           headDisplay={gitIdentityDisplay}
           manualReviewUrl={manualReviewUrl}
         />
+
+        {sourceControlWorkspacePath ? (
+          <>
+            <NestedFolderPicker
+              worktreePath={sourceControlWorkspacePath}
+              scope={nestedFolderScope}
+            />
+            <NestedRepoList scope={nestedFolderScope} />
+          </>
+        ) : null}
 
         {/* Why: hidden when count is 0 — notes are created from the diff view, so an empty Notes shelf here is pure chrome. */}
         {activeWorktreeId && worktreePath && diffCommentCount > 0 && (
