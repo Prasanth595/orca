@@ -55,6 +55,12 @@ test('chat body weight snaps to three distinct steps while bold and code stay re
       .filter({ hasText: 'Read the message comfortably.' })
     await expect(prose).toBeVisible({ timeout: 30_000 })
     await orcaPage.evaluate(() => document.fonts.ready)
+    const openAppearance = async (): Promise<void> => {
+      await orcaPage.evaluate(() => {
+        window.__store!.getState().openSettingsPage()
+        window.__store!.getState().openSettingsTarget({ pane: 'chat', repoId: null })
+      })
+    }
     for (const theme of ['light', 'dark'] as const) {
       await orcaPage.evaluate(async (theme) => {
         await window.__store!.getState().updateSettings({ theme })
@@ -65,10 +71,7 @@ test('chat body weight snaps to three distinct steps while bold and code stay re
         ['ArrowRight', 400, 'Regular'],
         ['End', 500, 'Medium']
       ] as const) {
-        await orcaPage.evaluate(() => {
-          window.__store!.getState().openSettingsPage()
-          window.__store!.getState().openSettingsTarget({ pane: 'chat', repoId: null })
-        })
+        await openAppearance()
         const slider = orcaPage.getByRole('slider', { name: 'Text weight' })
         await expect(slider).toBeVisible()
         await slider.press(key)
@@ -84,6 +87,28 @@ test('chat body weight snaps to three distinct steps while bold and code stay re
         await expect(prose).toHaveCSS('font-weight', String(weight))
         await expect(prose.locator('strong').first()).toHaveCSS('font-weight', '700')
         await expect(prose.locator('code').first()).toHaveCSS('font-weight', '400')
+        if (weight !== 400) {
+          await openAppearance()
+          const matching = orcaPage.getByRole('switch', { name: 'Match terminal interface' })
+          await matching.click()
+          await expect(matching).toBeChecked()
+          await expect(slider).toBeDisabled()
+          await expect(slider).toHaveAttribute('aria-valuenow', '400')
+          await orcaPage.evaluate(() => window.__store!.getState().closeSettingsPage())
+          await expect(prose).toHaveCSS('font-weight', '400')
+
+          await openAppearance()
+          await expect(matching).toBeChecked()
+          await matching.click()
+          await expect(matching).not.toBeChecked()
+          await expect(slider).toBeEnabled()
+          await expect(slider).toHaveAttribute('aria-valuenow', String(weight))
+          await expect(slider).toHaveAttribute('aria-valuetext', label)
+          await orcaPage.evaluate(() => window.__store!.getState().closeSettingsPage())
+          await expect(prose).toHaveCSS('font-weight', String(weight))
+          await expect(prose.locator('strong').first()).toHaveCSS('font-weight', '700')
+          await expect(prose.locator('code').first()).toHaveCSS('font-weight', '400')
+        }
         samples.set(
           weight,
           await prose.screenshot({ path: testInfo.outputPath(`prose-${theme}-${weight}.png`) })
