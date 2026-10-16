@@ -15,7 +15,8 @@ type CreatedTerminal = {
 }
 
 function hostReplying(prepare: unknown) {
-  return vi.fn(async (method: string) => {
+  // Untyped like the other fake clients here: replies are raw wire envelopes.
+  return vi.fn().mockImplementation(async (method: string) => {
     if (method === 'aiVault.prepareSessionResume') {
       return prepare
     }
