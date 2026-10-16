@@ -297,7 +297,12 @@
         "softer": "Softer",
         "sharper": "Sharper",
         "terminalControlledHint": "Set by terminal interface.",
-        "terminalControlledTooltip": "Matching your terminal interface. Turn off Match terminal interface to change this."
+        "terminalControlledTooltip": "Matching your terminal interface. Turn off Match terminal interface to change this.",
+        "textWeight": "Text weight",
+        "textWeightDescription": "Message text only. Bold text stays heavier at every step.",
+        "weightLight": "Light",
+        "weightRegular": "Regular",
+        "weightMedium": "Medium"
       }
     },
     "browser": {

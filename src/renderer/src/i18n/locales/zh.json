@@ -129,7 +129,12 @@
         "softer": "更柔和",
         "sharper": "更清晰",
         "terminalControlledHint": "由终端界面设置。",
-        "terminalControlledTooltip": "正在匹配终端外观。要更改此项，请关闭“匹配终端外观”。"
+        "terminalControlledTooltip": "正在匹配终端外观。要更改此项，请关闭“匹配终端外观”。",
+        "textWeight": "正文字重",
+        "textWeightDescription": "仅调整消息正文；每一档的粗体都保持更明显的字重。",
+        "weightLight": "轻",
+        "weightRegular": "标准",
+        "weightMedium": "中等"
       }
     },
     "browser": {

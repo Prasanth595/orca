@@ -129,7 +129,12 @@
         "softer": "柔らかく",
         "sharper": "くっきり",
         "terminalControlledHint": "ターミナルの外観設定に従います。",
-        "terminalControlledTooltip": "ターミナルの外観に合わせています。変更するには「ターミナルの外観に合わせる」をオフにしてください。"
+        "terminalControlledTooltip": "ターミナルの外観に合わせています。変更するには「ターミナルの外観に合わせる」をオフにしてください。",
+        "textWeight": "本文の太さ",
+        "textWeightDescription": "メッセージ本文のみを調整します。どの段階でも太字を区別できます。",
+        "weightLight": "細字",
+        "weightRegular": "標準",
+        "weightMedium": "中太"
       }
     },
     "browser": {

@@ -129,7 +129,12 @@
         "softer": "부드럽게",
         "sharper": "선명하게",
         "terminalControlledHint": "터미널 인터페이스 설정을 따릅니다.",
-        "terminalControlledTooltip": "터미널 모양에 맞추는 중입니다. 변경하려면 터미널 모양에 맞추기를 끄세요."
+        "terminalControlledTooltip": "터미널 모양에 맞추는 중입니다. 변경하려면 터미널 모양에 맞추기를 끄세요.",
+        "textWeight": "본문 굵기",
+        "textWeightDescription": "메시지 본문만 조정합니다. 모든 단계에서 굵은 글씨가 더 굵게 표시됩니다.",
+        "weightLight": "가늘게",
+        "weightRegular": "보통",
+        "weightMedium": "중간"
       }
     },
     "browser": {
