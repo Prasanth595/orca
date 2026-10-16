@@ -122,6 +122,7 @@ export function buildDefaultSettings(args: {
     terminalAllowOsc52ClipboardDefaultedOnForAllUsers: true,
     claudeAgentTeamsMode: 'off',
     setupScriptLaunchMode: 'new-tab',
+    closeSetupTabOnSuccess: false,
     terminalScrollbackRows: DESKTOP_TERMINAL_SCROLLBACK_ROWS_DEFAULT,
     httpProxyUrl: '',
     httpProxyBypassRules: '',

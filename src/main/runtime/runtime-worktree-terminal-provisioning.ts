@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto'
 import type { CreateWorktreeResult } from '../../shared/worktree/create-types'
 import { shouldSeedWorktreePrimaryTerminal } from '../../shared/worktree-first-surface'
 import { buildObservedSetupCommand } from './orchestration/setup-completion-signal'
-import { buildSetupRunnerCommand } from '../../shared/setup-runner-command'
+import {
+  applySetupAutoCloseSetting,
+  buildSetupRunnerCommand
+} from '../../shared/setup-runner-command'
 import type { RuntimeStore } from './runtime-store-contract'
 
 type TerminalResult = { handle: string }
@@ -163,14 +166,18 @@ export async function provisionWorktreeTerminals(
             args.setup.shell
           )
         : null
-      const command =
+      const command = applySetupAutoCloseSetting(
         args.wrappedSetupCommand ??
-        observed?.command ??
-        buildSetupRunnerCommand(
-          args.setup.runnerScriptPath,
-          args.setupCommandPlatform,
-          args.setup.shell
-        )
+          observed?.command ??
+          buildSetupRunnerCommand(
+            args.setup.runnerScriptPath,
+            args.setupCommandPlatform,
+            args.setup.shell
+          ),
+        args.setupCommandPlatform,
+        args.setup.shell,
+        host.getSettings()
+      )
       const env = { ...args.setup.envVars, ...observed?.env }
       const shouldSplit =
         primaryHandle &&
