@@ -20,6 +20,7 @@ const terminalHarness = vi.hoisted(() => ({
     writeCallbacks: (() => void)[]
     onDataListener: ((data: string) => void) | null
     dispose: ReturnType<typeof vi.fn>
+    focus: ReturnType<typeof vi.fn>
     resize: ReturnType<typeof vi.fn>
     reset: ReturnType<typeof vi.fn>
     paste: ReturnType<typeof vi.fn>
@@ -35,7 +36,10 @@ const terminalHarness = vi.hoisted(() => ({
   userInputDispose: vi.fn()
 }))
 
-const platformState = vi.hoisted(() => ({ value: 'linux' }))
+const platformState = vi.hoisted(() => ({
+  value: 'linux',
+  displayServer: null as 'wayland' | 'x11' | null
+}))
 const storeState = vi.hoisted(() => ({
   settings: null as { terminalRightClickToPaste?: boolean } | null,
   keybindings: {} as Record<string, string[]>
@@ -179,6 +183,7 @@ describe('AgentTerminalPreview clipboard routes', () => {
     terminalHarness.instances.length = 0
     terminalHarness.userInputListener = null
     platformState.value = 'linux'
+    platformState.displayServer = null
     storeState.keybindings = {}
     imeHarness.forwarders.length = 0
     imeHarness.trackers.length = 0
@@ -191,6 +196,9 @@ describe('AgentTerminalPreview clipboard routes', () => {
     readClipboardText.mockResolvedValue('clip-text')
     Object.assign(window, {
       api: {
+        platform: {
+          get: () => ({ platform: platformState.value, displayServer: platformState.displayServer })
+        },
         terminalPreview: {
           connect,
           input,
@@ -436,6 +444,61 @@ describe('AgentTerminalPreview clipboard routes', () => {
 
     await waitFor(() => expect(writeTerminalClipboardText).toHaveBeenCalledWith('selected text'))
     expect(readClipboardText).not.toHaveBeenCalled()
+  })
+
+  it.each(['wayland', 'x11', null] as const)(
+    'routes keyboard copy on Linux/%s and swallows held and released keys',
+    async (displayServer) => {
+      platformState.displayServer = displayServer
+      const view = render(<AgentTerminalPreview ptyId="remote:linux-box@@pty-1" />)
+      await waitFor(() => expect(terminalHarness.instances).toHaveLength(1))
+      const terminal = terminalHarness.instances[0]!
+      await waitFor(() => expect(terminal.customKeyHandler).not.toBeNull())
+      terminal.selectionText = '  selected text\n  next line'
+      focusInsidePreview(view.container)
+      terminal.focus.mockClear()
+      const chord = { key: 'C', code: 'KeyC', ctrlKey: true, shiftKey: true, cancelable: true }
+      const press = new KeyboardEvent('keydown', chord)
+
+      expect(terminal.customKeyHandler!(press)).toBe(false)
+      expect(press.defaultPrevented).toBe(true)
+      expect(
+        terminal.customKeyHandler!(new KeyboardEvent('keydown', { ...chord, repeat: true }))
+      ).toBe(false)
+      expect(terminal.customKeyHandler!(new KeyboardEvent('keyup', chord))).toBe(false)
+
+      if (displayServer === 'wayland') {
+        expect(terminal.focus).toHaveBeenCalledOnce()
+        expect(terminal.focus.mock.invocationCallOrder[0]).toBeLessThan(
+          performNativeSelectionAction.mock.invocationCallOrder[0]!
+        )
+        expect(performNativeSelectionAction).toHaveBeenCalledExactlyOnceWith('copy')
+        expect(writeTerminalClipboardText).not.toHaveBeenCalled()
+      } else {
+        expect(writeTerminalClipboardText).toHaveBeenCalledExactlyOnceWith(
+          'selected text\nnext line'
+        )
+        expect(performNativeSelectionAction).not.toHaveBeenCalled()
+      }
+      expect(terminal.selectionText).toBe('  selected text\n  next line')
+      expect(input).not.toHaveBeenCalled()
+    }
+  )
+
+  it('keeps programmatic copy on the Wayland text publisher', async () => {
+    platformState.displayServer = 'wayland'
+    const view = render(<AgentTerminalPreview ptyId="pty-1" />)
+    await waitFor(() => expect(terminalHarness.instances).toHaveLength(1))
+    const terminal = terminalHarness.instances[0]!
+    terminal.selectionText = 'selected text'
+    focusInsidePreview(view.container, 'textarea').className = 'xterm-helper-textarea'
+
+    act(() => {
+      dispatchAppMenuSelectionAction('copy')
+    })
+
+    expect(writeTerminalClipboardText).toHaveBeenCalledExactlyOnceWith('selected text')
+    expect(performNativeSelectionAction).not.toHaveBeenCalled()
   })
 
   it('leaves right-click to the native menu when the setting is off', async () => {

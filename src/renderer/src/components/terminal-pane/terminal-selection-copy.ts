@@ -24,3 +24,19 @@ export async function copyTerminalSelection({
   }
   return true
 }
+
+export async function copyTerminalSelectionFromKeyboard(
+  terminal: TerminalSelectionCopyOptions['terminal'] & Pick<Terminal, 'focus'>
+): Promise<void> {
+  const platform = window.api.platform?.get?.()
+  if (platform?.platform === 'linux' && platform.displayServer === 'wayland') {
+    // Keep the input serial and clipboard source on the focused Wayland connection.
+    terminal.focus()
+    window.api.ui.performNativeSelectionAction('copy')
+    return
+  }
+  await copyTerminalSelection({
+    terminal,
+    writeClipboardText: window.api.ui.writeTerminalClipboardText
+  })
+}
