@@ -315,6 +315,7 @@ import {
   HostedReviewCreationEligibility,
   HostedReviewForBranch
 } from './hosted-review-params'
+import { JiraFavouriteFilterParams } from './jira-favourite-filter-params'
 import {
   AssignableUsers,
   AttachmentImage,
@@ -563,6 +564,7 @@ import {
   TerminalInspectProcess,
   TerminalListParams,
   TerminalRead,
+  TerminalReadKittyFile,
   TerminalRecoverPane,
   TerminalRename,
   TerminalResolveActive,
@@ -582,7 +584,11 @@ import {
   TerminalUpdateViewport
 } from './terminal-viewport-schemas-params'
 import { UpdaterCheckParams } from './updater-params'
-import { LayoutSubscribeParams, LayoutUnsubscribeParams } from './workspace-layout-params'
+import {
+  LayoutApplyParams,
+  LayoutSubscribeParams,
+  LayoutUnsubscribeParams
+} from './workspace-layout-params'
 import {
   WorkspacePortKillHostParams,
   WorkspacePortKillParams,
@@ -1010,6 +1016,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'jira.issueCommentsStream': IssueKey,
   'jira.listAssignableUsers': AssignableUsers,
   'jira.listCreateFields': ProjectIssueTypeFields,
+  'jira.listFavouriteFilters': JiraFavouriteFilterParams,
   'jira.listIssueTypes': ProjectIssueTypes,
   'jira.listIssues': ListIssues,
   'jira.listPriorities': SiteSelection,
@@ -1023,6 +1030,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'jira.status': null,
   'jira.testConnection': SiteSelection,
   'jira.updateIssue': IssueUpdate,
+  'layout.apply': LayoutApplyParams,
   'layout.getRemoteSnapshots': null,
   'layout.subscribe': LayoutSubscribeParams,
   'layout.unsubscribe': LayoutUnsubscribeParams,
@@ -1272,6 +1280,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'terminal.list': TerminalListParams,
   'terminal.multiplex': TerminalMultiplex,
   'terminal.read': TerminalRead,
+  'terminal.readKittyFile': TerminalReadKittyFile,
   'terminal.recoverPane': TerminalRecoverPane,
   'terminal.rename': TerminalRename,
   'terminal.resetInputModes': TerminalHandle,

@@ -21,6 +21,7 @@ const METHOD_CASES: readonly (readonly [string, unknown, boolean])[] = [
   ['terminal.rename', { terminal: 'term', title: null }, false],
   ['terminal.clearBuffer', { terminal: 'term' }, false],
   ['terminal.resetInputModes', { terminal: 'term' }, false],
+  ['terminal.readKittyFile', { terminal: 'term', path: '/tmp/image.png' }, false],
   ['terminal.send', { terminal: 'term', text: 'x' }, false],
   ['terminal.wait', { terminal: 'term', for: 'exit' }, false],
   ['terminal.create', {}, false],
@@ -100,7 +101,7 @@ describe('terminal RPC manifest characterization', () => {
       schemaFor('terminal.updateViewport').parse({
         terminal: 'term',
         client: { id: 'client' },
-        viewport: { cols: 1024, rows: 120 }
+        viewport: { cols: 1024, rows: 500 }
       })
     ).not.toThrow()
     expect(() =>
