@@ -1,3 +1,4 @@
+import { perforceClient } from '@/runtime/runtime-perforce-client'
 import { toast } from 'sonner'
 import type {
   PerforceChangelist,
@@ -31,7 +32,7 @@ export function usePerforceChangelistActions({
   settings: PerforceSettings
   openShelvedFile: (file: PerforceShelvedFile, changelist: number, viewOnly: boolean) => void
 }) {
-  const api = window.api.perforce
+  const api = perforceClient
   const ask = (question: string, enabled: boolean): boolean => !enabled || window.confirm(question)
 
   const generateDescription = async (

@@ -6,11 +6,12 @@ import type {
   PerforceStatusResult
 } from '../../../../../shared/perforce/perforce-types'
 import { translate } from '@/i18n/i18n'
+import { perforceClient } from '@/runtime/runtime-perforce-client'
 
-export type PerforceTarget = { worktreePath: string; connectionId?: string }
+export type PerforceTarget = { worktreePath: string; connectionId?: string; worktreeId?: string }
 
 export function usePerforceStatus(target: PerforceTarget, refreshIntervalSeconds: number) {
-  const { worktreePath, connectionId } = target
+  const { worktreePath, connectionId, worktreeId } = target
   const [status, setStatus] = useState<PerforceStatusResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -19,7 +20,7 @@ export function usePerforceStatus(target: PerforceTarget, refreshIntervalSeconds
   const refresh = useCallback(async (): Promise<void> => {
     const id = ++requestId.current
     try {
-      const next = await window.api.perforce.status({ worktreePath, connectionId })
+      const next = await perforceClient.status({ worktreePath, connectionId, worktreeId })
       if (id === requestId.current) {
         setStatus(next)
         publishPerforceOpenedFiles(worktreePath, connectionId, next.entries)
@@ -30,7 +31,7 @@ export function usePerforceStatus(target: PerforceTarget, refreshIntervalSeconds
         setError(caught instanceof Error ? caught.message : String(caught))
       }
     }
-  }, [worktreePath, connectionId])
+  }, [worktreePath, connectionId, worktreeId])
 
   useEffect(() => {
     void refresh()

@@ -14,6 +14,7 @@ import { toRuntimeWorktreeSelector } from './runtime-worktree-selector'
 import type { LocalFileAccess } from '../../../shared/local-file-access'
 import { localAccess } from './runtime-file-read-client'
 import { REMOTE_RUNTIME_MAX_FILE_WRITE_CONTENT_BYTES } from '../../../shared/remote-runtime-memory-limits'
+import { checkoutHostedPerforceFileBeforeSave } from '@/components/right-sidebar/perforce/perforce-hosted-save-checkout'
 
 /** Refuses a save the host's frame cap would reject by dropping the whole connection. */
 function assertRemoteWriteFitsOneRequest(content: string): void {
@@ -67,6 +68,11 @@ export async function writeRuntimeFile(
     return
   }
   assertRemoteWriteFitsOneRequest(content)
+  await checkoutHostedPerforceFileBeforeSave({
+    worktreeId: remoteArgs.worktreeId,
+    worktreePath: context.worktreePath,
+    relativePath: remoteArgs.relativePath
+  })
   await callRuntimeFileMutation(
     remoteArgs.target,
     'files.write',

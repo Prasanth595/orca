@@ -28,6 +28,7 @@ import { usePerforceChangelistActions } from './use-perforce-changelist-actions'
 import { usePerforceSettings } from './use-perforce-settings'
 import { usePerforceStatus } from './use-perforce-status'
 import { translate } from '@/i18n/i18n'
+import { perforceClient } from '@/runtime/runtime-perforce-client'
 
 export function PerforcePanel({
   worktreeId,
@@ -38,7 +39,7 @@ export function PerforcePanel({
   worktreePath: string
   connectionId?: string
 }) {
-  const target = { worktreePath, connectionId }
+  const target = { worktreePath, connectionId, worktreeId }
   const settings = usePerforceSettings()
   const { status, error, busy, refresh, run } = usePerforceStatus(
     target,
@@ -51,7 +52,7 @@ export function PerforcePanel({
   const [unshelveOpen, setUnshelveOpen] = useState(false)
   const [collapsedChangelists, setCollapsedChangelists] = useState<ReadonlySet<number>>(new Set())
   const { selected, select, focusForContextMenu } = usePerforceSelection()
-  const api = window.api.perforce
+  const api = perforceClient
   const template = usePerforceDescriptionTemplate(settings, status, setMessage)
 
   const { groups, orderedKeys } = usePerforceGroups(status)

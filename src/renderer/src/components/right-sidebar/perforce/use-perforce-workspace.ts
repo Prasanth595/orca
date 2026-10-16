@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { perforceClient } from '@/runtime/runtime-perforce-client'
 
 // Why: detection shells out to `p4 info` (over SSH for remote folders), so remember answers per workspace.
 const detectionByKey = new Map<string, Promise<boolean>>()
@@ -12,12 +13,16 @@ export function isKnownPerforceWorkspace(
   return knownWorkspaces.has(`${connectionId ?? ''}|${worktreePath}`)
 }
 
-function detectPerforceWorkspace(worktreePath: string, connectionId?: string): Promise<boolean> {
+function detectPerforceWorkspace(
+  worktreePath: string,
+  connectionId?: string,
+  worktreeId?: string | null
+): Promise<boolean> {
   const key = `${connectionId ?? ''}|${worktreePath}`
   let pending = detectionByKey.get(key)
   if (!pending) {
     pending = Promise.resolve()
-      .then(() => window.api.perforce.detect({ worktreePath, connectionId }))
+      .then(() => perforceClient.detect({ worktreePath, connectionId, worktreeId }))
       .then((result) => {
         // Only positive answers are remembered so a later p4 setup/login is detected on retry.
         if (result.isWorkspace) {
@@ -41,7 +46,8 @@ function detectPerforceWorkspace(worktreePath: string, connectionId?: string): P
 export function usePerforceWorkspace(
   worktreePath: string | null,
   connectionId: string | null | undefined,
-  eligible: boolean
+  eligible: boolean,
+  worktreeId?: string | null
 ): { isPerforce: boolean; redetect: () => void } {
   const [detected, setDetected] = useState<{ key: string; value: boolean } | null>(null)
   const [attempt, setAttempt] = useState(0)
@@ -59,11 +65,13 @@ export function usePerforceWorkspace(
     }
     let cancelled = false
     const run = (): void => {
-      void detectPerforceWorkspace(worktreePath, connectionId ?? undefined).then((value) => {
-        if (!cancelled) {
-          setDetected({ key, value })
+      void detectPerforceWorkspace(worktreePath, connectionId ?? undefined, worktreeId).then(
+        (value) => {
+          if (!cancelled) {
+            setDetected({ key, value })
+          }
         }
-      })
+      )
     }
     run()
     // Why: a workspace set up while Orca is open should appear when the user returns to it.
@@ -77,7 +85,7 @@ export function usePerforceWorkspace(
       cancelled = true
       window.removeEventListener('focus', onFocus)
     }
-  }, [worktreePath, connectionId, eligible, key, attempt])
+  }, [worktreePath, connectionId, worktreeId, eligible, key, attempt])
 
   return {
     isPerforce: Boolean(eligible && worktreePath && detected?.key === key && detected.value),

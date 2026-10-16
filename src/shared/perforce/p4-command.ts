@@ -3,6 +3,7 @@ import { delimiter, join } from 'node:path'
 import { runProcess } from '@orca/process-host'
 import { currentPerforceSettings } from './p4-settings-context'
 import { perforceEnvOverrides } from './perforce-settings'
+import { discoverP4ConfigName } from './p4-config-discovery'
 
 const P4_MAX_OUTPUT_BYTES = 64 * 1024 * 1024
 
@@ -77,6 +78,12 @@ export type P4RunOptions = {
   signal?: AbortSignal
 }
 
+/** P4CONFIG found next to (or above) the workspace when no setting or environment names one. */
+function defaultP4Config(configured: string, cwd: string): { P4CONFIG?: string } {
+  const discovered = configured ? null : discoverP4ConfigName(cwd)
+  return discovered ? { P4CONFIG: discovered } : {}
+}
+
 /** Runs `p4 <args>` in `cwd`; a non-zero exit is returned, not thrown. */
 export async function runP4(
   args: readonly string[],
@@ -89,7 +96,12 @@ export async function runP4(
     args,
     cwd: options.cwd,
     // Why: p4 resolves relative paths and P4CONFIG from $PWD, not the process cwd, so an inherited PWD would point it at the wrong directory.
-    env: { ...process.env, ...perforceEnvOverrides(settings), PWD: options.cwd },
+    env: {
+      ...process.env,
+      ...defaultP4Config(settings.p4Config, options.cwd),
+      ...perforceEnvOverrides(settings),
+      PWD: options.cwd
+    },
     input: options.input,
     signal: options.signal,
     timeoutMs: options.timeoutMs ?? settings.commandTimeoutSeconds * 1000,

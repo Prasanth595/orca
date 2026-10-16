@@ -6,7 +6,7 @@ import { usePerforceWorkspace } from './use-perforce-workspace'
 
 /** True when an editor tab's file is opened for edit in a Perforce workspace (shown as an "E" prefix). */
 export function usePerforceEditedTab(
-  file: { mode: string; relativePath: string; isDirty: boolean },
+  file: { mode: string; relativePath: string; isDirty: boolean; worktreeId: string },
   worktreePath: string | null,
   repo: Repo | null | undefined
 ): boolean {
@@ -14,7 +14,8 @@ export function usePerforceEditedTab(
   const { isPerforce } = usePerforceWorkspace(
     worktreePath,
     repo?.connectionId,
-    file.mode === 'edit' && Boolean(repo && isFolderRepo(repo))
+    file.mode === 'edit' && Boolean(repo && isFolderRepo(repo)),
+    file.worktreeId
   )
   return usePerforceOpenedForEdit(
     worktreePath,
@@ -22,6 +23,7 @@ export function usePerforceEditedTab(
     file.relativePath.replaceAll('\\', '/'),
     isPerforce && settings.showEditedTabPrefix,
     file.isDirty,
-    settings.refreshIntervalSeconds
+    settings.refreshIntervalSeconds,
+    file.worktreeId
   )
 }

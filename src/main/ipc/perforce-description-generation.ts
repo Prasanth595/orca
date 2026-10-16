@@ -1,3 +1,4 @@
+import { homedir } from 'node:os'
 import { ipcMain } from 'electron'
 import type { Store } from '../persistence'
 import type { CommitMessageDraftContext } from '../../shared/commit-message-generation'
@@ -27,6 +28,7 @@ type GenerateArgs = {
   connectionId?: string
   changelist: 'default' | 'new' | number
   filePaths: string[]
+  patch?: string
 }
 
 async function buildContext(
@@ -34,8 +36,10 @@ async function buildContext(
   cwd: string
 ): Promise<CommitMessageDraftContext | null> {
   const filePaths = requireRelativePaths(args.filePaths)
-  const backend = resolvePerforceBackend(args.connectionId)
-  const patch = await backend.diffText(cwd, filePaths)
+  const patch =
+    typeof args.patch === 'string'
+      ? args.patch
+      : await resolvePerforceBackend(args.connectionId).diffText(cwd, filePaths)
   const label =
     args.changelist === 'default'
       ? 'default changelist'
@@ -73,12 +77,15 @@ export function registerPerforceDescriptionGeneration(
       if (args.connectionId) {
         return { success: false, error: PERFORCE_SSH_UNSUPPORTED_MESSAGE }
       }
-      const worktreePath = await resolveRegisteredWorktreePath(args.worktreePath, store)
-      const gitOptions = getLocalGitOptionsForRegisteredWorktree(
-        store,
-        args.worktreePath,
-        worktreePath
-      )
+      // Why: a runtime-hosted workspace's files live on its server, which already read the diff;
+      // the agent runs here with only that text, from the home directory.
+      const remotePatch = typeof args.patch === 'string'
+      const worktreePath = remotePatch
+        ? homedir()
+        : await resolveRegisteredWorktreePath(args.worktreePath, store)
+      const gitOptions = remotePatch
+        ? {}
+        : getLocalGitOptionsForRegisteredWorktree(store, args.worktreePath, worktreePath)
       const context = await buildContext(args, worktreePath).catch(() => null)
       if (!context) {
         return { success: false, error: 'Failed to read the changelist diff.' }

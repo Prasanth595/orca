@@ -20,6 +20,8 @@ export type PerforceApi = {
     args: WorktreeArgs & {
       changelist: 'default' | 'new' | number
       filePaths: string[]
+      /** Changelist diff already read on the hosting server (runtime-hosted workspaces). */
+      patch?: string
     }
   ) => Promise<{ success: true; message: string } | { success: false; error: string }>
   detect: (args: WorktreeArgs) => Promise<PerforceDetectResult>

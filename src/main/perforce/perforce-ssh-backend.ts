@@ -56,15 +56,16 @@ function createLocalPerforceBackend(): PerforceBackend {
 const settingsLocalBackend = createLocalPerforceBackend()
 
 export const PERFORCE_SSH_UNSUPPORTED_MESSAGE =
-  'Perforce is not available for SSH workspaces yet: SSH hosts are now served by orcad, which has no Perforce support.'
+  'This SSH workspace is not served by an Orca server, so Perforce cannot run on its host. Open it through its managed server.'
 
 function unsupported(): Promise<never> {
   return Promise.reject(new Error(PERFORCE_SSH_UNSUPPORTED_MESSAGE))
 }
 
 /**
- * SSH hosts used to run p4 through the relay, which upstream removed. Detection reports
- * "not a workspace" so the UI falls back to plain folder behavior; any mutation fails loudly.
+ * A bare `connectionId` names a direct SSH target, which this app no longer serves (orcad-served
+ * SSH workspaces route through perforce.* RPC instead). Detection reports "not a workspace" so the
+ * UI falls back to plain folder behavior; any mutation fails loudly.
  */
 const sshUnsupportedPerforceBackend: PerforceBackend = {
   detect: async () => ({

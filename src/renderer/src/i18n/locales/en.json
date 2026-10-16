@@ -20583,7 +20583,8 @@
       "openShelvedFile": "Open shelved file",
       "unshelveFile": "Unshelve file",
       "openFilesInThisChangelistFirst": "Open files in this changelist first.",
-      "shelfBackupDescription": "Shelf backup of changelist {{id}}"
+      "shelfBackupDescription": "Shelf backup of changelist {{id}}",
+      "openHostedFileForEdit": "{{path}} is not opened for edit in Perforce. Open it for edit and save?"
     },
     "settings": {
       "ai": {

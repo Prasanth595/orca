@@ -62,7 +62,8 @@ export function useRightSidebarActivityItems({
   const { isPerforce, redetect: redetectPerforce } = usePerforceWorkspace(
     activeWorktree?.path ?? null,
     activeRepo?.connectionId,
-    isFolder && !isFolderWorkspace
+    isFolder && !isFolderWorkspace,
+    activeWorktreeId
   )
   const pluginSystemEnabled = useAppStore((s) => s.settings?.pluginSystemEnabled === true)
   const pluginPanels = usePluginPanels()
