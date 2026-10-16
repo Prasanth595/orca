@@ -5,7 +5,10 @@ import type { TerminalLayoutSnapshot, TerminalTab } from '../../../shared/termin
 import { parseRemoteRuntimePtyId } from '@/runtime/runtime-terminal-stream'
 import { lastInputBlocksHibernation } from './agent-hibernation-input-guard'
 import { isLiveResumeAnchorForCompletedAgent } from './live-resume-anchor-record'
-import { agentTurnEndedUncleanly } from '../../../shared/agent-main-agent-verdict'
+import {
+  agentMainAgentVerdict,
+  agentTurnEndedUncleanly
+} from '../../../shared/agent-main-agent-verdict'
 import type { AgentHibernationPlannerSnapshot } from './agent-hibernation-planner-snapshot'
 
 export type EligiblePane = {
@@ -53,6 +56,13 @@ const hasUnsettledOrUnknownDispatch = ({ orchestration }: AgentStatusEntry): boo
     ? !['completed', 'failed', 'circuit_broken'].includes(orchestration.dispatchStatus ?? '')
     : false
 
+// Why only these two: a failed turn (a usage limit ends one) or a Stop leaves the agent idle at its
+// prompt, so a restart loses nothing; the other unclean endings may still have work in flight.
+const turnEndedOnErrorOrStop = (entry: AgentStatusEntry): boolean => {
+  const verdict = agentMainAgentVerdict(entry)
+  return verdict === 'failure' || verdict === 'cancellation'
+}
+
 export function getEligiblePane(args: {
   entry: AgentStatusEntry
   tab: TerminalTab
@@ -66,6 +76,8 @@ export function getEligiblePane(args: {
   mobileLockedPtyIds: Set<string>
   now: number
   idleMs: number
+  /** A restart that brings the turn back, such as an account move, may take a failed or stopped one. */
+  allowEndedTurn?: boolean
 }): EligiblePane | null {
   const {
     entry,
@@ -90,7 +102,7 @@ export function getEligiblePane(args: {
   )
   if (
     entry.state !== 'done' ||
-    agentTurnEndedUncleanly(entry) ||
+    (agentTurnEndedUncleanly(entry) && !(args.allowEndedTurn && turnEndedOnErrorOrStop(entry))) ||
     Boolean(entry.subagents?.length) ||
     hasUnsettledOrUnknownDispatch(entry) ||
     (sleepingRecord && !hasOnlyLiveResumeAnchor)

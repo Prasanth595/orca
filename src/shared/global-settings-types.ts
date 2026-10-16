@@ -1,5 +1,6 @@
 import type { NativeChatGlobalSettings } from './native-chat-appearance-settings'
 import type { WorktreeDeletionPreferences as DeletePrefs } from './worktree-deletion-preferences'
+import type { ClaudeAccountGlobalSettings } from './claude-account-global-settings'
 import type { ExecutionHostId } from './execution-host'
 import type { OrcaWorkspaceLayout } from './orca-workspace-layout'
 import type { GitHubProjectSettings } from './github/project-types'
@@ -20,8 +21,6 @@ import type { ComputerAwakeMode } from './computer-awake-mode'
 import type { CommitMessageAiSettings } from './commit-message-ai-types'
 import type { HostSettingOverrides } from './host-setting-overrides'
 import type {
-  ClaudeManagedAccount,
-  ClaudeManagedAccountRuntimeSelection,
   CodexManagedAccount,
   CodexManagedAccountRuntimeSelection
 } from './managed-account-types'
@@ -50,7 +49,7 @@ export type { WorktreeVisibilityDefaults } from './repo-types'
 /** MiniMax account region used to select the quota endpoint. */
 export type MiniMaxEndpoint = 'overseas' | 'cn'
 
-type GlobalSettingsBase = NativeChatGlobalSettings & DeletePrefs
+type GlobalSettingsBase = NativeChatGlobalSettings & DeletePrefs & ClaudeAccountGlobalSettings
 
 export type GlobalSettings = GlobalSettingsBase & {
   workspaceDir: string
@@ -323,9 +322,6 @@ export type GlobalSettings = GlobalSettingsBase & {
   activeCodexManagedAccountId: string | null
   activeCodexManagedAccountIdsByRuntime?: CodexManagedAccountRuntimeSelection
   /** Why: persist only per-account auth (not a CLAUDE_CONFIG_DIR swap) so switching accounts doesn't fork Claude's shared chat/session context. */
-  claudeManagedAccounts: ClaudeManagedAccount[]
-  activeClaudeManagedAccountId: string | null
-  activeClaudeManagedAccountIdsByRuntime?: ClaudeManagedAccountRuntimeSelection
   /** Dismissed the "System default may hold a copied login" notice in Settings > Accounts. */
   claudeCopiedSystemDefaultNoticeDismissed?: boolean
   /** Per-worktree shell history so ArrowUp doesn't surface other worktrees' commands (a HISTFILE for

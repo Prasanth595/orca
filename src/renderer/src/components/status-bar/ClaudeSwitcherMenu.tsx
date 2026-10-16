@@ -45,6 +45,7 @@ import {
 import { ProviderDetailsMenu } from './ProviderDetailsMenu'
 import { getClaudeAccountSyncKey } from './provider-account-sync-key'
 import { signInToClaudeAccount } from '@/lib/claude-account-sign-in'
+import { ClaudeSessionMovePrompt } from './claude-session-move-prompt'
 
 // Exported so its account-switch/reset logic is preserved for row drill-in even
 // though the footer now opens the consolidated UsageRosterPanel first.
@@ -382,6 +383,7 @@ export function ClaudeSwitcherMenu({
           </div>
         </div>
       ) : null}
+      {hasActiveRuntimeEnvironment ? null : <ClaudeSessionMovePrompt />}
       <DropdownMenuSeparator />
       <DropdownMenuItem
         onSelect={() => {

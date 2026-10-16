@@ -1,0 +1,226 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AgentStatusEntry } from '../../../shared/agent-status-types'
+import type { ClaudeRateLimitAccountsState } from '../../../shared/managed-account-types'
+import { getDefaultSettings } from '../../../shared/constants'
+import { useAppStore } from '@/store'
+import {
+  installClaudeSessionMoveCoordinator,
+  moveClaudeSessionsToSelectedAccount,
+  resetClaudeSessionMoveForTests
+} from './claude-session-move-coordinator'
+
+const restartPaneForAccountMove = vi.hoisted(() => vi.fn(() => true))
+type MoveStartup = { command: string; startupCommandDelivery: 'shell-ready'; launchAgent: 'claude' }
+const buildClaudeSessionMoveStartup = vi.hoisted(() =>
+  vi.fn((): MoveStartup | null => ({
+    command: 'claude --resume session-1',
+    startupCommandDelivery: 'shell-ready',
+    launchAgent: 'claude'
+  }))
+)
+vi.mock('@/components/terminal-pane/pane-account-move-restarts', () => ({
+  restartPaneForAccountMove
+}))
+vi.mock('./codex-account-restart-startup', () => ({ buildClaudeSessionMoveStartup }))
+vi.mock('@/lib/local-preflight-context', () => ({
+  getLocalProjectExecutionRuntimeContext: () => undefined
+}))
+
+const NOW = 50_000_000
+const LEAF = '11111111-1111-4111-8111-111111111111'
+const PANE_KEY = `tab-1:${LEAF}`
+const ON_A = '/Users/me/orca/claude-profiles/acct-a/home/projects/-repo/session-1.jsonl'
+
+let roster: ClaudeRateLimitAccountsState
+const list = vi.fn(async () => roster)
+
+function selected(accountId: string): ClaudeRateLimitAccountsState {
+  return {
+    accounts: [
+      {
+        id: 'acct-a',
+        email: 'a@example.test',
+        authMethod: 'subscription-oauth',
+        createdAt: 1,
+        updatedAt: 1,
+        lastAuthenticatedAt: 1
+      },
+      {
+        id: 'acct-b',
+        email: 'b@example.test',
+        authMethod: 'subscription-oauth',
+        createdAt: 1,
+        updatedAt: 1,
+        lastAuthenticatedAt: 1
+      }
+    ],
+    activeAccountId: accountId,
+    activeAccountIdsByRuntime: { host: accountId, wsl: {} }
+  }
+}
+
+function seed(
+  row: Partial<AgentStatusEntry>,
+  settings: { claudeMoveIdleSessions?: boolean } = {}
+): void {
+  useAppStore.setState({
+    settings: { ...getDefaultSettings('/tmp'), ...settings },
+    tabsByWorktree: {
+      'wt-1': [
+        {
+          id: 'tab-1',
+          ptyId: null,
+          worktreeId: 'wt-1',
+          title: 'Claude',
+          customTitle: null,
+          color: null,
+          sortOrder: 0,
+          createdAt: 1
+        }
+      ]
+    },
+    terminalLayoutsByTabId: {
+      'tab-1': {
+        root: { type: 'leaf', leafId: LEAF },
+        activeLeafId: LEAF,
+        expandedLeafId: null,
+        ptyIdsByLeafId: { [LEAF]: 'pty-1' }
+      }
+    },
+    ptyIdsByTabId: { 'tab-1': ['pty-1'] },
+    sleepingAgentSessionsByPaneKey: {},
+    lastTerminalInputAtByPaneKey: {},
+    agentStatusByPaneKey: {
+      [PANE_KEY]: {
+        state: 'done',
+        prompt: 'ship it',
+        updatedAt: NOW - 120_000,
+        stateStartedAt: NOW - 120_000,
+        paneKey: PANE_KEY,
+        tabId: 'tab-1',
+        worktreeId: 'wt-1',
+        agentType: 'claude',
+        providerSession: { key: 'session_id', id: 'session-1', transcriptPath: ON_A },
+        stateHistory: [],
+        ...row
+      }
+    }
+  })
+}
+
+function setRow(row: Partial<AgentStatusEntry>): void {
+  const current = useAppStore.getState().agentStatusByPaneKey[PANE_KEY]
+  if (!current) {
+    throw new Error('No Claude row to update')
+  }
+  useAppStore.setState({
+    agentStatusByPaneKey: {
+      [PANE_KEY]: { ...current, stateStartedAt: Date.now() - 120_000, ...row }
+    }
+  })
+}
+
+function switchTo(accountId: string): void {
+  roster = selected(accountId)
+  useAppStore.setState((s) => ({
+    settings: s.settings ? { ...s.settings, activeClaudeManagedAccountId: accountId } : s.settings
+  }))
+}
+
+async function settle(): Promise<void> {
+  await vi.advanceTimersByTimeAsync(1_000)
+}
+
+describe('Claude session moves', () => {
+  let uninstall: () => void = () => {}
+
+  beforeEach(() => {
+    vi.useFakeTimers({ now: NOW })
+    vi.stubGlobal('window', { ...globalThis.window, api: { claudeAccounts: { list } } })
+    roster = selected('acct-b')
+    restartPaneForAccountMove.mockClear()
+    buildClaudeSessionMoveStartup.mockClear()
+    resetClaudeSessionMoveForTests()
+  })
+
+  afterEach(() => {
+    uninstall()
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  it('reopens a finished session on the selected account when you ask', async () => {
+    seed({})
+
+    await moveClaudeSessionsToSelectedAccount()
+
+    expect(restartPaneForAccountMove).toHaveBeenCalledWith(
+      'pty-1',
+      expect.objectContaining({ command: 'claude --resume session-1' })
+    )
+  })
+
+  it('moves a busy session once its turn ends', async () => {
+    seed({ state: 'working' })
+    uninstall = installClaudeSessionMoveCoordinator()
+    await moveClaudeSessionsToSelectedAccount()
+    expect(restartPaneForAccountMove).not.toHaveBeenCalled()
+
+    setRow({ state: 'done' })
+    await settle()
+
+    expect(restartPaneForAccountMove).toHaveBeenCalledOnce()
+  })
+
+  it('drops the move when the account switches back before the turn ends', async () => {
+    seed({ state: 'working' })
+    uninstall = installClaudeSessionMoveCoordinator()
+    await moveClaudeSessionsToSelectedAccount()
+
+    switchTo('acct-a')
+    await settle()
+    // Why switch again: the earlier answer was about a switch that was undone, so it must not
+    // carry over to a later one.
+    switchTo('acct-b')
+    await settle()
+    setRow({ state: 'done' })
+    await settle()
+
+    expect(restartPaneForAccountMove).not.toHaveBeenCalled()
+  })
+
+  it('moves idle background sessions on its own only when the setting is on', async () => {
+    roster = selected('acct-a')
+    seed({})
+    uninstall = installClaudeSessionMoveCoordinator()
+    switchTo('acct-b')
+    await settle()
+    expect(restartPaneForAccountMove).not.toHaveBeenCalled()
+
+    useAppStore.setState((s) => ({
+      settings: s.settings ? { ...s.settings, claudeMoveIdleSessions: true } : s.settings
+    }))
+    await settle()
+
+    expect(restartPaneForAccountMove).toHaveBeenCalledOnce()
+  })
+
+  it('moves a session once, even if it still reads as the old account', async () => {
+    seed({}, { claudeMoveIdleSessions: true })
+    uninstall = installClaudeSessionMoveCoordinator()
+    await moveClaudeSessionsToSelectedAccount()
+    setRow({})
+    await settle()
+
+    expect(restartPaneForAccountMove).toHaveBeenCalledOnce()
+  })
+
+  it('leaves a session it cannot resume', async () => {
+    buildClaudeSessionMoveStartup.mockReturnValueOnce(null)
+    seed({})
+
+    await moveClaudeSessionsToSelectedAccount()
+
+    expect(restartPaneForAccountMove).not.toHaveBeenCalled()
+  })
+})

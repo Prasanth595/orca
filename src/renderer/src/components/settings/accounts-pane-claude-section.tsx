@@ -7,6 +7,7 @@ import { ButtonGroup } from '../ui/button-group'
 import { Label } from '../ui/label'
 import { ClaudeIcon } from '../status-bar/icons'
 import { SearchableSetting } from './SearchableSetting'
+import { renderClaudeSessionMoveSetting } from './accounts-pane-claude-session-moves'
 import {
   getProviderAccountRuntime,
   providerAccountIsActiveInView
@@ -364,6 +365,7 @@ export function renderClaudeAccountsSection(model: AccountsPaneSectionModel): Re
           )}
         </div>
       </SearchableSetting>
+      {renderClaudeSessionMoveSetting(model)}
     </section>
   )
 }

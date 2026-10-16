@@ -4,7 +4,10 @@ import { useAppStore } from '@/store'
 import { makePaneKey } from '../../../shared/stable-pane-id'
 import type { ProjectExecutionRuntimeResolution } from '../../../shared/project-execution-runtime'
 import type * as localPreflightContext from '@/lib/local-preflight-context'
-import { buildCodexAccountRestartStartup } from './codex-account-restart-startup'
+import {
+  buildClaudeSessionMoveStartup,
+  buildCodexAccountRestartStartup
+} from './codex-account-restart-startup'
 
 let projectRuntimeContext: ProjectExecutionRuntimeResolution | undefined
 
@@ -156,5 +159,64 @@ describe('buildCodexAccountRestartStartup', () => {
       }
     })
     expect(build().resumeProviderSession).toBeUndefined()
+  })
+})
+
+describe('buildClaudeSessionMoveStartup', () => {
+  const buildClaude = (): ReturnType<typeof buildClaudeSessionMoveStartup> =>
+    buildClaudeSessionMoveStartup({ tabId: TAB_ID, leafId: LEAF_ID, worktreeId: WORKTREE_ID })
+
+  beforeEach(() => {
+    seedAgentStatus(null)
+    projectRuntimeContext = undefined
+  })
+
+  it('reopens the same Claude conversation through the shell, where claude picks the selected account', () => {
+    seedAgentStatus({
+      agentType: 'claude',
+      state: 'done',
+      providerSession: { key: 'session_id', id: SESSION_ID }
+    })
+
+    const startup = buildClaude()
+
+    expect(startup?.command).toContain('--resume')
+    expect(startup?.command).toContain(SESSION_ID)
+    expect(startup).toMatchObject({
+      launchAgent: 'claude',
+      startupCommandDelivery: 'shell-ready',
+      resumeProviderSession: { id: SESSION_ID }
+    })
+  })
+
+  it('gives up rather than start a blank Claude that would lose the conversation', () => {
+    expect(buildClaude()).toBeNull()
+    seedAgentStatus({
+      agentType: 'codex',
+      state: 'done',
+      providerSession: { key: 'session_id', id: SESSION_ID }
+    })
+    expect(buildClaude()).toBeNull()
+  })
+
+  it('leaves a WSL pane alone', () => {
+    seedAgentStatus({
+      agentType: 'claude',
+      state: 'done',
+      providerSession: { key: 'session_id', id: SESSION_ID }
+    })
+    projectRuntimeContext = {
+      status: 'resolved',
+      runtime: {
+        kind: 'wsl',
+        hostPlatform: 'wsl',
+        projectId: 'project-1',
+        distro: 'Ubuntu',
+        reason: 'project-override',
+        cacheKey: 'repo-1:wsl:Ubuntu'
+      }
+    }
+
+    expect(buildClaude()).toBeNull()
   })
 })

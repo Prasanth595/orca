@@ -19905,6 +19905,13 @@
       "added": "Account added. Select it to use it for the next Claude you start.",
       "nextLaunch": "{{value0}} → {{value1}}. The next Claude you start uses it. Running sessions keep their account.",
       "profileSwitching": "Switching applies to the next Claude you start in any tab. Running sessions keep their account.",
+      "moveSessionsOnOldAccountOne": "1 Claude session is still on the old account.",
+      "moveSessionsOnOldAccountMany": "{{value0}} Claude sessions are still on the old account.",
+      "moveSessionsHint": "Each one reopens its conversation on the selected account once it finishes its turn.",
+      "moveSessionsButtonOne": "Move Session",
+      "moveSessionsButtonMany": "Move {{value0}} Sessions",
+      "moveIdleSessions": "Move idle sessions to the selected account",
+      "moveIdleSessionsDescription": "After you switch accounts, a Claude session still on the old one reopens its conversation on the selected account once it has sat idle for a minute in a tab you are not looking at.",
       "systemDefaultNamed": "System default: {{value0}}",
       "systemDefaultIsSaved": "System default is signed in as {{value0}}, which is also a saved account. An earlier Orca version may have copied that login there. If it is not your own login, select System default and run claude /login.",
       "systemDefaultIsSavedDismiss": "Dismiss",
@@ -19916,7 +19923,11 @@
       "moreSignInOptions": "More sign-in options",
       "copySignInLink": "Copy sign-in link instead",
       "signInLinkCopied": "Sign-in link copied. Open it in a private window to sign in with a different account.",
-      "signInLinkCopyFailed": "Could not copy the link."
+      "signInLinkCopyFailed": "Could not copy the link.",
+      "keyword": {
+        "move": "move",
+        "resume": "resume"
+      }
     },
     "managedData": {
       "description": "Add accounts by running this command in a terminal on the Orca host. Selection applies to new explicit agent launches on that host; direct SSH relay and Windows-hosted WSL launches use their own credentials.",

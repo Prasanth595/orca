@@ -5,6 +5,7 @@ import { makePaneKey } from '../../../../shared/stable-pane-id'
 import { connectPanePty } from './pty-connection'
 import { bindPanePtyId } from '@/lib/pane-manager/mobile-fit-overrides'
 import { releasePaneTransportForRestart } from './pane-restart-transport-handoff'
+import { registerPaneAccountMoveRestart } from './pane-account-move-restarts'
 import { clearPaneTerminalError } from './terminal-error-accumulation'
 import { resolveTerminalProcessExitRestartStartup } from './terminal-process-exit-restart'
 import type { PaneProcessExit, PtyConnectionDeps } from './pty-connection-types'
@@ -241,6 +242,26 @@ export function useTerminalPaneProcessExitActions(controller: TerminalPaneCloseC
     panePtyLayoutBindings,
     pendingCodexPaneRestartIds
   ])
+
+  // Why: a Claude account move restarts only mounted panes, so a pane in an unmounted tab moves
+  // once it mounts.
+  useEffect(() => {
+    const manager = managerRef.current
+    if (!manager) {
+      return
+    }
+    const unregister = manager.getPanes().flatMap((pane) => {
+      const ptyId = paneTransportsRef.current.get(pane.id)?.getPtyId()
+      return ptyId
+        ? [
+            registerPaneAccountMoveRestart(ptyId, (startup) =>
+              handleRestartCodexPane(pane.id, startup)
+            )
+          ]
+        : []
+    })
+    return () => unregister.forEach((dispose) => dispose())
+  }, [handleRestartCodexPane, managerRef, panePtyLayoutBindings, paneTransportsRef])
 
   return { handleRestartExitedPane, handleCloseExitedPane }
 }
