@@ -1,8 +1,15 @@
 import { expect, test } from './helpers/orca-app'
+import {
+  configureGoldenStubAgent,
+  getGoldenStubAgentLaunchEnv,
+  launchGoldenStubAgentFromNewTab
+} from './helpers/golden-stub-agent'
 import { ensureTerminalVisible, waitForActiveWorktree, waitForSessionReady } from './helpers/store'
 import { waitForActivePanePtyId, waitForTerminalOutput } from './helpers/terminal'
 
 const SESSION_ID = 'e2e-claude-move-session'
+
+test.use({ launchEnv: getGoldenStubAgentLaunchEnv() })
 
 test('moves a Claude session still on the old account to the selected one', async ({
   orcaPage
@@ -10,6 +17,9 @@ test('moves a Claude session still on the old account to the selected one', asyn
   await waitForSessionReady(orcaPage)
   await waitForActiveWorktree(orcaPage)
   await ensureTerminalVisible(orcaPage)
+  // A stand-in for Claude, launched the way Orca launches Claude, so the pane really runs it.
+  await configureGoldenStubAgent(orcaPage, { agent: 'claude' })
+  await launchGoldenStubAgentFromNewTab(orcaPage, /^Claude(?:\s|$)/i)
   const ptyId = await waitForActivePanePtyId(orcaPage)
 
   // Two saved accounts with B selected, the way a switch leaves them.

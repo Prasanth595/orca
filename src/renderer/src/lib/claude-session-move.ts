@@ -1,8 +1,16 @@
 import type { AppState } from '@/store'
+import type { RuntimeTerminalProcessInspection } from '@/runtime/runtime-terminal-inspection'
+import {
+  isAgentForegroundWrapperProcess,
+  recognizeAgentProcess
+} from '../../../shared/agent-process-recognition'
 import { claudeAccountIdFromTranscriptPath } from '../../../shared/claude-transcript-account'
 import type { ClaudeRateLimitAccountsState } from '../../../shared/managed-account-types'
 import { isRemoteRuntimePtyId } from '../../../shared/remote-runtime-pty-id'
+import { isShellProcess } from '../../../shared/shell-process-detection'
 import { makePaneKey } from '../../../shared/stable-pane-id'
+import { isClientOnlyUnverifiableInspection } from '../../../shared/terminal-process-inspection'
+import type { TuiAgent } from '../../../shared/tui-agent'
 import { getEligiblePane, toRuntimePtyId } from './agent-hibernation-pane-eligibility'
 
 export type ClaudeSessionMoveView = Pick<
@@ -118,6 +126,35 @@ export function findClaudeSessionsOnOtherLogin(
     }
   }
   return sessions
+}
+
+/**
+ * Whether Claude is what runs in the pane, the test Codex's restart prompt uses: Claude by name, or
+ * an agent wrapper such as node in a tab that launched Claude (an npm install runs it under node).
+ * tmux, the shell or another program means a restart would cut off something else.
+ */
+export function isClaudeRunningInPane(
+  inspection: Pick<
+    RuntimeTerminalProcessInspection,
+    'foregroundProcess' | 'hasChildProcesses'
+  > | null,
+  launchAgent: TuiAgent | undefined
+): boolean {
+  if (!inspection || isClientOnlyUnverifiableInspection(inspection)) {
+    return false
+  }
+  const { foregroundProcess, hasChildProcesses } = inspection
+  if (recognizeAgentProcess(foregroundProcess)?.agent === 'claude') {
+    return true
+  }
+  if (launchAgent !== 'claude' || foregroundProcess === null || !hasChildProcesses) {
+    return false
+  }
+  return (
+    !isShellProcess(foregroundProcess) &&
+    (recognizeAgentProcess(foregroundProcess) !== null ||
+      isAgentForegroundWrapperProcess(foregroundProcess))
+  )
 }
 
 /** Whether restarting the session now loses nothing: hibernation's own test for a pane it may stop. */

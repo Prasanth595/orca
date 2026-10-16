@@ -2,7 +2,6 @@ import { useAppStore } from '@/store'
 import type { AppState } from '@/store/types'
 import { restartPaneForAccountMove } from '@/components/terminal-pane/pane-account-move-restarts'
 import { inspectRuntimeTerminalProcess } from '@/runtime/runtime-terminal-inspection'
-import { recognizeAgentProcess } from '../../../shared/agent-process-recognition'
 import { getLocalProjectExecutionRuntimeContext } from '@/lib/local-preflight-context'
 import { LOCAL_EXECUTION_HOST_ID } from '../../../shared/execution-host'
 import type { ClaudeRateLimitAccountsState } from '../../../shared/managed-account-types'
@@ -14,6 +13,7 @@ import {
 import { buildClaudeSessionMoveStartup } from './codex-account-restart-startup'
 import {
   findClaudeSessionsOnOtherLogin,
+  isClaudeRunningInPane,
   isClaudeSessionMovableNow,
   type ClaudeSessionMoveGates,
   type ClaudeSessionOnOtherLogin
@@ -74,13 +74,6 @@ function settle(session: ClaudeSessionOnOtherLogin): void {
     targetLogin: session.targetLogin
   })
   approvedPaneKeys.delete(session.paneKey)
-}
-
-// Why ask the process: the pane may now run tmux or the shell, and restarting it there would cut
-// off a Claude that lives on outside the pane, or start one nobody runs any more.
-async function isRunningClaude(ptyId: string): Promise<boolean> {
-  const inspection = await inspectRuntimeTerminalProcess(ptyId).catch(() => null)
-  return recognizeAgentProcess(inspection?.foregroundProcess)?.agent === 'claude'
 }
 
 /** Claude sessions on this machine still to move to the selected login. */
@@ -161,7 +154,13 @@ async function movePanes(): Promise<number> {
       waiting += 1
       continue
     }
-    if (!(await isRunningClaude(session.ptyId))) {
+    const tab = state.tabsByWorktree[session.worktreeId]?.find(
+      (candidate) => candidate.id === session.tabId
+    )
+    // Why ask the process: the pane may now run tmux or the shell, and restarting it there would
+    // cut off a Claude that lives on outside the pane, or start one nobody runs any more.
+    const inspection = await inspectRuntimeTerminalProcess(session.ptyId).catch(() => null)
+    if (!isClaudeRunningInPane(inspection, tab?.launchAgent)) {
       settle(session)
       continue
     }
@@ -169,9 +168,7 @@ async function movePanes(): Promise<number> {
       tabId: session.tabId,
       leafId: session.leafId,
       worktreeId: session.worktreeId,
-      shellOverride: state.tabsByWorktree[session.worktreeId]?.find(
-        (tab) => tab.id === session.tabId
-      )?.shellOverride
+      shellOverride: tab?.shellOverride
     })
     // Why settle either way: a session that cannot be resumed is never restarted blank, and one
     // that comes back still reading as the old login must not restart again.

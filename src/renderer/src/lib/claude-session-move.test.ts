@@ -7,6 +7,7 @@ import type {
 import type { TerminalTab } from '../../../shared/terminal-tab-types'
 import {
   findClaudeSessionsOnOtherLogin,
+  isClaudeRunningInPane,
   isClaudeSessionMovableNow,
   type ClaudeSessionMoveGates,
   type ClaudeSessionMoveView
@@ -246,5 +247,28 @@ describe('isClaudeSessionMovableNow', () => {
   it('waits for the idle time, and leaves the tab on screen when told to', () => {
     expect(movable(claudeRow(onA), {}, { idleMs: 60_000 })).toBe(false)
     expect(movable(claudeRow(onA), {}, { foregroundTabIds: new Set(['tab-1']) })).toBe(false)
+  })
+})
+
+describe('isClaudeRunningInPane', () => {
+  const inspection = (foregroundProcess: string | null, hasChildProcesses = true) => ({
+    foregroundProcess,
+    hasChildProcesses
+  })
+
+  it('knows Claude by its process', () => {
+    expect(isClaudeRunningInPane(inspection('claude'), undefined)).toBe(true)
+  })
+
+  it('knows a Claude this tab launched that runs under node, as an npm install does', () => {
+    expect(isClaudeRunningInPane(inspection('node'), 'claude')).toBe(true)
+    expect(isClaudeRunningInPane(inspection('node'), undefined)).toBe(false)
+  })
+
+  it('leaves tmux, the shell, or another program alone', () => {
+    for (const name of ['tmux', 'zsh', 'vim']) {
+      expect(isClaudeRunningInPane(inspection(name), 'claude')).toBe(false)
+    }
+    expect(isClaudeRunningInPane(null, 'claude')).toBe(false)
   })
 })
