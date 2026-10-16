@@ -394,4 +394,19 @@ describe('Claude session moves', () => {
 
     expect(restartPaneForAccountMove).toHaveBeenCalledOnce()
   })
+
+  it('does not use the old account list while a new one is being read', async () => {
+    let answer: (inspection: Inspection) => void = () => {}
+    inspect.mockImplementationOnce(() => new Promise<Inspection>((resolve) => (answer = resolve)))
+    seed({})
+    uninstall = installClaudeSessionMoveCoordinator()
+    const moving = moveClaudeSessionsToSelectedAccount()
+    await vi.advanceTimersByTimeAsync(0)
+    list.mockImplementationOnce(() => new Promise<ClaudeRateLimitAccountsState>(() => {}))
+    switchTo('acct-a')
+    answer({ foregroundProcess: 'claude', hasChildProcesses: true })
+    await moving
+
+    expect(restartPaneForAccountMove).not.toHaveBeenCalled()
+  })
 })

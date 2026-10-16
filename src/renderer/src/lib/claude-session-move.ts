@@ -158,12 +158,15 @@ export function isClaudeRunningInPane(
   )
 }
 
-/** Whether the inspection could not see the pane's processes, so it says nothing either way. */
+/**
+ * Whether the inspection could not see the pane's processes, so it says nothing either way. Goes
+ * by the child-process evidence, as agent completion does for a local pane: the foreground
+ * evidence fences remote answers, and Windows marks it unverifiable on every local one.
+ */
 export function isUnseenPaneInspection(inspection: RuntimeTerminalProcessInspection): boolean {
   return (
     isClientOnlyUnverifiableInspection(inspection) ||
-    inspection.childProcessEvidence === 'unverifiable' ||
-    inspection.foregroundProcessEvidence?.verdict === 'unverifiable'
+    inspection.childProcessEvidence === 'unverifiable'
   )
 }
 

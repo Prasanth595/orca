@@ -62,6 +62,9 @@ function isOnThisHost(state: AppState, worktreeId: string): boolean {
 /** Re-reads this host's Claude accounts, which name the selected login. */
 export async function refreshClaudeMoveAccounts(): Promise<void> {
   const read = ++accountsRead
+  // Why drop the old list first: a switch is what usually asks for a read, so until the new one
+  // arrives the old list names the account we just left.
+  accounts = null
   // Why forget on failure: the old list may name the account we just switched away from.
   const next = await window.api.claudeAccounts.list().catch(() => null)
   // Why only the latest: replies to a quick A, B, A can arrive out of order.

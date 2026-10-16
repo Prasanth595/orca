@@ -9,6 +9,7 @@ import {
   findClaudeSessionsOnOtherLogin,
   isClaudeRunningInPane,
   isClaudeSessionMovableNow,
+  isUnseenPaneInspection,
   type ClaudeSessionMoveGates,
   type ClaudeSessionMoveView
 } from './claude-session-move'
@@ -273,5 +274,36 @@ describe('isClaudeRunningInPane', () => {
       expect(isClaudeRunningInPane(inspection(name), 'claude')).toBe(false)
     }
     expect(isClaudeRunningInPane(null, 'claude')).toBe(false)
+  })
+})
+
+describe('isUnseenPaneInspection', () => {
+  it('reads a Windows answer by its child-process evidence, since Windows never fences the foreground', () => {
+    expect(
+      isUnseenPaneInspection({
+        foregroundProcess: 'claude',
+        hasChildProcesses: true,
+        childProcessEvidence: 'children',
+        foregroundProcessEvidence: {
+          verdict: 'unverifiable',
+          reason: 'windows_ssh_foreground_unavailable',
+          authorityGeneration: 'gen-1',
+          observationEpoch: 1,
+          capturedAgeMs: 0,
+          ptyId: 'pty-1',
+          ptyIncarnationId: 'inc-1'
+        }
+      })
+    ).toBe(false)
+  })
+
+  it('counts an answer that could not read the process table as unseen', () => {
+    expect(
+      isUnseenPaneInspection({
+        foregroundProcess: 'zsh',
+        hasChildProcesses: false,
+        childProcessEvidence: 'unverifiable'
+      })
+    ).toBe(true)
   })
 })
