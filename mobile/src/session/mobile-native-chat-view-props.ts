@@ -43,7 +43,6 @@ export type MobileNativeChatViewProps = ComposerTrayProps & {
   turnJournal?: NativeChatTurnJournal | null
   receipts?: ReadonlyMap<string, NativeChatResolvedPrompt> | null
   actionablePromptIds?: readonly string[]
-  /** Interrupt the agent mid-turn (shown as a Stop button on the working bar). */
   /** Interrupt a provider turn. */
   onStop?: () => void
   /** Live partial assistant text to show as an in-progress bubble, already gated
