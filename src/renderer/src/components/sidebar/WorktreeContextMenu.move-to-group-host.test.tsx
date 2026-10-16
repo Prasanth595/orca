@@ -4,42 +4,57 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { Repo } from '../../../../shared/repo-types'
 import type { Worktree } from '../../../../shared/worktree/types'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import WorktreeContextMenu from './WorktreeContextMenu'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
-const repoHost = vi.hoisted(() => ({ executionHostId: 'runtime:linux-env' }))
-
-const state = {
-  updateWorktreeMeta: vi.fn(),
-  setWorktreesPinnedAndReveal: vi.fn(),
-  workspaceStatuses: [],
-  openModal: vi.fn(),
-  projectGroups: [
-    { id: 'mac-group', name: 'Mac projects', connectionId: null, executionHostId: 'local' },
-    {
-      id: 'linux-group',
-      name: 'Linux projects',
-      connectionId: null,
-      executionHostId: 'runtime:linux-env'
-    }
-  ],
-  createProjectGroup: vi.fn(),
-  moveProjectToGroup: vi.fn(),
-  deleteStateByWorktreeId: {},
-  worktreeLineageById: {},
-  workspaceLineageByChildKey: {},
-  updateWorktreeLineage: vi.fn(),
-  tabsByWorktree: {},
-  ptyIdsByTabId: {},
-  browserTabsByWorktree: {},
-  keybindings: {},
-  settings: { activeRuntimeEnvironmentId: null, openInApplications: [] },
-  openSettingsPage: vi.fn(),
-  openSettingsTarget: vi.fn()
+function repoRow(id: string, executionHostId: string): Repo {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the menu reads only the fields set here.
+  return {
+    id,
+    path: `/projects/${id}`,
+    displayName: id,
+    projectGroupId: null,
+    connectionId: null,
+    executionHostId
+  } as Repo
 }
+
+const state = vi.hoisted(() => {
+  const repos: Repo[] = []
+  return {
+    repos,
+    updateWorktreeMeta: vi.fn(),
+    setWorktreesPinnedAndReveal: vi.fn(),
+    workspaceStatuses: [],
+    openModal: vi.fn(),
+    projectGroups: [
+      { id: 'mac-group', name: 'Mac projects', connectionId: null, executionHostId: 'local' },
+      {
+        id: 'linux-group',
+        name: 'Linux projects',
+        connectionId: null,
+        executionHostId: 'runtime:linux-env'
+      }
+    ],
+    createProjectGroup: vi.fn(),
+    moveProjectToGroup: vi.fn(),
+    deleteStateByWorktreeId: {},
+    worktreeLineageById: {},
+    workspaceLineageByChildKey: {},
+    updateWorktreeLineage: vi.fn(),
+    tabsByWorktree: {},
+    ptyIdsByTabId: {},
+    browserTabsByWorktree: {},
+    keybindings: {},
+    settings: { activeRuntimeEnvironmentId: null, openInApplications: [] },
+    openSettingsPage: vi.fn(),
+    openSettingsTarget: vi.fn()
+  }
+})
 
 vi.mock('@/store', () => ({
   useAppStore: Object.assign((selector: (s: typeof state) => unknown) => selector(state), {
@@ -47,19 +62,10 @@ vi.mock('@/store', () => ({
   })
 }))
 
+// Like the real selector for a repo id shared by two hosts while this Mac's workspace is active.
 vi.mock('@/store/selectors', () => ({
   useAllWorktrees: () => [],
-  useRepoById: (repoId?: string) =>
-    repoId
-      ? {
-          id: repoId,
-          name: repoId,
-          displayName: repoId,
-          projectGroupId: null,
-          connectionId: null,
-          executionHostId: repoHost.executionHostId
-        }
-      : undefined,
+  useRepoById: (repoId?: string) => state.repos.find((repo) => repo.id === repoId) ?? null,
   useRepoMap: () => new Map(),
   useWorktreeMap: () => new Map()
 }))
@@ -87,8 +93,8 @@ afterEach(() => {
 function worktreeFixture(overrides: Partial<Worktree> = {}): Worktree {
   // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the menu reads only the fields set here.
   return {
-    id: 'linux-repo::/home/me/app',
-    repoId: 'linux-repo',
+    id: 'app::/home/me/app',
+    repoId: 'app',
     displayName: 'app',
     branch: 'refs/heads/main',
     path: '/home/me/app',
@@ -97,7 +103,13 @@ function worktreeFixture(overrides: Partial<Worktree> = {}): Worktree {
   } as Worktree
 }
 
-function openMoveToGroupSubmenu(): string[] {
+function menuItem(label: string): HTMLElement | undefined {
+  return Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+    (element) => element.textContent === label
+  )
+}
+
+function openMoveToGroupSubmenu(worktree: Worktree): string[] {
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root = createRoot(container)
@@ -105,7 +117,7 @@ function openMoveToGroupSubmenu(): string[] {
   act(() => {
     root.render(
       <TooltipProvider>
-        <WorktreeContextMenu worktree={worktreeFixture({ hostId: 'runtime:linux-env' })}>
+        <WorktreeContextMenu worktree={worktree}>
           <div>Card</div>
         </WorktreeContextMenu>
       </TooltipProvider>
@@ -118,9 +130,7 @@ function openMoveToGroupSubmenu(): string[] {
         new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 10, clientY: 10 })
       )
   })
-  const trigger = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
-    (element) => element.textContent === 'Move to group'
-  )
+  const trigger = menuItem('Move to group')
   if (!trigger) {
     return []
   }
@@ -128,29 +138,43 @@ function openMoveToGroupSubmenu(): string[] {
     trigger.focus()
     trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
   })
-  const submenu = document.querySelector('[role="menu"][data-side]:not(:first-of-type)')
-  const items = Array.from(
-    (submenu ?? document).querySelectorAll<HTMLElement>('[role="menuitem"]')
-  ).map((element) => element.textContent ?? '')
-  return items.filter((label) => label === 'Mac projects' || label === 'Linux projects')
+  return Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]'))
+    .map((element) => element.textContent ?? '')
+    .filter((label) => label === 'Mac projects' || label === 'Linux projects')
 }
 
 describe('WorktreeContextMenu Move to group across hosts', () => {
   it("offers only groups the project's own host can hold", () => {
-    expect(openMoveToGroupSubmenu()).toEqual(['Linux projects'])
+    state.repos = [repoRow('app', 'runtime:linux-env')]
+
+    expect(openMoveToGroupSubmenu(worktreeFixture({ hostId: 'runtime:linux-env' }))).toEqual([
+      'Linux projects'
+    ])
   })
 
   it('hides the submenu when no group lives on the project host', () => {
-    repoHost.executionHostId = 'runtime:other-env'
-    try {
-      expect(openMoveToGroupSubmenu()).toEqual([])
-      expect(
-        Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).some(
-          (element) => element.textContent === 'Move to group'
-        )
-      ).toBe(false)
-    } finally {
-      repoHost.executionHostId = 'runtime:linux-env'
-    }
+    state.repos = [repoRow('app', 'runtime:other-env')]
+
+    expect(openMoveToGroupSubmenu(worktreeFixture({ hostId: 'runtime:other-env' }))).toEqual([])
+    expect(menuItem('Move to group')).toBeUndefined()
+  })
+
+  it("uses the clicked workspace's own row when two hosts share its repo id", () => {
+    state.repos = [repoRow('app', 'local'), repoRow('app', 'runtime:linux-env')]
+
+    expect(openMoveToGroupSubmenu(worktreeFixture({ hostId: 'runtime:linux-env' }))).toEqual([
+      'Linux projects'
+    ])
+    const linuxItem = menuItem('Linux projects')
+    act(() => {
+      linuxItem?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }))
+      linuxItem?.click()
+    })
+    expect(state.moveProjectToGroup).toHaveBeenCalledWith(
+      'app',
+      'linux-group',
+      undefined,
+      'runtime:linux-env'
+    )
   })
 })

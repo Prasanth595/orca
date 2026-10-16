@@ -15,6 +15,11 @@ import {
 import { parseWorkspaceKey } from '../../../../shared/workspace-scope'
 import { getDeleteStateForWorktreeHost } from './worktree-delete-state-host-match'
 import { getProjectGroupsForRepoHost } from '@/store/slices/project-group-owner-routing'
+import { findIndexedRepoOwnerForHost } from '@/lib/worktree-runtime-owner-index'
+import {
+  getWorktreeExecutionHostId,
+  toRuntimeExecutionHostId
+} from '../../../../shared/execution-host'
 import {
   EMPTY_BROWSER_TABS_BY_WORKTREE,
   EMPTY_CYCLIC_LINEAGE_IDS,
@@ -64,7 +69,18 @@ export function useWorktreeContextMenuModel({
   const allProjectGroups = useAppStore((s) => s.projectGroups)
   const createProjectGroup = useAppStore((s) => s.createProjectGroup)
   const moveProjectToGroup = useAppStore((s) => s.moveProjectToGroup)
-  const repo = useRepoById(worktree.repoId)
+  const repoById = useRepoById(worktree.repoId)
+  // Why: repo ids repeat across hosts; the active-workspace lookup can return another host's row.
+  const repo = useAppStore(
+    (s) =>
+      findIndexedRepoOwnerForHost(
+        s.repos,
+        worktree.repoId,
+        worktree.runtimeOwnerEnvironmentId
+          ? toRuntimeExecutionHostId(worktree.runtimeOwnerEnvironmentId)
+          : getWorktreeExecutionHostId(worktree, repoById ?? undefined)
+      ) ?? undefined
+  )
   const projectGroups = useMemo(
     () => (repo ? getProjectGroupsForRepoHost(allProjectGroups, repo) : []),
     [allProjectGroups, repo]
