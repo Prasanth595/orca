@@ -76,9 +76,11 @@ it.each([true, false])('forks a source-selected chat with saved placement availa
   const fixture = makeRuntimeStoreWithWorkspaceSession(saved ? session : initial)
   const admit = vi.spyOn(fixture.runtimeStore, 'admitTerminalPane')
   const service = new OrcaRuntimeService(fixture.runtimeStore)
-  const spawn = vi.fn(async (_options: unknown) => ({ id: 'pty-fork' }))
+  const spawn = vi.fn(async (_options: unknown) => ({
+    id: 'pty-fork', incarnationId: '45454545-4545-4545-8545-454545454545'
+  }))
   service.setPtyController({ spawn, write: () => true, kill: () => true,
-    getForegroundProcess: async () => null })
+    getForegroundProcess: async () => null, listProcesses: async () => [] })
   electronMocks.BrowserWindow.fromId.mockReturnValue({ isDestroyed: () => false,
     webContents: { isDestroyed: () => false, setBackgroundThrottling: vi.fn(),
       capturePage: async () => undefined } })
