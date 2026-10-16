@@ -1,6 +1,8 @@
 const RTL_LETTER =
   /[\p{Script=Arabic}\p{Script=Hebrew}\p{Script=Syriac}\p{Script=Thaana}\p{Script=Nko}]/u
 const LETTER = /\p{L}/u
+// Punctuation splits words too (`Hello,مرحبا`), except what joins one path or identifier.
+const WORD_BREAK = /(?:\s|(?![./_:@#\\-])\p{P})+/u
 
 export type TextDirection = 'ltr' | 'rtl'
 
@@ -12,7 +14,7 @@ export function dominantTextDirection(text: string): TextDirection | undefined {
   let rtl = 0
   let ltr = 0
   let first: TextDirection | undefined
-  for (const word of text.split(/\s+/)) {
+  for (const word of text.split(WORD_BREAK)) {
     const letter = LETTER.exec(word)?.[0]
     if (!letter) {
       continue

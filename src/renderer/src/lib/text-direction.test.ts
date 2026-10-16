@@ -8,7 +8,9 @@ describe('dominantTextDirection', () => {
     ['Claude ممكن تساعدني في الكود؟', 'rtl'],
     ['I want to say مرحبا to the team.', 'ltr'],
     ['الملف src/main.ts فيه 3 أخطاء (errors).', 'rtl'],
-    ['Plain English only.', 'ltr']
+    ['Plain English only.', 'ltr'],
+    ['Hello,مرحبا،أهلا', 'rtl'],
+    ['راجع src/main.ts و lib/app.ts', 'rtl']
   ] as const)('reads %s as %s', (text, direction) => {
     expect(dominantTextDirection(text)).toBe(direction)
   })
