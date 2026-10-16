@@ -87,8 +87,7 @@ function startFlow(
   return step(session, { ...base, state: CHECKING }, [...before, { kind: 'open-cache' }])
 }
 
-/** Puts a generation that is already on disk on screen. The only producer of `open-generation`.
- *  `andThen` is the disk work that opening one may owe, which runs after the view has its bytes. */
+/** Holds the generation read off disk, and opens it at once only when the host is unreachable. */
 function onCacheRead(
   session: MobileWebShellSession,
   generation: CachedGeneration | null
@@ -126,16 +125,8 @@ function onManifestRead(
     ...routeViewOf(manifest.routes, session.routePathname, session.wide),
     routes: manifest.routes
   }
-  // Same build id is the same bytes, because the id is their digest. The fresh routes and compat
-  // facts are held for this session only: rewriting the stored manifest raced the native view's read
-  // of it, so disk keeps the manifest the generation was downloaded with.
-  const cached = session.cached
-  const same: CachedGeneration | null =
-    cached === null || cached.buildId !== manifest.buildId
-      ? null
-      : { ...cached, routes: manifest.routes, compat: manifest }
   if (!rendersRoute(view.pageRoutes, session.routePathname)) {
-    return step(session, { cached: same ?? cached, ...view, state: NATIVE_ROUTE })
+    return step(session, { ...view, state: NATIVE_ROUTE })
   }
   const verdict = evaluateMobileWebBundleCompat({
     hostCapabilities: gates.hostCapabilities,
@@ -143,11 +134,12 @@ function onManifestRead(
     manifest
   })
   if (verdict.kind === 'blocked') {
-    // The held generation keeps its own routes: a walled manifest's grants are never adopted.
     return step(session, { state: { kind: 'wall', verdict } })
   }
-  if (same !== null) {
-    return openCached(session, same, { cached: same, ...view })
+  // Same build id is the same bytes (the id is their digest), so the generation on disk opens as is.
+  const cached = session.cached
+  if (cached?.buildId === manifest.buildId) {
+    return openCached(session, cached, view)
   }
   return step(
     session,

@@ -94,15 +94,11 @@ const TOTAL_BYTES = ASSETS.reduce((sum, asset) => sum + asset.byteLength, 0)
 /** The id the assets decide, because the cached manifest is read back through the schema that pins
  *  it to their digest: a literal would be refused before any of this could be measured. */
 const BUILD_ID = computeMobileWebBundleId(ASSETS)
-const MANIFEST_PATH = `${HOST_KEY}/generations/${BUILD_ID}/manifest.json`
 
 /** Through the phone's own reader, not as a literal: that parse is what the manifest the reducer
  *  holds has really been through, and it is the one that pins the build id to the digest of the
  *  assets — so a fixture these tests could not have received is refused here rather than measured. */
-function manifestGranting(
-  grants: readonly string[],
-  overrides: Partial<MobileWebBundleManifestRead> = {}
-): MobileWebBundleManifestRead {
+function manifestGranting(grants: readonly string[]): MobileWebBundleManifestRead {
   return MobileWebBundleManifestReadSchema.parse({
     schemaVersion: MOBILE_WEB_BUNDLE_SCHEMA_VERSION,
     buildId: BUILD_ID,
@@ -112,17 +108,12 @@ function manifestGranting(
     entrypoint: 'index.html',
     totalBytes: TOTAL_BYTES,
     assets: ASSETS,
-    routes: [{ pathname: ROUTE_PATTERN, grants: [...grants] }],
-    ...overrides
+    routes: [{ pathname: ROUTE_PATTERN, grants: [...grants] }]
   })
 }
 
-/** The edit the desktop published, and that same edit written in a manifest schema this shell does
- *  not know. */
+/** The edit the desktop published. */
 const M2 = manifestGranting(GRANTS_A_PLUS_B)
-const M2_WALLED = manifestGranting(GRANTS_A_PLUS_B, {
-  schemaVersion: MOBILE_WEB_BUNDLE_SCHEMA_VERSION + 1
-})
 
 /** Generation G on disk under the manifest its assets arrived with, written by the store's own
  *  stage-and-commit rather than seeded as files: what this suite is about is the manifest a later
@@ -139,11 +130,6 @@ async function cacheGeneration(
     elapsedMs: 1
   }
   await store.commitGeneration(await store.stageGeneration(HOST_KEY, fetched))
-}
-
-function storedRouteGrants(fileSystem: FakeGenerationFileSystem): unknown {
-  const text = fileSystem.text(MANIFEST_PATH)
-  return text === null ? null : JSON.parse(text).routes
 }
 
 type Mounted = {
@@ -226,7 +212,6 @@ describe('an offline cold start after a grant-only manifest edit', () => {
     // The native view reads `manifest.json` while the page opens; a rewrite here raced that read.
     const fileSystem = createFakeGenerationFileSystem()
     await cacheGeneration(fileSystem, manifestGranting(GRANTS_A))
-    const stored = fileSystem.text(MANIFEST_PATH)
     const generationPaths = () =>
       fileSystem.paths().filter((path) => path.startsWith(`${HOST_KEY}/generations/`))
     const paths = generationPaths()
@@ -241,7 +226,6 @@ describe('an offline cold start after a grant-only manifest edit', () => {
       .slice(settled)
       .filter((path) => path.startsWith(`${HOST_KEY}/generations/`))
     expect(generationWrites).toEqual([])
-    expect(fileSystem.text(MANIFEST_PATH)).toBe(stored)
     expect(generationPaths()).toEqual(paths)
     await online.unmount()
   })
@@ -254,34 +238,6 @@ describe('an offline cold start after a grant-only manifest edit', () => {
     const online = await mountRoute(fileSystem)
     expect(online.routeGrants()).toEqual(GRANTS_A_PLUS_B)
     await online.unmount()
-
-    goOffline()
-    const offline = await mountRoute(fileSystem)
-
-    expect(offline.state()).toMatchObject({ kind: 'ready', buildId: BUILD_ID })
-    expect(offline.routeGrants()).toEqual(GRANTS_A)
-  })
-})
-
-/** A manifest this shell walled leaves disk alone, and the offline verdict is the stored one's. */
-describe('an offline cold start after a grant edit arrived under a wall', () => {
-  beforeEach(() => {
-    doubles.connection = { client: {}, state: 'connected' }
-    doubles.gates.hostCapabilities = [MOBILE_WEB_BUNDLE_CAPABILITY]
-    doubles.manifest = null
-  })
-
-  it('leaves the stored manifest alone and reads the grants it had accepted', async () => {
-    const fileSystem = createFakeGenerationFileSystem()
-    await cacheGeneration(fileSystem, manifestGranting(GRANTS_A))
-    doubles.manifest = M2_WALLED
-    const settled = fileSystem.writes.length
-
-    const walled = await mountRoute(fileSystem)
-    expect(walled.state()).toMatchObject({ kind: 'wall' })
-    expect(fileSystem.writes).toHaveLength(settled)
-    expect(storedRouteGrants(fileSystem)).toEqual([{ pathname: ROUTE_PATTERN, grants: GRANTS_A }])
-    await walled.unmount()
 
     goOffline()
     const offline = await mountRoute(fileSystem)

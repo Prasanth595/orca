@@ -33,8 +33,7 @@ export function gates(overrides: Partial<MobileWebShellGates> = {}): MobileWebSh
 export const ROUTE = '/h/host-1'
 export const PAGE_ROUTES = [{ pathname: '/h/[hostId]', grants: ['navigate'] }]
 
-/** The manifest as the host sends it. Every facts object below is projected from one of these, so a
- *  test that edits the routes cannot leave the projection and the manifest it came from disagreeing. */
+/** The manifest as the host sends it; facts below are projected from it. */
 export const MANIFEST_WIRE: MobileWebBundleManifestRead = {
   schemaVersion: 1,
   buildId: 'b'.repeat(64),

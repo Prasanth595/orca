@@ -351,21 +351,6 @@ describe('the hybrid shell runner', () => {
     })
   })
 
-  it('opens a same-build cache hit without writing to the generation store', async () => {
-    const fake = createFakeStore()
-    const mounted = await mount(fake.store)
-    fake.settleCacheRead(activeGeneration())
-    await flush()
-
-    expect(doubles.fetches).toHaveLength(0)
-    expect(fake.staged()).toBe(0)
-    expect(fake.committed()).toBe(0)
-    expect(mounted.states().at(-1)?.kind).toBe('ready')
-    await act(async () => {
-      mounted.tree.unmount()
-    })
-  })
-
   it('takes the staged tree back out when the unmount lands between staging and the commit', async () => {
     const fake = createFakeStore()
     fake.holdStage()

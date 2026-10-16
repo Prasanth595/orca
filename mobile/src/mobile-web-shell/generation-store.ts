@@ -1,9 +1,11 @@
 import { z } from 'zod'
-import type { MobileWebBundleManifestRead } from '../transport/mobile-web-bundle-reply-schemas'
+import {
+  MobileWebBundleManifestReadSchema,
+  type MobileWebBundleManifestRead
+} from '../transport/mobile-web-bundle-reply-schemas'
 import type { MobileWebBundleFetchResult } from '../transport/mobile-web-bundle-fetch'
 import { joinUri } from './generation-cache-uri'
 import type { GenerationDirectoryEntry, GenerationFileSystem } from './generation-store-file-system'
-import { MANIFEST_FILE_NAME, parseGenerationManifest } from './generation-manifest-file'
 import { isHostCacheKey } from './host-cache-key'
 import type { MobileWebShellUpdateFailure } from './mobile-web-shell-update-failure'
 import {
@@ -15,6 +17,8 @@ import {
 const GENERATIONS_DIRECTORY_NAME = 'generations'
 const STAGING_DIRECTORY_NAME = 'tmp'
 const HOST_INDEX_FILE_NAME = 'hosts.json'
+/** The activation's manifest: a generation directory is an activation only once this is in it. */
+const MANIFEST_FILE_NAME = 'manifest.json'
 
 /** Least recently used host evicted past this. */
 export const MAX_CACHED_HOSTS = 6
@@ -143,8 +147,7 @@ export function createGenerationStore(options: {
     const only = directories.length === 1 ? directories[0] : null
     if (only !== null) {
       const directory = joinUri(generations, only.name)
-      // Older builds could leave `manifest-next.json` from an interrupted rewrite. It is never read:
-      // beside `manifest.json` it is inert, and alone it drops the tree below for a redownload.
+      // Older builds' manifest-next.json is never read; alone it reads as no manifest.
       let text: string | null
       try {
         text = await fs.readText(joinUri(directory, MANIFEST_FILE_NAME))
@@ -153,7 +156,7 @@ export function createGenerationStore(options: {
         // redownloads, and a transient I/O blip must not cost a cache that verified.
         return null
       }
-      const manifest = parseGenerationManifest(text)
+      const manifest = text === null ? null : parseManifest(text)
       if (manifest !== null && manifest.buildId === only.name) {
         return { buildId: manifest.buildId, directory, manifest }
       }
@@ -302,6 +305,13 @@ export function createGenerationStore(options: {
 
 function withHostLast(order: readonly string[], hostKey: string): string[] {
   return [...order.filter((key) => key !== hostKey), hostKey]
+}
+
+/** Read back as loosely as it was accepted: reading a cached manifest strictly would make a field a
+ *  newer desktop added a forced redownload on every launch. */
+function parseManifest(text: string): MobileWebBundleManifestRead | null {
+  const parsed = MobileWebBundleManifestReadSchema.safeParse(parseJson(text))
+  return parsed.success ? parsed.data : null
 }
 
 function parseJson(text: string): unknown {

@@ -136,8 +136,10 @@ describe('the connected flow', () => {
     expect(step.effects).toEqual([])
   })
 
-  it('opens the cached generation without paging when the build ids match', () => {
-    const step = run(afterCacheRead(CACHED).session, { type: 'manifest-read', manifest: MANIFEST })
+  it('opens a same-build hit without paging, under the fresh grants', () => {
+    // Stored routes this shell cannot serve: only the fresh manifest's grants make it a page.
+    const stale = { ...CACHED, routes: [{ pathname: '/h/[hostId]', grants: ['teleport'] }] }
+    const step = run(afterCacheRead(stale).session, { type: 'manifest-read', manifest: MANIFEST })
     expect(step.session.state).toEqual({ kind: 'activating', source: 'cache' })
     // Only the open: a write beside the generation would race the native view reading it.
     expect(step.effects).toEqual([
@@ -148,6 +150,7 @@ describe('the connected flow', () => {
         totalBytes: CACHED.totalBytes
       }
     ])
+    expect(step.session.routeGrants).toEqual(['navigate'])
   })
 
   it('downloads when the cached build id is a different one', () => {
