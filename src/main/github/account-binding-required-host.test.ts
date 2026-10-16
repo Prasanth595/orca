@@ -96,6 +96,16 @@ describe('resolveGhAccountRequiredHost', () => {
     })
   })
 
+  it('resolves the alias with its original case', async () => {
+    const resolveAlias = vi.fn(async () => ({ hostname: 'github.com' }))
+    await resolveGhAccountRequiredHost(
+      repoFor('git@GitHub-Work:example/sample-app.git'),
+      {},
+      resolveAlias
+    )
+    expect(resolveAlias).toHaveBeenCalledWith('GitHub-Work', expect.anything())
+  })
+
   it('keeps a dotless HTTPS host literal without consulting ssh config', async () => {
     const resolveAlias = vi.fn(async () => ({ hostname: 'elsewhere.example.com' }))
     await expect(

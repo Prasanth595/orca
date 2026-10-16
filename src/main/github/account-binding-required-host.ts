@@ -3,7 +3,7 @@ import {
   foldComparableGitHubHost
 } from '../../shared/git-remote-host-alias'
 import { githubHostFromIdentityKey } from '../../shared/github/repository-identity-key'
-import { remoteUrlUsesSshTransport } from './github-remote-identity-parsing'
+import { rawSshTransportHost, remoteUrlUsesSshTransport } from './github-remote-identity-parsing'
 import {
   resolveSshConfigHostname,
   type SshConfigResolutionContext
@@ -41,7 +41,9 @@ export async function resolveGhAccountRequiredHost(
     connectionId: repo.connectionId ?? null,
     ...(localGitOptions.wslDistro ? { wslDistro: localGitOptions.wslDistro } : {})
   }
-  const resolved = await resolveAlias(host, context).catch(() => null)
+  // Why raw: the canonical key is lowercased, but OpenSSH matches Host patterns case-sensitively.
+  const alias = rawSshTransportHost(remoteUrl) ?? host
+  const resolved = await resolveAlias(alias, context).catch(() => null)
   const hostname = resolved?.hostname?.trim().toLowerCase()
   if (!hostname || isUnresolvedSshHostAlias(hostname)) {
     return undefined
