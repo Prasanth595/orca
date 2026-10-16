@@ -17,10 +17,7 @@ type MockState = {
   worktreesByRepo: Record<string, { id: string; repoId: string; displayName?: string }[]>
   repos: { id: string; displayName?: string; connectionId?: string | null }[]
   settings: { experimentalTerminalAttention?: boolean }
-  markWorktreeUnread: ReturnType<typeof vi.fn>
-  markTerminalTabUnread: ReturnType<typeof vi.fn>
-  markTerminalPaneUnread: ReturnType<typeof vi.fn>
-  markAgentCompletionPaneUnread: ReturnType<typeof vi.fn>
+  markAgentAttentionUnread: ReturnType<typeof vi.fn>
 }
 
 const playDesktopNotificationSound = vi.hoisted(() => vi.fn())
@@ -81,10 +78,7 @@ describe('dispatchTerminalNotification per-worktree mute', () => {
       },
       repos: [{ id: 'repo1', displayName: 'orca', connectionId: null }],
       settings: { experimentalTerminalAttention: true },
-      markWorktreeUnread: vi.fn(),
-      markTerminalTabUnread: vi.fn(),
-      markTerminalPaneUnread: vi.fn(),
-      markAgentCompletionPaneUnread: vi.fn()
+      markAgentAttentionUnread: vi.fn()
     }
     vi.stubGlobal('window', {
       api: {
@@ -108,9 +102,12 @@ describe('dispatchTerminalNotification per-worktree mute', () => {
       paneKey
     })
 
-    expect(mockState.markWorktreeUnread).toHaveBeenCalledWith('wt-primary')
-    expect(mockState.markTerminalTabUnread).toHaveBeenCalledWith('tab-1', 'agent-completion')
-    expect(mockState.markTerminalPaneUnread).toHaveBeenCalledWith(paneKey, 'agent-completion')
+    expect(mockState.markAgentAttentionUnread).toHaveBeenCalledWith({
+      workspaceId: 'wt-primary',
+      subjectKey: paneKey,
+      groupId: 'tab-1',
+      reason: 'agent-completion'
+    })
     expect(window.api.notifications.dispatch).not.toHaveBeenCalled()
     expect(playDesktopNotificationSound).not.toHaveBeenCalled()
   })
