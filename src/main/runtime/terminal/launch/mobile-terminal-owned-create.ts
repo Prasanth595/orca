@@ -7,11 +7,11 @@ import type {
 } from '../../../../shared/agent-session-resume'
 import type { SpawnIntent } from '../../../../shared/host-spawn-admission'
 import type { AgentLaunchRuntime } from '../../../../shared/agent-launch-runtime'
-import type { RuntimeTerminalPresentation } from '../../../../shared/runtime-types'
 import type {
   RuntimeMobileSessionCreateTerminalResult,
   RuntimeMobileSessionTabsSnapshot,
-  RuntimeMobileSessionTerminalTab
+  RuntimeMobileSessionTerminalTab,
+  RuntimeTerminalPresentation
 } from '../../../../shared/runtime-types'
 import { randomUUID } from 'node:crypto'
 import { copySleepingAgentLaunchConfig } from '../../runtime-agent-launch-resolution'
