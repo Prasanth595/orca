@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { onMock, spawnMock, trackMock, classifyErrorMock } from './pty-ipc-mock-registry'
 import { setupPtyIpcSuite } from './pty-ipc-test-harness'
-import { registerPtyHandlers, setLocalPtyProvider } from './pty'
+import { registerPtyHandlers } from './pty/register-handlers'
+import { setLocalPtyProvider } from './pty/provider/registry'
 
 vi.mock('electron', () => import('./pty-ipc-mock-registry').then((m) => m.electronModuleMock()))
 vi.mock('fs', () => import('./pty-ipc-mock-registry').then((m) => m.fsModuleMock()))
@@ -141,7 +142,7 @@ describe('registerPtyHandlers', () => {
     type SerializeController = {
       serializeBuffer: (
         ptyId: string,
-        opts?: { scrollbackRows?: number; altScreenForcesZeroRows?: boolean }
+        opts?: { scrollbackRows?: number }
       ) => Promise<{ data: string; cols: number; rows: number; lastTitle?: string } | null>
     }
 

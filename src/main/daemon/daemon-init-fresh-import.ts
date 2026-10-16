@@ -41,7 +41,8 @@ export async function importFreshDaemonInit(state: DaemonInitMockState) {
     unbindLocalProviderListenersMock,
     rebindLocalProviderListenersMock,
     trackDaemonReplacedMock,
-    trackDaemonRetiredMock
+    trackDaemonRetiredMock,
+    trackDaemonAdoptedMock
   } = state
 
   vi.resetModules()
@@ -64,6 +65,7 @@ export async function importFreshDaemonInit(state: DaemonInitMockState) {
   rebindLocalProviderListenersMock.mockClear()
   trackDaemonReplacedMock.mockClear()
   trackDaemonRetiredMock.mockClear()
+  trackDaemonAdoptedMock.mockClear()
   checkDaemonHealthMock.mockClear()
   checkDaemonHealthMock.mockResolvedValue('healthy')
   healthCheckDaemonMock.mockClear()
@@ -91,6 +93,7 @@ export async function importFreshDaemonInit(state: DaemonInitMockState) {
   daemonClientMock.mockImplementation(function MockDaemonClient() {
     return {
       ensureConnected: vi.fn(async () => {}),
+      ensureConnectedWithin: vi.fn(async () => {}),
       getDaemonIdentity: vi.fn(readLaunchedDaemonIdentity),
       request: vi.fn(async () => ({ sessions: [] })),
       disconnect: vi.fn()
@@ -122,5 +125,11 @@ export async function importFreshDaemonInit(state: DaemonInitMockState) {
     getAppMetrics: () => []
   } as unknown as AppEnvironment)
   // Why: import after resetModules so module-level spawner/adapter/restartInFlight start fresh — needed to test first-init and the coalescer.
-  return import('./daemon-init')
+  const [init, restart, providerState, cleanup] = await Promise.all([
+    import('./daemon-provider-init'),
+    import('./daemon-provider-restart'),
+    import('./daemon-provider-state'),
+    import('./daemon-protocol-cleanup')
+  ])
+  return { ...init, ...restart, ...providerState, ...cleanup }
 }

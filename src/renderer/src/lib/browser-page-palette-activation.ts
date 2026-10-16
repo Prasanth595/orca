@@ -1,7 +1,11 @@
 import { useAppStore } from '@/store'
+import {
+  activateBrowserWorkspaceTab,
+  getActivatableBrowserWorkspaceTab
+} from '@/lib/browser-workspace-tab-activation'
 import type { ExecutionHostId } from '../../../shared/execution-host'
 import { isBlankBrowserUrl } from './browser-palette-search'
-import { activateAndRevealWorktree } from './worktree-activation'
+import { activateAndRevealWorkspace } from './worktree-activation'
 
 export type BrowserPagePaletteActivationFailure =
   | 'missing-page'
@@ -12,6 +16,7 @@ export type BrowserPageFocusTarget = 'address-bar' | 'webview'
 
 export type BrowserPagePaletteActivationResult =
   | { status: 'activated'; pageId: string; focusTarget: BrowserPageFocusTarget }
+  | { status: 'blocked' }
   | { status: 'failed'; reason: BrowserPagePaletteActivationFailure }
 
 export type BrowserPagePaletteActivationTarget = {
@@ -28,49 +33,56 @@ export function activateBrowserPagePaletteResult({
   worktreeId
 }: BrowserPagePaletteActivationTarget): BrowserPagePaletteActivationResult {
   const initialState = useAppStore.getState()
-  const page = (initialState.browserPagesByWorkspace[workspaceId] ?? []).find(
-    (candidate) => candidate.id === pageId
-  )
-  const workspace = (initialState.browserTabsByWorktree[worktreeId] ?? []).find(
-    (candidate) => candidate.id === workspaceId
-  )
   const worktree = initialState.getKnownWorktreeById(worktreeId, executionHostId)
   // Why worktree first: removing a worktree also purges its browser workspaces
   // and pages, so a page-first check would report a dead workspace as a stale page.
   if (!worktree) {
     return { status: 'failed', reason: 'missing-worktree' }
   }
+  const page = (initialState.browserPagesByWorkspace[workspaceId] ?? []).find(
+    (candidate) =>
+      candidate.id === pageId &&
+      candidate.workspaceId === workspaceId &&
+      candidate.worktreeId === worktreeId
+  )
+  const workspace = (initialState.browserTabsByWorktree[worktreeId] ?? []).find(
+    (candidate) => candidate.id === workspaceId && candidate.worktreeId === worktreeId
+  )
   if (!page || !workspace) {
     return { status: 'failed', reason: 'missing-page' }
   }
 
-  // Why: activateAndRevealWorktree mutates store state, so a later page lookup
+  // Why: activateAndRevealWorkspace mutates store state, so a later page lookup
   // is unreliable — resolve the focus target from the URL captured here.
   const focusTarget: BrowserPageFocusTarget = isBlankBrowserUrl(page.url)
     ? 'address-bar'
     : 'webview'
 
   const targetHostId = executionHostId ?? worktree.hostId
-  const activated = activateAndRevealWorktree(
+  if (
+    !getActivatableBrowserWorkspaceTab({ worktreeId, workspaceId, executionHostId: targetHostId })
+  ) {
+    return { status: 'failed', reason: 'missing-tab' }
+  }
+  const activated = activateAndRevealWorkspace(
     worktree.id,
     targetHostId ? { executionHostId: targetHostId } : {}
   )
   if (!activated) {
-    return { status: 'failed', reason: 'missing-worktree' }
+    return { status: 'blocked' }
   }
 
-  const state = useAppStore.getState()
-  const matchingUnifiedTab = (state.unifiedTabsByWorktree[worktree.id] ?? []).find(
-    (candidate) => candidate.contentType === 'browser' && candidate.entityId === workspace.id
-  )
-  // Why: the pane renders whatever the group's active tab is, so without a unified
-  // tab the browser state would go active behind a tab that never shows the page.
-  if (!matchingUnifiedTab) {
+  // Why the failure and not a bare activation: without a unified tab the browser state would go
+  // active behind a tab that never shows the page.
+  if (
+    !activateBrowserWorkspaceTab({
+      worktreeId: worktree.id,
+      workspaceId: workspace.id,
+      pageId,
+      ...(targetHostId ? { executionHostId: targetHostId } : {})
+    })
+  ) {
     return { status: 'failed', reason: 'missing-tab' }
   }
-  state.focusGroup(worktree.id, matchingUnifiedTab.groupId)
-  state.activateTab(matchingUnifiedTab.id)
-  state.setActiveBrowserTab(workspace.id)
-  state.setActiveBrowserPage(workspace.id, pageId)
   return { status: 'activated', pageId, focusTarget }
 }

@@ -1,7 +1,5 @@
 import { useEffect } from 'react'
-import { translate } from '@/i18n/i18n'
 import { useAppStore } from '../store'
-import { isDirectSshRemoteWorkspaceApplyInProgress } from '../hooks/remote-workspace-snapshot-apply'
 import { createSessionWriteSubscriber } from '../lib/session-write-subscriber'
 import { buildActiveViewUnloadPatch } from '../lib/active-view-persist'
 import {
@@ -34,47 +32,13 @@ import {
   ORCA_RENDERER_SHUTDOWN_CHECKPOINT_ABORTED_EVENT,
   ORCA_RENDERER_UNLOAD_PREVENTED_EVENT
 } from '../../../shared/renderer-shutdown-events'
-import type { RemoteWorkspacePatchResult } from '../../../shared/remote-workspace-types'
 
 // Why: bound the resume-record loss window on a hard kill to ~1 min; capture skips unchanged records so per-tick cost is negligible.
 const SLEEPING_AGENT_RESUME_CAPTURE_INTERVAL_MS = 60_000
 
-function applyRemoteWorkspacePatchStatus(
-  targetId: string,
-  result: RemoteWorkspacePatchResult
-): void {
-  const store = useAppStore.getState()
-  if (result.ok) {
-    store.setRemoteWorkspaceSyncStatus(targetId, {
-      phase: 'synced',
-      direction: 'push',
-      revision: result.snapshot.revision,
-      updatedAt: result.snapshot.updatedAt,
-      lastSyncedAt: Date.now(),
-      message: translate('auto.App.332dbfa497', 'Workspace uploaded')
-    })
-    return
-  }
-  store.setRemoteWorkspaceSyncStatus(targetId, {
-    phase: result.reason === 'stale-revision' ? 'conflict' : 'offline',
-    direction: 'push',
-    revision: result.snapshot?.revision,
-    updatedAt: result.snapshot?.updatedAt,
-    lastSyncedAt: Date.now(),
-    message:
-      result.message ??
-      (result.reason === 'stale-revision'
-        ? translate(
-            'auto.hooks.useIpcEvents.workspaceChangedOnAnotherDevice',
-            'Workspace changed on another device'
-          )
-        : translate('auto.hooks.useIpcEvents.2fe88c2e06', 'Remote workspace sync unavailable'))
-  })
-}
-
 /**
- * Writes durable renderer session state to disk: the debounced per-host writer, the remote
- * workspace upload chain, and the synchronous shutdown checkpoint.
+ * Writes durable renderer session state to disk: the debounced per-host writer and the synchronous
+ * shutdown checkpoint.
  */
 export function useAppSessionPersistence(): void {
   useEffect(() => registerUpdaterBeforeUnloadBypass(), [])
@@ -83,33 +47,11 @@ export function useAppSessionPersistence(): void {
   useEffect(() => {
     return createSessionWriteSubscriber({
       store: useAppStore,
-      shouldSchedulePersist: () => !isDirectSshRemoteWorkspaceApplyInProgress(),
+      onPersistError: (error) => console.warn('[session] Session patch failed:', error),
       persist: ({ patch }) => {
-        const state = useAppStore.getState()
-        // Why: route each host's worktree-scoped slice to its own partition; return the local write so the remote-workspace upload chain below keeps its ordering.
-        const localWrite = patchWorkspaceSessionByHost(window.api.session, patch, state)
-        void localWrite
-        const hydratedTargetIds = Array.from(state.remoteWorkspaceHydratedTargetIds).filter(
-          (targetId) => state.remoteWorkspaceSyncStatusByTargetId[targetId]?.phase !== 'conflict'
-        )
-        if (hydratedTargetIds.length > 0) {
-          void localWrite
-            .then(() => window.api.remoteWorkspace?.setForConnectedTargets({ hydratedTargetIds }))
-            .then((results) => {
-              for (const { targetId, result } of results ?? []) {
-                applyRemoteWorkspacePatchStatus(targetId, result)
-              }
-            })
-            .catch((err) => {
-              for (const targetId of hydratedTargetIds) {
-                useAppStore.getState().setRemoteWorkspaceSyncStatus(targetId, {
-                  phase: 'error',
-                  direction: 'push',
-                  message: err instanceof Error ? err.message : 'Workspace upload failed'
-                })
-              }
-            })
-        }
+        // Why: route each host's worktree-scoped slice to its own partition.
+        return patchWorkspaceSessionByHost(window.api.session, patch, useAppStore.getState())
+          .written
       }
     })
   }, [])

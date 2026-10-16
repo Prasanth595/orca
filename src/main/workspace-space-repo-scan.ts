@@ -1,4 +1,5 @@
 import type { Store } from './persistence'
+import { platform } from 'node:process'
 import { isFolderRepo } from '../shared/repo-kind'
 import type { Repo } from '../shared/repo-types'
 import type { GitWorktreeInfo, Worktree } from '../shared/worktree/types'
@@ -9,9 +10,13 @@ import type {
   WorkspaceSpaceWorktree
 } from '../shared/workspace-space-types'
 import { mapWithConcurrency } from '../shared/map-with-concurrency'
-import { getRepoExecutionHostId } from '../shared/execution-host'
-import { getSshFilesystemProvider } from './providers/ssh-filesystem-dispatch'
-import { getSshGitProvider } from './providers/ssh-git-dispatch'
+import { getRepoExecutionHostId, LOCAL_EXECUTION_HOST_ID } from '../shared/execution-host'
+import { readWorktreeMetaForHost } from './persistence/host-qualified-worktree-meta'
+import { getRepoOwnedWorktreeMeta } from './worktree-metadata-ownership'
+import {
+  resolveFilesystemRouteForHost,
+  resolveGitRouteForHost
+} from './providers/execution-host-provider-dispatch'
 import { createFolderWorktree, listRepoWorktrees } from './repo-worktrees'
 import { mergeWorktree } from './ipc/worktree-logic'
 import { getLocalProjectWorktreeGitOptions } from './project-runtime-git-options'
@@ -22,11 +27,7 @@ import {
   type AsyncLimiter
 } from './workspace-space-scan-control'
 import { createUnavailableWorkspaceSpaceRow } from './workspace-space-worktree-row'
-import { scanRemoteWorkspaceSpaceWorktree } from './workspace-space-remote-scan'
-import {
-  scanLocalWorkspaceSpaceWorktree,
-  type ReadLocalDuDepthOne
-} from './workspace-space-local-scan'
+import { scanLocalWorkspaceSpaceWorktreeViaWorker } from './workspace-space-scan-worker-client'
 
 const WORKTREE_SCAN_CONCURRENCY = 3
 
@@ -42,12 +43,38 @@ export type WorkspaceSpaceAnalyzeOptions = {
 
 export type WorkspaceSpaceScanLimiters = {
   localWorktree: AsyncLimiter
-  remoteFallbackTraversal: AsyncLimiter
 }
 
 export type WorkspaceSpaceRepoScanResult = {
   summary: WorkspaceSpaceRepoSummary
   worktrees: WorkspaceSpaceWorktree[]
+}
+
+export function summarizeWorkspaceSpaceRows(
+  rows: readonly WorkspaceSpaceWorktree[]
+): Pick<
+  WorkspaceSpaceRepoSummary,
+  'scannedWorktreeCount' | 'unavailableWorktreeCount' | 'totalSizeBytes' | 'reclaimableBytes'
+> {
+  let scannedWorktreeCount = 0
+  let unavailableWorktreeCount = 0
+  let totalSizeBytes = 0
+  let reclaimableBytes = 0
+  for (const row of rows) {
+    if (row.status === 'ok') {
+      scannedWorktreeCount += 1
+    } else {
+      unavailableWorktreeCount += 1
+    }
+    totalSizeBytes += row.sizeBytes
+    reclaimableBytes += row.reclaimableBytes
+  }
+  return {
+    scannedWorktreeCount,
+    unavailableWorktreeCount,
+    totalSizeBytes,
+    reclaimableBytes
+  }
 }
 
 async function listWorktreesForSpaceScan(
@@ -60,18 +87,22 @@ async function listWorktreesForSpaceScan(
     if (isFolderRepo(repo)) {
       return { ok: true, worktrees: [createFolderWorktree(repo)] }
     }
-    if (repo.connectionId) {
-      const provider = getSshGitProvider(repo.connectionId)
-      if (!provider) {
-        return {
-          ok: false,
-          status: 'unavailable',
-          error: `SSH connection "${repo.connectionId}" is not connected.`
-        }
+    // Why: the raw `connectionId` field answers "local" for a row that spells its owner only as
+    // `executionHostId: 'ssh:<target>'`, which sizes a same-named path on this machine instead.
+    const route = resolveGitRouteForHost(getRepoExecutionHostId(repo))
+    if (route.kind === 'runtime') {
+      return {
+        ok: false,
+        status: 'unavailable',
+        error: `Host ${route.hostId} is not reachable from this process.`
       }
-      const worktrees = await provider.listWorktrees(repo.path, { signal })
-      throwIfWorkspaceSpaceScanAborted(signal)
-      return { ok: true, worktrees }
+    }
+    if (route.kind === 'ssh') {
+      return {
+        ok: false,
+        status: 'unavailable',
+        error: `SSH connection "${route.connectionId}" is not connected.`
+      }
     }
     const worktrees = await listRepoWorktrees(repo, {
       ...getLocalProjectWorktreeGitOptions(store, repo),
@@ -104,7 +135,15 @@ function reportProgress(
 
 function mergeForSpaceScan(repo: Repo, gitWorktree: GitWorktreeInfo, store: Store): Worktree {
   const worktreeId = `${repo.id}::${gitWorktree.path}`
-  return mergeWorktree(repo.id, gitWorktree, store.getWorktreeMeta(worktreeId), repo.displayName)
+  const executionHostId = getRepoExecutionHostId(repo)
+  const repoOwnerCount = store.getRepos().filter((candidate) => candidate.id === repo.id).length
+  const allMeta = store.getAllWorktreeMeta?.()
+  const legacyMeta = store.getWorktreeMeta?.(worktreeId)
+  const metaById = allMeta ?? (legacyMeta ? { [worktreeId]: legacyMeta } : {})
+  const meta =
+    readWorktreeMetaForHost(store, worktreeId, executionHostId) ??
+    getRepoOwnedWorktreeMeta(repo, worktreeId, metaById, repoOwnerCount)
+  return mergeWorktree(repo.id, gitWorktree, meta, repo.displayName)
 }
 
 export async function scanWorkspaceSpaceRepo(args: {
@@ -114,8 +153,7 @@ export async function scanWorkspaceSpaceRepo(args: {
   limiters: WorkspaceSpaceScanLimiters
   progress: WorkspaceSpaceScanProgress
   options: WorkspaceSpaceAnalyzeOptions
-  readLocalDuDepthOne: ReadLocalDuDepthOne
-  normalizeLocalDuPath: (path: string) => string
+  readLocalDuDepthOne: (rootPath: string, signal?: AbortSignal) => Promise<string>
 }): Promise<WorkspaceSpaceRepoScanResult> {
   const { repo, scannedAt, store, limiters, progress, options } = args
   throwIfWorkspaceSpaceScanAborted(options.signal)
@@ -138,7 +176,7 @@ export async function scanWorkspaceSpaceRepo(args: {
         executionHostId: getRepoExecutionHostId(repo),
         displayName: repo.displayName,
         path: repo.path,
-        isRemote: Boolean(repo.connectionId),
+        isRemote: getRepoExecutionHostId(repo) !== LOCAL_EXECUTION_HOST_ID,
         worktreeCount: 0,
         scannedWorktreeCount: 0,
         unavailableWorktreeCount: 1,
@@ -156,7 +194,7 @@ export async function scanWorkspaceSpaceRepo(args: {
     { totalWorktreeCount: progress.totalWorktreeCount + worktrees.length },
     options.onProgress
   )
-  const remoteProvider = repo.connectionId ? getSshFilesystemProvider(repo.connectionId) : undefined
+  const filesystemRoute = resolveFilesystemRouteForHost(getRepoExecutionHostId(repo))
   const rows = await mapWithConcurrency(worktrees, WORKTREE_SCAN_CONCURRENCY, async (worktree) => {
     throwIfWorkspaceSpaceScanAborted(options.signal)
     reportProgress(
@@ -167,33 +205,46 @@ export async function scanWorkspaceSpaceRepo(args: {
       },
       options.onProgress
     )
-    const row = repo.connectionId
-      ? remoteProvider
-        ? await scanRemoteWorkspaceSpaceWorktree(
-            repo,
-            worktree,
-            scannedAt,
-            remoteProvider,
-            limiters.remoteFallbackTraversal,
-            options.signal
-          )
-        : createUnavailableWorkspaceSpaceRow(
+    const row =
+      filesystemRoute.kind !== 'local'
+        ? createUnavailableWorkspaceSpaceRow(
             repo,
             worktree,
             scannedAt,
             'unavailable',
-            `SSH filesystem for "${repo.connectionId}" is not connected.`
+            filesystemRoute.kind === 'ssh'
+              ? `SSH filesystem for "${filesystemRoute.connectionId}" is not connected.`
+              : `Host ${filesystemRoute.hostId} is not reachable from this process.`
           )
-      : await limiters.localWorktree(() =>
-          scanLocalWorkspaceSpaceWorktree(
-            repo,
-            worktree,
-            scannedAt,
-            args.readLocalDuDepthOne,
-            args.normalizeLocalDuPath,
-            options.signal
-          )
-        )
+        : await limiters.localWorktree(async () => {
+            let duOutput: string | null = null
+            if (platform !== 'win32') {
+              try {
+                duOutput = await args.readLocalDuDepthOne(worktree.path, options.signal)
+              } catch {
+                throwIfWorkspaceSpaceScanAborted(options.signal)
+              }
+            }
+            try {
+              return await scanLocalWorkspaceSpaceWorktreeViaWorker(
+                repo,
+                worktree,
+                scannedAt,
+                duOutput,
+                options.signal
+              )
+            } catch (error) {
+              throwIfWorkspaceSpaceScanAborted(options.signal)
+              const classified = classifyWorkspaceSpaceError(error)
+              return createUnavailableWorkspaceSpaceRow(
+                repo,
+                worktree,
+                scannedAt,
+                classified.status,
+                classified.message
+              )
+            }
+          })
     reportProgress(
       progress,
       {
@@ -220,6 +271,7 @@ export async function scanWorkspaceSpaceRepo(args: {
     },
     options.onProgress
   )
+  const summary = summarizeWorkspaceSpaceRows(rows)
   return {
     worktrees: rows,
     summary: {
@@ -227,12 +279,9 @@ export async function scanWorkspaceSpaceRepo(args: {
       executionHostId: getRepoExecutionHostId(repo),
       displayName: repo.displayName,
       path: repo.path,
-      isRemote: Boolean(repo.connectionId),
+      isRemote: getRepoExecutionHostId(repo) !== LOCAL_EXECUTION_HOST_ID,
       worktreeCount: rows.length,
-      scannedWorktreeCount: rows.filter((row) => row.status === 'ok').length,
-      unavailableWorktreeCount: rows.filter((row) => row.status !== 'ok').length,
-      totalSizeBytes: rows.reduce((sum, row) => sum + row.sizeBytes, 0),
-      reclaimableBytes: rows.reduce((sum, row) => sum + row.reclaimableBytes, 0),
+      ...summary,
       error: null
     }
   }

@@ -30,7 +30,8 @@ vi.mock('../ipc/worktree-logic', async (importOriginal) => {
 })
 
 vi.mock('../ipc/registered-worktree-roots-cache', () => ({
-  invalidateAuthorizedRootsCache: vi.fn()
+  invalidateAuthorizedRootsCache: vi.fn(),
+  invalidateAuthorizedRootsCacheForRepo: vi.fn()
 }))
 
 vi.mock('../git/repo', async (importOriginal) => {
@@ -87,8 +88,24 @@ const store = {
   }
 }
 
+/** Reclaim clears protected retention maps that no public reader exposes. */
+class ObservableRuntime extends OrcaRuntimeService {
+  get restoreTimers(): typeof this.pendingRestoreTimers {
+    return this.pendingRestoreTimers
+  }
+  get softLeavers(): typeof this.pendingSoftLeavers {
+    return this.pendingSoftLeavers
+  }
+  get fitOverrides(): typeof this.terminalFitOverrides {
+    return this.terminalFitOverrides
+  }
+  get drivers(): typeof this.terminalDrivers {
+    return this.terminalDrivers
+  }
+}
+
 function createRuntime() {
-  const runtime = new OrcaRuntimeService(store)
+  const runtime = new ObservableRuntime(store)
   const ptySizes = new Map<string, { cols: number; rows: number }>()
   ptySizes.set('pty-1', { cols: 150, rows: 40 })
   ptySizes.set('pty-2', { cols: 120, rows: 35 })
@@ -287,68 +304,6 @@ describe('mobile subscribe integration', () => {
 
     await vi.advanceTimersByTimeAsync(LEGACY_RESTORE_MS)
     expect(ptySizes.get('pty-1')).toEqual({ cols: 150, rows: 40 })
-  })
-
-  // Why: 'phone' sticky-fit mode was removed; auto-mode now always restores on last unsubscribe.
-  it('handleMobileUnsubscribe restores after auto-mode last unsubscribe', async () => {
-    const { runtime, ptySizes } = createRuntime()
-    // mode defaults to 'auto'
-    await runtime.handleMobileSubscribe('pty-1', 'client-a', { cols: 45, rows: 20 })
-    expect(ptySizes.get('pty-1')).toEqual({ cols: 45, rows: 20 })
-
-    runtime.handleMobileUnsubscribe('pty-1', 'client-a')
-    await vi.advanceTimersByTimeAsync(LEGACY_RESTORE_MS)
-    // Restored to desktop dims — no sticky-phone retention.
-    expect(ptySizes.get('pty-1')).toEqual({ cols: 150, rows: 40 })
-  })
-
-  // TODO: inline restore on re-subscribe not yet implemented
-  it.skip('re-subscribe within 300ms cancels debounce timer and inline-restores old PTY', async () => {
-    const { runtime, ptySizes } = createRuntime()
-    await runtime.handleMobileSubscribe('pty-1', 'client-a', { cols: 45, rows: 20 })
-    runtime.handleMobileUnsubscribe('pty-1', 'client-a')
-
-    // Re-subscribe to a different terminal before the timer fires
-    await vi.advanceTimersByTimeAsync(100)
-    await runtime.handleMobileSubscribe('pty-2', 'client-a', { cols: 45, rows: 20 })
-
-    // pty-1 was inline-restored when pty-2 subscribed (timer cancelled + immediate restore)
-    expect(ptySizes.get('pty-1')).toEqual({ cols: 150, rows: 40 })
-    expect(ptySizes.get('pty-2')).toEqual({ cols: 45, rows: 20 })
-
-    // Advancing past the 300ms debounce should not cause a second restore
-    await vi.advanceTimersByTimeAsync(300)
-    expect(ptySizes.get('pty-1')).toEqual({ cols: 150, rows: 40 })
-  })
-
-  // TODO: inline restore on re-subscribe not yet implemented
-  it.skip('rapid A→B→C tab navigation: inline restore of A when B subscribes', async () => {
-    const { runtime, ptySizes } = createRuntime()
-
-    // Subscribe to A
-    await runtime.handleMobileSubscribe('pty-1', 'client-a', { cols: 45, rows: 20 })
-    expect(ptySizes.get('pty-1')).toEqual({ cols: 45, rows: 20 })
-
-    // Unsubscribe A, subscribe B — A's pending timer is cancelled, A gets inline restore
-    runtime.handleMobileUnsubscribe('pty-1', 'client-a')
-    await runtime.handleMobileSubscribe('pty-2', 'client-a', { cols: 45, rows: 20 })
-
-    // pty-1 should be restored inline (not waiting for timer)
-    expect(ptySizes.get('pty-1')).toEqual({ cols: 150, rows: 40 })
-    expect(ptySizes.get('pty-2')).toEqual({ cols: 45, rows: 20 })
-
-    // Unsubscribe B, subscribe C — B's pending timer cancelled, B gets inline restore
-    runtime.handleMobileUnsubscribe('pty-2', 'client-a')
-    await runtime.handleMobileSubscribe('pty-3', 'client-a', { cols: 45, rows: 20 })
-
-    expect(ptySizes.get('pty-2')).toEqual({ cols: 120, rows: 35 })
-    expect(ptySizes.get('pty-3')).toEqual({ cols: 45, rows: 20 })
-
-    // Verify final state
-    await vi.advanceTimersByTimeAsync(1000)
-    expect(ptySizes.get('pty-1')).toEqual({ cols: 150, rows: 40 })
-    expect(ptySizes.get('pty-2')).toEqual({ cols: 120, rows: 35 })
-    expect(ptySizes.get('pty-3')).toEqual({ cols: 45, rows: 20 })
   })
 
   it('preserves previousDims across re-subscribes to same terminal', async () => {
@@ -664,32 +619,50 @@ describe('mobile subscribe integration', () => {
       expect(ptySizes.get('pty-1')).toEqual({ cols: 214, rows: 72 })
     })
 
-    it('updates lastRendererSizes for a never-subscribed PTY', () => {
-      // Why: a geometry report before first subscribe must populate lastRendererSizes so the baseline captures real dims, not the spawn default.
-      const { runtime } = createRuntime()
-      runtime.recordRendererGeometry('pty-99', 180, 50)
+    it('restores reported geometry captured before the first mobile subscribe', async () => {
+      const { runtime, ptySizes, resizes } = createRuntime()
+      runtime.recordRendererGeometry('pty-1', 180, 50)
+      expect(ptySizes.get('pty-1')).toEqual({ cols: 150, rows: 40 })
+      expect(resizes).toEqual([])
 
-      const renderer = runtime.getLastRendererSize('pty-99')
-      expect(renderer).toEqual({ cols: 180, rows: 50 })
+      await runtime.handleMobileSubscribe('pty-1', 'client-a', { cols: 45, rows: 20 })
+      expect(await runtime.reclaimTerminalForDesktop('pty-1')).toBe(true)
+      expect(ptySizes.get('pty-1')).toEqual({ cols: 180, rows: 50 })
     })
 
-    it('ignores non-positive dims', () => {
-      const { runtime } = createRuntime()
+    it('ignores non-positive dims when capturing restore geometry', async () => {
+      const { runtime, ptySizes, resizes } = createRuntime()
+      runtime.recordRendererGeometry('pty-1', 180, 50)
       runtime.recordRendererGeometry('pty-1', 0, 0)
       runtime.recordRendererGeometry('pty-1', -5, 10)
       runtime.recordRendererGeometry('pty-1', 10, -5)
-      expect(runtime.getLastRendererSize('pty-1')).toBeNull()
+      expect(ptySizes.get('pty-1')).toEqual({ cols: 150, rows: 40 })
+      expect(resizes).toEqual([])
+
+      await runtime.handleMobileSubscribe('pty-1', 'client-a', { cols: 45, rows: 20 })
+      expect(await runtime.reclaimTerminalForDesktop('pty-1')).toBe(true)
+      expect(ptySizes.get('pty-1')).toEqual({ cols: 180, rows: 50 })
     })
 
     it('bypasses the cascade-suppress window (it is measurement-only)', async () => {
-      // Why: the measurement-only channel must bypass the 500ms cascade-suppress that gates pty:resize, since it can carry a fresh measurement right after a flip.
-      const { runtime } = createRuntime()
-      // Arm cascade-suppress.
+      const { runtime, ptySizes, resizes } = createRuntime()
+      await runtime.handleMobileSubscribe('pty-1', 'client-a', { cols: 45, rows: 20 })
       runtime.setMobileDisplayMode('pty-1', 'desktop')
       await runtime.applyMobileDisplayMode('pty-1')
-      // Within the 500ms window:
+      expect(runtime.isResizeSuppressed()).toBe(true)
+      expect(ptySizes.get('pty-1')).toEqual({ cols: 150, rows: 40 })
+      resizes.length = 0
+
       runtime.recordRendererGeometry('pty-1', 130, 40)
-      expect(runtime.getLastRendererSize('pty-1')).toEqual({ cols: 130, rows: 40 })
+      expect(ptySizes.get('pty-1')).toEqual({ cols: 150, rows: 40 })
+      expect(resizes).toEqual([])
+
+      runtime.setMobileDisplayMode('pty-1', 'auto')
+      await runtime.applyMobileDisplayMode('pty-1')
+      expect(ptySizes.get('pty-1')).toEqual({ cols: 45, rows: 20 })
+      runtime.setMobileDisplayMode('pty-1', 'desktop')
+      await runtime.applyMobileDisplayMode('pty-1')
+      expect(ptySizes.get('pty-1')).toEqual({ cols: 130, rows: 40 })
     })
   })
 
@@ -865,9 +838,9 @@ describe('mobile subscribe integration', () => {
       runtime.handleMobileUnsubscribe('pty-1', 'client-a')
       await runtime.handleMobileSubscribe('pty-1', 'client-b', { cols: 40, rows: 18 })
 
-      const pendingRestore = Reflect.get(runtime, 'pendingRestoreTimers') as Map<string, unknown>
+      const pendingRestore = runtime.restoreTimers
       pendingRestore.set('pty-1', { timer: setTimeout(() => {}, 60_000), clientId: 'client-b' })
-      const pendingSoft = Reflect.get(runtime, 'pendingSoftLeavers') as Map<string, unknown>
+      const pendingSoft = runtime.softLeavers
       expect(pendingSoft.has('pty-1')).toBe(true)
       await runtime.reclaimTerminalForDesktop('pty-1')
       expect(pendingRestore.has('pty-1')).toBe(false)
@@ -878,10 +851,10 @@ describe('mobile subscribe integration', () => {
       const { runtime } = createRuntime()
       await runtime.handleMobileSubscribe('pty-1', 'client-a', { cols: 45, rows: 20 })
       runtime.handleMobileUnsubscribe('pty-1', 'client-a')
-      ;(Reflect.get(runtime, 'terminalFitOverrides') as Map<string, unknown>).delete('pty-1')
+      runtime.fitOverrides.delete('pty-1')
 
-      const pendingRestore = Reflect.get(runtime, 'pendingRestoreTimers') as Map<string, unknown>
-      const pendingSoft = Reflect.get(runtime, 'pendingSoftLeavers') as Map<string, unknown>
+      const pendingRestore = runtime.restoreTimers
+      const pendingSoft = runtime.softLeavers
       await runtime.reclaimTerminalForDesktop('pty-1')
       expect(pendingRestore.has('pty-1')).toBe(false)
       expect(pendingSoft.has('pty-1')).toBe(false)
@@ -891,13 +864,11 @@ describe('mobile subscribe integration', () => {
       const { runtime } = createRuntime()
       await runtime.handleMobileSubscribe('pty-1', 'client-a', { cols: 45, rows: 20 })
       runtime.handleMobileUnsubscribe('pty-1', 'client-a')
-      ;(Reflect.get(runtime, 'terminalFitOverrides') as Map<string, unknown>).delete('pty-1')
-      ;(Reflect.get(runtime, 'currentDriver') as Map<string, { kind: string }>).set('pty-1', {
-        kind: 'idle'
-      })
+      runtime.fitOverrides.delete('pty-1')
+      runtime.drivers.set('pty-1', { kind: 'idle' })
 
-      const pendingRestore = Reflect.get(runtime, 'pendingRestoreTimers') as Map<string, unknown>
-      const pendingSoft = Reflect.get(runtime, 'pendingSoftLeavers') as Map<string, unknown>
+      const pendingRestore = runtime.restoreTimers
+      const pendingSoft = runtime.softLeavers
       expect(await runtime.reclaimTerminalForDesktop('pty-1')).toBe(false)
       expect(pendingRestore.has('pty-1')).toBe(false)
       expect(pendingSoft.has('pty-1')).toBe(false)

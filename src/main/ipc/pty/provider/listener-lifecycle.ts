@@ -1,4 +1,4 @@
-import type { WebContents } from 'electron'
+import type { PtyRendererDelivery } from '../session'
 
 // Why: localProvider.onData/onExit return unsubscribe functions. Without
 // storing and calling these on re-registration, macOS app re-activation
@@ -9,15 +9,20 @@ export let localExitUnsub: (() => void) | null = null
 export let localBackgroundStreamUnsub: (() => void) | null = null
 export let localWriteUnavailableUnsub: (() => void) | null = null
 export let didFinishLoadHandler: (() => void) | null = null
-export let didFinishLoadWebContents: WebContents | null = null
-export let rendererLifecycleResetWebContents: WebContents | null = null
+export let didFinishLoadWebContents: PtyRendererDelivery['webContents'] | null = null
+export let rendererLifecycleResetWebContents: PtyRendererDelivery['webContents'] | null = null
 export let rendererLifecycleResetHandler: (() => void) | null = null
 // Why: the hidden-delivery gate registries mirror renderer state; a reload/crash destroys owners without unregistering, so they reset when the renderer is replaced (drop memory preserved).
 export let rendererGateResetLoadHandler: (() => void) | null = null
 export let rendererGateResetGoneHandler: (() => void) | null = null
-export let rendererGateResetWebContents: WebContents | null = null
+export let rendererGateResetWebContents: PtyRendererDelivery['webContents'] | null = null
 // Why: the backgrounded-delivery dedupe map lives in the registerPtyHandlers closure but teardown funnels through module-scope clearProviderPtyState.
-export let clearBackgroundedDeliverySyncForPty: (id: string) => void = () => {}
+// Why null-init + wrapper fn: see delivery/debug.ts — rolldown const-folds `export let fn = noop` bridges (STA-5661).
+let clearBackgroundedDeliverySyncForPtyImpl: ((id: string) => void) | null = null
+
+export function clearBackgroundedDeliverySyncForPty(id: string): void {
+  clearBackgroundedDeliverySyncForPtyImpl?.(id)
+}
 
 export type RendererNavigationDetails = {
   isMainFrame: boolean
@@ -31,7 +36,6 @@ export let rendererDidStartNavigationHandler:
 
 // Why: Restart daemon must re-bind provider→renderer listeners after replaceDaemonProvider swaps localProvider, else subscribers stay bound to the disposed adapter and new PTY data silently drops.
 export let rebindProviderListeners: (() => void) | null = null
-export let sshOutputIntakeCleanup: (() => void) | null = null
 
 export function rebindLocalProviderListeners(): void {
   rebindProviderListeners?.()
@@ -42,11 +46,7 @@ export function setRebindProviderListeners(fn: (() => void) | null): void {
 }
 
 export function setClearBackgroundedDeliverySyncForPty(fn: (id: string) => void): void {
-  clearBackgroundedDeliverySyncForPty = fn
-}
-
-export function setSshOutputIntakeCleanup(fn: (() => void) | null): void {
-  sshOutputIntakeCleanup = fn
+  clearBackgroundedDeliverySyncForPtyImpl = fn
 }
 
 export function setLocalDataUnsub(fn: (() => void) | null): void {
@@ -67,14 +67,14 @@ export function setLocalWriteUnavailableUnsub(fn: (() => void) | null): void {
 
 export function setDidFinishLoadHandler(
   handler: (() => void) | null,
-  contents: WebContents | null
+  contents: PtyRendererDelivery['webContents'] | null
 ): void {
   didFinishLoadHandler = handler
   didFinishLoadWebContents = contents
 }
 
 export function setRendererLifecycleResetState(args: {
-  contents: WebContents | null
+  contents: PtyRendererDelivery['webContents'] | null
   handler: (() => void) | null
   navigation: ((details: RendererNavigationDetails) => void) | null
 }): void {
@@ -84,7 +84,7 @@ export function setRendererLifecycleResetState(args: {
 }
 
 export function setRendererGateResetState(args: {
-  contents: WebContents | null
+  contents: PtyRendererDelivery['webContents'] | null
   load: (() => void) | null
   gone: (() => void) | null
 }): void {

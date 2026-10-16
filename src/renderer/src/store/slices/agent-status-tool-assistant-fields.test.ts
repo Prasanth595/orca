@@ -11,7 +11,7 @@ describe('agent status tool + assistant fields', () => {
     vi.useRealTimers()
   })
 
-  it('writes toolName, toolInput, and lastAssistantMessage straight onto the entry', () => {
+  it('writes toolName, toolInput, and assistant preview provenance straight onto the entry', () => {
     vi.useFakeTimers()
     const store = createTestStore()
     store.getState().setAgentStatus('tab-1:1', {
@@ -20,12 +20,14 @@ describe('agent status tool + assistant fields', () => {
       agentType: 'claude',
       toolName: 'Edit',
       toolInput: '/src/config.ts',
-      lastAssistantMessage: 'Edited config.ts'
+      lastAssistantMessage: 'Edited config.ts',
+      lastAssistantMessageIsToolOutput: true
     })
     const entry = store.getState().agentStatusByPaneKey['tab-1:1']
     expect(entry.toolName).toBe('Edit')
     expect(entry.toolInput).toBe('/src/config.ts')
     expect(entry.lastAssistantMessage).toBe('Edited config.ts')
+    expect(entry.lastAssistantMessageIsToolOutput).toBe(true)
   })
 
   it('clears fields to undefined when a later payload omits them', () => {
@@ -37,7 +39,8 @@ describe('agent status tool + assistant fields', () => {
       agentType: 'claude',
       toolName: 'Edit',
       toolInput: '/src/config.ts',
-      lastAssistantMessage: 'Edited config.ts'
+      lastAssistantMessage: 'Edited config.ts',
+      lastAssistantMessageIsToolOutput: true
     })
     // Why: the main-process cache is the source of truth for tool/assistant
     // fields — a fresh-turn reset surfaces as undefined on the payload, and
@@ -49,6 +52,7 @@ describe('agent status tool + assistant fields', () => {
     expect(entry.toolName).toBeUndefined()
     expect(entry.toolInput).toBeUndefined()
     expect(entry.lastAssistantMessage).toBeUndefined()
+    expect(entry.lastAssistantMessageIsToolOutput).toBeUndefined()
   })
 
   it('preserves prior agentType when payload omits it', () => {
@@ -77,16 +81,17 @@ describe('agent status tool + assistant fields', () => {
     expect(store.getState().agentStatusByPaneKey['tab-1:1'].agentType).toBe('claude')
   })
 
-  it('preserves active pane agentType when a nested hook sends a different known value', () => {
+  it('preserves the active pane row when a nested hook sends a different known value', () => {
     vi.useFakeTimers()
     const store = createTestStore()
     store
       .getState()
       .setAgentStatus('tab-1:1', { state: 'working', prompt: 'p1', agentType: 'codex' })
+    const before = store.getState().agentStatusByPaneKey['tab-1:1']
     store
       .getState()
       .setAgentStatus('tab-1:1', { state: 'working', prompt: 'p2', agentType: 'claude' })
-    expect(store.getState().agentStatusByPaneKey['tab-1:1'].agentType).toBe('codex')
+    expect(store.getState().agentStatusByPaneKey['tab-1:1']).toBe(before)
   })
 
   it('ignores nested done while the parent pane agent is still active', () => {

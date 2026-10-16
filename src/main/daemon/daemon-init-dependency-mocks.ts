@@ -1,4 +1,5 @@
 import { vi } from 'vitest'
+import type * as NodeFs from 'node:fs'
 import { PROTOCOL_VERSION } from './types'
 import type { Mock } from 'vitest'
 import type {
@@ -50,7 +51,8 @@ export function createDaemonInitModuleFactories(state: DaemonInitMockState) {
     unbindLocalProviderListenersMock,
     rebindLocalProviderListenersMock,
     trackDaemonReplacedMock,
-    trackDaemonRetiredMock
+    trackDaemonRetiredMock,
+    trackDaemonAdoptedMock
   } = state
 
   // Why: both fakes are annotated with constructor types so the exported factories widen to
@@ -81,6 +83,12 @@ export function createDaemonInitModuleFactories(state: DaemonInitMockState) {
           }
           if (result.mode) {
             this.handle.mode = result.mode
+          }
+          if (result.quarantine) {
+            this.handle.quarantine = result.quarantine
+          }
+          if (result.adopted) {
+            this.handle.adopted = true
           }
           return {
             socketPath: result.socketPath,
@@ -158,13 +166,17 @@ export function createDaemonInitModuleFactories(state: DaemonInitMockState) {
   }
 
   return {
-    fs: () => ({
-      mkdirSync: vi.fn<(...args: unknown[]) => void>(),
-      existsSync: (p: string) => probeSocketExistsMock(p) || p.includes('.pid'),
-      unlinkSync: unlinkSyncMock,
-      readFileSync: readFileSyncMock,
-      writeFileSync: writeFileSyncMock
-    }),
+    fs: async () => {
+      const actual = await vi.importActual<typeof NodeFs>('node:fs')
+      return {
+        constants: actual.constants,
+        mkdirSync: vi.fn<(...args: unknown[]) => void>(),
+        existsSync: (p: string) => probeSocketExistsMock(p) || p.includes('.pid'),
+        unlinkSync: unlinkSyncMock,
+        readFileSync: readFileSyncMock,
+        writeFileSync: writeFileSyncMock
+      }
+    },
     net: () => ({
       connect: netConnectMock
     }),
@@ -199,6 +211,9 @@ export function createDaemonInitModuleFactories(state: DaemonInitMockState) {
       trackDaemonReplaced: trackDaemonReplacedMock,
       trackDaemonRetired: trackDaemonRetiredMock
     }),
+    daemonAdoptionTelemetryEvent: () => ({
+      trackDaemonAdopted: trackDaemonAdoptedMock
+    }),
     daemonSpawner: () => ({
       DaemonSpawner: MockDaemonSpawner,
       getDaemonSocketPath: (_dir: string, version?: number) =>
@@ -214,9 +229,11 @@ export function createDaemonInitModuleFactories(state: DaemonInitMockState) {
     daemonPtyAdapter: () => ({
       DaemonPtyAdapter: MockDaemonPtyAdapter
     }),
-    ipcPty: () => ({
+    ptyProviderRegistry: () => ({
       getLocalPtyProvider: getLocalPtyProviderMock,
-      setLocalPtyProvider: setLocalPtyProviderMock,
+      setLocalPtyProvider: setLocalPtyProviderMock
+    }),
+    ptyListenerLifecycle: () => ({
       unbindLocalProviderListeners: unbindLocalProviderListenersMock,
       rebindLocalProviderListeners: rebindLocalProviderListenersMock
     }),

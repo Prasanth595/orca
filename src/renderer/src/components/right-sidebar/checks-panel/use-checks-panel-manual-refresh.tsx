@@ -1,8 +1,9 @@
 import { useCallback } from 'react'
 import { useAppStore } from '@/store'
 import { buildGitHubPRRefreshStateClearToken } from '@/store/github/pr-refresh-state'
-import { refreshHostedReviewCard } from '@/store/slices/hosted-review'
-import { getRuntimeGitStatus, getRuntimeGitUpstreamStatus } from '@/runtime/runtime-git-client'
+import { refreshHostedReviewCard } from '@/store/slices/hosted-review-card-refresh'
+import { getRuntimeGitStatus } from '@/runtime/runtime-git-status-client'
+import { getRuntimeGitUpstreamStatus } from '@/runtime/runtime-git-sync-client'
 import {
   hasChecksPanelGitStatusBranchChanged,
   readChecksPanelRefreshGitIdentitySnapshot,
@@ -39,7 +40,7 @@ export function useChecksPanelManualRefresh(model: ChecksPanelManualRefreshInput
     linkedGiteaPR,
     linkedGitLabMR,
     linkedPR,
-    ownerSettings,
+    ownerTarget,
     panelContextKey,
     panelContextKeyRef,
     pollIntervalRef,
@@ -95,7 +96,7 @@ export function useChecksPanelManualRefresh(model: ChecksPanelManualRefreshInput
       refreshState: prCacheKey ? useAppStore.getState().prRefreshStates[prCacheKey] : null
     })
     try {
-      if (activeWorktreeId && activeWorktreePath && !isFolder) {
+      if (activeWorktreeId && activeWorktreePath && !isFolder && ownerTarget) {
         const snapshotIdentity = readChecksPanelRefreshGitIdentitySnapshot({
           snapshot: gitStatusSnapshot,
           contextKey: panelContextKey,
@@ -112,12 +113,14 @@ export function useChecksPanelManualRefresh(model: ChecksPanelManualRefreshInput
         }
         try {
           const statusContext = {
-            settings: ownerSettings,
+            target: ownerTarget,
             worktreeId: activeWorktreeId,
             worktreePath: activeWorktreePath,
             connectionId: activeConnectionId ?? undefined
           }
-          const status = await getRuntimeGitStatus(statusContext)
+          const status = await getRuntimeGitStatus(statusContext, {
+            admissionTier: 'interactive'
+          })
           const observedBranch = status.branch ?? (status.head ? null : undefined)
           updateWorktreeGitIdentity(activeWorktreeId, {
             head: status.head,
@@ -172,6 +175,7 @@ export function useChecksPanelManualRefresh(model: ChecksPanelManualRefreshInput
           repoPath: repo.path,
           repoId: repo.id,
           branch,
+          admissionTier: 'interactive',
           linkedGitHubPR: linkedPR,
           fallbackGitHubPR: fallbackGitHubPRNumber,
           linkedGitLabMR,
@@ -212,7 +216,8 @@ export function useChecksPanelManualRefresh(model: ChecksPanelManualRefreshInput
           repoId: repo.id,
           worktreeId: activeWorktreeId ?? undefined,
           linkedPRNumber: linkedPR,
-          fallbackPRNumber: fallbackGitHubPRNumber
+          fallbackPRNumber: fallbackGitHubPRNumber,
+          reason: 'manual'
         })
       } finally {
         if (startedPRRefreshToken) {
@@ -226,6 +231,7 @@ export function useChecksPanelManualRefresh(model: ChecksPanelManualRefreshInput
         repoPath: repo.path,
         repoId: repo.id,
         branch,
+        admissionTier: 'interactive',
         linkedGitHubPR: linkedPR,
         fallbackGitHubPR: refreshedPR?.number ?? fallbackGitHubPRNumber,
         linkedGitLabMR,
@@ -375,7 +381,7 @@ export function useChecksPanelManualRefresh(model: ChecksPanelManualRefreshInput
     fetchHostedReviewForBranch,
     expireGitHubPRRefreshState,
     isCurrentAsyncResult,
-    ownerSettings,
+    ownerTarget,
     updateWorktreeGitIdentity,
     panelContextKeyRef,
     asyncResultKeyRef,

@@ -23,6 +23,8 @@ import { buildWorkspaceTerminalRowPlan } from './workspace-terminal-row-plan'
 import { buildWorkspaceTerminalReconnectPlan } from './workspace-terminal-reconnect-plan'
 import { buildWorkspaceTerminalLayoutPlan } from './workspace-terminal-layout-plan'
 import { addHydratedSshWorktreePlaceholders } from './workspace-terminal-ssh-placeholders'
+import { retainUnverifiedPtyLossTabIds } from './terminal-unverified-pty-loss'
+import { restoreActiveTabIdByWorktree } from './workspace-terminal-active-tabs'
 
 export function createWorkspaceTerminalHydrationActions(
   set: TerminalStoreSet,
@@ -66,7 +68,7 @@ export function createWorkspaceTerminalHydrationActions(
           sleepingAgentSessionsByPaneKey,
           tabsByWorktree,
           validTabIds
-        } = buildWorkspaceTerminalRowPlan(session, validWorktreeIds, options)
+        } = buildWorkspaceTerminalRowPlan(session, validWorktreeIds)
         const fallbackActiveWorktreeId =
           !session.activeWorktreeId &&
           session.activeRepoId &&
@@ -121,33 +123,15 @@ export function createWorkspaceTerminalHydrationActions(
           validWorktreeIds,
           worktreesByRepo: runtimeSessionPlaceholders.worktreesByRepo
         })
-        // Restore per-worktree active tab; validate ids when the map exists, else derive for legacy sessions.
-        let activeTabIdByWorktree: Record<string, string | null> = {}
-        if (session.activeTabIdByWorktree) {
-          for (const [wId, tabId] of Object.entries(session.activeTabIdByWorktree)) {
-            if (!validWorktreeIds.has(wId) || !tabId) {
-              continue
-            }
-            // Why: a subsumed row's canonical twin holds the same PTY, so follow the pointer there
-            // instead of forgetting which terminal the workspace last focused.
-            const restored = validTabIds.has(tabId)
-              ? tabId
-              : canonicalTabIdBySubsumedTabId.get(tabId)
-            if (restored && validTabIds.has(restored)) {
-              activeTabIdByWorktree[wId] = restored
-            }
-          }
-        } else {
-          // Legacy sessions: best-effort derivation
-          if (activeWorktreeId && activeTabId) {
-            activeTabIdByWorktree[activeWorktreeId] = activeTabId
-          }
-          for (const [wId, tabs] of Object.entries(tabsByWorktree)) {
-            if (!activeTabIdByWorktree[wId] && tabs.length > 0) {
-              activeTabIdByWorktree[wId] = tabs[0].id
-            }
-          }
-        }
+        const activeTabIdByWorktree = restoreActiveTabIdByWorktree({
+          session,
+          validWorktreeIds,
+          validTabIds,
+          canonicalTabIdBySubsumedTabId,
+          tabsByWorktree,
+          activeWorktreeId,
+          activeTabId
+        })
         const worktreesByRepo = addHydratedSshWorktreePlaceholders(
           runtimeSessionPlaceholders.repos,
           runtimeSessionPlaceholders.worktreesByRepo,
@@ -171,19 +155,39 @@ export function createWorkspaceTerminalHydrationActions(
           activeTabIdByWorktree,
           restoredRuntimeHostIdByWorkspaceSessionKey:
             options?.runtimeHostIdByWorkspaceSessionKey ?? {},
+          // Why conditional: a mid-session re-hydration (the SSH pull merge) carries no shadow, and
+          // clearing it there would drop the co-claimant rows the next write has to put back.
+          ...(options?.contestedHostWorkspaceSessions
+            ? { contestedHostWorkspaceSessions: options.contestedHostWorkspaceSessions }
+            : {}),
+          ...(options?.contestedPrimaryHostBySessionKey
+            ? { contestedPrimaryHostBySessionKey: options.contestedPrimaryHostBySessionKey }
+            : {}),
           repos: runtimeSessionPlaceholders.repos,
           tabsByWorktree,
           worktreesByRepo,
           // Why: restore the focus-recency map; pruning is deferred to App.tsx (post-hydration) because SSH worktrees may still be appearing in worktreesByRepo.
           lastVisitedAtByWorktreeId: session.lastVisitedAtByWorktreeId ?? {},
-          defaultTerminalTabsAppliedByWorktreeId:
-            session.defaultTerminalTabsAppliedByWorktreeId ?? {},
+          // Why union: a persist snapshot that omits the write-once marker is a writer that never
+          // stamped it, not a report that default tabs were never applied (#18117).
+          defaultTerminalTabsAppliedByWorktreeId: {
+            ...session.defaultTerminalTabsAppliedByWorktreeId,
+            ...s.defaultTerminalTabsAppliedByWorktreeId
+          },
+          // Why keep the store's when absent: only main's session carries close records, and the
+          // pull merge's session does not, so re-hydrating from it must not clear the mirror.
+          closedTerminalTabTombstonesByTabId:
+            session.closedTerminalTabTombstonesByTabId ?? s.closedTerminalTabTombstonesByTabId,
           automaticAgentResumeClaimsByTabId: {},
           sleepingAgentSessionsByPaneKey,
           pendingReconnectWorktreeIds,
           pendingReconnectTabByWorktree,
           pendingReconnectPtyIdByTabId,
           everActivatedWorktreeIds: nextEverActivated,
+          unverifiedPtyLossTabIds: retainUnverifiedPtyLossTabIds(
+            s.unverifiedPtyLossTabIds,
+            validTabIds
+          ),
           // Why: seed hydrated active worktrees so the first activation has a Back target.
           worktreeNavHistory: activeWorktreeId ? [activeWorktreeId] : [],
           worktreeNavHistoryIndex: activeWorktreeId ? 0 : -1,
@@ -195,7 +199,12 @@ export function createWorkspaceTerminalHydrationActions(
             session,
             tabById,
             validTabIds
-          })
+          }),
+          localOnlyScrollbackByTabId: Object.fromEntries(
+            Object.entries(session.localOnlyScrollbackByTabId ?? {}).filter(([tabId]) =>
+              validTabIds.has(tabId)
+            )
+          )
         }
         return options?.replaceWorkspaceKeys
           ? targetScopedWorkspaceHydrationPatch(s, hydrated, session, options)

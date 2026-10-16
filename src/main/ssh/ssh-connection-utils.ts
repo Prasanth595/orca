@@ -3,6 +3,7 @@ import type { SshTarget, SshConnectionState } from '../../shared/ssh-types'
 import type { SshResolvedConfig } from './ssh-config-parser'
 import {
   findEncryptedPrivateKeyPath,
+  isUnencryptedPrivateKey,
   resolveAgentConfigValue,
   resolveAgentSocket,
   resolvePrivateKeys,
@@ -13,14 +14,18 @@ import { isOpenSshConfigBackedTarget } from './system-ssh-args'
 
 export { findDefaultKeyFile, resolveAgentSocket } from './ssh-auth-resolution'
 
-export type SshCredentialKind = 'passphrase' | 'password'
+export type SshCredentialKind = 'passphrase' | 'password' | 'keyboard-interactive'
 
 export type SshConnectionCallbacks = {
   onStateChange: (targetId: string, state: SshConnectionState) => void
+  // Why: echo carries the server's RFC 4256 echo flag for keyboard-interactive
+  // prompts so the UI knows whether the typed response may be shown.
   onCredentialRequest?: (
     targetId: string,
     kind: SshCredentialKind,
-    detail: string
+    detail: string,
+    echo?: boolean,
+    signal?: AbortSignal
   ) => Promise<string | null>
 }
 
@@ -33,6 +38,7 @@ export const INITIAL_RETRY_ATTEMPTS = 5
 export const INITIAL_RETRY_DELAY_MS = 2000
 export const RECONNECT_BACKOFF_MS = [1000, 2000, 5000, 5000, 10000, 10000, 10000, 30000, 30000]
 export const CONNECT_TIMEOUT_MS = 30_000
+export const SSH_CREDENTIAL_TIMEOUT_MS = 120_000
 
 const TRANSIENT_ERROR_CODES = new Set([
   'ETIMEDOUT',
@@ -43,6 +49,10 @@ const TRANSIENT_ERROR_CODES = new Set([
   'EAI_AGAIN'
 ])
 
+function sshErrorLevel(err: Error): unknown {
+  return 'level' in err ? err.level : undefined
+}
+
 export function isAuthError(err: Error): boolean {
   const msg = err.message.toLowerCase()
   return (
@@ -52,16 +62,22 @@ export function isAuthError(err: Error): boolean {
     /permission denied(?:, please try again\.?| \([^)]*(?:publickey|password|keyboard-interactive|gssapi|hostbased)[^)]*\))/.test(
       msg
     ) ||
-    (err as { level?: string }).level === 'client-authentication'
+    sshErrorLevel(err) === 'client-authentication'
   )
 }
 
 export function isAgentFallbackError(err: Error): boolean {
-  return isAuthError(err) || (err as { level?: string }).level === 'agent'
+  return isAuthError(err) || sshErrorLevel(err) === 'agent'
 }
 
 export function isTransientError(err: Error): boolean {
-  const code = (err as NodeJS.ErrnoException).code
+  if (
+    sshErrorLevel(err) === 'client-timeout' ||
+    err.message === 'Timed out while waiting for SSH authentication'
+  ) {
+    return true
+  }
+  const code = 'code' in err && typeof err.code === 'string' ? err.code : undefined
   if (code && TRANSIENT_ERROR_CODES.has(code)) {
     return true
   }
@@ -164,9 +180,11 @@ export function createSshOperationAbortError(): Error & { name: string } {
   return error
 }
 
-type BuildConnectConfigOptions = {
+export type BuildConnectConfigOptions = {
   includeAgent?: boolean
   includePrivateKey?: boolean
+  /** No agent and no key: only the host's keyboard-interactive challenge (and a cached password). */
+  keyboardInteractiveOnly?: boolean
 }
 
 // Why: ssh2 tries privateKey before agent, but parses encrypted privateKey
@@ -189,10 +207,14 @@ export function buildConnectConfig(
     port: effectivePort,
     username: effectiveUser,
     readyTimeout: CONNECT_TIMEOUT_MS,
-    keepaliveInterval: 15_000
+    keepaliveInterval: 15_000,
+    // Why: lets servers deliver keyboard-interactive challenges (RFC 4256,
+    // commonly MFA after a partial password success). SshConnection answers
+    // them through the credential prompt callback.
+    tryKeyboard: true
   }
 
-  const shouldIncludeAgent = options.includeAgent ?? true
+  const shouldIncludeAgent = !options.keyboardInteractiveOnly && (options.includeAgent ?? true)
   const agentSocket = shouldIncludeAgent ? resolveAgentSocket(target, resolved) : undefined
   const agent = agentSocket ? resolveAgentConfigValue(agentSocket, target, resolved) : undefined
 
@@ -204,14 +226,37 @@ export function buildConnectConfig(
     config.agentForward = true
   }
 
-  const keys =
-    (options.includePrivateKey ?? !agent)
+  const keys = options.keyboardInteractiveOnly
+    ? []
+    : (options.includePrivateKey ?? !agent)
       ? resolvePrivateKeys(target, resolved)
       : resolveUnencryptedExplicitPrivateKeys(target, resolved)
+  let deferralDecision: boolean | undefined
   configurePrivateKeyAuthentication(
     config as ConnectConfig,
     keys,
-    findEncryptedPrivateKeyPath(keys)
+    findEncryptedPrivateKeyPath(keys),
+    {
+      // Why: SshConnection retries with the deferred keys only after an attempt that carried none,
+      // so only that attempt holds the host's password challenge back for them. An encrypted key
+      // would swap that dialog for a passphrase one, and a file that is no usable private key
+      // aborts the retry before any auth, so hold it back only if no deferred key needs input.
+      // One key only: each rejected key spends the host's MaxAuthTries, so several could exhaust
+      // the retry before it reaches the challenge this attempt skipped.
+      // Decided lazily so the deferred files are read only once the agent has failed, as the retry
+      // would read them anyway, never on an agent login that needs no file.
+      deferKeyboardInteractive:
+        keys.length === 0 && !options.keyboardInteractiveOnly
+          ? () => {
+              if (deferralDecision === undefined) {
+                const deferredKeys = resolvePrivateKeys(target, resolved)
+                deferralDecision =
+                  deferredKeys.length === 1 && isUnencryptedPrivateKey(deferredKeys[0].contents)
+              }
+              return deferralDecision
+            }
+          : undefined
+    }
   )
 
   return config as ConnectConfig

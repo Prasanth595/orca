@@ -42,11 +42,10 @@ import {
   clearHostLiveTerminalProbesForTests,
   probeHostLiveTerminals
 } from './host-live-terminal-probe'
-import {
-  applyWebSessionTabsStorePatch,
-  clearWebSessionTabsTrackingForEnvironment,
-  type HostSessionMirrorSettle
-} from './web-session-tabs-sync'
+import { applyWebSessionTabsStorePatch } from './web-session-tabs-sync/store-patch'
+import { clearWebSessionTabsTrackingForEnvironment } from './web-session-tabs-sync/tracking-lifecycle'
+import type { HostSessionMirrorSettle } from './web-session-tabs-sync/mirror-settle'
+import { stubRuntimeEnvironmentBridge } from './runtime-environment-bridge-fixture'
 
 const WORKTREE = 'repo1::/path/wt1'
 
@@ -81,7 +80,7 @@ function stubPairedHost(
       }
     }
   })
-  vi.stubGlobal('window', { api: { runtimeEnvironments: { call } } })
+  stubRuntimeEnvironmentBridge({ call })
   return calls
 }
 
@@ -322,7 +321,7 @@ describe('empty host inventory settling the session mirror', () => {
       ok: true,
       result: { terminals: [], totalCount: 0, truncated: false }
     }))
-    vi.stubGlobal('window', { api: { runtimeEnvironments: { call } } })
+    stubRuntimeEnvironmentBridge({ call })
     let resumeSweeps = 0
     parkUntilHostSessionMirrorHydrates(environmentId, WORKTREE, () => {
       resumeSweeps += 1
@@ -333,6 +332,89 @@ describe('empty host inventory settling the session mirror', () => {
 
     expect(resumeSweeps).toBe(1)
     expect(hasHostSessionMirrorHydrated(environmentId, WORKTREE)).toBe(true)
+  })
+
+  // #18595, the reporter's shape: the answering host holds a mirrored row for a peer runtime, so
+  // that peer is named in `omittedHostIds` for every listing it will ever give. Reading the
+  // disclosure list as the gate made this probe permanently `unverifiable`, the mirror never
+  // hydrated, and every remote pane parked forever.
+  it('settles on a peer runtime it disclosed but never owed coverage for', async () => {
+    const result = await probeHostLiveTerminals(
+      'env-peer-disclosed',
+      vi.fn(async () => ({
+        id: 'peer-disclosed',
+        ok: true as const,
+        result: {
+          terminals: [],
+          totalCount: 0,
+          truncated: false,
+          hostScope: { hostIds: ['local'], omittedHostIds: ['runtime:env-peer'] }
+        },
+        _meta: { runtimeId: 'runtime' }
+      }))
+    )
+
+    expect(result).toBe('none')
+  })
+
+  it('reports a live terminal through a peer-runtime disclosure', async () => {
+    const result = await probeHostLiveTerminals(
+      'env-peer-live',
+      vi.fn(async () => ({
+        id: 'peer-live',
+        ok: true as const,
+        result: {
+          terminals: [{ handle: 'terminal-1' }],
+          totalCount: 1,
+          truncated: false,
+          hostScope: { hostIds: ['local'], omittedHostIds: ['runtime:env-peer'] }
+        },
+        _meta: { runtimeId: 'runtime' }
+      }))
+    )
+
+    expect(result).toBe('live')
+  })
+
+  it('stays unverifiable for an SSH host the answering runtime did owe coverage for', async () => {
+    const result = await probeHostLiveTerminals(
+      'env-ssh-gap',
+      vi.fn(async () => ({
+        id: 'ssh-gap',
+        ok: true as const,
+        result: {
+          terminals: [],
+          totalCount: 0,
+          truncated: false,
+          hostScope: { hostIds: ['local'], omittedHostIds: ['ssh:box-1'] }
+        },
+        _meta: { runtimeId: 'runtime' }
+      }))
+    )
+
+    expect(result).toBe('unverifiable')
+  })
+
+  // A worktree-scoped listing whose target is a runtime host covers nothing and names `local`
+  // among its omissions. `local` is what keeps this unverifiable — the point is that the
+  // runtime-only rule does not rescue a listing that answered for nothing.
+  it('stays unverifiable when the listing covered no host at all', async () => {
+    const result = await probeHostLiveTerminals(
+      'env-covered-nothing',
+      vi.fn(async () => ({
+        id: 'covered-nothing',
+        ok: true as const,
+        result: {
+          terminals: [],
+          totalCount: 0,
+          truncated: false,
+          hostScope: { hostIds: [], omittedHostIds: ['local', 'runtime:env-peer'] }
+        },
+        _meta: { runtimeId: 'runtime' }
+      }))
+    )
+
+    expect(result).toBe('unverifiable')
   })
 
   it('rejects a present malformed host scope as unverifiable', async () => {
@@ -429,7 +511,7 @@ describe('empty host inventory settling the session mirror', () => {
           resolveProbe = resolve
         })
     )
-    vi.stubGlobal('window', { api: { runtimeEnvironments: { call } } })
+    stubRuntimeEnvironmentBridge({ call })
     replaceRuntimeEnvironmentRevisions([{ id: environmentId, createdAt: 1, pairingRevision: 11 }])
     let resumeSweeps = 0
     parkUntilHostSessionMirrorHydrates(environmentId, WORKTREE, () => {
@@ -468,7 +550,7 @@ describe('empty host inventory settling the session mirror', () => {
           responses.push(resolve)
         })
     )
-    vi.stubGlobal('window', { api: { runtimeEnvironments: { call } } })
+    stubRuntimeEnvironmentBridge({ call })
     replaceRuntimeEnvironmentRevisions([{ id: environmentId, createdAt: 1, pairingRevision: 11 }])
     let resumeSweeps = 0
     parkUntilHostSessionMirrorHydrates(environmentId, WORKTREE, () => {
@@ -517,7 +599,7 @@ describe('empty host inventory settling the session mirror', () => {
           resolveProbe = resolve
         })
     )
-    vi.stubGlobal('window', { api: { runtimeEnvironments: { call } } })
+    stubRuntimeEnvironmentBridge({ call })
     let resumeSweeps = 0
     parkUntilHostSessionMirrorHydrates(environmentId, WORKTREE, () => {
       resumeSweeps += 1

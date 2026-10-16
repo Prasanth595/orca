@@ -20,8 +20,12 @@ export type CliInstallerOptions = {
   userPathWriter?: (value: string) => Promise<void>
   userPathCacheInvalidator?: () => void
   windowsEnvironment?: NodeJS.ProcessEnv
-  /** Why: AppImage reports a stable outer file path via $APPIMAGE while bundled resources live in an ephemeral FUSE mount. */
+  /** Trusted caller override; production discovers AppImage only from a complete runtime identity. */
   appImagePath?: string | null
+  appImageCacheRootPath?: string
+  appImageExtractRunner?: (appImagePath: string, cwd: string) => Promise<void>
+  /** Absolute time (ms) by which AppImage extraction and its lock wait must finish. */
+  appImageDeadlineAt?: number
 }
 
 export type InstallSpec = {

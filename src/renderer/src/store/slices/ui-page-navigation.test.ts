@@ -298,6 +298,18 @@ describe('createUISlice settings navigation', () => {
     expect(store.getState().activeView).toBe('tasks')
   })
 
+  it('returns to the graduated Agents view after visiting settings', () => {
+    const store = createUIStore()
+
+    store.getState().openActivityPage()
+    expect(store.getState().activeView).toBe('activity')
+
+    store.getState().openSettingsPage()
+    store.getState().closeSettingsPage()
+
+    expect(store.getState().activeView).toBe('activity')
+  })
+
   it('clears transient settings search when opening settings', () => {
     const store = createUIStore()
 
@@ -591,6 +603,23 @@ describe('createUISlice page navigation history', () => {
 })
 
 describe('createUISlice space navigation', () => {
+  it('opens desktop Space without replacing the current view', () => {
+    const openWindow = vi.fn(() => Promise.resolve())
+    vi.stubGlobal('window', {
+      api: {
+        ui: { set: vi.fn(() => Promise.resolve()) },
+        workspaceSpace: { openWindow }
+      }
+    })
+    const store = createUIStore()
+    store.getState().openTaskPage()
+
+    store.getState().openSpacePage()
+
+    expect(openWindow).toHaveBeenCalledOnce()
+    expect(store.getState().activeView).toBe('tasks')
+  })
+
   it('records Space page opens as workspace cleanup interactions', () => {
     const setMock = vi.fn(() => Promise.resolve())
     vi.stubGlobal('window', {

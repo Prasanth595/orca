@@ -1,6 +1,7 @@
+import { forgeOwnerHostIdForWorkspace } from '@/runtime/forge-credential-target'
 import React, { useCallback } from 'react'
 import { toast } from 'sonner'
-import { refreshHostedReviewCard } from '@/store/slices/hosted-review'
+import { refreshHostedReviewCard } from '@/store/slices/hosted-review-card-refresh'
 import { checksPanelAsyncResultKey } from '../checks-panel-async-result-key'
 import {
   buildFixBrokenChecksPrompt,
@@ -16,6 +17,7 @@ import { translate } from '@/i18n/i18n'
 import type { PRCheckDetail, PRCheckRunDetails } from '../../../../../shared/github/check-types'
 import type { GitHubPRStackMapNavigationModifiers } from '../GitHubPRStackMap'
 import type { ChecksPanelCheckAndReviewActionsInput } from './check-and-review-action-dependencies'
+import { useChecksPanelReviewLinkActions } from './use-checks-panel-review-link-actions'
 
 function hasGitHubCheckHandle(check: PRCheckDetail): boolean {
   return Boolean(check.checkRunId || check.workflowRunId || check.url)
@@ -41,22 +43,18 @@ export function useChecksPanelCheckAndReviewActions(model: ChecksPanelCheckAndRe
     linkedBitbucketPR,
     linkedGiteaPR,
     linkedGitLabMR,
-    linkedPR,
-    openModal,
     panelContextKey,
     panelContextKeyRef,
     pr,
     prCacheKey,
     repo,
-    settings,
     setChecks,
     setChecksLoading,
     setComments,
     setCommentsLoading,
     setIsFixingChecksWithAI,
     sourceControlAiActionsVisible,
-    stateRequestKey,
-    updateWorktreeMeta
+    stateRequestKey
   } = model
   const handleFixChecksWithAI = useCallback(async (): Promise<void> => {
     if (
@@ -98,7 +96,7 @@ export function useChecksPanelCheckAndReviewActions(model: ChecksPanelCheckAndRe
               ? await loadGitLabJobLogDetails({
                   repoPath: repo.path,
                   repoId: repo.id,
-                  settings,
+                  repoOwnerExecutionHostId: forgeOwnerHostIdForWorkspace(repo, activeWorktree),
                   check,
                   projectRef: gitLabProjectRefRef.current
                 })
@@ -116,8 +114,8 @@ export function useChecksPanelCheckAndReviewActions(model: ChecksPanelCheckAndRe
             if (details) {
               checkRunDetailsByCheckKey[getCheckDetailsPromptKey(check, index)] = details
             }
-          } catch (error) {
-            console.warn('[ChecksPanel] failed to load check details for AI fix prompt', error)
+          } catch {
+            console.warn('[ChecksPanel] failed to load check details for AI fix prompt')
           }
         })
       )
@@ -159,7 +157,7 @@ export function useChecksPanelCheckAndReviewActions(model: ChecksPanelCheckAndRe
     isFixingChecksWithAI,
     pr?.prRepo,
     repo,
-    settings,
+    activeWorktree,
     sourceControlAiActionsVisible,
     stateRequestKey,
     setIsFixingChecksWithAI,
@@ -348,42 +346,16 @@ export function useChecksPanelCheckAndReviewActions(model: ChecksPanelCheckAndRe
     [activeWorktreeId]
   )
 
-  const handleUnlinkPullRequest = useCallback(() => {
-    if (!activeWorktreeId || activeReview?.provider !== 'github' || linkedPR === null) {
-      return
-    }
-    void updateWorktreeMeta(activeWorktreeId, { linkedPR: null })
-  }, [activeReview?.provider, activeWorktreeId, linkedPR, updateWorktreeMeta])
-
-  const handleLinkAnotherPullRequest = useCallback(() => {
-    if (!activeWorktreeId || !activeWorktree || activeReview?.provider !== 'github') {
-      return
-    }
-    openModal('edit-meta', {
-      worktreeId: activeWorktreeId,
-      // Why: the same workspace ID can exist under two hosts. Naming the owner
-      // keeps the dialog on this workspace instead of the ambiguous lookup.
-      repoId: activeWorktree.repoId,
-      currentDisplayName: activeWorktree.displayName,
-      currentIssue: activeWorktree.linkedIssue,
-      currentPR: activeWorktree.linkedPR ?? activeReview.number,
-      currentComment: activeWorktree.comment,
-      focus: 'pr',
-      afterSave: ({ updates }: { updates?: { linkedPR?: unknown } }) => {
-        const nextLinkedPR = updates?.linkedPR
-        if (typeof nextLinkedPR === 'number') {
-          void refreshLinkedGitHubPullRequest(nextLinkedPR)
-        }
-      }
-    })
-  }, [activeReview, activeWorktree, activeWorktreeId, openModal, refreshLinkedGitHubPullRequest])
+  const { handleUnlinkReview, handleLinkAnotherReview, handleLinkSuppressedPullRequest } =
+    useChecksPanelReviewLinkActions(model, refreshLinkedGitHubPullRequest)
   return {
     handleFixChecksWithAI,
     refreshLinkedGitHubPullRequest,
     handleOpenPR,
     handleOpenStackPR,
-    handleUnlinkPullRequest,
-    handleLinkAnotherPullRequest
+    handleUnlinkReview,
+    handleLinkAnotherReview,
+    handleLinkSuppressedPullRequest
   }
 }
 

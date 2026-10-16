@@ -75,6 +75,12 @@ export type RemoteRuntimeSharedConnectionDiagnostics = {
 export type RemoteRuntimeSharedControlConnectionOptions = {
   environmentId?: string
   clientCapabilities?: readonly RuntimeCapability[]
+  isManuallyDisconnected?: () => boolean
+  isCapabilityPaused?: () => boolean
+  /** Publishes local transport diagnostics after a meaningful state transition. */
+  onDiagnosticsChanged?: (diagnostics: RemoteRuntimeSharedConnectionDiagnostics) => void
+  /** Any inbound frame, ping or pong on the current socket. */
+  onAnswered?: () => void
   reconnectStableResetMs?: number
   liveness?: RemoteRuntimeSocketLivenessOptions
 }

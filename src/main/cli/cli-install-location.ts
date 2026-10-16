@@ -3,6 +3,17 @@ import { homedir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { getAppEnvironment } from '../../shared/app-environment'
 import type { CliInstallStatus } from '../../shared/cli-install-types'
+import {
+  hasAppImagePathEnvironment,
+  resolveAppImageRuntimeIdentity
+} from '../appimage-runtime-identity'
+import {
+  getAppImageCacheRootPath,
+  resolveAppImageExtractedRoot,
+  type AppImageExtractionOptions
+} from './appimage-extracted-root'
+import { resolveGenerationStableLauncherPath } from './appimage-generation-stable-launcher'
+import { getBundledLauncherPath, LINUX_CLI_COMMAND_NAME } from './bundled-cli-launcher-path'
 import { DEFAULT_MAC_COMMAND_PATH, DEV_COMMAND_NAME } from './cli-install-constants'
 import { ensureDevLauncher } from './cli-dev-launcher'
 import type { CliInstallerOptions, InstallSpec } from './cli-installer-contracts'
@@ -13,7 +24,6 @@ import {
   uniquePathEntries
 } from './cli-install-path-format'
 import { runMacPrivilegedCommand, writeWindowsUserPath } from './cli-privileged-processes'
-import { getBundledLauncherPath, LINUX_CLI_COMMAND_NAME } from './bundled-cli-launcher-path'
 import {
   invalidateWindowsUserPathRegistryCache,
   readFreshWindowsUserPathRegistry,
@@ -46,6 +56,10 @@ export abstract class CliInstallLocation {
   protected readonly userPathCacheInvalidator: () => void
   protected readonly windowsEnvironment: NodeJS.ProcessEnv
   protected readonly appImagePath: string | null
+  protected readonly hasUnverifiedAppImageRuntime: boolean
+  protected readonly appImageCacheRootPath: string
+  protected readonly appImageExtractRunner?: (appImagePath: string, cwd: string) => Promise<void>
+  protected readonly appImageDeadlineAt?: number
 
   protected get commandName(): string {
     if (!this.isPackaged && !this.commandPathOverride) {
@@ -84,10 +98,28 @@ export abstract class CliInstallLocation {
     this.userPathCacheInvalidator =
       options.userPathCacheInvalidator ?? invalidateWindowsUserPathRegistryCache
     this.windowsEnvironment = options.windowsEnvironment ?? process.env
+    const hasExplicitAppImagePath = Object.hasOwn(options, 'appImagePath')
+    const runtimeAppImageIdentity = resolveAppImageRuntimeIdentity({
+      platform: this.platform,
+      execPath: this.execPathValue,
+      resourcesPath: this.resourcesPath
+    })
+    this.hasUnverifiedAppImageRuntime =
+      this.platform === 'linux' &&
+      this.isPackaged &&
+      !hasExplicitAppImagePath &&
+      hasAppImagePathEnvironment() &&
+      !runtimeAppImageIdentity
     this.appImagePath =
       this.platform === 'linux' && this.isPackaged
-        ? (options.appImagePath ?? process.env.APPIMAGE ?? null)
+        ? hasExplicitAppImagePath
+          ? (options.appImagePath ?? null)
+          : (runtimeAppImageIdentity?.appImagePath ?? null)
         : null
+    this.appImageCacheRootPath =
+      options.appImageCacheRootPath ?? getAppImageCacheRootPath(this.homePath)
+    this.appImageExtractRunner = options.appImageExtractRunner
+    this.appImageDeadlineAt = options.appImageDeadlineAt
   }
 
   protected resolveInstallSpec(): InstallSpec | null {
@@ -99,7 +131,7 @@ export abstract class CliInstallLocation {
     if (this.platform === 'darwin' || this.platform === 'linux') {
       return {
         commandPath,
-        installMethod: this.isLinuxAppImage() ? 'wrapper' : 'symlink'
+        installMethod: 'symlink'
       }
     }
 
@@ -212,11 +244,26 @@ export abstract class CliInstallLocation {
       return null
     }
 
+    if (this.hasUnverifiedAppImageRuntime) {
+      return null
+    }
+
     if (this.isLinuxAppImage()) {
-      return this.appImagePath && existsSync(this.appImagePath) ? this.appImagePath : null
+      if (!this.appImagePath || !existsSync(this.appImagePath)) {
+        return null
+      }
+      const extractionOptions = this.appImageExtractionOptions()
+      return extractionOptions
+        ? (resolveAppImageExtractedRoot(extractionOptions)?.stableLauncherPath ?? null)
+        : null
     }
 
     if (this.isPackaged) {
+      const stableLauncher =
+        this.platform === 'linux' ? resolveGenerationStableLauncherPath(this.resourcesPath) : null
+      if (stableLauncher) {
+        return stableLauncher
+      }
       const bundledPath = getBundledLauncherPath(this.platform, this.resourcesPath)
       return bundledPath && existsSync(bundledPath) ? bundledPath : null
     }
@@ -228,5 +275,16 @@ export abstract class CliInstallLocation {
       cliEntryPath: join(this.appPathValue, 'out', 'cli', 'index.js'),
       commandName: this.commandName
     })
+  }
+
+  protected appImageExtractionOptions(): AppImageExtractionOptions | null {
+    return this.appImagePath
+      ? {
+          appImagePath: this.appImagePath,
+          cacheRootPath: this.appImageCacheRootPath,
+          runExtract: this.appImageExtractRunner,
+          deadlineAt: this.appImageDeadlineAt
+        }
+      : null
   }
 }

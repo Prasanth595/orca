@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   TerminalStreamOpcode,
   decodeTerminalStreamFrame,
@@ -8,6 +8,19 @@ import {
   createRemoteRuntimeTransportMocks,
   type MultiplexSubscriptionCallbacks
 } from './remote-runtime-pty-transport-test-harness'
+
+// These transport fixtures never read abandoned-launch ownership from the app store.
+const appStore = vi.hoisted(() => ({
+  getState: vi.fn(() => {
+    throw new Error('These transport fixtures must not read app-store ownership')
+  })
+}))
+
+vi.mock('@/store', () => ({ useAppStore: { getState: appStore.getState } }))
+
+afterEach(() => {
+  expect(appStore.getState).not.toHaveBeenCalled()
+})
 
 let subscriptionCallbacks: MultiplexSubscriptionCallbacks = null
 let resolvedPaneHandle = 'terminal-1'
@@ -33,6 +46,32 @@ const {
 describe('createRemoteRuntimePtyTransport', () => {
   beforeEach(() => {
     resetRemoteRuntimeTransport()
+  })
+
+  it('does not publish a spawn callback while reconnecting a mirrored web terminal', async () => {
+    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const onPtySpawn = vi.fn()
+    const transport = createRemoteRuntimePtyTransport('env-1', {
+      worktreeId: 'wt-1',
+      tabId: 'web-terminal-tab-1',
+      leafId: 'pane:1',
+      onPtySpawn
+    })
+
+    const result = await transport.connect({
+      url: '',
+      sessionId: 'remote:env-1@@terminal-old',
+      cols: 80,
+      rows: 24,
+      callbacks: {}
+    })
+
+    expect(result).toMatchObject({
+      id: 'remote:env-1@@terminal-1',
+      isReattach: true
+    })
+    expect(onPtySpawn).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(subscriptionSendBinary).toHaveBeenCalled())
   })
 
   it('resolves a HUB-native SSH PTY wake hint to its runtime terminal handle', async () => {
@@ -277,6 +316,31 @@ describe('createRemoteRuntimePtyTransport', () => {
     }
   })
 
+  it('ignores a hold whose grid the host does not know yet instead of shrinking the pane', async () => {
+    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { getFitOverrideForPty } = await import('@/lib/pane-manager/mobile-fit-overrides')
+    const transport = createRemoteRuntimePtyTransport('env-1', { worktreeId: 'wt-1' })
+    await transport.connect({ url: '', cols: 120, rows: 40, callbacks: {} })
+    const { streamId } = latestSubscribePayload()
+    const ptyId = transport.getPtyId()
+    expect(ptyId).not.toBeNull()
+
+    // A just-restarted server answers before it has learned the adopted terminal's size.
+    subscriptionCallbacks?.onResponse({
+      ok: true,
+      result: {
+        type: 'fit-override-changed',
+        streamId,
+        mode: 'remote-desktop-fit',
+        cols: 0,
+        rows: 0
+      }
+    })
+
+    expect(ptyId ? getFitOverrideForPty(ptyId) : null).toBeNull()
+    transport.destroy?.()
+  })
+
   it('gives separate paired viewers of the same host pane distinct refresh identities', async () => {
     const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
     const first = createRemoteRuntimePtyTransport('env-1', {
@@ -498,7 +562,7 @@ describe('createRemoteRuntimePtyTransport', () => {
 
     // Why: no red xterm error — retire quietly and let the next session-tabs
     // snapshot drive respawn/removal.
-    await vi.waitFor(() => expect(onPtyExit).toHaveBeenCalledWith('remote:env-1@@terminal-1'))
+    await vi.waitFor(() => expect(onPtyExit).toHaveBeenCalledWith('remote:env-1@@terminal-1', -1))
     expect(transport.getPtyId()).toBeNull()
     expect(onError).not.toHaveBeenCalled()
   })

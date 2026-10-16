@@ -14,26 +14,36 @@ export function getWindowsPowerShellExecutablePath(): string {
  * Switches for the PowerShell that relays hook output and exit status
  * (#14818 — conhost does neither).
  *
- * `-WindowStyle Hidden` stays. It is the shipped fix for #14815 and its four
- * duplicates (#14828, #15117, #15447, #15767): without it Windows allocates a
- * console per hook event, which steals foreground from whatever the user is
- * typing into, and strands a permanently visible window whenever a hook blocks
- * reading stdin (see hook-stdin-contract.ts). Those are reported, reproduced
- * user-facing failures on every hook event of every managed agent.
+ * The command line spells no flag beyond `-NoProfile`, because AV denies the
+ * combinations. #16003 measured, on the reporting Kaspersky host:
  *
- * `-ExecutionPolicy Bypass` is the flag that leaves the command line, because
- * it is the only one of the three with an exact in-payload equivalent (below):
- * it costs nothing to move. #16003 measured `-NoProfile -ExecutionPolicy Bypass
- * -WindowStyle Hidden -EncodedCommand` as denied at CreateProcess (exit 126,
- * Kaspersky Premium on Windows 11) no matter what the payload decodes to, so
- * the triple has to stop being spelled; dropping the policy flag breaks it.
+ *   -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand  126
+ *   -NoProfile -WindowStyle Hidden -EncodedCommand                          126
+ *   -WindowStyle Hidden -EncodedCommand                                     126
+ *   -NoProfile -EncodedCommand                                              0 (5/5)
+ *   -NoProfile -ExecutionPolicy Bypass -Command                             0 (5/5)
  *
- * What is not established: that the remaining pair clears that AV signature —
- * the reporter measured no two-flag encoded shape. If it turns out not to, the
- * answer is another launcher shape that still suppresses the window, not
- * trading a reproduced regression for an unmeasured hope.
+ * The denial is at CreateProcess and is independent of the payload: `exit 0` is
+ * denied too, and bash reports it as `Permission denied`. So `-WindowStyle
+ * Hidden` + `-EncodedCommand` is the pair that has to stop being spelled.
+ * #16576 removed `-ExecutionPolicy Bypass` (kept in-payload below), which was
+ * the one flag of the three NOT in the signature — hooks kept failing.
+ *
+ * `-WindowStyle Hidden` was the shipped fix for #14815 (+#14828, #15117,
+ * #15447, #15767). Removing it is a real tradeoff and is recorded as such: its
+ * suppression was never measured — #14825 confirmed it *visually*, #16576's
+ * author stated it "remains unverified on a real box", and #15506's author
+ * argued it cannot help a `.cmd` child that has no console to inherit. The
+ * console is allocated by the parent chain, not by this command line.
+ *
+ * Do not restore the flag to fix a console report. That trades every hook on an
+ * AV host for a flicker. The answer is to shorten the interpreter chain — the
+ * shipped doctrine of #15520 and #15595 — or a launcher that owns no console.
+ *
+ * #18875 took that answer for the Claude lifecycle hook, and `wrapWindowsBatchHookCommand`
+ * extends it to other `.cmd` hooks: they reach this launcher only when the profile path is not cmd-safe.
  */
-export const WINDOWS_POWERSHELL_HOOK_SWITCHES = '-NoProfile -WindowStyle Hidden'
+export const WINDOWS_POWERSHELL_HOOK_SWITCHES = '-NoProfile'
 
 // Why: redirected PowerShell progress becomes CLIXML that can corrupt merged JSON
 // output. It must be the FIRST statement: Set-ExecutionPolicy autoloads
@@ -48,8 +58,7 @@ const HOOK_PROGRESS_SILENCER = "$ProgressPreference='SilentlyContinue'; "
  *
  * Equivalent by construction: the switch sets the Process scope too, and both
  * lose to a Group Policy scope. `-EncodedCommand` itself is never policy-gated,
- * so this always gets to run; it is what lets the managed `.ps1` hooks (Copilot)
- * execute under a Restricted or AllSigned machine policy.
+ * so this always gets to run, even under a Restricted or AllSigned machine policy.
  *
  * try/catch as well as `-ErrorAction SilentlyContinue`: under a MachinePolicy or
  * UserPolicy GPO the cmdlet reports that the process scope did not take, and
@@ -62,14 +71,23 @@ const HOOK_PROGRESS_SILENCER = "$ProgressPreference='SilentlyContinue'; "
 const HOOK_EXECUTION_POLICY_BYPASS =
   'try { Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force -ErrorAction SilentlyContinue } catch {}; '
 
+export type WindowsPowerShellHookOptions = { useProcessPolicyEnvironment?: boolean }
+
 // Why: encoding shields paths and switches from cmd.exe and MSYS rewriting (#6078, #14815).
-export function encodeWindowsPowerShellHookCommand(command: string): string {
-  return Buffer.from(
-    `${HOOK_PROGRESS_SILENCER}${HOOK_EXECUTION_POLICY_BYPASS}${command}`,
-    'utf16le'
-  ).toString('base64')
+export function encodeWindowsPowerShellHookCommand(
+  command: string,
+  options: WindowsPowerShellHookOptions = {}
+): string {
+  // Process scope uses this variable; Group Policy still takes precedence.
+  const policy = options.useProcessPolicyEnvironment
+    ? "$env:PSExecutionPolicyPreference='Bypass'; "
+    : HOOK_EXECUTION_POLICY_BYPASS
+  return Buffer.from(`${HOOK_PROGRESS_SILENCER}${policy}${command}`, 'utf16le').toString('base64')
 }
 
-export function wrapWindowsPowerShellEncodedCommand(command: string): string {
-  return `${getWindowsPowerShellExecutablePath()} ${WINDOWS_POWERSHELL_HOOK_SWITCHES} -EncodedCommand ${encodeWindowsPowerShellHookCommand(command)}`
+export function wrapWindowsPowerShellEncodedCommand(
+  command: string,
+  options: WindowsPowerShellHookOptions = {}
+): string {
+  return `${getWindowsPowerShellExecutablePath()} ${WINDOWS_POWERSHELL_HOOK_SWITCHES} -EncodedCommand ${encodeWindowsPowerShellHookCommand(command, options)}`
 }

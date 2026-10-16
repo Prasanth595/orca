@@ -12,7 +12,7 @@ vi.mock('../github/client', async (importOriginal) => ({
 const getRepoUpstream = vi.mocked(client.getRepoUpstream)
 const getRepoSlug = vi.mocked(client.getRepoSlug)
 
-type BackfillInternals = { backfillForkUpstreams(): Promise<void> }
+type BackfillInternals = { repositoryForkBackfill: { run(): Promise<void> } }
 
 function makeRepo(overrides: Partial<Repo> = {}): Repo {
   return {
@@ -52,17 +52,21 @@ describe('startup fork-upstream backfill', () => {
     getRepoUpstream.mockResolvedValue({ owner: 'upstream-org', repo: 'rocket' })
     getRepoSlug.mockResolvedValue({ owner: 'acme', repo: 'rocket-pro' })
 
-    await (runtime as unknown as BackfillInternals).backfillForkUpstreams()
+    await (runtime as unknown as BackfillInternals).repositoryForkBackfill.run()
 
-    expect(updateRepo).toHaveBeenCalledExactlyOnceWith('repo-1', {
-      upstream: { owner: 'upstream-org', repo: 'rocket' },
-      repoIcon: {
-        type: 'image',
-        src: 'https://github.com/acme.png?size=64',
-        source: 'github',
-        label: 'acme/rocket-pro'
-      }
-    })
+    expect(updateRepo).toHaveBeenCalledExactlyOnceWith(
+      'repo-1',
+      {
+        upstream: { owner: 'upstream-org', repo: 'rocket' },
+        repoIcon: {
+          type: 'image',
+          src: 'https://github.com/acme.png?size=64',
+          source: 'github',
+          label: 'acme/rocket-pro'
+        }
+      },
+      'local'
+    )
   })
 
   it('migrates a same-name fork to the upstream owner avatar', async () => {
@@ -81,17 +85,39 @@ describe('startup fork-upstream backfill', () => {
     getRepoUpstream.mockResolvedValue({ owner: 'upstream-org', repo: 'rocket' })
     getRepoSlug.mockResolvedValue({ owner: 'acme', repo: 'rocket' })
 
-    await (runtime as unknown as BackfillInternals).backfillForkUpstreams()
+    await (runtime as unknown as BackfillInternals).repositoryForkBackfill.run()
 
-    expect(updateRepo).toHaveBeenCalledExactlyOnceWith('repo-1', {
-      upstream: { owner: 'upstream-org', repo: 'rocket' },
-      repoIcon: {
-        type: 'image',
-        src: 'https://github.com/upstream-org.png?size=64',
-        source: 'github',
-        label: 'upstream-org/rocket'
-      }
-    })
+    expect(updateRepo).toHaveBeenCalledExactlyOnceWith(
+      'repo-1',
+      {
+        upstream: { owner: 'upstream-org', repo: 'rocket' },
+        repoIcon: {
+          type: 'image',
+          src: 'https://github.com/upstream-org.png?size=64',
+          source: 'github',
+          label: 'upstream-org/rocket'
+        }
+      },
+      'local'
+    )
+  })
+
+  it('skips every row whose files sit on an SSH host', async () => {
+    // Why: the incumbent guard read `repo.connectionId`, so a row minted with only the unified
+    // spelling fell through and had its upstream read off this client's copy of the path. A
+    // runtime row's nested target holds its files too, and is equally not ours to read.
+    const runtime = new OrcaRuntimeService()
+    const updateRepo = attachStore(runtime, [
+      makeRepo({ id: 'repo-ssh', executionHostId: 'ssh:builder' }),
+      makeRepo({ id: 'repo-openclaw', executionHostId: 'ssh:openclaw' }),
+      makeRepo({ id: 'repo-nested', connectionId: 'nested-1', executionHostId: 'runtime:env-a' })
+    ])
+
+    await (runtime as unknown as BackfillInternals).repositoryForkBackfill.run()
+
+    expect(getRepoUpstream).not.toHaveBeenCalled()
+    expect(getRepoSlug).not.toHaveBeenCalled()
+    expect(updateRepo).not.toHaveBeenCalled()
   })
 
   it('keeps an icon chosen while avatar detection is pending', async () => {
@@ -113,14 +139,18 @@ describe('startup fork-upstream backfill', () => {
         })
     )
 
-    const backfill = (runtime as unknown as BackfillInternals).backfillForkUpstreams()
+    const backfill = (runtime as unknown as BackfillInternals).repositoryForkBackfill.run()
     await slugStarted
     repos[0] = { ...repo, repoIcon: { type: 'emoji', emoji: '🚀' } }
     resolveSlug({ owner: 'acme', repo: 'rocket-pro' })
     await backfill
 
-    expect(updateRepo).toHaveBeenCalledExactlyOnceWith('repo-1', {
-      upstream: { owner: 'upstream-org', repo: 'rocket' }
-    })
+    expect(updateRepo).toHaveBeenCalledExactlyOnceWith(
+      'repo-1',
+      {
+        upstream: { owner: 'upstream-org', repo: 'rocket' }
+      },
+      'local'
+    )
   })
 })

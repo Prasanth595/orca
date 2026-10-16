@@ -36,6 +36,7 @@ import {
 export function PRCommentsList(props: PRCommentsListProps): React.JSX.Element {
   const {
     comments,
+    commentsError,
     commentsLoading,
     reviewKind = 'PR',
     commentsDisabled,
@@ -72,7 +73,8 @@ export function PRCommentsList(props: PRCommentsListProps): React.JSX.Element {
     canShowResolveWithAI,
     startAddComment,
     renderCommentGroup,
-    renderAddCommentComposer
+    renderAddCommentComposer,
+    now
   } = useCommentsListState(props)
   return (
     <div className="border-t border-border">
@@ -314,6 +316,10 @@ export function PRCommentsList(props: PRCommentsListProps): React.JSX.Element {
         <div className="flex items-center justify-center py-6">
           <LoaderCircle className="size-4 animate-spin text-muted-foreground" />
         </div>
+      ) : comments.length === 0 && commentsError ? (
+        <div role="alert" className="px-3 py-5 text-[11px] break-words text-destructive">
+          {commentsError}
+        </div>
       ) : comments.length === 0 && isAddingComment && onAddComment ? (
         renderAddCommentComposer(true)
       ) : comments.length === 0 ? (
@@ -352,6 +358,7 @@ export function PRCommentsList(props: PRCommentsListProps): React.JSX.Element {
                 groups={triageGroups.resolved}
                 botAuthorOverrides={botAuthorOverrides}
                 replyingCommentId={replyingCommentId}
+                now={now}
                 replyDisabled={commentsDisabled}
                 replyDisabledReason={commentsDisabledReason}
                 presentation={presentation}

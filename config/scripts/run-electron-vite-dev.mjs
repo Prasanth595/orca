@@ -1,7 +1,6 @@
 import { execFileSync, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import {
-  cpSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -16,8 +15,17 @@ import {
 import net from 'node:net'
 import { createRequire } from 'node:module'
 import path from 'node:path'
+
 import { prepareDevCliTerminalWrappers } from './dev-cli-terminal-wrapper.mjs'
-import { isDevBundleInUse, selectStaleDevBundleDirs } from './dev-electron-bundle-cache.mjs'
+import {
+  DEV_BUNDLE_MARKER_FILENAME,
+  getDevBundleProcessTable,
+  isDevBundleInUse,
+  selectStaleDevBundleDirs
+} from './dev-electron-bundle-cache.mjs'
+import { startDevStorageReclaim } from './dev-storage-reclaim.mjs'
+import { isDevWebClientFresh } from './dev-web-client-freshness.mjs'
+import { copyPrivateTree } from './space-sharing-copy.mjs'
 import {
   DEV_BUNDLE_ID,
   getDevBundlePlistPatches,
@@ -116,23 +124,6 @@ function sanitizeMacAppBundleName(value) {
   )
 }
 
-function getDevBundleProcessTable() {
-  // Not pgrep: macOS pgrep has no -a (a Linux procps extension) and silently prints bare PIDs,
-  // which reads as "nothing is running" and deletes a live bundle. -ww keeps the command column
-  // from being truncated. The raw text is searched directly; see dev-electron-bundle-cache.mjs
-  // for why it is deliberately not parsed into paths.
-  try {
-    return execFileSync('/bin/ps', ['-Awwo', 'command='], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-      timeout: 5000
-    })
-  } catch {
-    // Treating a failure as "nothing live" would risk deleting a running bundle, so skip pruning.
-    return null
-  }
-}
-
 function pruneStaleDevBundles(distDir) {
   const root = path.dirname(distDir)
   let bundles
@@ -143,7 +134,7 @@ function pruneStaleDevBundles(distDir) {
         const dir = path.join(root, entry.name)
         return {
           dir,
-          hasMarker: existsSync(path.join(dir, 'orca-dev-electron-app.json')),
+          hasMarker: existsSync(path.join(dir, DEV_BUNDLE_MARKER_FILENAME)),
           mtimeMs: getMtimeMs(dir)
         }
       })
@@ -203,7 +194,7 @@ function prepareMacDevElectronApp() {
   // and it sits outside the code signature, so varying it does not disturb the cdhash.
   const appBundleName = `${sanitizeMacAppBundleName(title)}.app`
   const appPath = path.join(distDir, appBundleName)
-  const markerPath = path.join(distDir, 'orca-dev-electron-app.json')
+  const markerPath = path.join(distDir, DEV_BUNDLE_MARKER_FILENAME)
   // Why: one stable id for every dev instance. Per-instance ids registered a
   // new macOS Notification Settings entry for each branch × Electron version,
   // piling up "Orca: <branch>" rows forever and breaking the notification
@@ -298,9 +289,9 @@ function prepareMacDevElectronApp() {
 
   rmSync(distDir, { recursive: true, force: true })
   mkdirSync(distDir, { recursive: true })
-  // Why: Electron.framework uses relative symlinks for its bundle resources;
-  // resolving them to pnpm-store absolutes breaks Chromium's bundle lookup.
-  cpSync(sourceAppPath, appPath, { recursive: true, verbatimSymlinks: true })
+  // Why clone-first: this ~280MB copy is made per branch title x Electron version, and only the
+  // plist/helper/codesign bytes patched below ever diverge from the source.
+  copyPrivateTree(sourceAppPath, appPath)
   restoreElectronFrameworkSymlinks(appPath)
 
   const plistPath = path.join(appPath, 'Contents', 'Info.plist')
@@ -504,44 +495,6 @@ function getDevWebClientIndexPath() {
   return path.join(repoRoot, 'out', 'web', 'web-index.html')
 }
 
-function latestMtimeMs(targetPath) {
-  const stat = (() => {
-    try {
-      return statSync(targetPath)
-    } catch {
-      return null
-    }
-  })()
-  if (!stat) {
-    return 0
-  }
-  if (!stat.isDirectory()) {
-    return stat.mtimeMs
-  }
-  let latest = stat.mtimeMs
-  for (const entry of readdirSync(targetPath, { withFileTypes: true })) {
-    if (entry.name === 'node_modules' || entry.name.startsWith('.')) {
-      continue
-    }
-    latest = Math.max(latest, latestMtimeMs(path.join(targetPath, entry.name)))
-  }
-  return latest
-}
-
-function isDevWebClientFresh() {
-  const outputMtime = getMtimeMs(getDevWebClientIndexPath())
-  if (outputMtime === 0) {
-    return false
-  }
-  const sourceMtime = Math.max(
-    latestMtimeMs(path.join(repoRoot, 'vite.web.config.ts')),
-    latestMtimeMs(path.join(repoRoot, 'src', 'renderer')),
-    latestMtimeMs(path.join(repoRoot, 'src', 'shared')),
-    latestMtimeMs(path.join(repoRoot, 'src', 'preload', 'api-types.ts'))
-  )
-  return sourceMtime <= outputMtime
-}
-
 function prepareDevWebClient() {
   if (process.env.ORCA_SKIP_DEV_WEB_PREPARE === '1' || isHelpOrVersion) {
     return
@@ -554,7 +507,7 @@ function prepareDevWebClient() {
     )
     return
   }
-  if (isDevWebClientFresh()) {
+  if (isDevWebClientFresh(repoRoot)) {
     return
   }
   console.error('[orca-dev] Building web client for pairing...')
@@ -624,6 +577,11 @@ const isHelpOrVersion = forwardedRaw.some((a) => a === '--help' || a === '-h' ||
 if (!isHelpOrVersion && process.env.ORCA_DEV_INSTANCE_LABEL) {
   console.error(`[orca-dev] Instance: ${process.env.ORCA_DEV_INSTANCE_LABEL}`)
 }
+// Why: automation launches this app while someone is working; announce that the
+// window will come up without taking the foreground so the mode is visible in logs.
+if (!isHelpOrVersion && process.env.ORCA_BACKGROUND_LAUNCH === '1') {
+  console.error('[orca-dev] Background launch: window stays off screen; automate through CDP')
+}
 let forwardedExtras = []
 if (!userPassedPort && !isHelpOrVersion) {
   const envPortRaw = process.env.REMOTE_DEBUGGING_PORT
@@ -660,6 +618,12 @@ const child = spawn(process.execPath, [electronViteCli, ...forwardedArgs], {
   // dev runner its own process group lets Ctrl+C kill the whole tree on macOS
   // instead of leaving the Electron app alive after the terminal exits.
   detached: process.platform !== 'win32'
+})
+
+child.once('spawn', () => {
+  if (!isHelpOrVersion) {
+    startDevStorageReclaim({ repoRoot })
+  }
 })
 
 let isShuttingDown = false

@@ -1,4 +1,5 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import type { RmOptions } from 'node:fs'
 import { createServer } from 'node:net'
 import type { AddressInfo } from 'node:net'
 import os from 'node:os'
@@ -14,6 +15,7 @@ import {
 } from './electron-home-isolation'
 import type { RuntimeDesktopPairingOffer } from './paired-electron-client'
 import { readPairingOffer, readServeReadiness } from './headless-paired-runtime-serve-readiness'
+import { retryTransientMainEvaluate } from './electron-main-evaluate-retry'
 
 export type HeadlessPairedRuntimeHost = {
   /** Current serve process. Replaced by `restartServeProcess`, so always read it fresh. */
@@ -35,9 +37,25 @@ export type HeadlessPairedRuntimeHost = {
     betweenProcesses?: () => void | Promise<void>
   }) => Promise<void>
   userDataDir: string
+  /** The isolated launch environment, for another host started on the same profile. */
+  env: NodeJS.ProcessEnv
+  /** Electron's own argv for this serve host, without the serve flags. */
+  electronArgs: string[]
 }
 
 type HeadlessHostCleanup = () => Promise<void> | void
+
+// Why: Windows keeps a just-killed daemon's handles on the profile briefly, so removal sees EPERM.
+const PROFILE_REMOVAL: RmOptions = { recursive: true, force: true, maxRetries: 50, retryDelay: 100 }
+
+/** CI diagnostics: the profile's logs outlive its deletion when this names a directory. */
+function preserveProfileLogs(userDataDir: string): void {
+  const target = process.env.ORCA_E2E_PRESERVE_PROFILE_LOGS_DIR
+  const logs = path.join(userDataDir, 'logs')
+  if (target && existsSync(logs)) {
+    cpSync(logs, path.join(target, path.basename(userDataDir)), { recursive: true })
+  }
+}
 
 async function cleanupHeadlessHostResources(cleanups: HeadlessHostCleanup[]): Promise<void> {
   const failures: unknown[] = []
@@ -78,6 +96,11 @@ export async function launchHeadlessPairedRuntimeHost(
   options: {
     agentBrowserSocketParent?: string
     executablePath?: string
+    /**
+     * `mobile` makes `offer` a phone pairing (`orca serve --mobile-pairing`). It is the host's only
+     * offer, so no desktop can pair to such a host: a desktop plus a direct phone is unsupported.
+     */
+    pairingScope?: 'runtime' | 'mobile'
     /** Bind a stable loopback port so `restartServeProcess` can reclaim it. */
     pinnedServePort?: boolean
     userDataParent?: string
@@ -123,18 +146,22 @@ export async function launchHeadlessPairedRuntimeHost(
           '--serve-port',
           String(servePort),
           '--serve-pairing-address',
-          '127.0.0.1'
+          '127.0.0.1',
+          ...(options.pairingScope === 'mobile' ? ['--serve-mobile-pairing'] : [])
         ],
         env: isolation.env
       })
     app = await launchServeProcess()
     const [offer] = await Promise.all([
       readPairingOffer(app),
-      app
-        .evaluate(({ app: electronApp }) => electronApp.getPath('home'))
-        .then((home) => assertElectronResolvedIsolatedHome(home, isolation))
+      retryTransientMainEvaluate(() =>
+        app.evaluate(({ app: electronApp }) => electronApp.getPath('home'))
+      ).then((home) => assertElectronResolvedIsolatedHome(home, isolation))
     ])
     let serveProcess = app
+    // Why: a failed relaunch leaves only the already-closed app, which dispose must not close again
+    // (that throw would replace the launch error).
+    let serveProcessOpen = true
     return {
       get app() {
         return serveProcess
@@ -142,6 +169,8 @@ export async function launchHeadlessPairedRuntimeHost(
       client: new RuntimeClient(userDataDir, 5_000),
       offer,
       userDataDir,
+      env: isolation.env,
+      electronArgs: options.executablePath ? [] : getOrcaElectronLaunchArgs(mainPath, false),
       restartServeProcess: async (restartOptions = {}) => {
         if (options.pinnedServePort !== true) {
           throw new Error(
@@ -149,16 +178,26 @@ export async function launchHeadlessPairedRuntimeHost(
           )
         }
         await closeElectronAppForE2E(serveProcess)
+        serveProcessOpen = false
         await restartOptions.betweenProcesses?.()
         const relaunched = await launchServeProcess()
         serveProcess = relaunched
+        serveProcessOpen = true
         await readServeReadiness(relaunched, { requirePairingOffer: false })
       },
       dispose: async () => {
         await cleanupHeadlessHostResources([
-          () => closeElectronAppForE2E(serveProcess),
+          ...(serveProcessOpen
+            ? [
+                () =>
+                  closeElectronAppForE2E(serveProcess, {
+                    cleanupDaemonsForUserDataDir: userDataDir
+                  })
+              ]
+            : []),
           () => cleanupE2EDaemons(userDataDir),
-          () => rmSync(userDataDir, { recursive: true, force: true }),
+          () => preserveProfileLogs(userDataDir),
+          () => rmSync(userDataDir, PROFILE_REMOVAL),
           ...(agentBrowserSocketDir
             ? [
                 () =>
@@ -174,9 +213,12 @@ export async function launchHeadlessPairedRuntimeHost(
   } catch (error) {
     try {
       await cleanupHeadlessHostResources([
-        ...(app ? [() => closeElectronAppForE2E(app)] : []),
+        ...(app
+          ? [() => closeElectronAppForE2E(app, { cleanupDaemonsForUserDataDir: userDataDir })]
+          : []),
         () => cleanupE2EDaemons(userDataDir),
-        () => rmSync(userDataDir, { recursive: true, force: true }),
+        () => preserveProfileLogs(userDataDir),
+        () => rmSync(userDataDir, PROFILE_REMOVAL),
         ...(agentBrowserSocketDir
           ? [() => rmSync(agentBrowserSocketDir, { recursive: true, force: true })]
           : [])

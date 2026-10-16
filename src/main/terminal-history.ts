@@ -1,5 +1,6 @@
 import { join, basename } from 'node:path'
 import { mkdirSync, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { readFile, stat } from 'node:fs/promises'
 import {
   dropInheritedOrcaFishHistory,
   fishHistorySessionName,
@@ -106,7 +107,10 @@ function writeMetaFile(
         worktreeId,
         createdAt: existing?.createdAt ?? new Date().toISOString(),
         ...(fish ? { fishSession: fish.session } : {}),
-        ...(fish?.historyDir ? { fishHistoryDir: fish.historyDir } : {})
+        ...(fish?.historyDir ? { fishHistoryDir: fish.historyDir } : {}),
+        ...(existing?.installedMigrationBlobs
+          ? { installedMigrationBlobs: existing.installedMigrationBlobs }
+          : {})
       }),
       { mode: 0o600 }
     )
@@ -122,7 +126,11 @@ export type HistoryDirMeta = {
   fishSession?: string
   /** Directory that session's history file was written to, as the PTY saw it. */
   fishHistoryDir?: string
+  /** Moved-history blobs (by sha256) already installed here, so a retry never prepends twice. */
+  installedMigrationBlobs?: InstalledMigrationHistoryBlob[]
 }
+
+export type InstalledMigrationHistoryBlob = { sha256: string; shell: string }
 
 /** Read one history directory's meta.json, or null when it is absent or unparseable. */
 export function readHistoryMeta(dir: string): HistoryDirMeta | null {
@@ -131,7 +139,29 @@ export function readHistoryMeta(dir: string): HistoryDirMeta | null {
     if (statSync(metaPath).size > MAX_HISTORY_META_BYTES) {
       return null
     }
-    const raw: unknown = JSON.parse(readFileSync(metaPath, 'utf-8'))
+    return parseHistoryMeta(dir, readFileSync(metaPath, 'utf-8'))
+  } catch {
+    return null
+  }
+}
+
+/** `readHistoryMeta` off the main thread, for scans that walk thousands of directories. */
+export async function readHistoryMetaAsync(dir: string): Promise<HistoryDirMeta | null> {
+  try {
+    const metaPath = join(dir, 'meta.json')
+    // Why stat before read: the cap must reject an oversized meta.json without loading it.
+    if ((await stat(metaPath)).size > MAX_HISTORY_META_BYTES) {
+      return null
+    }
+    return parseHistoryMeta(dir, await readFile(metaPath, 'utf-8'))
+  } catch {
+    return null
+  }
+}
+
+function parseHistoryMeta(dir: string, contents: string): HistoryDirMeta | null {
+  try {
+    const raw: unknown = JSON.parse(contents)
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
       return null
     }
@@ -151,11 +181,31 @@ export function readHistoryMeta(dir: string): HistoryDirMeta | null {
       ...(typeof record.worktreeId === 'string' ? { worktreeId: record.worktreeId } : {}),
       ...(typeof record.createdAt === 'string' ? { createdAt: record.createdAt } : {}),
       ...(fishSession ? { fishSession } : {}),
-      ...(fishHistoryDir ? { fishHistoryDir } : {})
+      ...(fishHistoryDir ? { fishHistoryDir } : {}),
+      ...parseInstalledMigrationBlobs(record.installedMigrationBlobs)
     }
   } catch {
     return null
   }
+}
+
+function parseInstalledMigrationBlobs(
+  value: unknown
+): Pick<HistoryDirMeta, 'installedMigrationBlobs'> {
+  if (!Array.isArray(value)) {
+    return {}
+  }
+  const blobs = value.flatMap((entry: unknown) =>
+    entry &&
+    typeof entry === 'object' &&
+    'sha256' in entry &&
+    typeof entry.sha256 === 'string' &&
+    'shell' in entry &&
+    typeof entry.shell === 'string'
+      ? [{ sha256: entry.sha256, shell: entry.shell }]
+      : []
+  )
+  return blobs.length > 0 ? { installedMigrationBlobs: blobs } : {}
 }
 
 // ─── Environment Injection ─────────────────────────────────────────

@@ -1,3 +1,6 @@
+/* oxlint-disable anti-slop/no-module-mocking -- Vitest support module for the 8 useIpcEvents specs, not shipped code, and it falls outside
+   the *.test / *.spec / tests glob set. Inlining these 10 stubs would duplicate them into all 8 specs and push the largest
+   past the max-lines ratchet. */
 import { vi } from 'vitest'
 import type * as ReactModule from 'react'
 import type { HarnessStoreState } from './ipc-events-harness-store-state'
@@ -34,6 +37,13 @@ export type RequestTerminalCreateRequest = {
   surfaceOwner?: boolean
 }
 
+/** A notification click sets userInitiated; a chat-completion courtesy reveal leaves it off. */
+export type FocusEditorTabRequest = {
+  tabId: string
+  worktreeId: string
+  userInitiated?: boolean
+}
+
 /** Subscription no-ops for every listener useIpcEvents attaches beyond the ones under test. */
 function createApiNamespaceStub(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return new Proxy(overrides, {
@@ -46,6 +56,7 @@ export type IpcEventsHarness = {
   useIpcEvents: () => void
   createTerminal: (request: CreateTerminalRequest) => void
   requestTerminalCreate: (request: RequestTerminalCreateRequest) => void
+  focusEditorTab: (request: FocusEditorTabRequest) => void
   replyTerminalCreate: ReturnType<typeof vi.fn>
   /** Fire a main-process digit chord (zero-based index). */
   jumpToWorktreeIndex: (index: number) => void
@@ -71,8 +82,7 @@ export type IpcEventsHarnessOptions = {
 }
 
 /**
- * Loads useIpcEvents against a stubbed preload API and returns a driver for the
- * create-terminal IPC, so reveal/adoption behavior is asserted through the hook.
+ * Loads useIpcEvents against a stubbed preload API so IPC behavior is asserted through the hook.
  */
 export async function loadIpcEventsHarness(
   storeState: HarnessStoreState,
@@ -82,6 +92,7 @@ export async function loadIpcEventsHarness(
   const activateAndRevealWorkspace = vi.fn()
   let createTerminalListener: ((request: CreateTerminalRequest) => void) | null = null
   let requestTerminalCreateListener: ((request: RequestTerminalCreateRequest) => void) | null = null
+  let focusEditorTabListener: ((request: FocusEditorTabRequest) => void) | null = null
   let navigationUpdateListener:
     | ((event: { browserPageId: string; url: string; title: string }) => void)
     | null = null
@@ -118,26 +129,38 @@ export async function loadIpcEventsHarness(
   }))
   vi.doMock('@/lib/floating-workspace-terminal-actions', () => ({
     createFloatingWorkspaceTerminalTab: vi.fn(),
-    isEmptyFloatingWorkspacePanelVisible: () => false,
     isFloatingWorkspacePanelFocused: () => false
   }))
-  vi.doMock('@/runtime/web-runtime-session', () => ({
+  vi.doMock('@/runtime/web-runtime-session-tab-lifecycle', () => ({
     activateWebRuntimeSessionTab: vi.fn(),
-    closeWebRuntimeSessionTab: vi.fn(),
-    createWebRuntimeSessionBrowserTab: vi.fn().mockResolvedValue(false),
-    createWebRuntimeSessionTerminal: vi.fn().mockResolvedValue({ status: 'failed', message: '' }),
+    closeWebRuntimeSessionTab: vi.fn()
+  }))
+  vi.doMock('@/runtime/web-runtime-browser-creation', () => ({
+    createWebRuntimeSessionBrowserTab: vi.fn().mockResolvedValue(false)
+  }))
+  vi.doMock('@/runtime/web-runtime-terminal-creation', () => ({
+    createWebRuntimeSessionTerminal: vi.fn().mockResolvedValue({ status: 'failed', message: '' })
+  }))
+  vi.doMock('@/runtime/web-runtime-session-environment', () => ({
     isWebRuntimeSessionActive: vi.fn(() => false)
   }))
   vi.doMock('@/lib/focus-terminal-tab-surface', () => ({ focusTerminalTabSurface: vi.fn() }))
-  vi.doMock('@/runtime/sync-runtime-graph', () => ({
+  vi.doMock('@/runtime/mounted-terminal-tab-registry', () => ({
     focusRuntimeTerminalSurface: vi.fn(() => false)
   }))
   vi.doMock('@/lib/activate-tab-and-focus-pane', () => ({ activateTabAndFocusPane: vi.fn() }))
 
   vi.stubGlobal('window', {
     dispatchEvent: vi.fn(),
-    api: new Proxy(
+    api: new Proxy<Record<string, unknown>>(
       {
+        runtimeEnvironments: createApiNamespaceStub({
+          getStatusSnapshots: () => Promise.resolve([]),
+          subscribe: async () => ({ unsubscribe: () => {} })
+        }),
+        legacyRelayBridge: createApiNamespaceStub({
+          listPanes: () => Promise.resolve([])
+        }),
         ui: createApiNamespaceStub({
           getZoomLevel: () => 0,
           consumePendingOpenSettings: () => Promise.resolve(false),
@@ -153,6 +176,12 @@ export async function loadIpcEventsHarness(
           },
           onRequestTerminalCreate: (listener: (request: RequestTerminalCreateRequest) => void) => {
             requestTerminalCreateListener = listener
+            return () => {}
+          },
+          onFocusEditorTab: (
+            listener: (request: { tabId: string; worktreeId: string }) => void
+          ) => {
+            focusEditorTabListener = listener
             return () => {}
           },
           onJumpToWorktreeIndex: (listener: (index: number) => void) => {
@@ -222,9 +251,8 @@ export async function loadIpcEventsHarness(
         }),
         mobile: createApiNamespaceStub({
           consumePendingUnpairedDeviceAuthFailure: () => Promise.resolve(false)
-        }),
-        remoteWorkspace: createApiNamespaceStub({ clientId: () => Promise.resolve(null) })
-      } as Record<string, unknown>,
+        })
+      },
       { get: (target, prop: string) => target[prop] ?? createApiNamespaceStub() }
     )
   })
@@ -243,6 +271,12 @@ export async function loadIpcEventsHarness(
         throw new Error('Expected the request-terminal-create listener to be registered')
       }
       requestTerminalCreateListener(request)
+    },
+    focusEditorTab: (request) => {
+      if (typeof focusEditorTabListener !== 'function') {
+        throw new Error('Expected the focus-editor-tab listener to be registered')
+      }
+      focusEditorTabListener(request)
     },
     replyTerminalCreate,
     jumpToWorktreeIndex: (index) => fireIndexJump(indexJumpListeners, 'worktree', index),

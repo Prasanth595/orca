@@ -1,10 +1,12 @@
 import { callRuntimeRpc } from '@/runtime/runtime-rpc-client'
+import { assertEnvironmentSupportsExtraAgentArgs } from './automation-capability-probe'
 import type {
   Automation,
   AutomationCreateInput,
   AutomationRun,
   AutomationUpdateInput
 } from '../../../../shared/automations-types'
+import type { AutomationAuthorityRef } from '../../../../shared/automation-owner-ref'
 import { parseExecutionHostId } from '../../../../shared/execution-host'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 
@@ -46,6 +48,14 @@ export function getAutomationTargetFromHostId(
   const parsed = parseExecutionHostId(hostId)
   return parsed?.kind === 'runtime'
     ? { kind: 'environment', environmentId: parsed.environmentId }
+    : { kind: 'local' }
+}
+
+export function getAutomationAuthorityTarget(
+  authority: AutomationAuthorityRef
+): AutomationHostTarget {
+  return authority.kind === 'runtime'
+    ? { kind: 'environment', environmentId: authority.environmentId }
     : { kind: 'local' }
 }
 
@@ -128,6 +138,9 @@ export async function updateAutomationForTarget(
   sourceTarget?: AutomationHostTarget | null
 ): Promise<Automation> {
   const target = getAutomationOwnerTarget(automation, sourceTarget)
+  if (target.kind === 'environment') {
+    await assertEnvironmentSupportsExtraAgentArgs(target.environmentId, updates.extraAgentArgs)
+  }
   const result = await callRuntimeRpc<{ automation: Automation }>(
     target,
     'automation.update',

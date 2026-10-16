@@ -1,11 +1,8 @@
-import { isRemoteAgentHooksEnabled } from '../../../../shared/agent-hook-relay'
 import type { AgentSessionOwnerBinding } from '../../../../shared/agent-session-host-authority'
 import { agentSessionOwnerBindingsEqual } from '../../../../shared/claimed-agent-pty-owner'
 import { addNodePtyRecoveryHint } from '../../../daemon/node-pty-error-hints'
 import type { Store } from '../../../persistence'
-import { isSshPtyNotFoundError } from '../../../providers/ssh-pty-errors'
-import type { IPtyProvider } from '../../../providers/types'
-import { markClaudePtyExited } from '../../../claude-accounts/live-pty-gate'
+import type { IPtyProvider } from '../../../providers/pty-provider-contract'
 import { ptyIncarnationById, ptyOwnership } from './ownership-state'
 import { getRelayPtyId } from './registry'
 import {
@@ -13,30 +10,6 @@ import {
   KEEP_HISTORY_STOP_SETTLE_MS
 } from '../delivery/visibility-state'
 import { clearProviderPtyState } from './state-cleanup'
-
-export function stripRemotePaneEnvWhenHooksDisabled(
-  connectionId: string | null | undefined,
-  env: Record<string, string> | undefined
-): Record<string, string> | undefined {
-  if (!connectionId || isRemoteAgentHooksEnabled()) {
-    return env
-  }
-  if (
-    !env ||
-    (!('ORCA_PANE_KEY' in env) &&
-      !('ORCA_TAB_ID' in env) &&
-      !('ORCA_WORKTREE_ID' in env) &&
-      !('ORCA_AGENT_LAUNCH_TOKEN' in env))
-  ) {
-    return env
-  }
-  const stripped = { ...env }
-  delete stripped.ORCA_PANE_KEY
-  delete stripped.ORCA_TAB_ID
-  delete stripped.ORCA_WORKTREE_ID
-  delete stripped.ORCA_AGENT_LAUNCH_TOKEN
-  return stripped
-}
 
 export function normalizeNodePtySpawnError(err: unknown): Error {
   const rawMessage = err instanceof Error ? err.message : String(err)
@@ -54,7 +27,7 @@ export function normalizeNodePtySpawnError(err: unknown): Error {
 
 export function isPtyAlreadyGoneError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err)
-  return isSshPtyNotFoundError(err) || /Session not found/i.test(message)
+  return /Session not found/i.test(message)
 }
 
 export function delay(ms: number): Promise<void> {
@@ -134,9 +107,9 @@ export function finishPtyShutdown(
   const incarnationId = ptyIncarnationById.get(id)
   clearProviderPtyState(id)
   if (connectionId) {
+    // Keeps any relay-era undelivered stop on the lease: only host evidence may retire it.
     store?.markSshRemotePtyLease(connectionId, getRelayPtyId(connectionId, id), 'terminated')
   }
   ptyOwnership.delete(id)
-  markClaudePtyExited(id)
   return incarnationId
 }

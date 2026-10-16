@@ -7,6 +7,7 @@ import type { BrowserBackend, BrowserBackendCreateTab } from './browser-backend'
 import type { BrowserManager } from './browser-manager'
 import type { AgentBrowserBridge } from './agent-browser-bridge'
 import { browserSessionRegistry } from './browser-session-registry'
+import type { ServeBrowserPageState } from '../runtime/serve-browser-tab-layout'
 
 // Why: headless orca serve has no renderer window to host a <webview>, so each
 // browser page is backed by a main-process offscreen BrowserWindow. The window
@@ -31,6 +32,8 @@ export class OffscreenBrowserBackend implements BrowserBackend {
     private readonly browserManager: BrowserManager,
     private readonly options: {
       getAgentBrowserBridge?: () => Pick<AgentBrowserBridge, 'onPageClosed'> | null
+      /** A page's committed address or title changed, so its saved tab can follow. */
+      onPageNavigated?: (page: ServeBrowserPageState) => void
     } = {}
   ) {}
 
@@ -66,9 +69,32 @@ export class OffscreenBrowserBackend implements BrowserBackend {
 
     this.windowsByPageId.set(browserPageId, win)
 
-    // Why: if the offscreen window is destroyed out from under us (crash, app
-    // teardown), drop the registry entry so commands fail cleanly instead of
-    // resolving a dead WebContents.
+    // Why: register the guest and return immediately so the new tab appears
+    // without waiting for the page to finish loading. Previously createTab
+    // awaited the full navigation, so clicking "New Browser Tab" did nothing for
+    // up to a second on real URLs. The page loads asynchronously and streams
+    // once it paints; a failed load leaves the (usable) tab open, matching how a
+    // normal browser tab survives a failed navigation.
+    const registered = this.browserManager.registerOffscreenGuest({
+      browserPageId,
+      worktreeId: params.worktreeId,
+      sessionProfileId: profile?.id ?? null,
+      webContentsId: win.webContents.id
+    })
+    if (!registered) {
+      // Why destroy rather than carry on: the window already exists but carries none of the guest
+      // policies registration installs, so leaving it would navigate an unvalidated URL with no
+      // policy on it and hand back a page id nothing can drive. The renderer door aborts its mount
+      // the same way; this is that abort.
+      this.windowsByPageId.delete(browserPageId)
+      win.destroy()
+      throw new Error(`Browser page ${browserPageId} was refused`)
+    }
+
+    // Why only once registration took: this teardown unregisters the page id, and a refused id is
+    // one the other authority may own — cancelling its work would be the confusion we just refused.
+    // Why at all: if the window dies out from under us (crash, app teardown), drop the registry
+    // entry so commands fail cleanly instead of resolving a dead WebContents.
     win.webContents.once('destroyed', () => {
       // Explicit close removes the page first and performs awaited cleanup;
       // only an unexpected destruction still owns the bridge retirement here.
@@ -80,19 +106,20 @@ export class OffscreenBrowserBackend implements BrowserBackend {
       this.browserManager.unregisterGuest(browserPageId)
     })
 
-    // Why: register the guest and return immediately so the new tab appears
-    // without waiting for the page to finish loading. Previously createTab
-    // awaited the full navigation, so clicking "New Browser Tab" did nothing for
-    // up to a second on real URLs. The page loads asynchronously and streams
-    // once it paints; a failed load leaves the (usable) tab open, matching how a
-    // normal browser tab survives a failed navigation.
-    this.browserManager.registerOffscreenGuest({
-      browserPageId,
-      worktreeId: params.worktreeId,
-      sessionProfileId: profile?.id ?? null,
-      userAgentMode: profile?.userAgentMode,
-      webContentsId: win.webContents.id
-    })
+    const { worktreeId } = params
+    const { onPageNavigated } = this.options
+    if (worktreeId && onPageNavigated) {
+      const report = (): void =>
+        onPageNavigated({
+          worktreeId,
+          pageId: browserPageId,
+          url: win.webContents.getURL(),
+          title: win.webContents.getTitle()
+        })
+      // Committed navigations only: a title a page keeps changing (a counter) is not saved each time.
+      win.webContents.on('did-navigate-in-page', report)
+      win.webContents.on('did-stop-loading', report)
+    }
 
     const url = params.url || 'about:blank'
     void this.loadUrl(win, url).catch((error) => {
@@ -115,6 +142,7 @@ export class OffscreenBrowserBackend implements BrowserBackend {
       }
     } finally {
       if (win && !win.isDestroyed()) {
+        endDebuggerSessions(win)
         win.destroy()
       }
     }
@@ -216,5 +244,22 @@ export class OffscreenBrowserBackend implements BrowserBackend {
         // loadURL rejects on aborted navigations; did-fail-load handles the rest.
       })
     })
+  }
+}
+
+/**
+ * Why: destroy() rejects a live screencast's pending CDP command, and the snapshot it was awaiting
+ * then calls capturePage on the half-torn-down page, which segfaults Electron (43.7.8). Detaching
+ * first emits 'detach' synchronously, so every stream on the page is closed before that resumes.
+ */
+function endDebuggerSessions(win: BrowserWindow): void {
+  const dbg = win.webContents.debugger
+  if (!dbg.isAttached()) {
+    return
+  }
+  try {
+    dbg.detach()
+  } catch {
+    // The page is being destroyed either way; a failed detach must not keep it alive.
   }
 }

@@ -2,12 +2,12 @@
 
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type * as HostedReviewStore from '@/store/slices/hosted-review'
+import type * as HostedReviewCardRefresh from '@/store/slices/hosted-review-card-refresh'
 
 const refresh = vi.hoisted(() => ({ calls: [] as string[] }))
 
-vi.mock('@/store/slices/hosted-review', async (importOriginal) => {
-  const original = await importOriginal<typeof HostedReviewStore>()
+vi.mock('@/store/slices/hosted-review-card-refresh', async (importOriginal) => {
+  const original = await importOriginal<typeof HostedReviewCardRefresh>()
   return {
     ...original,
     refreshHostedReviewCard: vi.fn(async () => {
@@ -74,7 +74,7 @@ describe('useChecksPanelManualRefresh ordering', () => {
       linkedGiteaPR: null,
       linkedGitLabMR: null,
       linkedPR: null,
-      ownerSettings: null,
+      ownerTarget: { kind: 'local' },
       panelContextKey: 'repo-1::worktree-1::main',
       panelContextKeyRef: { current: 'repo-1::worktree-1::main' },
       pollIntervalRef: { current: 30_000 },
@@ -112,5 +112,13 @@ describe('useChecksPanelManualRefresh ordering', () => {
       'comments-loading:false',
       'refreshing:false'
     ])
+    expect(input.fetchPRForBranch).toHaveBeenCalledWith('/workspace/repo', 'main', {
+      force: true,
+      repoId: 'repo-1',
+      worktreeId: undefined,
+      linkedPRNumber: null,
+      fallbackPRNumber: null,
+      reason: 'manual'
+    })
   })
 })

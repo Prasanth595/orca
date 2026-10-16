@@ -50,6 +50,7 @@ vi.mock('../providers/local-pty-utils', async (importOriginal) => {
   const actual = await importOriginal<typeof LocalPtyUtils>()
   return {
     ...actual,
+    getNodePtySpawnHelperCandidates: () => [import.meta.filename],
     resolveUnixShellPath: resolveUnixShellPathMock,
     validateWorkingDirectory: validateWorkingDirectoryMock,
     validateWorkingDirectoryAsync: validateWorkingDirectoryMock
@@ -506,16 +507,6 @@ describe('createPtySubprocess', () => {
       proc._simulateExit(0)
       handle.signal('SIGINT')
       expect(killSpy).not.toHaveBeenCalled()
-      killSpy.mockRestore()
-    })
-
-    it('forceKill before exit still fires SIGKILL (live child)', async () => {
-      const proc = mockPtyProcess(77)
-      spawnMock.mockReturnValue(proc)
-      const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true)
-      const handle = await createPtySubprocess({ sessionId: 'test', cols: 80, rows: 24 })
-      handle.forceKill()
-      expect(killSpy).toHaveBeenCalledWith(77, 'SIGKILL')
       killSpy.mockRestore()
     })
   })

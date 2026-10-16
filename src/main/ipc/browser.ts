@@ -1,7 +1,7 @@
 import { ipcMain, webContents } from 'electron'
 import { browserCertificateTrustController, browserManager } from '../browser/browser-manager'
 import type { AgentBrowserBridge } from '../browser/agent-browser-bridge'
-import { browserSessionRegistry } from '../browser/browser-session-registry'
+import { isWorkspaceDocPageId } from '../browser/doc-preview-guest-policy'
 import { isTrustedBrowserRenderer } from './browser-renderer-trust'
 import {
   isLiveBrowserWebContentsId,
@@ -23,7 +23,7 @@ import type { BrowserWebAuthnAccountResponse } from '../../shared/browser-webaut
 
 let agentBrowserBridgeRef: AgentBrowserBridge | null = null
 
-type BrowserGuestRegistrationArgs = {
+export type BrowserGuestArgs = {
   browserPageId: string
   workspaceId: string
   worktreeId: string
@@ -47,7 +47,7 @@ export function registerBrowserHandlers(): void {
 
   const registerGuest = (
     event: Electron.IpcMainInvokeEvent,
-    args: BrowserGuestRegistrationArgs,
+    args: BrowserGuestArgs,
     repairPolicies: boolean
   ): boolean => {
     if (!isTrustedBrowserRenderer(event.sender)) {
@@ -79,10 +79,8 @@ export function registerBrowserHandlers(): void {
     // with a new webContentsId. The bridge must destroy the old session's
     // proxy (its webContents is gone) and let the next command recreate it.
     const previousWcId = browserManager.getGuestWebContentsId(args.browserPageId)
-    const profile = browserSessionRegistry.getProfile(args.sessionProfileId ?? 'default')
     const registered = browserManager.registerGuest({
       ...args,
-      userAgentMode: profile?.userAgentMode,
       rendererWebContentsId: event.sender.id
     })
     if (!registered) {
@@ -95,7 +93,7 @@ export function registerBrowserHandlers(): void {
     return true
   }
 
-  ipcMain.handle('browser:registerGuest', (event, args: BrowserGuestRegistrationArgs) =>
+  ipcMain.handle('browser:registerGuest', (event, args: BrowserGuestArgs) =>
     registerGuest(event, args, false)
   )
 
@@ -105,7 +103,12 @@ export function registerBrowserHandlers(): void {
     'browser:prepareSshWorkspacePartition',
     async (
       event,
-      args: { targetId?: unknown; browserProfileId?: unknown; skipProbe?: unknown }
+      args: {
+        targetId?: unknown
+        browserProfileId?: unknown
+        skipProbe?: unknown
+        expectedSshTargetGeneration?: unknown
+      }
     ) => {
       // Why (review P1-2): preparing mints bindings whose LRU eviction destroys
       // cookie jars; only the trusted renderer naming a REGISTERED target may.
@@ -116,12 +119,13 @@ export function registerBrowserHandlers(): void {
         throw new Error('browser_local_route_target_invalid')
       }
       const { getSshConnectionStore } = await import('./ssh')
-      const registered = getSshConnectionStore()
-        ?.listTargets()
-        .some((target) => target.id === args.targetId)
-      if (!registered) {
-        throw new Error('browser_local_route_target_invalid')
-      }
+      const { requireLocalSshBrowserRouteTarget } =
+        await import('../browser/local-ssh-browser-route')
+      requireLocalSshBrowserRouteTarget(
+        getSshConnectionStore()?.listTargets(),
+        args.targetId,
+        args.expectedSshTargetGeneration
+      )
       const { prepareLocalSshBrowserPartition } =
         await import('../browser/local-ssh-browser-partitions')
       return prepareLocalSshBrowserPartition({
@@ -135,7 +139,7 @@ export function registerBrowserHandlers(): void {
     }
   )
 
-  ipcMain.handle('browser:repairGuestRegistration', (event, args: BrowserGuestRegistrationArgs) =>
+  ipcMain.handle('browser:repairGuestRegistration', (event, args: BrowserGuestArgs) =>
     registerGuest(event, args, true)
   )
 
@@ -158,6 +162,13 @@ export function registerBrowserHandlers(): void {
 
   ipcMain.handle('browser:unregisterGuest', (event, args: { browserPageId: string }) => {
     if (!isTrustedBrowserRenderer(event.sender)) {
+      return false
+    }
+    // Why the whole door and not just the manager call: a document page shares this renderer, and
+    // the grab disposal below drops the intent an in-flight preview grab compares by identity —
+    // that grab would then answer ok without ever arming. A document page withdraws by revoking
+    // its grant, so its id arriving here is misaddressed however it got here.
+    if (typeof args?.browserPageId !== 'string' || isWorkspaceDocPageId(args.browserPageId)) {
       return false
     }
     // Why: notify bridge before unregistering so it can destroy the session

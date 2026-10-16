@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import type { useAppStore } from '@/store'
 import type { Repo } from '../../../../shared/repo-types'
+import { getRepoExecutionHostId } from '../../../../shared/execution-host'
 import type { WorkspaceStatusDefinition, Worktree } from '../../../../shared/worktree/types'
 import {
   createWorktreeContextMenuDeleteIntent,
@@ -8,6 +9,7 @@ import {
 } from './worktree-context-menu-delete-intent'
 import { runSleepWorktrees } from './sleep-worktree-flow'
 import { activateAndRevealWorktree } from '@/lib/worktree-activation'
+import { resolveWorktreeDisplayName } from '@/lib/worktree-default-display-name'
 import { VIRTUALIZED_SCROLL_ANCHOR_RECORD_EVENT } from '@/hooks/useVirtualizedScrollAnchor'
 import {
   planWorkspaceStatusAssignment,
@@ -28,6 +30,7 @@ export function useWorktreeContextMenuCommands(args: {
   scopeRef: React.RefObject<HTMLDivElement | null>
   setCreateGroupDialogOpen: (open: boolean) => void
   setMenuOpenState: (open: boolean) => void
+  setWorkspaceUnreadByUser: ReturnType<typeof useAppStore.getState>['setWorkspaceUnreadByUser']
   setWorktreesPinnedAndReveal: ReturnType<
     typeof useAppStore.getState
   >['setWorktreesPinnedAndReveal']
@@ -41,8 +44,15 @@ export function useWorktreeContextMenuCommands(args: {
   const handleCopyPath = useCallback(() => {
     window.api.ui.writeClipboardText(args.worktree.path)
   }, [args])
+  const handleCopyName = useCallback(() => {
+    window.api.ui.writeClipboardText(resolveWorktreeDisplayName(args.worktree))
+  }, [args])
   const handleToggleRead = useCallback(() => {
-    args.updateWorktreeMeta(args.worktree.id, { isUnread: !args.worktree.isUnread })
+    args.setWorkspaceUnreadByUser(
+      args.worktree.id,
+      !args.worktree.isUnread,
+      args.worktree.hostId ?? 'local'
+    )
   }, [args])
   const handleTogglePin = useCallback(() => {
     args.setWorktreesPinnedAndReveal([args.worktree.id], !args.worktree.isPinned)
@@ -66,9 +76,10 @@ export function useWorktreeContextMenuCommands(args: {
       if (!args.repo) {
         return
       }
-      const group = await args.createProjectGroup(name)
+      const hostId = getRepoExecutionHostId(args.repo)
+      const group = await args.createProjectGroup(name, hostId)
       if (group) {
-        await args.moveProjectToGroup(args.repo.id, group.id)
+        await args.moveProjectToGroup(args.repo.id, group.id, undefined, hostId)
       }
     },
     [args]
@@ -78,13 +89,18 @@ export function useWorktreeContextMenuCommands(args: {
       if (!args.repo || args.repo.projectGroupId === groupId) {
         return
       }
-      void args.moveProjectToGroup(args.repo.id, groupId)
+      void args.moveProjectToGroup(
+        args.repo.id,
+        groupId,
+        undefined,
+        getRepoExecutionHostId(args.repo)
+      )
     },
     [args]
   )
   const handleRemoveProjectFromGroup = useCallback(() => {
     if (args.repo) {
-      void args.moveProjectToGroup(args.repo.id, null)
+      void args.moveProjectToGroup(args.repo.id, null, undefined, getRepoExecutionHostId(args.repo))
     }
   }, [args])
   const handleAssignWorkspaceStatus = useCallback(
@@ -100,8 +116,17 @@ export function useWorktreeContextMenuCommands(args: {
         args.onAssignWorkspaceStatus?.(plan.worktreeIds, status)
         return
       }
+      const localWriteIds = new Set(plan.localWriteIds)
       void Promise.all(
-        plan.localWriteIds.map((id) => args.updateWorktreeMeta(id, { workspaceStatus: status }))
+        args.activeContextWorktrees
+          .filter((worktree) => localWriteIds.has(worktree.id))
+          .map((worktree) =>
+            args.updateWorktreeMeta(
+              worktree.id,
+              { workspaceStatus: status },
+              { executionHostId: worktree.hostId ?? 'local' }
+            )
+          )
       )
     },
     [args]
@@ -110,6 +135,7 @@ export function useWorktreeContextMenuCommands(args: {
     args.openModal('edit-meta', {
       worktreeId: args.worktree.id,
       repoId: args.worktree.repoId,
+      executionHostId: args.worktree.hostId,
       currentDisplayName: args.worktree.displayName,
       currentIssue: args.worktree.linkedIssue,
       currentPR: args.worktree.linkedPR,
@@ -146,12 +172,13 @@ export function useWorktreeContextMenuCommands(args: {
   }, [args])
   const handleOpenParent = useCallback(() => {
     if (args.validParentWorktreeId) {
-      activateAndRevealWorktree(args.validParentWorktreeId)
+      activateAndRevealWorktree(args.validParentWorktreeId, { navigationIntent: 'user-open' })
     }
   }, [args.validParentWorktreeId])
   return {
     handleAssignWorkspaceStatus,
     handleCloseTerminals,
+    handleCopyName,
     handleCopyPath,
     handleCreateGroupDialogOpenChange,
     handleCreateGroupFromRepo,

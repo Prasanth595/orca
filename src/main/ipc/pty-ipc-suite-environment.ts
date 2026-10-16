@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, vi } from 'vitest'
 import * as electron from 'electron'
+import { join } from 'node:path'
 import { installFakeAppEnvironment } from '../../../config/scripts/vitest-host-ports-setup'
 import { setPtyHostBindings } from './pty-host-bindings'
 import { testPtyIpcSurface } from './pty-ipc-test-surface'
@@ -16,10 +17,12 @@ import {
   readFileSyncMock,
   writeFileSyncMock,
   chmodSyncMock,
+  linuxCliShimMock,
   getPathMock,
   loginPreflightExecFileMock,
   spawnMock,
   openCodeBuildPtyEnvMock,
+  openCode2BuildPtyEnvMock,
   mimoCodeBuildPtyEnvMock,
   openCodeClearPtyMock,
   buildAgentHookEnvMock,
@@ -48,13 +51,14 @@ import {
   LocalPtyProvider,
   _resetLocalPtyProviderStateForTest
 } from '../providers/local-pty-provider'
-import { setLocalPtyProvider, unregisterSshPtyProvider } from './pty'
+import { setLocalPtyProvider } from './pty/provider/registry'
 import { _resetHiddenRendererPtyDeliveryGateForTest } from './pty-hidden-delivery-gate'
 import { __resetShellStartupEnvCache } from '../pty/shell-startup-env'
 import { _resetWslCachesForTests } from '../wsl'
 
 /** The mocked webContents each suite asserts sends against. */
 export type PtyIpcTestWebContents = {
+  id: number
   on: Mock
   send: Mock
   removeListener: Mock
@@ -89,6 +93,7 @@ export function createPtyIpcSuiteEnvironment(): PtyIpcSuiteEnvironment {
     isVisible: () => true,
     isMinimized: () => false,
     webContents: {
+      id: 1,
       on: vi.fn(),
       send: vi.fn(),
       removeListener: vi.fn(),
@@ -98,6 +103,7 @@ export function createPtyIpcSuiteEnvironment(): PtyIpcSuiteEnvironment {
   const mainWindowIpcEvent = { sender: mainWindow.webContents }
   const foreignWindowIpcEvent = {
     sender: {
+      id: 2,
       on: vi.fn(),
       send: vi.fn(),
       removeListener: vi.fn(),
@@ -139,10 +145,15 @@ export function createPtyIpcSuiteEnvironment(): PtyIpcSuiteEnvironment {
     readFileSyncMock.mockReset()
     writeFileSyncMock.mockReset()
     chmodSyncMock.mockReset()
+    linuxCliShimMock.mockReset()
+    linuxCliShimMock.mockImplementation((options: { userDataPath: string }) =>
+      join(options.userDataPath, 'linux-orca-cli-shim')
+    )
     getPathMock.mockReset()
     loginPreflightExecFileMock.mockReset()
     spawnMock.mockReset()
     openCodeBuildPtyEnvMock.mockReset()
+    openCode2BuildPtyEnvMock.mockReset()
     mimoCodeBuildPtyEnvMock.mockReset()
     openCodeClearPtyMock.mockReset()
     buildAgentHookEnvMock.mockReset()
@@ -212,6 +223,14 @@ export function createPtyIpcSuiteEnvironment(): PtyIpcSuiteEnvironment {
         ? '/tmp/orca-opencode-overlay'
         : '/tmp/orca-opencode-config'
     }))
+    openCode2BuildPtyEnvMock.mockImplementation((_ptyId: string, existingConfigDir?: string) => ({
+      ORCA_OPENCODE_HOOK_PORT: '4567',
+      ORCA_OPENCODE_HOOK_TOKEN: 'opencode2-token',
+      ORCA_OPENCODE_PTY_ID: 'test-pty',
+      OPENCODE_CONFIG_DIR: existingConfigDir
+        ? '/tmp/orca-opencode2-overlay'
+        : '/tmp/orca-opencode2-config'
+    }))
     mimoCodeBuildPtyEnvMock.mockImplementation((_ptyId: string, existingHome?: string) => ({
       MIMOCODE_HOME: existingHome ? '/tmp/orca-mimocode-overlay' : '/tmp/orca-mimocode-shared'
     }))
@@ -272,21 +291,6 @@ export function createPtyIpcSuiteEnvironment(): PtyIpcSuiteEnvironment {
     _resetLocalPtyProviderStateForTest()
     _resetWslCachesForTests()
     vi.useRealTimers()
-    // Why: sshProviders is module-level state; a leftover id leaks into later tests (pty:listSessions sweeps every provider).
-    for (const leakedConnectionId of [
-      'ssh-1',
-      'ssh-a',
-      'ssh-b',
-      'ssh-expired-runtime',
-      'ssh-fresh-fail',
-      'ssh-reattach-1',
-      'ssh-reattach-fail',
-      'ssh-reattach-ok',
-      'ssh-runtime-env',
-      'ssh-generation-replacement'
-    ]) {
-      unregisterSshPtyProvider(leakedConnectionId)
-    }
     setLocalPtyProvider(new LocalPtyProvider())
     envScope.restoreProcessEnv()
   })

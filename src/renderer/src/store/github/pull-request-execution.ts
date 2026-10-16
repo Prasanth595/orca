@@ -1,4 +1,5 @@
 import type { StateCreator } from 'zustand'
+import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
 import type { AppState } from '../types'
 import type { GitHubSlice } from './slice-types'
 import type { Repo } from '../../../../shared/repo-types'
@@ -35,6 +36,7 @@ export function startPullRequestLookup(args: {
   repo: Repo | undefined
   repoId: string | undefined
   requestSettings: AppState['settings']
+  requestTarget: RuntimeClientTarget
   cacheKey: string
   cached: CacheEntry<PRInfo> | undefined
   linkedPRNumber: number | null
@@ -54,6 +56,7 @@ export function startPullRequestLookup(args: {
     repo,
     repoId,
     requestSettings,
+    requestTarget,
     cacheKey,
     cached,
     linkedPRNumber,
@@ -66,7 +69,7 @@ export function startPullRequestLookup(args: {
   } = args
   const request = (async () => {
     try {
-      const runtimeRepo = getRuntimeRepoTarget(get(), repoPath, requestSettings)
+      const runtimeRepo = getRuntimeRepoTarget(get(), repoPath, requestTarget)
       const candidateWorktree = options?.worktreeId
         ? findWorktreeById(get(), options.worktreeId)
         : null
@@ -80,6 +83,7 @@ export function startPullRequestLookup(args: {
               branch,
               linkedPRNumber,
               currentHeadOid: requestHeadOid,
+              ...(options?.reason ? { reason: options.reason } : {}),
               ...(fallbackPRNumber !== null
                 ? { fallbackPRNumber, acceptMergedFallbackPR: fallbackPRSource !== null }
                 : {})
@@ -101,6 +105,8 @@ export function startPullRequestLookup(args: {
               connectionId: repo?.connectionId ?? null,
               executionHostId: repo?.executionHostId ?? null,
               cachedFetchedAt: cached?.fetchedAt ?? null,
+              cachedHeadOid: cached?.fetchedHeadOid ?? cached?.data?.headSha ?? null,
+              isSelected: options?.worktreeId === get().activeWorktreeId,
               cachedHasPR: cached?.data ? true : cached ? false : null,
               cachedPRState: cached?.data?.state ?? null,
               cachedChecksStatus: cached?.data?.checksStatus ?? null,
@@ -108,7 +114,10 @@ export function startPullRequestLookup(args: {
               cachedMergeStateStatus: cached?.data?.mergeStateStatus ?? null
             }
             const response = window.api.gh.refreshPRNow
-              ? await window.api.gh.refreshPRNow({ candidate })
+              ? await window.api.gh.refreshPRNow({
+                  candidate,
+                  reason: options?.reason ?? 'manual'
+                })
               : await window.api.gh.prForBranch({
                   repoPath,
                   repoId,
@@ -149,7 +158,7 @@ export function startPullRequestLookup(args: {
           // Why: unlinking a PR mid exact-linked-PR-lookup must stop the older result from restoring the manual link UI.
           if (isStaleExactLinkedPRLookup(s, options?.worktreeId, linkedPRNumber)) {
             skippedStaleLinkedPRLookup = true
-            return {}
+            return s
           }
           const updates = setGitHubPRResultCaches(s, {
             prCacheKey: cacheKey,
@@ -162,6 +171,8 @@ export function startPullRequestLookup(args: {
             hasRepoOwner: repo !== undefined,
             pr,
             fetchedAt: outcome.fetchedAt,
+            rejectedPRUrls: outcome.kind === 'no-pr' ? outcome.rejectedPRUrls : undefined,
+            fetchedHeadOid: requestHeadOid,
             worktreeId: options?.worktreeId,
             linkedPRNumber,
             fallbackPRNumber,
@@ -170,7 +181,7 @@ export function startPullRequestLookup(args: {
             requestStartedEntry: requestStartedHostedReviewEntry
           })
           didUpdatePRCache = updates.prCache !== undefined
-          return updates
+          return updates.prCache || updates.hostedReviewCache ? updates : s
         })
         if (skippedStaleLinkedPRLookup) {
           return null
@@ -248,7 +259,8 @@ export function startPullRequestLookup(args: {
           void get().fetchPRForBranch(repoPath, branch, {
             force: true,
             repoId,
-            worktreeId: options.worktreeId
+            worktreeId: options.worktreeId,
+            reason: options.reason
           })
         }
       }
@@ -259,8 +271,7 @@ export function startPullRequestLookup(args: {
           state: get(),
           worktreeId: options?.worktreeId,
           linkedPRNumber,
-          fallbackPRNumber,
-          fallbackPRSource
+          rejectedPRUrls: outcome.kind === 'no-pr' ? outcome.rejectedPRUrls : undefined
         })
       ) {
         return get().prCache[cacheKey]?.data ?? null

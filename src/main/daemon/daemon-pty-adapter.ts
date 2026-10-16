@@ -1,8 +1,69 @@
+import { emitPtyListeners, createPtyExitPayload } from './daemon-pty-listener-emission'
 import { DaemonPtyDaemonRecovery } from './daemon-pty-daemon-recovery'
 import { supportsMode2031UnsubscribeFact, type DaemonEvent } from './types'
-import type { IPtyProvider } from '../providers/types'
+import type { DaemonEndpointIdentity } from './daemon-hello-protocol'
+import type { IPtyProvider } from '../providers/pty-provider-contract'
+import type { DeveloperPermissionStatus } from '../../shared/developer-permissions-types'
+import {
+  AUTOMATIC_WORK_RESUME_UNSUPPORTED,
+  type AutomaticWorkResumeOutcome,
+  type AutomaticWorkResumeResult,
+  type AutomaticWorkStatus
+} from '../../shared/host-spawn-admission'
+import { isUnknownRequestTypeError } from './daemon-endpoint-errors'
+import type { AutomaticWorkRequestType } from './daemon-automatic-work-protocol'
+import type { DaemonAsyncIoStatus } from '../../shared/daemon-async-io-health'
 
 export class DaemonPtyAdapter extends DaemonPtyDaemonRecovery implements IPtyProvider {
+  async getAsyncIoHealth(): Promise<DaemonAsyncIoStatus> {
+    if (!this.client.isConnected()) {
+      return { state: 'unverifiable' }
+    }
+    try {
+      const health = await this.client.request<unknown>('asyncIoHealth', undefined, 7_000)
+      if (
+        health &&
+        typeof health === 'object' &&
+        'state' in health &&
+        (health.state === 'healthy' || health.state === 'stalled') &&
+        'pendingMs' in health &&
+        typeof health.pendingMs === 'number' &&
+        Number.isFinite(health.pendingMs) &&
+        health.pendingMs >= 0
+      ) {
+        return { state: health.state, pendingMs: health.pendingMs }
+      }
+    } catch (error) {
+      if (isUnknownRequestTypeError(error)) {
+        return { state: 'unsupported' }
+      }
+    }
+    return { state: 'unverifiable' }
+  }
+
+  async getFullDiskAccessStatus(): Promise<DeveloperPermissionStatus> {
+    if (!this.client.isConnected()) {
+      return 'unknown'
+    }
+    try {
+      const result = await this.client.request<unknown>('fullDiskAccessStatus', undefined, 3000)
+      if (result && typeof result === 'object' && 'status' in result) {
+        const { status } = result
+        if (status === 'granted' || status === 'denied' || status === 'unsupported') {
+          return status
+        }
+      }
+    } catch {
+      // Older daemons and lost host contact cannot establish a permission verdict.
+    }
+    return 'unknown'
+  }
+
+  /** Identity of the daemon behind this adapter; null until hello completes or after a disconnect. */
+  getDaemonIdentity(): DaemonEndpointIdentity | null {
+    return this.client.getDaemonIdentity()
+  }
+
   protected setupEventRouting(): void {
     if (this.removeEventListener) {
       return
@@ -16,8 +77,7 @@ export class DaemonPtyAdapter extends DaemonPtyDaemonRecovery implements IPtyPro
 
       if (event.event === 'data') {
         this.markSessionDirty(event.sessionId)
-        // oxlint-disable-next-line unicorn/no-useless-spread -- copy-safe: listeners may unsubscribe during iteration
-        for (const listener of [...this.dataListeners]) {
+        emitPtyListeners(this.dataListeners, (listener) =>
           listener({
             id: event.sessionId,
             data: event.payload.data,
@@ -27,7 +87,7 @@ export class DaemonPtyAdapter extends DaemonPtyDaemonRecovery implements IPtyPro
             ...(event.payload.transformed ? { transformed: true } : {}),
             ...(event.payload.seq === undefined ? {} : { seq: event.payload.seq })
           })
-        }
+        )
       } else if (event.event === 'sessionBackgroundMarker') {
         this.emitBackgroundStreamEvent({
           id: event.sessionId,
@@ -64,6 +124,7 @@ export class DaemonPtyAdapter extends DaemonPtyDaemonRecovery implements IPtyPro
           fact: event.payload
         })
       } else if (event.event === 'exit') {
+        const currentIncarnationId = this.sessionIncarnations.get(event.sessionId)
         const pendingOperations = new Set([
           ...(this.pendingSpawnOperationsBySessionId.get(event.sessionId) ?? []),
           ...this.pendingClaimSpawnOperations
@@ -75,54 +136,56 @@ export class DaemonPtyAdapter extends DaemonPtyDaemonRecovery implements IPtyPro
           }
           const exits = operation.exitsBySessionId.get(event.sessionId) ?? []
           exits.push(
-            event.payload.incarnationId ? { incarnationId: event.payload.incarnationId } : {}
+            event.payload.incarnationId
+              ? { code: event.payload.code, incarnationId: event.payload.incarnationId }
+              : { code: event.payload.code }
           )
           operation.exitsBySessionId.set(event.sessionId, exits)
         }
-        const currentIncarnationId = this.sessionIncarnations.get(event.sessionId)
+        // Keep a raced exit available to the in-flight spawn even when the
+        // adapter still remembers the predecessor's generation. Only the
+        // generation currently published by this adapter may clear state or
+        // notify listeners.
         if (
-          event.payload.incarnationId &&
-          currentIncarnationId &&
+          currentIncarnationId !== undefined &&
           event.payload.incarnationId !== currentIncarnationId
         ) {
           return
         }
-        this.activeSessionIds.delete(event.sessionId)
-        this.clearSessionAwaitingDaemonRecovery(event.sessionId)
-        this.dirtySessionVersions.delete(event.sessionId)
-        this.pausedProducerSessionIds.delete(event.sessionId)
-        this.producerResumesOwedOnReconnect.delete(event.sessionId)
-        this.backgroundedSessionIds.delete(event.sessionId)
-        if (!this.sleepRestoreSessionIds.has(event.sessionId)) {
-          this.coldRestoreCache.delete(event.sessionId)
-        }
-        this.sessionsNeedingFullCheckpoint.delete(event.sessionId)
-        this.sessionsNeedingLiveCheckpoint.delete(event.sessionId)
-        this.sessionsNeedingContinuityCheckpoint.delete(event.sessionId)
-        this.overlayDeadlineWarnedSessionIds.delete(event.sessionId)
-        this.periodicDeadlineWarnedSessionIds.delete(event.sessionId)
-        this.nonFinalAdmissionDeniedSessionIds.delete(event.sessionId)
-        this.lastFullCheckpointAt.delete(event.sessionId)
-        this.stopCheckpointTimerIfIdle()
-        if (this.historyManager) {
-          void this.historyManager
-            .closeSession(event.sessionId, event.payload.code)
-            .catch((err) => console.warn('[history] closeSession failed:', event.sessionId, err))
-        }
-        this.initialCwds.delete(event.sessionId)
-        this.wslDistrosBySessionId.delete(event.sessionId)
-        this.sessionIncarnations.delete(event.sessionId)
-        // oxlint-disable-next-line unicorn/no-useless-spread -- copy-safe: listeners may unsubscribe during iteration
-        for (const listener of [...this.exitListeners]) {
-          listener({
-            id: event.sessionId,
-            code: event.payload.code,
-            ...(event.payload.incarnationId ? { incarnationId: event.payload.incarnationId } : {}),
-            ...(event.payload.cause ? { cause: event.payload.cause } : {})
-          })
-        }
+        this.clearExitedSessionState(
+          event.sessionId,
+          event.payload.code,
+          event.payload.incarnationId
+        )
+        emitPtyListeners(this.exitListeners, (listener) =>
+          listener(createPtyExitPayload(event.sessionId, event.payload))
+        )
       }
     })
+  }
+
+  async getAutomaticWorkStatus(): Promise<AutomaticWorkStatus | null> {
+    const status = await this.requestAutomaticWork<AutomaticWorkStatus>('automaticWorkStatus')
+    return status === AUTOMATIC_WORK_RESUME_UNSUPPORTED ? null : status
+  }
+
+  resumeAutomaticWork(): Promise<AutomaticWorkResumeOutcome> {
+    return this.requestAutomaticWork<AutomaticWorkResumeResult>('resumeAutomaticWork')
+  }
+
+  private async requestAutomaticWork<T>(
+    type: AutomaticWorkRequestType
+  ): Promise<T | typeof AUTOMATIC_WORK_RESUME_UNSUPPORTED> {
+    await this.ensureConnected()
+    try {
+      return await this.client.request<T>(type, undefined)
+    } catch (error) {
+      // Why not "no gate": a daemon from before these requests may still hold a recorded pause.
+      if (isUnknownRequestTypeError(error)) {
+        return AUTOMATIC_WORK_RESUME_UNSUPPORTED
+      }
+      throw error
+    }
   }
 
   async closeStartupQueryAuthority(id: string): Promise<number> {

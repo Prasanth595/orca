@@ -13,6 +13,7 @@ import {
   type WslProcessGroupTermination
 } from '../wsl-process-group-termination'
 import { translateArgForWsl, translateArgsForWsl } from './wsl-path-translation'
+import { resolveWslInteropSpawnCwd } from '../../wsl-interop-spawn-directory'
 
 // Env-assignment prefix for WSL-routed git, where spawn env can't cross the wsl.exe boundary; values are shell-safe unquoted.
 const GIT_OUTPUT_LOCALE_SHELL_PREFIX = Object.entries(UNTRANSLATED_GIT_OUTPUT_ENV)
@@ -21,6 +22,25 @@ const GIT_OUTPUT_LOCALE_SHELL_PREFIX = Object.entries(UNTRANSLATED_GIT_OUTPUT_EN
 const GIT_OUTPUT_LOCALE_ENV_ARGS = Object.entries(UNTRANSLATED_GIT_OUTPUT_ENV).map(
   ([key, value]) => `${key}=${value}`
 )
+
+// Why on the command string: a login profile runs first and could replace WSLENV-forwarded values;
+// alternates append to whatever the profile set, as Git's own scratch object stores do.
+function wslGitObjectStorePrefix(env: NodeJS.ProcessEnv | undefined): string {
+  const objectDirectory = env?.GIT_OBJECT_DIRECTORY
+  const alternates = env?.GIT_ALTERNATE_OBJECT_DIRECTORIES
+  // Why compare with process.env: only a quarantine's own values, never a Windows-side inherited one.
+  if (
+    objectDirectory === undefined ||
+    alternates === undefined ||
+    objectDirectory === process.env.GIT_OBJECT_DIRECTORY
+  ) {
+    return ''
+  }
+  return (
+    `GIT_OBJECT_DIRECTORY=${quotePosixShell(objectDirectory)} ` +
+    `GIT_ALTERNATE_OBJECT_DIRECTORIES="\${GIT_ALTERNATE_OBJECT_DIRECTORIES:+$GIT_ALTERNATE_OBJECT_DIRECTORIES:}"${quotePosixShell(alternates)} `
+  )
+}
 
 export type ResolvedCommand = {
   binary: string
@@ -66,6 +86,14 @@ export function resolveCommand(
     wslGitReadEnvironment?: WslGitReadEnvironment
     env?: NodeJS.ProcessEnv
     terminationBarrier?: boolean
+    /** Pre-quoted shell expression that names the program inside WSL, replacing `command`. */
+    wslShellCommand?: string
+    /**
+     * Exit with this code when the `cd` fails, instead of letting `&&` swallow it as the shell's
+     * own exit 1. Why: ripgrep also exits 1 for "no matches", so an unreachable workspace would
+     * otherwise be indistinguishable from an empty result.
+     */
+    cwdFailureExitCode?: number
   } = {}
 ): ResolvedCommand {
   if (process.platform !== 'win32') {
@@ -83,15 +111,22 @@ export function resolveCommand(
 
   const translatedArgs = translateArgsForWsl(args)
   // Why: env on wsl.exe stays Windows-side (WSLENV forwards only named vars), so the locale must ride the command string (issue #7808).
-  const localePrefix = command === 'git' ? `${GIT_OUTPUT_LOCALE_SHELL_PREFIX} ` : ''
-  const escapedCommand = quotePosixShell(command)
+  const localePrefix =
+    command === 'git'
+      ? `${GIT_OUTPUT_LOCALE_SHELL_PREFIX} ${wslGitObjectStorePrefix(options.env)}`
+      : ''
+  const escapedCommand = options.wslShellCommand ?? quotePosixShell(command)
   // Why: shell-escape each arg to prevent word splitting / glob expansion inside the bash -c string.
   const escapedArgs = translatedArgs.map(quotePosixShell)
   // Why: prepend `cd <linuxPath> &&` for a UNC cwd; skip it when only a distro override was given (global gh needs no cwd).
   const linuxCwd = cwdWsl?.linuxPath ?? (cwd && wslDistroOverride ? translateArgForWsl(cwd) : null)
-  const shellCmd = linuxCwd
-    ? `cd ${quotePosixShell(linuxCwd)} && ${localePrefix}${escapedCommand} ${escapedArgs.join(' ')}`
-    : `${localePrefix}${escapedCommand} ${escapedArgs.join(' ')}`
+  const invocation = `${localePrefix}${escapedCommand} ${escapedArgs.join(' ')}`
+  const enterCwd = linuxCwd
+    ? options.cwdFailureExitCode === undefined
+      ? `cd ${quotePosixShell(linuxCwd)} && `
+      : `cd ${quotePosixShell(linuxCwd)} || exit ${Math.trunc(options.cwdFailureExitCode)}; `
+    : ''
+  const shellCmd = `${enterCwd}${invocation}`
 
   if (command === 'git' && options.wslGitReadEnvironment) {
     const optionalLocks = options.env?.GIT_OPTIONAL_LOCKS
@@ -111,7 +146,7 @@ export function resolveCommand(
           ...(linuxCwd ? ['-C', linuxCwd] : []),
           ...translatedArgs
         ],
-        cwd: undefined,
+        cwd: resolveWslInteropSpawnCwd(),
         wsl,
         wslMode: 'direct-git'
       },
@@ -130,7 +165,7 @@ export function resolveCommand(
         {
           binary: 'wsl.exe',
           args: buildWslExecArgs(wsl.distro, ['sh', '-lc', captured.command]),
-          cwd: undefined,
+          cwd: resolveWslInteropSpawnCwd(),
           wsl,
           wslMode: 'login-shell',
           captured
@@ -142,7 +177,7 @@ export function resolveCommand(
       {
         binary: 'wsl.exe',
         args: buildWslExecArgs(wsl.distro, ['sh', '-lc', buildWslLoginShellCommand(shellCmd)]),
-        cwd: undefined,
+        cwd: resolveWslInteropSpawnCwd(),
         wsl,
         wslMode: 'login-shell'
       },
@@ -154,8 +189,11 @@ export function resolveCommand(
     {
       binary: 'wsl.exe',
       args: buildWslExecArgs(wsl.distro, ['bash', '-c', shellCmd]),
-      // Why: the `cd` inside bash -c handles the directory; a UNC cwd on the Node process is redundant and can break Node internals.
-      cwd: undefined,
+      // Why: the `cd` inside bash -c handles the Linux directory. This names an
+      // explicit Windows directory anyway, because `undefined` makes
+      // CreateProcessW inherit the parent's — which is a deletable WSL UNC path
+      // when Orca was launched from a worktree (#16463).
+      cwd: resolveWslInteropSpawnCwd(),
       wsl,
       wslMode: 'non-login-shell'
     },

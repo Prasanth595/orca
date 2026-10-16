@@ -1,3 +1,4 @@
+import '../runtime/rpc/unused-default-rpc-methods.test-fixture'
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import type * as NodeOs from 'node:os'
 
@@ -36,7 +37,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { registerMobileHandlers } from './mobile'
 import { NETWORK_EXPOSURE_FAILED_GUIDANCE } from '../runtime/network-exposure-guidance'
-import { OrcaRuntimeService } from '../runtime/orca-runtime'
+import { createMobileRpcSurfaceRuntime } from '../runtime/runtime-rpc-mobile-method-allowlist-fixtures'
 import { OrcaRuntimeRpcServer } from '../runtime/runtime-rpc'
 import { WebSocketTransport } from '../runtime/rpc/ws-transport'
 
@@ -742,9 +743,26 @@ describe('registerMobileHandlers', () => {
   })
 
   it('reports the current relay broker status without exposing a toggle', () => {
-    registerMobileHandlers({} as never, { getRelayStatus: () => 'registered' })
+    registerMobileHandlers({} as never, { getRelayStatus: () => ({ status: 'registered' }) })
 
     expect(handlers.get('mobile:getRelayStatus')?.()).toEqual({ status: 'registered' })
+  })
+
+  it('reports the assigned relay cell alongside the status', () => {
+    registerMobileHandlers({} as never, {
+      getRelayStatus: () => ({ status: 'registered', cellUrl: 'https://c27.relay.example.com' })
+    })
+
+    expect(handlers.get('mobile:getRelayStatus')?.()).toEqual({
+      status: 'registered',
+      cellUrl: 'https://c27.relay.example.com'
+    })
+  })
+
+  it('falls back to offline with no cell when no relay status provider is wired', () => {
+    registerMobileHandlers({} as never, {})
+
+    expect(handlers.get('mobile:getRelayStatus')?.()).toEqual({ status: 'offline' })
   })
 
   it('consumes a pending auth-failure notification only from a window renderer', () => {
@@ -829,8 +847,7 @@ describe('runtime pairing bind host', () => {
   beforeEach(() => {
     handlers.clear()
     handleMock.mockReset()
-    networkInterfacesMock.mockReset()
-    networkInterfacesMock.mockReturnValue({})
+    networkInterfacesMock.mockReset().mockReturnValue({})
     handleMock.mockImplementation((channel: string, handler: (...args: unknown[]) => unknown) => {
       handlers.set(channel, handler)
     })
@@ -838,7 +855,8 @@ describe('runtime pairing bind host', () => {
 
   const startServer = async (userDataPath: string): Promise<OrcaRuntimeRpcServer> => {
     const server = new OrcaRuntimeRpcServer({
-      runtime: new OrcaRuntimeService(),
+      methods: [],
+      runtime: createMobileRpcSurfaceRuntime().runtime,
       userDataPath,
       enableWebSocket: true,
       wsPort: 0

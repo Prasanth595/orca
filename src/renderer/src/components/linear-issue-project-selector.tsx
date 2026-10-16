@@ -6,11 +6,13 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useMountedRef } from '@/hooks/useMountedRef'
 import { translate } from '@/i18n/i18n'
 import { getLinearProjectSearchRequestQuery } from '@/components/linear-project-search-query'
-import { linearListProjects, linearUpdateIssue } from '@/runtime/runtime-linear-client'
+import { linearUpdateIssue } from '@/runtime/runtime-linear-issue-mutations'
+import { linearListProjects } from '@/runtime/runtime-linear-project-client'
 import { useAppStore } from '@/store'
 import type { LinearIssue } from '../../../shared/linear/issue-types'
 import type { LinearProjectSummary } from '../../../shared/linear/project-types'
 import type { TaskSourceContext } from '../../../shared/task-source-context'
+import { defaultScopeSource } from '@/lib/default-creation-host'
 
 export function LinearIssueProjectSelector({
   issue,
@@ -22,7 +24,7 @@ export function LinearIssueProjectSelector({
   sourceContext?: TaskSourceContext | null
 }): React.JSX.Element {
   const settings = useAppStore((state) => state.settings)
-  const providerSettings = sourceContext ?? settings
+  const providerSettings = sourceContext ?? defaultScopeSource(settings)
   const patchLinearIssue = useAppStore((state) => state.patchLinearIssue)
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')

@@ -4,17 +4,19 @@ import type { Project } from '../../../../shared/project-types'
 import { callRuntimeRpc } from '../../runtime/runtime-rpc-client'
 import { notifyInstalledAgentSkillsChanged } from '@/hooks/installed-agent-skill-discovery'
 import type { RepoSlice } from '../repos/repo-state'
-import { getProjectUpdateRuntimeTarget } from './project-host-routing'
-import { mergeUpdatedProjectCompatibilityProject } from './project-compatibility-core'
+import { getProjectSetupRuntimeTarget } from './project-host-routing'
+import { mergeUpdatedProjectCompatibilityProject } from '../../../../shared/project-compatibility-merge'
+import { normalizeProjectRow } from '../../../../shared/project-catalog-row-normalization'
 
 export function createProjectUpdateActions(
   set: Parameters<StateCreator<AppState>>[0],
   get: Parameters<StateCreator<AppState>>[1]
 ): Pick<RepoSlice, 'updateProject'> {
   return {
-    updateProject: async (projectId, updates) => {
+    updateProject: async (projectId, updates, hostId) => {
       try {
-        const target = getProjectUpdateRuntimeTarget(get(), projectId)
+        // Why: the caller names the host whose project row it edits; focus never picks it.
+        const target = getProjectSetupRuntimeTarget(hostId)
         const updatedProject =
           target.kind === 'local'
             ? await window.api.projects.update({ projectId, updates })
@@ -29,11 +31,13 @@ export function createProjectUpdateActions(
         if (!updatedProject) {
           return false
         }
+        // Why: the merge spreads updatedProject.sourceRepoIds, which throws if the host sent a non-array.
+        const normalizedProject = normalizeProjectRow(updatedProject)
         const runtimePreferenceChanged = 'localWindowsRuntimePreference' in updates
         set((state) => ({
           projects: state.projects.map((project) =>
             project.id === projectId
-              ? mergeUpdatedProjectCompatibilityProject(project, updatedProject, updates)
+              ? mergeUpdatedProjectCompatibilityProject(project, normalizedProject, updates)
               : project
           ),
           folderWorkspacePathStatuses: {}
