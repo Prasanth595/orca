@@ -38,7 +38,6 @@ export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttach
     setTerminals,
     terminalsRef,
     setSessionTabs,
-    sessionTabsRef,
     defaultTerminalHandlesToLiveInput,
     setActiveHandle,
     activeSessionTabId,
@@ -128,7 +127,7 @@ export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttach
           activeSessionTabId,
           pendingSelectionRef,
           fetchSessionTabs,
-          getSessionTabs: () => sessionTabsRef.current,
+          getSessionTabs: () => scope.sessionTabsRef.current,
           showToast,
           reportCreateFailure,
           setCreateError
@@ -195,6 +194,9 @@ export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttach
       const prev = activeHandleRef.current
       if (prev) {
         unsubscribeTerminal(prev)
+      }
+      if (sourceFork) {
+        scope.nativeChatController.setTabView(created.id, 'terminal')
       }
       pendingSelectionRef.current = { kind: 'tab', tabId: created.id }
       activeSessionTabTypeRef.current = 'terminal'

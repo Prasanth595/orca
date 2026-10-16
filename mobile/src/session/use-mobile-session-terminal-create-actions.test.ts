@@ -1,5 +1,7 @@
 import { launchedSelection, type PendingSessionSelection } from './pending-session-selection'
 import { createElement } from 'react'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { useMobileNativeChatActiveResolution } from './use-mobile-native-chat-active-resolution'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { RpcClient } from '../transport/rpc-client'
@@ -12,6 +14,14 @@ import type { MobileSessionTab } from './mobile-session-route-types'
 
 type PlacementTab = { id: string; parentTabId?: string }
 type PlacementUpdater = (previous: PlacementTab[]) => PlacementTab[]
+
+vi.mock('@react-native-async-storage/async-storage', () => ({
+  default: { getItem: vi.fn(), setItem: vi.fn() }
+}))
+vi.mock('expo-router', async () => {
+  const { useEffect } = await import('react')
+  return { useFocusEffect: (callback: () => () => void) => useEffect(callback, [callback]) }
+})
 
 vi.mock('../platform/haptics', () => ({
   triggerSuccess: vi.fn(),
@@ -52,6 +62,7 @@ function terminalCreateResponse(): RpcResponse {
 function createScope(client: RpcClient) {
   const sessionTabs: MobileSessionTab[] = []
   return {
+    nativeChatController: { setTabView: vi.fn<(tabId: string, view: 'terminal' | 'chat') => void>() },
     hostId: 'host-1',
     worktreeId: 'workspace-1',
     client,
@@ -163,6 +174,7 @@ describe('mobile + Codex tab creation routing', () => {
       expect.objectContaining({ worktree: 'id:workspace-1', agent: 'codex' })
     )
     expect(scope.setActiveSessionTabId).toHaveBeenCalledWith('terminal-tab-1')
+    expect(scope.nativeChatController.setTabView).not.toHaveBeenCalled()
   })
 
   it('falls back to a terminal when structured creation is definitively refused', async () => {
@@ -340,6 +352,62 @@ describe('phone chat CLI fork creation owner', () => {
   let renderer: ReactTestRenderer | undefined
   afterEach(() => renderer?.unmount())
 
+  it('lands the CLI fork in terminal under a chat default, retaining later user choices', async () => {
+    const stored = new Map([['orca:defaultSessionView', 'chat']])
+    vi.mocked(AsyncStorage.getItem).mockImplementation(async (key) => stored.get(key) ?? null)
+    vi.mocked(AsyncStorage.setItem).mockImplementation(async (key, value) => {
+      stored.set(key, value)
+    })
+    const scope = createScope(clientReturning(terminalCreateResponse()))
+    scope.hostCapabilities = [SESSION_TABS_CHAT_FORK_CLI_RUNTIME_CAPABILITY]
+    scope.sessionTabsRef.current = [
+      {
+        type: 'agent-session',
+        id: 'chat-tab',
+        title: 'Chat',
+        sessionId: 'chat-1',
+        agent: 'claude',
+        isActive: true
+      }
+    ]
+    scope.setActiveSessionTabId.mockImplementation((id: string) => {
+      scope.activeSessionTabId = id
+    })
+    let actions: ReturnType<typeof useMobileSessionTerminalCreateActions> | undefined
+    let resolution: ReturnType<typeof useMobileNativeChatActiveResolution> | undefined
+    function Harness() {
+      resolution = useMobileNativeChatActiveResolution({
+        ...scope,
+        activeSessionTab: { type: 'terminal', launchAgent: 'claude' },
+        nativeChatTranscriptIsLocalReadable: true
+      })
+      scope.nativeChatController.setTabView.mockImplementation(resolution.setTabView)
+      actions = useMobileSessionTerminalCreateActions(scope as never)
+      return null
+    }
+    await act(async () => {
+      renderer = create(createElement(Harness))
+    })
+    expect(resolution?.showNativeChat).toBe(true)
+    await act(async () => {
+      await actions?.handleCreateTerminal(undefined, {
+        sourceChatFork: { sessionId: 'chat-1', agent: 'claude' }
+      })
+    })
+    expect(scope.setActiveSessionTabId).toHaveBeenCalledWith('terminal-tab-1')
+    expect(resolution?.showNativeChat).toBe(false)
+    await act(async () => {
+      renderer?.unmount()
+      renderer = create(createElement(Harness))
+    })
+    expect(resolution?.showNativeChat).toBe(false)
+    await act(async () => {
+      resolution?.toggleTabChatView('terminal-tab-1')
+    })
+    expect(resolution?.showNativeChat).toBe(true)
+    expect(resolution?.isTabChatView('ordinary-tab')).toBe(true)
+  })
+
   it('reports a busy create before sending the chat intent', async () => {
     const scope = createScope(clientReturning())
     scope.hostCapabilities = [SESSION_TABS_CHAT_FORK_CLI_RUNTIME_CAPABILITY]
@@ -369,6 +437,7 @@ describe('phone chat CLI fork creation owner', () => {
       })
     })
     expect(outcome).toBe('busy')
+    expect(scope.nativeChatController.setTabView).not.toHaveBeenCalled()
     expect(scope.client.sendRequest).not.toHaveBeenCalled()
     expect(scope.showToast).toHaveBeenCalledWith(expect.stringContaining('Another terminal'), 3000)
   })
@@ -422,6 +491,7 @@ describe('phone chat CLI fork creation owner', () => {
       reply(terminalCreateResponse())
       await pending
     })
+    expect(scope.nativeChatController.setTabView).not.toHaveBeenCalled()
     expect(scope.unsubscribeTerminal).not.toHaveBeenCalled()
     expect(scope.setActiveSessionTabId).not.toHaveBeenCalled()
     expect(scope.subscribeToTerminal).not.toHaveBeenCalled()

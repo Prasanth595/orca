@@ -105,6 +105,9 @@ const structured = {
 vi.mock('../use-mobile-session-view-mode', () => ({
   useMobileSessionViewMode: () => ({
     isTabChatView: () => visible.value,
+    setTabView: (_tabId: string, view: 'terminal' | 'chat') => {
+      visible.value = view === 'chat'
+    },
     toggleTabChatView: () => {
       visible.value = !visible.value
     }
