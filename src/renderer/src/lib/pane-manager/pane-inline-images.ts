@@ -10,6 +10,7 @@ import {
   rearmTerminalImageAddonLoad,
   setTerminalImageAddonLoadHandlers
 } from './terminal-image-addon-loader'
+import { attachImageCursorAdvance } from './terminal-image-cursor-advance'
 import { buildInlineImageAddonOptions } from './terminal-inline-image-options'
 
 // Panes whose setting is on but that opened before the lazy addon chunk
@@ -66,9 +67,12 @@ export function attachInlineImages(pane: ManagedPaneInternal): void {
     imageAddon = new ImageAddonConstructor(options)
     pane.terminal.loadAddon(imageAddon)
     pane.imageAddon = imageAddon
+    pane.imageCursorAdvanceDisposable = attachImageCursorAdvance(pane.terminal, imageAddon)
     terminalsRenderingInlineImages.add(pane.terminal)
   } catch (err) {
     console.warn('[terminal] inline-image addon failed to attach for pane', pane.id, err)
+    pane.imageCursorAdvanceDisposable?.dispose()
+    pane.imageCursorAdvanceDisposable = null
     try {
       imageAddon?.dispose()
     } catch {
@@ -85,6 +89,8 @@ export function detachInlineImages(pane: ManagedPaneInternal): void {
   panesAwaitingImageAddon.delete(pane)
   pane.imageAttachmentDeferred = false
   terminalsRenderingInlineImages.delete(pane.terminal)
+  pane.imageCursorAdvanceDisposable?.dispose()
+  pane.imageCursorAdvanceDisposable = null
   if (pane.imageAddon) {
     try {
       pane.imageAddon.dispose()
