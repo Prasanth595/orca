@@ -12,11 +12,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computeAgentLaunchFingerprint } from '../../../../shared/agent-launch-operation'
 import type { AgentSessionRecordStore } from '../../agent-session-record-store'
 import { openTestAgentSessionRecordStore } from '../../agent-session-record-store-test-harness'
-import { setStructuredAgentSessionHost } from '../../../native-chat/agent-session-wire/structured-agent-session-registry'
-import type { StructuredAgentSessionHost } from '../../../native-chat/agent-session-wire/structured-agent-session-host'
 import type { OrcaRuntimeService } from '../../orca-runtime'
 import { RpcDispatcher } from '../dispatcher'
-import { methodNamed, runtimeStub, type AgentLaunchRuntimeStub } from './agent-launch.test-fixture'
+import {
+  methodNamed,
+  runtimeStub,
+  setAgentLaunchRecordStore,
+  type AgentLaunchRuntimeStub
+} from './agent-launch.test-fixture'
 
 vi.mock('./structured-agent-session-create', () => ({
   createStructuredAgentSessionForWorktree: async () => ({
@@ -64,12 +67,11 @@ describe('a launch whose terminal fails', () => {
   beforeEach(async () => {
     directory = await mkdtemp(join(tmpdir(), 'orca-agent-launch-prestart-'))
     store = await openTestAgentSessionRecordStore(directory)
-    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: `deps.store` is the only member `agent.launch` reads, and a member it omits throws on call.
-    setStructuredAgentSessionHost({ deps: { store } } as unknown as StructuredAgentSessionHost)
+    setAgentLaunchRecordStore(store)
   })
 
   afterEach(async () => {
-    setStructuredAgentSessionHost(null)
+    setAgentLaunchRecordStore(null)
     await rm(directory, { recursive: true, force: true })
   })
 
@@ -170,11 +172,21 @@ describe('a launch whose terminal fails', () => {
 
     const response = await replay(runtime, CREATE_LAUNCH)
 
-    expect(runtime.createTerminal).toHaveBeenCalledTimes(1)
+    expect(runtime.createTerminal).toHaveBeenNthCalledWith(
+      1,
+      'id:wt-new',
+      expect.objectContaining({ startupAgent: 'claude' })
+    )
+    expect(runtime.createTerminal).toHaveBeenNthCalledWith(2, 'id:wt-new', {
+      surfaceOwner: false
+    })
     expect(response).toMatchObject({
       ok: false,
       error: { code: 'agent_session_operation_unknown' }
     })
+    expect(await replay(runtime, CREATE_LAUNCH)).toMatchObject(response)
+    expect(runtime.createManagedWorktree).toHaveBeenCalledTimes(1)
+    expect(runtime.createTerminal).toHaveBeenCalledTimes(2)
   })
   it.each([
     { ...CREATE_LAUNCH, agent: 'opencode', sessionOptions: { model: 'private-proof/model-b' } },

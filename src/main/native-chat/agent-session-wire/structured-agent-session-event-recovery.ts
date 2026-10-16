@@ -1,5 +1,7 @@
 import { agentSessionFailureFact } from '../../../shared/agent-session-failure'
 import type { StructuredAgentSessionLifecycleEvent } from './structured-agent-session-adapter'
+import { holdUnsentSends } from '../agent-session-journal/journal-unsent-send-hold'
+import { structuredAgentSessionHostInstance } from './structured-agent-session-queued-pause'
 import { stopAgentSessionProviderRoot } from './structured-agent-session-provider-exit-proof'
 import type {
   StructuredAgentSessionHostDeps,
@@ -7,12 +9,17 @@ import type {
   StructuredAgentSessionProviderChild
 } from './structured-agent-session-host-types'
 import type { StructuredAgentSessionSinkBarrier } from './structured-agent-session-event-sink'
-import { settleStructuredAgentSessionProviderStarted } from './structured-agent-session-provider-started'
+import {
+  settleStructuredAgentSessionOptionsReported,
+  settleStructuredAgentSessionOptionsSkipped,
+  settleStructuredAgentSessionProviderStarted
+} from './structured-agent-session-provider-started'
 import {
   endExitedStructuredAgentSessionChildUnderSerialize,
   settleStructuredAgentSessionChildExit,
   type StructuredAgentSessionChildExit,
-  type StructuredAgentSessionChildExitContext
+  type StructuredAgentSessionChildExitContext,
+  type StructuredAgentSessionGenerationEnded
 } from './structured-agent-session-child-exit'
 import type { StructuredAgentSessionHostRuntimeState } from './structured-agent-session-host-runtime-state'
 
@@ -25,12 +32,12 @@ export class StructuredAgentSessionEventRecovery {
       store: StructuredAgentSessionHostDeps['store']
       sessions: Map<string, StructuredAgentSessionHostSession>
       flushLifecycle: (sessionId: string) => Promise<StructuredAgentSessionSinkBarrier>
-      publishFence: (sessionId: string, session: StructuredAgentSessionHostSession) => void
       publishStatus?: (sessionId: string) => void
+      generationEnded: StructuredAgentSessionGenerationEnded
       serialize: <T>(sessionId: string, task: () => Promise<T>) => Promise<T>
       now: () => number
       runtimeState: StructuredAgentSessionHostRuntimeState
-      wakeDelivery: (sessionId: string) => void
+      wakeDelivery: (sessionId: string) => Promise<void>
     }
   ) {}
 
@@ -39,6 +46,18 @@ export class StructuredAgentSessionEventRecovery {
     return {
       ...this.context,
       logger: deps.logger,
+      startupAttempts: runtimeState.startupAttempts,
+      holdUnrunSends: async (sessionId, fence, cause) => {
+        const journal = this.context.sessions.get(sessionId)?.journal
+        if (journal) {
+          await holdUnsentSends(journal, {
+            fence,
+            hostInstance: structuredAgentSessionHostInstance(),
+            hold: { cause },
+            unrun: true
+          })
+        }
+      },
       route: {
         runtimeState,
         acknowledgeRelease: (sessionId) => deps.adapter.acknowledgeSessionRelease?.(sessionId)
@@ -94,6 +113,12 @@ export class StructuredAgentSessionEventRecovery {
   async handle(event: StructuredAgentSessionLifecycleEvent): Promise<void> {
     if (event.type === 'started') {
       return settleStructuredAgentSessionProviderStarted(this.context, event)
+    }
+    if (event.type === 'options-reported') {
+      return settleStructuredAgentSessionOptionsReported(this.context, event)
+    }
+    if (event.type === 'options-skipped') {
+      return settleStructuredAgentSessionOptionsSkipped(this.context, event)
     }
     await settleStructuredAgentSessionChildExit(this.exitContext, event)
   }

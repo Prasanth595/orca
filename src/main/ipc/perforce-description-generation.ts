@@ -4,16 +4,16 @@ import type { CommitMessageDraftContext } from '../../shared/commit-message-gene
 import { buildPerforceDescriptionPrompt as buildPerforcePrompt } from '../../shared/perforce/perforce-description-prompt'
 import { resolvePerforceAiParams } from '../../shared/perforce/perforce-ai-params'
 import { requireRelativePaths } from '../../shared/perforce/perforce-arguments'
-import { getPerforceSettings, resolvePerforceBackend } from '../perforce/perforce-ssh-backend'
+import {
+  getPerforceSettings,
+  PERFORCE_SSH_UNSUPPORTED_MESSAGE,
+  resolvePerforceBackend
+} from '../perforce/perforce-ssh-backend'
 import {
   generateCommitMessageFromContext,
   type GenerateCommitMessageResult
 } from '../text-generation/commit-message-text-generation'
 import { prepareLocalCommitMessageAgentEnv } from '../text-generation/commit-message-agent-environment'
-import {
-  getSshGitProvider,
-  SSH_GIT_PROVIDER_UNAVAILABLE_MESSAGE
-} from '../providers/ssh-git-dispatch'
 import { getLocalGitOptionsForRegisteredWorktree } from './local-worktree-runtime-options'
 import { resolveRegisteredWorktreePath } from './registered-worktree-roots-cache'
 import type { CommitMessageAgentEnvironmentResolvers } from '../text-generation/commit-message-agent-environment'
@@ -71,26 +71,7 @@ export function registerPerforceDescriptionGeneration(
         return { success: false, error: resolved.error }
       }
       if (args.connectionId) {
-        const provider = getSshGitProvider(args.connectionId)
-        if (!provider) {
-          return { success: false, error: SSH_GIT_PROVIDER_UNAVAILABLE_MESSAGE }
-        }
-        const context = await buildContext(args, args.worktreePath).catch(() => null)
-        if (!context) {
-          return { success: false, error: 'Failed to read the changelist diff.' }
-        }
-        return generateCommitMessageFromContext(
-          context,
-          resolved.params,
-          {
-            kind: 'remote',
-            cwd: args.worktreePath,
-            execute: (plan, cwd, timeoutMs, operation) =>
-              provider.executeCommitMessagePlan(plan, cwd, timeoutMs, operation),
-            missingBinaryLocation: 'remote PATH'
-          },
-          prompt(context)
-        )
+        return { success: false, error: PERFORCE_SSH_UNSUPPORTED_MESSAGE }
       }
       const worktreePath = await resolveRegisteredWorktreePath(args.worktreePath, store)
       const gitOptions = getLocalGitOptionsForRegisteredWorktree(

@@ -29,9 +29,15 @@ import {
   pinnedNodeRuntimeAsset
 } from '../../src/shared/node-runtime-pin.ts'
 import { ORCAD_PREBUILDS_DIR } from './build-orcad-prebuilds.mjs'
-import { findSlotProblems, readManifest } from './orcad-prebuild-slot-contents.mjs'
-import { runProcessSync } from './script-child-process.mjs'
+import {
+  COMPAT_SLOT_ADDONS,
+  findCompatAddonGaps,
+  findSlotProblems,
+  readManifest
+} from './orcad-prebuild-slot-contents.mjs'
+import { runProcessSync } from '@orca/process-host'
 import { verifyPackagedOrcadTemplate } from './verify-packaged-orcad-template.cjs'
+import { assertNotLayoutOwnerBuild } from '../layout-owner-build.cjs'
 
 const root = resolve(import.meta.dirname, '../..')
 const outputDir = join(root, 'out', 'orcad-template')
@@ -121,8 +127,8 @@ export function requestedTemplateTargets(argv = process.argv) {
 }
 
 /**
- * A compat target (design D6 rung B) is its base target's package with the compat node-pty
- * slot and runtime marker swapped in; everything else is target-independent or libc-static.
+ * A compat target (design D6 rung B) is its base target's package with the compat slot's addons
+ * and runtime marker swapped in; everything else is target-independent or libc-static.
  * Omitted, not failed, when this build has no compat slot: rung B then refuses as unavailable.
  */
 function stageCompatTarget(compat, basePackageDir) {
@@ -136,12 +142,21 @@ function stageCompatTarget(compat, basePackageDir) {
     return null
   }
   const destination = join(outputDir, ORCAD_TEMPLATE_TARGETS_DIR, compat)
-  const slotFiles = new Map(
-    orcadNodePtySlotFiles(compat).map((file) => [
+  const slotFiles = new Map([
+    ...orcadNodePtySlotFiles(compat).map((file) => [
       `${ORCAD_NODE_PTY_DIR}/build/Release/${file}`,
       join(ORCAD_PREBUILDS_DIR, compat, ...file.split('/'))
+    ]),
+    ...Object.entries(COMPAT_SLOT_ADDONS).map(([file, shipped]) => [
+      shipped,
+      join(ORCAD_PREBUILDS_DIR, compat, ...file.split('/'))
     ])
-  )
+  ])
+  // Why fatal: the base binary would pass every check here and fail only on a compat host.
+  const gaps = findCompatAddonGaps(orcadTemplateTargetFilenames(compat), slotFiles)
+  if (gaps.length > 0) {
+    throw new Error(`compat target ${compat} would ship base-target addons: ${gaps.join(', ')}`)
+  }
   const files = {}
   for (const filename of orcadTemplateTargetFilenames(compat)) {
     const staged = join(destination, ...filename.split('/'))
@@ -165,6 +180,8 @@ function sameBytes(left, right) {
 }
 
 async function main() {
+  // The template is what releases ship as the server; a dark build must never become one.
+  assertNotLayoutOwnerBuild([])
   const templateTargets = requestedTemplateTargets()
   rmSync(buildDir, { recursive: true, force: true })
   const packages = Object.fromEntries(

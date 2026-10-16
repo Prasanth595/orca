@@ -8,6 +8,11 @@ import { getVisibleRightSidebarActivityItems } from './right-sidebar-activity-vi
 import { usePerforceWorkspace } from './perforce/use-perforce-workspace'
 import { getPluginPanelActivityItems } from './plugin-panel-activity-items'
 import {
+  getPortsPanelOwnerKey,
+  portsPanelHostForOwnerKey,
+  portsPanelReachesSshHost
+} from './ports-panel-host'
+import {
   collectInstalledPluginTabKeys,
   usePluginPanels,
   usePluginPanelsStore,
@@ -47,7 +52,13 @@ export function useRightSidebarActivityItems({
   const activeWorkspaceScope = parseWorkspaceKey(activeWorktreeId ?? '')
   const isFolderWorkspace = activeWorkspaceScope?.type === 'folder'
   const isFolder = isFolderWorkspace || (activeRepo ? isFolderRepo(activeRepo) : false)
-  const isSshRepo = Boolean(activeRepo?.connectionId)
+  // Why the owner: a managed server's workspace names its server, not an SSH connection.
+  const hasSshHost = useAppStore((s) =>
+    portsPanelReachesSshHost(
+      portsPanelHostForOwnerKey(getPortsPanelOwnerKey(s, activeWorktreeId)),
+      s.runtimeEnvironments
+    )
+  )
   const { isPerforce, redetect: redetectPerforce } = usePerforceWorkspace(
     activeWorktree?.path ?? null,
     activeRepo?.connectionId,
@@ -139,10 +150,10 @@ export function useRightSidebarActivityItems({
       getVisibleRightSidebarActivityItems(activityItems, {
         isFolder,
         isFolderWorkspace,
-        isSshRepo,
+        hasSshHost,
         isPerforce
       }),
-    [activityItems, isFolder, isFolderWorkspace, isSshRepo, isPerforce]
+    [activityItems, isFolder, isFolderWorkspace, hasSshHost, isPerforce]
   )
 
   const activeFolderWorkspaceKey = isFolderWorkspace ? (activeWorktreeId ?? null) : null

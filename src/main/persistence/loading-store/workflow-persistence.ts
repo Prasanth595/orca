@@ -102,12 +102,3 @@ export class WorkflowPersistence {
     return getActiveRunOp(this[workflowPersistenceContext].runtime.state, workflowId)
   }
 }
-
-export function installWorkflowPersistenceContext(
-  target: WorkflowPersistence,
-  source: WorkflowPersistence
-): void {
-  Object.defineProperty(target, workflowPersistenceContext, {
-    value: source[workflowPersistenceContext]
-  })
-}

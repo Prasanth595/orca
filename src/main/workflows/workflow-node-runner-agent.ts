@@ -1,4 +1,4 @@
-import { runProcess } from '../../shared/child-process/run-process'
+import { runProcess } from '@orca/process-host'
 import type { AgentCallData } from '../../shared/workflow-types'
 import type { TuiAgent } from '../../shared/tui-agent'
 import type { RemoteExecFn } from './workflow-remote-exec'

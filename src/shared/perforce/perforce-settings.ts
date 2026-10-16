@@ -203,3 +203,9 @@ export function applyChangelistTemplate(
     .replaceAll('{user}', values.user ?? '')
     .replaceAll('{client}', values.client ?? '')
 }
+
+/** The Perforce slice of GlobalSettings, kept here so global-settings-types stays upstream-shaped. */
+export type PerforceGlobalSettings = {
+  /** Perforce integration preferences; always read through normalizePerforceSettings. */
+  perforce?: PerforceSettings
+}

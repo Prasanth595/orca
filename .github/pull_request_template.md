@@ -40,7 +40,7 @@ Fixes #
 
 ## Agent skill upstream boundary
 
-- [ ] Not applicable, or this change follows `docs/reference/agent-skill-sharing-upstream-boundary.md` and copies or mechanically translates no upstream skill-installer source, tests, fixtures, registry entries, path tables, comments, or documentation.
+- [ ] Not applicable, or this change copies or mechanically translates no upstream skill-installer source, tests, fixtures, registry entries, path tables, comments, or documentation.
 
 ## Notes
 

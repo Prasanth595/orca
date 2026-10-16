@@ -8,21 +8,25 @@ import type {
   AgentSessionJournalIdentity
 } from '../../../shared/agent-session-journal-types'
 import type { JournalHostDatabase } from './journal-host-database'
+import { JournalContextController } from './journal-context-controller'
 import { JournalEpochController } from './journal-epoch-controller'
 import { JournalItemAppender } from './journal-item-appender'
 import { JournalLifecycleBatchAppender } from './journal-lifecycle-batch-appender'
 import type { JournalLoad } from './journal-open'
 import { JournalQueuedMessages } from './journal-queued-messages'
 import { JournalStopMarks } from './journal-stop-marks'
+import { JournalStopAcceptor } from './journal-stop-acceptance'
 import { journalQueuePauseRestatement } from './queued-message-pause'
 import type { JournalReducerState } from './journal-reducer'
-import { JournalRowWriter } from './journal-row-writer'
+import { JournalRowWriter, type JournalOperationReceipt } from './journal-row-writer'
 import { JournalStepWriter } from './journal-step-writer'
 import { restoreJournalStore } from './journal-store-restore'
 import { JournalSubmissionWriter } from './journal-submission-writer'
 import type { JournalRow } from './journal-row-schema'
 import type { AgentSessionJournal } from './journal-store'
 import type { JournalWriteBody } from './journal-write-queue'
+import type { JournalAttachmentClaim } from './journal-submission-hook'
+import { claimAgentSessionAttachmentsInTransaction } from '../agent-session-attachments/agent-session-attachment-claims'
 
 export type JournalStoreHost = {
   /** Fires the journal's commit listener for a durable change that appended no
@@ -30,23 +34,20 @@ export type JournalStoreHost = {
    *  same way they learn of a row. */
   notifyCommitted: () => void
   identity: AgentSessionJournalIdentity
-  /** Where the chat's per-chat history lived, for the importer and the format-remnant notice. */
-  legacyDirectory: string
   now: () => number
   mintEpoch: () => string
   serialize: <T>(run: JournalWriteBody<T>) => Promise<T>
-  /** Leave a chat still in its per-chat file uncopied until its first use. */
-  deferPerSessionImport: boolean
-  /** Work the chat's next write waits for. */
-  owe: (work: () => Promise<void>) => void
   database: () => JournalHostDatabase
   state: () => JournalReducerState
   readOnly: () => boolean
   cursor: () => AgentJournalCursor
   adopt: (loaded: JournalLoad) => void
-  commit: (row: JournalRow) => void
+  commit: (rows: readonly JournalRow[], savedAt: number) => void
   journal: () => AgentSessionJournal
-  enqueue: (build: (seq: number, ts: number) => JournalRow) => Promise<JournalRow>
+  enqueue: (
+    build: (seq: number, ts: number) => JournalRow,
+    receipt?: JournalOperationReceipt
+  ) => Promise<JournalRow>
 }
 
 export type JournalStoreCollaborators = {
@@ -58,6 +59,8 @@ export type JournalStoreCollaborators = {
   stepWriter: JournalStepWriter
   queuedMessages: JournalQueuedMessages
   stopMarks: JournalStopMarks
+  context: JournalContextController
+  stops: JournalStopAcceptor
   /** Restores the store's state from disk. Owned here because it needs the same
    *  collaborators the constructor just built. */
   restore: () => Promise<void>
@@ -75,11 +78,21 @@ export function createJournalStoreCollaborators(host: JournalStoreHost): Journal
     queuePauseRestatement: () =>
       journalQueuePauseRestatement(
         host.state().queuePauseMarks,
-        host.state().latestPersonTurnSequence
+        host.state().latestAcceptedTurnSequence,
+        host.journal().queuedMessages.pauses()
       ),
     cursor: host.cursor,
     adopt: host.adopt
   })
+  const claimAttachments: JournalAttachmentClaim = (db, body, required) =>
+    claimAgentSessionAttachmentsInTransaction(db, {
+      // Uploaded attachments are stored beside the journal database.
+      stateDirectory: host.database().stateDirectory,
+      sessionId: host.identity.sessionId,
+      body,
+      required,
+      now: host.now()
+    })
   const queuedMessages = new JournalQueuedMessages({
     sessionId: host.identity.sessionId,
     now: host.now,
@@ -87,8 +100,9 @@ export function createJournalStoreCollaborators(host: JournalStoreHost): Journal
     database: host.database,
     readOnly: host.readOnly,
     state: host.state,
-    wroteBeforeOpen: (sequence) => host.journal().wroteBeforeOpen(sequence),
-    committed: host.notifyCommitted
+    reopenFloor: () => host.journal().reopenFloor(),
+    committed: host.notifyCommitted,
+    claimAttachments
   })
   const rowWriter = new JournalRowWriter({
     sessionId: host.identity.sessionId,
@@ -107,13 +121,18 @@ export function createJournalStoreCollaborators(host: JournalStoreHost): Journal
   const lifecycleBatchAppender = new JournalLifecycleBatchAppender({
     state: host.state,
     cursor: host.cursor,
-    enqueue: host.enqueue,
     enqueueRows: (plan) => rowWriter.enqueueRows(plan)
   })
   return {
     epochController,
     queuedMessages,
     stopMarks: new JournalStopMarks({ state: host.state }),
+    context: new JournalContextController({
+      state: host.state,
+      writer: rowWriter,
+      cards: queuedMessages
+    }),
+    stops: new JournalStopAcceptor({ writer: rowWriter, state: host.state }),
     // Behind the stored fact: settles drafts whose consumed submission the loaded journal shows
     // refused (a downgrade wrote no hook), then prunes. Bookkeeping, never failing the open.
     restore: () =>
@@ -125,7 +144,8 @@ export function createJournalStoreCollaborators(host: JournalStoreHost): Journal
       state: host.state,
       identity: host.identity,
       rowWriter,
-      queuedMessages
+      queuedMessages,
+      claimAttachments
     }),
     itemAppender: new JournalItemAppender({
       state: host.state,

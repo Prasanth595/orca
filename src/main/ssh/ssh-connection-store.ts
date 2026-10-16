@@ -3,6 +3,7 @@ import type { SshRepoReadoption, SshTarget } from '../../shared/ssh-types'
 import { RUNTIME_OWNED_SSH_TARGET_ID_PREFIX } from '../../shared/execution-host'
 import { normalizeSshConfigAlias } from '../../shared/ssh-config-alias'
 import { loadUserSshConfig, sshConfigHostsToTargets } from './ssh-config-parser'
+import { SshTargetOrcadClaims } from './ssh-target-orcad-claims'
 import {
   buildRemovedSshTargetTombstone,
   readoptOrphanedWorkspacesForTarget
@@ -36,7 +37,7 @@ export class SshConnectionStore {
 
   addTarget(target: Omit<SshTarget, 'id'>): SshTarget {
     const full: SshTarget = {
-      ...target,
+      ...withRemoteCliControlConsent(target),
       configHost: target.configHost ?? target.host,
       // Why: default to 'manual' so user-created targets are never overwritten
       // by a later ~/.ssh/config import (only 'ssh-config' targets are synced).
@@ -84,6 +85,16 @@ export class SshConnectionStore {
     return next
   }
 
+  /** Exclusive managed-orcad ownership of a target; see ssh-target-orcad-claims. */
+  getOrcadRuntimeClaims(): SshTargetOrcadClaims {
+    return new SshTargetOrcadClaims(this.store)
+  }
+
+  /** The profile reads and scrollback reservations a migration exports from. */
+  getOrcadMigrationSource(): Store {
+    return this.store
+  }
+
   updateTarget(id: string, updates: Partial<Omit<SshTarget, 'id'>>): SshTarget | null {
     const existing = this.store.getSshTarget(id)
     // Why: a new runtime choice or endpoint must re-run the ladder, not replay the old rung.
@@ -91,9 +102,10 @@ export class SshConnectionStore {
       key in updates && existing?.[key] !== updates[key]
     const resetsRuntime =
       changed('remoteRuntime') || changed('host') || changed('port') || changed('configHost')
+    const consented = withRemoteCliControlConsent(updates)
     const updated = this.store.updateSshTarget(
       id,
-      resetsRuntime ? { ...updates, remoteRuntimeResolution: undefined } : updates
+      resetsRuntime ? { ...consented, remoteRuntimeResolution: undefined } : consented
     )
     if (updated) {
       // Why: actively editing a target reclaims its alias from the deleted set,
@@ -161,6 +173,8 @@ export class SshConnectionStore {
       const alias = normalizeSshConfigAlias(existing.configHost ?? existing.label)
       if (
         existing.source === 'manual' ||
+        isRuntimeOwnedSshTarget(existing) ||
+        isManagedOrcadSshTarget(existing) ||
         (existing.source === undefined && !isLegacyConfigImportTarget(existing))
       ) {
         manualAliases.add(alias)
@@ -252,8 +266,25 @@ export function getRuntimeOwnedSshTargetId(runtimeId: string): string {
   return `${RUNTIME_OWNED_SSH_TARGET_ID_PREFIX}${runtimeId}`
 }
 
+/** Ephemeral runtime targets, hidden from SSH-host surfaces. */
 export function isRuntimeOwnedSshTarget(target: SshTarget): boolean {
-  return target.owner?.type === 'on-demand-runtime'
+  return target.owner !== undefined
+}
+
+/** A host serving (or being set up for) a managed Orca server: visible, but never a direct relay. */
+export function isManagedOrcadSshTarget(target: SshTarget): boolean {
+  return target.orcadFence !== undefined || target.orcadProvisioning !== undefined
+}
+
+/**
+ * Whether a direct relay may serve this host. A managed host may not, unless an older build
+ * changed its retained projects: then it stays on the relay until it is moved again.
+ */
+export function allowsDirectSshRelay(target: SshTarget): boolean {
+  if (target.orcadProvisioning) {
+    return false
+  }
+  return !target.orcadFence || target.orcadFence.sourceChangedAt !== undefined
 }
 
 function isLegacyConfigImportTarget(target: SshTarget): boolean {
@@ -264,4 +295,17 @@ function isLegacyConfigImportTarget(target: SshTarget): boolean {
   return Boolean(
     alias && target.label === alias && target.configHost === alias && target.host !== alias
   )
+}
+
+/** Saving the switch records consent to its current meaning and retires the reset notice. */
+function withRemoteCliControlConsent<T extends Partial<SshTarget>>(updates: T): T {
+  if (!('allowRemoteCliControl' in updates)) {
+    return updates
+  }
+  return {
+    ...updates,
+    allowRemoteCliControlConsent:
+      updates.allowRemoteCliControl === true ? 'desktop-browser-bridge' : undefined,
+    allowRemoteCliControlReset: undefined
+  }
 }

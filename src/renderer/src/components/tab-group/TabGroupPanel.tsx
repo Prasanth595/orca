@@ -19,11 +19,13 @@ import { resolveGroupTabFromVisibleId } from './tab-group-visible-id'
 import { getTabPaneBodyDroppableId, type HoveredTabInsertion } from './useTabDragSplit'
 import { tabGroupBodyAnchorName } from './tab-group-body-anchor'
 import { registerTabGroupBody } from './tab-group-body-geometry'
+import { observeTabGroupBodyGridSize } from '@/runtime/sync-runtime-graph'
 import { translate } from '@/i18n/i18n'
 import type { TabGroup } from '../../../../shared/tab-types'
 import type { ClientHostedBrowserRow } from '../../../../shared/client-hosted-browser-rows'
 import { useClientHostedBrowserRows } from '@/lib/pane-manager/client-hosted-browser-row-state'
 import { resolveClientHostedBrowserRowStripGroupId } from '../tab-bar/client-hosted-browser-row-strip-placement'
+import { useEditorGroupFileDropOwner } from '../editor/use-editor-group-file-drop-owner'
 
 const EditorPanel = lazy(() => import('../editor/EditorPanel'))
 const EMPTY_GROUPS: readonly TabGroup[] = []
@@ -110,13 +112,16 @@ export default function TabGroupPanel({
         return undefined
       }
       const unregisterBody = registerTabGroupBody(groupId, node)
+      const stopGridSizeReport = observeTabGroupBodyGridSize(node)
       return () => {
         unregisterBody()
+        stopGridSizeReport()
         setBodyDropRef(null)
       }
     },
     [groupId, setBodyDropRef]
   )
+  const attachEditorFileDropOwner = useEditorGroupFileDropOwner({ worktreeId, groupId })
   // Why: per-group anchor-name lets the worktree-level overlay position panes via CSS anchor positioning, so moving a tab between groups re-targets the anchor instead of remounting xterm (loses alt-screen TUI state) or reloading `<webview>`.
   const bodyAnchorName = tabGroupBodyAnchorName(groupId)
   // Why: memoize so a fresh style object each render doesn't break downstream memoization keyed on referential equality.
@@ -380,7 +385,8 @@ export default function TabGroupPanel({
           activeTab.contentType !== 'agent-session' &&
           activeTab.contentType !== 'browser' &&
           activeTab.contentType !== 'simulator' && (
-            <div className="absolute inset-0 flex min-h-0 min-w-0">
+            // Why: a capture-phase owner, so Monaco never sees the drop and the file opens as a tab here.
+            <div ref={attachEditorFileDropOwner} className="absolute inset-0 flex min-h-0 min-w-0">
               {/* Why: split groups render editor content in a plain relative pane body, not the legacy Terminal.tsx flex column. */}
               <Suspense
                 fallback={
