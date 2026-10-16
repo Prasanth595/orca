@@ -444,8 +444,10 @@ describe('terminal query erased boundary regressions', () => {
           customTitle: null
         } as unknown as RuntimeMobileSessionTerminalTab
       ],
-      groups: [],
-      generation: 1,
+      tabGroups: [],
+      activeGroupId: null,
+      activeTabId: null,
+      activeTabType: null,
       snapshotVersion: 1,
       publicationEpoch: 'epoch'
     })
@@ -453,7 +455,9 @@ describe('terminal query erased boundary regressions', () => {
     runtime['persistHeadlessTerminalTitle'](worktreeId, tabId, 'Custom Title')
     expect(runtime['tabs'].get(tabId)?.title).toBe('Custom Title')
     expect(runtime['tabs'].get(tabId)?.customTitle).toBe('Custom Title')
-    expect(runtime['mobileSessionTabsByWorktree'].get(worktreeId)?.tabs[0].title).toBe('Custom Title')
+    expect(runtime['mobileSessionTabsByWorktree'].get(worktreeId)?.tabs[0].title).toBe(
+      'Custom Title'
+    )
 
     runtime['persistHeadlessTerminalTitle'](worktreeId, tabId, null)
     expect(runtime['tabs'].get(tabId)?.customTitle).toBeNull()
@@ -461,4 +465,3 @@ describe('terminal query erased boundary regressions', () => {
     expect(runtime['mobileSessionTabsByWorktree'].get(worktreeId)?.tabs[0].title).toBe('Terminal')
   })
 })
-
