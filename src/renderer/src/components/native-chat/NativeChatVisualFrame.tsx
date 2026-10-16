@@ -46,7 +46,7 @@ export function NativeChatVisualFrame({
   /** An element already mounted where the frame sits, so the first paint wears that scope's theme. */
   themeScope: RefObject<Element | null>
   onRetired: () => void
-  /** A wheel or touch the page could not take: the transcript scrolls for it without hearing it. */
+  /** Uncancelled input; the transcript owner checks whether the conversation moved. */
   onReaderGesture?: (gesture: ReaderGesture) => void
 }): React.JSX.Element {
   const frameRef = useRef<HTMLIFrameElement | null>(null)

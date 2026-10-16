@@ -162,36 +162,10 @@ window.addEventListener('message', function (event) {
   themeStyle.textContent = data.css
   document.documentElement.classList.toggle('dark', data.colorScheme === 'dark')
 })
-// Scrolling: a wheel nothing in the page can take chains on to the transcript, which never sees
-// the wheel itself, so the host hears of it here. Captured, so a handler that stops propagation
-// cannot hide it; the page's own handlers may still cancel it (a chart zoom), so the report waits
-// for the dispatch to finish. A touch drag reports as it moves.
-function overflowOf(node) {
-  var overflow = getComputedStyle(node).overflowY
-  // The viewport takes its overflow from <body> when <html> leaves it visible.
-  if (node === document.scrollingElement && overflow === 'visible' && document.body && node !== document.body) {
-    overflow = getComputedStyle(document.body).overflowY
-  }
-  return overflow
-}
-function scrollsWithin(path, direction) {
-  for (var i = 0; i < path.length; i++) {
-    var node = path[i]
-    if (!node || node.nodeType !== 1) continue
-    var overflow = overflowOf(node)
-    var scroller = node === document.scrollingElement ? overflow !== 'hidden' && overflow !== 'clip' : overflow === 'auto' || overflow === 'scroll'
-    if (!scroller) continue
-    var canMove = direction < 0 ? node.scrollTop > 0 : node.scrollTop < node.scrollHeight - node.clientHeight
-    var overscroll = getComputedStyle(node).overscrollBehaviorY
-    if (canMove || overscroll === 'contain' || overscroll === 'none') return true
-  }
-  return false
-}
+// The host pairs uncancelled input with actual transcript movement; only the browser knows
+// whether a visual's nested scroller takes it. Wait for handlers that cancel chart gestures.
 window.addEventListener('wheel', function (event) {
   if (event.ctrlKey || !event.deltaY) return
-  // The composed path reaches scrollers inside shadow roots, which the retargeted target hides.
-  var path = typeof event.composedPath === 'function' ? event.composedPath() : [event.target]
-  if (scrollsWithin(path, event.deltaY)) return
   setTimeout(function () {
     if (!event.defaultPrevented) send({ type: C.scroll, input: 'wheel', deltaY: event.deltaY })
   }, 0)
@@ -263,7 +237,7 @@ ${args.html}`
 export type NativeChatVisualFrameMessage =
   | { kind: 'size'; height: number }
   | { kind: 'open-link'; url: string }
-  /** A reader input the page could not take: the transcript scrolls for it without an event of its own. */
+  /** Uncancelled input; the host checks whether the transcript actually moved. */
   | { kind: 'reader-scroll'; input: 'wheel'; deltaY: number }
   | { kind: 'reader-scroll'; input: 'touch' }
 

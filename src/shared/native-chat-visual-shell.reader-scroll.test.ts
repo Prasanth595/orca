@@ -75,19 +75,6 @@ function bootShell(html: string): Shell {
   }
 }
 
-function scrollable(
-  element: ShellElement,
-  scrollTop: number,
-  scrollHeight: number,
-  clientHeight = 100
-) {
-  Object.defineProperties(element, {
-    scrollTop: { value: scrollTop, configurable: true, writable: true },
-    scrollHeight: { value: scrollHeight, configurable: true },
-    clientHeight: { value: clientHeight, configurable: true }
-  })
-}
-
 beforeEach(() => {
   vi.useFakeTimers()
 })
@@ -96,68 +83,18 @@ afterEach(() => {
 })
 
 describe('visual shell reader scroll', () => {
-  it('reports a wheel only once nothing in the page can scroll that way', () => {
+  it('reports uncancelled input even when a nested scroller can take it', () => {
     const shell = bootShell(
-      '<body><div id="box" style="overflow-y:auto"><p id="text">chart</p></div></body>'
+      '<body><div id="box" style="overflow-y:auto;overscroll-behavior-y:contain"><p id="text">chart</p></div></body>'
     )
-    const box = shell.byId('box')
-    const text = shell.byId('text')
-    scrollable(shell.root, 0, 100)
-    scrollable(box, 50, 1000)
-    shell.wheel(text, -10)
-    expect(shell.sent, 'the box still has content above').toEqual([])
-    shell.wheel(text, 10)
-    expect(shell.sent, 'and below').toEqual([])
-    scrollable(box, 0, 1000)
-    shell.wheel(text, -10)
+    shell.wheel(shell.byId('text'), -10)
     expect(shell.sent).toEqual([
       { type: NATIVE_CHAT_VISUAL_READER_SCROLL_TYPE, channel: 'c', input: 'wheel', deltaY: -10 }
     ])
-    scrollable(box, 900, 1000)
-    shell.wheel(text, 10)
-    expect(shell.sent).toHaveLength(2)
-  })
-
-  // happy-dom does not retarget the event at the window, so only Chromium proves the composed path.
-  it('sees a scroller inside a shadow root', () => {
-    const shell = bootShell('<body><div id="host"></div></body>')
-    scrollable(shell.root, 0, 100)
-    const root = shell.byId('host').attachShadow({ mode: 'open' })
-    root.innerHTML = '<div id="inner" style="overflow-y:auto"><p id="deep">chart</p></div>'
-    const inner = root.getElementById('inner')
-    const deep = root.getElementById('deep')
-    if (!inner || !deep) {
-      throw new Error('no shadow content')
-    }
-    scrollable(inner, 70, 1000)
-    shell.wheel(deep, -10)
-    expect(shell.sent).toEqual([])
-    scrollable(inner, 0, 1000)
-    shell.wheel(deep, -10)
-    expect(shell.sent).toHaveLength(1)
-  })
-
-  it('treats a page taller than the frame as a scroller of its own, hidden scrollbar and all', () => {
-    const shell = bootShell('<body><p id="text">long</p></body>')
-    scrollable(shell.root, 300, 3000)
-    shell.wheel(shell.byId('text'), -10)
-    expect(shell.sent).toEqual([])
-    scrollable(shell.root, 0, 3000)
-    shell.wheel(shell.byId('text'), -10)
-    expect(shell.sent).toHaveLength(1)
-  })
-
-  it('reports through a root the page hid from the reader, whatever offset it holds', () => {
-    const shell = bootShell('<body><p id="text">pinned</p></body>')
-    shell.root.setAttribute('style', 'overflow-y:hidden')
-    scrollable(shell.root, 300, 3000)
-    shell.wheel(shell.byId('text'), -10)
-    expect(shell.sent).toHaveLength(1)
   })
 
   it('leaves a wheel the visual cancelled with the visual, wherever it cancels it', () => {
     const shell = bootShell('<body><div id="chart">chart</div></body>')
-    scrollable(shell.root, 0, 100)
     const chart = shell.byId('chart')
     const cancel = (event: { preventDefault: () => void }): void => event.preventDefault()
     chart.addEventListener('wheel', cancel)
@@ -174,7 +111,6 @@ describe('visual shell reader scroll', () => {
 
   it('still hears a wheel a handler stopped from bubbling, since the transcript still scrolls', () => {
     const shell = bootShell('<body><div id="chart">chart</div></body>')
-    scrollable(shell.root, 0, 100)
     shell.byId('chart').addEventListener('wheel', (event) => event.stopPropagation())
     shell.wheel(shell.byId('chart'), -10)
     expect(shell.sent).toHaveLength(1)
@@ -182,22 +118,11 @@ describe('visual shell reader scroll', () => {
 
   it('keeps a zoom wheel and a still wheel to the page', () => {
     const shell = bootShell('<body><p id="text">chart</p></body>')
-    scrollable(shell.root, 0, 100)
     shell.wheel(shell.byId('text'), -10, { ctrlKey: true })
     shell.wheel(shell.byId('text'), 0)
     expect(shell.sent).toEqual([])
     shell.wheel(shell.byId('text'), -10)
     expect(shell.sent, 'the same page reports a plain wheel').toHaveLength(1)
-  })
-
-  it('keeps a wheel inside a contained scroller to the page', () => {
-    const shell = bootShell(
-      '<body><div id="box" style="overflow-y:auto;overscroll-behavior-y:contain"><p id="text">chart</p></div></body>'
-    )
-    scrollable(shell.root, 0, 100)
-    scrollable(shell.byId('box'), 0, 100)
-    shell.wheel(shell.byId('text'), -10)
-    expect(shell.sent).toEqual([])
   })
 
   it('reports a touch drag as it moves, even one a handler stopped from bubbling', () => {

@@ -31,6 +31,7 @@ import { NativeChatVisualOwnerContext } from './native-chat-visual-owner'
 import {
   deliverResizes,
   marker,
+  layout,
   session,
   stubLayout,
   stubResizeObserver
@@ -113,7 +114,7 @@ afterEach(() => {
   restoreLayout()
 })
 
-it('keeps the place a reader scrolled to over a visual when the reply grows below', async () => {
+async function mountVisualTranscript() {
   const transcript = [...Array.from({ length: 60 }, (_, index) => marker(index)), visualReply(60)]
   const view = render(transcriptWithVisual(transcript))
   const scroller = scrollRoot(view.container)
@@ -126,12 +127,10 @@ it('keeps the place a reader scrolled to over a visual when the reply grows belo
   paint(view.container)
   const end = scroller.scrollHeight - scroller.clientHeight
   expect(scroller.scrollTop).toBe(end)
+  return { transcript, view, scroller, frame, end }
+}
 
-  // The wheel over the frame chains to the transcript, which scrolls without a wheel event of
-  // its own; the frame's shell reports the gesture a moment later.
-  const readingAt = end - 300
-  scroller.scrollTop = readingAt
-  fireEvent.scroll(scroller)
+function reportWheel(frame: HTMLIFrameElement, deltaY = -120): void {
   const channel = frame.name.slice(frame.name.indexOf(':') + 1)
   act(() => {
     window.dispatchEvent(
@@ -140,15 +139,142 @@ it('keeps the place a reader scrolled to over a visual when the reply grows belo
           type: NATIVE_CHAT_VISUAL_READER_SCROLL_TYPE,
           channel,
           input: 'wheel',
-          deltaY: -120
+          deltaY
         },
         source: frame.contentWindow
       })
     )
   })
+}
 
-  view.rerender(transcriptWithVisual([...transcript, marker(61), marker(62)]))
-  paint(view.container)
-  expect(scroller.scrollTop).toBe(readingAt)
-  expect(screen.getByRole('button', { name: /jump to latest/i })).toBeInTheDocument()
-})
+async function settleInput(container: HTMLElement): Promise<void> {
+  await act(async () => {
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()))
+    })
+  })
+  paint(container)
+}
+
+it.each([
+  { order: 'scroll first', toTop: false, source: 'frame' },
+  { order: 'scroll first', toTop: true, source: 'frame' },
+  { order: 'gesture first', toTop: false, source: 'frame' },
+  { order: 'gesture first', toTop: true, source: 'frame' },
+  { order: 'scroll first', toTop: true, source: 'transcript' }
+])(
+  'keeps the reader position on growth from $source with $order and toTop=$toTop',
+  async ({ order, toTop, source }) => {
+    const { transcript, view, scroller, frame, end } = await mountVisualTranscript()
+    const readingAt = toTop ? 0 : end - 300
+    if (order === 'gesture first') {
+      reportWheel(frame)
+    }
+    scroller.scrollTop = readingAt
+    fireEvent.scroll(scroller)
+    if (order === 'scroll first') {
+      if (source === 'transcript') {
+        fireEvent.wheel(scroller, { deltaY: -120 })
+      } else {
+        reportWheel(frame)
+      }
+    }
+    view.rerender(transcriptWithVisual([...transcript, marker(61), marker(62)]))
+    paint(view.container)
+    expect(scroller.scrollTop).toBe(readingAt)
+    expect(screen.getByRole('button', { name: /jump to latest/i })).toBeInTheDocument()
+  }
+)
+
+it.each(['input', 'movement', 'reversed input'] as const)(
+  'resumes following after growth with unmatched %s',
+  async (unmatched) => {
+    const { transcript, view, scroller, frame, end } = await mountVisualTranscript()
+    if (unmatched !== 'movement') {
+      reportWheel(frame)
+    } else {
+      scroller.scrollTop = end - 300
+      fireEvent.scroll(scroller)
+    }
+    view.rerender(transcriptWithVisual([...transcript, marker(61), marker(62)]))
+    paint(view.container)
+    if (unmatched === 'reversed input') {
+      reportWheel(frame, 120)
+    }
+    await settleInput(view.container)
+    expect(scroller.scrollTop).toBe(scroller.scrollHeight - scroller.clientHeight)
+    expect(screen.queryByRole('button', { name: /jump to latest/i })).not.toBeInTheDocument()
+  }
+)
+
+it.each(['input', 'movement'] as const)(
+  'does not pair an expired %s with an unrelated later event',
+  async (first) => {
+    const { transcript, view, scroller, frame, end } = await mountVisualTranscript()
+    const move = (): void => {
+      scroller.scrollTop = end - 300
+      fireEvent.scroll(scroller)
+    }
+    if (first === 'input') {
+      reportWheel(frame)
+    } else {
+      move()
+    }
+    await settleInput(view.container)
+    if (first === 'input') {
+      move()
+    } else {
+      reportWheel(frame)
+    }
+    view.rerender(transcriptWithVisual([...transcript, marker(61), marker(62)]))
+    paint(view.container)
+    await settleInput(view.container)
+    paint(view.container)
+    expect(scroller.scrollTop).toBe(scroller.scrollHeight - scroller.clientHeight)
+    expect(screen.queryByRole('button', { name: /jump to latest/i })).not.toBeInTheDocument()
+  }
+)
+
+it.each([
+  { growth: 'rows', order: 'scroll first' },
+  { growth: 'resize', order: 'scroll first' },
+  { growth: 'rows', order: 'input first' },
+  { growth: 'resize', order: 'input first' },
+  { growth: 'resize before observer', order: 'input first' }
+])(
+  'preserves a wheel departure when $growth grow between events with $order',
+  async ({ growth, order }) => {
+    const { transcript, view, scroller, frame, end } = await mountVisualTranscript()
+    const readingAt = end - 300
+    if (order === 'scroll first') {
+      scroller.scrollTop = readingAt
+      fireEvent.scroll(scroller)
+    } else {
+      reportWheel(frame)
+    }
+    const previousBelow = layout.belowTranscriptPx
+    try {
+      if (growth === 'rows') {
+        view.rerender(transcriptWithVisual([...transcript, marker(61)]))
+      } else {
+        layout.belowTranscriptPx += 100
+      }
+      if (growth !== 'resize before observer') {
+        paint(view.container)
+      }
+      if (order === 'scroll first') {
+        reportWheel(frame)
+      } else {
+        scroller.scrollTop = readingAt
+        fireEvent.scroll(scroller)
+      }
+      view.rerender(transcriptWithVisual([...transcript, marker(61), marker(62)]))
+      paint(view.container)
+      await settleInput(view.container)
+      expect(scroller.scrollTop).toBe(readingAt)
+      expect(screen.getByRole('button', { name: /jump to latest/i })).toBeInTheDocument()
+    } finally {
+      layout.belowTranscriptPx = previousBelow
+    }
+  }
+)
