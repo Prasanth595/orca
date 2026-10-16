@@ -9,11 +9,12 @@ import {
   type AppStateStatus
 } from 'react-native'
 import { useFocusEffect } from 'expo-router'
-import { ChevronRight, X } from 'lucide-react-native'
+import { ChevronRight } from 'lucide-react-native'
 import type Animated from 'react-native-reanimated'
 import type { AnimatedRef, SharedValue } from 'react-native-reanimated'
 import { CustomKeyModal, loadCustomKeys, saveCustomKeys, type CustomKey } from './CustomKeyModal'
 import { DragReorderList } from './DragReorderList'
+import { CustomShortcutRemoveButton } from './CustomShortcutRemoveButton'
 import { colors, radii, spacing, typography } from '../theme/mobile-theme'
 import {
   TERMINAL_ACCESSORY_KEYS,
@@ -288,15 +289,10 @@ export function TerminalShortcutSettings({
                     {key.bytes.replace(/\r/g, ' ↵')}
                   </Text>
                 </View>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.deleteButton,
-                    pressed && styles.deleteButtonPressed
-                  ]}
+                <CustomShortcutRemoveButton
+                  label={key.label}
                   onPress={() => handleDeleteCustomKey(key)}
-                >
-                  <X size={16} color={colors.statusRed} />
-                </Pressable>
+                />
               </View>
             )}
           />
@@ -413,16 +409,5 @@ const styles = StyleSheet.create({
     fontSize: typography.bodySize,
     color: colors.textSecondary,
     padding: spacing.md
-  },
-  deleteButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(239, 68, 68, 0.1)'
-  },
-  deleteButtonPressed: {
-    backgroundColor: 'rgba(239, 68, 68, 0.2)'
   }
 })

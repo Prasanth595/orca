@@ -11,6 +11,7 @@ import { linearAccountConnect } from './mobile-task-list-operations'
 export function useMobileTasksTaskPaginationActions(model: TaskListLoadingModel) {
   const {
     client,
+    clientRef,
     connState,
     fetchGitHubItemsPage,
     githubCurrentPage,
@@ -19,6 +20,7 @@ export function useMobileTasksTaskPaginationActions(model: TaskListLoadingModel)
     githubTotalCount,
     linearApiKeyDraft,
     linearConnectState,
+    loadGenerationRef,
     loadLinearContext,
     loadTasks,
     selectedHostedRepos,
@@ -155,6 +157,11 @@ export function useMobileTasksTaskPaginationActions(model: TaskListLoadingModel)
         return
       }
 
+      // Why: a repo/filter/provider change reloads the list; a page fetched for the old selection
+      // must not be appended to (and shown over) the new one.
+      const generation = loadGenerationRef.current
+      const isCurrent = () =>
+        loadGenerationRef.current === generation && clientRef.current === client
       setGithubPaginationLoading(true)
       setGithubLoadingTargetPage(targetPage)
       try {
@@ -163,6 +170,9 @@ export function useMobileTasksTaskPaginationActions(model: TaskListLoadingModel)
         const nextPages: Array<Extract<TaskItem, { provider: 'github' }>[]> = []
         while (loadedPages <= targetPage) {
           const page = await fetchGitHubItemsPage(client, selectedHostedRepos, cursor)
+          if (!isCurrent()) {
+            return
+          }
           if (page.items.length === 0) {
             break
           }
@@ -182,17 +192,24 @@ export function useMobileTasksTaskPaginationActions(model: TaskListLoadingModel)
         setGithubCurrentPage(nextPage)
         setItems(allPages[nextPage] ?? [])
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load more GitHub tasks')
+        if (isCurrent()) {
+          setError(err instanceof Error ? err.message : 'Failed to load more GitHub tasks')
+        }
       } finally {
-        setGithubPaginationLoading(false)
-        setGithubLoadingTargetPage(null)
+        // Why: a superseded page leaves the lock for the reloading list to release.
+        if (isCurrent()) {
+          setGithubPaginationLoading(false)
+          setGithubLoadingTargetPage(null)
+        }
       }
     },
     [
       client,
+      clientRef,
       fetchGitHubItemsPage,
       githubPages,
       githubPaginationLoading,
+      loadGenerationRef,
       selectedHostedRepos,
       tasksSupported
     ]

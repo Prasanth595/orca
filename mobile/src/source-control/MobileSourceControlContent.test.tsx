@@ -312,3 +312,24 @@ describe('committed branch files during commit-message typing', () => {
     expect(format).not.toHaveBeenCalled()
   })
 })
+
+describe('commit message during AI generation', () => {
+  it('locks the message box so the generated reply cannot overwrite typing', () => {
+    render()
+    const input = () => renderer?.root.find((node) => String(node.type) === 'TextInput')
+    expect(input()?.props.editable).toBe(true)
+    const actions = () =>
+      renderer?.root.find(
+        (node) =>
+          String(node.type) === 'Pressable' &&
+          node.props.accessibilityLabel === 'Open source control actions'
+      )
+    expect(actions()?.props.disabled).toBe(false)
+    patch({ generatingMessage: true })
+    expect(input()?.props.editable).toBe(false)
+    expect(actions()?.props.disabled).toBe(true)
+    patch({ generatingMessage: false })
+    expect(input()?.props.editable).toBe(true)
+    expect(actions()?.props.disabled).toBe(false)
+  })
+})

@@ -4,6 +4,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SoftKeyboardState } from '../platform/keyboard-occlusion'
 import type { RouteHandoff } from '../navigation/route-handoff'
+import type { CustomKey } from '../components/CustomKeyModal'
 
 const harness = vi.hoisted(() => {
   const keyboard: SoftKeyboardState = { height: 0, visible: false }
@@ -11,7 +12,10 @@ const harness = vi.hoisted(() => {
     keyboard,
     notifyKeyboardVisibility: vi.fn<(visible: boolean) => void>(),
     notifyTerminalFrameHeight: vi.fn<(height: number) => void>(),
-    setKeyboardHeight: vi.fn<Dispatch<SetStateAction<number>>>()
+    setKeyboardHeight: vi.fn<Dispatch<SetStateAction<number>>>(),
+    saveCustomKeys: vi.fn<(keys: unknown[]) => Promise<void>>(() => Promise.resolve()),
+    setCustomKeys: vi.fn(),
+    deleteCustomKey: null as ((key: CustomKey) => Promise<void>) | null
   }
 })
 
@@ -26,7 +30,7 @@ vi.mock('../terminal/terminal-viewport-refit', () => ({
     notifyTerminalFrameHeight: harness.notifyTerminalFrameHeight
   })
 }))
-vi.mock('../components/CustomKeyModal', () => ({ saveCustomKeys: () => Promise.resolve() }))
+vi.mock('../components/CustomKeyModal', () => ({ saveCustomKeys: harness.saveCustomKeys }))
 vi.mock('../worktree/last-visited-worktree-repo', () => ({ writeLastVisitedWorktree: () => {} }))
 
 import { useMobileSessionKeyboardState } from './use-mobile-session-keyboard-state'
@@ -48,8 +52,10 @@ const router: RouteHandoff = {
   setParams: () => {}
 }
 
+const savedKey: CustomKey = { id: 'k1', label: 'Esc', bytes: '\u001b', enter: false }
+
 function Harness(): null {
-  useMobileSessionKeyboardState({
+  const state = useMobileSessionKeyboardState({
     hostId: 'host-1',
     worktreeId: 'wt-1',
     router,
@@ -62,8 +68,8 @@ function Harness(): null {
     tabStripOffsetRef: { current: 0 },
     tabStripViewportWidthRef: { current: 0 },
     tabStripContentWidthRef: { current: 0 },
-    customKeys: [],
-    setCustomKeys: () => {},
+    customKeys: [savedKey],
+    setCustomKeys: harness.setCustomKeys,
     setShowCustomKeyModal: () => {},
     setKeyboardHeight: harness.setKeyboardHeight,
     // Read only by the viewport refit, which is mocked above; present because the scope names them.
@@ -78,6 +84,7 @@ function Harness(): null {
     viewportMeasuredRef: { current: false },
     viewportRef: { current: null }
   })
+  harness.deleteCustomKey = state.handleDeleteCustomKey
   return null
 }
 
@@ -128,5 +135,32 @@ describe('what the session screen hears about the keyboard', () => {
     await rerender(tree)
     expect(harness.notifyKeyboardVisibility).toHaveBeenLastCalledWith(true)
     expect(harness.setKeyboardHeight.mock.calls.every(([height]) => height === 0)).toBe(true)
+  })
+})
+
+describe('removing a custom shortcut', () => {
+  beforeEach(() => {
+    harness.saveCustomKeys.mockReset()
+    harness.setCustomKeys.mockClear()
+  })
+
+  it('keeps the shortcut on screen when the store refuses the removal', async () => {
+    harness.saveCustomKeys.mockRejectedValue(new Error('quota'))
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await mount()
+    await act(async () => {
+      await harness.deleteCustomKey?.(savedKey)
+    })
+    expect(harness.setCustomKeys).not.toHaveBeenCalled()
+  })
+
+  it('removes the shortcut once the store accepts', async () => {
+    harness.saveCustomKeys.mockResolvedValue(undefined)
+    await mount()
+    await act(async () => {
+      await harness.deleteCustomKey?.(savedKey)
+    })
+    expect(harness.saveCustomKeys).toHaveBeenCalledWith([])
+    expect(harness.setCustomKeys).toHaveBeenCalledWith([])
   })
 })

@@ -73,6 +73,8 @@ function mountJira(fetchRepos: () => Promise<RepoSummary[]>) {
         repoListEnsureLoaded: repos.ensureLoaded,
         resetGitHubItemsState: vi.fn(),
         setError,
+        setGithubLoadingTargetPage: vi.fn(),
+        setGithubPaginationLoading: vi.fn(),
         setItems,
         setLoading: vi.fn(),
         setRefreshing: vi.fn(),

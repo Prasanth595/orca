@@ -329,7 +329,13 @@ export default function AccountsScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.topRow}>
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
+        <Pressable
+          style={styles.backButton}
+          onPress={() => router.back()}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+        >
           <ChevronLeft size={22} color={colors.textPrimary} />
         </Pressable>
         <View style={styles.titleWrap}>
@@ -344,6 +350,10 @@ export default function AccountsScreen() {
           style={styles.iconButton}
           onPress={refresh}
           disabled={!client || refreshing || connState !== 'connected'}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Refresh accounts"
+          accessibilityState={{ busy: refreshing }}
         >
           {refreshing ? (
             <ActivityIndicator size="small" color={colors.textSecondary} />

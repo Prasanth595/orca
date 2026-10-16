@@ -412,6 +412,8 @@ export function MobileNativeChatView({
             style={({ pressed }) => [styles.chromeToggle, pressed && styles.pressed]}
             onPress={() => setToolsExpanded((v) => !v)}
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: toolsExpanded }}
           >
             {toolsExpanded ? (
               <ChevronsDownUp size={14} color={colors.textMuted} strokeWidth={2} />

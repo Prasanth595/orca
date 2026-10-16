@@ -56,7 +56,9 @@ export function MobileSourceControlContent({ state }: Props) {
     openBranchDiff,
     runGitAction
   } = state
-  const ioBusy = busyAction !== null || openingPath !== null || openingBranchPath !== null
+  // Why: the action sheet can commit too, so it waits for a pending AI message like Commit does.
+  const ioBusy =
+    generatingMessage || busyAction !== null || openingPath !== null || openingBranchPath !== null
   // Why: a capped listing can hide unstaged rows behind an all-staged prefix.
   const canStageAll = stageablePaths.length > 0 || status?.didHitLimit === true
   const shouldShowGenerateButton = stagedCount > 0 || generatingMessage
@@ -227,7 +229,13 @@ export function MobileSourceControlContent({ state }: Props) {
               onChangeText={setCommitMessage}
               placeholder="Commit message"
               placeholderTextColor={colors.textMuted}
-              editable={busyAction === null && openingPath === null && openingBranchPath === null}
+              // Why: the AI reply replaces the whole message, so typing during generation is lost.
+              editable={
+                busyAction === null &&
+                !generatingMessage &&
+                openingPath === null &&
+                openingBranchPath === null
+              }
               returnKeyType="done"
               onSubmitEditing={primaryAction.onPress}
             />

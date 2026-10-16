@@ -49,7 +49,9 @@ export function useMobileTasksTaskListLoading(model: ProviderLoadActionsModel) {
     serverRepoList,
     setError,
     setGithubCurrentPage,
+    setGithubLoadingTargetPage,
     setGithubPages,
+    setGithubPaginationLoading,
     setGithubRepoSources,
     setGithubSourceErrors,
     setGithubSourceFallbacks,
@@ -265,6 +267,8 @@ export function useMobileTasksTaskListLoading(model: ProviderLoadActionsModel) {
         if (isCurrent()) {
           setLoading(false)
           setRefreshing(false)
+          setGithubPaginationLoading(false)
+          setGithubLoadingTargetPage(null)
         }
       }
     },

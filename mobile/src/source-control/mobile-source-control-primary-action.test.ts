@@ -35,6 +35,7 @@ function args(overrides: Partial<MobileSourceControlPrimaryActionArgs> = {}) {
     unstagedCount: 0,
     commitMessage: '',
     busyAction: null,
+    generatingMessage: false,
     openingPath: null,
     openingBranchPath: null,
     branchCompareResult: null,
@@ -72,6 +73,17 @@ describe('buildMobileSourceControlPrimaryAction', () => {
     expect(action.disabled).toBe(false)
     action.onPress()
     expect(h.commit).toHaveBeenCalledTimes(1)
+  })
+
+  it('blocks Commit while an AI commit message is generating', () => {
+    const h = handlers()
+    const action = buildMobileSourceControlPrimaryAction(
+      args({ stagedCount: 1, commitMessage: 'Typed by hand', generatingMessage: true, handlers: h })
+    )
+    expect(action.label).toBe('Commit')
+    expect(action.disabled).toBe(true)
+    action.onPress()
+    expect(h.commit).not.toHaveBeenCalled()
   })
 
   it('selects Publish Branch only when a current branch exists', () => {

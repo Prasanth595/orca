@@ -77,6 +77,10 @@ export function renderMobileTasksStatusBar(model: ConnectionPresentationModel) {
           }
           refreshTasks()
         }}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel="Refresh tasks"
+        accessibilityState={{ busy: loading || refreshing || githubProjectLoading }}
       >
         <RefreshCw size={16} color={taskUiReady ? colors.textSecondary : colors.textMuted} />
       </Pressable>
@@ -99,6 +103,11 @@ export function renderMobileTasksStatusBar(model: ConnectionPresentationModel) {
             setCreateBody('')
             setShowCreateTask(true)
           }}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={
+            provider === 'linear' && !linearConnected ? 'Connect Linear' : 'New issue'
+          }
         >
           <Plus size={16} color={taskUiReady ? colors.textSecondary : colors.textMuted} />
         </Pressable>

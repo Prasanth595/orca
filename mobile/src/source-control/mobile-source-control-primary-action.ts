@@ -38,6 +38,7 @@ export type MobileSourceControlPrimaryActionArgs = {
   unstagedCount: number
   commitMessage: string
   busyAction: string | null
+  generatingMessage: boolean
   openingPath: string | null
   openingBranchPath: string | null
   branchCompareResult: MobileGitBranchCompareResult | null
@@ -63,8 +64,12 @@ export function buildMobileSourceControlPrimaryAction(
     branchCommitsAhead: getMobileBranchCommitsAhead(args),
     hasCurrentBranch: Boolean(args.status?.branch)
   })
+  // Why: a commit started mid-generation lets the late AI reply refill the cleared box.
   const ioBusy =
-    args.busyAction !== null || args.openingPath !== null || args.openingBranchPath !== null
+    args.busyAction !== null ||
+    args.generatingMessage ||
+    args.openingPath !== null ||
+    args.openingBranchPath !== null
   const disabled = decision.disabled || ioBusy
 
   return {

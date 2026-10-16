@@ -138,8 +138,14 @@ export function useMobileSessionKeyboardState(scope: MobileSessionKeyboardScope)
   const handleDeleteCustomKey = useCallback(
     async (key: CustomKey) => {
       const updated = customKeys.filter((k) => k.id !== key.id)
+      try {
+        await saveCustomKeys(updated)
+      } catch (error) {
+        // Why: hiding a key the store still holds would bring it back on the next load.
+        console.warn('[custom-keys] the store would not drop this key', error)
+        return
+      }
       setCustomKeys(updated)
-      await saveCustomKeys(updated)
     },
     [customKeys]
   )
