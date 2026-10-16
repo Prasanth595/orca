@@ -126,6 +126,32 @@ describe('createMainWindow', () => {
     }
   })
 
+  it('rolls back owned isMaximized handler when subsequent IPC registration fails', () => {
+    vi.useFakeTimers()
+    const { browserWindowInstance } = createStartupRevealWindowFixture()
+    const trustRenderer = vi.spyOn(ui, 'setTrustedUIRendererWebContentsId')
+    const failure = new Error('subsequent listener registration failed')
+    vi.mocked(ipcMain.on).mockImplementation((channel: string) => {
+      if (channel === 'ui:sync-traffic-lights') {
+        throw failure
+      }
+      return ipcMain
+    })
+
+    try {
+      withPlatform('win32', () => {
+        expect(() => createMainWindow(null)).toThrow(failure)
+        expect(browserWindowInstance.destroy).toHaveBeenCalledOnce()
+        expect(trustRenderer).not.toHaveBeenCalled()
+        expect(ipcMain.removeHandler).toHaveBeenCalledWith('window:isMaximized')
+        expect(app.removeListener).toHaveBeenCalledWith('before-quit', expect.any(Function))
+        expect(powerMonitorRemoveListenerMock).toHaveBeenCalledWith('resume', expect.any(Function))
+      })
+    } finally {
+      trustRenderer.mockRestore()
+    }
+  })
+
   it.each(['darwin', 'linux', 'win32'] as const)(
     'keeps explicit background startup hidden through ready/load/fallback on %s',
     (platform) => {

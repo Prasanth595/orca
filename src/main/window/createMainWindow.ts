@@ -58,6 +58,7 @@ export function loadMainWindow(mainWindow: BrowserWindow, observer?: MainWindowL
   )
 }
 
+/** Constructs, secures, and initializes the main application BrowserWindow. */
 export function createMainWindow(
   store: Store | null,
   opts?: CreateMainWindowOptions

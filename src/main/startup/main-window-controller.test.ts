@@ -1,12 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+type MainWindowStub = {
+  isDestroyed: () => boolean
+  isVisible?: () => boolean
+  webContents?: {
+    isLoading?: () => boolean
+    once?: (event: string, handler: () => void) => void
+  }
+}
+
 const mocks = vi.hoisted(() => {
-  const state: { mainWindow: { isDestroyed: () => boolean } | null } = { mainWindow: null }
+  const state: { mainWindow: MainWindowStub | null } = { mainWindow: null }
   return {
     state,
     requireServices: vi.fn(),
     createWindow: vi.fn(),
-    logStartup: vi.fn()
+    logStartup: vi.fn(),
+    safelyRevealWindow: vi.fn()
   }
 })
 
@@ -34,6 +44,9 @@ vi.mock('./main-window-lifecycle-flags', () => ({}))
 vi.mock('./gpu-lifecycle', () => ({}))
 vi.mock('./branch-rename-hook', () => ({}))
 vi.mock('./synthetic-title-runtime', () => ({}))
+vi.mock('../window/focus-existing-window', () => ({
+  safelyRevealWindow: mocks.safelyRevealWindow
+}))
 
 import { openMainWindow } from './main-window-controller'
 
@@ -47,14 +60,58 @@ describe('main window ownership during startup', () => {
   })
 
   it('reuses a window opened by activation before deferred startup resumes', () => {
-    const window = { isDestroyed: () => false }
+    const window = {
+      isDestroyed: () => false,
+      isVisible: () => true
+    }
     mocks.state.mainWindow = window
 
     expect(openMainWindow({ revealOnDidFinishLoad: true })).toBe(window)
     expect(openMainWindow()).toBe(window)
+    expect(mocks.safelyRevealWindow).not.toHaveBeenCalled()
     expect(mocks.requireServices).not.toHaveBeenCalled()
     expect(mocks.createWindow).not.toHaveBeenCalled()
     expect(mocks.logStartup).not.toHaveBeenCalled()
+  })
+
+  it('reveals a hidden loaded window when reused with revealOnDidFinishLoad', () => {
+    const window = {
+      isDestroyed: () => false,
+      isVisible: () => false,
+      webContents: {
+        isLoading: () => false,
+        once: vi.fn()
+      }
+    }
+    mocks.state.mainWindow = window
+
+    expect(openMainWindow({ revealOnDidFinishLoad: true })).toBe(window)
+    expect(mocks.safelyRevealWindow).toHaveBeenCalledWith(window)
+    expect(window.webContents.once).not.toHaveBeenCalled()
+  })
+
+  it('schedules reveal on did-finish-load when reusing an unrevealed loading window', () => {
+    let loadHandler: (() => void) | undefined
+    const window = {
+      isDestroyed: () => false,
+      isVisible: vi.fn(() => false),
+      webContents: {
+        isLoading: () => true,
+        once: vi.fn((event, handler) => {
+          if (event === 'did-finish-load') {
+            loadHandler = handler
+          }
+        })
+      }
+    }
+    mocks.state.mainWindow = window
+
+    expect(openMainWindow({ revealOnDidFinishLoad: true })).toBe(window)
+    expect(mocks.safelyRevealWindow).not.toHaveBeenCalled()
+    expect(window.webContents.once).toHaveBeenCalledWith('did-finish-load', expect.any(Function))
+
+    loadHandler?.()
+    expect(mocks.safelyRevealWindow).toHaveBeenCalledWith(window)
   })
 
   it.each([null, { isDestroyed: () => true }])(

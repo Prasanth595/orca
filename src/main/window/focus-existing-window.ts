@@ -37,6 +37,7 @@ function safelyFocusApp(app: Pick<App, 'focus'>): void {
   }
 }
 
+/** Restores and displays an existing main window without unrequested foreground theft. */
 export function safelyRevealWindow(window: BrowserWindow): void {
   if (window.isDestroyed() || isWindowlessLaunch()) {
     return
@@ -136,6 +137,7 @@ function openWindowWithRetry(
   }
 }
 
+/** Focuses or reopens the primary application window for activation and second-instance events. */
 export function focusExistingMainWindow(
   opts: FocusExistingMainWindowOptions
 ): FocusExistingMainWindowResult {
