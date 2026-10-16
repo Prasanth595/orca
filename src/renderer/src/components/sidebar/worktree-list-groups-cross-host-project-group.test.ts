@@ -186,4 +186,24 @@ describe('a project grouped on one of its hosts', () => {
     expect(rendered).toEqual(['project-group:group-a@0', 'project:github:stablyai/orca@1'])
     expect(shortcutOrder).toEqual(rendered)
   })
+
+  it('places competing groups the same way with or without an empty-project placeholder', () => {
+    // This Orca's own row ranks first but has no workspaces yet; it sits in another group.
+    const emptyLocal: Repo = { ...localRepo, projectGroupId: localGroup.id, projectGroupOrder: 0 }
+    const args = {
+      repoOrder: THIS_ORCA_ORDER,
+      local: emptyLocal,
+      groups: [pairedGroup, localGroup],
+      worktrees: [pairedWorktree]
+    }
+    const rendered = headerKeys({ ...args, placeholderRepoIds: new Set([emptyLocal.id]) })
+    const shortcutOrder = headerKeys(args)
+
+    expect(rendered).toEqual([
+      'project-group:group-a@0',
+      'project-group:group-local@0',
+      'project:github:stablyai/orca@1'
+    ])
+    expect(shortcutOrder).toEqual(rendered)
+  })
 })

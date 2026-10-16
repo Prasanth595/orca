@@ -41,9 +41,10 @@ export function getProjectSectionMemberRepoIds(
 }
 
 /**
- * The member row that places a section in a Project Group. A project set up on several hosts is
- * one section, and each Orca anchors it on its own host's row, so a member in a known group wins
- * over an ungrouped anchor; otherwise every other Orca draws the moved project outside its group.
+ * The member row that places a section in a Project Group: the first catalog row in manual order
+ * that is in a known group. A project set up on several hosts is one section anchored on each
+ * Orca's own row, so reading only the anchor drew a project moved on one Orca outside its group
+ * on the others; reading visible rows only let pins and placeholders move it.
  */
 export function getProjectSectionGroupRepo(
   section: Pick<WorktreeGroupEntry, 'repo'>,
@@ -55,9 +56,6 @@ export function getProjectSectionGroupRepo(
   const isGrouped = (repo: Repo | undefined): repo is Repo =>
     Boolean(repo?.projectGroupId && knownGroupIds.has(repo.projectGroupId))
   const anchor = section.repo
-  if (isGrouped(anchor)) {
-    return anchor
-  }
   let grouped: Repo | undefined
   let groupedRank = Number.POSITIVE_INFINITY
   for (const repoId of memberRepoIds) {
