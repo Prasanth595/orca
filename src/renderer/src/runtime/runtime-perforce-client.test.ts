@@ -15,9 +15,11 @@ vi.mock('./runtime-rpc-client', () => ({ callRuntimeRpc }))
 vi.mock('@/store', () => ({
   useAppStore: { getState: () => ({ settings: { perforce: { p4Port: 'ssl:p4:1666' } } }) }
 }))
-vi.mock('@/lib/worktree-runtime-owner', () => ({
-  getExecutionHostIdForWorktree: (_state: unknown, worktreeId: string) =>
-    hostByWorktree.get(worktreeId) ?? 'local'
+vi.mock('@/store/slices/worktrees/listing/worktree-owner-target', () => ({
+  tryRuntimeTargetForWorktreeOwner: (_state: unknown, worktreeId: string) => {
+    const environmentId = hostByWorktree.get(worktreeId)
+    return environmentId ? { kind: 'environment', environmentId } : { kind: 'local' }
+  }
 }))
 
 import { RuntimeRpcCallError } from './runtime-rpc-result'
@@ -38,7 +40,7 @@ function methodNotFound(): RuntimeRpcCallError {
 beforeEach(() => {
   vi.clearAllMocks()
   hostByWorktree.clear()
-  hostByWorktree.set(hosted.worktreeId, 'runtime:env-1')
+  hostByWorktree.set(hosted.worktreeId, 'env-1')
   vi.stubGlobal('window', { api: { perforce: ipc } })
 })
 

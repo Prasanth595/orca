@@ -1,10 +1,9 @@
 import { useAppStore } from '@/store'
-import { getExecutionHostIdForWorktree } from '@/lib/worktree-runtime-owner'
+import { tryRuntimeTargetForWorktreeOwner } from '@/store/slices/worktrees/listing/worktree-owner-target'
 import type { PerforceApi } from '../../../preload/api/perforce-api'
 import type { RuntimeClientTarget } from '../../../shared/runtime-client-target'
 import { normalizePerforceSettings } from '../../../shared/perforce/perforce-settings'
 import type { PerforceDetectResult } from '../../../shared/perforce/perforce-types'
-import { ipcOrRuntimeTargetForHostId } from './runtime-client-target'
 import { callRuntimeRpc } from './runtime-rpc-client'
 import { RuntimeRpcCallError } from './runtime-rpc-result'
 import { toRuntimeWorktreeSelector } from './runtime-worktree-selector'
@@ -33,9 +32,8 @@ function hostedRuntimeTarget(worktreeId: string | null | undefined): RuntimeClie
   if (!worktreeId) {
     return null
   }
-  const target = ipcOrRuntimeTargetForHostId(
-    getExecutionHostIdForWorktree(useAppStore.getState(), worktreeId)
-  )
+  // Why the owner, not focus: the workspace's own host runs p4; an unresolved owner stays on IPC.
+  const target = tryRuntimeTargetForWorktreeOwner(useAppStore.getState(), worktreeId)
   return target?.kind === 'environment' ? target : null
 }
 
