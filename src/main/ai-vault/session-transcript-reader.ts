@@ -9,6 +9,7 @@ import {
 } from './session-parse-cache-store'
 import { TranscriptMessageChannel } from './session-transcript-channel'
 import { mergeSkippedTranscriptRecords } from './session-transcript-record-budget'
+import { throwIfAiVaultScanCancelled } from './ai-vault-scan-cancellation'
 
 const NEWLINE_BYTE = 0x0a
 
@@ -131,6 +132,7 @@ export async function readResumableTranscript(args: {
     }
 
     const session = await displayState.finalize(args.platform)
+    throwIfAiVaultScanCancelled(args.signal)
     channel.finishRead({ session, byteOffset: readResult.consumedThrough, incomplete: false })
     return {
       session,
@@ -179,6 +181,7 @@ export async function readWholeTranscript(args: {
   channel.beginRead({ candidate: args.candidate, mode: 'replace', previousByteOffset: 0 })
   try {
     const session = await parseAgentSessionFile(args.candidate, args.platform, channel, args.signal)
+    throwIfAiVaultScanCancelled(args.signal)
     channel.finishRead({ session, byteOffset: file.sizeBytes ?? 0, incomplete: false })
     return session
   } catch (error) {

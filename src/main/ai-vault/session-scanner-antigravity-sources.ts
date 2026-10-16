@@ -43,6 +43,6 @@ export function antigravityDiscoveries(
       filePredicate: isAntigravityTranscriptPath,
       directoryPredicate: shouldDescendAntigravityBrainDirectory,
       signal: options.signal
-    }).then((discovery) => completeAntigravityTranscriptPairs(discovery, issues))
+    }).then((discovery) => completeAntigravityTranscriptPairs(discovery, issues, options.signal))
   )
 }

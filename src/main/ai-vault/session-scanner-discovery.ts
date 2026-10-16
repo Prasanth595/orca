@@ -27,8 +27,11 @@ type SessionFileObservation =
   | { file: Omit<FileWithMtime, 'modifiedAt'>; sidecarPath?: string }
   | { issue: { path: string; message: string } }
 
-async function withNativeDiscoverySlot<T>(read: () => Promise<T>): Promise<T> {
-  const release = await nativeDiscoverySlots.acquire(0)
+async function withNativeDiscoverySlot<T>(
+  read: () => Promise<T>,
+  signal?: AbortSignal
+): Promise<T> {
+  const release = await nativeDiscoverySlots.acquire(0, signal)
   try {
     return await read()
   } finally {
@@ -130,14 +133,14 @@ export async function discoverFiles(args: {
           files.push(await observeSessionFile(path, args.contentDependencyPath, args.signal))
         }
         return files
-      })
+      }, args.signal)
     )
     return observations.flat()
   }
 
   async function readDirectory(path: string): Promise<Dirent[]> {
     const entries = native
-      ? await withNativeDiscoverySlot(() => wslGatedReaddir(path, 'scan', args.signal))
+      ? await withNativeDiscoverySlot(() => wslGatedReaddir(path, 'scan', args.signal), args.signal)
       : await wslGatedReaddir(path, 'scan', args.signal)
     // A listed root is a history folder being walked; a missing one never shows.
     if (path === args.rootDir) {

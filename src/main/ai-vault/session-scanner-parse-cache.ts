@@ -33,6 +33,7 @@ import {
   requestWholeTranscriptRead,
   type TranscriptReadStats
 } from './session-transcript-reader'
+import { throwIfAiVaultScanCancelled } from './ai-vault-scan-cancellation'
 
 export {
   invalidateSessionParseCacheEntry,
@@ -201,6 +202,7 @@ async function parseCachedInLane(
         platform,
         signal
       )
+      throwIfAiVaultScanCancelled(signal)
       const session = reuseUnchangedSidecarSession(entry.session, enriched.session)
       storeSessionParseCacheEntry(file.path, {
         ...entry,
@@ -225,6 +227,7 @@ async function parseCachedInLane(
       signal
     })
     const enriched = await enrichSessionFromSidecar(candidate, read.session, platform, signal)
+    throwIfAiVaultScanCancelled(signal)
     storeSessionParseCacheEntry(file.path, {
       mtimeMs: file.mtimeMs,
       sizeBytes: file.sizeBytes ?? null,
@@ -245,6 +248,7 @@ async function parseCachedInLane(
   // does post-read; the raw fold stays in foldSession so a sibling-only change
   // re-merges without re-reading the transcript.
   const enriched = await enrichSessionFromSidecar(candidate, session, platform, signal)
+  throwIfAiVaultScanCancelled(signal)
   storeSessionParseCacheEntry(file.path, {
     mtimeMs: file.mtimeMs,
     sizeBytes: file.sizeBytes ?? null,

@@ -195,7 +195,8 @@ async function scanInScopeSessions(args: {
       scopePaths: args.scopePaths,
       limit: args.limit,
       excludedFilePaths: args.alreadyParsedFilePaths,
-      issues: args.issues
+      issues: args.issues,
+      signal: args.signal
     })
     candidates.push(...files.map((file) => ({ agent: layout.agent, file, codexHome: null })))
   }

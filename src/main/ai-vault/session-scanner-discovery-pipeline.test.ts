@@ -48,6 +48,53 @@ function scan(scanRoot = root, issues: AiVaultScanIssue[] = [], limit = 100) {
 }
 
 describe('fresh discovery pipeline', () => {
+  it('drops a cancelled directory waiter without waiting for the occupied native slots', async () => {
+    const roots = Array.from({ length: 8 }, (_, index) => join(root, `blocked-${index}`))
+    await Promise.all(roots.map((directory) => fs.mkdir(directory)))
+    let release = () => {}
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let ready = () => {}
+    const occupied = new Promise<void>((resolve) => {
+      ready = resolve
+    })
+    let entered = 0
+    fsMocks.readdir.mockImplementation(async (path: string, options: { withFileTypes: true }) => {
+      if (roots.includes(path)) {
+        if (++entered === roots.length) {
+          ready()
+        }
+        await blocked
+      }
+      return fs.readdir(path, options)
+    })
+    const holders = roots.map((directory) => scan(directory))
+    await occupied
+    const controller = new AbortController()
+    const outcomes: unknown[] = []
+    const pending = discoverFiles({
+      rootDir: root,
+      limit: 3,
+      agent: 'claude',
+      issues: [],
+      extensions: ['.jsonl'],
+      signal: controller.signal
+    }).then(
+      (result) => outcomes.push(result),
+      (error: unknown) => outcomes.push(error)
+    )
+    try {
+      controller.abort()
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(outcomes).toEqual([expect.objectContaining({ name: 'AbortError' })])
+    } finally {
+      release()
+      await Promise.all([...holders, pending])
+    }
+    expect(fsMocks.readdir.mock.calls.some(([path]) => path === root)).toBe(false)
+  })
+
   it('stops on cancel mid-batch and reports the cut-short stats as no issue', async () => {
     await createFiles(join(root, 'a'), 30)
     await createFiles(join(root, 'b'), 30)
