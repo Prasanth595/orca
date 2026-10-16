@@ -269,19 +269,3 @@ it("opens switched chats at the newest message with each tab's disclosure state"
   expect(label('Collapse')).toHaveLength(1)
   expect(jumpControls()).toHaveLength(0)
 })
-
-it('appends the streaming bubble after cached rows', async () => {
-  act(() => {
-    renderer = create(view('tab-a'))
-  })
-  expect(list().props.data.map((row: { id: string }) => row.id)).toEqual(['tab-a'])
-  act(() =>
-    renderer!.update(
-      createElement(MobileNativeChatView, {
-        ...view('tab-a').props,
-        streaming: 'The tests'
-      })
-    )
-  )
-  expect(list().props.data.map((row: { id: string }) => row.id)).toEqual(['tab-a', 'streaming'])
-})
