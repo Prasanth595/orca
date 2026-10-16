@@ -104,6 +104,7 @@ describe('options at rest', () => {
       })
       expect(probe).not.toHaveBeenCalled()
       expect(result.models).toEqual([])
+      expect(result.modelsUnknown).toBe(true)
       expect(result.current).not.toHaveProperty('model')
       record.options = { model: 'later-model', effort: 'off' }
       // Of these, only Codex's chats state a permission mode.

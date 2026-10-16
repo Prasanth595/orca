@@ -32,7 +32,10 @@ import { structuredAgentSessionLaunchPermission } from './structured-agent-sessi
 import type { AgentSessionTurnContext, TurnOutcome } from './structured-agent-session-turns'
 import type { StructuredAgentSessionMutationContext } from './structured-agent-session-host-mutations'
 
-type RestingOptions = Pick<AgentSessionOptionsResult, 'models' | 'fastModeSupport' | 'current'>
+type RestingOptions = Pick<
+  AgentSessionOptionsResult,
+  'models' | 'modelsUnknown' | 'fastModeSupport' | 'current'
+>
 
 /** What the asking client takes: whether it reads an answer that names no model. */
 export type StructuredAgentSessionOptionsReader = { readsWithoutModel: boolean }
@@ -136,7 +139,9 @@ async function readStructuredAgentSessionOptionsAtRest(
       ? models.find((entry) => entry.id === model)?.defaultEffort
       : undefined)
   return {
-    models: listed ? structuredAgentSessionOptionModels(listed, model, (row) => row) : [],
+    ...(listed
+      ? { models: structuredAgentSessionOptionModels(listed, model, (row) => row) }
+      : { models: [], modelsUnknown: true }),
     ...(catalog.origin !== 'unknown' && catalog.fastModeSupport
       ? { fastModeSupport: catalog.fastModeSupport }
       : {}),
