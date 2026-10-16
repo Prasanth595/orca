@@ -24,7 +24,7 @@ vi.mock('react-native', () => ({
     OS: 'android',
     select: (values: Record<string, unknown>) => values.android ?? values.default
   },
-  StyleSheet: { create: (styles: unknown) => styles, hairlineWidth: 1 }
+  StyleSheet: { create: (styles: unknown) => styles, hairlineWidth: 0.5 }
 }))
 vi.mock('lucide-react-native', () => ({ Activity: 'Activity' }))
 vi.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' }))
@@ -38,6 +38,7 @@ import { styles as sourceStyles } from '../source-control/mobile-source-control-
 import { styles as taskStyles } from '../tasks/mobile-tasks-legacy-styles'
 import { mobileDiffReviewStyles } from '../components/mobile-diff-review-screen-styles'
 import { HostScreenView } from '../host-screen/host-screen-view'
+import { hostScreenStyles } from '../host-screen/host-screen-styles'
 import { MobileHomeListHeader } from '../home/MobileHomeListHeader'
 import type { HostScreenController } from '../host-screen/use-host-screen-controller'
 
@@ -46,19 +47,25 @@ afterEach(() => {
   act(() => tree?.unmount())
   applyMobileColorScheme('dark')
 })
-it('repaints the mounted machine screen without rebuilding its controller', () => {
+it('paints the machine status inset like its header while keeping the list on the canvas', () => {
   // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: child views are stubbed; this view only reads state.error.
   const controller = { state: { error: null } } as unknown as HostScreenController
   act(() => {
     tree = create(createElement(HostScreenView, { controller }))
   })
-  const background = () =>
-    tree!.root.find((node) => String(node.type) === 'SafeAreaView').props.style.backgroundColor
-  expect(background()).toBe(darkColors.bgBase)
-  act(() => applyMobileColorScheme('light'))
-  expect(background()).toBe(lightColors.bgBase)
-  act(() => applyMobileColorScheme('dark'))
-  expect(background()).toBe(darkColors.bgBase)
+  for (const scheme of ['light', 'dark', 'light'] as const) {
+    act(() => applyMobileColorScheme(scheme))
+    const palette = scheme === 'light' ? lightColors : darkColors
+    const safeArea = tree!.root.find((node) => String(node.type) === 'SafeAreaView')
+    expect(safeArea.props.style.backgroundColor).toBe(palette.bgPanel)
+    const body = safeArea.findAll((node) => String(node.type) === 'View')
+    expect(body.some((node) => node.props.style?.backgroundColor === palette.bgBase)).toBe(true)
+  }
+})
+it('draws a single header separator instead of stacking toolbar and chrome borders', () => {
+  expect(hostScreenStyles.topChrome.borderBottomWidth).toBe(0.5)
+  expect(hostScreenStyles.toolbar).not.toHaveProperty('borderBottomWidth')
+  expect(hostScreenStyles.embeddedToolbar).not.toHaveProperty('borderBottomWidth')
 })
 it('uses a light surface behind all three home statistics', () => {
   applyMobileColorScheme('light')

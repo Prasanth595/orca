@@ -4,13 +4,17 @@ import { colors, radii, spacing, typography } from '../theme/mobile-theme'
 
 export const hostScreenPrimaryStyles = createThemedStyles(() =>
   StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.bgPanel
+    },
     container: {
       flex: 1,
       backgroundColor: colors.bgBase
     },
     topChrome: {
       backgroundColor: colors.bgPanel,
-      borderBottomWidth: 1,
+      borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.borderSubtle
     },
     statusBar: {
@@ -72,16 +76,12 @@ export const hostScreenPrimaryStyles = createThemedStyles(() =>
       alignItems: 'center',
       paddingVertical: spacing.xs + 2,
       paddingHorizontal: spacing.md,
-      gap: spacing.sm,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.borderSubtle
+      gap: spacing.sm
     },
     embeddedToolbar: {
       paddingVertical: spacing.xs + 2,
       paddingHorizontal: spacing.sm,
-      gap: spacing.xs,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.borderSubtle
+      gap: spacing.xs
     },
     embeddedToolbarRow: {
       flexDirection: 'row',
