@@ -1,3 +1,4 @@
+import { useMobileTheme } from '../../../src/theme/use-mobile-theme'
 import { useLocalSearchParams } from 'expo-router'
 import { WorkspaceDetailPlaceholder } from '../../../src/components/WorkspaceDetailPlaceholder'
 import { firstParam } from '../../../src/navigation/route-param-reader'
@@ -20,6 +21,8 @@ import { shellSwitchDecision } from '../../../src/mobile-web-shell/shell-switch-
  * screen rather than the native list this route already has.
  */
 function HostListScreen() {
+  useMobileTheme()
+
   // Through `firstParam`, as the other four switches do: expo-router answers a repeated key with
   // an array, and a bare read puts it straight into the template, where `String(['a','b'])` is
   // `a,b` and `encodeURIComponent` makes it the single segment `a%2Cb` — which the bridge's

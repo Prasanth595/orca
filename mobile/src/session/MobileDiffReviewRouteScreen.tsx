@@ -1,3 +1,4 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
 import { useCallback, useMemo } from 'react'
 import { useLocalSearchParams } from 'expo-router'
 import { MobileDiffReviewScreenView } from '../components/MobileDiffReviewScreenView'
@@ -22,6 +23,8 @@ import { useWorkspaceRouteHandoff } from '../navigation/workspace-route-handoff'
  * files above it are the switch and its web sibling.
  */
 export function MobileDiffReviewRouteScreen() {
+  useMobileTheme()
+
   const params = useLocalSearchParams<{
     hostId?: string | string[]
     worktreeId?: string | string[]

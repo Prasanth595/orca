@@ -1,9 +1,14 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
+import { inlineScriptLiteral } from '../components/inline-script-json'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { StyleSheet } from 'react-native'
 import { WebView, type WebViewMessageEvent } from 'react-native-webview'
 import type { ShouldStartLoadRequest } from 'react-native-webview/lib/WebViewTypes'
 import * as ExpoCrypto from 'expo-crypto'
-import { buildNativeChatVisualDocument } from '../../../src/shared/native-chat-visual-shell'
+import {
+  buildNativeChatVisualDocument,
+  nativeChatVisualThemeMessage
+} from '../../../src/shared/native-chat-visual-shell'
 import { createNativeChatVisualHeightGovernor } from '../../../src/shared/native-chat-visual-height-governor'
 import { openExternalLink } from '../platform/external-link'
 import {
@@ -13,10 +18,11 @@ import {
 import {
   buildMobileNativeChatVisualHostDocument,
   MOBILE_NATIVE_CHAT_VISUAL_APPLY_HEIGHT,
+  MOBILE_NATIVE_CHAT_VISUAL_APPLY_THEME,
   MOBILE_NATIVE_CHAT_VISUAL_INITIAL_HEIGHT,
   type MobileNativeChatVisualHostMode
 } from './mobile-native-chat-visual-host-document'
-import { MOBILE_NATIVE_CHAT_VISUAL_THEME } from './mobile-native-chat-visual-theme'
+import { getMobileNativeChatVisualTheme } from './mobile-native-chat-visual-theme'
 
 export type MobileNativeChatVisualFrameProps = {
   html: string
@@ -54,6 +60,7 @@ export const MobileNativeChatVisualFrame = memo(function MobileNativeChatVisualF
   mode,
   onFailed
 }: MobileNativeChatVisualFrameProps) {
+  const scheme = useMobileTheme()
   const webView = useRef<WebView>(null)
   const [token] = useState(randomHex)
   const [generation, setGeneration] = useState(0)
@@ -66,7 +73,7 @@ export const MobileNativeChatVisualFrame = memo(function MobileNativeChatVisualF
     const visualDocument = buildNativeChatVisualDocument({
       html,
       channel,
-      theme: MOBILE_NATIVE_CHAT_VISUAL_THEME
+      theme: getMobileNativeChatVisualTheme()
     })
     return {
       channel,
@@ -81,6 +88,14 @@ export const MobileNativeChatVisualFrame = memo(function MobileNativeChatVisualF
       }
     }
   }, [html, token, title, mode])
+
+  const applyTheme = useCallback(() => {
+    const message = nativeChatVisualThemeMessage(getMobileNativeChatVisualTheme(), built.channel)
+    webView.current?.injectJavaScript(
+      `window.${MOBILE_NATIVE_CHAT_VISUAL_APPLY_THEME}?.(${inlineScriptLiteral(message)}); true;`
+    )
+  }, [built.channel])
+  useEffect(() => applyTheme(), [applyTheme, scheme])
 
   // A fresh governor per loaded document; reports queue behind a deferral rather than pile up.
   const sizing = useRef<{
@@ -186,6 +201,7 @@ export const MobileNativeChatVisualFrame = memo(function MobileNativeChatVisualF
       showsVerticalScrollIndicator={false}
       showsHorizontalScrollIndicator={false}
       onMessage={onMessage}
+      onLoadEnd={applyTheme}
       onError={onFailed}
       onHttpError={onFailed}
       onContentProcessDidTerminate={restart}

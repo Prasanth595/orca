@@ -1,3 +1,5 @@
+import { createThemedStyles } from '../../theme/mobile-themed-styles'
+import { useMobileTheme } from '../../theme/use-mobile-theme'
 import { memo, useMemo, useState } from 'react'
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import { WebView } from 'react-native-webview'
@@ -21,9 +23,11 @@ export type MermaidDiagramProps = {
 // per frame during pinch-to-zoom (textScale updates), marshalling the full HTML
 // string across the Fabric boundary each time.
 export const MermaidDiagram = memo(function MermaidDiagram({ source, base }: MermaidDiagramProps) {
+  const colorScheme = useMobileTheme()
+
   const [height, setHeight] = useState(0)
   const [failed, setFailed] = useState(false)
-  const html = useMemo(() => buildHtml(source), [source])
+  const html = useMemo(() => buildHtml(source), [source, colorScheme])
 
   if (failed) {
     return <MermaidFallback source={source} base={base} />
@@ -68,6 +72,8 @@ export const MermaidDiagram = memo(function MermaidDiagram({ source, base }: Mer
 })
 
 function MermaidFallback({ source, base }: MermaidDiagramProps) {
+  useMobileTheme()
+
   return (
     <View style={styles.frame}>
       <View style={styles.label}>
@@ -130,28 +136,30 @@ export function buildHtml(source: string): string {
 </html>`
 }
 
-const styles = StyleSheet.create({
-  frame: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle,
-    borderRadius: radii.row,
-    marginBottom: spacing.sm,
-    overflow: 'hidden',
-    backgroundColor: colors.bgRaised
-  },
-  label: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderSubtle,
-    backgroundColor: colors.bgPanel
-  },
-  labelText: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontFamily: typography.monoFamily
-  },
-  webview: { backgroundColor: colors.bgRaised },
-  fallbackScroll: { padding: spacing.sm },
-  fallbackText: { color: colors.textPrimary, fontFamily: typography.monoFamily }
-})
+const styles = createThemedStyles(() =>
+  StyleSheet.create({
+    frame: {
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSubtle,
+      borderRadius: radii.row,
+      marginBottom: spacing.sm,
+      overflow: 'hidden',
+      backgroundColor: colors.bgRaised
+    },
+    label: {
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 2,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.borderSubtle,
+      backgroundColor: colors.bgPanel
+    },
+    labelText: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      fontFamily: typography.monoFamily
+    },
+    webview: { backgroundColor: colors.bgRaised },
+    fallbackScroll: { padding: spacing.sm },
+    fallbackText: { color: colors.textPrimary, fontFamily: typography.monoFamily }
+  })
+)

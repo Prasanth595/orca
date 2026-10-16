@@ -1,3 +1,4 @@
+import { useMobileTheme } from '../../../../../src/theme/use-mobile-theme'
 import { withWorkspaceRoute } from '../../../../../src/navigation/workspace-route'
 import {
   useWorkspaceExecutionHost,
@@ -28,6 +29,8 @@ import { shellSwitchDecision } from '../../../../../src/mobile-web-shell/shell-s
  * bridge holds a route to.
  */
 export default withWorkspaceRoute(function MobileFilePreviewRoute() {
+  useMobileTheme()
+
   const params = useLocalSearchParams<{
     hostId?: string | string[]
     worktreeId?: string | string[]

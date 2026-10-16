@@ -1,9 +1,12 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
 import { useEffect, useRef, useState } from 'react'
 import { Text, View } from 'react-native'
 import type { MobileMediaPlaybackProps } from './MobileMediaPlayback'
 import { filePreviewStyles as styles } from './mobile-file-preview-styles'
 
 export function MobileMediaPlayback({ uri, mimeType, title }: MobileMediaPlaybackProps) {
+  useMobileTheme()
+
   const mediaRef = useRef<HTMLMediaElement>(null)
   const [failure, setFailure] = useState('')
   useEffect(() => {

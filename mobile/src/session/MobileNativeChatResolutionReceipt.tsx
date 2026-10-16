@@ -1,3 +1,5 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
+import { createThemedStyles } from '../theme/mobile-themed-styles'
 import { StyleSheet, View } from 'react-native'
 import {
   NATIVE_CHAT_RECEIPT_COPY,
@@ -23,6 +25,8 @@ export function MobileNativeChatResolutionReceipt({
   awaiting?: boolean
   fontScale: number
 }): React.JSX.Element | null {
+  useMobileTheme()
+
   const subject = nativeChatReceiptSubject(body)
   if (body.resolution.state === 'pending') {
     return body.kind === 'question' ? (
@@ -88,17 +92,19 @@ export function MobileNativeChatResolutionReceipt({
   )
 }
 
-const styles = StyleSheet.create({
-  receipt: {
-    gap: spacing.xs,
-    paddingLeft: spacing.md,
-    borderLeftWidth: StyleSheet.hairlineWidth,
-    borderLeftColor: colors.borderSubtle
-  },
-  text: {
-    color: colors.textMuted
-  },
-  title: {
-    fontWeight: '600'
-  }
-})
+const styles = createThemedStyles(() =>
+  StyleSheet.create({
+    receipt: {
+      gap: spacing.xs,
+      paddingLeft: spacing.md,
+      borderLeftWidth: StyleSheet.hairlineWidth,
+      borderLeftColor: colors.borderSubtle
+    },
+    text: {
+      color: colors.textMuted
+    },
+    title: {
+      fontWeight: '600'
+    }
+  })
+)

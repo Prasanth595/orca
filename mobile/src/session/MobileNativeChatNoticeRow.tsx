@@ -1,3 +1,5 @@
+import { useMobileTheme } from '../theme/use-mobile-theme'
+import { createThemedStyles } from '../theme/mobile-themed-styles'
 import { StyleSheet, View } from 'react-native'
 import { AlertCircle, AlertTriangle, Info } from 'lucide-react-native'
 import { AGENT_SESSION_HOST_STATUS_COPY } from '../../../src/shared/agent-session-host-status-rows'
@@ -14,12 +16,6 @@ import { INLINE_TEXT_SELECTION } from '../components/inline-text-selection'
 import { colors, radii, spacing, typography } from '../theme/mobile-theme'
 import { MONO_SIZE, TEXT_SIZE, scaledType } from './mobile-native-chat-message-styles'
 
-const TONE_COLOR: Record<NativeChatNoticeTone, string> = {
-  warning: colors.statusAmber,
-  error: colors.statusRed,
-  notice: colors.textMuted
-}
-
 /** A row the agent did not write in its own words, drawn as desktop's `NativeChatNoticeRow` and
  *  its faint system asides are, so it never reads as the agent speaking. */
 export function MobileNativeChatNoticeRow({
@@ -34,6 +30,14 @@ export function MobileNativeChatNoticeRow({
   /** Android only: a long press on a plan's link opens the row's actions sheet. */
   onLongPress?: () => void
 }): React.JSX.Element | null {
+  useMobileTheme()
+
+  const toneColor: Record<NativeChatNoticeTone, string> = {
+    warning: colors.statusAmber,
+    error: colors.statusRed,
+    notice: colors.textMuted
+  }
+
   const notice = nativeChatNoticeBlock(blocks)
   // A system row with no notice of its own is an aside, a size under the agent's prose.
   const aside = [styles.faint, scaledType(typography.bodySize, fontScale)]
@@ -101,7 +105,7 @@ export function MobileNativeChatNoticeRow({
       const textStyle = [
         styles.line,
         scaledType(TEXT_SIZE, fontScale),
-        look.tone && { color: TONE_COLOR[look.tone] }
+        look.tone && { color: toneColor[look.tone] }
       ]
       if (!look.tone) {
         return (
@@ -116,7 +120,7 @@ export function MobileNativeChatNoticeRow({
         <View style={[styles.card, styles.toneCard]}>
           <Icon
             size={16 * fontScale}
-            color={TONE_COLOR[look.tone]}
+            color={toneColor[look.tone]}
             strokeWidth={2}
             style={styles.toneIcon}
           />
@@ -129,53 +133,55 @@ export function MobileNativeChatNoticeRow({
   }
 }
 
-const styles = StyleSheet.create({
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: spacing.sm
-  },
-  rule: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.borderSubtle
-  },
-  dividerLabel: {
-    color: colors.textMuted,
-    fontSize: typography.metaSize
-  },
-  faint: {
-    color: colors.textMuted
-  },
-  commandOutput: {
-    color: colors.textPrimary,
-    fontFamily: typography.monoFamily
-  },
-  card: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle,
-    borderRadius: radii.row,
-    backgroundColor: colors.bgPanel,
-    padding: spacing.md,
-    gap: spacing.sm
-  },
-  planTitle: {
-    color: colors.textPrimary,
-    fontSize: typography.bodySize,
-    fontWeight: '600'
-  },
-  toneCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start'
-  },
-  toneIcon: {
-    marginTop: 2
-  },
-  line: {
-    color: colors.textPrimary
-  },
-  toneText: {
-    flex: 1
-  }
-})
+const styles = createThemedStyles(() =>
+  StyleSheet.create({
+    divider: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      paddingVertical: spacing.sm
+    },
+    rule: {
+      flex: 1,
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.borderSubtle
+    },
+    dividerLabel: {
+      color: colors.textMuted,
+      fontSize: typography.metaSize
+    },
+    faint: {
+      color: colors.textMuted
+    },
+    commandOutput: {
+      color: colors.textPrimary,
+      fontFamily: typography.monoFamily
+    },
+    card: {
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSubtle,
+      borderRadius: radii.row,
+      backgroundColor: colors.bgPanel,
+      padding: spacing.md,
+      gap: spacing.sm
+    },
+    planTitle: {
+      color: colors.textPrimary,
+      fontSize: typography.bodySize,
+      fontWeight: '600'
+    },
+    toneCard: {
+      flexDirection: 'row',
+      alignItems: 'flex-start'
+    },
+    toneIcon: {
+      marginTop: 2
+    },
+    line: {
+      color: colors.textPrimary
+    },
+    toneText: {
+      flex: 1
+    }
+  })
+)

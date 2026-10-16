@@ -1,7 +1,10 @@
+import { createThemedStyles } from '../theme/mobile-themed-styles'
+import { useMobileTheme } from '../theme/use-mobile-theme'
 import {
   forwardRef,
   memo,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -11,6 +14,7 @@ import { Keyboard, StyleSheet, View } from 'react-native'
 import { openExternalLink } from '../platform/external-link'
 import WebView, { type WebViewMessageEvent } from 'react-native-webview'
 import { colors } from '../theme/mobile-theme'
+import { richMarkdownEditorThemeProperties } from './rich-markdown/document-theme'
 import { MobileRichMarkdownToolbar } from './MobileRichMarkdownToolbar'
 import type {
   MobileRichMarkdownCommand,
@@ -48,12 +52,21 @@ function MobileRichMarkdownEditorInner(
   }: MobileRichMarkdownEditorComponentProps,
   ref: ForwardedRef<MobileRichMarkdownEditorHandle>
 ) {
+  const colorScheme = useMobileTheme()
+
   const webViewRef = useRef<WebView>(null)
   const html = useMemo(() => buildMobileRichMarkdownEditorHtml(), [])
 
   const inject = useCallback((script: string) => {
     webViewRef.current?.injectJavaScript(`${script}\ntrue;`)
   }, [])
+
+  const applyTheme = useCallback(() => {
+    inject(
+      `for (const [key, value] of Object.entries(${JSON.stringify(richMarkdownEditorThemeProperties())})) { document.documentElement.style.setProperty(key, value); }`
+    )
+  }, [inject, colorScheme])
+  useEffect(applyTheme, [applyTheme])
 
   const transport = useMemo(
     () => ({
@@ -140,6 +153,7 @@ function MobileRichMarkdownEditorInner(
         hideKeyboardAccessoryView
         keyboardDisplayRequiresUserAction={false}
         onMessage={handleWebViewMessage}
+        onLoadEnd={applyTheme}
         onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
         style={styles.webView}
         scrollEnabled
@@ -154,15 +168,17 @@ function MobileRichMarkdownEditorInner(
 
 export const MobileRichMarkdownEditor = memo(forwardRef(MobileRichMarkdownEditorInner))
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    minHeight: 0,
-    backgroundColor: colors.bgBase
-  },
-  webView: {
-    flex: 1,
-    minHeight: 0,
-    backgroundColor: colors.bgBase
-  }
-})
+const styles = createThemedStyles(() =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      minHeight: 0,
+      backgroundColor: colors.bgBase
+    },
+    webView: {
+      flex: 1,
+      minHeight: 0,
+      backgroundColor: colors.bgBase
+    }
+  })
+)
