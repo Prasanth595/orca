@@ -9,6 +9,8 @@ import {
   type TextStyle
 } from 'react-native'
 import type { NativeChatVisualDirective } from '../../../src/shared/native-chat-visual-directive'
+import { openMarkdownImage } from './markdown-href-routing'
+import { MarkdownImageView } from './markdown-image-view'
 import { isMobileMermaidLanguage } from './mobile-mermaid-language'
 import { mobileMarkdownTableColumnWidths } from './mobile-markdown-table-columns'
 import { mobileMarkdownVisualPlaceholderIndex } from './mobile-markdown-visual-lines'
@@ -32,6 +34,13 @@ export type MarkdownBlockContext = MarkdownInlineContext & {
   /** The text is still arriving: a diagram stays code until it stops. */
   growing: boolean
   listText: StyleProp<TextStyle>
+  /** textScale-derived size overrides; absent means the base sheet size. */
+  listMarkerText?: StyleProp<TextStyle>
+  headingText?: StyleProp<TextStyle>
+  headingLargeText?: StyleProp<TextStyle>
+  quoteText?: StyleProp<TextStyle>
+  codeText?: StyleProp<TextStyle>
+  tableCellText?: StyleProp<TextStyle>
   /** Interactive children own their touches and must forward the row action. */
   rowLongPress?: () => void
   directives: readonly NativeChatVisualDirective[]
@@ -56,7 +65,7 @@ function renderCode(node: Code, key: number, ctx: MarkdownBlockContext): ReactNo
   return (
     <View key={key} style={styles.codeBlock}>
       {node.lang ? <NativeText style={styles.codeLanguage}>{node.lang}</NativeText> : null}
-      <MarkdownText selectable style={styles.codeText}>
+      <MarkdownText selectable style={[styles.codeText, ctx.codeText]}>
         {node.value}
       </MarkdownText>
     </View>
@@ -69,7 +78,7 @@ function renderList(node: List, key: number, ctx: MarkdownBlockContext, depth: n
     <View key={key} style={styles.list}>
       {node.children.map((item, itemIndex) => (
         <View key={itemIndex} style={styles.listItem}>
-          <NativeText style={styles.listMarker}>
+          <NativeText style={[styles.listMarker, ctx.listMarkerText]}>
             {item.checked == null
               ? node.ordered
                 ? `${(node.start ?? 1) + itemIndex}.`
@@ -105,7 +114,8 @@ function renderTable(node: Table, key: number, ctx: MarkdownBlockContext): React
                 style={[
                   styles.tableCell,
                   rowIndex === 0 ? styles.tableHeader : null,
-                  { width, textAlign: node.align?.[cellIndex] ?? 'left' }
+                  { width, textAlign: node.align?.[cellIndex] ?? 'left' },
+                  ctx.tableCellText
                 ]}
               >
                 {renderInline(cells[cellIndex]?.children ?? [], ctx)}
@@ -147,20 +157,35 @@ function renderBlock(
           </Fragment>
         ) : null
       }
-      if (node.children.length === 1 && only?.type === 'image' && /^https?:\/\//i.test(only.url)) {
-        return (
-          <Pressable
-            key={key}
-            style={styles.imageFrame}
-            onPress={() => openMarkdownHref(only.url, ctx.onOpenFile)}
-            onLongPress={ctx.rowLongPress}
-          >
-            <NativeText style={styles.link}>{only.alt || 'Open image'}</NativeText>
-            <NativeText style={styles.imageCaption} numberOfLines={1}>
-              {only.url}
-            </NativeText>
-          </Pressable>
-        )
+      if (node.children.length === 1 && only?.type === 'image') {
+        // A resolved src renders the image itself full width; an external src stays
+        // the captioned frame on the system browser.
+        const dataUri = ctx.imageSources?.[only.url]
+        if (dataUri) {
+          return (
+            <MarkdownImageView
+              key={key}
+              uri={dataUri}
+              alt={only.alt ?? ''}
+              onPress={() => openMarkdownImage(only.url!, ctx.onOpenFile, ctx.onOpenImage)}
+            />
+          )
+        }
+        if (/^https?:\/\//i.test(only.url)) {
+          return (
+            <Pressable
+              key={key}
+              style={styles.imageFrame}
+              onPress={() => openMarkdownHref(only.url, ctx.onOpenFile)}
+              onLongPress={ctx.rowLongPress}
+            >
+              <NativeText style={styles.link}>{only.alt || 'Open image'}</NativeText>
+              <NativeText style={styles.imageCaption} numberOfLines={1}>
+                {only.url}
+              </NativeText>
+            </Pressable>
+          )
+        }
       }
       return (
         <MarkdownText key={key} selectable={text.selectable} style={text.style}>
@@ -173,7 +198,11 @@ function renderBlock(
         <MarkdownText
           key={key}
           selectable
-          style={[styles.heading, node.depth <= 2 ? styles.headingLarge : null]}
+          style={
+            node.depth <= 2
+              ? [styles.heading, styles.headingLarge, ctx.headingLargeText]
+              : [styles.heading, ctx.headingText]
+          }
         >
           {renderInline(node.children, ctx)}
         </MarkdownText>
@@ -184,7 +213,7 @@ function renderBlock(
           {renderBlocks(
             node.children,
             ctx,
-            { style: styles.quoteText, selectable: true },
+            { style: [styles.quoteText, ctx.quoteText], selectable: true },
             depth + 1
           )}
         </View>
@@ -200,7 +229,9 @@ function renderBlock(
     case 'footnoteDefinition':
       return (
         <View key={key} style={styles.listItem}>
-          <NativeText style={styles.listMarker}>{`[${node.label ?? node.identifier}]`}</NativeText>
+          <NativeText
+            style={[styles.listMarker, ctx.listMarkerText]}
+          >{`[${node.label ?? node.identifier}]`}</NativeText>
           <View style={styles.listItemBody}>
             {renderBlocks(node.children, ctx, { style: ctx.listText, selectable: true }, depth + 1)}
           </View>

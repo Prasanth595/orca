@@ -7,7 +7,8 @@ import {
   isFilePathCodeSpan,
   normalizeFilePath
 } from './markdown-file-path-detection'
-import { routeMarkdownHref } from './markdown-href-routing'
+import { openMarkdownImage, routeMarkdownHref } from './markdown-href-routing'
+import { MarkdownInlineImage } from './markdown-image-view'
 import { styles } from './mobile-markdown-styles'
 import { MarkdownText } from './mobile-markdown-text'
 import { plainText } from './mobile-markdown-tree'
@@ -16,6 +17,14 @@ export type MarkdownInlineContext = {
   /** When provided, detected file paths and file-target hrefs render as tappable and invoke
    *  this with the path text; without it, paths render as plain text. */
   onOpenFile?: (pathText: string) => void
+  /** Authored image src → data URL, resolved by the owner; an image whose src has an
+   *  entry renders as a real image instead of the tappable fallback text. */
+  imageSources?: Record<string, string>
+  /** Image taps prefer this with the authored src; without it, image taps route the
+   *  src as a file href. */
+  onOpenImage?: (rawSrc: string) => void
+  /** Multiplier for inline image thumbnails; 1 leaves the sheet size alone. */
+  textScale?: number
 }
 
 type SpanStyle = TextProps['style']
@@ -125,8 +134,33 @@ function renderPhrasing(
       )
     case 'link':
       return renderLink(key, plainText(node), node.url, ctx, outer)
-    case 'image':
-      return renderLink(key, node.alt || 'image', node.url, ctx, outer)
+    case 'image': {
+      // A resolved src renders the image itself; anything else stays tappable text.
+      const dataUri = ctx.imageSources?.[node.url]
+      if (dataUri) {
+        return (
+          <MarkdownText
+            key={key}
+            onPress={() => openMarkdownImage(node.url, ctx.onOpenFile, ctx.onOpenImage)}
+          >
+            <MarkdownInlineImage
+              uri={dataUri}
+              alt={node.alt ?? ''}
+              sizeScale={ctx.textScale ?? 1}
+            />
+          </MarkdownText>
+        )
+      }
+      return (
+        <MarkdownText
+          key={key}
+          style={[outer, styles.link]}
+          onPress={() => openMarkdownImage(node.url, ctx.onOpenFile, ctx.onOpenImage)}
+        >
+          {node.alt || 'image'}
+        </MarkdownText>
+      )
+    }
     case 'footnoteReference':
       return (
         <MarkdownText key={key} style={[outer, styles.footnoteReference]}>

@@ -16,14 +16,21 @@ type Props = {
   rangeSelectable?: boolean
   /** Forward long presses from interactive Android transcript spans to the message. */
   onLongPress?: () => void
-  /** Multiplier for prose font size (paragraphs, lists, quotes). Defaults to 1;
-   *  the chat view passes >1 so agent prose reads larger than the compact base. */
+  /** Multiplier for the rendered font size (paragraphs, lists, headings, quotes,
+   *  code, table cells, and inline image thumbnails). Defaults to 1; the chat view
+   *  passes >1 so agent prose reads larger than the compact base. */
   textScale?: number
   /** When provided, detected file paths and file-target hrefs render as tappable
    *  and invoke this with the path text (worktree-relative or absolute, with an
    *  optional :line(:col) suffix). Omitted on screens with no file viewer, where
    *  paths render as plain text (no behavior change). */
   onOpenFile?: (pathText: string) => void
+  /** Authored image src → data URL, resolved by the owner; an image whose src has an
+   *  entry renders as a real image instead of the tappable fallback text. */
+  imageSources?: Record<string, string>
+  /** Image taps prefer this with the authored src (resolved against the document by
+   *  the owner); without it, image taps route the src as a file href. */
+  onOpenImage?: (rawSrc: string) => void
   /** Native-chat assistant prose only: renders `::orca-visual{...}` directive lines. Without it,
    *  a directive line is ordinary text. Must be referentially stable (this component is memoized). */
   renderVisual?: (directive: NativeChatVisualDirective, index: number) => ReactNode
@@ -38,6 +45,8 @@ function MobileMarkdownContent({
   rangeSelectable = false,
   textScale = 1,
   onOpenFile,
+  imageSources,
+  onOpenImage,
   renderVisual,
   growing = false
 }: Props) {
@@ -53,12 +62,25 @@ function MobileMarkdownContent({
     ) : null
   }
   // Scale prose sizes; inline spans inherit fontSize from the wrapping Text.
-  const scaled = (size: number): { fontSize: number; lineHeight: number } | null =>
-    textScale !== 1 ? { fontSize: size * textScale, lineHeight: (size + 6) * textScale } : null
+  // Compact bases (code, table cells) keep their tighter 12/17 sheet metrics.
+  const scaled = (
+    size: number,
+    lineHeight = size + 6
+  ): { fontSize: number; lineHeight: number } | null =>
+    textScale !== 1 ? { fontSize: size * textScale, lineHeight: lineHeight * textScale } : null
   const ctx: MarkdownBlockContext = {
     growing,
     onOpenFile,
+    imageSources,
+    onOpenImage,
+    textScale,
     listText: [styles.listText, scaled(14)],
+    listMarkerText: scaled(13),
+    headingText: scaled(14),
+    headingLargeText: scaled(15),
+    quoteText: scaled(13),
+    codeText: scaled(12, 17),
+    tableCellText: scaled(12, 17),
     rowLongPress: setup.androidTranscript ? setup.onLongPress : undefined,
     directives,
     renderVisual,
