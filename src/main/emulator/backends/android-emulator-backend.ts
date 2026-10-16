@@ -44,7 +44,6 @@ import {
   type StartAndroidStream
 } from '../android/android-stream-session-starter'
 import { AndroidStreamController } from '../android/android-stream-controller'
-import { removeOrphanedScrcpyForwards } from '../android/scrcpy-stream-session'
 import { scrcpyVideoRegistry } from '../scrcpy-video-registry'
 import type { EmulatorGesturePoint } from '../emulator-gesture-sender'
 
@@ -173,23 +172,10 @@ export class AndroidEmulatorBackend implements EmulatorBackend {
 
   async stopHelperForDevice(
     deviceId: string,
-    options: { helperPid?: number; includeOrphaned?: boolean } = {}
+    _options: { helperPid?: number; includeOrphaned?: boolean } = {}
   ): Promise<void> {
+    // Only live handles establish ownership; scrcpy socket names are shared with other tools.
     this.streams.stop(deviceId)
-    // Reap scrcpy port-forwards leaked by an unclean exit: the in-memory handle is
-    // gone after a crash, so streams.stop can't remove them. Best-effort, limited
-    // to this device's scrcpy tunnels, and must never throw on this teardown path.
-    if (options.includeOrphaned) {
-      const sdk = this.sdkState.resolve()
-      if (!sdk) {
-        return
-      }
-      const serial = await this.resolveDeviceId(deviceId).catch(() => null)
-      if (!serial) {
-        return
-      }
-      await removeOrphanedScrcpyForwards(this.runner, sdk, serial).catch(() => {})
-    }
   }
 
   async shutdownDevice(deviceId: string): Promise<void> {

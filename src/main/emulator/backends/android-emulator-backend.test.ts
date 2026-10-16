@@ -270,11 +270,12 @@ describe('AndroidEmulatorBackend', () => {
     })
     const info = await android.startSession('emulator-5554')
     expect(info).toMatchObject({ deviceUdid: 'emulator-5554', streamCodec: 'h264' })
-    await android.stopHelperForDevice('emulator-5554')
+    await android.stopHelperForDevice('emulator-5554', { includeOrphaned: true })
+    await android.stopHelperForDevice('emulator-5554', { includeOrphaned: true })
     expect(close).toHaveBeenCalledTimes(1)
   })
 
-  it('reaps only the stopped device scrcpy forwards and leaves every other forward', async () => {
+  it('preserves all unowned forwards when stopping without a live session', async () => {
     // One adb server holds every device's forwards; `--list` and `--remove-all`
     // ignore `-s`, and `--remove` matches the local name alone.
     const forwards = [
@@ -283,6 +284,7 @@ describe('AndroidEmulatorBackend', () => {
       'emulator-5556 tcp:41235 localabstract:scrcpy_5e6f7a8b',
       'R58M12345 tcp:9222 localabstract:chrome_devtools_remote'
     ]
+    const before = [...forwards]
     runner.mockImplementation(async (binary: string, args: readonly string[]) => {
       if (binary === SDK.adb && args.join(' ') === 'devices -l') {
         return ok(RUNNING_ADB)
@@ -302,20 +304,10 @@ describe('AndroidEmulatorBackend', () => {
       return ok('')
     })
 
-    await backend(runner).stopHelperForDevice('emulator-5554', { includeOrphaned: true })
+    const android = backend(runner)
+    await android.stopHelperForDevice('emulator-5554', { includeOrphaned: true })
+    await android.stopHelperForDevice('emulator-5554', { includeOrphaned: true })
 
-    expect(runner.mock.calls.flatMap(([, args]) => args)).not.toContain('--remove-all')
-    expect(runner).toHaveBeenCalledWith(SDK.adb, [
-      '-s',
-      'emulator-5554',
-      'forward',
-      '--remove',
-      'tcp:41234'
-    ])
-    expect(forwards).toEqual([
-      'emulator-5554 tcp:8081 tcp:8081',
-      'emulator-5556 tcp:41235 localabstract:scrcpy_5e6f7a8b',
-      'R58M12345 tcp:9222 localabstract:chrome_devtools_remote'
-    ])
+    expect(forwards).toEqual(before)
   })
 })

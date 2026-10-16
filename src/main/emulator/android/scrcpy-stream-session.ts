@@ -7,8 +7,6 @@ import type { AndroidSdkPaths } from './android-sdk-discovery'
 import { ensureAdbOk } from './android-adb-result'
 import {
   SCRCPY_DEVICE_JAR_PATH,
-  listForwardsArgs,
-  parseScrcpyForwardPorts,
   pushScrcpyServerArgs,
   scrcpyForwardArgs,
   scrcpyRemoveForwardArgs,
@@ -279,21 +277,5 @@ export class ScrcpyStreamSession {
       .runner(this.options.sdk.adb, scrcpyRemoveForwardArgs(this.options.serial, this.port))
       .catch(() => {})
     this.callbacks.onClose()
-  }
-}
-
-// Removes `serial`'s scrcpy tunnels that a crashed session left behind. Not
-// `forward --remove-all`: adb ignores `-s` for it and drops every forward on the server.
-export async function removeOrphanedScrcpyForwards(
-  runner: AndroidCommandRunner,
-  sdk: AndroidSdkPaths,
-  serial: string
-): Promise<void> {
-  const listed = await runner(sdk.adb, listForwardsArgs(serial))
-  if (listed.code !== 0) {
-    return
-  }
-  for (const port of parseScrcpyForwardPorts(listed.stdout, serial)) {
-    await runner(sdk.adb, scrcpyRemoveForwardArgs(serial, port))
   }
 }
