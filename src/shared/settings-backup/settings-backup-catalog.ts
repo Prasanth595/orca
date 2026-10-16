@@ -175,6 +175,7 @@ export const SETTINGS_BACKUP_KEY_CLASSES = {
   floatingTerminalEnabled: 'general',
   skipDeleteWorktreeConfirm: 'general',
   alwaysForceDeleteWorktrees: 'general',
+  alwaysForceDeletePreservedBranches: 'general',
   skipCloseTerminalWithRunningProcessConfirm: 'general',
   skipDeleteAutomationConfirm: 'general',
   skipDeleteArtifactConfirm: 'general',

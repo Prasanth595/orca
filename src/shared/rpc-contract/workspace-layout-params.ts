@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { TerminalPaneLayoutNodeSchema } from './session-tabs-schemas-params'
+import { TerminalOrphanGroupLayout } from './terminal-orphan-params'
 
 export const LayoutSubscribeParams = z
   .object({
@@ -33,10 +35,58 @@ const RenamePaneCommand = z.object({
   title: z.union([z.string().trim().min(1), z.null()])
 })
 
+const MovePaneCommand = z.object({
+  type: z.literal('movePane'),
+  ...OnPane,
+  targetLeafId: z.string().min(1),
+  side: z.enum(['left', 'right', 'top', 'bottom'])
+})
+
+/** The tab's tree with its new ratios; main refuses one whose panes differ from its own. */
+const SetPaneRatiosCommand = z.object({
+  type: z.literal('setPaneRatios'),
+  workspace: OnPane.workspace,
+  tabId: OnPane.tabId,
+  root: TerminalPaneLayoutNodeSchema
+})
+
 const EqualizePanesCommand = z.object({
   type: z.literal('equalizePanes'),
   workspace: OnPane.workspace,
   tabId: OnPane.tabId
+})
+
+const OnTab = { workspace: OnPane.workspace, tabId: OnPane.tabId }
+
+/** Within one group too: a reorder is a move to the tab's own group. */
+const MoveTabCommand = z.object({
+  type: z.literal('moveTab'),
+  ...OnTab,
+  toGroupId: z.string().min(1),
+  index: z.number().int().nonnegative()
+})
+
+/** Main mints the new group's id, or moves a lone tab's group whole. */
+const SplitGroupCommand = z.object({
+  type: z.literal('splitGroup'),
+  ...OnTab,
+  besideGroupId: z.string().min(1),
+  direction: z.enum(['left', 'right', 'up', 'down'])
+})
+
+/** The workspace's group tree with its new ratios; main refuses one whose groups differ. */
+const SetGroupRatiosCommand = z.object({
+  type: z.literal('setGroupRatios'),
+  workspace: OnPane.workspace,
+  groupLayout: TerminalOrphanGroupLayout
+})
+
+/** The window's close of one tab it already closed; main records it, the window's reason kept. */
+const CloseTabsCommand = z.object({
+  type: z.literal('closeTabs'),
+  workspace: OnPane.workspace,
+  tabIds: z.tuple([z.string().min(1)]),
+  recordClose: z.enum(['user', 'cleanup'])
 })
 
 /**
@@ -48,6 +98,12 @@ export const LayoutApplyParams = z.object({
     SplitPaneCommand,
     ClosePaneCommand,
     RenamePaneCommand,
-    EqualizePanesCommand
+    EqualizePanesCommand,
+    MovePaneCommand,
+    SetPaneRatiosCommand,
+    MoveTabCommand,
+    SplitGroupCommand,
+    SetGroupRatiosCommand,
+    CloseTabsCommand
   ])
 })

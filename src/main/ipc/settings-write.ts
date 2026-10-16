@@ -157,7 +157,8 @@ export async function applySettingsWrite(
     originWebContentsId: context.originWebContentsId
   }
   const result =
-    'alwaysForceDeleteWorktrees' in sanitizedArgs
+    'alwaysForceDeleteWorktrees' in sanitizedArgs ||
+    'alwaysForceDeletePreservedBranches' in sanitizedArgs
       ? await store.updateSettingsAndFlush(sanitizedArgs, updateOptions)
       : store.updateSettings(sanitizedArgs, updateOptions)
   const proxySettingsChanged =
