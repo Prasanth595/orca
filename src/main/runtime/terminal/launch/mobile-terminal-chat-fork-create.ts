@@ -54,6 +54,7 @@ export abstract class OrcaRuntimeWithMobileChatForkCreate extends OrcaRuntimeWit
     if (!sourceId || !mutationId || workspace.connectionId || isWslUncPath(workspace.path) || !this.store) {
       throw new Error('chat_fork_runtime_incompatible')
     }
+    const store = this.store
     const preflight = await (async () => {
       try {
         await this.ensureStructuredAgentSessionHost()
@@ -81,7 +82,7 @@ export abstract class OrcaRuntimeWithMobileChatForkCreate extends OrcaRuntimeWit
         if (!sourceAgent || !isTuiAgent(sourceAgent)) {
           throw new Error('chat_fork_source_unavailable')
         }
-        const settings = this.store.getSettings()
+        const settings = store.getSettings()
         const launchRuntime = this.resolveAgentLaunchRuntime(workspace, sourceAgent)
         const startup = applyClaudeTerminalImageViewerEnv(buildMobileTerminalChatFork({
           prepared, settings, runtime: launchRuntime
