@@ -39,6 +39,7 @@ const MODEL_DOWNLOAD_FILES = {
       ['tokens.txt', 93_939, 'd58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d']
     ]
   ),
+  // Base model: alexandreacff/parakeet-tdt-v3-ptBR-30s (CC-BY-4.0).
   'parakeet-tdt-0.6b-v3-pt-br-int8': huggingFaceFiles(
     'joaorura/parakeet-tdt-0.6b-v3-ptBR-sherpa-onnx-int8',
     'bf31b612b9ea9602c21b9faf0dec038ff2c9a3fc',

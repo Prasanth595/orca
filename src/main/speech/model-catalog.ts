@@ -23,7 +23,7 @@ export const SPEECH_MODEL_CATALOG: SpeechModelManifest[] = [
       'Portuguese (Brazil) only. Fine-tuned for Brazilian Portuguese accuracy. Punctuation and capitalization.',
     type: 'transducer',
     provider: 'local',
-    language: 'pt',
+    language: 'pt-BR',
     ...getSpeechModelDownloadMetadata('parakeet-tdt-0.6b-v3-pt-br-int8'),
     sampleRate: 16000,
     streaming: false,
