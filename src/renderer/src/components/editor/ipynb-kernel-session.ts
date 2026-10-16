@@ -1,4 +1,3 @@
-import { toast } from 'sonner'
 import { translate } from '@/i18n/i18n'
 import { useAppStore } from '@/store'
 import type {
@@ -7,8 +6,9 @@ import type {
   KernelStartResult,
   PythonEnvironment
 } from '../../../../shared/notebook-kernel-types'
-import { applyKernelOutput } from './ipynb-kernel-outputs'
-import { fenced, noticeOutput, startRun, stopRuns } from './ipynb-kernel-runs'
+import { updateNotebookCellRun, writeNotebookDraft } from './ipynb-document-store'
+import { noticeOutput } from './ipynb-kernel-outputs'
+import { applyOutputFrames, endRun, failQueue, fenced, startRun } from './ipynb-kernel-runs'
 import {
   getSession,
   runningCellKey,
@@ -22,36 +22,20 @@ import {
 const INTERRUPT_STALL_MS = 10_000
 const sessionLifetimes = new Map<string, symbol>()
 
-/** Reports a failure in the first queued cell (a toast when nothing was queued) and drops the queue. */
-function failQueue(filePath: string, message: string, detail = ''): void {
-  const [head] = getSession(filePath).queue
-  if (!head) {
-    toast.error(message, { description: detail.slice(-500) })
-  }
-  updateSession(filePath, ({ runs }) => ({
-    status: 'off',
-    queue: [],
-    setup: null,
-    runs: head
-      ? {
-          ...runs,
-          [head.key]: {
-            ...startRun(),
-            outputs: [noticeOutput(message + fenced(detail))],
-            finishedAt: Date.now()
-          }
-        }
-      : runs
-  }))
-}
-
 function pump(filePath: string): void {
   const session = getSession(filePath)
   const [next, ...queue] = session.queue
   if (session.status !== 'ready' || !next || runningCellKey(session) !== null) {
     return
   }
-  updateSession(filePath, ({ runs }) => ({ queue, runs: { ...runs, [next.key]: startRun() } }))
+  updateSession(filePath, ({ runs }) => ({
+    queue,
+    runs: { ...runs, [next.key]: startRun(next.fileId) }
+  }))
+  updateNotebookCellRun(next.fileId, next.key, {
+    outputs: () => [],
+    executionCount: null
+  })
   void window.api.notebook.execute({ filePath, code: next.code })
 }
 
@@ -168,7 +152,7 @@ export async function runCells(
 }
 
 export function restartKernel(filePath: string): void {
-  updateSession(filePath, stopRuns)
+  endRun(filePath)
   void start(filePath)
 }
 
@@ -273,13 +257,6 @@ export function cancelSetup(filePath: string): void {
   }))
 }
 
-export function markRunCommitted(filePath: string, key: string): void {
-  updateSession(filePath, ({ runs }) => {
-    const run = runs[key]
-    return run ? { runs: { ...runs, [key]: { ...run, outputs: [], committed: true } } } : {}
-  })
-}
-
 /** Forgets finished runs, e.g. after Clear All Outputs; the executing run keeps streaming. */
 export function forgetFinishedRuns(filePath: string): void {
   updateSession(filePath, ({ runs }) => ({
@@ -294,14 +271,13 @@ function handleFrame({ filePath, frame }: KernelFrameEvent): void {
   const session = getSession(filePath)
   if (frame.type === 'exit') {
     const died = translate('auto.components.editor.IpynbViewer.kernelDied', 'The kernel died.')
-    updateSession(filePath, (current) => ({
-      ...stopRuns(current, [noticeOutput(died + fenced(frame.detail))]),
-      status: 'dead'
-    }))
+    endRun(filePath, noticeOutput(died + fenced(frame.detail)))
+    updateSession(filePath, () => ({ status: 'dead' }))
     return
   }
   const key = runningCellKey(session)
-  if (key === null) {
+  const run = key === null ? undefined : session.runs[key]
+  if (key === null || !run) {
     return
   }
   if (frame.type === 'done') {
@@ -314,12 +290,14 @@ function handleFrame({ filePath, frame }: KernelFrameEvent): void {
         [key]: { ...runs[key], executionCount: frame.execution_count, finishedAt: Date.now() }
       }
     }))
+    updateNotebookCellRun(run.fileId, key, {
+      executionCount: frame.execution_count
+    })
+    writeNotebookDraft(run.fileId)
     pump(filePath)
     return
   }
-  updateSession(filePath, ({ runs }) => ({
-    runs: { ...runs, [key]: applyKernelOutput(runs[key], frame.type, frame.content) }
-  }))
+  applyOutputFrames(filePath, key, [frame])
 }
 
 // Kernels only exist once this module has loaded with the notebook viewer, so it subscribes here.
