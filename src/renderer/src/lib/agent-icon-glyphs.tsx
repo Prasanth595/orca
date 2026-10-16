@@ -47,6 +47,24 @@ export function OmpIcon({ size = 14 }: { size?: number }): React.JSX.Element {
   )
 }
 
+export function GjcIcon({ size = 14 }: { size?: number }): React.JSX.Element {
+  // Hand-authored GJC (gajae-code) mark: a crayfish claw over a block "G", in
+  // currentColor so it follows the row's text color like the Pi glyph.
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 64 64"
+      xmlns="http://www.w3.org/2000/svg"
+      className="text-current"
+      aria-hidden
+    >
+      <path fill="currentColor" d="M12 18h30v8H20v20h16v-8h-8v-8h16v24H12z" />
+      <path fill="currentColor" d="M46 10l8 4-3 9-6 3-3-6 5-3-4-3z" />
+    </svg>
+  )
+}
+
 export function KiloIcon({ size = 14 }: { size?: number }): React.JSX.Element {
   // SVG sourced from Kilo-Org/kilocode:packages/kilo-vscode/assets/icons/kilo-light.svg.
   // Why: the Google favicon for kilo.ai is black-on-black at small sizes and
