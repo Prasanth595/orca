@@ -22213,6 +22213,11 @@
           }
         },
         {
+          "complete": "agentSession.createSupport#1",
+          "params": { "worktree": "id:wt-1", "agent": "claude" },
+          "reply": { "ok": true, "result": { "supported": false } }
+        },
+        {
           "checkpoint": "creating"
         },
         {
@@ -22279,6 +22284,11 @@
           "args": {
             "agent": "claude"
           }
+        },
+        {
+          "complete": "agentSession.createSupport#1",
+          "params": { "worktree": "id:wt-1", "agent": "claude" },
+          "reply": { "ok": true, "result": { "supported": false } }
         },
         {
           "checkpoint": "creating"

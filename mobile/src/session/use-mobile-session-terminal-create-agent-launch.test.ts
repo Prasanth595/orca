@@ -203,11 +203,7 @@ describe('the + menu', () => {
       }
       throw new Error(`Unexpected request: ${method}`)
     })
-    const state = scope(client, [
-      ...LAUNCH_CAPABILITIES,
-      'agent-session.structured.v1',
-      'agent-session.structured.client-launch-mode.v1'
-    ])
+    const state = scope(client, [...LAUNCH_CAPABILITIES, 'agent-session.structured.v1'])
     await create_(state, 'codex')
     expect(created).toEqual(['structured'])
     expect(state.pendingSelectionRef.current).toEqual(
@@ -225,7 +221,7 @@ describe('the + menu', () => {
       )
       await create_(scope(client), 'codex')
       expect(launchParams(sendRequest)).toMatchObject({ agent: 'codex', nativeChatDefault: true })
-      expect(methods(sendRequest)).toEqual(['agent.launchReplay'])
+      expect(methods(sendRequest)).toEqual(['agentSession.createSupport', 'agent.launchReplay'])
     }
   )
 
@@ -237,7 +233,7 @@ describe('the + menu', () => {
 
     await create_(state, 'claude')
 
-    expect(methods(sendRequest)).toEqual(['agent.launchReplay'])
+    expect(methods(sendRequest)).toEqual(['agentSession.createSupport', 'agent.launchReplay'])
     expect(launchParams(sendRequest)).toMatchObject({
       agent: 'claude',
       target: { kind: 'existing', worktree: 'id:workspace-1' }
@@ -300,6 +296,7 @@ describe('the + menu', () => {
     const sendRequest = vi.fn(
       async (_method: string, _params?: unknown, _options?: unknown) => reply
     )
+    sendRequest.mockResolvedValueOnce(ok({ supported: false }))
     sendRequest.mockRejectedValueOnce(markRpcDeliveryUnknown(new Error('response lost')))
     const state = scope(requestPortRpcClient(sendRequest))
 
@@ -399,6 +396,7 @@ describe('the + menu', () => {
     const sendRequest = vi.fn(async (_method: string, _params?: unknown, _options?: unknown) =>
       refusal('agent_launch_pane_already_live')
     )
+    sendRequest.mockResolvedValueOnce(ok({ supported: false }))
     sendRequest.mockRejectedValueOnce(markRpcDeliveryUnknown(new Error('response lost')))
     const state = scope(requestPortRpcClient(sendRequest))
 
@@ -460,7 +458,7 @@ describe('the + menu', () => {
 
     await create_(state, 'claude')
 
-    expect(methods(sendRequest)).toEqual(['agent.launchReplay'])
+    expect(methods(sendRequest)).toEqual(['agentSession.createSupport', 'agent.launchReplay'])
     expect(state.showToast).toHaveBeenCalledWith(
       'Agent claude is disabled. Choose an enabled agent.',
       1800
@@ -482,7 +480,7 @@ describe('the + menu', () => {
 
     await create_(state, 'claude')
 
-    expect(methods(sendRequest)).toEqual(['agent.launchReplay'])
+    expect(methods(sendRequest)).toEqual(['agentSession.createSupport', 'agent.launchReplay'])
     expect(state.showToast).toHaveBeenCalledWith(
       "Couldn't confirm the agent started. Check the workspace before trying again.",
       1800

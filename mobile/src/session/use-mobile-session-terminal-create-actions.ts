@@ -22,10 +22,7 @@ import {
 } from './pending-session-selection'
 import { releaseTerminalCreateLock } from './terminal-create-lock'
 import { placeCreatedSessionTab } from '../../../src/shared/session-tab-placement'
-import {
-  SESSION_TABS_SPLIT_GROUP_PLACEMENT_RUNTIME_CAPABILITY,
-  STRUCTURED_AGENT_SESSION_CLIENT_LAUNCH_MODE_CAPABILITY
-} from '../../../src/shared/protocol-version'
+import { SESSION_TABS_SPLIT_GROUP_PLACEMENT_RUNTIME_CAPABILITY } from '../../../src/shared/protocol-version'
 
 export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttachmentsModel) {
   const {
@@ -112,10 +109,7 @@ export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttach
 
     try {
       // Older SSH runtimes drop agent.launch's mode field; create is already client-controlled.
-      if (
-        hostCapabilities?.includes(STRUCTURED_AGENT_SESSION_CLIENT_LAUNCH_MODE_CAPABILITY) &&
-        (await launchStructured())
-      ) {
+      if (await launchStructured()) {
         return
       }
       if (
@@ -137,9 +131,6 @@ export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttach
           setCreateError
         }))
       ) {
-        return
-      }
-      if (await launchStructured()) {
         return
       }
       const afterTabId = activeSessionTabId ?? undefined
