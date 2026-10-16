@@ -6,7 +6,6 @@ import type {
   AgentSessionHistoryResult,
   AgentSessionSubscribeEvent
 } from '../../../src/shared/agent-session-wire'
-import { AGENT_SESSION_HISTORY_MAX_LIMIT } from '../../../src/shared/agent-session-wire'
 import { structuredAgentSessionHolderId } from '../../../src/shared/structured-agent-session-holder'
 import {
   EMPTY_STRUCTURED_AGENT_SESSION,
@@ -34,6 +33,8 @@ const NO_QUEUED_FEED: QueuedFeed = { messages: null, pause: null }
 const MAX_RETAINED_SESSION_STATES = 32
 /** Bounded so a busy stream cannot turn one Load-earlier tap into an endless read chain. */
 const OLDER_PAGE_ANCHOR_ATTEMPTS = 3
+// Large tool results must fit the phone's existing read deadline over SSH.
+const OLDER_PAGE_LIMIT = 40
 /** Bounds the pages one Load-earlier reads past that hold only subagent rows. */
 const OLDER_PAGES_PER_LOAD = 8
 
@@ -262,7 +263,7 @@ export function useMobileStructuredAgentState(args: {
               sessionId,
               direction: 'before',
               cursor: requestedCursor,
-              limit: AGENT_SESSION_HISTORY_MAX_LIMIT
+              limit: OLDER_PAGE_LIMIT
             }
           )
           if (!result.ok || !isCurrentRead()) {
