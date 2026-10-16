@@ -34,7 +34,12 @@ describe('buildProjectSectionCatalog', () => {
       projectOrderBy: 'manual',
       projectGroups: undefined
     }
-    const catalog = buildProjectSectionCatalog(served, [repo('r1', undefined, uploaded)], null)
+    const catalog = buildProjectSectionCatalog(
+      served,
+      [repo('r1', undefined, uploaded)],
+      null,
+      'manual'
+    )
     expect(catalog.repos.map((entry) => entry.repoIcon)).toEqual([uploaded, undefined])
   })
 
@@ -56,10 +61,10 @@ describe('buildProjectSectionCatalog', () => {
     }
 
     expect(
-      buildProjectSectionCatalog(served, [], ['local']).projectGroups.map((entry) => entry.id)
+      buildProjectSectionCatalog(served, [], ['local'], null).projectGroups.map((entry) => entry.id)
     ).toEqual(['local-group'])
     expect(
-      buildProjectSectionCatalog(served, [], null).projectGroups.map((entry) => entry.id)
+      buildProjectSectionCatalog(served, [], null, null).projectGroups.map((entry) => entry.id)
     ).toEqual(['local-group', 'server-group'])
   })
 })

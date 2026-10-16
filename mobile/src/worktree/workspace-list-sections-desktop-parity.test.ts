@@ -22,11 +22,11 @@ import { buildSections, type ProjectSectionCatalog, type Worktree } from './work
 // worktree-list-groups-mobile-parity.test.ts: buildRows renders these headers, and main serves
 // PROJECT_SECTION_PARITY_SERVED for the same host answers.
 
-function served(projectOrderBy: 'manual' | 'recent'): ServedProjectSections | null {
+function served(): ServedProjectSections | null {
   const verdict = projectSectionsRead.interpret({
     id: 'sections',
     ok: true,
-    result: { catalog: { ...PROJECT_SECTION_PARITY_SERVED, projectOrderBy } }
+    result: { catalog: PROJECT_SECTION_PARITY_SERVED }
   })
   return verdict.accepted ? verdict.value : null
 }
@@ -91,7 +91,7 @@ describe('Project grouping on the phone', () => {
     "renders the desktop sidebar's %s headers from the catalog the desktop serves",
     (projectOrderBy) => {
       expect(rows()).toHaveLength(PROJECT_SECTION_PARITY_ROWS.length)
-      expect(headers(buildProjectSectionCatalog(served(projectOrderBy), [], null))).toEqual(
+      expect(headers(buildProjectSectionCatalog(served(), [], null, projectOrderBy))).toEqual(
         PROJECT_SECTION_PARITY_HEADERS[projectOrderBy]
       )
     }
@@ -107,7 +107,9 @@ describe('Project grouping on the phone', () => {
       })
       expect(verdict.accepted).toBe(true)
       expect(
-        nestedHeaders(buildProjectSectionCatalog(verdict.accepted ? verdict.value : null, [], null))
+        nestedHeaders(
+          buildProjectSectionCatalog(verdict.accepted ? verdict.value : null, [], null, null)
+        )
       ).toEqual(PROJECT_GROUP_PARITY_HEADERS[projectOrderBy])
     }
   )
@@ -122,7 +124,7 @@ describe('Project grouping on the phone', () => {
 
     expect(verdict.accepted).toBe(true)
     expect(
-      headers(buildProjectSectionCatalog(verdict.accepted ? verdict.value : null, [], null))
+      headers(buildProjectSectionCatalog(verdict.accepted ? verdict.value : null, [], null, null))
     ).toEqual(PROJECT_SECTION_PARITY_HEADERS.manual)
   })
 
@@ -131,7 +133,7 @@ describe('Project grouping on the phone', () => {
       (repo) => repo.executionHostId === 'local'
     )
 
-    expect(headers(buildProjectSectionCatalog(null, desktopRepos, null))).toEqual([
+    expect(headers(buildProjectSectionCatalog(null, desktopRepos, null, 'manual'))).toEqual([
       { key: 'repo:m4-orca-two', label: 'orca' },
       { key: 'repo:win-orca', label: 'orca' },
       { key: 'repo:local-workspace', label: 'Users/jinwoo/orca/workspaces/orca/orca' },

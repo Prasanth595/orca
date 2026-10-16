@@ -80,6 +80,7 @@ const catalogSchema = z.object({
   repos: salvagingArray(repoSchema),
   projects: salvagingArray(z.object({ id: z.string(), displayName: z.string() })),
   setups: salvagingArray(setupSchema),
+  // Until the phone has read the shared UI value (projectOrderBy, ui.get), it orders by this.
   projectOrderBy: z.enum(PROJECT_ORDER_BY_ARMS).catch('manual'),
   // Absent from a desktop that predates group nesting; its repos then group flat, as before.
   projectGroups: salvagedOptional('projectGroups', salvagingArray(projectGroupSchema))

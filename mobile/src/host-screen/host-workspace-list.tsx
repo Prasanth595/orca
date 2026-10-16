@@ -15,6 +15,7 @@ import { getWorktreeStatus } from '../worktree/workspace-list-sections'
 import { projectGroupIndent, sectionRowDepth } from '../worktree/project-group-indent'
 import type { Section } from '../worktree/workspace-list-types'
 import { repoColor } from '../worktree/repo-color'
+import { getWorktreeCardDetails } from '../../../src/shared/worktree/card-properties'
 import { hostScreenStyles as styles } from './host-screen-styles'
 import { buildRepoLookById } from './host-repo-looks'
 import type { HostScreenController } from './use-host-screen-controller'
@@ -46,6 +47,11 @@ export function HostWorkspaceList({ controller }: { controller: HostScreenContro
   } = controller
   const { rawSections, sections, repoById } = sectionsResult
   const repoLookById = useMemo(() => buildRepoLookById(repoById), [repoById])
+  const { worktreeCardProperties, compactWorktreeCards, newCardStyle } = state.view
+  const cardDetails = useMemo(
+    () => getWorktreeCardDetails(worktreeCardProperties, { compactWorktreeCards, newCardStyle }),
+    [worktreeCardProperties, compactWorktreeCards, newCardStyle]
+  )
 
   return (
     <>
@@ -206,7 +212,11 @@ export function HostWorkspaceList({ controller }: { controller: HostScreenContro
               repoColor={repoLookById.get(item.repoId)?.color ?? repoColor(item.repo)}
               repoIcon={repoLookById.get(item.repoId)?.icon ?? null}
               hideRepo={state.view.groupBy === 'repo' && !item.showProjectName}
+              cardDetails={cardDetails}
+              agentActivityDisplayMode={state.view.agentActivityDisplayMode}
               onPress={actions.openWorktreeSession}
+              onAgentPress={actions.openWorktreeSession}
+              statusLive={connState === 'connected' && !item.hostContextHealthLabel}
               onLongPress={
                 item.workspaceKind === 'folder-workspace' ? undefined : state.setActionTarget
               }
