@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { TerminalPaneAdmissionOutcome } from '../persistence/terminal-topology/terminal-pane-admission'
-import { spawnInAdmittedPane, startInAdmittedPane } from './runtime-pane-admission'
+import { startInAdmittedPane } from './runtime-pane-admission'
 import type { RuntimeStore } from './runtime-store-contract'
 
 const SPLIT = {
@@ -27,31 +27,6 @@ function storeAnswering(admit: TerminalPaneAdmissionOutcome | Error) {
 }
 
 describe('startInAdmittedPane', () => {
-  it('persists a phone anchor before spawn without sending it to the PTY', async () => {
-    const { store, runtimeStore } = storeAnswering('admitted')
-    const spawn = vi.fn(async () => ({ id: 'pty-fork' }))
-    await spawnInAdmittedPane(runtimeStore, { spawn }, {
-      worktreeId: 'wt-1', tabId: 'fork-tab', leafId: 'fork-leaf',
-      cols: 120, rows: 40, connectionId: null,
-      groupId: 'active-group', afterTabId: 'active-tab',
-      cwd: '/repo', launchAgent: 'claude',
-      launchRuntime: {
-        platform: 'win32',
-        pty: { shellOverride: 'powershell.exe', terminalWindowsWslDistro: null }
-      },
-      placement: { kind: 'new-tab' }
-    })
-    expect(store.admitTerminalPane).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'createTerminalTab', groupId: 'active-group', afterTabId: 'active-tab',
-        creation: { startupCwd: '/repo', launchAgent: 'claude', shellOverride: 'powershell.exe' }
-      }), undefined
-    )
-    expect(spawn).toHaveBeenCalledOnce()
-    expect(spawn.mock.calls[0]?.[0]).not.toHaveProperty('afterTabId')
-    expect(spawn.mock.calls[0]?.[0]).not.toHaveProperty('groupId')
-  })
-
   it('writes the pane, then starts what fills it', async () => {
     const { store, runtimeStore } = storeAnswering('admitted')
     const start = vi.fn(async () => 'term-1')

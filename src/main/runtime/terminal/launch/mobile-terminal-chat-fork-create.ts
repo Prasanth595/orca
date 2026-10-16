@@ -11,6 +11,23 @@ import { applyClaudeTerminalImageViewerEnv } from '../../terminal-image-viewer-e
 import { deterministicAgentSessionUuid } from '../../runtime-agent-launch-resolution'
 import { rendererPublicationThrottle } from '../../../window/renderer-publication-throttle'
 
+export function resolveMobileChatForkTargetGroup(args: {
+  groups?: readonly { id: string; tabOrder: readonly string[] }[]
+  afterDesktopTabId?: string
+  explicitGroupId?: string
+  activeGroupId?: string | null
+}): string | undefined {
+  const { groups, afterDesktopTabId, explicitGroupId, activeGroupId } = args
+  const anchorGroupId = afterDesktopTabId
+    ? groups?.find((group) => group.tabOrder.includes(afterDesktopTabId))?.id
+    : undefined
+  if ((afterDesktopTabId && !anchorGroupId) ||
+    (explicitGroupId && !groups?.some((group) => group.id === explicitGroupId))) {
+    throw new Error('chat_fork_anchor_changed')
+  }
+  return explicitGroupId ?? anchorGroupId ?? activeGroupId ?? undefined
+}
+
 export abstract class OrcaRuntimeWithMobileChatForkCreate extends OrcaRuntimeWithCreateMobileSessionTerminal {
   protected abstract captureReadyGraphEpoch(): number
   protected abstract assertStableReadyGraph(expectedGraphEpoch: number): void
@@ -68,9 +85,13 @@ export abstract class OrcaRuntimeWithMobileChatForkCreate extends OrcaRuntimeWit
     const clientIdentity = opts.clientNavigationId ?? 'local'
     const seed = `${clientIdentity}\0${worktreeId}\0${mutationId}`
     const win = this.getAvailableAuthoritativeWindow()
-    const targetGroupId = opts.targetGroupId ??
-      this.getWorkspaceSessionForWorktree(worktreeId)?.activeGroupIdByWorktree?.[worktreeId] ??
-      this.mobileSessionTabsByWorktree.get(worktreeId)?.activeGroupId
+    const snapshot = this.mobileSessionTabsByWorktree.get(worktreeId)
+    const session = this.getWorkspaceSessionForWorktree(worktreeId)
+    const groups = snapshot?.tabGroups ?? session?.tabGroups?.[worktreeId]
+    const targetGroupId = resolveMobileChatForkTargetGroup({
+      groups, afterDesktopTabId, explicitGroupId: opts.targetGroupId,
+      activeGroupId: session?.activeGroupIdByWorktree?.[worktreeId] ?? snapshot?.activeGroupId
+    })
     const releaseThrottle = win && !win.webContents.isDestroyed?.()
       ? rendererPublicationThrottle.acquire(win.webContents) : () => {}
     try {

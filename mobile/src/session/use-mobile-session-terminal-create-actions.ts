@@ -15,7 +15,8 @@ import {
 import type { MobileSessionTab, Terminal } from './mobile-session-route-types'
 import type { MobileSessionAttachmentsModel } from './use-mobile-session-attachments'
 import { useMobileTerminalCreateRouteOwner } from './use-mobile-terminal-create-route-owner'
-import { createMobileSessionQuickCommandLauncher } from './mobile-session-quick-command-launch'
+import { launchMobileSessionQuickCommand } from './mobile-session-quick-command-launch'
+import type { TerminalQuickCommand } from '../../../src/shared/terminal-quick-command-types'
 import { requestMobileSessionTerminalCreate } from './mobile-session-terminal-create-request'
 import { isAgentSessionHandleProvider } from '../../../src/shared/agent-session-provider-handle'
 import { createMobileStructuredAgentSession } from './mobile-structured-agent-session-launch'
@@ -188,9 +189,6 @@ export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttach
         MobileSessionTab,
         { type: 'terminal' }
       >
-      if (!isCurrent()) {
-        return 'accepted'
-      }
       if (sourceFork && response.raw.ok && createdTerminalDesktopWarning(response.raw.result)) {
         reportFork(`${agentName} opened in a CLI, but its desktop tab could not be shown. Check open tabs on the host before retrying.`)
       }
@@ -317,7 +315,8 @@ export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttach
 
   return {
     handleCreateTerminal,
-    launchQuickCommand: createMobileSessionQuickCommandLauncher(scope, handleCreateTerminal)
+    launchQuickCommand: (command: TerminalQuickCommand) =>
+      launchMobileSessionQuickCommand(scope, handleCreateTerminal, command)
   }
 }
 

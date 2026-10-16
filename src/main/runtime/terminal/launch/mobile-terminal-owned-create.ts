@@ -18,6 +18,7 @@ import { copySleepingAgentLaunchConfig } from '../../runtime-agent-launch-resolu
 import { deriveRemoteRuntimeTerminalCreateHandle } from '../../remote-runtime-terminal-create-identity'
 import { parsePaneKey } from '../../../../shared/stable-pane-id'
 import { placeCreatedSessionTab } from '../../../../shared/session-tab-placement'
+import { insertTabIdIntoOrder } from '../../../../shared/workspace-layout/tab-order'
 import {
   buildHeadlessMobileSessionTabGroups,
   buildMaterializedHeadlessParentLayout,
@@ -240,6 +241,25 @@ export abstract class OrcaRuntimeWithCreateRuntimeOwnedMobileSessionTerminal ext
       afterTabId,
       { afterParentGroup: opts.supportsSplitGroupPlacement !== false }
     )
+    const tabGroups = buildHeadlessMobileSessionTabGroups(
+      worktreeId,
+      tabs,
+      activate ? tab : null,
+      existing?.tabGroups,
+      opts.targetGroupId ? { tabId: parentTabId, groupId: opts.targetGroupId } : undefined
+    )
+    if (opts.afterDesktopTabId) {
+      const group = tabGroups.find((candidate) => candidate.tabOrder.includes(parentTabId))
+      if (group?.tabOrder.includes(opts.afterDesktopTabId)) {
+        const topLevelTabs = tabs.map((candidate) => ({
+          id: candidate.type === 'terminal' ? candidate.parentTabId : candidate.id,
+          isPinned: candidate.isPinned === true
+        }))
+        group.tabOrder = insertTabIdIntoOrder(
+          group.tabOrder, topLevelTabs, parentTabId, tab.isPinned === true, opts.afterDesktopTabId
+        )
+      }
+    }
     const next: RuntimeMobileSessionTabsSnapshot = {
       worktree: worktreeId,
       // Why: a fresh epoch retires the current publisher, so clients drop its later tab updates.
@@ -252,13 +272,7 @@ export abstract class OrcaRuntimeWithCreateRuntimeOwnedMobileSessionTerminal ext
           : (existing?.activeGroupId ?? getHeadlessMobileSessionGroupId(worktreeId)),
       activeTabId: activate ? tab.id : (existing?.activeTabId ?? null),
       activeTabType: activate ? 'terminal' : (existing?.activeTabType ?? null),
-      tabGroups: buildHeadlessMobileSessionTabGroups(
-        worktreeId,
-        tabs,
-        activate ? tab : null,
-        existing?.tabGroups,
-        opts.targetGroupId ? { tabId: parentTabId, groupId: opts.targetGroupId } : undefined
-      ),
+      tabGroups,
       // Why: keep group split geometry on new-tab creation, else opening a terminal while split loses the arrangement.
       ...(existing?.tabGroupLayout ? { tabGroupLayout: existing.tabGroupLayout } : {}),
       tabs
