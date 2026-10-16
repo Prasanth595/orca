@@ -5,7 +5,8 @@ import { LOCAL_EXECUTION_HOST_ID, type ExecutionHostScope } from '../../../../sh
 const MAX_PROGRESS_ENTRIES = 8
 const progressByKey = new Map<string, AiVaultScanProgress>()
 const requestedKeys = new Set<string>()
-const pushedKeys = new Set<string>()
+// A push supersedes any fetch still in flight for that key, however many other keys pushed meanwhile.
+const pendingLoads = new Set<string>()
 const listeners = new Set<() => void>()
 let subscribed = false
 
@@ -48,7 +49,7 @@ function ensureSubscribed(): void {
   }
   subscribed = true
   window.api.aiVault.onScanProgress?.(({ scanKey, progress }) => {
-    rememberKey(pushedKeys, scanKey)
+    pendingLoads.delete(scanKey)
     setProgress(scanKey, progress)
   })
 }
@@ -58,14 +59,18 @@ function loadKey(scanKey: string): void {
     return
   }
   rememberKey(requestedKeys, scanKey)
-  void window.api.aiVault
-    .getScanProgress?.(scanKey)
+  const request = window.api.aiVault.getScanProgress?.(scanKey)
+  if (!request) {
+    return
+  }
+  pendingLoads.add(scanKey)
+  void request
     .then((progress) => {
-      if (!pushedKeys.has(scanKey)) {
+      if (pendingLoads.delete(scanKey)) {
         setProgress(scanKey, progress)
       }
     })
-    .catch(() => undefined)
+    .catch(() => pendingLoads.delete(scanKey))
 }
 
 /** Live progress follows the request key; settled progress also needs the applied result's ID. */
@@ -103,7 +108,7 @@ export function useAiVaultScanProgress(
 export function resetAiVaultScanProgressStoreForTests(): void {
   progressByKey.clear()
   requestedKeys.clear()
-  pushedKeys.clear()
+  pendingLoads.clear()
   subscribed = false
   listeners.clear()
 }

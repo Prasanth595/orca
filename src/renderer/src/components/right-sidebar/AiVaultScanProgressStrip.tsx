@@ -14,8 +14,6 @@ import { formatTimeAgo } from './ai-vault-session-time'
 
 // Why: interpolated so locales place the emphasized count; U+0000 never appears in copy.
 const EMPHASIS_TOKEN = '\u0000'
-// A finished scan's check stays green this long, then reads as the idle state.
-const FRESH_FINISH_MS = 60_000
 
 function formatCount(value: number): string {
   return value.toLocaleString(getIntlLocale())
@@ -99,18 +97,12 @@ function formatElapsed(ms: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 }
 
-function StripMark({
-  progress,
-  now
-}: {
-  progress: AiVaultScanProgress
-  now: number
-}): React.JSX.Element {
+// The strip stays muted; status colour lives only in the per-agent rows.
+function StripMark({ progress }: { progress: AiVaultScanProgress }): React.JSX.Element {
   if (progress.settledAt === null) {
     return <LoaderCircle className="size-3 shrink-0 animate-spin" />
   }
-  const fresh = now - progress.settledAt < FRESH_FINISH_MS
-  return <Check className={cn('size-3 shrink-0', fresh && 'text-status-success')} />
+  return <Check className="size-3 shrink-0" />
 }
 
 function agentDetail(agent: AiVaultScanAgentProgress): string {
@@ -154,7 +146,7 @@ export function AiVaultScanProgressStrip({
             type="button"
             className="flex h-8 w-full cursor-pointer items-center gap-1.5 pl-3 pr-2 text-left text-[11px] text-muted-foreground tabular-nums outline-none hover:bg-sidebar-accent/50 focus-visible:ring-[2px] focus-visible:ring-sidebar-ring/30"
           >
-            <StripMark progress={progress} now={now} />
+            <StripMark progress={progress} />
             <StripText progress={progress} />
             <span className="ml-auto shrink-0">
               {progress.settledAt === null
