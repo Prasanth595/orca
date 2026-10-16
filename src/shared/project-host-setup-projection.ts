@@ -27,6 +27,21 @@ export type ProjectHostSetupProjection = {
 export function getProjectProviderIdentity(
   repo: Pick<Repo, 'upstream' | 'repoIcon' | 'gitRemoteIdentity'>
 ): ProjectProviderIdentity | null {
+  // Why: prefer the configured origin remote over GitHub fork-parent `upstream`.
+  // Org remotes that GitHub still marks as forks keep parent metadata in
+  // `upstream` / fork-parent avatar labels. Keying projects by that parent
+  // stamps `github:<parent>` locally while a VPS/org clone stamps
+  // `github:<org>/<repo>`, so Local+VPS dual setups never merge and
+  // setup-existing-folder rejects the folder as an identity mismatch.
+  // The remote URL also retains HTTP(S) endpoint ports that the canonical
+  // key omits, so prefer it when reconstructing a host-qualified GHES identity.
+  const fromRemote =
+    parseGitHubRemoteUrl(repo.gitRemoteIdentity?.remoteUrl) ??
+    parseGitHubCanonicalKey(repo.gitRemoteIdentity?.canonicalKey)
+  if (fromRemote) {
+    return fromRemote
+  }
+
   const owner = typeof repo.upstream?.owner === 'string' ? repo.upstream.owner.trim() : ''
   const name = typeof repo.upstream?.repo === 'string' ? repo.upstream.repo.trim() : ''
   if (owner && name) {
@@ -43,6 +58,8 @@ export function getProjectProviderIdentity(
     const iconRepo = parts[1]?.trim()
     // Why: repo auto-detect can know the GitHub slug through the generated
     // avatar icon even when legacy `upstream` has not been backfilled yet.
+    // Checked after origin/upstream so a fork-parent avatar cannot override
+    // the origin remote used for dual-host project matching.
     if (iconOwner && iconRepo && parts.length === 2) {
       let host: string | undefined
       try {
@@ -59,12 +76,7 @@ export function getProjectProviderIdentity(
       }
     }
   }
-  // Why: the remote URL retains HTTP(S) endpoint ports that the canonical
-  // key omits, so prefer it when reconstructing a host-qualified GHES identity.
-  return (
-    parseGitHubRemoteUrl(repo.gitRemoteIdentity?.remoteUrl) ??
-    parseGitHubCanonicalKey(repo.gitRemoteIdentity?.canonicalKey)
-  )
+  return null
 }
 
 function getProjectGitRemoteIdentity(
