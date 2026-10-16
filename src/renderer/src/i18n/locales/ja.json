@@ -19517,7 +19517,8 @@
       "scanning": "Git リポジトリを検索しています…",
       "empty": "このフォルダに Git リポジトリはありません",
       "outsideWorkspace": "選択したフォルダはこのワークスペースの外です",
-      "commitHint": "コミットと PR 作成は選択中のリポジトリに対して行われます"
+      "commitHint": "コミットと PR 作成は選択中のリポジトリに対して行われます",
+      "openReview": "PR を開く"
     },
     "discard": {
       "restoreStagedVersionDescription": "これにより、最後にステージングされたバージョンが復元され、削除が破棄されます。これを元に戻すことはできません。",

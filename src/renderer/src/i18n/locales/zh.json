@@ -19517,7 +19517,8 @@
       "scanning": "正在查找 Git 仓库…",
       "empty": "此文件夹中没有 Git 仓库",
       "outsideWorkspace": "所选文件夹不在当前工作区内",
-      "commitHint": "提交和创建 PR 作用于所选仓库"
+      "commitHint": "提交和创建 PR 作用于所选仓库",
+      "openReview": "打开 PR"
     },
     "discard": {
       "restoreStagedVersionDescription": "这将恢复最后一个暂存版本并放弃删除。此操作无法撤消。",

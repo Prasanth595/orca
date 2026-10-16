@@ -24,3 +24,35 @@ export async function resolveNestedGitRootUnderAncestor(
   }
   return (await hasGitMarker(normalizedTarget)) ? normalizedTarget : null
 }
+
+/** The ancestor itself, or a descendant that is its own git root — not a plain subdirectory. */
+export async function isNestedGitRootInside(
+  targetPath: string,
+  ancestorPath: string,
+  isInside: (target: string, ancestor: string) => boolean
+): Promise<boolean> {
+  if (targetPath === ancestorPath) {
+    return true
+  }
+  if (!isInside(targetPath, ancestorPath)) {
+    return false
+  }
+  return hasGitMarker(targetPath)
+}
+
+export async function worktreePathBelongsToRepo(
+  targetPath: string,
+  repoPath: string,
+  worktreePaths: readonly string[],
+  isInside: (target: string, ancestor: string) => boolean
+): Promise<boolean> {
+  if (await isNestedGitRootInside(targetPath, repoPath, isInside)) {
+    return true
+  }
+  for (const worktreePath of worktreePaths) {
+    if (await isNestedGitRootInside(targetPath, worktreePath, isInside)) {
+      return true
+    }
+  }
+  return false
+}

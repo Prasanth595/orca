@@ -5,6 +5,7 @@ import type { GitStatusEntry, GitStatusResult } from '../../../../../../shared/g
 import {
   NESTED_REPO_SCAN_OPTIONS,
   folderPathIsInsideWorktree,
+  listNestedRepoParentFolders,
   selectDefaultNestedRepo
 } from './nested-folder-paths'
 
@@ -39,6 +40,7 @@ export type NestedFolderScope = {
   setFolderPath: (path: string | null) => void
   selectRepo: (path: string) => void
   refreshAll: () => Promise<void>
+  refreshStatuses: () => Promise<void>
   listRepoFolders: () => Promise<string[]>
 }
 
@@ -96,6 +98,7 @@ export function useNestedFolderScope({
   const [scanning, setScanning] = useState(false)
   const [scanError, setScanError] = useState<string | null>(null)
   const requestGeneration = useRef(0)
+  const statusEpoch = useRef(0)
 
   const [trackedWorktreeId, setTrackedWorktreeId] = useState(worktreeId)
   if (trackedWorktreeId !== worktreeId) {
@@ -140,6 +143,7 @@ export function useNestedFolderScope({
       return
     }
     const generation = ++requestGeneration.current
+    statusEpoch.current++
     setScanning(true)
     setScanError(null)
     try {
@@ -189,26 +193,40 @@ export function useNestedFolderScope({
 
   const reposRef = useRef(repos)
   reposRef.current = repos
+  const refreshStatuses = useCallback(async (): Promise<void> => {
+    if (reposRef.current.length === 0) {
+      return
+    }
+    const scanGeneration = requestGeneration.current
+    const epoch = ++statusEpoch.current
+    try {
+      const next = await mapWithConcurrency(reposRef.current, STATUS_CONCURRENCY, (repo) =>
+        readRepoStatus(repo, connectionId)
+      )
+      if (scanGeneration === requestGeneration.current && epoch === statusEpoch.current) {
+        setStatuses(next)
+      }
+    } catch {
+      // Keep the last good statuses; the next poll or mutation retries.
+    }
+  }, [connectionId])
   // Repo list is stable between scans; re-read only status so terminal edits show up.
   useEffect(() => {
     if (!folderPath) {
       return
     }
+    let polling = false
     const timer = window.setInterval(() => {
-      if (document.hidden || reposRef.current.length === 0) {
+      if (polling || document.hidden || reposRef.current.length === 0) {
         return
       }
-      const generation = requestGeneration.current
-      void mapWithConcurrency(reposRef.current, STATUS_CONCURRENCY, (repo) =>
-        readRepoStatus(repo, connectionId)
-      ).then((next) => {
-        if (generation === requestGeneration.current) {
-          setStatuses(next)
-        }
+      polling = true
+      void refreshStatuses().finally(() => {
+        polling = false
       })
     }, STATUS_POLL_MS)
     return () => window.clearInterval(timer)
-  }, [connectionId, folderPath])
+  }, [folderPath, refreshStatuses])
 
   // Folders directly containing repos, so the picker can offer them without a native dialog.
   const listRepoFolders = useCallback(async (): Promise<string[]> => {
@@ -220,10 +238,10 @@ export function useNestedFolderScope({
       ...(connectionId ? { connectionId } : {}),
       options: { ...NESTED_REPO_SCAN_OPTIONS }
     })
-    const parents = scan.repos
-      .map((repo) => repo.path.replace(/[\\/][^\\/]+$/, ''))
-      .filter((dir) => dir !== worktreePath && folderPathIsInsideWorktree(worktreePath, dir))
-    return [...new Set(parents)].sort()
+    return listNestedRepoParentFolders(
+      scan.repos.map((repo) => repo.path),
+      worktreePath
+    )
   }, [connectionId, worktreePath])
 
   const selectedStatus = useMemo(
@@ -244,6 +262,7 @@ export function useNestedFolderScope({
     setFolderPath,
     selectRepo: setSelectedRepoPath,
     refreshAll,
+    refreshStatuses,
     listRepoFolders
   }
 }

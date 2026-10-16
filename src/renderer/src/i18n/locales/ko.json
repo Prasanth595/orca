@@ -19517,7 +19517,8 @@
       "scanning": "Git 저장소를 찾는 중…",
       "empty": "이 폴더에 Git 저장소가 없습니다",
       "outsideWorkspace": "선택한 폴더가 이 워크스페이스 밖에 있습니다",
-      "commitHint": "커밋과 PR 생성은 선택한 저장소에 적용됩니다"
+      "commitHint": "커밋과 PR 생성은 선택한 저장소에 적용됩니다",
+      "openReview": "PR 열기"
     },
     "discard": {
       "restoreStagedVersionDescription": "이렇게 하면 마지막 단계 버전이 복원되고 삭제가 취소됩니다. 이 작업은 취소할 수 없습니다.",

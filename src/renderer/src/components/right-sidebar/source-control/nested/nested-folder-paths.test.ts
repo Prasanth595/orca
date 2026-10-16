@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   displayPathInsideWorktree,
   folderPathIsInsideWorktree,
+  folderPathIsNestedInWorktree,
+  listNestedRepoParentFolders,
   selectDefaultNestedRepo
 } from './nested-folder-paths'
 
@@ -15,6 +17,24 @@ describe('nested folder paths', () => {
   it('renders a compact relative path', () => {
     expect(displayPathInsideWorktree('/repo', '/repo')).toBe('.')
     expect(displayPathInsideWorktree('/repo', '/repo/.worktrees/001')).toBe('.worktrees/001')
+  })
+
+  it('excludes the worktree root even when separators or a trailing slash differ', () => {
+    expect(folderPathIsNestedInWorktree('/repo', '/repo')).toBe(false)
+    expect(folderPathIsNestedInWorktree('/repo/', '/repo')).toBe(false)
+    expect(folderPathIsNestedInWorktree('/repo', '/repo/.worktrees')).toBe(true)
+    expect(folderPathIsNestedInWorktree('C:\\Repo', 'C:\\Repo\\projects')).toBe(true)
+    expect(folderPathIsNestedInWorktree('C:\\Repo\\', 'C:/Repo')).toBe(false)
+  })
+
+  it('lists parent folders of nested repos and omits the worktree root', () => {
+    expect(
+      listNestedRepoParentFolders(
+        ['/ws/.worktrees/001/theme-a', '/ws/.worktrees/001/theme-b', '/ws'],
+        '/ws'
+      )
+    ).toEqual(['/ws/.worktrees/001'])
+    expect(listNestedRepoParentFolders(['/ws/app'], '/ws/')).toEqual([])
   })
 
   it('prefers the first dirty nested repo', () => {

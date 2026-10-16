@@ -25,7 +25,7 @@ export function NestedRepoSection({
     path: entry.repo.path,
     entries,
     branch: entry.status?.branch ?? '',
-    refresh: scope.refreshAll,
+    refresh: scope.refreshStatuses,
     filterQuery: parentProps.model.filterQuery
   })
   const props: SourceControlPanelReadyProps = {

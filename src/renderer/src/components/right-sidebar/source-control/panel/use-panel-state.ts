@@ -72,7 +72,11 @@ export function useSourceControlPanelState(nestedTarget?: NestedRepoTarget) {
   const refreshNestedFolder = nestedTarget?.refresh
   const refreshParentGitStatus = statusRefresh.refreshActiveGitStatusAfterMutation
   const refreshActiveGitStatusAfterMutation = useCallback(async (): Promise<void> => {
-    await Promise.all([refreshParentGitStatus(), refreshNestedFolder?.()])
+    if (refreshNestedFolder) {
+      await refreshNestedFolder()
+      return
+    }
+    await refreshParentGitStatus()
   }, [refreshNestedFolder, refreshParentGitStatus])
 
   return {

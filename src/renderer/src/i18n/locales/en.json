@@ -19566,7 +19566,8 @@
       "scanning": "Looking for git repos…",
       "empty": "No git repos in this folder",
       "outsideWorkspace": "Selected folder is outside this workspace",
-      "commitHint": "Commit and Create PR use the selected repo"
+      "commitHint": "Commit and Create PR use the selected repo",
+      "openReview": "Open PR"
     }
   },
   "agentsSidebarIntro": {

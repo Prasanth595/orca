@@ -19839,7 +19839,8 @@
       "scanning": "Buscando repositorios Git…",
       "empty": "No hay repositorios Git en esta carpeta",
       "outsideWorkspace": "La carpeta seleccionada está fuera de este espacio de trabajo",
-      "commitHint": "Commit y Crear PR usan el repositorio seleccionado"
+      "commitHint": "Commit y Crear PR usan el repositorio seleccionado",
+      "openReview": "Abrir PR"
     }
   },
   "aiVault": {

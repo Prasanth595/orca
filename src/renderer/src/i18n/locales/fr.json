@@ -19502,7 +19502,8 @@
       "scanning": "Recherche de dépôts Git…",
       "empty": "Aucun dépôt Git dans ce dossier",
       "outsideWorkspace": "Le dossier sélectionné est hors de cet espace de travail",
-      "commitHint": "Le commit et la création de PR portent sur le dépôt sélectionné"
+      "commitHint": "Le commit et la création de PR portent sur le dépôt sélectionné",
+      "openReview": "Ouvrir la PR"
     },
     "discard": {
       "restoreStagedVersionDescription": "Cela restaurera la dernière version intermédiaire et annulera la suppression. Cela ne peut pas être annulé.",
