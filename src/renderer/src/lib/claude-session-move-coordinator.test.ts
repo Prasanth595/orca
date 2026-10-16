@@ -11,7 +11,11 @@ import {
 } from './claude-session-move-coordinator'
 
 const restartPaneForAccountMove = vi.hoisted(() => vi.fn(() => true))
-type Inspection = { foregroundProcess: string | null; hasChildProcesses: boolean }
+type Inspection = {
+  foregroundProcess: string | null
+  hasChildProcesses: boolean
+  childProcessEvidence?: 'children' | 'no-children' | 'unverifiable'
+}
 const foreground = vi.hoisted(() => ({ process: 'claude' }))
 const inspect = vi.hoisted(() =>
   vi.fn(async (): Promise<Inspection> => ({
@@ -335,6 +339,54 @@ describe('Claude session moves', () => {
     seed({})
     uninstall = installClaudeSessionMoveCoordinator()
     list.mockRejectedValueOnce(new Error('main is busy'))
+    await moveClaudeSessionsToSelectedAccount()
+    expect(restartPaneForAccountMove).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(16_000)
+
+    expect(restartPaneForAccountMove).toHaveBeenCalledOnce()
+  })
+
+  it('drops the move when the account switches back while it checks the pane', async () => {
+    let answer: (inspection: Inspection) => void = () => {}
+    inspect.mockImplementationOnce(() => new Promise<Inspection>((resolve) => (answer = resolve)))
+    seed({})
+    uninstall = installClaudeSessionMoveCoordinator()
+    const moving = moveClaudeSessionsToSelectedAccount()
+    await vi.advanceTimersByTimeAsync(0)
+    switchTo('acct-a')
+    await settle()
+    answer({ foregroundProcess: 'claude', hasChildProcesses: true })
+    await moving
+
+    expect(restartPaneForAccountMove).not.toHaveBeenCalled()
+  })
+
+  it('stops an automatic move you turn off while it checks the pane', async () => {
+    let answer: (inspection: Inspection) => void = () => {}
+    inspect.mockImplementationOnce(() => new Promise<Inspection>((resolve) => (answer = resolve)))
+    roster = selected('acct-a')
+    seed({}, { claudeMoveIdleSessions: true })
+    uninstall = installClaudeSessionMoveCoordinator()
+    switchTo('acct-b')
+    await settle()
+    useAppStore.setState((s) => ({
+      settings: s.settings ? { ...s.settings, claudeMoveIdleSessions: false } : s.settings
+    }))
+    answer({ foregroundProcess: 'claude', hasChildProcesses: true })
+    await settle()
+
+    expect(restartPaneForAccountMove).not.toHaveBeenCalled()
+  })
+
+  it("tries again when the pane's processes could not be read", async () => {
+    inspect.mockResolvedValueOnce({
+      foregroundProcess: 'zsh',
+      hasChildProcesses: false,
+      childProcessEvidence: 'unverifiable'
+    })
+    seed({})
+    uninstall = installClaudeSessionMoveCoordinator()
     await moveClaudeSessionsToSelectedAccount()
     expect(restartPaneForAccountMove).not.toHaveBeenCalled()
 

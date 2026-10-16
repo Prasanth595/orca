@@ -2,7 +2,6 @@ import { useAppStore } from '@/store'
 import type { AppState } from '@/store/types'
 import { restartPaneForAccountMove } from '@/components/terminal-pane/pane-account-move-restarts'
 import { inspectRuntimeTerminalProcess } from '@/runtime/runtime-terminal-inspection'
-import { isClientOnlyUnverifiableInspection } from '../../../shared/terminal-process-inspection'
 import { getLocalProjectExecutionRuntimeContext } from '@/lib/local-preflight-context'
 import { LOCAL_EXECUTION_HOST_ID } from '../../../shared/execution-host'
 import type { ClaudeRateLimitAccountsState } from '../../../shared/managed-account-types'
@@ -16,6 +15,7 @@ import {
   findClaudeSessionsOnOtherLogin,
   isClaudeRunningInPane,
   isClaudeSessionMovableNow,
+  isUnseenPaneInspection,
   type ClaudeSessionMoveGates,
   type ClaudeSessionOnOtherLogin
 } from './claude-session-move'
@@ -151,13 +151,15 @@ function readMoveView(state: AppState): AppState {
   }
 }
 
-function canMoveNow(
-  current: ClaudeRateLimitAccountsState,
-  session: ClaudeSessionOnOtherLogin,
-  approved: boolean
-): boolean {
+// Why read everything fresh: across an await the account, the setting, the pane or the session can
+// all have changed, and any of them can make the move wrong.
+function canMoveNow(session: ClaudeSessionOnOtherLogin): boolean {
   const view = readMoveView(useAppStore.getState())
-  const now = findClaudeSessionsOnOtherLogin(view, current, (worktreeId) =>
+  const approved = approvedPaneKeys.has(session.paneKey)
+  if (!accounts || (!approved && view.settings?.claudeMoveIdleSessions !== true)) {
+    return false
+  }
+  const now = findClaudeSessionsOnOtherLogin(view, accounts, (worktreeId) =>
     isOnThisHost(view, worktreeId)
   ).find((candidate) => candidate.paneKey === session.paneKey)
   return (
@@ -169,12 +171,11 @@ function canMoveNow(
 }
 
 async function movePanes(): Promise<number> {
-  const current = accounts
-  if (!current) {
+  if (!accounts) {
     return 0
   }
   const state = useAppStore.getState()
-  const sessions = findClaudeSessionsOnOtherLogin(readMoveView(state), current, (worktreeId) =>
+  const sessions = findClaudeSessionsOnOtherLogin(readMoveView(state), accounts, (worktreeId) =>
     isOnThisHost(state, worktreeId)
   )
   const stalePaneKeys = new Set(sessions.map((session) => session.paneKey))
@@ -191,7 +192,7 @@ async function movePanes(): Promise<number> {
     if (isSettled(session) || (!approved && !automatic)) {
       continue
     }
-    if (!canMoveNow(current, session, approved)) {
+    if (!canMoveNow(session)) {
       waiting += 1
       continue
     }
@@ -202,7 +203,7 @@ async function movePanes(): Promise<number> {
     // cut off a Claude that lives on outside the pane, or start one nobody runs any more.
     const inspection = await inspectRuntimeTerminalProcess(session.ptyId).catch(() => null)
     // Why retry: a check that failed, or could not see the process, says nothing about the pane.
-    if (!inspection || isClientOnlyUnverifiableInspection(inspection)) {
+    if (!inspection || isUnseenPaneInspection(inspection)) {
       waiting += 1
       continue
     }
@@ -210,8 +211,8 @@ async function movePanes(): Promise<number> {
       settle(session)
       continue
     }
-    // Why check again: you may have typed, or a new turn may have started, while we asked.
-    if (!canMoveNow(current, session, approved)) {
+    // Why check again: you may have typed, switched back, or turned moves off while we asked.
+    if (!canMoveNow(session)) {
       waiting += 1
       continue
     }

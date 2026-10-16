@@ -158,6 +158,15 @@ export function isClaudeRunningInPane(
   )
 }
 
+/** Whether the inspection could not see the pane's processes, so it says nothing either way. */
+export function isUnseenPaneInspection(inspection: RuntimeTerminalProcessInspection): boolean {
+  return (
+    isClientOnlyUnverifiableInspection(inspection) ||
+    inspection.childProcessEvidence === 'unverifiable' ||
+    inspection.foregroundProcessEvidence?.verdict === 'unverifiable'
+  )
+}
+
 /** Whether restarting the session now loses nothing: hibernation's own test for a pane it may stop. */
 export function isClaudeSessionMovableNow(
   view: ClaudeSessionMoveView,
