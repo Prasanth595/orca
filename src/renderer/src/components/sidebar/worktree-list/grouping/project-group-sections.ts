@@ -4,18 +4,49 @@ import {
   type RenderableFolderWorkspace
 } from './folder-workspace-lanes'
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
+import type { Repo } from '../../../../../../shared/repo-types'
 import type { ProjectOrderBy } from '../../../../../../shared/ui-chrome-types'
 import { getEffectiveProjectGroupManualRank } from '../../../../../../shared/project-groups'
 import { PROJECT_GROUP_META, getProjectGroupHeaderKey } from './group-keys'
 import { appendOrderedGroups } from './group-sections'
 import type { SectionAppendContext } from './group-sections'
-import type { OrderedGroupEntry } from './worktree-group-entry'
+import type { OrderedGroupEntry, WorktreeGroupEntry } from './worktree-group-entry'
 import {
   compareRecentRank,
   createRecentRankLookup,
   withRepoSectionDisplayLabels
 } from '../../../../../../shared/project-section-order'
 import { buildFolderWorkspaceRow } from './row-builders'
+
+/**
+ * The member row that places a section in a Project Group. A project set up on several hosts is
+ * one section, and each Orca anchors it on its own host's row, so a member in a known group wins
+ * over an ungrouped anchor; otherwise every other Orca draws the moved project outside its group.
+ */
+export function getProjectSectionGroupRepo(
+  section: Pick<WorktreeGroupEntry, 'repo' | 'repoIds'>,
+  repoMap: ReadonlyMap<string, Repo>,
+  repoOrder: ReadonlyMap<string, number> | undefined,
+  knownGroupIds: { has: (groupId: string) => boolean }
+): Repo | undefined {
+  const isGrouped = (repo: Repo | undefined): repo is Repo =>
+    Boolean(repo?.projectGroupId && knownGroupIds.has(repo.projectGroupId))
+  const anchor = section.repo
+  if (isGrouped(anchor)) {
+    return anchor
+  }
+  let grouped: Repo | undefined
+  let groupedRank = Number.POSITIVE_INFINITY
+  for (const repoId of section.repoIds) {
+    const repo = repoMap.get(repoId)
+    const rank = repoOrder?.get(repoId) ?? Number.POSITIVE_INFINITY
+    if (isGrouped(repo) && (!grouped || rank < groupedRank)) {
+      grouped = repo
+      groupedRank = rank
+    }
+  }
+  return grouped ?? anchor
+}
 
 export function appendProjectGroupSections(
   ctx: SectionAppendContext,
@@ -30,9 +61,12 @@ export function appendProjectGroupSections(
   const { orderedGroups, projectGroups, folderWorkspaces, projectOrderBy, repoOrder } = args
   const { result, collapsedGroups } = ctx
 
+  const projectGroupsById = new Map(projectGroups.map((group) => [group.id, group]))
   const groupByProjectGroupId = new Map<string | null, OrderedGroupEntry[]>()
+  const groupRepoByEntry = new Map<OrderedGroupEntry, Repo | undefined>()
   for (const entry of orderedGroups) {
-    const repo = entry[1].repo
+    const repo = getProjectSectionGroupRepo(entry[1], ctx.repoMap, repoOrder, projectGroupsById)
+    groupRepoByEntry.set(entry, repo)
     const projectGroupId = repo?.projectGroupId ?? null
     const list = groupByProjectGroupId.get(projectGroupId) ?? []
     list.push(entry)
@@ -53,13 +87,12 @@ export function appendProjectGroupSections(
     // (projectGroupOrder), falling back to global repoOrder when unset so drag
     // midpoint commits and the rendered order stay aligned.
     return [...entries].sort((left, right) => {
-      const leftRank = getEffectiveProjectGroupManualRank(left[1].repo, repoOrder)
-      const rightRank = getEffectiveProjectGroupManualRank(right[1].repo, repoOrder)
+      const leftRank = getEffectiveProjectGroupManualRank(groupRepoByEntry.get(left), repoOrder)
+      const rightRank = getEffectiveProjectGroupManualRank(groupRepoByEntry.get(right), repoOrder)
       return leftRank - rightRank
     })
   }
 
-  const projectGroupsById = new Map(projectGroups.map((group) => [group.id, group]))
   // Membership already decided by getRenderableFolderWorkspaces in buildRows, so
   // repo grouping no longer owns the filter — it only groups and orders (#15362).
   const folderWorkspacesByProjectGroupId = new Map<string, RenderableFolderWorkspace[]>()
