@@ -1,5 +1,4 @@
 import { presentAgentLaunchTab } from '@/lib/agent-launch-tab-presentation'
-import { releaseAgentLaunchPaneSpawn } from '@/lib/agent-launch-pane-spawn-hold'
 import { requestBackgroundTerminalWorktreeMount } from '@/components/terminal/background-terminal-worktree-mount'
 import { hasRegisteredRuntimeTerminalTab } from '@/runtime/mounted-terminal-tab-registry'
 import { planMobileTerminalTabMount } from '@/lib/mobile-terminal-tab-mount'
@@ -10,10 +9,11 @@ import { singlePaneLayoutSnapshot } from '@/store/slices/terminal-helpers'
 import { verifyTerminalRevealIdentity } from '@/lib/terminal-reveal-identity'
 import { tryMakePaneKey } from './agent-status-routing'
 import { wasAgentLaunchPaneClosedByUser } from '@/lib/agent-launch-pane-closes'
+import { revealWorkspaceSurface } from '@/lib/workspace-surface-reveal'
 import { useAppStore } from '../../store'
+import { ORCA_LAYOUT_OWNER_IS_MAIN } from '../../../../shared/layout-owner-switch'
 import {
   activateExistingLeafInLayout,
-  activateTerminalInitiatedWorktree,
   addSplitLeafToLayout,
   focusTerminalInitiatedTab,
   resolveTerminalPresentation
@@ -59,10 +59,18 @@ export function registerTerminalPresentationIpcBridge(unsubs: (() => void)[]): v
             agentLaunchViewer === undefined &&
             terminalPresentation !== 'background' &&
             surfaceOwner !== false
-          if (shouldActivate) {
-            activateTerminalInitiatedWorktree(store, worktreeId)
-          }
           const worktreeTabs = store.tabsByWorktree[worktreeId] ?? []
+          const isSplitReveal = Boolean(ptyId && tabId && leafId && splitFromLeafId)
+          const splitTargetTab = isSplitReveal
+            ? worktreeTabs.find((candidate) => candidate.id === tabId)
+            : undefined
+          // Why: before activating, so a split into a tab this window lacks does not navigate.
+          if (isSplitReveal && !splitTargetTab) {
+            throw new Error(`Terminal tab ${tabId} not found`)
+          }
+          if (shouldActivate) {
+            revealWorkspaceSurface(store, worktreeId)
+          }
           if (ptyId && tabId && leafId && wasAgentLaunchPaneClosedByUser(tabId, leafId)) {
             // The user closed the launch's tab or pane while it waited. That close wins: it stays
             // closed, and its agent stops, as closing any tab stops what runs in it.
@@ -84,18 +92,15 @@ export function registerTerminalPresentationIpcBridge(unsubs: (() => void)[]): v
             ownership.kind === 'owned'
               ? worktreeTabs.find((candidate) => candidate.id === ownership.tabId)
               : undefined
-          const isSplitReveal = Boolean(ptyId && tabId && leafId && splitFromLeafId)
-          const splitTargetTab = isSplitReveal
-            ? worktreeTabs.find((candidate) => candidate.id === tabId)
-            : undefined
-          if (isSplitReveal && !splitTargetTab) {
-            throw new Error(`Terminal tab ${tabId} not found`)
-          }
-          const reusedTab = existingTab ?? splitTargetTab
-          if (ptyId && tabId && leafId && reusedTab?.agentLaunchPane?.leafId === leafId) {
-            // A launch pane this window made and the host never showed early: the host now holds it,
-            // so its spawn may attach instead of waiting out the whole launch.
-            releaseAgentLaunchPaneSpawn(tabId, leafId)
+          let reusedTab = existingTab ?? splitTargetTab
+          // Switch point: main wrote this tab before revealing it, so its frame may have drawn it
+          // while stale records left the terminal's owner unclear; that tab is the one to show.
+          const frameDrawnTab =
+            ORCA_LAYOUT_OWNER_IS_MAIN && !reusedTab && tabId !== undefined
+              ? worktreeTabs.find((candidate) => candidate.id === tabId)
+              : undefined
+          if (frameDrawnTab) {
+            reusedTab = frameDrawnTab
           }
           const tab =
             reusedTab ??
@@ -115,7 +120,9 @@ export function registerTerminalPresentationIpcBridge(unsubs: (() => void)[]): v
                     : {}),
                   ...(cwd ? { startupCwd: cwd } : {}),
                   // Why: CLI-spawned PTYs bake the pane key into env; adopt the same tab id so hook-event attribution keeps working.
-                  ...(tabId !== undefined ? { id: tabId } : {})
+                  ...(tabId !== undefined ? { id: tabId } : {}),
+                  // Switch point: main's pane too, so this create matches the tab main already wrote.
+                  ...(ORCA_LAYOUT_OWNER_IS_MAIN && leafId ? { initialLeafId: leafId } : {})
                 })
               : store.createTab(
                   worktreeId,
@@ -140,9 +147,10 @@ export function registerTerminalPresentationIpcBridge(unsubs: (() => void)[]): v
           if (shouldActivate) {
             store.setActiveTabType('terminal', worktreeId)
             store.setActiveTab(tab.id)
+          } else if (shouldSurfaceOwner) {
+            store.revealWorktreeInSidebar(worktreeId)
           }
           if (shouldSurfaceOwner) {
-            store.revealWorktreeInSidebar(worktreeId)
             focusTerminalInitiatedTab(tab.id, leafId, worktreeId)
           }
           if (agentLaunchViewer) {

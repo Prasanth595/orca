@@ -12,6 +12,7 @@ import {
 } from './clipboard-image-temp-file'
 import { readWindowsClipboardImageFileAsPng } from './clipboard-windows-image-file'
 import { readClipboardImageSource } from './clipboard-image-source'
+import { readClipboardNativeImage } from './clipboard-native-image'
 
 export function registerClipboardImagePreviewHandlers({
   assertTrustedSender,
@@ -28,7 +29,7 @@ export function registerClipboardImagePreviewHandlers({
       if (!source) {
         return null
       }
-      const image = clipboard.readImage()
+      const image = readClipboardNativeImage()
       let buffer: Buffer
       if (image.isEmpty()) {
         if (!source.windowsFileFormats) {
