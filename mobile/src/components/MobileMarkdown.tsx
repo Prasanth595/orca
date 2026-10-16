@@ -2,7 +2,7 @@ import { INLINE_TEXT_SELECTION } from './inline-text-selection'
 import { MobileSelectableText } from './MobileSelectableText'
 import { memo, useContext, useMemo, type ReactNode } from 'react'
 import { Text as NativeText, View } from 'react-native'
-import { MARKDOWN_TONES, styles } from './mobile-markdown-styles'
+import { MARKDOWN_TONES, scaledMarkdownText, styles } from './mobile-markdown-styles'
 import { renderBlocks, type MarkdownBlockContext } from './mobile-markdown-blocks'
 import { MarkdownText } from './mobile-markdown-text'
 import { MarkdownTextContext, type MarkdownTextSetup } from './mobile-markdown-text-setup'
@@ -55,15 +55,13 @@ function MobileMarkdownContent({
       </MarkdownText>
     ) : null
   }
-  // Scale prose sizes; inline spans inherit fontSize from the wrapping Text.
-  const scaled = (size: number): { fontSize: number; lineHeight: number } | null =>
-    textScale !== 1 ? { fontSize: size * textScale, lineHeight: (size + 6) * textScale } : null
   const tone = MARKDOWN_TONES[toneName]
   const ctx: MarkdownBlockContext = {
     growing,
     onOpenFile,
     tone,
-    listText: [styles.listText, scaled(14), tone.text],
+    textScale,
+    listText: [styles.listText, scaledMarkdownText(14, textScale), tone.text],
     rowLongPress: setup.androidTranscript ? setup.onLongPress : undefined,
     directives,
     renderVisual,
@@ -73,7 +71,7 @@ function MobileMarkdownContent({
   return (
     <View style={styles.root}>
       {renderBlocks(root.children, ctx, {
-        style: [styles.paragraph, scaled(13), tone.text],
+        style: [styles.paragraph, scaledMarkdownText(13, textScale), tone.text],
         selectable: rangeSelectable
       })}
     </View>

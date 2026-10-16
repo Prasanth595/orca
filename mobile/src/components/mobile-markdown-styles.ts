@@ -151,6 +151,17 @@ export const styles = StyleSheet.create({
 })
 
 /** Colours over the styles above, for one surface. The default tone overrides nothing. */
+/** A size under the reader's zoom, its leading kept; null at 1x so other screens keep the sheet. */
+export function scaledMarkdownText(
+  size: number,
+  textScale: number,
+  leading = 6
+): { fontSize: number; lineHeight: number } | null {
+  return textScale !== 1
+    ? { fontSize: size * textScale, lineHeight: (size + leading) * textScale }
+    : null
+}
+
 export type MarkdownTone = {
   text: TextStyle | null
   secondary: TextStyle | null

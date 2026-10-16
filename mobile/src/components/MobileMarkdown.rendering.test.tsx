@@ -196,4 +196,31 @@ describe('MobileMarkdown tone', () => {
     expect(styleOf(renderer!.root, 'bold').color).toBe(colors.textPrimary)
     expect(styleOf(renderer!.root, 'docs').color).toBe(colors.accentBlue)
   })
+
+  it('keeps the default palette inside a table, which keeps its dark surface', () => {
+    const content = '| **Head** | [docs](https://example.com) |\n| --- | --- |\n| a | b |'
+    act(() => {
+      renderer = create(createElement(MobileMarkdown, { content, tone: 'onBright' }))
+    })
+    expect(styleOf(renderer!.root, 'Head').color).toBe(colors.textPrimary)
+    expect(styleOf(renderer!.root, 'docs').color).toBe(colors.accentBlue)
+  })
+
+  it('zooms every block with the text, not only paragraphs', () => {
+    const content = [
+      '## Title',
+      '> quoted',
+      '```ts\nconst a = 1\n```',
+      'Use `code` here.',
+      '| Cell |\n| --- |\n| x |'
+    ].join('\n\n')
+    act(() => {
+      renderer = create(createElement(MobileMarkdown, { content, textScale: 2 }))
+    })
+    expect(styleOf(renderer!.root, 'Title').fontSize).toBe(30)
+    expect(styleOf(renderer!.root, 'quoted').fontSize).toBe(26)
+    expect(styleOf(renderer!.root, 'const a = 1').fontSize).toBe(24)
+    expect(styleOf(renderer!.root, 'code').fontSize).toBe(24)
+    expect(styleOf(renderer!.root, 'Cell').fontSize).toBe(24)
+  })
 })

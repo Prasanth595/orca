@@ -17,7 +17,7 @@ import {
   renderInline,
   type MarkdownInlineContext
 } from './mobile-markdown-inline'
-import { styles } from './mobile-markdown-styles'
+import { MARKDOWN_TONES, scaledMarkdownText, styles } from './mobile-markdown-styles'
 import { MarkdownText } from './mobile-markdown-text'
 import { codeFenceClosed, plainText } from './mobile-markdown-tree'
 import { MermaidDiagram } from './pr-sidebar/MermaidDiagram'
@@ -56,7 +56,7 @@ function renderCode(node: Code, key: number, ctx: MarkdownBlockContext): ReactNo
   return (
     <View key={key} style={styles.codeBlock}>
       {node.lang ? <NativeText style={styles.codeLanguage}>{node.lang}</NativeText> : null}
-      <MarkdownText selectable style={styles.codeText}>
+      <MarkdownText selectable style={[styles.codeText, scaledMarkdownText(12, ctx.textScale, 5)]}>
         {node.value}
       </MarkdownText>
     </View>
@@ -93,6 +93,8 @@ function renderTable(node: Table, key: number, ctx: MarkdownBlockContext): React
   const columnWidths = mobileMarkdownTableColumnWidths(
     rows.map((cells) => cells.map((cell) => plainText(cell)))
   )
+  // A table keeps its own dark surface, so its spans keep the default palette.
+  const cellCtx = { ...ctx, tone: MARKDOWN_TONES.default }
   return (
     <ScrollView key={key} horizontal showsHorizontalScrollIndicator={false}>
       <View style={styles.table}>
@@ -105,10 +107,11 @@ function renderTable(node: Table, key: number, ctx: MarkdownBlockContext): React
                 style={[
                   styles.tableCell,
                   rowIndex === 0 ? styles.tableHeader : null,
-                  { width, textAlign: node.align?.[cellIndex] ?? 'left' }
+                  scaledMarkdownText(12, ctx.textScale, 5),
+                  { width: width * ctx.textScale, textAlign: node.align?.[cellIndex] ?? 'left' }
                 ]}
               >
-                {renderInline(cells[cellIndex]?.children ?? [], ctx)}
+                {renderInline(cells[cellIndex]?.children ?? [], cellCtx)}
               </MarkdownText>
             ))}
           </View>
@@ -173,7 +176,12 @@ function renderBlock(
         <MarkdownText
           key={key}
           selectable
-          style={[styles.heading, node.depth <= 2 ? styles.headingLarge : null, ctx.tone.text]}
+          style={[
+            styles.heading,
+            node.depth <= 2 ? styles.headingLarge : null,
+            scaledMarkdownText(node.depth <= 2 ? 15 : 14, ctx.textScale),
+            ctx.tone.text
+          ]}
         >
           {renderInline(node.children, ctx)}
         </MarkdownText>
@@ -184,7 +192,10 @@ function renderBlock(
           {renderBlocks(
             node.children,
             ctx,
-            { style: [styles.quoteText, ctx.tone.secondary], selectable: true },
+            {
+              style: [styles.quoteText, scaledMarkdownText(13, ctx.textScale), ctx.tone.secondary],
+              selectable: true
+            },
             depth + 1
           )}
         </View>
