@@ -59,12 +59,16 @@ export async function extractRuntimeArchive(
   }
 }
 
-/** What the person can do about a failed download: retrying fixes only a transient failure, while a
- *  wrong size, checksum or missing file means the pinned release no longer matches what is served. */
+/** The served file isn't the pinned release (missing, oversized or a different checksum), so no
+ *  retry or network fix helps; only a newer Orca does. */
+export class ReleaseMismatchError extends Error {}
+
+/** What the person can do about a failed download. Only a proven mismatch blames the release;
+ *  every other failure (proxy, DNS, TLS, a dropped connection) is one the network can fix. */
 export function downloadFailureMessage(label: string, error: unknown): string {
-  return isRetryableDownloadError(error)
-    ? `Couldn't download ${label}. Check your network connection or proxy, then try again.`
-    : `The ${label} download didn't match the release Orca expects, so nothing was installed. Updating Orca may fix this.`
+  return error instanceof ReleaseMismatchError
+    ? `The ${label} download didn't match the release Orca expects, so nothing was installed. Updating Orca may fix this.`
+    : `Couldn't download ${label}. Check your network connection or proxy, then try again.`
 }
 
 /** Retries transient network failures; a checksum mismatch or a cancel is final. */
@@ -116,17 +120,18 @@ async function downloadVerifiedArchiveOnce(
     const response = await fetcher(url, { redirect: 'follow', signal: downloadSignal })
     if (!response.ok || !response.body) {
       await response.body?.cancel().catch(() => undefined)
-      throw Object.assign(
-        new Error(`${label} download failed: ${response.status} ${response.statusText}`),
-        { httpStatusCode: response.status }
-      )
+      const text = `${label} download failed: ${response.status} ${response.statusText}`
+      const missing = response.status === 404 || response.status === 410
+      throw Object.assign(missing ? new ReleaseMismatchError(text) : new Error(text), {
+        httpStatusCode: response.status
+      })
     }
     // A compressed body declares its encoded size; the decoded bytes are still capped and hashed.
     const encoding = response.headers.get('content-encoding')?.trim().toLowerCase() || 'identity'
     const declaredLength = Number(response.headers.get('content-length'))
     if (encoding === 'identity' && Number.isFinite(declaredLength) && declaredLength > maxBytes) {
       await response.body.cancel().catch(() => undefined)
-      throw new Error(`${label} download exceeded the archive size limit`)
+      throw new ReleaseMismatchError(`${label} download exceeded the archive size limit`)
     }
     const handle = await open(destination, 'wx', 0o600).catch(async (error) => {
       await response.body?.cancel().catch(() => undefined)
@@ -148,7 +153,7 @@ async function downloadVerifiedArchiveOnce(
         total += chunk.value.byteLength
         onBytes?.(total)
         if (total > maxBytes) {
-          throw new Error(`${label} download exceeded the archive size limit`)
+          throw new ReleaseMismatchError(`${label} download exceeded the archive size limit`)
         }
         hash.update(chunk.value)
         await writeAll(handle, chunk.value)
@@ -161,7 +166,7 @@ async function downloadVerifiedArchiveOnce(
     }
     const actual = hash.digest('hex')
     if (actual !== expectedSha256) {
-      throw new Error(
+      throw new ReleaseMismatchError(
         `${label} archive checksum mismatch: expected ${expectedSha256}, got ${actual}`
       )
     }
