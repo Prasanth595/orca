@@ -129,11 +129,12 @@ export function applyGitHubPRResultToCaches(
   const hostedReviewEntry = args.hostedReviewCache[hostedReviewCacheKey]
   const current = args.prCache[args.prCacheKey]
   const prNumber = args.pr?.number ?? null
-  // Why: refreshPRNow broadcasts its outcome and also returns it; re-applying it would read its own write as newer and
-  // delete the PR. Skip only while the review cache still agrees, so a newer different review still reconciles below.
+  // The coordinator delivers each outcome twice; skip duplicates only while both caches name the same PR.
   if (
     current?.fetchedAt === args.fetchedAt &&
     (current.data?.number ?? null) === prNumber &&
+    current.data?.url === args.pr?.url &&
+    hostedReviewEntry?.data?.url === args.pr?.url &&
     (hostedReviewEntry?.data?.provider === 'github' ? hostedReviewEntry.data.number : null) ===
       prNumber
   ) {
