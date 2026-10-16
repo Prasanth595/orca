@@ -79,9 +79,10 @@ export abstract class OrcaRuntimeWithReclaimTerminalForDesktop extends OrcaRunti
       const renderer = this.lastRendererSizes.get(ptyId)
       const cols = renderer?.cols ?? heldOverride.previousCols ?? fallback.cols
       const rows = renderer?.rows ?? heldOverride.previousRows ?? fallback.rows
+      // Why: set before the await so a resubscribe landing mid-resize reads 'desktop' and stays passive.
+      this.setMobileDisplayMode(ptyId, 'desktop')
       await this.enqueueLayout(ptyId, { kind: 'desktop', cols, rows })
       this.releaseDesktopTakeBack(ptyId)
-      this.setMobileDisplayMode(ptyId, 'desktop')
       return true
     }
     // Why: a stale lock — driver still reads mobile with no active subscriber
