@@ -209,13 +209,36 @@ describe('structured mailbox pointer host', () => {
         dispatchId: 'd1',
         operationId: 'op1',
         expectedRuntimeFence: 1,
-        body: { kind: 'message', role: 'user', blocks: [], from: NOTICE_SOURCE }
+        body: { kind: 'message', role: 'user', blocks: [], from: NOTICE_SOURCE },
+        delivery: 'queue'
       })
     ).resolves.toEqual({ kind: 'queued' })
     expect(send.mock.calls[0]![1]).toMatchObject({
       delivery: 'queue-if-active',
       body: { from: NOTICE_SOURCE }
     })
+  })
+
+  it('steers a `now` pointer into the running turn, as the composer Steer does', async () => {
+    const send = vi.fn(
+      async (_caller: unknown, _payload: { delivery?: string; body?: unknown }) => ({
+        ok: true,
+        value: { clientMessageId: 'op1', submission: { dispatchState: 'accepted' } }
+      })
+    )
+    hostRef.current = { send }
+    await expect(
+      createStructuredMailboxPointerHost().send({
+        sessionId: 's1',
+        dispatchId: 'd1',
+        operationId: 'op1',
+        expectedRuntimeFence: 1,
+        body: { kind: 'message', role: 'user', blocks: [], from: NOTICE_SOURCE },
+        delivery: 'now'
+      })
+    ).resolves.toEqual({ kind: 'sent', state: 'accepted' })
+    expect(send.mock.calls[0]![1]).not.toHaveProperty('delivery')
+    expect(send.mock.calls[0]![1]).toMatchObject({ body: { from: NOTICE_SOURCE } })
   })
 
   it('consumes mail once an accepted nudge is delivered while the worker starts (W10)', async () => {

@@ -78,6 +78,44 @@ describe('orchestration RPC methods', () => {
       expect(runtime.deliverPendingMessagesForHandle).toHaveBeenCalled()
     })
 
+    it('stores --deliver on the row without publishing it, and defaults it to queue', async () => {
+      setup()
+      vi.spyOn(runtime, 'deliverPendingMessagesForHandle').mockImplementation(() => {})
+      const steered = await call('orchestration.send', {
+        from: 'term_coord',
+        to: `run:${activeRunId}`,
+        subject: 'steer',
+        deliver: 'now'
+      })
+      await call('orchestration.send', {
+        from: 'term_coord',
+        to: `run:${activeRunId}`,
+        subject: 'plain'
+      })
+
+      expect(
+        db.db.prepare('SELECT subject, pointer_delivery FROM messages ORDER BY sequence').all()
+      ).toEqual([
+        { subject: 'steer', pointer_delivery: 'now' },
+        { subject: 'plain', pointer_delivery: 'queue' }
+      ])
+      // Delivery plumbing, like the other pointer_* columns: not part of the mailbox receipt.
+      expect(steered).toMatchObject({ message: { subject: 'steer' } })
+      expect(steered).not.toHaveProperty('message.pointer_delivery')
+    })
+
+    it('rejects an unknown deliver value', async () => {
+      setup()
+      await expect(
+        call('orchestration.send', {
+          from: 'term_coord',
+          to: `run:${activeRunId}`,
+          subject: 'steer',
+          deliver: 'urgent'
+        })
+      ).rejects.toThrow(/--deliver/)
+    })
+
     it('wakes the Run mailbox after canonicalizing an old coordinator recipient', async () => {
       setup()
       const remintedPaneKey = 'tab_reminted:bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'

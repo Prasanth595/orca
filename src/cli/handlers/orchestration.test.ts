@@ -122,6 +122,48 @@ describe('orchestration send structured payload flags', () => {
     expect(callMock).toHaveBeenCalledWith('orchestration.send', expect.objectContaining({ body }))
   })
 
+  it.each(['now', 'queue'])('forwards --deliver %s to the runtime', async (deliver) => {
+    await invokeSend(
+      new Map<string, string | boolean>([
+        ['from', 'term_coord'],
+        ['to', 'dispatch:ctx_1'],
+        ['subject', 'steer'],
+        ['deliver', deliver]
+      ])
+    )
+
+    expect(callMock).toHaveBeenCalledWith(
+      'orchestration.send',
+      expect.objectContaining({ deliver })
+    )
+  })
+
+  it('leaves deliver out of a plain send, so its params are unchanged for any runtime', async () => {
+    await invokeSend(
+      new Map<string, string | boolean>([
+        ['from', 'term_coord'],
+        ['to', 'dispatch:ctx_1'],
+        ['subject', 'plain']
+      ])
+    )
+
+    expect(callMock.mock.calls[0]![1]).not.toHaveProperty('deliver')
+  })
+
+  it('rejects an unknown --deliver before calling the runtime', async () => {
+    await expect(
+      invokeSend(
+        new Map<string, string | boolean>([
+          ['from', 'term_coord'],
+          ['to', 'dispatch:ctx_1'],
+          ['subject', 'steer'],
+          ['deliver', 'urgent']
+        ])
+      )
+    ).rejects.toMatchObject({ code: 'invalid_argument' })
+    expect(callMock).not.toHaveBeenCalled()
+  })
+
   it('carries Dispatch authority in the RPC envelope instead of message params', async () => {
     await invokeSend(
       new Map<string, string | boolean>([

@@ -120,8 +120,9 @@ export function createStructuredMailboxPointerHost(): StructuredMailboxPointerHo
           : structuredSessionPointerCallerKey(input.sessionId),
         turn: {
           body: input.body,
-          // As a person's message is: a busy chat queues it as a card, sent when the turn ends.
-          delivery: 'queue',
+          // `queue` as a person's message is: a busy chat holds it as a card until the turn ends.
+          // `now` as the composer's Steer is: it joins the running turn.
+          delivery: input.delivery,
           operationId: input.operationId,
           expectedRuntimeFence: input.expectedRuntimeFence
         }

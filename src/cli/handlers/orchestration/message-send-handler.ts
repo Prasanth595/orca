@@ -68,6 +68,10 @@ export const ORCHESTRATION_SEND_HANDLER: Record<string, CommandHandler> = {
     if (to) {
       rejectLifecycleGroupRecipient(type, to)
     }
+    const deliver = getOptionalStringFlag(flags, 'deliver')
+    if (deliver !== undefined && deliver !== 'queue' && deliver !== 'now') {
+      throw new RuntimeClientError('invalid_argument', '--deliver must be queue or now.')
+    }
     const outcome = getOptionalStringFlag(flags, 'outcome')
     if (type !== 'worker_done' && outcome !== undefined) {
       throw new RuntimeClientError(
@@ -95,6 +99,8 @@ export const ORCHESTRATION_SEND_HANDLER: Record<string, CommandHandler> = {
       body: getOptionalStringFlag(flags, 'body'),
       type,
       priority: getOptionalStringFlag(flags, 'priority'),
+      // Omitted when not asked for, so a plain send's params are unchanged for every runtime.
+      ...(deliver ? { deliver } : {}),
       threadId: getOptionalStringFlag(flags, 'thread-id'),
       payload: getOptionalStructuredMessagePayload(flags),
       // Why: pane key is the remint-stable sender identity the runtime verifies lifecycle ownership against; older runtimes strip it.

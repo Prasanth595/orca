@@ -70,7 +70,8 @@ export function sendFederatedControlMail(args: {
       type: (params.type ?? 'status') as MessageType,
       priority: (params.priority ?? 'normal') as MessagePriority,
       threadId: params.threadId ?? null,
-      payload: params.payload ?? null
+      payload: params.payload ?? null,
+      pointerDelivery: params.deliver
     })
   })
   const receipt = withSendWarnings({

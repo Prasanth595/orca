@@ -1,4 +1,10 @@
-import type { MessageType, MessagePriority, MessageDeliveryContract, MessageRow } from '../../types'
+import type {
+  MessageType,
+  MessagePriority,
+  MessageDeliveryContract,
+  MessagePointerDelivery,
+  MessageRow
+} from '../../types'
 import { generateId } from '../generated-id'
 import { exposeMessageTimestamps } from '../utc-timestamp'
 import type { OrchestrationDb } from '../orchestration-db'
@@ -23,6 +29,7 @@ export type MessageInsert = {
   senderPaneKey?: string
   runId?: string
   deliveryContract?: MessageDeliveryContract
+  pointerDelivery?: MessagePointerDelivery
 }
 
 export function insertMessage(this: OrchestrationDb, msg: MessageInsert): MessageRow {
@@ -44,9 +51,9 @@ export function insertMessage(this: OrchestrationDb, msg: MessageInsert): Messag
   const stmt = this.db.prepare(`
     INSERT INTO messages (
       id, run_id, delivery_contract, from_handle, to_handle, subject, body,
-      type, priority, thread_id, payload, sender_pane_key
+      type, priority, thread_id, payload, sender_pane_key, pointer_delivery
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
   stmt.run(
     id,
@@ -60,7 +67,8 @@ export function insertMessage(this: OrchestrationDb, msg: MessageInsert): Messag
     msg.priority ?? 'normal',
     msg.threadId ?? null,
     msg.payload ?? null,
-    msg.senderPaneKey ?? null
+    msg.senderPaneKey ?? null,
+    msg.pointerDelivery ?? 'queue'
   )
   return exposeMessageTimestamps(
     this.db.prepare('SELECT * FROM messages WHERE id = ?').get(id) as MessageRow

@@ -77,6 +77,7 @@ export async function sendRemoteMessage(args: {
       body: params.body ?? '',
       type,
       priority: params.priority ?? 'normal',
+      ...(params.deliver === 'now' ? { pointerDelivery: 'now' } : {}),
       threadId: params.threadId ?? null,
       payload: bindCoordinatorMutationPayload(type, params.payload, remoteAttachment.dispatch_id)
     }),

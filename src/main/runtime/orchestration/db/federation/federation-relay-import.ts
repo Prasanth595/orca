@@ -1,5 +1,6 @@
 import type {
   MessageType,
+  MessagePointerDelivery,
   MessagePriority,
   MessageRow,
   WorkerReportOutcome,
@@ -22,6 +23,7 @@ export function importFederatedRelayItem(
       body: string
       type: MessageType
       priority: MessagePriority
+      pointerDelivery?: MessagePointerDelivery
       threadId?: string
       payload?: string
     }

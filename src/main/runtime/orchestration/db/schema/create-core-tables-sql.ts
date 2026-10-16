@@ -45,7 +45,9 @@ CREATE TABLE IF NOT EXISTS messages (
   sender_pane_key TEXT,
   pointer_enter_pending INTEGER NOT NULL DEFAULT 0,
   pointer_pty_id TEXT,
-  pointer_process_incarnation TEXT
+  pointer_process_incarnation TEXT,
+  pointer_delivery TEXT NOT NULL DEFAULT 'queue'
+    CHECK(pointer_delivery IN ('queue', 'now'))
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_id ON messages(id);
