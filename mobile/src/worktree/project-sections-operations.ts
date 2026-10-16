@@ -4,7 +4,13 @@ import { normalizeExecutionHostId } from '../../../src/shared/execution-host'
 import type { ProjectHostSetupMethod } from '../../../src/shared/project-types'
 import type { RepoKind } from '../../../src/shared/repo-types'
 import type { ProjectOrderBy } from '../../../src/shared/ui-chrome-types'
-import { hostUnionArms, salvagedOptional, salvagingArray } from '../../../src/shared/zod-salvage'
+import {
+  hostUnionArms,
+  salvagedField,
+  salvagedOptional,
+  salvagingArray
+} from '../../../src/shared/zod-salvage'
+import type { ProjectGroupSectionGroup } from '../../../src/shared/project-group-section-plan'
 import { bindDeferredRpcOperation, defineRpcOperation } from '../transport/rpc-operation'
 import { rpcResultVariant } from '../transport/rpc-operation-result-reader'
 import { isMobileMethodUnavailableError } from '../transport/mobile-method-unavailable'
@@ -38,9 +44,23 @@ const repoSchema = z.object({
   addedAt: salvagedOptional('addedAt', z.number()),
   connectionId: salvagedOptional('connectionId', z.string().nullable()),
   executionHostId: salvagedOptional('executionHostId', hostIdSchema),
+  projectGroupId: salvagedOptional('projectGroupId', z.string().nullable()),
+  projectGroupOrder: salvagedOptional('projectGroupOrder', z.number()),
   // Decoded where drawn (readMobileRepoIcon), so an arm this build lacks still keeps the row.
   repoIcon: z.unknown().optional()
 }) satisfies z.ZodType<SectionRepo, unknown>
+
+const projectGroupSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  parentGroupId: salvagedField('parentGroupId', z.string().nullable(), () => null),
+  tabOrder: salvagedField('tabOrder', z.number(), () => 0),
+  connectionId: salvagedOptional('connectionId', z.string().nullable()),
+  executionHostId: salvagedOptional('executionHostId', hostIdSchema)
+}) satisfies z.ZodType<ProjectGroupSectionGroup, unknown>
+
+/** A desktop Project Group as the phone nests and host-filters it. */
+export type ServedProjectGroup = z.output<typeof projectGroupSchema>
 
 const setupSchema = z.object({
   id: z.string(),
@@ -61,7 +81,9 @@ const catalogSchema = z.object({
   projects: salvagingArray(z.object({ id: z.string(), displayName: z.string() })),
   setups: salvagingArray(setupSchema),
   // Until the phone has read the shared UI value (projectOrderBy, ui.get), it orders by this.
-  projectOrderBy: z.enum(PROJECT_ORDER_BY_ARMS).catch('manual')
+  projectOrderBy: z.enum(PROJECT_ORDER_BY_ARMS).catch('manual'),
+  // Absent from a desktop that predates group nesting; its repos then group flat, as before.
+  projectGroups: salvagedOptional('projectGroups', salvagingArray(projectGroupSchema))
 })
 
 /** The desktop sidebar's Project grouping inputs, as this phone reads them. */

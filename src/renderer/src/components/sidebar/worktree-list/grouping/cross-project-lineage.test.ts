@@ -11,11 +11,8 @@ import {
 import { makeProjectGroup } from '../../folder-workspace-composer-submit-fixtures'
 import { getWorktreeRevealCollapsedGroupKeys } from '../navigation/worktree-reveal-group-keys'
 import { buildRows, buildSidebarRowPlan } from './build-rows'
-import {
-  getWorktreeLineageGroupKey,
-  getProjectGroupHeaderKey,
-  PINNED_GROUP_KEY
-} from './group-keys'
+import { getWorktreeLineageGroupKey, PINNED_GROUP_KEY } from './group-keys'
+import { getProjectGroupHeaderKey } from '../../../../../../shared/project-groups'
 
 const childRepo = { ...repo, id: 'child-repo', displayName: 'Child project', path: '/tmp/child' }
 const repos = new Map([

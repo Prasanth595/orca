@@ -2,6 +2,10 @@ import { NO_WORKSPACE_ROW_FILTERS } from '../../../src/shared/workspace-view/wor
 import { describe, expect, it } from 'vitest'
 import { getRepoExecutionHostId } from '../../../src/shared/execution-host'
 import {
+  PROJECT_GROUP_PARITY_HEADERS,
+  PROJECT_GROUP_PARITY_SERVED
+} from '../../../src/shared/project-group-parity.test-fixture'
+import {
   PROJECT_SECTION_PARITY_HEADERS,
   PROJECT_SECTION_PARITY_ROWS,
   PROJECT_SECTION_PARITY_SERVED
@@ -12,7 +16,7 @@ import {
   readServedProjectSections,
   type ServedProjectSections
 } from './project-sections-operations'
-import { buildSections, type Worktree } from './workspace-list-sections'
+import { buildSections, type ProjectSectionCatalog, type Worktree } from './workspace-list-sections'
 
 // The desktop half lives in src/renderer/src/components/sidebar/
 // worktree-list-groups-mobile-parity.test.ts: buildRows renders these headers, and main serves
@@ -65,6 +69,23 @@ function headers(catalog: ReturnType<typeof buildProjectSectionCatalog>) {
   ).map((section) => ({ key: section.key, label: section.title }))
 }
 
+function nestedHeaders(catalog: ProjectSectionCatalog) {
+  return buildSections(
+    rows(),
+    'recent',
+    { ...NO_WORKSPACE_ROW_FILTERS },
+    '',
+    'repo',
+    new Set(),
+    catalog
+  ).map((section) => ({
+    key: section.key,
+    label: section.title,
+    depth: section.depth ?? 0,
+    ...(section.count !== undefined ? { count: section.count } : {})
+  }))
+}
+
 describe('Project grouping on the phone', () => {
   it.each(['recent', 'manual'] as const)(
     "renders the desktop sidebar's %s headers from the catalog the desktop serves",
@@ -75,6 +96,37 @@ describe('Project grouping on the phone', () => {
       )
     }
   )
+
+  it.each(['recent', 'manual'] as const)(
+    "nests the desktop sidebar's %s headers under the Project Groups it serves",
+    (projectOrderBy) => {
+      const verdict = projectSectionsRead.interpret({
+        id: 'sections',
+        ok: true,
+        result: { catalog: { ...PROJECT_GROUP_PARITY_SERVED, projectOrderBy } }
+      })
+      expect(verdict.accepted).toBe(true)
+      expect(
+        nestedHeaders(
+          buildProjectSectionCatalog(verdict.accepted ? verdict.value : null, [], null, null)
+        )
+      ).toEqual(PROJECT_GROUP_PARITY_HEADERS[projectOrderBy])
+    }
+  )
+
+  it('keeps flat Project headers from a desktop that serves no Project Groups', () => {
+    const { projectGroups: _omitted, ...olderCatalog } = PROJECT_SECTION_PARITY_SERVED
+    const verdict = projectSectionsRead.interpret({
+      id: 'sections',
+      ok: true,
+      result: { catalog: olderCatalog }
+    })
+
+    expect(verdict.accepted).toBe(true)
+    expect(
+      headers(buildProjectSectionCatalog(verdict.accepted ? verdict.value : null, [], null, null))
+    ).toEqual(PROJECT_SECTION_PARITY_HEADERS.manual)
+  })
 
   it("groups by repo from an older desktop's own repos when it serves no catalog", () => {
     const desktopRepos = PROJECT_SECTION_PARITY_SERVED.repos.filter(

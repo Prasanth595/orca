@@ -30,12 +30,12 @@ import { resolveWorktreeHostId } from './worktree-host-context-labels'
 import type { ExecutionHostId } from '../../../src/shared/execution-host'
 import {
   buildProjectGroupingIndex,
-  buildProjectSections,
   getProjectGroupingForRepo,
   type ProjectSectionModel
 } from '../../../src/shared/project-section-grouping'
-import { withRepoSectionDisplayLabels } from '../../../src/shared/project-section-order'
+import type { ProjectGroupSectionGroup } from '../../../src/shared/project-group-section-plan'
 import type { ProjectOrderBy } from '../../../src/shared/ui-chrome-types'
+import { buildProjectWorkspaceSections, makeSection } from './project-workspace-sections'
 import {
   filterWorkspaceRows,
   type WorkspaceRowFactReader
@@ -52,13 +52,16 @@ export type ProjectSectionCatalog = {
   /** Manual header rank; undefined keeps first-row order. */
   repoOrder: ReadonlyMap<string, number> | undefined
   projectOrderBy: ProjectOrderBy
+  /** The desktop sidebar's Project Groups of the shown hosts; empty leaves sections flat. */
+  projectGroups: readonly ProjectGroupSectionGroup[]
 }
 
 export const NO_PROJECT_SECTION_CATALOG: ProjectSectionCatalog = {
   repos: [],
   grouping: null,
   repoOrder: undefined,
-  projectOrderBy: 'manual'
+  projectOrderBy: 'manual',
+  projectGroups: []
 }
 
 /** Catalog repos by id, plus a stand-in from the row for a repo its host's catalog lacks. */
@@ -81,21 +84,6 @@ export function buildSectionRepoMap(
   return repoMap
 }
 export { getWorktreeStatus, sortWorktrees } from './workspace-list-ordering'
-
-function makeSection(
-  key: string,
-  title: string,
-  data: readonly Worktree[],
-  decoration: { icon?: 'pin'; repo?: SectionRepo } = {}
-): Section {
-  return {
-    key,
-    title,
-    ...(decoration.icon ? { icon: decoration.icon } : {}),
-    ...(decoration.repo ? { repo: decoration.repo } : {}),
-    data: [...data]
-  }
-}
 
 // Why: the previous 10-minute lastOutputAt window was too strict — most
 // worktrees with idle terminal prompts had no recent output and were excluded.
@@ -146,14 +134,6 @@ function phoneRowFacts(
   }
 }
 
-function orderMainWorktreeFirst(worktrees: Worktree[]): Worktree[] {
-  const mainWorktrees = worktrees.filter((worktree) => worktree.isMainWorktree)
-  if (mainWorktrees.length === 0) {
-    return worktrees
-  }
-  return [...mainWorktrees, ...worktrees.filter((worktree) => !worktree.isMainWorktree)]
-}
-
 export function filterWorktrees(
   worktrees: Worktree[],
   filters: FilterState,
@@ -186,7 +166,7 @@ export function buildMobileWorkspacePlan(
   pinnedIds: Set<string>,
   projectCatalog: ProjectSectionCatalog = NO_PROJECT_SECTION_CATALOG,
   workspaceStatuses: readonly WorkspaceStatusDefinition[] = DEFAULT_WORKSPACE_STATUSES,
-  _collapsedGroups: ReadonlySet<string> = new Set(),
+  collapsedGroups: ReadonlySet<string> = new Set(),
   showPinnedInGroups = false,
   repoHostIdByRepoId: ReadonlyMap<string, ExecutionHostId> = new Map()
 ) {
@@ -218,36 +198,19 @@ export function buildMobileWorkspacePlan(
           sections.push(makeSection('all', 'All', canonicalGroupWorktrees))
         }
       } else if (groupMode === 'repo') {
-        const representedRepoIds = new Set(worktrees.map((w) => w.repoId))
-        const query = search.trim().toLowerCase()
-        const placeholderRepoIds = projectCatalog.repos
-          .filter(
-            (repo) =>
-              !representedRepoIds.has(repo.id) &&
-              (filters.filterRepoIds.length === 0 || filters.filterRepoIds.includes(repo.id)) &&
-              (!query || repo.displayName.toLowerCase().includes(query))
-          )
-          .map((repo) => repo.id)
-        const projectSections = withRepoSectionDisplayLabels(
-          buildProjectSections({
-            items: canonicalGroupWorktrees,
-            repoIdOf: (w) => w.repoId,
-            displayRepoIdOf: (w) =>
-              (displayRootByIdentity.get(getWorktreeRowIdentity(w)) ?? w).repoId,
+        sections.push(
+          ...buildProjectWorkspaceSections({
+            rows: canonicalGroupWorktrees,
+            allRows: worktrees,
+            displayRootByIdentity,
             repoMap,
             projectIndex,
-            placeholderRepoIds,
-            repoOrder: projectCatalog.repoOrder,
-            projectOrderBy: projectCatalog.projectOrderBy
+            projectCatalog,
+            filters,
+            search,
+            collapsedGroups
           })
         )
-        for (const [key, section] of projectSections) {
-          sections.push(
-            makeSection(key, section.label, orderMainWorktreeFirst(section.items), {
-              repo: section.repo
-            })
-          )
-        }
       } else if (groupMode === 'workspace-status') {
         const renderableWorkspaceStatuses = withDefaultWorkspaceStatuses(workspaceStatuses)
         const byStatus = new Map<string, Worktree[]>()
@@ -299,6 +262,8 @@ export function buildMobileWorkspacePlan(
         title: section.title,
         ...(section.icon ? { icon: section.icon } : {}),
         ...(section.repo ? { repo: section.repo } : {}),
+        ...(section.depth ? { depth: section.depth } : {}),
+        ...(section.count !== undefined ? { count: section.count } : {}),
         data: getMobileOccurrenceRows(occurrencePlan, section.key, collapsed)
       }))
   }

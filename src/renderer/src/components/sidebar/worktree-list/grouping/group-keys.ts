@@ -9,7 +9,6 @@ import {
   ConductorProgressIcon,
   ConductorReviewIcon
 } from '../../workspace-status-icons'
-import { UNGROUPED_PROJECT_GROUP_KEY } from '../../../../../../shared/project-groups'
 import type { AppState } from '../../../../store/types'
 import {
   getGitHubPRCacheKey,
@@ -70,10 +69,6 @@ export const PROJECT_GROUP_META = {
   tone: 'text-foreground',
   icon: FolderTree
 } as const
-
-export function getProjectGroupHeaderKey(groupId: string | null): string {
-  return groupId ? `project-group:${groupId}` : UNGROUPED_PROJECT_GROUP_KEY
-}
 
 export const PINNED_GROUP_KEY = 'pinned'
 

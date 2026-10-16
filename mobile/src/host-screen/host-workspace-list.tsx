@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Platform, Pressable, RefreshControl, SectionList, Text, View } from 'react-native'
-import { ChevronDown, ChevronRight, Pin } from 'lucide-react-native'
+import { ChevronDown, ChevronRight, FolderTree, Pin } from 'lucide-react-native'
 import { AuthFailedBanner } from '../components/AuthFailedBanner'
 import { HostDiagnosticsLink } from '../components/HostDiagnosticsLink'
 import { HostRouteNoticeBanner } from '../components/HostRouteNoticeBanner'
@@ -12,6 +12,8 @@ import { colors, spacing } from '../theme/mobile-theme'
 import { getWorktreeRowIdentity } from '../worktree/worktree-host-row-identity'
 import { HostWorkspaceListStates } from '../worktree/host-workspace-list-states'
 import { getWorktreeStatus } from '../worktree/workspace-list-sections'
+import { projectGroupIndent, sectionRowDepth } from '../worktree/project-group-indent'
+import type { Section } from '../worktree/workspace-list-types'
 import { repoColor } from '../worktree/repo-color'
 import { getWorktreeCardDetails } from '../../../src/shared/worktree/card-properties'
 import { hostScreenStyles as styles } from './host-screen-styles'
@@ -148,7 +150,7 @@ export function HostWorkspaceList({ controller }: { controller: HostScreenContro
             }
             const isCollapsed = controller.collapsedGroups.has(section.key)
             const rawSection = rawSections.find((s) => s.key === section.key)
-            const count = rawSection?.data.length ?? 0
+            const count = rawSection?.count ?? rawSection?.data.length ?? 0
             // Why: the desktop's header draws its anchor repo's colour and icon.
             const repoSectionLook =
               state.view.groupBy === 'repo' && section.repo
@@ -158,7 +160,12 @@ export function HostWorkspaceList({ controller }: { controller: HostScreenContro
             const repoSectionIcon = repoSectionLook?.icon ?? null
             return (
               <Pressable
-                style={styles.sectionHeader}
+                style={[
+                  styles.sectionHeader,
+                  section.depth
+                    ? { paddingLeft: spacing.lg + projectGroupIndent(section.depth) }
+                    : null
+                ]}
                 onPress={() => settings.toggleCollapsed(section.key)}
               >
                 {isCollapsed ? (
@@ -169,7 +176,9 @@ export function HostWorkspaceList({ controller }: { controller: HostScreenContro
                 {section.icon === 'pin' && (
                   <Pin size={12} color={colors.textMuted} style={styles.sectionIcon} />
                 )}
-                {state.view.groupBy === 'repo' ? (
+                {section.icon === 'project-group' ? (
+                  <FolderTree size={14} color={colors.textSecondary} style={styles.sectionIcon} />
+                ) : state.view.groupBy === 'repo' ? (
                   <View style={styles.sectionRepoIcon}>
                     <MobileRepoIcon
                       repoIcon={repoSectionIcon}
@@ -193,8 +202,9 @@ export function HostWorkspaceList({ controller }: { controller: HostScreenContro
               colors={[colors.textSecondary]}
             />
           }
-          renderItem={({ item }) => (
+          renderItem={({ item, section }) => (
             <WorktreeListRow
+              groupDepth={sectionRowDepth(section)}
               item={item}
               isReadOnly={isReadOnly}
               now={now}
@@ -227,6 +237,12 @@ export function HostWorkspaceList({ controller }: { controller: HostScreenContro
   )
 }
 
-function ListSeparator() {
-  return <View style={styles.separator} />
+function ListSeparator({ section }: { section: Section }) {
+  const indent = projectGroupIndent(sectionRowDepth(section))
+  // Why a wrapper: the separator keeps its own row inset and steps in with the row above it.
+  return (
+    <View style={indent > 0 ? { paddingLeft: indent } : null}>
+      <View style={styles.separator} />
+    </View>
+  )
 }

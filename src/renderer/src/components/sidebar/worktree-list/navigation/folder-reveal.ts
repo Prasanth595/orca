@@ -13,7 +13,7 @@ import {
   composeWorktreeHostIdentity,
   getExecutionHostIdFromWorktreeHostIdentity
 } from '../../../../../../shared/worktree/host-qualified-identity'
-import { getProjectGroupHeaderKey } from '../grouping/group-keys'
+import { getProjectGroupHeaderKey } from '../../../../../../shared/project-groups'
 import {
   getRepoExecutionHostId,
   type ExecutionHostId

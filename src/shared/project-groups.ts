@@ -5,6 +5,11 @@ import { createNonSecureContextUuid } from './non-secure-context-uuid'
 
 export const UNGROUPED_PROJECT_GROUP_KEY = 'project-group:ungrouped'
 
+/** The sidebar's collapse key for a Project Group header; the paired phone persists the same key. */
+export function getProjectGroupHeaderKey(groupId: string | null): string {
+  return groupId ? `project-group:${groupId}` : UNGROUPED_PROJECT_GROUP_KEY
+}
+
 export function normalizeProjectGroupName(name: string, fallback = 'Untitled group'): string {
   const trimmed = name.trim()
   return trimmed.length > 0 ? trimmed : fallback

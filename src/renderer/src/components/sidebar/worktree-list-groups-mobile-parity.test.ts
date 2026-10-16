@@ -11,11 +11,18 @@ import {
   withRepoSectionDisplayLabels
 } from '../../../../shared/project-section-order'
 import {
+  PROJECT_GROUP_PARITY_GROUPS,
+  PROJECT_GROUP_PARITY_HEADERS,
+  PROJECT_GROUP_PARITY_MEMBERSHIP,
+  PROJECT_GROUP_PARITY_SERVED
+} from '../../../../shared/project-group-parity.test-fixture'
+import {
   PROJECT_SECTION_PARITY_HEADERS,
   PROJECT_SECTION_PARITY_HOSTS,
   PROJECT_SECTION_PARITY_ROWS,
   PROJECT_SECTION_PARITY_SERVED
 } from '../../../../shared/project-section-parity.test-fixture'
+import type { ProjectGroup } from '../../../../shared/project-group-types'
 import type { Repo } from '../../../../shared/repo-types'
 import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
 import type { ProjectOrderBy } from '../../../../shared/ui-chrome-types'
@@ -80,7 +87,9 @@ function answerHosts(): void {
   })
 }
 
-async function desktopCatalog(): Promise<{ repos: readonly Repo[]; rows: ProjectCatalogRows }> {
+async function desktopCatalog(
+  projectGroups: readonly ProjectGroup[] = []
+): Promise<{ repos: readonly Repo[]; rows: ProjectCatalogRows }> {
   answerHosts()
   // The all-host load's applyCatalog, host by host: local first, then each server.
   let repos: readonly Repo[] = []
@@ -105,11 +114,21 @@ async function desktopCatalog(): Promise<{ repos: readonly Repo[]; rows: Project
     })
     repos = finalized
   }
-  return { repos, rows }
+  // Group membership is the sidebar's own state, set after the hosts answered.
+  const memberships = projectGroups.length > 0 ? PROJECT_GROUP_PARITY_MEMBERSHIP : {}
+  return {
+    repos: repos.map((repo) =>
+      memberships[repo.id] ? { ...repo, projectGroupId: memberships[repo.id] } : repo
+    ),
+    rows
+  }
 }
 
-async function desktopHeaders(projectOrderBy: ProjectOrderBy) {
-  const { repos, rows } = await desktopCatalog()
+async function desktopHeaders(
+  projectOrderBy: ProjectOrderBy,
+  projectGroups: readonly ProjectGroup[] = []
+) {
+  const { repos, rows } = await desktopCatalog(projectGroups)
   const projection = getProjectHostSetupProjectionFromState({ repos, ...rows })
   const worktrees: Worktree[] = PROJECT_SECTION_PARITY_ROWS.map((row) => ({
     ...worktreeFixture,
@@ -132,22 +151,42 @@ async function desktopHeaders(projectOrderBy: ProjectOrderBy) {
     undefined,
     false,
     undefined,
-    [],
+    projectGroups,
     new Set(repos.filter((repo) => !withWorktrees.has(repo.id)).map((repo) => repo.id)),
     new Map(),
     new Map(),
     [],
     { projects: projection.projects, projectHostSetups: projection.setups }
-  ).flatMap((row) => (row.type === 'header' ? [{ key: row.key, label: row.label }] : []))
+  ).flatMap((row) => {
+    if (row.type !== 'header') {
+      return []
+    }
+    const header = { key: row.key, label: row.label }
+    if (projectGroups.length === 0) {
+      return [header]
+    }
+    const depth = row.projectGroupDepth ?? 0
+    return [
+      row.projectGroup && !row.repo ? { ...header, depth, count: row.count } : { ...header, depth }
+    ]
+  })
 }
 
 /**
  * What main serves the phone: the renderer's published catalog as JSON crosses the wire. Main
  * stores and answers it unchanged (src/main/ipc/runtime.test.ts, mobile-project-sections.test.ts).
  */
-async function servedCatalog(projectOrderBy: ProjectOrderBy): Promise<MobileProjectSectionCatalog> {
-  const { repos, rows } = await desktopCatalog()
-  const published = getProjectSectionCatalogFromState({ repos, ...rows, projectOrderBy })
+async function servedCatalog(
+  projectOrderBy: ProjectOrderBy,
+  projectGroups: readonly ProjectGroup[] = []
+): Promise<MobileProjectSectionCatalog> {
+  const { repos, rows } = await desktopCatalog(projectGroups)
+  const published = getProjectSectionCatalogFromState({
+    repos,
+    ...rows,
+    projectOrderBy,
+    projectGroups
+  })
   if (!published) {
     throw new Error('the renderer published no catalog')
   }
@@ -190,6 +229,20 @@ describe('the phone groups by Project exactly as the paired desktop sidebar', ()
       const served = await servedCatalog(projectOrderBy)
       expect(served).toEqual({ ...PROJECT_SECTION_PARITY_SERVED, projectOrderBy })
       expect(phoneHeaders(served)).toEqual(PROJECT_SECTION_PARITY_HEADERS[projectOrderBy])
+    }
+  )
+
+  // The phone half: mobile/src/worktree/workspace-list-sections-desktop-parity.test.ts.
+  it.each(['recent', 'manual'] as const)(
+    'nests %s project headers under Project Groups the phone is served',
+    async (projectOrderBy) => {
+      expect(await desktopHeaders(projectOrderBy, PROJECT_GROUP_PARITY_GROUPS)).toEqual(
+        PROJECT_GROUP_PARITY_HEADERS[projectOrderBy]
+      )
+      expect(await servedCatalog(projectOrderBy, PROJECT_GROUP_PARITY_GROUPS)).toEqual({
+        ...PROJECT_GROUP_PARITY_SERVED,
+        projectOrderBy
+      })
     }
   )
 })

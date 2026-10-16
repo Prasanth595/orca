@@ -74,7 +74,7 @@ export function useWorkspaceSections(args: {
         pinnedIds,
         projectCatalog,
         workspaceStatuses,
-        undefined,
+        collapsedGroups,
         showPinnedInGroups,
         repoHostIdByRepoId
       ),
@@ -88,7 +88,9 @@ export function useWorkspaceSections(args: {
       pinnedIds,
       projectCatalog,
       workspaceStatuses,
-      showPinnedInGroups
+      showPinnedInGroups,
+      // Why: a collapsed Project Group omits its subtree from the plan, as the desktop's does.
+      collapsedGroups
     ]
   )
 
