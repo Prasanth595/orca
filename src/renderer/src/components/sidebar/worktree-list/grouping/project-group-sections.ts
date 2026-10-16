@@ -16,6 +16,10 @@ import {
   withRepoSectionDisplayLabels
 } from '../../../../../../shared/project-section-order'
 import { buildFolderWorkspaceRow } from './row-builders'
+import {
+  resolveDisplayProjectGroupId,
+  type CrossHostProjectGroupMerge
+} from './cross-host-project-group-merge'
 
 export function appendProjectGroupSections(
   ctx: SectionAppendContext,
@@ -25,15 +29,18 @@ export function appendProjectGroupSections(
     folderWorkspaces: readonly RenderableFolderWorkspace[]
     projectOrderBy: ProjectOrderBy
     repoOrder: Map<string, number> | undefined
+    /** Same-named groups from other hosts fold under one header; rows bucket by that header. */
+    projectGroupMerge?: CrossHostProjectGroupMerge
   }
 ): void {
   const { orderedGroups, projectGroups, folderWorkspaces, projectOrderBy, repoOrder } = args
+  const { projectGroupMerge } = args
   const { result, collapsedGroups } = ctx
 
   const groupByProjectGroupId = new Map<string | null, OrderedGroupEntry[]>()
   for (const entry of orderedGroups) {
     const repo = entry[1].repo
-    const projectGroupId = repo?.projectGroupId ?? null
+    const projectGroupId = resolveDisplayProjectGroupId(repo?.projectGroupId, projectGroupMerge)
     const list = groupByProjectGroupId.get(projectGroupId) ?? []
     list.push(entry)
     groupByProjectGroupId.set(projectGroupId, list)
@@ -64,7 +71,9 @@ export function appendProjectGroupSections(
   // repo grouping no longer owns the filter — it only groups and orders (#15362).
   const folderWorkspacesByProjectGroupId = new Map<string, RenderableFolderWorkspace[]>()
   for (const pair of folderWorkspaces) {
-    const groupId = pair.folderWorkspace.projectGroupId
+    const groupId =
+      resolveDisplayProjectGroupId(pair.folderWorkspace.projectGroupId, projectGroupMerge) ??
+      pair.folderWorkspace.projectGroupId
     const list = folderWorkspacesByProjectGroupId.get(groupId) ?? []
     list.push(pair)
     folderWorkspacesByProjectGroupId.set(groupId, list)

@@ -7,6 +7,10 @@ import {
 } from '../../../../../../shared/workspace-statuses'
 import { ALL_GROUP_KEY, getPRLaneKey } from './group-keys'
 import type { WorktreeGroupBy } from './row-types'
+import {
+  findProjectGroupMemberById,
+  type CrossHostProjectGroupMerge
+} from './cross-host-project-group-merge'
 
 /** A folder workspace paired with the project group that owns it. The pair is
  *  carried through grouping because FolderWorkspaceRow needs a non-optional
@@ -25,12 +29,18 @@ export type RenderableFolderWorkspace = {
  */
 export function getRenderableFolderWorkspaces(
   folderWorkspaces: readonly FolderWorkspace[],
-  projectGroups: readonly ProjectGroup[]
+  projectGroups: readonly ProjectGroup[],
+  projectGroupMerge?: CrossHostProjectGroupMerge
 ): RenderableFolderWorkspace[] {
   const projectGroupsById = new Map(projectGroups.map((group) => [group.id, group]))
   const renderable: RenderableFolderWorkspace[] = []
   for (const folderWorkspace of folderWorkspaces) {
-    const projectGroup = projectGroupsById.get(folderWorkspace.projectGroupId)
+    // Why the member: a merged header lists another host's group under this
+    // computer's; the pair keeps the workspace's own group so its host and
+    // folder path status stay its own.
+    const projectGroup =
+      projectGroupsById.get(folderWorkspace.projectGroupId) ??
+      findProjectGroupMemberById(projectGroupMerge, folderWorkspace.projectGroupId)
     // A group filtered out for host visibility legitimately hides its workspaces.
     if (!projectGroup?.parentPath) {
       continue

@@ -14,6 +14,7 @@ import { orderHostSectionOptions } from './host-section-order'
 import { buildSidebarHostOptions } from './sidebar-host-options'
 import { getLogicalRepoOrderRankById } from '../../../../shared/project-section-order'
 import { getRenderedWorktreesInSidebarOrder } from './worktree-sidebar-row-preference'
+import { mergeProjectGroupsAcrossHosts } from './worktree-list/grouping/cross-host-project-group-merge'
 import { selectWorktreeListReviewCacheInputs } from './worktree-list/listing/review-cache-inputs'
 import {
   filterFolderWorkspacesForVisibleHosts,
@@ -63,6 +64,10 @@ export function computeRenderedSidebarRows(
     state.groupBy,
     state.worktreeCardProperties
   )
+  const projectGroupMerge = mergeProjectGroupsAcrossHosts(
+    filterProjectGroupsForVisibleHosts(projectGroups, visibleHostIdSet, defaultHostId),
+    defaultHostId
+  )
 
   const rows = buildRows(
     state.groupBy,
@@ -77,7 +82,7 @@ export function computeRenderedSidebarRows(
     getWorktreeMapFromState(state),
     true,
     state.settings,
-    filterProjectGroupsForVisibleHosts(projectGroups, visibleHostIdSet, defaultHostId),
+    projectGroupMerge.displayGroups,
     // Why empty: placeholder/imported/inbox/pending inputs never emit item or folder-workspace rows, the only two the order reads.
     EMPTY_REPO_ID_SET,
     EMPTY_IMPORTED_BY_REPO,
@@ -94,7 +99,8 @@ export function computeRenderedSidebarRows(
     undefined,
     defaultHostId,
     pinnedDisplayPolicy,
-    state.filterRepoIds
+    state.filterRepoIds,
+    projectGroupMerge
   )
 
   // Why lazy: with no host filter, addHostSectionRows is a pass-through, so skip building the whole host registry on a keystroke.

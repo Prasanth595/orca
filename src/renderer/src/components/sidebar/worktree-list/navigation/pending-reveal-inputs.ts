@@ -11,6 +11,7 @@ import type { WorktreeLineage } from '../../../../../../shared/worktree/lineage-
 import type { ExecutionHostId } from '../../../../../../shared/execution-host'
 import type { RenderRow } from '../listing/render-row'
 import type { ProjectGroupingModel } from '../../../../../../shared/project-section-grouping'
+import type { CrossHostProjectGroupMerge } from '../grouping/cross-host-project-group-merge'
 import type { PinnedWorktreeDisplayPolicy, WorktreeGroupBy } from '../grouping/row-types'
 import { getFolderWorkspaceRevealGroupKeys } from './folder-reveal'
 import { getWorktreeRevealCollapsedGroupKeys } from './worktree-reveal-group-keys'
@@ -42,6 +43,8 @@ export type PendingSidebarRevealArgs = {
   settings: AppState['settings']
   projectGroups: readonly ProjectGroup[]
   projectGrouping?: ProjectGroupingModel
+  /** The sidebar's cross-host group fold; reveal keys must name the headers it actually drew. */
+  projectGroupMerge?: CrossHostProjectGroupMerge
   flashRevealedRow: (rowKey: string) => void
   markRevealScroll: (targetTop: number) => void
   schedulePendingRevealFrame: (callback: FrameRequestCallback) => void
@@ -57,16 +60,18 @@ export function expandGroupsForWorktreeReveal(
   const hostScopedGroups = args.renderRows.some(
     (row) => row.type === 'host-header' || (row.type === 'header' && row.collapseKey !== undefined)
   )
+  const displayProjectGroups = args.projectGroupMerge?.displayGroups ?? args.projectGroups
   const folderGroupKeys = getFolderWorkspaceRevealGroupKeys(
     worktreeId,
     args.folderWorkspaces,
-    args.projectGroups,
+    displayProjectGroups,
     {
       groupBy: args.groupBy,
       workspaceStatuses: args.workspaceStatuses,
       defaultHostId: args.defaultHostId,
       hostScopedGroups,
-      executionHostId
+      executionHostId,
+      projectGroupMerge: args.projectGroupMerge
     }
   )
   if (folderGroupKeys.length > 0) {
@@ -87,6 +92,7 @@ export function expandGroupsForWorktreeReveal(
   }
   for (const groupKey of getWorktreeRevealCollapsedGroupKeys({
     ...args,
+    projectGroups: displayProjectGroups,
     worktree: targetWorktree,
     hostScopedGroups
   })) {

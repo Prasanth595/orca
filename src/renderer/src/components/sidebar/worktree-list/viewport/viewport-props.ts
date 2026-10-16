@@ -23,6 +23,7 @@ import type { NewExternalWorktreesInboxActionState } from '../../new-external-wo
 import type { WorktreeDragGroup } from '../../worktree-manual-order'
 import type { WorktreeStatusDropAtIndexArgs } from '../drag/drop-commit-context'
 import type { ProjectGroupingModel } from '../../../../../../shared/project-section-grouping'
+import type { CrossHostProjectGroupMerge } from '../grouping/cross-host-project-group-merge'
 import type { PinnedWorktreeDisplayPolicy, WorktreeGroupBy } from '../grouping/row-types'
 
 export const EMPTY_PROJECT_GROUPS: readonly ProjectGroup[] = []
@@ -82,6 +83,8 @@ export type VirtualizedWorktreeViewportProps = {
   workspaceStatuses: readonly WorkspaceStatusDefinition[]
   projectGrouping?: ProjectGroupingModel
   projectGroups?: readonly ProjectGroup[]
+  /** How the rendered rows folded same-named groups across hosts; reveal and drag follow it. */
+  projectGroupMerge?: CrossHostProjectGroupMerge
   onMoveWorktreeToStatus: (worktreeId: string, status: WorkspaceStatus) => void
   onMoveWorktreesToStatus: (worktreeIds: readonly string[], status: WorkspaceStatus) => void
   onMoveWorktreesToStatusAtIndex: (args: WorktreeStatusDropAtIndexArgs) => void

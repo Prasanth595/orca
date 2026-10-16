@@ -48,7 +48,6 @@ const roots: Root[] = []
 function HookProbe(): null {
   latest = useProjectGroupDialogs({
     repos: [],
-    repoMap: new Map(),
     projectGroups: [remoteGroup]
   })
   return null

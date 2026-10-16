@@ -5,8 +5,15 @@ import { getProjectGroupHostId } from '@/store/slices/project-group-owner-routin
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 import type { ProjectOrderBy } from '../../../../../../shared/ui-chrome-types'
 import type { Repo } from '../../../../../../shared/repo-types'
-import type { ExecutionHostId } from '../../../../../../shared/execution-host'
+import {
+  getRepoExecutionHostId,
+  type ExecutionHostId
+} from '../../../../../../shared/execution-host'
 import type { HostHeaderRow, HostSectionRow } from '../../host-section-rows'
+import {
+  findProjectGroupMemberForHost,
+  type CrossHostProjectGroupMerge
+} from '../grouping/cross-host-project-group-merge'
 import type { Row, WorktreeGroupBy } from '../grouping/row-types'
 import type { RenderRow } from '../listing/render-row'
 import {
@@ -51,6 +58,8 @@ export function useWorktreeSidebarHeaderDrag(args: {
   allRepoIds: string[]
   repoMap: Map<string, Repo>
   projectGroups: readonly ProjectGroup[]
+  /** The rendered fold of same-named groups across hosts; a drop into a merged header lands on the repo's own host. */
+  projectGroupMerge?: CrossHostProjectGroupMerge
   groupBy: WorktreeGroupBy
   projectOrderBy: ProjectOrderBy
   scrollRef: React.RefObject<HTMLDivElement | null>
@@ -66,6 +75,7 @@ export function useWorktreeSidebarHeaderDrag(args: {
     allRepoIds,
     repoMap,
     projectGroups,
+    projectGroupMerge,
     groupBy,
     projectOrderBy,
     scrollRef,
@@ -158,9 +168,20 @@ export function useWorktreeSidebarHeaderDrag(args: {
   )
   const commitProjectGroupOrder = useCallback(
     (repoId: string, projectGroupId: string | null, order: number) => {
-      void moveProjectToGroup(repoId, projectGroupId, order)
+      // Why: a merged header stands for one group per host, and only the member
+      // on the repo's own host can take the repo.
+      const repo = repoMap.get(repoId)
+      const member =
+        projectGroupId && repo
+          ? findProjectGroupMemberForHost(
+              projectGroupMerge,
+              projectGroupId,
+              getRepoExecutionHostId(repo)
+            )
+          : undefined
+      void moveProjectToGroup(repoId, member?.id ?? projectGroupId, order)
     },
-    [moveProjectToGroup]
+    [moveProjectToGroup, projectGroupMerge, repoMap]
   )
   const commitProjectGroupHeaderOrder = useCallback(
     (groupId: string, tabOrder: number) => {

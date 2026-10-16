@@ -13,6 +13,7 @@ import {
   filterProjectGroupsForVisibleHosts,
   getVisibleSidebarHostIdSet
 } from './host-filtering'
+import { mergeProjectGroupsAcrossHosts } from '../grouping/cross-host-project-group-merge'
 
 // Narrows repos, project groups, and folder workspaces to the hosts (and devices) the
 // current host filter admits.
@@ -41,8 +42,14 @@ export function useSidebarHostVisibleScope(args: {
       return visibleHostIdSet.has(hostId)
     })
   }, [defaultHostId, repos, visibleHostIdSet])
-  const visibleProjectGroupsForRows = useMemo(
-    () => filterProjectGroupsForVisibleHosts(projectGroups, visibleHostIdSet, defaultHostId),
+  // Why merge here: every reader of the visible groups (rows, reveal, header drag,
+  // group dialogs) must agree on which header a group renders under.
+  const projectGroupMerge = useMemo(
+    () =>
+      mergeProjectGroupsAcrossHosts(
+        filterProjectGroupsForVisibleHosts(projectGroups, visibleHostIdSet, defaultHostId),
+        defaultHostId
+      ),
     [defaultHostId, projectGroups, visibleHostIdSet]
   )
   const visibleFolderWorkspacesForRows = useMemo(() => {
@@ -68,5 +75,10 @@ export function useSidebarHostVisibleScope(args: {
     visibleHostIdSet
   ])
 
-  return { visibleReposForRows, visibleProjectGroupsForRows, visibleFolderWorkspacesForRows }
+  return {
+    visibleReposForRows,
+    visibleProjectGroupsForRows: projectGroupMerge.displayGroups,
+    projectGroupMerge,
+    visibleFolderWorkspacesForRows
+  }
 }

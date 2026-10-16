@@ -9,10 +9,9 @@ import type { Repo } from '../../../../../../shared/repo-types'
 import type { WorkspaceStatusDefinition, Worktree } from '../../../../../../shared/worktree/types'
 import type { WorktreeLineage } from '../../../../../../shared/worktree/lineage-types'
 import type { ExecutionHostId } from '../../../../../../shared/execution-host'
-import { folderWorkspaceKey } from '../../../../../../shared/workspace-scope'
-import { getFolderWorkspaceHostIdentity } from '../../../../../../shared/folder-workspace-worktree'
 import { getHostDisplayLabelOverrides } from '../../../../../../shared/host-setting-overrides'
 import { buildSidebarRowPlan } from '../grouping/build-rows'
+import type { CrossHostProjectGroupMerge } from '../grouping/cross-host-project-group-merge'
 import { useEffectiveCollapsedGroups } from './use-collapsed-groups'
 import type { ProjectGroupingModel } from '../../../../../../shared/project-section-grouping'
 import type { PinnedWorktreeDisplayPolicy, Row, WorktreeGroupBy } from '../grouping/row-types'
@@ -23,6 +22,7 @@ import { addHostSectionRows } from '../../host-section-rows'
 import { orderHostSectionOptions } from '../../host-section-order'
 import { buildSidebarHostOptions } from '../../sidebar-host-options'
 import { selectPendingWorktreeCreationKeys } from './pending-worktree-creation-keys'
+import { collectRenderedSidebarRowKeys } from './rendered-sidebar-row-keys'
 
 type SectionRowsArgs = {
   agentSendTargetWorktreeId?: string | null
@@ -42,33 +42,13 @@ type SectionRowsArgs = {
   projectGrouping: ProjectGroupingModel
   visibleReposForRows: readonly Repo[]
   visibleProjectGroupsForRows: readonly ProjectGroup[]
+  projectGroupMerge?: CrossHostProjectGroupMerge
   visibleFolderWorkspacesForRows: readonly FolderWorkspace[]
   importedWorktreesByRepo: Parameters<typeof buildSidebarRowPlan>[14]
   newExternalWorktreesInboxByRepo: Parameters<typeof buildSidebarRowPlan>[15]
   filterRepoIds: readonly string[]
   visibleWorkspaceHostIds: readonly ExecutionHostId[] | null
   workspaceHostScope: AppState['workspaceHostScope']
-}
-
-function collectRenderedSidebarRowKeys(sectionRows: ReturnType<typeof addHostSectionRows>) {
-  const keys = new Set<string>()
-  for (const row of sectionRows) {
-    if (row.type === 'header') {
-      keys.add(row.key)
-    } else if (row.type === 'item') {
-      keys.add(row.rowKey)
-    } else if (row.type === 'folder-workspace') {
-      keys.add(getFolderWorkspaceHostIdentity(row.folderWorkspace))
-      keys.add(folderWorkspaceKey(row.folderWorkspace.id))
-    } else if (row.type === 'pending-creation') {
-      keys.add(`pending:${row.creationId}`)
-    } else if (row.type === 'imported-worktrees-card') {
-      keys.add(row.key)
-    } else if (row.type === 'new-external-worktrees-inbox') {
-      keys.add(row.key)
-    }
-  }
-  return keys
 }
 
 // Builds the full sidebar row model: grouped worktree rows first, then the host-section
@@ -180,7 +160,8 @@ export function useSidebarSectionRows(args: SectionRowsArgs) {
         hostLabelById,
         defaultHostId,
         args.pinnedDisplayPolicy,
-        args.filterRepoIds
+        args.filterRepoIds,
+        args.projectGroupMerge
       ),
     [
       args.groupBy,
@@ -203,7 +184,8 @@ export function useSidebarSectionRows(args: SectionRowsArgs) {
       pendingCreations,
       hostLabelById,
       args.pinnedDisplayPolicy,
-      args.filterRepoIds
+      args.filterRepoIds,
+      args.projectGroupMerge
     ]
   )
   const effectiveCollapsedGroups = useEffectiveCollapsedGroups({
@@ -224,6 +206,7 @@ export function useSidebarSectionRows(args: SectionRowsArgs) {
     settings: args.settings,
     projectGroups: args.visibleProjectGroupsForRows,
     projectGrouping: args.projectGrouping,
+    projectGroupMerge: args.projectGroupMerge,
     folderWorkspaces: args.visibleFolderWorkspacesForRows,
     defaultHostId
   })

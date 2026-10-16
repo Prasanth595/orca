@@ -179,6 +179,7 @@ export function usePendingSidebarReveal(args: PendingSidebarRevealArgs): void {
     pinnedDisplayPolicy,
     args.projectGrouping,
     args.projectGroups,
+    args.projectGroupMerge,
     pendingRevealRetryTick,
     flashRevealedRow,
     markRevealScroll,
@@ -206,8 +207,9 @@ export function usePendingSidebarReveal(args: PendingSidebarRevealArgs): void {
     for (const groupKey of getSidebarRowRevealAncestorKeys({
       rowKey: pendingRevealSidebarRow.rowKey,
       repoMap: current.repoMap,
-      projectGroups: current.projectGroups,
-      projectGrouping: current.projectGrouping
+      projectGroups: current.projectGroupMerge?.displayGroups ?? current.projectGroups,
+      projectGrouping: current.projectGrouping,
+      projectGroupMerge: current.projectGroupMerge
     })) {
       if (current.collapsedGroups.has(groupKey)) {
         current.toggleGroup(groupKey)
@@ -289,6 +291,7 @@ export function usePendingSidebarReveal(args: PendingSidebarRevealArgs): void {
     pendingRevealSidebarRow,
     args.repoMap,
     args.projectGroups,
+    args.projectGroupMerge,
     args.projectGrouping,
     args.collapsedGroups,
     args.groupBy,

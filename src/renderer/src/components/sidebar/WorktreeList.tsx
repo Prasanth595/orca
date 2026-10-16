@@ -153,6 +153,7 @@ const WorktreeList = React.memo(function WorktreeList({
     projectGrouping,
     visibleReposForRows: visibleScope.visibleReposForRows,
     visibleProjectGroupsForRows: visibleScope.visibleProjectGroupsForRows,
+    projectGroupMerge: visibleScope.projectGroupMerge,
     visibleFolderWorkspacesForRows: visibleScope.visibleFolderWorkspacesForRows,
     importedWorktreesByRepo: externalWorktreeCards.importedWorktreesByRepo,
     newExternalWorktreesInboxByRepo: externalWorktreeCards.newExternalWorktreesInboxByRepo,
@@ -171,7 +172,11 @@ const WorktreeList = React.memo(function WorktreeList({
     workspaceStatuses,
     sortBy
   })
-  const projectGroupDialogs = useProjectGroupDialogs({ repos, repoMap, projectGroups })
+  const projectGroupDialogs = useProjectGroupDialogs({
+    repos,
+    projectGroups,
+    projectGroupMerge: visibleScope.projectGroupMerge
+  })
 
   const handleImmediateWorktreeActivate = useCallback((worktreeId: string, rowKey?: string) => {
     // Why: re-rendering the virtualized sidebar on the pointer path adds visible latency; mutate the row directly and let store state reconcile after.
@@ -327,6 +332,7 @@ const WorktreeList = React.memo(function WorktreeList({
         workspaceStatuses={workspaceStatuses}
         projectGrouping={projectGrouping}
         projectGroups={projectGroups}
+        projectGroupMerge={visibleScope.projectGroupMerge}
         onMoveWorktreeToStatus={statusMutations.moveWorktreeToStatus}
         onMoveWorktreesToStatus={statusMutations.moveWorktreesToStatus}
         onMoveWorktreesToStatusAtIndex={statusMutations.moveWorktreesToStatusAtIndex}

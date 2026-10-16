@@ -2,6 +2,10 @@ import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 import type { Repo } from '../../../../../../shared/repo-types'
 import { getProjectGroupHeaderKey } from '../grouping/group-keys'
 import type { ProjectGroupingModel } from '../../../../../../shared/project-section-grouping'
+import {
+  resolveDisplayProjectGroupId,
+  type CrossHostProjectGroupMerge
+} from '../grouping/cross-host-project-group-merge'
 
 function getProjectIdFromHeaderRowKey(rowKey: string): string | null {
   if (!rowKey.startsWith('project:')) {
@@ -69,6 +73,8 @@ export function getSidebarRowRevealAncestorKeys(args: {
   repoMap: Map<string, Repo>
   projectGroups: readonly ProjectGroup[]
   projectGrouping?: ProjectGroupingModel
+  /** When set, `projectGroups` are the sidebar's display groups and repos resolve to their header. */
+  projectGroupMerge?: CrossHostProjectGroupMerge
 }): string[] {
   if (args.rowKey.startsWith('project-group:')) {
     const groupId = args.rowKey.slice('project-group:'.length)
@@ -82,7 +88,10 @@ export function getSidebarRowRevealAncestorKeys(args: {
     args.projectGrouping
   )) {
     const repo = args.repoMap.get(repoId)
-    for (const key of getProjectGroupAncestorKeys(repo?.projectGroupId, args.projectGroups)) {
+    for (const key of getProjectGroupAncestorKeys(
+      resolveDisplayProjectGroupId(repo?.projectGroupId, args.projectGroupMerge),
+      args.projectGroups
+    )) {
       keys.add(key)
     }
   }

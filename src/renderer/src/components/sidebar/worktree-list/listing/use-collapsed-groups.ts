@@ -11,6 +11,7 @@ import type { ProjectGroupingModel } from '../../../../../../shared/project-sect
 import { getFolderWorkspaceRevealGroupKeys } from '../navigation/folder-reveal'
 import type { FolderWorkspace } from '../../../../../../shared/folder-workspace-types'
 import type { ExecutionHostId } from '../../../../../../shared/execution-host'
+import type { CrossHostProjectGroupMerge } from '../grouping/cross-host-project-group-merge'
 
 // While the agent send picker targets a workspace, force open every section that hides it.
 export function useEffectiveCollapsedGroups(args: {
@@ -31,11 +32,13 @@ export function useEffectiveCollapsedGroups(args: {
   settings: AppState['settings']
   projectGroups: readonly ProjectGroup[]
   projectGrouping: ProjectGroupingModel
+  projectGroupMerge?: CrossHostProjectGroupMerge
   folderWorkspaces: readonly FolderWorkspace[]
   defaultHostId: ExecutionHostId
 }): Set<string> {
   const {
     occurrencePlan,
+    projectGroupMerge,
     collapsedGroups,
     hostScopedGroups = false,
     agentSendTargetWorktreeId,
@@ -67,7 +70,7 @@ export function useEffectiveCollapsedGroups(args: {
         agentSendTargetWorktreeId,
         folderWorkspaces,
         projectGroups,
-        { groupBy, workspaceStatuses, defaultHostId, hostScopedGroups }
+        { groupBy, workspaceStatuses, defaultHostId, hostScopedGroups, projectGroupMerge }
       )
       if (folderKeys.length === 0) {
         return collapsedGroups
@@ -96,7 +99,8 @@ export function useEffectiveCollapsedGroups(args: {
       workspaceStatuses,
       settings,
       projectGroups,
-      projectGrouping
+      projectGrouping,
+      projectGroupMerge
     })) {
       next.delete(groupKey)
     }
@@ -104,6 +108,7 @@ export function useEffectiveCollapsedGroups(args: {
   }, [
     agentSendTargetWorktreeId,
     occurrencePlan,
+    projectGroupMerge,
     collapsedGroups,
     hostScopedGroups,
     groupBy,

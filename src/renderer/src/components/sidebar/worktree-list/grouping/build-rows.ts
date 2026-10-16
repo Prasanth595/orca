@@ -55,6 +55,10 @@ import type {
 import { orderMainWorktreeFirst, getRenderedNaturalAnchorRepoIds } from './section-order'
 import { withRepoSectionDisplayLabels } from '../../../../../../shared/project-section-order'
 import { buildOrderedGroups } from './worktree-grouping'
+import {
+  resolveDisplayProjectGroupId,
+  type CrossHostProjectGroupMerge
+} from './cross-host-project-group-merge'
 
 type SidebarOccurrenceSection = WorktreeOccurrenceSection<Worktree> & { group: WorktreeGroupEntry }
 
@@ -84,12 +88,18 @@ export function buildSidebarRowPlan(
   hostLabelById?: ReadonlyMap<string, string>,
   defaultHostId: ExecutionHostId = LOCAL_EXECUTION_HOST_ID,
   pinnedDisplayPolicy: PinnedWorktreeDisplayPolicy = getPinnedWorktreeDisplayPolicy(settings),
-  filterRepoIds: readonly string[] = []
+  filterRepoIds: readonly string[] = [],
+  // Why: `projectGroups` are then the merged display groups; rows still carry their own group ids.
+  projectGroupMerge?: CrossHostProjectGroupMerge
 ) {
   const projectIndex = buildProjectGroupingIndex(projectGrouping)
   // Membership is decided once, above the groupBy switch: every mode renders the
   // same set of folder workspaces and only chooses where they land (#15362).
-  const renderableFolderWorkspaces = getRenderableFolderWorkspaces(folderWorkspaces, projectGroups)
+  const renderableFolderWorkspaces = getRenderableFolderWorkspaces(
+    folderWorkspaces,
+    projectGroups,
+    projectGroupMerge
+  )
   const pendingByRepo = new Map<string, PendingCreationRef[]>()
   for (const creation of pendingCreations) {
     const list = pendingByRepo.get(creation.repoId) ?? []
@@ -142,10 +152,11 @@ export function buildSidebarRowPlan(
         ])
       }
       return groups.map(([key, group]): SidebarOccurrenceSection => {
-        const revealPath =
-          groupBy === 'repo' && key !== PINNED_GROUP_KEY && group.repo?.projectGroupId
-            ? projectGroupPaths.get(group.repo.projectGroupId)
-            : undefined
+        const displayGroupId =
+          groupBy === 'repo' && key !== PINNED_GROUP_KEY
+            ? resolveDisplayProjectGroupId(group.repo?.projectGroupId, projectGroupMerge)
+            : null
+        const revealPath = displayGroupId ? projectGroupPaths.get(displayGroupId) : undefined
         return {
           key,
           group,
@@ -287,7 +298,8 @@ export function buildSidebarRowPlan(
       projectGroups,
       folderWorkspaces: renderableFolderWorkspaces,
       projectOrderBy,
-      repoOrder
+      repoOrder,
+      projectGroupMerge
     })
 
     return result

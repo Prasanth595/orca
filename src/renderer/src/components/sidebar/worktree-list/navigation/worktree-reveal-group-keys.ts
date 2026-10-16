@@ -14,6 +14,7 @@ import type { ProjectGroupingModel } from '../../../../../../shared/project-sect
 import type { WorktreeOccurrencePlan } from '../../../../../../shared/worktree-occurrence-plan'
 import type { PinnedWorktreeDisplayPolicy, WorktreeGroupBy } from '../grouping/row-types'
 import { buildSidebarRowPlan } from '../grouping/build-rows'
+import type { CrossHostProjectGroupMerge } from '../grouping/cross-host-project-group-merge'
 
 export function getWorktreeRevealCollapsedGroupKeys(args: {
   occurrencePlan?: WorktreeOccurrencePlan<Worktree>
@@ -33,6 +34,7 @@ export function getWorktreeRevealCollapsedGroupKeys(args: {
   settings: AppState['settings']
   projectGroups: readonly ProjectGroup[]
   projectGrouping?: ProjectGroupingModel
+  projectGroupMerge?: CrossHostProjectGroupMerge
 }): string[] {
   const hostId = getWorktreeExecutionHostId(
     args.worktree,
@@ -64,7 +66,8 @@ export function getWorktreeRevealCollapsedGroupKeys(args: {
       undefined,
       args.defaultHostId,
       args.pinnedDisplayPolicy,
-      args.filterRepoIds
+      args.filterRepoIds,
+      args.projectGroupMerge
     ).occurrencePlan
   const occurrence = plan.preferredByIdentity.get(getWorktreeHostIdentity(args.worktree))
   if (!occurrence) {
