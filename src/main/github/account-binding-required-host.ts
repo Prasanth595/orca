@@ -1,31 +1,48 @@
-import { isUnresolvedSshHostAlias, foldComparableGitHubHost } from '../../shared/git-remote-host-alias'
 import {
-  githubHostFromIdentityKey,
-  isDefaultGitHubHost
-} from '../../shared/github/repository-identity-key'
-import { resolveUserSshConfigHost } from '../ssh/ssh-config-host-picker'
+  isUnresolvedSshHostAlias,
+  foldComparableGitHubHost
+} from '../../shared/git-remote-host-alias'
+import { githubHostFromIdentityKey } from '../../shared/github/repository-identity-key'
+import {
+  resolveSshConfigHostname,
+  type SshConfigResolutionContext
+} from './github-ssh-host-alias-resolution'
 
-export type SshAliasHostnameResolver = (alias: string) => Promise<{ hostname: string } | null>
+export type SshAliasHostnameResolver = (
+  alias: string,
+  context: SshConfigResolutionContext
+) => Promise<{ hostname: string | null }>
 
 /**
  * Host filter for Settings GitHub account binding.
- * `undefined` means do not filter, which is how a github.com remote already behaves.
+ * `undefined` means do not filter.
  */
 export async function resolveGhAccountRequiredHost(
-  canonicalKey: string | null | undefined,
-  resolveAlias: SshAliasHostnameResolver = resolveUserSshConfigHost
+  repo: {
+    path: string
+    connectionId?: string | null
+    gitRemoteIdentity?: { canonicalKey: string } | null
+  },
+  localGitOptions: { wslDistro?: string },
+  resolveAlias: SshAliasHostnameResolver = resolveSshConfigHostname
 ): Promise<string | undefined> {
-  const host = githubHostFromIdentityKey(canonicalKey)
+  const host = githubHostFromIdentityKey(repo.gitRemoteIdentity?.canonicalKey)
   if (!host || !isUnresolvedSshHostAlias(host)) {
     return host
   }
   // Why: `git@github-personal:owner/repo` keeps the OpenSSH alias in the identity key.
   // No gh login is named after that alias, so filtering to it empties the dropdown.
-  const resolved = await resolveAlias(host).catch(() => null)
-  const hostname = resolved?.hostname?.trim()
+  // Resolve in the runtime that runs gh (WSL distro vs host) so both see the same ssh config.
+  const context: SshConfigResolutionContext = {
+    repoPath: repo.path,
+    connectionId: repo.connectionId ?? null,
+    ...(localGitOptions.wslDistro ? { wslDistro: localGitOptions.wslDistro } : {})
+  }
+  const resolved = await resolveAlias(host, context).catch(() => null)
+  const hostname = resolved?.hostname?.trim().toLowerCase()
   if (!hostname || isUnresolvedSshHostAlias(hostname)) {
     return undefined
   }
-  const folded = foldComparableGitHubHost(hostname)
-  return isDefaultGitHubHost(folded) ? undefined : folded
+  // Why: only github.com's SSH/www aliases fold; gh keys an Enterprise login by its exact host.
+  return foldComparableGitHubHost(hostname) === 'github.com' ? 'github.com' : hostname
 }

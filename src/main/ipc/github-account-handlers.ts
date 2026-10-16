@@ -40,8 +40,9 @@ export function registerGitHubAccountHandlers(store: Store): void {
     'gh:listBindableAccounts',
     async (_event, args: { repoPath: string; repoId?: string; refreshCapability?: boolean }) => {
       const repo = assertRegisteredGitHubRepo(args, store)
-      const requiredHost = await resolveGhAccountRequiredHost(repo.gitRemoteIdentity?.canonicalKey)
-      return listGhAccountBindingInventory(getGitHubLocalGitOptionArgs(store, repo)[0] ?? {}, {
+      const localGitOptions = getGitHubLocalGitOptionArgs(store, repo)[0] ?? {}
+      const requiredHost = await resolveGhAccountRequiredHost(repo, localGitOptions)
+      return listGhAccountBindingInventory(localGitOptions, {
         refreshCapability: args.refreshCapability === true,
         ...(requiredHost ? { requiredHost } : {})
       })
@@ -52,10 +53,11 @@ export function registerGitHubAccountHandlers(store: Store): void {
     'gh:validateAccountBinding',
     async (_event, args: { repoPath: string; repoId?: string; host: string; user: string }) => {
       const repo = assertRegisteredGitHubRepo(args, store)
-      const requiredHost = await resolveGhAccountRequiredHost(repo.gitRemoteIdentity?.canonicalKey)
+      const localGitOptions = getGitHubLocalGitOptionArgs(store, repo)[0] ?? {}
+      const requiredHost = await resolveGhAccountRequiredHost(repo, localGitOptions)
       return validateGhAccountBinding(
         { host: args.host, user: args.user },
-        getGitHubLocalGitOptionArgs(store, repo)[0] ?? {},
+        localGitOptions,
         requiredHost ? { requiredHost } : {}
       )
     }
