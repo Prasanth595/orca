@@ -5,13 +5,13 @@ import { ensureWorktreeHasInitialTerminal } from './worktree-initial-terminal-se
 import {
   makeCreatedAgentWorktree as makeWorktree,
   seedEmptyActivatableWorktree
-} from '@/lib/worktree-activation-created-agent-test-state'
+} from '@/lib/worktree-activation-created-agent.test-fixture'
 import {
   createMockStore,
   registerWorktreeActivationReset,
   setLegacySetupScriptLaunchMode,
   createdTabStartups
-} from './worktree-activation-test-harness'
+} from './worktree-activation.test-fixture'
 
 const initialAppStoreState = useAppStore.getState()
 

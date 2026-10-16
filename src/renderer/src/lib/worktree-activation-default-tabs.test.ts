@@ -4,7 +4,7 @@ import {
   createMockStore,
   registerWorktreeActivationReset,
   createdTabStartups
-} from './worktree-activation-test-harness'
+} from './worktree-activation.test-fixture'
 
 registerWorktreeActivationReset()
 

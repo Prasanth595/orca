@@ -23,7 +23,7 @@ import { runBackgroundWorktreeCreation } from './worktree-creation-flow'
 import {
   makeCreatedAgentWorktree,
   seedEmptyActivatableWorktree
-} from './worktree-activation-created-agent-test-state'
+} from './worktree-activation-created-agent.test-fixture'
 
 const initialAppStoreState = useAppStore.getState()
 const worktree = makeCreatedAgentWorktree()

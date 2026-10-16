@@ -10,7 +10,7 @@ import type {
 import * as sleepingResume from './resume-sleeping-agent-session'
 import { activateAndRevealWorktree } from './worktree-activation'
 import { waitForWorktreeAgentActivationGateForTests } from './worktree-agent-activation-gate'
-import { makeCreatedAgentWorktree as makeWorktree } from './worktree-activation-created-agent-test-state'
+import { makeCreatedAgentWorktree as makeWorktree } from './worktree-activation-created-agent.test-fixture'
 
 const initialState = useAppStore.getState()
 

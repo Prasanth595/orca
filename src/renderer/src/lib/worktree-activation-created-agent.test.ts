@@ -10,7 +10,7 @@ import {
   makeCreatedAgentWorktree as makeWorktree,
   seedAlreadyActiveWorktree,
   seedEmptyActivatableWorktree
-} from '@/lib/worktree-activation-created-agent-test-state'
+} from '@/lib/worktree-activation-created-agent.test-fixture'
 import { stubRuntimeEnvironmentBridge } from '../runtime/runtime-environment-bridge-fixture'
 
 const initialAppStoreState = useAppStore.getState()

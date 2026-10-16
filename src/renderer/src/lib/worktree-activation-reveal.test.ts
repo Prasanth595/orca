@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { activateAndRevealWorktree } from './worktree-activation'
-import { registerWorktreeActivationReset } from './worktree-activation-test-harness'
+import { registerWorktreeActivationReset } from './worktree-activation.test-fixture'
 import { useAppStore } from '@/store'
 
 registerWorktreeActivationReset()

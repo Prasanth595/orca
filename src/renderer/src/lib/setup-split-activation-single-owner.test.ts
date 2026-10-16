@@ -8,7 +8,7 @@ import type { RuntimeTerminalSummary } from '../../../shared/runtime-types'
 import type { TerminalPaneLayoutNode } from '../../../shared/terminal-tab-types'
 import { activateAndRevealWorktree } from './worktree-activation'
 import { gateWorktreeAgentActivation } from './worktree-agent-activation-gate'
-import { makeCreatedAgentWorktree as makeWorktree } from './worktree-activation-created-agent-test-state'
+import { makeCreatedAgentWorktree as makeWorktree } from './worktree-activation-created-agent.test-fixture'
 
 /**
  * Conditional old-host reconstruction, not proof of STA-9417: a host-created worktree with a
