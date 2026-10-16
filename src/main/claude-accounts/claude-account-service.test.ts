@@ -144,10 +144,13 @@ describe('ClaudeAccountService', () => {
     mkdirSync(join(f.root, 'personal'))
     writeFileSync(
       join(f.root, 'personal', '.claude.json'),
-      JSON.stringify({ oauthAccount: { emailAddress: 'me@example.test' } })
+      JSON.stringify({
+        oauthAccount: { emailAddress: 'me@example.test', organizationUuid: 'org-personal' }
+      })
     )
     expect(f.service.listAccounts()).toMatchObject({
-      systemDefaultEmail: 'me@example.test'
+      systemDefaultEmail: 'me@example.test',
+      systemDefaultOrganizationUuid: 'org-personal'
     })
     expect(f.service.listAccounts()).not.toHaveProperty('userClaudeConfigDir')
     expect(f.service.listAccounts().systemDefaultMayBeCopied).toBeUndefined()

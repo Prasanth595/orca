@@ -16,6 +16,7 @@ vi.mock('./settings-search-keywords', () => ({
 }))
 
 import {
+  getAccountsClaudeSearchEntries,
   getAccountsMiniMaxSearchEntries,
   getAccountsOpencodeSearchEntries,
   getAccountsPaneSearchEntries
@@ -78,5 +79,15 @@ describe('getAccountsOpencodeSearchEntries', () => {
     expect(cookieEntry?.keywords).toEqual(
       expect.arrayContaining(['opencode', 'cookie', 'session', 'console', 'rate limit'])
     )
+  })
+})
+
+describe('getAccountsClaudeSearchEntries', () => {
+  it('finds the setting that moves idle sessions by its own words', () => {
+    expect(
+      getAccountsClaudeSearchEntries().some((entry) =>
+        entry.title.toLowerCase().includes('move idle sessions')
+      )
+    ).toBe(true)
   })
 })

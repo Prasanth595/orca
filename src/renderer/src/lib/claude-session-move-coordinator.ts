@@ -1,6 +1,8 @@
 import { useAppStore } from '@/store'
 import type { AppState } from '@/store/types'
 import { restartPaneForAccountMove } from '@/components/terminal-pane/pane-account-move-restarts'
+import { inspectRuntimeTerminalProcess } from '@/runtime/runtime-terminal-inspection'
+import { recognizeAgentProcess } from '../../../shared/agent-process-recognition'
 import { getLocalProjectExecutionRuntimeContext } from '@/lib/local-preflight-context'
 import { LOCAL_EXECUTION_HOST_ID } from '../../../shared/execution-host'
 import type { ClaudeRateLimitAccountsState } from '../../../shared/managed-account-types'
@@ -32,9 +34,10 @@ const RECHECK_MS = 15_000
 
 /** Sessions you asked to move that were still busy, by pane. */
 const approvedPaneKeys = new Set<string>()
-/** `session->login` pairs already moved, or given up on because they cannot be resumed. */
-const settledMoves = new Set<string>()
+/** Panes already moved, or left alone, toward a login; a new report from the session lifts it. */
+const settledMoves = new Map<string, { transcriptPath: string; targetLogin: string }>()
 let accounts: ClaudeRateLimitAccountsState | null = null
+let wakeRetry: (() => void) | null = null
 
 export function resetClaudeSessionMoveForTests(): void {
   approvedPaneKeys.clear()
@@ -53,11 +56,32 @@ function isOnThisHost(state: AppState, worktreeId: string): boolean {
 
 /** Re-reads this host's Claude accounts, which name the selected login. */
 export async function refreshClaudeMoveAccounts(): Promise<void> {
-  accounts = await window.api.claudeAccounts.list().catch(() => accounts)
+  // Why forget on failure: the old list may name the account we just switched away from.
+  accounts = await window.api.claudeAccounts.list().catch(() => null)
 }
 
-const moveKeyOf = (session: ClaudeSessionOnOtherLogin): string =>
-  `${session.sessionId}->${session.targetLogin}`
+function isSettled(session: ClaudeSessionOnOtherLogin): boolean {
+  const settled = settledMoves.get(session.paneKey)
+  return (
+    settled?.transcriptPath === session.transcriptPath &&
+    settled.targetLogin === session.targetLogin
+  )
+}
+
+function settle(session: ClaudeSessionOnOtherLogin): void {
+  settledMoves.set(session.paneKey, {
+    transcriptPath: session.transcriptPath,
+    targetLogin: session.targetLogin
+  })
+  approvedPaneKeys.delete(session.paneKey)
+}
+
+// Why ask the process: the pane may now run tmux or the shell, and restarting it there would cut
+// off a Claude that lives on outside the pane, or start one nobody runs any more.
+async function isRunningClaude(ptyId: string): Promise<boolean> {
+  const inspection = await inspectRuntimeTerminalProcess(ptyId).catch(() => null)
+  return recognizeAgentProcess(inspection?.foregroundProcess)?.agent === 'claude'
+}
 
 /** Claude sessions on this machine still to move to the selected login. */
 export function listClaudeSessionsOnOtherLogin(state: AppState): ClaudeSessionOnOtherLogin[] {
@@ -66,7 +90,7 @@ export function listClaudeSessionsOnOtherLogin(state: AppState): ClaudeSessionOn
   return accounts
     ? findClaudeSessionsOnOtherLogin(state, accounts, (worktreeId) =>
         isOnThisHost(state, worktreeId)
-      ).filter((session) => !settledMoves.has(moveKeyOf(session)))
+      ).filter((session) => !isSettled(session))
     : []
 }
 
@@ -76,7 +100,10 @@ export async function moveClaudeSessionsToSelectedAccount(): Promise<void> {
   for (const session of listClaudeSessionsOnOtherLogin(useAppStore.getState())) {
     approvedPaneKeys.add(session.paneKey)
   }
-  movePanes()
+  // Why wake the retry: a pane that cannot go yet may free up with no store change to notice it.
+  if ((await movePanes()) > 0) {
+    wakeRetry?.()
+  }
 }
 
 function gatesFor(approved: boolean): ClaudeSessionMoveGates {
@@ -101,7 +128,7 @@ function gatesFor(approved: boolean): ClaudeSessionMoveGates {
 }
 
 /** Moves what can go now and returns how many sessions still wait their turn. */
-function movePanes(): number {
+async function movePanes(): Promise<number> {
   if (!accounts) {
     return 0
   }
@@ -126,13 +153,16 @@ function movePanes(): number {
   const automatic = state.settings?.claudeMoveIdleSessions === true
   let waiting = 0
   for (const session of sessions) {
-    const moveKey = moveKeyOf(session)
     const approved = approvedPaneKeys.has(session.paneKey)
-    if (settledMoves.has(moveKey) || (!approved && !automatic)) {
+    if (isSettled(session) || (!approved && !automatic)) {
       continue
     }
     if (!isClaudeSessionMovableNow(view, session, gatesFor(approved))) {
       waiting += 1
+      continue
+    }
+    if (!(await isRunningClaude(session.ptyId))) {
+      settle(session)
       continue
     }
     const startup = buildClaudeSessionMoveStartup({
@@ -146,8 +176,7 @@ function movePanes(): number {
     // Why settle either way: a session that cannot be resumed is never restarted blank, and one
     // that comes back still reading as the old login must not restart again.
     if (!startup || restartPaneForAccountMove(session.ptyId, startup)) {
-      settledMoves.add(moveKey)
-      approvedPaneKeys.delete(session.paneKey)
+      settle(session)
     } else {
       waiting += 1
     }
@@ -165,11 +194,15 @@ export function installClaudeSessionMoveCoordinator(): () => void {
     if (!accounts) {
       await refreshClaudeMoveAccounts()
     }
-    // Why recheck while any wait: idle time runs out without a store change to wake us.
-    if (movePanes() > 0) {
+    const pendingWork =
+      approvedPaneKeys.size > 0 || useAppStore.getState().settings?.claudeMoveIdleSessions === true
+    // Why recheck while any wait: idle time runs out, and a failed accounts read clears, without a
+    // store change to wake us.
+    if ((await movePanes()) > 0 || (!accounts && pendingWork)) {
       schedule(RECHECK_MS)
     }
   }
+  wakeRetry = () => schedule(RECHECK_MS)
   const unsubscribe = useAppStore.subscribe((state, previous) => {
     const settings = state.settings
     const before = previous.settings
@@ -193,5 +226,6 @@ export function installClaudeSessionMoveCoordinator(): () => void {
   return () => {
     unsubscribe()
     clearTimeout(timer)
+    wakeRetry = null
   }
 }

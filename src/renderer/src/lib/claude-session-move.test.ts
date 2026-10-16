@@ -127,7 +127,8 @@ describe('findClaudeSessionsOnOtherLogin', () => {
         ptyId: 'pty-1',
         worktreeId: 'wt-1',
         sessionId: 'session-1',
-        targetLogin: 'b@example.test'
+        transcriptPath: onA,
+        targetLogin: 'b@example.test/'
       }
     ])
   })
@@ -154,6 +155,25 @@ describe('findClaudeSessionsOnOtherLogin', () => {
       findClaudeSessionsOnOtherLogin(
         view(claudeRow(onSystemDefault)),
         accounts('acct-a', 'A@example.test'),
+        onThisHost
+      )
+    ).toEqual([])
+  })
+
+  it('tells two logins on one email apart by their organization', () => {
+    const teams: ClaudeRateLimitAccountsState = {
+      ...accounts('acct-a'),
+      accounts: [{ ...account('acct-a', 'me@example.test'), organizationUuid: 'org-team' }],
+      systemDefaultEmail: 'me@example.test',
+      systemDefaultOrganizationUuid: 'org-personal'
+    }
+    expect(
+      findClaudeSessionsOnOtherLogin(view(claudeRow(onSystemDefault)), teams, onThisHost)
+    ).toHaveLength(1)
+    expect(
+      findClaudeSessionsOnOtherLogin(
+        view(claudeRow(onSystemDefault)),
+        { ...teams, systemDefaultOrganizationUuid: 'org-team' },
         onThisHost
       )
     ).toEqual([])

@@ -11,6 +11,13 @@ import {
 } from './claude-session-move-coordinator'
 
 const restartPaneForAccountMove = vi.hoisted(() => vi.fn(() => true))
+const foreground = vi.hoisted(() => ({ process: 'claude' }))
+vi.mock('@/runtime/runtime-terminal-inspection', () => ({
+  inspectRuntimeTerminalProcess: vi.fn(async () => ({
+    foregroundProcess: foreground.process,
+    hasChildProcesses: true
+  }))
+}))
 type MoveStartup = { command: string; startupCommandDelivery: 'shell-ready'; launchAgent: 'claude' }
 const buildClaudeSessionMoveStartup = vi.hoisted(() =>
   vi.fn((): MoveStartup | null => ({
@@ -31,9 +38,10 @@ const NOW = 50_000_000
 const LEAF = '11111111-1111-4111-8111-111111111111'
 const PANE_KEY = `tab-1:${LEAF}`
 const ON_A = '/Users/me/orca/claude-profiles/acct-a/home/projects/-repo/session-1.jsonl'
+const ON_B = '/Users/me/orca/claude-profiles/acct-b/home/projects/-repo/session-1.jsonl'
 
 let roster: ClaudeRateLimitAccountsState
-const list = vi.fn(async () => roster)
+const list = vi.fn(async (): Promise<ClaudeRateLimitAccountsState> => roster)
 
 function selected(accountId: string): ClaudeRateLimitAccountsState {
   return {
@@ -140,6 +148,7 @@ describe('Claude session moves', () => {
     vi.stubGlobal('window', { ...globalThis.window, api: { claudeAccounts: { list } } })
     roster = selected('acct-b')
     restartPaneForAccountMove.mockClear()
+    foreground.process = 'claude'
     buildClaudeSessionMoveStartup.mockClear()
     resetClaudeSessionMoveForTests()
   })
@@ -225,5 +234,56 @@ describe('Claude session moves', () => {
     await moveClaudeSessionsToSelectedAccount()
 
     expect(restartPaneForAccountMove).not.toHaveBeenCalled()
+  })
+
+  it('leaves a pane where Claude is no longer what runs, such as tmux or the shell', async () => {
+    foreground.process = 'tmux'
+    seed({})
+
+    await moveClaudeSessionsToSelectedAccount()
+
+    expect(restartPaneForAccountMove).not.toHaveBeenCalled()
+  })
+
+  it('moves again once the session has reported from the account it moved to', async () => {
+    seed({}, { claudeMoveIdleSessions: true })
+    uninstall = installClaudeSessionMoveCoordinator()
+    await moveClaudeSessionsToSelectedAccount()
+    setRow({ providerSession: { key: 'session_id', id: 'session-1', transcriptPath: ON_B } })
+    switchTo('acct-a')
+    await settle()
+    setRow({ providerSession: { key: 'session_id', id: 'session-1', transcriptPath: ON_A } })
+    switchTo('acct-b')
+    await settle()
+
+    expect(restartPaneForAccountMove).toHaveBeenCalledTimes(3)
+  })
+
+  it('does not act on an old account list when reading the new one fails, and tries again', async () => {
+    roster = selected('acct-a')
+    seed({}, { claudeMoveIdleSessions: true })
+    uninstall = installClaudeSessionMoveCoordinator()
+    await moveClaudeSessionsToSelectedAccount()
+    list
+      .mockRejectedValueOnce(new Error('main is busy'))
+      .mockRejectedValueOnce(new Error('still busy'))
+    switchTo('acct-b')
+    await settle()
+    expect(restartPaneForAccountMove).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(16_000)
+
+    expect(restartPaneForAccountMove).toHaveBeenCalledOnce()
+  })
+
+  it('retries a session you asked to move when its pane was not ready', async () => {
+    restartPaneForAccountMove.mockReturnValueOnce(false)
+    seed({})
+    uninstall = installClaudeSessionMoveCoordinator()
+    await moveClaudeSessionsToSelectedAccount()
+
+    await vi.advanceTimersByTimeAsync(16_000)
+
+    expect(restartPaneForAccountMove).toHaveBeenCalledTimes(2)
   })
 })

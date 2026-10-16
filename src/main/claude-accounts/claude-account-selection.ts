@@ -80,6 +80,9 @@ export class ClaudeAccountSelection {
       activeAccountId: selection.host,
       activeAccountIdsByRuntime: selection,
       ...(systemDefault ? { systemDefaultEmail: systemDefault.email } : {}),
+      ...(systemDefault?.organizationUuid
+        ? { systemDefaultOrganizationUuid: systemDefault.organizationUuid }
+        : {}),
       ...(systemDefault && this.runtimeAuth.router.copiedLoginIntoSystemDefault()
         ? { systemDefaultMayBeCopied: true }
         : {})

@@ -22,7 +22,9 @@ export type ClaudeSessionOnOtherLogin = {
   ptyId: string
   worktreeId: string
   sessionId: string
-  /** The selected account's login, so a move is recorded against where it went. */
+  /** Where the session reports its transcript; it changes once a moved session reports again. */
+  transcriptPath: string
+  /** The selected login, email and organization, so a move is recorded against where it went. */
   targetLogin: string
 }
 
@@ -52,7 +54,12 @@ function loginOf(
   accountId: string | null
 ): ClaudeLogin | null {
   if (accountId === null) {
-    return accounts.systemDefaultEmail ? { email: accounts.systemDefaultEmail } : null
+    return accounts.systemDefaultEmail
+      ? {
+          email: accounts.systemDefaultEmail,
+          organizationUuid: accounts.systemDefaultOrganizationUuid
+        }
+      : null
   }
   const account = accounts.accounts.find((candidate) => candidate.id === accountId)
   return account ? { email: account.email, organizationUuid: account.organizationUuid } : null
@@ -104,7 +111,8 @@ export function findClaudeSessionsOnOtherLogin(
           ptyId,
           worktreeId,
           sessionId: providerSession.id,
-          targetLogin: selected.email
+          transcriptPath: providerSession.transcriptPath,
+          targetLogin: `${selected.email.toLowerCase()}/${selected.organizationUuid ?? ''}`
         })
       }
     }
