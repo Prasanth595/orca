@@ -17,6 +17,9 @@ export async function runFileReadNode(
 ): Promise<FileReadResult> {
   if (remoteExec) {
     const result = await remoteExec(`cat ${shellQuotePath(data.filePath)}`)
+    if (result.exitCode !== 0) {
+      throw new Error(`Could not read ${data.filePath} on the SSH host: ${result.stderr.trim()}`)
+    }
     return { content: result.stdout }
   }
   const content = await readFile(data.filePath, 'utf8')
@@ -34,7 +37,12 @@ export async function runFileWriteNode(
       ? `mkdir -p ${shellQuotePath(dirname(data.filePath))} && `
       : ''
     const redirect = data.mode === 'append' ? '>>' : '>'
-    await remoteExec(`${mkdirPrefix}cat ${redirect} ${qPath}`, { stdin: resolvedContent })
+    const result = await remoteExec(`${mkdirPrefix}cat ${redirect} ${qPath}`, {
+      stdin: resolvedContent
+    })
+    if (result.exitCode !== 0) {
+      throw new Error(`Could not write ${data.filePath} on the SSH host: ${result.stderr.trim()}`)
+    }
     return { bytesWritten: Buffer.byteLength(resolvedContent, 'utf8') }
   }
   if (data.createParents) {

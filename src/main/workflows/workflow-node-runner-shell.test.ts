@@ -84,10 +84,13 @@ describe('runShellCommandNode — local exec', () => {
 })
 
 describe('runShellCommandNode — remote exec', () => {
-  it('routes through remoteExec and skips shell selection', async () => {
+  it('routes through remoteExec in the chosen shell on the host', async () => {
     const remoteExec = vi.fn().mockResolvedValue({ stdout: 'remote', stderr: '', exitCode: 0 })
     const result = await runShellCommandNode({ ...BASE_DATA, shell: 'zsh' }, undefined, remoteExec)
-    expect(remoteExec).toHaveBeenCalledWith('echo hi', expect.objectContaining({ timeoutMs: 5000 }))
+    expect(remoteExec).toHaveBeenCalledWith(
+      expect.stringMatching(/'zsh' -c 'echo hi'$/),
+      expect.objectContaining({ timeoutMs: 5000 })
+    )
     expect(mockRunProcess).not.toHaveBeenCalled()
     expect(result.stdout).toBe('remote')
   })

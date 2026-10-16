@@ -15,7 +15,7 @@ export class WorkflowService {
   private webContents: WebContents | null = null
   private stopped = false
   private readonly activeAbortControllers = new Map<string, AbortController>()
-  private sshConnectionManager: SshConnectionManager | null = null
+  private resolveSshConnectionManager: () => SshConnectionManager | null = () => null
 
   constructor(private readonly store: Store) {}
 
@@ -23,8 +23,9 @@ export class WorkflowService {
     this.webContents = wc
   }
 
-  setSshConnectionManager(manager: SshConnectionManager): void {
-    this.sshConnectionManager = manager
+  /** Read at run time: SSH handlers may register after workflows, and the manager can be replaced. */
+  setSshConnectionManagerResolver(resolve: () => SshConnectionManager | null): void {
+    this.resolveSshConnectionManager = resolve
   }
 
   start(): void {
@@ -66,11 +67,21 @@ export class WorkflowService {
     }
   }
 
+  /** `undefined` runs nodes on this machine, which only a local workflow may do. */
   private buildRemoteExec(workflow: AgentWorkflow): RemoteExecFn | undefined {
-    if (workflow.executionTargetType !== 'ssh' || !this.sshConnectionManager) {
+    if (workflow.executionTargetType !== 'ssh') {
       return undefined
     }
-    return buildSshRemoteExec(this.sshConnectionManager, workflow.executionTargetId)
+    const manager = this.resolveSshConnectionManager()
+    if (!manager) {
+      // Why fail instead of returning undefined: that would quietly run an SSH workflow locally.
+      return async () => {
+        throw new Error(
+          `SSH is unavailable, so this SSH workflow cannot run on "${workflow.executionTargetId}".`
+        )
+      }
+    }
+    return buildSshRemoteExec(manager, workflow.executionTargetId)
   }
 
   async runWorkflow(

@@ -37,15 +37,15 @@ afterEach(() => {
 // ─── Shell node ────────────────────────────────────────────────────────────────
 
 describe('runShellCommandNode — SSH remote exec', () => {
-  it('passes command string to remoteExec and returns its result', async () => {
+  it('runs the command in its working directory and chosen shell on the host', async () => {
     const remoteExec = makeRemoteExec({ stdout: 'hello' })
     const result = await runShellCommandNode(
-      { command: 'echo hello', workingDirectory: '/', timeoutSeconds: 10, shell: 'bash' },
+      { command: 'echo hello', workingDirectory: '/srv', timeoutSeconds: 10, shell: 'bash' },
       undefined,
       remoteExec
     )
     expect(remoteExec).toHaveBeenCalledWith(
-      'echo hello',
+      `cd '/srv' && 'bash' -c 'echo hello'`,
       expect.objectContaining({ timeoutMs: 10000 })
     )
     expect(mockRunProcess).not.toHaveBeenCalled()
@@ -73,7 +73,7 @@ describe('runShellCommandNode — SSH remote exec', () => {
       signal
     )
     expect(remoteExec).toHaveBeenCalledWith(
-      'cat',
+      "cd '/' && { cat\n}",
       expect.objectContaining({ stdin: 'piped-input', signal })
     )
   })
@@ -82,7 +82,7 @@ describe('runShellCommandNode — SSH remote exec', () => {
 // ─── Python node ───────────────────────────────────────────────────────────────
 
 describe('runPythonScriptNode — SSH remote exec', () => {
-  it('runs python3 - with script via stdin through remoteExec', async () => {
+  it('runs the script with python3 -c through remoteExec', async () => {
     const remoteExec = makeRemoteExec({ stdout: '42' })
     const result = await runPythonScriptNode(
       { script: 'print(42)', timeoutSeconds: 5, workingDirectory: '/' },
@@ -90,8 +90,8 @@ describe('runPythonScriptNode — SSH remote exec', () => {
       remoteExec
     )
     expect(remoteExec).toHaveBeenCalledWith(
-      'python3 -',
-      expect.objectContaining({ stdin: 'print(42)', timeoutMs: 5000 })
+      expect.stringMatching(/^cd '\/' && 'python3' -c /),
+      expect.objectContaining({ timeoutMs: 5000 })
     )
     expect(mockRunProcess).not.toHaveBeenCalled()
     expect(result.stdout).toBe('42')
@@ -105,28 +105,24 @@ describe('runPythonScriptNode — SSH remote exec', () => {
       remoteExec
     )
     expect(remoteExec).toHaveBeenCalledWith(
-      expect.stringMatching(/^\/usr\/bin\/python\s/),
+      expect.stringContaining(`'/usr/bin/python' -c `),
       expect.anything()
     )
   })
 
-  it('passes the script verbatim via stdin so no shell escaping is needed', async () => {
+  it('carries the script base64-encoded so quotes never reach the shell', async () => {
     const remoteExec = makeRemoteExec()
     await runPythonScriptNode(
       { script: "print('hi')", timeoutSeconds: 5, workingDirectory: '/' },
       undefined,
       remoteExec
     )
-    // Script with single-quotes arrives unescaped in stdin, not in the command string
-    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: remoteExec mock call args match (cmd: string, opts: object); destructured for readable assertions
-    const [cmd, opts] = remoteExec.mock.calls[0] as [string, { stdin?: string }]
-    expect(cmd).toBe('python3 -')
-    expect(opts.stdin).toBe("print('hi')")
+    const cmd = firstCallCmd(remoteExec)
+    expect(cmd).toContain(Buffer.from("print('hi')").toString('base64'))
+    expect(cmd).not.toContain("print('hi')")
   })
 
-  it('passes the script (not the original stdin) as stdin to remoteExec', async () => {
-    // The script is piped via stdin; the caller's stdin arg is ignored for remote python runs
-    // because python3 - already reads its script from stdin.
+  it('pipes the upstream output to the script on stdin, as locally', async () => {
     const remoteExec = makeRemoteExec()
     await runPythonScriptNode(
       { script: 'import sys; print(sys.stdin.read())', timeoutSeconds: 5, workingDirectory: '/' },
@@ -134,8 +130,8 @@ describe('runPythonScriptNode — SSH remote exec', () => {
       remoteExec
     )
     expect(remoteExec).toHaveBeenCalledWith(
-      'python3 -',
-      expect.objectContaining({ stdin: 'import sys; print(sys.stdin.read())' })
+      expect.any(String),
+      expect.objectContaining({ stdin: 'my-stdin' })
     )
   })
 })
@@ -171,7 +167,7 @@ describe('runAgentCallNode — SSH remote exec', () => {
       remoteExec
     )
     const cmd = firstCallCmd(remoteExec)
-    expect(cmd).toContain('--model claude-opus-5-5')
+    expect(cmd).toContain("--model 'claude-opus-5-5'")
   })
 
   it('includes --output-format json when structuredOutputSchema is set', async () => {
@@ -196,7 +192,7 @@ describe('runAgentCallNode — SSH remote exec', () => {
     const remoteExec = makeRemoteExec()
     await runAgentCallNode({ ...BASE_AGENT_DATA, agentId: 'codex' }, 'write code', remoteExec)
     const cmd = firstCallCmd(remoteExec)
-    expect(cmd).toMatch(/^codex\s/)
+    expect(cmd).toMatch(/^cd '\/' && codex\s/)
     expect(cmd).toContain('--quiet')
   })
 
