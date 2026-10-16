@@ -104,9 +104,11 @@ describe('the permission verdict on a paired host', () => {
     await expect(
       readStructuredChatHostPermissionVerdict({ kind: 'local' }, 'claude', 'ask')
     ).resolves.toEqual({ kind: 'allowed' })
-    await expect(readStructuredChatHostPermissionVerdict(PAIRED, 'grok', 'ask')).resolves.toEqual({
-      kind: 'allowed'
-    })
+    await expect(readStructuredChatHostPermissionVerdict(PAIRED, 'gemini', 'ask')).resolves.toEqual(
+      {
+        kind: 'allowed'
+      }
+    )
     expect(mocks.supportsCapability).not.toHaveBeenCalled()
     expect(mocks.callRuntimeRpc).not.toHaveBeenCalled()
   })
