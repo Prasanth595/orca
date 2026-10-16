@@ -14,6 +14,7 @@ import {
 } from './workspace-lineage-menu-actions'
 import { parseWorkspaceKey } from '../../../../shared/workspace-scope'
 import { getDeleteStateForWorktreeHost } from './worktree-delete-state-host-match'
+import { getProjectGroupsForRepoHost } from '@/store/slices/project-group-owner-routing'
 import {
   EMPTY_BROWSER_TABS_BY_WORKTREE,
   EMPTY_CYCLIC_LINEAGE_IDS,
@@ -60,10 +61,14 @@ export function useWorktreeContextMenuModel({
   const setWorktreesPinnedAndReveal = useAppStore((s) => s.setWorktreesPinnedAndReveal)
   const workspaceStatuses = useAppStore((s) => s.workspaceStatuses)
   const openModal = useAppStore((s) => s.openModal)
-  const projectGroups = useAppStore((s) => s.projectGroups)
+  const allProjectGroups = useAppStore((s) => s.projectGroups)
   const createProjectGroup = useAppStore((s) => s.createProjectGroup)
   const moveProjectToGroup = useAppStore((s) => s.moveProjectToGroup)
   const repo = useRepoById(worktree.repoId)
+  const projectGroups = useMemo(
+    () => (repo ? getProjectGroupsForRepoHost(allProjectGroups, repo) : []),
+    [allProjectGroups, repo]
+  )
   const deleteState = useAppStore((s) =>
     getDeleteStateForWorktreeHost(worktree, s.deleteStateByWorktreeId)
   )
