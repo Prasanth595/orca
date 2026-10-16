@@ -12,6 +12,7 @@ import {
   releaseOrcadActivationFence,
   withOrcadActivationLock
 } from './orcad-activation-lock'
+import { orcadLivenessProvenExited } from './orcad-remote-launch'
 import { readBoundedOrcadRemoteRecord } from './orcad-remote-record-file'
 import { orcadActivationFenceLockDir } from './orcad-activation-transaction'
 import { joinRemotePath } from './ssh-remote-platform'
@@ -71,7 +72,7 @@ async function wakeAfterPrior(
     return { outcome: 'not-activated' }
   }
   const liveness = await slotLiveness(options, orcadSlotDir(options, before.active))
-  if (liveness !== 'DEAD') {
+  if (!orcadLivenessProvenExited(liveness)) {
     return { outcome: liveness === 'LIVE' ? 'serving' : 'unverifiable' }
   }
   if (!(await orcadActivationFenceExists(options))) {
