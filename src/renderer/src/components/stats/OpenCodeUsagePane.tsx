@@ -12,7 +12,7 @@ import { UsageFilterRadioGroup, UsageTrackingPaneShell } from './UsageTrackingPa
 import { formatCost, formatTokens, formatUpdatedAt } from './usage-formatters'
 import { translate } from '@/i18n/i18n'
 
-const RANGE_OPTIONS: OpenCodeUsageRange[] = ['7d', '30d', '90d', 'all']
+const RANGE_OPTIONS: OpenCodeUsageRange[] = ['today', '7d', '30d', '90d', 'all']
 const SCOPE_OPTIONS: { value: OpenCodeUsageScope; label: string }[] = [
   {
     value: 'orca',
@@ -31,6 +31,9 @@ const SCOPE_OPTIONS: { value: OpenCodeUsageScope; label: string }[] = [
   }
 ]
 const RANGE_LABELS: Record<OpenCodeUsageRange, string> = {
+  get today() {
+    return translate('usage.range.today', 'Today')
+  },
   get '7d'() {
     return translate('auto.components.stats.OpenCodeUsagePane.rangeLast7Days', 'Last 7 days')
   },
