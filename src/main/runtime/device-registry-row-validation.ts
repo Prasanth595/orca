@@ -2,6 +2,7 @@ import type { DeviceScope } from '../../shared/runtime-types'
 import type { RelayDeviceBinding } from './relay/relay-revoke-outbox'
 import type { DeviceEntry } from './device-registry'
 import { parseMobilePushRegistration } from '../../shared/mobile-push-contract'
+import { parseMobilePairingConnectionMode } from '../../shared/mobile-pairing-connection-mode'
 import { isDevicePublicKeyB64 } from '../../shared/device-key-proof'
 import { RUNTIME_DEVICE_GRANTS, type RuntimeDeviceGrant } from './rpc/rpc-method-permission'
 
@@ -49,8 +50,9 @@ export function normalizeLoadedDeviceRow(device: DeviceEntry): DeviceEntry {
     scope: device.scope === 'runtime' ? 'runtime' : 'mobile',
     grants: validGrants(device.grants, device.scope === 'runtime' ? 'runtime' : 'mobile'),
     relayBinding: validRelayBinding(device.relayBinding, device.deviceId),
-    mobilePairingConnectionMode:
-      device.mobilePairingConnectionMode === 'local-only' ? 'local-only' : 'automatic',
+    mobilePairingConnectionMode: parseMobilePairingConnectionMode(
+      device.mobilePairingConnectionMode
+    ),
     // Why: registries written before this field existed only ever held network-reach grants (phones and
     // LAN links), so a missing value must keep binding every interface on reconnect.
     pairingReach: device.pairingReach === 'this-computer' ? 'this-computer' : 'network',

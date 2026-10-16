@@ -1,5 +1,8 @@
 import type { DeviceScope } from '../../shared/runtime-types'
-import type { MobilePairingConnectionMode } from '../../shared/mobile-pairing-connection-mode'
+import {
+  parseMobilePairingConnectionMode,
+  type MobilePairingConnectionMode
+} from '../../shared/mobile-pairing-connection-mode'
 import type { MobilePushRegistration } from '../../shared/mobile-push-contract'
 import type { RuntimePairingReach } from '../../shared/runtime-pairing-reach'
 import type { RelayDeviceBinding } from './relay/relay-revoke-outbox'
@@ -96,6 +99,6 @@ export function mobilePairingConnectionModeOf(
     return null
   }
   // Why: pairings created before this preference existed used automatic
-  // direct-first Relay fallback, so missing state must preserve that behavior.
-  return device.mobilePairingConnectionMode === 'local-only' ? 'local-only' : 'automatic'
+  // direct-first Relay fallback, so missing/unknown state must preserve that.
+  return parseMobilePairingConnectionMode(device.mobilePairingConnectionMode)
 }
