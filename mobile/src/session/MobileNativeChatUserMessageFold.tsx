@@ -18,14 +18,20 @@ const FOLDED_HEIGHT =
 export function MobileNativeChatUserMessageFold({
   text,
   fontScale,
+  open: transcriptOpen = false,
+  onToggle,
   children
 }: {
   text: string
   fontScale: number
+  /** The transcript's state, which outlives this row when the list recycles it. */
+  open?: boolean
+  onToggle?: () => void
   children: React.ReactNode
 }): React.JSX.Element {
   const longText = useMemo(() => nativeChatUserMessageFolds(text), [text])
-  const [open, setOpen] = useState(false)
+  const [localOpen, setLocalOpen] = useState(false)
+  const open = onToggle ? transcriptOpen : localOpen
   // The text rule can pick a message that already fits the fold; that one gets no toggle.
   const [height, setHeight] = useState<number | null>(null)
   if (!longText) {
@@ -36,12 +42,18 @@ export function MobileNativeChatUserMessageFold({
   return (
     <>
       <View style={folds && !open ? { maxHeight: clip, overflow: 'hidden' } : undefined}>
-        <View onLayout={(event) => setHeight(event.nativeEvent.layout.height)}>{children}</View>
+        {/* Never shrinks to the clip, so it always reports the natural height. */}
+        <View
+          style={styles.measured}
+          onLayout={(event) => setHeight(event.nativeEvent.layout.height)}
+        >
+          {children}
+        </View>
       </View>
       {folds && height !== null ? (
         <Pressable
           style={styles.toggle}
-          onPress={() => setOpen(!open)}
+          onPress={onToggle ?? (() => setLocalOpen(!localOpen))}
           hitSlop={8}
           accessibilityRole="button"
           accessibilityState={{ expanded: open }}
@@ -54,6 +66,9 @@ export function MobileNativeChatUserMessageFold({
 }
 
 const styles = StyleSheet.create({
+  measured: {
+    flexShrink: 0
+  },
   toggle: {
     alignSelf: 'flex-end',
     paddingTop: spacing.xs

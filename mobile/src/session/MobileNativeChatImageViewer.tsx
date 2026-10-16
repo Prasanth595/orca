@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import {
   Image,
   Modal,
@@ -20,16 +20,32 @@ import {
 /** The chat surface, from which any row can open an attachment full size. */
 export function MobileNativeChatImageViewerHost({
   style,
+  scopeKey,
   children
 }: {
   style: StyleProp<ViewStyle>
+  /** The chat on screen: a notification can switch it under the same host. */
+  scopeKey: string
   children: React.ReactNode
 }): React.JSX.Element {
-  const [image, setImage] = useState<MobileNativeChatViewedImage | null>(null)
+  const [viewed, setViewed] = useState<{
+    scopeKey: string
+    image: MobileNativeChatViewedImage
+  } | null>(null)
+  // A picture belongs to the chat it was opened in.
+  if (viewed && viewed.scopeKey !== scopeKey) {
+    setViewed(null)
+  }
+  const openImage = useCallback(
+    (image: MobileNativeChatViewedImage) => setViewed({ scopeKey, image }),
+    [scopeKey]
+  )
   return (
-    <MobileNativeChatImageViewerContext.Provider value={setImage}>
+    <MobileNativeChatImageViewerContext.Provider value={openImage}>
       <View style={style}>{children}</View>
-      {image ? <MobileNativeChatImageViewer {...image} onClose={() => setImage(null)} /> : null}
+      {viewed ? (
+        <MobileNativeChatImageViewer {...viewed.image} onClose={() => setViewed(null)} />
+      ) : null}
     </MobileNativeChatImageViewerContext.Provider>
   )
 }

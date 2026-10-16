@@ -178,7 +178,9 @@ function MobileNativeChatMessageImpl({
   receipt,
   awaiting,
   subagentGroupsOpen,
-  onToggleSubagentGroup
+  onToggleSubagentGroup,
+  userMessageOpen,
+  onToggleUserMessage
 }: {
   message: NativeChatMessage
   /** The newest assistant row of a live turn with no prompt open: its last text may still grow. */
@@ -213,6 +215,8 @@ function MobileNativeChatMessageImpl({
   /** The roster groups the reader opened, held by the transcript; only a roster row gets it. */
   subagentGroupsOpen?: ReadonlySet<string>
   onToggleSubagentGroup?: (groupId: string) => void
+  userMessageOpen?: boolean
+  onToggleUserMessage?: (messageId: string) => void
 }): React.JSX.Element {
   // Another agent's message is set apart from the person's bubble, left-aligned and named.
   const attribution = agentMessageAttribution('Message from', message.from)
@@ -379,7 +383,12 @@ function MobileNativeChatMessageImpl({
             // As desktop draws it: the pictures, then the words, folded when long.
             <>
               {proseRows(drawnProse.filter(isImageRefBlock))}
-              <MobileNativeChatUserMessageFold text={copyText} fontScale={fontScale}>
+              <MobileNativeChatUserMessageFold
+                text={copyText}
+                fontScale={fontScale}
+                open={userMessageOpen}
+                onToggle={onToggleUserMessage && (() => onToggleUserMessage(message.id))}
+              >
                 {proseRows(drawnProse.filter((block) => !isImageRefBlock(block)))}
               </MobileNativeChatUserMessageFold>
             </>

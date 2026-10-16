@@ -104,6 +104,8 @@ describe('MobileNativeChatMessage', () => {
       reasoningIsLive?: boolean
       unsentNotice?: string
       receipt?: NativeChatResolvedPrompt
+      userMessageOpen?: boolean
+      onToggleUserMessage?: (messageId: string) => void
       awaiting?: boolean
     } = {}
   ): ReactTestRenderer {
@@ -491,30 +493,32 @@ describe('MobileNativeChatMessage', () => {
     )
   })
 
-  it('folds a long message of yours until opened, as desktop does', () => {
+  it('folds a long message of yours until opened, and the transcript keeps it open', () => {
     const long = Array.from({ length: 12 }, (_, line) => `line ${line + 1}`).join('\n')
-    const tree = render(userMessage([{ type: 'text', text: long }]))
-    const clips = () =>
+    const message = userMessage([{ type: 'text', text: long }])
+    const onToggleUserMessage = vi.fn()
+    const clips = (tree: ReactTestRenderer) =>
       tree.root.findAll(
         (node) => String(node.type) === 'View' && node.props.style?.overflow === 'hidden'
       )
-    expect(clips()).toHaveLength(1)
+    const folded = render(message, { onToggleUserMessage })
+    expect(clips(folded)).toHaveLength(1)
     // Laid out taller than its fold, it offers the rest.
     act(() =>
-      clips()[0]!
+      clips(folded)[0]!
         .find((node) => node.props.onLayout !== undefined)
         .props.onLayout({ nativeEvent: { layout: { height: 400 } } })
     )
-    expect(textIn(tree.root)).toContain('Show full message')
     act(() =>
-      tree.root
+      folded.root
         .find(
           (node) => String(node.type) === 'Pressable' && textIn(node).includes('Show full message')
         )
         .props.onPress()
     )
-    expect(clips()).toHaveLength(0)
-    expect(textIn(tree.root)).toContain('Show less')
+    expect(onToggleUserMessage).toHaveBeenCalledWith('u1')
+    // The list recycles rows; the transcript's state draws it open again.
+    expect(clips(render(message, { userMessageOpen: true, onToggleUserMessage }))).toHaveLength(0)
   })
 
   it('prefers the url over the path when both are present', () => {

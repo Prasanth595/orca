@@ -90,7 +90,7 @@ export function MobileNativeChatOverlay({
     return null
   }
   return (
-    <MobileNativeChatImageViewerHost style={styles.overlay}>
+    <MobileNativeChatImageViewerHost style={styles.overlay} scopeKey={sendSurfaceId}>
       <MobileNativeChatVisualContext.Provider value={visuals}>
         <MobileNativeChatView
           messages={session.messages}
