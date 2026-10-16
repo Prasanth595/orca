@@ -177,20 +177,23 @@ function bindProviderSenderAttestation(args: {
   consumerGeneration: number | undefined
   attested: boolean
 }): string | undefined {
-  if (!args.attested || !args.dispatch || !args.paneKey || !args.processIncarnation) {
-    return args.payload ?? undefined
-  }
   let parsed: Record<string, unknown> = {}
   if (args.payload) {
     try {
       const value: unknown = JSON.parse(args.payload)
       const object = JsonObject.safeParse(value)
       if (object.success) {
-        parsed = object.data
+        const { providerSenderAttestation: _forged, ...rest } = object.data
+        parsed = rest
+      } else if (!args.attested) {
+        return args.payload
       }
     } catch {
       return args.payload
     }
+  }
+  if (!args.attested || !args.dispatch || !args.paneKey || !args.processIncarnation) {
+    return args.payload ? JSON.stringify(parsed) : undefined
   }
   return JSON.stringify({
     ...parsed,

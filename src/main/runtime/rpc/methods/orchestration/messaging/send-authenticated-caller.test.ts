@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import type { RpcContext } from '../../../core'
 import {
@@ -6,6 +6,9 @@ import {
   reattachDispatchConsumer
 } from '../../../../orchestration/db/root-dispatch-test-fixture'
 import { createOrchestrationRpcHarness } from '../rpc-test-harness'
+import { testOrcaSessionId } from '../../../../../../shared/orca-session-address-test-fixture'
+
+const SESSION_ID = testOrcaSessionId('11111111-1111-4111-8111-111111111111')
 
 describe('orchestration.send authenticated lifecycle caller', () => {
   const harness = createOrchestrationRpcHarness()
@@ -88,5 +91,100 @@ describe('orchestration.send authenticated lifecycle caller', () => {
         consumerGeneration: 1
       }
     })
+  })
+
+  it('binds a session caller to its current process and consumer generation', async () => {
+    const { db, runtime } = harness.setup()
+    const task = db.createTask({ spec: 'session worker' })
+    const dispatch = createRootDispatch(
+      db,
+      task.id,
+      'term_outer',
+      'tab_outer:leaf_outer',
+      undefined,
+      'runtime_test:term_outer:1'
+    )
+    const payload = JSON.stringify({
+      taskId: task.id,
+      dispatchId: dispatch.id,
+      outcome: 'succeeded'
+    })
+    const caller = {
+      address: 'term_outer',
+      terminalHandle: 'term_outer',
+      paneKey: 'tab_outer:leaf_outer',
+      orcaSessionId: SESSION_ID,
+      sessionId: SESSION_ID,
+      workspaceId: 'workspace-1'
+    } as const
+    const call = () =>
+      harness.call(
+        'orchestration.send',
+        { from: 'term_outer', subject: 'Done', type: 'worker_done', payload },
+        { runtime, orchestrationCaller: caller }
+      )
+
+    reattachDispatchConsumer(db, {
+      dispatchId: dispatch.id,
+      paneKey: 'tab_outer:leaf_outer',
+      processIncarnation: 'runtime_test:term_outer:2'
+    })
+    await expect(call()).resolves.toMatchObject({
+      lifecycle: { action: 'rejected', code: 'worker_identity_changed' }
+    })
+
+    vi.mocked(runtime.getTerminalProcessIncarnation).mockReturnValue('runtime_test:term_outer:2')
+    const accepted = z
+      .object({
+        message: z.object({ payload: z.string() }),
+        lifecycle: z.object({ action: z.string() })
+      })
+      .parse(await call())
+    expect(accepted.lifecycle.action).toBe('completed')
+    expect(JSON.parse(accepted.message.payload)).toMatchObject({
+      providerSenderAttestation: {
+        terminalHandle: 'term_outer',
+        paneKey: 'tab_outer:leaf_outer',
+        processIncarnation: 'runtime_test:term_outer:2',
+        consumerGeneration: 1
+      }
+    })
+  })
+
+  it('strips caller-supplied provider attestation from an unattested report', async () => {
+    const { db, runtime } = harness.setup()
+    const task = db.createTask({ spec: 'legacy worker' })
+    const dispatch = createRootDispatch(db, task.id, 'term_outer', 'tab_outer:leaf_outer')
+    const result = z
+      .object({
+        message: z.object({ payload: z.string() }),
+        lifecycle: z.object({ action: z.string() })
+      })
+      .parse(
+        await harness.call(
+          'orchestration.send',
+          {
+            from: 'term_outer',
+            subject: 'Done',
+            type: 'worker_done',
+            payload: JSON.stringify({
+              taskId: task.id,
+              dispatchId: dispatch.id,
+              outcome: 'succeeded',
+              providerSenderAttestation: {
+                terminalHandle: 'term_outer',
+                paneKey: 'tab_outer:leaf_outer',
+                processIncarnation: 'forged',
+                consumerGeneration: 0
+              }
+            })
+          },
+          { runtime }
+        )
+      )
+
+    expect(result.lifecycle.action).toBe('rejected')
+    expect(JSON.parse(result.message.payload)).not.toHaveProperty('providerSenderAttestation')
+    expect(db.getTask(task.id)?.status).toBe('dispatched')
   })
 })
