@@ -105,12 +105,9 @@ const structured = {
 vi.mock('../use-mobile-session-view-mode', () => ({
   useMobileSessionViewMode: () => ({
     isTabChatView: () => visible.value,
-    setTabView: (_tabId: string, view: 'terminal' | 'chat') => {
-      visible.value = view === 'chat'
-    },
-    toggleTabChatView: () => {
-      visible.value = !visible.value
-    }
+    setTabView: (_tabId: string, view: string) =>
+      Object.assign(visible, { value: view === 'chat' }),
+    toggleTabChatView: () => Object.assign(visible, { value: !visible.value })
   })
 }))
 vi.mock('../use-mobile-native-chat-session-lane', () => ({
