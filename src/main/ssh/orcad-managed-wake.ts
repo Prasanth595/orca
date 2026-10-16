@@ -62,6 +62,7 @@ export function wakeStoppedManagedOrcad(
   return wake
 }
 
+/** One wake, after any earlier one for the same host has settled. */
 async function wakeAfterPrior(
   options: OrcadSlotOptions,
   host: string,

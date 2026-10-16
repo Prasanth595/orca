@@ -16,6 +16,7 @@ import {
   type OrcadSlotOptions
 } from './orcad-recovery-slot'
 
+/** Finishes an interrupted decommission; the record is only cleared on proven exit. */
 export async function reconcileOrcadDecommission(
   options: OrcadSlotOptions,
   plan: OrcadDecommissionRecoveryPlan

@@ -244,6 +244,7 @@ export const ORCAD_NEVER_LAUNCHED = 'NEVER_LAUNCHED'
 
 export type OrcadLiveness = 'LIVE' | 'DEAD' | 'UNKNOWN' | typeof ORCAD_NEVER_LAUNCHED
 
+/** The probe's last line; anything but a known word is `UNKNOWN`, never a guess. */
 export function parseOrcadLiveness(output: string): OrcadLiveness {
   const value = output.trim().split('\n').pop()?.trim()
   return value === 'LIVE' || value === 'DEAD' || value === ORCAD_NEVER_LAUNCHED ? value : 'UNKNOWN'

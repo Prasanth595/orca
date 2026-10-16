@@ -191,6 +191,7 @@ export async function quiesceInterruptedOrcadSlot(
   return 'exited'
 }
 
+/** Asks the host whether anything runs from this slot directory. */
 export async function slotLiveness(
   options: OrcadSlotOptions,
   remoteDir: string
