@@ -396,9 +396,12 @@ export function createDocumentCommentMarkdownComponents(
     },
     // Why: GitHub issue/PR bodies commonly contain GFM tables. The dashboard
     // dialog is wide enough to show them, but still needs overflow containment.
-    table: ({ children }) => (
+    table: ({ node, children }) => (
       <div className="my-3 max-w-full overflow-x-auto rounded-md border border-border/60">
-        <table className="min-w-full border-collapse text-[13px] [&_td]:border [&_td]:border-border/50 [&_td]:px-2 [&_td]:py-1.5 [&_th]:border [&_th]:border-border/50 [&_th]:bg-muted/60 [&_th]:px-2 [&_th]:py-1.5 [&_th]:text-start [&_th]:font-semibold [&_:is(td,th)]:[unicode-bidi:plaintext]">
+        <table
+          dir={markdownBlockDirection(node)}
+          className="min-w-full border-collapse text-[13px] [&_td]:border [&_td]:border-border/50 [&_td]:px-2 [&_td]:py-1.5 [&_th]:border [&_th]:border-border/50 [&_th]:bg-muted/60 [&_th]:px-2 [&_th]:py-1.5 [&_th]:text-start [&_th]:font-semibold [&_:is(td,th)]:[unicode-bidi:plaintext]"
+        >
           {children}
         </table>
       </div>

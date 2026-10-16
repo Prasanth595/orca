@@ -22,6 +22,11 @@ function paragraphDirections(doc: ProseMirrorNode): DecorationSet {
 /** Each composer line reads in the direction most of its words do, as sent messages render. */
 export const NativeChatPromptDirection = Extension.create({
   name: 'nativeChatPromptDirection',
+  // Above StarterKit's hard break, so a new line is its own paragraph and can turn on its own.
+  priority: 101,
+  addKeyboardShortcuts() {
+    return { 'Shift-Enter': () => this.editor.commands.splitBlock() }
+  },
   addProseMirrorPlugins() {
     return [
       new Plugin({
