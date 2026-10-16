@@ -5,6 +5,7 @@ import {
 } from '../worktree/workspace-options-copy'
 import { WorkspaceOptionsCountBadge } from './workspace-options-count-badge'
 import {
+  Bot,
   ChevronLeft,
   List,
   PanelLeftClose,
@@ -197,6 +198,24 @@ export function HostScreenHeader({ controller }: { controller: HostScreenControl
               />
             </Pressable>
 
+            <Pressable
+              style={[
+                styles.embeddedToolbarIconButton,
+                connState !== 'connected' && styles.toolbarIconDisabled
+              ]}
+              onPress={() =>
+                actions.navigateFromHostList(`/h/${encodeURIComponent(hostId)}/agents`)
+              }
+              disabled={connState !== 'connected'}
+              accessibilityRole="button"
+              accessibilityLabel="Agents"
+            >
+              <Bot
+                size={16}
+                color={connState === 'connected' ? colors.textSecondary : colors.textMuted}
+              />
+            </Pressable>
+
             {floatingWorkspaceEnabled ? (
               <Pressable
                 style={[
@@ -289,6 +308,19 @@ export function HostScreenHeader({ controller }: { controller: HostScreenControl
             accessibilityLabel="Tasks"
           >
             <List
+              size={16}
+              color={connState === 'connected' ? colors.textSecondary : colors.textMuted}
+            />
+          </Pressable>
+
+          <Pressable
+            style={styles.searchToggle}
+            onPress={() => actions.navigateFromHostList(`/h/${encodeURIComponent(hostId)}/agents`)}
+            disabled={connState !== 'connected'}
+            accessibilityRole="button"
+            accessibilityLabel="Agents"
+          >
+            <Bot
               size={16}
               color={connState === 'connected' ? colors.textSecondary : colors.textMuted}
             />
