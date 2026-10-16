@@ -29,7 +29,8 @@ export function markdownNoteGraphSearchOptions(rootPath: string): SearchOptions 
 export function buildMarkdownNoteGraph(
   documents: MarkdownDocument[],
   search: SearchResult,
-  maxNodes = MARKDOWN_NOTE_GRAPH_MAX_NODES
+  maxNodes = MARKDOWN_NOTE_GRAPH_MAX_NODES,
+  activeKey?: string | null
 ): MarkdownNoteGraph {
   const resolver = createMarkdownLinkResolver(documents)
   const edgeKeys = new Set<string>()
@@ -45,7 +46,7 @@ export function buildMarkdownNoteGraph(
     return entry
   }
   for (const file of search.files) {
-    const source = resolver.documentForFile(file.filePath)
+    const source = resolver.documentForFile(file.filePath, file.relativePath)
     if (!source) {
       continue
     }
@@ -69,6 +70,11 @@ export function buildMarkdownNoteGraph(
   const kept = linkedNodes
     .sort((a, b) => b.degree - a.degree || a.key.localeCompare(b.key))
     .slice(0, maxNodes)
+  // Why: the dialog highlights the open note, so it must survive the cap.
+  const active = activeKey ? linkedNodes.find((entry) => entry.key === activeKey) : undefined
+  if (active && kept.length > 0 && !kept.includes(active)) {
+    kept[kept.length - 1] = active
+  }
   const keptKeys = new Set(kept.map((entry) => entry.key))
   return {
     nodes: kept,

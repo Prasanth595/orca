@@ -47,7 +47,7 @@ function resolveRelativeLinkPath(sourceRelativePath: string, href: string): stri
 }
 
 export type MarkdownLinkResolver = {
-  documentForFile: (filePath: string) => MarkdownDocument | undefined
+  documentForFile: (filePath: string, relativePath?: string) => MarkdownDocument | undefined
   /** Notes that `[[link]]` or `[text](path)` links on one line of `source` point to. */
   linkTargets: (lineContent: string, source: MarkdownDocument) => MarkdownDocument[]
 }
@@ -59,7 +59,10 @@ export function createMarkdownLinkResolver(documents: MarkdownDocument[]): Markd
   )
   const byKey = new Map(documents.map((document) => [markdownDocumentKey(document), document]))
   return {
-    documentForFile: (filePath) => byFilePath.get(normalizeSlashes(filePath)),
+    // Why the fallback: search returns canonical paths, which differ from the listing when the root is aliased.
+    documentForFile: (filePath, relativePath) =>
+      byFilePath.get(normalizeSlashes(filePath)) ??
+      (relativePath ? byKey.get(normalizeSlashes(relativePath).toLowerCase()) : undefined),
     linkTargets: (lineContent, source) => {
       const targets: MarkdownDocument[] = []
       for (const match of lineContent.matchAll(WIKI_LINK_PATTERN)) {

@@ -60,6 +60,28 @@ describe('buildMarkdownNoteGraph', () => {
     expect(graph.edges).toEqual([{ source: 'a.md', target: 'b.md' }])
     expect(graph.omittedNodes).toBe(2)
   })
+
+  it('keeps the open note when the node cap would leave it out', () => {
+    const graph = buildMarkdownNoteGraph(
+      documents,
+      search({ 'a.md': ['[[b]] [[c]]'], 'notes/d.md': ['[[b]]'] }),
+      2,
+      'notes/d.md'
+    )
+    expect(graph.nodes.map((node) => node.key)).toEqual(['a.md', 'notes/d.md'])
+    expect(graph.edges).toEqual([])
+    expect(graph.omittedNodes).toBe(2)
+  })
+
+  it('matches search hits by relative path when the search root is a different absolute path', () => {
+    const canonical = search({ 'a.md': ['[[b]]'] })
+    canonical.files = canonical.files.map((file) => ({
+      ...file,
+      filePath: `/real/repo/${file.relativePath}`
+    }))
+    const graph = buildMarkdownNoteGraph(documents, canonical)
+    expect(graph.edges).toEqual([{ source: 'a.md', target: 'b.md' }])
+  })
 })
 
 describe('layoutMarkdownNoteGraph', () => {

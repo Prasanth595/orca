@@ -43,7 +43,7 @@ export function collectMarkdownBacklinks(
   const targetKey = markdownDocumentKey(target)
   const backlinks: MarkdownBacklink[] = []
   for (const file of search.files) {
-    const source = resolver.documentForFile(file.filePath)
+    const source = resolver.documentForFile(file.filePath, file.relativePath)
     if (!source || markdownDocumentKey(source) === targetKey) {
       continue
     }

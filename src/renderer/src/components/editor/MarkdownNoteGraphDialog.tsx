@@ -6,6 +6,7 @@ import type { MarkdownDocument } from '../../../../shared/filesystem-entry-types
 import { markdownDocumentKey } from './markdown-link-resolver'
 import {
   buildMarkdownNoteGraph,
+  MARKDOWN_NOTE_GRAPH_MAX_NODES,
   markdownNoteGraphSearchOptions,
   type MarkdownNoteGraph
 } from './markdown-note-graph'
@@ -29,10 +30,20 @@ type MarkdownNoteGraphDialogProps = {
   onOpenDocument: (document: MarkdownDocument) => void
 }
 
-const NOTE_GRAPH_SEARCH: MarkdownWorkspaceSearch<MarkdownNoteGraph> = {
-  options: (_documents, rootPath) => markdownNoteGraphSearchOptions(rootPath),
-  interpret: buildMarkdownNoteGraph,
-  empty: { nodes: [], edges: [], omittedNodes: 0 }
+function noteGraphSearch(activeFilePath: string): MarkdownWorkspaceSearch<MarkdownNoteGraph> {
+  return {
+    options: (_documents, rootPath) => markdownNoteGraphSearchOptions(rootPath),
+    interpret: (documents, result) => {
+      const active = documents.find((document) => document.filePath === activeFilePath)
+      return buildMarkdownNoteGraph(
+        documents,
+        result,
+        MARKDOWN_NOTE_GRAPH_MAX_NODES,
+        active ? markdownDocumentKey(active) : null
+      )
+    },
+    empty: { nodes: [], edges: [], omittedNodes: 0 }
+  }
 }
 
 export function MarkdownNoteGraphDialog({
@@ -73,7 +84,8 @@ function MarkdownNoteGraphView({
   markdownDocuments,
   onOpenDocument
 }: Omit<MarkdownNoteGraphDialogProps, 'open' | 'onOpenChange'>): JSX.Element {
-  const { state } = useMarkdownWorkspaceSearch(activeFile, markdownDocuments, NOTE_GRAPH_SEARCH)
+  const search = useMemo(() => noteGraphSearch(activeFile.filePath), [activeFile.filePath])
+  const { state } = useMarkdownWorkspaceSearch(activeFile, markdownDocuments, search)
   const graph = state.status === 'ready' ? state.value : null
   const positions = useMemo(() => (graph ? layoutMarkdownNoteGraph(graph) : null), [graph])
   const fitted = useMemo(
