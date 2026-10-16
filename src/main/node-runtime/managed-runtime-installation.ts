@@ -3,35 +3,22 @@
 // time. Publishing the release by rename is the commit point; a cancel after it changes nothing.
 
 import { randomUUID } from 'node:crypto'
-import { existsSync } from 'node:fs'
-import { chmod, mkdir, rename, rm, statfs } from 'node:fs/promises'
-import { basename, join } from 'node:path'
 import type {
   ManagedRuntimeInstallState,
   ManagedRuntimeOperation
 } from '../../shared/managed-runtime-install'
-import { getMainHttpClient, type MainHttpClient } from '../network/http-client'
+import type { MainHttpClient } from '../network/http-client'
 import { RevisionedState } from '../runtime/revisioned-state'
 import {
   reclaimRuntimeReleases,
   resolveInstalledRuntimeRelease,
-  RUNTIME_RELEASE_RECEIPT,
-  writeRuntimeReleaseReceipt,
   type ManagedRuntime,
   type ManagedRuntimePin
 } from './managed-runtime-release'
-import { verifyFileSha256 } from './pinned-runtime-materializer'
-import { extractPinnedZipMembers } from './pinned-zip-members'
-import {
-  downloadFailureMessage,
-  downloadVerifiedArchive,
-  RUNTIME_ARCHIVE_RETRY_DELAYS_MS
-} from './runtime-archive-download'
+import { installFailureText, installRuntimeRelease } from './managed-runtime-release-install'
 
 const STATUS_WAIT_MS = 25_000
 const DEADLINE_MS = 45 * 60_000
-const FREE_SPACE_MARGIN_BYTES = 256 * 1024 * 1024
-const PROGRESS_INTERVAL_MS = 250
 
 export type ManagedRuntimeInstallationDeps = {
   dataDirectory: string
@@ -149,7 +136,18 @@ export class ManagedRuntimeInstallation {
   private async runInstall(pin: ManagedRuntimePin, run: Run): Promise<void> {
     const deadline = AbortSignal.timeout(DEADLINE_MS)
     try {
-      await this.installRelease(pin, run, AbortSignal.any([run.controller.signal, deadline]))
+      await installRuntimeRelease({
+        agent: this.agent,
+        runtime: this.runtime,
+        root: this.root,
+        pin,
+        fetcher: this.deps.fetcher,
+        signal: AbortSignal.any([run.controller.signal, deadline]),
+        publish: (patch) => this.publish(run, patch),
+        commit: () => {
+          run.committed = true
+        }
+      })
       this.publish(run, { phase: 'succeeded' })
     } catch (error) {
       if (run.committed) {
@@ -160,115 +158,12 @@ export class ManagedRuntimeInstallation {
       } else {
         this.publish(run, {
           phase: 'failed',
-          error: failureText(this.runtime.label, error, deadline)
+          error: installFailureText(this.runtime.label, error, deadline)
         })
       }
     } finally {
       this.running = this.running === run ? null : this.running
     }
-  }
-
-  private async installRelease(
-    pin: ManagedRuntimePin,
-    run: Run,
-    signal: AbortSignal
-  ): Promise<void> {
-    const { label } = this.runtime
-    const folder = join(this.root, pin.version)
-    await mkdir(this.root, { recursive: true })
-    if (existsSync(folder)) {
-      this.publish(run, { phase: 'verifying' })
-      const whole = await verifyMembers(folder, pin, label, signal).then(
-        () => true,
-        (error: unknown) => {
-          signal.throwIfAborted()
-          console.warn(`[managed-runtime] ${this.agent} copy is damaged; repairing:`, error)
-          return false
-        }
-      )
-      if (whole) {
-        await this.validate(folder, pin, signal)
-        signal.throwIfAborted()
-        if (!resolveInstalledRuntimeRelease(this.root, pin).release?.current) {
-          // Whole members without a valid receipt read as damaged; rewriting it ends that loop.
-          await rm(join(folder, RUNTIME_RELEASE_RECEIPT), { force: true })
-          await writeRuntimeReleaseReceipt(folder, pin)
-        }
-        run.committed = true
-        return
-      }
-      this.publish(run, { phase: 'downloading' })
-    }
-    // Bookkeeping only: a host that can't report free space still installs.
-    const space = await statfs(this.root).catch((error: unknown) => {
-      console.warn(`[managed-runtime] ${this.agent} free space unknown; not checked:`, error)
-    })
-    const needed = pin.members.reduce((sum, m) => sum + m.bytes, pin.archiveBytes)
-    if (space && space.bavail * space.bsize < needed + FREE_SPACE_MARGIN_BYTES) {
-      const megabytes = Math.ceil((needed + FREE_SPACE_MARGIN_BYTES) / 1024 ** 2)
-      throw new Error(`${label} needs ${megabytes} MB of free disk space to install.`)
-    }
-    const staging = join(this.root, `.download-${process.pid}-${randomUUID()}`)
-    const release = join(staging, 'release')
-    try {
-      await mkdir(release, { recursive: true })
-      const archive = join(staging, basename(new URL(pin.url).pathname))
-      let shownAt = 0
-      await downloadVerifiedArchive(
-        {
-          label,
-          url: pin.url,
-          archiveSha256: pin.archiveSha256,
-          maxArchiveBytes: pin.archiveBytes
-        },
-        archive,
-        this.deps.fetcher ?? getMainHttpClient().fetch,
-        signal,
-        RUNTIME_ARCHIVE_RETRY_DELAYS_MS,
-        (bytes) => {
-          if (Date.now() - shownAt >= PROGRESS_INTERVAL_MS) {
-            shownAt = Date.now()
-            this.publish(run, { downloadedBytes: bytes })
-          }
-        }
-      ).catch((error: unknown) => {
-        if (signal.aborted) {
-          throw error
-        }
-        console.warn(`[managed-runtime] ${this.agent} download failed:`, error)
-        throw new Error(downloadFailureMessage(label, error), { cause: error })
-      })
-      this.publish(run, { phase: 'extracting', downloadedBytes: pin.archiveBytes })
-      await extractPinnedZipMembers(archive, release, pin.members, label, signal)
-      this.publish(run, { phase: 'verifying' })
-      await verifyMembers(release, pin, label, signal)
-      await this.validate(release, pin, signal)
-      await writeRuntimeReleaseReceipt(release, pin)
-      signal.throwIfAborted()
-      // A damaged copy moves into staging, which is deleted below or reclaimed on the next start.
-      if (existsSync(folder)) {
-        await rename(folder, join(staging, 'damaged'))
-      }
-      await rename(release, folder)
-      run.committed = true
-    } finally {
-      await rm(staging, { recursive: true, force: true })
-    }
-  }
-
-  private async validate(
-    folder: string,
-    pin: ManagedRuntimePin,
-    signal: AbortSignal
-  ): Promise<void> {
-    await this.runtime.validate?.(folder, pin, signal).catch((error: unknown) => {
-      signal.throwIfAborted()
-      console.warn(`[managed-runtime] ${this.agent} did not start from ${folder}:`, error)
-      throw new Error(
-        `${this.runtime.label} couldn't start on this host, so it wasn't installed. This host may not support it.`,
-        { cause: error }
-      )
-    })
   }
 
   private async reclaim(): Promise<void> {
@@ -283,35 +178,6 @@ export class ManagedRuntimeInstallation {
     )
     if (failed.length > 0) {
       console.warn(`[managed-runtime] old ${this.agent} releases not removed:`, failed)
-    }
-  }
-}
-
-function failureText(label: string, error: unknown, deadline: AbortSignal): string {
-  const message = error instanceof Error ? error.message : String(error)
-  if (deadline.aborted) {
-    return `Installing ${label} took longer than 45 minutes. Try again.`
-  }
-  return isChecksumMismatch(error)
-    ? `The ${label} download did not match its pinned checksum, so nothing was installed.`
-    : message
-}
-
-function isChecksumMismatch(error: unknown): boolean {
-  return error instanceof Error && /checksum mismatch/.test(error.message)
-}
-
-async function verifyMembers(
-  root: string,
-  pin: ManagedRuntimePin,
-  label: string,
-  signal: AbortSignal
-): Promise<void> {
-  for (const member of pin.members) {
-    const path = join(root, ...member.path.split('/'))
-    await verifyFileSha256(path, member.sha256, `${label} ${member.path}`, signal)
-    if (process.platform !== 'win32') {
-      await chmod(path, 0o755)
     }
   }
 }
