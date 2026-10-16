@@ -140,9 +140,9 @@ export function findClaudeSessionsOnOtherLogin(
 }
 
 /**
- * Whether Claude is what runs in the pane, the test Codex's restart prompt uses: Claude by name, or
- * an agent wrapper such as node in a tab that launched Claude (an npm install runs it under node).
- * tmux, the shell or another program means a restart would cut off something else.
+ * Whether Claude is what runs in the pane, much as Codex's restart prompt tests it: Claude by name,
+ * or an agent wrapper such as node in a tab that launched Claude (an npm install runs it under node).
+ * tmux, the shell, another agent or another program means a restart would cut off something else.
  */
 export function isClaudeRunningInPane(
   inspection: Pick<
@@ -161,10 +161,11 @@ export function isClaudeRunningInPane(
   if (launchAgent !== 'claude' || foregroundProcess === null || !hasChildProcesses) {
     return false
   }
+  // Why not another agent: restarting a Codex someone started here as Claude would end it.
   return (
     !isShellProcess(foregroundProcess) &&
-    (recognizeAgentProcess(foregroundProcess) !== null ||
-      isAgentForegroundWrapperProcess(foregroundProcess))
+    recognizeAgentProcess(foregroundProcess) === null &&
+    isAgentForegroundWrapperProcess(foregroundProcess)
   )
 }
 

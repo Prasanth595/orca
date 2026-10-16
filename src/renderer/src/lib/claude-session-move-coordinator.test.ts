@@ -494,6 +494,16 @@ describe('Claude session moves', () => {
     expect(restartPaneForAccountMove).toHaveBeenCalledOnce()
   })
 
+  it('leaves the pane when the fresh read finds another agent there', async () => {
+    foreground.process = 'zsh'
+    confirm.mockResolvedValueOnce('codex')
+    seed({})
+
+    await moveClaudeSessionsToSelectedAccount()
+
+    expect(restartPaneForAccountMove).not.toHaveBeenCalled()
+  })
+
   it('leaves the pane once a fresh read confirms the shell', async () => {
     foreground.process = 'zsh'
     confirm.mockResolvedValueOnce('zsh')

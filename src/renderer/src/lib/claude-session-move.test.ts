@@ -268,6 +268,10 @@ describe('isClaudeRunningInPane', () => {
     expect(isClaudeRunningInPane(inspection('node'), undefined)).toBe(false)
   })
 
+  it('leaves another agent alone, even in a tab that launched Claude', () => {
+    expect(isClaudeRunningInPane(inspection('codex'), 'claude')).toBe(false)
+  })
+
   it('leaves tmux, the shell, or another program alone', () => {
     for (const name of ['tmux', 'zsh', 'vim']) {
       expect(isClaudeRunningInPane(inspection(name), 'claude')).toBe(false)
