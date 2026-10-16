@@ -3,6 +3,7 @@ import { buildMobileTerminalChatFork } from './mobile-terminal-chat-fork'
 import { prepareStructuredChatCliFork } from '../../../ai-vault/structured-chat-cli-fork'
 import { OrchestrationError } from '../../orchestration/orchestration-error'
 import { PROJECT_RUNTIME_REPAIR_REQUIRED_CODE } from '../../../../shared/project-runtime-repair-message'
+import '../../orca-runtime-test-lifecycle.spec'
 vi.mock('../../../ai-vault/structured-chat-cli-fork', () => ({
   prepareStructuredChatCliFork: vi.fn(),
   isStructuredChatCliForkSourceCurrent: vi.fn(() => true)
@@ -58,7 +59,6 @@ describe('native chat fork launch recipe', () => {
 
 it('places one owned PTY and refuses an unsaved chat before another spawn', async () => {
   const { OrcaRuntimeService } = await import('../../orca-runtime-test-mocks.spec')
-  await import('../../orca-runtime-test-lifecycle.spec')
   const { store, TEST_WORKTREE_ID } = await import('../../orca-runtime-test-fixtures.spec')
   const { resolveMobileChatForkTargetGroup } = await import('./mobile-terminal-chat-fork-create')
   const spawn = vi.fn(async (_options: unknown) => ({ id: 'pty-fork' }))
