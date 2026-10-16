@@ -28,12 +28,18 @@ const TEMPLATE_SOURCE = process.env.ORCA_E2E_ORCAD_CONVERT_TEMPLATE
 const LOGIN_HOME_SLOTS = '/root/.orca-remote/orcad-*/.orcad-pid'
 const MACHINE_HOME_SLOTS = '/root/.orca-remote/hosts/*/.orca-remote/orcad-*/.orcad-pid'
 
-/** PIDs recorded under `pattern` that are running in this container. */
+/**
+ * PIDs recorded under `pattern` whose process runs that slot's orcad in this container. A PID
+ * number alone is no identity across PID namespaces: the number another machine recorded can
+ * belong to an unrelated process here (both containers start from one image, so low PIDs often
+ * coincide), so the command line must name the slot directory the PID file sits in.
+ */
 function runningPids(target: DockerSshHostTarget, pattern: string): string[] {
   return execDockerSshHostTargetCommand(
     target,
-    `for f in ${pattern}; do pid=$(cat "$f" 2>/dev/null) && ` +
-      'kill -0 "$pid" 2>/dev/null && echo "$pid"; done; true'
+    `for f in ${pattern}; do pid=$(cat "$f" 2>/dev/null) && kill -0 "$pid" 2>/dev/null && ` +
+      'case "$(tr "\\0" " " < "/proc/$pid/cmdline" 2>/dev/null)" in ' +
+      '*"$(dirname "$f")/"*) echo "$pid";; esac; done; true'
   )
     .split('\n')
     .map((line) => line.trim())
