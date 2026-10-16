@@ -114,7 +114,7 @@ function imageRefBlock(record: Record<string, unknown>): NativeChatImageRefBlock
   return {
     type: 'image-ref',
     ...(path ? { path } : {}),
-    ...(url ? { url } : {}),
+    ...(!path && url ? { url } : {}),
     ...(alt ? { alt } : {})
   }
 }

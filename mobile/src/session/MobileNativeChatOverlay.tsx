@@ -92,7 +92,11 @@ export function MobileNativeChatOverlay({
   return (
     <View style={styles.overlay}>
       <MobileNativeChatAttachmentContext.Provider
-        value={controller.nativeChatVisualSource?.client ?? null}
+        value={
+          controller.nativeChatVisualSource?.attachmentsSupported === true
+            ? controller.nativeChatVisualSource.client
+            : null
+        }
       >
         <MobileNativeChatVisualContext.Provider value={visuals}>
           <MobileNativeChatView

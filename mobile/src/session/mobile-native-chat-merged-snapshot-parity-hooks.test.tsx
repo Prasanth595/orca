@@ -86,6 +86,7 @@ const OVERLAY_IMAGES = {
 } as unknown as Parameters<typeof MobileNativeChatOverlay>[0]['images']
 
 const HOST_SUPPORT = {
+  attachments: false,
   promptCancel: true,
   questionAnswers: true,
   queuedMessages: true,
