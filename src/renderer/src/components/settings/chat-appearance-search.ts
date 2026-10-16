@@ -1,3 +1,4 @@
+import { NATIVE_CHAT_FONT_WEIGHTS } from '../../../../shared/native-chat-appearance-settings'
 import { translate } from '@/i18n/i18n'
 import { createLocalizedCatalog } from '@/i18n/localized-catalog'
 import type { SettingsSearchEntry } from './settings-search'
@@ -58,7 +59,10 @@ const getChatAppearanceCatalog = createLocalizedCatalog(
           'settings.appearance.chat.textWeightDescription',
           'Message text only. Bold text stays heavier at every step.'
         ),
-        keywords: [translate('settings.appearance.chat.title', 'Chat')]
+        keywords: [
+          translate('settings.appearance.chat.title', 'Chat'),
+          ...NATIVE_CHAT_FONT_WEIGHTS.map(getChatTextWeightLabel)
+        ]
       },
       codeTextSize: {
         targetSectionId: 'chat-code-text-size',
