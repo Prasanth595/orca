@@ -1,14 +1,31 @@
-import { execFile } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, rm, unlink, utimes, writeFile } from 'node:fs/promises'
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  unlink,
+  utimes,
+  writeFile
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { promisify } from 'node:util'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   isUnsupportedMergeTreeMergeBaseError,
   isUnsupportedMergeTreeWriteTreeError
 } from './git-merge-tree-capability'
 import { isBranchCheckedOutInWorktreeError } from './git-branch-delete-refusal'
+import {
+  branchHasNoUnmergedChangesOnAnyTarget,
+  type GitBranchCleanupExec
+} from './git-branch-cleanup'
+import { GitCapabilityCache } from './git-capability-cache'
+import {
+  createGitObjectQuarantine,
+  GIT_OBJECT_QUARANTINE_DIR_PREFIX
+} from './git-object-quarantine'
 import { isForEachRefExcludeUnsupportedError } from './git-ref-command-capabilities'
 import { isNoWriteFetchHeadUnsupportedError } from './git-fetch-head-capability'
 import {
@@ -20,6 +37,7 @@ import { gitCredentialPromptGuardEnv } from './git-credential-prompt-env'
 import { buildGitGrepArgs } from './text-search'
 import { parseGitRemoteFetchUrls } from './git-remote-url-index'
 import { GIT_HISTORY_COMMIT_FORMAT, parseGitHistoryLog } from './git-history-log-parser'
+import { createGitProgressRecordReader, type GitProgressRecord } from './git-progress-records'
 import {
   githubPullRequestHeadLocalRef,
   gitlabMergeRequestHeadLocalRef,
@@ -29,11 +47,10 @@ import { parseWorktreeList } from './git-worktree-porcelain-parser'
 import { fastForwardLocalBaseBranch } from './worktree/local-base-branch-fast-forward'
 import { gitChangeListArgs, parseGitChangeList } from './git-change-list'
 import { encodeGitPathspecs } from './git-pathspec-stdin'
-import { endSubprocessStdin } from './subprocess-stdin-write'
+import { GitBinaryTestFixture } from './git-binary.test-fixture'
 import { registerGitRepositoryRegistrationBinaryCompatibilityCase } from './git-repository-registration-binary-compatibility.test-cases'
 import { registerGitResolutionBinaryCompatibilityCases } from './git-resolution-binary-compatibility.test-cases'
 
-const execFileAsync = promisify(execFile)
 const image = process.env.ORCA_GIT_COMPAT_IMAGE
 const binary = process.env.ORCA_GIT_COMPAT_BINARY
 const expectedVersion = process.env.ORCA_GIT_COMPAT_VERSION
@@ -43,6 +60,7 @@ type GitResult = { stdout: string; stderr: string }
 
 describeBinaryCompatibility('real Git binary compatibility', () => {
   let repoPath = ''
+  let fixture: GitBinaryTestFixture
   let version = { major: 0, minor: 0 }
 
   async function runGit(
@@ -50,53 +68,7 @@ describeBinaryCompatibility('real Git binary compatibility', () => {
     env?: NodeJS.ProcessEnv,
     stdin?: string
   ): Promise<GitResult> {
-    if (image) {
-      const dockerUser =
-        typeof process.getuid === 'function' && typeof process.getgid === 'function'
-          ? ['--user', `${process.getuid()}:${process.getgid()}`]
-          : []
-      const pending = execFileAsync(
-        'docker',
-        [
-          'run',
-          '--rm',
-          ...(stdin === undefined ? [] : ['-i']),
-          '--network=none',
-          ...dockerUser,
-          ...Object.entries(env ?? {}).flatMap(([key, value]) =>
-            value === undefined ? [] : ['--env', `${key}=${value}`]
-          ),
-          '-v',
-          `${repoPath}:/repo`,
-          '-w',
-          '/repo',
-          image,
-          '-c',
-          'safe.directory=/repo',
-          ...args
-        ],
-        { maxBuffer: 2 * 1024 * 1024 }
-      )
-      if (stdin !== undefined) {
-        endSubprocessStdin(pending.child.stdin, stdin)
-      }
-      return pending
-    }
-    const pending = execFileAsync(binary!, args, {
-      cwd: repoPath,
-      env: {
-        ...process.env,
-        HOME: repoPath,
-        XDG_CONFIG_HOME: repoPath,
-        GIT_CONFIG_NOSYSTEM: '1',
-        ...env
-      },
-      maxBuffer: 2 * 1024 * 1024
-    })
-    if (stdin !== undefined) {
-      endSubprocessStdin(pending.child.stdin, stdin)
-    }
-    return pending
+    return fixture.exec(args, fixture.executionRoot, env, stdin)
   }
 
   function supports(major: number, minor: number): boolean {
@@ -118,7 +90,9 @@ describeBinaryCompatibility('real Git binary compatibility', () => {
   }
 
   beforeAll(async () => {
-    repoPath = await mkdtemp(join(tmpdir(), 'orca-git-binary-compat-'))
+    repoPath = await realpath(await mkdtemp(join(tmpdir(), 'orca-git-binary-compat-')))
+    fixture = new GitBinaryTestFixture(repoPath, '/repo')
+    await fixture.start()
     const versionOutput = await runGit(['--version'])
     expect(versionOutput.stdout).toContain(`git version ${expectedVersion}`)
     const match = versionOutput.stdout.match(/git version (\d+)\.(\d+)/)
@@ -135,7 +109,11 @@ describeBinaryCompatibility('real Git binary compatibility', () => {
 
   afterAll(async () => {
     if (repoPath) {
-      await rm(repoPath, { recursive: true, force: true })
+      try {
+        await fixture.stop()
+      } finally {
+        await rm(repoPath, { recursive: true, force: true })
+      }
     }
   })
 
@@ -374,6 +352,54 @@ describeBinaryCompatibility('real Git binary compatibility', () => {
     }
   })
 
+  // Why pin this: the create card reads the checkout meter `worktree add` writes into a pipe
+  // unasked (it has no --progress flag), so the record format is a contract with every Git.
+  it('writes checkout progress records into a pipe during worktree add', async () => {
+    const fileCount = 120
+    const source = join(repoPath, 'progress-source')
+    await mkdir(source)
+    try {
+      await Promise.all(
+        Array.from({ length: fileCount }, (_, index) =>
+          writeFile(join(source, `file-${index}.txt`), `${index}\n`)
+        )
+      )
+      await runGit(['-C', 'progress-source', 'init', '-q'])
+      await runGit(['-C', 'progress-source', 'add', '.'])
+      await runGit([
+        '-C',
+        'progress-source',
+        '-c',
+        'user.name=Compatibility Test',
+        '-c',
+        'user.email=compatibility@example.invalid',
+        'commit',
+        '-qm',
+        'files'
+      ])
+      // Why the env: git otherwise waits ~1 s before its first record, longer than this checkout.
+      const { stderr } = await runGit(
+        ['-C', 'progress-source', 'worktree', 'add', '-b', 'compat-progress', '../progress-wt'],
+        { GIT_PROGRESS_DELAY: '0' }
+      )
+      const records: GitProgressRecord[] = []
+      createGitProgressRecordReader('Updating files', (record) => records.push(record))(stderr)
+
+      expect(records.length).toBeGreaterThan(1)
+      expect(records.at(-1)).toEqual({
+        percent: 100,
+        completed: fileCount,
+        total: fileCount,
+        done: true
+      })
+      const completed = records.map((record) => record.completed)
+      expect(completed).toEqual([...completed].sort((left, right) => left - right))
+    } finally {
+      await rm(source, { recursive: true, force: true })
+      await rm(join(repoPath, 'progress-wt'), { recursive: true, force: true })
+    }
+  })
+
   it('removes locked prepared worktrees without a separate unlock', async () => {
     await runGit(['worktree', 'add', '--detach', '--no-checkout', 'compat-discard', 'HEAD'])
     await runGit(['-C', 'compat-discard', 'reset', '--hard', 'HEAD'])
@@ -588,6 +614,42 @@ describeBinaryCompatibility('real Git binary compatibility', () => {
         isUnsupportedMergeTreeMergeBaseError
       )
       await expect(runGit([...legacyArgs, head, head])).resolves.toBeDefined()
+    }
+  })
+
+  // Why pin this: a scratch folder made around a Git that rejects --write-tree can outlive a crash,
+  // and Git before 2.35 never prunes it; only a Git known to write trees gets one.
+  it('makes a merge-tree scratch object store only once this Git is known to write trees', async () => {
+    const branch = 'compat-cleanup-merged'
+    await runGit(['branch', branch, 'HEAD'])
+    const objectsPath = join(repoPath, '.git', 'objects')
+    const quarantine = createGitObjectQuarantine(async () => ({
+      hostPath: objectsPath,
+      gitPath: image ? '/repo/.git/objects' : objectsPath
+    }))
+    let scratchFolders = 0
+    const runCleanupGit: GitBranchCleanupExec = (args, options) =>
+      options?.discardWrittenObjects
+        ? quarantine.run((env) => {
+            scratchFolders += env ? 1 : 0
+            return runGit(args, env)
+          })
+        : runGit(args)
+    const capabilities = new GitCapabilityCache()
+    const check = () =>
+      branchHasNoUnmergedChangesOnAnyTarget(runCleanupGit, branch, ['HEAD'], capabilities)
+
+    try {
+      await expect(check()).resolves.toBe(supports(2, 38))
+      await expect(check()).resolves.toBe(supports(2, 38))
+      expect(scratchFolders).toBe(supports(2, 38) ? 1 : 0)
+      expect(
+        (await readdir(objectsPath)).filter((entry) =>
+          entry.startsWith(GIT_OBJECT_QUARANTINE_DIR_PREFIX)
+        )
+      ).toEqual([])
+    } finally {
+      await runGit(['branch', '-D', branch])
     }
   })
 
