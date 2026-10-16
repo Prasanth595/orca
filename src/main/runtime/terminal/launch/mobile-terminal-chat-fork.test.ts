@@ -69,7 +69,9 @@ it.each([true, false])('forks a source-selected chat with saved placement availa
     { open: { sessionId: source, agent: 'claude', tabId: canonical } }
   ]) ?? initial
   const group = session.tabGroups?.[wt]?.[0]
-  if (!group) throw new Error('Missing saved group')
+  if (!group) {
+    throw new Error('Missing saved group')
+  }
   group.tabOrder = [canonical, 'host-tab']
   const fixture = makeRuntimeStoreWithWorkspaceSession(saved ? session : initial)
   const admit = vi.spyOn(fixture.runtimeStore, 'admitTerminalPane')
@@ -84,7 +86,9 @@ it.each([true, false])('forks a source-selected chat with saved placement availa
   service.syncWindowGraph(1, { tabs: [], leaves: [] })
   const { createMobileCreateTestNotifier } = await import('../../orca-runtime-test-scenario-builders.spec')
   const reveal = vi.fn<NonNullable<RuntimeNotifier['revealTerminalSession']>>((_worktree, opts) => {
-    if (!opts.tabId || !opts.leafId) throw new Error('Missing revealed pane')
+    if (!opts.tabId || !opts.leafId) {
+      throw new Error('Missing revealed pane')
+    }
     return { tabId: opts.tabId, identity: {
       worktreeId: wt, tabId: opts.tabId, leafId: opts.leafId, ptyId: opts.ptyId
     } }
