@@ -1,5 +1,6 @@
 import type { Repo } from '../../../../shared/repo-types'
-import type { TerminalTab } from '../../../../shared/terminal-tab-types'
+import type { TerminalLayoutSnapshot, TerminalTab } from '../../../../shared/terminal-tab-types'
+import type { FilterAgentIds } from '../../../../shared/workspace-agent-filter'
 import type { WorktreeLineage } from '../../../../shared/worktree/lineage-types'
 import type { Worktree } from '../../../../shared/worktree/types'
 import type { ExecutionHostId, ExecutionHostScope } from '../../../../shared/execution-host'
@@ -13,6 +14,7 @@ import {
   getCyclicProjectedWorktreeLineageIds,
   getLineageRenderInfo
 } from './worktree-lineage-projection'
+import { filterWorktreesBySelectedAgents } from './workspace-agent-filter-evidence'
 
 // Why its own module: the sidebar filter pipeline is a pure function of its options, and keeping
 // it free of the store lets the store's own attention slice ask it without an import cycle.
@@ -32,6 +34,10 @@ export type VisibleWorktreeOptions = {
   hideWorkspacesFromOtherDevices: boolean
   pairedDeviceIdsByEnvironment: ReadonlyMap<string, string>
   alwaysShowDefaultBranchWorkspace?: boolean
+  filterAgentIds?: FilterAgentIds
+  agentTypesByWorktree?: Record<string, readonly (string | null | undefined)[]> | null
+  runtimePaneTitlesByTabId?: Record<string, Record<number, string>> | null
+  terminalLayoutsByTabId?: Record<string, TerminalLayoutSnapshot | undefined> | null
   repoMap: Map<string, Repo>
   workspaceHostScope: ExecutionHostScope
   visibleWorkspaceHostIds?: readonly ExecutionHostId[] | null
@@ -50,6 +56,16 @@ export function computeVisibleWorktrees(
   opts: VisibleWorktreeOptions
 ): Worktree[] {
   let all: Worktree[] = getIndexedAllWorktrees(worktreesByRepo)
+  // Why before the shared filters: host twins must still be in the list so agent
+  // evidence stays on the host that published it.
+  if (opts.filterAgentIds) {
+    all = filterWorktreesBySelectedAgents(all, opts.filterAgentIds, {
+      tabsByWorktree: opts.tabsByWorktree,
+      agentTypesByWorktree: opts.agentTypesByWorktree,
+      runtimePaneTitlesByTabId: opts.runtimePaneTitlesByTabId,
+      terminalLayoutsByTabId: opts.terminalLayoutsByTabId
+    })
+  }
 
   // Why: sidebar lineage is structural. Archived workspaces stay hidden, but
   // every other valid ancestor can bypass filters so children never orphan.
