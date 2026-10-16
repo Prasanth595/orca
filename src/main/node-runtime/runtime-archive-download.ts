@@ -117,7 +117,12 @@ async function downloadVerifiedArchiveOnce(
   })
   const stallTimer = setTimeout(() => stall.abort(stalled), 120_000)
   try {
-    const response = await fetcher(url, { redirect: 'follow', signal: downloadSignal })
+    // no-store: the verified file is the only copy, so Remove frees the space and a retry refetches.
+    const response = await fetcher(url, {
+      redirect: 'follow',
+      cache: 'no-store',
+      signal: downloadSignal
+    })
     if (!response.ok || !response.body) {
       await response.body?.cancel().catch(() => undefined)
       const text = `${label} download failed: ${response.status} ${response.statusText}`
