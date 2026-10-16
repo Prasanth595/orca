@@ -109,20 +109,23 @@ function renderPhrasing(
         </MarkdownText>
       )
     }
-    case 'inlineCode':
+    case 'inlineCode': {
+      const size = (inlineFontSize(outer) ?? 13) * 0.9
       return ctx.onOpenFile && isFilePathCodeSpan(node.value) ? (
         <MarkdownText
           key={key}
-          style={[outer, styles.inlineCode, styles.inlineCodeLink]}
+          inlineCode
+          style={[outer, styles.inlineCode, styles.inlineCodeLink, { fontSize: size }]}
           onPress={() => ctx.onOpenFile?.(normalizeFilePath(node.value.trim()))}
         >
           {node.value}
         </MarkdownText>
       ) : (
-        <MarkdownText key={key} style={[outer, styles.inlineCode]}>
+        <MarkdownText key={key} inlineCode style={[outer, styles.inlineCode, { fontSize: size }]}>
           {node.value}
         </MarkdownText>
       )
+    }
     case 'link':
       return renderLink(key, plainText(node), node.url, ctx, outer)
     case 'image':
@@ -151,4 +154,23 @@ export function renderInline(
   keyPrefix = ''
 ): ReactNode[] {
   return nodes.map((node, index) => renderPhrasing(node, `${keyPrefix}${index}`, ctx, outer))
+}
+
+function inlineFontSize(style: unknown): number | undefined {
+  if (Array.isArray(style)) {
+    for (const entry of style.toReversed()) {
+      const size = inlineFontSize(entry)
+      if (size !== undefined) {
+        return size
+      }
+    }
+  } else if (
+    style &&
+    typeof style === 'object' &&
+    'fontSize' in style &&
+    typeof style.fontSize === 'number'
+  ) {
+    return style.fontSize
+  }
+  return undefined
 }

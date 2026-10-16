@@ -1,8 +1,8 @@
 import { createElement, useContext } from 'react'
-import type { TextProps } from 'react-native'
+import type { MarkdownTextProps } from './mobile-markdown-inline-code-ranges'
 import { MarkdownTextContext } from './mobile-markdown-text-setup'
 
-export function MarkdownText(props: TextProps): React.JSX.Element {
+export function MarkdownText(props: MarkdownTextProps): React.JSX.Element {
   const { TextComponent, androidTranscript, onLongPress } = useContext(MarkdownTextContext)
   if (!androidTranscript) {
     return createElement(TextComponent, props)

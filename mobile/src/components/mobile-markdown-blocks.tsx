@@ -1,16 +1,10 @@
-import type { Code, List, RootContent, Table } from 'mdast'
+import { MobileMarkdownTable } from './MobileMarkdownTable'
+import { MobileMarkdownCodeBlock } from './MobileMarkdownCodeBlock'
+import type { Code, List, RootContent } from 'mdast'
 import { Fragment, type ReactNode } from 'react'
-import {
-  Pressable,
-  ScrollView,
-  Text as NativeText,
-  View,
-  type StyleProp,
-  type TextStyle
-} from 'react-native'
+import { Pressable, Text as NativeText, View, type StyleProp, type TextStyle } from 'react-native'
 import type { NativeChatVisualDirective } from '../../../src/shared/native-chat-visual-directive'
 import { isMobileMermaidLanguage } from './mobile-mermaid-language'
-import { mobileMarkdownTableColumnWidths } from './mobile-markdown-table-columns'
 import { mobileMarkdownVisualPlaceholderIndex } from './mobile-markdown-visual-lines'
 import {
   openMarkdownHref,
@@ -31,6 +25,8 @@ const MAX_NESTING = 8
 export type MarkdownBlockContext = MarkdownInlineContext & {
   /** The text is still arriving: a diagram stays code until it stops. */
   growing: boolean
+  codeSelectable: boolean
+  textScale: number
   listText: StyleProp<TextStyle>
   /** Interactive children own their touches and must forward the row action. */
   rowLongPress?: () => void
@@ -54,12 +50,14 @@ function renderCode(node: Code, key: number, ctx: MarkdownBlockContext): ReactNo
     )
   }
   return (
-    <View key={key} style={styles.codeBlock}>
-      {node.lang ? <NativeText style={styles.codeLanguage}>{node.lang}</NativeText> : null}
-      <MarkdownText selectable style={styles.codeText}>
-        {node.value}
-      </MarkdownText>
-    </View>
+    <MobileMarkdownCodeBlock
+      key={key}
+      code={node.value}
+      selectable={ctx.codeSelectable}
+      language={node.lang ?? undefined}
+      fontSize={12 * ctx.textScale}
+      lineHeight={17 * ctx.textScale}
+    />
   )
 }
 
@@ -69,14 +67,19 @@ function renderList(node: List, key: number, ctx: MarkdownBlockContext, depth: n
     <View key={key} style={styles.list}>
       {node.children.map((item, itemIndex) => (
         <View key={itemIndex} style={styles.listItem}>
-          <NativeText style={styles.listMarker}>
+          <NativeText
+            style={[
+              styles.listMarker,
+              { fontSize: 13 * ctx.textScale, lineHeight: 19 * ctx.textScale }
+            ]}
+          >
             {item.checked == null
               ? node.ordered
                 ? `${(node.start ?? 1) + itemIndex}.`
-                : '-'
+                : '•'
               : item.checked
-                ? '[x]'
-                : '[ ]'}
+                ? '☑'
+                : '☐'}
           </NativeText>
           <View style={styles.listItemBody}>
             {renderBlocks(item.children, ctx, itemText, depth + 1)}
@@ -84,37 +87,6 @@ function renderList(node: List, key: number, ctx: MarkdownBlockContext, depth: n
         </View>
       ))}
     </View>
-  )
-}
-
-function renderTable(node: Table, key: number, ctx: MarkdownBlockContext): ReactNode {
-  const rows = node.children.map((row) => row.children)
-  // Rows lay out independently, so a shared width per column is what lines them up.
-  const columnWidths = mobileMarkdownTableColumnWidths(
-    rows.map((cells) => cells.map((cell) => plainText(cell)))
-  )
-  return (
-    <ScrollView key={key} horizontal showsHorizontalScrollIndicator={false}>
-      <View style={styles.table}>
-        {rows.map((cells, rowIndex) => (
-          <View key={rowIndex} style={styles.tableRow}>
-            {columnWidths.map((width, cellIndex) => (
-              <MarkdownText
-                key={cellIndex}
-                selectable
-                style={[
-                  styles.tableCell,
-                  rowIndex === 0 ? styles.tableHeader : null,
-                  { width, textAlign: node.align?.[cellIndex] ?? 'left' }
-                ]}
-              >
-                {renderInline(cells[cellIndex]?.children ?? [], ctx)}
-              </MarkdownText>
-            ))}
-          </View>
-        ))}
-      </View>
-    </ScrollView>
   )
 }
 
@@ -164,27 +136,37 @@ function renderBlock(
       }
       return (
         <MarkdownText key={key} selectable={text.selectable} style={text.style}>
-          {renderInline(node.children, ctx)}
+          {renderInline(node.children, ctx, text.style)}
         </MarkdownText>
       )
     }
-    case 'heading':
+    case 'heading': {
+      const headingText = [
+        styles.heading,
+        {
+          fontSize: (node.depth <= 2 ? 17 : 15) * ctx.textScale,
+          lineHeight: (node.depth <= 2 ? 23 : 21) * ctx.textScale
+        }
+      ]
       return (
-        <MarkdownText
-          key={key}
-          selectable
-          style={[styles.heading, node.depth <= 2 ? styles.headingLarge : null]}
-        >
-          {renderInline(node.children, ctx)}
+        <MarkdownText key={key} selectable style={headingText}>
+          {renderInline(node.children, ctx, headingText)}
         </MarkdownText>
       )
+    }
     case 'blockquote':
       return (
         <View key={key} style={styles.quote}>
           {renderBlocks(
             node.children,
             ctx,
-            { style: styles.quoteText, selectable: true },
+            {
+              style: [
+                styles.quoteText,
+                { fontSize: 13 * ctx.textScale, lineHeight: 19 * ctx.textScale }
+              ],
+              selectable: true
+            },
             depth + 1
           )}
         </View>
@@ -194,13 +176,18 @@ function renderBlock(
     case 'list':
       return renderList(node, key, ctx, depth)
     case 'table':
-      return renderTable(node, key, ctx)
+      return <MobileMarkdownTable key={key} node={node} ctx={ctx} />
     case 'thematicBreak':
       return <View key={key} style={styles.rule} />
     case 'footnoteDefinition':
       return (
         <View key={key} style={styles.listItem}>
-          <NativeText style={styles.listMarker}>{`[${node.label ?? node.identifier}]`}</NativeText>
+          <NativeText
+            style={[
+              styles.listMarker,
+              { fontSize: 13 * ctx.textScale, lineHeight: 19 * ctx.textScale }
+            ]}
+          >{`[${node.label ?? node.identifier}]`}</NativeText>
           <View style={styles.listItemBody}>
             {renderBlocks(node.children, ctx, { style: ctx.listText, selectable: true }, depth + 1)}
           </View>

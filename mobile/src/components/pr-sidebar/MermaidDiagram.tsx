@@ -1,10 +1,13 @@
-import { memo, useMemo, useState } from 'react'
+import { createThemedStyles } from '../../theme/mobile-themed-styles'
+import { useMobileTheme } from '../../theme/use-mobile-theme'
+import { memo, useEffect, useMemo, useState } from 'react'
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import { WebView } from 'react-native-webview'
 import { colors, radii, spacing, typography } from '../../theme/mobile-theme'
 import { MERMAID_DIAGRAM_CONFIG } from './mermaid-diagram-config'
 import { MERMAID_ENGINE_JS } from './mermaid-webview-engine.generated'
 import { encodeJsonForScript } from '../inline-script-json'
+import { useMobileTranscriptLayoutPending } from '../mobile-transcript-layout'
 
 export type MermaidDiagramProps = {
   source: string
@@ -21,9 +24,19 @@ export type MermaidDiagramProps = {
 // per frame during pinch-to-zoom (textScale updates), marshalling the full HTML
 // string across the Fabric boundary each time.
 export const MermaidDiagram = memo(function MermaidDiagram({ source, base }: MermaidDiagramProps) {
+  const colorScheme = useMobileTheme()
+
   const [height, setHeight] = useState(0)
   const [failed, setFailed] = useState(false)
-  const html = useMemo(() => buildHtml(source), [source])
+  useMobileTranscriptLayoutPending(height === 0 && !failed)
+  useEffect(() => {
+    if (height > 0 || failed) {
+      return
+    }
+    const timer = setTimeout(() => setFailed(true), 10_000)
+    return () => clearTimeout(timer)
+  }, [height, failed])
+  const html = useMemo(() => buildHtml(source), [source, colorScheme])
 
   if (failed) {
     return <MermaidFallback source={source} base={base} />
@@ -51,6 +64,8 @@ export const MermaidDiagram = memo(function MermaidDiagram({ source, base }: Mer
         }}
         onError={() => setFailed(true)}
         onHttpError={() => setFailed(true)}
+        onRenderProcessGone={() => setFailed(true)}
+        onContentProcessDidTerminate={() => setFailed(true)}
         onMessage={(event) => {
           const data = event.nativeEvent.data
           if (data === 'error') {
@@ -68,6 +83,8 @@ export const MermaidDiagram = memo(function MermaidDiagram({ source, base }: Mer
 })
 
 function MermaidFallback({ source, base }: MermaidDiagramProps) {
+  useMobileTheme()
+
   return (
     <View style={styles.frame}>
       <View style={styles.label}>
@@ -130,28 +147,30 @@ export function buildHtml(source: string): string {
 </html>`
 }
 
-const styles = StyleSheet.create({
-  frame: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle,
-    borderRadius: radii.row,
-    marginBottom: spacing.sm,
-    overflow: 'hidden',
-    backgroundColor: colors.bgRaised
-  },
-  label: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderSubtle,
-    backgroundColor: colors.bgPanel
-  },
-  labelText: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontFamily: typography.monoFamily
-  },
-  webview: { backgroundColor: colors.bgRaised },
-  fallbackScroll: { padding: spacing.sm },
-  fallbackText: { color: colors.textPrimary, fontFamily: typography.monoFamily }
-})
+const styles = createThemedStyles(() =>
+  StyleSheet.create({
+    frame: {
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSubtle,
+      borderRadius: radii.row,
+      marginBottom: spacing.sm,
+      overflow: 'hidden',
+      backgroundColor: colors.bgRaised
+    },
+    label: {
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 2,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.borderSubtle,
+      backgroundColor: colors.bgPanel
+    },
+    labelText: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      fontFamily: typography.monoFamily
+    },
+    webview: { backgroundColor: colors.bgRaised },
+    fallbackScroll: { padding: spacing.sm },
+    fallbackText: { color: colors.textPrimary, fontFamily: typography.monoFamily }
+  })
+)
