@@ -36,6 +36,7 @@ afterEach(async () => {
   await rm(directory, { recursive: true, force: true })
 })
 
+/** Connects a real client to a daemon with an observable shutdown deadline. */
 async function start(): Promise<{
   exit: ReturnType<typeof vi.fn>
   log: ReturnType<typeof vi.fn>
@@ -64,6 +65,7 @@ async function start(): Promise<{
   return { exit, log, requested, completed }
 }
 
+/** Exercises either idle retirement route without creating a terminal. */
 async function retire(mode: 'disconnect' | 'shutdownIfIdle'): Promise<void> {
   if (mode === 'shutdownIfIdle') {
     await expect(client?.request('shutdownIfIdle', undefined)).resolves.toEqual({ retiring: true })
