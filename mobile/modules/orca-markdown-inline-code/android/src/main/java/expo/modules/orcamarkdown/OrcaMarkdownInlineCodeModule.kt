@@ -33,7 +33,8 @@ class OrcaMarkdownInlineCodeModule : Module() {
       val h = horizontal.toFloat().coerceIn(0f, 8f) * density
       val v = vertical.toFloat().coerceIn(0f, 4f) * density
       val r = radius.toFloat().coerceIn(0f, 8f) * density
-      val color = Color.parseColor(background)
+      val color = runCatching { Color.parseColor(background) }.getOrNull()
+        ?: return@AsyncFunction mapOf("applied" to false, "height" to 0.0)
       val text = SpannableString(view.text)
       text.getSpans(0, text.length, InlineCodeSpan::class.java).forEach { text.removeSpan(it) }
       for (range in ranges) {
