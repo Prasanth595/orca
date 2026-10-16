@@ -261,11 +261,13 @@ export const OPERATION_MUTATIONS = {
     file: 'mobile-session-terminal-create-request.ts',
     before: `    ...(options?.startupCommand ? { command: options.startupCommand } : {}),
     ...(options?.startupCommandDelivery
-      ? { startupCommandDelivery: options.startupCommandDelivery } : {}),
+      ? { startupCommandDelivery: options.startupCommandDelivery }
+      : {}),
     ...(options?.agentPrompt ? { agentPrompt: options.agentPrompt } : {}),`,
     after: `    ...(options?.startupCommand ? { agentPrompt: options.startupCommand } : {}),
     ...(options?.startupCommandDelivery
-      ? { startupCommandDelivery: options.startupCommandDelivery } : {}),
+      ? { startupCommandDelivery: options.startupCommandDelivery }
+      : {}),
     ...(options?.agentPrompt ? { command: options.agentPrompt } : {}),`
   },
   // Drops the in-flight guard, so a second tap while the host is still answering opens a second
