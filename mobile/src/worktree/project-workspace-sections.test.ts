@@ -85,4 +85,24 @@ describe('buildSections under Project Groups', () => {
   it('drops a group with nothing matching the search', () => {
     expect(build('docs').map((section) => section.key)).toEqual(['repo:repo-2'])
   })
+
+  it('lists a project once when two hosts hold a group with the same id', () => {
+    const keys = buildSections(
+      [grouped],
+      'manual',
+      { ...NO_WORKSPACE_ROW_FILTERS },
+      '',
+      'repo',
+      new Set(),
+      {
+        ...catalog,
+        projectGroups: [
+          { id: 'group-1', name: 'Work', parentGroupId: null, tabOrder: 0 },
+          { id: 'group-1', name: 'Work', parentGroupId: null, tabOrder: 1 }
+        ]
+      }
+    ).map((section) => section.key)
+
+    expect(keys.filter((key) => key === 'repo:repo-1')).toHaveLength(1)
+  })
 })

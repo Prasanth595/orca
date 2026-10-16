@@ -116,6 +116,8 @@ export function planProjectGroupSections<
     for (const child of childGroupsByParentId.get(group.id) ?? []) {
       appendGroup(child, depth + 1, innerKeys)
     }
+    // Why: ids repeat across hosts, so a second group with this id must not emit its sections again.
+    entriesByGroupId.delete(group.id)
   }
   for (const group of childGroupsByParentId.get(null) ?? []) {
     appendGroup(group, 0, [])
