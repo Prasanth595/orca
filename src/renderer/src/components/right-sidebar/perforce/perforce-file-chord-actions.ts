@@ -6,8 +6,10 @@ import type { PerforceChordAction } from '../../../../../shared/perforce/perforc
 import { refreshPerforceOpenedFiles } from './perforce-opened-files'
 import { isKnownPerforceWorkspace } from './use-perforce-workspace'
 import { translate } from '@/i18n/i18n'
+import { perforceClient } from '@/runtime/runtime-perforce-client'
 
 export type PerforceChordFile = {
+  worktreeId: string
   worktreePath: string
   connectionId: string | undefined
   relativePath: string
@@ -30,6 +32,7 @@ export function readActivePerforceFile(): PerforceChordFile | null {
   const connectionId = repo.connectionId ?? undefined
   return isKnownPerforceWorkspace(worktree.path, connectionId)
     ? {
+        worktreeId: worktree.id,
         worktreePath: worktree.path,
         connectionId,
         relativePath: file.relativePath.replaceAll('\\', '/')
@@ -38,7 +41,8 @@ export function readActivePerforceFile(): PerforceChordFile | null {
 }
 
 async function openForEdit(file: PerforceChordFile): Promise<void> {
-  const result = await window.api.perforce.edit({
+  const result = await perforceClient.edit({
+    worktreeId: file.worktreeId,
     worktreePath: file.worktreePath,
     connectionId: file.connectionId,
     filePaths: [file.relativePath]
@@ -57,8 +61,12 @@ async function openForEdit(file: PerforceChordFile): Promise<void> {
 }
 
 async function revertFile(file: PerforceChordFile): Promise<void> {
-  const target = { worktreePath: file.worktreePath, connectionId: file.connectionId }
-  const status = await window.api.perforce.status(target)
+  const target = {
+    worktreeId: file.worktreeId,
+    worktreePath: file.worktreePath,
+    connectionId: file.connectionId
+  }
+  const status = await perforceClient.status(target)
   const entry = status.entries.find((candidate) => candidate.path === file.relativePath)
   if (!entry) {
     toast.info(
@@ -81,7 +89,7 @@ async function revertFile(file: PerforceChordFile): Promise<void> {
   ) {
     return
   }
-  const result = await window.api.perforce.discard({ ...target, entries: [entry] })
+  const result = await perforceClient.discard({ ...target, entries: [entry] })
   if (result.success) {
     toast.success(
       translate('perforce.ui.revertedFile', 'Reverted: {{path}}', { path: file.relativePath })
@@ -103,5 +111,5 @@ export async function runPerforceChordAction(
     toast.error(error instanceof Error ? error.message : String(error))
   }
   // Why: the "E" tab marker and panel poll on a timer; refresh now so the change shows immediately.
-  void refreshPerforceOpenedFiles(file.worktreePath, file.connectionId)
+  void refreshPerforceOpenedFiles(file.worktreePath, file.connectionId, file.worktreeId)
 }

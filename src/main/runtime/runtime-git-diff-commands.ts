@@ -6,6 +6,7 @@ import type {
 import { assertGitDiffWithinTransportBudget } from '../../shared/git-diff-transport-budget'
 import { getBranchDiff } from '../git/status'
 import type { GitAdmissionTier } from '../git/command-runner/git-exec-options'
+import { getHostedPerforceFolderDiff } from '../perforce/perforce-hosted-diff'
 import { normalizeRuntimeRelativePath } from './runtime-relative-paths'
 import {
   localGitOptionsForTarget,
@@ -28,6 +29,10 @@ export class RuntimeGitDiffCommands {
   ): Promise<GitDiffResult> {
     const target = await this.host.resolveRuntimeGitTarget(worktreeSelector)
     const relativePath = normalizeRuntimeGitRelativePath(filePath)
+    const perforceDiff = await getHostedPerforceFolderDiff(target, relativePath)
+    if (perforceDiff) {
+      return assertGitDiffWithinTransportBudget(perforceDiff, maxContentBytes)
+    }
     return assertGitDiffWithinTransportBudget(
       await requireRuntimeGitProvider(target).getDiff(
         target.worktree.path,

@@ -2,13 +2,16 @@ import { useState } from 'react'
 import { Button } from '../ui/button'
 import { useAppStore } from '../../store'
 import { translate } from '@/i18n/i18n'
+import { perforceClient } from '@/runtime/runtime-perforce-client'
 
 export function PerforceConnectionTest(): React.JSX.Element {
   const worktree = useAppStore((s) =>
     s.activeWorktreeId ? (s.getKnownWorktreeById(s.activeWorktreeId) ?? null) : null
   )
   const repo = useAppStore((s) => s.repos.find((r) => r.id === worktree?.repoId))
-  const target = worktree ? { worktreePath: worktree.path, connectionId: repo?.connectionId } : null
+  const target = worktree
+    ? { worktreeId: worktree.id, worktreePath: worktree.path, connectionId: repo?.connectionId }
+    : null
   const [pending, setPending] = useState(false)
   const [result, setResult] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
@@ -19,7 +22,8 @@ export function PerforceConnectionTest(): React.JSX.Element {
     }
     setPending(true)
     try {
-      const outcome = await window.api.perforce.info({
+      const outcome = await perforceClient.info({
+        worktreeId: target.worktreeId,
         worktreePath: target.worktreePath,
         connectionId: target.connectionId ?? undefined
       })

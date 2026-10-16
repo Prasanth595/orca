@@ -1,3 +1,4 @@
+import { perforceClient } from '@/runtime/runtime-perforce-client'
 import { useEffect, useSyncExternalStore } from 'react'
 
 const EMPTY: ReadonlySet<string> = new Set()
@@ -28,12 +29,14 @@ export function publishPerforceOpenedFiles(
 
 export async function refreshPerforceOpenedFiles(
   worktreePath: string,
-  connectionId?: string | null
+  connectionId?: string | null,
+  worktreeId?: string | null
 ): Promise<void> {
   try {
-    const status = await window.api.perforce.status({
+    const status = await perforceClient.status({
       worktreePath,
-      connectionId: connectionId ?? undefined
+      connectionId: connectionId ?? undefined,
+      worktreeId
     })
     publishPerforceOpenedFiles(worktreePath, connectionId, status.entries)
   } catch {
@@ -53,7 +56,8 @@ export function usePerforceOpenedForEdit(
   relativePath: string,
   enabled: boolean,
   isDirty: boolean,
-  refreshIntervalSeconds: number
+  refreshIntervalSeconds: number,
+  worktreeId?: string | null
 ): boolean {
   const key = worktreePath ? keyOf(worktreePath, connectionId) : ''
   const opened = useSyncExternalStore(subscribe, () => openedByKey.get(key) ?? EMPTY)
@@ -64,13 +68,13 @@ export function usePerforceOpenedForEdit(
     }
     let poller = pollers.get(key)
     if (!poller) {
-      void refreshPerforceOpenedFiles(worktreePath, connectionId)
+      void refreshPerforceOpenedFiles(worktreePath, connectionId, worktreeId)
       poller = {
         subscribers: 0,
         timer:
           refreshIntervalSeconds > 0
             ? window.setInterval(
-                () => void refreshPerforceOpenedFiles(worktreePath, connectionId),
+                () => void refreshPerforceOpenedFiles(worktreePath, connectionId, worktreeId),
                 refreshIntervalSeconds * 1000
               )
             : 0
@@ -87,14 +91,14 @@ export function usePerforceOpenedForEdit(
         pollers.delete(key)
       }
     }
-  }, [enabled, worktreePath, connectionId, key, refreshIntervalSeconds])
+  }, [enabled, worktreePath, connectionId, worktreeId, key, refreshIntervalSeconds])
 
   // Why: a save may have opened the file for edit; pick that up without waiting for the next poll.
   useEffect(() => {
     if (enabled && worktreePath && !isDirty) {
-      void refreshPerforceOpenedFiles(worktreePath, connectionId)
+      void refreshPerforceOpenedFiles(worktreePath, connectionId, worktreeId)
     }
-  }, [enabled, worktreePath, connectionId, isDirty])
+  }, [enabled, worktreePath, connectionId, worktreeId, isDirty])
 
   return enabled && opened.has(relativePath)
 }
