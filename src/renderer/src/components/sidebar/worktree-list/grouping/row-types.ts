@@ -24,6 +24,8 @@ export type GroupHeaderRow = {
   tone: string
   icon?: React.ComponentType<{ className?: string }>
   repo?: Repo
+  /** The member row whose Project Group places this section, when it is not `repo`. */
+  projectGroupRepo?: Repo
   projectGroup?: ProjectGroup | { id: null; name: 'Ungrouped'; tabOrder: number }
   projectGroupDepth?: number
   hostId?: ExecutionHostId

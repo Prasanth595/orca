@@ -157,11 +157,22 @@ export function useWorktreeSidebarHeaderDrag(args: {
     [sidebarProjectGroupHeaderIdsByBucket]
   )
   const commitProjectGroupOrder = useCallback(
-    (repoId: string, projectGroupId: string | null, order: number) => {
-      void moveProjectToGroup(repoId, projectGroupId, order)
+    (repoId: string, projectGroupId: string | null, order: number, hostId: ExecutionHostId) => {
+      void moveProjectToGroup(repoId, projectGroupId, order, hostId)
     },
     [moveProjectToGroup]
   )
+  // Why: a header drawn in a group through another host's row drags and ranks as that row.
+  const repoByHeaderIdForDrag = useMemo(() => {
+    let byHeaderId: Map<string, Repo> | null = null
+    for (const row of rows) {
+      if (row.type === 'header' && row.repo && row.projectGroupRepo) {
+        byHeaderId ??= new Map(repoMap)
+        byHeaderId.set(row.repo.id, row.projectGroupRepo)
+      }
+    }
+    return byHeaderId ?? repoMap
+  }, [repoMap, rows])
   const commitProjectGroupHeaderOrder = useCallback(
     (groupId: string, tabOrder: number) => {
       if (!Number.isFinite(tabOrder)) {
@@ -178,7 +189,7 @@ export function useWorktreeSidebarHeaderDrag(args: {
   const repoDrag = useRepoHeaderDrag({
     orderedRepoIds: allRepoIds,
     sidebarRepoHeaderIdsByBucket,
-    repoById: repoMap,
+    repoById: repoByHeaderIdForDrag,
     usesProjectGroupOrdering: hasProjectGroups,
     onCommitRepoOrder: commitRepoReorder,
     onCommitProjectGroupOrder: commitProjectGroupOrder,

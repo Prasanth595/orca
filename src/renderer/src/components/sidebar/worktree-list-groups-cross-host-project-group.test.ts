@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildSidebarRowPlan } from './worktree-list/grouping/build-rows'
+import { getSidebarOrderedRepoHeaderIdsByBucket } from './project-header-drop'
 import { repo, worktree, project } from './worktree-list-groups-test-fixtures'
 import type { ProjectGroup } from '../../../../shared/project-group-types'
 import type { ProjectHostSetup } from '../../../../shared/project-types'
@@ -205,5 +206,15 @@ describe('a project grouped on one of its hosts', () => {
       'project:github:stablyai/orca@1'
     ])
     expect(shortcutOrder).toEqual(rendered)
+  })
+
+  it('drags the project with the group it is drawn in, as the row that placed it', () => {
+    const rows = planRows({ repoOrder: THIS_ORCA_ORDER }).render(new Set())
+    const header = rows.find((row) => row.type === 'header' && row.key === `project:${project.id}`)
+
+    expect(header?.type === 'header' ? header.projectGroupRepo?.id : undefined).toBe(pairedRepo.id)
+    expect(getSidebarOrderedRepoHeaderIdsByBucket(rows).get(`group:${pairedGroup.id}`)).toEqual([
+      localRepo.id
+    ])
   })
 })

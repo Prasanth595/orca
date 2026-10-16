@@ -108,6 +108,38 @@ describe('commitProjectHeaderDragDrop', () => {
       onCommitProjectGroupOrder
     })
 
-    expect(onCommitProjectGroupOrder).toHaveBeenCalledWith('c', 'group-1', -1)
+    expect(onCommitProjectGroupOrder).toHaveBeenCalledWith('c', 'group-1', -1, 'local')
+  })
+
+  it("reorders the row that placed a header in the group, on that row's host", () => {
+    const onCommitProjectGroupOrder = vi.fn()
+    // Header 'c' anchors on this Orca's ungrouped row; a paired host's row 'c-paired' placed it.
+    const placedBy = makeRepo('c-paired', {
+      projectGroupId: 'group-1',
+      projectGroupOrder: 5,
+      executionHostId: 'runtime:paired'
+    })
+    const repoById = new Map([
+      ['a', makeRepo('a', { projectGroupId: 'group-1', projectGroupOrder: 0 })],
+      ['b', makeRepo('b', { projectGroupId: 'group-1', projectGroupOrder: 1 })],
+      ['c', placedBy]
+    ])
+
+    commitProjectHeaderDragDrop({
+      session: makeSession('c', ['a', 'b', 'c']),
+      sidebarDropIndex: 0,
+      orderedRepoIds: ['a', 'b', 'c'],
+      repoById,
+      usesProjectGroupOrdering: true,
+      onCommitRepoOrder: vi.fn(),
+      onCommitProjectGroupOrder
+    })
+
+    expect(onCommitProjectGroupOrder).toHaveBeenCalledWith(
+      'c-paired',
+      'group-1',
+      -1,
+      'runtime:paired'
+    )
   })
 })

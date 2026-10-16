@@ -85,7 +85,7 @@ export function appendProjectGroupSections(
 
   const projectGroupsById = new Map(projectGroups.map((group) => [group.id, group]))
   const groupByProjectGroupId = new Map<string | null, OrderedGroupEntry[]>()
-  const groupRepoByEntry = new Map<OrderedGroupEntry, Repo | undefined>()
+  const groupRepoByKey = new Map<string, Repo | undefined>()
   for (const entry of orderedGroups) {
     const repo = getProjectSectionGroupRepo(
       entry[1],
@@ -94,7 +94,7 @@ export function appendProjectGroupSections(
       repoOrder,
       projectGroupsById
     )
-    groupRepoByEntry.set(entry, repo)
+    groupRepoByKey.set(entry[0], repo)
     const projectGroupId = repo?.projectGroupId ?? null
     const list = groupByProjectGroupId.get(projectGroupId) ?? []
     list.push(entry)
@@ -115,8 +115,8 @@ export function appendProjectGroupSections(
     // (projectGroupOrder), falling back to global repoOrder when unset so drag
     // midpoint commits and the rendered order stay aligned.
     return [...entries].sort((left, right) => {
-      const leftRank = getEffectiveProjectGroupManualRank(groupRepoByEntry.get(left), repoOrder)
-      const rightRank = getEffectiveProjectGroupManualRank(groupRepoByEntry.get(right), repoOrder)
+      const leftRank = getEffectiveProjectGroupManualRank(groupRepoByKey.get(left[0]), repoOrder)
+      const rightRank = getEffectiveProjectGroupManualRank(groupRepoByKey.get(right[0]), repoOrder)
       return leftRank - rightRank
     })
   }
@@ -177,7 +177,7 @@ export function appendProjectGroupSections(
       for (const pair of folderWorkspacesByProjectGroupId.get(projectGroup.id) ?? []) {
         result.push(buildFolderWorkspaceRow(pair, depth + 1))
       }
-      appendOrderedGroups(ctx, withRepoSectionDisplayLabels(repoEntries), depth + 1)
+      appendOrderedGroups(ctx, withRepoSectionDisplayLabels(repoEntries), depth + 1, groupRepoByKey)
       for (const childGroup of childGroups) {
         appendProjectGroup(childGroup, depth + 1)
       }
