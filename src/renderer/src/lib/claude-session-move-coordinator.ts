@@ -56,12 +56,17 @@ export async function refreshClaudeMoveAccounts(): Promise<void> {
   accounts = await window.api.claudeAccounts.list().catch(() => accounts)
 }
 
-/** Claude sessions on this machine still running on a login other than the selected one. */
+const moveKeyOf = (session: ClaudeSessionOnOtherLogin): string =>
+  `${session.sessionId}->${session.targetLogin}`
+
+/** Claude sessions on this machine still to move to the selected login. */
 export function listClaudeSessionsOnOtherLogin(state: AppState): ClaudeSessionOnOtherLogin[] {
+  // Why drop settled ones: a moved session reads as the old login until it reports again, and one
+  // that cannot be resumed has nothing for the button to do.
   return accounts
     ? findClaudeSessionsOnOtherLogin(state, accounts, (worktreeId) =>
         isOnThisHost(state, worktreeId)
-      )
+      ).filter((session) => !settledMoves.has(moveKeyOf(session)))
     : []
 }
 
@@ -121,7 +126,7 @@ function movePanes(): number {
   const automatic = state.settings?.claudeMoveIdleSessions === true
   let waiting = 0
   for (const session of sessions) {
-    const moveKey = `${session.sessionId}->${session.targetLogin}`
+    const moveKey = moveKeyOf(session)
     const approved = approvedPaneKeys.has(session.paneKey)
     if (settledMoves.has(moveKey) || (!approved && !automatic)) {
       continue

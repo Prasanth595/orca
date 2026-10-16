@@ -5,6 +5,7 @@ import { getDefaultSettings } from '../../../shared/constants'
 import { useAppStore } from '@/store'
 import {
   installClaudeSessionMoveCoordinator,
+  listClaudeSessionsOnOtherLogin,
   moveClaudeSessionsToSelectedAccount,
   resetClaudeSessionMoveForTests
 } from './claude-session-move-coordinator'
@@ -158,6 +159,8 @@ describe('Claude session moves', () => {
       'pty-1',
       expect.objectContaining({ command: 'claude --resume session-1' })
     )
+    // The menu stops counting it, though its row still names the old account until it reports.
+    expect(listClaudeSessionsOnOtherLogin(useAppStore.getState())).toEqual([])
   })
 
   it('moves a busy session once its turn ends', async () => {
