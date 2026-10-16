@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { RuntimeMobileSessionTabsResult } from '../../../../shared/runtime-types'
 import type { TerminalTab } from '../../../../shared/terminal-tab-types'
+import { toWebTerminalSurfaceTabId } from '../../../../shared/terminal-surface-id'
 import { buildMirroredTerminalTabs } from './terminal-build'
-import { toWebTerminalSurfaceTabId } from '../web-terminal-surface-id'
 
 const HOST_TAB = 'host-tab-1'
 const SNAPSHOT: RuntimeMobileSessionTabsResult = {
