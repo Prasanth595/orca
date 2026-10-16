@@ -30,7 +30,9 @@ import type { OrderedGroupEntry, WorktreeGroupEntry } from './worktree-group-ent
 import type { ProjectGroupingModel } from '../../../../../../shared/project-section-grouping'
 import {
   appendProjectGroupSections,
-  getProjectGroupOccurrencePaths
+  getProjectGroupOccurrencePaths,
+  getProjectSectionGroupRepo,
+  getProjectSectionMemberRepoIds
 } from './project-group-sections'
 import { getSidebarLineageChildren } from '../../pinned-section-worktrees'
 import { emitPinnedGroup } from './pinned-group-rows'
@@ -98,6 +100,10 @@ export function buildSidebarRowPlan(
   }
 
   const projectGroupPaths = getProjectGroupOccurrencePaths(projectGroups)
+  const sectionMemberRepoIds =
+    groupBy === 'repo'
+      ? getProjectSectionMemberRepoIds(repoMap, projectIndex)
+      : new Map<string, string[]>()
   const occurrencePlan = buildWorktreeOccurrencePlan({
     rows: worktrees,
     identityOf: getWorktreeHostIdentity,
@@ -142,10 +148,17 @@ export function buildSidebarRowPlan(
         ])
       }
       return groups.map(([key, group]): SidebarOccurrenceSection => {
-        const revealPath =
-          groupBy === 'repo' && key !== PINNED_GROUP_KEY && group.repo?.projectGroupId
-            ? projectGroupPaths.get(group.repo.projectGroupId)
+        const sectionGroupId =
+          groupBy === 'repo' && key !== PINNED_GROUP_KEY
+            ? getProjectSectionGroupRepo(
+                group,
+                sectionMemberRepoIds.get(key) ?? [],
+                repoMap,
+                repoOrder,
+                projectGroupPaths
+              )?.projectGroupId
             : undefined
+        const revealPath = sectionGroupId ? projectGroupPaths.get(sectionGroupId) : undefined
         return {
           key,
           group,
@@ -287,7 +300,8 @@ export function buildSidebarRowPlan(
       projectGroups,
       folderWorkspaces: renderableFolderWorkspaces,
       projectOrderBy,
-      repoOrder
+      repoOrder,
+      sectionMemberRepoIds
     })
 
     return result
