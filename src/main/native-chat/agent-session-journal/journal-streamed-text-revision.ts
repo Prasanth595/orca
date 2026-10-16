@@ -27,6 +27,9 @@ export function isJournalStreamedTextRevision(
     body.from !== undefined ||
     previous?.body.kind !== 'message' ||
     previous.body.role !== 'assistant' ||
+    previous.body.sentAs !== undefined ||
+    previous.body.command !== undefined ||
+    previous.body.from !== undefined ||
     !previous.body.blocks.every((block) => block.type === 'text')
   ) {
     return false
