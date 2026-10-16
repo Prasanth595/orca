@@ -39,6 +39,15 @@ describe('applyWindowLayoutCommand', () => {
     })
   })
 
+  it('closes a pane automatically with the user-close rules but stops no launch as the user’s', async () => {
+    const { store, applyLayoutCommand } = storeWith()
+
+    await applyWindowLayoutCommand(store, () => ['local'], { ...CLOSE, automatic: true })
+
+    expect(applyLayoutCommand).toHaveBeenCalledWith({ ...CLOSE, userPaneClose: true }, ['local'])
+    expect(mocks.markAgentLaunchesClosedByUser).not.toHaveBeenCalled()
+  })
+
   it('applies other commands to the routed partition only', async () => {
     const { store, applyLayoutCommand } = storeWith()
     const rename = { ...CLOSE, type: 'renamePane', title: 'Pane' } as const
@@ -202,5 +211,43 @@ describe('applyWindowLayoutCommand', () => {
     ).resolves.toEqual({ ok: false, code: 'host_not_owned' })
     expect(applyLayoutCommand).not.toHaveBeenCalled()
     expect(mocks.markAgentLaunchesClosedByUser).not.toHaveBeenCalled()
+  })
+
+  it('moves editor tabs between workspaces of one partition, and refuses two partitions', async () => {
+    const { store, applyLayoutCommand } = storeWith()
+    const move: WindowLayoutCommand = {
+      type: 'moveTabToWorkspace',
+      workspace: 'wt-1',
+      toWorkspace: 'wt-2',
+      tabs: [{ tabId: 'tab-1', newTabId: 'tab-1', newEntityId: 'file-2' }],
+      groupId: 'g2'
+    }
+    const hostIdsFor = vi.fn((_worktreeId: string, _tabId: string | null) => [
+      'ssh:target-1' as const
+    ])
+
+    await applyWindowLayoutCommand(store, hostIdsFor, move)
+    expect(hostIdsFor.mock.calls).toEqual([
+      ['wt-1', null],
+      ['wt-2', null]
+    ])
+    expect(applyLayoutCommand).toHaveBeenCalledWith(move, ['ssh:target-1'])
+
+    applyLayoutCommand.mockClear()
+    const partitions = {
+      'two partitions': [['local'], ['ssh:target-1'], 'other_partition'],
+      'a paired server': [['local'], ['runtime:env-1'], 'host_not_owned'],
+      'an unknown target': [['local'], [], 'host_not_owned']
+    } as const
+    for (const [from, to, code] of Object.values(partitions)) {
+      await expect(
+        applyWindowLayoutCommand(
+          store,
+          (worktreeId) => [...(worktreeId === 'wt-1' ? from : to)],
+          move
+        )
+      ).resolves.toEqual({ ok: false, code })
+    }
+    expect(applyLayoutCommand).not.toHaveBeenCalled()
   })
 })
