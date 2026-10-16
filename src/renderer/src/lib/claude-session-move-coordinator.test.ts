@@ -10,7 +10,7 @@ import {
   resetClaudeSessionMoveForTests
 } from './claude-session-move-coordinator'
 
-const restartPaneForAccountMove = vi.hoisted(() => vi.fn(() => true))
+const restartPaneForAccountMove = vi.hoisted(() => vi.fn((): boolean => true))
 const hasPaneAccountMoveRestart = vi.hoisted(() => vi.fn(() => true))
 type Inspection = {
   foregroundProcess: string | null
@@ -139,6 +139,21 @@ function seed(
   })
 }
 
+let ptyCount = 1
+
+// The pane comes back on a new PTY, the way a restart that connected rebinds its leaf.
+function rebindPane(): boolean {
+  ptyCount += 1
+  const ptyId = `pty-${ptyCount}`
+  useAppStore.setState((s) => ({
+    terminalLayoutsByTabId: {
+      'tab-1': { ...s.terminalLayoutsByTabId['tab-1']!, ptyIdsByLeafId: { [LEAF]: ptyId } }
+    },
+    ptyIdsByTabId: { 'tab-1': [ptyId] }
+  }))
+  return true
+}
+
 function setRow(row: Partial<AgentStatusEntry>): void {
   const current = useAppStore.getState().agentStatusByPaneKey[PANE_KEY]
   if (!current) {
@@ -170,6 +185,8 @@ describe('Claude session moves', () => {
     vi.stubGlobal('window', { ...globalThis.window, api: { claudeAccounts: { list } } })
     roster = selected('acct-b')
     restartPaneForAccountMove.mockClear()
+    restartPaneForAccountMove.mockImplementation(rebindPane)
+    ptyCount = 1
     hasPaneAccountMoveRestart.mockClear()
     inspect.mockClear()
     confirm.mockClear()
@@ -253,6 +270,15 @@ describe('Claude session moves', () => {
     expect(restartPaneForAccountMove).toHaveBeenCalledOnce()
   })
 
+  it('offers the session again when its restart never connected and the pane kept the old PTY', async () => {
+    restartPaneForAccountMove.mockImplementationOnce(() => true)
+    seed({})
+
+    await moveClaudeSessionsToSelectedAccount()
+
+    expect(listClaudeSessionsOnOtherLogin(useAppStore.getState())).toHaveLength(1)
+  })
+
   it('leaves a session it cannot resume', async () => {
     buildClaudeSessionMoveStartup.mockReturnValueOnce(null)
     seed({})
@@ -260,6 +286,7 @@ describe('Claude session moves', () => {
     await moveClaudeSessionsToSelectedAccount()
 
     expect(restartPaneForAccountMove).not.toHaveBeenCalled()
+    expect(listClaudeSessionsOnOtherLogin(useAppStore.getState())).toEqual([])
   })
 
   it('leaves a pane where Claude is no longer what runs, such as tmux or the shell', async () => {

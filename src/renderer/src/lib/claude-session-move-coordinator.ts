@@ -40,7 +40,10 @@ const RECHECK_MS = 15_000
 /** Sessions you asked to move that were still busy, by pane. */
 const approvedPaneKeys = new Set<string>()
 /** Panes already moved, or left alone, toward a login; a new report from the session lifts it. */
-const settledMoves = new Map<string, { transcriptPath: string; targetLogin: string }>()
+const settledMoves = new Map<
+  string,
+  { transcriptPath: string; targetLogin: string; replacedPtyId?: string }
+>()
 let accounts: ClaudeRateLimitAccountsState | null = null
 let accountsRead = 0
 /** You pressed Move Sessions before the account list could be read. */
@@ -79,16 +82,19 @@ export async function refreshClaudeMoveAccounts(): Promise<void> {
 
 function isSettled(session: ClaudeSessionOnOtherLogin): boolean {
   const settled = settledMoves.get(session.paneKey)
+  // Why the replaced PTY: a restart whose connect never ran leaves the pane on it, unmoved.
   return (
     settled?.transcriptPath === session.transcriptPath &&
-    settled.targetLogin === session.targetLogin
+    settled.targetLogin === session.targetLogin &&
+    settled.replacedPtyId !== session.ptyId
   )
 }
 
-function settle(session: ClaudeSessionOnOtherLogin): void {
+function settle(session: ClaudeSessionOnOtherLogin, replacedPtyId?: string): void {
   settledMoves.set(session.paneKey, {
     transcriptPath: session.transcriptPath,
-    targetLogin: session.targetLogin
+    targetLogin: session.targetLogin,
+    replacedPtyId
   })
   approvedPaneKeys.delete(session.paneKey)
 }
@@ -239,8 +245,10 @@ async function movePanes(): Promise<number> {
     })
     // Why settle either way: a session that cannot be resumed is never restarted blank, and one
     // that comes back still reading as the old login must not restart again.
-    if (!startup || restartPaneForAccountMove(session.ptyId, startup)) {
+    if (!startup) {
       settle(session)
+    } else if (restartPaneForAccountMove(session.ptyId, startup)) {
+      settle(session, session.ptyId)
     } else {
       waiting += 1
     }
