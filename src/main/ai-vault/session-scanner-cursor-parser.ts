@@ -12,6 +12,7 @@ import type {
   SessionAccumulator
 } from './session-scanner-types'
 import type { TranscriptMessageSink } from './session-transcript-consumers'
+import { extractGrokFirstUserPromptText } from './session-scanner-grok-user-text'
 import {
   accumulatorFoldResumeState,
   addPreviewContent,
@@ -22,7 +23,6 @@ import {
 import {
   asRecord,
   extractContentText,
-  extractMessageText,
   extractString,
   parseJsonObject
 } from './session-scanner-values'
@@ -69,7 +69,10 @@ function consumeCursorRecordLine(accumulator: SessionAccumulator, line: string):
   if (role === 'user' || role === 'assistant') {
     accumulator.messageCount++
     if (role === 'user') {
-      accumulator.title ??= extractMessageText(record.message) ?? extractContentText(record.content)
+      // Unwrap metadata before the title limit can truncate away the ask.
+      accumulator.title ??=
+        extractContentText(extractGrokFirstUserPromptText(asRecord(record.message)?.content)) ??
+        extractContentText(extractGrokFirstUserPromptText(record.content))
     }
     addPreviewContent(
       accumulator,
