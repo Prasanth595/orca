@@ -31,6 +31,7 @@ function formatUpdatedAt(timestamp: number | null): string {
   return `Updated ${new Date(timestamp).toLocaleString()}`
 }
 
+/** Presents combined usage for an independent range, defaulting to the last 30 local-calendar days. */
 export function UsageOverviewPane(): React.JSX.Element {
   const [range, setRange] = useState<UsageRange>('30d')
   const day = new Date(useNow(60_000)).toDateString()

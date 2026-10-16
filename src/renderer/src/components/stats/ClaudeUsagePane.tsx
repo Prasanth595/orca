@@ -51,6 +51,7 @@ const RANGE_LABELS: Record<ClaudeUsageRange, string> = {
   }
 }
 
+/** Presents Claude usage with provider-specific scope and local-calendar range controls. */
 export function ClaudeUsagePane(): React.JSX.Element {
   const scanState = useAppStore((state) => state.claudeUsageScanState)
   const summary = useAppStore((state) => state.claudeUsageSummary)

@@ -43,6 +43,7 @@ const RANGE_LABELS: Record<MuseUsageRange, string> = {
   }
 }
 
+/** Presents Muse usage with provider-specific scope and local-calendar range controls. */
 export function MuseUsagePane(): React.JSX.Element {
   const scanState = useAppStore((state) => state.museUsageScanState)
   const summary = useAppStore((state) => state.museUsageSummary)

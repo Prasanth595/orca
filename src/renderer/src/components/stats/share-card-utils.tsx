@@ -50,6 +50,7 @@ export function formatDateRange(range: string): string {
 }
 
 export const RANGE_LABELS: Record<string, string> = {
+  /** Resolves the Today label lazily so it follows the current locale. */
   get today() {
     return translate('usage.range.today', 'Today')
   },

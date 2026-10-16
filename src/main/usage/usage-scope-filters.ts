@@ -1,6 +1,7 @@
 import type { UsageRange } from '../../shared/usage-range'
 import { getLocalUsageDay, getUsageRangeCutoff } from './usage-calendar-range'
 
+/** Selects daily aggregates by calendar cutoff and optional Orca workspace attribution. */
 export function filterUsageDaily<T extends { day: string; worktreeId: string | null }>(
   daily: readonly T[],
   scope: 'orca' | 'all',
@@ -15,6 +16,7 @@ export function filterUsageDaily<T extends { day: string; worktreeId: string | n
   })
 }
 
+/** Selects sessions by their last local-calendar day and optional Orca workspace attribution. */
 export function filterUsageSessions<
   T extends {
     lastTimestamp: string

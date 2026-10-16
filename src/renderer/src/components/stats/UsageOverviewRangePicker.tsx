@@ -4,6 +4,7 @@ import { translate } from '@/i18n/i18n'
 
 const OVERVIEW_RANGES = ['today', '7d', '30d', 'all'] as const
 
+/** Emits only supported overview ranges while leaving selection state with the parent. */
 export function UsageOverviewRangePicker({
   range,
   onChange

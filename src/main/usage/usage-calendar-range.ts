@@ -7,6 +7,7 @@ function formatLocalDay(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
+/** Returns the inclusive first local-calendar day, or null when no cutoff applies. */
 export function getUsageRangeCutoff(range: UsageRange): string | null {
   if (range === 'all') {
     return null

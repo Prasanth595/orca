@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { UsageRange } from '../../../../shared/usage-range'
 import type { UsageOverviewInput } from './usage-overview-types'
 
+/** Reads enabled providers' cached snapshots without changing their detail-page range or scope. */
 export async function queryUsageOverviewRange(
   input: UsageOverviewInput,
   range: UsageRange
@@ -46,6 +47,7 @@ type RangeResult = {
   day: string
 } & ({ input: UsageOverviewInput; error: null } | { input: null; error: string })
 
+/** Loads a range for the supplied local day and hides stale results after selection or source changes. */
 export function useUsageOverviewRange(
   source: UsageOverviewInput,
   range: UsageRange,

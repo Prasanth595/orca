@@ -48,6 +48,7 @@ const RANGE_LABELS: Record<OpenCodeUsageRange, string> = {
   }
 }
 
+/** Presents OpenCode usage with provider-specific scope and local-calendar range controls. */
 export function OpenCodeUsagePane(): React.JSX.Element {
   const scanState = useAppStore((state) => state.openCodeUsageScanState)
   const summary = useAppStore((state) => state.openCodeUsageSummary)

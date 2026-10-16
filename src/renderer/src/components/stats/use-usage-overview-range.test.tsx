@@ -9,6 +9,7 @@ import { queryUsageOverviewRange, useUsageOverviewRange } from './use-usage-over
 
 vi.mock('@/i18n/i18n', () => ({ translate: (_key: string, fallback: string) => fallback }))
 
+/** Builds a cached response with distinguishable range totals and costs. */
 function snapshot(range: UsageRange, totalTokens: number): CodexUsageSnapshot {
   return {
     scanState: {
@@ -51,6 +52,7 @@ function snapshot(range: UsageRange, totalTokens: number): CodexUsageSnapshot {
   }
 }
 
+/** Starts with a provider detail range that overview queries must preserve. */
 function source(): UsageOverviewInput {
   return {
     claude: { scanState: null, summary: null, daily: [] },

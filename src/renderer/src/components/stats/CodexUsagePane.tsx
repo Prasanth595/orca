@@ -43,6 +43,7 @@ const RANGE_LABELS: Record<CodexUsageRange, string> = {
   }
 }
 
+/** Presents Codex usage with provider-specific scope and local-calendar range controls. */
 export function CodexUsagePane(): React.JSX.Element {
   const scanState = useAppStore((state) => state.codexUsageScanState)
   const summary = useAppStore((state) => state.codexUsageSummary)
