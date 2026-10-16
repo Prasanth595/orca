@@ -29,6 +29,7 @@ const OWNED_MOBILE_DISPATCH_RECIPE_TTL_MS = 15 * 60_000
 
 export type OwnedMobileTerminalCreateOptions = {
   command?: string
+  shellOverride?: string
   cwd?: string
   env?: Record<string, string>
   envToDelete?: string[]
@@ -120,6 +121,7 @@ export abstract class OrcaRuntimeWithCreateRuntimeOwnedMobileSessionTerminal ext
           : {}),
         ...(preAllocatedHandle ? { preAllocatedHandle } : {}),
         command: opts.command,
+        ...(opts.shellOverride ? { shellOverride: opts.shellOverride } : {}),
         cwd,
         env: opts.env,
         envToDelete: opts.envToDelete,
