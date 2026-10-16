@@ -28,7 +28,6 @@ describe('ensureWorktreeHasInitialTerminal', () => {
     expect(createdTabStartups(store)['tab-1']).toEqual({
       command: 'claude "Fix this bug"'
     })
-    expect(store.queueTabSetupSplit).not.toHaveBeenCalled()
     expect(store.queueTabIssueCommandSplit).not.toHaveBeenCalled()
   })
 

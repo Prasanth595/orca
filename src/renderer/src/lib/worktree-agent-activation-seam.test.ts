@@ -1,3 +1,4 @@
+import { getDefaultSettings } from '../../../shared/constants'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AppState } from '@/store'
@@ -48,10 +49,10 @@ function baseState(): Partial<AppState> {
     agentStatusByPaneKey: {},
     sleepingAgentSessionsByPaneKey: {},
     settings: {
+      ...getDefaultSettings(''),
       agentCmdOverrides: {},
-      defaultTuiAgent: 'codex',
-      setupScriptLaunchMode: 'new-tab'
-    } as AppState['settings'],
+      defaultTuiAgent: 'codex'
+    },
     markWorktreeVisited: vi.fn(),
     recordWorktreeVisit: vi.fn(),
     refreshGitHubForWorktreeIfStale: vi.fn(),

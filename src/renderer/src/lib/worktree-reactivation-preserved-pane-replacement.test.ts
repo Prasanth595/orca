@@ -1,3 +1,4 @@
+import { getDefaultSettings } from '../../../shared/constants'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useAppStore, type AppState } from '@/store'
@@ -59,9 +60,9 @@ function baseState(worktree: ReturnType<typeof makeWorktree>): Partial<AppState>
     ptyIdsByTabId: {},
     terminalLayoutsByTabId: {},
     settings: {
-      agentCmdOverrides: {},
-      setupScriptLaunchMode: 'new-tab'
-    } as unknown as ReturnType<typeof useAppStore.getState>['settings'],
+      ...getDefaultSettings(''),
+      agentCmdOverrides: {}
+    },
     markWorktreeVisited: vi.fn(),
     recordWorktreeVisit: vi.fn(),
     refreshGitHubForWorktreeIfStale: vi.fn(),

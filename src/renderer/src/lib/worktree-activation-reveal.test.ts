@@ -65,7 +65,6 @@ describe('activateAndRevealWorktree', () => {
       setTabColor: vi.fn(),
       markDefaultTerminalTabsApplied: vi.fn(),
       queueTabInitialCwd,
-      queueTabSetupSplit: vi.fn(),
       queueTabIssueCommandSplit: vi.fn(),
       revealWorktreeInSidebar
     } as never)
@@ -134,7 +133,6 @@ describe('activateAndRevealWorktree', () => {
       setTabColor: vi.fn(),
       markDefaultTerminalTabsApplied: vi.fn(),
       queueTabInitialCwd: vi.fn(),
-      queueTabSetupSplit: vi.fn(),
       queueTabIssueCommandSplit: vi.fn(),
       revealWorktreeInSidebar: vi.fn()
       // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: The fixture supplies only the activation slice used by the test.
