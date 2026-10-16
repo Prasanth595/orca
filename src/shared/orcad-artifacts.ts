@@ -164,6 +164,7 @@ export const ORCAD_NATIVE_CHAT_VISUALS_ARTIFACTS = [
 export const ORCAD_MOBILE_WEB_DIR = 'out/mobile-web'
 export const ORCAD_MOBILE_WEB_MANIFEST = `${ORCAD_MOBILE_WEB_DIR}/manifest.json`
 
+// Mirrors manifest-contract ASSET_PATH_PATTERN; cannot import under type stripping.
 const MOBILE_WEB_ASSET_PATH = /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*$/
 
 /** Slot paths of every asset `manifestText` lists, sorted; throws rather than ship a partial page. */
@@ -185,8 +186,12 @@ export function orcadMobileWebAssetFilenames(manifestText: string): string[] {
     }
     return `${ORCAD_MOBILE_WEB_DIR}/${path}`
   })
-  // Code-unit order: the list feeds the install hash, so it must not depend on locale.
-  return filenames.sort((left, right) => (left < right ? -1 : left > right ? 1 : 0))
+  return filenames.sort(compareCodeUnits)
+}
+
+/** Code-unit order: page asset lists feed the install hash, so they must not depend on locale. */
+export function compareCodeUnits(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0
 }
 
 export type OrcadArtifact = {

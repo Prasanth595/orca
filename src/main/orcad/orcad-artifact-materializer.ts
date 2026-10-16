@@ -13,6 +13,7 @@ import {
   ORCAD_TEMPLATE_MANIFEST_FILENAME,
   ORCAD_TEMPLATE_TARGETS_DIR,
   ORCAD_VERSION_FILENAME,
+  compareCodeUnits,
   orcadArtifactFilenames,
   orcadTemplateCommonFilenames,
   orcadTemplateTargetFilenames
@@ -255,7 +256,7 @@ function templateMobileWebAssets(manifest: z.infer<typeof TemplateManifestSchema
       (filename) =>
         filename.startsWith(`${ORCAD_MOBILE_WEB_DIR}/`) && filename !== ORCAD_MOBILE_WEB_MANIFEST
     )
-    .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0))
+    .sort(compareCodeUnits)
 }
 
 async function readTemplateManifest(

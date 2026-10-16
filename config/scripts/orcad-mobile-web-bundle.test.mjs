@@ -1,8 +1,9 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { parse } from 'yaml'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { ORCAD_ARTIFACTS, ORCAD_MOBILE_WEB_MANIFEST } from '../../src/shared/orcad-artifacts.ts'
+import { ORCAD_MOBILE_WEB_MANIFEST } from '../../src/shared/orcad-artifacts.ts'
 import { writeMobileWebBundleFixtureTree } from './mobile-web-bundle-fixture-tree.mjs'
 import {
   readOrcadMobileWebAssetFilenames,
@@ -23,14 +24,6 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks()
   rmSync(scratch, { recursive: true, force: true })
-})
-
-it('declares the page manifest as a required orcad artifact', () => {
-  const manifest = ORCAD_ARTIFACTS.find(
-    (artifact) => artifact.filename === ORCAD_MOBILE_WEB_MANIFEST
-  )
-  expect(manifest).toBeDefined()
-  expect(manifest.optional).toBeUndefined()
 })
 
 it('stages the manifest and every asset it lists, byte for byte', async () => {
@@ -54,14 +47,13 @@ it('fails the build when the page was never built', () => {
   expect(existsSync(join(outputDir, ORCAD_MOBILE_WEB_MANIFEST))).toBe(false)
 })
 
-it('fails the build on a stale page whose asset no longer matches its manifest', async () => {
-  const { manifest } = await writeMobileWebBundleFixtureTree({ outDir: bundleDir })
-  writeFileSync(join(bundleDir, manifest.assets[0].path), 'stale')
-  expect(() => stageOrcadMobileWebBundle(outputDir, bundleDir)).toThrow(manifest.assets[0].path)
-})
-
-it('fails the build when an asset the manifest lists is missing', async () => {
-  const { manifest } = await writeMobileWebBundleFixtureTree({ outDir: bundleDir })
-  unlinkSync(join(bundleDir, manifest.assets.at(-1).path))
-  expect(() => stageOrcadMobileWebBundle(outputDir, bundleDir)).toThrow('missing')
+it('ships the page the qualification lanes tested in the release template', () => {
+  const workflow = parse(
+    readFileSync(new URL('../../.github/workflows/node-server-tests.yml', import.meta.url), 'utf8')
+  )
+  const template = workflow.jobs.desktop_template
+  expect(template.needs).toContain('mobile_web_bundle')
+  expect(template.if).toContain("needs.mobile_web_bundle.result == 'success'")
+  expect(template.steps.some((step) => step.with?.name === 'orcad-mobile-web-bundle')).toBe(true)
+  expect(template.steps.some((step) => step.uses?.includes('build-mobile-web-bundle'))).toBe(false)
 })

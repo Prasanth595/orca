@@ -1,6 +1,6 @@
-import { copyFileSync, mkdirSync, readFileSync } from 'node:fs'
+import { cpSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import {
   ORCAD_MOBILE_WEB_DIR,
   ORCAD_MOBILE_WEB_MANIFEST,
@@ -17,16 +17,8 @@ const { MOBILE_WEB_BUNDLE_DIR, assertMobileWebBundleBuilt } = createRequire(impo
  */
 export function stageOrcadMobileWebBundle(outputDir, bundleDir = MOBILE_WEB_BUNDLE_DIR) {
   assertMobileWebBundleBuilt(bundleDir)
-  const manifestText = readFileSync(join(bundleDir, 'manifest.json'), 'utf8')
-  for (const filename of [
-    ORCAD_MOBILE_WEB_MANIFEST,
-    ...orcadMobileWebAssetFilenames(manifestText)
-  ]) {
-    const relativePath = filename.slice(ORCAD_MOBILE_WEB_DIR.length + 1)
-    const destination = join(outputDir, ...filename.split('/'))
-    mkdirSync(dirname(destination), { recursive: true })
-    copyFileSync(join(bundleDir, ...relativePath.split('/')), destination)
-  }
+  // The guard refuses unlisted files, so the tree is exactly the manifest and its assets.
+  cpSync(bundleDir, join(outputDir, ...ORCAD_MOBILE_WEB_DIR.split('/')), { recursive: true })
 }
 
 /** The asset half of a package's artifact list, read from the page it carries. */
