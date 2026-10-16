@@ -1,3 +1,8 @@
+import { withWorkspaceRoute } from '../../../../src/navigation/workspace-route'
+import {
+  useWorkspaceExecutionHost,
+  workspaceRouteParams
+} from '../../../../src/navigation/workspace-execution-host'
 import { useLocalSearchParams } from 'expo-router'
 import { MobileDiffReviewRouteScreen } from '../../../../src/session/MobileDiffReviewRouteScreen'
 import { firstReviewParam } from '../../../../src/session/mobile-diff-review-screen-model'
@@ -6,7 +11,7 @@ import {
   shellScreenRouteKey
 } from '../../../../src/mobile-web-shell/shell-screen-route'
 import { MobileWebShellScreen } from '../../../../src/mobile-web-shell/MobileWebShellScreen'
-import { useMobileWebShellEnabled } from '../../../../src/mobile-web-shell/use-mobile-web-shell-enabled'
+import { shellSwitchDecision } from '../../../../src/mobile-web-shell/shell-switch-decision'
 
 /**
  * Diff review, from the desktop's bundle or from this app.
@@ -19,7 +24,7 @@ import { useMobileWebShellEnabled } from '../../../../src/mobile-web-shell/use-m
  * `matchesRoutePattern` is segment-count exact with literal equality on the static segments, so
  * these five segments collide with nothing: the explorer's five carry `files`.
  */
-export default function MobileDiffReviewScreen() {
+export default withWorkspaceRoute(function MobileDiffReviewScreen() {
   // Through `firstReviewParam`, which is this domain's spelling of the rule every switch follows:
   // expo-router answers a repeated query key with an array, and a bare read would build a single
   // segment out of `String(['a','b'])` that the bridge's segment rule accepts.
@@ -33,17 +38,20 @@ export default function MobileDiffReviewScreen() {
   }>()
   const hostId = firstReviewParam(params.hostId)
   const worktreeId = firstReviewParam(params.worktreeId)
-  const enabled = useMobileWebShellEnabled()
+  const executionHost = useWorkspaceExecutionHost()
   const native = <MobileDiffReviewRouteScreen />
 
   // The four query params are read by the screen itself, so they are carried across whole rather
   // than re-derived here; each is omitted when empty, because the screen's own normalizers treat an
   // absent scope, file or area differently from one named nothing.
-  const routeParams = Object.fromEntries(
-    (['name', 'scope', 'file', 'area'] as const)
-      .map((key) => [key, firstReviewParam(params[key])] as const)
-      .filter(([, value]) => value !== '')
-  )
+  const routeParams: Record<string, string> = {
+    ...Object.fromEntries(
+      (['name', 'scope', 'file', 'area'] as const)
+        .map((key) => [key, firstReviewParam(params[key])] as const)
+        .filter(([, value]) => value !== '')
+    ),
+    ...workspaceRouteParams(executionHost)
+  }
   const route =
     hostId && worktreeId
       ? shellScreenRoute({
@@ -52,7 +60,9 @@ export default function MobileDiffReviewScreen() {
         })
       : null
 
-  if (enabled !== true || !hostId || route === null) {
+  const decision = shellSwitchDecision(route)
+
+  if (decision.kind === 'native') {
     return native
   }
   // Keyed on the route: a host captures the grants its session was opened with, so a screen reused
@@ -60,10 +70,10 @@ export default function MobileDiffReviewScreen() {
   // left. A `file` change is the common case here and is a param change, not a path change.
   return (
     <MobileWebShellScreen
-      key={shellScreenRouteKey(route)}
+      key={shellScreenRouteKey(decision.route)}
       hostId={hostId}
-      route={route}
+      route={decision.route}
       fallback={native}
     />
   )
-}
+})

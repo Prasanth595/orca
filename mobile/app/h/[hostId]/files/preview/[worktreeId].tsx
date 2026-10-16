@@ -1,3 +1,8 @@
+import { withWorkspaceRoute } from '../../../../../src/navigation/workspace-route'
+import {
+  useWorkspaceExecutionHost,
+  workspaceRouteParams
+} from '../../../../../src/navigation/workspace-execution-host'
 import { useLocalSearchParams } from 'expo-router'
 import { MobileFilePreviewScreen } from '../../../../../src/files/MobileFilePreviewScreen'
 import {
@@ -9,7 +14,7 @@ import {
   shellScreenRouteKey
 } from '../../../../../src/mobile-web-shell/shell-screen-route'
 import { MobileWebShellScreen } from '../../../../../src/mobile-web-shell/MobileWebShellScreen'
-import { useMobileWebShellEnabled } from '../../../../../src/mobile-web-shell/use-mobile-web-shell-enabled'
+import { shellSwitchDecision } from '../../../../../src/mobile-web-shell/shell-switch-decision'
 
 /**
  * The file preview, from the desktop's bundle or from this app.
@@ -22,7 +27,7 @@ import { useMobileWebShellEnabled } from '../../../../../src/mobile-web-shell/us
  * them — is a param, which is what keeps a `/`, a space or a `..` out of the segment vocabulary the
  * bridge holds a route to.
  */
-export default function MobileFilePreviewRoute() {
+export default withWorkspaceRoute(function MobileFilePreviewRoute() {
   const params = useLocalSearchParams<{
     hostId?: string | string[]
     worktreeId?: string | string[]
@@ -41,19 +46,26 @@ export default function MobileFilePreviewRoute() {
     worktreeName?: string | string[]
   }>()
   const route = normalizeMobileFilePreviewRouteParams(params)
-  const enabled = useMobileWebShellEnabled()
   const native = <MobileFilePreviewScreen route={route} />
+  const executionHost = useWorkspaceExecutionHost()
 
   const shellRoute = route.ok
     ? shellScreenRoute({
         pathname: `/h/${encodeURIComponent(route.params.hostId)}/files/preview/${encodeURIComponent(
           route.params.worktreeId
         )}`,
-        params: mobileFilePreviewShellParams(route.params)
+        params: {
+          ...mobileFilePreviewShellParams(route.params),
+          ...workspaceRouteParams(executionHost)
+        }
       })
     : null
 
-  if (enabled !== true || !route.ok || shellRoute === null) {
+  const decision = shellSwitchDecision(shellRoute)
+
+  // `route.ok` again for the compiler: `shellRoute` is built only on the ok branch, so a `shell`
+  // decision already implies it.
+  if (decision.kind === 'native' || !route.ok) {
     return native
   }
   // Keyed on the whole route, params included, for two reasons. A host captures the grants its
@@ -63,10 +75,10 @@ export default function MobileFilePreviewRoute() {
   // was opened on, with nothing to tell it otherwise.
   return (
     <MobileWebShellScreen
-      key={shellScreenRouteKey(shellRoute)}
+      key={shellScreenRouteKey(decision.route)}
       hostId={route.params.hostId}
-      route={shellRoute}
+      route={decision.route}
       fallback={native}
     />
   )
-}
+})
