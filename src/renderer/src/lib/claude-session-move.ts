@@ -207,9 +207,10 @@ export async function readClaudeInPane(
     return isClaudeRunningInPane(inspection, launchAgent)
   }
   const confirmed = await confirmRuntimeTerminalForegroundProcess(ptyId)
+  // Why children: a foreground other than the shell runs under it, as the daemon's own read says.
   return confirmed === null
     ? null
-    : isClaudeRunningInPane({ ...inspection, foregroundProcess: confirmed }, launchAgent)
+    : isClaudeRunningInPane({ foregroundProcess: confirmed, hasChildProcesses: true }, launchAgent)
 }
 
 /** Whether restarting the session now loses nothing: hibernation's own test for a pane it may stop. */

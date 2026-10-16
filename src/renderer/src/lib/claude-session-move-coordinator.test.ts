@@ -484,6 +484,16 @@ describe('Claude session moves', () => {
     expect(restartPaneForAccountMove).toHaveBeenCalledOnce()
   })
 
+  it('moves a Claude the fresh read finds running under node', async () => {
+    inspect.mockResolvedValueOnce({ foregroundProcess: 'zsh', hasChildProcesses: false })
+    confirm.mockResolvedValueOnce('node')
+    seed({})
+
+    await moveClaudeSessionsToSelectedAccount()
+
+    expect(restartPaneForAccountMove).toHaveBeenCalledOnce()
+  })
+
   it('leaves the pane once a fresh read confirms the shell', async () => {
     foreground.process = 'zsh'
     confirm.mockResolvedValueOnce('zsh')
@@ -535,28 +545,25 @@ describe('Claude session moves', () => {
   })
 
   it('reads the accounts again when an account signs in again', async () => {
+    const account = (updatedAt: number) => ({
+      id: 'acct-a',
+      email: 'a@example.test',
+      managedAuthPath: '',
+      authMethod: 'subscription-oauth' as const,
+      createdAt: 1,
+      updatedAt,
+      lastAuthenticatedAt: updatedAt
+    })
     seed({}, { claudeMoveIdleSessions: true })
+    useAppStore.setState((s) => ({
+      settings: s.settings ? { ...s.settings, claudeManagedAccounts: [account(1)] } : s.settings
+    }))
     uninstall = installClaudeSessionMoveCoordinator()
     await settle()
     list.mockClear()
 
     useAppStore.setState((s) => ({
-      settings: s.settings
-        ? {
-            ...s.settings,
-            claudeManagedAccounts: [
-              {
-                id: 'acct-a',
-                email: 'a@example.test',
-                managedAuthPath: '',
-                authMethod: 'subscription-oauth',
-                createdAt: 1,
-                updatedAt: 2,
-                lastAuthenticatedAt: 2
-              }
-            ]
-          }
-        : s.settings
+      settings: s.settings ? { ...s.settings, claudeManagedAccounts: [account(2)] } : s.settings
     }))
     await settle()
 
