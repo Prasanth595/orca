@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { buildMobileTerminalChatFork } from './mobile-terminal-chat-fork'
 import { prepareStructuredChatCliFork } from '../../../ai-vault/structured-chat-cli-fork'
+import { OrchestrationError } from '../../orchestration/orchestration-error'
+import { PROJECT_RUNTIME_REPAIR_REQUIRED_CODE } from '../../../../shared/project-runtime-repair-message'
 vi.mock('../../../ai-vault/structured-chat-cli-fork', () => ({
   prepareStructuredChatCliFork: vi.fn(),
   isStructuredChatCliForkSourceCurrent: vi.fn(() => true)
@@ -65,8 +67,7 @@ it('places one owned PTY and refuses an unsaved chat before another spawn', asyn
   runtime.setPtyController({ spawn, write: () => true, kill: () => true,
     getForegroundProcess: async () => null })
   const tabs = ['anchor', 'later', 'last', 'desktop-active'].map((id) => ({
-    type: 'agent-session' as const, id, sessionId: id, agent: 'claude' as const,
-    title: id, isActive: id === 'anchor' }))
+    type: 'agent-session' as const, id, sessionId: id, agent: 'claude' as const, title: id, isActive: id === 'anchor' }))
   runtime.syncWindowGraph(0, { tabs: [], leaves: [], mobileSessionTabs: [{
     worktree: TEST_WORKTREE_ID, publicationEpoch: 'headless:fork-placement', snapshotVersion: 1,
     activeGroupId: 'desktop-group', activeTabId: 'anchor', activeTabType: 'agent-session', tabs,
@@ -76,8 +77,7 @@ it('places one owned PTY and refuses an unsaved chat before another spawn', asyn
     ]
   }] })
   const targetGroupId = resolveMobileChatForkTargetGroup({
-    groups: [{ id: 'phone-group', tabOrder: ['anchor', 'later', 'last'] },
-      { id: 'desktop-group', tabOrder: ['desktop-active'] }],
+    groups: [{ id: 'phone-group', tabOrder: ['anchor', 'later', 'last'] }, { id: 'desktop-group', tabOrder: ['desktop-active'] }],
     afterDesktopTabId: 'anchor', activeGroupId: 'desktop-group'
   })
   expect(targetGroupId).toBe('phone-group')
@@ -98,13 +98,20 @@ it('places one owned PTY and refuses an unsaved chat before another spawn', asyn
     'anchor', created.tab.parentTabId, 'later', 'last', 'desktop-active' ])
   expect(listed.tabGroups?.map((group) => group.tabOrder)).toEqual([
     ['anchor', created.tab.parentTabId, 'later', 'last'], ['desktop-active'] ])
-  vi.spyOn(runtime, 'ensureStructuredAgentSessionHost').mockResolvedValueOnce(undefined)
-  vi.mocked(prepareStructuredChatCliFork).mockRejectedValueOnce(new Error('This chat has no saved conversation to copy.'))
-  await expect(runtime['createMobileChatForkTerminal']({
-    workspace: { id: TEST_WORKTREE_ID, path: cwd, connectionId: null, repo: null, folderWorkspace: null },
-    worktreeId: TEST_WORKTREE_ID,
-    opts: { sourceChatFork: { sessionId: 'unsaved-chat' }, clientMutationId: 'next-create' },
-    graphEpoch: 0
-  })).rejects.toThrow('chat_fork_source_unavailable')
+  const ensure = vi.spyOn(runtime, 'ensureStructuredAgentSessionHost')
+  for (const [failure, expected] of [
+    [new Error('This chat has no saved conversation to copy.'), { message: 'chat_fork_source_unavailable' }],
+    [new OrchestrationError(PROJECT_RUNTIME_REPAIR_REQUIRED_CODE, 'Repair project settings.'),
+      { code: PROJECT_RUNTIME_REPAIR_REQUIRED_CODE }]
+  ] as const) {
+    ensure.mockResolvedValueOnce(undefined)
+    vi.mocked(prepareStructuredChatCliFork).mockRejectedValueOnce(failure)
+    await expect(runtime['createMobileChatForkTerminal']({
+      workspace: { id: TEST_WORKTREE_ID, path: cwd, connectionId: null, repo: null, folderWorkspace: null },
+      worktreeId: TEST_WORKTREE_ID,
+      opts: { sourceChatFork: { sessionId: 'unsaved-chat' }, clientMutationId: 'next-create' },
+      graphEpoch: 0
+    })).rejects.toMatchObject(expected)
+  }
   expect(spawn).toHaveBeenCalledOnce()
 })

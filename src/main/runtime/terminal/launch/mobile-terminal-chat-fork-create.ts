@@ -11,6 +11,7 @@ import { applyClaudeTerminalImageViewerEnv } from '../../terminal-image-viewer-e
 import { deterministicAgentSessionUuid } from '../../runtime-agent-launch-resolution'
 import { rendererPublicationThrottle } from '../../../window/renderer-publication-throttle'
 import { PROJECT_RUNTIME_REPAIR_REQUIRED_CODE } from '../../../../shared/project-runtime-repair-message'
+import { OrchestrationError } from '../../orchestration/orchestration-error'
 
 export function resolveMobileChatForkTargetGroup(args: {
   groups?: readonly { id: string; tabOrder: readonly string[] }[]
@@ -95,7 +96,8 @@ export abstract class OrcaRuntimeWithMobileChatForkCreate extends OrcaRuntimeWit
         })
         return { startup, launchRuntime, win, targetGroupId }
       } catch (error) {
-        const code = error instanceof Error ? error.message : ''
+        const code = error instanceof OrchestrationError
+          ? error.code : error instanceof Error ? error.message : ''
         if (code === 'chat_fork_source_unavailable' || code === 'chat_fork_runtime_incompatible' ||
           code === 'chat_fork_anchor_changed' || code === PROJECT_RUNTIME_REPAIR_REQUIRED_CODE ||
           code === 'runtime_unavailable' || code === 'client_disconnected') {
