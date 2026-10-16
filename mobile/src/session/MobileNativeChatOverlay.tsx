@@ -126,7 +126,7 @@ export function MobileNativeChatOverlay({
           composerTray={composerTray}
           onOpenFile={onOpenFile}
           hasMore={session.hasMore}
-          loadingEarlier={session.loadingEarlier}
+          olderPages={session.olderPages}
           onLoadEarlier={session.loadEarlier}
           onSend={images.sendNativeChat}
           sendSurfaceId={sendSurfaceId}
