@@ -67,6 +67,18 @@ function Prose({
   onLongPress?: () => void
 }): React.JSX.Element | null {
   if (isTextBlock(block)) {
+    if (block.presentation === 'compaction') {
+      return (
+        <View style={styles.compaction} accessible accessibilityLabel={block.text}>
+          <View style={styles.compactionLine} />
+          <NativeText style={[styles.compactionLabel, { fontSize: TEXT_SIZE * 0.9 * fontScale }]}>
+            {block.text}
+          </NativeText>
+          <View style={styles.compactionLine} />
+        </View>
+      )
+    }
+
     // A host line standing in for a message too large to send, on the person's own row.
     if (isAgentSessionHostStatusPresentation(block.presentation)) {
       return (
@@ -131,6 +143,8 @@ function Prose({
 function MobileNativeChatMessageImpl({
   message,
   mayStillGrow = false,
+  finalReply = false,
+  processHidden = false,
   toolsExpanded = false,
   fontScale = 1,
   onOpenFile,
@@ -152,6 +166,8 @@ function MobileNativeChatMessageImpl({
 }: {
   message: NativeChatMessage
   /** The newest assistant row of a live turn with no prompt open: its last text may still grow. */
+  processHidden?: boolean
+  finalReply?: boolean
   mayStillGrow?: boolean
   toolsExpanded?: boolean
   /** Multiplies all chat text sizes for pinch-to-zoom (1 = no change). */
@@ -244,6 +260,9 @@ function MobileNativeChatMessageImpl({
       onToggleExpanded={turnKey && onToggleTurn ? () => onToggleTurn(turnKey) : undefined}
     />
   ) : null
+  if (processHidden) {
+    return <>{statusRow}</>
+  }
   if (receipt) {
     return (
       <>
@@ -291,11 +310,9 @@ function MobileNativeChatMessageImpl({
       </>
     )
   }
-  // Always shown, so the row never shifts when copy appears.
+  // Only the completed answer gets a persistent copy control; long press still works on every row.
   const copyText =
-    message.role === 'user' || message.role === 'assistant'
-      ? nativeChatMessagePlainText(message)
-      : ''
+    finalReply && message.role === 'assistant' ? nativeChatMessagePlainText(message) : ''
   return (
     <>
       {/* A turn with no user bubble carries its bar above its first row. */}
