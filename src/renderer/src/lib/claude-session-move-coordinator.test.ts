@@ -15,6 +15,15 @@ type Inspection = {
   foregroundProcess: string | null
   hasChildProcesses: boolean
   childProcessEvidence?: 'children' | 'no-children' | 'unverifiable'
+  foregroundProcessEvidence?: {
+    verdict: 'unverifiable'
+    reason: string
+    authorityGeneration: string
+    observationEpoch: number
+    capturedAgeMs: number
+    ptyId: string
+    ptyIncarnationId: string
+  }
 }
 const foreground = vi.hoisted(() => ({ process: 'claude' }))
 const inspect = vi.hoisted(() =>
@@ -408,5 +417,29 @@ describe('Claude session moves', () => {
     await moving
 
     expect(restartPaneForAccountMove).not.toHaveBeenCalled()
+  })
+
+  it('tries again when the foreground could not be verified, rather than giving up on the session', async () => {
+    inspect.mockResolvedValueOnce({
+      foregroundProcess: 'zsh',
+      hasChildProcesses: false,
+      foregroundProcessEvidence: {
+        verdict: 'unverifiable',
+        reason: 'process_table_unavailable',
+        authorityGeneration: 'gen-1',
+        observationEpoch: 1,
+        capturedAgeMs: 0,
+        ptyId: 'pty-1',
+        ptyIncarnationId: 'inc-1'
+      }
+    })
+    seed({})
+    uninstall = installClaudeSessionMoveCoordinator()
+    await moveClaudeSessionsToSelectedAccount()
+    expect(restartPaneForAccountMove).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(16_000)
+
+    expect(restartPaneForAccountMove).toHaveBeenCalledOnce()
   })
 })

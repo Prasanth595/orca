@@ -211,6 +211,12 @@ async function movePanes(): Promise<number> {
       continue
     }
     if (!isClaudeRunningInPane(inspection, tab?.launchAgent)) {
+      // Why give up only on a clear answer: a foreground nobody could verify may be a failed read,
+      // not a pane that stopped running Claude.
+      if (inspection.foregroundProcessEvidence?.verdict === 'unverifiable') {
+        waiting += 1
+        continue
+      }
       settle(session)
       continue
     }
