@@ -512,6 +512,15 @@ describe('agent process recognition', () => {
     expect(recognizeAgentProcessFromCommandLine('omo --mode json')).toBeNull()
   })
 
+  it('recognizes the senpi build as OmO and filters its headless runs', () => {
+    expect(recognizeAgentProcess('senpi')).toEqual({ agent: 'omo', processName: 'senpi' })
+    expect(recognizeAgentProcessFromCommandLine('senpi -- "fix the build"')).toEqual({
+      agent: 'omo',
+      processName: 'senpi'
+    })
+    expect(recognizeAgentProcessFromCommandLine('senpi -p "summarize this diff"')).toBeNull()
+  })
+
   it('recognizes only the agent subcommand of the generic Orca CLI', () => {
     expect(recognizeAgentProcessFromCommandLine('orca claude-teams')).toEqual({
       agent: 'claude-agent-teams',
