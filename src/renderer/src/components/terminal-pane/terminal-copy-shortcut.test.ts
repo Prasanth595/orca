@@ -7,6 +7,7 @@ import { createTerminalNativeOnlyShortcutTracker } from './terminal-native-only-
 
 type DispatchContext = Parameters<typeof dispatchTerminalShortcutAction>[3]
 
+/** Runs the real dispatcher to observe native focus and shortcut press/release ownership. */
 function dispatchCopy(
   selection: string,
   repeat: boolean,
@@ -20,6 +21,7 @@ function dispatchCopy(
   let nativeCopyTarget: Element | null = null
   const performNativeSelectionAction = vi.fn(() => {
     nativeCopyTarget = document.activeElement
+    return Promise.resolve(true)
   })
   vi.stubGlobal('api', {
     ui: { writeTerminalClipboardText, performNativeSelectionAction },

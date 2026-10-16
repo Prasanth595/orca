@@ -8,6 +8,7 @@ type TerminalSelectionCopyOptions = {
   clearSelectionOnSuccess?: boolean
 }
 
+/** Publishes selected terminal text, clearing the selection only after a successful write. */
 export async function copyTerminalSelection({
   terminal,
   writeClipboardText,
@@ -26,6 +27,7 @@ export async function copyTerminalSelection({
   return true
 }
 
+/** Copies a terminal selection without moving focus during automatic selection changes. */
 export function copyTerminalSelectionFromUserInput(
   terminal: Pick<Terminal, 'getSelection' | 'focus' | 'textarea'>,
   source: 'keyboard' | 'selection'

@@ -5,6 +5,7 @@ type SelectedTextCopyOptions = {
   beforeNativeCopy?: () => void
 }
 
+/** Copies user-selected text, falling back to its writer if native dispatch is unavailable. */
 export async function copySelectedTextFromUserInput({
   text,
   writeClipboardText,
@@ -18,8 +19,10 @@ export async function copySelectedTextFromUserInput({
   if (allowNativeCopy && platform?.platform === 'linux' && platform.displayServer === 'wayland') {
     // Keep the input serial and clipboard source on the focused Wayland connection.
     beforeNativeCopy?.()
-    window.api.ui.performNativeSelectionAction('copy')
-    return
+    const dispatched = await window.api.ui.performNativeSelectionAction('copy').catch(() => false)
+    if (dispatched) {
+      return
+    }
   }
   await writeClipboardText(text)
 }

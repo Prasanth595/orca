@@ -14,32 +14,43 @@ import {
 import { dispatchAppMenuPasteEvent } from '@/lib/app-menu-paste'
 import { dispatchAppMenuSelectionAction } from '@/lib/app-menu-selection-actions'
 
-const terminalHarness = vi.hoisted(() => ({
-  instances: [] as {
-    write: ReturnType<typeof vi.fn>
-    writeCallbacks: (() => void)[]
-    onDataListener: ((data: string) => void) | null
-    dispose: ReturnType<typeof vi.fn>
-    focus: ReturnType<typeof vi.fn>
-    resize: ReturnType<typeof vi.fn>
-    reset: ReturnType<typeof vi.fn>
-    paste: ReturnType<typeof vi.fn>
-    input: ReturnType<typeof vi.fn>
-    scrollToTop: ReturnType<typeof vi.fn>
-    scrollToBottom: ReturnType<typeof vi.fn>
-    selectAll: ReturnType<typeof vi.fn>
-    modes: { bracketedPasteMode: boolean }
-    selectionText: string
-    customKeyHandler: ((event: KeyboardEvent) => boolean) | null
-  }[],
-  userInputListener: null as (() => void) | null,
-  userInputDispose: vi.fn()
-}))
+const terminalHarness = vi.hoisted(
+  (): {
+    instances: {
+      write: ReturnType<typeof vi.fn>
+      writeCallbacks: (() => void)[]
+      onDataListener: ((data: string) => void) | null
+      dispose: ReturnType<typeof vi.fn>
+      focus: ReturnType<typeof vi.fn>
+      resize: ReturnType<typeof vi.fn>
+      reset: ReturnType<typeof vi.fn>
+      paste: ReturnType<typeof vi.fn>
+      input: ReturnType<typeof vi.fn>
+      scrollToTop: ReturnType<typeof vi.fn>
+      scrollToBottom: ReturnType<typeof vi.fn>
+      selectAll: ReturnType<typeof vi.fn>
+      modes: { bracketedPasteMode: boolean }
+      selectionText: string
+      customKeyHandler: ((event: KeyboardEvent) => boolean) | null
+    }[]
+    userInputListener: (() => void) | null
+    userInputDispose: ReturnType<typeof vi.fn>
+  } => ({
+    instances: [],
+    userInputListener: null,
+    userInputDispose: vi.fn()
+  })
+)
 
-const platformState = vi.hoisted(() => ({
-  value: 'linux',
-  displayServer: null as 'wayland' | 'x11' | null
-}))
+const platformState = vi.hoisted(
+  (): {
+    value: string
+    displayServer: 'wayland' | 'x11' | null
+  } => ({
+    value: 'linux',
+    displayServer: null
+  })
+)
 const storeState = vi.hoisted(() => ({
   settings: null as { terminalRightClickToPaste?: boolean } | null,
   keybindings: {} as Record<string, string[]>
@@ -168,7 +179,7 @@ describe('AgentTerminalPreview clipboard routes', () => {
   const readClipboardText = vi.fn(async () => 'clip-text')
   const writeClipboardText = vi.fn(async () => {})
   const writeTerminalClipboardText = vi.fn(async () => {})
-  const performNativeSelectionAction = vi.fn()
+  const performNativeSelectionAction = vi.fn(async () => true)
 
   /** Focuses a stand-in for xterm's helper textarea inside the preview container. */
   const focusInsidePreview = (container: HTMLElement, tagName = 'input'): HTMLElement => {

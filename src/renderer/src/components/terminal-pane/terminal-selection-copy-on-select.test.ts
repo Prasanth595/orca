@@ -8,6 +8,7 @@ const writeTerminalClipboardText = vi.fn<(text: string) => Promise<void>>()
 const performNativeSelectionAction = vi.fn()
 let platform: { platform: string; displayServer?: string }
 
+/** Uses a real textarea so automatic-copy focus regressions remain observable. */
 function makeTerminal(selection = '  first line\n  second line') {
   const textarea = document.createElement('textarea')
   document.body.appendChild(textarea)
@@ -23,7 +24,7 @@ describe('copyTerminalSelectionFromUserInput', () => {
   beforeEach(() => {
     platform = { platform: 'linux', displayServer: 'wayland' }
     writeTerminalClipboardText.mockReset().mockResolvedValue(undefined)
-    performNativeSelectionAction.mockReset()
+    performNativeSelectionAction.mockReset().mockResolvedValue(true)
     vi.stubGlobal('api', {
       platform: { get: () => platform },
       ui: { writeTerminalClipboardText, performNativeSelectionAction }

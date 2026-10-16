@@ -37,6 +37,7 @@ type ActionDispatchContext = {
   armNativeOnlyShortcut: (event: KeyboardEvent) => void
 }
 
+/** Dispatches matched shortcuts while preserving repeat and companion-key ownership. */
 export function dispatchTerminalShortcutAction(
   action: TerminalShortcutAction,
   event: KeyboardEvent,

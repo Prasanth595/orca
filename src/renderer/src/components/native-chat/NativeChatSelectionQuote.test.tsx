@@ -157,6 +157,7 @@ describe('NativeChatSelectionQuote copy on select', () => {
   const writeClipboardText = vi.fn<(text: string) => Promise<void>>()
   const performNativeSelectionAction = vi.fn()
 
+  /** Supplies display metadata without changing the host display or clipboard. */
   function platform(platform: NodeJS.Platform, displayServer: 'wayland' | 'x11' | null): void {
     vi.stubGlobal('api', {
       platform: { get: () => ({ platform, displayServer }) },
@@ -173,7 +174,7 @@ describe('NativeChatSelectionQuote copy on select', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     writeClipboardText.mockReset().mockResolvedValue(undefined)
-    performNativeSelectionAction.mockReset()
+    performNativeSelectionAction.mockReset().mockResolvedValue(true)
     vi.stubGlobal('api', { ui: { writeClipboardText, performNativeSelectionAction } })
     copyOnSelect(true)
   })
