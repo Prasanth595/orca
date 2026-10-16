@@ -24,7 +24,6 @@ import {
   projectStructuredQuestion
 } from './mobile-structured-agent-prompts'
 import type { StructuredMobileSession } from './mobile-structured-agent-session-contract'
-import type { MobileNativeChatVisualSource } from './mobile-native-chat-visual-read'
 import type { RpcClient } from '../transport/rpc-client'
 import { useMobileStructuredAgentState } from './use-mobile-structured-agent-state'
 import { useMobileStructuredStopPress } from './use-mobile-structured-stop-press'
@@ -149,6 +148,7 @@ export function useMobileStructuredAgentSession(args: {
   )
   const sends = useMobileStructuredSends({
     sessionKey,
+    cursor: state.cursor,
     submissions: state.submissions,
     queuedMessages,
     onSendError
@@ -284,7 +284,7 @@ export function useMobileStructuredAgentSession(args: {
     ]
   )
 
-  const visualSource = useMemo<MobileNativeChatVisualSource | null>(
+  const visualSource = useMemo(
     () => (client && sessionId ? { client, sessionId } : null),
     [client, sessionId]
   )

@@ -1,6 +1,5 @@
 import { useMobileChatInitialPosition } from './use-mobile-chat-initial-position'
-import { MobileChatScrollPositions } from './mobile-chat-scroll-position'
-import { useCallback, useContext, useEffect, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import {
   Platform,
   type LayoutChangeEvent,
@@ -42,6 +41,7 @@ export type MobileNativeChatTailFollow<TItem> = {
   /** Attach to the transcript list; the hook scrolls through this ref alone. */
   listRef: RefObject<FlatList<TItem> | null>
   /** Render flag for the jump-to-latest control. */
+  followingLatest: boolean
   showJumpToTail: boolean
   /** Passive maintenance: re-pin after the viewport resizes. */
   initialPositionReady: boolean
@@ -76,10 +76,10 @@ export type MobileNativeChatTailFollow<TItem> = {
  */
 export function useMobileNativeChatTailFollow<TItem>(args: {
   /** Guards `scrollToEnd` against an empty list. */
-  hasItems: boolean
-  scopeKey?: string
+  items: readonly TItem[]
+  scopeKey: string
 }): MobileNativeChatTailFollow<TItem> {
-  const { hasItems } = args
+  const hasItems = args.items.length > 0
   const listRef = useRef<FlatList<TItem> | null>(null)
   const [following, setFollowingFlag] = useState(true)
   const [atTail, setAtTailFlag] = useState(true)
@@ -90,30 +90,22 @@ export function useMobileNativeChatTailFollow<TItem>(args: {
   const userScrollSettleFrameRef = useRef<number | null>(null)
   // Page only: what the offsets last said, in place of the gestures RN Web does not report.
   const pageOffsetRef = useRef(0)
-  const pageContentHeightRef = useRef(0)
   const pageReaderMovedUpRef = useRef(false)
 
-  const positions = useContext(MobileChatScrollPositions)
-  const scope = useRef<string | undefined>(undefined)
+  const scope = useRef(args.scopeKey)
   const generation = useRef(0)
-  const offset = useRef(0)
-  const restoring = useRef<number | null>(null)
   if (scope.current !== args.scopeKey) {
-    if (scope.current) {
-      positions?.set(scope.current, { offset: offset.current, following: followingRef.current })
-    }
-    const saved = args.scopeKey ? positions?.get(args.scopeKey) : undefined
     scope.current = args.scopeKey
     generation.current++
-    offset.current = saved?.offset ?? 0
-    restoring.current = saved && !saved.following ? saved.offset : null
-    followingRef.current = saved?.following ?? true
-    atTailRef.current = followingRef.current
+    followingRef.current = true
+    atTailRef.current = true
     userScrollActiveRef.current = false
-    setFollowingFlag(followingRef.current)
-    setAtTailFlag(atTailRef.current)
+    pageOffsetRef.current = 0
+    pageReaderMovedUpRef.current = false
+    setFollowingFlag(true)
+    setAtTailFlag(true)
   }
-  const initial = useMobileChatInitialPosition(args.scopeKey, restoring.current)
+  const initial = useMobileChatInitialPosition(args.scopeKey)
   const current = generation.current
   const isCurrent = () => generation.current === current
 
@@ -134,6 +126,38 @@ export function useMobileNativeChatTailFollow<TItem>(args: {
     setAtTailFlag(next)
   }, [])
 
+  const pinFrame = useRef<number | null>(null)
+  const pendingPin = useRef<(() => void) | null>(null)
+  const cancelPin = useCallback(() => {
+    if (pinFrame.current !== null) {
+      cancelAnimationFrame(pinFrame.current)
+    }
+    pinFrame.current = null
+    pendingPin.current = null
+  }, [])
+  const pinAfterLayout = useCallback(
+    (command: () => void) => {
+      if (!initial.initialPositionReady) {
+        command()
+        return
+      }
+      pendingPin.current = command
+      if (pinFrame.current !== null) {
+        return
+      }
+      pinFrame.current = requestAnimationFrame(() => {
+        pinFrame.current = null
+        const pin = pendingPin.current
+        pendingPin.current = null
+        if (isCurrent() && followingRef.current) {
+          pin?.()
+        }
+      })
+    },
+    [initial.initialPositionReady, current]
+  )
+  useEffect(() => cancelPin, [cancelPin, args.scopeKey])
+
   const pinToTail = useCallback(
     (event?: LayoutChangeEvent) => {
       if (event) {
@@ -142,21 +166,23 @@ export function useMobileNativeChatTailFollow<TItem>(args: {
       if (!isCurrent()) {
         return
       }
-      if (restoring.current !== null && hasItems) {
-        listRef.current?.scrollToOffset({ animated: false, offset: restoring.current })
-        return
-      }
       if (!followingRef.current || !hasItems) {
         return
       }
       if (listReportsGestures()) {
-        listRef.current?.scrollToEnd({ animated: false })
+        pinAfterLayout(() => listRef.current?.scrollToEnd({ animated: false }))
         return
       }
       // Why not `scrollToEnd`: its estimate can land short, and the page reads a move up as the reader's.
-      listRef.current?.scrollToOffset({ animated: false, offset: pageContentHeightRef.current })
+      const scroller: { scrollHeight: number } | null | undefined =
+        listRef.current?.getScrollableNode()
+      if (scroller) {
+        pinAfterLayout(() =>
+          listRef.current?.scrollToOffset({ animated: false, offset: scroller.scrollHeight })
+        )
+      }
     },
-    [hasItems, current, initial.recordInitialViewport]
+    [hasItems, current, initial.recordInitialViewport, pinAfterLayout]
   )
 
   const pinToTailAfterContentResize = useCallback(
@@ -165,17 +191,12 @@ export function useMobileNativeChatTailFollow<TItem>(args: {
         return
       }
       initial.recordInitialContent(height)
-      if (restoring.current !== null && hasItems) {
-        listRef.current?.scrollToOffset({ animated: false, offset: restoring.current })
-        return
-      }
-      pageContentHeightRef.current = height
       if (!followingRef.current || !hasItems) {
         return
       }
-      listRef.current?.scrollToOffset({ animated: false, offset: height })
+      pinAfterLayout(() => listRef.current?.scrollToOffset({ animated: false, offset: height }))
     },
-    [hasItems, current, initial.recordInitialContent]
+    [hasItems, current, initial.recordInitialContent, pinAfterLayout]
   )
 
   const clearUserScrollSettle = useCallback(() => {
@@ -191,10 +212,6 @@ export function useMobileNativeChatTailFollow<TItem>(args: {
         return
       }
       initial.recordInitialScroll(event)
-      offset.current = event.contentOffset.y
-      if (restoring.current !== null && Math.abs(offset.current - restoring.current) < 2) {
-        restoring.current = null
-      }
       const endsAtTail = isAtTail(event)
       setAtTail(endsAtTail)
       if (listReportsGestures()) {
@@ -219,7 +236,6 @@ export function useMobileNativeChatTailFollow<TItem>(args: {
     if (!isCurrent()) {
       return
     }
-    restoring.current = null
     clearUserScrollSettle()
     userScrollActiveRef.current = false
     setAtTail(true)
@@ -228,7 +244,6 @@ export function useMobileNativeChatTailFollow<TItem>(args: {
   }, [clearUserScrollSettle, pinToTail, setAtTail, setFollowing, current])
 
   const pauseForDisclosure = useCallback(() => {
-    restoring.current = null
     clearUserScrollSettle()
     userScrollActiveRef.current = false
     setFollowing(false)
@@ -246,7 +261,6 @@ export function useMobileNativeChatTailFollow<TItem>(args: {
     if (!isCurrent()) {
       return
     }
-    restoring.current = null
     clearUserScrollSettle()
     userScrollActiveRef.current = true
     setFollowing(false)
@@ -302,19 +316,15 @@ export function useMobileNativeChatTailFollow<TItem>(args: {
     [current]
   )
 
-  useEffect(() => {
-    const key = args.scopeKey
-    return () => {
-      clearUserScrollSettle()
-      if (key && scope.current === key) {
-        positions?.set(key, { offset: offset.current, following: followingRef.current })
-      }
-    }
-  }, [args.scopeKey, positions, clearUserScrollSettle])
+  useLayoutEffect(() => {
+    pinToTail()
+  }, [args.scopeKey, pinToTail])
+  useEffect(() => clearUserScrollSettle, [clearUserScrollSettle])
 
   return {
     listRef,
     initialPositionReady: initial.initialPositionReady,
+    followingLatest: following,
     showJumpToTail: !following && !atTail,
     pinToTail,
     pinToTailAfterContentResize,

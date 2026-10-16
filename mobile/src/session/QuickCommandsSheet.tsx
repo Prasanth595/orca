@@ -28,6 +28,8 @@ type Props = {
   client: RpcClient | null
   repoId: string | null
   repoName: string | null
+  /** The host's agent-prompt cap. */
+  agentPromptMaxLength: number | null
   onLaunch: (command: TerminalQuickCommand) => boolean
 }
 
@@ -39,6 +41,7 @@ export function QuickCommandsSheet({
   client,
   repoId,
   repoName,
+  agentPromptMaxLength,
   onLaunch
 }: Props) {
   useMobileTheme()
@@ -63,7 +66,7 @@ export function QuickCommandsSheet({
     }
   }
 
-  // Why: prompt bodies can total ~240 KB. Lowercase them once per settings
+  // Why: prompt bodies can total megabytes. Lowercase them once per settings
   // update instead of allocating the same search text on every keystroke.
   const searchableCommands = useMemo(() => {
     return commands
@@ -127,7 +130,7 @@ export function QuickCommandsSheet({
     if (!draft || savingRef.current) {
       return
     }
-    const built = draftToQuickCommand(draft)
+    const built = draftToQuickCommand(draft, agentPromptMaxLength)
     if (!built) {
       return
     }
@@ -208,6 +211,7 @@ export function QuickCommandsSheet({
           error={error}
           repoId={repoId}
           repoName={repoName}
+          agentPromptMaxLength={agentPromptMaxLength}
           onChange={(patch) =>
             setDraft((current) => (current ? { ...current, ...patch } : current))
           }

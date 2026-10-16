@@ -4,8 +4,8 @@ import { afterEach, expect, it, vi } from 'vitest'
 import type { NativeScrollEvent } from 'react-native'
 import { useMobileChatInitialPosition } from './use-mobile-chat-initial-position'
 let current!: ReturnType<typeof useMobileChatInitialPosition>
-function Probe({ scope, offset = null }: { scope: string; offset?: number | null }) {
-  current = useMobileChatInitialPosition(scope, offset)
+function Probe({ scope }: { scope: string }) {
+  current = useMobileChatInitialPosition(scope)
   return null
 }
 afterEach(() => vi.unstubAllGlobals())
@@ -57,13 +57,13 @@ it('keeps the list hidden until the final measured bottom is reached and stable'
     tick()
     expect(current.initialPositionReady).toBe(true)
     const old = current.recordInitialScroll
-    act(() => tree.update(createElement(Probe, { scope: 'b', offset: 240 })))
+    act(() => tree.update(createElement(Probe, { scope: 'b' })))
     expect(current.initialPositionReady).toBe(false)
     act(() => old(scroll(1000)))
     tick()
     tick()
     expect(current.initialPositionReady).toBe(false)
-    act(() => current.recordInitialScroll(scroll(240)))
+    act(() => current.recordInitialScroll(scroll(1000)))
     tick()
     tick()
     expect(current.initialPositionReady).toBe(true)
@@ -72,39 +72,36 @@ it('keeps the list hidden until the final measured bottom is reached and stable'
   }
 })
 
-it.each([null, -40])(
-  'reveals unchanged geometry even with a saved bounce offset of %s',
-  (offset) => {
-    const frames = new Map<number, FrameRequestCallback>()
-    let nextId = 0
-    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
-      frames.set(++nextId, callback)
-      return nextId
-    })
-    vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id))
-    let tree!: ReturnType<typeof create>
+it('reveals a short cached transcript after stable geometry', () => {
+  const frames = new Map<number, FrameRequestCallback>()
+  let nextId = 0
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    frames.set(++nextId, callback)
+    return nextId
+  })
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id))
+  let tree!: ReturnType<typeof create>
+  act(() => {
+    tree = create(createElement(Probe, { scope: 'stable' }))
+  })
+  try {
     act(() => {
-      tree = create(createElement(Probe, { scope: 'stable', offset }))
+      current.recordInitialViewport(800)
+      current.recordInitialContent(400)
     })
-    try {
+    for (let i = 0; i < 5; i++) {
       act(() => {
-        current.recordInitialViewport(800)
         current.recordInitialContent(400)
+        const pending = [...frames.values()]
+        frames.clear()
+        pending.forEach((callback) => callback(0))
       })
-      for (let i = 0; i < 5; i++) {
-        act(() => {
-          current.recordInitialContent(400)
-          const pending = [...frames.values()]
-          frames.clear()
-          pending.forEach((callback) => callback(0))
-        })
-      }
-      expect(current.initialPositionReady).toBe(true)
-    } finally {
-      act(() => tree.unmount())
     }
+    expect(current.initialPositionReady).toBe(true)
+  } finally {
+    act(() => tree.unmount())
   }
-)
+})
 
 it('uses a scroll measurement that arrives before its matching content-size callback', () => {
   const frames = new Map<number, FrameRequestCallback>()

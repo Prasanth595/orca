@@ -1,29 +1,28 @@
 import { useMobileTheme } from '../theme/use-mobile-theme'
-import { createThemedStyles } from '../theme/mobile-themed-styles'
+import { styles } from './mobile-native-chat-queued-message-styles'
 import { useRef, useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Pressable, ScrollView, Text, View } from 'react-native'
 import {
   AlertCircle,
+  ChevronDown,
+  ChevronRight,
   CornerDownRight,
   ListEnd,
   MoreHorizontal,
-  Pause,
   Pencil,
   Play,
   Send,
   Trash2
 } from 'lucide-react-native'
 import { ActionSheetModal } from '../components/ActionSheetModal'
-import { colors, radii, spacing, typography } from '../theme/mobile-theme'
-import {
-  mobileQueuePauseLabel,
-  type MobileQueuedMessageCard
-} from './mobile-structured-queued-message-cards'
+import { colors } from '../theme/mobile-theme'
+import type { MobileQueuedMessageCard } from './mobile-structured-queued-message-cards'
 import type { MobileQueuePause } from './mobile-structured-queued-message-feed'
 import type { MobileQueuedMessageEdit } from './use-mobile-structured-queued-message-controls'
 
-/** The Resume row's in-flight key beside the cards' message ids, which never contain NUL. */
+/** The header's in-flight keys beside the cards' message ids, which never contain NUL. */
 const RESUME_KEY = '\u0000resume'
+const CLEAR_KEY = '\u0000clear'
 
 export type MobileNativeChatQueuedMessagesProps = {
   cards?: MobileQueuedMessageCard[]
@@ -31,9 +30,10 @@ export type MobileNativeChatQueuedMessagesProps = {
    *  (its send failed), or a returned one. */
   onSend?: (messageId: string) => Promise<boolean>
   onDelete?: (messageId: string) => Promise<boolean>
+  onClearAll?: (messageIds: string[]) => Promise<boolean>
   /** Copy the card's text into the composer, then delete the card. */
   onEdit?: MobileQueuedMessageEdit
-  /** The whole queue's pause: the box's first row, with Resume. */
+  /** The whole queue's pause: the header reads Paused, with Clear all and Resume. */
   pause?: MobileQueuePause
   onResume?: () => Promise<boolean>
   /** The chat reads Stopping: no card steers into the turn a Stop is ending. */
@@ -46,6 +46,7 @@ export function MobileNativeChatQueuedMessages({
   cards,
   onSend,
   onDelete,
+  onClearAll,
   onEdit,
   pause,
   onResume,
@@ -58,7 +59,12 @@ export function MobileNativeChatQueuedMessages({
   const [busyIds, setBusyIds] = useState<ReadonlySet<string>>(() => new Set())
   const inFlightRef = useRef(new Set<string>())
   const [menuFor, setMenuFor] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState(true)
   if (!cards || cards.length === 0) {
+    // Collapsing is local to this queue's run: once it empties, the next card shows open.
+    if (!expanded) {
+      setExpanded(true)
+    }
     return null
   }
   const run = async (messageId: string, action?: (id: string) => Promise<boolean>) => {
@@ -75,41 +81,84 @@ export function MobileNativeChatQueuedMessages({
     }
   }
   const resuming = busyIds.has(RESUME_KEY)
+  const clearing = busyIds.has(CLEAR_KEY)
   // A card that drained or was removed while its menu was open closes the menu, for good: a
   // Stop-requeued draft comes back under the same id and must not reopen it.
   const menuCard = cards.find((card) => card.messageId === menuFor)
   if (menuFor !== null && !menuCard) {
     setMenuFor(null)
   }
+  const attentionCaption = !expanded ? cards.find((card) => card.needsAttention)?.caption : null
+  const headerCountStyle = [styles.headerCount, attentionCaption && styles.captionReturned]
   return (
     <View style={styles.list}>
-      {/* One box: the pause row, when shown, is its first row, and each card a row below it. */}
+      {/* One box: the header is its first row, and each card a row below it. */}
       <View style={styles.box}>
-        {pause ? (
-          // A polite region, as the app's other notices: React Native has no status role.
-          <View testID="queued-pause-row" style={styles.row} accessibilityLiveRegion="polite">
-            <Pause size={14} color={colors.textMuted} strokeWidth={2} />
-            <Text style={styles.pauseLabel} numberOfLines={1}>
-              {mobileQueuePauseLabel(pause)}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ disabled: resuming }}
-              accessibilityLabel="Resume sending the queued messages"
-              style={({ pressed }) => [
-                styles.textAction,
-                pressed && styles.pressed,
-                resuming && styles.disabled
-              ]}
-              disabled={resuming}
-              onPress={() => void run(RESUME_KEY, onResume && (() => onResume()))}
-            >
-              <Play size={12} color={colors.textPrimary} strokeWidth={2} />
-              <Text style={styles.actionLabel}>Resume</Text>
-            </Pressable>
-          </View>
-        ) : null}
-        {cards.map((card, index) => {
+        {/* A polite region, as the app's other notices: React Native has no status role. */}
+        <View
+          testID="queued-header"
+          style={[styles.row, pause && styles.headerPaused]}
+          accessibilityLiveRegion="polite"
+        >
+          <Text style={[styles.headerLabel, pause && styles.headerLabelPaused]}>
+            {pause ? 'Paused' : 'Queued'}
+          </Text>
+          <Text style={headerCountStyle} numberOfLines={1}>
+            {attentionCaption ? `${cards.length} · ${attentionCaption}` : cards.length}
+          </Text>
+          {pause ? (
+            <>
+              {onClearAll ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: clearing }}
+                  accessibilityLabel="Delete every queued message"
+                  style={({ pressed }) => [
+                    styles.textAction,
+                    pressed && styles.pressed,
+                    clearing && styles.disabled
+                  ]}
+                  disabled={clearing}
+                  onPress={() =>
+                    void run(CLEAR_KEY, () => onClearAll(cards.map((card) => card.messageId)))
+                  }
+                >
+                  <Trash2 size={12} color={colors.textPrimary} strokeWidth={2} />
+                  <Text style={styles.actionLabel}>Clear all</Text>
+                </Pressable>
+              ) : null}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: resuming }}
+                accessibilityLabel="Resume sending the queued messages"
+                style={({ pressed }) => [
+                  styles.textAction,
+                  pressed && styles.pressed,
+                  resuming && styles.disabled
+                ]}
+                disabled={resuming}
+                onPress={() => void run(RESUME_KEY, onResume && (() => onResume()))}
+              >
+                <Play size={12} color={colors.textPrimary} strokeWidth={2} />
+                <Text style={styles.actionLabel}>Resume</Text>
+              </Pressable>
+            </>
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded }}
+            accessibilityLabel="Queued messages"
+            style={({ pressed }) => [styles.iconAction, pressed && styles.pressed]}
+            onPress={() => setExpanded(!expanded)}
+          >
+            {expanded ? (
+              <ChevronDown size={14} color={colors.textMuted} strokeWidth={2} />
+            ) : (
+              <ChevronRight size={14} color={colors.textMuted} strokeWidth={2} />
+            )}
+          </Pressable>
+        </View>
+        {(expanded ? cards : []).map((card) => {
           const busy = busyIds.has(card.messageId)
           const returned = card.state === 'returned'
           // "Steer" submits beside the running turn, the paused queue's cards too; a card whose
@@ -119,7 +168,7 @@ export function MobileNativeChatQueuedMessages({
             <View
               key={card.messageId}
               testID="queued-card-row"
-              style={[styles.row, (pause || index > 0) && styles.divided]}
+              style={[styles.row, styles.divided]}
             >
               {card.needsAttention ? (
                 <AlertCircle size={14} color={colors.statusRed} strokeWidth={2} />
@@ -284,93 +333,3 @@ function MobileQueuedCardText({ text }: { text: string }): React.JSX.Element {
     </View>
   )
 }
-
-// Every action touches as a 44pt target (platform floor) inside its row: Android drops touches
-// outside the parent, so the row is at least that tall and nothing overhangs it.
-const MIN_TOUCH_TARGET = 44
-
-const styles = createThemedStyles(() =>
-  StyleSheet.create({
-    list: {
-      marginHorizontal: spacing.lg,
-      marginVertical: spacing.xs
-    },
-    box: {
-      backgroundColor: colors.bgPanel,
-      borderRadius: radii.row,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.borderSubtle,
-      overflow: 'hidden'
-    },
-    row: {
-      minHeight: MIN_TOUCH_TARGET,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm,
-      paddingLeft: spacing.md
-    },
-    divided: {
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.borderSubtle
-    },
-    pauseLabel: {
-      flex: 1,
-      color: colors.textMuted,
-      fontSize: typography.metaSize
-    },
-    textColumn: {
-      flex: 1,
-      minWidth: 0,
-      paddingVertical: spacing.sm,
-      gap: 2
-    },
-    body: {
-      color: colors.textPrimary,
-      fontSize: typography.bodySize
-    },
-    expandedBody: {
-      maxHeight: 240
-    },
-    measure: {
-      position: 'absolute',
-      left: 0,
-      right: 0,
-      opacity: 0
-    },
-    caption: {
-      color: colors.textMuted,
-      fontSize: typography.metaSize
-    },
-    captionReturned: {
-      color: colors.statusRed
-    },
-    textAction: {
-      minHeight: MIN_TOUCH_TARGET,
-      minWidth: MIN_TOUCH_TARGET,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: spacing.xs,
-      paddingHorizontal: spacing.sm,
-      borderRadius: radii.button
-    },
-    iconAction: {
-      minHeight: MIN_TOUCH_TARGET,
-      minWidth: MIN_TOUCH_TARGET,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderRadius: radii.button
-    },
-    actionLabel: {
-      color: colors.textPrimary,
-      fontSize: typography.metaSize,
-      fontWeight: '500'
-    },
-    pressed: {
-      backgroundColor: colors.bgRaised
-    },
-    disabled: {
-      opacity: 0.5
-    }
-  })
-)

@@ -1,4 +1,5 @@
 import { expect, it } from 'vitest'
+import { gitCredentialPromptGuardEnv } from './git-credential-prompt-env'
 import { resolveConfiguredGitPushTarget } from './git-push-target-resolution'
 import {
   resolveDefaultBaseRefViaExec,
@@ -7,9 +8,48 @@ import {
 import { buildGitSshPolicyEnv, GIT_SSH_CONFIG_ARGS, parseGitSshConfig } from './git-ssh-policy-env'
 
 export function registerGitResolutionBinaryCompatibilityCases(
-  runGit: (args: string[]) => Promise<{ stdout: string; stderr: string }>,
-  resolveRemotePath: (name: string) => string
+  runGit: (args: string[], env?: NodeJS.ProcessEnv) => Promise<{ stdout: string; stderr: string }>,
+  resolveRemotePath: (name: string) => string,
+  supports: (major: number, minor: number) => boolean
 ): void {
+  it('quietly distinguishes present and absent branch refs', async () => {
+    const head = (await runGit(['rev-parse', 'HEAD'])).stdout.trim()
+    await runGit(['branch', 'quiet-probe-present', head])
+    await expect(
+      runGit(['rev-parse', '--verify', '--quiet', 'refs/heads/quiet-probe-present'])
+    ).resolves.toMatchObject({ stdout: `${head}\n`, stderr: '' })
+    await expect(
+      runGit(['rev-parse', '--verify', '--quiet', 'refs/heads/quiet-probe-absent'])
+    ).rejects.toMatchObject({ code: 1, stdout: '', stderr: '' })
+  })
+
+  it('degrades indexed credential config safely at the Git 2.31 boundary', async () => {
+    const guardEnv = gitCredentialPromptGuardEnv({}, 'linux')
+    await expect(runGit(['status', '--short'], guardEnv)).resolves.toBeDefined()
+
+    try {
+      const result = await runGit(['config', '--get', 'credential.interactive'], guardEnv)
+      expect(supports(2, 31)).toBe(true)
+      expect(result.stdout.trim()).toBe('false')
+    } catch {
+      // Git 2.25 ignores the indexed variables rather than rejecting commands;
+      // the scalar prompt guards still provide the baseline fail-fast behavior.
+      expect(supports(2, 31)).toBe(false)
+    }
+  })
+
+  // Why pin this: --verify swallows --end-of-options but --symbolic-full-name echoes
+  // it deliberately, on every version tested (2.25 through 2.49). git-history.ts skips
+  // that line; if a future git stopped emitting it, the skip stays correct, but if this
+  // assertion ever flips the reason for the skip is worth re-reading.
+  it('echoes the option marker from rev-parse --symbolic-full-name', async () => {
+    const result = await runGit(['rev-parse', '--symbolic-full-name', '--end-of-options', 'HEAD'])
+    const lines = result.stdout.trim().split(/\r?\n/).filter(Boolean)
+
+    expect(lines[0]).toBe('--end-of-options')
+    expect(lines.find((line) => line !== '--end-of-options')).toMatch(/^refs\//)
+  })
+
   it('resolves push config from one snapshot and refreshes after a config write', async () => {
     const branch = (await runGit(['symbolic-ref', '--quiet', '--short', 'HEAD'])).stdout.trim()
     await runGit(['config', `branch.${branch}.remote`, 'fork'])

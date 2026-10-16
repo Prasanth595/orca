@@ -1,4 +1,14 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, unlink, utimes, writeFile } from 'node:fs/promises'
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  unlink,
+  utimes,
+  writeFile
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -7,6 +17,15 @@ import {
   isUnsupportedMergeTreeWriteTreeError
 } from './git-merge-tree-capability'
 import { isBranchCheckedOutInWorktreeError } from './git-branch-delete-refusal'
+import {
+  branchHasNoUnmergedChangesOnAnyTarget,
+  type GitBranchCleanupExec
+} from './git-branch-cleanup'
+import { GitCapabilityCache } from './git-capability-cache'
+import {
+  createGitObjectQuarantine,
+  GIT_OBJECT_QUARANTINE_DIR_PREFIX
+} from './git-object-quarantine'
 import { isForEachRefExcludeUnsupportedError } from './git-ref-command-capabilities'
 import { isNoWriteFetchHeadUnsupportedError } from './git-fetch-head-capability'
 import {
@@ -14,10 +33,10 @@ import {
   isUnsupportedWorktreeAddLockReasonError,
   isUnsupportedWorktreeListZError
 } from './git-worktree-command-capabilities'
-import { gitCredentialPromptGuardEnv } from './git-credential-prompt-env'
 import { buildGitGrepArgs } from './text-search'
 import { parseGitRemoteFetchUrls } from './git-remote-url-index'
 import { GIT_HISTORY_COMMIT_FORMAT, parseGitHistoryLog } from './git-history-log-parser'
+import { createGitProgressRecordReader, type GitProgressRecord } from './git-progress-records'
 import {
   githubPullRequestHeadLocalRef,
   gitlabMergeRequestHeadLocalRef,
@@ -229,17 +248,6 @@ describeBinaryCompatibility('real Git binary compatibility', () => {
     expect(await readFile(indexPath)).not.toEqual(before)
   })
 
-  it('quietly distinguishes present and absent branch refs', async () => {
-    const head = (await runGit(['rev-parse', 'HEAD'])).stdout.trim()
-    await runGit(['branch', 'quiet-probe-present', head])
-    await expect(
-      runGit(['rev-parse', '--verify', '--quiet', 'refs/heads/quiet-probe-present'])
-    ).resolves.toMatchObject({ stdout: `${head}\n`, stderr: '' })
-    await expect(
-      runGit(['rev-parse', '--verify', '--quiet', 'refs/heads/quiet-probe-absent'])
-    ).rejects.toMatchObject({ code: 1, stdout: '', stderr: '' })
-  })
-
   it('combines repository booleans and metadata paths for normal, bare and linked repositories', async () => {
     const probe = [
       'rev-parse',
@@ -329,6 +337,54 @@ describeBinaryCompatibility('real Git binary compatibility', () => {
     } finally {
       await runGit(['worktree', 'remove', '--force', 'held-wt'])
       await runGit(['branch', '-D', 'compat-held'])
+    }
+  })
+
+  // Why pin this: the create card reads the checkout meter `worktree add` writes into a pipe
+  // unasked (it has no --progress flag), so the record format is a contract with every Git.
+  it('writes checkout progress records into a pipe during worktree add', async () => {
+    const fileCount = 120
+    const source = join(repoPath, 'progress-source')
+    await mkdir(source)
+    try {
+      await Promise.all(
+        Array.from({ length: fileCount }, (_, index) =>
+          writeFile(join(source, `file-${index}.txt`), `${index}\n`)
+        )
+      )
+      await runGit(['-C', 'progress-source', 'init', '-q'])
+      await runGit(['-C', 'progress-source', 'add', '.'])
+      await runGit([
+        '-C',
+        'progress-source',
+        '-c',
+        'user.name=Compatibility Test',
+        '-c',
+        'user.email=compatibility@example.invalid',
+        'commit',
+        '-qm',
+        'files'
+      ])
+      // Why the env: git otherwise waits ~1 s before its first record, longer than this checkout.
+      const { stderr } = await runGit(
+        ['-C', 'progress-source', 'worktree', 'add', '-b', 'compat-progress', '../progress-wt'],
+        { GIT_PROGRESS_DELAY: '0' }
+      )
+      const records: GitProgressRecord[] = []
+      createGitProgressRecordReader('Updating files', (record) => records.push(record))(stderr)
+
+      expect(records.length).toBeGreaterThan(1)
+      expect(records.at(-1)).toEqual({
+        percent: 100,
+        completed: fileCount,
+        total: fileCount,
+        done: true
+      })
+      const completed = records.map((record) => record.completed)
+      expect(completed).toEqual([...completed].sort((left, right) => left - right))
+    } finally {
+      await rm(source, { recursive: true, force: true })
+      await rm(join(repoPath, 'progress-wt'), { recursive: true, force: true })
     }
   })
 
@@ -549,6 +605,42 @@ describeBinaryCompatibility('real Git binary compatibility', () => {
     }
   })
 
+  // Why pin this: a scratch folder made around a Git that rejects --write-tree can outlive a crash,
+  // and Git before 2.35 never prunes it; only a Git known to write trees gets one.
+  it('makes a merge-tree scratch object store only once this Git is known to write trees', async () => {
+    const branch = 'compat-cleanup-merged'
+    await runGit(['branch', branch, 'HEAD'])
+    const objectsPath = join(repoPath, '.git', 'objects')
+    const quarantine = createGitObjectQuarantine(async () => ({
+      hostPath: objectsPath,
+      gitPath: image ? '/repo/.git/objects' : objectsPath
+    }))
+    let scratchFolders = 0
+    const runCleanupGit: GitBranchCleanupExec = (args, options) =>
+      options?.discardWrittenObjects
+        ? quarantine.run((env) => {
+            scratchFolders += env ? 1 : 0
+            return runGit(args, env)
+          })
+        : runGit(args)
+    const capabilities = new GitCapabilityCache()
+    const check = () =>
+      branchHasNoUnmergedChangesOnAnyTarget(runCleanupGit, branch, ['HEAD'], capabilities)
+
+    try {
+      await expect(check()).resolves.toBe(supports(2, 38))
+      await expect(check()).resolves.toBe(supports(2, 38))
+      expect(scratchFolders).toBe(supports(2, 38) ? 1 : 0)
+      expect(
+        (await readdir(objectsPath)).filter((entry) =>
+          entry.startsWith(GIT_OBJECT_QUARANTINE_DIR_PREFIX)
+        )
+      ).toEqual([])
+    } finally {
+      await runGit(['branch', '-D', branch])
+    }
+  })
+
   it('supports exact show-ref probes', async () => {
     const head = (await runGit(['rev-parse', 'HEAD'])).stdout.trim()
     const originRef = 'refs/remotes/origin/compat-exact'
@@ -672,33 +764,6 @@ describeBinaryCompatibility('real Git binary compatibility', () => {
       stdout: 'MM tracked.txt\n'
     })
     await runGit(['-C', worktree, 'update-ref', '-d', backupRef, backupOid])
-  })
-
-  it('degrades indexed credential config safely at the Git 2.31 boundary', async () => {
-    const guardEnv = gitCredentialPromptGuardEnv({}, 'linux')
-    await expect(runGit(['status', '--short'], guardEnv)).resolves.toBeDefined()
-
-    try {
-      const result = await runGit(['config', '--get', 'credential.interactive'], guardEnv)
-      expect(supports(2, 31)).toBe(true)
-      expect(result.stdout.trim()).toBe('false')
-    } catch {
-      // Git 2.25 ignores the indexed variables rather than rejecting commands;
-      // the scalar prompt guards still provide the baseline fail-fast behavior.
-      expect(supports(2, 31)).toBe(false)
-    }
-  })
-
-  // Why pin this: --verify swallows --end-of-options but --symbolic-full-name echoes
-  // it deliberately, on every version tested (2.25 through 2.49). git-history.ts skips
-  // that line; if a future git stopped emitting it, the skip stays correct, but if this
-  // assertion ever flips the reason for the skip is worth re-reading.
-  it('echoes the option marker from rev-parse --symbolic-full-name', async () => {
-    const result = await runGit(['rev-parse', '--symbolic-full-name', '--end-of-options', 'HEAD'])
-    const lines = result.stdout.trim().split(/\r?\n/).filter(Boolean)
-
-    expect(lines[0]).toBe('--end-of-options')
-    expect(lines.find((line) => line !== '--end-of-options')).toMatch(/^refs\//)
   })
 
   // Why pin this: `show --end-of-options <oid>:<path>` is the only Git command on the
@@ -832,7 +897,9 @@ describeBinaryCompatibility('real Git binary compatibility', () => {
       await runGit(['worktree', 'remove', '--force', worktree])
     }
   })
-  registerGitResolutionBinaryCompatibilityCases(runGit, (name) =>
-    image ? `/repo/${name}.git` : join(repoPath, `${name}.git`)
+  registerGitResolutionBinaryCompatibilityCases(
+    runGit,
+    (name) => (image ? `/repo/${name}.git` : join(repoPath, `${name}.git`)),
+    supports
   )
 })

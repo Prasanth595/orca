@@ -238,3 +238,50 @@ it('does not detach initial positioning when Process is pressed before the cache
   act(() => list().props.onContentSizeChange(320, 1800))
   expect(scrollToOffset).toHaveBeenCalledWith({ animated: false, offset: 1800 })
 })
+
+it("opens switched chats at the newest message with each tab's disclosure state", async () => {
+  nativeMeasurement.onMount = true
+  act(() => {
+    renderer = create(view('tab-a'))
+  })
+  await settle()
+  act(() => {
+    list().props.onScrollBeginDrag()
+    list().props.onScroll({
+      nativeEvent: {
+        contentOffset: { y: 100 },
+        contentSize: { height: 1800 },
+        layoutMeasurement: { height: 500 }
+      }
+    })
+  })
+  const label = (text: string) => renderer!.root.findAllByProps({ children: text })
+  const jumpControls = () =>
+    renderer!.root.findAllByProps({ accessibilityLabel: 'Scroll to latest' })
+  act(() => label('Tools')[0].parent!.props.onPress())
+  expect(jumpControls()).toHaveLength(1)
+  act(() => renderer!.update(view('tab-b')))
+  await settle()
+  expect(jumpControls()).toHaveLength(0)
+  expect(label('Tools')).toHaveLength(1)
+  act(() => renderer!.update(view('tab-a')))
+  await settle()
+  expect(label('Collapse')).toHaveLength(1)
+  expect(jumpControls()).toHaveLength(0)
+})
+
+it('appends the streaming bubble after cached rows', async () => {
+  act(() => {
+    renderer = create(view('tab-a'))
+  })
+  expect(list().props.data.map((row: { id: string }) => row.id)).toEqual(['tab-a'])
+  act(() =>
+    renderer!.update(
+      createElement(MobileNativeChatView, {
+        ...view('tab-a').props,
+        streaming: 'The tests'
+      })
+    )
+  )
+  expect(list().props.data.map((row: { id: string }) => row.id)).toEqual(['tab-a', 'streaming'])
+})

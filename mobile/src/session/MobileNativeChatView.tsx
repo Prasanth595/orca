@@ -13,7 +13,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler'
 import { ArrowDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-react-native'
-import type { NativeChatMessage } from '../../../src/shared/native-chat-types'
 import { colors } from '../theme/mobile-theme'
 import { styles } from './mobile-native-chat-view-styles'
 import { mobileNativeChatListFooter } from './mobile-native-chat-list-footer'
@@ -136,6 +135,7 @@ export function MobileNativeChatView({
   const {
     listRef,
     initialPositionReady,
+    followingLatest,
     showJumpToTail,
     pinToTail,
     pinToTailAfterContentResize,
@@ -148,10 +148,7 @@ export function MobileNativeChatView({
     endMomentum,
     readerIsScrolling,
     recordScrollMetrics
-  } = useMobileNativeChatTailFollow<NativeChatMessage>({
-    hasItems: data.length > 0,
-    scopeKey: sendSurfaceId
-  })
+  } = useMobileNativeChatTailFollow({ items: data, scopeKey: sendSurfaceId })
 
   const handleSend = useCallback(
     async (text: string): Promise<boolean> => {
@@ -255,7 +252,7 @@ export function MobileNativeChatView({
     actionablePromptIds
   })
 
-  const history = useMobileNativeChatPageHistory(turns.listMessages, renderItem)
+  const history = useMobileNativeChatPageHistory(turns.listMessages, renderItem, sendSurfaceId)
 
   const liveStatus = turns.liveLine ? (
     <MobileNativeChatLiveLine
@@ -326,7 +323,9 @@ export function MobileNativeChatView({
               }}
               onLayout={pinToTail}
               maintainVisibleContentPosition={
-                initialPositionReady ? mobileNativeChatRowAnchor(hasMore === true) : undefined
+                initialPositionReady && !followingLatest
+                  ? mobileNativeChatRowAnchor(hasMore === true)
+                  : undefined
               }
               ListHeaderComponent={history.withHistory(
                 mobileNativeChatListHeader(hasMore, loadingEarlier, loadEarlier)

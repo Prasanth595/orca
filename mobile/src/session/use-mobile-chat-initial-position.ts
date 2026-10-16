@@ -2,14 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { NativeScrollEvent } from 'react-native'
 
 /** Reveal a transcript only after measured layout and its requested position agree for two frames. */
-export function useMobileChatInitialPosition(
-  scope: string | undefined,
-  savedOffset: number | null
-) {
+export function useMobileChatInitialPosition(scope: string | undefined) {
   const [readyScope, setReadyScope] = useState<{ scope: string | undefined; visit: number } | null>(
     null
   )
-  const geometry = useRef({ scope, height: 0, viewport: 0, offset: 0, savedOffset })
+  const geometry = useRef({ scope, height: 0, viewport: 0, offset: 0 })
   const observedScroll = useRef<{ height: number; viewport: number; offset: number } | null>(null)
   const visit = useRef(0)
   const frame = useRef<number | null>(null)
@@ -26,7 +23,7 @@ export function useMobileChatInitialPosition(
   if (geometry.current.scope !== scope) {
     visit.current++
     observedScroll.current = null
-    geometry.current = { scope, height: 0, viewport: 0, offset: 0, savedOffset }
+    geometry.current = { scope, height: 0, viewport: 0, offset: 0 }
   }
   const currentVisit = visit.current
   const ready =
@@ -52,8 +49,7 @@ export function useMobileChatInitialPosition(
       measured.offset = observed.offset
     }
     const end = Math.max(0, measured.height - measured.viewport)
-    const target =
-      measured.savedOffset === null ? end : Math.max(0, Math.min(measured.savedOffset, end))
+    const target = end
     if (Math.abs(measured.offset - target) > 2) {
       clear()
       return
