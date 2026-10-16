@@ -8,17 +8,27 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('focusOpenedEditorSurface', () => {
-  it('focuses the editor textarea opened from Go to file', () => {
-    const editor = document.createElement('textarea')
-    editor.className = 'monaco-editor'
-    const wrapper = document.createElement('div')
-    wrapper.className = 'monaco-editor'
-    wrapper.append(editor)
-    document.body.append(wrapper)
+function mountEditor(fileId: string, worktreeId: string): HTMLTextAreaElement {
+  const panel = document.createElement('div')
+  panel.dataset.editorFileId = fileId
+  panel.dataset.editorWorktreeId = worktreeId
+  const wrapper = document.createElement('div')
+  wrapper.className = 'monaco-editor'
+  const editor = document.createElement('textarea')
+  wrapper.append(editor)
+  panel.append(wrapper)
+  document.body.append(panel)
+  return editor
+}
 
-    expect(focusOpenedEditorSurface()).toBe(true)
-    expect(document.activeElement).toBe(editor)
+describe('focusOpenedEditorSurface', () => {
+  it('focuses the editor for the opened file, not the first mounted editor', () => {
+    const other = mountEditor('other-file', 'wt')
+    const opened = mountEditor('opened-file', 'wt')
+    other.focus()
+
+    expect(focusOpenedEditorSurface({ fileId: 'opened-file', worktreeId: 'wt' })).toBe(true)
+    expect(document.activeElement).toBe(opened)
   })
 })
 
@@ -29,14 +39,10 @@ describe('completeQuickOpenEditorHandoff', () => {
       frames.push(callback)
       return frames.length
     })
-    const editor = document.createElement('textarea')
-    const wrapper = document.createElement('div')
-    wrapper.className = 'monaco-editor'
-    wrapper.append(editor)
-    document.body.append(wrapper)
+    const editor = mountEditor('opened-file', 'wt')
     const event = new Event('focusout', { cancelable: true })
 
-    completeQuickOpenEditorHandoff(event, true)
+    completeQuickOpenEditorHandoff(event, { fileId: 'opened-file', worktreeId: 'wt' })
 
     expect(event.defaultPrevented).toBe(true)
     expect(document.activeElement).toBe(editor)
@@ -51,7 +57,7 @@ describe('completeQuickOpenEditorHandoff', () => {
     previous.focus()
     const event = new Event('focusout', { cancelable: true })
 
-    completeQuickOpenEditorHandoff(event, false)
+    completeQuickOpenEditorHandoff(event, null)
 
     expect(event.defaultPrevented).toBe(true)
     expect(document.activeElement).toBe(previous)

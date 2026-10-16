@@ -6,27 +6,50 @@ const OPENED_EDITOR_FOCUS_SELECTORS = [
   '.markdown-preview'
 ]
 
-export function focusOpenedEditorSurface(doc: Document = document): boolean {
+export type OpenedEditorFocusTarget = {
+  fileId: string
+  worktreeId: string
+}
+
+function openedEditorRoot(doc: Document, target: OpenedEditorFocusTarget): Element | null {
+  const fileId = CSS.escape(target.fileId)
+  const worktreeId = CSS.escape(target.worktreeId)
+  return doc.querySelector(
+    `[data-editor-file-id="${fileId}"][data-editor-worktree-id="${worktreeId}"]`
+  )
+}
+
+export function focusOpenedEditorSurface(
+  target: OpenedEditorFocusTarget,
+  doc: Document = document
+): boolean {
+  const root = openedEditorRoot(doc, target)
+  if (!root) {
+    return false
+  }
   for (const selector of OPENED_EDITOR_FOCUS_SELECTORS) {
-    const target = doc.querySelector(selector)
-    if (!(target instanceof HTMLElement)) {
+    const node = root.querySelector(selector)
+    if (!(node instanceof HTMLElement)) {
       continue
     }
-    target.focus()
-    if (doc.activeElement === target || target.contains(doc.activeElement)) {
+    node.focus()
+    if (doc.activeElement === node || node.contains(doc.activeElement)) {
       return true
     }
   }
   return false
 }
 
-export function completeQuickOpenEditorHandoff(event: Event, openedFile: boolean): void {
+export function completeQuickOpenEditorHandoff(
+  event: Event,
+  openedEditor: OpenedEditorFocusTarget | null
+): void {
   event.preventDefault()
-  if (!openedFile) {
+  if (!openedEditor) {
     return
   }
   const focus = (): void => {
-    focusOpenedEditorSurface()
+    focusOpenedEditorSurface(openedEditor)
   }
   focus()
   requestAnimationFrame(() => {

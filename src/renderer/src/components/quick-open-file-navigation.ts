@@ -25,7 +25,7 @@ export async function openQuickOpenFile(
   navigation: QuickOpenQueryTarget,
   rawQuery?: string,
   assertInteractionCurrent: () => void = () => {}
-): Promise<void> {
+): Promise<string> {
   const guard = captureFileExplorerOperationGuard(
     worktreeId,
     getFileExplorerOperationOwner(worktreeId)
@@ -151,4 +151,5 @@ export async function openQuickOpenFile(
       fileId
     )
   }
+  return fileId
 }
