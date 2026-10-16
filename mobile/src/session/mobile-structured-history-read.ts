@@ -1,10 +1,9 @@
 import type { RpcClient } from '../transport/rpc-client'
 import type { AgentJournalCursor } from '../../../src/shared/agent-session-journal-types'
 import { isRootAgentJournalItem } from '../../../src/shared/agent-session-journal-producer'
-import {
-  AGENT_SESSION_HISTORY_MAX_LIMIT,
-  type AgentSessionHistoryPage,
-  type AgentSessionHistoryResult
+import type {
+  AgentSessionHistoryPage,
+  AgentSessionHistoryResult
 } from '../../../src/shared/agent-session-wire'
 import {
   oldestStructuredAgentSessionCursor,
@@ -13,6 +12,8 @@ import {
 } from '../../../src/shared/structured-agent-session-reducer'
 import { callAgentSession } from './mobile-structured-agent-session-rpc'
 
+// Keep a phone page below the host maximum; large tool output can otherwise exhaust its read budget.
+const OLDER_PAGE_LIMIT = 40
 const OLDER_PAGE_ANCHOR_ATTEMPTS = 3
 const OLDER_PAGES_PER_LOAD = 8
 
@@ -50,7 +51,7 @@ export async function readOlderStructuredChatHistory({
           sessionId,
           direction: 'before',
           cursor: requestedCursor,
-          limit: AGENT_SESSION_HISTORY_MAX_LIMIT
+          limit: OLDER_PAGE_LIMIT
         }
       )
       if (!isCurrentRead()) {
