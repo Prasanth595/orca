@@ -6,6 +6,7 @@ import type {
   Worktree
 } from '../../../../../../shared/worktree/types'
 import type { WorktreeMeta } from '../../../../../../shared/worktree/meta-types'
+import { parseWorkspaceKey } from '../../../../../../shared/workspace-scope'
 import type { WorktreeMetaBatchUpdate } from '../../../../store/slices/worktree-helpers'
 import { getWorkspaceStatus, getWorkspaceStatusGroupKey } from '../../workspace-status'
 import {
@@ -152,7 +153,11 @@ export function useWorktreeStatusMutations(args: {
         [...result.updates].map(([worktreeId, updates]) => ({
           worktreeId,
           updates,
-          executionHostId: worktreeMap.get(worktreeId)?.hostId ?? 'local'
+          // Why: worktreeMap has no folder rows; a 'local' guess would misroute a remote folder.
+          executionHostId:
+            parseWorkspaceKey(worktreeId)?.type === 'folder'
+              ? undefined
+              : (worktreeMap.get(worktreeId)?.hostId ?? 'local')
         }))
       )
     },
