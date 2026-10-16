@@ -105,7 +105,7 @@ export const mobileSessionCommandInputStyles = StyleSheet.create({
   },
   accessoryKey: {
     backgroundColor: colors.bgRaised,
-    paddingHorizontal: spacing.sm + 2,
+    paddingHorizontal: spacing.xs + 2,
     paddingVertical: 2,
     borderRadius: radii.button,
     minWidth: 36,
@@ -144,7 +144,7 @@ export const mobileSessionCommandInputStyles = StyleSheet.create({
     marginLeft: spacing.sm,
     marginVertical: 1,
     backgroundColor: colors.bgRaised,
-    paddingHorizontal: spacing.sm + 2,
+    paddingHorizontal: spacing.xs + 2,
     paddingVertical: 0,
     borderRadius: radii.button,
     minWidth: 36,
