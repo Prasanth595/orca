@@ -8,6 +8,7 @@ import { lastVerifiedRuntimeStatus } from '../../../shared/runtime-host-status'
 import type { AgentStartupShell } from '../../../shared/tui-agent-startup-shell'
 import { resolveLocalWindowsAgentStartupShell } from '../../../shared/windows-terminal-shell'
 import { isWslUncPath } from '../../../shared/wsl-paths'
+import { getRepoIdFromWorktreeId } from '../../../shared/worktree/id'
 import type { AppState } from '@/store/types'
 import { getConnectionIdFromState } from './connection-owner-resolution'
 import { getLocalProjectExecutionRuntimeContext } from './local-preflight-context'
@@ -22,7 +23,13 @@ import {
  * stop there, because the client's or the endpoint's OS would quote the command for the wrong shell.
  */
 export type ExecutionHostPlatformFact =
-  | { kind: 'known'; platform: NodeJS.Platform; hostKind: ParsedExecutionHost['kind'] }
+  | {
+      kind: 'known'
+      platform: NodeJS.Platform
+      hostKind: ParsedExecutionHost['kind']
+      /** A local host's project runtime, which decides the shell its panes spawn. */
+      projectRuntime?: ProjectExecutionRuntimeResolution
+    }
   | { kind: 'withheld'; reason: string }
 
 type HostFactsState = Pick<
@@ -82,8 +89,14 @@ function resolveHostPlatform(
     return { kind: 'withheld', reason: HOST_UNRESOLVED_WITHHELD }
   }
   if (host.kind === 'local') {
-    const platform = resolveLocalPlatform(args.projectRuntime(), args.workspacePath)
-    return { kind: 'known', platform, hostKind: 'local' }
+    const projectRuntime = args.projectRuntime()
+    const platform = resolveLocalPlatform(projectRuntime, args.workspacePath)
+    return {
+      kind: 'known',
+      platform,
+      hostKind: 'local',
+      ...(projectRuntime ? { projectRuntime } : {})
+    }
   }
   const sshTargetId = host.kind === 'ssh' ? host.targetId : args.nestedSshTargetId
   if (sshTargetId) {
@@ -166,7 +179,24 @@ export function resolveExecutionHostAgentStartupShell(
     ? resolveLocalWindowsAgentStartupShell({
         platform: fact.platform,
         isRemote: fact.hostKind !== 'local',
-        terminalWindowsShell
+        terminalWindowsShell,
+        projectRuntime: fact.projectRuntime
       })
     : undefined
+}
+
+/** The shell a new worktree's agent command was quoted for, read from its repo row as launchers do. */
+export function resolveWorktreeRepoAgentStartupShell(
+  state: WorktreeHostFactsState,
+  worktreeId: string
+): AgentStartupShell | undefined {
+  const repoId = getRepoIdFromWorktreeId(worktreeId)
+  const rows = state.repos.filter((repo) => repo.id === repoId)
+  if (rows.length !== 1) {
+    return undefined
+  }
+  const fact = resolveRepoExecutionHostPlatform(state, rows[0], () =>
+    getLocalProjectExecutionRuntimeContext(state, worktreeId)
+  )
+  return resolveExecutionHostAgentStartupShell(fact, state.settings?.terminalWindowsShell)
 }

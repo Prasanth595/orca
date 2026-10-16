@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => {
     checkRuntimeHooks: vi.fn(),
     callRuntimeRpc: vi.fn(),
     ensureHooksConfirmed: vi.fn(),
+    activateAndRevealWorktree: vi.fn(),
     store
   }
 })
@@ -21,6 +22,13 @@ vi.mock('@/lib/connection-context', () => ({ getConnectionId: () => null }))
 vi.mock('@/runtime/runtime-hooks-client', () => ({ checkRuntimeHooks: mocks.checkRuntimeHooks }))
 vi.mock('@/runtime/runtime-rpc-client', () => ({ callRuntimeRpc: mocks.callRuntimeRpc }))
 vi.mock('@/lib/telemetry', () => ({ track: vi.fn(), tuiAgentToAgentKind: (a: string) => a }))
+vi.mock('@/lib/worktree-activation', () => ({
+  activateAndRevealWorktree: mocks.activateAndRevealWorktree
+}))
+vi.mock('@/lib/new-workspace', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  CLIENT_PLATFORM: 'win32'
+}))
 
 import { launchWorkItemDirect } from './launch-work-item-direct'
 
@@ -40,6 +48,9 @@ describe('launchWorkItemDirect owner row', () => {
     mocks.store = {
       repos: [],
       worktreesByRepo: {},
+      sshConnectionStates: new Map(),
+      sshStateByEnvironment: new Map(),
+      runtimeStatusByEnvironmentId: new Map(),
       settings: {},
       ensureDetectedAgents: vi.fn().mockResolvedValue([]),
       ensureRemoteDetectedAgents: vi.fn().mockResolvedValue([]),
@@ -89,6 +100,30 @@ describe('launchWorkItemDirect owner row', () => {
     // and never this client in its place.
     expect(mocks.store.ensureRuntimeDetectedAgents).not.toHaveBeenCalled()
     expect(mocks.store.ensureDetectedAgents).not.toHaveBeenCalled()
+  })
+
+  it('quotes a local work-item agent for the cmd.exe pane it runs in', async () => {
+    mocks.store.settings = { terminalWindowsShell: 'cmd.exe' }
+    mocks.store.repos = [{ id: 'repo-1', path: 'C:\\r', addedAt: 1, executionHostId: 'local' }]
+    mocks.createWorktree.mockResolvedValue({ worktree: { id: 'wt', path: 'C:\\r-wt' } })
+    Object.assign(mocks.store, {
+      ensureDetectedAgents: vi.fn().mockResolvedValue(['claude']),
+      updateWorktreeMeta: vi.fn().mockResolvedValue(undefined),
+      setSidebarOpen: vi.fn()
+    })
+    const item = { type: 'issue', number: 1, title: 'Fix', url: 'https://x/issues/1' } as const
+    await launchWorkItemDirect({
+      repoId: 'repo-1',
+      launchSource: 'task_page',
+      openModalFallback: vi.fn(),
+      agentOverride: 'claude',
+      item
+    })
+
+    // PowerShell's '…' quoting reaches a cmd.exe agent as literal quotes, so the flag would not apply.
+    expect(mocks.activateAndRevealWorktree.mock.calls[0]?.[1]?.startup?.command).toBe(
+      'claude "--dangerously-skip-permissions" --prefill "https://x/issues/1"'
+    )
   })
 
   it('asks the user instead of tie-breaking by focus when two hosts share the repo id', async () => {

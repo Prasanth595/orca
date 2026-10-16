@@ -104,7 +104,8 @@ export function resolveAgentResumeLaunchTarget(
       terminalWindowsShell: resolveWindowsShellOverride(
         args.tabShellOverride,
         args.terminalWindowsShell
-      )
+      ),
+      projectRuntime: args.projectRuntime
     })
   }
 }

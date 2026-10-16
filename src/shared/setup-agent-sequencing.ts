@@ -9,8 +9,12 @@ import {
 } from './setup-runner-command'
 import { createNonSecureContextUuid } from './non-secure-context-uuid'
 import { quotePowerShellLiteral } from './powershell-native-argument'
+import type { AgentStartupShell } from './tui-agent-startup-shell'
+import { CMD_UTF8_SETUP_COMMAND, fitsCmdLine } from './windows-cmd-line-limit'
 
 const DEFAULT_WAIT_TIMEOUT_SECONDS = 2 * 60 * 60
+// Why: after the gate is built the host may append ` --teammate-mode in-process` (27 chars).
+const HOST_REWRITE_RESERVE_CHARS = 32
 // Exported so the gate and its tests share one definition.
 export const SETUP_COMPLETE_MESSAGE = 'Setup finished; starting agent.'
 export const SETUP_AGENT_SEQUENCE_STARTUP_COMMAND_ENV = 'ORCA_SEQUENCED_STARTUP_COMMAND'
@@ -39,6 +43,8 @@ export function createSequencedSetupAgentCommands(args: {
   startupCommand: string
   platform: SetupRunnerCommandPlatform
   shell?: SetupRunnerShell
+  /** The shell `startupCommand` is quoted for: the pane's own, which runs it after the gate. */
+  startupShell?: AgentStartupShell
   nonce?: string
   waitTimeoutSeconds?: number
 }): SequencedSetupAgentCommands {
@@ -58,16 +64,25 @@ export function createSequencedSetupAgentCommands(args: {
   const waitTimeoutSeconds = args.waitTimeoutSeconds ?? DEFAULT_WAIT_TIMEOUT_SECONDS
 
   if (resolution.shell === 'windows' && !posixGateForWindowsRunner) {
+    const startupEnv = { [SETUP_AGENT_SEQUENCE_STARTUP_COMMAND_ENV]: args.startupCommand }
+    const waitOnly = `${buildWindowsStartupCommand(markerPath, nonce, waitTimeoutSeconds, false)} && %${SETUP_AGENT_SEQUENCE_STARTUP_COMMAND_ENV}%`
+    const paneLine = `${CMD_UTF8_SETUP_COMMAND} & ${waitOnly}`
+    // TEMPORARY until draft routing moves long text off the cmd line: else main's gate runs it.
+    const cmdReadsCommand =
+      args.startupShell === 'cmd' && fitsCmdLine(paneLine, startupEnv, HOST_REWRITE_RESERVE_CHARS)
     return {
       setupCommand: buildWindowsSetupCommand(
         resolution.runnerScriptPathForShell,
         markerPath,
         nonce
       ),
-      startupCommand: buildWindowsStartupCommand(markerPath, nonce, waitTimeoutSeconds),
-      startupEnv: {
-        [SETUP_AGENT_SEQUENCE_STARTUP_COMMAND_ENV]: args.startupCommand
-      }
+      // Why: a cmd-quoted command must be read by cmd, so the gate only waits and the pane runs
+      // it; cmd expands the variable before parsing the line.
+      // Expansion is one pass, so a %NAME% inside the command itself stays literal.
+      startupCommand: cmdReadsCommand
+        ? waitOnly
+        : buildWindowsStartupCommand(markerPath, nonce, waitTimeoutSeconds, true),
+      startupEnv
     }
   }
 
@@ -222,7 +237,8 @@ function buildWindowsSetupCommand(
 function buildWindowsStartupCommand(
   markerPath: string,
   nonce: string,
-  waitTimeoutSeconds: number
+  waitTimeoutSeconds: number,
+  runStartup: boolean
 ): string {
   const timeout = Math.max(1, Math.floor(waitTimeoutSeconds))
   // Why: native Windows setup runners launch through cmd.exe, but PowerShell
@@ -243,12 +259,17 @@ function buildWindowsStartupCommand(
     // relief had been attempted. `-ErrorAction Stop` is what routes a non-terminating
     // failure into the catch at all. Still never throws: a diagnostic is worth a line of
     // stderr, but not the startup this gate exists to run.
-    "$orcaProgress = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'",
-    'try { Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force -ErrorAction Stop } ' +
-      'catch { [Console]::Error.WriteLine("Orca: could not relax the execution policy for this " + ' +
-      '"session (" + $_.FullyQualifiedErrorId + "). A startup command that runs a .ps1 " + ' +
-      '"may be blocked.") }',
-    '$ProgressPreference = $orcaProgress',
+    // A wait-only gate runs nothing user-authored, so it skips the relief and stays short.
+    ...(runStartup
+      ? [
+          "$orcaProgress = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'",
+          'try { Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force -ErrorAction Stop } ' +
+            'catch { [Console]::Error.WriteLine("Orca: could not relax the execution policy for this " + ' +
+            '"session (" + $_.FullyQualifiedErrorId + "). A startup command that runs a .ps1 " + ' +
+            '"may be blocked.") }',
+          '$ProgressPreference = $orcaProgress'
+        ]
+      : []),
     `$marker = ${quotePowerShellLiteral(markerPath)}`,
     'if ([string]::IsNullOrWhiteSpace($marker)) {',
     '  [Console]::Error.WriteLine("Missing setup marker path.")',
@@ -268,15 +289,19 @@ function buildWindowsStartupCommand(
     '        [Console]::Error.WriteLine("Setup failed; skipping agent startup.")',
     '        exit $setupStatus',
     '      }',
-    `      $startup = $env:${SETUP_AGENT_SEQUENCE_STARTUP_COMMAND_ENV}`,
-    '      if ([string]::IsNullOrWhiteSpace($startup)) {',
-    '        [Console]::Error.WriteLine("Missing sequenced startup command.")',
-    '        exit 1',
-    '      }',
-    `      [Console]::Error.WriteLine(${quotePowerShellLiteral(SETUP_COMPLETE_MESSAGE)})`,
-    '      Invoke-Expression $startup',
-    '      if ($global:LASTEXITCODE -ne $null) { exit $global:LASTEXITCODE }',
-    '      if (-not $?) { exit 1 }',
+    ...(runStartup
+      ? [
+          `      $startup = $env:${SETUP_AGENT_SEQUENCE_STARTUP_COMMAND_ENV}`,
+          '      if ([string]::IsNullOrWhiteSpace($startup)) {',
+          '        [Console]::Error.WriteLine("Missing sequenced startup command.")',
+          '        exit 1',
+          '      }',
+          `      [Console]::Error.WriteLine(${quotePowerShellLiteral(SETUP_COMPLETE_MESSAGE)})`,
+          '      Invoke-Expression $startup',
+          '      if ($global:LASTEXITCODE -ne $null) { exit $global:LASTEXITCODE }',
+          '      if (-not $?) { exit 1 }'
+        ]
+      : [`      [Console]::Error.WriteLine(${quotePowerShellLiteral(SETUP_COMPLETE_MESSAGE)})`]),
     '      exit 0',
     '    }',
     '  }',

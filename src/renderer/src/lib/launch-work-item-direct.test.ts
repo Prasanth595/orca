@@ -193,6 +193,9 @@ describe('launchWorkItemDirect', () => {
         }
       ],
       worktreesByRepo: {},
+      sshConnectionStates: new Map(),
+      sshStateByEnvironment: new Map(),
+      runtimeStatusByEnvironmentId: new Map(),
       settings: {
         defaultTuiAgent: 'codex',
         disabledTuiAgents: [],
@@ -206,7 +209,7 @@ describe('launchWorkItemDirect', () => {
       seedNativeChatLaunchPrompt: mocks.seedNativeChatLaunchPrompt,
       seedNativeChatLaunchDraft: mocks.seedNativeChatLaunchDraft,
       markNativeChatLaunchPromptFailed: mocks.markNativeChatLaunchPromptFailed
-    } as typeof mocks.store
+    }
     // @ts-expect-error -- test shim
     globalThis.window = { api: mockApi }
   })
@@ -418,6 +421,7 @@ describe('launchWorkItemDirect', () => {
       agentArgs: '--dangerously-skip-permissions',
       agentEnv: {},
       platform: 'win32',
+      shell: 'powershell',
       isRemote: false
     })
     expect(buildAgentStartupPlan).not.toHaveBeenCalledWith(

@@ -3,8 +3,42 @@ import {
   canonicalizeWindowsShellOverride,
   isSupportedWindowsShellOverride,
   listSupportedWindowsShellOverrides,
+  resolveLocalWindowsAgentStartupShell,
   resolveWindowsShellStartupFamily
 } from './windows-terminal-shell'
+import type { ProjectExecutionRuntimeResolution } from './project-execution-runtime'
+
+const WINDOWS_HOST: ProjectExecutionRuntimeResolution = {
+  status: 'resolved',
+  runtime: {
+    kind: 'windows-host',
+    hostPlatform: 'win32',
+    projectId: 'p',
+    reason: 'global-default',
+    cacheKey: 'k'
+  }
+}
+
+// Why: a Windows agent command must be quoted for whichever shell actually reads it.
+describe('the shell that reads a local Windows agent command', () => {
+  const quotingShell = (
+    setting: string,
+    projectRuntime?: ProjectExecutionRuntimeResolution,
+    isRemote = false
+  ) =>
+    resolveLocalWindowsAgentStartupShell({
+      platform: 'win32',
+      isRemote,
+      terminalWindowsShell: setting,
+      projectRuntime
+    })
+
+  it('is the shell tab creation spawns, and never this computer setting for a remote host', () => {
+    expect(quotingShell('wsl.exe')).toBe('posix')
+    expect(quotingShell('wsl.exe', WINDOWS_HOST)).toBe('powershell')
+    expect(quotingShell('cmd.exe', undefined, true)).toBeUndefined()
+  })
+})
 
 describe('resolveWindowsShellStartupFamily', () => {
   it('defaults to PowerShell when unset', () => {
