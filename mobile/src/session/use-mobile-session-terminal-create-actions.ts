@@ -201,9 +201,8 @@ export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttach
       pendingSelectionRef.current = { kind: 'tab', tabId: created.id }
       activeSessionTabTypeRef.current = 'terminal'
       setActiveSessionTabId(created.id)
-      // An older headed host places after the parent while an older headless host places after the
-      // leaf. Without the capability, wait for the host snapshot instead of guessing.
-      if (hostSupportsGroupedPlacement) {
+      // Forks and older hosts need the host snapshot's order, including its pin partition.
+      if (hostSupportsGroupedPlacement && !sourceFork) {
         setSessionTabs((prev) => {
           if (!isCurrent()) {
             return prev

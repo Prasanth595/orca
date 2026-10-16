@@ -359,7 +359,10 @@ describe('phone chat CLI fork creation owner', () => {
       stored.set(key, value)
     })
     const scope = createScope(clientReturning(terminalCreateResponse()))
-    scope.hostCapabilities = [SESSION_TABS_CHAT_FORK_CLI_RUNTIME_CAPABILITY]
+    scope.hostCapabilities = [
+      SESSION_TABS_CHAT_FORK_CLI_RUNTIME_CAPABILITY,
+      SESSION_TABS_SPLIT_GROUP_PLACEMENT_RUNTIME_CAPABILITY
+    ]
     scope.sessionTabsRef.current = [
       {
         type: 'agent-session',
@@ -395,6 +398,7 @@ describe('phone chat CLI fork creation owner', () => {
       })
     })
     expect(scope.setActiveSessionTabId).toHaveBeenCalledWith('terminal-tab-1')
+    expect(scope.setSessionTabs).not.toHaveBeenCalled()
     expect(resolution?.showNativeChat).toBe(false)
     await act(async () => {
       renderer?.unmount()

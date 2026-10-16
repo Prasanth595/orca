@@ -100,21 +100,21 @@ export abstract class OrcaRuntimeWithRunCreateMobileSessionTerminal extends Orca
       opts.clientNavigationId && opts.supportsSplitGroupPlacement === false
         ? undefined
         : requestedAfterTabId
+    if (opts.sourceChatFork) {
+      return this.createMobileChatForkTerminal({
+        workspace, worktreeId, opts, afterTabId, graphEpoch
+      })
+    }
     let afterDesktopTabId: string | undefined
     if (requestedAfterTabId) {
       const snapshot = this.mobileSessionTabsByWorktree.get(worktreeId)
       const anchor = snapshot?.tabs.find((tab) => tab.id === requestedAfterTabId)
       if (!anchor) {
-        throw new Error(opts.sourceChatFork ? 'chat_fork_anchor_changed' : 'after_tab_not_found')
+        throw new Error('after_tab_not_found')
       }
       if (afterTabId) {
         afterDesktopTabId = anchor.type === 'terminal' ? anchor.parentTabId : anchor.id
       }
-    }
-    if (opts.sourceChatFork) {
-      return this.createMobileChatForkTerminal({
-        workspace, worktreeId, opts, afterTabId, afterDesktopTabId, graphEpoch
-      })
     }
     const startupCommand = applyClaudeTerminalImageViewerEnv(
       await this.resolveMobileSessionTerminalCommand(workspace, opts),

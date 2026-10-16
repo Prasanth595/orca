@@ -12,22 +12,27 @@ import { deterministicAgentSessionUuid } from '../../runtime-agent-launch-resolu
 import { rendererPublicationThrottle } from '../../../window/renderer-publication-throttle'
 import { PROJECT_RUNTIME_REPAIR_REQUIRED_CODE } from '../../../../shared/project-runtime-repair-message'
 import { OrchestrationError } from '../../orchestration/orchestration-error'
+import { LOCAL_EXECUTION_HOST_ID } from '../../../../shared/execution-host'
+import type { WorkspaceSessionState } from '../../../../shared/workspace-session-state-types'
+import { loadWorkspaceLayoutWithoutReport } from '../../../../shared/workspace-layout/workspace-layout-load'
+import { nameBasedLoadContext } from '../../../../shared/workspace-layout/workspace-layout-minted-ids'
+import { resolveSessionTabRow } from '../../../../shared/workspace-layout/old-client'
 
-export function resolveMobileChatForkTargetGroup(args: {
-  groups?: readonly { id: string; tabOrder: readonly string[] }[]
-  afterDesktopTabId?: string
-  explicitGroupId?: string
-  activeGroupId?: string | null
-}): string | undefined {
-  const { groups, afterDesktopTabId, explicitGroupId, activeGroupId } = args
-  const anchorGroupId = afterDesktopTabId
-    ? groups?.find((group) => group.tabOrder.includes(afterDesktopTabId))?.id
-    : undefined
-  if ((afterDesktopTabId && !anchorGroupId) ||
-    (explicitGroupId && !groups?.some((group) => group.id === explicitGroupId))) {
-    throw new Error('chat_fork_anchor_changed')
+function resolveSavedChatForkAnchor(
+  session: WorkspaceSessionState | null,
+  worktreeId: string,
+  rowId: string | undefined
+): { afterDesktopTabId?: string; targetGroupId?: string } {
+  if (!session || !rowId) {
+    return {}
   }
-  return explicitGroupId ?? anchorGroupId ?? activeGroupId ?? undefined
+  const workspace = loadWorkspaceLayoutWithoutReport(
+    LOCAL_EXECUTION_HOST_ID, session, nameBasedLoadContext()
+  ).layout.workspaces[worktreeId]
+  const tab = workspace && resolveSessionTabRow(workspace, rowId)?.tab
+  const group = tab && workspace?.groups.find((entry) => entry.tabOrder.includes(tab.id))
+  // A live window can publish a chat before saving its layout; placement must not block its fork.
+  return group && tab ? { afterDesktopTabId: tab.id, targetGroupId: group.id } : {}
 }
 
 export abstract class OrcaRuntimeWithMobileChatForkCreate extends OrcaRuntimeWithCreateMobileSessionTerminal {
@@ -45,10 +50,9 @@ export abstract class OrcaRuntimeWithMobileChatForkCreate extends OrcaRuntimeWit
     worktreeId: string
     opts: MobileTerminalCreateOptions
     afterTabId?: string
-    afterDesktopTabId?: string
     graphEpoch: number
   }): Promise<RuntimeMobileSessionCreateTerminalResult> {
-    const { workspace, worktreeId, opts, afterTabId, afterDesktopTabId, graphEpoch } = args
+    const { workspace, worktreeId, opts, afterTabId, graphEpoch } = args
     const sourceId = opts.sourceChatFork?.sessionId
     const mutationId = opts.clientMutationId
     if (!sourceId || !mutationId || workspace.connectionId || isWslUncPath(workspace.path) || !this.store) {
@@ -69,12 +73,6 @@ export abstract class OrcaRuntimeWithMobileChatForkCreate extends OrcaRuntimeWit
           )) {
           throw new Error('chat_fork_source_unavailable')
         }
-        if (afterDesktopTabId && !this.mobileSessionTabsByWorktree.get(worktreeId)?.tabs.some(
-          (tab) => tab.id === afterDesktopTabId ||
-            (tab.type === 'terminal' && tab.parentTabId === afterDesktopTabId)
-        )) {
-          throw new Error('chat_fork_anchor_changed')
-        }
         if (opts.signal?.aborted) {
           throw new Error('client_disconnected')
         }
@@ -88,19 +86,19 @@ export abstract class OrcaRuntimeWithMobileChatForkCreate extends OrcaRuntimeWit
           prepared, settings, runtime: launchRuntime
         }), opts.terminalImageViewerSupported)
         const win = this.getAvailableAuthoritativeWindow()
-        const snapshot = this.mobileSessionTabsByWorktree.get(worktreeId)
-        const session = this.getWorkspaceSessionForWorktree(worktreeId)
-        const groups = snapshot?.tabGroups ?? session?.tabGroups?.[worktreeId]
-        const targetGroupId = resolveMobileChatForkTargetGroup({
-          groups, afterDesktopTabId, explicitGroupId: opts.targetGroupId,
-          activeGroupId: session?.activeGroupIdByWorktree?.[worktreeId] ?? snapshot?.activeGroupId
-        })
-        return { startup, launchRuntime, win, targetGroupId }
+        const placement = resolveSavedChatForkAnchor(
+          this.getWorkspaceSessionForWorktree(worktreeId), worktreeId, afterTabId
+        )
+        const phoneAnchor = this.mobileSessionTabsByWorktree.get(worktreeId)?.tabs.some(
+          (tab) => tab.id === afterTabId
+        ) ? afterTabId : undefined
+        return { startup, launchRuntime, win, phoneAnchor, ...placement,
+          targetGroupId: opts.targetGroupId ?? placement.targetGroupId }
       } catch (error) {
         const code = error instanceof OrchestrationError
           ? error.code : error instanceof Error ? error.message : ''
         if (code === 'chat_fork_source_unavailable' || code === 'chat_fork_runtime_incompatible' ||
-          code === 'chat_fork_anchor_changed' || code === PROJECT_RUNTIME_REPAIR_REQUIRED_CODE ||
+          code === PROJECT_RUNTIME_REPAIR_REQUIRED_CODE ||
           code === 'runtime_unavailable' || code === 'client_disconnected') {
           throw error
         }
@@ -108,14 +106,14 @@ export abstract class OrcaRuntimeWithMobileChatForkCreate extends OrcaRuntimeWit
         throw new Error('chat_fork_source_unavailable')
       }
     })()
-    const { startup, launchRuntime, win, targetGroupId } = preflight
+    const { startup, launchRuntime, win, phoneAnchor, targetGroupId, afterDesktopTabId } = preflight
     const clientIdentity = opts.clientNavigationId ?? 'local'
     const seed = `${clientIdentity}\0${worktreeId}\0${mutationId}`
     const releaseThrottle = win && !win.webContents.isDestroyed?.()
       ? rendererPublicationThrottle.acquire(win.webContents) : () => {}
     try {
       const created = await this.createRuntimeOwnedMobileSessionTerminal(
-        worktreeId, opts.activate !== false, afterTabId, {
+        worktreeId, opts.activate !== false, phoneAnchor, {
           ...startup,
           identity: {
             tabId: deterministicAgentSessionUuid(`mobile-chat-fork-tab\0${seed}`),
