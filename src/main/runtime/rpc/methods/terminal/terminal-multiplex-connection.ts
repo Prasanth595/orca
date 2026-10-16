@@ -43,7 +43,11 @@ export type TerminalMultiplexFrameDelivery = {
     payload?: Uint8Array<ArrayBufferLike>,
     frameSeq?: number
   ) => boolean
-  sendStreamError: (streamId: number, message: string) => void
+  sendStreamError: (
+    streamId: number,
+    message: string,
+    diagnostics?: Record<string, number>
+  ) => void
   notifyStreamWriteUnavailable: (
     stream: TerminalMultiplexStream,
     outcome: 'delivered' | 'rejected' | 'failed'
