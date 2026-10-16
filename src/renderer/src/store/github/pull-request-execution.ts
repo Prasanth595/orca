@@ -16,7 +16,7 @@ import { getRepoExecutionHostId, LOCAL_EXECUTION_HOST_ID } from '../../../../sha
 import { callRuntimeRpc } from '../../runtime/runtime-rpc-client'
 import { debouncedSaveCache } from './cache-persistence'
 import { inflightPRRequests, prRequestGenerations } from './request-coordination'
-import { getGitHubFocusedRepoOwnerHostId, getRuntimeRepoTarget } from './repository-routing'
+import { getRuntimeRepoTarget } from './repository-routing'
 import { applyCachedChecksStatus } from './pr-check-status-cache'
 import { setGitHubPRResultCaches, shouldPreserveExistingPRForFallbackMiss } from './pr-result-cache'
 import {
@@ -176,7 +176,7 @@ export function startPullRequestLookup(args: {
                     { cacheKey, repoPath, branch, repoId, connectionId: repo?.connectionId },
                     pr,
                     outcome.fetchedAt,
-                    getGitHubFocusedRepoOwnerHostId(requestSettings, repo)
+                    repo ? getRepoExecutionHostId(repo) : LOCAL_EXECUTION_HOST_ID
                   )
                 : pr,
             fetchedAt: outcome.fetchedAt,
