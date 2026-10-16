@@ -1,4 +1,5 @@
 import { useAppStore } from '@/store'
+import { findLonePaneSourceGroupId } from '@/store/slices/tabs/lone-pane-split-source'
 import { findReusableRightSplitGroupId } from './emulator-right-split-target'
 import { cancelPendingSimulatorPaneShutdown } from './simulator-pane-shutdown-scheduler'
 import { shouldShutdownSimulatorForPaneUnmountFromTabs } from './simulator-tab-shutdown'
@@ -133,29 +134,33 @@ export function ensureSimulatorTab(
         label: translate('auto.lib.ensure.simulator.tab.372d21d428', 'Mobile Emulator'),
         targetGroupId: reusableRightGroupId,
         activate: true,
+        placementFixed: true,
         ...(executionHostId ? { executionHostId } : {})
       })
       surfaceCreatedSimulatorTab(worktreeId, tabId)
       return tabId
     }
 
-    // Why: publish the simulator directly in its split group. A two-step
-    // create-then-move can persist the midpoint during dev reload/HMR.
-    const splitTab = store.createUnifiedTabInSplit(
-      worktreeId,
-      'simulator',
-      {
-        sourceGroupId,
-        splitDirection: 'right'
-      },
-      {
-        label: translate('auto.lib.ensure.simulator.tab.372d21d428', 'Mobile Emulator'),
-        activate: true,
-        ...(executionHostId ? { executionHostId } : {})
+    // Why: with the area already split, rightSplit reuses or falls through — it never makes a third pane.
+    if (findLonePaneSourceGroupId(store, worktreeId, sourceGroupId)) {
+      // Why: publish the simulator directly in its split group. A two-step
+      // create-then-move can persist the midpoint during dev reload/HMR.
+      const splitTab = store.createUnifiedTabInSplit(
+        worktreeId,
+        'simulator',
+        {
+          sourceGroupId,
+          splitDirection: 'right'
+        },
+        {
+          label: translate('auto.lib.ensure.simulator.tab.372d21d428', 'Mobile Emulator'),
+          activate: true,
+          ...(executionHostId ? { executionHostId } : {})
+        }
+      )
+      if (splitTab) {
+        return splitTab.id
       }
-    )
-    if (splitTab) {
-      return splitTab.id
     }
   }
 

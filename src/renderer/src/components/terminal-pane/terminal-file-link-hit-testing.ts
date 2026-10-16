@@ -17,6 +17,7 @@ type FileLinkHitTestDeps = {
   runtimeEnvironmentId?: string | null
   wslDistro?: string | null
   terminalHandle?: string | null
+  sourceTabId?: string
   pathExistsCache?: Map<string, boolean>
   openWithSystemDefault?: boolean
 }

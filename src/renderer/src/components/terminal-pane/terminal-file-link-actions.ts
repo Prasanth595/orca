@@ -27,6 +27,8 @@ export type TerminalFileLinkActionDeps = {
   /** The paired-server terminal that printed the link; lets its host grant a file outside workspaces. */
   terminalHandle?: string | null
   onOpenFailure?: (failure: FileOpenFailure) => void
+  /** The terminal or chat tab the click came from; lets the file open beside it. */
+  sourceTabId?: string
 }
 
 export type FileLinkActions = Pick<
