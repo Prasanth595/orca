@@ -26,7 +26,13 @@ import { isVirtualEditorFile } from '@/store/slices/editor/tabs/editor-tab-conte
 import { CLOSE_ALL_CONTEXT_MENUS_EVENT } from '@/lib/close-all-context-menus'
 import { useEditorHeaderFileRename } from './editor-header-file-rename'
 import { getEditorHeaderCopyState } from './editor-header'
-import { splitPathForDisplay } from './editor-path-display'
+import { EditorFileBreadcrumbs } from './editor-breadcrumbs/editor-file-breadcrumbs'
+import { EditorSymbolBreadcrumbs } from './editor-breadcrumbs/editor-symbol-breadcrumbs'
+import { getRelativePathInsideRoot } from '@/lib/path'
+import { getIndexedWorktreeById } from '@/store/worktree-repo-index'
+import { detectLanguage } from '@/lib/language-detect'
+
+const SYMBOL_LANGUAGES = new Set(['python', 'c', 'cpp', 'systemverilog', 'verilog'])
 
 type EditorPanelHeaderPathProps = {
   activeFile: OpenFile
@@ -47,7 +53,6 @@ export function EditorPanelHeaderPath({
   const [pathMenuPoint, setPathMenuPoint] = useState({ x: 0, y: 0 })
   const skipMenuFocusRestoreRef = useRef(false)
   const headerCopyState = getEditorHeaderCopyState(activeFile)
-  const displayPath = splitPathForDisplay(headerCopyState.pathLabel)
   const canCopyHeaderPath = headerCopyState.copyText !== null
   // Why: virtual editor tabs use synthetic ids instead of on-disk paths.
   const isVirtualEditorTab = isVirtualEditorFile(activeFile)
@@ -69,6 +74,68 @@ export function EditorPanelHeaderPath({
     commitRename,
     cancelRename
   } = useEditorHeaderFileRename(activeFile)
+
+  // Content for symbol extraction: prefer unsaved draft, fall back to disk read.
+  const draft = useAppStore((s) => s.editorDrafts[activeFile.id])
+  const [baseContent, setBaseContent] = useState<string | undefined>()
+  const connectionId = useAppStore(
+    (s) =>
+      activeFile.externalSshTargetId ??
+      getConnectionIdFromState(s, activeFile.worktreeId) ??
+      undefined
+  )
+  const languageId = activeFile.language ?? detectLanguage(activeFile.filePath)
+  const needsSymbols = SYMBOL_LANGUAGES.has(languageId) && !isVirtualEditorTab
+  useEffect(() => {
+    if (!needsSymbols) {
+      return
+    }
+    let cancelled = false
+    window.api.fs
+      .readFile({ filePath: activeFile.filePath, connectionId })
+      .then((result) => {
+        if (!cancelled && !result.isBinary) {
+          setBaseContent(result.content)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [activeFile.filePath, activeFile.id, connectionId, needsSymbols])
+  const symbolContent = draft ?? baseContent
+
+  const openFile = useAppStore((s) => s.openFile)
+  const setPendingEditorReveal = useAppStore((s) => s.setPendingEditorReveal)
+  const worktreePath = useAppStore(
+    (s) => getIndexedWorktreeById(s.worktreesByRepo, activeFile.worktreeId)?.path ?? null
+  )
+
+  const handleBreadcrumbNavigate = (filePath: string): void => {
+    const relativePath = getRelativePathInsideRoot(filePath, worktreePath) ?? filePath
+    openFile(
+      {
+        filePath,
+        relativePath,
+        worktreeId: activeFile.worktreeId,
+        language: detectLanguage(filePath),
+        mode: 'edit',
+        runtimeEnvironmentId: activeFile.runtimeEnvironmentId ?? undefined,
+        externalSshTargetId: activeFile.externalSshTargetId
+      },
+      { preview: false }
+    )
+  }
+
+  const handleRevealLine = (line: number): void => {
+    setPendingEditorReveal({
+      filePath: activeFile.filePath,
+      fileId: activeFile.id,
+      line,
+      column: 1,
+      matchLength: 0
+    })
+  }
 
   useEffect(() => {
     const closeMenu = (): void => setPathMenuOpen(false)
@@ -123,7 +190,8 @@ export function EditorPanelHeaderPath({
             }}
             onBlur={commitRename}
           />
-        ) : (
+        ) : isVirtualEditorTab ? (
+          // Virtual tabs (check-details) use a synthetic label — no real path to split.
           <button
             type="button"
             className={`editor-header-path${canCopyHeaderPath ? '' : ' editor-header-path--static'}`}
@@ -131,13 +199,22 @@ export function EditorPanelHeaderPath({
             disabled={!canCopyHeaderPath}
             title={headerCopyState.pathTitle}
           >
-            <span className="editor-header-path-prefix">{displayPath.prefix}</span>
-            <span className="editor-header-path-file">{displayPath.fileName}</span>
+            <span className="editor-header-path-file">{headerCopyState.pathLabel}</span>
           </button>
+        ) : (
+          <div className="breadcrumbs-row">
+            <EditorFileBreadcrumbs activeFile={activeFile} onNavigate={handleBreadcrumbNavigate} />
+            <EditorSymbolBreadcrumbs
+              fileId={activeFile.id}
+              languageId={languageId}
+              content={symbolContent}
+              onRevealLine={handleRevealLine}
+            />
+          </div>
         )}
         {/* Why: the toast is opacity-0 rather than display-none, so leaving it
-            mounted reserves ~100px of the row from the rename field for a
-            message that cannot fire while renaming. */}
+            mounted reserves space from the rename field for a message that
+            cannot fire while renaming. */}
         {!isRenaming && (
           <span
             className={`editor-header-copy-toast${copiedPathVisible ? ' is-visible' : ''}`}
