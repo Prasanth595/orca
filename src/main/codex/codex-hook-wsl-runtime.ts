@@ -2,6 +2,7 @@ import { win32 as pathWin32 } from 'node:path'
 import type { AgentHookInstallStatus } from '../../shared/agent-hook-types'
 import {
   createManagedCommandMatcher,
+  MANAGED_HOOK_TIMEOUT_SECONDS,
   readHooksJson,
   removeManagedCommands,
   writeManagedScript,
@@ -81,7 +82,7 @@ async function installManagedHooksIntoWslRuntimeExclusively(
   for (const eventName of CODEX_EVENTS) {
     const current = Array.isArray(nextHooks[eventName]) ? nextHooks[eventName] : []
     const cleaned = removeManagedCommands(current, isManagedCommand)
-    const hook = buildCodexManagedHook(command, eventName)
+    const hook = buildCodexManagedHook(command, eventName, MANAGED_HOOK_TIMEOUT_SECONDS)
     const definition: HookDefinition = { hooks: [hook] }
     nextHooks[eventName] = [definition, ...cleaned]
     trustEntries.push({

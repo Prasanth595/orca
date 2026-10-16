@@ -1,5 +1,6 @@
 import { win32 as pathWin32 } from 'node:path'
 import { MANAGED_HOOK_TIMEOUT_SECONDS, type HookDefinition } from '../agent-hooks/installer-utils'
+import { CODEX_MANAGED_HOOK_TIMEOUT_SECONDS } from './codex-hook-timeout'
 import {
   codexHookSourcePathsEqual,
   computeTrustKey,
@@ -122,7 +123,7 @@ export function removeSystemManagedHookTrustEntries(
     sourcePaths,
     command: getManagedCommand(getManagedScriptPath()),
     managedEventLabels: CODEX_MANAGED_EVENT_LABELS,
-    timeoutSec: MANAGED_HOOK_TIMEOUT_SECONDS
+    timeoutSec: CODEX_MANAGED_HOOK_TIMEOUT_SECONDS
   })
 }
 
@@ -138,7 +139,7 @@ export function removeRuntimeManagedHookTrustEntries(
       sourcePaths: [configPath],
       command: getManagedCommand(getManagedScriptPath()),
       managedEventLabels: CODEX_MANAGED_EVENT_LABELS,
-      timeoutSec: MANAGED_HOOK_TIMEOUT_SECONDS,
+      timeoutSec: CODEX_MANAGED_HOOK_TIMEOUT_SECONDS,
       sourceUsesExplicitCodexHome: true
     })
   } catch (error) {

@@ -8,6 +8,8 @@ import { getOrcaUserDataPath } from './codex-home-paths'
 import type { CodexHookAnswer, CodexHookHashes } from './codex-hook-trust-derivation'
 import { CODEX_MANAGED_EVENT_LABELS } from './codex-hook-definition'
 import type { CodexEventLabel } from './config-toml-trust'
+import { CODEX_MANAGED_HOOK_TIMEOUT_SECONDS } from './codex-hook-timeout'
+import { MANAGED_HOOK_TIMEOUT_SECONDS } from '../agent-hooks/installer-utils'
 
 /**
  * Orca's file of what Codex answered about its hook: the `codex --version`
@@ -30,6 +32,13 @@ type MemoizedCodexHookAnswer = Exclude<CodexHookAnswer, { kind: 'pending' }>
 
 // Why a cap: one record per Codex version or path ever seen would otherwise accumulate.
 const MAX_RECORDS = 8
+
+function versionMemoKey(codexVersion: string): string {
+  // Why preserve the old key at 10s: existing answers remain valid only for the default budget.
+  return CODEX_MANAGED_HOOK_TIMEOUT_SECONDS === MANAGED_HOOK_TIMEOUT_SECONDS
+    ? codexVersion
+    : `${codexVersion}:timeout=${CODEX_MANAGED_HOOK_TIMEOUT_SECONDS}`
+}
 
 export function getCodexHookTrustMemoPath(): string {
   return join(getOrcaUserDataPath(), 'codex-hook-trust.json')
@@ -121,7 +130,7 @@ export function readMemoizedVersionAnswer(
   command: string,
   memo: MemoFile = readMemo()
 ): MemoizedCodexHookAnswer | null {
-  const record = memo.versions[codexVersion]
+  const record = memo.versions[versionMemoKey(codexVersion)]
   if (record?.command !== command) {
     return null
   }
@@ -148,20 +157,21 @@ export function memoizeCodexHookAnswer(
     const memo = readMemo()
     const key = codexBinaryKey(codexPath)
     const binary = { fingerprint, codexVersion: answer.codexVersion }
+    const versionKey = versionMemoKey(answer.codexVersion)
     const version: VersionRecord =
       answer.kind === 'hashes'
         ? { command, hashes: answer.hashes }
         : { command, failure: answer.failure }
     if (
       isDeepStrictEqual(memo.binaries[key], binary) &&
-      isDeepStrictEqual(memo.versions[answer.codexVersion], version)
+      isDeepStrictEqual(memo.versions[versionKey], version)
     ) {
       return
     }
     const binaries = withoutKey(memo.binaries, key)
     binaries[key] = binary
-    const versions = withoutKey(memo.versions, answer.codexVersion)
-    versions[answer.codexVersion] = version
+    const versions = withoutKey(memo.versions, versionKey)
+    versions[versionKey] = version
     writeFileAtomically(
       getCodexHookTrustMemoPath(),
       `${JSON.stringify({ binaries: newest(binaries), versions: newest(versions) }, null, 2)}\n`

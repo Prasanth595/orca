@@ -2,7 +2,6 @@ import { join } from 'node:path'
 import {
   buildManagedCommandHook,
   getSharedManagedScriptPath,
-  MANAGED_HOOK_TIMEOUT_SECONDS,
   writeHooksJson,
   type HookCommandConfig,
   type HookDefinition
@@ -15,6 +14,7 @@ import { getManagedScript } from './codex-hook-script'
 import type { CodexEventLabel } from './config-toml-trust'
 import type { CodexHookHashes } from './codex-hook-trust-derivation'
 import { computeCodexTrustedHash, normalizeCodexHookTimeoutSec } from './codex-trust-identity'
+import { CODEX_MANAGED_HOOK_TIMEOUT_SECONDS } from './codex-hook-timeout'
 
 // Why: Pre/PostToolUse feed the live in-flight-tool readout; PermissionRequest exits with no decision so Codex still shows its approval UI while Orca flips the pane to waiting.
 // Interrupt (Codex 0.150+) is the only hook an Esc-cancelled turn fires; older Codex ignores the unknown key.
@@ -64,11 +64,12 @@ export const CODEX_EVENT_LABEL: Record<(typeof CODEX_EVENTS)[number], CodexEvent
 // Why: pre-clamped to Codex's per-event cap (Interrupt: 3s), which Codex warns about at every startup.
 export function buildCodexManagedHook(
   command: string,
-  eventName: (typeof CODEX_EVENTS)[number]
+  eventName: (typeof CODEX_EVENTS)[number],
+  timeoutSec: number = CODEX_MANAGED_HOOK_TIMEOUT_SECONDS
 ): HookCommandConfig {
   return buildManagedCommandHook(
     command,
-    normalizeCodexHookTimeoutSec(CODEX_EVENT_LABEL[eventName], MANAGED_HOOK_TIMEOUT_SECONDS)
+    normalizeCodexHookTimeoutSec(CODEX_EVENT_LABEL[eventName], timeoutSec)
   )
 }
 
@@ -81,7 +82,8 @@ export const CODEX_MANAGED_EVENT_LABELS = new Set<CodexEventLabel>(
  * asking Codex: the stopgap while Codex has not answered.
  */
 export function computeOrcaCodexHookHashes(
-  command: string = getManagedCommand(getManagedScriptPath())
+  command: string = getManagedCommand(getManagedScriptPath()),
+  timeoutSec: number = CODEX_MANAGED_HOOK_TIMEOUT_SECONDS
 ): CodexHookHashes {
   return Object.fromEntries(
     CODEX_EVENTS.map((eventName) => {
@@ -94,7 +96,7 @@ export function computeOrcaCodexHookHashes(
           groupIndex: 0,
           handlerIndex: 0,
           command,
-          timeoutSec: buildCodexManagedHook(command, eventName).timeout
+          timeoutSec: buildCodexManagedHook(command, eventName, timeoutSec).timeout
         })
       ]
     })
