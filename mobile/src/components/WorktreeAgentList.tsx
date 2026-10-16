@@ -1,3 +1,4 @@
+import { createThemedStyles } from '../theme/mobile-themed-styles'
 import { useMobileTheme } from '../theme/use-mobile-theme'
 import { useMemo, useState } from 'react'
 import { StyleSheet, View } from 'react-native'
@@ -10,21 +11,22 @@ type Props = {
   agents: RuntimeWorktreeAgentRow[]
   now: number
   unvisited: boolean
+  /** The desktop's "Full list" agent activity layout: every row, no summary. */
+  fullList?: boolean
 }
 
 // Inline agent list for one worktree row: flattens the spawn lineage and renders
 // a depth-indented WorktreeAgentRow per agent, mirroring the desktop sidebar's
 // WorktreeCardAgents.
-export function WorktreeAgentList({ agents, now, unvisited }: Props) {
+export function WorktreeAgentList({ agents, now, unvisited, fullList = false }: Props) {
   useMobileTheme()
-
   const nodes = useMemo(() => flattenAgentRowLineage(agents), [agents])
   const summaryAgents = useMemo(() => {
     const lineage = buildAgentRowLineageTree(agents)
     return lineage.childrenByParentPaneKey.size > 0 ? lineage.rootRows : agents
   }, [agents])
   const [expanded, setExpanded] = useState(false)
-  const usesSummary = summaryAgents.length > 1
+  const usesSummary = !fullList && summaryAgents.length > 1
 
   return (
     <View style={styles.list}>
@@ -51,8 +53,10 @@ export function WorktreeAgentList({ agents, now, unvisited }: Props) {
   )
 }
 
-const styles = StyleSheet.create({
-  list: {
-    marginTop: 3
-  }
-})
+const styles = createThemedStyles(() =>
+  StyleSheet.create({
+    list: {
+      marginTop: 3
+    }
+  })
+)

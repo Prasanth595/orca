@@ -89,15 +89,7 @@ export const hostScreenPrimaryStyles = createThemedStyles(() =>
       gap: spacing.sm
     },
     embeddedFilterChip: {
-      flex: 1,
-      minWidth: 0,
-      height: 30,
-      justifyContent: 'center',
-      paddingHorizontal: spacing.xs,
-      paddingVertical: 0
-    },
-    embeddedModeButton: {
-      flex: 1,
+      flexShrink: 1,
       minWidth: 0,
       height: 30,
       justifyContent: 'center',
@@ -124,21 +116,6 @@ export const hostScreenPrimaryStyles = createThemedStyles(() =>
     },
     filterChipTextActive: {
       color: colors.textPrimary
-    },
-    modeButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      flexShrink: 1,
-      minWidth: 0,
-      gap: 4,
-      paddingHorizontal: spacing.sm,
-      paddingVertical: spacing.xs
-    },
-    sortLabel: {
-      flexShrink: 1,
-      minWidth: 0,
-      fontSize: 12,
-      color: colors.textSecondary
     },
     toolbarSpacer: {
       flex: 1

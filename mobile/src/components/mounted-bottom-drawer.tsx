@@ -49,6 +49,8 @@ export type MountedBottomDrawerProps = {
   // preserved) but must not take touches, stack backdrops, or keyboard-lift.
   interactive?: boolean
   zIndex?: number
+  /** When this changes to a non-null value the content scrolls back to its top, e.g. a new page. */
+  scrollResetKey?: string | null
 }
 
 export function MountedBottomDrawer({
@@ -60,7 +62,8 @@ export function MountedBottomDrawer({
   contentScrollable = true,
   fillAvailable = false,
   interactive = true,
-  zIndex = 1000
+  zIndex = 1000,
+  scrollResetKey = null
 }: MountedBottomDrawerProps) {
   useMobileTheme()
 
@@ -68,6 +71,13 @@ export function MountedBottomDrawer({
   const progress = useSharedValue(0)
   const keyboardOffset = useSharedValue(0)
   const scrollOffsetY = useSharedValue(0)
+  const scrollRef = useRef<ScrollView>(null)
+  useEffect(() => {
+    if (scrollResetKey !== null) {
+      scrollRef.current?.scrollTo({ y: 0, animated: false })
+      scrollOffsetY.value = 0
+    }
+  }, [scrollOffsetY, scrollResetKey])
   const contentDragStartY = useSharedValue(0)
   const contentDragCanDismiss = useSharedValue(false)
   // Why: fill mode needs the keyboard inset in React layout (not only the
@@ -340,9 +350,10 @@ export function MountedBottomDrawer({
     <>
       {handle}
       <GestureDetector gesture={contentPanGesture}>
-        <Animated.View collapsable={false}>
+        <Animated.View collapsable={false} style={styles.scrollFrame}>
           <GestureDetector gesture={scrollGesture}>
             <Animated.ScrollView
+              ref={scrollRef}
               bounces={false}
               keyboardShouldPersistTaps="handled"
               onScroll={scrollHandler}
@@ -359,6 +370,7 @@ export function MountedBottomDrawer({
     <>
       {handle}
       <ScrollView
+        ref={scrollRef}
         bounces={false}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
