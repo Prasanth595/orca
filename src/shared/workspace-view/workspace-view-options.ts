@@ -9,6 +9,9 @@ import type {
 // table keyed on WorkspaceViewOptionKey, so an option added here fails to compile until it renders.
 // The labels are the English copy; the desktop localizes its own, checked equal by a test.
 
+export type WorkspaceGroupBy = PersistedUIState['groupBy']
+export type WorkspaceSortBy = PersistedUIState['sortBy']
+
 export type WorkspaceViewChoice<Id extends string> = {
   id: Id
   label: string
@@ -80,6 +83,23 @@ export const WORKSPACE_CARD_DISPLAY_CHOICES = [
   { id: 'host', label: 'Host' },
   { id: 'branch', label: 'Branch name' }
 ] as const satisfies readonly WorkspaceViewChoice<WorktreeCardProperty>[]
+
+/**
+ * The Show properties row's value: "hover" under the compact layout (properties show on hover),
+ * otherwise how many properties show; null when none do.
+ */
+export function getWorkspaceCardPropertiesValue(
+  shownProperties: readonly string[],
+  compactWorktreeCards: boolean
+): 'hover' | number | null {
+  if (compactWorktreeCards) {
+    return 'hover'
+  }
+  const count = WORKSPACE_CARD_PROPERTY_CHOICES.filter((choice) =>
+    shownProperties.includes(choice.id)
+  ).length
+  return count > 0 ? count : null
+}
 
 /** Project groups can hold folder workspaces, whose identity is a path, not a branch. */
 export function getWorkspaceCardDisplayChoiceLabel(
