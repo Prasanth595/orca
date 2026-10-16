@@ -2,6 +2,8 @@ import { runProcess } from '@orca/process-host'
 import type { AgentCallData } from '../../shared/workflow-types'
 import type { TuiAgent } from '../../shared/tui-agent'
 import type { RemoteExecFn } from './workflow-remote-exec'
+import { remoteCwdPrefix } from './workflow-remote-commands'
+import { quotePosixShell } from '../../shared/wsl-login-shell-command'
 
 export type AgentNodeResult = {
   stdout: string
@@ -65,7 +67,7 @@ function buildAgentRemoteCommand(
   }
   // Escape single-quotes in the prompt so it is safe inside '…'
   const escapedPrompt = prompt.replace(/'/g, `'\\''`)
-  const modelFlag = model ? `--model ${model} ` : ''
+  const modelFlag = model ? `--model ${quotePosixShell(model)} ` : ''
   const jsonFlag = structuredOutput ? '--output-format json ' : ''
   if (agentId === 'claude') {
     return `claude -p ${modelFlag}${jsonFlag}'${escapedPrompt}'`
@@ -92,13 +94,15 @@ export async function runAgentCallNode(
   signal?: AbortSignal
 ): Promise<AgentNodeResult> {
   if (remoteExec) {
-    const command = buildAgentRemoteCommand(
-      data.agentId,
-      resolvedPrompt,
-      data.structuredOutputSchema !== null,
-      data.model,
-      data
-    )
+    const command =
+      remoteCwdPrefix(data.workingDirectory) +
+      buildAgentRemoteCommand(
+        data.agentId,
+        resolvedPrompt,
+        data.structuredOutputSchema !== null,
+        data.model,
+        data
+      )
     const result = await remoteExec(command, {
       signal,
       timeoutMs: data.timeoutSeconds * 1000

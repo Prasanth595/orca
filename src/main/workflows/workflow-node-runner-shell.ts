@@ -1,6 +1,7 @@
 import { runProcess } from '@orca/process-host'
 import type { ShellCommandData } from '../../shared/workflow-types'
 import type { RemoteExecFn } from './workflow-remote-exec'
+import { buildRemoteShellCommand } from './workflow-remote-commands'
 
 export type ShellNodeResult = {
   stdout: string
@@ -28,7 +29,7 @@ export async function runShellCommandNode(
   signal?: AbortSignal
 ): Promise<ShellNodeResult> {
   if (remoteExec) {
-    const result = await remoteExec(data.command, {
+    const result = await remoteExec(buildRemoteShellCommand(data), {
       stdin,
       signal,
       timeoutMs: data.timeoutSeconds * 1000

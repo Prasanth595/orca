@@ -137,7 +137,7 @@ describe('executeWorkflow — remote exec', () => {
     const onNodeComplete = vi.fn()
     await executeWorkflow(workflow, runId, ops, { onNodeComplete }, undefined, remoteExec)
     expect(remoteExec).toHaveBeenCalledWith(
-      'echo hello',
+      "cd '/' && { echo hello\n}",
       expect.objectContaining({ timeoutMs: 5000 })
     )
     expect(onNodeComplete).toHaveBeenCalledWith(
@@ -213,7 +213,7 @@ describe('executeWorkflow — template expressions', () => {
     // Command should have resolved the template (trigger output is an ISO timestamp)
     // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: first arg of mock call is always the command string per the runner signature
     const call = remoteExec.mock.calls[0][0] as string
-    expect(call).toMatch(/^echo \d{4}-/)
+    expect(call).toMatch(/^cd '\/' && \{ echo \d{4}-/)
   })
 })
 
@@ -408,7 +408,7 @@ describe('executeWorkflow — file nodes (mocked runners)', () => {
     )
   })
 
-  it('shell_command with shell field set passes command string to remoteExec unchanged', async () => {
+  it('shell_command with shell field set runs the command in that shell on the host', async () => {
     const workflow = makeWorkflow({
       nodes: [
         { id: 'trigger', type: 'trigger_manual', pos: { x: 0, y: 0 }, data: {} },
@@ -424,8 +424,7 @@ describe('executeWorkflow — file nodes (mocked runners)', () => {
     const { ops, runId } = makeOps(workflow)
     const remoteExec = vi.fn().mockResolvedValue({ stdout: 'test', stderr: '', exitCode: 0 })
     await executeWorkflow(workflow, runId, ops, {}, undefined, remoteExec)
-    // remoteExec receives the raw command string regardless of shell setting
-    expect(remoteExec).toHaveBeenCalledWith('echo test', expect.any(Object))
+    expect(remoteExec).toHaveBeenCalledWith("cd '/' && 'zsh' -c 'echo test'", expect.any(Object))
   })
 })
 

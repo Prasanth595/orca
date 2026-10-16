@@ -1,6 +1,7 @@
 import { runProcess } from '@orca/process-host'
 import type { PythonScriptData } from '../../shared/workflow-types'
 import type { RemoteExecFn } from './workflow-remote-exec'
+import { buildRemotePythonCommand } from './workflow-remote-commands'
 
 export type PythonNodeResult = {
   stdout: string
@@ -16,9 +17,8 @@ export async function runPythonScriptNode(
 ): Promise<PythonNodeResult> {
   const python = data.pythonBin ?? 'python3'
   if (remoteExec) {
-    // Pipe script via stdin — avoids any shell interpolation of $vars, backticks or !
-    const result = await remoteExec(`${python} -`, {
-      stdin: data.script,
+    const result = await remoteExec(buildRemotePythonCommand(data), {
+      stdin,
       signal,
       timeoutMs: data.timeoutSeconds * 1000
     })

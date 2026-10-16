@@ -53,7 +53,7 @@ export default function WorkflowAgentNodeFields({
   localData,
   onDataChange
 }: Props): React.JSX.Element {
-  const modelCache = useRef<Map<TuiAgent, ModelFetch>>(new Map())
+  const modelCache = useRef<Map<string, ModelFetch>>(new Map())
   const [modelFetch, setModelFetch] = useState<ModelFetch>({ state: 'loading' })
   const [agentDetect, setAgentDetect] = useState<AgentDetect>({ state: 'loading' })
 
@@ -86,27 +86,30 @@ export default function WorkflowAgentNodeFields({
     }
     // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: currentAgent is a TuiAgent when not 'custom'
     const agentKey = currentAgent as TuiAgent
-    const cached = modelCache.current.get(agentKey)
+    const targetId = isRemote ? executionTargetId : undefined
+    // Why keyed by host: an SSH host can have different agent versions and models than this one.
+    const cacheKey = `${targetId ?? 'local'}|${agentKey}`
+    const cached = modelCache.current.get(cacheKey)
     if (cached) {
       setModelFetch(cached)
       return
     }
     const loading: ModelFetch = { state: 'loading' }
-    modelCache.current.set(agentKey, loading)
+    modelCache.current.set(cacheKey, loading)
     setModelFetch(loading)
     void window.api.workflows
-      .listModels(agentKey)
+      .listModels(agentKey, targetId)
       .then((models) => {
         const done: ModelFetch = { state: 'done', models }
-        modelCache.current.set(agentKey, done)
+        modelCache.current.set(cacheKey, done)
         setModelFetch((prev) => (prev === loading ? done : prev))
       })
       .catch(() => {
         const err: ModelFetch = { state: 'error' }
-        modelCache.current.set(agentKey, err)
+        modelCache.current.set(cacheKey, err)
         setModelFetch((prev) => (prev === loading ? err : prev))
       })
-  }, [isCustomAgent, currentAgent])
+  }, [isCustomAgent, currentAgent, isRemote, executionTargetId])
 
   const availableModels = modelFetch.state === 'done' ? modelFetch.models : []
   const selectedModel = localData['model'] ?? ''
