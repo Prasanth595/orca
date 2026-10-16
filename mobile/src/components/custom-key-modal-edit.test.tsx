@@ -129,7 +129,7 @@ describe('CustomKeyModal editing', () => {
     act(() => {
       inputs[1]?.props.onChangeText('pnpm test')
     })
-    pressMatching(renderer, (label) => label.trim() === 'Save', 'save')
+    pressMatching(renderer, (label) => label.trim() === 'Save Changes', 'save')
     await flushSave()
 
     expect(onClose).toHaveBeenCalledTimes(1)
@@ -181,7 +181,7 @@ describe('CustomKeyModal editing', () => {
     expect(keyInput.props.value).toBe('')
     expect(keyInput.props.placeholder).toBe('↑')
 
-    pressMatching(renderer, (label) => label.trim() === 'Save', 'save')
+    pressMatching(renderer, (label) => label.trim() === 'Save Changes', 'save')
     await flushSave()
 
     const saved = onKeysChanged.mock.calls[0]?.[0] as CustomKey[]

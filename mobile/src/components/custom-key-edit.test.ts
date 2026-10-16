@@ -107,8 +107,8 @@ describe('custom key edit chrome', () => {
     expect(customKeyModalTitle('text-macro', true)).toBe('Edit Shortcut')
     expect(customKeySaveLabel(false, 'combo')).toBe('Add')
     expect(customKeySaveLabel(false, 'macro')).toBe('Add Shortcut')
-    expect(customKeySaveLabel(true, 'combo')).toBe('Save')
-    expect(customKeySaveLabel(true, 'macro')).toBe('Save')
+    expect(customKeySaveLabel(true, 'combo')).toBe('Save Changes')
+    expect(customKeySaveLabel(true, 'macro')).toBe('Save Changes')
   })
 })
 

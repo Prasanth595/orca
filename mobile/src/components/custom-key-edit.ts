@@ -112,7 +112,7 @@ export function customKeyModalTitle(
 
 export function customKeySaveLabel(editing: boolean, kind: 'combo' | 'macro'): string {
   if (editing) {
-    return 'Save'
+    return 'Save Changes'
   }
   return kind === 'combo' ? 'Add' : 'Add Shortcut'
 }
