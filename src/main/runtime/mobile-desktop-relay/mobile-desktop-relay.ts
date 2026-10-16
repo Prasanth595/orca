@@ -2,19 +2,16 @@ import { pairedRuntimeConnectionFromOffer } from '../../../shared/paired-runtime
 import { randomUUID } from 'node:crypto'
 import type { RpcRequest } from '../rpc/core'
 import type { DelegatedMobileDeviceSyncParams } from '../../../shared/delegated-mobile-device-contract'
-import type { RuntimeCapability } from '../../../shared/protocol-version'
 import { RemoteRuntimeClientError } from '../../../shared/remote-runtime-client-error'
-import {
-  openRemoteRuntimePassthroughSocket,
-  type RemoteRuntimePassthroughSocket
-} from '../../../shared/remote-runtime-passthrough-socket'
+import { openRemoteRuntimePassthroughSocket } from '../../../shared/remote-runtime-passthrough-socket'
 import { DelegatedPhoneGrantCache } from './delegated-phone-grant-cache'
 import { localHostedBrowserPageRequest } from './hosted-browser-page-route'
-import type { MobileDesktopRelayHosts } from './mobile-desktop-relay-hosts'
+import type { MobileDesktopRelayHost, MobileDesktopRelayHosts } from './mobile-desktop-relay-hosts'
+import { RelayLink, type OpenedRelayLink, type RelayedPhone } from './mobile-relay-link'
 import { RELAYED_STREAM_CARRIERS } from './relayed-stream-carriers'
+import { createSupportFollowsHostSetting } from '../rpc/methods/structured-agent-session-policy'
 import {
   declareRelayedPhoneCapabilities,
-  RelayedPhoneReplies,
   relayedPhoneCapabilities,
   rewriteRelayedPhoneRequest,
   withRelayedLaunchChatDefault
@@ -22,32 +19,7 @@ import {
 
 const RELAY_CONNECT_TIMEOUT_MS = 15_000
 
-/** The phone connection a relayed request arrived on. */
-export type RelayedPhone = {
-  connectionId: string
-  deviceId: string
-  deviceToken: string
-  clientCapabilities: () => readonly RuntimeCapability[]
-  reply: (frame: string) => void
-  sendBinary: (bytes: Uint8Array<ArrayBufferLike>) => boolean | void
-}
-
-type OpenedRelayLink = { socket: RemoteRuntimePassthroughSocket; hostToken: string }
-
-class RelayLink {
-  readonly replies: RelayedPhoneReplies
-  readonly opened: Promise<OpenedRelayLink>
-
-  constructor(
-    readonly environmentId: string,
-    readonly phone: RelayedPhone,
-    allocateStreamId: () => number,
-    open: (link: RelayLink) => Promise<OpenedRelayLink>
-  ) {
-    this.replies = new RelayedPhoneReplies(allocateStreamId)
-    this.opened = open(this)
-  }
-}
+export type { RelayedPhone } from './mobile-relay-link'
 
 /**
  * Relays a phone request carrying `executionHost: runtime:<env>` to that configured server, over one
@@ -102,6 +74,23 @@ export class MobileDesktopRelay {
     request: { id: string; method: string },
     frame: string
   ): void {
+    if (
+      request.method === 'agentSession.createSupport' &&
+      createSupportFollowsHostSetting({
+        clientKind: 'mobile',
+        clientCapabilities: phone.clientCapabilities()
+      }) &&
+      !this.options.nativeChatDefault()
+    ) {
+      phone.reply(
+        failure(
+          request.id,
+          'structured_agent_session_unsupported',
+          'structured_agent_session_unsupported'
+        )
+      )
+      return
+    }
     if (RELAYED_STREAM_CARRIERS.get(request.method) === 'phone-binary-frames') {
       phone.reply(
         failure(
@@ -112,10 +101,10 @@ export class MobileDesktopRelay {
       )
       return
     }
-    const link = this.linkFor(phone, environmentId)
+    const link = this.linkFor(phone, environmentId, request.method)
     link.replies.noteForwarded(request.id)
-    link.opened.then(
-      ({ socket, hostToken }) => {
+    Promise.all([link.opened, link.demand?.ready]).then(
+      ([{ socket, hostToken }]) => {
         // Why: a link ended while opening already answered this request; never send it late.
         if (!this.isCurrent(link)) {
           return
@@ -129,9 +118,7 @@ export class MobileDesktopRelay {
           this.endLink(link, unavailable('The server connection could not take the request.'))
         }
       },
-      () => {
-        // The open failure already answered every request queued on this link.
-      }
+      (error: unknown) => this.endLink(link, unavailable(String(error)))
     )
   }
 
@@ -174,7 +161,8 @@ export class MobileDesktopRelay {
   retireEnvironment(environmentId: string): void {
     this.grants.delete(environmentId)
     for (const link of this.links.values()) {
-      if (link.environmentId === environmentId) {
+      // Unbound openings validate their original registration before committing a transport.
+      if (link.environmentId === environmentId && !link.preparing) {
         this.endLink(link, unavailable('The server connection was reset.'))
       }
     }
@@ -199,15 +187,17 @@ export class MobileDesktopRelay {
     }
   }
 
-  private linkFor(phone: RelayedPhone, environmentId: string): RelayLink {
+  private linkFor(phone: RelayedPhone, environmentId: string, method: string): RelayLink {
     const key = linkKey(phone.connectionId, environmentId)
     const existing = this.links.get(key)
     if (existing) {
+      existing.demand ??= this.options.hosts.acquireDemand?.(environmentId, method) ?? null
       return existing
     }
     const link = new RelayLink(environmentId, phone, this.options.allocateStreamId, (opening) =>
       this.open(opening)
     )
+    link.demand = this.options.hosts.acquireDemand?.(environmentId, method) ?? null
     link.opened.catch((error: unknown) => {
       this.endLink(
         link,
@@ -219,10 +209,40 @@ export class MobileDesktopRelay {
   }
 
   private async open(link: RelayLink): Promise<OpenedRelayLink> {
-    const { phone } = link
-    const host = await this.options.hosts.resolve(link.environmentId)
-    if (!host) {
+    const selectHost = this.options.hosts.captureRegistration(link.environmentId)
+    // Yield until linkFor has attached demand and registered the link.
+    await Promise.resolve()
+    if (!selectHost) {
       throw unavailable('The server is not configured on this computer.')
+    }
+    const { phone } = link
+    let host: MobileDesktopRelayHost | null
+    for (;;) {
+      const demand = link.demand
+      await demand?.ready
+      if (!this.isCurrent(link)) {
+        throw unavailable('The relayed request was cancelled.')
+      }
+      const outcome = await this.options.hosts.resolve(link.environmentId).then(
+        (candidate) => ({ ok: true as const, candidate }),
+        (error: unknown) => ({ ok: false as const, error })
+      )
+      if (!this.isCurrent(link)) {
+        throw unavailable('The relayed request was cancelled.')
+      }
+      // Demand changes only once, from passive to explicit; discard every obsolete outcome.
+      if (link.demand !== demand) {
+        continue
+      }
+      if (!outcome.ok) {
+        throw outcome.error
+      }
+      host = outcome.candidate ? selectHost() : null
+      if (!host) {
+        throw unavailable('The server is not configured on this computer.')
+      }
+      link.preparing = false
+      break
     }
     const grants = await this.grants.get(host, phone.deviceId)
     if (grants.kind === 'update-needed') {
@@ -246,12 +266,18 @@ export class MobileDesktopRelay {
         relayedPhoneCapabilities(phone.clientCapabilities()),
         {
           onText: (plaintext) => {
+            if (!this.isCurrent(link)) {
+              return
+            }
             const frame = link.replies.text(plaintext)
             if (frame !== null) {
               phone.reply(frame)
             }
           },
           onBinary: (bytes) => {
+            if (!this.isCurrent(link)) {
+              return
+            }
             const frame = link.replies.binary(bytes)
             if (frame) {
               phone.sendBinary(frame)
@@ -281,6 +307,7 @@ export class MobileDesktopRelay {
       return
     }
     this.links.delete(linkKey(link.phone.connectionId, link.environmentId))
+    link.demand?.release()
     link.opened.then(
       ({ socket }) => socket.close(),
       () => {}

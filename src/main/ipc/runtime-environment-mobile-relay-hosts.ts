@@ -10,12 +10,18 @@ import {
   runtimeEnvironmentStatusFromSnapshot,
   type RuntimeEnvironmentStatus
 } from '../../shared/runtime-host-status'
-import type { MobileDesktopRelayHosts } from '../runtime/mobile-desktop-relay/mobile-desktop-relay-hosts'
+import type {
+  MobileDesktopRelayHost,
+  MobileDesktopRelayHosts
+} from '../runtime/mobile-desktop-relay/mobile-desktop-relay-hosts'
 import { resolveManagedRuntimeEnvironment } from './runtime-environment-managed-tunnel'
 import type { SshConnectionState } from '../../shared/ssh-types'
 import { getRegisteredSshState, listRegisteredSshTargets } from '../ssh/ssh-target-registry'
 import { getRuntimeEnvironmentStatusSnapshots } from './runtime-environment-request-connections'
 import { callRuntimeEnvironment } from './runtime-environment-transport-routing'
+import { isGatedOffWslHost } from '../wsl/wsl-host-gate'
+import { getWslHostService } from '../wsl/wsl-host-service-instance'
+import { mobileRelayRequestsWork } from '../runtime/mobile-desktop-relay/mobile-relay-work-demand'
 
 const retirementListeners = new Set<(environmentId: string) => void>()
 
@@ -26,14 +32,9 @@ export function retireMobileDesktopRelayEnvironment(environmentId: string): void
   }
 }
 
-/**
- * Servers a phone may reach through this desktop. Not WSL hosts: they are this desktop's own
- * distros, connected only for work open here, so a phone must not wake or route to them.
- */
+/** Configured hosts, behind the same availability gate as the desktop. Listing never connects. */
 function listRelayableEnvironments(userDataPath: string) {
-  return listEnvironments(userDataPath).filter(
-    (environment) => !isWslHostRuntimeEnvironment(environment)
-  )
+  return listEnvironments(userDataPath).filter((environment) => !isGatedOffWslHost(environment))
 }
 
 /** The desktop's configured servers, addressed only by exact environment id. */
@@ -79,10 +80,46 @@ export function createRuntimeEnvironmentMobileRelayHosts(): MobileDesktopRelayHo
         return null
       }
       const environment = await resolveManagedRuntimeEnvironment(userDataPath, environmentId)
+      return relayHost(environment)
+    },
+    captureRegistration: (environmentId) => {
+      const environment = listRelayableEnvironments(userDataPath).find(
+        (entry) => entry.id === environmentId
+      )
+      if (!environment) {
+        return null
+      }
+      const createdAt = environment.createdAt
+      const serverKey = getPreferredPairingOffer(environment).publicKeyB64
+      return () => {
+        const current = listRelayableEnvironments(userDataPath).find(
+          (entry) => entry.id === environmentId
+        )
+        return current &&
+          current.createdAt === createdAt &&
+          getPreferredPairingOffer(current).publicKeyB64 === serverKey
+          ? relayHost(current)
+          : null
+      }
+    },
+    acquireDemand: (environmentId, method) => {
+      const environment = listRelayableEnvironments(userDataPath).find(
+        (entry) => entry.id === environmentId
+      )
+      const service = getWslHostService()
+      if (
+        !environment ||
+        !isWslHostRuntimeEnvironment(environment) ||
+        !service ||
+        !mobileRelayRequestsWork(method)
+      ) {
+        return null
+      }
+      const release = service.acquireDemand(environmentId)
       return {
-        environmentId,
-        fence: relayHostFence(environment),
-        pairing: getPreferredPairingOffer(environment)
+        // Prepare before taking the pairing fence: reconnect can rotate the bridge's credentials.
+        ready: Promise.resolve().then(() => service.ensureForRuntimeCall(environmentId)),
+        release
       }
     },
     call: (host, method, params, options) =>
@@ -112,4 +149,12 @@ function pairingRevision(environment: KnownRuntimeEnvironment): number {
 
 function relayHostFence(environment: KnownRuntimeEnvironment): string {
   return `${pairingRevision(environment)}\0${environment.runtimeId}`
+}
+
+function relayHost(environment: KnownRuntimeEnvironment): MobileDesktopRelayHost {
+  return {
+    environmentId: environment.id,
+    fence: relayHostFence(environment),
+    pairing: getPreferredPairingOffer(environment)
+  }
 }

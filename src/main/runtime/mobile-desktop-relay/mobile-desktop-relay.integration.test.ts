@@ -161,10 +161,11 @@ describe('mobile desktop relay: phone -> desktop -> server', () => {
         sshTargetLabels: new Map(),
         sshConnectionStates: new Map()
       }),
-      resolve: async (environmentId) =>
+      captureRegistration: (environmentId) =>
         environmentId === 'env-1'
-          ? { environmentId, fence: 'pairing-1', pairing: desktopOnHost }
+          ? () => ({ environmentId, fence: 'pairing-1', pairing: desktopOnHost })
           : null,
+      resolve: async (environmentId) => hosts.captureRegistration(environmentId)?.() ?? null,
       call: async (_host, method, params) => {
         if (method === DELEGATED_MOBILE_DEVICE_SYNC_METHOD) {
           const { phones } = DelegatedMobileDeviceSyncParamsSchema.parse(params)
@@ -378,6 +379,43 @@ describe('mobile desktop relay: phone -> desktop -> server', () => {
     expect(host.runtime.seatClientIds('pty-shared')).not.toContain(tokens[0])
   })
 
+  it('uses the desktop chat preference for a legacy phone probe, not the server preference', async () => {
+    const { host, desktop } = await startTopology()
+    vi.spyOn(host.runtime, 'getClientSettings').mockReturnValue({
+      ...host.runtime.getClientSettings(),
+      experimentalNativeChat: false
+    })
+    const desktopSettings = vi.spyOn(desktop.runtime, 'getClientSettings')
+    desktopSettings.mockReturnValue({
+      ...desktop.runtime.getClientSettings(),
+      experimentalNativeChat: true
+    })
+    const support = vi
+      .spyOn(host.runtime, 'getStructuredAgentSessionCreateSupport')
+      .mockResolvedValue({ supported: true })
+    const phone = await connectPhone(desktop.server, 'iPhone')
+    phone.send(
+      'structured-caps',
+      'runtime.clientCapabilities.update',
+      { clientCapabilities: ['agent-session.structured.v1'] },
+      null
+    )
+    await phone.next('structured-caps')
+    const params = { worktree: 'id:wt-1', agent: 'codex' }
+    phone.send('chat-on', 'agentSession.createSupport', params)
+    expect(await phone.next('chat-on')).toMatchObject({ ok: true, result: { supported: true } })
+    desktopSettings.mockReturnValue({
+      ...desktop.runtime.getClientSettings(),
+      experimentalNativeChat: false
+    })
+    phone.send('chat-off', 'agentSession.createSupport', params)
+    expect(await phone.next('chat-off')).toMatchObject({
+      ok: false,
+      error: { code: 'structured_agent_session_unsupported' }
+    })
+    expect(support).toHaveBeenCalledOnce()
+  })
+
   it('applies a phone capability update on the desktop and on its open server socket, answering once', async () => {
     const { desktop, handle } = await startTopology()
     const phone = await connectPhone(desktop.server, 'iPhone')
@@ -397,7 +435,9 @@ describe('mobile desktop relay: phone -> desktop -> server', () => {
       expect(
         passthroughOpens.hostReplies.some((frame) =>
           // The server lists client-placed browser tabs only to callers declaring it.
-          frame.includes('"clientCapabilities":["relay.test.v1","browser.clientHost.v1"]')
+          frame.includes(
+            '"clientCapabilities":["relay.test.v1","browser.clientHost.v1","agent-session.structured.client-launch-mode.v1"]'
+          )
         )
       ).toBe(true)
     )

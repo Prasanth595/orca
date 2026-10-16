@@ -5,7 +5,17 @@ const mocks = vi.hoisted(() => {
   const snapshots: Record<string, unknown>[] = []
   const sshTargets: { id: string; label: string }[] = []
   const sshStates = new Map<string, Record<string, unknown>>()
-  return { environments, snapshots, sshTargets, sshStates, resolveManaged: vi.fn(), call: vi.fn() }
+  return {
+    environments,
+    snapshots,
+    sshTargets,
+    sshStates,
+    resolveManaged: vi.fn(),
+    call: vi.fn(),
+    acquire: vi.fn(),
+    ensure: vi.fn(),
+    enabled: true
+  }
 })
 
 vi.mock('electron', () => ({ app: { getPath: () => '/user-data' } }))
@@ -14,8 +24,9 @@ vi.mock('../../shared/runtime-environment-store', () => ({
 }))
 vi.mock('../../shared/runtime-environments', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
-  getPreferredPairingOffer: (environment: { endpoint: string }) => ({
-    endpoint: environment.endpoint
+  getPreferredPairingOffer: (environment: { endpoint: string; publicKeyB64?: string }) => ({
+    endpoint: environment.endpoint,
+    ...(environment.publicKeyB64 ? { publicKeyB64: environment.publicKeyB64 } : {})
   })
 }))
 vi.mock('./runtime-environment-managed-tunnel', () => ({
@@ -30,6 +41,13 @@ vi.mock('./runtime-environment-request-connections', () => ({
 }))
 vi.mock('./runtime-environment-transport-routing', () => ({
   callRuntimeEnvironment: mocks.call
+}))
+vi.mock('../wsl/wsl-host-service-instance', () => ({
+  getWslHostService: () => ({ acquireDemand: mocks.acquire, ensureForRuntimeCall: mocks.ensure })
+}))
+vi.mock('../wsl/wsl-host-gate', () => ({
+  isGatedOffWslHost: (environment: { orcadDeployment?: { kind: string } }) =>
+    environment.orcadDeployment?.kind === 'wsl' && !mocks.enabled
 }))
 
 import {
@@ -49,9 +67,12 @@ describe('runtime environment mobile relay hosts', () => {
     })
     mocks.call.mockReset()
     mocks.snapshots = []
+    mocks.enabled = true
+    mocks.acquire.mockReset().mockReturnValue(vi.fn())
+    mocks.ensure.mockReset().mockResolvedValue(undefined)
   })
 
-  it('keeps WSL hosts away from phones: neither listed nor resolvable', async () => {
+  it('lists WSL without waking it, prepares explicit work, and keeps the internal gate', async () => {
     mocks.environments = [
       { id: 'env-1', name: 'VM', createdAt: 1, runtimeId: null },
       {
@@ -63,6 +84,39 @@ describe('runtime environment mobile relay hosts', () => {
       }
     ]
     const hosts = createRuntimeEnvironmentMobileRelayHosts()
+    expect(hosts.list().environments.map((environment) => environment.id)).toEqual([
+      'env-1',
+      'wsl:ubuntu'
+    ])
+    for (const method of [
+      'worktree.ps',
+      'status.get',
+      'agentSession.subscribeStatus',
+      'session.tabs.subscribeAll',
+      'agentSession.history'
+    ]) {
+      expect(hosts.acquireDemand?.('wsl:ubuntu', method)).toBeNull()
+    }
+    expect(mocks.ensure).not.toHaveBeenCalled()
+    const demand = hosts.acquireDemand?.('wsl:ubuntu', 'agentSession.send')
+    await demand?.ready
+    expect(mocks.ensure).toHaveBeenCalledWith('wsl:ubuntu')
+    demand?.release()
+    expect(mocks.acquire.mock.results[0]?.value).toHaveBeenCalledOnce()
+    const select = hosts.captureRegistration('wsl:ubuntu')!
+    mocks.environments[1] = { ...mocks.environments[1], endpoint: 'ws://new', pairingRevision: 9 }
+    expect(select()).toMatchObject({ pairing: { endpoint: 'ws://new' }, fence: '9\0null' })
+    const original = mocks.environments[1]!
+    for (const replacement of [
+      null, { ...original, createdAt: 3 }, { ...original, publicKeyB64: 'other' }
+    ]) {
+      mocks.environments = [mocks.environments[0]!, ...(replacement ? [replacement] : [])]
+      expect(select()).toBeNull()
+    }
+    mocks.environments = [mocks.environments[0]!, original]
+    mocks.enabled = false
+    expect(select()).toBeNull()
+    expect(hosts.captureRegistration('wsl:ubuntu')).toBeNull()
     expect(hosts.list().environments.map((environment) => environment.id)).toEqual(['env-1'])
     await expect(hosts.resolve('wsl:ubuntu')).resolves.toBeNull()
     expect(mocks.resolveManaged).not.toHaveBeenCalled()

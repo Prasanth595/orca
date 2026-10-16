@@ -1,13 +1,17 @@
 import { describe, expect, it, vi } from 'vitest'
 import { DELEGATED_MOBILE_DEVICES_RUNTIME_CAPABILITY } from '../../../shared/delegated-mobile-device-contract'
-import { BROWSER_CLIENT_HOST_RUNTIME_CAPABILITY } from '../../../shared/protocol-version'
+import {
+  BROWSER_CLIENT_HOST_RUNTIME_CAPABILITY,
+  STRUCTURED_AGENT_SESSION_CLIENT_LAUNCH_MODE_CAPABILITY
+} from '../../../shared/protocol-version'
 import type { RuntimeRpcResponse } from '../../../shared/runtime-rpc-envelope'
 import { RemoteRuntimeClientError } from '../../../shared/remote-runtime-client-error'
 import type { RemoteRuntimePassthroughCallbacks } from '../../../shared/remote-runtime-passthrough-socket'
 import { MobileDesktopRelay, type RelayedPhone } from './mobile-desktop-relay'
-import type { MobileDesktopRelayHosts } from './mobile-desktop-relay-hosts'
+import type { MobileDesktopRelayHost, MobileDesktopRelayHosts } from './mobile-desktop-relay-hosts'
 
 type FakeSocket = {
+  endpoint: string
   sent: string[]
   capabilities: readonly string[]
   callbacks: RemoteRuntimePassthroughCallbacks
@@ -22,11 +26,18 @@ const sockets = vi.hoisted(() => {
 const openGate = vi.hoisted(() => ({ wait: Promise.resolve() }))
 vi.mock('../../../shared/remote-runtime-passthrough-socket', () => ({
   openRemoteRuntimePassthroughSocket: async (
-    _pairing: unknown,
+    pairing: { endpoint: string },
     capabilities: readonly string[],
     callbacks: RemoteRuntimePassthroughCallbacks
   ) => {
-    const socket: FakeSocket = { sent: [], capabilities, callbacks, closed: false, accepts: true }
+    const socket: FakeSocket = {
+      endpoint: pairing.endpoint,
+      sent: [],
+      capabilities,
+      callbacks,
+      closed: false,
+      accepts: true
+    }
     sockets.push(socket)
     await openGate.wait
     return {
@@ -64,11 +75,12 @@ function relayWithPhone(
       sshTargetLabels: new Map(),
       sshConnectionStates: new Map()
     }),
-    resolve: async (environmentId) => ({
+    captureRegistration: (environmentId) => () => ({
       environmentId,
       fence: 'f',
       pairing: { v: 2, endpoint: 'ws://127.0.0.1:1', deviceToken: 'desktop', publicKeyB64: 'k' }
     }),
+    resolve: async (environmentId) => hosts.captureRegistration(environmentId)?.() ?? null,
     call: async (_host, method, params) => {
       if (method === 'status.get') {
         return ok({
@@ -107,11 +119,72 @@ function relayWithPhone(
     syncCalls,
     server,
     desktop,
+    hosts,
     setCapabilities: (next: string[]) => (capabilities = next)
   }
 }
 
 describe('MobileDesktopRelay', () => {
+  it('retires bound passive links when late demand refreshes transport, releasing once and fencing frames', async () => {
+    sockets.length = 0
+    const { relay, phone, replies, hosts } = relayWithPhone()
+    const release = vi.fn()
+    relay.forward(phone, 'env-1', { id: 'a', method: 'terminal.list' }, '{"id":"a"}')
+    await vi.waitFor(() => expect(sockets[0]?.sent).toHaveLength(1))
+    hosts.acquireDemand = () => ({
+      ready: Promise.resolve().then(() => relay.retireEnvironment('env-1')),
+      release
+    })
+    relay.forward(phone, 'env-1', { id: 'b', method: 'agentSession.subscribe' }, '{"id":"b"}')
+    await vi.waitFor(() => expect(release).toHaveBeenCalledOnce())
+    const answered = replies.length
+    sockets[0]!.callbacks.onText('{"id":"a","ok":true,"result":{"stale":true}}')
+    expect(replies).toHaveLength(answered)
+    relay.dispose()
+  })
+
+  it.each(['old-first', 'ready-first', 'null', 'error'])(
+    'selects the current endpoint when demand joins pending resolution: %s',
+    async (schedule) => {
+      sockets.length = 0
+      const { relay, phone, hosts } = relayWithPhone()
+      const host = hosts.captureRegistration('env-1')!()!
+      const old = { ...host, pairing: { ...host.pairing } }
+      const ready = Promise.withResolvers<void>()
+      const pending = Promise.withResolvers<MobileDesktopRelayHost | null>()
+      const finishResolve = () =>
+        schedule === 'error'
+          ? pending.reject(new Error('old failure'))
+          : pending.resolve(schedule === 'null' ? null : old)
+      const release = vi.fn()
+      hosts.captureRegistration = () => () => host
+      const resolve = vi.spyOn(hosts, 'resolve')
+        .mockResolvedValue(host).mockReturnValueOnce(pending.promise)
+      hosts.acquireDemand = (_id, method) =>
+        method === 'agentSession.subscribe' ? { ready: ready.promise, release } : null
+      relay.forward(phone, 'env-1', { id: 'p', method: 'terminal.list' }, '{"id":"p"}')
+      await vi.waitFor(() => expect(resolve).toHaveBeenCalledOnce())
+      relay.forward(phone, 'env-1', { id: 'e', method: 'agentSession.subscribe' }, '{"id":"e"}')
+      if (schedule === 'old-first') {
+        finishResolve()
+        await Promise.resolve()
+        expect(sockets).toHaveLength(0)
+      }
+      host.pairing = { ...host.pairing, endpoint: 'ws://current-bridge' }
+      relay.retireEnvironment('env-1')
+      ready.resolve()
+      if (schedule !== 'old-first') {
+        await ready.promise
+        finishResolve()
+      }
+      await vi.waitFor(() => expect(sockets[0]?.sent).toHaveLength(2))
+      expect(resolve).toHaveBeenCalledTimes(2)
+      expect(sockets.map((socket) => socket.endpoint)).toEqual(['ws://current-bridge'])
+      relay.dispose()
+      expect(release).toHaveBeenCalledOnce()
+    }
+  )
+
   it("stamps the desktop's chat default onto relayed launches only", async () => {
     sockets.length = 0
     const { relay, phone, desktop } = relayWithPhone()
@@ -168,7 +241,11 @@ describe('MobileDesktopRelay', () => {
       '{"id":"r2","method":"terminal.list"}'
     )
     await vi.waitFor(() => expect(sockets.map((socket) => socket.sent.length)).toEqual([1, 1]))
-    expect(sockets[0]!.capabilities).toEqual(['cap.a', BROWSER_CLIENT_HOST_RUNTIME_CAPABILITY])
+    expect(sockets[0]!.capabilities).toEqual([
+      'cap.a',
+      BROWSER_CLIENT_HOST_RUNTIME_CAPABILITY,
+      STRUCTURED_AGENT_SESSION_CLIENT_LAUNCH_MODE_CAPABILITY
+    ])
 
     setCapabilities(['cap.b'])
     const update = JSON.stringify({
@@ -184,7 +261,13 @@ describe('MobileDesktopRelay', () => {
       const mirrored = JSON.parse(socket.sent[1]!)
       expect(mirrored).toMatchObject({
         method: 'runtime.clientCapabilities.update',
-        params: { clientCapabilities: ['cap.b', BROWSER_CLIENT_HOST_RUNTIME_CAPABILITY] }
+        params: {
+          clientCapabilities: [
+            'cap.b',
+            BROWSER_CLIENT_HOST_RUNTIME_CAPABILITY,
+            STRUCTURED_AGENT_SESSION_CLIENT_LAUNCH_MODE_CAPABILITY
+          ]
+        }
       })
       expect(mirrored.id).not.toBe('caps')
       expect(mirrored.deviceToken).toBeUndefined()
