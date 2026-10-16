@@ -18,6 +18,7 @@ import type { GlobalSettings } from './global-settings-types'
 import type { Repo } from './repo-types'
 
 export type {
+  ClickUpTaskProviderIdentity,
   GitHubTaskProviderIdentity,
   GitLabTaskProviderIdentity,
   JiraTaskProviderIdentity,
@@ -216,6 +217,7 @@ function normalizeTaskProvider(value: unknown): TaskProvider | null {
     case 'gitlab':
     case 'linear':
     case 'jira':
+    case 'clickup':
       return value
     default:
       return null

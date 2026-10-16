@@ -339,6 +339,12 @@
           }
         }
       },
+      "clickup": {
+        "filters": {
+          "allSprints": "All sprints",
+          "sprint": "Sprint"
+        }
+      },
       "contextual": {
         "tours": {
           "ContextualTourControl": {
@@ -460,6 +466,9 @@
             "c11dda000b": "Approved",
             "d8401975b1": "approved",
             "f27676a92c": "status:"
+          },
+          "ConnectIntegrationsList": {
+            "code_host_tasks_summary": "issues available as tasks · add Linear or Jira if your team plans work there"
           },
           "FeatureWallSetupChecklist": {
             "b1f1981c5e": "See tasks"
@@ -1983,6 +1992,7 @@
           "c7591b6014": "repo"
         },
         "WorkspaceKanbanSettingsMenu": {
+          "4c2eaa78cc": "Moving a linked workspace updates its Linear issue status when a matching workflow state exists.",
           "b45b350eb0": "Move {{value0}} left"
         },
         "WorkspaceStatusAppearancePopover": {
