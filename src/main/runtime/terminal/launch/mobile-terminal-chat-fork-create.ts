@@ -53,7 +53,9 @@ export abstract class OrcaRuntimeWithMobileChatForkCreate extends OrcaRuntimeWit
     )) {
       throw new Error('chat_fork_anchor_changed')
     }
-    if (opts.signal?.aborted) throw new Error('client_disconnected')
+    if (opts.signal?.aborted) {
+      throw new Error('client_disconnected')
+    }
     const sourceAgent = prepared.cliForkSource?.agent
     if (!sourceAgent || !isTuiAgent(sourceAgent)) {
       throw new Error('chat_fork_source_unavailable')
@@ -88,7 +90,9 @@ export abstract class OrcaRuntimeWithMobileChatForkCreate extends OrcaRuntimeWit
           signal: opts.signal
         }
       )
-      if (!win) return created
+      if (!win) {
+        return created
+      }
       const tab = created.tab
       const pty = typeof tab.terminal === 'string' ? this.getLivePtyForHandle(tab.terminal)?.pty : null
       if (typeof tab.terminal !== 'string' || !pty || !tab.ptyId || !tab.incarnationId ||
@@ -96,7 +100,9 @@ export abstract class OrcaRuntimeWithMobileChatForkCreate extends OrcaRuntimeWit
         return { ...created, warning: 'desktop-tab-not-shown' }
       }
       try {
-        if (!this.notifier?.revealTerminalSession) throw new Error('runtime_unavailable')
+        if (!this.notifier?.revealTerminalSession) {
+          throw new Error('runtime_unavailable')
+        }
         const revealed = await this.notifier.revealTerminalSession(worktreeId, {
           ptyId: tab.ptyId,
           tabId: tab.parentTabId,

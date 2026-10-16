@@ -33,7 +33,9 @@ export function getMobileNativeChatCliForkActions(args: {
       hostCapabilities,
       workspaceOnPairedHost: args.workspaceOnPairedHost
     })
-  ) return []
+  ) {
+    return []
+  }
   return [{
     label: 'Resume in New CLI',
     icon: SquareTerminal,
