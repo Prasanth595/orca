@@ -1,4 +1,3 @@
-import { useCallback, useState } from 'react'
 import {
   Image,
   Modal,
@@ -16,36 +15,28 @@ import {
   MobileNativeChatImageViewerContext,
   type MobileNativeChatViewedImage
 } from './mobile-native-chat-image-viewer-context'
+import {
+  useMobileNativeChatConversationState,
+  type MobileNativeChatConversation
+} from './use-mobile-native-chat-conversation-state'
 
 /** The chat surface, from which any row can open an attachment full size. */
 export function MobileNativeChatImageViewerHost({
   style,
-  scopeKey,
+  conversation,
   children
 }: {
   style: StyleProp<ViewStyle>
-  /** The chat on screen: a notification can switch it under the same host. */
-  scopeKey: string
+  conversation: MobileNativeChatConversation
   children: React.ReactNode
 }): React.JSX.Element {
-  const [viewed, setViewed] = useState<{
-    scopeKey: string
-    image: MobileNativeChatViewedImage
-  } | null>(null)
-  // A picture belongs to the chat it was opened in.
-  if (viewed && viewed.scopeKey !== scopeKey) {
-    setViewed(null)
-  }
-  const openImage = useCallback(
-    (image: MobileNativeChatViewedImage) => setViewed({ scopeKey, image }),
-    [scopeKey]
-  )
+  // A picture belongs to the conversation it was opened in.
+  const [image, setImage] =
+    useMobileNativeChatConversationState<MobileNativeChatViewedImage>(conversation)
   return (
-    <MobileNativeChatImageViewerContext.Provider value={openImage}>
+    <MobileNativeChatImageViewerContext.Provider value={setImage}>
       <View style={style}>{children}</View>
-      {viewed ? (
-        <MobileNativeChatImageViewer {...viewed.image} onClose={() => setViewed(null)} />
-      ) : null}
+      {image ? <MobileNativeChatImageViewer {...image} onClose={() => setImage(null)} /> : null}
     </MobileNativeChatImageViewerContext.Provider>
   )
 }

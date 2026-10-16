@@ -1,11 +1,12 @@
 import { useContext } from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
-import { expect, it, vi } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { MobileNativeChatImageViewerHost } from './MobileNativeChatImageViewer'
 import {
   MobileNativeChatImageViewerContext,
   type MobileNativeChatViewedImage
 } from './mobile-native-chat-image-viewer-context'
+import type { MobileNativeChatConversation } from './use-mobile-native-chat-conversation-state'
 
 vi.mock('react-native', () => ({
   Image: 'Image',
@@ -25,24 +26,59 @@ function Row(): null {
   openImage = useContext(MobileNativeChatImageViewerContext)
   return null
 }
-const chat = (scopeKey: string) => (
-  <MobileNativeChatImageViewerHost style={null} scopeKey={scopeKey}>
+const chat = (conversation: MobileNativeChatConversation) => (
+  <MobileNativeChatImageViewerHost style={null} conversation={conversation}>
     <Row />
   </MobileNativeChatImageViewerHost>
 )
 
-it("closes a picture when a notification switches the chat under it, and doesn't reopen it", () => {
-  let renderer: ReactTestRenderer | null = null
-  act(() => {
-    renderer = create(chat('chat-a'))
-  })
-  const viewers = () => renderer!.root.findAll((node) => String(node.type) === 'Modal')
-  act(() => openImage!({ uri: 'file:///a.jpg', label: 'a photo' }))
-  expect(viewers()).toHaveLength(1)
+let renderer: ReactTestRenderer | null = null
+afterEach(() => {
+  act(() => renderer?.unmount())
+  renderer = null
+})
 
-  act(() => renderer!.update(chat('chat-b')))
-  expect(viewers()).toHaveLength(0)
-  act(() => renderer!.update(chat('chat-a')))
-  expect(viewers()).toHaveLength(0)
-  act(() => renderer!.unmount())
+/** Opens a picture in the first conversation, then moves through the rest; one open flag each. */
+function viewerAcross(conversations: MobileNativeChatConversation[]): boolean[] {
+  const [first, ...rest] = conversations
+  act(() => {
+    renderer = create(chat(first!))
+  })
+  act(() => openImage!({ uri: 'file:///a.jpg', label: 'a photo' }))
+  const open = () => renderer!.root.findAll((node) => String(node.type) === 'Modal').length === 1
+  return [open()].concat(
+    rest.map((conversation) => {
+      act(() => renderer!.update(chat(conversation)))
+      return open()
+    })
+  )
+}
+
+it('closes a picture when a notification switches the tab, and does not reopen it', () => {
+  expect(
+    viewerAcross([
+      { surfaceId: 'tab-a', sessionId: 's1' },
+      { surfaceId: 'tab-b', sessionId: 's1' },
+      { surfaceId: 'tab-a', sessionId: 's1' }
+    ])
+  ).toEqual([true, false, false])
+})
+
+it("closes a picture when the tab's agent session is replaced", () => {
+  expect(
+    viewerAcross([
+      { surfaceId: 'tab-a', sessionId: 's1' },
+      { surfaceId: 'tab-a', sessionId: 's2' }
+    ])
+  ).toEqual([true, false])
+})
+
+it("keeps a picture open when the tab's first session id arrives, then closes on a replacement", () => {
+  expect(
+    viewerAcross([
+      { surfaceId: 'tab-a', sessionId: null },
+      { surfaceId: 'tab-a', sessionId: 's1' },
+      { surfaceId: 'tab-a', sessionId: 's2' }
+    ])
+  ).toEqual([true, true, false])
 })

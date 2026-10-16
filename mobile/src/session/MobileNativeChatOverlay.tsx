@@ -30,6 +30,8 @@ type Props = {
   onClearSendError: () => void
   /** Stable host/worktree/tab identity for accepted-send completion fencing. */
   sendSurfaceId: string
+  /** The agent session the tab holds; null until the tab's first one is known. */
+  sessionId: string | null
   /** Reads the retained route's focus generation for accepted-send fencing. */
   getSendCompletionGeneration: () => number
   keyboardInset: number
@@ -52,6 +54,7 @@ export function MobileNativeChatOverlay({
   sendErrorMessage,
   onClearSendError,
   sendSurfaceId,
+  sessionId,
   getSendCompletionGeneration,
   keyboardInset
 }: Props): React.JSX.Element | null {
@@ -90,7 +93,10 @@ export function MobileNativeChatOverlay({
     return null
   }
   return (
-    <MobileNativeChatImageViewerHost style={styles.overlay} scopeKey={sendSurfaceId}>
+    <MobileNativeChatImageViewerHost
+      style={styles.overlay}
+      conversation={{ surfaceId: sendSurfaceId, sessionId }}
+    >
       <MobileNativeChatVisualContext.Provider value={visuals}>
         <MobileNativeChatView
           messages={session.messages}
