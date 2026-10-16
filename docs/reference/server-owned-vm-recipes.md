@@ -8,8 +8,8 @@ call never runs the recipe on the desktop. Local projects retain their existing
 path.
 
 Desktop IPC and authenticated runtime RPC share the existing recipe engine.
-Headless serving registers recipe services before accepting requests, after its
-existing SSH startup. For provisioned-root SSH recipes,
+The Electron-backed headless host registers recipe services before accepting
+requests, after its existing SSH startup. For provisioned-root SSH recipes,
 `ephemeralVm.provisionWorkspace` provisions, registers and adopts the checkout on
 the server before replying. The desktop repeats registration/adoption
 idempotently to populate its local view, retaining the nested SSH target ID.
@@ -53,6 +53,15 @@ This patch targets the published 1.4.227 SSH provider architecture on
 is separate; this contribution does not restore removed providers on main or
 change a worker's execution model. It addresses the recipe path related to #29593,
 not manual SSH-host administration or CLI recipe selection from #26879.
+
+## Host runtime selection
+
+This release's supported host is Electron-backed headless serving. Select it
+explicitly with `ORCA_SERVE_RUNTIME=electron orca serve` on Linux, where bare
+`orca` must be replaced by the installed `orca-ide` launcher. Version 1.4.227 can
+automatically select Node-only `orcad` for a new profile; this patch does not add
+its missing SSH providers or recipe host. That runtime does not advertise the
+recipe-host capability, so paired clients refuse this unsupported target.
 
 ## Validation and rollout
 
