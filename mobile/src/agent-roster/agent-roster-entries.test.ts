@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest'
 import type { RuntimeWorktreeAgentRow } from '../../../src/shared/runtime-types'
 import type { Worktree } from '../worktree/workspace-list-types'
 import { buildAgentRosterEntries } from './agent-roster-entries'
+import {
+  agentRosterBranchLabel,
+  agentRosterProjectLabel,
+  agentRosterTitle
+} from './agent-roster-display'
 
 function agent(overrides: Partial<RuntimeWorktreeAgentRow> = {}): RuntimeWorktreeAgentRow {
   return {
@@ -41,22 +46,90 @@ function worktree(overrides: Partial<Worktree> = {}): Worktree {
 }
 
 describe('buildAgentRosterEntries', () => {
-  it('flattens agents across worktrees, labelling each with its own worktree', () => {
+  it('flattens agents across worktrees, labelling each with its folder and branch', () => {
     const entries = buildAgentRosterEntries([
       worktree({ worktreeId: 'wt-a', displayName: 'alpha', agents: [agent({ paneKey: 'p1' })] }),
       worktree({
         worktreeId: 'wt-b',
         repo: 'beta-repo',
         displayName: '',
+        path: '/tmp/orca/beta-repo',
         agents: [agent({ paneKey: 'p2' })]
       })
     ])
 
-    expect(entries.map((entry) => [entry.worktreeId, entry.worktreeLabel])).toEqual([
-      ['wt-a', 'alpha'],
-      // A blank displayName falls back to repo, exactly as the sidebar row does.
-      ['wt-b', 'beta-repo']
+    expect(
+      entries.map((entry) => [entry.worktreeId, entry.projectLabel, entry.branchLabel])
+    ).toEqual([
+      // Git worktree paths are branch directories; the repo field is the project name.
+      ['wt-a', 'orca', 'main'],
+      ['wt-b', 'beta-repo', 'main']
     ])
+  })
+
+  it('uses the path basename for remote and Windows-style worktree folders', () => {
+    const entries = buildAgentRosterEntries([
+      worktree({
+        workspaceKind: 'folder-workspace',
+        path: '/home/harvest/project/spark',
+        displayName: 'Friendly name',
+        agents: [agent()]
+      }),
+      worktree({
+        worktreeId: 'wt-win',
+        workspaceKind: 'folder-workspace',
+        path: 'C:\\Users\\harvest\\project\\windows-app',
+        displayName: 'Other',
+        agents: [agent({ paneKey: 'windows' })]
+      })
+    ])
+
+    expect(entries.map((entry) => entry.projectLabel)).toEqual(['spark', 'windows-app'])
+  })
+
+  it('uses orchestration title metadata before prompt and provider fallbacks', () => {
+    expect(agentRosterTitle(agent({ taskTitle: '  Review agents  ', prompt: 'prompt' }))).toBe(
+      'Review agents'
+    )
+    expect(agentRosterTitle(agent({ taskTitle: null, displayName: 'Generated name' }))).toBe(
+      'Generated name'
+    )
+    expect(
+      agentRosterTitle(agent({ taskTitle: null, displayName: null, prompt: 'prompt\nsecond line' }))
+    ).toBe('prompt')
+    expect(
+      agentRosterTitle(
+        agent({ taskTitle: null, displayName: null, prompt: '', agentType: 'claude' })
+      )
+    ).toBe('Claude')
+  })
+
+  it('falls back to the worktree metadata when the path is empty', () => {
+    expect(agentRosterProjectLabel(worktree({ path: '///', displayName: 'alias' }))).toBe('orca')
+    expect(
+      agentRosterProjectLabel(
+        worktree({ workspaceKind: 'folder-workspace', path: '///', displayName: 'alias' })
+      )
+    ).toBe('alias')
+  })
+
+  it('tolerates sparse legacy worktree fields when building display labels', () => {
+    const sparse = {
+      workspaceKind: 'git' as const,
+      repo: null,
+      displayName: null,
+      path: null,
+      branch: null
+    }
+
+    expect(agentRosterProjectLabel(sparse)).toBe('')
+    expect(agentRosterBranchLabel(sparse)).toBe('')
+  })
+
+  it('uses a provider fallback when legacy agent title fields are absent', () => {
+    expect(
+      agentRosterTitle({ taskTitle: null, displayName: null, prompt: '', agentType: 'codex' })
+    ).toBe('Codex')
   })
 
   it('orders by updatedAt desc, then stateStartedAt desc, then key', () => {
@@ -113,6 +186,30 @@ describe('buildAgentRosterEntries', () => {
     expect(
       buildAgentRosterEntries([worktree({ worktreeId: 'wt-bad', agents: malformed })])
     ).toEqual([])
+  })
+
+  it('skips null entries from an opaque agents array', () => {
+    const malformed = {
+      ...worktree({ worktreeId: 'wt-null' }),
+      agents: [null, {}, agent({ paneKey: 'valid' })]
+    }
+
+    expect(buildAgentRosterEntries([malformed]).map((entry) => entry.agent.paneKey)).toEqual([
+      'valid'
+    ])
+  })
+
+  it('keeps an empty pane identity row for worktree navigation', () => {
+    const entries = buildAgentRosterEntries([
+      worktree({ worktreeId: 'wt-empty-pane', agents: [agent({ paneKey: '' })] })
+    ])
+
+    expect(entries).toHaveLength(1)
+    expect(entries[0]?.key).toBe('wt-empty-pane:')
+  })
+
+  it('skips null worktree rows from an opaque catalog', () => {
+    expect(buildAgentRosterEntries([null, worktree({ agents: [agent()] })])).toHaveLength(1)
   })
 
   it('does not mutate its input', () => {

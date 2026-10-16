@@ -1,19 +1,19 @@
 import type { RuntimeWorktreeAgentRow } from '../../../src/shared/runtime-types'
 import type { Worktree } from '../worktree/workspace-list-types'
+import { agentRosterBranchLabel, agentRosterProjectLabel } from './agent-roster-display'
 
 export type AgentRosterEntry = {
   key: string
   agent: RuntimeWorktreeAgentRow
   worktreeId: string
   worktreeLabel: string
+  projectLabel: string
+  branchLabel: string
   unvisited: boolean
 }
 
-// Mirrors the sidebar row's title (WorktreeListRow.tsx:137 `item.displayName || item.repo`) so a
-// roster row and the workspace list never name the same worktree differently.
-function worktreeLabel(worktree: Worktree): string {
-  return worktree.displayName || worktree.repo
-}
+type AgentRosterWorktree = Omit<Worktree, 'agents'> & { agents?: unknown }
+type AgentRosterInput = AgentRosterWorktree | null | undefined
 
 // paneKey is only unique within its worktree, and may be empty, so the worktree id has to scope it
 // once two rows can collide.
@@ -52,14 +52,36 @@ function compareEntries(a: AgentRosterEntry, b: AgentRosterEntry): number {
 
 // The rows reach us as a salvaged member cast to Worktree, so `agents` can be any type the host
 // sent — `?? []` alone would still let a non-array through into the for-of.
-function rosterAgents(worktree: Worktree): RuntimeWorktreeAgentRow[] {
-  return Array.isArray(worktree.agents) ? worktree.agents : []
+function rosterAgents(worktree: AgentRosterWorktree): RuntimeWorktreeAgentRow[] {
+  const agents: unknown = worktree.agents
+  if (!Array.isArray(agents)) {
+    return []
+  }
+  return agents.filter(isRosterAgent)
+}
+
+// The catalog rows are opaque at the RPC boundary. Keep non-object members and rows without the
+// pane identity out of render code; other fields remain host-owned for legacy compatibility.
+function isRosterAgent(agent: unknown): agent is RuntimeWorktreeAgentRow {
+  if (!isRecord(agent)) {
+    return false
+  }
+  return typeof agent.paneKey === 'string'
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
 }
 
 /** Every worktree's agents, flattened into one activity-ordered list. */
-export function buildAgentRosterEntries(worktrees: readonly Worktree[]): AgentRosterEntry[] {
-  const flat: { worktree: Worktree; agent: RuntimeWorktreeAgentRow }[] = []
+export function buildAgentRosterEntries(
+  worktrees: readonly AgentRosterInput[]
+): AgentRosterEntry[] {
+  const flat: { worktree: AgentRosterWorktree; agent: RuntimeWorktreeAgentRow }[] = []
   for (const worktree of worktrees) {
+    if (!worktree) {
+      continue
+    }
     for (const agent of rosterAgents(worktree)) {
       flat.push({ worktree, agent })
     }
@@ -74,7 +96,9 @@ export function buildAgentRosterEntries(worktrees: readonly Worktree[]): AgentRo
     key: keys[index] ?? '',
     agent,
     worktreeId: worktree.worktreeId,
-    worktreeLabel: worktreeLabel(worktree),
+    worktreeLabel: worktree.displayName || worktree.repo,
+    projectLabel: agentRosterProjectLabel(worktree),
+    branchLabel: agentRosterBranchLabel(worktree),
     unvisited: worktree.unread
   }))
   return entries.sort(compareEntries)

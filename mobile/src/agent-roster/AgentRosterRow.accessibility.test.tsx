@@ -1,5 +1,5 @@
 import { createElement } from 'react'
-import { act, create } from 'react-test-renderer'
+import { act, create, type ReactTestInstance } from 'react-test-renderer'
 import { describe, expect, it, vi } from 'vitest'
 import type { RuntimeWorktreeAgentRow } from '../../../src/shared/runtime-types'
 
@@ -25,11 +25,16 @@ vi.mock('lucide-react-native', () => ({ ChevronLeft: 'ChevronLeft', RefreshCw: '
 vi.mock('../cache/worktree-cache', () => ({ setCachedWorktrees: vi.fn() }))
 vi.mock('../hooks/use-now', () => ({ useNow: () => 0 }))
 vi.mock('../navigation/route-param-reader', () => ({ firstParam: (value: string) => value }))
-vi.mock('../transport/client-context', () => ({ useHostClient: () => ({ client: null, state: 'disconnected' }) }))
+vi.mock('../transport/client-context', () => ({
+  useHostClient: () => ({ client: null, state: 'disconnected' })
+}))
 vi.mock('../transport/host-store', () => ({ loadHosts: async () => [] }))
-vi.mock('../worktree/worktree-catalog-operations', () => ({ worktreeCatalogRead: { requestSingleFlight: vi.fn() } }))
+vi.mock('../worktree/worktree-catalog-operations', () => ({
+  worktreeCatalogRead: { requestSingleFlight: vi.fn() }
+}))
 vi.mock('../worktree/worktree-catalog-snapshot-client', () => ({ WORKTREE_PS_FULL_LIMIT: 1000 }))
-vi.mock('../components/WorktreeAgentRow', () => ({ WorktreeAgentRow: 'WorktreeAgentRow' }))
+vi.mock('../components/AgentStateDot', () => ({ AgentStateDot: 'AgentStateDot' }))
+vi.mock('../components/MobileAgentIcon', () => ({ MobileAgentIcon: 'MobileAgentIcon' }))
 
 import { AgentRosterRow } from './AgentRosterRow'
 import { MobileAgentRosterScreen } from './MobileAgentRosterScreen'
@@ -56,7 +61,15 @@ describe('agent roster accessibility', () => {
     act(() => {
       renderer = create(
         createElement(AgentRosterRow, {
-          entry: { key: 'pane-1', agent, worktreeId: 'wt-1', worktreeLabel: 'orca', unvisited: false },
+          entry: {
+            key: 'pane-1',
+            agent,
+            worktreeId: 'wt-1',
+            worktreeLabel: 'orca',
+            projectLabel: 'orca',
+            branchLabel: 'main',
+            unvisited: false
+          },
           now: 0,
           onPress: vi.fn()
         })
@@ -64,7 +77,49 @@ describe('agent roster accessibility', () => {
     })
     const button = renderer!.root.findByType('Pressable')
     expect(button.props.accessibilityRole).toBe('button')
-    expect(button.props.accessibilityLabel).toBe('Open agent in orca')
+    expect(button.props.accessibilityLabel).toBe('Open Claude in orca')
+  })
+
+  it('keeps same-project rows distinct when their worktrees differ', () => {
+    let renderer
+    act(() => {
+      renderer = create(
+        createElement(
+          'View',
+          null,
+          createElement(AgentRosterRow, {
+            entry: {
+              key: 'pane-1',
+              agent,
+              worktreeId: 'wt-1',
+              worktreeLabel: 'feature-a',
+              projectLabel: 'orca',
+              branchLabel: 'main',
+              unvisited: false
+            },
+            now: 0,
+            onPress: vi.fn()
+          }),
+          createElement(AgentRosterRow, {
+            entry: {
+              key: 'pane-2',
+              agent: { ...agent, paneKey: 'pane-2' },
+              worktreeId: 'wt-2',
+              worktreeLabel: 'feature-b',
+              projectLabel: 'orca',
+              branchLabel: 'main',
+              unvisited: false
+            },
+            now: 0,
+            onPress: vi.fn()
+          })
+        )
+      )
+    })
+    const labels = renderer!.root
+      .findAll((node: ReactTestInstance) => String(node.type) === 'Pressable')
+      .map((button: ReactTestInstance) => button.props.accessibilityLabel)
+    expect(labels).toEqual(['Open Claude in orca, feature-a', 'Open Claude in orca, feature-b'])
   })
 
   it('names the roster navigation controls', () => {
@@ -72,8 +127,15 @@ describe('agent roster accessibility', () => {
     act(() => {
       renderer = create(createElement(MobileAgentRosterScreen))
     })
-    const buttons = renderer!.root.findAllByType('Pressable')
-    expect(buttons.map((button) => [button.props.accessibilityRole, button.props.accessibilityLabel])).toEqual([
+    const buttons = renderer!.root.findAll(
+      (node: ReactTestInstance) => String(node.type) === 'Pressable'
+    )
+    expect(
+      buttons.map((button: ReactTestInstance) => [
+        button.props.accessibilityRole,
+        button.props.accessibilityLabel
+      ])
+    ).toEqual([
       ['button', 'Back'],
       ['button', 'Refresh agents']
     ])
