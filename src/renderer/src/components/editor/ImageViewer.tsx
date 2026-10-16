@@ -4,6 +4,8 @@ import { type JSX, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { cn } from '@/lib/utils'
 import ImageViewerPopup from './ImageViewerPopup'
 import PdfViewer from './PdfViewer'
+import OfficeDocumentViewer from './office/OfficeDocumentViewer'
+import { officeDocumentKind } from '../../../../shared/office-document-mime-types'
 import {
   type ApplyImageViewerZoomChange,
   applyAnchoredImageViewerZoomChange,
@@ -216,6 +218,11 @@ export default function ImageViewer({
     observer.observe(surface)
     return () => observer.disconnect()
   }, [isPopupOpen])
+
+  const officeKind = officeDocumentKind(mimeType)
+  if (officeKind) {
+    return <OfficeDocumentViewer content={cleanedContent} filePath={filePath} kind={officeKind} />
+  }
 
   if (isPdf) {
     return (

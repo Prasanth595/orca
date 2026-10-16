@@ -454,6 +454,16 @@ describe('chat-image requests', () => {
     ).toBe('denied')
   })
 
+  it('refuse an Office document, which an <img> cannot show', async () => {
+    await writeFile(join(outside, 'deck.pptx'), 'PK')
+
+    expect(
+      await settles(
+        resolveLocalFileRequestPath(join(outside, 'deck.pptx'), CHAT_IMAGE, makeStore({}))
+      )
+    ).toBe('denied')
+  })
+
   it.skipIf(process.platform === 'win32')(
     'refuse an image-named link to a text file or a device',
     async () => {

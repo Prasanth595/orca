@@ -1,6 +1,7 @@
 import { extname } from 'node:path'
 import { localLogFileIdentity } from '../../ai-vault/local-log-tail-reader'
 import { BINARY_PROBE_BYTES, isBinaryBuffer } from '../../../shared/binary-buffer'
+import { OFFICE_DOCUMENT_MIME_TYPES } from '../../../shared/office-document-mime-types'
 import {
   fileTooLargeError,
   openLocalRegularFile,
@@ -22,7 +23,8 @@ export const PREVIEWABLE_BINARY_MIME_TYPES: Record<string, string> = {
   '.webp': 'image/webp',
   '.bmp': 'image/bmp',
   '.ico': 'image/x-icon',
-  '.pdf': 'application/pdf'
+  '.pdf': 'application/pdf',
+  ...OFFICE_DOCUMENT_MIME_TYPES
 }
 
 export type LocalFileContent = {
@@ -48,7 +50,7 @@ export async function readLocalFileContent(filePath: string): Promise<LocalFileC
       return {
         content: buffer.toString('base64'),
         isBinary: true,
-        // Why: the renderer keys previewable-binary rendering off `isImage`, so set it for PDFs too to stay compatible.
+        // Why: the renderer keys previewable-binary rendering off `isImage`, so set it for PDFs and Office files too.
         isImage: true,
         mimeType
       }

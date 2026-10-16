@@ -16339,6 +16339,20 @@
         },
         "useMarkdownDocuments": {
           "listFailed": "Failed to list Markdown documents."
+        },
+        "office": {
+          "OfficeDocumentViewer": {
+            "decodeFailed": "Unable to read this file",
+            "loading": "Loading preview…",
+            "docxLabel": "Word preview",
+            "pptxLabel": "PowerPoint preview",
+            "xlsxLabel": "Excel preview",
+            "renderFailed": "Unable to preview this file: {{value0}}",
+            "tooLarge": "This file is not a valid Office document or expands too large to preview"
+          },
+          "XlsxDocumentView": {
+            "emptySheet": "Empty sheet"
+          }
         }
       },
       "diff": {
