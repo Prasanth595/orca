@@ -86,23 +86,32 @@ describe('buildSections under Project Groups', () => {
     expect(build('docs').map((section) => section.key)).toEqual(['repo:repo-2'])
   })
 
-  it('lists a project once when two hosts hold a group with the same id', () => {
-    const keys = buildSections(
-      [grouped],
-      'manual',
-      { ...NO_WORKSPACE_ROW_FILTERS },
-      '',
-      'repo',
-      new Set(),
-      {
-        ...catalog,
-        projectGroups: [
-          { id: 'group-1', name: 'Work', parentGroupId: null, tabOrder: 0 },
-          { id: 'group-1', name: 'Work', parentGroupId: null, tabOrder: 1 }
-        ]
-      }
-    ).map((section) => section.key)
+  it('lists a project once, and visibly, when two hosts hold a group with the same id', () => {
+    // Host A nests its group-1 under Clients; host B keeps its group-1 at the root.
+    const sharedId = {
+      ...catalog,
+      projectGroups: [
+        { id: 'clients', name: 'Clients', parentGroupId: null, tabOrder: 0 },
+        { id: 'group-1', name: 'Work', parentGroupId: 'clients', tabOrder: 0 },
+        { id: 'group-1', name: 'Work', parentGroupId: null, tabOrder: 1 }
+      ]
+    }
+    const keys = (collapsed: Set<string>) =>
+      buildSections(
+        [grouped],
+        'manual',
+        { ...NO_WORKSPACE_ROW_FILTERS },
+        '',
+        'repo',
+        new Set(),
+        sharedId,
+        DEFAULT_WORKSPACE_STATUSES,
+        collapsed
+      ).map((section) => section.key)
 
-    expect(keys.filter((key) => key === 'repo:repo-1')).toHaveLength(1)
+    expect(keys(new Set()).filter((key) => key === 'repo:repo-1')).toHaveLength(1)
+    expect(
+      keys(new Set(['project-group:clients'])).filter((key) => key === 'repo:repo-1')
+    ).toHaveLength(1)
   })
 })

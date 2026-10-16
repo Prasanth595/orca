@@ -34,10 +34,7 @@ function orderMainWorktreeFirst(worktrees: Worktree[]): Worktree[] {
   return [...mainWorktrees, ...worktrees.filter((worktree) => !worktree.isMainWorktree)]
 }
 
-/**
- * Project grouping's sections, nested under the desktop sidebar's Project Groups when it serves
- * them. Each nested section names the group headers whose collapse hides it.
- */
+/** Project grouping's sections, nested under the desktop sidebar's Project Groups it serves. */
 export function buildProjectWorkspaceSections(args: {
   /** Rows the sections hold: natural placement, pinned rows already removed. */
   rows: readonly Worktree[]
@@ -49,7 +46,8 @@ export function buildProjectWorkspaceSections(args: {
   projectCatalog: ProjectSectionCatalog
   filters: FilterState
   search: string
-}): { sections: Section[]; ancestorKeysBySection: Map<string, readonly string[]> } {
+  collapsedGroups: ReadonlySet<string>
+}): Section[] {
   const { projectCatalog, filters } = args
   const representedRepoIds = new Set(args.allRows.map((w) => w.repoId))
   const query = args.search.trim().toLowerCase()
@@ -92,17 +90,16 @@ export function buildProjectWorkspaceSections(args: {
           projectGroups,
           projectOrderBy: projectCatalog.projectOrderBy,
           repoOrder: projectCatalog.repoOrder,
+          collapsedGroups: args.collapsedGroups,
           directRowCountOf: (groupId) => folderRowsByGroupId.get(groupId)?.length ?? 0
         })
       : withRepoSectionDisplayLabels(projectSections).map((entry) => ({
           kind: 'section' as const,
           entry,
-          depth: 0,
-          ancestorKeys: []
+          depth: 0
         }))
 
   const sections: Section[] = []
-  const ancestorKeysBySection = new Map<string, readonly string[]>()
   for (const step of steps) {
     if (step.kind === 'section') {
       const [key, section] = step.entry
@@ -112,7 +109,6 @@ export function buildProjectWorkspaceSections(args: {
           depth: step.depth
         })
       )
-      ancestorKeysBySection.set(key, step.ancestorKeys)
       continue
     }
     // Why: under a search, a group with nothing matching would only hide the empty state.
@@ -126,7 +122,6 @@ export function buildProjectWorkspaceSections(args: {
         count: step.count
       })
     )
-    ancestorKeysBySection.set(step.key, step.ancestorKeys)
   }
-  return { sections, ancestorKeysBySection }
+  return sections
 }

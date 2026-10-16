@@ -46,12 +46,10 @@ export function appendProjectGroupSections(
     projectGroups,
     projectOrderBy,
     repoOrder,
+    collapsedGroups,
     directRowCountOf: (groupId) => folderWorkspacesByProjectGroupId.get(groupId)?.length ?? 0
   })
   for (const step of steps) {
-    if (step.ancestorKeys.some((key) => collapsedGroups.has(key))) {
-      continue
-    }
     if (step.kind === 'section') {
       appendOrderedGroups(ctx, [step.entry], step.depth)
       continue

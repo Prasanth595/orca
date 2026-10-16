@@ -166,7 +166,7 @@ export function buildMobileWorkspacePlan(
   pinnedIds: Set<string>,
   projectCatalog: ProjectSectionCatalog = NO_PROJECT_SECTION_CATALOG,
   workspaceStatuses: readonly WorkspaceStatusDefinition[] = DEFAULT_WORKSPACE_STATUSES,
-  _collapsedGroups: ReadonlySet<string> = new Set(),
+  collapsedGroups: ReadonlySet<string> = new Set(),
   showPinnedInGroups = false,
   repoHostIdByRepoId: ReadonlyMap<string, ExecutionHostId> = new Map()
 ) {
@@ -179,8 +179,6 @@ export function buildMobileWorkspacePlan(
   )
   const repoMap = buildSectionRepoMap(projectCatalog.repos, worktrees)
   const projectIndex = buildProjectGroupingIndex(projectCatalog.grouping ?? undefined)
-  // Header keys of the Project Groups enclosing each nested section, for collapse at render.
-  const ancestorKeysBySection = new Map<string, readonly string[]>()
   const occurrencePlan = buildWorktreeOccurrencePlan({
     rows: sorted,
     childrenByParentIdentity,
@@ -200,20 +198,19 @@ export function buildMobileWorkspacePlan(
           sections.push(makeSection('all', 'All', canonicalGroupWorktrees))
         }
       } else if (groupMode === 'repo') {
-        const projectSections = buildProjectWorkspaceSections({
-          rows: canonicalGroupWorktrees,
-          allRows: worktrees,
-          displayRootByIdentity,
-          repoMap,
-          projectIndex,
-          projectCatalog,
-          filters,
-          search
-        })
-        sections.push(...projectSections.sections)
-        for (const [key, ancestorKeys] of projectSections.ancestorKeysBySection) {
-          ancestorKeysBySection.set(key, ancestorKeys)
-        }
+        sections.push(
+          ...buildProjectWorkspaceSections({
+            rows: canonicalGroupWorktrees,
+            allRows: worktrees,
+            displayRootByIdentity,
+            repoMap,
+            projectIndex,
+            projectCatalog,
+            filters,
+            search,
+            collapsedGroups
+          })
+        )
       } else if (groupMode === 'workspace-status') {
         const renderableWorkspaceStatuses = withDefaultWorkspaceStatuses(workspaceStatuses)
         const byStatus = new Map<string, Worktree[]>()
@@ -260,21 +257,15 @@ export function buildMobileWorkspacePlan(
   return {
     occurrencePlan,
     render: (collapsed: ReadonlySet<string>): Section[] =>
-      occurrencePlan.sections.flatMap((section) =>
-        ancestorKeysBySection.get(section.key)?.some((key) => collapsed.has(key))
-          ? []
-          : [
-              {
-                key: section.key,
-                title: section.title,
-                ...(section.icon ? { icon: section.icon } : {}),
-                ...(section.repo ? { repo: section.repo } : {}),
-                ...(section.depth ? { depth: section.depth } : {}),
-                ...(section.count !== undefined ? { count: section.count } : {}),
-                data: getMobileOccurrenceRows(occurrencePlan, section.key, collapsed)
-              }
-            ]
-      )
+      occurrencePlan.sections.map((section) => ({
+        key: section.key,
+        title: section.title,
+        ...(section.icon ? { icon: section.icon } : {}),
+        ...(section.repo ? { repo: section.repo } : {}),
+        ...(section.depth ? { depth: section.depth } : {}),
+        ...(section.count !== undefined ? { count: section.count } : {}),
+        data: getMobileOccurrenceRows(occurrencePlan, section.key, collapsed)
+      }))
   }
 }
 

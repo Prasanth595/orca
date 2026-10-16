@@ -30,15 +30,13 @@ export type ProjectGroupSectionStep<V, G> =
       depth: number
       /** Project sections, direct rows and nested groups' contents, as the desktop header counts. */
       count: number
-      /** Header keys of every enclosing group, outermost first. */
-      ancestorKeys: readonly string[]
     }
-  | { kind: 'section'; entry: [string, V]; depth: number; ancestorKeys: readonly string[] }
+  | { kind: 'section'; entry: [string, V]; depth: number }
 
 /**
  * Project sections nested under their Project Groups: each group's header, its own sections, then
  * its child groups; ungrouped sections, and those of a group not yet known, follow at the root.
- * Collapse is left to the caller: every step names the group headers that would hide it.
+ * A collapsed group emits only its header.
  */
 export function planProjectGroupSections<
   V extends ProjectSectionEntry<ActivityItem, ProjectGroupSectionRepo>,
@@ -48,10 +46,11 @@ export function planProjectGroupSections<
   projectGroups: readonly G[]
   projectOrderBy: ProjectOrderBy
   repoOrder: ReadonlyMap<string, number> | undefined
+  collapsedGroups: ReadonlySet<string>
   /** Rows a group holds directly besides project sections, e.g. its folder workspaces. */
   directRowCountOf?: (groupId: string) => number
 }): ProjectGroupSectionStep<V, G>[] {
-  const { projectGroups, projectOrderBy, repoOrder, directRowCountOf } = args
+  const { projectGroups, projectOrderBy, repoOrder, collapsedGroups, directRowCountOf } = args
 
   const entriesByGroupId = new Map<string | null, [string, V][]>()
   for (const entry of args.entries) {
@@ -83,11 +82,7 @@ export function planProjectGroupSections<
     )
 
   const steps: ProjectGroupSectionStep<V, G>[] = []
-  const pushSections = (
-    entries: readonly [string, V][],
-    depth: number,
-    ancestorKeys: readonly string[]
-  ): void => {
+  const pushSections = (entries: readonly [string, V][], depth: number): void => {
     let ordered: [string, V][]
     if (projectOrderBy === 'recent') {
       const getRecentRank = createRecentRankLookup<[string, V]>()
@@ -104,23 +99,24 @@ export function planProjectGroupSections<
       )
     }
     for (const entry of withRepoSectionDisplayLabels(ordered)) {
-      steps.push({ kind: 'section', entry, depth, ancestorKeys })
+      steps.push({ kind: 'section', entry, depth })
     }
   }
   // Children hang off parents reachable from a root, so a persisted parent cycle is never entered.
-  const appendGroup = (group: G, depth: number, ancestorKeys: readonly string[]): void => {
+  const appendGroup = (group: G, depth: number): void => {
     const key = getProjectGroupHeaderKey(group.id)
-    steps.push({ kind: 'group', group, key, depth, count: subtreeCount(group.id), ancestorKeys })
-    const innerKeys = [...ancestorKeys, key]
-    pushSections(entriesByGroupId.get(group.id) ?? [], depth + 1, innerKeys)
-    for (const child of childGroupsByParentId.get(group.id) ?? []) {
-      appendGroup(child, depth + 1, innerKeys)
+    steps.push({ kind: 'group', group, key, depth, count: subtreeCount(group.id) })
+    if (!collapsedGroups.has(key)) {
+      pushSections(entriesByGroupId.get(group.id) ?? [], depth + 1)
+      for (const child of childGroupsByParentId.get(group.id) ?? []) {
+        appendGroup(child, depth + 1)
+      }
     }
     // Why: ids repeat across hosts, so a second group with this id must not emit its sections again.
     entriesByGroupId.delete(group.id)
   }
   for (const group of childGroupsByParentId.get(null) ?? []) {
-    appendGroup(group, 0, [])
+    appendGroup(group, 0)
   }
 
   const rootEntries = [...(entriesByGroupId.get(null) ?? [])]
@@ -131,6 +127,6 @@ export function planProjectGroupSections<
       rootEntries.push(...entries)
     }
   }
-  pushSections(rootEntries, 0, [])
+  pushSections(rootEntries, 0)
   return steps
 }
