@@ -3,14 +3,12 @@
 export type ManagedRuntimeOperation = {
   id: string
   kind: 'install' | 'remove'
-  /** `cancelling` from an accepted Cancel until the work unwinds; then `cancelled`, or `succeeded`
-   *  when it had already committed. */
+  /** A Cancel ends in `cancelled`, or `succeeded` when the install had already committed. */
   phase:
     | 'downloading'
     | 'extracting'
     | 'verifying'
     | 'removing'
-    | 'cancelling'
     | 'succeeded'
     | 'failed'
     | 'cancelled'
@@ -23,10 +21,8 @@ export type ManagedRuntimeInstallState = {
   agent: string
   /** Rises with every change the host publishes, across operations. */
   revision: number
-  /** The host has a pinned release it can unpack; otherwise no Install is offered. */
+  /** The host has a pinned release; otherwise no Install is offered. */
   available: boolean
-  /** The program this host lacks to unpack the release, e.g. `unzip`. */
-  missingProgram?: string
   version: string | null
   installedVersion: string | null
   /** False with an installed version: an update is available. */

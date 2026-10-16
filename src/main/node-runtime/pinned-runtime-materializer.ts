@@ -111,12 +111,7 @@ export async function materializeCachedRuntimeExecutable(
     options.signal?.throwIfAborted()
     const extractedDir = join(temporaryDir, 'extracted')
     await mkdir(extractedDir)
-    const result = await extractRuntimeArchive(
-      { label: runtime.label, members: [runtime.member] },
-      archivePath,
-      extractedDir,
-      options.signal
-    )
+    const result = await extractRuntimeArchive(runtime, archivePath, extractedDir, options.signal)
     options.signal?.throwIfAborted()
     if (result.code !== 0) {
       throw new Error(

@@ -11,6 +11,7 @@ import {
   type ServerTarget
 } from '../../shared/node-runtime-pin'
 import { setMainHttpClient } from '../network/http-client'
+import { runProcess } from '@orca/process-host'
 import { materializeCachedNodeRuntime } from './pinned-runtime-materializer'
 import { RUNTIME_ARCHIVE_RETRY_DELAYS_MS } from './runtime-archive-download'
 
@@ -151,19 +152,26 @@ describe('materializeCachedNodeRuntime', () => {
     expect(await readdir(runtimeDirFor())).toEqual([])
   })
 
+  // Both cases spawn for real, so the assertion is against the errno Node actually reports:
+  // a missing program rejects asynchronously with ENOENT, while a program path whose parent is a
+  // regular file throws ENOTDIR synchronously out of `spawn` itself.
   it.each([
     ['absent', (): string => join(cacheRoot, 'absent-extractor')],
     ['unreachable through a file', (): string => join(cacheRoot, 'plain-file', 'unzip')]
-  ])('names the missing extractor, never the override, when it is %s', async (_label, path) => {
+  ])('names the %s extractor and the override when it cannot be launched', async (_label, path) => {
     const target = 'win32-x64' as const
     const archive = new TextEncoder().encode('unextractable archive')
     pin(target, archive)
     await writeFile(join(cacheRoot, 'plain-file'), 'not a directory')
+    const { runProcess: spawnForReal } = await vi.importActual<{
+      runProcess: typeof runProcess
+    }>('@orca/process-host')
+    vi.mocked(runProcess).mockImplementationOnce(spawnForReal)
     vi.stubEnv('ORCA_UNZIP_BIN', path())
 
     await expect(
       materializeCachedNodeRuntime(target, cacheRoot, { fetcher: responseFetcher(archive) })
-    ).rejects.toThrow('Installing Node on this host needs unzip.')
+    ).rejects.toThrow(/install unzip, or set ORCA_UNZIP_BIN/)
     expect(await readdir(runtimeDirFor(target))).toEqual([])
   })
 

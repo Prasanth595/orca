@@ -2,28 +2,19 @@ import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { strToU8, zipSync } from 'fflate'
 import { afterEach, expect, it, vi } from 'vitest'
 import type * as ReleaseModule from './managed-runtime-release'
 import { reclaimRuntimeReleases, RUNTIME_RELEASE_RECEIPT } from './managed-runtime-release'
 import { ManagedRuntimeInstallation } from './managed-runtime-installation'
 
-// tar names each member it extracts after `-C <dir>`; write exactly those.
-vi.mock('@orca/process-host', () => ({
-  runProcess: vi.fn(async ({ args }: { args: string[] }) => {
-    const at = args.indexOf('-C')
-    for (const member of args.slice(at + 2)) {
-      await writeFile(join(String(args[at + 1]), member), `${member} bytes`)
-    }
-    return { code: 0, stdout: '', stderr: '' }
-  })
-}))
 vi.mock('./managed-runtime-release', async (importOriginal) => {
   const actual = await importOriginal<typeof ReleaseModule>()
   return { ...actual, reclaimRuntimeReleases: vi.fn(actual.reclaimRuntimeReleases) }
 })
 
-const sha256 = (text: string) => createHash('sha256').update(text).digest('hex')
-const ARCHIVE = 'archive bytes'
+const sha256 = (bytes: string | Uint8Array) => createHash('sha256').update(bytes).digest('hex')
+const ARCHIVE = zipSync({ server: strToU8('server bytes') })
 const roots: string[] = []
 afterEach(() => Promise.all(roots.splice(0).map((r) => rm(r, { recursive: true, force: true }))))
 
@@ -33,7 +24,7 @@ async function rig(bodies: ('hang' | 'whole')[]) {
   const root = join(dataDirectory, 'agent-runtimes', 'agent')
   const pin = {
     version: '1.0',
-    url: 'https://example.test/agent-1.0.tar.gz',
+    url: 'https://example.test/agent-1.0.zip',
     archiveSha256: sha256(ARCHIVE),
     archiveBytes: ARCHIVE.length,
     members: [{ path: 'server', sha256: sha256('server bytes'), bytes: 12 }]
@@ -44,9 +35,9 @@ async function rig(bodies: ('hang' | 'whole')[]) {
     return new Response(
       new ReadableStream({
         start(controller) {
-          controller.enqueue(new TextEncoder().encode(ARCHIVE.slice(0, 5)))
+          controller.enqueue(ARCHIVE.slice(0, 5))
           if (body === 'whole') {
-            controller.enqueue(new TextEncoder().encode(ARCHIVE.slice(5)))
+            controller.enqueue(ARCHIVE.slice(5))
             controller.close()
           }
         }
@@ -73,9 +64,7 @@ it('installs only when asked, with progress, cancel, retry, and a status read fr
     expect((await installation.status()).operation?.downloadedBytes).toBe(5)
   )
   expect(installation.install().id).toBe(started.id)
-  installation.cancel(started.id)
-  expect(await phase(installation)).toBe('cancelling')
-  await vi.waitFor(async () => expect(await phase(installation)).toBe('cancelled'))
+  expect(await installation.cancel(started.id)).toMatchObject({ phase: 'cancelled' })
   expect(await readdir(root)).toEqual([])
 
   expect(installation.install().id).not.toBe(started.id)
@@ -87,6 +76,18 @@ it('installs only when asked, with progress, cancel, retry, and a status read fr
     operation: null
   })
   expect(await readdir(root)).toEqual(['1.0'])
+
+  // Whole files without a receipt looped as damaged; Install now rewrites it, with no download.
+  await rm(join(root, '1.0', RUNTIME_RELEASE_RECEIPT))
+  expect(await installation.status()).toMatchObject({ damaged: true })
+  const rewrite = installation.install()
+  await vi.waitFor(async () =>
+    expect((await installation.status()).operation).toMatchObject({
+      id: rewrite.id,
+      phase: 'succeeded'
+    })
+  )
+  expect(await installation.status()).toMatchObject({ installedCurrent: true })
 })
 
 it('publishes an update only once the old releases were reclaimed', async () => {

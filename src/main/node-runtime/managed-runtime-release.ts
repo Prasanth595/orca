@@ -10,11 +10,12 @@ import { isDefinitiveAbsence } from '../../shared/definitive-filesystem-absence'
 
 export type ManagedRuntimePin = {
   version: string
+  /** A zip holding exactly the members. */
   url: string
   archiveSha256: string
   /** The decoded archive's size. */
   archiveBytes: number
-  /** Archive-relative path, sha256 and size of every executable the release must hold. */
+  /** Name at the archive's top level, sha256 and size of every executable the release holds. */
   members: readonly { path: string; sha256: string; bytes: number }[]
 }
 
@@ -26,6 +27,9 @@ export type ManagedRuntime = {
   root(dataDirectory: string): string
   /** This host's pinned release; null where none is published. */
   pin(): ManagedRuntimePin | null
+  /** Starts the server in `folder` once, without the person's sign-in, and rejects unless it
+   *  answers as the pinned release; Install publishes and reuses only a copy that passes. */
+  validate?(folder: string, pin: ManagedRuntimePin, signal: AbortSignal): Promise<void>
 }
 
 export const RUNTIME_RELEASE_RECEIPT = '.install-complete.json'
