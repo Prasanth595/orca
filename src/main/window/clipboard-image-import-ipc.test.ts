@@ -1,17 +1,25 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { handle, removeHandler, stage, release, releaseOwner, sweepExpired, readImage } = vi.hoisted(
-  () => ({
-    handle: vi.fn(),
-    removeHandler: vi.fn(),
-    stage: vi.fn(),
-    release: vi.fn(),
-    releaseOwner: vi.fn(),
-    sweepExpired: vi.fn(),
-    readImage: vi.fn()
-  })
-)
+const {
+  handle,
+  removeHandler,
+  stage,
+  release,
+  releaseOwner,
+  sweepExpired,
+  readImage,
+  readNativeImage
+} = vi.hoisted(() => ({
+  handle: vi.fn(),
+  removeHandler: vi.fn(),
+  stage: vi.fn(),
+  release: vi.fn(),
+  releaseOwner: vi.fn(),
+  sweepExpired: vi.fn(),
+  readImage: vi.fn(),
+  readNativeImage: vi.fn()
+}))
 
 vi.mock('electron', () => ({
   app: { getPath: () => '/profile' },
@@ -19,6 +27,7 @@ vi.mock('electron', () => ({
   clipboard: {}
 }))
 vi.mock('./clipboard-image-import-source', () => ({ readClipboardImageForImport: readImage }))
+vi.mock('./clipboard-native-image', () => ({ readClipboardNativeImage: readNativeImage }))
 vi.mock('./clipboard-image-import-staging', () => ({
   ClipboardImageImportStaging: class {
     stage = stage
@@ -74,6 +83,7 @@ describe('clipboard image import IPC lifetime', () => {
     const pending = handler('clipboard:stageImageForImport')(event)
     expect(authorize).toHaveBeenCalledWith(event)
     expect(readImage).toHaveBeenCalledOnce()
+    expect(readImage).toHaveBeenCalledWith({}, process.platform, readNativeImage)
     expect(stage).toHaveBeenCalledWith(17, Buffer.from('PNG'), expect.any(AbortSignal))
     expect(await pending).toEqual({ handle: 'snapshot', path: '/staging/pasted-image.png' })
     await handler('clipboard:releaseImageImport')(event, 'snapshot')

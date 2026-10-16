@@ -1,6 +1,7 @@
 import { app, clipboard, ipcMain, type IpcMainInvokeEvent, type WebContents } from 'electron'
 import { ClipboardImageImportStaging } from './clipboard-image-import-staging'
 import { readClipboardImageForImport } from './clipboard-image-import-source'
+import { readClipboardNativeImage } from './clipboard-native-image'
 
 let staging: ClipboardImageImportStaging | undefined
 let sweepTimer: ReturnType<typeof setInterval> | undefined
@@ -59,7 +60,12 @@ export function registerClipboardImageImportHandlers(
   ipcMain.removeHandler('clipboard:releaseImageImport')
   ipcMain.handle('clipboard:stageImageForImport', (event) => {
     assertTrustedSender(event)
-    const buffer = readClipboardImageForImport(clipboard)
+    // Shares chat paste's reader, which decodes CleanShot JPEGs stored as macOS public.png.
+    const buffer = readClipboardImageForImport(
+      clipboard,
+      process.platform,
+      readClipboardNativeImage
+    )
     if (!buffer) {
       return null
     }

@@ -78,6 +78,20 @@ describe('clipboard image import source', () => {
     }
   )
 
+  it('decodes through the supplied reader when readImage sees no pixels', () => {
+    const clipboard = makeClipboard()
+    clipboard.image.isEmpty.mockReturnValue(true)
+    const decoded = {
+      isEmpty: () => false,
+      getSize: () => ({ width: 2, height: 2 }),
+      toPNG: () => Buffer.from('re-encoded JPEG')
+    }
+    expect(readClipboardImageForImport(clipboard, 'darwin', () => decoded)).toEqual(
+      Buffer.from('re-encoded JPEG')
+    )
+    expect(clipboard.readImage).not.toHaveBeenCalled()
+  })
+
   it('ignores empty native images', () => {
     const clipboard = makeClipboard()
     clipboard.image.isEmpty.mockReturnValue(true)

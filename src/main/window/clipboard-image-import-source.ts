@@ -6,14 +6,16 @@ import {
 import { readClipboardCopiedFilePaths } from './clipboard-copied-file-paths'
 import { readClipboardImageSource } from './clipboard-image-source'
 
+type ImportImage = Pick<NativeImage, 'isEmpty' | 'getSize' | 'toPNG'>
 type ImageImportClipboard = Pick<Clipboard, 'availableFormats' | 'readBuffer' | 'has'> & {
-  readImage: () => Pick<NativeImage, 'isEmpty' | 'getSize' | 'toPNG'>
+  readImage: () => ImportImage
 }
 
 /** Capture pixels synchronously, before staging or destination lookup can yield. */
 export function readClipboardImageForImport(
   clipboard: ImageImportClipboard,
-  platform: NodeJS.Platform = process.platform
+  platform: NodeJS.Platform = process.platform,
+  readImage: () => ImportImage = () => clipboard.readImage()
 ): Buffer | null {
   // FileNameW cannot enumerate a multi-file copy; never convert its preview into a PNG.
   if (platform === 'win32' && clipboard.readBuffer('Shell IDList Array').byteLength > 0) {
@@ -25,7 +27,7 @@ export function readClipboardImageForImport(
   if (readClipboardImageSource(clipboard, platform)?.kind !== 'native') {
     return null
   }
-  const image = clipboard.readImage()
+  const image = readImage()
   if (image.isEmpty()) {
     return null
   }
