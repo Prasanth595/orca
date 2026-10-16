@@ -18,6 +18,7 @@ export const TerminalMultiplexSubscribeFrame = TerminalHandle.extend({
       ackOutputSourceRanges: z.literal(1).optional(),
       desktopViewportClaims: z.literal(1).optional(),
       outputPause: z.literal(1).optional(),
+      outputPauseDropNotice: z.literal(1).optional(),
       writeUnavailable: z.literal(1).optional(),
       inputAck: z.literal(1).optional()
     })
@@ -29,13 +30,6 @@ export const TerminalMultiplexSubscribeFrame = TerminalHandle.extend({
 export const TerminalMultiplexLegacyAckFrame = z
   .object({
     bytes: z.number().int().nonnegative()
-  })
-  .strict()
-
-export const TerminalMultiplexSourceRangeAckFrame = z
-  .object({
-    streamGeneration: z.string().min(1),
-    ackedEndByte: z.number().int().nonnegative()
   })
   .strict()
 

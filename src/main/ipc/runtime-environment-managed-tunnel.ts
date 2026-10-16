@@ -1,4 +1,9 @@
 import { resolveEnvironment } from '../../shared/runtime-environment-store'
+import {
+  getOrcadSshDeployment,
+  type KnownRuntimeEnvironment
+} from '../../shared/runtime-environments'
+import { classifyRuntimeEnvironmentHost } from '../../shared/runtime-environment-host-kind'
 import type {
   SshManagedServerStatus,
   SshManagedServerUpdateNote,
@@ -19,20 +24,41 @@ import {
 import { getSshHostServerStatus, setSshHostServerStatus } from '../ssh/ssh-host-server-status'
 import { getSshTargetRegistryStore } from '../ssh/ssh-target-registry'
 import { connectionManager, getCurrentMainWindow } from './ssh-ipc-context'
-import { broadcastSshState, relayStateOverrides } from './ssh-renderer-broadcast'
+import { getWslHostService } from '../wsl/wsl-host-service-instance'
+import { assertWslHostReachable } from '../wsl/wsl-host-gate'
+import { broadcastSshState } from './ssh-renderer-broadcast'
 
 export async function resolveManagedRuntimeEnvironment(
   userDataPath: string,
   selector: string
 ): Promise<ReturnType<typeof resolveEnvironment>> {
   const environment = resolveEnvironment(userDataPath, selector)
+  // Every call, subscription and status probe passes here, so a gated-off WSL host is never reached.
+  assertWslHostReachable(environment)
+  const host = classifyRuntimeEnvironmentHost(environment)
+  switch (host.kind) {
+    case 'wsl':
+      // Reached over the wsl.exe bridge; connects only when an open project or terminal needs it.
+      await getWslHostService()?.ensureForRuntimeCall(environment.id)
+      break
+    case 'network':
+      await prepareNetworkServerForCall(userDataPath, environment)
+      break
+  }
+  return resolveEnvironment(userDataPath, environment.id)
+}
+
+async function prepareNetworkServerForCall(
+  userDataPath: string,
+  environment: KnownRuntimeEnvironment
+): Promise<void> {
   await ensureOrcadManagedTunnel(userDataPath, environment.id)
   // Why: a server that stopped (idle, killed, host rebooted) starts before the call that needs it.
   const serving = await verifyOrcadManagedServing(userDataPath, environment.id)
   const createDeps = () => ({
     ...managedServerUpdateDeps(userDataPath),
     target: () => {
-      const targetId = environment.orcadDeployment?.sshTargetId
+      const targetId = getOrcadSshDeployment(environment)?.sshTargetId
       return targetId ? (getSshTargetRegistryStore()?.getTarget(targetId) ?? null) : null
     },
     publish: publishRestoreUpdate
@@ -45,9 +71,19 @@ export async function resolveManagedRuntimeEnvironment(
     }
   } else {
     // Why here: an auto-restored host may never see an SSH connect, so it would never update.
-    void updateManagedOrcadOnRestore(environment.id, createDeps)
+    const update = updateManagedOrcadOnRestore(environment.id, createDeps)
+    const targetId = getOrcadSshDeployment(environment)?.sshTargetId
+    if (targetId) {
+      // Why after the update: its settled status would otherwise replace the warning.
+      // Why lazy: the note publishes through this module.
+      void Promise.resolve(update)
+        .then(() => import('./ssh-host-launch-session-note'))
+        .then(({ noteEndedLaunchSshSession }) =>
+          noteEndedLaunchSshSession(targetId, environment.id)
+        )
+        .catch(() => {})
+    }
   }
-  return resolveEnvironment(userDataPath, environment.id)
 }
 
 function isStoppedElsewhere(serving: OrcadManagedServing): boolean {
@@ -100,12 +136,8 @@ export function publishResolvedChangedHostStatus(target: SshTarget, environmentI
 
 export function publishHostServerStatus(targetId: string, status: SshManagedServerStatus): void {
   setSshHostServerStatus(targetId, status)
-  const override = relayStateOverrides.get(targetId)
-  if (override) {
-    relayStateOverrides.set(targetId, { ...override, managedServer: status })
-  }
   // Only a host with a connection state has a status line to refresh.
-  const state = relayStateOverrides.get(targetId) ?? connectionManager?.getState(targetId)
+  const state = connectionManager?.getState(targetId)
   if (state) {
     broadcastSshState(getCurrentMainWindow, targetId, { ...state, managedServer: status })
   }
@@ -118,6 +150,20 @@ export function clearManagedServerNotes(targetId: string, environmentId: string)
     return
   }
   if (current.update || current.serving) {
-    publishHostServerStatus(targetId, { kind: 'managed', environmentId })
+    // An update can keep the terminal daemon, so only a verified restart clears that warning.
+    publishHostServerStatus(targetId, {
+      kind: 'managed',
+      environmentId,
+      ...(current.launchSessionEnded ? { launchSessionEnded: true as const } : {})
+    })
+  }
+}
+
+/** A restart that verified a fresh daemon and a live launching session clears the warning. */
+export function clearLaunchSessionNote(targetId: string, environmentId: string): void {
+  const current = getSshHostServerStatus(targetId)
+  if (current?.kind === 'managed' && current.environmentId === environmentId) {
+    const { launchSessionEnded: _cleared, ...rest } = current
+    publishHostServerStatus(targetId, rest)
   }
 }

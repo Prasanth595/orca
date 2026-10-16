@@ -1,4 +1,4 @@
-import { filterRecord, omitStoredFields } from './stored-record-fields'
+import { filterRecord, omitStoredFields, withoutKey } from './stored-record-fields'
 import { canReplacePreviewContentType, partitionPinnedTabOrder } from './tab-order'
 import { getNextTerminalOrdinal } from './terminal-tab-ordinal'
 import { layoutContainsLeafId } from './terminal-pane-tree'
@@ -21,11 +21,13 @@ import type {
 } from './workspace-layout-command-types'
 import {
   paneKeyOf,
+  type LayoutClosedTab,
   type LayoutContentTab,
   type LayoutTerminalTab,
   type WorkspaceLayout,
   type WorkspaceLayoutModel
 } from './workspace-layout-model'
+import { admitsInitialSurface } from './workspace-layout-initial-surface'
 import { removeTabFromWorkspace, withWorkspace } from './workspace-layout-removal'
 
 type RefusedClose = NonNullable<LayoutCommandResult['refused']>[number]
@@ -35,13 +37,16 @@ export function createTerminalTab(
   command: CommandOf<'createTerminalTab'>,
   context: LayoutContext
 ): Applied {
+  if (command.initial && !admitsInitialSurface(model, command.workspace, command.initial)) {
+    return applied(model)
+  }
   const workspace = workspaceOrEmpty(model, command.workspace)
   const terminals = workspace.tabs.flatMap((tab) => (tab.kind === 'terminal' ? [tab] : []))
   const ordinal = getNextTerminalOrdinal(
     terminals.map((tab) => ({ defaultTitle: tab.terminal.defaultTitle, title: '' }))
   )
-  const id = context.mintId()
-  const leafId = context.mintLeafId()
+  const id = command.tabId ?? context.mintId()
+  const leafId = command.leafId ?? context.mintLeafId()
   const tab: LayoutTerminalTab = {
     id,
     entityId: id,
@@ -85,21 +90,30 @@ export function closeTab(
       editorFiles: next.editorFiles.filter((file) => file.filePath !== tab.entityId)
     }
   }
+  if (next.editorViews) {
+    next = { ...next, editorViews: withoutKey(next.editorViews, tabId) }
+  }
   if (tab.kind === 'browser' && next.browserTabs) {
     next = { ...next, browserTabs: next.browserTabs.filter((entry) => entry.id !== tab.entityId) }
   }
   return withWorkspace(model, key, next)
 }
 
-export function closeTabs(model: WorkspaceLayoutModel, command: CommandOf<'closeTabs'>): Applied {
+export function closeTabs(
+  model: WorkspaceLayoutModel,
+  command: CommandOf<'closeTabs'>,
+  context?: LayoutContext
+): Applied {
   let next = model
   const closed: string[] = []
+  const recorded: string[] = []
   const refused: RefusedClose[] = []
   const stopPtyIds: string[] = []
   for (const tabId of command.tabIds) {
     const tab = findTab(next.workspaces[command.workspace]!, tabId)
     if (!tab) {
       closed.push(tabId)
+      recorded.push(tabId)
       continue
     }
     if (!command.force && command.refusePinned && tab.isPinned) {
@@ -113,8 +127,31 @@ export function closeTabs(model: WorkspaceLayoutModel, command: CommandOf<'close
     stopPtyIds.push(...boundPtyIds(next.workspaces[command.workspace]!, tab))
     next = closeTab(next, command.workspace, tabId)
     closed.push(tabId)
+    if (tab.kind === 'terminal') {
+      recorded.push(tab.entityId)
+    }
+  }
+  if (command.recordClose && context && recorded.length > 0) {
+    next = recordClosedTerminalTabs(next, command.workspace, recorded, {
+      reason: command.recordClose,
+      closedAt: context.now()
+    })
   }
   return applied(next, { closed, refused }, { stopPtyIds })
+}
+
+function recordClosedTerminalTabs(
+  model: WorkspaceLayoutModel,
+  key: string,
+  tabIds: readonly string[],
+  record: LayoutClosedTab
+): WorkspaceLayoutModel {
+  const workspace = model.workspaces[key]!
+  const closedTerminalTabs = { ...workspace.closedTerminalTabs }
+  for (const tabId of tabIds) {
+    closedTerminalTabs[tabId] = record
+  }
+  return withWorkspace(model, key, { ...workspace, closedTerminalTabs })
 }
 
 export function renameTab(model: WorkspaceLayoutModel, command: CommandOf<'renameTab'>): Applied {

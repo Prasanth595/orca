@@ -206,6 +206,7 @@ describe('a worker result reaches the structured chat that coordinates it', () =
   })
 
   it('leaves a pointer the person stopped while its agent was starting stopped', async () => {
+    observationClock.start()
     await openChat(COORDINATOR)
     const { runId, taskId } = await coordinatorRunAndTask()
     await host.close(COORDINATOR, 'evict')
@@ -214,7 +215,7 @@ describe('a worker result reaches the structured chat that coordinates it', () =
     await finishWorker(taskId)
     await vi.waitFor(() => expect(providerFaults.starts).toBe(before + 1), WAIT)
     // The person presses Stop while the agent is still starting.
-    const cancelled = await host.cancel(
+    const cancelling = host.cancel(
       { callerKey: 'test-surface' },
       {
         envelope: {
@@ -230,6 +231,8 @@ describe('a worker result reaches the structured chat that coordinates it', () =
         turnId: 'turn-x'
       }
     )
+    await observationClock.observe(400)
+    const cancelled = await cancelling
     expect(cancelled).toMatchObject({ ok: true })
     providerFaults.startDelayMs = 0
     // A fixed window, not a poll: a re-point would start the agent again in it.
@@ -256,6 +259,7 @@ describe('a worker result reaches the structured chat that coordinates it', () =
     // provider still dies, so exactly one start proves it is pointed once, not in a loop.
     restartRuntime()
     const before = providerFaults.starts
+    await observationClock.observe(2_000)
     await vi.waitFor(() => expect(providerFaults.turnStarts).toBe(2), WAIT)
     await observationClock.observe(1_500)
     await edgesAnswered()
@@ -374,16 +378,33 @@ describe('a worker result reaches the structured chat that coordinates it', () =
     refused.mockImplementation((caller, params) => realSend(caller, params))
     await finishWorker(taskId)
     await vi.waitFor(() => expect(refused).toHaveBeenCalledTimes(1), WAIT)
-    const held = db.getStructuredPointerOperation(`run:${runId}`)?.operation_id
+    const held = db.getStructuredPointerOperation(`run:${runId}`)
+    expect(held).toMatchObject({ session_id: COORDINATOR, operation_id: expect.any(String) })
+    const heldId = held!.operation_id
+    expect(heldId).not.toBe('')
+    expect(refused.mock.calls[0]?.[1].envelope.clientOperationId).toBe(heldId)
+    expect(await pointerSends()).toEqual([])
 
     // No edge for a day: the host would now refuse that id as expired, on every retry.
     vi.useFakeTimers({ toFake: ['Date'] })
     try {
       vi.setSystemTime(Date.now() + AGENT_SESSION_MAX_NEW_OPERATION_AGE_MS + 60_000)
       await edgesAnswered()
-      await new Promise((resolve) => setTimeout(resolve, 300))
-      expect(chat.turns.map(turnText)).toEqual([ptyPointer(`run:${runId}`)])
-      expect(db.getStructuredPointerOperation(`run:${runId}`)?.operation_id).not.toBe(held)
+      await vi.waitFor(
+        () => expect(chat.turns.map(turnText)).toEqual([ptyPointer(`run:${runId}`)]),
+        WAIT
+      )
+      await vi.waitFor(async () => {
+        const sends = await pointerSends()
+        expect(sends).toHaveLength(1)
+        expect(sends[0]).toBeTruthy()
+        expect(sends[0]).not.toBe(heldId)
+        expect(db.getStructuredPointerOperation(`run:${runId}`)).toMatchObject({
+          session_id: COORDINATOR,
+          operation_id: sends[0]
+        })
+      }, WAIT)
+      expect(db.getUndeliveredUnreadMessages(`run:${runId}`, undefined, {})).toHaveLength(1)
     } finally {
       vi.useRealTimers()
     }
@@ -521,6 +542,7 @@ describe('a /clear keeps the chat its orchestration address', () => {
   })
 
   it('points mail the earlier context never took at the fresh context, without a user message', async () => {
+    observationClock.start()
     const chat = await openChat(COORDINATOR)
     const { runId, taskId } = await coordinatorRunAndTask()
     await finishWorker(taskId)
@@ -534,6 +556,7 @@ describe('a /clear keeps the chat its orchestration address', () => {
 
     const cleared = await clearChat(COORDINATOR)
     expect(cleared).toBe(COORDINATOR)
+    await observationClock.observe(2_000)
     await vi.waitFor(() => expect(connectionFor(cleared).turns[0]?.text).toMatch(POINTER), WAIT)
     await settleTurn(cleared, 0)
     await vi.waitFor(

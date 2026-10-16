@@ -68,7 +68,7 @@ function applyCommand(
     case 'closePane':
       return closePane(model, command)
     case 'closeTabs':
-      return closeTabs(model, command)
+      return closeTabs(model, command, context)
     case 'moveTab':
       return moveTab(model, command)
     case 'splitGroup':
@@ -100,7 +100,7 @@ function applyCommand(
     case 'openAgentSessionTab':
       return openAgentSessionTab(model, command, context)
     case 'startPane':
-      return startPane(model, command)
+      return startPane(model, command, context)
     case 'restartPane':
       return restartPane(model, command)
     case 'sleep':

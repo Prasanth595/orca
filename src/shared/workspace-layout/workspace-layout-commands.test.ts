@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import type { EditorTabView } from '../editor-tab-view-types'
 import { applyLayoutCommand } from './workspace-layout-commands'
-import type { LayoutCommand } from './workspace-layout-command-types'
+import type { CommandOf, LayoutCommand } from './workspace-layout-command-types'
 import {
   asLoaded,
   build,
@@ -383,6 +384,80 @@ describe('layout command effects', () => {
     )
   })
 
+  it('a window drag-out names the tab, outranks a stale binding and moves a last pane', () => {
+    const { model, tabA, tabB, leafA2, leafB, ctx } = setup()
+    const workspace = model.workspaces[WS]!
+    const withData: WorkspaceLayoutModel = {
+      ...model,
+      workspaces: {
+        [WS]: {
+          ...workspace,
+          leaves: { ...workspace.leaves, [leafA2]: { ptyId: 'pty-old', incarnationId: 'inc' } }
+        }
+      }
+    }
+    const stale = build(
+      ctx,
+      [
+        {
+          type: 'movePaneToNewTab',
+          workspace: WS,
+          tabId: tabA,
+          leafId: leafA2,
+          windowDetach: { ptyId: 'pty-live', tabId: 'tab-main' }
+        }
+      ],
+      withData
+    )
+    expect(stale.results[0]).toEqual({ tabId: 'tab-main', ptyId: 'pty-live' })
+    expect(stale.model.workspaces[WS]!.leaves?.[leafA2]).toEqual({ ptyId: 'pty-live' })
+    // A copy that never bound the pane keeps its incarnation, as the desktop's move does.
+    const unbound = applyLayoutCommand(
+      {
+        ...model,
+        workspaces: {
+          [WS]: {
+            ...workspace,
+            leaves: { ...workspace.leaves, [leafA2]: { incarnationId: 'inc' } }
+          }
+        }
+      },
+      {
+        type: 'movePaneToNewTab',
+        workspace: WS,
+        tabId: tabA,
+        leafId: leafA2,
+        windowDetach: { ptyId: 'pty-live', tabId: 'tab-main' }
+      },
+      ctx
+    )
+    expect(unbound.ok && unbound.model.workspaces[WS]!.leaves?.[leafA2]).toEqual({
+      ptyId: 'pty-live',
+      incarnationId: 'inc'
+    })
+
+    // Main's copy lacks the window's other panes, so the tab stays for them (no rule check: to
+    // main's copy alone it reads as the tab re-ided).
+    const last = applyLayoutCommand(
+      model,
+      {
+        type: 'movePaneToNewTab',
+        workspace: WS,
+        tabId: tabB,
+        leafId: leafB,
+        windowDetach: { ptyId: null }
+      },
+      ctx
+    )
+    if (!last.ok) {
+      throw new Error(last.code)
+    }
+    const newTabId = last.result.tabId!
+    expect(terminalTab(last.model, newTabId).panes.root).toEqual({ type: 'leaf', leafId: leafB })
+    expect(terminalTab(last.model, tabB).panes.root).toBeNull()
+    expect(last.result.ptyId).toBeNull()
+  })
+
   it('equalizes same-axis panes into equal shares', () => {
     const { model, tabA, leafA2, ctx } = setup()
     const three = build(
@@ -429,6 +504,60 @@ describe('layout command effects', () => {
     expect(entities).toContain('/w/c.ts')
     expect(entities).not.toContain('/w/b.ts')
   })
+
+  const viewedOpens: [string, CommandOf<'openEditorTab'>, EditorTabView, string[]][] = [
+    [
+      'a diff tab',
+      { type: 'openEditorTab', workspace: WS, fileId: '/w', contentType: 'diff' },
+      { mode: 'diff', diffSource: 'combined-all', combinedAreaFilter: 'staged' },
+      ['/w/a.ts']
+    ],
+    [
+      'an edit tab with conflict details',
+      {
+        type: 'openEditorTab',
+        workspace: WS,
+        fileId: '/w/b.ts',
+        contentType: 'editor',
+        file: { filePath: '/w/b.ts', relativePath: 'b.ts', language: 'typescript' }
+      },
+      {
+        mode: 'edit',
+        conflict: {
+          kind: 'conflict-editable',
+          conflictKind: 'both_modified',
+          conflictStatus: 'unresolved',
+          conflictStatusSource: 'git'
+        }
+      },
+      ['/w/a.ts', '/w/b.ts']
+    ]
+  ]
+
+  it.each(viewedOpens)(
+    '%s: holds its view by tab id, never saves it, and drops it on close',
+    (_name, open, view, savedFiles) => {
+      // Two identical setups mint identical ids, so only the view differs.
+      const plainSetup = setup()
+      const plain = build(plainSetup.ctx, [open], plainSetup.model)
+      const viewedSetup = setup()
+      const viewed = build(viewedSetup.ctx, [{ ...open, view }], viewedSetup.model)
+      const tabId = viewed.results[0]!.tabId!
+      expect(plain.results[0]!.tabId).toBe(tabId)
+      expect(viewed.model.workspaces[WS]!.editorViews).toEqual({ [tabId]: view })
+
+      const saved = saveWorkspaceLayout(asLoaded(viewed.model))
+      expect(JSON.stringify(saved)).toBe(JSON.stringify(saveWorkspaceLayout(asLoaded(plain.model))))
+      expect(saved.openFilesByWorktree?.[WS]?.map((file) => file.filePath)).toEqual(savedFiles)
+
+      const closed = build(
+        viewedSetup.ctx,
+        [{ type: 'closeTabs', workspace: WS, tabIds: [tabId] }],
+        viewed.model
+      )
+      expect(closed.model.workspaces[WS]!.editorViews).toEqual({})
+    }
+  )
 
   it('opens browser and agent-session tabs with their records', () => {
     const { model, ctx } = setup()

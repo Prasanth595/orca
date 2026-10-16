@@ -3,7 +3,7 @@ import ts from 'typescript-api'
 const MODULE_BUILTINS = new Set(['module', 'node:module'])
 const PROCESS_BUILTINS = new Set(['process', 'node:process'])
 
-function unwrap(node) {
+export function unwrap(node) {
   while (
     node &&
     (ts.isParenthesizedExpression(node) ||
@@ -22,22 +22,18 @@ function isNamed(node, name) {
   return ts.isIdentifier(node) && node.text === name
 }
 
-function literalString(node) {
+export function literalString(node) {
   node = unwrap(node)
   return node && (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))
     ? node.text
     : null
 }
 
-function propertyName(node) {
+export function propertyName(node) {
   if (ts.isPropertyAccessExpression(node)) {
     return node.name.text
   }
   return ts.isElementAccessExpression(node) ? literalString(node.argumentExpression) : null
-}
-
-function isConstDeclaration(node) {
-  return ts.isVariableDeclarationList(node.parent) && (node.parent.flags & ts.NodeFlags.Const) !== 0
 }
 
 function collectBindings(source) {
@@ -45,37 +41,61 @@ function collectBindings(source) {
   const declarations = []
   const destructures = []
   const imports = []
-  function visit(node) {
-    if (ts.isVariableDeclaration(node) && node.initializer) {
-      const initializer = unwrap(node.initializer)
-      if (ts.isIdentifier(node.name)) {
-        declarations.push({ name: node.name.text, initializer })
-        const value = literalString(initializer)
-        if (isConstDeclaration(node) && value !== null) {
-          strings.set(node.name.text, [...(strings.get(node.name.text) ?? []), value])
+  const modules = []
+  function visit(node, isConst = false) {
+    switch (node.kind) {
+      case ts.SyntaxKind.VariableDeclarationList:
+        for (const declaration of node.declarations) {
+          visit(declaration, (node.flags & ts.NodeFlags.Const) !== 0)
         }
-      } else if (ts.isObjectBindingPattern(node.name)) {
-        for (const element of node.name.elements) {
-          const key = element.propertyName ?? element.name
-          const name = ts.isIdentifier(key) ? key.text : literalString(key)
-          if (ts.isIdentifier(element.name) && name !== null) {
-            destructures.push({ name: element.name.text, key: name, initializer })
+        return
+      case ts.SyntaxKind.VariableDeclaration: {
+        if (!node.initializer) {
+          break
+        }
+        const initializer = unwrap(node.initializer)
+        if (ts.isIdentifier(node.name)) {
+          declarations.push({ name: node.name.text, initializer })
+          const value = literalString(initializer)
+          if (isConst && value !== null) {
+            strings.set(node.name.text, [...(strings.get(node.name.text) ?? []), value])
+          }
+        } else if (ts.isObjectBindingPattern(node.name)) {
+          for (const element of node.name.elements) {
+            const key = element.propertyName ?? element.name
+            const name = ts.isIdentifier(key) ? key.text : literalString(key)
+            if (ts.isIdentifier(element.name) && name !== null) {
+              destructures.push({ name: element.name.text, key: name, initializer })
+            }
           }
         }
+        break
       }
-    } else if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
-      imports.push({ module: node.moduleSpecifier.text, clause: node.importClause })
-    } else if (
-      ts.isImportEqualsDeclaration(node) &&
-      ts.isExternalModuleReference(node.moduleReference) &&
-      ts.isStringLiteral(node.moduleReference.expression)
-    ) {
-      imports.push({ module: node.moduleReference.expression.text, namespace: node.name })
+      case ts.SyntaxKind.ImportDeclaration:
+        if (ts.isStringLiteral(node.moduleSpecifier)) {
+          imports.push({ module: node.moduleSpecifier.text, clause: node.importClause })
+        }
+        modules.push(node)
+        break
+      case ts.SyntaxKind.ImportEqualsDeclaration:
+        if (
+          ts.isExternalModuleReference(node.moduleReference) &&
+          ts.isStringLiteral(node.moduleReference.expression)
+        ) {
+          imports.push({ module: node.moduleReference.expression.text, namespace: node.name })
+        }
+        modules.push(node)
+        break
+      case ts.SyntaxKind.ExportDeclaration:
+      case ts.SyntaxKind.ImportType:
+      case ts.SyntaxKind.CallExpression:
+        modules.push(node)
+        break
     }
     ts.forEachChild(node, visit)
   }
   visit(source)
-  return { strings, declarations, destructures, imports }
+  return { strings, declarations, destructures, imports, modules }
 }
 
 /**
@@ -88,11 +108,11 @@ function collectBindings(source) {
  * are not resolved.
  */
 export function collectModuleSpecifiers(file, contents) {
-  const source = ts.createSourceFile(file, contents, ts.ScriptTarget.Latest, true)
+  const source = ts.createSourceFile(file, contents, ts.ScriptTarget.Latest, false)
   if (source.parseDiagnostics.length > 0) {
     throw new Error(`Cannot parse ${file}; the process-host import check must not skip it.`)
   }
-  const { strings, declarations, destructures, imports } = collectBindings(source)
+  const { strings, declarations, destructures, imports, modules } = collectBindings(source)
   const loaders = new Set(['require'])
   const createRequires = new Set()
   const moduleNamespaces = new Set()
@@ -212,7 +232,7 @@ export function collectModuleSpecifiers(file, contents) {
       specifiers.add(specifier)
     }
   }
-  function visit(node) {
+  for (const node of modules) {
     if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
       add(node.moduleSpecifier)
     } else if (
@@ -233,8 +253,6 @@ export function collectModuleSpecifiers(file, contents) {
         add(node.arguments[0])
       }
     }
-    ts.forEachChild(node, visit)
   }
-  visit(source)
   return [...specifiers]
 }
