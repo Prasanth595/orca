@@ -73,6 +73,7 @@ export function sessionTerminalCreateMountAdapters(
       >(
         'mobile/src/session/use-mobile-session-terminal-create-actions.ts'
       ).useMobileSessionTerminalCreateActions
+      modules.load('mobile/src/session/mobile-session-terminal-create-request.ts')
 
       let terminals: Terminal[] = []
       let sessionTabs: MobileSessionTab[] = []
@@ -199,7 +200,7 @@ export function sessionTerminalCreateMountAdapters(
           return actions!.handleCreateTerminal(
             agent,
             Object.keys(options).length === 0 ? undefined : options
-          ).then(() => undefined)
+          )
         },
         state: () => ({
           activeHandle,

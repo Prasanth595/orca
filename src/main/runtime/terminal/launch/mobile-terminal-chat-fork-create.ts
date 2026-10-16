@@ -10,6 +10,7 @@ import { isTuiAgent } from '../../../../shared/tui-agent-config'
 import { applyClaudeTerminalImageViewerEnv } from '../../terminal-image-viewer-env'
 import { deterministicAgentSessionUuid } from '../../runtime-agent-launch-resolution'
 import { rendererPublicationThrottle } from '../../../window/renderer-publication-throttle'
+import { PROJECT_RUNTIME_REPAIR_REQUIRED_CODE } from '../../../../shared/project-runtime-repair-message'
 
 export function resolveMobileChatForkTargetGroup(args: {
   groups?: readonly { id: string; tabOrder: readonly string[] }[]
@@ -52,46 +53,61 @@ export abstract class OrcaRuntimeWithMobileChatForkCreate extends OrcaRuntimeWit
     if (!sourceId || !mutationId || workspace.connectionId || isWslUncPath(workspace.path) || !this.store) {
       throw new Error('chat_fork_runtime_incompatible')
     }
-    await this.ensureStructuredAgentSessionHost()
-    const prepared = await prepareStructuredChatCliFork(
-      { sourceChat: { sessionId: sourceId, workspaceId: worktreeId }, fork: true },
-      (prepareArgs) => this.aiVault.prepare(prepareArgs)
-    )
-    this.assertStableReadyGraph(graphEpoch)
-    if (!isStructuredChatCliForkSourceCurrent(sourceId, worktreeId) ||
-      !this.mobileSessionTabsByWorktree.get(worktreeId)?.tabs.some((tab) =>
-        tab.type === 'agent-session' && tab.sessionId === sourceId
-      )) {
-      throw new Error('chat_fork_source_unavailable')
-    }
-    if (afterDesktopTabId && !this.mobileSessionTabsByWorktree.get(worktreeId)?.tabs.some(
-      (tab) => tab.id === afterDesktopTabId ||
-        (tab.type === 'terminal' && tab.parentTabId === afterDesktopTabId)
-    )) {
-      throw new Error('chat_fork_anchor_changed')
-    }
-    if (opts.signal?.aborted) {
-      throw new Error('client_disconnected')
-    }
-    const sourceAgent = prepared.cliForkSource?.agent
-    if (!sourceAgent || !isTuiAgent(sourceAgent)) {
-      throw new Error('chat_fork_source_unavailable')
-    }
-    const settings = this.store.getSettings()
-    const launchRuntime = this.resolveAgentLaunchRuntime(workspace, sourceAgent)
-    const startup = applyClaudeTerminalImageViewerEnv(buildMobileTerminalChatFork({
-      prepared, settings, runtime: launchRuntime
-    }), opts.terminalImageViewerSupported)
+    const preflight = await (async () => {
+      try {
+        await this.ensureStructuredAgentSessionHost()
+        const prepared = await prepareStructuredChatCliFork(
+          { sourceChat: { sessionId: sourceId, workspaceId: worktreeId }, fork: true },
+          (prepareArgs) => this.aiVault.prepare(prepareArgs)
+        )
+        this.assertStableReadyGraph(graphEpoch)
+        if (!isStructuredChatCliForkSourceCurrent(sourceId, worktreeId) ||
+          !this.mobileSessionTabsByWorktree.get(worktreeId)?.tabs.some((tab) =>
+            tab.type === 'agent-session' && tab.sessionId === sourceId
+          )) {
+          throw new Error('chat_fork_source_unavailable')
+        }
+        if (afterDesktopTabId && !this.mobileSessionTabsByWorktree.get(worktreeId)?.tabs.some(
+          (tab) => tab.id === afterDesktopTabId ||
+            (tab.type === 'terminal' && tab.parentTabId === afterDesktopTabId)
+        )) {
+          throw new Error('chat_fork_anchor_changed')
+        }
+        if (opts.signal?.aborted) {
+          throw new Error('client_disconnected')
+        }
+        const sourceAgent = prepared.cliForkSource?.agent
+        if (!sourceAgent || !isTuiAgent(sourceAgent)) {
+          throw new Error('chat_fork_source_unavailable')
+        }
+        const settings = this.store.getSettings()
+        const launchRuntime = this.resolveAgentLaunchRuntime(workspace, sourceAgent)
+        const startup = applyClaudeTerminalImageViewerEnv(buildMobileTerminalChatFork({
+          prepared, settings, runtime: launchRuntime
+        }), opts.terminalImageViewerSupported)
+        const win = this.getAvailableAuthoritativeWindow()
+        const snapshot = this.mobileSessionTabsByWorktree.get(worktreeId)
+        const session = this.getWorkspaceSessionForWorktree(worktreeId)
+        const groups = snapshot?.tabGroups ?? session?.tabGroups?.[worktreeId]
+        const targetGroupId = resolveMobileChatForkTargetGroup({
+          groups, afterDesktopTabId, explicitGroupId: opts.targetGroupId,
+          activeGroupId: session?.activeGroupIdByWorktree?.[worktreeId] ?? snapshot?.activeGroupId
+        })
+        return { startup, launchRuntime, win, targetGroupId }
+      } catch (error) {
+        const code = error instanceof Error ? error.message : ''
+        if (code === 'chat_fork_source_unavailable' || code === 'chat_fork_runtime_incompatible' ||
+          code === 'chat_fork_anchor_changed' || code === PROJECT_RUNTIME_REPAIR_REQUIRED_CODE ||
+          code === 'runtime_unavailable' || code === 'client_disconnected') {
+          throw error
+        }
+        console.warn('[mobile-chat-fork] preparation failed:', error)
+        throw new Error('chat_fork_source_unavailable')
+      }
+    })()
+    const { startup, launchRuntime, win, targetGroupId } = preflight
     const clientIdentity = opts.clientNavigationId ?? 'local'
     const seed = `${clientIdentity}\0${worktreeId}\0${mutationId}`
-    const win = this.getAvailableAuthoritativeWindow()
-    const snapshot = this.mobileSessionTabsByWorktree.get(worktreeId)
-    const session = this.getWorkspaceSessionForWorktree(worktreeId)
-    const groups = snapshot?.tabGroups ?? session?.tabGroups?.[worktreeId]
-    const targetGroupId = resolveMobileChatForkTargetGroup({
-      groups, afterDesktopTabId, explicitGroupId: opts.targetGroupId,
-      activeGroupId: session?.activeGroupIdByWorktree?.[worktreeId] ?? snapshot?.activeGroupId
-    })
     const releaseThrottle = win && !win.webContents.isDestroyed?.()
       ? rendererPublicationThrottle.acquire(win.webContents) : () => {}
     try {

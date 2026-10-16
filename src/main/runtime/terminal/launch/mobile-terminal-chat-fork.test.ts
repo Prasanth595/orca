@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import { buildMobileTerminalChatFork } from './mobile-terminal-chat-fork'
-
+import { prepareStructuredChatCliFork } from '../../../ai-vault/structured-chat-cli-fork'
+vi.mock('../../../ai-vault/structured-chat-cli-fork', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../../ai-vault/structured-chat-cli-fork')>(),
+  prepareStructuredChatCliFork: vi.fn()
+}))
 const cwd = process.platform === 'win32' ? 'C:\\repo' : '/tmp/repo'
 const filePath = process.platform === 'win32' ? 'C:\\sessions\\chat.jsonl' : '/tmp/chat.jsonl'
-const runtime = {
-  platform: process.platform,
-  pty: { shellOverride: undefined, terminalWindowsWslDistro: null }
-}
+const runtime = { platform: process.platform, pty: { shellOverride: undefined, terminalWindowsWslDistro: null } }
 
 describe('native chat fork launch recipe', () => {
   it('keeps Manual empty args, custom command and environment in an independent fork', () => {
@@ -53,7 +54,7 @@ describe('native chat fork launch recipe', () => {
   })
 })
 
-it('places one owned PTY after the phone anchor in its group, ahead of later tabs', async () => {
+it('places one owned PTY and refuses an unsaved chat before another spawn', async () => {
   const { OrcaRuntimeService } = await import('../../orca-runtime-test-mocks.spec')
   await import('../../orca-runtime-test-lifecycle.spec')
   const { store, TEST_WORKTREE_ID } = await import('../../orca-runtime-test-fixtures.spec')
@@ -65,8 +66,7 @@ it('places one owned PTY after the phone anchor in its group, ahead of later tab
     getForegroundProcess: async () => null })
   const tabs = ['anchor', 'later', 'last', 'desktop-active'].map((id) => ({
     type: 'agent-session' as const, id, sessionId: id, agent: 'claude' as const,
-    title: id, isActive: id === 'anchor'
-  }))
+    title: id, isActive: id === 'anchor' }))
   runtime.syncWindowGraph(0, { tabs: [], leaves: [], mobileSessionTabs: [{
     worktree: TEST_WORKTREE_ID, publicationEpoch: 'headless:fork-placement', snapshotVersion: 1,
     activeGroupId: 'desktop-group', activeTabId: 'anchor', activeTabType: 'agent-session', tabs,
@@ -76,10 +76,9 @@ it('places one owned PTY after the phone anchor in its group, ahead of later tab
     ]
   }] })
   const targetGroupId = resolveMobileChatForkTargetGroup({
-    groups: [
-      { id: 'phone-group', tabOrder: ['anchor', 'later', 'last'] },
-      { id: 'desktop-group', tabOrder: ['desktop-active'] }
-    ], afterDesktopTabId: 'anchor', activeGroupId: 'desktop-group'
+    groups: [{ id: 'phone-group', tabOrder: ['anchor', 'later', 'last'] },
+      { id: 'desktop-group', tabOrder: ['desktop-active'] }],
+    afterDesktopTabId: 'anchor', activeGroupId: 'desktop-group'
   })
   expect(targetGroupId).toBe('phone-group')
 
@@ -94,12 +93,18 @@ it('places one owned PTY after the phone anchor in its group, ahead of later tab
     type: 'createTerminalTab', tabId: created.tab.parentTabId,
     groupId: 'phone-group', afterTabId: 'anchor'
   }), undefined)
-  expect(spawn).toHaveBeenCalledOnce()
   expect(spawn.mock.calls[0]?.[0]).not.toHaveProperty('afterTabId')
   expect(listed.tabs.map((tab) => tab.type === 'terminal' ? tab.parentTabId : tab.id)).toEqual([
-    'anchor', created.tab.parentTabId, 'later', 'last', 'desktop-active'
-  ])
+    'anchor', created.tab.parentTabId, 'later', 'last', 'desktop-active' ])
   expect(listed.tabGroups?.map((group) => group.tabOrder)).toEqual([
-    ['anchor', created.tab.parentTabId, 'later', 'last'], ['desktop-active']
-  ])
+    ['anchor', created.tab.parentTabId, 'later', 'last'], ['desktop-active'] ])
+  vi.spyOn(runtime, 'ensureStructuredAgentSessionHost').mockResolvedValueOnce(undefined)
+  vi.mocked(prepareStructuredChatCliFork).mockRejectedValueOnce(new Error('This chat has no saved conversation to copy.'))
+  await expect(runtime['createMobileChatForkTerminal']({
+    workspace: { id: TEST_WORKTREE_ID, path: cwd, connectionId: null, repo: null, folderWorkspace: null },
+    worktreeId: TEST_WORKTREE_ID,
+    opts: { sourceChatFork: { sessionId: 'unsaved-chat' }, clientMutationId: 'next-create' },
+    graphEpoch: 0
+  })).rejects.toThrow('chat_fork_source_unavailable')
+  expect(spawn).toHaveBeenCalledOnce()
 })

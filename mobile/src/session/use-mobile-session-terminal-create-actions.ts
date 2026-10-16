@@ -68,8 +68,9 @@ export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttach
       errorToast?: string
       sourceChatFork?: { sessionId: string; agent: string }
     }
-  ): Promise<CreateOutcome> {
+  ): Promise<CreateOutcome | undefined> {
     const sourceFork = options?.sourceChatFork
+    const sourceOutcome = (value: CreateOutcome): CreateOutcome | undefined => sourceFork ? value : undefined
     const agentName = sourceFork ? formatAgentTypeLabel(sourceFork.agent) : ''
     const { isRouteCurrent, isCurrent } = captureCreateOwner(sourceFork?.sessionId)
     const reportFork = (message: string): void => {
@@ -86,13 +87,13 @@ export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttach
       if (sourceFork) {
         reportFork(`Open the ${agentName} chat on a connected, updated host and try again.`)
       }
-      return 'unavailable'
+      return sourceOutcome('unavailable')
     }
     if (creatingTerminalRef.current) {
       if (sourceFork) {
         reportFork(`Another terminal is opening. Wait, then retry the ${agentName} chat.`)
       }
-      return 'busy'
+      return sourceOutcome('busy')
     }
     // Why: idempotency key so a transport retry (reconnect replay) resolves to the same terminal, not a duplicate; kept compact (no worktree id) for the schema length cap.
     const clientMutationId = `mobile-create:${Date.now().toString(36)}-${Math.random()
@@ -137,7 +138,7 @@ export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttach
           setCreateError
         }))
       ) {
-        return 'accepted'
+        return sourceOutcome('accepted')
       }
       // COMPAT(agent.launch.v2): hosts before v1.4.206 keep the paths below; remove once none remain.
       // Bare structured-provider launches follow host createSupport; prompted launches keep their startup semantics.
@@ -155,14 +156,14 @@ export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttach
             reply
           )
           void fetchSessionTabs()
-          return 'accepted'
+          return sourceOutcome('accepted')
         }
         if (structured.kind === 'unknown') {
           // Never create a legacy sibling when the host may already have committed.
           setCreateError(structured.message)
           triggerError()
           showToast(structured.message, 1800)
-          return 'reported-failure'
+          return sourceOutcome('reported-failure')
         }
       }
       const afterTabId = activeSessionTabId ?? undefined
@@ -173,21 +174,18 @@ export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttach
         ...(sourceFork ? { sourceChatFork: { sessionId: sourceFork.sessionId } } : {})
       })
       if (!isCurrent()) {
-        return 'accepted'
+        return sourceOutcome('accepted')
       }
-      const forkReply = sourceFork
-        ? classifyRpcReply(sessionTabCreateTerminal.operation, response)
-        : null
+      const forkReply = sourceFork ? classifyRpcReply(sessionTabCreateTerminal.operation, response) : null
       if (forkReply?.kind === 'outer-refused') {
         reportFork(mobileChatForkRefusalMessage(agentName, forkReply.error.code))
-        return 'reported-failure'
+        return sourceOutcome('reported-failure')
       }
       if (forkReply?.kind === 'incompatible') {
         reportFork(`${agentName} may have opened. Reconnect and check open tabs on the host before retrying.`)
-        return 'reported-failure'
+        return sourceOutcome('reported-failure')
       }
-      // Why interpret here rather than branching: a refused create throws the host's message,
-      // which the catch below reports exactly as the old `else` branch did.
+      // A refused ordinary create throws the host's message into the existing catch.
       // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Preserve the established response shape at this boundary.
       const created = sessionTabCreateTerminal.interpret(response) as Extract<
         MobileSessionTab,
@@ -298,14 +296,14 @@ export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttach
           void fetchSessionTabs()
         }
       }, 500)
-      return 'created'
+      return sourceOutcome('created')
     } catch (error) {
       if (sourceFork) {
         reportFork(mobileChatForkRequestFailureMessage(agentName, error))
-        return 'reported-failure'
+        return sourceOutcome('reported-failure')
       }
       reportCreateFailure(error instanceof Error ? error.message : '')
-      return 'reported-failure'
+      return sourceOutcome('reported-failure')
     } finally {
       if (isRouteCurrent()) {
         pendingSelectionRef.current = withoutUnansweredLaunch(

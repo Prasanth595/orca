@@ -8,6 +8,8 @@ import { markRpcDeliveryUnknown } from '../transport/rpc-delivery-ambiguity'
 import { useMobileSessionTerminalCreateActions } from './use-mobile-session-terminal-create-actions'
 import { SESSION_TABS_SPLIT_GROUP_PLACEMENT_RUNTIME_CAPABILITY } from '../../../src/shared/protocol-version'
 import { SESSION_TABS_CHAT_FORK_CLI_RUNTIME_CAPABILITY } from '../../../src/shared/session-tabs-runtime-capabilities'
+import { PROJECT_RUNTIME_REPAIR_REQUIRED_CODE } from '../../../src/shared/project-runtime-repair-message'
+import { mobileChatForkRefusalMessage } from './mobile-chat-fork-create-feedback'
 import type { MobileSessionTab } from './mobile-session-route-types'
 
 type PlacementTab = { id: string; parentTabId?: string }
@@ -337,6 +339,11 @@ describe('mobile + Codex tab creation routing', () => {
 })
 
 describe('phone chat CLI fork creation owner', () => {
+  it('gives repair guidance for known refusals and preserves uncertain advice', () => {
+    expect(mobileChatForkRefusalMessage('Claude', PROJECT_RUNTIME_REPAIR_REQUIRED_CODE)).toContain('Project Runtime')
+    expect(mobileChatForkRefusalMessage('Claude', 'chat_fork_source_unavailable')).toContain('saved conversation')
+    expect(mobileChatForkRefusalMessage('Claude', 'runtime_error')).toContain('check open tabs')
+  })
   let renderer: ReactTestRenderer | undefined
   afterEach(() => renderer?.unmount())
 
