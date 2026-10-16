@@ -63,10 +63,12 @@ function planRows(args: {
   local?: Repo
   paired?: Repo
   groups?: ProjectGroup[]
+  worktrees?: Worktree[]
+  placeholderRepoIds?: Set<string>
 }) {
   const local = args.local ?? localRepo
   const paired = args.paired ?? pairedRepo
-  const worktrees = [localWorktree, pairedWorktree]
+  const worktrees = args.worktrees ?? [localWorktree, pairedWorktree]
   const setups: ProjectHostSetup[] = [local, paired].map((entry) => ({
     id: entry.id,
     projectId: project.id,
@@ -96,7 +98,7 @@ function planRows(args: {
     false,
     undefined,
     args.groups ?? [pairedGroup],
-    new Set(),
+    args.placeholderRepoIds ?? new Set(),
     new Map(),
     new Map(),
     [],
@@ -160,5 +162,28 @@ describe('a project grouped on one of its hosts', () => {
     expect(headerKeys({ repoOrder: THIS_ORCA_ORDER, groups: [] })).toEqual([
       'project:github:stablyai/orca@0'
     ])
+  })
+
+  it("stays in the group while the grouped host's only workspace is pinned", () => {
+    const pinned = { ...pairedWorktree, isPinned: true }
+
+    expect(
+      headerKeys({ repoOrder: THIS_ORCA_ORDER, worktrees: [localWorktree, pinned] }).filter(
+        (key) => !key.startsWith('pinned')
+      )
+    ).toEqual(['project-group:group-a@0', 'project:github:stablyai/orca@1'])
+  })
+
+  it('places the project the same way with or without an empty-project placeholder', () => {
+    // The mounted sidebar passes empty repos as placeholders; Cmd+1–9 ordering passes none.
+    const rendered = headerKeys({
+      repoOrder: THIS_ORCA_ORDER,
+      worktrees: [localWorktree],
+      placeholderRepoIds: new Set([pairedRepo.id])
+    })
+    const shortcutOrder = headerKeys({ repoOrder: THIS_ORCA_ORDER, worktrees: [localWorktree] })
+
+    expect(rendered).toEqual(['project-group:group-a@0', 'project:github:stablyai/orca@1'])
+    expect(shortcutOrder).toEqual(rendered)
   })
 })

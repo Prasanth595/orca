@@ -12,11 +12,33 @@ import { appendOrderedGroups } from './group-sections'
 import type { SectionAppendContext } from './group-sections'
 import type { OrderedGroupEntry, WorktreeGroupEntry } from './worktree-group-entry'
 import {
+  getProjectGroupingForRepo,
+  type ProjectGroupingIndex
+} from '../../../../../../shared/project-section-grouping'
+import {
   compareRecentRank,
   createRecentRankLookup,
   withRepoSectionDisplayLabels
 } from '../../../../../../shared/project-section-order'
 import { buildFolderWorkspaceRow } from './row-builders'
+
+/** Every catalog row of each project section, including rows whose workspaces are pinned or absent. */
+export function getProjectSectionMemberRepoIds(
+  repoMap: ReadonlyMap<string, Repo>,
+  projectIndex: ProjectGroupingIndex | null
+): Map<string, string[]> {
+  const members = new Map<string, string[]>()
+  for (const repoId of repoMap.keys()) {
+    const key = getProjectGroupingForRepo(repoId, repoMap, projectIndex).key
+    const list = members.get(key)
+    if (list) {
+      list.push(repoId)
+    } else {
+      members.set(key, [repoId])
+    }
+  }
+  return members
+}
 
 /**
  * The member row that places a section in a Project Group. A project set up on several hosts is
@@ -24,7 +46,8 @@ import { buildFolderWorkspaceRow } from './row-builders'
  * over an ungrouped anchor; otherwise every other Orca draws the moved project outside its group.
  */
 export function getProjectSectionGroupRepo(
-  section: Pick<WorktreeGroupEntry, 'repo' | 'repoIds'>,
+  section: Pick<WorktreeGroupEntry, 'repo'>,
+  memberRepoIds: readonly string[],
   repoMap: ReadonlyMap<string, Repo>,
   repoOrder: ReadonlyMap<string, number> | undefined,
   knownGroupIds: { has: (groupId: string) => boolean }
@@ -37,7 +60,7 @@ export function getProjectSectionGroupRepo(
   }
   let grouped: Repo | undefined
   let groupedRank = Number.POSITIVE_INFINITY
-  for (const repoId of section.repoIds) {
+  for (const repoId of memberRepoIds) {
     const repo = repoMap.get(repoId)
     const rank = repoOrder?.get(repoId) ?? Number.POSITIVE_INFINITY
     if (isGrouped(repo) && (!grouped || rank < groupedRank)) {
@@ -56,6 +79,7 @@ export function appendProjectGroupSections(
     folderWorkspaces: readonly RenderableFolderWorkspace[]
     projectOrderBy: ProjectOrderBy
     repoOrder: Map<string, number> | undefined
+    sectionMemberRepoIds: ReadonlyMap<string, readonly string[]>
   }
 ): void {
   const { orderedGroups, projectGroups, folderWorkspaces, projectOrderBy, repoOrder } = args
@@ -65,7 +89,13 @@ export function appendProjectGroupSections(
   const groupByProjectGroupId = new Map<string | null, OrderedGroupEntry[]>()
   const groupRepoByEntry = new Map<OrderedGroupEntry, Repo | undefined>()
   for (const entry of orderedGroups) {
-    const repo = getProjectSectionGroupRepo(entry[1], ctx.repoMap, repoOrder, projectGroupsById)
+    const repo = getProjectSectionGroupRepo(
+      entry[1],
+      args.sectionMemberRepoIds.get(entry[0]) ?? [],
+      ctx.repoMap,
+      repoOrder,
+      projectGroupsById
+    )
     groupRepoByEntry.set(entry, repo)
     const projectGroupId = repo?.projectGroupId ?? null
     const list = groupByProjectGroupId.get(projectGroupId) ?? []
