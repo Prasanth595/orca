@@ -48,6 +48,8 @@ export const HOST_OPERATION_OWNERSHIP = {
   orcad: 'host',
   orchestration: 'host',
   pairing: 'host',
+  // p4 runs on the host that owns the workspace, like git.
+  perforce: 'host',
   plugins: 'host',
   preflight: 'host',
   project: 'host',
