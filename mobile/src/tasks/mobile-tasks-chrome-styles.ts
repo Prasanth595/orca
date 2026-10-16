@@ -4,10 +4,6 @@ import { colors, radii, spacing, typography } from '../theme/mobile-theme'
 
 export const mobileTasksChromeStyles = createThemedStyles(() =>
   StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: colors.bgBase
-    },
     topChrome: {
       backgroundColor: colors.bgPanel,
       borderBottomWidth: 1,

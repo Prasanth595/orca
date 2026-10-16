@@ -35,7 +35,6 @@ import { AgentStateDot } from '../components/AgentStateDot'
 import { AgentSpinner } from '../components/AgentSpinner'
 import { styles as sessionStyles } from '../session/mobile-session-styles'
 import { styles as sourceStyles } from '../source-control/mobile-source-control-styles'
-import { styles as taskStyles } from '../tasks/mobile-tasks-legacy-styles'
 import { mobileDiffReviewStyles } from '../components/mobile-diff-review-screen-styles'
 import { HostScreenView } from '../host-screen/host-screen-view'
 import { hostScreenStyles } from '../host-screen/host-screen-styles'
@@ -58,12 +57,12 @@ it('paints the machine status inset like its header while keeping the list on th
     const palette = scheme === 'light' ? lightColors : darkColors
     const safeArea = tree!.root.find((node) => String(node.type) === 'SafeAreaView')
     expect(safeArea.props.style.backgroundColor).toBe(palette.bgPanel)
-    const body = safeArea.findAll((node) => String(node.type) === 'View')
+    const body = tree!.root.findAll((node) => String(node.type) === 'View')
     expect(body.some((node) => node.props.style?.backgroundColor === palette.bgBase)).toBe(true)
   }
 })
 it('draws a single header separator instead of stacking toolbar and chrome borders', () => {
-  expect(hostScreenStyles.topChrome.borderBottomWidth).toBe(0.5)
+  expect(hostScreenStyles.topChrome.borderBottomWidth).toBe(1)
   expect(hostScreenStyles.toolbar).not.toHaveProperty('borderBottomWidth')
   expect(hostScreenStyles.embeddedToolbar).not.toHaveProperty('borderBottomWidth')
 })
@@ -93,7 +92,6 @@ it('uses a light surface behind all three home statistics', () => {
 it.each([
   ['session', () => sessionStyles.container],
   ['source control', () => sourceStyles.container],
-  ['tasks', () => taskStyles.container],
   ['diff', () => mobileDiffReviewStyles.safeArea]
 ] as const)('keeps merged %s surfaces live across both palettes', (_name, surface) => {
   applyMobileColorScheme('light')

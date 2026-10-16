@@ -4,17 +4,13 @@ import { colors, radii, spacing, typography } from '../theme/mobile-theme'
 
 export const hostScreenPrimaryStyles = createThemedStyles(() =>
   StyleSheet.create({
-    safeArea: {
-      flex: 1,
-      backgroundColor: colors.bgPanel
-    },
     container: {
       flex: 1,
       backgroundColor: colors.bgBase
     },
     topChrome: {
       backgroundColor: colors.bgPanel,
-      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomWidth: 1,
       borderBottomColor: colors.borderSubtle
     },
     statusBar: {
