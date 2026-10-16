@@ -76,7 +76,9 @@ describe('manual PR refresh whose outcome main also broadcasts', () => {
     ['drops the PR when a newer lookup found no review', null, undefined],
     [
       'keeps the PR when a newer lookup found the same one',
-      hostedReviewInfoFromGitHubPRInfo(makePR({ number: 6 })),
+      hostedReviewInfoFromGitHubPRInfo(
+        makePR({ number: 6, title: 'Newer review title', checksStatus: 'success' })
+      ),
       6
     ]
   ])('%s between the broadcast and the reply', async (_name, newerReview, expectedPR) => {
@@ -116,7 +118,7 @@ describe('manual PR refresh whose outcome main also broadcasts', () => {
     await store.getState().fetchPRForBranch(repoPath, branch, { force: true, repoId, worktreeId })
 
     const hostedReviews = Object.values(store.getState().hostedReviewCache)
-    expect(hostedReviews.map((entry) => entry.data?.number ?? null)).toEqual([expectedPR ?? null])
+    expect(hostedReviews).toMatchObject([{ data: newerReview, fetchedAt: 2_000 }])
     expect(store.getState().prCache[cacheKey]?.data?.number).toBe(expectedPR)
   })
 })
