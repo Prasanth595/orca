@@ -285,8 +285,12 @@ export function MobileNativeChatView({
 
   return (
     <View style={[styles.root, { paddingBottom: bottomPad }]}>
-      {messages.length > 0 && initialPositionReady ? (
-        <MobileNativeChatRefreshStatus status={status} error={error} />
+      {messages.length > 0 ? (
+        <MobileNativeChatRefreshStatus
+          status={status}
+          error={error}
+          hidden={!initialPositionReady}
+        />
       ) : null}
       {status === 'loading' && messages.length === 0 ? (
         <MobileNativeChatLoading />

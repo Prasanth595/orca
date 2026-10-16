@@ -3,11 +3,12 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'rea
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { NativeChatMessage } from '../../../src/shared/native-chat-types'
 import { MobileNativeChatView } from './MobileNativeChatView'
+import { MobileNativeChatRefreshStatus } from './MobileNativeChatRefreshStatus'
 
 const scrollToEnd = vi.hoisted(() => vi.fn())
 const scrollToOffset = vi.hoisted(() => vi.fn())
 const platform = vi.hoisted(() => ({ OS: 'ios' }))
-const nativeMeasurement = vi.hoisted(() => ({ onMount: false }))
+const nativeMeasurement = vi.hoisted(() => ({ onMount: false, inLayout: false }))
 
 vi.mock('react-native', async () => {
   const React = await import('react')
@@ -21,10 +22,20 @@ vi.mock('react-native', async () => {
       }
     >((props, ref) => {
       const mountedProps = React.useRef(props)
-      React.useEffect(() => {
+      const measure = () => {
         if (nativeMeasurement.onMount) {
           mountedProps.current.onLayout?.({ nativeEvent: { layout: { height: 500 } } })
           mountedProps.current.onContentSizeChange?.(320, 400)
+        }
+      }
+      React.useLayoutEffect(() => {
+        if (nativeMeasurement.inLayout) {
+          measure()
+        }
+      }, [])
+      React.useEffect(() => {
+        if (!nativeMeasurement.inLayout) {
+          measure()
         }
       }, [])
       React.useImperativeHandle(ref, () => ({ scrollToEnd, scrollToOffset }), [])
@@ -112,6 +123,7 @@ afterEach(() => {
   act(() => renderer?.unmount())
   renderer = undefined
   nativeMeasurement.onMount = false
+  nativeMeasurement.inLayout = false
   vi.useRealTimers()
   vi.unstubAllGlobals()
 })
@@ -268,4 +280,32 @@ it("opens switched chats at the newest message with each tab's disclosure state"
   await settle()
   expect(label('Collapse')).toHaveLength(1)
   expect(jumpControls()).toHaveLength(0)
+})
+
+it('reveals cached A → B → A when native layout arrives before passive effect cleanup', async () => {
+  nativeMeasurement.onMount = true
+  nativeMeasurement.inLayout = true
+  for (const scope of ['tab-a', 'tab-b', 'tab-a']) {
+    act(() => {
+      const next = createElement(MobileNativeChatView, { ...view(scope).props, status: 'loading' })
+      if (renderer) {
+        renderer.update(next)
+      } else {
+        renderer = create(next)
+      }
+    })
+    await settle()
+    expect(list().props.style).toBeUndefined()
+  }
+})
+it('reserves the refresh row before revealing cached content', async () => {
+  nativeMeasurement.onMount = true
+  act(() => {
+    renderer = create(
+      createElement(MobileNativeChatView, { ...view('cached').props, status: 'loading' })
+    )
+  })
+  expect(renderer!.root.findAllByType(MobileNativeChatRefreshStatus)).toHaveLength(1)
+  await settle()
+  expect(renderer!.root.findAllByType(MobileNativeChatRefreshStatus)).toHaveLength(1)
 })

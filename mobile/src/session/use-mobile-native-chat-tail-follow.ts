@@ -316,9 +316,18 @@ export function useMobileNativeChatTailFollow<TItem>(args: {
     [current]
   )
 
+  const enteredList = useRef<{ scope: string | null; hasItems: boolean }>({
+    scope: null,
+    hasItems: false
+  })
   useLayoutEffect(() => {
-    pinToTail()
-  }, [args.scopeKey, pinToTail])
+    const previous = enteredList.current
+    enteredList.current = { scope: args.scopeKey, hasItems }
+    // Revealing a measured bottom must not replace it with another estimated-end scroll.
+    if (previous.scope !== args.scopeKey || (!previous.hasItems && hasItems)) {
+      pinToTail()
+    }
+  }, [args.scopeKey, hasItems, pinToTail])
   useEffect(() => clearUserScrollSettle, [clearUserScrollSettle])
 
   return {

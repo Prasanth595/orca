@@ -93,3 +93,22 @@ it('discards an old tab pin and pauses pending follow when the reader opens Proc
   scroll.restoreReadingOffset(180)
   expect(nativeList.scrollToOffset).toHaveBeenLastCalledWith({ animated: false, offset: 180 })
 })
+
+it('does not send another estimated-end scroll when the positioned cache becomes visible', () => {
+  render('a')
+  act(() => {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the handler only reads the viewport geometry from this native event.
+    scroll.pinToTail({
+      nativeEvent: { layout: { x: 0, y: 0, width: 400, height: 800 } }
+    } as LayoutChangeEvent)
+    scroll.pinToTailAfterContentResize(400, 400)
+  })
+  nativeList.scrollToEnd.mockClear()
+  nativeList.scrollToOffset.mockClear()
+  tick()
+  tick()
+  expect(scroll.initialPositionReady).toBe(true)
+  tick()
+  expect(nativeList.scrollToEnd).not.toHaveBeenCalled()
+  expect(nativeList.scrollToOffset).not.toHaveBeenCalled()
+})

@@ -80,7 +80,15 @@ export function useMobileChatInitialPosition(scope: string | undefined) {
       })
     })
   }, [clear, ready, scope, currentVisit])
-  useEffect(() => clear, [clear, scope])
+  useEffect(
+    () => () => {
+      // Native layout for the next visit can arrive before this visit's passive cleanup.
+      if (visit.current === currentVisit) {
+        clear()
+      }
+    },
+    [clear, scope, currentVisit]
+  )
   return {
     initialPositionReady: ready,
     recordInitialViewport: useCallback(
