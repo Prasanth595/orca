@@ -9,6 +9,7 @@ import { MOBILE_RPC_METHOD_ALLOWLIST } from '../../runtime-rpc/runtime-rpc-mobil
 const methods = eraseRpcMethods(ALL_RPC_METHODS)
 const subscribe = methods.find((method) => method.name === 'layout.subscribe')
 const unsubscribeMethod = methods.find((method) => method.name === 'layout.unsubscribe')
+const getRemoteSnapshots = methods.find((method) => method.name === 'layout.getRemoteSnapshots')
 
 function harness() {
   const cleanups = new Map<string, () => void>()
@@ -22,6 +23,7 @@ function harness() {
           { key: 'a', layout: { worktreeId: 'a' } },
           { key: 'b', layout: { worktreeId: 'b' } }
         ],
+        seq: 4,
         unsubscribe
       }
     },
@@ -62,14 +64,15 @@ describe('layout.subscribe', () => {
       {
         type: 'snapshot',
         subscriptionId: expect.any(String),
-        workspaces: [{ key: 'b', layout: { worktreeId: 'b' } }]
+        workspaces: [{ key: 'b', layout: { worktreeId: 'b' } }],
+        seq: 4
       }
     ])
-    publish({ type: 'removed', key: 'a' })
-    publish({ type: 'removed', key: 'b' })
+    publish({ type: 'removed', key: 'a', seq: 5 })
+    publish({ type: 'removed', key: 'b', seq: 6 })
     runtime.cleanupSubscription(cleanupKey!)
     await done
-    expect(emitted.slice(1)).toEqual([{ type: 'removed', key: 'b' }, { type: 'end' }])
+    expect(emitted.slice(1)).toEqual([{ type: 'removed', key: 'b', seq: 6 }, { type: 'end' }])
     expect(unsubscribe).toHaveBeenCalledTimes(1)
   })
 
@@ -110,5 +113,27 @@ describe('layout.subscribe', () => {
     await done
     expect(unsubscribe).toHaveBeenCalledTimes(1)
     expect(emitted.at(-1)).toEqual({ type: 'end' })
+  })
+})
+
+describe('layout.getRemoteSnapshots', () => {
+  it('is served but neither advertised nor open to phones (inert)', () => {
+    expect(getRemoteSnapshots?.permission).toBe('workspace')
+    expect(MOBILE_RPC_METHOD_ALLOWLIST.has('layout.getRemoteSnapshots')).toBe(false)
+  })
+
+  it('returns the stored snapshot of each known server', async () => {
+    const snapshots = {
+      one: { workspaces: { a: { worktree: 'a', tabs: [] } } },
+      two: { workspaces: {} }
+    }
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the handler calls only getRemoteLayoutSnapshots.
+    const runtime = { getRemoteLayoutSnapshots: () => snapshots } as unknown as OrcaRuntimeService
+    if (!getRemoteSnapshots || isStreamingMethod(getRemoteSnapshots)) {
+      throw new Error('layout.getRemoteSnapshots is not a request method')
+    }
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the handler reads only runtime from its context.
+    const result = await getRemoteSnapshots.handler(undefined, { runtime } as RpcContext)
+    expect(result).toEqual({ snapshots })
   })
 })

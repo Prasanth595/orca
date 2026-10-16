@@ -1,5 +1,6 @@
 // Resolve the host launch identity, then commit an at-rest create or the compatible acquired path.
 
+import { AGENT_CHAT_PERMISSION_MODE_OPTION_ID } from '../../../../shared/agent-chat-permission-mode'
 import { refuse, AgentSessionRefusalError } from '../../../../shared/agent-session-wire-refusals'
 import { computeAgentSessionPayloadFingerprint } from '../../../../shared/agent-session-mutation-envelope'
 import type {
@@ -24,6 +25,8 @@ import {
   resolveUncommittedStructuredCreate,
   type StructuredCreateRefused
 } from './structured-agent-session-precommit-refusal'
+import { ORCA_LAYOUT_OWNER_IS_MAIN } from '../../../../shared/layout-owner-switch'
+import { structuredAgentSessionClosedBeforeCreate } from './structured-agent-session-close-before-create'
 
 export type PreparedStructuredAgentSessionCreate = {
   host: StructuredAgentSessionHost
@@ -129,8 +132,13 @@ export async function prepareStructuredAgentSessionCreateForWorktree(args: {
     attachParams: {
       ...resolvedAttach,
       // The ledger covers explicit overrides, never defaults that settings can change on replay.
+      // Explicit picks replace the saved selection; the permission default is the chat's own.
       ...(args.options
-        ? { options: atRest ? { ...resolved.options, ...args.options } : args.options }
+        ? {
+            options: atRest
+              ? { ...resolved.options, ...args.options }
+              : { ...seededPermissionMode(resolved.options), ...args.options }
+          }
         : {}),
       ...(args.tabId ? { surfaceTabId: args.tabId } : {}),
       provider: resolved.provider,
@@ -162,16 +170,20 @@ export async function commitStructuredAgentSessionCreate(args: {
         : {}),
       ...(tab
         ? {
+            // A chat closed while it was being made gets no tab to show before main closes it.
             publishTab: () =>
-              args.runtime.publishStructuredAgentSessionTab({
-                workspaceId: tab.workspaceId,
-                sessionId: prepared.attachParams.envelope.sessionId,
-                agent: tab.agent,
-                activate: args.activate,
-                ...(prepared.attachParams.surfaceTabId
-                  ? { tabId: prepared.attachParams.surfaceTabId }
-                  : {})
-              })
+              ORCA_LAYOUT_OWNER_IS_MAIN &&
+              structuredAgentSessionClosedBeforeCreate(prepared.attachParams.envelope.sessionId)
+                ? Promise.resolve()
+                : args.runtime.publishStructuredAgentSessionTab({
+                    workspaceId: tab.workspaceId,
+                    sessionId: prepared.attachParams.envelope.sessionId,
+                    agent: tab.agent,
+                    activate: args.activate,
+                    ...(prepared.attachParams.surfaceTabId
+                      ? { tabId: prepared.attachParams.surfaceTabId }
+                      : {})
+                  })
           }
         : {})
     })
@@ -182,6 +194,13 @@ export async function commitStructuredAgentSessionCreate(args: {
       })
     : await prepared.host.attach(args.caller, prepared.attachParams)
   if (!result.ok || !prepared.tab) {
+    return result
+  }
+  // A chat closed while it was being made gets no tab to show before main closes it.
+  if (
+    ORCA_LAYOUT_OWNER_IS_MAIN &&
+    structuredAgentSessionClosedBeforeCreate(result.value.sessionId)
+  ) {
     return result
   }
   const surfaceTabId = prepared.attachParams.surfaceTabId
@@ -237,4 +256,11 @@ export async function createStructuredAgentSessionForWorktree(args: {
     prepared,
     activate: args.activate
   })
+}
+
+function seededPermissionMode(
+  options: Readonly<Record<string, string>> | undefined
+): Record<string, string> {
+  const mode = options?.[AGENT_CHAT_PERMISSION_MODE_OPTION_ID]
+  return mode ? { [AGENT_CHAT_PERMISSION_MODE_OPTION_ID]: mode } : {}
 }

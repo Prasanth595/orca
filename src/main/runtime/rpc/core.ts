@@ -22,6 +22,15 @@ import type { OrchestrationSessionCaller } from '../orchestration/orchestration-
 import type { RpcCallerIdentity } from './rpc-caller-identity'
 import type { RpcBinarySender } from './rpc-binary-sender'
 import type { RpcMethodPermission } from './rpc-method-permission'
+import type {
+  RegisterDeviceKeyParams,
+  RegisterDeviceKeyResult
+} from '../../../shared/device-key-registration-contract'
+
+// Why: bound to the authenticated socket by the transport, so a caller can only re-key itself.
+export type DeviceSelfRpcContext = {
+  registerDeviceKey(params: RegisterDeviceKeyParams): RegisterDeviceKeyResult
+}
 
 export type PairingRpcContext = {
   getEndpoints(params: PairingGetEndpointsParams): Promise<PairingGetEndpointsResult>
@@ -90,6 +99,8 @@ export type RpcContext = {
   clientId?: string
   // Why: navigation is keyed by revocable device identity, never by the bearer credential or transient socket id.
   pairedDeviceId?: string
+  // Why: a delegated phone's desktop device; its workspaces are that desktop's, not this host's.
+  pairedDeviceParentId?: string
   // Why: host-assigned from the transport (rpc-caller-identity.ts); absent when the transport could not name its caller.
   caller?: RpcCallerIdentity
   // Why: lets handlers gate mobile payload truncation to phones only; undefined for in-process callers → treat as full-class (no clip).
@@ -125,6 +136,7 @@ export type RpcContext = {
   // Why: federation pins the authenticated saved-environment caller without exposing its token to handlers or storage.
   authenticatedCallerFingerprint?: string
   pairing?: PairingRpcContext
+  deviceSelf?: DeviceSelfRpcContext
   // Why: set only on a desktop that relays; it lists the configured servers it shows.
   mobileRelayHosts?: {
     list(): MobileRelayHostsListResult

@@ -41,7 +41,10 @@ function hasJiraStatusChanged(
   return (
     previous.connected !== next.connected ||
     previous.credentialError !== next.credentialError ||
+    previous.credentialErrorReason !== next.credentialErrorReason ||
+    previous.canMoveCredentialKeyToFile !== next.canMoveCredentialKeyToFile ||
     previous.credentialProtection !== next.credentialProtection ||
+    previous.supportsScopedTokens !== next.supportsScopedTokens ||
     previous.activeSiteId !== next.activeSiteId ||
     !shallow(previous.viewer, next.viewer) ||
     getSelectedJiraSiteId(previous) !== getSelectedJiraSiteId(next) ||
@@ -85,12 +88,10 @@ export function createJiraConnectionActions(
         ) {
           return
         }
-        if (get().jiraStatus.connected) {
+        if (get().jiraStatusContextKey !== contextKey || get().jiraStatus.connected) {
           set((state) => jiraStatusUpdate(state, contextKey, { connected: false, viewer: null }))
         } else if (!get().jiraStatusChecked) {
           set({ jiraStatusChecked: true, jiraStatusContextKey: contextKey })
-        } else if (get().jiraStatusContextKey !== contextKey) {
-          set({ jiraStatusContextKey: contextKey })
         }
       }
     },

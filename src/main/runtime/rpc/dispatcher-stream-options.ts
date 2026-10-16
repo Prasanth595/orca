@@ -11,11 +11,13 @@ export type RpcDispatchStreamingOptions = Pick<
   | 'signal'
   | 'clientId'
   | 'pairedDeviceId'
+  | 'pairedDeviceParentId'
   | 'caller'
   | 'clientKind'
   | 'clientCapabilities'
   | 'updateClientCapabilities'
   | 'pairing'
+  | 'deviceSelf'
   | 'mobileRelayHosts'
   | 'delegatedMobileDevices'
   | 'sendBinary'
@@ -44,12 +46,14 @@ export function rpcContextFromTransport(
       : undefined,
     clientId: options?.clientId,
     pairedDeviceId: options?.pairedDeviceId,
+    pairedDeviceParentId: options?.pairedDeviceParentId,
     caller: resolveRpcCallerIdentity(options),
     clientKind: options?.clientKind,
     clientCapabilities: options?.clientCapabilities,
     updateClientCapabilities: options?.updateClientCapabilities,
     authenticatedCallerFingerprint: options?.authenticatedCallerFingerprint,
     pairing: options?.pairing,
+    deviceSelf: options?.deviceSelf,
     mobileRelayHosts: options?.mobileRelayHosts,
     delegatedMobileDevices: options?.delegatedMobileDevices,
     sendBinary: options?.sendBinary,
