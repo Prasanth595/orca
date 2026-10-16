@@ -13,9 +13,17 @@ import {
   prepareTargetCommand,
   syncCommand,
   uninstallTrackingCommand,
-  verifyCommand,
-  type MoveCommandContext
+  verifyCommand
 } from './database-move-commands.js'
+import {
+  cutoverCommand,
+  fenceCommand,
+  finishCommand,
+  restorePasswordCommand,
+  statusCommand,
+  type MoveCutoverContext
+} from './database-move-cutover-commands.js'
+import { CUTOVER_TIMINGS } from './database-move-cutover.js'
 import { describeMoveError, logMoveEvent, MoveRefusal } from './database-move-events.js'
 import { gcsDatabaseTargetPointerStore } from './database-move-pointer-store.js'
 import { googleMetadataAccess } from './google-metadata-access-token.js'
@@ -27,14 +35,20 @@ import { googleMetadataAccess } from './google-metadata-access-token.js'
 const USAGE = `commands:
   install-tracking --side primary|dedicated     uninstall-tracking --side primary|dedicated
   prepare-target                                copy --from primary|dedicated [--restart]
-  sync --from primary|dedicated [--until-empty] verify [--tables a,b]`
+  sync --from primary|dedicated [--until-empty] verify [--tables a,b]
+  fence --side primary|dedicated                restore-password --side primary|dedicated
+  cutover --to dedicated|primary [--dry-run]    status
+  finish --keep primary|dedicated`
 
 // Both sides together; a 13 M-row database verifies in about 11 minutes.
 const DEFAULT_VERIFY_ROWS_PER_SECOND = 40_000
 
 const OPTIONS = {
   side: { type: 'string' },
+  keep: { type: 'string' },
   from: { type: 'string' },
+  to: { type: 'string' },
+  'dry-run': { type: 'boolean' },
   restart: { type: 'boolean' },
   'until-empty': { type: 'boolean' },
   tables: { type: 'string' },
@@ -43,11 +57,14 @@ const OPTIONS = {
   'max-bytes-per-second': { type: 'string' },
   'chunk-rows': { type: 'string' },
   'max-rows-per-second': { type: 'string' },
+  'max-backlog': { type: 'string' },
+  'hot-table-max-rows': { type: 'string' },
+  'lead-ms': { type: 'string' },
+  'pointer-bucket': { type: 'string' },
   'primary-app-secret': { type: 'string' },
   'primary-move-secret': { type: 'string' },
   'dedicated-app-secret': { type: 'string' },
-  'dedicated-move-secret': { type: 'string' },
-  'pointer-bucket': { type: 'string' }
+  'dedicated-move-secret': { type: 'string' }
 } as const
 
 type ParsedFlags = ReturnType<
@@ -97,7 +114,7 @@ export async function runMoveCli(
     const command = positionals[0]
     const google = googleMetadataAccess()
     databases = new MoveDatabases(credentialSources(flags, env), google)
-    const ctx: MoveCommandContext = {
+    const ctx: MoveCutoverContext = {
       databases,
       google,
       pointerStore: async () =>
@@ -106,9 +123,9 @@ export async function runMoveCli(
           google
         })
     }
-    // Only the long-running commands stop cleanly; the rest keep Node's default.
+    // Only the long-running commands stop cleanly (cutover undoes); the rest keep Node's default.
     const stop = { requested: false }
-    if (command === 'sync' || command === 'copy') {
+    if (command === 'sync' || command === 'copy' || command === 'cutover') {
       // `on`, not `once`: a repeated signal must not kill a stop that is still cleaning up.
       process.on('SIGTERM', () => (stop.requested = true))
       process.on('SIGINT', () => (stop.requested = true))
@@ -150,6 +167,32 @@ export async function runMoveCli(
         }))
           ? 0
           : 2
+      case 'fence':
+        await fenceCommand(ctx, side(flags.side, 'side'))
+        return 0
+      case 'restore-password':
+        await restorePasswordCommand(ctx, side(flags.side, 'side'))
+        return 0
+      case 'cutover': {
+        const leadMs = count(flags['lead-ms'], 'lead-ms') ?? CUTOVER_TIMINGS.leadMs
+        // Two 5 s polls must see the window before it opens.
+        if (leadMs < CUTOVER_TIMINGS.leadMs) throw new MoveRefusal('lead_ms_below_contract_minimum')
+        await cutoverCommand(ctx, {
+          to: side(flags.to, 'to'),
+          dryRun: flags['dry-run'] ?? false,
+          maxBacklog: count(flags['max-backlog'], 'max-backlog'),
+          hotTableMaxRows: count(flags['hot-table-max-rows'], 'hot-table-max-rows'),
+          timings: { leadMs },
+          interrupted: () => stop.requested
+        })
+        return 0
+      }
+      case 'finish':
+        await finishCommand(ctx, side(flags.keep, 'keep'))
+        return 0
+      case 'status':
+        await statusCommand(ctx)
+        return 0
       default:
         console.error(USAGE)
         return 2
