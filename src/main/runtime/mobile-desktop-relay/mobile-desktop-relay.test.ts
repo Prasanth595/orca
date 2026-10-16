@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { DELEGATED_MOBILE_DEVICES_RUNTIME_CAPABILITY } from '../../../shared/delegated-mobile-device-contract'
-import { BROWSER_CLIENT_HOST_RUNTIME_CAPABILITY } from '../../../shared/protocol-version'
+import {
+  STRUCTURED_AGENT_SESSION_CLIENT_LAUNCH_MODE_CAPABILITY,
+  BROWSER_CLIENT_HOST_RUNTIME_CAPABILITY
+} from '../../../shared/protocol-version'
 import type { RuntimeRpcResponse } from '../../../shared/runtime-rpc-envelope'
 import { RemoteRuntimeClientError } from '../../../shared/remote-runtime-client-error'
 import type { RemoteRuntimePassthroughCallbacks } from '../../../shared/remote-runtime-passthrough-socket'
@@ -112,6 +115,35 @@ function relayWithPhone(
 }
 
 describe('MobileDesktopRelay', () => {
+  it.each([true, false])(
+    'preserves an explicit launch mode from a capable phone: %s',
+    async (nativeChatDefault) => {
+      sockets.length = 0
+      const { relay, phone, desktop, setCapabilities } = relayWithPhone()
+      desktop.nativeChatDefault = !nativeChatDefault
+      setCapabilities([STRUCTURED_AGENT_SESSION_CLIENT_LAUNCH_MODE_CAPABILITY])
+      const request = { id: 'chosen', method: 'agent.launchReplay' }
+      relay.forward(
+        phone,
+        'env-1',
+        request,
+        JSON.stringify({
+          ...request,
+          deviceToken: 'desktop-token',
+          params: {
+            agent: 'codex',
+            target: { kind: 'existing', worktree: 'id:wt-1' },
+            operationId: 'op',
+            nativeChatDefault
+          }
+        })
+      )
+      await vi.waitFor(() => expect(sockets[0]?.sent.length).toBe(1))
+      expect(JSON.parse(sockets[0]!.sent[0]!).params.nativeChatDefault).toBe(nativeChatDefault)
+      relay.dispose()
+    }
+  )
+
   it("stamps the desktop's chat default onto relayed launches only", async () => {
     sockets.length = 0
     const { relay, phone, desktop } = relayWithPhone()
