@@ -1,5 +1,7 @@
+import { useScopedOpenKeys } from './use-mobile-chat-open-keys'
+import { useMobileNativeChatDisclosureAnchor } from './use-mobile-native-chat-disclosure-anchor'
 import { useMobileTheme } from '../theme/use-mobile-theme'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 import {
   FlatList,
   type NativeScrollEvent,
@@ -110,7 +112,8 @@ export function MobileNativeChatView({
   useMobileTheme()
 
   const insets = useSafeAreaInsets()
-  const [toolsExpanded, setToolsExpanded] = useState(false)
+  const [openProcesses, toggleProcess] = useScopedOpenKeys(sendSurfaceId)
+  const toolsExpanded = openProcesses.has('process')
   // Lift the composer clear of the keyboard, plus the bottom safe-area so it
   // never sits under the home indicator / nav bar (mirrors the terminal dock).
   const bottomPad = keyboardInset > 0 ? keyboardInset + insets.bottom : insets.bottom
@@ -136,6 +139,8 @@ export function MobileNativeChatView({
     showJumpToTail,
     pinToTail,
     pinToTailAfterContentResize,
+    pauseForDisclosure,
+    restoreReadingOffset,
     jumpToTail,
     beginUserScroll,
     endUserDrag,
@@ -164,38 +169,6 @@ export function MobileNativeChatView({
     [onSend, onClearSendError, jumpToTail]
   )
 
-  const loadEarlier = useCallback(() => onLoadEarlier?.(), [onLoadEarlier])
-  const historyRequestedDuringDrag = useRef(false)
-  const onScrollBeginDrag = useCallback(() => {
-    historyRequestedDuringDrag.current = false
-    beginUserScroll()
-  }, [beginUserScroll])
-
-  const onScroll = useCallback(
-    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const { contentOffset } = e.nativeEvent
-      recordScrollMetrics(e.nativeEvent)
-      // Near the top — page in older history. Only the reader's scroll: a pin reports offsets too.
-      if (contentOffset.y < 60 && hasMore && !loadingEarlier && readerIsScrolling()) {
-        historyRequestedDuringDrag.current = true
-        loadEarlier()
-      }
-    },
-    [hasMore, loadingEarlier, loadEarlier, readerIsScrolling, recordScrollMetrics]
-  )
-
-  const onScrollEndDrag = useCallback(
-    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (historyRequestedDuringDrag.current) {
-        recordScrollMetrics(event.nativeEvent)
-      } else {
-        onScroll(event)
-      }
-      endUserDrag(event)
-    },
-    [onScroll, endUserDrag, recordScrollMetrics]
-  )
-
   // Per-turn status rows: one live indicator while the turn runs, then a settled
   // "Worked for N" row. The structured lane owns them; the bridge lane keeps its
   // three-dot indicator.
@@ -215,12 +188,67 @@ export function MobileNativeChatView({
     scopeKey: sendSurfaceId
   })
 
+  const disclosureAnchor = useMobileNativeChatDisclosureAnchor(
+    sendSurfaceId,
+    turns.listMessages,
+    pauseForDisclosure,
+    restoreReadingOffset,
+    initialPositionReady
+  )
+  const toggleTurn = useCallback(
+    (key: string) => {
+      disclosureAnchor.hold()
+      turns.onToggleTurn(key)
+    },
+    [disclosureAnchor.hold, turns.onToggleTurn]
+  )
+
+  const loadEarlier = useCallback(() => onLoadEarlier?.(), [onLoadEarlier])
+  const historyRequestedDuringDrag = useRef(false)
+  const onScrollBeginDrag = useCallback(() => {
+    historyRequestedDuringDrag.current = false
+    beginUserScroll()
+  }, [beginUserScroll])
+
+  const onScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const { contentOffset } = e.nativeEvent
+      disclosureAnchor.recordOffset(contentOffset.y, e.nativeEvent.layoutMeasurement.height)
+      recordScrollMetrics(e.nativeEvent)
+      // Near the top — page in older history. Only the reader's scroll: a pin reports offsets too.
+      if (contentOffset.y < 60 && hasMore && !loadingEarlier && readerIsScrolling()) {
+        historyRequestedDuringDrag.current = true
+        loadEarlier()
+      }
+    },
+    [
+      hasMore,
+      loadingEarlier,
+      loadEarlier,
+      readerIsScrolling,
+      recordScrollMetrics,
+      disclosureAnchor.recordOffset
+    ]
+  )
+
+  const onScrollEndDrag = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (historyRequestedDuringDrag.current) {
+        recordScrollMetrics(event.nativeEvent)
+      } else {
+        onScroll(event)
+      }
+      endUserDrag(event)
+    },
+    [onScroll, endUserDrag, recordScrollMetrics]
+  )
+
   const renderItem = useMobileNativeChatRowRenderer({
     toolsExpanded,
     fontScale,
     onOpenFile,
     structuredActivityUi,
-    turns,
+    turns: { ...turns, onToggleTurn: toggleTurn },
     turnJournal,
     agent,
     receipts,
@@ -260,7 +288,9 @@ export function MobileNativeChatView({
 
   return (
     <View style={[styles.root, { paddingBottom: bottomPad }]}>
-      {messages.length > 0 ? <MobileNativeChatRefreshStatus status={status} error={error} /> : null}
+      {messages.length > 0 && initialPositionReady ? (
+        <MobileNativeChatRefreshStatus status={status} error={error} />
+      ) : null}
       {status === 'loading' && messages.length === 0 ? (
         <MobileNativeChatLoading />
       ) : (
@@ -270,6 +300,7 @@ export function MobileNativeChatView({
             <FlatList
               key={sendSurfaceId}
               ref={listRef}
+              CellRendererComponent={disclosureAnchor.Cell}
               initialNumToRender={history.listRows.length}
               style={data.length > 0 && !initialPositionReady ? { opacity: 0 } : undefined}
               accessibilityElementsHidden={data.length > 0 && !initialPositionReady}
@@ -283,15 +314,16 @@ export function MobileNativeChatView({
               // Let link/file taps land while the composer keyboard is up
               // instead of being swallowed by the dismiss gesture.
               keyboardShouldPersistTaps="handled"
-              onRefresh={hasMore ? loadEarlier : undefined}
-              refreshing={loadingEarlier === true}
               onScroll={onScroll}
               onScrollBeginDrag={onScrollBeginDrag}
               onScrollEndDrag={onScrollEndDrag}
               onMomentumScrollBegin={beginMomentum}
               onMomentumScrollEnd={endMomentum}
               scrollEventThrottle={32}
-              onContentSizeChange={pinToTailAfterContentResize}
+              onContentSizeChange={(width, height) => {
+                pinToTailAfterContentResize(width, height)
+                disclosureAnchor.afterResize()
+              }}
               onLayout={pinToTail}
               maintainVisibleContentPosition={
                 initialPositionReady ? mobileNativeChatRowAnchor(hasMore === true) : undefined
@@ -332,7 +364,10 @@ export function MobileNativeChatView({
           {agentWorking && !structuredActivityUi ? <MobileAgentWorkingIndicator /> : null}
           <Pressable
             style={({ pressed }) => [styles.chromeToggle, pressed && styles.pressed]}
-            onPress={() => setToolsExpanded((v) => !v)}
+            onPress={() => {
+              disclosureAnchor.hold()
+              toggleProcess('process')
+            }}
             hitSlop={8}
           >
             {toolsExpanded ? (

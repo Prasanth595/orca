@@ -67,3 +67,17 @@ it('starts an external open at the tail without another route reading position',
   scroll.pinToTail()
   expect(nativeList.scrollToEnd).toHaveBeenCalledWith({ animated: false })
 })
+it('pauses tail following before disclosure layout changes and restores through the same owner', () => {
+  render('a')
+  nativeList.scrollToOffset.mockClear()
+  act(() => scroll.pauseForDisclosure())
+  scroll.pinToTailAfterContentResize(400, 4000)
+  expect(nativeList.scrollToOffset).not.toHaveBeenCalled()
+  scroll.restoreReadingOffset(180)
+  expect(nativeList.scrollToOffset).toHaveBeenLastCalledWith({ animated: false, offset: 180 })
+  const stale = scroll.restoreReadingOffset
+  render('b')
+  nativeList.scrollToOffset.mockClear()
+  stale(900)
+  expect(nativeList.scrollToOffset).not.toHaveBeenCalled()
+})

@@ -50,6 +50,8 @@ export type MobileNativeChatTailFollow<TItem> = {
   pinToTailAfterContentResize: (_width: number, height: number) => void
   /** Explicit jump — send, or the jump-to-latest control. Resumes following. */
   jumpToTail: () => void
+  pauseForDisclosure: () => void
+  restoreReadingOffset: (offset: number) => void
   beginUserScroll: () => void
   endUserDrag: (event: NativeSyntheticEvent<NativeScrollEvent>) => void
   beginMomentum: () => void
@@ -225,6 +227,21 @@ export function useMobileNativeChatTailFollow<TItem>(args: {
     pinToTail()
   }, [clearUserScrollSettle, pinToTail, setAtTail, setFollowing, current])
 
+  const pauseForDisclosure = useCallback(() => {
+    restoring.current = null
+    clearUserScrollSettle()
+    userScrollActiveRef.current = false
+    setFollowing(false)
+  }, [clearUserScrollSettle, setFollowing])
+  const restoreReadingOffset = useCallback(
+    (nextOffset: number) => {
+      if (isCurrent()) {
+        listRef.current?.scrollToOffset({ animated: false, offset: nextOffset })
+      }
+    },
+    [current]
+  )
+
   const beginUserScroll = useCallback(() => {
     if (!isCurrent()) {
       return
@@ -302,6 +319,8 @@ export function useMobileNativeChatTailFollow<TItem>(args: {
     pinToTail,
     pinToTailAfterContentResize,
     jumpToTail,
+    pauseForDisclosure,
+    restoreReadingOffset,
     beginUserScroll,
     endUserDrag,
     beginMomentum,

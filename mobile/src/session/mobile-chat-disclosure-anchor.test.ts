@@ -1,0 +1,31 @@
+import { expect, it } from 'vitest'
+import { MobileChatDisclosureAnchor } from './mobile-chat-disclosure-anchor'
+it('keeps a surviving answer in place when its process collapses above it', () => {
+  const anchor = new MobileChatDisclosureAnchor()
+  anchor.recordRow('user', { y: 0, height: 100 })
+  anchor.recordRow('process', { y: 100, height: 1000 })
+  anchor.recordRow('answer', { y: 1100, height: 300 })
+  anchor.recordOffset(1200)
+  anchor.hold(['user', 'process', 'answer'])
+  anchor.recordRow('answer', { y: 100, height: 300 })
+  expect(anchor.restore(['user', 'answer'])).toBe(200)
+})
+it('preserves expansion offsets and restores only once', () => {
+  const anchor = new MobileChatDisclosureAnchor()
+  anchor.recordRow('answer', { y: 100, height: 600 })
+  anchor.recordOffset(180)
+  anchor.hold(['answer'])
+  anchor.recordRow('answer', { y: 1100, height: 600 })
+  expect(anchor.restore(['process', 'answer'])).toBe(1180)
+  expect(anchor.restore(['process', 'answer'])).toBeNull()
+})
+it('returns to the current opener when all visible process rows disappear, not an offscreen answer', () => {
+  const anchor = new MobileChatDisclosureAnchor()
+  anchor.recordRow('opener', { y: 10000, height: 100 })
+  anchor.recordRow('process', { y: 10100, height: 2000 })
+  anchor.recordRow('answer', { y: 12100, height: 1000 })
+  anchor.recordOffset(10500, 800)
+  anchor.hold(['opener', 'process', 'answer'])
+  anchor.recordRow('answer', { y: 10100, height: 1000 })
+  expect(anchor.restore(['opener', 'answer'])).toBe(10000)
+})

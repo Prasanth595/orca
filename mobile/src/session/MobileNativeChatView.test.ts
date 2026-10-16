@@ -300,7 +300,7 @@ describe('MobileNativeChatView', () => {
     await update({ ...failure, error: "Orca couldn't open this chat's history right now." })
     expect(listIds()).toEqual(['m1'])
     expect(composers()).toHaveLength(1)
-    expect(banners()).toHaveLength(2)
+    expect(banners()).toHaveLength(1)
   })
 
   it('renders the route-reported failure verbatim', async () => {

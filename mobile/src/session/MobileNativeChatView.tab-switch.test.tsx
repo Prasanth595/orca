@@ -152,7 +152,7 @@ it('shows progress while cached rows are being positioned', () => {
     1
   )
   expect(
-    renderer!.root.findAll((node) => node.props.accessibilityLabel === 'Restoring conversation…')
+    renderer!.root.findAll((node) => node.props.accessibilityLabel === 'Loading conversation…')
       .length
   ).toBeGreaterThan(0)
 })
@@ -183,12 +183,20 @@ it('loads older history when a short transcript cannot emit a scroll movement', 
   expect(onLoadEarlier).toHaveBeenCalledOnce()
 })
 
-it('labels cached content as updating until the live host answers', () => {
+it('labels only visible cached content as updating until the live host answers', async () => {
+  nativeMeasurement.onMount = true
   act(() => {
     renderer = create(
       createElement(MobileNativeChatView, { ...view('cached').props, status: 'loading' })
     )
   })
+  expect(
+    renderer!.root.findAll((node) => node.props.accessibilityLabel === 'Updating conversation…')
+  ).toHaveLength(0)
+  await settle()
+  expect(
+    renderer!.root.findAll((node) => node.props.accessibilityLabel === 'Loading conversation…')
+  ).toHaveLength(0)
   expect(
     renderer!.root.findAll((node) => node.props.accessibilityLabel === 'Updating conversation…')
       .length
@@ -199,16 +207,34 @@ it('labels cached content as updating until the live host answers', () => {
   ).toHaveLength(0)
 })
 
-it('offers native pull-to-load even when a short list emits no drag events', () => {
+it('uses only the inline history loader without a floating refresh control', () => {
   const onLoadEarlier = vi.fn()
   act(() => {
     renderer = create(
       createElement(MobileNativeChatView, { ...view('pull').props, hasMore: true, onLoadEarlier })
     )
   })
-  expect(list().props.refreshing).toBe(false)
-  act(() => list().props.onRefresh())
+  expect(list().props.onRefresh).toBeUndefined()
+  expect(list().props.refreshing).toBeUndefined()
+  act(() => list().props.ListHeaderComponent.props.onPress())
   expect(onLoadEarlier).toHaveBeenCalledOnce()
   act(() => renderer!.update(view('pull')))
   expect(list().props.onRefresh).toBeUndefined()
+})
+it('does not detach initial positioning when Process is pressed before the cache is visible', () => {
+  act(() => {
+    renderer = create(view('opening'))
+  })
+  const toggle = renderer!.root
+    .findAll((node) => String(node.type) === 'Pressable')
+    .find(
+      (node) =>
+        node.findAll((child) => String(child.type) === 'Text' && child.props.children === 'Tools')
+          .length > 0
+    )
+  expect(toggle).toBeDefined()
+  act(() => toggle!.props.onPress())
+  scrollToOffset.mockClear()
+  act(() => list().props.onContentSizeChange(320, 1800))
+  expect(scrollToOffset).toHaveBeenCalledWith({ animated: false, offset: 1800 })
 })

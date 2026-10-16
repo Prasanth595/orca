@@ -5,7 +5,7 @@ import { useMobileTheme } from '../theme/use-mobile-theme'
 
 export function MobileNativeChatLoading({ restoring = false }: { restoring?: boolean }) {
   useMobileTheme()
-  const label = restoring ? 'Restoring conversation…' : 'Loading conversation…'
+  const label = 'Loading conversation…'
   return (
     <View
       pointerEvents="none"
