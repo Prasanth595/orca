@@ -1,7 +1,7 @@
 import { useMobileTheme } from '../theme/use-mobile-theme'
 import { openExternalLink } from '../platform/external-link'
 import { Pressable, Text, View } from 'react-native'
-import { Moon } from 'lucide-react-native'
+import { Moon, Pin, PinOff } from 'lucide-react-native'
 import { buildWorktreeNavigationActions } from '../agent-history/worktree-navigation-actions'
 import { workspaceRouteHref } from '../navigation/workspace-execution-host'
 import { useWorkspaceServer } from '../transport/workspace-server'
@@ -13,6 +13,7 @@ import { hostNewWorktreeSessionRoute } from '../host-route-action-state'
 import { isWorktreePinned } from '../worktree/workspace-list-sections'
 import { hostScreenStyles as styles } from './host-screen-styles'
 import { WorkspaceOptionsSheet } from './workspace-options-sheet'
+import { WorkspaceDetailsSheet } from './workspace-details-sheet'
 import type { HostScreenController } from './use-host-screen-controller'
 
 export function HostScreenOverlays({ controller }: { controller: HostScreenController }) {
@@ -90,8 +91,6 @@ export function HostScreenOverlays({ controller }: { controller: HostScreenContr
           </View>
         ) : (
           <ActionSheetContent
-            title={actionTarget ? actionTarget.displayName || actionTarget.repo : undefined}
-            message={actionTarget?.branch}
             actions={
               actionTarget
                 ? [
@@ -120,6 +119,7 @@ export function HostScreenOverlays({ controller }: { controller: HostScreenContr
                         ]),
                     {
                       label: isWorktreePinned(actionTarget, state.pinnedIds) ? 'Unpin' : 'Pin',
+                      icon: isWorktreePinned(actionTarget, state.pinnedIds) ? PinOff : Pin,
                       onPress: () => {
                         actions.togglePin(actionTarget)
                         state.setActionTarget(null)
@@ -133,7 +133,17 @@ export function HostScreenOverlays({ controller }: { controller: HostScreenContr
                   ]
                 : []
             }
-          />
+          >
+            {actionTarget ? (
+              <WorkspaceDetailsSheet
+                row={actionTarget}
+                onOpenLink={(url) => {
+                  openExternalLink(url)
+                  state.setActionTarget(null)
+                }}
+              />
+            ) : null}
+          </ActionSheetContent>
         )}
       </BottomDrawer>
 

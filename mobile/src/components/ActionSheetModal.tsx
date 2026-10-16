@@ -40,13 +40,14 @@ function iconForAction(label: string, destructive?: boolean, icon?: LucideIcon):
 type ContentProps = {
   title?: string
   message?: string
+  /** Drawn between the header and the actions. */
+  children?: ReactNode
   actions: ActionSheetAction[]
   onClose?: () => void
 }
 
-export function ActionSheetContent({ title, message, actions, onClose }: ContentProps) {
+export function ActionSheetContent({ title, message, children, actions, onClose }: ContentProps) {
   useMobileTheme()
-
   return (
     <>
       {(title || message) && (
@@ -59,6 +60,8 @@ export function ActionSheetContent({ title, message, actions, onClose }: Content
           {message ? <Text style={styles.message}>{message}</Text> : null}
         </View>
       )}
+
+      {children}
 
       <View style={styles.actionGroup}>
         {actions.map((action, i) => {
