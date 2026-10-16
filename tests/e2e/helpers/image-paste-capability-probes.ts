@@ -11,20 +11,25 @@ export async function omitHostImagePasteCapability(app: ElectronApplication) {
       const fs = process.getBuiltinModule('node:fs/promises')
       const path = process.getBuiltinModule('node:path')
       const { createRequire } = process.getBuiltinModule('node:module')
-      const candidates = (await fs.readdir(chunks)).filter(
-        (name) => name.startsWith('protocol-version-') && name.endsWith('.js')
-      )
-      if (candidates.length !== 1) {
-        throw new Error('Expected exactly one built protocol-version chunk')
+      // The bundler names the chunk holding the capability list after whichever module shares it.
+      const candidates: string[] = []
+      for (const name of await fs.readdir(chunks)) {
+        if (
+          name.endsWith('.js') &&
+          (await fs.readFile(path.join(chunks, name), 'utf8')).includes(capability)
+        ) {
+          candidates.push(name)
+        }
       }
       const requireBuilt = createRequire(path.join(chunks, 'image-paste-probe.cjs'))
-      const protocol = requireBuilt(path.join(chunks, candidates[0]))
-      const lists = Object.values(protocol).filter(
-        (value): value is string[] =>
-          Array.isArray(value) &&
-          value.every((entry) => typeof entry === 'string') &&
-          value.includes(capability) &&
-          value.includes(runtimeCapability)
+      const lists = candidates.flatMap((name) =>
+        Object.values(requireBuilt(path.join(chunks, name))).filter(
+          (value): value is string[] =>
+            Array.isArray(value) &&
+            value.every((entry) => typeof entry === 'string') &&
+            value.includes(capability) &&
+            value.includes(runtimeCapability)
+        )
       )
       if (lists.length !== 1) {
         throw new Error('Expected the host runtime capability list')
