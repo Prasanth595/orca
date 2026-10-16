@@ -31,6 +31,8 @@ export type NativeChatTurnFoldRow = {
    *  that the response was interrupted. It never folds: hiding it would leave the
    *  turn's status as the only trace of it. */
   explainsTurn: boolean
+  /** The row follows a hidden delivery, so it opens a new reply in its turn. */
+  startsReply?: boolean
 }
 
 export type NativeChatTurnFold = {
@@ -46,20 +48,32 @@ export const NATIVE_CHAT_EMPTY_TURN_FOLD: NativeChatTurnFold = {
   foldableTurnKeys: new Set()
 }
 
-/** The index of each turn's answer: its last assistant row that renders prose,
+/** The index of each reply's answer: its last assistant row that renders prose,
  *  or its last system row reporting a failure. A turn with neither has no answer,
  *  and folds whole. */
 export function nativeChatTurnAnswerRows(
   rows: readonly NativeChatTurnFoldRow[]
-): ReadonlyMap<string, number> {
-  const answers = new Map<string, number>()
+): ReadonlySet<number> {
+  const answers = new Set<number>()
+  let replyTurnKey: string | undefined
+  let replyAnswer: number | undefined
   for (const [index, row] of rows.entries()) {
+    if (row.turnKey !== replyTurnKey || row.startsReply) {
+      if (replyAnswer !== undefined) {
+        answers.add(replyAnswer)
+      }
+      replyTurnKey = row.turnKey
+      replyAnswer = undefined
+    }
     const isCandidate =
       row.rendersProse &&
       (row.role === 'assistant' || (row.role === 'system' && row.reportsFailure))
     if (row.turnKey !== undefined && isCandidate) {
-      answers.set(row.turnKey, index)
+      replyAnswer = index
     }
+  }
+  if (replyAnswer !== undefined) {
+    answers.add(replyAnswer)
   }
   return answers
 }
@@ -103,7 +117,7 @@ export function nativeChatTurnFold({
     // A turn that produced no prose folds whole: its status row is the anchor,
     // so there is still something on screen to open. Keeping such a turn
     // unfolded instead would put every command it ran back in the transcript.
-    if (index === answers.get(turnKey)) {
+    if (answers.has(index)) {
       continue
     }
     foldableTurnKeys.add(turnKey)

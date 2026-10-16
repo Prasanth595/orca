@@ -3,6 +3,7 @@ import type {
   AgentJournalItemIdentity,
   AgentJournalMessageItem
 } from '../../shared/agent-session-journal-types'
+import { isKnownHarnessDeliveryTurnText } from '../../shared/harness-injected-user-turns'
 import type { NativeChatBlock } from '../../shared/native-chat-types'
 import {
   boundInlineText,
@@ -107,6 +108,25 @@ function messageBlocks(envelope: ClaudeMessageEnvelope): NativeChatBlock[] {
 export function claudeMessageBody(envelope: ClaudeMessageEnvelope): AgentJournalMessageItem | null {
   const blocks = messageBlocks(envelope)
   return blocks.length > 0 ? { kind: 'message', role: envelope.role, blocks } : null
+}
+
+/** A delivery (task notification, cross-session message) arrives as a root user
+ *  frame. Journaled as a system row it stays hidden as noise, yet marks where the
+ *  agent's reply begins without posing as the user's latest prompt. */
+export function claudeDeliveryBody(
+  envelope: ClaudeMessageEnvelope
+): AgentJournalMessageItem | null {
+  if (envelope.role !== 'user' || envelope.parentToolUseId !== null) {
+    return null
+  }
+  const text = messageBlocks(envelope)
+    .flatMap((block) => (block.type === 'text' ? [block.text] : []))
+    .join('')
+  if (!isKnownHarnessDeliveryTurnText(text)) {
+    return null
+  }
+  const bounded = boundInlineText(text, DEFAULT_JOURNAL_PAYLOAD_LIMITS).text
+  return { kind: 'message', role: 'system', blocks: [{ type: 'text', text: bounded }] }
 }
 
 export function claudeHasReplayContent(envelope: ClaudeMessageEnvelope): boolean {

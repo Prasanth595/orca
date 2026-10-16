@@ -36,6 +36,20 @@ const KNOWN_HARNESS_TAG_NAMES = new Set([
   'user-prompt-submit-hook'
 ])
 
+// Messages from another sender (a session, teammate, channel, finished background
+// task) that the agent answers with a reply of its own, unlike reminders and notices.
+const HARNESS_DELIVERY_TAG_NAMES = new Set([
+  'agent-message',
+  'cross-session-message',
+  'task-notification',
+  'teammate-message'
+])
+const HARNESS_DELIVERY_PREFIXES = [
+  '<channel source=',
+  'a message arrived from ',
+  'another claude session sent a message'
+]
+
 // Injected turns identified by a leading string rather than a known tag name:
 // the harness only emits <channel> in its attributed `<channel source=…>` form
 // (a bare <channel> is a real RSS/XML paste), plus prose deliveries and notices.
@@ -67,6 +81,19 @@ export function isKnownHarnessInjectedUserTurnText(text: string): boolean {
     return true
   }
   return HARNESS_INJECTED_TURN_PREFIXES.some((prefix) => normalized.startsWith(prefix))
+}
+
+/** True for an injected turn that delivers a message the agent replies to. */
+export function isKnownHarnessDeliveryTurnText(text: string): boolean {
+  const normalized = normalizedHarnessTurnHead(text)
+  if (!normalized) {
+    return false
+  }
+  const tagName = LEADING_TAG_NAME.exec(normalized)?.[1]
+  if (tagName && HARNESS_DELIVERY_TAG_NAMES.has(tagName)) {
+    return true
+  }
+  return HARNESS_DELIVERY_PREFIXES.some((prefix) => normalized.startsWith(prefix))
 }
 
 /** True only for the observed post-compaction continuation prompt. */

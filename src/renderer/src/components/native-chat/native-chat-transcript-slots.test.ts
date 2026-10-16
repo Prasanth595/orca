@@ -18,6 +18,7 @@ import {
   nativeChatSlotIndexOf,
   type NativeChatMessageSlot
 } from './native-chat-transcript-slots'
+import { createNativeChatMessageListProjection } from './native-chat-message-list-projection'
 
 const NO_STATUSES = { active: null, completedByTurn: {} }
 
@@ -185,6 +186,36 @@ describe('transcript slots', () => {
     expect(nativeChatSlotIndexOf(slots, 'b')).toBe(1)
     expect(nativeChatSlotIndexOf(slots, 'blank')).toBe(-1)
     expect(nativeChatSlotIndexOf(slots, undefined)).toBe(-1)
+  })
+
+  // Recorded shape: the prompt's answer settles, then another Claude session sends
+  // a message the agent answers. The delivery is hidden, so both replies share the
+  // prompt's turn — and the earlier answer must not fold behind the later one.
+  it('keeps the answer from before the delivery on screen', () => {
+    const at = (m: NativeChatMessage, timestamp: number) => ({ ...m, timestamp })
+    const { conversation: messages, replyStartIds } = createNativeChatMessageListProjection()([
+      at(text('prompt', 'Write a handoff', 'user'), 1),
+      at(text('think-1', 'Planning', 'reasoning'), 2),
+      at(text('handoff', '````md\n```sh\nnpm ci\n```\n````'), 3),
+      at(
+        text(
+          'delivery',
+          'Another Claude session sent a message: <cross-session-message from="uds:peer">Swap the JAR?</cross-session-message>',
+          'user'
+        ),
+        4
+      ),
+      at(text('think-2', 'Checking claims', 'reasoning'), 5),
+      at(toolRun('send'), 6),
+      at(text('reply', 'No conflict, go ahead.'), 7)
+    ])
+    const status: NativeChatTurnStatus = { startedAt: 1, thinking: false, workedSeconds: 30 }
+    const slots = build(messages, {
+      turnStatuses: { active: null, completedByTurn: { prompt: status } },
+      replyStartIds
+    })
+    const visible = slots.filter((slot) => !slot.folded).map((slot) => slot.message.id)
+    expect(visible).toEqual(['prompt', 'handoff', 'reply'])
   })
 })
 

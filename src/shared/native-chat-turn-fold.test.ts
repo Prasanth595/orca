@@ -35,36 +35,56 @@ const NONE = new Set<string>()
 
 describe('nativeChatTurnAnswerRows', () => {
   it('names the last assistant row that renders prose, not the first', () => {
-    expect(nativeChatTurnAnswerRows(TURN).get('turn-1')).toBe(4)
+    expect([...nativeChatTurnAnswerRows(TURN)]).toEqual([4])
   })
 
   it('ignores rows that render no prose, so a trailing tool run is not the answer', () => {
     const rows = [row({ role: 'user' }), row(), row({ rendersProse: false })]
-    expect(nativeChatTurnAnswerRows(rows).get('turn-1')).toBe(1)
+    expect([...nativeChatTurnAnswerRows(rows)]).toEqual([1])
   })
 
   it('ignores reasoning and system rows, which are never the agent answering', () => {
     const rows = [row({ role: 'user' }), row(), row({ role: 'reasoning' }), row({ role: 'system' })]
-    expect(nativeChatTurnAnswerRows(rows).get('turn-1')).toBe(1)
+    expect([...nativeChatTurnAnswerRows(rows)]).toEqual([1])
   })
 
   it('names a failure report as the answer when nothing the agent said comes after it', () => {
     const rows = [row({ role: 'user' }), row(), FAILURE]
-    expect(nativeChatTurnAnswerRows(rows).get('turn-1')).toBe(2)
+    expect([...nativeChatTurnAnswerRows(rows)]).toEqual([2])
   })
 
   it('names the later prose as the answer when the agent recovered from a failure', () => {
     const rows = [row({ role: 'user' }), FAILURE, row()]
-    expect(nativeChatTurnAnswerRows(rows).get('turn-1')).toBe(2)
+    expect([...nativeChatTurnAnswerRows(rows)]).toEqual([2])
   })
 
   it('reports no answer for a turn that only ran tools', () => {
     const rows = [row({ role: 'user' }), row({ rendersProse: false })]
-    expect(nativeChatTurnAnswerRows(rows).has('turn-1')).toBe(false)
+    expect(nativeChatTurnAnswerRows(rows).size).toBe(0)
   })
 })
 
 describe('nativeChatTurnFold', () => {
+  it('keeps the answer before a hidden delivery when the agent replies to it', () => {
+    // Prompt → answer, then a cross-session message (dropped from the transcript)
+    // the agent replies to inside the same turn.
+    const rows = [
+      row({ role: 'user' }),
+      row({ rendersProse: false }),
+      row(),
+      row({ role: 'reasoning', rendersProse: false, startsReply: true }),
+      row({ rendersProse: false }),
+      row()
+    ]
+    expect([...nativeChatTurnAnswerRows(rows)]).toEqual([2, 5])
+    const { foldedRows } = nativeChatTurnFold({
+      rows,
+      settledTurnKeys: SETTLED,
+      expandedTurnKeys: NONE
+    })
+    expect([...foldedRows].sort()).toEqual([1, 3, 4])
+  })
+
   it('folds a settled turn to its answer', () => {
     const { foldedRows } = nativeChatTurnFold({
       rows: TURN,
@@ -224,6 +244,6 @@ describe('nativeChatTurnFold', () => {
       expandedTurnKeys: NONE
     })
     expect([...foldedRows]).toEqual([1])
-    expect(nativeChatTurnAnswerRows(rows).get('turn-1')).toBe(3)
+    expect([...nativeChatTurnAnswerRows(rows)]).toEqual([3])
   })
 })

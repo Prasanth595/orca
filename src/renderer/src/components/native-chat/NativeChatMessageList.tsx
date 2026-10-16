@@ -147,7 +147,7 @@ export function NativeChatMessageList({
   // remounts the row, which re-checks the range.
   const showOlderHistory = hasMore && session.readPhase === 'ready'
 
-  const { messages, subagentRows } = useNativeChatTranscriptProjection(
+  const { messages, replyStartIds, subagentRows } = useNativeChatTranscriptProjection(
     session,
     journalItems,
     journalSubmissions,
@@ -207,6 +207,7 @@ export function NativeChatMessageList({
     turnStatuses,
     turnDiffs,
     expandedTurnKeys: expandedTurnIds,
+    replyStartIds,
     isWorking,
     lifecycleWorking,
     subagentSections,

@@ -176,4 +176,65 @@ describe("a subagent's rows are not the conversation's", () => {
       'answer'
     ])
   })
+
+  it('drops a delivery and marks the row after it as a new reply', () => {
+    const prompt = row('prompt', say('Write a handoff'), { role: 'user' })
+    const answer = row('answer', say('Here is the handoff'))
+    const crossSession = row(
+      'cross-session',
+      say(
+        'Another Claude session sent a message: <cross-session-message from="uds:peer">May I swap the JAR?</cross-session-message>'
+      ),
+      { role: 'user' }
+    )
+    const reply = row('reply', say('No conflict, go ahead'))
+    const { conversation, replyStartIds } = projectNativeChatTranscript([
+      prompt,
+      answer,
+      crossSession,
+      reply
+    ])
+    expect(conversation.map((m) => m.id)).toEqual(['prompt', 'answer', 'reply'])
+    expect([...replyStartIds]).toEqual(['reply'])
+  })
+
+  it('keeps a reply boundary when the reply’s first tool run folds into the prior row', () => {
+    const prompt = row('prompt', say('Write a handoff'), { role: 'user' })
+    const answer = row('answer', say('Here is the handoff'))
+    const crossSession = row(
+      'cross-session',
+      say(
+        'Another Claude session sent a message: <cross-session-message from="uds:peer">May I swap the JAR?</cross-session-message>'
+      ),
+      { role: 'user' }
+    )
+    const send = row('send', call('SendMessage'))
+    const reply = row('reply', say('No conflict, go ahead'))
+    const { conversation, replyStartIds } = projectNativeChatTranscript([
+      prompt,
+      answer,
+      crossSession,
+      send,
+      reply
+    ])
+    expect(conversation.map((m) => m.id)).toEqual(['prompt', 'answer', 'reply'])
+    expect([...replyStartIds]).toEqual(['reply'])
+  })
+
+  it('does not split a turn on reminders, which the agent does not answer', () => {
+    const prompt = row('prompt', say('Write a handoff'), { role: 'user' })
+    const answer = row('answer', say('Here is the handoff'))
+    const reminder = row('reminder', say('<system-reminder>Todo list is empty</system-reminder>'), {
+      role: 'user'
+    })
+    const reply = row('reply', say('No conflict, go ahead'))
+    const { conversation, replyStartIds } = projectNativeChatTranscript([
+      prompt,
+      answer,
+      reminder,
+      reply
+    ])
+    expect(conversation.map((m) => m.id)).toEqual(['prompt', 'answer', 'reply'])
+    expect(replyStartIds.size).toBe(0)
+  })
 })

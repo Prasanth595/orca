@@ -20,6 +20,7 @@ export function useNativeChatTranscriptProjection(
   latestTurn?: AgentSessionLatestTurn | null
 ): {
   messages: NativeChatMessage[]
+  replyStartIds: ReadonlySet<string>
   subagentRows: ReadonlyMap<string, readonly NativeChatSubagentRow[]>
 } {
   const projectMessages = useMemo(
@@ -43,5 +44,9 @@ export function useNativeChatTranscriptProjection(
     // Structured sessions show goal state in the banner above the composer.
     return journalItems ? omitNativeChatThreadGoalRows(projected) : projected
   }, [journalItems, projection.conversation])
-  return { messages, subagentRows: projection.subagentRows }
+  return {
+    messages,
+    replyStartIds: projection.replyStartIds,
+    subagentRows: projection.subagentRows
+  }
 }
