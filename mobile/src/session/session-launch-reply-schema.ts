@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { salvagedOptional } from '../../../src/shared/zod-salvage'
-import { AiVaultChatForkSourceSchema } from '../../../src/shared/ai-vault-chat-fork-contract'
 
 // The replies the session screen's launch paths read: opening a tapped file, creating a markdown
 // note or a browser tab, the legacy-Codex resume repin, the structured-agent probe and create, and
@@ -44,20 +43,6 @@ export const aiVaultResumePreparationSchema = z
     substituteCodexHome: salvagedOptional('substituteCodexHome', z.string())
   })
   .nullish()
-
-/**
- * The conversation a native chat's "Resume in New CLI" opens: the host's own description of it, and
- * whether the host had to write a copy (`forkedSession`), which a plain resume then opens.
- */
-export const aiVaultChatForkPreparationSchema = z
-  .looseObject({
-    cliForkSource: AiVaultChatForkSourceSchema,
-    forkedSession: z.unknown().optional()
-  })
-  .transform((reply) => ({
-    source: reply.cliForkSource,
-    copied: reply.forkedSession !== undefined
-  }))
 
 /**
  * The four launch replies no call site interprets.

@@ -1,7 +1,6 @@
 import { bindDeferredRpcOperation, defineRpcOperation } from '../transport/rpc-operation'
 import { rpcResultVariant } from '../transport/rpc-operation-result-reader'
 import {
-  aiVaultChatForkPreparationSchema,
   aiVaultResumePreparationSchema,
   browserTabCreatedSchema,
   fileTapOpenedSchema,
@@ -70,17 +69,6 @@ export const aiVaultResumePreparationRun = bindDeferredRpcOperation(
     acceptance: 'require-result-or-throw-message',
     barrier: 'after-caller-barrier',
     read: rpcResultVariant('ai-vault-resume-preparation', aiVaultResumePreparationSchema)
-  })
-)
-
-/** The same method asked to prepare a native chat's conversation for a terminal copy. */
-export const aiVaultChatForkPreparationRun = bindDeferredRpcOperation(
-  defineRpcOperation({
-    name: 'aiVault.prepare-chat-cli-fork',
-    method: 'aiVault.prepareSessionResume',
-    acceptance: 'require-result-or-throw-message',
-    barrier: 'after-caller-barrier',
-    read: rpcResultVariant('ai-vault-chat-fork-preparation', aiVaultChatForkPreparationSchema)
   })
 )
 

@@ -7,6 +7,7 @@ import type {
 } from '../../../../shared/agent-session-resume'
 import type { SpawnIntent } from '../../../../shared/host-spawn-admission'
 import type { AgentLaunchRuntime } from '../../../../shared/agent-launch-runtime'
+import type { RuntimeTerminalPresentation } from '../../../../shared/runtime-types'
 import type {
   RuntimeMobileSessionCreateTerminalResult,
   RuntimeMobileSessionTabsSnapshot,
@@ -36,6 +37,8 @@ export type OwnedMobileTerminalCreateOptions = {
   launchAgent?: TuiAgent
   viewMode?: 'terminal' | 'chat'
   targetGroupId?: string
+  afterDesktopTabId?: string
+  presentation?: RuntimeTerminalPresentation
   supportsSplitGroupPlacement?: boolean
   launchConfig?: SleepingAgentLaunchConfig
   resumeProviderSession?: AgentProviderSessionMetadata
@@ -88,6 +91,8 @@ export abstract class OrcaRuntimeWithCreateRuntimeOwnedMobileSessionTerminal ext
     const create = (preAllocatedHandle?: string) =>
       this.createTerminal(`id:${worktreeId}`, {
         focus: false,
+        ...(opts.presentation ? { presentation: opts.presentation } : {}),
+        ...(opts.afterDesktopTabId ? { afterTabId: opts.afterDesktopTabId } : {}),
         ...(mutationHandle
           ? {
               onPtySpawnDispatched: (launch) => {
