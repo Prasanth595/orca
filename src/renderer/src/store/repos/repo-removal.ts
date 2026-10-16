@@ -9,10 +9,11 @@ import { repoMatchesHostIdentity } from '../slices/repo-host-identity'
 import { callRuntimeRpc } from '../../runtime/runtime-rpc-client'
 import { hasRuntimeRpcErrorCode } from '../../runtime/runtime-rpc-result'
 import { ipcOrRuntimeTargetForHostId } from '../../runtime/runtime-client-target'
-import { toRuntimeWorktreeSelector } from '../../runtime/runtime-worktree-selector'
 import { translate } from '@/i18n/i18n'
+import { readIpcErrorMessage } from '@/lib/ipc-error'
 import { getRepoExecutionHostId, LOCAL_EXECUTION_HOST_ID } from '../../../../shared/execution-host'
 import { destroyRecipeVmBeforeProjectRemoval } from './recipe-vm-project-removal'
+import { stopRuntimeProjectTerminalsBeforeRemoval } from './runtime-project-terminal-stop'
 import type { RepoSlice } from './repo-state'
 import { ERROR_TOAST_DURATION } from './repo-state'
 import { mergeProjectCompatibilityForHostRepoChange } from './repo-catalog-identity'
@@ -73,6 +74,16 @@ export function countOpenRepoTerminalTabs(
   return count
 }
 
+/** A listing that fails reads as registered, so the host is still asked as before. */
+async function isRuntimeEnvironmentRegistered(environmentId: string): Promise<boolean> {
+  try {
+    const environments = await window.api.runtimeEnvironments.list()
+    return environments.some((environment) => environment.id === environmentId)
+  } catch {
+    return true
+  }
+}
+
 export function createRepoRemovalActions(
   set: Parameters<StateCreator<AppState>>[0],
   get: Parameters<StateCreator<AppState>>[1]
@@ -109,9 +120,21 @@ export function createRepoRemovalActions(
             executionHostId: ownerHostId
           }))
         )
+        // Why: a stopped or forgotten server leaves rows nothing can reach; only this desktop's copy goes.
+        const hostGone =
+          target.kind === 'environment' &&
+          !vmServerDestroyed &&
+          !(await isRuntimeEnvironmentRegistered(target.environmentId))
+        if (target.kind === 'environment' && !vmServerDestroyed && !hostGone) {
+          await stopRuntimeProjectTerminalsBeforeRemoval(
+            target.environmentId,
+            projectId,
+            getKnownRepoWorktreeIds(get(), projectId, ownerHostId)
+          )
+        }
         try {
           // Why: destroying the VM took its server, and the catalog holding this row, with it.
-          if (!vmServerDestroyed) {
+          if (!vmServerDestroyed && !hostGone) {
             // Why: always host-scoped; this catalog may be stale and miss a same-id row on another host (#13071).
             await (target.kind === 'local'
               ? window.api.repos.removeForHost({ repoId: projectId, hostId: ownerHostId })
@@ -121,6 +144,16 @@ export function createRepoRemovalActions(
           // Why: the owner already dropped this project, so purge the local ghost row instead of aborting (#11994).
           if (!hasRuntimeRpcErrorCode(err, 'repo_not_found')) {
             throw err
+          }
+        }
+        if (target.kind === 'environment') {
+          // Why: the host confirmed the removal (or is gone), and this desktop's own persisted rows
+          // for that host are swept only by an explicit removal, never by the startup sweep (#17776).
+          // A paired web client keeps no such rows, and its bridge throws synchronously.
+          try {
+            await window.api.repos.removeForHost({ repoId: projectId, hostId: ownerHostId })
+          } catch (error) {
+            console.warn('[repos] failed to drop paired-host project residue', error)
           }
         }
 
@@ -157,23 +190,9 @@ export function createRepoRemovalActions(
                   .flatMap((worktree) => (worktree.projectId ? [worktree.projectId] : []))
               ]
             : []
-        const killedTabIds = new Set<string>()
-        if (target.kind === 'environment') {
-          await Promise.allSettled(
-            worktreeIds.map((worktreeId) =>
-              callRuntimeRpc(
-                target,
-                'terminal.stop',
-                { worktree: toRuntimeWorktreeSelector(worktreeId) },
-                { timeoutMs: 15_000 }
-              )
-            )
-          )
-        }
         for (const wId of worktreeIds) {
           const tabs = get().tabsByWorktree[wId] ?? []
           for (const tab of tabs) {
-            killedTabIds.add(tab.id)
             for (const ptyId of get().ptyIdsByTabId[tab.id] ?? []) {
               if (!isRemoteRuntimePtyId(ptyId)) {
                 window.api.pty.kill(ptyId)
@@ -209,35 +228,11 @@ export function createRepoRemovalActions(
               delete nextDetectedWorktrees[projectId]
             }
           }
-          const nextTabs = { ...s.tabsByWorktree }
-          const nextLayouts = { ...s.terminalLayoutsByTabId }
-          const nextLocalOnlyScrollback = { ...s.localOnlyScrollbackByTabId }
-          const nextPtyIdsByTabId = { ...s.ptyIdsByTabId }
-          const nextRuntimePaneTitlesByTabId = { ...s.runtimePaneTitlesByTabId }
-          for (const wId of worktreeIds) {
-            delete nextTabs[wId]
-          }
-          for (const tabId of killedTabIds) {
-            delete nextLayouts[tabId]
-            delete nextLocalOnlyScrollback[tabId]
-            delete nextPtyIdsByTabId[tabId]
-            delete nextRuntimePaneTitlesByTabId[tabId]
-          }
-          // Why: editor state is worktree-scoped; clear the repo's open files + active-file tracking so orphans don't linger in the session save.
+          // Why no tab/layout/editor writes here: purgeWorktreeTerminalState above already dropped them.
           const worktreeIdSet = new Set(worktreeIds)
           const removedVisitKeys = new Set(
             worktreeIds.map((worktreeId) => getWorktreeVisitKey(worktreeId, ownerHostId))
           )
-          const nextOpenFiles = s.openFiles.filter((f) => !worktreeIdSet.has(f.worktreeId))
-          const nextActiveFileIdByWorktree = { ...s.activeFileIdByWorktree }
-          const nextActiveTabTypeByWorktree = { ...s.activeTabTypeByWorktree }
-          for (const wId of worktreeIds) {
-            delete nextActiveFileIdByWorktree[wId]
-            delete nextActiveTabTypeByWorktree[wId]
-          }
-          const activeFileCleared = s.activeFileId
-            ? s.openFiles.some((f) => f.id === s.activeFileId && worktreeIdSet.has(f.worktreeId))
-            : false
           const nextRepos = s.repos.filter(
             (r) => !repoMatchesHostIdentity(r, projectId, ownerHostId)
           )
@@ -272,17 +267,6 @@ export function createRepoRemovalActions(
             filterRepoIds: s.filterRepoIds.filter((id) => id !== projectId),
             worktreesByRepo: nextWorktrees,
             detectedWorktreesByRepo: nextDetectedWorktrees,
-            tabsByWorktree: nextTabs,
-            ptyIdsByTabId: nextPtyIdsByTabId,
-            runtimePaneTitlesByTabId: nextRuntimePaneTitlesByTabId,
-            terminalLayoutsByTabId: nextLayouts,
-            localOnlyScrollbackByTabId: nextLocalOnlyScrollback,
-            activeTabId: s.activeTabId && killedTabIds.has(s.activeTabId) ? null : s.activeTabId,
-            openFiles: nextOpenFiles,
-            activeFileIdByWorktree: nextActiveFileIdByWorktree,
-            activeTabTypeByWorktree: nextActiveTabTypeByWorktree,
-            activeFileId: activeFileCleared ? null : s.activeFileId,
-            activeTabType: activeFileCleared ? 'terminal' : s.activeTabType,
             lastVisitedAtByWorktreeId: nextLastVisitedAtByWorktreeId,
             folderWorkspacePathStatuses: {},
             sortEpoch: s.sortEpoch + 1,
@@ -305,7 +289,7 @@ export function createRepoRemovalActions(
           toast.error(
             translate('auto.store.slices.repos.removeProjectFailed', 'Failed to remove project'),
             {
-              description: err instanceof Error ? err.message : String(err),
+              description: readIpcErrorMessage(err) ?? String(err),
               duration: ERROR_TOAST_DURATION
             }
           )
