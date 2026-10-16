@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   AGENT_SESSION_DELTA_COALESCE_MS,
+  AGENT_SESSION_STREAMED_TEXT_MAX_GAP_MS,
   createAgentSessionDeltaCoalescer
 } from './agent-session-delta-coalescer'
 
@@ -61,16 +62,121 @@ describe('agent-session delta coalescer', () => {
   it('emits the accumulated snapshot again, not the increment, on the next window', () => {
     const clock = manualClock()
     const { instance, emitted } = coalescer(clock)
+    const tail = 'l'.repeat(32)
 
     instance.append('item-1', 'he')
     clock.fire()
-    instance.append('item-1', 'llo')
+    instance.append('item-1', tail)
     clock.fire()
 
     expect(emitted).toEqual([
       ['item-1', 'he'],
-      ['item-1', 'hello']
+      ['item-1', `he${tail}`]
     ])
+  })
+
+  it('retries a refused lifecycle flush in full, not only once the text grows', () => {
+    const clock = manualClock()
+    let reject = false
+    const emitted: string[] = []
+    const instance = createAgentSessionDeltaCoalescer({
+      schedule: clock.schedule,
+      emit: (_key, text) => !reject && emitted.push(text) > 0
+    })
+
+    instance.append('item-1', 'first answer')
+    clock.fire()
+    instance.append('item-1', '.')
+    reject = true
+    expect(instance.flushAll()).toBe(false)
+    reject = false
+    // The growth rule alone would hold one character back from the retry.
+    clock.fire()
+
+    expect(emitted).toEqual(['first answer', 'first answer.'])
+  })
+
+  it.each([
+    { start: 0, interval: 20 },
+    { start: 0.25, interval: 20.125 }
+  ])('writes a slowly growing long stream within each cap: %j', ({ start, interval }) => {
+    let time = start
+    const timers: { at: number; run: () => void }[] = []
+    const writtenAt: number[] = []
+    const instance = createAgentSessionDeltaCoalescer({
+      now: () => time,
+      schedule: (run, ms) => {
+        const timer = { at: time + ms, run }
+        timers.push(timer)
+        return () => {
+          const index = timers.indexOf(timer)
+          if (index !== -1) {
+            timers.splice(index, 1)
+          }
+        }
+      },
+      emit: () => writtenAt.push(time)
+    })
+    const advanceTo = (at: number): void => {
+      for (;;) {
+        const next = timers.sort((a, b) => a.at - b.at)[0]
+        if (!next || next.at > at) {
+          break
+        }
+        timers.shift()
+        time = next.at
+        next.run()
+      }
+      time = at
+    }
+
+    instance.append('item-1', 'x'.repeat(1_000))
+    // Two characters about every 20 ms: an eighth of 1,000 would take over a second.
+    for (let at = start + interval; at <= start + 1_000; at += interval) {
+      advanceTo(at)
+      instance.append('item-1', 'xx')
+    }
+
+    const cap = AGENT_SESSION_STREAMED_TEXT_MAX_GAP_MS
+    const firstWrite = start + AGENT_SESSION_DELTA_COALESCE_MS
+    expect(writtenAt).toEqual([firstWrite, firstWrite + cap, firstWrite + 2 * cap])
+  })
+
+  it('keeps the original cap across clock reads and an early timer callback', () => {
+    const clock = manualClock()
+    let time = 0.25
+    let readStep = 0
+    const emitted: string[] = []
+    const instance = createAgentSessionDeltaCoalescer({
+      now: () => {
+        const value = time
+        time += readStep
+        return value
+      },
+      schedule: clock.schedule,
+      emit: (_key, text) => emitted.push(text)
+    })
+
+    const prefix = 'x'.repeat(1_000)
+    instance.append('item-1', prefix)
+    time = 60.25
+    clock.fire()
+    time = 80.25
+    instance.append('item-1', '.')
+    time = 140.25
+    readStep = 0.125
+    clock.fire()
+    expect(clock.windows()).toEqual([319.875])
+
+    // This window closes after the original cap, but before a recomputed cap would.
+    readStep = 0
+    time = 400.3125
+    instance.append('item-1', '.')
+    expect(clock.windows()).toEqual([319.875])
+    time = 460.125
+    clock.fire()
+    expect(emitted).toEqual([prefix, `${prefix}..`])
+    expect(clock.pendingCount()).toBe(0)
   })
 
   it('appends ten thousand deltas without rebuilding the retained prefix per token', () => {
@@ -242,42 +348,5 @@ describe('agent-session delta coalescer', () => {
     expect(snapshots.map((snapshot) => snapshot?.observedBytes)).toEqual([80, 80, 160])
     expect(snapshots.map((snapshot) => snapshot?.truncated)).toEqual([false, true, true])
     expect(emitted.get('item-3')).toEqual({ text: '', observedBytes: 80, truncated: true })
-  })
-})
-
-describe('snapshot admission before assembly', () => {
-  it('reports retained UTF-16 length after Unicode appends and byte truncation', () => {
-    const clock = manualClock()
-    const shouldEmit = vi.fn(() => true)
-    const emitted: [string, string][] = []
-    const instance = createAgentSessionDeltaCoalescer({
-      schedule: clock.schedule,
-      maxRetainedBytes: 40,
-      shouldEmit,
-      emit: (key, text) => emitted.push([key, text])
-    })
-    instance.append('unicode', 'éé')
-    instance.append('surrogate', '\ud83d')
-    instance.append('surrogate', '\ude00')
-    clock.fire()
-    expect(shouldEmit.mock.calls).toEqual([
-      ['unicode', 2],
-      ['surrogate', 2]
-    ])
-    expect(emitted).toEqual([
-      ['unicode', 'éé'],
-      ['surrogate', '😀']
-    ])
-
-    instance.append('unicode', `${'é'.repeat(20)}more`)
-    clock.fire()
-    const truncated = 'ééé\n[Orca: streamed output truncated]'
-    expect(shouldEmit).toHaveBeenLastCalledWith('unicode', truncated.length)
-    expect(emitted.at(-1)).toEqual(['unicode', truncated])
-    const calls = shouldEmit.mock.calls.length
-    instance.append('unicode', 'ignored')
-    clock.fire()
-    expect(shouldEmit).toHaveBeenCalledTimes(calls)
-    instance.dispose()
   })
 })

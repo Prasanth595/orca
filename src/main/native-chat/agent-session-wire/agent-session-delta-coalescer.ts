@@ -7,21 +7,43 @@
 // SNAPSHOT of the text so far, which is also what makes dropping intermediate
 // frames safe for a reconnecting client.
 //
+// Because every row is a full snapshot, the window rewrites a stream only once its
+// text has grown by a fixed fraction since its last write, so stored bytes stay a
+// bounded multiple of the final text, or once it has gone a capped time unwritten,
+// so a long answer still visibly moves.
+//
 // The window applies to text only. Lifecycle — an item completing, a turn
 // ending, an approval arriving — bypasses it by flushing first, so nothing can
 // be journaled ahead of the text that preceded it.
 
+import { appendWithinUtf8ByteLimit } from './agent-session-streamed-text-utf8-bound'
+
 /** Long enough to fold a burst of tokens into one row, short enough that the
  *  text still reads as streaming. */
 export const AGENT_SESSION_DELTA_COALESCE_MS = 60
+
+/** Longest a stream that has grown goes without a write while it streams. */
+export const AGENT_SESSION_STREAMED_TEXT_MAX_GAP_MS = 400
 
 /** Matches the admitted live provider-record envelope. The framer owns record
  * admission; this independently prevents many legal deltas from rebuilding an
  * unbounded string after they have crossed that boundary. */
 export const AGENT_SESSION_STREAMED_TEXT_MAX_BYTES = 16 * 1024 * 1024
 export const AGENT_SESSION_STREAMED_TEXT_TOTAL_MAX_BYTES = 32 * 1024 * 1024
-export const AGENT_SESSION_STREAMED_TEXT_TRUNCATION_MARKER = '\n[Orca: streamed output truncated]'
 export const AGENT_SESSION_MAX_STREAMS = 256
+
+/** Whether a stream written at `writtenLength` has grown enough for the window to rewrite it:
+ *  by 32 characters while short, by an eighth once long, which keeps the sum of every snapshot
+ *  under about nine times the final text. */
+export function agentSessionStreamedTextCheckpointDue(
+  writtenLength: number,
+  textLength: number
+): boolean {
+  return (
+    writtenLength === 0 ||
+    textLength >= Math.max(writtenLength + 32, Math.ceil(writtenLength * 1.125))
+  )
+}
 
 export type AgentSessionDeltaSnapshot = {
   text: string
@@ -32,8 +54,6 @@ export type AgentSessionDeltaSnapshot = {
 export type AgentSessionDeltaCoalescerDeps = {
   /** Called with the FULL text accumulated for the key, not the increment. */
   emit: (key: string, text: string, snapshot: AgentSessionDeltaSnapshot) => unknown
-  /** False accepts a skipped snapshot; sink refusal is reported by emit. */
-  shouldEmit?: (key: string, textLength: number) => boolean
   windowMs?: number
   maxRetainedBytes?: number
   maxTotalRetainedBytes?: number
@@ -43,14 +63,16 @@ export type AgentSessionDeltaCoalescerDeps = {
   isProtected?: (key: string) => boolean
   /** Injected by tests so a window can be driven without real time. */
   schedule?: (run: () => void, ms: number) => () => void
+  /** The clock the time cap reads; injected with `schedule`. */
+  now?: () => number
 }
 
 export type AgentSessionDeltaCoalescer = {
   /** Returns false when a full stream cannot be flushed to admit this new key. */
   append: (key: string, delta: string) => boolean
-  /** Emit one stream now, if it has unflushed text. */
+  /** Emit one stream now, if it has unflushed text, however little it grew. */
   flush: (key: string) => boolean
-  /** Emit every stream now. The lifecycle bypass. */
+  /** Emit every stream with unflushed text now, however little it grew. The lifecycle bypass. */
   flushAll: () => boolean
   /** Drop a stream without emitting — its authoritative body arrived, so the
    *  accumulated text is now the stale copy. */
@@ -75,6 +97,7 @@ export function createAgentSessionDeltaCoalescer(
 ): AgentSessionDeltaCoalescer {
   const windowMs = deps.windowMs ?? AGENT_SESSION_DELTA_COALESCE_MS
   const schedule = deps.schedule ?? defaultSchedule
+  const now = deps.now ?? (() => performance.now())
   const maxRetainedBytes = deps.maxRetainedBytes ?? AGENT_SESSION_STREAMED_TEXT_MAX_BYTES
   const maxTotalRetainedBytes =
     deps.maxTotalRetainedBytes ?? AGENT_SESSION_STREAMED_TEXT_TOTAL_MAX_BYTES
@@ -85,22 +108,33 @@ export function createAgentSessionDeltaCoalescer(
       chunks: string[]
       retainedBytes: number
       textLength: number
+      /** Text length at the stream's last write; the window's growth rule measures from it. */
+      writtenLength: number
+      /** When the stream was last written, or opened; the window's time cap measures from it. */
+      writtenAt: number
       observedBytes: number
       truncated: boolean
       dirty: boolean
     }
   >()
   let totalRetainedBytes = 0
-  let cancelTimer: (() => void) | null = null
+  let timer: { at: number; cancel: () => void } | null = null
+  /** A lifecycle flush the sink refused: its retry writes everything owed, not only grown text. */
+  let retryOwed = false
   const evictable = new Set<string>()
 
-  const flushKey = (key: string): boolean => {
+  /** `windowAt` is when the window closed; a lifecycle flush passes none and writes all owed. */
+  const flushKey = (key: string, windowAt?: number): boolean => {
     const stream = streams.get(key)
     if (!stream?.dirty) {
       return true
     }
-    if (deps.shouldEmit?.(key, stream.textLength) === false) {
-      stream.dirty = false
+    // Skipped text stays owed: the window at its time cap, or a lifecycle flush, writes it.
+    if (
+      windowAt !== undefined &&
+      !agentSessionStreamedTextCheckpointDue(stream.writtenLength, stream.textLength) &&
+      windowAt < stream.writtenAt + AGENT_SESSION_STREAMED_TEXT_MAX_GAP_MS
+    ) {
       return true
     }
     const text = stream.chunks.join('')
@@ -113,25 +147,56 @@ export function createAgentSessionDeltaCoalescer(
       return false
     }
     stream.dirty = false
+    stream.writtenLength = stream.textLength
+    stream.writtenAt = now()
     return true
   }
 
-  const scheduleFlush = (): void => {
-    cancelTimer ??= schedule(() => {
-      cancelTimer = null
-      flushAll()
-    }, windowMs)
+  /** Close the shared window within `ms`; a pending window that closes sooner stands. */
+  const scheduleFlush = (ms = windowMs, at = now() + ms): void => {
+    if (timer && timer.at <= at) {
+      return
+    }
+    timer?.cancel()
+    timer = {
+      at,
+      cancel: schedule(() => {
+        timer = null
+        // The planned close counts for the cap, so a timer that fires a little early still writes.
+        flushAll(retryOwed ? undefined : Math.max(at, now()))
+      }, ms)
+    }
   }
 
-  const flushAll = (): boolean => {
-    cancelTimer?.()
-    cancelTimer = null
+  /** Close the window again when the first stream left owed reaches its time cap. */
+  const scheduleTimeCap = (): void => {
+    let due = Infinity
+    for (const stream of streams.values()) {
+      if (stream.dirty) {
+        due = Math.min(due, stream.writtenAt + AGENT_SESSION_STREAMED_TEXT_MAX_GAP_MS)
+      }
+    }
+    if (due !== Infinity) {
+      scheduleFlush(Math.max(0, due - now()), due)
+    }
+  }
+
+  const cancelWindow = (): void => {
+    timer?.cancel()
+    timer = null
+  }
+
+  const flushAll = (windowAt?: number): boolean => {
+    cancelWindow()
     let emitted = true
     for (const key of streams.keys()) {
-      emitted = flushKey(key) && emitted
+      emitted = flushKey(key, windowAt) && emitted
     }
+    retryOwed = !emitted && (retryOwed || windowAt === undefined)
     if (!emitted) {
       scheduleFlush()
+    } else {
+      scheduleTimeCap()
     }
     return emitted
   }
@@ -167,6 +232,8 @@ export function createAgentSessionDeltaCoalescer(
           chunks: [],
           retainedBytes: 0,
           textLength: 0,
+          writtenLength: 0,
+          writtenAt: now(),
           observedBytes: 0,
           truncated: false,
           dirty: false
@@ -204,8 +271,8 @@ export function createAgentSessionDeltaCoalescer(
       scheduleFlush()
       return true
     },
-    flush: flushKey,
-    flushAll,
+    flush: (key) => flushKey(key),
+    flushAll: () => flushAll(),
     forget: (key) => {
       const stream = streams.get(key)
       if (stream) {
@@ -215,8 +282,8 @@ export function createAgentSessionDeltaCoalescer(
       }
     },
     dispose: () => {
-      cancelTimer?.()
-      cancelTimer = null
+      cancelWindow()
+      retryOwed = false
       streams.clear()
       evictable.clear()
       totalRetainedBytes = 0
@@ -250,77 +317,9 @@ export function createAgentSessionDeltaCoalescer(
       const stream = streams.get(key)
       if (stream) {
         stream.dirty = false
+        stream.writtenLength = stream.textLength
+        stream.writtenAt = now()
       }
     }
   }
-}
-
-function appendWithinUtf8ByteLimit(
-  current: string[],
-  currentBytes: number,
-  delta: string,
-  deltaBytes: number,
-  maxBytes: number
-): { chunks: string[]; retainedBytes: number; truncated: boolean } {
-  const available = Math.max(0, maxBytes - currentBytes)
-  if (deltaBytes <= available) {
-    // The caller owns the per-stream array; append in place so each token is
-    // amortized O(1) instead of copying the complete prefix on every delta.
-    if (delta.length > 0) {
-      current.push(delta)
-    }
-    return {
-      chunks: current,
-      retainedBytes: currentBytes + deltaBytes,
-      truncated: false
-    }
-  }
-  return truncateStreamPrefix(current, delta, maxBytes)
-}
-
-function truncateStreamPrefix(
-  current: string[],
-  delta: string,
-  maxBytes: number
-): { chunks: string[]; retainedBytes: number; truncated: boolean } {
-  const marker = Buffer.from(AGENT_SESSION_STREAMED_TEXT_TRUNCATION_MARKER, 'utf8')
-  const headBytes = Math.max(0, maxBytes - marker.byteLength)
-  const boundedHead = Number.isSafeInteger(maxBytes) && maxBytes >= 0
-  const combined = boundedHead
-    ? Buffer.allocUnsafe(headBytes)
-    : Buffer.concat([
-        ...current.map((chunk) => Buffer.from(chunk, 'utf8')),
-        Buffer.from(delta, 'utf8')
-      ])
-  let end = boundedHead
-    ? writeStreamPrefix(combined, current, delta)
-    : Math.min(combined.byteLength, headBytes)
-  if (!boundedHead) {
-    while (end > 0 && (combined[end] & 0b1100_0000) === 0b1000_0000) {
-      end -= 1
-    }
-  }
-  const visibleMarker = marker.subarray(0, Math.min(marker.byteLength, maxBytes - end))
-  const text = combined.subarray(0, end).toString('utf8') + visibleMarker.toString('utf8')
-  return {
-    chunks: text ? [text] : [],
-    retainedBytes: Buffer.byteLength(text, 'utf8'),
-    truncated: true
-  }
-}
-
-function writeStreamPrefix(buffer: Buffer, chunks: string[], delta: string): number {
-  let end = 0
-  for (const chunk of chunks) {
-    if (end === buffer.length) {
-      return end
-    }
-    const written = buffer.write(chunk, end, buffer.length - end, 'utf8')
-    end += written
-    // Encode each chunk independently to preserve split-surrogate replacement.
-    if (written < Buffer.byteLength(chunk, 'utf8')) {
-      return end
-    }
-  }
-  return end + buffer.write(delta, end, buffer.length - end, 'utf8')
 }
