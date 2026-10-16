@@ -107,7 +107,7 @@ export function replaceJournalEpoch(input: {
   }
 
   const { sessionId } = input.identity
-  input.database.durableTransaction((db) => {
+  input.database.transaction((db) => {
     const retired = readJournalSessionEpoch(db, sessionId)
     if (retired !== null) {
       deleteJournalEpochRows(db, sessionId, retired)

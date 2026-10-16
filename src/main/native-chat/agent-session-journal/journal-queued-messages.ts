@@ -246,9 +246,7 @@ export class JournalQueuedMessages {
   ): Promise<T> {
     return this.deps.serialize(() => {
       assertJournalWritable(this.deps.readOnly(), this.deps.sessionId)
-      const result = this.deps
-        .database()
-        .durableTransaction(writeReceiptIfChanged(run, changed, receipt))
+      const result = this.deps.database().transaction(writeReceiptIfChanged(run, changed, receipt))
       if (changed(result)) {
         receipt?.committed()
         adopted?.()

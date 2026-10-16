@@ -70,8 +70,7 @@ export async function performThreadGoalChange(
         sentAs: 'goal'
       },
       // Accepting a goal is delivering it, so it joins whatever turn runs now.
-      { fence: ctx.fence, turnScope: ctx.journal.liveTurnScope() },
-      ctx.intentReceipt
+      { fence: ctx.fence, turnScope: ctx.journal.liveTurnScope() }
     )
   }
   const withdrawObjective = async (): Promise<void> => {
@@ -81,7 +80,6 @@ export async function performThreadGoalChange(
     }
   }
   let result: Awaited<ReturnType<typeof ctx.adapter.changeThreadGoal>>
-  await ctx.intentReceipt?.commitAlone()
   try {
     result = await ctx.adapter.changeThreadGoal({
       sessionId: ctx.sessionId,
