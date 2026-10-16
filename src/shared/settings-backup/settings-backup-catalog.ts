@@ -122,6 +122,7 @@ export const SETTINGS_BACKUP_KEY_CLASSES = {
   autoRenameBranchFromWork: 'git',
   branchPrefix: 'git',
   branchPrefixCustom: 'git',
+  jiraIssueKeyCasing: 'git',
   sourceControlViewMode: 'git',
   sourceControlGroupOrder: 'git',
   sourceControlCompareAgainstUpstream: 'git',
