@@ -1,7 +1,7 @@
 import { createElement } from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { FlatList } from 'react-native'
+import type { FlatList, LayoutChangeEvent } from 'react-native'
 import { useMobileNativeChatTailFollow } from './use-mobile-native-chat-tail-follow'
 vi.mock('react-native', () => ({ Platform: { OS: 'android' } }))
 let tree: ReactTestRenderer | undefined
@@ -59,7 +59,10 @@ it('returns to each cached chat following the latest even after the reader scrol
 it('coalesces a merged transcript layout into one nonanimated pin at the last measured end', () => {
   render('a')
   act(() => {
-    scroll.pinToTail({ nativeEvent: { layout: { height: 800 } } })
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the handler reads only the measured viewport height.
+    scroll.pinToTail({
+      nativeEvent: { layout: { x: 0, y: 0, width: 400, height: 800 } }
+    } as LayoutChangeEvent)
     scroll.pinToTailAfterContentResize(400, 400)
   })
   tick()
