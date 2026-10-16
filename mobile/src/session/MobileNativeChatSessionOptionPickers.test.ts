@@ -1,6 +1,7 @@
 import { createElement } from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { legacyHostPermissionDescriptor } from '../../../src/shared/structured-agent-session-permission-option'
 import type { SessionOptionDescriptor } from '../../../src/shared/native-chat-session-options'
 import { MobileNativeChatSessionOptionPickers } from './MobileNativeChatSessionOptionPickers'
 import type { MobileNativeChatSessionOptionsController } from './use-mobile-native-chat-session-options'
@@ -69,6 +70,23 @@ const FAST_MODE_DESCRIPTOR: SessionOptionDescriptor = {
   kind: { type: 'boolean', currentValue: false },
   valueSource: 'reported',
   transport: 'catalog',
+  settable: true
+}
+
+const PERMISSION_DESCRIPTOR: SessionOptionDescriptor = {
+  id: 'permissionMode',
+  label: 'Permissions',
+  category: 'mode',
+  kind: {
+    type: 'select',
+    currentValue: 'ask',
+    choices: [
+      { value: 'ask', label: 'Ask for approval' },
+      { value: 'full-access', label: 'Full access' }
+    ]
+  },
+  valueSource: 'applied',
+  transport: 'agent-session',
   settable: true
 }
 
@@ -291,7 +309,29 @@ describe('MobileNativeChatSessionOptionPickers', () => {
     expect(pill('Model').props).toMatchObject({ disabled: true })
   })
 
-  it('shows the permission pill before any model pill, and closes at once on a pick', async () => {
+  it.each([PERMISSION_DESCRIPTOR, legacyHostPermissionDescriptor()])(
+    'keeps permissions inside the model drawer instead of adding a second toolbar pill',
+    async (permission) => {
+      mount([MODEL_DESCRIPTOR, EFFORT_DESCRIPTOR, permission])
+      expect(renderer!.root.findAllByType('Pressable')).toHaveLength(1)
+      await act(async () => pill('Model').props.onPress())
+      await act(async () => rowByText('Permissions').props.onPress())
+      const choice = permission.kind.type === 'select' ? permission.kind.choices[0]!.label : ''
+      expect(rowByText(choice).props.accessibilityState?.disabled).toBe(!permission.settable)
+    }
+  )
+
+  it('keeps permissions reachable while working without enabling model changes', async () => {
+    mount([MODEL_DESCRIPTOR, PERMISSION_DESCRIPTOR], true)
+    expect(pill('Model').props.disabled).toBe(false)
+    await act(async () => pill('Model').props.onPress())
+    expect(rowByText('Opus 4.8').props.accessibilityState?.disabled).toBe(true)
+    await act(async () => rowByText('Permissions').props.onPress())
+    await act(async () => rowByText('Full access').props.onPress())
+    expect(setOption).toHaveBeenCalledWith('permissionMode', 'full-access')
+  })
+
+  it('keeps a permission-only entry without a model, and closes at once on a pick', async () => {
     mount([PERMISSION_DESCRIPTOR], true)
     expect(pill('Permissions').props).toMatchObject({
       accessibilityLabel: 'Permissions, Ask for approval',
@@ -305,20 +345,3 @@ describe('MobileNativeChatSessionOptionPickers', () => {
     expect(renderer!.root.findAllByType('BottomDrawer')).toEqual([])
   })
 })
-
-const PERMISSION_DESCRIPTOR: SessionOptionDescriptor = {
-  id: 'permissionMode',
-  label: 'Permissions',
-  category: 'mode',
-  kind: {
-    type: 'select',
-    currentValue: 'ask',
-    choices: [
-      { value: 'ask', label: 'Ask for approval' },
-      { value: 'full-access', label: 'Full access' }
-    ]
-  },
-  valueSource: 'applied',
-  transport: 'agent-session',
-  settable: true
-}

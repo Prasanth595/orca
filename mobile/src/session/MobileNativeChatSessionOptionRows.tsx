@@ -182,10 +182,12 @@ export function SessionOptionSummaryRow({
   value,
   disabled,
   divided,
-  onPress
+  onPress,
+  valueColor
 }: {
   label: string
   value: string
+  valueColor?: string
   disabled: boolean
   divided: boolean
   onPress: () => void
@@ -207,7 +209,10 @@ export function SessionOptionSummaryRow({
       disabled={disabled}
     >
       <Text style={styles.summaryLabel}>{label}</Text>
-      <Text style={styles.summaryValue} numberOfLines={1}>
+      <Text
+        style={[styles.summaryValue, valueColor ? { color: valueColor } : null]}
+        numberOfLines={1}
+      >
         {value}
       </Text>
       <ChevronRight size={16} color={colors.textMuted} strokeWidth={2.2} />
@@ -294,6 +299,8 @@ export function DescriptorRows({
 const styles = createThemedStyles(() =>
   StyleSheet.create({
     pill: {
+      flexShrink: 1,
+      minWidth: 0,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 4,
