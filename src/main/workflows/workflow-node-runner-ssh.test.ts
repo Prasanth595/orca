@@ -6,7 +6,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 
 const { mockRunProcess } = vi.hoisted(() => ({ mockRunProcess: vi.fn() }))
-vi.mock('../../shared/child-process/run-process', () => ({ runProcess: mockRunProcess }))
+vi.mock('@orca/process-host', () => ({ runProcess: mockRunProcess }))
 
 import { runShellCommandNode } from './workflow-node-runner-shell'
 import { runPythonScriptNode } from './workflow-node-runner-python'

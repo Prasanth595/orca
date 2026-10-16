@@ -26,19 +26,16 @@ import {
 } from './worker-setup-gate'
 import { failWorkerStartWithReceipt } from './worker-start-receipt'
 import { parseTaskDeps } from './task-deps-argument'
-import { assertExplicitWorkerTerminalUsable } from './explicit-worker-terminal-validation'
+import { assertExplicitWorkerUsable } from './explicit-worker-terminal-validation'
+import { resolveDispatchAssigneeParty } from '../../../../orchestration/orchestration-party'
+import { CHAT_WORKER_AUTHORITY, chatAssigneeOf, chatWorkerMode } from '../chat-assignee-admission'
 import { recordCreatedWorkerTerminalCustody } from './created-worker-terminal-custody'
 import { tearDownFailedWorkerStart } from './failed-worker-start-teardown'
+import { releaseRetriedWorkerTerminal } from './retried-worker-terminal-release'
 import { requireWorkerAuthority, type WorkerEffect } from './worker-topology'
 import { prepareLocalWorkerStart } from './worker-start-validation'
 import { deliverAndSettleWorkerStartReadiness } from './worker-start-readiness-settlement'
-
-type WorkerStartMutation = {
-  callerFingerprint: string
-  requestId: string
-  method: string
-  payloadHash: string
-}
+import type { WorkerStartMutation } from './worker-start-mutation'
 
 export async function startLocalWorker(args: {
   params: WorkerStartInput
@@ -52,8 +49,11 @@ export async function startLocalWorker(args: {
   /** Settings-driven; the executing host still gets to refuse below. */
   mode: WorkerStartModeReceipt
 }): Promise<unknown> {
-  const { params, runtime, db, run, coordinator, callerSession, existingTask } = args
-  const { orchestrationMutation } = args
+  const { runtime, db, run, coordinator, callerSession, existingTask, orchestrationMutation } = args
+  // `--terminal` names a party: a chat by its `/clear` root address, as its Dispatch does.
+  const terminal = args.params.terminal && resolveDispatchAssigneeParty(args.params.terminal, db)
+  const params = terminal ? { ...args.params, terminal: terminal.address } : args.params
+  const chat = terminal ? chatAssigneeOf(terminal) : null
   const coordinatorPane = coordinator?.paneKey ?? null
   const requestedWorktree = params.worktree ?? 'current'
   const createsWorktree = requestedWorktree === 'new-child' || requestedWorktree === 'new-top-level'
@@ -108,21 +108,24 @@ export async function startLocalWorker(args: {
       existingPlacement: 'current or an exact existing folder workspace'
     })
   }
-  let resolvedWorktree = creationWorktree
-    ? undefined
-    : requestedWorktree === 'current'
-      ? await runtime.showManagedTerminalWorkspace(`id:${coordinatorWorktreeId}`)
-      : await runtime.showManagedTerminalWorkspace(requestedWorktree)
-  if (params.terminal) {
-    await assertExplicitWorkerTerminalUsable({
+  let resolvedWorktree: Awaited<ReturnType<typeof placeWorkerAgent>>['worktree'] | undefined =
+    creationWorktree
+      ? undefined
+      : requestedWorktree === 'current'
+        ? await runtime.showManagedTerminalWorkspace(`id:${coordinatorWorktreeId}`)
+        : await runtime.showManagedTerminalWorkspace(requestedWorktree)
+  if (terminal) {
+    await assertExplicitWorkerUsable({
       runtime,
-      terminal: params.terminal,
+      db,
+      terminal,
       from: params.from,
       coordinator,
       resolvedWorktreeId: resolvedWorktree?.id
     })
   }
-  let mode = await resolveWorkerStartModeOnHost(runtime, args.mode, resolvedWorktree?.id, agent)
+  const hostMode = resolveWorkerStartModeOnHost(runtime, args.mode, resolvedWorktree?.id, agent)
+  let mode = chatWorkerMode(await hostMode, chat)
 
   const startOptions = {
     worktree: requestedWorktree,
@@ -163,6 +166,7 @@ export async function startLocalWorker(args: {
     runtimeEpoch: runtime.getRuntimeId(),
     mutationReceipt: orchestrationMutation
   })
+  releaseRetriedWorkerTerminal(runtime, db, params)
   const effects: WorkerEffect[] = []
   const task = started.task
   if (resolvedWorktree) {
@@ -225,11 +229,14 @@ export async function startLocalWorker(args: {
           effects,
           timeoutMs: params.timeoutMs ?? 60_000
         })
-      : await waitForWorkerAgentReady(runtime, terminalHandle, {
-          agent,
-          reusesTerminal: Boolean(params.terminal),
-          timeoutMs: params.timeoutMs ?? 60_000
-        })
+      : chat
+        ? // A chat takes its task as a queued send whatever it is doing, so nothing is waited on.
+          null
+        : await waitForWorkerAgentReady(runtime, terminalHandle, {
+            agent,
+            reusesTerminal: Boolean(params.terminal),
+            timeoutMs: params.timeoutMs ?? 60_000
+          })
     if (wait) {
       persistWorkerSetupWaitOutcome({ ...setupStage, wait })
       if (!wait.satisfied) {
@@ -245,7 +252,10 @@ export async function startLocalWorker(args: {
         )
       }
     }
-    const terminalAuthority = requireWorkerAuthority(runtime, terminalHandle)
+    // A chat has no pane or process; its Dispatch names it by its Orca session ID alone.
+    const terminalAuthority = chat
+      ? CHAT_WORKER_AUTHORITY
+      : requireWorkerAuthority(runtime, terminalHandle)
     db.prepareStartingWorkerAuthority({
       dispatchId: started.dispatch.id,
       handle: terminalHandle,

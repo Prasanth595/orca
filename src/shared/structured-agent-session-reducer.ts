@@ -25,7 +25,13 @@ import {
 } from './structured-agent-session-item-retention'
 import { compareAgentJournalItems } from './agent-session-journal-position'
 import { readAgentJournalTurn } from './agent-session-turn-record'
-import { latestTurnAfterStructuredAgentSessionBatch } from './structured-agent-session-live-turn'
+import { queuePublicationField } from './structured-agent-session-queue-publication-field'
+import {
+  actionablePromptIdsAfterStructuredAgentSessionBatch,
+  hostWorkingAfterStructuredAgentSessionBatch,
+  latestTurnAfterStructuredAgentSessionBatch,
+  restatesStructuredAgentSessionHostWork
+} from './structured-agent-session-live-turn'
 import {
   foldStructuredAgentSubagentRoster,
   foldStructuredAgentSubagentRosterPage,
@@ -62,6 +68,8 @@ export type StructuredAgentSessionState = {
   queuedMessages?: AgentSessionQueuedMessage[] | null
   /** The queue's pause, published with the list; null when it sends on its own. */
   queuePause?: AgentSessionQueuePause | null
+  /** Published with the list: the card the queue sends next once nothing runs, else null. */
+  nextQueuedMessageId?: string | null
   commands?: AgentSessionSlashCommand[] | null
   activity?: AgentSessionTurnActivity | null
   /** Absent until a frame from a host that stamps `hostNow` has been applied. */
@@ -72,6 +80,12 @@ export type StructuredAgentSessionState = {
   /** The host's newest turn record over the whole journal, which says whether a turn runs; absent
    *  from an older host, whose answer is read off `items` instead. */
   latestTurn?: AgentSessionLatestTurn | null
+  /** The prompts the host says still wait on the person (`AgentSessionHistoryPage`); absent from
+   *  an older host, whose every pending prompt in `items` is read as waiting. */
+  actionablePromptIds?: string[]
+  /** Whether the host says the session's own agent is working (`AgentSessionHistoryPage.working`);
+   *  absent from an older host, whose answer is derived from `items` and `submissions`. */
+  working?: boolean
   /** Bumped per live batch that leaves a turn row's newest revision outside the window
    *  (dropped or trimmed), so a whole-journal answer derived from turn rows is asked for again. */
   unloadedTurnRevisions?: number
@@ -108,19 +122,6 @@ function hostClockField(
   return hostClock ? { hostClock } : {}
 }
 
-type QueuePublication = Pick<StructuredAgentSessionState, 'queuedMessages' | 'queuePause'>
-
-/** First claim with a list wins, and its pause rides with it; no claim at all leaves both absent
- *  (older host). */
-function queuePublicationField(...claims: QueuePublication[]): QueuePublication {
-  for (const claim of claims) {
-    if (claim.queuedMessages !== undefined) {
-      return { queuedMessages: claim.queuedMessages, queuePause: claim.queuePause ?? null }
-    }
-  }
-  return {}
-}
-
 function replacePage(
   page: AgentSessionHistoryPage,
   fence: number | null,
@@ -140,6 +141,10 @@ function replacePage(
     subagentRoster: foldStructuredAgentSubagentRosterPage(undefined, page),
     activity: activity ?? null,
     ...(page.latestTurn !== undefined ? { latestTurn: page.latestTurn } : {}),
+    ...(page.actionablePromptIds !== undefined
+      ? { actionablePromptIds: page.actionablePromptIds }
+      : {}),
+    ...(page.working !== undefined ? { working: page.working } : {}),
     ...(backgroundTasks !== undefined
       ? { backgroundTasks }
       : page.backgroundTasks !== undefined
@@ -282,7 +287,10 @@ export function reduceStructuredAgentSession(
     (event.commands === undefined || event.commands === state.commands) &&
     (event.queuedMessages === undefined || event.queuedMessages === state.queuedMessages) &&
     (event.queuePause === undefined || event.queuePause === state.queuePause) &&
+    (event.nextQueuedMessageId === undefined ||
+      event.nextQueuedMessageId === state.nextQueuedMessageId) &&
     backgroundTaskStatesEqual(backgroundTasks, state.backgroundTasks) &&
+    restatesStructuredAgentSessionHostWork(event, state) &&
     activity?.turnId === state.activity?.turnId &&
     activity?.text === state.activity?.text &&
     state.status === 'ready' &&
@@ -318,6 +326,11 @@ export function reduceStructuredAgentSession(
     readRefusal: undefined,
     commands: event.commands !== undefined ? event.commands : state.commands,
     latestTurn: latestTurnAfterStructuredAgentSessionBatch(state.latestTurn, event),
+    actionablePromptIds: actionablePromptIdsAfterStructuredAgentSessionBatch(
+      state.actionablePromptIds,
+      event
+    ),
+    working: hostWorkingAfterStructuredAgentSessionBatch(state.working, event),
     ...queuePublicationField(event, state),
     backgroundTasks,
     ...(activity !== undefined ? { activity } : {}),

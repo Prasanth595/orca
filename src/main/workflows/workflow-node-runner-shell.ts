@@ -1,4 +1,4 @@
-import { runProcess } from '../../shared/child-process/run-process'
+import { runProcess } from '@orca/process-host'
 import type { ShellCommandData } from '../../shared/workflow-types'
 import type { RemoteExecFn } from './workflow-remote-exec'
 

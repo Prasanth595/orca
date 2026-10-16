@@ -25,6 +25,7 @@ import {
   getWorkspaceTokenProtection
 } from './linear-token-store'
 import { CredentialDecryptionError } from '../integration-credential-file'
+import { integrationCredentialKeychainFields } from '../integration-credential-keychain'
 import type {
   LinearConnectionStatus,
   LinearViewer,
@@ -55,7 +56,8 @@ export function getClient(workspaceId?: string | null): LinearClient | null {
 }
 
 export function getClients(
-  workspaceId?: LinearWorkspaceSelection | null
+  workspaceId?: LinearWorkspaceSelection | null,
+  signal?: AbortSignal
 ): LinearClientForWorkspace[] {
   const state = getWorkspaceState()
   const isAllSelection = workspaceId === 'all'
@@ -84,16 +86,20 @@ export function getClients(
     }
     clients.push({
       workspace,
-      client: new (loadLinearSdk().LinearClient)({ apiKey: token }),
+      client: new (loadLinearSdk().LinearClient)({ apiKey: token, ...(signal ? { signal } : {}) }),
       apiKey: token
     })
   }
   return clients
 }
 
-export function getPublicFileUrlClient(entry: LinearClientForWorkspace): LinearClient {
+export function getPublicFileUrlClient(
+  entry: LinearClientForWorkspace,
+  signal?: AbortSignal
+): LinearClient {
   return new (loadLinearSdk().LinearClient)({
     apiKey: entry.apiKey,
+    ...(signal ? { signal } : {}),
     headers: {
       'public-file-urls-expire-in': String(LINEAR_PUBLIC_FILE_URL_EXPIRY_SECONDS)
     }
@@ -192,6 +198,10 @@ export function getStatus(): LinearConnectionStatus {
     activeWorkspaceId: state.activeWorkspaceId,
     selectedWorkspaceId: state.selectedWorkspaceId,
     ...(credentialError ? { credentialError } : {}),
+    ...integrationCredentialKeychainFields({
+      saved: state.workspaces.length > 0,
+      decryptFailed: credentialError !== undefined
+    }),
     credentialProtection
   }
 }

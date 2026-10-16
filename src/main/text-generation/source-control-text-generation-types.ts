@@ -1,4 +1,5 @@
-import type { spawnProcess } from '../../shared/child-process/run-process'
+import type { AgentSessionUnavailable } from '../../shared/agent-session-availability'
+import type { spawnProcess } from '@orca/process-host'
 import type { AgentGenerationFailureOutput } from './agent-failure-output'
 import type {
   CommitMessageAgentCapability,
@@ -18,7 +19,7 @@ export type DiscoverCommitMessageModelsResult =
       defaultModelId: string
       catalogOrigin: 'probe' | 'spec'
     }
-  | { success: false; error: string }
+  | { success: false; error: string; unavailable?: AgentSessionUnavailable }
 
 export type GeneratePullRequestFieldsResult<TFields> =
   | {
@@ -38,7 +39,12 @@ export type RemoteCommitMessageExecResult = {
   spawnError?: string
 }
 
-export type TextGenerationOperation = 'commit-message' | 'pull-request-fields' | 'branch-name'
+export type TextGenerationOperation =
+  | 'commit-message'
+  | 'pull-request-fields'
+  | 'branch-name'
+  | 'jira-issue-summary'
+  | 'conversation-name'
 
 export type CommitMessageGenerationTarget =
   | { kind: 'local'; cwd: string; env?: NodeJS.ProcessEnv; wslDistro?: string }
@@ -65,6 +71,15 @@ export type InternalTextGenerationResult =
 
 export type GenerateBranchNameResult =
   | { success: true; slug: string; agentLabel?: string }
+  | {
+      success: false
+      error: string
+      canceled?: boolean
+      failureOutput?: AgentGenerationFailureOutput
+    }
+
+export type GenerateConversationNameResult =
+  | { success: true; name: string; agentLabel?: string }
   | {
       success: false
       error: string

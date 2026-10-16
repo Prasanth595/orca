@@ -28,7 +28,7 @@ import {
   TODO_SUMMARY_SCRIPT
 } from '../../shared/workflow-template-http-api-report'
 import { existsSync } from 'node:fs'
-import { runProcess } from '../../shared/child-process/run-process'
+import { runProcess } from '@orca/process-host'
 import type { AgentWorkflow } from '../../shared/workflow-types'
 import type { WorkflowStoreOperations } from './workflow-run-store'
 import type { PersistedState } from '../../shared/persisted-state-types'

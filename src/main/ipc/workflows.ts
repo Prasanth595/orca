@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { runProcess } from '../../shared/child-process/run-process'
+import { runProcess } from '@orca/process-host'
 import {
   CLAUDE_MODEL_LIST_STDIN,
   CLAUDE_MODEL_LIST_ARGS,

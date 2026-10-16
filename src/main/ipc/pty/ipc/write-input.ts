@@ -1,7 +1,7 @@
 import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron'
 import type { PtyRendererDelivery } from '../session'
 import type { OrcaRuntimeService } from '../../../runtime/orca-runtime'
-import type { IPtyProvider } from '../../../providers/types'
+import type { IPtyProvider } from '../../../providers/pty-provider-contract'
 import { isPtyWriteUnavailableError } from '../../../providers/pty-write-unavailable-error'
 import {
   isTerminalInputTooLargeWithDeferredMeasurement,
@@ -9,6 +9,7 @@ import {
 } from '../../../../shared/terminal-input'
 import { ptyOwnership } from '../provider/ownership-state'
 import { tryGetProviderForPty } from '../provider/registry'
+import { LOCAL_EXECUTION_HOST_ID } from '../../../../shared/execution-host'
 import type { TerminalInputKind } from '../../../../shared/terminal-input-kind'
 import { interactiveOutputCharsByPty, lastInputAtByPty } from '../delivery/visibility-state'
 import { isSettledWrite, type WriteSettlement } from '../../../../shared/pty-write-settlement'
@@ -103,8 +104,7 @@ export function createPtyWriteInput(deps: {
     verify: boolean
   ): boolean | Promise<boolean> => {
     if (!verify) {
-      provider.write(id, data)
-      return true
+      return provider.write(id, data) !== false
     }
     const settlement = provider.writeWithSettlement(id, data)
     return isSettledWrite(settlement)
@@ -208,6 +208,26 @@ export function createPtyWriteInput(deps: {
     lastInputAtByPty.set(args.id, performance.now())
     interactiveOutputCharsByPty.set(args.id, 0)
     runtime?.terminalRunFacts?.recordInput(args.id, args.inputKind, args.data)
+    runtime?.noteRemoteDesktopHostInput(args.id, args.inputKind, args.data)
+  }
+
+  const writeAndObserveInput = (
+    provider: IPtyProvider,
+    args: PtyWritePayload,
+    verify = false
+  ): boolean | Promise<boolean> => {
+    const observe = (accepted: boolean): boolean => {
+      if (
+        accepted &&
+        args.inputKind === 'driving' &&
+        ptyOwnership.get(args.id) === LOCAL_EXECUTION_HOST_ID
+      ) {
+        runtime?.observeClaudeTerminalEvidence?.(args.id, { kind: 'input', data: args.data })
+      }
+      return accepted
+    }
+    const result = writePtyProviderInput(provider, args.id, args.data, verify)
+    return typeof result === 'boolean' ? observe(result) : result.then(observe)
   }
 
   const writePtyInput = (args: PtyWritePayload): boolean | Promise<boolean> => {
@@ -221,7 +241,7 @@ export function createPtyWriteInput(deps: {
     }
     try {
       noteRendererPtyInput(args)
-      return writePtyProviderInput(provider, args.id, args.data)
+      return writeAndObserveInput(provider, args)
     } catch {
       return false
     }
@@ -236,7 +256,7 @@ export function createPtyWriteInput(deps: {
       return false
     }
     noteRendererPtyInput(args)
-    return writePtyProviderInput(provider, args.id, args.data, true)
+    return writeAndObserveInput(provider, args, true)
   }
 
   const writePtyInputAccepted = (args: PtyWritePayload): boolean | Promise<boolean> => {
@@ -247,7 +267,7 @@ export function createPtyWriteInput(deps: {
       return writePtyInputSettled(args)
     }
     // Why: the ack infers Ctrl+C/Escape reached the local PTY; SSH providers are fire-and-forget relay notifications and can't truthfully acknowledge yet.
-    if (ptyOwnership.get(args.id) !== null) {
+    if (ptyOwnership.get(args.id) !== LOCAL_EXECUTION_HOST_ID) {
       return false
     }
     const provider = tryGetProviderForPty(args.id)
@@ -256,7 +276,7 @@ export function createPtyWriteInput(deps: {
     }
     try {
       noteRendererPtyInput(args)
-      return writePtyProviderInput(provider, args.id, args.data)
+      return writeAndObserveInput(provider, args)
     } catch {
       return false
     }
