@@ -96,6 +96,14 @@ describe('resolveGhAccountRequiredHost', () => {
     })
   })
 
+  it('keeps a dotless HTTPS host literal without consulting ssh config', async () => {
+    const resolveAlias = vi.fn(async () => ({ hostname: 'elsewhere.example.com' }))
+    await expect(
+      resolveGhAccountRequiredHost(repoFor('https://ghe/example/sample-app.git'), {}, resolveAlias)
+    ).resolves.toBe('ghe')
+    expect(resolveAlias).not.toHaveBeenCalled()
+  })
+
   it('does not filter when the alias cannot be resolved', async () => {
     for (const resolveAlias of [
       async () => ({ hostname: null }),

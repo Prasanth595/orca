@@ -3,6 +3,7 @@ import {
   foldComparableGitHubHost
 } from '../../shared/git-remote-host-alias'
 import { githubHostFromIdentityKey } from '../../shared/github/repository-identity-key'
+import { remoteUrlUsesSshTransport } from './github-remote-identity-parsing'
 import {
   resolveSshConfigHostname,
   type SshConfigResolutionContext
@@ -21,13 +22,15 @@ export async function resolveGhAccountRequiredHost(
   repo: {
     path: string
     connectionId?: string | null
-    gitRemoteIdentity?: { canonicalKey: string } | null
+    gitRemoteIdentity?: { canonicalKey: string; remoteUrl: string } | null
   },
   localGitOptions: { wslDistro?: string },
   resolveAlias: SshAliasHostnameResolver = resolveSshConfigHostname
 ): Promise<string | undefined> {
   const host = githubHostFromIdentityKey(repo.gitRemoteIdentity?.canonicalKey)
-  if (!host || !isUnresolvedSshHostAlias(host)) {
+  // Why: only SSH transport reads ~/.ssh/config; a dotless HTTPS host is literal.
+  const remoteUrl = repo.gitRemoteIdentity?.remoteUrl ?? ''
+  if (!host || !isUnresolvedSshHostAlias(host) || !remoteUrlUsesSshTransport(remoteUrl)) {
     return host
   }
   // Why: `git@github-personal:owner/repo` keeps the OpenSSH alias in the identity key.
