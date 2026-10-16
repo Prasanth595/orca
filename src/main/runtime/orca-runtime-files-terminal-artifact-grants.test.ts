@@ -11,6 +11,7 @@ import {
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { AgentMessageSource } from '../../shared/agent-session-message-source'
 import { AgentSessionAttachmentStore } from '../native-chat/agent-session-attachments/agent-session-attachment-store'
 import { setAgentSessionAttachmentStore } from '../native-chat/agent-session-attachments/agent-session-attachment-store-registry'
 import { nativeChatTranscriptIncludesPath } from '../native-chat/native-chat-file-provenance'
@@ -87,6 +88,7 @@ describe('RuntimeFileCommands', () => {
       const file = join(upload, 'report.txt')
       await writeFile(file, 'Report')
       const context = { tabId: 'chat-tab', sessionId: 'chat-session' }
+      let from: AgentMessageSource | undefined
       const { commands } = createRuntimeFileCommands({
         path: '/repo',
         hasRecentNativeChatOutputPath: vi.fn((_worktreeId, ctx, pathText, absolutePath) =>
@@ -114,7 +116,8 @@ describe('RuntimeFileCommands', () => {
                   body: {
                     kind: 'message',
                     role: 'user',
-                    blocks: [{ type: 'text', text: `@${file}` }]
+                    blocks: [{ type: 'text', text: `@${file}` }],
+                    from
                   }
                 }
               ]
@@ -126,6 +129,19 @@ describe('RuntimeFileCommands', () => {
         new AgentSessionAttachmentStore(storeRoot, { hasSession: () => true })
       )
       try {
+        from = { kind: 'agent', senders: [], orchestration: null }
+        const refused = await commands.resolveTerminalPath(
+          'id:wt-1',
+          file,
+          null,
+          'client-a',
+          null,
+          true,
+          context
+        )
+        expect(refused.exists).toBe(false)
+        expect(refused.openTarget).toBeUndefined()
+        from = undefined
         const resolved = await commands.resolveTerminalPath(
           'id:wt-1',
           file,

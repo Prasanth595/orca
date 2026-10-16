@@ -62,6 +62,7 @@ export async function nativeChatTranscriptIncludesPath(args: {
         ({ body }) =>
           body.kind === 'message' &&
           body.role === 'user' &&
+          body.from === undefined &&
           body.blocks.some(
             (block) =>
               block.type === 'text' && transcriptTextIncludesPath(block.text, reference, reference)

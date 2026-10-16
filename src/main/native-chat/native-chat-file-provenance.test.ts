@@ -234,3 +234,34 @@ it.each(['Report with spaces.txt', 'my "notes" and \'more\'.txt'])(
     ).resolves.toBe(true)
   }
 )
+
+it.each(['task', 'mail-notice', null] as const)(
+  'refuses attachment provenance from an agent-origin user-role message: %s',
+  async (kind) => {
+    const readJournal = readJournalMessage({
+      kind: 'message',
+      role: 'user',
+      blocks: [{ type: 'text', text: `@${attachmentPath}` }],
+      from: {
+        kind: 'agent',
+        senders: [],
+        orchestration:
+          kind === 'task'
+            ? { message: 'task', runId: 'run-1', taskId: 'task-1', dispatchId: 'dispatch-1' }
+            : kind === 'mail-notice'
+              ? { message: 'mail-notice', mailbox: 'worker-1', dispatchId: null, messages: [] }
+              : null
+      }
+    })
+    await expect(
+      nativeChatTranscriptIncludesPath({
+        tabs: [agentTab],
+        context,
+        pathText: attachmentPath,
+        absolutePath: attachmentPath,
+        attachmentRoot,
+        readJournal
+      })
+    ).resolves.toBe(false)
+  }
+)
