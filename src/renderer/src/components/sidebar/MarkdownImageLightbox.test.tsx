@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ExpandableMarkdownImage } from './MarkdownImageLightbox'
+import CommentMarkdown from './CommentMarkdown'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 
 afterEach(() => {
@@ -65,4 +66,45 @@ describe('ExpandableMarkdownImage', () => {
     expect(screen.getByText('Jira issue')).toBeTruthy()
     expect(onOpenChange).not.toHaveBeenCalled()
   })
+})
+
+it.each([undefined, () => {}])(
+  'scales percentage height after loading in either document image renderer',
+  (onLinkClick) => {
+    const src = '/uploads/0123456789abcdef0123456789abcdef/screen.png'
+    render(
+      <CommentMarkdown
+        variant="document"
+        content={`![percent](${src}){height=50%}`}
+        gitlabImageSources={{ [src]: 'data:image/png;base64,abc' }}
+        onLinkClick={onLinkClick}
+      />
+    )
+    const image = screen.getByAltText('percent')
+    Object.defineProperty(image, 'naturalHeight', { configurable: true, value: 400 })
+    fireEvent.load(image)
+    expect(image.style.height).toBe('200px')
+    expect(image.getAttribute('height')).toBeNull()
+  }
+)
+
+it('forwards preview failures while retaining percentage dimensions', () => {
+  const onError = vi.fn()
+  render(
+    <ExpandableMarkdownImage
+      src="data:image/png;base64,abc"
+      alt="preview"
+      width="75%"
+      height="50%"
+      onError={onError}
+    />
+  )
+  const image = screen.getByAltText('preview')
+  expect(screen.getByRole('button', { name: 'Expand image' }).style.width).toBe('75%')
+  expect(image.style.width).toBe('100%')
+  Object.defineProperty(image, 'naturalHeight', { configurable: true, value: 400 })
+  fireEvent.load(image)
+  expect(image.style.height).toBe('200px')
+  fireEvent.error(image)
+  expect(onError).toHaveBeenCalledOnce()
 })

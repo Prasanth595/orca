@@ -16,6 +16,7 @@ import {
   type CommentMarkdownLinkClickHandler,
   type DocumentCodeBlockRenderer
 } from './comment-markdown-element-renderers'
+import { rehypeGitLabImages } from './comment-markdown-gitlab-images'
 import {
   remarkNativeChatFileLinks,
   type FileLinkExists
@@ -226,6 +227,7 @@ function extensionRehypePlugins(extension: CommentMarkdownExtension): MarkdownPl
 
 type CommentMarkdownProps = React.ComponentPropsWithoutRef<'div'> & {
   content: string
+  gitlabImageSources?: Readonly<Record<string, string>>
   variant?: 'compact' | 'document'
   githubRepo?: GitHubRepoReference | null
   onLinkClick?: CommentMarkdownLinkClickHandler
@@ -266,10 +268,12 @@ function useMarkdownBlocks(content: string, growing: boolean): readonly Markdown
 // Why forwardRef + rest props: Radix's HoverCardTrigger asChild merges a ref
 // and event handlers (onPointerEnter, onPointerLeave, data-state, etc.) onto
 // the child. Without forwarding both, the hover card cannot open or position.
+/** Resolve provider previews before sanitizing the rendered Markdown. */
 const CommentMarkdown = React.memo(
   React.forwardRef<HTMLDivElement, CommentMarkdownProps>(function CommentMarkdown(
     {
       content,
+      gitlabImageSources,
       className,
       variant = 'compact',
       githubRepo,
@@ -305,10 +309,12 @@ const CommentMarkdown = React.memo(
       () => ({ ...components, span: CommentMarkdownWords }),
       [components]
     )
-    const activeRehypePlugins = React.useMemo(
-      () => (extension ? extensionRehypePlugins(extension) : rehypePlugins),
-      [extension]
-    )
+    const activeRehypePlugins = React.useMemo<MarkdownPlugins>(() => {
+      const plugins = extension ? extensionRehypePlugins(extension) : rehypePlugins
+      return gitlabImageSources
+        ? [rehypeRaw, rehypeGitLabImages(gitlabImageSources), ...plugins.slice(1)]
+        : plugins
+    }, [extension, gitlabImageSources])
     const activeRemarkPlugins = React.useMemo(() => {
       const plugins = fileLinkExists
         ? [...remarkPlugins, remarkNativeChatFileLinks(fileLinkExists)]

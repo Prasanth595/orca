@@ -10,9 +10,12 @@ import {
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { translate } from '@/i18n/i18n'
+import { markdownImageSize, MarkdownSizedImage } from './markdown-image-size'
 
 type ExpandableMarkdownImageProps = {
   src: string
+  width?: number | string
+  height?: number | string
   alt?: string
   className?: string
   triggerClassName?: string
@@ -23,14 +26,18 @@ type ExpandableMarkdownImageProps = {
  * Inline markdown image that opens a viewport-centered lightbox on click.
  * The shared dialog primitive owns modal focus, Escape, and focus restoration.
  */
+/** Preserve authored preview dimensions while opening the full image in the lightbox. */
 export function ExpandableMarkdownImage({
   src,
+  width,
+  height,
   alt,
   className,
   triggerClassName,
   onError
 }: ExpandableMarkdownImageProps): React.JSX.Element {
   const [open, setOpen] = React.useState(false)
+  const size = markdownImageSize(width, height)
   const label =
     alt?.trim() || translate('auto.components.sidebar.MarkdownImageLightbox.image', 'Image')
 
@@ -39,6 +46,7 @@ export function ExpandableMarkdownImage({
       <DialogTrigger asChild>
         <button
           type="button"
+          style={size.style}
           className={cn(
             'my-3 block max-w-full cursor-zoom-in border-0 bg-transparent p-0 text-left',
             triggerClassName
@@ -53,8 +61,10 @@ export function ExpandableMarkdownImage({
             'Expand image'
           )}
         >
-          <img
+          <MarkdownSizedImage
             src={src}
+            width={size.style.width ? '100%' : size.width}
+            height={height}
             alt={alt ?? ''}
             className={cn(className, 'pointer-events-none')}
             onError={onError}

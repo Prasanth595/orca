@@ -73,7 +73,16 @@ export function runProcess(
 ): Promise<ProcessResult> {
   if (spec.signal?.aborted) {
     spec.onChildTerminated?.()
-    return Promise.resolve({ code: null, signal: null, stdout: '', stderr: '', timedOut: false })
+    return Promise.resolve({
+      code: null,
+      signal: null,
+      stdout: '',
+      stderr: '',
+      timedOut: false,
+      ...(spec.captureRawOutput
+        ? { stdoutBytes: Buffer.alloc(0), stderrBytes: Buffer.alloc(0) }
+        : {})
+    })
   }
   const maxOutputBytes = spec.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES
 
@@ -159,6 +168,9 @@ export function runProcess(
           stdout: spec.captureStdoutAsBytes ? '' : stdout.text(),
           ...(spec.captureStdoutAsBytes ? { stdoutBytes: stdout.buffer() } : {}),
           stderr: stderr.text(),
+          ...(spec.captureRawOutput
+            ? { stdoutBytes: stdout.buffer(), stderrBytes: stderr.buffer() }
+            : {}),
           timedOut,
           outputTruncated: stdout.truncated() || stderr.truncated()
         })
@@ -374,6 +386,12 @@ function runResolvedProcessSync(spec: ProcessSpec, resolved: ResolvedSpawn): Pro
     stdout: spec.captureStdoutAsBytes ? '' : (result.stdout?.toString('utf8') ?? ''),
     ...(spec.captureStdoutAsBytes ? { stdoutBytes: result.stdout ?? Buffer.alloc(0) } : {}),
     stderr: result.stderr?.toString('utf8') ?? '',
+    ...(spec.captureRawOutput
+      ? {
+          stdoutBytes: result.stdout ?? Buffer.alloc(0),
+          stderrBytes: result.stderr ?? Buffer.alloc(0)
+        }
+      : {}),
     // Why always false: spawnSync reports an overrun as an ENOBUFS error, and
     // the guard above rethrows it, so no truncated result reaches this point.
     outputTruncated: false,

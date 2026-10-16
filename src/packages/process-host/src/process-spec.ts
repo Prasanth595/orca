@@ -26,6 +26,8 @@ export type ProcessSpec = {
   input?: string
   /** Cap on captured stdout/stderr; output past it is discarded. */
   maxOutputBytes?: number
+  /** Retain bounded raw output alongside the decoded text for binary consumers. */
+  captureRawOutput?: boolean
   /** Capture stdout as bytes without decoding; stdout stays empty in this mode. */
   captureStdoutAsBytes?: boolean
   /** Stop a parser command as soon as captured output exceeds its cap. */
@@ -66,6 +68,8 @@ export type ProcessResult = {
   stdout: string
   stdoutBytes?: Buffer
   stderr: string
+  /** Present only when captureRawOutput was requested. */
+  stderrBytes?: Buffer
   /** True when the process was killed by `timeoutMs` rather than exiting. */
   timedOut: boolean
   /** True when stdout or stderr exceeded `maxOutputBytes` and was clipped. */
