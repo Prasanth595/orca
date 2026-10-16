@@ -63,6 +63,11 @@ import {
 } from './structured-agent-session-schemas'
 import { sendStructuredAgentSessionForClient } from './structured-agent-session-send-compatibility'
 import { AGENT_SESSION_SNAPSHOT_CATCH_UP_CLIENT_CAPABILITY } from '../../../../shared/protocol-version'
+import { ORCA_LAYOUT_OWNER_IS_MAIN } from '../../../../shared/layout-owner-switch'
+import {
+  noteStructuredAgentSessionClose,
+  refusingStructuredAgentSessionCreatesClosedFirst
+} from './structured-agent-session-close-before-create'
 
 export const STRUCTURED_AGENT_SESSION_METHODS = [
   defineMethod({
@@ -108,7 +113,9 @@ export const STRUCTURED_AGENT_SESSION_METHODS = [
     name: 'agentSession.create',
     permission: 'workspace',
     params: CreateParams,
-    handler: handleStructuredAgentSessionCreate
+    handler: ORCA_LAYOUT_OWNER_IS_MAIN
+      ? refusingStructuredAgentSessionCreatesClosedFirst(handleStructuredAgentSessionCreate)
+      : handleStructuredAgentSessionCreate
   }),
   defineMethod({
     name: 'agentSession.ensure',
@@ -137,6 +144,12 @@ export const STRUCTURED_AGENT_SESSION_METHODS = [
     params: OptionsParams,
     handler: async (params, ctx) => {
       const host = requireStructuredCleanupHost(ctx)
+      if (ORCA_LAYOUT_OWNER_IS_MAIN) {
+        noteStructuredAgentSessionClose(
+          params.sessionId,
+          host.deps.store.getRecord(params.sessionId) !== null
+        )
+      }
       // Terminal-disposal closes use this RPC without the session-tabs retirement RPC.
       if (typeof host.setSessionTabVisibility === 'function') {
         await host.setSessionTabVisibility(params.sessionId, false)
