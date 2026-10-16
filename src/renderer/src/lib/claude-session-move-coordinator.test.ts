@@ -11,13 +11,15 @@ import {
 } from './claude-session-move-coordinator'
 
 const restartPaneForAccountMove = vi.hoisted(() => vi.fn(() => true))
+type Inspection = { foregroundProcess: string | null; hasChildProcesses: boolean }
 const foreground = vi.hoisted(() => ({ process: 'claude' }))
-vi.mock('@/runtime/runtime-terminal-inspection', () => ({
-  inspectRuntimeTerminalProcess: vi.fn(async () => ({
+const inspect = vi.hoisted(() =>
+  vi.fn(async (): Promise<Inspection> => ({
     foregroundProcess: foreground.process,
     hasChildProcesses: true
   }))
-}))
+)
+vi.mock('@/runtime/runtime-terminal-inspection', () => ({ inspectRuntimeTerminalProcess: inspect }))
 type MoveStartup = { command: string; startupCommandDelivery: 'shell-ready'; launchAgent: 'claude' }
 const buildClaudeSessionMoveStartup = vi.hoisted(() =>
   vi.fn((): MoveStartup | null => ({
@@ -302,5 +304,42 @@ describe('Claude session moves', () => {
     await vi.advanceTimersByTimeAsync(16_000)
 
     expect(restartPaneForAccountMove).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps text you start typing while it checks the pane', async () => {
+    let answer: (inspection: Inspection) => void = () => {}
+    inspect.mockImplementationOnce(() => new Promise<Inspection>((resolve) => (answer = resolve)))
+    seed({})
+    const moving = moveClaudeSessionsToSelectedAccount()
+    await vi.advanceTimersByTimeAsync(0)
+    useAppStore.setState({ lastTerminalInputAtByPaneKey: { [PANE_KEY]: Date.now() } })
+    answer({ foregroundProcess: 'claude', hasChildProcesses: true })
+    await moving
+
+    expect(restartPaneForAccountMove).not.toHaveBeenCalled()
+  })
+
+  it('tries again after the pane could not be checked', async () => {
+    inspect.mockRejectedValueOnce(new Error('pty is busy'))
+    seed({})
+    uninstall = installClaudeSessionMoveCoordinator()
+    await moveClaudeSessionsToSelectedAccount()
+    expect(restartPaneForAccountMove).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(16_000)
+
+    expect(restartPaneForAccountMove).toHaveBeenCalledOnce()
+  })
+
+  it('keeps your Move request when the account list could not be read', async () => {
+    seed({})
+    uninstall = installClaudeSessionMoveCoordinator()
+    list.mockRejectedValueOnce(new Error('main is busy'))
+    await moveClaudeSessionsToSelectedAccount()
+    expect(restartPaneForAccountMove).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(16_000)
+
+    expect(restartPaneForAccountMove).toHaveBeenCalledOnce()
   })
 })

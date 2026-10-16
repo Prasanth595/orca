@@ -2,6 +2,7 @@ import { useAppStore } from '@/store'
 import type { AppState } from '@/store/types'
 import { restartPaneForAccountMove } from '@/components/terminal-pane/pane-account-move-restarts'
 import { inspectRuntimeTerminalProcess } from '@/runtime/runtime-terminal-inspection'
+import { isClientOnlyUnverifiableInspection } from '../../../shared/terminal-process-inspection'
 import { getLocalProjectExecutionRuntimeContext } from '@/lib/local-preflight-context'
 import { LOCAL_EXECUTION_HOST_ID } from '../../../shared/execution-host'
 import type { ClaudeRateLimitAccountsState } from '../../../shared/managed-account-types'
@@ -38,12 +39,15 @@ const approvedPaneKeys = new Set<string>()
 const settledMoves = new Map<string, { transcriptPath: string; targetLogin: string }>()
 let accounts: ClaudeRateLimitAccountsState | null = null
 let accountsRead = 0
+/** You pressed Move Sessions before the account list could be read. */
+let moveRequested = false
 let wakeRetry: (() => void) | null = null
 
 export function resetClaudeSessionMoveForTests(): void {
   approvedPaneKeys.clear()
   settledMoves.clear()
   accounts = null
+  moveRequested = false
 }
 
 // Why this machine only: a pane on WSL, SSH or a remote server runs on another host's selection.
@@ -95,14 +99,24 @@ export function listClaudeSessionsOnOtherLogin(state: AppState): ClaudeSessionOn
 
 /** Moves every session on another login, each one as soon as it can go without losing anything. */
 export async function moveClaudeSessionsToSelectedAccount(): Promise<void> {
+  moveRequested = true
   await refreshClaudeMoveAccounts()
+  approveRequestedMoves()
+  // Why wake the retry: a pane that cannot go yet may free up with no store change to notice it.
+  if ((await movePanes()) > 0 || moveRequested) {
+    wakeRetry?.()
+  }
+}
+
+// Why wait for the list: without it there is no telling which sessions the request covers.
+function approveRequestedMoves(): void {
+  if (!moveRequested || !accounts) {
+    return
+  }
   for (const session of listClaudeSessionsOnOtherLogin(useAppStore.getState())) {
     approvedPaneKeys.add(session.paneKey)
   }
-  // Why wake the retry: a pane that cannot go yet may free up with no store change to notice it.
-  if ((await movePanes()) > 0) {
-    wakeRetry?.()
-  }
+  moveRequested = false
 }
 
 function gatesFor(approved: boolean): ClaudeSessionMoveGates {
@@ -127,19 +141,40 @@ function gatesFor(approved: boolean): ClaudeSessionMoveGates {
 }
 
 /** Moves what can go now and returns how many sessions still wait their turn. */
-async function movePanes(): Promise<number> {
-  if (!accounts) {
-    return 0
-  }
-  const state = useAppStore.getState()
-  // Why: input stamps are coalesced, so unsent text must include the not-yet-flushed keystroke.
-  const view = {
+// Why: input stamps are coalesced, so unsent text must include the not-yet-flushed keystroke.
+function readMoveView(state: AppState): AppState {
+  return {
     ...state,
     lastTerminalInputAtByPaneKey: mergePendingTerminalInputActivity(
       state.lastTerminalInputAtByPaneKey
     )
   }
-  const sessions = findClaudeSessionsOnOtherLogin(view, accounts, (worktreeId) =>
+}
+
+function canMoveNow(
+  current: ClaudeRateLimitAccountsState,
+  session: ClaudeSessionOnOtherLogin,
+  approved: boolean
+): boolean {
+  const view = readMoveView(useAppStore.getState())
+  const now = findClaudeSessionsOnOtherLogin(view, current, (worktreeId) =>
+    isOnThisHost(view, worktreeId)
+  ).find((candidate) => candidate.paneKey === session.paneKey)
+  return (
+    now?.ptyId === session.ptyId &&
+    now.transcriptPath === session.transcriptPath &&
+    now.targetLogin === session.targetLogin &&
+    isClaudeSessionMovableNow(view, now, gatesFor(approved))
+  )
+}
+
+async function movePanes(): Promise<number> {
+  const current = accounts
+  if (!current) {
+    return 0
+  }
+  const state = useAppStore.getState()
+  const sessions = findClaudeSessionsOnOtherLogin(readMoveView(state), current, (worktreeId) =>
     isOnThisHost(state, worktreeId)
   )
   const stalePaneKeys = new Set(sessions.map((session) => session.paneKey))
@@ -156,7 +191,7 @@ async function movePanes(): Promise<number> {
     if (isSettled(session) || (!approved && !automatic)) {
       continue
     }
-    if (!isClaudeSessionMovableNow(view, session, gatesFor(approved))) {
+    if (!canMoveNow(current, session, approved)) {
       waiting += 1
       continue
     }
@@ -166,8 +201,18 @@ async function movePanes(): Promise<number> {
     // Why ask the process: the pane may now run tmux or the shell, and restarting it there would
     // cut off a Claude that lives on outside the pane, or start one nobody runs any more.
     const inspection = await inspectRuntimeTerminalProcess(session.ptyId).catch(() => null)
+    // Why retry: a check that failed, or could not see the process, says nothing about the pane.
+    if (!inspection || isClientOnlyUnverifiableInspection(inspection)) {
+      waiting += 1
+      continue
+    }
     if (!isClaudeRunningInPane(inspection, tab?.launchAgent)) {
       settle(session)
+      continue
+    }
+    // Why check again: you may have typed, or a new turn may have started, while we asked.
+    if (!canMoveNow(current, session, approved)) {
+      waiting += 1
       continue
     }
     const startup = buildClaudeSessionMoveStartup({
@@ -197,8 +242,11 @@ export function installClaudeSessionMoveCoordinator(): () => void {
     if (!accounts) {
       await refreshClaudeMoveAccounts()
     }
+    approveRequestedMoves()
     const pendingWork =
-      approvedPaneKeys.size > 0 || useAppStore.getState().settings?.claudeMoveIdleSessions === true
+      moveRequested ||
+      approvedPaneKeys.size > 0 ||
+      useAppStore.getState().settings?.claudeMoveIdleSessions === true
     // Why recheck while any wait: idle time runs out, and a failed accounts read clears, without a
     // store change to wake us.
     if ((await movePanes()) > 0 || (!accounts && pendingWork)) {
