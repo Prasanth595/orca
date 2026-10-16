@@ -1,5 +1,6 @@
 import type { StructuredHostStatus } from '../../shared/agent-hook-listener/listener-event'
 import type { ParsedAgentStatusPayload } from '../../shared/agent-status-types'
+import type { AgentProviderSessionMetadata } from '../../shared/agent-session-resume'
 import type { AgentMainAgentStatus } from '../../shared/main-agent-status'
 
 export type RuntimeWorktreeAgentSource = {
@@ -21,4 +22,5 @@ export type RuntimeWorktreeAgentSource = {
   updatedAt: number
   /** Projected by the structured session host; `owned` rows stay fresh past the staleness window. */
   structuredHost?: StructuredHostStatus
+  providerSession?: AgentProviderSessionMetadata
 }

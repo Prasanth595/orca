@@ -106,6 +106,7 @@ export type AiVaultSession = {
   agent: AiVaultAgent
   sessionId: string
   title: string
+  customTitle?: string | null
   cwd: string | null
   branch: string | null
   model: string | null
