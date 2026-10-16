@@ -21,11 +21,13 @@ export function isJournalStreamedTextRevision(
   if (
     body.kind !== 'message' ||
     body.role !== 'assistant' ||
+    !body.blocks.every((block) => block.type === 'text') ||
     body.sentAs !== undefined ||
     body.command !== undefined ||
     body.from !== undefined ||
     previous?.body.kind !== 'message' ||
-    previous.body.role !== 'assistant'
+    previous.body.role !== 'assistant' ||
+    !previous.body.blocks.every((block) => block.type === 'text')
   ) {
     return false
   }
