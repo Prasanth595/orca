@@ -235,7 +235,7 @@
         "terminalControlledHint": "Défini par l’interface du terminal.",
         "terminalControlledTooltip": "Suit l’interface du terminal. Désactivez Utiliser l’interface du terminal pour le modifier.",
         "textWeight": "Graisse du texte",
-        "textWeightDescription": "Uniquement le corps des messages. Le gras reste plus épais à chaque cran.",
+        "textWeightDescription": "Messages, texte saisi et texte indicatif du champ de saisie. Le gras reste plus épais.",
         "weightLight": "Léger",
         "weightRegular": "Normal",
         "weightMedium": "Moyen"

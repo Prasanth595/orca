@@ -55,6 +55,26 @@ test('chat body weight snaps to three distinct steps while bold and code stay re
       .filter({ hasText: 'Read the message comfortably.' })
     await expect(prose).toBeVisible({ timeout: 30_000 })
     await orcaPage.evaluate(() => document.fonts.ready)
+    const composer = chat.getByRole('textbox')
+    const expectComposerWeight = async (weight: number, capture?: string): Promise<void> => {
+      await expect(composer).toHaveCSS('font-weight', String(weight))
+      await composer.fill('')
+      const placeholder = composer.locator('p.is-editor-empty[data-placeholder]')
+      await expect(placeholder).toHaveAttribute('data-placeholder', /.+/)
+      expect(
+        await placeholder.evaluate((element) => getComputedStyle(element, '::before').fontWeight)
+      ).toBe(String(weight))
+      if (capture) {
+        await composer.screenshot({ path: testInfo.outputPath(`composer-empty-${capture}.png`) })
+      }
+      await composer.fill('Draft text follows the message weight.')
+      await expect(composer).toHaveText('Draft text follows the message weight.')
+      await expect(composer.locator('p')).toHaveCSS('font-weight', String(weight))
+      if (capture) {
+        await composer.screenshot({ path: testInfo.outputPath(`composer-draft-${capture}.png`) })
+      }
+      await composer.fill('')
+    }
     const openAppearance = async (): Promise<void> => {
       await orcaPage.evaluate(() => {
         window.__store!.getState().openSettingsPage()
@@ -85,6 +105,7 @@ test('chat body weight snaps to three distinct steps while bold and code stay re
         }
         await orcaPage.evaluate(() => window.__store!.getState().closeSettingsPage())
         await expect(prose).toHaveCSS('font-weight', String(weight))
+        await expectComposerWeight(weight, `${theme}-${weight}`)
         await expect(prose.locator('strong').first()).toHaveCSS('font-weight', '700')
         await expect(prose.locator('code').first()).toHaveCSS('font-weight', '400')
         if (weight !== 400) {
@@ -96,6 +117,7 @@ test('chat body weight snaps to three distinct steps while bold and code stay re
           await expect(slider).toHaveAttribute('aria-valuenow', '400')
           await orcaPage.evaluate(() => window.__store!.getState().closeSettingsPage())
           await expect(prose).toHaveCSS('font-weight', '400')
+          await expectComposerWeight(400)
 
           await openAppearance()
           await expect(matching).toBeChecked()
@@ -106,6 +128,7 @@ test('chat body weight snaps to three distinct steps while bold and code stay re
           await expect(slider).toHaveAttribute('aria-valuetext', label)
           await orcaPage.evaluate(() => window.__store!.getState().closeSettingsPage())
           await expect(prose).toHaveCSS('font-weight', String(weight))
+          await expectComposerWeight(weight)
           await expect(prose.locator('strong').first()).toHaveCSS('font-weight', '700')
           await expect(prose.locator('code').first()).toHaveCSS('font-weight', '400')
         }

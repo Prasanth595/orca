@@ -131,7 +131,7 @@
         "terminalControlledHint": "由终端界面设置。",
         "terminalControlledTooltip": "正在匹配终端外观。要更改此项，请关闭“匹配终端外观”。",
         "textWeight": "正文字重",
-        "textWeightDescription": "仅调整消息正文；每一档的粗体都保持更明显的字重。",
+        "textWeightDescription": "调整消息正文、输入内容和占位提示的字重；粗体保持更醒目。",
         "weightLight": "轻",
         "weightRegular": "标准",
         "weightMedium": "中等"

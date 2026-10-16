@@ -57,7 +57,7 @@ const getChatAppearanceCatalog = createLocalizedCatalog(
         title: translate('settings.appearance.chat.textWeight', 'Text weight'),
         description: translate(
           'settings.appearance.chat.textWeightDescription',
-          'Message text only. Bold text stays heavier at every step.'
+          'Messages and the message box, including placeholder text. Bold text stays heavier.'
         ),
         keywords: [
           translate('settings.appearance.chat.title', 'Chat'),
