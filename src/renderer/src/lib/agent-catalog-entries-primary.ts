@@ -139,7 +139,7 @@ export function primaryAgentCatalogEntries(): AgentCatalogEntry[] {
       label: 'GJC',
       cmd: 'gjc',
       searchAliases: ['gajae-code', 'gajae code'],
-      // Why: no faviconDomain — gjc renders the hand-authored GjcIcon glyph.
+      // Why: no faviconDomain — gjc ships a bundled mascot PNG in AGENT_FAVICON_ASSETS.
       homepageUrl: 'https://github.com/Yeachan-Heo/gajae-code'
     },
     {
