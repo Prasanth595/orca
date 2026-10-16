@@ -171,6 +171,23 @@ describe('macOS clipboard image data beside a file URL', () => {
     expect(mocks.writeFile).not.toHaveBeenCalled()
   })
 
+  it('rejects oversized declared JPEG dimensions before decoding and omits their preview', async () => {
+    const image = setImage()
+    setImage({ width: 0, height: 0 }, true)
+    // A small JPEG header can declare 6000 × 6000 pixels, above the clipboard limit.
+    mocks.readBuffer.mockReturnValue(
+      Buffer.from('ffd8ffc00011081770177003011100021100031100ffd9', 'hex')
+    )
+    mocks.createFromBuffer.mockReturnValue(image)
+
+    await expect(invoke('clipboard:saveImageAsTempFile')).rejects.toThrow(
+      'Clipboard image is too large'
+    )
+    expect(invoke('clipboard:readImageThumbnail')).toBeNull()
+    expect(mocks.createFromBuffer).not.toHaveBeenCalled()
+    expect(mocks.writeFile).not.toHaveBeenCalled()
+  })
+
   it('checks the renderer before attempting raw image recovery', async () => {
     setTrustedClipboardRendererWebContentsId(42)
     await expect(invoke('clipboard:saveImageAsTempFile')).rejects.toThrow(
