@@ -33,13 +33,24 @@ export function MobileAgentRosterScreen() {
   const [hostName, setHostName] = useState('')
   const [clockEnabled, setClockEnabled] = useState(false)
   const [focusTick, setFocusTick] = useState(0)
+  const navigationLockedRef = useRef(false)
+  const navigationHostIdRef = useRef(hostId)
+  if (navigationHostIdRef.current !== hostId) {
+    navigationHostIdRef.current = hostId
+    navigationLockedRef.current = false
+  }
 
   useFocusEffect(
     useCallback(() => {
+      // A roster instance can stay mounted while its route loses and regains focus. Resetting here
+      // makes one tap available again after returning from a session.
+      navigationLockedRef.current = false
       setClockEnabled(true)
       setFocusTick((tick) => tick + 1)
-      return () => setClockEnabled(false)
-    }, [])
+      return () => {
+        setClockEnabled(false)
+      }
+    }, [hostId])
   )
   const now = useNow(30_000, clockEnabled)
 
@@ -109,6 +120,10 @@ export function MobileAgentRosterScreen() {
 
   const onOpenEntry = useCallback(
     (entry: AgentRosterEntry) => {
+      if (navigationLockedRef.current) {
+        return
+      }
+      navigationLockedRef.current = true
       // Session path mirrors the sidebar's open (host-workspace-list.tsx:186 →
       // use-host-worktree-actions.ts:226), plus the `paneKey` the session screen already consumes
       // to pick one pane (use-notification-pane-navigation.ts:16) — without it the tap lands on the
@@ -116,9 +131,14 @@ export function MobileAgentRosterScreen() {
       const paneKey = entry.agent.paneKey
         ? `&paneKey=${encodeURIComponent(entry.agent.paneKey)}`
         : ''
-      router.push(
-        `/h/${encodeURIComponent(hostId)}/session/${encodeURIComponent(entry.worktreeId)}?name=${encodeURIComponent(entry.worktreeLabel)}${paneKey}`
-      )
+      try {
+        router.push(
+          `/h/${encodeURIComponent(hostId)}/session/${encodeURIComponent(entry.worktreeId)}?name=${encodeURIComponent(entry.worktreeLabel)}${paneKey}`
+        )
+      } catch {
+        // A synchronous navigation failure must leave the row retryable.
+        navigationLockedRef.current = false
+      }
     },
     [hostId, router]
   )
