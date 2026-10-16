@@ -28,3 +28,24 @@ it('omits an empty file-only text bubble and deduplicates the same attached path
     splitMobileNativeChatFileAttachments([{ type: 'text', text: `@${path}\n@${path}` }])
   ).toEqual({ files: [path], prose: [] })
 })
+
+it('removes the attachment separator without changing other multiline spacing', () => {
+  const path = '/root/.orca/agent-session-attachments/id/report.pdf'
+  expect(
+    splitMobileNativeChatFileAttachments([
+      { type: 'text', text: `Please @${path} review.\n    Keep  indentation.\n\tKeep  tabs.` }
+    ])
+  ).toEqual({
+    files: [path],
+    prose: [{ type: 'text', text: 'Please review.\n    Keep  indentation.\n\tKeep  tabs.' }]
+  })
+})
+
+it('keeps a line break that precedes an attachment reference', () => {
+  const path = '/root/.orca/agent-session-attachments/id/report.pdf'
+  expect(
+    splitMobileNativeChatFileAttachments([
+      { type: 'text', text: `First line\n@${path} next line.` }
+    ]).prose
+  ).toEqual([{ type: 'text', text: 'First line\n next line.' }])
+})

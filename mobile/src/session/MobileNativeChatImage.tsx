@@ -41,7 +41,11 @@ export function MobileNativeChatImage({
     path: string
     uri: string | null
   } | null>(null)
-  const [failed, setFailed] = useState(false)
+  const [failed, setFailed] = useState<{
+    client: typeof client
+    path: string | undefined
+    imageUri: string
+  } | null>(null)
   useEffect(() => {
     if (!remote || !client || uri === undefined) {
       return
@@ -60,14 +64,19 @@ export function MobileNativeChatImage({
   }, [client, uri, remote, attempt])
   const current = read?.client === client && read?.path === uri ? read : null
   const imageUri = direct ? uri : current?.uri
-  if (imageUri && !failed) {
+  const failedForCurrent =
+    failed !== null &&
+    failed.client === client &&
+    failed.path === uri &&
+    failed.imageUri === imageUri
+  if (imageUri && !failedForCurrent) {
     return (
       <Image
         source={{ uri: imageUri }}
         style={imageStyle}
         resizeMode={resizeMode}
         accessibilityLabel={alt ?? 'Attached image'}
-        onError={() => setFailed(true)}
+        onError={() => setFailed({ client, path: uri, imageUri })}
       />
     )
   }
@@ -80,16 +89,18 @@ export function MobileNativeChatImage({
   }
   const label = (
     <Text style={[styles.imageRef, { fontSize: TEXT_SIZE * fontScale }]}>
-      {remote || failed ? 'Image unavailable · Tap to retry' : `🖼 ${alt ?? uri ?? 'image'}`}
+      {remote || failedForCurrent
+        ? 'Image unavailable · Tap to retry'
+        : `🖼 ${alt ?? uri ?? 'image'}`}
     </Text>
   )
-  return remote || failed ? (
+  return remote || failedForCurrent ? (
     <Pressable
       accessibilityLabel="Retry image"
       accessibilityRole="button"
       onPress={() => {
         setRead(null)
-        setFailed(false)
+        setFailed(null)
         setAttempt((value) => value + 1)
       }}
     >

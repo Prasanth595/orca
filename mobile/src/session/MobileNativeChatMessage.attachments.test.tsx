@@ -308,3 +308,34 @@ it.each(['user', 'assistant'] as const)(
     expect(gallery.props.initialScrollIndex).toBe(2)
   }
 )
+
+it('does not carry a decode failure or late error into the same path on a different host client', async () => {
+  const makeClient = () => ({
+    sendRequest: vi.fn(async () => ({
+      id: 'r',
+      ok: true as const,
+      result: { isImage: true, isBinary: true, mimeType: 'image/png', content: 'AA==' }
+    }))
+  })
+  const first = makeClient()
+  const second = makeClient()
+  const content = (client: typeof first) =>
+    createElement(
+      MobileNativeChatAttachmentContext.Provider,
+      { value: client },
+      createElement(MobileNativeChatMessage, { message })
+    )
+  await act(async () => {
+    renderer = create(content(first))
+  })
+  const oldError = renderer!.root.find((node) => String(node.type) === 'Image').props.onError
+  act(() => oldError())
+  expect(renderer!.root.findAll((node) => String(node.type) === 'Image')).toHaveLength(0)
+  await act(async () => {
+    renderer!.update(content(second))
+  })
+  expect(second.sendRequest).toHaveBeenCalledOnce()
+  expect(renderer!.root.findAll((node) => String(node.type) === 'Image')).toHaveLength(1)
+  act(() => oldError())
+  expect(renderer!.root.findAll((node) => String(node.type) === 'Image')).toHaveLength(1)
+})

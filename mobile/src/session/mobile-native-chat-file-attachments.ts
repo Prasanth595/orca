@@ -24,7 +24,7 @@ export function splitMobileNativeChatFileAttachments(blocks: readonly NativeChat
           return match
         }
         files.add(path)
-        return space
+        return space === '\n' || space === '\r' ? space : ''
       }
     )
     return text === block.text
