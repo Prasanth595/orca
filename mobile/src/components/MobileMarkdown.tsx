@@ -16,8 +16,8 @@ type Props = {
   rangeSelectable?: boolean
   /** Forward long presses from interactive Android transcript spans to the message. */
   onLongPress?: () => void
-  /** Multiplier for prose font size (paragraphs, lists, quotes). Defaults to 1;
-   *  the chat view passes >1 so agent prose reads larger than the compact base. */
+  /** Multiplier for every text size. Defaults to 1; the chat view passes >1 so its prose reads
+   *  larger than the compact base. */
   textScale?: number
   /** When provided, detected file paths and file-target hrefs render as tappable
    *  and invoke this with the path text (worktree-relative or absolute, with an
@@ -61,7 +61,12 @@ function MobileMarkdownContent({
     onOpenFile,
     tone,
     textScale,
-    listText: [styles.listText, scaledMarkdownText(14, textScale), tone.text],
+    // Zoomed list text has read a size above the sheet's since it first scaled; kept as it was.
+    listText: [
+      styles.listText,
+      scaledMarkdownText({ fontSize: 14, lineHeight: 20 }, textScale),
+      tone.text
+    ],
     rowLongPress: setup.androidTranscript ? setup.onLongPress : undefined,
     directives,
     renderVisual,
@@ -71,7 +76,7 @@ function MobileMarkdownContent({
   return (
     <View style={styles.root}>
       {renderBlocks(root.children, ctx, {
-        style: [styles.paragraph, scaledMarkdownText(13, textScale), tone.text],
+        style: [styles.paragraph, scaledMarkdownText(styles.paragraph, textScale), tone.text],
         selectable: rangeSelectable
       })}
     </View>

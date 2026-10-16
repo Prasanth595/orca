@@ -89,7 +89,6 @@ function Prose({
         </Text>
       )
     }
-    // Your own message: markdown in the bubble's dark-on-light colours, never a visual.
     if (invert) {
       return (
         <MobileMarkdown
@@ -146,9 +145,8 @@ function ImageAttachment({
   }
   return (
     <Pressable
-      onPress={openImage ? () => openImage({ uri, label }) : undefined}
+      onPress={() => openImage({ uri, label })}
       onLongPress={onLongPress}
-      disabled={!openImage}
       accessibilityRole="imagebutton"
       accessibilityLabel={label}
       accessibilityHint="Opens the image full size"
@@ -380,14 +378,14 @@ function MobileNativeChatMessageImpl({
             />
           ) : null}
           {isUser ? (
-            // As desktop draws it: the pictures, then the words, folded when long.
+            // As desktop: the pictures, then the words, folded by desktop's rule on the same text.
             <>
               {proseRows(drawnProse.filter(isImageRefBlock))}
               <MobileNativeChatUserMessageFold
-                text={copyText}
+                text={deriveNativeChatRowContent(message.blocks).markdown}
                 fontScale={fontScale}
-                open={userMessageOpen}
-                onToggle={onToggleUserMessage && (() => onToggleUserMessage(message.id))}
+                open={userMessageOpen === true}
+                onToggle={() => onToggleUserMessage?.(message.id)}
               >
                 {proseRows(drawnProse.filter((block) => !isImageRefBlock(block)))}
               </MobileNativeChatUserMessageFold>

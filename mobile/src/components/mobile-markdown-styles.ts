@@ -150,15 +150,13 @@ export const styles = StyleSheet.create({
   }
 })
 
-/** Colours over the styles above, for one surface. The default tone overrides nothing. */
-/** A size under the reader's zoom, its leading kept; null at 1x so other screens keep the sheet. */
+/** A style's size and line height under the reader's zoom; null at 1x, where the sheet holds. */
 export function scaledMarkdownText(
-  size: number,
-  textScale: number,
-  leading = 6
+  style: { fontSize: number; lineHeight: number },
+  textScale: number
 ): { fontSize: number; lineHeight: number } | null {
   return textScale !== 1
-    ? { fontSize: size * textScale, lineHeight: (size + leading) * textScale }
+    ? { fontSize: style.fontSize * textScale, lineHeight: style.lineHeight * textScale }
     : null
 }
 
@@ -169,9 +167,9 @@ export type MarkdownTone = {
   inlineCode: TextStyle | null
 }
 
+/** Colours over the styles above, for one surface. The default tone overrides nothing. */
 export const MARKDOWN_TONES: Record<'default' | 'onBright', MarkdownTone> = {
   default: { text: null, secondary: null, link: null, inlineCode: null },
-  // Your own message: dark text on its light fill.
   onBright: StyleSheet.create({
     text: { color: colors.bgBase },
     secondary: { color: onBrightColors.secondary },

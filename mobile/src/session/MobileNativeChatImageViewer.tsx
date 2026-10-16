@@ -1,15 +1,6 @@
-import {
-  Image,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-  type StyleProp,
-  type ViewStyle
-} from 'react-native'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { Image, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { X } from 'lucide-react-native'
+import { useWindowSafeAreaInsets } from '../layout/side-safe-area'
 import { colors, spacing } from '../theme/mobile-theme'
 import {
   MobileNativeChatImageViewerContext,
@@ -22,11 +13,9 @@ import {
 
 /** The chat surface, from which any row can open an attachment full size. */
 export function MobileNativeChatImageViewerHost({
-  style,
   conversation,
   children
 }: {
-  style: StyleProp<ViewStyle>
   conversation: MobileNativeChatConversation
   children: React.ReactNode
 }): React.JSX.Element {
@@ -35,7 +24,7 @@ export function MobileNativeChatImageViewerHost({
     useMobileNativeChatConversationState<MobileNativeChatViewedImage>(conversation)
   return (
     <MobileNativeChatImageViewerContext.Provider value={setImage}>
-      <View style={style}>{children}</View>
+      {children}
       {image ? <MobileNativeChatImageViewer {...image} onClose={() => setImage(null)} /> : null}
     </MobileNativeChatImageViewerContext.Provider>
   )
@@ -52,7 +41,7 @@ function MobileNativeChatImageViewer({
   label: string
   onClose: () => void
 }): React.JSX.Element {
-  const insets = useSafeAreaInsets()
+  const insets = useWindowSafeAreaInsets()
   return (
     <Modal visible animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>

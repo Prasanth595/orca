@@ -56,7 +56,10 @@ function renderCode(node: Code, key: number, ctx: MarkdownBlockContext): ReactNo
   return (
     <View key={key} style={styles.codeBlock}>
       {node.lang ? <NativeText style={styles.codeLanguage}>{node.lang}</NativeText> : null}
-      <MarkdownText selectable style={[styles.codeText, scaledMarkdownText(12, ctx.textScale, 5)]}>
+      <MarkdownText
+        selectable
+        style={[styles.codeText, scaledMarkdownText(styles.codeText, ctx.textScale)]}
+      >
         {node.value}
       </MarkdownText>
     </View>
@@ -107,7 +110,7 @@ function renderTable(node: Table, key: number, ctx: MarkdownBlockContext): React
                 style={[
                   styles.tableCell,
                   rowIndex === 0 ? styles.tableHeader : null,
-                  scaledMarkdownText(12, ctx.textScale, 5),
+                  scaledMarkdownText(styles.tableCell, ctx.textScale),
                   { width: width * ctx.textScale, textAlign: node.align?.[cellIndex] ?? 'left' }
                 ]}
               >
@@ -179,7 +182,10 @@ function renderBlock(
           style={[
             styles.heading,
             node.depth <= 2 ? styles.headingLarge : null,
-            scaledMarkdownText(node.depth <= 2 ? 15 : 14, ctx.textScale),
+            scaledMarkdownText(
+              node.depth <= 2 ? styles.headingLarge : styles.heading,
+              ctx.textScale
+            ),
             ctx.tone.text
           ]}
         >
@@ -193,7 +199,11 @@ function renderBlock(
             node.children,
             ctx,
             {
-              style: [styles.quoteText, scaledMarkdownText(13, ctx.textScale), ctx.tone.secondary],
+              style: [
+                styles.quoteText,
+                scaledMarkdownText(styles.quoteText, ctx.textScale),
+                ctx.tone.secondary
+              ],
               selectable: true
             },
             depth + 1

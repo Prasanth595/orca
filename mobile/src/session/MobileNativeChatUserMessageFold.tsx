@@ -18,20 +18,18 @@ const FOLDED_HEIGHT =
 export function MobileNativeChatUserMessageFold({
   text,
   fontScale,
-  open: transcriptOpen = false,
+  open,
   onToggle,
   children
 }: {
   text: string
   fontScale: number
   /** The transcript's state, which outlives this row when the list recycles it. */
-  open?: boolean
-  onToggle?: () => void
+  open: boolean
+  onToggle: () => void
   children: React.ReactNode
 }): React.JSX.Element {
   const longText = useMemo(() => nativeChatUserMessageFolds(text), [text])
-  const [localOpen, setLocalOpen] = useState(false)
-  const open = onToggle ? transcriptOpen : localOpen
   // The text rule can pick a message that already fits the fold; that one gets no toggle.
   const [height, setHeight] = useState<number | null>(null)
   if (!longText) {
@@ -49,7 +47,7 @@ export function MobileNativeChatUserMessageFold({
       {folds && height !== null ? (
         <Pressable
           style={styles.toggle}
-          onPress={onToggle ?? (() => setLocalOpen(!localOpen))}
+          onPress={onToggle}
           hitSlop={8}
           accessibilityRole="button"
           accessibilityState={{ expanded: open }}

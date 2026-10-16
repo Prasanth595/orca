@@ -10,19 +10,21 @@ export function useMobileNativeChatConversationState<T>({
   sessionId
 }: MobileNativeChatConversation): [T | null, (value: T | null) => void] {
   const [held, setHeld] = useState<{ value: T; owner: MobileNativeChatConversation } | null>(null)
-  const owner = held?.owner
-  const replaced =
-    owner !== undefined &&
-    (owner.surfaceId !== surfaceId || (owner.sessionId !== null && owner.sessionId !== sessionId))
-  if (held && replaced) {
-    setHeld(null)
-  } else if (held && owner?.sessionId === null && sessionId !== null) {
-    setHeld({ value: held.value, owner: { surfaceId, sessionId } })
+  if (held) {
+    const { owner } = held
+    if (
+      owner.surfaceId !== surfaceId ||
+      (owner.sessionId !== null && owner.sessionId !== sessionId)
+    ) {
+      setHeld(null)
+    } else if (owner.sessionId === null && sessionId !== null) {
+      setHeld({ value: held.value, owner: { surfaceId, sessionId } })
+    }
   }
   const set = useCallback(
     (value: T | null) =>
       setHeld(value === null ? null : { value, owner: { surfaceId, sessionId } }),
     [surfaceId, sessionId]
   )
-  return [held && !replaced ? held.value : null, set]
+  return [held?.value ?? null, set]
 }

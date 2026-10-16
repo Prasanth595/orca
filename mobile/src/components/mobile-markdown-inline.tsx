@@ -16,7 +16,6 @@ export type MarkdownInlineContext = {
   /** When provided, detected file paths and file-target hrefs render as tappable and invoke
    *  this with the path text; without it, paths render as plain text. */
   onOpenFile?: (pathText: string) => void
-  /** The colours of the surface the text sits on. */
   tone: MarkdownTone
   textScale: number
 }
@@ -114,7 +113,8 @@ function renderPhrasing(
     }
     case 'inlineCode': {
       // A span keeps its line's leading; only its own smaller size scales.
-      const size = ctx.textScale !== 1 ? { fontSize: 12 * ctx.textScale } : null
+      const size =
+        ctx.textScale !== 1 ? { fontSize: styles.inlineCode.fontSize * ctx.textScale } : null
       return ctx.onOpenFile && isFilePathCodeSpan(node.value) ? (
         <MarkdownText
           key={key}

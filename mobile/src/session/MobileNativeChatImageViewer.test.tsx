@@ -27,7 +27,7 @@ function Row(): null {
   return null
 }
 const chat = (conversation: MobileNativeChatConversation) => (
-  <MobileNativeChatImageViewerHost style={null} conversation={conversation}>
+  <MobileNativeChatImageViewerHost conversation={conversation}>
     <Row />
   </MobileNativeChatImageViewerHost>
 )

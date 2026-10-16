@@ -45,8 +45,8 @@ export type MobileNativeChatTurnRow = {
   subagentGroupsOpen?: ReadonlySet<string>
   onToggleSubagentGroup: (groupId: string) => void
   /** A long message of yours the reader opened; held here so scrolling it away keeps it open. */
-  userMessageOpen?: boolean
-  onToggleUserMessage?: (messageId: string) => void
+  userMessageOpen: boolean
+  onToggleUserMessage: (messageId: string) => void
 }
 
 /** The live activity line, when it draws, and whether the reader opened the block it discloses. */
@@ -245,12 +245,8 @@ export function useMobileNativeChatTurnDisclosure({
           ? { subagentGroupsOpen: openSubagentGroups }
           : {}),
         onToggleSubagentGroup: toggleSubagentGroup,
-        ...(message.role === 'user'
-          ? {
-              userMessageOpen: openUserMessages.has(message.id),
-              onToggleUserMessage: toggleUserMessage
-            }
-          : {})
+        userMessageOpen: message.role === 'user' && openUserMessages.has(message.id),
+        onToggleUserMessage: toggleUserMessage
       }
     },
     [
