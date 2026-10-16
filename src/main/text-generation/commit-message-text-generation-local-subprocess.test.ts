@@ -198,65 +198,59 @@ describe('generateCommitMessageFromContext on the Windows direct-child path', ()
     })
   })
 
-  it('routes Windows batch-script agent commands through cmd.exe', async () => {
-    const originalComSpec = process.env.ComSpec
-    process.env.ComSpec = 'C:\\Windows\\System32\\cmd.exe'
-    try {
-      await withPlatform('win32', async () => {
-        const listeners = new Map<string, (value: unknown) => void>()
-        const child = {
-          pid: 123,
-          kill: vi.fn(),
-          stdout: { on: vi.fn((event, callback) => listeners.set(`stdout:${event}`, callback)) },
-          stderr: { on: vi.fn((event, callback) => listeners.set(`stderr:${event}`, callback)) },
-          stdin: { end: vi.fn() },
-          on: vi.fn((event, callback) => listeners.set(event, callback))
-        }
-        spawnMock.mockReturnValue(child as never)
-
-        const pending = generateCommitMessageFromContext(
-          {
-            branch: 'main',
-            stagedSummary: 'M\tREADME.md',
-            stagedPatch: '+hello'
-          },
-          {
-            agentId: 'custom',
-            model: '',
-            customAgentCommand: 'C:/tools/agent.cmd'
-          },
-          {
-            kind: 'local',
-            cwd: 'C:\\repo'
-          }
-        )
-
-        listeners.get('stdout:data')?.(Buffer.from('Update README\n'))
-        listeners.get('close')?.(0)
-
-        await expect(pending).resolves.toMatchObject({
-          success: true,
-          message: 'Update README'
-        })
-        expect(spawnMock).toHaveBeenCalledWith(
-          'C:\\Windows\\System32\\cmd.exe',
-          ['/d', '/c', 'C:/tools/agent.cmd'],
-          expect.objectContaining({
-            cwd: 'C:\\repo',
-            windowsHide: true
-          })
-        )
-      })
-    } finally {
-      if (originalComSpec === undefined) {
-        delete process.env.ComSpec
-      } else {
-        process.env.ComSpec = originalComSpec
+  it('runs a batch-file agent through cmd.exe with quotes, percent signs and ampersands intact', async () => {
+    vi.stubEnv('ComSpec', 'C:\\Windows\\System32\\cmd.exe')
+    await withPlatform('win32', async () => {
+      const listeners = new Map<string, (value: unknown) => void>()
+      const child = {
+        pid: 123,
+        kill: vi.fn(),
+        stdout: { on: vi.fn((event, callback) => listeners.set(`stdout:${event}`, callback)) },
+        stderr: { on: vi.fn((event, callback) => listeners.set(`stderr:${event}`, callback)) },
+        stdin: { end: vi.fn() },
+        on: vi.fn((event, callback) => listeners.set(event, callback))
       }
-    }
+      spawnMock.mockReturnValue(child as never)
+
+      const pending = generateCommitMessageFromContext(
+        {
+          branch: 'main',
+          stagedSummary: 'M\tREADME.md',
+          stagedPatch: '+hello'
+        },
+        {
+          agentId: 'custom',
+          model: '',
+          customAgentCommand: 'C:/tools/agent.cmd --title "50% & more"'
+        },
+        {
+          kind: 'local',
+          cwd: 'C:\\repo'
+        }
+      )
+
+      listeners.get('stdout:data')?.(Buffer.from('Update README\n'))
+      listeners.get('close')?.(0)
+
+      await expect(pending).resolves.toMatchObject({
+        success: true,
+        message: 'Update README'
+      })
+      // Nothing exists at the path, so process-host cannot resolve the shim and
+      // encodes every argument for cmd.exe instead.
+      expect(spawnMock).toHaveBeenCalledWith(
+        'C:\\Windows\\System32\\cmd.exe',
+        ['/d /v:off /s /c ""C:/tools/agent.cmd" "--title" "50"^%" & more""'],
+        expect.objectContaining({
+          cwd: 'C:\\repo',
+          windowsHide: true,
+          windowsVerbatimArguments: true
+        })
+      )
+    })
   })
 
-  it('rejects unsafe argv prompts for Windows batch-script agent commands', async () => {
+  it('explains that a batch file cmd.exe must run cannot take a multi-line argv prompt', async () => {
     await withPlatform('win32', async () => {
       const result = await generateCommitMessageFromContext(
         {
@@ -278,7 +272,7 @@ describe('generateCommitMessageFromContext on the Windows direct-child path', ()
       expect(result).toEqual({
         success: false,
         error:
-          'C:/tools/agent.cmd cannot be run as a Windows batch command with the prompt in argv. Remove {prompt} so Orca sends the prompt on stdin.'
+          "C:/tools/agent.cmd runs through a Windows batch file (.cmd or .bat), which cannot pass a multi-line prompt as an argument. Set the agent command in Settings to the program's .exe, or, for a custom command, remove {prompt} so Orca sends the prompt on stdin."
       })
       expect(spawnMock).not.toHaveBeenCalled()
     })

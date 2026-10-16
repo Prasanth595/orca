@@ -1,9 +1,11 @@
 import { spawnProcess } from '@orca/process-host'
+import { resolveWindowsCmdShim } from '@orca/process-host/windows-cmd-shim-resolution'
+import { isCmdInterpretedProgram } from '@orca/process-host/windows-command-line'
 import { withCliRuntimeOnPath } from '../../shared/node-cli-command-resolution'
 import { resolveCliCommand } from '../codex-cli/command'
 import { createProviderSpawnSpec } from '../provider-process/provider-process-supervisor'
 import { wslAwareSpawn } from '../git/runner'
-import { getSpawnArgsForWindows } from '../win32-utils'
+import { UnsafeWindowsBatchArgumentsError } from '../win32-utils'
 import type {
   SourceControlAgentSpawnInput,
   SpawnedSourceControlAgentProcess,
@@ -77,13 +79,36 @@ function spawnWindowsAgent(
   const resolvedBinary = resolveCliCommand(input.binary, {
     pathEnv: spawnEnv.PATH ?? spawnEnv.Path ?? null
   })
-  const { spawnCmd, spawnArgs } = getSpawnArgsForWindows(resolvedBinary, input.args)
-  return spawnProcess({
-    program: spawnCmd,
-    args: spawnArgs,
-    env: withCliRuntimeOnPath(resolvedBinary, spawnEnv),
-    ...(input.useCwdForNative ? { cwd: input.cwd } : {})
-  })
+  const env = withCliRuntimeOnPath(resolvedBinary, spawnEnv)
+  // Why the .cmd goes straight to process-host: it runs an npm/pnpm shim's own
+  // node.exe, so a multi-line prompt survives, and encodes other batch files for cmd.exe.
+  try {
+    return spawnProcess({
+      program: resolvedBinary,
+      args: input.args,
+      env,
+      ...(input.useCwdForNative ? { cwd: input.cwd } : {})
+    })
+  } catch (error) {
+    if (isRefusedBatchFileLineBreak(resolvedBinary, input.args, env)) {
+      throw new UnsafeWindowsBatchArgumentsError()
+    }
+    throw error
+  }
+}
+
+// Mirrors process-host's routing: a batch file it cannot resolve runs under
+// cmd.exe, which ends the command at a line break, so it refuses one.
+function isRefusedBatchFileLineBreak(
+  program: string,
+  args: readonly string[],
+  env: NodeJS.ProcessEnv
+): boolean {
+  return (
+    isCmdInterpretedProgram(program) &&
+    args.some((arg) => /[\r\n]/.test(arg)) &&
+    resolveWindowsCmdShim(program, env) === null
+  )
 }
 
 // Under the provider supervisor, an Orca that quits or dies mid-run still stops the agent's group.

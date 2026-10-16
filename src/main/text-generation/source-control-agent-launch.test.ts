@@ -5,17 +5,28 @@ import { join } from 'node:path'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as RunProcess from '@orca/process-host'
 import type { ProcessSpec } from '@orca/process-host/process-spec'
+import type * as ShimResolution from '@orca/process-host/windows-cmd-shim-resolution'
 import { POSIX_PROVIDER_SUPERVISOR_SCRIPT } from '../provider-process/provider-process-supervisor'
+import { UnsafeWindowsBatchArgumentsError } from '../win32-utils'
 import { generateCommitMessageFromContext } from './commit-message-text-generation'
 import { withPlatform } from './commit-message-text-generation-test-harness'
 import { spawnSourceControlAgent } from './source-control-agent-launch'
 
-const { spawnProcessMock } = vi.hoisted(() => ({ spawnProcessMock: vi.fn() }))
+const { spawnProcessMock, resolveWindowsCmdShimMock } = vi.hoisted(() => ({
+  spawnProcessMock: vi.fn(),
+  resolveWindowsCmdShimMock: vi.fn()
+}))
 
 vi.mock('@orca/process-host', async (importOriginal) => {
   const actual = await importOriginal<typeof RunProcess>()
   spawnProcessMock.mockImplementation(actual.spawnProcess)
   return { ...actual, spawnProcess: spawnProcessMock }
+})
+
+vi.mock('@orca/process-host/windows-cmd-shim-resolution', async (importOriginal) => {
+  const actual = await importOriginal<typeof ShimResolution>()
+  resolveWindowsCmdShimMock.mockImplementation(actual.resolveWindowsCmdShim)
+  return { ...actual, resolveWindowsCmdShim: resolveWindowsCmdShimMock }
 })
 
 function fakeChild(): EventEmitter & { stdin: { on: () => void; end: () => void } } {
@@ -82,6 +93,62 @@ describe('spawnSourceControlAgent', () => {
     expect(child.supervised).toBeUndefined()
     expect(lastSpawnSpec()).toMatchObject({ program: 'C:/tools/agent.exe', args: ['--print'] })
     expect(lastSpawnSpec().env).not.toHaveProperty('ORCA_PROVIDER_SUPERVISOR_SPEC')
+  })
+})
+
+describe('spawnSourceControlAgent with a Windows batch-file agent', () => {
+  const prompt = 'Write a commit message.\n\n+ console.log("100% & done!")'
+
+  function spawnOnWindows(binary: string, args: string[]): void {
+    withPlatform('win32', () =>
+      spawnSourceControlAgent({
+        binary,
+        args,
+        env: { PATH: 'C:\\tools' },
+        stdinMode: 'pipe',
+        useCwdForNative: false
+      })
+    )
+  }
+
+  it('hands the .cmd and a multi-line prompt to process-host, which resolves npm shims', () => {
+    spawnProcessMock.mockReturnValueOnce(fakeChild())
+    spawnOnWindows('C:\\npm\\copilot.cmd', ['--prompt', prompt, '--silent'])
+
+    expect(lastSpawnSpec()).toMatchObject({
+      program: 'C:\\npm\\copilot.cmd',
+      args: ['--prompt', prompt, '--silent']
+    })
+  })
+
+  it('reports a multi-line argument for a batch file cmd.exe must run as unsafe', () => {
+    // Nothing exists at this path, so process-host cannot resolve it past cmd.exe.
+    expect(() => spawnOnWindows('C:\\tools\\agent.cmd', [prompt])).toThrow(
+      UnsafeWindowsBatchArgumentsError
+    )
+  })
+
+  it('rethrows a spawn failure for a batch file process-host resolved to node.exe', () => {
+    resolveWindowsCmdShimMock.mockReturnValueOnce({
+      program: 'C:\\nodejs\\node.exe',
+      prefixArgs: ['C:\\npm\\node_modules\\@github\\copilot\\index.js']
+    })
+    spawnProcessMock.mockImplementationOnce(() => {
+      throw new Error('spawn ENAMETOOLONG')
+    })
+
+    expect(() => spawnOnWindows('C:\\npm\\copilot.cmd', [prompt])).toThrow('spawn ENAMETOOLONG')
+  })
+
+  it.each([
+    ['a batch file given single-line arguments', 'C:\\tools\\agent.cmd', ['one line']],
+    ['an executable given a multi-line prompt', 'C:\\tools\\agent.exe', [prompt]]
+  ])('rethrows a spawn failure for %s', (_, binary, args) => {
+    spawnProcessMock.mockImplementationOnce(() => {
+      throw new Error('spawn EINVAL')
+    })
+
+    expect(() => spawnOnWindows(binary, args)).toThrow('spawn EINVAL')
   })
 })
 

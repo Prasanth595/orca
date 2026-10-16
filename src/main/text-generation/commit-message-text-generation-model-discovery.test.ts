@@ -218,10 +218,15 @@ describe('discoverCommitMessageModelsLocal on the Windows direct-child path', ()
       defaultModelId: 'auto'
     })
     if (process.platform === 'win32') {
+      // Node's own npx.cmd is not a generated npm shim, so process-host runs it under cmd.exe.
       expect(spawnMock).toHaveBeenCalledWith(
         expect.stringMatching(/cmd\.exe$/i),
-        ['/d', '/c', expect.stringMatching(/npx\.cmd$/i), 'cursor-agent', '--list-models'],
-        expect.objectContaining({ windowsHide: true })
+        [
+          expect.stringMatching(
+            /^\/d \/v:off \/s \/c ""[^"]*\\npx\.cmd" "cursor-agent" "--list-models""$/i
+          )
+        ],
+        expect.objectContaining({ windowsHide: true, windowsVerbatimArguments: true })
       )
     } else {
       expect(spawnedAgentArgv(spawnMock.mock.calls[0]!)).toEqual([

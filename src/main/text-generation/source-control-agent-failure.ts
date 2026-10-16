@@ -35,7 +35,7 @@ export function formatAgentCliFailureMessage(
 }
 
 export function userFacingUnsafeWindowsBatchArgs(label: string): string {
-  return `${label} cannot be run as a Windows batch command with the prompt in argv. Remove {prompt} so Orca sends the prompt on stdin.`
+  return `${label} runs through a Windows batch file (.cmd or .bat), which cannot pass a multi-line prompt as an argument. Set the agent command in Settings to the program's .exe, or, for a custom command, remove {prompt} so Orca sends the prompt on stdin.`
 }
 
 export function finalizeFromAgentOutput(args: {
