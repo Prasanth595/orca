@@ -18,9 +18,15 @@ import {
 } from '../slices/tab-group-state'
 import { dedupeTabOrder } from '../../../../shared/workspace-layout/tab-order'
 import { createBrowserUuid } from '@/lib/browser-uuid'
+import { emptySplitGroup, insertSplitGroup } from '../slices/tabs/tabs-group-actions'
 import { ownsGlobalSelection } from '../global-selection-owner'
 import { getLocalProjectExecutionRuntimeContext } from '@/lib/local-preflight-context'
 import type { TerminalSlice, TerminalStoreGet, TerminalStoreSet } from './terminal-state'
+import { ORCA_LAYOUT_OWNER_IS_MAIN } from '../../../../shared/layout-owner-switch'
+import {
+  recordCreatedTerminalTabInLayoutOwner,
+  terminalTabCreateCommand
+} from './terminal-tab-create-through-layout-owner'
 import {
   getRemoteConnectionIdForWorktree,
   resolveCreatedTabShellOverride,
@@ -46,7 +52,22 @@ export function createTerminalTabCreationActions(
   return {
     createTab: (worktreeId, targetGroupId, shellOverride, options) => {
       let tab!: TerminalTab
-      set((s) => {
+      const split = options?.split
+      const splitGroupId = split ? createBrowserUuid() : undefined
+      set((current) => {
+        const s =
+          split && splitGroupId
+            ? {
+                ...current,
+                ...insertSplitGroup(
+                  current,
+                  worktreeId,
+                  split,
+                  emptySplitGroup(worktreeId, splitGroupId)
+                )
+              }
+            : current
+        const requestedGroupId = splitGroupId ?? targetGroupId
         const orphanTerminalIds = getOrphanTerminalIds(s, worktreeId)
         const orphanCleanupPatch = buildOrphanTerminalCleanupPatch(s, worktreeId, orphanTerminalIds)
         const existing = (s.tabsByWorktree[worktreeId] ?? []).filter(
@@ -122,9 +143,9 @@ export function createTerminalTabCreationActions(
           void warnIfZCodeCannotOpenSession()
         }
         const validTargetGroupId =
-          targetGroupId &&
-          s.groupsByWorktree[worktreeId]?.some((group) => group.id === targetGroupId)
-            ? targetGroupId
+          requestedGroupId &&
+          s.groupsByWorktree[worktreeId]?.some((group) => group.id === requestedGroupId)
+            ? requestedGroupId
             : undefined
         const { group, groupsByWorktree, activeGroupIdByWorktree } = ensureGroup(
           s.groupsByWorktree,
@@ -261,6 +282,10 @@ export function createTerminalTabCreationActions(
           }
         }
       })
+      // Switch point: main writes the tab under these ids before any later command names it.
+      if (ORCA_LAYOUT_OWNER_IS_MAIN) {
+        recordCreatedTerminalTabInLayoutOwner(get(), terminalTabCreateCommand(get(), tab))
+      }
       if (options?.initialPtyId) {
         // Why: a tab born with a live PTY (CLI/runtime create) wakes the workspace like any other bind.
         clearWorktreeSleepIntent(worktreeId)
@@ -269,6 +294,9 @@ export function createTerminalTabCreationActions(
         options?.recordInteraction ?? (!options?.pendingActivationSpawn && !options?.initialPtyId)
       if (shouldRecordInteraction) {
         get().recordFeatureInteraction?.('terminal-tabs')
+      }
+      if (splitGroupId) {
+        get().recordFeatureInteraction?.('terminal-panes')
       }
       return tab
     }

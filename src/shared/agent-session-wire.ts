@@ -1,4 +1,5 @@
 import type { AgentSessionUnavailable } from './agent-session-availability'
+import type { AgentSessionCurrentWorkFields } from './agent-session-current-work-wire'
 import type {
   AgentSessionBackgroundTask,
   AgentSessionBackgroundTaskState
@@ -148,7 +149,7 @@ export type AgentSessionHistoryPage = {
   subagentRoster?: AgentSessionSubagentRosterEntry[]
   /** As of the page's read; a client applies it only from a page that replaces its state. */
   latestTurn?: AgentSessionLatestTurn | null
-}
+} & AgentSessionCurrentWorkFields
 
 export type AgentSessionHistoryResult =
   | { ok: true; page: AgentSessionHistoryPage; providerSession?: AgentProviderSessionMetadata }
@@ -209,7 +210,8 @@ export type AgentSessionSubscribeEvent =
       latestTurn?: AgentSessionLatestTurn | null
       /** On a catch-up page with more behind it; absent on the last, live, and from older hosts. */
       hasNewer?: true
-    } & AgentSessionFrameFields)
+    } & AgentSessionCurrentWorkFields &
+      AgentSessionFrameFields)
   | ({
       type: 'reset'
       sessionId: string
@@ -462,21 +464,7 @@ export type AgentSessionSlashCommand = {
 /** The provider's own command surface, read per session. Additive read-only
  *  surface: a host that predates it answers `method_not_found`, and the client
  *  keeps rendering its curated catalog. */
-export type AgentSessionCommandsResult = {
-  commands?: AgentSessionSlashCommand[]
-}
-
-/** Longest objective a client may send; matches the provider's own limit. */
-export const AGENT_SESSION_THREAD_GOAL_OBJECTIVE_MAX_LENGTH = 4000
-
-/** A client's change to the thread goal. `set` replaces the objective and makes
- *  it active, which the provider pursues without a separate turn. */
-export type AgentSessionThreadGoalChange =
-  | { kind: 'set'; objective: string }
-  | { kind: 'status'; status: 'active' | 'paused' }
-  | { kind: 'clear' }
-
-export type AgentSessionThreadGoalResult = { change: AgentSessionThreadGoalChange['kind'] }
+export type AgentSessionCommandsResult = { commands?: AgentSessionSlashCommand[] }
 
 /** Provider-reported choices and effective next-turn values. Additive read-only
  *  surface so older hosts can reject it without changing structured v1 writes. */
@@ -488,6 +476,9 @@ export type AgentSessionOptionsResult = {
    *  latest goal the whole journal records, for a client whose loaded page
    *  starts after it. */
   threadGoal?: { current: AgentJournalThreadGoal | null; contextFloor?: AgentJournalCursor }
+  /** The goal a session's journal records where only the agent's own `/goal` command changes it.
+   *  Separate from `threadGoal`, so a client that predates it never offers host controls. */
+  reportedThreadGoal?: { current: AgentJournalThreadGoal; contextFloor?: AgentJournalCursor }
   /** Present only where this session writes context facts to its turn rows.
    *  `current` is the newest of each part the whole journal records, for a
    *  client whose loaded page starts after the row that carries it. */

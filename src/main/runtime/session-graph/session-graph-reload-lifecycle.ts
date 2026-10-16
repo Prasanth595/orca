@@ -1,7 +1,7 @@
 import type { OrcaRuntimeWithTransitionGraphReloadToTerminalState as TransitionGraphReloadToTerminalStateMethods } from './session-graph-authority'
 import type { OrcaRuntimeWithBindPtyIncarnationHandle as BindPtyIncarnationHandleMethods } from '../terminal/identity/terminal-handle-bindings'
 import type { OrcaRuntimeWithResolveWaiter as ResolveWaiterMethods } from '../orca-runtime-resolve-waiter'
-import { OrcaRuntimeWithStopExactTerminalsForWorktree } from '../orca-runtime-stop-exact-terminals-for-worktree'
+import { OrcaRuntimeWithStopExactTerminalsForWorktree } from '../terminal/stop/worktree-terminal-stop-targets'
 import type { RuntimeRendererReloadFence } from '../orca-runtime-core'
 import { HEADLESS_RUNTIME_WINDOW_ID } from '../../../shared/runtime-types'
 
@@ -200,6 +200,10 @@ export abstract class OrcaRuntimeWithHasTerminalsForWorktree extends OrcaRuntime
       return
     }
     this.graphReloadLifecycle.settleActive('cancelled')
+    // Why: a closed window never republishes, so a serve host must take its graph back (#27292).
+    if (this.servesHeadlessGraph) {
+      this.headlessGraphFallbackAvailable = true
+    }
     if (this.shouldRestoreHeadlessGraph(windowId)) {
       this.pendingHeadlessPromotionWindowId = null
       this.restoreHeadlessGraphAuthority()

@@ -76,6 +76,7 @@ export function createJournalStoreCollaborators(host: JournalStoreHost): Journal
     database: host.database,
     readOnly: host.readOnly,
     highestFence: () => host.state().highestFence,
+    state: host.state,
     queuePauseRestatement: () =>
       journalQueuePauseRestatement(
         host.state().queuePauseMarks,
@@ -134,11 +135,7 @@ export function createJournalStoreCollaborators(host: JournalStoreHost): Journal
       writer: rowWriter,
       cards: queuedMessages
     }),
-    stops: new JournalStopAcceptor({
-      writer: rowWriter,
-      state: host.state,
-      liveTurnId: () => host.journal().activeTurnId()
-    }),
+    stops: new JournalStopAcceptor({ writer: rowWriter, state: host.state }),
     // Behind the stored fact: settles drafts whose consumed submission the loaded journal shows
     // refused (a downgrade wrote no hook), then prunes. Bookkeeping, never failing the open.
     restore: () =>
