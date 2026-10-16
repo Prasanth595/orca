@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { estimateCostUsd, type CodexBillableTokens } from './codex-usage-cost-estimate'
 
+/** Builds totals whose requests all remain below the long-context threshold. */
 function shortContext(
   inputTokens: number,
   cachedInputTokens: number,
@@ -16,6 +17,7 @@ function shortContext(
   }
 }
 
+/** Marks every token as belonging to requests above the long-context threshold. */
 function longContext(
   inputTokens: number,
   cachedInputTokens: number,
