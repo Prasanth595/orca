@@ -141,6 +141,16 @@ test('terminal switch on a paired server reveals the terminal in the desktop on 
           tabId: mirroredTargetTabId,
           leafId: target.leafId
         })
+      await expect(
+        client.page.locator(
+          `[data-terminal-tab-id=${JSON.stringify(mirroredTargetTabId)}] .pane[data-leaf-id=${JSON.stringify(target.leafId)}] .xterm`
+        )
+      ).toBeVisible({ timeout: 30_000 })
+      await expect(
+        client.page.locator(
+          `[data-terminal-tab-id=${JSON.stringify(firstMirroredTabId)}] .xterm:visible`
+        )
+      ).toHaveCount(0)
     } finally {
       // Why: taken either way, so a run without the fix records the window that did not move.
       await client.page.screenshot({ path: testInfo.outputPath('after-terminal-switch.png') })
