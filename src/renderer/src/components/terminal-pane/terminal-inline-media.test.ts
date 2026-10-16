@@ -5,6 +5,7 @@ import {
   findAnchorRow,
   inlineMediaKind,
   inlinePlayerBox,
+  closeInlineMediaPlayers,
   localPathFromFileUrl,
   toggleInlineMedia
 } from './terminal-inline-media'
@@ -193,6 +194,40 @@ describe('toggleInlineMedia', () => {
       filePath: '/tmp/song.mp3',
       access: { kind: 'user-file' }
     })
+  })
+
+  it('pauses a player whose link line is gone, so no hidden sound keeps playing', async () => {
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
+    const lines = ['/tmp/song.mp3', '', '', '', '']
+    const terminal = fakeTerminal(lines)
+    toggleInlineMedia(terminal, 0, '/tmp/song.mp3', 'audio')
+    await vi.waitFor(() => expect(document.querySelector('audio')).not.toBeNull())
+
+    lines[0] = 'cleared'
+    for (const listener of renderListeners) {
+      listener()
+    }
+
+    const player = document.querySelector<HTMLElement>('[data-orca-inline-media]')
+    expect(player?.style.display).toBe('none')
+    expect(pause).toHaveBeenCalled()
+    pause.mockRestore()
+  })
+
+  it('closes every player when its pane goes away', () => {
+    const terminal = fakeTerminal([
+      '/tmp/a.mp4',
+      '/tmp/b.png',
+      ...Array.from({ length: 30 }, () => '')
+    ])
+    toggleInlineMedia(terminal, 0, '/tmp/a.mp4', 'video')
+    toggleInlineMedia(terminal, 1, '/tmp/b.png', 'image')
+    expect(document.querySelectorAll('[data-orca-inline-media]')).toHaveLength(2)
+
+    closeInlineMediaPlayers(terminal)
+
+    expect(document.querySelectorAll('[data-orca-inline-media]')).toHaveLength(0)
+    expect(renderListeners).toHaveLength(0)
   })
 
   it('declines a blank line so the link keeps its usual action', () => {

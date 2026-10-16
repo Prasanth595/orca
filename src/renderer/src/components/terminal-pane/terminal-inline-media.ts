@@ -19,6 +19,7 @@ const TITLE_BAR_PX = 22
 type OpenPlayer = { key: string; close: () => void }
 const openPlayers = new WeakMap<Terminal, OpenPlayer[]>()
 
+/** The lower-cased extension of the path's last segment, dot included, or '' when it has none. */
 function extensionOf(filePath: string): string {
   const name = filePath.split(/[/\\]/).pop() ?? ''
   const dot = name.lastIndexOf('.')
@@ -109,6 +110,10 @@ export function findAnchorRow(
   return -1
 }
 
+/**
+ * The `src` a player element loads: the `orca-media://` URL main grants for video and audio, or a
+ * data URL for an image.
+ */
 async function mediaSource(filePath: string, kind: InlineMediaKind): Promise<string> {
   // Why the user-file grant: the click is the user naming this file, so it may live outside any
   // project (an agent's render in ~/Downloads). Main still serves only that one regular file.
@@ -129,6 +134,10 @@ async function mediaSource(filePath: string, kind: InlineMediaKind): Promise<str
   return read.mediaUrl
 }
 
+/**
+ * Builds the player inside `element`: a title bar with a close button, then the media, loaded
+ * asynchronously. Reports the media's aspect ratio once known so the box can narrow to it.
+ */
 function mountPlayer(
   element: HTMLElement,
   filePath: string,
@@ -207,6 +216,7 @@ function mountPlayer(
     })
 }
 
+/** The trimmed text of one buffer line, the player's anchor. */
 function lineText(terminal: Terminal, line: number): string {
   return terminal.buffer.active.getLine(line)?.translateToString(true).trim() ?? ''
 }
@@ -244,6 +254,7 @@ export function toggleInlineMedia(
   let lastRow = bufferLine - terminal.buffer.active.viewportY
   let aspect = 0
 
+  /** Re-finds the anchor line and moves the player under or above it; hides and pauses it when gone. */
   const place = (): void => {
     const viewportY = terminal.buffer.active.viewportY
     const row = findAnchorRow(
@@ -265,7 +276,9 @@ export function toggleInlineMedia(
             aspect
           })
     if (!box) {
+      // Why pause: a hidden player (anchor cleared or scrolled away) must not keep playing sound.
       element.style.display = 'none'
+      element.querySelector<HTMLMediaElement>('video, audio')?.pause()
       return
     }
     lastRow = row
@@ -283,6 +296,7 @@ export function toggleInlineMedia(
   ]
   const player: OpenPlayer = {
     key,
+    /** Stops the media, releases its decoder, removes the player and its listeners. */
     close: () => {
       for (const subscription of subscriptions) {
         subscription.dispose()
@@ -309,4 +323,15 @@ export function toggleInlineMedia(
   place()
   openPlayers.set(terminal, [...players, player])
   return true
+}
+
+/**
+ * Closes every player open in this terminal. Called when its pane goes away, so no audio keeps
+ * playing and no render listener outlives the pane.
+ */
+export function closeInlineMediaPlayers(terminal: Terminal): void {
+  for (const player of openPlayers.get(terminal) ?? []) {
+    player.close()
+  }
+  openPlayers.delete(terminal)
 }
