@@ -53,6 +53,7 @@ type NativeChatContextMenuState = {
   canPaste: boolean
   image?: NativeChatCopyImage
   target: NativeChatContextMenuTarget
+  returnFocusTo: Element | null
 }
 
 type UseNativeChatContextMenuArgs = {
@@ -81,7 +82,7 @@ export type NativeChatContextMenuTargetArgs = {
   fileLinkContext?: NativeChatFileLinkContext | null
   /** Where the transcript offers rewind; absent where it never does. */
   rewind?: NativeChatRewindSurface
-  onFind?: () => void
+  onFind?: (returnFocusTo: Element | null) => void
 }
 
 export type NativeChatContextMenuActions = {
@@ -157,7 +158,8 @@ export function useNativeChatContextMenu({
     point: { x: 0, y: 0 },
     selectedText: '',
     canPaste: false,
-    target: noNativeChatContextMenuTarget
+    target: noNativeChatContextMenuTarget,
+    returnFocusTo: null
   })
   const shortcutLabel = nativeChatToggleShortcutLabel(isMacPlatform())
   const { image, target } = state
@@ -197,6 +199,7 @@ export function useNativeChatContextMenu({
         point: { x: event.clientX, y: event.clientY },
         selectedText: getNativeChatSelectedText(rootRef.current),
         canPaste: isEditableTarget(event.target),
+        returnFocusTo: rootRef.current?.ownerDocument.activeElement ?? null,
         image: readNativeChatCopyImage(event.target),
         target: readNativeChatContextMenuTarget(event.target, {
           root: rootRef.current,
@@ -242,11 +245,12 @@ export function useNativeChatContextMenu({
           align="start"
           onCloseAutoFocus={(event) => {
             event.preventDefault()
-            // Drop the read image and target once the menu has faded out, so neither is held.
+            // Release captured targets once the menu has faded out.
             setState((prev) => ({
               ...prev,
               image: undefined,
-              target: noNativeChatContextMenuTarget
+              target: noNativeChatContextMenuTarget,
+              returnFocusTo: null
             }))
           }}
         >
@@ -277,7 +281,7 @@ export function useNativeChatContextMenu({
             </DropdownMenuItem>
           ) : null}
           {hasEditItems && hasSessionItems ? <DropdownMenuSeparator /> : null}
-          {onFind ? <NativeChatFindMenuItem onSelect={onFind} /> : null}
+          {onFind ? <NativeChatFindMenuItem onSelect={() => onFind(state.returnFocusTo)} /> : null}
           {showTerminalPaneActions ? (
             <>
               {onSwitchToTerminal ? (

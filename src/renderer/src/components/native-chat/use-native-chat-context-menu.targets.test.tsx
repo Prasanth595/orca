@@ -154,6 +154,7 @@ describe('native chat right-click targets', () => {
 
     view.unmount()
     render(<Chat acceptsText={false} onFind={vi.fn()} />)
+    window.getSelection()?.selectAllChildren(screen.getByText('Agent reply words'))
     await rightClick('Agent reply words')
     expect(menuItemNames()).not.toContain('Add to chat')
   })
