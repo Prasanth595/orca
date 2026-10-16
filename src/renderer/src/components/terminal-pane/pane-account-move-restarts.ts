@@ -16,6 +16,11 @@ export function registerPaneAccountMoveRestart(ptyId: string, restart: PaneResta
   }
 }
 
+/** Whether a mounted pane owns this PTY, so a move can restart it in place. */
+export function hasPaneAccountMoveRestart(ptyId: string): boolean {
+  return restartByPtyId.has(ptyId)
+}
+
 /** Restarts the mounted pane that owns this PTY; false when no mounted pane does. */
 export function restartPaneForAccountMove(ptyId: string, startup: PaneRestartStartup): boolean {
   const restart = restartByPtyId.get(ptyId)

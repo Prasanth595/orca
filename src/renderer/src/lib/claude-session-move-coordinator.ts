@@ -1,6 +1,9 @@
 import { useAppStore } from '@/store'
 import type { AppState } from '@/store/types'
-import { restartPaneForAccountMove } from '@/components/terminal-pane/pane-account-move-restarts'
+import {
+  hasPaneAccountMoveRestart,
+  restartPaneForAccountMove
+} from '@/components/terminal-pane/pane-account-move-restarts'
 import { inspectRuntimeTerminalProcess } from '@/runtime/runtime-terminal-inspection'
 import { getLocalProjectExecutionRuntimeContext } from '@/lib/local-preflight-context'
 import { LOCAL_EXECUTION_HOST_ID } from '../../../shared/execution-host'
@@ -12,10 +15,10 @@ import {
 } from './agent-hibernation-pane-age'
 import { buildClaudeSessionMoveStartup } from './codex-account-restart-startup'
 import {
+  claudeMoveAccountsKey,
   findClaudeSessionsOnOtherLogin,
-  isClaudeRunningInPane,
   isClaudeSessionMovableNow,
-  isUnseenPaneInspection,
+  readClaudeInPane,
   type ClaudeSessionMoveGates,
   type ClaudeSessionOnOtherLogin
 } from './claude-session-move'
@@ -144,7 +147,6 @@ function gatesFor(approved: boolean): ClaudeSessionMoveGates {
       }
 }
 
-/** Moves what can go now and returns how many sessions still wait their turn. */
 // Why: input stamps are coalesced, so unsent text must include the not-yet-flushed keystroke.
 function readMoveView(state: AppState): AppState {
   return {
@@ -166,7 +168,9 @@ function canMoveNow(session: ClaudeSessionOnOtherLogin): boolean {
   const now = findClaudeSessionsOnOtherLogin(view, accounts, (worktreeId) =>
     isOnThisHost(view, worktreeId)
   ).find((candidate) => candidate.paneKey === session.paneKey)
+  // Why mounted: only a mounted pane restarts in place, so reading a parked one's processes is waste.
   return (
+    hasPaneAccountMoveRestart(session.ptyId) &&
     now?.ptyId === session.ptyId &&
     now.transcriptPath === session.transcriptPath &&
     now.targetLogin === session.targetLogin &&
@@ -174,6 +178,7 @@ function canMoveNow(session: ClaudeSessionOnOtherLogin): boolean {
   )
 }
 
+/** Moves what can go now and returns how many sessions still wait their turn. */
 async function movePanes(): Promise<number> {
   if (!accounts) {
     return 0
@@ -182,10 +187,10 @@ async function movePanes(): Promise<number> {
   const sessions = findClaudeSessionsOnOtherLogin(readMoveView(state), accounts, (worktreeId) =>
     isOnThisHost(state, worktreeId)
   )
-  const stalePaneKeys = new Set(sessions.map((session) => session.paneKey))
+  const currentPaneKeys = new Set(sessions.map((session) => session.paneKey))
   for (const paneKey of approvedPaneKeys) {
     // Why: the account switched back, or the pane closed, so the answer no longer applies.
-    if (!stalePaneKeys.has(paneKey)) {
+    if (!currentPaneKeys.has(paneKey)) {
       approvedPaneKeys.delete(paneKey)
     }
   }
@@ -206,12 +211,18 @@ async function movePanes(): Promise<number> {
     // Why ask the process: the pane may now run tmux or the shell, and restarting it there would
     // cut off a Claude that lives on outside the pane, or start one nobody runs any more.
     const inspection = await inspectRuntimeTerminalProcess(session.ptyId).catch(() => null)
+    const running = await readClaudeInPane(
+      session.ptyId,
+      inspection,
+      tab?.launchAgent,
+      getRendererAppPlatform()
+    )
     // Why retry: a check that failed, or could not see the process, says nothing about the pane.
-    if (!inspection || isUnseenPaneInspection(inspection, getRendererAppPlatform())) {
+    if (running === null) {
       waiting += 1
       continue
     }
-    if (!isClaudeRunningInPane(inspection, tab?.launchAgent)) {
+    if (!running) {
       settle(session)
       continue
     }
@@ -262,12 +273,7 @@ export function installClaudeSessionMoveCoordinator(): () => void {
   const unsubscribe = useAppStore.subscribe((state, previous) => {
     const settings = state.settings
     const before = previous.settings
-    if (
-      settings?.activeClaudeManagedAccountId !== before?.activeClaudeManagedAccountId ||
-      settings?.activeClaudeManagedAccountIdsByRuntime !==
-        before?.activeClaudeManagedAccountIdsByRuntime ||
-      settings?.claudeManagedAccounts !== before?.claudeManagedAccounts
-    ) {
+    if (settings !== before && claudeMoveAccountsKey(settings) !== claudeMoveAccountsKey(before)) {
       void refreshClaudeMoveAccounts().then(() => schedule(SETTLE_MS))
       return
     }

@@ -128,7 +128,6 @@ describe('findClaudeSessionsOnOtherLogin', () => {
         leafId: LEAF,
         ptyId: 'pty-1',
         worktreeId: 'wt-1',
-        sessionId: 'session-1',
         transcriptPath: onA,
         targetLogin: 'b@example.test/'
       }

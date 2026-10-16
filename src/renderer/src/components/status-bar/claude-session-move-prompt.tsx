@@ -6,11 +6,12 @@ import {
   moveClaudeSessionsToSelectedAccount,
   refreshClaudeMoveAccounts
 } from '@/lib/claude-session-move-coordinator'
+import { claudeMoveAccountsKey } from '@/lib/claude-session-move'
 import { useAppStore } from '../../store'
 
 /** Offers to move Claude sessions still on the old account, the way Codex offers a restart. */
 export function ClaudeSessionMovePrompt(): React.JSX.Element | null {
-  const selection = useAppStore((s) => s.settings?.activeClaudeManagedAccountIdsByRuntime)
+  const accountsKey = useAppStore((s) => claudeMoveAccountsKey(s.settings))
   const [accountsRead, setAccountsRead] = useState(0)
   useEffect(() => {
     let current = true
@@ -22,7 +23,7 @@ export function ClaudeSessionMovePrompt(): React.JSX.Element | null {
     return () => {
       current = false
     }
-  }, [selection])
+  }, [accountsKey])
   const sessionCount = useAppStore((s) =>
     accountsRead > 0 ? listClaudeSessionsOnOtherLogin(s).length : 0
   )

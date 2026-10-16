@@ -11,6 +11,7 @@ import {
 } from './claude-session-move-coordinator'
 
 const restartPaneForAccountMove = vi.hoisted(() => vi.fn(() => true))
+const hasPaneAccountMoveRestart = vi.hoisted(() => vi.fn(() => true))
 type Inspection = {
   foregroundProcess: string | null
   hasChildProcesses: boolean
@@ -32,7 +33,11 @@ const inspect = vi.hoisted(() =>
     hasChildProcesses: true
   }))
 )
-vi.mock('@/runtime/runtime-terminal-inspection', () => ({ inspectRuntimeTerminalProcess: inspect }))
+const confirm = vi.hoisted(() => vi.fn(async (): Promise<string | null> => 'claude'))
+vi.mock('@/runtime/runtime-terminal-inspection', () => ({
+  inspectRuntimeTerminalProcess: inspect,
+  confirmRuntimeTerminalForegroundProcess: confirm
+}))
 type MoveStartup = { command: string; startupCommandDelivery: 'shell-ready'; launchAgent: 'claude' }
 const buildClaudeSessionMoveStartup = vi.hoisted(() =>
   vi.fn((): MoveStartup | null => ({
@@ -42,7 +47,8 @@ const buildClaudeSessionMoveStartup = vi.hoisted(() =>
   }))
 )
 vi.mock('@/components/terminal-pane/pane-account-move-restarts', () => ({
-  restartPaneForAccountMove
+  restartPaneForAccountMove,
+  hasPaneAccountMoveRestart
 }))
 vi.mock('./codex-account-restart-startup', () => ({ buildClaudeSessionMoveStartup }))
 vi.mock('@/lib/local-preflight-context', () => ({
@@ -96,6 +102,7 @@ function seed(
           ptyId: null,
           worktreeId: 'wt-1',
           title: 'Claude',
+          launchAgent: 'claude',
           customTitle: null,
           color: null,
           sortOrder: 0,
@@ -163,6 +170,10 @@ describe('Claude session moves', () => {
     vi.stubGlobal('window', { ...globalThis.window, api: { claudeAccounts: { list } } })
     roster = selected('acct-b')
     restartPaneForAccountMove.mockClear()
+    hasPaneAccountMoveRestart.mockClear()
+    inspect.mockClear()
+    confirm.mockClear()
+    list.mockClear()
     foreground.process = 'claude'
     buildClaudeSessionMoveStartup.mockClear()
     resetClaudeSessionMoveForTests()
@@ -462,5 +473,109 @@ describe('Claude session moves', () => {
     await moveClaudeSessionsToSelectedAccount()
 
     expect(restartPaneForAccountMove).not.toHaveBeenCalled()
+  })
+
+  it('moves a session whose pane reads as the shell for a moment while Claude still runs', async () => {
+    foreground.process = 'zsh'
+    seed({})
+
+    await moveClaudeSessionsToSelectedAccount()
+
+    expect(restartPaneForAccountMove).toHaveBeenCalledOnce()
+  })
+
+  it('leaves the pane once a fresh read confirms the shell', async () => {
+    foreground.process = 'zsh'
+    confirm.mockResolvedValueOnce('zsh')
+    seed({})
+
+    await moveClaudeSessionsToSelectedAccount()
+
+    expect(restartPaneForAccountMove).not.toHaveBeenCalled()
+    expect(listClaudeSessionsOnOtherLogin(useAppStore.getState())).toEqual([])
+  })
+
+  it('tries again when a fresh read of a shell reading cannot tell', async () => {
+    foreground.process = 'zsh'
+    confirm.mockResolvedValueOnce(null)
+    seed({})
+    uninstall = installClaudeSessionMoveCoordinator()
+    await moveClaudeSessionsToSelectedAccount()
+    expect(restartPaneForAccountMove).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(16_000)
+
+    expect(restartPaneForAccountMove).toHaveBeenCalledOnce()
+  })
+
+  it('does not read the processes of a pane that is not mounted', async () => {
+    hasPaneAccountMoveRestart.mockReturnValueOnce(false)
+    seed({})
+
+    await moveClaudeSessionsToSelectedAccount()
+
+    expect(inspect).not.toHaveBeenCalled()
+  })
+
+  it('does not read the accounts again when an unrelated setting is saved', async () => {
+    seed({}, { claudeMoveIdleSessions: true })
+    uninstall = installClaudeSessionMoveCoordinator()
+    await settle()
+    list.mockClear()
+
+    // A save stores the whole settings object main returns, so every field comes back new.
+    useAppStore.setState((s) => ({
+      settings: s.settings
+        ? structuredClone({ ...s.settings, terminalInactivePaneOpacity: 0.5 })
+        : s.settings
+    }))
+    await settle()
+
+    expect(list).not.toHaveBeenCalled()
+  })
+
+  it('reads the accounts again when an account signs in again', async () => {
+    seed({}, { claudeMoveIdleSessions: true })
+    uninstall = installClaudeSessionMoveCoordinator()
+    await settle()
+    list.mockClear()
+
+    useAppStore.setState((s) => ({
+      settings: s.settings
+        ? {
+            ...s.settings,
+            claudeManagedAccounts: [
+              {
+                id: 'acct-a',
+                email: 'a@example.test',
+                managedAuthPath: '',
+                authMethod: 'subscription-oauth',
+                createdAt: 1,
+                updatedAt: 2,
+                lastAuthenticatedAt: 2
+              }
+            ]
+          }
+        : s.settings
+    }))
+    await settle()
+
+    expect(list).toHaveBeenCalledOnce()
+  })
+
+  it("reads the accounts again when only this machine's selection changes", async () => {
+    seed({}, { claudeMoveIdleSessions: true })
+    uninstall = installClaudeSessionMoveCoordinator()
+    await settle()
+    list.mockClear()
+
+    useAppStore.setState((s) => ({
+      settings: s.settings
+        ? { ...s.settings, activeClaudeManagedAccountIdsByRuntime: { host: 'acct-a', wsl: {} } }
+        : s.settings
+    }))
+    await settle()
+
+    expect(list).toHaveBeenCalledOnce()
   })
 })

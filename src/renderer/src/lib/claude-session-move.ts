@@ -1,5 +1,8 @@
 import type { AppState } from '@/store'
-import type { RuntimeTerminalProcessInspection } from '@/runtime/runtime-terminal-inspection'
+import {
+  confirmRuntimeTerminalForegroundProcess,
+  type RuntimeTerminalProcessInspection
+} from '@/runtime/runtime-terminal-inspection'
 import {
   isAgentForegroundWrapperProcess,
   recognizeAgentProcess
@@ -29,7 +32,6 @@ export type ClaudeSessionOnOtherLogin = {
   leafId: string
   ptyId: string
   worktreeId: string
-  sessionId: string
   /** Where the session reports its transcript; it changes once a moved session reports again. */
   transcriptPath: string
   /** The selected login, email and organization, so a move is recorded against where it went. */
@@ -44,6 +46,15 @@ export type ClaudeSessionMoveGates = {
   mobileLockedPtyIds: Set<string>
   ptyBindingFirstSeenAtByPaneKey: Record<string, number | undefined>
   boundaryResolvedAtByPaneKey: Record<string, number | undefined>
+}
+
+/** What names the selected login; a settings save hands back every field as a new object. */
+export function claudeMoveAccountsKey(settings: AppState['settings']): string {
+  return JSON.stringify([
+    settings?.activeClaudeManagedAccountId,
+    settings?.activeClaudeManagedAccountIdsByRuntime?.host,
+    settings?.claudeManagedAccounts?.map((account) => [account.id, account.updatedAt])
+  ])
 }
 
 type ClaudeLogin = { email: string; organizationUuid?: string | null }
@@ -119,7 +130,6 @@ export function findClaudeSessionsOnOtherLogin(
           leafId,
           ptyId,
           worktreeId,
-          sessionId: providerSession.id,
           transcriptPath: providerSession.transcriptPath,
           targetLogin: `${selected.email.toLowerCase()}/${selected.organizationUuid ?? ''}`
         })
@@ -172,6 +182,34 @@ export function isUnseenPaneInspection(
     inspection.childProcessEvidence === 'unverifiable' ||
     (platform !== 'win32' && inspection.foregroundProcessEvidence?.verdict === 'unverifiable')
   )
+}
+
+/**
+ * Whether Claude runs in the pane, or null when its processes could not be seen. A shell reading in
+ * a tab that launched Claude is read again fresh, as Codex's restart does: the cached read can flap
+ * to the shell for a live agent (#11064).
+ */
+export async function readClaudeInPane(
+  ptyId: string,
+  inspection: RuntimeTerminalProcessInspection | null,
+  launchAgent: TuiAgent | undefined,
+  platform: NodeJS.Platform
+): Promise<boolean | null> {
+  if (!inspection || isUnseenPaneInspection(inspection, platform)) {
+    return null
+  }
+  const { foregroundProcess } = inspection
+  if (
+    launchAgent !== 'claude' ||
+    foregroundProcess === null ||
+    !isShellProcess(foregroundProcess)
+  ) {
+    return isClaudeRunningInPane(inspection, launchAgent)
+  }
+  const confirmed = await confirmRuntimeTerminalForegroundProcess(ptyId)
+  return confirmed === null
+    ? null
+    : isClaudeRunningInPane({ ...inspection, foregroundProcess: confirmed }, launchAgent)
 }
 
 /** Whether restarting the session now loses nothing: hibernation's own test for a pane it may stop. */
