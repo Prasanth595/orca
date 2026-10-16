@@ -1,11 +1,18 @@
 import { describe, expect, it, vi } from 'vitest'
 import { AI_VAULT_CHAT_FORK_SOURCE_CAPABILITY } from '../../../src/shared/ai-vault-resume-preparation'
+import type { MobileTerminalResumeLaunch } from './mobile-native-chat-cli-fork'
 
 vi.mock('lucide-react-native', () => ({ SquareTerminal: 'Icon' }))
 vi.mock('../platform/haptics', () => ({ triggerError: vi.fn() }))
 
 const { canOfferMobileNativeChatCliFork, runMobileNativeChatCliFork } =
   await import('./mobile-native-chat-cli-fork')
+
+type CreatedTerminal = {
+  startupCommand: string
+  resumeLaunch: MobileTerminalResumeLaunch
+  errorToast: string
+}
 
 function hostReplying(prepare: unknown) {
   return vi.fn(async (method: string) => {
@@ -33,7 +40,7 @@ function source(overrides: Record<string, unknown> = {}) {
 }
 
 async function run(sendRequest: ReturnType<typeof hostReplying>, agent = 'claude') {
-  const createTerminal = vi.fn(async () => {})
+  const createTerminal = vi.fn(async (_options: CreatedTerminal) => {})
   const showToast = vi.fn()
   await runMobileNativeChatCliFork({
     client: { sendRequest },
@@ -57,14 +64,12 @@ describe('runMobileNativeChatCliFork', () => {
     )
     expect(showToast).not.toHaveBeenCalled()
     expect(createTerminal).toHaveBeenCalledTimes(1)
-    const [options] = createTerminal.mock.calls[0] as unknown as [
-      { startupCommand: string; resumeLaunch: Record<string, unknown> }
-    ]
-    expect(options.startupCommand).toContain('claude-conversation')
-    expect(options.startupCommand).toContain('--fork-session')
-    expect(options.startupCommand).toContain('--model opus')
-    expect(options.resumeLaunch).toMatchObject({ cwd: '/Users/ada/repo', launchAgent: 'claude' })
-    expect(options.resumeLaunch.launchConfig).toBeDefined()
+    const options = createTerminal.mock.calls[0]?.[0]
+    expect(options?.startupCommand).toContain('claude-conversation')
+    expect(options?.startupCommand).toContain('--fork-session')
+    expect(options?.startupCommand).toContain('--model opus')
+    expect(options?.resumeLaunch).toMatchObject({ cwd: '/Users/ada/repo', launchAgent: 'claude' })
+    expect(options?.resumeLaunch.launchConfig).toBeDefined()
   })
 
   it('opens the copy the host wrote with a plain resume, never a fork of the chat', async () => {
@@ -82,9 +87,9 @@ describe('runMobileNativeChatCliFork', () => {
     })
     const { createTerminal } = await run(sendRequest, 'opencode')
 
-    const [options] = createTerminal.mock.calls[0] as unknown as [{ startupCommand: string }]
-    expect(options.startupCommand).toContain('ses_copy')
-    expect(options.startupCommand).not.toContain('fork')
+    const options = createTerminal.mock.calls[0]?.[0]
+    expect(options?.startupCommand).toContain('ses_copy')
+    expect(options?.startupCommand).not.toContain('fork')
   })
 
   it("says why in one toast naming the agent when the host refuses, and opens nothing", async () => {
