@@ -106,9 +106,11 @@ jobs:
           persist-credentials: false
           # Keep complete server/test trees; missing future imports fail the unchanged builds.
           # All of src: the orcad-convert cell builds the full e2e app and the bundled CLI.
+          # mobile: the template ships the mobile web page, which builds from mobile/.
           sparse-checkout: |
             .github
             config
+            mobile
             native
             resources
             tests
