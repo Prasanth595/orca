@@ -1,6 +1,6 @@
 import { MobileSelectableText as Text } from '../components/MobileSelectableText'
 import { memo, useCallback, useContext, useState } from 'react'
-import { Image, Text as NativeText, View } from 'react-native'
+import { Text as NativeText, View } from 'react-native'
 import { INLINE_TEXT_SELECTION } from '../components/inline-text-selection'
 import { MobileNativeChatMessageActionsSheet } from './MobileNativeChatMessageActionsSheet'
 import { MobileNativeChatLongPressContent as Content } from './MobileNativeChatLongPressContent'
@@ -37,7 +37,9 @@ import type { NativeChatResolvedPrompt } from '../../../src/shared/native-chat-r
 import { MobileNativeChatSubagentGroup } from './MobileNativeChatSubagentGroup'
 import { ToolRun } from './MobileNativeChatToolRun'
 import type { NativeChatTurnStatus } from './use-mobile-native-chat-turn-status'
-import { isRenderableImageUri } from './mobile-native-chat-image-preview'
+import { MobileNativeChatImageGallery } from './MobileNativeChatImageGallery'
+import { MobileNativeChatFileAttachments } from './MobileNativeChatFileAttachments'
+import { splitMobileNativeChatFileAttachments } from './mobile-native-chat-file-attachments'
 import { styles, TEXT_SIZE } from './mobile-native-chat-message-styles'
 import { agentMessageAttribution } from './mobile-agent-message-attribution'
 import { withoutPendingNativeChatVisualDirectiveTail } from '../../../src/shared/native-chat-visual-directive'
@@ -103,26 +105,6 @@ function Prose({
         onOpenFile={onOpenFile}
         onLongPress={onLongPress}
       />
-    )
-  }
-  if (isImageRefBlock(block)) {
-    // A local preview (composer echo) or real URL renders as a thumbnail; a bare
-    // host path (not loadable on the device) falls back to a text placeholder.
-    const uri = block.url ?? block.path
-    if (isRenderableImageUri(uri)) {
-      return (
-        <Image
-          source={{ uri }}
-          style={styles.imageThumb}
-          resizeMode="contain"
-          accessibilityLabel={block.alt ?? 'Attached image'}
-        />
-      )
-    }
-    return (
-      <NativeText style={[styles.imageRef, { fontSize: TEXT_SIZE * fontScale }]}>
-        🖼 {block.alt ?? block.path ?? block.url ?? 'image'}
-      </NativeText>
     )
   }
   return null
@@ -194,7 +176,13 @@ function MobileNativeChatMessageImpl({
   const { prose, tools: blocksOfTools } = splitNativeChatBlocks(message.blocks)
   const { asks, unansweredAsks, work: tools } = nativeChatAskRunBlocks(blocksOfTools)
   // A roster draws as its group row, which replaces its frozen sentence.
-  const drawnProse = withoutSubagentGroupTwins(prose)
+  const withoutTwins = withoutSubagentGroupTwins(prose)
+  const { files, prose: drawnProse } = isUser
+    ? splitMobileNativeChatFileAttachments(withoutTwins)
+    : { files: [], prose: withoutTwins }
+  const images = message.role === 'system' ? [] : drawnProse.filter(isImageRefBlock)
+  const bodyProse =
+    message.role === 'system' ? drawnProse : drawnProse.filter((block) => !isImageRefBlock(block))
   // The agent did not write a system row: its words draw as a notice or a faint aside.
   const isSystem = message.role === 'system'
   const activeCall = structuredActivityUi
@@ -301,63 +289,71 @@ function MobileNativeChatMessageImpl({
       {/* A turn with no user bubble carries its bar above its first row. */}
       {turnStatusAbove ? statusRow : null}
       <View style={[styles.row, isUser && styles.rowUser]}>
-        <Content
-          onLongPress={onLongPress}
-          style={[
-            styles.content,
-            isUser && styles.userBubble,
-            attribution !== null && styles.agentMessage
-          ]}
-        >
-          {attribution !== null ? (
-            <Text selectable={INLINE_TEXT_SELECTION} style={styles.agentAttribution}>
-              {attribution}
-            </Text>
-          ) : null}
-          {/* A roster is not tool activity, so it stays out of the settled-tools collapse. */}
-          {isSystem ? (
-            <MobileNativeChatNoticeRow
-              blocks={drawnProse}
-              fontScale={fontScale}
-              onOpenFile={onOpenFile}
-              onLongPress={onLongPress}
-            />
-          ) : null}
-          {drawnProse.map((block, index) =>
-            isSubagentGroupBlock(block) && isRenderableSubagentGroup(block) ? (
-              <MobileNativeChatSubagentGroup
-                key={`subagent-group:${block.groupId}`}
-                block={block}
-                open={subagentGroupsOpen?.has(block.groupId) === true}
-                onToggle={onToggleSubagentGroup}
-              />
-            ) : isSystem ? null : (
-              <Prose
-                key={index}
-                block={block}
-                invert={isUser}
+        {images.length > 0 ? (
+          <MobileNativeChatImageGallery images={images} alignToEnd={isUser} />
+        ) : null}
+        {files.length > 0 ? (
+          <MobileNativeChatFileAttachments files={files} onOpenFile={onOpenFile} />
+        ) : null}
+        {!isUser || bodyProse.length > 0 || showToolRun || askRow ? (
+          <Content
+            onLongPress={onLongPress}
+            style={[
+              styles.content,
+              isUser && styles.userBubble,
+              attribution !== null && styles.agentMessage
+            ]}
+          >
+            {attribution !== null ? (
+              <Text selectable={INLINE_TEXT_SELECTION} style={styles.agentAttribution}>
+                {attribution}
+              </Text>
+            ) : null}
+            {/* A roster is not tool activity, so it stays out of the settled-tools collapse. */}
+            {isSystem ? (
+              <MobileNativeChatNoticeRow
+                blocks={drawnProse}
                 fontScale={fontScale}
                 onOpenFile={onOpenFile}
                 onLongPress={onLongPress}
-                renderVisual={message.role === 'assistant' ? renderVisual : undefined}
-                holdPendingVisual={block === growingBlock}
               />
-            )
-          )}
-          {askRow}
-          {showToolRun ? (
-            <ToolRun
-              // Why: a global toggle intentionally resets all per-run/per-line
-              // overrides in one remount, avoiding an effect-driven second render.
-              key={`${toolsExpanded ? 'expanded' : 'collapsed'}:${turnExpanded ? 'turn' : 'flat'}`}
-              blocks={tools}
-              defaultExpanded={turnExpanded || toolsExpanded}
-              expandChildren={turnExpanded ? false : toolsExpanded}
-              activeCall={activeCall}
-              onOpenFile={onOpenFile}
-            />
-          ) : null}
-        </Content>
+            ) : null}
+            {bodyProse.map((block, index) =>
+              isSubagentGroupBlock(block) && isRenderableSubagentGroup(block) ? (
+                <MobileNativeChatSubagentGroup
+                  key={`subagent-group:${block.groupId}`}
+                  block={block}
+                  open={subagentGroupsOpen?.has(block.groupId) === true}
+                  onToggle={onToggleSubagentGroup}
+                />
+              ) : isSystem ? null : (
+                <Prose
+                  key={index}
+                  block={block}
+                  invert={isUser}
+                  fontScale={fontScale}
+                  onOpenFile={onOpenFile}
+                  onLongPress={onLongPress}
+                  renderVisual={message.role === 'assistant' ? renderVisual : undefined}
+                  holdPendingVisual={block === growingBlock}
+                />
+              )
+            )}
+            {askRow}
+            {showToolRun ? (
+              <ToolRun
+                // Why: a global toggle intentionally resets all per-run/per-line
+                // overrides in one remount, avoiding an effect-driven second render.
+                key={`${toolsExpanded ? 'expanded' : 'collapsed'}:${turnExpanded ? 'turn' : 'flat'}`}
+                blocks={tools}
+                defaultExpanded={turnExpanded || toolsExpanded}
+                expandChildren={turnExpanded ? false : toolsExpanded}
+                activeCall={activeCall}
+                onOpenFile={onOpenFile}
+              />
+            ) : null}
+          </Content>
+        ) : null}
         {unsentNotice ? <NativeText style={styles.unsentNotice}>{unsentNotice}</NativeText> : null}
         {copyText.length > 0 ? (
           <MobileSourceCopyButton
