@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, matchesGlob, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
-import { runProcessSync } from './script-child-process.mjs'
+import { runProcessSync } from '@orca/process-host'
 import { shouldRunMobileReleaseChecks } from './mobile-release-check-scope.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
@@ -51,7 +51,6 @@ it.each([
   'mobile/src/release.json',
   'mobile/new-toolchain/input',
   'package.json',
-  'pnpm-lock.yaml',
   '.github/workflows/mobile.yml',
   '.github/workflows/mobile-ios-release.yml',
   '.github/actions/install-node-dependencies/action.yml',
@@ -62,17 +61,31 @@ it.each([
   expect(shouldRunMobileReleaseChecks(['mobile/src/view.tsx', file])).toBe(true)
 })
 
+it('skips Ruby checks for a root lockfile change, which fastlane never reads', () => {
+  expect(shouldRunMobileReleaseChecks(['pnpm-lock.yaml'])).toBe(false)
+  expect(shouldRunMobileReleaseChecks(['pnpm-lock.yaml', 'mobile/fastlane/Fastfile'])).toBe(true)
+})
+
 it('runs Ruby checks when the changed-file evidence is empty', () => {
   expect(shouldRunMobileReleaseChecks([])).toBe(true)
 })
 
-it('gates only Ruby steps and keeps ordinary mobile validation unconditional', () => {
+it('gates Ruby independently and retains mobile static validation', () => {
   expect(steps[0].with['fetch-depth']).toBe(2)
   expect(detector['working-directory']).toBe('.')
   expect(steps.indexOf(detector)).toBeGreaterThan(
     steps.findIndex((step) => step.uses === './.github/actions/install-node-dependencies')
   )
-  const gated = steps.filter((step) => step.if !== undefined)
+  expect(steps.find((step) => step.name === 'Setup Bun for tests').if).toBe(
+    steps.find((step) => step.name === 'Test').if
+  )
+  const gated = steps.filter(
+    (step) =>
+      step.if !== undefined &&
+      step.name !== 'Test' &&
+      step.name !== 'Setup Bun for tests' &&
+      step.name !== 'Summarize RPC recording changes'
+  )
   expect(gated.map((step) => step.name)).toEqual([
     'Setup Ruby and fastlane',
     'Test iOS release version resolution',
@@ -82,20 +95,15 @@ it('gates only Ruby steps and keeps ordinary mobile validation unconditional', (
   for (const step of gated) {
     expect(step.if).toBe("steps.ruby-scope.outputs.should_run != 'false'")
   }
-  for (const name of [
-    'Typecheck',
-    'Typecheck tests (ratchet)',
-    'Test',
-    'Lint',
-    'Check formatting'
-  ]) {
+  for (const name of ['Typecheck', 'Typecheck tests (ratchet)', 'Lint', 'Check formatting']) {
     expect(steps.find((step) => step.name === name)?.if).toBeUndefined()
     expect(steps.some((step) => step.name === name)).toBe(true)
   }
   for (const file of [
     'config/scripts/mobile-release-check-scope.mjs',
     'config/scripts/mobile-release-check-scope.test.mjs',
-    'config/scripts/pr-code-change-scope.mjs'
+    'config/scripts/pr-code-change-scope.mjs',
+    'config/scripts/pr-package-test-paths.mjs'
   ]) {
     expect(workflow.on.pull_request.paths.some((pattern) => matchesGlob(file, pattern))).toBe(true)
   }
@@ -108,7 +116,7 @@ it('gates only Ruby steps and keeps ordinary mobile validation unconditional', (
   )
 })
 
-function fixture() {
+function fixture(detectorStep = detector) {
   const directory = mkdtempSync(join(tmpdir(), 'mobile-release-scope-'))
   directories.push(directory)
   const git = (...args) => {
@@ -130,7 +138,10 @@ function fixture() {
   for (const file of [
     'package.json',
     'config/scripts/pr-code-change-scope.mjs',
-    'config/scripts/mobile-release-check-scope.mjs'
+    'config/scripts/pr-package-test-paths.mjs',
+    'config/scripts/pr-layout-oracle-route.mjs',
+    'config/scripts/mobile-release-check-scope.mjs',
+    'config/scripts/mobile-test-change-scope.mjs'
   ]) {
     copyFileSync(join(root, file), join(directory, file))
   }
@@ -152,7 +163,7 @@ function fixture() {
     const output = join(directory, 'github-output')
     const result = runProcessSync({
       program: 'bash',
-      args: ['-e', '-c', detector.run],
+      args: ['-e', '-c', detectorStep.run],
       cwd: directory,
       env: { ...process.env, GITHUB_OUTPUT: output, RUNNER_TEMP: directory }
     })
@@ -168,6 +179,17 @@ describe.skipIf(process.platform === 'win32')('the Linux workflow detector comma
     repo.write('mobile/src/view.tsx', 'export const view = 2\n')
     repo.commit()
     expect(repo.detect()).toBe('should_run=false\n')
+  })
+
+  it('skips reliability metadata alone and retains mixed Fastfile changes', () => {
+    const repo = fixture()
+    repo.write('config/reliability-gates.jsonc', '{"gates": []}\n')
+    repo.commit()
+    expect(repo.detect()).toBe('should_run=false\n')
+    repo.write('config/reliability-gates.jsonc', '{"gates": [1]}\n')
+    repo.write('mobile/fastlane/Fastfile', 'default_platform(:android)\n')
+    repo.commit()
+    expect(repo.detect()).toBe('should_run=false\nshould_run=true\n')
   })
 
   it('keeps a deleted release input when a rename moves it into an excluded directory', () => {
@@ -186,6 +208,35 @@ describe.skipIf(process.platform === 'win32')('the Linux workflow detector comma
     repo.write('mobile/src/view.tsx', 'export const view = 2\n')
     repo.commit()
     rmSync(join(repo.directory, 'config/scripts/mobile-release-check-scope.mjs'))
+    expect(repo.detect()).toBe('should_run=true\n')
+  })
+})
+
+describe.skipIf(process.platform === 'win32')('the mobile test detector command', () => {
+  const testDetector = steps.find((step) => step.id === 'test-scope')
+  it('skips release-only changes while retaining source changes', () => {
+    const repo = fixture(testDetector)
+    repo.write('mobile/fastlane/Fastfile', 'default_platform(:android)\n')
+    repo.commit()
+    expect(repo.detect()).toBe('should_run=false\n')
+    repo.write('mobile/src/view.tsx', 'export const view = 2\n')
+    repo.commit()
+    expect(repo.detect()).toBe('should_run=false\nshould_run=true\n')
+  })
+  it('retains tests after source moves into a documentation directory', () => {
+    const repo = fixture(testDetector)
+    repo.git('mv', 'mobile/src/view.tsx', 'mobile/README.md')
+    repo.commit()
+    expect(repo.detect()).toBe('should_run=true\n')
+  })
+  it('retains tests when the diff is unavailable', () => {
+    expect(fixture(testDetector).detect()).toBe('should_run=true\n')
+  })
+  it('retains tests when the classifier cannot execute', () => {
+    const repo = fixture(testDetector)
+    repo.write('mobile/fastlane/Fastfile', 'default_platform(:android)\n')
+    repo.commit()
+    rmSync(join(repo.directory, 'config/scripts/mobile-test-change-scope.mjs'))
     expect(repo.detect()).toBe('should_run=true\n')
   })
 })

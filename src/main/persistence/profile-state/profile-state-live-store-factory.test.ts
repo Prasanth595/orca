@@ -1,5 +1,5 @@
 import { build } from 'esbuild'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -11,7 +11,7 @@ import { createLiveProfileStateStore } from './profile-state-live-store-factory'
 import {
   profileStateJsonExportPath,
   profileStateJsonExportPaths
-} from './profile-state-export-path'
+} from './legacy-json/profile-state-export-path'
 
 vi.mock('../../telemetry/client', () => ({ track: vi.fn() }))
 vi.mock('../../telemetry/cohort-classifier', () => ({
@@ -61,8 +61,7 @@ function options() {
   return {
     dataFile: join(root, 'orca-data.json'),
     databaseFile: join(root, 'profile-state.db'),
-    profileId: 'live-profile-test',
-    authorityMode: 'sqlite-candidate' as const
+    profileId: 'live-profile-test'
   }
 }
 
@@ -163,19 +162,19 @@ describe('live profile authority admission', () => {
   it('never adopts a competing revision between bootstrap and worker readiness', async () => {
     const input = options()
     const original = ProfileStateSqliteAuthority.prototype.retireForWorker
-    vi.spyOn(ProfileStateSqliteAuthority.prototype, 'retireForWorker').mockImplementation(
-      function (this: ProfileStateSqliteAuthority) {
-        const handoff = original.call(this)
-        const peer = new ProfileStateSqliteAuthority(input.databaseFile, input.profileId)
-        try {
-          peer.readSerializedState()
-          peer.writeSerializedDomains([{ domain: 'peer', payload: '{"retained":true}' }])
-        } finally {
-          peer.close()
-        }
-        return handoff
+    vi.spyOn(ProfileStateSqliteAuthority.prototype, 'retireForWorker').mockImplementation(function (
+      this: ProfileStateSqliteAuthority
+    ) {
+      const handoff = original.call(this)
+      const peer = new ProfileStateSqliteAuthority(input.databaseFile, input.profileId)
+      try {
+        peer.readSerializedState()
+        peer.writeSerializedDomains([{ domain: 'peer', payload: '{"retained":true}' }])
+      } finally {
+        peer.close()
       }
-    )
+      return handoff
+    })
     await expect(open(input)).rejects.toThrow('Profile state revision changed')
     expect(readState(input).peer).toEqual({ retained: true })
   })
@@ -204,9 +203,11 @@ describe('live profile authority admission', () => {
       JSON.parse(readFileSync(profileStateJsonExportPath(input.dataFile, revision), 'utf8'))
         .workspaceSession.activeTabId
     ).toBe('getter-export')
+    const retainedExports = profileStateJsonExportPaths(input.dataFile)
     store.updateSettings({ theme: 'light' })
-    await store.flushFinalOrThrowAsync({ exportJsonCompatibility: true })
-    expect(JSON.parse(readFileSync(input.dataFile, 'utf8')).settings.theme).toBe('light')
+    await store.flushFinalOrThrowAsync()
+    expect(existsSync(input.dataFile)).toBe(false)
+    expect(profileStateJsonExportPaths(input.dataFile)).toEqual(retainedExports)
     expect(profileStateJsonExportPaths(input.dataFile).length).toBeGreaterThan(0)
     expect(readState(input).settings.theme).toBe('light')
     await expect(store.flushPendingOrThrowAsync()).rejects.toThrow('finalized')

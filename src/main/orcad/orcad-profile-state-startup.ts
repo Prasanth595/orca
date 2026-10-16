@@ -1,10 +1,8 @@
-import {
-  createProfileStateStoreForStartup,
-  orcadProfileStateAuthorityMode
-} from '../persistence/profile-state/profile-state-startup-authority'
+import { createProfileStateStoreForStartup } from '../persistence/profile-state/profile-state-startup-authority'
 import type { ProfileStateStoreFactoryResult } from '../persistence/profile-state/profile-state-store-factory'
 import { ensureActiveOrcaProfile, initOrcaProfilePaths } from '../orca-profiles/profile-index-store'
 import { initSshHostKeyStoreFile } from '../ssh/ssh-host-key-store'
+import { initOrcadHeldFenceTokenFile } from '../ssh/orcad-held-fence-tokens'
 import { emitOrcadProfileStateAuthoritySelected } from './orcad-profile-state-telemetry'
 
 export type OrcadProfileStateProfile = {
@@ -18,7 +16,7 @@ export type OrcadProfileStateStartup = {
   authority: {
     backend: ProfileStateStoreFactoryResult['backend']
     classification: ProfileStateStoreFactoryResult['classification']
-    authority_mode: ReturnType<typeof orcadProfileStateAuthorityMode>
+    authority_mode: 'sqlite-established'
     runtime: 'orcad'
     migrated: boolean
   }
@@ -30,24 +28,26 @@ export async function createOrcadProfileStateStartup(
 ): Promise<OrcadProfileStateStartup> {
   initOrcaProfilePaths()
   const profile = ensureActiveOrcaProfile(userDataPath)
-  const authorityMode = orcadProfileStateAuthorityMode()
+  // Why a real Store: without one, persistence-backed RPCs throw and `store?.x ?? []` reads answer
+  // "empty", so a server that pairs and lists nothing looks healthy. As the runtime authority,
+  // orcad must not load as 'desktop', which would orphan its own scheduled automations.
   const result = await createProfileStateStoreForStartup({
     dataFile: profile.dataFile,
     databaseFile: profile.stateDatabaseFile,
     profileId: profile.profile.id,
     runtime: 'orcad',
-    authorityMode,
     storageAuthority: 'runtime'
   })
   const authority = {
     backend: result.backend,
     classification: result.classification,
-    authority_mode: authorityMode,
+    authority_mode: 'sqlite-established' as const,
     runtime: 'orcad' as const,
     migrated: result.migrated
   }
   try {
     initSshHostKeyStoreFile(profile.dataFile)
+    initOrcadHeldFenceTokenFile(profile.dataFile)
     emitOrcadProfileStateAuthoritySelected(authority)
     return { store: result.store, authority }
   } catch (error) {

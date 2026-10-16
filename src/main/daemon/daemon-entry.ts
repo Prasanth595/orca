@@ -13,7 +13,7 @@ import { warmWindowsConptyOnce } from './windows-conpty-warmup'
 import { warmPwshAvailabilityCache } from '../pwsh'
 import { createDaemonFileLog, createNoopDaemonFileLog } from './daemon-file-log'
 import { PROTOCOL_VERSION } from './types'
-import { detectOwnCgroupScopeUnit } from './daemon-cgroup-scope'
+import { detectOwnCgroupScopeUnit, ownFreshDaemonScope } from './daemon-cgroup-scope'
 import {
   DAEMON_EXIT_ENDPOINT_OCCUPIED,
   DaemonEndpointUnavailableError
@@ -26,8 +26,12 @@ import { MacosLoginSessionDeathWatch } from './macos-login-session-death-watch'
 import { readCurrentProcessMacSystemResolverHealth } from '../network/macos-system-resolver-health'
 import { readCurrentDaemonReadyIdentity } from './daemon-ready-identity'
 import { publishDaemonPidFile } from './daemon-spawner'
+import { initializeTerminalScopes } from './terminal-scopes-runtime'
 import { isNativePtyException } from './daemon-native-pty-exception'
 import { startDaemonScopeDeathWatch } from './daemon-scope-death-watch'
+import { isWindowsProcessTableAvailable } from '../windows/windows-process-table'
+import { leaseAppImageGenerationForCurrentProcess } from '../cli/appimage-generation-lease'
+import { createDaemonShutdownDeadline } from './daemon-shutdown-deadline'
 
 export type ParsedDaemonArgs = {
   socketPath: string
@@ -130,15 +134,17 @@ async function main(): Promise<void> {
     logFilePath
   } = parseArgs(process.argv.slice(2))
   const startedAtMs = Date.now() - process.uptime() * 1000
+  // Why: a daemon forked from an extracted AppImage copy outlives the process that launched it.
+  void leaseAppImageGenerationForCurrentProcess()
   const readyIdentity = await readCurrentDaemonReadyIdentity(startedAtMs)
   // Fail-open: a broken log path must never block daemon startup.
   const daemonLog = logFilePath ? createDaemonFileLog(logFilePath) : createNoopDaemonFileLog()
   daemonLog.log('startup', { protocolVersion: PROTOCOL_VERSION, socketPath })
-  startDaemonScopeDeathWatch({
-    freshScope: freshDaemonScope === true,
-    launchNonce,
-    log: (event, details) => daemonLog.log(event, details)
-  })
+  const daemonScope = ownFreshDaemonScope(freshDaemonScope === true, launchNonce)
+  const log = (event: string, details?: Record<string, unknown>): void =>
+    daemonLog.log(event, details)
+  const processCeiling = initializeTerminalScopes(daemonScope, log)
+  startDaemonScopeDeathWatch({ daemonScope, log })
   void warmPwshAvailabilityCache()
 
   // Why: detached daemons destroy stderr, so the preflight's console.warn is lost;
@@ -176,32 +182,33 @@ async function main(): Promise<void> {
   let daemon: DaemonHandle | null = null
   let deathWatch: MacosLoginSessionDeathWatch | null = null
   let shuttingDown = false
-  // Bound the wait so a wedged native shutdown can't leave the daemon running
-  // forever on SIGTERM/SIGINT (it would then survive a real quit, not just updates).
-  const SHUTDOWN_TIMEOUT_MS = 5000
+  const shutdownDeadline = createDaemonShutdownDeadline(daemonLog, () => process.exit(0))
+  const beginShutdown = (): void => {
+    shuttingDown = true
+    shutdownDeadline.start()
+    // Why before the async teardown: a scope stop kills the AppImage mount alongside us, and a
+    // teardown cut short by SIGBUS must not read as a crash that pauses the next start's restores.
+    daemon?.recordStopRequested()
+    deathWatch?.stop()
+  }
 
   const shutdown = async (reason: string): Promise<void> => {
     // SIGTERM and SIGINT can both fire; guard against a double daemon.shutdown().
     if (shuttingDown) {
       return
     }
-    shuttingDown = true
-    deathWatch?.stop()
+    beginShutdown()
     daemonLog.log('shutdown', { reason })
     try {
       if (daemon) {
-        await Promise.race([
-          daemon.shutdown(),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('shutdown timeout')), SHUTDOWN_TIMEOUT_MS)
-          )
-        ])
+        await daemon.shutdown()
         daemon = null
       }
     } catch (err) {
       // Never let a rejected shutdown() escape as an unhandled rejection and skip exit.
       daemonLog.log('shutdown-error', { message: (err as Error)?.message })
     } finally {
+      shutdownDeadline.cancel()
       daemonLog.close()
       process.exit(0)
     }
@@ -259,6 +266,7 @@ async function main(): Promise<void> {
           onRetire: (details) => {
             shuttingDown = true
             daemonLog.log('login-session-dead-retire', details)
+            daemon?.recordOrderlyExit()
             daemonLog.close()
             // Why: crash-style exit (no PTY teardown) keeps session meta unclean so the
             // replacement daemon cold-restores scrollback; stale socket/pid files ride
@@ -289,6 +297,7 @@ async function main(): Promise<void> {
               // where the daemon's own cgroup landed, verified from inside the process that
               // matters. See daemon-cgroup-scope.ts.
               cgroupUnit: detectOwnCgroupScopeUnit(),
+              processCeiling,
               launchNonce
             })
         }
@@ -319,11 +328,11 @@ async function main(): Promise<void> {
       process.exit(0)
     },
     onRpcShutdown: () => {
-      deathWatch?.stop()
-      shuttingDown = true
+      shutdownDeadline.cancel()
       daemonLog.close()
       process.exit(0)
-    }
+    },
+    onShutdownRequested: beginShutdown
   })
   deathWatch?.start()
 
@@ -334,6 +343,13 @@ async function main(): Promise<void> {
   daemonLog.log('ready')
 
   warmWindowsConptyOnce()
+  // Whether the addon loads is fixed for this process, and a detached daemon has
+  // no stderr, so the module's own warn cannot report it here. Both answers, so a
+  // bundle can tell "native" from "never asked" (#16905). Loading it now also pays
+  // the dlopen off the first teardown.
+  if (process.platform === 'win32') {
+    daemonLog.log('windows-process-table', { native: isWindowsProcessTableAvailable() })
+  }
 }
 
 // Only auto-run when executed directly (not imported for testing, or for the build guard's

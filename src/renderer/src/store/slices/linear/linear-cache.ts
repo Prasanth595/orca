@@ -68,8 +68,12 @@ export function workspaceErrorMessage(error: unknown): string {
 }
 
 export function getSelectedWorkspaceId(
-  status: LinearConnectionStatus
+  status: LinearConnectionStatus,
+  options?: { workspaceId?: LinearWorkspaceSelection | null }
 ): LinearWorkspaceSelection | null {
+  if (options?.workspaceId !== undefined) {
+    return options.workspaceId
+  }
   return status.selectedWorkspaceId ?? status.activeWorkspaceId ?? null
 }
 
@@ -124,6 +128,8 @@ export function linearStatusScopeSignature(status: LinearConnectionStatus): stri
   return JSON.stringify({
     connected: status.connected,
     credentialError: status.credentialError ?? null,
+    credentialErrorReason: status.credentialErrorReason ?? null,
+    canMoveCredentialKeyToFile: status.canMoveCredentialKeyToFile ?? false,
     activeWorkspaceId: status.activeWorkspaceId ?? null,
     selectedWorkspaceId: getSelectedWorkspaceId(status),
     viewer: status.viewer

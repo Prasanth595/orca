@@ -11,7 +11,12 @@ import {
   profileStateDatabaseBackups,
   profileStateDatabaseBackupFiles
 } from './profile-state-backup-path'
-import { profileStateJsonExportPaths } from './profile-state-export-path'
+import { profileStateJsonExportPaths } from './legacy-json/profile-state-export-path'
+import {
+  ensureProfileStateAuthorityMarker,
+  hasProfileStateAuthorityMarker,
+  profileStateAuthorityMarkerPath
+} from './profile-state-authority-marker'
 import { assertProfileStateMaintenance, type ProfileStateMaintenance } from './profile-state-access'
 import {
   quarantineProfileStateDatabase,
@@ -61,6 +66,9 @@ export function restoreProfileStateDatabaseBackup(
     const recoveryFiles = [
       ...profileStateDatabaseBackupFiles(options.databasePath),
       ...profileStateJsonExportPaths(options.dataFile),
+      ...(hasProfileStateAuthorityMarker(options.databasePath)
+        ? [profileStateAuthorityMarkerPath(options.databasePath)]
+        : []),
       ...(existsSync(options.dataFile) ? [options.dataFile] : [])
     ]
     const quarantine = quarantineProfileStateDatabase(
@@ -71,6 +79,7 @@ export function restoreProfileStateDatabaseBackup(
       recoveryFiles
     )
     options.beforeRestore?.()
+    ensureProfileStateAuthorityMarker(options.databasePath)
 
     // JSON exports are revisioned for the legacy authority. Remove them after
     // archiving so a later SQLite revision can publish a fresh export at the

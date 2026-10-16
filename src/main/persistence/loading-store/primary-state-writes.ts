@@ -1,4 +1,3 @@
-import { unlinkSync } from 'node:fs'
 import { waitForPromiseWithSignal } from '../../../shared/abort-signal-reason'
 import {
   parseCodexResetCreditAttemptLedger,
@@ -9,13 +8,12 @@ import {
   type PrimaryStateWriteOperationsRuntime
 } from './primary-state-write-runtime'
 import type { StateSerializationSecretHandlingOperations } from './state-serialization-secret-handling'
-import type { BackupRecoveryRotationOperations } from './backup-recovery-rotation'
 import type { PrimaryStateWriteOperationsContext } from './primary-state-write-context'
 import { writeToDiskSync } from './primary-state-write-sync'
 import { writeProfileStateInWorker } from './primary-state-write-worker'
-import { writeJsonProfileState } from './primary-state-write-json'
 import type { DurableProfileStateMutation } from './store-runtime-state'
 import { profileStateWriterFailureOutcome } from '../profile-state/profile-state-writer-errors'
+import { notifyWorkspaceSessionWritten } from './workspace-session-write-listeners'
 
 const primaryStateWriteOperationsContext = Symbol('PrimaryStateWriteOperations')
 export class PrimaryStateWriteOperations {
@@ -23,10 +21,9 @@ export class PrimaryStateWriteOperations {
 
   constructor(
     runtime: PrimaryStateWriteOperationsRuntime,
-    serialization: StateSerializationSecretHandlingOperations,
-    backups: BackupRecoveryRotationOperations
+    serialization: StateSerializationSecretHandlingOperations
   ) {
-    this[primaryStateWriteOperationsContext] = { runtime, serialization, backups }
+    this[primaryStateWriteOperationsContext] = { runtime, serialization }
   }
 
   flushOrThrow(): void {
@@ -43,25 +40,8 @@ export class PrimaryStateWriteOperations {
       runtime.writeTimer = null
     }
     runtime.firstPendingSaveAt = null
-    const asyncWriteWasInFlight = runtime.pendingWrite !== null
-    // Why: bump writeGeneration so an in-flight async write skips its rename and can't overwrite this sync write.
     runtime.writeGeneration++
-    if (runtime.inFlightAsyncTmpFile) {
-      try {
-        unlinkSync(runtime.inFlightAsyncTmpFile)
-        runtime.inFlightAsyncTmpFile = null
-      } catch (error) {
-        if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) {
-          void enqueueWrite(this).catch(() => {})
-          throw error
-        }
-      }
-    }
-    // Why: later async flushes must remain serialized behind the invalidated writer.
-    writeToDiskSync(context, {
-      force: asyncWriteWasInFlight,
-      skipBackupRotation: runtime.backupRotationInFlight
-    })
+    writeToDiskSync(context)
   }
 
   flushActiveViewPreferenceOrThrow(): void {
@@ -131,6 +111,8 @@ export class PrimaryStateWriteOperations {
       return callback()
     } finally {
       runtime.durableMutationPhase = null
+      // Durable writers may edit sessions without scheduling a save; a rollback republishes.
+      notifyWorkspaceSessionWritten(runtime)
     }
   }
 
@@ -224,7 +206,7 @@ export function enqueuePrimaryStateOperation<T>(
   // A durable mutation, export, or independent checkpoint separates adjacent snapshot batches.
   context.queuedSnapshot = undefined
   const previousWrite = Promise.all([
-    runtime.pendingWrite ?? runtime.staleTempCleanup,
+    runtime.pendingWrite,
     runtime.pendingSnapshotFileWork ?? Promise.resolve()
   ]).then(() => {})
   const write = previousWrite.then(operation).finally(() => {
@@ -261,18 +243,5 @@ export async function writeToDiskAsync(owner: PrimaryStateWriteOperations): Prom
       runtime.profileStateAuthority
     )
   }
-  if (runtime.profileStateAuthority) {
-    // SQL commits are synchronous so both entry points share the same generation fence.
-    return writeToDiskSync(owner[primaryStateWriteOperationsContext], { expectedGeneration: gen })
-  }
-  return writeJsonProfileState(owner[primaryStateWriteOperationsContext], gen)
-}
-
-export function installPrimaryStateWriteOperationsContext(
-  target: PrimaryStateWriteOperations,
-  source: PrimaryStateWriteOperations
-): void {
-  Object.defineProperty(target, primaryStateWriteOperationsContext, {
-    value: source[primaryStateWriteOperationsContext]
-  })
+  return writeToDiskSync(owner[primaryStateWriteOperationsContext], { expectedGeneration: gen })
 }

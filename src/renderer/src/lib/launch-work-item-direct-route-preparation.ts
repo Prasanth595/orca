@@ -1,15 +1,16 @@
 import type { TuiAgent } from '../../../shared/tui-agent'
 import type { AppState } from '@/store/types'
 import { getConnectionId } from '@/lib/connection-context'
+import type { RepoHostFields } from '@/lib/agent-detection-target-inventory'
 import { CLIENT_PLATFORM } from '@/lib/new-workspace'
 import { getLocalProjectExecutionRuntimeContext } from '@/lib/local-preflight-context'
 import type {
   AgentSessionLaunchPlan,
   planAgentSessionLaunch
 } from '@/lib/agent-session-launch-plan'
+import type { AgentLaunchRequestId } from '@/lib/agent-launch-request-id'
 import {
   buildDirectWorkItemStartup,
-  markDirectWorkItemAgentTrusted,
   resolveDirectWorkItemAgent
 } from '@/lib/launch-work-item-direct-agent-routing'
 
@@ -32,6 +33,7 @@ export async function prepareDirectWorkItemAgentLaunch(args: {
   agentOverride?: TuiAgent
   agentArgs?: string | null
   repoConnectionId: string | null
+  repoHost: RepoHostFields
   detectedAgentsPromise: Promise<string[]> | null
   latestStore: AppState
   settings: AppState['settings']
@@ -40,10 +42,14 @@ export async function prepareDirectWorkItemAgentLaunch(args: {
   launchPlatform?: NodeJS.Platform
   repoProjectRuntime?: Parameters<typeof buildDirectWorkItemStartup>[0]['repoProjectRuntime']
   planLaunch: typeof planAgentSessionLaunch
+  /** The start action this launch serves. */
+  requestId: AgentLaunchRequestId
 }): Promise<DirectWorkItemAgentLaunchPreparation> {
   const launchConnectionId = getConnectionId(args.worktreeId) ?? args.repoConnectionId
   const agentSelection = await resolveDirectWorkItemAgent({
     agentOverride: args.agentOverride,
+    worktreeId: args.worktreeId,
+    repoHost: args.repoHost,
     launchConnectionId,
     repoConnectionId: args.repoConnectionId,
     detectedAgentsPromise: args.detectedAgentsPromise,
@@ -94,20 +100,13 @@ export async function prepareDirectWorkItemAgentLaunch(args: {
     effectiveAgent === null
       ? null
       : args.planLaunch(args.latestStore, {
+          requestId: args.requestId,
           agent: effectiveAgent,
           workspace: { kind: 'git-worktree', worktreeId: args.worktreeId, repoId: args.repoId },
           prompt: args.draftContent,
-          promptDelivery: args.promptDelivery,
-          initialSessionOptions: startupPlan?.sessionOptions
+          promptDelivery: args.promptDelivery
         })
   const structuredLaunch = plan?.route === 'structured-native-chat'
-
-  await markDirectWorkItemAgentTrusted({
-    structuredLaunch,
-    agent: effectiveAgent,
-    workspacePath: args.worktreePath,
-    connectionId: args.repoConnectionId
-  })
 
   return {
     launchConnectionId,

@@ -1,8 +1,8 @@
-import { readFileSync, existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { normalizeProxyUrl } from '../../../shared/network-proxy'
 import { normalizeKagiSessionLink } from '../../../shared/browser-url'
 import type { PersistedState } from '../../../shared/persisted-state-types'
+import type { NativeChatUpgradeTipAudience } from '../../../shared/native-chat-upgrade-tip-audience'
 import type { SshPtyConsumerRecovery } from '../../../shared/ssh-types'
 import { getDefaultPersistedState } from '../../../shared/constants'
 import { pruneLocalTerminalScrollbackBuffers } from '../../../shared/workspace-session-terminal-buffers'
@@ -15,11 +15,11 @@ import {
   sshPtyOwnerLeaseSecretSlot
 } from '../../protected-secret-persistence'
 import {
-  isLegacyOpenCodeGoApiKey,
   isLegacyOpenCodeSessionCookie,
   isLegacySshPtyOwnerLease
 } from '../leasing-ssh-ptys/secret-validation'
 import { readGithubCacheSnapshot } from './user-data-path'
+import { retainLegacyOpenCodeGoApiKey } from './legacy-opencode-go-api-key-migration'
 import {
   gcStaleWorktreeMeta,
   normalizeWorktreeLinkedItemMetadata
@@ -35,13 +35,11 @@ import {
   projectHostSetupCompatibilityStateEqual
 } from '../tracking-repos/project-host-compatibility'
 import { backfillFolderScopeConnectionIds } from '../restoring-sessions/folder-scope-migration'
-import { hasStateBackup } from './backup-recovery-rotation'
 import { prepareLoadedTerminalSettings } from './prepare-loaded-terminal-settings'
 import { prepareLoadedProfileSettings } from './prepare-loaded-profile-settings'
 import { normalizeLoadedProfileState } from './normalize-loaded-profile-state'
 
 import type { StoreRuntimeState } from './store-runtime-state'
-import type { BackupRecoveryRotationOperations } from './backup-recovery-rotation'
 import type { LoadedCohortMigrationOperations } from './loaded-cohort-migrations'
 
 type LoadedStateParsingOperationsRuntime = Pick<
@@ -57,7 +55,6 @@ type LoadedStateParsingOperationsRuntime = Pick<
 export class LoadedStateParsingOperations {
   constructor(
     private readonly runtime: LoadedStateParsingOperationsRuntime,
-    private readonly backups: BackupRecoveryRotationOperations,
     private readonly cohorts: LoadedCohortMigrationOperations
   ) {}
 
@@ -69,44 +66,32 @@ export class LoadedStateParsingOperations {
    * closed instead of falling back to an unrelated on-disk backup.
    */
   loadSerialized(raw: string): PersistedState {
-    return this.loadInternal(true, raw)
+    return this.loadInternal(raw)
   }
 
   /** Load only from an injected authority; never consult the legacy JSON path. */
   loadFromAuthority(raw: string | undefined): PersistedState {
-    return this.loadInternal(false, raw, true)
+    return this.loadInternal(raw)
   }
 
   loadParsedFromAuthority(parsed: Record<string, unknown> | undefined): PersistedState {
-    return this.loadInternal(false, undefined, true, parsed)
+    return this.loadInternal(undefined, parsed)
   }
 
-  load(allowBackupRecovery = true): PersistedState {
-    return this.loadInternal(allowBackupRecovery)
-  }
-
-  private loadInternal(
-    fileRecovery: boolean,
-    serialized?: string,
-    authoritySource = false,
-    parsedInput?: Record<string, unknown>
-  ): PersistedState {
+  private loadInternal(serialized?: string, parsedInput?: Record<string, unknown>): PersistedState {
     // Capture "has run Orca before?" for telemetry cohort; the telemetry field is new, so field inference misclassifies old users as fresh.
-    const dataFile = this.runtime.dataFile
-    const fileExistedOnLoad = authoritySource
-      ? serialized !== undefined || parsedInput !== undefined
-      : serialized !== undefined || existsSync(dataFile)
+    const fileExistedOnLoad = serialized !== undefined || parsedInput !== undefined
     logStartupMilestone('persistence-load-start', {
       fileExists: fileExistedOnLoad
     })
 
     let result: PersistedState | null = null
     let parsed: PersistedState | undefined
+    let nativeChatUpgradeTipAudience: NativeChatUpgradeTipAudience | null = null
     try {
       if (fileExistedOnLoad) {
         const readStartedAt = performance.now()
-        const raw =
-          parsedInput === undefined ? (serialized ?? readFileSync(dataFile, 'utf-8')) : undefined
+        const raw = parsedInput === undefined ? serialized : undefined
         if (raw !== undefined) {
           logStartupMilestone('persistence-read-done', {
             bytes: Buffer.byteLength(raw),
@@ -122,6 +107,8 @@ export class LoadedStateParsingOperations {
         if (parsed === undefined) {
           throw new Error('Profile state startup snapshot is missing')
         }
+        // Why: decide from the profile as saved, before defaults or migrations can touch Chat UI.
+        nativeChatUpgradeTipAudience = this.cohorts.captureNativeChatUpgradeTipAudience(parsed)
         // Why: secrets are stored encrypted via safeStorage; decrypt at the load boundary so the app sees plaintext.
         if (parsed.settings?.opencodeSessionCookie) {
           parsed.settings.opencodeSessionCookie = this.runtime.protectedSecrets.decrypt(
@@ -130,13 +117,7 @@ export class LoadedStateParsingOperations {
             isLegacyOpenCodeSessionCookie
           )
         }
-        if (parsed.settings?.opencodeGoApiKey) {
-          parsed.settings.opencodeGoApiKey = this.runtime.protectedSecrets.decrypt(
-            PROTECTED_SECRET_SLOT.opencodeGoApiKey,
-            parsed.settings.opencodeGoApiKey,
-            isLegacyOpenCodeGoApiKey
-          )
-        }
+        retainLegacyOpenCodeGoApiKey(parsed.settings, this.runtime.protectedSecrets)
         if (parsed.settings?.httpProxyUrl) {
           const decryptedProxy = this.runtime.protectedSecrets.decryptWithStatus(
             PROTECTED_SECRET_SLOT.httpProxyUrl,
@@ -210,22 +191,8 @@ export class LoadedStateParsingOperations {
         })
       }
     } catch (err) {
-      if (serialized !== undefined || authoritySource) {
-        console.error('[persistence] Failed to load imported profile state:', err)
-        throw new Error('Failed to load imported profile state', { cause: err })
-      }
-      console.error('[persistence] Failed to load primary state, trying backups:', err)
-    }
-
-    // Corrupt-file and no-file paths converge here; a corrupted install counts as existing, so it sees the opt-in banner.
-    if (result === null && fileRecovery && !authoritySource) {
-      const hasBackup = hasStateBackup(dataFile)
-      if (fileExistedOnLoad || hasBackup) {
-        if (this.backups.restoreFromBackup(dataFile)) {
-          return this.load(false)
-        }
-        console.error('[persistence] No usable state file or backup found, using defaults')
-      }
+      console.error('[persistence] Failed to load imported profile state:', err)
+      throw new Error('Failed to load imported profile state', { cause: err })
     }
 
     if (result === null) {
@@ -300,10 +267,14 @@ export class LoadedStateParsingOperations {
       this.runtime.loadNeedsSave = true
     }
 
-    const migrated = this.cohorts.migrateTabSwitchKeybindings(
-      this.cohorts.migrateTelemetry(result, fileExistedOnLoad),
-      fileExistedOnLoad
-    )
+    const migrated = {
+      ...this.cohorts.migrateTabSwitchKeybindings(
+        this.cohorts.migrateTelemetry(result, fileExistedOnLoad),
+        fileExistedOnLoad
+      ),
+      nativeChatUpgradeTipAudience:
+        nativeChatUpgradeTipAudience ?? this.cohorts.captureNativeChatUpgradeTipAudience(undefined)
+    }
 
     // githubCache is a sidecar file now (see getGithubCacheFile); legacy in-file caches seed the session, then get stripped.
     const legacyCache = migrated.githubCache

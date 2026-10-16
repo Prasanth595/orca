@@ -14,7 +14,7 @@ import {
 import { restoreProfileStateDatabaseBackup } from './profile-state-database-recovery'
 import { writeProfileStateDatabaseSnapshotAsync } from './profile-state-database-snapshot'
 import { importProfileStateJson, readProfileStateSnapshot } from './profile-state-documents'
-import { profileStateJsonExportPath } from './profile-state-export-path'
+import { profileStateJsonExportPath } from './legacy-json/profile-state-export-path'
 import { buildRecoveryCrashProcess, killRecoveryAt } from './profile-state-recovery-crash-process'
 
 const suite = mkdtempSync(join(tmpdir(), 'orca-large-recovery-crash-'))
@@ -24,14 +24,14 @@ const oldJson = JSON.stringify({ opaque: 'x'.repeat(8 * 1024 * 1024), revision: 
 const selectedJson = JSON.stringify({ opaque: 'y'.repeat(8 * 1024 * 1024), revision: 'selected' })
 let bundle: string
 beforeAll(() => {
-  bundle = buildRecoveryCrashProcess(suite)
+  bundle = buildRecoveryCrashProcess(suite).bundle
 })
 afterEach(() => {
   for (const root of roots.splice(0)) {
-    rmSync(root, { recursive: true, force: true })
+    rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   }
 })
-afterAll(() => rmSync(suite, { recursive: true, force: true }))
+afterAll(() => rmSync(suite, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))
 
 async function fixture() {
   const root = mkdtempSync(join(suite, 'profile-'))
@@ -144,6 +144,7 @@ describe('large independent recovery copies under process death', () => {
       expect(snapshot(profile.databasePath)).toEqual({ json: selectedJson, revision: 3 })
       expect(readFileSync(profile.backupPath).equals(profile.backupBytes)).toBe(true)
     },
-    30_000
+    // Windows CI must copy and flush several 8 MiB databases alongside other persistence suites.
+    process.platform === 'win32' ? 120_000 : 30_000
   )
 })

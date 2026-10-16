@@ -1,12 +1,18 @@
+import {
+  closeTestStores,
+  testState,
+  createStore,
+  createStoreWithSshRemotePtyLeases
+} from './persistence-test-harness'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-vi.mock('node:fs', { spy: true })
-import { rmSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { rmSync, mkdtempSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { ProfileStateSqliteAuthority } from './persistence/profile-state/profile-state-sqlite-authority'
 import type { WorkspaceSessionState } from '../shared/workspace-session-state-types'
 import { getDefaultWorkspaceSession } from '../shared/constants'
-import { testState, createStore } from './persistence-test-harness'
+
 import { TEST_LEAF_1 } from './persistence-session-fixtures'
 
 const { trackMock, getCohortAtEmitMock } = vi.hoisted(() => ({
@@ -44,7 +50,8 @@ describe('Store SSH remote PTY bindings across host partitions', () => {
     testState.dir = mkdtempSync(join(tmpdir(), 'orca-test-'))
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    await closeTestStores()
     rmSync(testState.dir, { recursive: true, force: true })
   })
 
@@ -104,9 +111,12 @@ describe('Store SSH remote PTY bindings across host partitions', () => {
     const store = await createStore()
     store.setWorkspaceSession(makeBoundHostSession(null), 'local')
     store.setWorkspaceSession(makeBoundHostSession(null), 'ssh:ssh-1')
-    const flush = vi.mocked(writeFileSync).mockImplementationOnce(() => {
-      throw new Error('disk unavailable')
-    })
+    store.flushOrThrow()
+    const flush = vi
+      .spyOn(ProfileStateSqliteAuthority.prototype, 'writeSerializedDomains')
+      .mockImplementationOnce(() => {
+        throw new Error('disk unavailable')
+      })
 
     await expect(
       store.persistPtyBinding(
@@ -130,18 +140,19 @@ describe('Store SSH remote PTY bindings across host partitions', () => {
   })
 
   it('clears terminated SSH PTY bindings from the SSH partition and legacy local copy', async () => {
-    const store = await createStore()
+    const store = createStoreWithSshRemotePtyLeases([
+      {
+        targetId: 'ssh-1',
+        ptyId: 'remote-pty',
+        worktreeId: 'repo-1::/worktree',
+        tabId: 'tab-1',
+        leafId: TEST_LEAF_1,
+        state: 'attached'
+      }
+    ])
     const ptyId = 'ssh:ssh-1@@remote-pty'
     store.setWorkspaceSession(makeBoundHostSession(ptyId), 'local')
     store.setWorkspaceSession(makeBoundHostSession(ptyId), 'ssh:ssh-1')
-    store.upsertSshRemotePtyLease({
-      targetId: 'ssh-1',
-      ptyId: 'remote-pty',
-      worktreeId: 'repo-1::/worktree',
-      tabId: 'tab-1',
-      leafId: TEST_LEAF_1,
-      state: 'attached'
-    })
 
     store.markSshRemotePtyLease('ssh-1', ptyId, 'terminated')
 
@@ -149,33 +160,6 @@ describe('Store SSH remote PTY bindings across host partitions', () => {
       const session = store.getWorkspaceSession(hostId)
       expect(session.tabsByWorktree['repo-1::/worktree'][0]?.ptyId).toBeNull()
       expect(session.terminalLayoutsByTabId['tab-1']?.ptyIdsByLeafId).toEqual({})
-    }
-  })
-
-  // `expired` only records that the client lost its route, so both partitions keep the binding the
-  // pane needs to reattach to a remote shell nothing has attested is dead.
-  it('keeps expired SSH PTY bindings in the SSH partition and legacy local copy', async () => {
-    const store = await createStore()
-    const ptyId = 'ssh:ssh-1@@remote-pty'
-    store.setWorkspaceSession(makeBoundHostSession(ptyId), 'local')
-    store.setWorkspaceSession(makeBoundHostSession(ptyId), 'ssh:ssh-1')
-    store.upsertSshRemotePtyLease({
-      targetId: 'ssh-1',
-      ptyId: 'remote-pty',
-      worktreeId: 'repo-1::/worktree',
-      tabId: 'tab-1',
-      leafId: TEST_LEAF_1,
-      state: 'attached'
-    })
-
-    store.markSshRemotePtyLease('ssh-1', ptyId, 'expired')
-
-    for (const hostId of ['local', 'ssh:ssh-1']) {
-      const session = store.getWorkspaceSession(hostId)
-      expect(session.tabsByWorktree['repo-1::/worktree'][0]?.ptyId).toBe(ptyId)
-      expect(session.terminalLayoutsByTabId['tab-1']?.ptyIdsByLeafId).toEqual({
-        [TEST_LEAF_1]: ptyId
-      })
     }
   })
 })

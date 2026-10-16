@@ -46,7 +46,9 @@ vi.mock('expo-file-system', () => ({ Directory: class {}, File: class {}, Paths:
 vi.mock('../transport/mobile-endpoint-supervisor-support', () => ({
   encodeBase64Url: () => 'session-id'
 }))
-vi.mock('../components/HostProtocolGate', () => ({ useHostProtocolGates: () => doubles.gates }))
+vi.mock('../components/host-protocol-gates-context', () => ({
+  useHostProtocolGates: () => doubles.gates
+}))
 vi.mock('../transport/client-context', () => ({ useHostClient: () => doubles.connection }))
 vi.mock('../transport/rpc-operation', () => ({
   defineRpcOperation: (definition: unknown) => definition,
@@ -110,6 +112,7 @@ function manifestGranting(
     buildId: BUILD_ID,
     minCompatibleRuntimeProtocolVersion: 2,
     runtimeProtocolVersion: 5,
+    pageVersion: 1,
     entrypoint: 'index.html',
     totalBytes: TOTAL_BYTES,
     assets: ASSETS,

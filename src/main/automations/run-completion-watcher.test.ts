@@ -1,3 +1,4 @@
+import { closeTestStores, createStore, testState } from '../persistence-test-harness'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
@@ -10,9 +11,7 @@ import type {
   AutomationRunCompletionObservation,
   AutomationRunTerminalObserver
 } from './run-completion-watcher'
-import { installFakeAppEnvironment } from '../../../config/scripts/vitest-host-ports-setup'
 
-const testState = { dir: '' }
 const ipcHandlers = new Map<string, (event: unknown, args: unknown) => unknown>()
 
 vi.mock('electron', () => ({
@@ -30,14 +29,6 @@ vi.mock('electron', () => ({
     decryptString: (ciphertext: Buffer) => ciphertext.toString('utf-8').slice('encrypted:'.length)
   }
 }))
-
-async function createStore() {
-  vi.resetModules()
-  installFakeAppEnvironment({ getPath: () => testState.dir })
-  const { Store, initDataPath } = await import('../persistence')
-  initDataPath()
-  return new Store()
-}
 
 const makeRepo = (overrides: Partial<Repo> = {}): Repo => ({
   id: 'r1',
@@ -97,7 +88,8 @@ describe('authority-owned automation run completion', () => {
     ipcHandlers.clear()
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    await closeTestStores()
     rmSync(testState.dir, { recursive: true, force: true })
   })
 
@@ -330,7 +322,8 @@ describe('automationsChanged publication', () => {
     ipcHandlers.clear()
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    await closeTestStores()
     rmSync(testState.dir, { recursive: true, force: true })
   })
 

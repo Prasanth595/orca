@@ -3,25 +3,21 @@ import { toast } from 'sonner'
 import type { AppState } from '../types'
 import type {
   ProjectHostSetupCreateResult,
-  ProjectHostSetupDeleteResult,
   ProjectHostSetupResult,
   ProjectHostSetupUpdateResult
 } from '../../../../shared/project-types'
-import type { Repo } from '../../../../shared/repo-types'
-import { omitSparsePresetsForRepos } from '../slices/sparse-presets'
 import { repoMatchesHostIdentity } from '../slices/repo-host-identity'
-import { pruneRemovedRepoWorktreeRows } from './project-host-setup-row-prune'
 import { callRuntimeRpc } from '../../runtime/runtime-rpc-client'
 import { translate } from '@/i18n/i18n'
 import { getRepoExecutionHostId, parseExecutionHostId } from '../../../../shared/execution-host'
 import type { RepoSlice } from '../repos/repo-state'
 import { ERROR_TOAST_DURATION } from '../repos/repo-state'
-import { repoWithFetchedOwner } from '../repos/owner-routing'
+import { adoptFromEndpoint } from '../adopt-from-endpoint'
 import { normalizeProjectRow } from '../../../../shared/project-catalog-row-normalization'
+import { createProjectHostSetupDeleteActions } from './project-host-setup-delete-actions'
 import {
   assertProjectHostSetupMutationRuntimeCapabilities,
-  getProjectSetupRuntimeTarget,
-  setupWithFetchedOwner
+  getProjectSetupRuntimeTarget
 } from './project-host-routing'
 
 export function createProjectHostSetupActions(
@@ -36,6 +32,8 @@ export function createProjectHostSetupActions(
   | 'setupProjectClone'
 > {
   return {
+    ...createProjectHostSetupDeleteActions(set, get),
+
     setupProjectExistingFolder: async (args) => {
       try {
         const target = getProjectSetupRuntimeTarget(args.hostId)
@@ -56,9 +54,15 @@ export function createProjectHostSetupActions(
                   { timeoutMs: 15_000 }
                 )
               ).result
-        const repo = repoWithFetchedOwner(result.repo, target)
+        const repo = adoptFromEndpoint(target, {
+          kind: 'repo',
+          row: result.repo
+        })
         const repoHostId = getRepoExecutionHostId(repo)
-        const setup = setupWithFetchedOwner(result.setup, target)
+        const setup = adoptFromEndpoint(target, {
+          kind: 'projectHostSetup',
+          row: result.setup
+        })
         const project = normalizeProjectRow(result.project)
         set((s) => {
           const nextRepos = s.repos.some((entry) =>
@@ -110,7 +114,10 @@ export function createProjectHostSetupActions(
                   { timeoutMs: 15_000 }
                 )
               ).result
-        const setup = setupWithFetchedOwner(result.setup, target)
+        const setup = adoptFromEndpoint(target, {
+          kind: 'projectHostSetup',
+          row: result.setup
+        })
         const project = normalizeProjectRow(result.project)
         set((s) => ({
           projects: s.projects.some((entry) => entry.id === project.id)
@@ -150,9 +157,14 @@ export function createProjectHostSetupActions(
                   { timeoutMs: 15_000 }
                 )
               ).result
-        const setup = setupWithFetchedOwner(result.setup, target)
+        const setup = adoptFromEndpoint(target, {
+          kind: 'projectHostSetup',
+          row: result.setup
+        })
         const project = normalizeProjectRow(result.project)
-        const repo = result.repo ? repoWithFetchedOwner(result.repo, target) : undefined
+        const repo = result.repo
+          ? adoptFromEndpoint(target, { kind: 'repo', row: result.repo })
+          : undefined
         const repoHostId = repo ? getRepoExecutionHostId(repo) : null
         set((s) => ({
           repos: repo
@@ -181,110 +193,32 @@ export function createProjectHostSetupActions(
       }
     },
 
-    deleteProjectHostSetup: async (args) => {
-      try {
-        const currentSetup = get().projectHostSetups.find((setup) => setup.id === args.setupId)
-        const target = currentSetup
-          ? getProjectSetupRuntimeTarget(currentSetup.hostId)
-          : { kind: 'local' as const }
-        await assertProjectHostSetupMutationRuntimeCapabilities(target)
-        const result =
-          target.kind === 'local'
-            ? await window.api.projects.deleteHostSetup(args)
-            : (
-                await callRuntimeRpc<{ result: ProjectHostSetupDeleteResult }>(
-                  target,
-                  'projectHostSetup.delete',
-                  args,
-                  { timeoutMs: 15_000 }
-                )
-              ).result
-        const repo = result.repo ? repoWithFetchedOwner(result.repo, target) : undefined
-        const repoHostId = repo ? getRepoExecutionHostId(repo) : null
-        set((s) => {
-          const projectHostSetups = s.projectHostSetups.filter(
-            (setup) => setup.id !== result.setup.id
-          )
-          const repos =
-            repo && repoHostId
-              ? s.repos.filter((entry) => !repoMatchesHostIdentity(entry, repo.id, repoHostId))
-              : s.repos
-          const projects =
-            repo && !projectHostSetups.some((setup) => setup.projectId === result.project.id)
-              ? s.projects.filter((project) => project.id !== result.project.id)
-              : s.projects
-          const survivingRepoIds = new Set(repos.map((r) => r.id))
-          const removedRepoIds = s.repos.filter((r) => !survivingRepoIds.has(r.id)).map((r) => r.id)
-          // Why: this delete removes the repo from `repos` itself, so a later repos:changed refetch
-          // no longer sees it; prune the deleted repo's rows here as removeProject does.
-          const { rows: nextRows, changed: rowsChanged } = pruneRemovedRepoWorktreeRows(
-            s,
-            removedRepoIds,
-            repo,
-            repoHostId
-          )
-          // Why the guard includes removedRepoIds: even with no rows anywhere, presets and
-          // selections for the removed ids still must be cleaned up below.
-          if (removedRepoIds.length === 0 && !rowsChanged) {
-            return { repos, projects, projectHostSetups }
-          }
-          return {
-            repos,
-            projects,
-            projectHostSetups,
-            ...omitSparsePresetsForRepos(s, removedRepoIds),
-            ...nextRows,
-            activeRepoId:
-              s.activeRepoId && removedRepoIds.includes(s.activeRepoId) ? null : s.activeRepoId,
-            filterRepoIds: s.filterRepoIds.filter((id) => !removedRepoIds.includes(id)),
-            sortEpoch: s.sortEpoch + 1
-          }
-        })
-        return { ...result, repo }
-      } catch (err) {
-        console.error('Failed to delete project host setup:', err)
-        const message = err instanceof Error ? err.message : String(err)
-        toast.error(
-          translate('auto.store.slices.repos.removeProjectFailed', 'Failed to remove project'),
-          {
-            description: message,
-            duration: ERROR_TOAST_DURATION
-          }
-        )
-        return null
-      }
-    },
-
     setupProjectClone: async (args) => {
       try {
         const parsedHost = parseExecutionHostId(args.hostId)
-        const target = getProjectSetupRuntimeTarget(args.hostId)
-        if (parsedHost?.kind !== 'ssh') {
-          await assertProjectHostSetupMutationRuntimeCapabilities(target)
+        // Why: an SSH host clones only through its paired server; never fall back to this computer.
+        if (parsedHost?.kind === 'ssh') {
+          throw new Error(`SSH connection "${parsedHost.targetId}" not found or not connected`)
         }
+        const target = getProjectSetupRuntimeTarget(args.hostId)
+        await assertProjectHostSetupMutationRuntimeCapabilities(target)
         const repo =
-          parsedHost?.kind === 'ssh'
-            ? await window.api.repos.cloneRemote({
-                connectionId: parsedHost.targetId,
+          target.kind === 'local'
+            ? await window.api.repos.clone({
                 url: args.url,
                 destination: args.destination
               })
-            : target.kind === 'local'
-              ? await window.api.repos.clone({
-                  url: args.url,
-                  destination: args.destination
-                })
-              : (
-                  await callRuntimeRpc<{ repo: Repo }>(
-                    target,
-                    'repo.clone',
-                    {
-                      url: args.url,
-                      destination: args.destination
-                    },
-                    { timeoutMs: 10 * 60_000 }
-                  )
-                ).repo
+            : (
+                await callRuntimeRpc<{ repo: Repo }>(
+                  target,
+                  'repo.clone',
+                  {
+                    url: args.url,
+                    destination: args.destination
+                  },
+                  { timeoutMs: 10 * 60_000 }
+                )
+              ).repo
         return await get().setupProjectExistingFolder({
           projectId: args.projectId,
           hostId: args.hostId,

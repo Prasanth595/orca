@@ -1,7 +1,5 @@
-import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname } from 'node:path'
 import { getDefaultPersistedState, getDefaultWorkspaceSession } from '../../shared/constants'
 import { projectHostSetupProjectionFromRepos } from '../../shared/project-host-setup-projection'
 import {
@@ -29,6 +27,7 @@ import {
 import { parseProfileStateRoot } from '../persistence/profile-state/profile-state-document-validation'
 import { assertProfileStateCanInitialize } from '../persistence/profile-state/profile-state-recovery-required'
 import { hasProfileStateDatabaseFiles } from '../persistence/profile-state/profile-state-storage-classification'
+import { ensureProfileStateAuthorityMarker } from '../persistence/profile-state/profile-state-authority-marker'
 
 export type TransferProfileState = PersistedState
 
@@ -210,25 +209,19 @@ export function writeSerializedProfileState(
   serialized: string,
   options: { expectedRevision?: number } = {}
 ): void {
-  const storage = profileStateStorage(profileId, userDataPath)
-  if (storage === 'sqlite') {
-    const databaseFile = getOrcaProfileStateDatabaseFile(profileId, userDataPath)
-    const opened = openProfileStateDatabase(databaseFile, profileId)
-    try {
-      importProfileStateJson(opened.db, serialized, {
-        expectedRevision: options.expectedRevision ?? readProfileStateRevision(opened.db)
-      })
-    } finally {
-      opened.db.close()
-    }
-    return
+  if (profileStateStorage(profileId, userDataPath) !== 'sqlite') {
+    throw new Error('Profile transfer write requires an established SQLite participant')
   }
-
-  const dataFile = getOrcaProfileDataFile(profileId, userDataPath)
-  mkdirSync(dirname(dataFile), { recursive: true })
-  const tmpPath = `${dataFile}.${process.pid}.${randomUUID()}.tmp`
-  writeFileSync(tmpPath, serialized, 'utf-8')
-  renameSync(tmpPath, dataFile)
+  const databaseFile = getOrcaProfileStateDatabaseFile(profileId, userDataPath)
+  const opened = openProfileStateDatabase(databaseFile, profileId)
+  try {
+    ensureProfileStateAuthorityMarker(databaseFile)
+    importProfileStateJson(opened.db, serialized, {
+      expectedRevision: options.expectedRevision ?? readProfileStateRevision(opened.db)
+    })
+  } finally {
+    opened.db.close()
+  }
 }
 
 function isRepoBackedProjectHostSetup(
