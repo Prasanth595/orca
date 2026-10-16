@@ -12,7 +12,7 @@ it.each([
     splitMobileNativeChatFileAttachments([
       { type: 'text', text: `${formatNativeChatFileReference(path)}\nPlease review.` }
     ])
-  ).toEqual({ files: [path], prose: [{ type: 'text', text: 'Please review.' }] })
+  ).toEqual({ files: [path], prose: [{ type: 'text', text: '\nPlease review.' }] })
 })
 
 it('leaves workspace mentions, links, quoted references and fenced code as ordinary text', () => {
@@ -48,4 +48,24 @@ it('keeps a line break that precedes an attachment reference', () => {
       { type: 'text', text: `First line\n@${path} next line.` }
     ]).prose
   ).toEqual([{ type: 'text', text: 'First line\n next line.' }])
+})
+
+it.each(['```', '~~~', '````'])(
+  'extracts references outside a %s fence while preserving fenced examples',
+  (fence) => {
+    const path = '/root/.orca/agent-session-attachments/id/report.pdf'
+    const example = '/root/.orca/agent-session-attachments/id/example.pdf'
+    const text = `@${path}\n${fence}text\n@${example}\n${fence}\nReview.`
+    expect(splitMobileNativeChatFileAttachments([{ type: 'text', text }])).toEqual({
+      files: [path],
+      prose: [{ type: 'text', text: `\n${fence}text\n@${example}\n${fence}\nReview.` }]
+    })
+  }
+)
+
+it('preserves leading indentation and trailing whitespace after removing a file reference', () => {
+  const path = '/root/.orca/agent-session-attachments/id/report.pdf'
+  expect(
+    splitMobileNativeChatFileAttachments([{ type: 'text', text: `    code\n@${path}\n` }])
+  ).toEqual({ files: [path], prose: [{ type: 'text', text: '    code\n\n' }] })
 })

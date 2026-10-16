@@ -271,9 +271,9 @@ it('shows stored files above the text, expands additional files, and opens the o
       node.props.style.includes(styles.userBubble)
   )
   expect(bubble.findAll((node) => String(node.type) === 'FileText')).toHaveLength(0)
-  expect(bubble.findAll((node) => node.props.children === 'Please review.').length).toBeGreaterThan(
-    0
-  )
+  expect(
+    bubble.findAll((node) => node.props.children === '\nPlease review.').length
+  ).toBeGreaterThan(0)
 })
 
 it.each(['user', 'assistant'] as const)(
