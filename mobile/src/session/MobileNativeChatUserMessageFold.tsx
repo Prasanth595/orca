@@ -38,17 +38,13 @@ export function MobileNativeChatUserMessageFold({
     return <>{children}</>
   }
   const clip = FOLDED_HEIGHT * fontScale
-  const folds = height === null || height > clip
+  // Native text inside the clip is laid out to fit it, so a cut message measures at the clip, not
+  // its full height: reaching it means cut (1pt for rounding). Unfolding on `>` looped.
+  const folds = height === null || height >= clip - 1
   return (
     <>
       <View style={folds && !open ? { maxHeight: clip, overflow: 'hidden' } : undefined}>
-        {/* Never shrinks to the clip, so it always reports the natural height. */}
-        <View
-          style={styles.measured}
-          onLayout={(event) => setHeight(event.nativeEvent.layout.height)}
-        >
-          {children}
-        </View>
+        <View onLayout={(event) => setHeight(event.nativeEvent.layout.height)}>{children}</View>
       </View>
       {folds && height !== null ? (
         <Pressable
@@ -66,9 +62,6 @@ export function MobileNativeChatUserMessageFold({
 }
 
 const styles = StyleSheet.create({
-  measured: {
-    flexShrink: 0
-  },
   toggle: {
     alignSelf: 'flex-end',
     paddingTop: spacing.xs

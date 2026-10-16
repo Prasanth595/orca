@@ -503,12 +503,14 @@ describe('MobileNativeChatMessage', () => {
       )
     const folded = render(message, { onToggleUserMessage })
     expect(clips(folded)).toHaveLength(1)
-    // Laid out taller than its fold, it offers the rest.
+    // Native layout fits the cut text to the clip, so it measures at the fold: it stays folded and
+    // offers the rest, rather than unfolding to measure taller and folding again.
     act(() =>
       clips(folded)[0]!
         .find((node) => node.props.onLayout !== undefined)
-        .props.onLayout({ nativeEvent: { layout: { height: 400 } } })
+        .props.onLayout({ nativeEvent: { layout: { height: 190 } } })
     )
+    expect(clips(folded)).toHaveLength(1)
     act(() =>
       folded.root
         .find(
