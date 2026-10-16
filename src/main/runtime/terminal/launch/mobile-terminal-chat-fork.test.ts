@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { buildMobileTerminalChatFork } from './mobile-terminal-chat-fork'
 import { prepareStructuredChatCliFork } from '../../../ai-vault/structured-chat-cli-fork'
-vi.mock('../../../ai-vault/structured-chat-cli-fork', async (importOriginal) => ({
-  ...await importOriginal<typeof import('../../../ai-vault/structured-chat-cli-fork')>(),
-  prepareStructuredChatCliFork: vi.fn()
+vi.mock('../../../ai-vault/structured-chat-cli-fork', () => ({
+  prepareStructuredChatCliFork: vi.fn(),
+  isStructuredChatCliForkSourceCurrent: vi.fn(() => true)
 }))
 const cwd = process.platform === 'win32' ? 'C:\\repo' : '/tmp/repo'
 const filePath = process.platform === 'win32' ? 'C:\\sessions\\chat.jsonl' : '/tmp/chat.jsonl'

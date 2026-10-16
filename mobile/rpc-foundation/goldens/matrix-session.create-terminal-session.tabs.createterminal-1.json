@@ -758,19 +758,6 @@
         }
       },
       {
-        "id": "session-create-terminal-with-prompt.prelude:cleanup",
-        "observation": {
-          "sender": ["a25f5365fc53"],
-          "payloads": ["cce8a731064a"],
-          "settlements": {
-            "mount": "eb79a9b3682a",
-            "create": "eb79a9b3682a"
-          },
-          "state": "6275ace50da2",
-          "effects": ["b1152db10a02"]
-        }
-      },
-      {
         "id": "session-create-terminal-with-prompt.normal:created",
         "observation": {
           "sender": ["2977cbddd89f", "7a456c263146"],

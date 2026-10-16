@@ -30,7 +30,6 @@ import {
 import { releaseTerminalCreateLock } from './terminal-create-lock'
 import { placeCreatedSessionTab } from '../../../src/shared/session-tab-placement'
 import { SESSION_TABS_SPLIT_GROUP_PLACEMENT_RUNTIME_CAPABILITY } from '../../../src/shared/protocol-version'
-import { classifyRpcReply } from '../transport/rpc-operation-reply'
 
 export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttachmentsModel) {
   const {
@@ -176,13 +175,8 @@ export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttach
       if (!isCurrent()) {
         return sourceOutcome('accepted')
       }
-      const forkReply = sourceFork ? classifyRpcReply(sessionTabCreateTerminal.operation, response) : null
-      if (forkReply?.kind === 'outer-refused') {
-        reportFork(mobileChatForkRefusalMessage(agentName, forkReply.error.code))
-        return sourceOutcome('reported-failure')
-      }
-      if (forkReply?.kind === 'incompatible') {
-        reportFork(`${agentName} may have opened. Reconnect and check open tabs on the host before retrying.`)
+      if (sourceFork && !response.ok) {
+        reportFork(mobileChatForkRefusalMessage(agentName, response.error.code))
         return sourceOutcome('reported-failure')
       }
       // A refused ordinary create throws the host's message into the existing catch.
