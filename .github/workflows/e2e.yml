@@ -405,6 +405,7 @@ jobs:
           path: out/
       # The packaged orcad slot the T6-11 launcher runs: its own node-pty under the pinned Node.
       # The template is what `orca serve`'s default selection materializes that slot from.
+      - uses: ./.github/actions/build-mobile-web-bundle
       - name: Build this runner's orcad slot and template
         run: |
           slot="$(node config/scripts/build-orcad-prebuilds.mjs --print-slot)"
@@ -468,6 +469,7 @@ jobs:
           name: e2e-build-out${{ inputs.artifact_suffix }}
           path: out/
       # Built to a path the app does not look at by default, so the relay-era phase has no template.
+      - uses: ./.github/actions/build-mobile-web-bundle
       - name: Build the linux-x64-glibc orcad template
         run: |
           pnpm build:orcad-prebuilds
@@ -519,6 +521,7 @@ jobs:
       - uses: ./.github/actions/prepare-windows-cli-launcher
         with:
           arches: x64
+      - uses: ./.github/actions/build-mobile-web-bundle
       - name: Build the e2e app, CLI, orcad slot and template
         shell: bash
         env:

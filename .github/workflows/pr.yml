@@ -427,6 +427,9 @@ jobs:
             scope="$(node config/scripts/orcad-terminal-smoke-change-scope.mjs "$RUNNER_TEMP/orcad-smoke-changes")" && [ "$scope" = false ]; then
             echo "Orcad terminal smoke inputs are unchanged."
           else
+            # orcad refuses to build without the page phones load; it resolves RN from mobile/.
+            pnpm --dir mobile install --frozen-lockfile
+            pnpm run build:mobile-web
             pnpm run smoke:orcad-terminal
           fi
 

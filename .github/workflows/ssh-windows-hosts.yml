@@ -159,6 +159,7 @@ jobs:
       - uses: ./.github/actions/prepare-windows-cli-launcher
         with:
           arches: ${{ matrix.arch }}
+      - uses: ./.github/actions/build-mobile-web-bundle
       - name: Build the win32 template
         shell: bash
         env:
