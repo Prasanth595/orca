@@ -23,6 +23,7 @@ import {
   type PaneLaunchAgentPaneSlice
 } from './pane-launch-agent-candidate'
 import type { ConnectPanePtySession } from './connect-pane-pty-session'
+import { isHibernationWakeRecord } from './pty-exit-hibernate'
 
 /** Pane agent identity, foreground-agent sampling, and command lifecycle handling. */
 export function installPaneAgentIdentity(session: ConnectPanePtySession): void {
@@ -207,10 +208,11 @@ export function installPaneAgentIdentity(session: ConnectPanePtySession): void {
       // otherwise the tab resolver can repaint the exited agent from sleeping occupancy.
       const state = useAppStore.getState()
       const sleepingRecord = session.getSleepingRecordForPane(state)
-      const ptyId = session.transport.getPtyId()
-      // Why: a shell surfacing while Orca stops this PTY is that stop, not the agent exiting; a
-      // hibernation records the pane's resume before its kill, so this would delete it.
-      if (sleepingRecord && !(ptyId && state.suppressedPtyExitIds[ptyId])) {
+      // Why: a hibernation records the pane's resume before its kill; clearing it strands the pane.
+      if (
+        sleepingRecord &&
+        !isHibernationWakeRecord(session, state.suppressedPtyExitIds, sleepingRecord.record)
+      ) {
         session.clearSleepingRecordProviderDuplicates(state, sleepingRecord)
       }
       session.clearStaleAgentTabTitleOnConfirmedShell()

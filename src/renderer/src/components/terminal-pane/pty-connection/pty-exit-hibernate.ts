@@ -30,6 +30,23 @@ export function noteArmsHibernatedPaneWake(record: SleepingAgentSessionRecord): 
   )
 }
 
+/** Whether `record` is the wake hint of a hibernation still stopping (or just stopped) this PTY. */
+export function isHibernationWakeRecord(
+  session: ConnectPanePtySession,
+  suppressedPtyExitIds: Record<string, boolean>,
+  record: SleepingAgentSessionRecord
+): boolean {
+  const ptyId = session.transport.getPtyId()
+  // Why: a shell surfacing while Orca stops this PTY is that stop, not the agent exiting.
+  if (ptyId !== null && suppressedPtyExitIds[ptyId] === true) {
+    return true
+  }
+  // Why: a late read can settle after the exit spent the suppression and armed the wake; only
+  // a newly bound PTY proves the record stale.
+  const target = session.hibernatedWakeTarget
+  return target?.record === record && (ptyId === null || target.ptyId === ptyId)
+}
+
 /** PTY exit handling, hibernated-pane wake targets, and post-exit focus transfer. */
 export function installPtyExitHibernate(session: ConnectPanePtySession): void {
   type ProcessExitState = {
