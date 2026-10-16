@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto'
 
 import { createAgentChildWorkAdmission } from '../../../shared/agent-status-child-work-admission'
-import type { AgentChildWorkRecord } from '../../../shared/agent-status-child-work'
+import {
+  agentChildWorkFencesEqual,
+  type AgentChildWorkRecord
+} from '../../../shared/agent-status-child-work'
 import type { AgentChildWorkEvidence } from '../../../shared/agent-status-child-work-evidence'
 import {
   reconcileAgentChildWorkEvidence,
@@ -63,6 +66,21 @@ export abstract class AgentHookServerIngestStructuredChildren extends AgentHookS
   }
 
   /** The same records as the views every surface reads; the one record-to-view projection. */
+  /** The provider handles the session's live records answer to for their current run: a settled
+   *  record lists no running work, even under the handle a later run reuses. */
+  getStructuredChildWorkHandles(subject: AgentStatusStructuredSessionSubject): Set<string> {
+    return new Set(
+      this.getStructuredChildWork(subject).flatMap((child) =>
+        child.membership === 'live'
+          ? this.canonicalStatusStore
+              .getAliasesForChild(child.childWorkId)
+              .filter(({ fence }) => agentChildWorkFencesEqual(fence, child.invocation))
+              .map(({ alias }) => alias)
+          : []
+      )
+    )
+  }
+
   getStructuredChildWorkViews(subject: AgentStatusStructuredSessionSubject): AgentChildWorkView[] {
     const children = this.getStructuredChildWork(subject)
     return projectAgentChildWorkViews(

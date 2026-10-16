@@ -34,6 +34,7 @@ export type StructuredAgentSessionMutationContext = {
   readChildWork: (sessionId: string) => AgentChildWorkView[] | undefined
   publishChildWork: (sessionId: string, evidence: AgentChildWorkEvidence[]) => void
   /** Some of the session's running child work has no record. */
+  childWorkOpen: (sessionId: string) => boolean
   childWorkIncomplete: (sessionId: string) => boolean
   serialize: <T>(sessionId: string, task: () => Promise<T>) => Promise<T>
   /** The session's conversation, opened when closed; inside the caller's serialize. */

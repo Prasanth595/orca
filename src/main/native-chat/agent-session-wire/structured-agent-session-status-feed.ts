@@ -308,8 +308,17 @@ export class StructuredAgentSessionStatusFeed {
     }
   }
 
-  childWorkIncomplete = (sessionId: string): boolean =>
-    this.ownership.childWorkIncomplete(sessionId)
+  childWorkOpen = (sessionId: string): boolean => this.ownership.childWorkOpen(sessionId)
+
+  /** Reads the store, so a failing read costs only the strip's note, as `readChildWork`'s does. */
+  childWorkIncomplete = (sessionId: string): boolean => {
+    try {
+      return this.ownership.childWorkIncomplete(sessionId)
+    } catch (error) {
+      this.logFailure('child-work-read', 'child work read failed', sessionId, error)
+      return false
+    }
+  }
 
   /** The records the views project. Read only from the child-work observer, which already
    *  reports a failure. */

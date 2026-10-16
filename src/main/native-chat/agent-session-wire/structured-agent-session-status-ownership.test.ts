@@ -124,7 +124,7 @@ describe('structured status owner address retention', () => {
   })
 })
 
-describe('child work the host had no room to record', () => {
+describe('child work the provider reported, recorded or not', () => {
   const agentLive = (id: string): AgentChildWorkEvidence => ({
     type: 'live',
     observedAt: 200,
@@ -144,7 +144,9 @@ describe('child work the host had no room to record', () => {
       forget: (subject) => server.dropStructuredStatus(subject),
       publishChildWork: (subject, evidence, provider) =>
         server.ingestStructuredChildWork(subject, evidence, provider),
-      readChildWork: (subject) => server.getStructuredChildWorkViews(subject)
+      readChildWork: (subject) => server.getStructuredChildWorkViews(subject),
+      readChildWorkRecords: (subject) => server.getStructuredChildWork(subject),
+      readChildWorkHandles: (subject) => server.getStructuredChildWorkHandles(subject)
     }))
     return { owner }
   }
@@ -206,6 +208,7 @@ describe('child work the host had no room to record', () => {
     expect(owner.childWorkIncomplete(summary.sessionId)).toBe(true)
     owner.publishChildWork(summary.sessionId, [ended('second')], 'claude')
     expect(owner.childWorkIncomplete(summary.sessionId)).toBe(false)
+    expect(owner.childWorkOpen(summary.sessionId)).toBe(false)
   })
 
   it('marks a parent the store refused incomplete, since none of its children is recorded', () => {
@@ -221,17 +224,57 @@ describe('child work the host had no room to record', () => {
     expect(owner.childWorkIncomplete(summary.sessionId)).toBe(false)
   })
 
-  it('past its bound, holds incomplete until the provider session ends', () => {
-    const owner = storeFull()
-    const many = Array.from({ length: 513 }, (_unused, index) => `refused-${index}`)
-    owner.publishChildWork(summary.sessionId, many.map(agentLive), 'claude')
-    owner.publishChildWork(summary.sessionId, many.map(ended), 'claude')
-    expect(owner.childWorkIncomplete(summary.sessionId)).toBe(true)
+  // Claude names the run a task ended on, and a resumed agent's earlier run may end late.
+  it('holds recorded work open, never incomplete, through a late ending of its earlier run', () => {
+    const { owner } = owners()
+    owner.publish(summary, location)
+    const run = (runId: string): AgentChildWorkEvidence => ({
+      type: 'live',
+      observedAt: 200,
+      child: {
+        handle: { idKind: 'task_id', id: 'helper', runId },
+        kind: 'agent',
+        residency: 'background',
+        state: 'working',
+        stoppable: true
+      }
+    })
+    const endOf = (runId: string): AgentChildWorkEvidence => ({
+      type: 'ended',
+      observedAt: 250,
+      handle: { idKind: 'task_id', id: 'helper', runId },
+      outcome: 'succeeded'
+    })
+    owner.publishChildWork(summary.sessionId, [run('spawn-1'), run('spawn-2')], 'claude')
+    owner.publishChildWork(summary.sessionId, [endOf('spawn-1')], 'claude')
+    expect(owner.childWorkOpen(summary.sessionId)).toBe(true)
+    expect(owner.childWorkIncomplete(summary.sessionId)).toBe(false)
+    owner.publishChildWork(summary.sessionId, [endOf('spawn-2')], 'claude')
+    expect(owner.childWorkOpen(summary.sessionId)).toBe(false)
+  })
+
+  it('closes on a Stop the store settled, and reads work reported after it as unlisted', () => {
+    const { owner } = owners()
+    owner.publish(summary, location)
+    owner.publishChildWork(summary.sessionId, [agentLive('helper')], 'claude')
+    const [record] = owner.readChildWorkRecords(summary.sessionId)!
     owner.publishChildWork(
       summary.sessionId,
-      [{ type: 'session-ended', observedAt: 300 }],
+      [
+        {
+          type: 'stop-acknowledged',
+          observedAt: 260,
+          childWorkId: record!.childWorkId,
+          handleId: 'helper',
+          invocation: record!.invocation
+        }
+      ],
       'claude'
     )
-    expect(owner.childWorkIncomplete(summary.sessionId)).toBe(false)
+    expect(owner.childWorkOpen(summary.sessionId)).toBe(false)
+    // The Stop did not take: the settled record lists nothing, so the work is open and unlisted.
+    owner.publishChildWork(summary.sessionId, [agentLive('helper')], 'claude')
+    expect(owner.childWorkOpen(summary.sessionId)).toBe(true)
+    expect(owner.childWorkIncomplete(summary.sessionId)).toBe(true)
   })
 })
