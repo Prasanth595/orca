@@ -33,7 +33,10 @@ export function buildAiVaultCopiedSessionStartupForWorktree(
   args: AiVaultResumeWorktreeArgs,
   sourceAgent: AiVaultAgent
 ): AiVaultResumeStartup {
-  const agentArgs = resolveAiVaultCopiedSessionAgentArgs({ ...sharedStartupArgs(args), sourceAgent })
+  const agentArgs = resolveAiVaultCopiedSessionAgentArgs({
+    ...sharedStartupArgs(args),
+    sourceAgent
+  })
   return {
     ...buildAiVaultResumeStartupForWorktree({ ...args, agentArgs }),
     agent: args.session.agent

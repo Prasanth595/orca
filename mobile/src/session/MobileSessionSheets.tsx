@@ -289,9 +289,7 @@ export function MobileSessionSheets({ controller }: { controller: MobileSessionC
             workspaceOnPairedHost: onPairedHost,
             onDismiss: () => setAgentSessionActionTarget(null)
           }),
-          ...closeWithBulkActions(agentSessionActionTarget, () =>
-            setAgentSessionActionTarget(null)
-          )
+          ...closeWithBulkActions(agentSessionActionTarget, () => setAgentSessionActionTarget(null))
         ]}
         onClose={() => setAgentSessionActionTarget(null)}
       />

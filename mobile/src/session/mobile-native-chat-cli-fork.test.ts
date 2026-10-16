@@ -93,7 +93,7 @@ describe('runMobileNativeChatCliFork', () => {
     expect(options?.startupCommand).not.toContain('fork')
   })
 
-  it("says why in one toast naming the agent when the host refuses, and opens nothing", async () => {
+  it('says why in one toast naming the agent when the host refuses, and opens nothing', async () => {
     const sendRequest = hostReplying({
       ok: false,
       error: { code: 'runtime_error', message: 'This chat has no saved conversation to copy.' }

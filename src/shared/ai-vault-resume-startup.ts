@@ -132,7 +132,8 @@ export function buildAiVaultLocalResumeStartup(
       cmdOverrides: resumeCommandOverrides(args),
       platform,
       shell: liveShell,
-      agentArgs: args.agentArgs ?? resolveTuiAgentLaunchArgs(session.agent, settings?.agentDefaultArgs),
+      agentArgs:
+        args.agentArgs ?? resolveTuiAgentLaunchArgs(session.agent, settings?.agentDefaultArgs),
       agentEnv: resolveTuiAgentLaunchEnv(session.agent, settings?.agentDefaultEnv),
       resumeInLaunchCwd: true,
       ...(session.agent === 'omp' && resumeFilePath ? { ompResumeFilePath: resumeFilePath } : {})
@@ -261,7 +262,10 @@ export function resolveAiVaultCopiedSessionAgentArgs(
     isTuiAgent(sourceAgent) &&
     !commandOverride &&
     !findOptionOccurrence(configured.tokens, ['--standalone'], true)
-      ? tokenizeStartupCommand(getTuiAgentLaunchCommand(TUI_AGENT_CONFIG[sourceAgent], platform), shell)
+      ? tokenizeStartupCommand(
+          getTuiAgentLaunchCommand(TUI_AGENT_CONFIG[sourceAgent], platform),
+          shell
+        )
       : null
   if (mode && !mode.ok) {
     throw new Error('This session cannot be opened in the CLI.')

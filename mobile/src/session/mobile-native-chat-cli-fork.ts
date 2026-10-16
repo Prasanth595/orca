@@ -156,7 +156,10 @@ export async function runMobileNativeChatCliFork(args: {
     })
   } catch (error) {
     triggerError()
-    args.showToast(error instanceof Error && error.message ? `${failure} ${error.message}` : failure, 2400)
+    args.showToast(
+      error instanceof Error && error.message ? `${failure} ${error.message}` : failure,
+      2400
+    )
   } finally {
     pendingSessionIds.delete(sessionId)
   }
