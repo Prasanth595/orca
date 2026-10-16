@@ -15,7 +15,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [ubuntu-24.04-arm, blacksmith-4vcpu-ubuntu-2404]
+        # Fork CI runs PR shards on ubuntu-24.04-arm, so that is the only Linux cache to warm.
+        runner: [ubuntu-24.04-arm]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 10
     env:

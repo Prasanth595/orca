@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os'
 import type { GlobalSettings } from '../shared/global-settings-types'
 import type { PersistedState } from '../shared/persisted-state-types'
 import { getDefaultPersistedState } from '../shared/constants'
+import { defaultAppFontFamily } from '../shared/default-global-settings'
 import { ONBOARDING_FINAL_STEP, ONBOARDING_FLOW_VERSION } from '../shared/onboarding-defaults'
 
 // Stub the ~/.ssh/config parser so the SSH-import test drives the real Store with deterministic hosts, not the operator's actual ~/.ssh/config.
@@ -75,7 +76,7 @@ describe('Store', () => {
     expect(settings.sourceControlGroupOrder).toBe('changes-first')
     expect(settings.theme).toBe('system')
     expect(settings.appIcon).toBe('classic')
-    expect(settings.appFontFamily).toBe('Geist')
+    expect(settings.appFontFamily).toBe(defaultAppFontFamily())
     expect(settings.editorAutoSave).toBe(false)
     expect(settings.editorAutoSaveDelayMs).toBe(1000)
     expect(settings.terminalFontSize).toBe(14)
