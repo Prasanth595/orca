@@ -3,6 +3,9 @@ import { SQLITE_DATABASE_RUNTIME_INCLUDE } from './vitest-sqlite-database-runtim
 // Real SQLite fixtures keep Node publication and close semantics.
 export const SQLITE_RUNTIME_INCLUDE = [
   ...SQLITE_DATABASE_RUNTIME_INCLUDE,
+  'src/main/ssh/legacy-relay-bridge/legacy-relay-cli-call-limits.test.ts',
+  'src/main/ssh/legacy-relay-bridge/legacy-relay-cli-legacy-records.test.ts',
+  'src/main/ssh/legacy-relay-bridge/legacy-relay-cli-server.test.ts',
   'src/main/ipc/repos/project-host-setup-wsl-move-fence.test.ts',
   'src/main/ipc/repos/repo-ipc-wsl-move-fence.test.ts',
   'src/main/runtime/runtime-managed-worktree-metadata-wsl-move.test.ts',
