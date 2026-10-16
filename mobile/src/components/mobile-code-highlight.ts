@@ -8,7 +8,7 @@ type SyntaxNode = {
 }
 export type CodeToken = { offset?: number; text: string; classes: string[] }
 let highlighter: ReturnType<typeof createLowlight> | null = null
-const cache = new Map<string, CodeToken[]>()
+const cache = new Map<string, { tokens: CodeToken[]; characters: number }>()
 let cachedCharacters = 0
 const MAX_HIGHLIGHT_CHARACTERS = 40_000
 const MAX_TOKENS = 2_000
@@ -25,7 +25,7 @@ export function highlightMobileCode(code: string, language?: string): CodeToken[
   if (cached) {
     cache.delete(key)
     cache.set(key, cached)
-    return cached
+    return cached.tokens
   }
   const engine = (highlighter ??= createLowlight(common))
   if (!engine.registered(name)) {
@@ -61,12 +61,14 @@ export function highlightMobileCode(code: string, language?: string): CodeToken[
     token.offset = offset
     offset += token.text.length
   }
-  cache.set(key, tokens)
+  cache.set(key, { tokens, characters: code.length })
   cachedCharacters += code.length
-  while (cache.size > 32 || cachedCharacters > 256_000) {
-    const oldest = cache.keys().next().value!
+  for (const [oldest, entry] of cache) {
+    if (cache.size <= 32 && cachedCharacters <= 256_000) {
+      break
+    }
     cache.delete(oldest)
-    cachedCharacters -= oldest.length - oldest.indexOf('\0') - 1
+    cachedCharacters -= entry.characters
   }
   return tokens
 }

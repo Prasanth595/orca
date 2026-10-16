@@ -36,6 +36,7 @@ class OrcaMarkdownInlineCodeModule : Module() {
       val color = runCatching { Color.parseColor(background) }.getOrNull()
         ?: return@AsyncFunction mapOf("applied" to false, "height" to 0.0)
       val text = SpannableString(view.text)
+      val plain = text.toString()
       text.getSpans(0, text.length, InlineCodeSpan::class.java).forEach { text.removeSpan(it) }
       for (range in ranges) {
         if (range.start < 0 || range.end > text.length || range.start >= range.end) continue
@@ -47,12 +48,13 @@ class OrcaMarkdownInlineCodeModule : Module() {
         text.getSpans(range.start, range.end, android.text.style.CharacterStyle::class.java)
           .forEach { it.updateDrawState(paint) }
         var start = range.start
+        var newline = plain.indexOf('\n', start).let { if (it < 0) range.end else minOf(it, range.end) }
         while (start < range.end) {
-          val count = paint.breakText(text.subSequence(start, range.end).toString(), true,
+          val count = paint.breakText(plain, start, range.end, true,
             max(1f, width - h * 2), null).coerceAtLeast(1)
-          val newline = text.toString().indexOf('\n', start).let { if (it < 0) range.end else minOf(it, range.end) }
           if (newline == start) {
             start++
+            newline = plain.indexOf('\n', start).let { if (it < 0) range.end else minOf(it, range.end) }
             continue
           }
           var end = minOf(newline, start + count)

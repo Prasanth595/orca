@@ -24,3 +24,15 @@ it('matches desktop Markdown colors and resolves nested tokens in both themes', 
   expect(mobileCodeTokenStyle(['hljs-string', 'hljs-subst'], 'light').color).toBe('#24292f')
   expect(mobileCodeTokenStyle(['hljs-comment'], 'dark').fontStyle).toBe('italic')
 })
+
+it('keeps recent highlights reusable while evicting beyond the character budget', () => {
+  const code = (index: number) => `// ${'x'.repeat(35_000)} ${index}`
+  const first = highlightMobileCode(code(0), 'js')
+  expect(highlightMobileCode(code(0), 'js')).toBe(first)
+  let latest = first
+  for (let index = 1; index < 8; index++) {
+    latest = highlightMobileCode(code(index), 'js')
+  }
+  expect(highlightMobileCode(code(7), 'js')).toBe(latest)
+  expect(highlightMobileCode(code(0), 'js')).not.toBe(first)
+})

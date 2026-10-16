@@ -14,10 +14,6 @@ vi.mock('react-native', () => ({
   View: 'View',
   StyleSheet: { create: (styles: unknown) => styles, hairlineWidth: 1 }
 }))
-vi.mock('../platform/clipboard', () => ({
-  useClipboardWriter: () => ({ writeText: async () => {} })
-}))
-vi.mock('lucide-react-native', () => ({ Copy: 'Copy', Check: 'Check' }))
 vi.mock('./pr-sidebar/MermaidDiagram', () => ({ MermaidDiagram: () => null }))
 import { MobileMarkdown } from './MobileMarkdown'
 function text(node: ReactTestInstance): string {
