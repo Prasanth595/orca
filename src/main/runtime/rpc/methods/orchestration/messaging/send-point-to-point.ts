@@ -57,6 +57,21 @@ export function sendPointToPointMessage(args: {
     : undefined
   const commitMessage = (): { receipt: unknown; nudge: () => void } => {
     const dispatch = dispatchId ? db.getDispatchContextById(dispatchId) : undefined
+    const taskId = isDispatchMutationMessageType(messageType)
+      ? parseMessageTaskId(params.payload)
+      : undefined
+    const coordinatorMutation = messageType === 'escalation' || messageType === 'decision_gate'
+    const refusal = isDispatchMutationMessageType(messageType)
+      ? lifecycleRefusal({
+          db,
+          dispatch,
+          from,
+          paneKey: senderPaneKey,
+          processIncarnation,
+          taskId,
+          coordinatorMutation
+        })
+      : null
     const msg = db.insertMessage({
       from,
       to,
@@ -65,9 +80,18 @@ export function sendPointToPointMessage(args: {
       type: messageType,
       priority: params.priority as MessagePriority,
       threadId: params.threadId,
-      payload: dispatch
-        ? bindCoordinatorMutationPayload(messageType, params.payload, dispatch.id)
-        : params.payload,
+      payload: bindProviderSenderAttestation({
+        payload: dispatch
+          ? bindCoordinatorMutationPayload(messageType, params.payload, dispatch.id)
+          : params.payload,
+        dispatch,
+        taskId,
+        from,
+        paneKey: senderPaneKey,
+        processIncarnation,
+        consumerGeneration: messageRunId ? db.getRun(messageRunId)?.consumer_generation : undefined,
+        attested: refusal === null && isDispatchMutationMessageType(messageType)
+      }),
       senderPaneKey,
       runId: messageRunId,
       deliveryContract: legacyWorkerDeliveryContract(
@@ -77,17 +101,6 @@ export function sendPointToPointMessage(args: {
       )
     })
     if (isDispatchMutationMessageType(msg.type)) {
-      const taskId = parseMessageTaskId(params.payload)
-      const coordinatorMutation = msg.type === 'escalation' || msg.type === 'decision_gate'
-      const refusal = lifecycleRefusal({
-        db,
-        dispatch,
-        from,
-        paneKey: senderPaneKey,
-        processIncarnation,
-        taskId,
-        coordinatorMutation
-      })
       if (refusal) {
         const rejection =
           db.convertLifecycleMessageToRejection(msg.id, refusal.code, refusal.reason) ?? msg
@@ -149,6 +162,45 @@ export function sendPointToPointMessage(args: {
       : commitMessage()
   committed.nudge()
   return committed.receipt
+}
+
+function bindProviderSenderAttestation(args: {
+  payload: string | null | undefined
+  dispatch: ReturnType<OrchestrationDb['getDispatchContextById']>
+  taskId: string | undefined
+  from: string
+  paneKey: string | undefined
+  processIncarnation: string | undefined
+  consumerGeneration: number | undefined
+  attested: boolean
+}): string | undefined {
+  if (!args.attested || !args.dispatch || !args.paneKey || !args.processIncarnation) {
+    return args.payload ?? undefined
+  }
+  let parsed: Record<string, unknown> = {}
+  if (args.payload) {
+    try {
+      const value: unknown = JSON.parse(args.payload)
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        parsed = value as Record<string, unknown>
+      }
+    } catch {
+      return args.payload
+    }
+  }
+  return JSON.stringify({
+    ...parsed,
+    providerSenderAttestation: {
+      version: 1,
+      dispatchId: args.dispatch.id,
+      taskId: args.taskId ?? args.dispatch.task_id,
+      runId: args.dispatch.run_id,
+      consumerGeneration: args.consumerGeneration,
+      terminalHandle: args.from,
+      paneKey: args.paneKey,
+      processIncarnation: args.processIncarnation
+    }
+  })
 }
 
 type LifecycleRefusal = {

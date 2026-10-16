@@ -69,6 +69,13 @@ export const ORCHESTRATION_SEND_METHODS = [
         orchestrationCompatibilityCallerAuthority?.terminalHandle === from
           ? orchestrationCompatibilityCallerAuthority
           : undefined
+      const lifecycleMessage = isDispatchMutationMessageType(params.type)
+      if (lifecycleMessage && !orchestrationCaller && !attestedCaller) {
+        throw new OrchestrationError(
+          'sender_not_assignee',
+          'Lifecycle authority requires the authenticated caller terminal and current process incarnation; --from and copied Dispatch fields are not authority.'
+        )
+      }
       // Why: attested hook identity survives graph remount; caller params never supply lifecycle authority.
       const sender = orchestrationCallerIdentity(runtime, {
         handle: from,
