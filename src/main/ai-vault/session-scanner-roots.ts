@@ -2,6 +2,7 @@ import { claudeProfileHistoryDirs } from '../claude-accounts/claude-profile-inst
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { resolveAbsoluteDirOverride } from '../../shared/absolute-dir-override'
+import { readUserClaudeConfigDirOverride } from '../../shared/claude-config-dir'
 import { WSL_CODEX_RUNTIME_HOME_SEGMENTS } from '../pty/codex-home-wsl-env'
 import { resolveOmpSessionsDir } from './omp-session-root'
 
@@ -24,15 +25,18 @@ export const AGENT_SESSION_HOME_SEGMENTS = {
 export type SessionHomeAgent = keyof typeof AGENT_SESSION_HOME_SEGMENTS
 
 /**
- * This host's Claude projects roots, config-dir first. A structured Claude session
- * pins its account home to `CLAUDE_CONFIG_DIR || ~/.claude`, and the CLI writes
- * there; the default stays listed so history from before the variable was set is kept.
+ * Prefer the user's home; retain the default and inherited execution store
+ * so existing history and indexed paths stay reachable.
  */
 export function claudeProjectsHostDirs(): string[] {
   const defaultHome = join(homedir(), '.claude')
   return uniqueDirs([
-    join(resolveAbsoluteDirOverride(process.env.CLAUDE_CONFIG_DIR, defaultHome), 'projects'),
-    join(defaultHome, 'projects')
+    join(
+      resolveAbsoluteDirOverride(readUserClaudeConfigDirOverride(process.env), defaultHome),
+      'projects'
+    ),
+    join(defaultHome, 'projects'),
+    join(resolveAbsoluteDirOverride(process.env.CLAUDE_CONFIG_DIR, defaultHome), 'projects')
   ])
 }
 
