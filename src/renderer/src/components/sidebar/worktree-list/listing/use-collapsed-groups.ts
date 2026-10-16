@@ -11,6 +11,7 @@ import type { ProjectGroupingModel } from '../../../../../../shared/project-sect
 import { getFolderWorkspaceRevealGroupKeys } from '../navigation/folder-reveal'
 import type { FolderWorkspace } from '../../../../../../shared/folder-workspace-types'
 import type { ExecutionHostId } from '../../../../../../shared/execution-host'
+import { sanitizeCollapsedGroupsAgainstProjectGroups } from '../../host-section-collapse'
 
 // While the agent send picker targets a workspace, force open every section that hides it.
 export function useEffectiveCollapsedGroups(args: {
@@ -56,8 +57,11 @@ export function useEffectiveCollapsedGroups(args: {
     defaultHostId
   } = args
   return useMemo(() => {
+    const sanitizedCollapsedGroups = new Set(
+      sanitizeCollapsedGroupsAgainstProjectGroups(collapsedGroups, projectGroups)
+    )
     if (!agentSendTargetWorktreeId) {
-      return collapsedGroups
+      return sanitizedCollapsedGroups
     }
     const targetWorktree = worktreeMap.get(agentSendTargetWorktreeId)
     if (!targetWorktree) {
@@ -70,15 +74,15 @@ export function useEffectiveCollapsedGroups(args: {
         { groupBy, workspaceStatuses, defaultHostId, hostScopedGroups }
       )
       if (folderKeys.length === 0) {
-        return collapsedGroups
+        return sanitizedCollapsedGroups
       }
-      const nextForFolder = new Set(collapsedGroups)
+      const nextForFolder = new Set(sanitizedCollapsedGroups)
       for (const groupKey of folderKeys) {
         nextForFolder.delete(groupKey)
       }
       return nextForFolder
     }
-    const next = new Set(collapsedGroups)
+    const next = new Set(sanitizedCollapsedGroups)
     for (const groupKey of getWorktreeRevealCollapsedGroupKeys({
       occurrencePlan,
       worktree: targetWorktree,
@@ -89,7 +93,7 @@ export function useEffectiveCollapsedGroups(args: {
       repoMap,
       defaultHostId,
       hostScopedGroups,
-      collapsedGroups,
+      collapsedGroups: sanitizedCollapsedGroups,
       groupBy,
       pinnedDisplayPolicy,
       prCache,

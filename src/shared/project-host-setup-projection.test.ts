@@ -629,6 +629,50 @@ describe('isProjectRemoteIdentityPending', () => {
   })
 })
 
+describe('org remotes that still expose a GitHub fork parent', () => {
+  it('keys the project by origin, not the fork-parent upstream', () => {
+    const projection = projectHostSetupProjectionFromRepos([
+      repo({
+        id: 'local-fork-checkout',
+        path: 'D:/Repositories/virtuenet/extruerp',
+        displayName: 'extruerp',
+        upstream: { owner: 'Fotograferpemula', repo: 'extruerp', host: 'github.com' },
+        repoIcon: {
+          type: 'image',
+          src: 'https://github.com/Fotograferpemula.png?size=64',
+          source: 'github',
+          label: 'Fotograferpemula/extruerp'
+        },
+        gitRemoteIdentity: {
+          canonicalKey: 'github.com/virtuenet-prasetia/extruerp',
+          remoteName: 'origin',
+          remoteUrl: 'https://github.com/virtuenet-prasetia/extruerp.git'
+        }
+      }),
+      repo({
+        id: 'vps-org-checkout',
+        path: '/srv/nextura/extruerp',
+        displayName: 'extruerp',
+        connectionId: 'vn-core-prod-01',
+        gitRemoteIdentity: {
+          canonicalKey: 'github.com/virtuenet-prasetia/extruerp',
+          remoteName: 'origin',
+          remoteUrl: 'https://github.com/virtuenet-prasetia/extruerp.git'
+        }
+      })
+    ])
+
+    expect(projection.projects).toHaveLength(1)
+    expect(projection.projects[0]?.id).toBe('github:virtuenet-prasetia/extruerp')
+    expect(projection.projects[0]?.providerIdentity).toEqual({
+      provider: 'github',
+      owner: 'virtuenet-prasetia',
+      repo: 'extruerp'
+    })
+    expect(projection.setups).toHaveLength(2)
+  })
+})
+
 describe('derived project identity stability', () => {
   const base = { id: 'r', path: '/r', displayName: 'r' } as const
 
