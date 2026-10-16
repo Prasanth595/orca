@@ -5,6 +5,7 @@ import type {
 
 /** The Claude account settings, kept apart so the global settings type stays under its size cap. */
 export type ClaudeAccountGlobalSettings = {
+  /** Why: persist only per-account auth (not a CLAUDE_CONFIG_DIR swap) so switching accounts doesn't fork Claude's shared chat/session context. */
   claudeManagedAccounts: ClaudeManagedAccount[]
   activeClaudeManagedAccountId: string | null
   activeClaudeManagedAccountIdsByRuntime?: ClaudeManagedAccountRuntimeSelection

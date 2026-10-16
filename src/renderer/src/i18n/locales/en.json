@@ -19907,7 +19907,7 @@
       "profileSwitching": "Switching applies to the next Claude you start in any tab. Running sessions keep their account.",
       "moveSessionsOnOldAccountOne": "1 Claude session is still on the old account.",
       "moveSessionsOnOldAccountMany": "{{value0}} Claude sessions are still on the old account.",
-      "moveSessionsHint": "Each one reopens its conversation on the selected account once it finishes its turn.",
+      "moveSessionsHint": "Each one reopens its conversation on the selected account once it finishes its turn and holds no unsent text.",
       "moveSessionsButtonOne": "Move Session",
       "moveSessionsButtonMany": "Move {{value0}} Sessions",
       "moveIdleSessions": "Move idle sessions to the selected account",

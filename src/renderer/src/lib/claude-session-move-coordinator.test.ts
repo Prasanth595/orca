@@ -276,6 +276,23 @@ describe('Claude session moves', () => {
     expect(restartPaneForAccountMove).toHaveBeenCalledOnce()
   })
 
+  it('keeps the account list from the latest switch when replies arrive out of order', async () => {
+    roster = selected('acct-a')
+    seed({ providerSession: { key: 'session_id', id: 'session-1', transcriptPath: ON_A } })
+    uninstall = installClaudeSessionMoveCoordinator()
+    let answerSlowly: (state: ClaudeRateLimitAccountsState) => void = () => {}
+    list.mockImplementationOnce(
+      () => new Promise<ClaudeRateLimitAccountsState>((resolve) => (answerSlowly = resolve))
+    )
+    switchTo('acct-b')
+    switchTo('acct-a')
+    await settle()
+    answerSlowly(selected('acct-b'))
+    await settle()
+
+    expect(listClaudeSessionsOnOtherLogin(useAppStore.getState())).toEqual([])
+  })
+
   it('retries a session you asked to move when its pane was not ready', async () => {
     restartPaneForAccountMove.mockReturnValueOnce(false)
     seed({})

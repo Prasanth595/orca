@@ -105,11 +105,12 @@ export function findClaudeSessionsOnOtherLogin(
         ) {
           continue
         }
-        const login = loginOf(
-          accounts,
-          claudeAccountIdFromTranscriptPath(providerSession.transcriptPath)
-        )
-        if (!login || isSameLogin(login, selected)) {
+        const accountId = claudeAccountIdFromTranscriptPath(providerSession.transcriptPath)
+        const login = loginOf(accounts, accountId)
+        // Why a removed account counts: no saved login is served from its folder any more, so the
+        // session cannot be on the selected one.
+        const removed = accountId !== null && !login
+        if (!removed && (!login || isSameLogin(login, selected))) {
           continue
         }
         sessions.push({

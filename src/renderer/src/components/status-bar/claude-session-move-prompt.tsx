@@ -49,7 +49,7 @@ export function ClaudeSessionMovePrompt(): React.JSX.Element | null {
           <span className="mt-0.5 block">
             {translate(
               'accounts.claude.moveSessionsHint',
-              'Each one reopens its conversation on the selected account once it finishes its turn.'
+              'Each one reopens its conversation on the selected account once it finishes its turn and holds no unsent text.'
             )}
           </span>
         </div>

@@ -37,6 +37,7 @@ const approvedPaneKeys = new Set<string>()
 /** Panes already moved, or left alone, toward a login; a new report from the session lifts it. */
 const settledMoves = new Map<string, { transcriptPath: string; targetLogin: string }>()
 let accounts: ClaudeRateLimitAccountsState | null = null
+let accountsRead = 0
 let wakeRetry: (() => void) | null = null
 
 export function resetClaudeSessionMoveForTests(): void {
@@ -56,8 +57,13 @@ function isOnThisHost(state: AppState, worktreeId: string): boolean {
 
 /** Re-reads this host's Claude accounts, which name the selected login. */
 export async function refreshClaudeMoveAccounts(): Promise<void> {
+  const read = ++accountsRead
   // Why forget on failure: the old list may name the account we just switched away from.
-  accounts = await window.api.claudeAccounts.list().catch(() => null)
+  const next = await window.api.claudeAccounts.list().catch(() => null)
+  // Why only the latest: replies to a quick A, B, A can arrive out of order.
+  if (read === accountsRead) {
+    accounts = next
+  }
 }
 
 function isSettled(session: ClaudeSessionOnOtherLogin): boolean {

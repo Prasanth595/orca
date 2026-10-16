@@ -321,7 +321,6 @@ export type GlobalSettings = GlobalSettingsBase & {
   codexManagedAccounts: CodexManagedAccount[]
   activeCodexManagedAccountId: string | null
   activeCodexManagedAccountIdsByRuntime?: CodexManagedAccountRuntimeSelection
-  /** Why: persist only per-account auth (not a CLAUDE_CONFIG_DIR swap) so switching accounts doesn't fork Claude's shared chat/session context. */
   /** Dismissed the "System default may hold a copied login" notice in Settings > Accounts. */
   claudeCopiedSystemDefaultNoticeDismissed?: boolean
   /** Per-worktree shell history so ArrowUp doesn't surface other worktrees' commands (a HISTFILE for

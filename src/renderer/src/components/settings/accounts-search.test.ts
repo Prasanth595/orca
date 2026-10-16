@@ -15,8 +15,8 @@ vi.mock('./settings-search-keywords', () => ({
   translateSearchKeyword: (_key: string, fallback: string) => [fallback]
 }))
 
+import { getAccountsClaudeSearchEntries } from './accounts-claude-search'
 import {
-  getAccountsClaudeSearchEntries,
   getAccountsMiniMaxSearchEntries,
   getAccountsOpencodeSearchEntries,
   getAccountsPaneSearchEntries

@@ -161,6 +161,13 @@ describe('findClaudeSessionsOnOtherLogin', () => {
     ).toEqual([])
   })
 
+  it('offers a session whose account was removed, since it cannot be on the selected login', () => {
+    const removed = `${PROFILES}/acct-removed/home/projects/-repo/session-1.jsonl`
+    expect(
+      findClaudeSessionsOnOtherLogin(view(claudeRow(removed)), accounts('acct-b'), onThisHost)
+    ).toHaveLength(1)
+  })
+
   it('tells two logins on one email apart by their organization', () => {
     const teams: ClaudeRateLimitAccountsState = {
       ...accounts('acct-a'),
@@ -181,11 +188,7 @@ describe('findClaudeSessionsOnOtherLogin', () => {
   })
 
   it('skips what it cannot place', () => {
-    const unplaced = [
-      claudeRow(onA, { agentType: 'codex' }),
-      claudeRow(undefined),
-      claudeRow(`${PROFILES}/acct-removed/home/projects/-repo/session-1.jsonl`)
-    ]
+    const unplaced = [claudeRow(onA, { agentType: 'codex' }), claudeRow(undefined)]
     for (const row of unplaced) {
       expect(findClaudeSessionsOnOtherLogin(view(row), accounts('acct-b'), onThisHost)).toEqual([])
     }
