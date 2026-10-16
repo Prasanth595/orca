@@ -44,6 +44,18 @@ if (report.bunVersion !== '1.4.3') {
 report.baselineSha = (
   await requireSuccess('git', ['rev-parse', baselineRef], 'compat-baseline-sha')
 ).stdout.trim()
+// A change that introduces the measured script has no baseline version to compare against.
+const baselineProbe = await command(
+  'git',
+  ['cat-file', '-e', `${report.baselineSha}:${sourcePath}`],
+  'compat-baseline-exists'
+)
+if (baselineProbe.code !== 0) {
+  report.skipped = `${sourcePath} does not exist at ${report.baselineSha}`
+  save()
+  console.log(`Skipping compat-boundary comparison: ${report.skipped}.`)
+  process.exit(0)
+}
 const baselineSource = (
   await requireSuccess(
     'git',

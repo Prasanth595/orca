@@ -35,6 +35,13 @@ const save = () =>
     `${JSON.stringify(report, null, 2)}\n`
   )
 
+function baselineExists(file) {
+  return (
+    runProcessSync({ program: 'git', args: ['cat-file', '-e', `HEAD^1:${file}`], cwd: root })
+      .code === 0
+  )
+}
+
 function baselineSource(file) {
   const result = runProcessSync({ program: 'git', args: ['show', `HEAD^1:${file}`], cwd: root })
   if (result.code !== 0 || result.outputTruncated) {
@@ -56,9 +63,30 @@ const baselineName =
     : comparison === 'typecheck'
       ? 'run-typecheck-projects-in-parallel.mjs'
       : 'check-main-sync-spawn-ratchet.mjs'
+// A change that introduces the measured script has no first-parent version to compare against.
+if (!baselineExists(`config/scripts/${baselineName}`)) {
+  report.skipped = `config/scripts/${baselineName} does not exist at HEAD^1`
+  save()
+  console.log(`Skipping ${comparison} comparison: ${report.skipped}.`)
+  process.exit(0)
+}
 const baselineFile = path.join(root, 'config/scripts', `.benchmark-baseline-${baselineName}`)
 const runnerFile = path.join(output, 'baseline-smoke-runner.mjs')
-writeFileSync(baselineFile, baselineSource(`config/scripts/${baselineName}`))
+const baselineText = baselineSource(`config/scripts/${baselineName}`)
+// A baseline that predates a smoke step can never print its marker, so the arms are not comparable.
+const missingSmokeMarker =
+  comparison === 'smoke'
+    ? ['terminal round trip OK', 'execution host CLI round trip OK'].find(
+        (marker) => !baselineText.includes(marker)
+      )
+    : undefined
+if (missingSmokeMarker) {
+  report.skipped = `baseline smoke has no "${missingSmokeMarker}" step`
+  save()
+  console.log(`Skipping smoke comparison: ${report.skipped}.`)
+  process.exit(0)
+}
+writeFileSync(baselineFile, baselineText)
 
 try {
   if (comparison !== 'smoke') {
