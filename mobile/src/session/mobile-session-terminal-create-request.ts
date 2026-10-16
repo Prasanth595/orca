@@ -20,7 +20,8 @@ export function requestMobileSessionTerminalCreate(args: {
     clientMutationId,
     ...(options?.startupCommand ? { command: options.startupCommand } : {}),
     ...(options?.startupCommandDelivery
-      ? { startupCommandDelivery: options.startupCommandDelivery } : {}),
+      ? { startupCommandDelivery: options.startupCommandDelivery }
+      : {}),
     ...(options?.agentPrompt ? { agentPrompt: options.agentPrompt } : {}),
     ...(agent ? { agent } : {}),
     ...(sourceChatFork ? { sourceChatFork } : {}),

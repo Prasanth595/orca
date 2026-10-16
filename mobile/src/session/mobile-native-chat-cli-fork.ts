@@ -27,7 +27,8 @@ export function getMobileNativeChatCliForkActions(args: {
   const { client, hostCapabilities, handleCreateTerminal } = args.controller
   const { tab } = args
   if (
-    !client || !tab ||
+    !client ||
+    !tab ||
     !canOfferMobileNativeChatCliFork({
       agent: tab.agent,
       hostCapabilities,
@@ -36,14 +37,16 @@ export function getMobileNativeChatCliForkActions(args: {
   ) {
     return []
   }
-  return [{
-    label: 'Resume in New CLI',
-    icon: SquareTerminal,
-    onPress: () => {
-      args.onDismiss()
-      void handleCreateTerminal(undefined, {
-        sourceChatFork: { sessionId: tab.sessionId, agent: tab.agent }
-      })
+  return [
+    {
+      label: 'Resume in New CLI',
+      icon: SquareTerminal,
+      onPress: () => {
+        args.onDismiss()
+        void handleCreateTerminal(undefined, {
+          sourceChatFork: { sessionId: tab.sessionId, agent: tab.agent }
+        })
+      }
     }
-  }]
+  ]
 }

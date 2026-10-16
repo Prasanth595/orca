@@ -343,17 +343,25 @@ describe('phone chat CLI fork creation owner', () => {
   it('reports a busy create before sending the chat intent', async () => {
     const scope = createScope(clientReturning())
     scope.hostCapabilities = [SESSION_TABS_CHAT_FORK_CLI_RUNTIME_CAPABILITY]
-    scope.sessionTabsRef.current = [{
-      type: 'agent-session', id: 'chat-tab', title: 'Chat', sessionId: 'chat-1',
-      agent: 'claude', isActive: true
-    }]
+    scope.sessionTabsRef.current = [
+      {
+        type: 'agent-session',
+        id: 'chat-tab',
+        title: 'Chat',
+        sessionId: 'chat-1',
+        agent: 'claude',
+        isActive: true
+      }
+    ]
     scope.creatingTerminalRef.current = 'other-create'
     let actions: ReturnType<typeof useMobileSessionTerminalCreateActions> | undefined
     function Harness() {
       actions = useMobileSessionTerminalCreateActions(scope as never)
       return null
     }
-    await act(async () => { renderer = create(createElement(Harness)) })
+    await act(async () => {
+      renderer = create(createElement(Harness))
+    })
     let outcome: string | undefined
     await act(async () => {
       outcome = await actions?.handleCreateTerminal(undefined, {
@@ -368,19 +376,32 @@ describe('phone chat CLI fork creation owner', () => {
   it('does not apply an old route reply after navigating to another workspace', async () => {
     let reply: (value: RpcResponse) => void = () => {}
     const client = clientReturning()
-    vi.mocked(client.sendRequest).mockImplementation(() => new Promise<RpcResponse>((resolve) => { reply = resolve }))
+    vi.mocked(client.sendRequest).mockImplementation(
+      () =>
+        new Promise<RpcResponse>((resolve) => {
+          reply = resolve
+        })
+    )
     const scope = createScope(client)
     scope.hostCapabilities = [SESSION_TABS_CHAT_FORK_CLI_RUNTIME_CAPABILITY]
-    scope.sessionTabsRef.current = [{
-      type: 'agent-session', id: 'chat-tab', title: 'Chat', sessionId: 'chat-1',
-      agent: 'claude', isActive: true
-    }]
+    scope.sessionTabsRef.current = [
+      {
+        type: 'agent-session',
+        id: 'chat-tab',
+        title: 'Chat',
+        sessionId: 'chat-1',
+        agent: 'claude',
+        isActive: true
+      }
+    ]
     let actions: ReturnType<typeof useMobileSessionTerminalCreateActions> | undefined
     function Harness() {
       actions = useMobileSessionTerminalCreateActions(scope as never)
       return null
     }
-    await act(async () => { renderer = create(createElement(Harness)) })
+    await act(async () => {
+      renderer = create(createElement(Harness))
+    })
     let pending: Promise<unknown> | undefined
     await act(async () => {
       pending = actions?.handleCreateTerminal(undefined, {
@@ -394,7 +415,9 @@ describe('phone chat CLI fork creation owner', () => {
     )
     scope.worktreeId = 'workspace-2'
     scope.sessionTabsRef.current = []
-    await act(async () => { renderer?.update(createElement(Harness)) })
+    await act(async () => {
+      renderer?.update(createElement(Harness))
+    })
     await act(async () => {
       reply(terminalCreateResponse())
       await pending

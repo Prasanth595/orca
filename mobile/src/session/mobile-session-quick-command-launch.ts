@@ -7,8 +7,14 @@ import type { MobileSessionAttachmentsModel } from './use-mobile-session-attachm
 
 /** Runs a saved quick command through the session's ordinary terminal creator. */
 export function launchMobileSessionQuickCommand(
-  scope: Pick<MobileSessionAttachmentsModel,
-    'client' | 'connState' | 'creatingTerminalRef' | 'creatingBrowser' | 'creatingMarkdown' | 'showToast'
+  scope: Pick<
+    MobileSessionAttachmentsModel,
+    | 'client'
+    | 'connState'
+    | 'creatingTerminalRef'
+    | 'creatingBrowser'
+    | 'creatingMarkdown'
+    | 'showToast'
   >,
   createTerminal: (
     agent?: MobileNewTabAgentOption['agent'],
@@ -17,8 +23,11 @@ export function launchMobileSessionQuickCommand(
   command: TerminalQuickCommand
 ): boolean {
   if (
-    !scope.client || scope.connState !== 'connected' || scope.creatingTerminalRef.current ||
-    scope.creatingBrowser || scope.creatingMarkdown
+    !scope.client ||
+    scope.connState !== 'connected' ||
+    scope.creatingTerminalRef.current ||
+    scope.creatingBrowser ||
+    scope.creatingMarkdown
   ) {
     return false
   }

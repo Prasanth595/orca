@@ -5,11 +5,10 @@ import { triggerSuccess, triggerError } from '../platform/haptics'
 import { buildTerminalSendParams } from '../terminal/terminal-send-request'
 import { terminalRecordsEqual } from './mobile-terminal-records'
 import type { MobileNewTabAgentOption } from './mobile-new-tab-agent-options'
-import { SESSION_TABS_CHAT_FORK_CLI_RUNTIME_CAPABILITY } from '../../../src/shared/session-tabs-runtime-capabilities'
 import { formatAgentTypeLabel } from '../../../src/shared/agent-type-label'
-import { createdTerminalDesktopWarning } from './session-write-reply-schema'
 import {
-  mobileChatForkRefusalMessage,
+  hostSupportsMobileChatFork,
+  mobileChatForkCreateReplyMessage,
   mobileChatForkRequestFailureMessage
 } from './mobile-chat-fork-create-feedback'
 import type { MobileSessionTab, Terminal } from './mobile-session-route-types'
@@ -69,29 +68,27 @@ export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttach
     }
   ): Promise<CreateOutcome | undefined> {
     const sourceFork = options?.sourceChatFork
-    const sourceOutcome = (value: CreateOutcome): CreateOutcome | undefined => sourceFork ? value : undefined
+    const sourceOutcome = (value: CreateOutcome): CreateOutcome | undefined =>
+      sourceFork ? value : undefined
     const agentName = sourceFork ? formatAgentTypeLabel(sourceFork.agent) : ''
     const { isRouteCurrent, isCurrent } = captureCreateOwner(sourceFork?.sessionId)
     const reportFork = (message: string): void => {
-      if (!isCurrent()) {
+      if (!sourceFork || !isCurrent()) {
         return
       }
       setCreateError(message)
       triggerError()
       showToast(message, 3000)
     }
-    if (!client || (sourceFork && (
-      !hostCapabilities?.includes(SESSION_TABS_CHAT_FORK_CLI_RUNTIME_CAPABILITY) || !isCurrent()
-    ))) {
-      if (sourceFork) {
-        reportFork(`Open the ${agentName} chat on a connected, updated host and try again.`)
-      }
+    if (
+      !client ||
+      (sourceFork && (!hostSupportsMobileChatFork(hostCapabilities) || !isCurrent()))
+    ) {
+      reportFork(`Open the ${agentName} chat on a connected, updated host and try again.`)
       return sourceOutcome('unavailable')
     }
     if (creatingTerminalRef.current) {
-      if (sourceFork) {
-        reportFork(`Another terminal is opening. Wait, then retry the ${agentName} chat.`)
-      }
+      reportFork(`Another terminal is opening. Wait, then retry the ${agentName} chat.`)
       return sourceOutcome('busy')
     }
     // Why: idempotency key so a transport retry (reconnect replay) resolves to the same terminal, not a duplicate; kept compact (no worktree id) for the schema length cap.
@@ -169,14 +166,20 @@ export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttach
       const hostSupportsGroupedPlacement =
         hostCapabilities?.includes(SESSION_TABS_SPLIT_GROUP_PLACEMENT_RUNTIME_CAPABILITY) === true
       const response = await requestMobileSessionTerminalCreate({
-        client, worktreeId, afterTabId, clientMutationId, agent, options,
+        client,
+        worktreeId,
+        afterTabId,
+        clientMutationId,
+        agent,
+        options,
         ...(sourceFork ? { sourceChatFork: { sessionId: sourceFork.sessionId } } : {})
       })
       if (!isCurrent()) {
         return sourceOutcome('accepted')
       }
-      if (sourceFork && !response.ok) {
-        reportFork(mobileChatForkRefusalMessage(agentName, response.error.code))
+      const forkMessage = sourceFork ? mobileChatForkCreateReplyMessage(agentName, response) : null
+      if (forkMessage && !response.ok) {
+        reportFork(forkMessage)
         return sourceOutcome('reported-failure')
       }
       // A refused ordinary create throws the host's message into the existing catch.
@@ -185,8 +188,8 @@ export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttach
         MobileSessionTab,
         { type: 'terminal' }
       >
-      if (sourceFork && response.ok && createdTerminalDesktopWarning(response.result)) {
-        reportFork(`${agentName} opened in a CLI, but its desktop tab could not be shown. Check open tabs on the host before retrying.`)
+      if (forkMessage) {
+        reportFork(forkMessage)
       }
       // Why: unsubscribe the old terminal so the server restores its desktop dims; otherwise its restore timer is never set.
       const prev = activeHandleRef.current
