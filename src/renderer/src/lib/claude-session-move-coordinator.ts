@@ -25,6 +25,7 @@ import {
 } from './foreground-terminal-tabs'
 import { getAllDrivers } from './pane-manager/mobile-driver-state'
 import { mergePendingTerminalInputActivity } from './terminal-input-activity-coalescing'
+import { getRendererAppPlatform } from './renderer-app-platform'
 import { getExecutionHostIdForWorktree } from './worktree-runtime-owner'
 
 // Why hibernation's shortest idle time: a move nobody asked for restarts the pane, so it waits as
@@ -206,17 +207,11 @@ async function movePanes(): Promise<number> {
     // cut off a Claude that lives on outside the pane, or start one nobody runs any more.
     const inspection = await inspectRuntimeTerminalProcess(session.ptyId).catch(() => null)
     // Why retry: a check that failed, or could not see the process, says nothing about the pane.
-    if (!inspection || isUnseenPaneInspection(inspection)) {
+    if (!inspection || isUnseenPaneInspection(inspection, getRendererAppPlatform())) {
       waiting += 1
       continue
     }
     if (!isClaudeRunningInPane(inspection, tab?.launchAgent)) {
-      // Why give up only on a clear answer: a foreground nobody could verify may be a failed read,
-      // not a pane that stopped running Claude.
-      if (inspection.foregroundProcessEvidence?.verdict === 'unverifiable') {
-        waiting += 1
-        continue
-      }
       settle(session)
       continue
     }

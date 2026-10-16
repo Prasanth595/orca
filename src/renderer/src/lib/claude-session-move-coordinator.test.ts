@@ -442,4 +442,25 @@ describe('Claude session moves', () => {
 
     expect(restartPaneForAccountMove).toHaveBeenCalledOnce()
   })
+
+  it('does not trust a cached claude name the pane could not verify', async () => {
+    inspect.mockResolvedValueOnce({
+      foregroundProcess: 'claude',
+      hasChildProcesses: true,
+      foregroundProcessEvidence: {
+        verdict: 'unverifiable',
+        reason: 'process_table_unavailable',
+        authorityGeneration: 'gen-1',
+        observationEpoch: 1,
+        capturedAgeMs: 0,
+        ptyId: 'pty-1',
+        ptyIncarnationId: 'inc-1'
+      }
+    })
+    seed({})
+
+    await moveClaudeSessionsToSelectedAccount()
+
+    expect(restartPaneForAccountMove).not.toHaveBeenCalled()
+  })
 })

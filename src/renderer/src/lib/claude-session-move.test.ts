@@ -278,32 +278,61 @@ describe('isClaudeRunningInPane', () => {
 })
 
 describe('isUnseenPaneInspection', () => {
+  const unfenced = {
+    verdict: 'unverifiable' as const,
+    reason: 'process_table_unavailable',
+    authorityGeneration: 'gen-1',
+    observationEpoch: 1,
+    capturedAgeMs: 0,
+    ptyId: 'pty-1',
+    ptyIncarnationId: 'inc-1'
+  }
+
   it('reads a Windows answer by its child-process evidence, since Windows never fences the foreground', () => {
     expect(
-      isUnseenPaneInspection({
-        foregroundProcess: 'claude',
-        hasChildProcesses: true,
-        childProcessEvidence: 'children',
-        foregroundProcessEvidence: {
-          verdict: 'unverifiable',
-          reason: 'windows_ssh_foreground_unavailable',
-          authorityGeneration: 'gen-1',
-          observationEpoch: 1,
-          capturedAgeMs: 0,
-          ptyId: 'pty-1',
-          ptyIncarnationId: 'inc-1'
-        }
-      })
+      isUnseenPaneInspection(
+        {
+          foregroundProcess: 'claude',
+          hasChildProcesses: true,
+          childProcessEvidence: 'children',
+          foregroundProcessEvidence: {
+            verdict: 'unverifiable',
+            reason: 'windows_ssh_foreground_unavailable',
+            authorityGeneration: 'gen-1',
+            observationEpoch: 1,
+            capturedAgeMs: 0,
+            ptyId: 'pty-1',
+            ptyIncarnationId: 'inc-1'
+          }
+        },
+        'win32'
+      )
     ).toBe(false)
+  })
+
+  it('counts an unverified foreground as unseen elsewhere, even when the cached name says claude', () => {
+    expect(
+      isUnseenPaneInspection(
+        {
+          foregroundProcess: 'claude',
+          hasChildProcesses: true,
+          foregroundProcessEvidence: unfenced
+        },
+        'darwin'
+      )
+    ).toBe(true)
   })
 
   it('counts an answer that could not read the process table as unseen', () => {
     expect(
-      isUnseenPaneInspection({
-        foregroundProcess: 'zsh',
-        hasChildProcesses: false,
-        childProcessEvidence: 'unverifiable'
-      })
+      isUnseenPaneInspection(
+        {
+          foregroundProcess: 'zsh',
+          hasChildProcesses: false,
+          childProcessEvidence: 'unverifiable'
+        },
+        'darwin'
+      )
     ).toBe(true)
   })
 })
