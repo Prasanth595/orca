@@ -1,3 +1,4 @@
+import { applyClaudeTerminalImageViewerEnv } from '../terminal-image-viewer-env'
 import type { ResolvedWorktree } from '../runtime-worktree-path-identity'
 import { OrcaRuntimeWithRemoveManagedWorktree } from './workspace-removal'
 import type {
@@ -32,7 +33,7 @@ import {
   waitForPendingWorktreeRemoval
 } from '../../worktree-background-removal'
 import { interruptedLocalWorktreeRemovalJob } from '../runtime-interrupted-local-worktree-removal'
-import { retryFailedRemovalUnlessRegistered } from '../../worktree-removal-table'
+import { retryFailedRemovalUnlessRegistered } from '../../worktree-removal-leftover'
 import type { GitWorktreeInfo } from '../../../shared/worktree/types'
 import {
   resolveAgentTerminalCreateOptions,
@@ -81,15 +82,16 @@ export abstract class OrcaRuntimeWithResolveWorktreeRemovalTarget extends OrcaRu
   }
 
   /**
-   * Delete on the leftover of a local delete that failed after Git dropped the registration, while
-   * Git's listing still does not register the path: runs that removal again. True when it did.
+   * Delete on a local delete that failed after Git dropped the registration, while Git's listing
+   * still does not register the path: refuses while the folder is there, else finishes that removal.
+   * True when it did.
    */
-  protected retryFailedLocalRemoval(
+  protected async retryFailedRemoval(
     route: { kind: string },
     target: { id: string; path: string },
     registeredWorktrees: readonly GitWorktreeInfo[],
     options: RemoveManagedWorktreeOptions
-  ): boolean {
+  ): Promise<boolean> {
     const store = this.store
     if (route.kind !== 'local' || !store) {
       return false
@@ -250,15 +252,19 @@ export abstract class OrcaRuntimeWithResolveWorktreeRemovalTarget extends OrcaRu
     return { handle, tabId: leaf.tabId, title }
   }
 
-  protected async resolveAgentTerminalCreateOptions(
+  async resolveAgentTerminalCreateOptions(
     workspace: TerminalWorkspaceLaunchScope,
     opts: TerminalCreateOptions
   ): Promise<TerminalCreateOptions> {
-    const launch = await resolveAgentTerminalCreateOptions(workspace, opts, {
+    const resolvedLaunch = await resolveAgentTerminalCreateOptions(workspace, opts, {
       store: this.store,
       hostIdentity: this.runtimeId,
       toSessionOptions: (preferences) => this.toAgentSessionOptions(preferences)
     })
+    const launch = applyClaudeTerminalImageViewerEnv(
+      resolvedLaunch,
+      opts.terminalImageViewerSupported
+    )
     // An SSH workspace's shell runs on that machine, where this distro's account paths mean nothing.
     return workspace.connectionId
       ? launch
