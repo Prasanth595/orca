@@ -195,7 +195,9 @@ function mountPlayer(
       const media = document.createElement(kind === 'audio' ? 'audio' : 'video')
       media.className = kind === 'audio' ? 'w-full' : fit
       media.controls = true
-      media.autoplay = true
+      // Why check now: the read is async, and the anchor may have gone while it ran; a player
+      // already hidden must not start playing out of sight.
+      media.autoplay = element.style.display !== 'none'
       media.preload = 'metadata'
       if (media instanceof HTMLVideoElement) {
         media.addEventListener('loadedmetadata', () => {

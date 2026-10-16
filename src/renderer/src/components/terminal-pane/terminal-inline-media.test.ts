@@ -214,6 +214,25 @@ describe('toggleInlineMedia', () => {
     pause.mockRestore()
   })
 
+  it('does not autoplay media that finishes loading after its player was hidden', async () => {
+    let finishRead: (value: unknown) => void = () => {}
+    vi.mocked(window.api.fs.readFile).mockImplementationOnce(
+      () => new Promise((resolve) => (finishRead = resolve)) as never
+    )
+    const lines = ['/tmp/clip.mp4', ...Array.from({ length: 30 }, () => '')]
+    const terminal = fakeTerminal(lines)
+    toggleInlineMedia(terminal, 0, '/tmp/clip.mp4', 'video')
+
+    lines[0] = 'cleared'
+    for (const listener of renderListeners) {
+      listener()
+    }
+    finishRead({ content: '', isBinary: true, mediaUrl: 'orca-media://file/t' })
+
+    await vi.waitFor(() => expect(document.querySelector('video')).not.toBeNull())
+    expect(document.querySelector('video')?.autoplay).toBe(false)
+  })
+
   it('closes every player when its pane goes away', () => {
     const terminal = fakeTerminal([
       '/tmp/a.mp4',
