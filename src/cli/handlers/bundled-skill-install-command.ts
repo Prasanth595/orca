@@ -20,8 +20,8 @@ import {
   type BundledSkillLocationAction,
   type BundledSkillPlan
 } from '../../shared/skill-freshness'
+import { describeBundledSkillInstallResult } from '../../shared/bundled-orca-skill-install-report'
 import {
-  describeBundledSkillInstallResult,
   installBundledOrcaSkills,
   planBundledOrcaSkills,
   resolveEnvironmentSkillProviderRoots,

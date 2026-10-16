@@ -4,5 +4,4 @@ export {
   type BundledOrcaSkillInstallInput
 } from './bundled-orca-skill-install'
 export { planBundledOrcaSkills } from './bundled-orca-skill-plan'
-export { describeBundledSkillInstallResult } from './bundled-orca-skill-install-report'
 export { resolveEnvironmentSkillProviderRoots } from './skill-provider-runtime-roots'

@@ -6,14 +6,10 @@ import {
   COMPUTER_USE_SKILL_NAME,
   ORCA_LINEAR_SKILL_NAME,
   ORCA_CLI_SKILL_NAME,
-  ORCHESTRATION_SKILL_NAME,
-  buildAgentFeatureSkillInstallCommand
-} from '@/lib/agent-feature-install-commands'
+  ORCHESTRATION_SKILL_NAME
+} from '@/lib/agent-feature-skill-names'
 import { BROWSER_USE_ENABLED_STORAGE_KEY } from '@/lib/browser-use-setup-state'
 import { e2eConfig } from '@/lib/e2e-config'
-import type { ProjectAgentSkillRuntime } from '@/lib/project-skill-runtime'
-import type { OnboardingFeatureSetupRuntimeContext } from './onboarding-feature-setup-runtime'
-import { buildSkillCommandForRuntime } from '../settings/CliSkillRuntimeSetup'
 import {
   ORCHESTRATION_ENABLED_STORAGE_KEY,
   ORCHESTRATION_SETUP_DISMISSED_STORAGE_KEY,
@@ -43,12 +39,6 @@ export const ONBOARDING_FEATURE_SETUP_IDS: readonly OnboardingFeatureSetupId[] =
   'linearTickets'
 ]
 
-const ONBOARDING_PROGRESS_FEATURE_SETUP_IDS: readonly OnboardingFeatureSetupId[] = [
-  'browserUse',
-  'computerUse',
-  'orchestration'
-]
-
 const FEATURE_SKILL_NAMES: Record<OnboardingFeatureSetupId, string> = {
   browserUse: ORCA_CLI_SKILL_NAME,
   computerUse: COMPUTER_USE_SKILL_NAME,
@@ -73,14 +63,13 @@ export type OnboardingFeatureSetupWarning = {
 
 export type OnboardingFeatureSetupResult = {
   selectedIds: OnboardingFeatureSetupId[]
-  skillCommandsCopied: boolean
-  skillInstallCommand: string | null
+  // The caller installs these with the bundled installer.
+  skillNames: string[]
   computerUsePermissionsOpened: boolean
   warnings: OnboardingFeatureSetupWarning[]
 }
 
 export type OnboardingFeatureSetupDeps = {
-  writeClipboardText: (text: string) => Promise<void>
   getComputerUsePermissionStatus: () => Promise<ComputerUsePermissionStatusResult>
   openComputerUsePermissionSetup: () => Promise<ComputerUsePermissionSetupResult>
   setStorageItem: (key: string, value: string) => void
@@ -100,64 +89,16 @@ export function selectedOnboardingFeatureSetupIds(
   return ONBOARDING_FEATURE_SETUP_IDS.filter((id) => selection[id])
 }
 
-export function buildOnboardingFeatureSetupClipboardText(
-  selection: OnboardingFeatureSetupSelection,
-  agentRuntime?: ProjectAgentSkillRuntime
-): string | null {
-  const command = buildOnboardingFeatureSetupSkillCommand(selection)
-  // Keep clipboard and terminal commands on the same runtime (#12103).
-  return command === null ? null : buildSkillCommandForRuntime(command, agentRuntime)
-}
-
-export function buildOnboardingFeatureSetupSkillCommand(
+export function onboardingFeatureSetupSkillNames(
   selection: OnboardingFeatureSetupSelection
-): string | null {
-  const skillNames = selectedOnboardingFeatureSetupIds(selection).map(
-    (id) => FEATURE_SKILL_NAMES[id]
-  )
-  if (skillNames.length === 0) {
-    return null
-  }
-  return buildAgentFeatureSkillInstallCommand(skillNames)
+): string[] {
+  return selectedOnboardingFeatureSetupIds(selection).map((id) => FEATURE_SKILL_NAMES[id])
 }
 
 export function onboardingFeatureSetupTelemetryFeature(
   id: OnboardingFeatureSetupId
 ): EventProps<'onboarding_feature_setup_toggled'>['feature'] {
   return FEATURE_TELEMETRY_IDS[id]
-}
-
-export function onboardingFeatureSetupTelemetrySelection(
-  selection: OnboardingFeatureSetupSelection
-): EventProps<'onboarding_feature_setup_terminal_opened'> {
-  return {
-    browser_use: selection.browserUse,
-    computer_use: selection.computerUse,
-    linear_tickets: selection.linearTickets,
-    orchestration: selection.orchestration,
-    // Why: Linear skill setup is a recommended add-on, not onboarding progress.
-    selected_count: selectedOnboardingProgressFeatureSetupIds(selection).length
-  }
-}
-
-function selectedOnboardingProgressFeatureSetupIds(
-  selection: OnboardingFeatureSetupSelection
-): OnboardingFeatureSetupId[] {
-  return ONBOARDING_PROGRESS_FEATURE_SETUP_IDS.filter((id) => selection[id])
-}
-
-export function onboardingFeatureSetupRunTelemetry(
-  selection: OnboardingFeatureSetupSelection,
-  result: OnboardingFeatureSetupResult
-): EventProps<'onboarding_feature_setup_run'> {
-  return {
-    ...onboardingFeatureSetupTelemetrySelection(selection),
-    cli_touched: false,
-    skill_commands_copied: result.skillCommandsCopied,
-    skill_install_command_prepared: result.skillInstallCommand !== null,
-    computer_use_permissions_opened: result.computerUsePermissionsOpened,
-    warning_count: result.warnings.length
-  }
 }
 
 export function createOnboardingFeatureSetupDeps(): OnboardingFeatureSetupDeps {
@@ -167,7 +108,6 @@ export function createOnboardingFeatureSetupDeps(): OnboardingFeatureSetupDeps {
   }
 
   return {
-    writeClipboardText: (text) => window.api.ui.writeClipboardText(text),
     getComputerUsePermissionStatus: () => window.api.computerUsePermissions.getStatus(),
     openComputerUsePermissionSetup: () => window.api.computerUsePermissions.openSetup(),
     setStorageItem: (key, value) => localStorage.setItem(key, value),
@@ -188,17 +128,12 @@ function getE2EOnboardingFeatureSetupDeps(): OnboardingFeatureSetupDeps | null {
 
 export async function runOnboardingFeatureSetup(
   selection: OnboardingFeatureSetupSelection,
-  explicitDeps?: OnboardingFeatureSetupDeps,
-  runtimeContext?: OnboardingFeatureSetupRuntimeContext
+  explicitDeps?: OnboardingFeatureSetupDeps
 ): Promise<OnboardingFeatureSetupResult> {
-  const agentRuntime = runtimeContext?.installDisabledReason
-    ? undefined
-    : runtimeContext?.agentRuntime
   const deps = explicitDeps ?? createOnboardingFeatureSetupDeps()
   const selectedIds = selectedOnboardingFeatureSetupIds(selection)
   const warnings: OnboardingFeatureSetupWarning[] = []
-  let skillCommandsCopied = false
-  const skillInstallCommand = buildOnboardingFeatureSetupSkillCommand(selection)
+  const skillNames = onboardingFeatureSetupSkillNames(selection)
   let computerUsePermissionsOpened = false
 
   deps.setStorageItem(BROWSER_USE_ENABLED_STORAGE_KEY, selection.browserUse ? '1' : '0')
@@ -209,13 +144,7 @@ export async function runOnboardingFeatureSetup(
   deps.notifyOrchestrationStateChanged()
 
   if (selectedIds.length === 0) {
-    return {
-      selectedIds,
-      skillCommandsCopied,
-      skillInstallCommand,
-      computerUsePermissionsOpened,
-      warnings
-    }
+    return { selectedIds, skillNames, computerUsePermissionsOpened, warnings }
   }
 
   if (selection.computerUse) {
@@ -248,36 +177,9 @@ export async function runOnboardingFeatureSetup(
     }
   }
 
-  skillCommandsCopied = await copySkillCommands(selection, deps, warnings, agentRuntime)
-
-  return {
-    selectedIds,
-    skillCommandsCopied,
-    skillInstallCommand,
-    computerUsePermissionsOpened,
-    warnings
-  }
+  return { selectedIds, skillNames, computerUsePermissionsOpened, warnings }
 }
 
 function formatFeatureSetupError(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
-}
-
-async function copySkillCommands(
-  selection: OnboardingFeatureSetupSelection,
-  deps: OnboardingFeatureSetupDeps,
-  warnings: OnboardingFeatureSetupWarning[],
-  agentRuntime?: ProjectAgentSkillRuntime
-): Promise<boolean> {
-  const clipboardText = buildOnboardingFeatureSetupClipboardText(selection, agentRuntime)
-  if (!clipboardText) {
-    return false
-  }
-  try {
-    await deps.writeClipboardText(clipboardText)
-    return true
-  } catch (error) {
-    warnings.push({ featureId: 'skills', message: formatFeatureSetupError(error) })
-    return false
-  }
 }
