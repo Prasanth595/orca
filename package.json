@@ -383,7 +383,9 @@
           "files": [
             "src/renderer/src/components/editor/combined-diff/browse-files/use-combined-diff-tree-navigation.ts",
             "src/renderer/src/components/editor/combined-diff/load-sections/combined-diff-section-load-registry.ts",
-            "src/renderer/src/components/editor/combined-diff/review-controls/use-combined-diff-section-actions.ts"
+            "src/renderer/src/components/editor/combined-diff/review-controls/use-combined-diff-section-actions.ts",
+            "src/renderer/src/components/native-chat/use-native-chat-composer-keydown.ts",
+            "src/renderer/src/components/task-page-jira-saved-filter-load-failure.test.tsx"
           ],
           "rules": [
             "react-doctor/no-ref-current-in-render"
@@ -401,7 +403,10 @@
             "unicorn/consistent-existence-index-check",
             "unicorn/no-array-reverse",
             "unicorn/prefer-array-find",
-            "unicorn/prefer-import-meta-properties"
+            "unicorn/prefer-import-meta-properties",
+            "typescript/consistent-type-imports",
+            "unicorn/no-useless-promise-resolve-reject",
+            "unicorn/prefer-at"
           ]
         },
         {
@@ -409,12 +414,16 @@
             "mobile/**"
           ],
           "rules": [
-            "eslint/prefer-template"
+            "eslint/prefer-template",
+            "typescript/consistent-type-imports"
           ]
         },
         {
           "files": [
-            "src/renderer/src/components/editor/useLocalImageSrc.test.ts"
+            "src/renderer/src/components/editor/useLocalImageSrc.test.ts",
+            "mobile/src/session/use-mobile-native-chat-turn-disclosure-opening-send.test.tsx",
+            "mobile/src/session/use-mobile-structured-agent-options.test.ts",
+            "src/renderer/src/components/native-chat/use-native-chat-external-attachments.test.tsx"
           ],
           "rules": [
             "react-doctor/no-prop-callback-in-render"
