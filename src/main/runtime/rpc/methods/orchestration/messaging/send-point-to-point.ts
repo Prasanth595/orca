@@ -27,6 +27,7 @@ export function sendPointToPointMessage(args: {
   dispatchId: string | undefined
   messageRunId: string | undefined
   senderPaneKey: string | undefined
+  providerAttested: boolean
   legacyCoordinatorRunId: string | undefined
   resolveProcessIncarnation: () => string | undefined
   revalidateLegacyCoordinator: (() => string) | undefined
@@ -43,6 +44,7 @@ export function sendPointToPointMessage(args: {
     dispatchId,
     messageRunId,
     senderPaneKey,
+    providerAttested,
     legacyCoordinatorRunId,
     resolveProcessIncarnation,
     revalidateLegacyCoordinator,
@@ -91,7 +93,7 @@ export function sendPointToPointMessage(args: {
         paneKey: senderPaneKey,
         processIncarnation,
         consumerGeneration: dispatch?.consumer_generation,
-        attested: refusal === null && isDispatchMutationMessageType(messageType)
+        attested: providerAttested && refusal === null && isDispatchMutationMessageType(messageType)
       }),
       senderPaneKey,
       runId: messageRunId,

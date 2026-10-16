@@ -70,7 +70,12 @@ export const ORCHESTRATION_SEND_METHODS = [
           ? orchestrationCompatibilityCallerAuthority
           : undefined
       const lifecycleMessage = isDispatchMutationMessageType(params.type)
-      if (lifecycleMessage && !orchestrationCaller && !attestedCaller) {
+      if (
+        lifecycleMessage &&
+        !orchestrationCaller &&
+        orchestrationCompatibilityCallerAuthority &&
+        !attestedCaller
+      ) {
         throw new OrchestrationError(
           'sender_not_assignee',
           'Lifecycle authority requires the authenticated caller terminal and current process incarnation; --from and copied Dispatch fields are not authority.'
@@ -225,6 +230,7 @@ export const ORCHESTRATION_SEND_METHODS = [
           dispatchId: routing.dispatchId,
           messageRunId,
           senderPaneKey,
+          providerAttested: Boolean(orchestrationCaller || attestedCaller),
           legacyCoordinatorRunId,
           resolveProcessIncarnation: () =>
             attestedCaller?.processIncarnation ??
