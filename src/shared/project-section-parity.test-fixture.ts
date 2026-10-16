@@ -244,5 +244,6 @@ export const PROJECT_SECTION_PARITY_SERVED: MobileProjectSectionCatalog = {
       executionHostId: 'runtime:m4air'
     }
   ],
-  projectOrderBy: 'manual'
+  projectOrderBy: 'manual',
+  projectGroups: []
 }

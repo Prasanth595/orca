@@ -1,7 +1,7 @@
 import type { ExecutionHostId } from '../../../src/shared/execution-host'
 import type { AgentWorkingMode } from '../../../src/shared/agent-status-types'
 import type { RuntimeWorktreeAgentRow } from '../../../src/shared/runtime-types'
-import type { ProjectSectionRepo } from '../../../src/shared/project-section-grouping'
+import type { ProjectGroupSectionRepo } from '../../../src/shared/project-group-section-plan'
 import type { WorkspaceRowFilters } from '../../../src/shared/workspace-view/workspace-row-filters'
 
 export type Worktree = {
@@ -71,13 +71,17 @@ export type FilterState = WorkspaceRowFilters
 
 /** A repo as Project sections read it: the desktop's catalog record, or one a row stands in for. */
 // repoIcon stays unread wire data until drawn (readMobileRepoIcon).
-export type SectionRepo = ProjectSectionRepo & { badgeColor?: string; repoIcon?: unknown }
+export type SectionRepo = ProjectGroupSectionRepo & { badgeColor?: string; repoIcon?: unknown }
 
 export type Section = {
   key: string
   title: string
-  icon?: 'pin'
+  icon?: 'pin' | 'project-group'
   /** Under Project grouping, the repo whose colour and icon the header shows, as on the desktop. */
   repo?: SectionRepo
+  /** Project Group nesting depth of the header, as the desktop indents it. */
+  depth?: number
+  /** A Project Group header's count: its projects, folder workspaces and nested groups' contents. */
+  count?: number
   data: Worktree[]
 }

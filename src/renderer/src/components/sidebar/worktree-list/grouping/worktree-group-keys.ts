@@ -4,7 +4,8 @@ import type { WorkspaceStatusDefinition, Worktree } from '../../../../../../shar
 import { getWorkspaceStatus, getWorkspaceStatusGroupKey } from '../../workspace-status'
 import { cloneDefaultWorkspaceStatuses } from '../../../../../../shared/workspace-statuses'
 import type { AppState } from '../../../../store/types'
-import { ALL_GROUP_KEY, getPRGroupKey, getProjectGroupHeaderKey } from './group-keys'
+import { ALL_GROUP_KEY, getPRGroupKey } from './group-keys'
+import { getProjectGroupHeaderKey } from '../../../../../../shared/project-groups'
 import {
   buildProjectGroupingIndex,
   getProjectGroupingForRepo

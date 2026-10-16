@@ -5,6 +5,7 @@ import {
   setRuntimeGraphSyncEnabled
 } from './sync-runtime-graph'
 import type { AppState } from '../store/types'
+import type { ProjectGroup } from '../../../shared/project-group-types'
 import type { Repo } from '../../../shared/repo-types'
 import type { RuntimeSyncWindowGraph } from '../../../shared/runtime-types'
 
@@ -20,7 +21,22 @@ const repo: Repo = {
   addedAt: 1,
   hookSettings: { mode: 'auto', scripts: { setup: 'secret-setup', archive: '' } },
   gitUsername: 'me',
-  repoIcon: { type: 'image', src: 'data:image/png;base64,AAAA', source: 'upload' }
+  repoIcon: { type: 'image', src: 'data:image/png;base64,AAAA', source: 'upload' },
+  projectGroupId: 'group-1',
+  projectGroupOrder: 2
+}
+
+const projectGroup: ProjectGroup = {
+  id: 'group-1',
+  name: 'Work',
+  parentPath: '/Users/me/work',
+  parentGroupId: null,
+  createdFrom: 'folder-scan',
+  tabOrder: 3,
+  isCollapsed: false,
+  color: '#ff0000',
+  createdAt: 1,
+  updatedAt: 1
 }
 
 const BASE_STATE = {
@@ -42,7 +58,8 @@ const BASE_STATE = {
   repos: [repo],
   projects: [],
   projectHostSetups: [],
-  projectOrderBy: 'recent'
+  projectOrderBy: 'recent',
+  projectGroups: [projectGroup]
 }
 
 async function flushSync(): Promise<void> {
@@ -79,7 +96,9 @@ describe("the sidebar's Project catalog in the window graph", () => {
           displayName: 'orca',
           path: '/Users/me/orca',
           badgeColor: '#737373',
-          addedAt: 1
+          addedAt: 1,
+          projectGroupId: 'group-1',
+          projectGroupOrder: 2
         }
       ],
       projects: [{ id: 'repo:repo-1', displayName: 'orca' }],
@@ -94,7 +113,9 @@ describe("the sidebar's Project catalog in the window graph", () => {
           setupMethod: 'legacy-repo'
         }
       ],
-      projectOrderBy: 'recent'
+      projectOrderBy: 'recent',
+      // Why no parentPath: the phone nests by group, so a folder root's path stays on the desktop.
+      projectGroups: [{ id: 'group-1', name: 'Work', parentGroupId: null, tabOrder: 3 }]
     })
 
     scheduleRuntimeGraphSync()
@@ -106,5 +127,12 @@ describe("the sidebar's Project catalog in the window graph", () => {
     scheduleRuntimeGraphSync()
     await flushSync()
     expect(syncWindowGraph.mock.calls[2]?.[0].projectSectionCatalog?.projectOrderBy).toBe('manual')
+
+    state = { ...state, projectGroups: [{ ...projectGroup, name: 'Clients' }] }
+    scheduleRuntimeGraphSync()
+    await flushSync()
+    expect(syncWindowGraph.mock.calls[3]?.[0].projectSectionCatalog?.projectGroups).toEqual([
+      { id: 'group-1', name: 'Clients', parentGroupId: null, tabOrder: 3 }
+    ])
   })
 })

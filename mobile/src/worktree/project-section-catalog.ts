@@ -7,17 +7,20 @@ import type { SectionRepo } from './workspace-list-types'
 /**
  * Project grouping's inputs: the desktop sidebar's own catalog when it serves one, else (an older
  * desktop) its own repos with no projects, so rows group by repo. Only shown hosts' repos open
- * empty sections; the grouping itself spans every host, as the desktop's does.
+ * empty sections and only shown hosts' Project Groups head them; the grouping itself spans every
+ * host, as the desktop's does.
  */
 export function buildProjectSectionCatalog(
   served: ServedProjectSections | null,
   desktopRepos: readonly SectionRepo[],
   visibleHostIds: readonly ExecutionHostId[] | null
 ): ProjectSectionCatalog {
-  const shown = (repos: readonly SectionRepo[]) =>
+  const shown = <T extends { connectionId?: string | null; executionHostId?: string | null }>(
+    entries: readonly T[]
+  ) =>
     visibleHostIds
-      ? repos.filter((repo) => visibleHostIds.includes(getRepoExecutionHostId(repo)))
-      : repos
+      ? entries.filter((entry) => visibleHostIds.includes(getRepoExecutionHostId(entry)))
+      : entries
   if (!served) {
     return { ...NO_PROJECT_SECTION_CATALOG, repos: shown(desktopRepos) }
   }
@@ -33,6 +36,7 @@ export function buildProjectSectionCatalog(
     grouping: { projects: served.projects, projectHostSetups: served.setups },
     // Why: served repos come in the sidebar's header order, cross-host manual order included.
     repoOrder: getLogicalRepoOrderRankById(served.repos.map((repo) => repo.id)),
-    projectOrderBy: served.projectOrderBy
+    projectOrderBy: served.projectOrderBy,
+    projectGroups: shown(served.projectGroups ?? [])
   }
 }

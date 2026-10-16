@@ -17,11 +17,11 @@ vi.mock('react-native', () => ({
   }: {
     sections: Section[]
     keyExtractor: (item: Worktree) => string
-    renderItem: (info: { item: Worktree }) => ReactNode
+    renderItem: (info: { item: Worktree; section: Section }) => ReactNode
   }) =>
     sections.flatMap((section) =>
       section.data.map((item) =>
-        createElement(Fragment, { key: keyExtractor(item) }, renderItem({ item }))
+        createElement(Fragment, { key: keyExtractor(item) }, renderItem({ item, section }))
       )
     ),
   StyleSheet: { create: <T,>(styles: T) => styles },

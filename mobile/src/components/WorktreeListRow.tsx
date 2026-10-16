@@ -11,6 +11,7 @@ import { HostKindIcon } from './HostKindIcon'
 import { MobileRepoIcon } from './MobileRepoIcon'
 import { WorktreeAgentList } from './WorktreeAgentList'
 import { WorktreeMetaGlyphs, prStateColor } from './WorktreeMetaGlyphs'
+import { projectGroupIndent } from '../worktree/project-group-indent'
 
 // Strip the refs/heads/ prefix for display, matching the desktop sidebar
 // (WorktreeCardHelpers.formatBranchName).
@@ -33,6 +34,8 @@ type Props = {
   onPress: (item: Worktree) => void
   onLongPress?: (item: Worktree) => void
   onToggleLineage?: (item: Worktree) => void
+  /** Project Group nesting of the row's section, so rows step in under their header. */
+  groupDepth?: number
 }
 
 function WorktreeListRowComponent({
@@ -45,12 +48,14 @@ function WorktreeListRowComponent({
   status,
   onPress,
   onLongPress,
-  onToggleLineage
+  onToggleLineage,
+  groupDepth = 0
 }: Props) {
   const isFolderWorkspace = item.workspaceKind === 'folder-workspace'
   const folderMeta = item.comment?.trim() || item.path || 'Folder'
   const metaText = isFolderWorkspace ? folderMeta : displayBranch(item.branch)
   const lineageDepth = Math.max(0, item.lineageDepth ?? 0)
+  const groupIndent = projectGroupIndent(groupDepth)
   const lineageChildCount = item.lineageChildCount ?? 0
   const shouldHideRepo = hideRepo && !item.showProjectName
 
@@ -58,7 +63,9 @@ function WorktreeListRowComponent({
     <Pressable
       style={({ pressed }) => [
         styles.worktreeRow,
-        lineageDepth > 0 && { paddingLeft: spacing.lg + lineageDepth * 18 },
+        (lineageDepth > 0 || groupIndent > 0) && {
+          paddingLeft: spacing.lg + groupIndent + lineageDepth * 18
+        },
         item.isActive && styles.worktreeRowActive,
         pressed && styles.worktreeRowPressed
       ]}
