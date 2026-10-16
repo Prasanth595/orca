@@ -132,7 +132,8 @@ export type MobileShellBuildKind = 'native' | 'ota'
  * device, which is why every caller goes through this one and never through `process.env`.
  *
  * Anything but the exact string `ota` — unset, empty, a typo, a value from a stale shell — is
- * native. A release built without the variable is the native app, which is every default build.
+ * native. A build without the variable, development or release, is the native app; the hybrid shell
+ * mounts only in a build made with it, and nothing stored can change that.
  */
 export function mobileShellBuildKind(): MobileShellBuildKind {
   return process.env.EXPO_PUBLIC_MOBILE_SHELL === 'ota' ? 'ota' : 'native'

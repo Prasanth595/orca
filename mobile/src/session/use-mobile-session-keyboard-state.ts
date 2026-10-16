@@ -18,8 +18,8 @@ export type MobileSessionKeyboardScope = Pick<
   | 'connState'
   | 'customKeys'
   | 'deviceTokenRef'
-  | 'hostId'
   | 'initializedHandlesRef'
+  | 'hostId'
   | 'router'
   | 'setCustomKeys'
   | 'setKeyboardHeight'
@@ -63,10 +63,10 @@ export function useMobileSessionKeyboardState(scope: MobileSessionKeyboardScope)
     setKeyboardHeight,
     deviceTokenRef,
     clientRef,
+    initializedHandlesRef,
     viewportRef,
     viewportMeasuredRef,
     terminalRefs,
-    initializedHandlesRef,
     activeHandleRef,
     terminalFrameRef,
     showNativeChatRef,
