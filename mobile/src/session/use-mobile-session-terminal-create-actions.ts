@@ -30,6 +30,7 @@ import {
 import { releaseTerminalCreateLock } from './terminal-create-lock'
 import { placeCreatedSessionTab } from '../../../src/shared/session-tab-placement'
 import { SESSION_TABS_SPLIT_GROUP_PLACEMENT_RUNTIME_CAPABILITY } from '../../../src/shared/protocol-version'
+import { classifyRpcReply } from '../transport/rpc-operation-reply'
 
 export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttachmentsModel) {
   const {
@@ -174,11 +175,14 @@ export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttach
       if (!isCurrent()) {
         return 'accepted'
       }
-      if (sourceFork && response.kind === 'outer-refused') {
-        reportFork(mobileChatForkRefusalMessage(agentName, response.error.code))
+      const forkReply = sourceFork
+        ? classifyRpcReply(sessionTabCreateTerminal.operation, response)
+        : null
+      if (forkReply?.kind === 'outer-refused') {
+        reportFork(mobileChatForkRefusalMessage(agentName, forkReply.error.code))
         return 'reported-failure'
       }
-      if (sourceFork && response.kind === 'incompatible') {
+      if (forkReply?.kind === 'incompatible') {
         reportFork(`${agentName} may have opened. Reconnect and check open tabs on the host before retrying.`)
         return 'reported-failure'
       }
@@ -189,7 +193,7 @@ export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttach
         MobileSessionTab,
         { type: 'terminal' }
       >
-      if (sourceFork && response.raw.ok && createdTerminalDesktopWarning(response.raw.result)) {
+      if (sourceFork && response.ok && createdTerminalDesktopWarning(response.result)) {
         reportFork(`${agentName} opened in a CLI, but its desktop tab could not be shown. Check open tabs on the host before retrying.`)
       }
       // Why: unsubscribe the old terminal so the server restores its desktop dims; otherwise its restore timer is never set.

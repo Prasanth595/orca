@@ -58,7 +58,7 @@ it('places one owned PTY after the phone anchor in its group, ahead of later tab
   await import('../../orca-runtime-test-lifecycle.spec')
   const { store, TEST_WORKTREE_ID } = await import('../../orca-runtime-test-fixtures.spec')
   const { resolveMobileChatForkTargetGroup } = await import('./mobile-terminal-chat-fork-create')
-  const spawn = vi.fn(async () => ({ id: 'pty-fork' }))
+  const spawn = vi.fn(async (_options: unknown) => ({ id: 'pty-fork' }))
   const admitTerminalPane = vi.fn(async () => 'admitted' as const)
   const runtime = new OrcaRuntimeService({ ...store, admitTerminalPane })
   runtime.setPtyController({ spawn, write: () => true, kill: () => true,

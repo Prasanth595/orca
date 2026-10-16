@@ -199,7 +199,7 @@ export function sessionTerminalCreateMountAdapters(
           return actions!.handleCreateTerminal(
             agent,
             Object.keys(options).length === 0 ? undefined : options
-          )
+          ).then(() => undefined)
         },
         state: () => ({
           activeHandle,
