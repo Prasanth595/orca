@@ -3,14 +3,7 @@ import type { MobileWebBundleManifestRead } from '../transport/mobile-web-bundle
 import type { MobileWebBundleFetchResult } from '../transport/mobile-web-bundle-fetch'
 import { joinUri } from './generation-cache-uri'
 import type { GenerationDirectoryEntry, GenerationFileSystem } from './generation-store-file-system'
-import {
-  MANIFEST_FILE_NAME,
-  NEXT_MANIFEST_FILE_NAME,
-  parseGenerationManifest,
-  settleManifestSwap,
-  swapInFreshManifest
-} from './generation-manifest-swap'
-import { refuseManifestPersist, type ManifestPersistOutcome } from './manifest-persist-refusal'
+import { MANIFEST_FILE_NAME, parseGenerationManifest } from './generation-manifest-file'
 import { isHostCacheKey } from './host-cache-key'
 import type { MobileWebShellUpdateFailure } from './mobile-web-shell-update-failure'
 import {
@@ -47,18 +40,6 @@ export type GenerationStore = {
   abortStagedGeneration(staged: StagedGeneration): Promise<void>
   sweepStagedGenerations(): Promise<void>
   deleteHostCache(hostKey: string): Promise<void>
-  /**
-   * Rewrites the manifest stored beside a host's active generation, and nothing else.
-   *
-   * For the one edit that changes a manifest without changing a byte of the bundle: route grants
-   * are published under the build id of the assets they describe, so a same-build cache hit holds
-   * the right bytes under a manifest an edit behind. The stored manifest is what an unreachable
-   * host is judged by, so until it is rewritten every offline verdict lags.
-   */
-  persistActiveManifest(
-    hostKey: string,
-    manifest: MobileWebBundleManifestRead
-  ): Promise<ManifestPersistOutcome>
   /** Why an update read failed, kept for Troubleshoot. Never rejects: it is only evidence. */
   recordUpdateFailure(failure: MobileWebShellUpdateFailure): Promise<void>
   /** Oldest first; empty when nothing was recorded or the log cannot be read. */
@@ -162,12 +143,8 @@ export function createGenerationStore(options: {
     const only = directories.length === 1 ? directories[0] : null
     if (only !== null) {
       const directory = joinUri(generations, only.name)
-      // A persist interrupted anywhere leaves a pending manifest; finishing or discarding it here
-      // is what makes the swap crash-safe. Unsettleable is not a bad generation — the pending file
-      // may be the only manifest left — so nothing is deleted and the next read tries again.
-      if ((await settleManifestSwap(fs, directory, only.name)) === 'unsettled') {
-        return null
-      }
+      // Older builds could leave `manifest-next.json` from an interrupted rewrite. It is never read:
+      // beside `manifest.json` it is inert, and alone it drops the tree below for a redownload.
       let text: string | null
       try {
         text = await fs.readText(joinUri(directory, MANIFEST_FILE_NAME))
@@ -280,22 +257,6 @@ export function createGenerationStore(options: {
     return active
   }
 
-  async function persistManifest(
-    hostKey: string,
-    manifest: MobileWebBundleManifestRead
-  ): Promise<ManifestPersistOutcome> {
-    const active = await readActive(hostKey)
-    if (active === null) {
-      return 'refused-no-active-generation'
-    }
-    const refusal = refuseManifestPersist(active.manifest, manifest)
-    if (refusal !== null) {
-      return refusal
-    }
-    await swapInFreshManifest(fs, active.directory, manifest)
-    return 'persisted'
-  }
-
   async function sweep(): Promise<void> {
     // Every host's `tmp`, not just the one being opened: an interrupted download must not survive a
     // restart, and it may belong to a host this launch never selects.
@@ -331,8 +292,6 @@ export function createGenerationStore(options: {
       serialize(() => fs.delete(requireIssuedHandle(staged).directory)),
     sweepStagedGenerations: () => serialize(sweep),
     deleteHostCache: (hostKey) => serialize(() => deleteHost(hostKey)),
-    persistActiveManifest: (hostKey, manifest) =>
-      serialize(() => persistManifest(hostKey, manifest)),
     recordUpdateFailure: (failure) =>
       serialize(() => recordUpdateFailureIn(fs, failure)).catch(() => undefined),
     readUpdateFailures: () => serialize(() => readUpdateFailureLog(fs)),
@@ -370,7 +329,6 @@ function requireStorablePath(path: string): string {
   const storable =
     path.length > 0 &&
     folded !== MANIFEST_FILE_NAME &&
-    folded !== NEXT_MANIFEST_FILE_NAME &&
     !path.includes('\\') &&
     segments.every((segment) => segment !== '' && segment !== '.' && segment !== '..')
   if (!storable) {

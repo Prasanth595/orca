@@ -126,22 +126,16 @@ function onManifestRead(
     ...routeViewOf(manifest.routes, session.routePathname, session.wide),
     routes: manifest.routes
   }
-  // Same build id is the same bytes, because the id is their digest: a route-grant edit publishes
-  // the generation already on disk under a newer manifest. Read before this route's verdict,
-  // because that verdict is about this route while the manifest is the truth about the whole
-  // generation — a list that takes this screen native, or names a bundle this shell cannot open,
-  // still grants or revokes the other routes those assets serve, and what is stored beside them is
-  // the whole of the next offline verdict. The compat facts come across with the routes, so what
-  // the held generation records and what the persist writes to disk stay the one manifest.
+  // Same build id is the same bytes, because the id is their digest. The fresh routes and compat
+  // facts are held for this session only: rewriting the stored manifest raced the native view's read
+  // of it, so disk keeps the manifest the generation was downloaded with.
   const cached = session.cached
   const same: CachedGeneration | null =
     cached === null || cached.buildId !== manifest.buildId
       ? null
       : { ...cached, routes: manifest.routes, compat: manifest }
-  const persist: readonly MobileWebShellSessionEffect[] =
-    same === null ? [] : [{ kind: 'persist-manifest', manifest: manifest.wire }]
   if (!rendersRoute(view.pageRoutes, session.routePathname)) {
-    return step(session, { cached: same ?? cached, ...view, state: NATIVE_ROUTE }, persist)
+    return step(session, { cached: same ?? cached, ...view, state: NATIVE_ROUTE })
   }
   const verdict = evaluateMobileWebBundleCompat({
     hostCapabilities: gates.hostCapabilities,
@@ -149,14 +143,11 @@ function onManifestRead(
     manifest
   })
   if (verdict.kind === 'blocked') {
-    // The one same-build read that is not written, and the held generation keeps its own routes
-    // with it: disk holds the last manifest this shell accepted, and an offline entry skips the
-    // compat check. Writing one this shell has just walled would have the next offline entry open
-    // a page under the grants of a bundle it had declared it cannot read.
+    // The held generation keeps its own routes: a walled manifest's grants are never adopted.
     return step(session, { state: { kind: 'wall', verdict } })
   }
   if (same !== null) {
-    return openCached(session, same, { cached: same, ...view }, persist)
+    return openCached(session, same, { cached: same, ...view })
   }
   return step(
     session,

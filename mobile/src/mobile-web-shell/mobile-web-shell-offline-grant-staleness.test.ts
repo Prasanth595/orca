@@ -5,13 +5,9 @@ import type { MobileWebBundleManifestRead } from '../transport/mobile-web-bundle
 import type { MobileWebShellSessionState } from './mobile-web-shell-session-contract'
 
 /**
- * The whole of finding 7 on #21503, end to end and against a disk.
- *
- * A route-grant edit on the desktop moves no asset, so the bundle keeps its build id: the phone
- * holds the right bytes under a manifest an edit behind, and that stored manifest is the only
- * evidence an offline entry has. Every other suite here stops at one of the seams — the reducer's
- * effect list, or the store handed a manifest by a test — so none of them can tell whether the
- * effect the reducer emits reaches the file the next cold start reads.
+ * A route-grant edit on the desktop moves no asset, so the bundle keeps its build id. The phone
+ * uses the fresh grants for the online session but never rewrites the stored manifest, so an
+ * offline entry is judged by the grants the assets were downloaded with.
  *
  * So this one mounts the real hook over the real store over an in-memory disk, and the only doubles
  * are the network and the platform modules the runtime cannot load under vitest. What it measures
@@ -193,10 +189,8 @@ async function mountRoute(fileSystem: FakeGenerationFileSystem): Promise<Mounted
   if (tree === null) {
     throw new Error('the hook did not mount')
   }
-  // Nothing is awaited after the mount: every effect in this flow is microtask-only — a cache read,
-  // a manifest read and the write-through, none of them on a timer — so the `act` above drains the
-  // whole chain. A write that never reaches disk fails on the stale manifest below rather than on a
-  // wait, which is what makes this measure the write instead of the waiting.
+  // Nothing is awaited after the mount: every effect in this flow is microtask-only (a cache read
+  // and a manifest read, neither on a timer), so the `act` above drains the whole chain.
   return {
     unmount: async () => {
       await act(async () => {
@@ -228,51 +222,38 @@ describe('an offline cold start after a grant-only manifest edit', () => {
     doubles.manifest = null
   })
 
-  it('reads the grants the last online read accepted, not the ones the assets arrived with', async () => {
+  it('opens a same-build hit online without writing to the generation directory', async () => {
+    // The native view reads `manifest.json` while the page opens; a rewrite here raced that read.
     const fileSystem = createFakeGenerationFileSystem()
     await cacheGeneration(fileSystem, manifestGranting(GRANTS_A))
+    const stored = fileSystem.text(MANIFEST_PATH)
+    const generationPaths = () =>
+      fileSystem.paths().filter((path) => path.startsWith(`${HOST_KEY}/generations/`))
+    const paths = generationPaths()
+    const settled = fileSystem.writes.length
     doubles.manifest = M2
 
     const online = await mountRoute(fileSystem)
+
     expect(online.state()).toMatchObject({ kind: 'ready', buildId: BUILD_ID })
     expect(online.routeGrants()).toEqual(GRANTS_A_PLUS_B)
-    // The write-through reached the file, which is the step no other suite covers.
-    expect(storedRouteGrants(fileSystem)).toEqual([
-      { pathname: ROUTE_PATTERN, grants: GRANTS_A_PLUS_B }
-    ])
+    const generationWrites = fileSystem.writes
+      .slice(settled)
+      .filter((path) => path.startsWith(`${HOST_KEY}/generations/`))
+    expect(generationWrites).toEqual([])
+    expect(fileSystem.text(MANIFEST_PATH)).toBe(stored)
+    expect(generationPaths()).toEqual(paths)
     await online.unmount()
-
-    goOffline()
-    const offline = await mountRoute(fileSystem)
-
-    expect(offline.state()).toMatchObject({ kind: 'ready', buildId: BUILD_ID })
-    expect(offline.pageRoutes()).toEqual([ROUTE_PATTERN])
-    expect(offline.routeGrants()).toEqual(GRANTS_A_PLUS_B)
   })
 
-  it('drops a grant the desktop took away, rather than keeping it for as long as the host is gone', async () => {
-    // The direction that costs something to get wrong: a revoked capability the phone goes on
-    // exercising offline. Same mechanism, read the other way.
-    const fileSystem = createFakeGenerationFileSystem()
-    await cacheGeneration(fileSystem, manifestGranting(GRANTS_A_PLUS_B))
-    doubles.manifest = manifestGranting(GRANTS_A)
-
-    const online = await mountRoute(fileSystem)
-    expect(online.routeGrants()).toEqual(GRANTS_A)
-    await online.unmount()
-
-    goOffline()
-    const offline = await mountRoute(fileSystem)
-
-    expect(offline.state()).toMatchObject({ kind: 'ready', buildId: BUILD_ID })
-    expect(offline.routeGrants()).toEqual(GRANTS_A)
-  })
-
-  it('reads the grants the assets arrived with when no online read reached this phone', async () => {
-    // The discriminator, and what every offline verdict answered before the write-through: the same
-    // cold start over a generation the desktop's edit never got to.
+  it('reads the grants the assets arrived with, whatever a later online read accepted', async () => {
+    // The accepted tradeoff: offline verdicts use the routes stored at download time.
     const fileSystem = createFakeGenerationFileSystem()
     await cacheGeneration(fileSystem, manifestGranting(GRANTS_A))
+    doubles.manifest = M2
+    const online = await mountRoute(fileSystem)
+    expect(online.routeGrants()).toEqual(GRANTS_A_PLUS_B)
+    await online.unmount()
 
     goOffline()
     const offline = await mountRoute(fileSystem)
@@ -282,14 +263,7 @@ describe('an offline cold start after a grant-only manifest edit', () => {
   })
 })
 
-/**
- * The arm the write-through deliberately skips.
- *
- * A manifest this shell walled is one it has declared it cannot read, and an offline entry runs no
- * compat check. Writing it would have the next cold start open the page under the grants of a
- * bundle this shell had just refused — so disk keeps the last manifest this shell accepted, and the
- * offline verdict is the one that manifest decides.
- */
+/** A manifest this shell walled leaves disk alone, and the offline verdict is the stored one's. */
 describe('an offline cold start after a grant edit arrived under a wall', () => {
   beforeEach(() => {
     doubles.connection = { client: {}, state: 'connected' }
@@ -305,7 +279,6 @@ describe('an offline cold start after a grant edit arrived under a wall', () => 
 
     const walled = await mountRoute(fileSystem)
     expect(walled.state()).toMatchObject({ kind: 'wall' })
-    // Nothing was written at all, so not even the pending half of a swap is on disk.
     expect(fileSystem.writes).toHaveLength(settled)
     expect(storedRouteGrants(fileSystem)).toEqual([{ pathname: ROUTE_PATTERN, grants: GRANTS_A }])
     await walled.unmount()
