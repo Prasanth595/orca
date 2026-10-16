@@ -48,7 +48,6 @@ import type { WorktreeVisibilityDefaults } from './repo-types'
 
 export type { WorktreeVisibilityDefaults } from './repo-types'
 
-
 type GlobalSettingsBase = NativeChatGlobalSettings & DeletePrefs & EditorGlobalSettings
 
 export type GlobalSettings = GlobalSettingsBase & {
