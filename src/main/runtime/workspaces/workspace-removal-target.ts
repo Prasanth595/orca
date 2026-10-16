@@ -238,11 +238,8 @@ export abstract class OrcaRuntimeWithResolveWorktreeRemovalTarget extends OrcaRu
           }
         }
       }
-      // Why: without a renderer the rename only lived on the live pty and was
-      // lost on restart. Persist customTitle so a headless rebuild keeps it.
-      if (!this.notifier?.renameTerminal && pty.pty.tabId) {
-        this.persistHeadlessTerminalTitle(pty.pty.worktreeId, pty.pty.tabId, normalizedTitle)
-      }
+      // Why: a window notifier only renames the open tab. The session alias still
+      // has to be stored, or Agent History loses the name after the tab closes.
       for (const leaf of this.leaves.values()) {
         if (leaf.ptyId === pty.pty.ptyId) {
           const inMemoryTab = this.tabs.get(leaf.tabId)
@@ -252,14 +249,17 @@ export abstract class OrcaRuntimeWithResolveWorktreeRemovalTarget extends OrcaRu
               inMemoryTab.title = normalizedTitle
             }
           }
+          this.persistHeadlessTerminalTitle(pty.pty.worktreeId, leaf.tabId, normalizedTitle)
+          this.rememberTerminalSessionTitle(leaf.tabId, handle, normalizedTitle)
           this.notifier?.renameTerminal(leaf.tabId, normalizedTitle)
           return { handle, tabId: leaf.tabId, title: normalizedTitle }
         }
       }
       // A notifier can exist before its pane graph; retain the rename on the known tab.
-      if (this.notifier?.renameTerminal && tabId) {
+      if (tabId) {
         this.persistHeadlessTerminalTitle(pty.pty.worktreeId, tabId, normalizedTitle)
-        this.notifier.renameTerminal(tabId, normalizedTitle)
+        this.rememberTerminalSessionTitle(tabId, handle, normalizedTitle)
+        this.notifier?.renameTerminal(tabId, normalizedTitle)
       }
       return { handle, tabId, title: normalizedTitle }
     }
@@ -273,6 +273,7 @@ export abstract class OrcaRuntimeWithResolveWorktreeRemovalTarget extends OrcaRu
       this.touchMobileSessionSnapshotsForPty(boundPty.ptyId)
     }
     this.persistHeadlessTerminalTitle(leaf.worktreeId, leaf.tabId, normalizedTitle)
+    this.rememberTerminalSessionTitle(leaf.tabId, handle, normalizedTitle)
     this.notifier?.renameTerminal(leaf.tabId, normalizedTitle)
     this.touchMobileSessionTabsForWorktree(leaf.worktreeId, { immediate: true })
     return { handle, tabId: leaf.tabId, title: normalizedTitle }

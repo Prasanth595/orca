@@ -72,15 +72,17 @@ export type MobileAiVaultResumeLaunch = {
   envToDelete?: string[]
   launchConfig?: SleepingAgentLaunchConfig
   launchAgent?: TuiAgent
+  title?: string | null
 }
 
 export function buildMobileAiVaultResumeLaunch(args: {
   session: Pick<AiVaultSession, 'agent' | 'sessionId' | 'cwd' | 'codexHome'> &
-    Partial<Pick<AiVaultSession, 'filePath'>>
+    Partial<Pick<AiVaultSession, 'filePath' | 'customTitle' | 'title'>>
   hostPlatform: NodeJS.Platform
   hostTerminalWindowsShell?: string | null
   settings?: MobileAiVaultResumeSettings | null
 }): MobileAiVaultResumeLaunch {
+  const title = args.session.customTitle || args.session.title || null
   const shell =
     args.hostPlatform === 'win32'
       ? resolveWindowsShellStartupFamily(args.hostTerminalWindowsShell)
@@ -129,7 +131,8 @@ export function buildMobileAiVaultResumeLaunch(args: {
         // real-home override must strip Codex homes at pane spawn like desktop.
         ...realHomeCodexResumeEnvDeletion(args.session),
         launchConfig: startupPlan.launchConfig,
-        launchAgent: startupPlan.agent
+        launchAgent: startupPlan.agent,
+        title
       }
     }
   }
@@ -140,7 +143,8 @@ export function buildMobileAiVaultResumeLaunch(args: {
       hostTerminalWindowsShell: args.hostTerminalWindowsShell,
       commandOverride
     }),
-    ...realHomeCodexResumeEnvDeletion(args.session)
+    ...realHomeCodexResumeEnvDeletion(args.session),
+    title
   }
 }
 
@@ -185,6 +189,7 @@ export async function resumeAiVaultSessionInTerminal(
       ...(launch.envToDelete ? { envToDelete: launch.envToDelete } : {}),
       ...(launch.launchConfig ? { launchConfig: launch.launchConfig } : {}),
       ...(launch.launchAgent ? { launchAgent: launch.launchAgent } : {}),
+      ...(launch.title ? { title: launch.title } : {}),
       ...(launch.clientMutationId ? { clientMutationId: launch.clientMutationId } : {}),
       activate: false,
       select: true,

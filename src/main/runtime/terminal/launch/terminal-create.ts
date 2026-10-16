@@ -6,6 +6,7 @@ import { createIdempotentCallback } from '../../orca-runtime-report-pty-spawn-co
 import { recordPtySurface, spawnSurfaceClaimSequence } from '../../pty-recorded-surface-topology'
 import { agentLaunchTokenFor } from '../../../agent-launch/agent-launch-token'
 import { migratedPaneRestoreHint } from '../../migrated-pane-restore-cwd'
+import { applyCreatedTerminalTitle } from '../../runtime-terminal-spawn-placement'
 
 export abstract class OrcaRuntimeWithCreateTerminal extends OrcaRuntimeWithTerminalCreateDeduplication {
   async createTerminal(
@@ -229,15 +230,15 @@ export abstract class OrcaRuntimeWithCreateTerminal extends OrcaRuntimeWithTermi
         const pty = this.getOrCreatePtyWorktreeRecord(result.id)
         if (pty) {
           pty.runtimeSessionOwned = true
+          pty.providerSessionId =
+            launchOpts.resumeProviderSession?.id ?? launchOpts.sessionId ?? null
           if (!adoptedStablePane) {
-            if (launchOpts.title) {
-              const observedAt = this.nextTitleObservationSequence()
-              pty.title = launchOpts.title
-              pty.titleUpdatedAt = observedAt
-              this.setPtyManagementTitleFromObservedTitle(pty, launchOpts.title, observedAt)
-            } else {
-              pty.title = null
-              pty.titleUpdatedAt = null
+            const titled = applyCreatedTerminalTitle(pty, launchOpts.title, (sessionId) =>
+              this.getSessionCustomTitle(sessionId)
+            )
+            if (titled) {
+              pty.titleUpdatedAt = this.nextTitleObservationSequence()
+              this.setPtyManagementTitleFromObservedTitle(pty, titled, pty.titleUpdatedAt)
             }
             pty.launchConfig = effectiveLaunchConfig
               ? dependencies.copySleepingAgentLaunchConfig(effectiveLaunchConfig)
@@ -253,7 +254,7 @@ export abstract class OrcaRuntimeWithCreateTerminal extends OrcaRuntimeWithTermi
           this.publishPtyBackedMobileSessionTerminal(workspace.id, pty, {
             tabId,
             leafId,
-            title: launchOpts.title ?? null,
+            title: pty.customTitle ?? launchOpts.title ?? null,
             activate: presentation === 'focused',
             selectIfNoActiveTab: presentation !== 'background',
             ...(launchOpts.viewMode ? { viewMode: launchOpts.viewMode } : {}),
@@ -266,7 +267,7 @@ export abstract class OrcaRuntimeWithCreateTerminal extends OrcaRuntimeWithTermi
           try {
             await this.notifier.revealTerminalSession(workspace.id, {
               ptyId: result.id,
-              title: launchOpts.title ?? null,
+              title: pty?.customTitle ?? launchOpts.title ?? null,
               ...(cwd !== workspace.path ? { cwd } : {}),
               ...(effectiveLaunchConfig ? { launchConfig: effectiveLaunchConfig } : {}),
               ...(launchToken ? { launchToken } : {}),
