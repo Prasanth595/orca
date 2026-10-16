@@ -88,7 +88,8 @@ export async function scanNestedRepos(args: {
   if (selectedPathIsGitRepo && !options.scanInsideGitRepo) {
     return buildResult('git_repo')
   }
-  if (selectedPathIsGitRepo) {
+  // A plain folder inside a repo passes `rev-parse` but is not a root; listing it only yields denied status calls.
+  if (selectedPathIsGitRepo && (await filesystem.hasGitMarker(args.path))) {
     repos.push({
       path: args.path,
       displayName: filesystem.basename(args.path),

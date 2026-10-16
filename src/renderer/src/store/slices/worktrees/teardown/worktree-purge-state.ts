@@ -1,3 +1,5 @@
+import { nestedStatusKeysForWorktrees } from '@/lib/nested-status-key'
+import { omitRecordKeys } from './record-key-omission'
 import type { AppState } from '../../../types'
 import type { WorktreePurgeTarget, WorktreePurgeTargets } from '../../worktree-helpers'
 import { forgetHugeRepoWarningDismissalsForWorktrees } from '@/lib/source-control-huge-repo-warning-dismissals'
@@ -224,7 +226,10 @@ export function buildWorktreePurgeState(
     // Git status caches
     gitStatusByWorktree: omitByWorktree(s.gitStatusByWorktree),
     // Why: keyed by worktreeId; re-keyed on rename but missed by both removal paths (upstream-status entry).
-    remoteStatusesByWorktree: omitByWorktree(s.remoteStatusesByWorktree),
+    remoteStatusesByWorktree: omitRecordKeys(s.remoteStatusesByWorktree, [
+      ...worktreeIdSet,
+      ...nestedStatusKeysForWorktrees(s.remoteStatusesByWorktree, worktreeIdSet)
+    ]),
     gitStatusHeadByWorktree: omitByWorktree(s.gitStatusHeadByWorktree),
     gitBranchLineTotalByWorktree: omitByWorktree(s.gitBranchLineTotalByWorktree),
     gitIgnoredPathsByWorktree: omitByWorktree(s.gitIgnoredPathsByWorktree),

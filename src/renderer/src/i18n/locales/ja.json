@@ -14457,6 +14457,7 @@
             "addProject": "新規プロジェクトを追加",
             "label": "プロジェクト",
             "browse": "プロジェクトを参照",
+            "openReview": "PR を開く",
             "listLabel": "プロジェクト",
             "noProjects": "まだプロジェクトがありません。"
           },
@@ -19511,6 +19512,7 @@
     "nestedFolder": {
       "workspaceRoot": "このワークスペース",
       "pickTitle": "フォルダ内の Git リポジトリを表示",
+      "browse": "参照…",
       "clear": "フォルダをクリア",
       "scanning": "Git リポジトリを検索しています…",
       "empty": "このフォルダに Git リポジトリはありません",

@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
+import { nestedStatusKey } from '@/lib/nested-status-key'
 import { useSourceControlDiffCommentNotes } from '../notes/use-diff-comment-notes'
-import { useNestedFolderScope } from '../nested/use-nested-folder-scope'
+import type { NestedRepoTarget } from '../nested/use-nested-folder-scope'
 import { useSourceControlStoreActions } from '../listing/use-store-actions'
 import { useSourceControlWorktreeContext } from '../listing/use-worktree-context'
 import { useSourceControlBranchLineTotalGate } from '../sync/use-branch-line-total-gate'
@@ -12,8 +13,8 @@ import { useSourceControlWorktreeOperationState } from './use-worktree-operation
  * The panel's ground floor: what worktree/repo is active, the store actions it drives, and the
  * state it owns itself. Everything else in the panel is derived from this.
  */
-export function useSourceControlPanelState() {
-  const context = useSourceControlWorktreeContext()
+export function useSourceControlPanelState(nestedTarget?: NestedRepoTarget) {
+  const context = useSourceControlWorktreeContext(nestedTarget?.path)
   const storeActions = useSourceControlStoreActions()
   const {
     activeConnectionId,
@@ -44,17 +45,16 @@ export function useSourceControlPanelState() {
   const operationState = useSourceControlWorktreeOperationState({
     activeWorktreeId,
     conflictOperationsByWorktree,
-    worktreeMap
-  })
-  const nestedFolderScope = useNestedFolderScope({
-    worktreeId: activeWorktreeId,
-    worktreePath,
-    connectionId: activeConnectionId
+    worktreeMap,
+    nestedDraftKey:
+      nestedTarget && activeWorktreeId
+        ? nestedStatusKey(activeWorktreeId, nestedTarget.path)
+        : undefined
   })
   useSourceControlBranchLineTotalGate({
     activeWorktreeId,
     branchSummary,
-    isBranchVisible,
+    isBranchVisible: isBranchVisible && !nestedTarget,
     isFolder
   })
   const statusRefresh = useSourceControlStatusRefresh({
@@ -68,28 +68,28 @@ export function useSourceControlPanelState() {
     activeWorktreeInstanceId,
     worktreeMap
   })
-  const nestedGitTarget = nestedFolderScope.gitTargetPath
-  const refreshNestedFolder = nestedFolderScope.refreshAll
+  const nestedGitTarget = nestedTarget?.path ?? null
+  const refreshNestedFolder = nestedTarget?.refresh
   const refreshParentGitStatus = statusRefresh.refreshActiveGitStatusAfterMutation
   const refreshActiveGitStatusAfterMutation = useCallback(async (): Promise<void> => {
-    await Promise.all([refreshParentGitStatus(), refreshNestedFolder()])
+    await Promise.all([refreshParentGitStatus(), refreshNestedFolder?.()])
   }, [refreshNestedFolder, refreshParentGitStatus])
 
   return {
     ...context,
+    isNestedRepo: Boolean(nestedTarget),
     ...storeActions,
     ...notes,
     ...viewState,
     ...operationState,
     ...statusRefresh,
     refreshActiveGitStatusAfterMutation,
-    nestedFolderScope,
-    sourceControlWorkspacePath: worktreePath,
     worktreePath: nestedGitTarget ?? worktreePath,
-    entries: nestedFolderScope.gitTargetEntries ?? context.entries,
-    branchName: nestedFolderScope.gitTargetBranch ?? context.branchName,
-    hasUncommittedEntries: nestedGitTarget
-      ? (nestedFolderScope.gitTargetEntries?.length ?? 0) > 0
+    filterQuery: nestedTarget?.filterQuery ?? viewState.filterQuery,
+    entries: nestedTarget?.entries ?? context.entries,
+    branchName: nestedTarget?.branch ?? context.branchName,
+    hasUncommittedEntries: nestedTarget
+      ? nestedTarget.entries.length > 0
       : context.hasUncommittedEntries,
     branchEntries: nestedGitTarget ? [] : context.branchEntries,
     branchSummary: nestedGitTarget ? null : context.branchSummary,

@@ -14457,6 +14457,7 @@
             "addProject": "添加新项目",
             "label": "项目",
             "browse": "浏览项目",
+            "openReview": "打开 PR",
             "listLabel": "项目",
             "noProjects": "尚无项目。"
           },
@@ -19511,6 +19512,7 @@
     "nestedFolder": {
       "workspaceRoot": "当前工作区",
       "pickTitle": "显示文件夹中的 Git 仓库",
+      "browse": "浏览…",
       "clear": "清除文件夹",
       "scanning": "正在查找 Git 仓库…",
       "empty": "此文件夹中没有 Git 仓库",

@@ -10,11 +10,20 @@ import {
 
 const folderPathByWorktree = new Map<string, string>()
 const STATUS_CONCURRENCY = 4
+const STATUS_POLL_MS = 5000
 
 export type NestedRepoStatus = {
   repo: NestedRepoCandidate
   status: GitStatusResult | null
   error: string | null
+}
+
+export type NestedRepoTarget = {
+  path: string
+  entries: GitStatusEntry[]
+  branch: string
+  refresh: () => Promise<void>
+  filterQuery?: string
 }
 
 export type NestedFolderScope = {
@@ -30,6 +39,7 @@ export type NestedFolderScope = {
   setFolderPath: (path: string | null) => void
   selectRepo: (path: string) => void
   refreshAll: () => Promise<void>
+  listRepoFolders: () => Promise<string[]>
 }
 
 async function mapWithConcurrency<T, R>(
@@ -37,7 +47,7 @@ async function mapWithConcurrency<T, R>(
   limit: number,
   mapper: (item: T) => Promise<R>
 ): Promise<R[]> {
-  const results = Array.from({ length: items.length }) as R[]
+  const results: R[] = []
   let nextIndex = 0
   const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
     while (nextIndex < items.length) {
@@ -47,6 +57,25 @@ async function mapWithConcurrency<T, R>(
   })
   await Promise.all(workers)
   return results
+}
+
+async function readRepoStatus(
+  repo: NestedRepoCandidate,
+  connectionId: string | null
+): Promise<NestedRepoStatus> {
+  try {
+    const status = await window.api.git.status({
+      worktreePath: repo.path,
+      ...(connectionId ? { connectionId } : {})
+    })
+    return { repo, status, error: null }
+  } catch (error) {
+    return {
+      repo,
+      status: null,
+      error: error instanceof Error ? error.message : 'Failed to read git status'
+    }
+  }
 }
 
 export function useNestedFolderScope({
@@ -68,14 +97,15 @@ export function useNestedFolderScope({
   const [scanError, setScanError] = useState<string | null>(null)
   const requestGeneration = useRef(0)
 
-  useEffect(() => {
-    const restored = worktreeId ? (folderPathByWorktree.get(worktreeId) ?? null) : null
-    setFolderPathState(restored)
+  const [trackedWorktreeId, setTrackedWorktreeId] = useState(worktreeId)
+  if (trackedWorktreeId !== worktreeId) {
+    setTrackedWorktreeId(worktreeId)
+    setFolderPathState(worktreeId ? (folderPathByWorktree.get(worktreeId) ?? null) : null)
     setRepos([])
     setStatuses([])
     setSelectedRepoPath(null)
     setScanError(null)
-  }, [worktreeId])
+  }
 
   const setFolderPath = useCallback(
     (path: string | null) => {
@@ -123,24 +153,8 @@ export function useNestedFolderScope({
       }
       const discovered = scan.repos
       setRepos(discovered)
-      const nextStatuses = await mapWithConcurrency(
-        discovered,
-        STATUS_CONCURRENCY,
-        async (repo) => {
-          try {
-            const status = await window.api.git.status({
-              worktreePath: repo.path,
-              ...(connectionId ? { connectionId } : {})
-            })
-            return { repo, status, error: null }
-          } catch (error) {
-            return {
-              repo,
-              status: null,
-              error: error instanceof Error ? error.message : 'Failed to read git status'
-            }
-          }
-        }
+      const nextStatuses = await mapWithConcurrency(discovered, STATUS_CONCURRENCY, (repo) =>
+        readRepoStatus(repo, connectionId)
       )
       if (generation !== requestGeneration.current) {
         return
@@ -173,6 +187,45 @@ export function useNestedFolderScope({
     void refreshAll()
   }, [refreshAll])
 
+  const reposRef = useRef(repos)
+  reposRef.current = repos
+  // Repo list is stable between scans; re-read only status so terminal edits show up.
+  useEffect(() => {
+    if (!folderPath) {
+      return
+    }
+    const timer = window.setInterval(() => {
+      if (document.hidden || reposRef.current.length === 0) {
+        return
+      }
+      const generation = requestGeneration.current
+      void mapWithConcurrency(reposRef.current, STATUS_CONCURRENCY, (repo) =>
+        readRepoStatus(repo, connectionId)
+      ).then((next) => {
+        if (generation === requestGeneration.current) {
+          setStatuses(next)
+        }
+      })
+    }, STATUS_POLL_MS)
+    return () => window.clearInterval(timer)
+  }, [connectionId, folderPath])
+
+  // Folders directly containing repos, so the picker can offer them without a native dialog.
+  const listRepoFolders = useCallback(async (): Promise<string[]> => {
+    if (!worktreePath) {
+      return []
+    }
+    const scan = await window.api.projectGroups.scanNested({
+      path: worktreePath,
+      ...(connectionId ? { connectionId } : {}),
+      options: { ...NESTED_REPO_SCAN_OPTIONS }
+    })
+    const parents = scan.repos
+      .map((repo) => repo.path.replace(/[\\/][^\\/]+$/, ''))
+      .filter((dir) => dir !== worktreePath && folderPathIsInsideWorktree(worktreePath, dir))
+    return [...new Set(parents)].sort()
+  }, [connectionId, worktreePath])
+
   const selectedStatus = useMemo(
     () => statuses.find((entry) => entry.repo.path === selectedRepoPath) ?? null,
     [selectedRepoPath, statuses]
@@ -190,6 +243,7 @@ export function useNestedFolderScope({
     gitTargetBranch: selectedStatus?.status?.branch ?? null,
     setFolderPath,
     selectRepo: setSelectedRepoPath,
-    refreshAll
+    refreshAll,
+    listRepoFolders
   }
 }

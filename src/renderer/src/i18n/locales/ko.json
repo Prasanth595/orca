@@ -14457,6 +14457,7 @@
             "addProject": "새 프로젝트 추가",
             "label": "프로젝트",
             "browse": "프로젝트 검색",
+            "openReview": "PR 열기",
             "listLabel": "프로젝트",
             "noProjects": "아직 프로젝트가 없습니다."
           },
@@ -19511,6 +19512,7 @@
     "nestedFolder": {
       "workspaceRoot": "이 워크스페이스",
       "pickTitle": "폴더 안의 Git 저장소 표시",
+      "browse": "찾아보기…",
       "clear": "폴더 지우기",
       "scanning": "Git 저장소를 찾는 중…",
       "empty": "이 폴더에 Git 저장소가 없습니다",
