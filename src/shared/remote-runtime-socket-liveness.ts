@@ -82,7 +82,11 @@ export function startRemoteRuntimeSocketLiveness(args: {
       tryPing()
     }
   }, pingIntervalMs)
-  unrefTimer(timer)
+  // Why: mobile typechecks shared code with DOM timer types where unref is absent.
+  const unrefable = timer as unknown as { unref?: () => void }
+  if (typeof unrefable.unref === 'function') {
+    unrefable.unref()
+  }
 
   function stop(): void {
     if (stopped) {
@@ -121,7 +125,16 @@ export function startRemoteRuntimeSocketLiveness(args: {
       stop()
       args.onDead()
     }, deadlineMs)
-    unrefTimer(resumeProbeTimer)
+    // Why: mobile typechecks shared code with DOM timer types where unref is absent.
+    const timer: unknown = resumeProbeTimer
+    if (
+      typeof timer === 'object' &&
+      timer !== null &&
+      'unref' in timer &&
+      typeof timer.unref === 'function'
+    ) {
+      timer.unref()
+    }
   }
 
   function tryPing(): boolean {
@@ -143,16 +156,4 @@ export function startRemoteRuntimeSocketLiveness(args: {
   }
   activeMonitors.add(monitor)
   return monitor
-}
-
-// Mobile timers are numbers; Node timers can release their event-loop hold.
-function unrefTimer(timer: unknown): void {
-  if (
-    typeof timer === 'object' &&
-    timer !== null &&
-    'unref' in timer &&
-    typeof timer.unref === 'function'
-  ) {
-    timer.unref()
-  }
 }
