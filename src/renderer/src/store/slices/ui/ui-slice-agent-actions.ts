@@ -26,6 +26,9 @@ export function createUiAgentActions(
   | 'toggleSidebar'
   | 'setSidebarOpen'
   | 'setSidebarWidth'
+  | 'terminalFullscreen'
+  | 'enterTerminalFullscreen'
+  | 'exitTerminalFullscreen'
   | 'agentSendPopoverTargetMode'
   | 'openAgentSendPopoverTargetMode'
   | 'closeAgentSendPopoverTargetMode'
@@ -45,9 +48,20 @@ export function createUiAgentActions(
     ...createUiActivityActions(set, get),
     sidebarOpen: true,
     sidebarWidth: 280,
-    toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
-    setSidebarOpen: (open) => set({ sidebarOpen: open }),
+    // Why: a fullscreen terminal hides the sidebar, so the toggle ends fullscreen and shows it.
+    toggleSidebar: () =>
+      set((s) =>
+        s.terminalFullscreen
+          ? { terminalFullscreen: null, sidebarOpen: true }
+          : { sidebarOpen: !s.sidebarOpen }
+      ),
+    setSidebarOpen: (open) =>
+      set(open ? { sidebarOpen: true, terminalFullscreen: null } : { sidebarOpen: false }),
     setSidebarWidth: (width) => set({ sidebarWidth: width }),
+    terminalFullscreen: null,
+    enterTerminalFullscreen: (target) => set({ terminalFullscreen: target }),
+    exitTerminalFullscreen: () =>
+      set((s) => (s.terminalFullscreen ? { terminalFullscreen: null } : s)),
     agentSendPopoverTargetMode: null,
     openAgentSendPopoverTargetMode: (args) => {
       const targets = deriveRunningAgentSendTargets(get(), args.worktreeId)

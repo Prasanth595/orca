@@ -45,6 +45,7 @@ export function TerminalPaneSurface({
     agentSessionContinuation,
     agentSessionFork,
     beginPaneDragFromHeader,
+    canToggleFullscreen,
     closeTerminalLinkActions,
     contextMenu,
     contextMenuCanContinueInNewSession,
@@ -76,6 +77,7 @@ export function TerminalPaneSurface({
     managerRef,
     menuAgentSessionId,
     menuPaneHasCustomTitle,
+    menuPaneIsFullscreen,
     openDiskSpaceAnalyzer,
     openQuickCommandEditor,
     paneCount,
@@ -115,6 +117,7 @@ export function TerminalPaneSurface({
     terminalContentVisible,
     terminalLinkActionRequest,
     titleUsesLightSurface,
+    toggleFullscreen,
     visibleQuickCommandHosts,
     visibleLaunchRefusal,
     visibleTerminalError,
@@ -294,6 +297,9 @@ export function TerminalPaneSurface({
             : openQuickCommandEditor({ type: 'global' }, hostId)
         }
         onToggleExpand={contextMenu.onToggleExpand}
+        canToggleFullscreen={canToggleFullscreen}
+        menuPaneIsFullscreen={menuPaneIsFullscreen}
+        onToggleFullscreen={toggleFullscreen}
         onSetTitle={contextMenu.onSetTitle}
         onClearPaneTitle={contextMenu.onClearPaneTitle}
         canClearPaneTitle={menuPaneHasCustomTitle}

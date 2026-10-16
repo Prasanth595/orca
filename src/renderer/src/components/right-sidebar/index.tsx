@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { PanelRight } from 'lucide-react'
 import { useAppStore } from '@/store'
+import { selectRightSidebarShown } from '@/store/terminal-fullscreen-chrome'
 import { cn } from '@/lib/utils'
 import { useSidebarResize } from '@/hooks/useSidebarResize'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
@@ -36,11 +37,13 @@ function RightSidebarInner(): React.JSX.Element {
     isWebClient: isPairedWebClientWindow()
   })
   const rightSidebarShortcut = useShortcutLabel('sidebar.right.toggle')
-  const rightSidebarOpen = useAppStore((s) => s.rightSidebarOpen)
+  const rightSidebarOpen = useAppStore(selectRightSidebarShown)
   const rightSidebarWidth = useAppStore((s) => s.rightSidebarWidth)
   const setRightSidebarWidth = useAppStore((s) => s.setRightSidebarWidth)
   const toggleRightSidebar = useAppStore((s) => s.toggleRightSidebar)
-  const checksStatus = useAppStore((s) => (s.rightSidebarOpen ? getActiveChecksStatus(s) : null))
+  const checksStatus = useAppStore((s) =>
+    selectRightSidebarShown(s) ? getActiveChecksStatus(s) : null
+  )
   const activityBarPosition = useAppStore((s) => s.activityBarPosition)
   const setActivityBarPosition = useAppStore((s) => s.setActivityBarPosition)
   const [topActivityStripWidth, setTopActivityStripWidth] = useState<number | null>(null)

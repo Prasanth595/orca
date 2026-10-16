@@ -3453,6 +3453,8 @@
             "c2f0b72b8d": "Insert",
             "925f49f210": "Expand Pane",
             "df766809e0": "Collapse Pane",
+            "fullscreen": "Fullscreen",
+            "exitFullscreen": "Exit Fullscreen",
             "cff67afad1": "Copy Context",
             "15dd899676": "Add to {{value0}}…"
           },

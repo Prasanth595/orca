@@ -16,6 +16,7 @@ import { TelemetryFirstLaunchSurface } from '../components/TelemetryFirstLaunchS
 import { ZoomOverlay } from '../components/ZoomOverlay'
 import { shouldRenderPetOverlay } from '../components/pet/pet-overlay-visibility'
 import { useAppStore } from '../store'
+import { selectStatusBarShown } from '../store/terminal-fullscreen-chrome'
 import type { UpdateStatus } from '../../../shared/update-status-types'
 import { useLazyModalMounts } from './use-lazy-modal-mounts'
 import {
@@ -140,7 +141,7 @@ export function AppRootSurfaces(props: {
   const voiceEnabled = useAppStore(selectAppRootSurfaceVoiceEnabled)
   const petEnabled = useAppStore(selectAppRootSurfacePetEnabled)
   const telemetryOptedIn = useAppStore(selectAppRootSurfaceTelemetryOptedIn)
-  const statusBarVisible = useAppStore((s) => s.statusBarVisible)
+  const statusBarVisible = useAppStore(selectStatusBarShown)
   const persistedUIReady = useAppStore((s) => s.persistedUIReady)
   const petVisible = useAppStore((s) => s.petVisible)
   const dictationState = useAppStore((s) => s.dictationState)

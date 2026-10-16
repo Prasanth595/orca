@@ -72,6 +72,7 @@ export function createUiFeatureActions(set: UISliceSet, get: UISliceGet): Partia
           return {
             featureInteractions: next,
             sidebarOpen: true,
+            terminalFullscreen: null,
             activeContextualTourStepIndex: s.activeContextualTourStepIndex + 1
           }
         }

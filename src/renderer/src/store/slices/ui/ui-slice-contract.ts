@@ -15,6 +15,7 @@ export type {
   PendingSidebarRowReveal,
   PendingSidebarWorktreeReveal,
   TaskPageData,
+  TerminalFullscreenTarget,
   UISliceCore,
   UiViewHistory
 } from './ui-slice-contract-core'

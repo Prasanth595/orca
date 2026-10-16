@@ -22,6 +22,10 @@ import { useAppStore } from '@/store'
 import { makePaneKey } from '../../../../shared/stable-pane-id'
 import { resolvePaneAgentSessionId } from './pane-agent-session-id'
 import { canPaneOfferResumeInNewChat } from '../tab-bar/tab-session-history-switch'
+import {
+  canOfferTerminalFullscreen,
+  selectTerminalFullscreenLeafId
+} from './terminal-pane-fullscreen'
 
 export function useTerminalPaneProjection(controller: TerminalPaneMobileController) {
   const {
@@ -37,6 +41,7 @@ export function useTerminalPaneProjection(controller: TerminalPaneMobileControll
     isActive,
     isChatEligibleForLeaf,
     isChatViewMode,
+    isolatedPaneKey,
     isVisible,
     managerRef,
     toggleNativeChatForLeaf,
@@ -177,23 +182,37 @@ export function useTerminalPaneProjection(controller: TerminalPaneMobileControll
   // The menu switcher gates on the leaf it opened over, so mixed splits show it only where chat can render.
   const contextMenuCanToggleChat = canToggleChatForLeaf(contextMenuLeafId)
   const activeLeafId = activePane?.leafId ?? null
-  // One subscription for both reads keeps the pane inside its store listener budget.
-  const { menuAgentSessionId, activePaneCanResumeInChat } = useAppStore(
-    useShallow((state) => ({
-      menuAgentSessionId:
-        contextMenu.open && contextMenuLeafId
-          ? resolvePaneAgentSessionId(state, makePaneKey(tabId, contextMenuLeafId))
-          : null,
-      // Cheap stand-in for the tab menu's gate, on this pane's own conversation; the click looks it up.
-      activePaneCanResumeInChat:
-        !activePaneIsChatLeaf &&
-        activeLeafId !== null &&
-        canPaneOfferResumeInNewChat(state, {
+  // One subscription for these reads keeps the pane inside its store listener budget.
+  const { menuAgentSessionId, activePaneCanResumeInChat, canToggleFullscreen, fullscreenLeafId } =
+    useAppStore(
+      useShallow((state) => ({
+        menuAgentSessionId:
+          contextMenu.open && contextMenuLeafId
+            ? resolvePaneAgentSessionId(state, makePaneKey(tabId, contextMenuLeafId))
+            : null,
+        // Cheap stand-in for the tab menu's gate, on this pane's own conversation; the click looks it up.
+        activePaneCanResumeInChat:
+          !activePaneIsChatLeaf &&
+          activeLeafId !== null &&
+          canPaneOfferResumeInNewChat(state, {
+            worktreeId,
+            paneKey: makePaneKey(tabId, activeLeafId)
+          }),
+        canToggleFullscreen:
+          contextMenu.open &&
+          canOfferTerminalFullscreen({
+            activeView: state.activeView,
+            activeWorktreeId: state.activeWorktreeId,
+            worktreeId,
+            isolatedPaneKey
+          }),
+        fullscreenLeafId: selectTerminalFullscreenLeafId(
+          state.terminalFullscreen,
           worktreeId,
-          paneKey: makePaneKey(tabId, activeLeafId)
-        })
-    }))
-  )
+          tabId
+        )
+      }))
+    )
   const contextMenuIsChatView = effectiveChatViewMode && contextMenuLeafId === chatLeafId
   const handleContextMenuToggleNativeChat = useCallback(() => {
     const leafId = getContextMenuLeafId()
@@ -230,7 +249,9 @@ export function useTerminalPaneProjection(controller: TerminalPaneMobileControll
     activePaneCanResumeInChat,
     contextMenuCanToggleChat,
     contextMenuIsChatView,
-    handleContextMenuToggleNativeChat
+    handleContextMenuToggleNativeChat,
+    canToggleFullscreen,
+    fullscreenLeafId
   }
 }
 

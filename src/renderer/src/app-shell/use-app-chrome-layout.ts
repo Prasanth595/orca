@@ -8,6 +8,11 @@ import { shouldShowWorktreeCreationSurface } from '@/lib/worktree-creation-surfa
 import { useAppStore } from '../store'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../shared/constants'
 import { selectActiveTerminalChromeState } from '../store/active-terminal-chrome-selector'
+import {
+  selectLeftSidebarShown,
+  selectRightSidebarShown,
+  selectStatusBarShown
+} from '../store/terminal-fullscreen-chrome'
 import { useSystemPrefersDark } from '../components/terminal-pane/use-system-prefers-dark'
 import {
   hasRequestedBackgroundTerminalWorktreeMount,
@@ -22,8 +27,9 @@ export type AppChromeLayout = ReturnType<typeof useAppChromeLayout>
  */
 export function useAppChromeLayout() {
   const activeView = useAppStore((s) => s.activeView)
-  const sidebarOpen = useAppStore((s) => s.sidebarOpen)
-  const rightSidebarOpen = useAppStore((s) => s.rightSidebarOpen)
+  const sidebarOpen = useAppStore(selectLeftSidebarShown)
+  const rightSidebarOpen = useAppStore(selectRightSidebarShown)
+  const statusBarShown = useAppStore(selectStatusBarShown)
   const rightSidebarTab = useAppStore((s) => s.rightSidebarTab)
   const rightSidebarExplorerView = useAppStore((s) => s.rightSidebarExplorerView)
   const isFullScreen = useAppStore((s) => s.isFullScreen)
@@ -93,10 +99,10 @@ export function useAppChromeLayout() {
     sidebarOpen
   })
 
-  // Why: useLayoutEffect fires before paint, so dispatching SYNC_FIT_PANES_EVENT reflows the terminal in the same frame as the width change — no wrongly-sized transient.
+  // Why: useLayoutEffect fires before paint, so dispatching SYNC_FIT_PANES_EVENT reflows the terminal in the same frame as the chrome change — no wrongly-sized transient.
   useLayoutEffect(() => {
     window.dispatchEvent(new CustomEvent(SYNC_FIT_PANES_EVENT))
-  }, [sidebarOpen, rightSidebarOpen])
+  }, [sidebarOpen, rightSidebarOpen, statusBarShown])
 
   const titlebarLeftControlsRef = useRef<HTMLDivElement | null>(null)
   const [collapsedSidebarHeaderWidth, setCollapsedSidebarHeaderWidth] = useState(0)

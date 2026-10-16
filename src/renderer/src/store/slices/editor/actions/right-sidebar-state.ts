@@ -47,8 +47,17 @@ export function createRightSidebarState(set: EditorSet, _get: EditorGet): RightS
     rightSidebarExplorerViewByWorktree: {},
     rightSidebarEffectiveTab: null,
     activityBarPosition: 'top',
-    toggleRightSidebar: () => set((s) => ({ rightSidebarOpen: !s.rightSidebarOpen })),
-    setRightSidebarOpen: (open) => set({ rightSidebarOpen: open }),
+    // Why: a fullscreen terminal hides the sidebar, so the toggle ends fullscreen and shows it.
+    toggleRightSidebar: () =>
+      set((s) =>
+        s.terminalFullscreen
+          ? { terminalFullscreen: null, rightSidebarOpen: true }
+          : { rightSidebarOpen: !s.rightSidebarOpen }
+      ),
+    setRightSidebarOpen: (open) =>
+      set(
+        open ? { rightSidebarOpen: true, terminalFullscreen: null } : { rightSidebarOpen: false }
+      ),
     setRightSidebarWidth: (width) => set({ rightSidebarWidth: width }),
     setRightSidebarTab: (tab) =>
       set((s) => ({
@@ -72,6 +81,7 @@ export function createRightSidebarState(set: EditorSet, _get: EditorGet): RightS
     showRightSidebarFiles: () =>
       set((s) => ({
         rightSidebarOpen: true,
+        terminalFullscreen: null,
         rightSidebarTab: 'explorer',
         rightSidebarExplorerView: 'files',
         rightSidebarRouteRequestId: s.rightSidebarRouteRequestId + 1,
@@ -88,6 +98,7 @@ export function createRightSidebarState(set: EditorSet, _get: EditorGet): RightS
       set((s) => {
         const next = {
           rightSidebarOpen: true,
+          terminalFullscreen: null,
           rightSidebarTab: 'explorer' as const,
           rightSidebarExplorerView: 'search' as const,
           rightSidebarRouteRequestId: s.rightSidebarRouteRequestId + 1,
@@ -137,6 +148,7 @@ export function createRightSidebarState(set: EditorSet, _get: EditorGet): RightS
     showAiVaultSearch: () =>
       set((s) => ({
         rightSidebarOpen: true,
+        terminalFullscreen: null,
         rightSidebarTab: 'vault' as const,
         rightSidebarRouteRequestId: s.rightSidebarRouteRequestId + 1,
         aiVaultSearchFocusRequested: true

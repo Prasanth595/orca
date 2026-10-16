@@ -1,7 +1,9 @@
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { Maximize, Minimize } from 'lucide-react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import TerminalContextMenu from './TerminalContextMenu'
+import { DropdownMenuShortcut } from '@/components/ui/dropdown-menu'
 import { translate } from '@/i18n/i18n'
 import type { KeybindingOverrides } from '../../../../shared/keybindings'
 
@@ -95,6 +97,9 @@ function renderMenu(overrides: Record<string, unknown> = {}): string {
     onQuickCommand: vi.fn(),
     onAddQuickCommand: vi.fn(),
     onToggleExpand: vi.fn(),
+    canToggleFullscreen: false,
+    menuPaneIsFullscreen: false,
+    onToggleFullscreen: vi.fn(),
     onSetTitle: vi.fn(),
     onClearPaneTitle: vi.fn(),
     canClearPaneTitle: false,
@@ -325,5 +330,70 @@ describe('TerminalContextMenu', () => {
 
     expect(rendered).toContain('Loading host…')
     expect(rendered).not.toContain('Add Quick Command…')
+  })
+
+  describe('Fullscreen item', () => {
+    function findFullscreenItem(label: string): ItemProps | undefined {
+      return items.list.find((item) => childrenText(item.children) === label)
+    }
+
+    function hasChildOfType(item: ItemProps | undefined, type: unknown): boolean {
+      return React.Children.toArray(item?.children).some(
+        (child) => React.isValidElement(child) && child.type === type
+      )
+    }
+
+    it('follows Split Terminal Down for a single pane and selects onToggleFullscreen', () => {
+      const onToggleFullscreen = vi.fn()
+      renderMenu({ canExpandPane: false, canToggleFullscreen: true, onToggleFullscreen })
+
+      const labels = items.list.map((item) => childrenText(item.children))
+      const splitDownIndex = labels.findIndex((label) => label.startsWith('Split Terminal Down'))
+      expect(labels[splitDownIndex + 1]).toBe('Fullscreen')
+      const item = findFullscreenItem('Fullscreen')
+      expect(hasChildOfType(item, Maximize)).toBe(true)
+
+      item?.onSelect?.()
+      expect(onToggleFullscreen).toHaveBeenCalledTimes(1)
+    })
+
+    it('follows Expand Pane in a split tab', () => {
+      renderMenu({ canExpandPane: true, canToggleFullscreen: true })
+
+      const labels = items.list.map((item) => childrenText(item.children))
+      const expandIndex = labels.findIndex((label) => label.startsWith('Expand Pane'))
+      expect(labels[expandIndex + 1]).toBe('Fullscreen')
+    })
+
+    it('reads Exit Fullscreen with the Minimize icon on the fullscreen pane', () => {
+      renderMenu({ canToggleFullscreen: true, menuPaneIsFullscreen: true })
+
+      const item = findFullscreenItem('Exit Fullscreen')
+      expect(item).toBeDefined()
+      expect(hasChildOfType(item, Minimize)).toBe(true)
+      expect(findFullscreenItem('Fullscreen')).toBeUndefined()
+    })
+
+    it('is absent where fullscreen is not offered', () => {
+      renderMenu({ canToggleFullscreen: false })
+
+      expect(findFullscreenItem('Fullscreen')).toBeUndefined()
+      expect(findFullscreenItem('Exit Fullscreen')).toBeUndefined()
+    })
+
+    it('has no shortcut chip', () => {
+      renderMenu({ canExpandPane: true, canToggleFullscreen: true })
+      const expandItem = items.list.find((item) =>
+        childrenText(item.children).startsWith('Expand Pane')
+      )
+      expect(hasChildOfType(expandItem, DropdownMenuShortcut)).toBe(true)
+      expect(hasChildOfType(findFullscreenItem('Fullscreen'), DropdownMenuShortcut)).toBe(false)
+
+      items.list = []
+      renderMenu({ canToggleFullscreen: true, menuPaneIsFullscreen: true })
+      expect(hasChildOfType(findFullscreenItem('Exit Fullscreen'), DropdownMenuShortcut)).toBe(
+        false
+      )
+    })
   })
 })

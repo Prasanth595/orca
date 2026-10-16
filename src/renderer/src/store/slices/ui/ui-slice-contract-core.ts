@@ -113,6 +113,14 @@ export type NewWorkspaceDraft = {
   compareBaseRef?: string
 }
 
+/** The terminal pane shown fullscreen; `expandedPane` records whether fullscreen expanded it. */
+export type TerminalFullscreenTarget = {
+  worktreeId: string
+  tabId: string
+  leafId: string
+  expandedPane: boolean
+}
+
 export type UiViewHistory =
   | 'terminal'
   | 'settings'
@@ -130,6 +138,11 @@ export type UISliceCore = {
   toggleSidebar: () => void
   setSidebarOpen: (open: boolean) => void
   setSidebarWidth: (width: number) => void
+  /** In memory only. Why: the saved sidebar and status-bar settings are persisted and shared with
+   *  paired hosts, so fullscreen overrides them instead of writing them. */
+  terminalFullscreen: TerminalFullscreenTarget | null
+  enterTerminalFullscreen: (target: TerminalFullscreenTarget) => void
+  exitTerminalFullscreen: () => void
   agentSendPopoverTargetMode: AgentSendPopoverTargetMode | null
   openAgentSendPopoverTargetMode: (args: OpenAgentSendPopoverTargetModeArgs) => void
   closeAgentSendPopoverTargetMode: (id?: string, instanceId?: string) => void
