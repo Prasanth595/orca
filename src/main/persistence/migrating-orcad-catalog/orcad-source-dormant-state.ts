@@ -3,6 +3,7 @@ import type {
   OrcadMigrationDormantStatePayload,
   OrcadMigrationManifestSource
 } from '../../../shared/orcad-migration-manifest'
+import { collectOrcadSourceLineageEdges } from './orcad-source-lineage-edges'
 import type { OrcadMigrationDependencyKind } from '../../../shared/orcad-migration-preflight'
 import type { PersistedState } from '../../../shared/persisted-state-types'
 import type { TerminalScrollbackSnapshotStorage } from '../../terminal-scrollback-snapshots'
@@ -104,10 +105,7 @@ export function collectOrcadMigrationSourceDormantState(
         return []
       }
       // Cross-host history belongs to the desktop and stays in its retained source profile.
-      if (
-        !orcadMigrationOwnerMatchesScope(lineage.worktreeId, scope) ||
-        !orcadMigrationOwnerMatchesScope(lineage.parentWorktreeId, scope)
-      ) {
+      if (!orcadMigrationOwnerMatchesScope(lineage.worktreeId, scope)) {
         return []
       }
       return [{ sourceKey, worktreeId, lineage: structuredClone(lineage) }]
@@ -128,10 +126,7 @@ export function collectOrcadMigrationSourceDormantState(
         blockedCounts['workspace-lineage'] += 1
         return []
       }
-      if (
-        !orcadMigrationOwnerMatchesScope(lineage.childWorkspaceKey, scope) ||
-        !orcadMigrationOwnerMatchesScope(lineage.parentWorkspaceKey, scope)
-      ) {
+      if (!orcadMigrationOwnerMatchesScope(lineage.childWorkspaceKey, scope)) {
         return []
       }
       return [
@@ -194,6 +189,7 @@ export function collectOrcadMigrationSourceDormantState(
   // is what can't be left behind (an unsaved draft), so it keeps blocking.
   ;(leaveBehind ? leftBehindItems : blockedSessionItems).push(...duplicateCloses)
   blockedCounts['workspace-session'] = blockedSessionItems.length
+  const edges = collectOrcadSourceLineageEdges(state, scope, worktreeLineage, workspaceLineage)
   if (leaveBehind) {
     // Every row these counts name is already out of the payload. Saved port forwards never block,
     // and the server itself refuses duplicate ports.
@@ -214,6 +210,10 @@ export function collectOrcadMigrationSourceDormantState(
       worktreeMeta: worktreeMeta.sort((left, right) =>
         compareKeys(left.worktreeId, right.worktreeId)
       ),
+      edges: edges.map((edge) => ({
+        ...structuredClone(edge),
+        child: { ...edge.child, hostId: 'local' as const }
+      })),
       worktreeLineage: worktreeLineage.sort((left, right) =>
         compareKeys(left.worktreeId, right.worktreeId)
       ),

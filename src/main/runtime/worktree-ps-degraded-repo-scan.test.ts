@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { WorktreeMeta } from '../../shared/worktree/meta-types'
 
 const electronMocks = vi.hoisted(() => {
   const ipcMain = {
@@ -33,7 +34,7 @@ const SSH_CONNECTION_ID = 'ssh-remote-1'
 const SSH_HOST_ID = `ssh:${SSH_CONNECTION_ID}`
 const LOCAL_REPO_PATH = '/Users/me/dev/app'
 
-function makeMeta(overrides: Record<string, unknown> = {}) {
+function makeMeta(overrides: Partial<WorktreeMeta> = {}): WorktreeMeta {
   return {
     displayName: 'feature',
     comment: '',
@@ -102,6 +103,10 @@ function makeStore(options: StoreOptions = {}) {
       }))
     ],
     getAllWorktreeMeta: vi.fn(() => metaById),
+    getAllWorktreeMetaForHost: (hostId: string) =>
+      Object.fromEntries(
+        Object.entries(metaById).filter(([, meta]) => !meta.hostId || meta.hostId === hostId)
+      ),
     getWorktreeMeta: (id: string) => metaById[id],
     setWorktreeMeta: (id: string, meta: Record<string, unknown>) => {
       metaById[id] = { ...(metaById[id] ?? makeMeta()), ...meta } as never
@@ -321,8 +326,8 @@ describe('worktree.ps on a degraded repo scan', () => {
     const result = await runtime.getWorktreePs(10_000)
 
     expect(result.worktrees.map((worktree) => worktree.worktreeId)).not.toContain(WORKTREE_ID)
-    expect(removeWorktreeLineage).toHaveBeenCalledWith(WORKTREE_ID)
-    expect(removeWorkspaceLineage).toHaveBeenCalledWith(`worktree:${WORKTREE_ID}`)
+    expect(removeWorktreeLineage).toHaveBeenCalledWith(WORKTREE_ID, 'child-instance')
+    expect(removeWorkspaceLineage).toHaveBeenCalledWith(`worktree:${WORKTREE_ID}`, 'child-instance')
   })
 
   it('does not prune lineage while a scan is stalled', async () => {

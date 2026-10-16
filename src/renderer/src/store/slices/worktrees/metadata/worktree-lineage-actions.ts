@@ -61,12 +61,19 @@ export function createUpdateWorktreeLineage(
   return async (worktreeId, args) => {
     // Why: an unresolvable owner route (ambiguous or missing) rejects rather than skipping — this is a
     // user-initiated action, and both callers toast the failure. Don't swallow it into a silent no-op.
-    const ownerTarget = runtimeTargetForWorktreeOwner(get(), worktreeId)
+    const state = get()
+    const hostId =
+      state.activeWorktreeId === worktreeId
+        ? (state.activeWorkspaceExecutionHostId ?? undefined)
+        : undefined
+    const child = state.getKnownWorktreeById(worktreeId, hostId)
+    const selector = child?.identity ? `identity:${child.identity.key}` : undefined
+    const ownerTarget = runtimeTargetForWorktreeOwner(state, worktreeId, hostId)
     try {
       applyWorktreeLineageUpdate(
         set,
         worktreeId,
-        await setWorktreeLineageForRuntime(ownerTarget, worktreeId, args)
+        await setWorktreeLineageForRuntime(ownerTarget, worktreeId, args, selector)
       )
     } catch (err) {
       console.error('Failed to update worktree lineage:', err)
@@ -81,12 +88,19 @@ export function createAssignWorktreeParent(
   get: WorktreeSliceGet
 ): WorktreeSlice['assignWorktreeParent'] {
   return async (worktreeId, args) => {
-    const ownerTarget = runtimeTargetForWorktreeOwner(get(), worktreeId)
+    const state = get()
+    const hostId =
+      state.activeWorktreeId === worktreeId
+        ? (state.activeWorkspaceExecutionHostId ?? undefined)
+        : undefined
+    const child = state.getKnownWorktreeById(worktreeId, hostId)
+    const selector = child?.identity ? `identity:${child.identity.key}` : undefined
+    const ownerTarget = runtimeTargetForWorktreeOwner(state, worktreeId, hostId)
     try {
       applyWorktreeLineageUpdate(
         set,
         worktreeId,
-        await setWorktreeLineageForRuntime(ownerTarget, worktreeId, args)
+        await setWorktreeLineageForRuntime(ownerTarget, worktreeId, args, selector)
       )
     } catch (err) {
       console.error('Failed to assign worktree parent:', err)

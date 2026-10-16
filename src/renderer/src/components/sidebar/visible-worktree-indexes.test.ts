@@ -12,11 +12,11 @@ vi.mock('../../../../shared/resolved-worktree-lineage', async (importOriginal) =
   const actual = await importOriginal<typeof ResolvedWorktreeLineage>()
   return {
     ...actual,
-    getCyclicWorktreeLineageChildIds: (
-      ...args: Parameters<typeof actual.getCyclicWorktreeLineageChildIds>
+    selectResolvedWorktreeLineage: (
+      ...args: Parameters<typeof actual.selectResolvedWorktreeLineage>
     ) => {
       counters.cycleDetections += 1
-      return actual.getCyclicWorktreeLineageChildIds(...args)
+      return actual.selectResolvedWorktreeLineage(...args)
     }
   }
 })
@@ -105,23 +105,30 @@ function visibleOptions(
 }
 
 describe('visible worktree indexes', () => {
-  it('reuses the lineage projection instead of rebuilding it on every store write', () => {
-    const parent = makeWorktree('parent')
-    const child = makeWorktree('child')
-    const worktreesByRepo = { repo1: [parent, child] }
-    const sortedIds = [parent.id, child.id]
-    const worktreeLineageById = { [child.id]: makeLineage(child, parent) }
+  it.each([null, ['local' as const]])(
+    'reuses the lineage projection across store writes with host filter %j',
+    (visibleWorkspaceHostIds) => {
+      const parent = makeWorktree('parent')
+      const child = makeWorktree('child')
+      const worktreesByRepo = { repo1: [parent, child] }
+      const sortedIds = [parent.id, child.id]
+      const worktreeLineageById = { [child.id]: makeLineage(child, parent) }
 
-    counters.cycleDetections = 0
-    // Each call stands for one store write that re-fires the sidebar memo
-    // (PTY spawn/exit, tab open/close, agent status transition) without
-    // changing `worktreesByRepo`.
-    for (let write = 0; write < 10; write += 1) {
-      computeVisibleWorktreeIds(worktreesByRepo, sortedIds, visibleOptions({ worktreeLineageById }))
+      counters.cycleDetections = 0
+      // Each call stands for one store write that re-fires the sidebar memo
+      // (PTY spawn/exit, tab open/close, agent status transition) without
+      // changing `worktreesByRepo`.
+      for (let write = 0; write < 10; write += 1) {
+        computeVisibleWorktreeIds(
+          worktreesByRepo,
+          sortedIds,
+          visibleOptions({ worktreeLineageById, visibleWorkspaceHostIds })
+        )
+      }
+
+      expect(counters.cycleDetections).toBe(1)
     }
-
-    expect(counters.cycleDetections).toBe(1)
-  })
+  )
 
   it('returns identity-stable index maps for unchanged store inputs', () => {
     const parent = makeWorktree('parent')
@@ -166,7 +173,7 @@ describe('visible worktree indexes', () => {
     expect(getLineageAncestorIndex(worktreesByRepo).has(parent.id)).toBe(false)
   })
 
-  it('keeps the last row for a two-host id collision, as the per-call map did', () => {
+  it('keeps both rows for a two-host id collision', () => {
     const local: Worktree = {
       ...makeWorktree('shared'),
       hostId: LOCAL_EXECUTION_HOST_ID,
@@ -175,6 +182,7 @@ describe('visible worktree indexes', () => {
     const remote: Worktree = { ...makeWorktree('shared'), hostId: 'ssh:box', path: '/tmp/remote' }
     const worktreesByRepo = { repo1: [local, remote] }
 
-    expect(getLineageAncestorIndex(worktreesByRepo).get('shared')?.path).toBe('/tmp/remote')
+    expect(getLineageAncestorIndex(worktreesByRepo).get('ssh:box|shared')?.path).toBe('/tmp/remote')
+    expect(getLineageAncestorIndex(worktreesByRepo).get('local|shared')?.path).toBe('/tmp/local')
   })
 })

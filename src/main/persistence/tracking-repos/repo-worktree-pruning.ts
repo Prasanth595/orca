@@ -1,4 +1,7 @@
-import type { WorkspaceKey } from '../../../shared/folder-workspace-types'
+import {
+  initializeCanonicalLineage,
+  refreshLegacyLineage
+} from '../loading-store/canonical-workspace-lineage'
 import { LOCAL_EXECUTION_HOST_ID, type ExecutionHostId } from '../../../shared/execution-host'
 import { parseWorkspaceKey } from '../../../shared/workspace-scope'
 import type { PersistedState } from '../../../shared/persisted-state-types'
@@ -20,6 +23,17 @@ export function pruneWorktreeStateForRepo(
   hostId: ExecutionHostId | null,
   pruneMobileClientTabSelections: (matchesWorktreeId: (worktreeId: string) => boolean) => void
 ): void {
+  initializeCanonicalLineage(state)
+  for (const [instance, edge] of Object.entries(state.lineageByChildInstance ?? {})) {
+    const child = parseWorkspaceKey(edge.child.locator)
+    if (
+      child?.type === 'worktree' &&
+      child.worktreeId.startsWith(`${id}::`) &&
+      (hostId === null || edge.child.hostId === hostId)
+    ) {
+      delete state.lineageByChildInstance?.[instance]
+    }
+  }
   const prefix = `${id}::`
   // Why snapshot up front: the first loop deletes metas, so reading meta.hostId live later would misclassify an SSH worktree as local.
   const hostMembership = new Map<string, boolean>()
@@ -124,21 +138,6 @@ export function pruneWorktreeStateForRepo(
       }
     }
   }
-  for (const [childId, lineage] of Object.entries(state.worktreeLineageById)) {
-    if (belongsToHost(childId) || belongsToHost(lineage.parentWorktreeId)) {
-      delete state.worktreeLineageById[childId]
-    }
-  }
-  for (const [childKey, lineage] of Object.entries(state.workspaceLineageByChildKey)) {
-    const childScope = parseWorkspaceKey(childKey)
-    const parentScope = parseWorkspaceKey(lineage.parentWorkspaceKey)
-    if (childScope?.type === 'worktree' && belongsToHost(childScope.worktreeId)) {
-      delete state.workspaceLineageByChildKey[childKey as WorkspaceKey]
-      continue
-    }
-    if (parentScope?.type === 'worktree' && belongsToHost(parentScope.worktreeId)) {
-      delete state.workspaceLineageByChildKey[childKey as WorkspaceKey]
-    }
-  }
+  refreshLegacyLineage(state)
   pruneMobileClientTabSelections(belongsToHost)
 }

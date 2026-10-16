@@ -1,3 +1,4 @@
+import { getRepoOwnedWorktreeMeta } from '../worktree-metadata-ownership'
 /* eslint-disable max-lines */
 // Why: worktree create helpers (local + remote) split out of worktrees.ts; the cohesive create flow runs this file just over the per-file line limit.
 
@@ -78,9 +79,14 @@ import { resolveCreatedWorktree } from './created-worktree-reconciliation'
 import { notifyLineageRepos } from '../worktree-lineage-change-notification'
 import { getRepoIdFromWorktreeId } from '../../shared/worktree/id'
 import type { BranchPrefixSettings } from '../../shared/branch-prefix'
-import { parseWorkspaceKey, worktreeWorkspaceKey } from '../../shared/workspace-scope'
-import { sharesWorktreeLineageBoundary } from '../../shared/resolved-worktree-lineage'
-import { readWorktreeMetaForHost } from '../persistence/host-qualified-worktree-meta'
+import {
+  folderWorkspaceKey,
+  parseWorkspaceKey,
+  worktreeWorkspaceKey
+} from '../../shared/workspace-scope'
+import { canonicalWorktreeIdentity } from '../../shared/worktree/identity'
+import { getRepoExecutionHostId } from '../../shared/execution-host'
+import { readAllWorktreeMetaForHost } from '../persistence/host-qualified-worktree-meta'
 import {
   cleanupUnusedWorktreePushTargetRemoteWithExec,
   sameGitHubRemoteUrl,
@@ -181,6 +187,51 @@ function getSetupRunnerCommandPlatformForLaunch(
  *  between the composer and the create. A malformed or self-referential key is a bad request and
  *  still fails; a parent that simply disappeared degrades to an unattached workspace, matching the
  *  runtime path and `recordWorkspaceLineageForCreatedWorktree`. */
+function resolveCreatedParentWorkspace(store: Store, selector: string) {
+  if (!selector.startsWith('identity:')) {
+    const scope = parseWorkspaceKey(selector)
+    return scope
+      ? {
+          key: selector,
+          scope,
+          meta: scope.type === 'worktree' ? store.getWorktreeMeta(scope.worktreeId) : null
+        }
+      : null
+  }
+  const identity = selector.slice('identity:'.length)
+  const repos = store.getRepos()
+  const counts = new Map<string, number>()
+  for (const repo of repos) {
+    counts.set(repo.id, (counts.get(repo.id) ?? 0) + 1)
+  }
+  for (const hostId of new Set(repos.map(getRepoExecutionHostId))) {
+    const snapshot = readAllWorktreeMetaForHost(store, hostId)
+    const owners = new Map(
+      repos.filter((repo) => getRepoExecutionHostId(repo) === hostId).map((repo) => [repo.id, repo])
+    )
+    for (const [worktreeId] of Object.entries(snapshot)) {
+      const repo = owners.get(getRepoIdFromWorktreeId(worktreeId))
+      const meta =
+        repo && getRepoOwnedWorktreeMeta(repo, worktreeId, snapshot, counts.get(repo.id) ?? 0)
+      if (!meta) {
+        continue
+      }
+      if (
+        meta.instanceId &&
+        canonicalWorktreeIdentity({
+          worktreeId,
+          executionHostId: hostId,
+          instanceId: meta.instanceId
+        }) === identity
+      ) {
+        const key = worktreeWorkspaceKey(worktreeId)
+        return { key, scope: parseWorkspaceKey(key), meta }
+      }
+    }
+  }
+  return null
+}
+
 export function assertAttachableParentWorkspace(
   store: Store,
   parentWorkspace: CreateWorktreeArgs['parentWorkspace'],
@@ -192,7 +243,7 @@ export function assertAttachableParentWorkspace(
   if (parentWorkspace === childWorkspaceKey) {
     throw new Error('A worktree cannot be attached to itself.')
   }
-  const parentScope = parseWorkspaceKey(parentWorkspace)
+  const parentScope = resolveCreatedParentWorkspace(store, parentWorkspace)?.scope
   if (!parentScope) {
     throw new Error(`Invalid parent workspace: ${parentWorkspace}`)
   }
@@ -229,7 +280,8 @@ export function recordWorkspaceLineageForCreatedWorktree(
     console.warn(`[worktree-create] refusing to attach ${worktree.id} to itself`)
     return NO_CREATED_WORKTREE_LINEAGE
   }
-  const parentScope = parseWorkspaceKey(args.parentWorkspace)
+  const resolvedParent = resolveCreatedParentWorkspace(store, args.parentWorkspace)
+  const parentScope = resolvedParent?.scope
   if (!parentScope) {
     console.warn(`[worktree-create] ignoring invalid parent workspace ${args.parentWorkspace}`)
     return NO_CREATED_WORKTREE_LINEAGE
@@ -238,29 +290,21 @@ export function recordWorkspaceLineageForCreatedWorktree(
     console.warn(`[worktree-create] parent folder workspace disappeared: ${args.parentWorkspace}`)
     return NO_CREATED_WORKTREE_LINEAGE
   }
-  const parentWorktreeMeta =
-    parentScope.type === 'worktree'
-      ? ((worktree.hostId
-          ? readWorktreeMetaForHost(store, parentScope.worktreeId, worktree.hostId)
-          : undefined) ?? store.getWorktreeMeta(parentScope.worktreeId))
-      : null
-  if (parentScope.type === 'worktree' && !parentWorktreeMeta) {
+  const parentWorktreeMeta = resolvedParent?.meta
+  if (
+    parentScope.type === 'worktree' &&
+    (!parentWorktreeMeta || parentWorktreeMeta.instanceId === worktree.instanceId)
+  ) {
     console.warn(`[worktree-create] parent worktree workspace disappeared: ${args.parentWorkspace}`)
     return NO_CREATED_WORKTREE_LINEAGE
   }
 
   // Why: only a worktree parent produces sidebar nesting; a folder parent has no WorktreeLineage row.
   let lineage: CreateWorktreeResult['lineage'] = null
-  let parentOutsideLineageBoundary = false
   if (parentScope.type === 'worktree' && parentWorktreeMeta) {
     if (!parentWorktreeMeta.instanceId) {
       console.warn(
         `[worktree-create] parent ${parentScope.worktreeId} has no instance identity; skipping lineage`
-      )
-    } else if (!sharesWorktreeLineageBoundary(worktree, parentWorktreeMeta)) {
-      parentOutsideLineageBoundary = true
-      console.warn(
-        `[worktree-create] parent ${parentScope.worktreeId} is outside ${worktree.id}'s execution host; skipping lineage`
       )
     } else {
       lineage = store.setWorktreeLineage(worktree.id, {
@@ -275,15 +319,13 @@ export function recordWorkspaceLineageForCreatedWorktree(
     }
   }
 
-  // Why: a workspace row for an out-of-boundary worktree parent is a cross-host link that survives restarts.
-  if (parentOutsideLineageBoundary) {
-    return NO_CREATED_WORKTREE_LINEAGE
-  }
-
   const workspaceLineage = store.setWorkspaceLineage({
     childWorkspaceKey,
     childInstanceId: worktree.instanceId,
-    parentWorkspaceKey: args.parentWorkspace,
+    parentWorkspaceKey:
+      parentScope.type === 'worktree'
+        ? worktreeWorkspaceKey(parentScope.worktreeId)
+        : folderWorkspaceKey(parentScope.folderWorkspaceId),
     parentInstanceId: parentWorktreeMeta?.instanceId ?? null,
     origin: 'manual',
     capture: {

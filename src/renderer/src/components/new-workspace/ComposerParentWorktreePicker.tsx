@@ -1,3 +1,4 @@
+import { getWorktreeHostIdentity } from '../../../../shared/worktree/host-qualified-identity'
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, ChevronsUpDown, GitBranch } from 'lucide-react'
@@ -11,7 +12,7 @@ import { useAppStore } from '@/store'
 import {
   getIndexedAllWorktrees,
   getIndexedWorktreeById,
-  getIndexedWorktreeMap
+  getIndexedWorktreeByIdentity
 } from '@/store/worktree-repo-index'
 import { compareWorktreeDisplayName } from '@/lib/worktree-display-name-order'
 import { branchDisplayName } from '@/components/sidebar/WorktreeCardHelpers'
@@ -30,10 +31,6 @@ import {
   getLineageChildWorktree
 } from '@/components/right-sidebar/folder-workspace-attached-worktrees'
 import { COMBOBOX_POPOVER_SURFACE } from './type-ahead-combobox-styles'
-import {
-  sharesWorktreeLineageBoundary,
-  type WorktreeLineageBoundary
-} from '../../../../shared/resolved-worktree-lineage'
 import { folderWorkspaceKey } from '../../../../shared/workspace-scope'
 import type { WorkspaceLineage, WorktreeLineage } from '../../../../shared/worktree/lineage-types'
 import type { Worktree } from '../../../../shared/worktree/types'
@@ -50,7 +47,7 @@ const NO_PARENT_ROW_KEY = 'no-parent'
 
 type ComposerParentWorktreePickerProps = {
   repoId: string
-  /** Parent must belong to the same execution host that will create the child. */
+  /** Execution host that will create the child. */
   executionHostId?: ExecutionHostId | null
   projectId?: string | null
   value: string | null
@@ -96,7 +93,9 @@ function ComposerParentWorktreePickerImpl({
     if (!value) {
       return null
     }
-    const parent = getIndexedWorktreeById(s.worktreesByRepo, value)
+    const parent = value.startsWith('identity:')
+      ? getIndexedWorktreeByIdentity(s.worktreesByRepo, value.slice('identity:'.length))
+      : getIndexedWorktreeById(s.worktreesByRepo, value)
     return parent && !parent.isArchived ? parent.displayName : null
   })
 
@@ -190,7 +189,7 @@ function getFolderWorkspaceSubtreeIds(
     // would offer a parent whose whole branch the folder never actually shows.
     const rootWorktree = getLineageChildWorktree(lineage, worktreeById)
     if (rootWorktree) {
-      rootIds.add(rootWorktree.id)
+      rootIds.add(getWorktreeHostIdentity(rootWorktree))
     }
   }
 
@@ -201,7 +200,7 @@ function getFolderWorkspaceSubtreeIds(
     rootIds
   ).values()) {
     for (const child of children) {
-      subtreeIds.add(child.id)
+      subtreeIds.add(getWorktreeHostIdentity(child))
     }
   }
   return subtreeIds
@@ -227,10 +226,10 @@ function ParentWorktreeCandidateList({
   const candidates = useMemo(() => {
     // Legacy rows inherit their real repo host, including candidates from another project.
     const childRepo = repoMap.get(repoId)
-    const childBoundary: WorktreeLineageBoundary = {
-      hostId: executionHostId ?? (childRepo ? getRepoExecutionHostId(childRepo) : undefined)
-    }
-    const worktreeMap = getIndexedWorktreeMap(worktreesByRepo)
+    const childHostId = executionHostId ?? (childRepo ? getRepoExecutionHostId(childRepo) : 'local')
+    const worktreeMap = new Map(
+      getIndexedAllWorktrees(worktreesByRepo).map((row) => [getWorktreeHostIdentity(row), row])
+    )
     const cyclicLineageIds = getCyclicProjectedWorktreeLineageIds(worktreeLineageById, worktreeMap)
     const folderSubtreeIds = activeFolderWorkspaceId
       ? getFolderWorkspaceSubtreeIds(
@@ -244,12 +243,10 @@ function ParentWorktreeCandidateList({
       .filter(
         (candidate) =>
           !candidate.isArchived &&
-          sharesWorktreeLineageBoundary(childBoundary, {
-            ...candidate,
-            hostId: getWorktreeExecutionHostId(candidate, repoMap.get(candidate.repoId))
-          }) &&
-          !cyclicLineageIds.has(candidate.id) &&
-          (folderSubtreeIds === null || folderSubtreeIds.has(candidate.id))
+          (getWorktreeExecutionHostId(candidate, repoMap.get(candidate.repoId)) === childHostId ||
+            (!childHostId.startsWith('runtime:') && !candidate.hostId?.startsWith('runtime:'))) &&
+          !cyclicLineageIds.has(getWorktreeHostIdentity(candidate)) &&
+          (folderSubtreeIds === null || folderSubtreeIds.has(getWorktreeHostIdentity(candidate)))
       )
       .sort(compareWorktreeDisplayName)
   }, [
@@ -324,7 +321,9 @@ function ParentWorktreeCandidateList({
         if (activeIndex === 0 || candidate) {
           event.preventDefault()
           event.stopPropagation()
-          onSelect(candidate?.id ?? null)
+          onSelect(
+            candidate?.identity ? `identity:${candidate.identity.key}` : (candidate?.id ?? null)
+          )
         }
       }
     },
@@ -375,7 +374,13 @@ function ParentWorktreeCandidateList({
                   transform: `translateY(${virtualRow.start}px)`
                 }}
                 onPointerMove={() => setHighlightedIndex(rowIndex)}
-                onClick={() => onSelect(candidate?.id ?? null)}
+                onClick={() =>
+                  onSelect(
+                    candidate?.identity
+                      ? `identity:${candidate.identity.key}`
+                      : (candidate?.id ?? null)
+                  )
+                }
               >
                 <Check
                   className={cn(

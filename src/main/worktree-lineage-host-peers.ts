@@ -1,13 +1,17 @@
+import {
+  readSavedLineageEdges,
+  readSavedWorktreeLineage,
+  readSavedWorktreeOwners
+} from './saved-worktree-lineage-catalog'
 import type { Worktree } from '../shared/worktree/types'
 import type { Repo } from '../shared/repo-types'
-import { getRepoExecutionHostId } from '../shared/execution-host'
-import { getRepoIdFromWorktreeId, splitWorktreeId } from '../shared/worktree/id'
+import { getWorktreeHostIdentity } from '../shared/worktree/host-qualified-identity'
+import { splitWorktreeId } from '../shared/worktree/id'
 import { isFolderRepo } from '../shared/repo-kind'
 import {
-  getConnectedWorktreeLineageIds,
+  getConnectedWorktreeLineageInstances,
   projectResolvedWorktreeLineage
 } from '../shared/resolved-worktree-lineage'
-import { readAllWorktreeMetaForHost } from './persistence/host-qualified-worktree-meta'
 import { areWorktreePathsEqual } from './ipc/worktree-path-comparison'
 import { mergeWorktree } from './ipc/worktree-metadata-merge'
 import { resolveRepoOwnershipEvidence } from './ipc/worktrees/listing/worktree-host-ownership'
@@ -21,58 +25,44 @@ import type { RuntimeStore } from './runtime/runtime-store-contract'
 
 type HostPeerStore = Pick<
   RuntimeStore,
-  'getRepos' | 'getAllWorktreeMeta' | 'getAllWorktreeMetaForHost' | 'getAllWorktreeLineage'
+  | 'getRepos'
+  | 'getAllWorktreeMeta'
+  | 'getAllWorktreeMetaForHost'
+  | 'getAllWorktreeLineage'
+  | 'getLineageEdges'
 >
 
-/** Project a per-repo publication against persisted peers on its execution host. */
+/** Resolve connected lineage against persisted peers across execution hosts. */
 export function projectWorktreeLineageWithHostPeers<T extends Worktree>(
   store: HostPeerStore,
-  repo: Repo,
+  _repo: Repo,
   rows: readonly T[]
 ) {
-  const lineageById = store.getAllWorktreeLineage?.() ?? {}
+  if (readSavedLineageEdges(store).length === 0) {
+    return projectResolvedWorktreeLineage(rows, {})
+  }
+  const savedOwners = readSavedWorktreeOwners(store)
+  const lineageById = readSavedWorktreeLineage(store, savedOwners)
   if (rows.length === 0) {
     return projectResolvedWorktreeLineage(rows, lineageById)
   }
-  const relatedIds = getConnectedWorktreeLineageIds(
-    rows.map((row) => row.id),
+  const relatedInstances = getConnectedWorktreeLineageInstances(
+    rows.flatMap((row) => (row.instanceId ? [row.instanceId] : [])),
     lineageById
   )
-  const ownIds = new Set(rows.map((row) => row.id))
-  if ([...relatedIds].every((id) => ownIds.has(id) || getRepoIdFromWorktreeId(id) === repo.id)) {
-    return projectResolvedWorktreeLineage(rows, lineageById)
-  }
-  const hostId = getRepoExecutionHostId(repo)
-  const repos = store.getRepos()
-  const reposById = new Map<string, Repo[]>()
-  for (const candidate of repos) {
-    const owners = reposById.get(candidate.id) ?? []
-    owners.push(candidate)
-    reposById.set(candidate.id, owners)
-  }
-  const metaById = readAllWorktreeMetaForHost(store, hostId)
+  const ownKeys = new Set(rows.map(getWorktreeHostIdentity))
   const peers: Worktree[] = []
-  for (const id of relatedIds) {
-    if (ownIds.has(id) || getRepoIdFromWorktreeId(id) === repo.id) {
+  for (const meta of savedOwners) {
+    const { id, repo: owner, hostId } = meta
+    if (!relatedInstances.has(meta.instanceId)) {
       continue
     }
-    const owners = reposById.get(getRepoIdFromWorktreeId(id)) ?? []
-    const evidence = owners.map(resolveRepoOwnershipEvidence)
-    const hostOwners = owners.filter((_, index) => {
-      const owner = evidence[index]
-      return owner?.status === 'owned' && owner.hostId === hostId
-    })
-    const meta = metaById[id]
-    if (
-      evidence.some((owner) => owner.status !== 'owned') ||
-      hostOwners.length !== 1 ||
-      !meta ||
-      (!meta.instanceId && !isFolderRepo(hostOwners[0])) ||
-      (!meta.hostId && owners.length > 1)
-    ) {
+    if (ownKeys.has(getWorktreeHostIdentity({ id, hostId }))) {
       continue
     }
-    const owner = hostOwners[0]
+    if (resolveRepoOwnershipEvidence(owner).status !== 'owned') {
+      continue
+    }
     if (isFolderRepo(owner)) {
       if (isFolderWorkspaceIdForRepo(owner, id)) {
         const peerMeta =
