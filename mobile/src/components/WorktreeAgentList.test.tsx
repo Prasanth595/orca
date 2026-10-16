@@ -106,6 +106,36 @@ describe('WorktreeAgentList', () => {
     expect(rows[1].findAllByType('Text').at(-1)?.props.children).toBe(age)
   })
 
+  it("shows every agent row with no summary under the desktop's Full list layout", async () => {
+    const onAgentPress = vi.fn()
+    await act(async () => {
+      renderer = create(
+        createElement(WorktreeAgentList, {
+          agents: [
+            {
+              ...agent('agent-1'),
+              subagentObservation: 'live',
+              subagents: [{ id: 'child', state: 'working', startedAt: 1_000 }]
+            },
+            agent('agent-2'),
+            agent('agent-3')
+          ],
+          now: 2_000,
+          unvisited: false,
+          fullList: true,
+          statusLive: true,
+          onAgentPress
+        })
+      )
+    })
+    const rows = renderer!.root.findAll((node) => node.props.agent !== undefined)
+    expect(rows).toHaveLength(4)
+    expect(rows[1].props.childRow.id).toBe('child')
+    const childPress = renderer!.root.findByType('Pressable')
+    await act(async () => childPress.props.onPress({ stopPropagation: vi.fn() }))
+    expect(onAgentPress).toHaveBeenCalledWith('agent-1')
+  })
+
   it('keeps a single agent visible without a redundant disclosure control', async () => {
     await act(async () => {
       renderer = create(
