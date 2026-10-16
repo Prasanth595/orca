@@ -12,7 +12,6 @@ import {
   type AiVaultResumeLaunchSettings,
   type AiVaultResumeStartup
 } from '../../../src/shared/ai-vault-resume-startup'
-import { LOCAL_EXECUTION_HOST_ID } from '../../../src/shared/execution-host'
 import { isTuiAgent } from '../../../src/shared/tui-agent-config'
 import type { TuiAgent } from '../../../src/shared/tui-agent'
 import { resolveWindowsShellStartupFamily } from '../../../src/shared/windows-terminal-shell'
@@ -89,7 +88,7 @@ export async function prepareMobileNativeChatCliFork(
     // An unreadable status only loses the Windows shell, which falls back to PowerShell.
   }
   const args = {
-    session: { ...source, executionHostId: LOCAL_EXECUTION_HOST_ID },
+    session: source,
     host: {
       platform,
       codexHome: getAiVaultResumeCodexHome(source.codexHome, platform),

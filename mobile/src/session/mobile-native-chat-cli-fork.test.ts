@@ -67,7 +67,7 @@ describe('runMobileNativeChatCliFork', () => {
     const options = createTerminal.mock.calls[0]?.[0]
     expect(options?.startupCommand).toContain('claude-conversation')
     expect(options?.startupCommand).toContain('--fork-session')
-    expect(options?.startupCommand).toContain('--model opus')
+    expect(options?.startupCommand).toMatch(/--model'? '?opus/)
     expect(options?.resumeLaunch).toMatchObject({ cwd: '/Users/ada/repo', launchAgent: 'claude' })
     expect(options?.resumeLaunch.launchConfig).toBeDefined()
   })
