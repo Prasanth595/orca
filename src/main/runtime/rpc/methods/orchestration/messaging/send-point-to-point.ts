@@ -12,9 +12,10 @@ import {
   workerReportRefusal,
   type WorkerReportRefusal
 } from '../../../../orchestration/worker-report-admission'
-import type { z } from 'zod'
+import { z } from 'zod'
 
 type SendParamsInput = z.infer<typeof SendParams>
+const JsonObject = z.record(z.string(), z.unknown())
 type SendReceipt = <T extends object>(receipt: T) => T & { warnings?: SendRecipientWarning[] }
 
 export function sendPointToPointMessage(args: {
@@ -89,7 +90,7 @@ export function sendPointToPointMessage(args: {
         from,
         paneKey: senderPaneKey,
         processIncarnation,
-        consumerGeneration: messageRunId ? db.getRun(messageRunId)?.consumer_generation : undefined,
+        consumerGeneration: dispatch?.consumer_generation,
         attested: refusal === null && isDispatchMutationMessageType(messageType)
       }),
       senderPaneKey,
@@ -181,8 +182,9 @@ function bindProviderSenderAttestation(args: {
   if (args.payload) {
     try {
       const value: unknown = JSON.parse(args.payload)
-      if (value && typeof value === 'object' && !Array.isArray(value)) {
-        parsed = value as Record<string, unknown>
+      const object = JsonObject.safeParse(value)
+      if (object.success) {
+        parsed = object.data
       }
     } catch {
       return args.payload
