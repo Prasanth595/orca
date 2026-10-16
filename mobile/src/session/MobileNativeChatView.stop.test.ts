@@ -40,6 +40,7 @@ vi.mock('./MobileNativeChatComposer', async () => {
 
 describe('MobileNativeChatView: Stop control', () => {
   installChatViewHooks()
+  const composer = () => root().find((node) => hostType(node) === 'Composer')
 
   it("holds Stop and says Stopping while this phone's own Stop request is in flight", async () => {
     await render({
@@ -53,10 +54,7 @@ describe('MobileNativeChatView: Stop control', () => {
         stopRequestInFlight: true
       }
     })
-    const stop = root().find(
-      (node) => hostType(node) === 'Pressable' && node.props.accessibilityLabel === 'Stopping…'
-    )
-    expect(stop.props.disabled).toBe(true)
+    expect(composer().props.stop).toMatchObject({ stopping: true })
   })
 
   it.each([
@@ -71,8 +69,7 @@ describe('MobileNativeChatView: Stop control', () => {
         canStop: true,
         turnIndicator: { thinking: false, activityText: null, stopping: true, afterStop }
       })
-      const composer = root().find((node) => hostType(node) === 'Composer')
-      expect(composer.props.placeholder).toBe(placeholder)
+      expect(composer().props.placeholder).toBe(placeholder)
     }
   )
 
@@ -84,20 +81,16 @@ describe('MobileNativeChatView: Stop control', () => {
       canStop: true,
       turnIndicator: { thinking: false, activityText: null, stopping: true }
     })
-    const stop = root().find(
-      (node) => hostType(node) === 'Pressable' && node.props.accessibilityLabel === 'Stop the agent'
-    )
-    expect(stop.props.disabled).toBe(false)
+    expect(composer().props.stop).toMatchObject({ stopping: false })
   })
 
   it('keeps Stop hidden during a structured dispatch until a provider turn can be cancelled', async () => {
     const props = { structuredActivityUi: true, agentWorking: true, canStop: false }
     await render(props)
-    const stops = () => root().findAll((node) => node.props.accessibilityLabel === 'Stop the agent')
-    expect(stops()).toHaveLength(0)
+    expect(composer().props.stop).toBeNull()
     await update({ ...props, canStop: true })
-    expect(stops()).toHaveLength(1)
+    expect(composer().props.stop).not.toBeNull()
     await update({ agentWorking: true })
-    expect(stops()).toHaveLength(1)
+    expect(composer().props.stop).not.toBeNull()
   })
 })

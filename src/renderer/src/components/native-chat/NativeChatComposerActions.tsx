@@ -12,6 +12,7 @@ import { NativeChatComposerGoalChip } from './NativeChatComposerGoalChip'
 import { NativeChatContextUsageRing } from './NativeChatContextUsageRing'
 import type { NativeChatContextUsageSummary } from './native-chat-context-usage-summary'
 import type { NativeChatOptionPickerRequest } from './native-chat-composer-types'
+import { nativeChatComposerStops } from '../../../../shared/native-chat-composer-primary-action'
 
 export type NativeChatComposerActionsProps = {
   attachDisabled: boolean
@@ -68,7 +69,7 @@ export function NativeChatComposerActions({
   focusComposer,
   agent
 }: NativeChatComposerActionsProps): React.JSX.Element {
-  const stops = isWorking
+  const stops = nativeChatComposerStops({ isWorking })
   const handleCriticalAction = (event: React.MouseEvent<HTMLButtonElement>): void => {
     // A double-click commonly lands after the first send has started and the button has
     // changed to Stop; ignore the second click instead of cancelling the new turn.

@@ -40,7 +40,6 @@ import {
   useSettledMobileNativeChatInputLock
 } from './use-mobile-native-chat-input-lease'
 import { MobileNativeChatLiveLine } from './MobileNativeChatLiveLine'
-import { MobileNativeChatStopButton } from './MobileNativeChatStopButton'
 import { MobileAgentWorkingIndicator } from './MobileAgentWorkingIndicator'
 import type { PendingNativeChatImage } from './mobile-native-chat-image-attachment'
 import { MobileNativeChatComposer } from './MobileNativeChatComposer'
@@ -82,8 +81,7 @@ type Props = ComposerTrayProps & {
   turnJournal?: NativeChatTurnJournal | null
   receipts?: ReadonlyMap<string, NativeChatResolvedPrompt> | null
   actionablePromptIds?: readonly string[]
-  /** Interrupt the agent mid-turn (shown as a Stop button on the working bar). */
-  /** Interrupt a provider turn. */
+  /** Interrupt a provider turn; the composer's round button becomes Stop while it can. */
   onStop?: () => void
   /** Live partial assistant text to show as an in-progress bubble, already gated
    *  by the overlay against the transcript catching up. */
@@ -421,13 +419,6 @@ export function MobileNativeChatView({
             <Text style={styles.chromeToggleLabel}>{toolsExpanded ? 'Collapse' : 'Tools'}</Text>
           </Pressable>
         </View>
-        {canStop ? (
-          // Only this phone's own request holds Stop: a repeat is how a stuck stop escalates.
-          <MobileNativeChatStopButton
-            onStop={onStop}
-            held={agentWorking === true && turnIndicator?.stopRequestInFlight === true}
-          />
-        ) : null}
       </View>
       {sendErrorMessage ? (
         // This banner is the only channel for a send failure — announce it.
@@ -461,6 +452,14 @@ export function MobileNativeChatView({
         onMicPressOut={onMicPressOut}
         disabled={lockReason !== null}
         sendDisabled={expandedPromptOwnsSend}
+        stop={
+          canStop
+            ? {
+                onStop,
+                stopping: agentWorking === true && turnIndicator?.stopRequestInFlight === true
+              }
+            : null
+        }
         placeholder={mobileNativeChatComposerPlaceholder(lockReason, turnIndicator?.afterStop)}
         filePaths={filePaths}
         onNeedFiles={onNeedFiles}
