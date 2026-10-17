@@ -20,7 +20,8 @@ import { getNativeChatAgentProfile } from '../../../../shared/native-chat-agent-
 const COMMANDS: SlashCommandSuggestion[] = [
   { name: 'clear' },
   { name: 'compact' },
-  { name: 'help' }
+  { name: 'help' },
+  { name: 'workflow' }
 ]
 
 function skill(overrides: Partial<DiscoveredSkill>): DiscoveredSkill {
@@ -57,7 +58,7 @@ describe('deriveComposerAutocomplete — slash', () => {
     if (result.mode !== 'slash') {
       return
     }
-    expect(result.items).toHaveLength(3)
+    expect(result.items).toHaveLength(4)
   })
 
   it('does not fire slash mode after a space', () => {
@@ -191,7 +192,7 @@ describe('native skill and command picker', () => {
     }
     expect(slash.grouped).toBe(true)
     expect(slash.items.filter((item) => item.kind === 'command').map((item) => item.token)).toEqual(
-      ['/clear', '/compact', '/help']
+      ['/clear', '/compact', '/help', '/workflow']
     )
     expect(slash.items.filter((item) => item.kind === 'skill').map((item) => item.token)).toEqual([
       '$browser'
