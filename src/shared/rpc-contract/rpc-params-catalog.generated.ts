@@ -345,6 +345,8 @@ import { JiraSavedFilterMutationParam } from './jira-saved-filter-params'
 import {
   AgentIssueContext,
   AgentSearchIssues,
+  LinearCommentDelete,
+  LinearCommentEdit,
   LinearCurrentContext,
   LinearIssueAddComment,
   LinearIssueAttachLink,
@@ -1055,6 +1057,8 @@ export const RPC_PARAMS_BY_METHOD = {
   'linear.agentTeamList': LinearWorkspaceRead,
   'linear.agentTeamMembers': LinearTeamLookup,
   'linear.agentTeamStates': LinearTeamLookup,
+  'linear.commentDelete': LinearCommentDelete,
+  'linear.commentEdit': LinearCommentEdit,
   'linear.connect': ConnectOfLinearParams,
   'linear.createIssue': CreateIssueOfLinearParams,
   'linear.createProject': CreateProject,

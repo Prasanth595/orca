@@ -3,13 +3,21 @@ import {
   LINEAR_WRITE_BODY_CAP,
   addLinearIssueCommentForAgent,
   createLinearIssueAttachment,
+  deleteLinearIssueCommentForAgent,
+  getLinearCommentByUuidForAgent,
+  getLinearStatus,
+  isLinearUuid,
+  updateLinearIssueCommentForAgent,
   LinearWriteFailure,
   linearError
 } from './runtime-linear-command-dependencies'
 import type {
+  LinearAgentAccessError,
   LinearCurrentIssueContextHints,
   LinearAttachResult,
-  LinearCommentAddResult
+  LinearCommentAddResult,
+  LinearCommentDeleteResult,
+  LinearCommentEditResult
 } from './runtime-linear-command-dependencies'
 import { RuntimeLinearCreateCommands } from './runtime-linear-create-commands'
 
@@ -145,4 +153,112 @@ export class RuntimeLinearCommentCommands extends RuntimeLinearCreateCommands {
       throw error
     }
   }
+
+  async linearCommentEdit(params: {
+    commentId: string
+    body: string
+    workspaceId?: string
+  }): Promise<LinearCommentEditResult> {
+    if (params.body.length > LINEAR_WRITE_BODY_CAP) {
+      throw linearError('linear_body_too_large', 'Linear comment body is too large.')
+    }
+    const { comment, workspaceId } = await this.resolveLinearAgentComment(params)
+    const edited = await this.runLinearAgentWrite(
+      (signal) =>
+        updateLinearIssueCommentForAgent(comment.id, params.body, workspaceId, { signal }),
+      (cause) => this.linearCommentChangeUnconfirmed('edit', comment, workspaceId, cause)
+    )
+    await this.notifyLinearLinkedIssueUpdated(workspaceId, comment.issue.identifier)
+    return {
+      comment: { id: edited.id, url: edited.url, parentId: edited.parentId },
+      issue: this.linearWriteIssueRef(comment.issue),
+      meta: { workspaceId, bodyChars: params.body.length }
+    }
+  }
+
+  async linearCommentDelete(params: {
+    commentId: string
+    workspaceId?: string
+  }): Promise<LinearCommentDeleteResult> {
+    const { comment, workspaceId } = await this.resolveLinearAgentComment(params)
+    await this.runLinearAgentWrite(
+      (signal) => deleteLinearIssueCommentForAgent(comment.id, workspaceId, { signal }),
+      (cause) => this.linearCommentChangeUnconfirmed('delete', comment, workspaceId, cause)
+    )
+    await this.notifyLinearLinkedIssueUpdated(workspaceId, comment.issue.identifier)
+    return {
+      comment: { id: comment.id, parentId: comment.parentId },
+      issue: this.linearWriteIssueRef(comment.issue),
+      meta: { workspaceId }
+    }
+  }
+
+  // Why: a comment UUID lives in one workspace, so probing each connected one finds its owner.
+  public async resolveLinearAgentComment(params: {
+    commentId: string
+    workspaceId?: string
+  }): Promise<{ comment: LinearAgentComment; workspaceId: string }> {
+    if (!isLinearUuid(params.commentId)) {
+      throw this.linearCommentNotFound(params.commentId)
+    }
+    const workspaceIds = params.workspaceId
+      ? [params.workspaceId]
+      : (getLinearStatus().workspaces ?? []).map((workspace) => workspace.id)
+    const lookups = await Promise.allSettled(
+      workspaceIds.map((workspaceId) =>
+        getLinearCommentByUuidForAgent(params.commentId, workspaceId)
+      )
+    )
+    let failure: unknown
+    for (const [index, lookup] of lookups.entries()) {
+      if (lookup.status === 'fulfilled' && lookup.value) {
+        return { comment: lookup.value, workspaceId: workspaceIds[index] }
+      }
+      if (lookup.status === 'rejected') {
+        failure ??= lookup.reason
+      }
+    }
+    if (failure !== undefined) {
+      throw this.mapLinearReadFailure(failure)
+    }
+    throw this.linearCommentNotFound(params.commentId)
+  }
+
+  public linearCommentNotFound(commentId: string): LinearAgentAccessError {
+    return linearError(
+      'linear_comment_not_found',
+      `No Linear issue comment ${commentId} was found.`,
+      {
+        nextSteps: [
+          'Run `orca linear issue <id> --comments --json` and pass a comment `id` from it.'
+        ]
+      }
+    )
+  }
+
+  public linearCommentChangeUnconfirmed(
+    verb: 'edit' | 'delete',
+    comment: LinearAgentComment,
+    workspaceId: string,
+    cause?: string
+  ): LinearAgentAccessError {
+    const issue = comment.issue.identifier
+    const readBack = `orca linear issue ${issue} --comments --workspace ${workspaceId} --json`
+    return linearError(
+      'linear_write_unconfirmed',
+      `Linear may have applied the comment ${verb}, but Orca could not confirm it.`,
+      {
+        workspaceId,
+        issueIdentifier: comment.issue.identifier,
+        nextSteps: [
+          `Run \`${readBack}\` and rerun the ${verb} only if comment ${comment.id} ${
+            verb === 'edit' ? 'still has its old body' : 'is still listed'
+          }.`
+        ],
+        ...(cause ? { cause } : {})
+      }
+    )
+  }
 }
+
+type LinearAgentComment = NonNullable<Awaited<ReturnType<typeof getLinearCommentByUuidForAgent>>>
