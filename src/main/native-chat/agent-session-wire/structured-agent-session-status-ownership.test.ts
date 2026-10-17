@@ -274,8 +274,10 @@ describe('child work the provider reported, recorded or not', () => {
       }
     })
     const end = (runId: string): AgentChildWorkEvidence => ({
-      ...ended('helper'),
-      handle: { idKind: 'task_id', id: 'helper', runId }
+      type: 'ended',
+      observedAt: 250,
+      handle: { idKind: 'task_id', id: 'helper', runId },
+      outcome: 'succeeded'
     })
     owner.publishChildWork(summary.sessionId, [run('a')], 'claude')
     refuse = true
