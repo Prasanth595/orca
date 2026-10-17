@@ -59,7 +59,7 @@ function relayWithPhone(
 ) {
   const syncCalls: unknown[] = []
   const server = { capable: true }
-  const desktop = { nativeChatDefault: true }
+  const desktop = { nativeChatDefault: true, agentDefaults: new Map<string, boolean>() }
   const hosts: MobileDesktopRelayHosts = {
     list: () => ({
       environments: [],
@@ -91,7 +91,7 @@ function relayWithPhone(
       { phoneKey: 'phone-2', name: 'iPad via Mac' }
     ],
     allocateStreamId: () => 1,
-    nativeChatDefault: () => desktop.nativeChatDefault
+    nativeChatDefault: (agent) => desktop.agentDefaults.get(agent) ?? desktop.nativeChatDefault
   })
   const replies: string[] = []
   let capabilities: readonly string[] = ['cap.a']
@@ -115,6 +115,40 @@ function relayWithPhone(
 }
 
 describe('MobileDesktopRelay', () => {
+  it('resolves legacy phone defaults per agent without overriding a capable phone choice', async () => {
+    sockets.length = 0
+    const { relay, phone, desktop, setCapabilities } = relayWithPhone()
+    desktop.agentDefaults.set('codex', false)
+    const target = { kind: 'existing', worktree: 'id:wt-1' }
+    const frame = (id: string, method: string, params: Record<string, unknown>) =>
+      JSON.stringify({ id, method, params })
+    relay.forward(
+      phone,
+      'env-1',
+      { id: 'a', method: 'agent.launch' },
+      frame('a', 'agent.launch', { agent: 'claude', target })
+    )
+    relay.forward(
+      phone,
+      'env-1',
+      { id: 'b', method: 'agent.launch' },
+      frame('b', 'agent.launch', { agent: 'codex', target })
+    )
+    await vi.waitFor(() => expect(sockets[0]?.sent).toHaveLength(2))
+    expect(JSON.parse(sockets[0]!.sent[0]!).params.nativeChatDefault).toBe(true)
+    expect(JSON.parse(sockets[0]!.sent[1]!).params.nativeChatDefault).toBe(false)
+    setCapabilities([STRUCTURED_AGENT_SESSION_CLIENT_LAUNCH_MODE_CAPABILITY])
+    relay.forward(
+      phone,
+      'env-1',
+      { id: 'c', method: 'agent.launch' },
+      frame('c', 'agent.launch', { agent: 'codex', target, nativeChatDefault: true })
+    )
+    await vi.waitFor(() => expect(sockets[0]?.sent).toHaveLength(3))
+    expect(JSON.parse(sockets[0]!.sent[2]!).params.nativeChatDefault).toBe(true)
+    relay.dispose()
+  })
+
   it.each([true, false])(
     'preserves an explicit launch mode from a capable phone: %s',
     async (nativeChatDefault) => {
@@ -172,7 +206,9 @@ describe('MobileDesktopRelay', () => {
       frame('l3', 'terminal.list', { worktree: 'id:wt-1' })
     )
     await vi.waitFor(() => expect(sockets[0]?.sent.length).toBe(3))
-    const sent = sockets[0]!.sent.map((text) => JSON.parse(text))
+    const sent = sockets[0]!.sent
+      .map((text) => JSON.parse(text))
+      .sort((a, b) => a.id.localeCompare(b.id))
     expect(sent[0].params).toEqual({ agent: 'claude', target, nativeChatDefault: true })
     expect(sent[1].params).toEqual({
       agent: 'claude',

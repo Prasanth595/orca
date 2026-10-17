@@ -72,8 +72,8 @@ export class MobileDesktopRelay {
       hosts: MobileDesktopRelayHosts
       listPhones: () => DelegatedMobileDeviceSyncParams['phones']
       allocateStreamId: () => number
-      /** This desktop's "new agent tabs open as chats" setting. */
-      nativeChatDefault: () => boolean
+      /** Whether this desktop's settings open `agent` as a chat. */
+      nativeChatDefault: (agent: string) => boolean
     }
   ) {
     this.grants = new DelegatedPhoneGrantCache(options.hosts, options.listPhones)
@@ -126,7 +126,7 @@ export class MobileDesktopRelay {
         const outgoing = withRelayedLaunchChatDefault(
           rewriteRelayedPhoneRequest(frame, phone.deviceToken, hostToken),
           request.method,
-          this.options.nativeChatDefault(),
+          this.options.nativeChatDefault,
           phone
             .clientCapabilities()
             .includes(STRUCTURED_AGENT_SESSION_CLIENT_LAUNCH_MODE_CAPABILITY)
