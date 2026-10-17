@@ -33,13 +33,14 @@ export function assertProfileStateDocumentRevision(
 /**
  * Advance the shared profile revision to a floor. `writeProfileStateDomains`
  * rejects rows whose revision exceeds the profile revision, so merging salvaged
- * rows that carry their own revisions into a restored baseline must move the
- * merged documents and the profile revision up to the floor in one step.
+ * rows into a restored baseline must move the profile revision up to the floor.
  *
- * Only the documents actually merged are bumped: rows at or below the floor
- * already satisfy the revision fence. The automation-runs metadata table is
- * left untouched because its DOCUMENT marker pins revision to 0 and must not be
- * advanced; `profile_state_meta` is the profile revision itself.
+ * Rows are not versioned per document, so they are bumped to the floor too —
+ * a row at or below the floor already satisfies the revision fence, but moving
+ * every row keeps the invariant "row revision <= profile revision" aligned in
+ * one step. The automation-runs metadata table is left untouched because its
+ * DOCUMENT marker pins revision to 0 and must not be advanced;
+ * `profile_state_meta` is the profile revision itself.
  */
 export function raiseProfileStateRevisionFloor(
   db: Database.Database,

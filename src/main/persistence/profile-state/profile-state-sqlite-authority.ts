@@ -12,7 +12,8 @@ import {
   readProfileStateParsedSnapshot,
   readProfileStateParsedSnapshotSalvage,
   readProfileStateRevision,
-  readProfileStateSnapshot
+  readProfileStateSnapshot,
+  readProfileStateSnapshotSalvage
 } from './profile-state-documents'
 import { scrubStaleProfileStateHashes } from './profile-state-document-reader'
 import {
@@ -163,7 +164,15 @@ export class ProfileStateSqliteAuthority implements ProfileStateAuthority {
     const opened =
       this.writableDatabase ?? openProfileStateDatabaseReadOnly(this.databasePath, this.profileId)
     try {
-      const snapshot = readProfileStateSnapshot(opened.db)
+      let snapshot: ReturnType<typeof readProfileStateSnapshot>
+      try {
+        snapshot = readProfileStateSnapshot(opened.db)
+      } catch {
+        // A salvage startup leaves rejected rows on disk behind the write
+        // fence; fall back to the row-by-row read so a later serialized read
+        // stays usable instead of re-tripping the whole-snapshot validator.
+        snapshot = readProfileStateSnapshotSalvage(opened.db)
+      }
       this.observedRevision = snapshot.revision
       return snapshot.revision === 0 ? undefined : snapshot.json
     } finally {

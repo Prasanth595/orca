@@ -1,3 +1,4 @@
+import { AUTOMATION_RUNS_DOMAIN } from './profile-state-automation-runs-model'
 import { openProfileStateDatabaseReadOnly } from './profile-state-database'
 import { readProfileStateRevision } from './profile-state-revision'
 import {
@@ -16,6 +17,12 @@ export type SalvageDocumentSource = {
 export type SalvageResult = {
   /** Documents whose stored hash and metadata verify. */
   intactDocuments: readonly ProfileStateDocument[]
+  /**
+   * Documents dropped because they reference normalized storage (automation
+   * runs kept in projection tables) whose rows are not verifiable byte-for-byte
+   * by a hash check.
+   */
+  droppedProjectionDomains: readonly string[]
   /** Domains whose row failed validation and were skipped. */
   skippedDomains: readonly string[]
   /** The salvaged database's own profile revision, if readable. */
@@ -38,6 +45,7 @@ export function salvageValidDocuments(options: SalvageDocumentSource): SalvageRe
     const sourceRevision = readProfileStateRevision(opened.db)
     const wanted = options.domains !== undefined ? new Set(options.domains) : undefined
     const intactDocuments: ProfileStateDocument[] = []
+    const droppedProjectionDomains: string[] = []
     const skippedDomains: string[] = []
     for (const row of opened.db
       .prepare(
@@ -52,14 +60,28 @@ export function salvageValidDocuments(options: SalvageDocumentSource): SalvageRe
       try {
         // Validate hash and metadata; skip JSON parsing because the original
         // writer stored a well-formed payload and the caller merges by byte.
-        intactDocuments.push(validateProfileStateDocumentRow(row, { validateJson: false }))
+        const document = validateProfileStateDocumentRow(row, { validateJson: false })
+        if (domain === AUTOMATION_RUNS_DOMAIN) {
+          // Normalized automation runs live in projection tables whose aggregate
+          // hash this row cannot verify byte-for-byte; a document-row-only merge
+          // would orphan the restored baseline. Drop the domain and let the
+          // caller recover it from a trusted snapshot.
+          droppedProjectionDomains.push(domain)
+          continue
+        }
+        intactDocuments.push(document)
       } catch {
         if (typeof domain === 'string') {
           skippedDomains.push(domain)
         }
       }
     }
-    return { intactDocuments, skippedDomains, sourceRevision }
+    return {
+      intactDocuments,
+      droppedProjectionDomains,
+      skippedDomains,
+      sourceRevision
+    }
   } finally {
     opened.db.close()
   }

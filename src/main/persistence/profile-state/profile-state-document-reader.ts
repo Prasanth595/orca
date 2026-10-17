@@ -74,10 +74,11 @@ type ProfileStateDocumentRow = {
 }
 function isHashOnlyStale(row: unknown): boolean {
   try {
-    validateProfileStateDocumentRow(row, { validateJson: false })
+    // The payload must be intact (valid JSON) for a re-hash to be a repair;
+    // otherwise a corrupt payload would be blessed with a fresh hash.
+    validateProfileStateDocumentRow(row, { validateJson: true })
     return false
   } catch (error) {
-    // Only a hash mismatch is repairable; metadata/JSON corruption is not.
     return error instanceof ProfileStateDocumentCorruptionError && error.message.startsWith(
       'Profile state document hash mismatch'
     )

@@ -211,6 +211,28 @@ export function readProfileStateParsedSnapshotSalvage(
   return readProfileStateParsedSnapshotInternal(db, true)
 }
 
+/**
+ * Salvage variant of {@link readProfileStateSnapshot}: skip rows that fail
+ * validation instead of aborting the whole read, so a later serialized read
+ * stays usable after a salvage startup left rejected rows on disk.
+ */
+export function readProfileStateSnapshotSalvage(db: Database.Database): ProfileStateSnapshot {
+  return withProfileStateReadSnapshot(db, () => {
+    const revision = readProfileStateRevision(db)
+    const documents = readProfileStateDocuments(db, {
+      profileRevision: revision,
+      salvage: true
+    })
+    return {
+      revision,
+      documents,
+      json: `{${documents
+        .map((document) => `${JSON.stringify(document.domain)}:${document.payload}`)
+        .join(',')}}`
+    }
+  })
+}
+
 function readProfileStateParsedSnapshotInternal(
   db: Database.Database,
   salvage: boolean
