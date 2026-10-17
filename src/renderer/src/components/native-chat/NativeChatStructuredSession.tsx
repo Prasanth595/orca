@@ -58,6 +58,7 @@ import { useStructuredAgentSessionStartFailureFacts } from './use-structured-age
 import { pendingPromptsAllUnanswerableHere } from '../../../../shared/agent-session-approval-subject'
 import { isClaudeSignInFailureKind, useNativeChatClaudeSignIn } from './native-chat-claude-sign-in'
 
+/** Connects host session state to the transcript, question cards, and composer. */
 export function NativeChatStructuredSession(
   props: Omit<NativeChatStructuredViewProps, 'mode'>
 ): React.JSX.Element {

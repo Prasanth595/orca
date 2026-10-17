@@ -21,6 +21,7 @@ vi.mock('@/lib/worker-terminal-takeover-report', () => ({
   reportWorkerTerminalUserInput: io.report
 }))
 
+/** Uses a remote session fixture to check that replies are reported to the correct host. */
 function args() {
   return {
     paneKey: 'pane-a',

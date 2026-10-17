@@ -42,6 +42,7 @@ export type StructuredMobileSendAttachment = StructuredAgentSessionAttachment & 
   id?: string
 }
 
+/** Sends through the host and reports delivery; immediate answers bypass the follow-up queue. */
 export function useMobileStructuredSendWithOutcome(args: {
   agent: string | null
   client: RpcClient | null

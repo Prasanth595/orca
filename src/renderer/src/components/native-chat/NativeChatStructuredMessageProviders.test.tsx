@@ -27,6 +27,7 @@ afterEach(() => {
   renderReply.mockClear()
 })
 
+/** Counts context-driven renders while keeping the consumer memoized like a message row. */
 const ReplyProbe = memo(function ReplyProbe() {
   renderReply()
   const reply = useContext(NativeChatAsyncQuestionContext)
@@ -35,6 +36,7 @@ const ReplyProbe = memo(function ReplyProbe() {
 
 const LOCAL_TARGET = { kind: 'local' } as const
 
+/** Exercises the provider with a mocked session controller and a real context consumer. */
 function Session({
   target = LOCAL_TARGET,
   blocked = false,

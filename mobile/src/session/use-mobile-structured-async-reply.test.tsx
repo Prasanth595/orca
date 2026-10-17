@@ -48,6 +48,7 @@ let latest:
       reply: ReturnType<typeof useMobileNativeChatAsyncReply>
     }
   | undefined
+/** Connects the real session and reply hooks to a fake RPC client with selectable host capabilities. */
 function Screen({ queueCapable }: { queueCapable: boolean }) {
   const session = useMobileStructuredAgentSession({
     client,
@@ -80,6 +81,7 @@ function current() {
   }
   return latest
 }
+/** Starts an active turn through the subscription, optionally with a blocking prompt. */
 async function mount(queueCapable = true, extraItems: AgentJournalRenderItem[] = []) {
   await act(async () => {
     tree = create(<Screen queueCapable={queueCapable} />)

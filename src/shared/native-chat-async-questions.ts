@@ -6,6 +6,7 @@ export type NativeChatAsyncQuestionReply = {
   send: (text: string) => boolean | Promise<boolean>
 }
 
+/** Adapts async choices for the existing question wizard; callers provide free-text Other. */
 export function asyncQuestionsPrompt(questions: NativeChatAsyncQuestion[]): AskPrompt {
   return {
     questions: questions.map(({ title, options }) => ({
@@ -16,6 +17,7 @@ export function asyncQuestionsPrompt(questions: NativeChatAsyncQuestion[]): AskP
   }
 }
 
+/** Pairs each answer with its question, preferring typed text and omitting unanswered questions. */
 export function formatAsyncQuestionAnswer(
   questions: NativeChatAsyncQuestion[],
   selections: AskAnswerSelection[]

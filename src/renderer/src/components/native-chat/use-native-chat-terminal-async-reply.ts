@@ -6,12 +6,15 @@ import type { useNativeChatPendingDelivery } from './use-native-chat-pending-del
 
 type PendingReply = { handle: NativeChatSendHandle | null; finish: (accepted: boolean) => void }
 
+/** Tracks terminal reply delivery and cancels pending writes when the session loses input ownership. */
 export function useNativeChatTerminalAsyncReply(args: {
   paneKey: string
   sessionId: string | null
   targetPtyId: string | null
   runtimeEnvironmentId: string | null
+  /** Blocks new replies; hiding the view must not interrupt a reply already being sent. */
   disabled: boolean
+  /** Cancels pending writes when a blocking prompt or another input owner takes over. */
   cancelInFlight: boolean
   delivery: ReturnType<typeof useNativeChatPendingDelivery>
   onSubmitted: () => void

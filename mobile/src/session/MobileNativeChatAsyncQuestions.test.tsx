@@ -27,6 +27,7 @@ const questions = [{ title: 'Which branch?', options: ['main', 'release'] }]
 const questionGroups = [questions]
 const send = vi.fn<(text: string) => Promise<boolean>>()
 let tree: ReactTestRenderer | undefined
+/** Uses real cards and a shared reply provider to exercise competing answers. */
 function Screen({
   disabled = false,
   groups = questionGroups
@@ -48,11 +49,13 @@ function root() {
   }
   return tree.root
 }
+/** Mounts the wizard and flushes React effects before interacting with it. */
 async function mount(groups?: NativeChatAsyncQuestion[][]) {
   await act(async () => {
     tree = create(<Screen groups={groups} />)
   })
 }
+/** Selects an option without advancing its timer, so tests can change input ownership first. */
 async function option(label: string) {
   await act(async () =>
     root()
@@ -63,6 +66,7 @@ async function option(label: string) {
 function isHost(node: { type: unknown }, name: string): boolean {
   return node.type === name
 }
+/** Presses a mocked native control by its visible text, without a device or OS event. */
 async function button(label: string) {
   const control = root().find(
     (node) =>
@@ -77,6 +81,7 @@ function input() {
 async function type(text: string) {
   await act(async () => input().props.onChangeText(text))
 }
+/** Completes the single-choice delay and flushes the resulting React updates. */
 async function advance() {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(NATIVE_CHAT_QUESTION_AUTO_ADVANCE_MS)

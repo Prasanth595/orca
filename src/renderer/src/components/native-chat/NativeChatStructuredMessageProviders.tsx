@@ -7,6 +7,7 @@ import { NativeChatOrcaStopContext } from './native-chat-orca-stop-context'
 import { NativeChatClaudeSignInContext } from './native-chat-claude-sign-in'
 import type { NativeChatStructuredViewProps } from './native-chat-view-types'
 
+/** Shares reply controls without rerendering every message row on each streamed update. */
 export function NativeChatStructuredMessageProviders({
   controller,
   pane,

@@ -53,6 +53,7 @@ let latest:
 
 type Props = { scope: string; disabled?: boolean; structured?: boolean }
 const structuredSend = vi.fn<NonNullable<Parameters<typeof useMobileNativeChatAsyncReply>[2]>>()
+/** Exercises real terminal sends and drafts, with a separate stub for structured replies. */
 function Screen({ scope, disabled = false, structured = false }: Props) {
   const drafts = useMobileNativeChatDrafts({
     hostId: scope,
@@ -98,6 +99,7 @@ function current() {
   }
   return latest
 }
+/** Starts with an unfinished composer draft so replies can be checked for accidental edits. */
 async function mount(props: Props = { scope: 'host-a' }) {
   await act(async () => {
     tree = create(<Screen {...props} />)

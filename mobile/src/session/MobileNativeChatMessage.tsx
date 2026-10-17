@@ -41,6 +41,7 @@ import { MobileNativeChatVisualContext } from './mobile-native-chat-visual-conte
 import { MobileNativeChatPacedProse } from './MobileNativeChatPacedProse'
 import { Prose } from './MobileNativeChatProse'
 
+/** Shows question cards when replies are available, otherwise keeps the readable message text. */
 function MobileNativeChatMessageImpl({
   message,
   mayStillGrow = false,

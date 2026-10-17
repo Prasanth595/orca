@@ -9,6 +9,7 @@ import {
 } from '../native-chat/agent-session-journal/journal-payload-bounds'
 import { readRecord, readString } from './codex-item-field-readers'
 
+/** Builds a question card with a text fallback; oversized questions remain text-only. */
 export function codexAsyncQuestionBlock(value: unknown): NativeChatTextBlock | null {
   if (!Array.isArray(value)) {
     return null
@@ -44,6 +45,7 @@ export function codexAsyncQuestionBlock(value: unknown): NativeChatTextBlock | n
   }
 }
 
+/** Adds the question card and removes duplicate question text, keeping any extra prose. */
 export function codexAsyncMessageBlocks(
   blocks: NativeChatBlock[],
   value: unknown
@@ -52,7 +54,6 @@ export function codexAsyncMessageBlocks(
   if (!questionBlock) {
     return blocks
   }
-  // Codex also emits the questions as prose; retain only prose that adds something.
   const prose = questionBlock.asyncQuestions
     ?.map(({ title, options }) => [title, ...options.map((option) => `- ${option}`)].join('\n'))
     .join('\n\n')

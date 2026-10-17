@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { shouldClearNativeChatWorkingSuppression } from './native-chat-working-suppression'
 
+/** Hides stale working status after Stop until the current work ends or new work begins. */
 export function useNativeChatWorkingSuppression(
   liveWorking: boolean,
   hookWorkingEpoch: number | null

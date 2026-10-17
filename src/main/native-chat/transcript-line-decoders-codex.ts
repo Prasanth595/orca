@@ -121,6 +121,7 @@ function isSkillContext(block: NativeChatBlock): boolean {
   return block.type === 'text' && block.text.trimStart().slice(0, 7).toLowerCase() === '<skill>'
 }
 
+/** Reads Codex transcript events, preserving async questions as assistant messages. */
 function codexEventMessage(
   payload: Record<string, unknown>,
   id: string,
@@ -156,6 +157,7 @@ function codexEventMessage(
   return null
 }
 
+/** Reads completed turn items using their own ID, or the enclosing event ID when absent. */
 function codexCompletedTurnItem(
   payload: Record<string, unknown>,
   fallbackId: string,

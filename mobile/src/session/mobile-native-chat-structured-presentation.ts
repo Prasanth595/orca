@@ -1,5 +1,6 @@
 import type { useMobileStructuredAgentSession } from './use-mobile-structured-agent-session'
 
+/** Hides structured turn details in terminal mode while retaining host input restrictions. */
 export function mobileNativeChatStructuredPresentation(
   session: ReturnType<typeof useMobileStructuredAgentSession>,
   structured: boolean

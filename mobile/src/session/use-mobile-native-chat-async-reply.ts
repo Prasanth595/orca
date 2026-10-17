@@ -2,6 +2,7 @@ import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import type { useMobileStructuredSendWithOutcome } from './use-mobile-structured-send-with-outcome'
 import type { NativeChatAsyncQuestionReply } from '../../../src/shared/native-chat-async-questions'
 
+/** Sends answers immediately and ignores completion callbacks after the session changes or stops. */
 export function useMobileNativeChatAsyncReply(
   scope: string,
   disabled: boolean,

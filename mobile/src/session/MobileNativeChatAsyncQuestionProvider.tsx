@@ -2,6 +2,7 @@ import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'reac
 import type { NativeChatAsyncQuestionReply } from '../../../src/shared/native-chat-async-questions'
 import { MobileNativeChatAsyncQuestionContext } from './mobile-native-chat-async-question-context'
 
+/** Allows one reply at a time across all cards and rechecks input ownership before sending. */
 export function MobileNativeChatAsyncQuestionProvider({
   reply,
   disabled,

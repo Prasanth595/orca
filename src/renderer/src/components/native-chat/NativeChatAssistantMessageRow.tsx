@@ -26,6 +26,7 @@ function messageIsStreaming(
   )
 }
 
+/** Shows answer cards only for the main assistant; subagent rows keep the question text. */
 export function NativeChatAssistantMessageRow({
   props,
   content,

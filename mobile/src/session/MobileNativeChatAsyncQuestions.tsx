@@ -9,6 +9,7 @@ import { MobileNativeChatAsk } from './MobileNativeChatAsk'
 import { MobileNativeChatPromptStrip } from './MobileNativeChatPromptStrip'
 import { MobileNativeChatAsyncQuestionContext } from './mobile-native-chat-async-question-context'
 
+/** Keeps the answer draft when folded; only an accepted send closes the card automatically. */
 export function MobileNativeChatAsyncQuestions({
   questions
 }: {

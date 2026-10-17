@@ -81,8 +81,8 @@ for (const name of ['AskUserQuestion', 'ask_user_question', 'askUserQuestion']) 
   QUESTION_TOOL_PARSERS.set(name, parseCanonicalQuestionsInput)
 }
 
+/** Parses blocking question tools; async questions receive ordinary chat replies instead. */
 function parseToolInput(toolName: string | undefined, input: unknown): AskPrompt | null {
-  // Async replies are ordinary messages, never input for a blocking selector.
   if (toolName?.split('.').at(-1) === 'request_user_input_async') {
     return null
   }

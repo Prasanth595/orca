@@ -9,6 +9,7 @@ import { NativeChatAsyncQuestions } from './NativeChatAsyncQuestions'
 import { NativeChatAsyncQuestionContext } from './native-chat-async-question-context'
 import { NATIVE_CHAT_QUESTION_AUTO_ADVANCE_MS } from '../../../../shared/native-chat-question-auto-advance'
 
+/** Supplies the tooltip context required by the real question card. */
 function render(ui: ReactNode) {
   return renderView(ui, { wrapper: TooltipProvider })
 }

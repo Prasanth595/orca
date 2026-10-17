@@ -9,6 +9,7 @@ import {
 import { NativeChatQuestionCard } from './NativeChatQuestionCard'
 import { NativeChatAsyncQuestionContext } from './native-chat-async-question-context'
 
+/** Sends answers as chat messages and keeps drafts when folded or when delivery fails. */
 export function NativeChatAsyncQuestions({
   questions
 }: {
@@ -31,6 +32,7 @@ export function NativeChatAsyncQuestions({
   if (!reply || questions.length === 0) {
     return null
   }
+  /** Restores focus for card actions, but lets delayed sends leave the composer focused. */
   const collapse = (restoreFocus = true): void => {
     setExpanded(false)
     if (restoreFocus) {
