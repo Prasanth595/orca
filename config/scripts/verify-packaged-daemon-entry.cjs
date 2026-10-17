@@ -63,7 +63,9 @@ function verifyPackagedDaemonEntryBoots(resourcesDir, options = {}) {
   console.log('[verify-packaged-daemon-entry] OK — packaged daemon-entry loads under plain Node')
 }
 
-const TERMINAL_HOST_BOOT_TIMEOUT_MS = 20_000
+// Why 60s: the first exec of a freshly signed x64 binary via Rosetta on an arm64 CI runner
+// triggers macOS security assessment, which can exceed 20s on macOS 15 GitHub-hosted runners.
+const TERMINAL_HOST_BOOT_TIMEOUT_MS = 60_000
 // Arithmetic so the shell echoing the typed command cannot satisfy the check.
 const TERMINAL_HOST_BOOT_COMMAND = 'echo "OK $((6*7))" && exit'
 const TERMINAL_HOST_BOOT_OUTPUT = 'OK 42'
@@ -203,7 +205,6 @@ async function runTerminalHostRoundTrip({
   process.once('exit', cleanupOnExit)
   const connections = []
   try {
-    // The first exec of a freshly signed binary can be slow while the system assesses it.
     while (!(existsSync(socketPath) && existsSync(tokenPath) && statSync(tokenPath).size > 0)) {
       if (exited || Date.now() > deadline) {
         throw new Error(exited ? 'the daemon exited before it was ready' : 'no daemon token')
