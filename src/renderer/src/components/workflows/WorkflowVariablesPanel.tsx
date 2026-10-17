@@ -68,18 +68,21 @@ export default function WorkflowVariablesPanel(): React.JSX.Element {
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
       <div className="px-3 py-2 border-b border-border shrink-0">
         <p className="text-xs text-muted-foreground">
-          {translate('workflows.variablesPanel.description')}{' '}
+          {translate('workflows.variablesPanel.description', 'Use')}{' '}
           <code className="font-mono">
-            {translate('workflows.variablesPanel.descriptionTemplate')}
+            {translate('workflows.variablesPanel.descriptionTemplate', '{{$vars.KEY}}')}
           </code>{' '}
-          {translate('workflows.variablesPanel.descriptionSuffix')}
+          {translate(
+            'workflows.variablesPanel.descriptionSuffix',
+            'in any node field to inject a value.'
+          )}
         </p>
       </div>
 
       <div className="flex-1 overflow-y-auto scrollbar-sleek min-h-0">
         {variables.length === 0 ? (
           <p className="px-3 py-4 text-xs text-muted-foreground">
-            {translate('workflows.variablesPanel.empty')}
+            {translate('workflows.variablesPanel.empty', 'No variables yet.')}
           </p>
         ) : (
           <ul className="divide-y divide-border">
@@ -95,10 +98,10 @@ export default function WorkflowVariablesPanel(): React.JSX.Element {
                 </span>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 shrink-0">
                   <Button variant="ghost" size="xs" onClick={() => startEdit(v)}>
-                    {translate('workflows.variablesPanel.edit')}
+                    {translate('workflows.variablesPanel.edit', 'Edit')}
                   </Button>
                   <Button variant="destructive" size="xs" onClick={() => void handleDelete(v.key)}>
-                    {translate('workflows.variablesPanel.delete')}
+                    {translate('workflows.variablesPanel.delete', 'Delete')}
                   </Button>
                 </div>
               </li>
@@ -110,13 +113,13 @@ export default function WorkflowVariablesPanel(): React.JSX.Element {
       <div className="border-t border-border px-3 py-2 shrink-0 flex flex-col gap-2">
         <p className="text-xs font-medium">
           {editing
-            ? translate('workflows.variablesPanel.dialogTitleEdit')
-            : translate('workflows.variablesPanel.dialogTitleNew')}
+            ? translate('workflows.variablesPanel.dialogTitleEdit', 'Edit variable')
+            : translate('workflows.variablesPanel.dialogTitleNew', 'New variable')}
         </p>
         <div className="flex gap-2">
           <Input
             className="h-7"
-            placeholder={translate('workflows.variablesPanel.keyPlaceholder')}
+            placeholder={translate('workflows.variablesPanel.keyPlaceholder', 'KEY')}
             value={editKey}
             disabled={!!editing}
             onChange={(e) => setEditKey(e.target.value)}
@@ -130,17 +133,17 @@ export default function WorkflowVariablesPanel(): React.JSX.Element {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="plaintext">
-                {translate('workflows.variablesPanel.kindPlaintext')}
+                {translate('workflows.variablesPanel.kindPlaintext', 'Plaintext')}
               </SelectItem>
               <SelectItem value="secret">
-                {translate('workflows.variablesPanel.kindSecret')}
+                {translate('workflows.variablesPanel.kindSecret', 'Secret')}
               </SelectItem>
             </SelectContent>
           </Select>
         </div>
         <Input
           className="h-7"
-          placeholder={translate('workflows.variablesPanel.valuePlaceholder')}
+          placeholder={translate('workflows.variablesPanel.valuePlaceholder', 'Value')}
           type={editKind === 'secret' ? 'password' : 'text'}
           value={editValue}
           onChange={(e) => setEditValue(e.target.value)}
@@ -153,12 +156,12 @@ export default function WorkflowVariablesPanel(): React.JSX.Element {
         <div className="flex gap-2">
           <Button size="sm" className="h-7 flex-1" onClick={() => void handleSave()}>
             {editing
-              ? translate('workflows.variablesPanel.buttonUpdate')
-              : translate('workflows.variablesPanel.buttonAdd')}
+              ? translate('workflows.variablesPanel.buttonUpdate', 'Update')
+              : translate('workflows.variablesPanel.buttonAdd', 'Add')}
           </Button>
           {editing && (
             <Button size="sm" variant="ghost" className="h-7" onClick={resetForm}>
-              {translate('workflows.variablesPanel.buttonCancel')}
+              {translate('workflows.variablesPanel.buttonCancel', 'Cancel')}
             </Button>
           )}
         </div>

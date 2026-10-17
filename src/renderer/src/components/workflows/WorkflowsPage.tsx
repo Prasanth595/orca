@@ -114,13 +114,13 @@ export default function WorkflowsPage(): React.JSX.Element {
                   className={`flex-1 py-1.5 text-xs font-medium transition-colors ${leftTab === 'workflows' ? 'text-foreground border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'}`}
                   onClick={() => setLeftTab('workflows')}
                 >
-                  {translate('workflows.page.tabWorkflows')}
+                  {translate('workflows.page.tabWorkflows', 'Workflows')}
                 </button>
                 <button
                   className={`flex-1 py-1.5 text-xs font-medium transition-colors ${leftTab === 'variables' ? 'text-foreground border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'}`}
                   onClick={() => setLeftTab('variables')}
                 >
-                  {translate('workflows.page.tabVariables')}
+                  {translate('workflows.page.tabVariables', 'Variables')}
                 </button>
               </div>
               {leftTab === 'workflows' ? (
