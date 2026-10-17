@@ -184,10 +184,7 @@ describe('a Codex send whose turn completes without taking it', () => {
       }
     })
     expect(result).toMatchObject({ ok: true, value: { command, state: 'completed' } })
-    if (!result.ok) {
-      throw new Error(JSON.stringify(result.refusal))
-    }
-    expect(result.value).not.toHaveProperty('error')
+    expect(result).not.toHaveProperty('value.error')
     await vi.waitFor(() => expect(host.currentWork(SESSION)?.activeTurnId()).toMatch(/^compact:/))
     const snapshot = await host.journalSnapshot(SESSION)
     const compact = snapshot.submissions.find((entry) => entry.clientMessageId !== blocked)
@@ -217,16 +214,14 @@ describe('a Codex send whose turn completes without taking it', () => {
       turn: { id: 'turn-compact', status: 'completed' }
     })
     await vi.waitFor(() => expect(host.currentWork(SESSION)?.working()).toBe(false))
-    expect((await host.journalSnapshot(SESSION)).items).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          body: expect.objectContaining({
-            kind: 'turn',
-            turnId: expect.stringMatching(/^compact:/),
-            state: 'completed'
-          })
+    expect((await host.journalSnapshot(SESSION)).items).toContainEqual(
+      expect.objectContaining({
+        body: expect.objectContaining({
+          kind: 'turn',
+          turnId: expect.stringMatching(/^compact:/),
+          state: 'completed'
         })
-      ])
+      })
     )
   })
 

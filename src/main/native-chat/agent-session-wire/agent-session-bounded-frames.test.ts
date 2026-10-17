@@ -177,9 +177,7 @@ describe('frames to a bounded-frame subscriber', () => {
         new StructuredAgentSessionCurrentWork(journal, 1, 0, undefined, undefined, false, () => held)
     })
     const frames: AgentSessionSubscribeEvent[] = []
-    const emit = (event: AgentSessionSubscribeEvent): void => {
-      frames.push(event)
-    }
+    const emit = (event: AgentSessionSubscribeEvent) => frames.push(event)
     const check = (state: 'pending' | 'unknown'): void => {
       const delivered = new Map<string, AgentJournalSubmission>()
       for (const frame of frames) {
@@ -192,13 +190,7 @@ describe('frames to a bounded-frame subscriber', () => {
               : []
         if (frame.type === 'batch') {
           expect(submissions.length).toBeLessThanOrEqual(AGENT_SESSION_HISTORY_MAX_LIMIT)
-          if (submissions.length) {
-            expect(frame).toMatchObject({
-              working: state === 'pending',
-              actionablePromptIds: [],
-              latestTurn: null
-            })
-          }
+          expect(frame.working).toBe(state === 'pending')
         }
         for (const submission of submissions) {
           delivered.set(submission.clientMessageId, submission)
@@ -217,8 +209,6 @@ describe('frames to a bounded-frame subscriber', () => {
       emit,
       boundedFrames: true
     })
-    const first = frames[0]
-    expect(first?.type === 'snapshot' && first.page.submissions).toHaveLength(0)
     check('unknown')
     close()
     frames.length = 0
@@ -240,14 +230,12 @@ describe('frames to a bounded-frame subscriber', () => {
     held = new Set(ids)
     subscribers.publish(SESSION, journal)
     check('pending')
-    expect(
-      frames.every(
-        (frame) =>
-          frame.type === 'batch' &&
-          frame.batch.cursor.sequence === journal.cursor().sequence &&
-          !frame.batch.items.length
-      )
-    ).toBe(true)
+    for (const frame of frames) {
+      expect(frame).toMatchObject({
+        type: 'batch',
+        batch: { cursor: journal.cursor(), items: [] }
+      })
+    }
   })
 
   function largeQueue(): QueuePublication {

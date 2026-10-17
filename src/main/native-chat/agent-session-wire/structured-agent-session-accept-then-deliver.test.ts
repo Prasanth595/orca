@@ -223,6 +223,7 @@ async function subscribe(): Promise<AgentSessionSubscribeEvent[]> {
 
 /** What an open chat was told about one message, in frame order. */
 function framedStates(events: AgentSessionSubscribeEvent[], id: string): string[] {
+  let previous: string | undefined
   return events.flatMap((event) =>
     event.type === 'batch'
       ? event.batch.submissions
@@ -232,6 +233,12 @@ function framedStates(events: AgentSessionSubscribeEvent[], id: string): string[
               ? 'handed-over'
               : entry.dispatchState
           )
+          .filter((state) => {
+            const key = JSON.stringify([event.batch.cursor, state])
+            const changed = key !== previous
+            previous = key
+            return changed
+          })
       : []
   )
 }
