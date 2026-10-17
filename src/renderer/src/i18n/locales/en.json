@@ -20633,7 +20633,8 @@
       "noHistory": "No submitted changelists",
       "historyLoadFailed": "Failed to load history",
       "historyFilesLoadFailed": "Failed to load files",
-      "showMoreHistory": "Show more"
+      "showMoreHistory": "Show more",
+      "loadMoreHistoryRetry": "Failed to load more. Click to retry"
     },
     "settings": {
       "ai": {

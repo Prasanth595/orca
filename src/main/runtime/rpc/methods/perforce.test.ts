@@ -113,7 +113,7 @@ describe('perforce.* RPC methods', () => {
     await call('perforce.unshelveFrom', { sourceChangelist: 3, changelist: 'default' })
     expect(backend.unshelveFrom).toHaveBeenCalledWith('/srv/ws', 3, 'default')
     await call('perforce.history', { limit: 5000 })
-    expect(backend.history).toHaveBeenCalledWith('/srv/ws', 200)
+    expect(backend.history).toHaveBeenCalledWith('/srv/ws', 1000)
   })
 
   it('rejects paths that escape the workspace before p4 runs', async () => {

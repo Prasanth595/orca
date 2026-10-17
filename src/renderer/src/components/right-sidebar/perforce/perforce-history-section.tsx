@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { detectLanguage } from '@/lib/language-detect'
 import { joinPath } from '@/lib/path'
 import { useAppStore } from '@/store'
@@ -190,7 +191,11 @@ function SubmittedChangelistRow({
   )
 }
 
-// ─── public section component ────────────────────────────────────────────────
+// ─── public docked section component ─────────────────────────────────────────
+
+const HISTORY_PAGE_SIZE = 30
+const HISTORY_MAX_BODY_HEIGHT = 240
+const LOAD_MORE_THRESHOLD_PX = 32
 
 export function PerforceHistorySection({
   target,
@@ -201,48 +206,93 @@ export function PerforceHistorySection({
 }) {
   const [sectionOpen, setSectionOpen] = useState(false)
   const [history, setHistory] = useState<PerforceHistoryEntry[] | null>(null)
+  const [hasMore, setHasMore] = useState(false)
+  const [moreError, setMoreError] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const listLimitRef = useRef(HISTORY_PAGE_SIZE)
+  const bodyRef = useRef<HTMLDivElement | null>(null)
 
+  const applyHistory = useCallback((entries: PerforceHistoryEntry[], limit: number): void => {
+    setHistory(entries.slice(0, limit))
+    setHasMore(entries.length > limit)
+    setMoreError(false)
+    setError(null)
+  }, [])
+
+  // Why: the list is hidden until opened, so fetch on first expand only.
   useEffect(() => {
     if (!sectionOpen || history !== null || loading) {
       return
     }
+    const limit = HISTORY_PAGE_SIZE
+    listLimitRef.current = limit
     setLoading(true)
     void perforceClient
-      .history(target)
-      .then((entries) => {
-        setHistory(entries)
-        setError(null)
-      })
+      .history({ ...target, limit: limit + 1 })
+      .then((entries) => applyHistory(entries, limit))
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false))
-  }, [sectionOpen, history, loading, target])
+  }, [sectionOpen, history, loading, target, applyHistory])
+
+  // Why: p4 has no cursor; each page refetches one list up to a larger limit.
+  const loadMore = useCallback(() => {
+    if (history === null || loading || (!hasMore && !moreError)) {
+      return
+    }
+    const previousLimit = listLimitRef.current
+    const limit = previousLimit + HISTORY_PAGE_SIZE
+    listLimitRef.current = limit
+    setLoading(true)
+    void perforceClient
+      .history({ ...target, limit: limit + 1 })
+      .then((entries) => applyHistory(entries, limit))
+      .catch(() => {
+        listLimitRef.current = previousLimit
+        setMoreError(true)
+      })
+      .finally(() => setLoading(false))
+  }, [history, hasMore, moreError, loading, target, applyHistory])
+
+  const handleBodyScroll = useCallback(() => {
+    const element = bodyRef.current
+    if (!element) {
+      return
+    }
+    if (element.scrollTop + element.clientHeight < element.scrollHeight - LOAD_MORE_THRESHOLD_PX) {
+      return
+    }
+    loadMore()
+  }, [loadMore])
 
   return (
-    <div className="border-t border-border">
-      <button
-        type="button"
-        className="flex w-full items-center gap-1 px-2 pt-3 pb-1 text-left"
-        onClick={() => setSectionOpen((v) => !v)}
-        aria-expanded={sectionOpen}
-      >
-        {sectionOpen ? (
-          <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
-        ) : (
-          <ChevronRight className="size-3 shrink-0 text-muted-foreground" />
-        )}
-        <span className="flex-1 text-[11px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
-          {translate('perforce.ui.submittedHistory', 'Submitted history')}
-        </span>
-        {history !== null ? (
-          <span className="text-[11px] text-muted-foreground">{history.length}</span>
-        ) : null}
-      </button>
+    <div>
+      <div className="h-7 pl-1 pr-3">
+        <button
+          type="button"
+          className="flex h-full w-full items-center gap-1 rounded-md px-0.5 text-left text-[11px] font-semibold uppercase tracking-wider text-foreground/70"
+          onClick={() => setSectionOpen((v) => !v)}
+          aria-expanded={sectionOpen}
+        >
+          <ChevronDown
+            className={cn('size-3 shrink-0 transition-transform', !sectionOpen && '-rotate-90')}
+          />
+          <span>{translate('perforce.ui.submittedHistory', 'Submitted history')}</span>
+          {history !== null && (
+            <span className="text-[10px] font-medium tabular-nums">{history.length}</span>
+          )}
+          {hasMore && <span className="text-[10px] font-medium">+</span>}
+        </button>
+      </div>
 
       {sectionOpen ? (
-        <div className="pb-2">
-          {loading ? (
+        <div
+          ref={bodyRef}
+          onScroll={handleBodyScroll}
+          className="overflow-y-auto pb-2 scrollbar-sleek"
+          style={{ maxHeight: `min(${HISTORY_MAX_BODY_HEIGHT}px, 33vh)` }}
+        >
+          {loading && history === null ? (
             <div className="px-4 py-2 text-[11px] text-muted-foreground">
               {translate('perforce.ui.loadingHistory', 'Loading…')}
             </div>
@@ -255,14 +305,32 @@ export function PerforceHistorySection({
               {translate('perforce.ui.noHistory', 'No submitted changelists')}
             </div>
           ) : history !== null ? (
-            history.map((entry) => (
-              <SubmittedChangelistRow
-                key={entry.change}
-                entry={entry}
-                target={target}
-                worktreeId={worktreeId}
-              />
-            ))
+            <>
+              {history.map((entry) => (
+                <SubmittedChangelistRow
+                  key={entry.change}
+                  entry={entry}
+                  target={target}
+                  worktreeId={worktreeId}
+                />
+              ))}
+              {loading ? (
+                <div className="px-4 py-1 text-[11px] text-muted-foreground">
+                  {translate('perforce.ui.loadingHistory', 'Loading…')}
+                </div>
+              ) : moreError ? (
+                <button
+                  type="button"
+                  className="px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground"
+                  onClick={loadMore}
+                >
+                  {translate(
+                    'perforce.ui.loadMoreHistoryRetry',
+                    'Failed to load more. Click to retry'
+                  )}
+                </button>
+              ) : null}
+            </>
           ) : null}
         </div>
       ) : null}
