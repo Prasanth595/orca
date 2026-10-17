@@ -63,17 +63,39 @@ export function commitDocumentRead<Doc extends { status: string }>(
   return next
 }
 
-/** A phone edit started during the reread wins. Same content and version skip a re-render. */
+/** Edits and saves made during a reread win; unchanged content and metadata keep the view. */
 export function settleMarkdownRead(
   current: MarkdownDocState,
   loading: MarkdownDocState,
-  nextDoc: MarkdownDocState
+  nextDoc: MarkdownDocState,
+  visibleAtStart: MarkdownDocState | undefined
 ): MarkdownDocState | undefined {
   if (current.status === 'ready') {
-    if (current.isDirty || nextDoc.status !== 'ready') {
+    if (
+      current !== visibleAtStart ||
+      current.isDirty ||
+      current.saving ||
+      nextDoc.status !== 'ready'
+    ) {
       return undefined
     }
-    if (current.content === nextDoc.content && current.baseVersion === nextDoc.baseVersion) {
+    if (
+      (
+        [
+          'content',
+          'localContent',
+          'baseVersion',
+          'isDirty',
+          'editable',
+          'stale',
+          'readOnlyReason',
+          'truncated',
+          'byteLength',
+          'saving',
+          'saveError'
+        ] as const
+      ).every((field) => current[field] === nextDoc[field])
+    ) {
       return undefined
     }
     return nextDoc

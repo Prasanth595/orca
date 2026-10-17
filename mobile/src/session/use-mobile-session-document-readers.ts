@@ -21,7 +21,7 @@ import type { FileDocState, MarkdownDocState, MobileSessionTab } from './mobile-
 import type { MobileSessionTabApplicationModel } from './use-mobile-session-tab-application'
 
 export function useMobileSessionDocumentReaders(scope: MobileSessionTabApplicationModel) {
-  const { worktreeId, client, setMarkdownDocs, setFileDocs } = scope
+  const { worktreeId, client, markdownDocsRef, setMarkdownDocs, setFileDocs } = scope
   const markdownReadSeqRef = useRef(new Map<string, number>())
   const fileReadSeqRef = useRef(new Map<string, number>())
   const readMarkdownTab = useCallback(
@@ -30,6 +30,7 @@ export function useMobileSessionDocumentReaders(scope: MobileSessionTabApplicati
         return
       }
       const seq = claimDocumentRead(markdownReadSeqRef.current, tab.id)
+      const visibleAtStart = markdownDocsRef.current.get(tab.id)
       // Why: swapping a visible document for `loading` unmounts the WebView and drops the caret.
       const loading: MarkdownDocState = { status: 'loading' }
       setMarkdownDocs((prev) =>
@@ -40,7 +41,14 @@ export function useMobileSessionDocumentReaders(scope: MobileSessionTabApplicati
           if (!documentReadIsCurrent(markdownReadSeqRef.current, tab.id, seq)) {
             return prev
           }
-          return commitDocumentRead(prev, tab.id, loading, nextDoc, settleMarkdownRead)
+          return commitDocumentRead(
+            prev,
+            tab.id,
+            loading,
+            nextDoc,
+            (current, placeholder, result) =>
+              settleMarkdownRead(current, placeholder, result, visibleAtStart)
+          )
         })
       }
       try {
