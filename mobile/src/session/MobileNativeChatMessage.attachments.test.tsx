@@ -282,20 +282,20 @@ it.each(['user', 'assistant'] as const)(
   async (role) => {
     await act(async () => {
       renderer = create(
-        createElement(
-          MobileNativeChatImageViewerHost,
-          { conversation: { surfaceId: 'gallery-tab', sessionId: 'gallery-session' } },
-          createElement(MobileNativeChatMessage, {
-            message: {
+        <MobileNativeChatImageViewerHost
+          conversation={{ surfaceId: 'gallery-tab', sessionId: 'gallery-session' }}
+        >
+          <MobileNativeChatMessage
+            message={{
               ...message,
               role,
               blocks: Array.from({ length: 5 }, (_, index) => ({
                 type: 'image-ref' as const,
                 url: `file:///${index}.png`
               }))
-            }
-          })
-        )
+            }}
+          />
+        </MobileNativeChatImageViewerHost>
       )
     })
     expect(renderer!.root.findAll((node) => String(node.type) === 'Image')).toHaveLength(3)
