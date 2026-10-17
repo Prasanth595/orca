@@ -18,6 +18,7 @@ export type MobileSessionKeyboardScope = Pick<
   | 'connState'
   | 'customKeys'
   | 'deviceTokenRef'
+  | 'initializedHandlesRef'
   | 'hostId'
   | 'router'
   | 'setCustomKeys'
@@ -31,6 +32,7 @@ export type MobileSessionKeyboardScope = Pick<
   | 'tabStripRef'
   | 'tabStripViewportWidthRef'
   | 'terminalFrameRef'
+  | 'terminalKeyboardResizeEnabled'
   | 'terminalRefs'
   | 'terminals'
   | 'terminalTextScale'
@@ -48,6 +50,7 @@ export function useMobileSessionKeyboardState(scope: MobileSessionKeyboardScope)
     connState,
     terminals,
     terminalTextScale,
+    terminalKeyboardResizeEnabled,
     activeSessionTabId,
     tabStripRef,
     tabStripOffsetRef,
@@ -60,6 +63,7 @@ export function useMobileSessionKeyboardState(scope: MobileSessionKeyboardScope)
     setKeyboardHeight,
     deviceTokenRef,
     clientRef,
+    initializedHandlesRef,
     viewportRef,
     viewportMeasuredRef,
     terminalRefs,
@@ -84,9 +88,11 @@ export function useMobileSessionKeyboardState(scope: MobileSessionKeyboardScope)
     nativeChatCoveredRef: showNativeChatRef,
     clientRef,
     deviceTokenRef,
+    initializedHandlesRef,
     connState,
     tabStripVisible: terminals.length > 1,
     textScale: terminalTextScale,
+    resizeForKeyboard: terminalKeyboardResizeEnabled,
     unsubscribeTerminal,
     subscribeToTerminal
   })
