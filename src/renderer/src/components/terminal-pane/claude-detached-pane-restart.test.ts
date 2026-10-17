@@ -156,6 +156,24 @@ describe('detached Claude account-move restart', () => {
     })
   })
 
+  it('drops a queued restart of an agent whose conversation is kept on another account', async () => {
+    seedClaudePane({
+      runAccount: {
+        provider: 'claude',
+        lane: 'host',
+        accountId: 'acct-b',
+        mode: 'follow',
+        keptElsewhere: true
+      }
+    })
+    useAppStore.getState().queuePaneAccountRestarts([OLD_PTY], 'claude')
+
+    await sweepUnclaimedCodexPaneRestarts()
+
+    expect(window.api.pty.spawn).not.toHaveBeenCalled()
+    expect(useAppStore.getState().pendingPaneAccountRestarts).toEqual({})
+  })
+
   it('still relaunches an agent that follows the selected account', async () => {
     seedClaudePane({
       runAccount: { provider: 'claude', lane: 'host', accountId: 'acct-a', mode: 'follow' }

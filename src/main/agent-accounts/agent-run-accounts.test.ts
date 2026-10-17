@@ -36,6 +36,14 @@ const ACCOUNT_HOME_RECORD: CodexPaneAccountRecord = {
   homeRoute: 'account-home'
 }
 
+const CLAUDE_FOLLOW_A: AgentRunAccount = {
+  provider: 'claude',
+  lane: 'host',
+  accountId: 'acc-a',
+  mode: 'follow',
+  shellRoute: 'account'
+}
+
 describe('computeAgentRunAccount', () => {
   it.each<[string, Partial<AgentRunAccountInput>, AgentRunAccount | null]>([
     [
@@ -153,8 +161,75 @@ describe('computeAgentRunAccount', () => {
         lane: 'host',
         accountId: 'acc-b',
         mode: 'follow',
-        shellRoute: 'selected'
+        shellRoute: 'selected',
+        keptElsewhere: true
       }
+    ],
+    [
+      'a kept System default Claude conversation that runs on an account',
+      {
+        agentType: 'claude',
+        claude: { accountId: 'acc-b', shellRoute: 'selected' },
+        claudeKeptAccountId: null
+      },
+      {
+        provider: 'claude',
+        lane: 'host',
+        accountId: 'acc-b',
+        mode: 'follow',
+        shellRoute: 'selected',
+        keptElsewhere: true
+      }
+    ],
+    [
+      'a Claude pane with no session yet, which has no keep to name',
+      {
+        agentType: 'claude',
+        providerSessionId: null,
+        claude: { accountId: 'acc-b', shellRoute: 'selected' },
+        claudeKeptAccountId: 'acc-a'
+      },
+      {
+        provider: 'claude',
+        lane: 'host',
+        accountId: 'acc-b',
+        mode: 'follow',
+        shellRoute: 'selected',
+        keepUnavailable: 'no-session'
+      }
+    ],
+    [
+      'a Claude pane this runtime has not seen, with the facet an earlier runtime recorded',
+      { agentType: 'claude', current: CLAUDE_FOLLOW_A },
+      CLAUDE_FOLLOW_A
+    ],
+    [
+      'a Claude pane this runtime has not seen, whose conversation is kept on its account',
+      { agentType: 'claude', current: CLAUDE_FOLLOW_A, claudeKeptAccountId: 'acc-a' },
+      { ...CLAUDE_FOLLOW_A, mode: 'kept' }
+    ],
+    [
+      'a Claude pane this runtime has not seen, whose keep was released since it was recorded',
+      { agentType: 'claude', current: { ...CLAUDE_FOLLOW_A, mode: 'kept' } },
+      CLAUDE_FOLLOW_A
+    ],
+    [
+      'a Claude pane this runtime has not seen, whose conversation is now kept elsewhere',
+      { agentType: 'claude', current: CLAUDE_FOLLOW_A, claudeKeptAccountId: 'acc-b' },
+      { ...CLAUDE_FOLLOW_A, keptElsewhere: true }
+    ],
+    [
+      'a Claude pane this runtime has not seen, with no facet recorded',
+      { agentType: 'claude' },
+      null
+    ],
+    [
+      "a Claude pane this runtime has not seen, whose recorded facet is Codex's",
+      {
+        agentType: 'claude',
+        current: { provider: 'codex', lane: 'host', accountId: 'acc-a', mode: 'kept' }
+      },
+      null
     ]
   ])('%s', (_label, overrides, expected) => {
     expect(computeAgentRunAccount(input(overrides))).toEqual(expected)
@@ -537,5 +612,98 @@ describe('AgentRunAccounts', () => {
     expect(h.kept.get('codex:c1')).not.toHaveProperty('keptVia')
     expect(h.kept.get('codex:c2')).toMatchObject({ accountId: 'acc-a', keptVia: 'codex:c1' })
     expect(h.kept.get('codex:c3')).toMatchObject({ accountId: 'acc-a', keptVia: 'codex:c1' })
+  })
+
+  it('marks a conversation kept on another account than the one it now runs on', () => {
+    const h = harness()
+    h.producer.notePaneLaunch({ paneKey: PANE, lane: 'host', fresh: true })
+    h.emit({})
+    h.kept.set('claude:s1', { lane: 'host', accountId: 'acc-a', keptAt: 1 })
+    h.emit({})
+    expect(facet(h)).toMatchObject({ mode: 'kept', accountId: 'acc-a' })
+    expect(facet(h)).not.toHaveProperty('keptElsewhere')
+
+    // A person resumes it by hand in a selection-following terminal, and the folder proves it.
+    h.producer.noteClaudeStatusLine({
+      paneKey: PANE,
+      configDir: `${DATA}/claude-profiles/acc-b/home`
+    })
+    expect(facet(h)).toMatchObject({ mode: 'follow', accountId: 'acc-b', keptElsewhere: true })
+    // Why: only a carried keep is dropped for running elsewhere; a person's own stays.
+    expect(h.kept.get('claude:s1')).toMatchObject({ accountId: 'acc-a' })
+
+    h.kept.delete('claude:s1')
+    h.producer.refresh(PANE)
+    expect(facet(h)).toMatchObject({ mode: 'follow', accountId: 'acc-b' })
+    expect(facet(h)).not.toHaveProperty('keptElsewhere')
+  })
+})
+
+describe('AgentRunAccounts for a Claude terminal that outlived a restart', () => {
+  const keptFacet: AgentRunAccount = {
+    provider: 'claude',
+    lane: 'host',
+    accountId: 'acc-a',
+    mode: 'kept',
+    shellRoute: 'selected'
+  }
+
+  // The host hydrated the row with the facet it persisted; the idle agent has posted nothing since.
+  function hydrated(runAccount: AgentRunAccount = keptFacet): Harness {
+    const h = harness()
+    h.kept.set('claude:s1', { lane: 'host', accountId: 'acc-a', keptAt: 1 })
+    h.rows.set(PANE, {
+      paneKey: PANE,
+      connectionId: null,
+      payload: { agentType: 'claude' },
+      providerSession: { key: 'session_id', id: 's1' },
+      runAccount
+    })
+    return h
+  }
+
+  it('keeps its kept facet when the terminal reattaches', () => {
+    const h = hydrated()
+    h.producer.notePaneLaunch({ paneKey: PANE, lane: 'host', fresh: false })
+    expect(facet(h)).toEqual(keptFacet)
+    expect(h.republished).toEqual([])
+  })
+
+  it('keeps its kept facet when an account is added or removed', () => {
+    const h = hydrated()
+    h.producer.refreshAll()
+    expect(facet(h)).toEqual(keptFacet)
+    expect(h.republished).toEqual([])
+  })
+
+  it('keeps its kept facet through the status that follows', () => {
+    const h = hydrated()
+    h.producer.notePaneLaunch({ paneKey: PANE, lane: 'host', fresh: false })
+    h.emit({})
+    expect(facet(h)).toEqual(keptFacet)
+    expect(h.republished).toEqual([])
+  })
+
+  it('still shows a keep made, or released, after the restart', () => {
+    const h = hydrated({ ...keptFacet, mode: 'follow' })
+    h.kept.delete('claude:s1')
+    h.producer.notePaneLaunch({ paneKey: PANE, lane: 'host', fresh: false })
+    expect(facet(h)).toMatchObject({ mode: 'follow' })
+
+    h.kept.set('claude:s1', { lane: 'host', accountId: 'acc-a', keptAt: 2 })
+    expect(h.producer.refresh(PANE)).toMatchObject({ mode: 'kept' })
+    expect(facet(h)).toMatchObject({ mode: 'kept' })
+
+    h.kept.delete('claude:s1')
+    expect(h.producer.refresh(PANE)).toMatchObject({ mode: 'follow' })
+    expect(facet(h)).toMatchObject({ mode: 'follow' })
+  })
+
+  it('withdraws what an earlier process left when the pane is spawned fresh', () => {
+    const h = hydrated()
+    h.producer.notePaneLaunch({ paneKey: PANE, lane: 'host', fresh: true })
+    expect(facet(h)).toBeNull()
+    h.producer.refreshAll()
+    expect(facet(h)).toBeNull()
   })
 })

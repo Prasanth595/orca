@@ -22,6 +22,10 @@ describe('readAgentRunAccount', () => {
       { provider: 'codex', lane: 'host', accountId: null, mode: 'follow' }
     ],
     [
+      'a Claude facet whose conversation is kept on another account',
+      { ...CLAUDE, mode: 'follow', keptElsewhere: true }
+    ],
+    [
       'a facet Keep cannot be offered for',
       {
         provider: 'codex',
@@ -46,7 +50,12 @@ describe('readAgentRunAccount', () => {
     ['a bare distro lane', { ...CLAUDE, lane: 'Ubuntu' }],
     ['an unknown shell route', { ...CLAUDE, shellRoute: 'pane' }],
     ['a shell route on Codex', { ...CLAUDE, provider: 'codex' }],
-    ['an unknown keep reason', { ...CLAUDE, keepUnavailable: 'later' }]
+    ['an unknown keep reason', { ...CLAUDE, keepUnavailable: 'later' }],
+    ['a kept-elsewhere flag that is not true', { ...CLAUDE, keptElsewhere: 'yes' }],
+    [
+      'a kept-elsewhere flag on Codex',
+      { provider: 'codex', lane: 'host', accountId: 'b', mode: 'follow', keptElsewhere: true }
+    ]
   ])('rejects %s', (_label, value) => {
     expect(readAgentRunAccount(value)).toBeUndefined()
   })
@@ -62,6 +71,7 @@ describe('agentRunAccountsEqual', () => {
     expect(agentRunAccountsEqual(CLAUDE, { ...CLAUDE, mode: 'follow' })).toBe(false)
     expect(agentRunAccountsEqual(CLAUDE, { ...CLAUDE, shellRoute: 'selected' })).toBe(false)
     expect(agentRunAccountsEqual(CLAUDE, { ...CLAUDE, keepUnavailable: 'no-session' })).toBe(false)
+    expect(agentRunAccountsEqual(CLAUDE, { ...CLAUDE, keptElsewhere: true })).toBe(false)
     expect(agentRunAccountsEqual(null, undefined)).toBe(true)
     expect(agentRunAccountsEqual(CLAUDE, null)).toBe(false)
   })

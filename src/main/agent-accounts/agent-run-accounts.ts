@@ -192,6 +192,9 @@ export class AgentRunAccounts {
     const provider = runAccountProvider(row.payload.agentType)
     const settings = this.deps.getSettings()
     const ptyId = provider === 'codex' ? this.deps.getPtyIdForPaneKey(row.paneKey) : undefined
+    // Why: a Claude spawned fresh here is a new process, so the facet its predecessor left on the
+    // row says nothing about it; a reattach or an untouched pane still carries what was recorded.
+    const startedHere = provider === 'claude' && this.launches.get(row.paneKey)?.fresh === true
     return computeAgentRunAccount({
       agentType: row.payload.agentType,
       connectionId: row.connectionId,
@@ -204,7 +207,7 @@ export class AgentRunAccounts {
       lane: this.launches.get(row.paneKey)?.lane,
       codexRecord: ptyId ? this.deps.readCodexRecord(ptyId) : null,
       claude: provider === 'claude' ? (this.claudePanes.get(row.paneKey) ?? null) : null,
-      current: row.runAccount ?? undefined,
+      current: startedHere ? undefined : (row.runAccount ?? undefined),
       claudeKeptAccountId:
         provider === 'claude'
           ? keptConversationAccount(this.deps.kept, 'claude', sessionIdOf(row))

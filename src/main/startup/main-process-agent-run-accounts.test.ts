@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { AgentHookServer } from '../agent-hooks/server'
+import { AgentHookServer, _internals as hookServerInternals } from '../agent-hooks/server'
+import { buildBody, postHookEvent } from '../agent-hooks/server.test-fixtures'
 import type { GlobalSettings } from '../../shared/global-settings-types'
 import type { AgentRunAccountSettings } from '../agent-accounts/agent-run-accounts'
 import type { ClaudeManagedAccount, CodexManagedAccount } from '../../shared/managed-account-types'
@@ -16,7 +17,8 @@ import { paneKeyPtyId, ptyPaneKey, rememberPaneKeyForPty } from '../ipc/pty/pane
 import {
   getAgentRunAccounts,
   getKeptAgentConversations,
-  installAgentRunAccounts
+  installAgentRunAccounts,
+  noteAgentPaneLaunch
 } from '../agent-accounts/agent-run-accounts-installed'
 import { startAgentRunAccounts } from './main-process-agent-run-accounts'
 
@@ -49,6 +51,7 @@ function claudeAccount(id: string): ClaudeManagedAccount {
 }
 
 beforeEach(() => {
+  hookServerInternals.resetCachesForTests()
   previousUserDataPath = process.env.ORCA_USER_DATA_PATH
   userDataPath = mkdtempSync(join(tmpdir(), 'orca-run-accounts-'))
   process.env.ORCA_USER_DATA_PATH = userDataPath
@@ -169,5 +172,66 @@ describe('startAgentRunAccounts', () => {
       listener({ claudeManagedAccounts: [] })
     }
     expect(kept.get('claude', 'k1')).toBeNull()
+  })
+
+  // The daemon keeps a terminal alive across an Orca restart, and the hydrated row carries the
+  // facet the last run persisted, while the idle agent posts nothing that would re-derive it.
+  it('keeps a kept Claude agent kept when its terminal reattaches after a restart', async () => {
+    const first = new AgentHookServer()
+    await first.start({ env: 'production', userDataPath })
+    await postHookEvent(
+      first,
+      buildBody({ hook_event_name: 'UserPromptSubmit', prompt: 'go', session_id: 's1' })
+    )
+    const keptFacet = {
+      provider: 'claude',
+      lane: 'host',
+      accountId: 'acc-a',
+      mode: 'kept',
+      shellRoute: 'selected'
+    } as const
+    expect(first.republishRunAccount(PANE, keptFacet)).toBe(true)
+    first.flushStatusPersistSync()
+    first.stop()
+
+    const server = new AgentHookServer()
+    await server.start({ env: 'production', userDataPath })
+    try {
+      // Positive control: the restarted host did hydrate the facet.
+      expect(server.getRunAccountRow(PANE)?.runAccount).toEqual(keptFacet)
+      const settings: AgentRunAccountSettings = {
+        codexManagedAccounts: [],
+        claudeManagedAccounts: [claudeAccount('acc-a'), claudeAccount('acc-b')],
+        activeClaudeManagedAccountId: 'acc-a',
+        activeClaudeManagedAccountIdsByRuntime: undefined
+      }
+      const settingsListeners: ((updates: Partial<GlobalSettings>) => void)[] = []
+      startAgentRunAccounts({
+        server,
+        getSettings: () => settings,
+        onSettingsChanged: (listener) => settingsListeners.push(listener),
+        claudeRouter: null,
+        keptFilePath: join(userDataPath, 'kept.json')
+      })
+      getKeptAgentConversations()!.keep('claude', 's1', {
+        lane: 'host',
+        accountId: 'acc-a',
+        keptAt: 1
+      })
+
+      noteAgentPaneLaunch({ paneKey: PANE, lane: 'host', fresh: false })
+      expect(server.getRunAccountRow(PANE)?.runAccount).toEqual(keptFacet)
+
+      // Adding, removing or re-authenticating an account refreshes every pane.
+      for (const listener of settingsListeners) {
+        listener({ claudeManagedAccounts: settings.claudeManagedAccounts })
+      }
+      expect(server.getRunAccountRow(PANE)?.runAccount).toEqual(keptFacet)
+
+      await postHookEvent(server, buildBody({ hook_event_name: 'Stop', session_id: 's1' }))
+      expect(server.getRunAccountRow(PANE)?.runAccount).toEqual(keptFacet)
+    } finally {
+      server.stop()
+    }
   })
 })

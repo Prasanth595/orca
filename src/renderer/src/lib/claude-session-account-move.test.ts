@@ -74,7 +74,7 @@ type SeededPane = {
   /** Folder Claude writes this session's transcript under; null leaves it unreported. */
   configDir?: string | null
   /** The account facet the host published for this agent; absent publishes none. */
-  runAccount?: 'kept' | 'follow'
+  runAccount?: 'kept' | 'follow' | 'kept-elsewhere'
 }
 
 const tabId = (n: number): string => `tab-${n}`
@@ -125,7 +125,9 @@ function seedPanes(panes: SeededPane[]): void {
               provider: 'claude' as const,
               lane: 'host',
               accountId: 'acct-a',
-              mode: pane.runAccount
+              mode: pane.runAccount === 'kept' ? ('kept' as const) : ('follow' as const),
+              // Why: the conversation is kept on another account than this agent runs on.
+              ...(pane.runAccount === 'kept-elsewhere' ? { keptElsewhere: true as const } : {})
             }
           }
         : {})
@@ -238,6 +240,15 @@ describe('findMovableClaudeSessions', () => {
     ])
 
     expect(await movable()).toEqual([ptyId(2), ptyId(3)])
+  })
+
+  it('leaves out an agent whose conversation is kept on another account than it runs on', async () => {
+    seedPanes([
+      { n: 1, agentType: 'claude', runAccount: 'kept-elsewhere' },
+      { n: 2, agentType: 'claude', runAccount: 'follow' }
+    ])
+
+    expect(await movable()).toEqual([ptyId(2)])
   })
 
   it('skips a pane where Claude has exited to the shell', async () => {
@@ -364,7 +375,7 @@ describe('a Claude account switch with agents kept on the outgoing account', () 
     async (policy) => {
       seedPanes([
         { n: 1, agentType: 'claude', runAccount: 'kept' },
-        { n: 2, agentType: 'claude', runAccount: 'kept' }
+        { n: 2, agentType: 'claude', runAccount: 'kept-elsewhere' }
       ])
       setPolicy(policy)
 
@@ -379,7 +390,8 @@ describe('a Claude account switch with agents kept on the outgoing account', () 
     seedPanes([
       { n: 1, agentType: 'claude', runAccount: 'kept' },
       { n: 2, agentType: 'claude', runAccount: 'follow' },
-      { n: 3, agentType: 'claude' }
+      { n: 3, agentType: 'claude' },
+      { n: 4, agentType: 'claude', runAccount: 'kept-elsewhere' }
     ])
     setPolicy('ask')
 
@@ -399,7 +411,8 @@ describe('a Claude account switch with agents kept on the outgoing account', () 
   it('always restart moves only the sessions that are not kept', async () => {
     seedPanes([
       { n: 1, agentType: 'claude', runAccount: 'kept' },
-      { n: 2, agentType: 'claude', runAccount: 'follow' }
+      { n: 2, agentType: 'claude', runAccount: 'follow' },
+      { n: 3, agentType: 'claude', runAccount: 'kept-elsewhere' }
     ])
     setPolicy('restart')
 

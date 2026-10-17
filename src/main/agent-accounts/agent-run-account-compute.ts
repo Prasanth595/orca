@@ -68,8 +68,18 @@ function computeCodex(input: AgentRunAccountInput): AgentRunAccount | null {
   }
 }
 
+/** What the facet an earlier runtime left on the row says about its Claude session. */
+function persistedObservation(current: AgentRunAccount | undefined): ClaudePaneObservation | null {
+  return current?.provider === 'claude'
+    ? { accountId: current.accountId, shellRoute: current.shellRoute ?? 'selected' }
+    : null
+}
+
 function computeClaude(input: AgentRunAccountInput): AgentRunAccount | null {
-  const observed = input.claude
+  // Why: a pane this runtime has not seen report, such as an idle terminal that outlived a restart,
+  // keeps the account an earlier runtime recorded for it. Only the keep is read afresh, so one
+  // made or released since still shows.
+  const observed = input.claude ?? persistedObservation(input.current)
   if (!observed) {
     return null
   }
@@ -80,16 +90,17 @@ function computeClaude(input: AgentRunAccountInput): AgentRunAccount | null {
   if (accountId === undefined) {
     return null
   }
-  const kept =
-    input.providerSessionId !== null &&
-    input.claudeKeptAccountId !== undefined &&
-    input.claudeKeptAccountId === accountId
+  const keptOn = input.providerSessionId !== null ? input.claudeKeptAccountId : undefined
+  const kept = keptOn !== undefined && keptOn === accountId
   return {
     provider: 'claude',
     lane: 'host',
     accountId,
     mode: kept ? 'kept' : 'follow',
     shellRoute: observed.shellRoute,
-    ...(input.providerSessionId === null ? { keepUnavailable: 'no-session' } : {})
+    ...(input.providerSessionId === null ? { keepUnavailable: 'no-session' } : {}),
+    // Why: a person's own keep stays on its account when the agent ends up on another, and a
+    // restart resumes the conversation there, wherever the selection points.
+    ...(keptOn !== undefined && !kept ? { keptElsewhere: true as const } : {})
   }
 }

@@ -87,10 +87,12 @@ export function resolvePaneRunAccount(
   return row && !row.connectionId ? row.runAccount : undefined
 }
 
-/** Whether the host says this local pane's agent is kept on its account. */
-export function isPaneAgentKept(paneKey: string, row: AgentStatusEntry | undefined): boolean {
-  return (
-    resolvePaneRunAccount(paneKey, row, useIdentityRowRunAccounts.getState().byPaneKey)?.mode ===
-    'kept'
-  )
+/** Whether the host says a restart would resume this local pane's agent on a kept account, not
+ *  the selection: it is kept on the account it runs on, or its conversation is kept on another. */
+export function isPaneAgentResumePinned(
+  paneKey: string,
+  row: AgentStatusEntry | undefined
+): boolean {
+  const facet = resolvePaneRunAccount(paneKey, row, useIdentityRowRunAccounts.getState().byPaneKey)
+  return facet?.mode === 'kept' || facet?.keptElsewhere === true
 }

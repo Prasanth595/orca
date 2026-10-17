@@ -266,6 +266,27 @@ describe('buildPaneAccountRestartStartup for Claude', () => {
     )
   })
 
+  it('skips a Claude whose conversation is kept on another account than it runs on', () => {
+    seedAgentStatus({
+      agentType: 'claude',
+      state: 'done',
+      providerSession: { key: 'session_id', id: SESSION_ID },
+      runAccount: {
+        provider: 'claude',
+        lane: 'host',
+        accountId: 'acct-b',
+        mode: 'follow',
+        keptElsewhere: true
+      }
+    })
+
+    // Why: its own resume starts on the account it is kept on, never on the one a switch picked.
+    expect(buildPaneAccountRestartStartup('claude', pane)).toBeNull()
+    expect(resolveAgentAccountRestartResumeStartup('claude', pane)?.resumeProviderSession?.id).toBe(
+      SESSION_ID
+    )
+  })
+
   it('still resumes a Claude that follows the selected account', () => {
     seedAgentStatus({
       agentType: 'claude',

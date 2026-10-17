@@ -16,6 +16,9 @@ export type AgentRunAccount = {
   shellRoute?: 'selected' | 'account'
   /** Why Keep cannot be offered for this agent right now. */
   keepUnavailable?: 'no-session' | 'codex-home-not-keepable'
+  /** Claude only: the conversation is kept on another account than the one this agent runs on,
+   *  so a restart resumes it there instead of on the selection. */
+  keptElsewhere?: true
 }
 
 const ACCOUNT_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
@@ -39,6 +42,7 @@ export function readAgentRunAccount(value: unknown): AgentRunAccount | undefined
   const mode = 'mode' in value ? value.mode : undefined
   const shellRoute = 'shellRoute' in value ? value.shellRoute : undefined
   const keepUnavailable = 'keepUnavailable' in value ? value.keepUnavailable : undefined
+  const keptElsewhere = 'keptElsewhere' in value ? value.keptElsewhere : undefined
   if (
     (provider !== 'claude' && provider !== 'codex') ||
     !isLaneKey(lane) ||
@@ -48,7 +52,8 @@ export function readAgentRunAccount(value: unknown): AgentRunAccount | undefined
     (shellRoute !== undefined && provider !== 'claude') ||
     (keepUnavailable !== undefined &&
       keepUnavailable !== 'no-session' &&
-      keepUnavailable !== 'codex-home-not-keepable')
+      keepUnavailable !== 'codex-home-not-keepable') ||
+    (keptElsewhere !== undefined && (keptElsewhere !== true || provider !== 'claude'))
   ) {
     return undefined
   }
@@ -58,7 +63,8 @@ export function readAgentRunAccount(value: unknown): AgentRunAccount | undefined
     accountId,
     mode,
     ...(shellRoute !== undefined ? { shellRoute } : {}),
-    ...(keepUnavailable !== undefined ? { keepUnavailable } : {})
+    ...(keepUnavailable !== undefined ? { keepUnavailable } : {}),
+    ...(keptElsewhere === true ? { keptElsewhere } : {})
   }
 }
 
@@ -75,7 +81,8 @@ export function agentRunAccountsEqual(
     left.accountId === right.accountId &&
     left.mode === right.mode &&
     left.shellRoute === right.shellRoute &&
-    left.keepUnavailable === right.keepUnavailable
+    left.keepUnavailable === right.keepUnavailable &&
+    left.keptElsewhere === right.keptElsewhere
   )
 }
 
