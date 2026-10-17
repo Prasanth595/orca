@@ -1,4 +1,4 @@
-import { useContext, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ScrollView, View } from 'react-native'
 import type { Table } from 'mdast'
 import type { MarkdownBlockContext } from './mobile-markdown-blocks'
@@ -6,21 +6,11 @@ import { mobileMarkdownTableColumnWidths } from './mobile-markdown-table-columns
 import { renderInline } from './mobile-markdown-inline'
 import { MarkdownText } from './mobile-markdown-text'
 import { MARKDOWN_TONES, styles } from './mobile-markdown-styles'
-import { MarkdownTextContext } from './mobile-markdown-text-setup'
 import { colors } from '../theme/mobile-theme'
 import { plainText } from './mobile-markdown-tree'
 
 /** One measured viewport and one column plan keep every row aligned, including wrapped cells. */
 export function MobileMarkdownTable({ node, ctx }: { node: Table; ctx: MarkdownBlockContext }) {
-  const setup = useContext(MarkdownTextContext)
-  const cellSetup = useMemo(
-    () => ({ ...setup, inlineCodeBackground: colors.bgRaised }),
-    [setup, colors.bgRaised]
-  )
-  const headerSetup = useMemo(
-    () => ({ ...setup, inlineCodeBackground: colors.bgBase }),
-    [setup, colors.bgBase]
-  )
   const [availableWidth, setAvailableWidth] = useState(0)
   const rows = node.children.map((row) => row.children)
   const textRows = useMemo(
@@ -55,50 +45,45 @@ export function MobileMarkdownTable({ node, ctx }: { node: Table; ctx: MarkdownB
       >
         <View style={{ width: contentWidth }}>
           {rows.map((cells, rowIndex) => (
-            <MarkdownTextContext.Provider
-              key={rowIndex}
-              value={rowIndex === 0 ? headerSetup : cellSetup}
-            >
-              <View style={styles.tableRow}>
-                {widths.map((width, cellIndex) => (
-                  <View
-                    key={cellIndex}
+            <View key={rowIndex} style={styles.tableRow}>
+              {widths.map((width, cellIndex) => (
+                <View
+                  key={cellIndex}
+                  style={[
+                    styles.tableCell,
+                    rowIndex === 0 ? styles.tableHeader : null,
+                    {
+                      width,
+                      borderRightWidth: cellIndex === widths.length - 1 ? 0 : 1,
+                      borderBottomWidth: rowIndex === rows.length - 1 ? 0 : 1
+                    }
+                  ]}
+                >
+                  <MarkdownText
+                    selectable
                     style={[
-                      styles.tableCell,
-                      rowIndex === 0 ? styles.tableHeader : null,
+                      styles.tableText,
+                      rowIndex === 0 ? styles.bold : null,
                       {
-                        width,
-                        borderRightWidth: cellIndex === widths.length - 1 ? 0 : 1,
-                        borderBottomWidth: rowIndex === rows.length - 1 ? 0 : 1
+                        textAlign: node.align?.[cellIndex] ?? 'left',
+                        fontSize: 12 * ctx.textScale,
+                        lineHeight: 18 * ctx.textScale
                       }
                     ]}
                   >
-                    <MarkdownText
-                      selectable
-                      style={[
+                    {renderInline(
+                      cells[cellIndex]?.children ?? [],
+                      rowIndex === 0 ? headerCtx : cellCtx,
+                      [
                         styles.tableText,
-                        rowIndex === 0 ? styles.bold : null,
-                        {
-                          textAlign: node.align?.[cellIndex] ?? 'left',
-                          fontSize: 12 * ctx.textScale,
-                          lineHeight: 18 * ctx.textScale
-                        }
-                      ]}
-                    >
-                      {renderInline(
-                        cells[cellIndex]?.children ?? [],
-                        rowIndex === 0 ? headerCtx : cellCtx,
-                        [
-                          styles.tableText,
-                          { fontSize: 12 * ctx.textScale, lineHeight: 18 * ctx.textScale },
-                          rowIndex === 0 ? styles.bold : null
-                        ]
-                      )}
-                    </MarkdownText>
-                  </View>
-                ))}
-              </View>
-            </MarkdownTextContext.Provider>
+                        { fontSize: 12 * ctx.textScale, lineHeight: 18 * ctx.textScale },
+                        rowIndex === 0 ? styles.bold : null
+                      ]
+                    )}
+                  </MarkdownText>
+                </View>
+              ))}
+            </View>
           ))}
         </View>
       </ScrollView>

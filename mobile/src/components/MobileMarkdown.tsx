@@ -1,10 +1,7 @@
-import { colors, onBrightColors } from '../theme/mobile-theme'
 import { useMobileTheme } from '../theme/use-mobile-theme'
 import { INLINE_TEXT_SELECTION } from './inline-text-selection'
-import { MobileSelectableText } from './MobileSelectableText'
 import { memo, useContext, useMemo, type ReactNode } from 'react'
-import { View } from 'react-native'
-import { MobileMarkdownNativeText } from './MobileMarkdownNativeText'
+import { View, Text as NativeText } from 'react-native'
 import { MARKDOWN_TONES, scaledMarkdownText, styles } from './mobile-markdown-styles'
 import { renderBlocks, type MarkdownBlockContext } from './mobile-markdown-blocks'
 import { MarkdownText } from './mobile-markdown-text'
@@ -89,17 +86,13 @@ function MobileMarkdownInner(props: Props): React.JSX.Element | null {
   const { rangeSelectable = false, onLongPress } = props
   // Other Markdown surfaces retain their existing selection behavior.
   const androidTranscript = rangeSelectable && !INLINE_TEXT_SELECTION
-  const inlineCodeBackground =
-    props.tone === 'onBright' ? onBrightColors.codeBackground : colors.bgRaised
   const setup = useMemo<MarkdownTextSetup>(
     () => ({
-      TextComponent:
-        rangeSelectable && !androidTranscript ? MobileSelectableText : MobileMarkdownNativeText,
+      TextComponent: NativeText,
       androidTranscript,
-      inlineCodeBackground,
       ...(onLongPress ? { onLongPress } : {})
     }),
-    [rangeSelectable, androidTranscript, onLongPress, inlineCodeBackground]
+    [rangeSelectable, androidTranscript, onLongPress]
   )
   return (
     <MarkdownTextContext.Provider value={setup}>

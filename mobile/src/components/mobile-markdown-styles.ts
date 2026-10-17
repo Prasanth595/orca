@@ -53,7 +53,7 @@ export const styles = createThemedStyles(() =>
       borderLeftColor: colors.borderSubtle,
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm,
-      backgroundColor: colors.bgRaised,
+      backgroundColor: colors.bgPanel,
       borderTopRightRadius: radii.row,
       borderBottomRightRadius: radii.row,
       gap: spacing.sm

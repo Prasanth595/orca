@@ -1246,6 +1246,8 @@ export const RPC_PARAMS_BY_METHOD = {
   'settings.updateTerminalQuickCommands': TerminalQuickCommandsUpdate,
   'sidebarInputs.activityFacts': null,
   'sidebarInputs.desktopFacts': null,
+  'sidebarInputs.pairedServerRows': null,
+  'sidebarInputs.reviewFacts': null,
   'skills.beginUpload': SkillUploadBeginRequestSchema,
   'skills.cancelInstall': SkillsCancelInstallParams,
   'skills.cancelUpload': SkillUploadCommitRequestSchema,

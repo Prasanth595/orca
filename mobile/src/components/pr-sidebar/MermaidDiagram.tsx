@@ -1,165 +1,112 @@
 import { readableMermaidFlowchartSvg } from '../../../../src/shared/mermaid-flowchart-contrast'
-import { createThemedStyles } from '../../theme/mobile-themed-styles'
 import { useMobileTheme } from '../../theme/use-mobile-theme'
-import { memo, useEffect, useMemo, useState } from 'react'
+import { createThemedStyles } from '../../theme/mobile-themed-styles'
+import { memo, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
-import { WebView } from 'react-native-webview'
 import { colors, radii, spacing, typography } from '../../theme/mobile-theme'
+export type MermaidDiagramProps = { source: string; base: number }
 import { MERMAID_DIAGRAM_CONFIG } from './mermaid-diagram-config'
-import { MERMAID_ENGINE_JS } from './mermaid-webview-engine.generated'
-import { encodeJsonForScript } from '../inline-script-json'
 import { useMobileTranscriptLayoutPending } from '../mobile-transcript-layout'
+import { enqueuePageMermaidRender, loadPageMermaid } from './mermaid-page-engine'
 
-export type MermaidDiagramProps = {
-  source: string
-  base: number
-}
-
-// Renders a ```mermaid fence as a diagram via a sandboxed WebView (mermaid has no
-// native RN renderer). Mermaid ships inside the app as a generated bundle embedded
-// in the WebView HTML — no network — the SVG is themed dark to match the sidebar,
-// and the WebView posts back its rendered height so we can size to content. On any
-// failure (parse error, render error) we fall back to the raw source in a labeled
-// mono code box.
-// memo: both props are primitives; without it every mounted diagram re-renders
-// per frame during pinch-to-zoom (textScale updates), marshalling the full HTML
-// string across the Fabric boundary each time.
+/** Render sanitized diagrams in the phone page, with source fallback on failure. */
 export const MermaidDiagram = memo(function MermaidDiagram(props: MermaidDiagramProps) {
-  const colorScheme = useMobileTheme()
-  return <MermaidDocument key={JSON.stringify([props.source, colorScheme])} {...props} />
+  const scheme = useMobileTheme()
+  return <MermaidDiagramRender key={`${scheme}\0${props.source}`} {...props} />
 })
 
-function MermaidDocument({ source, base }: MermaidDiagramProps) {
-  const colorScheme = useMobileTheme()
-
-  const [height, setHeight] = useState(0)
+function MermaidDiagramRender({ source, base }: MermaidDiagramProps) {
+  const hostRef = useRef<View>(null)
+  // A new source/theme mounts a fresh attempt; obsolete callbacks cannot poison its fallback.
   const [failed, setFailed] = useState(false)
-  useMobileTranscriptLayoutPending(height === 0 && !failed)
+  const [settled, setSettled] = useState(false)
+  useMobileTranscriptLayoutPending(!settled && !failed)
   useEffect(() => {
-    if (height > 0 || failed) {
+    if (settled || failed) {
       return
     }
     const timer = setTimeout(() => setFailed(true), 10_000)
     return () => clearTimeout(timer)
-  }, [height, failed])
-  const html = useMemo(() => buildHtml(source), [source, colorScheme])
+  }, [settled, failed])
+  // mermaid writes `#<id>` into the stylesheet it puts inside the SVG, so this has to be a CSS
+  // identifier. React spells its own `_R_0_`; the strip is for a React that changes that.
+  const suffix = useId().replace(/[^\w-]/g, '')
+  const id = `orca-mermaid-${suffix}`
+
+  useEffect(() => {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: react-native-web renders View as a div and forwards the ref to it; this module only ever runs in that build.
+    const host = hostRef.current as unknown as HTMLElement | null
+    if (!host) {
+      return
+    }
+    let disposed = false
+    enqueuePageMermaidRender(async () => {
+      try {
+        if (disposed) {
+          return
+        }
+        const mermaid = await loadPageMermaid()
+        if (disposed) {
+          return
+        }
+        mermaid.initialize(MERMAID_DIAGRAM_CONFIG)
+        const { svg } = await mermaid.render(id, source)
+        if (disposed) {
+          return
+        }
+        // Already sanitized: `securityLevel: 'strict'` is what makes this string safe to parse,
+        // and mermaid is the only thing that can sanitize its own serialization.
+        host.innerHTML = readableMermaidFlowchartSvg(svg, colors.textPrimary, colors.bgRaised)
+        setSettled(true)
+      } catch {
+        if (!disposed) {
+          setFailed(true)
+        }
+      }
+    })
+    return () => {
+      disposed = true
+      // React owns this element, not what mermaid put inside it, so nothing else clears the
+      // previous diagram when the source changes.
+      host.replaceChildren()
+    }
+  }, [id, source, failed])
 
   if (failed) {
-    return <MermaidFallback source={source} base={base} />
+    return (
+      <MermaidFrame>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.fallbackScroll}
+          testID="mermaid-diagram-source"
+        >
+          <Text style={[styles.fallbackText, { fontSize: base - 1 }]}>{source}</Text>
+        </ScrollView>
+      </MermaidFrame>
+    )
   }
 
   return (
-    <View style={styles.frame}>
+    <MermaidFrame>
+      <View ref={hostRef} style={styles.host} />
+    </MermaidFrame>
+  )
+}
+
+/** Diagrams and source fallbacks share one frame. */
+function MermaidFrame({ children }: { children: ReactNode }) {
+  return (
+    <View style={styles.frame} testID="mermaid-diagram">
       <View style={styles.label}>
         <Text style={styles.labelText}>mermaid</Text>
       </View>
-      <WebView
-        style={[styles.webview, { height: height || 120 }]}
-        originWhitelist={['*']}
-        source={{ html }}
-        javaScriptEnabled
-        scrollEnabled={false}
-        // Diagram is self-contained; any navigation attempt means something is
-        // wrong, so treat it as a render failure and fall back to source.
-        onShouldStartLoadWithRequest={(request) => {
-          if (request.url === 'about:blank' || request.url.startsWith('data:')) {
-            return true
-          }
-          setFailed(true)
-          return false
-        }}
-        onError={() => setFailed(true)}
-        onHttpError={() => setFailed(true)}
-        onRenderProcessGone={() => setFailed(true)}
-        onContentProcessDidTerminate={() => setFailed(true)}
-        onMessage={(event) => {
-          const data = event.nativeEvent.data
-          if (data === 'error') {
-            setFailed(true)
-            return
-          }
-          const parsed = Number(data)
-          if (Number.isFinite(parsed) && parsed > 0) {
-            setHeight(Math.ceil(parsed))
-          }
-        }}
-      />
+      {children}
     </View>
   )
 }
 
-function MermaidFallback({ source, base }: MermaidDiagramProps) {
-  useMobileTheme()
-
-  return (
-    <View style={styles.frame}>
-      <View style={styles.label}>
-        <Text style={styles.labelText}>mermaid</Text>
-      </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.fallbackScroll}>
-        <Text style={[styles.fallbackText, { fontSize: base - 1 }]}>{source}</Text>
-      </ScrollView>
-    </View>
-  )
-}
-
-// Diagram source is untrusted: agent output, PR and chat content.
-function encodeSourceForScript(source: string): string {
-  return encodeJsonForScript(JSON.stringify(source))
-}
-
-// The config is not untrusted, but it is not a closed set of hex colours either: a
-// themeCSS or a font stack is free text, and it goes into the same script element.
-function encodeConfigForScript(): string {
-  return encodeJsonForScript(JSON.stringify(MERMAID_DIAGRAM_CONFIG))
-}
-
-// Self-contained HTML: embedded mermaid bundle, render the graph, post the body
-// height (or "error") back to RN. The configuration is the one the page runs too.
-export function buildHtml(source: string): string {
-  const encoded = encodeSourceForScript(source)
-  const palette = encodeJsonForScript(JSON.stringify([colors.textPrimary, colors.bgRaised]))
-  return `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; base-uri 'none'; form-action 'none'" />
-<style>
-  html, body { margin: 0; padding: 0; background: ${colors.bgRaised}; }
-  #c { padding: 8px; }
-  #c svg { max-width: 100%; height: auto; }
-</style>
-<script>${MERMAID_ENGINE_JS}</script>
-</head>
-<body>
-<div id="c"><pre class="mermaid"></pre></div>
-<script>
-  function post(msg) {
-    if (window.ReactNativeWebView) { window.ReactNativeWebView.postMessage(String(msg)); }
-  }
-  function reportHeight() {
-    post(document.getElementById('c').scrollHeight);
-  }
-  try {
-    document.querySelector('.mermaid').textContent = ${encoded};
-    mermaid.initialize(${encodeConfigForScript()});
-    mermaid.run({ querySelector: '.mermaid' })
-      .then(function () {
-        var graph = document.querySelector('#c svg');
-        var palette = ${palette};
-        if (graph) { graph.outerHTML = (${readableMermaidFlowchartSvg.toString()})(graph.outerHTML, palette[0], palette[1]); }
-        reportHeight();
-      })
-      .catch(function () { post('error'); });
-  } catch (e) {
-    post('error');
-  }
-</script>
-</body>
-</html>`
-}
-
+// Mermaid owns the SVG dimensions.
 const styles = createThemedStyles(() =>
   StyleSheet.create({
     frame: {
@@ -182,7 +129,7 @@ const styles = createThemedStyles(() =>
       fontSize: 11,
       fontFamily: typography.monoFamily
     },
-    webview: { backgroundColor: colors.bgRaised },
+    host: { padding: spacing.sm },
     fallbackScroll: { padding: spacing.sm },
     fallbackText: { color: colors.textPrimary, fontFamily: typography.monoFamily }
   })

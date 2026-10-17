@@ -1,4 +1,4 @@
-import { createElement, type ReactNode } from 'react'
+import { createElement } from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, expect, it, vi } from 'vitest'
 import { MobileMarkdown } from './MobileMarkdown'
@@ -13,21 +13,6 @@ vi.mock('react-native', () => ({
   View: 'View',
   StyleSheet: { create: (styles: unknown) => styles, hairlineWidth: 1 }
 }))
-vi.mock('./MobileMarkdownNativeText', async () => {
-  const React = await import('react')
-  const { MarkdownTextContext } = await import('./mobile-markdown-text-setup')
-  return {
-    MobileMarkdownNativeText: (props: { children?: ReactNode }) =>
-      React.createElement(
-        'Text',
-        {
-          ...props,
-          nativeCodeBackground: React.useContext(MarkdownTextContext).inlineCodeBackground
-        },
-        props.children
-      )
-  }
-})
 vi.mock('./pr-sidebar/MermaidDiagram', () => ({ MermaidDiagram: 'MermaidDiagram' }))
 vi.mock('../platform/clipboard', () => ({
   useClipboardWriter: () => ({ writeText: async () => {} })
@@ -58,16 +43,33 @@ it.each(['light', 'dark'] as const)(
     })
     const check = () => {
       const codes = renderer!.root.findAll(
-        (node) => typeof node.type === 'string' && node.props.inlineCode === true
+        (node) =>
+          node.type === 'Text' &&
+          ['Header', 'Body'].includes(node.props.children) &&
+          background(node.props.style) !== undefined
       )
       expect(codes).toHaveLength(2)
       expect(background(codes[0]!.props.style)).toBe(colors.bgBase)
-      expect(codes[0]!.props.nativeCodeBackground).toBe(colors.bgBase)
       expect(background(codes[1]!.props.style)).toBe(colors.bgRaised)
-      expect(codes[1]!.props.nativeCodeBackground).toBe(colors.bgRaised)
     }
     check()
     act(() => applyMobileColorScheme(scheme === 'dark' ? 'light' : 'dark'))
     check()
   }
 )
+
+it.each(['light', 'dark'] as const)('distinguishes code chips from quoted text in %s', (scheme) => {
+  applyMobileColorScheme(scheme)
+  act(() => {
+    renderer = create(createElement(MobileMarkdown, { content: '> `Quoted code`' }))
+  })
+  const code = renderer!.root.find(
+    (node) => node.type === 'Text' && node.props.children === 'Quoted code'
+  )
+  const quote = renderer!.root.find(
+    (node) => node.type === 'View' && node.props.style?.borderLeftWidth === 2
+  )
+  expect(background(code.props.style)).toBe(colors.bgRaised)
+  expect(quote.props.style.backgroundColor).toBe(colors.bgPanel)
+  expect(background(code.props.style)).not.toBe(quote.props.style.backgroundColor)
+})

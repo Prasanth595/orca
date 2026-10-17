@@ -9,7 +9,6 @@ import {
   type ViewStyle
 } from 'react-native'
 import { Check, Copy } from 'lucide-react-native'
-import { MobileSelectableText } from './MobileSelectableText'
 import { useClipboardWriter } from '../platform/clipboard'
 import { colors, radii, spacing, typography } from '../theme/mobile-theme'
 import { createThemedStyles } from '../theme/mobile-themed-styles'
@@ -95,7 +94,7 @@ export const MobileMarkdownCodeBlock = memo(function MobileMarkdownCodeBlock({
           nestedScrollEnabled
           style={styles.scroll}
         >
-          <MobileSelectableText
+          <Text
             selectable={selectable}
             style={[
               styles.code,
@@ -108,7 +107,7 @@ export const MobileMarkdownCodeBlock = memo(function MobileMarkdownCodeBlock({
                 {token.text}
               </Text>
             ))}
-          </MobileSelectableText>
+          </Text>
         </ScrollView>
       </View>
     </View>

@@ -174,7 +174,13 @@ export type LayoutCommand =
       sessionId: string
       agent: AgentType
       groupId?: string
+      /** Placement in the group: after this tab, else at this index, else at its end. */
+      afterTabId?: string
+      index?: number
+      /** When the window drew the tab, so a later save of it matches main's copy. */
+      createdAt?: number
       initial?: InitialSurfaceReason
+      split?: NewGroupSplit
     })
   | (On & { type: 'startPane'; paneKey: string })
   | (On & { type: 'restartPane'; paneKey: string })
@@ -207,9 +213,15 @@ export type GroupSide = 'left' | 'right' | 'up' | 'down'
 
 /**
  * An open into a new group, named by the command's `groupId`, split off `besideGroupId`: the
- * group and its first tab are made in one step, so no empty group is ever stored.
+ * group and its first tab are made in one step, so no empty group is ever stored. With
+ * `besideLastGroupId`, the split is off the branch from `besideGroupId` to it (its first and last
+ * groups), as when a group the window kept empty sits beside a branch split since.
  */
-export type NewGroupSplit = { besideGroupId: string; direction: GroupSide }
+export type NewGroupSplit = {
+  besideGroupId: string
+  besideLastGroupId?: string
+  direction: GroupSide
+}
 
 export type TabTitle =
   | { kind: 'custom' | 'generated'; title: string | null }

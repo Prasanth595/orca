@@ -117,7 +117,7 @@ function renderPhrasing(
       return ctx.onOpenFile && isFilePathCodeSpan(node.value) ? (
         <MarkdownText
           key={key}
-          inlineCode
+
           style={[
             outer,
             styles.inlineCode,
@@ -134,7 +134,7 @@ function renderPhrasing(
       ) : (
         <MarkdownText
           key={key}
-          inlineCode
+
           style={[outer, styles.inlineCode, size, ctx.tone.inlineCode]}
         >
           {node.value}

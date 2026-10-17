@@ -1,9 +1,8 @@
 import { MobileMarkdownCodeBlock } from '../MobileMarkdownCodeBlock'
-import { MobileMarkdownNativeText as Text } from '../MobileMarkdownNativeText'
 import { createThemedStyles } from '../../theme/mobile-themed-styles'
 import { useMobileTheme } from '../../theme/use-mobile-theme'
 import { useMemo, useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { openExternalLink } from '../../platform/external-link'
 import { ChevronDown, ChevronRight } from 'lucide-react-native'
 import { colors, radii, spacing, typography } from '../../theme/mobile-theme'
@@ -249,7 +248,6 @@ function renderInline(text: string, base: number) {
           return (
             <Text
               key={`${token.kind}:${token.text}:${occurrence}`}
-              inlineCode
               style={[styles.codeInline, { fontSize: base - 1 }]}
             >
               {token.text}

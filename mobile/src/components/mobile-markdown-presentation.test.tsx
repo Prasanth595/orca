@@ -1,5 +1,4 @@
 vi.mock('lucide-react-native', () => ({ Check: 'Check', Copy: 'Copy' }))
-vi.mock('./MobileSelectableText', () => ({ MobileSelectableText: 'Text' }))
 vi.mock('../platform/clipboard', () => ({
   useClipboardWriter: () => ({ writeText: async () => {} })
 }))
