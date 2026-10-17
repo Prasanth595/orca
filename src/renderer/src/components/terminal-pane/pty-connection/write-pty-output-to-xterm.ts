@@ -1,7 +1,7 @@
 import { takeCurrentTerminalDeliveryCredit } from '@/lib/pane-manager/terminal-delivery-credit'
 import { nativeWindowsRewriteNeedsFollowupRenderRefresh } from '@/lib/pane-manager/terminal-complex-script'
 import { writeTerminalOutput } from '@/lib/pane-manager/pane-terminal-output-scheduler'
-import { RESET_TERMINAL_CURSOR_STYLE } from '../../../../../shared/terminal-mode-reset-profiles'
+import { TerminalIdleCursorReset } from '../terminal-idle-cursor-reset'
 import { forceFullViewportPresent } from '@/lib/pane-manager/terminal-render-pause-release'
 
 import { FOREGROUND_SYNCHRONIZED_FRAME_INTERACTIVE_WINDOW_MS } from './foreground-output-budgets'
@@ -20,11 +20,24 @@ import type { ConnectPanePtySession } from './connect-pane-pty-session'
 
 /** The xterm write path for PTY output, including the queued agent-idle mode reset. */
 export function bindWritePtyOutputToXterm(session: ConnectPanePtySession): void {
+  const idleCursorReset = (session.idleCursorReset ??= new TerminalIdleCursorReset())
+  const onBacklogReplaced = (): void => {
+    // Why: the replacement warning starts with CAN, so discarded parser state must not block a reset.
+    const reset = idleCursorReset.cancelSequence()
+    if (reset && !session.disposed) {
+      session.writePtyOutputToXterm(
+        reset,
+        shouldWritePtyOutputForeground(session.deps.isVisibleRef.current)
+      )
+    }
+  }
   session.writePtyOutputToXterm = function (
     data: string,
     foreground: boolean,
     opts?: { hiddenStartupRendererQuery?: boolean; liveStartupBatch?: boolean }
   ): void {
+    data = idleCursorReset.processOutput(data)
+    const resetParsed = idleCursorReset.getResetParsedCallback()
     // Why: every application byte funnels through here, so it's the one place the kitty keyboard mirror observes the pane's protocol negotiation.
     session.kittyKeyboardModes.scan(data)
     // Why before classification: this chunk may be the echo that calibrates its own window.
@@ -101,6 +114,13 @@ export function bindWritePtyOutputToXterm(session: ConnectPanePtySession): void 
           forceFullViewportPresent(session.pane.terminal)
         }
       : startupWrite?.onParsed
+    const outputParsed =
+      resetParsed && onParsed
+        ? () => {
+            resetParsed()
+            onParsed()
+          }
+        : (resetParsed ?? onParsed)
     writeTerminalOutput(session.pane.terminal, data, {
       foreground: foregroundOutput,
       beforeWrite: startupWrite
@@ -109,10 +129,11 @@ export function bindWritePtyOutputToXterm(session: ConnectPanePtySession): void 
             startupWrite.beforeWrite()
           }
         : session.beforeTerminalOutputWrite,
-      ...(onParsed ? { onParsed } : {}),
+      ...(outputParsed ? { onParsed: outputParsed } : {}),
       // Why: every scheduler write claims one child so a split delivery is credited only after all children parse or discard.
       ackCredit: takeCurrentTerminalDeliveryCredit() ?? undefined,
       onBackgroundBacklogDropped: session.markHiddenOutputRestoreNeeded,
+      onBacklogReplaced,
       latencySensitive:
         !foreground || parseHiddenStartupOutput
           ? true
@@ -135,9 +156,12 @@ export function bindWritePtyOutputToXterm(session: ConnectPanePtySession): void 
     if (session.disposed) {
       return
     }
-    session.writePtyOutputToXterm(
-      RESET_TERMINAL_CURSOR_STYLE,
-      shouldWritePtyOutputForeground(session.deps.isVisibleRef.current)
-    )
+    const reset = idleCursorReset.request()
+    if (reset) {
+      session.writePtyOutputToXterm(
+        reset,
+        shouldWritePtyOutputForeground(session.deps.isVisibleRef.current)
+      )
+    }
   }
 }
