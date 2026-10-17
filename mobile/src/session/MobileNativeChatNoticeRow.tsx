@@ -1,6 +1,6 @@
-import { useMobileTheme } from '../theme/use-mobile-theme'
 import { createThemedStyles } from '../theme/mobile-themed-styles'
-import { StyleSheet, View } from 'react-native'
+import { useMobileTheme } from '../theme/use-mobile-theme'
+import { StyleSheet, Text, View } from 'react-native'
 import { AlertCircle, AlertTriangle, Info } from 'lucide-react-native'
 import { AGENT_SESSION_HOST_STATUS_COPY } from '../../../src/shared/agent-session-host-status-rows'
 import {
@@ -11,10 +11,15 @@ import {
 } from '../../../src/shared/native-chat-notice'
 import { isTextBlock, type NativeChatBlock } from '../../../src/shared/native-chat-types'
 import { MobileMarkdown } from '../components/MobileMarkdown'
-import { MobileSelectableText as Text } from '../components/MobileSelectableText'
 import { INLINE_TEXT_SELECTION } from '../components/inline-text-selection'
 import { colors, radii, spacing, typography } from '../theme/mobile-theme'
 import { MONO_SIZE, TEXT_SIZE, scaledType } from './mobile-native-chat-message-styles'
+
+const TONE_COLOR: Record<NativeChatNoticeTone, string> = {
+  warning: colors.statusAmber,
+  error: colors.statusRed,
+  notice: colors.textMuted
+}
 
 /** A row the agent did not write in its own words, drawn as desktop's `NativeChatNoticeRow` and
  *  its faint system asides are, so it never reads as the agent speaking. */
@@ -31,12 +36,6 @@ export function MobileNativeChatNoticeRow({
   onLongPress?: () => void
 }): React.JSX.Element | null {
   useMobileTheme()
-
-  const toneColor: Record<NativeChatNoticeTone, string> = {
-    warning: colors.statusAmber,
-    error: colors.statusRed,
-    notice: colors.textMuted
-  }
 
   const notice = nativeChatNoticeBlock(blocks)
   // A system row with no notice of its own is an aside, a size under the agent's prose.
@@ -105,7 +104,7 @@ export function MobileNativeChatNoticeRow({
       const textStyle = [
         styles.line,
         scaledType(TEXT_SIZE, fontScale),
-        look.tone && { color: toneColor[look.tone] }
+        look.tone && { color: TONE_COLOR[look.tone] }
       ]
       if (!look.tone) {
         return (
@@ -120,7 +119,7 @@ export function MobileNativeChatNoticeRow({
         <View style={[styles.card, styles.toneCard]}>
           <Icon
             size={16 * fontScale}
-            color={toneColor[look.tone]}
+            color={TONE_COLOR[look.tone]}
             strokeWidth={2}
             style={styles.toneIcon}
           />

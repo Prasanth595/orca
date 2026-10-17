@@ -1,7 +1,6 @@
 import { useMobileTheme } from '../theme/use-mobile-theme'
-import { MobileSelectableText as Text } from '../components/MobileSelectableText'
 import { memo, useCallback, useContext, useLayoutEffect, useRef } from 'react'
-import { Text as NativeText, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { INLINE_TEXT_SELECTION } from '../components/inline-text-selection'
 import { MobileNativeChatLongPressContent as Content } from './MobileNativeChatLongPressContent'
 import { splitNativeChatBlocks } from '../../../src/shared/native-chat-tool-fold'
@@ -102,6 +101,7 @@ function MobileNativeChatMessageImpl({
   onToggleUserMessage?: (messageId: string) => void
 }): React.JSX.Element {
   useMobileTheme()
+
   // Another agent's message is set apart from the person's bubble, left-aligned and named.
   const attribution = agentMessageAttribution('Message from', message.from)
   const isUser = message.role === 'user' && attribution === null
@@ -296,7 +296,7 @@ function MobileNativeChatMessageImpl({
             />
           ) : null}
         </Content>
-        {unsentNotice ? <NativeText style={styles.unsentNotice}>{unsentNotice}</NativeText> : null}
+        {unsentNotice ? <Text style={styles.unsentNotice}>{unsentNotice}</Text> : null}
         {/* Always shown, so the row never shifts when copy appears. */}
         {isChatTurn ? (
           <View style={styles.meta}>

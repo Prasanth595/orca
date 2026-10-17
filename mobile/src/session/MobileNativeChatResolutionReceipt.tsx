@@ -1,6 +1,6 @@
-import { useMobileTheme } from '../theme/use-mobile-theme'
 import { createThemedStyles } from '../theme/mobile-themed-styles'
-import { StyleSheet, View } from 'react-native'
+import { useMobileTheme } from '../theme/use-mobile-theme'
+import { StyleSheet, Text, View } from 'react-native'
 import {
   NATIVE_CHAT_RECEIPT_COPY,
   nativeChatReceiptAnswerHeading,
@@ -8,7 +8,6 @@ import {
   nativeChatReceiptSubject,
   type NativeChatResolvedPrompt
 } from '../../../src/shared/native-chat-resolution-receipt'
-import { MobileSelectableText as Text } from '../components/MobileSelectableText'
 import { INLINE_TEXT_SELECTION } from '../components/inline-text-selection'
 import { colors, spacing, typography } from '../theme/mobile-theme'
 import { MobileNativeChatAwaitingInputRow } from './MobileNativeChatAwaitingInputRow'
@@ -27,6 +26,7 @@ export function MobileNativeChatResolutionReceipt({
   fontScale: number
 }): React.JSX.Element | null {
   useMobileTheme()
+
   const subject = nativeChatReceiptSubject(body)
   if (body.resolution.state === 'pending') {
     return body.kind === 'question' ? (
