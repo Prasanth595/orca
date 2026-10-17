@@ -1,6 +1,9 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import { getDefaultSettings } from '../../../../shared/constants'
 import { makeWorktree } from './worktrees-slice-test-fixtures'
+import { makeCandidate, deferred } from './workspace-cleanup-slice-test-harness'
+import { assertWorkspaceCleanupAgentStopApproved } from './workspace-cleanup-agent-evidence'
+import { makeAgentEntry } from '@/components/worktree-jump-palette-test-fixtures'
 import {
   createTestStore,
   mockApi,
@@ -20,6 +23,29 @@ beforeEach(() => {
     result: {},
     _meta: { runtimeId: 'runtime-remote' }
   })
+})
+
+it.each([false, true])('checks consent after hook preparation: %s', async (approved) => {
+  const store = createTestStore()
+  const candidate = makeCandidate({ blockers: approved ? ['live-agent'] : [] })
+  const wt = makeWorktree({ id: candidate.worktreeId, repoId: candidate.repoId, hostId: 'local' })
+  store.setState({ worktreesByRepo: { [wt.repoId]: [wt] } })
+  const hooks = deferred<{ hasHooks: boolean; hooks: null; mayNeedUpdate: boolean }>()
+  mockApi.hooks.check.mockReturnValueOnce(hooks.promise)
+  const remove = store.getState().removeWorktree
+  const removal = remove({ id: wt.id, executionHostId: 'local' }, false, {
+    assertBeforeDispatch: () =>
+      assertWorkspaceCleanupAgentStopApproved(store.getState(), candidate, candidate)
+  })
+  await vi.waitFor(() => expect(mockApi.hooks.check).toHaveBeenCalled())
+  const entry = makeAgentEntry('chat', 'working', Date.now(), {
+    worktreeId: wt.id,
+    connectionId: null
+  })
+  store.setState({ agentStatusByPaneKey: { [entry.paneKey]: entry } })
+  hooks.resolve({ hasHooks: false, hooks: null, mayNeedUpdate: false })
+  expect((await removal).ok).toBe(approved)
+  expect(mockApi.worktrees.remove).toHaveBeenCalledTimes(approved ? 1 : 0)
 })
 
 it.each([undefined, false, true])(

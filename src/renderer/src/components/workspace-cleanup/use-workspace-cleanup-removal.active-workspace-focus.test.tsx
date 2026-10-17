@@ -143,6 +143,20 @@ const BATCH = ['c', 'active', 'longer-name'] as const
 const KEEP_FOCUS = [worktreeId('keep'), { revealInSidebar: false }] as const
 
 describe('workspace cleanup removal of the active workspace', () => {
+  it('hands off a workspace entered while it was queued', async () => {
+    seed('keep')
+    const pending = deferRemovals()
+    const { result } = startBatch(BATCH)
+    await waitFor(() => expect(pending).toHaveLength(1))
+    act(() => useAppStore.setState({ activeWorktreeId: worktreeId('active') }))
+    await settleNext(pending, 0)
+    expect(activateAndRevealWorktree).not.toHaveBeenCalled()
+    await settleNext(pending, 1)
+    expect(activateAndRevealWorktree).toHaveBeenCalledWith(...KEEP_FOCUS)
+    await settleNext(pending, 2)
+    await waitFor(() => expect(result.current.removalInFlight).toBe(false))
+  })
+
   beforeEach(() => {
     vi.mocked(activateAndRevealWorktree).mockReset()
     // Mirrors real activation so later reads see the new active workspace.

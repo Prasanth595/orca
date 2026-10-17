@@ -44,6 +44,7 @@ function startAgent(name: string): void {
   const entry: AgentStatusEntry = {
     paneKey,
     state: 'working',
+    connectionId: null,
     prompt: '',
     updatedAt,
     stateStartedAt: updatedAt,
@@ -162,6 +163,7 @@ describe('workspace cleanup removal of workspaces with a running agent', () => {
           paneKey: chatPaneKey,
           worktreeId: worktreeId('a'),
           state: 'working',
+          connectionId: null,
           prompt: '',
           updatedAt,
           stateStartedAt: updatedAt,

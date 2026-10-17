@@ -648,7 +648,7 @@
             "gitStatusUnavailable": "Orca couldn't check this workspace's git status. Try again, or delete it from its host-specific sidebar or project list.",
             "gitStatusUnavailableOlderPeer": "Orca couldn't match this git-status failure to a host. Update the older connected peer, or delete the workspace from its host-specific sidebar or project list.",
             "forceNeedsApproval": "Review and confirm this workspace before force deleting it.",
-            "agentStartedSinceConfirmation": "An agent started in this workspace after you confirmed. Delete it again to review stopping the agent."
+            "agentStartedSinceConfirmation": "An agent is running in this workspace. Delete it again to review stopping the agent."
           }
         },
         "worktrees": {

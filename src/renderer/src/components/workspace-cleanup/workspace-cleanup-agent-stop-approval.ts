@@ -5,7 +5,7 @@ import {
 
 /**
  * Records on the approved candidate whether the user confirmed stopping an agent there; the
- * delete-time preflight refuses a row whose agent was not approved. Scan snapshots can carry
+ * final dispatch check refuses a row whose agent was not approved. Scan snapshots can carry
  * `live-agent` without the user ever seeing the stop step, so the blocker is rewritten, not kept.
  */
 export function withWorkspaceCleanupAgentStopApproval(

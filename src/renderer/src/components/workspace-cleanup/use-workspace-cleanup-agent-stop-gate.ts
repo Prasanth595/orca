@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { useAppStore } from '@/store'
 import type { WorkspaceCleanupCandidate } from '../../../../shared/workspace-cleanup'
 import { getWorkspaceCleanupCandidateIdentity } from '../../../../shared/workspace-cleanup-host-identity'
-import { findWorkspaceCleanupLiveAgentWorktreeIds } from '@/store/slices/workspace-cleanup-local-evidence'
+import { getWorkspaceCleanupAgentEvidence } from '@/store/slices/workspace-cleanup-agent-evidence'
 import { withWorkspaceCleanupAgentStopApproval } from './workspace-cleanup-agent-stop-approval'
 
 export type WorkspaceCleanupAgentStopRequest = {
@@ -31,17 +31,14 @@ export function useWorkspaceCleanupAgentStopGate(): WorkspaceCleanupAgentStopGat
   const approve = useCallback<WorkspaceCleanupAgentStopGate['approve']>(
     (candidates, unverifiedCandidate) => {
       // Why: the scan snapshot can be minutes old; an agent may have started since.
-      const liveWorktreeIds = findWorkspaceCleanupLiveAgentWorktreeIds(
-        useAppStore.getState(),
-        candidates.map((candidate) => candidate.worktreeId)
-      )
+      const agentEvidence = getWorkspaceCleanupAgentEvidence(useAppStore.getState(), candidates)
       const approvedIdentities = new Set(
         request && isSameAction(request, unverifiedCandidate)
           ? request.candidates.map(getWorkspaceCleanupCandidateIdentity)
           : []
       )
-      const liveCandidates = candidates.filter((candidate) =>
-        liveWorktreeIds.has(candidate.worktreeId)
+      const liveCandidates = candidates.filter(
+        (candidate) => agentEvidence.get(getWorkspaceCleanupCandidateIdentity(candidate)) === 'live'
       )
       if (
         liveCandidates.some(

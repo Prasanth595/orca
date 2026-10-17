@@ -98,6 +98,7 @@ describe('workspace cleanup enrichment performance', () => {
     const alphaWorking = {
       paneKey: 'tab-alpha:11111111-1111-4111-8111-111111111111',
       state: 'working',
+      connectionId: null,
       prompt: '',
       updatedAt: NOW,
       stateStartedAt: NOW,

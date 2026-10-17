@@ -581,7 +581,7 @@
             "gitStatusUnavailable": "Orca n'a pas pu vérifier le statut git de cet espace de travail. Réessayez, ou supprimez-le depuis la barre latérale propre à son hôte ou depuis la liste des projets.",
             "gitStatusUnavailableOlderPeer": "Orca n'a pas pu rattacher cet échec de statut git à un hôte. Mettez à jour l'homologue connecté le plus ancien, ou supprimez l'espace de travail depuis la barre latérale propre à son hôte ou depuis la liste des projets.",
             "forceNeedsApproval": "Examinez et confirmez cet espace de travail avant de le supprimer de force.",
-            "agentStartedSinceConfirmation": "Un agent a démarré dans cet espace de travail après votre confirmation. Supprimez-le à nouveau pour vérifier l'arrêt de l'agent."
+            "agentStartedSinceConfirmation": "Un agent est en cours d’exécution dans cet espace de travail. Supprimez-le à nouveau pour vérifier l’arrêt de l’agent."
           }
         },
         "worktrees": {

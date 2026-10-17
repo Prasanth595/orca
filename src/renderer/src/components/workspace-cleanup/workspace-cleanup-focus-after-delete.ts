@@ -14,17 +14,18 @@ export function withWorkspaceCleanupFocusAfterDelete(
   removeCandidates: RemoveCandidates,
   candidates: readonly WorkspaceCleanupCandidate[]
 ): RemoveCandidates {
-  const commitByIdentity = new Map(
-    candidates.map((candidate) => [
-      getWorkspaceCleanupCandidateIdentity(candidate),
-      prepareActiveWorktreeFocusAfterDelete(candidate.worktreeId)
-    ])
-  )
   return async (worktreeIds, options) => {
+    const candidate = (options?.approvedCandidates ?? candidates).find((row) =>
+      worktreeIds.includes(row.worktreeId)
+    )
+    const commit = candidate
+      ? prepareActiveWorktreeFocusAfterDelete(candidate.worktreeId)
+      : undefined
     const result = await removeCandidates(worktreeIds, options)
-    for (const identity of result.removedIdentities) {
-      const commit = commitByIdentity.get(identity)
-      commitByIdentity.delete(identity)
+    if (
+      candidate &&
+      result.removedIdentities.includes(getWorkspaceCleanupCandidateIdentity(candidate))
+    ) {
       try {
         commit?.()
       } catch (error) {

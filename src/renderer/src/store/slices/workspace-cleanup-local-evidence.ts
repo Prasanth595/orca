@@ -97,50 +97,6 @@ export function getWorkspaceCleanupLiveAgentSessionWorktreeIds(state: AppState):
   return getWorktreeIdsWithLiveAgent(state.agentStatusByPaneKey, state.tabsByWorktree, Date.now())
 }
 
-/** The scan's live-agent test: a live agent session, or a terminal whose title says an agent is working. */
-export function hasWorkspaceCleanupLiveAgent(
-  state: AppState,
-  worktreeId: string,
-  liveAgentSessionWorktreeIds: ReadonlySet<string>
-): boolean {
-  return (
-    liveAgentSessionWorktreeIds.has(worktreeId) ||
-    hasWorkingTitleAgent(state, state.tabsByWorktree[worktreeId] ?? [])
-  )
-}
-
-export function findWorkspaceCleanupLiveAgentWorktreeIds(
-  state: AppState,
-  worktreeIds: Iterable<string>
-): Set<string> {
-  const liveAgentSessionWorktreeIds = getWorkspaceCleanupLiveAgentSessionWorktreeIds(state)
-  const liveWorktreeIds = new Set<string>()
-  for (const worktreeId of worktreeIds) {
-    if (hasWorkspaceCleanupLiveAgent(state, worktreeId, liveAgentSessionWorktreeIds)) {
-      liveWorktreeIds.add(worktreeId)
-    }
-  }
-  return liveWorktreeIds
-}
-
-function hasWorkingTitleAgent(state: AppState, tabs: { id: string; title: string }[]): boolean {
-  for (const tab of tabs) {
-    if ((state.ptyIdsByTabId[tab.id]?.length ?? 0) === 0) {
-      continue
-    }
-    const paneTitles = state.runtimePaneTitlesByTabId[tab.id]
-    const titles =
-      paneTitles && Object.keys(paneTitles).length > 0 ? Object.values(paneTitles) : [tab.title]
-    for (const title of titles) {
-      const status = classifyTitleActivity(title)
-      if (status === 'working' || status === 'permission') {
-        return true
-      }
-    }
-  }
-  return false
-}
-
 export async function probeTerminalLiveness(
   state: AppState,
   tabs: { id: string; title: string }[]

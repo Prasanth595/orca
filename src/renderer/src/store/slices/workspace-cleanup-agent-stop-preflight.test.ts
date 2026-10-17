@@ -1,21 +1,12 @@
-import { describe, expect, it, vi } from 'vitest'
-import type { AppState } from '../types'
+import { describe, expect, it } from 'vitest'
 import type { AgentStatusEntry } from '../../../../shared/agent-status-types'
-import type { WorkspaceCleanupScanResult } from '../../../../shared/workspace-cleanup'
-import { getWorkspaceCleanupHostIdentity } from '../../../../shared/workspace-cleanup-host-identity'
+import { getWorkspaceCleanupHostIdentity as identity } from '../../../../shared/workspace-cleanup-host-identity'
 import { makePaneKey } from '../../../../shared/stable-pane-id'
-import { withWorkspaceCleanupAgentStopApproval } from '@/components/workspace-cleanup/workspace-cleanup-agent-stop-approval'
 import { makeTab } from './store-test-helpers'
+import { makeAgentEntry } from '@/components/worktree-jump-palette-test-fixtures'
 import { enrichWorkspaceCleanupCandidates } from './workspace-cleanup-candidate-enrichment'
-import { findWorkspaceCleanupLiveAgentWorktreeIds } from './workspace-cleanup-local-evidence'
-import {
-  NOW,
-  WORKTREE_ID,
-  createCleanupTestStore,
-  installWorkspaceCleanupApi,
-  makeCandidate,
-  makeState
-} from './workspace-cleanup-slice-test-harness'
+import { getWorkspaceCleanupAgentEvidence } from './workspace-cleanup-agent-evidence'
+import { WORKTREE_ID, makeCandidate, makeState } from './workspace-cleanup-slice-test-harness'
 
 const OTHER_ID = 'repo1::/tmp/other'
 
@@ -24,8 +15,7 @@ function paneKey(tabId: string): string {
 }
 
 function agentStatus(paneKey: string, state: AgentStatusEntry['state']): AgentStatusEntry {
-  const updatedAt = Date.now()
-  return { paneKey, state, prompt: '', updatedAt, stateStartedAt: updatedAt, stateHistory: [] }
+  return makeAgentEntry('unused', state, Date.now(), { paneKey, connectionId: null })
 }
 
 // A structured chat publishes status under its own surface id; its tab is not in tabsByWorktree.
@@ -33,14 +23,32 @@ function structuredChatStatus(state: AgentStatusEntry['state']): AgentStatusEntr
   return { ...agentStatus(paneKey('chat-1'), state), worktreeId: WORKTREE_ID }
 }
 
-function liveAgentState(): Partial<AppState> {
-  return {
-    tabsByWorktree: { [WORKTREE_ID]: [makeTab({ id: 'tab-1', worktreeId: WORKTREE_ID })] },
-    agentStatusByPaneKey: { [paneKey('tab-1')]: agentStatus(paneKey('tab-1'), 'working') }
-  }
-}
-
 describe('workspace cleanup live-agent finder', () => {
+  it.each(['working', 'done'] as const)('qualifies %s evidence with done precedence', (status) => {
+    const leaf = '11111111-1111-4111-8111-111111111111'
+    const entry = agentStatus(paneKey('tab-1'), status)
+    const live = status === 'working'
+    const tab = makeTab({ id: 'tab-1', worktreeId: WORKTREE_ID, title: '⠋ Codex' })
+    const appState = makeState({
+      tabsByWorktree: { [WORKTREE_ID]: [tab] },
+      ptyIdsByTabId: { 'tab-1': ['pty-1'] },
+      terminalLayoutsByTabId: { 'tab-1': { root: null, activeLeafId: leaf, expandedLeafId: null } },
+      agentStatusByPaneKey: { [entry.paneKey]: entry }
+    })
+    const candidates = [
+      makeCandidate(),
+      makeCandidate({ executionHostId: 'ssh:other' }),
+      makeCandidate({ executionHostId: 'runtime:host' })
+    ]
+    const evidence = () => getWorkspaceCleanupAgentEvidence(appState, candidates)
+    expect([...evidence().keys()]).toEqual(live ? [identity('local', WORKTREE_ID)] : [])
+    appState.ptyIdsByTabId = { 'tab-1': ['remote:host@@pty'] }
+    expect([...evidence().keys()]).toEqual(live ? [identity('runtime:host', WORKTREE_ID)] : [])
+    appState.agentStatusByPaneKey = { [entry.paneKey]: { ...entry, connectionId: undefined } }
+    appState.ptyIdsByTabId = { 'tab-1': ['pty-1'] }
+    expect([...evidence().values()]).toEqual(live ? ['unknown', 'unknown', 'unknown'] : [])
+  })
+
   it('finds only workspaces whose agent is working right now', () => {
     const state = makeState({
       tabsByWorktree: {
@@ -53,9 +61,12 @@ describe('workspace cleanup live-agent finder', () => {
       }
     })
 
-    expect([...findWorkspaceCleanupLiveAgentWorktreeIds(state, [WORKTREE_ID, OTHER_ID])]).toEqual([
-      WORKTREE_ID
-    ])
+    expect([
+      ...getWorkspaceCleanupAgentEvidence(state, [
+        makeCandidate(),
+        makeCandidate({ worktreeId: OTHER_ID })
+      ]).values()
+    ]).toEqual(['live'])
   })
 
   it.each([
@@ -66,55 +77,8 @@ describe('workspace cleanup live-agent finder', () => {
       agentStatusByPaneKey: { [paneKey('chat-1')]: structuredChatStatus(state) }
     })
 
-    expect(findWorkspaceCleanupLiveAgentWorktreeIds(appState, [WORKTREE_ID]).has(WORKTREE_ID)).toBe(
-      live
-    )
+    expect(getWorkspaceCleanupAgentEvidence(appState, [makeCandidate()]).size > 0).toBe(live)
     const [enriched] = await enrichWorkspaceCleanupCandidates([makeCandidate()], appState)
     expect(enriched.blockers.includes('live-agent')).toBe(live)
-  })
-})
-
-describe('workspace cleanup removal of a workspace with a live agent', () => {
-  async function removeWith(approvedAgentStop: boolean) {
-    const fresh = makeCandidate()
-    installWorkspaceCleanupApi(
-      vi.fn().mockResolvedValue({
-        scannedAt: NOW,
-        candidates: [fresh],
-        errors: []
-      } satisfies WorkspaceCleanupScanResult)
-    )
-    const removeWorktree = vi.fn().mockResolvedValue({ ok: true })
-    const store = createCleanupTestStore(removeWorktree)
-    store.setState(liveAgentState())
-    const result = await store.getState().removeWorkspaceCleanupCandidates([WORKTREE_ID], {
-      approvedCandidates: [withWorkspaceCleanupAgentStopApproval(fresh, approvedAgentStop)]
-    })
-    return { result, removeWorktree }
-  }
-
-  it('refuses the row when an agent started after the user confirmed', async () => {
-    const { result, removeWorktree } = await removeWith(false)
-
-    expect(result.failures).toEqual([
-      {
-        worktreeId: WORKTREE_ID,
-        executionHostId: 'local',
-        displayName: 'old-workspace',
-        message:
-          'An agent started in this workspace after you confirmed. Delete it again to review stopping the agent.'
-      }
-    ])
-    expect(removeWorktree).not.toHaveBeenCalled()
-  })
-
-  it('removes the row when the user approved stopping its agent', async () => {
-    const { result, removeWorktree } = await removeWith(true)
-
-    expect(result.failures).toEqual([])
-    expect(result.removedIdentities).toEqual([
-      getWorkspaceCleanupHostIdentity('local', WORKTREE_ID)
-    ])
-    expect(removeWorktree).toHaveBeenCalledTimes(1)
   })
 })

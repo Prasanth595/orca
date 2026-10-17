@@ -13,11 +13,11 @@ import {
 import { mapWithConcurrency } from '../../../../shared/map-with-concurrency'
 import { getWorktreeVisitTimestamp } from '@/lib/worktree-visit-recency'
 import {
-  getWorkspaceCleanupLiveAgentSessionWorktreeIds,
-  hasWorkspaceCleanupLiveAgent,
   probeTerminalLiveness,
   shouldPreserveCleanupInspection
 } from './workspace-cleanup-local-evidence'
+import { getWorkspaceCleanupAgentEvidence } from './workspace-cleanup-agent-evidence'
+import { selectRetainedAgentEntriesForWorktree } from '@/components/sidebar/worktree-agent-row-selectors'
 
 export type WorkspaceCleanupEnrichOptions = {
   applyDismissals?: boolean
@@ -33,7 +33,7 @@ export type WorkspaceCleanupEnrichmentCacheEntry = {
 type WorkspaceCleanupEnrichmentProjection = {
   openFilesByWorktreeId: Map<string, AppState['openFiles']>
   retainedDoneAgentPaneKeysByWorktreeId: Map<string, string[]>
-  liveAgentSessionWorktreeIds: Set<string>
+  agentEvidence: ReturnType<typeof getWorkspaceCleanupAgentEvidence>
 }
 
 export const WORKSPACE_CLEANUP_ENRICHMENT_CONCURRENCY = 8
@@ -107,19 +107,19 @@ function buildWorkspaceCleanupEnrichmentProjection(
   }
 
   const retainedDoneAgentPaneKeysByWorktreeId = new Map<string, string[]>()
-  for (const [paneKey, retained] of Object.entries(state.retainedAgentsByPaneKey)) {
-    if (!worktreeIds.has(retained.worktreeId) || retained.entry.state !== 'done') {
-      continue
-    }
-    const paneKeys = retainedDoneAgentPaneKeysByWorktreeId.get(retained.worktreeId) ?? []
-    paneKeys.push(paneKey)
-    retainedDoneAgentPaneKeysByWorktreeId.set(retained.worktreeId, paneKeys)
+  for (const worktreeId of worktreeIds) {
+    retainedDoneAgentPaneKeysByWorktreeId.set(
+      worktreeId,
+      selectRetainedAgentEntriesForWorktree(state, worktreeId)
+        .filter((retained) => retained.entry.state === 'done')
+        .map((retained) => retained.entry.paneKey)
+    )
   }
 
   return {
     openFilesByWorktreeId,
     retainedDoneAgentPaneKeysByWorktreeId,
-    liveAgentSessionWorktreeIds: getWorkspaceCleanupLiveAgentSessionWorktreeIds(state)
+    agentEvidence: getWorkspaceCleanupAgentEvidence(state, candidates)
   }
 }
 
@@ -177,7 +177,7 @@ function getWorkspaceCleanupLocalStateSignature(
     browserTabCount: (state.browserTabsByWorktree[worktreeId] ?? []).length,
     retainedDoneAgentPaneKeys,
     // Attributed like the sidebar, so a structured chat with no tab here still re-keys the row.
-    liveAgentSession: projection.liveAgentSessionWorktreeIds.has(worktreeId),
+    agentEvidence: projection.agentEvidence.get(getWorkspaceCleanupCandidateIdentity(candidate)),
     lastVisitedAt:
       getWorktreeVisitTimestamp(state.lastVisitedAtByWorktreeId, {
         id: worktreeId,
@@ -203,7 +203,9 @@ async function enrichWorkspaceCleanupCandidate(
   const browserTabCount = (state.browserTabsByWorktree[candidate.worktreeId] ?? []).length
   const retainedDoneAgentCount =
     projection.retainedDoneAgentPaneKeysByWorktreeId.get(candidate.worktreeId)?.length ?? 0
-  const blockers = candidate.blockers.filter((blocker) => blocker !== 'dismissed')
+  const blockers = candidate.blockers.filter(
+    (blocker) => blocker !== 'dismissed' && blocker !== 'live-agent'
+  )
   const preserveCleanupInspection = shouldPreserveCleanupInspection(candidate, state)
 
   if (state.activeWorktreeId === candidate.worktreeId) {
@@ -212,13 +214,7 @@ async function enrichWorkspaceCleanupCandidate(
   if (dirtyEditorBuffers.length > 0) {
     blockers.push('dirty-editor-buffer')
   }
-  if (
-    hasWorkspaceCleanupLiveAgent(
-      state,
-      candidate.worktreeId,
-      projection.liveAgentSessionWorktreeIds
-    )
-  ) {
+  if (projection.agentEvidence.get(getWorkspaceCleanupCandidateIdentity(candidate)) === 'live') {
     blockers.push('live-agent')
   }
 

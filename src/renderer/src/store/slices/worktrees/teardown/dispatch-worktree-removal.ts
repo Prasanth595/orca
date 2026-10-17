@@ -60,6 +60,7 @@ async function requestWorktreeRemoval(
     return window.api.worktrees.forgetLocal({ worktreeId, hostId, ...snapshotPruneBatch })
   }
   args.assertCurrent()
+  options?.assertBeforeDispatch?.()
   if (target.kind === 'local') {
     return window.api.worktrees.remove({
       worktreeId,
