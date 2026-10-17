@@ -30,11 +30,13 @@ export async function isClaudeHumanReply(
           return null
         }
         seenPrompt = true
-        if (!('type' in entry) || entry.type !== 'user') {
-          return null
-        }
-        if (!('origin' in entry) || !entry.origin || typeof entry.origin !== 'object') {
-          found = !('isCompactSummary' in entry) || entry.isCompactSummary !== true
+        if (
+          !('type' in entry) ||
+          entry.type !== 'user' ||
+          !('origin' in entry) ||
+          !entry.origin ||
+          typeof entry.origin !== 'object'
+        ) {
           return null
         }
         found = true
