@@ -53,7 +53,7 @@ vi.mock('react-native-reanimated', () => ({
   runOnJS: (fn: (...args: unknown[]) => unknown) => fn
 }))
 vi.mock('react-native', () => ({
-  Platform: { OS: 'android' },
+  Platform: { OS: 'web' },
   FlatList: 'FlatList',
   Modal: 'Modal',
   Pressable: 'Pressable',
@@ -77,7 +77,7 @@ afterEach(() =>
   })
 )
 
-it('zooms and pans on Android, then restores gallery swiping at the original scale', () => {
+it('zooms and pans in the phone page, then restores gallery swiping at the original scale', () => {
   act(() => {
     viewer = create(
       <MobileNativeChatImageViewer uri="file:///a.png" label="Screenshot" onClose={() => {}} />

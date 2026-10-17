@@ -1,21 +1,11 @@
 import type { NativeChatImageRefBlock } from '../../../src/shared/native-chat-types'
 import { useCallback, useMemo, useState } from 'react'
-import {
-  FlatList,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-  useWindowDimensions
-} from 'react-native'
+import { FlatList, Modal, Pressable, Text, View, useWindowDimensions } from 'react-native'
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler'
-import { MobileNativeChatAndroidImagePage } from './MobileNativeChatAndroidImagePage'
+import { MobileNativeChatZoomableImagePage } from './MobileNativeChatZoomableImagePage'
 import { X } from 'lucide-react-native'
 import { useWindowSafeAreaInsets } from '../layout/side-safe-area'
 import { colors } from '../theme/mobile-theme'
-import { MobileNativeChatImage } from './MobileNativeChatImage'
 import type { MobileNativeChatViewedImage } from './mobile-native-chat-row-overlays'
 import { styles } from './mobile-native-chat-message-styles'
 
@@ -88,34 +78,15 @@ export function MobileNativeChatImageViewer({
                 )
               )
             }
-            renderItem={({ item, index: at }) =>
-              Platform.OS === 'android' ? (
-                <MobileNativeChatAndroidImagePage
-                  image={item}
-                  width={width}
-                  index={at}
-                  pagingGesture={pagingGesture}
-                  onInteractionChange={onInteractionChange}
-                />
-              ) : (
-                <View style={{ width, flex: 1 }}>
-                  <ScrollView
-                    style={{ flex: 1 }}
-                    contentContainerStyle={{ flexGrow: 1 }}
-                    maximumZoomScale={4}
-                    minimumZoomScale={1}
-                    centerContent
-                  >
-                    <MobileNativeChatImage
-                      uri={item.url ?? item.path}
-                      alt={item.alt}
-                      fontScale={1}
-                      imageStyle={styles.imageGalleryFill}
-                    />
-                  </ScrollView>
-                </View>
-              )
-            }
+            renderItem={({ item, index: at }) => (
+              <MobileNativeChatZoomableImagePage
+                image={item}
+                width={width}
+                index={at}
+                pagingGesture={pagingGesture}
+                onInteractionChange={onInteractionChange}
+              />
+            )}
           />
         </GestureDetector>
       </GestureHandlerRootView>
