@@ -104,6 +104,7 @@ export function MobileNativeChatOverlay({
       <MobileNativeChatAsyncQuestionProvider
         key={`${sendSurfaceId}:${sessionId}`}
         reply={controller.nativeChatAsyncReply}
+        pendingQuestions={session.pendingAsyncQuestions}
         disabled={
           inputLockReason !== null ||
           controller.nativeChatTurnIndicator?.stopping === true ||

@@ -8,6 +8,7 @@ type PendingReply = { handle: NativeChatSendHandle | null; finish: (accepted: bo
 
 /** Tracks terminal reply delivery and cancels pending writes when the session loses input ownership. */
 export function useNativeChatTerminalAsyncReply(args: {
+  pendingQuestions?: NativeChatAsyncQuestionReply['pendingQuestions']
   paneKey: string
   sessionId: string | null
   targetPtyId: string | null
@@ -107,9 +108,10 @@ export function useNativeChatTerminalAsyncReply(args: {
     },
     [paneKey, sessionId, targetPtyId, runtimeEnvironmentId]
   )
+  const { pendingQuestions } = args
   const reply = useMemo<NativeChatAsyncQuestionReply>(
-    () => ({ disabled: disabled || sending, send }),
-    [disabled, sending, send]
+    () => ({ disabled: disabled || sending, send, pendingQuestions }),
+    [disabled, sending, send, pendingQuestions]
   )
   return { reply, cancel }
 }

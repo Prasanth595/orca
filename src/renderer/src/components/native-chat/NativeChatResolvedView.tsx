@@ -1,3 +1,4 @@
+import { NativeChatPendingAsyncQuestions } from './NativeChatPendingAsyncQuestions'
 import { NativeChatAsyncQuestionContext } from './native-chat-async-question-context'
 import { useNativeChatTerminalAsyncReply } from './use-native-chat-terminal-async-reply'
 import { cn } from '@/lib/utils'
@@ -225,6 +226,7 @@ export function NativeChatResolvedView({
   })
   const { card: shownPromptCard, collapsedCard } = promptCardPresentation
   const { reply: asyncReply, cancel: cancelAsyncReply } = useNativeChatTerminalAsyncReply({
+    pendingQuestions: session.pendingAsyncQuestions,
     paneKey,
     sessionId,
     targetPtyId,
@@ -234,6 +236,7 @@ export function NativeChatResolvedView({
     delivery,
     onSubmitted: revealLatest
   })
+
   const mountedPromptCard = shownPromptCard ?? collapsedCard
   const rootInput = useNativeChatRootInputRouting({
     tabId: terminalTabId,
@@ -393,6 +396,7 @@ export function NativeChatResolvedView({
               allowFileUriLinks={fileLinkContext !== null}
               deliveryNotices={deliveryNotices}
             />
+            <NativeChatPendingAsyncQuestions />
           </NativeChatAsyncQuestionContext.Provider>
         )}
       </div>

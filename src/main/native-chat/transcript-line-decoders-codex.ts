@@ -149,7 +149,9 @@ function codexEventMessage(
     const text = extractString(payload.message)
     const content: NativeChatBlock[] = text ? [{ type: 'text', text }] : []
     const blocks =
-      payload.delivery === 'async' ? codexAsyncMessageBlocks(content, payload.questions) : content
+      payload.delivery === 'async'
+        ? codexAsyncMessageBlocks(content, payload.questions, extractString(payload.item_id))
+        : content
     return blocks.length > 0
       ? { id, role: 'assistant', blocks, timestamp, source: 'transcript' }
       : null
@@ -172,7 +174,7 @@ function codexCompletedTurnItem(
   const assistant = item.type === 'AgentMessage' || item.type === 'agent_message'
   const blocks =
     assistant && item.delivery === 'async'
-      ? codexAsyncMessageBlocks(content, item.questions)
+      ? codexAsyncMessageBlocks(content, item.questions, extractString(item.id))
       : content
   if (blocks.length === 0) {
     return null

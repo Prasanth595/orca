@@ -12,7 +12,8 @@ const item = { type: 'agentMessage', id: 'question-1', delivery: 'async', questi
 const questionBlock = {
   type: 'text',
   text: 'Which branch?\n1. main\n2. release\n\nAnything else?',
-  asyncQuestions: questions
+  asyncQuestions: questions,
+  asyncQuestionId: 'question-1'
 }
 
 describe('Codex async questions', () => {

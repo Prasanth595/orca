@@ -81,6 +81,7 @@ const Block = openDiscriminatedUnion(
     z.object({
       type: z.literal('text'),
       text: z.string(),
+      asyncQuestionId: z.string().optional(),
       asyncQuestions: z
         .array(z.object({ title: z.string(), options: z.array(z.string()) }))
         .optional(),

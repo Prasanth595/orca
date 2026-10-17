@@ -48,7 +48,8 @@ export function codexAsyncQuestionBlock(value: unknown): NativeChatTextBlock | n
 /** Adds the question card and removes duplicate question text, keeping any extra prose. */
 export function codexAsyncMessageBlocks(
   blocks: NativeChatBlock[],
-  value: unknown
+  value: unknown,
+  providerItemId?: string | null
 ): NativeChatBlock[] {
   const questionBlock = codexAsyncQuestionBlock(value)
   if (!questionBlock) {
@@ -63,6 +64,6 @@ export function codexAsyncMessageBlocks(
         block.type !== 'text' ||
         (block.text.trim() !== prose && block.text.trim() !== questionBlock.text.trim())
     ),
-    questionBlock
+    { ...questionBlock, ...(providerItemId ? { asyncQuestionId: providerItemId } : {}) }
   ]
 }

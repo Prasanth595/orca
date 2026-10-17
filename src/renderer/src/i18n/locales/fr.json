@@ -18535,6 +18535,7 @@
         "step": "Étape {{value0}}",
         "other": "Autre…",
         "reply": "Répondre",
+        "morePending": "D’autres questions en attente sont disponibles dans l’historique.",
         "otherPlaceholder": "Autre : saisissez votre réponse",
         "cancel": "Annuler",
         "send": "Valider",

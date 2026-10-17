@@ -1,3 +1,4 @@
+import { NativeChatPendingAsyncQuestions } from './NativeChatPendingAsyncQuestions'
 import { useLayoutEffect, useMemo, useRef, type ContextType, type ReactNode } from 'react'
 import { reportStructuredSessionUserInput } from '@/lib/worker-terminal-takeover-report'
 import type { useStructuredAgentSession } from './use-structured-agent-session'
@@ -27,7 +28,7 @@ export function NativeChatStructuredMessageProviders({
   onSubmitted: () => void
   children: ReactNode
 }): React.JSX.Element {
-  const { send, sendOut, prompts, rewind } = controller
+  const { send, sendOut, prompts, rewind, pendingAsyncQuestions } = controller
   const { sessionId, target } = pane
   const disabled = blocked || installBlocked || sendOut || prompts.length > 0
   const runtimeEnvironmentId = target.kind === 'local' ? null : (target.environmentId ?? null)
@@ -38,6 +39,7 @@ export function NativeChatStructuredMessageProviders({
   const value = useMemo(
     () => ({
       disabled,
+      pendingQuestions: pendingAsyncQuestions,
       send: (text: string): boolean => {
         const current = latest.current
         if (disabled || current.disabled || !current.send(text, [], { immediate: true })) {
@@ -48,7 +50,7 @@ export function NativeChatStructuredMessageProviders({
         return true
       }
     }),
-    [disabled, sessionId, runtimeEnvironmentId]
+    [disabled, sessionId, runtimeEnvironmentId, pendingAsyncQuestions]
   )
   return (
     <NativeChatAsyncQuestionContext.Provider value={value}>
@@ -56,6 +58,7 @@ export function NativeChatStructuredMessageProviders({
         <NativeChatOrcaStopContext.Provider value={continuation}>
           <NativeChatClaudeSignInContext.Provider value={claudeSignIn}>
             {children}
+            <NativeChatPendingAsyncQuestions />
           </NativeChatClaudeSignInContext.Provider>
         </NativeChatOrcaStopContext.Provider>
       </NativeChatRewindContext.Provider>

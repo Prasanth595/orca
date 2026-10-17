@@ -234,7 +234,7 @@ export function codexJournalItem(
   if (item.type === 'userMessage' || item.type === 'agentMessage') {
     const blocks =
       item.type === 'agentMessage' && item.delivery === 'async'
-        ? codexAsyncMessageBlocks(codexMessageBlocks(item), item.questions)
+        ? codexAsyncMessageBlocks(codexMessageBlocks(item), item.questions, item.id)
         : codexMessageBlocks(item)
     return {
       body:

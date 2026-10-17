@@ -1,5 +1,6 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { MobileNativeChatPendingAsyncQuestions } from './MobileNativeChatPendingAsyncQuestions'
 import { MobileNativeChatAsyncQuestions } from './MobileNativeChatAsyncQuestions'
 import { MobileNativeChatAsyncQuestionProvider } from './MobileNativeChatAsyncQuestionProvider'
 import { MobileNativeChatAsk } from './MobileNativeChatAsk'
@@ -191,4 +192,27 @@ it('does not submit an empty Other answer', async () => {
   await button('Submit')
   await advance()
   expect(send).not.toHaveBeenCalled()
+})
+
+it('shows questions outside the transcript and follows the host resolution without losing a draft on output', async () => {
+  function HostScreen({ resolved = false }: { resolved?: boolean }) {
+    return (
+      <MobileNativeChatAsyncQuestionProvider
+        reply={{ disabled: false, send }}
+        disabled={false}
+        pendingQuestions={resolved ? [] : [{ key: 'old-ask', questions }]}
+      >
+        <MobileNativeChatPendingAsyncQuestions />
+      </MobileNativeChatAsyncQuestionProvider>
+    )
+  }
+  await act(async () => {
+    tree = create(<HostScreen />)
+  })
+  await option('Other…')
+  await type('keep this draft')
+  await act(async () => tree?.update(<HostScreen />))
+  expect(input().props.value).toBe('keep this draft')
+  await act(async () => tree?.update(<HostScreen resolved />))
+  expect(root().findAllByType(MobileNativeChatAsk)).toHaveLength(0)
 })

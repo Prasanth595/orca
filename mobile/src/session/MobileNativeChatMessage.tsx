@@ -220,7 +220,8 @@ function MobileNativeChatMessageImpl({
     ) : message.role === 'assistant' &&
       isTextBlock(block) &&
       block.asyncQuestions?.length &&
-      asyncReply ? (
+      asyncReply &&
+      asyncReply.pendingQuestions === undefined ? (
       <MobileNativeChatAsyncQuestions
         key={`${message.id}:${JSON.stringify(block.asyncQuestions)}`}
         questions={block.asyncQuestions}

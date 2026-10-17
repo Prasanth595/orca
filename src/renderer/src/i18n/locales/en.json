@@ -18780,6 +18780,7 @@
         "step": "Step {{value0}}",
         "other": "Other…",
         "reply": "Reply",
+        "morePending": "More pending questions are available in the transcript.",
         "otherPlaceholder": "Other: type your answer",
         "cancel": "Cancel",
         "send": "Submit",

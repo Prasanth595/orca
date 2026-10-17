@@ -18426,6 +18426,7 @@
         "step": "Paso {{value0}}",
         "other": "Otro…",
         "reply": "Responder",
+        "morePending": "Hay más preguntas pendientes en el historial.",
         "otherPlaceholder": "Otro: escribe tu respuesta",
         "cancel": "Cancelar",
         "send": "Enviar",

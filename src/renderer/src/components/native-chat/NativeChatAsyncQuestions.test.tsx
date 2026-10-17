@@ -2,9 +2,10 @@
 
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render as renderView, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { afterEach, expect, it, vi } from 'vitest'
+import { NativeChatPendingAsyncQuestions } from './NativeChatPendingAsyncQuestions'
 import { NativeChatAsyncQuestions } from './NativeChatAsyncQuestions'
 import { NativeChatAsyncQuestionContext } from './native-chat-async-question-context'
 import { NATIVE_CHAT_QUESTION_AUTO_ADVANCE_MS } from '../../../../shared/native-chat-question-auto-advance'
@@ -184,3 +185,37 @@ it.each([true, false])(
     }
   }
 )
+
+function PendingView({ groups }: { groups: { key: string; questions: typeof questions }[] }) {
+  const value = useMemo(() => ({ ...reply, pendingQuestions: groups }), [groups])
+  return (
+    <NativeChatAsyncQuestionContext.Provider value={value}>
+      <NativeChatPendingAsyncQuestions />
+    </NativeChatAsyncQuestionContext.Provider>
+  )
+}
+
+it('shows host pending cards without history rows and removes them after another client answers', () => {
+  const view = render(<PendingView groups={[{ key: 'old-ask', questions }]} />)
+  expect(screen.getByRole('textbox', { name: 'Other: type your answer' })).toBeVisible()
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'draft' } })
+  view.rerender(<PendingView groups={[{ key: 'old-ask', questions: [...questions] }]} />)
+  expect(screen.getByRole('textbox')).toHaveValue('draft')
+  view.rerender(<PendingView groups={[]} />)
+  expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Reply' })).not.toBeInTheDocument()
+})
+
+it('resets the wizard when another device answers its first question', () => {
+  vi.useFakeTimers()
+  const remaining = { title: 'Anything else?', options: [] }
+  const view = render(
+    <PendingView groups={[{ key: 'ask', questions: [...questions, remaining] }]} />
+  )
+  fireEvent.click(screen.getByRole('button', { name: /release/ }))
+  act(() => vi.advanceTimersByTime(NATIVE_CHAT_QUESTION_AUTO_ADVANCE_MS))
+  view.rerender(<PendingView groups={[{ key: 'ask', questions: [remaining] }]} />)
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Keep docs' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+  expect(send).toHaveBeenCalledExactlyOnceWith('Anything else?\nKeep docs')
+})

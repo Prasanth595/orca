@@ -56,6 +56,7 @@ export type NativeChatTextBlock = {
   text: string
   /** Nonblocking questions; text retains their readable fallback for older clients. */
   asyncQuestions?: NativeChatAsyncQuestion[]
+  asyncQuestionId?: string
   /** Optional journal display hints; readers narrow only the values they know. */
   presentation?: string
   contextClear?: AgentSessionProviderContextBoundary

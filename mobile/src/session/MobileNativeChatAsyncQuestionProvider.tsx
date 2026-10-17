@@ -6,10 +6,12 @@ import { MobileNativeChatAsyncQuestionContext } from './mobile-native-chat-async
 export function MobileNativeChatAsyncQuestionProvider({
   reply,
   disabled,
+  pendingQuestions,
   children
 }: {
   reply: NativeChatAsyncQuestionReply | undefined
   disabled: boolean
+  pendingQuestions?: NativeChatAsyncQuestionReply['pendingQuestions']
   children: ReactNode
 }): React.JSX.Element {
   const [sending, setSending] = useState(false)
@@ -27,6 +29,7 @@ export function MobileNativeChatAsyncQuestionProvider({
   const value = useMemo<NativeChatAsyncQuestionReply>(
     () => ({
       disabled: blocked || sending,
+      pendingQuestions,
       send: async (text) => {
         if (blockedRef.current || inFlight.current || !latest.current) {
           return false
@@ -43,7 +46,7 @@ export function MobileNativeChatAsyncQuestionProvider({
         }
       }
     }),
-    [blocked, sending]
+    [blocked, sending, pendingQuestions]
   )
   return (
     <MobileNativeChatAsyncQuestionContext.Provider value={reply ? value : null}>

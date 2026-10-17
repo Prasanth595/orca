@@ -78,7 +78,8 @@ it.each(['legacy', 'paginated'] as const)(
         {
           type: 'text',
           text: 'Which branch?\n1. main\n2. release',
-          asyncQuestions: questions
+          asyncQuestions: questions,
+          ...(mode === 'legacy' ? {} : { asyncQuestionId: 'question-1' })
         }
       ])
       expect(blocks.filter((block) => block.type === 'text' && block.text === prose)).toHaveLength(

@@ -52,7 +52,10 @@ export function NativeChatAssistantMessageRow({
   } = props
   const asyncReply = useContext(NativeChatAsyncQuestionContext)
   const interactiveQuestions =
-    asyncReply !== null && message.role === 'assistant' && !inSubagentSection
+    asyncReply !== null &&
+    asyncReply.pendingQuestions === undefined &&
+    message.role === 'assistant' &&
+    !inSubagentSection
   const { markdown, prose } = content
   const questionBlocks = interactiveQuestions
     ? prose.filter((block) => block.type === 'text' && block.asyncQuestions?.length)
