@@ -26,8 +26,10 @@ Run `ORCA orchestration worker-start --help` for this CLI version's registered
 installed, enabled, or authenticated on the worker's execution host. Configured
 single-executable command aliases are also accepted. Check availability for the
 actual execution host; local availability does not establish availability on an
-SSH or connected worker server. If a requested agent fails, inspect the failure
-receipt rather than silently switching providers.
+SSH or connected worker server. If `worker-start` fails, inspect the CLI diagnostic
+and any failure receipt returned. Validation can reject an agent with
+`agent_unconfigured` before creating a Dispatch, so no failure receipt exists in
+that case. Do not silently switch providers.
 
 OMP accepts `--model` but not `--effort`. Omit `--model` to use its own configured
 model.
