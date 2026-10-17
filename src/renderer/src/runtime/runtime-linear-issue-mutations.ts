@@ -1,5 +1,6 @@
 import type { LinearIssueUpdate } from '../../../shared/issue-mutation-types'
 import type { LinearComment, LinearIssue } from '../../../shared/linear/issue-types'
+import type { RuntimeClientTarget } from '../../../shared/runtime-client-target'
 import { callRuntimeRpc } from './runtime-rpc-client'
 import {
   getLinearRuntimeTarget,
@@ -46,20 +47,45 @@ export async function linearCreateSubIssue(
   return linearCreateIssue(settings, args)
 }
 
+export type LinearIssueStatus = Pick<
+  LinearIssue,
+  'id' | 'identifier' | 'workspaceId' | 'team' | 'state'
+>
+
+export async function linearGetIssueStatus(
+  target: RuntimeClientTarget,
+  id: string,
+  workspaceId?: string | null
+): Promise<LinearIssueStatus | null> {
+  return readLinearIssue(target, id, workspaceId, true)
+}
+
 export async function linearGetIssue(
   settings: RuntimeLinearSettings,
   id: string,
   workspaceId?: string | null
 ): Promise<LinearIssue | null> {
-  const target = getLinearRuntimeTarget(settings)
+  return readLinearIssue(getLinearRuntimeTarget(settings), id, workspaceId)
+}
+
+async function readLinearIssue(
+  target: RuntimeClientTarget,
+  id: string,
+  workspaceId?: string | null,
+  statusOnly = false
+): Promise<LinearIssue | null> {
   return target.kind === 'environment'
     ? callRuntimeRpc<LinearIssue | null>(
         target,
         'linear.getIssue',
-        { id, workspaceId: workspaceId ?? undefined },
+        { id, workspaceId: workspaceId ?? undefined, ...(statusOnly ? { statusOnly: true } : {}) },
         { timeoutMs: 30_000 }
       )
-    : window.api.linear.getIssue({ id, workspaceId: workspaceId ?? undefined })
+    : window.api.linear.getIssue({
+        id,
+        workspaceId: workspaceId ?? undefined,
+        ...(statusOnly ? { statusOnly: true } : {})
+      })
 }
 
 export async function linearUpdateIssue(
