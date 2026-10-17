@@ -57,7 +57,7 @@ export function getWorkspaceCleanupAgentEvidence(
   candidates: readonly WorkspaceCleanupCandidate[]
 ): Map<string, 'live' | 'unknown'> {
   const evidence = new Map<string, 'live' | 'unknown'>()
-  const hostIndex = buildActivityTabHostIndex(state.unifiedTabsByWorktree)
+  let hostIndex: ReturnType<typeof buildActivityTabHostIndex> | undefined
   const candidatesByWorktreeId = new Map<string, WorkspaceCleanupCandidate[]>()
   for (const candidate of candidates) {
     const group = candidatesByWorktreeId.get(candidate.worktreeId) ?? []
@@ -76,23 +76,33 @@ export function getWorkspaceCleanupAgentEvidence(
       paneForegroundAgentByPaneKey: state.paneForegroundAgentByPaneKey,
       now: Date.now()
     })
+    const owners = new Map(
+      rows.filter((row) => row.rowSource !== 'subagent').map((row) => [row.paneKey, row])
+    )
     for (const row of rows) {
       if (row.state !== 'working' && row.state !== 'blocked' && row.state !== 'waiting') {
         continue
       }
-      const leafId = parsePaneKey(row.paneKey)?.leafId
-      const ptyIds = state.ptyIdsByTabId[row.tab.id] ?? []
+      // Synthetic children display work owned by their actual parent pane.
+      const owner = row.rowSource === 'subagent' ? owners.get(row.activationPaneKey ?? '') : row
+      hostIndex ??= buildActivityTabHostIndex(state.unifiedTabsByWorktree)
+      const leafId = owner && parsePaneKey(owner.paneKey)?.leafId
+      const ptyIds = (owner && state.ptyIdsByTabId[owner.tab.id]) ?? []
       const ptyId =
-        (leafId && state.terminalLayoutsByTabId?.[row.tab.id]?.ptyIdsByLeafId?.[leafId]) ||
-        row.tab.ptyId ||
-        row.entry.terminalHandle ||
+        (owner &&
+          leafId &&
+          state.terminalLayoutsByTabId?.[owner.tab.id]?.ptyIdsByLeafId?.[leafId]) ||
+        owner?.tab.ptyId ||
+        owner?.entry.terminalHandle ||
         (ptyIds.length === 1 ? ptyIds[0] : undefined)
-      const hostId = resolveActivityExecutionHostId(
-        { worktreeId, tab: row.tab },
-        row.entry,
-        ptyId,
-        hostIndex
-      )
+      const hostId = owner
+        ? resolveActivityExecutionHostId(
+            { worktreeId, tab: owner.tab },
+            owner.entry,
+            ptyId,
+            hostIndex
+          )
+        : undefined
       for (const candidate of worktreeCandidates) {
         const identity = getWorkspaceCleanupCandidateIdentity(candidate)
         const candidateHost = resolveWorkspaceCleanupRemovalHostId(candidate)

@@ -203,7 +203,7 @@ async function enrichWorkspaceCleanupCandidate(
   const browserTabCount = (state.browserTabsByWorktree[candidate.worktreeId] ?? []).length
   const retainedDoneAgentCount =
     projection.retainedDoneAgentPaneKeysByWorktreeId.get(candidate.worktreeId)?.length ?? 0
-  const blockers = candidate.blockers.filter(
+  const blockers: WorkspaceCleanupBlocker[] = candidate.blockers.filter(
     (blocker) => blocker !== 'dismissed' && blocker !== 'live-agent'
   )
   const preserveCleanupInspection = shouldPreserveCleanupInspection(candidate, state)

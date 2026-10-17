@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { AgentStatusEntry } from '../../../../shared/agent-status-types'
 import { getWorkspaceCleanupHostIdentity as identity } from '../../../../shared/workspace-cleanup-host-identity'
 import { makePaneKey } from '../../../../shared/stable-pane-id'
-import { makeTab } from './store-test-helpers'
+import { makeTab, makeLayout } from './store-test-helpers'
 import { makeAgentEntry } from '@/components/worktree-jump-palette-test-fixtures'
 import { enrichWorkspaceCleanupCandidates } from './workspace-cleanup-candidate-enrichment'
 import { getWorkspaceCleanupAgentEvidence } from './workspace-cleanup-agent-evidence'
@@ -24,31 +24,6 @@ function structuredChatStatus(state: AgentStatusEntry['state']): AgentStatusEntr
 }
 
 describe('workspace cleanup live-agent finder', () => {
-  it.each(['working', 'done'] as const)('qualifies %s evidence with done precedence', (status) => {
-    const leaf = '11111111-1111-4111-8111-111111111111'
-    const entry = agentStatus(paneKey('tab-1'), status)
-    const live = status === 'working'
-    const tab = makeTab({ id: 'tab-1', worktreeId: WORKTREE_ID, title: '⠋ Codex' })
-    const appState = makeState({
-      tabsByWorktree: { [WORKTREE_ID]: [tab] },
-      ptyIdsByTabId: { 'tab-1': ['pty-1'] },
-      terminalLayoutsByTabId: { 'tab-1': { root: null, activeLeafId: leaf, expandedLeafId: null } },
-      agentStatusByPaneKey: { [entry.paneKey]: entry }
-    })
-    const candidates = [
-      makeCandidate(),
-      makeCandidate({ executionHostId: 'ssh:other' }),
-      makeCandidate({ executionHostId: 'runtime:host' })
-    ]
-    const evidence = () => getWorkspaceCleanupAgentEvidence(appState, candidates)
-    expect([...evidence().keys()]).toEqual(live ? [identity('local', WORKTREE_ID)] : [])
-    appState.ptyIdsByTabId = { 'tab-1': ['remote:host@@pty'] }
-    expect([...evidence().keys()]).toEqual(live ? [identity('runtime:host', WORKTREE_ID)] : [])
-    appState.agentStatusByPaneKey = { [entry.paneKey]: { ...entry, connectionId: undefined } }
-    appState.ptyIdsByTabId = { 'tab-1': ['pty-1'] }
-    expect([...evidence().values()]).toEqual(live ? ['unknown', 'unknown', 'unknown'] : [])
-  })
-
   it('finds only workspaces whose agent is working right now', () => {
     const state = makeState({
       tabsByWorktree: {
@@ -61,24 +36,40 @@ describe('workspace cleanup live-agent finder', () => {
       }
     })
 
-    expect([
-      ...getWorkspaceCleanupAgentEvidence(state, [
-        makeCandidate(),
-        makeCandidate({ worktreeId: OTHER_ID })
-      ]).values()
-    ]).toEqual(['live'])
+    const candidates = [makeCandidate(), makeCandidate({ worktreeId: OTHER_ID })]
+    expect([...getWorkspaceCleanupAgentEvidence(state, candidates).values()]).toEqual(['live'])
   })
 
   it.each([
     ['working', true],
     ['done', false]
-  ] as const)('counts a %s structured chat with no terminal tab: %s', async (state, live) => {
-    const appState = makeState({
-      agentStatusByPaneKey: { [paneKey('chat-1')]: structuredChatStatus(state) }
-    })
+  ] as const)('qualifies %s structured evidence and live children: %s', async (state, live) => {
+    const entry = structuredChatStatus(state)
+    const appState = makeState({ agentStatusByPaneKey: { [entry.paneKey]: entry } })
 
-    expect(getWorkspaceCleanupAgentEvidence(appState, [makeCandidate()]).size > 0).toBe(live)
+    const candidates = [
+      makeCandidate(),
+      makeCandidate({ executionHostId: 'runtime:host' }),
+      makeCandidate({ executionHostId: 'ssh:other' })
+    ]
+    const evidence = () => getWorkspaceCleanupAgentEvidence(appState, candidates)
+    expect([...evidence().keys()]).toEqual(live ? [identity('local', WORKTREE_ID)] : [])
     const [enriched] = await enrichWorkspaceCleanupCandidates([makeCandidate()], appState)
     expect(enriched.blockers.includes('live-agent')).toBe(live)
+    appState.tabsByWorktree = {
+      [WORKTREE_ID]: [makeTab({ id: 'chat-1', worktreeId: WORKTREE_ID, title: '⠋ Codex' })]
+    }
+    expect([...evidence().keys()]).toEqual(live ? [identity('local', WORKTREE_ID)] : [])
+    entry.subagents = [{ id: 'child', state: 'working', startedAt: Date.now() }]
+    appState.tabsByWorktree = {}
+    expect([...evidence().keys()]).toEqual([identity('local', WORKTREE_ID)])
+    appState.ptyIdsByTabId = { 'chat-1': ['pty-other', 'remote:host@@pty'] }
+    const layout = makeLayout()
+    layout.ptyIdsByLeafId = { [entry.paneKey.split(':')[1]]: 'remote:host@@pty' }
+    appState.terminalLayoutsByTabId = { 'chat-1': layout }
+    expect([...evidence().keys()]).toEqual([identity('runtime:host', WORKTREE_ID)])
+    appState.terminalLayoutsByTabId = {}
+    entry.connectionId = undefined
+    expect([...evidence().values()]).toEqual(['unknown', 'unknown', 'unknown'])
   })
 })
