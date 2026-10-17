@@ -1,3 +1,8 @@
+import type {
+  AgentJournalCursor,
+  AgentJournalSnapshot
+} from '../../shared/agent-session-journal-types'
+import { replySnapshotFixture } from './structured-reply-origin.test-fixture'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TerminalRunFactsRegister } from '../runtime/terminal-run-facts'
 import { getDefaultNotificationSettings } from '../../shared/notification-settings-defaults'
@@ -9,7 +14,18 @@ const callbacks = vi.hoisted(() => {
     status?: (event: EnrichedAgentHookEventPayload) => void
     clear?: (event: { paneKey: string }) => void
   } = {}
-  return { listeners, read: vi.fn<() => Promise<boolean>>(() => Promise.resolve(true)) }
+  const chat: {
+    enabled: boolean
+    snapshot: AgentJournalSnapshot | null
+    floors: Map<string, AgentJournalCursor>
+  } = { enabled: false, snapshot: null, floors: new Map() }
+  const chatHost = { replyJournal: { cursors: () => chat.floors, snapshot: () => chat.snapshot } }
+  return {
+    listeners,
+    chat,
+    chatHost,
+    read: vi.fn<() => Promise<boolean>>(() => Promise.resolve(true))
+  }
 })
 vi.mock('../agent-hooks/server', () => ({
   agentHookServer: {
@@ -28,13 +44,16 @@ vi.mock('../agent-hooks/server', () => ({
   }
 }))
 vi.mock('../native-chat/agent-session-wire/structured-agent-session-registry', () => ({
-  getStructuredAgentSessionHost: () => null
+  getStructuredAgentSessionHost: () => (callbacks.chat.enabled ? callbacks.chatHost : null)
 }))
 vi.mock('./claude-reply-origin', () => ({ isClaudeHumanReply: callbacks.read }))
 const disposals: (() => void)[] = []
 afterEach(() => {
   disposals.splice(0).forEach((dispose) => dispose())
   callbacks.read.mockClear()
+  callbacks.chat.enabled = false
+  callbacks.chat.snapshot = null
+  callbacks.chat.floors = new Map()
 })
 
 function rig(source: 'claude' | 'codex' = 'codex', enabled = true) {
@@ -126,6 +145,18 @@ describe('host reply eligibility and asynchronous invalidation', () => {
     expect(await verdict).toBe(false)
     expect(r.policy.stillEligible(r.request)).toBe(false)
   })
+  it('A5: a human queued hook on a wake turn still requires Claude human transcript origin', async () => {
+    const r = rig('claude')
+    r.input('programmatic')
+    r.hook('UserPromptSubmit')
+    r.input('human')
+    r.hook('UserPromptSubmit')
+    r.hook('Stop')
+    callbacks.read.mockResolvedValueOnce(false) // The exact prompt has origin.kind task-notification.
+    expect(await r.policy.canBring(r.request)).toBe(false)
+    expect(callbacks.read).toHaveBeenCalledOnce()
+  })
+
   it('S12: off-to-on starts an empty submission epoch; no transcript read while off', async () => {
     const r = rig('claude', false)
     r.input('human')
@@ -155,5 +186,45 @@ describe('host reply eligibility and asynchronous invalidation', () => {
     r.settings.bringToFrontOnAgentTaskComplete = true
     r.settingsChanged()
     expect(r.policy.stillEligible(r.request)).toBe(false)
+  })
+})
+
+describe('structured chat submission epochs', () => {
+  it('accepts the exact live user turn, but rejects a previous journal epoch or enable cursor', async () => {
+    callbacks.chat.enabled = true
+    callbacks.chat.snapshot = replySnapshotFixture('user')
+    const r = rig()
+    const request = {
+      ...r.request,
+      surface: 'agent-session' as const,
+      structuredOrigin: {
+        scope: {
+          executionHostId: 'local' as const,
+          wslDistro: null,
+          workspaceId: 'workspace',
+          workspaceKind: 'folder' as const
+        },
+        sessionId: 'chat',
+        cause: { kind: 'completion' as const, requestId: 'turn-A' },
+        journalCursor: { epoch: 'epoch', sequence: 3 }
+      }
+    }
+    expect(await r.policy.canBring(request)).toBe(true)
+    expect(
+      await r.policy.canBring({
+        ...request,
+        structuredOrigin: {
+          ...request.structuredOrigin,
+          journalCursor: { epoch: 'old-epoch', sequence: 3 }
+        }
+      })
+    ).toBe(false)
+    r.settings.bringToFrontOnAgentTaskComplete = false
+    r.settingsChanged()
+    callbacks.chat.floors.set('chat', { epoch: 'epoch', sequence: 3 })
+    r.settings.bringToFrontOnAgentTaskComplete = true
+    r.settingsChanged()
+    expect(await r.policy.canBring(request)).toBe(false)
+    expect(callbacks.read).not.toHaveBeenCalled()
   })
 })

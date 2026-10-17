@@ -110,7 +110,14 @@ it('keeps a program paste separate from the person who presses Enter afterward',
   const terminal = new Terminal({ allowProposedApi: true })
   const listener = vi.fn()
   const subscription = subscribeToTerminalInputData(terminal, listener)
-  withProgrammaticTerminalInput(terminal, () => terminal.input('invented draft', true))
+  const core: unknown = Reflect.get(terminal, '_core')
+  if (!core || typeof core !== 'object') {
+    throw new Error('xterm core missing')
+  }
+  // Clipboard cleanup only needs this value slot; no DOM or window is created.
+  Reflect.set(core, 'textarea', { value: '' })
+  withProgrammaticTerminalInput(terminal, () => terminal.paste('invented draft'))
+  Reflect.set(core, 'textarea', undefined)
   terminal.input('\r', true)
   expect(listener.mock.calls).toEqual([
     ['invented draft', true, 'programmatic'],

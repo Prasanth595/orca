@@ -109,7 +109,11 @@ export function createAgentReplyEligibility(
           return false
         }
         const snapshot = host.replyJournal.snapshot(origin.sessionId)
-        if (!snapshot) {
+        if (
+          !snapshot ||
+          snapshot.cursor.epoch !== origin.journalCursor.epoch ||
+          snapshot.cursor.sequence < origin.journalCursor.sequence
+        ) {
           return false
         }
         const floor = host === floorHost ? floors.get(origin.sessionId) : undefined
