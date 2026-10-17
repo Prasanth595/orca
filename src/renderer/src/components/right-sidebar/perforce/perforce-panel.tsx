@@ -360,7 +360,10 @@ export function PerforcePanel({
         {perforceSectionOrder(settings.groupOrder).map((id) => (
           <Fragment key={id}>{sections[id]}</Fragment>
         ))}
-        <PerforceHistorySection target={target} worktreeId={worktreeId} />
+        {/* Why: dock the history at the bottom of the pane scroll like the git COMMITS panel. */}
+        <div className="sticky bottom-0 z-10 mt-auto shrink-0 border-t border-border bg-sidebar/95 backdrop-blur-sm">
+          <PerforceHistorySection target={target} worktreeId={worktreeId} />
+        </div>
       </div>
       {newChangelistPaths ? (
         <NewChangelistDialog

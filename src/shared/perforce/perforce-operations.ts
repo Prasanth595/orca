@@ -14,9 +14,10 @@ export type PerforceOperationArgs = Readonly<Record<string, unknown>>
 
 type Operation = (backend: PerforceBackend, cwd: string, args: PerforceOperationArgs) => unknown
 
+/** Untrusted; a positive int up to the history page ceiling, else the 30-entry default. */
 function historyLimit(value: unknown): number {
   return typeof value === 'number' && Number.isInteger(value) && value > 0
-    ? Math.min(value, 200)
+    ? Math.min(value, 1000)
     : 30
 }
 
