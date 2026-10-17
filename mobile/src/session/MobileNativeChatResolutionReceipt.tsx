@@ -10,6 +10,7 @@ import { INLINE_TEXT_SELECTION } from '../components/inline-text-selection'
 import { colors, spacing, typography } from '../theme/mobile-theme'
 import { MobileNativeChatAwaitingInputRow } from './MobileNativeChatAwaitingInputRow'
 import { scaledType } from './mobile-native-chat-message-styles'
+import { MobileNativeChatMessageTime } from './MobileNativeChatMessageTime'
 
 /** Desktop parity: `NativeChatResolutionReceipt`. */
 export function MobileNativeChatResolutionReceipt({
@@ -82,7 +83,10 @@ export function MobileNativeChatResolutionReceipt({
           </View>
         )
       })}
-      <Text style={text}>{outcome.filter(Boolean).join(' · ')}</Text>
+      <View style={styles.outcome}>
+        <Text style={text}>{outcome.filter(Boolean).join(' · ')}</Text>
+        <MobileNativeChatMessageTime timestamp={resolution.resolvedAt} fontScale={fontScale} />
+      </View>
     </View>
   )
 }
@@ -99,5 +103,11 @@ const styles = StyleSheet.create({
   },
   title: {
     fontWeight: '600'
+  },
+  outcome: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: spacing.sm
   }
 })
