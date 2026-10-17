@@ -7,6 +7,7 @@ import {
   DEFAULT_JOURNAL_PAYLOAD_LIMITS
 } from '../native-chat/agent-session-journal/journal-payload-bounds'
 import { unhandledProviderFrameJournalItem } from '../native-chat/agent-session-wire/unhandled-provider-frame'
+import { codexAsyncQuestionBlock } from './codex-async-question-block'
 import { codexImageItemBody } from './codex-image-item-translation'
 import { commandActionFacts } from './codex-command-action-class'
 import {
@@ -232,6 +233,13 @@ export function codexJournalItem(
 ): CodexJournalItem {
   if (item.type === 'userMessage' || item.type === 'agentMessage') {
     const blocks = codexMessageBlocks(item)
+    const questions =
+      item.type === 'agentMessage' && item.delivery === 'async'
+        ? codexAsyncQuestionBlock(item.questions)
+        : null
+    if (questions) {
+      blocks.push(questions)
+    }
     return {
       body:
         blocks.length === 0
@@ -300,7 +308,9 @@ export function codexStreamingMessageBody(text: string): AgentJournalItemBody {
 /** Snapshot body for any item-level stream, keyed onto its parent item. */
 export function codexStreamingJournalItem(item: CodexThreadItem, text: string): CodexJournalItem {
   if (item.type === 'agentMessage') {
-    return { body: codexStreamingMessageBody(text), handled: true }
+    return item.delivery === 'async'
+      ? codexJournalItem({ ...item, text })
+      : { body: codexStreamingMessageBody(text), handled: true }
   }
   if (item.type === 'reasoning') {
     return { body: journalReasoningBody(text), handled: true }

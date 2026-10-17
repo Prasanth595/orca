@@ -18779,7 +18779,8 @@
       "question": {
         "step": "Step {{value0}}",
         "other": "Other…",
-        "otherPlaceholder": "Type your answer",
+        "reply": "Reply",
+        "otherPlaceholder": "Other: type your answer",
         "cancel": "Cancel",
         "send": "Submit",
         "next": "Next",
