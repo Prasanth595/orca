@@ -15,6 +15,10 @@ export type StructuredAgentSessionBackgroundStopInput = {
   /** Hands the host the stops the provider accepted, as evidence about the runs it sent them to.
    *  Never throws: recording it is bookkeeping, and cannot fail the Stop. */
   acknowledgeStops?: (evidence: AgentChildWorkEvidence[]) => void
+  /** Capture runtime lifetimes alongside listed targets, before the Stop can await. */
+  captureStops?: (
+    targets: readonly (AgentChildWorkView & { providerId: string })[]
+  ) => (evidence: readonly AgentChildWorkEvidence[]) => void
   /** Work the host could not list, read inside the Stop's step, and the provider child's end that
    *  reaches it; for an untargeted Stop only. */
   unlisted?: { present: () => boolean; stop: () => Promise<void> }

@@ -17,6 +17,7 @@ import { createStructuredAgentSessionLogger } from './structured-agent-session-l
 import { testEventSinkLogging } from './structured-agent-session-logger-test-support'
 import { codexProviderHandle } from '../../../shared/agent-session-provider-handle-encoding'
 import { NO_STRUCTURED_AGENTS } from './structured-agent-session-adapter-router-test-support'
+import { StructuredAgentSessionStatusOwnership } from './structured-agent-session-status-ownership'
 
 const IDENTITY: AgentSessionJournalIdentity = {
   sessionId: 'session-1',
@@ -271,6 +272,59 @@ describe('performCancel', () => {
     })
     expect(cancelTurn).not.toHaveBeenCalled()
     expect(journal.snapshot().items).toEqual([])
+  })
+
+  it('captures the host lifetime before accepting a Stop that later acknowledges an earlier run', async () => {
+    root = await mkdtemp(join(tmpdir(), 'orca-background-stop-lifetime-'))
+    const journal = await journals.open({ identity: IDENTITY, stateDirectory: root })
+    const owner = new StructuredAgentSessionStatusOwnership(() => undefined)
+    const live = (restart = false): AgentChildWorkEvidence => ({
+      type: 'live',
+      observedAt: 1,
+      child: {
+        handle: { idKind: 'task_id', id: 'helper', runId: 'spawn-a' },
+        kind: 'agent',
+        residency: 'background',
+        state: 'working',
+        stoppable: true
+      },
+      ...(restart ? { restart: true as const } : {})
+    })
+    owner.publishChildWork('session-1', [live()], 'claude')
+    let acceptStop: (() => void) | undefined
+    const accepting = new Promise<void>((resolve) => {
+      acceptStop = resolve
+    })
+    const stopBackgroundTasks = vi.fn(async (request: { acknowledge: (value: { taskId: string }) => void }) => {
+      request.acknowledge({ taskId: 'helper' })
+      return { cancelled: true }
+    })
+    const ctx = acceptedStop({
+      logger: createStructuredAgentSessionLogger(),
+      sessionId: 'session-1',
+      journal,
+      fence: 1,
+      agents: NO_STRUCTURED_AGENTS,
+      agent: 'codex',
+      adapter: { stopBackgroundTasks } as unknown as StructuredAgentSessionAdapter,
+      persistOptions: async () => undefined,
+      resolvedBy: 'client-1',
+      publish: vi.fn(),
+      now: () => 1
+    })
+    ctx.operationReceipt!.commitAlone = () => accepting
+    const stopping = runTargetedCancel(ctx, {
+      clientOperationId: 'stop-earlier-lifetime',
+      scope: 'background-tasks',
+      childWork: () => [liveTask('helper', { invocation: { invocationId: 'spawn-a', generation: 1 } })],
+      captureStops: (targets) => owner.captureChildWorkStops('session-1', targets.map((target) => target.providerId)),
+      acknowledgeStops: (evidence) => owner.publishChildWork('session-1', evidence, 'claude')
+    })
+    expect(stopBackgroundTasks).not.toHaveBeenCalled()
+    owner.publishChildWork('session-1', [live(true)], 'claude')
+    acceptStop?.()
+    expect(await stopping).toMatchObject({ ok: true, value: { cancelled: true } })
+    expect(owner.childWorkOpen('session-1')).toBe(true)
   })
 
   async function backgroundStopWith(

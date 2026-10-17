@@ -37,6 +37,7 @@ export async function runTargetedCancel(
     // Resolved once, here: a retry is answered from the receipt and never reaches a newer task.
     const children = params.childWork?.()
     const targets = agentChildWorkStopTargets(children, params.taskId)
+    const applyCapturedStops = params.captureStops?.(targets)
     const unreadable = params.childWork !== undefined && children === undefined
     if (targets.length === 0 && !unreadable && !(params.unlisted?.present() && atRest(ctx))) {
       return { ok: true, value: { ...named, cancelled: false } }
@@ -50,7 +51,10 @@ export async function runTargetedCancel(
       work: {
         targets,
         ...(unreadable ? { unreadable: true as const } : {}),
-        ...(params.acknowledgeStops ? { acknowledgeStops: params.acknowledgeStops } : {}),
+        acknowledgeStops: (evidence) => {
+          applyCapturedStops?.(evidence)
+          params.acknowledgeStops?.(evidence)
+        },
         ...(params.unlisted ? { unlisted: params.unlisted } : {})
       },
       backgroundStop: params.taskId ? 'task' : 'all'

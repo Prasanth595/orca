@@ -121,6 +121,12 @@ export class StructuredAgentSessionClientDelivery {
   /** Child work the provider reported running and not over: what every owed-work decision reads. */
   childWorkOpen = (sessionId: string): boolean => this.statusFeed.childWorkOpen(sessionId)
 
+  captureChildWorkStops = (
+    sessionId: string,
+    handleIds: readonly string[]
+  ): ((evidence: readonly AgentChildWorkEvidence[]) => void) =>
+    this.statusFeed.captureChildWorkStops(sessionId, handleIds)
+
   childWorkIncomplete = (sessionId: string): boolean =>
     this.statusFeed.childWorkIncomplete(sessionId)
 

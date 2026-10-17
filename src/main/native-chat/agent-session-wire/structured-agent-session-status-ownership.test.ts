@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { AgentSessionExecutionLocation } from '../../../shared/agent-session-record'
 import type { AgentSessionStatusSummary } from '../../../shared/agent-session-wire'
-import type { AgentChildWorkEvidence } from '../../../shared/agent-status-child-work-evidence'
+import type {
+  AgentChildWorkEvidence,
+  AgentChildWorkLiveEvidence
+} from '../../../shared/agent-status-child-work-evidence'
 import { AGENT_STATUS_STORE_LIMITS } from '../../../shared/agent-status-store-contract'
 import { makeStructuredAgentStatusSubject } from '../../../shared/agent-status-subject'
 import { AgentHookServer } from '../../agent-hooks/server'
@@ -125,7 +128,7 @@ describe('structured status owner address retention', () => {
 })
 
 describe('child work the provider reported, recorded or not', () => {
-  const agentLive = (id: string): AgentChildWorkEvidence => ({
+  const agentLive = (id: string): AgentChildWorkLiveEvidence => ({
     type: 'live',
     observedAt: 200,
     child: {
@@ -137,13 +140,13 @@ describe('child work the provider reported, recorded or not', () => {
     }
   })
 
-  function owners() {
+  function owners(refuse?: () => boolean) {
     const server = new AgentHookServer()
     const owner = new StructuredAgentSessionStatusOwnership(() => ({
       publish: (published, subject) => server.ingestStructuredStatus(published, subject),
       forget: (subject) => server.dropStructuredStatus(subject),
       publishChildWork: (subject, evidence, provider) =>
-        server.ingestStructuredChildWork(subject, evidence, provider),
+        refuse?.() ? null : server.ingestStructuredChildWork(subject, evidence, provider),
       readChildWork: (subject) => server.getStructuredChildWorkViews(subject),
       readChildWorkRecords: (subject) => server.getStructuredChildWork(subject),
       readChildWorkHandles: (subject) => server.getStructuredChildWorkHandles(subject)
@@ -245,36 +248,80 @@ describe('child work the provider reported, recorded or not', () => {
       handle: { idKind: 'task_id', id: 'helper', runId },
       outcome: 'succeeded'
     })
-    owner.publishChildWork(summary.sessionId, [run('spawn-1'), run('spawn-2')], 'claude')
-    owner.publishChildWork(summary.sessionId, [endOf('spawn-1')], 'claude')
+    owner.publishChildWork(summary.sessionId, [run('spawn-1'), endOf('spawn-1')], 'claude')
+    owner.publishChildWork(summary.sessionId, [run('spawn-2')], 'claude')
+    owner.publishChildWork(summary.sessionId, [run('spawn-1'), endOf('spawn-1')], 'claude')
     expect(owner.childWorkOpen(summary.sessionId)).toBe(true)
     expect(owner.childWorkIncomplete(summary.sessionId)).toBe(false)
     owner.publishChildWork(summary.sessionId, [endOf('spawn-2')], 'claude')
     expect(owner.childWorkOpen(summary.sessionId)).toBe(false)
+    owner.publishChildWork(summary.sessionId, [run('spawn-3'), run('spawn-4')], 'claude')
+    owner.publishChildWork(summary.sessionId, [endOf('spawn-3')], 'claude')
+    expect(owner.childWorkOpen(summary.sessionId)).toBe(true)
+    owner.publishChildWork(summary.sessionId, [endOf('spawn-4')], 'claude')
+    expect(owner.childWorkOpen(summary.sessionId)).toBe(false)
   })
 
-  it('closes on a Stop the store settled, and reads work reported after it as unlisted', () => {
+  it('closes only the captured Stop lifetime and reads a later live report as unlisted', () => {
     const { owner } = owners()
     owner.publish(summary, location)
     owner.publishChildWork(summary.sessionId, [agentLive('helper')], 'claude')
+    const captured = owner.captureChildWorkStops(summary.sessionId, ['helper'])
     const [record] = owner.readChildWorkRecords(summary.sessionId)!
-    owner.publishChildWork(
-      summary.sessionId,
-      [
-        {
-          type: 'stop-acknowledged',
-          observedAt: 260,
-          childWorkId: record!.childWorkId,
-          handleId: 'helper',
-          invocation: record!.invocation
-        }
-      ],
-      'claude'
-    )
+    const stop: AgentChildWorkEvidence = {
+      type: 'stop-acknowledged',
+      observedAt: 260,
+      childWorkId: record!.childWorkId,
+      handleId: 'helper',
+      invocation: record!.invocation
+    }
+    captured([stop])
+    owner.publishChildWork(summary.sessionId, [stop], 'claude')
     expect(owner.childWorkOpen(summary.sessionId)).toBe(false)
     // The Stop did not take: the settled record lists nothing, so the work is open and unlisted.
     owner.publishChildWork(summary.sessionId, [agentLive('helper')], 'claude')
     expect(owner.childWorkOpen(summary.sessionId)).toBe(true)
     expect(owner.childWorkIncomplete(summary.sessionId)).toBe(true)
   })
+
+  it.each(['different run', 'same run'])(
+    'keeps a refused restart open after an earlier Stop acknowledgement (%s)',
+    (restartKind) => {
+      let refuse = false
+      const { owner } = owners(() => refuse)
+      owner.publish(summary, location)
+      const run = (runId: string, restart = false): AgentChildWorkEvidence => ({
+        ...agentLive('helper'),
+        child: {
+          ...agentLive('helper').child,
+          handle: { idKind: 'task_id', id: 'helper', runId }
+        },
+        ...(restart ? { restart: true as const } : {})
+      })
+      owner.publishChildWork(summary.sessionId, [run('spawn-a')], 'claude')
+      const captured = owner.captureChildWorkStops(summary.sessionId, ['helper'])
+      const [record] = owner.readChildWorkRecords(summary.sessionId)!
+      const stop: AgentChildWorkEvidence = {
+        type: 'stop-acknowledged',
+        observedAt: 300,
+        childWorkId: record!.childWorkId,
+        handleId: 'helper',
+        invocation: record!.invocation
+      }
+      const nextRun = restartKind === 'same run' ? 'spawn-a' : 'spawn-b'
+      refuse = true
+      owner.publishChildWork(summary.sessionId, [run(nextRun, true)], 'claude')
+      refuse = false
+      captured([stop])
+      owner.publishChildWork(summary.sessionId, [stop], 'claude')
+      expect(owner.childWorkOpen(summary.sessionId)).toBe(true)
+      expect(owner.childWorkIncomplete(summary.sessionId)).toBe(true)
+      owner.publishChildWork(
+        summary.sessionId,
+        [{ type: 'ended', observedAt: 350, handle: { idKind: 'task_id', id: 'helper', runId: nextRun }, outcome: 'succeeded' }],
+        'claude'
+      )
+      expect(owner.childWorkOpen(summary.sessionId)).toBe(false)
+    }
+  )
 })

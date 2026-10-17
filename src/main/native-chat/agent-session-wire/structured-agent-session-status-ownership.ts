@@ -5,10 +5,7 @@ import type {
 import type { AgentSessionStatusSummary } from '../../../shared/agent-session-wire'
 import type { AgentChildWorkEvidence } from '../../../shared/agent-status-child-work-evidence'
 import type { AgentChildWorkReconcileOutcome } from '../../../shared/agent-status-child-work-evidence-admission'
-import {
-  agentChildWorkFencesEqual,
-  type AgentChildWorkRecord
-} from '../../../shared/agent-status-child-work'
+import type { AgentChildWorkRecord } from '../../../shared/agent-status-child-work'
 import type { AgentChildWorkView } from '../../../shared/agent-status-child-work-view'
 import {
   parseAgentStatusSubject,
@@ -95,34 +92,48 @@ export class StructuredAgentSessionStatusOwnership {
     evidence: AgentChildWorkEvidence[],
     provider: AgentSessionRecord['provider']
   ): void {
-    this.open.observe(sessionId, evidence)
+    const lifetimes = evidence.map((edge) => {
+      this.open.observe(sessionId, [edge])
+      return edge.type === 'live'
+        ? this.open.capture(sessionId, edge.child.handle.id)
+        : undefined
+    })
     const subject = this.subjects.get(sessionId)
     if (!subject || !this.landed.has(sessionId)) {
       return
     }
-    this.sink()?.publishChildWork?.(subject, evidence, provider)
-    this.closeStoppedChildren(sessionId, subject, evidence)
+    const outcome = this.sink()?.publishChildWork?.(subject, evidence, provider)
+    if (outcome) {
+      for (const index of outcome.admittedLiveIndices) {
+        const edge = evidence[index]
+        const token = lifetimes[index]
+        if (edge?.type === 'live' && token) {
+          this.open.recorded(sessionId, edge.child.handle.id, token)
+        }
+      }
+    }
   }
 
-  /** Only a Stop the store settled closes the child: a late acknowledgement of a run since
-   *  restarted fails the store's fence and leaves the new run open. */
-  private closeStoppedChildren(
+  /** A Stop's callback closes only lifetimes captured before the provider call can await. */
+  captureChildWorkStops(
     sessionId: string,
-    subject: AgentStatusStructuredSessionSubject,
-    evidence: readonly AgentChildWorkEvidence[]
-  ): void {
-    const stops = evidence.flatMap((edge) => (edge.type === 'stop-acknowledged' ? [edge] : []))
-    if (stops.length === 0) {
-      return
+    handleIds: readonly string[]
+  ): (evidence: readonly AgentChildWorkEvidence[]) => void {
+    const captured = new Map<string, object>()
+    for (const handleId of handleIds) {
+      const token = this.open.capture(sessionId, handleId)
+      if (token) {
+        captured.set(handleId, token)
+      }
     }
-    const records = this.sink()?.readChildWorkRecords?.(subject) ?? []
-    for (const stop of stops) {
-      const record = records.find(({ childWorkId }) => childWorkId === stop.childWorkId)
-      if (
-        record?.membership === 'settled' &&
-        agentChildWorkFencesEqual(record.invocation, stop.invocation)
-      ) {
-        this.open.stopped(sessionId, stop.handleId)
+    return (evidence) => {
+      for (const edge of evidence) {
+        if (edge.type === 'stop-acknowledged') {
+          const token = captured.get(edge.handleId)
+          if (token) {
+            this.open.stopped(sessionId, edge.handleId, token)
+          }
+        }
       }
     }
   }
@@ -137,6 +148,9 @@ export class StructuredAgentSessionStatusOwnership {
     const open = this.open.handles(sessionId)
     if (!open) {
       return false
+    }
+    if (this.open.hasUnrecorded(sessionId)) {
+      return true
     }
     const read = this.sink()?.readChildWorkHandles
     if (!read) {
