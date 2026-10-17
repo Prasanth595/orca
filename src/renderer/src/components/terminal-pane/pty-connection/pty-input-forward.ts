@@ -119,8 +119,11 @@ export function installPtyInputForward(session: ConnectPanePtySession): void {
         session.cancelSuspendedShellCommandInference()
       }
       session.clearPendingTerminalInputIntent()
-      const writePromise = session.transport
-        .sendInputAccepted(data, inputKind, inputOrigin ? { inputOrigin } : undefined)
+      const writePromise = (
+        inputOrigin
+          ? session.transport.sendInputAccepted(data, inputKind, { inputOrigin })
+          : session.transport.sendInputAccepted(data, inputKind)
+      )
         .then((accepted): boolean | Promise<boolean> | null => {
           if (accepted) {
             // Why: rejected writes use transport recovery and must not arm a parser probe.
@@ -149,7 +152,10 @@ export function installPtyInputForward(session: ConnectPanePtySession): void {
     }
     if (intent) {
       session.claimViewportForUserActivity(data)
-      if (session.transport.sendInput(data, inputKind, inputOrigin)) {
+      const accepted = inputOrigin
+        ? session.transport.sendInput(data, inputKind, inputOrigin)
+        : session.transport.sendInput(data, inputKind)
+      if (accepted) {
         session.markAcceptedTerminalInputSent()
         session.observeAcceptedShellCommandInput(data)
         session.observeAcceptedTerminalInput(data, intent)
@@ -160,7 +166,10 @@ export function installPtyInputForward(session: ConnectPanePtySession): void {
       return
     }
     session.claimViewportForUserActivity(data)
-    if (session.transport.sendInput(data, inputKind, inputOrigin)) {
+    const accepted = inputOrigin
+      ? session.transport.sendInput(data, inputKind, inputOrigin)
+      : session.transport.sendInput(data, inputKind)
+    if (accepted) {
       session.markAcceptedTerminalInputSent()
       session.observeAcceptedShellCommandInput(data)
       session.observeAcceptedTerminalInput(data)

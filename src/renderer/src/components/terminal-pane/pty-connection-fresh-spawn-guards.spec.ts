@@ -458,7 +458,11 @@ export function registerPtyConnectionFreshSpawnGuardsTests(): void {
       for (const forward of deferred.splice(0)) {
         forward()
       }
-      expect(transport.sendInput).toHaveBeenCalledExactlyOnceWith('input_under_flood\r', 'driving')
+      expect(transport.sendInput).toHaveBeenCalledExactlyOnceWith(
+        'input_under_flood\r',
+        'driving',
+        'human'
+      )
 
       // A wheel over a replayed alt-screen frame becomes cursor keys; the fresh shell must not recall history from them.
       pane.terminal.buffer.active.type = 'alternate'
