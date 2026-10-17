@@ -125,6 +125,16 @@ export const PROFILE_STATE_HANDLERS: Record<string, CommandHandler> = {
     const profileId = parseProfileId(flags)
     const userDataPath = getDefaultUserDataPath()
     if (flags.has('dry-run')) {
+      if (
+        flags.has('current-json') ||
+        flags.has('current-sqlite') ||
+        flags.has('latest-json')
+      ) {
+        throw new RuntimeClientError(
+          'invalid_argument',
+          '--dry-run is available for --backup and --revision only; it has no independent source artifact to diff for the current/latest selectors.'
+        )
+      }
       const exportsResult = translateRecoveryError(() =>
         getProfileStateExports(userDataPath, profileId)
       )
