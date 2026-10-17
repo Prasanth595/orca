@@ -26,6 +26,7 @@ export function useTaskPageGitHubDetail(model: TaskPageGitHubListStateModel) {
     openTaskPage,
     repoMap,
     selectedRepos,
+    githubTaskRepos,
     primaryRepo,
     setGithubMode,
     gitlabDialogItem,
@@ -61,7 +62,7 @@ export function useTaskPageGitHubDetail(model: TaskPageGitHubListStateModel) {
     useShallow((s) =>
       selectTaskPageWorkItemsCacheEntries(
         s.workItemsCache,
-        selectedRepos.map(getTaskPageRepoCacheInput),
+        githubTaskRepos.map(getTaskPageRepoCacheInput),
         githubPerRepoPageLimit,
         appliedWorkItemsCacheQuery
       )

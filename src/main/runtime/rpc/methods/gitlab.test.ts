@@ -31,6 +31,7 @@ describe('gitlab RPC methods', () => {
   })
 
   it('routes GitLab task queries and mutations to the runtime server', async () => {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: The dispatcher calls only the runtime methods stubbed here.
     const runtime = {
       getRuntimeId: () => 'test-runtime',
       diagnoseGitLabAuth: vi.fn().mockResolvedValue({ glabAvailable: true }),
@@ -39,6 +40,7 @@ describe('gitlab RPC methods', () => {
       listGitLabRepoWorkItems: vi.fn().mockResolvedValue({ items: [] }),
       listGitLabRepoIssues: vi.fn().mockResolvedValue({ items: [] }),
       listGitLabRepoTodos: vi.fn().mockResolvedValue([{ id: 1 }]),
+      listGitLabRepoKnownHosts: vi.fn().mockResolvedValue(['gitlab.com']),
       listGitLabRepoLabels: vi.fn().mockResolvedValue(['bug']),
       createGitLabRepoIssue: vi.fn().mockResolvedValue({ ok: true, number: 7 }),
       updateGitLabRepoIssue: vi.fn().mockResolvedValue({ ok: true }),
@@ -97,6 +99,7 @@ describe('gitlab RPC methods', () => {
       })
     )
     await dispatcher.dispatch(makeRequest('gitlab.todos', { repo: 'id:repo-1' }))
+    await dispatcher.dispatch(makeRequest('gitlab.knownHosts', { repo: 'id:repo-1' }))
     await dispatcher.dispatch(makeRequest('gitlab.listLabels', { repo: 'id:repo-1' }))
     await dispatcher.dispatch(
       makeRequest('gitlab.updateIssue', {
@@ -227,6 +230,7 @@ describe('gitlab RPC methods', () => {
     expect(runtime.listGitLabRepoIssues).toHaveBeenCalledWith('id:repo-1', 'opened', '@me', 50, 2)
     expect(runtime.createGitLabRepoIssue).toHaveBeenCalledWith('id:repo-1', 'Fix bug', 'Details')
     expect(runtime.listGitLabRepoTodos).toHaveBeenCalledWith('id:repo-1')
+    expect(runtime.listGitLabRepoKnownHosts).toHaveBeenCalledWith('id:repo-1')
     expect(runtime.listGitLabRepoLabels).toHaveBeenCalledWith('id:repo-1')
     expect(runtime.updateGitLabRepoIssue).toHaveBeenCalledWith(
       'id:repo-1',

@@ -1,4 +1,4 @@
-import type { TaskPageSourceAvailabilityPreludeModel } from './use-task-page-source-availability'
+import type { TaskPageSourceRepoScopeModel } from './use-task-page-source-repo-scope'
 import { useMemo } from 'react'
 import type { TaskProvider } from '../../../shared/task-providers'
 import type {
@@ -16,13 +16,14 @@ import {
   getTaskSourceContextSummary
 } from './task-source-context-summary'
 import { getRepoBackedTaskEmptyState } from '@/components/task-page-empty-state'
-export function useTaskPageSourceSummary(model: TaskPageSourceAvailabilityPreludeModel) {
+export function useTaskPageSourceSummary(model: TaskPageSourceRepoScopeModel) {
   const {
     preflightStatus,
     preflightStatusChecked,
     preflightStatusCurrent,
     preflightDescribesDesktop,
     selectedRepos,
+    githubTaskRepos,
     selectedLinearWorkspace,
     selectedJiraSite,
     sourceOptions,
@@ -173,9 +174,10 @@ export function useTaskPageSourceSummary(model: TaskPageSourceAvailabilityPrelud
     () =>
       getRepoBackedTaskEmptyState({
         provider: 'github',
-        selectedRepoCount: selectedRepos.length
+        selectedRepoCount: selectedRepos.length,
+        sourceRepoCount: githubTaskRepos.length
       }),
-    [selectedRepos.length]
+    [githubTaskRepos.length, selectedRepos.length]
   )
   const nextModel = model as typeof model & {
     taskSourceAvailabilityNoticeByProvider: typeof taskSourceAvailabilityNoticeByProvider

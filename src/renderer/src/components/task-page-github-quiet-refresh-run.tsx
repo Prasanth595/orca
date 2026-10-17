@@ -29,7 +29,7 @@ import { useAppStore } from '@/store'
 export function runTaskPageGitHubQuietRefresh(model: TaskPageGitHubQuietRefreshPreludeModel) {
   const {
     fetchWorkItemsAcrossRepos,
-    selectedRepos,
+    githubTaskRepos,
     taskSource,
     githubMode,
     appliedTaskSearch,
@@ -52,7 +52,7 @@ export function runTaskPageGitHubQuietRefresh(model: TaskPageGitHubQuietRefreshP
   if (quietRefreshNonce === 0) {
     return
   }
-  if (taskSource !== 'github' || githubMode !== 'items' || selectedRepos.length === 0) {
+  if (taskSource !== 'github' || githubMode !== 'items' || githubTaskRepos.length === 0) {
     return
   }
   const quietState = getOrCreateQuietRevalidateState(githubWorkItemMutationQueryKey)
@@ -103,7 +103,7 @@ export function runTaskPageGitHubQuietRefresh(model: TaskPageGitHubQuietRefreshP
   const authorityPageItemKeys = pageItemKeys(quietPage)
   const visiblePageItemKeys = visiblePage === undefined ? undefined : pageItemKeys(visiblePage)
   const revalidatedItemKeys = new Set([...authorityPageItemKeys, ...(visiblePageItemKeys ?? [])])
-  const repoArgs = selectedRepos.map((r) => ({
+  const repoArgs = githubTaskRepos.map((r) => ({
     repoId: r.id,
     path: r.path,
     executionHostId: r.executionHostId,

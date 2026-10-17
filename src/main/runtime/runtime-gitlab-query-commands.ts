@@ -18,6 +18,7 @@ import {
   type GitLabIssueListState
 } from '../gitlab/gitlab-preload-args'
 import { getWorkItemDetails } from '../gitlab/work-item-details'
+import { getGlabKnownHosts } from '../gitlab/gl-utils'
 
 type LocalGitArgs = [] | [{ wslDistro?: string }]
 
@@ -117,6 +118,11 @@ export class RuntimeGitLabQueryCommands {
   async listGitLabRepoTodos(repoSelector: string): Promise<Awaited<ReturnType<typeof listTodos>>> {
     const repo = await this.deps.resolveRepo(repoSelector)
     return listTodos(repo.path, repo.connectionId ?? null, ...this.deps.getLocalGitArgs(repo))
+  }
+
+  async listGitLabRepoKnownHosts(repoSelector: string): Promise<readonly string[]> {
+    const repo = await this.deps.resolveRepo(repoSelector)
+    return getGlabKnownHosts(repo.connectionId ?? null, ...this.deps.getLocalGitArgs(repo))
   }
 
   diagnoseGitLabAuth(): Promise<Awaited<ReturnType<typeof diagnoseAuth>>> {

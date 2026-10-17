@@ -20,7 +20,7 @@ import {
   parseGitLabProjectRef,
   parseRemoteProjectRefCandidate,
   type ProjectRef
-} from './project-ref-parser'
+} from '../../shared/gitlab-project-ref-parser'
 
 export { DEFAULT_GITLAB_HOSTS, parseGitLabProjectRef }
 export type { ProjectRef }

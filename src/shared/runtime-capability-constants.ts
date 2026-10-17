@@ -226,6 +226,8 @@ export const GITLAB_READY_FOR_REVIEW_RUNTIME_CAPABILITY =
   'gitlab.updateMR.readyForReview.v1' as const
 export const GITLAB_READY_FOR_REVIEW_UPDATE_REQUIRED_MESSAGE =
   'Marking a merge request ready requires a newer Orca server. Update the server and try again.'
+// Why: older servers lack gitlab.knownHosts, so their self-hosted GitLab repos stay undecided.
+export const GITLAB_KNOWN_HOSTS_RUNTIME_CAPABILITY = 'gitlab.knownHosts.v1' as const
 export const WORKTREE_VISIBILITY_DEFAULTS_RUNTIME_CAPABILITY =
   'worktree.visibility-defaults.v1' as const
 export const WORKTREE_VISIBILITY_SOURCE_DEFAULTS_RUNTIME_CAPABILITY =
