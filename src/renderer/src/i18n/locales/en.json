@@ -10308,7 +10308,10 @@
             "command": "command",
             "confirm": "confirm",
             "close": "close",
-            "omp": "OMP"
+            "omp": "OMP",
+            "editorFontSize": "Editor Font Size",
+            "editorFontSizeDesc": "Font size used by file editors and diff views. Leave empty to follow the terminal font size.",
+            "editorFontSizeKw": "text size"
           }
         },
         "git": {
@@ -12892,6 +12895,9 @@
           "confirm": "Restart",
           "terminalsUnknown": "Orca couldn’t confirm whether terminals are running on this host, so it didn’t restart the managed server.",
           "terminalsRunning": "{{count}} terminals are still running on this host. Close them, then restart the managed server."
+        },
+        "EditorFontSizeSetting": {
+          "px": "px"
         }
       },
       "right": {

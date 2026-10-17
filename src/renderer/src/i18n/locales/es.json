@@ -10011,7 +10011,10 @@
             "running_terminal": "correr",
             "command": "dominio",
             "confirm": "confirmar",
-            "omp": "OMP"
+            "omp": "OMP",
+            "editorFontSize": "Tamaño de fuente del editor",
+            "editorFontSizeDesc": "Tamaño de fuente utilizado por los editores de archivos y vistas de diferencias. Dejar vacío para seguir el tamaño de fuente de la terminal.",
+            "editorFontSizeKw": "tamaño de texto"
           }
         },
         "git": {
@@ -12632,6 +12635,9 @@
           "remove": "Quitar",
           "turnOn": "Activar en Experimental",
           "forceUpdate": "Forzar actualización"
+        },
+        "EditorFontSizeSetting": {
+          "px": "px"
         }
       },
       "right": {

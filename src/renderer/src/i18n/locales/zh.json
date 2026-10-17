@@ -10001,7 +10001,10 @@
             "command": "命令",
             "confirm": "确认",
             "close": "关闭",
-            "omp": "OMP"
+            "omp": "OMP",
+            "editorFontSize": "编辑器字体大小",
+            "editorFontSizeDesc": "文件编辑器和差异视图使用的字体大小，留空则跟随终端字体大小。",
+            "editorFontSizeKw": "文字大小"
           }
         },
         "git": {
@@ -12637,6 +12640,9 @@
           "remove": "移除",
           "turnOn": "在实验性中开启",
           "forceUpdate": "强制更新"
+        },
+        "EditorFontSizeSetting": {
+          "px": "像素"
         }
       },
       "right": {

@@ -10038,7 +10038,10 @@
             "command": "コマンド",
             "confirm": "確認",
             "close": "近い",
-            "omp": "OMP"
+            "omp": "OMP",
+            "editorFontSize": "エディターフォントサイズ",
+            "editorFontSizeDesc": "ファイルエディターと差分ビューで使用されるフォントサイズ。空の場合はターミナルのフォントサイズに従います。",
+            "editorFontSizeKw": "文字サイズ"
           }
         },
         "git": {
@@ -12637,6 +12640,9 @@
           "remove": "削除",
           "turnOn": "実験的機能でオンにする",
           "forceUpdate": "強制更新"
+        },
+        "EditorFontSizeSetting": {
+          "px": "ピクセル"
         }
       },
       "right": {
