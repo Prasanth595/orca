@@ -84,6 +84,7 @@ export function MobileNativeChatOverlay({
       onDelete: queued.delete,
       onClearAll: queued.clear,
       onEdit: queued.edit,
+      editor: queued.editor,
       pause: queued.pause,
       onResume: queued.resume,
       sessionKey: queued.sessionKey,
