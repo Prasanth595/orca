@@ -61,4 +61,18 @@ describe('Claude exact prompt origin', () => {
     expect(await isClaudeHumanReply(path, 'B', undefined, (read) => (bytes += read))).toBe(false)
     expect(bytes).toBeLessThan(150_000)
   })
+  it.each(['human', 'task-notification'])(
+    'uses the latest explicit user origin when Claude reuses a prompt ID: %s',
+    async (kind) => {
+      const path = await transcript([
+        {
+          type: 'user',
+          promptId: 'P',
+          origin: { kind: kind === 'human' ? 'task-notification' : 'human' }
+        },
+        { type: 'user', promptId: 'P', origin: { kind } }
+      ])
+      expect(await isClaudeHumanReply(path, 'P')).toBe(kind === 'human')
+    }
+  )
 })

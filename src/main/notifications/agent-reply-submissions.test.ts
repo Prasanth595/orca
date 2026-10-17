@@ -76,7 +76,7 @@ describe('live submit keys joined to exact main-agent hook turns', () => {
     r.hook('Stop')
     expect(r.human()).toBe(false)
   })
-  it('S3a: independent Claude queued prompt IDs retain both human submissions', () => {
+  it('accepts independent Claude submissions whose hooks arrive after each previous Stop', () => {
     const r = rig('claude')
     r.input('human')
     r.hook('UserPromptSubmit')
@@ -85,6 +85,42 @@ describe('live submit keys joined to exact main-agent hook turns', () => {
     r.input('human')
     r.hook('UserPromptSubmit', CLAUDE_PREVIOUS_PROMPT_ID)
     r.hook('Stop', CLAUDE_PREVIOUS_PROMPT_ID)
+    expect(r.human()).toBe(true)
+  })
+  it('A3/L4: a different queued prompt ID submitted before Stop is discarded by that Stop', () => {
+    const r = rig('claude')
+    r.input('human')
+    r.hook('UserPromptSubmit')
+    r.input('human')
+    r.hook('UserPromptSubmit', CLAUDE_PREVIOUS_PROMPT_ID)
+    r.hook('Stop')
+    expect(r.human()).toBe(true)
+    r.hook('Stop', CLAUDE_PREVIOUS_PROMPT_ID)
+    expect(r.human()).toBe(false)
+  })
+  it.each([
+    ['human', 'programmatic', false],
+    ['programmatic', 'human', true]
+  ] as const)(
+    'starts a reused Claude prompt ID after Stop afresh: %s then %s',
+    (first, next, expected) => {
+      const r = rig('claude')
+      r.input(first)
+      r.hook('UserPromptSubmit')
+      r.hook('Stop')
+      expect(r.human()).toBe(first === 'human')
+      r.input(next)
+      r.hook('UserPromptSubmit')
+      r.hook('Stop')
+      expect(r.human()).toBe(expected)
+    }
+  )
+  it('preserves a human completion across two Stop hooks without a new submission', () => {
+    const r = rig('claude')
+    r.input('human')
+    r.hook('UserPromptSubmit')
+    r.hook('Stop')
+    r.hook('Stop')
     expect(r.human()).toBe(true)
   })
   it('A6: Codex Tab-queued input has no submit key, unless a later approval Enter is borrowed', () => {
