@@ -1,4 +1,3 @@
-import { styles } from './mobile-native-chat-composer-layout'
 import { useMobileTheme } from '../theme/use-mobile-theme'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -27,19 +26,26 @@ import {
 } from './MobileNativeChatComposerSuggestions'
 import {
   MobileNativeChatSessionOptionPickers,
+  type MobileNativeChatPickerPresentation,
   type MobileNativeChatSessionOptionPickersProps
 } from './MobileNativeChatSessionOptionPickers'
 import type { PendingNativeChatImage } from './mobile-native-chat-image-attachment'
 import { mobileNativeChatInputStyles } from './mobile-native-chat-input-styles'
 import { getMobileNativeChatCommands } from './mobile-native-chat-send-classification'
 import { keepHeldPressThroughLongPress } from './held-press-long-press'
+import {
+  mobileNativeChatComposerExpanded,
+  mobileNativeChatComposerShowsStop
+} from './mobile-native-chat-composer-layout'
+import { MobileNativeChatStopButton } from './MobileNativeChatStopButton'
+import { mobileNativeChatComposerStyles as styles } from './mobile-native-chat-composer-styles'
 
 const NO_FILE_PATHS: string[] = []
 const NO_ATTACHMENTS: PendingNativeChatImage[] = []
 
 type Props = {
   /** Lets the owner focus the field, e.g. after Edit moves a queued message into it. */
-  inputRef?: React.Ref<TextInput>
+  inputRef?: React.RefObject<TextInput | null>
   structuredCommands?: readonly AgentSessionConversationCommand[]
   /** Controlled composer text — owned by the parent so dictation can write to it. */
   value: string
@@ -74,6 +80,8 @@ type Props = {
   placeholder?: string
   filePaths?: string[]
   onNeedFiles?: (query: string) => void
+  /** Set while the agent can be stopped; Stop takes Send's slot when Send can't deliver. */
+  stop?: { onStop?: () => void; held: boolean } | null
 }
 
 export function MobileNativeChatComposer({
@@ -100,12 +108,24 @@ export function MobileNativeChatComposer({
   sendDisabled = false,
   placeholder = 'Message, @files, /commands',
   filePaths = NO_FILE_PATHS,
-  onNeedFiles
+  onNeedFiles,
+  stop = null
 }: Props): React.JSX.Element {
   useMobileTheme()
-
   const [cursor, setCursor] = useState(0)
-
+  const fallbackInputRef = useRef<TextInput>(null)
+  const fieldRef = inputRef ?? fallbackInputRef
+  const [focused, setFocused] = useState(false)
+  const [picker, setPicker] = useState<MobileNativeChatPickerPresentation | null>(null)
+  const request = sessionOptions?.controller.optionPickerRequest
+  const [lastRequest, setLastRequest] = useState(request)
+  if (request && lastRequest !== request) {
+    setLastRequest(request)
+    setPicker({ page: request.id, refocus: false })
+  }
+  // Transiently drives the native caret after a mid-text autocomplete insert,
+  // then released on the next selection change so manual caret placement still
+  // works (a permanently controlled `selection` breaks it in React Native).
   const [pendingSelection, setPendingSelection] = useState<{ start: number; end: number } | null>(
     null
   )
@@ -131,6 +151,16 @@ export function MobileNativeChatComposer({
     !sending &&
     !isAttaching &&
     !sessionOptionDispatching
+  const composerContent = { draft: value, attachmentCount: attachments.length }
+  const pickerOpen = picker !== null && sessionOptions != null
+  const expanded = mobileNativeChatComposerExpanded({ focused, pickerOpen, ...composerContent })
+  const showsStop = mobileNativeChatComposerShowsStop({
+    canStop: stop !== null,
+    sendBlocked: sendDisabled,
+    canSend,
+    editing: isAttaching || micActive,
+    ...composerContent
+  })
 
   const trigger = useMemo(() => detectAutocompleteTrigger(value, cursor), [value, cursor])
   const suggestions = useMemo<ComposerSuggestion[]>(() => {
@@ -221,6 +251,21 @@ export function MobileNativeChatComposer({
     }
   }
 
+  const attachButton = onAttachImage ? (
+    <Pressable
+      accessibilityLabel="Attach image"
+      style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
+      onPress={onAttachImage}
+      disabled={isAttaching || disabled}
+    >
+      {isAttaching ? (
+        <ActivityIndicator size="small" color={colors.textSecondary} />
+      ) : (
+        <ImagePlus size={20} color={colors.textSecondary} strokeWidth={2} />
+      )}
+    </Pressable>
+  ) : null
+
   return (
     <View>
       {suggestions.length > 0 ? (
@@ -256,12 +301,21 @@ export function MobileNativeChatComposer({
         </ScrollView>
       ) : null}
       <View style={styles.composerInset} testID="native-chat-composer-inset">
-        <View style={styles.bar} testID="native-chat-composer">
+        <View style={expanded ? styles.bar : styles.barCollapsed} testID="native-chat-composer">
+          {/* Collapsed puts attach before the field; the field keeps its child slot either way so
+              the switch never remounts it (that would drop focus mid-tap). */}
+          {expanded ? null : attachButton}
           <TextInput
-            ref={inputRef}
-            style={mobileNativeChatInputStyles.input}
+            ref={fieldRef}
+            style={
+              expanded
+                ? mobileNativeChatInputStyles.input
+                : [mobileNativeChatInputStyles.freeInput, styles.inputCollapsed]
+            }
             value={value}
             onChangeText={handleChange}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
             // Controlled only transiently right after an autocomplete insert.
             selection={pendingSelection ?? undefined}
             onSelectionChange={(e) => {
@@ -277,28 +331,29 @@ export function MobileNativeChatComposer({
             // The lock gates sending; the draft survives and rides the next send.
             textAlignVertical="top"
           />
-          <View style={styles.actionRow} testID="native-chat-composer-actions">
-            {onAttachImage ? (
-              <Pressable
-                accessibilityLabel="Attach image"
-                style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
-                onPress={onAttachImage}
-                disabled={isAttaching || disabled}
-              >
-                {isAttaching ? (
-                  <ActivityIndicator size="small" color={colors.textSecondary} />
-                ) : (
-                  <ImagePlus size={20} color={colors.textSecondary} strokeWidth={2} />
-                )}
-              </Pressable>
-            ) : null}
+          <View
+            style={expanded ? styles.actionRow : styles.actionRowCollapsed}
+            testID="native-chat-composer-actions"
+          >
+            {expanded ? attachButton : null}
             {sessionOptions ? (
+              // Stays mounted collapsed so an open drawer, or a picker a command asks for, survives.
               <MobileNativeChatSessionOptionPickers
                 {...sessionOptions}
                 sendInFlight={sending || isAttaching}
+                pillsHidden={!expanded}
+                presentation={picker}
+                onNavigate={(page) => setPicker((current) => current && { ...current, page })}
+                onDrawerOpen={(page) => setPicker({ page, refocus: focused })}
+                onDrawerAfterClose={() => {
+                  if (picker?.refocus) {
+                    fieldRef.current?.focus()
+                  }
+                  setPicker(null)
+                }}
               />
             ) : null}
-            <View style={styles.actionSpacer} />
+            {expanded ? <View style={styles.actionSpacer} /> : null}
             {onMicPress ? (
               <Pressable
                 accessibilityLabel={micActive ? 'Stop dictation' : 'Dictate'}
@@ -330,22 +385,27 @@ export function MobileNativeChatComposer({
                 )}
               </Pressable>
             ) : null}
-            <Pressable
-              accessibilityLabel="Send message"
-              style={({ pressed }) => [
-                styles.sendButton,
-                !canSend && styles.sendButtonDisabled,
-                pressed && canSend && styles.pressed
-              ]}
-              onPress={handleSend}
-              disabled={!canSend}
-            >
-              <ArrowUp
-                size={20}
-                color={canSend ? colors.bgBase : colors.textMuted}
-                strokeWidth={2.6}
-              />
-            </Pressable>
+            {showsStop && stop ? (
+              // Only this phone's own request holds Stop: a repeat is how a stuck stop escalates.
+              <MobileNativeChatStopButton onStop={stop.onStop} held={stop.held} />
+            ) : (
+              <Pressable
+                accessibilityLabel="Send message"
+                style={({ pressed }) => [
+                  styles.sendButton,
+                  !canSend && styles.sendButtonDisabled,
+                  pressed && canSend && styles.pressed
+                ]}
+                onPress={handleSend}
+                disabled={!canSend}
+              >
+                <ArrowUp
+                  size={20}
+                  color={canSend ? colors.bgBase : colors.textMuted}
+                  strokeWidth={2.6}
+                />
+              </Pressable>
+            )}
           </View>
         </View>
       </View>

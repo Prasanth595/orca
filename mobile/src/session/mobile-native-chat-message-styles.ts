@@ -71,6 +71,11 @@ export const styles = createThemedStyles(() =>
       color: colors.textMuted,
       fontSize: typography.metaSize
     },
+    meta: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs
+    },
     unsentNotice: {
       maxWidth: '88%',
       marginTop: spacing.xs,
@@ -164,7 +169,7 @@ export const styles = createThemedStyles(() =>
       backgroundColor: colors.diffDeletedBg
     },
     imageRef: {
-      color: colors.textPrimary,
+      color: colors.textSecondary,
       fontSize: TEXT_SIZE
     },
     imageThumb: {

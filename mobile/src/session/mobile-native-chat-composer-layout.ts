@@ -1,91 +1,38 @@
-import { StyleSheet } from 'react-native'
-import { createThemedStyles } from '../theme/mobile-themed-styles'
-import { colors, radii, spacing } from '../theme/mobile-theme'
-export const styles = createThemedStyles(() =>
-  StyleSheet.create({
-    attachmentStrip: {
-      maxHeight: 76,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.borderSubtle,
-      backgroundColor: colors.bgPanel
-    },
-    attachmentStripContent: {
-      gap: spacing.sm,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm
-    },
-    attachmentThumb: {
-      width: 60,
-      height: 60,
-      borderRadius: radii.button,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.borderSubtle,
-      backgroundColor: colors.bgRaised
-    },
-    attachmentImage: {
-      width: '100%',
-      height: '100%',
-      borderRadius: radii.button
-    },
-    attachmentRemove: {
-      // Inset inside the thumb: Android drops touches outside the parent's bounds,
-      // so an overhanging badge would lose part of its tap target.
-      position: 'absolute',
-      top: 2,
-      right: 2,
-      width: 20,
-      height: 20,
-      borderRadius: 10,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.bgRaised,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.borderSubtle
-    },
-    composerInset: {
-      paddingHorizontal: spacing.md,
-      paddingTop: spacing.sm,
-      paddingBottom: spacing.md
-    },
-    bar: {
-      gap: spacing.xs,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.borderSubtle,
-      borderRadius: radii.card,
-      backgroundColor: colors.bgPanel,
-      overflow: 'hidden'
-    },
-    actionRow: {
-      minHeight: 40,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm
-    },
-    actionSpacer: {
-      flex: 1
-    },
-    iconButton: {
-      width: 40,
-      height: 40,
-      alignItems: 'center',
-      justifyContent: 'center'
-    },
-    sendButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      alignItems: 'center',
-      justifyContent: 'center',
-      // White send affordance per design — dark arrow on a light circle.
-      backgroundColor: colors.textPrimary
-    },
-    sendButtonDisabled: {
-      backgroundColor: colors.bgRaised
-    },
-    pressed: {
-      opacity: 0.7
+import type { NativeChatMessage } from '../../../src/shared/native-chat-types'
+
+/** The pickers row only shows while the user is writing; a typed draft, a picked image or an open
+ *  picker drawer keeps it, so collapsing never hides what they were editing. */
+export function mobileNativeChatComposerExpanded(input: {
+  focused: boolean
+  pickerOpen: boolean
+  draft: string
+  attachmentCount: number
+}): boolean {
+  return input.focused || input.pickerOpen || input.draft.length > 0 || input.attachmentCount > 0
+}
+
+/** Keep Send for an active upload/dictation edit; otherwise offer the action available now. */
+export function mobileNativeChatComposerShowsStop(input: {
+  canStop: boolean
+  sendBlocked: boolean
+  canSend: boolean
+  editing: boolean
+  draft: string
+  attachmentCount: number
+}): boolean {
+  const nothingTyped = input.draft.trim().length === 0 && input.attachmentCount === 0
+  return input.canStop && (input.sendBlocked || nothingTyped || (!input.editing && !input.canSend))
+}
+
+/** Tool calls in the loaded transcript; the Tools toggle is offered only when there are some. */
+export function mobileNativeChatToolCallCount(messages: readonly NativeChatMessage[]): number {
+  let count = 0
+  for (const message of messages) {
+    for (const block of message.blocks) {
+      if (block.type === 'tool-call') {
+        count += 1
+      }
     }
-  })
-)
+  }
+  return count
+}
