@@ -1,4 +1,7 @@
-import { mobileNativeChatTurnFold } from './mobile-native-chat-turn-fold'
+import {
+  mobileNativeChatTurnFold,
+  mobileNativeChatBridgeAnswerIds
+} from './mobile-native-chat-turn-fold'
 import { useCallback, useMemo, useState } from 'react'
 import { isSubagentGroupBlock, type NativeChatMessage } from '../../../src/shared/native-chat-types'
 import { nativeChatReasoningDisclosureKey } from '../../../src/shared/native-chat-reasoning-row'
@@ -187,7 +190,7 @@ export function useMobileNativeChatTurnDisclosure({
       return {
         listMessages: waiting.listMessages,
         indexById: null,
-        answerIds: null,
+        answerIds: mobileNativeChatBridgeAnswerIds(rows, isWorking),
         foldedRows: new Set<number>(),
         bars: new Map<string, { index: number; above: boolean }>()
       }
@@ -206,7 +209,16 @@ export function useMobileNativeChatTurnDisclosure({
       return !fold.foldedRows.has(index) || anchors.has(index)
     })
     return { listMessages, indexById, answerIds: fold.answerIds, bars, foldedRows: fold.foldedRows }
-  }, [enabled, waiting, rows, turnKeys, completedByTurn, processExpanded, expandedTurnIds])
+  }, [
+    enabled,
+    waiting,
+    rows,
+    turnKeys,
+    completedByTurn,
+    processExpanded,
+    expandedTurnIds,
+    isWorking
+  ])
   const inLiveWorkingTurn = useCallback(
     (index: number) =>
       isNativeChatRowInLiveWorkingTurn(turnKeys[index], liveTurnKey, enabled && isWorking),
@@ -257,9 +269,7 @@ export function useMobileNativeChatTurnDisclosure({
       return {
         turnStatus,
         processHidden: presentation.foldedRows.has(index),
-        finalReply: enabled
-          ? presentation.answerIds?.has(message.id) === true
-          : !isWorking && message.id === latestAssistantId,
+        finalReply: presentation.answerIds.has(message.id),
         ...(bar?.above === true && turnStatus !== null ? { turnStatusAbove: true } : {}),
         turnExpanded: processExpanded || (turnKey ? expandedTurnIds.has(turnKey) : false),
         // Why: the key travels and the row calls one stable handler with it. A
@@ -305,7 +315,6 @@ export function useMobileNativeChatTurnDisclosure({
       toggleReasoning,
       openSubagentGroups,
       toggleSubagentGroup,
-      isWorking,
       openUserMessages,
       toggleUserMessage
     ]

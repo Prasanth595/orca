@@ -1,3 +1,5 @@
+import { NATIVE_CHAT_STREAMING_ID } from '../../../src/shared/native-chat-streaming'
+import { nativeChatRowTurnKeys } from '../../../src/shared/native-chat-turn-grouping'
 import { AGENT_SESSION_ORCA_STOP_PRESENTATION } from '../../../src/shared/agent-session-orca-stop'
 import { AGENT_SESSION_COMPACTION_SKIPPED_PRESENTATION } from '../../../src/shared/agent-session-compaction'
 import {
@@ -23,7 +25,28 @@ export function mobileNativeChatTurnFold(
   completed: Readonly<Record<string, NativeChatTurnStatus>>,
   expandedTurnKeys: ReadonlySet<string>
 ) {
-  const rows = messages.map((message, index) => {
+  const rows = mobileNativeChatTurnRows(messages, turnKeys)
+  const settledTurnKeys = new Set(
+    Object.entries(completed)
+      .filter(([, status]) => status.workedSeconds != null)
+      .map(([key]) => key)
+  )
+  const fold = nativeChatTurnFold({ rows, settledTurnKeys, expandedTurnKeys })
+  return {
+    ...fold,
+    answerIds: new Set(
+      [...nativeChatTurnAnswerRows(rows)]
+        .filter(([key]) => settledTurnKeys.has(key))
+        .map(([, index]) => messages[index]!.id)
+    )
+  }
+}
+
+function mobileNativeChatTurnRows(
+  messages: readonly NativeChatMessage[],
+  turnKeys: readonly (string | undefined)[]
+) {
+  return messages.map((message, index) => {
     const content = deriveNativeChatRowContent(message.blocks)
     return {
       turnKey: turnKeys[index],
@@ -51,18 +74,21 @@ export function mobileNativeChatTurnFold(
       )
     }
   })
-  const settledTurnKeys = new Set(
-    Object.entries(completed)
-      .filter(([, status]) => status.workedSeconds != null)
-      .map(([key]) => key)
-  )
-  const fold = nativeChatTurnFold({ rows, settledTurnKeys, expandedTurnKeys })
-  return {
-    ...fold,
-    answerIds: new Set(
-      [...nativeChatTurnAnswerRows(rows)]
-        .filter(([key]) => settledTurnKeys.has(key))
-        .map(([, index]) => messages[index]!.id)
-    )
+}
+
+/** Bridge history is settled prose; its synthetic streaming row alone is live. */
+export function mobileNativeChatBridgeAnswerIds(
+  messages: readonly NativeChatMessage[],
+  isWorking: boolean
+): ReadonlySet<string> {
+  const prefixKey = messages[0]?.id
+  const keys = nativeChatRowTurnKeys(messages).map((key) => key ?? prefixKey)
+  const rows = mobileNativeChatTurnRows(messages, keys)
+  if (isWorking) {
+    const streaming = rows[messages.findIndex((message) => message.id === NATIVE_CHAT_STREAMING_ID)]
+    if (streaming) {
+      streaming.rendersProse = false
+    }
   }
+  return new Set([...nativeChatTurnAnswerRows(rows).values()].map((index) => messages[index]!.id))
 }
