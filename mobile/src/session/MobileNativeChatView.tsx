@@ -287,8 +287,7 @@ export function MobileNativeChatView({
   )
 
   // Per-turn status rows: one live indicator while the turn runs, then a settled
-  // "Worked for N" row. The structured lane owns them; the bridge lane keeps its
-  // three-dot indicator.
+  // "Worked for N" row. The structured lane owns them; the bridge lane gets the live line only.
   const turns = useMobileNativeChatTurnDisclosure({
     messages: data,
     enabled: structuredActivityUi,
@@ -300,7 +299,7 @@ export function MobileNativeChatView({
     activityText: turnIndicator?.activityText ?? null,
     // The display status, decided once in the session hook.
     stopping: turnIndicator?.stopping === true,
-    lineYields: structuredActivityUi && (ask != null || permission != null || question != null),
+    lineYields: ask != null || permission != null || question != null,
     scopeKey: sendSurfaceId
   })
 
@@ -326,7 +325,6 @@ export function MobileNativeChatView({
       onOpenFile={onOpenFile}
     />
   ) : null
-  const bridgeWorking = agentWorking === true && !structuredActivityUi
   const toolCallCount = useMemo(() => mobileNativeChatToolCallCount(folded), [folded])
   const toggleTools = useCallback(() => setToolsExpanded((v) => !v), [])
 
@@ -366,9 +364,7 @@ export function MobileNativeChatView({
               keyExtractor={(item) => item.id}
               renderItem={history.renderListRow}
               contentContainerStyle={
-                toolCallCount > 0 || bridgeWorking
-                  ? styles.listContentUnderFloatingControls
-                  : styles.listContent
+                toolCallCount > 0 ? styles.listContentUnderFloatingControls : styles.listContent
               }
               // Let link/file taps land while the composer keyboard is up
               // instead of being swallowed by the dismiss gesture.
@@ -395,7 +391,6 @@ export function MobileNativeChatView({
           </GestureDetector>
           <MobileNativeChatFloatingControls
             toolCallCount={toolCallCount}
-            bridgeWorking={bridgeWorking}
             toolsExpanded={toolsExpanded}
             onToggleTools={toggleTools}
             showJumpToTail={showJumpToTail}

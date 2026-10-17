@@ -45,9 +45,6 @@ export const styles = createThemedStyles(() =>
       fontSize: typography.metaSize,
       fontWeight: '600'
     },
-    workingPill: {
-      paddingHorizontal: 0
-    },
     pressed: {
       opacity: 0.6
     },

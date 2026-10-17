@@ -3,20 +3,17 @@ import { Pressable, Text, View } from 'react-native'
 import { ArrowDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-react-native'
 import { colors } from '../theme/mobile-theme'
 import { styles } from './mobile-native-chat-view-styles'
-import { MobileAgentWorkingIndicator } from './MobileAgentWorkingIndicator'
 
 /** Floats over the transcript's bottom-right so the Tools toggle and jump-to-latest take no row. */
 export function MobileNativeChatFloatingControls({
   toolCallCount,
   toolsExpanded,
-  bridgeWorking,
   onToggleTools,
   showJumpToTail,
   onJumpToTail
 }: {
   toolCallCount: number
   toolsExpanded: boolean
-  bridgeWorking: boolean
   onToggleTools: () => void
   showJumpToTail: boolean
   onJumpToTail: () => void
@@ -24,11 +21,6 @@ export function MobileNativeChatFloatingControls({
   useMobileTheme()
   return (
     <View pointerEvents="box-none" style={styles.floatingControls}>
-      {bridgeWorking ? (
-        <View pointerEvents="none" style={[styles.toolsPill, styles.workingPill]}>
-          <MobileAgentWorkingIndicator />
-        </View>
-      ) : null}
       {toolCallCount > 0 ? (
         <Pressable
           accessibilityRole="button"
