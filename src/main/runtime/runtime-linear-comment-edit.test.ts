@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as LinearClientModule from '../linear/client'
+import type { ResolvedWorktree } from './runtime-worktree-path-identity'
 
 const COMMENT_ID = '9f3c2a10-1111-4222-8333-444455556666'
 
@@ -48,6 +49,36 @@ function rawComment(body: string): unknown {
 }
 
 function createCommands(emitClientEvent = vi.fn()): RuntimeLinearReadCommands {
+  const worktree: ResolvedWorktree = {
+    id: 'wt-1',
+    repoId: 'repo-1',
+    path: '/tmp/pr-30003/worktree',
+    head: 'head',
+    branch: 'main',
+    isBare: false,
+    isMainWorktree: false,
+    displayName: '',
+    comment: '',
+    linkedIssue: null,
+    linkedPR: null,
+    linkedLinearIssue: 'ENG-1',
+    linkedLinearIssueWorkspaceId: 'w2',
+    isArchived: false,
+    isUnread: false,
+    isPinned: false,
+    sortOrder: 0,
+    lastActivityAt: 0,
+    parentWorktreeId: null,
+    childWorktreeIds: [],
+    lineage: null,
+    git: {
+      path: '/tmp/pr-30003/worktree',
+      head: 'head',
+      branch: 'main',
+      isBare: false,
+      isMainWorktree: false
+    }
+  }
   return new RuntimeLinearReadCommands({
     runtimeAvailable: () => true,
     showTerminal: async () => {
@@ -56,8 +87,7 @@ function createCommands(emitClientEvent = vi.fn()): RuntimeLinearReadCommands {
     resolveWorktreeSelector: async () => {
       throw new Error('unused')
     },
-    listResolvedWorktrees: async () =>
-      [{ id: 'wt-1', linkedLinearIssue: 'ENG-1', linkedLinearIssueWorkspaceId: 'w2' }] as never,
+    listResolvedWorktrees: async () => [worktree],
     setWorktreeMeta: () => {},
     emitClientEvent
   })
