@@ -75,4 +75,15 @@ describe('Claude exact prompt origin', () => {
       expect(await isClaudeHumanReply(path, 'P')).toBe(kind === 'human')
     }
   )
+  it.each([null, undefined])(
+    'S11: a latest non-summary origin %s cannot borrow a reused ID',
+    async (origin) => {
+      const path = await transcript([
+        { type: 'user', promptId: 'P', origin: { kind: 'human' } },
+        { type: 'assistant', message: { stop_reason: 'end_turn' } },
+        { type: 'user', promptId: 'P', origin }
+      ])
+      expect(await isClaudeHumanReply(path, 'P')).toBe(false)
+    }
+  )
 })

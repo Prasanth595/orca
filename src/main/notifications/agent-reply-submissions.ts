@@ -74,6 +74,9 @@ export class AgentReplySubmissions {
         } else {
           pane.turns.set(promptId, pane.turns.get(promptId) === true || author === 'human')
         }
+      } else {
+        pane.turns.clear()
+        pane.stoppedPromptId = undefined
       }
     } else if (event.hookEventName === 'Stop' && promptId) {
       const human = pane.turns.get(promptId) === true

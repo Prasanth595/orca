@@ -178,6 +178,25 @@ describe('live submit keys joined to exact main-agent hook turns', () => {
     r.hook('Stop')
     expect(r.human()).toBe(false)
   })
+  it.each([false, true])(
+    'S11: an unidentified submit clears previous human evidence after Stop=%s',
+    (stopped) => {
+      const r = rig('claude')
+      r.input('human')
+      r.hook('UserPromptSubmit')
+      if (stopped) {
+        r.hook('Stop')
+      }
+      r.input('programmatic')
+      r.hook('UserPromptSubmit', '', { prompt_id: undefined })
+      r.hook('Stop')
+      expect(r.human()).toBe(false)
+      r.input('human')
+      r.hook('UserPromptSubmit')
+      r.hook('Stop')
+      expect(r.human()).toBe(true)
+    }
+  )
   it('S11: missing IDs, restart, and a disabled tracking epoch stay unknown', () => {
     const r = rig('claude')
     r.input('human')
