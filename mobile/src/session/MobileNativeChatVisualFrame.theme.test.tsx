@@ -3,22 +3,13 @@ import { act, create } from 'react-test-renderer'
 import { expect, it, vi } from 'vitest'
 import { applyMobileColorScheme, darkColors, lightColors } from '../theme/mobile-theme'
 
-const web = vi.hoisted(() => ({ injectJavaScript: vi.fn() }))
-vi.mock('react-native', () => ({ StyleSheet: { create: (value: unknown) => value } }))
-vi.mock('react-native-webview', async () => {
-  const React = await import('react')
-  return {
-    WebView: React.forwardRef(function WebView(props, ref) {
-      React.useImperativeHandle(ref, () => web)
-      return React.createElement('WebView', props)
-    })
-  }
-})
-vi.mock('expo-crypto', () => ({ getRandomBytes: (size: number) => new Uint8Array(size) }))
-vi.mock('../platform/external-link', () => ({ openExternalLink: vi.fn() }))
+vi.mock('react-native', () => ({
+  View: 'View',
+  StyleSheet: { create: (value: unknown) => value }
+}))
 import { MobileNativeChatVisualFrame } from './MobileNativeChatVisualFrame'
 
-it('updates a loaded visualization palette in place and reapplies it after a load', () => {
+it('updates a sealed visualization document across light and dark palettes', () => {
   let tree!: ReturnType<typeof create>
   act(() => {
     tree = create(
@@ -31,16 +22,13 @@ it('updates a loaded visualization palette in place and reapplies it after a loa
     )
   })
   try {
-    const frame = () => tree.root.find((node) => String(node.type) === 'WebView')
-    const source = frame().props.source
     for (const scheme of ['light', 'dark', 'light'] as const) {
       act(() => applyMobileColorScheme(scheme))
       const palette = scheme === 'light' ? lightColors : darkColors
-      expect(frame().props.source).toBe(source)
-      expect(web.injectJavaScript).toHaveBeenLastCalledWith(expect.stringContaining(palette.bgBase))
-      web.injectJavaScript.mockClear()
-      act(() => frame().props.onLoadEnd())
-      expect(web.injectJavaScript).toHaveBeenLastCalledWith(expect.stringContaining(palette.bgBase))
+      const frame = tree.root.findByType('iframe')
+      expect(frame.props.srcDoc).toContain(palette.bgBase)
+      expect(frame.props.srcDoc).toContain('<p>Chart</p>')
+      expect(frame.props.sandbox).toBe('')
     }
   } finally {
     act(() => tree.unmount())

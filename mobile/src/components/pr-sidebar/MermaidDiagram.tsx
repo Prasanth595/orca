@@ -31,9 +31,7 @@ export const MermaidDiagram = memo(function MermaidDiagram({ source, base }: Mer
   const scheme = useMobileTheme()
 
   const hostRef = useRef<View>(null)
-  // The source that failed, rather than a flag: a flag would need clearing from the effect that
-  // renders the next one, and a render the component has already failed is the only thing the
-  // fallback is about.
+  // A failed attempt belongs to one source and palette.
   const [failedSource, setFailedSource] = useState<string | null>(null)
   const renderKey = `${scheme}\0${source}`
   // mermaid writes `#<id>` into the stylesheet it puts inside the SVG, so this has to be a CSS

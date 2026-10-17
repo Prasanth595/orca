@@ -15,11 +15,11 @@ import { INLINE_TEXT_SELECTION } from '../components/inline-text-selection'
 import { colors, radii, spacing, typography } from '../theme/mobile-theme'
 import { MONO_SIZE, TEXT_SIZE, scaledType } from './mobile-native-chat-message-styles'
 
-const TONE_COLOR: Record<NativeChatNoticeTone, string> = {
+const TONE_COLOR: Record<NativeChatNoticeTone, string> = createThemedStyles(() => ({
   warning: colors.statusAmber,
   error: colors.statusRed,
   notice: colors.textMuted
-}
+}))
 
 /** A row the agent did not write in its own words, drawn as desktop's `NativeChatNoticeRow` and
  *  its faint system asides are, so it never reads as the agent speaking. */
