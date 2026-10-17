@@ -9,6 +9,7 @@ import type {
   RuntimeDegradation
 } from './runtime-capability-degradation'
 import type { TabGroupLayoutNode } from './tab-types'
+import type { AiVaultSessionTitle } from './ai-vault-session-title'
 import type { TerminalPaneLayoutNode } from './terminal-tab-types'
 import type {
   RuntimeMobileSessionClientTab,
@@ -143,6 +144,7 @@ export type RuntimeSyncedTab = {
   worktreeId: string
   title: string | null
   customTitle?: string | null
+  aiVaultTitle?: AiVaultSessionTitle | null
   activeLeafId: string | null
   layout: TerminalPaneLayoutNode | null
 }

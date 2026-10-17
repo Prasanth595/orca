@@ -102,6 +102,7 @@ export type RuntimeMobileSessionAgentTab = {
   /** An agent the host registered. Beyond Claude and Codex, published only to clients advertising
    *  the registered-agents capability. */
   agent: StructuredAgentId
+  customTitle?: string | null
   color?: string | null
   isPinned?: boolean
   isActive: boolean

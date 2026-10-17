@@ -1,4 +1,5 @@
 import { RuntimeHeadlessTabGroups } from '../session-tabs/headless-tab-group-moves'
+import { parsePaneKey } from '../../../shared/stable-pane-id'
 
 export abstract class RuntimeWorkspaceSessionCustomTitles extends RuntimeHeadlessTabGroups {
   protected readonly inMemorySessionCustomTitles = new Map<string, string>()
@@ -7,11 +8,24 @@ export abstract class RuntimeWorkspaceSessionCustomTitles extends RuntimeHeadles
     if (!sessionId) {
       return null
     }
-    return (
-      this.inMemorySessionCustomTitles.get(sessionId) ??
-      this.store?.getWorkspaceSession?.()?.sessionCustomTitles?.[sessionId] ??
-      null
-    )
+    const titles = this.store?.getWorkspaceSession?.()?.sessionCustomTitles
+    const lookup = (id: string) => this.inMemorySessionCustomTitles.get(id) ?? titles?.[id] ?? null
+
+    const direct = lookup(sessionId)
+    if (direct) {
+      return direct
+    }
+    if (sessionId.includes(':')) {
+      const parts = sessionId.split(':')
+      const bare = parts.at(-1)
+      if (bare) {
+        const title = lookup(bare)
+        if (title) {
+          return title
+        }
+      }
+    }
+    return null
   }
 
   setSessionCustomTitle(sessionId: string, title: string | null): void {
@@ -94,6 +108,10 @@ export abstract class RuntimeWorkspaceSessionCustomTitles extends RuntimeHeadles
   }
 
   resolveSessionIdForTab(tabId: string, handle?: string): string | null {
+    const inMemoryTab = this.tabs.get(tabId)
+    if (inMemoryTab?.aiVaultTitle?.sessionId) {
+      return inMemoryTab.aiVaultTitle.sessionId
+    }
     const session = this.store?.getWorkspaceSession?.()
     if (session) {
       for (const tabs of Object.values(session.tabsByWorktree)) {
@@ -108,6 +126,9 @@ export abstract class RuntimeWorkspaceSessionCustomTitles extends RuntimeHeadles
           if (unified?.aiVaultTitle?.sessionId) {
             return unified.aiVaultTitle.sessionId
           }
+          if (unified?.contentType === 'agent-session' && unified.entityId) {
+            return unified.entityId
+          }
         }
       }
     }
@@ -118,9 +139,11 @@ export abstract class RuntimeWorkspaceSessionCustomTitles extends RuntimeHeadles
       }
     }
     for (const entry of this.getAgentStatusSnapshotFn?.() ?? []) {
+      const parsedTabId = parsePaneKey(entry.paneKey)?.tabId
       const matches =
         (Boolean(handle) && entry.terminalHandle === handle) ||
         entry.tabId === tabId ||
+        parsedTabId === tabId ||
         paneKeys.includes(entry.paneKey)
       if (matches && entry.providerSession?.id) {
         return entry.providerSession.id
