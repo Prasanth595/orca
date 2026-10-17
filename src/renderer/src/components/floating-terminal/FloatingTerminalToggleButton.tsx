@@ -245,7 +245,7 @@ export function FloatingTerminalToggleButton({
               <span
                 aria-hidden
                 data-floating-terminal-attention
-                className="pointer-events-none absolute right-1 top-1 size-2 rounded-full bg-amber-500 ring-2 ring-card dark:ring-accent"
+                className="bg-annotation-highlight pointer-events-none absolute right-1 top-1 size-2 rounded-full ring-2 ring-card motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-50 motion-safe:duration-150 dark:ring-accent"
               />
             ) : null}
           </Button>

@@ -91,7 +91,7 @@ export function PRTriageStrip({
             onClick={onFixChecksWithAI}
           >
             {isFixingChecksWithAI ? (
-              <RefreshCw className="size-3 animate-spin" />
+              <RefreshCw className="size-3 motion-safe:animate-spin" />
             ) : (
               <Sparkles className="size-3" />
             )}
@@ -106,7 +106,7 @@ export function PRTriageStrip({
     return (
       <div className="border-b border-border px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
-          <LoaderCircle className="size-3.5 shrink-0 animate-spin text-amber-500" />
+          <LoaderCircle className="text-annotation-highlight size-3.5 shrink-0 motion-safe:animate-spin" />
           <div className="min-w-0 flex-1">
             <div className="truncate text-[11px] font-medium text-foreground">
               {pendingCount}{' '}
@@ -222,7 +222,7 @@ export function ConflictTriageStrip({
           onClick={onResolveConflictsWithAI}
         >
           {isResolvingConflictsWithAI ? (
-            <RefreshCw className="size-3 animate-spin" />
+            <RefreshCw className="size-3 motion-safe:animate-spin" />
           ) : (
             <Sparkles className="size-3" />
           )}

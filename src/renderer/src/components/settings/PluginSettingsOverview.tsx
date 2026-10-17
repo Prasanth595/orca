@@ -95,7 +95,7 @@ export function PluginSettingsOverview({
         </div>
       ) : loading ? (
         <div className="flex items-center gap-2 px-4 py-5 text-[13px] text-muted-foreground">
-          <Loader2 className="animate-spin" />
+          <Loader2 className="motion-safe:animate-spin" />
           {translate('auto.components.settings.PluginsSettingsSection.loading', 'Loading plugins…')}
         </div>
       ) : (

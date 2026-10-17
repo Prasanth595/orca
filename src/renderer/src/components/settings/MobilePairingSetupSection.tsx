@@ -93,7 +93,9 @@ export function MobilePairingSetupSection({
               )}
               className="text-muted-foreground"
             >
-              <RefreshCw className={refreshingNetworkInterfaces ? 'animate-spin' : ''} />
+              <RefreshCw
+                className={refreshingNetworkInterfaces ? 'motion-safe:animate-spin' : ''}
+              />
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom" sideOffset={6}>
@@ -188,7 +190,7 @@ export function MobilePairingSetupSection({
         <div className="space-y-2">
           <Button onClick={onGenerateQr} disabled={generateDisabled} size="sm" className="gap-1.5">
             {loading ? (
-              <Loader2 className="size-3.5 animate-spin" />
+              <Loader2 className="size-3.5 motion-safe:animate-spin" />
             ) : hasQrCode ? (
               <RefreshCw className="size-3.5" />
             ) : (

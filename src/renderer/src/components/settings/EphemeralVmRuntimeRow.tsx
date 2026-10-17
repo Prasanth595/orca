@@ -79,7 +79,7 @@ export function EphemeralVmRuntimeRow({
             disabled={disabled || isStopping}
           >
             {isStopping ? (
-              <Loader2 className="size-3 animate-spin" />
+              <Loader2 className="size-3 motion-safe:animate-spin" />
             ) : (
               <Square className="size-3" />
             )}

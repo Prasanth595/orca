@@ -79,7 +79,7 @@ export function ManageSessionKillDialog({
                 {translate('auto.components.settings.ManageSessionKillDialog.6bf4627168', 'Cancel')}
               </Button>
               <Button variant="destructive" onClick={onConfirm} disabled={isBusy}>
-                {isBusy ? <LoaderCircle className="size-4 animate-spin" /> : null}
+                {isBusy ? <LoaderCircle className="size-4 motion-safe:animate-spin" /> : null}
                 {isBusy
                   ? translate(
                       'auto.components.settings.ManageSessionKillDialog.d3dba51b15',

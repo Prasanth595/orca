@@ -127,7 +127,7 @@ export function ResolveButton({
   return (
     <span ref={setResolveButtonRootRef} className="contents">
       {loading ? (
-        <LoaderCircle className="size-3 animate-spin text-muted-foreground shrink-0" />
+        <LoaderCircle className="size-3 motion-safe:animate-spin text-muted-foreground shrink-0" />
       ) : (
         <button
           className="text-[10px] px-1.5 py-0.5 rounded transition-colors shrink-0 text-muted-foreground hover:text-foreground hover:bg-accent"

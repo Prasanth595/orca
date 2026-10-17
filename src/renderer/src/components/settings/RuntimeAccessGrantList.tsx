@@ -54,7 +54,7 @@ export function RuntimeAccessGrantList({
                 'Refresh shared access'
               )}
             >
-              <RefreshCw className={isLoading ? 'animate-spin' : undefined} />
+              <RefreshCw className={isLoading ? 'motion-safe:animate-spin' : undefined} />
             </Button>
           </TooltipTrigger>
           <TooltipContent side="top" sideOffset={4}>
@@ -129,7 +129,7 @@ export function RuntimeAccessGrantList({
                       )}
                     >
                       {isRevoking ? (
-                        <Loader2 className="size-3.5 animate-spin" />
+                        <Loader2 className="size-3.5 motion-safe:animate-spin" />
                       ) : (
                         <Trash2 className="size-3.5" />
                       )}

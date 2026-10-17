@@ -135,7 +135,7 @@ export function PortsStatusSegment({ iconOnly }: PortsStatusSegmentProps): React
               )}
             >
               {refreshing ? (
-                <LoaderCircle className="size-3 animate-spin text-muted-foreground" />
+                <LoaderCircle className="size-3 motion-safe:animate-spin text-muted-foreground" />
               ) : (
                 <Plug className="size-3 text-muted-foreground" />
               )}

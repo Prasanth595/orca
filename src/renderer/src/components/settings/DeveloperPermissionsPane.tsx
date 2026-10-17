@@ -334,7 +334,7 @@ export function DeveloperPermissionsPane({
           </p>
         </div>
         <Button variant="outline" size="sm" className="gap-1.5" onClick={() => void refresh()}>
-          <RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`size-3.5 ${loading ? 'motion-safe:animate-spin' : ''}`} />
           {translate('auto.components.settings.DeveloperPermissionsPane.4c17304beb', 'Refresh')}
         </Button>
       </div>
@@ -351,7 +351,7 @@ export function DeveloperPermissionsPane({
               <div
                 data-settings-section={settingId}
                 data-highlighted={highlightedSettingId === settingId ? 'true' : undefined}
-                className="flex items-center justify-between gap-4 px-4 py-3 transition-[background-color,box-shadow] duration-500 data-[highlighted=true]:bg-accent data-[highlighted=true]:ring-2 data-[highlighted=true]:ring-inset data-[highlighted=true]:ring-ring/50 motion-reduce:transition-none"
+                className="flex items-center justify-between gap-4 px-4 py-3 transition-[background-color,box-shadow] duration-150 ease-out data-[highlighted=true]:bg-accent data-[highlighted=true]:ring-2 data-[highlighted=true]:ring-inset data-[highlighted=true]:ring-ring/50 motion-reduce:transition-none"
               >
                 <div className="flex min-w-0 items-start gap-3">
                   <div className="mt-0.5 text-muted-foreground">{permission.icon}</div>

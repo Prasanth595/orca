@@ -232,7 +232,9 @@ export function PluginConsentDialog({
                 disabled={Boolean(busyDecision)}
                 onClick={() => void decide('keep-disabled')}
               >
-                {busyDecision === 'keep-disabled' ? <Loader2 className="animate-spin" /> : null}
+                {busyDecision === 'keep-disabled' ? (
+                  <Loader2 className="motion-safe:animate-spin" />
+                ) : null}
                 {translate(
                   'auto.components.settings.PluginConsentDialog.keepDisabled',
                   'Keep Disabled'
@@ -243,7 +245,9 @@ export function PluginConsentDialog({
                 disabled={Boolean(busyDecision)}
                 onClick={() => void decide('approve')}
               >
-                {busyDecision === 'approve' ? <Loader2 className="animate-spin" /> : null}
+                {busyDecision === 'approve' ? (
+                  <Loader2 className="motion-safe:animate-spin" />
+                ) : null}
                 {translate('auto.components.settings.PluginConsentDialog.enable', 'Enable plugin')}
               </Button>
             </DialogFooter>

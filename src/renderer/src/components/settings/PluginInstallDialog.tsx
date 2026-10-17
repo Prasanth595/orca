@@ -190,7 +190,7 @@ export function PluginInstallDialog({
               {translate('auto.components.settings.PluginInstallDialog.cancel', 'Cancel')}
             </Button>
             <Button type="submit" size="sm" className="w-31" disabled={installing}>
-              {installing ? <Loader2 className="animate-spin" /> : null}
+              {installing ? <Loader2 className="motion-safe:animate-spin" /> : null}
               {installing
                 ? translate(
                     'auto.components.settings.PluginInstallDialog.installing',

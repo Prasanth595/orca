@@ -10,7 +10,7 @@ export function TerminalRestoringPlaceholder(): React.JSX.Element {
       aria-live="polite"
       data-terminal-restoring-placeholder=""
     >
-      <Loader2 className="size-4 animate-spin" />
+      <Loader2 className="size-4 motion-safe:animate-spin" />
       {translate(
         'auto.components.terminal.pane.TerminalRestoringPlaceholder.restoring',
         'Restoring terminal…'

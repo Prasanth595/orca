@@ -205,7 +205,7 @@ export default function HostedReviewActions({
                     disabled={primaryMergeDisabled}
                   >
                     {merging ? (
-                      <LoaderCircle className="size-3.5 animate-spin" />
+                      <LoaderCircle className="size-3.5 motion-safe:animate-spin" />
                     ) : (
                       <GitMerge className="size-3.5" />
                     )}
@@ -260,7 +260,7 @@ export default function HostedReviewActions({
                   )}
                 >
                   {stateUpdating === 'closed' ? (
-                    <LoaderCircle className="size-3.5 animate-spin" />
+                    <LoaderCircle className="size-3.5 motion-safe:animate-spin" />
                   ) : (
                     <ChevronDown className="size-3.5" />
                   )}

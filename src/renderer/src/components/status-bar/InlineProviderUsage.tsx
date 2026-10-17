@@ -124,7 +124,7 @@ export function InlineUsageSignInAction({
         }}
       >
         {isSigningIn ? (
-          <Loader2 className="size-3 animate-spin" />
+          <Loader2 className="size-3 motion-safe:animate-spin" />
         ) : (
           <RefreshCw className="size-3" />
         )}

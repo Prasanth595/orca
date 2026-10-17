@@ -260,7 +260,7 @@ export function EphemeralVmsPane(): React.JSX.Element {
             onClick={() => void refresh()}
             disabled={isLoading}
           >
-            {isLoading ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+            {isLoading ? <Loader2 className="motion-safe:animate-spin" /> : <RefreshCw />}
           </Button>
         </div>
 

@@ -270,7 +270,7 @@ export function StatusBarSurface({
                 >
                   <RefreshCw
                     size={11}
-                    className={isRefreshing || anyFetching ? 'animate-spin' : ''}
+                    className={isRefreshing || anyFetching ? 'motion-safe:animate-spin' : ''}
                   />
                 </button>
               </TooltipTrigger>

@@ -76,7 +76,7 @@ export function ConflictSummaryCard({
             onClick={onResolveWithAI}
           >
             {isResolvingWithAI ? (
-              <RefreshCw className="size-3.5 animate-spin" />
+              <RefreshCw className="size-3.5 motion-safe:animate-spin" />
             ) : (
               <Sparkles className="size-3.5" />
             )}
@@ -103,7 +103,9 @@ export function ConflictSummaryCard({
             disabled={isResolvingWithAI || isAbortingOperation}
             onClick={() => onAbortOperation(conflictOperation)}
           >
-            {isAbortingOperation ? <RefreshCw className="size-3.5 animate-spin" /> : null}
+            {isAbortingOperation ? (
+              <RefreshCw className="size-3.5 motion-safe:animate-spin" />
+            ) : null}
             {conflictOperation === 'rebase'
               ? translate('auto.components.right.sidebar.SourceControl.425f138269', 'Abort rebase')
               : translate('auto.components.right.sidebar.SourceControl.540ca8f78c', 'Abort merge')}
@@ -163,7 +165,7 @@ export function OperationBanner({
           disabled={isAbortingOperation}
           onClick={() => onAbortOperation(conflictOperation)}
         >
-          {isAbortingOperation ? <RefreshCw className="size-3.5 animate-spin" /> : null}
+          {isAbortingOperation ? <RefreshCw className="size-3.5 motion-safe:animate-spin" /> : null}
           {conflictOperation === 'rebase'
             ? translate('auto.components.right.sidebar.SourceControl.425f138269', 'Abort rebase')
             : translate('auto.components.right.sidebar.SourceControl.540ca8f78c', 'Abort merge')}

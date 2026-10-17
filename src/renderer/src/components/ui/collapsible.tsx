@@ -15,7 +15,7 @@ const collapsibleTriggerVariants = cva('', {
   variants: {
     variant: {
       default: '',
-      row: 'group flex w-full cursor-pointer items-center justify-between gap-4 rounded-md bg-transparent py-2 text-left text-sm font-medium outline-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:hover:bg-accent/50'
+      row: 'group flex w-full cursor-pointer items-center justify-between gap-4 rounded-md bg-transparent py-2 text-left text-sm font-medium outline-none transition-colors duration-150 hover:bg-accent hover:text-accent-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 active:bg-accent/70 dark:hover:bg-accent/50 dark:active:bg-accent/35'
     }
   },
   defaultVariants: { variant: 'default' }
@@ -44,12 +44,14 @@ const collapsibleContentVariants = cva('', {
       height: 'collapsible-height-content'
     }
   },
-  defaultVariants: { animation: 'none' }
+  defaultVariants: { animation: 'height' }
 })
 
 function CollapsibleContent({
   className,
-  animation,
+  // Grows and shrinks with its content by default; 'none' is the explicit opt-out for
+  // high-frequency or layout-sensitive collapses.
+  animation = 'height',
   ...props
 }: React.ComponentProps<typeof CollapsiblePrimitive.Content> &
   VariantProps<typeof collapsibleContentVariants>): React.JSX.Element {

@@ -111,7 +111,7 @@ function SupportSection({
 
   return (
     <section
-      className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
+      className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none ${
         collapsed ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'
       }`}
       aria-hidden={collapsed}
@@ -140,8 +140,8 @@ function SupportSection({
 function SupportRowSkeleton(): React.JSX.Element {
   return (
     <div className="flex items-center justify-between gap-4 py-2" aria-hidden="true">
-      <div className="h-4 w-36 rounded bg-muted/50 animate-pulse" />
-      <div className="h-8 w-24 rounded-md bg-muted/50 animate-pulse" />
+      <div className="h-4 w-36 rounded bg-muted/50 motion-safe:animate-pulse" />
+      <div className="h-8 w-24 rounded-md bg-muted/50 motion-safe:animate-pulse" />
     </div>
   )
 }
@@ -186,7 +186,7 @@ function SupportRow({
           className="shrink-0 gap-1.5"
         >
           {state === 'starring' || state === 'opening-github' ? (
-            <Loader2 className="size-3.5 animate-spin" />
+            <Loader2 className="size-3.5 motion-safe:animate-spin" />
           ) : state === 'web-fallback' ? (
             <ExternalLink className="size-3.5" />
           ) : (

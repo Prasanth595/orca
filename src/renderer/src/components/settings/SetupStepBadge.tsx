@@ -19,7 +19,7 @@ export function StepBadge({
   if (state === 'in-progress') {
     return (
       <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-        <Loader2 className="size-3.5 animate-spin" />
+        <Loader2 className="size-3.5 motion-safe:animate-spin" />
       </div>
     )
   }

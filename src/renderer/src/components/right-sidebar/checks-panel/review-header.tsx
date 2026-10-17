@@ -85,7 +85,7 @@ export function ChecksPanelReviewHeader({
         onClick={onRefresh}
         disabled={isRefreshing}
       >
-        <RefreshCw className={cn('size-3.5', isRefreshing && 'animate-spin')} />
+        <RefreshCw className={cn('size-3.5', isRefreshing && 'motion-safe:animate-spin')} />
       </button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

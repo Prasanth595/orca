@@ -91,7 +91,7 @@ function CreatePrHeaderButton({
           className="h-6 shrink-0 px-2 text-[11px]"
         >
           {isCreatePrIntentInFlight || isCreatingPr ? (
-            <Loader2 className="size-3.5 animate-spin" />
+            <Loader2 className="size-3.5 motion-safe:animate-spin" />
           ) : (
             <GitPullRequestArrow className="size-3.5" aria-hidden="true" />
           )}

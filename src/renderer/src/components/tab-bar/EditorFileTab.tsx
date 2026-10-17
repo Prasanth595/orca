@@ -371,7 +371,7 @@ export default function EditorFileTab({
          When clean: close button is shown normally (visible on active tab, on hover for others). */}
       <div className="relative flex items-center justify-center w-4 h-4 shrink-0">
         {file.isDirty && (
-          <span className="absolute size-1.5 rounded-full bg-foreground/60 group-hover:hidden group-focus-within:hidden" />
+          <span className="absolute size-1.5 rounded-full bg-foreground/60 transition-opacity duration-100 group-hover:opacity-0 group-focus-within:opacity-0 motion-reduce:transition-none" />
         )}
         {!isPinned && (
           <EditorFileTabCloseButton

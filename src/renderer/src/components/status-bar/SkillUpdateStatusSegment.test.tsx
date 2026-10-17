@@ -89,7 +89,7 @@ describe('SkillUpdateStatusSegment', () => {
     })
 
     expect(container?.textContent).toContain('Updating skills')
-    expect(container?.querySelector('.animate-spin')).not.toBeNull()
+    expect(container?.querySelector('[class*="animate-spin"]')).not.toBeNull()
     expect(container?.textContent).toContain('Updating 2 skills…')
   })
 

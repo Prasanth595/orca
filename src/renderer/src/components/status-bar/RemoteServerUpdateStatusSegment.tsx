@@ -27,7 +27,7 @@ export function RemoteServerUpdateStatusSegment({
 
   const segment = running
     ? {
-        icon: <RefreshCw className="size-3 animate-spin text-muted-foreground" />,
+        icon: <RefreshCw className="size-3 motion-safe:animate-spin text-muted-foreground" />,
         label: translate(
           'auto.components.status.bar.RemoteServerUpdateStatusSegment.updating',
           'Updating {{value0}}/{{value1}}',

@@ -177,7 +177,7 @@ export function getDiagnosticBundleDescription({
 }
 
 function ActionIcon({ busy, icon }: { readonly busy: boolean; readonly icon: React.ReactNode }) {
-  return busy ? <Loader2 className="size-3.5 animate-spin" /> : icon
+  return busy ? <Loader2 className="size-3.5 motion-safe:animate-spin" /> : icon
 }
 
 function formatBytes(bytes: number): string {

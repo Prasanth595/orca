@@ -318,7 +318,7 @@ export function McpConfigSection({ repo }: McpConfigSectionProps): React.JSX.Ele
             )}
           >
             {loading ? (
-              <LoaderCircle className="size-3.5 animate-spin" />
+              <LoaderCircle className="size-3.5 motion-safe:animate-spin" />
             ) : (
               <RefreshCw className="size-3.5" />
             )}
@@ -354,7 +354,7 @@ export function McpConfigSection({ repo }: McpConfigSectionProps): React.JSX.Ele
             {translate('auto.components.settings.McpConfigSection.3b224167ff', 'server')}
             {serverCount === 1 ? '' : 's'}
           </span>
-          {loading ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
+          {loading ? <LoaderCircle className="size-3.5 motion-safe:animate-spin" /> : null}
         </div>
         <div>
           {visibleConfigs.length === 0 ? (

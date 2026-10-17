@@ -103,7 +103,7 @@ export function RuntimeServersConnectSection({
               disabled={remoteServerUpdatesChecking && remoteServerUpdates.size === 0}
             >
               {remoteServerUpdatesChecking || remoteServerUpdatesRunning ? (
-                <Loader2 className="animate-spin" />
+                <Loader2 className="motion-safe:animate-spin" />
               ) : (
                 <RefreshCw />
               )}

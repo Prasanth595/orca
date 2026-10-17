@@ -129,7 +129,7 @@ export function HostScopedPortsPanel({
                 'Refresh Ports'
               )}
             >
-              <RefreshCw size={14} className={cn(refreshing && 'animate-spin')} />
+              <RefreshCw size={14} className={cn(refreshing && 'motion-safe:animate-spin')} />
             </Button>
           </TooltipTrigger>
           <TooltipContent side="top" sideOffset={4}>

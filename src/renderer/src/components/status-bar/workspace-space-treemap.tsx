@@ -86,7 +86,7 @@ export function WorkspaceSpaceTreemap({
           </Button>
         ) : null}
         <span className="flex items-center gap-2">
-          {isScanning ? <Loader2 className="size-4 animate-spin" /> : null}
+          {isScanning ? <Loader2 className="size-4 motion-safe:animate-spin" /> : null}
           {isScanning
             ? translate(
                 'auto.components.status.bar.WorkspaceSpaceManagerPanel.c5135e7e4a',

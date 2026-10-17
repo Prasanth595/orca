@@ -154,7 +154,7 @@ export function renderCodexAccountRow(
             className="h-6 px-2 text-muted-foreground hover:text-foreground"
           >
             {isReauthing ? (
-              <Loader2 className="size-3 animate-spin" />
+              <Loader2 className="size-3 motion-safe:animate-spin" />
             ) : (
               <RefreshCw className="size-3" />
             )}
@@ -174,7 +174,7 @@ export function renderCodexAccountRow(
             className="h-6 px-2 text-muted-foreground hover:text-destructive"
           >
             {isRemoving ? (
-              <Loader2 className="size-3 animate-spin" />
+              <Loader2 className="size-3 motion-safe:animate-spin" />
             ) : (
               <Trash2 className="size-3" />
             )}

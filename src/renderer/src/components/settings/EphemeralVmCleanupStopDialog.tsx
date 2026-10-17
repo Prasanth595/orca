@@ -61,7 +61,7 @@ export function EphemeralVmCleanupStopDialog({
             )}
           </Button>
           <Button onClick={onConfirm} disabled={isStopping}>
-            {isStopping ? <Loader2 className="animate-spin" /> : null}
+            {isStopping ? <Loader2 className="motion-safe:animate-spin" /> : null}
             {isStopping
               ? translate(
                   'auto.components.settings.EphemeralVmCleanupStopDialog.stopping',

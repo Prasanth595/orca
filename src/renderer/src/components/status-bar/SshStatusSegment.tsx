@@ -180,7 +180,7 @@ export function SshStatusSegment({
                 className={`inline-block size-2 rounded-full ${overallDotColor(overall, connectedHostCount)}`}
               />
               {anyConnecting ? (
-                <Loader2 className="size-3 animate-spin text-muted-foreground" />
+                <Loader2 className="size-3 motion-safe:animate-spin text-muted-foreground" />
               ) : (
                 <MonitorSmartphone className="size-3 text-muted-foreground" />
               )}
@@ -188,7 +188,7 @@ export function SshStatusSegment({
           ) : (
             <span className="inline-flex items-center gap-1.5">
               {anyConnecting ? (
-                <Loader2 className="size-3 animate-spin text-yellow-500" />
+                <Loader2 className="text-annotation-highlight size-3 motion-safe:animate-spin" />
               ) : overall === 'connected' ? (
                 <Server className="size-3 text-emerald-500" />
               ) : overall === 'partial' ? (

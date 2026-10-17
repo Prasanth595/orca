@@ -136,7 +136,7 @@ export function WarpThemeImportModal({
 
           {loading ? (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" />
+              <Loader2 className="size-4 motion-safe:animate-spin" />
               {translate(
                 'auto.components.settings.WarpThemeImportModal.loading',
                 'Loading Warp themes...'

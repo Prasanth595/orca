@@ -157,7 +157,7 @@ export function ChecksPanelActiveContent({
               disabled={titleSaving}
             >
               {titleSaving ? (
-                <LoaderCircle className="size-3.5 animate-spin" />
+                <LoaderCircle className="size-3.5 motion-safe:animate-spin" />
               ) : (
                 <Check className="size-3.5" />
               )}

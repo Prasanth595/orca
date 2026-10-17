@@ -131,7 +131,7 @@ export function AiVaultPanelHeader({
             className="size-6"
           >
             {loading ? (
-              <LoaderCircle className="size-3 animate-spin" />
+              <LoaderCircle className="size-3 motion-safe:animate-spin" />
             ) : (
               <RefreshCw className="size-3" />
             )}
@@ -171,7 +171,9 @@ export function AiVaultPanelHeader({
           }}
           spellCheck={false}
         />
-        {loading ? <LoaderCircle className="size-3 animate-spin text-muted-foreground" /> : null}
+        {loading ? (
+          <LoaderCircle className="size-3 motion-safe:animate-spin text-muted-foreground" />
+        ) : null}
         {query ? (
           <Button
             type="button"

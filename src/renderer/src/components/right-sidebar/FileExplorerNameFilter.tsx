@@ -43,7 +43,9 @@ export function FileExplorerNameFilter({
         onChange={(event) => onQueryChange(event.currentTarget.value)}
         spellCheck={false}
       />
-      {loading ? <Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" /> : null}
+      {loading ? (
+        <Loader2 className="size-3 shrink-0 motion-safe:animate-spin text-muted-foreground" />
+      ) : null}
       {query ? (
         <Button
           type="button"

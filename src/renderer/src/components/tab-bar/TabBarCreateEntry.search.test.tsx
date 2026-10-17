@@ -340,7 +340,7 @@ describe('TabBarCreateEntry search behavior', () => {
     expect(container.querySelector('input')?.readOnly).toBe(true)
     expect(container.querySelector('input')?.getAttribute('aria-busy')).toBe('true')
     expect(container.querySelector<HTMLButtonElement>('[role="option"]')?.disabled).toBe(true)
-    expect(container.querySelector('[role="option"] .animate-spin')).not.toBeNull()
+    expect(container.querySelector('[role="option"] [class*="animate-spin"]')).not.toBeNull()
 
     await act(async () => rejectOpen?.(new Error('Search failed safely.')))
 

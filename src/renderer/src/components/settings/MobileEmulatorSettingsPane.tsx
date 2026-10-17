@@ -219,7 +219,7 @@ export function MobileEmulatorSettingsPane({
                 variant="outline"
                 className={cn('text-[11px]', statusBadgeClassName(availability, enabled))}
               >
-                {refreshing ? <Loader2 className="size-3 animate-spin" /> : null}
+                {refreshing ? <Loader2 className="size-3 motion-safe:animate-spin" /> : null}
                 {statusText(availability, enabled)}
               </Badge>
               <Button
@@ -234,7 +234,7 @@ export function MobileEmulatorSettingsPane({
                 disabled={refreshing}
               >
                 {refreshing ? (
-                  <Loader2 className="size-3.5 animate-spin" />
+                  <Loader2 className="size-3.5 motion-safe:animate-spin" />
                 ) : (
                   <RefreshCw className="size-3.5" />
                 )}

@@ -181,7 +181,7 @@ export function LinearIntegrationCard(): React.JSX.Element {
                   >
                     {testing ? (
                       <>
-                        <LoaderCircle className="size-3.5 mr-1.5 animate-spin" />
+                        <LoaderCircle className="size-3.5 mr-1.5 motion-safe:animate-spin" />
                         {translate(
                           'auto.components.settings.task.tracker.integration.cards.3e7c10d286',
                           'Testing...'

@@ -100,7 +100,7 @@ function formatElapsed(ms: number): string {
 // The strip stays muted; status colour lives only in the per-agent rows.
 function StripMark({ progress }: { progress: AiVaultScanProgress }): React.JSX.Element {
   if (progress.settledAt === null) {
-    return <LoaderCircle className="size-3 shrink-0 animate-spin" />
+    return <LoaderCircle className="size-3 shrink-0 motion-safe:animate-spin" />
   }
   return <Check className="size-3 shrink-0" />
 }
@@ -119,7 +119,7 @@ function AgentRow({ agent }: { agent: AiVaultScanAgentProgress }): React.JSX.Ele
       {!agent.walking ? (
         <Check className="size-3.5 shrink-0 text-status-success" />
       ) : (
-        <LoaderCircle className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
+        <LoaderCircle className="size-3.5 shrink-0 motion-safe:animate-spin text-muted-foreground" />
       )}
       <AgentIcon agent={agent.agent} size={14} />
       <span className="min-w-0 truncate text-foreground">{agentLabel(agent.agent)}</span>

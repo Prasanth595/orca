@@ -115,7 +115,7 @@ function FixStep({
               disabled={status === 'running' || locked}
               onClick={onAction}
             >
-              {status === 'running' ? <Loader2 className="animate-spin" /> : null}
+              {status === 'running' ? <Loader2 className="motion-safe:animate-spin" /> : null}
               {status === 'running' ? runningLabel : actionLabel}
             </Button>
           )}

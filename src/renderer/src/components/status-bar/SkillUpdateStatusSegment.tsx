@@ -22,7 +22,7 @@ export function SkillUpdateStatusSegment({
       // The dialog can be closed while a Stop is still killing the tree; this is
       // then the only surface reporting it, and "Updating skills" would be wrong.
       return {
-        icon: <Loader2 className="size-3 animate-spin text-muted-foreground" />,
+        icon: <Loader2 className="size-3 motion-safe:animate-spin text-muted-foreground" />,
         label: translate(
           'auto.components.status.bar.SkillUpdateStatusSegment.stoppingLabel',
           'Stopping update'
@@ -39,7 +39,7 @@ export function SkillUpdateStatusSegment({
     }
     if (run.state === 'running') {
       return {
-        icon: <Loader2 className="size-3 animate-spin text-muted-foreground" />,
+        icon: <Loader2 className="size-3 motion-safe:animate-spin text-muted-foreground" />,
         label: translate(
           'auto.components.status.bar.SkillUpdateStatusSegment.runningLabel',
           'Updating skills'

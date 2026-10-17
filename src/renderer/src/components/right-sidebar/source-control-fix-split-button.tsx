@@ -106,7 +106,7 @@ export function SourceControlFixSplitButton({
             onClick={() => void onFixWithDefaultAgent()}
           >
             {isLaunching ? (
-              <RefreshCw className={cn(iconClassName, 'animate-spin')} />
+              <RefreshCw className={cn(iconClassName, 'motion-safe:animate-spin')} />
             ) : (
               <Sparkle className={iconClassName} />
             )}

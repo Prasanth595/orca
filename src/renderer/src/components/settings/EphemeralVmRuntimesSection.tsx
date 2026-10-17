@@ -285,7 +285,7 @@ export function EphemeralVmRuntimesSection({
           onClick={() => void refresh()}
           disabled={isLoading || cleaningId !== null}
         >
-          {isLoading ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+          {isLoading ? <Loader2 className="motion-safe:animate-spin" /> : <RefreshCw />}
         </Button>
       </div>
 

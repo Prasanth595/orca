@@ -129,7 +129,7 @@ export function CodexSwitcherMenu({
             </Button>
             <Button onClick={() => void handleConfirmReset()} disabled={isRedeemingReset}>
               {isRedeemingReset ? (
-                <Loader2 className="size-4 animate-spin" />
+                <Loader2 className="size-4 motion-safe:animate-spin" />
               ) : (
                 <RotateCcw className="size-4" />
               )}
@@ -170,7 +170,7 @@ export function CodexSwitcherMenu({
               }}
             >
               {isRedeemingReset ? (
-                <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+                <Loader2 className="size-3.5 motion-safe:animate-spin text-muted-foreground" />
               ) : null}
               {isRedeemingReset
                 ? translate('auto.components.status.bar.StatusBar.25d8bbde69', 'Using reset…')

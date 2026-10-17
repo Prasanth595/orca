@@ -163,7 +163,7 @@ export function BrowserProfileRow({
               disabled={isImporting}
             >
               {isImporting ? (
-                <Loader2 className="size-3 animate-spin" />
+                <Loader2 className="size-3 motion-safe:animate-spin" />
               ) : (
                 <Import className="size-3" />
               )}

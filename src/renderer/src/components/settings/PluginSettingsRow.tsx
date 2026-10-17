@@ -88,7 +88,7 @@ function PluginLogs({ pluginKey, state }: { pluginKey: string; state?: PluginLog
     <div className="mt-3 overflow-hidden rounded-md border border-border bg-muted/40">
       {state?.loading ? (
         <div className="flex items-center gap-2 p-3 text-xs text-muted-foreground">
-          <Loader2 className="size-3.5 animate-spin" />
+          <Loader2 className="size-3.5 motion-safe:animate-spin" />
           {translate('auto.components.settings.PluginSettingsRow.loadingLogs', 'Loading logs…')}
         </div>
       ) : state?.error ? (
@@ -202,7 +202,9 @@ export function PluginSettingsRow({
               <span className="size-1.5 rounded-full bg-current" aria-hidden="true" />
               {status.label}
             </span>
-            {busy ? <Loader2 className="size-3.5 animate-spin text-muted-foreground" /> : null}
+            {busy ? (
+              <Loader2 className="size-3.5 motion-safe:animate-spin text-muted-foreground" />
+            ) : null}
           </div>
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
             {plugin.publisher ? `${plugin.publisher} · ` : null}v{plugin.version}

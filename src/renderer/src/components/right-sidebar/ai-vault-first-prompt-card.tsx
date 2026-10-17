@@ -171,7 +171,7 @@ export function FirstPromptCard({
               {translate('auto.components.right.sidebar.AiVaultSessionDetails.userRole', 'You')}
             </span>
             {loading || copying ? (
-              <LoaderCircle className="size-3 shrink-0 animate-spin text-muted-foreground/70" />
+              <LoaderCircle className="size-3 shrink-0 motion-safe:animate-spin text-muted-foreground/70" />
             ) : null}
           </div>
           <Button

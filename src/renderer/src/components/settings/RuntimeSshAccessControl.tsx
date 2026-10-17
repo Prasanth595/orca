@@ -165,7 +165,7 @@ export function RuntimeSshAccessControl({
         />
       </div>
       <Button type="button" disabled={busy || !valid} onClick={() => void submit()}>
-        {busy ? <Loader2 className="animate-spin" /> : null}
+        {busy ? <Loader2 className="motion-safe:animate-spin" /> : null}
         {busy
           ? translate('auto.components.settings.managedServers.access.linking', 'Connecting…')
           : translate('auto.components.settings.managedServers.access.link', 'Use SSH')}

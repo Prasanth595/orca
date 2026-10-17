@@ -263,7 +263,7 @@ export function UsageRosterPanel({
             )}
             className="size-5 justify-center p-0"
           >
-            <RefreshCw size={12} className={isRefreshing ? 'animate-spin' : ''} />
+            <RefreshCw size={12} className={isRefreshing ? 'motion-safe:animate-spin' : ''} />
           </DropdownMenuItem>
         </div>
       </div>

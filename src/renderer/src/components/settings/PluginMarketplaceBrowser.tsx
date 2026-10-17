@@ -239,7 +239,7 @@ export function PluginMarketplaceBrowser({
               )}
             </Button>
             <Button variant="ghost" size="xs" disabled={refreshBusy} onClick={() => void refresh()}>
-              <RefreshCw className={refreshBusy ? 'animate-spin' : undefined} />
+              <RefreshCw className={refreshBusy ? 'motion-safe:animate-spin' : undefined} />
               {refreshBusy
                 ? translate(
                     'auto.components.settings.PluginMarketplaceBrowser.refreshing',
@@ -268,7 +268,7 @@ export function PluginMarketplaceBrowser({
           )
         ) : loading ? (
           <div className="flex items-center gap-2 px-4 py-5 text-[13px] text-muted-foreground">
-            <Loader2 className="animate-spin" />
+            <Loader2 className="motion-safe:animate-spin" />
             {translate(
               'auto.components.settings.PluginMarketplaceBrowser.loading',
               'Loading marketplace plugins…'

@@ -58,7 +58,7 @@ export function PluginRollbackDialog({
             disabled={busy || !plugin}
             onClick={() => plugin && onConfirm(plugin.pluginKey)}
           >
-            {busy ? <Loader2 className="animate-spin" /> : null}
+            {busy ? <Loader2 className="motion-safe:animate-spin" /> : null}
             {translate('auto.components.settings.PluginRollbackDialog.confirm', 'Roll back plugin')}
           </Button>
         </DialogFooter>

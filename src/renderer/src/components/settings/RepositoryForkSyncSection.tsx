@@ -224,7 +224,7 @@ export function RepositoryForkSyncSection({
           disabled={syncing}
           className="shrink-0"
         >
-          <RefreshCw className={syncing ? 'size-3.5 animate-spin' : 'size-3.5'} />
+          <RefreshCw className={syncing ? 'size-3.5 motion-safe:animate-spin' : 'size-3.5'} />
           {syncing
             ? translate('auto.components.settings.RepositoryForkSyncSection.syncing', 'Syncing')
             : translate('auto.components.settings.RepositoryForkSyncSection.syncNow', 'Sync Now')}

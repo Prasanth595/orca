@@ -231,7 +231,7 @@ export function RepositoryGitHubAccountSection({
             )}
             className="size-6 shrink-0"
           >
-            <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} />
+            <RefreshCw className={loading ? 'size-3.5 motion-safe:animate-spin' : 'size-3.5'} />
           </Button>
         </div>
         <Select

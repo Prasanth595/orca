@@ -211,7 +211,7 @@ export function RuntimeHostStatusRow({
           <span aria-hidden="true">·</span>
           <span className={`inline-flex min-w-0 items-center gap-1 ${runtimeStatusTone(state)}`}>
             {state === 'checking' || state === 'reconnecting' ? (
-              <Loader2 className="size-2.5 shrink-0 animate-spin" />
+              <Loader2 className="size-2.5 shrink-0 motion-safe:animate-spin" />
             ) : null}
             <span className="truncate">{runtimeStatusLabel(state)}</span>
           </span>
@@ -221,7 +221,7 @@ export function RuntimeHostStatusRow({
   )
 
   const actionButton = busy ? (
-    <Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" />
+    <Loader2 className="size-3 shrink-0 motion-safe:animate-spin text-muted-foreground" />
   ) : actionLabel && action ? (
     detail ? (
       <span
@@ -317,7 +317,7 @@ export function RuntimeHostStatusRow({
               void handleAction()
             }}
           >
-            {busy ? <Loader2 className="size-3 animate-spin" /> : null}
+            {busy ? <Loader2 className="size-3 motion-safe:animate-spin" /> : null}
             {actionLabel}
           </DropdownMenuItem>
         ) : null}

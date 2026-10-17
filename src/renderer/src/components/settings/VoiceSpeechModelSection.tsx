@@ -121,7 +121,7 @@ export function VoiceSpeechModelSection({
                   {isActive && isReady ? (
                     <Check className="size-3.5" />
                   ) : isDownloading ? (
-                    <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+                    <Loader2 className="size-3.5 motion-safe:animate-spin text-muted-foreground" />
                   ) : isCloud ? (
                     <Cloud className="size-3.5 text-muted-foreground" />
                   ) : null}
@@ -212,7 +212,7 @@ export function VoiceSpeechModelSection({
                     className="shrink-0 text-muted-foreground can-hover:opacity-0 group-hover:opacity-100 hover:text-destructive disabled:opacity-60 disabled:hover:text-muted-foreground"
                   >
                     {deletePending ? (
-                      <Loader2 className="size-3 animate-spin" />
+                      <Loader2 className="size-3 motion-safe:animate-spin" />
                     ) : (
                       <Trash2 className="size-3" />
                     )}

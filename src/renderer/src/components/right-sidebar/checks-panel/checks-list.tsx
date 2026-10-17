@@ -100,14 +100,16 @@ export function ChecksList(props: ChecksListProps): React.JSX.Element {
             </span>
           )}
           <span className="flex-1" />
-          {checksLoading && <LoaderCircle className="size-3 animate-spin text-muted-foreground" />}
+          {checksLoading && (
+            <LoaderCircle className="size-3 motion-safe:animate-spin text-muted-foreground" />
+          )}
         </button>
       )}
 
       {/* Checks List */}
       {checksLoading && checks.length === 0 ? (
         <div className="flex items-center justify-center py-8">
-          <LoaderCircle className="size-5 animate-spin text-muted-foreground" />
+          <LoaderCircle className="size-5 motion-safe:animate-spin text-muted-foreground" />
         </div>
       ) : checks.length === 0 && checksError ? (
         <div role="alert" className="px-4 py-8 text-[11px] break-words text-destructive">
@@ -152,7 +154,7 @@ export function ChecksList(props: ChecksListProps): React.JSX.Element {
                       className={cn(
                         'size-3.5 shrink-0',
                         color,
-                        conclusion === 'pending' && 'animate-spin'
+                        conclusion === 'pending' && 'motion-safe:animate-spin'
                       )}
                     />
                     <span className="flex-1 truncate text-[12px] text-foreground">

@@ -273,7 +273,9 @@ export function RuntimePairingGeneratorForm({
                     )}
                     className="text-muted-foreground"
                   >
-                    <RefreshCw className={refreshingNetworkInterfaces ? 'animate-spin' : ''} />
+                    <RefreshCw
+                      className={refreshingNetworkInterfaces ? 'motion-safe:animate-spin' : ''}
+                    />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" sideOffset={6}>
@@ -319,7 +321,7 @@ export function RuntimePairingGeneratorForm({
             onClick={onGenerate}
             disabled={isGeneratingPairing || !canGenerate}
           >
-            {isGeneratingPairing ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+            {isGeneratingPairing ? <Loader2 className="motion-safe:animate-spin" /> : <RefreshCw />}
             {translate(
               'auto.components.settings.RuntimePairingUrlGenerator.8de0f84fff',
               'Generate Access Link'

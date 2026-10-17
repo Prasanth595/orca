@@ -88,7 +88,7 @@ export function WorkspaceSpaceManagerOverview({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
           {isScanning ? (
-            <Loader2 className="size-4 shrink-0 animate-spin" />
+            <Loader2 className="size-4 shrink-0 motion-safe:animate-spin" />
           ) : (
             <HardDrive className="size-4 shrink-0" />
           )}
@@ -126,7 +126,7 @@ export function WorkspaceSpaceManagerOverview({
         >
           {isScanning ? (
             progress?.state === 'cancelling' ? (
-              <Loader2 className="size-3.5 animate-spin" />
+              <Loader2 className="size-3.5 motion-safe:animate-spin" />
             ) : (
               <X className="size-3.5" />
             )

@@ -102,7 +102,17 @@ export function NativeChatComposerActions({
       size="icon"
       className="size-8 rounded-full pointer-coarse:size-10"
     >
-      {stops ? <Square className="size-3.5 fill-current" /> : <ArrowUp className="size-4" />}
+      {stops ? (
+        <Square
+          key="stop"
+          className="size-3.5 fill-current motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-[0.85] motion-safe:duration-100"
+        />
+      ) : (
+        <ArrowUp
+          key="send"
+          className="size-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-[0.85] motion-safe:duration-100"
+        />
+      )}
     </Button>
   )
 

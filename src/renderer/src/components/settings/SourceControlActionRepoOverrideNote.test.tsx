@@ -72,13 +72,15 @@ describe('SourceControlActionRepoOverrideNote', () => {
     })
 
     // The overflow note lives in the tooltip content, only mounted once Radix
-    // opens the tooltip — drive its pointer-move open path and flush the timer.
+    // opens the tooltip — drive its pointer-move open path and flush the open
+    // delay (TooltipProvider defaults to 300ms now that tooltips no longer fire
+    // instantly on sweep).
     const trigger = container.querySelector('[data-slot="tooltip-trigger"]')
     await act(async () => {
       trigger?.dispatchEvent(
         new PointerEvent('pointermove', { bubbles: true, pointerType: 'mouse' })
       )
-      await new Promise((resolve) => setTimeout(resolve, 0))
+      await new Promise((resolve) => setTimeout(resolve, 400))
     })
 
     expect(document.body.textContent).toContain('+1 more')

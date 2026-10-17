@@ -48,7 +48,7 @@ export function WorktreeCardSurface({ card }: { card: WorktreeCardController }):
   const cardBody = (
     <div
       className={cn(
-        'relative flex cursor-pointer flex-col pr-1.5 transition-[background-color,border-color,opacity,box-shadow] duration-200 outline-none select-none',
+        'relative flex cursor-pointer flex-col pr-1.5 transition-[background-color,border-color,opacity,box-shadow] duration-200 outline-none select-none active:bg-foreground/6',
         titleOnlyCard ? 'py-2' : 'pt-1.25 pb-1.5',
         flushSurface ? 'ml-1 w-[calc(100%-0.25rem)]' : 'ml-1',
         'overflow-hidden rounded-lg',

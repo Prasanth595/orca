@@ -163,7 +163,7 @@ export default function WorktreeCreationPanel({
         ) : (
           <div className="flex min-h-0 max-w-3xl flex-col gap-2 text-xs text-muted-foreground">
             <div className="flex items-center gap-2">
-              <Loader2 className="size-3.5 shrink-0 animate-spin" />
+              <Loader2 className="size-3.5 shrink-0 motion-safe:animate-spin" />
               <span id={progressLabelId} className="tabular-nums">
                 {getCreationProgressLabel(entry)}
               </span>
@@ -244,7 +244,7 @@ function VmProvisioningStatus({
           ) : (
             <>
               <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
+                <Loader2 className="size-4 shrink-0 motion-safe:animate-spin text-muted-foreground" />
                 <span>
                   {translate(
                     'auto.components.worktree.creation.WorktreeCreationPanel.vmProvisioningTitle',

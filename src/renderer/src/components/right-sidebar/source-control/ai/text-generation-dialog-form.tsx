@@ -359,7 +359,7 @@ export function SourceControlTextGenerationDialogForm({
             onClick={() => void handleSaveDefaults(selectedSaveTarget)}
           >
             {savingTargetKey === saveTargetKey ? (
-              <RefreshCw className="size-4 animate-spin" />
+              <RefreshCw className="size-4 motion-safe:animate-spin" />
             ) : (
               <Save className="size-4" />
             )}

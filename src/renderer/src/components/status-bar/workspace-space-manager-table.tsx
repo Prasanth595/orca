@@ -105,7 +105,7 @@ export function WorkspaceSpaceManagerTable({
             <div className="max-h-[28rem] overflow-y-auto scrollbar-sleek">
               {isInitialScan ? (
                 <div className="flex items-center justify-center gap-2 px-4 py-10 text-center text-sm text-muted-foreground">
-                  <Loader2 className="size-4 animate-spin" />
+                  <Loader2 className="size-4 motion-safe:animate-spin" />
                   {translate(
                     'auto.components.status.bar.WorkspaceSpaceManagerPanel.a02d84d2d2',
                     'Scanning workspaces. You can leave this page.'

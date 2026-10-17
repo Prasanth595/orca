@@ -60,7 +60,7 @@ export function DraftReviewActions({
           disabled={disabled}
         >
           {readying ? (
-            <LoaderCircle className="size-3.5 animate-spin" />
+            <LoaderCircle className="size-3.5 motion-safe:animate-spin" />
           ) : (
             <ReadyIcon className="size-3.5" />
           )}
@@ -90,7 +90,7 @@ export function DraftReviewActions({
               )}
             >
               {stateUpdating === 'closed' ? (
-                <LoaderCircle className="size-3.5 animate-spin" />
+                <LoaderCircle className="size-3.5 motion-safe:animate-spin" />
               ) : (
                 <ChevronDown className="size-3.5" />
               )}
@@ -135,7 +135,7 @@ export function ClosedReviewActions({
         disabled={stateUpdating !== null}
       >
         {stateUpdating === 'open' ? (
-          <LoaderCircle className="size-3.5 animate-spin" />
+          <LoaderCircle className="size-3.5 motion-safe:animate-spin" />
         ) : (
           <CircleDot className="size-3.5" />
         )}
@@ -174,7 +174,7 @@ export function MergedReviewActions({
       disabled={isDeletingWorktree}
     >
       {isDeletingWorktree ? (
-        <LoaderCircle className="size-3.5 animate-spin" />
+        <LoaderCircle className="size-3.5 motion-safe:animate-spin" />
       ) : (
         <Trash2 className="size-3.5" />
       )}
