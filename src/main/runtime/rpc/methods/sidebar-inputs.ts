@@ -21,5 +21,17 @@ export const SIDEBAR_INPUT_METHODS = [
         sshStateOf: getRegisteredSshState,
         wslStatuses: getWslHostService()?.getStatuses() ?? []
       })
+  }),
+  defineMethod({
+    name: 'sidebarInputs.pairedServerRows',
+    permission: 'workspace',
+    params: null,
+    handler: async (_params, { runtime }) => runtime.pairedServerRows.snapshot()
+  }),
+  defineMethod({
+    name: 'sidebarInputs.reviewFacts',
+    permission: 'workspace',
+    params: null,
+    handler: async (_params, { runtime }) => runtime.getWorkspaceReviewFacts()
   })
 ]

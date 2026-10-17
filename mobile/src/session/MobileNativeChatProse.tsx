@@ -1,6 +1,5 @@
 import { useContext } from 'react'
-import { Image, Pressable, View, Text as NativeText } from 'react-native'
-import { MobileSelectableText as Text } from '../components/MobileSelectableText'
+import { Image, Pressable, View, Text } from 'react-native'
 import { INLINE_TEXT_SELECTION } from '../components/inline-text-selection'
 import { MobileMarkdown } from '../components/MobileMarkdown'
 import { isImageRefBlock, isTextBlock } from '../../../src/shared/native-chat-types'
@@ -52,9 +51,9 @@ export function Prose({
       return (
         <View style={styles.compaction} accessible accessibilityLabel={block.text}>
           <View style={styles.compactionLine} />
-          <NativeText style={[styles.compactionLabel, { fontSize: TEXT_SIZE * 0.9 * fontScale }]}>
+          <Text style={[styles.compactionLabel, { fontSize: TEXT_SIZE * 0.9 * fontScale }]}>
             {block.text}
-          </NativeText>
+          </Text>
           <View style={styles.compactionLine} />
         </View>
       )
@@ -121,9 +120,9 @@ function ImageAttachment({
   const label = block.alt ?? 'Attached image'
   if (!isRenderableImageUri(uri)) {
     return (
-      <NativeText style={[styles.imageRef, { fontSize: TEXT_SIZE * fontScale }]}>
+      <Text style={[styles.imageRef, { fontSize: TEXT_SIZE * fontScale }]}>
         🖼 {block.alt ?? block.path ?? block.url ?? 'image'}
-      </NativeText>
+      </Text>
     )
   }
   return (
