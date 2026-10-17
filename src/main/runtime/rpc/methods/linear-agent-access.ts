@@ -126,13 +126,13 @@ export const LINEAR_AGENT_ACCESS_METHODS = [
     name: 'linear.commentEdit',
     permission: 'workspace',
     params: LinearCommentEdit,
-    handler: async (params, { runtime }) => runtime.linearCommentEdit(params)
+    handler: async (params, { runtime, signal }) => runtime.linearCommentEdit(params, signal)
   }),
   defineMethod({
     name: 'linear.commentDelete',
     permission: 'workspace',
     params: LinearCommentDelete,
-    handler: async (params, { runtime }) => runtime.linearCommentDelete(params)
+    handler: async (params, { runtime, signal }) => runtime.linearCommentDelete(params, signal)
   }),
   defineMethod({
     name: 'linear.issueAttachLink',

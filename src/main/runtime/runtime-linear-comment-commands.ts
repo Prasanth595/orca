@@ -5,7 +5,6 @@ import {
   createLinearIssueAttachment,
   deleteLinearIssueCommentForAgent,
   getLinearCommentByUuidForAgent,
-  getLinearStatus,
   isLinearUuid,
   updateLinearIssueCommentForAgent,
   LinearWriteFailure,
@@ -20,6 +19,9 @@ import type {
   LinearCommentEditResult
 } from './runtime-linear-command-dependencies'
 import { RuntimeLinearCreateCommands } from './runtime-linear-create-commands'
+import { getConnectedWorkspaces } from '../linear/issue-context-client'
+import { resolveWorkspaceSelector } from '../linear/issue-context-workspaces'
+import { runLinearCommentAction } from './runtime-linear-comment-action'
 
 export class RuntimeLinearCommentCommands extends RuntimeLinearCreateCommands {
   async linearIssueAddComment(params: {
@@ -154,19 +156,27 @@ export class RuntimeLinearCommentCommands extends RuntimeLinearCreateCommands {
     }
   }
 
-  async linearCommentEdit(params: {
-    commentId: string
-    body: string
-    workspaceId?: string
-  }): Promise<LinearCommentEditResult> {
+  async linearCommentEdit(
+    params: {
+      commentId: string
+      body: string
+      workspaceId?: string
+    },
+    signal?: AbortSignal
+  ): Promise<LinearCommentEditResult> {
     if (params.body.length > LINEAR_WRITE_BODY_CAP) {
       throw linearError('linear_body_too_large', 'Linear comment body is too large.')
     }
-    const { comment, workspaceId } = await this.resolveLinearAgentComment(params)
-    const edited = await this.runLinearAgentWrite(
-      (signal) =>
-        updateLinearIssueCommentForAgent(comment.id, params.body, workspaceId, { signal }),
-      (cause) => this.linearCommentChangeUnconfirmed('edit', comment, workspaceId, cause)
+    const {
+      owner: { comment, workspaceId },
+      result: edited
+    } = await runLinearCommentAction(
+      (discoverySignal) => this.resolveLinearAgentComment(params, discoverySignal),
+      (owner, options) =>
+        updateLinearIssueCommentForAgent(owner.comment.id, params.body, owner.workspaceId, options),
+      (owner) => this.linearCommentChangeUnconfirmed('edit', owner.comment, owner.workspaceId),
+      (error) => this.mapLinearReadFailure(error),
+      signal
     )
     await this.notifyLinearLinkedIssueUpdated(workspaceId, comment.issue.identifier)
     return {
@@ -176,14 +186,22 @@ export class RuntimeLinearCommentCommands extends RuntimeLinearCreateCommands {
     }
   }
 
-  async linearCommentDelete(params: {
-    commentId: string
-    workspaceId?: string
-  }): Promise<LinearCommentDeleteResult> {
-    const { comment, workspaceId } = await this.resolveLinearAgentComment(params)
-    await this.runLinearAgentWrite(
-      (signal) => deleteLinearIssueCommentForAgent(comment.id, workspaceId, { signal }),
-      (cause) => this.linearCommentChangeUnconfirmed('delete', comment, workspaceId, cause)
+  async linearCommentDelete(
+    params: {
+      commentId: string
+      workspaceId?: string
+    },
+    signal?: AbortSignal
+  ): Promise<LinearCommentDeleteResult> {
+    const {
+      owner: { comment, workspaceId }
+    } = await runLinearCommentAction(
+      (discoverySignal) => this.resolveLinearAgentComment(params, discoverySignal),
+      (owner, options) =>
+        deleteLinearIssueCommentForAgent(owner.comment.id, owner.workspaceId, options),
+      (owner) => this.linearCommentChangeUnconfirmed('delete', owner.comment, owner.workspaceId),
+      (error) => this.mapLinearReadFailure(error),
+      signal
     )
     await this.notifyLinearLinkedIssueUpdated(workspaceId, comment.issue.identifier)
     return {
@@ -193,35 +211,47 @@ export class RuntimeLinearCommentCommands extends RuntimeLinearCreateCommands {
     }
   }
 
-  // Why: a comment UUID lives in one workspace, so probing each connected one finds its owner.
-  public async resolveLinearAgentComment(params: {
-    commentId: string
-    workspaceId?: string
-  }): Promise<{ comment: LinearAgentComment; workspaceId: string }> {
+  // A UUID has one owner; unrelated unavailable workspaces must not delay its mutation.
+  public async resolveLinearAgentComment(
+    params: {
+      commentId: string
+      workspaceId?: string
+    },
+    signal: AbortSignal
+  ): Promise<{ comment: LinearAgentComment; workspaceId: string }> {
     if (!isLinearUuid(params.commentId)) {
       throw this.linearCommentNotFound(params.commentId)
     }
-    const workspaceIds = params.workspaceId
-      ? [params.workspaceId]
-      : (getLinearStatus().workspaces ?? []).map((workspace) => workspace.id)
-    const lookups = await Promise.allSettled(
-      workspaceIds.map((workspaceId) =>
-        getLinearCommentByUuidForAgent(params.commentId, workspaceId)
+    const workspaces = getConnectedWorkspaces()
+    if (workspaces.length === 0) {
+      throw linearError('linear_not_connected', 'Linear is not connected.')
+    }
+    const selected = resolveWorkspaceSelector(params, workspaces)
+    const missing = this.linearCommentNotFound(params.commentId)
+    try {
+      return await Promise.any(
+        (selected ? [selected] : workspaces).map(async (workspace) => {
+          const comment = await getLinearCommentByUuidForAgent(
+            params.commentId,
+            workspace.id,
+            signal
+          )
+          if (!comment) {
+            throw missing
+          }
+          return { comment, workspaceId: workspace.id }
+        })
       )
-    )
-    let failure: unknown
-    for (const [index, lookup] of lookups.entries()) {
-      if (lookup.status === 'fulfilled' && lookup.value) {
-        return { comment: lookup.value, workspaceId: workspaceIds[index] }
+    } catch (error) {
+      if (!(error instanceof AggregateError)) {
+        throw error
       }
-      if (lookup.status === 'rejected') {
-        failure ??= lookup.reason
+      const failures: unknown[] = error.errors.filter((reason: unknown) => reason !== missing)
+      if (failures.length > 0) {
+        throw this.mapLinearReadFailure(failures[0])
       }
+      throw missing
     }
-    if (failure !== undefined) {
-      throw this.mapLinearReadFailure(failure)
-    }
-    throw this.linearCommentNotFound(params.commentId)
   }
 
   public linearCommentNotFound(commentId: string): LinearAgentAccessError {
