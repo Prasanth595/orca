@@ -16343,6 +16343,16 @@
         },
         "useMarkdownDocuments": {
           "listFailed": "Failed to list Markdown documents."
+        },
+        "editorBreadcrumbs": {
+          "fileBreadcrumbs": {
+            "segmentLabel": "Navigate {{value0}}",
+            "loading": "Loading…",
+            "container": "File path"
+          },
+          "symbolBreadcrumbs": {
+            "goToSymbol": "Go to symbol"
+          }
         }
       },
       "diff": {
