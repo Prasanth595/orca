@@ -15,7 +15,6 @@ import {
   readProfileStateSnapshot,
   readProfileStateSnapshotSalvage
 } from './profile-state-documents'
-import { scrubStaleProfileStateHashes } from './profile-state-document-reader'
 import {
   openWritableProfileStateDatabase,
   openProfileStateDatabaseReadOnly
@@ -104,13 +103,12 @@ export class ProfileStateSqliteAuthority implements ProfileStateAuthority {
       try {
         snapshot = readAcceptedProfileStateParsedSnapshot(opened.db, rawJson)
       } catch {
-        // A corrupt row would otherwise quarantine the whole snapshot. Salvage the
-        // intact documents so the profile opens with its surviving state, and
-        // self-heal any stale-hash row so it does not re-trip on the next open.
+        // A corrupt row would otherwise quarantine the whole snapshot. Salvage
+        // the intact documents so the profile opens with its surviving state.
+        // Rejected rows stay excluded (no in-place hash repair): the user
+        // recovers them from a trusted snapshot or backup, not by re-blessing
+        // an unverifiable payload.
         snapshot = readAcceptedProfileStateParsedSnapshotSalvage(opened.db, rawJson)
-        if (!opened.readOnly) {
-          scrubStaleProfileStateHashes(opened.db)
-        }
       }
       if (snapshot === undefined) {
         return undefined
@@ -133,14 +131,11 @@ export class ProfileStateSqliteAuthority implements ProfileStateAuthority {
       try {
         snapshot = readProfileStateParsedSnapshot(opened.db)
       } catch {
-        // A corrupt row would otherwise quarantine the whole snapshot. Salvage the
-        // intact documents so the profile opens with its surviving state, and
-        // self-heal the readable-but-stale-hash row so it does not re-trip on
-        // the next open.
+        // A corrupt row would otherwise quarantine the whole snapshot. Salvage
+        // the intact documents so the profile opens with its surviving state.
+        // Rejected rows stay excluded; recovery of a lost domain comes from a
+        // trusted snapshot or backup, not by re-blessing an unverifiable payload.
         snapshot = readProfileStateParsedSnapshotSalvage(opened.db)
-        if (opened.readOnly === false) {
-          scrubStaleProfileStateHashes(opened.db)
-        }
       }
       return this.createInitialState(
         snapshot.revision,

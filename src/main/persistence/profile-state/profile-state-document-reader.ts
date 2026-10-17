@@ -5,7 +5,6 @@ import {
   readProfileStateRevision
 } from './profile-state-revision'
 import {
-  hashProfileStatePayload,
   ProfileStateDocumentCorruptionError,
   validateProfileStateDocumentRow,
   type ProfileStateDocument,
@@ -22,67 +21,6 @@ export type ReadProfileStateDocumentsOptions = {
    * profile when a torn write has left one row's content_hash stale.
    */
   salvage?: boolean
-}
-
-/**
- * Recompute the stored content_hash for rows whose payload no longer matches
- * it. This is the self-heal that stops a torn write from re-tripping the
- * whole-snapshot validator on the next open: the payload is intact, only the
- * hash went stale, so the row is repaired in place rather than dropped.
- *
- * Returns the number of rows repaired. Rows that fail structural or JSON
- * validation are left untouched (they are the corrupt rows a salvage read
- * skips); scrubbing a bad row would overwrite real data.
- */
-export function scrubStaleProfileStateHashes(
-  db: Database.Database
-): number {
-  let repaired = 0
-  const rows = db
-    .prepare(
-      `SELECT domain, payload, domain_version, revision, updated_at, content_hash
-       FROM profile_state_documents`
-    )
-    .iterate()
-  for (const row of rows as unknown as Iterable<ProfileStateDocumentRow>) {
-    if (!isHashOnlyStale(row)) {
-      continue
-    }
-    const domain = row.domain
-    const payload = row.payload
-    const domainVersion = row.domain_version
-    const revision = row.revision
-    const updatedAt = row.updated_at
-    db.prepare(
-      `UPDATE profile_state_documents
-       SET content_hash = ?
-       WHERE domain = ? AND domain_version = ? AND revision = ? AND updated_at = ?`
-    ).run(hashProfileStatePayload(payload), domain, domainVersion, revision, updatedAt)
-    repaired++
-  }
-  return repaired
-}
-
-/** A row is "hash-only stale" when everything but the hash still verifies. */
-type ProfileStateDocumentRow = {
-  domain: string
-  payload: string
-  domain_version: number
-  revision: number
-  updated_at: number
-  content_hash: string
-}
-function isHashOnlyStale(row: unknown): boolean {
-  try {
-    // The payload must be intact (valid JSON) for a re-hash to be a repair;
-    // otherwise a corrupt payload would be blessed with a fresh hash.
-    validateProfileStateDocumentRow(row, { validateJson: true })
-    return false
-  } catch (error) {
-    return error instanceof ProfileStateDocumentCorruptionError && error.message.startsWith(
-      'Profile state document hash mismatch'
-    )
-  }
 }
 
 /** Read the authoritative rows after checking their hash, shape, and JSON payload. */

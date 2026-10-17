@@ -4,10 +4,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { openProfileStateDatabase } from './profile-state-database'
 import { importProfileStateJson } from './profile-state-documents'
-import {
-  readProfileStateDocuments,
-  scrubStaleProfileStateHashes
-} from './profile-state-document-reader'
+import { readProfileStateDocuments } from './profile-state-document-reader'
 import { readProfileStateRevision } from './profile-state-revision'
 
 const roots: string[] = []
@@ -61,22 +58,25 @@ describe('salvage read mode', () => {
       close(root, opened)
     }
   })
-})
 
-describe('scrubStaleProfileStateHashes', () => {
-  it('repairs a stale-hash row in place and leaves structured rows alone', () => {
+  it('leaves a stale-hash row on disk (salvage is read-only, no in-place repair)', () => {
     const { root, opened } = fixture()
     try {
       opened.db.exec(
         "UPDATE profile_state_documents SET payload = '{\"theme\":\"light\"}' WHERE domain = 'settings'"
       )
-      const repaired = scrubStaleProfileStateHashes(opened.db)
-      expect(repaired).toBe(1)
-      // After scrub, the whole-snapshot read passes again.
-      const docs = readProfileStateDocuments(opened.db, {
-        profileRevision: readProfileStateRevision(opened.db)
+      readProfileStateDocuments(opened.db, {
+        profileRevision: readProfileStateRevision(opened.db),
+        representation: 'parsed',
+        salvage: true
       })
-      expect(docs.map((d) => d.domain).sort()).toEqual(['settings', 'ui'])
+      // Salvage must not rewrite the row: the corrupt row stays excluded,
+      // and recovery of that domain comes from a trusted snapshot/backup.
+      const rows = opened.db
+        .prepare('SELECT domain FROM profile_state_documents ORDER BY domain')
+        .all()
+        .map((r: { domain: string }) => r.domain)
+      expect(rows).toEqual(['settings', 'ui'])
     } finally {
       close(root, opened)
     }
