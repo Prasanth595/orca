@@ -2,9 +2,12 @@
 import { cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const editorProps = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }))
-const storeState = vi.hoisted(() => ({
-  settings: { theme: 'dark', terminalFontSize: 13 } as Record<string, unknown>,
+type EditorProps = { current: Record<string, unknown> | null }
+type StoreState = { settings: Record<string, unknown>; editorFontZoomLevel: number }
+
+const editorProps = vi.hoisted((): EditorProps => ({ current: null }))
+const storeState = vi.hoisted((): StoreState => ({
+  settings: { theme: 'dark', terminalFontSize: 13 },
   editorFontZoomLevel: 0
 }))
 
@@ -56,8 +59,10 @@ function renderedFontSize(settings: Record<string, unknown>, editorFontZoomLevel
       readOnly
     />
   )
-  const options = editorProps.current?.options as Record<string, unknown> | undefined
-  return options?.fontSize
+  const options = editorProps.current?.options
+  return typeof options === 'object' && options !== null && 'fontSize' in options
+    ? options.fontSize
+    : undefined
 }
 
 afterEach(() => {

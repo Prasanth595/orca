@@ -12746,8 +12746,6 @@
           "forceUpdate": "Forcer la mise à jour"
         },
         "EditorFontSizeSetting": {
-          "title": "Taille de police de l'éditeur",
-          "description": "Taille de police utilisée par les éditeurs de fichiers et les vues de diff. Laissez vide pour suivre la taille de police du terminal.",
           "px": "px"
         }
       },

@@ -5,15 +5,19 @@ import { cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { getDefaultSettings } from '../../../../shared/constants'
 
+const search = vi.hoisted((): { query: string } => ({ query: '' }))
+
 vi.mock('../../store', () => ({
   useAppStore: (selector: (state: { settingsSearchQuery: string }) => unknown) =>
-    selector({ settingsSearchQuery: '' })
+    selector({ settingsSearchQuery: search.query })
 }))
 
 import { EditorFontSizeSetting } from './EditorFontSizeSetting'
+import { getEditorFontSizeSearchEntry } from './general-editor-search'
 
 afterEach(() => {
   cleanup()
+  search.query = ''
 })
 
 function renderSetting(editorFontSize: number | undefined, updateSettings = vi.fn()) {
@@ -27,7 +31,10 @@ function renderSetting(editorFontSize: number | undefined, updateSettings = vi.f
       updateSettings={updateSettings}
     />
   )
-  const input = getByLabelText('Editor Font Size') as HTMLInputElement
+  const input = getByLabelText('Editor Font Size')
+  if (!(input instanceof HTMLInputElement)) {
+    throw new Error('Expected the Editor Font Size field to be an input')
+  }
   return { input, updateSettings }
 }
 
@@ -75,4 +82,13 @@ describe('EditorFontSizeSetting', () => {
 
     expect(updateSettings).toHaveBeenCalledWith({ editorFontSize: undefined })
   })
+
+  it.each(getEditorFontSizeSearchEntry().keywords)(
+    'stays visible for the search keyword "%s" that opens its section',
+    (keyword) => {
+      search.query = keyword
+
+      expect(() => renderSetting(undefined)).not.toThrow()
+    }
+  )
 })

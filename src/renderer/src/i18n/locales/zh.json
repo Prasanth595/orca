@@ -12638,8 +12638,6 @@
           "forceUpdate": "强制更新"
         },
         "EditorFontSizeSetting": {
-          "title": "编辑器字体大小",
-          "description": "文件编辑器和差异视图使用的字体大小，留空则跟随终端字体大小。",
           "px": "像素"
         }
       },

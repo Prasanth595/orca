@@ -12896,8 +12896,6 @@
           "terminalsRunning": "{{count}} terminals are still running on this host. Close them, then restart the managed server."
         },
         "EditorFontSizeSetting": {
-          "title": "Editor Font Size",
-          "description": "Font size used by file editors and diff views. Leave empty to follow the terminal font size.",
           "px": "px"
         }
       },
