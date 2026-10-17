@@ -143,8 +143,8 @@ export function createAgentReplyEligibility(
         }
         return eligible
       }
-      // Judged on this host's latest completed main turn: a new turn clears it, so a late request
-      // never inherits an older verdict.
+      // A late request is judged on this host's newest completed main turn, never an older one's
+      // verdict; while a newer turn is still running there is none.
       const completion = tracker.completion(paneKey)
       if (!completion?.human) {
         return false
