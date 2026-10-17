@@ -27,6 +27,7 @@ const pendingImages = new Map<
     remove: () => Promise<void>
     timer: ReturnType<typeof setTimeout>
     removing?: Promise<void>
+    released?: boolean
     expire: () => void
   }
 >()
@@ -43,6 +44,11 @@ function trackPendingImage(
   remove: () => Promise<void>
 ): void {
   const expire = () => {
+    // Keep handed-off records briefly so a lost reply can be retried.
+    if (pendingImages.get(imagePath)?.released) {
+      pendingImages.delete(imagePath)
+      return
+    }
     void discardClipboardImageTempFile(imagePath, connectionId).catch(() => {})
   }
   const timer = setTimeout(expire, PENDING_IMAGE_TTL_MS)
@@ -64,11 +70,10 @@ export function retainClipboardImageTempFile(
   }
   clearTimeout(image.timer)
   if (release) {
-    pendingImages.delete(imagePath)
-  } else {
-    image.timer = setTimeout(image.expire, PENDING_IMAGE_TTL_MS)
-    unrefImageCleanupTimer(image.timer)
+    image.released = true
   }
+  image.timer = setTimeout(image.expire, PENDING_IMAGE_TTL_MS)
+  unrefImageCleanupTimer(image.timer)
 }
 
 export async function discardClipboardImageTempFile(
@@ -76,7 +81,7 @@ export async function discardClipboardImageTempFile(
   connectionId: string | null = null
 ): Promise<void> {
   const image = pendingImages.get(imagePath)
-  if (!image || image.connectionId !== connectionId) {
+  if (!image || image.connectionId !== connectionId || image.released) {
     throw new Error('Unsubmitted clipboard image was not found')
   }
   if (image.removing) {

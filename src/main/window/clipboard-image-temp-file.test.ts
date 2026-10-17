@@ -1,6 +1,7 @@
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SSH_HOST_NOT_SERVED_MESSAGE } from '../providers/ssh-host-not-served-error'
+import { createTerminalImageAttachmentLease } from '../../renderer/src/components/terminal-pane/terminal-image-attachment-lease'
 
 const { writeFileMock, mkdirMock, getPathMock, unlinkMock } = vi.hoisted(() => ({
   writeFileMock: vi.fn(),
@@ -139,4 +140,72 @@ it('expires retained reservations unless delivery releases ownership', async () 
   retainClipboardImageTempFile(path)
   await vi.advanceTimersByTimeAsync(16 * 60 * 1000)
   expect(unlinkMock).toHaveBeenCalledWith(path)
+})
+
+it('retries delivery when the host applied release but its acknowledgement was lost', async () => {
+  const path = await saveClipboardImageBufferAsTempFile(Buffer.from([1]), { discardable: true })
+  let loseAcknowledgement = true
+  const onError = vi.fn()
+  const settle = vi.fn(async (action: 'discard' | 'retain' | 'release') => {
+    if (action === 'discard') {
+      await discardClipboardImageTempFile(path)
+      return
+    }
+    retainClipboardImageTempFile(path, null, action === 'release')
+    if (action === 'release' && loseAcknowledgement) {
+      loseAcknowledgement = false
+      throw new Error('Release acknowledgement lost')
+    }
+  })
+  const lease = createTerminalImageAttachmentLease({ isCurrent: () => true, settle, onError })
+  const deliver = vi.fn()
+  const attemptDelivery = async () => {
+    if (!(await lease.prepareDelivery())) {
+      return false
+    }
+    await lease.deliveryStarted()
+    deliver(path)
+    return true
+  }
+
+  await expect(attemptDelivery()).rejects.toThrow('acknowledgement lost')
+  expect(deliver).not.toHaveBeenCalled()
+  await expect(discardClipboardImageTempFile(path)).rejects.toThrow('not found')
+  expect(await attemptDelivery()).toBe(true)
+  expect(deliver).toHaveBeenCalledExactlyOnceWith(path)
+  lease.cancel()
+  await vi.advanceTimersByTimeAsync(16 * 60 * 1000)
+
+  expect(settle.mock.calls).toEqual([['retain'], ['release'], ['retain'], ['release']])
+  expect(onError).not.toHaveBeenCalled()
+  expect(unlinkMock).not.toHaveBeenCalled()
+})
+
+it('bounds released retry records and preserves handed-off file ownership', async () => {
+  const path = await saveClipboardImageBufferAsTempFile(Buffer.from([1]), { discardable: true })
+  retainClipboardImageTempFile(path, null, true)
+  await vi.advanceTimersByTimeAsync(14 * 60 * 1000)
+
+  expect(() => retainClipboardImageTempFile(path, 'wrong-owner')).toThrow('not found')
+  expect(() => retainClipboardImageTempFile(path, 'wrong-owner', true)).toThrow('not found')
+  await expect(discardClipboardImageTempFile(path, 'wrong-owner')).rejects.toThrow('not found')
+  await expect(discardClipboardImageTempFile(path)).rejects.toThrow('not found')
+  await vi.advanceTimersByTimeAsync(2 * 60 * 1000)
+  expect(() => retainClipboardImageTempFile(path)).toThrow('not found')
+  expect(unlinkMock).not.toHaveBeenCalled()
+})
+
+it('refreshes released retry bookkeeping without reclaiming handed-off files', async () => {
+  const path = await saveClipboardImageBufferAsTempFile(Buffer.from([1]), { discardable: true })
+  retainClipboardImageTempFile(path, null, true)
+  await vi.advanceTimersByTimeAsync(14 * 60 * 1000)
+  retainClipboardImageTempFile(path)
+  retainClipboardImageTempFile(path, null, true)
+  await vi.advanceTimersByTimeAsync(2 * 60 * 1000)
+  retainClipboardImageTempFile(path)
+  await expect(discardClipboardImageTempFile(path)).rejects.toThrow('not found')
+
+  await vi.advanceTimersByTimeAsync(16 * 60 * 1000)
+  expect(() => retainClipboardImageTempFile(path)).toThrow('not found')
+  expect(unlinkMock).not.toHaveBeenCalled()
 })
