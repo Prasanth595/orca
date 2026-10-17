@@ -5,14 +5,14 @@ import { PageRouteUnavailableScreen } from '../../../src/mobile-web-shell/PageRo
 import { firstParam } from '../../../src/navigation/route-param-reader'
 
 /**
- * The shell's switch for this route, in `index.tsx`'s shape.
+ * The shell route for tasks, in `index.tsx`'s shape.
  *
  * The page is opened from the native home screen, so the pathname and the provider param are what
  * the shell tells it; `taskSource` rides in `init.route.params`, which the page folds back into
  * its own URL before the first render.
  */
 export default function MobileTasksRoute() {
-  // Through `firstParam`, as the agent-history switch does: expo-router hands back an array for a
+  // Through `firstParam`, as the agent-history route does: expo-router hands back an array for a
   // repeated query key, and a bare read builds `/h/host-a%2Chost-b/tasks` out of one.
   const params = useLocalSearchParams<{
     hostId?: string | string[]

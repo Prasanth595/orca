@@ -25,7 +25,7 @@ import { PageRouteUnavailableScreen } from '../../../../src/mobile-web-shell/Pag
  * later `init` can replay a spent tap.
  */
 export default withWorkspaceRoute(function MobileSessionScreen() {
-  // Through `firstParam` on every param, as every switch does: expo-router answers a repeated query
+  // Through `firstParam` on every param, as every route file does: expo-router answers a repeated query
   // key with an array, and a bare read puts `String(['a','b'])` into the template, where
   // `encodeURIComponent` makes it the single segment `a%2Cb` — which the bridge's segment rule
   // accepts, so the shell opens a page for a workspace nobody has.
@@ -85,7 +85,7 @@ export default withWorkspaceRoute(function MobileSessionScreen() {
   // a screen reused across a route change would keep authorising frames under the grants of the
   // route the page has left, and the key is what makes that change a remount. A pane is not such a
   // change — it is a tab of the session this key already names — so it is left out here and
-  // delivered to the mounted page instead. Derived from the same builder every other switch uses;
+  // delivered to the mounted page instead. Derived from the same builder every other route file uses;
   // `shellScreenRouteKey` is untouched, because for the other four a param change *is* an identity
   // change.
   const { paneKey: _paneKey, ...identity } = routeParams

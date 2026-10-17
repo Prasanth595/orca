@@ -269,9 +269,9 @@ describe('the screen the catch-all paints for each shell state', () => {
   /**
    * The presence precondition for every case above: the shell is what rendered them.
    *
-   * Outside an OTA build the switch returns the refusal on its own, with the same text and the same
+   * A route naming no screen gets the refusal without a shell, with the same text and the same
    * control, so the two cases that assert the refusal would pass against a screen no shell ever
-   * saw. `Checking host` is a string only the shell paints, and the switch cannot reach this state
+   * saw. `Checking host` is a string only the shell paints, and the route cannot reach this state
    * without having mounted one.
    */
   it('waits on the shell while the answer is still coming', async () => {

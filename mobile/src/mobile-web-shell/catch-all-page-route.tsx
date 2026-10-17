@@ -30,16 +30,16 @@ export default function MobileWebPageCatchAllScreen() {
   const segments = Array.isArray(params.page) ? params.page : params.page ? [params.page] : []
 
   /**
-   * The query, carried to the page the way every named switch carries its own.
+   * The query, carried to the page the way every named route carries its own.
    *
    * `useLocalSearchParams` merges this route's params into the search params, so everything that
    * is not one of the two segments the pathname above is built from is the deep link's query —
-   * which is the only way this switch can find it, having no screen to name the keys of. Dropped,
+   * which is the only way this route can find it, having no screen to name the keys of. Dropped,
    * `/h/x/session/y?tab=files` opens the page on the session with no tab.
    *
    * `firstParam` per key, because `init.route.params` is one value per name: a repeated key would
-   * otherwise cross as `a,b`. An empty value is kept rather than dropped — a named switch drops
-   * its own because it knows what its screen makes of one, and this switch knows no screen.
+   * otherwise cross as `a,b`. An empty value is kept rather than dropped — a named route drops
+   * its own because it knows what its screen makes of one, and this route knows no screen.
    *
    * `#` is dropped with them: expo-router parks the URL fragment under that key before it reads
    * the search string, and a fragment is not a query — the route the page is given carries none.
@@ -61,7 +61,7 @@ export default function MobileWebPageCatchAllScreen() {
   if (route === null) {
     return <PageRouteUnavailableScreen hostId={hostId} />
   }
-  // Keyed on the route, as the other switches are: a host captures the grants its session opened
+  // Keyed on the route, as the other routes are: a host captures the grants its session opened
   // with, so a screen reused across a route change would authorise frames under grants the page has
   // left behind.
   //

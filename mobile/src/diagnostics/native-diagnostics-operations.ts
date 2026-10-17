@@ -35,7 +35,7 @@ export function createNativeDiagnosticsOperations(
           entries: snapshot.entries,
           activePath: snapshot.activePath,
           pendingPath: snapshot.pendingPath,
-          shell: { kind: 'ota', bridgeProtocolVersion: BRIDGE_PROTOCOL_VERSION }
+          bridgeProtocolVersion: BRIDGE_PROTOCOL_VERSION
         }),
         appVersion,
         platform,
