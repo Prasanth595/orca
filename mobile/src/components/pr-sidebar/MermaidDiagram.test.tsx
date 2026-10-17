@@ -59,6 +59,7 @@ afterEach(() => {
   renderer = undefined
   applyMobileColorScheme('dark')
   hosts.length = 0
+  vi.useRealTimers()
   vi.clearAllMocks()
 })
 
@@ -111,7 +112,7 @@ it('retries a failed diagram on theme changes, including a rapid return to its o
     await vi.waitFor(() => expect(render).toHaveBeenCalledTimes(1))
   })
   expect(
-    renderer!.root.findAll((node) => node.props.testID === 'mermaid-diagram-source')
+    renderer!.root.findAll((node) => node.props?.testID === 'mermaid-diagram-source')
   ).toHaveLength(1)
   act(() => applyMobileColorScheme('light'))
   await act(async () => {
@@ -125,7 +126,7 @@ it('retries a failed diagram on theme changes, including a rapid return to its o
   expect(hosts.some((host) => host.innerHTML.includes('dark retry'))).toBe(true)
   expect(hosts.some((host) => host.innerHTML.includes('obsolete light'))).toBe(false)
   expect(
-    renderer!.root.findAll((node) => node.props.testID === 'mermaid-diagram-source')
+    renderer!.root.findAll((node) => node.props?.testID === 'mermaid-diagram-source')
   ).toHaveLength(0)
 })
 
@@ -141,4 +142,28 @@ it('holds the initial transcript reveal until the page diagram settles', async (
     await pending.promise
   })
   expect(release).toHaveBeenCalledOnce()
+})
+
+it('gives a queued diagram its own timeout and discards a timed-out render result', async () => {
+  vi.useFakeTimers()
+  const first = pendingDiagram()
+  render.mockImplementationOnce(() => first.promise).mockResolvedValue({ svg: '<svg>queued</svg>' })
+  mount(['flowchart TD\nA-->B', 'flowchart LR\nC-->D'])
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(0)
+  })
+  expect(render).toHaveBeenCalledTimes(1)
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(10_000)
+  })
+  expect(
+    renderer!.root.findAll((node) => node.props?.testID === 'mermaid-diagram-source')
+  ).toHaveLength(1)
+  await act(async () => {
+    first.resolve({ svg: '<svg>too late</svg>' })
+    await vi.advanceTimersByTimeAsync(0)
+  })
+  expect(render).toHaveBeenCalledTimes(2)
+  expect(hosts.some((host) => host.innerHTML.includes('queued'))).toBe(true)
+  expect(hosts.every((host) => !host.innerHTML.includes('too late'))).toBe(true)
 })

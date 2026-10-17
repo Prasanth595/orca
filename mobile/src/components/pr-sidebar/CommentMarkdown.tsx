@@ -100,7 +100,7 @@ function BlockView({ block, base }: { block: MarkdownBlock; base: number }) {
         </Text>
       )
     case 'code':
-      // Mermaid fences render as diagrams (WebView), not as raw code.
+      // Mermaid fences render as diagrams rather than raw code.
       if (block.lang === 'mermaid') {
         return <MermaidDiagram source={block.text} base={base} />
       }
@@ -282,7 +282,7 @@ const styles = createThemedStyles(() =>
     quote: {
       borderLeftWidth: 3,
       borderLeftColor: colors.borderSubtle,
-      backgroundColor: colors.bgRaised,
+      backgroundColor: colors.bgPanel,
       paddingHorizontal: spacing.sm,
       paddingVertical: spacing.xs,
       marginBottom: spacing.sm
@@ -321,7 +321,7 @@ const styles = createThemedStyles(() =>
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: colors.borderSubtle
     },
-    tableHeaderRow: { borderTopWidth: 0, backgroundColor: colors.bgRaised },
+    tableHeaderRow: { borderTopWidth: 0, backgroundColor: colors.bgPanel },
     tableCell: {
       minWidth: 96,
       paddingHorizontal: spacing.sm,

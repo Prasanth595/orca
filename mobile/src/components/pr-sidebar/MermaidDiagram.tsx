@@ -21,13 +21,6 @@ function MermaidDiagramRender({ source, base }: MermaidDiagramProps) {
   const [failed, setFailed] = useState(false)
   const [settled, setSettled] = useState(false)
   useMobileTranscriptLayoutPending(!settled && !failed)
-  useEffect(() => {
-    if (settled || failed) {
-      return
-    }
-    const timer = setTimeout(() => setFailed(true), 10_000)
-    return () => clearTimeout(timer)
-  }, [settled, failed])
   // mermaid writes `#<id>` into the stylesheet it puts inside the SVG, so this has to be a CSS
   // identifier. React spells its own `_R_0_`; the strip is for a React that changes that.
   const suffix = useId().replace(/[^\w-]/g, '')
@@ -40,11 +33,13 @@ function MermaidDiagramRender({ source, base }: MermaidDiagramProps) {
       return
     }
     let disposed = false
+    let timer: ReturnType<typeof setTimeout> | undefined
     enqueuePageMermaidRender(async () => {
       try {
         if (disposed) {
           return
         }
+        timer = setTimeout(() => setFailed(true), 10_000)
         const mermaid = await loadPageMermaid()
         if (disposed) {
           return
@@ -62,14 +57,18 @@ function MermaidDiagramRender({ source, base }: MermaidDiagramProps) {
         if (!disposed) {
           setFailed(true)
         }
+      } finally {
+        clearTimeout(timer)
       }
     })
     return () => {
       disposed = true
+      clearTimeout(timer)
       // React owns this element, not what mermaid put inside it, so nothing else clears the
       // previous diagram when the source changes.
       host.replaceChildren()
     }
+    // A timeout must dispose the attempt before a late SVG can publish.
   }, [id, source, failed])
 
   if (failed) {
