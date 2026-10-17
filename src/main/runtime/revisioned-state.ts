@@ -36,10 +36,7 @@ export class RevisionedState<S> {
     const notify = (): void => changed.abort()
     this.changed.add(notify)
     try {
-      await delayUnlessAborted(
-        waitMs,
-        AbortSignal.any([changed.signal, ...(signal ? [signal] : [])])
-      )
+      await delayUnlessAborted(waitMs, AbortSignal.any([changed.signal, ...(signal ? [signal] : [])]))
     } finally {
       this.changed.delete(notify)
     }
