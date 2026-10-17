@@ -114,6 +114,11 @@ export const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: typography.metaSize
   },
+  meta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs
+  },
   unsentNotice: {
     maxWidth: '88%',
     marginTop: spacing.xs,

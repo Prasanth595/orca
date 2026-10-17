@@ -1,7 +1,8 @@
+import { MobileNativeChatRowOverlaysContext } from './mobile-native-chat-row-overlays'
 import { createElement, type ReactNode } from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, expect, it, vi } from 'vitest'
-import { MobileNativeChatImageViewerHost } from './MobileNativeChatImageViewer'
+import { MobileNativeChatRowOverlaysHost } from './MobileNativeChatRowOverlaysHost'
 import { MobileNativeChatMessage } from './MobileNativeChatMessage'
 import { MobileNativeChatAttachmentContext } from './mobile-native-chat-attachment-read'
 import type { NativeChatMessage } from '../../../src/shared/native-chat-types'
@@ -282,7 +283,7 @@ it.each(['user', 'assistant'] as const)(
   async (role) => {
     await act(async () => {
       renderer = create(
-        <MobileNativeChatImageViewerHost
+        <MobileNativeChatRowOverlaysHost
           conversation={{ surfaceId: 'gallery-tab', sessionId: 'gallery-session' }}
         >
           <MobileNativeChatMessage
@@ -295,7 +296,7 @@ it.each(['user', 'assistant'] as const)(
               }))
             }}
           />
-        </MobileNativeChatImageViewerHost>
+        </MobileNativeChatRowOverlaysHost>
       )
     })
     expect(renderer!.root.findAll((node) => String(node.type) === 'Image')).toHaveLength(3)
@@ -343,4 +344,33 @@ it('does not carry a decode failure or late error into the same path on a differ
   expect(renderer!.root.findAll((node) => String(node.type) === 'Image')).toHaveLength(1)
   act(() => oldError())
   expect(renderer!.root.findAll((node) => String(node.type) === 'Image')).toHaveLength(1)
+})
+
+it('opens an attachment full size when tapped', () => {
+  const openImage = vi.fn()
+  act(() => {
+    renderer = create(
+      createElement(
+        MobileNativeChatRowOverlaysContext.Provider,
+        { value: { openImage, openActions: vi.fn() } },
+        createElement(MobileNativeChatMessage, {
+          message: {
+            ...message,
+            blocks: [{ type: 'image-ref', url: 'file:///a.jpg', alt: 'a photo' }]
+          }
+        })
+      )
+    )
+  })
+  act(() => renderer!.root.findByProps({ accessibilityLabel: 'Open image 1 of 1' }).props.onPress())
+  expect(openImage).toHaveBeenCalledWith(
+    expect.objectContaining({
+      uri: 'file:///a.jpg',
+      label: 'a photo',
+      gallery: {
+        images: [{ type: 'image-ref', url: 'file:///a.jpg', alt: 'a photo' }],
+        initialIndex: 0
+      }
+    })
+  )
 })

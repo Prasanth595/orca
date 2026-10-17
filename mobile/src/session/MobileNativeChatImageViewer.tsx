@@ -1,3 +1,4 @@
+import type { NativeChatImageRefBlock } from '../../../src/shared/native-chat-types'
 import { useState } from 'react'
 import {
   FlatList,
@@ -9,54 +10,24 @@ import {
   useWindowDimensions
 } from 'react-native'
 import { X } from 'lucide-react-native'
-import type { NativeChatImageRefBlock } from '../../../src/shared/native-chat-types'
 import { useWindowSafeAreaInsets } from '../layout/side-safe-area'
 import { colors } from '../theme/mobile-theme'
 import { MobileNativeChatImage } from './MobileNativeChatImage'
-import {
-  MobileNativeChatImageViewerContext,
-  type MobileNativeChatViewedImage
-} from './mobile-native-chat-image-viewer-context'
-import {
-  useMobileNativeChatConversationState,
-  type MobileNativeChatConversation
-} from './use-mobile-native-chat-conversation-state'
+import type { MobileNativeChatViewedImage } from './mobile-native-chat-row-overlays'
 import { styles } from './mobile-native-chat-message-styles'
 
-export function MobileNativeChatImageViewerHost({
-  conversation,
-  children
-}: {
-  conversation: MobileNativeChatConversation
-  children: React.ReactNode
-}) {
-  const [image, setImage] =
-    useMobileNativeChatConversationState<MobileNativeChatViewedImage>(conversation)
-  return (
-    <MobileNativeChatImageViewerContext.Provider value={setImage}>
-      {children}
-      {image ? (
-        <MobileNativeChatImageViewer
-          images={
-            image.gallery?.images ?? [{ type: 'image-ref', url: image.uri, alt: image.label }]
-          }
-          initialIndex={image.gallery?.initialIndex ?? 0}
-          onClose={() => setImage(null)}
-        />
-      ) : null}
-    </MobileNativeChatImageViewerContext.Provider>
-  )
-}
-
 export function MobileNativeChatImageViewer({
-  images,
-  initialIndex,
+  uri,
+  label,
+  gallery,
   onClose
-}: {
-  images: readonly NativeChatImageRefBlock[]
-  initialIndex: number
+}: MobileNativeChatViewedImage & {
   onClose: () => void
 }) {
+  const images: readonly NativeChatImageRefBlock[] = gallery?.images ?? [
+    { type: 'image-ref', url: uri, alt: label }
+  ]
+  const initialIndex = gallery?.initialIndex ?? 0
   const insets = useWindowSafeAreaInsets()
   const window = useWindowDimensions()
   const width = Math.max(1, window.width - insets.left - insets.right)

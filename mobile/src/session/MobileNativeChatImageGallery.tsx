@@ -2,7 +2,7 @@ import { useContext } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import type { NativeChatImageRefBlock } from '../../../src/shared/native-chat-types'
 import { MobileNativeChatImage } from './MobileNativeChatImage'
-import { MobileNativeChatImageViewerContext } from './mobile-native-chat-image-viewer-context'
+import { MobileNativeChatRowOverlaysContext } from './mobile-native-chat-row-overlays'
 import { styles } from './mobile-native-chat-message-styles'
 
 export function MobileNativeChatImageGallery({
@@ -14,7 +14,7 @@ export function MobileNativeChatImageGallery({
   alignToEnd?: boolean
   onLongPress?: () => void
 }) {
-  const openImage = useContext(MobileNativeChatImageViewerContext)
+  const { openImage } = useContext(MobileNativeChatRowOverlaysContext)
   const occurrences = new Map<string, number>()
   const thumbnails = images.slice(0, 3).map((image) => {
     const identity = image.path ?? image.url ?? image.alt ?? 'image'
