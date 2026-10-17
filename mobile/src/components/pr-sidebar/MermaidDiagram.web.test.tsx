@@ -92,3 +92,32 @@ describe('page Mermaid shared render ownership', () => {
     expect(hosts.filter((host) => host.innerHTML.includes('light'))).toHaveLength(2)
   })
 })
+
+it('retries a failed diagram on theme changes, including a rapid return to its original theme', async () => {
+  const light = pendingDiagram()
+  render
+    .mockRejectedValueOnce(new Error('Render failed'))
+    .mockImplementationOnce(() => light.promise)
+    .mockResolvedValue({ svg: '<svg>dark retry</svg>' })
+  mount(['flowchart TD\nA-->B'])
+  await act(async () => {
+    await vi.waitFor(() => expect(render).toHaveBeenCalledTimes(1))
+  })
+  expect(
+    renderer!.root.findAll((node) => node.props.testID === 'mermaid-diagram-source')
+  ).toHaveLength(1)
+  act(() => applyMobileColorScheme('light'))
+  await act(async () => {
+    await vi.waitFor(() => expect(render).toHaveBeenCalledTimes(2))
+  })
+  act(() => applyMobileColorScheme('dark'))
+  await act(async () => {
+    light.resolve({ svg: '<svg>obsolete light</svg>' })
+    await vi.waitFor(() => expect(render).toHaveBeenCalledTimes(3))
+  })
+  expect(hosts.some((host) => host.innerHTML.includes('dark retry'))).toBe(true)
+  expect(hosts.some((host) => host.innerHTML.includes('obsolete light'))).toBe(false)
+  expect(
+    renderer!.root.findAll((node) => node.props.testID === 'mermaid-diagram-source')
+  ).toHaveLength(0)
+})

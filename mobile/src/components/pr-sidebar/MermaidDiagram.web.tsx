@@ -30,18 +30,19 @@ import { enqueuePageMermaidRender, loadPageMermaid } from './mermaid-page-engine
  * artifact rather than the package: importing the package here emitted 103 scripts, all of them
  * already inside the generation the phone downloaded.
  */
-export const MermaidDiagram = memo(function MermaidDiagram({ source, base }: MermaidDiagramProps) {
+export const MermaidDiagram = memo(function MermaidDiagram(props: MermaidDiagramProps) {
   const scheme = useMobileTheme()
+  return <MermaidDiagramRender key={`${scheme}\0${props.source}`} {...props} />
+})
+
+function MermaidDiagramRender({ source, base }: MermaidDiagramProps) {
   const hostRef = useRef<View>(null)
-  // The source that failed, rather than a flag: a flag would need clearing from the effect that
-  // renders the next one, and a render the component has already failed is the only thing the
-  // fallback is about.
-  const [failedSource, setFailedSource] = useState<string | null>(null)
+  // A new source/theme mounts a fresh attempt; obsolete callbacks cannot poison its fallback.
+  const [failed, setFailed] = useState(false)
   // mermaid writes `#<id>` into the stylesheet it puts inside the SVG, so this has to be a CSS
   // identifier. React spells its own `_R_0_`; the strip is for a React that changes that.
   const suffix = useId().replace(/[^\w-]/g, '')
   const id = `orca-mermaid-${suffix}`
-  const failed = failedSource === source
 
   useEffect(() => {
     // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: react-native-web renders View as a div and forwards the ref to it; this module only ever runs in that build.
@@ -69,7 +70,7 @@ export const MermaidDiagram = memo(function MermaidDiagram({ source, base }: Mer
         host.innerHTML = readableMermaidFlowchartSvg(svg, colors.textPrimary, colors.bgRaised)
       } catch {
         if (!disposed) {
-          setFailedSource(source)
+          setFailed(true)
         }
       }
     })
@@ -79,7 +80,7 @@ export const MermaidDiagram = memo(function MermaidDiagram({ source, base }: Mer
       // previous diagram when the source changes.
       host.replaceChildren()
     }
-  }, [id, source, scheme])
+  }, [id, source])
 
   if (failed) {
     return (
@@ -101,7 +102,7 @@ export const MermaidDiagram = memo(function MermaidDiagram({ source, base }: Mer
       <View ref={hostRef} style={styles.host} />
     </MermaidFrame>
   )
-})
+}
 
 /** The native component's frame and label, so a diagram and its fallback sit in the same box. */
 function MermaidFrame({ children }: { children: ReactNode }) {

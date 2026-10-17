@@ -13,7 +13,14 @@ import { plainText } from './mobile-markdown-tree'
 /** One measured viewport and one column plan keep every row aligned, including wrapped cells. */
 export function MobileMarkdownTable({ node, ctx }: { node: Table; ctx: MarkdownBlockContext }) {
   const setup = useContext(MarkdownTextContext)
-  const cellSetup = useMemo(() => ({ ...setup, inlineCodeBackground: colors.bgRaised }), [setup])
+  const cellSetup = useMemo(
+    () => ({ ...setup, inlineCodeBackground: colors.bgRaised }),
+    [setup, colors.bgRaised]
+  )
+  const headerSetup = useMemo(
+    () => ({ ...setup, inlineCodeBackground: colors.bgBase }),
+    [setup, colors.bgBase]
+  )
   const [availableWidth, setAvailableWidth] = useState(0)
   const rows = node.children.map((row) => row.children)
   const textRows = useMemo(
@@ -25,27 +32,34 @@ export function MobileMarkdownTable({ node, ctx }: { node: Table; ctx: MarkdownB
     textScale: ctx.textScale
   })
   const cellCtx = { ...ctx, tone: MARKDOWN_TONES.default }
+  const headerCtx = {
+    ...cellCtx,
+    tone: { ...MARKDOWN_TONES.default, inlineCode: { backgroundColor: colors.bgBase } }
+  }
   const contentWidth = widths.reduce((sum, width) => sum + width, 0)
   return (
-    <MarkdownTextContext.Provider value={cellSetup}>
-      <View
-        style={styles.table}
-        onLayout={({ nativeEvent }) => {
-          const width = nativeEvent.layout.width
-          setAvailableWidth((previous) => (Math.abs(previous - width) > 0.5 ? width : previous))
-        }}
+    <View
+      style={styles.table}
+      onLayout={({ nativeEvent }) => {
+        const width = nativeEvent.layout.width
+        setAvailableWidth((previous) => (Math.abs(previous - width) > 0.5 ? width : previous))
+      }}
+    >
+      <ScrollView
+        horizontal
+        nestedScrollEnabled
+        directionalLockEnabled
+        showsHorizontalScrollIndicator
+        style={{ width: '100%' }}
+        contentContainerStyle={{ width: contentWidth }}
       >
-        <ScrollView
-          horizontal
-          nestedScrollEnabled
-          directionalLockEnabled
-          showsHorizontalScrollIndicator
-          style={{ width: '100%' }}
-          contentContainerStyle={{ width: contentWidth }}
-        >
-          <View style={{ width: contentWidth }}>
-            {rows.map((cells, rowIndex) => (
-              <View key={rowIndex} style={styles.tableRow}>
+        <View style={{ width: contentWidth }}>
+          {rows.map((cells, rowIndex) => (
+            <MarkdownTextContext.Provider
+              key={rowIndex}
+              value={rowIndex === 0 ? headerSetup : cellSetup}
+            >
+              <View style={styles.tableRow}>
                 {widths.map((width, cellIndex) => (
                   <View
                     key={cellIndex}
@@ -71,19 +85,23 @@ export function MobileMarkdownTable({ node, ctx }: { node: Table; ctx: MarkdownB
                         }
                       ]}
                     >
-                      {renderInline(cells[cellIndex]?.children ?? [], cellCtx, [
-                        styles.tableText,
-                        { fontSize: 12 * ctx.textScale, lineHeight: 18 * ctx.textScale },
-                        rowIndex === 0 ? styles.bold : null
-                      ])}
+                      {renderInline(
+                        cells[cellIndex]?.children ?? [],
+                        rowIndex === 0 ? headerCtx : cellCtx,
+                        [
+                          styles.tableText,
+                          { fontSize: 12 * ctx.textScale, lineHeight: 18 * ctx.textScale },
+                          rowIndex === 0 ? styles.bold : null
+                        ]
+                      )}
                     </MarkdownText>
                   </View>
                 ))}
               </View>
-            ))}
-          </View>
-        </ScrollView>
-      </View>
-    </MarkdownTextContext.Provider>
+            </MarkdownTextContext.Provider>
+          ))}
+        </View>
+      </ScrollView>
+    </View>
   )
 }
