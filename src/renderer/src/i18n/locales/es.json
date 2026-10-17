@@ -394,9 +394,7 @@
       },
       "pairingSecurity": {
         "hide": "Ocultar",
-        "storedCodeInsecureOrigin": "Este navegador guarda un código de emparejamiento reutilizable porque esta página usa http sin cifrar en otro equipo. Cualquiera que pueda leer el almacenamiento de este navegador podría usarlo. Para un emparejamiento más seguro, abre Orca por https, en localhost en este equipo o a través de un túnel SSH, y vuelve a emparejar.",
         "storedCodeNoEd25519": "Este navegador guarda un código de emparejamiento reutilizable porque no puede crear claves de inicio de sesión seguras (Ed25519). Usa un navegador actual y vuelve a emparejar para un emparejamiento más seguro.",
-        "sessionInsecureOrigin": "Este emparejamiento solo dura mientras esta pestaña esté abierta, porque esta página usa http sin cifrar en otro equipo. Para un emparejamiento que este navegador recuerde, abre Orca por https, en localhost en este equipo o a través de un túnel SSH.",
         "sessionNoEd25519": "Este emparejamiento solo dura mientras esta pestaña esté abierta, porque este navegador no puede crear claves de inicio de sesión seguras (Ed25519). Usa un navegador actual para un emparejamiento que recuerde."
       },
       "runtimeAuth": {
@@ -2679,9 +2677,6 @@
       "workspace": {
         "space": {
           "WorkspaceSpacePage": {
-            "8d0048e1cb": "Uso de disco del espacio de trabajo y almacenamiento de worktrees recuperable.",
-            "e8d6ba11ab": "Beta",
-            "45f6302dbc": "Espacio",
             "ecf72fdc3b": "Volver"
           }
         },
@@ -3314,8 +3309,7 @@
             "moveToPaneColumn": "Mover pestaña a división"
           },
           "EditorFileTabCloseButton": {
-            "4655cf570e": "Cerrar pestaña",
-            "a768f428f1": "Cerrar pestaña"
+            "4655cf570e": "Cerrar pestaña"
           },
           "TerminalTabSplitMenuSection": {
             "splitTerminal": "Dividir terminal"
@@ -5352,8 +5346,7 @@
                   "5f9ffac036": "Clonar un repositorio Git remoto",
                   "7edb8ebe24": "Clonar desde URL",
                   "serverSshTitle": "Proyecto en un host SSH de este servidor",
-                  "serverSshDescription": "Abre una carpeta de proyecto de un host SSH al que se conecta este servidor",
-                  "serverSshUpdate": "Actualiza este servidor para añadir proyectos en sus hosts SSH",
+                  "serverSshAddOnThisComputer": "No disponible desde un servidor. Añade el host SSH en este ordenador para abrir sus proyectos.",
                   "fb4fc5380e": "Proyecto local, repositorio de Git o carpeta con muchos repositorios",
                   "2281fdc8c7": "Explorar carpeta",
                   "runtimeBrowseDescription": "Repositorio Git o carpeta existente en este host"
@@ -7738,8 +7731,7 @@
           "addDescription": "Agrega una máquina persistente en la que puedas iniciar sesión por SSH.",
           "editingPrefix": "Editando",
           "allowRemoteCliControl": "Permitir que la orca CLI de este host controle Orca",
-          "allowRemoteCliControlHelp": "Cuando está activado, los comandos orca ejecutados en este host pueden abrir y controlar pestañas del navegador de Orca en este escritorio, solo en los espacios de trabajo de este host y solo mientras esté conectado. Las terminales iniciadas por una versión anterior de Orca en este host también pueden ejecutar comandos de orquestación (check, inbox, send, ask, reply) para su propio trabajo supervisado. No pueden leer tus archivos, tu portapapeles ni tus cookies. Cuando está desactivado, solo llegan al propio servidor de Orca de este host.",
-          "allowRemoteCliControlReset": "Orca lo desactivó tras una actualización, porque ahora permite que este host controle el navegador de tu escritorio y que las terminales iniciadas por una versión anterior de Orca en este host ejecuten comandos de orquestación. Vuelve a activarlo solo si lo deseas."
+          "allowRemoteCliControlHelp": "Activado de forma predeterminada en los hosts nuevos. Permite que los comandos orca ejecutados en este host abran y controlen pestañas del navegador de Orca en este escritorio, solo en los espacios de trabajo de este host y solo mientras esté conectado, y que las terminales iniciadas por una versión anterior de Orca en este host ejecuten comandos de orquestación (check, inbox, send, ask, reply) para su propio trabajo supervisado. No pueden leer tus archivos, tu portapapeles ni tus cookies. Cuando está desactivado, solo llegan al propio servidor de Orca de este host."
         },
         "TasksPane": {
           "f71d8a9dd3": "Proveedores de tareas",
@@ -7842,16 +7834,6 @@
           "c3810b2b42": "Filas de scrollback conservadas.",
           "267d020745": "Scrollback, límites de palabras y comportamientos de terminal específicos de la plataforma.",
           "5e5f06c82c": "Avanzado",
-          "003df129fe": "Dividir horizontalmente",
-          "623e62df99": "Dividir horizontalmente",
-          "332e8a2872": "Dividir verticalmente",
-          "691ce810e0": "Dividir verticalmente",
-          "1158f8fd55": "Nueva pestaña",
-          "6c6a054a1c": "Ejecutar en una nueva pestaña",
-          "a9d47451d1": "\"Nueva pestaña\" abre el comando de configuración en una pestaña de fondo titulada \"Configuración\" sin robar el foco.",
-          "d23b43c5be": "Ubicación del script de configuración",
-          "34a0dfa06e": "Dónde se ejecuta el script de configuración del repositorio cuando se crea un nuevo espacio de trabajo.",
-          "21f8da2078": "Script de configuración del espacio de trabajo",
           "6e6480a7df": "Permite que los programas del terminal (Zellij, tmux, Neovim, fzf, Grok, SSH) copien al portapapeles del sistema.",
           "3338dcf8c1": "Permitir escrituras en el portapapeles TUI (OSC 52)",
           "69c64a479c": "Permite que Zellij, tmux, Neovim, fzf y Grok copien al portapapeles del sistema a través de PTY (incluso por SSH).",
@@ -9593,18 +9575,8 @@
             }
           },
           "search": {
-            "c047f398cc": "iniciar",
-            "b872de3926": "ubicación",
-            "fd6c24313d": "nuevo",
-            "f44643328e": "pestaña",
             "18ce996647": "vertical",
             "54a9b3725b": "horizontal",
-            "de7bc1d5f5": "dividir",
-            "7a48c7715b": "espacio de trabajo",
-            "6b659fff2a": "script",
-            "4529806908": "configuración",
-            "2610ee3b56": "Dónde se ejecuta el script de configuración del repositorio cuando se crea un nuevo workspace: una división vertical (predeterminada), una división horizontal o una pestaña en segundo plano titulada 'Setup'.",
-            "5be2d67678": "Ubicación del script de configuración",
             "0ce176909a": "tema",
             "4ba8623632": "paleta",
             "11fd3fbcf2": "ansi",
@@ -11260,9 +11232,6 @@
           "devChannelUnsupported": "Las versiones de {{value0}} solo están disponibles para {{value1}}. En Linux solo se ofrecen Stable y RC.",
           "downloadInstaller": "Descargar instalador",
           "manualInstallHint": "Las versiones de {{value0}} no están firmadas en Windows, por lo que el actualizador de la aplicación no puede instalarlas sobre una versión firmada. Ejecuta una vez el instalador descargado; Windows mostrará una advertencia de editor desconocido. Después podrás cambiar de versión desde aquí, incluso para volver a Stable."
-        },
-        "NativeChatSupportedAgents": {
-          "label": "Agentes apoyados:"
         },
         "TerminalRenderingSection": {
           "6d4c55bacc": "Imágenes en línea",
@@ -16365,11 +16334,18 @@
         "title": "No se pudo contactar con tu host de Orca",
         "description": "No se perdió nada. Orca se recargará cuando el host responda y no guardará cambios hasta entonces.",
         "retry": "Reintentar ahora"
+      },
+      "webPairingRefused": {
+        "title": "Orca rechazó este navegador",
+        "retry": "Intentar de nuevo"
       }
     }
   },
   "components": {
     "native-chat": {
+      "install": {
+        "checking": "Comprobando si {{agent}} está listo en este host…"
+      },
       "reasoning": "Razonamiento",
       "contextMenu": {
         "copyOrcaSessionId": "Copiar ID de sesión de Orca",
@@ -16882,6 +16858,9 @@
         "editFailed": "Este mensaje no se puede editar.",
         "editGone": "Este mensaje ya se envió o se eliminó. Tu edición está en el cuadro de chat.",
         "editGonePrompt": "Este mensaje ya se envió o se eliminó. Tu edición estará en el cuadro de chat cuando respondas al agente.",
+        "imageCount": "{{count}} imágenes",
+        "imageCount_one": "{{count}} imagen",
+        "imageCount_other": "{{count}} imágenes",
         "collapse": "Contraer",
         "expand": "Expandir",
         "queued": "En cola",
@@ -17029,7 +17008,8 @@
         "paused": "Objetivo en pausa",
         "blocked": "Objetivo bloqueado",
         "limited": "Objetivo limitado",
-        "attachmentsUnsupported": "Elimina los adjuntos antes de establecer un objetivo."
+        "attachmentsUnsupported": "Elimina los adjuntos antes de establecer un objetivo.",
+        "set": "Objetivo establecido"
       },
       "structuredSessionHostDeclined": "Se abrió {{value0}} en una terminal",
       "structuredSessionHostDeclinedDescription": "Este servidor no puede ejecutar un chat de {{value0}} en este espacio de trabajo.",
@@ -17514,6 +17494,30 @@
       "keywordJira": "jira",
       "keywordDefaultProject": "proyecto predeterminado",
       "keywordIssuePicker": "selector de incidencias"
+    },
+    "managed-runtime": {
+      "cancel": "Cancelar instalación",
+      "cancelled": "Instalación cancelada.",
+      "cancelling": "Cancelando…",
+      "chatTitle": "Instala {{agent}} para empezar a chatear.",
+      "damaged": "Esta copia de {{agent}} está dañada.",
+      "downloading": "Descargando {{done}} MB.",
+      "downloadingOf": "Descargando {{done}} MB de {{total}} MB.",
+      "external": "Usa la copia de {{agent}} encontrada en este host.",
+      "extracting": "Extrayendo {{agent}}.",
+      "failed": "La instalación falló. Inténtalo de nuevo.",
+      "cancelFailed": "No se pudo cancelar la instalación. Inténtalo de nuevo.",
+      "install": "Instalar {{agent}}",
+      "installManaged": "Instalar la copia de Orca",
+      "installed": "Instalado.",
+      "notInstalled": "No instalado.",
+      "progress": "Descarga de {{agent}}",
+      "readFailed": "No se pudo comprobar {{agent}} en este host. Reintentando.",
+      "reinstall": "Reinstalar {{agent}}",
+      "retry": "Reintentar instalación",
+      "unavailable": "{{agent}} no está disponible en este host.",
+      "update": "Actualizar {{agent}}",
+      "verifying": "Comprobando el entorno descargado."
     }
   },
   "dashboardPopout": {
@@ -18148,6 +18152,12 @@
       "confirmBody": "Reiniciar termina todos los procesos que se ejecutan en {{sessions}}. Los agentes que admiten reanudación pueden reanudarse después; los shells y otros trabajos no, y deben iniciarse de nuevo. Hazlo cuando tus agentes estén inactivos.",
       "cancel": "Cancelar",
       "confirm": "Reiniciar y terminar procesos"
+    },
+    "restartedInputNotSent": "El terminal se reinició mientras escribías, así que parte de la entrada puede no haberle llegado. Revisa el nuevo shell antes de volver a escribirla.",
+    "stalledDaemonBanner": {
+      "body": "El trabajo en segundo plano en este equipo se ha atascado. Es posible que la escritura y las terminales nuevas no funcionen. Reiniciar el servicio de terminal finaliza sus terminales y comandos en ejecución.",
+      "review": "Revisar las opciones de reinicio",
+      "title": "Es posible que el servicio de terminal necesite reiniciarse"
     }
   },
   "quickOpen": {
@@ -18451,6 +18461,22 @@
       "cancel": "Cancelar",
       "noTransition": "No hay ningún cambio de estado a {{column}} disponible para {{key}}.",
       "queryTooLong": "La consulta de Jira es demasiado larga. Acorta la consulta o borra los filtros."
+    },
+    "favourites": {
+      "activeLabel": "Favoritos de Jira: {{name}}",
+      "applyFailed": "No se pudo aplicar el favorito de Jira.",
+      "chooseSite": "Elige un sitio de Jira conectado para usar sus favoritos.",
+      "clear": "Borrar favorito de Jira",
+      "clearFailed": "No se pudo borrar el filtro guardado. Reinténtalo cuando termine de cargarse o guardarse.",
+      "empty": "No se encontraron favoritos de Jira.",
+      "find": "Buscar un favorito de Jira",
+      "label": "Favoritos de Jira",
+      "loadFailed": "No se pudieron cargar los favoritos de Jira.",
+      "loading": "Cargando favoritos…",
+      "refresh": "Actualizar",
+      "siteMismatch": "Elige un proyecto del sitio de Jira del favorito o borra el filtro de proyectos.",
+      "truncated": "No se pudieron mostrar algunos favoritos. Gestiona tus favoritos en Jira para acortar la lista.",
+      "unsupported": "Actualiza el host de Jira para usar los favoritos."
     }
   }
 }

@@ -573,13 +573,6 @@
             }
           }
         }
-      },
-      "workspace": {
-        "space": {
-          "WorkspaceSpacePage": {
-            "8d0048e1cb": "Workspace disk usage and reclaimable worktree storage."
-          }
-        }
       }
     },
     "hooks": {
@@ -766,6 +759,10 @@
         "historyItemTooLarge": "This part of the chat was too large to show.",
         "historyRepaired": "Part of this chat's history couldn't be loaded.",
         "plan": "Plan"
+      },
+      "queuedMessages": {
+        "imageCount_one": "{{count}} image",
+        "imageCount_other": "{{count}} images"
       },
       "receipt": {
         "cancelled": "Cancelled",
