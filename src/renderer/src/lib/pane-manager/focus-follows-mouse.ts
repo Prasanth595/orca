@@ -9,6 +9,7 @@ export type FocusFollowsMouseInput = {
   featureEnabled: boolean
   activePaneId: number | null
   hoveredPaneId: number
+  hoveredPaneHasFocus: boolean // DOM focus is inside the hovered pane
   mouseButtons: number // MouseEvent.buttons bitmask
   windowHasFocus: boolean // document.hasFocus()
   managerDestroyed: boolean
@@ -22,7 +23,10 @@ export function shouldFollowMouseFocus(input: FocusFollowsMouseInput): boolean {
   if (input.managerDestroyed) {
     return false
   }
-  if (input.activePaneId === input.hoveredPaneId) {
+  // Why also hoveredPaneHasFocus: activePaneId is per PaneManager, and the
+  // main and floating layouts are separate managers, so the hovered pane can
+  // be its manager's active pane while focus sits in the other layout.
+  if (input.activePaneId === input.hoveredPaneId && input.hoveredPaneHasFocus) {
     return false
   }
   // Why mouseButtons !== 0: any held mouse button means a selection or

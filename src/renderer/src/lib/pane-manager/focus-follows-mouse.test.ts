@@ -8,6 +8,7 @@ describe('shouldFollowMouseFocus', () => {
     featureEnabled: true,
     activePaneId: 1,
     hoveredPaneId: 2,
+    hoveredPaneHasFocus: false,
     mouseButtons: 0,
     windowHasFocus: true,
     managerDestroyed: false
@@ -25,8 +26,29 @@ describe('shouldFollowMouseFocus', () => {
     expect(shouldFollowMouseFocus({ ...base, managerDestroyed: true })).toBe(false)
   })
 
-  it('blocks when hovering the already-active pane', () => {
-    expect(shouldFollowMouseFocus({ ...base, hoveredPaneId: 1 })).toBe(false)
+  it('blocks when hovering the already-active pane that holds focus', () => {
+    expect(shouldFollowMouseFocus({ ...base, hoveredPaneId: 1, hoveredPaneHasFocus: true })).toBe(
+      false
+    )
+  })
+
+  // Main and floating layouts are separate managers: the hovered pane can be
+  // its own manager's active pane while focus is in the other layout.
+  it('refocuses the already-active pane when focus is elsewhere', () => {
+    expect(shouldFollowMouseFocus({ ...base, hoveredPaneId: 1, hoveredPaneHasFocus: false })).toBe(
+      true
+    )
+  })
+
+  it('still blocks an unfocused active pane while a mouse button is held', () => {
+    expect(
+      shouldFollowMouseFocus({
+        ...base,
+        hoveredPaneId: 1,
+        hoveredPaneHasFocus: false,
+        mouseButtons: 1
+      })
+    ).toBe(false)
   })
 
   it('blocks while the primary mouse button is held (buttons=1)', () => {
