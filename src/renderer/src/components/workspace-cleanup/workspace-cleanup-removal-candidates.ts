@@ -1,5 +1,7 @@
 import type { WorkspaceCleanupCandidate } from '../../../../shared/workspace-cleanup'
 import type { WorktreeDeleteState } from '@/store/slices/worktrees'
+import type { AppState } from '@/store/types'
+import { getConcealedRepoIdsFromState } from '@/store/concealed-repo-selector'
 import { composeWorktreeHostIdentity } from '../../../../shared/worktree/host-qualified-identity'
 import { resolveWorkspaceCleanupRemovalHostId } from '../../../../shared/workspace-cleanup-host-identity'
 
@@ -30,4 +32,16 @@ export function filterWorkspaceCleanupRemovalCandidates(
       !(legacyState?.isDeleting === true && legacyStateMatchesHost)
     )
   })
+}
+
+/** Filters against the store's current delete state and incognito lock. */
+export function selectRemovableCleanupCandidates(
+  candidates: readonly WorkspaceCleanupCandidate[],
+  state: Pick<AppState, 'deleteStateByWorktreeId' | 'repos' | 'incognitoProjectsUnlocked'>
+): WorkspaceCleanupCandidate[] {
+  return filterWorkspaceCleanupRemovalCandidates(
+    candidates,
+    state.deleteStateByWorktreeId,
+    getConcealedRepoIdsFromState(state)
+  )
 }

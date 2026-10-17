@@ -19,6 +19,7 @@ import type { SortBy } from '../../smart-sort'
 import type { SidebarWorktreeFilters } from './use-filters'
 import { useReusedArrayIdentity } from './use-reused-array-identity'
 import { getConcealedRepoIdsFromState } from '@/store/concealed-repo-selector'
+import { useSleepingSweepRetention } from './use-sleeping-sweep-retention'
 
 const EMPTY_WORKTREE_ID_SET: ReadonlySet<string> = new Set()
 
@@ -77,10 +78,30 @@ export function useVisibleSidebarWorktrees(args: {
   )
   const concealedRepoIds = useAppStore(getConcealedRepoIdsFromState)
 
-  const recomputedVisibleWorktrees = useMemo(() => {
+  // Why snapshot on agentStatusEpoch: update membership immediately without repainting on every hook ping.
+  const worktreeIdsWithLiveAgent = useMemo(() => {
     // Keyed on the epoch, not `agentStatusNow`: two bumps in one millisecond
     // share a sample, so the timestamp alone would not re-key this memo.
     void agentStatusEpoch
+    return showSleepingWorkspaces
+      ? EMPTY_WORKTREE_ID_SET
+      : getWorktreeIdsWithLiveAgent(
+          useAppStore.getState().agentStatusByPaneKey,
+          tabsByWorktree,
+          agentStatusNow
+        )
+  }, [agentStatusEpoch, agentStatusNow, showSleepingWorkspaces, tabsByWorktree])
+  const sleepingSweepExemptWorktreeIds = useSleepingSweepRetention({
+    enabled: !showSleepingWorkspaces,
+    worktreesByRepo,
+    tabsByWorktree,
+    ptyIdsByTabId,
+    browserTabsByWorktree,
+    worktreeIdsWithLiveAgent,
+    worktreeIdsWithStructuredChat
+  })
+
+  const recomputedVisibleWorktrees = useMemo(() => {
     return computeVisibleWorktrees(worktreesByRepo, sortedIds, {
       filterRepoIds,
       showSleepingWorkspaces,
@@ -88,14 +109,8 @@ export function useVisibleSidebarWorktrees(args: {
       ptyIdsByTabId,
       browserTabsByWorktree,
       worktreeIdsWithStructuredChat,
-      // Why snapshot on agentStatusEpoch: update membership immediately without repainting on every hook ping.
-      worktreeIdsWithLiveAgent: showSleepingWorkspaces
-        ? EMPTY_WORKTREE_ID_SET
-        : getWorktreeIdsWithLiveAgent(
-            useAppStore.getState().agentStatusByPaneKey,
-            tabsByWorktree,
-            agentStatusNow
-          ),
+      worktreeIdsWithLiveAgent,
+      sleepingSweepExemptWorktreeIds,
       hideDefaultBranchWorkspace,
       hideAutomationGeneratedWorkspaces,
       hideCliCreatedWorkspaces,
@@ -117,8 +132,8 @@ export function useVisibleSidebarWorktrees(args: {
   }, [
     concealedRepoIds,
     args.agentSendTargetWorktreeId,
-    agentStatusEpoch,
-    agentStatusNow,
+    worktreeIdsWithLiveAgent,
+    sleepingSweepExemptWorktreeIds,
     filterRepoIds,
     showSleepingWorkspaces,
     hideDefaultBranchWorkspace,

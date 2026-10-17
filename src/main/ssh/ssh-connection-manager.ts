@@ -63,6 +63,11 @@ export class SshConnectionManager {
       if (existing) {
         this.retainSignIn(target.id, existing)
         await existing.disconnect()
+        // Why: a Disconnect or Remove while the old transport closed cancels this attempt;
+        // registering now would revive the host the user just let go.
+        if (this.connectingTargets.get(target.id) !== attempt) {
+          throw new Error(`Connection to ${target.label} was cancelled`)
+        }
       }
 
       const conn = new SshConnection(target, this.callbacks, this.takeRetainedSignIn(target))
@@ -163,6 +168,17 @@ export class SshConnectionManager {
       return
     }
     await conn.reconnect()
+  }
+
+  /** Restarts every reconnect stalled on a backoff, a spent ladder, or a pre-wake handshake. */
+  retryStalledReconnects(): string[] {
+    const restarted: string[] = []
+    for (const [targetId, conn] of this.connections) {
+      if (conn.retryAfterNetworkReturn()) {
+        restarted.push(targetId)
+      }
+    }
+    return restarted
   }
 
   getConnection(targetId: string): SshConnection | undefined {

@@ -5,7 +5,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useMountedRef } from '@/hooks/useMountedRef'
 import { useAppStore } from '@/store'
-import { getConcealedRepoIdsFromState } from '@/store/concealed-repo-selector'
+import { useWithoutConcealedRepos } from './use-without-concealed-repos'
 import { activateAndRevealWorktree } from '@/lib/worktree-activation'
 import { translate } from '@/i18n/i18n'
 import {
@@ -18,6 +18,7 @@ import {
 } from '../../../../shared/workspace-cleanup-host-identity'
 import { WorkspaceCleanupBrowseToolbar } from './workspace-cleanup-browse-toolbar'
 import { WorkspaceCleanupConfirmRemove } from './workspace-cleanup-confirm-remove'
+import { WorkspaceCleanupConfirmStopAgents } from './workspace-cleanup-confirm-stop-agents'
 import { WorkspaceCleanupDialogHeader } from './workspace-cleanup-dialog-header'
 import {
   getWorkspaceCleanupDeletionPhaseByIdentity,
@@ -68,7 +69,6 @@ function WorkspaceCleanupDialogContent({
   const error = useAppStore((s) => s.workspaceCleanupError)
   const spaceError = useAppStore((s) => s.workspaceSpaceScanError)
   const repos = useAppStore((s) => s.repos)
-  const concealedRepoIds = useAppStore(getConcealedRepoIdsFromState)
   const markCandidateViewed = useAppStore((s) => s.markWorkspaceCleanupCandidateViewed)
   const dismissCandidates = useAppStore((s) => s.dismissWorkspaceCleanupCandidates)
   const refreshWorkspaceSpace = useAppStore((s) => s.refreshWorkspaceSpace)
@@ -112,12 +112,8 @@ function WorkspaceCleanupDialogContent({
   )
 
   // Why: the scan covers every repo; a locked incognito one must not be listed, counted or bulk-selected.
-  const candidates = useMemo(() => {
-    const scanned = scan?.candidates ?? []
-    return concealedRepoIds.size === 0
-      ? scanned
-      : scanned.filter((candidate) => !concealedRepoIds.has(candidate.repoId))
-  }, [concealedRepoIds, scan?.candidates])
+  const candidates = useWithoutConcealedRepos(scan?.candidates)
+  const scanErrors = useWithoutConcealedRepos(scan?.errors)
   // The browse view promises Git facts for every row. The broad scan defers
   // some reads for performance, so fill those gaps while the modal is open.
   const gitEvidenceNeeded = open
@@ -157,10 +153,10 @@ function WorkspaceCleanupDialogContent({
   const scanNoticeMessage = useMemo(
     () =>
       formatWorkspaceCleanupScanNotice(
-        (scan?.errors ?? []).filter((scanError) => !concealedRepoIds.has(scanError.repoId)),
+        scanErrors,
         new Map(repos.map((repo) => [repo.id, repo.displayName || repo.path]))
       ),
-    [concealedRepoIds, repos, scan?.errors]
+    [repos, scanErrors]
   )
   const initialLoading = loading && candidates.length === 0
   const runSpaceScan = useCallback(() => {
@@ -355,7 +351,13 @@ function WorkspaceCleanupDialogContent({
         showCloseButton={false}
         className="flex h-[min(820px,90vh)] w-[calc(100vw-3rem)] max-w-[calc(100vw-3rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[calc(100vw-3rem)] xl:w-[980px] xl:max-w-[980px]"
       >
-        {!removal.confirming ? (
+        {removal.agentStopRequest ? (
+          <WorkspaceCleanupConfirmStopAgents
+            candidates={removal.agentStopRequest.candidates}
+            onBack={removal.cancelStopAgents}
+            onConfirm={removal.confirmStopAgents}
+          />
+        ) : !removal.confirming ? (
           <>
             <WorkspaceCleanupDialogHeader
               selectedCount={selectedCount}
