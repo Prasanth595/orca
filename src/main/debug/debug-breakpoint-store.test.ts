@@ -11,7 +11,12 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { DebugBreakpointStore, normalizeDebugPath } from './debug-breakpoint-store'
+import {
+  DebugBreakpointStore,
+  normalizeDebugPath,
+  withheldFrom,
+  type DebugBreakpoint
+} from './debug-breakpoint-store'
 
 const dirs: string[] = []
 
@@ -127,7 +132,7 @@ describe('DebugBreakpointStore', () => {
     }
   })
 
-  it('realpath-normalises keys read from disk, merging spellings that collapse to one file', () => {
+  it('realpath-normalises keys read from disk, merging spellings that collapse to one file; an old file without authors loads as ui', () => {
     const { dir, root, file, storePath } = scratch()
     const link = join(dir, 'Linked')
     symlinkSync(root, link, 'dir')
@@ -140,9 +145,43 @@ describe('DebugBreakpointStore', () => {
     writeFileSync(storePath, JSON.stringify({ version: 1, roots }))
     const store = new DebugBreakpointStore({ filePath: storePath })
     expect(store.forFile(normalizeDebugPath(root), normalizeDebugPath(file))).toEqual([
-      entry('a', 1),
-      entry('b', 2)
+      { ...entry('a', 1), author: 'ui' },
+      { ...entry('b', 2), author: 'ui' }
     ])
     expect(store.files(root)).toEqual([normalizeDebugPath(file)])
+  })
+})
+
+describe('DebugBreakpointStore authors', () => {
+  it('records the author, persists it, and withholds only an agent’s code fields from a person’s session', () => {
+    const { root, file, storePath } = scratch()
+    const store = new DebugBreakpointStore({ filePath: storePath })
+    const agent = store.add(root, file, { line: 1, condition: 'x', author: 'cli' })
+    const person = store.add(root, file, { line: 2, condition: 'y' })
+    const plain = store.add(root, file, { line: 3, author: 'cli' })
+    expect([agent.author, person.author, plain.author]).toEqual(['cli', 'ui', 'cli'])
+    const reloaded = new DebugBreakpointStore({ filePath: storePath })
+    expect(reloaded.forFile(root, file).map((bp) => bp.author)).toEqual(['cli', 'ui', 'cli'])
+    const lines = (bps: DebugBreakpoint[]) =>
+      bps.map(({ line, condition }) => ({ line, condition }))
+    // Unset audience counts as a person's session.
+    const toPerson = [
+      { line: 1, condition: undefined },
+      { line: 2, condition: 'y' }
+    ]
+    expect(lines(store.forSession(root, file))).toEqual([
+      ...toPerson,
+      { line: 3, condition: undefined }
+    ])
+    store.setAudience(root, 'cli')
+    expect(lines(store.forSession(root, file)).map((bp) => bp.condition)).toEqual([
+      'x',
+      'y',
+      undefined
+    ])
+    // forFile, what the UI lists, is never stripped.
+    expect(store.forFile(root, file)[0].condition).toBe('x')
+    expect(withheldFrom(agent, 'ui')).toBe(true)
+    expect(withheldFrom(plain, 'ui')).toBe(false)
   })
 })

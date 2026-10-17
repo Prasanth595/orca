@@ -3,8 +3,13 @@ import type * as Wire from '../../preload/api/debug-api'
 import type { DapConnection } from './dap-connection'
 import type { DebugSessionState } from './debug-session-handshake'
 import {
+  CODE_FIELDS,
+  DebugServiceError,
   isInsideRoot,
   normalizeDebugPath,
+  WITHHELD_MESSAGE,
+  withheldFrom,
+  type DebugAuthor,
   type DebugBreakpoint,
   type DebugBreakpointStore
 } from './debug-breakpoint-store'
@@ -80,12 +85,8 @@ export class SessionBreakpoints {
       }
       const feature = unsupportedFeature(entry, caps)
       if (feature) {
-        statuses.push({
-          id: entry.id,
-          requestedLine: entry.line,
-          state: 'unsupported',
-          message: `${feature} ${UNSUPPORTED_BREAKPOINT_MESSAGE}`
-        })
+        const message = `${feature} ${UNSUPPORTED_BREAKPOINT_MESSAGE}`
+        statuses.push({ id: entry.id, requestedLine: entry.line, state: 'unsupported', message })
         continue
       }
       const prior = previous.get(entry.id)
@@ -213,13 +214,8 @@ export class SessionBreakpointSender {
     })
   }
 
-  async sendFile(
-    connection: DapConnection,
-    caps: Capabilities,
-    file: string,
-    resend = false
-  ): Promise<void> {
-    const entries = this.store.forFile(this.root, file)
+  async sendFile(connection: DapConnection, caps: Capabilities, file: string, resend = false) {
+    const entries = this.store.forSession(this.root, file)
     const { args, sent } = this.answers.prepare(file, entries, caps)
     const response = await connection.request('setBreakpoints', args)
     const answer = responseList<Breakpoint>(responseBody(response).breakpoints)
@@ -233,27 +229,19 @@ export class SessionBreakpointSender {
   }
 }
 
-export class DebugServiceError extends Error {
-  constructor(
-    readonly reason: Wire.DebugRefusalReason,
-    message: string
-  ) {
-    super(message)
-    this.name = 'DebugServiceError'
-  }
-}
-
 type AnswerSource = { breakpointStatus: (file: string) => SessionBreakpointStatus[] } | null
 
-/** The session's answer for a stored breakpoint, else pending. */
+/** The session's answer for a stored breakpoint, else pending; `author` rides along for the UI. */
 export function breakpointWire(
   session: AnswerSource,
   file: string,
-  bp: DebugBreakpoint
+  bp: DebugBreakpoint,
+  audience: DebugAuthor | null = null
 ): Wire.DebugBreakpointWire {
   const found = session?.breakpointStatus(file).find((s) => s.id === bp.id)
+  const message = found && withheldFrom(bp, audience) ? WITHHELD_MESSAGE : found?.message
   const answer: Wire.DebugBreakpointAnswer = found
-    ? { state: found.state, line: found.line, message: found.message }
+    ? { state: found.state, line: found.line, message }
     : { state: 'pending', message: bp.enabled ? 'not sent to a debugger' : 'disabled' }
   return { ...bp, path: file, answer }
 }
@@ -264,22 +252,31 @@ type Fields = Wire.DebugBreakpointFields
 export class ScopedBreakpoints {
   constructor(readonly store: DebugBreakpointStore) {}
 
-  add(root: string, path: string, fields: Fields & { line: number }) {
-    const file = this.file(root, path)
-    return { file, bp: this.store.add(root, file, fields) }
+  /** Every breakpoint of the root with the session's answer, as `audience`'s session was sent it. */
+  wires(at: { root: string; session: AnswerSource; origin: DebugAuthor | null }) {
+    const wire = (file: string) =>
+      this.store.forFile(at.root, file).map((bp) => breakpointWire(at.session, file, bp, at.origin))
+    return this.store.files(at.root).flatMap(wire)
   }
 
-  update(root: string, id: string, fields: Fields) {
-    const file = this.byId(root, id)
-    const bp = this.store.update(root, file, id, fields)
+  add(root: string, path: string, fields: Fields & { line: number }, author: DebugAuthor) {
+    const file = this.file(root, path)
+    return { file, bp: this.store.add(root, file, { ...fields, author }) }
+  }
+
+  /** Setting a code field makes the caller its author; an agent may not change a person's. */
+  update(root: string, id: string, fields: Fields, origin: DebugAuthor) {
+    const file = this.byId(root, id, origin)
+    const author = CODE_FIELDS.some((key) => fields[key] !== undefined) ? { author: origin } : {}
+    const bp = this.store.update(root, file, id, { ...fields, ...author })
     if (!bp) {
       throw new DebugServiceError('unknown-breakpoint', `No breakpoint ${id}`)
     }
     return { file, bp }
   }
 
-  remove(root: string, id: string): void {
-    this.store.remove(root, this.byId(root, id), id)
+  remove(root: string, id: string, origin: DebugAuthor): void {
+    this.store.remove(root, this.byId(root, id, origin), id)
   }
 
   /** Moves by id after an edit, so a moved breakpoint keeps its condition and enabled state. */
@@ -297,11 +294,18 @@ export class ScopedBreakpoints {
     return file
   }
 
-  private byId(root: string, id: string): string {
+  private byId(root: string, id: string, origin: DebugAuthor): string {
     const { store } = this
-    const file = store.files(root).find((f) => store.forFile(root, f).some((bp) => bp.id === id))
+    const find = (f: string) => store.forFile(root, f).find((bp) => bp.id === id)
+    const file = store.files(root).find(find)
     if (!file) {
       throw new DebugServiceError('unknown-breakpoint', `No breakpoint ${id} in ${root}`)
+    }
+    if (origin === 'cli' && find(file)?.author !== 'cli') {
+      throw new DebugServiceError(
+        'human-session',
+        'A person set this breakpoint; agents may not change it.'
+      )
     }
     return file
   }

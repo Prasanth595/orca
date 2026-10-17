@@ -26,6 +26,7 @@ type Fields = Wire.DebugBreakpointFields
 type Snapshot = Wire.DebugSnapshot
 type Output = Wire.DebugOutputEvent
 type Event = Output | Wire.DebugStateEvent
+type Status = Wire.DebugStatus
 type Ready = { deps: DebugServiceConfig; breakpoints: ScopedBreakpoints; off: () => void }
 type WorktreeDebug = trust.WorktreeDebug
 
@@ -36,12 +37,12 @@ export class DebugService {
   private readonly entries = new Map<string, WorktreeDebug>()
   private readonly stateListeners = new Set<(snapshot: Snapshot) => void>()
   private readonly outputs = new Batcher<Output>(OUTPUT_FLUSH_MS)
+  private readonly wires = (entry: WorktreeDebug) => this.ready().breakpoints.wires(entry)
 
   configure(deps: DebugServiceConfig): void {
     this.ctx?.off()
-    const store = new DebugBreakpointStore({
-      filePath: join(deps.userDataPath, 'debug-breakpoints.json')
-    })
+    const filePath = join(deps.userDataPath, 'debug-breakpoints.json')
+    const store = new DebugBreakpointStore({ filePath })
     const off = store.onChange((root) => this.bump(this.entry(root)))
     this.ctx = { deps, breakpoints: new ScopedBreakpoints(store), off }
   }
@@ -109,21 +110,24 @@ export class DebugService {
     }
     void entry.session?.dispose()
     const { store } = this.ready().breakpoints
+    store.setAudience(launch.root, input.origin)
     const session = trust.createTrustedSession(launch, store, entry.exceptionFilters)
     if (entry.release) {
       clearTimeout(entry.release)
     }
     Object.assign(entry, { session, launch, origin: input.origin, lastError: null, threads: [] })
-    Object.assign(entry, { outputTotal: 0, release: null })
+    const cliControlSeq = input.origin === 'cli' ? entry.seq : entry.cliControlSeq
+    Object.assign(entry, { outputTotal: 0, release: null, cliControlSeq })
     session.onStateChange(() => this.onSessionState(entry, session))
     this.setTimer(entry, true)
     this.bump(entry)
     return this.settle(entry, session.start())
   }
 
-  async stop(target: Target): Promise<Wire.DebugResult<Snapshot>> {
+  /** A cli caller may not stop a session a person started. */
+  async stop(target: Target, origin: Origin = 'ui'): Promise<Wire.DebugResult<Snapshot>> {
     const entry = await this.trusted(target)
-    return this.settle(entry, entry.requireSession(true).stop())
+    return this.settle(entry, entry.requireSession(true, origin).stop())
   }
 
   async restart(target: Target, origin: Origin): Promise<Wire.DebugResult<Snapshot>> {
@@ -134,6 +138,7 @@ export class DebugService {
       return refused
     }
     this.setTimer(entry, true)
+    entry.cliControlSeq = origin === 'cli' ? entry.seq : entry.cliControlSeq
     return this.settle(entry, session.restart())
   }
 
@@ -153,6 +158,17 @@ export class DebugService {
     return (await this.trusted(target)).requireSession(true, origin)
   }
 
+  /** A cli continue, step or pause: the seq its wait counts from. Sync, so call it just before the request. */
+  markCliControl(session: DebugSession): number {
+    const entry = [...this.entries.values()].find((e) => e.session === session)
+    return entry ? (entry.cliControlSeq = entry.seq) : this.seq
+  }
+
+  /** The seq of the last cli start, restart, continue, step or pause in this worktree. */
+  async cliControlSeq(target: Target): Promise<number | null> {
+    return (await this.trusted(target)).cliControlSeq
+  }
+
   async setExceptionFilters(target: Target, filters: string[]): Promise<Snapshot> {
     const entry = await this.trusted(target)
     entry.exceptionFilters = [...filters]
@@ -164,29 +180,29 @@ export class DebugService {
   async addBreakpoint(target: Target, path: string, fields: Fields & { line: number }, o: Origin) {
     const entry = await this.trusted(target)
     entry.allowCodeFields(fields, o)
-    const { file, bp } = this.ready().breakpoints.add(entry.root, path, fields)
-    return breakpointWire(entry.session, file, bp)
+    const { file, bp } = this.ready().breakpoints.add(entry.root, path, fields, o)
+    return breakpointWire(entry.session, file, bp, entry.origin)
   }
 
   async updateBreakpoint(target: Target, id: string, fields: Fields, origin: Origin) {
     const entry = await this.trusted(target)
     entry.allowCodeFields(fields, origin)
-    const { file, bp } = this.ready().breakpoints.update(entry.root, id, fields)
-    return breakpointWire(entry.session, file, bp)
+    const { file, bp } = this.ready().breakpoints.update(entry.root, id, fields, origin)
+    return breakpointWire(entry.session, file, bp, entry.origin)
   }
 
-  async removeBreakpoint(target: Target, id: string): Promise<void> {
-    this.ready().breakpoints.remove((await this.trusted(target)).root, id)
+  async removeBreakpoint(target: Target, id: string, origin: Origin = 'ui'): Promise<void> {
+    this.ready().breakpoints.remove((await this.trusted(target)).root, id, origin)
   }
 
   async setFileLines(target: Target, path: string, lines: readonly { id: string; line: number }[]) {
     const entry = await this.trusted(target)
     const file = this.ready().breakpoints.setFileLines(entry.root, path, lines)
-    return this.breakpointsOf(entry).filter((bp) => bp.path === file)
+    return this.wires(entry).filter((bp) => bp.path === file)
   }
 
   async listBreakpoints(target: Target): Promise<Wire.DebugBreakpointWire[]> {
-    return this.breakpointsOf(await this.trusted(target))
+    return this.wires(await this.trusted(target))
   }
 
   async snapshot(target: Target): Promise<Snapshot> {
@@ -202,10 +218,13 @@ export class DebugService {
     return { events, latestSeq: entry.seq, truncated: since < entry.evictedThrough }
   }
 
-  /** Resolves on the NEXT state in `statuses`, or with timedOut after timeoutMs. */
-  async waitFor(target: Target, statuses: readonly Wire.DebugStatus[], timeoutMs: number) {
+  /** Resolves on a state in `statuses` after sinceSeq (else the NEXT one), or timedOut after timeoutMs. */
+  async waitFor(target: Target, statuses: readonly Status[], timeoutMs: number, sinceSeq?: number) {
     const entry = await this.trusted(target)
     entry.requireSession(false)
+    if (sinceSeq !== undefined && entry.reachedSince(sinceSeq, statuses)) {
+      return { timedOut: false, snapshot: this.buildSnapshot(entry) }
+    }
     return new Promise<{ timedOut: boolean; snapshot: Snapshot }>((resolve) => {
       const finish = (timedOut: boolean): void => {
         clearTimeout(timer)
@@ -227,12 +246,8 @@ export class DebugService {
 
   /** Every channel re-derives the root from the repo in main; a bare caller path is never trusted. */
   private async trusted(target: Target): Promise<WorktreeDebug> {
-    const resolved = await trust.resolveTrustedRoot(
-      this.ready().deps,
-      target.repoId,
-      target.worktreePath,
-      false
-    )
+    const { repoId, worktreePath } = target
+    const resolved = await trust.resolveTrustedRoot(this.ready().deps, repoId, worktreePath, false)
     if (!resolved.ok) {
       throw new trust.DebugServiceError(resolved.reason, resolved.message)
     }
@@ -316,7 +331,7 @@ export class DebugService {
       this.push(entry, event)
       this.outputs.push(event)
     }
-    const answers = JSON.stringify(this.breakpointsOf(entry).map((bp) => bp.answer))
+    const answers = JSON.stringify(this.wires(entry).map((bp) => bp.answer))
     if (answers !== entry.answers) {
       entry.answers = answers
       this.bump(entry)
@@ -337,15 +352,8 @@ export class DebugService {
     }
   }
 
-  private breakpointsOf(entry: WorktreeDebug): Wire.DebugBreakpointWire[] {
-    const { store } = this.ready().breakpoints
-    const wire = (file: string) =>
-      store.forFile(entry.root, file).map((bp) => breakpointWire(entry.session, file, bp))
-    return store.files(entry.root).flatMap(wire)
-  }
-
   private buildSnapshot(entry: WorktreeDebug): Snapshot {
-    return buildDebugSnapshot(entry, this.breakpointsOf(entry))
+    return buildDebugSnapshot(entry, this.wires(entry))
   }
 }
 

@@ -14,7 +14,7 @@ import {
 import * as bps from './debug-breakpoint-store'
 import { OutputRing } from './dap-protocol'
 import { DEBUG_OUTPUT_RING_ENTRIES, DebugSession } from './debug-session'
-import { DebugServiceError } from './debug-session-breakpoints'
+import { DebugServiceError } from './debug-breakpoint-store'
 import { listLaunchConfigs, resolveLaunchSpec, type LaunchSpec } from './launch-config'
 
 export { DebugServiceError }
@@ -63,11 +63,9 @@ export function launchExpectedHash(configHash: string, approvalKey: string): str
 
 /** cli may read a person's session but never run code in it or drive it. */
 export function humanSessionRefusal(origin: DebugOrigin, sessionOrigin: DebugOrigin | null) {
+  const message = 'A person started this debug session; agents may only read it.'
   return origin === 'cli' && sessionOrigin !== 'cli'
-    ? new DebugServiceError(
-        'human-session',
-        'A person started this debug session; agents may only read it.'
-      )
+    ? new DebugServiceError('human-session', message)
     : null
 }
 
@@ -301,6 +299,8 @@ export class WorktreeDebug {
   origin: DebugOrigin | null = null
   launch: TrustedLaunch | null = null
   lastError: string | null = null
+  /** Seq of the last cli start, restart, continue, step or pause: where a cli wait counts from. */
+  cliControlSeq: number | null = null
   threads: Wire.DebugThreadWire[] = []
   exceptionFilters: string[] | undefined
   /** Seq of the newest event evicted from the ring. */
@@ -323,6 +323,14 @@ export class WorktreeDebug {
 
   get live(): boolean {
     return ['starting', 'running', 'stopped'].includes(this.session?.state.status ?? 'idle')
+  }
+
+  /** A state in `statuses` happened after `since`; past the ring's reach, the current state decides. */
+  reachedSince(since: number, statuses: readonly Wire.DebugStatus[]): boolean {
+    const now = this.session?.state.status ?? 'idle'
+    const states = this.ring.all().filter((e): e is Wire.DebugStateEvent => 'kind' in e)
+    const seen = states.some((e) => e.seq > since && statuses.includes(e.status))
+    return seen || (since < this.evictedThrough && statuses.includes(now))
   }
 
   /** The session; with an origin, refuses a cli caller in a session a person started. */

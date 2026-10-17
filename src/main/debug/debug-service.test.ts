@@ -247,6 +247,7 @@ describe('debugService trust gate', () => {
       restart: () => service.restart(at, 'ui'),
       inspect: () => service.inspect(at),
       control: () => service.control(at, 'ui'),
+      cliControlSeq: () => service.cliControlSeq(at),
       setExceptionFilters: () => service.setExceptionFilters(at, []),
       addBreakpoint: () => service.addBreakpoint(at, '/w/a.py', { line: 1 }, 'ui'),
       updateBreakpoint: () => service.updateBreakpoint(at, 'id', {}, 'ui'),
@@ -259,7 +260,16 @@ describe('debugService trust gate', () => {
     }
     // Lifecycle methods and private helpers; any other method must appear in `calls`.
     const lifecycle = ['constructor', 'configure', 'dispose', 'killAllSync']
-    const helpers = ['ready', 'trusted', 'entry', 'settle', 'setTimer', 'onSessionState']
+    // markCliControl only stamps a session control() already returned, so it needs no config.
+    const helpers = [
+      'ready',
+      'trusted',
+      'entry',
+      'settle',
+      'setTimer',
+      'onSessionState',
+      'markCliControl'
+    ]
     const more = ['scheduleRelease', 'sync', 'push', 'bump', 'breakpointsOf', 'buildSnapshot']
     const internal = new Set([...lifecycle, ...helpers, ...more])
     const methods = Object.getOwnPropertyNames(DebugService.prototype)
@@ -530,5 +540,106 @@ describe('debugService breakpoints', () => {
     expect(await thrownReason(ctx.service.removeBreakpoint(ctx.at, dropped.id))).toBe(
       'unknown-breakpoint'
     )
+  })
+})
+
+/** Every breakpoint the adapter of the worktree's current session was sent. */
+async function sentBreakpoints(ctx: Ctx): Promise<Record<string, unknown>[]> {
+  const session = await ctx.service.control(ctx.at, 'ui')
+  const { messages } = Object((await session.customRequest('fake/received')).body)
+  return [messages]
+    .flat()
+    .map((entry) => Object(Object(entry).message))
+    .filter((message) => message.command === 'setBreakpoints')
+    .flatMap((message) => message.arguments.breakpoints)
+}
+
+describe('debugService agent-authored breakpoints', () => {
+  it('never sends an agent’s condition to a person’s session; sends it to an agent’s', async () => {
+    const ctx = setup()
+    await approve(ctx)
+    const file = join(ctx.root, 'app.py')
+    await startedAndStopped(ctx, 'cli')
+    await ctx.service.addBreakpoint(ctx.at, file, { line: 2, condition: 'a' }, 'cli')
+    await expect.poll(() => sentBreakpoints(ctx)).toContainEqual({ line: 2, condition: 'a' })
+    await ctx.service.stop(ctx.at, 'cli')
+
+    await startedAndStopped(ctx, 'ui')
+    expect(await sentBreakpoints(ctx)).toEqual([{ line: 2 }])
+    const [listed] = await ctx.service.listBreakpoints(ctx.at)
+    expect(listed).toMatchObject({ author: 'cli', condition: 'a' })
+    expect(listed.answer.message).toBe('agent-written condition withheld')
+    await ctx.service.stop(ctx.at, 'ui')
+
+    await startedAndStopped(ctx, 'cli')
+    expect(await sentBreakpoints(ctx)).toEqual([{ line: 2, condition: 'a' }])
+    const [again] = await ctx.service.listBreakpoints(ctx.at)
+    expect(again.answer.message).not.toBe('agent-written condition withheld')
+  })
+
+  it('a person editing an agent’s condition adopts it', async () => {
+    const ctx = setup()
+    await approve(ctx)
+    await startedAndStopped(ctx, 'cli')
+    const file = join(ctx.root, 'app.py')
+    const bp = await ctx.service.addBreakpoint(ctx.at, file, { line: 2, logMessage: '{a}' }, 'cli')
+    await ctx.service.stop(ctx.at, 'cli')
+    const toggled = await ctx.service.updateBreakpoint(ctx.at, bp.id, { enabled: false }, 'ui')
+    expect(toggled).toMatchObject({ author: 'cli' })
+    const adopted = await ctx.service.updateBreakpoint(ctx.at, bp.id, { condition: 'a' }, 'ui')
+    expect(adopted).toMatchObject({ author: 'ui', condition: 'a' })
+  })
+
+  it('refuses a cli caller that stops a person’s session or changes a person’s breakpoint', async () => {
+    const ctx = setup()
+    await approve(ctx)
+    const file = join(ctx.root, 'app.py')
+    const human = await ctx.service.addBreakpoint(ctx.at, file, { line: 2 }, 'ui')
+    const agent = await ctx.service.addBreakpoint(ctx.at, file, { line: 3 }, 'cli')
+    await startedAndStopped(ctx, 'ui')
+    expect(await thrownReason(ctx.service.stop(ctx.at, 'cli'))).toBe('human-session')
+    expect(await thrownReason(ctx.service.removeBreakpoint(ctx.at, human.id, 'cli'))).toBe(
+      'human-session'
+    )
+    const disable = ctx.service.updateBreakpoint(ctx.at, human.id, { enabled: false }, 'cli')
+    expect(await thrownReason(disable)).toBe('human-session')
+    await ctx.service.removeBreakpoint(ctx.at, agent.id, 'cli')
+    expect((await ctx.service.listBreakpoints(ctx.at)).map((bp) => bp.id)).toEqual([human.id])
+    expect(reasonOf(await ctx.service.stop(ctx.at, 'ui'))).toBe('ok')
+  })
+})
+
+describe('debugService wait since a cli control', () => {
+  it('resolves at once on a stop that happened after the cli start, before wait was called', async () => {
+    const ctx = setup()
+    await approve(ctx)
+    expect(reasonOf(await ctx.service.start({ ...ctx.target, origin: 'cli' }))).toBe('ok')
+    await expect.poll(async () => (await ctx.service.snapshot(ctx.at)).status).toBe('stopped')
+    const since = await ctx.service.cliControlSeq(ctx.at)
+    expect(since).not.toBeNull()
+    const caught = await ctx.service.waitFor(ctx.at, ['stopped'], 50, since ?? undefined)
+    expect(caught.timedOut).toBe(false)
+    // Without a seq, wait still means the NEXT state.
+    expect((await ctx.service.waitFor(ctx.at, ['stopped'], 50)).timedOut).toBe(true)
+  })
+
+  it('markCliControl stamps the seq a continue starts from', async () => {
+    const ctx = setup()
+    await approve(ctx)
+    await ctx.service.addBreakpoint(ctx.at, join(ctx.root, 'app.py'), { line: 3 }, 'cli')
+    await startedAndStopped(ctx, 'cli')
+    const session = await ctx.service.control(ctx.at, 'cli')
+    const seq = ctx.service.markCliControl(session)
+    expect(await ctx.service.cliControlSeq(ctx.at)).toBe(seq)
+    // The entry stop is before seq, so it does not count.
+    expect((await ctx.service.waitFor(ctx.at, ['stopped'], 50, seq)).timedOut).toBe(true)
+    await session.continue(1)
+    await expect
+      .poll(async () => (await ctx.service.snapshot(ctx.at)).stopped?.reason)
+      .toBe('breakpoint')
+    const { timedOut, snapshot } = await ctx.service.waitFor(ctx.at, ['stopped'], 50, seq)
+    expect(timedOut).toBe(false)
+    expect(snapshot.stopped).toMatchObject({ reason: 'breakpoint' })
+    expect((await ctx.service.waitFor(ctx.at, ['terminated'], 50, seq)).timedOut).toBe(true)
   })
 })

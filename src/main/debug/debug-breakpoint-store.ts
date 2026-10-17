@@ -1,7 +1,21 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import type * as Wire from '../../preload/api/debug-api'
 import { renameFileWithWindowsRetry, writeFileAtomically } from '../codex-accounts/fs-utils'
+
+export class DebugServiceError extends Error {
+  constructor(
+    readonly reason: Wire.DebugRefusalReason,
+    message: string
+  ) {
+    super(message)
+    this.name = 'DebugServiceError'
+  }
+}
+
+/** Who last set a breakpoint's code fields (condition, hitCondition, logMessage). */
+export type DebugAuthor = 'ui' | 'cli'
 
 export type DebugBreakpoint = {
   id: string
@@ -11,10 +25,13 @@ export type DebugBreakpoint = {
   condition?: string
   hitCondition?: string
   logMessage?: string
+  /** The store always records it; a literal without one counts as a person's. */
+  author?: DebugAuthor
 }
 
-export type DebugBreakpointInput = Omit<DebugBreakpoint, 'id' | 'enabled'> & {
+export type DebugBreakpointInput = Omit<DebugBreakpoint, 'id' | 'enabled' | 'author'> & {
   enabled?: boolean
+  author?: DebugAuthor
 }
 export type DebugBreakpointPatch = Partial<Omit<DebugBreakpoint, 'id'>>
 
@@ -55,7 +72,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-const OPTIONAL_STRINGS = ['condition', 'hitCondition', 'logMessage'] as const
+/** The fields an adapter runs as code. */
+export const CODE_FIELDS = ['condition', 'hitCondition', 'logMessage'] as const
+
+export const WITHHELD_MESSAGE = 'agent-written condition withheld'
+
+/** An agent's code fields never run in a session a person started. */
+export function withheldFrom(bp: DebugBreakpoint, audience: DebugAuthor | null): boolean {
+  return audience === 'ui' && bp.author === 'cli' && CODE_FIELDS.some((key) => bp[key])
+}
 
 function readEntry(value: unknown): DebugBreakpoint | null {
   if (
@@ -66,11 +91,18 @@ function readEntry(value: unknown): DebugBreakpoint | null {
   ) {
     return null
   }
-  const entry: DebugBreakpoint = { id: value.id, line: Number(value.line), enabled: value.enabled }
+  // A file written before authors were recorded holds only a person's breakpoints.
+  const author = value.author === 'cli' ? 'cli' : 'ui'
+  const entry: DebugBreakpoint = {
+    id: value.id,
+    line: Number(value.line),
+    enabled: value.enabled,
+    author
+  }
   if (Number.isSafeInteger(value.column)) {
     entry.column = Number(value.column)
   }
-  for (const key of OPTIONAL_STRINGS) {
+  for (const key of CODE_FIELDS) {
     const field = value[key]
     if (typeof field === 'string') {
       entry[key] = field
@@ -133,6 +165,7 @@ export type DebugBreakpointStoreOptions = {
 export class DebugBreakpointStore {
   private readonly roots = new Map<string, Map<string, DebugBreakpoint[]>>()
   private readonly listeners = new Set<(root: string, file: string) => void>()
+  private readonly audiences = new Map<string, DebugAuthor>()
   private readonly warn: (message: string) => void
 
   constructor(private readonly options: DebugBreakpointStoreOptions) {
@@ -150,12 +183,28 @@ export class DebugBreakpointStore {
     return entries.map((entry) => ({ ...entry }))
   }
 
+  /** The origin of the session `root` runs now; unset counts as a person's. */
+  setAudience(root: string, origin: DebugAuthor): void {
+    this.audiences.set(normalizeDebugPath(root), origin)
+  }
+
+  /** What the session in `root` is sent: withheld entries go as plain line breakpoints. */
+  forSession(root: string, file: string): DebugBreakpoint[] {
+    const audience = this.audiences.get(normalizeDebugPath(root)) ?? 'ui'
+    const plain = (bp: DebugBreakpoint) => {
+      CODE_FIELDS.forEach((key) => delete bp[key])
+      return bp
+    }
+    return this.forFile(root, file).map((bp) => (withheldFrom(bp, audience) ? plain(bp) : bp))
+  }
+
   add(root: string, file: string, input: DebugBreakpointInput): DebugBreakpoint {
     const entry: DebugBreakpoint = {
       ...sanitizePatch(input),
       id: randomUUID(),
       line: input.line,
-      enabled: input.enabled ?? true
+      enabled: input.enabled ?? true,
+      author: input.author ?? 'ui'
     }
     this.mutate(root, file, (entries) => [...entries, entry])
     return { ...entry }
@@ -287,9 +336,8 @@ export class DebugBreakpointStore {
     }
     try {
       mkdirSync(dirname(this.options.filePath), { recursive: true })
-      writeFileAtomically(this.options.filePath, `${JSON.stringify(file, null, 2)}\n`, {
-        mode: 0o600
-      })
+      const text = `${JSON.stringify(file, null, 2)}\n`
+      writeFileAtomically(this.options.filePath, text, { mode: 0o600 })
     } catch (error) {
       // The in-memory store stays authoritative; a failed save must not fail the edit.
       this.warn(`could not save breakpoints to ${this.options.filePath}: ${String(error)}`)
