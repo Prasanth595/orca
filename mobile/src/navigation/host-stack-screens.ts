@@ -1,7 +1,8 @@
 /** The screens `app/h/_layout.tsx` declares, shared so the native and page stacks cannot drift. */
 export const HOST_STACK_SCREENS = [
   { name: '[hostId]/index', title: 'Host' },
-  { name: '[hostId]/edit', title: 'Edit host' },
+  // The page bundle leaves it out (`SHELL_ONLY_ROUTE_KEYS`), so the page's stack declares it not.
+  { name: '[hostId]/edit', title: 'Edit host', shellOnly: true },
   { name: '[hostId]/accounts', title: 'Accounts' },
   { name: '[hostId]/tasks', title: 'Tasks' },
   { name: '[hostId]/session/[worktreeId]', title: 'Terminal' },

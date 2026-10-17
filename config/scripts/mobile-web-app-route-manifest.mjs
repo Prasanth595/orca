@@ -5,6 +5,12 @@ import * as esbuild from 'esbuild'
 /** The route subtree the page mounts. The rest of mobile/app is native-only (pairing, settings). */
 export const MOBILE_WEB_APP_ROUTE_ROOT = 'h'
 
+/**
+ * Routes under the root the page never draws: editing the phone's own saved pairing for a host,
+ * which only the app holds. `shellOnly` in `host-stack-screens.ts` keeps the page's stack in step.
+ */
+export const SHELL_ONLY_ROUTE_KEYS = ['./h/[hostId]/edit.tsx']
+
 const ROUTE_FILE = /\.[tj]sx?$/
 const NOT_A_ROUTE = /(\.(test|spec|d)\.|\+api\.|\+middleware\.)/
 // esbuild's resolveExtensions order, which only applies to an extensionless import. Routes are
@@ -39,11 +45,12 @@ export async function collectMobileWebAppRoutes(appDir, routeRoot = MOBILE_WEB_A
         !NOT_A_ROUTE.test(entry.name) &&
         !entry.name.includes('.web.')
       ) {
+        const key = `./${relative(appDir, entryPath).split('\\').join('/')}`
+        if (SHELL_ONLY_ROUTE_KEYS.includes(key)) {
+          continue
+        }
         const override = webSiblingOf(entry.name, siblings)
-        routes.push({
-          key: `./${relative(appDir, entryPath).split('\\').join('/')}`,
-          module: override ? join(directory, override) : entryPath
-        })
+        routes.push({ key, module: override ? join(directory, override) : entryPath })
       }
     }
   }

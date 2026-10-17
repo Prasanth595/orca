@@ -738,16 +738,16 @@ describeRender('the Route A page in a real browser', () => {
  * no handle to call it on and a global added for a test is a surface the shipped page would carry
  * forever. `goBack()` queues React Navigation's `GO_BACK`, which is exactly what `canGoBack()`
  * gates: a Back that moves the page proves the answer was true, one that does not proves it was
- * false. `/h/[hostId]/edit` is the call site — a real route of this tree whose chevron is
- * expo-router's own `back()`, which is what the handoff falls through to.
+ * false. `/h/[hostId]/accounts` is the call site: its chevron is the handoff's `back()`, which with
+ * no `navigate` grant falls through to expo-router's own `back()` and so measures it directly.
  *
  * The first case is the presence precondition for the two below it. A tap that moved nothing and a
  * tap that never reached a handler look identical on the document, so one tap on this same screen
  * family is asserted to reach the shell before any absence is read as an answer.
  */
 describeRender('the stack the page Back button rests on', () => {
-  const EDIT_ROUTE = `${HOST_ROUTE}/edit`
-  const BACK_ON_EDIT = '[aria-label="Back"]'
+  const ACCOUNTS_ROUTE = `${HOST_ROUTE}/accounts`
+  const BACK_ON_ACCOUNTS = '[aria-label="Back"]'
 
   /** Clicks and then lets the router settle; a `GO_BACK` that changes nothing settles too. */
   async function clickAndSettle(page, selector) {
@@ -781,12 +781,12 @@ describeRender('the stack the page Back button rests on', () => {
   }, 60_000)
 
   it('cannot go back on the document the shell just opened, which is the one screen it has', async () => {
-    const opened = await openPage({ shellRoute: { pathname: EDIT_ROUTE } })
+    const opened = await openPage({ shellRoute: { pathname: ACCOUNTS_ROUTE } })
     await opened.page.goto(`${origin}/`, { waitUntil: 'load' })
-    await waitForRoute(opened, EDIT_ROUTE, 'Edit host')
+    await waitForRoute(opened, ACCOUNTS_ROUTE, 'Accounts')
     // One control, so the tap below is known to be this route's chevron and not another screen's.
-    expect(await opened.page.locator(BACK_ON_EDIT).count()).toBe(1)
-    expect(await clickAndSettle(opened.page, BACK_ON_EDIT)).toBe(EDIT_ROUTE)
+    expect(await opened.page.locator(BACK_ON_ACCOUNTS).count()).toBe(1)
+    expect(await clickAndSettle(opened.page, BACK_ON_ACCOUNTS)).toBe(ACCOUNTS_ROUTE)
     expect(opened.errors).toEqual([])
     await opened.page.close()
   }, 60_000)
@@ -804,10 +804,10 @@ describeRender('the stack the page Back button rests on', () => {
     await opened.page.evaluate((to) => {
       history.pushState(null, '', to)
       dispatchEvent(new PopStateEvent('popstate'))
-    }, EDIT_ROUTE)
-    await waitForRoute(opened, EDIT_ROUTE, 'Edit host')
+    }, ACCOUNTS_ROUTE)
+    await waitForRoute(opened, ACCOUNTS_ROUTE, 'Accounts')
     expect(await opened.page.evaluate(() => history.length)).toBe(entriesBefore + 1)
-    expect(await clickAndSettle(opened.page, BACK_ON_EDIT)).toBe(EDIT_ROUTE)
+    expect(await clickAndSettle(opened.page, BACK_ON_ACCOUNTS)).toBe(ACCOUNTS_ROUTE)
     // This case drives a synthetic `popstate`, so a throw under the fault boundary would leave the
     // page exactly where the assertion above wants it and read as the absence this claims.
     expect(opened.errors).toEqual([])

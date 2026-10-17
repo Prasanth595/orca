@@ -1,14 +1,14 @@
 import { createElement } from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import AccountsScreen from '../app/h/[hostId]/accounts'
-import { resetCodexResetAttemptJournalForTests } from './storage/codex-reset-attempt-journal'
+import { ConfirmModal } from '../components/ConfirmModal'
+import { resetCodexResetAttemptJournalForTests } from '../storage/codex-reset-attempt-journal'
+import { MobileAccountsScreen } from './MobileAccountsScreen'
 
 const dependencies = vi.hoisted(() => ({
-  alert: vi.fn(),
   back: vi.fn(),
   loadHosts: vi.fn(),
-  randomUUID: vi.fn(),
+  randomBytes: vi.fn(),
   resetRequest: vi.fn(),
   selectRequest: vi.fn(),
   statusCapabilities: vi.fn(),
@@ -26,7 +26,6 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
 
 vi.mock('react-native', () => ({
   ActivityIndicator: 'ActivityIndicator',
-  Alert: { alert: dependencies.alert },
   AppState: { currentState: 'active', addEventListener: () => ({ remove: () => {} }) },
   Pressable: 'Pressable',
   RefreshControl: 'RefreshControl',
@@ -47,12 +46,19 @@ vi.mock('expo-router', async () => {
     useFocusEffect(effect: () => void | (() => void)): void {
       React.useEffect(effect, [effect])
     },
-    useLocalSearchParams: () => ({ hostId: 'host-1' }),
-    useRouter: () => ({ back: dependencies.back })
+    useLocalSearchParams: () => ({ hostId: 'host-1' })
   }
 })
 
-vi.mock('expo-crypto', () => ({ randomUUID: dependencies.randomUUID }))
+// The page's Back: the handoff pops the shell's stack, where expo-router's own `back()` goes nowhere.
+vi.mock('../navigation/route-handoff', () => ({
+  useRouteHandoff: () => ({ back: dependencies.back })
+}))
+
+// The dialogs are read off `ConfirmModal`'s props; the drawer under them needs a native runtime.
+vi.mock('../components/BottomDrawer', () => ({ BottomDrawer: () => null }))
+
+vi.mock('expo-crypto', () => ({ getRandomBytes: dependencies.randomBytes }))
 
 vi.mock('lucide-react-native', () => ({
   Check: 'Check',
@@ -62,9 +68,9 @@ vi.mock('lucide-react-native', () => ({
   User: 'User'
 }))
 
-vi.mock('./transport/host-store', () => ({ loadHosts: dependencies.loadHosts }))
+vi.mock('../transport/host-store', () => ({ loadHosts: dependencies.loadHosts }))
 
-vi.mock('./transport/client-context', () => {
+vi.mock('../transport/client-context', () => {
   const client = {
     sendRequest: async (method: string, params?: unknown, options?: unknown) => {
       if (method === 'status.get') {
@@ -101,7 +107,7 @@ vi.mock('./transport/client-context', () => {
   }
 })
 
-vi.mock('./components/AgentIcons', () => ({
+vi.mock('../components/AgentIcons', () => ({
   ClaudeIcon: 'ClaudeIcon',
   OpenAIIcon: 'OpenAIIcon'
 }))
@@ -160,7 +166,7 @@ const RESET_SNAPSHOT = {
 async function renderAccountsRoute(): Promise<ReactTestRenderer> {
   let renderer: ReactTestRenderer | null = null
   await act(async () => {
-    renderer = create(createElement(AccountsScreen))
+    renderer = create(createElement(MobileAccountsScreen))
     await Promise.resolve()
   })
   if (!renderer) {
@@ -169,18 +175,25 @@ async function renderAccountsRoute(): Promise<ReactTestRenderer> {
   return renderer
 }
 
+/** Host components are strings under the mock above, so they are found by what they carry. */
+function pressables(renderer: ReactTestRenderer, label: string) {
+  return renderer.root.findAll(
+    (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === label
+  )
+}
+
 function resetButtons(renderer: ReactTestRenderer) {
-  return renderer.root
-    .findAllByType('Pressable')
-    .filter((node) => node.props.accessibilityLabel === 'Use Codex rate-limit reset')
+  return pressables(renderer, 'Use Codex rate-limit reset')
 }
 
 function systemDefaultButtons(renderer: ReactTestRenderer) {
-  return renderer.root
-    .findAllByType('Pressable')
-    .filter((node) =>
-      node.findAllByType('Text').some((textNode) => textNode.children.join('') === 'System default')
-    )
+  return renderer.root.findAll(
+    (node) =>
+      String(node.type) === 'Pressable' &&
+      node
+        .findAll((child) => String(child.type) === 'Text')
+        .some((textNode) => textNode.children.join('') === 'System default')
+  )
 }
 
 async function findResetButton(renderer: ReactTestRenderer) {
@@ -188,26 +201,54 @@ async function findResetButton(renderer: ReactTestRenderer) {
   return resetButtons(renderer)[0]!
 }
 
-function getLatestConfirmAction(): () => void {
-  const call = dependencies.alert.mock.calls
-    .toReversed()
-    .find(([title]) => title === 'Use a rate-limit reset?')
-  const action = call?.[2]?.[1]?.onPress
-  if (typeof action !== 'function') {
-    throw new Error('Reset confirmation action not found')
+/** The open dialog, read off `ConfirmModal` the way a user reads the drawer. */
+function openDialog(renderer: ReactTestRenderer) {
+  const open = renderer.root
+    .findAllByType(ConfirmModal)
+    .map((node) => node.props)
+    .filter((props) => props.visible)
+  if (open.length > 1) {
+    throw new Error(`expected at most one open dialog, found ${open.length}`)
   }
-  return action
+  return open[0] ?? null
+}
+
+/** Presses the dialog's confirm button, which closes it after its action as `ConfirmContent` does. */
+function getLatestConfirmAction(renderer: ReactTestRenderer): () => void {
+  const dialog = openDialog(renderer)
+  if (dialog?.title !== 'Use a rate-limit reset?') {
+    throw new Error('Reset confirmation not open')
+  }
+  return () => {
+    dialog.onConfirm()
+    dialog.onCancel()
+  }
 }
 
 async function confirmReset(renderer: ReactTestRenderer): Promise<void> {
   const button = await findResetButton(renderer)
   await act(async () => button.props.onPress())
+  const confirm = getLatestConfirmAction(renderer)
   await act(async () => {
-    getLatestConfirmAction()()
+    confirm()
     await Promise.resolve()
     await Promise.resolve()
   })
 }
+
+function expectNotice(renderer: ReactTestRenderer, title: string, message: string): void {
+  expect(openDialog(renderer)).toMatchObject({ title, message, cancelLabel: null })
+}
+
+function dismissNotice(renderer: ReactTestRenderer): void {
+  act(() => openDialog(renderer)?.onCancel())
+}
+
+/** Sixteen bytes whose v4 UUID is `KEY`. */
+const KEY_BYTES = Uint8Array.from([
+  0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x41, 0x11, 0x81, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11
+])
+const KEY = '11111111-1111-4111-8111-111111111111'
 
 describe('accounts route Codex reset credit', () => {
   let storedValues: Map<string, string>
@@ -215,7 +256,6 @@ describe('accounts route Codex reset credit', () => {
   beforeEach(() => {
     resetCodexResetAttemptJournalForTests()
     storedValues = new Map()
-    dependencies.alert.mockReset()
     dependencies.loadHosts.mockReset().mockResolvedValue([
       {
         id: 'host-1',
@@ -226,7 +266,8 @@ describe('accounts route Codex reset credit', () => {
         lastConnected: 1
       }
     ])
-    dependencies.randomUUID.mockReset().mockReturnValue('11111111-1111-4111-8111-111111111111')
+    dependencies.randomBytes.mockReset().mockImplementation(() => KEY_BYTES.slice())
+    dependencies.back.mockReset()
     dependencies.statusCapabilities.mockReset().mockReturnValue(['accounts.codex-reset-credit.v1'])
     dependencies.resetRequest.mockReset().mockImplementation((params) => ({
       id: 'reset',
@@ -289,10 +330,7 @@ describe('accounts route Codex reset credit', () => {
 
     const firstRenderer = await renderAccountsRoute()
     await confirmReset(firstRenderer)
-    expect(dependencies.alert).toHaveBeenCalledWith(
-      'Could not reset rate limits',
-      'Connection lost'
-    )
+    expectNotice(firstRenderer, 'Could not reset rate limits', 'Connection lost')
     expect(storedValues.size).toBe(1)
     act(() => firstRenderer.unmount())
 
@@ -300,18 +338,16 @@ describe('accounts route Codex reset credit', () => {
     const secondRenderer = await renderAccountsRoute()
     await confirmReset(secondRenderer)
 
-    expect(dependencies.randomUUID).toHaveBeenCalledTimes(1)
+    expect(dependencies.randomBytes).toHaveBeenCalledTimes(1)
     expect(dependencies.resetRequest).toHaveBeenCalledTimes(2)
     const [firstParams, firstOptions] = dependencies.resetRequest.mock.calls[0]!
     const [secondParams, secondOptions] = dependencies.resetRequest.mock.calls[1]!
     expect(firstParams).toEqual(secondParams)
+    expect(firstParams).toMatchObject({ idempotencyKey: KEY })
     expect(firstOptions).toEqual({ timeoutMs: 90_000 })
     expect(secondOptions).toEqual({ timeoutMs: 90_000 })
     expect(storedValues.size).toBe(0)
-    expect(dependencies.alert).toHaveBeenCalledWith(
-      'Reset already applied',
-      'Codex usage has been refreshed.'
-    )
+    expectNotice(secondRenderer, 'Reset already applied', 'Codex usage has been refreshed.')
     act(() => secondRenderer.unmount())
   })
 
@@ -319,7 +355,7 @@ describe('accounts route Codex reset credit', () => {
     const renderer = await renderAccountsRoute()
     const button = await findResetButton(renderer)
     await act(async () => button.props.onPress())
-    const action = getLatestConfirmAction()
+    const action = getLatestConfirmAction(renderer)
 
     const changedSnapshot = {
       ...AVAILABLE_SNAPSHOT,
@@ -354,7 +390,8 @@ describe('accounts route Codex reset credit', () => {
     expect(dependencies.resetRequest.mock.calls[0]?.[0]).toMatchObject({
       expectedScope: { accountId: 'codex-1', accountRevision: 10 }
     })
-    expect(dependencies.alert).toHaveBeenCalledWith(
+    expectNotice(
+      renderer,
       'Reset details changed',
       'The account or reset offer changed before the host contacted Codex. Review the updated details, then confirm again.'
     )
@@ -400,19 +437,15 @@ describe('accounts route Codex reset credit', () => {
     act(() => renderer.unmount())
   })
 
-  it('recovers from UUID generation failure without leaving the action busy', async () => {
-    dependencies.randomUUID
-      .mockImplementationOnce(() => {
-        throw new Error('UUID unavailable')
-      })
-      .mockReturnValueOnce('11111111-1111-4111-8111-111111111111')
+  it('recovers from key generation failure without leaving the action busy', async () => {
+    dependencies.randomBytes.mockImplementationOnce(() => {
+      throw new Error('Random bytes unavailable')
+    })
     const renderer = await renderAccountsRoute()
 
     await confirmReset(renderer)
-    expect(dependencies.alert).toHaveBeenCalledWith(
-      'Could not reset rate limits',
-      'UUID unavailable'
-    )
+    expectNotice(renderer, 'Could not reset rate limits', 'Random bytes unavailable')
+    dismissNotice(renderer)
     expect((await findResetButton(renderer)).props.accessibilityState).toEqual({
       busy: false,
       disabled: false
@@ -420,6 +453,44 @@ describe('accounts route Codex reset credit', () => {
 
     await confirmReset(renderer)
     expect(dependencies.resetRequest).toHaveBeenCalledOnce()
+    act(() => renderer.unmount())
+  })
+  it('sends nothing when the confirmation is cancelled', async () => {
+    const renderer = await renderAccountsRoute()
+    const button = await findResetButton(renderer)
+    await act(async () => button.props.onPress())
+    act(() => openDialog(renderer)?.onCancel())
+
+    expect(openDialog(renderer)).toBeNull()
+    expect(dependencies.resetRequest).not.toHaveBeenCalled()
+    expect(storedValues.size).toBe(0)
+    act(() => renderer.unmount())
+  })
+
+  it('puts a failed switch on screen, where Alert would be a no-op on the page', async () => {
+    dependencies.selectRequest.mockResolvedValue({
+      id: 'select',
+      ok: false,
+      error: { code: 'internal', message: 'Desktop refused the switch' }
+    })
+    const renderer = await renderAccountsRoute()
+    await act(async () => {
+      await systemDefaultButtons(renderer)[0]?.props.onPress()
+    })
+
+    expectNotice(renderer, 'Could not switch account', 'Desktop refused the switch')
+    dismissNotice(renderer)
+    expect(openDialog(renderer)).toBeNull()
+    act(() => renderer.unmount())
+  })
+
+  it('leaves through the route handoff, which pops the shell from inside the page', async () => {
+    const renderer = await renderAccountsRoute()
+    const back = pressables(renderer, 'Back')
+    expect(back).toHaveLength(1)
+    act(() => back[0]?.props.onPress())
+
+    expect(dependencies.back).toHaveBeenCalledOnce()
     act(() => renderer.unmount())
   })
 })
