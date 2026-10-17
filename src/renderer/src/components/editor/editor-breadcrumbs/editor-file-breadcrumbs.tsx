@@ -189,7 +189,13 @@ export function EditorFileBreadcrumbs({
   const segments = splitIntoSegments(activeFile.filePath, worktreePath)
 
   return (
-    <div className="breadcrumbs-file" aria-label="File path">
+    <div
+      className="breadcrumbs-file"
+      aria-label={translate(
+        'auto.components.editor.editorBreadcrumbs.fileBreadcrumbs.container',
+        'File path'
+      )}
+    >
       {segments.map((segment, i) => {
         const isLast = i === segments.length - 1
         // siblingDir: for the first segment use worktreePath (or its own parent), for others use
