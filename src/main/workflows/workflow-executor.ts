@@ -11,6 +11,12 @@ import { patchNodeRun, finalizeWorkflowRun } from './workflow-run-store'
 import type { RemoteExecFn } from './workflow-remote-exec'
 import type { ExecuteNodeResult } from './workflow-executor-node'
 import { executeNode } from './workflow-executor-node'
+import { registerExecuteWorkflow } from './workflow-node-runner-workflow-call'
+
+// Break the executor ↔ executor-node circular import by registering lazily.
+registerExecuteWorkflow((workflow, runId, ops, _callbacks, signal, remoteExec) =>
+  executeWorkflow(workflow, runId, ops, {}, signal, remoteExec)
+)
 
 export type WorkflowExecutorCallbacks = {
   onNodeStart?: (runId: string, nodeId: string) => void

@@ -20325,7 +20325,10 @@
       "failOnNonZeroExit": "Fail node if exit code ≠ 0",
       "fieldScript": "Script",
       "fieldCommand": "Command",
-      "fieldExpression": "Expression"
+      "fieldExpression": "Expression",
+      "subWorkflow": "Sub-workflow",
+      "subWorkflowPlaceholder": "Choose a workflow…",
+      "noSubWorkflows": "No other workflows found"
     },
     "outputs": {
       "empty": "No outputs yet."
