@@ -41,9 +41,10 @@ export function pendingJournalAsyncQuestionItems(
     }
   })
   candidates.sort(compareAgentJournalItems)
-  const context = agentSessionCurrentContextRows(candidates, journal.submissions())
+  const context = agentSessionCurrentContextRows(candidates)
   const pending = new Set(
-    deriveJournalAsyncQuestions(context.items, context.submissions).map((q) => q.key)
+    // A late rejection can move an old send past the clear; keep its original delivery outcome.
+    deriveJournalAsyncQuestions(context.items, journal.submissions()).map((q) => q.key)
   )
   const items = context.items.flatMap((item): AgentJournalRenderItem[] => {
     if (item.body.kind !== 'message' || item.body.role !== 'assistant') {

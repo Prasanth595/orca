@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest'
+import { pendingJournalAsyncQuestionItems } from './agent-session-pending-async-questions'
 import { AGENT_JOURNAL_THREAD_SCOPE } from '../../../shared/agent-session-journal-types'
 import { createAgentSessionCurrentRequestsReader } from '../../../shared/agent-session-current-requests-reader'
 import { selectPendingAsyncQuestionGroups } from '../../../shared/native-chat-async-questions'
@@ -125,4 +126,35 @@ it('shares an old async ask across two clients and retires it only after confirm
   })
   const reopened = await connect('reopened')
   await vi.waitFor(() => expect(selectPendingAsyncQuestionGroups(reopened())).toEqual([]))
+})
+
+it('keeps new questions when a pre-clear send is rejected after the context changes', async () => {
+  rig = await createQueuedMessageTestRig()
+  const sendId = await rig.workingSend()
+  const journal = currentJournal(rig)
+  const attribution = { fence: 1, ownerFence: 1, turnScope: AGENT_JOURNAL_THREAD_SCOPE }
+  await journal.appendItem(
+    { provider: 'codex', threadId: THREAD, turnId: 'new-context', ordinal: 0 },
+    {
+      kind: 'status',
+      text: 'Context cleared',
+      contextClear: { operationId: 'clear', afterFence: 1, clearedAt: 10 }
+    },
+    attribution
+  )
+  const ask = await journal.appendItem(
+    { provider: 'codex', threadId: THREAD, turnId: 'new-context', ordinal: 1 },
+    {
+      kind: 'message',
+      role: 'assistant',
+      blocks: [
+        { type: 'text', text: 'Branch?', asyncQuestions: [{ title: 'Branch?', options: ['main'] }] }
+      ]
+    },
+    attribution
+  )
+  expect(pendingJournalAsyncQuestionItems(journal).map((item) => item.itemId)).toEqual([ask.itemId])
+  await rig.settleRejected(sendId, 'Message was not delivered')
+  expect((await rig.submission(sendId))?.dispatchState).toBe('rejected')
+  expect(pendingJournalAsyncQuestionItems(journal).map((item) => item.itemId)).toEqual([ask.itemId])
 })

@@ -44,10 +44,3 @@ export function codexAsyncQuestionListsEqual(
 ): boolean {
   return JSON.stringify(a) === JSON.stringify(b)
 }
-
-export function readNativeChatMessageAsyncQuestions(
-  value: unknown
-): { questions: CodexAsyncQuestion[] } | null {
-  const questions = readCodexAsyncQuestionList(value)
-  return questions ? { questions } : null
-}

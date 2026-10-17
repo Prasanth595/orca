@@ -7,7 +7,7 @@ import { compareAgentJournalItems } from './agent-session-journal-position'
 import { isRootAgentJournalItem } from './agent-session-journal-producer'
 import {
   readCodexAsyncQuestionCallArguments,
-  readNativeChatMessageAsyncQuestions
+  readCodexAsyncQuestionList
 } from './codex-async-question-item'
 import {
   createNativeChatAsyncQuestionFoldState,
@@ -25,12 +25,11 @@ function askedFacts(
   itemId: (providerItemId: string | undefined) => string | undefined
 ): NativeChatAsyncQuestionFact[] {
   return blocks.flatMap((block): NativeChatAsyncQuestionFact[] => {
-    const asked =
-      block.type === 'text' ? readNativeChatMessageAsyncQuestions(block.asyncQuestions) : null
-    if (!asked) {
+    const questions =
+      block.type === 'text' ? readCodexAsyncQuestionList(block.asyncQuestions) : null
+    if (!questions) {
       return []
     }
-    const { questions } = asked
     const providerItemId = block.type === 'text' ? block.asyncQuestionId : undefined
     const identity = itemId(providerItemId)
     return [
