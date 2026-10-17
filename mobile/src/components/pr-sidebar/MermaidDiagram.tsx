@@ -1,3 +1,4 @@
+import { readableMermaidFlowchartSvg } from '../../../../src/shared/mermaid-flowchart-contrast'
 import { createThemedStyles } from '../../theme/mobile-themed-styles'
 import { useMobileTheme } from '../../theme/use-mobile-theme'
 import { memo, useEffect, useMemo, useState } from 'react'
@@ -117,9 +118,11 @@ function encodeConfigForScript(): string {
 // height (or "error") back to RN. The configuration is the one the page runs too.
 export function buildHtml(source: string): string {
   const encoded = encodeSourceForScript(source)
+  const palette = encodeJsonForScript(JSON.stringify([colors.textPrimary, colors.bgRaised]))
   return `<!DOCTYPE html>
 <html>
 <head>
+<meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; base-uri 'none'; form-action 'none'" />
 <style>
@@ -142,7 +145,12 @@ export function buildHtml(source: string): string {
     document.querySelector('.mermaid').textContent = ${encoded};
     mermaid.initialize(${encodeConfigForScript()});
     mermaid.run({ querySelector: '.mermaid' })
-      .then(function () { reportHeight(); })
+      .then(function () {
+        var graph = document.querySelector('#c svg');
+        var palette = ${palette};
+        if (graph) { graph.outerHTML = (${readableMermaidFlowchartSvg.toString()})(graph.outerHTML, palette[0], palette[1]); }
+        reportHeight();
+      })
       .catch(function () { post('error'); });
   } catch (e) {
     post('error');

@@ -1,3 +1,6 @@
+import { readableMermaidFlowchartSvg } from '../../../../src/shared/mermaid-flowchart-contrast'
+import { useMobileTheme } from '../../theme/use-mobile-theme'
+import { createThemedStyles } from '../../theme/mobile-themed-styles'
 import { memo, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import { colors, radii, spacing, typography } from '../../theme/mobile-theme'
@@ -28,6 +31,7 @@ import { loadPageMermaid } from './mermaid-page-engine'
  * already inside the generation the phone downloaded.
  */
 export const MermaidDiagram = memo(function MermaidDiagram({ source, base }: MermaidDiagramProps) {
+  const scheme = useMobileTheme()
   const hostRef = useRef<View>(null)
   // The source that failed, rather than a flag: a flag would need clearing from the effect that
   // renders the next one, and a render the component has already failed is the only thing the
@@ -56,7 +60,7 @@ export const MermaidDiagram = memo(function MermaidDiagram({ source, base }: Mer
         }
         // Already sanitized: `securityLevel: 'strict'` is what makes this string safe to parse,
         // and mermaid is the only thing that can sanitize its own serialization.
-        host.innerHTML = svg
+        host.innerHTML = readableMermaidFlowchartSvg(svg, colors.textPrimary, colors.bgRaised)
       } catch {
         if (!disposed) {
           setFailedSource(source)
@@ -69,7 +73,7 @@ export const MermaidDiagram = memo(function MermaidDiagram({ source, base }: Mer
       // previous diagram when the source changes.
       host.replaceChildren()
     }
-  }, [id, source])
+  }, [id, source, scheme])
 
   if (failed) {
     return (
@@ -108,28 +112,30 @@ function MermaidFrame({ children }: { children: ReactNode }) {
 // The native component's own styles, so the page's diagram sits in the box that component draws.
 // No rule reaches the SVG: mermaid emits it with `width="100%"` and its own natural `max-width`,
 // and a rule of ours on the element would be a byte the native document's render does not have.
-const styles = StyleSheet.create({
-  frame: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderSubtle,
-    borderRadius: radii.row,
-    marginBottom: spacing.sm,
-    overflow: 'hidden',
-    backgroundColor: colors.bgRaised
-  },
-  label: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderSubtle,
-    backgroundColor: colors.bgPanel
-  },
-  labelText: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontFamily: typography.monoFamily
-  },
-  host: { padding: spacing.sm },
-  fallbackScroll: { padding: spacing.sm },
-  fallbackText: { color: colors.textPrimary, fontFamily: typography.monoFamily }
-})
+const styles = createThemedStyles(() =>
+  StyleSheet.create({
+    frame: {
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSubtle,
+      borderRadius: radii.row,
+      marginBottom: spacing.sm,
+      overflow: 'hidden',
+      backgroundColor: colors.bgRaised
+    },
+    label: {
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 2,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.borderSubtle,
+      backgroundColor: colors.bgPanel
+    },
+    labelText: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      fontFamily: typography.monoFamily
+    },
+    host: { padding: spacing.sm },
+    fallbackScroll: { padding: spacing.sm },
+    fallbackText: { color: colors.textPrimary, fontFamily: typography.monoFamily }
+  })
+)

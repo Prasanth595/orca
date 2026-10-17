@@ -52,6 +52,9 @@ const diagramDir = join(mobileDir, 'src/components/pr-sidebar')
 const FIXTURE =
   'graph TD\n  A[Start] --> B{Choice}\n  B -->|yes| C[Ship it]\n  B -->|no| D[Fix it]\n  D --> A'
 
+const CUSTOM =
+  'flowchart LR\n A[Done] --> B[Now] --> C[Next]\n classDef done fill:#e8f5e9,stroke:#43a047\n classDef current fill:#fff3cd,stroke:#e0a800\n classDef future fill:#f5f5f5,stroke:#999\n class A done\n class B current\n class C future'
+
 /** A second valid diagram for the source change: a different shape, so a stale SVG is visible. */
 const SECOND = 'graph LR\n  One --> Two\n  Two --> Three'
 
@@ -121,6 +124,7 @@ module.exports = new Proxy(
   {
     StyleSheet: { create: (styles) => styles, hairlineWidth: 1 },
     memo: identity,
+    createContext: identity,
     default: identity
   },
   { get: (target, key) => (key in target ? target[key] : identity) }
@@ -167,6 +171,7 @@ async function buildNativeDocument(outDir) {
   })
   const { buildHtml } = await import(pathToFileURL(nativeHtmlModule).href)
   await writeFile(join(outDir, 'native.html'), buildHtml(FIXTURE), 'utf8')
+  await writeFile(join(outDir, 'native-custom.html'), buildHtml(CUSTOM), 'utf8')
   // The same document for a diagram that throws, because the shared config the page introduced
   // reaches the phone too and one of its keys changes what mermaid does on that path.
   await writeFile(join(outDir, 'native-broken.html'), buildHtml(BROKEN), 'utf8')
@@ -355,6 +360,35 @@ function normaliseSvg(html, id) {
     .replace(/ xmlns:xlink="[^"]*"/g, '')
 }
 
+function flowchartLabelColors() {
+  return Array.from(document.querySelectorAll('svg .node')).flatMap((node) => {
+    const shape = node.querySelector('.label-container')
+    return shape
+      ? Array.from(node.querySelectorAll('text, .nodeLabel')).map((text) => [
+          getComputedStyle(shape).fill,
+          text.localName === 'text' || text.localName === 'tspan'
+            ? getComputedStyle(text).fill
+            : getComputedStyle(text).color
+        ])
+      : []
+  })
+}
+function labelContrast([background, foreground]) {
+  const luminance = (color) =>
+    color
+      .match(/[\d.]+/g)
+      .slice(0, 3)
+      .map(Number)
+      .map((v) => {
+        v /= 255
+        return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
+      })
+      .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0)
+  const a = luminance(background),
+    b = luminance(foreground)
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+}
+
 /**
  * The native document, loaded in the same browser, with the host it posts to standing in.
  *
@@ -375,7 +409,8 @@ async function readNativeDocument(browser, file) {
     await page.waitForFunction(() => globalThis.__orcaNativePosts.length > 0, null, {
       timeout: 120_000
     })
-    return await page.evaluate(() => {
+    const labelColors = await page.evaluate(flowchartLabelColors)
+    const snapshot = await page.evaluate(() => {
       const svg = document.querySelector('#c svg')
       return {
         posts: globalThis.__orcaNativePosts,
@@ -384,6 +419,7 @@ async function readNativeDocument(browser, file) {
         id: svg?.id ?? null
       }
     })
+    return { ...snapshot, labelColors }
   } finally {
     await page.close()
   }
@@ -404,35 +440,52 @@ describeMermaid(
           await browser?.close()
         })
 
-        it('paints the diagram the native document paints, with no violation and no JIT', async () => {
-          const { page, consoleErrors } = await openPage(browser)
-          const fetched = []
-          page.on('response', (response) => fetched.push(response.url()))
-          try {
-            await show(page, FIXTURE)
-            const shown = await page.evaluate(readDiagram)
-            expect(shown.inFrame).toBe(1)
-            // The precondition the absences below need: a diagram rendered, and it is mermaid's.
-            expect(shown.html).toContain('aria-roledescription="flowchart-v2"')
-            expect(await pageJitCalls(page)).toEqual([])
-            expect(await page.evaluate(() => globalThis.__orcaCspViolations)).toEqual([])
-            expect(consoleErrors).toEqual([])
-            // A CSS identifier, because mermaid writes `#<id>` into the stylesheet it puts inside
-            // the SVG; an id spelled `«r0»` would leave every one of those rules inert.
-            expect(shown.id).toMatch(/^[A-Za-z_][\w-]*$/)
-            // On demand, from here, and in one piece: the engine arrived as exactly one chunk the
-            // render asked for, and nothing was fetched off this origin. The count is the claim —
-            // importing the package rather than the artifact fetched 27 here and emitted 103 in
-            // the app bundle, which is what spends the shell's asset budget.
-            expect(fetched.filter((url) => url.includes('/chunk-'))).toHaveLength(1)
-            expect(fetched.filter((url) => !url.startsWith(origin))).toEqual([])
+        it.each([
+          ['default', FIXTURE, 'native.html'],
+          ['custom fills', CUSTOM, 'native-custom.html']
+        ])(
+          'paints %s like the native document, with no violation or JIT',
+          async (_name, source, file) => {
+            const { page, consoleErrors } = await openPage(browser)
+            const fetched = []
+            page.on('response', (response) => fetched.push(response.url()))
+            try {
+              await show(page, source)
+              const shown = await page.evaluate(readDiagram)
+              expect(shown.inFrame).toBe(1)
+              // The precondition the absences below need: a diagram rendered, and it is mermaid's.
+              expect(shown.html).toContain('aria-roledescription="flowchart-v2"')
+              expect(await pageJitCalls(page)).toEqual([])
+              expect(await page.evaluate(() => globalThis.__orcaCspViolations)).toEqual([])
+              expect(consoleErrors).toEqual([])
+              // A CSS identifier, because mermaid writes `#<id>` into the stylesheet it puts inside
+              // the SVG; an id spelled `«r0»` would leave every one of those rules inert.
+              expect(shown.id).toMatch(/^[A-Za-z_][\w-]*$/)
+              // On demand, from here, and in one piece: the engine arrived as exactly one chunk the
+              // render asked for, and nothing was fetched off this origin. The count is the claim —
+              // importing the package rather than the artifact fetched 27 here and emitted 103 in
+              // the app bundle, which is what spends the shell's asset budget.
+              expect(fetched.filter((url) => url.includes('/chunk-'))).toHaveLength(1)
+              expect(fetched.filter((url) => !url.startsWith(origin))).toEqual([])
 
-            const native = await readNativeDocument(browser, 'native.html')
-            expect(normaliseSvg(shown.html, shown.id)).toBe(normaliseSvg(native.html, native.id))
-          } finally {
-            await page.close()
-          }
-        }, 600_000)
+              const native = await readNativeDocument(browser, file)
+              if (source === CUSTOM) {
+                const pairs = [
+                  ...(await page.evaluate(flowchartLabelColors)),
+                  ...native.labelColors
+                ]
+                expect(pairs.length).toBeGreaterThan(0)
+                for (const pair of pairs) {
+                  expect(labelContrast(pair)).toBeGreaterThanOrEqual(4.5)
+                }
+              }
+              expect(normaliseSvg(shown.html, shown.id)).toBe(normaliseSvg(native.html, native.id))
+            } finally {
+              await page.close()
+            }
+          },
+          600_000
+        )
 
         it('leaves the native document reporting a diagram that throws, with nothing drawn', async () => {
           // The page's shared config reaches the phone as well, and `suppressErrorRendering` is a
