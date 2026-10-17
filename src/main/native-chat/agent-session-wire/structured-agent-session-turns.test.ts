@@ -306,6 +306,7 @@ describe('performCancel', () => {
       fence: 1,
       agents: NO_STRUCTURED_AGENTS,
       agent: 'codex',
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: This path calls only stopBackgroundTasks on the test adapter.
       adapter: { stopBackgroundTasks } as unknown as StructuredAgentSessionAdapter,
       persistOptions: async () => undefined,
       resolvedBy: 'client-1',
