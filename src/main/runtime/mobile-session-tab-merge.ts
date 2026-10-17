@@ -1,6 +1,7 @@
 import type {
   RuntimeMobileSessionSnapshotTab,
   RuntimeMobileSessionTabGroup,
+  RuntimeMobileSessionTabsSnapshot,
   RuntimeMobileSessionTerminalTab
 } from '../../shared/runtime-types'
 import {
@@ -128,4 +129,53 @@ export function mergeMobileSessionTabGroups(
       }
     })
     .filter((group) => group.tabOrder.length > 0)
+}
+
+/** Places chat tabs in their prior group, or the first group when that group is gone. */
+export function mergeStructuredAgentSessionTabGroups(
+  groups: readonly RuntimeMobileSessionTabGroup[],
+  existingGroups: readonly RuntimeMobileSessionTabGroup[],
+  preservedTabs: readonly RuntimeMobileSessionSnapshotTab[],
+  activeTabId: string | null
+): RuntimeMobileSessionTabGroup[] {
+  const structuredTabs = preservedTabs.filter((tab) => tab.type === 'agent-session')
+  if (structuredTabs.length === 0) {
+    return [...groups]
+  }
+  const next = groups.map((group) => ({ ...group, tabOrder: [...group.tabOrder] }))
+  for (const tab of structuredTabs) {
+    const priorGroupId = existingGroups.find((group) => group.tabOrder.includes(tab.id))?.id
+    const target = next.find((group) => group.id === priorGroupId) ?? next[0]
+    if (target && !target.tabOrder.includes(tab.id)) {
+      target.tabOrder.push(tab.id)
+    }
+    if (target && tab.id === activeTabId) {
+      target.activeTabId = tab.id
+    }
+  }
+  return next
+}
+
+/** A rebuilt snapshot with the stored snapshot's chat tabs it lacks, each in its prior group. */
+export function carryStructuredAgentSessionTabs(
+  existing: RuntimeMobileSessionTabsSnapshot | undefined,
+  rebuilt: RuntimeMobileSessionTabsSnapshot
+): RuntimeMobileSessionTabsSnapshot {
+  // A closed chat is already gone from the stored snapshot, so every chat tab left there is open.
+  const chatTabs = (existing?.tabs ?? []).filter(
+    (tab) => tab.type === 'agent-session' && !rebuilt.tabs.some((other) => other.id === tab.id)
+  )
+  if (chatTabs.length === 0) {
+    return rebuilt
+  }
+  return {
+    ...rebuilt,
+    tabGroups: mergeStructuredAgentSessionTabGroups(
+      rebuilt.tabGroups ?? [],
+      existing?.tabGroups ?? [],
+      chatTabs,
+      rebuilt.activeTabId
+    ),
+    tabs: [...rebuilt.tabs, ...chatTabs]
+  }
 }

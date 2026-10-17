@@ -22,6 +22,7 @@ import {
   pickRestoredActiveGroupId
 } from '../mobile-session-layout-projection'
 import {
+  carryStructuredAgentSessionTabs,
   mergeMobileSessionSnapshotTabs,
   mergeMobileSessionTabGroups
 } from '../mobile-session-tab-merge'
@@ -315,7 +316,8 @@ export abstract class OrcaRuntimeWithHydrateHeadlessMobileSessionTabsFromWorkspa
         options.onlyRuntimeOwnedTerminals === true &&
         existing !== undefined &&
         !this.isHeadlessBuiltMobileSessionPublicationBase(existing.publicationEpoch)
-      const nextSnapshot: RuntimeMobileSessionTabsSnapshot = {
+      // Why: the saved layout builds no chat tabs, so a rebuild must carry the running chats over.
+      const nextSnapshot = carryStructuredAgentSessionTabs(existing, {
         worktree: existing?.worktree ?? entryWorktreeId,
         publicationEpoch: mergedIntoRendererPublication
           ? this.getMergedMobileSessionPublicationEpoch(existing, tabs)
@@ -339,7 +341,7 @@ export abstract class OrcaRuntimeWithHydrateHeadlessMobileSessionTabsFromWorkspa
             ? { tabGroupLayout: existing.tabGroupLayout }
             : {}),
         tabs: mergedTabs
-      }
+      })
       // Why: the runtime-owned hydrate runs on EVERY graph sync; when the rebuilt
       // projection matches the existing snapshot, keep the existing object and
       // (epoch, version) untouched so identity-based change detection stays a
