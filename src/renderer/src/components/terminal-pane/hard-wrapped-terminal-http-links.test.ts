@@ -112,6 +112,44 @@ describe('hard-wrapped terminal HTTP candidate bounds', () => {
     )
   })
 
+  it('reconstructs a URL in a nested frame whose left label repeats on every row', () => {
+    const inner = 'http://example.com/aaaa'
+    const rows = [
+      `│ label │ ${inner} │`,
+      `│ label │ ${'b'.repeat(inner.length)} │`,
+      `│ label │ ${'c'.repeat(inner.length)} │`,
+      `│ label │ ${'dddd'.padEnd(inner.length, ' ')} │`
+    ].map(bufferLineWithCellColumns)
+
+    const candidates = buildHardWrappedHttpLogicalLineCandidates(
+      { getLine: (y) => rows[y] },
+      rows.length
+    )
+
+    expect(candidates[0]?.text).toBe(
+      `${inner}${'b'.repeat(inner.length)}${'c'.repeat(inner.length)}dddd`
+    )
+  })
+
+  it('reconstructs an overlay URL when a box border underneath shows at a fixed column', () => {
+    const inner = 'http://example.com/aaaa'
+    const rows = [
+      `│      │ ${inner} │`,
+      `│      │ ${'b'.repeat(inner.length)} │`,
+      `│      │ ${'c'.repeat(inner.length)} │`,
+      `│      │ ${'dddd'.padEnd(inner.length, ' ')} │`
+    ].map(bufferLineWithCellColumns)
+
+    const candidates = buildHardWrappedHttpLogicalLineCandidates(
+      { getLine: (y) => rows[y] },
+      rows.length
+    )
+
+    expect(candidates[0]?.text).toBe(
+      `${inner}${'b'.repeat(inner.length)}${'c'.repeat(inner.length)}dddd`
+    )
+  })
+
   it('does not join adjacent cells from a shared framed table', () => {
     const rows = [
       '│ Label  │ https://example.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa │',
