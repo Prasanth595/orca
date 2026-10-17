@@ -61,7 +61,8 @@ export async function readNativeChatTranscriptTailFile(
   endOffset?: number,
   decodeLifecycle?: NativeChatTurnLifecycleDecoder | null,
   signal?: AbortSignal,
-  onConsumedBoundary?: (boundary: Buffer) => void
+  onConsumedBoundary?: (boundary: Buffer) => void,
+  scan?: { stop: () => boolean; onRead?: (bytes: number) => void }
 ): Promise<{
   messages: NativeChatMessage[]
   lifecycle?: NativeChatTurnLifecycle
@@ -92,12 +93,18 @@ export async function readNativeChatTranscriptTailFile(
     signal?.throwIfAborted()
     const consumedTo = includeTrailingLine
       ? end
-      : await findLastCompleteLineEnd(handle, filePath, end, signal)
+      : await findLastCompleteLineEnd(handle, filePath, end, signal, scan?.onRead)
     if (consumedTo === 0) {
       return { messages: [], consumedTo: 0, hasMore: false, beforeOffset: 0 }
     }
     const newestFirst: { message: NativeChatMessage; offset: number }[] = []
-    const finalByte = await readTranscriptByteAt(handle, filePath, consumedTo - 1, signal)
+    const finalByte = await readTranscriptByteAt(
+      handle,
+      filePath,
+      consumedTo - 1,
+      signal,
+      scan?.onRead
+    )
     if (finalByte === null) {
       // File shrank between stat and probe: report empty, the next poll re-stats.
       return { messages: [], consumedTo: 0, hasMore: false, beforeOffset: 0 }
@@ -109,7 +116,7 @@ export async function readNativeChatTranscriptTailFile(
     if (cursor === 0) {
       onConsumedBoundary?.(finalBoundaryByte)
     }
-    while (cursor > 0 && newestFirst.length <= limit) {
+    while (cursor > 0 && newestFirst.length <= limit && !scan?.stop()) {
       signal?.throwIfAborted()
       const start = Math.max(0, cursor - TAIL_CHUNK_BYTES)
       const buffer = Buffer.allocUnsafe(cursor - start)
@@ -123,6 +130,7 @@ export async function readNativeChatTranscriptTailFile(
         'exact',
         signal
       )
+      scan?.onRead?.(bytesRead)
       signal?.throwIfAborted()
       // A short read means the file shrank mid-walk: stop paging back rather
       // than stitch non-adjacent bytes into records.
@@ -134,7 +142,11 @@ export async function readNativeChatTranscriptTailFile(
         boundaryCaptured = true
       }
       let segmentEnd = bytesRead
-      for (let index = bytesRead - 1; index >= 0 && newestFirst.length <= limit; index--) {
+      for (
+        let index = bytesRead - 1;
+        index >= 0 && newestFirst.length <= limit && !scan?.stop();
+        index--
+      ) {
         if (buffer[index] !== 0x0a) {
           continue
         }
@@ -150,7 +162,7 @@ export async function readNativeChatTranscriptTailFile(
       }
       cursor = start
     }
-    if (cursor === 0 && lineParts.length > 0 && newestFirst.length <= limit) {
+    if (cursor === 0 && lineParts.length > 0 && newestFirst.length <= limit && !scan?.stop()) {
       decodeLine(0, newestFirst)
     }
     const chronological = newestFirst.toReversed()
