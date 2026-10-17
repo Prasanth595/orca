@@ -13,13 +13,13 @@ import { MobileWebShellScreen } from '../../../../src/mobile-web-shell/MobileWeb
 import { PageRouteUnavailableScreen } from '../../../../src/mobile-web-shell/PageRouteUnavailableScreen'
 
 /**
- * Diff review, from the desktop's bundle. The files switch's shape.
+ * Diff review, from the desktop's bundle. The files route's shape.
  *
  * `matchesRoutePattern` is segment-count exact with literal equality on the static segments, so
  * these five segments collide with nothing: the explorer's five carry `files`.
  */
 export default withWorkspaceRoute(function MobileDiffReviewScreen() {
-  // Through `firstReviewParam`, which is this domain's spelling of the rule every switch follows:
+  // Through `firstReviewParam`, which is this domain's spelling of the rule every route file follows:
   // expo-router answers a repeated query key with an array, and a bare read would build a single
   // segment out of `String(['a','b'])` that the bridge's segment rule accepts.
   const params = useLocalSearchParams<{

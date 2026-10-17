@@ -19,7 +19,7 @@ import { firstParam } from '../../../../../src/navigation/route-param-reader'
 /**
  * The file preview, from the desktop's bundle.
  *
- * Normalized before the switch, not after: a route the preview would refuse is one the shell has no
+ * Normalized before the shell route is built, not after: a route the preview would refuse is one the shell has no
  * pathname to build from, and a refusal here beats a page opened on params it will refuse again.
  *
  * Only the two path segments are spelled into the pathname; everything else — the file path among

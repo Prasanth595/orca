@@ -15,11 +15,11 @@ import { PageRouteUnavailableScreen } from '../../../../src/mobile-web-shell/Pag
 /**
  * The file explorer, from the desktop's bundle. The shell walls a host whose bundle cannot serve it.
  *
- * Encoded, not interpolated raw, for the reason `web.tsx` states: an id carrying `?`, `#` or
- * whitespace would build a pathname the page refuses and mount nothing.
+ * Encoded, not interpolated raw: ids arrive decoded, and one carrying `?`, `#` or whitespace would
+ * build a pathname the page refuses and mount nothing.
  */
 export default withWorkspaceRoute(function MobileFileExplorerScreen() {
-  // Through `firstParam`, as the tasks and agent-history switches do: expo-router answers a
+  // Through `firstParam`, as the tasks and agent-history routes do: expo-router answers a
   // repeated query key with an array, and a bare read puts it straight into the template, where
   // `String(['a','b'])` is `a,b` and `encodeURIComponent` makes it the single segment `a%2Cb` —
   // which the bridge's segment rule accepts, so the shell opens a page for a host nobody has.
