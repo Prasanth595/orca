@@ -14,6 +14,7 @@
 //! writes `orca-launcher.cfg` beside it; that file selects the server mode.
 
 use std::env;
+use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{exit, Command};
@@ -30,7 +31,20 @@ fn main() {
         Ok(path) => path,
         Err(error) => fail(&format!("Unable to start the Orca CLI: {error}")),
     };
-    if let Some(config) = launcher
+
+    // Why: Claude Code spawns `tmux` with no shell, and Node refuses to spawn a `.cmd`
+    // that way (CVE-2024-27980), so Orca installs a copy of this launcher named tmux.exe
+    // as the shim. It forwards to the CLI's `agent-teams-tmux` handler instead of to Orca.
+    let is_tmux_shim = launcher
+        .file_stem()
+        .is_some_and(|stem| stem.eq_ignore_ascii_case("tmux"));
+    let bin_path = if is_tmux_shim {
+        resolve_tmux_shim_bin_path()
+    } else {
+        launcher.clone()
+    };
+
+    if let Some(config) = bin_path
         .parent()
         .map(|directory| directory.join(SERVER_CONFIG_FILENAME))
         .filter(|config| config.is_file())
@@ -38,10 +52,10 @@ fn main() {
         run_server_cli(&config);
     }
 
-    let Some(resources_directory) = launcher.parent().and_then(Path::parent) else {
+    let Some(resources_directory) = bin_path.parent().and_then(Path::parent) else {
         fail(&format!(
             "Unable to locate Orca.exe next to \"{}\"",
-            launcher.display()
+            bin_path.display()
         ))
     };
     let Some(app_directory) = resources_directory.parent() else {
@@ -92,7 +106,26 @@ fn main() {
         },
     );
 
-    run_cli(&electron_path, &cli_path)
+    let extra_args: &[OsString] = if is_tmux_shim {
+        &[OsString::from("agent-teams-tmux")]
+    } else {
+        &[]
+    };
+    run_cli(&electron_path, &cli_path, extra_args)
+}
+
+// Why: the shim runs from Orca's shim directory, not from resources\bin, so its own
+// location says nothing about where the app lives. ORCA_AGENT_TEAMS_SHIM_BIN is the
+// fully-qualified CLI path the team launch already published; anything else is refused
+// rather than guessed, since a drive-relative or root-relative path (`C:orca.exe`,
+// `\orca.exe`) still resolves against a working directory this shim does not control.
+fn resolve_tmux_shim_bin_path() -> PathBuf {
+    let shim_bin = env::var_os("ORCA_AGENT_TEAMS_SHIM_BIN").unwrap_or_default();
+    if shim_bin.is_empty() || !Path::new(&shim_bin).is_absolute() {
+        eprintln!("orca agent-teams tmux shim: ORCA_AGENT_TEAMS_SHIM_BIN must be an absolute path");
+        exit(127);
+    }
+    PathBuf::from(shim_bin)
 }
 
 /// The server mode: the pinned Node runs the active slot's CLI under the
@@ -126,7 +159,7 @@ fn run_server_cli(config_path: &Path) -> ! {
     ] {
         env::remove_var(name);
     }
-    run_cli(&node_path, &cli_path)
+    run_cli(&node_path, &cli_path, &[])
 }
 
 fn config_value<'a>(config: &'a str, key: &str, config_path: &Path) -> &'a str {
@@ -145,11 +178,14 @@ fn config_value<'a>(config: &'a str, key: &str, config_path: &Path) -> &'a str {
         })
 }
 
-fn run_cli(program: &Path, cli_path: &Path) -> ! {
+fn run_cli(program: &Path, cli_path: &Path, extra_args: &[OsString]) -> ! {
     // Each argument stays its own argv entry, so a body holding newlines reaches
     // the CLI intact.
     let mut command = Command::new(program);
-    command.arg(cli_path).args(env::args_os().skip(1));
+    command
+        .arg(cli_path)
+        .args(extra_args)
+        .args(env::args_os().skip(1));
 
     match command.status() {
         Ok(status) => exit(status.code().unwrap_or(1)),

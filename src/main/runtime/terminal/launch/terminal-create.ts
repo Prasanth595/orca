@@ -1,7 +1,7 @@
 import { OrcaRuntimeWithTerminalCreateDeduplication } from './terminal-create-deduplication'
 import * as dependencies from '../../orca-runtime-create-terminal-dependencies'
 import { createDesktopTerminal } from '../../orca-runtime-create-terminal-desktop'
-import { buildRuntimeAgentTeamsLaunchPlan } from './agent-teams-launch-plan'
+import { resolveAgentTeamsLaunchPlanForTerminalCreate } from './agent-teams-launch-plan'
 import { createIdempotentCallback } from '../../orca-runtime-report-pty-spawn-commit'
 import { recordPtySurface, spawnSurfaceClaimSequence } from '../../pty-recorded-surface-topology'
 import { agentLaunchTokenFor } from '../../../agent-launch/agent-launch-token'
@@ -84,32 +84,16 @@ export abstract class OrcaRuntimeWithCreateTerminal extends OrcaRuntimeWithTermi
           ...launchOpts.env,
           ...(launchToken ? { ORCA_AGENT_LAUNCH_TOKEN: launchToken } : {})
         }
-        let agentTeamsPlan: Awaited<ReturnType<typeof buildRuntimeAgentTeamsLaunchPlan>>['plan']
-        let sequencedStartupCommand: string | undefined
-        let effectiveLaunchConfig = launchOpts.launchConfig
-        try {
-          const agentTeams = await buildRuntimeAgentTeamsLaunchPlan({
-            launchConfig: launchOpts.launchConfig,
-            command: launchOpts.command,
-            claudeAgentTeamsSourceCommand: launchOpts.claudeAgentTeamsSourceCommand,
-            claudeAgentTeamsMode: this.store?.getSettings?.().claudeAgentTeamsMode,
+        const { agentTeamsPlan, sequencedStartupCommand, effectiveLaunchConfig } =
+          await resolveAgentTeamsLaunchPlanForTerminalCreate({
+            store: this.store,
+            claudeAgentTeams: this.claudeAgentTeams,
+            launchOpts,
             baseEnv: { ...process.env, ...baseEnv },
             adoptedBeforeLaunch,
-            createTeamEnv: (shimDir, shimBin) =>
-              this.claudeAgentTeams.createLaunchEnv({
-                leaderHandle: preAllocatedHandle,
-                baseEnv: { ...process.env, ...baseEnv },
-                shimDir,
-                shimBin
-              }).env
+            preAllocatedHandle,
+            onError: () => releaseStablePaneCreate?.()
           })
-          agentTeamsPlan = agentTeams.plan
-          sequencedStartupCommand = agentTeams.sequencedStartupCommand
-          effectiveLaunchConfig = agentTeams.effectiveLaunchConfig
-        } catch (error) {
-          releaseStablePaneCreate?.()
-          throw error
-        }
         const env = await this.buildTerminalWorkspaceEnv(
           workspace,
           {
