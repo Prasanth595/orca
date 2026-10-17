@@ -163,11 +163,9 @@ export function reconcileAgentChildWorkEvidence(
 ): AgentChildWorkReconcileOutcome {
   const ctx: ReconcileContext = {
     ...input,
-    outcome: { admitted: 0, admittedLiveIndices: [], settled: 0, removed: 0, rejected: [] },
-    evidenceIndex: 0
+    outcome: { admitted: 0, settled: 0, removed: 0, rejected: [] }
   }
-  for (const [index, edge] of input.evidence.entries()) {
-    ctx.evidenceIndex = index
+  for (const edge of input.evidence) {
     if (!Number.isFinite(edge.observedAt) || edge.observedAt < 0) {
       continue
     }

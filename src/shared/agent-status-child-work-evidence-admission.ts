@@ -31,8 +31,6 @@ const FIRST_GENERATION = 1
 
 export type AgentChildWorkReconcileOutcome = {
   admitted: number
-  /** Batch positions whose live edge actually landed; host display bookkeeping uses the same event. */
-  admittedLiveIndices: number[]
   settled: number
   removed: number
   /** Refusals are facts about one child, never a reason to drop the rest of the evidence. */
@@ -42,7 +40,6 @@ export type AgentChildWorkReconcileOutcome = {
 export type AgentChildWorkEvidenceContext = AgentChildWorkEvidenceScope & {
   admission: AgentChildWorkAdmission
   outcome: AgentChildWorkReconcileOutcome
-  evidenceIndex: number
 }
 
 function counted(
@@ -53,9 +50,6 @@ function counted(
 ): void {
   if (result.accepted) {
     ctx.outcome[key] += 1
-    if (key === 'admitted') {
-      ctx.outcome.admittedLiveIndices.push(ctx.evidenceIndex)
-    }
   } else {
     ctx.outcome.rejected.push({ handleId, reason: result.reason })
   }

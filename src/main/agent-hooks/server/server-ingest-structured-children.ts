@@ -5,6 +5,7 @@ import {
   agentChildWorkFencesEqual,
   type AgentChildWorkRecord
 } from '../../../shared/agent-status-child-work'
+import { isLiveChildWork } from '../../../shared/agent-status-child-work-liveness'
 import type { AgentChildWorkEvidence } from '../../../shared/agent-status-child-work-evidence'
 import {
   reconcileAgentChildWorkEvidence,
@@ -71,7 +72,7 @@ export abstract class AgentHookServerIngestStructuredChildren extends AgentHookS
   getStructuredChildWorkHandles(subject: AgentStatusStructuredSessionSubject): Set<string> {
     return new Set(
       this.getStructuredChildWork(subject).flatMap((child) =>
-        child.membership === 'live'
+        child.membership === 'live' && isLiveChildWork(child)
           ? this.canonicalStatusStore
               .getAliasesForChild(child.childWorkId)
               .filter(({ fence }) => agentChildWorkFencesEqual(fence, child.invocation))

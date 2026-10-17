@@ -10,7 +10,6 @@ type ChildLifetime = {
   run: string | undefined
   previous: Set<string>
   token: ChildWorkLifetimeToken
-  recorded: ChildWorkLifetimeToken | undefined
   closed: 'idle' | 'terminal' | 'stopped' | null
 }
 
@@ -44,24 +43,6 @@ export class StructuredAgentSessionOpenChildWork {
   capture(sessionId: string, handleId: string): ChildWorkLifetimeToken | undefined {
     const session = this.sessions.get(sessionId)
     return session?.open.has(handleId) ? session.history.get(handleId)?.token : undefined
-  }
-
-  /** Display admission names a runtime lifetime, not merely its reusable handle. */
-  recorded(sessionId: string, handleId: string, token: ChildWorkLifetimeToken): void {
-    const child = this.sessions.get(sessionId)?.history.get(handleId)
-    if (child?.token === token) {
-      child.recorded = token
-    }
-  }
-
-  hasUnrecorded(sessionId: string): boolean {
-    const session = this.sessions.get(sessionId)
-    return session
-      ? [...session.open].some((handleId) => {
-          const child = session.history.get(handleId)
-          return child?.recorded !== child?.token
-        })
-      : false
   }
 
   stopped(sessionId: string, handleId: string, token: ChildWorkLifetimeToken): void {
@@ -101,7 +82,7 @@ export class StructuredAgentSessionOpenChildWork {
     this.sessions.set(sessionId, session)
     let child = session.history.get(handleId)
     if (!child) {
-      child = { run, previous: new Set(), token: newToken(), recorded: undefined, closed: null }
+      child = { run, previous: new Set(), token: newToken(), closed: null }
       session.history.set(handleId, child)
     } else {
       // A late start must not promote a run this session already superseded.

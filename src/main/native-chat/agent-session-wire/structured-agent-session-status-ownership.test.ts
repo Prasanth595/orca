@@ -262,6 +262,61 @@ describe('child work the provider reported, recorded or not', () => {
     expect(owner.childWorkOpen(summary.sessionId)).toBe(false)
   })
 
+  it('keeps a refused restart covered by a running row until that row settles', () => {
+    let refuse = false
+    const { owner } = owners(() => refuse)
+    owner.publish(summary, location)
+    const run = (runId: string): AgentChildWorkEvidence => ({
+      ...agentLive('helper'),
+      child: {
+        ...agentLive('helper').child,
+        handle: { idKind: 'task_id', id: 'helper', runId }
+      }
+    })
+    const end = (runId: string): AgentChildWorkEvidence => ({
+      ...ended('helper'),
+      handle: { idKind: 'task_id', id: 'helper', runId }
+    })
+    owner.publishChildWork(summary.sessionId, [run('a')], 'claude')
+    refuse = true
+    owner.publishChildWork(summary.sessionId, [run('b')], 'claude')
+    refuse = false
+    owner.publishChildWork(summary.sessionId, [run('a')], 'claude')
+    expect(owner.childWorkOpen(summary.sessionId)).toBe(true)
+    expect(owner.childWorkIncomplete(summary.sessionId)).toBe(false)
+    expect(owner.readChildWork(summary.sessionId)).toMatchObject([
+      { providerId: 'helper', membership: 'live' }
+    ])
+    owner.publishChildWork(summary.sessionId, [end('a')], 'claude')
+    expect(owner.childWorkOpen(summary.sessionId)).toBe(true)
+    expect(owner.childWorkIncomplete(summary.sessionId)).toBe(true)
+  })
+
+  it('does not treat an idle ACP row as coverage of newly reported work', () => {
+    let refuse = false
+    const { owner } = owners(() => refuse)
+    owner.publish(summary, location)
+    const report = (state: 'working' | 'idle'): AgentChildWorkEvidence => ({
+      type: 'live',
+      observedAt: 200,
+      child: {
+        handle: { idKind: 'task_id', id: 'acp-task:helper' },
+        kind: 'command',
+        residency: 'background',
+        state,
+        stoppable: true
+      }
+    })
+    owner.publishChildWork(summary.sessionId, [report('working'), report('idle')], 'grok')
+    refuse = true
+    owner.publishChildWork(summary.sessionId, [report('working')], 'grok')
+    refuse = false
+    expect(owner.childWorkOpen(summary.sessionId)).toBe(true)
+    expect(owner.childWorkIncomplete(summary.sessionId)).toBe(true)
+    owner.publishChildWork(summary.sessionId, [report('working')], 'grok')
+    expect(owner.childWorkIncomplete(summary.sessionId)).toBe(false)
+  })
+
   it('closes only the captured Stop lifetime and reads a later live report as unlisted', () => {
     const { owner } = owners()
     owner.publish(summary, location)

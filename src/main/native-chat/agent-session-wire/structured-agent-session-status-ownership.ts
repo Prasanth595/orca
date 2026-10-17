@@ -4,7 +4,6 @@ import type {
 } from '../../../shared/agent-session-record'
 import type { AgentSessionStatusSummary } from '../../../shared/agent-session-wire'
 import type { AgentChildWorkEvidence } from '../../../shared/agent-status-child-work-evidence'
-import type { AgentChildWorkReconcileOutcome } from '../../../shared/agent-status-child-work-evidence-admission'
 import type { AgentChildWorkRecord } from '../../../shared/agent-status-child-work'
 import type { AgentChildWorkView } from '../../../shared/agent-status-child-work-view'
 import {
@@ -28,7 +27,7 @@ export type StructuredAgentSessionStatusSink = {
     subject: AgentStatusStructuredSessionSubject,
     evidence: AgentChildWorkEvidence[],
     provider: AgentSessionRecord['provider']
-  ) => AgentChildWorkReconcileOutcome | null | void
+  ) => void
   /** The child records the sink holds for that subject, as the views every surface reads. */
   readChildWork?: (subject: AgentStatusStructuredSessionSubject) => AgentChildWorkView[]
   /** The records those views project, with the host-only facts no view carries. */
@@ -95,26 +94,12 @@ export class StructuredAgentSessionStatusOwnership {
     evidence: AgentChildWorkEvidence[],
     provider: AgentSessionRecord['provider']
   ): void {
-    const lifetimes = evidence.map((edge) => {
-      this.open.observe(sessionId, [edge])
-      return edge.type === 'live'
-        ? this.open.capture(sessionId, edge.child.handle.id)
-        : undefined
-    })
+    this.open.observe(sessionId, evidence)
     const subject = this.subjects.get(sessionId)
     if (!subject || !this.landed.has(sessionId)) {
       return
     }
-    const outcome = this.sink()?.publishChildWork?.(subject, evidence, provider)
-    if (outcome) {
-      for (const index of outcome.admittedLiveIndices) {
-        const edge = evidence[index]
-        const token = lifetimes[index]
-        if (edge?.type === 'live' && token) {
-          this.open.recorded(sessionId, edge.child.handle.id, token)
-        }
-      }
-    }
+    this.sink()?.publishChildWork?.(subject, evidence, provider)
   }
 
   /** A Stop's callback closes only lifetimes captured before the provider call can await. */
@@ -152,12 +137,9 @@ export class StructuredAgentSessionStatusOwnership {
     if (!open) {
       return false
     }
-    if (this.open.hasUnrecorded(sessionId)) {
-      return true
-    }
     const read = this.sink()?.readChildWorkHandles
     if (!read) {
-      return false
+      return true
     }
     const subject = this.subjects.get(sessionId)
     const recorded = subject && this.landed.has(sessionId) ? read(subject) : new Set<string>()
