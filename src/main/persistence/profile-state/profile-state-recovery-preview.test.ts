@@ -1,7 +1,8 @@
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { profileStateJsonExportPath } from './legacy-json/profile-state-export-path'
 import { openProfileStateDatabase } from './profile-state-database'
 import { importProfileStateJson } from './profile-state-documents'
 import {
@@ -46,6 +47,27 @@ describe('previewProfileStateRollback', () => {
       expect(preview.diff.lost).toEqual([])
       expect(preview.diff.changed).toEqual([])
       expect(preview.diff.added).toEqual([])
+    } finally {
+      opened.db.close()
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects a JSON export whose content is not a valid profile-state root', async () => {
+    const { root, opened, databaseFile, dataFile } = fixture()
+    try {
+      const exportPath = profileStateJsonExportPath(dataFile, 2)
+      writeFileSync(exportPath, '[1, 2, 3]')
+      const result: ProfileStateExportsResult = {
+        profileId: 'preview-test',
+        dataFile,
+        databaseFile,
+        exportPaths: [exportPath],
+        backups: []
+      }
+      expect(() => previewProfileStateRollback(result, { kind: 'json', revision: 2 })).toThrow(
+        /invalid/
+      )
     } finally {
       opened.db.close()
       rmSync(root, { recursive: true, force: true })

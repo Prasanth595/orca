@@ -26,7 +26,7 @@ export const PROFILE_STATE_COMMAND_SPECS: CommandSpec[] = [
       'profile-id'
     ],
     notes: [
-      '--dry-run previews which domains would be lost, changed, or added without writing anything.',
+      '--dry-run (with --backup or --revision only) previews which domains would be lost, changed, or added without writing anything.',
       '--profile-id selects another profile without changing the active profile. Prepare each profile before installing a JSON-only build.',
       'Orca must be stopped. Recovery validates the selected artifact and archives the current database family, JSON, and retained recovery artifacts before replacing state.',
       '--backup restores SQLite authority; --revision restores a JSON export for an older compatible runtime.',

@@ -6,7 +6,9 @@ import {
 } from '../../../shared/profile-state-recovery-command'
 import { profileStateJsonExportPath } from './legacy-json/profile-state-export-path'
 import { openProfileStateDatabaseReadOnly } from './profile-state-database'
+import { withProfileStateReadSnapshot } from './profile-state-read-snapshot'
 import { readProfileStateRevision } from './profile-state-revision'
+import { parseProfileStateRoot } from './profile-state-document-validation'
 
 export type DomainDiff = {
   /** Domains in the live profile that are absent from the source (would be lost). */
@@ -61,21 +63,23 @@ export function previewProfileStateRollback(
 function liveDomainIndex(result: ProfileStateExportsResult) {
   const opened = openProfileStateDatabaseReadOnly(result.databaseFile, result.profileId)
   try {
-    const revision = readProfileStateRevision(opened.db)
-    const rows = new Map<
-      string,
-      string
-    >(
-      opened.db
-        .prepare('SELECT domain, payload FROM profile_state_documents')
-        .all()
-        .filter((r) => typeof (r as { domain: unknown }).domain === 'string')
-        .map((r) => [
-          (r as { domain: string; payload: string }).domain,
-          (r as { payload: string }).payload
-        ])
-    )
-    return { revision, rows }
+    return withProfileStateReadSnapshot(opened.db, () => {
+      const revision = readProfileStateRevision(opened.db)
+      const rows = new Map<
+        string,
+        string
+      >(
+        opened.db
+          .prepare('SELECT domain, payload FROM profile_state_documents')
+          .all()
+          .filter((r) => typeof (r as { domain: unknown }).domain === 'string')
+          .map((r) => [
+            (r as { domain: string; payload: string }).domain,
+            (r as { payload: string }).payload
+          ])
+      )
+      return { revision, rows }
+    })
   } finally {
     opened.db.close()
   }
@@ -148,30 +152,32 @@ function previewJsonExport(
       `Profile-state export revision ${revision} is unavailable. Use profile state exports to inspect retained revisions.`
     )
   }
-  const live = liveDomainIndex(result)
-  let sourceDomains = new Map<string, string>()
-  let payloadsUncomparable = false
+  const raw = readFileSync(exportPath, 'utf8')
+  let parsedRoot: Record<string, unknown>
   try {
-    const parsed = JSON.parse(readFileSync(exportPath, 'utf8')) as Record<string, unknown>
-    if (typeof parsed === 'object' && parsed !== null) {
-      for (const key of Object.keys(parsed)) {
-        sourceDomains.set(key, JSON.stringify(parsed[key]))
-      }
-      payloadsUncomparable = true
-    }
-  } catch {
-    // A JSON export that cannot be parsed yields a domain-set preview only.
-    payloadsUncomparable = true
+    // Validate with the same root validator the restore path uses; an export
+    // that cannot be restored must not be previewed as a usable target.
+    parsedRoot = parseProfileStateRoot(raw)
+  } catch (error) {
+    throw new ProfileStateRecoveryCommandError(
+      'invalid_argument',
+      `Profile-state export revision ${revision} is invalid and cannot be previewed or restored: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    )
   }
-  const diff = payloadsUncomparable
-    ? domainSetDiff(live.rows, sourceDomains)
-    : diffDomains(live.rows, sourceDomains)
+  const sourceDomains = new Map<string, string>()
+  for (const key of Object.keys(parsedRoot)) {
+    sourceDomains.set(key, JSON.stringify(parsedRoot[key]))
+  }
+  const live = liveDomainIndex(result)
+  const diff = domainSetDiff(live.rows, sourceDomains)
   return {
     source: String(revision),
     targetRevision: revision,
     liveRevision: live.revision,
     diff,
-    payloadsUncomparable
+    payloadsUncomparable: true
   }
 }
 
