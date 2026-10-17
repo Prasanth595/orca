@@ -19,6 +19,23 @@ describe('SPEECH_MODEL_CATALOG', () => {
     ])
   })
 
+  it('registers Nemotron 3.5 as a streaming multilingual transducer', () => {
+    const model = getCatalogModel('nemotron-3.5-asr-streaming-0.6b-560ms-int8')
+
+    expect(model?.type).toBe('transducer')
+    expect(model?.provider).toBe('local')
+    expect(model?.language).toBe('multilingual')
+    expect(model?.streaming).toBe(true)
+    expect(model?.sampleRate).toBe(16000)
+    expect(model?.files).toEqual([
+      'encoder.int8.onnx',
+      'decoder.int8.onnx',
+      'joiner.int8.onnx',
+      'tokens.txt'
+    ])
+    expect(model?.sizeBytes).toBe(682_215_356)
+  })
+
   it('has unique ids across the catalog', () => {
     const ids = SPEECH_MODEL_CATALOG.map((m) => m.id)
 

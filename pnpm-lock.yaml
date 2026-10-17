@@ -242,8 +242,8 @@ importers:
         specifier: 0.1.47
         version: 0.1.47(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@7.0.2)
       sherpa-onnx:
-        specifier: 1.12.37
-        version: 1.12.37
+        specifier: 1.13.8
+        version: 1.13.8
       smol-toml:
         specifier: 1.8.0
         version: 1.8.0
@@ -649,20 +649,20 @@ importers:
         specifier: 0.8.0
         version: 0.8.0(patch_hash=9da74aa3d17243aa53dcdc95c9f06e97437e7fbccf098aeb017579e2d24cbac2)
       sherpa-onnx-darwin-arm64:
-        specifier: 1.12.37
-        version: 1.12.37
+        specifier: 1.13.8
+        version: 1.13.8
       sherpa-onnx-darwin-x64:
-        specifier: 1.12.37
-        version: 1.12.37
+        specifier: 1.13.8
+        version: 1.13.8
       sherpa-onnx-linux-arm64:
-        specifier: 1.12.37
-        version: 1.12.37
+        specifier: 1.13.8
+        version: 1.13.8
       sherpa-onnx-linux-x64:
-        specifier: 1.12.37
-        version: 1.12.37
+        specifier: 1.13.8
+        version: 1.13.8
       sherpa-onnx-win-x64:
-        specifier: 1.12.37
-        version: 1.12.37
+        specifier: 1.13.8
+        version: 1.13.8
 
   native/windows-registry:
     dependencies:
@@ -7118,33 +7118,33 @@ packages:
     resolution: {integrity: sha512-7++dFhtcx3353uBaq8DDR4NuxBetBzC7ZQOhmTQInHEd6bSrXdiEyzCvG07Z44UYdLShWUyXt5M/yhz8ekcb1A==}
     engines: {node: '>=8'}
 
-  sherpa-onnx-darwin-arm64@1.12.37:
-    resolution: {integrity: sha512-zpqbH+2TI6dvg7mxGm30Mnv17aJL3ZfRGshMiBK85dHBfhzqMbKUHNXCzsHhiKBQTzti6JqG1YoRbYrJwvdUjA==}
+  sherpa-onnx-darwin-arm64@1.13.8:
+    resolution: {integrity: sha512-FPNgJMgnWVl/KhRTIhG3KL3A4Om63Rn4YKXc9/uHY7SzLcvqLJLc/h7UBWJwduXvv7K18t5NpxHR6XgXn4sjWw==}
     cpu: [arm64]
     os: [darwin]
 
-  sherpa-onnx-darwin-x64@1.12.37:
-    resolution: {integrity: sha512-2mB1BhEJJLG8Ow/YGAe7c3AL5fSkk9qDk3wmZRsfDW+Gno5eBaUusXseDI0ltjh2mZcW74l9F19ez4CyhwqNQQ==}
+  sherpa-onnx-darwin-x64@1.13.8:
+    resolution: {integrity: sha512-7BLRpjM6w4f9W46/nmkmq8lEKUayhebvcpslCVQ+6QN2uReYlZEMDZlSpXMjme+hUFrPfRz8P3UNq8ep/4d19g==}
     cpu: [x64]
     os: [darwin]
 
-  sherpa-onnx-linux-arm64@1.12.37:
-    resolution: {integrity: sha512-6yVnp7ucK4oJEjUfKbkyvJm+e6UdETTp7PnWFb1+Wr6nxSCN038BGSACCIKlVHEsQl+6huwrvymljkWrIro1mA==}
+  sherpa-onnx-linux-arm64@1.13.8:
+    resolution: {integrity: sha512-Tlg7a70b/Wge3OF8IgTHF9jhSVCsLyKQKhwc4BsJ5A+dL/SrFtGBjzuHp4XeLhiiOT7afCxX5PdSn/D4c8Lnuw==}
     cpu: [arm64]
     os: [linux]
 
-  sherpa-onnx-linux-x64@1.12.37:
-    resolution: {integrity: sha512-WF69clWjTlBu6NIBdL8OLEEN4NwOlYjjB/AjCMs29pB6gtSzKJEKIjmTATfaSSExTGPeXsOriCXcMdHaMH4WNg==}
+  sherpa-onnx-linux-x64@1.13.8:
+    resolution: {integrity: sha512-6plnhjagsSeTntCgnlag86hWbs/uZE9Crms1LgOb68/1nKsIQjMd+WG519m+aPwT6TrsBOiEMzrx41t8sL5L5g==}
     cpu: [x64]
     os: [linux]
 
-  sherpa-onnx-win-x64@1.12.37:
-    resolution: {integrity: sha512-1h1UrJxzA1vkOO2G8JqRQkF9SfEhM/LYW+yFki5izCY5N+eaaxYKdZLmVZI3KAhxk28pkE6dnMETYi0nj2/Cuw==}
+  sherpa-onnx-win-x64@1.13.8:
+    resolution: {integrity: sha512-oZF1c9VPOKtMwn83Bboc5XSWL+76BRoyB3eUuVnCknBKxwSULZU2Foia9VHWzU+n4I12rPsP6z6H9Rp1hD9o8g==}
     cpu: [x64]
     os: [win32]
 
-  sherpa-onnx@1.12.37:
-    resolution: {integrity: sha512-3luwSdHwR8BtJiiFwqHfb15FE2FX0KsN4aOBbfq9Ma23r3w9C3bprFc/WBusXk56nUbzcEN5YczN7t9w1JwdtQ==}
+  sherpa-onnx@1.13.8:
+    resolution: {integrity: sha512-bsZ7K55hNakFbCVIrCsuwEFLLiWa/1/KI6dXEK3CwtI6N/j/Zc1LMheo1syMJhG0e4gu7MXPwbtKfbm44BQYIg==}
 
   shiki@4.5.0:
     resolution: {integrity: sha512-OcRW72ngQvc+MSVWBRIovC/BTW589iUE/Vxav7VeM4RcY9MUjqB+IR6ILG1k9nuW6LiG/nct9uma4/MBtnZbmQ==}
@@ -14726,22 +14726,22 @@ snapshots:
 
   shebang-regex@3.0.0: {}
 
-  sherpa-onnx-darwin-arm64@1.12.37:
+  sherpa-onnx-darwin-arm64@1.13.8:
     optional: true
 
-  sherpa-onnx-darwin-x64@1.12.37:
+  sherpa-onnx-darwin-x64@1.13.8:
     optional: true
 
-  sherpa-onnx-linux-arm64@1.12.37:
+  sherpa-onnx-linux-arm64@1.13.8:
     optional: true
 
-  sherpa-onnx-linux-x64@1.12.37:
+  sherpa-onnx-linux-x64@1.13.8:
     optional: true
 
-  sherpa-onnx-win-x64@1.12.37:
+  sherpa-onnx-win-x64@1.13.8:
     optional: true
 
-  sherpa-onnx@1.12.37: {}
+  sherpa-onnx@1.13.8: {}
 
   shiki@4.5.0:
     dependencies:

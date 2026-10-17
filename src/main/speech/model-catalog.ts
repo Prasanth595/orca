@@ -30,6 +30,20 @@ export const SPEECH_MODEL_CATALOG: SpeechModelManifest[] = [
     modelingUnit: 'bpe'
   },
   {
+    id: 'nemotron-3.5-asr-streaming-0.6b-560ms-int8',
+    label: 'Nemotron 3.5 Streaming',
+    description:
+      '40 languages with automatic language detection. Real-time streaming with punctuation and capitalization.',
+    type: 'transducer',
+    provider: 'local',
+    language: 'multilingual',
+    ...getSpeechModelDownloadMetadata('nemotron-3.5-asr-streaming-0.6b-560ms-int8'),
+    sampleRate: 16000,
+    streaming: true,
+    // Why: no bpe.vocab is shipped, so hotwords fall back to greedy search, the only NeMo streaming decoder.
+    modelingUnit: 'bpe'
+  },
+  {
     id: 'zipformer-bilingual-zh-en',
     label: 'Zipformer Bilingual',
     description: 'Chinese + English with code-switching. Low-latency real-time streaming.',

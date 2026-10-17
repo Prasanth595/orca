@@ -61,6 +61,28 @@ const MODEL_DOWNLOAD_FILES = {
       ['tokens.txt', 9_384, 'ec182b70dd42113aff6c5372c75cac58c952443eb22322f57bbd7f53977d497d']
     ]
   ),
+  'nemotron-3.5-asr-streaming-0.6b-560ms-int8': huggingFaceFiles(
+    'csukuangfj2/sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-560ms-int8-2026-06-11',
+    'ab43d895f5985b1bbab8b6eac8607fcdc05343f3',
+    [
+      [
+        'encoder.int8.onnx',
+        657_601_403,
+        '012e9321373af99021415e0b0eb3ec827b4be3153be6f30d9b448fe65e896e68'
+      ],
+      [
+        'decoder.int8.onnx',
+        14_978_075,
+        '19f9c98fc6d0a2c33a65a43b36fdb2e914c26c0aa9764be3aebc502a1e982fb0'
+      ],
+      [
+        'joiner.int8.onnx',
+        9_504_438,
+        '4101c7c679a0bc30483794b27a059e34e79232aa2068d78d51231a22c8b0d7ce'
+      ],
+      ['tokens.txt', 131_440, '729cc103155bafa785f9cd45746cd41cabe97eab7182fc04d594129587958f8a']
+    ]
+  ),
   'zipformer-bilingual-zh-en': huggingFaceFiles(
     'csukuangfj/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20',
     '98590b7ed6443e77b714204da2757d75e1a642f4',
