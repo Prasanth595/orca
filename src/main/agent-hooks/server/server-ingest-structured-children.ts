@@ -66,9 +66,7 @@ export abstract class AgentHookServerIngestStructuredChildren extends AgentHookS
     return parent ? this.canonicalStatusStore.getChildren(parent) : []
   }
 
-  /** The same records as the views every surface reads; the one record-to-view projection. */
-  /** The provider handles the session's live records answer to for their current run: a settled
-   *  record lists no running work, even under the handle a later run reuses. */
+  /** A record covers its current handles only while it answers to running work. */
   getStructuredChildWorkHandles(subject: AgentStatusStructuredSessionSubject): Set<string> {
     return new Set(
       this.getStructuredChildWork(subject).flatMap((child) =>
