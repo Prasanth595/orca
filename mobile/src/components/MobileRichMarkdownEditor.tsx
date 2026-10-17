@@ -13,6 +13,7 @@ import {
 } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { colors } from '../theme/mobile-theme'
+import { applyRichMarkdownEditorTheme } from './rich-markdown/document-theme'
 import { openExternalLink } from '../platform/external-link'
 import { MobileRichMarkdownToolbar } from './MobileRichMarkdownToolbar'
 import { TextInputModal } from './TextInputModal'
@@ -62,9 +63,15 @@ function MobileRichMarkdownEditorWebInner(
   { content, editable, onChange, onOpenLink }: MobileRichMarkdownEditorComponentProps,
   ref: ForwardedRef<MobileRichMarkdownEditorHandle>
 ) {
-  useMobileTheme()
-
+  const scheme = useMobileTheme()
   const hostRef = useRef<View>(null)
+  useEffect(() => {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: The page's View ref is the editor host HTMLElement.
+    const host = hostRef.current as unknown as HTMLElement | null
+    if (host) {
+      applyRichMarkdownEditorTheme(host)
+    }
+  }, [scheme])
   const documentRef = useRef<RichMarkdownWebDocument | null>(null)
   // The document reports itself ready from inside the mount call, so the controller answers it —
   // setting the content and the editable flag — while the effect below is still on the line that
