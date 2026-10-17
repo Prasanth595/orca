@@ -15,8 +15,6 @@
 // What the old side stores is its own code, so those expectations follow what the baseline host
 // advertises, never its version.
 
-import { existsSync } from 'node:fs'
-import { join } from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { DESKTOP_RENDERER_RUNTIME_CLIENT_CAPABILITIES } from '../../../src/main/ipc/desktop-renderer-runtime-capabilities'
@@ -86,10 +84,6 @@ function member<T>(module: Record<string, unknown>, name: string): T {
 beforeAll(async () => {
   const ref = resolveBaselineReleaseRef()
   const checkout = await materializeReleaseCheckout(ref)
-  const sharedTabsPath = 'src/shared/structured-agent-session-tab.ts'
-  const sharedTabs: Record<string, unknown> = existsSync(join(checkout.root, sharedTabsPath))
-    ? await importReleaseCheckoutModule(checkout, sharedTabsPath)
-    : {}
   const [capabilities, projection, schema, tabs, record] = await Promise.all([
     importReleaseCheckoutModule(checkout, 'src/main/ipc/desktop-renderer-runtime-capabilities.ts'),
     importReleaseCheckoutModule(
@@ -97,10 +91,8 @@ beforeAll(async () => {
       'src/main/runtime/rpc/methods/session-tab-agent-status-projection.ts'
     ),
     importReleaseCheckoutModule(checkout, 'src/shared/workspace-session-schema.ts'),
-    importReleaseCheckoutModule(
-      checkout,
-      'src/renderer/src/components/native-chat/structured-agent-session-tabs.ts'
-    ),
+    // Why: releases from v1.4.228 define it here; the renderer module only imports it.
+    importReleaseCheckoutModule(checkout, 'src/shared/structured-agent-session-tab.ts'),
     importReleaseCheckoutModule(checkout, 'src/shared/agent-session-record.ts')
   ])
   current = await loadAgentSessionWireBuild(WORKING_TREE)
@@ -111,10 +103,7 @@ beforeAll(async () => {
     desktopClientCapabilities: member(capabilities, 'DESKTOP_RENDERER_RUNTIME_CLIENT_CAPABILITIES'),
     projectSessionTabAgentStatus: member(projection, 'projectSessionTabAgentStatus'),
     parseWorkspaceSession: member(schema, 'parseWorkspaceSession'),
-    isStructuredTab: member(
-      sharedTabs.isStructuredTab === undefined ? tabs : sharedTabs,
-      'isStructuredTab'
-    ),
+    isStructuredTab: member(tabs, 'isStructuredTab'),
     isPersistedAgentSessionRecord: member(record, 'isPersistedAgentSessionRecord')
   }
 }, SUITE_TIMEOUT_MS)

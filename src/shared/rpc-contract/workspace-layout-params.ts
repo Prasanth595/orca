@@ -135,6 +135,7 @@ const OpenEditorTabCommand = z.object({
   file: EditorFileRecord.optional(),
   groupId: z.string().min(1).optional(),
   preview: z.literal(true).optional(),
+  createdAt: z.number().int().nonnegative().optional(),
   split: NewGroupSplit
 })
 
@@ -222,6 +223,24 @@ const OpenBrowserTabCommand = z.object({
   groupId: z.string().min(1).optional(),
   afterTabId: z.string().min(1).optional(),
   index: z.number().int().nonnegative().optional(),
+  createdAt: z.number().int().nonnegative().optional(),
+  browserCreatedAt: z.number().int().nonnegative().optional(),
+  split: NewGroupSplit
+})
+
+/**
+ * A chat tab under the id the window drew it with: status and attention address it at once. The
+ * same open again changes nothing; an id another tab holds is refused.
+ */
+const OpenAgentSessionTabCommand = z.object({
+  type: z.literal('openAgentSessionTab'),
+  ...OnTab,
+  sessionId: z.string().min(1),
+  agent: z.string().min(1),
+  groupId: z.string().min(1).optional(),
+  afterTabId: z.string().min(1).optional(),
+  index: z.number().int().nonnegative().optional(),
+  createdAt: z.number().int().nonnegative().optional(),
   split: NewGroupSplit
 })
 
@@ -297,13 +316,17 @@ function paneKeysNameTab(command: { tabId: string; paneKeys: string[] }): boolea
   return command.paneKeys.every((paneKey) => parsePaneKey(paneKey)?.tabId === command.tabId)
 }
 
-/** The window's sleep of panes of one tab it already stopped; main records how each resumes. */
+/**
+ * The window's sleep of panes of one tab it already stopped; main records how each resumes.
+ * `recordOnly`: a resume record of a running agent (a live or quit capture); nothing stops.
+ */
 const SleepCommand = z
   .object({
     type: z.literal('sleep'),
     ...OnTab,
     paneKeys: z.array(z.string().min(1)).min(1),
-    records: z.array(sleepingAgentSessionRecordSchema)
+    records: z.array(sleepingAgentSessionRecordSchema),
+    recordOnly: z.literal(true).optional()
   })
   .refine(paneKeysNameTab)
   .refine((command) =>
@@ -313,17 +336,26 @@ const SleepCommand = z
     )
   )
 
-/** The window's wake of the one pane it shows; never more, so agents are not resumed in bulk. */
+/**
+ * The window's wake of the one pane it shows; never more, so agents are not resumed in bulk.
+ * `recordOnly`: the window dropped the panes' resume records; nothing starts, so any count.
+ */
 const WakeCommand = z
-  .object({ type: z.literal('wake'), ...OnTab, paneKeys: z.tuple([z.string().min(1)]) })
+  .object({
+    type: z.literal('wake'),
+    ...OnTab,
+    paneKeys: z.array(z.string().min(1)).min(1),
+    recordOnly: z.literal(true).optional()
+  })
+  .refine((command) => command.recordOnly === true || command.paneKeys.length === 1)
   .refine(paneKeysNameTab)
 
 /**
  * A window's layout command (`layout.apply`, registered only in a layout-owner build). The window
  * names what it acts on; main mints every new id but a created terminal tab's
  * (see CreateTerminalTabCommand), a browser tab's and page's, which the window already shows
- * (see OpenBrowserTabCommand), an editor tab's (see OpenEditorTabCommand), and the group an open
- * into a new split makes (see NewGroupSplit).
+ * (see OpenBrowserTabCommand), an editor tab's (see OpenEditorTabCommand), a chat tab's (see
+ * OpenAgentSessionTabCommand), and the group an open into a new split makes (see NewGroupSplit).
  */
 export const LayoutApplyParams = z.object({
   command: z.discriminatedUnion('type', [
@@ -347,6 +379,7 @@ export const LayoutApplyParams = z.object({
     ReplaceBrowserPageCommand,
     SetBrowserTabProfileCommand,
     OpenEditorTabCommand,
+    OpenAgentSessionTabCommand,
     PromotePreviewTabCommand,
     MoveTabToWorkspaceCommand,
     RenameEditorFilesCommand,
