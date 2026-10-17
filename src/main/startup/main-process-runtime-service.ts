@@ -13,7 +13,7 @@ import { agentHookServer } from '../agent-hooks/server'
 import { browserManager } from '../browser/browser-manager'
 import { loadAgentSessionClaimSigner } from '../runtime/agent-session-claim-identity'
 import { getProfileUserDataPath } from '../orca-profiles/profile-storage-paths'
-import { prepareCodexAiVaultSessionResume } from '../codex/codex-ai-vault-session-resume'
+import { codexAiVaultSessionResumePreparation } from '../codex/codex-ai-vault-session-resume'
 import { resolveKeptCodexHomeForSession } from '../agent-accounts/kept-codex-home'
 import { prepareCodexPinnedLaunchHome } from './codex-session-resume-launch'
 import { resolveHostCodexSessionSourceHome } from '../codex/codex-session-source-home'
@@ -115,14 +115,13 @@ export function initializeMainProcessRuntime(): OrcaRuntimeService {
     // Why: source codex-home here (runs in window AND serve) so aiVault.listSessions includes managed-Codex sessions; registerCoreHandlers is window-only.
     getAdditionalAiVaultCodexHomePaths: () =>
       state.codexRuntimeHome?.getHostCodexHomePathsForSessionDiscovery() ?? [],
-    prepareAiVaultSessionResume: (args) =>
-      prepareCodexAiVaultSessionResume(args, {
-        runtimeHome: state.codexRuntimeHome,
-        systemCodexHomePath: resolveHostCodexSessionSourceHome(store.getSettings()),
-        preparePinnedLaunchHome: (home) => prepareCodexPinnedLaunchHome(home),
-        resolveKeptCodexHome: (sessionId) =>
-          resolveKeptCodexHomeForSession(sessionId, state.codexRuntimeHome)
-      }),
+    prepareAiVaultSessionResume: codexAiVaultSessionResumePreparation(() => ({
+      runtimeHome: state.codexRuntimeHome,
+      systemCodexHomePath: resolveHostCodexSessionSourceHome(store.getSettings()),
+      preparePinnedLaunchHome: (home) => prepareCodexPinnedLaunchHome(home),
+      resolveKeptCodexHome: (sessionId) =>
+        resolveKeptCodexHomeForSession(sessionId, state.codexRuntimeHome)
+    })),
     ...codexStructuredLaunchHomeResolvers,
     prepareCodexCatalogProbeHome: (homePath) =>
       state.codexRuntimeHome?.prepareHostCodexHomeForReadOnlyAppServer(
@@ -150,6 +149,7 @@ export function initializeMainProcessRuntime(): OrcaRuntimeService {
     recordDurableCrashBreadcrumb('agent_state_rules_active', rules)
   )
   state.runtime = runtime
+  runtime.sidebarFacts?.workspaceActivityFacts.attachAgentStatusStore(agentHookServer)
   agentHookServer.subscribeEnrichedStatus((enriched) =>
     recordObservedAgentStatusPaneIdentity(observedPaneIdentities, enriched.paneKey, runtime)
   )

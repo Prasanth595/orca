@@ -199,14 +199,9 @@ describe('terminal agent counts in the account switchers', () => {
 
   afterEach(() => cleanup())
 
-  it('counts Claude terminal agents per account and says kept agents stay put', async () => {
+  it('counts Claude terminal agents per account', async () => {
     await openClaude()
     expect(screen.getByText('2 terminal agents')).toBeTruthy()
-    expect(
-      screen.getByText(
-        'Switching applies to the next Claude you start in any tab. Running sessions and agents kept on an account keep their account.'
-      )
-    ).toBeTruthy()
   })
 
   it('counts Codex terminal agents per account', async () => {

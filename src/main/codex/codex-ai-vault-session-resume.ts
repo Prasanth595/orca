@@ -32,6 +32,24 @@ type CodexAiVaultResumeOptions = {
   resolveKeptCodexHome?: (sessionId: string) => string | undefined
 }
 
+export type NativeCodexResumePreparation = (
+  args: AiVaultPrepareSessionResumeArgs,
+  nativeSystemHomePath?: string
+) => Promise<AiVaultPrepareSessionResumeResult>
+
+/** Native adoption supplies its execution target; History keeps its configured storage target. */
+export function codexAiVaultSessionResumePreparation(
+  getOptions: () => CodexAiVaultResumeOptions
+): NativeCodexResumePreparation {
+  return (args, nativeSystemHomePath) => {
+    const options = getOptions()
+    return prepareCodexAiVaultSessionResume(args, {
+      ...options,
+      systemCodexHomePath: nativeSystemHomePath ?? options.systemCodexHomePath
+    })
+  }
+}
+
 /** Keeps window and serve AI Vault resumes behind the same refusing account-home gate. */
 export async function prepareCodexAiVaultSessionResume(
   args: AiVaultPrepareSessionResumeArgs,

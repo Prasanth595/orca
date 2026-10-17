@@ -32,9 +32,11 @@ import {
 } from './status-bar-runtime-targets'
 import {
   buildClaudeStatusSwitchGroups,
+  getClaudeStatusActiveId,
   normalizeClaudeStatusRuntimeTarget,
   resolveClaudeStatusAccountState
 } from './status-bar-claude-accounts'
+import { handleRunningClaudeSessionsAfterSwitch } from '@/lib/claude-account-switch-sessions'
 import { AccountRuntimeToggle } from './StatusBarAccountControls'
 import {
   InlineUsageBars,
@@ -169,6 +171,7 @@ export function ClaudeSwitcherMenu({
     if (isSwitching) {
       return
     }
+    const previousActiveAccountId = getClaudeStatusActiveId(accountState, target)
     setIsSwitching(true)
     try {
       const next = await selectClaudeProviderAccount(runtimeTarget, {
@@ -186,6 +189,15 @@ export function ClaudeSwitcherMenu({
       }
       if (mountedRef.current) {
         setAccountsExpanded(false)
+      }
+      const nextActiveAccountId = getClaudeStatusActiveId(next, target)
+      if (previousActiveAccountId !== nextActiveAccountId) {
+        void handleRunningClaudeSessionsAfterSwitch({
+          owner: runtimeTarget,
+          target,
+          before: { state: accountState, accountId: previousActiveAccountId },
+          after: { state: next, accountId: nextActiveAccountId }
+        })
       }
     } catch (error) {
       console.error('Failed to switch Claude account from status bar:', error)
@@ -379,12 +391,6 @@ export function ClaudeSwitcherMenu({
                 </DropdownMenuItem>
               )
             })}
-          </div>
-          <div className="px-2 py-1.5 text-[10px] leading-4 text-muted-foreground">
-            {translate(
-              'accounts.claude.profileSwitchingKept',
-              'Switching applies to the next Claude you start in any tab. Running sessions and agents kept on an account keep their account.'
-            )}
           </div>
         </div>
       ) : null}
