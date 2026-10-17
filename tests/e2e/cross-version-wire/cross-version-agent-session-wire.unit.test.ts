@@ -17,6 +17,7 @@ import { join } from 'node:path'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StructuredAgentSessionAdapter } from '../../../src/main/native-chat/agent-session-wire/structured-agent-session-adapter'
 import { StructuredAgentSessionHost } from '../../../src/main/native-chat/agent-session-wire/structured-agent-session-host'
+import { emptyAgentSessionBatch } from '../../../src/main/native-chat/agent-session-wire/agent-session-empty-batch'
 import { startsWhenPublished } from '../../../src/main/native-chat/agent-session-wire/structured-agent-session-instant-start.test-support'
 import { setStructuredAgentSessionHost } from '../../../src/main/native-chat/agent-session-wire/structured-agent-session-registry'
 import type { AgentSessionRecordStore } from '../../../src/main/runtime/agent-session-record-store'
@@ -861,12 +862,7 @@ describe('cross-version structured agent sessions', () => {
       expect(rendered).not.toContain('before restart')
       expect(batch?.cursor.epoch).toBe(held.epoch)
       expect(batch?.cursor.sequence).toBeGreaterThan(held.sequence)
-      expect(batches[1]?.batch).toEqual({
-        cursor: batch?.cursor,
-        items: [],
-        removedItemIds: [],
-        submissions: []
-      })
+      expect(batches[1]?.batch).toEqual(emptyAgentSessionBatch(batch?.cursor ?? held))
     })
 
     // Every released client still sends the fence it last saw; this host names a write by its

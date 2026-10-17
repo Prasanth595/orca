@@ -244,13 +244,7 @@ function framedStates(events: AgentSessionSubscribeEvent[], id: string): string[
 }
 
 function deferred<T>() {
-  let resolve!: (value: T) => void
-  let reject!: (error: unknown) => void
-  const promise = new Promise<T>((next, fail) => {
-    resolve = next
-    reject = fail
-  })
-  return { promise, resolve, reject }
+  return Promise.withResolvers<T>()
 }
 
 /** Rows written by an earlier host process that ended before handing them over. */
