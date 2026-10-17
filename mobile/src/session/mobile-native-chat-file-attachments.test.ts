@@ -105,3 +105,25 @@ it('does not pair backticks across separate Markdown paragraphs', () => {
     prose: [{ type: 'text', text: 'Before `\n\n\n\n` after' }]
   })
 })
+
+it('does not pair an HTML attribute backtick with a real inline code delimiter', () => {
+  const path = '/root/.orca/agent-session-attachments/id/report.pdf'
+  const code = `<span title="\`"> \` @${path} \``
+  expect(splitMobileNativeChatFileAttachments([{ type: 'text', text: code }])).toEqual({
+    files: [],
+    prose: [{ type: 'text', text: code }]
+  })
+})
+
+it.each([
+  '<span title="@PATH">label</span>',
+  '[Open @PATH](https://example.com)',
+  '| Reference |\n| --- |\n| ` @PATH ` |'
+])('preserves attachment-looking text within Markdown markup: %s', (markup) => {
+  const path = '/root/.orca/agent-session-attachments/id/report.pdf'
+  const text = markup.replace('@PATH', `@${path}`)
+  expect(splitMobileNativeChatFileAttachments([{ type: 'text', text }])).toEqual({
+    files: [],
+    prose: [{ type: 'text', text }]
+  })
+})

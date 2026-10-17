@@ -311,5 +311,6 @@ export function mobileMarkdownCodeLines(source: string): Set<number> {
 
 /** Literal code ranges in original source, including multiline inline spans. */
 export function mobileMarkdownLiteralRanges(source: string): { start: number; end: number }[] {
-  return collectMobileMarkdownLiteralRanges(source, markdown.parse(source, {}))
+  const env = {}
+  return collectMobileMarkdownLiteralRanges(source, markdown.parse(source, env), markdown, env)
 }

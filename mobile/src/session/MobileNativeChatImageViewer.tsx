@@ -1,11 +1,52 @@
 import { useState } from 'react'
-import { FlatList, Modal, Pressable, Text, View, useWindowDimensions } from 'react-native'
+import {
+  FlatList,
+  Modal,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+  useWindowDimensions
+} from 'react-native'
 import { X } from 'lucide-react-native'
 import type { NativeChatImageRefBlock } from '../../../src/shared/native-chat-types'
 import { useWindowSafeAreaInsets } from '../layout/side-safe-area'
 import { colors } from '../theme/mobile-theme'
 import { MobileNativeChatImage } from './MobileNativeChatImage'
+import {
+  MobileNativeChatImageViewerContext,
+  type MobileNativeChatViewedImage
+} from './mobile-native-chat-image-viewer-context'
+import {
+  useMobileNativeChatConversationState,
+  type MobileNativeChatConversation
+} from './use-mobile-native-chat-conversation-state'
 import { styles } from './mobile-native-chat-message-styles'
+
+export function MobileNativeChatImageViewerHost({
+  conversation,
+  children
+}: {
+  conversation: MobileNativeChatConversation
+  children: React.ReactNode
+}) {
+  const [image, setImage] =
+    useMobileNativeChatConversationState<MobileNativeChatViewedImage>(conversation)
+  return (
+    <MobileNativeChatImageViewerContext.Provider value={setImage}>
+      {children}
+      {image ? (
+        <MobileNativeChatImageViewer
+          images={
+            image.gallery?.images ?? [{ type: 'image-ref', url: image.uri, alt: image.label }]
+          }
+          initialIndex={image.gallery?.initialIndex ?? 0}
+          onClose={() => setImage(null)}
+        />
+      ) : null}
+    </MobileNativeChatImageViewerContext.Provider>
+  )
+}
 
 export function MobileNativeChatImageViewer({
   images,
@@ -68,12 +109,20 @@ export function MobileNativeChatImageViewer({
           }
           renderItem={({ item }) => (
             <View style={{ width, flex: 1 }}>
-              <MobileNativeChatImage
-                uri={item.url ?? item.path}
-                alt={item.alt}
-                fontScale={1}
-                imageStyle={styles.imageGalleryFill}
-              />
+              <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ flexGrow: 1 }}
+                maximumZoomScale={4}
+                minimumZoomScale={1}
+                centerContent
+              >
+                <MobileNativeChatImage
+                  uri={item.url ?? item.path}
+                  alt={item.alt}
+                  fontScale={1}
+                  imageStyle={styles.imageGalleryFill}
+                />
+              </ScrollView>
             </View>
           )}
         />

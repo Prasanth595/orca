@@ -1,6 +1,7 @@
 import { createElement, type ReactNode } from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, expect, it, vi } from 'vitest'
+import { MobileNativeChatImageViewerHost } from './MobileNativeChatImageViewer'
 import { MobileNativeChatMessage } from './MobileNativeChatMessage'
 import { MobileNativeChatAttachmentContext } from './mobile-native-chat-attachment-read'
 import type { NativeChatMessage } from '../../../src/shared/native-chat-types'
@@ -272,7 +273,7 @@ it('shows stored files above the text, expands additional files, and opens the o
   )
   expect(bubble.findAll((node) => String(node.type) === 'FileText')).toHaveLength(0)
   expect(
-    bubble.findAll((node) => node.props.children === '\nPlease review.').length
+    bubble.findAll((node) => node.props.content === '\nPlease review.').length
   ).toBeGreaterThan(0)
 })
 
@@ -281,16 +282,20 @@ it.each(['user', 'assistant'] as const)(
   async (role) => {
     await act(async () => {
       renderer = create(
-        createElement(MobileNativeChatMessage, {
-          message: {
-            ...message,
-            role,
-            blocks: Array.from({ length: 5 }, (_, index) => ({
-              type: 'image-ref' as const,
-              url: `file:///${index}.png`
-            }))
-          }
-        })
+        createElement(
+          MobileNativeChatImageViewerHost,
+          { conversation: { surfaceId: 'gallery-tab', sessionId: 'gallery-session' } },
+          createElement(MobileNativeChatMessage, {
+            message: {
+              ...message,
+              role,
+              blocks: Array.from({ length: 5 }, (_, index) => ({
+                type: 'image-ref' as const,
+                url: `file:///${index}.png`
+              }))
+            }
+          })
+        )
       )
     })
     expect(renderer!.root.findAll((node) => String(node.type) === 'Image')).toHaveLength(3)
