@@ -9,6 +9,14 @@ import type { NativeChatMessage } from '../../../src/shared/native-chat-types'
 import type { RpcResponse } from '../transport/types'
 import { styles } from './mobile-native-chat-message-styles'
 
+vi.mock('react-native-gesture-handler', () => ({
+  GestureHandlerRootView: 'View',
+  GestureDetector: ({ children }: { children: unknown }) => children,
+  Gesture: { Native: () => ({}) }
+}))
+vi.mock('./MobileNativeChatAndroidImagePage', () => ({
+  MobileNativeChatAndroidImagePage: 'AndroidImagePage'
+}))
 vi.mock('react-native', async () => {
   const React = await import('react')
   const Text = ({ children, ...props }: { children?: ReactNode }): unknown =>

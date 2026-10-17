@@ -1,14 +1,17 @@
 import type { NativeChatImageRefBlock } from '../../../src/shared/native-chat-types'
-import { useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import {
   FlatList,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   Text,
   View,
   useWindowDimensions
 } from 'react-native'
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler'
+import { MobileNativeChatAndroidImagePage } from './MobileNativeChatAndroidImagePage'
 import { X } from 'lucide-react-native'
 import { useWindowSafeAreaInsets } from '../layout/side-safe-area'
 import { colors } from '../theme/mobile-theme'
@@ -32,9 +35,14 @@ export function MobileNativeChatImageViewer({
   const window = useWindowDimensions()
   const width = Math.max(1, window.width - insets.left - insets.right)
   const [index, setIndex] = useState(initialIndex)
+  const [lockedIndex, setLockedIndex] = useState<number | null>(null)
+  const pagingGesture = useMemo(() => Gesture.Native(), [])
+  const onInteractionChange = useCallback((at: number, locked: boolean) => {
+    setLockedIndex((current) => (locked ? at : current === at ? null : current))
+  }, [])
   return (
     <Modal visible presentationStyle="fullScreen" animationType="fade" onRequestClose={onClose}>
-      <View
+      <GestureHandlerRootView
         style={[
           styles.imageViewer,
           {
@@ -59,45 +67,58 @@ export function MobileNativeChatImageViewer({
             <X size={20} color={colors.textPrimary} />
           </Pressable>
         </View>
-        <FlatList
-          key={width}
-          horizontal
-          pagingEnabled
-          data={images}
-          initialScrollIndex={index}
-          initialNumToRender={1}
-          windowSize={3}
-          showsHorizontalScrollIndicator={false}
-          keyExtractor={(image, at) => `${at}:${image.url ?? image.path}`}
-          getItemLayout={(_data, at) => ({ length: width, offset: at * width, index: at })}
-          onMomentumScrollEnd={(event) =>
-            setIndex(
-              Math.max(
-                0,
-                Math.min(images.length - 1, Math.round(event.nativeEvent.contentOffset.x / width))
+        <GestureDetector gesture={pagingGesture}>
+          <FlatList
+            key={width}
+            horizontal
+            pagingEnabled
+            scrollEnabled={lockedIndex === null}
+            data={images}
+            initialScrollIndex={index}
+            initialNumToRender={1}
+            windowSize={3}
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(image, at) => `${at}:${image.url ?? image.path}`}
+            getItemLayout={(_data, at) => ({ length: width, offset: at * width, index: at })}
+            onMomentumScrollEnd={(event) =>
+              setIndex(
+                Math.max(
+                  0,
+                  Math.min(images.length - 1, Math.round(event.nativeEvent.contentOffset.x / width))
+                )
               )
-            )
-          }
-          renderItem={({ item }) => (
-            <View style={{ width, flex: 1 }}>
-              <ScrollView
-                style={{ flex: 1 }}
-                contentContainerStyle={{ flexGrow: 1 }}
-                maximumZoomScale={4}
-                minimumZoomScale={1}
-                centerContent
-              >
-                <MobileNativeChatImage
-                  uri={item.url ?? item.path}
-                  alt={item.alt}
-                  fontScale={1}
-                  imageStyle={styles.imageGalleryFill}
+            }
+            renderItem={({ item, index: at }) =>
+              Platform.OS === 'android' ? (
+                <MobileNativeChatAndroidImagePage
+                  image={item}
+                  width={width}
+                  index={at}
+                  pagingGesture={pagingGesture}
+                  onInteractionChange={onInteractionChange}
                 />
-              </ScrollView>
-            </View>
-          )}
-        />
-      </View>
+              ) : (
+                <View style={{ width, flex: 1 }}>
+                  <ScrollView
+                    style={{ flex: 1 }}
+                    contentContainerStyle={{ flexGrow: 1 }}
+                    maximumZoomScale={4}
+                    minimumZoomScale={1}
+                    centerContent
+                  >
+                    <MobileNativeChatImage
+                      uri={item.url ?? item.path}
+                      alt={item.alt}
+                      fontScale={1}
+                      imageStyle={styles.imageGalleryFill}
+                    />
+                  </ScrollView>
+                </View>
+              )
+            }
+          />
+        </GestureDetector>
+      </GestureHandlerRootView>
     </Modal>
   )
 }

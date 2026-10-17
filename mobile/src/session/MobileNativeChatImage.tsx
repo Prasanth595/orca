@@ -6,6 +6,7 @@ import {
   Text,
   View,
   type ImageStyle,
+  type ImageProps,
   type StyleProp,
   type ImageResizeMode
 } from 'react-native'
@@ -23,13 +24,15 @@ export function MobileNativeChatImage({
   alt,
   fontScale,
   imageStyle = styles.imageThumb,
-  resizeMode = 'contain'
+  resizeMode = 'contain',
+  onLoad
 }: {
   uri: string | undefined
   alt?: string
   fontScale: number
   imageStyle?: StyleProp<ImageStyle>
   resizeMode?: ImageResizeMode
+  onLoad?: ImageProps['onLoad']
 }) {
   const client = useContext(MobileNativeChatAttachmentContext)
   const direct = isRenderableImageUri(uri)
@@ -75,6 +78,7 @@ export function MobileNativeChatImage({
         source={{ uri: imageUri }}
         style={imageStyle}
         resizeMode={resizeMode}
+        onLoad={onLoad}
         accessibilityLabel={alt ?? 'Attached image'}
         onError={() => setFailed({ client, path: uri, imageUri })}
       />

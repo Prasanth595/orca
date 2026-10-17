@@ -9,7 +9,16 @@ import {
 } from './mobile-native-chat-row-overlays'
 import type { MobileNativeChatConversation } from './use-mobile-native-chat-conversation-state'
 
+vi.mock('react-native-gesture-handler', () => ({
+  GestureHandlerRootView: 'View',
+  GestureDetector: ({ children }: { children: unknown }) => children,
+  Gesture: { Native: () => ({}) }
+}))
+vi.mock('./MobileNativeChatAndroidImagePage', () => ({
+  MobileNativeChatAndroidImagePage: 'AndroidImagePage'
+}))
 vi.mock('react-native', () => ({
+  Platform: { OS: 'ios' },
   Image: 'Image',
   Text: 'Text',
   FlatList: 'FlatList',
