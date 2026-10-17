@@ -2,7 +2,6 @@ import { createElement } from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ConfirmModal } from '../components/ConfirmModal'
-import { resetCodexResetAttemptJournalForTests } from '../storage/codex-reset-attempt-journal'
 import { MobileAccountsScreen } from './MobileAccountsScreen'
 
 const dependencies = vi.hoisted(() => ({
@@ -12,16 +11,7 @@ const dependencies = vi.hoisted(() => ({
   resetRequest: vi.fn(),
   selectRequest: vi.fn(),
   statusCapabilities: vi.fn(),
-  subscriptionListeners: [] as Array<(payload: unknown) => void>,
-  asyncStorage: {
-    getItem: vi.fn(),
-    setItem: vi.fn(),
-    removeItem: vi.fn()
-  }
-}))
-
-vi.mock('@react-native-async-storage/async-storage', () => ({
-  default: dependencies.asyncStorage
+  subscriptionListeners: new Array<(payload: unknown) => void>()
 }))
 
 vi.mock('react-native', () => ({
@@ -249,13 +239,11 @@ const KEY_BYTES = Uint8Array.from([
   0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x41, 0x11, 0x81, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11
 ])
 const KEY = '11111111-1111-4111-8111-111111111111'
+const SECOND_KEY_BYTES = KEY_BYTES.map((byte, index) => (index === 0 ? 0x22 : byte))
+const SECOND_KEY = '22111111-1111-4111-8111-111111111111'
 
 describe('accounts route Codex reset credit', () => {
-  let storedValues: Map<string, string>
-
   beforeEach(() => {
-    resetCodexResetAttemptJournalForTests()
-    storedValues = new Map()
     dependencies.loadHosts.mockReset().mockResolvedValue([
       {
         id: 'host-1',
@@ -285,17 +273,6 @@ describe('accounts route Codex reset credit', () => {
       result: AVAILABLE_SNAPSHOT.codex
     })
     dependencies.subscriptionListeners.length = 0
-    dependencies.asyncStorage.getItem
-      .mockReset()
-      .mockImplementation(async (key: string) => storedValues.get(key) ?? null)
-    dependencies.asyncStorage.setItem
-      .mockReset()
-      .mockImplementation(async (key: string, value: string) => {
-        storedValues.set(key, value)
-      })
-    dependencies.asyncStorage.removeItem.mockReset().mockImplementation(async (key: string) => {
-      storedValues.delete(key)
-    })
   })
 
   afterEach(() => {
@@ -314,7 +291,7 @@ describe('accounts route Codex reset credit', () => {
     act(() => renderer.unmount())
   })
 
-  it('persists before RPC and reuses the UUID after unmounting an ambiguous request', async () => {
+  it('retries a lost reply under a new key and shows the outcome the host recorded', async () => {
     dependencies.resetRequest
       .mockRejectedValueOnce(new Error('Connection lost'))
       .mockImplementationOnce((params) => ({
@@ -331,22 +308,22 @@ describe('accounts route Codex reset credit', () => {
     const firstRenderer = await renderAccountsRoute()
     await confirmReset(firstRenderer)
     expectNotice(firstRenderer, 'Could not reset rate limits', 'Connection lost')
-    expect(storedValues.size).toBe(1)
     act(() => firstRenderer.unmount())
 
-    resetCodexResetAttemptJournalForTests()
+    dependencies.randomBytes.mockImplementation(() => SECOND_KEY_BYTES.slice())
     const secondRenderer = await renderAccountsRoute()
     await confirmReset(secondRenderer)
 
-    expect(dependencies.randomBytes).toHaveBeenCalledTimes(1)
+    // No journal on the phone, as on the desktop: a new key, the same offer, and the host's ledger
+    // answers it with the attempt it recorded.
     expect(dependencies.resetRequest).toHaveBeenCalledTimes(2)
     const [firstParams, firstOptions] = dependencies.resetRequest.mock.calls[0]!
     const [secondParams, secondOptions] = dependencies.resetRequest.mock.calls[1]!
-    expect(firstParams).toEqual(secondParams)
     expect(firstParams).toMatchObject({ idempotencyKey: KEY })
+    expect(secondParams).toMatchObject({ idempotencyKey: SECOND_KEY })
+    expect(secondParams.expectedScope).toEqual(firstParams.expectedScope)
     expect(firstOptions).toEqual({ timeoutMs: 90_000 })
     expect(secondOptions).toEqual({ timeoutMs: 90_000 })
-    expect(storedValues.size).toBe(0)
     expectNotice(secondRenderer, 'Reset already applied', 'Codex usage has been refreshed.')
     act(() => secondRenderer.unmount())
   })
@@ -395,7 +372,6 @@ describe('accounts route Codex reset credit', () => {
       'Reset details changed',
       'The account or reset offer changed before the host contacted Codex. Review the updated details, then confirm again.'
     )
-    expect(storedValues.size).toBe(0)
     act(() => renderer.unmount())
   })
 
@@ -463,7 +439,6 @@ describe('accounts route Codex reset credit', () => {
 
     expect(openDialog(renderer)).toBeNull()
     expect(dependencies.resetRequest).not.toHaveBeenCalled()
-    expect(storedValues.size).toBe(0)
     act(() => renderer.unmount())
   })
 

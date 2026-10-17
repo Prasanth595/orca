@@ -72,7 +72,6 @@ export function MobileAccountsScreen() {
   } = useCodexResetCreditAction({
     client,
     connected: connState === 'connected',
-    hostId,
     snapshot,
     accountMutationBusy: busyAccountId !== null,
     onSnapshot: acceptSnapshot,

@@ -36,7 +36,6 @@ function describeScope(snapshot: AccountsSnapshot, scope: CodexResetCreditExpect
 export function useCodexResetCreditAction({
   client,
   connected,
-  hostId,
   snapshot,
   accountMutationBusy,
   onSnapshot,
@@ -44,7 +43,6 @@ export function useCodexResetCreditAction({
 }: {
   client: RpcClient | null
   connected: boolean
-  hostId: string | undefined
   snapshot: AccountsSnapshot | null
   accountMutationBusy: boolean
   onSnapshot: (snapshot: AccountsSnapshot) => void
@@ -78,33 +76,26 @@ export function useCodexResetCreditAction({
 
   const consume = useCallback(
     async (expectedScope: CodexResetCreditExpectedScope) => {
-      if (!client || !hostId || inFlightRef.current) {
+      if (!client || inFlightRef.current) {
         return
       }
       inFlightRef.current = true
       setResetting(true)
       try {
         const result = await requestCodexResetCredit(client, {
-          hostId,
           expectedScope,
           createIdempotencyKey: createCodexResetIdempotencyKey
         })
         onSnapshot(result.snapshot)
         if ('status' in result) {
-          const cleanupWarning = result.attemptJournalRetained
-            ? '\n\nThis phone could not clear the discarded retry record. Retrying it is safe, but the record must be cleared before a new reset can be confirmed for this account.'
-            : ''
           onNotice({
             title: 'Reset details changed',
-            message: `The account or reset offer changed before the host contacted Codex. Review the updated details, then confirm again.${cleanupWarning}`
+            message:
+              'The account or reset offer changed before the host contacted Codex. Review the updated details, then confirm again.'
           })
           return
         }
-        const copy = getCodexResetCreditOutcomeCopy(result.outcome)
-        const cleanupWarning = result.attemptJournalRetained
-          ? '\n\nThe host confirmed this attempt, but this phone could not clear its retry record. A later retry will reuse the same safe operation ID.'
-          : ''
-        onNotice({ title: copy.title, message: `${copy.message}${cleanupWarning}` })
+        onNotice(getCodexResetCreditOutcomeCopy(result.outcome))
       } catch (error) {
         onNotice({
           title: 'Could not reset rate limits',
@@ -115,7 +106,7 @@ export function useCodexResetCreditAction({
         setResetting(false)
       }
     },
-    [client, hostId, onNotice, onSnapshot]
+    [client, onNotice, onSnapshot]
   )
 
   const confirmReset = useCallback(() => {

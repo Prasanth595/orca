@@ -8,12 +8,7 @@ import {
   type MobileCodexResetCreditRpcSender,
   type MobileCodexResetCreditSendScope
 } from './codex-reset-credit-consume-operations'
-import {
-  clearCodexResetAttemptAfterAuthoritativeResponse,
-  CodexResetCreditExpectedScopeSchema,
-  getCodexResetAttemptIdentityKey,
-  getOrCreateCodexResetAttempt
-} from '../storage/codex-reset-attempt-journal'
+import { CodexResetCreditExpectedScopeSchema } from './codex-reset-credit-reply-schema'
 import {
   decodeAccountsSnapshot,
   type AccountsSnapshot,
@@ -48,12 +43,6 @@ export type CodexResetCreditRpcResult =
   | CodexResetCreditConsumedRpcResult
   | CodexResetCreditRejectedRpcResult
 
-export type CodexResetCreditRequestResult = CodexResetCreditRpcResult & {
-  // A valid host result remains authoritative even if local cleanup fails.
-  // The retained UUID makes a later retry idempotent instead of hiding success.
-  attemptJournalRetained: boolean
-}
-
 export type CodexResetCreditSummary = {
   availableCount: number
   availabilityLabel: string
@@ -61,7 +50,6 @@ export type CodexResetCreditSummary = {
 }
 
 const RESET_RPC_TIMEOUT_MS = 90_000
-const resetRequests = new Map<string, Promise<CodexResetCreditRequestResult>>()
 
 export function getCodexResetCreditSummary(
   limits: ProviderRateLimits | null,
@@ -220,68 +208,27 @@ function decodeResetResult(
   }
 }
 
-async function performCodexResetCreditRequest(
-  client: MobileCodexResetCreditRpcSender,
-  options: {
-    hostId: string
-    expectedScope: CodexResetCreditExpectedScope
-    createIdempotencyKey: () => string
-  }
-): Promise<CodexResetCreditRequestResult> {
-  const attempt = await getOrCreateCodexResetAttempt(options)
-  const response = await codexResetCreditConsume.request(
-    client,
-    {
-      idempotencyKey: attempt.idempotencyKey,
-      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: every attempt is parsed through CodexResetAttemptSchema, whose refinement pairs runtime 'host' with a null distro and 'wsl' with a trimmed non-empty one. The bytes are unchanged.
-      expectedScope: attempt.expectedScope as MobileCodexResetCreditSendScope
-    },
-    { timeoutMs: RESET_RPC_TIMEOUT_MS }
-  )
-  const result = decodeResetResult(
-    codexResetCreditConsume.interpret(response),
-    attempt.expectedScope
-  )
-  let attemptJournalRetained = false
-  try {
-    await clearCodexResetAttemptAfterAuthoritativeResponse({
-      hostId: options.hostId,
-      expectedScope: attempt.expectedScope,
-      idempotencyKey: attempt.idempotencyKey
-    })
-  } catch {
-    attemptJournalRetained = true
-  }
-  return { ...result, attemptJournalRetained }
-}
-
+/**
+ * One redeem, the way the desktop does it: a fresh key per attempt and no journal here. The host's
+ * ledger owns the attempt, so a retry of the same offer under a new key (the reply was lost) gets
+ * that attempt's recorded outcome, and a concurrent one joins it rather than spending twice.
+ */
 export async function requestCodexResetCredit(
   client: MobileCodexResetCreditRpcSender,
   options: {
-    hostId: string
     expectedScope: CodexResetCreditExpectedScope
     createIdempotencyKey: () => string
   }
-): Promise<CodexResetCreditRequestResult> {
-  const requestKey = getCodexResetAttemptIdentityKey(options)
-  const existing = resetRequests.get(requestKey)
-  if (existing) {
-    return existing
-  }
-  // Why: two mounted views can confirm the same offer concurrently. Share the
-  // whole attempt so one authoritative response cannot clear the other's retry key.
-  const operation = performCodexResetCreditRequest(client, options)
-  resetRequests.set(requestKey, operation)
-  try {
-    return await operation
-  } finally {
-    if (resetRequests.get(requestKey) === operation) {
-      resetRequests.delete(requestKey)
-    }
-  }
-}
-
-/** Test-only: clear request singleflight state between cases. */
-export function resetCodexResetCreditRequestsForTests(): void {
-  resetRequests.clear()
+): Promise<CodexResetCreditRpcResult> {
+  const scope = CodexResetCreditExpectedScopeSchema.parse(options.expectedScope)
+  const response = await codexResetCreditConsume.request(
+    client,
+    {
+      idempotencyKey: options.createIdempotencyKey(),
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: parsed just above through CodexResetCreditExpectedScopeSchema, whose refinement pairs runtime 'host' with a null distro and 'wsl' with a trimmed non-empty one. The bytes are unchanged.
+      expectedScope: scope as MobileCodexResetCreditSendScope
+    },
+    { timeoutMs: RESET_RPC_TIMEOUT_MS }
+  )
+  return decodeResetResult(codexResetCreditConsume.interpret(response), scope)
 }

@@ -65,7 +65,12 @@ export class CodexResetCreditCoordinator {
     }
     const scopeKey = resetScopeKey(expectedScope)
     const accountScopeKey = resetAccountScopeKey(expectedScope)
-    const existing = this.ledger.get(idempotencyKey)
+    // Why: a retry of the same offer under a new key (the client lost the reply) answers as the
+    // attempt that claimed the offer: its recorded outcome, or that attempt still running.
+    const attemptKey = this.ledger.get(idempotencyKey)
+      ? idempotencyKey
+      : (this.ledger.getClaimedKey(scopeKey) ?? idempotencyKey)
+    const existing = this.ledger.get(attemptKey)
     if (existing) {
       if (existing.scopeKey !== scopeKey) {
         return Promise.reject(new Error('That idempotency key belongs to a different reset scope.'))
@@ -84,7 +89,8 @@ export class CodexResetCreditCoordinator {
       if (existing.promise) {
         return existing.promise as Promise<CodexResetCreditConsumeResult>
       }
-      return this.startAttempt(idempotencyKey, expectedScope, existing)
+      // A pending attempt resumes under its own key, so the provider sees one operation.
+      return this.startAttempt(attemptKey, expectedScope, existing)
     }
 
     const unresolvedKey = this.ledger.getUnresolvedKey(accountScopeKey)
@@ -92,10 +98,6 @@ export class CodexResetCreditCoordinator {
       return Promise.reject(
         new Error('A previous reset attempt for this account still has an unknown outcome.')
       )
-    }
-    const claimedKey = this.ledger.getClaimedKey(scopeKey)
-    if (claimedKey && claimedKey !== idempotencyKey) {
-      return Promise.reject(new Error('That reset-credit offer was already attempted.'))
     }
     return this.startAttempt(
       idempotencyKey,
