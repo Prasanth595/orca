@@ -1,4 +1,4 @@
-import { useContext, useRef, useState } from 'react'
+import { useContext, useLayoutEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
 import type { NativeChatAsyncQuestion } from '../../../../shared/native-chat-types'
@@ -16,6 +16,13 @@ export function NativeChatAsyncQuestions({
 }): React.JSX.Element | null {
   const reply = useContext(NativeChatAsyncQuestionContext)
   const [expanded, setExpanded] = useState(true)
+  const current = useRef<{ reply: typeof reply; expanded: boolean } | null>(null)
+  useLayoutEffect(() => {
+    current.current = { reply, expanded }
+    return () => {
+      current.current = null
+    }
+  }, [reply, expanded])
   const [sending, setSending] = useState(false)
   const inFlight = useRef(false)
   const card = useRef<HTMLFieldSetElement>(null)
@@ -24,8 +31,7 @@ export function NativeChatAsyncQuestions({
   if (!reply || questions.length === 0) {
     return null
   }
-  const collapse = (): void => {
-    const restoreFocus = card.current?.contains(document.activeElement)
+  const collapse = (restoreFocus = true): void => {
     setExpanded(false)
     if (restoreFocus) {
       requestAnimationFrame(() => replyButton.current?.focus())
@@ -42,17 +48,19 @@ export function NativeChatAsyncQuestions({
           onCancel={collapse}
           onCollapse={collapse}
           onAnswer={(selections) => {
-            if (reply.disabled || inFlight.current) {
+            // A single-select choice runs after a delay; use the current input owner.
+            const active = current.current
+            if (!active?.reply || active.reply.disabled || !active.expanded || inFlight.current) {
               return
             }
             const text = formatAsyncQuestionAnswer(questions, selections)
             if (!text) {
               return
             }
-            const result = reply.send(text)
+            const result = active.reply.send(text)
             if (typeof result === 'boolean') {
               if (result) {
-                collapse()
+                collapse(card.current?.contains(document.activeElement) === true)
               }
               return
             }
@@ -61,7 +69,7 @@ export function NativeChatAsyncQuestions({
             void result
               .then((accepted) => {
                 if (accepted) {
-                  collapse()
+                  collapse(card.current?.contains(document.activeElement) === true)
                 }
               })
               .catch(() => false)
