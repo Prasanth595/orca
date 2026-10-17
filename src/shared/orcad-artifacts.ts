@@ -167,6 +167,14 @@ export const ORCAD_MOBILE_WEB_MANIFEST = `${ORCAD_MOBILE_WEB_DIR}/manifest.json`
 // Mirrors manifest-contract ASSET_PATH_PATTERN; cannot import under type stripping.
 const MOBILE_WEB_ASSET_PATH = /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*$/
 
+/** A bundle-relative asset path that stays inside the page directory. */
+export function isOrcadMobileWebAssetPath(path: string): boolean {
+  return (
+    MOBILE_WEB_ASSET_PATH.test(path) &&
+    !path.split('/').some((segment) => segment === '.' || segment === '..')
+  )
+}
+
 /** Slot paths of every asset `manifestText` lists, sorted; throws rather than ship a partial page. */
 export function orcadMobileWebAssetFilenames(manifestText: string): string[] {
   const manifest: unknown = JSON.parse(manifestText)
@@ -177,11 +185,7 @@ export function orcadMobileWebAssetFilenames(manifestText: string): string[] {
   }
   const filenames = assets.map((asset: unknown) => {
     const path = asset && typeof asset === 'object' && 'path' in asset ? asset.path : undefined
-    if (
-      typeof path !== 'string' ||
-      !MOBILE_WEB_ASSET_PATH.test(path) ||
-      path.split('/').some((segment) => segment === '.' || segment === '..')
-    ) {
+    if (typeof path !== 'string' || !isOrcadMobileWebAssetPath(path)) {
       throw new Error(`${ORCAD_MOBILE_WEB_MANIFEST} names an unsafe asset path: ${String(path)}`)
     }
     return `${ORCAD_MOBILE_WEB_DIR}/${path}`

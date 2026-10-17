@@ -296,6 +296,18 @@ describe('assembleOrcadArtifact', () => {
     )
   })
 
+  it('refuses a template page asset name that escapes the slot', async () => {
+    const fixture = createTemplate()
+    rewriteManifest(fixture.templateDir, (manifest) => {
+      manifest.commonSha256['out/mobile-web/../../escape.js'] = sha256(
+        join(fixture.templateDir, 'out/mobile-web/index.html')
+      )
+    })
+    await expect(assembleOrcadArtifact({ ...fixture, target: TARGET })).rejects.toThrow(
+      'unsafe page asset: out/mobile-web/../../escape.js'
+    )
+  })
+
   it('rejects a self-consistent target marker for a different native slot', async () => {
     const fixture = createTemplate()
     const targetPath = join(

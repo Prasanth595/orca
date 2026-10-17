@@ -14,6 +14,7 @@ import {
   ORCAD_TEMPLATE_TARGETS_DIR,
   ORCAD_VERSION_FILENAME,
   compareCodeUnits,
+  isOrcadMobileWebAssetPath,
   orcadArtifactFilenames,
   orcadTemplateCommonFilenames,
   orcadTemplateTargetFilenames
@@ -251,12 +252,18 @@ function expectedTemplateSha256(
  * to the page's own manifest), so a WSL wake that trusts its record reads no extra file.
  */
 function templateMobileWebAssets(manifest: z.infer<typeof TemplateManifestSchema>): string[] {
-  return Object.keys(manifest.commonSha256)
-    .filter(
-      (filename) =>
-        filename.startsWith(`${ORCAD_MOBILE_WEB_DIR}/`) && filename !== ORCAD_MOBILE_WEB_MANIFEST
-    )
-    .sort(compareCodeUnits)
+  const prefix = `${ORCAD_MOBILE_WEB_DIR}/`
+  const assets = Object.keys(manifest.commonSha256).filter(
+    (filename) => filename.startsWith(prefix) && filename !== ORCAD_MOBILE_WEB_MANIFEST
+  )
+  // Names become copy destinations under the slot, so one escaping it must never be joined.
+  const unsafe = assets.find(
+    (filename) => !isOrcadMobileWebAssetPath(filename.slice(prefix.length))
+  )
+  if (unsafe) {
+    throw new Error(`Packaged orcad template names an unsafe page asset: ${unsafe}`)
+  }
+  return assets.sort(compareCodeUnits)
 }
 
 async function readTemplateManifest(
