@@ -263,7 +263,7 @@ describe('workspace cleanup enrichment performance', () => {
     pending.resolve({ scannedAt: NOW, candidates, errors: [] })
     const finalScan = await scanPromise
 
-    expect(counts).toEqual({ openFiles: 1, retainedAgents: 1, agentStatuses: 1 })
+    expect(counts).toEqual({ openFiles: 1, retainedAgents: 0, agentStatuses: 0 })
     expect(finalScan.candidates).toEqual(progressCandidates)
   })
 
