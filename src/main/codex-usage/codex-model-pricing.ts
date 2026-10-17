@@ -94,6 +94,7 @@ const REASONING_TIER_SUFFIXES = ['minimal', 'low', 'medium', 'high', 'xhigh', 'a
 // Why: `max`/`ultra` only in parentheses — as a dash suffix `max` would strip `gpt-5.1-codex-max`.
 const PARENTHESIZED_REASONING_TIERS = [...REASONING_TIER_SUFFIXES, 'max', 'ultra']
 
+/** Removes a recognized parenthesized effort; unknown labels remain unpriced. */
 function stripParenthesizedReasoningTier(model: string): string | null {
   const match = model.match(/^(.*)\(([^()]*)\)$/)
   if (!match) {
@@ -106,6 +107,7 @@ function stripParenthesizedReasoningTier(model: string): string | null {
   return match[1]
 }
 
+/** Strips up to four recognized effort suffixes while preserving model names ending in max. */
 function stripDashReasoningTiers(model: string): string {
   let current = model
   for (let index = 0; index < 4; index++) {
