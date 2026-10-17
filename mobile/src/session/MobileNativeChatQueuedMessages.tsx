@@ -1,7 +1,8 @@
+import { MobileQueuedCardText } from './MobileQueuedCardText'
 import { useMobileTheme } from '../theme/use-mobile-theme'
 import { styles } from './mobile-native-chat-queued-message-styles'
 import { useRef, useState } from 'react'
-import { Pressable, ScrollView, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import {
   AlertCircle,
   ChevronDown,
@@ -102,6 +103,13 @@ export function MobileNativeChatQueuedMessages({
         >
           <Text style={[styles.headerLabel, pause && styles.headerLabelPaused]}>
             {pause ? 'Paused' : 'Queued'}
+          </Text>
+          <Text
+            style={styles.headerLabel}
+            importantForAccessibility="no"
+            accessibilityElementsHidden
+          >
+            ·
           </Text>
           <Text style={headerCountStyle} numberOfLines={1}>
             {attentionCaption ? `${cards.length} · ${attentionCaption}` : cards.length}
@@ -273,63 +281,6 @@ export function MobileNativeChatQueuedMessages({
         ]}
         onClose={() => setMenuFor(null)}
       />
-    </View>
-  )
-}
-
-/** Two lines, opening on tap when it clips: a card can hold another agent's message the person
- *  never read, and Steer or Delete must not be a blind choice. Opened, a long one scrolls in a
- *  capped box. */
-function MobileQueuedCardText({ text }: { text: string }): React.JSX.Element {
-  useMobileTheme()
-
-  const [expanded, setExpanded] = useState(false)
-  const [clipped, setClipped] = useState(false)
-  // The whole text laid out unseen at the card's width: more than two lines is what clips.
-  const measure = (
-    <Text
-      style={[styles.body, styles.measure]}
-      pointerEvents="none"
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-      onTextLayout={(event) => setClipped(event.nativeEvent.lines.length > 2)}
-    >
-      {text}
-    </Text>
-  )
-  if (!clipped && !expanded) {
-    return (
-      <View>
-        {measure}
-        <Text style={styles.body} numberOfLines={2}>
-          {text}
-        </Text>
-      </View>
-    )
-  }
-  const toggle = (
-    <Pressable
-      testID="queued-card-text"
-      accessibilityRole="button"
-      accessibilityState={{ expanded }}
-      accessibilityHint={expanded ? 'Shows less of the message' : 'Shows the whole message'}
-      onPress={() => setExpanded(!expanded)}
-    >
-      <Text style={styles.body} numberOfLines={expanded ? undefined : 2}>
-        {text}
-      </Text>
-      <Text style={styles.caption}>{expanded ? 'Show less' : 'Show more'}</Text>
-    </Pressable>
-  )
-  // The press sits inside the scroll, so a drag scrolls and only a tap folds it.
-  return expanded ? (
-    <ScrollView style={styles.expandedBody} nestedScrollEnabled>
-      {toggle}
-    </ScrollView>
-  ) : (
-    <View>
-      {measure}
-      {toggle}
     </View>
   )
 }

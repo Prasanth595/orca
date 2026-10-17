@@ -53,19 +53,6 @@ export const styles = createThemedStyles(() =>
       paddingVertical: spacing.sm,
       gap: 2
     },
-    body: {
-      color: colors.textPrimary,
-      fontSize: typography.bodySize
-    },
-    expandedBody: {
-      maxHeight: 240
-    },
-    measure: {
-      position: 'absolute',
-      left: 0,
-      right: 0,
-      opacity: 0
-    },
     caption: {
       color: colors.textMuted,
       fontSize: typography.metaSize
