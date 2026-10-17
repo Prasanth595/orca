@@ -1,6 +1,8 @@
-import type { NativeChatImageRefBlock } from '../../../src/shared/native-chat-types'
 import { createContext } from 'react'
-import type { NativeChatMessage } from '../../../src/shared/native-chat-types'
+import type {
+  NativeChatImageRefBlock,
+  NativeChatMessage
+} from '../../../src/shared/native-chat-types'
 
 export type MobileNativeChatViewedImage = {
   uri: string
