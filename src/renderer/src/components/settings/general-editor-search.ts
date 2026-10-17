@@ -45,6 +45,22 @@ export const getGeneralEditorSearchEntries = createLocalizedCatalog(() => [
     ]
   },
   {
+    title: translate('auto.components.settings.general.search.editorFontSize', 'Editor Font Size'),
+    description: translate(
+      'auto.components.settings.general.search.editorFontSizeDesc',
+      'Font size used by file editors and diff views. Leave empty to follow the terminal font size.'
+    ),
+    keywords: [
+      ...translateSearchKeyword('auto.components.settings.general.search.e1ee631696', 'editor'),
+      ...translateSearchKeyword('auto.components.settings.general.search.editorFontKw', 'font'),
+      ...translateSearchKeyword(
+        'auto.components.settings.general.search.editorFontSizeKw',
+        'text size'
+      ),
+      ...translateSearchKeyword('auto.components.settings.general.search.3ca5ab78a5', 'code')
+    ]
+  },
+  {
     title: translate('auto.components.settings.general.search.e61157e926', 'Editor Word Wrap'),
     description: translate(
       'auto.components.settings.general.search.005be5c699',

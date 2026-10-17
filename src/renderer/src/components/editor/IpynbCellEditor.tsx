@@ -2,7 +2,11 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Components } from 'react-markdown'
 import type { editor } from 'monaco-editor'
 import { monaco } from '@/lib/monaco-setup'
-import { computeEditorFontSize, resolveEditorFontStack } from '@/lib/editor-font-zoom'
+import {
+  computeEditorFontSize,
+  resolveEditorBaseFontSize,
+  resolveEditorFontStack
+} from '@/lib/editor-font-zoom'
 import { useAppStore } from '@/store'
 import { installMonacoEditorFindShortcut } from './editor-shortcuts'
 import { syncContentUpdate } from './monaco-content-sync'
@@ -122,7 +126,7 @@ function IpynbCodePreview({
       className="overflow-x-auto text-foreground"
       style={{
         fontFamily: resolveEditorFontStack(settings),
-        fontSize: computeEditorFontSize(settings?.terminalFontSize ?? 13, editorFontZoomLevel),
+        fontSize: computeEditorFontSize(resolveEditorBaseFontSize(settings), editorFontZoomLevel),
         lineHeight: `${CODE_LAYOUT.lineHeight}px`,
         paddingBlock: CODE_LAYOUT.paddingY,
         // Monaco renders code without the app's body tracking.
@@ -153,7 +157,7 @@ function IpynbSourceEditor({
   const editorFontZoomLevel = useAppStore((s) => s.editorFontZoomLevel)
   const isDark = useDocumentDarkTheme()
   const fontFamily = resolveEditorFontStack(settings)
-  const fontSize = computeEditorFontSize(settings?.terminalFontSize ?? 13, editorFontZoomLevel)
+  const fontSize = computeEditorFontSize(resolveEditorBaseFontSize(settings), editorFontZoomLevel)
   const containerRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
   const callbacksRef = useRef({ onChange, onDeactivate })

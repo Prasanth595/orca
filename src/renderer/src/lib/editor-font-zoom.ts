@@ -33,6 +33,24 @@ export function computeDiffEditorFontSize(baseFontSize: number, zoomLevel: numbe
   return computeEditorFontSize(baseFontSize - 0.5, zoomLevel)
 }
 
+export type EditorFontSizeSettings = {
+  editorFontSize?: number
+  terminalFontSize?: number
+}
+
+/**
+ * Base size for editor surfaces before zoom. Unset keeps following the terminal size exactly as
+ * before the setting existed; a non-finite value from a hand-edited file would otherwise reach
+ * Monaco as NaN, because the clamp in `computeEditorFontSize` passes NaN through.
+ */
+export function resolveEditorBaseFontSize(settings?: EditorFontSizeSettings | null): number {
+  const editorFontSize = settings?.editorFontSize
+  if (typeof editorFontSize === 'number' && Number.isFinite(editorFontSize) && editorFontSize > 0) {
+    return editorFontSize
+  }
+  return settings?.terminalFontSize ?? 13
+}
+
 export type EditorFontFamilySettings = {
   editorFontFamily?: string
   terminalFontFamily?: string

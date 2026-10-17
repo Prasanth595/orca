@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   computeDiffEditorFontSize,
   computeEditorFontSize,
+  resolveEditorBaseFontSize,
   resolveEditorFontFamily,
   resolveEditorFontStack
 } from './editor-font-zoom'
@@ -16,6 +17,34 @@ describe('editor font zoom', () => {
   it('keeps diff editor font size within the editor safety bounds', () => {
     expect(computeDiffEditorFontSize(10, -6)).toBe(8)
     expect(computeDiffEditorFontSize(24, 18)).toBe(32)
+  })
+})
+
+describe('resolveEditorBaseFontSize', () => {
+  it('follows the terminal size when no editor size is set (byte-identical to legacy behavior)', () => {
+    expect(resolveEditorBaseFontSize({ terminalFontSize: 11 })).toBe(11)
+    expect(resolveEditorBaseFontSize({ editorFontSize: undefined, terminalFontSize: 11 })).toBe(11)
+  })
+
+  it('uses the editor size override when the user opts in', () => {
+    expect(resolveEditorBaseFontSize({ editorFontSize: 18, terminalFontSize: 11 })).toBe(18)
+  })
+
+  it('ignores a corrupt editor size instead of handing NaN to Monaco', () => {
+    for (const editorFontSize of [Number.NaN, Number.POSITIVE_INFINITY, 0, -4]) {
+      expect(resolveEditorBaseFontSize({ editorFontSize, terminalFontSize: 11 })).toBe(11)
+    }
+  })
+
+  it('falls back to 13 when neither size is set', () => {
+    expect(resolveEditorBaseFontSize(undefined)).toBe(13)
+    expect(resolveEditorBaseFontSize(null)).toBe(13)
+    expect(resolveEditorBaseFontSize({})).toBe(13)
+  })
+
+  it('lets editor zoom stack on top of the editor size', () => {
+    const base = resolveEditorBaseFontSize({ editorFontSize: 18, terminalFontSize: 11 })
+    expect(computeEditorFontSize(base, 2)).toBe(20)
   })
 })
 
