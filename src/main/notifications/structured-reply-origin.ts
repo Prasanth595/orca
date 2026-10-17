@@ -32,12 +32,17 @@ export function isStructuredHumanReply(snapshot: AgentJournalSnapshot, turnId: s
       return false
     }
     const key = agentJournalSubmissionKey(submission.clientMessageId)
-    return snapshot.items.some(
-      (item) =>
-        !item.agentId &&
-        (item.itemId === key || item.itemId === submission.providerItemId) &&
-        (item.itemId === userItemId ||
-          (item.turnScope?.kind === 'turn' && item.turnScope.turnItemId === turn.itemId))
+    // The turn it opened names it by its key (Codex) or by the provider item the key aliases
+    // (Claude); a send steered into a running turn is scoped to that turn.
+    return (
+      (userItemId !== undefined &&
+        (userItemId === key || userItemId === submission.providerItemId)) ||
+      snapshot.items.some(
+        (item) =>
+          item.itemId === key &&
+          item.turnScope?.kind === 'turn' &&
+          item.turnScope.turnItemId === turn.itemId
+      )
     )
   })
 }

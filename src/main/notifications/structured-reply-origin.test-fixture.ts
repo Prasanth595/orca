@@ -1,53 +1,110 @@
-import type {
-  AgentJournalSnapshot,
-  AgentJournalRenderItem,
-  AgentJournalSubmission
-} from '../../shared/agent-session-journal-types'
+import type { AgentJournalSnapshot } from '../../shared/agent-session-journal-types'
 import { agentJournalSubmissionKey } from '../../shared/agent-session-journal-item-key'
+import {
+  applyJournalRow,
+  createJournalReducerState,
+  renderJournalState
+} from '../native-chat/agent-session-journal/journal-reducer'
+import { parseJournalRow } from '../native-chat/agent-session-journal/journal-row-schema'
 
+const EPOCH = 'epoch'
+const TURN_ROW = 'legacy:claude:invented-session:turn-lifecycle%3Aturn-A'
+
+/** `steered`: a program send opens the turn and this send is handed over into it. */
+type ChatShape = 'claude' | 'codex' | 'steered'
+
+/** Persisted journal rows replayed through the production parser and reducer. The Claude rows
+ *  mirror a captured composer send to Claude Code 2.1.301: the handed-over message stays in the
+ *  thread and the turn names the provider item its dispatch accepted. Codex names the submission
+ *  key itself (codex-structured-journal-translation-turn-boundaries). Ids and text are invented. */
 export function replySnapshotFixture(
   source: 'user' | 'agent' | undefined,
-  steered = false
+  shape: ChatShape = 'claude'
 ): AgentJournalSnapshot {
-  const key = agentJournalSubmissionKey('send')
-  const items: AgentJournalRenderItem[] = [
+  const rows: Record<string, unknown>[] = []
+  const row = (fields: Record<string, unknown>, v = 2) =>
+    rows.push({ v, epoch: EPOCH, seq: rows.length + 1, ts: rows.length + 1, ...fields })
+  const providerItem = (send: string) =>
+    shape === 'codex' ? `codex:invented-thread:turn-A:${send}` : `claude:invented-session:${send}`
+  const submit = (send: string, kind: typeof source, turnScope: Record<string, unknown>) => {
+    row({
+      kind: 'submission',
+      clientMessageId: send,
+      payloadFingerprint: `invented-${send}`,
+      providerHandle: { kind: 'opaque', agent: 'claude', value: 'pending' },
+      body: { kind: 'message', role: 'user', blocks: [{ type: 'text', text: 'invented input' }] },
+      fence: 1,
+      handoverRecorded: true,
+      origin: 'client',
+      ...(kind ? { source: { kind } } : {})
+    })
+    row({
+      kind: 'dispatch',
+      clientMessageId: send,
+      state: 'pending',
+      providerItemId: null,
+      reason: null,
+      fence: 2,
+      turnScope
+    })
+  }
+  const accept = (send: string) =>
+    row({
+      kind: 'dispatch',
+      clientMessageId: send,
+      state: 'accepted',
+      providerItemId: providerItem(send),
+      reason: null,
+      fence: 2
+    })
+  const turn = (state: 'running' | 'completed', userItemId: string) =>
+    row(
+      {
+        kind: 'item',
+        itemId: TURN_ROW,
+        revision: state === 'running' ? 1 : 2,
+        body: { kind: 'turn', turnId: 'turn-A', state, userItemId, startedAt: 1 },
+        fence: 2,
+        ownerFence: 2,
+        turnScope: { kind: 'thread' }
+      },
+      3
+    )
+  row({
+    kind: 'epoch',
+    reason: 'session_created',
+    providerHandle: { kind: 'opaque', agent: 'claude', value: 'pending' },
+    fence: 0
+  })
+  const starter = shape === 'steered' ? 'program' : 'send'
+  submit(starter, shape === 'steered' ? 'agent' : source, { kind: 'thread' })
+  const starterItem = shape === 'codex' ? agentJournalSubmissionKey(starter) : providerItem(starter)
+  turn('running', starterItem)
+  accept(starter)
+  if (shape === 'steered') {
+    submit('send', source, { kind: 'turn', turnItemId: TURN_ROW })
+    accept('send')
+  }
+  row(
     {
-      itemId: 'turn-row',
+      kind: 'item',
+      itemId: 'claude:invented-session:assistant',
       revision: 1,
-      sequence: 3,
-      observedAt: 1,
-      body: {
-        kind: 'turn',
-        turnId: 'turn-A',
-        state: 'completed',
-        userItemId: steered ? 'program-start' : key
-      }
+      body: { kind: 'message', role: 'assistant', blocks: [{ type: 'text', text: 'invented' }] },
+      fence: 2,
+      ownerFence: 2,
+      turnScope: { kind: 'turn', turnItemId: TURN_ROW }
     },
-    {
-      itemId: key,
-      revision: 1,
-      sequence: 2,
-      observedAt: 1,
-      turnScope: { kind: 'turn', turnItemId: 'turn-row' },
-      body: { kind: 'message', role: 'user', blocks: [{ type: 'text', text: 'invented input' }] }
+    3
+  )
+  turn('completed', starterItem)
+  const state = createJournalReducerState('session', EPOCH)
+  for (const value of rows) {
+    const parsed = parseJournalRow(JSON.stringify(value))
+    if (!parsed.ok) {
+      throw new Error(`fixture journal row ${String(value.seq)} does not parse`)
     }
-  ]
-  const submission: AgentJournalSubmission = {
-    clientMessageId: 'send',
-    fence: 1,
-    payloadFingerprint: 'invented',
-    dispatchState: 'accepted',
-    providerItemId: 'provider-echo',
-    reason: null,
-    submittedAt: 1,
-    resolvedAt: 1,
-    submittedSequence: 2,
-    ...(source ? { source: { kind: source } } : {})
+    applyJournalRow(state, parsed.row)
   }
-  return {
-    sessionId: 'session',
-    cursor: { epoch: 'epoch', sequence: 3 },
-    items,
-    submissions: [submission]
-  }
+  return renderJournalState(state)
 }
