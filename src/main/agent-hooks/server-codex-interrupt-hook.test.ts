@@ -61,6 +61,7 @@ describe("Codex's Interrupt hook through the status store", () => {
 
   it('settles a declined approval and a cancelled tool, and holds the late tool result', async () => {
     await post({ ...TURN_1, hook_event_name: 'UserPromptSubmit', prompt: 'touch hello.txt' })
+    expect(row()?.providerPromptId).toBe('turn-1')
     await post({ ...TURN_1, ...BASH, hook_event_name: 'PreToolUse' })
     await post({ ...TURN_1, ...BASH, hook_event_name: 'PermissionRequest' })
     expect(row()?.state).toBe('waiting')
@@ -75,6 +76,7 @@ describe("Codex's Interrupt hook through the status store", () => {
     await post({ ...TURN_2, hook_event_name: 'UserPromptSubmit', prompt: 'sleep 40' })
     await post({ ...TURN_2, ...BASH, hook_event_name: 'PreToolUse' })
     expect(row()?.state).toBe('working')
+    expect(row()?.providerPromptId).toBe('turn-2')
 
     await post({ ...TURN_2, hook_event_name: 'Interrupt', permission_mode: 'default' })
     expect(row()).toMatchObject({ state: 'done', interrupted: true })
