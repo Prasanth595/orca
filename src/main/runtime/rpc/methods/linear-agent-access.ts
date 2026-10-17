@@ -13,6 +13,8 @@ import {
   LinearIssueSetState,
   LinearIssueUpdateTask,
   LinearProjectList,
+  LinearProjectRead,
+  LinearDocumentRead,
   LinearSaveIssue,
   LinearTeamLookup,
   LinearWorkspaceRead
@@ -29,6 +31,18 @@ function parseLinearWriteId(writeId: string | undefined): string | undefined {
 }
 
 export const LINEAR_AGENT_ACCESS_METHODS = [
+  defineMethod({
+    name: 'linear.agentProjectRead',
+    permission: 'workspace',
+    params: LinearProjectRead,
+    handler: async (params, { runtime }) => runtime.linearProjectReadForAgents(params)
+  }),
+  defineMethod({
+    name: 'linear.agentDocumentRead',
+    permission: 'workspace',
+    params: LinearDocumentRead,
+    handler: async (params, { runtime }) => runtime.linearDocumentReadForAgents(params)
+  }),
   defineMethod({
     name: 'linear.saveIssue',
     permission: 'workspace',

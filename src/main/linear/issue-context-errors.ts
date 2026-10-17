@@ -1,4 +1,8 @@
-import type { LinearErrorCode, LinearIncludeErrorCode } from '../../shared/linear/agent-access'
+import type {
+  LinearErrorCode,
+  LinearIncludeErrorCode,
+  LinearRetryMetadata
+} from '../../shared/linear/agent-access'
 
 export class LinearAgentAccessError extends Error {
   readonly code: LinearErrorCode
@@ -36,6 +40,10 @@ export function includeErrorCode(error: unknown): LinearIncludeErrorCode {
 }
 
 export function classifyLinearError(error: unknown): LinearErrorCode {
+  const structured = structuredLinearErrorCode(error)
+  if (structured) {
+    return structured
+  }
   const message = linearMessage(error).toLowerCase()
   if (message.includes('rate limit') || message.includes('429')) {
     return 'linear_rate_limited'
@@ -55,6 +63,65 @@ export function classifyLinearError(error: unknown): LinearErrorCode {
     return 'linear_network_error'
   }
   return 'linear_network_error'
+}
+
+function structuredLinearErrorCode(error: unknown): LinearErrorCode | undefined {
+  if (typeof error !== 'object' || error === null) {
+    return undefined
+  }
+  const status = 'status' in error ? error.status : undefined
+  if (status === 401) {
+    return 'linear_auth_expired'
+  }
+  if (status === 403) {
+    return 'linear_permission_denied'
+  }
+  if (status === 429) {
+    return 'linear_rate_limited'
+  }
+  const type = 'type' in error ? error.type : undefined
+  if (type === 'AuthenticationError') {
+    return 'linear_auth_expired'
+  }
+  if (type === 'Forbidden') {
+    return 'linear_permission_denied'
+  }
+  if (type === 'Ratelimited') {
+    return 'linear_rate_limited'
+  }
+  return undefined
+}
+
+export function linearRetryMetadata(
+  error: unknown,
+  code: LinearErrorCode
+): LinearRetryMetadata | undefined {
+  if (code !== 'linear_rate_limited' || typeof error !== 'object' || error === null) {
+    return undefined
+  }
+  // SDK 97 exposes seconds for retryAfter; Linear reset headers use UTC epoch milliseconds.
+  const retryAfterSeconds = safeRetryNumber('retryAfter' in error ? error.retryAfter : undefined)
+  const requestsResetAtMs = safeRetryNumber(
+    'requestsResetAt' in error ? error.requestsResetAt : undefined
+  )
+  const complexityResetAtMs = safeRetryNumber(
+    'complexityResetAt' in error ? error.complexityResetAt : undefined
+  )
+  const data: LinearRetryMetadata = {
+    ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}),
+    ...(requestsResetAtMs !== undefined ? { requestsResetAtMs } : {}),
+    ...(complexityResetAtMs !== undefined ? { complexityResetAtMs } : {})
+  }
+  return Object.keys(data).length > 0 ? data : undefined
+}
+
+function safeRetryNumber(value: unknown): number | undefined {
+  return typeof value === 'number' &&
+    Number.isFinite(value) &&
+    value >= 0 &&
+    value <= Number.MAX_SAFE_INTEGER
+    ? value
+    : undefined
 }
 
 export function linearMessage(error: unknown): string {

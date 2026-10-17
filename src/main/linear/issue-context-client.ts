@@ -1,13 +1,12 @@
+import { withLinearRead } from './issue-context-read'
+export { withLinearRead } from './issue-context-read'
 import type { LinearSearchIssueSummary, LinearSearchResult } from '../../shared/linear/agent-access'
 import { clampLinearSearchLimit } from '../../shared/linear/agent-access'
 import type { LinearWorkspace } from '../../shared/linear/workspace-types'
-import { acquire, release } from './linear-request-concurrency'
-import { clearToken } from './linear-token-store'
 import {
   getClients,
   getPublicFileUrlClient,
   getStatus,
-  isAuthError,
   type LinearClientForWorkspace
 } from './client'
 import {
@@ -171,28 +170,6 @@ function throwIfExplicitWorkspaceHasConnectedAlternatives(
   }
 }
 
-export async function withLinearRead<T>(
-  entry: LinearClientForWorkspace,
-  read: () => Promise<T>,
-  selection?: (string & {}) | 'all'
-): Promise<T> {
-  void selection
-  await acquire()
-  try {
-    return await read()
-  } catch (error) {
-    if (isAuthError(error)) {
-      clearToken(entry.workspace.id)
-      throw linearError('linear_auth_expired', 'Linear authentication expired.', {
-        nextSteps: ['Reconnect Linear from Orca settings.']
-      })
-    }
-    throw linearError(classifyLinearError(error), linearMessage(error))
-  } finally {
-    release()
-  }
-}
-
 async function readIssueWorkspace(
   entry: LinearClientForWorkspace,
   identifier: string
@@ -203,9 +180,17 @@ async function readIssueWorkspace(
       ISSUE_QUERY,
       { id: identifier }
     )
-    return raw.data?.issue ?? null
+    return { issue: raw.data?.issue ?? null, complete: !raw.errors?.length }
   })
-  return response ? { issue: mapIssue(response), workspace: entry.workspace } : null
+  if (!response.issue) {
+    return null
+  }
+  const issue = mapIssue(response.issue)
+  if (!response.complete) {
+    issue.parentComplete = false
+    issue.labelsComplete = false
+  }
+  return { issue, workspace: entry.workspace }
 }
 
 async function readIssueWorkspaces(

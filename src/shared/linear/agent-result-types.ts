@@ -1,3 +1,4 @@
+import type { LinearParent } from './context-read'
 import type {
   LinearErrorCode,
   LinearIncludeErrorCode,
@@ -15,6 +16,9 @@ export type LinearIssueSummary = {
   title: string
   url: string
   description?: string | null
+  parent?: LinearParent | null
+  parentComplete?: boolean
+  labelsComplete?: boolean
   state?: LinearNamedEntity | null
   team?: (LinearNamedEntity & { key?: string | null }) | null
   project?: LinearNamedEntity | null

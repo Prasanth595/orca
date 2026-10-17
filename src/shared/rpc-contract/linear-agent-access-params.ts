@@ -1,3 +1,4 @@
+import { LINEAR_UUID_PATTERN } from '../linear/uuid'
 import { z } from 'zod'
 import { OptionalFiniteNumber, OptionalString, requiredString } from './rpc-param-primitives'
 
@@ -143,4 +144,14 @@ export const LinearSaveIssue = LinearWriteTarget.extend({
   project: z.string().nullable().optional(),
   parentId: z.string().nullable().optional(),
   writeId: OptionalString
+})
+
+export const LinearDocumentRead = z.object({
+  id: requiredString('Missing document id or slug'),
+  workspaceId: z.string().regex(LINEAR_UUID_PATTERN, 'A concrete workspace UUID is required')
+})
+
+export const LinearProjectRead = LinearDocumentRead.extend({
+  id: z.string().regex(LINEAR_UUID_PATTERN, 'A project UUID is required'),
+  full: z.boolean().default(false)
 })

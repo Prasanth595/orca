@@ -1,3 +1,4 @@
+import { LINEAR_CONTENT_READ_HANDLERS } from './linear-content-read'
 import type {
   LinearAttachRequest,
   LinearAttachResult,
@@ -72,6 +73,7 @@ const ISSUE_CONTEXT_TIMEOUT_MS = 120_000
 const LINEAR_WRITE_TIMEOUT_MS = 75_000
 
 export const LINEAR_HANDLERS: Record<string, CommandHandler> = {
+  ...LINEAR_CONTENT_READ_HANDLERS,
   'linear save-issue': runLinearSaveIssue,
   'linear list-issues': runLinearListIssues,
   'linear relation add': linearRelationWriteHandler('add'),

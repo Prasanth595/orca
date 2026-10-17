@@ -100,7 +100,7 @@ export const FLAG_HELP_TEXT: Record<string, string> = {
   attachments: '--attachments          Include attachment metadata and URLs',
   relations: '--relations            Include blocking, related, and duplicate links',
   activity: '--activity             Include issue field-change history',
-  full: '--full                 Include all supported V1 issue context within caps',
+  full: '--full                 Include full context and related content within caps',
   'reuse-session':
     '--reuse-session        Reuse the previous live session for existing-workspace runs',
   'fresh-session': '--fresh-session        Disable session reuse for future runs',
