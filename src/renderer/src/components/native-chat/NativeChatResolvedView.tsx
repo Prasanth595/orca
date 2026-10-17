@@ -230,6 +230,7 @@ export function NativeChatResolvedView({
     targetPtyId,
     runtimeEnvironmentId,
     disabled: !canSend || !isVisible || promptCard !== null || session.readPhase !== 'ready',
+    cancelInFlight: !canSend || promptCard !== null,
     delivery,
     onSubmitted: revealLatest
   })

@@ -1,4 +1,4 @@
-import { useMemo, type ContextType, type ReactNode } from 'react'
+import { useLayoutEffect, useMemo, useRef, type ContextType, type ReactNode } from 'react'
 import { reportStructuredSessionUserInput } from '@/lib/worker-terminal-takeover-report'
 import type { useStructuredAgentSession } from './use-structured-agent-session'
 import { NativeChatAsyncQuestionContext } from './native-chat-async-question-context'
@@ -29,22 +29,25 @@ export function NativeChatStructuredMessageProviders({
   const { send, sendOut, prompts, rewind } = controller
   const { sessionId, target } = pane
   const disabled = blocked || installBlocked || sendOut || prompts.length > 0
+  const runtimeEnvironmentId = target.kind === 'local' ? null : (target.environmentId ?? null)
+  const latest = useRef({ send, onSubmitted, disabled })
+  useLayoutEffect(() => {
+    latest.current = { send, onSubmitted, disabled }
+  }, [send, onSubmitted, disabled])
   const value = useMemo(
     () => ({
       disabled,
       send: (text: string): boolean => {
-        if (disabled || !send(text, [], { immediate: true })) {
+        const current = latest.current
+        if (disabled || current.disabled || !current.send(text, [], { immediate: true })) {
           return false
         }
-        onSubmitted()
-        reportStructuredSessionUserInput(
-          sessionId,
-          target.kind === 'local' ? null : (target.environmentId ?? null)
-        )
+        current.onSubmitted()
+        reportStructuredSessionUserInput(sessionId, runtimeEnvironmentId)
         return true
       }
     }),
-    [disabled, onSubmitted, send, sessionId, target]
+    [disabled, sessionId, runtimeEnvironmentId]
   )
   return (
     <NativeChatAsyncQuestionContext.Provider value={value}>

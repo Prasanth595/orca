@@ -28,6 +28,7 @@ function args() {
     targetPtyId: 'remote-pty-a',
     runtimeEnvironmentId: 'ssh-host-a',
     disabled: false,
+    cancelInFlight: false,
     delivery: {
       pending: [],
       notices: new Map(),
@@ -140,6 +141,7 @@ it.each(['blocked', 'session', 'host', 'terminal', 'stop', 'unmount'] as const)(
       rerender({
         ...input,
         disabled: change === 'blocked',
+        cancelInFlight: change === 'blocked',
         sessionId: change === 'session' ? 'session-b' : input.sessionId,
         runtimeEnvironmentId: change === 'host' ? 'ssh-host-b' : input.runtimeEnvironmentId,
         targetPtyId: change === 'terminal' ? 'remote-pty-b' : input.targetPtyId
@@ -174,4 +176,25 @@ it('rejects a second answer while the first is awaiting acknowledgement', async 
   })
   expect(input.delivery.record).toHaveBeenCalledTimes(1)
   expect(io.verified).toHaveBeenCalledTimes(1)
+})
+
+it('finishes an admitted send when the view hides or its transcript temporarily stops being ready', async () => {
+  const input = args()
+  const { result, rerender } = renderHook(useNativeChatTerminalAsyncReply, { initialProps: input })
+  let sending: boolean | Promise<boolean> = false
+  await act(async () => {
+    sending = result.current.reply.send('answer')
+  })
+  expect(io.verified).toHaveBeenCalledTimes(1)
+  rerender({ ...input, disabled: true })
+  expect(await result.current.reply.send('another answer')).toBe(false)
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(NATIVE_CHAT_SUBMIT_DELAY_MS)
+  })
+  expect(await sending).toBe(true)
+  expect(io.verified).toHaveBeenLastCalledWith('remote-pty-a', NATIVE_CHAT_SUBMIT, 'driving', {
+    requireWriteSettlement: true
+  })
+  expect(input.delivery.holdUnconfirmed).not.toHaveBeenCalled()
+  expect(input.onSubmitted).toHaveBeenCalledTimes(1)
 })

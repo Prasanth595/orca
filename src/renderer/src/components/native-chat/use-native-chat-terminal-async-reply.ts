@@ -12,6 +12,7 @@ export function useNativeChatTerminalAsyncReply(args: {
   targetPtyId: string | null
   runtimeEnvironmentId: string | null
   disabled: boolean
+  cancelInFlight: boolean
   delivery: ReturnType<typeof useNativeChatPendingDelivery>
   onSubmitted: () => void
 }) {
@@ -40,10 +41,10 @@ export function useNativeChatTerminalAsyncReply(args: {
     }
   }, [cancel, paneKey, sessionId, targetPtyId, runtimeEnvironmentId])
   useLayoutEffect(() => {
-    if (disabled) {
+    if (args.cancelInFlight) {
       cancel()
     }
-  }, [cancel, disabled])
+  }, [args.cancelInFlight, cancel])
   const send = useCallback(
     async (text: string): Promise<boolean> => {
       const current = latest.current

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { useContext } from 'react'
+import { memo, useContext } from 'react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
@@ -14,6 +14,7 @@ const { mocks, moduleFactories, resetStructuredSessionMocks } = await vi.hoisted
   (await import('./NativeChatStructuredSession.test-harness')).createStructuredSessionMocks()
 )
 const report = vi.hoisted(() => vi.fn())
+const renderReply = vi.fn()
 vi.mock('./use-structured-agent-session', () => moduleFactories.useStructuredAgentSession())
 vi.mock('@/lib/worker-terminal-takeover-report', () => ({
   reportStructuredSessionUserInput: report
@@ -23,12 +24,14 @@ afterEach(() => {
   cleanup()
   resetStructuredSessionMocks()
   report.mockClear()
+  renderReply.mockClear()
 })
 
-function ReplyProbe() {
+const ReplyProbe = memo(function ReplyProbe() {
+  renderReply()
   const reply = useContext(NativeChatAsyncQuestionContext)
   return <button onClick={() => reply?.send('answer')}>Reply</button>
-}
+})
 
 const LOCAL_TARGET = { kind: 'local' } as const
 
@@ -104,4 +107,39 @@ it('does not report a reply the sender refused', () => {
   expect(mocks.send).toHaveBeenCalledOnce()
   expect(onSubmitted).not.toHaveBeenCalled()
   expect(report).not.toHaveBeenCalled()
+})
+
+it('keeps rows stable during stream updates while using the latest send and reveal callbacks', () => {
+  const oldSend = mocks.send
+  const oldSubmitted = vi.fn()
+  const nextSubmitted = vi.fn()
+  const view = render(
+    <Session
+      target={{ kind: 'environment', environmentId: 'remote-1' }}
+      onSubmitted={oldSubmitted}
+    />
+  )
+  expect(renderReply).toHaveBeenCalledTimes(1)
+  mocks.send = vi.fn<(text: string, attachments?: unknown[]) => boolean>(() => true)
+  try {
+    view.rerender(
+      <Session
+        target={{ kind: 'environment', environmentId: 'remote-1' }}
+        onSubmitted={nextSubmitted}
+      />
+    )
+    expect(renderReply).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Reply' }))
+    expect(oldSend).not.toHaveBeenCalled()
+    expect(oldSubmitted).not.toHaveBeenCalled()
+    expect(mocks.send).toHaveBeenCalledExactlyOnceWith('answer', [], { immediate: true })
+    expect(nextSubmitted).toHaveBeenCalledTimes(1)
+    expect(report).toHaveBeenCalledExactlyOnceWith('session-1', 'remote-1')
+    view.rerender(<Session blocked onSubmitted={nextSubmitted} />)
+    expect(renderReply).toHaveBeenCalledTimes(2)
+    fireEvent.click(screen.getByRole('button', { name: 'Reply' }))
+    expect(mocks.send).toHaveBeenCalledTimes(1)
+  } finally {
+    mocks.send = oldSend
+  }
 })
