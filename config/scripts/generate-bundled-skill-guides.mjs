@@ -22,7 +22,8 @@ const CANONICAL_GUIDE_NAMES = [
   'orca-jira',
   'orca-linear',
   'orca-per-workspace-env',
-  'orchestration'
+  'orchestration',
+  'workflows'
 ]
 
 // Why: old discovery stubs can outlive a rename indefinitely, so aliases are
@@ -37,7 +38,8 @@ const GUIDE_ALIASES = {
   'orca-jira': [],
   'orca-linear': [],
   'orca-per-workspace-env': [],
-  orchestration: []
+  orchestration: [],
+  workflows: []
 }
 
 // Why: a stubbed topic ships a hybrid discovery stub as its installable projection while
@@ -55,7 +57,8 @@ const STUB_TOPICS = [
   'orca-jira',
   'orca-linear',
   'orca-per-workspace-env',
-  'orchestration'
+  'orchestration',
+  'workflows'
 ]
 
 function normalizeMarkdown(markdown) {
