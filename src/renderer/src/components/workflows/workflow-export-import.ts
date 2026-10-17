@@ -1,8 +1,9 @@
-import type { AgentWorkflow, WorkflowEdge, WorkflowNode } from '../../../shared/workflow-types'
-import { exportWorkflowJson } from '../../../shared/workflow-export'
-
-export type { WorkflowExportFile } from '../../../shared/workflow-export'
-import { assignImportedWorkflowIds, parseWorkflowExport } from '../../../shared/workflow-export'
+import type { AgentWorkflow, WorkflowEdge, WorkflowNode } from '../../../../shared/workflow-types'
+import {
+  assignImportedWorkflowIds,
+  exportWorkflowJson,
+  parseWorkflowExport
+} from '../../../../shared/workflow-export'
 import { createBrowserUuid } from '@/lib/browser-uuid'
 
 export function exportWorkflow(workflow: AgentWorkflow): string {

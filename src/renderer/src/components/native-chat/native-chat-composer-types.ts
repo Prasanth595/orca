@@ -105,6 +105,9 @@ export type NativeChatComposerProps = {
   /** Record a dispatched slash command that does not create a chat turn; `output`
    *  carries the host's answer when the agent never saw the command. */
   onSlashCommand?: (command: string, output?: string) => void
+  /** A /workflow draft was routed to the agent as an authoring prompt; `description`
+   *  is the free text after the command, or null when the user gave none. */
+  onWorkflowRouteArmed?: (description: string | null) => void
   /** The host's own answer to a command the agent must not see, or null to send it. */
   answerCommandLocally?: NativeChatLocalCommandAnswer
   /** Anything sent to the terminal: a message, a command or a session option. */

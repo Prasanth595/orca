@@ -25,7 +25,7 @@ function readImportSource(flags: Map<string, string | boolean>): Promise<string>
       let data = ''
       process.stdin.setEncoding('utf8')
       process.stdin.on('data', (chunk) => {
-        data += chunk
+        data += String(chunk)
       })
       process.stdin.on('end', () => resolve(data))
       process.stdin.on('error', reject)

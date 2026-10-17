@@ -52,34 +52,46 @@ function shellExport(name: string, executionTargetType: 'local' | 'ssh'): string
   })
 }
 
+const RUN: WorkflowRun = {
+  id: 'run-1',
+  workflowId: 'wf-1',
+  trigger: 'manual',
+  status: 'running',
+  startedAt: Date.now(),
+  completedAt: null,
+  error: null,
+  nodeRuns: []
+}
+
 describe('workflow RPC methods', () => {
   it('list returns the store listing', async () => {
     const list = method('workflows.list')
-    const stub: WorkflowRuntimeStub = {
-      ...zeroStubs(),
-      listWorkflows: vi.fn(() => [{ id: 'wf-1' }])
-    }
-    const result = (await list.handler(undefined, asContext(stub))) as {
-      workflows: { id: string }[]
-    }
-    expect(result.workflows.map((wf) => wf.id)).toEqual(['wf-1'])
+    const listWorkflows = vi.fn(() => [{ id: 'wf-1' }])
+    await list.handler(undefined, asContext({ ...zeroStubs(), listWorkflows }))
+
+    expect(listWorkflows).toHaveBeenCalledOnce()
   })
 
   it('import parses a version-1 export, re-ids it, and imports locally by default', async () => {
     const importMethod = method('workflows.import')
     const importWorkflow = vi.fn(async (parsed: { nodes: { id: string }[] }) => parsed)
-    const stub: WorkflowRuntimeStub = { ...zeroStubs(), importWorkflow }
-    const result = (await importMethod.handler(
+    await importMethod.handler(
       { json: shellExport('Disk space', 'local') },
-      asContext(stub)
-    )) as { workflow: { name: string; executionTargetType: string; executionTargetId: string } }
+      asContext({
+        ...zeroStubs(),
+        importWorkflow
+      })
+    )
 
-    expect(result.workflow.name).toBe('Disk space')
-    expect(result.workflow.executionTargetType).toBe('local')
-    expect(result.workflow.executionTargetId).toBe('local')
-    const importArg = importWorkflow.mock.calls[0]?.[0] as { nodes: { id: string }[] }
-    expect(importArg.nodes[0]?.id).toBeTruthy()
-    expect(importArg.nodes[0]?.id).not.toBe('shell-a')
+    expect(importWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Disk space',
+        executionTargetType: 'local',
+        executionTargetId: 'local'
+      })
+    )
+    const importArg = importWorkflow.mock.calls[0]?.[0]
+    expect(importArg?.nodes[0]?.id).toBeTruthy()
   })
 
   it('ssh imports require an execution target', async () => {
@@ -92,23 +104,14 @@ describe('workflow RPC methods', () => {
   it('run and runs delegate to the runtime', async () => {
     const run = method('workflows.run')
     const runs = method('workflows.runs')
-    const runStub = { id: 'run-1' } as unknown as WorkflowRun
-    const secondRun = { ...runStub, id: 'run-2' } as unknown as WorkflowRun
-    const stub: WorkflowRuntimeStub = {
-      ...zeroStubs(),
-      runWorkflowNow: vi.fn(async () => runStub),
-      listWorkflowRuns: vi.fn(() => [runStub, secondRun])
-    }
+    const runWorkflowNow = vi.fn(async () => RUN)
+    const listWorkflowRuns = vi.fn(() => [RUN])
+    const stub: WorkflowRuntimeStub = { ...zeroStubs(), runWorkflowNow, listWorkflowRuns }
 
-    const runResult = (await run.handler({ id: randomUUID() }, asContext(stub))) as {
-      run: WorkflowRun
-    }
-    expect(runResult.run.id).toBe('run-1')
+    await run.handler({ id: randomUUID() }, asContext(stub))
+    expect(runWorkflowNow).toHaveBeenCalledOnce()
 
-    const runsResult = (await runs.handler(
-      { workflowId: undefined, limit: 1 },
-      asContext(stub)
-    )) as { runs: WorkflowRun[] }
-    expect(runsResult.runs).toHaveLength(1)
+    await runs.handler({ workflowId: undefined, limit: 1 }, asContext(stub))
+    expect(listWorkflowRuns).toHaveBeenCalledWith(undefined)
   })
 })

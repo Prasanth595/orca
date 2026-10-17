@@ -4,6 +4,7 @@ import {
   filterSlashCommands,
   getAgentSlashCommands,
   isSlashCommandDraft,
+  nativeChatWorkflowRoute,
   sessionReportedSkillNames,
   sessionSlashCommandSuggestions,
   slashCommandDispatchText
@@ -130,5 +131,28 @@ describe('a session that reports its own command surface', () => {
         kindUnspecified: true
       }
     ])
+  })
+})
+
+describe('nativeChatWorkflowRoute', () => {
+  it('routes the free text as the description the agent authors from, never a name', () => {
+    const route = nativeChatWorkflowRoute('/workflow check how much space my local disk has left')
+    expect(route).not.toBeNull()
+    expect(route?.description).toBe('check how much space my local disk has left')
+    expect(route?.routedPrompt).toContain('check how much space my local disk has left')
+    expect(route?.routedPrompt).not.toMatch(/\/workflow/)
+    expect(route?.routedPrompt).toContain('ORCA workflows import - --json')
+  })
+
+  it('routes a bare /workflow to a clarifying turn instead of a named empty graph', () => {
+    const route = nativeChatWorkflowRoute('/workflow')
+    expect(route?.description).toBeNull()
+    expect(route?.routedPrompt).toContain('ask for the steps')
+  })
+
+  it('leaves non-command and near-miss drafts untouched', () => {
+    expect(nativeChatWorkflowRoute('please /workflow this')).toBeNull()
+    expect(nativeChatWorkflowRoute('/workflowboard standup reminder')).toBeNull()
+    expect(nativeChatWorkflowRoute('/projects what')).toBeNull()
   })
 })

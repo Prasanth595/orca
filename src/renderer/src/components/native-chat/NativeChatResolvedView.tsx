@@ -74,7 +74,7 @@ export function NativeChatResolvedView({
   const selectOwner = useMemo(() => createNativeChatRuntimeSelector(terminalTabId), [terminalTabId])
   const runtimeEnvironmentId = useAppStore(selectOwner)
   const keybindings = useAppStore((s) => s.keybindings)
-  const handleWorkflowCommand = useWorkflowSlashCommand()
+  const workflowRoute = useWorkflowSlashCommand()
   const session = useNativeChatRetainedSession({
     paneKey,
     agent,
@@ -177,12 +177,9 @@ export function NativeChatResolvedView({
   )
   const onSlashCommand = useCallback(
     (command: string, output?: string) => {
-      if (handleWorkflowCommand(command)) {
-        return
-      }
       setCommandMarkers(appendCommandMarkerCache(commandMarkerScope, command, Date.now(), output))
     },
-    [commandMarkerScope, handleWorkflowCommand]
+    [commandMarkerScope]
   )
 
   const launchPromptMessage = useMemo(
@@ -400,6 +397,7 @@ export function NativeChatResolvedView({
           onOptimisticSendCanceled={delivery.cancel}
           optimisticSendOutcome={delivery}
           onSlashCommand={onSlashCommand}
+          onWorkflowRouteArmed={workflowRoute}
           onSubmitted={revealLatest}
           answerCommandLocally={answerLocally}
           onSwitchToTerminal={onSwitchToTerminal}

@@ -1,50 +1,62 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { translate } from '@/i18n/i18n'
 import { useAppStore } from '../../store'
 
-/** Returns a stable handler that intercepts /workflow commands; returns true when handled. */
-export function useWorkflowSlashCommand(): (command: string) => boolean {
+/** Longest wait for the agent to report a created workflow before giving up. */
+const WATCH_TIMEOUT_MS = 10 * 60 * 1000
+
+/** Arming callback; `description` is the routed prompt's free text or null when absent. */
+export type WorkflowRouteArmer = (description: string | null) => void
+
+/**
+ * Arms the "/workflow routed to the agent" watch: the routing prompt sends the
+ * description as a normal chat turn, and the first workflow created after the
+ * arm (the agent's CLI import) is selected on the Workflows page.
+ */
+export function useWorkflowSlashCommand(): WorkflowRouteArmer {
   const setSelectedWorkflowId = useAppStore((s) => s.setSelectedWorkflowId)
   const openWorkflowsPage = useAppStore((s) => s.openWorkflowsPage)
-  return useCallback(
-    (command: string): boolean => {
-      if (!command.trimStart().startsWith('/workflow')) {
-        return false
+  const activeWatchRef = useRef<{ exit: () => void } | null>(null)
+
+  useEffect(() => {
+    const active = activeWatchRef.current
+    return () => active?.exit()
+  }, [])
+
+  return useCallback(() => {
+    // A newer route supersedes an in-flight watch: the just-sent prompt's graph is the target.
+    activeWatchRef.current?.exit()
+    // Why createdAt alone: the routing prompt is sent after arming, so the
+    // agent's CLI import strictly postdates it; a stale list diff can race.
+    const armedAt = Date.now()
+    let settled = false
+    const exit = () => {
+      if (settled) {
+        return
       }
-      const name = command.replace(/^\/workflow\s*/i, '').trim() || 'New Workflow'
-      void window.api.workflows
-        .create({
-          name,
-          description: '',
-          schedule: null,
-          enabled: false,
-          executionTargetType: 'local',
-          executionTargetId: '',
-          nodes: [],
-          edges: []
-        })
-        .then((wf) => {
-          setSelectedWorkflowId(wf.id)
-          openWorkflowsPage()
-          toast.success(
-            translate(
-              'auto.components.WorkflowSlashCommand.workflowCreated',
-              'Workflow "{{workflowName}}" created',
-              { workflowName: wf.name }
-            )
-          )
-        })
-        .catch(() =>
-          toast.error(
-            translate(
-              'auto.components.WorkflowSlashCommand.createFailed',
-              'Failed to create workflow'
-            )
-          )
+      settled = true
+      window.clearTimeout(timeout)
+      unsubscribe()
+      activeWatchRef.current = null
+    }
+    const timeout = window.setTimeout(exit, WATCH_TIMEOUT_MS)
+    const unsubscribe = window.api.workflows.onChanged((payload) => {
+      const created = payload.workflows.find((wf) => wf.createdAt > armedAt)
+      if (!created) {
+        return
+      }
+      exit()
+      setSelectedWorkflowId(created.id)
+      openWorkflowsPage()
+      toast.success(
+        translate(
+          'auto.components.WorkflowSlashCommand.workflowCreated',
+          'Workflow "{{workflowName}}" created',
+          { workflowName: created.name }
         )
-      return true
-    },
-    [setSelectedWorkflowId, openWorkflowsPage]
-  )
+      )
+    })
+    activeWatchRef.current = { exit }
+  }, [setSelectedWorkflowId, openWorkflowsPage])
 }

@@ -61,6 +61,7 @@ const NativeChatComposerPane = forwardRef<NativeChatComposerHandle, NativeChatCo
       optimisticSendOutcome,
       onOptimisticSendCanceled,
       onSlashCommand,
+      onWorkflowRouteArmed,
       onSubmitted,
       answerCommandLocally,
       onSwitchToTerminal,
@@ -254,7 +255,8 @@ const NativeChatComposerPane = forwardRef<NativeChatComposerHandle, NativeChatCo
       isComposing: imeEnterGesture.isComposing,
       clearSkillOrigin,
       setDraft,
-      setCaret
+      setCaret,
+      onWorkflowRouteArmed
     })
 
     // What both terminal send paths share: where a command goes and what the composer resets.
@@ -264,6 +266,7 @@ const NativeChatComposerPane = forwardRef<NativeChatComposerHandle, NativeChatCo
       isDispatchingSessionOption,
       resolveTarget,
       onSlashCommand,
+      onWorkflowRouteArmed,
       onSubmitted,
       answerCommandLocally,
       sessionOptionsSurface: ptySessionOptionsSurface,

@@ -1,11 +1,22 @@
 import type { AgentWorkflow, WorkflowRun } from '../../shared/workflow-types'
 import type { WorkflowService } from '../workflows/workflow-service'
 
+/** The service members the RPC boundary needs, structural so tests stub without casts. */
+export type WorkflowServiceSurface = Pick<
+  WorkflowService,
+  | 'listWorkflows'
+  | 'getWorkflow'
+  | 'createWorkflow'
+  | 'deleteWorkflow'
+  | 'runWorkflowNow'
+  | 'listRuns'
+>
+
 /** RPC boundary for the Agent Workflow editor: thin delegation to WorkflowService. */
 export class RuntimeWorkflowController {
-  private service: WorkflowService | null = null
+  private service: WorkflowServiceSurface | null = null
 
-  setService(service: WorkflowService): void {
+  setService(service: WorkflowServiceSurface): void {
     this.service = service
   }
 
@@ -48,7 +59,7 @@ export class RuntimeWorkflowController {
     return this.requireService().listRuns(workflowId)
   }
 
-  private requireService(): WorkflowService {
+  private requireService(): WorkflowServiceSurface {
     if (!this.service) {
       throw new Error('Workflow service is unavailable.')
     }
