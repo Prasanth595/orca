@@ -371,7 +371,8 @@ describe('registerPtyHandlers', () => {
     await worktreeResolutionInternals.resolvedWorktrees.getSnapshot(
       async () => ({
         worktrees: [worktreeResolutionInternals.buildResolvedWorktreeFromId(worktreeId)],
-        platformByRepoId: new Map([[repo.id, process.platform]])
+        platformByRepoId: new Map([[repo.id, process.platform]]),
+        failedRepoScopes: new Set()
       }),
       60_000,
       getWorktreeScanMutationRevision()
