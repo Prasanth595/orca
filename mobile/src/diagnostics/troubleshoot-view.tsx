@@ -51,7 +51,7 @@ export function TroubleshootView({
   runDiagnostics: () => void
   onBack: () => void
   onConnectionLog: () => void
-  /** Slot the route fills in a development build and in an OTA build; null in a native build. */
+  /** Developer and shell rows the route fills in. */
   developerRow?: ReactNode
 }) {
   useMobileTheme()

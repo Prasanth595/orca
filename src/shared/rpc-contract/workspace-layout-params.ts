@@ -62,6 +62,14 @@ const SetPaneRatiosCommand = z.object({
   root: TerminalPaneLayoutNodeSchema
 })
 
+/** The pane a tab's chat view shows; null clears it. */
+const SetChatPaneCommand = z.object({
+  type: z.literal('setChatPane'),
+  workspace: OnPane.workspace,
+  tabId: OnPane.tabId,
+  leafId: z.union([z.string().min(1), z.null()])
+})
+
 const EqualizePanesCommand = z.object({
   type: z.literal('equalizePanes'),
   workspace: OnPane.workspace,
@@ -108,6 +116,7 @@ const CloseTabsCommand = z.object({
 const NewGroupSplit = z
   .object({
     besideGroupId: z.string().min(1),
+    besideLastGroupId: z.string().min(1).optional(),
     direction: z.enum(['left', 'right', 'up', 'down'])
   })
   .optional()
@@ -228,6 +237,22 @@ const OpenBrowserTabCommand = z.object({
   split: NewGroupSplit
 })
 
+/**
+ * A chat tab under the id the window drew it with: status and attention address it at once. The
+ * same open again changes nothing; an id another tab holds is refused.
+ */
+const OpenAgentSessionTabCommand = z.object({
+  type: z.literal('openAgentSessionTab'),
+  ...OnTab,
+  sessionId: z.string().min(1),
+  agent: z.string().min(1),
+  groupId: z.string().min(1).optional(),
+  afterTabId: z.string().min(1).optional(),
+  index: z.number().int().nonnegative().optional(),
+  createdAt: z.number().int().nonnegative().optional(),
+  split: NewGroupSplit
+})
+
 const OnBrowserPage = {
   workspace: OnPane.workspace,
   browserTabId: z.string().min(1),
@@ -338,8 +363,8 @@ const WakeCommand = z
  * A window's layout command (`layout.apply`, registered only in a layout-owner build). The window
  * names what it acts on; main mints every new id but a created terminal tab's
  * (see CreateTerminalTabCommand), a browser tab's and page's, which the window already shows
- * (see OpenBrowserTabCommand), an editor tab's (see OpenEditorTabCommand), and the group an open
- * into a new split makes (see NewGroupSplit).
+ * (see OpenBrowserTabCommand), an editor tab's (see OpenEditorTabCommand), a chat tab's (see
+ * OpenAgentSessionTabCommand), and the group an open into a new split makes (see NewGroupSplit).
  */
 export const LayoutApplyParams = z.object({
   command: z.discriminatedUnion('type', [
@@ -350,6 +375,7 @@ export const LayoutApplyParams = z.object({
     EqualizePanesCommand,
     MovePaneCommand,
     SetPaneRatiosCommand,
+    SetChatPaneCommand,
     MoveTabCommand,
     SplitGroupCommand,
     SetGroupRatiosCommand,
@@ -363,6 +389,7 @@ export const LayoutApplyParams = z.object({
     ReplaceBrowserPageCommand,
     SetBrowserTabProfileCommand,
     OpenEditorTabCommand,
+    OpenAgentSessionTabCommand,
     PromotePreviewTabCommand,
     MoveTabToWorkspaceCommand,
     RenameEditorFilesCommand,
