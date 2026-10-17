@@ -43,7 +43,14 @@ export const MERMAID_DIAGRAM_CONFIG = createThemedStyles(
         noteBorderColor: colors.borderSubtle,
         noteTextColor: colors.textPrimary,
         lineColor: colors.textSecondary,
-        textColor: colors.textPrimary
+        textColor: colors.textPrimary,
+        attributeBackgroundColorOdd: colors.bgPanel,
+        attributeBackgroundColorEven: colors.bgRaised,
+        altSectionBkgColor: colors.bgRaised,
+        excludeBkgColor: colors.bgBase,
+        doneTaskBkgColor: colors.bgPanel,
+        activeTaskBkgColor: colors.bgRaised,
+        taskTextDarkColor: colors.textPrimary
       }
     }) as const
 )
