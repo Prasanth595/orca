@@ -12,18 +12,13 @@ export type MermaidDiagramProps = {
 /**
  * The same diagram, drawn by mermaid in this document.
  *
- * The native component seals the source inside a `WebView` whose document embeds the whole engine
- * as a string, because `react-native-webview` has no browser counterpart and mermaid has no native
- * renderer. On the page neither half of that applies: mermaid is a browser library, so it is an
- * `import()` rather than a 3.7 MB literal, and there is no second content process to sandbox in.
- *
- * What replaces the sandbox is mermaid's own `securityLevel: 'strict'`, which runs the serialized
- * SVG through DOMPurify before handing it back — a `<script>`, an `on*` attribute or a
+ * Mermaid is a browser library, so the engine is an `import()`, and there is no second content
+ * process to sandbox in. The fence is mermaid's own `securityLevel: 'strict'`, which runs the
+ * serialized SVG through DOMPurify before handing it back — a `<script>`, an `on*` attribute or a
  * `javascript:` href in a diagram label reaches this document as nothing at all. That is measured
  * in `config/scripts/mobile-web-app-mermaid-render.test.mjs`, in both engines, against a hostile
- * fixture, and so is the byte equality of the result with the native document's own render. The
- * native path's `</script>` escaping has no analogue here and does not need one: the source is a
- * JS string argument, not text spliced into an inline `<script>`.
+ * fixture. The source is a JS string argument, not text spliced into an inline `<script>`, so it
+ * needs no escaping.
  *
  * The import is inside the effect, so a session with no diagram in it evaluates none of the engine
  * (ruling 28). It reaches the engine through `mermaid-page-engine.ts`, which loads one pre-bundled
@@ -96,7 +91,7 @@ export const MermaidDiagram = memo(function MermaidDiagram({ source, base }: Mer
   )
 })
 
-/** The native component's frame and label, so a diagram and its fallback sit in the same box. */
+/** The frame and label, so a diagram and its fallback sit in the same box. */
 function MermaidFrame({ children }: { children: ReactNode }) {
   return (
     <View style={styles.frame} testID="mermaid-diagram">
@@ -108,9 +103,7 @@ function MermaidFrame({ children }: { children: ReactNode }) {
   )
 }
 
-// The native component's own styles, so the page's diagram sits in the box that component draws.
-// No rule reaches the SVG: mermaid emits it with `width="100%"` and its own natural `max-width`,
-// and a rule of ours on the element would be a byte the native document's render does not have.
+// No rule reaches the SVG: mermaid emits it with `width="100%"` and its own natural `max-width`.
 const styles = StyleSheet.create({
   frame: {
     borderWidth: StyleSheet.hairlineWidth,

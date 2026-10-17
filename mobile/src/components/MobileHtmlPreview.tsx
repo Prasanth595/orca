@@ -52,17 +52,13 @@ export const MOBILE_HTML_PREVIEW_SEALED_SANDBOX = ''
  * already ships, because a `srcdoc` frame has no URL to match and inherits its embedder's policy
  * instead, while a `blob:` frame is refused by `frame-src 'none'` on both engines and refused a
  * second time in WebKit by the `frame-ancestors 'none'` it inherits. So this costs no CSP change at
- * all, and the policy stays exactly what the Phase E native build carries.
+ * all.
  *
  * What the inherited policy then governs is everything the artifact tries to fetch: `img-src` bounds
  * its images, `font-src 'none'` refuses a web font, `connect-src 'self'` its XHR, and
  * `script-src 'self'` refuses its inline script even if the sandbox had allowed scripts.
  *
- * Images are the one of those four that is no longer stricter than native. `script-src 'self'`,
- * `font-src 'none'` and `connect-src 'self'` still are -- the native preview is a separate WebView
- * process with no policy on its document, so it runs a script, loads a web font and reaches any
- * host -- but since `img-src` gained `https:` this frame loads a remote image exactly as native
- * does.
+ * Since `img-src` gained `https:`, this frame loads a remote image.
  *
  * That image URL is a channel: it fires on view and carries whatever the artifact's author encoded
  * in it, so a rendered artifact can tell its own author it was opened. Nothing dynamic goes with it
@@ -151,8 +147,7 @@ const IFRAME_STYLE = {
   border: 'none',
   width: '100%',
   height: '100%',
-  // The artifact decides its own background; white is what the native preview shows behind one that
-  // sets none, and an unset background here would show the panel through it.
+  // The artifact decides its own background; an unset one here would show the panel through it.
   backgroundColor: '#ffffff'
 } as const
 
@@ -181,6 +176,5 @@ const styles = StyleSheet.create({
     borderColor: colors.borderSubtle
   },
   toggleText: { color: colors.textSecondary, fontSize: typography.metaSize },
-  // The native component's own frame, so the preview sits where the preview sat.
   frame: { flex: 1, backgroundColor: '#ffffff' }
 })

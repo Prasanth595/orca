@@ -1,12 +1,7 @@
 import type { MobileClipboardImageResizer } from './mobile-clipboard-image-downscale'
 
 /**
- * The raster shrink as a `<canvas>` draw, which is the one thing the page can do that
- * the native path needed a module and two file writes for.
- *
- * `expo-image-manipulator` is a native module with no browser counterpart, and the temp file its
- * native path writes exists to work around a loader that cannot decode a large base64 data URI —
- * a constraint a browser does not have. The shell's `img-src 'self' data: https:` admits the
+ * The raster shrink as a `<canvas>` draw. The shell's `img-src 'self' data: https:` admits the
  * source, so the decode is one `<img>` and the encode is `toDataURL`, with no file anywhere in it.
  *
  * PNG out, as before: the caller's downscale loop measures base64 length and retries, so a format
@@ -37,7 +32,7 @@ export const resizeMobileClipboardImage: MobileClipboardImageResizer = async (so
   context.drawImage(image, 0, 0, canvas.width, canvas.height)
   const resized = canvas.toDataURL(RESIZED_MIME).replace(CLIPBOARD_IMAGE_DATA_URL_PREFIX_RE, '')
   // Why: empty base64 would pass the downstream base64 check and upload a corrupt image, so fail
-  // loudly here instead of silently sending an invalid payload — the native path's own rule.
+  // loudly here instead of silently sending an invalid payload.
   if (resized.length === 0) {
     throw new Error('Failed to encode resized clipboard image')
   }

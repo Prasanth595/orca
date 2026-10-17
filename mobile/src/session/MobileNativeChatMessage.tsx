@@ -1,6 +1,5 @@
-import { MobileSelectableText as Text } from '../components/MobileSelectableText'
 import { memo, useCallback, useContext, useState } from 'react'
-import { Text as NativeText, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { INLINE_TEXT_SELECTION } from '../components/inline-text-selection'
 import { MobileNativeChatMessageActionsSheet } from './MobileNativeChatMessageActionsSheet'
 import { MobileNativeChatLongPressContent as Content } from './MobileNativeChatLongPressContent'
@@ -299,7 +298,7 @@ function MobileNativeChatMessageImpl({
             />
           ) : null}
         </Content>
-        {unsentNotice ? <NativeText style={styles.unsentNotice}>{unsentNotice}</NativeText> : null}
+        {unsentNotice ? <Text style={styles.unsentNotice}>{unsentNotice}</Text> : null}
         {copyText.length > 0 ? (
           <MobileSourceCopyButton
             key={message.id}

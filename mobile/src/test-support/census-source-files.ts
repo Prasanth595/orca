@@ -5,15 +5,14 @@ import { join } from 'node:path'
  * Build output, which a source census reads as source and must not.
  *
  * The lists of record are `mobile/package.json`'s postinstall, which names every generator, and
- * `mobile/.gitignore`, which names every file they write. Both grow — C7.10 C1 added the rich
- * Markdown editor's document — so the shape is what this rule is about and the count below is a
- * reading rather than a fence. At this one: three generators, four `*.generated.ts` files under
- * `mobile/src`.
+ * `mobile/.gitignore`, which names every file they write. Both change, so the shape is what this
+ * rule is about and the count below is a reading rather than a fence. At this one: three
+ * generators, four `*.generated.ts` files under `mobile/src`.
  *
  * The 3.5 MB mermaid page engine and the xterm engine are vendored code, and most of what a walk
- * over this tree returns by weight is generated. A census
- * that parses them parses minified third-party code looking for call sites nobody in this repo
- * wrote and nobody can move, and pays the whole parse to find them: five of those files is what
+ * over this tree returns by weight is generated. A census that parses them parses minified
+ * third-party code looking for call sites nobody in this repo wrote and nobody can move, and pays
+ * the whole parse to find them: five of those files is what
  * took `rpc-params-contract-type-only-boundary` from 1.5 s to over its 5 s timeout in CI.
  *
  * The terminal document bundle is this repo's own emitted text rather than vendored code, and its

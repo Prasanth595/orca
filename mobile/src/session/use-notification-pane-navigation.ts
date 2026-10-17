@@ -6,9 +6,9 @@ import { notificationPaneTab } from './notification-pane-tab'
 /**
  * The pane a notification tap asked for, read off the shell rather than off a router.
  *
- * On the page there is no native route to read `paneKey` from and no native param to write back:
- * the page is one document served at `/`, and `setParams` here would rewrite the document's own
- * history entry while the app's route kept the spent tap. The shell delivers the request as a
+ * The page has no route to read `paneKey` from and no param to write back: it is one document
+ * served at `/`, and `setParams` here would rewrite the document's own history entry while the
+ * app's route kept the spent tap. The shell delivers the request as a
  * re-sent `init` for the session this page already holds, and tracks nothing about whether it
  * arrived — the reader erases (ruling 34), so this hook is what spends the tap.
  *
@@ -72,8 +72,8 @@ export function useNotificationPaneNavigation({
     if (paneKey === null || paneKey === '' || !terminalsLoaded) {
       return
     }
-    // Consumed even when the pane has since closed, for the reason the native hook consumes its
-    // param: a request left standing is one a later render would serve.
+    // Consumed even when the pane has since closed: a request left standing is one a later render
+    // would serve.
     pending.current = null
     applied.current = paneKey
     const tab = notificationPaneTab(sessionTabs, paneKey)
