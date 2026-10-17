@@ -93,3 +93,251 @@ describe('useMobileSessionDocumentReaders markdown reads', () => {
     expect(doc).not.toHaveProperty('byteLength')
   })
 })
+
+function readyMarkdown(
+  content: string,
+  extra: Partial<Extract<MarkdownDocState, { status: 'ready' }>> = {}
+): Extract<MarkdownDocState, { status: 'ready' }> {
+  return {
+    status: 'ready',
+    content,
+    localContent: content,
+    baseVersion: 'v1',
+    isDirty: false,
+    editable: true,
+    ...extra
+  }
+}
+
+function deferredReply() {
+  let resolve: (reply: RpcResponse) => void = () => {}
+  const promise = new Promise<RpcResponse>((done) => {
+    resolve = done
+  })
+  return { promise, resolve }
+}
+
+function mountMarkdownReads(
+  initial: Map<string, MarkdownDocState>,
+  sendRequest: (method: string) => Promise<RpcResponse>
+) {
+  let docs = new Map(initial)
+  const published: MarkdownDocState[] = []
+  let readers: ReturnType<typeof useMobileSessionDocumentReaders> | undefined
+  const hook = hookMount(() => {
+    readers = useMobileSessionDocumentReaders(
+      mountFixture<Parameters<typeof useMobileSessionDocumentReaders>[0]>({
+        worktreeId: 'wt-1',
+        client: { sendRequest: vi.fn(sendRequest) },
+        setMarkdownDocs: (update) => {
+          const next = typeof update === 'function' ? update(docs) : update
+          const doc = next.get('tab-md')
+          if (doc && doc !== docs.get('tab-md')) {
+            published.push(doc)
+          }
+          docs = next
+        },
+        setFileDocs: () => {}
+      })
+    )
+  })
+  hook.mount()
+  const tab = mountFixture<Parameters<NonNullable<typeof readers>['readMarkdownTab']>[0]>({
+    type: 'markdown',
+    id: 'tab-md',
+    relativePath: 'README.md',
+    isDirty: false
+  })
+  return {
+    published,
+    get docs() {
+      return docs
+    },
+    read: () => performHookAction(() => readers?.readMarkdownTab(tab)),
+    unmount: hook.unmount
+  }
+}
+
+describe('useMobileSessionDocumentReaders markdown revalidation', () => {
+  it('keeps a clean document mounted when the reread is unchanged', async () => {
+    const initial = readyMarkdown('# head')
+    const harness = mountMarkdownReads(new Map([['tab-md', initial]]), async () =>
+      readTabResult({ content: '# head', version: 'v1' })
+    )
+    try {
+      await harness.read()
+      expect(harness.published).toEqual([])
+      expect(harness.docs.get('tab-md')).toBe(initial)
+    } finally {
+      harness.unmount()
+    }
+  })
+
+  it('updates a clean document in place when desktop content changed', async () => {
+    const initial = readyMarkdown('# head')
+    const harness = mountMarkdownReads(new Map([['tab-md', initial]]), async () =>
+      readTabResult({ content: '# next', version: 'v2' })
+    )
+    try {
+      await harness.read()
+      expect(harness.published.map((doc) => doc.status)).toEqual(['ready'])
+      expect(harness.docs.get('tab-md')).toMatchObject({
+        status: 'ready',
+        content: '# next',
+        localContent: '# next',
+        baseVersion: 'v2',
+        isDirty: false
+      })
+    } finally {
+      harness.unmount()
+    }
+  })
+
+  it('keeps the visible document when a reread fails', async () => {
+    const initial = readyMarkdown('# head')
+    const harness = mountMarkdownReads(new Map([['tab-md', initial]]), async () => ({
+      id: 'frame-1',
+      ok: false,
+      error: { code: 'tab_not_found', message: 'No such tab' },
+      _meta: META
+    }))
+    try {
+      await harness.read()
+      expect(harness.published).toEqual([])
+      expect(harness.docs.get('tab-md')).toBe(initial)
+    } finally {
+      harness.unmount()
+    }
+  })
+
+  it('drops a reread that loses to an edit made while it was in flight', async () => {
+    const initial = readyMarkdown('# head')
+    const pending = deferredReply()
+    const harness = mountMarkdownReads(new Map([['tab-md', initial]]), () => pending.promise)
+    try {
+      const reading = harness.read()
+      const current = harness.docs.get('tab-md')
+      if (current?.status !== 'ready') {
+        throw new Error('Expected the clean document to stay visible')
+      }
+      harness.docs.set('tab-md', { ...current, localContent: 'phone draft', isDirty: true })
+      pending.resolve(readTabResult({ content: '# server', version: 'v2' }))
+      await reading
+      expect(harness.docs.get('tab-md')).toMatchObject({
+        status: 'ready',
+        content: '# head',
+        localContent: 'phone draft',
+        isDirty: true
+      })
+      expect(harness.published.every((doc) => doc.status !== 'loading')).toBe(true)
+    } finally {
+      harness.unmount()
+    }
+  })
+
+  it('reloads a dirty document instead of keeping the draft', async () => {
+    const initial = readyMarkdown('# head', { localContent: 'phone draft', isDirty: true })
+    const harness = mountMarkdownReads(new Map([['tab-md', initial]]), async () =>
+      readTabResult({ content: '# server', version: 'v2' })
+    )
+    try {
+      await harness.read()
+      expect(harness.published.map((doc) => doc.status)).toEqual(['loading', 'ready'])
+      expect(harness.docs.get('tab-md')).toMatchObject({
+        status: 'ready',
+        content: '# server',
+        localContent: '# server',
+        isDirty: false
+      })
+    } finally {
+      harness.unmount()
+    }
+  })
+
+  it('keeps the newer reread when an older one finishes later', async () => {
+    const initial = readyMarkdown('# head')
+    const older = deferredReply()
+    let calls = 0
+    const harness = mountMarkdownReads(new Map([['tab-md', initial]]), () => {
+      calls += 1
+      return calls === 1
+        ? older.promise
+        : Promise.resolve(readTabResult({ content: '# new', version: 'v2' }))
+    })
+    try {
+      const first = harness.read()
+      const second = harness.read()
+      await second
+      const current = harness.docs.get('tab-md')
+      older.resolve(readTabResult({ content: '# old', version: 'v0' }))
+      await first
+      expect(harness.docs.get('tab-md')).toBe(current)
+      expect(current).toMatchObject({ content: '# new', baseVersion: 'v2' })
+      expect(harness.published.every((doc) => doc.status !== 'loading')).toBe(true)
+    } finally {
+      harness.unmount()
+    }
+  })
+
+  it('updates from disk without unmounting when the desktop renderer is down', async () => {
+    const initial = readyMarkdown('# head')
+    const harness = mountMarkdownReads(new Map([['tab-md', initial]]), async (method) =>
+      method === 'files.read'
+        ? {
+            id: 'frame-2',
+            ok: true,
+            result: { content: '# disk' },
+            _meta: META
+          }
+        : {
+            id: 'frame-1',
+            ok: false,
+            error: { code: 'runtime_error', message: 'renderer_unavailable' },
+            _meta: META
+          }
+    )
+    try {
+      await harness.read()
+      expect(harness.published.map((doc) => doc.status)).toEqual(['ready'])
+      expect(harness.docs.get('tab-md')).toMatchObject({
+        status: 'ready',
+        content: '# disk',
+        editable: false
+      })
+    } finally {
+      harness.unmount()
+    }
+  })
+
+  it('keeps the visible document when disk fallback fails too', async () => {
+    const initial = readyMarkdown('# head')
+    const harness = mountMarkdownReads(new Map([['tab-md', initial]]), async () => ({
+      id: 'frame-1',
+      ok: false,
+      error: { code: 'runtime_error', message: 'renderer_unavailable' },
+      _meta: META
+    }))
+    try {
+      await harness.read()
+      expect(harness.published).toEqual([])
+      expect(harness.docs.get('tab-md')).toBe(initial)
+    } finally {
+      harness.unmount()
+    }
+  })
+
+  it('does not restore a document closed while a reread was in flight', async () => {
+    const initial = readyMarkdown('# head')
+    const pending = deferredReply()
+    const harness = mountMarkdownReads(new Map([['tab-md', initial]]), () => pending.promise)
+    try {
+      const reading = harness.read()
+      harness.docs.delete('tab-md')
+      pending.resolve(readTabResult({ content: '# late', version: 'v2' }))
+      await reading
+      expect(harness.docs.has('tab-md')).toBe(false)
+    } finally {
+      harness.unmount()
+    }
+  })
+})
