@@ -141,7 +141,7 @@ export function SshTargetCard({
             }
           >
             {removeInFlight ? (
-              <Loader2 className="size-3 animate-spin" />
+              <Loader2 className="size-3 motion-safe:animate-spin" />
             ) : (
               <Trash2 className="size-3" />
             )}
@@ -200,7 +200,7 @@ export function SshTargetCard({
           <>
             {renderSecondaryIconActions()}
             <Button variant="ghost" size="xs" disabled className="gap-1.5">
-              <Loader2 className="size-3 animate-spin" />
+              <Loader2 className="size-3 motion-safe:animate-spin" />
               {translate('auto.components.settings.SshTargetCard.1810b51482', 'Connecting')}
             </Button>
           </>
@@ -215,7 +215,7 @@ export function SshTargetCard({
               className="gap-1.5"
             >
               {testing ? (
-                <Loader2 className="size-3 animate-spin" />
+                <Loader2 className="size-3 motion-safe:animate-spin" />
               ) : (
                 <MonitorSmartphone className="size-3" />
               )}
@@ -229,7 +229,7 @@ export function SshTargetCard({
               disabled={hasActionInFlight}
             >
               {actionInFlight === 'connect' ? (
-                <Loader2 className="size-3 animate-spin" />
+                <Loader2 className="size-3 motion-safe:animate-spin" />
               ) : (
                 <Server className="size-3" />
               )}

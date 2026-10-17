@@ -116,7 +116,7 @@ export function GeneralRemoteServerUpdates(): React.JSX.Element | null {
           }}
         >
           {checking || running ? (
-            <Loader2 className="size-3.5 animate-spin" />
+            <Loader2 className="size-3.5 motion-safe:animate-spin" />
           ) : (
             <RefreshCw className="size-3.5" />
           )}

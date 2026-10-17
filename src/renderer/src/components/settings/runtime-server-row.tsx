@@ -122,7 +122,7 @@ export function RuntimeServerRow({
           {effectiveDetails?.compatibility?.kind === 'blocked' ? (
             <AlertTriangle className="size-3.5 shrink-0 text-destructive" />
           ) : effectiveDetails?.status === 'loading' ? (
-            <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
+            <Loader2 className="size-3.5 shrink-0 motion-safe:animate-spin text-muted-foreground" />
           ) : null}
         </div>
         {hostDescriptorText ? (
@@ -201,7 +201,7 @@ export function RuntimeServerRow({
             disabled={actionBusy}
           >
             {disconnecting ? (
-              <Loader2 className="size-3 animate-spin" />
+              <Loader2 className="size-3 motion-safe:animate-spin" />
             ) : (
               <ServerOff className="size-3" />
             )}
@@ -217,7 +217,7 @@ export function RuntimeServerRow({
             disabled={actionBusy || connectionState === 'checking'}
           >
             {connecting ? (
-              <Loader2 className="size-3 animate-spin" />
+              <Loader2 className="size-3 motion-safe:animate-spin" />
             ) : (
               <Server className="size-3" />
             )}
@@ -237,7 +237,11 @@ export function RuntimeServerRow({
             { value0: environment.name }
           )}
         >
-          {removing ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />}
+          {removing ? (
+            <Loader2 className="size-3 motion-safe:animate-spin" />
+          ) : (
+            <Trash2 className="size-3" />
+          )}
         </Button>
       </div>
     </div>

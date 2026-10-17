@@ -204,7 +204,7 @@ export function NativeChatResumeStatusSegment({
         <Segment
           iconOnly={iconOnly}
           count={view?.counts.total ?? 0}
-          icon={<Loader2 className="size-3 animate-spin text-muted-foreground" />}
+          icon={<Loader2 className="size-3 motion-safe:animate-spin text-muted-foreground" />}
           {...resumingText(view?.counts.done ?? 0, view?.counts.total ?? 0)}
         />
       )}

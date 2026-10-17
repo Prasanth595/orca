@@ -105,7 +105,7 @@ export function PluginMarketplaceListingRow({
             disabled={busy}
             onClick={() => onPreview(listing, true)}
           >
-            {busy ? <Loader2 className="animate-spin" /> : null}
+            {busy ? <Loader2 className="motion-safe:animate-spin" /> : null}
             {translate(
               'auto.components.settings.PluginMarketplaceListingRow.checkUpdate',
               'Check for update'
@@ -119,7 +119,7 @@ export function PluginMarketplaceListingRow({
             disabled={busy}
             onClick={() => onPreview(listing, false)}
           >
-            {busy ? <Loader2 className="animate-spin" /> : null}
+            {busy ? <Loader2 className="motion-safe:animate-spin" /> : null}
             {translate('auto.components.settings.PluginMarketplaceListingRow.install', 'Install')}
           </Button>
         )}

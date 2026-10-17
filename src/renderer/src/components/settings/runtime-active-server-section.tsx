@@ -142,7 +142,7 @@ export function RuntimeActiveServerSection({
                 onClick={onRefresh}
                 disabled={isLoading || isBusy}
               >
-                {isLoading ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+                {isLoading ? <Loader2 className="motion-safe:animate-spin" /> : <RefreshCw />}
               </Button>
             </div>
             {environments.length > 0 ? (

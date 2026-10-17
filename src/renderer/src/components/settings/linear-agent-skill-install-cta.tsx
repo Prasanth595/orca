@@ -128,7 +128,7 @@ export function LinearAgentSkillInstallCta({
           onClick={() => void skill.refresh()}
           disabled={skill.loading}
         >
-          <RefreshCw className={cn('size-3', skill.loading && 'animate-spin')} />
+          <RefreshCw className={cn('size-3', skill.loading && 'motion-safe:animate-spin')} />
           {translate('auto.components.settings.linear.agent.skill.install.cta.recheck', 'Re-check')}
         </Button>
       </div>

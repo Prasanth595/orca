@@ -198,7 +198,7 @@ export function PluginMarketplaceSourceDialog({
               disabled={Boolean(busyAction) || !url.trim() || !gitRef.trim()}
               onClick={() => void add()}
             >
-              {busyAction === 'add' ? <Loader2 className="animate-spin" /> : null}
+              {busyAction === 'add' ? <Loader2 className="motion-safe:animate-spin" /> : null}
               {busyAction === 'add'
                 ? translate(
                     'auto.components.settings.PluginMarketplaceSourceDialog.adding',
@@ -288,7 +288,7 @@ export function PluginMarketplaceSourceDialog({
                       )}
                       onClick={() => void refresh(source.id)}
                     >
-                      <RefreshCw className={refreshing ? 'animate-spin' : undefined} />
+                      <RefreshCw className={refreshing ? 'motion-safe:animate-spin' : undefined} />
                     </Button>
                     {!source.official ? (
                       <Button
@@ -303,7 +303,7 @@ export function PluginMarketplaceSourceDialog({
                         onClick={() => void remove(source.id)}
                       >
                         {removing ? (
-                          <Loader2 className="animate-spin" />
+                          <Loader2 className="motion-safe:animate-spin" />
                         ) : (
                           <Trash2 className="text-destructive" />
                         )}

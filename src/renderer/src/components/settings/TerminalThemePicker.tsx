@@ -127,7 +127,7 @@ export function ThemePicker({
                   key={group.label}
                   ref={isImported ? importedGroupRef : undefined}
                   className={cn(
-                    'space-y-1 rounded-md transition-colors duration-500',
+                    'space-y-1 rounded-md transition-colors duration-150',
                     isImported && highlightImported && 'bg-accent/40 ring-1 ring-accent'
                   )}
                 >

@@ -176,7 +176,7 @@ export function renderCodexAccountsSection(model: AccountsPaneSectionModel): Rea
               className="gap-1.5"
             >
               {codexAction === 'adding' ? (
-                <Loader2 className="size-3 animate-spin" />
+                <Loader2 className="size-3 motion-safe:animate-spin" />
               ) : (
                 <Plus className="size-3" />
               )}

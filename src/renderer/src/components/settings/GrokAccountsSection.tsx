@@ -150,7 +150,7 @@ export function GrokAccountsSection(): React.JSX.Element {
           className="shrink-0 gap-1"
         >
           {refreshing ? (
-            <Loader2 className="size-3 animate-spin" />
+            <Loader2 className="size-3 motion-safe:animate-spin" />
           ) : (
             <RefreshCw className="size-3" />
           )}

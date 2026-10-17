@@ -191,7 +191,7 @@ export function ZcodePlanAccountsSection(): React.JSX.Element {
           className="shrink-0"
         >
           {refreshing ? (
-            <Loader2 className="size-3 animate-spin" />
+            <Loader2 className="size-3 motion-safe:animate-spin" />
           ) : (
             <RefreshCw className="size-3" />
           )}
@@ -303,7 +303,7 @@ export function ZcodePlanAccountsSection(): React.JSX.Element {
             disabled={credentialBusy || !credentialEditable || !apiKeyDraft.trim()}
             className="shrink-0"
           >
-            {credentialBusy ? <Loader2 className="size-3 animate-spin" /> : null}
+            {credentialBusy ? <Loader2 className="size-3 motion-safe:animate-spin" /> : null}
             {apiKeyConfigured
               ? translate('auto.components.settings.ZcodePlanAccountsSection.replace', 'Replace')
               : translate('auto.components.settings.ZcodePlanAccountsSection.save', 'Save')}

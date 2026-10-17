@@ -21,52 +21,56 @@ export function FirstLaunchBanner({
 }: FirstLaunchBannerProps): React.JSX.Element {
   // Double-click guard: a second Turn-off click would re-derive `via` as 'settings', mis-tagging one opt-out as two.
   const [inFlight, setInFlight] = useState(false)
+  // Why: fade the banner out before onResolve so it doesn't vanish mid-frame.
+  const [closing, setClosing] = useState(false)
   const mountedRef = useMountedRef()
 
-  const handleAcknowledge = async (): Promise<void> => {
+  const resolveWithFade = (task: () => Promise<void>): Promise<void> => {
     if (inFlight) {
-      return
+      return Promise.resolve()
     }
     setInFlight(true)
-    // acknowledgeBanner doesn't broadcast settings:changed, so refetch or the store keeps optedIn: null.
-    try {
-      await acknowledgeBanner()
-      await fetchSettings()
+    const taskThenResolve = (async () => {
+      await task()
       if (mountedRef.current) {
         onResolve()
       }
-    } finally {
-      // Reset inFlight so a fetchSettings rejection doesn't leave every button permanently disabled.
+    })()
+    setClosing(true)
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const fadeSettled = reducedMotion
+      ? Promise.resolve()
+      : new Promise<void>((done) => window.setTimeout(done, 170))
+    return Promise.allSettled([taskThenResolve, fadeSettled]).then(() => {
       if (mountedRef.current) {
         setInFlight(false)
       }
-    }
+    })
   }
 
-  const handleTurnOff = async (): Promise<void> => {
-    if (inFlight) {
-      return
-    }
-    setInFlight(true)
-    // Route through telemetrySetOptIn(false) so main derives `via` and fires telemetry_opted_out before disabling the SDK.
-    try {
+  const handleAcknowledge = (): Promise<void> =>
+    resolveWithFade(
+      // acknowledgeBanner doesn't broadcast settings:changed, so refetch or the store keeps optedIn: null.
+      async () => {
+        await acknowledgeBanner()
+        await fetchSettings()
+      }
+    )
+
+  const handleTurnOff = (): Promise<void> =>
+    resolveWithFade(async () => {
+      // Route through telemetrySetOptIn(false) so main derives `via` and fires telemetry_opted_out before disabling the SDK.
       await telemetrySetOptIn(false)
       await fetchSettings()
-      if (mountedRef.current) {
-        onResolve()
-      }
-    } finally {
-      if (mountedRef.current) {
-        setInFlight(false)
-      }
-    }
-  }
+    })
 
   return (
     // Fixed non-modal overlay; centered + narrow so it clears the macOS traffic lights.
     // `relative` is load-bearing: the absolutely-positioned ✕ anchors to this container.
     <div
-      className="fixed left-1/2 top-2 z-40 flex w-[min(44.625rem,calc(100vw-2rem))] -translate-x-1/2 items-start gap-4 rounded-lg border border-border bg-card/95 py-3 pl-4 pr-3 shadow-lg backdrop-blur"
+      className={`fixed left-1/2 top-2 z-40 flex w-[min(44.625rem,calc(100vw-2rem))] -translate-x-1/2 items-start gap-4 rounded-lg border border-border bg-card/95 py-3 pl-4 pr-3 shadow-lg backdrop-blur transition-[opacity,transform] duration-150 ease-out motion-safe:animate-in motion-safe:slide-in-from-top-1 ${
+        closing ? 'opacity-0 -translate-y-1' : 'opacity-100'
+      }`}
       role="region"
       aria-label={translate('auto.components.FirstLaunchBanner.fcbee32f08', 'Telemetry notice')}
       aria-live="polite"
@@ -86,7 +90,7 @@ export function FirstLaunchBanner({
           )}{' '}
           <button
             type="button"
-            className="underline underline-offset-2 hover:text-foreground"
+            className="rounded underline underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             onClick={() => void window.api.shell.openUrl(PRIVACY_URL)}
           >
             {translate('auto.components.FirstLaunchBanner.d1deebb050', 'Privacy policy')}
@@ -115,7 +119,7 @@ export function FirstLaunchBanner({
         aria-label={translate('auto.components.FirstLaunchBanner.b9e1b966c7', 'Dismiss notice')}
         onClick={handleAcknowledge}
         disabled={inFlight}
-        className="absolute right-1.5 top-1.5 rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+        className="absolute right-1.5 top-1.5 rounded p-1 text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground active:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <X className="size-3.5" />
       </button>

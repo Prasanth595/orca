@@ -4,6 +4,7 @@ import { WorkspaceTabDragLayer } from '@/components/tab-group/WorkspaceTabDragLa
 import { WorkspacePaneOverlayLayers } from '@/components/WorkspacePaneOverlayLayers'
 import { isTerminalImeInputContextRefreshing } from '@/components/terminal-pane/terminal-ime-input-context-refresh'
 import { buildDuplicatedBrowserTabOptions } from '@/lib/duplicate-browser-tab-options'
+import { cn } from '@/lib/utils'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../../shared/constants'
 import { FloatingTerminalEmptyState } from './FloatingTerminalEmptyState'
 import { renderFloatingTerminalOrchestrationCard } from './FloatingTerminalOrchestrationCard'
@@ -83,9 +84,16 @@ export function renderFloatingTerminalPanelSurface({
       data-floating-terminal-panel
       aria-hidden={!open}
       tabIndex={-1}
-      className={`fixed z-[45] flex min-h-[280px] min-w-[420px] rounded-lg bg-transparent text-card-foreground shadow-[0_4px_12px_rgba(0,0,0,0.16),0_24px_64px_rgba(0,0,0,0.32)] outline-none dark:shadow-[0_8px_20px_rgba(0,0,0,0.35),0_28px_72px_rgba(0,0,0,0.58)] ${open ? 'opacity-100' : 'invisible pointer-events-none opacity-0'}`}
+      className={cn(
+        'fixed z-[45] flex min-h-[280px] min-w-[420px] rounded-lg bg-transparent text-card-foreground shadow-[0_4px_12px_rgba(0,0,0,0.16),0_24px_64px_rgba(0,0,0,0.32)] outline-none dark:shadow-[0_8px_20px_rgba(0,0,0,0.35),0_28px_72px_rgba(0,0,0,0.58)] transition-[opacity,visibility] duration-150 ease-out motion-reduce:transition-none',
+        open
+          ? 'opacity-100 visible'
+          : 'invisible pointer-events-none opacity-0 delay-150 motion-reduce:delay-0'
+      )}
       style={{
-        visibility: open ? 'visible' : 'hidden',
+        // Why: visibility is governed by the classes above so the fade-out can
+        // finish before the panel becomes unclickable; only pin it when open.
+        visibility: open ? 'visible' : undefined,
         left: bounds.left,
         top: bounds.top,
         width: bounds.width,

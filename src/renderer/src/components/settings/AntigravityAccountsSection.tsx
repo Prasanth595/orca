@@ -213,7 +213,7 @@ export function AntigravityAccountsSection({
             </Button>
             {busy && (
               <Loader2
-                className="size-4 animate-spin"
+                className="size-4 motion-safe:animate-spin"
                 aria-label={translate('accounts.antigravity.working', 'Updating account')}
               />
             )}

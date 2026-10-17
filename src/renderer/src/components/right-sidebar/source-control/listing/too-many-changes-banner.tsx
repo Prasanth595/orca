@@ -109,7 +109,7 @@ export function TooManyChangesBanner({
           disabled={isRetrying}
           onClick={() => void handleRetry()}
         >
-          {showSpinner ? <Loader2 className="size-3 animate-spin" /> : null}
+          {showSpinner ? <Loader2 className="size-3 motion-safe:animate-spin" /> : null}
           {translate('auto.components.right.sidebar.SourceControl.286dbda4d6', 'Retry')}
         </Button>
       </div>

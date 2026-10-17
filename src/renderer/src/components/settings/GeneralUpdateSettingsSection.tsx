@@ -103,7 +103,7 @@ export function GeneralUpdateSettingsSection(): React.JSX.Element {
             className="gap-2"
           >
             {updateStatus.state === 'checking' ? (
-              <Loader2 className="size-3.5 animate-spin" />
+              <Loader2 className="size-3.5 motion-safe:animate-spin" />
             ) : (
               <RefreshCw className="size-3.5" />
             )}

@@ -87,7 +87,7 @@ export function FolderWorkspacePrChecksRow({
                 className={cn(
                   'size-3 shrink-0',
                   CHECK_COLOR[row.checkTone],
-                  animateStatusIcon && 'animate-spin'
+                  animateStatusIcon && 'motion-safe:animate-spin'
                 )}
               />
             ) : null}

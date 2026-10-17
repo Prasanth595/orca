@@ -57,7 +57,7 @@ export function UpdateStatusSegment({
     }
     if (status.state === 'downloaded' && status.installing) {
       return {
-        icon: <Loader2 className="size-3 animate-spin text-muted-foreground" />,
+        icon: <Loader2 className="size-3 motion-safe:animate-spin text-muted-foreground" />,
         label: translate('updates.installBlock.preparingLabel', 'Preparing update'),
         tooltip: translate(
           'updates.installBlock.preparingSummary',

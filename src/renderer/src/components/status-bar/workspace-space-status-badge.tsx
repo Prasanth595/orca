@@ -18,7 +18,7 @@ export function WorkspaceSpaceStatusBadge({
   if (deleteState?.isDeleting) {
     return (
       <Badge variant="outline" className="gap-1.5 text-muted-foreground">
-        <Loader2 className="size-3 animate-spin" />
+        <Loader2 className="size-3 motion-safe:animate-spin" />
         {translate('auto.components.status.bar.WorkspaceSpaceManagerPanel.33653dbac2', 'Deleting')}
       </Badge>
     )

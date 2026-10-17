@@ -80,7 +80,7 @@ export function renderResourceUsageKillDialog({
             )}
           </Button>
           <Button variant="destructive" onClick={() => void runKillConfirmed()} disabled={killing}>
-            {killing ? <LoaderCircle className="size-4 animate-spin" /> : null}
+            {killing ? <LoaderCircle className="size-4 motion-safe:animate-spin" /> : null}
             {killing
               ? translate(
                   'auto.components.status.bar.ResourceUsageStatusSegment.41ae4fa725',

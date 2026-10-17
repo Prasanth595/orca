@@ -258,7 +258,7 @@ export const ActivityThreadRow = React.memo(function ActivityThreadRow({
         {/* Fills while the pointer rests; the hover card sets the attribute. Duration = rest minus progress delay. */}
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-2 bottom-0 h-px origin-left scale-x-0 rounded-full bg-muted-foreground/50 group-data-[hover-card-resting]:scale-x-100 group-data-[hover-card-resting]:transition-transform group-data-[hover-card-resting]:duration-400 group-data-[hover-card-resting]:ease-linear motion-reduce:hidden"
+          className="pointer-events-none absolute inset-x-2 bottom-0 h-px origin-left scale-x-0 rounded-full bg-muted-foreground/50 group-data-[hover-card-resting]:scale-x-100 group-data-[hover-card-resting]:transition-transform group-data-[hover-card-resting]:duration-200 group-data-[hover-card-resting]:ease-[cubic-bezier(0.4,0,0.2,1)] motion-reduce:hidden"
         />
       </div>
     </ActivityThreadHoverCard>

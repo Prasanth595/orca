@@ -70,7 +70,7 @@ export function CompareSummary({
   if (!summary || summary.status === 'loading') {
     return (
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <RefreshCw className="size-3.5 animate-spin" />
+        <RefreshCw className="size-3.5 motion-safe:animate-spin" />
         <span>
           {translate('auto.components.right.sidebar.SourceControl.11b5dd8e41', 'Comparing against')}{' '}
           {summary?.baseRef ?? '…'}

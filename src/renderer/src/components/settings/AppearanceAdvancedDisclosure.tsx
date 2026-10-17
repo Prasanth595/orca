@@ -50,7 +50,19 @@ export function AppearanceAdvancedDisclosure({
         {label ??
           translate('auto.components.settings.AppearanceAdvancedDisclosure.advanced', 'Advanced')}
       </button>
-      {expanded ? <div className={cn('pt-1', contentClassName)}>{children}</div> : null}
+      {/* Why: the grid-rows bridge keeps the section below from jumping when the
+          Advanced body mounts and unmounts on one frame. */}
+      <div
+        className={cn(
+          'grid grid-rows-[0fr] transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none data-[expanded=true]:grid-rows-[1fr]',
+          contentClassName
+        )}
+        data-expanded={expanded}
+      >
+        <div className={cn('min-h-0 overflow-hidden', expanded && 'pt-1')}>
+          {expanded ? children : null}
+        </div>
+      </div>
     </div>
   )
 }

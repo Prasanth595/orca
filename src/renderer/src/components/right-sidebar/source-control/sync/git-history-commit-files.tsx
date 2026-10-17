@@ -73,7 +73,7 @@ function CommitFilesBody({
   if (state.status === 'loading') {
     return (
       <div className="flex items-center gap-2 py-1 pl-9 pr-3 text-[11px] text-muted-foreground">
-        <RefreshCw className="size-3 animate-spin" />
+        <RefreshCw className="size-3 motion-safe:animate-spin" />
         <span>
           {translate(
             'auto.components.right.sidebar.GitHistoryCommitFiles.a1b2c3d4e5',

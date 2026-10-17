@@ -102,7 +102,7 @@ export function WorkspaceSpaceCompactPanel({
           >
             {isScanning ? (
               progress?.state === 'cancelling' ? (
-                <Loader2 className="size-3 animate-spin" />
+                <Loader2 className="size-3 motion-safe:animate-spin" />
               ) : (
                 <X className="size-3" />
               )

@@ -90,7 +90,7 @@ function GitHubStarButton({
     <div ref={wrapperRef} className="relative inline-block">
       <button
         className={cn(
-          'inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-[13px] font-medium transition-all duration-300',
+          'inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-[13px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:opacity-90',
           state === 'loading' && 'pointer-events-none opacity-0',
           state !== 'starred' &&
             'cursor-pointer border-amber-500/60 text-amber-700 hover:border-amber-500/80 hover:bg-amber-400/10 dark:border-amber-400/30 dark:text-amber-300/90 dark:hover:border-amber-400/50 dark:hover:bg-amber-400/[0.08]',
@@ -125,9 +125,9 @@ function GitHubStarButton({
             : translate('auto.components.Landing.0d0ace8861', 'Star on GitHub')}
       </button>
       {state === 'starred' && menuOpen && (
-        <div className="absolute right-0 bottom-[calc(100%+4px)] z-10 min-w-[100px] rounded-md border border-border bg-popover py-1 shadow-floating">
+        <div className="absolute right-0 bottom-[calc(100%+4px)] z-10 min-w-[100px] rounded-md border border-border bg-popover py-1 shadow-floating motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-100">
           <button
-            className="w-full px-3 py-1.5 text-left text-[13px] text-foreground hover:bg-muted"
+            className="w-full px-3 py-1.5 text-left text-[13px] text-foreground transition-colors duration-100 hover:bg-muted focus-visible:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             onClick={() => {
               setMenuOpen(false)
               setState('hidden')
@@ -175,13 +175,27 @@ function PreflightBanner({
   }, [githubKey])
 
   const visibleIssues = issues.filter((issue) => !dismissed.has(issue.id))
-  if (visibleIssues.length === 0) {
-    return null
-  }
 
+  // Why: collapsing the row before removal keeps the banner bottom edge and the
+  // rows below it from jumping the instant a nudge is dismissed.
+  const [dismissing, setDismissing] = useState<Set<string>>(() => new Set())
+  const matchesReducedMotion =
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const dismiss = (issue: PreflightIssue): void => {
     dismissPreflightIssue(issue.id, repos)
     setDismissed((prev) => new Set(prev).add(issue.id))
+  }
+  const dismissWithCollapse = (issue: PreflightIssue): void => {
+    if (matchesReducedMotion) {
+      dismiss(issue)
+      return
+    }
+    setDismissing((prev) => new Set(prev).add(issue.id))
+    window.setTimeout(() => dismiss(issue), 160)
+  }
+
+  if (visibleIssues.length === 0 && dismissing.size === 0) {
+    return null
   }
 
   return (
@@ -193,29 +207,34 @@ function PreflightBanner({
       {visibleIssues.map((issue) => (
         <div
           key={issue.id}
-          className="flex items-start gap-3 rounded-md px-1 py-1.5 first:pt-0 last:pb-0"
-        >
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-500/70" />
-          <div className="min-w-0 flex-1 space-y-0.5">
-            <p className="text-[13px] font-medium leading-snug text-foreground">{issue.title}</p>
-            <p className="text-xs leading-snug text-muted-foreground">{issue.description}</p>
-            <button
-              className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-4 hover:underline cursor-pointer"
-              onClick={() => window.api.shell.openUrl(issue.fixUrl)}
-            >
-              {issue.fixLabel}
-              <ExternalLink className="size-3" />
-            </button>
-          </div>
-          {issue.dismissible && (
-            <button
-              className="-mr-1 -mt-0.5 shrink-0 rounded p-1 text-muted-foreground/70 transition-colors hover:bg-accent hover:text-foreground cursor-pointer"
-              onClick={() => dismiss(issue)}
-              aria-label={translate('auto.components.Landing.preflightDismiss', 'Dismiss')}
-            >
-              <X className="size-3.5" />
-            </button>
+          className={cn(
+            'grid grid-rows-[1fr] transition-[grid-template-rows,opacity] duration-150 ease-out first:pt-0 last:pb-0',
+            dismissing.has(issue.id) && 'grid-rows-[0fr] opacity-0'
           )}
+        >
+          <div className="flex min-h-0 items-start gap-3 rounded-md px-1 py-1.5 overflow-hidden">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-500/70" />
+            <div className="min-w-0 flex-1 space-y-0.5">
+              <p className="text-[13px] font-medium leading-snug text-foreground">{issue.title}</p>
+              <p className="text-xs leading-snug text-muted-foreground">{issue.description}</p>
+              <button
+                className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-4 hover:underline cursor-pointer"
+                onClick={() => window.api.shell.openUrl(issue.fixUrl)}
+              >
+                {issue.fixLabel}
+                <ExternalLink className="size-3" />
+              </button>
+            </div>
+            {issue.dismissible && (
+              <button
+                className="-mr-1 -mt-0.5 shrink-0 rounded p-1 text-muted-foreground/70 transition-colors duration-150 hover:bg-accent hover:text-foreground active:bg-accent/80 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                onClick={() => dismissWithCollapse(issue)}
+                aria-label={translate('auto.components.Landing.preflightDismiss', 'Dismiss')}
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
+          </div>
         </div>
       ))}
     </div>
@@ -282,7 +301,7 @@ export default function Landing(): React.JSX.Element {
 
           <div className="flex items-center justify-center gap-2.5 flex-wrap">
             <button
-              className="inline-flex items-center gap-1.5 bg-secondary/70 border border-border/80 text-foreground font-medium text-sm px-4 py-2 rounded-md cursor-pointer hover:bg-accent transition-colors"
+              className="inline-flex items-center gap-1.5 bg-secondary/70 border border-border/80 text-foreground font-medium text-sm px-4 py-2 rounded-md cursor-pointer hover:bg-accent active:bg-accent/80 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 transition-colors duration-150"
               onClick={() => openModal('add-repo')}
             >
               <FolderPlus className="size-3.5" />
@@ -290,7 +309,7 @@ export default function Landing(): React.JSX.Element {
             </button>
 
             <button
-              className="inline-flex items-center gap-1.5 bg-secondary/70 border border-border/80 text-foreground font-medium text-sm px-4 py-2 rounded-md cursor-pointer hover:bg-accent transition-colors"
+              className="inline-flex items-center gap-1.5 bg-secondary/70 border border-border/80 text-foreground font-medium text-sm px-4 py-2 rounded-md cursor-pointer hover:bg-accent active:bg-accent/80 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 transition-colors duration-150"
               onClick={() => openModal('new-workspace-composer', { telemetrySource: 'unknown' })}
             >
               <GitBranchPlus className="size-3.5" />

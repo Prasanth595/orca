@@ -44,7 +44,7 @@ export function CommitActionMenu({
               className="w-full rounded-r-none px-3 text-[11px]"
             >
               {showSpinner ? (
-                <Loader2 className="size-3.5 animate-spin" />
+                <Loader2 className="size-3.5 motion-safe:animate-spin" />
               ) : PrimaryIcon ? (
                 <PrimaryIcon className="size-3.5" aria-hidden="true" />
               ) : null}
@@ -69,7 +69,7 @@ export function CommitActionMenu({
                     aria-label={moreCommitAndRemoteActionsLabel}
                   >
                     {showChevronSpinner ? (
-                      <Loader2 className="size-3.5 animate-spin" />
+                      <Loader2 className="size-3.5 motion-safe:animate-spin" />
                     ) : (
                       <ChevronDown className="size-3.5" />
                     )}

@@ -35,7 +35,9 @@ export function EntryStatusRow({
 }): React.JSX.Element {
   return (
     <div className="flex min-h-6 items-center gap-1.5 rounded-[7px] px-1 text-[11px] leading-5 text-muted-foreground">
-      {loading ? <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden="true" /> : null}
+      {loading ? (
+        <Loader2 className="size-3.5 shrink-0 motion-safe:animate-spin" aria-hidden="true" />
+      ) : null}
       <span className="truncate">{message}</span>
     </div>
   )
@@ -68,7 +70,7 @@ export function EntryActionRow({
       aria-selected={selected}
       disabled={disabled}
       className={cn(
-        'flex h-6 w-full items-center gap-1.5 rounded-[7px] px-1 text-left text-[11px] leading-5 outline-none disabled:cursor-not-allowed disabled:opacity-50',
+        'flex h-6 w-full items-center gap-1.5 rounded-[7px] px-1 text-left text-[11px] leading-5 outline-none transition-colors duration-100 ease-out disabled:cursor-not-allowed disabled:opacity-50',
         selected
           ? 'bg-black/8 text-accent-foreground dark:bg-white/14'
           : // Why: CSS :hover still matches a disabled button, so a pending row would
@@ -78,7 +80,7 @@ export function EntryActionRow({
       onClick={onClick}
     >
       {loading ? (
-        <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden="true" />
+        <Loader2 className="size-3.5 shrink-0 motion-safe:animate-spin" aria-hidden="true" />
       ) : (
         presentation.icon
       )}

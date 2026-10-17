@@ -228,7 +228,7 @@ export default function FolderWorkspacePrChecksPanel({
                   'Refresh PR checks'
                 )}
               >
-                <RefreshCw className={cn('size-3.5', isRefreshing && 'animate-spin')} />
+                <RefreshCw className={cn('size-3.5', isRefreshing && 'motion-safe:animate-spin')} />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">

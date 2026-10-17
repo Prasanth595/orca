@@ -306,7 +306,7 @@ export function GitHistoryPanel({
                   'Refresh commits'
                 )}
               >
-                <RefreshCw className={cn('size-3.5', loading && 'animate-spin')} />
+                <RefreshCw className={cn('size-3.5', loading && 'motion-safe:animate-spin')} />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom" sideOffset={6}>
@@ -334,7 +334,7 @@ export function GitHistoryPanel({
           )}
           style={expandedBodyStyle}
         >
-          <RefreshCw className="size-3 animate-spin" />
+          <RefreshCw className="size-3 motion-safe:animate-spin" />
           <span>
             {translate(
               'auto.components.right.sidebar.GitHistoryPanel.781a8bcf7b',

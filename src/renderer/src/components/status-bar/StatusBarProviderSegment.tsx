@@ -231,7 +231,9 @@ export function ProviderSegment({
     return (
       <span className="inline-flex items-center gap-1 text-muted-foreground">
         <ProviderIcon provider={provider} />
-        <span className="animate-pulse">···</span>
+        <span className="animate-pulse motion-reduce:animate-none motion-reduce:opacity-70">
+          ···
+        </span>
       </span>
     )
   }
@@ -243,7 +245,9 @@ export function ProviderSegment({
     return (
       <span className="inline-flex items-center gap-1 text-muted-foreground">
         <ProviderIcon provider={provider} />
-        <span className="animate-pulse">···</span>
+        <span className="animate-pulse motion-reduce:animate-none motion-reduce:opacity-70">
+          ···
+        </span>
       </span>
     )
   }

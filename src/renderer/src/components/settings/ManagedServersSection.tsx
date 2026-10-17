@@ -166,7 +166,7 @@ export function ManagedServersSection({
           disabled={deploying || targetId === '' || name.trim() === ''}
           onClick={() => void deploy()}
         >
-          {deploying ? <Loader2 className="animate-spin" /> : null}
+          {deploying ? <Loader2 className="motion-safe:animate-spin" /> : null}
           {deploying
             ? translate('auto.components.settings.managedServers.deploy.running', 'Deploying…')
             : translate('auto.components.settings.managedServers.deploy.submit', 'Deploy server')}
@@ -188,7 +188,9 @@ export function ManagedServersSection({
                 disabled={resumingId !== null}
                 onClick={() => void resume(row)}
               >
-                {resumingId === row.migrationId ? <Loader2 className="animate-spin" /> : null}
+                {resumingId === row.migrationId ? (
+                  <Loader2 className="motion-safe:animate-spin" />
+                ) : null}
                 {translate('auto.components.settings.managedServers.pending.resume', 'Resume')}
               </Button>
             </div>

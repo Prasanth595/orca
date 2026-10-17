@@ -153,7 +153,9 @@ export function TerminalWindowSection({
                 disabled={relaunchingBlur}
                 onClick={() => void handleRelaunch()}
               >
-                <RotateCw className={`size-3 ${relaunchingBlur ? 'animate-spin' : ''}`} />
+                <RotateCw
+                  className={`size-3 ${relaunchingBlur ? 'motion-safe:animate-spin' : ''}`}
+                />
                 {relaunchingBlur
                   ? translate(
                       'auto.components.settings.TerminalWindowSection.907131d741',
@@ -284,7 +286,7 @@ export function TerminalWindowSection({
               )}
             </button>
             <div
-              className={`grid overflow-hidden transition-all duration-300 ease-out ${
+              className={`grid overflow-hidden transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none ${
                 colorOverridesExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
               }`}
             >

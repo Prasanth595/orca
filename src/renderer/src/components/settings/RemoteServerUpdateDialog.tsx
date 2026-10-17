@@ -183,7 +183,7 @@ export function RemoteServerUpdateDialog(): React.JSX.Element {
             <div className="px-4 py-8 text-center text-sm text-muted-foreground">
               {checking ? (
                 <span className="inline-flex items-center gap-2">
-                  <Loader2 className="size-4 animate-spin" />
+                  <Loader2 className="size-4 motion-safe:animate-spin" />
                   {translate(
                     'auto.components.settings.RemoteServerUpdateDialog.checking',
                     'Checking paired servers…'
@@ -212,7 +212,7 @@ export function RemoteServerUpdateDialog(): React.JSX.Element {
 
         {checking ? (
           <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-            <Loader2 className="size-3.5 animate-spin" />
+            <Loader2 className="size-3.5 motion-safe:animate-spin" />
             {translate(
               'auto.components.settings.RemoteServerUpdateDialog.checking',
               'Checking paired servers…'

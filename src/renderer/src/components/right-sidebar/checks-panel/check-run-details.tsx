@@ -114,7 +114,7 @@ export function CheckRunDetails({
       {state?.loading && !state.error ? (
         <div role="status" aria-live="polite" className="flex min-w-0 flex-col gap-2 py-1.5">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <LoaderCircle className="size-3.5 animate-spin" />
+            <LoaderCircle className="size-3.5 motion-safe:animate-spin" />
             {translate(
               'auto.components.right.sidebar.checks.panel.content.1f2b980522',
               'Loading check details…'
@@ -183,7 +183,7 @@ export function CheckRunDetails({
                 aria-busy={state.loading}
                 onClick={onRetry}
               >
-                <RefreshCw className={cn('size-3', state.loading && 'animate-spin')} />
+                <RefreshCw className={cn('size-3', state.loading && 'motion-safe:animate-spin')} />
                 {state.loading
                   ? translate('githubChecks.retrying', 'Retrying…')
                   : translate(

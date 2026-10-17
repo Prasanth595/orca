@@ -336,7 +336,9 @@ export function SourceControlBranchContextRow({
           baseLabel={baseLabel}
           onChangeBaseRef={onChangeBaseRef}
           changeBaseTitle={changeBaseTitle}
-          leading={<Loader2 className="size-3 shrink-0 animate-spin" aria-hidden="true" />}
+          leading={
+            <Loader2 className="size-3 shrink-0 motion-safe:animate-spin" aria-hidden="true" />
+          }
           trailing={<ManualReviewLinkButton url={manualReviewUrl} />}
         />
         <span className="sr-only">

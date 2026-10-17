@@ -311,7 +311,7 @@ export function ComputerUsePane(): React.JSX.Element {
               disabled={resetting}
               onClick={() => void refresh()}
             >
-              <RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`size-3.5 ${loading ? 'motion-safe:animate-spin' : ''}`} />
               {translate('auto.components.settings.ComputerUsePane.d95d1cfab8', 'Refresh')}
             </Button>
           </div>

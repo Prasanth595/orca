@@ -387,7 +387,7 @@ export function BitbucketCredentialsDialog({
           <Button onClick={() => void handleConnect()} disabled={!canSubmit}>
             {connecting ? (
               <>
-                <LoaderCircle className="size-4 animate-spin" />
+                <LoaderCircle className="size-4 motion-safe:animate-spin" />
                 {translate(
                   'auto.components.settings.bitbucket.credentials.dialog.verifying',
                   'Verifying...'

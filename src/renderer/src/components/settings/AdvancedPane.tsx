@@ -126,7 +126,7 @@ export function AdvancedPane({ settings, updateSettings }: AdvancedPaneProps): R
                 className="shrink-0 gap-1.5"
               >
                 {http1CompatibilityRelaunching ? (
-                  <Loader2 className="size-3.5 animate-spin" />
+                  <Loader2 className="size-3.5 motion-safe:animate-spin" />
                 ) : (
                   <RotateCw className="size-3.5" />
                 )}

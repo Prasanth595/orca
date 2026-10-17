@@ -163,7 +163,7 @@ export function MiniMaxCredentials({
             disabled={miniMaxCredentialBusy || !miniMaxCookieDraft.trim()}
             className="h-7 shrink-0 text-xs"
           >
-            {miniMaxCredentialBusy ? <Loader2 className="size-3 animate-spin" /> : null}
+            {miniMaxCredentialBusy ? <Loader2 className="size-3 motion-safe:animate-spin" /> : null}
             {miniMaxConfigured
               ? translate('auto.components.settings.AccountsPane.f38b9cc4bd', 'Replace')
               : translate('auto.components.settings.AccountsPane.590a3130f9', 'Save')}
@@ -263,7 +263,7 @@ export function MiniMaxCredentials({
             disabled={miniMaxCredentialBusy || !miniMaxApiKeyDraft.trim()}
             className="h-7 shrink-0 text-xs"
           >
-            {miniMaxCredentialBusy ? <Loader2 className="size-3 animate-spin" /> : null}
+            {miniMaxCredentialBusy ? <Loader2 className="size-3 motion-safe:animate-spin" /> : null}
             {miniMaxApiKeyConfigured
               ? translate('auto.components.settings.AccountsPane.f38b9cc4bd', 'Replace')
               : translate('auto.components.settings.AccountsPane.590a3130f9', 'Save')}

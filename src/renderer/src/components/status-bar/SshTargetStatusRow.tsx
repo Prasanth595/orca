@@ -89,7 +89,7 @@ export function SshTargetStatusRow({
         </div>
       </div>
       {busy || connectInFlight ? (
-        <Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" />
+        <Loader2 className="size-3 shrink-0 motion-safe:animate-spin text-muted-foreground" />
       ) : canConnectSshStatus(status) ? (
         <button
           type="button"

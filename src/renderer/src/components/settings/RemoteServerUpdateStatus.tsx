@@ -52,7 +52,7 @@ function phaseIcon(phase: RemoteServerUpdatePhase): React.JSX.Element {
     case 'queued':
     case 'checking-update':
     case 'restarting':
-      return <Loader2 className="animate-spin" />
+      return <Loader2 className="motion-safe:animate-spin" />
     case 'downloading':
       return <Download />
     case 'current':

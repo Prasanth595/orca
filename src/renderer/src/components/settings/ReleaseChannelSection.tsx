@@ -317,7 +317,7 @@ export function ReleaseChannelSection(): React.JSX.Element {
             onClick={() => void loadBuilds(activeChannel, { force: true })}
           >
             {loading ? (
-              <Loader2 className="size-3.5 animate-spin" />
+              <Loader2 className="size-3.5 motion-safe:animate-spin" />
             ) : (
               <RefreshCw className="size-3.5" />
             )}
@@ -340,7 +340,7 @@ export function ReleaseChannelSection(): React.JSX.Element {
             }}
           >
             {busy ? (
-              <Loader2 className="size-3.5 animate-spin" />
+              <Loader2 className="size-3.5 motion-safe:animate-spin" />
             ) : needsManualInstall ? (
               <span className="inline-flex items-center gap-1.5">
                 <Download className="size-3.5" aria-hidden="true" />

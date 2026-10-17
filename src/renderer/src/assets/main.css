@@ -2186,6 +2186,51 @@ html.native-shell .app-layout {
   }
 }
 
+/* Same grow/shrink recipe as collapsible-height-content, for Radix Accordion
+   bodies (their height variable differs). */
+.accordion-height-content {
+  overflow: hidden;
+}
+
+.accordion-height-content[data-state='open'] {
+  animation: accordion-down 200ms ease-out;
+}
+
+.accordion-height-content[data-state='closed'] {
+  animation: accordion-up 180ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .accordion-height-content[data-state='open'],
+  .accordion-height-content[data-state='closed'] {
+    animation: none;
+  }
+}
+
+@keyframes accordion-down {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+
+  to {
+    height: var(--radix-accordion-content-height);
+    opacity: 1;
+  }
+}
+
+@keyframes accordion-up {
+  from {
+    height: var(--radix-accordion-content-height);
+    opacity: 1;
+  }
+
+  to {
+    height: 0;
+    opacity: 0;
+  }
+}
+
 .sidebar.collapsed {
   width: 0;
   border-right: none;

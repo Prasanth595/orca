@@ -44,7 +44,7 @@ function Slider({
           aria-valuetext={thumbValueLabels?.[index]}
           className={cn(
             'block size-4 rounded-full border border-primary/40 bg-background shadow-sm',
-            'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            'cursor-grab active:cursor-grabbing transition-[background-color,border-color,box-shadow,scale] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-110 motion-reduce:active:scale-100',
             'disabled:pointer-events-none disabled:opacity-50'
           )}
         />

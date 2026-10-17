@@ -36,7 +36,7 @@ export function TerminalProcessExitOverlay({
     <div className="pointer-events-none absolute inset-0 z-40 flex items-end justify-center p-4">
       <div
         role="alert"
-        className="pointer-events-auto flex w-full max-w-md flex-col gap-3 rounded-lg border border-border bg-card p-4 text-card-foreground shadow-xs"
+        className="pointer-events-auto flex w-full max-w-md flex-col gap-3 rounded-lg border border-border bg-card p-4 text-card-foreground shadow-xs motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-150"
       >
         <div className="space-y-1">
           <div className="text-sm font-medium text-foreground">{title}</div>

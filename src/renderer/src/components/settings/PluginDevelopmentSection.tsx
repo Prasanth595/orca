@@ -114,7 +114,7 @@ export function PluginDevelopmentSection({
             aria-describedby={error ? 'plugin-development-path-error' : undefined}
           />
           <Button type="submit" variant="outline" size="sm" disabled={busy}>
-            {busy ? <Loader2 className="animate-spin" /> : null}
+            {busy ? <Loader2 className="motion-safe:animate-spin" /> : null}
             {translate('auto.components.settings.PluginDevelopmentSection.add', 'Add path')}
           </Button>
         </form>

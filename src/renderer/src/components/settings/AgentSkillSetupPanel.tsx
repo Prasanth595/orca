@@ -211,7 +211,7 @@ export function AgentSkillSetupPanel({
           disabled={terminalOpen || installDisabled || terminalOpening}
         >
           {terminalOpening ? (
-            <Loader2 className="size-3.5 animate-spin" />
+            <Loader2 className="size-3.5 motion-safe:animate-spin" />
           ) : (
             <Terminal className="size-3.5" />
           )}
@@ -243,7 +243,9 @@ export function AgentSkillSetupPanel({
               : loading
           }
         >
-          <RefreshCw className={cn('size-3.5', (loading || terminalOpening) && 'animate-spin')} />
+          <RefreshCw
+            className={cn('size-3.5', (loading || terminalOpening) && 'motion-safe:animate-spin')}
+          />
           {setupCommandFailedCode !== null
             ? translate('auto.components.settings.AgentSkillSetupPanel.retrySetup', 'Retry')
             : translate('auto.components.settings.AgentSkillSetupPanel.c689392435', 'Re-check')}

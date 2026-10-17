@@ -100,7 +100,7 @@ export function SparsePresetSettingsRow({
             )}
           >
             {isDeleting ? (
-              <LoaderCircle className="size-3.5 animate-spin" />
+              <LoaderCircle className="size-3.5 motion-safe:animate-spin" />
             ) : (
               <Trash2 className="size-3.5" />
             )}

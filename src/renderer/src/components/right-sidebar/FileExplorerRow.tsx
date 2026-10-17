@@ -215,7 +215,7 @@ export function FileExplorerRow({
                 )}
               />
               {isLoading ? (
-                <Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" />
+                <Loader2 className="size-3 shrink-0 motion-safe:animate-spin text-muted-foreground" />
               ) : showLoadError ? (
                 <CircleAlert className="size-3 shrink-0 text-destructive" />
               ) : isExpanded ? (

@@ -53,7 +53,7 @@ export function ManageSessionsTable({
             )}
             className="text-muted-foreground"
           >
-            <RefreshCw className={isRefreshing ? 'animate-spin' : ''} />
+            <RefreshCw className={isRefreshing ? 'motion-safe:animate-spin' : ''} />
           </Button>
         </div>
         <div className="flex items-center gap-1">
@@ -71,7 +71,7 @@ export function ManageSessionsTable({
                 className="text-muted-foreground hover:text-destructive"
               >
                 {daemonBusyKind === 'killAll' ? (
-                  <LoaderCircle className="animate-spin" />
+                  <LoaderCircle className="motion-safe:animate-spin" />
                 ) : (
                   <Trash2 />
                 )}
@@ -98,7 +98,7 @@ export function ManageSessionsTable({
                 className="text-muted-foreground"
               >
                 {daemonBusyKind === 'restart' ? (
-                  <LoaderCircle className="animate-spin" />
+                  <LoaderCircle className="motion-safe:animate-spin" />
                 ) : (
                   <RotateCw />
                 )}

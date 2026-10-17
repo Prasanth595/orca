@@ -275,7 +275,7 @@ export function PluginMarketplacePreviewDialog({
                     )}
                   </Button>
                   <Button disabled={busy || Boolean(blocked)} onClick={onConfirm}>
-                    {busy ? <Loader2 className="animate-spin" /> : null}
+                    {busy ? <Loader2 className="motion-safe:animate-spin" /> : null}
                     {mode === 'update'
                       ? translate(
                           'auto.components.settings.PluginMarketplacePreviewDialog.update',

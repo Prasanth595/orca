@@ -98,7 +98,7 @@ export function OpenAiTranscriptionKeyDialog({
             </Button>
           )}
           <Button disabled={pending || !apiKeyDraft.trim()} onClick={onSave}>
-            {pending ? <Loader2 className="size-4 animate-spin" /> : null}
+            {pending ? <Loader2 className="size-4 motion-safe:animate-spin" /> : null}
             {translate(
               'auto.components.settings.OpenAiTranscriptionKeyDialog.fa83512e48',
               'Save Key'

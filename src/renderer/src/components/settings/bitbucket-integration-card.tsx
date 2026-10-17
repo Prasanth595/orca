@@ -188,7 +188,7 @@ export function BitbucketIntegrationCard(): React.JSX.Element {
                   className="rounded-md p-1 text-muted-foreground/50 transition-colors hover:text-destructive"
                 >
                   {disconnecting ? (
-                    <LoaderCircle className="size-3.5 animate-spin" />
+                    <LoaderCircle className="size-3.5 motion-safe:animate-spin" />
                   ) : (
                     <Unlink className="size-3.5" />
                   )}

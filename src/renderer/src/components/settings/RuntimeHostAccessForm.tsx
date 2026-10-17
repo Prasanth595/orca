@@ -327,7 +327,7 @@ export function RuntimeHostAccessForm({
           {translate('auto.components.settings.RuntimeHostAccessForm.cancel', 'Cancel')}
         </Button>
         <Button type="submit" size="sm" disabled={!canSubmit}>
-          {busy ? <Loader2 className="animate-spin" /> : <Plus />}
+          {busy ? <Loader2 className="motion-safe:animate-spin" /> : <Plus />}
           {tunnelOverrideEnabled
             ? translate(
                 'auto.components.settings.RuntimeHostAccessForm.addWithTunnel',

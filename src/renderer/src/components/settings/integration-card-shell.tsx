@@ -24,7 +24,7 @@ export function IntegrationCardShell(props: {
 }): React.JSX.Element {
   const shellClass = useIntegrationCardShellClass(props.className)
   const status = props.checking ? (
-    <LoaderCircle className="size-4 shrink-0 animate-spin text-muted-foreground" />
+    <LoaderCircle className="size-4 shrink-0 motion-safe:animate-spin text-muted-foreground" />
   ) : (
     <span
       className={cn(

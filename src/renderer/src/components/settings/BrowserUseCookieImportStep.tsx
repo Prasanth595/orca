@@ -153,7 +153,7 @@ export function BrowserUseCookieImportStep({
               className="gap-1.5"
             >
               {isImportingDefault ? (
-                <Loader2 className="size-3.5 animate-spin" />
+                <Loader2 className="size-3.5 motion-safe:animate-spin" />
               ) : (
                 <Import className="size-3.5" />
               )}

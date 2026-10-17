@@ -41,7 +41,7 @@ export function WorkspaceSpaceBreakdownList({
     return (
       <div className="flex h-full min-h-72 items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/15 text-sm text-muted-foreground">
         <span className="flex items-center gap-2">
-          {isScanning ? <Loader2 className="size-4 animate-spin" /> : null}
+          {isScanning ? <Loader2 className="size-4 motion-safe:animate-spin" /> : null}
           {isScanning
             ? translate(
                 'auto.components.status.bar.WorkspaceSpaceManagerPanel.c5135e7e4a',

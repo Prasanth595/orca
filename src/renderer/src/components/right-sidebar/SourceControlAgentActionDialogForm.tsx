@@ -356,7 +356,7 @@ export function SourceControlAgentActionDialogForm({
         </Button>
         <Button type="button" size="sm" disabled={!canStart} onClick={onStart}>
           {isStarting ? (
-            <RefreshCw className="size-4 animate-spin" />
+            <RefreshCw className="size-4 motion-safe:animate-spin" />
           ) : (
             <Sparkles className="size-4" />
           )}

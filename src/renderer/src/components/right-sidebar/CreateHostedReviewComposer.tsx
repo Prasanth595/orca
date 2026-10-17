@@ -196,7 +196,7 @@ export function CreateHostedReviewComposer({
       className="text-[11px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
       aria-label={stopGeneratingDetailsLabel}
     >
-      <RefreshCw className="size-3 animate-spin" />
+      <RefreshCw className="size-3 motion-safe:animate-spin" />
       <span>
         {translate('auto.components.right.sidebar.SourceControl.e868cec4e1', 'Generating…')}
       </span>
@@ -295,7 +295,7 @@ export function CreateHostedReviewComposer({
             title={createDisabledReason ?? primaryAction.title}
           >
             {isCreating ? (
-              <RefreshCw className="size-3.5 animate-spin" />
+              <RefreshCw className="size-3.5 motion-safe:animate-spin" />
             ) : (
               <ReviewIcon className="size-3.5" />
             )}

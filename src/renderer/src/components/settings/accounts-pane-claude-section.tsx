@@ -120,7 +120,7 @@ export function renderClaudeAccountsSection(model: AccountsPaneSectionModel): Re
                 className="gap-1.5"
               >
                 {claudeAction === 'adding' ? (
-                  <Loader2 className="size-3 animate-spin" />
+                  <Loader2 className="size-3 motion-safe:animate-spin" />
                 ) : (
                   <Plus className="size-3" />
                 )}
@@ -326,7 +326,7 @@ export function renderClaudeAccountsSection(model: AccountsPaneSectionModel): Re
                           className="h-6 px-2 text-muted-foreground hover:text-foreground"
                         >
                           {isReauthing ? (
-                            <Loader2 className="size-3 animate-spin" />
+                            <Loader2 className="size-3 motion-safe:animate-spin" />
                           ) : (
                             <RefreshCw className="size-3" />
                           )}
