@@ -33,12 +33,14 @@ function MermaidDiagramRender({ source, base }: MermaidDiagramProps) {
       return
     }
     let disposed = false
-    let timer: ReturnType<typeof setTimeout> | undefined
+    // A stuck render must not leave every later diagram waiting indefinitely.
+    let timer = setTimeout(() => setFailed(true), 30_000)
     enqueuePageMermaidRender(async () => {
       try {
         if (disposed) {
           return
         }
+        clearTimeout(timer)
         timer = setTimeout(() => setFailed(true), 10_000)
         const mermaid = await loadPageMermaid()
         if (disposed) {

@@ -167,3 +167,28 @@ it('gives a queued diagram its own timeout and discards a timed-out render resul
   expect(hosts.some((host) => host.innerHTML.includes('queued'))).toBe(true)
   expect(hosts.every((host) => !host.innerHTML.includes('too late'))).toBe(true)
 })
+
+it('releases waiting diagrams to source fallback when the queue never advances', async () => {
+  vi.useFakeTimers()
+  const first = pendingDiagram()
+  render.mockImplementationOnce(() => first.promise)
+  const { release } = mount(['flowchart TD\nA-->B', 'flowchart LR\nC-->D'])
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(10_000)
+  })
+  expect(render).toHaveBeenCalledTimes(1)
+  expect(release).toHaveBeenCalledTimes(1)
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(20_000)
+  })
+  expect(
+    renderer!.root.findAll((node) => node.props?.testID === 'mermaid-diagram-source')
+  ).toHaveLength(2)
+  expect(release).toHaveBeenCalledTimes(2)
+  await act(async () => {
+    first.resolve({ svg: '<svg>late</svg>' })
+    await vi.advanceTimersByTimeAsync(0)
+  })
+  expect(render).toHaveBeenCalledTimes(1)
+  expect(hosts.every((host) => !host.innerHTML.includes('late'))).toBe(true)
+})
