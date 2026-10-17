@@ -28,7 +28,8 @@ import {
   createTerminalTab,
   installReplyRevealProbes,
   readActiveView,
-  readReplyRevealProbe
+  readReplyRevealProbe,
+  type ReplyRevealProbeLog
 } from './reply-reveal-probes'
 
 // Why: desktop completions share a 5s per-workspace burst cooldown; a second completion inside it
@@ -36,6 +37,8 @@ import {
 const COOLDOWN_GAP_MS = 5_600
 // Why: covers the renderer's 1.5s done-quiet window plus the async provenance check.
 const SETTLE_MS = 3_500
+// Why: once the banner shows, only the async provenance check (a transcript read) is left.
+const SETTLE_AFTER_BANNER_MS = 1_000
 
 export type ReplyAgentTab = {
   provider: FakeReplyAgentProvider
@@ -49,6 +52,7 @@ export type ReplyRevealOutcome = {
   scenario: string
   expected: boolean
   revealed: boolean
+  reveals: number
   banners: number
 }
 
@@ -165,12 +169,15 @@ export class ReplyRevealHarness {
     })
   }
 
-  /** Ends the agent's turn (or wakes it) and records whether main revealed that agent's tab. */
+  /**
+   * Ends the agent's turn (or wakes it) and checks what main did: a reveal of exactly that agent's
+   * pane or none at all, and one banner unless the agent's own workspace is in a focused window.
+   */
   async complete(
     scenario: string,
     agent: ReplyAgentTab,
     expected: boolean,
-    command: 'finish' | 'wake' = 'finish'
+    { wake = false, banners: expectedBanners = 1 }: { wake?: boolean; banners?: 0 | 1 } = {}
   ): Promise<void> {
     const wait = this.lastCompletionAt + COOLDOWN_GAP_MS - Date.now()
     if (wait > 0) {
@@ -178,35 +185,63 @@ export class ReplyRevealHarness {
     }
     const stops = this.hooks(agent.provider, 'Stop')
     const before = await readReplyRevealProbe(this.app)
-    controlFakeReplyAgent(this.fakeDir, agent.provider, command)
+    controlFakeReplyAgent(this.fakeDir, agent.provider, wake ? 'wake' : 'finish')
     await expect.poll(() => this.hooks(agent.provider, 'Stop'), { timeout: 15_000 }).toBe(stops + 1)
     this.lastCompletionAt = Date.now()
-    const revealedTab = (): Promise<boolean> =>
-      readReplyRevealProbe(this.app).then((log) =>
-        log.reveals
-          .slice(before.reveals.length)
-          .some(
-            (reveal) => reveal.channel === 'ui:focusTerminal' && reveal.paneKey === agent.paneKey
-          )
-      )
-    // An expected reveal returns as soon as it lands; a refused one waits out the async decision.
-    await (expected
-      ? expect
-          .poll(revealedTab, { timeout: 10_000 })
-          .toBe(true)
-          .catch(() => undefined)
-      : this.page.waitForTimeout(SETTLE_MS))
-    const after = await readReplyRevealProbe(this.app)
-    const revealed = await revealedTab()
+    const since = async (): Promise<ReplyRevealProbeLog> => {
+      const log = await readReplyRevealProbe(this.app)
+      return {
+        banners: log.banners.slice(before.banners.length),
+        reveals: log.reveals.slice(before.reveals.length)
+      }
+    }
+    const paneReveals = (log: ReplyRevealProbeLog): number =>
+      log.reveals.filter(
+        (reveal) => reveal.channel === 'ui:focusTerminal' && reveal.paneKey === agent.paneKey
+      ).length
+    const settle = async (poll: () => Promise<number>, target: number): Promise<void> => {
+      await expect
+        .poll(poll, { timeout: 10_000 })
+        .toBe(target)
+        .catch(() => undefined)
+    }
+    if (expected) {
+      await settle(async () => paneReveals(await since()), 1)
+    }
+    if (expectedBanners > 0) {
+      await settle(async () => (await since()).banners.length, expectedBanners)
+    }
+    if (!expected) {
+      // Why: the reveal decision runs beside the banner, not before it, so a refusal needs a quiet
+      // window after the dispatch is known to have happened.
+      await this.page.waitForTimeout(expectedBanners > 0 ? SETTLE_AFTER_BANNER_MS : SETTLE_MS)
+    }
+    const log = await since()
+    const revealed = paneReveals(log) > 0
+    const strayReveals = log.reveals.filter(
+      (reveal) =>
+        !(
+          (reveal.channel === 'ui:focusTerminal' && reveal.paneKey === agent.paneKey) ||
+          (reveal.channel === 'ui:activateWorktree' && reveal.worktreeId === agent.worktreeId)
+        )
+    )
     const outcome = {
       scenario,
       expected,
       revealed,
-      banners: after.banners.length - before.banners.length
+      reveals: log.reveals.length,
+      banners: log.banners.length
     }
     this.outcomes.push(outcome)
     console.log(`[reply-reveal] ${JSON.stringify(outcome)}`)
     expect.soft(revealed, `${scenario}: reveal`).toBe(expected)
+    if (expected) {
+      expect.soft(paneReveals(log), `${scenario}: pane reveals`).toBe(1)
+      expect.soft(strayReveals, `${scenario}: reveals of anything but its pane`).toEqual([])
+    } else {
+      expect.soft(log.reveals, `${scenario}: any reveal`).toEqual([])
+    }
+    expect.soft(log.banners.length, `${scenario}: banners`).toBe(expectedBanners)
     if (revealed) {
       const view = await readActiveView(this.page)
       expect.soft(view.tabId, `${scenario}: revealed tab`).toBe(agent.tabId)

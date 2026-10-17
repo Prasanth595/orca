@@ -9,7 +9,13 @@ import { retryTransientMainEvaluate } from './electron-main-evaluate-retry'
 
 export type ReplyRevealProbeLog = {
   banners: { at: number; title: string; body: string }[]
-  reveals: { at: number; channel: string; tabId?: string; paneKey?: string }[]
+  reveals: {
+    at: number
+    channel: string
+    tabId?: string
+    worktreeId?: string
+    paneKey?: string
+  }[]
 }
 
 type ReplyRevealProbeState = ReplyRevealProbeLog & { focused: boolean }
@@ -42,11 +48,16 @@ export async function installReplyRevealProbes(app: ElectronApplication): Promis
         const contents = window.webContents
         const send = contents.send.bind(contents)
         contents.send = (channel: string, ...args: unknown[]) => {
-          if (channel === 'ui:focusTerminal' || channel === 'ui:activateWorktree') {
+          if (
+            channel === 'ui:focusTerminal' ||
+            channel === 'ui:focusEditorTab' ||
+            channel === 'ui:activateWorktree'
+          ) {
             probe.reveals.push({
               at: Date.now(),
               channel,
               tabId: text(args[0], 'tabId'),
+              worktreeId: text(args[0], 'worktreeId'),
               paneKey: text(args[0], 'ackPaneKeyOnSuccess')
             })
           }

@@ -15,8 +15,9 @@ type ChatShape = 'claude' | 'codex' | 'steered'
 
 /** Persisted journal rows replayed through the production parser and reducer. The Claude rows
  *  mirror a captured composer send to Claude Code 2.1.301: the handed-over message stays in the
- *  thread and the turn names the provider item its dispatch accepted. Codex names the submission
- *  key itself (codex-structured-journal-translation-turn-boundaries). Ids and text are invented. */
+ *  thread and the turn names the provider item its dispatch accepted. The `codex` shape is
+ *  hand-made on those rows, swapping in only the turn's submission-key userItemId; real Codex rows
+ *  are covered by structured-agent-session-integration.test.ts. Ids and text are invented. */
 export function replySnapshotFixture(
   source: 'user' | 'agent' | undefined,
   shape: ChatShape = 'claude'

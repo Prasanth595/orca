@@ -202,6 +202,22 @@ describe('live submit keys joined to exact main-agent hook turns', () => {
       expect(r.human()).toBe(false)
     }
   )
+  it.each([
+    ['codex', 'human', true],
+    ['claude', 'human', true],
+    ['codex', 'programmatic', false],
+    ['claude', 'programmatic', false]
+  ] as const)(
+    'a shell command line `%s "<prompt>"` whose Enter is %s gives its first turn human=%s',
+    (source, author, expected) => {
+      const r = rig(source)
+      r.input(author, `${source} "invented prompt"\r`)
+      r.newSession('invented-launched-session')
+      r.hook('UserPromptSubmit')
+      r.hook('Stop')
+      expect(r.human()).toBe(expected)
+    }
+  )
   it.each(['codex', 'claude'] as const)(
     'S1: the first prompt of every %s session in a PTY keeps its Enter across SessionStart',
     (source) => {

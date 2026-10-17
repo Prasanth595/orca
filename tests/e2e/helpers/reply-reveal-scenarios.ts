@@ -21,7 +21,7 @@ export async function runClaudeReplyScenarios(h: ReplyRevealHarness): Promise<vo
   await h.waitForSubmissions(claude, ++submitted)
   await h.lookElsewhere()
   await setProbeWindowFocused(h.app, true)
-  await h.complete('S2 claude focused window', claude, false)
+  await h.complete('S2 claude focused window', claude, false, { banners: 0 })
   await setProbeWindowFocused(h.app, false)
 
   // S1/S2 with another workspace in view: the banner shows, so only the reveal's own focus check decides.
@@ -61,7 +61,9 @@ export async function runClaudeReplyScenarios(h: ReplyRevealHarness): Promise<vo
   await h.humanType(claude, '')
   await h.lookElsewhere()
   await h.complete('S16 claude program turn after approval Enter', claude, false)
-  await h.complete('S16 claude task-notification wake after approval', claude, false, 'wake')
+  await h.complete('S16 claude task-notification wake after approval', claude, false, {
+    wake: true
+  })
   submitted++
 
   // S4: a person's turn, then a task-notification wake with no new keystroke.
@@ -69,7 +71,7 @@ export async function runClaudeReplyScenarios(h: ReplyRevealHarness): Promise<vo
   await h.waitForSubmissions(claude, ++submitted)
   await h.lookElsewhere()
   await h.complete('S4 claude person turn before wake', claude, true)
-  await h.complete('S4 claude task-notification wake', claude, false, 'wake')
+  await h.complete('S4 claude task-notification wake', claude, false, { wake: true })
   submitted++
 
   // S18: dictation fills the draft through Orca's paste path; the person presses Enter.
@@ -106,7 +108,7 @@ export async function runCodexReplyScenarios(h: ReplyRevealHarness): Promise<voi
   await h.lookElsewhere()
   await h.complete('S1 codex typed prompt', codex, true)
   // S4/S14: subagent mail wakes a new turn id that has no submission hook.
-  await h.complete('S4 codex wake without submission', codex, false, 'wake')
+  await h.complete('S4 codex wake without submission', codex, false, { wake: true })
 
   await h.lookElsewhere()
   await h.programSend(codex, 'worker instruction from orca')
@@ -132,7 +134,7 @@ export async function runCodexReplyScenarios(h: ReplyRevealHarness): Promise<voi
   await h.humanType(codex, '')
   await h.lookElsewhere()
   await h.complete('S16 codex program turn after approval Enter', codex, false)
-  await h.complete('S16 codex wake after approval', codex, false, 'wake')
+  await h.complete('S16 codex wake after approval', codex, false, { wake: true })
 
   // S12: the setting is off.
   await setBringToFront(h.page, false)
