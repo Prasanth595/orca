@@ -20,6 +20,7 @@ import {
   revealInFileManager
 } from '@/lib/reveal-in-file-manager'
 import { isRevealOrEditorOpenBlocked } from '@/lib/local-path-open-guard'
+import { basename } from '@/lib/path'
 import { useAppStore } from '@/store'
 import type { OpenFile } from '@/store/slices/editor'
 import { isVirtualEditorFile } from '@/store/slices/editor/tabs/editor-tab-content-type'
@@ -198,6 +199,17 @@ export function EditorPanelHeaderPath({
                 {translate(
                   'auto.components.editor.EditorPanelHeader.269ce4842b',
                   'Copy Relative Path'
+                )}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  void window.api.ui.writeClipboardText(basename(activeFile.filePath))
+                }}
+              >
+                <Copy className="w-3.5 h-3.5 mr-1.5" />
+                {translate(
+                  'auto.components.editor.EditorPanelHeader.copyFileName',
+                  'Copy File Name'
                 )}
               </DropdownMenuItem>
               <DropdownMenuSeparator />

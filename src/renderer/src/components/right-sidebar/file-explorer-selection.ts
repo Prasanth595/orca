@@ -168,9 +168,18 @@ export function updateFileExplorerSelectionPaths(
   }
 }
 
+export type FileExplorerCopyKind = 'absolute' | 'relative' | 'name'
+
 export function formatFileExplorerPathsForClipboard(
   nodes: readonly TreeNode[],
-  pathKind: 'absolute' | 'relative'
+  pathKind: FileExplorerCopyKind
 ): string {
-  return nodes.map((node) => (pathKind === 'absolute' ? node.path : node.relativePath)).join('\n')
+  return nodes
+    .map((node) => {
+      if (pathKind === 'name') {
+        return node.name
+      }
+      return pathKind === 'absolute' ? node.path : node.relativePath
+    })
+    .join('\n')
 }

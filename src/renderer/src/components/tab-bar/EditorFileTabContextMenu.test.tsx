@@ -212,9 +212,18 @@ async function renderMenu(
     externalSshTargetId?: string
     mode?: 'edit' | 'check-details'
     unifiedTabId?: string
+    filePath?: string
+    relativePath?: string
   } = {}
 ): Promise<unknown> {
-  const { runtimeEnvironmentId, externalSshTargetId, mode = 'edit', ...props } = overrides
+  const {
+    runtimeEnvironmentId,
+    externalSshTargetId,
+    mode = 'edit',
+    filePath = '/repo/foo.ts',
+    relativePath = 'foo.ts',
+    ...props
+  } = overrides
   const module = await import('./EditorFileTabContextMenu')
   return module.EditorFileTabContextMenu({
     open: true,
@@ -222,8 +231,8 @@ async function renderMenu(
     file: {
       id: 'file-1',
       tabId: 'tab-1',
-      filePath: '/repo/foo.ts',
-      relativePath: 'foo.ts',
+      filePath,
+      relativePath,
       worktreeId: 'wt-1',
       language: 'typescript',
       isDirty: false,
@@ -399,6 +408,23 @@ describe('EditorFileTabContextMenu reveal in file manager', () => {
     vi.unstubAllGlobals()
   })
 
+  it('copies the file name without directory prefixes', async () => {
+    const writeClipboardText = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('window', { api: { ui: { writeClipboardText } } })
+    const tree = expandNode(
+      await renderMenu({ filePath: '/repo/src/foo.ts', relativePath: 'src/foo.ts' })
+    )
+    const item = findElementsByType(tree, 'DropdownMenuItem').find(
+      (candidate) => extractText(candidate.props.children) === 'Copy File Name'
+    )
+    const onSelect = item?.props.onSelect
+    if (typeof onSelect !== 'function') {
+      throw new Error('Missing Copy File Name action')
+    }
+    onSelect()
+    expect(writeClipboardText).toHaveBeenCalledExactlyOnceWith('foo.ts')
+  })
+
   it('reveals a local file through the shared reveal action', async () => {
     const reveal = await renderRevealItem()
 
@@ -438,7 +464,9 @@ describe('EditorFileTabContextMenu reveal in file manager', () => {
       )
 
       expect(
-        labels.filter((label) => /Copy Path|Copy Relative Path|Reveal in/.test(label))
+        labels.filter((label) =>
+          /Copy Path|Copy Relative Path|Copy File Name|Reveal in/.test(label)
+        )
       ).toEqual([])
       // The two separators that framed the path group go with it.
       const fileTree = expandNode(await renderMenu())
