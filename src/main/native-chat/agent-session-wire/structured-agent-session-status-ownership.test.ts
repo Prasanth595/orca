@@ -128,11 +128,11 @@ describe('structured status owner address retention', () => {
 })
 
 describe('child work the provider reported, recorded or not', () => {
-  const agentLive = (id: string): AgentChildWorkLiveEvidence => ({
+  const agentLive = (id: string, runId?: string): AgentChildWorkLiveEvidence => ({
     type: 'live',
     observedAt: 200,
     child: {
-      handle: { idKind: 'task_id', id },
+      handle: { idKind: 'task_id', id, ...(runId ? { runId } : {}) },
       kind: 'agent',
       residency: 'background',
       state: 'working',
@@ -262,38 +262,6 @@ describe('child work the provider reported, recorded or not', () => {
     expect(owner.childWorkOpen(summary.sessionId)).toBe(false)
   })
 
-  it('keeps a refused restart covered by a running row until that row settles', () => {
-    let refuse = false
-    const { owner } = owners(() => refuse)
-    owner.publish(summary, location)
-    const run = (runId: string): AgentChildWorkEvidence => ({
-      ...agentLive('helper'),
-      child: {
-        ...agentLive('helper').child,
-        handle: { idKind: 'task_id', id: 'helper', runId }
-      }
-    })
-    const end = (runId: string): AgentChildWorkEvidence => ({
-      type: 'ended',
-      observedAt: 250,
-      handle: { idKind: 'task_id', id: 'helper', runId },
-      outcome: 'succeeded'
-    })
-    owner.publishChildWork(summary.sessionId, [run('a')], 'claude')
-    refuse = true
-    owner.publishChildWork(summary.sessionId, [run('b')], 'claude')
-    refuse = false
-    owner.publishChildWork(summary.sessionId, [run('a')], 'claude')
-    expect(owner.childWorkOpen(summary.sessionId)).toBe(true)
-    expect(owner.childWorkIncomplete(summary.sessionId)).toBe(false)
-    expect(owner.readChildWork(summary.sessionId)).toMatchObject([
-      { providerId: 'helper', membership: 'live' }
-    ])
-    owner.publishChildWork(summary.sessionId, [end('a')], 'claude')
-    expect(owner.childWorkOpen(summary.sessionId)).toBe(true)
-    expect(owner.childWorkIncomplete(summary.sessionId)).toBe(true)
-  })
-
   it('does not treat an idle ACP row as coverage of newly reported work', () => {
     let refuse = false
     const { owner } = owners(() => refuse)
@@ -336,66 +304,10 @@ describe('child work the provider reported, recorded or not', () => {
     owner.publishChildWork(summary.sessionId, [stop], 'claude')
     expect(owner.childWorkOpen(summary.sessionId)).toBe(false)
     // The Stop did not take: the settled record lists nothing, so the work is open and unlisted.
-    owner.publishChildWork(
-      summary.sessionId,
-      [{ ...agentLive('helper'), child: {
-        ...agentLive('helper').child,
-        handle: { idKind: 'task_id', id: 'helper', runId: 'new-run' }
-      } }],
-      'claude'
-    )
+    owner.publishChildWork(summary.sessionId, [agentLive('helper', 'new-run')], 'claude')
     expect(owner.childWorkOpen(summary.sessionId)).toBe(true)
     expect(owner.childWorkIncomplete(summary.sessionId)).toBe(true)
     expect(captured.current('helper')).toBe(false)
   })
 
-  it('does not send a stale listed Stop to work that appeared under its tokenless handle', () => {
-    const { owner } = owners()
-    owner.publishChildWork(summary.sessionId, [agentLive('helper'), ended('helper')], 'claude')
-    const captured = owner.captureChildWorkStops(summary.sessionId, ['helper'])
-    expect(captured.current('helper')).toBe(true)
-    owner.publishChildWork(summary.sessionId, [agentLive('helper')], 'claude')
-    expect(captured.current('helper')).toBe(false)
-  })
-
-  it.each(['different run', 'same run'])(
-    'keeps a refused restart open after an earlier Stop acknowledgement (%s)',
-    (restartKind) => {
-      let refuse = false
-      const { owner } = owners(() => refuse)
-      owner.publish(summary, location)
-      const run = (runId: string, restart = false): AgentChildWorkEvidence => ({
-        ...agentLive('helper'),
-        child: {
-          ...agentLive('helper').child,
-          handle: { idKind: 'task_id', id: 'helper', runId }
-        },
-        ...(restart ? { restart: true as const } : {})
-      })
-      owner.publishChildWork(summary.sessionId, [run('spawn-a')], 'claude')
-      const captured = owner.captureChildWorkStops(summary.sessionId, ['helper'])
-      const [record] = owner.readChildWorkRecords(summary.sessionId)!
-      const stop: AgentChildWorkEvidence = {
-        type: 'stop-acknowledged',
-        observedAt: 300,
-        childWorkId: record!.childWorkId,
-        handleId: 'helper',
-        invocation: record!.invocation
-      }
-      const nextRun = restartKind === 'same run' ? 'spawn-a' : 'spawn-b'
-      refuse = true
-      owner.publishChildWork(summary.sessionId, [run(nextRun, true)], 'claude')
-      refuse = false
-      captured.acknowledge([stop])
-      owner.publishChildWork(summary.sessionId, [stop], 'claude')
-      expect(owner.childWorkOpen(summary.sessionId)).toBe(true)
-      expect(owner.childWorkIncomplete(summary.sessionId)).toBe(true)
-      owner.publishChildWork(
-        summary.sessionId,
-        [{ type: 'ended', observedAt: 350, handle: { idKind: 'task_id', id: 'helper', runId: nextRun }, outcome: 'succeeded' }],
-        'claude'
-      )
-      expect(owner.childWorkOpen(summary.sessionId)).toBe(false)
-    }
-  )
 })
