@@ -1,0 +1,94 @@
+import { createElement } from 'react'
+import { act, create, type ReactTestRenderer } from 'react-test-renderer'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { applyMobileColorScheme } from '../../theme/mobile-theme'
+
+const { initialize, render } = vi.hoisted(() => ({ initialize: vi.fn(), render: vi.fn() }))
+vi.mock('./mermaid-page-engine.generated', () => ({ default: { initialize, render } }))
+vi.mock('../../../../src/shared/mermaid-flowchart-contrast', () => ({
+  readableMermaidFlowchartSvg: (svg: string) => svg
+}))
+vi.mock('react-native', () => ({
+  View: 'View',
+  Text: 'Text',
+  ScrollView: 'ScrollView',
+  StyleSheet: { create: (value: unknown) => value, hairlineWidth: 1 }
+}))
+import { MermaidDiagram } from './MermaidDiagram.web'
+
+function pendingDiagram() {
+  let resolve: (result: { svg: string }) => void = () => {}
+  let reject: (error: Error) => void = () => {}
+  const promise = new Promise<{ svg: string }>((yes, no) => {
+    resolve = yes
+    reject = no
+  })
+  return { promise, resolve, reject }
+}
+
+let renderer: ReactTestRenderer | undefined
+const hosts: { innerHTML: string; replaceChildren: () => void }[] = []
+function mount(sources: string[]) {
+  const children = sources.map((source, index) =>
+    createElement(MermaidDiagram, { key: index, source, base: 15 })
+  )
+  act(() => {
+    renderer = create(createElement('Root', {}, ...children), {
+      createNodeMock: () => {
+        const host = {
+          innerHTML: '',
+          replaceChildren() {
+            this.innerHTML = ''
+          }
+        }
+        hosts.push(host)
+        return host
+      }
+    })
+  })
+}
+afterEach(() => {
+  act(() => renderer?.unmount())
+  renderer = undefined
+  applyMobileColorScheme('dark')
+  hosts.length = 0
+  vi.clearAllMocks()
+})
+
+describe('page Mermaid shared render ownership', () => {
+  it('finishes one diagram before initializing the next and continues after a failure', async () => {
+    const first = pendingDiagram()
+    render
+      .mockImplementationOnce(() => first.promise)
+      .mockResolvedValue({ svg: '<svg>second</svg>' })
+    mount(['flowchart TD\nA-->B', 'flowchart LR\nC-->D'])
+    await act(async () => {
+      await vi.waitFor(() => expect(render).toHaveBeenCalledTimes(1))
+    })
+    expect(initialize).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      first.reject(new Error('Invalid diagram'))
+      await vi.waitFor(() => expect(render).toHaveBeenCalledTimes(2))
+    })
+    expect(hosts.some((host) => host.innerHTML === '<svg>second</svg>')).toBe(true)
+  })
+
+  it('skips obsolete queued themes and never publishes the old-theme result', async () => {
+    const first = pendingDiagram()
+    render
+      .mockImplementationOnce(() => first.promise)
+      .mockResolvedValue({ svg: '<svg>light</svg>' })
+    mount(['flowchart TD\nA-->B', 'flowchart LR\nC-->D'])
+    await act(async () => {
+      await vi.waitFor(() => expect(render).toHaveBeenCalledTimes(1))
+    })
+    act(() => applyMobileColorScheme('light'))
+    expect(initialize).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      first.resolve({ svg: '<svg>obsolete</svg>' })
+      await vi.waitFor(() => expect(render).toHaveBeenCalledTimes(3))
+    })
+    expect(hosts.every((host) => !host.innerHTML.includes('obsolete'))).toBe(true)
+    expect(hosts.filter((host) => host.innerHTML.includes('light'))).toHaveLength(2)
+  })
+})

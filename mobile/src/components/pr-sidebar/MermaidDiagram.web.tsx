@@ -7,7 +7,7 @@ import { colors, radii, spacing, typography } from '../../theme/mobile-theme'
 // The native component's own prop type, so a change to it fails here rather than drifting.
 import type { MermaidDiagramProps } from './MermaidDiagram'
 import { MERMAID_DIAGRAM_CONFIG } from './mermaid-diagram-config'
-import { loadPageMermaid } from './mermaid-page-engine'
+import { enqueuePageMermaidRender, loadPageMermaid } from './mermaid-page-engine'
 
 /**
  * Web sibling: the same diagram, drawn by mermaid in this document.
@@ -50,9 +50,15 @@ export const MermaidDiagram = memo(function MermaidDiagram({ source, base }: Mer
       return
     }
     let disposed = false
-    void (async () => {
+    enqueuePageMermaidRender(async () => {
       try {
+        if (disposed) {
+          return
+        }
         const mermaid = await loadPageMermaid()
+        if (disposed) {
+          return
+        }
         mermaid.initialize(MERMAID_DIAGRAM_CONFIG)
         const { svg } = await mermaid.render(id, source)
         if (disposed) {
@@ -66,7 +72,7 @@ export const MermaidDiagram = memo(function MermaidDiagram({ source, base }: Mer
           setFailedSource(source)
         }
       }
-    })()
+    })
     return () => {
       disposed = true
       // React owns this element, not what mermaid put inside it, so nothing else clears the
