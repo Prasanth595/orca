@@ -95,8 +95,8 @@ export function createAgentReplyEligibility(
       const paneKey = request.paneKey
       const startedGeneration = generation
       const revision = revisions.get(paneKey)
-      const current = (): boolean =>
-        enabled && generation === startedGeneration && revisions.get(paneKey) === revision
+      const sameSettings = (): boolean => enabled && generation === startedGeneration
+      const current = (): boolean => sameSettings() && revisions.get(paneKey) === revision
       if (request.surface === 'agent-session') {
         const origin = request.structuredOrigin
         const host = getStructuredAgentSessionHost()
@@ -148,7 +148,7 @@ export function createAgentReplyEligibility(
             )
           : false)
       const stillCurrent = () =>
-        current() &&
+        sameSettings() &&
         tracker.completion(paneKey) === completion &&
         localPtyId(paneKey) === submittedPtyIds.get(paneKey)
       const eligible = human && stillCurrent()

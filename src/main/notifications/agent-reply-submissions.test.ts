@@ -28,7 +28,9 @@ function rig(source: AgentHookSource = 'codex') {
     if (!event) {
       throw new Error('fixture hook was not normalized')
     }
-    tracker.observe({ ...event, receivedAt: 1, stateStartedAt: 1 })
+    const enriched = { ...event, receivedAt: 1, stateStartedAt: 1 }
+    tracker.observe(enriched)
+    return enriched
   }
   const input = (author: 'human' | 'programmatic', data = '\r') =>
     facts.recordInput('pty', 'driving', data, undefined, author)
@@ -150,6 +152,23 @@ describe('live submit keys joined to exact main-agent hook turns', () => {
     r.hook('PreToolUse')
     expect(r.tracker.completion(PANE_KEY)).toBeUndefined()
     r.hook('Stop')
+    expect(r.human()).toBe(true)
+  })
+
+  it('keeps a completed main reply while the combined pane still has background work', () => {
+    const r = rig()
+    r.input('human')
+    r.hook('UserPromptSubmit')
+    const stopped = r.hook('Stop')
+    r.tracker.observe({
+      ...stopped,
+      hookEventName: 'PostToolUse',
+      payload: {
+        ...stopped.payload,
+        state: 'working',
+        mainAgent: { state: 'done', stateStartedAt: 1, outcome: 'success' }
+      }
+    })
     expect(r.human()).toBe(true)
   })
 

@@ -27,8 +27,9 @@ export class AgentReplySubmissions {
     if (event.connectionId || event.toolAgentId || event.isReplay || event.providerSessionOnly) {
       return
     }
+    const mainState = event.payload.mainAgent?.state ?? event.payload.state
     if (event.observation && event.observation.origin !== 'hook') {
-      if (event.payload.state === 'working') {
+      if (mainState === 'working') {
         this.clearCompletion(event.paneKey)
       }
       return
@@ -81,7 +82,7 @@ export class AgentReplySubmissions {
         transcriptPath: event.providerSession?.transcriptPath,
         human: pane.turns.get(promptId) === true
       }
-    } else if (event.payload.state === 'working') {
+    } else if (mainState === 'working') {
       pane.completion = undefined
     }
   }
