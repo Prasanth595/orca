@@ -11,7 +11,17 @@ import { extractSymbols, symbolAtLine } from './editor-symbol-extractor'
 import type { EditorSymbol } from './editor-symbol-extractor'
 import { translate } from '@/i18n/i18n'
 
-const SUPPORTED_LANGUAGES = new Set(['python', 'c', 'cpp', 'systemverilog', 'verilog'])
+const SUPPORTED_LANGUAGES = new Set([
+  'python',
+  'c',
+  'cpp',
+  'systemverilog',
+  'verilog',
+  'typescript',
+  'javascript',
+  'typescriptreact',
+  'javascriptreact'
+])
 
 function symbolIcon(kind: EditorSymbol['kind']): string {
   switch (kind) {

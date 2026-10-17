@@ -181,6 +181,130 @@ export function extractSVSymbols(content: string): EditorSymbol[] {
   return symbols
 }
 
+// ─── TypeScript / JavaScript ─────────────────────────────────────────────────
+
+// Class declaration: optional export/abstract/declare
+const TS_CLASS_RE =
+  /^([ \t]*)(?:export\s+)?(?:declare\s+)?(?:abstract\s+)?class\s+([A-Za-z_$][\w$]*)/gm
+
+// Function declaration: optional export/async/generator
+const TS_FUNC_RE =
+  /^([ \t]*)(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)\s*[(<]/gm
+
+// Const/let/var arrow or function expression assigned to an identifier
+// Matches: [export] const Foo = [async] ([...]) => | [async] function
+const TS_ARROW_RE =
+  /^([ \t]*)(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::[^=]*)?\s*=\s*(?:async\s+)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>/gm
+
+// Interface declaration
+const TS_IFACE_RE = /^([ \t]*)(?:export\s+)?(?:declare\s+)?interface\s+([A-Za-z_$][\w$]*)/gm
+
+// Type alias: export? type Foo = ...
+const TS_TYPE_RE = /^([ \t]*)(?:export\s+)?type\s+([A-Za-z_$][\w$]*)\s*[=<]/gm
+
+// Enum: export? const? enum Foo
+const TS_ENUM_RE = /^([ \t]*)(?:export\s+)?(?:declare\s+)?(?:const\s+)?enum\s+([A-Za-z_$][\w$]*)/gm
+
+// Class method: indented identifier followed by ( — guards against control-flow keywords
+const TS_METHOD_RE =
+  /^([ \t]+)(?:(?:public|private|protected|static|async|override|abstract|readonly|get|set)\s+)*([A-Za-z_$][\w$]*)\s*[(<]/gm
+
+const TS_CONTROL_FLOW = new Set([
+  'if',
+  'for',
+  'while',
+  'switch',
+  'catch',
+  'do',
+  'return',
+  'throw',
+  'new',
+  'delete',
+  'typeof',
+  'void',
+  'instanceof',
+  'in',
+  'of',
+  'case',
+  'default',
+  'break',
+  'continue',
+  'import',
+  'from',
+  'await',
+  'yield',
+  'super',
+  'this'
+])
+
+export function extractTypeScriptSymbols(content: string): EditorSymbol[] {
+  const lines = content.split('\n')
+  const seen = new Set<number>()
+  const symbols: EditorSymbol[] = []
+
+  const add = (name: string, kind: EditorSymbol['kind'], matchIndex: number): void => {
+    const lineNumber = content.slice(0, matchIndex).split('\n').length
+    if (seen.has(lineNumber)) {
+      return
+    }
+    seen.add(lineNumber)
+    const endLine = parseRange(lines, lineNumber)
+    symbols.push({ name, kind, line: lineNumber, endLine })
+  }
+
+  let m: RegExpExecArray | null
+
+  // Classes
+  TS_CLASS_RE.lastIndex = 0
+  while ((m = TS_CLASS_RE.exec(content)) !== null) {
+    add(m[2]!, 'class', m.index)
+  }
+
+  // Function declarations
+  TS_FUNC_RE.lastIndex = 0
+  while ((m = TS_FUNC_RE.exec(content)) !== null) {
+    const indent = m[1]!.length
+    add(m[2]!, indent === 0 ? 'function' : 'method', m.index)
+  }
+
+  // Arrow / function expressions assigned to a name
+  TS_ARROW_RE.lastIndex = 0
+  while ((m = TS_ARROW_RE.exec(content)) !== null) {
+    const indent = m[1]!.length
+    add(m[2]!, indent === 0 ? 'function' : 'method', m.index)
+  }
+
+  // Interfaces (mapped to 'class' — structurally equivalent for navigation)
+  TS_IFACE_RE.lastIndex = 0
+  while ((m = TS_IFACE_RE.exec(content)) !== null) {
+    add(m[2]!, 'class', m.index)
+  }
+
+  // Type aliases
+  TS_TYPE_RE.lastIndex = 0
+  while ((m = TS_TYPE_RE.exec(content)) !== null) {
+    add(m[2]!, 'variable', m.index)
+  }
+
+  // Enums
+  TS_ENUM_RE.lastIndex = 0
+  while ((m = TS_ENUM_RE.exec(content)) !== null) {
+    add(m[2]!, 'enum', m.index)
+  }
+
+  // Class methods (indented, not already captured)
+  TS_METHOD_RE.lastIndex = 0
+  while ((m = TS_METHOD_RE.exec(content)) !== null) {
+    const name = m[2]!
+    if (TS_CONTROL_FLOW.has(name) || name === 'constructor') {
+      continue
+    }
+    add(name, 'method', m.index)
+  }
+
+  return symbols.sort((a, b) => a.line - b.line)
+}
+
 // ─── Shared helpers ──────────────────────────────────────────────────────────
 
 function parseRange(lines: string[], startLine: number): number {
@@ -222,6 +346,14 @@ export function extractSymbols(languageId: string, content: string): EditorSymbo
   }
   if (languageId === 'systemverilog' || languageId === 'verilog') {
     return extractSVSymbols(content)
+  }
+  if (
+    languageId === 'typescript' ||
+    languageId === 'javascript' ||
+    languageId === 'typescriptreact' ||
+    languageId === 'javascriptreact'
+  ) {
+    return extractTypeScriptSymbols(content)
   }
   return []
 }
