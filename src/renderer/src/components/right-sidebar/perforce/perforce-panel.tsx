@@ -27,6 +27,7 @@ import { SectionHeader } from './perforce-section-header'
 import { usePerforceChangelistActions } from './use-perforce-changelist-actions'
 import { usePerforceSettings } from './use-perforce-settings'
 import { usePerforceStatus } from './use-perforce-status'
+import { PerforceHistorySection } from './perforce-history-section'
 import { translate } from '@/i18n/i18n'
 import { perforceClient } from '@/runtime/runtime-perforce-client'
 
@@ -359,6 +360,7 @@ export function PerforcePanel({
         {perforceSectionOrder(settings.groupOrder).map((id) => (
           <Fragment key={id}>{sections[id]}</Fragment>
         ))}
+        <PerforceHistorySection target={target} worktreeId={worktreeId} />
       </div>
       {newChangelistPaths ? (
         <NewChangelistDialog

@@ -13,6 +13,7 @@ import type {
 import { escapeP4FileArg, runP4, runP4OrThrow, type P4CommandResult } from './p4-command'
 import { currentPerforceSettings } from './p4-settings-context'
 import { parseShelvedDiffPath } from './perforce-shelved-paths'
+import { tryGetPerforceSubmittedDiff } from './perforce-submitted-diff'
 import { parseTaggedOutput } from './p4-tagged-output'
 import { detectPerforceWorkspace, toPosix } from './perforce-detection'
 
@@ -236,6 +237,11 @@ async function readWorkingFile(cwd: string, filePath: string): Promise<string | 
 
 /** Diff of the workspace file against the synced revision (`#have`) or the depot head, per settings. */
 export async function getPerforceDiff(cwd: string, rawFilePath: string): Promise<GitDiffResult> {
+  const submittedDiff = await tryGetPerforceSubmittedDiff(cwd, rawFilePath)
+  if (submittedDiff) {
+    return submittedDiff
+  }
+
   const shelved = parseShelvedDiffPath(rawFilePath)
   const filePath = shelved?.path ?? rawFilePath
   const revision = shelved

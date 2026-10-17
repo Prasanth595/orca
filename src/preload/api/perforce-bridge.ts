@@ -24,5 +24,6 @@ export const perforceApi = {
   editDescription: (args) => ipcRenderer.invoke('perforce:editDescription', args),
   createChangelist: (args) => ipcRenderer.invoke('perforce:createChangelist', args),
   moveToChangelist: (args) => ipcRenderer.invoke('perforce:moveToChangelist', args),
-  deleteChangelist: (args) => ipcRenderer.invoke('perforce:deleteChangelist', args)
+  deleteChangelist: (args) => ipcRenderer.invoke('perforce:deleteChangelist', args),
+  describeChange: (args) => ipcRenderer.invoke('perforce:describeChange', args)
 } satisfies PreloadApi['perforce']

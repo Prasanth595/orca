@@ -31,12 +31,14 @@ import {
   getPerforceInfo,
   getPerforceStatus
 } from './perforce-status'
+import { getPerforceSubmittedFiles } from './perforce-submitted-diff'
 import type {
   PerforceDetectResult,
   PerforceEntry,
   PerforceHistoryEntry,
   PerforceOperationResult,
-  PerforceStatusResult
+  PerforceStatusResult,
+  PerforceSubmittedFile
 } from './perforce-types'
 
 type Cwd = string
@@ -90,6 +92,7 @@ export type PerforceBackend = {
   ) => Promise<PerforceOperationResult>
   deleteChangelist: (cwd: Cwd, changelist: number) => Promise<PerforceOperationResult>
   deleteChangelistWithFiles: (cwd: Cwd, changelist: number) => Promise<PerforceOperationResult>
+  describeChange: (cwd: Cwd, changelist: number) => Promise<PerforceSubmittedFile[]>
   checkoutIfReadOnly: (cwd: Cwd, filePath: string) => Promise<void>
   isReadOnlyFile: (cwd: Cwd, filePath: string) => Promise<boolean>
   diffText: (cwd: Cwd, filePaths: Files) => Promise<string>
@@ -121,6 +124,7 @@ export const localPerforceBackend: PerforceBackend = {
   moveToChangelist: moveFilesToChangelist,
   deleteChangelist: deleteEmptyChangelist,
   deleteChangelistWithFiles,
+  describeChange: getPerforceSubmittedFiles,
   checkoutIfReadOnly,
   isReadOnlyFile: isReadOnlyWorkspaceFile,
   diffText: getPerforceDiffText,
