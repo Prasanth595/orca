@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { ChevronRight, File, Folder } from 'lucide-react'
+import { ChevronLeft, ChevronRight, File, Folder } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,7 +15,8 @@ import { translate } from '@/i18n/i18n'
 
 type Segment = {
   label: string
-  dirPath: string
+  /** Full path this segment represents (dir or file). */
+  fullPath: string
 }
 
 type DirEntry = {
@@ -34,59 +35,82 @@ function splitIntoSegments(filePath: string, worktreePath: string | null): Segme
   let currentPath = worktreePath ?? ''
   for (const part of parts) {
     currentPath = currentPath ? `${currentPath}${sep}${part}` : part
-    segments.push({ label: part, dirPath: currentPath })
+    segments.push({ label: part, fullPath: currentPath })
   }
   return segments
 }
 
 type SegmentPickerProps = {
   segment: Segment
-  parentDir: string
+  /** Directory whose siblings are shown when the picker first opens. */
+  siblingDir: string
   worktreeId: string
   onNavigate: (filePath: string) => void
+  /** Applies the filename styling (foreground + semi-bold). */
+  isCurrentFile?: boolean
 }
 
 function SegmentPicker({
   segment,
-  parentDir,
+  siblingDir,
   worktreeId,
-  onNavigate
+  onNavigate,
+  isCurrentFile
 }: SegmentPickerProps): React.JSX.Element {
   const [open, setOpen] = useState(false)
+  const [currentDir, setCurrentDir] = useState(siblingDir)
   const [entries, setEntries] = useState<DirEntry[] | null>(null)
   const [loading, setLoading] = useState(false)
   const worktreePath = useAppStore(
     (s) => getIndexedWorktreeById(s.worktreesByRepo, worktreeId)?.path ?? null
   )
 
-  const loadEntries = useCallback(async () => {
-    if (loading || entries !== null) {
-      return
-    }
-    setLoading(true)
-    try {
-      const result = await readFileExplorerDirectory(worktreeId, worktreePath, parentDir)
-      setEntries(result.entries)
-    } catch {
-      setEntries([])
-    } finally {
-      setLoading(false)
-    }
-  }, [entries, loading, parentDir, worktreeId, worktreePath])
+  const loadDir = useCallback(
+    async (dir: string) => {
+      setLoading(true)
+      try {
+        const result = await readFileExplorerDirectory(worktreeId, worktreePath, dir)
+        setEntries(result.entries)
+      } catch {
+        setEntries([])
+      } finally {
+        setLoading(false)
+      }
+    },
+    [worktreeId, worktreePath]
+  )
 
   const handleOpenChange = (next: boolean): void => {
-    setOpen(next)
     if (next) {
-      void loadEntries()
+      // Reset to the sibling directory every time the picker opens.
+      setCurrentDir(siblingDir)
+      setEntries(null)
+      void loadDir(siblingDir)
     }
+    setOpen(next)
   }
+
+  const drillDown = (dirPath: string): void => {
+    setCurrentDir(dirPath)
+    setEntries(null)
+    void loadDir(dirPath)
+  }
+
+  const goUp = (): void => {
+    const parent = dirname(currentDir)
+    setCurrentDir(parent)
+    setEntries(null)
+    void loadDir(parent)
+  }
+
+  const isDrilled = currentDir !== siblingDir
 
   return (
     <DropdownMenu open={open} onOpenChange={handleOpenChange} modal={false}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="breadcrumb-segment"
+          className={`breadcrumb-segment${isCurrentFile ? ' breadcrumb-segment--file' : ''}`}
           aria-label={translate(
             'auto.components.editor.editorBreadcrumbs.fileBreadcrumbs.segmentLabel',
             'Navigate {{value0}}',
@@ -96,39 +120,55 @@ function SegmentPicker({
           {segment.label}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-64 p-0" align="start" sideOffset={4}>
-        <div className="max-h-72 overflow-y-auto scrollbar-sleek p-1">
-          {loading && (
-            <div className="px-3 py-1.5 text-xs text-muted-foreground">
-              {translate(
-                'auto.components.editor.editorBreadcrumbs.fileBreadcrumbs.loading',
-                'Loading…'
+      <DropdownMenuContent className="w-64 max-h-72" align="start" sideOffset={4}>
+        {isDrilled && (
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault()
+              goUp()
+            }}
+          >
+            <ChevronLeft className="size-3.5 shrink-0 text-muted-foreground" />
+            <span className="truncate text-muted-foreground">..</span>
+          </DropdownMenuItem>
+        )}
+        {loading && (
+          <div className="px-3 py-1.5 text-xs text-muted-foreground">
+            {translate(
+              'auto.components.editor.editorBreadcrumbs.fileBreadcrumbs.loading',
+              'Loading…'
+            )}
+          </div>
+        )}
+        {entries?.map((entry) => {
+          const entryPath = joinPath(currentDir, entry.name)
+          // Highlight the current segment only when not drilled into a subdirectory.
+          const isActive = !isDrilled && entryPath === segment.fullPath
+          return (
+            <DropdownMenuItem
+              key={entry.name}
+              active={isActive}
+              onSelect={(e) => {
+                if (entry.isDirectory) {
+                  e.preventDefault()
+                  drillDown(entryPath)
+                } else {
+                  onNavigate(entryPath)
+                }
+              }}
+            >
+              {entry.isDirectory ? (
+                <Folder className="size-3.5 shrink-0 text-muted-foreground" />
+              ) : (
+                <File className="size-3.5 shrink-0 text-muted-foreground" />
               )}
-            </div>
-          )}
-          {entries?.map((entry) => {
-            const entryPath = joinPath(parentDir, entry.name)
-            const isActive = entryPath === segment.dirPath
-            return (
-              <DropdownMenuItem
-                key={entry.name}
-                active={isActive}
-                onSelect={() => {
-                  if (!entry.isDirectory) {
-                    onNavigate(entryPath)
-                  }
-                }}
-              >
-                {entry.isDirectory ? (
-                  <Folder className="size-3.5 shrink-0 text-muted-foreground" />
-                ) : (
-                  <File className="size-3.5 shrink-0 text-muted-foreground" />
-                )}
-                <span className="truncate">{entry.name}</span>
-              </DropdownMenuItem>
-            )
-          })}
-        </div>
+              <span className="truncate">{entry.name}</span>
+              {entry.isDirectory && (
+                <ChevronRight className="ml-auto size-3 shrink-0 text-muted-foreground" />
+              )}
+            </DropdownMenuItem>
+          )
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -152,21 +192,20 @@ export function EditorFileBreadcrumbs({
     <div className="breadcrumbs-file" aria-label="File path">
       {segments.map((segment, i) => {
         const isLast = i === segments.length - 1
-        const parentDir =
-          i === 0 ? (worktreePath ?? dirname(segment.dirPath)) : dirname(segment.dirPath)
+        // siblingDir: for the first segment use worktreePath (or its own parent), for others use
+        // the parent of this segment. The last segment (file) uses its own parent directory.
+        const siblingDir =
+          i === 0 ? (worktreePath ?? dirname(segment.fullPath)) : dirname(segment.fullPath)
         return (
-          <span key={segment.dirPath} className="breadcrumb-item">
+          <span key={segment.fullPath} className="breadcrumb-item">
             {i > 0 && <ChevronRight className="breadcrumb-sep" aria-hidden />}
-            {isLast ? (
-              <span className="breadcrumb-segment breadcrumb-segment--file">{segment.label}</span>
-            ) : (
-              <SegmentPicker
-                segment={segment}
-                parentDir={parentDir}
-                worktreeId={activeFile.worktreeId}
-                onNavigate={onNavigate}
-              />
-            )}
+            <SegmentPicker
+              segment={segment}
+              siblingDir={siblingDir}
+              worktreeId={activeFile.worktreeId}
+              onNavigate={onNavigate}
+              isCurrentFile={isLast}
+            />
           </span>
         )
       })}

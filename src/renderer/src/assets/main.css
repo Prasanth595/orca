@@ -1442,7 +1442,6 @@ html.native-shell .app-layout {
 .breadcrumb-segment--file {
   color: var(--foreground);
   font-weight: 500;
-  cursor: default;
   max-width: none;
 }
 

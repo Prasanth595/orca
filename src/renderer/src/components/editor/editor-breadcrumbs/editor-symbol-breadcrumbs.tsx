@@ -95,21 +95,19 @@ export function EditorSymbolBreadcrumbs({
             )}
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-64 p-0" align="start" sideOffset={4}>
-          <div className="max-h-72 overflow-y-auto scrollbar-sleek p-1">
-            {symbols.map((sym) => (
-              <DropdownMenuItem
-                key={`${sym.name}-${sym.line}`}
-                variant="mono"
-                active={sym === activeSymbol}
-                onSelect={() => onRevealLine(sym.line)}
-              >
-                <SymbolKindBadge kind={sym.kind} />
-                <span className="truncate">{sym.name}</span>
-                <span className="ml-auto text-muted-foreground tabular-nums">:{sym.line}</span>
-              </DropdownMenuItem>
-            ))}
-          </div>
+        <DropdownMenuContent className="w-64 max-h-72" align="start" sideOffset={4}>
+          {symbols.map((sym) => (
+            <DropdownMenuItem
+              key={`${sym.name}-${sym.line}`}
+              variant="mono"
+              active={sym === activeSymbol}
+              onSelect={() => onRevealLine(sym.line)}
+            >
+              <SymbolKindBadge kind={sym.kind} />
+              <span className="truncate">{sym.name}</span>
+              <span className="ml-auto text-muted-foreground tabular-nums">:{sym.line}</span>
+            </DropdownMenuItem>
+          ))}
         </DropdownMenuContent>
       </DropdownMenu>
     </span>
