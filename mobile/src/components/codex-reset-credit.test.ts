@@ -1,4 +1,7 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const uuid = vi.hoisted(() => ({ next: vi.fn<() => string>() }))
+vi.mock('../platform/random-v4-uuid', () => ({ randomV4Uuid: uuid.next }))
 
 import type { AccountsSnapshot, ProviderRateLimits } from './accounts-snapshot'
 import {
@@ -163,6 +166,13 @@ describe('getCodexResetCreditOutcomeCopy', () => {
 })
 
 describe('requestCodexResetCredit', () => {
+  beforeEach(() => {
+    uuid.next
+      .mockReset()
+      .mockReturnValueOnce(UUID)
+      .mockReturnValueOnce('22222222-2222-4222-8222-222222222222')
+  })
+
   function reply(result: unknown) {
     return vi.fn().mockResolvedValue({
       id: 'request-1',
@@ -177,9 +187,11 @@ describe('requestCodexResetCredit', () => {
     const expectedScope = getCodexResetCreditScope(snapshot)!
     const sendRequest = reply({ outcome: 'reset', scope: expectedScope, snapshot })
 
-    await expect(
-      requestCodexResetCredit({ sendRequest }, { expectedScope, createIdempotencyKey: () => UUID })
-    ).resolves.toEqual({ outcome: 'reset', scope: expectedScope, snapshot })
+    await expect(requestCodexResetCredit({ sendRequest }, expectedScope)).resolves.toEqual({
+      outcome: 'reset',
+      scope: expectedScope,
+      snapshot
+    })
     expect(sendRequest).toHaveBeenCalledWith(
       'accounts.consumeCodexResetCredit',
       { idempotencyKey: UUID, expectedScope },
@@ -191,27 +203,42 @@ describe('requestCodexResetCredit', () => {
     const snapshot = makeSnapshot()
     const expectedScope = getCodexResetCreditScope(snapshot)!
     const lost = vi.fn().mockRejectedValue(new Error('connection lost'))
-    await expect(
-      requestCodexResetCredit(
-        { sendRequest: lost },
-        { expectedScope, createIdempotencyKey: () => UUID }
-      )
-    ).rejects.toThrow('connection lost')
+    await expect(requestCodexResetCredit({ sendRequest: lost }, expectedScope)).rejects.toThrow(
+      'connection lost'
+    )
 
     // The host answers a same-offer retry under a new key with the attempt it already recorded.
     const retryKey = '22222222-2222-4222-8222-222222222222'
     const retry = reply({ outcome: 'alreadyRedeemed', scope: expectedScope, snapshot })
     await expect(
-      requestCodexResetCredit(
-        { sendRequest: retry },
-        { expectedScope, createIdempotencyKey: () => retryKey }
-      )
+      requestCodexResetCredit({ sendRequest: retry }, expectedScope)
     ).resolves.toMatchObject({ outcome: 'alreadyRedeemed', scope: expectedScope })
     expect(retry).toHaveBeenCalledWith(
       'accounts.consumeCodexResetCredit',
       { idempotencyKey: retryKey, expectedScope },
       { timeoutMs: 90_000 }
     )
+  })
+
+  it('accepts the account unresolved attempt the host resumes when the retry names a newer offer', async () => {
+    const snapshot = makeSnapshot()
+    const originalScope = getCodexResetCreditScope(snapshot)!
+    await expect(
+      requestCodexResetCredit(
+        { sendRequest: vi.fn().mockRejectedValue(new Error('lost')) },
+        originalScope
+      )
+    ).rejects.toThrow('lost')
+
+    // The refresh after the unknown outcome moved the offer, so the next confirm names a new one.
+    const refreshed = makeSnapshot()
+    refreshed.rateLimits.codex!.updatedAt = 101
+    const refreshedScope = getCodexResetCreditScope(refreshed)!
+    expect(refreshedScope.offerRevision).not.toBe(originalScope.offerRevision)
+    const resumed = reply({ outcome: 'reset', scope: originalScope, snapshot: refreshed })
+    await expect(
+      requestCodexResetCredit({ sendRequest: resumed }, refreshedScope)
+    ).resolves.toMatchObject({ outcome: 'reset', scope: originalScope })
   })
 
   it('returns a definite stale-offer rejection for the screen to re-confirm', async () => {
@@ -228,10 +255,7 @@ describe('requestCodexResetCredit', () => {
     })
 
     await expect(
-      requestCodexResetCredit(
-        { sendRequest: staleResponse },
-        { expectedScope: originalScope, createIdempotencyKey: () => UUID }
-      )
+      requestCodexResetCredit({ sendRequest: staleResponse }, originalScope)
     ).resolves.toEqual({
       status: 'rejectedBeforeProvider',
       retryDisposition: 'discardAttempt',
@@ -253,7 +277,7 @@ describe('requestCodexResetCredit', () => {
             snapshot
           })
         },
-        { expectedScope, createIdempotencyKey: () => UUID }
+        expectedScope
       )
     ).rejects.toThrow('Invalid reset response from host')
     await expect(
@@ -263,11 +287,11 @@ describe('requestCodexResetCredit', () => {
             status: 'rejectedBeforeProvider',
             retryDisposition: 'discardAttempt',
             reason: 'offerChanged',
-            scope: { ...expectedScope, offerRevision: 'v1:wrong' },
+            scope: { ...expectedScope, accountRevision: expectedScope.accountRevision + 1 },
             snapshot
           })
         },
-        { expectedScope, createIdempotencyKey: () => UUID }
+        expectedScope
       )
     ).rejects.toThrow('Invalid reset response from host')
     await expect(
@@ -279,7 +303,7 @@ describe('requestCodexResetCredit', () => {
             snapshot: { ...snapshot, codex: { ...snapshot.codex, accounts: {} } }
           })
         },
-        { expectedScope, createIdempotencyKey: () => UUID }
+        expectedScope
       )
     ).rejects.toThrow('Invalid accounts snapshot from host')
   })
@@ -297,7 +321,7 @@ describe('requestCodexResetCredit', () => {
             snapshot: wrongAccountSnapshot
           })
         },
-        { expectedScope, createIdempotencyKey: () => UUID }
+        expectedScope
       )
     ).rejects.toThrow('Invalid reset response from host')
   })

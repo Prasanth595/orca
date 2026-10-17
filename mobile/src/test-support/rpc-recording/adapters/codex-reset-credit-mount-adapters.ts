@@ -57,10 +57,7 @@ export function codexResetCreditMountAdapters(
           if (!expectedScope) {
             throw new Error('The recorded snapshot offers no reset credit to confirm')
           }
-          const pending = credit.requestCodexResetCredit(client, {
-            expectedScope,
-            createIdempotencyKey: () => globalThis.crypto.randomUUID()
-          })
+          const pending = credit.requestCodexResetCredit(client, expectedScope)
           void pending.then(
             (result) => {
               settled = { outcome: 'outcome' in result ? result.outcome : result.status }

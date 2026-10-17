@@ -1,4 +1,4 @@
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -6,7 +6,6 @@ import { describe, expect, it } from 'vitest'
 import {
   MOBILE_WEB_APP_ROUTE_ROOT,
   ROUTE_CONTEXT_SOURCE,
-  SHELL_ONLY_ROUTE_KEYS,
   ROUTE_MODULE_SYNCHRONOUS_EXPORTS,
   collectMobileWebAppRouteKeys,
   collectMobileWebAppRoutes,
@@ -45,25 +44,6 @@ describe('route manifest', () => {
       join(appDir, '_layout.web.tsx')
     )
     expect(keys).not.toContain('./pair.tsx')
-  })
-
-  it('leaves out the shell-only routes, each still a file and still off the page stack', async () => {
-    const keys = await collectMobileWebAppRouteKeys(appDir)
-    expect(keys).not.toContain('./h/[hostId]/edit.tsx')
-    for (const key of SHELL_ONLY_ROUTE_KEYS) {
-      expect(keys).not.toContain(key)
-      // A stale entry would read as a fence while excluding nothing.
-      await access(join(appDir, key))
-    }
-    // The page's stack declares no screen the bundle lacks, or expo-router warns on every mount.
-    const stack = await readFile(
-      join(projectDir, 'mobile', 'src', 'navigation', 'host-stack-screens.ts'),
-      'utf8'
-    )
-    const shellOnlyScreens = [...stack.matchAll(/name: '([^']+)'[^}]*shellOnly: true/g)].map(
-      ([, name]) => `./h/${name}.tsx`
-    )
-    expect(shellOnlyScreens).toEqual(SHELL_ONLY_ROUTE_KEYS)
   })
 
   it('carries no root layout for a tree without a web sibling of it', async () => {

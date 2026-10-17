@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { View, Text, Pressable, ScrollView, ActivityIndicator, RefreshControl } from 'react-native'
+import { View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect, useLocalSearchParams } from 'expo-router'
 import { ChevronLeft, Check, RefreshCw, User } from 'lucide-react-native'
@@ -226,7 +226,7 @@ export function MobileAccountsScreen() {
           >
             <View style={styles.rowMain}>
               <Text style={styles.rowTitle}>System default</Text>
-              <Text style={styles.rowSubtitle}>Use the agent's own login</Text>
+              <Text style={styles.rowSubtitle}>Use the agent&apos;s own login</Text>
               {/* Why: when system default is the active selection, activeUsage
                   holds the system-default login's rate limits — surface them
                   here so non-managed users still see their usage. */}
@@ -367,13 +367,6 @@ export function MobileAccountsScreen() {
 
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + spacing.xl }]}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={refresh}
-            tintColor={colors.textSecondary}
-          />
-        }
       >
         {connState !== 'connected' && !snapshot ? (
           <View style={styles.placeholder}>
@@ -416,7 +409,6 @@ export function MobileAccountsScreen() {
         message={notice?.message}
         confirmLabel="OK"
         cancelLabel={null}
-        onConfirm={() => {}}
         onCancel={() => setNotice(null)}
       />
     </SafeAreaView>

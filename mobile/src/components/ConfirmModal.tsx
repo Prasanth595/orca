@@ -9,7 +9,8 @@ type ContentProps = {
   /** `null` drops the Cancel button, for a notice that only needs acknowledging. */
   cancelLabel?: string | null
   destructive?: boolean
-  onConfirm: () => void
+  /** Optional for a notice, whose one button only dismisses. */
+  onConfirm?: () => void
   onCancel: () => void
 }
 
@@ -54,7 +55,7 @@ export function ConfirmContent({
             pressed && styles.pressed
           ]}
           onPress={() => {
-            onConfirm()
+            onConfirm?.()
             onCancel()
           }}
         >

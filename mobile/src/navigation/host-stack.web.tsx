@@ -14,16 +14,13 @@ import { HOST_STACK_SCREENS, type HostStackAnimation } from './host-stack-screen
 export function HostStack({ animation }: { animation: HostStackAnimation }) {
   return (
     <Navigator>
-      {PAGE_HOST_STACK_SCREENS.map(({ name, title }) => (
+      {HOST_STACK_SCREENS.map(({ name, title }) => (
         <Navigator.Screen key={name} name={name} options={{ title }} />
       ))}
       <HostStackView animation={animation} />
     </Navigator>
   )
 }
-
-// A screen declared with no route behind it makes expo-router warn on every mount.
-const PAGE_HOST_STACK_SCREENS = HOST_STACK_SCREENS.filter((screen) => !('shellOnly' in screen))
 
 const SLIDE_MS = 300
 // Bounds the wait for a suspended screen, so a route that renders nothing still arrives.

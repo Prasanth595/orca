@@ -407,14 +407,16 @@ describe('CodexAccountService config sync', () => {
       createRuntimeHome() as never
     )
 
-    // A different offer for the account cannot start while this one's outcome is unknown.
+    // The refresh after the unknown outcome moved the offer, so the retry names a newer one; it
+    // resumes the account's unresolved attempt under that attempt's own key and scope.
     await expect(
       restarted.consumeRateLimitResetCredit('99999999-9999-4999-8999-999999999999', {
         ...expectedScope,
         offerRevision: 'v1:newer'
       })
-    ).rejects.toThrow('unknown outcome')
-    expect(replayConsume).not.toHaveBeenCalled()
+    ).resolves.toMatchObject({ outcome: 'alreadyRedeemed', scope: expectedScope })
+    expect(replayConsume).toHaveBeenCalledOnce()
+    expect(replayConsume).toHaveBeenCalledWith(expect.objectContaining({ idempotencyKey: key }))
     await expect(
       restarted.consumeRateLimitResetCredit(key, {
         ...expectedScope,

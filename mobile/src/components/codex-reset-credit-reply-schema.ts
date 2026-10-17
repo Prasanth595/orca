@@ -37,18 +37,15 @@ export const codexResetCreditReplySchema = z.unknown()
  * target names no distro, and a WSL target names an exact one.
  */
 export const CodexResetCreditExpectedScopeSchema = z
-  .object({
-    target: z
-      .object({
-        runtime: z.enum(['host', 'wsl']),
-        wslDistro: z.string().min(1).max(255).nullable()
-      })
-      .strict(),
+  .strictObject({
+    target: z.strictObject({
+      runtime: z.enum(['host', 'wsl']),
+      wslDistro: z.string().min(1).max(255).nullable()
+    }),
     accountId: z.string().min(1).max(512),
     accountRevision: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
     offerRevision: z.string().startsWith('v1:').max(4_096)
   })
-  .strict()
   .superRefine((scope, context) => {
     if (scope.target.runtime === 'host' && scope.target.wslDistro !== null) {
       context.addIssue({

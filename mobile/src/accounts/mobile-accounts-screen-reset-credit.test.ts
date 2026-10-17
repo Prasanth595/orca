@@ -7,7 +7,7 @@ import { MobileAccountsScreen } from './MobileAccountsScreen'
 const dependencies = vi.hoisted(() => ({
   back: vi.fn(),
   loadHosts: vi.fn(),
-  randomBytes: vi.fn(),
+  uuid: vi.fn<() => string>(),
   resetRequest: vi.fn(),
   selectRequest: vi.fn(),
   statusCapabilities: vi.fn(),
@@ -48,7 +48,7 @@ vi.mock('../navigation/route-handoff', () => ({
 // The dialogs are read off `ConfirmModal`'s props; the drawer under them needs a native runtime.
 vi.mock('../components/BottomDrawer', () => ({ BottomDrawer: () => null }))
 
-vi.mock('expo-crypto', () => ({ getRandomBytes: dependencies.randomBytes }))
+vi.mock('../platform/random-v4-uuid', () => ({ randomV4Uuid: dependencies.uuid }))
 
 vi.mock('lucide-react-native', () => ({
   Check: 'Check',
@@ -234,13 +234,8 @@ function dismissNotice(renderer: ReactTestRenderer): void {
   act(() => openDialog(renderer)?.onCancel())
 }
 
-/** Sixteen bytes whose v4 UUID is `KEY`. */
-const KEY_BYTES = Uint8Array.from([
-  0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x41, 0x11, 0x81, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11
-])
 const KEY = '11111111-1111-4111-8111-111111111111'
-const SECOND_KEY_BYTES = KEY_BYTES.map((byte, index) => (index === 0 ? 0x22 : byte))
-const SECOND_KEY = '22111111-1111-4111-8111-111111111111'
+const SECOND_KEY = '22222222-2222-4222-8222-222222222222'
 
 describe('accounts route Codex reset credit', () => {
   beforeEach(() => {
@@ -254,7 +249,7 @@ describe('accounts route Codex reset credit', () => {
         lastConnected: 1
       }
     ])
-    dependencies.randomBytes.mockReset().mockImplementation(() => KEY_BYTES.slice())
+    dependencies.uuid.mockReset().mockReturnValue(KEY)
     dependencies.back.mockReset()
     dependencies.statusCapabilities.mockReset().mockReturnValue(['accounts.codex-reset-credit.v1'])
     dependencies.resetRequest.mockReset().mockImplementation((params) => ({
@@ -310,7 +305,7 @@ describe('accounts route Codex reset credit', () => {
     expectNotice(firstRenderer, 'Could not reset rate limits', 'Connection lost')
     act(() => firstRenderer.unmount())
 
-    dependencies.randomBytes.mockImplementation(() => SECOND_KEY_BYTES.slice())
+    dependencies.uuid.mockReturnValue(SECOND_KEY)
     const secondRenderer = await renderAccountsRoute()
     await confirmReset(secondRenderer)
 
@@ -326,6 +321,44 @@ describe('accounts route Codex reset credit', () => {
     expect(secondOptions).toEqual({ timeoutMs: 90_000 })
     expectNotice(secondRenderer, 'Reset already applied', 'Codex usage has been refreshed.')
     act(() => secondRenderer.unmount())
+  })
+
+  it('shows the resumed outcome when the offer moved after a lost reply', async () => {
+    dependencies.resetRequest.mockRejectedValueOnce(new Error('Connection lost'))
+    const renderer = await renderAccountsRoute()
+    await confirmReset(renderer)
+    expectNotice(renderer, 'Could not reset rate limits', 'Connection lost')
+    dismissNotice(renderer)
+    const [firstParams] = dependencies.resetRequest.mock.calls[0]!
+
+    // The host refreshes usage after an unknown outcome, which moves the offer the phone sees.
+    const refreshed = {
+      ...AVAILABLE_SNAPSHOT,
+      rateLimits: {
+        ...AVAILABLE_SNAPSHOT.rateLimits,
+        codex: { ...AVAILABLE_SNAPSHOT.rateLimits.codex, updatedAt: 101 }
+      }
+    }
+    act(() => {
+      dependencies.subscriptionListeners[0]?.({ type: 'snapshot', snapshot: refreshed })
+    })
+    // The host resumes the account's unresolved attempt and answers with that attempt's scope.
+    dependencies.uuid.mockReturnValue(SECOND_KEY)
+    dependencies.resetRequest.mockImplementationOnce(() => ({
+      id: 'reset-2',
+      ok: true,
+      result: { outcome: 'reset', scope: firstParams.expectedScope, snapshot: RESET_SNAPSHOT },
+      _meta: { runtimeId: 'runtime-1' }
+    }))
+    await confirmReset(renderer)
+
+    const [secondParams] = dependencies.resetRequest.mock.calls[1]!
+    expect(secondParams).toMatchObject({ idempotencyKey: SECOND_KEY })
+    expect(secondParams.expectedScope.offerRevision).not.toBe(
+      firstParams.expectedScope.offerRevision
+    )
+    expectNotice(renderer, 'Rate limits reset', 'Codex usage has been refreshed.')
+    act(() => renderer.unmount())
   })
 
   it('keeps the exact confirmed scope when a subscription changes before confirmation', async () => {
@@ -414,7 +447,7 @@ describe('accounts route Codex reset credit', () => {
   })
 
   it('recovers from key generation failure without leaving the action busy', async () => {
-    dependencies.randomBytes.mockImplementationOnce(() => {
+    dependencies.uuid.mockImplementationOnce(() => {
       throw new Error('Random bytes unavailable')
     })
     const renderer = await renderAccountsRoute()

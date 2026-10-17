@@ -53,7 +53,8 @@ export const MOBILE_WEB_PAGE_ROUTES = [
     grants: ['navigate', 'storage', 'externalLink', 'haptics', 'native.clipboard.write']
   },
   // The host's agent accounts. `navigate` for the Back that pops the native stack; `storage` for
-  // the layout above every page route; `externalLink` for that layout's wall.
+  // the layout above every page route; `externalLink` for that layout's wall; `haptics` because
+  // the closure reaches the seam, which the haptics census holds every route to.
   {
     pathname: '/h/[hostId]/accounts',
     grants: ['navigate', 'storage', 'externalLink', 'haptics']

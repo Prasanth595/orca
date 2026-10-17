@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
-import * as ExpoCrypto from 'expo-crypto'
 import type { CodexResetCreditExpectedScope } from '../../../src/shared/codex-reset-credit-scope'
 import type { RpcClient } from '../transport/rpc-client'
 import type { AccountsSnapshot } from './account-usage-state'
@@ -11,18 +10,6 @@ import {
 import { useCodexResetCreditCapability } from './codex-reset-credit-capability'
 
 type CodexResetDialog = { title: string; message: string }
-
-/**
- * A v4 UUID from the platform's random bytes. Not `randomUUID`: on the page that is the browser's,
- * which needs a secure context, and the iOS shell serves the page from a custom scheme.
- */
-function createCodexResetIdempotencyKey(): string {
-  const bytes = ExpoCrypto.getRandomBytes(16)
-  bytes[6] = (bytes[6]! & 0x0f) | 0x40
-  bytes[8] = (bytes[8]! & 0x3f) | 0x80
-  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
-}
 
 function describeScope(snapshot: AccountsSnapshot, scope: CodexResetCreditExpectedScope): string {
   const account = snapshot.codex.accounts.find((candidate) => candidate.id === scope.accountId)
@@ -82,10 +69,7 @@ export function useCodexResetCreditAction({
       inFlightRef.current = true
       setResetting(true)
       try {
-        const result = await requestCodexResetCredit(client, {
-          expectedScope,
-          createIdempotencyKey: createCodexResetIdempotencyKey
-        })
+        const result = await requestCodexResetCredit(client, expectedScope)
         onSnapshot(result.snapshot)
         if ('status' in result) {
           onNotice({

@@ -9,6 +9,7 @@ import {
   type MobileCodexResetCreditSendScope
 } from './codex-reset-credit-consume-operations'
 import { CodexResetCreditExpectedScopeSchema } from './codex-reset-credit-reply-schema'
+import { randomV4Uuid } from '../platform/random-v4-uuid'
 import {
   decodeAccountsSnapshot,
   type AccountsSnapshot,
@@ -131,7 +132,11 @@ export function getCodexResetCreditScope(
   return parsed.success ? parsed.data : null
 }
 
-function scopesEqual(
+/**
+ * Whether a reply's scope is the account this attempt was for. Not the offer: the host answers a
+ * retry with the account's unresolved attempt, which names the offer it was made against.
+ */
+function sameAccountScope(
   left: CodexResetCreditExpectedScope,
   right: CodexResetCreditExpectedScope
 ): boolean {
@@ -139,8 +144,7 @@ function scopesEqual(
     left.target.runtime === right.target.runtime &&
     left.target.wslDistro === right.target.wslDistro &&
     left.accountId === right.accountId &&
-    left.accountRevision === right.accountRevision &&
-    left.offerRevision === right.offerRevision
+    left.accountRevision === right.accountRevision
   )
 }
 
@@ -153,7 +157,7 @@ function decodeResetResult(
   }
   const result = value as Record<string, unknown>
   const scope = CodexResetCreditExpectedScopeSchema.safeParse(result.scope)
-  if (!scope.success || !scopesEqual(scope.data, expectedScope)) {
+  if (!scope.success || !sameAccountScope(scope.data, expectedScope)) {
     throw new Error('Invalid reset response from host')
   }
   const snapshot = decodeAccountsSnapshot(result.snapshot)
@@ -209,22 +213,19 @@ function decodeResetResult(
 }
 
 /**
- * One redeem, the way the desktop does it: a fresh key per attempt and no journal here. The host's
- * ledger owns the attempt, so a retry of the same offer under a new key (the reply was lost) gets
- * that attempt's recorded outcome, and a concurrent one joins it rather than spending twice.
+ * One redeem, the way the desktop does it: a fresh key per attempt, nothing kept on the phone. The
+ * host's ledger answers a retry of the same offer, or of an account whose outcome is unknown, with
+ * the attempt it already recorded, so a lost reply never spends a second credit.
  */
 export async function requestCodexResetCredit(
   client: MobileCodexResetCreditRpcSender,
-  options: {
-    expectedScope: CodexResetCreditExpectedScope
-    createIdempotencyKey: () => string
-  }
+  expectedScope: CodexResetCreditExpectedScope
 ): Promise<CodexResetCreditRpcResult> {
-  const scope = CodexResetCreditExpectedScopeSchema.parse(options.expectedScope)
+  const scope = CodexResetCreditExpectedScopeSchema.parse(expectedScope)
   const response = await codexResetCreditConsume.request(
     client,
     {
-      idempotencyKey: options.createIdempotencyKey(),
+      idempotencyKey: randomV4Uuid(),
       // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: parsed just above through CodexResetCreditExpectedScopeSchema, whose refinement pairs runtime 'host' with a null distro and 'wsl' with a trimmed non-empty one. The bytes are unchanged.
       expectedScope: scope as MobileCodexResetCreditSendScope
     },
