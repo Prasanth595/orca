@@ -27,6 +27,7 @@ import type { SshSlice } from './slices/ssh'
 import type { RuntimeEnvironmentSshSlice } from './slices/runtime-environment-ssh'
 import type { WslHostsSlice } from './slices/wsl-hosts'
 import type { AgentStatusSlice } from './slices/agent-status'
+import type { AgentHookInstallStatusSlice } from './slices/agent-hook-install-status'
 import type { PaneForegroundAgentSlice } from './slices/pane-foreground-agent'
 import type { DiffCommentsSlice } from './slices/diffComments'
 import type { DetectedAgentsSlice } from './slices/detected-agents'
@@ -76,6 +77,7 @@ export type AppState = RepoSlice &
   RuntimeEnvironmentSshSlice &
   WslHostsSlice &
   AgentStatusSlice &
+  AgentHookInstallStatusSlice &
   PaneForegroundAgentSlice &
   DiffCommentsSlice &
   DetectedAgentsSlice &
