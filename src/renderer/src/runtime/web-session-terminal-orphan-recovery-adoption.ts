@@ -185,3 +185,19 @@ export function mergeAdoptionResponse(
   })
   return mergeRetainedTerminalSurfaces(snapshot, retainedSurfaces, effectiveRemoved)
 }
+
+/** Cache flag for a response that cannot adopt, or null when the adoption may proceed. */
+export function adoptionDisposition(
+  response: RuntimeRpcResponse<unknown>,
+  worktreeId: string
+): boolean | null {
+  if (!response.ok) {
+    return isStableAdoptionFailure(response)
+  }
+  if (!isAdoptionResult(response.result)) {
+    return true
+  }
+  // A valid response for another worktree is stale routing evidence; retry on the next replay
+  // instead of pinning this surface as a protocol fault.
+  return response.result.snapshot.worktree === worktreeId ? null : false
+}

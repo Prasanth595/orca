@@ -4,9 +4,9 @@ import { callRuntimeEnvironmentWithRevision } from './runtime-rpc-environment-ca
 import { toRuntimeWorktreeSelector } from './runtime-worktree-selector'
 import { getSessionTabsRuntimeIdFromResponse } from './web-session-tabs-sync/publisher-identity-fences'
 import {
+  adoptionDisposition,
   cacheRetainedSurfaces,
   claimSurfaces,
-  isAdoptionResult,
   isRpcResponse,
   isStableAdoptionFailure,
   mergeAdoptionResponse,
@@ -104,13 +104,20 @@ async function recoverTerminalOrphans(
     return null
   }
   const candidates = [...prepared.candidates, ...paneResolution.resolved]
+  // A slept pane's binding is a wake hint, not an orphan: keep it pending, spend no RPC on it.
+  const recoverableCandidates = candidates.filter((candidate) => !candidate.slept)
+  const sleptCandidates = candidates.filter((candidate) => candidate.slept)
   const unresolved = paneResolution.unresolved
-  const retainedSurfaces: AnyRecoverySurface[] = [...prepared.retained, ...unresolved]
-  if (candidates.length === 0) {
+  const retainedSurfaces: AnyRecoverySurface[] = [
+    ...prepared.retained,
+    ...unresolved,
+    ...sleptCandidates
+  ]
+  if (recoverableCandidates.length === 0) {
     return mergeRetainedTerminalSurfaces(snapshot, retainedSurfaces)
   }
   const inventory = await resolveTerminalOrphanInventory({
-    candidates,
+    candidates: recoverableCandidates,
     snapshot,
     environmentId,
     call,
@@ -136,11 +143,11 @@ async function recoverTerminalOrphans(
     ? buildWebTerminalOrphanTopologyProposal(
         recoveryState,
         snapshot.worktree,
-        buildTopologyCandidates(candidates, claims),
+        buildTopologyCandidates(recoverableCandidates, claims),
         claims
       )
     : undefined
-  const claimedSurfaces = claimSurfaces(candidates, claims)
+  const claimedSurfaces = claimSurfaces(recoverableCandidates, claims)
   const retainAfterAdoptionFailure = (cache: boolean): RuntimeMobileSessionTabsResult => {
     if (cache) {
       cacheRetainedSurfaces(
@@ -150,7 +157,7 @@ async function recoverTerminalOrphans(
         expectedEnvironmentPairingRevision
       )
     }
-    return mergeFailedAdoption(snapshot, candidates, retainedSurfaces, claims, removed)
+    return mergeFailedAdoption(snapshot, recoverableCandidates, retainedSurfaces, claims, removed)
   }
   let adoptionResponse: unknown = undefined
   let adoptionThrew = false
@@ -200,19 +207,9 @@ async function recoverTerminalOrphans(
     // this exact semantic frame, so bounded deduplication is safe.
     return retainAfterAdoptionFailure(true)
   }
-  if (!isCurrent()) {
-    return null
-  }
-  if (!adoptionResponse.ok) {
-    return retainAfterAdoptionFailure(isStableAdoptionFailure(adoptionResponse))
-  }
-  if (!isAdoptionResult(adoptionResponse.result)) {
-    return retainAfterAdoptionFailure(true)
-  }
-  if (adoptionResponse.result.snapshot.worktree !== snapshot.worktree) {
-    // A valid response for another worktree is stale routing evidence; retry
-    // on the next replay instead of pinning this surface as a protocol fault.
-    return retainAfterAdoptionFailure(false)
+  const adoptionFailureCache = adoptionDisposition(adoptionResponse, snapshot.worktree)
+  if (adoptionFailureCache !== null) {
+    return retainAfterAdoptionFailure(adoptionFailureCache)
   }
 
   const adoptedSnapshot = await readClientSessionSnapshotAfterAdoption({

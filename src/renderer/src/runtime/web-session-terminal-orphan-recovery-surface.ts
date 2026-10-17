@@ -6,6 +6,9 @@ import type {
   RuntimeTerminalOrphanAdoptionClaim
 } from '../../../shared/runtime-types'
 import type { TerminalTab } from '../../../shared/terminal-tab-types'
+import type { SleepingAgentSessionRecord } from '../../../shared/agent-session-resume'
+import { makePaneKey } from '../../../shared/stable-pane-id'
+import { hasWorktreeSleepIntent } from '@/lib/worktree-sleep-intent'
 import { parseRemoteRuntimePtyId } from './runtime-terminal-stream'
 import { isWebTerminalSurfaceTabId, toHostSessionTabId } from '../../../shared/terminal-surface-id'
 import {
@@ -28,6 +31,7 @@ import type { WebTerminalOrphanTopologyState } from './web-session-terminal-orph
 
 export type TerminalOrphanRecoveryState = WebTerminalOrphanTopologyState & {
   tabsByWorktree: Record<string, TerminalTab[]>
+  sleepingAgentSessionsByPaneKey?: Record<string, SleepingAgentSessionRecord>
 }
 
 export type TerminalSurface = RuntimeMobileSessionTerminalClientTab
@@ -42,6 +46,8 @@ type RecoverySurfaceCoordinates = {
   pending: boolean
   expectedPtyId: string | null
   locallyActive: boolean
+  /** The user slept this pane: recovery keeps the wake binding but must not publish it live. */
+  slept: boolean
   /** A persisted binding whose leaf no longer appears in the layout tree. */
   offTree?: boolean
 }
@@ -108,6 +114,7 @@ export function prepareTerminalOrphanRecovery(
     return { candidates: [], unresolved: [], observed: [], retained: [] }
   }
   const rowsBySurface = terminalRowsBySurface(snapshot)
+  const worktreeSlept = hasWorktreeSleepIntent(snapshot.worktree)
   const candidates: RecoverySurface[] = []
   const unresolved: UnresolvedRecoverySurface[] = []
   const observed: RecoverySurface[] = []
@@ -139,7 +146,13 @@ export function prepareTerminalOrphanRecovery(
             : null,
         locallyActive:
           state.activeTabIdByWorktree[snapshot.worktree] === localTab.id &&
-          layout?.activeLeafId === leafId
+          layout?.activeLeafId === leafId,
+        // 'quit'/'live' captures were still running; only the marker or a worktree-sleep
+        // record proves a takedown the user asked to keep.
+        slept:
+          worktreeSlept ||
+          state.sleepingAgentSessionsByPaneKey?.[makePaneKey(localTab.id, leafId)]?.origin ===
+            'worktree-sleep'
       }
       if (offTree) {
         // Off-tree bindings cannot justify liveness/adoption claims; retain them pending host evidence.
@@ -169,7 +182,9 @@ export function prepareTerminalOrphanRecovery(
 export function buildRetainedTerminalSurface(surface: AnyRecoverySurface): TerminalSurface {
   const incoming = surface.incoming
   const localTitle = typeof surface.localTab.title === 'string' ? surface.localTab.title.trim() : ''
-  if (!surface.handle) {
+  // A slept pane is unverifiable, never live: publishing its retained handle as ready would put a
+  // dead PTY back in the mirror's live map and read the workspace awake. Keep the binding pending.
+  if (!surface.handle || surface.slept) {
     return {
       ...(incoming ?? {
         type: 'terminal',

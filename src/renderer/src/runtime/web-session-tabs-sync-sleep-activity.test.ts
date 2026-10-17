@@ -4,6 +4,14 @@ import { isInactiveWorkspace } from '../lib/worktree-activity-state'
 import { clearWorktreeSleepIntent, markWorktreeSleepIntent } from '../lib/worktree-sleep-intent'
 import { applyWebSessionTabsSnapshot } from './web-session-tabs-sync/snapshot-api'
 import {
+  clearWebSessionTerminalOrphanRecoveryForTests,
+  recoverWebSessionTerminalOrphansBeforeApply
+} from './web-session-terminal-orphan-recovery'
+import { makePaneKey } from '../../../shared/stable-pane-id'
+import type { SleepingAgentSessionRecord } from '../../../shared/agent-session-resume'
+import type { TerminalOrphanRecoveryState } from './web-session-terminal-orphan-recovery'
+import type { RuntimeTerminalListResult } from '../../../shared/runtime-types'
+import {
   ENV,
   HOST_SURFACE_ID,
   LEAF_ID,
@@ -74,7 +82,10 @@ function inactive(state: ReturnType<typeof makeState>, worktreeId = WT) {
 }
 
 describe('sleep activity during host terminal mirroring', () => {
-  beforeEach(resetWebSessionTabsSyncTestState)
+  beforeEach(() => {
+    resetWebSessionTabsSyncTestState()
+    clearWebSessionTerminalOrphanRecoveryForTests()
+  })
   afterEach(() => {
     clearWorktreeSleepIntent(WT)
     clearWorktreeSleepIntent(FOLDER)
@@ -168,6 +179,63 @@ describe('sleep activity during host terminal mirroring', () => {
     }
     expect(inactive(updated)).toBe(true)
     expect(updated.terminalLayoutsByTabId[TAB_ID]?.ptyIdsByLeafId).toEqual({ [LEAF_ID]: PTY_ID })
+  })
+
+  it('stays asleep when orphan recovery runs before the snapshot apply', async () => {
+    // Every host frame passes through recovery first, and recovery used to republish the slept
+    // pane's retained handle as ready, so this apply saw a live terminal and the row came
+    // back (#30108). The cases above apply the frame without recovery and cannot see that.
+    const record: SleepingAgentSessionRecord = {
+      paneKey: makePaneKey(TAB_ID, LEAF_ID),
+      tabId: TAB_ID,
+      worktreeId: WT,
+      agent: 'pi',
+      providerSession: { key: 'session_id', id: 'session-1' },
+      prompt: '',
+      state: 'done',
+      capturedAt: NOW,
+      updatedAt: NOW,
+      origin: 'worktree-sleep',
+      restoreOnTabOpenOnly: true
+    }
+    const state = {
+      ...sleptState(),
+      sleepingAgentSessionsByPaneKey: { [record.paneKey]: record }
+    }
+    markWorktreeSleepIntent(WT)
+    const listResult: RuntimeTerminalListResult = {
+      terminals: [],
+      totalCount: 0,
+      truncated: false,
+      hostScope: { hostIds: ['local'], omittedHostIds: [] }
+    }
+    // The snapshot harness omits fields recovery never reads; width is all that is missing.
+    const recoveryState: TerminalOrphanRecoveryState = {
+      ...state,
+      groupsByWorktree: {},
+      layoutByWorktree: {}
+    }
+    const recovered = await recoverWebSessionTerminalOrphansBeforeApply(
+      recoveryState,
+      pendingSnapshot(),
+      ENV,
+      {
+        call: async () => ({
+          id: 'test',
+          ok: true as const,
+          result: listResult,
+          _meta: { runtimeId: 'test' }
+        })
+      }
+    )
+    expect(recovered).not.toBeNull()
+    const next = { ...state, ...applyWebSessionTabsSnapshot(state, recovered!, ENV, NOW + 1) }
+
+    expect(next.ptyIdsByTabId[TAB_ID] ?? []).toEqual([])
+    expect(next.terminalLayoutsByTabId[TAB_ID]?.ptyIdsByLeafId).toEqual({ [LEAF_ID]: PTY_ID })
+    expect(isInactiveWorkspace(WT, next.tabsByWorktree, next.ptyIdsByTabId, {}, new Set())).toBe(
+      true
+    )
   })
 
   it('keeps local-mode pending wake bindings out of live activity', () => {
