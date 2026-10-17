@@ -7,10 +7,12 @@ import { styles } from './mobile-native-chat-message-styles'
 
 export function MobileNativeChatImageGallery({
   images,
-  alignToEnd = true
+  alignToEnd = true,
+  onLongPress
 }: {
   images: readonly NativeChatImageRefBlock[]
   alignToEnd?: boolean
+  onLongPress?: () => void
 }) {
   const openImage = useContext(MobileNativeChatImageViewerContext)
   const occurrences = new Map<string, number>()
@@ -28,6 +30,7 @@ export function MobileNativeChatImageGallery({
           accessibilityRole="button"
           accessibilityLabel={`Open image ${index + 1} of ${images.length}`}
           style={styles.imageGalleryTile}
+          onLongPress={onLongPress}
           onPress={() =>
             openImage({
               uri: image.url ?? image.path ?? '',

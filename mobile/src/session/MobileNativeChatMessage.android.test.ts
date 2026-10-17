@@ -112,7 +112,7 @@ describe('MobileNativeChatMessage on Android', () => {
       )
     })
     const [bubble] = byType('Pressable')
-    const picture = renderer!.root.findByProps({ accessibilityRole: 'imagebutton' })
+    const picture = renderer!.root.findByProps({ accessibilityLabel: 'Open image 1 of 1' })
     expect(picture.props.onLongPress).toBe(bubble!.props.onLongPress)
     act(() => picture.props.onLongPress())
     expect(byType('MessageActionsSheet')).toHaveLength(1)

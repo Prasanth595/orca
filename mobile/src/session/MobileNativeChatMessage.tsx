@@ -324,7 +324,11 @@ function MobileNativeChatMessageImpl({
       {turnStatusAbove ? statusRow : null}
       <View style={[styles.row, isUser && styles.rowUser]}>
         {images.length > 0 ? (
-          <MobileNativeChatImageGallery images={images} alignToEnd={isUser} />
+          <MobileNativeChatImageGallery
+            images={images}
+            alignToEnd={isUser}
+            onLongPress={onLongPress}
+          />
         ) : null}
         {files.length > 0 ? (
           <MobileNativeChatFileAttachments files={files} onOpenFile={onOpenFile} />
