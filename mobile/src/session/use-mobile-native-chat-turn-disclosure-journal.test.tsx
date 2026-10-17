@@ -290,4 +290,59 @@ describe('useMobileNativeChatTurnDisclosure with a turn journal', () => {
       }
     }
   )
+  it.each([
+    [undefined, true],
+    [['prompt'], true],
+    [[], false]
+  ] as const)(
+    'preserves only actionable pending questions after a completed turn (%j)',
+    (actionablePromptIds, visible) => {
+      const messages: NativeChatMessage[] = [
+        userMessage('u'),
+        { ...userMessage('progress'), role: 'assistant' },
+        { ...userMessage('prompt'), role: 'system' },
+        { ...userMessage('answer'), role: 'assistant' }
+      ]
+      const turnJournal = journalOf(
+        [
+          ['u', said('user'), null],
+          ['turn', record('turn', 'completed', 'u'), null],
+          ['progress', said('assistant'), 'turn'],
+          [
+            'prompt',
+            {
+              kind: 'question',
+              question: 'Which option?',
+              options: [],
+              resolution: {
+                state: 'pending',
+                selectedOptionId: null,
+                resolvedBy: null,
+                resolvedAt: null
+              }
+            },
+            'turn'
+          ],
+          ['answer', said('assistant'), 'turn']
+        ],
+        true
+      )
+      act(() => {
+        renderer = create(
+          createElement(Harness, {
+            messages,
+            enabled: true,
+            isWorking: false,
+            turnJournal,
+            actionablePromptIds,
+            settledTurns: new Map([['u', { startedAt: 0, workedSeconds: 1 }]])
+          })
+        )
+      })
+      const rows: NativeChatMessage[] =
+        renderer!.root.findByType(Result).props.disclosure.listMessages
+      expect(rows.some((row) => row.id === 'prompt')).toBe(visible)
+      expect(rows.map((row) => row.id)).not.toContain('progress')
+    }
+  )
 })

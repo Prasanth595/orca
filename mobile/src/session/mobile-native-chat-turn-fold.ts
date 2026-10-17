@@ -1,3 +1,5 @@
+import type { NativeChatTurnJournal } from '../../../src/shared/native-chat-turn-membership'
+import { isActionableStructuredAgentSessionPrompt } from '../../../src/shared/structured-agent-session-live-turn'
 import { NATIVE_CHAT_STREAMING_ID } from '../../../src/shared/native-chat-streaming'
 import { nativeChatRowTurnKeys } from '../../../src/shared/native-chat-turn-grouping'
 import { AGENT_SESSION_ORCA_STOP_PRESENTATION } from '../../../src/shared/agent-session-orca-stop'
@@ -23,9 +25,10 @@ export function mobileNativeChatTurnFold(
   messages: readonly NativeChatMessage[],
   turnKeys: readonly (string | undefined)[],
   completed: Readonly<Record<string, NativeChatTurnStatus>>,
-  expandedTurnKeys: ReadonlySet<string>
+  expandedTurnKeys: ReadonlySet<string>,
+  preservedRowIds?: ReadonlySet<string>
 ) {
-  const rows = mobileNativeChatTurnRows(messages, turnKeys)
+  const rows = mobileNativeChatTurnRows(messages, turnKeys, preservedRowIds)
   const settledTurnKeys = new Set(
     Object.entries(completed)
       .filter(([, status]) => status.workedSeconds != null)
@@ -44,7 +47,8 @@ export function mobileNativeChatTurnFold(
 
 function mobileNativeChatTurnRows(
   messages: readonly NativeChatMessage[],
-  turnKeys: readonly (string | undefined)[]
+  turnKeys: readonly (string | undefined)[],
+  preservedRowIds?: ReadonlySet<string>
 ) {
   return messages.map((message, index) => {
     const content = deriveNativeChatRowContent(message.blocks)
@@ -53,12 +57,14 @@ function mobileNativeChatTurnRows(
       role: message.role,
       rendersProse: content.markdown.length > 0 || content.hasImages,
       draws: nativeChatRowRendersContent(message.blocks),
-      outlivesTurn: message.blocks.some(
-        (block) =>
-          isSubagentGroupBlock(block) ||
-          isBackgroundTaskBlock(block) ||
-          isStoppedBeforeStartBlock(block)
-      ),
+      outlivesTurn:
+        preservedRowIds?.has(message.id) === true ||
+        message.blocks.some(
+          (block) =>
+            isSubagentGroupBlock(block) ||
+            isBackgroundTaskBlock(block) ||
+            isStoppedBeforeStartBlock(block)
+        ),
       reportsFailure: message.blocks.some(
         (block) =>
           block.type === 'text' &&
@@ -91,4 +97,21 @@ export function mobileNativeChatBridgeAnswerIds(
     }
   }
   return new Set([...nativeChatTurnAnswerRows(rows).values()].map((index) => messages[index]!.id))
+}
+
+/** Host actionability outlives the turn while a prompt still awaits an answer. */
+export function mobileNativeChatActionablePromptIds(
+  journal: NativeChatTurnJournal | null,
+  actionablePromptIds: readonly string[] | undefined
+): ReadonlySet<string> {
+  return new Set(
+    (journal?.items ?? [])
+      .filter(
+        (item) =>
+          (item.body.kind === 'approval' || item.body.kind === 'question') &&
+          item.body.resolution.state === 'pending' &&
+          isActionableStructuredAgentSessionPrompt(item.itemId, actionablePromptIds)
+      )
+      .map((item) => item.itemId)
+  )
 }

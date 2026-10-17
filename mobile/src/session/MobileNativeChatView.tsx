@@ -194,7 +194,8 @@ export function MobileNativeChatView({
     stopping: turnIndicator?.stopping === true,
     lineYields: ask != null || permission != null || question != null,
     scopeKey: sendSurfaceId,
-    processExpanded: toolsExpanded
+    processExpanded: toolsExpanded,
+    actionablePromptIds
   })
 
   const renderItem = useMobileNativeChatRowRenderer({

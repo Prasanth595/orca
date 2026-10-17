@@ -1,5 +1,6 @@
 import {
   mobileNativeChatTurnFold,
+  mobileNativeChatActionablePromptIds,
   mobileNativeChatBridgeAnswerIds
 } from './mobile-native-chat-turn-fold'
 import { useCallback, useMemo, useState } from 'react'
@@ -100,9 +101,11 @@ export function useMobileNativeChatTurnDisclosure({
   stopping = false,
   lineYields = false,
   scopeKey,
-  processExpanded = false
+  processExpanded = false,
+  actionablePromptIds
 }: {
   processExpanded?: boolean
+  actionablePromptIds?: readonly string[]
   messages: readonly NativeChatMessage[]
   enabled: boolean
   isWorking: boolean
@@ -200,7 +203,8 @@ export function useMobileNativeChatTurnDisclosure({
       rows,
       turnKeys,
       completedByTurn,
-      processExpanded ? new Set(turnKeys.filter((key) => key !== undefined)) : expandedTurnIds
+      processExpanded ? new Set(turnKeys.filter((key) => key !== undefined)) : expandedTurnIds,
+      mobileNativeChatActionablePromptIds(turnJournal, actionablePromptIds)
     )
     const bars = nativeChatTurnBarRows(rows, turnKeys)
     const anchors = new Set([...bars.values()].map((bar) => bar.index))
@@ -217,7 +221,9 @@ export function useMobileNativeChatTurnDisclosure({
     completedByTurn,
     processExpanded,
     expandedTurnIds,
-    isWorking
+    isWorking,
+    turnJournal,
+    actionablePromptIds
   ])
   const inLiveWorkingTurn = useCallback(
     (index: number) =>
