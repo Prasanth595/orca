@@ -1181,6 +1181,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'perforce.deleteChangelist': PerforceChangelistParams,
   'perforce.deleteChangelistWithFiles': PerforceChangelistParams,
   'perforce.deleteShelf': PerforceChangelistParams,
+  'perforce.describeChange': PerforceChangelistParams,
   'perforce.detect': PerforceWorkspaceParams,
   'perforce.diff': PerforceFilePathParams,
   'perforce.diffText': PerforceFilePathsParams,

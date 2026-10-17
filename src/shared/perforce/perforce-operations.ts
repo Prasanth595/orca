@@ -84,7 +84,8 @@ export const PERFORCE_OPERATIONS = {
       requireRelativePaths(a.filePaths),
       requireChangelistTarget(a.changelist)
     ),
-  deleteChangelist: (b, cwd, a) => b.deleteChangelist(cwd, requireChangelistId(a.changelist))
+  deleteChangelist: (b, cwd, a) => b.deleteChangelist(cwd, requireChangelistId(a.changelist)),
+  describeChange: (b, cwd, a) => b.describeChange(cwd, requireChangelistId(a.changelist))
 } satisfies Record<string, Operation>
 
 export type PerforceOperationName = keyof typeof PERFORCE_OPERATIONS

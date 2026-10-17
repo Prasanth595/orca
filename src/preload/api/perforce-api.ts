@@ -3,7 +3,8 @@ import type {
   PerforceEntry,
   PerforceHistoryEntry,
   PerforceOperationResult,
-  PerforceStatusResult
+  PerforceStatusResult,
+  PerforceSubmittedFile
 } from '../../shared/perforce/perforce-types'
 
 type WorktreeArgs = { worktreePath: string; connectionId?: string }
@@ -52,4 +53,5 @@ export type PerforceApi = {
     args: WorktreeArgs & { filePaths: string[]; changelist: 'default' | number }
   ) => Result
   deleteChangelist: (args: WorktreeArgs & { changelist: number }) => Result
+  describeChange: (args: WorktreeArgs & { changelist: number }) => Promise<PerforceSubmittedFile[]>
 }

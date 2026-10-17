@@ -85,5 +85,6 @@ export const PERFORCE_METHODS = [
   perforceMethod('createChangelist', PerforceCreateChangelistParams),
   perforceMethod('editDescription', PerforceEditDescriptionParams),
   perforceMethod('moveToChangelist', PerforceMoveToChangelistParams),
-  perforceMethod('deleteChangelist', PerforceChangelistParams)
+  perforceMethod('deleteChangelist', PerforceChangelistParams),
+  perforceMethod('describeChange', PerforceChangelistParams)
 ]

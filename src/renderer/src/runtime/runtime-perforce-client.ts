@@ -141,7 +141,9 @@ export const perforceClient: ClientApi & {
   moveToChangelist: (a) =>
     route(a, 'moveToChangelist', () => window.api.perforce.moveToChangelist(ipcArgs(a))),
   deleteChangelist: (a) =>
-    route(a, 'deleteChangelist', () => window.api.perforce.deleteChangelist(ipcArgs(a)))
+    route(a, 'deleteChangelist', () => window.api.perforce.deleteChangelist(ipcArgs(a))),
+  describeChange: (a) =>
+    route(a, 'describeChange', () => window.api.perforce.describeChange(ipcArgs(a)))
 }
 
 /** Read-only probe used before saving; only runtime-hosted workspaces need it (main checks local saves). */
