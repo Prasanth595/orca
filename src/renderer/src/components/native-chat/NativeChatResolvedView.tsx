@@ -27,23 +27,14 @@ import { useNativeChatInteractiveSend } from './use-native-chat-interactive-send
 import { shouldClearNativeChatWorkingSuppression } from './native-chat-working-suppression'
 import { resolveNativeChatTerminalTurn } from './native-chat-terminal-turn'
 import { useNativeChatTerminalTurnTiming } from './use-native-chat-terminal-turn-timing'
-import {
-  launchPromptAsMessage,
-  pendingSendsAsMessages,
-  shouldPruneLaunchPrompt
-} from './native-chat-pending'
+import { launchPromptAsMessage, shouldPruneLaunchPrompt } from './native-chat-pending'
 import { useNativeChatPendingDelivery } from './use-native-chat-pending-delivery'
 import {
   appendCommandMarkerCache,
   applyCommandMarkerBoundaries,
-  commandMarkersAsMessages,
   readCommandMarkerCache,
   type NativeChatCommandMarker
 } from './native-chat-command-marker'
-import {
-  deriveNativeChatStreamingText,
-  nativeChatStreamingMessage
-} from '../../../../shared/native-chat-streaming'
 import { useNativeChatRootInputRouting } from './use-native-chat-root-input-routing'
 import {
   emptyNativeChatContextMenuActions,
@@ -60,6 +51,8 @@ import { useNativeChatLocalCommandAnswer } from './use-native-chat-local-command
 import { matchNativeChatSplitShortcut } from './native-chat-split-shortcut'
 import { getShortcutPlatform } from '@/lib/shortcut-platform'
 import { formatShortcutLabel } from '@/hooks/useShortcutLabel'
+import { useWorkflowSlashCommand } from './use-workflow-slash-command'
+import { useNativeChatSessionComposition } from './use-native-chat-session-composition'
 
 /** Renders the bridge UI after NativeChatSessionGate resolves its agent session. */
 export function NativeChatResolvedView({
@@ -81,6 +74,7 @@ export function NativeChatResolvedView({
   const selectOwner = useMemo(() => createNativeChatRuntimeSelector(terminalTabId), [terminalTabId])
   const runtimeEnvironmentId = useAppStore(selectOwner)
   const keybindings = useAppStore((s) => s.keybindings)
+  const handleWorkflowCommand = useWorkflowSlashCommand()
   const session = useNativeChatRetainedSession({
     paneKey,
     agent,
@@ -183,9 +177,12 @@ export function NativeChatResolvedView({
   )
   const onSlashCommand = useCallback(
     (command: string, output?: string) => {
+      if (handleWorkflowCommand(command)) {
+        return
+      }
       setCommandMarkers(appendCommandMarkerCache(commandMarkerScope, command, Date.now(), output))
     },
-    [commandMarkerScope]
+    [commandMarkerScope, handleWorkflowCommand]
   )
 
   const launchPromptMessage = useMemo(
@@ -245,49 +242,19 @@ export function NativeChatResolvedView({
     composerReady: shownPromptCard === null && targetPtyId !== null && canSend
   })
 
-  // The streaming preview bubble (if any) sits after the transcript but before
-  // the optimistic user echoes — same order mobile uses.
-  const pendingMessages = useMemo(
-    () => pendingSendsAsMessages(pending, sessionAfterCommandBoundaries.messages),
-    [pending, sessionAfterCommandBoundaries.messages]
-  )
-  const streamingText = useMemo(() => {
-    return deriveNativeChatStreamingText({
-      messages:
-        pendingMessages.length > 0
-          ? [...sessionAfterCommandBoundaries.messages, ...pendingMessages]
-          : sessionAfterCommandBoundaries.messages,
-      previewText: hookPreview,
-      working: liveWorking,
-      previewIsToolOutput: hookPreviewIsToolOutput
-    })
-  }, [
-    sessionAfterCommandBoundaries.messages,
-    pendingMessages,
+  const { sessionWithPending } = useNativeChatSessionComposition({
+    sessionAfterCommandBoundaries,
+    pending,
+    commandMarkers,
     hookPreview,
     liveWorking,
     hookPreviewIsToolOutput
-  ])
-  const sessionWithPending = useMemo<typeof session>(() => {
-    if (pending.length === 0 && commandMarkers.length === 0 && !streamingText) {
-      return sessionAfterCommandBoundaries
-    }
-    return {
-      ...sessionAfterCommandBoundaries,
-      messages: [
-        ...sessionAfterCommandBoundaries.messages,
-        ...commandMarkersAsMessages(commandMarkers),
-        ...(streamingText ? [nativeChatStreamingMessage(streamingText)] : []),
-        ...pendingMessages
-      ]
-    }
-  }, [sessionAfterCommandBoundaries, pending, pendingMessages, commandMarkers, streamingText])
+  })
   // Derive the view state from the pending-augmented session so a send into an
   // otherwise-empty conversation flips to the list (showing the queued bubble)
   // instead of staying on the empty state.
   const viewState = selectNativeChatViewState(sessionWithPending)
 
-  const isConversation = viewState.kind === 'ready'
   useEffect(() => {
     if (
       shouldClearNativeChatWorkingSuppression({
@@ -307,7 +274,7 @@ export function NativeChatResolvedView({
     }
   }, [liveWorking, workingInterrupted, hookWorkingEpoch])
   const { isWorking, turnActive, awaitingInput } = resolveNativeChatTerminalTurn({
-    isConversation,
+    isConversation: viewState.kind === 'ready',
     working: liveWorking,
     hookAwaitingInput: session.hookAwaitingInput === true,
     interrupted: workingInterrupted,
@@ -331,7 +298,7 @@ export function NativeChatResolvedView({
   )
 
   // Only the focused conversation accepts chat text-size shortcuts.
-  useNativeChatFontSize(isConversation && isVisible && isFocusedGroup, rootRef)
+  useNativeChatFontSize(viewState.kind === 'ready' && isVisible && isFocusedGroup, rootRef)
   const find = useNativeChatFind(isVisible && isFocusedGroup, rootRef, composerRef, messageListRef)
   const appearanceStyle = useNativeChatStoreAppearanceStyle()
 

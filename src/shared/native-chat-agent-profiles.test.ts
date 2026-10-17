@@ -54,7 +54,7 @@ describe('host-claimed native chat commands', () => {
   })
 
   it('claims the whole catalog for agents with no pass-through policy', () => {
-    expect(names('custom-agent')).toEqual(['clear', 'help'])
+    expect(names('custom-agent')).toEqual(['clear', 'help', 'workflow'])
     expect(names('grok')).toEqual([])
   })
 })

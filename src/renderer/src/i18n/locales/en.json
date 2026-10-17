@@ -18132,6 +18132,10 @@
         "a62f9db53d": "Cancel",
         "c77189bc0c": "Update filter",
         "19af906d12": "Save filter"
+      },
+      "WorkflowSlashCommand": {
+        "workflowCreated": "Workflow \"{{workflowName}}\" created",
+        "createFailed": "Failed to create workflow"
       }
     },
     "i18n": {

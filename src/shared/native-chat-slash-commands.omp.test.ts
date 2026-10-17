@@ -23,7 +23,11 @@ describe('OMP terminal command catalog', () => {
     expect(getVerifiedNativeChatCommands('omp')).toEqual(commands)
     expect(getNativeChatAgentProfile('omp')).toBeNull()
     expect(new Set(names).size).toBe(names.length)
-    expect(getAgentSlashCommands('pi').map((command) => command.name)).toEqual(['clear', 'help'])
+    expect(getAgentSlashCommands('pi').map((command) => command.name)).toEqual([
+      'clear',
+      'help',
+      'workflow'
+    ])
   })
 
   it('completes arguments separately from picker command dispatch', () => {

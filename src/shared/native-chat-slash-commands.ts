@@ -31,7 +31,8 @@ export type SlashCommandSuggestion = {
 
 const COMMON_COMMANDS: readonly SlashCommandSuggestion[] = [
   { name: 'clear', description: 'Clear the conversation' },
-  { name: 'help', description: 'Show available commands' }
+  { name: 'help', description: 'Show available commands' },
+  { name: 'workflow', description: 'Create a new workflow', argumentHint: '<name>' }
 ]
 
 const CLAUDE_COMMANDS: readonly SlashCommandSuggestion[] = [
