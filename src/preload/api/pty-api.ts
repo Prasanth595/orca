@@ -4,7 +4,7 @@ import type {
   SleepingAgentLaunchConfig
 } from '../../shared/agent-session-resume'
 import type { StartupCommandDelivery } from '../../shared/codex-startup-delivery'
-import type { TerminalInputKind } from '../../shared/terminal-input-kind'
+import type { TerminalInputKind, TerminalInputOrigin } from '../../shared/terminal-input-kind'
 import type {
   TerminalLeafMoveRequest,
   TerminalLeafMoveResult
@@ -91,13 +91,18 @@ export type PtyApi = {
     /** Host verdict on the shell-ready marker; absent when the execution host predates the field. */
     shellReadyArmed?: boolean
   }>
-  write: (id: string, data: string, inputKind: TerminalInputKind) => void
+  write: (
+    id: string,
+    data: string,
+    inputKind: TerminalInputKind,
+    inputOrigin?: TerminalInputOrigin
+  ) => void
   /** `requireWriteSettlement` waits for the provider's acknowledgment on any provider. */
   writeAccepted: (
     id: string,
     data: string,
     inputKind: TerminalInputKind,
-    options?: { requireWriteSettlement?: true }
+    options?: { requireWriteSettlement?: true; inputOrigin?: TerminalInputOrigin }
   ) => Promise<boolean>
   onWriteUnavailable?: (callback: (payload: { id: string }) => void) => () => void
   resize: (id: string, cols: number, rows: number) => void
