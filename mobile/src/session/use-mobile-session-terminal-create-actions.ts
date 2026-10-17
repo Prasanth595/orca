@@ -125,7 +125,7 @@ export function useMobileSessionTerminalCreateActions(scope: MobileSessionAttach
           pendingSelectionRef.current = withLaunchReply(
             pendingSelectionRef.current,
             clientMutationId,
-            structured
+            { sessionId: structured.sessionId }
           )
           void fetchSessionTabs()
           return sourceOutcome('accepted')
