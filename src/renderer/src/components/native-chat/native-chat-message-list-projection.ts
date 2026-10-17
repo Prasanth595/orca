@@ -39,14 +39,25 @@ function sameRows<T>(
 const sameSubagentRow = (a: NativeChatSubagentRow, b: NativeChatSubagentRow): boolean =>
   a.message === b.message && a.turnKey === b.turnKey
 
+function sameIds(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
+  return left.size === right.size && [...left].every((id) => right.has(id))
+}
+
 export function createNativeChatMessageListProjection(): (
   messages: NativeChatMessage[],
   journal?: NativeChatTurnJournal | null
 ) => NativeChatTranscriptProjection {
-  let previous: NativeChatTranscriptProjection = { conversation: [], subagentRows: new Map() }
+  let previous: NativeChatTranscriptProjection = {
+    conversation: [],
+    replyStartIds: new Set(),
+    subagentRows: new Map()
+  }
   let byId = new Map<string, NativeChatMessage>()
   return (messages, journal) => {
     const projected = projectNativeChatTranscript(messages, compareMessages, journal)
+    const replyStartIds = sameIds(previous.replyStartIds, projected.replyStartIds)
+      ? previous.replyStartIds
+      : projected.replyStartIds
     // Folding clones historical tool runs even when every contributing block is unchanged.
     const settle = (message: NativeChatMessage): NativeChatMessage => {
       const prior = byId.get(message.id)
@@ -63,16 +74,18 @@ export function createNativeChatMessageListProjection(): (
       )
     }
     const sameConversation = sameRows(previous.conversation, conversation, Object.is)
+    const sameReplyStarts = replyStartIds === previous.replyStartIds
     const sameSubagents =
       subagentRows.size === previous.subagentRows.size &&
       Array.from(subagentRows).every(
         ([agentId, rows]) => previous.subagentRows.get(agentId) === rows
       )
-    if (sameConversation && sameSubagents) {
+    if (sameConversation && sameReplyStarts && sameSubagents) {
       return previous
     }
     previous = {
       conversation: sameConversation ? previous.conversation : conversation,
+      replyStartIds,
       subagentRows: sameSubagents ? previous.subagentRows : subagentRows
     }
     byId = new Map(

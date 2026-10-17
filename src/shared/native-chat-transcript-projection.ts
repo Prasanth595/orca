@@ -10,7 +10,7 @@
 import { nativeChatSemanticRowId, type NativeChatMessage } from './native-chat-types'
 import { compareAgentJournalPositions } from './agent-session-journal-position'
 import { agentJournalItemSubagentId } from './agent-session-journal-producer'
-import { stripNoiseMessages } from './native-chat-noise'
+import { isDeliveryNoiseMessage, isNoiseMessage, stripNoiseMessages } from './native-chat-noise'
 import { foldToolMessages } from './native-chat-tool-fold'
 import { foldSubagentItems } from './native-chat-subagent-items'
 import { nativeChatTurnMembership, type NativeChatTurnJournal } from './native-chat-turn-membership'
@@ -79,13 +79,38 @@ export type NativeChatSubagentRow = {
 export type NativeChatTranscriptProjection = {
   /** The session's own agent's rows. */
   conversation: NativeChatMessage[]
+  /** Rows that follow a dropped delivery (cross-session message, task
+   *  notification, …): each opens a new reply inside its turn. */
+  replyStartIds: ReadonlySet<string>
   /** Each subagent's own rows, in order, by the id they carry. */
   subagentRows: ReadonlyMap<string, readonly NativeChatSubagentRow[]>
 }
 
 const NO_SUBAGENT_ROWS: ReadonlyMap<string, readonly NativeChatSubagentRow[]> = new Map()
 
-function projectRows(messages: readonly NativeChatMessage[]): NativeChatMessage[] {
+function projectRows(messages: readonly NativeChatMessage[]): {
+  conversation: NativeChatMessage[]
+  replyStartIds: ReadonlySet<string>
+} {
+  const folded = foldToolMessages(foldSubagentItems(messages))
+  const conversation: NativeChatMessage[] = []
+  const replyStartIds = new Set<string>()
+  let afterDelivery = false
+  for (const message of folded) {
+    if (isNoiseMessage(message)) {
+      afterDelivery ||= isDeliveryNoiseMessage(message)
+      continue
+    }
+    if (afterDelivery) {
+      replyStartIds.add(message.id)
+      afterDelivery = false
+    }
+    conversation.push(message)
+  }
+  return { conversation, replyStartIds }
+}
+
+function projectSubagentRows(messages: readonly NativeChatMessage[]): NativeChatMessage[] {
   return stripNoiseMessages(foldToolMessages(foldSubagentItems(messages)))
 }
 
@@ -129,9 +154,9 @@ export function projectNativeChatTranscript(
       }
     }
   }
-  const conversation = projectRows(own)
+  const { conversation, replyStartIds } = projectRows(own)
   if (byAgent.size === 0) {
-    return { conversation, subagentRows: NO_SUBAGENT_ROWS }
+    return { conversation, replyStartIds, subagentRows: NO_SUBAGENT_ROWS }
   }
   // Only a user row the conversation draws opens a turn by position, never a subagent's.
   const turnStarts = new Set(
@@ -149,7 +174,7 @@ export function projectNativeChatTranscript(
     let chunk: NativeChatMessage[] = []
     let chunkTurn: string | undefined
     const flush = (): void => {
-      for (const message of projectRows(chunk)) {
+      for (const message of projectSubagentRows(chunk)) {
         projected.push({ message, turnKey: chunkTurn })
       }
       chunk = []
@@ -165,5 +190,5 @@ export function projectNativeChatTranscript(
     flush()
     subagentRows.set(agentId, projected)
   }
-  return { conversation, subagentRows }
+  return { conversation, replyStartIds, subagentRows }
 }

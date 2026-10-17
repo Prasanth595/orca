@@ -111,6 +111,8 @@ export type NativeChatTranscriptSlotsInput = {
   turnDiffs: ReadonlyMap<string, NativeChatTurnDiff>
   /** Turns the reader opened. Everything else with a duration stays folded. */
   expandedTurnKeys: ReadonlySet<string>
+  /** Rows that open a new reply after a hidden delivery; see the projection. */
+  replyStartIds?: ReadonlySet<string>
   isWorking: boolean
   /** Session-level lifecycle, which outlives a transcript that never said "done". */
   lifecycleWorking: boolean
@@ -132,6 +134,7 @@ export function buildNativeChatTranscriptSlots(
     turnStatuses,
     turnDiffs,
     expandedTurnKeys,
+    replyStartIds,
     isWorking,
     lifecycleWorking,
     subagentSections: sections = NO_NATIVE_CHAT_SUBAGENT_SECTIONS,
@@ -153,6 +156,7 @@ export function buildNativeChatTranscriptSlots(
         isBackgroundTaskBlock(block) ||
         isStoppedBeforeStartBlock(block)
     ),
+    startsReply: replyStartIds?.has(message.id) ?? false,
     // A row about Orca's own stop is stored red for clients that predate it; it reports no failure.
     reportsFailure: message.blocks.some(
       (block) =>
