@@ -14,7 +14,6 @@ type PaneSubmissions = {
   source: 'claude' | 'codex'
   turns: Map<string, boolean>
   completion?: AgentReplyCompletion
-  lastCompletedPromptId?: string
 }
 
 /** Joins live main-agent submission hooks to submit keys on the execution host. */
@@ -71,16 +70,15 @@ export class AgentReplySubmissions {
         pane.turns.set(promptId, pane.turns.get(promptId) === true || author === 'human')
       }
     } else if (event.hookEventName === 'Stop' && promptId) {
-      if (pane.lastCompletedPromptId && pane.lastCompletedPromptId !== promptId) {
-        pane.turns.delete(pane.lastCompletedPromptId)
-      }
-      pane.lastCompletedPromptId = promptId
+      const human = pane.turns.get(promptId) === true
+      pane.turns.clear()
+      pane.turns.set(promptId, human)
       pane.completion = {
         source: event.source,
         sessionId,
         promptId,
         transcriptPath: event.providerSession?.transcriptPath,
-        human: pane.turns.get(promptId) === true
+        human
       }
     } else if (mainState === 'working') {
       pane.completion = undefined

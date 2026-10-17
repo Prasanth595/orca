@@ -9,6 +9,8 @@ export async function isClaudeHumanReply(
 ): Promise<boolean> {
   let found = false
   let human = false
+  let seenPrompt = false
+  let crossedTurn = false
   try {
     await readNativeChatTranscriptTailFile(
       transcriptPath,
@@ -18,10 +20,19 @@ export async function isClaudeHumanReply(
         if (
           !entry ||
           typeof entry !== 'object' ||
+          !('promptId' in entry) ||
+          typeof entry.promptId !== 'string'
+        ) {
+          return null
+        }
+        if (entry.promptId !== promptId) {
+          crossedTurn = seenPrompt
+          return null
+        }
+        seenPrompt = true
+        if (
           !('type' in entry) ||
           entry.type !== 'user' ||
-          !('promptId' in entry) ||
-          entry.promptId !== promptId ||
           !('origin' in entry) ||
           !entry.origin ||
           typeof entry.origin !== 'object'
@@ -37,7 +48,7 @@ export async function isClaudeHumanReply(
       undefined,
       signal,
       undefined,
-      { stop: () => found, onRead }
+      { stop: () => found || crossedTurn, onRead }
     )
   } catch {
     return false

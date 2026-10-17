@@ -80,12 +80,38 @@ describe('live submit keys joined to exact main-agent hook turns', () => {
     const r = rig('claude')
     r.input('human')
     r.hook('UserPromptSubmit')
-    r.input('human')
-    r.hook('UserPromptSubmit', CLAUDE_PREVIOUS_PROMPT_ID)
     r.hook('Stop')
     expect(r.human()).toBe(true)
+    r.input('human')
+    r.hook('UserPromptSubmit', CLAUDE_PREVIOUS_PROMPT_ID)
     r.hook('Stop', CLAUDE_PREVIOUS_PROMPT_ID)
     expect(r.human()).toBe(true)
+  })
+  it('A6: Codex Tab-queued input has no submit key, unless a later approval Enter is borrowed', () => {
+    for (const approval of [false, true]) {
+      const r = rig()
+      r.input('human')
+      r.hook('UserPromptSubmit')
+      r.input('human', 'invented queued prompt\t')
+      if (approval) {
+        r.input('human')
+      }
+      r.hook('Stop')
+      expect(r.human()).toBe(true)
+      r.hook('UserPromptSubmit', CLAUDE_PREVIOUS_PROMPT_ID)
+      r.hook('Stop', CLAUDE_PREVIOUS_PROMPT_ID)
+      expect(r.human()).toBe(approval)
+    }
+  })
+  it('retains only the completed prompt, discarding submissions without a Stop', () => {
+    const r = rig()
+    r.input('human')
+    r.hook('UserPromptSubmit')
+    r.input('programmatic')
+    r.hook('UserPromptSubmit', CLAUDE_PREVIOUS_PROMPT_ID)
+    r.hook('Stop', CLAUDE_PREVIOUS_PROMPT_ID)
+    r.hook('Stop')
+    expect(r.human()).toBe(false)
   })
 
   it('A4: a queued Claude submit can attach to the running prompt, including rejected screening', () => {

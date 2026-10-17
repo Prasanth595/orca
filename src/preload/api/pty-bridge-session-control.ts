@@ -100,6 +100,8 @@ export const ptySessionControlApi = {
     options?: { requireWriteSettlement?: true; inputOrigin?: TerminalInputOrigin }
   ): Promise<boolean> =>
     ipcRenderer.invoke('pty:writeAccepted', { id, data, inputKind, ...options }),
+  interruptSubmissionPaste: (id: string): void =>
+    ipcRenderer.send('pty:interruptSubmissionPaste', id),
   onWriteUnavailable: (callback: (payload: { id: string }) => void): (() => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: { id: string }): void =>
       callback(payload)

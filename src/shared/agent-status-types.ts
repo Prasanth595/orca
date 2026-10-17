@@ -157,8 +157,8 @@ export type AgentStatusEntry = {
   providerSession?: AgentProviderSessionMetadata
   /** False when the status belongs to a non-terminal owner that restores itself. */
   terminalResumeEligible?: false
-  /** Live-only Command Code turn boundary key; not persisted to last-status.json. */
   providerPromptId?: string
+  /** Live-only Command Code turn boundary key; not persisted to last-status.json. */
   promptInteractionKey?: string
   /** True for a nonterminal state hydrated from last-status.json with no live hook since:
    *  the transition may have been missed while no receiver was up, so freshness gates

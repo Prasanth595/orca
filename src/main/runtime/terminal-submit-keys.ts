@@ -6,7 +6,16 @@ export class TerminalSubmitKeys {
   private escape = ''
   private author: TerminalInputOrigin | undefined
 
+  interruptPaste(): void {
+    this.paste = false
+    this.escape = ''
+  }
+
   record(data: string, author: TerminalInputOrigin): void {
+    if (data === '\x1b') {
+      this.escape = ''
+      return
+    }
     for (const character of data) {
       if (this.escape) {
         if (this.escape.length < 16) {

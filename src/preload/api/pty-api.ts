@@ -104,6 +104,7 @@ export type PtyApi = {
     inputKind: TerminalInputKind,
     options?: { requireWriteSettlement?: true; inputOrigin?: TerminalInputOrigin }
   ) => Promise<boolean>
+  interruptSubmissionPaste?: (id: string) => void
   onWriteUnavailable?: (callback: (payload: { id: string }) => void) => () => void
   resize: (id: string, cols: number, rows: number) => void
   claimViewport: (id: string, cols: number, rows: number) => void

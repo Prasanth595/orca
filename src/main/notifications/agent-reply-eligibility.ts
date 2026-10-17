@@ -44,7 +44,7 @@ export function createAgentReplyEligibility(
       return undefined
     }
     submittedPtyIds.set(paneKey, id)
-    return runtime?.terminalRunFacts.takeSubmitAuthor(id)
+    return runtime?.terminalRunFacts?.takeSubmitAuthor(id)
   })
   const configure = (): void => {
     const settings = store.getSettings().notifications
@@ -63,7 +63,7 @@ export function createAgentReplyEligibility(
     tracker.clear()
     revisions.clear()
     submittedPtyIds.clear()
-    runtime?.terminalRunFacts.setSubmissionTracking(enabled)
+    runtime?.terminalRunFacts?.setSubmissionTracking(enabled)
     floorHost = getStructuredAgentSessionHost()
     floors = enabled ? (floorHost?.replyJournal.cursors() ?? new Map()) : new Map()
   }
@@ -183,7 +183,7 @@ export function createAgentReplyEligibility(
       tracker.clear()
       revisions.clear()
       submittedPtyIds.clear()
-      runtime?.terminalRunFacts.setSubmissionTracking(false)
+      runtime?.terminalRunFacts?.setSubmissionTracking(false)
     }
   }
 }

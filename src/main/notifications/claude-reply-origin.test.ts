@@ -50,4 +50,15 @@ describe('Claude exact prompt origin', () => {
     controller.abort()
     expect(await isClaudeHumanReply(path, 'A', controller.signal)).toBe(false)
   })
+  it('stops at the preceding turn when the current prompt has no explicit origin', async () => {
+    const path = await transcript([
+      { type: 'assistant', message: { content: 'x'.repeat(150_000) } },
+      { type: 'user', promptId: 'A', origin: { kind: 'human' } },
+      { type: 'user', promptId: 'B', origin: null },
+      { type: 'assistant', promptId: 'B' }
+    ])
+    let bytes = 0
+    expect(await isClaudeHumanReply(path, 'B', undefined, (read) => (bytes += read))).toBe(false)
+    expect(bytes).toBeLessThan(150_000)
+  })
 })

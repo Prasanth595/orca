@@ -44,6 +44,10 @@ export class TerminalRunFactsRegister {
     return this.submitKeys.get(ptyId)?.take()
   }
 
+  interruptSubmissionPaste(ptyId: string): void {
+    this.submitKeys.get(ptyId)?.interruptPaste()
+  }
+
   private readonly runsByPtyId = new Map<string, TerminalRunRecord>()
   // Why apart from the run record: input must count on a PTY main adopted without a commit.
   private readonly lastInputAtByPtyId = new Map<string, number>()
