@@ -1,10 +1,5 @@
 import { createHash } from 'node:crypto'
 import { posix, win32 } from 'node:path'
-import {
-  resolveDebugAdapter,
-  type DapAdapterRow,
-  type DapResolveOptions
-} from './dap-adapter-registry'
 
 export type LaunchVariableContext = {
   worktreePath: string
@@ -220,91 +215,18 @@ export function canonicalJson(value: unknown): string {
   return JSON.stringify(value) ?? 'null'
 }
 
-/** Over the UNRESOLVED configuration, so it is one hash in every worktree and for every file. */
-export function launchConfigHash(adapterId: string, config: LaunchConfigObject): string {
-  return createHash('sha256')
-    .update(canonicalJson({ adapterId, configuration: config }))
-    .digest('hex')
-}
-
-const MASKED_ENV_KEY = /KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL/i
-// Each one changes what code the debuggee loads before the program runs.
-const DANGEROUS_ENV_KEYS = new Set([
-  'NODE_OPTIONS',
-  'PYTHONPATH',
-  'PYTHONSTARTUP',
-  'LD_PRELOAD',
-  'DYLD_INSERT_LIBRARIES',
-  'DYLD_LIBRARY_PATH'
-])
-
-export type LaunchRunsEnvEntry = {
-  name: string
-  value: string | null
-  masked: boolean
-  dangerous: boolean
-}
-
-/** What the confirmation shows before anything runs; absent keys are null. */
-export type LaunchRuns = {
-  program: unknown
-  args: unknown
-  cwd: unknown
-  module: unknown
-  python: unknown
-  runtimeExecutable: unknown
-  runtimeArgs: unknown
-  envFile: unknown
-  processId: unknown
-  host: unknown
-  port: unknown
-  adapterBinary: string | null
-  adapterArgs: string[] | null
-  /** The adapter binary sits in the worktree, so anything that writes the repo can change it. */
-  adapterRepoLocal: boolean
-  env: LaunchRunsEnvEntry[]
-}
-
-function describeEnv(env: unknown): LaunchRunsEnvEntry[] {
-  if (!isLaunchConfigObject(env)) {
-    return []
-  }
-  return Object.entries(env).map(([name, raw]) => {
-    const masked = MASKED_ENV_KEY.test(name)
-    const value = raw === null || raw === undefined ? null : String(raw)
-    return {
-      name,
-      value: masked && value !== null ? '••••••' : value,
-      masked,
-      dangerous: DANGEROUS_ENV_KEYS.has(name)
-    }
-  })
-}
-
-export async function describeLaunchRuns(
-  row: DapAdapterRow,
+/** Over the UNRESOLVED configuration (plus any envFile's text), so it is one hash in every worktree. */
+export function launchConfigHash(
+  adapterId: string,
   config: LaunchConfigObject,
-  options: DapResolveOptions
-): Promise<LaunchRuns> {
-  const python = typeof config.python === 'string' ? config.python : undefined
-  const adapter = await resolveDebugAdapter(row, { ...options, pythonOverride: python })
-  return {
-    program: config.program ?? null,
-    args: config.args ?? null,
-    cwd: config.cwd ?? null,
-    module: config.module ?? null,
-    python: config.python ?? null,
-    runtimeExecutable: config.runtimeExecutable ?? null,
-    runtimeArgs: config.runtimeArgs ?? null,
-    envFile: config.envFile ?? null,
-    processId: config.processId ?? null,
-    host: config.host ?? null,
-    port: config.port ?? null,
-    adapterBinary: adapter.ok ? adapter.binaryPath : null,
-    adapterArgs: adapter.ok ? adapter.args : null,
-    adapterRepoLocal: adapter.ok && adapter.repoLocal,
-    env: describeEnv(config.env)
+  envFileText: string | null = null
+): string {
+  const input = {
+    adapterId,
+    configuration: config,
+    ...(envFileText === null ? {} : { envFileText })
   }
+  return createHash('sha256').update(canonicalJson(input)).digest('hex')
 }
 
 const LANGUAGE_EXTENSIONS: Record<string, string[]> = {
@@ -325,4 +247,36 @@ export function languageIdForFile(filePath: string): string | null {
   const ext = posix.extname(filePath.replaceAll('\\', '/')).toLowerCase()
   const match = Object.entries(LANGUAGE_EXTENSIONS).find(([, exts]) => exts.includes(ext))
   return match?.[0] ?? null
+}
+
+const NODE_CURRENT_FILE = {
+  type: 'node',
+  request: 'launch',
+  name: 'Node: current file',
+  program: '${file}',
+  cwd: '${workspaceFolder}'
+}
+
+/** The "Debug current file" templates by language id, variables unsubstituted. */
+export const CURRENT_FILE_DEFAULTS: Record<string, LaunchConfigObject> = {
+  python: {
+    type: 'debugpy',
+    request: 'launch',
+    name: 'Python: current file',
+    program: '${file}',
+    cwd: '${workspaceFolder}',
+    console: 'internalConsole',
+    justMyCode: false
+  },
+  javascript: NODE_CURRENT_FILE,
+  typescript: NODE_CURRENT_FILE,
+  javascriptreact: NODE_CURRENT_FILE,
+  typescriptreact: NODE_CURRENT_FILE,
+  go: {
+    type: 'go',
+    request: 'launch',
+    name: 'Go: current file',
+    mode: 'debug',
+    program: '${fileDirname}'
+  }
 }

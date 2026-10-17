@@ -107,6 +107,10 @@ export type DebugLaunchRunsWire = {
   adapterArgs: string[] | null
   adapterRepoLocal: boolean
   env: { name: string; value: string | null; masked: boolean; dangerous: boolean }[]
+  /** Every key the adapter receives (strings as written, the rest as JSON); command-running keys are dangerous. */
+  allKeys: { name: string; value: string; dangerous: boolean }[]
+  /** The envFile's entries, masked and flagged like env; its text is part of the approval hash. */
+  envFileEntries: { name: string; value: string | null; masked: boolean; dangerous: boolean }[]
 }
 
 export type DebugLaunchPreview = {

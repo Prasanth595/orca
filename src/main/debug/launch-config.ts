@@ -7,16 +7,16 @@ import {
   type DapAdapterRow,
   type DapResolveOptions
 } from './dap-adapter-registry'
+import { describeLaunchRuns, readLaunchEnvFile, type LaunchRuns } from './launch-config-runs'
 import {
-  describeLaunchRuns,
+  CURRENT_FILE_DEFAULTS,
   isLaunchConfigObject as isObject,
   languageIdForFile,
   launchConfigHash,
   stripPrototypeKeys,
   substituteLaunchVariables,
   unsupportedLaunchVariables,
-  type LaunchConfigObject,
-  type LaunchRuns
+  type LaunchConfigObject
 } from './launch-config-variables'
 
 export { languageIdForFile }
@@ -132,6 +132,10 @@ function checkConfiguration(
   if (request !== 'launch' && request !== 'attach') {
     return refuse('unsupported-request', `"${name}" has request "${request}", not launch or attach`)
   }
+  const task = ['preLaunchTask', 'postDebugTask'].find((key) => key in config)
+  if (task) {
+    return refuse('unsupported-request', `"${name}" sets ${task}: tasks are not supported`)
+  }
   const unsupported = unsupportedLaunchVariables(config)
   return unsupported.length > 0
     ? refuse(
@@ -172,37 +176,6 @@ export async function listLaunchConfigs(
     refusal: 'compound configurations are not supported'
   }))
   return { ok: true, configs: [...configs, ...compounds] }
-}
-
-const NODE_CURRENT_FILE = {
-  type: 'node',
-  request: 'launch',
-  name: 'Node: current file',
-  program: '${file}',
-  cwd: '${workspaceFolder}'
-}
-
-const CURRENT_FILE_DEFAULTS: Record<string, LaunchConfigObject> = {
-  python: {
-    type: 'debugpy',
-    request: 'launch',
-    name: 'Python: current file',
-    program: '${file}',
-    cwd: '${workspaceFolder}',
-    console: 'internalConsole',
-    justMyCode: false
-  },
-  javascript: NODE_CURRENT_FILE,
-  typescript: NODE_CURRENT_FILE,
-  javascriptreact: NODE_CURRENT_FILE,
-  typescriptreact: NODE_CURRENT_FILE,
-  go: {
-    type: 'go',
-    request: 'launch',
-    name: 'Go: current file',
-    mode: 'debug',
-    program: '${fileDirname}'
-  }
 }
 
 /** The "Debug current file" template, variables unsubstituted. */
@@ -295,6 +268,10 @@ export async function resolveLaunchSpec(
     return refuse(substituted.reason, `"${name}": ${substituted.message}`)
   }
   const resolved = substituted.value
+  const envFile = await readLaunchEnvFile(input.worktreePath, resolved.envFile)
+  if (!envFile.ok) {
+    return refuse('malformed', `"${name}": ${envFile.message}`)
+  }
   const wire = (user: LaunchConfigObject): LaunchConfigObject => {
     const merged: LaunchConfigObject = { ...row.launchDefaults, ...user, type: row.wireType }
     if (row.workspaceFolderKey) {
@@ -314,10 +291,12 @@ export async function resolveLaunchSpec(
   }
   // The confirmation shows ${env:NAME} as written: resolving it would display main's secrets.
   const shown = substituteLaunchVariables(unresolved, { ...input, keepEnv: true })
-  const runs = await describeLaunchRuns(row, shown.ok ? wire(shown.value) : config, {
-    ...input.adapterOptions,
-    worktreePath: input.worktreePath
-  })
+  const runs = await describeLaunchRuns(
+    row,
+    shown.ok ? wire(shown.value) : config,
+    { ...input.adapterOptions, worktreePath: input.worktreePath },
+    envFile.text
+  )
   return {
     ok: true,
     spec: {
@@ -326,7 +305,7 @@ export async function resolveLaunchSpec(
       config,
       resolved,
       name: name || row.label,
-      configHash: launchConfigHash(row.id, unresolved),
+      configHash: launchConfigHash(row.id, unresolved, envFile.text),
       ...(consoleForcedFrom ? { consoleForcedFrom } : {}),
       runs
     }
