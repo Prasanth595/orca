@@ -248,7 +248,6 @@ export function buildAgentStatusLiveEntry(
     ...liveEntryChildFields(existing, payload),
     ...(mainAgent ? { mainAgent } : {}),
     ...(providerSession ? { providerSession } : {}),
-    ...(payload.providerPromptId ? { providerPromptId: payload.providerPromptId } : {}),
     ...(metadata?.terminalResumeEligible === false
       ? { terminalResumeEligible: false as const }
       : {}),

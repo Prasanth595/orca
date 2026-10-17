@@ -101,31 +101,27 @@ function rig(source: 'claude' | 'codex' = 'codex', enabled = true) {
     })
   const input = (origin: 'human' | 'programmatic') =>
     facts.recordInput('pty', 'driving', '\r', undefined, origin)
-  const request = {
-    source: 'agent-task-complete' as const,
-    paneKey: 'pane',
-    agentReplyIdentity: { sessionId: 'session', promptId: 'turn-A' }
-  }
+  // The renderer's request carries no turn identity; the host's own hook turn decides.
+  const request = { source: 'agent-task-complete' as const, paneKey: 'pane' }
   return { facts, policy, hook, input, request, settings, settingsChanged: () => settingsChanged() }
 }
 
 describe('host reply eligibility and asynchronous invalidation', () => {
-  it('Codex completion never reads a transcript, and matches the exact submitted turn', async () => {
+  it('Codex completion never reads a transcript, and is judged on the latest main turn', async () => {
     const r = rig()
     r.input('human')
     r.hook('UserPromptSubmit')
     r.hook('Stop')
     expect(await r.policy.canBring(r.request)).toBe(true)
     expect(r.policy.stillEligible(r.request)).toBe(true)
-    expect(
-      await r.policy.canBring({
-        ...r.request,
-        agentReplyIdentity: { sessionId: 'session', promptId: 'old' }
-      })
-    ).toBe(false)
     expect(callbacks.read).not.toHaveBeenCalled()
+    r.input('programmatic')
     r.hook('UserPromptSubmit', 'turn-B')
     expect(r.policy.stillEligible(r.request)).toBe(false)
+    expect(await r.policy.canBring(r.request)).toBe(false)
+    // A late request for the human turn cannot borrow its verdict once a program turn has ended.
+    r.hook('Stop', 'turn-B')
+    expect(await r.policy.canBring(r.request)).toBe(false)
   })
   it('Claude reads only after a human submission and rejects a new turn during that read', async () => {
     const r = rig('claude')

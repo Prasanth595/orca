@@ -1,10 +1,8 @@
-import type { AgentProviderSessionMetadata } from '../../../../shared/agent-session-resume'
 import type { ParsedAgentStatusPayload } from '../../../../shared/agent-status-types'
 import type { RecognizedAgentProcess } from '../../../../shared/agent-process-recognition'
 import type { RuntimeTerminalProcessInspection } from '@/runtime/runtime-terminal-inspection'
 
 export type AgentCompletionStatusSnapshot = ParsedAgentStatusPayload & {
-  providerSession?: AgentProviderSessionMetadata
   stateStartedAt?: number
   /** Renderer-local boundary used only to reject a delayed cross-host completion. */
   localStateStartedAt?: number

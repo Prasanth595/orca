@@ -147,14 +147,6 @@ export function dispatchTerminalNotification(
   // expose the previous turn's prompt if the current turn has no fresh hook snapshot yet.
   const agentSnapshot = agentStatus
     ? {
-        ...(agentStatus.providerPromptId && agentStatus.providerSession?.id
-          ? {
-              agentReplyIdentity: {
-                sessionId: agentStatus.providerSession.id,
-                promptId: agentStatus.providerPromptId
-              }
-            }
-          : {}),
         agentType: agentStatus.agentType,
         agentState: agentStatus.state,
         agentPrompt: agentStatus.prompt,

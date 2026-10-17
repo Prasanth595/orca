@@ -143,14 +143,10 @@ export function createAgentReplyEligibility(
         }
         return eligible
       }
+      // Judged on this host's latest completed main turn: a new turn clears it, so a late request
+      // never inherits an older verdict.
       const completion = tracker.completion(paneKey)
-      const identity = request.agentReplyIdentity
-      if (
-        !completion?.human ||
-        !identity ||
-        identity.promptId !== completion.promptId ||
-        identity.sessionId !== completion.sessionId
-      ) {
+      if (!completion?.human) {
         return false
       }
       const human =

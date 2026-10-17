@@ -1,4 +1,3 @@
-import { agentStatusNotificationSnapshot } from './agent-status-notification-snapshot'
 import { sameAgentStatusTerminalOwner } from '../../../../shared/agent-status-terminal-owner'
 import { isWslHookRelayConnectionId } from '../../../../shared/wsl-hook-relay-contract'
 import type { AgentStatusIpcPayload } from '../../../../shared/agent-status-types'
@@ -185,11 +184,9 @@ export function createAgentStatusEventApplicator(args: {
       return 'applied'
     }
     const resolvedPayload = resolveHookPayloadAgentType(payload, identityTitle ?? title)
-    const statusPayload = {
-      ...resolvedPayload,
-      ...(data.orchestration ? { orchestration: data.orchestration } : {}),
-      ...(data.providerPromptId ? { providerPromptId: data.providerPromptId } : {})
-    }
+    const statusPayload = data.orchestration
+      ? { ...resolvedPayload, orchestration: data.orchestration }
+      : resolvedPayload
     const statusPayloadWithTurnBoundary = data.promptInteractionKey
       ? { ...statusPayload, promptInteractionKey: data.promptInteractionKey }
       : statusPayload
@@ -256,7 +253,10 @@ export function createAgentStatusEventApplicator(args: {
       options?.replay === true || isSeenHostReplay(data, resolvedPayload.state, existingStatus)
     const applyPostCommitNotification = (): void => {
       if (statusWorktreeId && (!replayed || resolvedPayload.state === 'working')) {
-        const notificationPayload = agentStatusNotificationSnapshot(data, resolvedPayload)
+        const notificationPayload =
+          typeof data.stateStartedAt === 'number'
+            ? { ...resolvedPayload, stateStartedAt: data.stateStartedAt }
+            : resolvedPayload
         observeAgentHookCompletionForNotification({
           paneKey,
           worktreeId: statusWorktreeId,

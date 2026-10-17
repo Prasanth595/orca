@@ -176,8 +176,7 @@ export function parseAgentStatusIpcPayloadCopy(value: unknown): AgentStatusIpcPa
     'terminalHandle',
     'tabId',
     'worktreeId',
-    'promptInteractionKey',
-    'providerPromptId'
+    'promptInteractionKey'
   ]) {
     if (!copyOptionalString(copied, parsed, key)) {
       return null

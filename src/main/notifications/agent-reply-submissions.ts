@@ -3,7 +3,6 @@ import type { TerminalInputOrigin } from '../../shared/terminal-input-kind'
 
 export type AgentReplyCompletion = {
   source: 'claude' | 'codex'
-  sessionId: string
   promptId: string
   transcriptPath?: string
   human: boolean
@@ -85,7 +84,6 @@ export class AgentReplySubmissions {
       pane.stoppedPromptId = promptId
       pane.completion = {
         source: event.source,
-        sessionId,
         promptId,
         transcriptPath: event.providerSession?.transcriptPath,
         human

@@ -81,26 +81,6 @@ describe('dispatchTerminalNotification', () => {
     })
   })
 
-  it('carries the exact provider turn captured in a delayed completion snapshot', () => {
-    dispatchTerminalNotification('wt-primary', {
-      source: 'agent-task-complete',
-      terminalTitle: 'codex',
-      paneKey,
-      agentStatusSnapshot: {
-        state: 'done',
-        prompt: 'invented input',
-        agentType: 'codex',
-        providerPromptId: 'turn-A',
-        providerSession: { key: 'session_id', id: 'session-A' }
-      }
-    })
-    expect(window.api.notifications.dispatch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        agentReplyIdentity: { sessionId: 'session-A', promptId: 'turn-A' }
-      })
-    )
-  })
-
   it('builds the notification id from a completion snapshot, not the pinned working row', () => {
     const pinnedWorkingStartedAt = Date.now() - 60_000
     // Why: the stored row must name the event's agent, or it is dropped for identity mismatch
