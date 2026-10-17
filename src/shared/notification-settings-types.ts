@@ -8,6 +8,8 @@ export type NotificationSettings = {
   agentTaskComplete: boolean
   terminalBell: boolean
   suppressWhenFocused: boolean
+  /** macOS only: an agent finishing while Orca is in the background brings Orca and that pane forward. */
+  bringToFrontOnAgentTaskComplete: boolean
   customSoundId:
     | 'system'
     | 'two-tone'
@@ -65,6 +67,8 @@ export type NotificationDispatchRequest = {
    * terminal lane, which is every sender that predates structured chat.
    */
   surface?: 'terminal' | 'agent-session'
+  /** Exact hook turn captured by the notification producer; absent from older peers. */
+  agentReplyIdentity?: { sessionId: string; promptId: string }
   /** The news's own identity, set only by a producer that announces each one once. Delivery dedupes
    *  on it instead of the per-workspace burst window, which would drop distinct news. */
   attentionKey?: string
