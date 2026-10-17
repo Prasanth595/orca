@@ -56,9 +56,17 @@ export function recordStatusBarDensityWidth(
   width: StatusBarLevelWidth
 ): (StatusBarLevelWidth | undefined)[] {
   const previous = levelWidths[level]
-  const next =
+  const naturalChanged =
     previous !== undefined && Math.abs(previous.natural - width.natural) > WIDTH_TOLERANCE_PX
-      ? []
+  // Why: urgency can change which chips pin without moving the natural width.
+  const fitChanged =
+    previous !== undefined && Math.abs(previous.fit - width.fit) > WIDTH_TOLERANCE_PX
+  const next = naturalChanged
+    ? []
+    : fitChanged
+      ? levelWidths.map((entry, index) =>
+          STATUS_BAR_DENSITY_LEVELS[index]?.collapseUsage ? undefined : entry
+        )
       : [...levelWidths]
   next[level] = width
   return next
@@ -124,7 +132,8 @@ export function useStatusBarDensity(): {
           usage.chips,
           required - available - WIDTH_TOLERANCE_PX,
           usage.moreChipWidth,
-          usage.chipGap
+          usage.chipGap,
+          usage.unitLabelWidth
         )
       : NO_COLLAPSED_USAGE
     if (nextCollapsed.join() !== collapsedUsageRef.current.join()) {

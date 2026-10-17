@@ -5,9 +5,9 @@ import type { AgentChildWorkEvidence } from '../../shared/agent-status-child-wor
 import { reconcileAgentChildWorkEvidence } from '../../shared/agent-status-child-work-reconciliation'
 import {
   agentChildWorkOwnedLiveness,
-  deriveAgentChildDisplayState,
-  projectAgentChildWorkViews
-} from '../../shared/agent-status-child-work-view'
+  deriveAgentChildDisplayState
+} from '../../shared/agent-status-child-work-display'
+import { projectAgentChildWorkViews } from '../../shared/agent-status-child-work-view'
 import { createAgentStatusStore } from '../../shared/agent-status-store'
 import { makeStructuredAgentStatusSubject } from '../../shared/agent-status-subject'
 import type { CodexBackgroundTaskEvent } from './codex-background-task-frames'
@@ -124,7 +124,7 @@ describe('Codex child-work evidence', () => {
         residency: 'background',
         description: 'audit_build',
         invocation: { invocationId: 'c1', generation: 1 },
-        stoppable: false
+        stoppable: true
       })
     ])
     const aliases = store.getAliasesForChild(records()[0]!.childWorkId)
@@ -134,6 +134,19 @@ describe('Codex child-work evidence', () => {
     ])
     // The host hears the child once.
     expect(log.flat().filter((edge) => edge.type === 'live')).toHaveLength(1)
+  })
+
+  it('keeps usage that arrives before the child is announced, and never credits the parent its own', () => {
+    const { send, byKind } = harness()
+    const usage = (threadId: string, totalTokens: number): CodexBackgroundTaskEvent => ({
+      method: 'thread/tokenUsage/updated',
+      threadId,
+      params: { threadId, tokenUsage: { total: { totalTokens } } }
+    })
+    send(turn('turn/started', PRIMARY, PARENT_TURN), usage(PRIMARY, 9_000), usage(CHILD, 1_500))
+    expect(byKind('agent')).toEqual([])
+    send(spawned(), turn('turn/started', CHILD, 'c1'))
+    expect(byKind('agent')).toEqual([expect.objectContaining({ totalTokens: 1_500 })])
   })
 
   it('makes no record for a child whose turn began before its announcement, until it lands', () => {
@@ -159,18 +172,10 @@ describe('Codex child-work evidence', () => {
     expect(tracker.state).toBeNull()
   })
 
-  const childError = (
-    turnId: string | undefined,
-    willRetry: boolean
-  ): CodexBackgroundTaskEvent => ({
+  const childError = (turnId: string, willRetry: boolean): CodexBackgroundTaskEvent => ({
     method: 'error',
     threadId: CHILD,
-    params: {
-      threadId: CHILD,
-      ...(turnId ? { turnId } : {}),
-      willRetry,
-      error: { message: 'boom' }
-    }
+    params: { threadId: CHILD, turnId, willRetry, error: { message: 'boom' } }
   })
   const childClosed: CodexBackgroundTaskEvent = {
     method: 'thread/closed',
@@ -178,25 +183,32 @@ describe('Codex child-work evidence', () => {
     params: { threadId: CHILD }
   }
 
-  it.each([
-    ['an error naming its turn that Codex will not retry', childError('c1', false), 'failed'],
-    ['an error naming no turn that Codex will not retry', childError(undefined, false), 'failed'],
-    ['its thread closing', childClosed, 'unknown']
-  ])(
-    'settles a working child whose turn ended with no turn/completed, by %s, in the strip and the record together',
-    (_label, ending, outcome) => {
-      const { send, tracker, records } = runningChild()
-      expect(tracker.state?.tasks).toHaveLength(1)
-      send(ending)
-      expect(records()).toEqual([
-        expect.objectContaining({ membership: 'settled', state: 'done', outcome })
-      ])
-      expect(tracker.state).toBeNull()
-      // The first ending a turn gets stands.
-      send(turn('turn/completed', CHILD, 'c1', 'completed'))
-      expect(records()).toEqual([expect.objectContaining({ outcome })])
-    }
-  )
+  it('keeps a child working through an error Codex will not retry, and settles it on the failed turn/completed that follows', () => {
+    const { send, tracker, records } = runningChild()
+    send(childError('c1', false))
+    expect(records()).toEqual([expect.objectContaining({ membership: 'live' })])
+    expect(tracker.state?.tasks).toHaveLength(1)
+    send(turn('turn/completed', CHILD, 'c1', 'failed'))
+    expect(records()).toEqual([
+      expect.objectContaining({ membership: 'settled', state: 'done', outcome: 'failed' })
+    ])
+    expect(tracker.state).toBeNull()
+  })
+
+  it('settles a working child whose thread closed with no turn/completed, in the strip and the record together', () => {
+    const { send, tracker, records } = runningChild()
+    expect(tracker.state?.tasks).toHaveLength(1)
+    send(childClosed)
+    expect(records()).toEqual([
+      expect.objectContaining({ membership: 'settled', state: 'done', outcome: 'unknown' })
+    ])
+    expect(tracker.state).toBeNull()
+    // Lost contact is no verdict: the turn's own ending still says how it went.
+    send(turn('turn/completed', CHILD, 'c1', 'completed'))
+    expect(records()).toEqual([expect.objectContaining({ outcome: 'succeeded' })])
+    send(turn('turn/completed', CHILD, 'c1', 'failed'))
+    expect(records()).toEqual([expect.objectContaining({ outcome: 'succeeded' })])
+  })
 
   it('keeps a child working through a retried error and a systemError status: its turn runs on', () => {
     const { send, tracker, records } = runningChild()
@@ -207,9 +219,6 @@ describe('Codex child-work evidence', () => {
     })
     expect(records()).toEqual([expect.objectContaining({ membership: 'live', state: 'working' })])
     expect(tracker.state?.tasks).toHaveLength(1)
-    // A fatal error naming a turn the child already finished ends nothing.
-    send(turn('turn/completed', CHILD, 'c1'), childError('c1', false))
-    expect(records()).toEqual([expect.objectContaining({ outcome: 'succeeded' })])
   })
 
   it('never settles a child on its PARENT turn ending: children outlive the turn', () => {
@@ -417,14 +426,20 @@ describe('Codex child-work evidence', () => {
       expect.objectContaining({
         membership: 'live',
         description: 'npm run dev',
-        residency: 'background',
+        residency: 'foreground',
         parentChildWorkId: agent!.childWorkId,
         firstObservedAt: 1_040
       })
     ])
     send(turn('turn/completed', CHILD, 'c1'))
     expect(byKind('agent')[0]).toMatchObject({ membership: 'settled', outcome: 'succeeded' })
-    expect(byKind('command')).toEqual([expect.objectContaining({ membership: 'live' })])
+    expect(byKind('command')).toEqual([
+      expect.objectContaining({
+        membership: 'live',
+        residency: 'background',
+        firstObservedAt: 1_040
+      })
+    ])
     expect(display(agent!.childWorkId)).toBe('monitoring')
     send(
       item('item/completed', CHILD, 'c1', {
@@ -559,7 +574,7 @@ describe('Codex child-work evidence', () => {
     expect(records()).toEqual([
       expect.objectContaining({ kind: 'agent', membership: 'settled', outcome: 'succeeded' })
     ])
-    // One edge when each shell starts and one when it exits, as the strip republishes today.
+    // Raw status evidence keeps every start and exit, including foreground processes.
     expect(
       log
         .slice(before)
