@@ -2,10 +2,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import type { OrcaRuntimeService } from '../../orca-runtime'
 import type { WorkflowRun } from '../../../../shared/workflow-types'
+import { eraseRpcMethods } from '../core'
 import { WORKFLOW_METHODS } from './workflows'
 
+const METHODS = eraseRpcMethods(WORKFLOW_METHODS)
+
 function method(name: string) {
-  const found = WORKFLOW_METHODS.find((candidate) => candidate.name === name)
+  const found = METHODS.find((candidate) => candidate.name === name)
   if (!found) {
     throw new Error(`Missing method ${name}`)
   }

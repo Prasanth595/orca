@@ -1,6 +1,9 @@
 import type { CommandHandler } from './dispatch'
 import { BROWSER_HANDLER_GROUPS } from './browser-handler-groups'
 import { JIRA_HANDLER_GROUP } from './jira-handler-group'
+import { WORKFLOW_HANDLER_GROUP } from './workflow-handler-group'
+import { ACCOUNT_HANDLER_GROUP } from './account-handler-group'
+import { ARTIFACT_HANDLER_GROUP } from './artifact-handler-group'
 import { REFERENCE_HANDLER_GROUP } from './reference-handler-group'
 
 export type HandlerGroup = {
@@ -31,22 +34,8 @@ export const HANDLER_GROUPS: readonly HandlerGroup[] = [
     keys: ['serve service install', 'serve service status', 'serve service uninstall'],
     load: async () => (await import('./handlers/serve-service.js')).SERVE_SERVICE_HANDLERS
   },
-  {
-    name: 'account',
-    keys: ['account add', 'account list', 'account select', 'account rm'],
-    load: async () => (await import('./handlers/account.js')).ACCOUNT_HANDLERS
-  },
-  {
-    name: 'artifacts',
-    keys: [
-      'artifacts list',
-      'artifacts share',
-      'artifacts update',
-      'artifacts unshare',
-      'artifacts delete'
-    ],
-    load: async () => (await import('./handlers/artifacts.js')).ARTIFACT_HANDLERS
-  },
+  ACCOUNT_HANDLER_GROUP,
+  ARTIFACT_HANDLER_GROUP,
   {
     name: 'automations',
     keys: [
@@ -60,6 +49,7 @@ export const HANDLER_GROUPS: readonly HandlerGroup[] = [
     ],
     load: async () => (await import('./handlers/automations.js')).AUTOMATION_HANDLERS
   },
+  WORKFLOW_HANDLER_GROUP,
   {
     name: 'project',
     keys: [
