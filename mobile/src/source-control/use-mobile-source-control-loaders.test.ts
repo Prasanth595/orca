@@ -5,7 +5,10 @@ import type { View } from 'react-native'
 import { createFakeRpcClient } from '../mobile-web-shell/bridge-host-test-fakes'
 import type { RpcClient } from '../transport/rpc-client'
 import type { ConnectionState, RpcResponse } from '../transport/types'
-import { useMobileSourceControlLoaders } from './use-mobile-source-control-loaders'
+import {
+  clearMobileSourceControlStatusCacheForTests,
+  useMobileSourceControlLoaders
+} from './use-mobile-source-control-loaders'
 
 // The screen-state module these loaders share with the panel pulls the icon set in; none of it is
 // reachable from a hook that renders nothing.
@@ -129,6 +132,7 @@ describe('useMobileSourceControlLoaders branch compare', () => {
   afterEach(() => {
     act(() => renderer?.unmount())
     renderer = null
+    clearMobileSourceControlStatusCacheForTests()
   })
 
   type Loaders = ReturnType<typeof useMobileSourceControlLoaders>
@@ -270,6 +274,7 @@ describe('useMobileSourceControlLoaders status on reconnect', () => {
   afterEach(() => {
     act(() => renderer?.unmount())
     renderer = null
+    clearMobileSourceControlStatusCacheForTests()
   })
 
   function Harness(props: { client: RpcClient | null; connState: ConnectionState }): null {
@@ -294,5 +299,111 @@ describe('useMobileSourceControlLoaders status on reconnect', () => {
       renderer?.update(createElement(Harness, { client, connState: 'connected' }))
     })
     expect(client.requests.map((request) => request.method)).toContain('git.status')
+  })
+})
+
+function statusReply(branch: string): RpcResponse {
+  return success({
+    branch,
+    head: 'head-oid',
+    entries: [{ path: `${branch}.ts`, status: 'modified', area: 'unstaged' }],
+    upstreamStatus: { hasUpstream: true, ahead: 1, behind: 0, upstreamName: `origin/${branch}` }
+  })
+}
+
+describe('useMobileSourceControlLoaders status cache', () => {
+  let renderer: ReactTestRenderer | null = null
+
+  afterEach(() => {
+    act(() => renderer?.unmount())
+    renderer = null
+    clearMobileSourceControlStatusCacheForTests()
+  })
+
+  type Loaders = ReturnType<typeof useMobileSourceControlLoaders>
+
+  async function mount(
+    client: RpcClient,
+    read: { loaders: Loaders | null },
+    identityKey = IDENTITY,
+    worktreeId = WORKTREE
+  ): Promise<(identityKey: string, worktreeId: string) => Promise<void>> {
+    function Harness(props: { identityKey: string; worktreeId: string }): null {
+      read.loaders = useMobileSourceControlLoaders({
+        client,
+        connState: 'connected',
+        statusIdentityKey: props.identityKey,
+        worktreeId: props.worktreeId,
+        setActionError: IGNORE_ACTION_ERROR
+      })
+      return null
+    }
+    await act(async () => {
+      renderer = create(createElement(Harness, { identityKey, worktreeId }))
+    })
+    return async (nextIdentityKey, nextWorktreeId) => {
+      await act(async () => {
+        renderer?.update(
+          createElement(Harness, { identityKey: nextIdentityKey, worktreeId: nextWorktreeId })
+        )
+      })
+    }
+  }
+
+  it('requests status without line stats', async () => {
+    const calls: PendingCall[] = []
+    const read: { loaders: Loaders | null } = { loaders: null }
+    await mount(fakeClient(calls), read)
+
+    expect(calls[0]).toMatchObject({
+      method: 'git.status',
+      params: { worktree: `id:${WORKTREE}`, includeLineStats: false }
+    })
+    expect(read.loaders?.screenState).toEqual({ kind: 'loading' })
+  })
+
+  it('paints the cached status before the revisit refresh settles', async () => {
+    const calls: PendingCall[] = []
+    const read: { loaders: Loaders | null } = { loaders: null }
+    await mount(fakeClient(calls), read)
+    await settleOldest(calls, 'git.status', STATUS_REPLY)
+    const cached = read.loaders?.screenState
+    expect(cached).toMatchObject({ kind: 'ready', status: { branch: 'feature' } })
+
+    await act(async () => renderer?.unmount())
+    renderer = null
+    const revisitCalls: PendingCall[] = []
+    const revisit: { loaders: Loaders | null } = { loaders: null }
+    await mount(fakeClient(revisitCalls), revisit)
+
+    expect(revisit.loaders?.screenState).toEqual(cached)
+    expect(revisitCalls[0]).toMatchObject({
+      method: 'git.status',
+      params: { worktree: `id:${WORKTREE}`, includeLineStats: false }
+    })
+  })
+
+  it('paints the cached status when the route identity changes back', async () => {
+    const calls: PendingCall[] = []
+    const read: { loaders: Loaders | null } = { loaders: null }
+    const rerender = await mount(fakeClient(calls), read)
+    await settleOldest(calls, 'git.status', statusReply('feature'))
+
+    const otherIdentity = 'host-1:repo42::/other'
+    const otherWorktree = 'repo42::/other'
+    await rerender(otherIdentity, otherWorktree)
+    expect(read.loaders?.screenState).toEqual({ kind: 'loading' })
+    await settleOldest(calls, 'git.status', statusReply('other'))
+    expect(read.loaders?.screenState).toMatchObject({
+      kind: 'ready',
+      status: { branch: 'other' }
+    })
+
+    await rerender(IDENTITY, WORKTREE)
+    expect(read.loaders?.screenState).toMatchObject({
+      kind: 'ready',
+      status: { branch: 'feature' }
+    })
+    expect(calls.some((call) => call.method === 'git.status')).toBe(true)
   })
 })

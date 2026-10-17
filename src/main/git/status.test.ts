@@ -329,7 +329,11 @@ describe('getStatus', () => {
 
     expect(gitExecFileAsyncMock).toHaveBeenCalledWith(
       ['rev-parse', '--verify', '--quiet', 'refs/remotes/origin/feature/prompts'],
-      { cwd: '/repo', preferWslDirectGit: true }
+      expect.objectContaining({
+        cwd: '/repo',
+        preferWslDirectGit: true,
+        signal: expect.any(AbortSignal)
+      })
     )
     expect(result.upstreamStatus).toEqual({ hasUpstream: false, ahead: 0, behind: 0 })
   })

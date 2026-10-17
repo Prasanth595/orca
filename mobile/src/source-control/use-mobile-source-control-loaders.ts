@@ -11,6 +11,7 @@ import {
   readBranchCompareOutcome,
   type BranchCompareOutcome
 } from './mobile-branch-compare-outcome'
+import type { MobileGitStatusHostPayload } from './git-status-reply-schema'
 import { gitStatusHostPayloadRead } from './mobile-git-read-operations'
 import {
   isMobileGitTransientRefreshError,
@@ -40,6 +41,18 @@ type Params = {
 type BranchCompareParameters = Readonly<Record<string, never>>
 const WHOLE_WORKTREE: BranchCompareParameters = {}
 
+// Last successful git.status per route, so a revisit paints files before the refresh returns.
+const mobileSourceControlStatusCache = new Map<string, MobileGitStatusHostPayload>()
+
+export function clearMobileSourceControlStatusCacheForTests(): void {
+  mobileSourceControlStatusCache.clear()
+}
+
+function screenStateForStatusIdentity(statusIdentityKey: string): ScreenState {
+  const status = mobileSourceControlStatusCache.get(statusIdentityKey)
+  return status === undefined ? { kind: 'loading' } : { kind: 'ready', status }
+}
+
 export type MobileSourceControlLoaders = {
   screenState: ScreenState
   setScreenState: (next: ScreenState | ((prev: ScreenState) => ScreenState)) => void
@@ -57,7 +70,9 @@ export type MobileSourceControlLoaders = {
 export function useMobileSourceControlLoaders(params: Params): MobileSourceControlLoaders {
   const { client, connState, statusIdentityKey, worktreeId, setActionError, onStatusLoadSuccess } =
     params
-  const [screenState, setScreenState] = useState<ScreenState>({ kind: 'loading' })
+  const [screenState, setScreenState] = useState<ScreenState>(() =>
+    screenStateForStatusIdentity(statusIdentityKey)
+  )
   const [branchCompareState, setBranchCompareState] = useState<MobileBranchCompareState>({
     kind: 'idle'
   })
@@ -68,17 +83,15 @@ export function useMobileSourceControlLoaders(params: Params): MobileSourceContr
   const branchCompare = useRef(
     new GenerationScopedRequestOwner<BranchCompareParameters, BranchCompareOutcome>()
   ).current
-  // Why: the same route can be reused for another worktree/host (identity change);
-  // a kept-on-failure `ready` state would otherwise show the previous worktree's
-  // data until the fresh load resolves. Reset to loading in the render phase (the
-  // React "adjust state on prop change" pattern) before the new load runs.
+  // Why: route reuse must not keep the previous worktree's files. Paint this identity's last
+  // success during render, or loading when it has never succeeded.
   const lastResetIdentityRef = useRef(statusIdentityKey)
   if (lastResetIdentityRef.current !== statusIdentityKey) {
     lastResetIdentityRef.current = statusIdentityKey
     // Retire here rather than leaving it to the next load's scope: that load only starts once the
     // fresh status returns, and an in-flight compare would publish the old worktree's commits first.
     branchCompare.reset()
-    setScreenState({ kind: 'loading' })
+    setScreenState(screenStateForStatusIdentity(statusIdentityKey))
     setBranchCompareState({ kind: 'idle' })
   }
   currentStatusIdentityRef.current = statusIdentityKey
@@ -174,7 +187,9 @@ export function useMobileSourceControlLoaders(params: Params): MobileSourceContr
         try {
           for (let attempt = 0; attempt <= SELECTOR_RETRY_COUNT; attempt += 1) {
             const reply = await gitStatusHostPayloadRead.request(client, {
-              worktree: `id:${worktreeId}`
+              worktree: `id:${worktreeId}`,
+              // File rows show M/A/D/U only, so skip the host `diff --numstat` walk.
+              includeLineStats: false
             })
             if (!isCurrentLoad()) {
               return false
@@ -184,6 +199,7 @@ export function useMobileSourceControlLoaders(params: Params): MobileSourceContr
             const refusal = readMobileGitRefusal(reply)
             if (!refusal) {
               const result = gitStatusHostPayloadRead.interpret(reply)
+              mobileSourceControlStatusCache.set(loadKey, result)
               setScreenState({ kind: 'ready', status: result })
               void loadBranchCompare({ preserveReadyOnFailure: true })
               if (options?.clearActionErrorOnSuccess !== false) {

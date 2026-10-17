@@ -35,6 +35,7 @@ vi.mock('fs', () => ({
   existsSync: existsSyncMock
 }))
 
+import { setEffectiveUpstreamProbeTimeoutForTests } from './source-control/effective-upstream-status-probe'
 import { clearEffectiveUpstreamStatusCacheForTests, getStatus } from './status'
 
 function getGitArgs(call: unknown[]): string[] {
@@ -70,6 +71,61 @@ describe('getStatus missing-upstream polling churn', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    setEffectiveUpstreamProbeTimeoutForTests(null)
+  })
+
+  it('returns porcelain ahead/behind when the upstream rev-list exceeds its budget', async () => {
+    setEffectiveUpstreamProbeTimeoutForTests(40)
+    gitExecFileAsyncMock.mockImplementation(
+      async (args: string[], options?: { signal?: AbortSignal }) => {
+        if (args.includes('status')) {
+          return {
+            stdout:
+              '# branch.oid abcdef1234567890\n# branch.head feature/prompts\n# branch.upstream origin/main\n# branch.ab +4 -9\n'
+          }
+        }
+        if (args[0] === 'symbolic-ref' && args.includes('HEAD')) {
+          return { stdout: 'feature/prompts\n' }
+        }
+        if (args[0] === 'rev-parse' && args.includes('HEAD@{u}')) {
+          return { stdout: 'origin/main\n' }
+        }
+        if (isConfigListSnapshotCommand(args)) {
+          return emptyGitConfigSnapshot()
+        }
+        if (args[0] === 'rev-parse' && args.includes('refs/remotes/origin/feature/prompts')) {
+          throw new Error('missing remote branch')
+        }
+        if (args[0] === 'rev-list') {
+          const signal = options?.signal
+          if (!signal) {
+            throw new Error('rev-list ran without a probe signal')
+          }
+          await new Promise<void>((_resolve, reject) => {
+            const fail = (): void => {
+              reject(Object.assign(new Error('The operation was aborted.'), { name: 'AbortError' }))
+            }
+            if (signal.aborted) {
+              fail()
+              return
+            }
+            signal.addEventListener('abort', fail, { once: true })
+          })
+        }
+        throw new Error(`unexpected git command: ${args.join(' ')}`)
+      }
+    )
+
+    const startedAt = Date.now()
+    const result = await getStatus('/repo')
+
+    expect(Date.now() - startedAt).toBeLessThan(1_000)
+    expect(result.upstreamStatus).toEqual({
+      hasUpstream: true,
+      upstreamName: 'origin/main',
+      ahead: 4,
+      behind: 9
+    })
   })
 
   it('does not repeat failed effective-upstream probes for a branch with no upstream', async () => {

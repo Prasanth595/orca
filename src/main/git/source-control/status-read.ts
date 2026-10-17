@@ -231,7 +231,7 @@ async function runGetStatus(
           options.bypassEffectiveUpstreamNegativeCache === true
         )
       } catch {
-        // Why: don't fail status polling on a transient upstream-probe error; the explicit upstream path surfaces those.
+        // Why: a timed-out or failed upstream probe must not fail status; porcelain ahead/behind still stands.
       }
     }
   }
