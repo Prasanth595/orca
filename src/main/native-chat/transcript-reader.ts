@@ -1,4 +1,5 @@
 import { readOpenCodeNativeChatTranscriptFull } from './transcript-opencode'
+import { Transform } from 'node:stream'
 import { isENOENT } from '../ipc/filesystem-path-containment'
 import type {
   AgentType,
@@ -14,7 +15,9 @@ import {
   decodeClaudeTranscriptLine,
   decodeCodexTranscriptLine,
   decodeGrokTranscriptLine,
-  decodeOmpTranscriptLine
+  decodeHermesTranscriptLine,
+  decodeOmpTranscriptLine,
+  expandHermesTranscriptLine
 } from './transcript-line-decoders'
 import { decodeTranscriptStream } from './transcript-stream-lines'
 
@@ -75,6 +78,9 @@ export async function readNativeChatTranscript(
     if (transcriptAgent === 'grok') {
       return { messages: await readTranscript(filePath, decodeGrokTranscriptLine) }
     }
+    if (transcriptAgent === 'hermes') {
+      return { messages: await readHermesTranscript(filePath) }
+    }
     if (transcriptAgent === 'omp') {
       return { messages: await readTranscript(filePath, decodeOmpTranscriptLine) }
     }
@@ -95,5 +101,37 @@ async function readTranscript(
 ): Promise<NativeChatMessage[]> {
   const stream = openTranscriptReadStream(filePath, { encoding: 'utf-8' }, 'exact')
   const { messages } = await decodeTranscriptStream(stream, filePath, 0, decode, true)
+  return messages
+}
+
+/** Rewrites each line into the rows the decoder reads, keeping a partial line for the next chunk. */
+function hermesTranscriptExpander(): Transform {
+  let buffered = ''
+  const expand = (lines: readonly string[]): string =>
+    lines.flatMap((line) => expandHermesTranscriptLine(line)).map((line) => `${line}\n`).join('')
+  return new Transform({
+    decodeStrings: false,
+    transform(chunk: string, _encoding, done) {
+      buffered += chunk
+      const lines = buffered.split('\n')
+      buffered = lines.pop() ?? ''
+      done(null, expand(lines))
+    },
+    flush(done) {
+      done(null, expand(buffered.length > 0 ? [buffered] : []))
+    }
+  })
+}
+
+/** Hermes writes either one row per turn or one row per session with its turns nested. */
+async function readHermesTranscript(filePath: string): Promise<NativeChatMessage[]> {
+  const stream = openTranscriptReadStream(filePath, { encoding: 'utf-8' }, 'exact')
+  const { messages } = await decodeTranscriptStream(
+    stream.pipe(hermesTranscriptExpander()),
+    filePath,
+    0,
+    decodeHermesTranscriptLine,
+    true
+  )
   return messages
 }

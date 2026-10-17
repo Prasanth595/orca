@@ -283,8 +283,13 @@ export function extractAgentProviderSession(
     }
     case 'amp':
     case 'command-code':
-    case 'hermes':
       return null
+    // Why: Hermes reports its own session id on every hook and exports the transcript
+    // under that id, so the id alone is both the resume target and the chat reader's key.
+    case 'hermes': {
+      const id = readSessionId(payload, ['session_id'])
+      return id ? { key: 'session_id', id } : null
+    }
   }
 }
 

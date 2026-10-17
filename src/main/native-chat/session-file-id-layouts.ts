@@ -2,7 +2,7 @@ import { win32 } from 'node:path'
 import { GROK_CHAT_HISTORY_FILE } from '../../shared/grok-session-paths'
 import { OMP_SESSION_ARTIFACT_DIR_PATTERN } from '../ai-vault/session-scanner-omp-subagent-transcripts'
 
-export type SessionIdLookupAgent = 'claude' | 'codex' | 'grok' | 'omp'
+export type SessionIdLookupAgent = 'claude' | 'codex' | 'grok' | 'hermes' | 'omp'
 
 /** How one agent names a session's transcript file, for lookup by session id. */
 export type SessionFileIdLayout = {
@@ -31,6 +31,14 @@ export const SESSION_FILE_ID_LAYOUTS: Record<SessionIdLookupAgent, SessionFileId
     fileMatchesId: (path, id) =>
       win32.basename(path) === GROK_CHAT_HISTORY_FILE && win32.basename(win32.dirname(path)) === id,
     directoryPredicate: (name, depth, wanted) => depth === 0 || (depth === 1 && wanted(name))
+  },
+  // `<sessions>/session_<id>.jsonl` (Orca's export) or `<sessions>/hermes_session_<id>.jsonl`
+  // (`hermes sessions export`).
+  hermes: {
+    fileMatchesId: (path, id) => {
+      const name = win32.basename(path)
+      return name === `session_${id}.jsonl` || name === `hermes_session_${id}.jsonl`
+    }
   },
   // `<sessions>/<cwd dir>/<ISO stamp>_<id>.jsonl`
   omp: {

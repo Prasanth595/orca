@@ -53,7 +53,12 @@ describe('agent session resume metadata', () => {
       { key: 'session_id', id: 'session_431324d7-2165-42f0-9ecd-9f93437b3201' }
     ],
     ['jcode', { session_id: 'session_jc_1' }, { key: 'session_id', id: 'session_jc_1' }],
-    ['jcode', { sessionId: 'session_jc_2' }, { key: 'session_id', id: 'session_jc_2' }]
+    ['jcode', { sessionId: 'session_jc_2' }, { key: 'session_id', id: 'session_jc_2' }],
+    [
+      'hermes',
+      { session_id: '20261013_110403_9765b0' },
+      { key: 'session_id', id: '20261013_110403_9765b0' }
+    ]
   ] as const)('extracts %s provider session ids', (source, payload, expected) => {
     expect(extractAgentProviderSession(source, payload)).toEqual(expected)
   })

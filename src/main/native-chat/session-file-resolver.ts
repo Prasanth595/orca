@@ -12,6 +12,7 @@ import { resolveOmpSessionsDir } from '../ai-vault/omp-session-root'
 import {
   claudeProjectsHostDirs,
   codexHomeSessionsDir,
+  hermesSessionsDir,
   uniqueDirs
 } from '../ai-vault/session-scanner-roots'
 import { resolveOrcaManagedCodexHomePath } from '../codex/codex-home-paths'
@@ -74,6 +75,8 @@ export type ResolveSessionFileOptions = {
   grokSessionsDir?: string
   /** Override the omp sessions root (`~/.omp/agent/sessions`). */
   ompSessionsDir?: string
+  /** Override the Hermes sessions root (`~/.hermes/sessions`). */
+  hermesSessionsDir?: string
   /** Authoritative transcript path reported by the agent hook
    *  (`providerSession.transcriptPath`). When set and the file exists, it is used
    *  directly — recent Claude Code names the transcript with a UUID that differs
@@ -207,6 +210,13 @@ async function resolveSessionFileById(
       wslTier: override === undefined,
       signal,
       strictErrors: options.strictErrors
+    })
+  }
+  if (transcriptAgent === 'hermes') {
+    const override = options.hermesSessionsDir
+    return resolveTiered('hermes', trimmedId, [override ?? hermesSessionsDir()], {
+      wslTier: !override,
+      signal
     })
   }
   // Why: a new transcript agent must pick its own resolver. Falling through to

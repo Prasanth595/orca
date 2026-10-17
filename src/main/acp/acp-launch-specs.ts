@@ -3,6 +3,7 @@
 
 import { join } from 'node:path'
 import type { AcpDialect } from './acp-dialects/acp-dialect'
+import { HERMES_ACP_DIALECT } from './acp-dialects/hermes-dialect'
 import { GROK_ACP_DIALECT } from './acp-dialects/grok-dialect'
 import { OMP_ACP_DIALECT } from './acp-dialects/omp-dialect'
 import { OPENCODE_ACP_DIALECT } from './acp-dialects/opencode-dialect'
@@ -38,6 +39,7 @@ import { GROK_TRANSCRIPT_IMPORT } from '../grok/grok-transcript-import'
 import { OPENCODE_SESSION_HISTORY } from '../opencode/opencode-session-history'
 import { OPENCODE_TRANSCRIPT_IMPORT } from '../opencode/opencode-transcript-import'
 import { OMP_SESSION_HISTORY } from '../omp/omp-session-history'
+import { HERMES_SESSION_HISTORY } from '../hermes/hermes-session-history'
 import { OMP_TRANSCRIPT_IMPORT } from '../omp/omp-transcript-import'
 
 /** How an agent lists its models without a session: from its `initialize` answer (plus extension
@@ -221,10 +223,30 @@ const OMP_LAUNCH_SPEC: AcpLaunchSpec = {
   sessionHistory: OMP_SESSION_HISTORY
 }
 
+const HERMES_LAUNCH_SPEC: AcpLaunchSpec = {
+  agent: 'hermes',
+  command: 'hermes',
+  // `hermes acp` is the standard-protocol entry point; with full access its unseen shell hooks are
+  // auto-approved, which is the same posture as answering every permission request yes.
+  args: ({ fullAccess }) => ['acp', ...(fullAccess ? ['--accept-hooks'] : [])],
+  env: {},
+  dialect: HERMES_ACP_DIALECT,
+  loginCommand: agentSessionSignInFor('hermes')?.loginCommand ?? [],
+  account: directoryAccountBinding('HERMES_HOME', (homePath) => join(homePath, '.hermes')),
+  installDirectories: ({ homePath }) => [join(homePath, '.local', 'bin')],
+  // A session advertises every model it can run, so there is no session-free listing to offer.
+  modelDiscovery: {
+    kind: 'unavailable',
+    reason: 'hermes lists its models per session, not before one runs'
+  },
+  sessionHistory: HERMES_SESSION_HISTORY
+}
+
 export const ACP_LAUNCH_SPECS: readonly AcpLaunchSpec[] = [
   GROK_LAUNCH_SPEC,
   OPENCODE_LAUNCH_SPEC,
-  OMP_LAUNCH_SPEC
+  OMP_LAUNCH_SPEC,
+  HERMES_LAUNCH_SPEC
 ]
 
 export function acpLaunchSpecFor(agent: string): AcpLaunchSpec | null {

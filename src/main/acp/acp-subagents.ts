@@ -144,7 +144,17 @@ function subagentEvidence(update: AcpSubagentUpdate, observedAt: number): AgentC
         ...(update.label !== undefined ? { description: boundSubagentLabel(update.label) } : {}),
         ...(update.tokens !== undefined ? { totalTokens: update.tokens } : {}),
         // An id the handle had to digest cannot address the provider's cancellation.
-        stoppable: handle.id === update.id
+        stoppable: handle.id === update.id,
+        // What the child is in right now, so its row says more than "working" between reports.
+        ...(update.activity !== undefined && update.activity.trim().length > 0
+          ? {
+              operation: {
+                toolName: update.activity.trim(),
+                basis: 'reported' as const,
+                observedAt
+              }
+            }
+          : {})
       }
     }
   }
