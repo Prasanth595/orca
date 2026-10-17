@@ -62,8 +62,8 @@ vi.mock('lucide-react-native', () => ({
   ChevronsUpDown: 'ChevronsUpDown',
   Square: 'Square'
 }))
-vi.mock('./MobileNativeChatAndroidImagePage', () => ({
-  MobileNativeChatAndroidImagePage: 'AndroidImagePage'
+vi.mock('./MobileNativeChatZoomableImagePage', () => ({
+  MobileNativeChatZoomableImagePage: 'AndroidImagePage'
 }))
 vi.mock('./MobileNativeChatMessage', () => ({ MobileNativeChatMessage: 'ChatMessage' }))
 vi.mock('./MobileNativeChatMessageActionsSheet', () => ({

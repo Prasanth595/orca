@@ -11,12 +11,14 @@ type Zoom = { scale: number; x: number; y: number }
 export function MobileNativeChatZoomableImagePage({
   image,
   width,
+  height,
   index,
   pagingGesture,
   onInteractionChange
 }: {
   image: NativeChatImageRefBlock
   width: number
+  height: number
   index: number
   pagingGesture: NativeGesture
   onInteractionChange: (index: number, locked: boolean) => void
@@ -103,17 +105,23 @@ export function MobileNativeChatZoomableImagePage({
         y: panBase.value.y + event.translationY - panOrigin.value.y
       })
     })
-  const transform = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: zoom.value.x },
-      { translateY: zoom.value.y },
-      { scale: zoom.value.scale }
-    ]
-  }))
+  const transform = useAnimatedStyle(
+    () => ({
+      transform: [
+        { translateX: zoom.value.x },
+        { translateY: zoom.value.y },
+        { scale: zoom.value.scale }
+      ]
+    }),
+    [zoom]
+  )
   return (
-    <GestureDetector gesture={Gesture.Simultaneous(pinch, pan)}>
+    <GestureDetector
+      gesture={Gesture.Simultaneous(pinch, pan)}
+      touchAction={zoomed ? 'none' : 'pan-x'}
+    >
       <View
-        style={{ width, flex: 1, overflow: 'hidden' }}
+        style={{ width, height, overflow: 'hidden' }}
         onLayout={(event) => {
           size.value = event.nativeEvent.layout
         }}
@@ -125,7 +133,14 @@ export function MobileNativeChatZoomableImagePage({
             fontScale={1}
             imageStyle={styles.imageGalleryFill}
             onLoad={(event) => {
-              const { width: w, height: h } = event.nativeEvent.source
+              const source = event.nativeEvent.source
+              const target = 'target' in event.nativeEvent ? event.nativeEvent.target : null
+              const webImage =
+                typeof HTMLImageElement !== 'undefined' && target instanceof HTMLImageElement
+                  ? target
+                  : null
+              const w = source?.width ?? webImage?.naturalWidth ?? 0
+              const h = source?.height ?? webImage?.naturalHeight ?? 0
               aspect.value = w > 0 && h > 0 ? w / h : 0
             }}
           />

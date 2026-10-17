@@ -24,6 +24,7 @@ export function MobileNativeChatImageViewer({
   const insets = useWindowSafeAreaInsets()
   const window = useWindowDimensions()
   const width = Math.max(1, window.width - insets.left - insets.right)
+  const [pageHeight, setPageHeight] = useState(0)
   const [index, setIndex] = useState(initialIndex)
   const [lockedIndex, setLockedIndex] = useState<number | null>(null)
   const pagingGesture = useMemo(() => Gesture.Native(), [])
@@ -57,10 +58,18 @@ export function MobileNativeChatImageViewer({
             <X size={20} color={colors.textPrimary} />
           </Pressable>
         </View>
-        <GestureDetector gesture={pagingGesture}>
+        <GestureDetector
+          gesture={pagingGesture}
+          touchAction={lockedIndex === null ? 'pan-x' : 'none'}
+        >
           <FlatList
             key={width}
             horizontal
+            style={{ flex: 1 }}
+            onLayout={({ nativeEvent }) => {
+              const height = nativeEvent.layout.height
+              setPageHeight((previous) => (Math.abs(previous - height) > 0.5 ? height : previous))
+            }}
             pagingEnabled
             scrollEnabled={lockedIndex === null}
             data={images}
@@ -70,7 +79,8 @@ export function MobileNativeChatImageViewer({
             showsHorizontalScrollIndicator={false}
             keyExtractor={(image, at) => `${at}:${image.url ?? image.path}`}
             getItemLayout={(_data, at) => ({ length: width, offset: at * width, index: at })}
-            onMomentumScrollEnd={(event) =>
+            scrollEventThrottle={16}
+            onScroll={(event) =>
               setIndex(
                 Math.max(
                   0,
@@ -82,6 +92,7 @@ export function MobileNativeChatImageViewer({
               <MobileNativeChatZoomableImagePage
                 image={item}
                 width={width}
+                height={pageHeight}
                 index={at}
                 pagingGesture={pagingGesture}
                 onInteractionChange={onInteractionChange}

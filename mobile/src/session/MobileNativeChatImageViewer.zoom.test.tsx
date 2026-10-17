@@ -70,12 +70,13 @@ vi.mock('lucide-react-native', () => ({ X: 'X' }))
 vi.mock('./MobileNativeChatImage', () => ({ MobileNativeChatImage: 'Image' }))
 let viewer: ReactTestRenderer | undefined
 let page: ReactTestRenderer | undefined
-afterEach(() =>
+afterEach(() => {
   act(() => {
     page?.unmount()
     viewer?.unmount()
   })
-)
+  vi.unstubAllGlobals()
+})
 
 it('zooms and pans in the phone page, then restores gallery swiping at the original scale', () => {
   act(() => {
@@ -86,15 +87,24 @@ it('zooms and pans in the phone page, then restores gallery swiping at the origi
   expect(viewer!.root.findAll((node) => String(node.type) === 'GestureRoot')).toHaveLength(1)
   const list = () => viewer!.root.find((node) => String(node.type) === 'FlatList')
   expect(list().props.scrollEnabled).toBe(true)
+  act(() => list().props.onLayout({ nativeEvent: { layout: { height: 600 } } }))
+  expect(list().props.renderItem({ item: { url: 'file:///a.png' }, index: 0 }).props.height).toBe(
+    600
+  )
   act(() => {
     page = create(list().props.renderItem({ item: { url: 'file:///a.png' }, index: 0 }))
   })
   const viewport = page!.root.find((node) => String(node.type) === 'View')
   act(() => viewport.props.onLayout({ nativeEvent: { layout: { width: 390, height: 600 } } }))
+  class BrowserImage {
+    naturalWidth = 390
+    naturalHeight = 600
+  }
+  vi.stubGlobal('HTMLImageElement', BrowserImage)
   act(() =>
     page!.root
       .find((node) => String(node.type) === 'Image')
-      .props.onLoad({ nativeEvent: { source: { width: 390, height: 600 } } })
+      .props.onLoad({ nativeEvent: { target: new BrowserImage() } })
   )
   const event: Touch = {
     scale: 1,

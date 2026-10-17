@@ -14,8 +14,8 @@ vi.mock('react-native-gesture-handler', () => ({
   GestureDetector: ({ children }: { children: unknown }) => children,
   Gesture: { Native: () => ({}) }
 }))
-vi.mock('./MobileNativeChatAndroidImagePage', () => ({
-  MobileNativeChatAndroidImagePage: 'AndroidImagePage'
+vi.mock('./MobileNativeChatZoomableImagePage', () => ({
+  MobileNativeChatZoomableImagePage: 'AndroidImagePage'
 }))
 vi.mock('react-native', () => ({
   Platform: { OS: 'ios' },
