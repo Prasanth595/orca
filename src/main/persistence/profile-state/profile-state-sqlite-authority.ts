@@ -8,10 +8,13 @@ import type {
 import {
   importProfileStateJson,
   readAcceptedProfileStateParsedSnapshot,
+  readAcceptedProfileStateParsedSnapshotSalvage,
   readProfileStateParsedSnapshot,
+  readProfileStateParsedSnapshotSalvage,
   readProfileStateRevision,
   readProfileStateSnapshot
 } from './profile-state-documents'
+import { scrubStaleProfileStateHashes } from './profile-state-document-reader'
 import {
   openWritableProfileStateDatabase,
   openProfileStateDatabaseReadOnly
@@ -96,7 +99,18 @@ export class ProfileStateSqliteAuthority implements ProfileStateAuthority {
     this.assertActive()
     const opened = openProfileStateDatabaseReadOnly(this.databasePath, this.profileId)
     try {
-      const snapshot = readAcceptedProfileStateParsedSnapshot(opened.db, rawJson)
+      let snapshot: ReturnType<typeof readAcceptedProfileStateParsedSnapshot>
+      try {
+        snapshot = readAcceptedProfileStateParsedSnapshot(opened.db, rawJson)
+      } catch {
+        // A corrupt row would otherwise quarantine the whole snapshot. Salvage the
+        // intact documents so the profile opens with its surviving state, and
+        // self-heal any stale-hash row so it does not re-trip on the next open.
+        snapshot = readAcceptedProfileStateParsedSnapshotSalvage(opened.db, rawJson)
+        if (!opened.readOnly) {
+          scrubStaleProfileStateHashes(opened.db)
+        }
+      }
       if (snapshot === undefined) {
         return undefined
       }
@@ -114,7 +128,19 @@ export class ProfileStateSqliteAuthority implements ProfileStateAuthority {
     const opened =
       this.writableDatabase ?? openProfileStateDatabaseReadOnly(this.databasePath, this.profileId)
     try {
-      const snapshot = readProfileStateParsedSnapshot(opened.db)
+      let snapshot: ReturnType<typeof readProfileStateParsedSnapshot>
+      try {
+        snapshot = readProfileStateParsedSnapshot(opened.db)
+      } catch {
+        // A corrupt row would otherwise quarantine the whole snapshot. Salvage the
+        // intact documents so the profile opens with its surviving state, and
+        // self-heal the readable-but-stale-hash row so it does not re-trip on
+        // the next open.
+        snapshot = readProfileStateParsedSnapshotSalvage(opened.db)
+        if (opened.readOnly === false) {
+          scrubStaleProfileStateHashes(opened.db)
+        }
+      }
       return this.createInitialState(
         snapshot.revision,
         snapshot.revision === 0 ? undefined : snapshot.state
