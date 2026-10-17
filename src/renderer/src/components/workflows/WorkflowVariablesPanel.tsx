@@ -88,20 +88,10 @@ export default function WorkflowVariablesPanel(): React.JSX.Element {
                   {v.kind === 'secret' ? '••••••••' : v.value}
                 </span>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-xs"
-                    onClick={() => startEdit(v)}
-                  >
+                  <Button variant="ghost" size="xs" onClick={() => startEdit(v)}>
                     Edit
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-xs text-destructive hover:text-destructive"
-                    onClick={() => void handleDelete(v.key)}
-                  >
+                  <Button variant="destructive" size="xs" onClick={() => void handleDelete(v.key)}>
                     Delete
                   </Button>
                 </div>
@@ -115,14 +105,17 @@ export default function WorkflowVariablesPanel(): React.JSX.Element {
         <p className="text-xs font-medium">{editing ? 'Edit variable' : 'New variable'}</p>
         <div className="flex gap-2">
           <Input
-            className="h-7 text-xs font-mono"
+            className="h-7"
             placeholder="KEY"
             value={editKey}
             disabled={!!editing}
             onChange={(e) => setEditKey(e.target.value)}
           />
-          <Select value={editKind} onValueChange={(v) => setEditKind(v as WorkflowVariableKind)}>
-            <SelectTrigger className="h-7 text-xs w-28 shrink-0">
+          <Select
+            value={editKind}
+            onValueChange={(v) => setEditKind(v === 'secret' ? 'secret' : 'plaintext')}
+          >
+            <SelectTrigger className="h-7 w-28 shrink-0">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -132,7 +125,7 @@ export default function WorkflowVariablesPanel(): React.JSX.Element {
           </Select>
         </div>
         <Input
-          className="h-7 text-xs"
+          className="h-7"
           placeholder="Value"
           type={editKind === 'secret' ? 'password' : 'text'}
           value={editValue}
@@ -144,11 +137,11 @@ export default function WorkflowVariablesPanel(): React.JSX.Element {
           }}
         />
         <div className="flex gap-2">
-          <Button size="sm" className="h-7 text-xs flex-1" onClick={() => void handleSave()}>
+          <Button size="sm" className="h-7 flex-1" onClick={() => void handleSave()}>
             {editing ? 'Update' : 'Add'}
           </Button>
           {editing && (
-            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={resetForm}>
+            <Button size="sm" variant="ghost" className="h-7" onClick={resetForm}>
               Cancel
             </Button>
           )}
