@@ -20,7 +20,11 @@ it('does not freeze app palette values in module-level styles or constants', () 
   for (const file of [...sourceFiles(root), ...sourceFiles(join(root, '..', 'app'))]) {
     const text = readFileSync(file, 'utf8')
     // Terminal documents receive their own host-controlled theme, independently of app chrome.
-    if (!/import\s*\{[^}]*\bcolors\b[^}]*\}\s*from\s*['"][^'"]*mobile-theme['"]/.test(text)) {
+    if (
+      !/import\s*\{[^}]*\b(?:colors|onBrightColors)\b[^}]*\}\s*from\s*['"][^'"]*mobile-theme['"]/.test(
+        text
+      )
+    ) {
       continue
     }
     const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true)
@@ -38,7 +42,10 @@ it('does not freeze app palette values in module-level styles or constants', () 
           if (ts.isFunctionLike(node)) {
             return
           }
-          if (ts.isPropertyAccessExpression(node) && node.expression.getText(source) === 'colors') {
+          if (
+            ts.isPropertyAccessExpression(node) &&
+            ['colors', 'onBrightColors'].includes(node.expression.getText(source))
+          ) {
             readsPalette = true
           }
           ts.forEachChild(node, visit)
