@@ -2,7 +2,7 @@ import { ipcRenderer } from 'electron'
 import type { AgentWorkflow, WorkflowRun } from '../../shared/workflow-types'
 import type { TuiAgent } from '../../shared/tui-agent'
 
-export type WorkflowModel = { id: string; label: string }
+export type WorkflowModel = { id: string; label: string; tier?: 'fast' | 'balanced' | 'powerful' }
 
 export type WorkflowsApi = {
   list: () => Promise<AgentWorkflow[]>

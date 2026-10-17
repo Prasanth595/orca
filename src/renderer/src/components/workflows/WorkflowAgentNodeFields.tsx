@@ -11,6 +11,27 @@ import { translate } from '@/i18n/i18n'
 import type { TuiAgent } from '../../../../shared/tui-agent'
 import type { WorkflowModel } from '../../../../preload/api/workflow-bridge'
 
+const TIER_LABELS: Record<string, string> = {
+  fast: 'Fast',
+  balanced: 'Balanced',
+  powerful: 'Powerful'
+}
+const TIER_COLORS: Record<string, string> = {
+  fast: 'text-emerald-600 dark:text-emerald-400',
+  balanced: 'text-blue-600 dark:text-blue-400',
+  powerful: 'text-purple-600 dark:text-purple-400'
+}
+
+function TierBadge({ tier }: { tier: string }): React.JSX.Element {
+  return (
+    <span
+      className={`shrink-0 text-[10px] font-medium ${TIER_COLORS[tier] ?? 'text-muted-foreground'}`}
+    >
+      {TIER_LABELS[tier] ?? tier}
+    </span>
+  )
+}
+
 function getKnownWorkflowAgents(): { value: TuiAgent; label: string }[] {
   return [
     { value: 'claude', label: translate('workflows.nodeEditor.agentClaude', 'Claude (claude -p)') },
@@ -234,7 +255,10 @@ export default function WorkflowAgentNodeFields({
                 </SelectItem>
                 {availableModels.map((m) => (
                   <SelectItem key={m.id} value={m.id}>
-                    {m.label}
+                    <span className="flex items-center gap-2 w-full">
+                      <span className="truncate">{m.label}</span>
+                      {m.tier && <TierBadge tier={m.tier} />}
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>
