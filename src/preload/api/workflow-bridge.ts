@@ -1,7 +1,8 @@
 import { ipcRenderer } from 'electron'
-import type { AgentWorkflow, WorkflowRun } from '../../shared/workflow-types'
+import type { AgentWorkflow, WorkflowRun, WorkflowVariable } from '../../shared/workflow-types'
 import type { TuiAgent } from '../../shared/tui-agent'
 
+export type { WorkflowVariable } from '../../shared/workflow-types'
 export type WorkflowModel = { id: string; label: string; tier?: 'fast' | 'balanced' | 'powerful' }
 
 export type WorkflowsApi = {
@@ -17,6 +18,9 @@ export type WorkflowsApi = {
   listModels: (agentId: TuiAgent, targetId?: string) => Promise<WorkflowModel[]>
   /** Probe which workflow-capable agent CLIs are installed on local or a named SSH target. */
   detectAgents: (targetId?: string) => Promise<TuiAgent[]>
+  listVariables: () => Promise<WorkflowVariable[]>
+  setVariable: (variable: WorkflowVariable) => Promise<WorkflowVariable>
+  deleteVariable: (key: string) => Promise<boolean>
   onChanged: (
     cb: (payload: { workflows: AgentWorkflow[]; runs: WorkflowRun[] }) => void
   ) => () => void
@@ -34,6 +38,9 @@ export const workflowsApi: WorkflowsApi = {
   stop: (workflowId) => ipcRenderer.invoke('workflows:stop', workflowId),
   listModels: (agentId, targetId) => ipcRenderer.invoke('workflows:listModels', agentId, targetId),
   detectAgents: (targetId) => ipcRenderer.invoke('workflows:detectAgents', targetId),
+  listVariables: () => ipcRenderer.invoke('workflows:listVariables'),
+  setVariable: (variable) => ipcRenderer.invoke('workflows:setVariable', variable),
+  deleteVariable: (key) => ipcRenderer.invoke('workflows:deleteVariable', key),
   onChanged: (cb) => {
     const listener = (_e: Electron.IpcRendererEvent, payload: Parameters<typeof cb>[0]) =>
       cb(payload)

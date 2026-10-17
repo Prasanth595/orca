@@ -20518,6 +20518,27 @@
     "history": {
       "empty": "No runs yet."
     },
+    "page": {
+      "tabWorkflows": "Workflows",
+      "tabVariables": "Variables"
+    },
+    "variablesPanel": {
+      "description": "Use",
+      "descriptionTemplate": "{{$vars.KEY}}",
+      "descriptionSuffix": "in any node field to inject a value.",
+      "empty": "No variables yet.",
+      "edit": "Edit",
+      "delete": "Delete",
+      "dialogTitleEdit": "Edit variable",
+      "dialogTitleNew": "New variable",
+      "keyPlaceholder": "KEY",
+      "kindPlaintext": "Plaintext",
+      "kindSecret": "Secret",
+      "valuePlaceholder": "Value",
+      "buttonUpdate": "Update",
+      "buttonAdd": "Add",
+      "buttonCancel": "Cancel"
+    },
     "tips": {
       "addNodes": {
         "title": "Adding nodes",

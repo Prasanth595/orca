@@ -32,13 +32,14 @@ export async function runForEachNode(
   data: ForEachData,
   workflow: AgentWorkflow,
   steps: StepOutputs,
+  vars: Record<string, string>,
   primaryJson: unknown,
   runId: string,
   ops: WorkflowStoreOperations,
   signal: AbortSignal,
   remoteExec?: RemoteExecFn
 ): Promise<ExecuteNodeResult> {
-  const rawItems = resolveTemplateExpr(data.itemsExpression, steps)
+  const rawItems = resolveTemplateExpr(data.itemsExpression, steps, vars)
   let items: unknown[] = []
   try {
     const parsed: unknown = JSON.parse(rawItems)

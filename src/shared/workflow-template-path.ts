@@ -12,10 +12,19 @@ export function buildTemplateExpr(nodeId: string, path: JsonPath): string {
 
 export function resolveTemplateExpr(
   expr: string,
-  steps: Record<string, { output: string; json: unknown }>
+  steps: Record<string, { output: string; json: unknown }>,
+  vars: Record<string, string> = {}
 ): string {
   return expr.replace(/\{\{([^}]+)\}\}/g, (match, path: string) => {
-    const parts = path.trim().split('.')
+    const trimmed = path.trim()
+
+    // Handle {{$vars.KEY}}
+    if (trimmed.startsWith('$vars.')) {
+      const key = trimmed.slice(6)
+      return key in vars ? vars[key]! : match
+    }
+
+    const parts = trimmed.split('.')
     if (parts.length < 2) {
       return match
     }
@@ -102,20 +111,21 @@ export function resolveTemplateExpr(
 /** Resolves templates in every string nested inside `value`, preserving its shape. */
 export function resolveTemplatesDeep<T>(
   value: T,
-  steps: Record<string, { output: string; json: unknown }>
+  steps: Record<string, { output: string; json: unknown }>,
+  vars: Record<string, string> = {}
 ): T {
   if (typeof value === 'string') {
     // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: T is string in this branch
-    return resolveTemplateExpr(value, steps) as T
+    return resolveTemplateExpr(value, steps, vars) as T
   }
   if (Array.isArray(value)) {
     // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: mapping preserves element shape
-    return value.map((v: unknown) => resolveTemplatesDeep(v, steps)) as T
+    return value.map((v: unknown) => resolveTemplatesDeep(v, steps, vars)) as T
   }
   if (value !== null && typeof value === 'object') {
     // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: rebuilds the same keys with same-shaped values
     return Object.fromEntries(
-      Object.entries(value).map(([k, v]) => [k, resolveTemplatesDeep(v, steps)])
+      Object.entries(value).map(([k, v]) => [k, resolveTemplatesDeep(v, steps, vars)])
     ) as T
   }
   return value

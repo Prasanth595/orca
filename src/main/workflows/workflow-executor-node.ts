@@ -27,8 +27,8 @@ export type ExecuteNodeResult = {
   handledNodeIds?: string[]
 }
 
-function resolveField(value: string, steps: StepOutputs): string {
-  return resolveTemplateExpr(value, steps)
+function resolveField(value: string, steps: StepOutputs, vars?: Record<string, string>): string {
+  return resolveTemplateExpr(value, steps, vars)
 }
 
 export async function executeNode(
@@ -41,6 +41,7 @@ export async function executeNode(
   remoteExec?: RemoteExecFn
 ): Promise<ExecuteNodeResult> {
   const { primaryOutput, primaryJson } = resolveNodeInputs(node.id, workflow.edges, steps)
+  const vars = Object.fromEntries((ops.state.workflowVariables ?? []).map((v) => [v.key, v.value]))
 
   switch (node.type) {
     case 'trigger_cron':
@@ -55,8 +56,8 @@ export async function executeNode(
       const r = await runShellCommandNode(
         {
           ...node.data,
-          command: resolveField(node.data.command, steps),
-          workingDirectory: resolveField(node.data.workingDirectory, steps)
+          command: resolveField(node.data.command, steps, vars),
+          workingDirectory: resolveField(node.data.workingDirectory, steps, vars)
         },
         primaryOutput,
         remoteExec,
@@ -74,8 +75,8 @@ export async function executeNode(
       const r = await runPythonScriptNode(
         {
           ...node.data,
-          script: resolveField(node.data.script, steps),
-          workingDirectory: resolveField(node.data.workingDirectory, steps)
+          script: resolveField(node.data.script, steps, vars),
+          workingDirectory: resolveField(node.data.workingDirectory, steps, vars)
         },
         primaryOutput,
         remoteExec,
@@ -90,9 +91,9 @@ export async function executeNode(
       if (signal.aborted) {
         throw new Error('Cancelled')
       }
-      const prompt = resolveField(node.data.prompt, steps)
+      const prompt = resolveField(node.data.prompt, steps, vars)
       const r = await runAgentCallNode(
-        { ...node.data, workingDirectory: resolveField(node.data.workingDirectory, steps) },
+        { ...node.data, workingDirectory: resolveField(node.data.workingDirectory, steps, vars) },
         prompt,
         remoteExec,
         signal
@@ -109,15 +110,15 @@ export async function executeNode(
     }
     case 'file_read': {
       const r = await runFileReadNode(
-        { filePath: resolveField(node.data.filePath, steps) },
+        { filePath: resolveField(node.data.filePath, steps, vars) },
         remoteExec
       )
       return { stdout: r.content, stderr: '', outputValue: { content: r.content }, exitCode: 0 }
     }
     case 'file_write': {
       const r = await runFileWriteNode(
-        { ...node.data, filePath: resolveField(node.data.filePath, steps) },
-        resolveField(node.data.content, steps),
+        { ...node.data, filePath: resolveField(node.data.filePath, steps, vars) },
+        resolveField(node.data.content, steps, vars),
         remoteExec
       )
       return { stdout: '', stderr: '', outputValue: r, exitCode: 0 }
@@ -125,9 +126,9 @@ export async function executeNode(
     case 'email_send': {
       const r = await runEmailSendNode(
         node.data,
-        resolveField(node.data.to, steps),
-        resolveField(node.data.subject, steps),
-        resolveField(node.data.body, steps)
+        resolveField(node.data.to, steps, vars),
+        resolveField(node.data.subject, steps, vars),
+        resolveField(node.data.body, steps, vars)
       )
       return { stdout: r.message, stderr: '', outputValue: r, exitCode: 0 }
     }
@@ -137,7 +138,7 @@ export async function executeNode(
     }
     case 'json_transform': {
       const r = runJsonTransformNode(
-        { expression: resolveField(node.data.expression, steps) },
+        { expression: resolveField(node.data.expression, steps, vars) },
         primaryJson
       )
       return { stdout: JSON.stringify(r.value), stderr: '', outputValue: r.value, exitCode: 0 }
@@ -174,6 +175,7 @@ export async function executeNode(
         node.data,
         workflow,
         steps,
+        vars,
         primaryJson,
         runId,
         ops,

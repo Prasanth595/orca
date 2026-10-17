@@ -2,7 +2,8 @@ import type {
   AgentWorkflow,
   WorkflowRun,
   WorkflowNodeRun,
-  WorkflowRunStatus
+  WorkflowRunStatus,
+  WorkflowVariable
 } from '../../../shared/workflow-types'
 import type { StoreRuntimeState } from './store-runtime-state'
 import { scheduleSave, type WriteSchedulingOperations } from './write-scheduling'
@@ -17,6 +18,9 @@ import {
   patchNodeRun as patchNodeRunOp,
   finalizeWorkflowRun as finalizeWorkflowRunOp,
   getActiveRun as getActiveRunOp,
+  listWorkflowVariables as listWorkflowVariablesOp,
+  setWorkflowVariable as setWorkflowVariableOp,
+  deleteWorkflowVariable as deleteWorkflowVariableOp,
   type WorkflowStoreOperations
 } from '../../workflows/workflow-run-store'
 
@@ -100,5 +104,17 @@ export class WorkflowPersistence {
 
   getActiveWorkflowRun(workflowId: string): WorkflowRun | null {
     return getActiveRunOp(this[workflowPersistenceContext].runtime.state, workflowId)
+  }
+
+  listVariables(): WorkflowVariable[] {
+    return listWorkflowVariablesOp(this[workflowPersistenceContext].runtime.state)
+  }
+
+  setVariable(variable: WorkflowVariable): WorkflowVariable {
+    return setWorkflowVariableOp(this.ops, variable)
+  }
+
+  deleteVariable(key: string): boolean {
+    return deleteWorkflowVariableOp(this.ops, key)
   }
 }
