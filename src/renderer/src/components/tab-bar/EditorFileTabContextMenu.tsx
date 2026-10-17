@@ -30,6 +30,7 @@ import {
   revealInFileManager
 } from '@/lib/reveal-in-file-manager'
 import { isRevealOrEditorOpenBlocked } from '@/lib/local-path-open-guard'
+import { basename } from '@/lib/path'
 import { TabWorkspaceLayoutMenuSection } from './TabWorkspaceLayoutMenuSection'
 import { TAB_CONTEXT_MENU_CONTENT_CLASS } from './tab-context-menu-sizing'
 import { CopyTabIdMenuItem } from './CopyTabIdMenuItem'
@@ -243,6 +244,17 @@ export function EditorFileTabContextMenu({
               {translate(
                 'auto.components.tab.bar.EditorFileTabContextMenu.52ce4f4605',
                 'Copy Relative Path'
+              )}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => {
+                void window.api.ui.writeClipboardText(basename(file.filePath))
+              }}
+            >
+              <Copy className="size-3.5" />
+              {translate(
+                'auto.components.tab.bar.EditorFileTabContextMenu.copyFileName',
+                'Copy File Name'
               )}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
