@@ -211,6 +211,7 @@ function buildWorkspaceCleanupLocalStateToken(state: AppState): readonly unknown
     state.agentStatusByPaneKey,
     state.unifiedTabsByWorktree,
     state.worktreesByRepo,
+    state.detectedWorktreesByRepo,
     state.runtimeAgentOrchestrationByPaneKey,
     state.paneForegroundAgentByPaneKey,
     state.lastVisitedAtByWorktreeId,
