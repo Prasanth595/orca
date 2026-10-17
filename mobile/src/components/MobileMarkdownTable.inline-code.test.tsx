@@ -44,7 +44,7 @@ it.each(['light', 'dark'] as const)(
     const check = () => {
       const codes = renderer!.root.findAll(
         (node) =>
-          node.type === 'Text' &&
+          String(node.type) === 'Text' &&
           ['Header', 'Body'].includes(node.props.children) &&
           background(node.props.style) !== undefined
       )
@@ -64,10 +64,10 @@ it.each(['light', 'dark'] as const)('distinguishes code chips from quoted text i
     renderer = create(createElement(MobileMarkdown, { content: '> `Quoted code`' }))
   })
   const code = renderer!.root.find(
-    (node) => node.type === 'Text' && node.props.children === 'Quoted code'
+    (node) => String(node.type) === 'Text' && node.props.children === 'Quoted code'
   )
   const quote = renderer!.root.find(
-    (node) => node.type === 'View' && node.props.style?.borderLeftWidth === 2
+    (node) => String(node.type) === 'View' && node.props.style?.borderLeftWidth === 2
   )
   expect(background(code.props.style)).toBe(colors.bgRaised)
   expect(quote.props.style.backgroundColor).toBe(colors.bgPanel)
