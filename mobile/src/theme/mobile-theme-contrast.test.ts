@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { applyMobileColorScheme, colors, darkColors, lightColors } from './mobile-theme'
+import {
+  applyMobileColorScheme,
+  colors,
+  darkColors,
+  lightColors,
+  onBrightColors
+} from './mobile-theme'
+import { styles as markdownStyles } from '../components/mobile-markdown-styles'
 import { styles } from '../session/mobile-native-chat-message-styles'
 
 vi.mock('react-native', () => ({
@@ -36,7 +43,7 @@ describe('mobile text contrast', () => {
       applyMobileColorScheme(scheme)
       expect(styles.userBubble.backgroundColor).toBe(colors.bgRaised)
       expect(
-        contrastRatio(styles.userText.color, styles.userBubble.backgroundColor)
+        contrastRatio(markdownStyles.paragraph.color, styles.userBubble.backgroundColor)
       ).toBeGreaterThanOrEqual(4.5)
       expect(
         contrastRatio(styles.imageRef.color, styles.userBubble.backgroundColor)
@@ -74,4 +81,17 @@ describe('mobile text contrast', () => {
       contrastRatio(colors.textMuted, colors.bgPanel)
     )
   })
+
+  it.each(['dark', 'light'] as const)(
+    'keeps inverted message colours readable in %s mode',
+    (scheme) => {
+      applyMobileColorScheme(scheme)
+      for (const foreground of [colors.bgBase, onBrightColors.secondary, onBrightColors.link]) {
+        expect(contrastRatio(foreground, colors.textPrimary)).toBeGreaterThanOrEqual(4.5)
+      }
+      expect(contrastRatio(colors.bgBase, onBrightColors.codeBackground)).toBeGreaterThanOrEqual(
+        4.5
+      )
+    }
+  )
 })

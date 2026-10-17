@@ -58,11 +58,29 @@ export function applyMobileColorScheme(next: MobileColorScheme): void {
     return
   }
   colorScheme = next
+  onBrightColors =
+    next === 'light'
+      ? {
+          secondary: darkColors.textSecondary,
+          link: darkColors.accentBlue,
+          codeBackground: darkColors.bgRaised
+        }
+      : darkOnBrightColors
   colors = next === 'light' ? lightColors : darkColors
   for (const listener of themeListeners) {
     listener()
   }
 }
+
+/** On your own message's fill (`colors.textPrimary`), where the dark palette's light text would
+ *  vanish; its body text is `colors.bgBase`. */
+const darkOnBrightColors = {
+  secondary: '#4a4a4a',
+  link: '#1e40af',
+  codeBackground: '#c8c8c8'
+} as const
+export let onBrightColors: { secondary: string; link: string; codeBackground: string } =
+  darkOnBrightColors
 
 export const spacing = {
   xs: 4,

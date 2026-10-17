@@ -3,6 +3,8 @@ import { StyleSheet } from 'react-native'
 import { colors, radii, spacing, typography } from '../theme/mobile-theme'
 
 export const TEXT_SIZE = 17
+/** Chat prose reads larger than the Markdown renderer's compact base. */
+export const CHAT_PROSE_SCALE = 1.25
 
 /** Pinch-zoomed type keeps its leading, so zoomed lines never overlap. */
 export function scaledType(size: number, fontScale: number, leading = 6) {
@@ -30,16 +32,8 @@ export const styles = createThemedStyles(() =>
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm
     },
-    userText: {
-      color: colors.textPrimary,
-      fontSize: TEXT_SIZE,
-      lineHeight: TEXT_SIZE + 6,
-      fontWeight: '500'
-    },
     hostNotice: {
-      color: colors.textMuted,
-      fontSize: TEXT_SIZE,
-      lineHeight: TEXT_SIZE + 6
+      color: colors.textMuted
     },
     reasoning: {
       opacity: 0.7,
@@ -170,7 +164,7 @@ export const styles = createThemedStyles(() =>
       backgroundColor: colors.diffDeletedBg
     },
     imageRef: {
-      color: colors.textSecondary,
+      color: colors.textPrimary,
       fontSize: TEXT_SIZE
     },
     imageThumb: {
