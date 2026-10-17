@@ -1,6 +1,7 @@
 import { basename } from '@/lib/path'
 import { BINARY_PROBE_BYTES } from '../../../shared/binary-buffer'
 import { IMAGE_FILE_MIME_TYPES } from '../../../shared/image-file-extensions'
+import { OFFICE_DOCUMENT_MIME_TYPES } from '../../../shared/office-document-mime-types'
 import type { RuntimeFilePreviewResult } from '../../../shared/runtime-types'
 import {
   readRemoteRuntimeFileChunk,
@@ -149,7 +150,9 @@ export function previewableBinaryMimeType(relativePath: string): string | undefi
     return undefined
   }
   const extension = name.slice(dot).toLowerCase()
-  return extension === '.pdf' ? 'application/pdf' : IMAGE_FILE_MIME_TYPES[extension]
+  return extension === '.pdf'
+    ? 'application/pdf'
+    : (IMAGE_FILE_MIME_TYPES[extension] ?? OFFICE_DOCUMENT_MIME_TYPES[extension])
 }
 
 async function nullWhenUnsupported<TResult>(call: () => Promise<TResult>): Promise<TResult | null> {

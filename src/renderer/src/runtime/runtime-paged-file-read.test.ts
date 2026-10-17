@@ -6,7 +6,10 @@ import {
   runtimeEnvironmentCall,
   type RuntimeRpcRequest
 } from './runtime-file-client-test-harness'
-import { REMOTE_FILE_CHANGED_DURING_READ_MESSAGE } from './runtime-paged-file-read'
+import {
+  previewableBinaryMimeType,
+  REMOTE_FILE_CHANGED_DURING_READ_MESSAGE
+} from './runtime-paged-file-read'
 import { replaceRuntimeEnvironmentRevisions } from './runtime-environment-revision'
 
 installRuntimeFileClientEnvironment()
@@ -337,5 +340,17 @@ describe('remote saves larger than one request frame', () => {
       writeRuntimeFile(context, '/remote/repo/quotes.txt', '"'.repeat(400 * 1024))
     ).rejects.toThrow('File is too large to save to a remote Orca server')
     expect(runtimeEnvironmentCall).not.toHaveBeenCalled()
+  })
+})
+
+describe('previewableBinaryMimeType', () => {
+  it('previews Office documents like the host, whatever the extension case', () => {
+    expect(previewableBinaryMimeType('docs/Deck.PPTX')).toBe(
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    )
+    expect(previewableBinaryMimeType('book.xlsx')).toBe(
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    expect(previewableBinaryMimeType('legacy.doc')).toBeUndefined()
   })
 })

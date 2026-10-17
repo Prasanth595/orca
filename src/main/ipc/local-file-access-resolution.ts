@@ -59,10 +59,11 @@ export async function resolveUserNamedRegularFile(
   return filePath
 }
 
-// Why every previewable type but PDF: chat shows these in an <img>, which renders no PDF.
+// Why images only: chat shows these in an <img>, which renders no PDF or Office file.
 function isChatImage(filePath: string): boolean {
-  const extension = extname(filePath).toLowerCase()
-  return Boolean(PREVIEWABLE_BINARY_MIME_TYPES[extension]) && extension !== '.pdf'
+  return (
+    PREVIEWABLE_BINARY_MIME_TYPES[extname(filePath).toLowerCase()]?.startsWith('image/') ?? false
+  )
 }
 
 // Why the resolved path: `NUL.png\.` and `COM1.png\x\..` resolve to a device name.

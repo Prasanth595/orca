@@ -31,6 +31,18 @@ describe('local regular-file reads', () => {
     })
   })
 
+  it('returns an Office document as previewable base64 with its MIME type', async () => {
+    const filePath = join(base, 'report.docx')
+    await writeFile(filePath, Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00]))
+
+    await expect(readLocalFileContent(filePath)).resolves.toEqual({
+      content: 'UEsDBAA=',
+      isBinary: true,
+      isImage: true,
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    })
+  })
+
   it('refuses a directory', async () => {
     await expect(readLocalFileContent(base)).rejects.toThrow()
   })
