@@ -46,21 +46,11 @@ export class AgentReplySubmissions {
       return
     }
     let pane = this.panes.get(event.paneKey)
-    if (
-      !pane ||
-      pane.sessionId !== sessionId ||
-      pane.source !== event.source ||
-      event.hookEventName === 'SessionStart'
-    ) {
-      if (pane || event.hookEventName === 'SessionStart') {
-        this.takeAuthor(event.paneKey)
-      }
+    // Only a submission hook spends an Enter: Codex sends SessionStart after the first prompt's
+    // Enter, and stale PTY input ends with its process in TerminalRunFacts.
+    if (!pane || pane.sessionId !== sessionId || pane.source !== event.source) {
       pane = { sessionId, source: event.source, turns: new Map() }
       this.panes.set(event.paneKey, pane)
-      // The shell's launch Enter is not a prompt submission.
-      if (event.hookEventName === 'SessionStart') {
-        return
-      }
     }
     const promptId = event.providerPromptId
     if (event.hookEventName === 'UserPromptSubmit') {

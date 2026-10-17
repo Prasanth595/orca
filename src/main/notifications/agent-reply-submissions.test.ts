@@ -10,21 +10,17 @@ import {
 } from '../../shared/agent-hook-listener-test-harness'
 import type { AgentHookSource } from '../../shared/agent-hook-relay'
 
+/** Posts hooks in each CLI's real order: Claude sends SessionStart at launch, Codex 0.162.1 runs
+ *  it as its first turn starts, after that prompt's Enter and before UserPromptSubmit. */
 function rig(source: AgentHookSource = 'codex') {
   const facts = new TerminalRunFactsRegister()
   facts.setSubmissionTracking(true)
   const state = createHookListenerState()
   const tracker = new AgentReplySubmissions(() => facts.takeSubmitAuthor('pty'))
-  const hook = (name: string, id = CLAUDE_PROMPT_ID, extra: Record<string, unknown> = {}) => {
-    const event = normalizeAndAccept(state, source, {
-      hook_event_name: name,
-      session_id: 'invented-session',
-      prompt_id: id,
-      turn_id: id,
-      prompt: 'invented input',
-      ...(name === 'SessionStart' ? { source: 'startup' } : {}),
-      ...extra
-    })
+  let session = 'invented-session'
+  let sessionStarted = false
+  const post = (payload: Record<string, unknown>) => {
+    const event = normalizeAndAccept(state, source, { session_id: session, ...payload })
     if (!event) {
       throw new Error('fixture hook was not normalized')
     }
@@ -32,10 +28,43 @@ function rig(source: AgentHookSource = 'codex') {
     tracker.observe(enriched)
     return enriched
   }
+  const startSession = (startSource = 'startup') => {
+    sessionStarted = true
+    post({ hook_event_name: 'SessionStart', source: startSource })
+  }
+  const hook = (name: string, id = CLAUDE_PROMPT_ID, extra: Record<string, unknown> = {}) => {
+    if (source === 'codex' && name === 'UserPromptSubmit' && !sessionStarted) {
+      startSession()
+    }
+    return post({
+      hook_event_name: name,
+      prompt_id: id,
+      turn_id: id,
+      prompt: 'invented input',
+      ...extra
+    })
+  }
+  /** A new provider session in the same PTY, e.g. relaunching the CLI or `/clear`. */
+  const newSession = (id: string, startSource = 'startup') => {
+    session = id
+    sessionStarted = false
+    if (source === 'claude') {
+      startSession(startSource)
+    }
+  }
   const input = (author: 'human' | 'programmatic', data = '\r') =>
     facts.recordInput('pty', 'driving', data, undefined, author)
-  hook('SessionStart')
-  return { facts, tracker, hook, input, human: () => tracker.completion(PANE_KEY)?.human === true }
+  if (source === 'claude') {
+    startSession()
+  }
+  return {
+    facts,
+    tracker,
+    hook,
+    input,
+    newSession,
+    human: () => tracker.completion(PANE_KEY)?.human === true
+  }
 }
 
 describe('live submit keys joined to exact main-agent hook turns', () => {
@@ -162,14 +191,44 @@ describe('live submit keys joined to exact main-agent hook turns', () => {
     r.hook('Stop', CLAUDE_PREVIOUS_PROMPT_ID)
     expect(r.human()).toBe(false) // A3: cached screening need not post a new B hook.
   })
-  it('A1: a launch Enter does not prove an argv prompt was manually submitted', () => {
-    const r = rig()
-    r.input('human')
-    r.hook('SessionStart')
-    r.hook('UserPromptSubmit')
-    r.hook('Stop')
-    expect(r.human()).toBe(false)
-  })
+  it.each(['codex', 'claude'] as const)(
+    'A1: %s started by Orca with an argv prompt has no human submit key',
+    (source) => {
+      const r = rig(source)
+      r.input('human', 'invented shell command\r')
+      r.facts.recordInput('pty', 'launch', 'invented-agent "invented prompt"\r')
+      r.hook('UserPromptSubmit')
+      r.hook('Stop')
+      expect(r.human()).toBe(false)
+    }
+  )
+  it.each(['codex', 'claude'] as const)(
+    'S1: the first prompt of every %s session in a PTY keeps its Enter across SessionStart',
+    (source) => {
+      const r = rig(source)
+      r.input('human')
+      r.hook('UserPromptSubmit')
+      r.hook('Stop')
+      expect(r.human()).toBe(true)
+      r.newSession('invented-second-session')
+      r.input('human')
+      r.hook('UserPromptSubmit', CLAUDE_PREVIOUS_PROMPT_ID)
+      r.hook('Stop', CLAUDE_PREVIOUS_PROMPT_ID)
+      expect(r.human()).toBe(true)
+    }
+  )
+  it.each(['codex', 'claude'] as const)(
+    'S7: a human /clear Enter does not make the next %s program turn human',
+    (source) => {
+      const r = rig(source)
+      r.input('human', '/clear\r')
+      r.newSession('invented-cleared-session', 'clear')
+      r.input('programmatic')
+      r.hook('UserPromptSubmit')
+      r.hook('Stop')
+      expect(r.human()).toBe(false)
+    }
+  )
   it('A2: program submission before the human hook arrives closes that hook', () => {
     const r = rig()
     r.input('human')
