@@ -1,8 +1,17 @@
+import {
+  DRAWN_OUTPUT_CHARS,
+  DRAWN_OUTPUT_LINES,
+  drawnText,
+  type DrawnText
+} from './ipynb-output-tail'
+import { liveStreamDrawnText } from './ipynb-stream-text'
+
 export type IpynbCellKind = 'code' | 'markdown' | 'raw'
 
+/** What a cell draws for an output; text outputs carry only their drawn end. */
 export type IpynbOutput =
-  | { kind: 'stream'; name: string; text: string }
-  | { kind: 'error'; name: string; message: string; traceback: string }
+  | { kind: 'stream'; name: string; drawn: DrawnText }
+  | { kind: 'error'; name: string; message: string; drawn: DrawnText }
   | { kind: 'display'; outputType: string; executionCount: number | null; items: IpynbOutputItem[] }
 
 export type IpynbOutputItem = {
@@ -50,6 +59,32 @@ const JUPYTER_LANGUAGE_TO_MONACO_LANGUAGE: Record<string, string> = {
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** Drawn end of an nbformat multiline string, joining only the lines it can draw. */
+function drawnMultilineString(value: unknown): DrawnText {
+  if (!Array.isArray(value)) {
+    return drawnText(String(value ?? ''))
+  }
+  let first = value.length
+  let remaining = 2 * DRAWN_OUTPUT_CHARS + 2
+  const pieces: string[] = []
+  let clipped = false
+  // Every nonfinal item contributes LF; CRLF can contract the raw suffix by at most half.
+  while (first > 0 && pieces.length <= DRAWN_OUTPUT_LINES && remaining > 0) {
+    first -= 1
+    const item = String(value[first] ?? '')
+    const separator = first < value.length - 1 && !item.endsWith('\n') ? '\n' : ''
+    const take = Math.max(0, remaining - separator.length)
+    clipped = item.length > take
+    pieces.push(item.slice(Math.max(0, item.length - take)) + separator)
+    remaining -= Math.min(item.length, take) + separator.length
+  }
+  let suffix = ''
+  for (let index = pieces.length - 1; index >= 0; index -= 1) {
+    suffix += pieces[index]
+  }
+  return drawnText(suffix.replace(/\r\n/g, '\n'), clipped || first > 0)
 }
 
 export function concatIpynbMultilineString(value: unknown): string {
@@ -104,8 +139,8 @@ function parseDisplayItems(data: unknown): IpynbOutputItem[] {
     })
 }
 
-export function parseIpynbOutput(rawOutput: unknown): IpynbOutput | null {
-  if (!isRecord(rawOutput) || typeof rawOutput.output_type !== 'string') {
+function parseOutputRecord(rawOutput: Record<string, unknown>): IpynbOutput | null {
+  if (typeof rawOutput.output_type !== 'string') {
     return null
   }
 
@@ -113,16 +148,21 @@ export function parseIpynbOutput(rawOutput: unknown): IpynbOutput | null {
     return {
       kind: 'stream',
       name: typeof rawOutput.name === 'string' ? rawOutput.name : 'stdout',
-      text: concatIpynbMultilineString(rawOutput.text)
+      // Why: a live stream is one growing text; its cursor keeps the drawn end so nothing reads it all.
+      drawn: liveStreamDrawnText(rawOutput) ?? drawnMultilineString(rawOutput.text)
     }
   }
 
   if (rawOutput.output_type === 'error') {
+    const name = typeof rawOutput.ename === 'string' ? rawOutput.ename : ''
+    const message = typeof rawOutput.evalue === 'string' ? rawOutput.evalue : ''
+    const traceback = drawnMultilineString(rawOutput.traceback)
     return {
       kind: 'error',
-      name: typeof rawOutput.ename === 'string' ? rawOutput.ename : '',
-      message: typeof rawOutput.evalue === 'string' ? rawOutput.evalue : '',
-      traceback: concatIpynbMultilineString(rawOutput.traceback)
+      name,
+      message,
+      // Jupyter tracebacks already end with "ename: evalue".
+      drawn: traceback.text ? traceback : drawnText(`${name}: ${message}`)
     }
   }
 
@@ -133,6 +173,22 @@ export function parseIpynbOutput(rawOutput: unknown): IpynbOutput | null {
       typeof rawOutput.execution_count === 'number' ? rawOutput.execution_count : null,
     items: parseDisplayItems(rawOutput.data)
   }
+}
+
+// Why: a live run re-renders every frame; unchanged outputs keep their object, so they parse once.
+const parsedOutputs = new WeakMap<Record<string, unknown>, IpynbOutput | null>()
+
+export function parseIpynbOutput(rawOutput: unknown): IpynbOutput | null {
+  if (!isRecord(rawOutput)) {
+    return null
+  }
+  const cached = parsedOutputs.get(rawOutput)
+  if (cached !== undefined) {
+    return cached
+  }
+  const parsed = parseOutputRecord(rawOutput)
+  parsedOutputs.set(rawOutput, parsed)
+  return parsed
 }
 
 function parseCell(rawCell: unknown, fallbackLanguage: string): IpynbCell | null {
