@@ -16,6 +16,7 @@ import WorkflowShellCommandFields from './WorkflowShellCommandFields'
 import WorkflowRetryFields from './WorkflowRetryFields'
 import WorkflowForEachFields from './WorkflowForEachFields'
 import WorkflowHttpRequestFields from './WorkflowHttpRequestFields'
+import WorkflowCallNodeFields from './WorkflowCallNodeFields'
 import { normalizeHttpRequestData } from '../../../../shared/workflow-http-request-defaults'
 import {
   applyNodeEdit,
@@ -98,6 +99,7 @@ export default function WorkflowNodeEditorPanel({
   const isForEach = node?.type === 'for_each'
   const isCollect = node?.type === 'collect'
   const isTriggerManual = node?.type === 'trigger_manual'
+  const isWorkflowCall = node?.type === 'workflow_call'
   const isRemote = workflow.executionTargetType === 'ssh'
 
   const [formMode, setFormMode] = useState<'fill' | 'edit'>('fill')
@@ -302,6 +304,14 @@ export default function WorkflowNodeEditorPanel({
             localData={localData}
             onDataChange={(patch) => setLocalData((prev) => ({ ...prev, ...patch }))}
             exprHint={exprHint}
+          />
+        )}
+
+        {isWorkflowCall && (
+          <WorkflowCallNodeFields
+            localData={localData}
+            onDataChange={(patch) => setLocalData((prev) => ({ ...prev, ...patch }))}
+            currentWorkflowId={workflow.id}
           />
         )}
 

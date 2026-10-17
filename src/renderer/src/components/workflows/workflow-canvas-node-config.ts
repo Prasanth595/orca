@@ -13,6 +13,7 @@ import {
   Repeat,
   Layers,
   ClipboardList,
+  Workflow,
   type LucideIcon
 } from 'lucide-react'
 import type { WorkflowNode, WorkflowNodeType } from '../../../../shared/workflow-types'
@@ -91,7 +92,8 @@ export const NODE_TYPE_LABELS: Record<WorkflowNodeType, string> = {
   branch: 'Branch',
   for_each: 'For Each',
   collect: 'Collect',
-  form_input: 'Form Input'
+  form_input: 'Form Input',
+  workflow_call: 'Workflow Call'
 }
 
 export const NODE_TYPE_ICON_COLORS: Record<WorkflowNodeType, string> = {
@@ -108,7 +110,8 @@ export const NODE_TYPE_ICON_COLORS: Record<WorkflowNodeType, string> = {
   branch: 'text-yellow-500',
   for_each: 'text-teal-500',
   collect: 'text-indigo-500',
-  form_input: 'text-rose-500'
+  form_input: 'text-rose-500',
+  workflow_call: 'text-fuchsia-500'
 }
 
 export const NODE_TYPE_ICONS: Record<WorkflowNodeType, LucideIcon> = {
@@ -125,7 +128,8 @@ export const NODE_TYPE_ICONS: Record<WorkflowNodeType, LucideIcon> = {
   branch: GitBranch,
   for_each: Repeat,
   collect: Layers,
-  form_input: ClipboardList
+  form_input: ClipboardList,
+  workflow_call: Workflow
 }
 
 export const NODE_TYPE_COLORS: Record<WorkflowNodeType, string> = {
@@ -142,7 +146,8 @@ export const NODE_TYPE_COLORS: Record<WorkflowNodeType, string> = {
   branch: 'border-yellow-400 bg-yellow-50 dark:bg-yellow-950/30',
   for_each: 'border-teal-400 bg-teal-50 dark:bg-teal-950/30',
   collect: 'border-indigo-400 bg-indigo-50 dark:bg-indigo-950/30',
-  form_input: 'border-rose-400 bg-rose-50 dark:bg-rose-950/30'
+  form_input: 'border-rose-400 bg-rose-50 dark:bg-rose-950/30',
+  workflow_call: 'border-fuchsia-400 bg-fuchsia-50 dark:bg-fuchsia-950/30'
 }
 
 export function nodeLabel(node: WorkflowNode): string {
@@ -175,6 +180,8 @@ export function nodeLabel(node: WorkflowNode): string {
       return node.label || 'Collect'
     case 'form_input':
       return node.label || 'Form Input'
+    case 'workflow_call':
+      return node.label || node.data.targetWorkflowId || 'Sub-workflow'
   }
 }
 
@@ -201,6 +208,7 @@ export const ACTION_NODE_TYPES: WorkflowNodeType[] = [
   'shell_command',
   'python_script',
   'agent_call',
+  'workflow_call',
   'file_read',
   'file_write',
   'http_request',
@@ -283,6 +291,13 @@ export function buildDefaultNode(
         type,
         pos,
         data: { fields: [{ id: `${id}_f1`, label: 'name', type: 'string', value: '' }] }
+      }
+    case 'workflow_call':
+      return {
+        id,
+        type,
+        pos,
+        data: { targetWorkflowId: '', inputExpression: '', timeoutSeconds: 300 }
       }
   }
 }
