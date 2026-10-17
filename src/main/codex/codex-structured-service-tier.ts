@@ -9,6 +9,7 @@ import type { CodexSession } from './codex-structured-session-state'
 
 /** Codex's request value for a model's standard tier. */
 export const CODEX_DEFAULT_SERVICE_TIER = 'default'
+const CODEX_FLEX_SERVICE_TIER = 'flex'
 
 function text(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null
@@ -91,30 +92,43 @@ function codexListsServiceTier(
   return model?.serviceTiers?.some((choice) => choice.value === tier) === true
 }
 
-/** Codex also takes the thread's reported tier when no model lists it, such as a configured `flex`. */
+/** Codex runs a tier on a model that lists it, standard anywhere, and `flex` on every model without
+ *  listing it; any other tier it leaves out, so that model runs standard. */
 export function codexOffersServiceTier(
-  session: CodexSession,
-  model: AgentSessionModelOption | undefined,
-  models: readonly AgentSessionModelOption[],
-  tier: string
+  tier: string,
+  model: Pick<AgentSessionModelOption, 'serviceTiers'> | undefined
 ): boolean {
   return (
     tier === CODEX_DEFAULT_SERVICE_TIER ||
-    codexListsServiceTier(model, tier) ||
-    (tier === session.reportedOptions.serviceTier &&
-      !models.some((entry) => codexListsServiceTier(entry, tier)))
+    tier === CODEX_FLEX_SERVICE_TIER ||
+    codexListsServiceTier(model, tier)
   )
 }
 
-/** The chat's tier, picked or reported, falls back to standard where the model does not offer it. */
-export function dropUnlistedCodexServiceTier(
-  session: CodexSession,
-  modelId: string | undefined,
-  models: readonly AgentSessionModelOption[]
-): void {
-  const tier = session.options.get('serviceTier') ?? session.reportedOptions.serviceTier
+/** What the picker shows for the chosen tier: standard where Codex leaves it out, and `flex` added
+ *  to the model's choices while chosen, since Codex runs it without listing it. */
+export function presentCodexServiceTier(
+  chosen: string | undefined,
+  models: AgentSessionModelOption[],
+  modelId: string | undefined
+): { serviceTier?: string; models: AgentSessionModelOption[] } {
   const model = models.find((entry) => entry.id === modelId)
-  if (tier && model?.serviceTiers && !codexOffersServiceTier(session, model, models, tier)) {
-    session.options.set('serviceTier', CODEX_DEFAULT_SERVICE_TIER)
+  const tiers = model?.serviceTiers
+  if (chosen === undefined || !tiers || codexListsServiceTier(model, chosen)) {
+    return { ...(chosen ? { serviceTier: chosen } : {}), models }
+  }
+  if (!codexOffersServiceTier(chosen, model)) {
+    return { serviceTier: CODEX_DEFAULT_SERVICE_TIER, models }
+  }
+  if (chosen !== CODEX_FLEX_SERVICE_TIER) {
+    return { serviceTier: chosen, models }
+  }
+  return {
+    serviceTier: chosen,
+    models: models.map((entry) =>
+      entry === model
+        ? { ...entry, serviceTiers: [...tiers, { value: chosen, label: 'Flex' }] }
+        : entry
+    )
   }
 }
