@@ -10,7 +10,6 @@ import type { EnrichedAgentHookEventPayload } from '../agent-hooks/server'
 const hooks = vi.hoisted(() => ({
   listener: null as ((payload: EnrichedAgentHookEventPayload) => void) | null
 }))
-const rename = vi.fn()
 const record = vi.fn()
 
 vi.mock('electron', () => ({
@@ -31,12 +30,10 @@ vi.mock('../window/dashboard-popout-window', () => ({
   getDashboardPopoutWindow: () => null
 }))
 vi.mock('./synthetic-title-runtime', () => ({
-  driveSyntheticTitleFromHook: vi.fn(),
-  stopAllSyntheticTitleSpinners: vi.fn()
+  stopSyntheticTitleSpinnerTimer: vi.fn()
 }))
 
 import { installMainWindowAgentStatusListeners } from './main-window-agent-status'
-import { driveSyntheticTitleFromHook } from './synthetic-title-runtime'
 import { mainProcessState } from './main-process-state'
 
 const sent: { channel: string; event: { paneKey: string } }[] = []
@@ -66,12 +63,9 @@ beforeEach(() => {
       send: (channel: string, event: { paneKey: string }) => sent.push({ channel, event })
     }
   } as unknown as typeof mainProcessState.mainWindow
-  rename.mockReset()
   record.mockReset()
-  vi.mocked(driveSyntheticTitleFromHook).mockReset()
   installMainWindowAgentStatusListeners({
     window: mainProcessState.mainWindow!,
-    maybeAutoRenameBranchOnFirstWork: rename,
     onRecordAgentState: record
   })
 })
@@ -109,6 +103,14 @@ it("forwards the host's turn start, and nothing when the host stamped none", () 
   expect(sent[1].event).not.toHaveProperty('turnStartedAt')
 })
 
+// Without the flag the renderer sees a reconnect replay as a fresh completion and re-notifies.
+it('marks replayed rows so the renderer can skip their completion notification', () => {
+  hooks.listener!(statusPayload({ payload: { state: 'done', prompt: 'ship it' } }))
+  hooks.listener!(statusPayload({ payload: { state: 'done', prompt: 'ship it' }, isReplay: true }))
+  expect(sent[0].event).not.toHaveProperty('isReplay')
+  expect(sent[1].event).toHaveProperty('isReplay', true)
+})
+
 it('forwards the host account facet, including a withdrawal, and nothing when absent', () => {
   const facet = { provider: 'codex', lane: 'host', accountId: 'a', mode: 'kept' } as const
   hooks.listener!(statusPayload({ paneKey: 'kept', runAccount: facet }))
@@ -121,14 +123,14 @@ it('forwards the host account facet, including a withdrawal, and nothing when ab
   expect(byPane.get('plain')).not.toHaveProperty('runAccount')
 })
 
-it('forwards a facet-only restatement without re-driving titles, bells or telemetry', () => {
+// Titles and first-work renames hang off the hook subscription, which a facet restatement never
+// reaches (server-run-account.test.ts); this listener must still skip telemetry and stay a replay.
+it('forwards a facet-only restatement as a replay without recording telemetry', () => {
   const facet = { provider: 'codex', lane: 'host', accountId: 'a', mode: 'kept' } as const
   const waiting = { state: 'waiting', prompt: '', agentType: 'codex' } as const
   hooks.listener!(statusPayload({ payload: waiting, runAccount: facet, isReplay: true }))
-  expect(driveSyntheticTitleFromHook).toHaveBeenCalledOnce()
-  vi.mocked(driveSyntheticTitleFromHook).mockClear()
+  expect(record).toHaveBeenCalledOnce()
   record.mockClear()
-  rename.mockClear()
   sent.length = 0
 
   hooks.listener!(
@@ -136,9 +138,7 @@ it('forwards a facet-only restatement without re-driving titles, bells or teleme
   )
 
   expect(sent.map((entry) => entry.event)).toEqual([
-    expect.objectContaining({ paneKey: 'pane-1', runAccount: facet })
+    expect.objectContaining({ paneKey: 'pane-1', runAccount: facet, isReplay: true })
   ])
-  expect(driveSyntheticTitleFromHook).not.toHaveBeenCalled()
   expect(record).not.toHaveBeenCalled()
-  expect(rename).not.toHaveBeenCalled()
 })

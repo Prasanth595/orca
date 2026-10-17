@@ -13,15 +13,14 @@ import {
 } from '../host-env/codex-home'
 import { registerPty } from '../../../memory/pty-registry'
 import { rememberPaneKeyForPty } from '../pane/key-state'
-import { noteAgentPaneLaunch } from '../../../agent-accounts/agent-run-accounts-installed'
-import { codexKeptAccountArg, keptLaunchFact } from '../host-env/agent-account-launch'
-import { getCodexSelectionLaneKey } from '../../../../shared/codex-selection-lane'
+import { codexKeptAccountArg, noteSpawnAccountLaunch } from '../host-env/agent-account-launch'
 import {
   pendingByPaneKey,
   pendingPtyIdBySerializerGeneration,
   rendererSerializerReadiness
 } from '../pane/serializer-state'
 import { seedTerminalRestoreRecordsFromSpawnResult } from '../pane/agent-session-owners'
+import { seedResumeLaunchIdentityFromSpawn } from '../pane/resume-launch-identity'
 import { seedHeadlessTerminalFromSpawnResult } from '../pane/terminal-spawn-restore'
 import { recordPtySpawnTelemetry } from '../pane/spawn-telemetry'
 import { persistAdmittedStablePaneBinding } from '../pane/stable-owner'
@@ -237,16 +236,13 @@ async function commitReservedRuntimePtySpawn(ctx: RuntimePtySpawnState) {
   }
   // Why: runtime-owned CLI PTYs bypass the renderer pty:spawn handler; record paneKey here too since hook titles and cache cleanup need this reverse lookup.
   const paneKey = rememberPaneKeyForPty(ctx.result.id, ctx.env?.ORCA_PANE_KEY)
-  if (paneKey) {
-    noteAgentPaneLaunch({
-      paneKey,
-      lane: getCodexSelectionLaneKey(ctx.codexSelectionTarget),
-      fresh: ctx.result.isReattach !== true,
-      ...(ctx.result.isReattach
-        ? {}
-        : keptLaunchFact(ctx.accountLaunch, args.resumeProviderSession))
-    })
-  }
+  noteSpawnAccountLaunch({
+    paneKey,
+    target: ctx.codexSelectionTarget,
+    isReattach: ctx.result.isReattach,
+    account: ctx.accountLaunch,
+    resumeProviderSession: args.resumeProviderSession
+  })
   const pendingSerializer = paneKey ? pendingByPaneKey.get(paneKey) : undefined
   const inheritRendererReadiness =
     ctx.result.isReattach === true &&
@@ -265,6 +261,17 @@ async function commitReservedRuntimePtySpawn(ctx: RuntimePtySpawnState) {
       typeof ctx.result.pid === 'number' && Number.isFinite(ctx.result.pid) && ctx.result.pid > 0
         ? ctx.result.pid
         : null
+  })
+  // Why after commit: a spawn rejected above must not leave a published identity behind.
+  seedResumeLaunchIdentityFromSpawn({
+    paneKey,
+    launchAgent: args.launchAgent,
+    resumeProviderSession: args.resumeProviderSession,
+    connectionId: args.connectionId,
+    worktreeId: args.worktreeId,
+    launchedAt: ctx.codexHomeLaunchStartedAt,
+    resumeArgvDropped: ctx.codexResumeArgvDropped,
+    result: ctx.result
   })
   // Why: runtime-owned/background spawns bypass mounted-pane state, so inventory consumers need an explicit signal.
   ctx.deps.sendPtySpawnedToRenderer(ctx.result.id)

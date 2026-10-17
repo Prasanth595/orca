@@ -1,5 +1,6 @@
 import type { ClaudeStatusLineRateLimits } from '../../../shared/claude-statusline-rate-limits'
 import type { AgentRunAccount } from '../../../shared/agent-run-account'
+import type { PersistedAgentExitEvidence } from './agent-exit-evidence'
 import type { AgentHookEventPayload } from '../../../shared/agent-hook-listener/listener-event'
 import type {
   AgentStatusClearIpcPayload,
@@ -135,6 +136,8 @@ export type LastStatusFile = {
   version: number
   entries: Record<string, PersistedAgentHookEventPayload>
   authorityCommitments?: Record<string, PersistedAgentHookAuthorityCommitment>
+  /** Proven agent exits whose rows were reconciled away; absent from older files. */
+  agentExits?: PersistedAgentExitEvidence[]
 }
 
 export type AgentPromptSentDedupeEntry = {

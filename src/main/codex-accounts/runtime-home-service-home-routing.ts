@@ -30,7 +30,8 @@ import { codexAccountLabel } from '../agent-accounts/kept-codex-home'
 
 export abstract class CodexRuntimeHomeRouting extends CodexRuntimeHomeManagedHome {
   getHostCodexHomePathsForSessionDiscovery(): string[] {
-    const homes = [this.getRuntimeHomePath()]
+    // Why the path-only resolver: transcript lookups poll this on a miss; launch creates the mirror.
+    const homes = [resolveOrcaManagedCodexHomePath()]
     if (this.isHostSystemDefaultRealHomeSelected() || this.getSelfContainedManagedHostAccount()) {
       // Why: nested Orca processes can retain an ambient managed CODEX_HOME.
       // Per-account lanes no longer bridge real-home history into the shared

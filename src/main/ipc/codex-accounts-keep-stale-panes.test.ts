@@ -43,8 +43,8 @@ beforeEach(() => {
   state.keepWithConversations.mockReset()
   state.keepRegistryOnly.mockReset()
   state.forget.mockReset()
-  const service = { onPendingLoginUrlChanged: vi.fn() }
-  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: registration only subscribes to pending login URLs; no other service method runs here.
+  const service = { onPendingLoginUrlChanged: vi.fn(), setWslLoginUrlOpener: vi.fn() }
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: registration only subscribes to pending login URLs and sets the WSL link opener; no other service method runs here.
   registerCodexAccountHandlers(service as unknown as CodexAccountService)
 })
 

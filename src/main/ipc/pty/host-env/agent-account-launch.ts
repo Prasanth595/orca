@@ -7,7 +7,10 @@ import {
   resolveAgentLaunchAccount,
   type AgentLaunchAccount
 } from '../../../agent-accounts/agent-launch-account'
-import { getKeptAgentConversations } from '../../../agent-accounts/agent-run-accounts-installed'
+import {
+  getKeptAgentConversations,
+  noteAgentPaneLaunch
+} from '../../../agent-accounts/agent-run-accounts-installed'
 import type { PaneLaunchFact } from '../../../agent-accounts/agent-run-accounts'
 import { withClaudeProfileTerminalEnv } from '../../../claude-accounts/claude-profile-installed-router'
 import {
@@ -93,4 +96,23 @@ export function keptLaunchFact(
       : {}),
     ...(resumedSessionId ? { resumedSessionId } : {})
   }
+}
+
+/** Both spawn-commit paths: tells the run-account producer what this pane now runs. */
+export function noteSpawnAccountLaunch(args: {
+  paneKey: string | null | undefined
+  target: CodexAccountSelectionTarget
+  isReattach: boolean | undefined
+  account: SpawnAccountLaunch
+  resumeProviderSession: AgentProviderSessionMetadata | undefined
+}): void {
+  if (!args.paneKey) {
+    return
+  }
+  noteAgentPaneLaunch({
+    paneKey: args.paneKey,
+    lane: getCodexSelectionLaneKey(args.target),
+    fresh: args.isReattach !== true,
+    ...(args.isReattach ? {} : keptLaunchFact(args.account, args.resumeProviderSession))
+  })
 }

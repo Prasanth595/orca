@@ -9,11 +9,10 @@ import {
   codexReattachedHomeRouteField
 } from '../host-env/codex-home'
 import { rememberPaneKeyForPty } from '../pane/key-state'
-import { noteAgentPaneLaunch } from '../../../agent-accounts/agent-run-accounts-installed'
-import { keptLaunchFact } from '../host-env/agent-account-launch'
-import { getCodexSelectionLaneKey } from '../../../../shared/codex-selection-lane'
+import { noteSpawnAccountLaunch } from '../host-env/agent-account-launch'
 import { resolvePaneSpawnReservation } from '../pane/spawn-reservation'
 import { seedTerminalRestoreRecordsFromSpawnResult } from '../pane/agent-session-owners'
+import { seedResumeLaunchIdentityFromSpawn } from '../pane/resume-launch-identity'
 import {
   admitProviderReattachLaunchIdentity,
   admitRendererAgentLaunchAuthority
@@ -89,6 +88,7 @@ async function commitReservedPtyIpcSpawn(ctx: PtyIpcSpawnState): Promise<PtySpaw
       })
       ctx.deps.runtime?.cancelPendingPtyRegistration?.(ctx.result.id, ctx.result.incarnationId)
       ctx.pendingRegistrationPtyId = null
+      ctx.exitedBeforeRegistration = true
       // The renderer drains this incarnation's buffered output and exit without publishing it live.
       return resolvePaneSpawnReservation(
         ctx.paneSpawnReservationKey,
@@ -153,6 +153,25 @@ async function commitReservedPtyIpcSpawn(ctx: PtyIpcSpawnState): Promise<PtySpaw
       clearMigrationUnsupportedPtysForPaneKey(ctx.validatedPaneKey)
     }
   }
+  // Why before the identity seed: that row must be read against this launch, not the pane's last one.
+  noteSpawnAccountLaunch({
+    paneKey: rememberedPaneKey,
+    target: ctx.codexSelectionTarget,
+    isReattach: ctx.result.isReattach,
+    account: ctx.accountLaunch,
+    resumeProviderSession: args.resumeProviderSession
+  })
+  // Why after commit: a spawn rejected above must not leave a published identity behind.
+  seedResumeLaunchIdentityFromSpawn({
+    paneKey: ctx.validatedPaneKey,
+    launchAgent: args.launchAgent,
+    resumeProviderSession: args.resumeProviderSession,
+    connectionId: args.connectionId,
+    worktreeId: args.worktreeId,
+    launchedAt: ctx.codexHomeLaunchStartedAt,
+    resumeArgvDropped: ctx.codexResumeLaunch.droppedResumeArgv,
+    result: ctx.result
+  })
   // Why: record the spawn-result pid once here so the memory module needn't reach back into ipc/pty on a hot path (works for in-process and daemon-hosted PTYs).
   const spawnedPid = ctx.result.pid ?? null
   // Why: args.worktreeId/sessionId arrive as untrusted IPC strings (type unenforced at the boundary); bound them so malformed/oversized values can't pollute registerPty's maps.
@@ -176,16 +195,6 @@ async function commitReservedPtyIpcSpawn(ctx: PtyIpcSpawnState): Promise<PtySpaw
         ? spawnedPid
         : null
   })
-  if (rememberedPaneKey) {
-    noteAgentPaneLaunch({
-      paneKey: rememberedPaneKey,
-      lane: getCodexSelectionLaneKey(ctx.codexSelectionTarget),
-      fresh: ctx.result.isReattach !== true,
-      ...(ctx.result.isReattach
-        ? {}
-        : keptLaunchFact(ctx.accountLaunch, args.resumeProviderSession))
-    })
-  }
   // Why: telemetry-plan.md§Agent launch semantics — fire agent_started only after spawn resolved; safeParse each field so a spoofed IPC payload can't poison the event (missing required field skips it).
   if (args.telemetry && !ctx.stablePaneOwner) {
     recordPtySpawnTelemetry(args.telemetry)

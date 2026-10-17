@@ -61,6 +61,7 @@ export type RuntimePtySpawnState = {
   requestedAgentTeamsPath: string | undefined
   selectedCodexHomePath: string | null
   codexResumeHomeSelected: boolean
+  codexResumeArgvDropped: boolean
   /** Kept agents run on their account; everything else follows the selection. */
   accountLaunch: SpawnAccountLaunch
   skipCodexHomeEnv: boolean
@@ -178,6 +179,7 @@ export function createRuntimePtySpawnState(
     requestedAgentTeamsPath: undefined,
     selectedCodexHomePath: null,
     codexResumeHomeSelected: false,
+    codexResumeArgvDropped: false,
     accountLaunch: { kind: 'follow' },
     skipCodexHomeEnv: false,
     stripInheritedOrcaCodexHome: false,
