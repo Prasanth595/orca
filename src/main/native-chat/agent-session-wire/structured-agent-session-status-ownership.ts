@@ -36,6 +36,11 @@ export type StructuredAgentSessionStatusSink = {
   readChildWorkHandles?: (subject: AgentStatusStructuredSessionSubject) => ReadonlySet<string>
 }
 
+export type CapturedChildWorkStops = {
+  current: (handleId: string) => boolean
+  acknowledge: (evidence: readonly AgentChildWorkEvidence[]) => void
+}
+
 /** Retain the owner address because record removal may precede the final status callback. */
 export class StructuredAgentSessionStatusOwnership {
   private readonly subjects = new Map<string, AgentStatusStructuredSessionSubject>()
@@ -106,20 +111,21 @@ export class StructuredAgentSessionStatusOwnership {
   captureChildWorkStops(
     sessionId: string,
     handleIds: readonly string[]
-  ): (evidence: readonly AgentChildWorkEvidence[]) => void {
-    const captured = new Map<string, ChildWorkLifetimeToken>()
+  ): CapturedChildWorkStops {
+    const captured = new Map<string, ChildWorkLifetimeToken | undefined>()
     for (const handleId of handleIds) {
-      const token = this.open.capture(sessionId, handleId)
-      if (token) {
-        captured.set(handleId, token)
-      }
+      captured.set(handleId, this.open.capture(sessionId, handleId))
     }
-    return (evidence) => {
-      for (const edge of evidence) {
-        if (edge.type === 'stop-acknowledged') {
-          const token = captured.get(edge.handleId)
-          if (token) {
-            this.open.stopped(sessionId, edge.handleId, token)
+    return {
+      current: (handleId) =>
+        captured.has(handleId) && this.open.matches(sessionId, handleId, captured.get(handleId)),
+      acknowledge: (evidence) => {
+        for (const edge of evidence) {
+          if (edge.type === 'stop-acknowledged') {
+            const token = captured.get(edge.handleId)
+            if (token) {
+              this.open.stopped(sessionId, edge.handleId, token)
+            }
           }
         }
       }

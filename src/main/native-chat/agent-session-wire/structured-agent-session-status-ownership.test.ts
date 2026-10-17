@@ -332,13 +332,30 @@ describe('child work the provider reported, recorded or not', () => {
       handleId: 'helper',
       invocation: record!.invocation
     }
-    captured([stop])
+    captured.acknowledge([stop])
     owner.publishChildWork(summary.sessionId, [stop], 'claude')
     expect(owner.childWorkOpen(summary.sessionId)).toBe(false)
     // The Stop did not take: the settled record lists nothing, so the work is open and unlisted.
-    owner.publishChildWork(summary.sessionId, [agentLive('helper')], 'claude')
+    owner.publishChildWork(
+      summary.sessionId,
+      [{ ...agentLive('helper'), child: {
+        ...agentLive('helper').child,
+        handle: { idKind: 'task_id', id: 'helper', runId: 'new-run' }
+      } }],
+      'claude'
+    )
     expect(owner.childWorkOpen(summary.sessionId)).toBe(true)
     expect(owner.childWorkIncomplete(summary.sessionId)).toBe(true)
+    expect(captured.current('helper')).toBe(false)
+  })
+
+  it('does not send a stale listed Stop to work that appeared under its tokenless handle', () => {
+    const { owner } = owners()
+    owner.publishChildWork(summary.sessionId, [agentLive('helper'), ended('helper')], 'claude')
+    const captured = owner.captureChildWorkStops(summary.sessionId, ['helper'])
+    expect(captured.current('helper')).toBe(true)
+    owner.publishChildWork(summary.sessionId, [agentLive('helper')], 'claude')
+    expect(captured.current('helper')).toBe(false)
   })
 
   it.each(['different run', 'same run'])(
@@ -369,7 +386,7 @@ describe('child work the provider reported, recorded or not', () => {
       refuse = true
       owner.publishChildWork(summary.sessionId, [run(nextRun, true)], 'claude')
       refuse = false
-      captured([stop])
+      captured.acknowledge([stop])
       owner.publishChildWork(summary.sessionId, [stop], 'claude')
       expect(owner.childWorkOpen(summary.sessionId)).toBe(true)
       expect(owner.childWorkIncomplete(summary.sessionId)).toBe(true)

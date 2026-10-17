@@ -37,9 +37,10 @@ export async function runTargetedCancel(
     // Resolved once, here: a retry is answered from the receipt and never reaches a newer task.
     const children = params.childWork?.()
     const targets = agentChildWorkStopTargets(children, params.taskId)
-    const applyCapturedStops = params.captureStops?.(targets)
+    const capturedStops = params.captureStops?.(targets)
     const unreadable = params.childWork !== undefined && children === undefined
-    if (targets.length === 0 && !unreadable && !(params.unlisted?.present() && atRest(ctx))) {
+    const initialUnlisted = params.unlisted?.present() ?? false
+    if (targets.length === 0 && !unreadable && !(initialUnlisted && atRest(ctx))) {
       return { ok: true, value: { ...named, cancelled: false } }
     }
     const accepted = await acceptStopTarget(ctx)
@@ -50,12 +51,13 @@ export async function runTargetedCancel(
       operationId: clientOperationId,
       work: {
         targets,
+        ...(capturedStops ? { targetCurrent: capturedStops.current } : {}),
         ...(unreadable ? { unreadable: true as const } : {}),
         acknowledgeStops: (evidence) => {
-          applyCapturedStops?.(evidence)
+          capturedStops?.acknowledge(evidence)
           params.acknowledgeStops?.(evidence)
         },
-        ...(params.unlisted ? { unlisted: params.unlisted } : {})
+        ...(initialUnlisted && params.unlisted ? { unlisted: { stop: params.unlisted.stop } } : {})
       },
       backgroundStop: params.taskId ? 'task' : 'all'
     })
@@ -90,7 +92,7 @@ export async function runTargetedCancel(
   }
 }
 
-/** No turn runs, so ending the agent ends only the work no record lists. */
+/** A whole-agent Stop waits until the lead has no running turn. */
 function atRest(ctx: AgentSessionTurnContext): boolean {
   return !isMainAgentWorking(ctx)
 }

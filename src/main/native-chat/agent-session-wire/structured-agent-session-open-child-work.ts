@@ -45,6 +45,10 @@ export class StructuredAgentSessionOpenChildWork {
     return session?.open.has(handleId) ? session.history.get(handleId)?.token : undefined
   }
 
+  matches(sessionId: string, handleId: string, captured: ChildWorkLifetimeToken | undefined): boolean {
+    return this.capture(sessionId, handleId) === captured
+  }
+
   stopped(sessionId: string, handleId: string, token: ChildWorkLifetimeToken): void {
     const session = this.sessions.get(sessionId)
     const child = session?.history.get(handleId)
@@ -91,7 +95,7 @@ export class StructuredAgentSessionOpenChildWork {
       }
       if (child.run === undefined && run !== undefined) {
         child.run = run
-        if (child.closed === 'terminal') {
+        if (child.closed === 'terminal' || (active && child.closed === 'stopped')) {
           child.token = newToken()
         }
       } else if (run !== undefined && run !== child.run) {

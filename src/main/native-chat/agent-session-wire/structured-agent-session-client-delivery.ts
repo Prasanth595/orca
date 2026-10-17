@@ -18,6 +18,7 @@ import { StructuredAgentSessionSendSettlement } from './structured-agent-session
 import { heldStructuredAgentSessionCurrentWork } from './structured-agent-session-host-current-work'
 import { structuredAgentSessionConversationFence } from './structured-agent-session-provider-child'
 import type { StructuredAgentSessionStatusSubscriber } from './structured-agent-session-status-feed'
+import type { CapturedChildWorkStops } from './structured-agent-session-status-ownership'
 import { createStructuredAgentSessionHostStatusFeed } from './structured-agent-session-host-status-feed'
 import type { StructuredAgentSessionChildWorkProducer } from './structured-agent-session-subagent-rows'
 import {
@@ -124,7 +125,7 @@ export class StructuredAgentSessionClientDelivery {
   captureChildWorkStops = (
     sessionId: string,
     handleIds: readonly string[]
-  ): ((evidence: readonly AgentChildWorkEvidence[]) => void) =>
+  ): CapturedChildWorkStops =>
     this.statusFeed.captureChildWorkStops(sessionId, handleIds)
 
   childWorkIncomplete = (sessionId: string): boolean =>

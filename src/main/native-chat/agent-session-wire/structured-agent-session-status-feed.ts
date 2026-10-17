@@ -31,7 +31,10 @@ import {
 } from './structured-agent-session-status-journal-projection'
 import { structuredStatusSummariesEqual } from './structured-agent-session-status-summary-equality'
 import type { StructuredAgentSessionChildWorkProducer } from './structured-agent-session-subagent-rows'
-import { StructuredAgentSessionStatusOwnership } from './structured-agent-session-status-ownership'
+import {
+  StructuredAgentSessionStatusOwnership,
+  type CapturedChildWorkStops
+} from './structured-agent-session-status-ownership'
 
 export type { StructuredAgentSessionStatusSink } from './structured-agent-session-status-ownership'
 export type { StructuredAgentSessionStatusFeedDeps } from './structured-agent-session-status-feed-deps'
@@ -313,7 +316,7 @@ export class StructuredAgentSessionStatusFeed {
   captureChildWorkStops = (
     sessionId: string,
     handleIds: readonly string[]
-  ): ((evidence: readonly AgentChildWorkEvidence[]) => void) =>
+  ): CapturedChildWorkStops =>
     this.ownership.captureChildWorkStops(sessionId, handleIds)
 
   /** Reads the store, so a failing read costs only the strip's note, as `readChildWork`'s does. */

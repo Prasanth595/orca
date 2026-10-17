@@ -274,7 +274,7 @@ describe('performCancel', () => {
     expect(journal.snapshot().items).toEqual([])
   })
 
-  it('captures the host lifetime before accepting a Stop that later acknowledges an earlier run', async () => {
+  it('omits an earlier listed Stop when its same-ID lifetime restarts during acceptance', async () => {
     root = await mkdtemp(join(tmpdir(), 'orca-background-stop-lifetime-'))
     const journal = await journals.open({ identity: IDENTITY, stateDirectory: root })
     const owner = new StructuredAgentSessionStatusOwnership(() => undefined)
@@ -324,7 +324,8 @@ describe('performCancel', () => {
     expect(stopBackgroundTasks).not.toHaveBeenCalled()
     owner.publishChildWork('session-1', [live(true)], 'claude')
     acceptStop?.()
-    expect(await stopping).toMatchObject({ ok: true, value: { cancelled: true } })
+    expect(await stopping).toMatchObject({ ok: true, value: { cancelled: false } })
+    expect(stopBackgroundTasks).not.toHaveBeenCalled()
     expect(owner.childWorkOpen('session-1')).toBe(true)
   })
 
@@ -369,9 +370,9 @@ describe('performCancel', () => {
     return { result, items: journal.snapshot().items }
   }
 
-  it('ends the agent for unlisted work only when, after the listed stops, no turn runs', async () => {
+  it('ends the agent only for work unlisted at capture and while no lead turn runs', async () => {
     const stop = vi.fn(async () => {})
-    // Unlisted work is read inside the Stop's step: here it appears while the listed stop is out.
+    // New unlisted work cannot enlarge the Stop after it captured only listed targets.
     let incomplete = false
     const atRest = await backgroundStopWith(
       async () => {
@@ -384,9 +385,21 @@ describe('performCancel', () => {
     )
     expect(atRest.result).toEqual({
       ok: true,
-      value: { turnId: 'background-tasks', cancelled: true }
+      value: { turnId: 'background-tasks', cancelled: false }
     })
     expect(atRest.items).toEqual([])
+    expect(stop).not.toHaveBeenCalled()
+
+    const initiallyUnlisted = await backgroundStopWith(
+      async () => ({ cancelled: false }),
+      'cancel-background-initially-unlisted',
+      undefined,
+      { unlisted: { present: () => true, stop }, listed: [liveTask('task-1')] }
+    )
+    expect(initiallyUnlisted.result).toEqual({
+      ok: true,
+      value: { turnId: 'background-tasks', cancelled: true }
+    })
     expect(stop).toHaveBeenCalledOnce()
 
     // A turn the agent opens while the listed stops are out is not the Stop's to end.
