@@ -128,7 +128,7 @@ export default function WorkflowVariablesPanel(): React.JSX.Element {
             value={editKind}
             onValueChange={(v) => setEditKind(v === 'secret' ? 'secret' : 'plaintext')}
           >
-            <SelectTrigger className="h-7 w-28 shrink-0">
+            <SelectTrigger size="sm" className="h-7 w-28 shrink-0">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
