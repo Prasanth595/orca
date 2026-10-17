@@ -16,6 +16,8 @@ function render(ui: ReactNode) {
 const send = vi.fn(() => true)
 const reply = { disabled: false, send }
 const blockedReply = { disabled: true, send }
+const asyncSend = vi.fn<(text: string) => Promise<boolean>>()
+const asyncReply = { disabled: false, send: asyncSend }
 
 const questions = [{ title: 'Which branch?', options: ['main', 'release'] }]
 
@@ -23,6 +25,7 @@ afterEach(() => {
   cleanup()
   vi.useRealTimers()
   send.mockReset().mockReturnValue(true)
+  asyncSend.mockReset()
 })
 
 it.each(['release', 'my branch'])('sends a chosen or custom answer: %s', (answer) => {
@@ -127,3 +130,56 @@ it('does not offer an unroutable card outside its session provider', () => {
   const { container } = render(<NativeChatAsyncQuestions questions={questions} />)
   expect(container).toBeEmptyDOMElement()
 })
+
+it('rechecks input ownership when a previously selected option auto-submits', () => {
+  vi.useFakeTimers()
+  const card = (disabled: boolean) => (
+    <NativeChatAsyncQuestionContext.Provider value={disabled ? blockedReply : reply}>
+      <NativeChatAsyncQuestions questions={questions} />
+    </NativeChatAsyncQuestionContext.Provider>
+  )
+  const view = render(card(false))
+  fireEvent.click(screen.getByRole('button', { name: /release/ }))
+  view.rerender(card(true))
+  act(() => vi.advanceTimersByTime(NATIVE_CHAT_QUESTION_AUTO_ADVANCE_MS))
+  expect(send).not.toHaveBeenCalled()
+  view.rerender(card(false))
+  fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+  expect(send).toHaveBeenCalledExactlyOnceWith('Which branch?\nrelease')
+})
+
+it.each([true, false])(
+  'waits for delivery, keeping composer focus when accepted=%s',
+  async (accepted) => {
+    vi.useFakeTimers()
+    const delivery = Promise.withResolvers<boolean>()
+    asyncSend.mockReturnValue(delivery.promise)
+    render(
+      <>
+        <input aria-label="Composer" />
+        <NativeChatAsyncQuestionContext.Provider value={asyncReply}>
+          <NativeChatAsyncQuestions questions={questions} />
+        </NativeChatAsyncQuestionContext.Provider>
+      </>
+    )
+    const answer = screen.getByRole('textbox', { name: 'Other: type your answer' })
+    fireEvent.change(answer, { target: { value: 'my branch' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+    expect(answer).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Reply' })).not.toBeInTheDocument()
+    const composer = screen.getByRole('textbox', { name: 'Composer' })
+    composer.focus()
+    await act(async () => {
+      delivery.resolve(accepted)
+    })
+    act(() => vi.runOnlyPendingTimers())
+    expect(composer).toHaveFocus()
+    expect(asyncSend).toHaveBeenCalledExactlyOnceWith('Which branch?\nmy branch')
+    if (accepted) {
+      expect(screen.getByRole('button', { name: 'Reply' })).toBeVisible()
+    } else {
+      expect(answer).toBeEnabled()
+      expect(answer).toHaveValue('my branch')
+    }
+  }
+)
