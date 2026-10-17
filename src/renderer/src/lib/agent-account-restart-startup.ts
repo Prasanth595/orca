@@ -1,4 +1,5 @@
 import { useAppStore } from '@/store'
+import { isPaneAgentKept } from '@/store/agent-identity-row-run-accounts'
 import { buildAgentResumeStartupPlan } from '@/lib/tui-agent-startup'
 import {
   resolveSshHostReportedPlatform,
@@ -131,6 +132,15 @@ export function buildPaneAccountRestartStartup(
   agent: AccountRestartAgent,
   args: AccountRestartPane
 ): AgentAccountRestartStartup | null {
+  // Why: a kept Claude resumes on its kept account, so a switch restart would only relaunch it there.
+  if (agent === 'claude' && isClaudePaneKept(args)) {
+    return null
+  }
   const resume = resolveAgentAccountRestartResumeStartup(agent, args)
   return resume ?? (agent === 'codex' ? CODEX_ACCOUNT_RESTART_STARTUP : null)
+}
+
+function isClaudePaneKept(args: AccountRestartPane): boolean {
+  const paneKey = makePaneKey(args.tabId, args.leafId)
+  return isPaneAgentKept(paneKey, useAppStore.getState().agentStatusByPaneKey[paneKey])
 }

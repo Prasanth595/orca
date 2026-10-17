@@ -251,6 +251,34 @@ describe('buildPaneAccountRestartStartup for Claude', () => {
     expect(buildPaneAccountRestartStartup('claude', pane)).toBeNull()
   })
 
+  it('skips a Claude kept on its account, whose own resume stays on that account', () => {
+    seedAgentStatus({
+      agentType: 'claude',
+      state: 'done',
+      providerSession: { key: 'session_id', id: SESSION_ID },
+      runAccount: { provider: 'claude', lane: 'host', accountId: 'acct-a', mode: 'kept' }
+    })
+
+    expect(buildPaneAccountRestartStartup('claude', pane)).toBeNull()
+    // Why: other restarts still resume it, and its spawn starts it on the kept account.
+    expect(resolveAgentAccountRestartResumeStartup('claude', pane)?.resumeProviderSession?.id).toBe(
+      SESSION_ID
+    )
+  })
+
+  it('still resumes a Claude that follows the selected account', () => {
+    seedAgentStatus({
+      agentType: 'claude',
+      state: 'done',
+      providerSession: { key: 'session_id', id: SESSION_ID },
+      runAccount: { provider: 'claude', lane: 'host', accountId: 'acct-a', mode: 'follow' }
+    })
+
+    expect(buildPaneAccountRestartStartup('claude', pane)?.resumeProviderSession?.id).toBe(
+      SESSION_ID
+    )
+  })
+
   it('never resumes a Codex session as Claude', () => {
     seedAgentStatus({
       agentType: 'codex',

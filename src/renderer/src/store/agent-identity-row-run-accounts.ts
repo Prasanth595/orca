@@ -86,3 +86,11 @@ export function resolvePaneRunAccount(
   }
   return row && !row.connectionId ? row.runAccount : undefined
 }
+
+/** Whether the host says this local pane's agent is kept on its account. */
+export function isPaneAgentKept(paneKey: string, row: AgentStatusEntry | undefined): boolean {
+  return (
+    resolvePaneRunAccount(paneKey, row, useIdentityRowRunAccounts.getState().byPaneKey)?.mode ===
+    'kept'
+  )
+}
