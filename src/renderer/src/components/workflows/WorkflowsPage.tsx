@@ -7,6 +7,7 @@ import WorkflowBottomPanel from './WorkflowBottomPanel'
 import PanelDivider from './PanelDivider'
 import { usePersistedSize } from '@/hooks/use-persisted-size'
 import { useAppStore } from '@/store'
+import { translate } from '@/i18n/i18n'
 import type { AgentWorkflow } from '../../../../shared/workflow-types'
 
 type LeftTab = 'workflows' | 'variables'
@@ -113,13 +114,13 @@ export default function WorkflowsPage(): React.JSX.Element {
                   className={`flex-1 py-1.5 text-xs font-medium transition-colors ${leftTab === 'workflows' ? 'text-foreground border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'}`}
                   onClick={() => setLeftTab('workflows')}
                 >
-                  Workflows
+                  {translate('workflows.page.tabWorkflows')}
                 </button>
                 <button
                   className={`flex-1 py-1.5 text-xs font-medium transition-colors ${leftTab === 'variables' ? 'text-foreground border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'}`}
                   onClick={() => setLeftTab('variables')}
                 >
-                  Variables
+                  {translate('workflows.page.tabVariables')}
                 </button>
               </div>
               {leftTab === 'workflows' ? (
