@@ -9,6 +9,7 @@ type Touch = {
   focalY: number
   translationX: number
   translationY: number
+  numberOfPointers: number
 }
 const gestures = vi.hoisted(() => new Map<string, Record<string, (event: Touch) => void>>())
 vi.mock('react-native-gesture-handler', () => {
@@ -95,7 +96,14 @@ it('zooms and pans on Android, then restores gallery swiping at the original sca
       .find((node) => String(node.type) === 'Image')
       .props.onLoad({ nativeEvent: { source: { width: 390, height: 600 } } })
   )
-  const event: Touch = { scale: 1, focalX: 195, focalY: 300, translationX: 0, translationY: 0 }
+  const event: Touch = {
+    scale: 1,
+    focalX: 195,
+    focalY: 300,
+    translationX: 0,
+    translationY: 0,
+    numberOfPointers: 1
+  }
   act(() => gestures.get('pinch')?.start?.(event))
   expect(list().props.scrollEnabled).toBe(false)
   act(() => gestures.get('pinch')?.update?.({ ...event, scale: 2 }))
@@ -138,7 +146,14 @@ it('keeps the touched point anchored, caps enlargement, and clamps to the contai
       .find((node) => String(node.type) === 'Image')
       .props.onLoad({ nativeEvent: { source: { width: 780, height: 300 } } })
   )
-  const event: Touch = { scale: 1, focalX: 245, focalY: 300, translationX: 0, translationY: 0 }
+  const event: Touch = {
+    scale: 1,
+    focalX: 245,
+    focalY: 300,
+    translationX: 0,
+    translationY: 0,
+    numberOfPointers: 1
+  }
   act(() => gestures.get('pinch')?.start?.(event))
   act(() => gestures.get('pinch')?.update?.({ ...event, scale: 2 }))
   const transform = () =>
@@ -155,4 +170,54 @@ it('keeps the touched point anchored, caps enlargement, and clamps to the contai
   expect(viewer!.root.find((node) => String(node.type) === 'FlatList').props.scrollEnabled).toBe(
     true
   )
+})
+
+it('rebases an already active pan after a pinch without overwriting the pinch or jumping', () => {
+  act(() => {
+    viewer = create(
+      <MobileNativeChatImageViewer uri="file:///a.png" label="Screenshot" onClose={() => {}} />
+    )
+  })
+  act(() => {
+    page = create(
+      viewer!.root
+        .find((node) => String(node.type) === 'FlatList')
+        .props.renderItem({ item: { url: 'file:///a.png' }, index: 0 })
+    )
+  })
+  act(() =>
+    page!.root
+      .find((node) => String(node.type) === 'View')
+      .props.onLayout({ nativeEvent: { layout: { width: 390, height: 600 } } })
+  )
+  const event: Touch = {
+    scale: 1,
+    focalX: 195,
+    focalY: 300,
+    translationX: 0,
+    translationY: 0,
+    numberOfPointers: 1
+  }
+  act(() => gestures.get('pinch')?.start?.(event))
+  act(() => gestures.get('pinch')?.update?.({ ...event, scale: 2 }))
+  act(() => gestures.get('pinch')?.finalize?.(event))
+  act(() => gestures.get('pan')?.start?.(event))
+  act(() => gestures.get('pan')?.update?.({ ...event, translationX: 40 }))
+  act(() => gestures.get('pinch')?.start?.(event))
+  act(() => gestures.get('pinch')?.update?.({ ...event, scale: 1.5 }))
+  const transform = () =>
+    page!.root.find((node) => String(node.type) === 'AnimatedView').props.style[1]().transform
+  const afterPinch = transform()
+  act(() => gestures.get('pan')?.start?.(event))
+  act(() => gestures.get('pan')?.update?.({ ...event, translationX: 200, numberOfPointers: 2 }))
+  expect(transform()).toEqual(afterPinch)
+  act(() => gestures.get('pinch')?.finalize?.(event))
+  act(() => gestures.get('pan')?.update?.({ ...event, translationX: 250 }))
+  expect(transform()).toEqual(afterPinch)
+  act(() => gestures.get('pan')?.update?.({ ...event, translationX: 260 }))
+  expect(transform()[0]).toEqual({ translateX: 70 })
+  act(() => gestures.get('pan')?.start?.(event))
+  act(() => gestures.get('pan')?.update?.({ ...event, translationX: 10 }))
+  expect(transform()[0]).toEqual({ translateX: 80 })
+  expect(transform()[2]).toEqual({ scale: 3 })
 })

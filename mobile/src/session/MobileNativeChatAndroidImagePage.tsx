@@ -22,7 +22,11 @@ export function MobileNativeChatAndroidImagePage({
   onInteractionChange: (index: number, locked: boolean) => void
 }) {
   const zoom = useSharedValue<Zoom>({ scale: 1, x: 0, y: 0 })
-  const base = useSharedValue<Zoom>({ scale: 1, x: 0, y: 0 })
+  const pinchBase = useSharedValue<Zoom>({ scale: 1, x: 0, y: 0 })
+  const panBase = useSharedValue<Zoom>({ scale: 1, x: 0, y: 0 })
+  const panOrigin = useSharedValue({ x: 0, y: 0 })
+  const pinching = useSharedValue(false)
+  const panSuspended = useSharedValue(false)
   const anchor = useSharedValue({ x: 0, y: 0 })
   const size = useSharedValue({ width, height: 0 })
   const aspect = useSharedValue(0)
@@ -49,7 +53,9 @@ export function MobileNativeChatAndroidImagePage({
   const pinch = Gesture.Pinch()
     .blocksExternalGesture(pagingGesture)
     .onStart((event) => {
-      base.value = zoom.value
+      pinching.value = true
+      panSuspended.value = true
+      pinchBase.value = zoom.value
       anchor.value = {
         x: (event.focalX - size.value.width / 2 - zoom.value.x) / zoom.value.scale,
         y: (event.focalY - size.value.height / 2 - zoom.value.y) / zoom.value.scale
@@ -57,7 +63,7 @@ export function MobileNativeChatAndroidImagePage({
       runOnJS(onInteractionChange)(index, true)
     })
     .onUpdate((event) => {
-      const scale = Math.max(1, Math.min(4, base.value.scale * event.scale))
+      const scale = Math.max(1, Math.min(4, pinchBase.value.scale * event.scale))
       zoom.value = constrain({
         scale,
         x: event.focalX - size.value.width / 2 - anchor.value.x * scale,
@@ -65,6 +71,7 @@ export function MobileNativeChatAndroidImagePage({
       })
     })
     .onFinalize(() => {
+      pinching.value = false
       const enlarged = zoom.value.scale > 1
       runOnJS(setZoomed)(enlarged)
       runOnJS(onInteractionChange)(index, enlarged)
@@ -74,13 +81,26 @@ export function MobileNativeChatAndroidImagePage({
     .maxPointers(1)
     .blocksExternalGesture(pagingGesture)
     .onStart(() => {
-      base.value = zoom.value
+      panSuspended.value = pinching.value
+      if (!pinching.value) {
+        panBase.value = zoom.value
+        panOrigin.value = { x: 0, y: 0 }
+      }
     })
     .onUpdate((event) => {
+      if (pinching.value || event.numberOfPointers !== 1) {
+        return
+      }
+      if (panSuspended.value) {
+        panBase.value = zoom.value
+        panOrigin.value = { x: event.translationX, y: event.translationY }
+        panSuspended.value = false
+        return
+      }
       zoom.value = constrain({
         scale: zoom.value.scale,
-        x: base.value.x + event.translationX,
-        y: base.value.y + event.translationY
+        x: panBase.value.x + event.translationX - panOrigin.value.x,
+        y: panBase.value.y + event.translationY - panOrigin.value.y
       })
     })
   const transform = useAnimatedStyle(() => ({
