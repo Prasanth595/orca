@@ -64,6 +64,11 @@ export type PerforceHistoryEntry = {
   description: string
 }
 
+export type PerforceSubmittedFile = {
+  depotPath: string
+  action: PerforceFileAction
+}
+
 export type PerforceOperationResult = { success: boolean; output: string; error?: string }
 
 export type PerforceDetectResult =

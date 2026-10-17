@@ -177,6 +177,11 @@
     },
     "fileLoad": {
       "hostUnresolved": "The host couldn't find this file's workspace. It may have been removed, or the host may not know about it yet. Retry, or close this tab from the tab strip."
+    },
+    "action": {
+      "goToDefinition": "Go to Definition",
+      "findAllReferences": "Find All References",
+      "renameSymbol": "Rename Symbol"
     }
   },
   "githubChecks": {
@@ -20325,7 +20330,10 @@
       "failOnNonZeroExit": "Fail node if exit code ≠ 0",
       "fieldScript": "Script",
       "fieldCommand": "Command",
-      "fieldExpression": "Expression"
+      "fieldExpression": "Expression",
+      "subWorkflow": "Sub-workflow",
+      "subWorkflowPlaceholder": "Choose a workflow…",
+      "noSubWorkflows": "No other workflows found"
     },
     "outputs": {
       "empty": "No outputs yet."
@@ -20594,7 +20602,13 @@
       "unshelveFile": "Unshelve file",
       "openFilesInThisChangelistFirst": "Open files in this changelist first.",
       "shelfBackupDescription": "Shelf backup of changelist {{id}}",
-      "openHostedFileForEdit": "{{path}} is not opened for edit in Perforce. Open it for edit and save?"
+      "openHostedFileForEdit": "{{path}} is not opened for edit in Perforce. Open it for edit and save?",
+      "submittedHistory": "Submitted history",
+      "loadingHistory": "Loading…",
+      "noHistory": "No submitted changelists",
+      "historyLoadFailed": "Failed to load history",
+      "historyFilesLoadFailed": "Failed to load files",
+      "showMoreHistory": "Show more"
     },
     "settings": {
       "ai": {

@@ -3,7 +3,7 @@ import type { AgentWorkflow, WorkflowRun, WorkflowVariable } from '../../shared/
 import type { TuiAgent } from '../../shared/tui-agent'
 
 export type { WorkflowVariable } from '../../shared/workflow-types'
-export type WorkflowModel = { id: string; label: string }
+export type WorkflowModel = { id: string; label: string; tier?: 'fast' | 'balanced' | 'powerful' }
 
 export type WorkflowsApi = {
   list: () => Promise<AgentWorkflow[]>

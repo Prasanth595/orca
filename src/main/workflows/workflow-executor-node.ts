@@ -1,10 +1,7 @@
-import type {
-  AgentWorkflow,
-  WorkflowEdge,
-  WorkflowNode,
-  StepOutputs
-} from '../../shared/workflow-types'
+import type { AgentWorkflow, WorkflowNode, StepOutputs } from '../../shared/workflow-types'
 import { resolveTemplateExpr } from '../../shared/workflow-template-path'
+import { resolveNodeInputs } from './workflow-node-body-resolver'
+export { resolveNodeInputs, getBodyNodes } from './workflow-node-body-resolver'
 import { executeHttpRequestNode } from './workflow-node-runner-http'
 import { runShellCommandNode } from './workflow-node-runner-shell'
 import { runPythonScriptNode } from './workflow-node-runner-python'
@@ -14,9 +11,10 @@ import { runEmailSendNode } from './workflow-node-runner-email'
 import { runJsonTransformNode } from './workflow-node-runner-json'
 import { evaluateBranchConditions } from './workflow-node-runner-branch'
 import { runFormInputNode } from './workflow-node-runner-form'
-import { patchNodeRun } from './workflow-run-store'
+import { runForEachNode, registerExecuteNode } from './workflow-node-runner-for-each'
 import type { WorkflowStoreOperations } from './workflow-run-store'
 import type { RemoteExecFn } from './workflow-remote-exec'
+import { runWorkflowCallNode } from './workflow-node-runner-workflow-call'
 
 export type ExecuteNodeResult = {
   stdout: string
@@ -29,61 +27,8 @@ export type ExecuteNodeResult = {
   handledNodeIds?: string[]
 }
 
-function resolveField(value: string, steps: StepOutputs, vars: Record<string, string>): string {
+function resolveField(value: string, steps: StepOutputs, vars?: Record<string, string>): string {
   return resolveTemplateExpr(value, steps, vars)
-}
-
-/** Returns { output, json } from the first direct parent in the workflow graph. */
-export function resolveNodeInputs(
-  nodeId: string,
-  edges: WorkflowEdge[],
-  steps: StepOutputs
-): { primaryOutput: string; primaryJson: unknown } {
-  const parentEdge = edges.find((e) => e.targetNodeId === nodeId)
-  if (!parentEdge) {
-    return { primaryOutput: '', primaryJson: null }
-  }
-  const parent = steps[parentEdge.sourceNodeId]
-  return { primaryOutput: parent?.output ?? '', primaryJson: parent?.json ?? null }
-}
-
-/**
- * BFS from startNodeId through the graph, stopping when we reach stopNodeId (inclusive)
- * or hit a collect node.
- */
-export function getBodyNodes(
-  startNodeId: string,
-  stopNodeId: string | null,
-  workflow: AgentWorkflow
-): WorkflowNode[] {
-  const nodeById = new Map(workflow.nodes.map((n) => [n.id, n]))
-  const result: WorkflowNode[] = []
-  const visited = new Set<string>()
-  const queue = [startNodeId]
-  while (queue.length > 0) {
-    const id = queue.shift()!
-    if (visited.has(id)) {
-      continue
-    }
-    visited.add(id)
-    const node = nodeById.get(id)
-    if (!node) {
-      continue
-    }
-    result.push(node)
-    if (id === stopNodeId) {
-      break
-    }
-    if (node.type === 'collect') {
-      break
-    }
-    for (const edge of workflow.edges.filter((e) => e.sourceNodeId === id)) {
-      if (!visited.has(edge.targetNodeId)) {
-        queue.push(edge.targetNodeId)
-      }
-    }
-  }
-  return result
 }
 
 export async function executeNode(
@@ -225,98 +170,34 @@ export async function executeNode(
       }
     }
     case 'for_each': {
-      const rawItems = resolveField(node.data.itemsExpression, steps, vars)
-      let items: unknown[] = []
-      try {
-        const parsed: unknown = JSON.parse(rawItems)
-        items = Array.isArray(parsed) ? parsed : [parsed]
-      } catch {
-        if (Array.isArray(primaryJson)) {
-          items = primaryJson
-        } else if (primaryJson) {
-          items = [primaryJson]
-        }
-      }
-      items = items.slice(0, node.data.maxIterations)
-
-      const bodyEdge = workflow.edges.find(
-        (e) => e.sourceNodeId === node.id && e.outputSelector === 'body'
+      return runForEachNode(
+        node.id,
+        node.data,
+        workflow,
+        steps,
+        vars,
+        primaryJson,
+        runId,
+        ops,
+        signal,
+        remoteExec
       )
-      const bodyNodes = bodyEdge ? getBodyNodes(bodyEdge.targetNodeId, null, workflow) : []
-      const bodyNodeIds = bodyNodes.map((n) => n.id)
-      const iterResults: unknown[] = []
-      // Track each body node's last-iteration output for the final patch
-      const bodyLastOut = new Map<string, { stdout: string; outputValue: unknown }>()
-
-      for (let i = 0; i < items.length; i++) {
-        if (signal.aborted) {
-          break
-        }
-        // Expose current item via both __loop__ and the for_each node's own ID so body
-        // nodes (Python, shell) can receive it as primaryOutput/stdin.
-        const itemEntry = { output: JSON.stringify(items[i]), json: { item: items[i], index: i } }
-        const loopSteps: StepOutputs = {
-          ...steps,
-          [node.id]: itemEntry,
-          __loop__: itemEntry
-        }
-        let lastOutput: unknown = null
-        for (const bodyNode of bodyNodes) {
-          if (signal.aborted) {
-            break
-          }
-          // Mark running so the UI reflects per-iteration progress
-          patchNodeRun(ops, runId, bodyNode.id, { status: 'running', startedAt: Date.now() })
-          const r = await executeNode(bodyNode, workflow, loopSteps, runId, ops, signal, remoteExec)
-          let json: unknown = null
-          try {
-            json = JSON.parse(r.stdout)
-          } catch {}
-          loopSteps[bodyNode.id] = { output: r.stdout, json: json ?? r.outputValue }
-          lastOutput = r.outputValue
-          bodyLastOut.set(bodyNode.id, { stdout: r.stdout, outputValue: r.outputValue })
-        }
-        iterResults.push(lastOutput)
-      }
-
-      const aggregated = JSON.stringify(iterResults)
-      for (const bodyNode of bodyNodes) {
-        const out = bodyLastOut.get(bodyNode.id)
-        patchNodeRun(ops, runId, bodyNode.id, {
-          status: 'completed',
-          completedAt: Date.now(),
-          stdout: out?.stdout ?? aggregated,
-          outputValue: out?.outputValue ?? iterResults,
-          error: null
-        })
-      }
-
-      return {
-        stdout: aggregated,
-        stderr: '',
-        outputValue: { items: iterResults, count: iterResults.length },
-        exitCode: 0,
-        // Activate the 'done' edge so collect/downstream nodes are reachable after the loop.
-        activeLabel: 'done',
-        handledNodeIds: bodyNodeIds
-      }
     }
     case 'collect': {
-      return {
-        stdout: primaryOutput,
-        stderr: '',
-        outputValue: primaryJson,
-        exitCode: 0
-      }
+      return { stdout: primaryOutput, stderr: '', outputValue: primaryJson, exitCode: 0 }
     }
     case 'form_input': {
       const r = runFormInputNode(node.data, steps)
-      return {
-        stdout: JSON.stringify(r.value),
-        stderr: '',
-        outputValue: r.value,
-        exitCode: 0
+      return { stdout: JSON.stringify(r.value), stderr: '', outputValue: r.value, exitCode: 0 }
+    }
+    case 'workflow_call': {
+      if (signal.aborted) {
+        throw new Error('Cancelled')
       }
+      return runWorkflowCallNode(node.data, workflow.id, ops, signal, remoteExec)
     }
   }
 }
+
+// Register executeNode so the for_each runner can call it without a circular import.
+registerExecuteNode(executeNode)

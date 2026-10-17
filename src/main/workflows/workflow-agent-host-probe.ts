@@ -8,7 +8,26 @@ import { quotePosixShell } from '../../shared/wsl-login-shell-command'
 import type { TuiAgent } from '../../shared/tui-agent'
 import type { RemoteExecFn } from './workflow-remote-exec'
 
-export type WorkflowModel = { id: string; label: string }
+export type WorkflowModel = { id: string; label: string; tier?: 'fast' | 'balanced' | 'powerful' }
+
+function modelTier(id: string): WorkflowModel['tier'] {
+  const lower = id.toLowerCase()
+  if (lower.includes('haiku') || lower.includes('flash') || lower.includes('mini')) {
+    return 'fast'
+  }
+  if (lower.includes('sonnet') || lower.includes('gpt-4o') || lower.includes('turbo')) {
+    return 'balanced'
+  }
+  if (
+    lower.includes('opus') ||
+    lower.includes('o1') ||
+    lower.includes('o3') ||
+    lower.includes('max')
+  ) {
+    return 'powerful'
+  }
+  return undefined
+}
 
 /**
  * Runs one program on the workflow's execution host and reports its exit and stdout. Local
@@ -151,7 +170,7 @@ function parseCursorAgentModels(stdout: string): WorkflowModel[] {
       continue
     }
     seen.add(id)
-    models.push({ id, label: label || id })
+    models.push({ id, label: label || id, tier: modelTier(id) })
   }
   return models
 }
@@ -165,7 +184,11 @@ export async function fetchModelsForAgent(
     const result = await run('claude', [...CLAUDE_MODEL_LIST_ARGS], {
       input: CLAUDE_MODEL_LIST_STDIN
     })
-    return parseClaudeModelList(result.stdout).map((m) => ({ id: m.id, label: m.label }))
+    return parseClaudeModelList(result.stdout).map((m) => ({
+      id: m.id,
+      label: m.label,
+      tier: modelTier(m.id)
+    }))
   }
   if (agentId === 'cursor') {
     const result = await run('cursor-agent', ['models'])
@@ -183,7 +206,7 @@ export async function fetchModelsForAgent(
           (m): m is { slug: string; display_name: string } =>
             typeof m.slug === 'string' && typeof m.display_name === 'string'
         )
-        .map((m) => ({ id: m.slug, label: m.display_name }))
+        .map((m) => ({ id: m.slug, label: m.display_name, tier: modelTier(m.slug) }))
     } catch {
       return []
     }

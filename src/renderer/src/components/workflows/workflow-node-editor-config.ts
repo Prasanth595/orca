@@ -78,6 +78,10 @@ export function getGenericFieldKeys(keys: string[], nodeType: string): string[] 
     excluded.add('itemsExpression')
     excluded.add('maxIterations')
   }
+  if (nodeType === 'workflow_call') {
+    excluded.add('targetWorkflowId')
+    excluded.add('inputExpression')
+  }
   return keys.filter((k) => !excluded.has(k))
 }
 

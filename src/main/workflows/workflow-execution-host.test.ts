@@ -352,7 +352,7 @@ describe.skipIf(!canRun)('workflow execution host', () => {
     expect(await detectRemoteAgents(sshHost)).toEqual(['claude', 'cursor'])
     expect(await fetchModelsForAgent('cursor', remoteAgentHostRunner(sshHost))).toEqual([
       { id: 'gpt-5', label: 'GPT 5' },
-      { id: 'sonnet-4', label: 'Sonnet 4' }
+      { id: 'sonnet-4', label: 'Sonnet 4', tier: 'balanced' }
     ])
     expect(localSpawns).toEqual([])
   })

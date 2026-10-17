@@ -3184,6 +3184,11 @@
   "menu": {
     "quitApp": "Quit {{appName}}"
   },
+  "perforce": {
+    "ui": {
+      "showMoreHistory": "Show more"
+    }
+  },
   "runtimeRpc": {
     "startupFailure": {
       "guidance": {

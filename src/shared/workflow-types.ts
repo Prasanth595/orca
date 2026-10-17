@@ -20,6 +20,7 @@ export type WorkflowNodeType =
   | 'for_each'
   | 'collect'
   | 'form_input'
+  | 'workflow_call'
 
 // ─── Node data shapes ────────────────────────────────────────────────────────
 
@@ -131,6 +132,14 @@ export type FormInputData = {
   fields: FormInputField[]
 }
 
+export type WorkflowCallData = {
+  /** ID of the workflow to invoke as a sub-workflow. */
+  targetWorkflowId: string
+  /** Optional expression passed as the sub-workflow's trigger output. */
+  inputExpression?: string
+  timeoutSeconds: number
+}
+
 export type WorkflowNodeData =
   | TriggerCronData
   | TriggerManualData
@@ -146,6 +155,7 @@ export type WorkflowNodeData =
   | ForEachData
   | CollectData
   | FormInputData
+  | WorkflowCallData
 
 // ─── Node ────────────────────────────────────────────────────────────────────
 
@@ -233,6 +243,15 @@ export type WorkflowNode =
   | { id: string; type: 'for_each'; pos: Vec2; data: ForEachData; label?: string }
   | { id: string; type: 'collect'; pos: Vec2; data: CollectData; label?: string }
   | { id: string; type: 'form_input'; pos: Vec2; data: FormInputData; label?: string }
+  | {
+      id: string
+      type: 'workflow_call'
+      pos: Vec2
+      data: WorkflowCallData
+      label?: string
+      retryCount?: number
+      retryDelaySeconds?: number
+    }
 
 // ─── Edge ────────────────────────────────────────────────────────────────────
 
