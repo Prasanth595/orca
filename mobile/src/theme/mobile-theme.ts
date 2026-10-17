@@ -64,6 +64,14 @@ export function applyMobileColorScheme(next: MobileColorScheme): void {
   }
 }
 
+/** On your own message's fill (`colors.textPrimary`), where the dark palette's light text would
+ *  vanish; its body text is `colors.bgBase`. */
+export const onBrightColors = {
+  secondary: '#4a4a4a',
+  link: '#1e40af',
+  codeBackground: '#c8c8c8'
+} as const
+
 export const spacing = {
   xs: 4,
   sm: 8,

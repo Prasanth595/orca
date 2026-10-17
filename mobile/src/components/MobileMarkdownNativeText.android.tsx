@@ -5,6 +5,7 @@ import {
   type MarkdownTextProps
 } from './mobile-markdown-inline-code-ranges'
 import { nativeMarkdownCode } from './mobile-markdown-native-code'
+import { MarkdownTextContext } from './mobile-markdown-text-setup'
 import { colors } from '../theme/mobile-theme'
 import { useMobileTheme } from '../theme/use-mobile-theme'
 
@@ -19,6 +20,7 @@ export function MobileMarkdownNativeText({
   ...props
 }: MarkdownTextProps) {
   const scheme = useMobileTheme()
+  const background = useContext(MarkdownTextContext).inlineCodeBackground ?? colors.bgRaised
   const parent = useContext(InsideText)
   const nested = parent.nested
   const view = useRef<Text>(null)
@@ -28,10 +30,15 @@ export function MobileMarkdownNativeText({
   const [measurement, setMeasurement] = useState<{
     document: typeof document
     scheme: typeof scheme
+    background: string
     height: number
   } | null>(null)
   const currentMeasurement =
-    measurement?.document === document && measurement.scheme === scheme ? measurement : null
+    measurement?.document === document &&
+    measurement.scheme === scheme &&
+    measurement.background === background
+      ? measurement
+      : null
   const decorated = nested ? parent.decorated : currentMeasurement !== null
   const context = useMemo(() => ({ nested: true, decorated }), [decorated])
   const decorate = useCallback(() => {
@@ -49,15 +56,16 @@ export function MobileMarkdownNativeText({
       if (!tag) {
         return
       }
-      void native.decorateText(tag, document.text, document.ranges, colors.bgRaised, 4, 4, 1).then(
+      void native.decorateText(tag, document.text, document.ranges, background, 4, 4, 1).then(
         (result) => {
           if (revision.current === current && result.applied && result.height > 0) {
             setMeasurement((previous) =>
               previous?.document === document &&
               previous.scheme === scheme &&
+              previous.background === background &&
               Math.abs(previous.height - result.height) < 0.5
                 ? previous
-                : { document, scheme, height: result.height }
+                : { document, scheme, background, height: result.height }
             )
           } else if (revision.current === current) {
             setMeasurement(null)
@@ -70,7 +78,7 @@ export function MobileMarkdownNativeText({
         }
       )
     })
-  }, [document, nested, scheme])
+  }, [document, nested, scheme, background])
   useEffect(() => {
     decorate()
     return () => {

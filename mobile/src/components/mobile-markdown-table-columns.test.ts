@@ -10,9 +10,9 @@ describe('responsive markdown column layout', () => {
     const widths = mobileMarkdownTableColumnWidths([['A', 'B']], { availableWidth: 360 })
     expect(widths.reduce((sum, width) => sum + width, 0)).toBeCloseTo(360)
   })
-  it('wraps ordinary tables to the viewport and keeps more room for longer content', () => {
+  it('scrolls when content-sized columns exceed the viewport', () => {
     const widths = mobileMarkdownTableColumnWidths(rows, { availableWidth: 260 })
-    expect(widths.reduce((sum, width) => sum + width, 0)).toBeCloseTo(260)
+    expect(widths.reduce((sum, width) => sum + width, 0)).toBeGreaterThan(260)
     expect(widths[1]).toBeGreaterThan(widths[0]!)
   })
   it('keeps wide tables horizontally scrollable instead of crushing the text', () => {
@@ -23,7 +23,7 @@ describe('responsive markdown column layout', () => {
     expect(widths.reduce((sum, width) => sum + width, 0)).toBeGreaterThan(320)
   })
   it.each([1, 1.5])(
-    'uses the readable column floor for an overflowing table at scale %s',
+    'keeps content-sized columns for an overflowing table at scale %s',
     (textScale) => {
       const widths = mobileMarkdownTableColumnWidths(
         [Array.from({ length: 5 }, () => 'x'.repeat(100))],
@@ -32,7 +32,7 @@ describe('responsive markdown column layout', () => {
           textScale
         }
       )
-      expect(widths).toEqual(Array(5).fill(72 * textScale))
+      expect(widths).toEqual(Array(5).fill(220 * textScale))
     }
   )
   it('accounts for text size, CJK, long identifiers and rotation', () => {

@@ -1,7 +1,12 @@
 import { createElement } from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { applyMobileColorScheme, darkColors, lightColors } from '../theme/mobile-theme'
+import {
+  applyMobileColorScheme,
+  darkColors,
+  lightColors,
+  onBrightColors
+} from '../theme/mobile-theme'
 const native = vi.hoisted(() => ({ available: true, decorateText: vi.fn() }))
 vi.mock('./mobile-markdown-native-code', () => ({
   get nativeMarkdownCode() {
@@ -153,4 +158,31 @@ it('keeps fallback during a theme change until the new native decoration succeed
   expect(codeStyle()).not.toContain('transparent')
   await paint()
   expect(codeStyle()).not.toContain('transparent')
+})
+
+it('uses the enclosing user-message code surface instead of the dark page surface', async () => {
+  const { MarkdownTextContext } = await import('./mobile-markdown-text-setup')
+  const { Text } = await import('react-native')
+  act(() => {
+    tree = create(
+      createElement(
+        MarkdownTextContext.Provider,
+        {
+          value: {
+            TextComponent: Text,
+            androidTranscript: true,
+            inlineCodeBackground: onBrightColors.codeBackground
+          }
+        },
+        createElement(
+          MobileMarkdownNativeText,
+          null,
+          createElement('Text', { inlineCode: true }, 'code')
+        )
+      ),
+      { createNodeMock: () => ({ tag: 17 }) }
+    )
+  })
+  await paint()
+  expect(native.decorateText.mock.lastCall?.[3]).toBe(onBrightColors.codeBackground)
 })

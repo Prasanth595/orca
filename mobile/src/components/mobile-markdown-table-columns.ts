@@ -49,12 +49,6 @@ export function mobileMarkdownTableColumnWidths(
   if (availableWidth >= total) {
     return natural.map((width) => width + (availableWidth - total) / natural.length)
   }
-  const floor = minimum * natural.length
-  if (availableWidth <= floor) {
-    return natural.map(() => minimum)
-  }
-  // Wrap prose before asking the reader to scroll; wide tables retain a readable column floor.
-  return natural.map(
-    (width) => minimum + ((width - minimum) * (availableWidth - floor)) / (total - floor)
-  )
+  // Preserve readable content widths; the table owns horizontal overflow.
+  return natural
 }

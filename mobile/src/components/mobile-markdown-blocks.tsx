@@ -70,7 +70,8 @@ function renderList(node: List, key: number, ctx: MarkdownBlockContext, depth: n
           <NativeText
             style={[
               styles.listMarker,
-              { fontSize: 13 * ctx.textScale, lineHeight: 19 * ctx.textScale }
+              { fontSize: 13 * ctx.textScale, lineHeight: 19 * ctx.textScale },
+              ctx.tone.secondary
             ]}
           >
             {item.checked == null
@@ -144,9 +145,10 @@ function renderBlock(
       const headingText = [
         styles.heading,
         {
-          fontSize: (node.depth <= 2 ? 17 : 15) * ctx.textScale,
-          lineHeight: (node.depth <= 2 ? 23 : 21) * ctx.textScale
-        }
+          fontSize: (node.depth <= 2 ? 15 : 14) * ctx.textScale,
+          lineHeight: (node.depth <= 2 ? 21 : 20) * ctx.textScale
+        },
+        ctx.tone.text
       ]
       return (
         <MarkdownText key={key} selectable style={headingText}>
@@ -163,7 +165,8 @@ function renderBlock(
             {
               style: [
                 styles.quoteText,
-                { fontSize: 13 * ctx.textScale, lineHeight: 19 * ctx.textScale }
+                { fontSize: 13 * ctx.textScale, lineHeight: 19 * ctx.textScale },
+                ctx.tone.secondary
               ],
               selectable: true
             },
@@ -185,7 +188,8 @@ function renderBlock(
           <NativeText
             style={[
               styles.listMarker,
-              { fontSize: 13 * ctx.textScale, lineHeight: 19 * ctx.textScale }
+              { fontSize: 13 * ctx.textScale, lineHeight: 19 * ctx.textScale },
+              ctx.tone.secondary
             ]}
           >{`[${node.label ?? node.identifier}]`}</NativeText>
           <View style={styles.listItemBody}>

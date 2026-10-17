@@ -4,6 +4,7 @@ import { Text as NativeText, type TextProps } from 'react-native'
 export type MarkdownTextSetup = {
   TextComponent: ComponentType<TextProps>
   /** Disable native selection only within the Android transcript. */
+  inlineCodeBackground?: string
   androidTranscript: boolean
   onLongPress?: () => void
 }
