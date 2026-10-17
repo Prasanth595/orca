@@ -4,6 +4,10 @@ import { createRequire } from 'node:module'
 import { availableParallelism, totalmem } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import {
+  acquireTypecheckAdmission,
+  defaultAdmissionLedgerPath
+} from './typecheck-host-admission.mjs'
 
 const BYTES_PER_GIB = 1024 ** 3
 
@@ -79,6 +83,13 @@ export function parseTypecheckOptions(args) {
       options.bunConcurrency = Number(argument.slice('--bun-concurrency='.length))
     } else if (argument.startsWith('--bun-threads=')) {
       options.bunThreads = Number(argument.slice('--bun-threads='.length))
+    } else if (argument.startsWith('--project=')) {
+      const config = argument.slice('--project='.length)
+      const project = TYPECHECK_PROJECTS.find((candidate) => candidate.config === config)
+      if (!project) {
+        throw new Error(`Unknown typecheck project: ${config}`)
+      }
+      options.projects = [...(options.projects ?? []), project]
     } else {
       throw new Error(`Unknown typecheck option: ${argument}`)
     }
@@ -140,7 +151,8 @@ export async function runTypecheckProjects({
   projects = TYPECHECK_PROJECTS,
   spawnCompiler = spawnProcess,
   memoryBytes = totalmem(),
-  parallelism = availableParallelism()
+  parallelism = availableParallelism(),
+  admissionLedgerPath = defaultAdmissionLedgerPath()
 } = {}) {
   const batches = typecheckBatches(projects, { compiler, bunConcurrency, memoryBytes, parallelism })
   if (compiler === 'bun') {
@@ -162,14 +174,23 @@ export async function runTypecheckProjects({
     )
     return failures.sort((left, right) => left.index - right.index).map(({ reason }) => reason)
   }
+  // Batches bound this run; host admission bounds it against typechecks in other worktrees.
+  const checkAdmittedProject = async (project) => {
+    const release = await acquireTypecheckAdmission({
+      ...project,
+      budgetGib: admissibleHeapGib(memoryBytes),
+      ledgerPath: admissionLedgerPath
+    })
+    try {
+      await checkProject(project.config, { compiler, bunThreads, root, spawnCompiler })
+    } finally {
+      await release()
+    }
+  }
   // Every batch runs even after one fails, so a single broken project still reports the rest.
   const failures = []
   for (const batch of batches) {
-    const results = await Promise.allSettled(
-      batch.map((project) =>
-        checkProject(project.config, { compiler, bunThreads, root, spawnCompiler })
-      )
-    )
+    const results = await Promise.allSettled(batch.map(checkAdmittedProject))
     for (const result of results) {
       if (result.status === 'rejected') {
         failures.push(result.reason)

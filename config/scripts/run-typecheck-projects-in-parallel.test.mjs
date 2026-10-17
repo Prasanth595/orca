@@ -136,12 +136,21 @@ describe('CI compiler selection', () => {
     expect(parseTypecheckOptions([]).compiler).toBe('native')
   })
 
-  it.each(['--compiler=typo', '--bun-concurrency=0', '--bun-threads=NaN', '--bun-concurrency=5'])(
-    'rejects unsafe or unknown options: %s',
-    (argument) => {
-      expect(() => parseTypecheckOptions([argument])).toThrow()
-    }
-  )
+  it.each([
+    '--compiler=typo',
+    '--bun-concurrency=0',
+    '--bun-threads=NaN',
+    '--bun-concurrency=5',
+    '--project=config/missing.json'
+  ])('rejects unsafe or unknown options: %s', (argument) => {
+    expect(() => parseTypecheckOptions([argument])).toThrow()
+  })
+
+  it('selects one project for the per-project scripts', () => {
+    expect(parseTypecheckOptions(['--project=config/tsconfig.tc.web.json']).projects).toEqual(
+      TYPECHECK_PROJECTS.filter((project) => project.config === 'config/tsconfig.tc.web.json')
+    )
+  })
 
   it('bounds Bun project concurrency and reserves memory for overlapping checks', () => {
     const options = parseTypecheckOptions([
@@ -208,7 +217,8 @@ describe('CI compiler selection', () => {
           { config: 'config/healthy.json', heapGib: 1 }
         ],
         memoryBytes: 2 * 1024 ** 3,
-        parallelism: 1
+        parallelism: 1,
+        admissionLedgerPath: join(root, 'admission.json')
       })
       expect(failures).toHaveLength(1)
       expect(failures[0].message).toContain('broken.json exited with code 1')
