@@ -1,0 +1,107 @@
+// @vitest-environment happy-dom
+
+import { useContext } from 'react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, expect, it, vi } from 'vitest'
+import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
+import { NativeChatStructuredMessageProviders } from './NativeChatStructuredMessageProviders'
+import { NativeChatAsyncQuestionContext } from './native-chat-async-question-context'
+import { NativeChatOrcaStopContext } from './native-chat-orca-stop-context'
+import { useStructuredAgentSession } from './use-structured-agent-session'
+import { legacySingleQuestionPromptItems } from './native-chat-structured-question-test-fixtures'
+
+const { mocks, moduleFactories, resetStructuredSessionMocks } = await vi.hoisted(async () =>
+  (await import('./NativeChatStructuredSession.test-harness')).createStructuredSessionMocks()
+)
+const report = vi.hoisted(() => vi.fn())
+vi.mock('./use-structured-agent-session', () => moduleFactories.useStructuredAgentSession())
+vi.mock('@/lib/worker-terminal-takeover-report', () => ({
+  reportStructuredSessionUserInput: report
+}))
+
+afterEach(() => {
+  cleanup()
+  resetStructuredSessionMocks()
+  report.mockClear()
+})
+
+function ReplyProbe() {
+  const reply = useContext(NativeChatAsyncQuestionContext)
+  return <button onClick={() => reply?.send('answer')}>Reply</button>
+}
+
+const LOCAL_TARGET = { kind: 'local' } as const
+
+function Session({
+  target = LOCAL_TARGET,
+  blocked = false,
+  installBlocked = false,
+  onSubmitted = vi.fn()
+}: {
+  target?: RuntimeClientTarget
+  blocked?: boolean
+  installBlocked?: boolean
+  onSubmitted?: () => void
+}) {
+  const pane = { sessionId: 'session-1', target }
+  const controller = useStructuredAgentSession({ ...pane, agent: 'codex', isVisible: true })
+  const continuation = useContext(NativeChatOrcaStopContext)
+  return (
+    <NativeChatStructuredMessageProviders
+      controller={controller}
+      pane={pane}
+      blocked={blocked}
+      installBlocked={installBlocked}
+      continuation={continuation}
+      claudeSignIn={null}
+      onSubmitted={onSubmitted}
+    >
+      <ReplyProbe />
+    </NativeChatStructuredMessageProviders>
+  )
+}
+
+it.each([{ kind: 'local' }, { kind: 'environment', environmentId: 'remote-1' }] as const)(
+  'reports an accepted answer to its $kind session',
+  (target) => {
+    const onSubmitted = vi.fn()
+    render(<Session target={target} onSubmitted={onSubmitted} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Reply' }))
+    expect(mocks.send).toHaveBeenCalledExactlyOnceWith('answer', [], { immediate: true })
+    expect(onSubmitted).toHaveBeenCalledOnce()
+    expect(report).toHaveBeenCalledExactlyOnceWith(
+      'session-1',
+      target.kind === 'local' ? null : target.environmentId
+    )
+  }
+)
+
+it.each(['blocked', 'install', 'send', 'prompt'])(
+  'refuses an answer during %s without reporting input',
+  (reason) => {
+    mocks.sendOut = reason === 'send'
+    mocks.promptItems = reason === 'prompt' ? legacySingleQuestionPromptItems : []
+    const onSubmitted = vi.fn()
+    render(
+      <Session
+        blocked={reason === 'blocked'}
+        installBlocked={reason === 'install'}
+        onSubmitted={onSubmitted}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Reply' }))
+    expect(mocks.send).not.toHaveBeenCalled()
+    expect(onSubmitted).not.toHaveBeenCalled()
+    expect(report).not.toHaveBeenCalled()
+  }
+)
+
+it('does not report a reply the sender refused', () => {
+  mocks.send.mockReturnValue(false)
+  const onSubmitted = vi.fn()
+  render(<Session onSubmitted={onSubmitted} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Reply' }))
+  expect(mocks.send).toHaveBeenCalledOnce()
+  expect(onSubmitted).not.toHaveBeenCalled()
+  expect(report).not.toHaveBeenCalled()
+})
