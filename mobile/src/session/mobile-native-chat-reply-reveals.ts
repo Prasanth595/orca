@@ -6,7 +6,7 @@ import {
   trackNativeChatReplyRows,
   type NativeChatReplyReveals
 } from '../../../src/shared/native-chat-reply-reveals'
-import { useReducedMotionEnabled } from '../hooks/use-reduced-motion'
+import { useReducedMotionEnabled } from '../platform/use-reduced-motion'
 
 /** One chat's reveals, held above its list so a row the list remounts, or a chat reopened from
  *  the terminal, resumes instead of replaying. */

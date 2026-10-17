@@ -44,7 +44,7 @@ vi.mock('react-native', async () => {
     View: 'View'
   }
 })
-vi.mock('../hooks/use-reduced-motion', () => ({ useReducedMotionEnabled: () => null }))
+vi.mock('../platform/use-reduced-motion', () => ({ useReducedMotionEnabled: () => null }))
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 })
 }))
@@ -94,7 +94,8 @@ const HOST_SUPPORT = {
   statusFeed: true,
   quietRepeatedStop: true,
   sendOptions: false,
-  conversationStop: false
+  conversationStop: false,
+  permissionModes: false
 }
 
 type Phone = {
@@ -232,6 +233,7 @@ async function mountPhone(): Promise<Phone> {
       sendErrorMessage: null,
       onClearSendError: () => {},
       sendSurfaceId: 'host\0workspace\0tab',
+      sessionId: null,
       getSendCompletionGeneration: () => 0,
       keyboardInset: 0
     })
