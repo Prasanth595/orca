@@ -48,7 +48,6 @@ export function HostScreenHeader({ controller }: { controller: HostScreenControl
           onPress={actions.leaveHost}
           accessibilityRole="button"
           accessibilityLabel="Back to hosts"
-          hitSlop={8}
         >
           <ChevronLeft size={22} color={colors.textPrimary} />
         </Pressable>
@@ -114,7 +113,6 @@ export function HostScreenHeader({ controller }: { controller: HostScreenControl
             disabled={connState !== 'connected'}
             accessibilityRole="button"
             accessibilityLabel="Floating Workspace"
-            hitSlop={8}
           >
             <SquareTerminal
               size={18}
@@ -248,7 +246,12 @@ export function HostScreenHeader({ controller }: { controller: HostScreenControl
       ) : (
         <View style={styles.toolbar}>
           <Pressable
-            style={[styles.filterChip, controller.activeFilterCount > 0 && styles.filterChipActive]}
+            style={[
+              styles.filterChip,
+              styles.toolbarChip,
+              controller.activeFilterCount > 0 && styles.filterChipActive
+            ]}
+            hitSlop={{ top: 6, bottom: 6 }}
             onPress={() => state.setShowWorkspaceOptions(true)}
             accessibilityRole="button"
             accessibilityLabel={workspaceOptionsAccessibilityLabel(controller.activeFilterCount)}
@@ -265,47 +268,48 @@ export function HostScreenHeader({ controller }: { controller: HostScreenControl
           </Pressable>
 
           <View style={styles.toolbarSpacer} />
+          <View style={styles.toolbarIconGroup}>
+            <Pressable
+              style={styles.toolbarIconButton}
+              onPress={() =>
+                actions.navigateFromHostList(`/h/${encodeURIComponent(hostId)}/accounts`)
+              }
+              disabled={connState !== 'connected'}
+              accessibilityRole="button"
+              accessibilityLabel="Accounts"
+            >
+              <UserCircle
+                size={18}
+                color={connState === 'connected' ? colors.textSecondary : colors.textMuted}
+              />
+            </Pressable>
 
-          <Pressable
-            style={styles.searchToggle}
-            onPress={() =>
-              actions.navigateFromHostList(`/h/${encodeURIComponent(hostId)}/accounts`)
-            }
-            disabled={connState !== 'connected'}
-            accessibilityRole="button"
-            accessibilityLabel="Accounts"
-          >
-            <UserCircle
-              size={16}
-              color={connState === 'connected' ? colors.textSecondary : colors.textMuted}
-            />
-          </Pressable>
+            <Pressable
+              style={styles.toolbarIconButton}
+              onPress={() => actions.navigateFromHostList(`/h/${encodeURIComponent(hostId)}/tasks`)}
+              disabled={connState !== 'connected'}
+              accessibilityRole="button"
+              accessibilityLabel="Tasks"
+            >
+              <List
+                size={18}
+                color={connState === 'connected' ? colors.textSecondary : colors.textMuted}
+              />
+            </Pressable>
 
-          <Pressable
-            style={styles.searchToggle}
-            onPress={() => actions.navigateFromHostList(`/h/${encodeURIComponent(hostId)}/tasks`)}
-            disabled={connState !== 'connected'}
-            accessibilityRole="button"
-            accessibilityLabel="Tasks"
-          >
-            <List
-              size={16}
-              color={connState === 'connected' ? colors.textSecondary : colors.textMuted}
-            />
-          </Pressable>
-
-          <Pressable
-            style={styles.searchToggle}
-            onPress={() => state.setShowSearch((s) => !s)}
-            accessibilityRole="button"
-            accessibilityLabel={state.showSearch ? 'Close search' : 'Search workspaces'}
-          >
-            {state.showSearch ? (
-              <X size={16} color={colors.textSecondary} />
-            ) : (
-              <Search size={16} color={colors.textSecondary} />
-            )}
-          </Pressable>
+            <Pressable
+              style={styles.toolbarIconButton}
+              onPress={() => state.setShowSearch((s) => !s)}
+              accessibilityRole="button"
+              accessibilityLabel={state.showSearch ? 'Close search' : 'Search workspaces'}
+            >
+              {state.showSearch ? (
+                <X size={18} color={colors.textSecondary} />
+              ) : (
+                <Search size={18} color={colors.textSecondary} />
+              )}
+            </Pressable>
+          </View>
         </View>
       )}
     </View>

@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native'
-import { colors, radii, spacing, typography } from '../theme/mobile-theme'
+import { MIN_TOUCH_TARGET, colors, radii, spacing, typography } from '../theme/mobile-theme'
 
 export const hostScreenPrimaryStyles = StyleSheet.create({
   container: {
@@ -15,16 +15,14 @@ export const hostScreenPrimaryStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    minHeight: 34,
-    paddingTop: spacing.xs,
-    paddingHorizontal: spacing.lg
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: spacing.sm
   },
   backButton: {
-    width: 32,
-    height: 32,
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.xs
+    justifyContent: 'center'
   },
   sidebarCollapseButton: {
     width: 24,
@@ -65,12 +63,13 @@ export const hostScreenPrimaryStyles = StyleSheet.create({
     fontSize: typography.metaSize,
     fontWeight: '600'
   },
+  // 48pt row so the 32pt chips' vertical slop stays inside it (Android drops touches outside the parent).
   toolbar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.xs + 2,
-    paddingHorizontal: spacing.md,
-    gap: spacing.sm,
+    minHeight: 48,
+    paddingHorizontal: spacing.sm,
+    gap: spacing.xs,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderSubtle
   },
@@ -115,15 +114,20 @@ export const hostScreenPrimaryStyles = StyleSheet.create({
   filterChipTextActive: {
     color: colors.textPrimary
   },
+  // minHeight, not height: large accessibility text must grow the chip instead of clipping.
+  toolbarChip: {
+    minHeight: 32,
+    paddingVertical: 0,
+    borderRadius: 16
+  },
   toolbarSpacer: {
     flex: 1
   },
   floatingWorkspaceHeaderButton: {
-    width: 32,
-    height: 32,
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: spacing.xs
+    justifyContent: 'center'
   },
   embeddedToolbarIconButton: {
     flex: 1,
@@ -135,8 +139,15 @@ export const hostScreenPrimaryStyles = StyleSheet.create({
   toolbarIconDisabled: {
     opacity: 0.6
   },
-  searchToggle: {
-    padding: spacing.xs
+  // Flush 36pt-wide buttons get their 44pt only vertically, so the labels keep their width on 375pt phones.
+  toolbarIconGroup: {
+    flexDirection: 'row'
+  },
+  toolbarIconButton: {
+    width: 36,
+    height: MIN_TOUCH_TARGET,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   searchBar: {
     paddingHorizontal: spacing.md,

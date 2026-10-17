@@ -13,7 +13,7 @@ import {
   Trash2
 } from 'lucide-react-native'
 import { ActionSheetModal } from '../components/ActionSheetModal'
-import { colors, radii, spacing, typography } from '../theme/mobile-theme'
+import { MIN_TOUCH_TARGET, colors, radii, spacing, typography } from '../theme/mobile-theme'
 import type { MobileQueuedMessageCard } from './mobile-structured-queued-message-cards'
 import type { MobileQueuePause } from './mobile-structured-queued-message-feed'
 import type { MobileQueuedMessageEdit } from './use-mobile-structured-queued-message-controls'
@@ -295,8 +295,6 @@ export function MobileNativeChatQueuedMessages({
 
 // Every action touches as a 44pt target (platform floor) inside its row: Android drops touches
 // outside the parent, so the row is at least that tall and nothing overhangs it.
-const MIN_TOUCH_TARGET = 44
-
 const styles = StyleSheet.create({
   list: {
     marginHorizontal: spacing.lg,
