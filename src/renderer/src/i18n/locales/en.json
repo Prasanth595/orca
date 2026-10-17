@@ -20425,6 +20425,7 @@
       "jsDebugPath": "js-debug Server",
       "jsDebugPathDescription": "Path to js-debug’s dapDebugServer.js. Leave empty to use the default install location.",
       "noAdapters": "No debug adapters found for this project.",
+      "adapters": "Debug Adapters",
       "pythonPathPlaceholder": "python3",
       "jsDebugPathPlaceholder": "dapDebugServer.js"
     },

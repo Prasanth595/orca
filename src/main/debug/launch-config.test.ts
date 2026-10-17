@@ -566,9 +566,14 @@ describe('resolveLaunchSpec', () => {
         { name: 'Big', type: 'node', request: 'launch', envFile: 'big.env' }
       )
     )
-    symlinkSync(join(outside, 'x.env'), join(root, 'link.env'))
+    // Windows CI runners often lack the privilege to create symlinks; the other four
+    // refusals still run there.
+    const canLink = process.platform !== 'win32'
+    if (canLink) {
+      symlinkSync(join(outside, 'x.env'), join(root, 'link.env'))
+    }
     writeFileSync(join(root, 'big.env'), `A=${'x'.repeat(64 * 1024)}\n`)
-    for (const configName of ['Out', 'Dots', 'Link', 'Gone', 'Big']) {
+    for (const configName of ['Out', 'Dots', ...(canLink ? ['Link'] : []), 'Gone', 'Big']) {
       const result = await resolveLaunchSpec({ worktreePath: root, configName })
       expect(result, configName).toMatchObject({ ok: false, reason: 'malformed' })
     }

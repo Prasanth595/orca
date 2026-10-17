@@ -137,9 +137,13 @@ export function DebugPanel({
     () => resolveDebugEditorContext({ worktreesByRepo }, activeWorktreeId ?? undefined, ''),
     [activeWorktreeId, worktreesByRepo]
   )
+  // Keyed on the strings, not the context object: a worktree-list refresh rebuilds the
+  // context, and a new target identity would re-fetch the snapshot and remount the sections.
+  const targetRepoId = context?.repoId ?? null
+  const targetPath = context?.rootPath ?? null
   const target = useMemo(
-    () => (context ? { repoId: context.repoId, worktreePath: context.rootPath } : null),
-    [context]
+    () => (targetRepoId && targetPath ? { repoId: targetRepoId, worktreePath: targetPath } : null),
+    [targetRepoId, targetPath]
   )
   const enabled = Boolean(context && enabledRepos?.includes(context.repoId))
   const listing = useLaunchListing(client, target, enabled)

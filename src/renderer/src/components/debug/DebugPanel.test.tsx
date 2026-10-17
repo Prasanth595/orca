@@ -409,6 +409,20 @@ describe('DebugPanel', () => {
       'debugpy is not installed for /usr/bin/python3.'
     )
   })
+  it('a worktree-list refresh with the same worktree keeps the sections mounted and fetches no new snapshot', async () => {
+    await renderPanel()
+    const before = bridge.snapshot.mock.calls.length
+    const sections = container.querySelector('[data-testid="sections"]')
+    expect(sections).not.toBeNull()
+    // A refresh rebuilds worktreesByRepo with equal contents but new object identities.
+    await act(async () => {
+      mocks.store.setState({
+        worktreesByRepo: { 'repo-1': [{ id: `repo-1::${WORKTREE}`, path: WORKTREE }] }
+      })
+    })
+    expect(bridge.snapshot.mock.calls.length).toBe(before)
+    expect(container.querySelector('[data-testid="sections"]')).toBe(sections)
+  })
 })
 
 describe('DebugLaunchConfirm', () => {
