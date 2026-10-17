@@ -1,11 +1,13 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
 import {
   LOCALES_DIR,
   ZHT_CATALOG_FILE,
   buildZhHantCatalog,
+  main,
   serializeCatalog
 } from './generate-zh-hant-catalog.mjs'
 import { collectStringLeaves, isSimplifiedOnly } from './zh-hant-catalog.mjs'
@@ -17,6 +19,34 @@ const readCatalog = (locale) =>
 const zhCatalog = readCatalog('zh')
 const enCatalog = readCatalog('en')
 const zhHantCatalog = readCatalog('zh-Hant')
+
+const scratchRoots = []
+
+afterEach(() => {
+  for (const root of scratchRoots.splice(0)) {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+/** A tree whose locales dir holds zh.json. `contents` null plants a directory instead. */
+function localesTree(contents) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'orca-zh-hant-'))
+  scratchRoots.push(root)
+  const localesDir = path.join(root, LOCALES_DIR)
+  if (contents === null) {
+    fs.mkdirSync(path.join(localesDir, 'zh.json'), { recursive: true })
+  } else {
+    fs.mkdirSync(localesDir, { recursive: true })
+    fs.writeFileSync(path.join(localesDir, 'zh.json'), contents)
+  }
+  return root
+}
+
+const emptyLocalesTree = () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'orca-zh-hant-'))
+  scratchRoots.push(root)
+  return root
+}
 
 describe('zh-Hant catalog generation', () => {
   it('stays in sync with zh.json', () => {
@@ -120,5 +150,23 @@ describe('zh-Hant catalog generation', () => {
 
   it('keeps the English catalog pinned to the same picker labels', () => {
     expect(enCatalog.settings.appearance.language.chineseTraditional).toBe('中文（繁體）')
+  })
+
+  it('treats an absent zh.json as nothing to verify', async () => {
+    // Why: the combined verifier runs this over synthetic fixtures that carry
+    // no Simplified catalog, and those have to stay passing.
+    await expect(main(emptyLocalesTree(), ['--check'])).resolves.toBe(0)
+  })
+
+  it('fails the check when zh.json cannot be parsed', async () => {
+    // Why: zh.json is the only source of zh-Hant, so a malformed one used to
+    // report `matches zh.json` and exit 0 without comparing anything.
+    await expect(main(localesTree('{ "a": '), ['--check'])).rejects.toThrow(SyntaxError)
+  })
+
+  it('propagates zh.json read failures that are not a missing file', async () => {
+    // Why: ENOENT is the one absence the generator can derive around; a
+    // directory where the catalog belongs must not read as "nothing to check".
+    await expect(main(localesTree(null), ['--check'])).rejects.toMatchObject({ code: 'EISDIR' })
   })
 })

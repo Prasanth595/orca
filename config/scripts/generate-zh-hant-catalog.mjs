@@ -42,7 +42,12 @@ export async function main(root = process.cwd(), argv = process.argv.slice(2)) {
   let zhCatalog
   try {
     zhCatalog = JSON.parse(await fs.readFile(zhCatalogPath, 'utf8'))
-  } catch {
+  } catch (error) {
+    // Why: only an absent zh.json means there is nothing to derive. Unreadable
+    // or malformed, the only source of zh-Hant, has to fail the check.
+    if (error?.code !== 'ENOENT') {
+      throw error
+    }
     // Why: zh-Hant is derived from zh.json, so a tree without one (the
     // combined verifier's synthetic fixtures) has nothing to derive or check.
     console.log(`${ZHT_CATALOG_FILE} is derived from zh.json, which is absent here.`)
