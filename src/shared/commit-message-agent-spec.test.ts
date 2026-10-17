@@ -227,7 +227,8 @@ describe('buildArgs (Claude)', () => {
       '--model',
       'haiku',
       '--permission-mode',
-      'plan'
+      'plan',
+      '--no-session-persistence'
     ])
   })
 
@@ -245,6 +246,7 @@ describe('buildArgs (Claude)', () => {
       'sonnet',
       '--permission-mode',
       'plan',
+      '--no-session-persistence',
       '--effort',
       'high'
     ])

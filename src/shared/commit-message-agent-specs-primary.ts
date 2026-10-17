@@ -43,6 +43,9 @@ export function buildPrimaryCommitMessageAgentSpecs({
         model,
         '--permission-mode',
         'plan',
+        // Why: generation runs in the workspace cwd, so a persisted transcript
+        // lands beside the user's real chats and Session History offers it as one.
+        '--no-session-persistence',
         ...(thinkingLevel ? ['--effort', thinkingLevel] : [])
       ],
       modelSource: 'dynamic',

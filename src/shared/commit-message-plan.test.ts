@@ -47,6 +47,7 @@ describe('planCommitMessageGeneration', () => {
           'sonnet',
           '--permission-mode',
           'plan',
+          '--no-session-persistence',
           '--effort',
           'high'
         ],
