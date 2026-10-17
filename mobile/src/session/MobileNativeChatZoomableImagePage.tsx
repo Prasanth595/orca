@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { View } from 'react-native'
 import { Gesture, GestureDetector, type NativeGesture } from 'react-native-gesture-handler'
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue } from 'react-native-reanimated'
@@ -23,6 +23,8 @@ export function MobileNativeChatZoomableImagePage({
   pagingGesture: NativeGesture
   onInteractionChange: (index: number, locked: boolean) => void
 }) {
+  const viewport = useRef<View>(null)
+  const origin = useSharedValue({ x: 0, y: 0 })
   const zoom = useSharedValue<Zoom>({ scale: 1, x: 0, y: 0 })
   const pinchBase = useSharedValue<Zoom>({ scale: 1, x: 0, y: 0 })
   const panBase = useSharedValue<Zoom>({ scale: 1, x: 0, y: 0 })
@@ -53,14 +55,22 @@ export function MobileNativeChatZoomableImagePage({
   }
 
   const pinch = Gesture.Pinch()
+    .runOnJS(true)
     .blocksExternalGesture(pagingGesture)
     .onStart((event) => {
+      // Web focal coordinates include the header and side insets.
+      const element = viewport.current
+      const bounds =
+        typeof HTMLElement !== 'undefined' && element instanceof HTMLElement
+          ? element.getBoundingClientRect()
+          : null
+      origin.value = { x: bounds?.left ?? 0, y: bounds?.top ?? 0 }
       pinching.value = true
       panSuspended.value = true
       pinchBase.value = zoom.value
       anchor.value = {
-        x: (event.focalX - size.value.width / 2 - zoom.value.x) / zoom.value.scale,
-        y: (event.focalY - size.value.height / 2 - zoom.value.y) / zoom.value.scale
+        x: (event.focalX - origin.value.x - size.value.width / 2 - zoom.value.x) / zoom.value.scale,
+        y: (event.focalY - origin.value.y - size.value.height / 2 - zoom.value.y) / zoom.value.scale
       }
       runOnJS(onInteractionChange)(index, true)
     })
@@ -68,8 +78,8 @@ export function MobileNativeChatZoomableImagePage({
       const scale = Math.max(1, Math.min(4, pinchBase.value.scale * event.scale))
       zoom.value = constrain({
         scale,
-        x: event.focalX - size.value.width / 2 - anchor.value.x * scale,
-        y: event.focalY - size.value.height / 2 - anchor.value.y * scale
+        x: event.focalX - origin.value.x - size.value.width / 2 - anchor.value.x * scale,
+        y: event.focalY - origin.value.y - size.value.height / 2 - anchor.value.y * scale
       })
     })
     .onFinalize(() => {
@@ -121,6 +131,7 @@ export function MobileNativeChatZoomableImagePage({
       touchAction={zoomed ? 'none' : 'pan-x'}
     >
       <View
+        ref={viewport}
         style={{ width, height, overflow: 'hidden' }}
         onLayout={(event) => {
           size.value = event.nativeEvent.layout

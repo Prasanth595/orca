@@ -18,6 +18,7 @@ vi.mock('react-native-gesture-handler', () => {
     gestures.set(kind, handlers)
     const chain = {
       enabled: () => chain,
+      runOnJS: () => chain,
       maxPointers: () => chain,
       blocksExternalGesture: () => chain,
       onStart: (fn: (event: Touch) => void) => {
@@ -91,8 +92,16 @@ it('zooms and pans in the phone page, then restores gallery swiping at the origi
   expect(list().props.renderItem({ item: { url: 'file:///a.png' }, index: 0 }).props.height).toBe(
     600
   )
+  class PageElement {
+    getBoundingClientRect() {
+      return { left: 20, top: 60 }
+    }
+  }
+  vi.stubGlobal('HTMLElement', PageElement)
   act(() => {
-    page = create(list().props.renderItem({ item: { url: 'file:///a.png' }, index: 0 }))
+    page = create(list().props.renderItem({ item: { url: 'file:///a.png' }, index: 0 }), {
+      createNodeMock: () => new PageElement()
+    })
   })
   const viewport = page!.root.find((node) => String(node.type) === 'View')
   act(() => viewport.props.onLayout({ nativeEvent: { layout: { width: 390, height: 600 } } }))
@@ -108,8 +117,8 @@ it('zooms and pans in the phone page, then restores gallery swiping at the origi
   )
   const event: Touch = {
     scale: 1,
-    focalX: 195,
-    focalY: 300,
+    focalX: 215,
+    focalY: 360,
     translationX: 0,
     translationY: 0,
     numberOfPointers: 1
