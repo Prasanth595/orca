@@ -24,6 +24,8 @@ import type {
 import { getLatestPtyTitle } from '../../runtime-worktree-status-projection'
 import type { AutomationService } from '../../../automations/service'
 import type { ArtifactCloudService } from '../../../artifacts/artifact-cloud-service'
+import type { WorkflowService } from '../../../workflows/workflow-service'
+import type { AgentWorkflow, WorkflowRun } from '../../../../shared/workflow-types'
 import type {
   ArtifactCloudOperation,
   ArtifactCloudOptions,
@@ -234,6 +236,40 @@ export abstract class OrcaRuntimeWithHasExactPersistedTerminalSurfaceIdentity ex
 
   setArtifactService(service: ArtifactCloudService): void {
     this.artifacts.setService(service)
+  }
+
+  setWorkflowService(service: WorkflowService): void {
+    this.workflows.setService(service)
+  }
+
+  listWorkflows(): AgentWorkflow[] {
+    return this.workflows.list()
+  }
+
+  showWorkflow(id: string): AgentWorkflow | null {
+    return this.workflows.show(id)
+  }
+
+  async importWorkflow(parsed: {
+    name: string
+    executionTargetType: 'local' | 'ssh'
+    executionTargetId: string
+    nodes: AgentWorkflow['nodes']
+    edges: AgentWorkflow['edges']
+  }): Promise<AgentWorkflow> {
+    return this.workflows.importFile(parsed)
+  }
+
+  deleteWorkflow(id: string): boolean {
+    return this.workflows.delete(id)
+  }
+
+  runWorkflowNow(id: string): Promise<WorkflowRun> {
+    return this.workflows.runNow(id)
+  }
+
+  listWorkflowRuns(workflowId?: string): WorkflowRun[] {
+    return this.workflows.runs(workflowId)
   }
 
   listArtifacts(options: ArtifactListOptions): Promise<ArtifactCloudOperation<ArtifactListPage>> {

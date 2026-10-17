@@ -52,19 +52,7 @@ export function registerWorkflowHandlers(service: WorkflowService): void {
 
   ipcMain.handle('workflows:delete', (_e, id: string) => service.deleteWorkflow(id))
 
-  ipcMain.handle('workflows:runNow', async (_e, workflowId: string) => {
-    const workflow = service.getWorkflow(workflowId)
-    if (!workflow) {
-      throw new Error(`Workflow ${workflowId} not found.`)
-    }
-    const run = await service.runWorkflow(workflow, 'manual')
-    // First run activates scheduling if a cron trigger is present
-    const hasCron = workflow.nodes.some((n) => n.type === 'trigger_cron')
-    if (hasCron && !workflow.enabled) {
-      service.activateSchedule(workflowId)
-    }
-    return run
-  })
+  ipcMain.handle('workflows:runNow', (_e, workflowId: string) => service.runWorkflowNow(workflowId))
 
   ipcMain.handle('workflows:stop', (_e, workflowId: string) => {
     const result = service.deactivateSchedule(workflowId)

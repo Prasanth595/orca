@@ -604,6 +604,13 @@ import {
 } from './terminal-viewport-schemas-params'
 import { UpdaterCheckParams } from './updater-params'
 import {
+  WorkflowsDelete,
+  WorkflowsImport,
+  WorkflowsRun,
+  WorkflowsRuns,
+  WorkflowsShow
+} from './workflow-params'
+import {
   LayoutApplyParams,
   LayoutSubscribeParams,
   LayoutUnsubscribeParams
@@ -1364,6 +1371,12 @@ export const RPC_PARAMS_BY_METHOD = {
   'updater.download': null,
   'updater.getStatus': null,
   'updater.install': null,
+  'workflows.delete': WorkflowsDelete,
+  'workflows.import': WorkflowsImport,
+  'workflows.list': null,
+  'workflows.run': WorkflowsRun,
+  'workflows.runs': WorkflowsRuns,
+  'workflows.show': WorkflowsShow,
   'workspacePorts.kill': WorkspacePortKillParams,
   'workspacePorts.killHost': WorkspacePortKillHostParams,
   'workspacePorts.scan': WorkspacePortScanParams,

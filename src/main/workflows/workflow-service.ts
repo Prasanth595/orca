@@ -181,6 +181,21 @@ export class WorkflowService {
     return this.store.listWorkflows()
   }
 
+  /** One source of truth for "run now": IPC and the CLI/RPC surface both go through this. */
+  async runWorkflowNow(workflowId: string): Promise<WorkflowRun> {
+    const workflow = this.getWorkflow(workflowId)
+    if (!workflow) {
+      throw new Error(`Workflow ${workflowId} not found.`)
+    }
+    const run = await this.runWorkflow(workflow, 'manual')
+    // First run activates scheduling if a cron trigger is present
+    const hasCron = workflow.nodes.some((n) => n.type === 'trigger_cron')
+    if (hasCron && !workflow.enabled) {
+      this.activateSchedule(workflowId)
+    }
+    return run
+  }
+
   listRuns(workflowId?: string): WorkflowRun[] {
     return this.store.listWorkflowRuns(workflowId)
   }

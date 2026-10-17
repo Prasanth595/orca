@@ -51,6 +51,7 @@ export async function initializeReadyRuntimeServices(): Promise<void> {
   const runtime = initializeMainProcessRuntime()
   initializeMainProcessAutomations()
   state.workflows = initializeMainProcessWorkflows()
+  runtime.setWorkflowService(state.workflows)
   configureRuntimeServices(runtime)
   installFirstWorkRenameHookSubscription()
   await initializeMainProcessPlugins(runtime)
