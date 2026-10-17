@@ -1,4 +1,4 @@
-import type { PtyBackgroundStreamEvent } from '../providers/types'
+import type { PtyBackgroundStreamEvent } from '../providers/pty-provider-contract'
 import { combineUnsubscribes } from './combine-unsubscribes'
 import type { DaemonPtyAdapter } from './daemon-pty-adapter'
 import type { DaemonPtyRouterDataEvent, DaemonPtyRouterExitEvent } from './daemon-pty-router-events'
@@ -13,7 +13,7 @@ export class DaemonPtyAdapterSubscriptionFanout {
 
   constructor(
     adapters: readonly DaemonPtyAdapter[],
-    onAdapterExit: (id: string) => void,
+    onAdapterExit: (id: string, adapter: DaemonPtyAdapter) => void,
     onAdapterIdentityChanged?: (adapter: DaemonPtyAdapter) => void
   ) {
     this.adapters = [...adapters]
@@ -25,7 +25,7 @@ export class DaemonPtyAdapterSubscriptionFanout {
           }
         }),
         adapter.onExit((payload) => {
-          onAdapterExit(payload.id)
+          onAdapterExit(payload.id, adapter)
           for (const listener of this.exitListeners) {
             listener(payload)
           }

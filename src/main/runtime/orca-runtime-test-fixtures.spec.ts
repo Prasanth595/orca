@@ -446,8 +446,8 @@ const store = {
   getProjects: () => []
 }
 
-// Callers pass the pane's APP-form pty id; the lease stores RELAY form, exactly as
-// upsertSshRemotePtyLease does through toStoredPtyId. Non-SSH ids pass through untouched.
+// Callers pass the pane's APP-form pty id; the lease stores RELAY form, exactly as the relay-era
+// writer did through toStoredPtyId. Non-SSH ids pass through untouched.
 function createRuntimeWithSshLease(
   ptyId: string,
   tabId: string,
@@ -568,6 +568,7 @@ function makeRuntimeStoreWithWorkspaceSession(
   ownerHostId = 'local'
 ): {
   runtimeStore: typeof store & {
+    admitTerminalPane: ReturnType<typeof withRuntimePaneAdmission>['admitTerminalPane']
     getWorkspaceSession: (hostId?: string) => WorkspaceSessionState
     setWorkspaceSession: ReturnType<typeof vi.fn<Store['setWorkspaceSession']>>
     flushOrThrow: ReturnType<typeof vi.fn<() => void>>

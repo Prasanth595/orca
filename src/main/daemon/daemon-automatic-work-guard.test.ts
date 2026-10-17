@@ -67,13 +67,68 @@ describe('DaemonAutomaticWorkGuard growth breaker', () => {
         trips: expect.arrayContaining([expect.objectContaining({ scope: 'session-0001' })])
       })
     )
-    // Nothing can resume a recorded pause yet, so the breaker never writes one.
+    // A pressure pause lives for this run only, so the breaker never writes one.
     expect(JSON.parse(readFileSync(markerPath, 'utf8'))).toMatchObject({ mode: { kind: 'normal' } })
+  })
+
+  it('lets the operator clear a pressure pause and reports what it cleared', async () => {
+    const { guard } = await stormUnderOneAgent('enforce')
+    const wake = vi.spyOn(guard.gate, 'onPressureChanged')
+
+    expect(guard.status()).toMatchObject({
+      admission: 'enforce',
+      mode: { kind: 'paused', reason: 'pressure' }
+    })
+    expect(guard.resume()).toMatchObject({
+      admission: 'enforce',
+      mode: { kind: 'normal' },
+      cleared: { kind: 'paused', reason: 'pressure' }
+    })
+    expect(wake).toHaveBeenCalled()
+    expect(guard.resume()).toMatchObject({ cleared: null })
   })
 
   it('only reports a storm on an observe-only host', async () => {
     const { guard, log } = await stormUnderOneAgent('observe')
     expect(guard['automaticWorkMode']()).toEqual({ kind: 'normal' })
     expect(log.log).toHaveBeenCalledWith('process-growth-breaker-tripped', expect.anything())
+  })
+})
+
+describe('DaemonAutomaticWorkGuard stop request', () => {
+  it('records an outside stop on the marker before teardown, so a cut-short exit is no crash', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'orca-stop-'))
+    try {
+      const markerPath = join(dir, 'daemon-v1.automatic-work-run.json')
+      const options = {
+        markerPath,
+        mode: 'enforce' as const,
+        log: { log: vi.fn() },
+        listSessions: () => [],
+        ownsEndpoint: () => true,
+        monitor: new DaemonProcessGrowthMonitor({
+          listSessions: () => [],
+          recentAutomaticWork: () => false,
+          sampleWhenIdle: false,
+          onLevelChanged: () => {},
+          onTrip: () => {},
+          readRows: async () => []
+        })
+      }
+      const guard = new DaemonAutomaticWorkGuard(options)
+      guard.start()
+      guard['marker'].arm()
+      expect(JSON.parse(readFileSync(markerPath, 'utf8'))).toMatchObject({ state: 'running' })
+
+      guard.recordStopRequested()
+
+      expect(JSON.parse(readFileSync(markerPath, 'utf8'))).toMatchObject({ state: 'clean-exit' })
+      const next = new DaemonAutomaticWorkGuard(options)
+      next.start()
+      expect(next.status().mode).toEqual({ kind: 'normal' })
+      next.stop()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

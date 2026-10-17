@@ -1,6 +1,5 @@
 import { vi } from 'vitest'
 import type { SshIpcMockModules, SshIpcMockState, SshIpcMocks } from './ssh-ipc-mock-shapes'
-import { errorMessage } from '../../shared/error-message'
 
 export type { SshIpcMocks }
 
@@ -31,13 +30,12 @@ export function createSshIpcMocks(): SshIpcMocks {
       disconnectConnection: vi.fn(),
       reconnect: vi.fn(),
       getConnection: vi.fn(),
+      hasCachedCredential: vi.fn().mockReturnValue(false),
       getState: vi.fn(),
       disconnectAll: vi.fn(),
       setCallbacks: vi.fn(),
       callbacksRef: { current: null as unknown }
     },
-    mockAcceptSshPtyOutputData: vi.fn().mockResolvedValue({}),
-    mockAcceptSshPtyOutputExit: vi.fn().mockResolvedValue(undefined),
     mockMux: {
       dispose: vi.fn(),
       isDisposed: vi.fn().mockReturnValue(false),
@@ -49,19 +47,6 @@ export function createSshIpcMocks(): SshIpcMocks {
       notify: vi.fn(),
       probeLiveness: vi.fn().mockResolvedValue(false)
     },
-    mockPtyProvider: {
-      onData: vi.fn(),
-      onExit: vi.fn(),
-      onReplay: vi.fn(),
-      attach: vi.fn(),
-      attachForReconnect: vi.fn().mockResolvedValue({}),
-      shutdown: vi.fn(),
-      listProcesses: vi.fn(async () => []),
-      providerGeneration: 0
-    },
-    mockFsProvider: {},
-    mockGitProvider: {},
-    mockRegisterSshGitProvider: vi.fn(),
     mockPortForwardManager: {
       addForward: vi.fn(),
       updateForward: vi.fn(),
@@ -69,6 +54,7 @@ export function createSshIpcMocks(): SshIpcMocks {
       removeForwardAndWait: vi.fn(),
       listForwards: vi.fn().mockReturnValue([]),
       removeAllForwards: vi.fn(),
+      closeAll: vi.fn(),
       dispose: vi.fn(),
       setCallbacks: vi.fn(),
       callbacksRef: { current: null as unknown }
@@ -91,13 +77,7 @@ export function createSshIpcMocks(): SshIpcMocks {
     powerMonitorOnMock,
     mockSshStore,
     mockConnectionManager,
-    mockAcceptSshPtyOutputData,
-    mockAcceptSshPtyOutputExit,
     mockMux,
-    mockPtyProvider,
-    mockFsProvider,
-    mockGitProvider,
-    mockRegisterSshGitProvider,
     mockPortForwardManager,
     mockPortScannerCallbacks,
     mockListConfigHosts,
@@ -123,24 +103,6 @@ export function createSshIpcMocks(): SshIpcMocks {
         off: powerMonitorOffMock
       }
     },
-    sshPtyOutputIntakeRegistry: {
-      acceptSshPtyOutputData: mockAcceptSshPtyOutputData,
-      acceptSshPtyOutputExit: mockAcceptSshPtyOutputExit,
-      allocateSshPtyProviderGeneration: (() => {
-        let generation = 0
-        return () => ++generation
-      })(),
-      beginSshPtyOutputGenerationMigration: vi.fn(() => ({
-        byPty: new Map(),
-        completion: Promise.resolve()
-      })),
-      applySshPtySourceCancellationProof: vi.fn().mockReturnValue(false),
-      applySshPtySourceRecoveryCancellationProof: vi.fn().mockReturnValue(false),
-      closeSshPtyOutputGeneration: vi.fn(),
-      getSshPtyAcceptedSourceCheckpoints: vi.fn().mockReturnValue([]),
-      installSshPtySourceAckPublisher: vi.fn().mockReturnValue(() => {}),
-      installSshPtySourceCancellationPublisher: vi.fn().mockReturnValue(() => {})
-    },
     // A managed host by default; the real decision is covered by its own tests.
     hostServerConnect: {
       decideHostServer: vi.fn(async (): Promise<{ route: 'managed'; environmentId: string }> => ({
@@ -155,7 +117,13 @@ export function createSshIpcMocks(): SshIpcMocks {
         error: null,
         reconnectAttempt: 0
       })),
-      publishUnservedHostServer: vi.fn(() => new Error('This SSH host isn’t supported'))
+      publishUnservedHostServer: vi.fn(() => new Error('This SSH host isn’t supported')),
+      publishBridgedUnservedHostServer: vi.fn((target: { id: string }) => ({
+        targetId: target.id,
+        status: 'connected',
+        error: null,
+        reconnectAttempt: 0
+      }))
     },
     sshConnectionStore: {
       isRuntimeOwnedSshTarget: (target: { owner?: unknown }) => target.owner !== undefined,
@@ -189,50 +157,6 @@ export function createSshIpcMocks(): SshIpcMocks {
           return mockMux
         }
       }
-    },
-    sshPtyProvider: {
-      isSshPtyNotFoundError: (err: unknown) => errorMessage(err).includes('not found'),
-      SshPtyProvider: class MockSshPtyProvider {
-        constructor(_targetId: unknown, _mux: unknown, _env: unknown, providerGeneration: number) {
-          mockPtyProvider.providerGeneration = providerGeneration
-          return mockPtyProvider
-        }
-      }
-    },
-    sshFilesystemProvider: {
-      SshFilesystemProvider: class MockSshFilesystemProvider {
-        constructor() {
-          return mockFsProvider
-        }
-      }
-    },
-    pty: {
-      registerSshPtyProvider: vi.fn(),
-      unregisterSshPtyProvider: vi.fn(),
-      clearPtyOwnershipForConnection: vi.fn(),
-      clearProviderPtyState: vi.fn(),
-      deletePtyOwnership: vi.fn(),
-      setPtyOwnership: vi.fn(),
-      getSshPtyProvider: vi.fn(),
-      getPtyIdsForConnection: vi.fn().mockReturnValue([]),
-      isCurrentPtyExit: vi.fn().mockReturnValue(true),
-      isRendererPtyOutputPaused: vi.fn().mockReturnValue(false)
-    },
-    sshFilesystemDispatch: {
-      registerSshFilesystemProvider: vi.fn(),
-      unregisterSshFilesystemProvider: vi.fn(),
-      getSshFilesystemProvider: vi.fn()
-    },
-    sshGitProvider: {
-      SshGitProvider: class MockSshGitProvider {
-        constructor() {
-          return mockGitProvider
-        }
-      }
-    },
-    sshGitDispatch: {
-      registerSshGitProvider: mockRegisterSshGitProvider,
-      unregisterSshGitProvider: vi.fn()
     },
     sshPortForward: {
       SshPortForwardManager: class MockPortForwardManager {

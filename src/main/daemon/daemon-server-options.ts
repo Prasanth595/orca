@@ -15,6 +15,7 @@ export type DaemonServerOptions = {
   protocolVersion?: number
   onIdleShutdown?: () => void
   onRpcShutdown?: () => void
+  onShutdownRequested?: () => void
   initialAdoptionTestConfig?: {
     timeoutMs: number
     clock: {
@@ -32,6 +33,8 @@ export type DaemonServerOptions = {
   spawnAdmission?: TerminalSpawnAdmissionMode
   /** Where the daemon remembers whether automatic restores were running when it died. */
   automaticWorkMarkerPath?: string
+  /** Where every daemon on this host shares its terminal count for the host cap. */
+  hostTerminalLedgerDir?: string
   spawnSubprocess: (opts: {
     sessionId: string
     cols: number

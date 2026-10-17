@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AiVaultListResult } from '../../shared/ai-vault-types'
+import { aiVaultLocalScanKey } from '../../shared/ai-vault-local-scan-key'
+import {
+  localAiVaultScanProgress,
+  resetLocalAiVaultScanProgressForTests,
+  type LocalAiVaultScanProgressHandle
+} from './ai-vault-local-scan-progress'
 
 const {
   filterPathsToRunningWslDistrosAsync,
@@ -43,10 +49,16 @@ function scanResult(scannedAt: string): AiVaultListResult {
 // mid-flight.
 function deferredScan(): { resolve: (value: AiVaultListResult) => void } {
   let resolveFn: (value: AiVaultListResult) => void = () => {}
-  scanAiVaultSessionsInService.mockReturnValueOnce(
-    new Promise<AiVaultListResult>((resolve) => {
-      resolveFn = resolve
-    })
+  const pending = new Promise<AiVaultListResult>((resolve) => {
+    resolveFn = resolve
+  })
+  scanAiVaultSessionsInService.mockImplementationOnce(
+    async (_options, _signal, progress?: LocalAiVaultScanProgressHandle) => {
+      progress?.sent()
+      const value = await pending
+      progress?.finish(null)
+      return value
+    }
   )
   return { resolve: resolveFn }
 }
@@ -56,6 +68,7 @@ describe('invalidateAiVaultSessionListCache generation guard', () => {
     platform = 'win32'
     vi.spyOn(process, 'platform', 'get').mockImplementation(() => platform)
     resetAiVaultSessionListCacheForTests()
+    resetLocalAiVaultScanProgressForTests()
     filterPathsToRunningWslDistrosAsync.mockClear()
     getCachedWslDistros.mockReset().mockReturnValue(null)
     hasCachedWslDistros.mockReset().mockReturnValue(false)
@@ -64,6 +77,7 @@ describe('invalidateAiVaultSessionListCache generation guard', () => {
   })
   afterEach(() => {
     resetAiVaultSessionListCacheForTests()
+    resetLocalAiVaultScanProgressForTests()
     vi.restoreAllMocks()
   })
 
@@ -88,32 +102,61 @@ describe('invalidateAiVaultSessionListCache generation guard', () => {
     expect(scanAiVaultSessionsInService).toHaveBeenCalledTimes(2)
   })
 
-  it('does not let a read after an invalidation join a scan that started before it', async () => {
-    // Scan A starts and is still in flight.
-    const scanA = deferredScan()
-    const beforeDelete = listAiVaultSessions()
-    await vi.waitFor(() => expect(scanAiVaultSessionsInService).toHaveBeenCalledTimes(1))
+  it.each(['old-first', 'new-first'])(
+    'keeps post-invalidation scans separate with %s completion',
+    async (order) => {
+      const request = { scopePaths: ['/project'] }
+      const scanKey = aiVaultLocalScanKey(request)
+      const scanA = deferredScan()
+      const beforeDelete = listAiVaultSessions(request)
+      await vi.waitFor(() => expect(scanAiVaultSessionsInService).toHaveBeenCalledTimes(1))
 
-    // A delete invalidates the cache, then the list is read again while A is
-    // still running. That read must not be handed A's pre-delete result.
-    invalidateAiVaultSessionListCache()
-    scanAiVaultSessionsInService.mockResolvedValueOnce(scanResult('scan-B'))
-    const afterDelete = listAiVaultSessions()
-    scanA.resolve(scanResult('scan-A'))
+      invalidateAiVaultSessionListCache()
+      const scanB = deferredScan()
+      const afterDelete = listAiVaultSessions(request)
+      const sameGeneration = listAiVaultSessions(request)
+      try {
+        await vi.waitFor(() => expect(scanAiVaultSessionsInService).toHaveBeenCalledTimes(2))
+        if (order === 'old-first') {
+          scanA.resolve(scanResult('scan-A'))
+          await beforeDelete
+        }
+        scanB.resolve(scanResult('scan-B'))
+        const fresh = await afterDelete
+        expect(fresh.scannedAt).toBe('scan-B')
+        expect(fresh.scanId).toEqual(expect.any(String))
+        expect((await sameGeneration).scanId).toBe(fresh.scanId)
 
-    expect((await beforeDelete).scannedAt).toBe('scan-A')
-    expect((await afterDelete).scannedAt).toBe('scan-B')
-    expect(scanAiVaultSessionsInService).toHaveBeenCalledTimes(2)
-  })
+        scanA.resolve(scanResult('scan-A'))
+        const old = await beforeDelete
+        expect(old.scannedAt).toBe('scan-A')
+        expect(old.scanId).not.toBe(fresh.scanId)
+        const cached = await listAiVaultSessions(request)
+        expect(cached.scannedAt).toBe('scan-B')
+        expect(cached.scanId).toBe(fresh.scanId)
+        expect(localAiVaultScanProgress(scanKey)).toMatchObject({
+          scanId: fresh.scanId,
+          stage: 'finished'
+        })
+        expect(scanAiVaultSessionsInService).toHaveBeenCalledTimes(2)
+      } finally {
+        scanA.resolve(scanResult('scan-A'))
+        scanB.resolve(scanResult('scan-B'))
+        await Promise.allSettled([beforeDelete, afterDelete, sameGeneration])
+      }
+    }
+  )
 
   it('caches normally when no invalidation interrupts the scan', async () => {
     scanAiVaultSessionsInService.mockResolvedValueOnce(scanResult('scan-A'))
-    await listAiVaultSessions()
+    const request = { limit: 1000, scopePaths: ['/project'] }
+    const first = await listAiVaultSessions(request)
 
-    // Second non-force call is a cache hit — no second scan.
-    const cached = await listAiVaultSessions()
+    // A narrower request reuses the same scan entry and its scan ID.
+    const cached = await listAiVaultSessions({ ...request, limit: 100 })
 
     expect(cached.scannedAt).toBe('scan-A')
+    expect(cached.scanId).toBe(first.scanId)
     expect(scanAiVaultSessionsInService).toHaveBeenCalledTimes(1)
     expect(listRunningWslHomeDirsAsync).toHaveBeenCalledTimes(1)
   })

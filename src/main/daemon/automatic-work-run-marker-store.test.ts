@@ -42,12 +42,55 @@ describe('AutomaticWorkRunMarker', () => {
     )
   })
 
+  it('keeps a crash pause until an explicit resume, which survives the next start', () => {
+    open().arm()
+    const paused = open(20)
+    expect(open(30).mode).toMatchObject({ kind: 'paused', reason: 'unclean_host_death' })
+
+    const carried = open(40)
+    carried.resume()
+    expect(carried.mode).toEqual({ kind: 'normal' })
+    expect(JSON.parse(readFileSync(path, 'utf8'))).toMatchObject({ mode: { kind: 'normal' } })
+    expect(logger.log).toHaveBeenCalledWith(
+      'automatic-work-resumed',
+      expect.objectContaining({ reason: 'unclean_host_death' })
+    )
+    carried.markCleanExit()
+    expect(open(50).mode).toEqual({ kind: 'normal' })
+    expect(paused.mode.kind).toBe('paused')
+  })
+
   it('does not pause after an orderly exit, or when nothing automatic ran', () => {
     const first = open()
     first.arm()
     first.markCleanExit()
     expect(open(20).mode).toEqual({ kind: 'normal' })
     expect(open(30).mode).toEqual({ kind: 'normal' })
+  })
+
+  it('never reads an outside stop as a crash, even when the exit is then cut short', () => {
+    const stopped = open()
+    stopped.arm()
+    stopped.recordStopRequested()
+    // No markCleanExit: the teardown died (e.g. SIGBUS as the scope stop took its mount).
+    expect(JSON.parse(readFileSync(path, 'utf8'))).toMatchObject({ state: 'clean-exit' })
+    expect(open(20).mode).toEqual({ kind: 'normal' })
+  })
+
+  it('keeps the stop on record when automatic work is armed or resumed after it', () => {
+    const marker = open()
+    marker.recordStopRequested()
+    marker.arm()
+    marker.resume()
+    expect(JSON.parse(readFileSync(path, 'utf8'))).toMatchObject({ state: 'clean-exit' })
+    expect(open(20).mode).toEqual({ kind: 'normal' })
+  })
+
+  it('keeps a recorded pause across a stop until an explicit resume', () => {
+    open().arm()
+    const paused = open(20)
+    paused.recordStopRequested()
+    expect(open(30).mode).toMatchObject({ kind: 'paused', reason: 'unclean_host_death' })
   })
 
   it('does not pause on a new boot', () => {

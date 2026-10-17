@@ -22,6 +22,7 @@ import { checkPtySpawnHealth } from './pty-subprocess'
 import { TerminalHistorySeedTransferRegistry } from './terminal-history-seed-transfer-registry'
 import { TerminalHost } from './terminal-host'
 import { DaemonAutomaticWorkGuard } from './daemon-automatic-work-guard'
+import { answerAutomaticWorkRequest } from './daemon-automatic-work-protocol'
 import {
   CLEAN_DISCONNECT_PROTOCOL_VERSION,
   NOTIFY_PREFIX,
@@ -34,7 +35,7 @@ export class DaemonServer {
   private static readonly INITIAL_ADOPTION_TIMEOUT_MS = 2 * 60 * 1000
 
   private readonly log: DaemonFileLog
-  private readonly automaticWork: DaemonAutomaticWorkGuard
+  readonly automaticWork: DaemonAutomaticWorkGuard
   private readonly host: TerminalHost
   private readonly transientFactRelay: BackgroundTransientFactRelay
   private readonly streamDataBatcher: DaemonStreamDataBatcher
@@ -47,12 +48,12 @@ export class DaemonServer {
   private readonly admission: DaemonTerminalAdmission
   private readonly requestRouter: DaemonRequestRouter
   private stopStreamBacklogProbe: () => void = () => {}
-  readonly recordOrderlyExit = (): void => this.automaticWork.recordOrderlyExit()
 
   constructor(options: DaemonServerOptions) {
     this.log = options.log ?? createNoopDaemonFileLog()
     this.automaticWork = new DaemonAutomaticWorkGuard({
       markerPath: options.automaticWorkMarkerPath,
+      hostTerminalLedgerDir: options.hostTerminalLedgerDir,
       mode: options.spawnAdmission ?? 'observe',
       log: this.log,
       listSessions: () => this.host.listSessions(),
@@ -197,7 +198,8 @@ export class DaemonServer {
       isIdle: () => this.isIdle(),
       disposeResources: () => this.disposeResources(),
       onIdleShutdown: options.onIdleShutdown ?? (() => {}),
-      onRpcShutdown: options.onRpcShutdown ?? (() => {})
+      onRpcShutdown: options.onRpcShutdown ?? (() => {}),
+      onShutdownRequested: options.onShutdownRequested ?? (() => {})
     })
     this.admission = new DaemonTerminalAdmission({
       host: this.host,
@@ -289,7 +291,9 @@ export class DaemonServer {
   ): Promise<void> {
     const isNotify = request.id.startsWith(NOTIFY_PREFIX)
     try {
-      const result = await this.requestRouter.route(clientId, request)
+      const result =
+        answerAutomaticWorkRequest(request, this.automaticWork, this.endpoint) ??
+        (await this.requestRouter.route(clientId, request))
       if (!isNotify) {
         socket.write(encodeNdjson({ id: request.id, ok: true, payload: result }), () => {
           this.lifecycle.startPendingShutdownReply(clientId, request.id)
