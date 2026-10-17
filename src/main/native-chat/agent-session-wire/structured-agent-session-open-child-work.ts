@@ -3,11 +3,14 @@
 import type { AgentChildWorkEvidence } from '../../../shared/agent-status-child-work-evidence'
 import { isLiveChildWork } from '../../../shared/agent-status-child-work-liveness'
 
+export type ChildWorkLifetimeToken = { readonly childWorkLifetime: true }
+const newToken = (): ChildWorkLifetimeToken => ({ childWorkLifetime: true })
+
 type ChildLifetime = {
   run: string | undefined
   previous: Set<string>
-  token: object
-  recorded: object | undefined
+  token: ChildWorkLifetimeToken
+  recorded: ChildWorkLifetimeToken | undefined
   closed: 'idle' | 'terminal' | 'stopped' | null
 }
 
@@ -38,13 +41,13 @@ export class StructuredAgentSessionOpenChildWork {
   }
 
   /** Capture before asking the provider to Stop: a reused run string still gets a new token. */
-  capture(sessionId: string, handleId: string): object | undefined {
+  capture(sessionId: string, handleId: string): ChildWorkLifetimeToken | undefined {
     const session = this.sessions.get(sessionId)
     return session?.open.has(handleId) ? session.history.get(handleId)?.token : undefined
   }
 
   /** Display admission names a runtime lifetime, not merely its reusable handle. */
-  recorded(sessionId: string, handleId: string, token: object): void {
+  recorded(sessionId: string, handleId: string, token: ChildWorkLifetimeToken): void {
     const child = this.sessions.get(sessionId)?.history.get(handleId)
     if (child?.token === token) {
       child.recorded = token
@@ -61,7 +64,7 @@ export class StructuredAgentSessionOpenChildWork {
       : false
   }
 
-  stopped(sessionId: string, handleId: string, token: object): void {
+  stopped(sessionId: string, handleId: string, token: ChildWorkLifetimeToken): void {
     const session = this.sessions.get(sessionId)
     const child = session?.history.get(handleId)
     if (!session?.open.has(handleId) || child?.token !== token) {
@@ -98,7 +101,7 @@ export class StructuredAgentSessionOpenChildWork {
     this.sessions.set(sessionId, session)
     let child = session.history.get(handleId)
     if (!child) {
-      child = { run, previous: new Set(), token: {}, recorded: undefined, closed: null }
+      child = { run, previous: new Set(), token: newToken(), recorded: undefined, closed: null }
       session.history.set(handleId, child)
     } else {
       // A late start must not promote a run this session already superseded.
@@ -108,21 +111,21 @@ export class StructuredAgentSessionOpenChildWork {
       if (child.run === undefined && run !== undefined) {
         child.run = run
         if (child.closed === 'terminal') {
-          child.token = {}
+          child.token = newToken()
         }
       } else if (run !== undefined && run !== child.run) {
         if (child.run !== undefined) {
           child.previous.add(child.run)
         }
         child.run = run
-        child.token = {}
+        child.token = newToken()
       } else if (restart || (active && child.closed === 'stopped')) {
-        child.token = {}
+        child.token = newToken()
       } else if (child.closed === 'terminal' && child.run !== undefined) {
         return
       } else if (child.closed === 'terminal') {
         // Runless producers cannot distinguish a fresh start from an earlier one.
-        child.token = {}
+        child.token = newToken()
       }
     }
     child.closed = active ? null : 'idle'

@@ -12,7 +12,10 @@ import {
   serializeAgentStatusSubject,
   type AgentStatusStructuredSessionSubject
 } from '../../../shared/agent-status-subject'
-import { StructuredAgentSessionOpenChildWork } from './structured-agent-session-open-child-work'
+import {
+  StructuredAgentSessionOpenChildWork,
+  type ChildWorkLifetimeToken
+} from './structured-agent-session-open-child-work'
 
 export type StructuredAgentSessionStatusSink = {
   publish: (
@@ -119,7 +122,7 @@ export class StructuredAgentSessionStatusOwnership {
     sessionId: string,
     handleIds: readonly string[]
   ): (evidence: readonly AgentChildWorkEvidence[]) => void {
-    const captured = new Map<string, object>()
+    const captured = new Map<string, ChildWorkLifetimeToken>()
     for (const handleId of handleIds) {
       const token = this.open.capture(sessionId, handleId)
       if (token) {
