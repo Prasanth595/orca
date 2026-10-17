@@ -25,7 +25,6 @@ export type MobileNativeChatViewProps = ComposerTrayProps & {
   folded: NativeChatMessage[]
   status: MobileNativeChatStatus
   error?: string
-  readFailedFinally?: boolean
   /** The read failed for good (damage, a newer Orca's chat): its error takes the whole pane. */
   readFailedFinally?: boolean
   /** Resolved agent for this chat; names the empty-state copy (desktop parity). */
