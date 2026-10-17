@@ -60,6 +60,7 @@ import { useNativeChatLocalCommandAnswer } from './use-native-chat-local-command
 import { matchNativeChatSplitShortcut } from './native-chat-split-shortcut'
 import { getShortcutPlatform } from '@/lib/shortcut-platform'
 import { formatShortcutLabel } from '@/hooks/useShortcutLabel'
+import { toast } from 'sonner'
 
 /** Renders the bridge UI after NativeChatSessionGate resolves its agent session. */
 export function NativeChatResolvedView({
@@ -81,6 +82,8 @@ export function NativeChatResolvedView({
   const selectOwner = useMemo(() => createNativeChatRuntimeSelector(terminalTabId), [terminalTabId])
   const runtimeEnvironmentId = useAppStore(selectOwner)
   const keybindings = useAppStore((s) => s.keybindings)
+  const setSelectedWorkflowId = useAppStore((s) => s.setSelectedWorkflowId)
+  const openWorkflowsPage = useAppStore((s) => s.openWorkflowsPage)
   const session = useNativeChatRetainedSession({
     paneKey,
     agent,
@@ -183,9 +186,32 @@ export function NativeChatResolvedView({
   )
   const onSlashCommand = useCallback(
     (command: string, output?: string) => {
+      if (command.trimStart().startsWith('/workflow')) {
+        const name = command.replace(/^\/workflow\s*/i, '').trim() || 'New Workflow'
+        void window.api.workflows
+          .create({
+            name,
+            description: '',
+            schedule: null,
+            enabled: false,
+            executionTargetType: 'local',
+            executionTargetId: '',
+            nodes: [],
+            edges: []
+          })
+          .then((wf) => {
+            setSelectedWorkflowId(wf.id)
+            openWorkflowsPage()
+            toast.success(`Workflow "${wf.name}" created`)
+          })
+          .catch(() => {
+            toast.error('Failed to create workflow')
+          })
+        return
+      }
       setCommandMarkers(appendCommandMarkerCache(commandMarkerScope, command, Date.now(), output))
     },
-    [commandMarkerScope]
+    [commandMarkerScope, setSelectedWorkflowId, openWorkflowsPage]
   )
 
   const launchPromptMessage = useMemo(
