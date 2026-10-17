@@ -8,7 +8,7 @@ export type NotificationSettings = {
   agentTaskComplete: boolean
   terminalBell: boolean
   suppressWhenFocused: boolean
-  /** macOS only: an agent finishing while Orca is in the background brings Orca and that pane forward. */
+  /** macOS only: bring an unfocused Orca to replies with a proven human submission. */
   bringToFrontOnAgentTaskComplete: boolean
   customSoundId:
     | 'system'

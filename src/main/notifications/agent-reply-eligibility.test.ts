@@ -210,6 +210,20 @@ describe('structured chat submission epochs', () => {
       }
     }
     expect(await r.policy.canBring(request)).toBe(true)
+    expect(r.policy.stillEligible(request)).toBe(true)
+    callbacks.chat.snapshot.items.push({
+      itemId: 'later-turn',
+      revision: 1,
+      sequence: 4,
+      observedAt: 2,
+      body: { kind: 'turn', turnId: 'turn-B', state: 'running' }
+    })
+    expect(r.policy.stillEligible(request)).toBe(false)
+    callbacks.chat.snapshot = replySnapshotFixture('user')
+    expect(await r.policy.canBring(request)).toBe(true)
+    callbacks.chat.snapshot = null
+    expect(r.policy.stillEligible(request)).toBe(false)
+    callbacks.chat.snapshot = replySnapshotFixture('user')
     expect(
       await r.policy.canBring({
         ...request,

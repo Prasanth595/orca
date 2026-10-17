@@ -108,6 +108,7 @@ export function createAgentReplyEligibility(
         ) {
           return false
         }
+        const turnId = origin.cause.requestId
         const snapshot = host.replyJournal.snapshot(origin.sessionId)
         if (
           !snapshot ||
@@ -126,9 +127,19 @@ export function createAgentReplyEligibility(
                 )
               }
             : snapshot
-        const eligible = current() && isStructuredHumanReply(filtered, origin.cause.requestId)
+        const eligible = current() && isStructuredHumanReply(filtered, turnId)
         if (eligible) {
-          eligibleRequests.set(request, current)
+          eligibleRequests.set(request, () => {
+            const latest =
+              getStructuredAgentSessionHost() === host
+                ? host.replyJournal.snapshot(origin.sessionId)
+                : null
+            return (
+              current() &&
+              latest?.cursor.epoch === snapshot.cursor.epoch &&
+              isStructuredHumanReply(latest, turnId)
+            )
+          })
         }
         return eligible
       }
