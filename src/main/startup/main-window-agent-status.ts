@@ -56,6 +56,9 @@ export function installMainWindowAgentStatusListeners(options: MainWindowAgentSt
           stateStartedAt,
           ...(providerSession ? { providerSession } : {}),
           ...(observation ? { observation } : {}),
+          // Why: an identity row is where a kept agent's facet lives once its terminal is gone,
+          // and the tab menu un-keeps it from there.
+          ...(runAccount !== undefined ? { runAccount } : {}),
           providerSessionOnly: true
         })
         return

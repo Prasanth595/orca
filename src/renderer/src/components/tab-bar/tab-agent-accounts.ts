@@ -1,5 +1,9 @@
 import { translate } from '@/i18n/i18n'
 import { getCodexAccountDisplayLabel } from '@/lib/codex-account-display-label'
+import {
+  resolvePaneRunAccount,
+  type IdentityRowRunAccounts
+} from '@/store/agent-identity-row-run-accounts'
 import type { AgentRunAccount, AgentRunAccountProvider } from '../../../../shared/agent-run-account'
 import type { AgentStatusEntry } from '../../../../shared/agent-status-types'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
@@ -94,9 +98,11 @@ export function describeTabAgentAccounts(args: {
   tabId: string
   layout: TerminalLayoutSnapshot | undefined
   rows: Readonly<Record<string, AgentStatusEntry>>
+  /** Facets on the host's identity-only rows, which no status entry carries. */
+  identityRows?: IdentityRowRunAccounts
   settings: TabAgentAccountSettings | null | undefined
 }): TabAgentAccount[] {
-  const { tabId, layout, rows, settings } = args
+  const { tabId, layout, rows, identityRows, settings } = args
   if (!settings) {
     return []
   }
@@ -105,11 +111,10 @@ export function describeTabAgentAccounts(args: {
   const leafIds = ordered.length > 0 ? ordered : rootless ? [rootless] : []
   const panes = leafIds.flatMap((leafId) => {
     const paneKey = makePaneKey(tabId, leafId)
-    const row = rows[paneKey]
-    // Why local only: a remote host's accounts are not this machine's to name.
-    return row?.runAccount && !row.connectionId
-      ? [{ paneKey, ptyId: layout?.ptyIdsByLeafId?.[leafId], facet: row.runAccount }]
-      : []
+    // Why resolved: a dead terminal's kept agent survives only as an identity row, and its
+    // refused resume sends the person here to un-keep it. Local panes only, either way.
+    const facet = resolvePaneRunAccount(paneKey, rows[paneKey], identityRows)
+    return facet ? [{ paneKey, ptyId: layout?.ptyIdsByLeafId?.[leafId], facet }] : []
   })
   const seen = new Map<AgentRunAccountProvider, number>()
   return panes.map(({ paneKey, ptyId, facet }) => {

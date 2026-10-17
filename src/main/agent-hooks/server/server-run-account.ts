@@ -66,6 +66,41 @@ export abstract class AgentHookServerRunAccount extends AgentHookServerAgentPres
     return true
   }
 
+  /** A retirement that keeps the pane's resume identity clears the renderer's row first; restate
+   *  the facet the kept identity row still carries, or a kept agent whose terminal died could no
+   *  longer be un-kept from the tab menu — the way out its refused resume points to. */
+  override reconcileEndedProcessForPaneKeys(
+    paneKeys: Iterable<string>,
+    options?: Parameters<AgentHookServerAgentPresence['reconcileEndedProcessForPaneKeys']>[1]
+  ): number {
+    const requested = [...paneKeys]
+    const rowsBefore = new Map(
+      requested.map((paneKey) => {
+        const resolved = this.resolvePaneKeyAlias(paneKey)
+        return [resolved, this.state.lastStatusByPaneKey.get(resolved)] as const
+      })
+    )
+    const cleared = super.reconcileEndedProcessForPaneKeys(requested, options)
+    for (const [paneKey, before] of rowsBefore) {
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Main admits enriched legacy rows; the shared view declares their base event type.
+      const retained = this.state.lastStatusByPaneKey.get(paneKey) as
+        | EnrichedAgentHookEventPayload
+        | undefined
+      if (
+        retained &&
+        retained !== before &&
+        retained.providerSessionOnly === true &&
+        retained.runAccount !== undefined &&
+        retained.connectionId === null &&
+        !retained.structuredHost
+      ) {
+        // Why flagged like republishRunAccount: only the facet is news; no status changed.
+        this.onAgentStatus?.({ ...retained, isReplay: true, runAccountOnly: true })
+      }
+    }
+    return cleared
+  }
+
   getRunAccountRow(paneKey: string): AgentRunAccountRow | null {
     const resolved = this.resolvePaneKeyAlias(paneKey)
     // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Main admits enriched legacy rows; the shared view declares their base event type.

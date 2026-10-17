@@ -3,6 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAppStore } from '../../store'
+import { useIdentityRowRunAccounts } from '../../store/agent-identity-row-run-accounts'
 import type { AgentRunAccount } from '../../../../shared/agent-run-account'
 import type { AgentStatusEntry } from '../../../../shared/agent-status-types'
 import { makePaneKey } from '../../../../shared/stable-pane-id'
@@ -82,6 +83,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   useAppStore.setState(useAppStore.getInitialState(), true)
+  useIdentityRowRunAccounts.setState({ byPaneKey: {} }, true)
 })
 
 describe('removing an account with agents kept on it', () => {
@@ -99,6 +101,24 @@ describe('removing an account with agents kept on it', () => {
     expect(
       screen.getByText(
         '2 terminal agents are kept on this account. After removal, Orca starts them on the selected account, but claude typed in their open terminals will not run.'
+      )
+    ).toBeTruthy()
+  })
+
+  it('counts a kept agent whose terminal died, which only its identity row still names', () => {
+    useAppStore.setState({ tabsByWorktree: { wt: ['t1', 't2', 't3', 't4', 't5'].map(tab) } })
+    useIdentityRowRunAccounts.setState({
+      byPaneKey: {
+        [makePaneKey('t5', LEAF)]: {
+          runAccount: { provider: 'codex', lane: 'host', accountId: 'work', mode: 'kept' },
+          receivedAt: 1
+        }
+      }
+    })
+    render(<Dialogs codex={HOST_TARGET} />)
+    expect(
+      screen.getByText(
+        '2 terminal agents are kept on this account. After removal they follow the selected account from their next start.'
       )
     ).toBeTruthy()
   })

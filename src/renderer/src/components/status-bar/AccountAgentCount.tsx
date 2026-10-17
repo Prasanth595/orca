@@ -1,5 +1,6 @@
 import { translate } from '@/i18n/i18n'
 import { useAppStore } from '../../store'
+import { useIdentityRowRunAccounts } from '../../store/agent-identity-row-run-accounts'
 import type { AgentRunAccountProvider } from '../../../../shared/agent-run-account'
 import { countTerminalAgentsByAccount } from './count-terminal-agents-by-account'
 
@@ -16,10 +17,12 @@ export function AccountAgentCount({
   /** Off for another runtime's or a WSL lane's accounts, whose agents this host does not see. */
   enabled: boolean
 }): React.JSX.Element | null {
+  const identityRows = useIdentityRowRunAccounts((state) => state.byPaneKey)
   const count = useAppStore((state) =>
     enabled
       ? countTerminalAgentsByAccount({
           rows: state.agentStatusByPaneKey ?? EMPTY_ROWS,
+          identityRows,
           tabsByWorktree: state.tabsByWorktree,
           provider,
           accountId

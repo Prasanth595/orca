@@ -2,6 +2,7 @@
 import { cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { useAppStore } from '../../store'
+import { useIdentityRowRunAccounts } from '../../store/agent-identity-row-run-accounts'
 import type { AgentRunAccount } from '../../../../shared/agent-run-account'
 import type { AgentStatusEntry } from '../../../../shared/agent-status-types'
 import { makePaneKey } from '../../../../shared/stable-pane-id'
@@ -73,6 +74,30 @@ describe('countTerminalAgentsByAccount', () => {
     ).toBe(expected)
   })
 
+  it("counts by the host's identity row where it holds one, over the pane's status entry", () => {
+    const identityRows = {
+      // A dead terminal's agent: no status entry, only the identity row the host kept.
+      [makePaneKey('t9', LEAF)]: {
+        runAccount: { ...CLAUDE_A, mode: 'kept' as const },
+        receivedAt: 1
+      },
+      // Withdrawn on the identity row; the stale status entry no longer counts.
+      [makePaneKey('t1', LEAF)]: { runAccount: null, receivedAt: 1 }
+    }
+    const tabs = { wt: [...TABS.wt, tab('t9')] }
+    const count = (keptOnly: boolean): number =>
+      countTerminalAgentsByAccount({
+        rows: ROWS,
+        identityRows,
+        tabsByWorktree: tabs,
+        provider: 'claude',
+        accountId: 'a',
+        keptOnly
+      })
+    expect(count(false)).toBe(2)
+    expect(count(true)).toBe(2)
+  })
+
   it('counts nothing, rather than throwing, in a store that never loaded tabs', () => {
     expect(
       countTerminalAgentsByAccount({
@@ -94,6 +119,7 @@ describe('AccountAgentCount', () => {
   afterEach(() => {
     cleanup()
     useAppStore.setState(useAppStore.getInitialState(), true)
+    useIdentityRowRunAccounts.setState({ byPaneKey: {} }, true)
   })
 
   it('says how many terminal agents run on the account', () => {
@@ -104,6 +130,15 @@ describe('AccountAgentCount', () => {
     expect(
       render(<AccountAgentCount provider="claude" accountId="b" enabled />).container.textContent
     ).toBe('1 terminal agent')
+  })
+
+  it('counts an agent only its identity row still names', () => {
+    useIdentityRowRunAccounts.setState({
+      byPaneKey: { [makePaneKey('t8', LEAF)]: { runAccount: CLAUDE_A, receivedAt: 1 } }
+    })
+    expect(
+      render(<AccountAgentCount provider="claude" accountId="a" enabled />).container.textContent
+    ).toBe('3 terminal agents')
   })
 
   it('shows nothing at zero or for accounts this host does not run', () => {
