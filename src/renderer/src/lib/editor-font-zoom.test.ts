@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   computeDiffEditorFontSize,
   computeEditorFontSize,
+  computeEditorLineHeight,
   resolveEditorBaseFontSize,
   resolveEditorFontFamily,
   resolveEditorFontStack
@@ -17,6 +18,20 @@ describe('editor font zoom', () => {
   it('keeps diff editor font size within the editor safety bounds', () => {
     expect(computeDiffEditorFontSize(10, -6)).toBe(8)
     expect(computeDiffEditorFontSize(24, 18)).toBe(32)
+  })
+})
+
+describe('computeEditorLineHeight', () => {
+  it('keeps the legacy 20px row at and below the default size', () => {
+    for (const fontSize of [8, 10, 13, 14]) {
+      expect(computeEditorLineHeight(fontSize)).toBe(20)
+    }
+  })
+
+  it('grows rows with larger fonts so adjacent lines cannot overlap', () => {
+    expect(computeEditorLineHeight(15)).toBe(22)
+    expect(computeEditorLineHeight(24)).toBe(35)
+    expect(computeEditorLineHeight(32)).toBe(46)
   })
 })
 

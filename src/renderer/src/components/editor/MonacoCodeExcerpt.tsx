@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { monaco } from '@/lib/monaco-setup'
 import {
   computeEditorFontSize,
+  computeEditorLineHeight,
   resolveEditorBaseFontSize,
   resolveEditorFontFamily
 } from '@/lib/editor-font-zoom'
@@ -100,8 +101,12 @@ export default function MonacoCodeExcerpt({
 
   return (
     <div
-      className="overflow-x-auto py-1 text-[12px] leading-5"
-      style={{ fontFamily, fontSize: editorFontSize }}
+      className="overflow-x-auto py-1 text-[12px]"
+      style={{
+        fontFamily,
+        fontSize: editorFontSize,
+        lineHeight: `${computeEditorLineHeight(editorFontSize)}px`
+      }}
     >
       {lines.map((codeLine, index) => {
         const lineNumber = firstLineNumber + index
