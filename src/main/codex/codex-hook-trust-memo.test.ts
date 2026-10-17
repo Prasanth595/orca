@@ -10,6 +10,7 @@ import {
   readMemoizedVersionAnswer
 } from './codex-hook-trust-memo'
 import { fingerprintCodex, type CodexHookHashes } from './codex-hook-trust-derivation'
+import * as timeout from './codex-hook-timeout'
 
 let userData: string
 let codexPath: string
@@ -24,6 +25,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.restoreAllMocks()
   vi.unstubAllEnvs()
   rmSync(userData, { recursive: true, force: true })
 })
@@ -43,6 +45,28 @@ function remember(
 const read = (command = COMMAND) => readMemoizedCodexHookAnswer(codexPath, command, fingerprint())
 
 describe('Codex hook trust memo', () => {
+  it('isolates both budgets while preserving legacy 10s records for rollback and cleanup', () => {
+    const budget = vi
+      .spyOn(timeout, 'CODEX_MANAGED_HOOK_TIMEOUT_SECONDS', 'get')
+      .mockReturnValue(10)
+    remember()
+    const legacy = readFileSync(getCodexHookTrustMemoPath(), 'utf-8')
+    expect(JSON.parse(legacy).versions['codex-cli 0.150.1']).toBeDefined()
+
+    budget.mockReturnValue(30)
+    expect(read()).toBeNull()
+    expect(readMemoizedVersionAnswer('codex-cli 0.150.1', COMMAND)).toBeNull()
+    remember(codexPath, 'codex-cli 0.150.1', { stop: 'sha256:30s' })
+    expect(read()?.kind).toBe('hashes')
+    expect(readMemoizedVersionAnswer('codex-cli 0.150.1', COMMAND)).toMatchObject({
+      hashes: { stop: 'sha256:30s' }
+    })
+
+    budget.mockReturnValue(10)
+    expect(read()).toMatchObject({ hashes: HASHES })
+    expect(readEveryMemoizedCodexHookHashes()).toEqual([HASHES, { stop: 'sha256:30s' }])
+  })
+
   it('answers for the same binary bytes and hook command, and only those', () => {
     remember()
 

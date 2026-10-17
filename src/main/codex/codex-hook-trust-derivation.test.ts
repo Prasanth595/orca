@@ -27,6 +27,7 @@ import {
   type CodexHookAnswer
 } from './codex-hook-trust-derivation'
 import { CODEX_EVENTS, CODEX_EVENT_LABEL } from './codex-hook-definition'
+import { CODEX_MANAGED_HOOK_TIMEOUT_SECONDS } from './codex-hook-timeout'
 
 const COMMAND = '/home/u/.orca/agent-hooks/codex-hook.sh'
 const LABELS = CODEX_EVENTS.map((eventName) => CODEX_EVENT_LABEL[eventName])
@@ -108,15 +109,27 @@ describe('deriveCodexHookHashes', () => {
       const home = JSON.parse(readFileSync(join(scratch.home, 'hooks.json'), 'utf-8'))
       expect(Object.keys(home.hooks).sort()).toEqual([...CODEX_EVENTS].sort())
       expect(home.hooks.Stop).toEqual([
-        { hooks: [{ type: 'command', command: COMMAND, timeout: 10 }] },
+        {
+          hooks: [
+            { type: 'command', command: COMMAND, timeout: CODEX_MANAGED_HOOK_TIMEOUT_SECONDS }
+          ]
+        },
         { hooks: [{ type: 'command', command: 'exit 0' }] },
-        { hooks: [{ type: 'command', command: COMMAND, timeout: 10 }] }
+        {
+          hooks: [
+            { type: 'command', command: COMMAND, timeout: CODEX_MANAGED_HOOK_TIMEOUT_SECONDS }
+          ]
+        }
       ])
       const project = JSON.parse(
         readFileSync(join(scratch.project, '.codex', 'hooks.json'), 'utf-8')
       )
       expect(project.hooks.Stop).toEqual([
-        { hooks: [{ type: 'command', command: COMMAND, timeout: 10 }] }
+        {
+          hooks: [
+            { type: 'command', command: COMMAND, timeout: CODEX_MANAGED_HOOK_TIMEOUT_SECONDS }
+          ]
+        }
       ])
       return everyCopy(scratch, (label) => `sha256:${label}`)
     })

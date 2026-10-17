@@ -13,6 +13,7 @@ import {
 import {
   CODEX_EVENTS,
   CODEX_EVENT_LABEL,
+  buildCodexManagedHook,
   computeOrcaCodexHookHashes,
   getCodexConfigTomlPath,
   getConfigPath,
@@ -26,6 +27,7 @@ import {
   getRealHomeHooksJsonPath
 } from './codex-real-home-hooks-json'
 import type { CodexHookHashes } from './codex-hook-trust-derivation'
+import { normalizeCodexHookTimeoutSec } from './codex-trust-identity'
 
 /** One Codex home's hook files, and every path Codex may key its entries by. */
 export type CodexHookHome = {
@@ -115,9 +117,11 @@ export function approvalsAtOrcaEntries(
  */
 export function readKnownOrcaHashes(home: CodexHookHome, command: string): CodexHookHashes[] {
   return [
-    computeOrcaCodexHookHashes(command),
+    computeOrcaCodexHookHashes(command, 30),
+    computeOrcaCodexHookHashes(command, MANAGED_HOOK_TIMEOUT_SECONDS),
     ...readEveryKnownCodexHookHashes(),
-    ...readLedgerOrcaHashes(home.homePath, command, MANAGED_HOOK_TIMEOUT_SECONDS)
+    ...readLedgerOrcaHashes(home.homePath, command, MANAGED_HOOK_TIMEOUT_SECONDS),
+    ...readLedgerOrcaHashes(home.homePath, command, 30)
   ]
 }
 
@@ -158,7 +162,16 @@ export function findStopgapOrcaHashes(found: {
   command: string
   knownOrcaHashes: readonly CodexHookHashes[]
 }): CodexHookHashes {
-  const slots = findOrcaEntrySlots(found.hooks, found.command)
+  // Why: a known hash for the previous budget cannot approve the newly written timeout.
+  const slots = new Map(
+    [...findOrcaEntrySlots(found.hooks, found.command)].filter(([eventName, slot]) => {
+      const hook = found.hooks?.[eventName]?.[slot.groupIndex]?.hooks?.[slot.handlerIndex]
+      return (
+        normalizeCodexHookTimeoutSec(CODEX_EVENT_LABEL[eventName], hook?.timeout) ===
+        buildCodexManagedHook(found.command, eventName).timeout
+      )
+    })
+  )
   const approvals = approvalsAtOrcaEntries(
     found.trustStates,
     slots,

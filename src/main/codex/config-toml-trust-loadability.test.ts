@@ -176,6 +176,9 @@ describe('hook approval writes never break a config.toml Codex can load', () => 
       detail: expect.stringContaining('defines hook approvals in a form Orca cannot add to')
     })
     expect(mocks.remoteFiles.get(remoteToml)).toBe(original)
+    const remoteHooks = JSON.parse(mocks.remoteFiles.get('/home/u/.codex/hooks.json') ?? '{}').hooks
+    expect(remoteHooks.Stop[0].hooks[0].timeout).toBe(10)
+    expect(remoteHooks.Interrupt[0].hooks[0].timeout).toBe(3)
   })
 })
 
