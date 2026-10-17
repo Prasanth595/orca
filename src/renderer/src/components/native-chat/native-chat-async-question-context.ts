@@ -1,9 +1,6 @@
 import { createContext } from 'react'
-
-export type NativeChatAsyncQuestionReply = {
-  disabled: boolean
-  send: (text: string) => boolean
-}
+import type { NativeChatAsyncQuestionReply } from '../../../../shared/native-chat-async-questions'
+export type { NativeChatAsyncQuestionReply } from '../../../../shared/native-chat-async-questions'
 
 export const NativeChatAsyncQuestionContext = createContext<NativeChatAsyncQuestionReply | null>(
   null

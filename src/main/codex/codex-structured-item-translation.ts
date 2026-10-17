@@ -7,7 +7,7 @@ import {
   DEFAULT_JOURNAL_PAYLOAD_LIMITS
 } from '../native-chat/agent-session-journal/journal-payload-bounds'
 import { unhandledProviderFrameJournalItem } from '../native-chat/agent-session-wire/unhandled-provider-frame'
-import { codexAsyncQuestionBlock } from './codex-async-question-block'
+import { codexAsyncMessageBlocks } from './codex-async-question-block'
 import { codexImageItemBody } from './codex-image-item-translation'
 import { commandActionFacts } from './codex-command-action-class'
 import {
@@ -232,14 +232,10 @@ export function codexJournalItem(
   started?: CodexThreadItem
 ): CodexJournalItem {
   if (item.type === 'userMessage' || item.type === 'agentMessage') {
-    const blocks = codexMessageBlocks(item)
-    const questions =
+    const blocks =
       item.type === 'agentMessage' && item.delivery === 'async'
-        ? codexAsyncQuestionBlock(item.questions)
-        : null
-    if (questions) {
-      blocks.push(questions)
-    }
+        ? codexAsyncMessageBlocks(codexMessageBlocks(item), item.questions)
+        : codexMessageBlocks(item)
     return {
       body:
         blocks.length === 0

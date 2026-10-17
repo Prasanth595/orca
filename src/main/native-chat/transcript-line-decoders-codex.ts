@@ -12,6 +12,7 @@ import {
   timestampMs
 } from '../ai-vault/session-scanner-values'
 import { claudeContentBlocks, toolResultOutput } from './transcript-record-blocks'
+import { codexAsyncMessageBlocks } from '../codex/codex-async-question-block'
 import { CODEX_EVENT_TURN_ABORTED } from './transcript-turn-markers'
 
 export function decodeCodexTranscriptLine(
@@ -145,8 +146,11 @@ function codexEventMessage(
   }
   if (payload.type === 'agent_message') {
     const text = extractString(payload.message)
-    return text
-      ? { id, role: 'assistant', blocks: [{ type: 'text', text }], timestamp, source: 'transcript' }
+    const content: NativeChatBlock[] = text ? [{ type: 'text', text }] : []
+    const blocks =
+      payload.delivery === 'async' ? codexAsyncMessageBlocks(content, payload.questions) : content
+    return blocks.length > 0
+      ? { id, role: 'assistant', blocks, timestamp, source: 'transcript' }
       : null
   }
   return null
@@ -162,7 +166,12 @@ function codexCompletedTurnItem(
     return null
   }
   const id = extractString(item.id) ?? fallbackId
-  const blocks = codexTurnItemBlocks(item.content)
+  const content = codexTurnItemBlocks(item.content)
+  const assistant = item.type === 'AgentMessage' || item.type === 'agent_message'
+  const blocks =
+    assistant && item.delivery === 'async'
+      ? codexAsyncMessageBlocks(content, item.questions)
+      : content
   if (blocks.length === 0) {
     return null
   }

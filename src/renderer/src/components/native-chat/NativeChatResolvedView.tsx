@@ -1,3 +1,5 @@
+import { NativeChatAsyncQuestionContext } from './native-chat-async-question-context'
+import { useNativeChatTerminalAsyncReply } from './use-native-chat-terminal-async-reply'
 import { cn } from '@/lib/utils'
 import { NATIVE_CHAT_APPEARANCE_ROOT_CLASS } from './native-chat-appearance-style'
 import { useNativeChatStoreAppearanceStyle } from './use-native-chat-store-appearance-style'
@@ -24,7 +26,7 @@ import { useNativeChatPromptCardPresentation } from './use-native-chat-prompt-ca
 import { NativeChatPromptStrip } from './NativeChatPromptCollapse'
 import { NativeChatEmptyState } from './NativeChatEmptyState'
 import { useNativeChatInteractiveSend } from './use-native-chat-interactive-send'
-import { shouldClearNativeChatWorkingSuppression } from './native-chat-working-suppression'
+import { useNativeChatWorkingSuppression } from './use-native-chat-working-suppression'
 import { resolveNativeChatTerminalTurn } from './native-chat-terminal-turn'
 import { useNativeChatTerminalTurnTiming } from './use-native-chat-terminal-turn-timing'
 import {
@@ -124,8 +126,10 @@ export function NativeChatResolvedView({
   // Every send this pane makes brings the latest into view, wherever the reader had scrolled.
   const { messageListRef, revealLatest } = useNativeChatRevealLatest()
   const interactiveSend = useNativeChatInteractiveSendReveal(send, targetPtyId, revealLatest)
-  const [workingInterrupted, setWorkingInterrupted] = useState(false)
-  const previousWorkingEpochRef = useRef<number | null>(null)
+  const [workingInterrupted, setWorkingInterrupted] = useNativeChatWorkingSuppression(
+    liveWorking,
+    hookWorkingEpoch
+  )
   const rootRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<NativeChatComposerHandle>(null)
   // The question card's free-text row; keeps Paste working while the card
@@ -153,7 +157,7 @@ export function NativeChatResolvedView({
   useEffect(() => {
     setCommandMarkers(readCommandMarkerCache(commandMarkerScope))
     setWorkingInterrupted(false)
-  }, [commandMarkerScope])
+  }, [commandMarkerScope, setWorkingInterrupted])
   useEffect(() => {
     if (!paneLaunchPrompt || !shouldPruneLaunchPrompt(paneLaunchPrompt, session.messages)) {
       return
@@ -165,7 +169,7 @@ export function NativeChatResolvedView({
       setWorkingInterrupted(false)
       return record(text, imagePaths)
     },
-    [record]
+    [record, setWorkingInterrupted]
   )
   const onSlashCommand = useCallback(
     (command: string, output?: string) => {
@@ -220,6 +224,15 @@ export function NativeChatResolvedView({
     transcriptSettled: session.readPhase === 'ready'
   })
   const { card: shownPromptCard, collapsedCard } = promptCardPresentation
+  const { reply: asyncReply, cancel: cancelAsyncReply } = useNativeChatTerminalAsyncReply({
+    paneKey,
+    sessionId,
+    targetPtyId,
+    runtimeEnvironmentId,
+    disabled: !canSend || !isVisible || promptCard !== null || session.readPhase !== 'ready',
+    delivery,
+    onSubmitted: revealLatest
+  })
   const mountedPromptCard = shownPromptCard ?? collapsedCard
   const rootInput = useNativeChatRootInputRouting({
     tabId: terminalTabId,
@@ -274,24 +287,6 @@ export function NativeChatResolvedView({
   const viewState = selectNativeChatViewState(sessionWithPending)
 
   const isConversation = viewState.kind === 'ready'
-  useEffect(() => {
-    if (
-      shouldClearNativeChatWorkingSuppression({
-        working: liveWorking,
-        interrupted: workingInterrupted,
-        workingEpoch: hookWorkingEpoch,
-        previousWorkingEpoch: previousWorkingEpochRef.current
-      })
-    ) {
-      setWorkingInterrupted(false)
-    }
-    if (liveWorking && hookWorkingEpoch != null) {
-      previousWorkingEpochRef.current = hookWorkingEpoch
-    }
-    if (!liveWorking) {
-      previousWorkingEpochRef.current = null
-    }
-  }, [liveWorking, workingInterrupted, hookWorkingEpoch])
   const { isWorking, turnActive, awaitingInput } = resolveNativeChatTerminalTurn({
     isConversation,
     working: liveWorking,
@@ -308,8 +303,9 @@ export function NativeChatResolvedView({
     // settles, so cancelPendingSends no longer sees the optimistic id. Clear
     // the echo cache here so a cancelled prompt cannot stick as a ghost bubble.
     clear()
+    cancelAsyncReply()
     interactiveSend.cancel()
-  }, [interactiveSend, clear])
+  }, [interactiveSend, clear, cancelAsyncReply, setWorkingInterrupted])
   const { onLinkClick, linkActionRequest, closeLinkActions } = useNativeChatLinkActions(
     fileLinkContext,
     rootRef,
@@ -383,18 +379,20 @@ export function NativeChatResolvedView({
         ) : viewState.kind === 'empty' ? (
           <NativeChatEmptyState kind="empty" agent={agent} />
         ) : (
-          <NativeChatMessageList
-            ref={messageListRef}
-            session={sessionWithPending}
-            isVisible={isVisible}
-            isWorking={turnActive}
-            expandSignal={false}
-            {...turnTiming}
-            awaitingInput={awaitingInput}
-            onLinkClick={onLinkClick}
-            allowFileUriLinks={fileLinkContext !== null}
-            deliveryNotices={deliveryNotices}
-          />
+          <NativeChatAsyncQuestionContext.Provider value={asyncReply}>
+            <NativeChatMessageList
+              ref={messageListRef}
+              session={sessionWithPending}
+              isVisible={isVisible}
+              isWorking={turnActive}
+              expandSignal={false}
+              {...turnTiming}
+              awaitingInput={awaitingInput}
+              onLinkClick={onLinkClick}
+              allowFileUriLinks={fileLinkContext !== null}
+              deliveryNotices={deliveryNotices}
+            />
+          </NativeChatAsyncQuestionContext.Provider>
         )}
       </div>
       {/* A collapsed card stays mounted but hidden, so a partly answered question survives. */}

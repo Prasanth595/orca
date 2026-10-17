@@ -1,4 +1,8 @@
-import type { NativeChatAsyncQuestion, NativeChatTextBlock } from '../../shared/native-chat-types'
+import type {
+  NativeChatAsyncQuestion,
+  NativeChatTextBlock,
+  NativeChatBlock
+} from '../../shared/native-chat-types'
 import {
   boundInlineText,
   DEFAULT_JOURNAL_PAYLOAD_LIMITS
@@ -38,4 +42,26 @@ export function codexAsyncQuestionBlock(value: unknown): NativeChatTextBlock | n
     text: boundInlineText(text, DEFAULT_JOURNAL_PAYLOAD_LIMITS).text,
     ...(interactive ? { asyncQuestions: questions } : {})
   }
+}
+
+export function codexAsyncMessageBlocks(
+  blocks: NativeChatBlock[],
+  value: unknown
+): NativeChatBlock[] {
+  const questionBlock = codexAsyncQuestionBlock(value)
+  if (!questionBlock) {
+    return blocks
+  }
+  // Codex also emits the questions as prose; retain only prose that adds something.
+  const prose = questionBlock.asyncQuestions
+    ?.map(({ title, options }) => [title, ...options.map((option) => `- ${option}`)].join('\n'))
+    .join('\n\n')
+  return [
+    ...blocks.filter(
+      (block) =>
+        block.type !== 'text' ||
+        (block.text.trim() !== prose && block.text.trim() !== questionBlock.text.trim())
+    ),
+    questionBlock
+  ]
 }

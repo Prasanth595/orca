@@ -67,7 +67,8 @@ export function useMobileStructuredSendWithOutcome(args: {
   text: string,
   images?: string[],
   deadline?: number,
-  attachments?: readonly StructuredMobileSendAttachment[]
+  attachments?: readonly StructuredMobileSendAttachment[],
+  sendOptions?: { immediate?: boolean }
 ) => Promise<MobileNativeChatSendOutcome> {
   const {
     accept,
@@ -90,11 +91,19 @@ export function useMobileStructuredSendWithOutcome(args: {
       text: string,
       images?: string[],
       deadline?: number,
-      attachments?: readonly StructuredMobileSendAttachment[]
+      attachments?: readonly StructuredMobileSendAttachment[],
+      sendOptions?: { immediate?: boolean }
     ): Promise<MobileNativeChatSendOutcome> => {
       const currentFence = stateRef.current.fence
       if (!client || !sessionId || !enabled || currentFence === null) {
         onSendError('Message not sent (disconnected)')
+        return 'rejected'
+      }
+      if (
+        sendOptions?.immediate &&
+        (stopping || selectAgentSessionCurrentRequests(stateRef.current).length > 0)
+      ) {
+        onSendError('Answer not sent (another prompt is open or the agent is stopping)')
         return 'rejected'
       }
       const timeoutMs = timeoutForDeadline(deadline)
@@ -155,7 +164,7 @@ export function useMobileStructuredSendWithOutcome(args: {
         expectedRuntimeFence: currentFence,
         text,
         attachments: sendAttachments,
-        ...(mobileStructuredSendQueues(queueCapable, stateRef.current)
+        ...(!sendOptions?.immediate && mobileStructuredSendQueues(queueCapable, stateRef.current)
           ? { delivery: 'queue-if-active' as const }
           : {}),
         ...(options ? { options } : {}),
