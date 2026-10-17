@@ -1,5 +1,6 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react'
 import type { editor } from 'monaco-editor'
+import { KeyCode, KeyMod } from 'monaco-editor'
 import { toast } from 'sonner'
 import { useAppStore } from '@/store'
 import { translate } from '@/i18n/i18n'
@@ -81,6 +82,36 @@ export function installMonacoEditorInputBindings(params: MonacoEditorInputBindin
     setSelectionAnnotationTarget(null)
     return true
   })
+  const goToDefinitionAction = editorInstance.addAction({
+    id: 'orca.goToDefinition',
+    label: translate('editor.action.goToDefinition', 'Go to Definition'),
+    keybindings: [KeyCode.F12],
+    contextMenuGroupId: 'navigation',
+    contextMenuOrder: 1.1,
+    run: (ed) => {
+      void ed.trigger('keyboard', 'editor.action.revealDefinition', null)
+    }
+  })
+  const findAllReferencesAction = editorInstance.addAction({
+    id: 'orca.findAllReferences',
+    label: translate('editor.action.findAllReferences', 'Find All References'),
+    keybindings: [KeyMod.Shift | KeyMod.Alt | KeyCode.F12],
+    contextMenuGroupId: 'navigation',
+    contextMenuOrder: 1.2,
+    run: (ed) => {
+      void ed.trigger('keyboard', 'editor.action.referenceSearch.trigger', null)
+    }
+  })
+  const renameSymbolAction = editorInstance.addAction({
+    id: 'orca.renameSymbol',
+    label: translate('editor.action.renameSymbol', 'Rename Symbol'),
+    keybindings: [KeyCode.F2],
+    contextMenuGroupId: 'navigation',
+    contextMenuOrder: 1.3,
+    run: (ed) => {
+      void ed.trigger('keyboard', 'editor.action.rename', null)
+    }
+  })
   const searchInFilesAction = editorInstance.addAction({
     id: 'orca.searchInFiles',
     label: translate('auto.components.editor.MonacoEditor.fd68ae03b3', 'Search in Files'),
@@ -134,6 +165,9 @@ export function installMonacoEditorInputBindings(params: MonacoEditorInputBindin
       cleanupFindShortcut()
       cleanupAddReviewNoteShortcut()
       editorDomNode.removeEventListener('paste', onLargeTextPaste, { capture: true })
+      goToDefinitionAction.dispose()
+      findAllReferencesAction.dispose()
+      renameSymbolAction.dispose()
       searchInFilesAction.dispose()
     }
   }
