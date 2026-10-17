@@ -116,6 +116,18 @@ describe('workspaceMayOverrideDefaultModel', () => {
     expect(await mayOverride('codex', worktree)).toBe(true)
   })
 
+  it('counts project config too large to parse as an override', async () => {
+    const worktree = join(root, 'codex-large')
+    write(join(worktree, '.git'), 'gitdir: /elsewhere')
+    // Valid TOML that picks no model, padded with comments.
+    const padded = (lines: number) =>
+      `${'# padding\n'.repeat(lines)}[mcp_servers.docs]\ncommand = "docs-mcp"\n`
+    write(join(worktree, '.codex', 'config.toml'), padded(10_000))
+    expect(await mayOverride('codex', worktree)).toBe(false)
+    write(join(worktree, '.codex', 'config.toml'), padded(100_000))
+    expect(await mayOverride('codex', worktree)).toBe(true)
+  })
+
   it('ignores Codex project config that picks no model, effort or profile', async () => {
     const worktree = join(root, 'codex-mcp')
     write(join(worktree, '.git'), 'gitdir: /elsewhere')
