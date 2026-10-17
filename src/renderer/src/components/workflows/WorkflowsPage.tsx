@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import WorkflowList from './WorkflowList'
+import WorkflowVariablesPanel from './WorkflowVariablesPanel'
 import WorkflowCanvas from './WorkflowCanvas'
 import WorkflowNodeEditorPanel from './WorkflowNodeEditorPanel'
 import WorkflowBottomPanel from './WorkflowBottomPanel'
@@ -8,7 +9,10 @@ import { usePersistedSize } from '@/hooks/use-persisted-size'
 import { useAppStore } from '@/store'
 import type { AgentWorkflow } from '../../../../shared/workflow-types'
 
+type LeftTab = 'workflows' | 'variables'
+
 export default function WorkflowsPage(): React.JSX.Element {
+  const [leftTab, setLeftTab] = useState<LeftTab>('workflows')
   const [canvasFocused, setCanvasFocused] = useState<boolean>(() => {
     try {
       return localStorage.getItem('wf-canvas-focused') === '1'
@@ -104,10 +108,28 @@ export default function WorkflowsPage(): React.JSX.Element {
               className="shrink-0 border-r border-border flex flex-col min-h-0 overflow-hidden"
               style={{ width: leftWidth }}
             >
-              <WorkflowList
-                selectedWorkflowId={selectedWorkflow?.id ?? null}
-                onSelect={handleSelect}
-              />
+              <div className="flex border-b border-border shrink-0">
+                <button
+                  className={`flex-1 py-1.5 text-xs font-medium transition-colors ${leftTab === 'workflows' ? 'text-foreground border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                  onClick={() => setLeftTab('workflows')}
+                >
+                  Workflows
+                </button>
+                <button
+                  className={`flex-1 py-1.5 text-xs font-medium transition-colors ${leftTab === 'variables' ? 'text-foreground border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                  onClick={() => setLeftTab('variables')}
+                >
+                  Variables
+                </button>
+              </div>
+              {leftTab === 'workflows' ? (
+                <WorkflowList
+                  selectedWorkflowId={selectedWorkflow?.id ?? null}
+                  onSelect={handleSelect}
+                />
+              ) : (
+                <WorkflowVariablesPanel />
+              )}
             </div>
             <PanelDivider direction="horizontal" onDelta={adjustLeft} />
           </>

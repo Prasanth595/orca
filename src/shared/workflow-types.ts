@@ -302,6 +302,18 @@ export function isFinalWorkflowRunStatus(status: WorkflowRunStatus): boolean {
 /** Map of nodeId → last-run outputs, threaded through the executor to resolve {{}} templates. */
 export type StepOutputs = Record<string, { output: string; json: unknown }>
 
+// ─── Variables ────────────────────────────────────────────────────────────────
+
+export type WorkflowVariableKind = 'plaintext' | 'secret'
+
+export type WorkflowVariable = {
+  /** Identifier referenced as {{$vars.KEY}} in templates. */
+  key: string
+  value: string
+  kind: WorkflowVariableKind
+  updatedAt: number
+}
+
 // ─── Default agent ───────────────────────────────────────────────────────────
 
 export const DEFAULT_WORKFLOW_AGENT_ID: TuiAgent = 'cursor'

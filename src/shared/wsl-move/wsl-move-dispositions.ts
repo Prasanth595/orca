@@ -96,6 +96,7 @@ export const PERSISTED_STATE_DISPOSITIONS = {
     'Fork-only; a workflow names its own execution target, not a project host.'
   ),
   agentWorkflowRuns: notApplicableDisposition(62, 'Fork-only; history for agentWorkflows.'),
+  workflowVariables: notApplicableDisposition(62, 'Fork-only; workflow variable store.'),
   orcadMigrationImportReceipts: notApplicableDisposition(67, 'Mover-owned.'),
   orcadMigrationEvictedReceipts: notApplicableDisposition(67, 'Mover-owned.'),
   orcadMigrationStagedCatalogs: notApplicableDisposition(68, 'Mover-owned.'),

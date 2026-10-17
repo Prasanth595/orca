@@ -2,7 +2,7 @@ import { ipcMain } from 'electron'
 import { connectionManager } from './ssh-ipc-context'
 import { buildSshRemoteExec } from '../workflows/workflow-remote-exec'
 import type { WorkflowService } from '../workflows/workflow-service'
-import type { AgentWorkflow } from '../../shared/workflow-types'
+import type { AgentWorkflow, WorkflowVariable } from '../../shared/workflow-types'
 import type { TuiAgent } from '../../shared/tui-agent'
 import {
   detectLocalAgents,
@@ -99,6 +99,14 @@ export function registerWorkflowHandlers(service: WorkflowService): void {
       return []
     }
   })
+
+  ipcMain.handle('workflows:listVariables', () => service.listVariables())
+
+  ipcMain.handle('workflows:setVariable', (_e, variable: WorkflowVariable) =>
+    service.setVariable(variable)
+  )
+
+  ipcMain.handle('workflows:deleteVariable', (_e, key: string) => service.deleteVariable(key))
 }
 
 export function unregisterWorkflowHandlers(): void {
@@ -112,7 +120,10 @@ export function unregisterWorkflowHandlers(): void {
     'workflows:cancelRun',
     'workflows:listModels',
     'workflows:detectAgents',
-    'workflows:stop'
+    'workflows:stop',
+    'workflows:listVariables',
+    'workflows:setVariable',
+    'workflows:deleteVariable'
   ]) {
     ipcMain.removeHandler(channel)
   }

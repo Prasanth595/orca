@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { AgentWorkflow, WorkflowRun } from '../../shared/workflow-types'
+import type { AgentWorkflow, WorkflowRun, WorkflowVariable } from '../../shared/workflow-types'
 import type { Store } from '../persistence'
 import { executeWorkflow } from './workflow-executor'
 import { findDueWorkflows } from './workflow-scheduler'
@@ -195,5 +195,19 @@ export class WorkflowService {
 
   deactivateSchedule(id: string): AgentWorkflow | null {
     return this.updateWorkflow(id, { enabled: false })
+  }
+
+  // ── Variables ────────────────────────────────────────────────────────────
+
+  listVariables(): WorkflowVariable[] {
+    return this.store.listVariables()
+  }
+
+  setVariable(variable: WorkflowVariable): WorkflowVariable {
+    return this.store.setVariable(variable)
+  }
+
+  deleteVariable(key: string): boolean {
+    return this.store.deleteVariable(key)
   }
 }

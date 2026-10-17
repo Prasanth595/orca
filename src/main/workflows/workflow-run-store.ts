@@ -3,7 +3,8 @@ import type {
   AgentWorkflow,
   WorkflowRun,
   WorkflowNodeRun,
-  WorkflowRunStatus
+  WorkflowRunStatus,
+  WorkflowVariable
 } from '../../shared/workflow-types'
 import { isFinalWorkflowRunStatus } from '../../shared/workflow-types'
 import type { PersistedState } from '../../shared/persisted-state-types'
@@ -145,4 +146,25 @@ export function getActiveRun(state: PersistedState, workflowId: string): Workflo
       (r) => r.workflowId === workflowId && !isFinalWorkflowRunStatus(r.status)
     ) ?? null
   )
+}
+
+export function listWorkflowVariables(state: PersistedState): WorkflowVariable[] {
+  return state.workflowVariables ?? []
+}
+
+export function setWorkflowVariable(
+  ops: WorkflowStoreOperations,
+  variable: WorkflowVariable
+): WorkflowVariable {
+  const rest = (ops.state.workflowVariables ?? []).filter((v) => v.key !== variable.key)
+  ops.state.workflowVariables = [...rest, variable]
+  ops.flush()
+  return variable
+}
+
+export function deleteWorkflowVariable(ops: WorkflowStoreOperations, key: string): boolean {
+  const before = (ops.state.workflowVariables ?? []).length
+  ops.state.workflowVariables = (ops.state.workflowVariables ?? []).filter((v) => v.key !== key)
+  ops.flush()
+  return (ops.state.workflowVariables ?? []).length < before
 }
