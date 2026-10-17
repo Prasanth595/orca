@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { toast } from 'sonner'
+import { translate } from '@/i18n/i18n'
 import { useAppStore } from '../../store'
 
 /** Returns a stable handler that intercepts /workflow commands; returns true when handled. */
@@ -26,9 +27,22 @@ export function useWorkflowSlashCommand(): (command: string) => boolean {
         .then((wf) => {
           setSelectedWorkflowId(wf.id)
           openWorkflowsPage()
-          toast.success(`Workflow "${wf.name}" created`)
+          toast.success(
+            translate(
+              'auto.components.WorkflowSlashCommand.workflowCreated',
+              'Workflow "{{workflowName}}" created',
+              { workflowName: wf.name }
+            )
+          )
         })
-        .catch(() => toast.error('Failed to create workflow'))
+        .catch(() =>
+          toast.error(
+            translate(
+              'auto.components.WorkflowSlashCommand.createFailed',
+              'Failed to create workflow'
+            )
+          )
+        )
       return true
     },
     [setSelectedWorkflowId, openWorkflowsPage]
