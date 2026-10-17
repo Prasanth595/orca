@@ -12,11 +12,7 @@ import { resolveAgentStartupPlanInputs } from '../../../shared/agent-startup-pla
 import { requireTuiAgentConfig } from '../../../shared/require-tui-agent-config'
 import { resolveAgentBackgroundLaunchHost } from '@/lib/agent-background-session-launch-host'
 import { makePaneKey } from '../../../shared/stable-pane-id'
-import {
-  registerEagerPtyBuffer,
-  subscribeToPtyExit,
-  type EagerPtyHandle
-} from '@/components/terminal-pane/pty-dispatcher'
+import { subscribeToPtyExit, type EagerPtyHandle } from '@/components/terminal-pane/pty-dispatcher'
 import { subscribeToPtyData } from '@/components/terminal-pane/pty-data-sidecar-subscriptions'
 import { callRuntimeRpc } from '@/runtime/runtime-rpc-client'
 import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
@@ -26,6 +22,10 @@ import {
   subscribeToRuntimeTerminalData,
   toRemoteRuntimePtyId
 } from '@/runtime/runtime-terminal-stream'
+import {
+  BACKGROUND_PTY_SPAWN_SIZE,
+  registerBackgroundEagerPtyBuffer
+} from '@/lib/background-pty-spawn-size'
 import { isMainTerminalSideEffectAuthorityForPty } from '@/components/terminal-pane/terminal-side-effect-facts-handler'
 import { hasExtraAgentArgs } from '../../../shared/automation-extra-agent-args'
 import { runBestEffortAgentBackgroundCleanups } from '@/lib/agent-background-session-cleanup'
@@ -173,8 +173,8 @@ export async function launchAgentBackgroundSession(
       ptyId = toRemoteRuntimePtyId(runtimeTerminalHandle, runtimeTarget.environmentId)
     } else {
       const result = await window.api.pty.spawn({
-        cols: 120,
-        rows: 40,
+        cols: BACKGROUND_PTY_SPAWN_SIZE.cols,
+        rows: BACKGROUND_PTY_SPAWN_SIZE.rows,
         cwd: worktree.path,
         command: startupPlan.launchCommand,
         ...(!sshConnectionId && isWslUncPath(worktree.path) ? { shellOverride: 'wsl.exe' } : {}),
@@ -262,7 +262,7 @@ export async function launchAgentBackgroundSession(
     } else {
       // Why the incarnation: a relay-recycled id can hold the previous owner's exit, and draining
       // that into this handler tears the agent session down seconds after it launched.
-      eagerPtyBuffer = registerEagerPtyBuffer(ptyId, handleExit, spawned.incarnationId)
+      eagerPtyBuffer = registerBackgroundEagerPtyBuffer(ptyId, handleExit, spawned.incarnationId)
       unsubscribeData = subscribeToPtyData(ptyId, handleData)
       // Why: opening the workspace attaches a real terminal transport and disposes
       // the eager exit handler. This sidecar keeps automation completion tracking
