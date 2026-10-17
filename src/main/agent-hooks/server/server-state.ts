@@ -293,7 +293,10 @@ export abstract class AgentHookServerState {
     entry: EnrichedAgentHookEventPayload | null | undefined
   ): EnrichedAgentHookEventPayload | null
   protected abstract hasLiveClaimsForPaneKey(paneKey: string): boolean
-  abstract checkAgentPresence(paneKey: string): Promise<AgentProcessVerdict | null>
+  abstract checkAgentPresence(
+    pane: string,
+    liveSender?: boolean
+  ): Promise<AgentProcessVerdict | null>
   abstract checkAgentPresenceAfterHook(
     event: AgentHookEventPayload,
     row: AgentHookEventPayload
