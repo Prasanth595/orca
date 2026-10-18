@@ -10,6 +10,7 @@ import type {
   TerminalTab
 } from '../../../shared/terminal-tab-types'
 import type { TuiAgent } from '../../../shared/tui-agent'
+import type { AgentType } from '../../../shared/agent-status-types'
 import type { LiveAgentWorktreeStatus } from './worktree-activity-state'
 
 export type WorktreeStatus =
@@ -30,6 +31,12 @@ type WorktreeStatusHeuristicOptions = {
   stalePaneIdsByTabId?: Record<string, ReadonlySet<string>>
   terminalLayoutsByTabId?: Record<string, TerminalLayoutSnapshot | undefined>
   terminalLayoutRootsByTabId?: Record<string, TerminalPaneLayoutNode | null | undefined>
+  /**
+   * Agent types whose permission *title* may not be believed: a re-keyed pane's own fresh working
+   * row survives under a tab this renderer lost, so the leftover `!` it was launched with is not
+   * a question. See `unplacedWorkingAgentTypes`.
+   */
+  permissionYieldingAgentTypes?: ReadonlySet<AgentType>
 }
 
 const STATUS_LABELS: Record<WorktreeStatus, string> = {
@@ -105,7 +112,8 @@ function tabHasStatus(
       }
       if (
         classifyTitleActivity(title) === status &&
-        titleStatusIsAgentAttributable(title, tab.launchAgent)
+        titleStatusIsAgentAttributable(title, tab.launchAgent) &&
+        !titlePermissionYields(title, status, options)
       ) {
         return true
       }
@@ -122,8 +130,28 @@ function tabHasStatus(
   }
   return (
     classifyTitleActivity(tab.title) === status &&
-    titleStatusIsAgentAttributable(tab.title, tab.launchAgent)
+    titleStatusIsAgentAttributable(tab.title, tab.launchAgent) &&
+    !titlePermissionYields(tab.title, status, options)
   )
+}
+
+/**
+ * Whether this title's permission claim must be ignored: the agent that owns it has a fresh
+ * `working` row filed under a tab this renderer lost, which is what a pane re-keyed on restore
+ * leaves behind. The row reports the work, so the leftover `!` marker is not a question — and
+ * only that agent type yields, so another agent's dialog in the worktree still needs input.
+ */
+function titlePermissionYields(
+  title: string,
+  status: 'permission' | 'working',
+  options: WorktreeStatusHeuristicOptions
+): boolean {
+  const yielding = options.permissionYieldingAgentTypes
+  if (status !== 'permission' || !yielding || yielding.size === 0) {
+    return false
+  }
+  const agentType = resolveAgentTypeFromTerminalTitle(title)
+  return agentType !== null && yielding.has(agentType)
 }
 
 /**
@@ -182,6 +210,7 @@ export function resolveWorktreeStatus(args: {
   stalePaneIdsByTabId?: Record<string, ReadonlySet<string>>
   terminalLayoutsByTabId?: Record<string, TerminalLayoutSnapshot | undefined>
   terminalLayoutRootsByTabId?: Record<string, TerminalPaneLayoutNode | null | undefined>
+  permissionYieldingAgentTypes?: ReadonlySet<AgentType>
   hasPermission: boolean
   hasLiveWorking: boolean
   hasLiveMonitoring?: boolean
@@ -201,7 +230,8 @@ export function resolveWorktreeStatus(args: {
       agentStatusPaneIdsByTabId: args.agentStatusPaneIdsByTabId,
       stalePaneIdsByTabId: args.stalePaneIdsByTabId,
       terminalLayoutsByTabId: args.terminalLayoutsByTabId,
-      terminalLayoutRootsByTabId: args.terminalLayoutRootsByTabId
+      terminalLayoutRootsByTabId: args.terminalLayoutRootsByTabId,
+      permissionYieldingAgentTypes: args.permissionYieldingAgentTypes
     }
   )
   if (args.hasPermission) {

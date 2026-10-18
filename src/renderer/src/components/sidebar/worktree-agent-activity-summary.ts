@@ -8,10 +8,13 @@ import {
 } from '@/lib/agent-status-worktree-attribution'
 import {
   AGENT_STATUS_STALE_AFTER_MS,
-  type AgentStatusOrchestrationContext
+  type AgentStatusEntry,
+  type AgentStatusOrchestrationContext,
+  type AgentType
 } from '../../../../shared/agent-status-types'
 import { agentVerdictDisplayMark } from '../../../../shared/agent-main-agent-verdict'
 import { applyAgentPaneActivityFlags } from '@/lib/agent-pane-activity-flags'
+import { unplacedWorkingAgentTypes } from '@/lib/unplaced-working-agent-types'
 
 export type WorktreeAgentActivitySummary = {
   hasPermission: boolean
@@ -30,9 +33,12 @@ export type WorktreeAgentActivitySummary = {
   agentStatusPaneIdsByTabId: Record<string, ReadonlySet<string>>
   /** Stale rows suppress generated permission labels while preserving native title fallback. */
   stalePaneIdsByTabId: Record<string, ReadonlySet<string>>
+  /** Agent types whose permission title yields to a re-keyed pane's own working row. */
+  permissionYieldingAgentTypes: ReadonlySet<AgentType>
 }
 
 const EMPTY_AGENT_STATUS_PANE_IDS_BY_TAB_ID: Record<string, ReadonlySet<string>> = {}
+const EMPTY_PERMISSION_YIELDING_AGENT_TYPES: ReadonlySet<AgentType> = new Set()
 
 const EMPTY_SUMMARY: WorktreeAgentActivitySummary = {
   hasPermission: false,
@@ -45,7 +51,8 @@ const EMPTY_SUMMARY: WorktreeAgentActivitySummary = {
   hasRetainedDone: false,
   hasRetainedFailed: false,
   agentStatusPaneIdsByTabId: EMPTY_AGENT_STATUS_PANE_IDS_BY_TAB_ID,
-  stalePaneIdsByTabId: EMPTY_AGENT_STATUS_PANE_IDS_BY_TAB_ID
+  stalePaneIdsByTabId: EMPTY_AGENT_STATUS_PANE_IDS_BY_TAB_ID,
+  permissionYieldingAgentTypes: EMPTY_PERMISSION_YIELDING_AGENT_TYPES
 }
 
 type AgentActivityTabsByWorktree = Record<string, readonly { id: string }[]>
@@ -115,6 +122,9 @@ function getWorktreeAgentActivitySummaries(
   }
 
   const now = Date.now()
+  // Why: a re-keyed pane keeps reporting under the tab it lost, so its own row has no tab here.
+  // Collected per worktree and resolved below, where the tab index is complete.
+  const ownRowCandidatesByWorktree = new Map<string, AgentStatusEntry[]>()
   for (const [paneKey, entry] of Object.entries(state.agentStatusByPaneKey)) {
     const paneIdentity = parseAgentStatusPaneIdentity(paneKey)
     if (!paneIdentity) {
@@ -145,6 +155,22 @@ function getWorktreeAgentActivitySummaries(
       addParentPaneId(summary, orchestration, worktreeId, tabIdToWorktreeId)
     }
     applyAgentPaneActivityFlags(summary, entry)
+    if (entry.state === 'working' && !orchestration) {
+      const candidates = ownRowCandidatesByWorktree.get(worktreeId)
+      if (candidates) {
+        candidates.push(entry)
+      } else {
+        ownRowCandidatesByWorktree.set(worktreeId, [entry])
+      }
+    }
+  }
+
+  for (const [worktreeId, candidates] of ownRowCandidatesByWorktree) {
+    summaryForWorktree(worktreeId).permissionYieldingAgentTypes = unplacedWorkingAgentTypes({
+      entries: candidates,
+      hasTab: (tabId) => tabIdToWorktreeId.has(tabId),
+      now
+    })
   }
 
   for (const unsupported of Object.values(state.migrationUnsupportedByPtyId ?? {})) {
@@ -215,7 +241,15 @@ function summariesEqual(
       previous.agentStatusPaneIdsByTabId,
       next.agentStatusPaneIdsByTabId
     ) &&
-    agentStatusPaneIdsByTabIdEqual(previous.stalePaneIdsByTabId, next.stalePaneIdsByTabId)
+    agentStatusPaneIdsByTabIdEqual(previous.stalePaneIdsByTabId, next.stalePaneIdsByTabId) &&
+    agentTypesEqual(previous.permissionYieldingAgentTypes, next.permissionYieldingAgentTypes)
+  )
+}
+
+function agentTypesEqual(previous: ReadonlySet<AgentType>, next: ReadonlySet<AgentType>): boolean {
+  return (
+    previous === next ||
+    (previous.size === next.size && [...previous].every((agentType) => next.has(agentType)))
   )
 }
 
