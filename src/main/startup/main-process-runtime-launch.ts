@@ -94,7 +94,8 @@ function installRuntimeRpc(
       ? {
           wsPort: serveOptions.wsPort,
           // Why: only explicit `orca serve --port` overrides a stale STA-1511 fallback (issue #8535); default/dev stay fallback-first for pairing stability.
-          preferPinnedWsPort: true
+          preferPinnedWsPort: true,
+          requirePinnedWsPort: true
         }
       : {}),
     webClientRoot: getBundledWebClientRoot()
@@ -159,7 +160,8 @@ async function launchServeMode(
   if (state.headlessBrowserDisplayAvailable) {
     runtime.setOffscreenBrowserBackend(
       new OffscreenBrowserBackend(browserManager, {
-        getAgentBrowserBridge: () => state.agentBrowserBridge
+        getAgentBrowserBridge: () => state.agentBrowserBridge,
+        onPageNavigated: (page) => runtime.serveBrowserPageNavigated(page)
       })
     )
   }

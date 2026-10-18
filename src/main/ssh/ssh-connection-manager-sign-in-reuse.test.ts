@@ -17,14 +17,32 @@ vi.mock('ssh2', async () => (await import('./ssh-connection-test-harness')).crea
 vi.mock('./system-ssh-binary', async () =>
   (await import('./ssh-connection-test-harness')).createSystemSshBinaryModule()
 )
-vi.mock('./ssh-system-fallback', async () =>
-  (await import('./ssh-connection-test-harness')).createSystemFallbackModule()
+vi.mock('./system-ssh-args', async (importOriginal) =>
+  (await import('./ssh-connection-test-harness')).withSystemSshArgsMocks(await importOriginal())
+)
+vi.mock('./system-ssh-command', async (importOriginal) =>
+  (await import('./ssh-connection-test-harness')).withSystemSshCommandMocks(await importOriginal())
+)
+vi.mock('./system-ssh-file-binary-transfer', async (importOriginal) =>
+  (await import('./ssh-connection-test-harness')).withSystemSshFileBinaryTransferMocks(
+    await importOriginal()
+  )
+)
+vi.mock('./system-ssh-file-transfer', async (importOriginal) =>
+  (await import('./ssh-connection-test-harness')).withSystemSshFileTransferMocks(
+    await importOriginal()
+  )
 )
 vi.mock('./ssh-control-socket', async () =>
   (await import('./ssh-connection-test-harness')).createControlSocketModule()
 )
 vi.mock('./ssh-config-parser', async () =>
   (await import('./ssh-connection-test-harness')).createSshConfigParserModule()
+)
+vi.mock('./ssh-g-config-resolution', async (importOriginal) =>
+  (await import('./ssh-connection-test-harness')).withSshGConfigResolutionMocks(
+    await importOriginal()
+  )
 )
 
 const authFailure = (): Error => new Error('All configured authentication methods failed')
@@ -119,6 +137,9 @@ describe('SshConnectionManager on a password host', () => {
     onCredentialRequest.mockImplementationOnce(() => new Promise(() => {}))
     emitSshEvent('keyboard-interactive', '', '', '', passwordPrompt, vi.fn())
     await vi.waitFor(() => expect(onCredentialRequest).toHaveBeenCalledTimes(2))
+    // A background dial may not close the dialog the user is answering.
+    await expect(manager.connect(createTarget())).rejects.toThrow('already in progress')
+    await manager.disconnectConnection('target-1', manager.getConnection('target-1')!)
 
     ssh2Mock.connectSequence = [authFailure(), 'ready']
     await manager.connect(createTarget())
