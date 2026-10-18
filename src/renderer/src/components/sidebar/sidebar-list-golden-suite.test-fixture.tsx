@@ -126,7 +126,8 @@ function useGoldenSidebarPipeline() {
   })
   const selection = useSidebarWorktreeSelection({
     sectionRows: rowModel.sectionRows,
-    pinnedDisplayPolicy
+    pinnedDisplayPolicy,
+    sidebarWorktrees: visibleWorktrees
   })
   return { visibleWorktrees, rowModel, selection }
 }
