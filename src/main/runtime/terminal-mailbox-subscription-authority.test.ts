@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
-import { OrcaRuntimeWithStopRequestedPtyIds } from './orca-runtime-stop-requested-pty-ids'
+import { OrcaRuntimeWithTerminalMailboxSubscriptions } from './construction/runtime-terminal-mailbox-subscriptions'
 import { OrcaRuntimeService } from './orca-runtime'
 import {
   TerminalMailboxSubscriptions,
   type TerminalMailboxSubscriptionBinding
 } from './orchestration/terminal-mailbox-subscriptions'
 
-const method = OrcaRuntimeWithStopRequestedPtyIds.prototype.terminalMailboxSubscription
+const method = OrcaRuntimeWithTerminalMailboxSubscriptions.prototype.terminalMailboxSubscription
 function fixture() {
   const leaf = {
     tabId: 'tab',

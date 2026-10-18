@@ -39,10 +39,10 @@ export class OrchestrationMailboxPointerDelivery<TWaiter extends OrchestrationMe
       return
     }
     try {
-      const leaf =
-        isTerminalMailbox(handle) && this.deps.resolveSubscriptionTarget
-          ? this.deps.resolveSubscriptionTarget(handle)?.leaf
-          : this.deps.getLiveLeafForHandle(terminalHandle)
+      const subscribedLeaf = isTerminalMailbox(handle)
+        ? this.deps.resolveSubscriptionTarget?.(handle)?.leaf
+        : undefined
+      const leaf = subscribedLeaf ?? this.deps.getLiveLeafForHandle(terminalHandle)
       if (!leaf) {
         return
       }

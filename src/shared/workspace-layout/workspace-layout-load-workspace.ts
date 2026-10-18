@@ -1,7 +1,10 @@
+import { ORCA_LAYOUT_OWNER_IS_MAIN } from '../layout-owner-switch'
 import type { Tab } from '../tab-types'
+import { normalizeTerminalLayoutPtyOwnership } from '../terminal-layout-pty-ownership'
 import type { TerminalLayoutSnapshot, TerminalTab } from '../terminal-tab-types'
 import type { WorkspaceSessionState } from '../workspace-session-state-types'
 import { childRecord, pickStoredFields } from './stored-record-fields'
+import { readCanonicalPtyOwners, resolveCanonicalPtyClaim } from './legacy-terminal-row-claims'
 import { resolveGroupOrder, type OrderCandidate } from './workspace-layout-load-order'
 import {
   loadBrowserTabs,
@@ -64,7 +67,11 @@ function loadPanes(
   tab: Omit<LayoutTerminalTab, 'panes'>,
   args: WorkspaceLoadArgs
 ): LayoutTerminalTab {
-  const layout = session.terminalLayoutsByTabId?.[tab.entityId] ?? legacyLayout(session, row, args)
+  const stored = session.terminalLayoutsByTabId?.[tab.entityId] ?? legacyLayout(session, row, args)
+  // Switch point: window saves no longer carry its duplicate-terminal pane repair, so main applies it.
+  const layout = ORCA_LAYOUT_OWNER_IS_MAIN
+    ? normalizeTerminalLayoutPtyOwnership(stored).snapshot
+    : stored
   // Each pane's data is loaded once every tab is placed (loadLeaves).
   args.layouts.set(tab.entityId, layout)
   return { ...tab, panes: { root: layout.root, ...pickStoredFields(layout, ['chatLeafId']) } }
@@ -126,8 +133,16 @@ function loadTabs(args: WorkspaceLoadArgs): { tabs: LayoutTab[]; candidates: Ord
       childRecord(args.view.lastFocusedAt, key)[entry.id] = entry.lastFocusedAt
     }
   }
+  // A row outside the tab bar whose every terminal a tab-bar tab holds is a stale copy of it.
+  const canonical = readCanonicalPtyOwners(session, key, rows)
   for (const row of rows) {
-    if (!merged.has(row.id)) {
+    if (merged.has(row.id)) {
+      continue
+    }
+    const claim = resolveCanonicalPtyClaim(session, row, canonical)
+    if (claim.kind === 'subsumed') {
+      args.canonicalTabIdBySubsumedTabId.set(row.id, claim.canonicalTabId)
+    } else {
       addTerminal(row, undefined)
     }
   }

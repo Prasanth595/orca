@@ -21,6 +21,13 @@ const TOKEN = 'native-mailbox-test-proof'
 const databases: OrchestrationDb[] = []
 
 class NativeMailboxRuntime extends OrcaRuntimeService {
+  publishDsbForeground() {
+    const pty = this.ptysById.get(PTY)
+    if (pty) {
+      pty.foregroundAgent = 'dsb'
+    }
+  }
+
   idleVerdict() {
     const pty = this.ptysById.get(PTY)
     return pty ? this.evaluateTuiIdleForPty(pty) : null
@@ -94,6 +101,21 @@ describe('subscriptions on an execution host without a renderer graph', () => {
     expect(f.runtime.idleVerdict()).toEqual({ kind: 'ready-strong' })
     expect(textWritten(f)).toEqual([expect.stringContaining(`inbox --terminal ${HANDLE}`), '\r'])
     expect(textWritten(f).join('')).not.toContain('PRIVATE_BODY_NOT_FOR_PTY')
+    expect(f.db.getMessageById(message.id)?.read).toBe(0)
+  })
+
+  it('offers a pointer without auto-submitting a non-TUI foreground agent', async () => {
+    vi.useFakeTimers()
+    const f = createFixture()
+    f.runtime.terminalMailboxSubscription('subscribe', f.proof)
+    await f.status('Codex done')
+    f.runtime.publishDsbForeground()
+    const message = f.mail()
+    await vi.advanceTimersByTimeAsync(800)
+    expect(textWritten(f)).toEqual([expect.stringContaining(`inbox --terminal ${HANDLE}`)])
+    expect(f.runtime.terminalMailboxSubscription('status', f.proof).reason).toBe(
+      'manual_submit_required'
+    )
     expect(f.db.getMessageById(message.id)?.read).toBe(0)
   })
 
