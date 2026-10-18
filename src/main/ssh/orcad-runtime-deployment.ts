@@ -22,9 +22,9 @@ import {
   ensureOrcadManagedTunnel,
   startOrcadManagedTunnel
 } from './orcad-managed-tunnel'
-import { recoverInterruptedOrcadActivation } from './orcad-activation-recovery'
+import { recoverInterruptedOrcadActivation } from '../managed-server/activation/orcad-activation-recovery'
 import { wakeAlreadyActiveOrcad } from './orcad-already-active-wake'
-import { readOrcadActivationRecord } from './orcad-activation-record-store'
+import { readOrcadActivationRecord } from '../managed-server/activation/orcad-activation-record-store'
 import { resolveOrcadRemoteContext, type OrcadRemoteContext } from './orcad-remote-context'
 import { deployOrcad } from './orcad-remote-deploy'
 import {
@@ -126,13 +126,15 @@ export async function createManagedOrcadEnvironment(
       })
       // Before any upload, so a host another version serves is left exactly as it was. A migration
       // adopts too: only the paired server can count its terminals, so its own deploy would defer.
+      const localVersion = readLocalFullVersion(localOrcadDir)
       const adopted = args.force
         ? null
-        : await adoptRunningOrcadVersion(
-            slot,
-            context.activationRecord,
-            readLocalFullVersion(localOrcadDir)
-          )
+        : await adoptRunningOrcadVersion(slot, context.activationRecord, localVersion)
+      const { active } = context.activationRecord
+      if (!adopted && !args.force && active && active !== localVersion) {
+        // The wake re-read a record another desktop changed; the census policy follows it.
+        context = { ...context, activationRecord: await readOrcadActivationRecord(slot) }
+      }
       const serving: DeployedOrcad | OrcadManagedDeferral =
         adopted ??
         (await deployOwnOrcad(context, { ...slot, conn: connection }, localOrcadDir, args))

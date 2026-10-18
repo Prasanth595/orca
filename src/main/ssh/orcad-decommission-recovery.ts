@@ -1,9 +1,13 @@
 /** Recovering an interrupted decommission from its journal entry; see orcad-decommission-transaction. */
-import { writeOrcadActivationRecord } from './orcad-activation-record-store'
-import type { OrcadActivationRecoveryResult } from './orcad-activation-recovery'
+import { writeOrcadActivationRecord } from '../managed-server/activation/orcad-activation-record-store'
+import type { OrcadActivationRecoveryResult } from '../managed-server/activation/orcad-activation-recovery'
 import type { OrcadDecommissionRecoveryPlan } from './orcad-decommission-transaction'
 import { settleOrcadDecommissionStop } from './orcad-decommission-stop'
-import { orcadLivenessProbeCommand, parseOrcadLiveness } from './orcad-remote-launch'
+import {
+  orcadLivenessProbeCommand,
+  orcadLivenessProvenExited,
+  parseOrcadLiveness
+} from './orcad-remote-launch'
 import { execOrcadRemote } from './orcad-remote-runtime-control'
 import {
   ensureOrcadSlotServing,
@@ -12,6 +16,7 @@ import {
   type OrcadSlotOptions
 } from './orcad-recovery-slot'
 
+/** Finishes an interrupted decommission; the record is only cleared on proven exit. */
 export async function reconcileOrcadDecommission(
   options: OrcadSlotOptions,
   plan: OrcadDecommissionRecoveryPlan
@@ -55,7 +60,7 @@ export async function reconcileOrcadDecommission(
       orcadLivenessProbeCommand(options.host, orcadSlotDir(options, plan.version))
     )
   )
-  if (liveness !== 'DEAD') {
+  if (!orcadLivenessProvenExited(liveness)) {
     return {
       outcome: 'refused',
       verdict: liveness === 'LIVE' ? 'live' : 'unverifiable',

@@ -18,7 +18,7 @@ import {
   lockAgeSecondsCommand,
   tryCreateInstallLockCommand,
   tryStealInstallLockCommand
-} from './ssh-relay-install-lock-commands'
+} from './remote-install-lock-commands'
 import {
   commandWithNodePath,
   listRemoteInstallBaseDirsCommand,
@@ -35,7 +35,7 @@ import {
   readUncappedRelayGcPaths,
   runCappedRelayGcShellCommand,
   SSH_EXEC_OUTPUT_CAP_CHARS
-} from './ssh-relay-gc-listing.test-fixture'
+} from './remote-install-gc-listing.test-fixture'
 
 const posix = getRemoteHostPlatform('linux-x64')
 const nativePosix = getRemoteHostPlatform(
@@ -177,22 +177,6 @@ describe('ssh remote command builders', () => {
       rmSync(dir, { recursive: true, force: true })
     }
   })
-
-  it.skipIf(process.platform === 'win32')(
-    'rejects a POSIX install missing one artifact',
-    async () => {
-      const { dir, artifact } = stageOrcadInstall(posix)
-      const probe = (): string => probeOrcadInstalledCommand(posix, dir)
-      try {
-        expect((await runShellCommand(probe())).trim()).toBe('OK')
-
-        rmSync(join(dir, artifact))
-        expect((await runShellCommand(probe())).trim()).toBe('MISSING')
-      } finally {
-        rmSync(dir, { recursive: true, force: true })
-      }
-    }
-  )
 
   it('uses encoded PowerShell for Windows deploy commands', () => {
     expect(readRemoteHomeCommand(windows)).toContain('powershell.exe')

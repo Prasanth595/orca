@@ -1,23 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type * as ExecCommandModule from './ssh-relay-exec-command'
-import type * as InstallLock from './ssh-relay-install-lock'
+import type * as ExecCommandModule from './remote-exec-command'
+import type * as InstallLock from './remote-install-lock'
 
-vi.mock('./ssh-relay-exec-command', async (importOriginal) => ({
+vi.mock('./remote-exec-command', async (importOriginal) => ({
   ...(await importOriginal<typeof ExecCommandModule>()),
   execCommand: vi.fn()
 }))
 vi.mock('./ssh-connection-utils', () => ({ shellEscape: (s: string) => `'${s}'` }))
-vi.mock('./ssh-relay-install-lock', async (importOriginal) => ({
+vi.mock('./remote-install-lock', async (importOriginal) => ({
   ...(await importOriginal<typeof InstallLock>()),
   acquireInstallLock: vi.fn()
 }))
 
-import { execCommand } from './ssh-relay-exec-command'
-import { acquireInstallLock, RemoteInstallLockBusyError } from './ssh-relay-install-lock'
+import { execCommand } from './remote-exec-command'
+import { acquireInstallLock, RemoteInstallLockBusyError } from './remote-install-lock'
 import { wakeStoppedManagedOrcad } from './orcad-managed-wake'
 import { getRemoteHostPlatform } from './ssh-remote-platform'
 import type { OrcadHostTransport } from './orcad-host-transport'
-import { FakeOrcadHost, OLD } from './orcad-activation-host-test-harness'
+import { FakeOrcadHost, OLD } from '../managed-server/activation/orcad-activation-host-test-harness'
 import {
   ORCAD_E2E_IDLE_TIMEOUT_ENV,
   ORCAD_MANAGED_ACTIVATION_ROOT_ENV
@@ -105,6 +105,22 @@ describe('wakeStoppedManagedOrcad', () => {
 
     expect(await wakeStoppedManagedOrcad(slot)).toEqual({ outcome: 'unverifiable' })
     expect(launches()).toEqual([])
+  })
+
+  it('starts an active slot with no launch artifacts at all: nothing ever ran from it', async () => {
+    host = stoppedHost()
+    host.pidFiles.clear()
+    // Neither a PID file nor a readiness file, so the host answers NEVER_LAUNCHED, not UNKNOWN.
+    vi.mocked(execCommand).mockImplementation(async (_conn, command) =>
+      command.includes('echo LIVE;') && !host.alive.has(OLD) ? 'NEVER_LAUNCHED' : host.exec(command)
+    )
+
+    const wake = await wakeStoppedManagedOrcad(slot)
+
+    expect(wake.outcome).toBe('started')
+    expect([...host.alive]).toEqual([OLD])
+    expect(host.fence).toBe(false)
+    expect(launches()).toHaveLength(1)
   })
 
   it('defers to an update or recovery that holds the activation fence', async () => {

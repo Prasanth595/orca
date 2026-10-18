@@ -1,8 +1,8 @@
 /** Everything a managed-orcad operation needs to know about one host (SSH or WSL) before it acts. */
 import type { NodeRuntimeTarget } from '../../shared/node-runtime-pin'
 import type { SshTarget } from '../../shared/ssh-types'
-import type { OrcadActivationRecord } from './orcad-activation-record'
-import { readOrcadActivationRecord } from './orcad-activation-record-store'
+import type { OrcadActivationRecord } from '../managed-server/activation/orcad-activation-record'
+import { readOrcadActivationRecord } from '../managed-server/activation/orcad-activation-record-store'
 import { resolveOrcadRuntimeTarget } from './orcad-runtime-target'
 import { prepareWindowsOrcadHost } from './orcad-windows-host-preparation'
 import {
@@ -12,17 +12,18 @@ import {
 } from './orcad-host-transport'
 import {
   decideOrcadMachineHome,
-  orcadMachineClaimCommand,
   orcadMachineDataRoot,
   orcadMachineHomeDir,
   orcadMachineHomeProbeCommand,
+  orcadMachineOwnershipUnresolvedMessage,
   parseOrcadMachineClaim,
   parseOrcadMachineHomeProbe
 } from './orcad-machine-home'
+import { orcadMachineClaimCommand } from './orcad-machine-claim-command'
 import { execOrcadRemote, type OrcadRemoteExecTarget } from './orcad-remote-runtime-control'
 import { readRemoteHomeCommand } from './ssh-remote-commands'
 import { shellEscape } from './ssh-connection-utils'
-import { RELAY_REMOTE_DIR } from './relay-protocol'
+import { RELAY_REMOTE_DIR } from './remote-frame-protocol'
 import {
   isWindowsRemoteHost,
   joinRemotePath,
@@ -127,6 +128,15 @@ export async function resolveOrcadMachineHome(
   )
   const { loginHome } = probe
   let decision = decideOrcadMachineHome(probe, host)
+  if (decision.kind === 'unresolved') {
+    throw new Error(
+      orcadMachineOwnershipUnresolvedMessage(
+        decision.machineKey,
+        probe.identity?.hostname ?? null,
+        decision.cause
+      )
+    )
+  }
   if (decision.kind === 'claim') {
     const won = parseOrcadMachineClaim(
       (

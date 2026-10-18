@@ -9,7 +9,8 @@ import type { TerminalGitHubPRLink } from '../../../../shared/terminal-github-pr
 
 export abstract class OrcaRuntimeWithGetUnpersistedTrackedTitleForPty extends OrcaRuntimeWithEmitDaemonPtyTransientFact {
   protected abstract recheckHookAgentPresenceForPty(
-    ptyId: string
+    ptyId: string,
+    exitedSince?: number
   ): Promise<'live' | 'unverifiable' | 'exited' | null>
   protected abstract applyTrackedPtyTitle(
     ptyId: string,
@@ -164,7 +165,9 @@ export abstract class OrcaRuntimeWithGetUnpersistedTrackedTitleForPty extends Or
         },
         onCommandFinished: (exitCode: number | null) => {
           void this.recheckHookAgentPresenceForPty(ptyId)
-          this.handlePtyCommandFinished(ptyId, exitCode)
+          this.retirePtyAgentLaunchAuthority(ptyId)
+          this.recordTerminalSideEffectFact(ptyId, { kind: 'command-finished', exitCode })
+          this.openCodeRunLifetime.onCommandFinished(ptyId, exitCode)
         },
         onBell: () => {
           this.recordTerminalSideEffectFact(ptyId, { kind: 'bell' })

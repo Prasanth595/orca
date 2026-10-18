@@ -1,5 +1,8 @@
 /** Proving that the orcad an activation record names is the one actually serving. */
-import { evaluateOrcadActivation, type OrcadActivationExpectation } from './orcad-activation-gate'
+import {
+  evaluateOrcadActivation,
+  type OrcadActivationExpectation
+} from '../managed-server/activation/orcad-activation-gate'
 import {
   orcadLivenessProbeCommand,
   parseOrcadLiveness,
@@ -89,6 +92,12 @@ export async function probeActiveOrcadReadiness(
     throw new OrcadActiveReadinessError(
       'exited',
       `orcad ${expectation.fullVersion} is recorded active but its process has exited.`
+    )
+  }
+  if (liveness === 'NEVER_LAUNCHED') {
+    throw new OrcadActiveReadinessError(
+      'exited',
+      `orcad ${expectation.fullVersion} is recorded active but was never started from its install directory.`
     )
   }
   if (liveness !== 'LIVE') {
