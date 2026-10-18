@@ -6,20 +6,13 @@ import { normalizeReviewAreaParam } from './mobile-diff-review-positioning'
 import { useMobileDiffReviewController } from './use-mobile-diff-review-controller'
 import { useForceReconnect } from '../transport/client-context'
 import { useWorkspaceClient } from '../transport/use-workspace-client'
-import { useHostProtocolGates } from '../components/HostProtocolGate'
+import { useHostProtocolGates } from '../components/host-protocol-gates-context'
 import { useWorkspaceRouteHandoff } from '../navigation/workspace-route-handoff'
 
 /**
- * The review screen as a component rather than a route module, which is what lets a switch hold it.
- *
- * A route file that both reads the flag and calls `useMobileDiffReviewController` runs the whole
- * controller — its client subscriptions included — behind the page, because hooks cannot be
- * conditional. As an element passed for `fallback` it is created and not mounted, so the
- * controller runs only when the shell answers `native-route`. Same reason the explorer switch
- * builds its panel as an element.
- *
- * The params are read here rather than handed down, so this is the route body and the two route
- * files above it are the switch and its web sibling.
+ * The review screen as a component rather than a route module: the page's route file mounts it, and
+ * the native route file, which mounts the shell, cannot be imported by the page. It reads its own
+ * params.
  */
 export function MobileDiffReviewRouteScreen() {
   const params = useLocalSearchParams<{

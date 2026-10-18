@@ -1,7 +1,7 @@
 import { NativeChatPromptEditor } from './NativeChatPromptEditor'
 import type { NativeChatComposerInput } from './native-chat-composer-input'
 import type { ClipboardEventHandler, KeyboardEventHandler, RefObject } from 'react'
-import { useCallback, useLayoutEffect, useRef } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import { flushSync } from 'react-dom'
 import type { useImeEnterGestureOwnership } from '@/lib/ime-composition-keyboard-event'
 import { cn } from '@/lib/utils'
@@ -21,13 +21,7 @@ import type {
   SessionOptionsSurface
 } from '../../../../shared/native-chat-session-options'
 import type { NativeChatOptionPickerRequest } from './native-chat-composer-types'
-import {
-  nativeChatComposerPrimaryButton,
-  type NativeChatQueueResume
-} from './native-chat-composer-primary-action'
 import { NativeChatImageAttachmentPreview } from './NativeChatImageAttachmentPreview'
-import { NativeChatQueueSendConfirmDialog } from './NativeChatQueueSendConfirmDialog'
-import type { NativeChatQueueSendConfirm } from './use-native-chat-held-queue-composer-send'
 import type { NativeChatComposerGoalMode } from './use-native-chat-composer-submit'
 import { translate } from '@/i18n/i18n'
 import { useNativeChatComposerDraftUnsaved } from './use-native-chat-draft-unsaved'
@@ -47,6 +41,8 @@ export type NativeChatComposerFieldProps = {
   activeSuggestion: number
   notices: readonly NativeChatComposerNotice[]
   imageAttachments: readonly NativeChatComposerImageAttachment[]
+  /** A structured chat numbers its images, as its chips in the prompt read. */
+  numberImages?: boolean
   /** The paired server a structured chat runs on, which reads back files stored there. */
   attachmentEnvironmentId?: string
   sendButtonDisabled: boolean
@@ -79,8 +75,6 @@ export type NativeChatComposerFieldProps = {
   onDictationHoldEnd: () => void
   onSend: () => void
   onStop?: () => void
-  queueResume?: NativeChatQueueResume | undefined
-  queueSendConfirm?: NativeChatQueueSendConfirm | null
   sessionOptionsSurface: SessionOptionsSurface | null
   sessionOptionsSnapshot: SessionOptionDescriptor[]
   contextUsage?: NativeChatContextUsageSummary | null
@@ -138,6 +132,7 @@ export function NativeChatComposerField({
   activeSuggestion,
   notices,
   imageAttachments,
+  numberImages = false,
   attachmentEnvironmentId,
   sendButtonDisabled,
   sendBlockedReason,
@@ -165,8 +160,6 @@ export function NativeChatComposerField({
   onDictationHoldEnd,
   onSend,
   onStop,
-  queueResume,
-  queueSendConfirm = null,
   sessionOptionsSurface,
   sessionOptionsSnapshot,
   contextUsage,
@@ -183,6 +176,7 @@ export function NativeChatComposerField({
         : 0
   // Value the IME started from, and whether a programmatic clear was dropped on top of it.
   const compositionBaseRef = useRef('')
+  const imageRow = useMemo(() => imageAttachments.map(({ id }) => id), [imageAttachments])
   const droppedDraftClearRef = useRef(false)
 
   // Browser owns the provisional value; React synchronizes drafts only between IME sessions.
@@ -213,21 +207,8 @@ export function NativeChatComposerField({
     onImeSettled(element)
   }
 
-  const primary = nativeChatComposerPrimaryButton({
-    isWorking,
-    composerEmpty: draft.trim() === '' && imageAttachments.length === 0,
-    queueResume,
-    composerDisabled: disabled,
-    sendDisabled: sendButtonDisabled
-  })
-  const { resume } = primary
   // Stable so the memoized option pickers keep their identity.
   const focusComposer = useCallback(() => textareaRef.current?.focus(), [textareaRef])
-  // The button disables while resuming, which drops its focus; typing is what comes next.
-  const resumeQueue = (): void => {
-    resume?.()
-    textareaRef.current?.focus()
-  }
 
   return (
     <div className="shrink-0 bg-chat-canvas">
@@ -285,11 +266,12 @@ export function NativeChatComposerField({
           >
             {imageAttachments.length > 0 ? (
               <div className="mb-2 flex flex-wrap gap-2 px-1 pt-1.5">
-                {imageAttachments.map((attachment) => (
+                {imageAttachments.map((attachment, index) => (
                   <NativeChatImageAttachmentPreview
                     key={attachment.id}
                     attachment={attachment}
                     hostEnvironmentId={attachmentEnvironmentId}
+                    number={numberImages ? index + 1 : undefined}
                     onRemove={onRemoveImageAttachment}
                   />
                 ))}
@@ -298,6 +280,7 @@ export function NativeChatComposerField({
             <NativeChatPromptEditor
               key={draftScopeKey}
               scopeKey={draftScopeKey}
+              imageRow={imageRow}
               inputRef={textareaRef}
               initialValue={draft}
               disabled={disabled}
@@ -363,8 +346,7 @@ export function NativeChatComposerField({
               <NativeChatComposerActions
                 attachDisabled={attachDisabled}
                 dictationDisabled={dictationDisabled}
-                sendDisabled={primary.disabled}
-                primaryAction={primary.action}
+                sendDisabled={sendButtonDisabled}
                 sendBlockedReason={sendBlockedReason}
                 draftNotSaved={draftNotSaved}
                 isWorking={isWorking}
@@ -377,7 +359,6 @@ export function NativeChatComposerField({
                 onDictationHoldEnd={onDictationHoldEnd}
                 onSend={onSend}
                 onStop={onStop}
-                {...(resume ? { onResume: resumeQueue } : {})}
                 sessionOptionsSurface={sessionOptionsSurface}
                 sessionOptionsSnapshot={sessionOptionsSnapshot}
                 contextUsage={contextUsage}
@@ -390,7 +371,6 @@ export function NativeChatComposerField({
           </div>
         </div>
       </div>
-      <NativeChatQueueSendConfirmDialog confirm={queueSendConfirm} focusComposer={focusComposer} />
     </div>
   )
 }
