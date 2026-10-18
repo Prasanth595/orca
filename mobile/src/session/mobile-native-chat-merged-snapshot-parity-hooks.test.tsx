@@ -99,7 +99,8 @@ const HOST_SUPPORT = {
   quietRepeatedStop: true,
   sendOptions: false,
   conversationStop: false,
-  permissionModes: false
+  permissionModes: false,
+  phoneAttachments: false
 }
 
 type Phone = {

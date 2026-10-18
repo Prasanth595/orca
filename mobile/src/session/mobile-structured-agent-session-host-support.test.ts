@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   AGENT_SESSION_ATTACHMENTS_RUNTIME_CAPABILITY,
   AGENT_SESSION_CONVERSATION_STOP_RUNTIME_CAPABILITY,
+  AGENT_SESSION_PHONE_ATTACHMENTS_RUNTIME_CAPABILITY,
   AGENT_SESSION_PROMPT_CANCEL_RUNTIME_CAPABILITY,
   AGENT_SESSION_QUESTION_ANSWERS_RUNTIME_CAPABILITY,
   AGENT_SESSION_QUEUED_COMMANDS_RUNTIME_CAPABILITY,
@@ -27,7 +28,8 @@ describe('structuredAgentSessionHostSupport', () => {
       statusFeed: false,
       sendOptions: false,
       conversationStop: false,
-      permissionModes: false
+      permissionModes: false,
+      phoneAttachments: false
     }
     expect(structuredAgentSessionHostSupport([])).toEqual(none)
     expect(
@@ -63,5 +65,15 @@ describe('structuredAgentSessionHostSupport', () => {
     expect(
       structuredAgentSessionHostSupport([AGENT_SESSION_PERMISSION_MODES_RUNTIME_CAPABILITY])
     ).toEqual({ ...none, permissionModes: true })
+    expect(
+      structuredAgentSessionHostSupport([AGENT_SESSION_PHONE_ATTACHMENTS_RUNTIME_CAPABILITY])
+    ).toEqual({ ...none, phoneAttachments: true })
+    // Read previews and phone uploads are advertised independently.
+    expect(
+      structuredAgentSessionHostSupport([
+        AGENT_SESSION_ATTACHMENTS_RUNTIME_CAPABILITY,
+        AGENT_SESSION_PHONE_ATTACHMENTS_RUNTIME_CAPABILITY
+      ])
+    ).toEqual({ ...none, attachments: true, phoneAttachments: true })
   })
 })
