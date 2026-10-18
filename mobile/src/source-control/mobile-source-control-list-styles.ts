@@ -54,6 +54,19 @@ export const listStyles = StyleSheet.create({
     fontSize: typography.metaSize,
     lineHeight: 18
   },
+  branchLimitRow: {
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.borderSubtle
+  },
+  branchLimitText: {
+    color: colors.textMuted,
+    fontSize: typography.metaSize,
+    textAlign: 'center'
+  },
   fileRow: {
     minHeight: 50,
     flexDirection: 'row',
