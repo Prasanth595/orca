@@ -5418,6 +5418,12 @@
           "00c4235c10": "No hay coincidencias para '{{value0}}'",
           "largeInputNoMatches": "No hay coincidencias para esta entrada larga"
         },
+        "SleepTwinWorkspaceDialog": {
+          "title": "Sleep Workspace",
+          "alsoSleeps": "Also sleeps the copy on {{hosts}}",
+          "cancel": "Cancel",
+          "confirm": "Sleep"
+        },
         "RemoveFolderDialog": {
           "4dc5b5065b": "Quitar",
           "d36883e046": "Cancelar",
@@ -6077,6 +6083,9 @@
               "legacy": {
                 "unverified": "The older host runtime could not confirm terminal shutdown. The workspace was kept open; update the host and try again."
               },
+              "twin": {
+                "unattributed": "Orca couldn't tell which host runs this workspace's terminals, so the workspace was kept open. Reconnect its hosts and try again."
+              },
               "host": {
                 "unverified": "The host could not confirm terminal shutdown. The workspace was kept open; check the connection and try again."
               },
@@ -6292,6 +6301,7 @@
           "f4a5b6c7d8": "No se pudo actualizar el issue {{value0}} de Linear.",
           "a5b6c7d8e9": "No se pudo sincronizar el issue {{value0}} de Linear.",
           "b6c7d8e9f0": "No se pudo completar la sincronización del estado de la tarea.",
+          "f0a1b2c3d4": "Se omitió la incidencia de Linear {{value0}}: este espacio de trabajo está en más de un host.",
           "c7d8e9f0a1": "{{value0}} actualizado",
           "d8e9f0a1b2": "{{value0}} omitido",
           "e9f0a1b2c3": "{{value0}} falló"

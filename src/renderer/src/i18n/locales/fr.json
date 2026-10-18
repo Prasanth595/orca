@@ -5550,6 +5550,12 @@
           "00c4235c10": "Aucun résultat pour « {{value0}} »",
           "largeInputNoMatches": "Aucun résultat pour cette saisie longue"
         },
+        "SleepTwinWorkspaceDialog": {
+          "title": "Sleep Workspace",
+          "alsoSleeps": "Also sleeps the copy on {{hosts}}",
+          "cancel": "Cancel",
+          "confirm": "Sleep"
+        },
         "RemoveFolderDialog": {
           "4dc5b5065b": "Supprimer",
           "d36883e046": "Annuler",
@@ -6191,6 +6197,9 @@
               "legacy": {
                 "unverified": "L'ancien runtime d'hôte n'a pas pu confirmer l'arrêt des terminaux. L'espace de travail est resté ouvert ; mettez à jour l'hôte et réessayez."
               },
+              "twin": {
+                "unattributed": "Orca couldn't tell which host runs this workspace's terminals, so the workspace was kept open. Reconnect its hosts and try again."
+              },
               "host": {
                 "unverified": "L'hôte n'a pas pu confirmer l'arrêt des terminaux. L'espace de travail est resté ouvert ; vérifiez la connexion et réessayez."
               },
@@ -6379,6 +6388,7 @@
           "f4a5b6c7d8": "Impossible de mettre à jour l'issue Linear {{value0}}.",
           "a5b6c7d8e9": "Impossible de synchroniser l'issue Linear {{value0}}.",
           "b6c7d8e9f0": "La synchronisation du statut des tâches n'a pas pu aboutir.",
+          "f0a1b2c3d4": "Ticket Linear {{value0}} ignoré : cet espace de travail se trouve sur plusieurs hôtes.",
           "c7d8e9f0a1": "{{value0}} mis à jour",
           "d8e9f0a1b2": "{{value0}} ignoré",
           "e9f0a1b2c3": "{{value0}} a échoué"

@@ -5683,6 +5683,12 @@
           "00c4235c10": "No matches for '{{value0}}'",
           "largeInputNoMatches": "No matches for this long input"
         },
+        "SleepTwinWorkspaceDialog": {
+          "title": "Sleep Workspace",
+          "alsoSleeps": "Also sleeps the copy on {{hosts}}",
+          "cancel": "Cancel",
+          "confirm": "Sleep"
+        },
         "RemoveFolderDialog": {
           "4dc5b5065b": "Remove",
           "d36883e046": "Cancel",
@@ -6325,6 +6331,9 @@
               "legacy": {
                 "unverified": "The older host runtime could not confirm terminal shutdown. The workspace was kept open; update the host and try again."
               },
+              "twin": {
+                "unattributed": "Orca couldn't tell which host runs this workspace's terminals, so the workspace was kept open. Reconnect its hosts and try again."
+              },
               "host": {
                 "unverified": "The host could not confirm terminal shutdown. The workspace was kept open; check the connection and try again."
               },
@@ -6513,6 +6522,7 @@
           "f4a5b6c7d8": "Could not update Linear issue {{value0}}.",
           "a5b6c7d8e9": "Could not sync Linear issue {{value0}}.",
           "b6c7d8e9f0": "Task status sync could not finish.",
+          "f0a1b2c3d4": "Skipped Linear issue {{value0}}: this workspace is on more than one host.",
           "c7d8e9f0a1": "{{value0}} updated",
           "d8e9f0a1b2": "{{value0}} skipped",
           "e9f0a1b2c3": "{{value0}} failed"
@@ -12770,7 +12780,11 @@
           "linkedProjects_other": "This host’s Orca server already had {{paths}}, so this desktop now uses the server’s copy. This desktop’s tabs and {{count}} automations there were not moved, and worktrees it created there show as external worktrees.",
           "linkedProjects": "This host’s Orca server already had {{paths}}, so this desktop now uses the server’s copy. This desktop’s tabs and {{count}} automations there were not moved, and worktrees it created there show as external worktrees.",
           "linkedProjectsNoAutomations": "This host’s Orca server already had {{paths}}, so this desktop now uses the server’s copy. This desktop’s tabs there were not moved, and worktrees it created there show as external worktrees.",
-          "launchSessionEnded": "Terminals on this Mac may have lost local network access because the SSH session that started the managed server ended. Restart the managed server to restore it."
+          "launchSessionEnded": "Terminals on this Mac may have lost local network access because the SSH session that started the managed server ended. Restart the managed server to restore it.",
+          "behindRolledBack": "Runs an older managed Orca server than this app; the last update was rolled back. Use Update server to try again.",
+          "behindNoTemplate": "Runs a managed Orca server this app can’t update; this build has no server for this host.",
+          "behindMigrating": "Runs a managed Orca server that updates after its project move finishes.",
+          "behindCheckFailed": "Runs a managed Orca server; Orca couldn’t check whether it is behind this app."
         },
         "ZcodeCliSetupSection": {
           "title": "Use GLM with ZCode",
@@ -15857,7 +15871,8 @@
           "noPython": "Python was not found on this computer. Install it from [python.org](https://www.python.org/downloads/), then run the cell again.",
           "kernelDied": "The kernel died.",
           "localOnly": "Notebook cells can only run for files on this computer.",
-          "pythonOnly": "Only Python notebooks can run in Orca."
+          "pythonOnly": "Only Python notebooks can run in Orca.",
+          "ownerUnresolved": "Orca can't tell which computer this notebook is on yet, so its cells can't run."
         },
         "MarkdownPreview": {
           "e4683f70c4": "Cancel",

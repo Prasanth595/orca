@@ -5404,6 +5404,12 @@
           "00c4235c10": "'{{value0}}'과(와) 일치하는 항목이 없습니다.",
           "largeInputNoMatches": "이 긴 입력과 일치하는 항목 없음"
         },
+        "SleepTwinWorkspaceDialog": {
+          "title": "Sleep Workspace",
+          "alsoSleeps": "Also sleeps the copy on {{hosts}}",
+          "cancel": "Cancel",
+          "confirm": "Sleep"
+        },
         "RemoveFolderDialog": {
           "4dc5b5065b": "제거",
           "d36883e046": "취소",
@@ -6063,6 +6069,9 @@
               "legacy": {
                 "unverified": "The older host runtime could not confirm terminal shutdown. The workspace was kept open; update the host and try again."
               },
+              "twin": {
+                "unattributed": "Orca couldn't tell which host runs this workspace's terminals, so the workspace was kept open. Reconnect its hosts and try again."
+              },
               "host": {
                 "unverified": "The host could not confirm terminal shutdown. The workspace was kept open; check the connection and try again."
               },
@@ -6297,6 +6306,7 @@
           "f4a5b6c7d8": "Linear 이슈 {{value0}}을(를) 업데이트할 수 없습니다.",
           "a5b6c7d8e9": "Linear 이슈 {{value0}}을(를) 동기화할 수 없습니다.",
           "b6c7d8e9f0": "작업 상태 동기화를 완료할 수 없습니다.",
+          "f0a1b2c3d4": "Linear 이슈 {{value0}}을(를) 건너뛰었습니다: 이 워크스페이스가 둘 이상의 호스트에 있습니다.",
           "c7d8e9f0a1": "{{value0}}개 업데이트됨",
           "d8e9f0a1b2": "{{value0}}개 건너뜀",
           "e9f0a1b2c3": "{{value0}}개 실패"
