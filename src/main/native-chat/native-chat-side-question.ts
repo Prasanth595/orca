@@ -1,7 +1,8 @@
 import { planCommitMessageGeneration } from '../../shared/commit-message-plan'
 import {
   nativeChatSideQuestionAgentId,
-  nativeChatSideQuestionModelId
+  nativeChatSideQuestionModelId,
+  nativeChatSideQuestionReadOnlyArgs
 } from '../../shared/native-chat-btw'
 import {
   commandBackslashMode,
@@ -46,12 +47,16 @@ export async function generateNativeChatSideQuestion(input: {
   if (!planned.ok) {
     return { success: false, error: planned.error }
   }
+  const plan = {
+    ...planned.plan,
+    args: nativeChatSideQuestionReadOnlyArgs(agentId, planned.plan.args)
+  }
   const result = await executeGenerationPlan({
     params: {
       agentId,
       model
     },
-    plan: planned.plan,
+    plan,
     target,
     emptyResultName: 'side question',
     operation: 'side-question',

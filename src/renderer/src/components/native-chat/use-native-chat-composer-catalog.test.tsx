@@ -228,6 +228,7 @@ describe('OpenCode chat skills', () => {
         [skill('review', 'My review checklist')]
       )
       expect(picked).toEqual([
+        expect.objectContaining({ kind: 'command', name: 'btw' }),
         expect.objectContaining({ kind: 'command', name: 'review', skillCollision: true })
       ])
     }
@@ -240,7 +241,10 @@ describe('OpenCode chat skills', () => {
     ['claude', { name: 'compact', kindUnspecified: true as const }]
   ] as const)('never lets a skill stand in for %s’s /compact', (agent, reported) => {
     const picked = items(agent, [reported], [skill('compact', 'Squash my notes')])
-    expect(picked.map((item) => `${item.kind}:${item.name}`)).toEqual(['command:compact'])
-    expect(isStructuredAgentSessionComposerCommand(picked[0]!.token, agent)).toBe(true)
+    expect(picked.map((item) => `${item.kind}:${item.name}`)).toEqual([
+      'command:btw',
+      'command:compact'
+    ])
+    expect(isStructuredAgentSessionComposerCommand('/compact', agent)).toBe(true)
   })
 })

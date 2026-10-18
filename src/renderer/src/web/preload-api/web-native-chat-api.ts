@@ -13,7 +13,8 @@ export function createWebNativeChatApi(): NativeChatApi {
     askSideQuestion: (request) =>
       callRuntimeResult<Awaited<ReturnType<NativeChatApi['askSideQuestion']>>>(
         'nativeChat.askSideQuestion',
-        request
+        request,
+        90_000
       ),
     readSession: async (agent, sessionId, limit, transcriptPath) =>
       parseRuntimeNativeChatReadSessionResult(

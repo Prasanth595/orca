@@ -35,6 +35,22 @@ export function nativeChatSideQuestionModelId(
   return spec.defaultModelId
 }
 
+/** OpenCode `build` can edit files; `/btw` must run the plan agent instead. */
+export function nativeChatSideQuestionReadOnlyArgs(
+  agentId: TuiAgent,
+  args: readonly string[]
+): string[] {
+  if (agentId !== 'opencode' && agentId !== 'opencode2') {
+    return [...args]
+  }
+  const next = [...args]
+  const index = next.indexOf('--agent')
+  if (index !== -1 && next[index + 1]) {
+    next[index + 1] = 'plan'
+  }
+  return next
+}
+
 /** Host-owned Chat UI command: a side question that never joins the transcript. */
 export const NATIVE_CHAT_BTW_COMMAND: SlashCommandSuggestion = {
   name: 'btw',

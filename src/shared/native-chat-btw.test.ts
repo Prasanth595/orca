@@ -7,6 +7,7 @@ import {
   nativeChatBtwTranscriptExcerpt,
   nativeChatSideQuestionAgentId,
   nativeChatSideQuestionModelId,
+  nativeChatSideQuestionReadOnlyArgs,
   parseNativeChatBtwCommand,
   withNativeChatBtwCommand
 } from './native-chat-btw'
@@ -45,6 +46,27 @@ describe('nativeChatSideQuestionModelId', () => {
 
   it('keeps a dynamic agent session model even when it is not in the fallback list', () => {
     expect(nativeChatSideQuestionModelId('claude', 'claude-sonnet-4-6')).toBe('claude-sonnet-4-6')
+  })
+})
+
+describe('nativeChatSideQuestionReadOnlyArgs', () => {
+  it('replaces OpenCode build with the plan agent', () => {
+    expect(
+      nativeChatSideQuestionReadOnlyArgs('opencode', [
+        'run',
+        '--model',
+        'opencode/gpt-5.4-mini',
+        '--agent',
+        'build',
+        '--format',
+        'json'
+      ])
+    ).toEqual(['run', '--model', 'opencode/gpt-5.4-mini', '--agent', 'plan', '--format', 'json'])
+  })
+
+  it('leaves a non-OpenCode argv unchanged', () => {
+    const args = ['-p', '--permission-mode', 'plan', '--model', 'sonnet']
+    expect(nativeChatSideQuestionReadOnlyArgs('claude', args)).toEqual(args)
   })
 })
 
@@ -103,13 +125,13 @@ describe('dispatchStructuredAgentSessionComposerCommand /btw', () => {
   })
 
   it('does not fall through to the model when the overlay is missing', async () => {
-    await expect(dispatchStructuredAgentSessionComposerCommand('/btw why', controller)).resolves.toEqual(
-      {
-        handled: true,
-        accepted: false,
-        error: '/btw is not available in this chat session.'
-      }
-    )
+    await expect(
+      dispatchStructuredAgentSessionComposerCommand('/btw why', controller)
+    ).resolves.toEqual({
+      handled: true,
+      accepted: false,
+      error: '/btw is not available in this chat session.'
+    })
   })
 })
 
