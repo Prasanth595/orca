@@ -31,6 +31,7 @@ export function Harness({
   thinking,
   lineYields,
   actionablePromptIds,
+  processExpanded,
   scopeKey = 'host\0worktree\0tab-a'
 }: {
   messages: readonly NativeChatMessage[]
@@ -42,6 +43,7 @@ export function Harness({
   thinking?: boolean
   lineYields?: boolean
   actionablePromptIds?: readonly string[]
+  processExpanded?: boolean
   scopeKey?: string
 }): React.JSX.Element {
   const disclosure = useMobileNativeChatTurnDisclosure({
@@ -54,6 +56,7 @@ export function Harness({
     thinking,
     lineYields,
     actionablePromptIds,
+    processExpanded,
     scopeKey
   })
   return createElement(Result, { disclosure })
