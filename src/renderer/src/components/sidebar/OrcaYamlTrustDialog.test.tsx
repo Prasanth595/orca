@@ -112,4 +112,20 @@ describe('OrcaYamlTrustDialog', () => {
       expect(text).not.toContain('on your machine')
     }
   )
+  it.each([false, true])(
+    'uses neutral copy for an unknown server (previously approved: %s)',
+    async (previouslyApproved) => {
+      mocks.state.modalData = {
+        ...mocks.state.modalData,
+        scriptKind: 'vmRecipe',
+        executionHostId: 'runtime:unknown-server',
+        previouslyApproved
+      }
+      const { default: OrcaYamlTrustDialog } = await import('./OrcaYamlTrustDialog')
+      const text = decodeHtml(renderToStaticMarkup(<OrcaYamlTrustDialog />)).replace(/<[^>]+>/g, '')
+      expect(text).toContain('on the selected execution host before provisioning a VM')
+      expect(text).not.toContain('unknown-server')
+      expect(text).not.toContain('on your machine')
+    }
+  )
 })

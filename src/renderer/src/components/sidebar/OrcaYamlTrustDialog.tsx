@@ -56,16 +56,18 @@ const OrcaYamlTrustDialog = React.memo(function OrcaYamlTrustDialog() {
   const executionHostId =
     typeof modalData.executionHostId === 'string' ? modalData.executionHostId : undefined
   const owner = parseExecutionHostId(executionHostId)
+  const unknownHostLabel = translate(
+    'auto.components.sidebar.OrcaYamlTrustDialog.selectedHost',
+    'the selected execution host'
+  )
   const executionHostLabel =
     owner?.kind === 'runtime'
-      ? (runtimeEnvironments?.find((environment) => environment.id === owner.environmentId)?.name ??
-        getExecutionHostLabel(owner.id))
+      ? runtimeEnvironments
+          ?.find((environment) => environment.id === owner.environmentId)
+          ?.name?.trim() || unknownHostLabel
       : owner
         ? getExecutionHostLabel(owner.id)
-        : translate(
-            'auto.components.sidebar.OrcaYamlTrustDialog.selectedHost',
-            'the selected execution host'
-          )
+        : unknownHostLabel
   const repoId = typeof modalData.repoId === 'string' ? modalData.repoId : ''
   const repoName = typeof modalData.repoName === 'string' ? modalData.repoName : 'this repository'
   const scriptKind: ScriptKind =
