@@ -67,13 +67,14 @@ vi.mock('./use-mobile-agent-history-state', () => ({
       worktreeIds: params.worktrees.map((worktree) => worktree.worktreeId),
       worktreesLoaded: params.worktreesLoaded
     })
+    const emptyScopeFilterPaths: string[] = []
     return {
       scope: 'workspace' as const,
       screenState: { kind: 'loading' as const },
       refreshing: false,
       hostStatusResult: null,
       activeWorktreePath: null,
-      scopeFilterPaths: [] as string[],
+      scopeFilterPaths: emptyScopeFilterPaths,
       onSelectScope: () => {},
       onRefresh: async () => {},
       retry: () => {}
