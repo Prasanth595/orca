@@ -25,7 +25,7 @@ import {
   ORCAD_STOP_REQUEST_FILENAME,
   ORCAD_STOP_REQUESTS_CAPABILITY
 } from '../../shared/orcad-stop-request'
-import { ORCAD_STDIO_BRIDGE_FUNCTION } from './orcad-stdio-bridge-script'
+import { ORCAD_STDIO_BRIDGE_FUNCTION } from '../managed-server/lifecycle/orcad-stdio-bridge-script'
 import {
   ORCAD_WINDOWS_FENCE_PRELUDE,
   ORCAD_WINDOWS_HOST_FENCE_OPS
@@ -38,7 +38,7 @@ import {
   ORCAD_READINESS_FILENAME,
   ORCAD_READINESS_MAX_BYTES,
   ORCAD_WINDOWS_PROCESS_FILENAME
-} from './orcad-remote-host-support'
+} from '../managed-server/install/orcad-remote-host-support'
 
 export const ORCAD_RECORD_ABSENT_MARKER = '__ORCAD_RECORD_ABSENT__'
 export const ORCAD_RECORD_PRESENT_MARKER = '__ORCAD_RECORD_PRESENT__'
@@ -121,7 +121,7 @@ function readiness(dir) {
 }
 
 // A launch creates the readiness file first, so a slot with neither it nor a process record
-// never launched: GC may remove it, while every other reader treats it as UNKNOWN.
+// never launched: like DEAD, that is proven exit (GC may remove it, a wake may start it).
 function livenessWord(dir) {
   const launched = [${text(ORCAD_WINDOWS_PROCESS_FILENAME)}, ${text(ORCAD_READINESS_FILENAME)}]
   if (!launched.some((name) => fs.existsSync(path.join(dir, name)))) {
