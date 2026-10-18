@@ -423,4 +423,60 @@ describe('SSH bridge orchestration without the per-host opt-in', () => {
     expect(forbidden(await send(`dispatch:${worker.dispatchId}`))).toBe(false)
     expect(forbidden(await send(`dispatch:${sibling.dispatchId}`))).toBe(true)
   })
+  it('keeps peer ask coordinator-only while allowing the owning Run question', async () => {
+    setup()
+    dispatchFromCoordinator('worker', WORKER_PANE)
+    const sibling = dispatchFromCoordinator('sibling', SIBLING_PANE)
+    const response = await callAsBridge('orchestration.ask', {
+      from: 'term_worker',
+      to: `dispatch:${sibling.dispatchId}`,
+      question: 'Ready?',
+      timeoutMs: 0
+    })
+    expect(response, JSON.stringify(response)).toMatchObject({
+      ok: false,
+      error: { code: 'dispatch_run_mismatch' }
+    })
+    const worker = db.getActiveDispatchForIdentity('term_worker', WORKER_PANE)
+    if (!worker) {
+      throw new Error('worker Dispatch missing')
+    }
+    const coordinatorQuestion = await callAsBridge('orchestration.ask', {
+      from: 'term_worker',
+      to: `run:${worker.run_id}`,
+      question: 'Decision?',
+      timeoutMs: 0
+    })
+    expect(coordinatorQuestion, JSON.stringify(coordinatorQuestion)).toMatchObject({
+      ok: true,
+      result: { timedOut: true }
+    })
+  })
+
+  it.each(['sender-pane', 'recipient-pane', 'settled-sender'])(
+    'refuses peer send for %s',
+    async (state) => {
+      setup()
+      const worker = dispatchFromCoordinator('worker', WORKER_PANE)
+      const sibling = dispatchFromCoordinator('sibling', SIBLING_PANE)
+      if (state === 'settled-sender') {
+        db.completeDispatch(worker.dispatchId)
+      } else {
+        const stale = state === 'sender-pane' ? 'term_worker' : 'term_sibling'
+        const old = vi.mocked(runtime.getTerminalPaneKey).getMockImplementation()
+        if (!old) {
+          throw new Error('pane implementation missing')
+        }
+        vi.mocked(runtime.getTerminalPaneKey).mockImplementation((handle) =>
+          handle === stale ? LOCAL_PANE : old(handle)
+        )
+      }
+      const response = await callAsBridge('orchestration.send', {
+        from: 'term_worker',
+        to: `dispatch:${sibling.dispatchId}`,
+        subject: 'peer'
+      })
+      expect(forbidden(response), JSON.stringify(response)).toBe(true)
+    }
+  )
 })
