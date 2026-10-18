@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clampGrabPayload } from './browser-grab-payload'
+import { clampGrabPayload } from '../../shared/browser-grab/browser-grab-payload'
 
 function makeRawPayload(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {

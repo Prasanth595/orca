@@ -118,9 +118,8 @@ export function createBrowserScreencastFramePacer(
     // Why: static UI changes can be the last frame Chromium emits. Keep the
     // newest throttled frame and flush it after the interval instead of
     // dropping it forever.
-    if (pendingFrame?.sessionId !== frame.sessionId) {
-      ackScreencastFrame(pendingFrame?.sessionId)
-    }
+    // CDP reuses a stream's sessionId; each replaced frame still consumes a credit.
+    ackScreencastFrame(pendingFrame?.sessionId)
     pendingFrame = frame
     if (pendingFrameTimer) {
       return

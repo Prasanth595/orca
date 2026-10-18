@@ -1,6 +1,7 @@
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { Page, TestInfo } from '@stablyai/playwright-test'
+import { normalizeRuntimePathForComparison } from '../../../src/shared/cross-platform-path'
 import { expect } from './orca-app'
 import {
   launchHeadlessPairedRuntimeHost,
@@ -65,15 +66,17 @@ async function closeServer(server: Server): Promise<void> {
 }
 
 export async function findPairedWorktreeId(page: Page, repoPath: string): Promise<string> {
-  const read = () =>
-    page.evaluate(
-      (path) =>
-        window.__store
-          ?.getState()
-          .allWorktrees()
-          .find((worktree) => worktree.path === path)?.id ?? null,
-      repoPath
+  const comparisonPath = normalizeRuntimePathForComparison(repoPath)
+  const read = async () => {
+    const worktrees = await page.evaluate(() =>
+      (window.__store?.getState().allWorktrees() ?? []).map(({ id, path }) => ({ id, path }))
     )
+    return (
+      worktrees.find(
+        (worktree) => normalizeRuntimePathForComparison(worktree.path) === comparisonPath
+      )?.id ?? null
+    )
+  }
   await expect
     .poll(read, {
       timeout: 60_000,

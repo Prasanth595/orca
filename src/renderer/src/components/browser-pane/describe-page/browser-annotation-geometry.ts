@@ -11,9 +11,11 @@ import { translate } from '@/i18n/i18n'
 
 export type BrowserOverlaySide = 'top' | 'bottom' | 'left' | 'right'
 
+type BrowserOverlayBounds = { left: number; top: number; width: number; height: number }
+
 /** The pane and the guest view, narrowed to the measurement the anchor needs from each. */
-type OverlayRectSource = {
-  getBoundingClientRect: () => { left: number; top: number; width: number; height: number }
+export type BrowserOverlayRectSource = {
+  getBoundingClientRect: () => BrowserOverlayBounds
 }
 
 export type BrowserOverlayAnchor = {
@@ -108,29 +110,44 @@ function pickBrowserOverlaySide(
   return fitting ?? (room.bottom >= room.top ? 'bottom' : 'top')
 }
 
+export function mapBrowserOverlayRect(
+  rect: BrowserGrabRect,
+  guestWidth: number,
+  containerRect: BrowserOverlayBounds | undefined,
+  webviewRect: BrowserOverlayBounds | undefined
+): BrowserGrabRect {
+  // Why: guest CSS pixels differ from pane pixels when page and app zoom differ.
+  const scale =
+    webviewRect && webviewRect.width > 0 && guestWidth > 0 ? webviewRect.width / guestWidth : 1
+  return {
+    x: (webviewRect?.left ?? 0) - (containerRect?.left ?? 0) + rect.x * scale,
+    y: (webviewRect?.top ?? 0) - (containerRect?.top ?? 0) + rect.y * scale,
+    width: rect.width * scale,
+    height: rect.height * scale
+  }
+}
+
 export function getBrowserOverlayAnchor(
   payload: BrowserGrabPayload,
-  container: OverlayRectSource | null,
-  webview: OverlayRectSource | null,
+  container: BrowserOverlayRectSource | null,
+  webview: BrowserOverlayRectSource | null,
   viewport: BrowserOverlayViewport,
   cardHeight: number | null = null
 ): BrowserOverlayAnchor {
   const containerRect = container?.getBoundingClientRect()
   const webviewRect = webview?.getBoundingClientRect()
-  const rect = getLiveBrowserAnnotationRect(payload, viewport)
-  // Guest pixels differ from pane pixels whenever page zoom differs from the app's zoom.
-  const guestWidth = viewport.viewportWidth ?? payload.page.viewportWidth
-  const scale =
-    webviewRect && webviewRect.width > 0 && guestWidth > 0 ? webviewRect.width / guestWidth : 1
-  const offsetX = (webviewRect?.left ?? 0) - (containerRect?.left ?? 0)
-  const offsetY = (webviewRect?.top ?? 0) - (containerRect?.top ?? 0)
+  const rect = mapBrowserOverlayRect(
+    getLiveBrowserAnnotationRect(payload, viewport),
+    viewport.viewportWidth ?? payload.page.viewportWidth,
+    containerRect,
+    webviewRect
+  )
   const containerWidth = containerRect?.width ?? 0
   const containerHeight = containerRect?.height ?? 0
-  const width = rect.width * scale
-  const height = rect.height * scale
-  const elementLeft = offsetX + rect.x * scale
+  const { width, height } = rect
+  const elementLeft = rect.x
   const elementRight = elementLeft + width
-  const elementTop = offsetY + rect.y * scale
+  const elementTop = rect.y
   const elementBottom = elementTop + height
   const side = pickBrowserOverlaySide(
     {

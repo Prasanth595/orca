@@ -1,6 +1,6 @@
 import type { BrowserGrabCancelReason, BrowserGrabResult } from '../../shared/browser-grab-types'
-import { buildGuestOverlayScript } from './grab-guest-script'
-import { clampGrabPayload } from './browser-grab-payload'
+import { buildGuestOverlayScript } from '../../shared/browser-grab/grab-guest-script'
+import { clampGrabPayload } from '../../shared/browser-grab/browser-grab-payload'
 
 /** Tracks the lifecycle of a single grab operation on one browser tab. */
 type ActiveGrabOp = {

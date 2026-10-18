@@ -1,16 +1,16 @@
-import type { BrowserGrabPayload, BrowserGrabRect } from '../../shared/browser-grab-types'
-import {
-  GRAB_BUDGET,
-  GRAB_SAFE_ATTRIBUTE_NAMES,
-  GRAB_SECRET_PATTERNS
-} from '../../shared/browser-grab-types'
+import type { BrowserGrabPayload, BrowserGrabRect } from '../browser-grab-types'
+import { GRAB_BUDGET, GRAB_SAFE_ATTRIBUTE_NAMES, GRAB_SECRET_PATTERNS } from '../browser-grab-types'
+
+function isGrabRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
 
 const SAFE_GRAB_URL_PROTOCOLS = new Set(['http:', 'https:', 'file:'])
 
 /**
  * Re-validate and clamp all string, array, and budget fields in a grab payload
- * before forwarding to the renderer. This is the main-side safety net: even if
- * the guest runtime is compromised, the payload that reaches renderer chrome
+ * at either the local or remote boundary. Even if
+ * the guest returns malformed data, the payload that reaches renderer chrome
  * respects the documented budgets.
  *
  * Returns null if the payload is structurally invalid (missing required fields).
@@ -19,19 +19,19 @@ export function clampGrabPayload(raw: unknown): BrowserGrabPayload | null {
   // Why: the guest payload is completely untrusted. A compromised or
   // malfunctioning guest could return anything. Validate structural shape
   // before accessing nested properties to avoid unhandled TypeErrors.
-  if (!raw || typeof raw !== 'object') {
+  if (!isGrabRecord(raw)) {
     return null
   }
-  const obj = raw as Record<string, unknown>
-  if (!obj.page || typeof obj.page !== 'object') {
+  const obj = raw
+  if (!isGrabRecord(obj.page)) {
     return null
   }
-  if (!obj.target || typeof obj.target !== 'object') {
+  if (!isGrabRecord(obj.target)) {
     return null
   }
 
-  const page = obj.page as Record<string, unknown>
-  const target = obj.target as Record<string, unknown>
+  const page = obj.page
+  const target = obj.target
 
   const clampStr = (s: unknown, max: number): string => {
     const str = typeof s === 'string' ? s : ''
@@ -88,11 +88,11 @@ export function clampGrabPayload(raw: unknown): BrowserGrabPayload | null {
   // smuggle unsafe attribute names (e.g., event handlers) or secret-bearing
   // values into the payload that reaches the renderer.
   const safeAttributes = (attrs: unknown): Record<string, string> => {
-    if (!attrs || typeof attrs !== 'object') {
+    if (!isGrabRecord(attrs)) {
       return {}
     }
     const filtered: Record<string, string> = {}
-    for (const [key, value] of Object.entries(attrs as Record<string, unknown>)) {
+    for (const [key, value] of Object.entries(attrs)) {
       const name = key.toLowerCase()
       const isAria = name.startsWith('aria-')
       const isSafe = GRAB_SAFE_ATTRIBUTE_NAMES.has(name)
@@ -134,10 +134,10 @@ export function clampGrabPayload(raw: unknown): BrowserGrabPayload | null {
   }
 
   const safeRect = (r: unknown): BrowserGrabRect => {
-    if (!r || typeof r !== 'object') {
+    if (!isGrabRecord(r)) {
       return { x: 0, y: 0, width: 0, height: 0 }
     }
-    const rect = r as Record<string, unknown>
+    const rect = r
     return {
       x: safeNum(rect.x),
       y: safeNum(rect.y),
@@ -146,8 +146,8 @@ export function clampGrabPayload(raw: unknown): BrowserGrabPayload | null {
     }
   }
 
-  const accessibility = target.accessibility as Record<string, unknown> | null | undefined
-  const computedStyles = target.computedStyles as Record<string, unknown> | null | undefined
+  const accessibility = isGrabRecord(target.accessibility) ? target.accessibility : null
+  const computedStyles = isGrabRecord(target.computedStyles) ? target.computedStyles : null
 
   return {
     page: {

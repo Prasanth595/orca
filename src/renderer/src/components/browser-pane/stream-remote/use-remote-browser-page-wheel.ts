@@ -50,7 +50,7 @@ export function useRemoteBrowserPageWheel({
   pendingRemoteWheelRef: React.MutableRefObject<PendingRemoteBrowserWheel | null>
   remoteWheelFrameRef: React.MutableRefObject<number | null>
   remoteWheelInFlightRef: React.MutableRefObject<boolean>
-}): void {
+}): { handleRemoteScreenshotWheel: (event: WheelEvent) => void } {
   const schedulePendingRemoteWheel = useCallback((): void => {
     if (remoteWheelFrameRef.current !== null || remoteWheelInFlightRef.current) {
       return
@@ -188,4 +188,6 @@ export function useRemoteBrowserPageWheel({
     image.addEventListener('wheel', handleRemoteScreenshotWheel, { passive: false })
     return () => image.removeEventListener('wheel', handleRemoteScreenshotWheel)
   }, [frameUrl, handleRemoteScreenshotWheel, imageRef])
+
+  return { handleRemoteScreenshotWheel }
 }

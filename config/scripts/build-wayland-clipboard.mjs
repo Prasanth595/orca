@@ -22,13 +22,28 @@ export function waylandClipboardFingerprint(root, arch) {
   return hash.digest('hex')
 }
 
+const CONTAINER_ENGINE_NAMES = { docker: 'Docker', podman: 'Podman' }
+
+// Why an env var: electron-builder's beforePack runs this script as a child, so a flag cannot reach it.
+export function resolveContainerEngine(env = process.env) {
+  const engine = env.ORCA_CONTAINER_ENGINE || 'docker'
+  if (!Object.hasOwn(CONTAINER_ENGINE_NAMES, engine)) {
+    throw new Error(`Unsupported ORCA_CONTAINER_ENGINE: ${engine}. Use docker or podman.`)
+  }
+  return engine
+}
+
 export function buildWaylandClipboard({
   arch = process.arch,
   root = resolve(import.meta.dirname, '../..'),
-  run = spawnSync
+  run = spawnSync,
+  engine = resolveContainerEngine()
 } = {}) {
   if (arch !== 'x64' && arch !== 'arm64') {
     throw new Error(`Unsupported Wayland clipboard architecture: ${arch}`)
+  }
+  if (!Object.hasOwn(CONTAINER_ENGINE_NAMES, engine)) {
+    throw new Error(`Unsupported Wayland clipboard container engine: ${engine}`)
   }
   const nativeDir = join(root, 'native', 'wayland-clipboard')
   const outputDir = join(nativeDir, '.build', arch)
@@ -54,20 +69,23 @@ export function buildWaylandClipboard({
     .digest('hex')
     .slice(0, 16)
   const image = `orca-wayland-clipboard-build:${imageHash}`
-  function docker(args) {
-    const result = run('docker', args, { stdio: 'inherit', cwd: root })
+  function container(args) {
+    const result = run(engine, args, { stdio: 'inherit', cwd: root })
     if (result.error) {
-      throw new Error('Unable to run Docker to build the Wayland clipboard helper.', {
-        cause: result.error
-      })
+      throw new Error(
+        `Unable to run ${CONTAINER_ENGINE_NAMES[engine]} to build the Wayland clipboard helper.`,
+        {
+          cause: result.error
+        }
+      )
     }
     if (result.status !== 0) {
       throw new Error(`Wayland clipboard ${args[0]} failed; see the build output above.`)
     }
   }
-  docker(['build', '-t', image, nativeDir])
+  container(['build', '-t', image, nativeDir])
   // Compile against the supported glibc floor, including when packaging another architecture.
-  docker([
+  container([
     'run',
     '--rm',
     '--user',

@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom'
-import type { MutableRefObject, RefObject } from 'react'
+import type { RefObject } from 'react'
 import { Copy, Image } from 'lucide-react'
 import {
   DropdownMenu,
@@ -15,6 +15,8 @@ import type { MarkupModeController } from './useMarkupMode'
 import type { GrabModeHook } from './useGrabMode'
 import {
   getBrowserOverlayAnchor,
+  mapBrowserOverlayRect,
+  type BrowserOverlayRectSource,
   type BrowserOverlayViewport
 } from '../describe-page/browser-annotation-geometry'
 import { BrowserPageAnnotationTray } from './browser-page-annotation-tray'
@@ -42,13 +44,14 @@ export function BrowserGuestAnnotateOverlays({
   worktreeId,
   currentUrl
 }: {
-  markup: MarkupModeController
+  /** Omitted where the surface already paints its own markup canvas. */
+  markup?: MarkupModeController
   grab: GrabModeHook
   annotationSend: ReturnType<typeof useBrowserPageAnnotationSend>
   grabAnnotations: ReturnType<typeof useBrowserPageGrabAnnotations>
   containerRef: RefObject<HTMLDivElement | null>
   markupPortalContainer?: HTMLDivElement | null
-  webviewRef: MutableRefObject<Electron.WebviewTag | null>
+  webviewRef: RefObject<BrowserOverlayRectSource | null>
   browserOverlayViewport: BrowserOverlayViewport
   worktreeId: string
   currentUrl?: string
@@ -84,7 +87,7 @@ export function BrowserGuestAnnotateOverlays({
 
   return (
     <>
-      {markup.isActive && markup.baseImage && markupTarget
+      {markup?.isActive && markup.baseImage && markupTarget
         ? createPortal(
             <MarkupOverlay
               baseImage={markup.baseImage}
@@ -153,15 +156,18 @@ export function BrowserGuestAnnotateOverlays({
               if (!grab.payload) {
                 return { left: 0, top: 0 }
               }
-              const rect = grab.payload.target.rectViewport
               const webview = webviewRef.current
               const webviewRect = webview?.getBoundingClientRect()
               const cRect = containerRef.current?.getBoundingClientRect()
-              const offsetX = (webviewRect?.left ?? 0) - (cRect?.left ?? 0)
-              const offsetY = (webviewRect?.top ?? 0) - (cRect?.top ?? 0)
+              const rect = mapBrowserOverlayRect(
+                grab.payload.target.rectViewport,
+                grab.payload.page.viewportWidth,
+                cRect,
+                webviewRect
+              )
               return {
-                left: offsetX + rect.x + rect.width / 2,
-                top: offsetY + rect.y + rect.height / 2
+                left: rect.x + rect.width / 2,
+                top: rect.y + rect.height / 2
               }
             })()}
           />

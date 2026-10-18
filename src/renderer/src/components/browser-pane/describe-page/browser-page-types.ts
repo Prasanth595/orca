@@ -1,8 +1,11 @@
-import type { Dispatch, MutableRefObject, SetStateAction } from 'react'
+import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react'
 import type { BrowserGrabPayload } from '../../../../../shared/browser-grab-types'
 import type { BrowserPage as BrowserPageState } from '../../../../../shared/browser-workspace-types'
 import type { GrabModeHook } from '../annotate/useGrabMode'
-import type { BrowserOverlayViewport } from './browser-annotation-geometry'
+import type {
+  BrowserOverlayRectSource,
+  BrowserOverlayViewport
+} from './browser-annotation-geometry'
 
 export type BrowserTabPageState = Partial<
   Pick<
@@ -52,7 +55,8 @@ export type BrowserPageGrabAnnotationsOptions = {
   containerRef: MutableRefObject<HTMLDivElement | null>
   trackingContainer?: HTMLDivElement | null
   trackingScroller?: HTMLDivElement | null
-  webviewRef: MutableRefObject<Electron.WebviewTag | null>
+  /** The guest's on-screen box: a webview, or the frame a streamed page is painted into. */
+  webviewRef: RefObject<BrowserOverlayRectSource | null>
   setBrowserOverlayViewport: Dispatch<SetStateAction<BrowserOverlayViewport>>
   browserAnnotationsLength: number
 }

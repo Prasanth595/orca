@@ -32,6 +32,16 @@ describe('RemoteBrowserStreamLifecycle', () => {
     expect(isBrowserPaneUiRuntimeRpcParams(harness.streams[0].params)).toBe(true)
   })
 
+  it('requests sparse page changes without skipping the final frame', async () => {
+    const harness = createHarness()
+    await openStreamAndConfirmReady(harness)
+
+    expect(harness.streams[0].params).toMatchObject({
+      everyNthFrame: 1,
+      minFrameIntervalMs: 33
+    })
+  })
+
   it('unsubscribes the live stream when the pane closes it', async () => {
     const harness = createHarness()
     const close = await openStreamAndConfirmReady(harness)

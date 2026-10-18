@@ -14,7 +14,7 @@ import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
 import { runProcessSync } from '@orca/process-host'
-import { buildWaylandClipboard } from './build-wayland-clipboard.mjs'
+import { buildWaylandClipboard, resolveContainerEngine } from './build-wayland-clipboard.mjs'
 import glibcVerification from './verify-linux-glibc-floor.cjs'
 
 const require = createRequire(import.meta.url)
@@ -147,6 +147,38 @@ describe('Wayland clipboard build', () => {
     expect(() =>
       buildWaylandClipboard({ root, arch: 'x64', run: () => ({ error: new Error('ENOENT') }) })
     ).toThrow('Unable to run Docker')
+  })
+
+  it('runs only the explicitly chosen Podman engine', () => {
+    const run = vi.fn((_program, args) => {
+      if (args[0] === 'run') {
+        writeExecutable('arm64')
+      }
+      return { status: 0 }
+    })
+    buildWaylandClipboard({ root, arch: 'arm64', run, engine: 'podman' })
+    expect(run.mock.calls.map(([program]) => program)).toEqual(['podman', 'podman'])
+    expect(() =>
+      buildWaylandClipboard({
+        root,
+        arch: 'x64',
+        engine: 'podman',
+        run: () => ({ error: new Error('ENOENT') })
+      })
+    ).toThrow('Unable to run Podman')
+  })
+
+  it('selects the engine from ORCA_CONTAINER_ENGINE and rejects anything else', () => {
+    expect(resolveContainerEngine({})).toBe('docker')
+    expect(resolveContainerEngine({ ORCA_CONTAINER_ENGINE: 'podman' })).toBe('podman')
+    expect(() => resolveContainerEngine({ ORCA_CONTAINER_ENGINE: 'nerdctl' })).toThrow(
+      'Unsupported ORCA_CONTAINER_ENGINE'
+    )
+    const run = vi.fn()
+    expect(() => buildWaylandClipboard({ root, arch: 'x64', run, engine: 'sh' })).toThrow(
+      'Unsupported Wayland clipboard container engine'
+    )
+    expect(run).not.toHaveBeenCalled()
   })
 })
 

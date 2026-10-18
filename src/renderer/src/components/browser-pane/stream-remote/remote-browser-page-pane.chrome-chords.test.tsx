@@ -82,7 +82,9 @@ vi.mock('./use-remote-browser-page-input', () => ({
     handleRemoteScreenshotKeyDown: mocks.handleRemoteScreenshotKeyDown
   })
 }))
-vi.mock('./use-remote-browser-page-wheel', () => ({ useRemoteBrowserPageWheel: vi.fn() }))
+vi.mock('./use-remote-browser-page-wheel', () => ({
+  useRemoteBrowserPageWheel: () => ({ handleRemoteScreenshotWheel: vi.fn() })
+}))
 vi.mock('./remote-browser-page-context-menu', () => ({
   RemoteBrowserPageContextMenu: () => null,
   useRemoteBrowserPageContextMenu: () => ({

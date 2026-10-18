@@ -1,20 +1,5 @@
-export const GRAB_GUEST_FOUNDATION_SCRIPT = `(function() {
-  'use strict';
-
-  // Why: always tear down any pre-existing state before arming. A malicious
-  // guest page could predefine window.__orcaGrab with a fake extractPayload
-  // function. By tearing down unconditionally we ensure our freshly installed
-  // extraction logic is the only code that runs.
-  if (window.__orcaGrab) {
-    try {
-      if (typeof window.__orcaGrab.cleanup === 'function') {
-        window.__orcaGrab.cleanup();
-      }
-    } catch(e) {}
-    delete window.__orcaGrab;
-  }
-
-  // --- Budget constants (mirrored from shared types) ---
+// Pure extraction helpers, shared by the local overlay and stateless remote point queries.
+export const GRAB_GUEST_EXTRACTION_HELPERS_SCRIPT = `  // --- Budget constants (mirrored from shared types) ---
   var BUDGET = {
     textSnippetMaxLength: 200,
     nearbyTextEntryMaxLength: 200,
@@ -150,3 +135,21 @@ export const GRAB_GUEST_FOUNDATION_SCRIPT = `(function() {
   }
 
 `
+
+export const GRAB_GUEST_FOUNDATION_SCRIPT = `(function() {
+  'use strict';
+
+  // Why: always tear down any pre-existing state before arming. A malicious
+  // guest page could predefine window.__orcaGrab with a fake extractPayload
+  // function. By tearing down unconditionally we ensure our freshly installed
+  // extraction logic is the only code that runs.
+  if (window.__orcaGrab) {
+    try {
+      if (typeof window.__orcaGrab.cleanup === 'function') {
+        window.__orcaGrab.cleanup();
+      }
+    } catch(e) {}
+    delete window.__orcaGrab;
+  }
+
+${GRAB_GUEST_EXTRACTION_HELPERS_SCRIPT}`
