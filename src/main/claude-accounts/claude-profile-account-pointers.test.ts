@@ -114,7 +114,8 @@ describe('per-account Claude pointers', () => {
     pointers.update('a')
     expect(readFileSync(f.pointer('a'), 'utf8')).toBe(f.home('a'))
     expect(statSync(f.pointer('a')).mode & 0o777).toBe(0o600)
-    const old = new Date(Date.now() - 60_000)
+    // Why whole seconds: a millisecond mtime can read back as 691.999 instead of 692.
+    const old = new Date(Math.floor(Date.now() / 1000) * 1000 - 60_000)
     utimesSync(f.pointer('a'), old, old)
 
     pointers.update('a')
