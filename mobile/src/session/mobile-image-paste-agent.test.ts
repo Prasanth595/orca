@@ -1,6 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import { resolveMobileImageAttachmentAgent } from './mobile-image-paste-agent'
+import type { AgentStatusEntry } from '../../../src/shared/agent-status-types'
 import type { MobileSessionTab } from './mobile-session-route-types'
+
+function status(agentType: string): AgentStatusEntry {
+  return {
+    state: 'working',
+    prompt: '',
+    updatedAt: 1,
+    stateStartedAt: 1,
+    paneKey: 'tab-1:leaf-1',
+    agentType,
+    stateHistory: []
+  }
+}
 
 function terminalTab(overrides: Partial<Extract<MobileSessionTab, { type: 'terminal' }>> = {}) {
   return {
@@ -16,7 +29,7 @@ function terminalTab(overrides: Partial<Extract<MobileSessionTab, { type: 'termi
 describe('resolveMobileImageAttachmentAgent', () => {
   it('prefers the hook-reported agent', () => {
     const tab = terminalTab({
-      agentStatus: { agentType: 'codex' } as never,
+      agentStatus: status('codex'),
       launchAgent: 'claude'
     })
     expect(resolveMobileImageAttachmentAgent(tab, null)).toBe('codex')
@@ -30,7 +43,7 @@ describe('resolveMobileImageAttachmentAgent', () => {
 
   it('skips an unknown hook agent and falls back to the launched agent', () => {
     const tab = terminalTab({
-      agentStatus: { agentType: 'unknown' } as never,
+      agentStatus: status('unknown'),
       launchAgent: 'codex'
     })
     expect(resolveMobileImageAttachmentAgent(tab, null)).toBe('codex')
