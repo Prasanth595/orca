@@ -79,13 +79,13 @@ describe('settings navigation metadata', () => {
       'agents',
       'accounts',
       'orchestration',
+      'workflows',
       'computer-use',
       'voice',
       'orca-account',
       'setup-guide',
       'general',
-      'integrations',
-      'mobile'
+      'integrations'
     ])
   })
 
@@ -105,12 +105,12 @@ describe('settings navigation metadata', () => {
     )
   })
 
-  it('adds the Linear capability section right after Orchestration only when connected', () => {
+  it('adds the Linear capability section right after Workflows only when connected', () => {
     expect(ids()).not.toContain('linear')
 
     const connectedIds = ids({ isLinearConnected: true })
     expect(connectedIds).toContain('linear')
-    expect(connectedIds.indexOf('linear')).toBe(connectedIds.indexOf('orchestration') + 1)
+    expect(connectedIds.indexOf('linear')).toBe(connectedIds.indexOf('workflows') + 1)
 
     const linearSection = buildSettingsNavigationMetadata({
       isMac: false,
@@ -182,9 +182,9 @@ describe('settings navigation metadata', () => {
       'agents',
       'accounts',
       'orchestration',
+      'workflows',
       'setup-guide',
-      'general',
-      'integrations'
+      'general'
     ])
   })
 

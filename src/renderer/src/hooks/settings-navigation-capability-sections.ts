@@ -9,6 +9,7 @@ import { getMobileSettingsPaneSearchEntries } from '@/components/settings/mobile
 import { getOrcaAccountSettingsSearchEntries } from '@/components/settings/orca-account-settings-search'
 import { OrcaLogoSettingsIcon } from '@/components/settings/orca-logo-settings-icon'
 import { getOrchestrationPaneSearchEntries } from '@/components/settings/orchestration-search'
+import { getWorkflowsSkillPaneSearchEntries } from '@/components/settings/workflows-skill-search'
 import { getVoicePaneSearchEntries } from '@/components/settings/voice-pane-search'
 import { translate } from '@/i18n/i18n'
 import type { SettingsNavSection } from '@/lib/settings-navigation-types'
@@ -21,7 +22,8 @@ import {
   Network,
   SlidersHorizontal,
   Smartphone,
-  UserCog
+  UserCog,
+  Workflow
 } from 'lucide-react'
 import type { SettingsNavigationBuildOptions } from './settings-navigation-build-options'
 
@@ -74,6 +76,17 @@ export function buildCapabilitySettingsSections({
       searchEntries: getOrchestrationPaneSearchEntries({
         includeNestedWorkerDepth: !isWebClient
       }),
+      group: 'capabilities'
+    },
+    {
+      id: 'workflows',
+      title: translate('auto.hooks.useSettingsNavigationMetadata.workflowsSkillTitle', 'Workflows'),
+      description: translate(
+        'auto.hooks.useSettingsNavigationMetadata.workflowsSkillDescription',
+        'Let agents create, run, and inspect Orca Agent Workflows with the workflows skill.'
+      ),
+      icon: Workflow,
+      searchEntries: getWorkflowsSkillPaneSearchEntries(),
       group: 'capabilities'
     },
     // Why: only surfaced once Linear is connected — a capability that needs a

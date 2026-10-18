@@ -1253,6 +1253,20 @@
         "preparingWorkspace": "Preparing workspace…",
         "creatingWorktree": "Creating worktree…",
         "fetchingBaseBranch": "Fetching base branch…"
+      },
+      "workflows": {
+        "usage": {
+          "examples": {
+            "diskSpaceTitle": "Turn a chore into a workflow",
+            "diskSpaceSummary": "Save a repeated sequence of steps once, then run it whenever you need it.",
+            "importGraphTitle": "Import a workflow",
+            "importGraphSummary": "Author the step graph as workflow JSON and import it through the CLI.",
+            "runRecordTitle": "Run and inspect a run",
+            "runRecordSummary": "Run a saved workflow and read the step-by-step run record.",
+            "remoteHostTitle": "Run the same steps on a remote host",
+            "remoteHostSummary": "Pick an execution target so the workflow runs on an SSH server instead of this machine."
+          }
+        }
       }
     },
     "hooks": {
@@ -1387,7 +1401,9 @@
         "automationsDescription": "Schedule agent work and choose whether Automations appears in the sidebar.",
         "shareSkillsTitle": "Share Skills",
         "shareSkillsDescription": "Share your skills with an unlisted link. Anyone who has it can install them.",
-        "floatingWorkspaceWebDescription": "Global terminal and markdown tabs."
+        "floatingWorkspaceWebDescription": "Global terminal and markdown tabs.",
+        "workflowsSkillTitle": "Workflows",
+        "workflowsSkillDescription": "Let agents create, run, and inspect Orca Agent Workflows with the workflows skill."
       },
       "useAppMenuPaste": {
         "pasteTooLarge": "Paste is too large."
@@ -8787,7 +8803,9 @@
           "devDescription": "Dev-only tools for exercising UI states.",
           "linearTitle": "Linear",
           "linearDescription": "How Linear works in Orca, setup checklist, agent skill, and example prompts.",
-          "tasksDescription": "Connect providers, install the Linear skill, and choose what appears in Tasks."
+          "tasksDescription": "Connect providers, install the Linear skill, and choose what appears in Tasks.",
+          "workflowsTitle": "Workflows",
+          "workflowsDescription": "Let agents create, run, and inspect Orca Agent Workflows with the workflows skill."
         },
         "SettingsFormControls": {
           "42a4d15a30": "No matching fonts.",
@@ -12896,6 +12914,39 @@
           "moved": "Switched {{host}} to file storage",
           "offerMove": "{{host}} keeps its credential key in its macOS login Keychain, which was locked after a reboot. Switch to file storage to keep Linear and Jira working when you only sign in over SSH. The key then sits in a file only this account can read, which protects it less than the Keychain: it is not tied to this machine, so a backup or shared copy of ~/.orca can open the credentials.",
           "moveAction": "Switch to file storage"
+        },
+        "WorkflowsSkillPane": {
+          "title": "Workflows",
+          "description": "Automate chains of steps — shell commands, agent calls, HTTP requests, branches, and loops — that Orca runs for you.",
+          "skillTitle": "Workflows skill",
+          "skillDescription": "Enables agents to create, run, and inspect Orca Agent Workflows through the orca CLI.",
+          "preferOwnTerminal": "Prefer your own terminal?",
+          "copyInstallCommand": "Copy install command",
+          "installDialogTitle": "Install workflows skill",
+          "installDialogDescription": "Run this command in a terminal to install the workflows skill for your agents.",
+          "installDialogCopyAria": "Copy workflows skill install command",
+          "usageHeading": "How to use it",
+          "usageDescription": "Ask agents and Orca Chat to use workflows for saved automation graphs, imported step graphs, run records, and SSH targets."
+        },
+        "workflows": {
+          "search": {
+            "title": "Workflows",
+            "description": "Install the skill that lets agents create, run, and inspect Orca Agent Workflows.",
+            "workflow": "workflow",
+            "workflows": "workflows",
+            "agentWorkflow": "agent workflow",
+            "steps": "steps",
+            "chain": "chain steps",
+            "skill": "skill",
+            "automate": "automate",
+            "graph": "graph",
+            "branch": "branch",
+            "loop": "loop",
+            "http": "http request",
+            "ssh": "ssh execution",
+            "cli": "orca workflows",
+            "examples": "examples"
+          }
         }
       },
       "right": {

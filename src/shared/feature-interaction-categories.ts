@@ -50,6 +50,7 @@ export const FEATURE_INTERACTION_CATEGORY_BY_ID = {
   'ephemeral-vm-setup': 'setup',
   'agent-orchestration-setup': 'setup',
   'agent-orchestration': 'collaboration',
+  'agent-workflows-setup': 'setup',
   'mobile-emulator-agent-setup': 'setup',
   'ai-commit-generation': 'source_control',
   'ai-pr-generation': 'source_control',

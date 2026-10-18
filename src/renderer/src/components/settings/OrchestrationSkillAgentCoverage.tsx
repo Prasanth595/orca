@@ -93,14 +93,21 @@ export function OrchestrationSkillAgentCoverage(props: {
   sources: readonly SkillDiscoverySource[]
   loading: boolean
   embedded?: boolean
+  // Why: the coverage UI is fill-in for any agent skill; the orchestration name stays the default.
+  skillName?: string
   className?: string
 }): React.JSX.Element {
-  const { skills, sources, loading: skillsLoading, embedded = false, className } = props
+  const { skills, sources, loading: skillsLoading, embedded = false, skillName, className } = props
   const { detectedIds, isLoading: agentsLoading } = useDetectedAgents({
     kind: 'local'
   })
   const loading = skillsLoading || agentsLoading || detectedIds === null
-  const agentStatuses = getOrchestrationSkillAgentStatuses(skills, detectedIds ?? [], sources)
+  const agentStatuses = getOrchestrationSkillAgentStatuses(
+    skills,
+    detectedIds ?? [],
+    sources,
+    skillName
+  )
   const installedCount = agentStatuses.filter((status) => status.installed).length
   const totalCount = agentStatuses.length
   const fullCoverage = !loading && totalCount > 0 && installedCount === totalCount

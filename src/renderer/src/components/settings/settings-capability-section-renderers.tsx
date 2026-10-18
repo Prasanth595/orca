@@ -4,6 +4,7 @@ import { ComputerUsePane } from './ComputerUsePane'
 import { LinearAgentSkillPane } from './LinearAgentSkillPane'
 import { OrchestrationPane } from './OrchestrationPane'
 import { VoicePane } from './VoicePane'
+import { WorkflowsSkillPane } from './WorkflowsSkillPane'
 import { SettingsSection } from './SettingsSection'
 import { SettingsHostScopeUnavailableNotice } from './SettingsHostScopePicker'
 import { LOCAL_SETTINGS_HOST_SCOPE } from './settings-host-scope'
@@ -102,6 +103,23 @@ export function renderOrchestrationSettingsSection(
       {view.isSectionMounted('orchestration') ? (
         <OrchestrationPane settings={model.settings} updateSettings={model.updateSettings} />
       ) : null}
+    </SettingsSection>
+  )
+}
+
+export function renderWorkflowsSettingsSection(context: SettingsRenderContext): React.JSX.Element {
+  const { navigation, view } = context
+  return (
+    <SettingsSection
+      id="workflows"
+      title={translate('auto.components.settings.Settings.workflowsTitle', 'Workflows')}
+      description={translate(
+        'auto.components.settings.Settings.workflowsDescription',
+        'Let agents create, run, and inspect Orca Agent Workflows with the workflows skill.'
+      )}
+      searchEntries={navigation.getSectionSearchEntries('workflows')}
+    >
+      {view.isSectionMounted('workflows') ? <WorkflowsSkillPane /> : null}
     </SettingsSection>
   )
 }

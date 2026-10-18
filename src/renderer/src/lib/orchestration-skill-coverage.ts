@@ -19,11 +19,11 @@ function basenameFromPath(pathValue: string): string {
   return pathValue.split(/[\\/]/).findLast(Boolean) ?? pathValue
 }
 
-function isOrchestrationSkill(skill: DiscoveredSkill): boolean {
+function isNamedSkill(skill: DiscoveredSkill, expectedName: string): boolean {
   if (!skill.installed) {
     return false
   }
-  const expected = normalizeSkillName(ORCHESTRATION_SKILL_NAME)
+  const expected = normalizeSkillName(expectedName)
   return (
     normalizeSkillName(skill.name) === expected ||
     normalizeSkillName(basenameFromPath(skill.directoryPath)) === expected
@@ -41,11 +41,12 @@ function getSkillSourceOwnerForAgent(agent: TuiAgent): AgentType {
 export function agentHasOrchestrationSkill(
   agent: TuiAgent,
   skills: readonly DiscoveredSkill[],
-  sources: readonly SkillDiscoverySource[]
+  sources: readonly SkillDiscoverySource[],
+  skillName: string = ORCHESTRATION_SKILL_NAME
 ): boolean {
   const owner = getSkillSourceOwnerForAgent(agent)
   return skills.some((skill) => {
-    if (!isOrchestrationSkill(skill)) {
+    if (!isNamedSkill(skill, skillName)) {
       return false
     }
     // Why: dedup keeps one row, so the roots it absorbed still have to be classified.
@@ -78,11 +79,12 @@ export function sortOrchestrationAgents(agents: readonly TuiAgent[]): TuiAgent[]
 export function getOrchestrationSkillAgentStatuses(
   skills: readonly DiscoveredSkill[],
   detectedAgents: readonly TuiAgent[],
-  sources: readonly SkillDiscoverySource[]
+  sources: readonly SkillDiscoverySource[],
+  skillName: string = ORCHESTRATION_SKILL_NAME
 ): OrchestrationSkillAgentStatus[] {
   return sortOrchestrationAgents(detectedAgents).map((agent) => ({
     agent,
     label: getAgentLabel(agent),
-    installed: agentHasOrchestrationSkill(agent, skills, sources)
+    installed: agentHasOrchestrationSkill(agent, skills, sources, skillName)
   }))
 }

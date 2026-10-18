@@ -4,7 +4,8 @@ import {
   EPHEMERAL_VMS_SKILL_NAME,
   ORCA_CLI_SKILL_NAME,
   ORCA_LINEAR_SKILL_NAME,
-  ORCHESTRATION_SKILL_NAME
+  ORCHESTRATION_SKILL_NAME,
+  WORKFLOWS_SKILL_NAME
 } from '../../../shared/agent-feature-install-commands'
 
 export {
@@ -14,7 +15,8 @@ export {
   LINEAR_TICKETS_SKILL_NAME,
   ORCA_CLI_SKILL_NAME,
   ORCA_LINEAR_SKILL_NAME,
-  ORCHESTRATION_SKILL_NAME
+  ORCHESTRATION_SKILL_NAME,
+  WORKFLOWS_SKILL_NAME
 } from '../../../shared/agent-feature-install-commands'
 
 /** The interactive install, pinned to this build; also the update, since `add` re-copies. */
@@ -36,6 +38,10 @@ export const ORCHESTRATION_SKILL_INSTALL_COMMAND = buildAgentFeatureSkillInstall
 
 export const EPHEMERAL_VMS_SKILL_INSTALL_COMMAND = buildAgentFeatureSkillInstallCommand([
   EPHEMERAL_VMS_SKILL_NAME
+])
+
+export const WORKFLOWS_SKILL_INSTALL_COMMAND = buildAgentFeatureSkillInstallCommand([
+  WORKFLOWS_SKILL_NAME
 ])
 
 export const ORCA_CLI_ORCHESTRATION_SKILL_INSTALL_COMMAND = buildAgentFeatureSkillInstallCommand([
