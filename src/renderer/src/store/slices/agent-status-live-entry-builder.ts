@@ -213,11 +213,7 @@ export function buildAgentStatusLiveEntry(
       : undefined) ??
     matchedRegistryLaunchConfig ??
     matchedSleepingLaunchConfig
-  const mainAgent = resolveAgentStatusLiveEntryMainAgent(
-    currentScopeExisting,
-    payload,
-    identity.agentType
-  )
+  const mainAgent = resolveAgentStatusLiveEntryMainAgent(existing, payload, identity.agentType)
   const entry: AgentStatusEntry = {
     state: payload.state,
     workingMode: payload.workingMode,

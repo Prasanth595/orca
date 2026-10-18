@@ -18,12 +18,14 @@ vi.mock('./orcad-migration-cutover-journal', () => ({
 vi.mock('./orcad-migration-source-fence', () => ({
   releaseUndeployedMigrationFence: mocks.release
 }))
-vi.mock('./orcad-managed-tunnel', () => ({ closeOrcadManagedTunnel: async () => undefined }))
+vi.mock('../managed-server/lifecycle/orcad-managed-tunnel', () => ({
+  closeOrcadManagedTunnel: async () => undefined
+}))
 vi.mock('./ssh-target-registry', () => ({
   getSshTargetRegistryStore: () => ({ getTarget: () => ({ id: 'ssh-1' }) }),
   getSshConnectionManager: () => ({ connect: async () => ({}) })
 }))
-vi.mock('./orcad-remote-context', () => ({
+vi.mock('../managed-server/install/orcad-remote-context', () => ({
   resolveOrcadRemoteContext: async () => ({
     activationRecord: { ...emptyOrcadActivationRecord(), active: mocks.record.active },
     connection: {},

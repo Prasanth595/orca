@@ -32,10 +32,10 @@ vi.mock('../../ssh/remote-exec-command', async (importOriginal) => {
 
 const { withOrcadActivationLock } = await import('./orcad-activation-lock')
 const { orcadActivationFenceRefusal } = await import('./orcad-activation-fence-hold')
-const { execOrcadRemote } = await import('../../ssh/orcad-remote-runtime-control')
+const { execOrcadRemote } = await import('../install/orcad-remote-runtime-control')
 const { OrcadFenceLostError, runWithOrcadFence } = await import('./orcad-activation-fence-scope')
-const { execOrcadStateMutation } = await import('../../ssh/orcad-state-mutation-exec')
-const { clearOrcadStateSnapshotMembersCommand } = await import('../../ssh/orcad-state-snapshot')
+const { execOrcadStateMutation } = await import('../host-state/orcad-state-mutation-exec')
+const { clearOrcadStateSnapshotMembersCommand } = await import('../host-state/orcad-state-snapshot')
 const { getRemoteHostPlatform } = await import('../../ssh/ssh-remote-platform')
 
 const homes: string[] = []

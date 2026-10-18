@@ -34,11 +34,11 @@ const host = vi.hoisted((): FakeHost => ({
   fenced: false
 }))
 
-vi.mock('../ssh/orcad-remote-record-file', () => ({
+vi.mock('../managed-server/install/orcad-remote-record-file', () => ({
   readBoundedOrcadRemoteRecord: async () =>
     host.lock === null ? { state: 'absent' } : { state: 'present', raw: host.lock }
 }))
-vi.mock('../ssh/orcad-remote-runtime-control', () => ({
+vi.mock('../managed-server/install/orcad-remote-runtime-control', () => ({
   execOrcadRemote: async (_slot: unknown, command: string) => {
     host.commands.push(command)
     const kill = /kill -0 (\d+)/.exec(command)
@@ -59,7 +59,7 @@ vi.mock('../ssh/orcad-remote-runtime-control', () => ({
     return ''
   }
 }))
-vi.mock('../ssh/orcad-managed-remote-stop', () => ({
+vi.mock('../managed-server/lifecycle/orcad-managed-remote-stop', () => ({
   readRemoteOrcadManagedStopTarget: async () => host.stopTarget
 }))
 vi.mock('../ssh/orcad-recovery-slot', () => ({

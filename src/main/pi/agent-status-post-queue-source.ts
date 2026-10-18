@@ -25,7 +25,7 @@ export function getPiAgentStatusPostQueueSourceLines(kind: PiAgentKind): string[
     '}',
     '',
     'function samePostSession(left: Record<string, unknown>, right: Record<string, unknown>): boolean {',
-    '  return left.session_id === right.session_id && left.session_file === right.session_file',
+    '  return left.session_id === right.session_id && left.session_file === right.session_file && left.omp_scope_instance === right.omp_scope_instance && left.omp_scope_order === right.omp_scope_order',
     '}',
     '',
     '// A reset can requeue the in-flight object behind another final fact.',

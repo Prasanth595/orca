@@ -41,6 +41,8 @@ export type HookListenerState = {
   /** Journal-backed prompt for each jcode pane's current turn; see readJcodeTurnPrompt. */
   jcodeTurnPromptByPaneKey: Map<string, JcodeUserPromptEvidence | null>
   ampCompletedCacheKeys: Set<string>
+  /** Accepted native OMP producer scope and bounded retired producers; survives turn resets. */
+  ompScopeOrderByPaneKey: Map<string, OmpScopeOrderWatermark>
   /** Live subagents/teammates per Claude pane; survives turn boundaries since background children outlive the lead turn. */
   claudeSubagentRosterByPaneKey: Map<string, ClaudeSubagentRoster>
   /** Last state from the LEAD session's own events (subagent events carry agent_id, excluded), so a SubagentStop can re-emit pane status; `outcome` persists so the eventual done still carries it. Published on every row as `mainAgent`. */
@@ -95,6 +97,11 @@ export type GrokActiveTurn = {
   sessionId?: string
 }
 
+export type OmpScopeOrderWatermark = {
+  activeInstance: string
+  maxOrderByInstance: Map<string, number>
+}
+
 const legacyStatusAdapterByState = new WeakMap<HookListenerState, AgentStatusLegacyAdapter>()
 
 function legacyStatusAdapter(state: HookListenerState): AgentStatusLegacyAdapter {
@@ -118,6 +125,7 @@ export function createHookListenerState(
     antigravityCompletedTranscriptByPaneKey: new Map(),
     jcodeTurnPromptByPaneKey: new Map(),
     ampCompletedCacheKeys: new Set(),
+    ompScopeOrderByPaneKey: new Map(),
     claudeSubagentRosterByPaneKey: new Map(),
     claudeLeadStateByPaneKey: new Map(),
     claudeUnconfirmedRestoredStatusPaneKeys: new Set(),
@@ -210,6 +218,7 @@ export function clearPaneCacheState(state: HookListenerState, paneKey: string): 
   }
   deletePaneScopedCacheEntry(state.antigravityCompletedTranscriptByPaneKey, paneKey)
   deletePaneScopedSetEntry(state.ampCompletedCacheKeys, paneKey)
+  state.ompScopeOrderByPaneKey.delete(paneKey)
   deletePaneScopedCacheEntry(state.claudeConsumedCompactPromptIdByPaneKey, paneKey)
   state.claudeSubagentRosterByPaneKey.delete(paneKey)
   state.claudeLeadStateByPaneKey.delete(paneKey)
@@ -263,6 +272,7 @@ export function movePaneCacheState(
   movePaneScopedMapEntries(state.antigravityCompletedTranscriptByPaneKey, fromPaneKey, toPaneKey)
   movePaneScopedMapEntries(state.jcodeTurnPromptByPaneKey, fromPaneKey, toPaneKey)
   movePaneScopedSetEntries(state.ampCompletedCacheKeys, fromPaneKey, toPaneKey)
+  movePaneScopedMapEntries(state.ompScopeOrderByPaneKey, fromPaneKey, toPaneKey)
   movePaneScopedMapEntries(state.claudeConsumedCompactPromptIdByPaneKey, fromPaneKey, toPaneKey)
   movePaneScopedMapEntries(state.claudeSubagentRosterByPaneKey, fromPaneKey, toPaneKey)
   movePaneScopedMapEntries(state.claudeLeadStateByPaneKey, fromPaneKey, toPaneKey)
@@ -298,6 +308,7 @@ export function clearAllListenerCaches(state: HookListenerState): void {
   state.antigravityCompletedTranscriptByPaneKey.clear()
   state.jcodeTurnPromptByPaneKey.clear()
   state.ampCompletedCacheKeys.clear()
+  state.ompScopeOrderByPaneKey.clear()
   state.claudeConsumedCompactPromptIdByPaneKey.clear()
   state.warnedVersions.clear()
   state.warnedEnvs.clear()

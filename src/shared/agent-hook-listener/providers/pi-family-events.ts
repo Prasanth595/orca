@@ -1,4 +1,5 @@
 import {
+  isAgentStatusState,
   normalizeAgentStatusPayload,
   type ParsedAgentStatusPayload
 } from '../../agent-status-types'
@@ -6,8 +7,8 @@ import { isAskUserQuestionTool } from '../../agent-question-answered-intent'
 import { continueMainAgentStatus } from '../../agent-lead-status-fold'
 import { foldMainAgentWithRowChildWork } from '../../agent-hook-row-child-work-fold'
 import { extractAgentProviderSession } from '../../agent-session-resume'
+import { isRecord } from '../../agent-status-child-work-value-guards'
 import { clearPaneTurnCacheState, type HookListenerState } from '../listener-state'
-import type { ToolSnapshot } from '../listener-event'
 import { resolvePrompt, resolveToolState } from '../prompt-fields'
 import { extractToolFields, isNewTurnEvent } from '../provider-event-routing'
 import { readString } from '../tool-input-preview'
@@ -24,6 +25,36 @@ export function normalizePiCompatibleEvent(
   paneKey: string,
   hookPayload: Record<string, unknown>
 ): ParsedAgentStatusPayload | null {
+  let ompScope: { instance: string; order: number } | undefined
+  if (
+    agentType === 'omp' &&
+    (Object.hasOwn(hookPayload, 'omp_scope_instance') ||
+      Object.hasOwn(hookPayload, 'omp_scope_order'))
+  ) {
+    const instance = hookPayload.omp_scope_instance
+    const scopeOrder = hookPayload.omp_scope_order
+    if (
+      typeof instance !== 'string' ||
+      instance.length !== 36 ||
+      !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(instance) ||
+      typeof scopeOrder !== 'number' ||
+      !Number.isSafeInteger(scopeOrder) ||
+      scopeOrder <= 0
+    ) {
+      return null
+    }
+    ompScope = { instance, order: scopeOrder }
+    const watermark = state.ompScopeOrderByPaneKey.get(paneKey)
+    // A retired scope's first snapshot still carries session_boundary; fence it before any fold.
+    const maxOrder = watermark?.maxOrderByInstance.get(instance)
+    if (
+      maxOrder !== undefined &&
+      (watermark?.activeInstance === instance ? scopeOrder < maxOrder : scopeOrder <= maxOrder)
+    ) {
+      return null
+    }
+  }
+
   if (agentType !== 'omp' && eventName === 'session_start') {
     // Why: Pi's session_start fires on TUI open/resume; discard stale turn details, no working row before user activity.
     clearPaneTurnCacheState(state, paneKey)
@@ -38,7 +69,11 @@ export function normalizePiCompatibleEvent(
     eventName === 'subagents_update' &&
     Object.hasOwn(hookPayload, 'omp_status')
   ) {
-    return normalizeOmpRegistrySnapshot(state, paneKey, hookPayload)
+    const payload = normalizeOmpRegistrySnapshot(state, paneKey, hookPayload)
+    if (payload && ompScope) {
+      rememberAcceptedOmpScope(state, paneKey, ompScope)
+    }
+    return payload
   }
 
   const ompPrevious = agentType === 'omp' ? state.lastStatusByPaneKey.get(paneKey) : undefined
@@ -79,11 +114,15 @@ export function normalizePiCompatibleEvent(
     ) {
       return null
     }
-    return normalizeAgentStatusPayload({
+    const payload = normalizeAgentStatusPayload({
       ...previous.payload,
       ...(eventName === 'model_select' ? { model, modelSwitchCommand } : {}),
       subagents
     })
+    if (payload && ompScope) {
+      rememberAcceptedOmpScope(state, paneKey, ompScope)
+    }
+    return payload
   }
 
   // Why: gate on the event's own tool_name so a stale cached question can't re-enter blocked.
@@ -155,7 +194,7 @@ export function normalizePiCompatibleEvent(
     settledMainAgent = continueMainAgentStatus(undefined, { state: 'done' }, Date.now())
   }
 
-  return normalizeAgentStatusPayload({
+  const payload = normalizeAgentStatusPayload({
     state: stateName,
     prompt: resolvePrompt(state, paneKey, promptText, {
       resetOnNewTurn: isNewTurnEvent(agentType, eventName)
@@ -175,6 +214,38 @@ export function normalizePiCompatibleEvent(
       ? { sessionBoundary: true }
       : {})
   })
+  if (payload && ompScope) {
+    rememberAcceptedOmpScope(state, paneKey, ompScope)
+  }
+  return payload
+}
+
+const MAX_OMP_SCOPE_INSTANCES = 32
+
+function rememberAcceptedOmpScope(
+  state: HookListenerState,
+  paneKey: string,
+  scope: { instance: string; order: number }
+): void {
+  const watermark = state.ompScopeOrderByPaneKey.get(paneKey)
+  if (!watermark) {
+    state.ompScopeOrderByPaneKey.set(paneKey, {
+      activeInstance: scope.instance,
+      maxOrderByInstance: new Map([[scope.instance, scope.order]])
+    })
+    return
+  }
+  if (watermark.activeInstance !== scope.instance) {
+    watermark.maxOrderByInstance.delete(scope.instance)
+    watermark.activeInstance = scope.instance
+  }
+  watermark.maxOrderByInstance.set(scope.instance, scope.order)
+  if (watermark.maxOrderByInstance.size > MAX_OMP_SCOPE_INSTANCES) {
+    const oldestInstance = watermark.maxOrderByInstance.keys().next().value
+    if (oldestInstance !== undefined) {
+      watermark.maxOrderByInstance.delete(oldestInstance)
+    }
+  }
 }
 
 /** Native root evidence can restore a missed row, but never borrow another session's details. */
@@ -183,14 +254,12 @@ function normalizeOmpRegistrySnapshot(
   paneKey: string,
   hookPayload: Record<string, unknown>
 ): ParsedAgentStatusPayload | null {
-  const rawRoot = hookPayload.omp_status
-  if (typeof rawRoot !== 'object' || rawRoot === null || Array.isArray(rawRoot)) {
+  const rootPayload = hookPayload.omp_status
+  if (!isRecord(rootPayload)) {
     return null
   }
-  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Shape-checked hook JSON object; its fields remain unknown until normalized.
-  const rootPayload = rawRoot as Record<string, unknown>
-  const root = normalizeAgentStatusPayload({ state: rootPayload.state })
-  if (!root) {
+  const nativeState = rootPayload.state
+  if (!isAgentStatusState(nativeState)) {
     return null
   }
   const session = extractAgentProviderSession('omp', hookPayload)
@@ -212,49 +281,42 @@ function normalizeOmpRegistrySnapshot(
   const previousRootState = previousPayload?.mainAgent?.state ?? previousPayload?.state
   // Native busy evidence is not proof that a human answered an outstanding root prompt.
   const heldInputState =
-    root.state === 'working' &&
+    nativeState === 'working' &&
     rootPayload.input_pending !== false &&
     (previousRootState === 'blocked' || previousRootState === 'waiting')
       ? previousRootState
       : undefined
-  const rootState = heldInputState ?? root.state
+  const rootState = heldInputState ?? nativeState
   if (!previousPayload) {
     clearPaneTurnCacheState(state, paneKey)
-  } else if (heldInputState === undefined && !state.lastToolByPaneKey.has(paneKey)) {
+  } else if (!state.lastToolByPaneKey.has(paneKey)) {
     resolveToolState(state, paneKey, previousPayload, { resetOnNewTurn: false })
   }
-  let toolUpdate: ToolSnapshot
-  if (heldInputState !== undefined && previousPayload) {
-    toolUpdate = {
-      toolName: previousPayload.toolName,
-      toolInput: previousPayload.toolInput,
-      interactivePrompt: previousPayload.interactivePrompt,
-      lastAssistantMessage: previousPayload.lastAssistantMessage,
-      lastAssistantMessageIsToolOutput: previousPayload.lastAssistantMessageIsToolOutput,
-      hasToolUpdate: true,
-      hasToolInputField: true,
-      clearLastAssistantMessage: previousPayload.lastAssistantMessage === undefined
-    }
-  } else {
-    const hasToolFields =
-      Object.hasOwn(rootPayload, 'tool_name') || Object.hasOwn(rootPayload, 'tool_input')
-    const toolFields = hasToolFields
-      ? extractToolFields(
-          'omp',
-          rootState === 'blocked' || rootState === 'waiting'
-            ? 'tool_execution_start'
-            : 'tool_execution_end',
-          rootPayload
+  const snapshot =
+    heldInputState !== undefined && previousPayload
+      ? previousPayload
+      : resolveToolState(
+          state,
+          paneKey,
+          {
+            ...(Object.hasOwn(rootPayload, 'tool_name') || Object.hasOwn(rootPayload, 'tool_input')
+              ? extractToolFields(
+                  'omp',
+                  rootState === 'blocked' || rootState === 'waiting'
+                    ? 'tool_execution_start'
+                    : 'tool_execution_end',
+                  rootPayload
+                )
+              : {
+                  interactivePrompt:
+                    rootState === 'blocked' || rootState === 'waiting'
+                      ? previousPayload?.interactivePrompt
+                      : undefined
+                }),
+            ...extractToolFields('omp', 'message_end', rootPayload)
+          },
+          { resetOnNewTurn: false }
         )
-      : {
-          interactivePrompt:
-            rootState === 'blocked' || rootState === 'waiting'
-              ? previousPayload?.interactivePrompt
-              : undefined
-        }
-    toolUpdate = { ...toolFields, ...extractToolFields('omp', 'message_end', rootPayload) }
-  }
-  const snapshot = resolveToolState(state, paneKey, toolUpdate, { resetOnNewTurn: false })
   const previousMainAgent =
     previousPayload?.mainAgent ??
     (previousPayload &&

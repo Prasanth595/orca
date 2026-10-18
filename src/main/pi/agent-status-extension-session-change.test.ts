@@ -343,6 +343,8 @@ describe('Pi /reload', () => {
     await holdRunOpen(harness)
     await harness.reloadPi()
     await harness.callHook('session_start', { reason: 'reload' }, session('A'))
+    expect(harness.piEventListenerCount('subagent:async-complete')).toBe(1)
+    expect(harness.piEventListenerCount('subagent:process-terminal')).toBe(1)
 
     // A turn that ends while the pre-reload child still runs must not report done.
     await harness.callHook('agent_start', {}, session('A'))
@@ -663,6 +665,8 @@ describe('OMP session switches', () => {
           })
         }
       })
+      expect(harness.piEventListenerCount('task:subagent:lifecycle')).toBe(0)
+      expect(harness.piEventListenerCount('subagent:process-terminal')).toBe(0)
 
       await harness.callHook('agent_start')
       await vi.advanceTimersByTimeAsync(0)

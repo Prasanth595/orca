@@ -1,8 +1,11 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ClientChannel } from 'ssh2'
-import { execOrcadStateMutation } from './orcad-state-mutation-exec'
-import { execOrcadRemote, execOrcadRemoteOr } from './orcad-remote-runtime-control'
+import { execOrcadStateMutation } from '../managed-server/host-state/orcad-state-mutation-exec'
+import {
+  execOrcadRemote,
+  execOrcadRemoteOr
+} from '../managed-server/install/orcad-remote-runtime-control'
 import {
   ORCAD_FENCE_LOST_MARKER,
   OrcadFenceLostError,

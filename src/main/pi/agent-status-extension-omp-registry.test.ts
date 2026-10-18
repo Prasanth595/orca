@@ -8,96 +8,84 @@ import {
   createNativeFixture,
   nativeChild,
   nativeRoot,
-  type DeliveredPost,
   type NativeRef,
   type NativeRoot
 } from './agent-status-extension-omp-registry-fixture'
-import type { HookContext } from './agent-status-extension-test-harness'
 
 vi.mock('../telemetry/client', () => ({ track: vi.fn() }))
 vi.mock('../telemetry/cohort-classifier', () => ({ getCohortAtEmit: vi.fn() }))
 
-function snapshot(posts: DeliveredPost[]): DeliveredPost {
-  const post = posts.findLast(({ payload }) => payload.hook_event_name === 'subagents_update')
-  if (!post) {
-    throw new Error('Expected a verified native snapshot')
+let server: AgentHookServer
+const consume = () => server.getStatusSnapshot().find((entry) => entry.paneKey === PANE)
+const receive = async (payload: Record<string, unknown>) => {
+  const event = normalizeHookPayload(
+    server._getStateForTests(),
+    'omp',
+    buildBody(payload),
+    'production'
+  )
+  if (event) {
+    server.ingestRemote(event, null)
   }
-  return post
+  return { ok: true }
 }
-
-// Only the freshness and human-input cases need host-owned clocks.
-function createNativeConsumer(root: NativeRoot, children: NativeRef[] = []) {
-  const server = new AgentHookServer()
-  const fixture = createNativeFixture(root, children, {
+function fixtureFor(root: NativeRoot, children: NativeRef[] = []) {
+  return createNativeFixture(root, children, {
     env: {
       ORCA_AGENT_HOOK_ENV: 'production',
       ORCA_PANE_KEY: PANE,
       ORCA_AGENT_LAUNCH_TOKEN: undefined
     },
-    delivery: async (payload) => {
-      const event = normalizeHookPayload(
-        server._getStateForTests(),
-        'omp',
-        buildBody(payload),
-        'production'
-      )
-      if (event) {
-        server.ingestRemote(event, null)
-      }
-      return { ok: true }
-    }
+    delivery: receive
   })
-  return {
-    ...fixture,
-    server,
-    consume: () => server.getStatusSnapshot().find((entry) => entry.paneKey === PANE)!
-  }
 }
 
-describe('OMP native registry guarantees', () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-    vi.setSystemTime(NATIVE_TIME)
-  })
-  afterEach(() => {
-    vi.clearAllTimers()
-    vi.useRealTimers()
-  })
+beforeEach(() => {
+  vi.useFakeTimers()
+  vi.setSystemTime(NATIVE_TIME)
+  server = new AgentHookServer()
+})
+afterEach(() => {
+  server.stop()
+  vi.clearAllTimers()
+  vi.useRealTimers()
+})
 
-  it('discovers named missed starts and refreshes quiet evidence without inventing a root turn', async () => {
+describe('native OMP registry through the host status store', () => {
+  it('recovers named missed starts and orphaned completion without resetting quiet clocks', async () => {
     const root = nativeRoot('quiet-root')
     const children = [nativeChild('NamedLeft', root.file), nativeChild('NamedRight', root.file)]
-    const { harness, delivered, consume, server } = createNativeConsumer(root, children)
-    try {
-      await harness.callHook('session_start', { reason: 'startup' }, root.context)
-      await vi.advanceTimersByTimeAsync(1_000)
-      expect(snapshot(delivered).payload).toMatchObject({
-        omp_status: { state: 'done', session_boundary: true },
-        subagents: children.map((child) =>
-          expect.objectContaining({
-            id: child.id,
-            description: child.id,
-            startedAt: child.createdAt
-          })
-        )
-      })
-      const initial = consume()
-      expect(initial).toMatchObject({ state: 'working', mainAgent: { state: 'done' } })
-      expect(initial.turnStartedAt).toBeUndefined()
-
-      await vi.advanceTimersByTimeAsync(12_000)
-      const quiet = consume()
-      expect(quiet.receivedAt).toBeGreaterThan(initial.receivedAt)
-      expect(quiet.stateStartedAt).toBe(initial.stateStartedAt)
-      expect(quiet.mainAgent?.stateStartedAt).toBe(initial.mainAgent?.stateStartedAt)
-      expect(quiet.turnStartedAt).toBeUndefined()
-    } finally {
-      await harness.callHook('session_shutdown', { reason: 'quit' }, root.context)
-      server.stop()
-    }
+    const fixture = fixtureFor(root, children)
+    await fixture.harness.callHook('session_start', {}, root.context)
+    await vi.advanceTimersByTimeAsync(1_000)
+    const initial = consume()!
+    expect(initial?.subagents).toEqual(
+      children.map((child) =>
+        expect.objectContaining({
+          id: child.id,
+          description: child.id,
+          startedAt: child.createdAt
+        })
+      )
+    )
+    expect(initial).toMatchObject({ state: 'working', mainAgent: { state: 'done' } })
+    expect(initial.turnStartedAt).toBeUndefined()
+    await vi.advanceTimersByTimeAsync(12_000)
+    expect(consume()).toMatchObject({
+      stateStartedAt: initial.stateStartedAt,
+      mainAgent: initial.mainAgent,
+      subagents: initial.subagents
+    })
+    expect(consume()!.receivedAt).toBeGreaterThan(initial.receivedAt)
+    expect(consume()!.turnStartedAt).toBeUndefined()
+    fixture.setStatus(children[0]!, 'idle')
+    fixture.setStatus(children[1]!, 'aborted')
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(consume()?.state).toBe('done')
+    expect(consume()?.subagents ?? []).toEqual([])
   })
 
-  it('holds completion for hidden async work through SDK idle stamps, resume and settlement', async () => {
+  it('holds completion for async work beyond the display cap and preserves the root completion clock', async () => {
     const root = nativeRoot('async-root')
     let rootPending = true
     root.ref.status = 'idle'
@@ -105,49 +93,78 @@ describe('OMP native registry guarantees', () => {
     const children = Array.from({ length: 33 }, (_, index) =>
       nativeChild(`Child${index}`, root.file)
     )
-    const fixture = createNativeFixture(root, children)
-    const { harness, delivered } = fixture
-    try {
-      await harness.callHook('session_start', {}, root.context)
-      await vi.advanceTimersByTimeAsync(1_000)
-      expect(snapshot(delivered).payload.omp_status?.state).toBe('working')
-      const shown = snapshot(delivered).payload.subagents!.map(({ id }) => id)
-      expect(shown).toHaveLength(32)
-      const hidden = children.find(({ id }) => !shown.includes(id))!
-      let childPending = true
-      hidden.session.hasPendingAsyncWork = () => childPending
-      await harness.callHook('agent_start', {}, root.context)
-      rootPending = false
-      await harness.callHook('agent_end', {}, root.context)
-      for (const child of children) {
-        fixture.setStatus(child, 'idle')
-      }
-      // Real SDK running -> idle stamps terminalAt even when async work remains.
-      expect(hidden.lifecycle?.terminalAt).toBe(Date.now())
-      await vi.advanceTimersByTimeAsync(6_000)
-      expect(delivered.some(({ payload }) => payload.hook_event_name === 'agent_end')).toBe(false)
-      expect(snapshot(delivered).payload).toMatchObject({
-        omp_status: { state: 'done' },
-        subagents: [expect.objectContaining({ id: hidden.id, state: 'working' })]
-      })
-
-      childPending = false
-      hidden.session.isStreaming = true
-      fixture.setStatus(hidden, 'running')
-      await vi.advanceTimersByTimeAsync(1_000)
-      expect(snapshot(delivered).payload.subagents).toHaveLength(1)
-      fixture.setStatus(hidden, 'idle')
-      await vi.advanceTimersByTimeAsync(1_000)
-      expect(snapshot(delivered).payload.subagents).toEqual([])
-      expect(
-        delivered.find(({ payload }) => payload.hook_event_name === 'agent_end')?.payload
-      ).toMatchObject({ session_id: 'async-root', session_file: root.file })
-    } finally {
-      await harness.callHook('session_shutdown', { reason: 'quit' }, root.context)
-    }
+    const fixture = fixtureFor(root, children)
+    await fixture.harness.callHook('session_start', {}, root.context)
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(consume()).toMatchObject({ state: 'working', mainAgent: { state: 'working' } })
+    const shown = consume()!.subagents!.map(({ id }) => id)
+    expect(shown).toHaveLength(32)
+    const hidden = children.find(({ id }) => !shown.includes(id))!
+    let childPending = true
+    hidden.session.hasPendingAsyncWork = () => childPending
+    await fixture.harness.callHook('agent_start', {}, root.context)
+    rootPending = false
+    await fixture.harness.callHook('agent_end', {}, root.context)
+    children.forEach((child) => fixture.setStatus(child, 'idle'))
+    await vi.advanceTimersByTimeAsync(6_000)
+    const held = consume()!
+    expect(held).toMatchObject({
+      state: 'working',
+      mainAgent: { state: 'done' },
+      subagents: [expect.objectContaining({ id: hidden.id, state: 'working' })]
+    })
+    childPending = false
+    hidden.session.isStreaming = true
+    fixture.setStatus(hidden, 'running')
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(consume()?.state).toBe('working')
+    fixture.setStatus(hidden, 'idle')
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(consume()).toMatchObject({ state: 'done', mainAgent: held.mainAgent })
+    expect(consume()?.subagents ?? []).toEqual([])
+    expect(consume()!.stateStartedAt).toBeGreaterThan(held.mainAgent!.stateStartedAt)
   })
 
-  it('seeds an untouched root as working only after a positive native recovery', async () => {
+  it('does not refresh or clear failed reads and recovers a silent session attachment', async () => {
+    const root = nativeRoot('uncertain-root', true)
+    const first = nativeChild('PreviouslyVerified', root.file)
+    const fixture = fixtureFor(root, [first])
+    await fixture.harness.callHook('session_start', {}, root.context)
+    await fixture.harness.callHook('agent_start', {}, root.context)
+    await vi.advanceTimersByTimeAsync(1_000)
+    root.session.isStreaming = false
+    await fixture.harness.callHook('agent_end', {}, root.context)
+    await vi.advanceTimersByTimeAsync(1_000)
+    const verified = consume()
+    fixture.failList(new Error('Native enumeration unavailable'))
+    fixture.setStatus(first, 'idle')
+    await vi.advanceTimersByTimeAsync(12_000)
+    expect(consume()).toEqual(verified)
+    fixture.failList()
+    const attaching: NativeRef = nativeChild('Attaching', root.file)
+    const session = attaching.session
+    const file = attaching.sessionFile
+    attaching.session = null
+    attaching.sessionFile = ''
+    fixture.refs.set(attaching.id, attaching)
+    fixture.notify('registered', attaching)
+    await vi.advanceTimersByTimeAsync(6_000)
+    expect(consume()).toEqual(verified)
+    attaching.session = session
+    attaching.sessionFile = file
+    await vi.advanceTimersByTimeAsync(6_000)
+    expect(consume()).toMatchObject({
+      state: 'working',
+      subagents: [expect.objectContaining({ id: attaching.id })]
+    })
+    expect(consume()!.receivedAt).toBeGreaterThan(verified!.receivedAt)
+    fixture.setStatus(attaching, 'idle')
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(consume()?.state).toBe('done')
+    expect(consume()?.subagents ?? []).toEqual([])
+  })
+
+  it('requires positive native evidence before seeding an untouched root', async () => {
     const root = nativeRoot('unreadable-root')
     let unavailable = true
     root.session.hasPendingAsyncWork = () => {
@@ -156,187 +173,174 @@ describe('OMP native registry guarantees', () => {
       }
       return true
     }
-    const { harness, delivered } = createNativeFixture(root, [])
-    try {
-      await harness.callHook('session_start', {}, root.context)
-      await vi.advanceTimersByTimeAsync(6_000)
-      expect(delivered).toEqual([])
-      unavailable = false
-      await vi.advanceTimersByTimeAsync(6_000)
-      expect(snapshot(delivered).payload.omp_status).toEqual({
-        state: 'working',
-        session_boundary: true
-      })
-    } finally {
-      await harness.callHook('session_shutdown', { reason: 'quit' }, root.context)
-    }
+    const fixture = fixtureFor(root)
+    await fixture.harness.callHook('session_start', {}, root.context)
+    await vi.advanceTimersByTimeAsync(6_000)
+    expect(consume()).toBeUndefined()
+    unavailable = false
+    await vi.advanceTimersByTimeAsync(6_000)
+    expect(consume()).toMatchObject({ state: 'working', mainAgent: { state: 'working' } })
   })
 
-  it('restores asks and pending approval without clobbering the prompt or wait clocks', async () => {
+  it('preserves root input, prompt and turn clocks across reload and quiet verification', async () => {
     const root = nativeRoot('human-wait-root', true)
     root.context.hasUI = true
-    const { harness, consume, server } = createNativeConsumer(root)
+    const { harness } = fixtureFor(root)
     const questions = { questions: [{ id: 'scope', question: 'Which scope?' }] }
-    const reason = 'Allow workspace inspection?'
-    try {
-      await harness.callHook('session_start', {}, root.context)
-      await vi.advanceTimersByTimeAsync(1_000)
-      await harness.callHook('before_agent_start', { prompt: 'Inspect scope.' }, root.context)
-      await harness.callHook('agent_start', {}, root.context)
-      await harness.callHook(
-        'tool_execution_start',
-        { toolName: 'ask', args: questions },
-        root.context
-      )
-      await harness.callHook('tool_approval_requested', { toolName: 'bash', reason }, root.context)
-      await vi.advanceTimersByTimeAsync(1_000)
-      const asking = consume()
-      expect(asking).toMatchObject({
-        state: 'blocked',
-        prompt: 'Inspect scope.',
-        toolName: 'ask',
-        interactivePrompt: JSON.stringify(questions)
-      })
-      expect(asking.turnStartedAt).toEqual(expect.any(Number))
-
-      harness.reload()
-      await harness.callHook('session_start', { reason: 'reload' }, root.context)
-      await vi.advanceTimersByTimeAsync(6_000)
-      expect(consume()).toMatchObject({
-        state: 'blocked',
-        toolName: 'ask',
-        interactivePrompt: asking.interactivePrompt,
-        prompt: asking.prompt,
-        stateStartedAt: asking.stateStartedAt,
-        turnStartedAt: asking.turnStartedAt
-      })
-      await harness.callHook('tool_execution_end', { toolName: 'ask' }, root.context)
-      await vi.advanceTimersByTimeAsync(1_000)
-      expect(consume()).toMatchObject({
-        state: 'blocked',
+    await harness.callHook('session_start', {}, root.context)
+    await harness.callHook('before_agent_start', { prompt: 'Inspect scope.' }, root.context)
+    await harness.callHook('agent_start', {}, root.context)
+    await harness.callHook(
+      'tool_execution_start',
+      { toolName: 'ask', args: questions },
+      root.context
+    )
+    await harness.callHook(
+      'tool_approval_requested',
+      {
         toolName: 'bash',
-        toolInput: reason,
-        turnStartedAt: asking.turnStartedAt
-      })
-      expect(consume().interactivePrompt).toBeUndefined()
-      await harness.callHook(
-        'tool_approval_resolved',
-        { toolName: 'bash', approved: true },
-        root.context
-      )
-      await vi.advanceTimersByTimeAsync(1_000)
-      expect(consume()).toMatchObject({
-        state: 'working',
-        prompt: asking.prompt,
-        turnStartedAt: asking.turnStartedAt
-      })
-    } finally {
-      await harness.callHook('session_shutdown', { reason: 'quit' }, root.context)
-      server.stop()
-    }
+        reason: 'Allow inspection?'
+      },
+      root.context
+    )
+    await vi.advanceTimersByTimeAsync(1_000)
+    const asking = consume()!
+    expect(asking).toMatchObject({
+      state: 'blocked',
+      prompt: 'Inspect scope.',
+      toolName: 'ask',
+      interactivePrompt: JSON.stringify(questions)
+    })
+    harness.reload()
+    await harness.callHook('session_start', { reason: 'reload' }, root.context)
+    await vi.advanceTimersByTimeAsync(12_000)
+    expect(consume()).toMatchObject({
+      state: asking.state,
+      prompt: asking.prompt,
+      toolName: asking.toolName,
+      interactivePrompt: asking.interactivePrompt,
+      stateStartedAt: asking.stateStartedAt,
+      turnStartedAt: asking.turnStartedAt
+    })
+    await harness.callHook('tool_execution_end', { toolName: 'ask' }, root.context)
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(consume()).toMatchObject({
+      state: 'blocked',
+      toolName: 'bash',
+      toolInput: 'Allow inspection?',
+      turnStartedAt: asking.turnStartedAt
+    })
+    expect(consume()?.interactivePrompt).toBeUndefined()
+    await harness.callHook(
+      'tool_execution_start',
+      { toolName: 'bash', args: { command: 'pwd' } },
+      root.context
+    )
+    await harness.callHook(
+      'tool_approval_resolved',
+      {
+        toolName: 'bash',
+        approved: true
+      },
+      root.context
+    )
+    await vi.advanceTimersByTimeAsync(0)
+    expect(consume()?.state).toBe('working')
+    expect(consume()?.toolInput).toBeUndefined()
+    await vi.advanceTimersByTimeAsync(200)
+    expect(consume()).toMatchObject({
+      state: 'working',
+      prompt: asking.prompt,
+      turnStartedAt: asking.turnStartedAt
+    })
+    expect(consume()?.toolInput).toBeUndefined()
   })
 
-  it('rebinds a replaced scope while fencing foreign children, child factories and old callbacks', async () => {
+  it('fences child factories, foreign roots and stale callbacks across a session replacement', async () => {
     const before = nativeRoot('before-root', true)
     const oldChild = nativeChild('OldWorker', before.file)
-    const fixture = createNativeFixture(before, [oldChild])
-    const { harness, delivered } = fixture
-    const after = nativeRoot('after-root', true)
+    const fixture = fixtureFor(before, [oldChild])
+    const { harness } = fixture
     const replacement = harness.registerTaskChild()
     const childFactory = harness.registerTaskChild()
-    const childContext: HookContext = {
-      agent: { id: oldChild.id, kind: 'sub', parentId: 'Main', depth: 1 },
-      sessionManager: oldChild.session.sessionManager
-    }
-    try {
-      await harness.callHook('session_start', {}, before.context)
-      await harness.callHook('before_agent_start', { prompt: 'Old scope only.' }, before.context)
-      await vi.advanceTimersByTimeAsync(1_000)
-      const verified = snapshot(delivered)
-      await childFactory.callHook('session_start', {}, childContext)
-      // A Main label cannot replace the native session-manager ownership proof.
-      await childFactory.callHook('session_start', {}, after.context)
-      await childFactory.callHook('session_shutdown', {}, after.context)
-      expect(snapshot(delivered)).toBe(verified)
-      const staleCallback = fixture.captureNotification()
-      const ancestor = nativeChild('IdleAncestor', after.file)
-      ancestor.status = 'idle'
-      ancestor.session.isStreaming = false
-      const child = nativeChild('CurrentWorker', ancestor.sessionFile)
-      child.parentId = ancestor.id
-      const foreign = nativeChild('ForeignWorker', after.file)
-      foreign.parentId = 'OtherMain'
-      for (const ref of [after.ref, ancestor, child, foreign]) {
-        fixture.refs.set(ref.id, ref)
+    const after = nativeRoot('after-root', true)
+    await harness.callHook('session_start', {}, before.context)
+    await harness.callHook('before_agent_start', { prompt: 'Old scope only.' }, before.context)
+    await vi.advanceTimersByTimeAsync(1_000)
+    const verified = consume()
+    const delayed = harness.fetchMock.mock.calls.find(([, init]) => {
+      const payload = JSON.parse(String(init?.body)).payload
+      return payload.hook_event_name === 'subagents_update' && payload.omp_status
+    })![1]!.body
+    const delayedPrompt = harness.fetchMock.mock.calls.find(([, init]) => {
+      const payload = JSON.parse(String(init?.body)).payload
+      return (
+        payload.hook_event_name === 'subagents_update' &&
+        payload.omp_status?.prompt === 'Old scope only.'
+      )
+    })![1]!.body
+    await childFactory.callHook(
+      'session_start',
+      {},
+      {
+        agent: { id: oldChild.id, kind: 'sub', parentId: 'Main' },
+        sessionManager: oldChild.session.sessionManager
       }
-      staleCallback('metadata_changed', oldChild)
-      await vi.advanceTimersByTimeAsync(1_000)
-      expect(snapshot(delivered)).toBe(verified)
-
-      await replacement.callHook('session_start', {}, after.context)
-      await vi.advanceTimersByTimeAsync(1_000)
-      const rebound = snapshot(delivered)
-      expect(rebound.payload).toMatchObject({
-        session_id: 'after-root',
-        session_file: after.file,
-        subagents: [expect.objectContaining({ id: child.id })]
-      })
-      expect(rebound.payload.omp_status).not.toHaveProperty('prompt')
-      await harness.callHook('session_shutdown', {}, before.context)
-      await childFactory.callHook('session_shutdown', {}, childContext)
-      staleCallback('registered', oldChild)
-      await vi.advanceTimersByTimeAsync(6_000)
-      expect(snapshot(delivered).observedAt).toBeGreaterThan(rebound.observedAt)
-      expect(snapshot(delivered).payload.session_id).toBe('after-root')
-      expect(snapshot(delivered).payload.subagents).toEqual(rebound.payload.subagents)
-    } finally {
-      await replacement.callHook('session_shutdown', { reason: 'quit' }, after.context)
+    )
+    await childFactory.callHook('session_start', {}, after.context)
+    await childFactory.callHook('session_shutdown', {}, after.context)
+    expect(consume()).toEqual(verified)
+    const staleCallback = fixture.captureNotification()
+    const ancestor = nativeChild('IdleAncestor', after.file)
+    ancestor.status = 'idle'
+    ancestor.session.isStreaming = false
+    const child = nativeChild('CurrentWorker', ancestor.sessionFile)
+    child.parentId = ancestor.id
+    const foreign = nativeChild('ForeignWorker', after.file)
+    foreign.parentId = 'OtherMain'
+    for (const ref of [after.ref, ancestor, child, foreign]) {
+      fixture.refs.set(ref.id, ref)
     }
-  })
-
-  it('cannot refresh or empty failed reads and recovers a silent native attachment', async () => {
-    const root = nativeRoot('uncertain-root', true)
-    const first = nativeChild('PreviouslyVerified', root.file)
-    const fixture = createNativeFixture(root, [first])
-    const { harness, delivered } = fixture
-    try {
-      await harness.callHook('session_start', {}, root.context)
-      await harness.callHook('agent_start', {}, root.context)
-      await vi.advanceTimersByTimeAsync(1_000)
-      root.session.isStreaming = false
-      await harness.callHook('agent_end', {}, root.context)
-      await vi.advanceTimersByTimeAsync(1_000)
-      const verified = snapshot(delivered)
-      fixture.failList(new Error('Native enumeration unavailable'))
-      fixture.setStatus(first, 'idle')
-      await vi.advanceTimersByTimeAsync(12_000)
-      expect(snapshot(delivered)).toBe(verified)
-      expect(delivered.some(({ payload }) => payload.hook_event_name === 'agent_end')).toBe(false)
-
-      fixture.failList()
-      const attaching: NativeRef = nativeChild('Attaching', root.file)
-      const session = attaching.session!
-      const file = attaching.sessionFile
-      attaching.session = null
-      attaching.sessionFile = ''
-      fixture.refs.set(attaching.id, attaching)
-      fixture.notify('registered', attaching)
-      await vi.advanceTimersByTimeAsync(6_000)
-      expect(snapshot(delivered)).toBe(verified)
-      // Native attachSession emits no registry notification.
-      attaching.session = session
-      attaching.sessionFile = file
-      await vi.advanceTimersByTimeAsync(6_000)
-      expect(snapshot(delivered).observedAt).toBeGreaterThan(verified.observedAt)
-      expect(snapshot(delivered).payload.subagents).toEqual([
-        expect.objectContaining({ id: attaching.id, state: 'working' })
-      ])
-      fixture.setStatus(attaching, 'idle')
-      await vi.advanceTimersByTimeAsync(1_000)
-      expect(snapshot(delivered).payload.subagents).toEqual([])
-      expect(delivered.find(({ payload }) => payload.hook_event_name === 'agent_end')).toBeDefined()
-    } finally {
-      await harness.callHook('session_shutdown', { reason: 'quit' }, root.context)
-    }
+    staleCallback('metadata_changed', oldChild)
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(consume()).toEqual(verified)
+    await replacement.callHook('session_start', {}, after.context)
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(consume()).toMatchObject({
+      state: 'working',
+      prompt: '',
+      providerSession: { id: 'after-root', transcriptPath: after.file },
+      subagents: [expect.objectContaining({ id: child.id })]
+    })
+    expect(consume()?.turnStartedAt).toBeUndefined()
+    const current = consume()
+    await receive(JSON.parse(String(delayed)).payload)
+    expect(consume()).toEqual(current)
+    await harness.callHook('session_shutdown', {}, before.context)
+    staleCallback('registered', oldChild)
+    await vi.advanceTimersByTimeAsync(6_000)
+    expect(consume()).toMatchObject({
+      providerSession: current!.providerSession,
+      subagents: current!.subagents
+    })
+    expect(consume()!.receivedAt).toBeGreaterThan(current!.receivedAt)
+    const resumedRegistration = harness.registerTaskChild()
+    const resumedRoot = nativeRoot('before-root', true)
+    fixture.refs.set(resumedRoot.ref.id, resumedRoot.ref)
+    await resumedRegistration.callHook('session_start', {}, resumedRoot.context)
+    await resumedRegistration.callHook(
+      'before_agent_start',
+      { prompt: 'Fresh resumed scope.' },
+      resumedRoot.context
+    )
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(consume()).toMatchObject({
+      state: 'working',
+      prompt: 'Fresh resumed scope.',
+      providerSession: { id: 'before-root', transcriptPath: before.file }
+    })
+    const resumed = consume()
+    await receive(JSON.parse(String(delayedPrompt)).payload)
+    expect(consume()).toEqual(resumed)
   })
 })

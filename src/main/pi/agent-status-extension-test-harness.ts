@@ -145,13 +145,20 @@ export function createAgentStatusExtensionHarness(args: {
     return child
   })
 
-  const missingFile = (path: string): never => {
-    throw Object.assign(new Error(`ENOENT: ${path}`), { code: 'ENOENT' })
-  }
   const fsMock = {
     existsSync: vi.fn(args.existsSync ?? (() => false)),
-    statSync: vi.fn(args.statSync ?? missingFile),
-    readFileSync: vi.fn(args.readFileSync ?? missingFile)
+    statSync: vi.fn(
+      args.statSync ??
+        ((path: string) => {
+          throw Object.assign(new Error(`ENOENT: ${path}`), { code: 'ENOENT' })
+        })
+    ),
+    readFileSync: vi.fn(
+      args.readFileSync ??
+        ((path: string) => {
+          throw Object.assign(new Error(`ENOENT: ${path}`), { code: 'ENOENT' })
+        })
+    )
   }
 
   const module: {
@@ -194,11 +201,12 @@ export function createAgentStatusExtensionHarness(args: {
     argv: args.argv ?? ['node', '/usr/bin/orca']
   }
 
-  const context = {
+  const context: Record<string, unknown> = {
     module,
     exports: module.exports,
     require: requireMock,
     process: processMock,
+    crypto: globalThis.crypto,
     fetch: fetchMock,
     console: {
       warn: vi.fn(),
@@ -211,7 +219,7 @@ export function createAgentStatusExtensionHarness(args: {
     AbortController,
     setTimeout,
     clearTimeout
-  } as Record<string, unknown>
+  }
   context.globalThis = context
 
   const source = getPiAgentStatusExtensionSource(args.kind)

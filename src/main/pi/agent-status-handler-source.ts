@@ -17,26 +17,28 @@ import {
 // Why: keep the generated handler registrations separate from hook transport;
 // both are independently sizeable and the installed extension concatenates them.
 export function getPiAgentStatusHandlerSourceLines(kind: PiAgentKind): string[] {
-  const sessionStartHandler = [
-    "  onStatus('session_start', (event, ctx) => {",
-    '    // OMP publishes its native baseline through the root registry observer.',
-    '    if (isOmpRuntime()) return',
-    '    updateSessionMetadata(ctx)',
-    ...(kind === 'pi' ? ['    piUiPromptDepth = 0'] : []),
-    '    // Why: /reload re-registers the active session, but it is not a',
-    '    // turn boundary and must not clear the visible status or unread state.',
-    "    if (event.reason === 'reload') return",
-    "    post('session_start')",
-    ...(kind === 'pi'
+  const sessionStartHandler =
+    kind !== 'omp'
       ? [
-          '    restoreParkedSubagents()',
-          // Why: the host reads session_start as an idle session; children still hold this one.
-          "    if (lifecycleState.waiting) post('agent_start')"
+          "  onStatus('session_start', (event, ctx) => {",
+          '    if (isOmpRegistryObserved()) return',
+          '    updateSessionMetadata(ctx)',
+          ...(kind === 'pi' ? ['    piUiPromptDepth = 0'] : []),
+          '    // Why: /reload re-registers the active session, but it is not a',
+          '    // turn boundary and must not clear the visible status or unread state.',
+          "    if (event.reason === 'reload') return",
+          "    post('session_start')",
+          ...(kind === 'pi'
+            ? [
+                '    restoreParkedSubagents()',
+                // Why: the host reads session_start as an idle session; children still hold this one.
+                "    if (lifecycleState.waiting) post('agent_start')"
+              ]
+            : []),
+          '  })',
+          ''
         ]
-      : []),
-    '  })',
-    ''
-  ]
+      : ["  onStatus('session_start', () => {})"]
 
   // Why: OMP can switch sessions in-process, so each latest-only post needs fresh identity.
   const ctxParam = ', ctx'
@@ -139,7 +141,7 @@ export function getPiAgentStatusHandlerSourceLines(kind: PiAgentKind): string[] 
     '  const selfPid = String(process.pid)',
     '  if (ownerPid && ownerPid !== selfPid && isStatusOwnerAlive(ownerPid)) return',
     `  process.env.${ownerEnv} = selfPid`,
-    '  if (!isOmpRuntime()) resetPostQueue()',
+    '  if (!getOmpNativeRegistry(pi)) resetPostQueue()',
     ...getPiSubagentRosterSetupSourceLines(kind),
     ...getOmpSessionOwnerHandlerSourceLines(),
     ...getAgentStatusSessionBoundaryHandlerSourceLines(kind),

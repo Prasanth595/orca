@@ -1,27 +1,23 @@
-import { getOmpRootStatusSourceLines } from './agent-status-omp-root-status-source'
-
 // Factory scope: these functions reuse the existing roster, delivery queue and
 // completion gate. A child factory must never acquire or retire the root binding.
 export function getOmpRegistryObserverSourceLines(): string[] {
-  return [
-    ...String.raw`
-  const ompRegistryOwner = {}
+  return String.raw`
   const OMP_REGISTRY_COALESCE_MS = 200
   const OMP_REGISTRY_REFRESH_MS = 5000
 
   function currentOmpRegistryObservation(observation: OmpRegistryObservation): boolean {
-    return !observation.stopped && observation.owner === ompRegistryOwner && lifecycleState.ompRegistryObserver === observation && ompRegistryObservation === observation
+    return !observation.stopped && observation.owner === registration && lifecycleState.ompRegistryObserver === observation && ompRegistryObservation === observation
   }
 
   function stopOmpRegistryObserver(): void {
     if (!isOmpRuntime()) return
     const observation = lifecycleState.ompRegistryObserver
-    if (observation?.owner === ompRegistryOwner) retireOmpRegistryObservation(observation)
+    if (observation?.owner === registration) retireOmpRegistryObservation(observation)
   }
 
   function scheduleOmpRegistryRefresh(observation: OmpRegistryObservation): void {
     if (!currentOmpRegistryObservation(observation)) return
-    const executing = observation.pending || observation.rootExecuting || observation.status.state === 'working' || observation.status.state === 'blocked' || observation.status.state === 'waiting' || lifecycleState.active.size > 0
+    const executing = observation.pending || observation.rootExecuting || observation.status.state !== 'done' || lifecycleState.active.size > 0
     if (!executing) {
       if (observation.refreshTimer !== null) clearTimeout(observation.refreshTimer)
       observation.refreshTimer = null
@@ -147,7 +143,7 @@ export function getOmpRegistryObserverSourceLines(): string[] {
           description: ref.id,
           startedAt: typeof ref.createdAt === 'number' && Number.isFinite(ref.createdAt) ? ref.createdAt : old?.startedAt ?? Date.now(),
           parent: ref.parentId,
-          registration: ompRegistryOwner
+          registration
         })
       }
       // Registration may precede attachSession (which emits no registry event).
@@ -195,9 +191,7 @@ export function getOmpRegistryObserverSourceLines(): string[] {
   }
 
   function updateOmpRegistryContext(ctx: OmpRegistryContext): void {
-    if (!isOmpRuntime() || !lifecycleState.ownsPane || !ownsSessionStatus(ctx)) return
-    const kind = ctx?.agent?.kind ?? ctx?.agentKind
-    if (kind !== undefined && kind !== 'main') return
+    if (!isOmpRuntime() || !lifecycleState.ownsPane) return
     const registry = getOmpNativeRegistry(pi)
     const previous = lifecycleState.ompRegistryObserver ?? ompRegistryObservation
     if (!registry) {
@@ -218,12 +212,14 @@ export function getOmpRegistryObserverSourceLines(): string[] {
     } catch { return }
     if (typeof sessionId !== 'string' || !sessionId || typeof sessionFile !== 'string' || !sessionFile) return
     const sameScope = previous && !previous.stopped && previous.registry === registry && previous.root === root && previous.manager === manager && previous.sessionId === sessionId && previous.sessionFile === sessionFile
-    if (sameScope && previous.owner === ompRegistryOwner) {
+    if (sameScope && previous.owner === registration) {
       ompRegistryObservation = previous
+      setOmpPostSessionScope(previous.scopeInstance, previous.scopeOrder)
       return
     }
+    const scopeAllocator = ompStatusSession?.scopeAllocator
+    if (!scopeAllocator) return
     const priorStatus = sameScope ? previous.status : undefined
-    const approvalPending = sameScope ? previous.approvalPending : false
     const approvalDetails = sameScope ? previous.approvalDetails : undefined
     const questionToolName = sameScope ? previous.questionToolName : undefined
     const identityBoundaryPending = sameScope ? previous.identityBoundaryPending : true
@@ -239,11 +235,13 @@ export function getOmpRegistryObserverSourceLines(): string[] {
       retireOmpRegistryObservation(previous)
     }
     const observation: OmpRegistryObservation = {
-      owner: ompRegistryOwner, roster: lifecycleState, registry, root, manager, sessionId, sessionFile,
+      owner: registration, roster: lifecycleState, registry, root, manager, sessionId, sessionFile,
+      // Binding order belongs to this producer instance, never wall or turn clocks.
+      scopeInstance: scopeAllocator.instance, scopeOrder: ++scopeAllocator.nextOrder,
       // Native registration starts at running even before the first prompt.
       status: priorStatus ?? { state: rootExecuting ? 'working' : 'done', session_boundary: true },
       identityBoundaryPending, readUnavailable,
-      approvalPending, approvalDetails, questionToolName, subscribed: false, stopped: false, verified: false, pending: true,
+      approvalDetails, questionToolName, stopped: false, verified: false, pending: true,
       rootExecuting, rootBaselinePending, dirty: true, changeTimer: null, refreshTimer: null
     }
     lifecycleState.ompRegistryObserver = observation
@@ -257,17 +255,121 @@ export function getOmpRegistryObserverSourceLines(): string[] {
       })
       if (typeof unsubscribe !== 'function') throw new Error('Invalid native registry subscription')
       observation.unsubscribe = unsubscribe
-      observation.subscribed = true
     } catch {
       retireOmpRegistryObservation(observation)
       return
     }
+    setOmpPostSessionScope(observation.scopeInstance, observation.scopeOrder)
     scheduleOmpRegistryChange(observation)
     scheduleOmpRegistryRefresh(observation)
   }
+
+  function boundedOmpRootText(value: unknown, limit: number): string | undefined {
+    if (typeof value !== 'string') return undefined
+    // Run the existing credential-path sanitizer before truncation can hide a reference.
+    if (typeof sanitizeStatusToolInput(value) !== 'string') return undefined
+    const text = value.slice(0, limit)
+    const last = text.charCodeAt(text.length - 1)
+    return last >= 0xd800 && last <= 0xdbff ? text.slice(0, -1) : text
+  }
+
+  function boundedOmpRootInput(value: unknown): unknown {
+    const input = sanitizeStatusToolInput(value)
+    try { return (JSON.stringify(input)?.length ?? 0) <= OMP_STATUS_INPUT_LIMIT ? input : { redacted: true } } catch { return { redacted: true } }
+  }
+
+  function captureOmpRootStatus(name: string, event: OmpRootEvent | null | undefined, ctx: OmpRegistryContext): void {
+    if (!isOmpRuntime() || !lifecycleState.ownsPane) return
+    const observation = lifecycleState.ompRegistryObserver
+    if (!observation || !currentOmpRegistryObservation(observation) || ctx?.sessionManager !== observation.manager || getOmpRegistryRootRef(pi, observation.registry, ctx) !== observation.root) return
+    try {
+      if (observation.manager.getSessionId?.() !== observation.sessionId || observation.manager.getSessionFile?.() !== observation.sessionFile) return
+    } catch { return }
+    let status = { ...observation.status }
+    const toolName = boundedOmpRootText(event?.toolName, OMP_STATUS_TOOL_LIMIT)
+    const baseline = name === 'session_start' || name === 'session_switch' || name === 'session_branch'
+    if (baseline) {
+      // Binding seeded a changed scope from native execution, not registration.
+      // Same-scope baselines never replace captured turn or human-wait facts.
+    } else if (name === 'before_agent_start') {
+      status = { state: 'working', input_pending: false }
+      const prompt = boundedOmpRootText(event?.prompt, OMP_STATUS_TEXT_LIMIT)
+      if (prompt !== undefined) status.prompt = prompt
+      observation.approvalDetails = undefined
+      observation.questionToolName = undefined
+    } else if (name === 'agent_start') {
+      status.state = 'working'
+      status.input_pending = false
+      delete status.session_boundary
+      delete status.tool_name
+      delete status.tool_input
+      observation.approvalDetails = undefined
+      observation.questionToolName = undefined
+    } else if (name === 'tool_approval_requested') {
+      observation.approvalDetails = { tool_name: toolName, tool_input: boundedOmpRootText(event?.reason, OMP_STATUS_INPUT_LIMIT) }
+      status.state = 'blocked'
+      status.input_pending = true
+      if (!observation.questionToolName) Object.assign(status, observation.approvalDetails)
+    } else if (name === 'tool_approval_resolved') {
+      observation.approvalDetails = undefined
+      status.state = observation.questionToolName ? 'blocked' : 'working'
+      status.input_pending = !!observation.questionToolName
+      if (toolName && !observation.questionToolName) status.tool_name = toolName
+      if (!observation.questionToolName) status.tool_input = null
+    } else if (name === 'tool_call' || name === 'tool_execution_start') {
+      const question = toolName === 'ask'
+      if (question) {
+        observation.questionToolName = toolName
+        status.input_pending = true
+      }
+      status.state = observation.approvalDetails || observation.questionToolName ? 'blocked' : 'working'
+      // Parallel/unrelated tool traffic must not replace the human prompt or
+      // permission details before its own native resolution arrives.
+      if (question || (!observation.approvalDetails && !observation.questionToolName)) {
+        if (toolName) status.tool_name = toolName
+        status.tool_input = boundedOmpRootInput(name === 'tool_call' ? event?.input : event?.args)
+      }
+    } else if (name === 'tool_execution_end') {
+      if (toolName && toolName === observation.questionToolName) {
+        observation.questionToolName = undefined
+        status.input_pending = !!observation.approvalDetails
+        if (observation.approvalDetails) {
+          // A resolved ask reveals the still-pending native permission, not its old question.
+          delete status.tool_name
+          delete status.tool_input
+          Object.assign(status, observation.approvalDetails)
+        }
+      }
+      status.state = observation.approvalDetails || observation.questionToolName ? 'blocked' : 'working'
+      if (!observation.approvalDetails && !observation.questionToolName) delete status.tool_input
+    } else if (name === 'message_end') {
+      if (event?.message?.role !== 'assistant') return
+      const text = boundedOmpRootText(extractAssistantText(event.message), OMP_STATUS_TEXT_LIMIT)
+      if (!text) return
+      status.role = 'assistant'
+      status.text = text
+    } else if (name === 'agent_end' || name === 'agent_settled') {
+      if (event?.willContinue === true) return
+      status.state = 'done'
+      status.input_pending = false
+      delete status.session_boundary
+      delete status.tool_name
+      delete status.tool_input
+      observation.approvalDetails = undefined
+      observation.questionToolName = undefined
+    } else return
+    observation.status = status
+    if (!baseline && name !== 'message_end') observation.rootBaselinePending = false
+    observation.dirty = true
+    if (name === 'agent_end' || name === 'agent_settled') {
+      // The completion gate must see native children even when starts were missed.
+      if (observation.changeTimer !== null) clearTimeout(observation.changeTimer)
+      observation.changeTimer = null
+      reconcileOmpRegistry(observation)
+    } else scheduleOmpRegistryChange(observation)
+    scheduleOmpRegistryRefresh(observation)
+  }
 `
-      .trimEnd()
-      .split('\n'),
-    ...getOmpRootStatusSourceLines()
-  ]
+    .trimEnd()
+    .split('\n')
 }

@@ -15,11 +15,15 @@ vi.mock('../managed-server/activation/orcad-activation-fence-hold', () => ({
   orcadActivationFenceRefusal: mocks.fenceRefusal
 }))
 
-vi.mock('./orcad-managed-wake', () => ({ wakeStoppedManagedOrcad: mocks.wake }))
+vi.mock('../managed-server/lifecycle/orcad-managed-wake', () => ({
+  wakeStoppedManagedOrcad: mocks.wake
+}))
 vi.mock('../managed-server/activation/orcad-activation-record-store', () => ({
   readOrcadActivationRecord: mocks.readRecord
 }))
-vi.mock('./orcad-remote-build-hash', () => ({ readRemoteOrcadBuildHash: async () => 'hash' }))
+vi.mock('../managed-server/install/orcad-remote-build-hash', () => ({
+  readRemoteOrcadBuildHash: async () => 'hash'
+}))
 vi.mock('./orcad-active-readiness', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   probeActiveOrcadReadiness: mocks.probe,

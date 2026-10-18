@@ -67,53 +67,26 @@ To restore prompts for one agent only, edit that agent's default arguments or en
 
 ## OMP: live subagent status
 
-Orca's managed status extension observes OMP's own agent registry. Children appear by their native
+Orca's managed status extension reads OMP's native agent registry. Children appear by their native
 IDs rather than repeated role names, and completed or cancelled children leave the live roster.
-Registry changes are coalesced for about 200 ms; active work is rechecked every five seconds, including
-when the parent is silently waiting. These checks verify running agents, not new model activity.
-Children waiting for background tool results remain live even when OMP temporarily marks their
-model loop idle. Opening an unprompted OMP session does not count as working.
+Registry changes are coalesced for about 200 ms; active work is verified every five seconds, including
+quiet waits and background tools. Verification does not count as new model activity.
 
-After upgrading Orca, fully restart the app and OMP to load the updated tracking code and extension.
-No additional tracking tool, daemon, or model instruction is needed. Native tracking is
-capability-detected and has been verified with OMP 18.10.3, 18.10.4, and 18.11.0; runtimes without the
-registry API retain lifecycle-only tracking. Agent roles do not restrict which children are tracked.
+After upgrading Orca, fully restart the app and OMP to load the updated extension. No extra tracking
+tool, daemon, model instruction, or enable switch is needed. Native tracking is capability-detected;
+OMP versions without the registry API retain lifecycle-only tracking.
 
-Snapshots belong to one root and its current session. Session changes retire the previous roster,
-and observation refreshes preserve the root's prompt, input waits, and turn timing. Failed registry
-reads or hook delivery cannot refresh stale child evidence or declare an agent exited.
-Queued turn completions can still retry after shutdown releases the pane; these final messages
-do not replay child rosters.
+Snapshots belong to one root and its current session. Refreshes preserve the prompt, input waits,
+and turn clocks. A failed registry read cannot renew stale child evidence or prove that work exited.
+Session replacement clears the old roster and cannot inherit the previous session's clock.
 
-The existing compact sidebar layout is unchanged. Expand the worktree's agent count, then use the
-chevron on an OMP parent row to show or hide its children; there is no separate subagent switch.
-When OMP reports a new session ID and transcript, the renderer cannot inherit the previous session's
-turn clock. The root's own completion time remains separate from its children's.
+The existing compact sidebar is unchanged. Expand the worktree's agent count, then use the chevron
+on an OMP parent row to show or hide its children. All native child roles use the same tracking path.
+The shared roster displays up to 32 children; completion accounts for every discovered native child,
+including those beyond the display limit.
 
-OMP paints shell-completion markers inside its prompt bubbles while the process is still running.
-Orca checks that the foreground has returned to a shell before retiring that OMP launch; an
-unverifiable foreground read does not close its status channel.
-If the controller is temporarily absent, Orca retries when it reattaches, using the original launch
-and title identity. Newer completion markers supersede pending checks, and PTY exit discards them.
-Overlapping checks publish only the newest completion marker and exit code, including reattached
-OMP terminals without a launch token.
-
-Delivery keeps current and adjacent closing scopes rather than replaying an unbounded history after
-an outage. Older retired updates may be discarded; the status feed is not a durable notification log.
-
-For SSH workspaces, the execution host owns the registry and hook store; use an updated Orca host and
-a compatible OMP there. Losing client contact remains `unverifiable`, not `exited`. The adapter does
-not require a git worktree, so the same observation works in folder workspaces.
-
-The shared roster displays up to 32 children. Root completion accounts for all discovered native
-children, including those beyond that display limit.
-
-The optional installed-OMP E2E uses one core scenario: two sessions with three children by default.
-`ORCA_OMP_SCALE=1` adds eight sessions with six children; `ORCA_OMP_SCALE_STRESS=1` adds sixteen with eight.
-It checks live rosters, quiet/background work, cancellation/completion and session isolation, with a
-smoke check of the existing compact UI rather than repeating its disclosure or accessibility tests.
-Run `ORCA_BACKGROUND_LAUNCH=1 ORCA_REAL_OMP_CLI_TEST=1 pnpm run test:e2e omp-subagent-status.spec.ts --workers=1`.
-The core suite was verified with OMP 18.10.4; it is a functional check, not a benchmark harness.
+For SSH workspaces, the execution host owns the registry and hook store; update Orca and OMP there.
+Loss of client contact remains `unverifiable`, not `exited`. Tracking also works in folder workspaces.
 
 ## ZCode: pick a CLI that ships the TUI
 
