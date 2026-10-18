@@ -70,6 +70,14 @@ describe('mobile text contrast', () => {
       }
     }
   })
+  it.each(['light', 'dark'] as const)('keeps %s tool diff text readable', (scheme) => {
+    applyMobileColorScheme(scheme)
+    for (const text of [colors.chatDiffAdded, colors.chatDiffRemoved]) {
+      expect(contrastRatio(text, colors.bgBase)).toBeGreaterThanOrEqual(4.5)
+      expect(contrastRatio(text, colors.bgRaised)).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
   it('keeps muted text readable on every standard dark surface', () => {
     for (const surface of [colors.bgBase, colors.bgPanel, colors.bgRaised]) {
       expect(contrastRatio(colors.textMuted, surface)).toBeGreaterThanOrEqual(4.5)
