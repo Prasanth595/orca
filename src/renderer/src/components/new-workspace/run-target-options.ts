@@ -1,4 +1,3 @@
-import type { OrcaHooks } from '../../../../shared/orca-yaml-hook-types'
 import type {
   NeedsSetupProjectHostOption,
   ProjectHostSetupOption,
@@ -6,7 +5,8 @@ import type {
 } from '@/lib/project-host-setup-options'
 import { translate } from '@/i18n/i18n'
 
-export type EphemeralVmRecipeOption = NonNullable<OrcaHooks['environmentRecipes']>[number]
+import type { EphemeralVmRecipeOption } from '@/lib/ephemeral-vm-recipe-option'
+export type { EphemeralVmRecipeOption } from '@/lib/ephemeral-vm-recipe-option'
 
 export const RUN_TARGET_ADD_HOST_KEY = 'add-host'
 export const RUN_TARGET_RECIPES_KEY = 'per-workspace-env'
@@ -46,6 +46,9 @@ export function getRecipeDestroyLabel(recipe: EphemeralVmRecipeOption): string {
 
 /** One line under a recipe name: what it runs and whether it tears down. */
 export function getRecipeDetail(recipe: EphemeralVmRecipeOption): string {
+  if (recipe.source) {
+    return recipe.source.label
+  }
   return `${getRecipeCommandDisplay(recipe.create)} · ${getRecipeDestroyLabel(recipe)}`
 }
 
@@ -88,6 +91,7 @@ export function buildRunTargetRows({
     (recipe) =>
       trimmed === '' ||
       matches(recipe.name, trimmed) ||
+      matches(recipe.source?.label ?? '', trimmed) ||
       matches(getEphemeralVmLabel(), trimmed) ||
       matches(recipe.description ?? '', trimmed)
   )

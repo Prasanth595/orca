@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
 
-import { act } from 'react'
+import { act, useMemo } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useEphemeralVmRecipeOptions } from './useEphemeralVmRecipeOptions'
+import type { ReadyProjectHostSetupOption } from '@/lib/project-host-setup-options'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
@@ -60,27 +61,45 @@ function Harness({
   repoId,
   initialRecipeId,
   enabled = true,
-  repoExecutionHostId = 'local'
+  repoExecutionHostId = 'local',
+  sources: providedSources
 }: {
   repoId: string
   initialRecipeId?: string
   enabled?: boolean
   repoExecutionHostId?: 'local' | `runtime:${string}`
+  sources?: readonly ReadyProjectHostSetupOption[]
 }): React.JSX.Element {
+  const sources = useMemo<readonly ReadyProjectHostSetupOption[]>(
+    () =>
+      providedSources ?? [
+        {
+          id: `${repoId}-setup`,
+          kind: 'ready',
+          projectId: 'project',
+          hostId: repoExecutionHostId,
+          repoId,
+          label: repoExecutionHostId === 'local' ? 'Local Mac' : 'Central Server',
+          detail: '',
+          path: '/repo'
+        }
+      ],
+    [providedSources, repoId, repoExecutionHostId]
+  )
   const state = useEphemeralVmRecipeOptions({
     enabled,
-    repoId,
-    repoIsGit: true,
-    repoConnectionId: null,
-    repoExecutionHostId,
-    projectGroupTarget: false,
+    sources,
     initialRecipeId
   })
   return (
     <div>
       <span data-testid="repo">{repoId}</span>
-      <span data-testid="recipes">{state.recipes.map((recipe) => recipe.id).join(',')}</span>
-      <span data-testid="selected">{state.selectedRecipeId ?? 'none'}</span>
+      <span data-testid="recipes">
+        {state.recipes.map((recipe) => recipe.recipeId ?? recipe.id).join(',')}
+      </span>
+      <span data-testid="selected">
+        {state.recipes.find((recipe) => recipe.id === state.selectedRecipeId)?.recipeId ?? 'none'}
+      </span>
       <span data-testid="error">{state.error ?? 'none'}</span>
     </div>
   )
@@ -169,7 +188,62 @@ describe('useEphemeralVmRecipeOptions', () => {
       ownerEnvironmentId: 'windows-2'
     })
     expect(container.querySelector('[data-testid="error"]')?.textContent).toBe(
-      'Repo not found: repo-runtime'
+      'Central Server: Repo not found: repo-runtime'
     )
+  })
+  it('discovers server recipes directly and does not guess between duplicate IDs', async () => {
+    const sources: ReadyProjectHostSetupOption[] = ['local', 'runtime:central'].map(
+      (_hostId, index) => ({
+        id: `setup-${index}`,
+        kind: 'ready',
+        projectId: 'project',
+        hostId: index === 0 ? 'local' : 'runtime:central',
+        repoId: `repo-${index}`,
+        label: index === 0 ? 'Local Mac' : 'Central Server',
+        detail: '',
+        path: '/repo'
+      })
+    )
+    const listRecipes = vi.fn().mockResolvedValue(result(['worker']))
+    installApi(listRecipes)
+    const { container } = await render(
+      <Harness repoId="repo-0" sources={sources} initialRecipeId="worker" />
+    )
+    await vi.waitFor(() =>
+      expect(container.querySelector('[data-testid="recipes"]')?.textContent).toBe('worker,worker')
+    )
+    expect(listRecipes.mock.calls).toEqual([
+      [{ repoId: 'repo-0' }],
+      [{ repoId: 'repo-1', ownerEnvironmentId: 'central' }]
+    ])
+    expect(container.querySelector('[data-testid="selected"]')?.textContent).toBe('none')
+  })
+
+  it('reports an unavailable server without exposing its recipe as local', async () => {
+    const sources: ReadyProjectHostSetupOption[] = [
+      {
+        id: 'server',
+        kind: 'ready',
+        projectId: 'project',
+        hostId: 'runtime:central',
+        repoId: 'server-repo',
+        label: 'Central Server',
+        detail: '',
+        path: '/repo'
+      }
+    ]
+    const listRecipes = vi.fn().mockRejectedValue(new Error('offline'))
+    installApi(listRecipes)
+    const { container } = await render(<Harness repoId="local-repo" sources={sources} />)
+    await vi.waitFor(() =>
+      expect(container.querySelector('[data-testid="error"]')?.textContent).toBe(
+        'Central Server: offline'
+      )
+    )
+    expect(listRecipes.mock.calls).toEqual([
+      [{ repoId: 'server-repo', ownerEnvironmentId: 'central' }]
+    ])
+    expect(container.querySelector('[data-testid="recipes"]')?.textContent).toBe('')
+    expect(container.querySelector('[data-testid="selected"]')?.textContent).toBe('none')
   })
 })

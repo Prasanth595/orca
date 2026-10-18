@@ -1,3 +1,4 @@
+import { getEphemeralVmRecipeSources } from '@/lib/ephemeral-vm-recipe-option'
 import type { ComposerRuntimeTargetSelectionInput } from './composer-target-input-contracts'
 
 import { useEffect, useMemo, useRef } from 'react'
@@ -211,18 +212,19 @@ export function useComposerRuntimeTargetSelection(input: ComposerRuntimeTargetSe
   // Why: gate recipe probing on the experimental toggle, since discovery can surface setup errors for a hidden feature.
   const ephemeralVmsEnabled = settings?.experimentalEphemeralVms === true
 
+  const recipeSources = useMemo(
+    () => getEphemeralVmRecipeSources(projectHostSetupOptions, eligibleRepos),
+    [projectHostSetupOptions, eligibleRepos]
+  )
+
   const {
     recipes: ephemeralVmRecipes,
     selectedRecipeId: selectedEphemeralVmRecipeId,
     setSelectedRecipeId: setSelectedEphemeralVmRecipeId,
     error: ephemeralVmRecipeError
   } = useEphemeralVmRecipeOptions({
-    enabled: ephemeralVmsEnabled,
-    repoId: selectedRecipeRepoId,
-    repoIsGit: selectedRepoIsGit,
-    repoConnectionId: selectedRecipeRepoConnectionId,
-    repoExecutionHostId: selectedRepo ? getRepoExecutionHostId(selectedRepo) : null,
-    projectGroupTarget: isProjectGroupTarget,
+    enabled: ephemeralVmsEnabled && !isProjectGroupTarget,
+    sources: recipeSources,
     initialRecipeId: initialEphemeralVmRecipeId
   })
 

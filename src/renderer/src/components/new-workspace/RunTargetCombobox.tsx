@@ -17,7 +17,6 @@ import {
 } from './RunTargetComboboxRow'
 import {
   buildRunTargetRows,
-  getEphemeralVmLabel,
   getRecipeDetail,
   RUN_TARGET_ADD_HOST_KEY,
   type EphemeralVmRecipeOption
@@ -107,10 +106,17 @@ export default function RunTargetCombobox({
 
   const selectRecipe = useCallback(
     (recipeId: string): void => {
+      const recipe = recipes.find((option) => option.id === recipeId)
+      if (!recipe) {
+        return
+      }
+      if (recipe.source) {
+        onHostChange?.(recipe.source.id)
+      }
       onRecipeChange?.(recipeId)
       close()
     },
-    [close, onRecipeChange]
+    [close, onHostChange, onRecipeChange, recipes]
   )
 
   const connectHost = useCallback(
@@ -210,9 +216,7 @@ export default function RunTargetCombobox({
     [close, setOpen]
   )
 
-  const fieldLabel = selectedRecipe
-    ? `${getEphemeralVmLabel()} / ${selectedRecipe.name}`
-    : (selectedHost?.label ?? '')
+  const fieldLabel = selectedRecipe ? selectedRecipe.name : (selectedHost?.label ?? '')
   const fieldDetail = selectedRecipe ? getRecipeDetail(selectedRecipe) : (selectedHost?.path ?? '')
 
   return (

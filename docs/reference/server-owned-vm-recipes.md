@@ -7,6 +7,14 @@ uses its own repository IDs, paths, SSH keys, and runtime store. A failed remote
 call never runs the recipe on the desktop. Local projects retain their existing
 path.
 
+The Run on picker discovers recipes across the selected project's ready native
+and paired-server checkouts. Every recipe row shows its owner host. Choosing a
+recipe selects that checkout and recipe together; users do not select a host and
+then replace that choice with a generic recipe. Selection keys include host,
+source repo and recipe IDs, so identical names or IDs on two hosts remain distinct.
+The provisioning request carries the original recipe ID and explicit owner.
+Unavailable owners and stale/mismatched choices cannot fall back to another host.
+
 Desktop IPC and authenticated runtime RPC share the existing recipe engine.
 The Electron-backed headless host registers recipe services before accepting
 requests, after its existing SSH startup. For provisioned-root SSH recipes,
