@@ -27,7 +27,7 @@ it('removes the disabled microphone while keeping image attachment available', a
   await act(async () => {
     renderer = create(createElement(MobileTerminalInputActions, props))
   })
-  const buttons = () => renderer.root.findAllByType('Pressable')
+  const buttons = () => renderer.root.findAll((node) => String(node.type) === 'Pressable')
   expect(buttons().map((b) => b.props.accessibilityLabel)).toEqual(['Attach a photo'])
   await act(async () => buttons()[0]!.props.onPress())
   expect(attach).toHaveBeenCalledOnce()
