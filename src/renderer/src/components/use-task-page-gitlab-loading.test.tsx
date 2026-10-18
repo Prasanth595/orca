@@ -115,10 +115,9 @@ describe('useTaskPageGitLabLoading', () => {
     await waitFor(() => expect(setGitlabItems).toHaveBeenCalled())
     expect(rpc.call).toHaveBeenCalledTimes(repos.length)
     expect(maxInFlight).toBe(GITLAB_TASK_FETCH_CONCURRENCY)
-    const merged = setGitlabItems.mock.lastCall?.[0] as { repoId: string }[]
-    expect(merged).toHaveLength(repos.length)
-    expect(new Set(merged.map((item) => item.repoId))).toEqual(
-      new Set(repos.map((repo) => repo.id))
+    expect(setGitlabItems.mock.lastCall?.[0]).toHaveLength(repos.length)
+    expect(setGitlabItems).toHaveBeenLastCalledWith(
+      expect.arrayContaining(repos.map((repo) => expect.objectContaining({ repoId: repo.id })))
     )
   })
 
