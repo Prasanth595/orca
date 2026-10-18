@@ -100,8 +100,6 @@ function installRuntimeRpc(
       : {}),
     ...(serveOptions?.bindHost !== undefined
       ? {
-          // Why: an explicit `orca serve --bind` pins the listener to one address for the process's whole
-          // life (#25837). Without the flag nothing is passed and bind resolution is unchanged.
           pinnedBindHost: serveOptions.bindHost
         }
       : {}),

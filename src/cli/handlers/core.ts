@@ -7,7 +7,7 @@ import { resolveCliStatusCaller } from '../runtime/status-caller'
 import { getServeSuperviseValidationError } from '../runtime/serve-supervised-service'
 import { getOptionalServePort } from '../runtime/serve-port-flag'
 import { getServeOptionValidationError } from '../../shared/serve-option-validation'
-import { resolveServeBindHost } from '../runtime/serve-orcad-launch'
+import { getOptionalServeBind } from '../runtime/serve-bind-flag'
 
 function envRecord(): Record<string, string> {
   // Why: the `orca` launcher runs Orca's Electron binary as Node, so this CLI
@@ -45,17 +45,6 @@ async function runClaudeAgentTeams(env: Record<string, string>, args: string[]):
       resolve(signal ? 1 : 0)
     })
   })
-}
-
-function getOptionalServeBind(flags: Map<string, string | boolean>): string | null {
-  if (!flags.has('bind')) {
-    return null
-  }
-  const rawBind = flags.get('bind')
-  if (typeof rawBind !== 'string' || rawBind.length === 0) {
-    throw new RuntimeClientError('invalid_argument', 'Missing value for --bind.')
-  }
-  return resolveServeBindHost(rawBind)
 }
 
 export const CORE_HANDLERS: Record<string, CommandHandler> = {

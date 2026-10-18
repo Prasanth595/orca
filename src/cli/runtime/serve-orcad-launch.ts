@@ -3,8 +3,6 @@
  * app-side by `src/main/orcad/orcad-local-serve-selection.ts`; the CLI only asks and runs.
  */
 import { dirname, join } from 'node:path'
-import { resolveOrcadBindHost } from '../../main/orcad/orcad-bind-address'
-import { RuntimeClientError } from './types'
 import { runProcess, spawnProcess } from '@orca/process-host'
 import type { ProcessSpec } from '@orca/process-host/process-spec'
 import {
@@ -17,32 +15,7 @@ import { waitForRecipeJson } from './serve-recipe-json'
 import { superviseForegroundServe } from './serve-update-supervisor'
 import { isSupervisedSpawnHeld } from './serve-supervised-stop'
 import { redactingSpawn, shouldRedactSupervisedStdout } from './serve-pairing-redaction'
-
-export type ServeOrcaAppArgs = {
-  json?: boolean
-  port?: string | null
-  bind?: string | null
-  pairingAddress?: string | null
-  noPairing?: boolean
-  mobilePairing?: boolean
-  grantDesktopControl?: boolean
-  recipeJson?: boolean
-  projectRoot?: string | null
-  /** Starts Electron serve despite a remembered macOS startup abort in this environment. */
-  force?: boolean
-  /** Restart the server under a service manager instead of exiting with it; never inferred. */
-  supervise?: boolean
-}
-
-/** Resolve before any child starts, including the runtime-selection process. */
-export function resolveServeBindHost(raw: string): string {
-  try {
-    return resolveOrcadBindHost(raw)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Invalid --bind value.'
-    throw new RuntimeClientError('invalid_argument', message)
-  }
-}
+import { orcadServeArgs, type ServeOrcaAppArgs } from '../../shared/orcad-serve-argv'
 
 /** A first run may download and verify the pinned Node; bound it well past that. */
 const SELECTION_TIMEOUT_MS = 10 * 60_000
@@ -131,29 +104,4 @@ export function serveWithOrcad(
     handoffPath: null,
     expectedHandoff: null
   })
-}
-
-export function serveOptionArgs(args: ServeOrcaAppArgs, prefix: '--' | '--serve-'): string[] {
-  return [
-    ...(args.json ? [`${prefix}json`] : []),
-    ...(args.port ? [`${prefix}port`, args.port] : []),
-    ...(args.bind !== undefined && args.bind !== null
-      ? [`${prefix}bind`, resolveServeBindHost(args.bind)]
-      : []),
-    ...(args.pairingAddress ? [`${prefix}pairing-address`, args.pairingAddress] : []),
-    ...(args.noPairing ? [`${prefix}no-pairing`] : []),
-    ...(args.mobilePairing ? [`${prefix}mobile-pairing`] : []),
-    ...(args.grantDesktopControl ? [`${prefix}grant-desktop-control`] : []),
-    ...(args.recipeJson && args.projectRoot
-      ? [`${prefix}recipe-json`, `${prefix}project-root`, args.projectRoot]
-      : [])
-  ]
-}
-
-export function orcadServeArgs(args: ServeOrcaAppArgs, webClientRoot?: string): string[] {
-  return [
-    ...(args.bind === undefined || args.bind === null ? ['--bind', '0.0.0.0'] : []),
-    ...serveOptionArgs(args, '--'),
-    ...(webClientRoot ? ['--web-client-root', webClientRoot] : [])
-  ]
 }

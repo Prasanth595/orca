@@ -2,7 +2,7 @@ import {
   getServeFlagTypoError,
   getServeOptionValidationError
 } from '../../shared/serve-option-validation'
-import { resolveOrcadBindHost } from '../orcad/orcad-bind-address'
+import { resolveOrcadBindHost } from '../../shared/runtime-bind-address'
 
 export type ServeOptions = {
   json: boolean
@@ -109,13 +109,9 @@ export function getServeOptions(argv: readonly string[]): ServeOptions {
     wsPort = parsedPort
   }
 
-  const rawBind = lastValueOccurrence(optionsArgv, ['--serve-bind', '--bind'])
-  if (rawBind === null) {
-    throw new Error('Missing value for --serve-bind.')
-  }
-  // Why only when present: resolveOrcadBindHost(undefined) returns orcad's loopback default, which
-  // would silently pin the listener without the operator asking. No flag must mean no pin (#25837).
-  const bindHost = rawBind !== undefined ? resolveOrcadBindHost(rawBind) : undefined
+  const rawBind = valueAfter(optionsArgv, ['--serve-bind', '--bind'], true, '--serve-bind')
+  // Only an explicit flag pins the listener; orcad's loopback default must not change serve's.
+  const bindHost = rawBind !== null ? resolveOrcadBindHost(rawBind) : undefined
 
   const options: ServeOptions = {
     // The CLI uses `flags.has('json')`, so even `--json=false` enables JSON output.
