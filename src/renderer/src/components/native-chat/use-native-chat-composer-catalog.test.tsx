@@ -37,6 +37,7 @@ describe('composer catalog authority', () => {
     expect(result.current.agentCommands.map(({ name }) => name)).toEqual([
       'model',
       'effort',
+      'btw',
       'clear',
       'compact'
     ])
@@ -44,6 +45,7 @@ describe('composer catalog authority', () => {
     expect(result.current.agentCommands.map(({ name }) => name)).toEqual([
       'model',
       'effort',
+      'btw',
       'clear'
     ])
   })
@@ -63,7 +65,8 @@ describe('composer catalog authority', () => {
     const withoutReport = renderHook(() => useNativeChatComposerCatalog('claude', transport()))
     expect(withoutReport.result.current.agentCommands.map(({ name }) => name)).toEqual([
       'model',
-      'effort'
+      'effort',
+      'btw'
     ])
   })
   it('respects empty catalogs and command-only catalogs without reviving disk skills', () => {
@@ -75,12 +78,11 @@ describe('composer catalog authority', () => {
         }
       }
     )
-    expect(result.current).toEqual({ agentCommands: [], sessionSkillNames: [] })
+    expect(result.current.sessionSkillNames).toEqual([])
+    expect(result.current.agentCommands.map(({ name }) => name)).toEqual(['btw'])
     rerender({ reported: [{ name: 'custom-command', kind: 'command' }] })
-    expect(result.current).toEqual({
-      agentCommands: [{ name: 'custom-command' }],
-      sessionSkillNames: []
-    })
+    expect(result.current.sessionSkillNames).toEqual([])
+    expect(result.current.agentCommands.map(({ name }) => name)).toEqual(['btw', 'custom-command'])
   })
 })
 
@@ -143,7 +145,7 @@ it('Enter completes a known pre-init skill while still dispatching a built-in co
         setCaret: vi.fn()
       })
     },
-    { initialProps: { activeSuggestion: 1 } }
+    { initialProps: { activeSuggestion: 2 } }
   )
   const enter = { key: 'Enter', nativeEvent: {}, preventDefault: vi.fn() } as unknown as Parameters<
     typeof result.current
@@ -153,7 +155,7 @@ it('Enter completes a known pre-init skill while still dispatching a built-in co
     expect.objectContaining({ name: 'project-skill', kind: 'skill' })
   )
   expect(dispatch).not.toHaveBeenCalled()
-  rerender({ activeSuggestion: 0 })
+  rerender({ activeSuggestion: 1 })
   result.current(enter)
   expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ name: 'clear', kind: 'command' }))
 })

@@ -6,6 +6,7 @@
 
 import type { AgentSessionSlashCommand } from './agent-session-wire'
 import type { AgentType } from './agent-status-types'
+import { withNativeChatBtwCommand } from './native-chat-btw'
 
 /** Where the chat finds a command's reply when the agent runs in a terminal.
  *  `composer`: the chat answers from state it holds and never sends the command.
@@ -136,7 +137,7 @@ const COMMANDS_BY_AGENT: Partial<Record<AgentType, readonly SlashCommandSuggesti
 /** Known slash commands for an agent, falling back to a small common set so the
  *  `/` menu is never empty for a recognized agent. */
 export function getAgentSlashCommands(agent: AgentType): readonly SlashCommandSuggestion[] {
-  return COMMANDS_BY_AGENT[agent] ?? COMMON_COMMANDS
+  return withNativeChatBtwCommand(COMMANDS_BY_AGENT[agent] ?? COMMON_COMMANDS)
 }
 
 /** The command rows for a session that reports its own `/` surface. The report
@@ -151,17 +152,19 @@ export function sessionSlashCommandSuggestions(
   const described = new Map(
     getAgentSlashCommands(agent).map((command) => [command.name, command.description])
   )
-  return reported
-    .filter((entry) => entry.kind === 'command')
-    .map((entry) => {
-      const description = entry.description ?? described.get(entry.name)
-      return {
-        name: entry.name,
-        ...(description ? { description } : {}),
-        ...(entry.argumentHint ? { argumentHint: entry.argumentHint } : {}),
-        ...(entry.kindUnspecified ? { kindUnspecified: true as const } : {})
-      }
-    })
+  return withNativeChatBtwCommand(
+    reported
+      .filter((entry) => entry.kind === 'command')
+      .map((entry) => {
+        const description = entry.description ?? described.get(entry.name)
+        return {
+          name: entry.name,
+          ...(description ? { description } : {}),
+          ...(entry.argumentHint ? { argumentHint: entry.argumentHint } : {}),
+          ...(entry.kindUnspecified ? { kindUnspecified: true as const } : {})
+        }
+      })
+  )
 }
 
 /** Names the session reported as skills, in the order it reported them. */

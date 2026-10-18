@@ -16,10 +16,23 @@ import {
 import { abortWhenRendererGone } from './renderer-lifetime-abort'
 import { agentHookServer } from '../agent-hooks/server'
 import { nativeChatTranscriptPathOnExecutionHost } from '../native-chat/ssh-transcript-path'
+import { generateNativeChatSideQuestion } from '../native-chat/native-chat-side-question'
 
 // Re-export so existing test imports of `clearNativeChatTranscriptCache` from
 // this module keep working after the cache moved to transcript-read-cache.ts.
 export { clearNativeChatTranscriptCache }
+
+export type NativeChatAskSideQuestionArgs = {
+  agent: string
+  question: string
+  prompt: string
+  cwd: string
+  model?: string
+}
+
+function askSideQuestion(args: NativeChatAskSideQuestionArgs) {
+  return generateNativeChatSideQuestion(args)
+}
 
 export type NativeChatReadSessionArgs = {
   agent: AgentType
@@ -327,6 +340,9 @@ export function _getNativeChatPendingSubscriptionCountForTest(): number {
 }
 
 export function registerNativeChatHandlers(): void {
+  ipcMain.handle('nativeChat:askSideQuestion', (_event, args: NativeChatAskSideQuestionArgs) =>
+    askSideQuestion(args)
+  )
   ipcMain.handle('nativeChat:readSession', (_event, args: NativeChatReadSessionArgs) =>
     readSession(args)
   )

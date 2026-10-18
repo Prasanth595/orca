@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils'
 import { NATIVE_CHAT_APPEARANCE_ROOT_CLASS } from './native-chat-appearance-style'
 import { useNativeChatStoreAppearanceStyle } from './use-native-chat-store-appearance-style'
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { agentSessionPromptQuestions } from '../../../../shared/agent-session-question-answer'
 import { structuredAgentSessionPaneKey } from '../../../../shared/structured-agent-session-projection'
 import { useStructuredChatLiveSession } from './use-structured-chat-live-session'
@@ -21,6 +21,8 @@ import { useNativeChatRootInputRouting } from './use-native-chat-root-input-rout
 import { useNativeChatFontSize } from './use-native-chat-font-size'
 import { useNativeChatFind } from './use-native-chat-find'
 import { NativeChatFindBar } from './NativeChatFindBar'
+import { NativeChatBtwPanel, type NativeChatBtwHandle } from './NativeChatBtwPanel'
+import { createNativeChatBtwAsk, nativeChatSessionModelId } from './native-chat-btw-ask'
 import { LinkActionPopover } from '@/components/link-actions/LinkActionPopover'
 import { useNativeChatLinkActions } from './use-native-chat-link-actions'
 import { useNativeChatFileLinkContext } from './use-native-chat-file-link-context'
@@ -79,6 +81,10 @@ export function NativeChatStructuredSession(
   // Chat-wide: absent means on; only an explicit off keeps mid-turn sends immediate.
   const queueFollowUps = useAppStore((store) => store.settings?.nativeChatQueueFollowUps !== false)
   const composerRef = useRef<NativeChatComposerHandle>(null)
+  const btwRef = useRef<NativeChatBtwHandle>(null)
+  const runBtw = useCallback((question: string) => {
+    btwRef.current?.ask(question)
+  }, [])
   // Paste target while a question card replaces the composer.
   const questionAnswerInputRef = useRef<HTMLInputElement>(null)
   const { rewindHost, focusComposer } = useNativeChatRewindHost(props, composerRef)
@@ -232,7 +238,8 @@ export function NativeChatStructuredSession(
     setOptionPickerRequest,
     onError: reportComposerError,
     onSubmitted: submits.revealLatest,
-    sendBlockedReason: hostPermission.sendBlockedReason ?? install.sendBlockedReason
+    sendBlockedReason: hostPermission.sendBlockedReason ?? install.sendBlockedReason,
+    runBtw
   })
 
   // Said once: on the pane when the failure took it, else in the composer's notices.
@@ -292,6 +299,18 @@ export function NativeChatStructuredSession(
     >
       <div className="relative flex min-h-0 flex-1 flex-col">
         {find.isOpen ? <NativeChatFindBar find={find} isVisible={props.isVisible} /> : null}
+        <NativeChatBtwPanel
+          ref={btwRef}
+          messages={controller.messages}
+          ask={createNativeChatBtwAsk({
+            agent: props.agent,
+            cwd: fileLinkContext?.worktreePath || '.',
+            model: nativeChatSessionModelId(controller.optionSnapshot),
+            runtime: props.target.kind === 'local' ? 'local' : 'remote',
+            runtimeEnvironmentId:
+              props.target.kind === 'local' ? null : (props.target.environmentId ?? null)
+          })}
+        />
         {viewState.kind === 'loading' || (viewState.kind === 'error' && !readFailure) ? (
           loadingPane
         ) : viewState.kind === 'error' ? (

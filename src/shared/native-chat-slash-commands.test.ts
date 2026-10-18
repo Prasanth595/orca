@@ -19,6 +19,7 @@ describe('getAgentSlashCommands', () => {
 
   it('returns Claude commands for claude (no Codex-only /model)', () => {
     const names = getAgentSlashCommands('claude').map((c) => c.name)
+    expect(names).toContain('btw')
     expect(names).toContain('clear')
     expect(names).toContain('compact')
     expect(names).not.toContain('model')
@@ -33,7 +34,7 @@ describe('getAgentSlashCommands', () => {
 
   it('falls back to a small common set for an unknown agent (never empty)', () => {
     const names = getAgentSlashCommands('some-other-agent').map((c) => c.name)
-    expect(names).toEqual(['clear', 'help'])
+    expect(names).toEqual(['btw', 'clear', 'help'])
   })
 })
 
@@ -83,6 +84,11 @@ describe('a session that reports its own command surface', () => {
 
   it('offers exactly the reported commands, described from the curated catalog', () => {
     expect(sessionSlashCommandSuggestions('claude', reported)).toEqual([
+      {
+        name: 'btw',
+        description: 'Ask a side question without adding it to the conversation',
+        argumentHint: '<question>'
+      },
       { name: 'clear', description: 'Clear conversation history' },
       { name: 'opsx:apply' }
     ])
@@ -105,6 +111,11 @@ describe('a session that reports its own command surface', () => {
         { name: 'compact', kind: 'command' }
       ])
     ).toEqual([
+      {
+        name: 'btw',
+        description: 'Ask a side question without adding it to the conversation',
+        argumentHint: '<question>'
+      },
       { name: 'clear', description: 'Wipe the transcript' },
       { name: 'goal', description: 'Set or view the goal' },
       { name: 'compact', description: 'Summarize and compact the conversation' }
@@ -123,6 +134,11 @@ describe('a session that reports its own command surface', () => {
         }
       ])
     ).toEqual([
+      {
+        name: 'btw',
+        description: 'Ask a side question without adding it to the conversation',
+        argumentHint: '<question>'
+      },
       {
         name: 'opsx:apply',
         description: 'Apply the plan',

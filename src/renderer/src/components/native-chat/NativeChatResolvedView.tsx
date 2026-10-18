@@ -17,6 +17,8 @@ import { NativeChatComposer, type NativeChatComposerHandle } from './NativeChatC
 import { useNativeChatFontSize } from './use-native-chat-font-size'
 import { useNativeChatFind } from './use-native-chat-find'
 import { NativeChatFindBar } from './NativeChatFindBar'
+import { NativeChatBtwPanel, type NativeChatBtwHandle } from './NativeChatBtwPanel'
+import { createNativeChatBtwAsk } from './native-chat-btw-ask'
 import { useNativeChatCanSend } from './use-native-chat-can-send'
 import { NativeChatInteractiveCard } from './NativeChatInteractiveCard'
 import { useNativeChatInteractivePromptCard } from './use-native-chat-interactive-prompt-card'
@@ -128,6 +130,7 @@ export function NativeChatResolvedView({
   const previousWorkingEpochRef = useRef<number | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<NativeChatComposerHandle>(null)
+  const btwRef = useRef<NativeChatBtwHandle>(null)
   // The question card's free-text row; keeps Paste working while the card
   // replaces the composer.
   const questionAnswerInputRef = useRef<HTMLInputElement>(null)
@@ -376,6 +379,16 @@ export function NativeChatResolvedView({
     >
       <div className="relative flex min-h-0 flex-1 flex-col">
         {find.isOpen ? <NativeChatFindBar find={find} isVisible={isVisible} /> : null}
+        <NativeChatBtwPanel
+          ref={btwRef}
+          messages={session.messages}
+          ask={createNativeChatBtwAsk({
+            agent,
+            cwd: fileLinkContext?.worktreePath || '.',
+            runtime: 'local',
+            runtimeEnvironmentId: null
+          })}
+        />
         {viewState.kind === 'loading' ? (
           <NativeChatEmptyState kind="loading" />
         ) : viewState.kind === 'error' ? (
@@ -433,6 +446,7 @@ export function NativeChatResolvedView({
           onOptimisticSendCanceled={delivery.cancel}
           optimisticSendOutcome={delivery}
           onSlashCommand={onSlashCommand}
+          onBtw={(question) => btwRef.current?.ask(question)}
           onSubmitted={revealLatest}
           answerCommandLocally={answerLocally}
           onSwitchToTerminal={onSwitchToTerminal}
