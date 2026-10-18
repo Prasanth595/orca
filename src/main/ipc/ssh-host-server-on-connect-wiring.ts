@@ -15,6 +15,7 @@ import { verifyOrcadManagedServing } from '../ssh/orcad-managed-serving-verify'
 import { convertSshTargetToManagedOrcad } from '../ssh/orcad-runtime-conversion'
 import {
   orcadMigrationDestinationFor,
+  orcadServerFolderCatalogFor,
   orcadServerRepositoriesFor
 } from '../ssh/orcad-runtime-conversion-wiring'
 import { createManagedOrcadEnvironment } from '../ssh/orcad-runtime-deployment'
@@ -22,9 +23,9 @@ import type { HostServerOnConnectDeps } from '../ssh/ssh-host-server-on-connect'
 import {
   censusSshHostRelaysBeforeSession,
   relayTerminalsOnConnect
-} from '../ssh/ssh-host-relay-terminals-on-connect'
+} from '../ssh/legacy-relay/ssh-host-relay-terminals-on-connect'
 import { requireManagedOrcadInfrastructure } from '../ssh/orcad-managed-runtime-context'
-import { censusHostRelayTerminalsFor } from '../ssh/ssh-host-relay-census-for-target'
+import { censusHostRelayTerminalsFor } from '../ssh/legacy-relay/ssh-host-relay-census-for-target'
 import { setSshHostServerStatus } from '../ssh/ssh-host-server-status'
 import { trackSshHostServerEvent } from '../ssh/ssh-host-server-telemetry'
 import { knownSshHostPlatform } from '../ssh/ssh-host-platform-memo'
@@ -34,7 +35,7 @@ import { releaseUnreachableOrcadSetup } from '../ssh/orcad-unreachable-setup-rel
 import { getCurrentMainWindow } from './ssh-ipc-context'
 import { broadcastSshState } from './ssh-renderer-broadcast'
 import { connectInFlight } from './ssh-connect-attempt-registry'
-import { startLegacyRelayBridge } from '../ssh/legacy-relay-bridge/legacy-relay-bridge-registry'
+import { startLegacyRelayBridge } from '../ssh/legacy-relay/legacy-relay-bridge-registry'
 
 export function hostServerOnConnectDeps(userDataPath: string): HostServerOnConnectDeps {
   const registry = getSshTargetRegistryStore()!
@@ -106,7 +107,8 @@ export function hostServerOnConnectDeps(userDataPath: string): HostServerOnConne
           hostProof ? Promise.resolve(hostProof) : censusHostRelayTerminalsFor(host)(),
         // Why no releaseDirectSession: a disconnect here would cancel the connect that asked for it.
         destinationFor: orcadMigrationDestinationFor,
-        serverRepositoriesFor: orcadServerRepositoriesFor
+        serverRepositoriesFor: orcadServerRepositoriesFor,
+        serverFolderCatalogFor: orcadServerFolderCatalogFor
       })
       if (converted.outcome === 'converted' || converted.outcome === 'refused') {
         // "Move anyway" covers one attempt; a later move, or a later delta, asks again.
