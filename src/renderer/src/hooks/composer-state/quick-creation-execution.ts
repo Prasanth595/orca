@@ -1,3 +1,4 @@
+import { buildEphemeralVmRecipeRequest } from '@/lib/ephemeral-vm-recipe-option'
 import type { ComposerModel } from './composer-model'
 
 type QuickCreationExecutionInput = Pick<
@@ -161,15 +162,13 @@ export function useQuickCreationExecution(input: QuickCreationExecutionInput) {
       const activeEphemeralVmRecipeId = ephemeralVmsEnabled ? selectedEphemeralVmRecipeId : null
 
       if (activeEphemeralVmRecipeId && selectedWorkspaceTarget.status === 'ready') {
-        const selectedRecipe = ephemeralVmRecipes.find(
-          (recipe) => recipe.id === activeEphemeralVmRecipeId
+        ephemeralVmRecipe = buildEphemeralVmRecipeRequest(
+          activeEphemeralVmRecipeId,
+          ephemeralVmRecipes,
+          repoId,
+          selectedWorkspaceTarget.target.projectId,
+          selectedRepoExecutionHostId
         )
-        ephemeralVmRecipe = {
-          sourceRepoId: repoId,
-          recipeId: activeEphemeralVmRecipeId,
-          projectId: selectedWorkspaceTarget.target.projectId,
-          ...(selectedRecipe?.checkoutMode ? { checkoutMode: selectedRecipe.checkoutMode } : {})
-        }
       }
 
       const promptDelivery = quickDraftPrompt ? 'draft' : 'auto-submit'

@@ -144,6 +144,7 @@ async function confirmScriptContent(
       scriptContent,
       contentHash,
       previouslyApproved,
+      executionHostId: hostId ?? (repo ? getRepoExecutionHostId(repo) : undefined),
       onResolve: settle,
       // Why: eviction must fail closed without stranding the singleton trust queue.
       [MODAL_DISMISSED_KEY]: () => settle('skip')

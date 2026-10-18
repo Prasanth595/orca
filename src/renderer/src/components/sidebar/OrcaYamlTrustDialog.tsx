@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { useAppStore } from '@/store'
 import type { OrcaHookScriptKind } from '@/lib/orca-hook-trust'
 import { translate } from '@/i18n/i18n'
+import { getExecutionHostLabel, parseExecutionHostId } from '../../../../shared/execution-host'
 
 type ScriptKind = OrcaHookScriptKind
 
@@ -31,6 +32,7 @@ const SCRIPT_KIND_TRIGGER: Record<ScriptKind, string> = {
 const OrcaYamlTrustDialog = React.memo(function OrcaYamlTrustDialog() {
   const activeModal = useAppStore((s) => s.activeModal)
   const modalData = useAppStore((s) => s.modalData)
+  const runtimeEnvironments = useAppStore((s) => s.runtimeEnvironments)
   const closeModal = useAppStore((s) => s.closeModal)
   const markOrcaHookScriptConfirmed = useAppStore((s) => s.markOrcaHookScriptConfirmed)
   const markOrcaHookRepoAlwaysTrusted = useAppStore((s) => s.markOrcaHookRepoAlwaysTrusted)
@@ -51,6 +53,21 @@ const OrcaYamlTrustDialog = React.memo(function OrcaYamlTrustDialog() {
     setAlwaysTrustState({ isOpen, value })
   }
 
+  const executionHostId =
+    typeof modalData.executionHostId === 'string' ? modalData.executionHostId : undefined
+  const owner = parseExecutionHostId(executionHostId)
+  const unknownHostLabel = translate(
+    'auto.components.sidebar.OrcaYamlTrustDialog.selectedHost',
+    'the selected execution host'
+  )
+  const executionHostLabel =
+    owner?.kind === 'runtime'
+      ? runtimeEnvironments
+          ?.find((environment) => environment.id === owner.environmentId)
+          ?.name?.trim() || unknownHostLabel
+      : owner
+        ? getExecutionHostLabel(owner.id)
+        : unknownHostLabel
   const repoId = typeof modalData.repoId === 'string' ? modalData.repoId : ''
   const repoName = typeof modalData.repoName === 'string' ? modalData.repoName : 'this repository'
   const scriptKind: ScriptKind =
@@ -129,7 +146,8 @@ const OrcaYamlTrustDialog = React.memo(function OrcaYamlTrustDialog() {
                   'auto.components.sidebar.OrcaYamlTrustDialog.c55beddbf8',
                   'changed since you last approved. Re-review before it runs'
                 )}{' '}
-                {SCRIPT_KIND_TRIGGER[scriptKind]}.
+                {translate('auto.components.sidebar.OrcaYamlTrustDialog.onHost', 'on')}{' '}
+                {executionHostLabel} {SCRIPT_KIND_TRIGGER[scriptKind]}.
               </>
             ) : (
               <>
@@ -140,11 +158,8 @@ const OrcaYamlTrustDialog = React.memo(function OrcaYamlTrustDialog() {
                 <code>
                   {translate('auto.components.sidebar.OrcaYamlTrustDialog.79afc6772b', 'orca.yaml')}
                 </code>{' '}
-                {translate(
-                  'auto.components.sidebar.OrcaYamlTrustDialog.831f2cd9f0',
-                  'runs on your machine'
-                )}{' '}
-                {SCRIPT_KIND_TRIGGER[scriptKind]}
+                {translate('auto.components.sidebar.OrcaYamlTrustDialog.runsOnHost', 'runs on')}{' '}
+                {executionHostLabel} {SCRIPT_KIND_TRIGGER[scriptKind]}
                 {translate(
                   'auto.components.sidebar.OrcaYamlTrustDialog.bf800b7e04',
                   '. Only run if you trust'

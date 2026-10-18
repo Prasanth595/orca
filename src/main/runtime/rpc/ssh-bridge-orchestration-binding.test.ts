@@ -55,8 +55,8 @@ describe('SSH bridge orchestration without the per-host opt-in', () => {
     vi.spyOn(runtime, 'waitForMessage').mockResolvedValue('timed_out')
   }
 
-  function dispatchFromCoordinator(name: string, paneKey: string) {
-    const task = db.createTask({ spec: `${name} work` })
+  function dispatchFromCoordinator(name: string, paneKey: string, runId?: string) {
+    const task = db.createTask({ spec: `${name} work`, runId })
     const started = db.createStartingWorkerDispatch({
       creator: { kind: 'terminal', handle: 'term_coord', paneKey: harness.coordinatorPaneKey },
       maxDepth: Number.MAX_SAFE_INTEGER,
@@ -314,15 +314,47 @@ describe('SSH bridge orchestration without the per-host opt-in', () => {
     expect(forbidden(reply)).toBe(true)
   })
 
-  it("refuses explicit addresses for another worker's Dispatch or an unrelated Run", async () => {
+  it('lets live workers on different hosts exchange mail within their Run', async () => {
+    setup()
+    const worker = dispatchFromCoordinator('worker', WORKER_PANE)
+    const sibling = dispatchFromCoordinator('sibling', SIBLING_PANE)
+    const sent = await callAsBridge('orchestration.send', {
+      from: 'term_worker',
+      to: `dispatch:${sibling.dispatchId}`,
+      subject: 'Peer status',
+      body: 'Ready',
+      type: 'status'
+    })
+    expect(sent).toMatchObject({
+      ok: true,
+      result: { message: { to_handle: `dispatch:${sibling.dispatchId}` } }
+    })
+    const { message } = SentMessageResult.parse(sent.ok ? sent.result : null)
+    const reply = await new RpcDispatcher({ runtime }).dispatch(
+      {
+        id: 'peer-reply',
+        authToken: 'unused',
+        method: 'orchestration.reply',
+        params: { from: 'term_sibling', id: message.id, body: 'Acknowledged' },
+        orchestrationContractVersion: ORCHESTRATION_CONTRACT_VERSION
+      },
+      { callerScope: { ...HOST_BOUND, targetId: 'box-2' } }
+    )
+    expect(reply).toMatchObject({
+      ok: true,
+      result: { message: { to_handle: `dispatch:${worker.dispatchId}` } }
+    })
+  })
+
+  it('refuses another Run and its worker mailboxes', async () => {
     setup()
     dispatchFromCoordinator('worker', WORKER_PANE)
-    const sibling = dispatchFromCoordinator('sibling', SIBLING_PANE)
     const other = db.createRun({
       objective: 'Other',
       coordinatorHandle: 'term_local',
       coordinatorPaneKey: LOCAL_PANE
     })
+    const sibling = dispatchFromCoordinator('sibling', SIBLING_PANE, other.id)
     for (const to of [`dispatch:${sibling.dispatchId}`, `run:${other.id}`]) {
       const sent = await callAsBridge('orchestration.send', {
         from: 'term_worker',
@@ -332,6 +364,29 @@ describe('SSH bridge orchestration without the per-host opt-in', () => {
       expect(forbidden(sent)).toBe(true)
     }
   })
+
+  it.each(['settled', 'stale sender', 'stale recipient'])(
+    'refuses peer mail with %s identity',
+    async (state) => {
+      setup()
+      dispatchFromCoordinator('worker', WORKER_PANE)
+      const sibling = dispatchFromCoordinator('sibling', SIBLING_PANE)
+      if (state === 'settled') {
+        db.completeDispatch(sibling.dispatchId)
+      } else {
+        const stale = state === 'stale sender' ? 'term_worker' : 'term_sibling'
+        vi.mocked(runtime.getTerminalProcessIncarnation).mockImplementation(
+          (handle) => `runtime_test:${handle}:${handle === stale ? 2 : 1}`
+        )
+      }
+      const sent = await callAsBridge('orchestration.send', {
+        from: 'term_worker',
+        to: `dispatch:${sibling.dispatchId}`,
+        subject: 'p'
+      })
+      expect(forbidden(sent)).toBe(true)
+    }
+  )
 
   it('refuses a forged pane claiming the Dispatch mailbox', async () => {
     setup()
@@ -368,4 +423,60 @@ describe('SSH bridge orchestration without the per-host opt-in', () => {
     expect(forbidden(await send(`dispatch:${worker.dispatchId}`))).toBe(false)
     expect(forbidden(await send(`dispatch:${sibling.dispatchId}`))).toBe(true)
   })
+  it('keeps peer ask coordinator-only while allowing the owning Run question', async () => {
+    setup()
+    dispatchFromCoordinator('worker', WORKER_PANE)
+    const sibling = dispatchFromCoordinator('sibling', SIBLING_PANE)
+    const response = await callAsBridge('orchestration.ask', {
+      from: 'term_worker',
+      to: `dispatch:${sibling.dispatchId}`,
+      question: 'Ready?',
+      timeoutMs: 0
+    })
+    expect(response, JSON.stringify(response)).toMatchObject({
+      ok: false,
+      error: { code: 'dispatch_run_mismatch' }
+    })
+    const worker = db.getActiveDispatchForIdentity('term_worker', WORKER_PANE)
+    if (!worker) {
+      throw new Error('worker Dispatch missing')
+    }
+    const coordinatorQuestion = await callAsBridge('orchestration.ask', {
+      from: 'term_worker',
+      to: `run:${worker.run_id}`,
+      question: 'Decision?',
+      timeoutMs: 0
+    })
+    expect(coordinatorQuestion, JSON.stringify(coordinatorQuestion)).toMatchObject({
+      ok: true,
+      result: { timedOut: true }
+    })
+  })
+
+  it.each(['sender-pane', 'recipient-pane', 'settled-sender'])(
+    'refuses peer send for %s',
+    async (state) => {
+      setup()
+      const worker = dispatchFromCoordinator('worker', WORKER_PANE)
+      const sibling = dispatchFromCoordinator('sibling', SIBLING_PANE)
+      if (state === 'settled-sender') {
+        db.completeDispatch(worker.dispatchId)
+      } else {
+        const stale = state === 'sender-pane' ? 'term_worker' : 'term_sibling'
+        const old = vi.mocked(runtime.getTerminalPaneKey).getMockImplementation()
+        if (!old) {
+          throw new Error('pane implementation missing')
+        }
+        vi.mocked(runtime.getTerminalPaneKey).mockImplementation((handle) =>
+          handle === stale ? LOCAL_PANE : old(handle)
+        )
+      }
+      const response = await callAsBridge('orchestration.send', {
+        from: 'term_worker',
+        to: `dispatch:${sibling.dispatchId}`,
+        subject: 'peer'
+      })
+      expect(forbidden(response), JSON.stringify(response)).toBe(true)
+    }
+  )
 })

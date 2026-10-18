@@ -2,8 +2,8 @@
  * Lets an SSH host's relayed `orca` CLI take part in orchestration as that host's own terminals.
  *
  * Without the per-target opt-in, the caller (`from` / `terminal`) must be a terminal on the bridged
- * host. A party outside the host is reachable only as the coordinator of a Dispatch the caller works
- * on, so a worker reports back to whoever dispatched it but cannot message or read anyone else.
+ * host. Workers can reach their coordinator and live peer Dispatches in the same Run, while mailbox
+ * reads and lifecycle reports remain bound to their own identity.
  * Routing stores mail under `run:`/`dispatch:` addresses, so ownership is resolved to those exact
  * mailboxes the caller's live pane reads, never to a Run it merely shares.
  */
@@ -87,7 +87,7 @@ export async function findSshBridgeOrchestrationViolation(
 }
 
 // A canonical address is in scope when it is the caller's own mailbox, the Run mailbox its held
-// Dispatch reports to, or a same-host worker's Dispatch in the Run the caller coordinates.
+// Dispatch reports to, a live peer Dispatch, or a same-host worker in the Run it coordinates.
 async function isOwnCanonicalRecipient(
   db: OrchestrationDb,
   owned: TerminalOwnedMailboxes,
@@ -98,11 +98,16 @@ async function isOwnCanonicalRecipient(
   if (owned.addresses.has(to) || (owned.dispatch && to === `run:${owned.dispatch.run_id}`)) {
     return true
   }
-  if (!to.startsWith('dispatch:') || owned.runId === undefined) {
+  if (!to.startsWith('dispatch:')) {
     return false
   }
   const dispatch = db.getDispatchContextById(to.slice('dispatch:'.length))
+  if (owned.dispatch && dispatch?.run_id === owned.dispatch.run_id && dispatch.assignee_handle) {
+    const recipient = resolveTerminalOwnedMailboxes(runtime, db, dispatch.assignee_handle)
+    return recipient.dispatch?.id === dispatch.id
+  }
   return (
+    owned.runId !== undefined &&
     dispatch?.run_id === owned.runId &&
     dispatch.assignee_handle !== null &&
     (await isHostTerminal(runtime, hostId, dispatch.assignee_handle))
