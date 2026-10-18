@@ -9,6 +9,7 @@ import { useNativeChatComposerKeyDown } from './use-native-chat-composer-keydown
 import { useNativeChatComposerCatalog } from './use-native-chat-composer-catalog'
 import type { NativeChatStructuredComposerTransport } from './native-chat-composer-types'
 import { getVerifiedNativeChatCommands } from '../../../../shared/native-chat-agent-profiles'
+import { withNativeChatBtwCommand } from '../../../../shared/native-chat-btw'
 import { sessionSlashCommandSuggestions } from '../../../../shared/native-chat-slash-commands'
 import {
   isStructuredAgentSessionComposerCommand,
@@ -23,7 +24,9 @@ function transport(sessionCommands?: NativeChatStructuredComposerTransport['sess
 describe('composer catalog authority', () => {
   it('keeps PTY and unsupported structured providers on their original catalogs', () => {
     const pty = renderHook(() => useNativeChatComposerCatalog('claude'))
-    expect(pty.result.current.agentCommands).toEqual(getVerifiedNativeChatCommands('claude'))
+    expect(pty.result.current.agentCommands).toEqual(
+      withNativeChatBtwCommand(getVerifiedNativeChatCommands('claude'))
+    )
     expect(pty.result.current.sessionSkills).toBeUndefined()
     const oldHost = renderHook(() => useNativeChatComposerCatalog('claude', transport()))
     expect(oldHost.result.current.agentCommands).toEqual(structuredSlashCommands())
@@ -67,7 +70,7 @@ describe('composer catalog authority', () => {
     const reported = [{ name: 'init', kind: 'command' as const }]
     const withReport = renderHook(() => useNativeChatComposerCatalog('claude', transport(reported)))
     expect(withReport.result.current.agentCommands).toEqual(
-      sessionSlashCommandSuggestions('claude', reported)
+      withNativeChatBtwCommand(sessionSlashCommandSuggestions('claude', reported))
     )
     const withoutReport = renderHook(() => useNativeChatComposerCatalog('claude', transport()))
     expect(withoutReport.result.current.agentCommands.map(({ name }) => name)).toEqual([

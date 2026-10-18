@@ -529,12 +529,11 @@ it('preserves known skill completion for unclassified session members only', () 
   ]
   const items = buildNativeChatPickerItems(commands, diskSkills, '', '/', [])
   expect(items.map(({ name, kind }) => ({ name, kind }))).toEqual([
-    { name: 'btw', kind: 'command' },
     { name: 'clear', kind: 'command' },
     { name: 'project-check', kind: 'command' },
     { name: 'typescript', kind: 'skill' }
   ])
-  expect(items[3]).toMatchObject({
+  expect(items[2]).toMatchObject({
     description: 'TypeScript skill',
     sources: [{ sourceKind: 'repo' }]
   })
@@ -542,12 +541,6 @@ it('preserves known skill completion for unclassified session members only', () 
     { name: 'typescript', kind: 'command' }
   ])
   expect(
-    buildNativeChatPickerItems(classified, diskSkills, '', '/', []).map(({ name, kind }) => ({
-      name,
-      kind
-    }))
-  ).toEqual([
-    { name: 'btw', kind: 'command' },
-    { name: 'typescript', kind: 'command' }
-  ])
+    buildNativeChatPickerItems(classified, diskSkills, '', '/', []).map(({ kind }) => kind)
+  ).toEqual(['command'])
 })

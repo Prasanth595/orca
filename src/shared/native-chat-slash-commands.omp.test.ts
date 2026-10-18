@@ -23,11 +23,7 @@ describe('OMP terminal command catalog', () => {
     expect(getVerifiedNativeChatCommands('omp')).toEqual(commands)
     expect(getNativeChatAgentProfile('omp')).toBeNull()
     expect(new Set(names).size).toBe(names.length)
-    expect(getAgentSlashCommands('pi').map((command) => command.name)).toEqual([
-      'btw',
-      'clear',
-      'help'
-    ])
+    expect(getAgentSlashCommands('pi').map((command) => command.name)).toEqual(['clear', 'help'])
   })
 
   it('completes arguments separately from picker command dispatch', () => {
@@ -58,15 +54,7 @@ describe('OMP terminal command catalog', () => {
         { name: 'custom', kind: 'command' },
         { name: 'plan', kind: 'skill' }
       ])
-    ).toEqual([
-      {
-        name: 'btw',
-        description: 'Ask a side question without adding it to the conversation',
-        argumentHint: '<question>'
-      },
-      { name: 'model', description: 'Host model selector' },
-      { name: 'custom' }
-    ])
-    expect(sessionSlashCommandSuggestions('omp', []).map((command) => command.name)).toEqual(['btw'])
+    ).toEqual([{ name: 'model', description: 'Host model selector' }, { name: 'custom' }])
+    expect(sessionSlashCommandSuggestions('omp', [])).toEqual([])
   })
 })
