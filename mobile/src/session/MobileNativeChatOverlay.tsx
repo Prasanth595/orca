@@ -22,7 +22,7 @@ type Props = {
   /** Native-chat image attachments: picking adds a composer chip, and sending
    *  rides the pending images along with the message text (desktop parity). */
   images: MobileNativeChatImageAttachments
-  onMicPress: () => void
+  onMicPress: (() => void) | undefined
   micActive: boolean
   dictationMode: string | undefined
   onMicPressIn: () => void

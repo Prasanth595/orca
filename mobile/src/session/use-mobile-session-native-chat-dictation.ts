@@ -36,6 +36,7 @@ export function useMobileSessionNativeChatDictation(
     diffCommentsRef,
     setShowDictationSetup,
     setDictationMode,
+    setDictationEnabled,
     deviceTokenRef,
     dictationRouteContextRef,
     activeHandleRef,
@@ -211,6 +212,7 @@ export function useMobileSessionNativeChatDictation(
     try {
       const setup = await fetchDictationSetup(client)
       setDictationMode(setup.dictationMode)
+      setDictationEnabled(setup.enabled !== false)
     } catch {
       // Non-fatal: fall back to the default toggle behavior.
     }
