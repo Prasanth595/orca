@@ -5,6 +5,7 @@ import { dismissMobileSessionCreateWarningState } from './mobile-session-create-
 import { colors } from '../theme/mobile-theme'
 import { styles } from './mobile-session-styles'
 import type { MobileSessionController } from './use-mobile-session-controller'
+import { MobileSessionTabOverview } from './MobileSessionTabOverview'
 import { MobileSessionActiveContent } from './MobileSessionActiveContent'
 import { MobileSessionCommandDock } from './MobileSessionCommandDock'
 
@@ -43,6 +44,7 @@ export function MobileSessionContentRow({ controller }: { controller: MobileSess
         <MobileSessionActiveContent controller={controller} />
         {/* Why: translate instead of resize so keyboard toggles don't trigger a server-side PTY viewport change. */}
         <MobileSessionCommandDock controller={controller} />
+        <MobileSessionTabOverview controller={controller} />
       </View>
       {canDockPanel && activePanel !== null && (
         <SessionDockColumn
