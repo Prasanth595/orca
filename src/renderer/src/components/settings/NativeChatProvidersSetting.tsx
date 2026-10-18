@@ -101,7 +101,10 @@ function ProviderDetail(props: {
   }
   return (
     <div className="mt-2">
-      <ManagedRuntimeInstallRow observation={runtime} agentLabel={getAgentLabel(props.agent)} />
+      <ManagedRuntimeInstallRow
+        observation={runtime}
+        agentLabel={getAgentLabel(props.agent)}
+      />
     </div>
   )
 }
