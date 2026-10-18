@@ -17,6 +17,7 @@ vi.mock('react-native', () => ({
   View: 'View'
 }))
 vi.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' }))
+vi.mock('../navigation/use-back-claim', () => ({ useBackClaim: () => {} }))
 // The panel's collaborators, each rendering nothing: what is under test is its own status gate.
 vi.mock('./MobileSourceControlHeader', () => ({ MobileSourceControlHeader: () => null }))
 vi.mock('./MobileSourceControlContent', () => ({ MobileSourceControlContent: () => null }))

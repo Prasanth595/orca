@@ -20,6 +20,30 @@ import {
   resolvedUpstreamNameCache
 } from './resolved-upstream-name-cache'
 
+/** Budget for the shared status probe's `rev-list --count`. A far `origin/main` must not stall `git.status`. */
+export const EFFECTIVE_UPSTREAM_REV_LIST_TIMEOUT_MS = 2_000
+
+let upstreamProbeTimeoutMs = EFFECTIVE_UPSTREAM_REV_LIST_TIMEOUT_MS
+
+export function setEffectiveUpstreamProbeTimeoutForTests(timeoutMs: number | null): void {
+  upstreamProbeTimeoutMs = timeoutMs ?? EFFECTIVE_UPSTREAM_REV_LIST_TIMEOUT_MS
+}
+
+function withUpstreamProbeBudget(options: GitRuntimeOptions): {
+  options: GitRuntimeOptions
+  stop: () => void
+} {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), upstreamProbeTimeoutMs)
+  const signal = options.signal
+    ? AbortSignal.any([options.signal, controller.signal])
+    : controller.signal
+  return {
+    options: { ...options, signal },
+    stop: () => clearTimeout(timer)
+  }
+}
+
 export function getShortBranchName(branch: string | undefined): string | null {
   const prefix = 'refs/heads/'
   return branch?.startsWith(prefix) ? branch.slice(prefix.length) : null
@@ -45,12 +69,14 @@ export async function readOrProbeEffectiveUpstreamStatus(
   }
 
   // Why: overlapping refreshes at startup — coalesce the upstream probe so a stable missing ref fails once.
+  // A timed-out rev-list rejects; git.status then keeps porcelain ahead/behind instead of hanging.
   const writeGeneration = getEffectiveUpstreamStatusWriteGeneration(cacheKey)
+  const budget = withUpstreamProbeBudget(options)
   const probe = probeOrRevalidateEffectiveUpstreamStatus(
     cacheKey,
     worktreePath,
     branchName,
-    options,
+    budget.options,
     bypassCache
   ).then((result) => {
     rememberEffectiveUpstreamStatus(
@@ -68,6 +94,7 @@ export async function readOrProbeEffectiveUpstreamStatus(
   try {
     return await probe
   } finally {
+    budget.stop()
     if (effectiveUpstreamStatusInFlight.get(cacheKey) === probe) {
       effectiveUpstreamStatusInFlight.delete(cacheKey)
       trimEffectiveUpstreamStatusGeneration()
