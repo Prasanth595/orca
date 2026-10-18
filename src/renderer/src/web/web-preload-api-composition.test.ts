@@ -51,6 +51,7 @@ describe('web preload API composition', () => {
       'stats',
       'memory',
       'aiVault',
+      'd2',
       'preflight',
       'notifications',
       'rateLimits',

@@ -107,6 +107,7 @@ function createWebPreloadApi(): Partial<PreloadApi> {
       getSnapshot: () => Promise.resolve(createEmptyMemorySnapshot())
     },
     aiVault: createWebAiVaultApi(),
+    d2: { render: () => Promise.resolve({ ok: false, reason: 'unavailable' }) },
     preflight: createPreflightApi(),
     notifications: createNotificationsApi(),
     rateLimits: createRateLimitsApi(),
