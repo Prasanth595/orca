@@ -24,12 +24,13 @@ vi.mock(
   async () => await import('../../shared/agent-status-hooks-setting')
 )
 vi.mock('./main-process-state', () => ({
-  mainProcessState: { store: { getSettings: () => fixture.settings } }
+  mainProcessState: { store: { getSettings: () => fixture.settings }, workflows: null }
 }))
 vi.mock('./main-process-runtime-service', () => ({
   initializeMainProcessRuntime: () => ({
     setAgentBrowserBridge: vi.fn(),
-    setEmulatorBridge: vi.fn()
+    setEmulatorBridge: vi.fn(),
+    setWorkflowService: vi.fn()
   }),
   configureRuntimeServices: vi.fn()
 }))
@@ -65,6 +66,7 @@ vi.mock('./main-process-account-services', () => ({
   initializeMainProcessAccountServices: vi.fn()
 }))
 vi.mock('./main-process-automations', () => ({ initializeMainProcessAutomations: vi.fn() }))
+vi.mock('./main-process-workflows', () => ({ initializeMainProcessWorkflows: vi.fn() }))
 vi.mock('./main-process-plugins', () => ({ initializeMainProcessPlugins: vi.fn() }))
 vi.mock('../worktree-trash', () => ({
   collectWorktreeTrashSweepRoots: vi.fn(),
