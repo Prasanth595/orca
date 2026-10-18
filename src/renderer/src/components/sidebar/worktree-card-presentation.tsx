@@ -89,6 +89,13 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
 
   // Why: pinned trees mix repos, so ordinary rows keep the repo icon; cross-repo children use the name.
   const showPinnedRepoIcon = inPinnedSection && !!repo && !showProjectName
+  // Why: pinned section drops the project group header; show a visible project name when the
+  // card title is a worktree/branch label rather than the project itself (#13353).
+  const pinnedProjectName = repo?.displayName?.trim() ?? ''
+  const showPinnedProjectName =
+    showPinnedRepoIcon &&
+    pinnedProjectName.length > 0 &&
+    pinnedProjectName !== visibleCardTitle.trim()
   const showInlineRepoBadge =
     cardDetails.repoInTitle && !!repo && !hideRepoBadge && !isFolder && !showPinnedRepoIcon
   const showRepoBadgeInMetaRow =
@@ -258,6 +265,8 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
 
   return {
     showPinnedRepoIcon,
+    showPinnedProjectName,
+    pinnedProjectName,
     showInlineRepoBadge,
     showRepoBadgeInMetaRow,
     showHostContextBadge,
