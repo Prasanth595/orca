@@ -247,3 +247,54 @@ describe('useEphemeralVmRecipeOptions', () => {
     expect(container.querySelector('[data-testid="selected"]')?.textContent).toBe('none')
   })
 })
+it('never replaces a selected failed owner with a same-name local recipe', async () => {
+  const sources: ReadyProjectHostSetupOption[] = [
+    {
+      id: 'local',
+      kind: 'ready',
+      projectId: 'project',
+      hostId: 'local',
+      repoId: 'local-repo',
+      label: 'Mac',
+      detail: '',
+      path: '/local'
+    },
+    {
+      id: 'central',
+      kind: 'ready',
+      projectId: 'project',
+      hostId: 'runtime:central',
+      repoId: 'server-repo',
+      label: 'Central',
+      detail: '',
+      path: '/server'
+    }
+  ]
+  let unavailable = false
+  const listRecipes = vi.fn(async (args: { ownerEnvironmentId?: string }) => {
+    if (unavailable && args.ownerEnvironmentId === 'central') {
+      throw new Error('offline')
+    }
+    return result(['worker'])
+  })
+  const changes = installApi(listRecipes)
+  const { container } = await render(
+    <Harness
+      repoId="local-repo"
+      sources={sources}
+      initialRecipeId={JSON.stringify(['runtime:central', 'server-repo', 'worker'])}
+    />
+  )
+  await vi.waitFor(() =>
+    expect(container.querySelector('[data-testid="selected"]')?.textContent).toBe('worker')
+  )
+  unavailable = true
+  await act(async () => changes.emit())
+  await vi.waitFor(() =>
+    expect(container.querySelector('[data-testid="error"]')?.textContent).toContain(
+      'Central: offline'
+    )
+  )
+  expect(container.querySelector('[data-testid="recipes"]')?.textContent).toBe('worker')
+  expect(container.querySelector('[data-testid="selected"]')?.textContent).toBe('none')
+})

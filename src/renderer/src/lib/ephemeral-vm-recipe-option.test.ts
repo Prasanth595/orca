@@ -92,4 +92,16 @@ describe('owner-bound recipe choices', () => {
       getEphemeralVmRecipeSources([central], [{ ...remote, connectionId: 'nested-ssh' }])
     ).toEqual([])
   })
+  it('rejects a project switch even when the source repo and host are unchanged', () => {
+    const choice = bindEphemeralVmRecipe(recipe, central)
+    expect(() =>
+      buildEphemeralVmRecipeRequest(choice.id, [choice], 'repo', 'other-project', 'runtime:central')
+    ).toThrow('does not match')
+  })
+
+  it('qualifies source repo identity independently of host and recipe IDs', () => {
+    expect(bindEphemeralVmRecipe(recipe, central).id).not.toBe(
+      bindEphemeralVmRecipe(recipe, { ...central, repoId: 'other-repo' }).id
+    )
+  })
 })
