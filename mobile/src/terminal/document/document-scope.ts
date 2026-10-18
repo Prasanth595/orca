@@ -155,6 +155,7 @@ export type TerminalDocumentState = {
   /** `selection-overlay`: where the pending long press started. */
   longPressOrigin: TerminalDocumentTouchOrigin | null
   /** `selection-overlay`: the touch that may still resolve as a tap. */
+  interactionActive: boolean
   tapCandidate: TerminalDocumentTapCandidate | null
   /** `surface-swap`: the element xterm is currently mounted on. */
   surface: HTMLElement | null
@@ -302,6 +303,7 @@ function createTerminalDocumentState(): TerminalDocumentState {
     sel: null,
     longPressTimer: null,
     longPressOrigin: null,
+    interactionActive: true,
     tapCandidate: null,
     wheelAccumDeltaY: 0,
     surface: null,
