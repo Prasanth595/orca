@@ -25,7 +25,6 @@ src/renderer/src/components/tab-group/useTabGroupCreationCommands.ts
 src/renderer/src/components/terminal-pane/terminal-input-host-platform.ts
 src/renderer/src/components/terminal-pane/terminal-pane-menu-paste.ts
 src/renderer/src/components/terminal-pane/terminal-pane-paste-execution.ts
-src/renderer/src/components/terminal-pane/terminal-pane-paste-listeners.ts
 src/renderer/src/components/terminal-workspace-model.ts
 src/renderer/src/hooks/editor-external-watch-targets.ts
 src/renderer/src/hooks/ipc-events/browser-state-ipc-bridge.ts
