@@ -188,6 +188,9 @@
         "7ffc08506e": "check",
         "d5253b54af": "error"
       },
+      "WorkflowSlashCommand": {
+        "createFailed": "Failed to create workflow"
+      },
       "WorktreeJumpPalette": {
         "c4afa68159": "Try a worktree, setting, action, tab title, agent prompt, URL, PR, or port.",
         "dabd819ca1": "Type to see all {{value0}} worktrees"
