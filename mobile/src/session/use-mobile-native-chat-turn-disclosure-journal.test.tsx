@@ -291,15 +291,17 @@ describe('useMobileNativeChatTurnDisclosure with a turn journal', () => {
     }
   )
   it.each([
-    [undefined, true],
-    [['prompt'], true],
-    [[], false]
+    [undefined, true, true],
+    [['prompt'], true, true],
+    [[], false, true],
+    [['prompt'], true, false],
+    [[], false, false]
   ] as const)(
     'preserves only actionable pending questions after a completed turn (%j)',
-    (actionablePromptIds, visible) => {
+    (actionablePromptIds, visible, extraWork) => {
       const messages: NativeChatMessage[] = [
         userMessage('u'),
-        { ...userMessage('progress'), role: 'assistant' },
+        ...(extraWork ? [{ ...userMessage('progress'), role: 'assistant' as const }] : []),
         { ...userMessage('prompt'), role: 'system' },
         { ...userMessage('answer'), role: 'assistant' }
       ]
@@ -343,6 +345,10 @@ describe('useMobileNativeChatTurnDisclosure with a turn journal', () => {
         renderer!.root.findByType(Result).props.disclosure.listMessages
       expect(rows.some((row) => row.id === 'prompt')).toBe(visible)
       expect(rows.map((row) => row.id)).not.toContain('progress')
+      const disclosure = renderer!.root.findByType(Result).props.disclosure
+      expect(disclosure.resolveRow(0, messages[0]!).turnKey).toBe(
+        visible && !extraWork ? undefined : 'u'
+      )
     }
   )
 })

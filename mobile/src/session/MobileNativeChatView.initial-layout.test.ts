@@ -9,15 +9,16 @@ import {
   update
 } from './MobileNativeChatView.harness.test-fixture'
 
-const diagram = vi.hoisted(() => ({ pending: false }))
+const diagram = vi.hoisted(() => ({ pending: false, registered: false }))
 
 vi.mock('react-native', async () => {
   const { reactNativeStub } = await import('./MobileNativeChatView.render-stubs.test-fixture')
   const React = await import('react')
-  const { useMobileTranscriptLayoutPending } =
+  const { useMobileTranscriptLayoutPending, MobileTranscriptLayoutContext } =
     await import('../components/mobile-transcript-layout')
   const stub = await reactNativeStub()
   function Diagram() {
+    diagram.registered = React.useContext(MobileTranscriptLayoutContext) !== null
     useMobileTranscriptLayoutPending(diagram.pending)
     return null
   }
@@ -94,6 +95,7 @@ describe('MobileNativeChatView: initial measured position', () => {
     expect(list().props.style).toMatchObject({ opacity: 0 })
     expect(list().props.accessibilityElementsHidden).toBe(true)
     expect(list().props.importantForAccessibility).toBe('no-hide-descendants')
+    expect(diagram.registered).toBe(true)
     diagram.pending = false
     await update(transcript)
     await act(async () => {
@@ -102,6 +104,12 @@ describe('MobileNativeChatView: initial measured position', () => {
     expect(list().props.style).toBeUndefined()
     expect(list().props.accessibilityElementsHidden).toBe(false)
     expect(list().props.importantForAccessibility).toBe('auto')
+    expect(diagram.registered).toBe(false)
+    diagram.pending = true
+    await update(transcript)
+    expect(diagram.registered).toBe(false)
+    await update({ ...transcript, sendSurfaceId: 'new-tab' })
+    expect(diagram.registered).toBe(true)
   })
 
   it('does not leave retained text hidden indefinitely behind a slow diagram', async () => {

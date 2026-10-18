@@ -272,7 +272,9 @@ export function MobileNativeChatView({
           <ActivityIndicator color={colors.textSecondary} />
         </View>
       ) : (
-        <MobileTranscriptLayoutContext.Provider value={transcriptLayout.register}>
+        <MobileTranscriptLayoutContext.Provider
+          value={initialLayout.ready ? null : transcriptLayout.register}
+        >
           <GestureHandlerRootView style={styles.listWrap}>
             <MobileNativeChatDisclosureContext.Provider value={disclosures}>
               <MobileNativeChatScrollHold headKey={turns.listMessages[0]?.id} listRef={listRef} />

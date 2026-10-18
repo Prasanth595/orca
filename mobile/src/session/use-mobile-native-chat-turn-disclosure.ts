@@ -148,6 +148,7 @@ export function useMobileNativeChatTurnDisclosure({
         indexById: null,
         answerIds: mobileNativeChatBridgeAnswerIds(rows, isWorking),
         foldedRows: new Set<number>(),
+        foldableTurnKeys: new Set<string>(),
         bars: new Map<string, { index: number; above: boolean }>()
       }
     }
@@ -165,7 +166,14 @@ export function useMobileNativeChatTurnDisclosure({
       const index = indexById.get(row.id)!
       return !fold.foldedRows.has(index) || anchors.has(index) || receipts?.has(row.id) === true
     })
-    return { listMessages, indexById, answerIds: fold.answerIds, bars, foldedRows: fold.foldedRows }
+    return {
+      listMessages,
+      indexById,
+      answerIds: fold.answerIds,
+      bars,
+      foldedRows: fold.foldedRows,
+      foldableTurnKeys: fold.foldableTurnKeys
+    }
   }, [
     enabled,
     waiting,
@@ -208,7 +216,7 @@ export function useMobileNativeChatTurnDisclosure({
       },
     [expandedReasoning, line]
   )
-  const { fold, trailingRunIndex, workRuns } = useMobileNativeChatTranscriptRows({
+  const { trailingRunIndex, workRuns } = useMobileNativeChatTranscriptRows({
     enabled,
     rows,
     turnKeys,
@@ -246,7 +254,7 @@ export function useMobileNativeChatTurnDisclosure({
         // transcript, defeating the row's memo; caching one per turn would mean
         // writing a ref during render, which react-freeze can discard.
         // Offered only where the fold hides something, as on desktop.
-        turnKey: turnKey && fold.foldableTurnKeys.has(turnKey) ? turnKey : undefined,
+        turnKey: turnKey && presentation.foldableTurnKeys.has(turnKey) ? turnKey : undefined,
         ...(presentation.foldedRows.has(index) ? { foldedAway: true } : {}),
         // With no user boundary at all, the session's working state stays authoritative. The bridge
         // lane has no turns: only its synthetic streaming row is known to be in the live one.
@@ -288,7 +296,6 @@ export function useMobileNativeChatTurnDisclosure({
       inLiveWorkingTurn,
       trailingRunIndex,
       workRuns,
-      fold,
       rows,
       latestAssistantId,
       lineYields,
