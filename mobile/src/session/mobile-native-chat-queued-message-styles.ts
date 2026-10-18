@@ -1,6 +1,7 @@
 import { createThemedStyles } from '../theme/mobile-themed-styles'
 import { StyleSheet } from 'react-native'
 import { colors, radii, spacing, typography } from '../theme/mobile-theme'
+import { COMPOSER_INSET_TOP } from './mobile-native-chat-composer-styles'
 
 // A card's actions touch as 44pt targets (platform floor) inside its row: Android drops touches
 // outside the parent, so the row is at least that tall and nothing overhangs it.
@@ -8,17 +9,25 @@ const MIN_TOUCH_TARGET = 44
 const HEADER_HEIGHT = spacing.xl + spacing.sm
 const META_LINE_HEIGHT = typography.metaSize + spacing.xs
 
+// How far the box runs under the composer's top edge, so the two read as one piece.
+const COMPOSER_TUCK = 12
+
 export const queuedMessageStyles = createThemedStyles(() =>
   StyleSheet.create({
+    // Inset from the composer's sides, and pulled down behind it: the composer draws after it.
     list: {
       marginHorizontal: spacing.lg,
-      marginVertical: spacing.xs
+      marginTop: spacing.xs,
+      marginBottom: -(COMPOSER_INSET_TOP + COMPOSER_TUCK)
     },
     box: {
+      paddingBottom: COMPOSER_TUCK,
       backgroundColor: colors.bgPanel,
-      borderRadius: radii.row,
+      borderTopLeftRadius: 18,
+      borderTopRightRadius: 18,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.borderSubtle,
+      borderBottomWidth: 0,
+      borderColor: colors.composerBorder,
       overflow: 'hidden'
     },
     header: {
@@ -109,7 +118,7 @@ export const queuedMessageStyles = createThemedStyles(() =>
     },
     divided: {
       borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.borderSubtle
+      borderTopColor: colors.composerBorder
     },
     textColumn: {
       flex: 1,

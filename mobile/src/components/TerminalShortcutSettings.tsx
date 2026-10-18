@@ -1,14 +1,23 @@
-import { styles } from './terminal-shortcut-settings-styles'
 import { useMobileTheme } from '../theme/use-mobile-theme'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AppState, View, Text, Pressable, Switch, type AppStateStatus } from 'react-native'
+import { createThemedStyles } from '../theme/mobile-themed-styles'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  AppState,
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  Switch,
+  type AppStateStatus
+} from 'react-native'
 import { useFocusEffect } from 'expo-router'
 import { ChevronRight, X } from 'lucide-react-native'
 import type Animated from 'react-native-reanimated'
 import type { AnimatedRef, SharedValue } from 'react-native-reanimated'
 import { CustomKeyModal, loadCustomKeys, saveCustomKeys, type CustomKey } from './CustomKeyModal'
 import { DragReorderList } from './DragReorderList'
-import { colors } from '../theme/mobile-theme'
+import { useSerializedStoredState } from '../storage/use-serialized-stored-state'
+import { colors, radii, spacing, typography } from '../theme/mobile-theme'
 import {
   TERMINAL_ACCESSORY_KEYS,
   type TerminalAccessoryKey
@@ -36,7 +45,6 @@ function ShortcutBarRow({
   onToggle: (visible: boolean) => void
 }): React.JSX.Element {
   useMobileTheme()
-
   return (
     <View style={styles.reorderRowContent}>
       <View style={styles.keycap}>
@@ -55,6 +63,11 @@ function ShortcutBarRow({
   )
 }
 
+async function loadShortcutLayout(): Promise<TerminalAccessoryLayout> {
+  const { orderedBuiltInIds, visibleBuiltInIds } = await loadTerminalAccessoryLayout()
+  return { orderedBuiltInIds, visibleBuiltInIds }
+}
+
 type Props = {
   scrollRef: AnimatedRef<Animated.ScrollView>
   scrollOffsetY: SharedValue<number>
@@ -69,68 +82,24 @@ export function TerminalShortcutSettings({
   onDragActiveChange
 }: Props): React.JSX.Element {
   useMobileTheme()
-
-  const [customKeys, setCustomKeys] = useState<CustomKey[]>([])
+  const {
+    value: customKeys,
+    setValue: setCustomKeys,
+    persist: persistCustomKeys,
+    refresh: refreshCustomKeys,
+    adoptStored: adoptStoredCustomKeys
+  } = useSerializedStoredState<CustomKey[]>([], loadCustomKeys, saveCustomKeys)
   const [showCustomKeyModal, setShowCustomKeyModal] = useState(false)
-  const [shortcutLayout, setShortcutLayout] = useState<TerminalAccessoryLayout>(
-    getDefaultTerminalAccessoryLayout
+  const {
+    value: shortcutLayout,
+    setValue: setShortcutLayout,
+    persist: persistLayout,
+    refresh: refreshShortcutLayout
+  } = useSerializedStoredState(
+    getDefaultTerminalAccessoryLayout,
+    loadShortcutLayout,
+    saveTerminalAccessoryLayout
   )
-  const layoutWriteChainRef = useRef<Promise<void>>(Promise.resolve())
-  const layoutWriteSeqRef = useRef(0)
-  const pendingLayoutWritesRef = useRef(0)
-
-  const persistLayout = useCallback((next: TerminalAccessoryLayout) => {
-    layoutWriteSeqRef.current += 1
-    pendingLayoutWritesRef.current += 1
-    layoutWriteChainRef.current = layoutWriteChainRef.current
-      .catch(() => {})
-      .then(() => saveTerminalAccessoryLayout(next))
-      .catch(() => {})
-      .finally(() => {
-        pendingLayoutWritesRef.current -= 1
-      })
-  }, [])
-
-  const refreshShortcutLayout = useCallback(() => {
-    const refreshSeq = layoutWriteSeqRef.current
-    void loadTerminalAccessoryLayout().then((layout) => {
-      if (pendingLayoutWritesRef.current > 0 || refreshSeq !== layoutWriteSeqRef.current) {
-        return
-      }
-      setShortcutLayout({
-        orderedBuiltInIds: layout.orderedBuiltInIds,
-        visibleBuiltInIds: layout.visibleBuiltInIds
-      })
-    })
-  }, [])
-
-  const customKeysWriteChainRef = useRef<Promise<void>>(Promise.resolve())
-  const customKeysWriteSeqRef = useRef(0)
-  const pendingCustomKeysWritesRef = useRef(0)
-
-  // Why: same stale-snapshot guard as persistLayout — a focus/AppState refresh
-  // racing an in-flight save must not overwrite the optimistic state.
-  const persistCustomKeys = useCallback((next: CustomKey[]) => {
-    customKeysWriteSeqRef.current += 1
-    pendingCustomKeysWritesRef.current += 1
-    customKeysWriteChainRef.current = customKeysWriteChainRef.current
-      .catch(() => {})
-      .then(() => saveCustomKeys(next))
-      .catch(() => {})
-      .finally(() => {
-        pendingCustomKeysWritesRef.current -= 1
-      })
-  }, [])
-
-  const refreshCustomKeys = useCallback(() => {
-    const refreshSeq = customKeysWriteSeqRef.current
-    void loadCustomKeys().then((keys) => {
-      if (pendingCustomKeysWritesRef.current > 0 || refreshSeq !== customKeysWriteSeqRef.current) {
-        return
-      }
-      setCustomKeys(keys)
-    })
-  }, [])
 
   const handleDeleteCustomKey = useCallback(
     (key: CustomKey) => {
@@ -292,6 +261,9 @@ export function TerminalShortcutSettings({
                     pressed && styles.deleteButtonPressed
                   ]}
                   onPress={() => handleDeleteCustomKey(key)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove ${key.label}`}
                 >
                   <X size={16} color={colors.statusRed} />
                 </Pressable>
@@ -314,13 +286,110 @@ export function TerminalShortcutSettings({
       <CustomKeyModal
         visible={showCustomKeyModal}
         onClose={() => setShowCustomKeyModal(false)}
-        onKeysChanged={(keys) => {
-          // Why: the modal already persisted this list; bumping the sequence
-          // discards refreshes that read storage before its save landed.
-          customKeysWriteSeqRef.current += 1
-          setCustomKeys(keys)
-        }}
+        onKeysChanged={adoptStoredCustomKeys}
       />
     </>
   )
 }
+
+const styles = createThemedStyles(() =>
+  StyleSheet.create({
+    groupHeading: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: colors.textMuted,
+      letterSpacing: 0.5,
+      marginBottom: spacing.xs,
+      paddingHorizontal: spacing.xs
+    },
+    groupTopGap: {
+      marginTop: spacing.xl
+    },
+    groupDescription: {
+      fontSize: typography.bodySize - 1,
+      color: colors.textSecondary,
+      lineHeight: 20,
+      paddingHorizontal: spacing.xs
+    },
+    section: {
+      backgroundColor: colors.bgPanel,
+      borderRadius: radii.card,
+      overflow: 'hidden'
+    },
+    sectionTopGap: {
+      marginTop: spacing.sm
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm + 2,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.md + 2
+    },
+    rowPressed: {
+      backgroundColor: colors.bgRaised
+    },
+    // Why: rows inside DragReorderList get a fixed height and a trailing grip
+    // handle from the list itself, so content only pads on the left.
+    reorderRowContent: {
+      flex: 1,
+      height: '100%',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm + 2,
+      paddingLeft: spacing.md + 2
+    },
+    rowContent: {
+      flex: 1
+    },
+    rowLabel: {
+      fontSize: typography.bodySize,
+      fontWeight: '500',
+      color: colors.textPrimary
+    },
+    rowSublabel: {
+      fontSize: typography.bodySize - 2,
+      color: colors.textSecondary,
+      marginTop: 2
+    },
+    keycap: {
+      minWidth: 62,
+      alignItems: 'center',
+      backgroundColor: colors.bgRaised,
+      borderRadius: radii.button,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs
+    },
+    keycapText: {
+      color: colors.textSecondary,
+      fontSize: typography.metaSize,
+      fontFamily: typography.monoFamily
+    },
+    separator: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.borderSubtle,
+      marginHorizontal: spacing.md
+    },
+    emptyContainer: {
+      padding: spacing.md,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    emptyText: {
+      fontSize: typography.bodySize,
+      color: colors.textSecondary,
+      padding: spacing.md
+    },
+    deleteButton: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(239, 68, 68, 0.1)'
+    },
+    deleteButtonPressed: {
+      backgroundColor: 'rgba(239, 68, 68, 0.2)'
+    }
+  })
+)
