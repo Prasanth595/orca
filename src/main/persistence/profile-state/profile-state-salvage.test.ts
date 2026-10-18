@@ -1,4 +1,5 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -103,6 +104,46 @@ describe('salvageValidDocuments', () => {
     })
     expect(result.intactDocuments).toEqual([])
     expect(result.skippedDomains).toEqual(['settings'])
+  })
+
+  it('skips a valid document that leads the source revision', async () => {
+    const { databaseFile } = await fixture()
+    // A torn write that left the profile revision behind a document row: the
+    // payload and hash are intact, but the row now exceeds the source revision
+    // and would fail the strict fence after the merge.
+    const source = openProfileStateDatabase(databaseFile, profileId)
+    try {
+      source.db.exec(
+        "UPDATE profile_state_documents SET revision = 3 WHERE domain = 'ui'"
+      )
+      source.db.exec("UPDATE profile_state_meta SET value = '2' WHERE key = 'revision'")
+    } finally {
+      source.db.close()
+    }
+    const result = salvageValidDocuments({ databasePath: databaseFile, profileId })
+    expect(result.intactDocuments).toEqual([])
+    expect(result.skippedDomains).toEqual(['settings', 'ui'])
+  })
+
+  it('drops hash-valid rows whose payload is not a state root', async () => {
+    const { databaseFile } = await fixture()
+    // Re-hashing keeps the row hash-valid; a bare array is not a valid root.
+    const source = openProfileStateDatabase(databaseFile, profileId)
+    try {
+      const sha256 = (payload: string): string =>
+        createHash('sha256').update(payload, 'utf8').digest('hex')
+      const payload = '[1, 2, 3]'
+      source.db
+        .prepare(
+          `UPDATE profile_state_documents SET payload = ?, content_hash = ? WHERE domain = 'ui'`
+        )
+        .run(payload, sha256(payload))
+    } finally {
+      source.db.close()
+    }
+    const result = salvageValidDocuments({ databasePath: databaseFile, profileId })
+    expect(result.intactDocuments).toEqual([])
+    expect(result.skippedDomains).toEqual(['settings', 'ui'])
   })
 })
 
