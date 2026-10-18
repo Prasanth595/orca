@@ -459,6 +459,14 @@ describe('agent process recognition', () => {
     }
   })
 
+  it('leaves a print-mode run of that entrypoint unrecognized, as it does the native binary', () => {
+    expect(
+      recognizeAgentProcessFromCommandLine(
+        'node /usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js -p "summarize"'
+      )
+    ).toBeNull()
+  })
+
   it.each([
     'node /tmp/node_modules/@other/claude-code/cli.js',
     'node /tmp/node_modules/@anthropic-ai/claude-code/dist/cli.js',
