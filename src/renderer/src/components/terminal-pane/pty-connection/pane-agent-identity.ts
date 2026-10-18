@@ -22,6 +22,7 @@ import {
   type PaneLaunchAgentPaneSlice
 } from './pane-launch-agent-candidate'
 import type { ConnectPanePtySession } from './connect-pane-pty-session'
+import { retireSupersededHarnessStatus } from './superseded-harness-status'
 
 /** Pane agent identity, foreground-agent sampling, and command lifecycle handling. */
 export function installPaneAgentIdentity(session: ConnectPanePtySession): void {
@@ -193,7 +194,12 @@ export function installPaneAgentIdentity(session: ConnectPanePtySession): void {
         : window.api.pty.confirmForegroundProcess(id),
     isRemotePtyId: isRemoteExecutionHostPtyId,
     getExpectedIncarnationId: () => session.remotePtyIncarnationId ?? null,
-    publish: (entry) => useAppStore.getState().setPaneForegroundAgent(session.cacheKey, entry),
+    publish: (entry) => {
+      useAppStore.getState().setPaneForegroundAgent(session.cacheKey, entry)
+      if (entry.agentEvidence === 'process-read' && entry.agent) {
+        retireSupersededHarnessStatus(session.cacheKey, entry.agent)
+      }
+    },
     getPublishedEntry: () => useAppStore.getState().paneForegroundAgentByPaneKey[session.cacheKey],
     // Why lazy: the completion coordinator is installed after this tracker.
     onAgentProcessRead: (process) =>
