@@ -21,6 +21,9 @@ function recoveryFixture(result: Promise<{ status: 'completed' }>) {
   }
   const grant = { placement: expected, release: vi.fn(), executionHostKey: 'host' }
   const placements = {
+    getPlacement: vi.fn().mockReturnValue(expected),
+    beginPageRetirement: vi.fn().mockReturnValue({}),
+    completePageRetirement: vi.fn(),
     reserveNewClientPage: vi.fn().mockReturnValue({ placement: replacement }),
     commitClientPageReplacement: vi.fn().mockImplementation(() => {
       throw new Error('browser_page_placement_stale')
@@ -54,7 +57,7 @@ function recoveryFixture(result: Promise<{ status: 'completed' }>) {
 }
 
 describe('profile switch failure convergence', () => {
-  it('bounds a stalled result, cancels its reservation and fences its pending ledger page', async () => {
+  it('bounds a stalled result without racing a close against the pending switch', async () => {
     vi.useFakeTimers()
     const f = recoveryFixture(new Promise(() => {}))
     const rejected = expect(
@@ -67,12 +70,41 @@ describe('profile switch failure convergence', () => {
     await vi.advanceTimersByTimeAsync(11)
     await rejected
     expect(f.placements.cancelClientPageReservation).toHaveBeenCalledOnce()
-    expect(f.ledger.retirePage).toHaveBeenCalledWith('page', 1)
+    expect(f.placements.completePageRetirement).toHaveBeenCalledOnce()
+    expect(f.ledger.retirePage).not.toHaveBeenCalled()
+    expect(f.ledger.issue).toHaveBeenCalledTimes(1)
+  })
+
+  it('orders late-success cleanup behind the original result and preserves its sequence', async () => {
+    vi.useFakeTimers()
+    let complete!: (result: { status: 'completed' }) => void
+    const f = recoveryFixture(
+      new Promise((resolve) => {
+        complete = resolve
+      })
+    )
+    const rejected = expect(
+      switchBrowserHostClientProfile(
+        f.authority,
+        { id: 'isolated', label: 'Isolated', scope: 'isolated' },
+        f.input
+      )
+    ).rejects.toThrow('browser_host_page_creation_timeout')
+    await vi.advanceTimersByTimeAsync(11)
+    await rejected
+    expect(f.ledger.issue).toHaveBeenCalledTimes(1)
+    expect(f.ledger.advancePageGeneration).not.toHaveBeenCalled()
+    complete({ status: 'completed' })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(f.ledger.advancePageGeneration).toHaveBeenCalledWith('page', 1, 2)
     expect(f.ledger.issue).toHaveBeenLastCalledWith(
       expect.objectContaining({
         pageHostGeneration: 2,
         command: expect.objectContaining({ type: 'closePage' })
       })
+    )
+    expect(f.ledger.advancePageGeneration.mock.invocationCallOrder[0]).toBeLessThan(
+      f.ledger.issue.mock.invocationCallOrder[1]
     )
   })
 
@@ -85,7 +117,7 @@ describe('profile switch failure convergence', () => {
         f.input
       )
     ).rejects.toThrow('browser_page_placement_stale')
-    expect(f.ledger.retirePage).toHaveBeenCalledWith('page', 1)
+    expect(f.ledger.advancePageGeneration).toHaveBeenCalledWith('page', 1, 2)
     expect(f.ledger.issue).toHaveBeenLastCalledWith(
       expect.objectContaining({
         pageHostGeneration: 2,

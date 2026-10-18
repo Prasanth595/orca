@@ -1,3 +1,4 @@
+import { DEFAULT_CLIENT_PAGE_CREATION_TIMEOUT_MS } from '../../../shared/browser-client-page-creation-timeouts'
 import type { BrowserClientHostCommandEvent } from '../../../shared/browser-client-host-protocol'
 import { describe, expect, it, vi } from 'vitest'
 import { BrowserHostLeaseRegistry } from './browser-host-lease-registry'
@@ -76,6 +77,38 @@ async function fixture(supported = true) {
 const isolated = { id: 'remote-profile', label: 'Remote-only profile', scope: 'isolated' as const }
 
 describe('negotiated profile switch over the command transport', () => {
+  it('closes a late replacement in sequence through the real ledger and dispatcher', async () => {
+    const f = await fixture()
+    vi.useFakeTimers()
+    try {
+      let finishMount!: (value: { webContentsId: number }) => void
+      f.h.renderer.mountPage.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishMount = resolve
+          })
+      )
+      const rejected = expect(
+        f.leases.switchClientPageProfile(f.authority, isolated)
+      ).rejects.toThrow('browser_host_page_creation_timeout')
+      await vi.advanceTimersByTimeAsync(DEFAULT_CLIENT_PAGE_CREATION_TIMEOUT_MS + 1)
+      await rejected
+      expect(
+        f.delivered.mock.calls.filter(([event]) => event.command.type === 'closePage')
+      ).toHaveLength(0)
+      finishMount({ webContentsId: 99 })
+      await vi.advanceTimersByTimeAsync(0)
+      const events = f.delivered.mock.calls.map(([event]) => event)
+      const switchEvent = events.find((event) => event.command.type === 'switchProfile')!
+      const closeEvent = events.find((event) => event.command.type === 'closePage')!
+      expect(closeEvent).toBeDefined()
+      expect(closeEvent.commandSequence).toBe(switchEvent.commandSequence + 1)
+      expect(f.h.executor.snapshotPageInventory()).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('switches both directions, preserves partition identity, and routes later commands to the new generation', async () => {
     const f = await fixture()
     f.afterSettlement.mockImplementation((event) => {

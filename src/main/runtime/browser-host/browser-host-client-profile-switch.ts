@@ -2,6 +2,7 @@ import {
   BROWSER_CLIENT_PROFILE_SWITCH_CAPABILITY,
   BrowserClientProfileMetadata
 } from '../../../shared/browser-client-profile-switch-protocol'
+import type { BrowserClientHostCommandResult } from '../../../shared/browser-client-host-protocol'
 import type { BrowserHostLeaseRegistry } from './browser-host-lease-registry'
 import type { BrowserHostLeaseState } from './browser-host-lease-records'
 import type {
@@ -44,21 +45,41 @@ export async function switchBrowserHostClientProfile(
     throw new Error('browser_page_placement_stale')
   }
   const reservation = input.placements.reserveNewClientPage(authority.browserPageId, expected)
-  let outcomeUnknown = false
   let completed = false
+  let resultPending: Promise<BrowserClientHostCommandResult> | undefined
+  const retirePlacement = () => {
+    if (input.placements.getPlacement(authority.browserPageId) === expected) {
+      input.placements.completePageRetirement(
+        input.placements.beginPageRetirement(authority.browserPageId, expected)
+      )
+    }
+  }
+  const closeSettledReplacement = () => {
+    try {
+      ledger.advancePageGeneration(
+        authority.browserPageId,
+        expected.pageHostGeneration,
+        reservation.placement.pageHostGeneration
+      )
+      closeUncommittedClientPage(state, authority.browserPageId, reservation.placement)
+    } catch {
+      // A fenced lease or a newer reconciliation owns cleanup now.
+    }
+  }
   try {
     const issued = ledger.issue({
       browserPageId: authority.browserPageId,
       pageHostGeneration: expected.pageHostGeneration,
+      resultAdmission: 'reserved-page',
       command: {
         type: 'switchProfile',
         profile,
         nextPageHostGeneration: reservation.placement.pageHostGeneration
       }
     })
-    outcomeUnknown = true
+    resultPending = issued.result
     const result = await waitForClientPageCreationResult(issued.result, timeoutMs)
-    outcomeUnknown = false
+    resultPending = undefined
     completed = result.status === 'completed'
     if (result.status === 'failed') {
       throw new Error(result.errorCode)
@@ -74,15 +95,22 @@ export async function switchBrowserHostClientProfile(
     return placement
   } catch (error) {
     input.placements.cancelClientPageReservation(reservation)
-    if (completed || outcomeUnknown) {
-      // A timed-out switch may already have replaced the guest. Fence the old ledger
-      // generation and close the replacement; authenticated inventory handles lost replies.
-      try {
-        ledger.retirePage(authority.browserPageId, expected.pageHostGeneration)
-      } catch {
-        // Concurrent retirement may have already removed or advanced this page.
+    if (completed || resultPending) {
+      // Remove stale authority so inventory can recover even if the reply is lost.
+      retirePlacement()
+      if (completed) {
+        closeSettledReplacement()
+      } else if (resultPending) {
+        // Keep the original ledger sequence until the client settles its switch.
+        void resultPending.then(
+          (result) => {
+            if (result.status === 'completed') {
+              closeSettledReplacement()
+            }
+          },
+          () => {}
+        )
       }
-      closeUncommittedClientPage(state, authority.browserPageId, reservation.placement)
     }
     throw error
   }
