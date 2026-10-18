@@ -73,6 +73,8 @@ export function useHostScreenState(hostId: string | undefined, action: string | 
   const [showWorkspaceOptions, setShowWorkspaceOptions] = useState(false)
   const [actionTarget, setActionTarget] = useState<Worktree | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Worktree | null>(null)
+  // The long-press sheet's Worktree Settings page, drawn in place of the action list.
+  const [worktreeSettingsTarget, setWorktreeSettingsTarget] = useState<Worktree | null>(null)
   const [confirmRemoveHost, setConfirmRemoveHost] = useState(false)
   const [routeActionState, setRouteActionState] = useState(() =>
     createInitialHostRouteActionState(action)
@@ -138,6 +140,7 @@ export function useHostScreenState(hostId: string | undefined, action: string | 
     setSleptIds,
     setWorktrees,
     setWorktreesLoaded,
+    setWorktreeSettingsTarget,
     showWorkspaceOptions,
     showPinnedInGroups,
     showSearch,
@@ -147,7 +150,8 @@ export function useHostScreenState(hostId: string | undefined, action: string | 
     sleptIds,
     worktreeCatalogRef,
     worktrees,
-    worktreesLoaded
+    worktreesLoaded,
+    worktreeSettingsTarget
   }
 }
 
