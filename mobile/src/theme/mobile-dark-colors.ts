@@ -5,6 +5,11 @@ export const darkColors = {
   bgRaised: '#242424',
   borderSubtle: '#2a2a2a',
   editorSurface: '#1e1e1e',
+  composerSurface: '#1d1d1d',
+  composerBorder: 'rgba(255, 255, 255, 0.08)',
+  composerControl: '#2a2a2a',
+  skillToken: '#8ab4f8',
+  skillTokenSurface: 'rgba(59, 130, 246, 0.2)',
 
   textPrimary: '#e0e0e0',
   textSecondary: '#a1a1a1',

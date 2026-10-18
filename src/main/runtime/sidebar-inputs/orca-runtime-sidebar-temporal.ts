@@ -2,65 +2,60 @@ import { OrcaRuntimeWithWorkspaceReviewFacts } from './orca-runtime-workspace-re
 import type { OrcaRuntimeWithMigrationCatalog } from '../orca-runtime-migration-catalog'
 import { ORCA_SIDEBAR_INPUTS_IS_MAIN } from '../../../shared/sidebar-inputs-switch'
 import { DEFAULT_HIDE_SLEEPING_WORKSPACES } from '../../../shared/constants'
-import { getRepoExecutionHostId, LOCAL_EXECUTION_HOST_ID } from '../../../shared/execution-host'
-import { detectAgentStatusFromTitle } from '../../../shared/agent-detection'
-import type { SidebarTemporalSnapshot } from '../../../shared/sidebar-list/sidebar-temporal-snapshot'
-import { getMigrationUnsupportedPtySnapshot } from '../../agent-hooks/migration-unsupported-pty-state'
 import {
-  SidebarTemporalOwner,
-  type SidebarRetentionCandidates,
-  type SidebarSortSample
-} from './sidebar-temporal-owner'
-import { SmartSortAgentEntries } from './smart-sort-agent-entries'
-import { buildRuntimeSmartSortSources } from './runtime-smart-sort-sources'
+  getRepoExecutionHostId,
+  isLocalExecutionHost,
+  LOCAL_EXECUTION_HOST_ID
+} from '../../../shared/execution-host'
+import type { SidebarTemporalSnapshot } from '../../../shared/sidebar-list/sidebar-temporal-snapshot'
+import type { Worktree } from '../../../shared/worktree/types'
+import type { Repo } from '../../../shared/repo-types'
+import { SidebarRetentionOwner, type SidebarRetentionCandidates } from './sidebar-retention-owner'
 import type { AgentStatusStoreView } from './workspace-activity-facts-producer'
-
-type Runtime = OrcaRuntimeWithWorkspaceReviewFacts
+import { SortStampsProducer } from './sort-stamps-producer'
+import { parseWorkspaceKey } from '../../../shared/workspace-scope'
+import { getRepoIdFromWorktreeId } from '../../../shared/worktree/id'
+import { resolveAgentWorkspaceExecutionHostId } from '../../agent-hooks/restored-status-dead-terminal-sweep'
+import {
+  isWslMoveProjectBlocked,
+  wslMoveProjectRefForWorkspace
+} from '../../persistence/moving-wsl-projects/wsl-move-scope-guard'
 
 /**
- * Feeds main's temporal owner. Its sort inputs restart the settle window where the window's
- * sortEpoch bumps and main can see the cause: catalog changes, agent rows, and pane titles.
+ * Feeds main's sleeping retention, and owns the host's sort stamps: clients sort by those, so main
+ * keeps no order of its own.
  */
 export abstract class OrcaRuntimeWithSidebarTemporal extends OrcaRuntimeWithWorkspaceReviewFacts {
-  private readonly smartSortAgentEntries = new SmartSortAgentEntries()
-  private readonly sidebarTemporal = new SidebarTemporalOwner(this.sidebarClock, {
-    sortBy: () => this.store?.getUI?.().sortBy ?? 'smart',
+  private readonly sidebarTemporal = new SidebarRetentionOwner(this.sidebarClock, {
     // The durable file keeps the hide form; the window reads it the same way at hydration.
     showSleepingWorkspaces: () =>
       !(this.store?.getUI?.().hideSleepingWorkspaces ?? DEFAULT_HIDE_SLEEPING_WORKSPACES),
-    readSortSample: () => this.readSidebarSortSample(),
+    listRows: () => this.listSidebarRows(),
     retentionCandidates: () => this.readSidebarRetentionCandidates()
+  })
+  readonly sortStamps = new SortStampsProducer({
+    store: () => this.store,
+    isWriteFenced: (worktreeId) =>
+      isWslMoveProjectBlocked(this.store ?? undefined, wslMoveProjectRefForWorkspace(worktreeId)),
+    resolveTabWorktreeId: (tabId) => this.tabs.get(tabId)?.worktreeId,
+    subscribeToPtyExit: (ptyId, listener) => this.subscribeToPtyExit(ptyId, listener),
+    onClientEvent: (listener, options) => this.onClientEvent(listener, options),
+    onStampsWritten: (worktreeId) => this.notifySortStampsChanged(worktreeId),
+    now: Date.now
   })
 
   constructor(...args: ConstructorParameters<typeof OrcaRuntimeWithWorkspaceReviewFacts>) {
     super(...args)
-    this.workspaceActivityFacts.onChange(() => this.sidebarTemporal.noteActivityChange())
+    this.workspaceActivityFacts.revision.onChange(() => this.sidebarTemporal.noteActivityChange())
     this.store?.onUIChanged?.(() => this.sidebarTemporal.noteViewChange())
     // Every catalog change, from IPC or the runtime, reaches clients through this one bus.
     this.clientEvents.on(
       (event) => {
-        if (event.type === 'worktreesChanged') {
-          this.noteSidebarRowsChange()
-        } else if (event.type === 'reposChanged') {
-          this.sidebarTemporal.noteRepoChange()
+        if (event.type === 'worktreesChanged' || event.type === 'reposChanged') {
+          this.sidebarTemporal.noteCatalogChange()
         }
       },
       { consumesTerminalSideEffects: false }
-    )
-  }
-
-  // Whether rows came or went decides if the change settles at once, so count after it lands.
-  // The count can come from a listing cached just before the change; the change then settles late.
-  private noteSidebarRowsChange(): void {
-    if (!this.sidebarTemporal.running) {
-      return
-    }
-    void this.listResolvedWorktreeSnapshot().then(
-      ({ worktrees }) =>
-        this.sidebarTemporal.noteRowsChange(
-          worktrees.filter((worktree) => !worktree.isArchived).length
-        ),
-      (error: unknown) => console.warn('[sidebar-temporal] could not count rows', error)
     )
   }
 
@@ -68,84 +63,91 @@ export abstract class OrcaRuntimeWithSidebarTemporal extends OrcaRuntimeWithWork
     return this.sidebarTemporal.snapshot()
   }
 
+  onSidebarTemporalChange(listener: () => void): () => void {
+    return this.sidebarTemporal.revision.onChange(listener)
+  }
+
   beginSidebarListSession(sessionId: string): void {
     this.sidebarTemporal.beginSession(sessionId)
+  }
+
+  /** After a restart, once hook rows and the provider's PTYs settle: drop tiers nothing backs. */
+  async reconcileSortStampTiers(provider: {
+    probePtyLiveness?: (ptyId: string) => Promise<boolean | null>
+  }): Promise<void> {
+    const store = this.store
+    await this.sortStamps
+      .reconcileStoredTiers({
+        isLocalWorkspace: (worktreeId) =>
+          !!store &&
+          isLocalExecutionHost(
+            resolveAgentWorkspaceExecutionHostId(worktreeId, {
+              getRepo: (repoId) => store.getRepo(repoId),
+              getWorktreeMeta: (id) => store.getWorktreeMeta(id),
+              getFolderWorkspace: (id) => store.getFolderWorkspace?.(id),
+              getProjectGroups: () => store.getProjectGroups?.() ?? []
+            })
+          ),
+        terminalPtyIds: (worktreeId) => {
+          const session = store?.getWorkspaceSession?.(LOCAL_EXECUTION_HOST_ID)
+          const ptyIds = new Set<string>()
+          for (const tab of session?.tabsByWorktree?.[worktreeId] ?? []) {
+            if (tab.ptyId) {
+              ptyIds.add(tab.ptyId)
+            }
+            for (const ptyId of Object.values(
+              session?.terminalLayoutsByTabId?.[tab.id]?.ptyIdsByLeafId ?? {}
+            )) {
+              ptyIds.add(ptyId)
+            }
+          }
+          for (const pty of this.ptysById.values()) {
+            if (pty.worktreeId === worktreeId) {
+              ptyIds.add(pty.ptyId)
+            }
+          }
+          return [...ptyIds]
+        },
+        // A provider that cannot probe proves nothing absent.
+        probePtyLiveness: async (ptyId) => (await provider.probePtyLiveness?.(ptyId)) ?? null
+      })
+      .catch((error: unknown) => console.warn('[sidebar] sort tier reconcile failed:', error))
+  }
+
+  // Metadata only: clients re-list the record, and the cached git scans stay.
+  private notifySortStampsChanged(worktreeId: string): void {
+    if (parseWorkspaceKey(worktreeId)?.type === 'folder') {
+      this.notifyFolderWorkspaceChanged()
+      return
+    }
+    this.invalidateResolvedWorktreeCache()
+    this.notifyWorktreesChanged(getRepoIdFromWorktreeId(worktreeId), { invalidateGitScans: false })
   }
 
   /** Attaches every sidebar producer that reads the hook server's store. */
   attachSidebarAgentStatusStore(store: AgentStatusStoreView): () => void {
     const detachActivity = this.workspaceActivityFacts.attachAgentStatusStore(store)
-    const detachEntries = this.smartSortAgentEntries.attach(store, () =>
-      this.sidebarTemporal.noteSortInputChange()
-    )
+    const detachStamps = this.sortStamps.attachAgentStatusStore(store)
     return () => {
       detachActivity()
-      detachEntries()
+      detachStamps()
       this.sidebarTemporal.dispose()
     }
   }
 
-  override syncWindowGraph(...args: Parameters<Runtime['syncWindowGraph']>) {
-    if (!this.sidebarTemporal.running) {
-      return super.syncWindowGraph(...args)
-    }
-    const before = this.readSidebarGraphSortCauses()
-    const result = super.syncWindowGraph(...args)
-    const after = this.readSidebarGraphSortCauses()
-    // A title's reading counts both ways; a tab only re-sorts when it gains its first terminal.
-    const resorts = (key: string): boolean =>
-      key.startsWith('title:')
-        ? (before.get(key) ?? '') !== (after.get(key) ?? '')
-        : after.has(key) && !before.has(key)
-    if ([...new Set([...before.keys(), ...after.keys()])].some(resorts)) {
-      this.sidebarTemporal.noteSortInputChange()
-    }
-    return result
-  }
-
-  /**
-   * What a graph sync can change that the window re-sorts on: a pane title's agent reading on a
-   * workspace not in front, and the first live terminal of a tab in the workspace in front.
-   */
-  private readSidebarGraphSortCauses(): Map<string, string> {
-    const active = this.store?.getWorkspaceSession?.(LOCAL_EXECUTION_HOST_ID)?.activeWorktreeId
-    const causes = new Map<string, string>()
-    for (const leaf of this.leaves.values()) {
-      if (leaf.worktreeId === active) {
-        if (leaf.ptyId) {
-          causes.set(`pty:${leaf.tabId}`, 'live')
-        }
-      } else if (leaf.paneTitle) {
-        causes.set(
-          `title:${leaf.tabId}:${leaf.paneRuntimeId}`,
-          detectAgentStatusFromTitle(leaf.paneTitle) ?? ''
-        )
-      }
-    }
-    return causes
-  }
-
-  private async readSidebarSortSample(): Promise<SidebarSortSample> {
+  // Retained ids are host-qualified; a row without a stamped host belongs to its repo's host.
+  private async listSidebarRows(repoById = this.readSidebarRepoMap()): Promise<Worktree[]> {
     const { worktrees } = await this.listResolvedWorktreeSnapshot()
-    const repoMap = new Map((this.store?.getRepos() ?? []).map((repo) => [repo.id, repo]))
-    return {
-      // Ranks are host-qualified; a row without a stamped host belongs to its repo's host.
-      worktrees: worktrees.map((worktree) => {
-        const repo = repoMap.get(worktree.repoId)
-        return worktree.hostId || !repo
-          ? worktree
-          : { ...worktree, hostId: getRepoExecutionHostId(repo) }
-      }),
-      repoMap,
-      sources: buildRuntimeSmartSortSources({
-        tabs: this.tabs.values(),
-        leaves: this.leaves.values(),
-        sessionTabs: this.mobileSessionTabsByWorktree,
-        isUnverifiablePty: (ptyId) => this.getPtyLivenessVerdict(ptyId)?.status === 'unverifiable',
-        agentStatusByPaneKey: this.smartSortAgentEntries.byPaneKey(),
-        migrationUnsupported: getMigrationUnsupportedPtySnapshot()
-      })
-    }
+    return worktrees.map((worktree) => {
+      const repo = repoById.get(worktree.repoId)
+      return worktree.hostId || !repo
+        ? worktree
+        : { ...worktree, hostId: getRepoExecutionHostId(repo) }
+    })
+  }
+
+  private readSidebarRepoMap(): Map<string, Repo> {
+    return new Map((this.store?.getRepos() ?? []).map((repo) => [repo.id, repo]))
   }
 
   private readSidebarRetentionCandidates(): SidebarRetentionCandidates {

@@ -15,6 +15,10 @@ export const lightColors: MobileColors = {
   bgRaised: '#f5f5f5',
   borderSubtle: '#e5e5e5',
   editorSurface: '#ffffff',
+  composerSurface: '#fafafa',
+  composerBorder: '#e5e5e5',
+  composerControl: '#f5f5f5',
+  skillToken: '#1e40af',
   textPrimary: '#171717',
   textSecondary: '#525252',
   textMuted: '#6b6b6b',
@@ -90,7 +94,10 @@ export const radii = {
   card: 14,
   button: 6,
   input: 6,
-  camera: 8
+  camera: 8,
+  composer: 24,
+  // Attachment thumbnails and file cards inside the composer.
+  composerItem: 12
 } as const
 
 export const typography = {
