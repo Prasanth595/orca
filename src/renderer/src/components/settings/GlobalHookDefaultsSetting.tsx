@@ -58,11 +58,21 @@ export function GlobalHookDefaultsSetting({
   updateSettings: (updates: Partial<GlobalSettings>) => void
 }): React.JSX.Element {
   const defaults = settings.globalHookDefaults ?? { setup: '', archive: '' }
+  // Why: a second blur can fire while the first settings write is still
+  // pending, so each commit must build on the latest committed value, not the
+  // possibly stale props.
+  const committedDefaultsRef = useRef(defaults)
+  useEffect(() => {
+    committedDefaultsRef.current = settings.globalHookDefaults ?? { setup: '', archive: '' }
+  }, [settings.globalHookDefaults])
   const commit = (field: 'setup' | 'archive', next: string): void => {
-    if (next === (defaults[field] ?? '')) {
+    const committedDefaults = committedDefaultsRef.current
+    if (next === (committedDefaults[field] ?? '')) {
       return
     }
-    updateSettings({ globalHookDefaults: { ...defaults, [field]: next } })
+    const nextDefaults = { ...committedDefaults, [field]: next }
+    committedDefaultsRef.current = nextDefaults
+    updateSettings({ globalHookDefaults: nextDefaults })
   }
   return (
     <div className="space-y-4">

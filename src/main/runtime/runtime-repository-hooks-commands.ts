@@ -42,6 +42,9 @@ export class RuntimeRepositoryHooksCommands {
       hooks,
       setupRunPolicy: getEffectiveSetupRunPolicy(repo),
       source: hasFile ? ('orca.yaml' as const) : hooks ? ('legacy' as const) : null,
+      // Why: a client approving trust for a runtime-owned repo must see the
+      // owning host's defaults, not its own.
+      globalHookDefaults: globalDefaults,
       setupTrust: setupTrust(
         repo,
         getDefaultTabCommandTrustContent(sharedHooks),

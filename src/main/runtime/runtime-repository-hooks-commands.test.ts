@@ -63,4 +63,17 @@ describe('RuntimeRepositoryHooksCommands.getRepoHooks global defaults', () => {
     expect(result.hooks).toBeNull()
     expect(result.setupTrust).toBeUndefined()
   })
+
+  it('survives an absent settings store (null-store guard) with no fallback', async () => {
+    const commands = new RuntimeRepositoryHooksCommands({
+      resolveRepo: async () => makeHookTestRepo(),
+      getGlobalHookDefaults: () => undefined
+    })
+
+    const result = await commands.getRepoHooks('test-id')
+
+    expect(result.hooks).toBeNull()
+    expect(result.setupTrust).toBeUndefined()
+    expect(result.globalHookDefaults).toBeUndefined()
+  })
 })

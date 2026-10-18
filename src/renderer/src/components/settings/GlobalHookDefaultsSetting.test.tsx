@@ -125,6 +125,27 @@ describe('GlobalHookDefaultsSetting', () => {
     })
   })
 
+  it('preserves a pending commit when both fields are edited before the settings prop updates', () => {
+    const updateSettings = vi.fn()
+    renderGlobalHookDefaultsSetting({ updateSettings })
+
+    const [setup, archive] = getTextareas()
+    typeInto(setup, 'pnpm install')
+    blur(setup)
+    // The settings prop has not updated yet (first write still pending);
+    // committing the other field must not erase the first script.
+    typeInto(archive, 'pnpm run clean')
+    blur(archive)
+
+    expect(updateSettings).toHaveBeenCalledTimes(2)
+    expect(updateSettings).toHaveBeenNthCalledWith(1, {
+      globalHookDefaults: { setup: 'pnpm install', archive: '' }
+    })
+    expect(updateSettings).toHaveBeenNthCalledWith(2, {
+      globalHookDefaults: { setup: 'pnpm install', archive: 'pnpm run clean' }
+    })
+  })
+
   it('explains the fallback applies only when the project has no script', () => {
     renderGlobalHookDefaultsSetting({ updateSettings: () => {} })
 

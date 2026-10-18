@@ -4,7 +4,9 @@ import { resolveHookCommandSourcePolicy } from '../../../shared/hook-command-sou
 import { hashOrcaHookScript, type OrcaHookScriptKind } from './orca-hook-trust'
 import {
   checkRuntimeHooks,
+  isRuntimeEnvironmentHost,
   readRuntimeIssueCommand,
+  readRuntimeRepoHooks,
   type IssueCommandReadResult
 } from '@/runtime/runtime-hooks-client'
 import { MODAL_DISMISSED_KEY } from '@/store/slices/modal-slot-dismissal'
@@ -274,6 +276,7 @@ export async function ensureHooksConfirmed(
         scriptContent = (result.sharedContent ?? '').trim()
       } else {
         const repo = findHookRepo(state, repoId, hostId)
+        const ownerHostId = hookRepoOwnerHostId(state, repoId, hostId, runtimeOwnerEnvironmentId)
         const localScript = repo?.hookSettings?.scripts?.[scriptKind]?.trim()
         const sourcePolicy = resolveHookCommandSourcePolicy(
           repo?.hookSettings?.commandSourcePolicy,
@@ -281,18 +284,20 @@ export async function ensureHooksConfirmed(
             hasLocalScript: Boolean(localScript)
           }
         )
-        const globalScript =
-          scriptKind === 'setup' || scriptKind === 'archive'
-            ? (state.settings?.globalHookDefaults?.[scriptKind]?.trim() ?? '')
-            : ''
+        const isSetupOrArchive = scriptKind === 'setup' || scriptKind === 'archive'
+        // Why: a runtime-owned repo runs hooks on its owning host, so approve the host's fallback.
+        const ownerGlobalDefaults =
+          isSetupOrArchive && !localScript && isRuntimeEnvironmentHost(ownerHostId)
+            ? (await readRuntimeRepoHooks(ownerHostId, repoId)).globalHookDefaults
+            : state.settings?.globalHookDefaults
+        const globalScript = isSetupOrArchive
+          ? (ownerGlobalDefaults?.[scriptKind]?.trim() ?? '')
+          : ''
         // Local scripts are user-owned; a local-only policy with a local script needs no prompt.
         if (sourcePolicy === 'local-only' && localScript) {
           return 'run'
         }
-        const result = await checkRuntimeHooks(
-          hookRepoOwnerHostId(state, repoId, hostId, runtimeOwnerEnvironmentId),
-          repoId
-        )
+        const result = await checkRuntimeHooks(ownerHostId, repoId)
         if (result.status === 'error') {
           return 'skip'
         }
