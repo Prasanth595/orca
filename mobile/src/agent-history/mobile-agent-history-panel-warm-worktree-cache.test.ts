@@ -98,11 +98,7 @@ describe('mobile-agent-history-worktree-cache', () => {
   })
 
   it('seeds initial worktrees from global cache when available', () => {
-    const fakeWorktree: Worktree = {
-      worktreeId: 'wt-warm',
-      path: '/path/to/worktree',
-      repoId: 'repo-1'
-    }
+    const fakeWorktree = cachedWorktree('wt-warm', '/path/to/worktree')
     setCachedWorktrees('host-warm', [fakeWorktree], { proven: true })
     const initial = readInitialMobileAgentHistoryWorktrees('host-warm')
     expect(initial).toEqual([fakeWorktree])
@@ -110,8 +106,8 @@ describe('mobile-agent-history-worktree-cache', () => {
 
   it('preserves panel worktrees across reads and updates cache', () => {
     const list: Worktree[] = [
-      { worktreeId: 'wt-1', path: '/code/repo1', repoId: 'r1' },
-      { worktreeId: 'wt-2', path: '/code/repo2', repoId: 'r2' }
+      cachedWorktree('wt-1', '/code/repo1'),
+      cachedWorktree('wt-2', '/code/repo2')
     ]
     recordMobileAgentHistoryPanelWorktrees('host-recorded', list)
     expect(readInitialMobileAgentHistoryWorktrees('host-recorded')).toEqual(list)
