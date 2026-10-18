@@ -20,6 +20,7 @@ export function agentHookRuntimeDeps(
     getAgentStatusSnapshot: () =>
       server.getStatusSnapshot().filter((entry) => entry.providerSessionOnly !== true),
     getAgentStatusSnapshotForPane: (paneKey) => server.getStatusSnapshotForPane(paneKey),
+    getProgramStatusSnapshot: () => server.getProgramStatusSnapshot(),
     // Why unfiltered: resume-identity rows carry the provider session mobile native chat
     // addresses transcripts by — Pi publishes identity that way and would otherwise be unreachable.
     getAgentProviderSessionSnapshot: () => server.getStatusSnapshot(),
@@ -48,8 +49,10 @@ export function agentHookRuntimeDeps(
         server.forgetAgentExit(paneKey)
       }
     },
-    dropAgentStatusForRemovedWorktree: (worktreeId, host) =>
-      server.dropStatusEntriesForRemovedWorktree(worktreeId, host),
+    dropAgentStatusForRemovedWorktree: (worktreeId, host) => {
+      server.dropStatusEntriesForRemovedWorktree(worktreeId, host)
+      server.forgetProgramStatusForRemovedWorktree(worktreeId, host)
+    },
     buildAgentHookPtyEnv: () =>
       isAgentStatusHooksEnabled(getSettings()) ? server.buildPtyEnv() : {}
   } satisfies RuntimeDeps

@@ -5,11 +5,15 @@ import type {
 } from '../../shared/agent-status-types'
 import type { AgentInterruptInferenceRequest } from '../../shared/agent-interrupt-intent'
 import type { AgentQuestionAnsweredInferenceRequest } from '../../shared/agent-question-answered-intent'
+import type { ProgramStatusPaneIpcPayload } from '../../shared/program-status/program-status-pane-payload'
 import { agentHookServer } from '../agent-hooks/server'
 import { getMigrationUnsupportedPtySnapshot } from '../agent-hooks/migration-unsupported-pty-state'
 import { registerAgentPaneAuthorityIpcHandlers } from './agent-pane-authority-ipc'
 import { registerAgentStatusRowTeardownIpcHandlers } from './agent-status-row-teardown-ipc'
-import { createAgentPaneAuthorityOwnership } from './agent-pane-authority-ownership'
+import {
+  createAgentPaneAuthorityOwnership,
+  createAgentPaneBindingProof
+} from './agent-pane-authority-ownership'
 import {
   enrichAgentStatusIpcPayload,
   type AgentStatusRuntimeEnrichment
@@ -17,6 +21,7 @@ import {
 
 type AgentHookHandlerDependencies = {
   getPtyIdForPaneKey?: (paneKey: string) => string | undefined
+  getPaneKeyForPty?: (ptyId: string) => string | undefined
 }
 
 // Why: install/remove are intentionally not exposed to the renderer. Orca
@@ -39,25 +44,35 @@ export function registerAgentHookHandlers(
   ipcMain.removeHandler('agentStatus:hasVerifiableAgentProcess')
   ipcMain.removeHandler('agentStatus:getMigrationUnsupportedSnapshot')
   registerAgentStatusRowTeardownIpcHandlers()
+  const ownershipSources = {
+    getPtyIdForPaneKey: dependencies.getPtyIdForPaneKey,
+    getRuntimeTerminalHandleForPaneKey: (paneKey: string) =>
+      runtime?.getAgentStatusTerminalHandleForPaneKey(paneKey)
+  }
   registerAgentPaneAuthorityIpcHandlers({
-    ownsPty: createAgentPaneAuthorityOwnership({
-      getPtyIdForPaneKey: dependencies.getPtyIdForPaneKey,
-      getRuntimeTerminalHandleForPaneKey: (paneKey) =>
-        runtime?.getAgentStatusTerminalHandleForPaneKey(paneKey)
+    ownsPty: createAgentPaneAuthorityOwnership(ownershipSources),
+    bindsPane: createAgentPaneBindingProof({
+      ...ownershipSources,
+      getPaneKeyForPty: dependencies.getPaneKeyForPty,
+      resolvePaneKeyAlias: (paneKey) => agentHookServer.resolveProgramStatusPaneKey(paneKey)
     })
   })
-  ipcMain.handle('agentStatus:getSnapshot', (): AgentStatusIpcPayload[] => {
-    // Why: the renderer pulls this after workspace hydration, so startup cannot
-    // lose replayed statuses while its local store is still empty. Match the
-    // live push enrichment in main/index.ts so parent/child rows survive replay.
-    return (
-      agentHookServer
-        .getStatusSnapshot()
-        // Same rule as the live push: the renderer's feed bridge owns structured rows for now.
-        .filter((entry) => entry.structuredHost === undefined)
-        .map((entry) => enrichAgentStatusIpcPayload(entry, runtime))
-    )
-  })
+  ipcMain.handle(
+    'agentStatus:getSnapshot',
+    (): (AgentStatusIpcPayload | ProgramStatusPaneIpcPayload)[] => {
+      // Why: the renderer pulls this after workspace hydration, so startup cannot
+      // lose replayed statuses while its local store is still empty. Match the
+      // live push enrichment in main/index.ts so parent/child rows survive replay.
+      return [
+        ...agentHookServer
+          .getStatusSnapshot()
+          // Same rule as the live push: the renderer's feed bridge owns structured rows for now.
+          .filter((entry) => entry.structuredHost === undefined)
+          .map((entry) => enrichAgentStatusIpcPayload(entry, runtime)),
+        ...agentHookServer.getProgramStatusSnapshot()
+      ]
+    }
+  )
   ipcMain.handle('agentStatus:inferInterrupt', (_event, request: unknown): boolean => {
     if (typeof request !== 'object' || request === null) {
       return false

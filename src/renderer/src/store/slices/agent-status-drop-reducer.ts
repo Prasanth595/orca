@@ -9,6 +9,10 @@ import {
   removePaneKeysByTabPrefix
 } from './agent-status-pane-keyed-records'
 import { findCompletedOrphanPaneKeysForTabClose } from './agent-status-pane-key-tab-binding'
+import {
+  programStatusPanesClosedPatch,
+  programStatusTabClosedPatch
+} from './program-status-pane-mirror'
 
 /** Slices that only the fold touched, so the batch commits as a MERGE. */
 export function buildAgentStatusBatchPatch(
@@ -42,7 +46,10 @@ export type AgentStatusTabPrefixDropState = Pick<
   | 'sortEpoch'
   | 'tabsByWorktree'
   | 'unifiedTabsByWorktree'
->
+> &
+  Partial<
+    Pick<AppState, 'programStatusByPaneKey' | 'programStatusClosedPaneKeys' | 'programStatusEpoch'>
+  >
 
 /** Pure form of the dropAgentStatusByTabPrefix reducer: the paired snapshot
  *  apply folds the same sweep into a patch it assembles itself, so the two
@@ -203,6 +210,12 @@ export function buildAgentStatusTabPrefixDropPatch(
       sortEpoch: hadLive || migrationUnsupported.changed ? s.sortEpoch + 1 : s.sortEpoch
     }
   }
-  const patch = buildPatch()
+  // Why: a pane-scoped drop retires only those panes, so their siblings keep their slot rows.
+  // Every named pane is marked closed, even one with no slot yet, so a late row cannot create it;
+  // deletion still reaches only existing records.
+  const programStatusPatch = opts?.paneKeys
+    ? programStatusPanesClosedPatch(s, [...opts.paneKeys].filter(matchesPane), true)
+    : programStatusTabClosedPatch(s, tabIdPrefix)
+  const patch = { ...buildPatch(), ...programStatusPatch }
   return { patch, hadLive }
 }

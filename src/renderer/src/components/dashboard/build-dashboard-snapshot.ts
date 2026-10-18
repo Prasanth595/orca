@@ -46,6 +46,9 @@ import { buildDashboardSnapshotFilterOptions } from './dashboard-snapshot-filter
 import { groupSubagentsByParentPaneKey } from './dashboard-subagent-cards'
 import { selectDashboardOrchestration } from './dashboard-orchestration-selection'
 import { dashboardRowBucketProjection, readAgentRowTurnRecords } from './dashboard-row-bucket'
+import { isProgramStatusMirrorRecordVisible } from '../../../../shared/program-status/program-status-pane-payload'
+import { composedEntryStaleAt } from '../../../../shared/program-status/program-status-expiry'
+import { selectComposedAgentStatusByPaneKey } from '@/store/selectors/composed-agent-status'
 
 /** The store slices the snapshot builder reads. Kept as a Pick so unit tests
  *  can pass a partial store without constructing the whole AppState. */
@@ -63,6 +66,9 @@ export type DashboardSnapshotState = Pick<
   | 'runtimePaneTitlesByTabId'
   | 'acknowledgedAgentsByPaneKey'
   | 'settings'
+  | 'programStatusByPaneKey'
+  | 'programStatusPreferred'
+  | 'programStatusEpoch'
 > &
   DashboardCardContextState &
   Partial<
@@ -70,6 +76,30 @@ export type DashboardSnapshotState = Pick<
       DashboardLaunchDetectionState &
       Pick<AppState, 'runtimeEnvironments' | 'sshTargetLabels' | 'unifiedTabsByWorktree'>
   >
+
+/**
+ * The pop-out takes a card with a visible slot whole from this window, never patching it, and
+ * never derives the expiry of one the slot wins: that card carries it.
+ */
+function programStatusCardFields(
+  state: DashboardSnapshotState,
+  paneKey: string,
+  dotState: DashboardCard['dotState']
+): Pick<DashboardCard, 'programStatusComposed' | 'statusExpiresAt'> {
+  // Why `?.`: a pre-composition store has no mirror, and then no card is marked.
+  if (!isProgramStatusMirrorRecordVisible(state.programStatusByPaneKey?.[paneKey])) {
+    return {}
+  }
+  const entry = selectComposedAgentStatusByPaneKey(state)[paneKey]
+  if (!entry || entry === state.agentStatusByPaneKey[paneKey]) {
+    return { programStatusComposed: true }
+  }
+  const active = dotState === 'working' || dotState === 'blocked' || dotState === 'waiting'
+  return {
+    programStatusComposed: true,
+    statusExpiresAt: active ? composedEntryStaleAt(entry) : null
+  }
+}
 
 /**
  * Derive the serializable dashboard snapshot from the live renderer store.
@@ -87,7 +117,7 @@ export function buildDashboardSnapshot(
     /** Optional per-worktree row-pipeline reuse; card assembly always runs fresh
      *  because cards also read review/host/status slices the cache does not key. */
     rowsCache?: WorktreeAgentRowsCache
-    /** Freshness token for rowsCache (agentStatusEpoch); required for the cache to be safe. */
+    /** Freshness token for rowsCache (the composition token); required for the cache to be safe. */
     rowsGeneration?: unknown
   } = {}
 ): DashboardSnapshot {
@@ -245,6 +275,7 @@ export function buildDashboardSnapshot(
         finishedAt,
         stateChangedAt: row.entry.stateStartedAt || row.startedAt,
         statusUpdatedAt: row.entry.updatedAt,
+        ...programStatusCardFields(state, row.paneKey, dotState),
         // `isAgentSubjectUnread`, the rule the sidebar card bolds by too.
         unseen,
         askSummary: bucket === 'attention' ? (row.entry.interactivePrompt ?? undefined) : undefined,

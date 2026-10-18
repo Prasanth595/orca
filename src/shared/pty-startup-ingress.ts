@@ -1,8 +1,8 @@
 import { nextQueryCandidate, parsePtyStartupQuery } from './pty-startup-query'
 import { PtyOwnerColorQueryReplies } from './pty-owner-color-query-replies'
 import { TerminalKittyKeyboardModeTracker } from './terminal-kitty-keyboard-mode-tracker'
-import type { TerminalOscColorQuerySlot } from './terminal-osc-color-reply'
 import type { PtyOwnerBackend } from './pty-owner-backend'
+import { answerPtyStartupQuery, type PtyStartupQueryAnswerer } from './pty-startup-query-answer'
 import { PtyStartupReplyDelivery } from './pty-startup-reply-delivery'
 import { deliverTerminalQueryReplyPayload } from './terminal-query-reply-delivery'
 import {
@@ -50,8 +50,10 @@ export class PtyStartupIngress {
   private closed = false
   private kittyQueryOpen: boolean
   private readonly kittyModes = new TerminalKittyKeyboardModeTracker()
+  private readonly queryAnswerer: PtyStartupQueryAnswerer
   private rawHighWater = 0
-  private queryPending: PtyIngressSourceSpan | null = null
+  // `since`: when the held candidate's first fragment arrived; a later read renews the hold only.
+  private queryPending: (PtyIngressSourceSpan & { since?: number }) | null = null
   private echoPending: PtyIngressSourceSpan | null = null
   private echoHoldTimer: ReturnType<typeof setTimeout> | null = null
   private queryHoldTimer: ReturnType<typeof setTimeout> | null = null
@@ -65,6 +67,13 @@ export class PtyStartupIngress {
       options.write,
       Date.now() + (options.intent?.deadlineMs ?? DEFAULT_STARTUP_WINDOW_MS)
     )
+    this.queryAnswerer = {
+      delivery: this.delivery,
+      colorQueries: this.colorQueries,
+      kittyModes: this.kittyModes,
+      ownerBackend: this.ownerBackend,
+      programStatusProbe: options.intent?.programStatus?.answerProbe === true
+    }
     this.onEmission = options.onEmission
     this.kittyQueryOpen = options.intent?.kittyKeyboardProtocol === true
     if (options.intent && this.kittyQueryOpen) {
@@ -213,7 +222,10 @@ export class PtyStartupIngress {
           // query and so keeps re-parsing as `partial` — a hang is the worse of the two.
           if (this.queryPending) {
             const resolved = combinePtyIngressSourceSpans(this.queryPending, tail)
-            if (parsePtyStartupQuery(resolved.data, 0, this.kittyQueryOpen).kind !== 'none') {
+            const probe = this.queryAnswerer.programStatusProbe
+            if (
+              parsePtyStartupQuery(resolved.data, 0, this.kittyQueryOpen, probe).kind !== 'none'
+            ) {
               this.processQuerySpan(tail)
               return
             }
@@ -249,9 +261,9 @@ export class PtyStartupIngress {
 
   private processQuerySpan(span: PtyIngressSourceSpan): void {
     const input = combinePtyIngressSourceSpans(this.queryPending, span)
+    const heldSince = this.queryPending?.since
     this.queryPending = null
     this.clearQueryHold()
-    const suppressConptyQuery = this.ownerBackend === 'windows-conpty'
 
     let scanOffset = 0
     let emittedOffset = 0
@@ -261,7 +273,9 @@ export class PtyStartupIngress {
         this.emit(slicePtyIngressSourceSpan(input, emittedOffset), false)
         return
       }
-      const query = parsePtyStartupQuery(input.data, candidateIndex, this.kittyQueryOpen)
+      const probe = this.queryAnswerer.programStatusProbe
+      const query = parsePtyStartupQuery(input.data, candidateIndex, this.kittyQueryOpen, probe)
+      const since = candidateIndex === 0 ? heldSince : undefined
       if (query.kind === 'none') {
         scanOffset = candidateIndex + 1
         continue
@@ -272,7 +286,7 @@ export class PtyStartupIngress {
         }
         const candidate = slicePtyIngressSourceSpan(input, candidateIndex)
         if (candidate.data.length <= MAX_QUERY_CANDIDATE_CHARS) {
-          this.queryPending = candidate
+          this.queryPending = { ...candidate, since: since ?? Date.now() }
           this.armQueryHold()
         } else {
           this.emit(candidate, false)
@@ -284,32 +298,15 @@ export class PtyStartupIngress {
         this.emit(slicePtyIngressSourceSpan(input, emittedOffset, candidateIndex), false)
       }
       const querySpan = slicePtyIngressSourceSpan(input, candidateIndex, query.endIndex)
-      const answered =
-        query.kind === 'kitty'
-          ? this.delivery.answer(`\x1b[?${this.kittyModes.flags}u`, 'owner')
-          : this.answerColorQuery(query.slots)
-      if (query.kind === 'kitty' && answered) {
+      const stale = since !== undefined && Date.now() - since >= ECHO_CONTINUATION_HOLD_MS
+      const answer = answerPtyStartupQuery(query, this.queryAnswerer, stale)
+      if (answer.closesKittyQuery) {
         this.kittyQueryOpen = false
       }
-      // A failed write passes the query on, except under ConPTY, whose ESC-stripped
-      // echo of a downstream reply would leak into a cooked shell (#9651).
-      if (answered || (suppressConptyQuery && query.kind !== 'kitty')) {
-        this.emit(querySpan, true, '')
-      } else {
-        this.emit(querySpan, false)
-      }
+      this.emit(querySpan, answer.stripped, answer.stripped ? '' : querySpan.data)
       scanOffset = query.endIndex
       emittedOffset = query.endIndex
     }
-  }
-
-  /** True when at least the first reply landed; a failed write stops the rest in order. */
-  private answerColorQuery(slots: readonly TerminalOscColorQuerySlot[]): boolean {
-    const replies = this.colorQueries.replies(slots)
-    return (
-      replies.length > 0 &&
-      replies.findIndex((reply) => !this.delivery.answer(reply, 'owner')) !== 0
-    )
   }
 
   private releaseQueryPending(): void {

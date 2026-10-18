@@ -24,6 +24,11 @@ import type {
   MigrationUnsupportedPtyEntry
 } from '../../../../shared/agent-status-types'
 import type {
+  ProgramStatusMirrorRecord,
+  ProgramStatusPaneIpcPayload
+} from '../../../../shared/program-status/program-status-pane-payload'
+import type { ProgramStatusPendingHides } from '../../../../shared/program-status/program-status-pending-hide'
+import type {
   ResumableTuiAgent,
   SleepingAgentLaunchConfig,
   SleepingAgentSessionRecord
@@ -62,12 +67,33 @@ export type AgentStatusSlice = {
   /** Exact pane authorities retired while sibling panes in the tab stay live. */
   recentlyRetiredAgentStatusPaneKeys: Record<string, true | string>
 
+  /** Program-status slot rows by pane key; never hook entries, so hook readers never see them. */
+  programStatusByPaneKey: Record<string, ProgramStatusMirrorRecord>
+  /** The slot's own closure record: rows for these panes are stale until a pane restore. */
+  programStatusClosedPaneKeys: Record<string, true>
+  /** The program-status preference as a primitive, so caches key on it and not on `settings`. */
+  programStatusPreferred: boolean
+  /** Advances when a pane's composed status can change through a slot. Not `agentStatusEpoch`. */
+  programStatusEpoch: number
+  applyProgramStatusPaneRows: (rows: readonly ProgramStatusPaneIpcPayload[]) => void
+  setProgramStatusPreferred: (preferred: boolean) => void
+  /** Hide this pane's visible slot and acknowledge it to main; a no-op without one. */
+  acknowledgeProgramStatusForPane: (paneKey: string) => void
+  /** Dismissals not yet sent to main, by operation id, each bound to its PTY's hidden view. */
+  programStatusPendingHides: ProgramStatusPendingHides
+  /** The local half alone: hide the visible slot as a new operation and return its id, else null. */
+  hideProgramStatusForPane: (paneKey: string) => string | null
+  /** Undo that operation; a no-op once it is committed or its PTY moved on. */
+  revealProgramStatusForPane: (operationId: string) => void
+  /** Send that operation's ack to main once a pane shows the exact view it hid. */
+  commitProgramStatusHide: (operationId: string) => void
+
   retireAgentPaneAuthority: (
     paneKey: string,
     options?: { preserveSleepingAgentSession?: boolean }
   ) => void
   /** Lift a pane's retirement fence once a live PTY re-attaches to it. Closed tabs stay retired. */
-  restoreAgentPaneAuthority: (paneKey: string) => void
+  restoreAgentPaneAuthority: (paneKey: string, ptyId?: string) => void
   transferAgentPaneAuthority: (args: {
     fromPaneKey: string
     toPaneKey: string

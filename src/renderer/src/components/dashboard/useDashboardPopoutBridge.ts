@@ -6,6 +6,8 @@ import type { RepoIcon } from '../../../../shared/repo-icon'
 import { buildDashboardSnapshot, type DashboardSnapshotState } from './build-dashboard-snapshot'
 import { createWorktreeAgentRowsCache } from './worktree-agent-rows-cache'
 import { launchDashboardAgent } from './launch-dashboard-agent'
+import { isProgramStatusMirrorRecordVisible } from '../../../../shared/program-status/program-status-pane-payload'
+import { agentStatusCompositionToken } from '@/store/selectors/composed-agent-status'
 
 // Why: cap snapshot rebuilds during bursts of agent-status pings. The board is a
 // glanceable surface, so ~4 updates/sec is plenty and keeps the cross-worktree
@@ -38,6 +40,29 @@ export function repoIconsUnchanged(
 }
 
 type DashboardSnapshotWatchState = DashboardSnapshotState & Pick<AppState, 'agentStatusEpoch'>
+
+// Why: the pop-out never patches a card with a visible slot, so this window republishes it whole
+// when its slot, the preference, the composition epoch or that pane's hook entry changes.
+function programStatusSnapshotInputsChanged(
+  state: DashboardSnapshotWatchState,
+  previousState: DashboardSnapshotWatchState
+): boolean {
+  if (
+    state.programStatusByPaneKey !== previousState.programStatusByPaneKey ||
+    state.programStatusPreferred !== previousState.programStatusPreferred ||
+    state.programStatusEpoch !== previousState.programStatusEpoch
+  ) {
+    return true
+  }
+  if (state.agentStatusByPaneKey === previousState.agentStatusByPaneKey) {
+    return false
+  }
+  return Object.entries(state.programStatusByPaneKey ?? {}).some(
+    ([paneKey, record]) =>
+      isProgramStatusMirrorRecordVisible(record) &&
+      state.agentStatusByPaneKey[paneKey] !== previousState.agentStatusByPaneKey[paneKey]
+  )
+}
 
 export function dashboardSnapshotInputsChanged(
   state: DashboardSnapshotWatchState,
@@ -85,7 +110,8 @@ export function dashboardSnapshotInputsChanged(
       previousState.restoredRuntimeHostIdByWorkspaceSessionKey ||
     state.runtimeEnvironments !== previousState.runtimeEnvironments ||
     state.runtimeEnvironmentCatalogHydrated !== previousState.runtimeEnvironmentCatalogHydrated ||
-    state.removedRuntimeEnvironmentIds !== previousState.removedRuntimeEnvironmentIds
+    state.removedRuntimeEnvironmentIds !== previousState.removedRuntimeEnvironmentIds ||
+    programStatusSnapshotInputsChanged(state, previousState)
   )
 }
 
@@ -172,7 +198,7 @@ export function useDashboardPopoutBridge(enabled: boolean): void {
       const state = useAppStore.getState()
       const snapshot = buildDashboardSnapshot(state, lastPublishAt, {
         rowsCache,
-        rowsGeneration: state.agentStatusEpoch
+        rowsGeneration: agentStatusCompositionToken(state)
       })
       const icons = snapshot.repoIconsByRepoId ?? {}
       if (!withIcons && repoIconsUnchanged(icons, lastPublishedRepoIcons)) {
