@@ -100,6 +100,22 @@ export function useBrowserGuestElementTools({
     })
   }, [browserAnnotations, currentDocument, pendingAnnotationPayload, toolTargetId, toolsReady])
 
+  useEffect(() => {
+    if (!toolTargetId) {
+      return
+    }
+    const token = annotationViewportBridgeTokenRef.current
+    return () => {
+      syncGuestAnnotationViewportBridge({
+        toolTargetId,
+        annotations: [],
+        pendingPayload: null,
+        surfaceActive: false,
+        token
+      })
+    }
+  }, [toolTargetId])
+
   const elementTools = useMemo<BrowserChromeElementTools>(
     () => ({
       activeIntent: grab.state !== 'idle' ? grabAnnotations.grabIntent : null,

@@ -376,49 +376,51 @@ export function ClientHostedBrowserPagePane({
           markup={tools.markupTool}
         />
       </div>
-      <div
-        ref={viewportScrollerRef}
-        data-browser-page-scroller=""
-        className="scrollbar-sleek relative min-h-0 min-w-0 flex-1 overflow-hidden bg-background"
-      >
-        <div ref={viewportRef} className="relative mx-auto">
-          <BrowserGuestAnnotateOverlays
-            markup={markup}
-            grab={grab}
-            annotationSend={annotationSend}
-            grabAnnotations={grabAnnotations}
-            containerRef={viewportRef}
-            webviewRef={webviewRef}
-            browserOverlayViewport={browserOverlayViewport}
-            worktreeId={worktreeId}
-          />
-          <BrowserPageZoomIndicator
-            state={browserZoomIndicatorState}
-            percent={zoom.browserZoomPercent}
-          />
-          <BrowserFind
-            isOpen={findOpen}
-            onClose={() => setFindOpen(false)}
-            webviewRef={webviewRef}
-            guestGeneration={pageHostGeneration}
-          />
-          <ClientHostedBrowserLoadFailure
-            visible={showFailureOverlay}
-            browserTab={browserTab}
-            failedNavigationUrl={failedNavigationUrl}
-            certificateFailure={certificateFailure}
-            onRetry={() => reload.runReloadTrigger('reload')}
-            navigateToUrl={navigateToUrl}
-          />
-          {attachmentError || restoredPageUnrecovered ? (
-            <ClientHostedBrowserUnavailableNotice
-              runtimeEnvironmentId={runtimeEnvironmentId}
+      <div className="relative flex min-h-0 min-w-0 flex-1">
+        <div
+          ref={viewportScrollerRef}
+          data-browser-page-scroller=""
+          className="scrollbar-sleek relative min-h-0 min-w-0 flex-1 overflow-hidden bg-background"
+        >
+          <div ref={viewportRef} className="relative mx-auto">
+            <BrowserGuestAnnotateOverlays
+              markup={markup}
+              grab={grab}
+              annotationSend={annotationSend}
+              grabAnnotations={grabAnnotations}
+              containerRef={viewportRef}
+              webviewRef={webviewRef}
+              browserOverlayViewport={browserOverlayViewport}
               worktreeId={worktreeId}
-              lastCommittedUrl={browserTab.url}
-              placementHostClientId={browserHostClientId}
             />
-          ) : null}
+          </div>
         </div>
+        <BrowserPageZoomIndicator
+          state={browserZoomIndicatorState}
+          percent={zoom.browserZoomPercent}
+        />
+        <BrowserFind
+          isOpen={findOpen}
+          onClose={() => setFindOpen(false)}
+          webviewRef={webviewRef}
+          guestGeneration={pageHostGeneration}
+        />
+        <ClientHostedBrowserLoadFailure
+          visible={showFailureOverlay}
+          browserTab={browserTab}
+          failedNavigationUrl={failedNavigationUrl}
+          certificateFailure={certificateFailure}
+          onRetry={() => reload.runReloadTrigger('reload')}
+          navigateToUrl={navigateToUrl}
+        />
+        {attachmentError || restoredPageUnrecovered ? (
+          <ClientHostedBrowserUnavailableNotice
+            runtimeEnvironmentId={runtimeEnvironmentId}
+            worktreeId={worktreeId}
+            lastCommittedUrl={browserTab.url}
+            placementHostClientId={browserHostClientId}
+          />
+        ) : null}
       </div>
     </div>
   )

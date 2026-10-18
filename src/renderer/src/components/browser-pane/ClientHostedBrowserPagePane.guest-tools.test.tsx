@@ -10,6 +10,7 @@ import { ClientHostedBrowserPagePane } from './ClientHostedBrowserPagePane'
 
 const mocks = vi.hoisted(() => ({
   attach: vi.fn(),
+  setAnnotationViewportBridge: vi.fn(),
   setGrabMode: vi.fn(),
   awaitGrabSelection: vi.fn(),
   captureSelectionScreenshot: vi.fn()
@@ -70,10 +71,12 @@ const payload: BrowserGrabPayload = {
 }
 
 beforeEach(() => {
+  mocks.setAnnotationViewportBridge.mockResolvedValue({ ok: true })
   mocks.setGrabMode.mockResolvedValue({ ok: true })
   mocks.captureSelectionScreenshot.mockResolvedValue({ ok: false })
   installClientHostedPaneApi({
     browser: {
+      setAnnotationViewportBridge: mocks.setAnnotationViewportBridge,
       setGrabMode: mocks.setGrabMode,
       awaitGrabSelection: mocks.awaitGrabSelection,
       captureSelectionScreenshot: mocks.captureSelectionScreenshot
@@ -325,5 +328,43 @@ describe('client-hosted unsaved comment card', () => {
     pane.update({ placement: { ...placement, pageHostGeneration: 8 } })
 
     await waitFor(() => expect(screen.queryByPlaceholderText(commentPlaceholder)).toBeNull())
+  })
+})
+
+describe('client-hosted retained guest review regressions', () => {
+  it('disables the old annotation bridge when placement is cleared', async () => {
+    const pane = renderPane()
+    await waitFor(() => expect(mocks.setAnnotationViewportBridge).toHaveBeenCalled())
+    mocks.setAnnotationViewportBridge.mockClear()
+    pane.update({ placement: null })
+    await waitFor(() =>
+      expect(mocks.setAnnotationViewportBridge).toHaveBeenCalledWith(
+        expect.objectContaining({
+          browserPageId: 'page-a',
+          enabled: false,
+          emitViewport: false,
+          markers: []
+        })
+      )
+    )
+  })
+
+  it('keeps failure controls outside oversized preset content and disables external opening', () => {
+    renderPane({
+      browserTab: {
+        ...basePage,
+        viewportPresetId: 'desktop',
+        loadError: {
+          code: -105,
+          description: 'net::ERR_NAME_NOT_RESOLVED',
+          validatedUrl: 'http://127.0.0.1:43123/'
+        }
+      }
+    })
+    const retries = screen.getAllByRole('button', { name: 'Retry' })
+    for (const retry of retries) {
+      expect(retry.closest('[data-browser-page-scroller]')).toBeNull()
+    }
+    expect(screen.queryByRole('button', { name: 'Open Externally' })).toBeNull()
   })
 })

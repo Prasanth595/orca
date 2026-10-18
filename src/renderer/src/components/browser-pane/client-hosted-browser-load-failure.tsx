@@ -3,7 +3,7 @@ import type {
   BrowserPage
 } from '../../../../shared/browser-workspace-types'
 import { toHttpsRecoveryUrl } from '../../../../shared/browser-url'
-import { getOpenableExternalUrl, toDisplayUrl } from './describe-page/browser-page-url-display'
+import { toDisplayUrl } from './describe-page/browser-page-url-display'
 import { BrowserLoadFailureOverlay } from './navigate/browser-load-failure-overlay'
 
 export function ClientHostedBrowserLoadFailure({
@@ -29,8 +29,6 @@ export function ClientHostedBrowserLoadFailure({
       onRetry={() => onRetry()}
       onTryHttps={navigateToUrl}
       onCopy={(url) => void window.api.ui.writeClipboardText(url)}
-      onOpenExternal={(url) => void window.api.shell.openUrl(url)}
-      externalUrl={getOpenableExternalUrl(failedNavigationUrl)}
       certificateFailure={certificateFailure}
       expectedBrowserPageId={browserTab.id}
       // Why: the guest is a local Electron webview on this desktop, so its certificate
