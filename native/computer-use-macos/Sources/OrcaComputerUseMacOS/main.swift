@@ -95,6 +95,8 @@ struct AppDescriptor {
             bundleId.hasPrefix("com.operasoftware.opera") ||
             bundleId.hasPrefix("com.vivaldi.vivaldi") ||
             bundleId == "com.github.electron" ||
+            bundleId == "com.google.antigravity" ||
+            bundleId == "com.anthropic.claudefordesktop" ||
             bundleId == "com.tinyspeck.slackmacgap" ||
             bundleId == "com.spotify.client" ||
             bundleId == "com.hnc.discord" ||
@@ -1146,7 +1148,7 @@ private func lookupUsableWindow(
 }
 
 private func focusedSystemWindow(systemWide: AXUIElement, app: AppDescriptor) -> AXUIElement? {
-    guard let focusedApp = copyElement(systemWide, kAXFocusedApplicationAttribute as String),
+    guard case let .value(focusedApp) = focusedApplicationProbe(systemWide),
           pidAttribute(focusedApp) == app.pid
     else {
         return nil
@@ -1157,9 +1159,6 @@ private func focusedSystemWindow(systemWide: AXUIElement, app: AppDescriptor) ->
     if let window = copyElement(focusedApp, kAXFocusedWindowAttribute as String), usableWindow(window) {
         return window
     }
-    if let windows = copyArray(focusedApp, kAXWindowsAttribute as String) {
-        return windows.first(where: usableWindow)
-    }
     return nil
 }
 
@@ -1167,14 +1166,17 @@ private func isTargetWindowFocused(_ snapshot: Snapshot) -> Bool {
     guard let focusedWindow = focusedSystemWindow(systemWide: AXUIElementCreateSystemWide(), app: snapshot.app) else {
         return false
     }
-    if windowNumber(focusedWindow) == snapshot.windowId {
-        return true
+    if let windowId = windowNumber(focusedWindow) {
+        return windowId == snapshot.windowId
     }
     guard let frame = absoluteFrame(focusedWindow) else {
         return false
     }
-    let intersection = frame.intersection(snapshot.windowBounds)
-    return !intersection.isNull && intersection.area >= min(frame.area, snapshot.windowBounds.area) * 0.75
+    let candidate = SyntheticMouseClickDelivery.uniqueWindowCandidate(
+        from: WindowCapture.candidates(pid: snapshot.app.pid),
+        matching: { windowFramesMatch($0.bounds, frame) }
+    )
+    return candidate?.windowId == snapshot.windowId
 }
 
 private enum AXElementProbe {
@@ -1194,6 +1196,27 @@ private func copyElementProbe(_ element: AXUIElement, _ attribute: String) -> AX
     default:
         return .unavailable
     }
+}
+
+private func focusedApplicationProbe(_ systemWide: AXUIElement) -> AXElementProbe {
+    let observation = copyElementProbe(systemWide, kAXFocusedApplicationAttribute as String)
+    let systemPID: FocusedApplicationResolution.SystemObservation
+    switch observation {
+    case let .value(app):
+        systemPID = .application(pidAttribute(app))
+    case .absent:
+        systemPID = .absent
+    case .unavailable:
+        systemPID = .unavailable
+    }
+    // A failed system-wide AX read must not erase AppKit's current foreground identity.
+    let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+    guard let pid = FocusedApplicationResolution.processID(
+        system: systemPID,
+        frontmostPID: frontmostPID
+    ) else { return observation }
+    if case .value = observation { return observation }
+    return .value(AXUIElementCreateApplication(pid))
 }
 
 private func currentSyntheticClickRecipient(
@@ -1237,7 +1260,7 @@ private func focusedSyntheticClickRecipient(
 ) -> SyntheticMouseClickDelivery.RecipientObservation {
     let systemWide = AXUIElementCreateSystemWide()
     let focusedApp: AXUIElement
-    switch copyElementProbe(systemWide, kAXFocusedApplicationAttribute as String) {
+    switch focusedApplicationProbe(systemWide) {
     case let .value(value):
         focusedApp = value
     case .absent:
