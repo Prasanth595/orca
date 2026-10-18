@@ -20110,7 +20110,7 @@
       "deletesShelved": "Changelist {{change}}{{description}} and its {{files}} shelved file(s).",
       "deletesClient": "The Perforce client {{client}} on the server.",
       "deletesStream": "The copy's own stream {{stream}} (nothing was submitted to it).",
-      "keepsStream": "The stream {{stream}}: it has submitted work. Bring it into {{parent}} with p4 copy -S {{stream}}, then delete the stream.",
+      "keepsStream": "The stream {{stream}}: it has submitted work {{parent}} does not have yet. To bring it in, cancel and use Copy Up in this workspace’s menu first.",
       "itsParent": "its parent",
       "deletesMarker": "The copy's marker file {{file}}.",
       "onlyMarkerLeft": "Only the marker file is left",
@@ -20186,7 +20186,18 @@
       "streamField": "Stream",
       "chooseStream": "Choose a stream…",
       "modeNewHint": "A new stream of its own, branched from the stream above.",
-      "modeExistingHint": "Works directly on the stream above — no new stream is created."
+      "modeExistingHint": "Works directly on the stream above — no new stream is created.",
+      "deletesCopiedUpStream": "The copy's own stream {{stream}} (its work is already in {{parent}}).",
+      "copyUpTo": "Copy Up to {{parent}}…",
+      "copiedUp": "Submitted change {{change}} to {{parent}}",
+      "copiedUpNext": "Delete the copy once you no longer need it; its stream goes with it.",
+      "copyUpTitle": "Copy “{{name}}” up to {{parent}}?",
+      "copyUpDescription": "Submits the work submitted on {{stream}} to {{parent}} in one changelist. It runs in a temporary client, so your workspace and its checked-out files are not touched.",
+      "copyUpChecking": "Checking what would be copied up…",
+      "copyUpNothing": "{{parent}} already has everything on {{stream}}; there is nothing to copy up.",
+      "copyUpChanges": "Changes on the copy’s stream",
+      "copyUpFiles": "{{files}} file(s) to submit",
+      "copyUpSubmit": "Copy up and submit"
     }
   },
   "workspace": {
