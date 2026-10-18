@@ -117,6 +117,10 @@ export class DesktopPushService {
     if (this.stopped) {
       return { accepted: false, reason: 'unavailable' }
     }
+    // Fail closed like real pushes: a sealed phone with no token to seal with never gets readable text.
+    if (registration.sealedContent && !device.token) {
+      return { accepted: false, reason: 'rejected' }
+    }
     // Explicit tests target only the caller and bypass automatic activity filters.
     const notification: PushSendNotification = {
       source: 'terminal-bell',
@@ -133,7 +137,7 @@ export class DesktopPushService {
       registrationIds: [registration.registrationId],
       // Sealed like every real push to this phone, so the test proves it can open them.
       notification: registration.sealedContent
-        ? sealPushNotification(notification, device.token)
+        ? sealPushNotification(notification, device.token ?? '')
         : notification
     })
     if (!result.ok) {

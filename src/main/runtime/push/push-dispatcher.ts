@@ -23,7 +23,8 @@ const PUSH_BODY_MAX_LENGTH = 180
 export type PushDispatcherRegistry = {
   listDevices(): readonly {
     deviceId: string
-    token: string
+    // Absent on device-key rows; their pushes cannot be sealed, so a sealed registration gets none.
+    token?: string
     pushRegistration?: MobilePushRegistration
   }[]
   setPushRegistration(deviceId: string, registration: MobilePushRegistration | null): boolean
@@ -36,7 +37,7 @@ type PushDispatcherOptions = {
   scheduleRetry?: (run: () => void, delayMs: number) => void
 }
 
-type PushTarget = { deviceId: string; token: string; registration: MobilePushRegistration }
+type PushTarget = { deviceId: string; token?: string; registration: MobilePushRegistration }
 
 function clip(value: string, maxLength: number): string {
   const normalized = value.replace(/\s+/g, ' ').trim()
