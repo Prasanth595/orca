@@ -2,6 +2,8 @@ import { Suspense } from 'react'
 import { lazyWithRetry as lazy } from '@/lib/lazy-with-retry'
 import { AgentHibernationGate } from '../components/AgentHibernationGate'
 import { AiVaultTabTitleSyncGate } from '../components/AiVaultTabTitleSyncGate'
+import { ConversationKnowledgeIndexGate } from '../components/ConversationKnowledgeIndexGate'
+import { ConversationKnowledgeLaunchContextGate } from '../components/ConversationKnowledgeLaunchContextGate'
 import RetainedAgentsSyncGate from '../components/dashboard/RetainedAgentsSyncGate'
 import { WorkspacePortScanner } from '../components/ports/WorkspacePortScanner'
 import { SavedHostScopeWidenGate } from '../components/sidebar/SavedHostScopeWidenGate'
@@ -28,9 +30,11 @@ export function AppBackgroundServices(): React.JSX.Element {
       {/* Why: plugin language-pack discovery must not re-render the App shell. */}
       <MacosTccPromptNoticeHost />
       {/* Why: leaf-mounted retention sync keeps agent-status subscriptions out of the App render tree. */}
-      <RetainedAgentsSyncGate />
-      <AiVaultTabTitleSyncGate />
-      <SavedHostScopeWidenGate />
+       <RetainedAgentsSyncGate />
+       <AiVaultTabTitleSyncGate />
+       <ConversationKnowledgeIndexGate />
+       <ConversationKnowledgeLaunchContextGate />
+       <SavedHostScopeWidenGate />
       {dashboardPopoutEnabled ? (
         <Suspense fallback={null}>
           <DashboardPopoutBridge />

@@ -44,6 +44,7 @@ export type TextGenerationOperation =
   | 'pull-request-fields'
   | 'branch-name'
   | 'jira-issue-summary'
+  | 'knowledge-enrichment'
   | 'conversation-name'
 
 export type CommitMessageGenerationTarget =
@@ -66,6 +67,7 @@ export type InternalTextGenerationResult =
       success: false
       error: string
       canceled?: boolean
+      cleanupUnverified?: boolean
       failureOutput?: AgentGenerationFailureOutput
     }
 

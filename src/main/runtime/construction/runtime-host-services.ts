@@ -41,6 +41,7 @@ import { RuntimeServerEnvironmentCommands } from '../runtime-server-environment-
 import { RuntimeRepositoryForkBackfill } from '../runtime-repository-fork-backfill'
 import { RuntimeWorkspaceSessionController } from '../runtime-workspace-session-controller'
 import { RuntimeAiVaultCommands } from '../runtime-ai-vault-commands'
+import { getAppEnvironment } from '../../../shared/app-environment'
 import { ClaudeAgentTeamsService } from '../claude-agent-teams-service'
 import { teardownFolderWorkspacePtys } from '../folder-workspace-pty-teardown'
 import { countRepoTerminalsNotKnownExited } from '../project-removal-impact'
@@ -365,7 +366,11 @@ export abstract class OrcaRuntimeWithPreservedBranchCleanup extends OrcaRuntimeW
     getCachedWorktrees: () => this.resolvedWorktrees.peek()?.worktrees ?? null
   })
 
-  protected readonly aiVault = new RuntimeAiVaultCommands(() => this.prepareAiVaultSessionResumeFn)
+  protected readonly aiVault = new RuntimeAiVaultCommands(
+    () => this.prepareAiVaultSessionResumeFn,
+    () => getAppEnvironment().getPath('userData'),
+    () => this.accounts.getCommitMessageAgentEnvironment()
+  )
 
   protected readonly claudeAgentTeams = new ClaudeAgentTeamsService()
 

@@ -10,6 +10,7 @@ import { NumberField, SettingsSwitch } from './SettingsFormControls'
 import { translate } from '@/i18n/i18n'
 import { NativeChatExperimentalSetting } from './NativeChatExperimentalSetting'
 import { AgentDashboardExperimentalSetting } from './AgentDashboardExperimentalSetting'
+import { ConversationKnowledgeExperimentalSetting } from './ConversationKnowledgeExperimentalSetting'
 import { EphemeralVmsExperimentalSetting } from './EphemeralVmsExperimentalSetting'
 import { WslHostsExperimentalSetting } from './WslHostsExperimentalSetting'
 import { wslHostsAvailable } from '../sidebar/use-wsl-hosts-enabled'
@@ -63,6 +64,11 @@ export function ExperimentalPane({
 
   return (
     <div className="space-y-4">
+      <ConversationKnowledgeExperimentalSetting
+        settings={settings}
+        updateSettings={updateSettings}
+      />
+
       {showAgentDashboard ? (
         <AgentDashboardExperimentalSetting settings={settings} updateSettings={updateSettings} />
       ) : null}

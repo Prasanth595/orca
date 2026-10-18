@@ -12,13 +12,13 @@ const toggleVariants = cva(
         default: 'bg-transparent',
         outline:
           'border border-input bg-transparent shadow-xs hover:bg-accent hover:text-accent-foreground',
-        // Why not bg-accent: on a light popover it is nearly the surface colour (STYLEGUIDE, list rows).
-        segmented:
-          'bg-transparent text-muted-foreground transition-[color,background-color,box-shadow] hover:bg-foreground/6 hover:text-foreground data-[state=on]:bg-foreground/12 data-[state=on]:text-foreground dark:hover:bg-accent/50 dark:data-[state=on]:bg-accent'
+        compact:
+          'border border-transparent bg-transparent text-muted-foreground shadow-none hover:bg-background/60 hover:text-foreground data-[state=on]:border-foreground/20 data-[state=on]:bg-background data-[state=on]:font-medium data-[state=on]:text-foreground data-[state=on]:shadow-xs',
+        segmented: 'bg-transparent hover:bg-accent hover:text-accent-foreground data-[state=on]:bg-background data-[state=on]:text-foreground'
       },
       size: {
         default: 'h-9 min-w-9 px-2',
-        xs: 'h-6 min-w-6 px-2 text-xs',
+        xs: 'h-6 min-w-6 px-2.5 text-[11px]',
         sm: 'h-8 min-w-8 px-1.5',
         lg: 'h-10 min-w-10 px-2.5'
       }

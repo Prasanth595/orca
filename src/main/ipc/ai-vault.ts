@@ -1,4 +1,6 @@
 import { app, ipcMain } from 'electron'
+import { registerAiVaultHistoryHandlers } from './ai-vault-history'
+import type { CommitMessageAgentEnvironmentResolvers } from '../text-generation/commit-message-agent-environment'
 import {
   configureAiVaultSessionSources,
   listAiVaultSessions as listCachedLocalAiVaultSessions,
@@ -67,6 +69,7 @@ type AiVaultHandlerOptions = AiVaultSessionSources &
     getActiveRuntimeAiVaultHostInfos?: () => readonly RuntimeAiVaultHostInfo[]
     scanRuntimeAiVaultSessions?: RuntimeAiVaultScanner
     resolveRuntimeAiVaultSessionTitles?: RuntimeAiVaultSessionTitleResolver
+    commitMessageAgentEnv?: CommitMessageAgentEnvironmentResolvers
   }
 
 let scanCoordinator = new AiVaultScanCoordinator()
@@ -287,6 +290,7 @@ export function registerAiVaultHandlers(options: AiVaultHandlerOptions = {}): vo
   ipcMain.handle('aiVault:getFirstUserPrompt', (_event, args?: AiVaultFirstUserPromptArgs) =>
     handleAiVaultGetFirstUserPrompt(args)
   )
+  registerAiVaultHistoryHandlers(options.commitMessageAgentEnv)
   registerAiVaultDeleteHandler(aiVaultDeleteDeps)
   registerAiVaultScanProgressBroadcast()
   // macOS app activation skips DOM focus events, so emit the refresh signal here.

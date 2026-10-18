@@ -28,27 +28,31 @@ const SOURCE_CONTROL_KILL_SITE = 'source-control-text-generation'
 
 export async function killSourceControlAgentProcess(
   child: SpawnedSourceControlAgentProcess
-): Promise<void> {
+): Promise<boolean> {
   const pid = child.pid
   if (!pid) {
-    return
+    return true
   }
   if (child.supervised) {
-    await stopSupervisedChildProcess(child, { site: SOURCE_CONTROL_KILL_SITE })
-    return
+    const result = await stopSupervisedChildProcess(child, { site: SOURCE_CONTROL_KILL_SITE })
+    return result.tree !== 'unverifiable'
   }
   if (process.platform === 'win32') {
     // taskkill owns the tree, but the own-Chromium gate can refuse the
     // pid-addressed walk; the handle-addressed root kill below cannot reach the
     // recycled pid it refused, and callers release the managed-home lock on this
     // promise, so it must not resolve having killed nothing.
-    await terminateWindowsProcessTree(pid, { site: SOURCE_CONTROL_KILL_SITE })
+    const terminated = await terminateWindowsProcessTree(pid, { site: SOURCE_CONTROL_KILL_SITE })
+    if (!terminated) {
+      return false
+    }
   }
   try {
     child.kill('SIGKILL')
   } catch {
     // The process may exit between the PID check and kill.
   }
+  return true
 }
 
 // Why: Windows caps the CreateProcess command line at 32,767 UTF-16 code units,
@@ -94,6 +98,8 @@ export function runLocalSourceControlPlan(input: {
   operation: TextGenerationOperation
   wslDistro?: string
   holdHomeLockUntilExit: boolean
+  /** Knowledge indexing must not start another agent while a failed one is still stopping. */
+  waitForTerminationOnFailure?: boolean
   spawnAgent: SpawnSourceControlAgent
 }): LocalProcessExecution<InternalTextGenerationResult> {
   const { plan, cwd, operation, holdHomeLockUntilExit } = input
@@ -141,15 +147,16 @@ export function runLocalSourceControlPlan(input: {
     let outputLimitExceeded = false
     let settled = false
     let canceledByUser = false
+    let timedOut = false
     const laneKey = localGenerationLaneKey(operation, cwd)
     let timer: ReturnType<typeof setTimeout> | null = null
-    let terminationComplete: Promise<void> | null = null
+    let terminationComplete: Promise<void | boolean> | null = null
     let detachChildListeners = (): void => {}
     const startTermination = (): void => {
       terminationComplete ??= killSourceControlAgentProcess(child)
     }
     const markClosedAfterTermination = (): void => {
-      void (terminationComplete ?? Promise.resolve()).then(markProcessClosed)
+      void (terminationComplete ?? Promise.resolve()).finally(markProcessClosed)
     }
     const finalize = (value: InternalTextGenerationResult): void => {
       if (settled) {
@@ -167,15 +174,40 @@ export function runLocalSourceControlPlan(input: {
       }
       resolve(value)
     }
+    const finalizeAfterTermination = (value: InternalTextGenerationResult): void => {
+      if (!input.waitForTerminationOnFailure) {
+        finalize(value)
+        return
+      }
+      void (terminationComplete ?? Promise.resolve()).then(
+        (terminated) =>
+          finalize(
+            terminated === false
+              ? {
+                  success: false,
+                  error: 'Generation cleanup could not be verified.',
+                  cleanupUnverified: true
+                }
+              : value
+          ),
+        () =>
+          finalize({
+            success: false,
+            error: 'Generation cleanup could not be verified.',
+            cleanupUnverified: true
+          })
+      )
+    }
     const cancel = (): void => {
       canceledByUser = true
       startTermination()
-      finalize({ success: false, error: 'Generation canceled.', canceled: true })
+      finalizeAfterTermination({ success: false, error: 'Generation canceled.', canceled: true })
     }
     setLocalGenerationCancelToken(laneKey, cancel)
     timer = setTimeout(() => {
+      timedOut = true
       startTermination()
-      finalize({
+      finalizeAfterTermination({
         success: false,
         error: `Generation timed out after ${SOURCE_CONTROL_GENERATION_TIMEOUT_MS / 1000}s.`
       })
@@ -219,11 +251,18 @@ export function runLocalSourceControlPlan(input: {
     const onClose = (code: number | null): void => {
       markClosedAfterTermination()
       if (canceledByUser) {
-        finalize({ success: false, error: 'Generation canceled.', canceled: true })
+        finalizeAfterTermination({ success: false, error: 'Generation canceled.', canceled: true })
+        return
+      }
+      if (timedOut) {
+        finalizeAfterTermination({
+          success: false,
+          error: `Generation timed out after ${SOURCE_CONTROL_GENERATION_TIMEOUT_MS / 1000}s.`
+        })
         return
       }
       if (outputLimitExceeded) {
-        finalize({
+        finalizeAfterTermination({
           success: false,
           error: `${plan.label} CLI command produced too much output. Check the agent CLI configuration and try again.`
         })

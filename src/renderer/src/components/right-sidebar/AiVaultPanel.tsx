@@ -194,7 +194,7 @@ export default function AiVaultPanel(): React.JSX.Element {
     sessionLimit
   })
 
-  const { filteredSessions, groups } = useAiVaultPanelSessions(sessions, searching, group, {
+  const { filteredSessions, groups } = useAiVaultPanelSessions(sessions, searching, group, false, {
     query,
     agents,
     scope,

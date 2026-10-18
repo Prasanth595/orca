@@ -63,6 +63,12 @@ import { CurrentRequestsParams } from './agent-session-current-requests-params'
 import { CreateAgentSessionParams, EnsureAgentSessionParams } from './agent-session-params'
 import { ReadVisualParams } from './agent-session-visual-params'
 import {
+  AiVaultHistoryReadParams,
+  AiVaultHistorySearchParams,
+  AiVaultEmptyParams,
+  AiVaultKnowledgeGenerateParams,
+  AiVaultKnowledgeIndexParams,
+  AiVaultKnowledgeListParams,
   AiVaultListSessionsParams,
   AiVaultPrepareSessionResumeParams,
   AiVaultSessionTitlesParams
@@ -721,9 +727,16 @@ export const RPC_PARAMS_BY_METHOD = {
   'agentSessionAttachment.uploadStart': AttachmentUploadStartParams,
   'agentTeams.prepareLaunch': AgentTeamsPrepareLaunch,
   'agentTeams.tmuxCompat': AgentTeamsTmuxCompat,
+  'aiVault.cancelKnowledgeIndex': AiVaultEmptyParams,
+  'aiVault.enrichHistory': AiVaultKnowledgeGenerateParams,
+  'aiVault.getKnowledgeIndexStatus': AiVaultEmptyParams,
+  'aiVault.listKnowledge': AiVaultKnowledgeListParams,
   'aiVault.listSessions': AiVaultListSessionsParams,
   'aiVault.prepareSessionResume': AiVaultPrepareSessionResumeParams,
+  'aiVault.readHistory': AiVaultHistoryReadParams,
   'aiVault.resolveSessionTitles': AiVaultSessionTitlesParams,
+  'aiVault.searchHistory': AiVaultHistorySearchParams,
+  'aiVault.startKnowledgeIndex': AiVaultKnowledgeIndexParams,
   'aiVault.searchSessions': AiVaultSearchRequestSchema,
   'aiVault.searchStatus': AiVaultSearchStatusRequestSchema,
   'aiVault.setSearchEnabled': AiVaultSetSearchEnabledParamsSchema,
@@ -1385,6 +1398,8 @@ export const RPC_PARAMS_BY_METHOD = {
 // Why: these methods bind a schema the shared contract cannot hold because its value
 // graph reaches into src/main. Listing them keeps the gap visible instead of absent.
 export const RPC_METHODS_WITHOUT_SHARED_PARAMS: readonly string[] = [
+  'aiVault.cancelKnowledgeIndex',
+  'aiVault.getKnowledgeIndexStatus',
   'emulator.install',
   'orchestration.send',
   'orchestration.taskUpdate'

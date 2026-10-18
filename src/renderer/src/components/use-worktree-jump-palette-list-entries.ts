@@ -15,6 +15,7 @@ import { BROWSER_NAVIGATION_ACTION_ID } from '@/components/cmd-j/browser-navigat
 import type { WorktreeJumpPaletteSections } from './use-worktree-jump-palette-sections'
 import type { WorktreeJumpPaletteWorktrees } from './use-worktree-jump-palette-worktrees'
 import type { WorktreeJumpPaletteLocalState } from './use-worktree-jump-palette-local-state'
+import type { ConversationKnowledgeItem } from '../../../shared/conversation-knowledge-items'
 
 import type { WorktreeJumpPaletteTaskSearch } from './use-worktree-jump-palette-task-search'
 
@@ -22,7 +23,10 @@ type WorktreeJumpPaletteListEntriesInput = WorktreeJumpPaletteSections &
   Pick<WorktreeJumpPaletteTaskSearch, 'taskItems'> &
   Pick<WorktreeJumpPaletteWorktrees, 'hasQuery'> &
   Pick<WorktreeJumpPaletteLocalState, 'autoSelectedItemIdRef' | 'taskSourceUrl'> &
-  Pick<WorktreeJumpPaletteSections, 'middleLeadsSections' | 'handleExpandSection'>
+  Pick<WorktreeJumpPaletteSections, 'middleLeadsSections' | 'handleExpandSection'> & {
+    knowledgeItems?: ConversationKnowledgeItem[]
+    knowledgeOnly?: boolean
+  }
 
 export function useWorktreeJumpPaletteListEntries({
   hasQuery,
@@ -31,6 +35,8 @@ export function useWorktreeJumpPaletteListEntries({
   showCreateAction,
   autoSelectedItemIdRef,
   taskSourceUrl,
+  knowledgeItems = [],
+  knowledgeOnly = false,
   handleExpandSection,
   middleLeadsSections,
   taskItems
@@ -165,6 +171,24 @@ export function useWorktreeJumpPaletteListEntries({
         )
       }
     }
+    if (knowledgeOnly) {
+      if (knowledgeItems.length > 0) {
+        entries.push({
+          id: '__header_conversation_knowledge__',
+          type: 'section-header',
+          label: translate('worktreeJumpPalette.conversationKnowledgeHeader', 'Knowledge')
+        })
+        appendPaletteListEntries(
+          entries,
+          knowledgeItems.map((item) => ({
+            id: `conversation-knowledge:${item.id}`,
+            type: 'conversation-knowledge' as const,
+            item
+          }))
+        )
+      }
+      return entries
+    }
     // Why: a pasted issue/PR URL is decisive. Show linked worktrees first so
     // Enter jumps; keep create available underneath when the user wants a new one.
     if (taskSourceUrl) {
@@ -262,6 +286,8 @@ export function useWorktreeJumpPaletteListEntries({
   }, [
     handleExpandSection,
     hasQuery,
+    knowledgeItems,
+    knowledgeOnly,
     middleLeadsSections,
     openTabsLeadSections,
     paletteSections,
