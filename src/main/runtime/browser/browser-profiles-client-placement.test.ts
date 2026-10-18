@@ -1,4 +1,4 @@
-import { BrowserHostLeaseRegistry } from '../browser-host-lease-registry'
+import { BrowserHostLeaseRegistry } from '../browser-host/browser-host-lease-registry'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { RuntimeBrowserPageRegistry } from '../runtime-browser-page-registry'
 

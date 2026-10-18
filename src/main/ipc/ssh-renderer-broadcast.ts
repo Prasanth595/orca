@@ -1,5 +1,5 @@
 import type { BrowserWindow } from 'electron'
-import type { SshPortForwardManager } from '../ssh/ssh-port-forward'
+import type { SshPortForwardManager } from '../ssh/port-forwarding/ssh-port-forward'
 import type { DetectedPort, EnrichedDetectedPort, SshConnectionState } from '../../shared/ssh-types'
 import { isRuntimeOwnedSshTargetId } from '../../shared/execution-host'
 import {
@@ -18,6 +18,7 @@ import {
   persistedStore,
   portForwardManager
 } from './ssh-ipc-context'
+import { requestDesktopBrowserBridgeReconcile } from './desktop-browser-bridge-reconcile'
 
 export function broadcastSshState(
   getMainWindow: () => BrowserWindow | null,
@@ -37,6 +38,8 @@ export function broadcastSshState(
   }
   // Why: paired remote clients have no ssh:state-changed IPC; without this their terminals keep a stale reconnect overlay.
   currentRuntime?.notifySshStateChanged?.(targetId, enrichedState)
+  // Why: a host that connects or drops attaches or detaches its desktop browser bridge now.
+  requestDesktopBrowserBridgeReconcile()
 }
 
 function withSshRemotePlatform(targetId: string, state: SshConnectionState): SshConnectionState {
