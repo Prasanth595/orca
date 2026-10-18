@@ -29,10 +29,13 @@ export function stagedRuntimeUploadByteLength(source: StagedExternalImportSource
 /**
  * @param totalBytesBefore Bytes already staged by earlier sources in the same drop,
  *   so the total ceiling covers the whole drop rather than each source alone.
+ * @param options.nameExtensionlessImages Append the sniffed image extension to an
+ *   extensionless top-level file; only for Orca-owned destinations like `.orca/drops`.
  */
 export async function stageOneSourceForRuntimeUpload(
   sourcePath: string,
-  totalBytesBefore = 0
+  totalBytesBefore = 0,
+  options: { nameExtensionlessImages?: boolean } = {}
 ): Promise<StagedExternalImportSource> {
   const resolvedSource = resolve(sourcePath)
 
@@ -54,7 +57,7 @@ export async function stageOneSourceForRuntimeUpload(
     }
     const staged = await stageFileEntry(resolvedSource, '', {
       totalBytesBefore,
-      detectImageExtension: extname(sourceName) === ''
+      detectImageExtension: options.nameExtensionlessImages === true && extname(sourceName) === ''
     })
     return {
       sourcePath,

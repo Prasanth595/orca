@@ -156,14 +156,26 @@ describe('stageOneSourceForRuntimeUpload', () => {
   describe('a dropped file with no extension', () => {
     const PNG_HEADER = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0x0d])
 
+    const stage = (path: string) =>
+      stageOneSourceForRuntimeUpload(path, 0, { nameExtensionlessImages: true })
+
     it('gets the extension its image bytes declare', async () => {
       const filePath = join(workDir, 'noname')
       await writeFile(filePath, PNG_HEADER)
 
-      await expect(stageOneSourceForRuntimeUpload(filePath)).resolves.toMatchObject({
+      await expect(stage(filePath)).resolves.toMatchObject({
         status: 'staged',
         name: 'noname.png',
         entries: [{ relativePath: '', kind: 'file', byteLength: PNG_HEADER.length }]
+      })
+    })
+
+    it('keeps its name when the caller did not opt in', async () => {
+      const filePath = join(workDir, 'noname')
+      await writeFile(filePath, PNG_HEADER)
+
+      await expect(stageOneSourceForRuntimeUpload(filePath)).resolves.toMatchObject({
+        name: 'noname'
       })
     })
 
@@ -171,7 +183,7 @@ describe('stageOneSourceForRuntimeUpload', () => {
       const filePath = join(workDir, 'Makefile')
       await writeFile(filePath, 'all:\n\ttrue\n')
 
-      await expect(stageOneSourceForRuntimeUpload(filePath)).resolves.toMatchObject({
+      await expect(stage(filePath)).resolves.toMatchObject({
         status: 'staged',
         name: 'Makefile'
       })
@@ -181,7 +193,7 @@ describe('stageOneSourceForRuntimeUpload', () => {
       const filePath = join(workDir, 'capture.dat')
       await writeFile(filePath, PNG_HEADER)
 
-      await expect(stageOneSourceForRuntimeUpload(filePath)).resolves.toMatchObject({
+      await expect(stage(filePath)).resolves.toMatchObject({
         name: 'capture.dat'
       })
     })
@@ -191,7 +203,7 @@ describe('stageOneSourceForRuntimeUpload', () => {
       await mkdir(rootPath)
       await writeFile(join(rootPath, 'noname'), PNG_HEADER)
 
-      const staged = await stageOneSourceForRuntimeUpload(rootPath)
+      const staged = await stage(rootPath)
 
       expect(staged).toMatchObject({ name: 'shots', kind: 'directory' })
       const entries = staged.status === 'staged' ? staged.entries : []
