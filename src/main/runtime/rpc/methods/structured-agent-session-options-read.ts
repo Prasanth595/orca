@@ -3,7 +3,7 @@
 //
 // `agentSession.options` answers at rest from the record and the catalog, and
 // asks the live provider only when one runs. `agentSession.modelCatalog` deliberately does
-// neither — answering from the host store (and what a running child's start already said) is
+// neither — answering from independently discovered host inventory is
 // what lets a picker render while an attach is still running. It is additive: an older host answers
 // `method_not_found` (or `forbidden` through the mobile allowlist gate), and
 // the client keeps its static seed.
@@ -21,7 +21,11 @@ import {
 } from './structured-agent-session-schemas'
 import { agentSessionPinnedLaunchDirectory } from '../../agent-session-record-launch-directory'
 import { agentSessionRefusalError } from '../../../../shared/agent-session-wire-refusals'
-import { clientReadsOptionsWithoutModel } from './structured-agent-session-policy'
+import {
+  clientReadsCoherentModelCatalog,
+  clientReadsOptionsWithoutModel
+} from './structured-agent-session-policy'
+import { structuredAgentSessionSelectedCatalog } from '../../../native-chat/agent-session-wire/structured-agent-session-option-models'
 import type { AgentSessionModelCatalogResult } from '../../../../shared/agent-session-wire'
 
 export const STRUCTURED_AGENT_SESSION_OPTIONS_READ_METHODS = [
@@ -47,7 +51,10 @@ export const STRUCTURED_AGENT_SESSION_OPTIONS_READ_METHODS = [
       const readsWithoutModel = clientReadsOptionsWithoutModel(ctx)
       const result = await (
         await requireInstalledStructuredHost(ctx, params.sessionId)
-      ).readOptions(params.sessionId, { readsWithoutModel })
+      ).readOptions(params.sessionId, {
+        readsWithoutModel,
+        readsCoherentCatalog: clientReadsCoherentModelCatalog(ctx)
+      })
       if (result.current.model === undefined && !readsWithoutModel) {
         throw agentSessionRefusalError('structured_agent_session_unsupported', {
           reason: 'clientCapabilityMissing'
@@ -64,6 +71,8 @@ export const STRUCTURED_AGENT_SESSION_OPTIONS_READ_METHODS = [
     // terminal-backed chat's session-less read must not open the journal where none runs.
     handler: async ({ worktree, ...params }, ctx) => {
       requireStructuredAgentAudience(ctx, params.agent)
+      const legacyReader = !clientReadsCoherentModelCatalog(ctx)
+      const request = { ...params, legacy: legacyReader }
       const host =
         params.sessionId === undefined
           ? requireStructuredHost(ctx)
@@ -78,15 +87,15 @@ export const STRUCTURED_AGENT_SESSION_OPTIONS_READ_METHODS = [
         // A floating chat runs in the folder it was created in, not the floating setting's current one.
         const launchDirectory = record ? agentSessionPinnedLaunchDirectory(record) : undefined
         if (launchDirectory) {
-          return catalog.read({ ...params, workspacePath: launchDirectory })
+          return catalog.read({ ...request, workspacePath: launchDirectory })
         }
         if (worktree === undefined) {
-          return catalog.read(params)
+          return catalog.read(request)
         }
         const workspacePath = await ctx.runtime
           .resolveStructuredAgentSessionLocalWorkspacePath(worktree)
           .catch(() => null)
-        return catalog.read({ ...params, workspacePath })
+        return catalog.read({ ...request, workspacePath })
       }
       const answer = await read()
       // The chat's running agent can say what no listing does: a Pi that started with no model.
@@ -94,7 +103,12 @@ export const STRUCTURED_AGENT_SESSION_OPTIONS_READ_METHODS = [
         record?.provider === params.agent
           ? host.deps.adapter.startUnavailable?.(record.sessionId)
           : undefined
-      return started && !answer.unavailable ? { ...answer, unavailable: started } : answer
+      const result = started && !answer.unavailable ? { ...answer, unavailable: started } : answer
+      const selected =
+        params.sessionId === undefined
+          ? undefined
+          : host.deps.store.getRecord(params.sessionId)?.options?.model
+      return structuredAgentSessionSelectedCatalog(result, selected)
     }
   })
 ]

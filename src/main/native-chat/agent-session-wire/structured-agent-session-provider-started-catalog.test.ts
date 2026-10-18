@@ -56,6 +56,7 @@ function startHost(): void {
     },
     modelCatalog: {
       read: vi.fn(),
+      peek: vi.fn(() => null),
       retainedLiveModelIds: vi.fn(() => []),
       recordLiveListing: vi.fn(),
       prewarm: vi.fn(async () => {}),

@@ -4,7 +4,6 @@
 
 import type {
   AgentSessionModelOption,
-  AgentSessionOptionChoice,
   AgentSessionOptionsResult,
   AgentSessionSlashCommand
 } from '../../shared/agent-session-wire'
@@ -75,6 +74,7 @@ export class AcpStructuredOptions {
     },
     origin: 'new' | 'loaded' = 'loaded'
   ): void {
+    this.picked.clear()
     this.configOptions = response.configOptions ?? []
     this.models = response.models ?? null
     this.resolvesConfig = origin === 'new'
@@ -137,14 +137,16 @@ export class AcpStructuredOptions {
   read(): Pick<AgentSessionOptionsResult, 'models' | 'current'> {
     const modelOption = this.select('model')
     const effortOption = this.select('thought_level')
-    const sessionEfforts: AgentSessionOptionChoice[] = effortOption
-      ? selectChoices(effortOption).map((choice) => ({
-          value: choice.value,
-          label: choice.name,
-          ...(choice.description ? { description: choice.description } : {})
-        }))
-      : []
     const currentModel = (modelOption?.currentValue ?? this.models?.currentModelId) || undefined
+    const sessionMenu = effortOption
+      ? {
+          efforts: selectChoices(effortOption).map((choice) => ({
+            value: choice.value,
+            label: choice.name,
+            ...(choice.description ? { description: choice.description } : {})
+          }))
+        }
+      : undefined
     const listed: { id: string; label: string; description?: string }[] = modelOption
       ? selectChoices(modelOption).map((choice) => ({
           id: choice.value,
@@ -159,12 +161,11 @@ export class AcpStructuredOptions {
     const models: AgentSessionModelOption[] = listed.map((model) => {
       const info = this.models?.availableModels.find((entry) => entry.modelId === model.id)
       const advertised = info ? this.dialect.modelEfforts?.(info) : undefined
-      const sessionMenu = { efforts: model.id === currentModel ? sessionEfforts : [] }
+      const menu = advertised ?? (model.id === currentModel ? sessionMenu : undefined)
       return {
         ...model,
         isDefault: false,
-        // An empty advertised menu is no menu: the running model keeps the one its session offers.
-        ...(advertised && advertised.efforts.length > 0 ? advertised : sessionMenu)
+        ...(menu ?? { efforts: [], effortsKnown: false as const })
       }
     })
     const confirmed = [...(currentModel ? ['model'] : []), ...(effortOption ? ['effort'] : [])]
@@ -194,6 +195,10 @@ export class AcpStructuredOptions {
   /** What this session's start hands the host once: its listing, with what it resolved. */
   startListing(): AgentModelCatalogLiveListing {
     return withLiveCatalogListing(this.read(), this.configuredDefault()).catalogListing
+  }
+
+  readWithCatalogListing() {
+    return withLiveCatalogListing(this.read())
   }
 
   /** The values the agent reports now, as the record's options would name them. */
@@ -234,8 +239,7 @@ export async function readAcpLiveOptions(
   session: Parameters<typeof acpSessionAcceptsImages>[0] & { options: AcpStructuredOptions }
 ) {
   const acceptsImages = await acpSessionAcceptsImages(session)
-  // Only the start says what the config resolved: the session may have moved since.
-  return { ...withLiveCatalogListing(session.options.read()), acceptsImages }
+  return { ...session.options.readWithCatalogListing(), acceptsImages }
 }
 
 /** Sends a pick and adopts the agent's answer, even one that lands after the wait gave up: that is

@@ -34,10 +34,6 @@ const CLAUDE_MODELS = [
   { value: 'claude-sonnet', displayName: 'Sonnet' },
   { value: 'claude-opus-9', displayName: 'Opus 9' }
 ]
-const LISTED = [
-  expect.objectContaining({ id: 'claude-sonnet' }),
-  expect.objectContaining({ id: 'claude-opus-9' })
-]
 const INIT_DELAY_MS = 40
 
 let root: string
@@ -103,6 +99,7 @@ beforeEach(async () => {
     mintSpawnToken: () => 'spawn-a',
     modelCatalog: {
       read: async () => ({ origin: 'unknown' }),
+      peek: vi.fn(() => null),
       retainedLiveModelIds: vi.fn(() => []),
       recordLiveListing: (sessionId, listing) => savedListings.push({ sessionId, listing }),
       prewarm: async () => {},
@@ -194,76 +191,31 @@ describe('a publish-first Claude create whose init is slow', () => {
     expect(store.getRecord(SESSION)?.options?.model).toBe('opus')
     expect(lastPhase()).toBe('ready')
   })
-  it('saves the account listing the child read at startup, though no view asks for options', async () => {
-    await host.attach(CALLER, claudeParams())
-    expect(savedListings).toEqual([])
-
-    await vi.waitFor(() =>
-      expect(host.readStatusSummary(SESSION)?.hostExecutionPhase).toBe('ready')
-    )
-    await Promise.all(lifecycle)
-
-    // `started` hands over the listing; the settings readback after it, what the config resolved.
-    expect(savedListings).toEqual([
-      { sessionId: SESSION, listing: expect.objectContaining({ models: LISTED }) },
-      {
-        sessionId: SESSION,
-        listing: expect.objectContaining({
-          models: LISTED,
-          configuredDefault: expect.objectContaining({ modelId: 'claude-opus-9' })
-        })
+  it.each(['attach', 'first-message', 'slow-owner'])(
+    'reports current values without publishing inventory through %s startup',
+    async (start) => {
+      if (start === 'slow-owner') {
+        const proveOwner = store.proveOwner.bind(store)
+        store.proveOwner = async (input) => {
+          await new Promise((resolve) => setTimeout(resolve, 200))
+          return proveOwner(input)
+        }
       }
-    ])
-    expect(savedListings[0]?.listing).not.toHaveProperty('configuredDefault')
-  })
-  it('reports the configured default from a chat created with its first message and no pick', async () => {
-    const first = { clientMessageId: 'opening', body: hostTestMessage('hello') }
-    await expect(
-      host.create(CALLER, createTestParams(first, claudeParams()), { firstMessage: first })
-    ).resolves.toMatchObject({ ok: true })
+      const first = { clientMessageId: 'opening', body: hostTestMessage('hello') }
+      const started =
+        start === 'first-message'
+          ? host.create(CALLER, createTestParams(first, claudeParams()), { firstMessage: first })
+          : host.attach(CALLER, claudeParams())
+      await expect(started).resolves.toMatchObject({ ok: true })
+      await vi.waitFor(() =>
+        expect(host.readStatusSummary(SESSION)?.hostExecutionPhase).toBe('ready')
+      )
+      await Promise.all(lifecycle)
 
-    // Delivery, not create, starts the CLI. Its `started` event carries the account listing; the
-    // settings read after it (`options-reported`) resolves the configured model and says so once.
-    await vi.waitFor(() => expect(savedListings.length).toBeGreaterThanOrEqual(1))
-    expect(savedListings[0]).toEqual({
-      sessionId: SESSION,
-      listing: expect.objectContaining({ models: LISTED })
-    })
-    await vi.waitFor(() =>
-      expect(host.readStatusSummary(SESSION)?.hostExecutionPhase).toBe('ready')
-    )
-    await Promise.all(lifecycle)
-    expect(store.getRecord(SESSION)?.options?.model).toBeUndefined()
-    expect(savedListings.at(-1)).toEqual({
-      sessionId: SESSION,
-      listing: expect.objectContaining({
-        configuredDefault: expect.objectContaining({ modelId: 'claude-opus-9' })
-      })
-    })
-    // A later read refreshes the listing without re-learning the configured default.
-    const saved = savedListings.length
-    await host.readOptions(SESSION)
-    expect(savedListings).toHaveLength(saved + 1)
-    expect(savedListings.at(-1)?.listing).not.toHaveProperty('configuredDefault')
-  })
-
-  it('saves the configured default when the settings readback beats the attach', async () => {
-    // The attach is slow to prove the owner, so the child's readback lands before the host indexes it.
-    const proveOwner = store.proveOwner.bind(store)
-    store.proveOwner = async (input) => {
-      await new Promise((resolve) => setTimeout(resolve, 200))
-      return proveOwner(input)
+      const options = await host.readOptions(SESSION)
+      expect(options.current).toMatchObject({ model: 'claude-opus-9', effort: 'high' })
+      expect(store.getRecord(SESSION)?.options?.model).toBeUndefined()
+      expect(savedListings).toEqual([])
     }
-    await expect(host.attach(CALLER, claudeParams())).resolves.toMatchObject({ ok: true })
-    await vi.waitFor(() =>
-      expect(host.readStatusSummary(SESSION)?.hostExecutionPhase).toBe('ready')
-    )
-    await Promise.all(lifecycle)
-
-    await vi.waitFor(() =>
-      expect(savedListings.at(-1)?.listing).toMatchObject({
-        configuredDefault: expect.objectContaining({ modelId: 'claude-opus-9' })
-      })
-    )
-  })
+  )
 })

@@ -230,7 +230,8 @@ export async function setStructuredAgentSessionOption(
           get conversationWrite() {
             return atRest() ? (true as const) : undefined
           },
-          run: (ctx) => writeStructuredAgentSessionOption(context, ctx, params)
+          run: (ctx) =>
+            writeStructuredAgentSessionOption(context, ctx, params, caller.readsCoherentCatalog)
         },
         (ledger) =>
           atRest()

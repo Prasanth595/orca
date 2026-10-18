@@ -99,7 +99,9 @@ export class StructuredAgentSessionClientDelivery {
     return record ? adapter.atRestCommands?.read(record) : undefined
   }
 
-  publishStatus = (sessionId: string): void => this.statusFeed.publish(sessionId)
+  publishStatus = (sessionId: string): void => {
+    this.statusFeed.publish(sessionId)
+  }
 
   publishConversationName = (sessionId: string): void =>
     this.statusFeed.publishConversationName(sessionId)
@@ -131,7 +133,7 @@ export class StructuredAgentSessionClientDelivery {
     this.statusFeed.childWorkIncomplete(sessionId)
 
   publishStatusAndSettlement = (sessionId: string): void => {
-    this.statusFeed.publish(sessionId)
+    this.publishStatus(sessionId)
     const journal = this.sessions.get(sessionId)?.journal
     if (journal) {
       this.sendSettlement.publish(sessionId, this.settlementReading(sessionId, journal))

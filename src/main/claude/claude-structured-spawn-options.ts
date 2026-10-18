@@ -102,7 +102,8 @@ export function adoptClaudeStructuredSpawnOptions(
     ClaudeSession,
     'restoreSkippedOptions' | 'translator' | 'launchedModel' | 'fastModeAtStart'
   >,
-  spawn: Pick<ClaudeStructuredSpawnOptions, 'options' | 'skipped' | 'fastModeAtStart'>
+  spawn: Pick<ClaudeStructuredSpawnOptions, 'options' | 'skipped' | 'fastModeAtStart'> &
+    Partial<Pick<ClaudeStructuredSpawnOptions, 'sdkOptions'>>
 ): void {
   session.launchedModel = spawn.options.get('model') ?? null
   session.fastModeAtStart = spawn.fastModeAtStart

@@ -12,12 +12,11 @@ import {
 } from './codex-structured-service-tier'
 import {
   composeCodexSessionOptionCatalog,
-  fetchCodexModelCatalogListing,
   readCodexStructuredSessionOptionCatalog,
   type CodexModelCatalogListing,
   type CodexSessionOptionCatalog
 } from './codex-structured-model-catalog'
-import { codexAcquireCatalogListing, listingFromEntry } from './codex-structured-catalog-entry'
+import { codexAcquireCatalogListing } from './codex-structured-catalog-entry'
 export { codexAcquireCatalogListing } from './codex-structured-catalog-entry'
 
 export function restoredCodexSessionOptions(
@@ -26,50 +25,49 @@ export function restoredCodexSessionOptions(
   return new Map(Object.entries(options ?? {}).filter(([key]) => isCodexTurnOptionKey(key)))
 }
 
+export function readCodexAcquisitionOptions(
+  session: CodexSession,
+  priorOptions?: Readonly<Record<string, string>>
+): Record<string, string> | undefined {
+  const options = {
+    ...Object.fromEntries(
+      Object.entries(priorOptions ?? {}).filter(([key]) => !isCodexTurnOptionKey(key))
+    ),
+    ...Object.fromEntries(session.options)
+  }
+  const reported = session.reportedOptions
+  // The thread's effort belongs to the thread's model, not to a different saved one.
+  if (
+    options.effort === undefined &&
+    reported.effort &&
+    (options.model === undefined || options.model === reported.model)
+  ) {
+    options.effort = reported.effort
+  }
+  if (options.model === undefined && reported.model) {
+    options.model = reported.model
+  }
+  return Object.keys(options).length > 0 ? options : undefined
+}
+
 export type { CodexSessionOptionCatalog } from './codex-structured-model-catalog'
 
 export { readCodexStructuredSessionOptionCatalog } from './codex-structured-model-catalog'
 
-async function fetchCodexListingThroughStore(
-  session: CodexSession,
-  timeoutMs: number | undefined
-): Promise<CodexModelCatalogListing> {
-  const access = session.catalogAccess
-  if (!access) {
-    return fetchCodexModelCatalogListing({ connection: session.connection, timeoutMs })
-  }
-  const entry = await access.store.refresh(access.fingerprint, 'codex', access, async () => {
-    const listing = await fetchCodexModelCatalogListing({
-      connection: session.connection,
-      timeoutMs
-    })
-    return { models: listing.models, origin: 'live-session' }
-  })
-  if (!entry) {
-    throw new Error(access.store.failureDetail(access.fingerprint) ?? 'codex model listing failed')
-  }
-  return listingFromEntry(entry)
-}
-
-/**
- * The listing a picker read answers with: any stored entry immediately, with a
- * background refresh once it ages out; a provider fetch only when this key has
- * never listed. The refresh rides the session's own connection and its bounded
- * request timeout, off the caller's path.
- */
+/** Picker reads demand the host's discovery owner; acquisition and sends stay cache-only. */
 export async function codexSessionCatalogListingForPicker(
   session: CodexSession,
-  timeoutMs: number | undefined
+  _timeoutMs: number | undefined,
+  legacy = false
 ): Promise<CodexModelCatalogListing> {
-  const access = session.catalogAccess
-  const entry = access?.store.get(access.fingerprint)
-  if (access && entry) {
-    if (access.store.shouldRefresh(access.fingerprint)) {
-      void fetchCodexListingThroughStore(session, timeoutMs).catch(() => {})
+  const observation = await session.catalogAccess?.demand?.(legacy).catch(() => {})
+  if (legacy) {
+    return {
+      models: observation?.origin && observation.origin !== 'unknown' ? observation.models : [],
+      complete: !observation?.listingInProgress && !observation?.unavailable
     }
-    return listingFromEntry(entry)
   }
-  return fetchCodexListingThroughStore(session, timeoutMs)
+  return codexAcquireCatalogListing(session.catalogAccess) ?? { models: [] }
 }
 
 export async function readCodexStructuredSessionOptions(input: {
@@ -108,11 +106,18 @@ function applyLiveCodexCatalog(
   session: CodexSession,
   listing: CodexModelCatalogListing
 ): AgentSessionOptionsResult {
-  dropUnlistedCodexServiceTier(
-    session,
-    session.options.get('model') ?? session.reportedOptions.model,
-    listing.models
-  )
+  if (listing.models.length === 0) {
+    const { model, effort, serviceTier } = session.reportedOptions
+    return {
+      models: [],
+      current: {
+        ...(model ? { model } : {}),
+        ...(effort ? { effort } : {}),
+        ...(serviceTier ? { serviceTier } : {}),
+        ...Object.fromEntries(session.options)
+      }
+    }
+  }
   return composeLiveCodexCatalog(session, listing)
 }
 
@@ -127,19 +132,21 @@ export async function readLiveCodexSessionOptions(
 /** Fetch outside the session lane; apply against current options inside it. */
 export async function prepareLiveCodexSessionOptions(
   session: CodexSession,
-  timeoutMs: number | undefined
+  timeoutMs: number | undefined,
+  legacy = false
 ): Promise<() => AgentSessionOptionsResult> {
-  const listing = await codexSessionCatalogListingForPicker(session, timeoutMs)
+  const listing = await codexSessionCatalogListingForPicker(session, timeoutMs, legacy)
   return () => applyLiveCodexCatalog(session, listing)
 }
 
 export async function applyCodexStructuredSessionOption(
   session: CodexSession,
   key: string,
-  value: string
+  value: string,
+  listing?: CodexModelCatalogListing | null
 ): Promise<Readonly<Record<string, string>>> {
   try {
-    return applyValidatedCodexStructuredSessionOption(session, key, value)
+    return applyValidatedCodexStructuredSessionOption(session, key, value, listing)
   } catch (error) {
     throw new AgentSessionOptionRejectedError(error)
   }
@@ -168,11 +175,15 @@ function applyUnlistedCodexSessionOption(
 function applyValidatedCodexStructuredSessionOption(
   session: CodexSession,
   requestedKey: string,
-  requestedValue: string
+  requestedValue: string,
+  selectedListing?: CodexModelCatalogListing | null
 ): Readonly<Record<string, string>> {
-  const listing = codexAcquireCatalogListing(session.catalogAccess)
+  const listing =
+    selectedListing === undefined
+      ? codexAcquireCatalogListing(session.catalogAccess)
+      : selectedListing
   const priorModel = session.options.get('model') ?? session.reportedOptions.model
-  const catalog = listing
+  const catalog = listing?.models.length
     ? composeCodexSessionOptionCatalog(listing, {
         current: priorModel ? { model: priorModel } : {}
       })
@@ -229,7 +240,9 @@ function applyValidatedCodexStructuredSessionOption(
   } else {
     session.options.delete('effort')
   }
-  dropUnlistedCodexServiceTier(session, modelId, catalog.models)
+  if (key === 'model' && modelId !== priorModel) {
+    dropUnlistedCodexServiceTier(session, modelId, catalog.models)
+  }
   return Object.fromEntries(session.options)
 }
 

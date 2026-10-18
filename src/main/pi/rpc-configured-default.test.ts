@@ -25,7 +25,11 @@ import {
   openProviderTimelineRig
 } from '../native-chat/agent-session-timeline/provider-timeline-assembler-test-support'
 import { agentModelCatalogFingerprint } from '../native-chat/agent-model-catalog/agent-model-catalog-fingerprint'
-import { createPiModelCatalogProbe, piModelCatalogFromListing } from './rpc-model-catalog-probe'
+import { createPiModelCatalogProbe } from './rpc-model-catalog-probe'
+import {
+  createAgentModelCatalogFilePersistence,
+  type AgentModelCatalogPersistence
+} from '../native-chat/agent-model-catalog/agent-model-catalog-persistence'
 import type { PiRpcConnection } from './rpc-session'
 import { PiRpcSessionAdapter } from './rpc-session-adapter'
 
@@ -133,10 +137,13 @@ type ChatOptions = {
 }
 
 /** A host with Pi's real probe and catalog service, and one Pi chat in `workspacePath`. */
-async function piHost() {
+async function piHost(persistence?: AgentModelCatalogPersistence, listing = LISTING) {
   const records = new Map<string, AgentSessionRecord>()
   const clock = { now: 1_000 }
   const store = new AgentModelCatalogStore({ now: () => clock.now })
+  if (persistence) {
+    await store.attachPersistence(persistence)
+  }
   const catalog = createAgentModelCatalogService({
     store,
     getRecord: (sessionId) => records.get(sessionId),
@@ -151,7 +158,7 @@ async function piHost() {
         resolveCommand: () => '/opt/pi/bin/pi',
         probeVersion: async () => true,
         homePath: '/home/user',
-        runListing: async () => LISTING
+        runListing: async () => listing
       })
     }
   })
@@ -223,7 +230,7 @@ async function piHost() {
       }
     }
     await read()
-    return { listing: acquired.catalogListing, read }
+    return { sessionId, listing: acquired.catalogListing, read }
   }
   return { catalog, chat, store, clock }
 }
@@ -327,7 +334,8 @@ describe('Pi’s default comes from what a chat with no pick runs', () => {
     const { catalog, chat } = await piHost()
     const clean = workspace('clean')
     await catalog.read({ agent: 'pi', waitForListing: true })
-    await chat(clean, {
+    const { sessionId } = await chat(clean, {
+      thinking: 'xhigh',
       afterStart: async ({ adapter, sessionId }) => {
         await adapter.setOption({
           sessionId,
@@ -339,8 +347,14 @@ describe('Pi’s default comes from what a chat with no pick runs', () => {
     })
     expect(firstFrame(await catalog.read({ agent: 'pi', workspacePath: clean }))).toEqual({
       model: 'openai/gpt-6',
-      effort: 'high'
+      effort: 'xhigh'
     })
+    expect(
+      catalog
+        .peek(sessionId)
+        ?.models.find((row) => row.id === 'openai/gpt-6')
+        ?.efforts.map((choice) => choice.value)
+    ).toContain('xhigh')
   })
 
   it('learns nothing from a chat forked from a conversation in another folder', async () => {
@@ -351,25 +365,43 @@ describe('Pi’s default comes from what a chat with no pick runs', () => {
     expect(firstFrame(await catalog.read({ agent: 'pi', workspacePath: clean }))).toEqual(NOTHING)
   })
 
-  it('keeps a learned thinking level only the chat’s menu offers when a later listing is newer', async () => {
-    const { catalog, chat, store, clock } = await piHost()
+  it('reloads retained menus and accepts new probe rows before another chat starts', async () => {
+    const persistence = createAgentModelCatalogFilePersistence(root)
+    const { catalog, chat, store, clock } = await piHost(persistence)
     const clean = workspace('clean')
-    await chat(clean, { thinking: 'xhigh' })
-    // A background re-list after the chat: `--list-models` offers no xhigh.
-    clock.now = 2_000
-    store.recordSuccess(
-      agentModelCatalogFingerprint({ agent: 'pi', accountHome: PI_HOME, wslDistro: null }),
-      'pi',
-      {
-        models: piModelCatalogFromListing(LISTING),
-        origin: 'probe'
-      },
-      'discovery'
-    )
-    expect(firstFrame(await catalog.read({ agent: 'pi', workspacePath: clean }))).toEqual({
-      model: 'openai/gpt-6',
-      effort: 'xhigh'
+    const { sessionId } = await chat(clean, { thinking: 'xhigh' })
+    await catalog.read({ agent: 'pi', workspacePath: clean, savedOnly: true })
+    expect(catalog.peek(sessionId)?.configured).toEqual({
+      modelId: 'openai/gpt-6',
+      effort: 'xhigh',
+      at: 1_000
     })
+    const fingerprint = agentModelCatalogFingerprint({
+      agent: 'pi',
+      accountHome: PI_HOME,
+      wslDistro: null
+    })
+    clock.now = 200_000
+    expect(store.shouldRefresh(fingerprint)).toBe(true)
+    await store.flushPersistence()
+    const reloaded = await piHost(persistence, `${LISTING}\nopenai  gpt-next  400K  128K  yes  yes`)
+    reloaded.clock.now = clock.now
+    const answer = await reloaded.catalog.read({
+      agent: 'pi',
+      workspacePath: clean,
+      waitForListing: true
+    })
+    expect(answer.origin !== 'unknown' && answer.models.map((row) => row.id)).toContain(
+      'openai/gpt-next'
+    )
+    expect(
+      answer.origin !== 'unknown' &&
+        answer.models
+          .find((row) => row.id === 'openai/gpt-6')
+          ?.efforts.map((choice) => choice.value)
+    ).toContain('xhigh')
+    expect(firstFrame(answer)).toEqual({ model: 'openai/gpt-6', effort: 'xhigh' })
+    await reloaded.store.flushPersistence()
   })
 
   it('a chat’s later reads teach nothing: a newer chat’s default stands', async () => {

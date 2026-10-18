@@ -13,6 +13,7 @@ import {
   commitStructuredAgentSessionOption,
   commitStructuredAgentSessionOptionValues,
   createStructuredAgentSessionOptionState,
+  resetStructuredAgentSessionCurrentOptions,
   structuredAgentSessionOptionPicks,
   type StructuredAgentSessionOptionState
 } from '../../../src/shared/structured-agent-session-options'
@@ -94,8 +95,8 @@ export function useMobileStructuredAgentOptions(args: {
     const seeded = createStructuredAgentSessionOptionState(agent ?? 'codex', optionCatalog)
     // A host answer is the account's, not the fence's: keep it rather than fall back to the placeholder.
     const kept =
-      sameSession && (previous.catalogSource === 'host' || previous.catalogSource === 'builtin')
-        ? { ...seeded, catalog: previous.catalog, catalogSource: previous.catalogSource }
+      sameSession && previous.catalogSource !== 'seed' && previous.catalogSource !== null
+        ? resetStructuredAgentSessionCurrentOptions(previous)
         : seeded
     // The chat's own, which a restart for a new mode keeps: the pill never blanks between them.
     const next = sameSession ? { ...kept, permissionMode: previous.permissionMode } : kept
@@ -125,7 +126,8 @@ export function useMobileStructuredAgentOptions(args: {
     optionCatalog,
     activeOptionRecordRef,
     updateOptionState,
-    onListingLanded
+    onListingLanded,
+    optionStamp
   })
 
   useEffect(() => {
@@ -288,7 +290,7 @@ export function useMobileStructuredAgentOptions(args: {
     [agent, client, mutate, optionCatalog, sessionId, takesSendOptions, updateOptionState]
   )
 
-  const { optionPickerRequest, invokeStructuredOption, optionSurface } =
+  const { optionPickerRequest, invokeStructuredOption, optionSurface, sendSelection } =
     useMobileStructuredOptionSurface({
       optionSnapshot,
       setStructuredOption,
@@ -298,6 +300,7 @@ export function useMobileStructuredAgentOptions(args: {
 
   return {
     optionPickerRequest,
+    sendSelection,
     conversationCommands:
       conversationSupport?.sessionId === sessionId ? conversationSupport.commands : [],
     /** The chat takes images, as its options report says; else only Claude and Codex, as before. */

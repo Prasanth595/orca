@@ -7,6 +7,7 @@ import type { AgentSessionUnavailable } from '../../../../shared/agent-session-a
 import type { AgentSessionRecord } from '../../../../shared/agent-session-record'
 import type { AgentSessionModelCatalogResult } from '../../../../shared/agent-session-wire'
 import { agentSessionRecordFixture } from '../../../../shared/agent-session-record.test-fixture'
+import { AGENT_SESSION_COHERENT_MODEL_CATALOG_CAPABILITY } from '../../../../shared/structured-agent-session-surface-capabilities'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../../shared/constants'
 import {
   PI_STRUCTURED_DIALOGS_RUNTIME_CAPABILITY,
@@ -25,7 +26,7 @@ afterEach(() => {
 })
 
 describe('agentSession.modelCatalog', () => {
-  const read = vi.fn(async () => ({ origin: 'unknown' as const }))
+  const read = vi.fn(async (): Promise<AgentSessionModelCatalogResult> => ({ origin: 'unknown' }))
   let record: AgentSessionRecord | null = null
 
   beforeEach(() => {
@@ -56,6 +57,7 @@ describe('agentSession.modelCatalog', () => {
     expect(resolveStructuredAgentSessionLocalWorkspacePath).not.toHaveBeenCalled()
     expect(read).toHaveBeenCalledWith({
       agent: 'codex',
+      legacy: true,
       sessionId: SESSION,
       workspacePath: '/home/me/floating-a'
     })
@@ -72,6 +74,7 @@ describe('agentSession.modelCatalog', () => {
     expect(resolveStructuredAgentSessionLocalWorkspacePath).toHaveBeenCalledWith('id:wt-1')
     expect(read).toHaveBeenCalledWith({
       agent: 'codex',
+      legacy: true,
       sessionId: SESSION,
       workspacePath: '/repo/wt'
     })
@@ -88,26 +91,43 @@ describe('agentSession.modelCatalog', () => {
         })
       }
     )
-    expect(read).toHaveBeenCalledWith({ agent: 'codex', workspacePath: null })
+    expect(read).toHaveBeenCalledWith({ agent: 'codex', workspacePath: null, legacy: true })
   })
 
   it('reads as before when no worktree is named', async () => {
     await call('agentSession.modelCatalog', { agent: 'claude' }, STRUCTURED_CLIENT)
-    expect(read).toHaveBeenCalledWith({ agent: 'claude' })
+    expect(read).toHaveBeenCalledWith({ agent: 'claude', legacy: true })
   })
 
-  it('passes a wait for the listing through to the catalog', async () => {
-    await call(
-      'agentSession.modelCatalog',
-      { agent: 'codex', sessionId: SESSION, waitForListing: true },
-      STRUCTURED_CLIENT
-    )
-    expect(read).toHaveBeenCalledWith({ agent: 'codex', sessionId: SESSION, waitForListing: true })
-  })
+  it.each(['runtime', 'mobile'] as const)(
+    'routes a waiting %s reader by negotiated capability',
+    async (clientKind) => {
+      for (const coherent of [false, true]) {
+        await call(
+          'agentSession.modelCatalog',
+          { agent: 'codex', sessionId: SESSION, waitForListing: true },
+          {
+            ...STRUCTURED_CLIENT,
+            clientKind,
+            clientCapabilities: [
+              ...STRUCTURED_CLIENT.clientCapabilities,
+              ...(coherent ? [AGENT_SESSION_COHERENT_MODEL_CATALOG_CAPABILITY] : [])
+            ]
+          }
+        )
+        expect(read).toHaveBeenLastCalledWith({
+          agent: 'codex',
+          sessionId: SESSION,
+          waitForListing: true,
+          legacy: !coherent
+        })
+      }
+    }
+  )
 
   it('passes a saved-only read through to the catalog', async () => {
     await call('agentSession.modelCatalog', { agent: 'grok', savedOnly: true }, STRUCTURED_CLIENT)
-    expect(read).toHaveBeenCalledWith({ agent: 'grok', savedOnly: true })
+    expect(read).toHaveBeenCalledWith({ agent: 'grok', savedOnly: true, legacy: true })
   })
 })
 
@@ -142,7 +162,7 @@ describe('agentSession.modelCatalog before anything built the host', () => {
     )
     expect(installHost).toHaveBeenCalledTimes(1)
     expect(reply).toMatchObject({ ok: true, result: { origin: 'probe' } })
-    expect(read).toHaveBeenCalledWith({ agent: 'codex', sessionId: SESSION })
+    expect(read).toHaveBeenCalledWith({ agent: 'codex', sessionId: SESSION, legacy: true })
   })
 
   // Terminal-backed chat reads with no session: a host that runs no structured chat keeps its

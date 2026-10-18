@@ -389,6 +389,9 @@ export type AgentSessionModelOption = {
   isDefault: boolean
   defaultEffort?: string
   efforts: AgentSessionOptionChoice[]
+  resolvedModel?: string | null
+  /** False distinguishes an unobserved menu from a provider-reported empty menu. */
+  effortsKnown?: false
   /** Provider catalog fact. Absent means the host could not determine support. */
   supportsFastMode?: boolean
   /** Whether the model runs Approve for me; absent is unknown, which neither offers nor launches it. */
@@ -410,7 +413,7 @@ export type AgentSessionFastModeSupport = {
 /**
  * The host's model catalog for an agent, answered from its own store and
  * never through a session's queue. `unknown` means this host has no listing
- * for the key yet — the client keeps its static seed. Additive read-only
+ * for the key yet — the client keeps the quiet placeholder or genuine retained choices. Additive read-only
  * surface: an older host simply lacks the method.
  */
 export type AgentSessionModelCatalogResult = {
@@ -480,8 +483,8 @@ export type AgentSessionOptionsResult = {
   /** This session takes image attachments. Absent = unknown (an older host). */
   acceptsImages?: boolean
   models: AgentSessionModelOption[]
-  /** The `models` ids the agent's own finished listing names, excluding host-added rows and
-   *  unverified launch-only rows. Absent: nothing verified, as from an older host. */
+  /** Membership for this response, including this chat's selected-only row. Empty when no
+   *  genuine inventory is known; absent on older hosts. */
   listedModelIds?: string[]
   /** Session/account/transport support. Absent means unknown, never unsupported. */
   fastModeSupport?: AgentSessionFastModeSupport

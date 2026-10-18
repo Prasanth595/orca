@@ -4,14 +4,21 @@ import type { CodexModelCatalogListing } from './codex-structured-model-catalog'
 
 export function listingFromEntry(entry: AgentModelCatalogEntry): CodexModelCatalogListing {
   return {
-    models: entry.models.map((model) => ({ ...model }))
+    models: entry.models.map((model) => ({ ...model })),
+    complete: entry.observation?.complete === true,
+    ...(entry.observation?.configured ? { configured: entry.observation?.configured } : {})
   }
 }
 
 /** Acquisition uses known choices only; picker reads discover new choices later. */
 export function codexAcquireCatalogListing(
-  catalogAccess: CodexSessionCatalogAccess | undefined
+  catalogAccess: CodexSessionCatalogAccess | undefined,
+  verifiedOnly = false
 ): CodexModelCatalogListing | null {
-  const entry = catalogAccess?.store.get(catalogAccess.fingerprint)
+  const entry = verifiedOnly
+    ? catalogAccess?.read?.(true)
+    : catalogAccess?.read
+      ? catalogAccess.read()
+      : catalogAccess?.store.get(catalogAccess.fingerprint)
   return entry ? listingFromEntry(entry) : null
 }

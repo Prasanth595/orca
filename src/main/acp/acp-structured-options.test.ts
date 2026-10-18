@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { AcpStructuredOptions, restoreAcpSessionOptions } from './acp-structured-options'
 import { GROK_ACP_DIALECT } from './acp-dialects/grok-dialect'
+import { grokModelCatalogFromState } from './acp-dialects/grok-model-catalog'
 
 const configOptions = [
   {
@@ -35,7 +36,7 @@ describe('ACP session options', () => {
     const { models, current } = options.read()
     // The effort menu belongs to the model running now; nothing is anyone's default.
     expect(models).toEqual([
-      { id: 'model-a', label: 'Model A', isDefault: false, efforts: [] },
+      { id: 'model-a', label: 'Model A', isDefault: false, efforts: [], effortsKnown: false },
       {
         id: 'model-b',
         label: 'Model B',
@@ -98,25 +99,41 @@ describe('ACP session options', () => {
     expect(options.reported()).toEqual({ model: 'model-b', effort: 'high' })
   })
 
-  it('keeps the session’s effort menu for the running model when its advertised one is empty', () => {
+  it('uses observed efforts for unknown Grok metadata and preserves advertised empty menus', () => {
     const options = new AcpStructuredOptions(GROK_ACP_DIALECT)
-    options.adoptSession({
-      configOptions,
-      models: {
-        currentModelId: 'model-b',
-        availableModels: [
-          { modelId: 'model-a', name: 'Model A' },
-          { modelId: 'model-b', name: 'Model B', _meta: { supportsReasoningEffort: false } }
-        ]
-      }
-    })
+    const models = {
+      currentModelId: 'model-b',
+      availableModels: [
+        { modelId: 'model-a', name: 'Model A' },
+        { modelId: 'model-b', name: 'Model B', _meta: { supportsReasoningEffort: false } }
+      ]
+    }
+    options.adoptSession({ configOptions, models })
     const [modelA, modelB] = options.read().models
     expect(modelA?.efforts).toEqual([])
-    expect(modelB?.efforts).toEqual([
+    expect(modelB?.efforts).toEqual([])
+    expect(modelB?.defaultEffort).toBeUndefined()
+    const unknownModels = {
+      ...models,
+      availableModels: models.availableModels.map(({ modelId, name }) => ({ modelId, name }))
+    }
+    options.adoptSession({ configOptions, models: unknownModels })
+    expect(options.read().models[0]?.effortsKnown).toBe(false)
+    expect(options.read().models[1]?.efforts).toEqual([
       { value: 'low', label: 'Low' },
       { value: 'high', label: 'High' }
     ])
-    expect(modelB?.defaultEffort).toBeUndefined()
+    expect(options.read().current).toEqual({
+      model: 'model-b',
+      effort: 'high',
+      confirmed: ['model', 'effort']
+    })
+    expect(options.read().models[1]?.defaultEffort).toBeUndefined()
+    expect(
+      grokModelCatalogFromState(unknownModels).every((model) => model.effortsKnown === false)
+    ).toBe(true)
+    options.adoptSession({ models: unknownModels })
+    expect(options.read().models.every((model) => model.effortsKnown === false)).toBe(true)
   })
 })
 
@@ -130,6 +147,13 @@ describe('what a new session with no pick says about the configured default', ()
     const options = new AcpStructuredOptions()
     options.adoptSession({ configOptions }, 'new')
     expect(options.configuredDefault()).toEqual({ modelId: 'model-b', effort: 'high' })
+    expect(options.startListing().configuredDefault).toEqual({
+      modelId: 'model-b',
+      effort: 'high'
+    })
+    expect(options.readWithCatalogListing().catalogListing).not.toHaveProperty('configuredDefault')
+    options.adoptSession({ configOptions })
+    expect(options.readWithCatalogListing().catalogListing).not.toHaveProperty('configuredDefault')
   })
 
   it('says nothing of a loaded session, which keeps the model it ran', () => {

@@ -99,6 +99,7 @@ export async function callAgentSession<TResult>(
       response.error.data
     )
   }
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: this typed RPC caller supplies the method's result contract.
   return response.result as TResult
 }
 

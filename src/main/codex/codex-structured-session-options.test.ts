@@ -20,6 +20,7 @@ import {
   fakeCodex,
   identityFor
 } from './codex-structured-session-adapter-fixture'
+import { fetchCodexModelCatalogListing } from './codex-structured-model-catalog'
 import { AgentModelCatalogStore } from '../native-chat/agent-model-catalog/agent-model-catalog-store'
 
 function optionSession(request: CodexAppServerConnection['request']): CodexSession {
@@ -47,11 +48,23 @@ function optionSession(request: CodexAppServerConnection['request']): CodexSessi
   }
 }
 
-async function primePicker(session: CodexSession): Promise<void> {
+async function primePicker(session: CodexSession) {
+  const store = new AgentModelCatalogStore()
+  const fingerprint = 'test-scope'
+  store.recordSuccess(
+    fingerprint,
+    'codex',
+    {
+      ...(await fetchCodexModelCatalogListing({ connection: session.connection })),
+      origin: 'probe'
+    },
+    'discovery'
+  )
   session.catalogAccess = {
-    store: new AgentModelCatalogStore(),
-    fingerprint: 'codex-test-account',
-    accountHomePath: '/test-account'
+    store,
+    fingerprint,
+    accountHomePath: '/test-account',
+    read: () => store.get(fingerprint)
   }
   await readLiveCodexSessionOptions(session, undefined)
 }
@@ -358,7 +371,7 @@ describe('structured Codex session options', () => {
     )
   })
 
-  it('drops a restored tier to Standard when the selected model no longer lists it', async () => {
+  it('keeps a restored tier on reads and uses Standard at a proven unsupported new turn', async () => {
     const requests: { method: string; params?: Record<string, unknown> }[] = []
     const session = optionSession(
       vi.fn(async (method: string, params?: Record<string, unknown>) => {
@@ -378,11 +391,31 @@ describe('structured Codex session options', () => {
       })
     )
     session.options.set('serviceTier', 'priority')
+    await primePicker(session)
+    const access = session.catalogAccess!
+    const read = access.read
+    access.read = (verifiedOnly) => (verifiedOnly ? null : (read?.(verifiedOnly) ?? null))
+    const calls = requests.length
+    await startCodexTurn(session, { clientMessageId: 'intent', body: USER_MESSAGE })
+    expect(requests.at(-1)).toMatchObject({
+      method: 'turn/start',
+      params: { serviceTier: 'priority' }
+    })
+    expect(requests).toHaveLength(calls + 1)
+    access.read = read
+    requests.length = 0
 
     await expect(readLiveCodexSessionOptions(session, undefined)).resolves.toMatchObject({
-      current: { serviceTier: 'default', fastMode: false }
+      current: { serviceTier: 'priority' }
     })
-    expect(Object.fromEntries(session.options)).toEqual({ serviceTier: 'default' })
+    expect(Object.fromEntries(session.options)).toEqual({ serviceTier: 'priority' })
+    session.activeTurnIds = new Set(['running'])
+    expect(
+      await startCodexTurn(session, { clientMessageId: 'steered', body: USER_MESSAGE })
+    ).toMatchObject({ via: 'steer' })
+    expect(session.options.get('serviceTier')).toBe('priority')
+    expect(requests.some((entry) => entry.method === 'turn/start')).toBe(false)
+    session.activeTurnIds.clear()
 
     await startCodexTurn(session, {
       clientMessageId: 'message-standard',
@@ -390,6 +423,10 @@ describe('structured Codex session options', () => {
     })
     expect(requests.find((entry) => entry.method === 'turn/start')?.params).toMatchObject({
       serviceTier: 'default'
+    })
+    expect((await readLiveCodexSessionOptions(session, undefined)).current).toMatchObject({
+      serviceTier: 'default',
+      fastMode: false
     })
   })
 
@@ -681,17 +718,17 @@ describe('Codex reported tier', () => {
 })
 
 describe('Codex option picks before the model list arrives', () => {
-  it('accepts launch-held model, effort and tier picks while its own listing is held', async () => {
-    const pending = Promise.withResolvers<unknown>()
-    const codex = fakeCodex({ 'model/list': () => pending.promise })
+  it('accepts and sends launch-held picks without starting discovery in the user process', async () => {
+    const codex = fakeCodex({
+      'model/list': () => {
+        throw new Error('a user process must not discover models')
+      }
+    })
     codex.routes['turn/start'] = answerWithOpenedTurn(codex, 'turn-1')
     const adapter = adapterFor(codex, { codexHome: '/codex/home' }, [], {
       modelCatalog: new AgentModelCatalogStore()
     })
     await adapter.acquire({ identity: identityFor('session-1'), fence: 7, spawnToken: 'spawn-1' })
-    await vi.waitFor(() =>
-      expect(codex.connections[0].calls.some((call) => call.method === 'model/list')).toBe(true)
-    )
     const pick = (key: string, value: string) =>
       adapter.setOption({ sessionId: 'session-1', key, value, fence: 7 })
 
@@ -717,8 +754,7 @@ describe('Codex option picks before the model list arrives', () => {
       codex.connections[0].calls.find((call) => call.method === 'turn/start')?.params
     ).toMatchObject({ model: 'gpt-next', effort: 'low', serviceTier: 'priority' })
     expect(codex.connections[0].calls.filter((call) => call.method === 'model/list')).toHaveLength(
-      1
+      0
     )
-    pending.resolve({ data: [], nextCursor: null })
   })
 })
