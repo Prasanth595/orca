@@ -30,6 +30,7 @@ import {
 } from './ssh-connect-attempt-registry'
 import { createSshConnectionCallbacks } from './ssh-connection-state-callbacks'
 import { resetSshCredentialDeclinesForTests } from '../ssh/ssh-credential-decline'
+import { resetSshUserDisconnectsForTests } from '../ssh/ssh-user-disconnect'
 import { registerSshConnectionHandlers } from './ssh-connection-handlers'
 import {
   registerPowerMonitorReconnect,
@@ -55,7 +56,7 @@ import { disposeOrcadManagedTunnels } from '../ssh/orcad-managed-tunnel'
 import { reconcileManagedOrcadSshTargets } from '../ssh/orcad-retained-source'
 import { installOrcadMigrationScrollbackRetention } from '../ssh/orcad-migration-scrollback-retention-wiring'
 import { getAppEnvironment } from '../../shared/app-environment'
-import { registerLegacyRelayBridgeIpc } from '../ssh/legacy-relay-bridge/legacy-relay-bridge-ipc'
+import { registerLegacyRelayBridgeIpc } from '../ssh/legacy-relay/legacy-relay-bridge-ipc'
 import {
   disposeDesktopBrowserBridge,
   installDesktopBrowserBridge
@@ -170,6 +171,7 @@ export async function resetSshHandlerStateForTests(): Promise<void> {
   testConnectionProbes.clear()
   credentialRequestedForTarget.clear()
   resetSshCredentialDeclinesForTests()
+  resetSshUserDisconnectsForTests()
   quitTeardownStartGate.resetForTests()
   resetSshShutdownDrain()
 

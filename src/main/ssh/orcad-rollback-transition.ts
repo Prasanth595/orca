@@ -2,12 +2,12 @@
 import { orcadRemoteBaseDir } from './orcad-remote-windows-node'
 import { randomUUID } from 'node:crypto'
 import type { OrcadRollbackOptions, OrcadRollbackResult } from './orcad-remote-rollback'
-import { isUnconfirmedSshCommandTermination } from './ssh-relay-exec-command'
+import { isUnconfirmedSshCommandTermination } from './remote-exec-command'
 import { withRolledBackVersion } from './orcad-activation-record'
 import { writeOrcadActivationRecord } from './orcad-activation-record-store'
 import { launchAndJudgeOrcadSlot } from './orcad-candidate-launch-verdict'
 import { assessOrcadRollback } from './orcad-update-plan'
-import { ORCAD_LOG_FILENAME } from './orcad-remote-launch'
+import { ORCAD_LOG_FILENAME } from './orcad-remote-host-support'
 import {
   captureOrcadStateSnapshotCommand,
   newestStateMtimeCommand,
