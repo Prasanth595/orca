@@ -5,11 +5,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 type DragEvent = { absoluteY: number; translationY: number }
 type GestureCallbacks = Record<string, (event: DragEvent, success: boolean) => void>
-const probe = vi.hoisted(() => ({
-  gestures: [] as GestureCallbacks[],
-  shared: [] as { value: unknown }[],
-  frameActive: vi.fn()
-}))
+const probe = vi.hoisted(
+  (): {
+    gestures: GestureCallbacks[]
+    shared: { value: unknown }[]
+    frameActive: ReturnType<typeof vi.fn>
+  } => ({
+    gestures: [],
+    shared: [],
+    frameActive: vi.fn()
+  })
+)
 
 vi.mock('react-native', async () => {
   const React = await import('react')
