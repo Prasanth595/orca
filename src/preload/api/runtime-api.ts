@@ -170,4 +170,7 @@ export type RuntimeApi = {
   gitBash: {
     isAvailable: () => Promise<boolean>
   }
+  cmder: {
+    isAvailable: () => Promise<boolean>
+  }
 }
