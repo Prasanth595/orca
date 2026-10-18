@@ -3,12 +3,12 @@ import { syncPaneTerminalTitle } from './pane-terminal-title-sync'
 
 const mocks = vi.hoisted(() => ({
   callRuntimeRpc: vi.fn(),
-  getRuntimeEnvironmentIdForWorktree: vi.fn()
+  runtimeEnvironmentIdForWorkspaceOwner: vi.fn()
 }))
 
 vi.mock('./runtime-rpc-client', () => ({ callRuntimeRpc: mocks.callRuntimeRpc }))
-vi.mock('@/lib/worktree-runtime-owner', () => ({
-  getRuntimeEnvironmentIdForWorktree: mocks.getRuntimeEnvironmentIdForWorktree
+vi.mock('@/lib/resolve-owner', () => ({
+  runtimeEnvironmentIdForWorkspaceOwner: mocks.runtimeEnvironmentIdForWorkspaceOwner
 }))
 vi.mock('@/store', () => ({ useAppStore: { getState: () => ({}) } }))
 
@@ -16,8 +16,11 @@ const args = { worktreeId: 'wt', tabId: 'tab', leafId: 'leaf', title: 'DRI' }
 
 beforeEach(() => {
   mocks.callRuntimeRpc.mockReset()
-  mocks.getRuntimeEnvironmentIdForWorktree.mockReset()
-  mocks.getRuntimeEnvironmentIdForWorktree.mockReturnValue(null)
+  mocks.runtimeEnvironmentIdForWorkspaceOwner.mockReset()
+  mocks.runtimeEnvironmentIdForWorkspaceOwner.mockReturnValue({
+    kind: 'resolved',
+    environmentId: null
+  })
 })
 
 describe('syncPaneTerminalTitle', () => {
@@ -35,7 +38,10 @@ describe('syncPaneTerminalTitle', () => {
   })
 
   it('routes the mirror to the owning remote runtime', async () => {
-    mocks.getRuntimeEnvironmentIdForWorktree.mockReturnValue('env-1')
+    mocks.runtimeEnvironmentIdForWorkspaceOwner.mockReturnValue({
+      kind: 'resolved',
+      environmentId: 'env-1'
+    })
     mocks.callRuntimeRpc
       .mockResolvedValueOnce({ terminal: { handle: 'term_1' } })
       .mockResolvedValueOnce({ rename: { handle: 'term_1', title: 'DRI' } })
@@ -46,6 +52,14 @@ describe('syncPaneTerminalTitle', () => {
       { kind: 'environment', environmentId: 'env-1' },
       { kind: 'environment', environmentId: 'env-1' }
     ])
+  })
+
+  it('skips an ambiguous owner instead of falling back to local', async () => {
+    mocks.runtimeEnvironmentIdForWorkspaceOwner.mockReturnValue({ kind: 'ambiguous' })
+
+    await syncPaneTerminalTitle(args)
+
+    expect(mocks.callRuntimeRpc).not.toHaveBeenCalled()
   })
 
   it('does nothing when the host has no terminal for the pane', async () => {

@@ -1,4 +1,4 @@
-import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
+import { runtimeEnvironmentIdForWorkspaceOwner } from '@/lib/resolve-owner'
 import { useAppStore } from '@/store'
 import type { RuntimeClientTarget } from '../../../shared/runtime-client-target'
 import type { RuntimeTerminalResolvePane } from '../../../shared/runtime-terminal-contracts'
@@ -12,9 +12,16 @@ type PaneTerminalTitleSync = {
 }
 
 /** Which runtime owns this worktree: a paired environment or this app. */
-function runtimeTargetForWorktree(worktreeId: string): RuntimeClientTarget {
-  const environmentId = getRuntimeEnvironmentIdForWorktree(useAppStore.getState(), worktreeId)
-  return environmentId ? { kind: 'environment', environmentId } : { kind: 'local' }
+function runtimeTargetForWorktree(worktreeId: string): RuntimeClientTarget | null {
+  const owner = runtimeEnvironmentIdForWorkspaceOwner(useAppStore.getState(), {
+    workspaceId: worktreeId
+  })
+  if (owner.kind === 'ambiguous') {
+    return null
+  }
+  return owner.environmentId
+    ? { kind: 'environment', environmentId: owner.environmentId }
+    : { kind: 'local' }
 }
 
 async function mirrorPaneTitle({
@@ -24,6 +31,9 @@ async function mirrorPaneTitle({
   title
 }: PaneTerminalTitleSync): Promise<void> {
   const target = runtimeTargetForWorktree(worktreeId)
+  if (!target) {
+    return
+  }
   const resolved = await callRuntimeRpc<{ terminal: RuntimeTerminalResolvePane | null }>(
     target,
     'terminal.resolvePane',
