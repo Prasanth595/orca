@@ -67,6 +67,13 @@ export function MobileAgentSessionHistoryPanel({
   const [worktreesLoaded, setWorktreesLoaded] = useState(
     () => readInitialMobileAgentHistoryWorktrees(hostId).length > 0
   )
+  // Why: useState seeds run once, so a mounted panel would keep the previous
+  // host's rows until worktree.ps returns and scope paths off the wrong host.
+  useEffect(() => {
+    const initial = readInitialMobileAgentHistoryWorktrees(hostId)
+    setWorktrees(initial)
+    setWorktreesLoaded(initial.length > 0)
+  }, [hostId])
   const [query, setQuery] = useState('')
   const [resumingSessionId, setResumingSessionId] = useState<string | null>(null)
   const [resumeMessage, setResumeMessage] = useState<string | null>(null)
