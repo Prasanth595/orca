@@ -1,8 +1,11 @@
 // A scripted ACP agent behind the real adapter: a fake connection over in-memory stdio, the real
 // protocol runtime, translator and assembler, and a real on-disk journal to read back.
 
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { vi } from 'vitest'
 import type { AgentJournalMessageItem } from '../../shared/agent-session-journal-types'
+import type { AgentChatPermissionMode } from '../../shared/agent-chat-permission-mode'
 import type { ProviderProcessExit } from '../provider-process/managed-provider-process'
 import type { ProviderProcessLaunch } from '../provider-process/provider-process-launch'
 import type { StructuredAgentSessionLifecycleEvent } from '../native-chat/agent-session-wire/structured-agent-session-adapter'
@@ -11,7 +14,7 @@ import {
   SESSION,
   type ProviderTimelineRig
 } from '../native-chat/agent-session-timeline/provider-timeline-assembler-test-support'
-import { acpLaunchSpecFor } from './acp-launch-specs'
+import { acpLaunchSpecFor, type AcpLaunchSpec } from './acp-launch-specs'
 import { AcpScriptedAgent, tick, type FakeFrame } from './acp-scripted-agent.test-support'
 import type { AcpAgentConnectionOptions } from './acp-agent-connection'
 import { AcpConnectionClosedError } from './acp-errors'
@@ -22,6 +25,7 @@ import { AcpStructuredSessionAdapter } from './acp-structured-session-adapter'
 import type { AcpStructuredSessionAdapterDeps } from './acp-structured-session-adapter-deps'
 
 export const GROK = acpLaunchSpecFor('grok')!
+const RIG_ENV = { PATH: '/usr/bin', ORCA_PANE_KEY: 'tab-1:pane-1', ORCA_AGENT_HOOK_PORT: '1234' }
 export const PROVIDER_SESSION = 'acp-session-1'
 export const PID = 4242
 
@@ -107,8 +111,8 @@ export class FakeAcpChild extends AcpSessionRuntime implements AcpStructuredConn
   override close(error?: Error): Promise<boolean> {
     this.closes += 1
     this.closing ||= !this.gone
-    super.close(error)
-    return this.proveClose()
+    this.drainNotifications(error)
+    return this.proveClose().finally(() => super.close(error))
   }
   /** The agent process ends on its own (or Orca's close landed). */
   exit(): void {
@@ -146,6 +150,7 @@ export type AcpAdapterRig = {
     fence?: number
     onSpawned?: () => Promise<void>
     signal?: AbortSignal
+    permissionMode?: AgentChatPermissionMode
   }): ReturnType<AcpStructuredSessionAdapter['acquire']>
   /** Frames Orca wrote to the agent with this method. */
   sent(method: string): FakeFrame[]
@@ -156,6 +161,8 @@ export type AcpAdapterRig = {
 
 export async function openAcpAdapterRig(
   options: {
+    /** The agent's row; Grok's unless a test drives another agent. */
+    spec?: AcpLaunchSpec
     launch?: Partial<AcpStructuredLaunch>
     initialize?: Record<string, unknown>
     script?: (agent: AcpScriptedAgent) => void
@@ -167,23 +174,40 @@ export async function openAcpAdapterRig(
   const spawned: string[] = []
   const lifecycle: StructuredAgentSessionLifecycleEvent[] = []
   const settled: AcpAdapterRig['settled'] = []
-  const adapter = new AcpStructuredSessionAdapter({
-    spec: GROK,
-    resolveLaunch: async () => ({
-      spec: GROK,
-      command: '/opt/grok/bin/grok',
-      args: GROK.args({ fullAccess: false }),
+  const spec = options.spec ?? GROK
+  // A start readies the account folder its row pins; here a scratch one.
+  const { prepare, resolve, environment } = spec.account
+  const scratch = { launchEnv: {}, stateDirectory: tmpdir() }
+  const account = prepare ? environment(await resolve(scratch), {}) : {}
+  const resolveLaunch: AcpStructuredSessionAdapterDeps['resolveLaunch'] =
+    options.deps?.resolveLaunch ??
+    (async () => ({
+      spec,
+      command: `/opt/bin/${spec.command}`,
+      args: spec.args({ fullAccess: false, pluginDir: null }),
       cwd: '/workspace/project',
-      env: { PATH: '/usr/bin', ORCA_PANE_KEY: 'tab-1:pane-1', ORCA_AGENT_HOOK_PORT: '1234' },
+      env: { ...RIG_ENV, ...account },
+      envToDelete: [],
       fullAccess: false,
       resume: null,
       ...options.launch
-    }),
+    }))
+  const adapter = new AcpStructuredSessionAdapter({
+    spec,
+    resolveLaunch,
+    // A double starts nothing, so a recovery read sees the launch a start would.
+    readLaunch: (identity) => resolveLaunch({ identity, spawnToken: 'recovery-read' }),
     connect: (launch, connectionOptions) => {
       spawned.push('spawn')
       const child = new FakeAcpChild(launch, connectionOptions)
       current = child
       const { agent } = child
+      agent.on('_x.ai/subagent/cancel', (frame) =>
+        agent.fail(frame, -32602, 'Invalid params', 'invalid params: missing field `subagentId`')
+      )
+      agent.on('_x.ai/task/kill', (frame) =>
+        agent.fail(frame, -32602, 'Invalid params', 'invalid params: missing field `sessionId`')
+      )
       agent.on('initialize', (frame) => {
         spawned.push('initialize')
         agent.reply(frame, {
@@ -197,10 +221,15 @@ export async function openAcpAdapterRig(
       agent.on('session/load', (frame) =>
         agent.reply(frame, { configOptions: GROK_CONFIG_OPTIONS })
       )
+      // A row that enforces its permission mode sets it at every start; the agent confirms it.
+      if (spec.permissionModeConfig) {
+        agent.confirmConfigOptions(GROK_CONFIG_OPTIONS)
+      }
       options.script?.(agent)
       return child
     },
     readProcessStartTime: async () => 1_700_000_000_000,
+    dataDirectory: join(tmpdir(), 'orca-acp-adapter-rig'),
     onEvent: (event) => lifecycle.push(event),
     onDispatchSettledLate: (settlement) => settled.push(settlement),
     mintGeneration: () => 'gen-acp',
@@ -226,13 +255,14 @@ export async function openAcpAdapterRig(
           sessionId: SESSION,
           workspaceId: 'workspace-1',
           hostId: 'local',
-          agent: 'grok',
+          agent: spec.agent,
           providerHandle: null
         },
         fence: acquireOptions.fence ?? 1,
         spawnToken: 'spawn-1',
         events: rig.eventSink,
         ...(acquireOptions.signal ? { signal: acquireOptions.signal } : {}),
+        ...(acquireOptions.permissionMode ? { permissionMode: acquireOptions.permissionMode } : {}),
         onSpawned: async () => {
           spawned.push('onSpawned')
           await acquireOptions.onSpawned?.()

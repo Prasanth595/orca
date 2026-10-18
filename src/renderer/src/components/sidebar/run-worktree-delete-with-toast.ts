@@ -60,6 +60,8 @@ export function runWorktreeDeleteWithToast(
       lockReason: state?.lockReason ?? null,
       hasKnownChanges,
       onViewChanges: () => viewWorktreeDiff(worktreeId, target.executionHostId),
+      onAlwaysForceDelete: () =>
+        useAppStore.getState().updateSettingsOrThrow({ alwaysForceDeleteWorktrees: true }),
       // Why (#19334): re-runs the archive hook and waives the failure this time, so the waiver
       // is an informed choice made after reading the refusal -- not something `force` implied.
       onDeleteAnyway: () =>
@@ -76,6 +78,7 @@ export function runWorktreeDeleteWithToast(
           withViewAction: true
         }),
       worktreeId,
+      executionHostId: target.executionHostId,
       worktreeName,
       nestedRemovalTarget: route && !route.runtimeEnvironmentId ? target : undefined,
       onNestedDeleted: () => options.onForceDeleted?.(target)

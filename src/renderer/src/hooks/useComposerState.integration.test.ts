@@ -3,6 +3,10 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAppStore } from '@/store'
+import { EMPTY_RETIRED_NAME_REGISTRY } from '../../../shared/worktree/retired-name-registry'
+import type { Repo } from '../../../shared/repo-types'
+import { projectHostSetupProjectionFromRepos } from '../../../shared/project-host-setup-projection'
+import { normalizeTaskSourceContext } from '../../../shared/task-source-context'
 import { useComposerState } from './useComposerState'
 import * as publicComposerDecisions from './useComposerState'
 import * as composerDecisions from './composer-state/composer-decisions'
@@ -11,15 +15,17 @@ let originalApiDescriptor: PropertyDescriptor | undefined
 
 beforeEach(() => {
   originalApiDescriptor = Object.getOwnPropertyDescriptor(window, 'api')
-  const ui = {
-    onFileDrop: vi.fn<Window['api']['ui']['onFileDrop']>()
-  } satisfies Pick<Window['api']['ui'], 'onFileDrop'>
   const preflight = {
     detectAgents: vi.fn<Window['api']['preflight']['detectAgents']>().mockResolvedValue([])
   } satisfies Pick<Window['api']['preflight'], 'detectAgents'>
+  const worktrees = {
+    listRetiredNames: vi
+      .fn<Window['api']['worktrees']['listRetiredNames']>()
+      .mockResolvedValue(EMPTY_RETIRED_NAME_REGISTRY)
+  } satisfies Pick<Window['api']['worktrees'], 'listRetiredNames'>
   Object.defineProperty(window, 'api', {
     configurable: true,
-    value: { preflight, ui }
+    value: { preflight, worktrees }
   })
 })
 
@@ -60,6 +66,63 @@ describe('useComposerState integrated lifecycle', () => {
     )
   })
 
+  it('passes the selected runtime repository to the name field when IDs repeat across hosts', () => {
+    const localRepo: Repo = {
+      id: 'same-id',
+      path: '/local',
+      displayName: 'Local',
+      badgeColor: '',
+      addedAt: 0,
+      defaultJiraProject: { id: '10', key: 'LOC', name: 'Local', siteId: 'site-a' }
+    }
+    const runtimeRepo: Repo = {
+      ...localRepo,
+      path: '/remote',
+      executionHostId: 'runtime:remote',
+      defaultJiraProject: { id: '20', key: 'REM', name: 'Remote', siteId: 'site-b' }
+    }
+    const projection = projectHostSetupProjectionFromRepos([localRepo, runtimeRepo])
+    useAppStore.setState({
+      repos: [localRepo, runtimeRepo],
+      projects: [...projection.projects],
+      projectHostSetups: projection.setups.map((setup) => ({
+        ...setup,
+        id: `${setup.hostId}:setup`
+      })),
+      projectGroups: [],
+      newWorkspaceDraft: null,
+      worktreesByRepo: {},
+      sparsePresetsByRepo: {},
+      runtimeEnvironments: [
+        {
+          id: 'remote',
+          name: 'Remote',
+          createdAt: 0,
+          updatedAt: 0,
+          lastUsedAt: null,
+          runtimeId: null,
+          endpoints: [],
+          preferredEndpointId: 'endpoint'
+        }
+      ]
+    })
+    const composer = renderHook(() =>
+      useComposerState({
+        persistDraft: false,
+        initialTaskSourceContext: normalizeTaskSourceContext({
+          provider: 'jira',
+          projectId: 'repo:same-id',
+          hostId: 'runtime:remote'
+        })
+      })
+    )
+    expect(composer.result.current.cardProps.selectedRepo).toBe(runtimeRepo)
+    expect(composer.result.current.cardProps.smartNameJiraSourceContext?.hostId).toBe(
+      'runtime:remote'
+    )
+    composer.unmount()
+  })
+
   it('composes two live composers and exposes the parent-worktree control state', () => {
     useAppStore.setState({
       repos: [],
@@ -70,13 +133,6 @@ describe('useComposerState integrated lifecycle', () => {
       worktreesByRepo: {},
       sparsePresetsByRepo: {}
     })
-    const unsubscribes: ReturnType<typeof vi.fn>[] = []
-    vi.spyOn(window.api.ui, 'onFileDrop').mockImplementation(() => {
-      const unsubscribe = vi.fn()
-      unsubscribes.push(unsubscribe)
-      return unsubscribe
-    })
-
     const first = renderHook(() => useComposerState({ initialName: 'first', persistDraft: false }))
     const second = renderHook(() =>
       useComposerState({ initialName: 'second', persistDraft: false })
@@ -88,12 +144,10 @@ describe('useComposerState integrated lifecycle', () => {
     expect(first.result.current.cardProps.onParentWorktreeIdChange).toBeTypeOf('function')
     act(() => first.result.current.cardProps.onParentWorktreeIdChange('repo-1::/parent'))
     expect(first.result.current.cardProps.parentWorktreeId).toBe('repo-1::/parent')
-    expect(window.api.ui.onFileDrop).toHaveBeenCalledTimes(2)
+    expect(first.result.current.cardProps.onNativeFileDrop).toBeUndefined()
+    expect(second.result.current.cardProps.onNativeFileDrop).toBeUndefined()
 
     second.unmount()
     first.unmount()
-    expect(unsubscribes).toHaveLength(2)
-    expect(unsubscribes[0]).toHaveBeenCalledTimes(1)
-    expect(unsubscribes[1]).toHaveBeenCalledTimes(1)
   })
 })

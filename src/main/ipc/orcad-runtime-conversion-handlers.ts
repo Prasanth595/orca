@@ -3,9 +3,9 @@ import type {
   OrcadManagedConversionResult,
   OrcadManagedPendingMigrationRow
 } from '../../shared/orcad-managed-runtime'
-import { listPendingManagedOrcadMigrations } from '../ssh/orcad-managed-migration-status'
-import { convertSshTargetToManagedOrcad } from '../ssh/orcad-runtime-conversion'
-import { conversionCollaborators } from '../ssh/orcad-runtime-conversion-wiring'
+import { listPendingManagedOrcadMigrations } from '../managed-server/lifecycle/orcad-managed-migration-status'
+import { convertSshTargetToManagedOrcad } from '../managed-server/lifecycle/orcad-runtime-conversion'
+import { conversionCollaborators } from '../managed-server/lifecycle/orcad-runtime-conversion-wiring'
 import { requiredString } from './orcad-runtime-lifecycle-handlers'
 
 export function registerOrcadRuntimeConversionHandlers(getUserDataPath: () => string): void {
@@ -15,11 +15,10 @@ export function registerOrcadRuntimeConversionHandlers(getUserDataPath: () => st
       _event,
       args: { sshTargetId: string; name: string }
     ): Promise<OrcadManagedConversionResult> => {
-      const sshTargetId = requiredString(args?.sshTargetId, 'SSH target')
       return convertSshTargetToManagedOrcad(getUserDataPath(), {
-        sshTargetId,
+        sshTargetId: requiredString(args?.sshTargetId, 'SSH target'),
         name: requiredString(args?.name, 'Server name'),
-        ...conversionCollaborators(sshTargetId)
+        ...conversionCollaborators()
       })
     }
   )

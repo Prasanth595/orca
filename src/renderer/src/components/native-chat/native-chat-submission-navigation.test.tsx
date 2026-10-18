@@ -123,6 +123,7 @@ function useReviewTranscript() {
     showsTailRow: true,
     isVisible: true,
     alignToViewportTop: vi.fn(),
+    isAlignPending: () => false,
     scrollToEnd,
     restoreScrollOffset: vi.fn(),
     consumeProgrammaticScroll: () => false,
@@ -394,19 +395,21 @@ it('reveals a structured prompt answer at the press, before the host accepts it'
     const submits = useStructuredNativeChatSubmitReveal(
       {
         respond: async () => host.promise,
-        retry: vi.fn(),
         queuedMessages: {
           queueCapable: true,
+          clearCapable: true,
+          editCapable: false,
+          editor: undefined,
           cards: [],
           pause: null,
-          resuming: false,
           resume: async () => false,
+          clear: async () => true,
+          queuePending: null,
+          pending: () => null,
           steer: async () => {},
           remove: async () => {},
           edit: async () => {},
-          steerNewest: () => false,
-          queueResume: undefined,
-          queueHold: undefined
+          steerNewest: () => false
         }
       },
       vi.fn()
