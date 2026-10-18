@@ -109,6 +109,10 @@ describe('orca serve asking the app which host to run', () => {
     }
   )
 
+  it('keeps an explicit pin over the adapter default', () => {
+    expect(orcadServeArgs({ bind: '::1' }, undefined, '127.0.0.1')).toEqual(['--bind', '::1'])
+  })
+
   it('uses the same resolved loopback pin for both runtime hosts', () => {
     expect(orcadServeArgs({ bind: 'localhost' })).toEqual(['--bind', '127.0.0.1'])
     expect(serveOptionArgs({ bind: 'localhost' }, '--serve-')).toEqual([
