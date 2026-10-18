@@ -6,7 +6,14 @@ import type { AppState } from '@/store/types'
 import { createTestStore, makeWorktree } from '@/store/slices/store-test-helpers'
 import type { OpenFile } from '@/store/slices/editor'
 import { editorSelectionCache, scrollTopCache } from '@/lib/scroll-cache'
+import { installMonacoDelayerCancellationGuard } from '@/lib/monaco-delayer-cancellation-guard'
 import { getDefaultSettings } from '../../../../shared/constants'
+
+// Why: this file mocks monaco-setup, which is what installs the app's Delayer
+// cancellation guard in production. Without it, wordHighlighter's Delayer is
+// cancelled during editor teardown and the CancellationError rejects unhandled,
+// failing the whole vitest shard on normal editor disposal.
+installMonacoDelayerCancellationGuard()
 
 const testState = vi.hoisted(() => {
   const state: { store: ReturnType<typeof createTestStore> | null } = { store: null }
