@@ -112,6 +112,8 @@ export type RuntimeStore = {
     localWindowsRuntimeDefault?: GlobalSettings['localWindowsRuntimeDefault']
     refreshLocalBaseRefOnWorktreeCreate: boolean
     localBaseRefSuggestionDismissed?: boolean
+    /** Global fallback for worktree hook scripts; see GlobalSettings.globalHookDefaults. */
+    globalHookDefaults?: GlobalSettings['globalHookDefaults']
     branchPrefix: string
     branchPrefixCustom: string
     defaultTuiAgent?: GlobalSettings['defaultTuiAgent']

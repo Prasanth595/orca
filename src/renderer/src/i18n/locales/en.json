@@ -7802,7 +7802,9 @@
           "externalWorktrees": "External worktrees",
           "externalWorktreesDescription": "Choose whether worktrees created outside Orca appear by default.",
           "show": "Show",
-          "hide": "Hide"
+          "hide": "Hide",
+          "globalHookDefaults": "Global default hook scripts",
+          "globalHookDefaultsDescription": "Fallback setup and archive scripts for projects with no local or shared script."
         },
         "GhosttyImportModal": {
           "9d3e56ca36": "Apply Changes",
@@ -8419,7 +8421,9 @@
           "issueCommandDescription": "Optional override. Use <artifactUrl>{{artifact_url}}</artifactUrl> for the linked issue or PR URL.",
           "issueCommandSharedDefault": "Leave blank to use the repo default from <yaml>orca.yaml</yaml>.",
           "issueCommandOptionalDefault": "Leave blank to use the repo default from <yaml>orca.yaml</yaml> when one exists.",
-          "commandSourceDescription": "When both <yaml>orca.yaml</yaml> and local commands exist, choose which run."
+          "commandSourceDescription": "When both <yaml>orca.yaml</yaml> and local commands exist, choose which run.",
+          "globalDefault": "Global default",
+          "globalDefaultHint": "- used because this project has no local or shared script"
         },
         "RepositoryIconPicker": {
           "2b7d27b93c": "Use {{value0}} repo color",
@@ -10334,7 +10338,15 @@
             "command": "command",
             "confirm": "confirm",
             "close": "close",
-            "omp": "OMP"
+            "omp": "OMP",
+            "globalHookDefaults": "Global default hook scripts",
+            "globalHookDefaultsDescription": "Fallback setup and archive scripts for projects with no local or shared script.",
+            "hook": "hook",
+            "setup": "setup",
+            "archive": "archive",
+            "script": "script",
+            "global": "global",
+            "default": "default"
           }
         },
         "git": {
@@ -12931,6 +12943,15 @@
           "submit": "Re-pair",
           "success": "Re-paired with {{name}}",
           "failed": "Re-pair failed"
+        },
+        "GlobalHookDefaultsSetting": {
+          "description": "Used only when a project has no local or shared script for that hook. A global default still asks for approval the first time it runs for a project.",
+          "setup": "Setup Script",
+          "setupDescription": "Runs after a new worktree is created, when the project has no local or shared setup script.",
+          "setupPlaceholder": "e.g. pnpm install",
+          "archive": "Archive Script",
+          "archiveDescription": "Runs before a worktree is archived, when the project has no local or shared archive script.",
+          "archivePlaceholder": "e.g. pnpm run clean"
         }
       },
       "right": {

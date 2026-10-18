@@ -85,7 +85,7 @@ async function performRuntimeLocalWorktreeCreate<T>(args: RuntimeLocalWorktreeCr
   args.timing.recordExecutionHost(localWorktreeCreateExecutionHost(gitExecOptions))
   // Why before any git work: an `ask` repo with no decision must refuse with nothing created, as
   // the desktop create does; checked after the add, it left an orphan worktree behind.
-  if (getEffectiveHooks(repo)?.scripts.setup) {
+  if (getEffectiveHooks(repo, undefined, hostSettings.globalHookDefaults)?.scripts.setup) {
     try {
       shouldRunSetupForCreate(repo, resolveRuntimeSetupDecision(request))
     } catch (error) {
