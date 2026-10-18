@@ -99,7 +99,6 @@ export const SETTINGS_BACKUP_KEY_CLASSES = {
   terminalShortcutPolicy: 'terminal',
   ctrlTabOrderMode: 'terminal',
   primarySelectionMiddleClickPaste: 'terminal',
-  setupScriptLaunchMode: 'terminal',
 
   // Editor and files
   editorAutoSave: 'editor',
@@ -143,10 +142,12 @@ export const SETTINGS_BACKUP_KEY_CLASSES = {
   codexTerminalServerIsolation: 'agents',
   codexSharedServerWarning: 'agents',
   claudeAgentTeamsMode: 'agents',
+  claudeAccountSwitchRunningSessions: 'agents',
   promptCacheTimerEnabled: 'agents',
   promptCacheTtlMs: 'agents',
   experimentalNativeChat: 'agents',
   nativeChatAutoName: 'agents',
+  nativeChatProviders: 'agents',
   nativeChatResumeWorkOnRestart: 'agents',
   nativeChatQueueFollowUps: 'agents',
   nativeChatInlineVisuals: 'agents',
@@ -296,6 +297,7 @@ export const SETTINGS_BACKUP_KEY_CLASSES = {
   claudeAgentTeamsDefaultDisabledMigrated: 'internal',
   visibleTaskProvidersDefaultedForJira: 'internal',
   agentYoloDefaultsMigrated: 'internal',
+  sshRemoteCliControlExistingHostsMigrated: 'internal',
   newWorkspaceSetupOnly: 'internal',
   terminalMacOptionAsAltMigrated: 'internal',
   experimentalActivityDefaultedOffForAllUsers: 'internal'

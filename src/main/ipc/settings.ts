@@ -8,7 +8,7 @@ import { previewWarpThemeImport } from '../warp-themes'
 import type { AgentAwakeService } from '../agent-awake-service'
 import { applyPRBotAuthorOverride } from '../../shared/pr-bot-author-overrides'
 import { resolveEnvironment } from '../../shared/runtime-environment-store'
-import { readSettingsWithRuntimeEnvironmentPreference } from './runtime-environment-preference'
+import { readSettingsWithRuntimeEnvironmentPreference } from './runtime-environments/runtime-environment-preference'
 import { applySettingsWrite } from './settings-write'
 
 export function registerSettingsHandlers(
