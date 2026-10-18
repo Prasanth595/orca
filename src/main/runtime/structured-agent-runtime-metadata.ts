@@ -12,7 +12,7 @@ import { CLAUDE_CLI_CONVERSATIONS } from '../claude/claude-cli-conversations'
 import { CODEX_CLI_CONVERSATIONS } from '../codex/codex-cli-conversations'
 import { supportsCodexStructuredLocation } from '../codex/codex-structured-location-support'
 import { supportsClaudeStructuredLocation } from '../claude/claude-structured-location-support'
-import { supportsSupervisedProviderChildLocation } from '../provider-process/supervised-provider-child-location'
+import { supportsAcpStructuredLocation } from '../acp/acp-structured-location-support'
 import { PI_RPC_RUNTIME_METADATA } from '../pi/rpc-runtime-metadata'
 import {
   resolveStructuredClaudeAccountHomePath,
@@ -36,19 +36,24 @@ export type StructuredAgentRuntimeCatalogEntry =
 function acpMetadata(spec: AcpLaunchSpec): StructuredAgentRuntimeMetadata {
   return {
     definition: acpStructuredAgentDefinition(spec),
-    supportsLocation: (location) => supportsSupervisedProviderChildLocation(location),
+    supportsLocation: (location) => supportsAcpStructuredLocation(spec, location),
     ...(spec.supportsVersion
       ? {
           launchCheck: {
             resolveLaunch: (shellEnv, commandSettings) => {
               const env = { ...shellEnv, ...spec.env }
-              return { command: resolveAcpLaunchCommand(spec, env, { commandSettings }), env }
+              const command = resolveAcpLaunchCommand(spec, env, {
+                commandSettings,
+                dataDirectory: null
+              })
+              return { command, env }
             },
             supportsVersion: (launch) => acpLaunchVersionSupported(spec, launch)
           }
         }
       : {}),
-    resolveAccountHome: ({ launchEnv }) => spec.account.resolve({ launchEnv }),
+    resolveAccountHome: ({ launchEnv }, { stateDirectory }) =>
+      spec.account.resolve({ launchEnv, stateDirectory }),
     modelCatalog: (context) => acpModelCatalogDiscovery(spec, context),
     transcriptImport: spec.transcriptImport,
     sessionHistory: spec.sessionHistory
