@@ -12609,7 +12609,11 @@
         },
         "TerminalRenderingSection": {
           "6d4c55bacc": "Inline Images",
-          "fffab5890b": "Display images directly in the terminal using SIXEL, iTerm2 (IIP), and Kitty graphics protocols."
+          "fffab5890b": "Display images directly in the terminal using SIXEL, iTerm2 (IIP), and Kitty graphics protocols.",
+          "0121d245a6": "Decoded Image Cache",
+          "2b7791ac60": "Decoded images only; total image memory can exceed 3× this value per pane. Each split has its own cache. Lowering may discard displayed images.",
+          "a8a3f239c1": "Decoded image cache size",
+          "888772e66b": "{{value0}} MB"
         },
         "CursorAccountsSection": {
           "source": {

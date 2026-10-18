@@ -243,6 +243,13 @@ describe('createSettingsSlice checked persistence', () => {
     }
   })
 
+  it('normalizes invalid inline image budgets before renderer IPC', async () => {
+    const { updateSettingsOrThrow } = createTestStore().getState()
+    await updateSettingsOrThrow({ terminalInlineImageCacheMb: Number.NaN })
+    await updateSettingsOrThrow({ terminalInlineImageCacheMb: 4096 })
+    expect(settingsSet.mock.calls.map(([p]) => p.terminalInlineImageCacheMb)).toEqual([32, 512])
+  })
+
   it('normalizes malformed mobile pairing addresses before renderer IPC', async () => {
     const store = createTestStore()
     store.setState({
