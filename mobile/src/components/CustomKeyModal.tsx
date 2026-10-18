@@ -72,32 +72,37 @@ async function readStoredCustomKeys(): Promise<CustomKey[]> {
   return raw ? (JSON.parse(raw) as CustomKey[]) : []
 }
 
-export async function loadCustomKeys(): Promise<CustomKey[]> {
-  try {
-    return await readStoredCustomKeys()
-  } catch {
-    return []
-  }
+export function loadCustomKeys(): Promise<CustomKey[]> {
+  return readStoredCustomKeys().catch(() => [])
 }
 
-export async function saveCustomKeys(keys: CustomKey[]): Promise<void> {
+function writeCustomKeys(keys: CustomKey[]): Promise<void> {
   // Through the one write path, which notes the mirror on an accepted write and on nothing else
   // (ruling 35). There is no rollback here any more because there is nothing to undo: on the page
   // a value over the cap rejects, and a rejected write never reached the map.
-  await persistMirrored(CUSTOM_ACCESSORY_KEYS_STORAGE_KEY, JSON.stringify(keys))
+  return persistMirrored(CUSTOM_ACCESSORY_KEYS_STORAGE_KEY, JSON.stringify(keys))
 }
 
-// One read-modify-write at a time, so an add or a removal starts from the list the last one saved.
-let storedCustomKeysUpdate: Promise<unknown> = Promise.resolve()
+// Every write to the stored list takes a turn here, so a settings save, an add and a removal never
+// land over one that started first, and an add or removal reads what the last write saved.
+let customKeysWriteTurn: Promise<unknown> = Promise.resolve()
+
+function inCustomKeysWriteTurn<T>(write: () => Promise<T>): Promise<T> {
+  const run = customKeysWriteTurn.then(write)
+  customKeysWriteTurn = run.catch(() => {})
+  return run
+}
+
+export function saveCustomKeys(keys: CustomKey[]): Promise<void> {
+  return inCustomKeysWriteTurn(() => writeCustomKeys(keys))
+}
 
 function updateStoredCustomKeys(change: (keys: CustomKey[]) => CustomKey[]): Promise<CustomKey[]> {
-  const run = storedCustomKeysUpdate.then(async () => {
+  return inCustomKeysWriteTurn(async () => {
     const updated = change(await readStoredCustomKeys())
-    await saveCustomKeys(updated)
+    await writeCustomKeys(updated)
     return updated
   })
-  storedCustomKeysUpdate = run.catch(() => {})
-  return run
 }
 
 // Like addKey: resolves with the stored list only once the store took it, so a refused write

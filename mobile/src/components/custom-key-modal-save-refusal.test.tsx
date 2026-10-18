@@ -4,12 +4,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const store = vi.hoisted(() => {
   // Annotated rather than asserted: the literal alone narrows `raw` to `null`.
-  const held: { raw: string | null; refuse: boolean; failRead: boolean; writes: number } = {
-    raw: null,
-    refuse: false,
-    failRead: false,
-    writes: 0
-  }
+  const held: {
+    raw: string | null
+    refuse: boolean
+    failRead: boolean
+    writes: number
+    holdWrites: Promise<void> | null
+  } = { raw: null, refuse: false, failRead: false, writes: 0, holdWrites: null }
   return held
 })
 
@@ -22,6 +23,7 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
       return store.raw
     },
     setItem: async (_key: string, value: string) => {
+      await store.holdWrites
       store.writes += 1
       if (store.refuse) {
         throw new Error(
@@ -64,7 +66,7 @@ vi.mock('react-native', () => ({
 vi.mock('lucide-react-native', () => ({ ChevronLeft: hosts.View }))
 vi.mock('./BottomDrawer', () => ({ BottomDrawer: hosts.View }))
 
-import { CustomKeyModal, removeCustomKey } from './CustomKeyModal'
+import { CustomKeyModal, removeCustomKey, saveCustomKeys } from './CustomKeyModal'
 import { readMirroredStorage } from '../storage/mirrored-storage-keys'
 
 const CUSTOM_KEYS = 'orca:custom-accessory-keys'
@@ -124,6 +126,7 @@ beforeEach(() => {
   store.refuse = false
   store.failRead = false
   store.writes = 0
+  store.holdWrites = null
 })
 
 /**
@@ -209,6 +212,20 @@ describe('removing a custom key', () => {
     store.raw = JSON.stringify([kept, removed, third])
     await Promise.all([removeCustomKey(kept.id), removeCustomKey(removed.id)])
     expect(JSON.parse(store.raw ?? '[]')).toEqual([third])
+  })
+
+  it('removes from the list a settings save in flight stored, not the list before it', async () => {
+    const third = { id: 'custom-3', label: 'Ctrl+Z', bytes: '\u001a', enter: false }
+    store.raw = JSON.stringify([kept, removed, third])
+    let releaseWrites: () => void = () => {}
+    store.holdWrites = new Promise((resolve) => {
+      releaseWrites = resolve
+    })
+    const reorder = saveCustomKeys([third, removed, kept])
+    const removal = removeCustomKey(removed.id)
+    releaseWrites()
+    await Promise.all([reorder, removal])
+    expect(JSON.parse(store.raw ?? '[]')).toEqual([third, kept])
   })
 
   it('writes nothing when the stored list cannot be read, so a read failure erases nothing', async () => {
