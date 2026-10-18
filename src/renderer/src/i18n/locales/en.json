@@ -6664,8 +6664,7 @@
         },
         "MarkdownImageLightbox": {
           "image": "Image",
-          "expand": "Expand image",
-          "close": "Close"
+          "expand": "Expand image"
         },
         "WorktreeDeveloperMenu": {
           "developer": "Developer",
@@ -15943,7 +15942,9 @@
           "1829437fce": "New Markdown"
         },
         "DiagramViewerModal": {
-          "title": "Diagram",
+          "title": "Diagram"
+        },
+        "PanZoomImageDialog": {
           "zoomOut": "Zoom out",
           "zoomIn": "Zoom in",
           "fit": "Fit to screen",
@@ -18582,7 +18583,6 @@
         },
         "pendingAttachmentLimit": "Too many attachments are waiting. Finish composing before attaching more.",
         "viewAttachment": "View image",
-        "imagePreview": "Full-size image preview",
         "imagePreviewUnavailable": "Preview unavailable",
         "copyImage": "Copy image",
         "copyImageFailed": "Couldn't copy image",
@@ -19442,7 +19442,6 @@
       "keywordIssuePicker": "issue picker"
     },
     "managed-runtime": {
-      "cancel": "Cancel installation",
       "cancelled": "Installation cancelled.",
       "cancelling": "Cancelling…",
       "damaged": "This copy of {{agent}} is damaged.",
@@ -19459,10 +19458,17 @@
       "notInstalled": "Not installed.",
       "progress": "{{agent}} download",
       "readFailed": "Could not check {{agent}} on this host. Retrying.",
-      "reinstall": "Reinstall {{agent}}",
+      "reinstall": "Reinstall",
+      "remove": "Remove downloaded runtime",
+      "removeConfirm": "Remove",
+      "removeDescription": "{{agent}} chats that are running stop. Their history is kept.",
+      "removeKeep": "Cancel",
+      "removeTitle": "Remove the downloaded {{agent}} runtime from {{host}}?",
+      "removing": "Removing…",
       "retry": "Retry installation",
+      "thisComputer": "this computer",
       "unavailable": "{{agent}} is not available on this host.",
-      "update": "Update {{agent}}",
+      "update": "Update",
       "verifying": "Checking the downloaded runtime.",
       "installTitle": "Install {{agent}} to start chatting",
       "continueTitle": "Install {{agent}} to continue",
