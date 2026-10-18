@@ -262,6 +262,23 @@ describe('installed xterm image device-pixel contract', () => {
     }
   })
 
+  it.each(
+    ['width', 'height'].flatMap((dimension) =>
+      [0, -1, NaN, Infinity, 0.3].map((value) => ({ dimension, value }))
+    )
+  )('declines size reports with device cell $dimension of $value', async ({ dimension, value }) => {
+    const h = createTerminal(2, true)
+    try {
+      const dimensions = terminalDimensions(2)
+      dimensions.device.cell[dimension] = value
+      h.dimensions.mockReturnValue(dimensions)
+      await write(h.terminal, '\x1b[16t\x1b[14t')
+      expect(h.replies).toEqual([])
+    } finally {
+      h.terminal.dispose()
+    }
+  })
+
   it('does not enable pixel size reports when disabled', async () => {
     const h = createTerminal()
     const replies = []
