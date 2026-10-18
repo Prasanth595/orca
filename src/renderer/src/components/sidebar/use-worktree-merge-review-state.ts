@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { WorktreeMergeReviewState } from '../../../../shared/git-merge-review'
+import { getConnectionId } from '@/lib/connection-context'
 
 export type WorktreeMergeReviewPhase = WorktreeMergeReviewState['phase']
 
@@ -28,9 +29,11 @@ export function requestWorktreeMergeReviewRefresh(): void {
 export function useWorktreeMergeReviewState(args: {
   /** Any worktree of the repository; the host resolves the main checkout itself. */
   worktreePath: string | null
+  /** Resolves the owning host so a remote probe is not answered by the local machine. */
+  worktreeId: string | null
   enabled: boolean
 }): { phase: WorktreeMergeReviewPhase; refresh: () => void } {
-  const { enabled, worktreePath } = args
+  const { enabled, worktreeId, worktreePath } = args
   const [phase, setPhase] = useState<WorktreeMergeReviewPhase>('idle')
   const [refreshToken, setRefreshToken] = useState(0)
   const refresh = useCallback(() => setRefreshToken((value) => value + 1), [])
@@ -50,8 +53,10 @@ export function useWorktreeMergeReviewState(args: {
       return
     }
     let cancelled = false
+    // Why: remote cards must ask the host that owns the checkout, not this machine.
+    const connectionId = worktreeId ? (getConnectionId(worktreeId) ?? undefined) : undefined
     git
-      .worktreeMergeReviewState({ worktreePath })
+      .worktreeMergeReviewState(connectionId ? { worktreePath, connectionId } : { worktreePath })
       .then((state) => {
         if (!cancelled) {
           setPhase(state.phase)
@@ -66,7 +71,7 @@ export function useWorktreeMergeReviewState(args: {
     return () => {
       cancelled = true
     }
-  }, [enabled, refreshToken, worktreePath])
+  }, [enabled, refreshToken, worktreeId, worktreePath])
 
   return { phase, refresh }
 }

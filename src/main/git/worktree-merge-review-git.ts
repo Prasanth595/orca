@@ -13,9 +13,11 @@ import {
   parseUnstagedWorktreePaths,
   worktreeMergeReviewSnapshotMessage
 } from '../../shared/git-merge-review'
+import { isUnsupportedMergeTreeWriteTreeError } from '../../shared/git-merge-tree-capability'
 import type { GitRuntimeOptions } from './git-runtime-options'
 import { gitOptionsForWorktree } from './git-runtime-options'
 import { extractExecError } from './exec-error'
+import { getLocalGitCapabilityCache } from './git-capability-state'
 import { gitExecFileAsync } from './runner'
 import { detectConflictOperation } from './source-control/git-conflict-operation'
 import { resolveGitDir } from './source-control/resolve-git-dir'
@@ -89,15 +91,121 @@ export async function trackedChanges(git: MergeReviewGit): Promise<string[]> {
   return lines(await git.output(['status', '--porcelain', '--untracked-files=no']))
 }
 
-/** Changes made in the main checkout *around* the merge: unresolved conflicts and unstaged edits. */
-export async function collectHandEdits(git: MergeReviewGit): Promise<string[]> {
-  const [conflicts, unstaged] = await Promise.all([
+/** Changes made in the main checkout *around* the merge: unresolved conflicts,
+ *  unstaged edits, and staged edits that differ from the merge's own result. */
+export async function collectHandEdits(
+  git: MergeReviewGit,
+  worktreePath: string,
+  options: WorktreeMergeReviewGitOptions
+): Promise<string[]> {
+  const [conflicts, unstaged, staged] = await Promise.all([
     unmergedFiles(git),
     git
       .output(['status', '--porcelain', '-z', '--untracked-files=no'])
-      .then(parseUnstagedWorktreePaths)
+      .then(parseUnstagedWorktreePaths),
+    stagedEditsBeyondMerge(git, worktreePath, options)
   ])
-  return [...new Set([...conflicts, ...unstaged])]
+  return [...new Set([...conflicts, ...unstaged, ...staged])]
+}
+
+/**
+ * Staged paths whose content is not what this merge put there.
+ *
+ * Why the merge result tree: during `merge --no-commit` the index *is* the merge,
+ * so every staged path looks like a hand edit unless it is compared against what
+ * the merge would produce on its own. `merge --abort` (reset --merge) discards
+ * staged changes, so a miss here is silent data loss.
+ */
+async function stagedEditsBeyondMerge(
+  git: MergeReviewGit,
+  worktreePath: string,
+  options: WorktreeMergeReviewGitOptions
+): Promise<string[]> {
+  const capabilities = getLocalGitCapabilityCache({
+    cwd: worktreePath,
+    wslDistro: options.wslDistro
+  })
+  if (
+    !capabilities.isKnownSupported('merge-tree-write-tree') &&
+    !capabilities.shouldTry('merge-tree-write-tree')
+  ) {
+    return stagedEditsOutsideMergeFiles(git)
+  }
+  const result = await git.attempt([
+    'merge-tree',
+    '--write-tree',
+    '--no-messages',
+    'HEAD',
+    'MERGE_HEAD'
+  ])
+  if (isUnsupportedMergeTreeWriteTreeError(result.stderr)) {
+    capabilities.rememberUnsupported('merge-tree-write-tree')
+    return stagedEditsOutsideMergeFiles(git)
+  }
+  // Why: exit 1 means the merge conflicts, and a marker-laden tree cannot be
+  // compared with resolutions the user staged. unmergedFiles already covers the
+  // unresolved case; fall back for the rest.
+  if (!result.ok) {
+    return stagedEditsOutsideMergeFiles(git)
+  }
+  const tree = result.stdout.split('\n', 1)[0]?.trim() ?? ''
+  if (!/^[0-9a-f]{40,64}$/.test(tree)) {
+    return stagedEditsOutsideMergeFiles(git)
+  }
+  capabilities.rememberSupported('merge-tree-write-tree')
+  return stagedEditsBeyondTree(git, tree)
+}
+
+/** Baseline-compatible fallback: a staged path the merge cannot have touched is a hand edit. */
+async function stagedEditsOutsideMergeFiles(git: MergeReviewGit): Promise<string[]> {
+  const [staged, merged] = await Promise.all([
+    git.output(['diff', '--cached', '--name-only', '-z', 'HEAD']),
+    git.output(['diff', '--name-only', '-z', 'HEAD', 'MERGE_HEAD'])
+  ])
+  const mergeFiles = new Set(merged.split('\0').filter(Boolean))
+  return staged.split('\0').filter((path) => path && !mergeFiles.has(path))
+}
+
+async function stagedEditsBeyondTree(git: MergeReviewGit, tree: string): Promise<string[]> {
+  const [indexOutput, treeOutput] = await Promise.all([
+    git.output(['ls-files', '-s', '-z']),
+    git.output(['ls-tree', '-r', '-z', tree])
+  ])
+  const expected = parseTreeEntries(treeOutput)
+  const actual = parseIndexEntries(indexOutput)
+  return [...new Set([...expected.keys(), ...actual.keys()])].filter(
+    (path) => expected.get(path) !== actual.get(path)
+  )
+}
+
+/** "<mode> <type> <oid>\t<path>" records, keyed by path. */
+function parseTreeEntries(output: string): Map<string, string> {
+  const entries = new Map<string, string>()
+  for (const record of output.split('\0')) {
+    const tab = record.indexOf('\t')
+    if (tab === -1) {
+      continue
+    }
+    const [mode, , oid] = record.slice(0, tab).split(' ')
+    entries.set(record.slice(tab + 1), `${mode}:${oid}`)
+  }
+  return entries
+}
+
+/** "<mode> <oid> <stage>\t<path>" records; unmerged stages are already hand edits. */
+function parseIndexEntries(output: string): Map<string, string> {
+  const entries = new Map<string, string>()
+  for (const record of output.split('\0')) {
+    const tab = record.indexOf('\t')
+    if (tab === -1) {
+      continue
+    }
+    const [mode, oid, stage] = record.slice(0, tab).split(' ')
+    if (stage === '0') {
+      entries.set(record.slice(tab + 1), `${mode}:${oid}`)
+    }
+  }
+  return entries
 }
 
 async function findStash(git: MergeReviewGit): Promise<string | null> {
@@ -158,7 +266,9 @@ export async function snapshotUncommittedChanges(
     if (await pathExists(indexSource)) {
       await copyFile(indexSource, tempIndex)
     }
-    const env = { GIT_INDEX_FILE: tempIndex }
+    // Why spread: a caller-provided env replaces the child environment wholesale,
+    // so the temp index must ride along with PATH/HOME and the user's GIT_* settings.
+    const env = { ...process.env, GIT_INDEX_FILE: tempIndex }
     await git.output(['add', '-A'], env)
     const tree = await git.output(['write-tree'], env)
     if (tree === (await git.output(['rev-parse', 'HEAD^{tree}']))) {

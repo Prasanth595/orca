@@ -12,6 +12,7 @@ import { readFile } from 'node:fs/promises'
 import * as path from 'node:path'
 import {
   WORKTREE_MERGE_REVIEW_MAIN_WORKTREE_UNSUPPORTED_MESSAGE,
+  WORKTREE_MERGE_REVIEW_WSL_SYNC_UNSUPPORTED_MESSAGE,
   findConflictMarkerPaths,
   parseUnstagedWorktreePaths,
   parseWorktreeMergeReviewBranch,
@@ -82,6 +83,11 @@ export async function syncWorktreeToMain(
   args: { worktreePath: string; mainWorktreePath: string },
   options: WorktreeMergeReviewGitOptions = {}
 ): Promise<WorktreeMergeReviewSyncOutcome> {
+  // Why: the snapshot points GIT_INDEX_FILE at a host temp file, and WSL does not
+  // forward that variable — Git there would stage into the worktree's real index.
+  if (options.wslDistro) {
+    throw new Error(WORKTREE_MERGE_REVIEW_WSL_SYNC_UNSUPPORTED_MESSAGE)
+  }
   const { worktreePath, mainWorktreePath } = args
   if (areWorktreePathsEqual(worktreePath, mainWorktreePath)) {
     throw new Error('Merge review starts from a task worktree, not from the main checkout.')
@@ -116,6 +122,12 @@ export async function syncWorktreeToMain(
     const snapshot = await snapshotUncommittedChanges(atWorktree, worktreePath, options, branch)
     const source = snapshot ?? branch
     if ((await atMain.attempt(['merge-base', '--is-ancestor', source, 'HEAD'])).ok) {
+      return { kind: 'nothing-to-merge', branch, targetBranch }
+    }
+    // Why: accepting leaves the worktree's uncommitted changes in place, so the
+    // next sync snapshots the same tree under a new commit id. That commit is not
+    // an ancestor, and --no-ff would open a review with an empty diff.
+    if (snapshot && (await atMain.attempt(['diff', '--quiet', 'HEAD', snapshot])).ok) {
       return { kind: 'nothing-to-merge', branch, targetBranch }
     }
 
@@ -213,7 +225,7 @@ export async function rejectWorktreeMerge(
     throw new Error('There is no merge awaiting review.')
   }
 
-  const handEdits = await collectHandEdits(atMain)
+  const handEdits = await collectHandEdits(atMain, mainWorktreePath, options)
   if (handEdits.length > 0 && !assumeYes) {
     return { kind: 'needs-confirmation', paths: handEdits }
   }

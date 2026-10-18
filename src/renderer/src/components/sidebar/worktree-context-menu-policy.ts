@@ -238,12 +238,14 @@ export type WorktreeMergeReviewMenuMode = 'none' | 'sync' | 'pending'
 export function getWorktreeMergeReviewMenuMode(args: {
   isMultiContext: boolean
   isFolderWorkspace: boolean
+  /** SSH/runtime hosts: the IPC handlers require a local Git route. */
+  isRemote: boolean
   isMainWorktree: boolean
   worktreeBranch: string
   mainWorktreeBranch: string | null
   phase: 'idle' | 'pending'
 }): WorktreeMergeReviewMenuMode {
-  if (args.isMultiContext || args.isFolderWorkspace || !args.mainWorktreeBranch) {
+  if (args.isMultiContext || args.isFolderWorkspace || args.isRemote || !args.mainWorktreeBranch) {
     return 'none'
   }
   if (args.phase === 'pending') {

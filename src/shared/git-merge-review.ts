@@ -53,6 +53,9 @@ export const WORKTREE_MERGE_REVIEW_UNSUPPORTED_MESSAGE =
 export const WORKTREE_MERGE_REVIEW_MAIN_WORKTREE_UNSUPPORTED_MESSAGE =
   'Merge review needs the repository to have a main checkout.'
 
+export const WORKTREE_MERGE_REVIEW_WSL_SYNC_UNSUPPORTED_MESSAGE =
+  'Syncing uncommitted changes is not available for WSL projects: the snapshot needs a checkout Git can reach through a temporary index. Commit the changes first, or merge from a terminal.'
+
 export function isWorktreeMergeReviewStashSubject(subject: string): boolean {
   return subject.includes(WORKTREE_MERGE_REVIEW_STASH_MARKER)
 }

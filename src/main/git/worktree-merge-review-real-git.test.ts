@@ -3,8 +3,12 @@ import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { WORKTREE_MERGE_REVIEW_STASH_MARKER } from '../../shared/git-merge-review'
+import {
+  WORKTREE_MERGE_REVIEW_STASH_MARKER,
+  WORKTREE_MERGE_REVIEW_WSL_SYNC_UNSUPPORTED_MESSAGE
+} from '../../shared/git-merge-review'
 import { extractExecError } from './exec-error'
+import { clearGitCapabilityStateForTests, getLocalGitCapabilityCache } from './git-capability-state'
 import {
   acceptWorktreeMerge,
   getWorktreeMergeReviewState,
@@ -18,6 +22,7 @@ import {
 const roots: string[] = []
 
 afterEach(async () => {
+  clearGitCapabilityStateForTests()
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
 })
 
@@ -153,6 +158,32 @@ describe('syncWorktreeToMain', () => {
       syncWorktreeToMain({ worktreePath: worktree, mainWorktreePath: repo })
     ).rejects.toThrow(/already has a merge awaiting review/)
   })
+
+  it('reports nothing to merge when an accepted review left the worktree unchanged', async () => {
+    const { repo, worktree } = await fixture()
+    await write(worktree, 'draft.md', 'draft\n')
+    await syncWorktreeToMain({ worktreePath: worktree, mainWorktreePath: repo })
+    await acceptWorktreeMerge(repo)
+
+    // The worktree still holds the same uncommitted change, so the new snapshot
+    // commit has a new id but the tree the main checkout already has.
+    expect(await syncWorktreeToMain({ worktreePath: worktree, mainWorktreePath: repo })).toEqual({
+      kind: 'nothing-to-merge',
+      branch: 'feature',
+      targetBranch: 'main'
+    })
+    expect(isMergePending(repo)).toBe(false)
+  })
+
+  it('refuses to sync a WSL project at the snapshot boundary', async () => {
+    const { repo, worktree } = await fixture()
+    await expect(
+      syncWorktreeToMain(
+        { worktreePath: worktree, mainWorktreePath: repo },
+        { wslDistro: 'Ubuntu' }
+      )
+    ).rejects.toThrow(WORKTREE_MERGE_REVIEW_WSL_SYNC_UNSUPPORTED_MESSAGE)
+  })
 })
 
 describe('acceptWorktreeMerge', () => {
@@ -262,6 +293,59 @@ describe('rejectWorktreeMerge', () => {
     await expect(rejectWorktreeMerge(repo, {}, true)).resolves.toEqual({ kind: 'rejected' })
     expect(await readFile(join(repo, 'base.txt'), 'utf-8')).toBe('main side\n')
     expect(isMergePending(repo)).toBe(false)
+  })
+
+  it('asks before discarding a staged hand edit', async () => {
+    const { repo, worktree } = await fixture()
+    await write(worktree, 'feature.txt', 'feature\n')
+    await syncWorktreeToMain({ worktreePath: worktree, mainWorktreePath: repo })
+    await write(repo, 'notes.md', 'review notes\n')
+    git(repo, ['add', 'notes.md'])
+
+    const outcome = await rejectWorktreeMerge(repo)
+
+    // Why: merge --abort discards staged changes, so the prompt is the only warning.
+    if (outcome.kind !== 'needs-confirmation') {
+      throw new Error(`expected a confirmation prompt, got ${outcome.kind}`)
+    }
+    expect(outcome.paths).toEqual(['notes.md'])
+
+    await expect(rejectWorktreeMerge(repo, {}, true)).resolves.toEqual({ kind: 'rejected' })
+    expect(isMergePending(repo)).toBe(false)
+  })
+
+  it('asks before discarding a staged edit to a file the merge touched', async () => {
+    const { repo, worktree } = await fixture()
+    await write(worktree, 'feature.txt', 'feature\n')
+    await syncWorktreeToMain({ worktreePath: worktree, mainWorktreePath: repo })
+    if (!tryGit(repo, ['merge-tree', '--write-tree', '--no-messages', 'HEAD', 'MERGE_HEAD']).ok) {
+      return // Git < 2.38: the fallback cannot distinguish this case.
+    }
+    await write(repo, 'feature.txt', 'feature plus a hand edit\n')
+    git(repo, ['add', 'feature.txt'])
+
+    const outcome = await rejectWorktreeMerge(repo)
+
+    if (outcome.kind !== 'needs-confirmation') {
+      throw new Error(`expected a confirmation prompt, got ${outcome.kind}`)
+    }
+    expect(outcome.paths).toContain('feature.txt')
+  })
+
+  it('still lists a staged hand edit when merge-tree is unavailable', async () => {
+    const { repo, worktree } = await fixture()
+    await write(worktree, 'feature.txt', 'feature\n')
+    await syncWorktreeToMain({ worktreePath: worktree, mainWorktreePath: repo })
+    getLocalGitCapabilityCache({ cwd: repo }).rememberUnsupported('merge-tree-write-tree')
+    await write(repo, 'notes.md', 'review notes\n')
+    git(repo, ['add', 'notes.md'])
+
+    const outcome = await rejectWorktreeMerge(repo)
+
+    if (outcome.kind !== 'needs-confirmation') {
+      throw new Error(`expected a confirmation prompt, got ${outcome.kind}`)
+    }
+    expect(outcome.paths).toContain('notes.md')
   })
 
   it('refuses when nothing is awaiting review', async () => {

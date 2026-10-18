@@ -149,13 +149,15 @@ describe('runWorktreeMergeReviewReject', () => {
 
     mocks.reject.mockResolvedValueOnce({ kind: 'rejected' })
     runWorktreeMergeReviewReject(args, true)
-    await settle()
-
-    expect(mocks.reject).toHaveBeenLastCalledWith({
-      worktreePath: '/repo/feature',
-      assumeYes: true
+    // Why waitFor here: the first settle() already saw the modal, so it would
+    // return before this second call resolves and the assertions would race it.
+    await vi.waitFor(() => {
+      expect(mocks.reject).toHaveBeenLastCalledWith({
+        worktreePath: '/repo/feature',
+        assumeYes: true
+      })
+      expect(mocks.toast.success).toHaveBeenCalledWith('Merge undone')
     })
-    expect(mocks.toast.success).toHaveBeenCalledWith('Merge undone')
   })
 
   it('undoes a clean review without a dialog', async () => {

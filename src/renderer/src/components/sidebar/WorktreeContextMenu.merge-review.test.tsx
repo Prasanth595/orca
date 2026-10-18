@@ -9,6 +9,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Worktree } from '../../../../shared/worktree/types'
+import { getConnectionId } from '@/lib/connection-context'
 import WorktreeContextMenu from './WorktreeContextMenu'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
@@ -127,6 +128,8 @@ vi.mock('@/store/selectors', () => ({
   useWorktreeMap: () => new Map()
 }))
 
+vi.mock('@/lib/connection-context', () => ({ getConnectionId: vi.fn(() => null) }))
+
 vi.mock('@/hooks/useShortcutLabel', () => ({
   useOptionalShortcutLabel: () => null,
   formatShortcutLabel: () => '',
@@ -194,6 +197,18 @@ describe('WorktreeContextMenu merge review rows', () => {
 
     expect(itemLabels(container)).toContain('Merge into Main Worktree')
     expect(stateMock).toHaveBeenCalledWith({ worktreePath: '/path/to/feature' })
+  })
+
+  it('sends the worktree connection id with the state probe', async () => {
+    vi.mocked(getConnectionId).mockReturnValueOnce('conn-1')
+
+    renderAndOpen(makeWorktree({}))
+    await act(async () => {})
+
+    expect(stateMock).toHaveBeenCalledWith({
+      worktreePath: '/path/to/feature',
+      connectionId: 'conn-1'
+    })
   })
 
   it('offers accept/reject on both cards once a review is pending', async () => {

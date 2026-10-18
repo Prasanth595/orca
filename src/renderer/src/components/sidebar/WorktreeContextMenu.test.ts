@@ -320,6 +320,7 @@ describe('getWorktreeMergeReviewMenuMode', () => {
   const task = {
     isMultiContext: false,
     isFolderWorkspace: false,
+    isRemote: false,
     isMainWorktree: false,
     worktreeBranch: 'refs/heads/feature',
     mainWorktreeBranch: 'refs/heads/main',
@@ -333,9 +334,11 @@ describe('getWorktreeMergeReviewMenuMode', () => {
     expect(getWorktreeMergeReviewMenuMode({ ...task, mainWorktreeBranch: null })).toBe('none')
   })
 
-  it('hides the action for multi-selection and folder workspaces', () => {
+  it('hides the action for multi-selection, folder workspaces and remote hosts', () => {
     expect(getWorktreeMergeReviewMenuMode({ ...task, isMultiContext: true })).toBe('none')
     expect(getWorktreeMergeReviewMenuMode({ ...task, isFolderWorkspace: true })).toBe('none')
+    // Why: the merge-review IPC handlers require a local Git route.
+    expect(getWorktreeMergeReviewMenuMode({ ...task, isRemote: true })).toBe('none')
   })
 
   // Why: a review belongs to the main checkout, so the main row has to offer the

@@ -194,11 +194,13 @@ export function useWorktreeContextMenuModel({
   // would only spawn Git to fail — and no mode below could ever use the answer.
   const mergeReview = useWorktreeMergeReviewState({
     worktreePath: worktree.path,
+    worktreeId: worktree.id,
     enabled: menuOpen && !isMultiContext && folderWorkspaceId === null
   })
   const mergeReviewMode = getWorktreeMergeReviewMenuMode({
     isMultiContext,
     isFolderWorkspace: folderWorkspaceId !== null,
+    isRemote: repo?.connectionId != null,
     isMainWorktree: worktree.isMainWorktree,
     worktreeBranch: worktree.branch,
     mainWorktreeBranch: mainWorktree?.branch || null,
