@@ -2,6 +2,7 @@ import { View, Text, ScrollView, Pressable } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import {
   ChevronLeft,
+  List,
   Folder,
   File,
   FileText,
@@ -28,6 +29,8 @@ import type { MobileSessionController } from './use-mobile-session-controller'
 
 export function MobileSessionHeader({ controller }: { controller: MobileSessionController }) {
   const {
+    showTabOverview,
+    setShowTabOverview,
     hostId,
     isFolderWorkspaceRoute,
     isFloatingWorkspaceRoute,
@@ -201,6 +204,15 @@ export function MobileSessionHeader({ controller }: { controller: MobileSessionC
               </Pressable>
             ))}
           </ScrollView>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Show all tabs"
+            accessibilityState={{ expanded: showTabOverview }}
+            onPress={() => setShowTabOverview(!showTabOverview)}
+            style={styles.filesButton}
+          >
+            <List size={18} color={colors.textSecondary} />
+          </Pressable>
           {/* Why: pinned outside the scroll strip so the new-agent button stays reachable however far the tabs scroll. */}
           <Pressable
             style={({ pressed }) => [

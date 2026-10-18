@@ -86,6 +86,7 @@ export function useMobileSessionScreenState(scope: MobileSessionFoundationModel)
     createMobileSessionCreateWarningState(initialCreateWarning)
   )
   const [showCreateTabDrawer, setShowCreateTabDrawer] = useState(false)
+  const [showTabOverview, setShowTabOverview] = useState(false)
   const [showQuickCommands, setShowQuickCommands] = useState(false)
   const [createTabAgentLoadState, setCreateTabAgentLoadState] =
     useState<MobileNewTabAgentLoadState>('idle')
@@ -193,6 +194,8 @@ export function useMobileSessionScreenState(scope: MobileSessionFoundationModel)
     setCreateWarningState,
     showCreateTabDrawer,
     setShowCreateTabDrawer,
+    showTabOverview,
+    setShowTabOverview,
     showQuickCommands,
     setShowQuickCommands,
     createTabAgentLoadState,
