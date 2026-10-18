@@ -62,10 +62,12 @@ const StructuredAgentSessionOverlaySlot = memo(function StructuredAgentSessionOv
 const StructuredAgentSessionPaneOverlayLayer = memo(
   function StructuredAgentSessionPaneOverlayLayer({
     worktreeId,
-    isWorktreeActive
+    isWorktreeActive,
+    isWorktreeFocused = isWorktreeActive
   }: {
     worktreeId: string
     isWorktreeActive: boolean
+    isWorktreeFocused?: boolean
   }): React.JSX.Element {
     const { unifiedTabs, groups, activeGroupId } = useAppStore(
       useShallow((state) => ({
@@ -97,7 +99,7 @@ const StructuredAgentSessionPaneOverlayLayer = memo(
             groupId={tab.groupId}
             isActive={Boolean(isWorktreeActive && groupActiveTabById.get(tab.groupId) === tab.id)}
             isFocusedGroup={Boolean(
-              isWorktreeActive &&
+              isWorktreeFocused &&
               groupActiveTabById.get(tab.groupId) === tab.id &&
               tab.groupId === activeGroupId
             )}
