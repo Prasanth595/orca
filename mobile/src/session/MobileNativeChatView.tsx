@@ -25,6 +25,7 @@ import {
 } from './mobile-native-chat-render-data'
 import { useMobileNativeChatPageHistory } from './use-mobile-native-chat-page-history'
 import { useMobileNativeChatInitialLayout } from './use-mobile-native-chat-initial-layout'
+import { useMobileNativeChatTranscriptRef } from './use-mobile-native-chat-transcript-ref'
 import {
   MobileTranscriptLayoutContext,
   useMobileTranscriptLayout
@@ -153,6 +154,7 @@ export function MobileNativeChatView({
     data.length > 0,
     transcriptLayout.pending
   )
+  const transcriptRef = useMobileNativeChatTranscriptRef(listRef, initialLayout.ready)
 
   const handleSend = useCallback(
     async (text: string): Promise<boolean> => {
@@ -279,7 +281,9 @@ export function MobileNativeChatView({
                   key={sendSurfaceId}
                   style={initialLayout.ready ? undefined : { opacity: 0 }}
                   pointerEvents={initialLayout.ready ? 'auto' : 'none'}
-                  ref={listRef}
+                  accessibilityElementsHidden={!initialLayout.ready}
+                  importantForAccessibility={initialLayout.ready ? 'auto' : 'no-hide-descendants'}
+                  ref={transcriptRef}
                   data={history.listRows}
                   initialScrollIndex={Math.max(0, initialWindow.rows - 10)}
                   initialNumToRender={10}

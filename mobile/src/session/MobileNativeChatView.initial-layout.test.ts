@@ -92,12 +92,16 @@ describe('MobileNativeChatView: initial measured position', () => {
       vi.advanceTimersByTime(100)
     })
     expect(list().props.style).toMatchObject({ opacity: 0 })
+    expect(list().props.accessibilityElementsHidden).toBe(true)
+    expect(list().props.importantForAccessibility).toBe('no-hide-descendants')
     diagram.pending = false
     await update(transcript)
     await act(async () => {
       vi.runAllTimers()
     })
     expect(list().props.style).toBeUndefined()
+    expect(list().props.accessibilityElementsHidden).toBe(false)
+    expect(list().props.importantForAccessibility).toBe('auto')
   })
 
   it('does not leave retained text hidden indefinitely behind a slow diagram', async () => {
