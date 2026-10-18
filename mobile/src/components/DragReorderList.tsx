@@ -35,6 +35,7 @@ const AUTO_SCROLL_MAX_SPEED = 560
 
 type DragSharedState = {
   positions: SharedValue<DragReorderPositions>
+  dragStartPositions: SharedValue<DragReorderPositions>
   activeKey: SharedValue<string | null>
   activeTop: SharedValue<number>
   dragStartTop: SharedValue<number>
@@ -71,6 +72,7 @@ export function DragReorderList<ItemT>({
   const keys = items.map(itemKey)
   const count = keys.length
   const positions = useSharedValue<DragReorderPositions>(dragReorderPositionsFromKeys(keys))
+  const dragStartPositions = useSharedValue<DragReorderPositions>({})
   const activeKey = useSharedValue<string | null>(null)
   const activeTop = useSharedValue(0)
   const dragStartTop = useSharedValue(0)
@@ -177,6 +179,7 @@ export function DragReorderList<ItemT>({
 
   const shared: DragSharedState = {
     positions,
+    dragStartPositions,
     activeKey,
     activeTop,
     dragStartTop,
@@ -229,6 +232,7 @@ function DragReorderRow({
 }): React.JSX.Element {
   const {
     positions,
+    dragStartPositions,
     activeKey,
     activeTop,
     dragStartTop,
@@ -242,6 +246,7 @@ function DragReorderRow({
     .shouldCancelWhenOutside(false)
     .onStart((event) => {
       const index = positions.value[rowKey] ?? 0
+      dragStartPositions.value = positions.value
       dragStartTop.value = index * rowHeight
       dragStartScrollY.value = scrollOffsetY.value
       dragTranslationY.value = 0
@@ -256,13 +261,17 @@ function DragReorderRow({
       dragPointerAbsY.value = event.absoluteY
       updateDragPosition(rowKey)
     })
-    .onFinalize(() => {
+    .onFinalize((_event, success) => {
       if (activeKey.value !== rowKey) {
         return
       }
       activeKey.value = null
-      const orderedKeys = orderedKeysFromDragReorderPositions(positions.value)
-      runOnJS(onCommit)(orderedKeys)
+      if (success) {
+        const orderedKeys = orderedKeysFromDragReorderPositions(positions.value)
+        runOnJS(onCommit)(orderedKeys)
+      } else {
+        positions.value = dragStartPositions.value
+      }
       runOnJS(onDragActiveChange)(false)
     })
 
