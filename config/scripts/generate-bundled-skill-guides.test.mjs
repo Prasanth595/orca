@@ -35,6 +35,7 @@ const GUIDE_REFERENCES = {
     'recovery-and-cleanup.md',
     'worker-contract.md'
   ],
+  'make-repo-contribution': ['issue-template.md', 'pr-template.md'],
   'orca-cli': ['automations.md', 'browser.md', 'publishing.md'],
   'orca-per-workspace-env': [
     'docker-ssh.md',

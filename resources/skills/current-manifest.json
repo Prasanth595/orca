@@ -50,6 +50,22 @@
       ]
     },
     {
+      "name": "make-repo-contribution",
+      "sourcePath": "skills/make-repo-contribution",
+      "packageDigest": "0c5fed1b5c75b41ab1bdee4a9bdd2a97bb90f470f952bced88b5e83bfb55c516",
+      "files": [
+        {
+          "path": "SKILL.md",
+          "size": 2157,
+          "executable": false,
+          "classification": "text",
+          "exactSha256": "d7f9603d90d1507f9aca9e83cb6a126dc3214be28aed96496435a021602061dc",
+          "textNormalizedSha256": "d7f9603d90d1507f9aca9e83cb6a126dc3214be28aed96496435a021602061dc",
+          "identitySha256": "d7f9603d90d1507f9aca9e83cb6a126dc3214be28aed96496435a021602061dc"
+        }
+      ]
+    },
+    {
       "name": "orca-cli",
       "sourcePath": "skills/orca-cli",
       "packageDigest": "0736bcbbb69ed18f9a36a58ad2eda47b6db55b30509953cf5ba5f0032058c535",
