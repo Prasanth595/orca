@@ -7,6 +7,7 @@ import {
   loadMobileNewTabAgentOptions,
   MobileWorkspaceOnOtherRuntimeError
 } from './mobile-new-tab-agent-loader'
+import { resolveMobileImageAttachmentAgent } from './mobile-image-paste-agent'
 import { useMobileSessionImageAttachments } from './use-mobile-session-image-attachments'
 import { useMobileAttachmentInputLeaseGate } from './use-mobile-attachment-input-lease-gate'
 import { useMobileTerminalPaste } from './use-mobile-terminal-paste'
@@ -45,10 +46,10 @@ export function useMobileSessionAttachments(scope: MobileSessionAccessorySelecti
     activeSessionTab
   } = scope
   const clipboardContents = useClipboardReader().contents
-  const agent =
-    activeSessionTab && 'agentStatus' in activeSessionTab
-      ? (activeSessionTab.agentStatus?.agentType ?? nativeChatController.nativeChatAgent)
-      : nativeChatController.nativeChatAgent
+  const agent = resolveMobileImageAttachmentAgent(
+    activeSessionTab,
+    nativeChatController.nativeChatAgent
+  )
   const handlePaste = useMobileTerminalPaste({
     client,
     agent,
