@@ -2,11 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { X, Minimize2, Pin } from 'lucide-react'
 import { stripLeadingAgentTitleDecoration } from '../../../../shared/agent-title-decoration'
-import { getAgentLabel } from '@/lib/agent-catalog'
-import { basename } from '@/lib/path'
 import { isImeCompositionKeyDown } from '@/lib/ime-composition-keyboard-event'
 import { Input } from '@/components/ui/input'
-import { TabHoverCard } from './TabHoverCard'
+import { TerminalTabHoverCard } from './TerminalTabHoverCard'
 import type { TerminalTab } from '../../../../shared/terminal-tab-types'
 import type { TerminalAgent } from '../../../../shared/terminal-agent'
 import type { TabDragItemData } from '../tab-group/useTabDragSplit'
@@ -376,27 +374,15 @@ export default function SortableTab({
         {isEditing || menuOpening !== null ? (
           tabRoot
         ) : (
-          <TabHoverCard
+          <TerminalTabHoverCard
+            tabId={tab.id}
             title={displayTitle}
-            programName={
-              tabAgent
-                ? getAgentLabel(tabAgent)
-                : shellForIcon
-                  ? basename(shellForIcon)
-                  : translate('tabHoverCard.terminal', 'Terminal')
-            }
-            icon={
-              <TerminalTabLeadingIcon
-                agent={tabAgent}
-                activityStatus={activityStatus}
-                shell={shellForIcon}
-                showUnreadActivity={false}
-                isActive
-              />
-            }
+            agent={tabAgent}
+            shell={shellForIcon}
+            activityStatus={activityStatus}
           >
             {tabRoot}
-          </TabHoverCard>
+          </TerminalTabHoverCard>
         )}
       </div>
 
