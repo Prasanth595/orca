@@ -9,6 +9,7 @@ import { useNativeChatComposerKeyDown } from './use-native-chat-composer-keydown
 import { useNativeChatComposerCatalog } from './use-native-chat-composer-catalog'
 import type { NativeChatStructuredComposerTransport } from './native-chat-composer-types'
 import { getVerifiedNativeChatCommands } from '../../../../shared/native-chat-agent-profiles'
+import { withNativeChatBtwCommand } from '../../../../shared/native-chat-btw'
 import { sessionSlashCommandSuggestions } from '../../../../shared/native-chat-slash-commands'
 import {
   isStructuredAgentSessionComposerCommand,
@@ -23,7 +24,9 @@ function transport(sessionCommands?: NativeChatStructuredComposerTransport['sess
 describe('composer catalog authority', () => {
   it('keeps PTY and unsupported structured providers on their original catalogs', () => {
     const pty = renderHook(() => useNativeChatComposerCatalog('claude'))
-    expect(pty.result.current.agentCommands).toEqual(getVerifiedNativeChatCommands('claude'))
+    expect(pty.result.current.agentCommands).toEqual(
+      withNativeChatBtwCommand(getVerifiedNativeChatCommands('claude'))
+    )
     expect(pty.result.current.sessionSkills).toBeUndefined()
     const oldHost = renderHook(() => useNativeChatComposerCatalog('claude', transport()))
     expect(oldHost.result.current.agentCommands).toEqual(structuredSlashCommands())
@@ -44,6 +47,7 @@ describe('composer catalog authority', () => {
     expect(result.current.agentCommands.map(({ name }) => name)).toEqual([
       'model',
       'effort',
+      'btw',
       'clear',
       'compact'
     ])
@@ -51,6 +55,7 @@ describe('composer catalog authority', () => {
     expect(result.current.agentCommands.map(({ name }) => name)).toEqual([
       'model',
       'effort',
+      'btw',
       'clear'
     ])
   })
@@ -65,12 +70,13 @@ describe('composer catalog authority', () => {
     const reported = [{ name: 'init', kind: 'command' as const }]
     const withReport = renderHook(() => useNativeChatComposerCatalog('claude', transport(reported)))
     expect(withReport.result.current.agentCommands).toEqual(
-      sessionSlashCommandSuggestions('claude', reported)
+      withNativeChatBtwCommand(sessionSlashCommandSuggestions('claude', reported))
     )
     const withoutReport = renderHook(() => useNativeChatComposerCatalog('claude', transport()))
     expect(withoutReport.result.current.agentCommands.map(({ name }) => name)).toEqual([
       'model',
-      'effort'
+      'effort',
+      'btw'
     ])
   })
   it('respects empty catalogs and command-only catalogs without reviving disk skills', () => {
@@ -82,12 +88,11 @@ describe('composer catalog authority', () => {
         }
       }
     )
-    expect(result.current).toEqual({ agentCommands: [], sessionSkills: [] })
+    expect(result.current.sessionSkills).toEqual([])
+    expect(result.current.agentCommands.map(({ name }) => name)).toEqual(['btw'])
     rerender({ reported: [{ name: 'custom-command', kind: 'command' }] })
-    expect(result.current).toEqual({
-      agentCommands: [{ name: 'custom-command' }],
-      sessionSkills: []
-    })
+    expect(result.current.sessionSkills).toEqual([])
+    expect(result.current.agentCommands.map(({ name }) => name)).toEqual(['btw', 'custom-command'])
   })
 })
 
@@ -150,7 +155,7 @@ it('Enter completes a known pre-init skill while still dispatching a built-in co
         setCaret: vi.fn()
       })
     },
-    { initialProps: { activeSuggestion: 1 } }
+    { initialProps: { activeSuggestion: 2 } }
   )
   const enter = { key: 'Enter', nativeEvent: {}, preventDefault: vi.fn() } as unknown as Parameters<
     typeof result.current
@@ -160,7 +165,7 @@ it('Enter completes a known pre-init skill while still dispatching a built-in co
     expect.objectContaining({ name: 'project-skill', kind: 'skill' })
   )
   expect(dispatch).not.toHaveBeenCalled()
-  rerender({ activeSuggestion: 0 })
+  rerender({ activeSuggestion: 1 })
   result.current(enter)
   expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ name: 'clear', kind: 'command' }))
 })
@@ -226,6 +231,7 @@ describe('OpenCode chat skills', () => {
         [skill('review', 'My review checklist')]
       )
       expect(picked).toEqual([
+        expect.objectContaining({ kind: 'command', name: 'btw' }),
         expect.objectContaining({ kind: 'command', name: 'review', skillCollision: true })
       ])
     }
@@ -238,7 +244,10 @@ describe('OpenCode chat skills', () => {
     ['claude', { name: 'compact', kindUnspecified: true as const }]
   ] as const)('never lets a skill stand in for %s’s /compact', (agent, reported) => {
     const picked = items(agent, [reported], [skill('compact', 'Squash my notes')])
-    expect(picked.map((item) => `${item.kind}:${item.name}`)).toEqual(['command:compact'])
-    expect(isStructuredAgentSessionComposerCommand(picked[0]!.token, agent)).toBe(true)
+    expect(picked.map((item) => `${item.kind}:${item.name}`)).toEqual([
+      'command:btw',
+      'command:compact'
+    ])
+    expect(isStructuredAgentSessionComposerCommand('/compact', agent)).toBe(true)
   })
 })
