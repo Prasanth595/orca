@@ -16,7 +16,10 @@ import { translate } from '@/i18n/i18n'
 
 type ReviewNotificationsSectionProps = {
   repo: Repo
-  updateRepo: (repoId: string, updates: Partial<Repo>) => void | Promise<boolean>
+  updateRepo: (
+    repoId: string,
+    updates: { reviewNotifications?: ReviewNotificationConfig }
+  ) => void | Promise<boolean>
 }
 
 function tr(key: string, fallback: string): string {
