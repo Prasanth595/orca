@@ -2,12 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { X, Minimize2, Pin } from 'lucide-react'
 import { stripLeadingAgentTitleDecoration } from '../../../../shared/agent-title-decoration'
-import { getAgentLabel } from '@/lib/agent-catalog'
-import { basename } from '@/lib/path'
 import { isImeCompositionKeyDown } from '@/lib/ime-composition-keyboard-event'
 import { Input } from '@/components/ui/input'
-import { TabHoverCard } from './TabHoverCard'
-import { TabAgentAccountLines } from './TabAgentAccountLines'
+import { TerminalTabHoverCard } from './TerminalTabHoverCard'
 import type { TerminalTab } from '../../../../shared/terminal-tab-types'
 import type { TerminalAgent } from '../../../../shared/terminal-agent'
 import type { TabDragItemData } from '../tab-group/useTabDragSplit'
@@ -58,6 +55,7 @@ export type SortableTabProps = {
   onCloseOthers: (tabId: string) => void
   onCloseToRight: (tabId: string) => void
   onCloseToLeft: (tabId: string) => void
+  onCloseSplitPane?: () => void
   onSetCustomTitle: (tabId: string, title: string | null) => void
   onSetTabColor: (tabId: string, color: string | null) => void
   onTogglePin: () => void
@@ -92,6 +90,7 @@ export default function SortableTab({
   onCloseOthers,
   onCloseToRight,
   onCloseToLeft,
+  onCloseSplitPane,
   onSetCustomTitle,
   onSetTabColor,
   onTogglePin,
@@ -375,28 +374,15 @@ export default function SortableTab({
         {isEditing || menuOpening !== null ? (
           tabRoot
         ) : (
-          <TabHoverCard
+          <TerminalTabHoverCard
+            tabId={tab.id}
             title={displayTitle}
-            programName={
-              tabAgent
-                ? getAgentLabel(tabAgent)
-                : shellForIcon
-                  ? basename(shellForIcon)
-                  : translate('tabHoverCard.terminal', 'Terminal')
-            }
-            details={<TabAgentAccountLines tabId={tab.id} />}
-            icon={
-              <TerminalTabLeadingIcon
-                agent={tabAgent}
-                activityStatus={activityStatus}
-                shell={shellForIcon}
-                showUnreadActivity={false}
-                isActive
-              />
-            }
+            agent={tabAgent}
+            shell={shellForIcon}
+            activityStatus={activityStatus}
           >
             {tabRoot}
-          </TabHoverCard>
+          </TerminalTabHoverCard>
         )}
       </div>
 
@@ -423,6 +409,7 @@ export default function SortableTab({
         onCloseOthers={onCloseOthers}
         onCloseToRight={onCloseToRight}
         onCloseToLeft={onCloseToLeft}
+        onCloseSplitPane={onCloseSplitPane}
         onRenameOpen={handleRenameOpen}
         onSetTabColor={onSetTabColor}
         onTogglePin={onTogglePin}

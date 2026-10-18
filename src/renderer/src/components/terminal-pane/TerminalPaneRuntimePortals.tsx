@@ -4,6 +4,7 @@ import CodexRestartChip from '../CodexRestartChip'
 import { makePaneKey } from '../../../../shared/stable-pane-id'
 import { CodexSharedServerBanner } from './CodexSharedServerBanner'
 import { ClaudeOldTerminalBanner } from './ClaudeOldTerminalBanner'
+import { ClaudeDiffPanelNoticeBanner } from './ClaudeDiffPanelNoticeBanner'
 import { NewerDaemonHoldBanner } from './NewerDaemonHoldBanner'
 import { TerminalSshReconnectOverlay } from './TerminalSshReconnectOverlay'
 import { useWslHostUnavailableReason } from './use-wsl-host-unavailable-reason'
@@ -65,6 +66,13 @@ export function TerminalPaneCodexRestartPortals({
               ptyId={ptyId}
               tabId={tabId}
               leafId={pane.leafId}
+            />
+            <ClaudeDiffPanelNoticeBanner
+              key={`claude-diff-panel-notice-${pane.id}-${ptyId}`}
+              ptyId={ptyId}
+              tabId={tabId}
+              leafId={pane.leafId}
+              container={pane.container}
             />
             <NewerDaemonHoldBanner
               key={`newer-daemon-hold-${pane.id}-${ptyId}`}

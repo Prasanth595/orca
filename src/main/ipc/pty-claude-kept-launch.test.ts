@@ -136,7 +136,9 @@ describe('a Claude resume in both spawn paths', () => {
         worktreeId: 'wt-runtime',
         command: 'claude --resume s1',
         launchAgent: 'claude',
-        env: { KEEP: 'me', ORCA_PANE_KEY: `${TAB_ID}:${LEAF_ID}` },
+        tabId: TAB_ID,
+        leafId: LEAF_ID,
+        env: { KEEP: 'me' },
         resumeProviderSession: RESUME
       })
     }
