@@ -41,15 +41,46 @@ type Params = {
 type BranchCompareParameters = Readonly<Record<string, never>>
 const WHOLE_WORKTREE: BranchCompareParameters = {}
 
-// Last successful git.status per route, so a revisit paints files before the refresh returns.
+export const MAX_CACHED_MOBILE_SOURCE_CONTROL_STATUS_ENTRIES = 10
+
+// Last successful git.status per route, bounded by LRU eviction so a revisit paints files
+// immediately while keeping memory consumption constrained across many worktrees.
 const mobileSourceControlStatusCache = new Map<string, MobileGitStatusHostPayload>()
 
 export function clearMobileSourceControlStatusCacheForTests(): void {
   mobileSourceControlStatusCache.clear()
 }
 
-function screenStateForStatusIdentity(statusIdentityKey: string): ScreenState {
+export function writeMobileSourceControlStatusCache(
+  key: string,
+  status: MobileGitStatusHostPayload
+): void {
+  mobileSourceControlStatusCache.delete(key)
+  mobileSourceControlStatusCache.set(key, status)
+  while (mobileSourceControlStatusCache.size > MAX_CACHED_MOBILE_SOURCE_CONTROL_STATUS_ENTRIES) {
+    const oldest = mobileSourceControlStatusCache.keys().next().value
+    if (oldest === undefined) {
+      break
+    }
+    mobileSourceControlStatusCache.delete(oldest)
+  }
+}
+
+export function readMobileSourceControlStatusCache(
+  statusIdentityKey: string
+): MobileGitStatusHostPayload | undefined {
   const status = mobileSourceControlStatusCache.get(statusIdentityKey)
+  if (status === undefined) {
+    return undefined
+  }
+  // Refresh LRU order so visited worktrees stay resident
+  mobileSourceControlStatusCache.delete(statusIdentityKey)
+  mobileSourceControlStatusCache.set(statusIdentityKey, status)
+  return status
+}
+
+function screenStateForStatusIdentity(statusIdentityKey: string): ScreenState {
+  const status = readMobileSourceControlStatusCache(statusIdentityKey)
   return status === undefined ? { kind: 'loading' } : { kind: 'ready', status }
 }
 
@@ -199,7 +230,7 @@ export function useMobileSourceControlLoaders(params: Params): MobileSourceContr
             const refusal = readMobileGitRefusal(reply)
             if (!refusal) {
               const result = gitStatusHostPayloadRead.interpret(reply)
-              mobileSourceControlStatusCache.set(loadKey, result)
+              writeMobileSourceControlStatusCache(loadKey, result)
               setScreenState({ kind: 'ready', status: result })
               void loadBranchCompare({ preserveReadyOnFailure: true })
               if (options?.clearActionErrorOnSuccess !== false) {

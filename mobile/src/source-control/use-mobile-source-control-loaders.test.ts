@@ -7,8 +7,12 @@ import type { RpcClient } from '../transport/rpc-client'
 import type { ConnectionState, RpcResponse } from '../transport/types'
 import {
   clearMobileSourceControlStatusCacheForTests,
+  readMobileSourceControlStatusCache,
+  writeMobileSourceControlStatusCache,
+  MAX_CACHED_MOBILE_SOURCE_CONTROL_STATUS_ENTRIES,
   useMobileSourceControlLoaders
 } from './use-mobile-source-control-loaders'
+import { gitStatusHostPayloadRead } from './mobile-git-read-operations'
 
 // The screen-state module these loaders share with the panel pulls the icon set in; none of it is
 // reachable from a hook that renders nothing.
@@ -405,5 +409,26 @@ describe('useMobileSourceControlLoaders status cache', () => {
       status: { branch: 'feature' }
     })
     expect(calls.some((call) => call.method === 'git.status')).toBe(true)
+  })
+
+  it('evicts the oldest cached status when exceeding maximum entries', () => {
+    for (let i = 0; i < MAX_CACHED_MOBILE_SOURCE_CONTROL_STATUS_ENTRIES + 2; i++) {
+      writeMobileSourceControlStatusCache(
+        `key-${i}`,
+        gitStatusHostPayloadRead.interpret(statusReply(`branch-${i}`))
+      )
+    }
+    // The two oldest entries (key-0 and key-1) must be evicted to bound memory.
+    expect(readMobileSourceControlStatusCache('key-0')).toBeUndefined()
+    expect(readMobileSourceControlStatusCache('key-1')).toBeUndefined()
+    // Newer entries must remain resident in cache.
+    expect(readMobileSourceControlStatusCache('key-2')).toMatchObject({ branch: 'branch-2' })
+    expect(
+      readMobileSourceControlStatusCache(
+        `key-${MAX_CACHED_MOBILE_SOURCE_CONTROL_STATUS_ENTRIES + 1}`
+      )
+    ).toMatchObject({
+      branch: `branch-${MAX_CACHED_MOBILE_SOURCE_CONTROL_STATUS_ENTRIES + 1}`
+    })
   })
 })
