@@ -109,7 +109,7 @@ vi.mock('../stream-remote/use-remote-browser-page-input', () => ({
 }))
 
 vi.mock('../stream-remote/use-remote-browser-page-wheel', () => ({
-  useRemoteBrowserPageWheel: vi.fn()
+  useRemoteBrowserPageWheel: () => ({ handleRemoteScreenshotWheel: vi.fn() })
 }))
 
 vi.mock('../stream-remote/remote-browser-page-context-menu', () => ({

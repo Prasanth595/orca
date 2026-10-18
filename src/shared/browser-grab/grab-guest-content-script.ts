@@ -64,6 +64,18 @@ export const GRAB_GUEST_CONTENT_SCRIPT = `  function getSelectedText() {
     for (var i = 0; i < scripts.length; i++) {
       scripts[i].remove();
     }
+    // Apply the attribute policy to the root too; input values can live in markup.
+    var elements = [clone].concat(Array.from(clone.querySelectorAll('*')));
+    for (var j = 0; j < elements.length; j++) {
+      var node = elements[j];
+      var safe = getSafeAttributes(node);
+      var attributes = Array.from(node.attributes);
+      for (var k = 0; k < attributes.length; k++) {
+        node.removeAttribute(attributes[k].name);
+      }
+      for (var name in safe) node.setAttribute(name, safe[name]);
+      if (node.tagName === 'TEXTAREA' || node.tagName === 'SCRIPT') node.textContent = '';
+    }
     var html = clone.outerHTML || '';
     return clampStr(html, BUDGET.htmlSnippetMaxLength);
   }

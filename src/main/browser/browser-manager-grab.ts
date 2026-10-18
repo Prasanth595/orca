@@ -1,6 +1,6 @@
 import { webContents } from 'electron'
-import { buildGuestOverlayScript } from './grab-guest-script'
-import { clampGrabPayload } from './browser-grab-payload'
+import { buildGuestOverlayScript } from '../../shared/browser-grab/grab-guest-script'
+import { clampGrabPayload } from '../../shared/browser-grab/browser-grab-payload'
 import { captureSelectionScreenshot as captureGrabSelectionScreenshot } from './browser-grab-screenshot'
 import { getWorkspaceDocPageGuest } from './doc-preview-guest-policy'
 import type {

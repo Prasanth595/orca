@@ -19,7 +19,8 @@ import { formatGrabPayloadAsText } from './GrabConfirmationSheet'
 import {
   createBrowserAnnotationId,
   createBrowserAnnotationPayload,
-  DEFAULT_BROWSER_ANNOTATION_PRIORITY
+  DEFAULT_BROWSER_ANNOTATION_PRIORITY,
+  mapBrowserOverlayRect
 } from '../describe-page/browser-annotation-geometry'
 import { useBrowserPageAnnotationViewportTracking } from './use-browser-page-annotation-viewport-tracking'
 import { runBrowserGrabActionShortcut } from './browser-page-grab-action'
@@ -122,14 +123,17 @@ export function useBrowserPageGrabAnnotations({
       let below = true
       const containerRect = containerRef.current?.getBoundingClientRect()
       if (payload) {
-        const rect = payload.target.rectViewport
         const webview = webviewRef.current
         const webviewRect = webview?.getBoundingClientRect()
-        const offsetX = (webviewRect?.left ?? 0) - (containerRect?.left ?? 0)
-        const offsetY = (webviewRect?.top ?? 0) - (containerRect?.top ?? 0)
-        x = offsetX + rect.x + rect.width / 2
-        const elementBottom = offsetY + rect.y + rect.height
-        const elementTop = offsetY + rect.y
+        const rect = mapBrowserOverlayRect(
+          payload.target.rectViewport,
+          payload.page.viewportWidth,
+          containerRect,
+          webviewRect
+        )
+        x = rect.x + rect.width / 2
+        const elementBottom = rect.y + rect.height
+        const elementTop = rect.y
         const containerHeight = containerRect?.height ?? 0
         // Show below the element unless it's too close to the bottom edge
         below = elementBottom + 52 < containerHeight

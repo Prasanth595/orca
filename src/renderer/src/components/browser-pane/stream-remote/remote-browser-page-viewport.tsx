@@ -26,6 +26,9 @@ import {
 } from './remote-browser-stream-status'
 import { callRuntimeRpc } from '@/runtime/runtime-rpc-client'
 import type { RemoteBrowserRuntimeTarget } from './remote-browser-page-input-model'
+import { BrowserGuestAnnotateOverlays } from '../annotate/browser-guest-annotate-overlays'
+import { RemoteBrowserGrabOverlay } from './remote-browser-grab-overlay'
+import type { RemoteBrowserPageElementTools } from './use-remote-browser-page-element-tools'
 
 export function RemoteBrowserPageViewport({
   remoteViewportRef,
@@ -34,6 +37,8 @@ export function RemoteBrowserPageViewport({
   frameMetadata,
   busy,
   markup,
+  elementTools,
+  onGrabWheel,
   browserTab,
   remoteError,
   streamStatus,
@@ -58,6 +63,8 @@ export function RemoteBrowserPageViewport({
   frameMetadata: BrowserScreencastFrameMetadata | null
   busy: boolean
   markup: MarkupModeController
+  elementTools: RemoteBrowserPageElementTools
+  onGrabWheel: (event: WheelEvent) => void
   browserTab: BrowserPageState
   remoteError: string | null
   streamStatus: RemoteBrowserStreamStatus
@@ -141,6 +148,23 @@ export function RemoteBrowserPageViewport({
           </div>
         </div>
       )}
+      {frameUrl && elementTools.grab.state !== 'idle' ? (
+        <RemoteBrowserGrabOverlay
+          grab={elementTools.grab}
+          frameScroll={elementTools.frameScroll}
+          onWheel={onGrabWheel}
+        />
+      ) : null}
+      <BrowserGuestAnnotateOverlays
+        grab={elementTools.grab}
+        annotationSend={elementTools.annotationSend}
+        grabAnnotations={elementTools.grabAnnotations}
+        containerRef={remoteViewportRef}
+        webviewRef={remoteViewportRef}
+        browserOverlayViewport={elementTools.browserOverlayViewport}
+        worktreeId={worktreeId}
+        currentUrl={browserTab.url}
+      />
       {showRemoteFailureOverlay && browserTab.loadError ? (
         <BrowserLoadFailureOverlay
           loadError={browserTab.loadError}

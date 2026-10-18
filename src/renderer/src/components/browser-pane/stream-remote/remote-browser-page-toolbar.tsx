@@ -1,4 +1,4 @@
-import { Loader2, MessageSquarePlus, RefreshCw } from 'lucide-react'
+import { Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { translate } from '@/i18n/i18n'
@@ -9,6 +9,10 @@ import type { BrowserPageDocLocation } from '../../../../../shared/browser-works
 import { RemoteRuntimeEgressIndicator } from '../assemble-chrome/browser-egress-indicator'
 import { MarkupDrawButton } from '../annotate/MarkupDrawButton'
 import type { MarkupModeController } from '../annotate/useMarkupMode'
+import {
+  BrowserChromeElementToolButtons,
+  type BrowserChromeElementTools
+} from '../assemble-chrome/browser-chrome-element-tool-buttons'
 
 export function RemoteBrowserPageToolbar({
   runtimeEnvironmentId,
@@ -22,6 +26,7 @@ export function RemoteBrowserPageToolbar({
   busy,
   loading,
   markup,
+  elementTools,
   frameUrl,
   isActive,
   onBack,
@@ -40,6 +45,7 @@ export function RemoteBrowserPageToolbar({
   busy: boolean
   loading: boolean
   markup: MarkupModeController
+  elementTools: BrowserChromeElementTools
   frameUrl: string | null
   isActive: boolean
   onBack: () => void
@@ -104,34 +110,16 @@ export function RemoteBrowserPageToolbar({
         </Tooltip>
       }
     >
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-7 w-7 opacity-50"
-            aria-disabled="true"
-            aria-label={translate(
-              'auto.components.browser.pane.BrowserPane.deb5293610',
-              'Browser annotations unavailable in remote runtime'
-            )}
-            onClick={(event) => {
-              event.preventDefault()
-            }}
-          >
-            <MessageSquarePlus className="size-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="bottom" sideOffset={4}>
-          {translate(
-            'auto.components.browser.pane.BrowserPane.8b7e6d1f5a',
-            'Browser annotations are only available in local browser tabs.'
-          )}
-        </TooltipContent>
-      </Tooltip>
+      <BrowserChromeElementToolButtons
+        tools={elementTools}
+        showGrab
+        showAnnotate
+        showTourAnchors={false}
+      />
       <MarkupDrawButton
         onClick={() => (markup.isActive ? markup.cancel() : void markup.start())}
-        disabled={!frameUrl}
+        // Why: one picker at a time; the markup canvas would freeze a frame under an armed picker.
+        disabled={!frameUrl || elementTools.activeIntent !== null}
         active={markup.isActive}
         surfaceActive={isActive}
         className="h-7 w-7"

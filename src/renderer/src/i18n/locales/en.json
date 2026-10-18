@@ -147,7 +147,16 @@
       "streamedDetail": "The page runs on the remote host and streams to this device."
     },
     "remote": {
-      "findUnavailable": "Find in page is not available while this page streams from the remote host."
+      "findUnavailable": "Find in page is not available while this page streams from the remote host.",
+      "grab": {
+        "starting": "Starting element selection…",
+        "selecting": "Reading the selected element…",
+        "empty": "Nothing to select there. Pick an element.",
+        "moved": "The page moved before the click arrived. Click again.",
+        "instructions": "Click an element to select it. Right-click for more actions. Esc to cancel.",
+        "pageChanged": "The page changed. Start element selection again.",
+        "failed": "Could not select the remote element."
+      }
     },
     "userAgentMigration": {
       "degradedDescription": "An old browser identity choice could not be inspected. Choose Cleaned or Native in Browser settings; changes take effect after a restart.",

@@ -79,7 +79,9 @@ export async function openRemoteBrowserScreencastStream(
         viewportWidth: request.viewportSize?.width,
         viewportHeight: request.viewportSize?.height,
         deviceScaleFactor: request.deviceScaleFactor,
-        everyNthFrame: 2
+        // Sampling can skip a static page's only update; the host pacer retains its final frame.
+        everyNthFrame: 1,
+        minFrameIntervalMs: 33
       }),
       timeoutMs: 15_000
     },
