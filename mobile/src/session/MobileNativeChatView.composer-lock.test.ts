@@ -38,6 +38,23 @@ vi.mock('./MobileNativeChatComposer', async () => {
 describe('MobileNativeChatView: composer lock and prompt cards', () => {
   installChatViewHooks()
 
+  it('retains the host-backed file and command menu only on structured chats', async () => {
+    const onAttachFiles = vi.fn()
+    const structuredComposer = {
+      catalog: { reported: [], conversationCommands: [] },
+      onSlashMenuOpen: vi.fn(),
+      files: [],
+      onRemoveFile: vi.fn(),
+      onAttachFiles
+    }
+    await render({ structuredActivityUi: true, structuredComposer })
+    expect(composer().props.structured).toBe(structuredComposer)
+    composer().props.structured.onAttachFiles()
+    expect(onAttachFiles).toHaveBeenCalledOnce()
+    await update({ structuredActivityUi: false, structuredComposer })
+    expect(composer().props.structured).toBeNull()
+  })
+
   it('keeps a visible lock through a subscribed-end lease blip', async () => {
     vi.useFakeTimers()
     try {

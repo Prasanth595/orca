@@ -7,6 +7,7 @@ import type {
 import type { NativeChatTurnJournal } from '../../../src/shared/native-chat-turn-membership'
 import type { NativeChatResolvedPrompt } from '../../../src/shared/native-chat-resolution-receipt'
 import type { MobileNativeChatPendingItem } from './mobile-native-chat-render-data'
+import type { MobileNativeChatStructuredComposer } from './MobileNativeChatComposer'
 import type { PendingNativeChatImage } from './mobile-native-chat-image-attachment'
 import type { ComposerTrayProps } from './use-mobile-native-chat-composer-tray'
 import type { MobileChatPermission } from './mobile-native-chat-permission'
@@ -88,6 +89,8 @@ export type MobileNativeChatViewProps = ComposerTrayProps & {
   onNeedFiles?: (query: string) => void
   /** Model/session-option pickers for the composer action row (desktop parity). */
   sessionOptions?: MobileNativeChatSessionOptionPickersProps | null
+  /** The host-backed files, skills and commands for this chat. */
+  structuredComposer?: MobileNativeChatStructuredComposer | null
   /** A pending agent question/permission detected from live status, shown as a
    *  native card above the composer; answering sends text to the agent. */
   /** Structured AskUserQuestion prompt parsed from the transcript (preferred over

@@ -19,6 +19,7 @@ export type Overrides = {
   inputLockReason?: 'disconnected' | 'waiting' | null
   onSend?: (text: string) => Promise<boolean>
   pending?: Parameters<typeof MobileNativeChatView>[0]['pending']
+  structuredComposer?: Parameters<typeof MobileNativeChatView>[0]['structuredComposer']
   structuredActivityUi?: boolean
   turnIndicator?: Parameters<typeof MobileNativeChatView>[0]['turnIndicator']
   agentWorking?: boolean
