@@ -129,3 +129,25 @@ describe('OrcaYamlTrustDialog', () => {
     }
   )
 })
+it.each([false, true])(
+  'uses neutral copy for a blank known runtime name (changed: %s)',
+  async (previouslyApproved) => {
+    const previous = mocks.state.runtimeEnvironments
+    try {
+      mocks.state.runtimeEnvironments = [{ id: 'server', name: ' \t ' }]
+      mocks.state.modalData = {
+        repoId: 'repo',
+        repoName: 'Project',
+        scriptKind: 'vmRecipe',
+        executionHostId: 'runtime:server',
+        previouslyApproved
+      }
+      const { default: Dialog } = await import('./OrcaYamlTrustDialog')
+      const text = decodeHtml(renderToStaticMarkup(<Dialog />)).replace(/<[^>]+>/g, '')
+      expect(text).toContain('on the selected execution host before provisioning a VM')
+      expect(text).not.toContain('on your machine')
+    } finally {
+      mocks.state.runtimeEnvironments = previous
+    }
+  }
+)
