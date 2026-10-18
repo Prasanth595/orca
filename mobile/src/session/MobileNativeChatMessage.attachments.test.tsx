@@ -48,6 +48,21 @@ vi.mock('react-native', async () => {
 })
 vi.mock('expo-clipboard', () => ({ setStringAsync: vi.fn() }))
 vi.mock('lucide-react-native', () => ({
+  Eye: 'Eye',
+  Search: 'Search',
+  Folder: 'Folder',
+  Pencil: 'Pencil',
+  Globe: 'Globe',
+  Plug: 'Plug',
+  Bot: 'Bot',
+  ListChecks: 'ListChecks',
+  Circle: 'Circle',
+  CircleCheck: 'CircleCheck',
+  CircleDot: 'CircleDot',
+  Check: 'Check',
+  FilePlus2: 'FilePlus2',
+  FileMinus2: 'FileMinus2',
+  FilePen: 'FilePen',
   FileText: 'FileText',
   X: 'X',
   AlertCircle: 'AlertCircle',
