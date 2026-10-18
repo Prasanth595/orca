@@ -60,7 +60,7 @@ function makeHarness(
   let throwError: unknown = null
   const store = createInMemoryWatermarkStore()
   const poller = new ReviewNotificationPoller({
-    getRepos: () => repos as never,
+    getRepos: () => repos,
     getGlobalEnabled: () => opts.globalEnabled !== false,
     store,
     delivery: {
@@ -76,15 +76,15 @@ function makeHarness(
     onHealth: (repoId, provider, error) => {
       health.push({ repoId, provider, error })
     },
-    gitlabList: (async () => {
+    gitlabList: async () => {
       if (throwError) {
         throw throwError
       }
       return listed
-    }) as never,
-    githubList: (async () => ({ mrs: [], issues: [] })) as never,
-    setTimeoutFn: (() => ({}) as never) as typeof setTimeout,
-    clearTimeoutFn: (() => {}) as typeof clearTimeout
+    },
+    githubList: async () => ({ mrs: [], issues: [] }),
+    setTimeoutFn: () => ({}),
+    clearTimeoutFn: () => {}
   })
   poller.reconcile()
   return {
@@ -123,16 +123,16 @@ describe('poller', () => {
     const repos = [{ id: 'r1', displayName: 'proj', reviewNotifications: gitlabConfig() }]
     const mk = () =>
       new ReviewNotificationPoller({
-        getRepos: () => repos as never,
+        getRepos: () => repos,
         getGlobalEnabled: () => true,
         store,
         delivery: { deliver: async () => {}, deliverDigest: async () => {} },
         now: () => new Date('2026-10-19T12:00:00Z').getTime(),
         random: () => 0.5,
-        gitlabList: (async () => ({ mrs: [mrEvent()], issues: [] })) as never,
-        githubList: (async () => ({ mrs: [], issues: [] })) as never,
-        setTimeoutFn: (() => ({}) as never) as typeof setTimeout,
-        clearTimeoutFn: (() => {}) as typeof clearTimeout
+        gitlabList: async () => ({ mrs: [mrEvent()], issues: [] }),
+        githubList: async () => ({ mrs: [], issues: [] }),
+        setTimeoutFn: () => ({}),
+        clearTimeoutFn: () => {}
       })
     const first = mk()
     first.reconcile()

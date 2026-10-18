@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createReviewDelivery } from './delivery'
+import {
+  createReviewDelivery,
+  type ReviewNotificationFactory,
+  type ReviewNotificationHandle
+} from './delivery'
 import type { ReviewEvent } from './review-event'
 
 const event: ReviewEvent = {
@@ -15,22 +19,42 @@ const event: ReviewEvent = {
   updatedAt: '2026-10-19T10:00:00Z'
 }
 
-type FakeNotification = {
-  show: ReturnType<typeof vi.fn>
-  close: ReturnType<typeof vi.fn>
-  on: ReturnType<typeof vi.fn>
-  handlers: Record<string, ((...args: never[]) => void)[]>
+type FakeNotification = ReviewNotificationHandle & {
+  options: Electron.NotificationConstructorOptions
+  click: () => void
+  action: (index: number) => void
 }
 
-function makeFakeNotification(): FakeNotification {
-  const handlers: Record<string, ((...args: never[]) => void)[]> = {}
-  return {
-    show: vi.fn(),
-    close: vi.fn(),
-    on: vi.fn((name: string, cb: (...args: never[]) => void) => {
-      ;(handlers[name] ??= []).push(cb)
-    }),
-    handlers
+function makeFakeNotification(
+  onCreate: (fake: FakeNotification) => void
+): ReviewNotificationFactory {
+  return (options) => {
+    const clickListeners: (() => void)[] = []
+    const actionListeners: ((index: number) => void)[] = []
+    const fake: FakeNotification = {
+      options,
+      show: vi.fn(),
+      close: vi.fn(),
+      onClick: (listener) => {
+        clickListeners.push(listener)
+      },
+      onAction: (listener) => {
+        actionListeners.push(listener)
+      },
+      onClose: () => {},
+      click: () => {
+        for (const listener of clickListeners) {
+          listener()
+        }
+      },
+      action: (index: number) => {
+        for (const listener of actionListeners) {
+          listener(index)
+        }
+      }
+    }
+    onCreate(fake)
+    return fake
   }
 }
 
@@ -42,25 +66,18 @@ describe('delivery', () => {
     const delivery = createReviewDelivery({
       onSummarize,
       openUrl,
-      createNotification: ((options: Electron.NotificationConstructorOptions) => {
-        const fake = makeFakeNotification()
-        ;(fake as unknown as { options: unknown }).options = options
-        created.push(fake)
-        return fake as unknown as Electron.Notification
-      }) as never
+      createNotification: makeFakeNotification((fake) => created.push(fake))
     })
     await delivery.deliver([{ event, disposition: 'notify' }])
     expect(created).toHaveLength(1)
     expect(created[0].show).toHaveBeenCalled()
-    const options = (created[0] as unknown as { options: Electron.NotificationConstructorOptions })
-      .options
-    expect(options.title).toMatch(/merge request/)
-    expect(options.actions).toEqual([{ type: 'button', text: 'Summarize' }])
+    expect(created[0].options.title).toMatch(/merge request/)
+    expect(created[0].options.actions).toEqual([{ type: 'button', text: 'Summarize' }])
 
     // Click opens the URL; the action button triggers Summarize.
-    created[0].handlers['click']?.[0]()
+    created[0].click()
     expect(openUrl).toHaveBeenCalledWith(event.url)
-    created[0].handlers['action']?.[0]({}, 0)
+    created[0].action(0)
     expect(onSummarize).toHaveBeenCalledWith(event)
   })
 
@@ -68,11 +85,7 @@ describe('delivery', () => {
     const created: FakeNotification[] = []
     const delivery = createReviewDelivery({
       onSummarize: () => {},
-      createNotification: (() => {
-        const fake = makeFakeNotification()
-        created.push(fake)
-        return fake as unknown as Electron.Notification
-      }) as never
+      createNotification: makeFakeNotification((fake) => created.push(fake))
     })
     await delivery.deliver([{ event, disposition: 'notify' }])
     expect(created).toHaveLength(1)
@@ -85,17 +98,10 @@ describe('delivery', () => {
     const created: FakeNotification[] = []
     const delivery = createReviewDelivery({
       onSummarize: () => {},
-      createNotification: ((options: Electron.NotificationConstructorOptions) => {
-        const fake = makeFakeNotification()
-        ;(fake as unknown as { options: unknown }).options = options
-        created.push(fake)
-        return fake as unknown as Electron.Notification
-      }) as never
+      createNotification: makeFakeNotification((fake) => created.push(fake))
     })
     await delivery.deliverDigest('proj', [event, { ...event, iid: 8, title: 'Other' }])
     expect(created).toHaveLength(1)
-    const options = (created[0] as unknown as { options: Electron.NotificationConstructorOptions })
-      .options
-    expect(options.title).toMatch(/2 new review items/)
+    expect(created[0].options.title).toMatch(/2 new review items/)
   })
 })

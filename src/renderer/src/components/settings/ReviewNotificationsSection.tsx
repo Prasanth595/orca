@@ -41,9 +41,7 @@ function ToggleRow({
   return (
     <div className="flex items-center justify-between gap-4 py-1">
       <div className="min-w-0 space-y-0.5">
-        <Label htmlFor={id} className="text-sm">
-          {label}
-        </Label>
+        <Label htmlFor={id}>{label}</Label>
         {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
       </div>
       <Switch id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} />
@@ -70,9 +68,9 @@ function Field({
 }): React.JSX.Element {
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={id} className="text-xs text-muted-foreground">
+      <label htmlFor={id} className="text-xs text-muted-foreground">
         {label}
-      </Label>
+      </label>
       <Input
         id={id}
         type={type ?? 'text'}

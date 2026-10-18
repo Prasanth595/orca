@@ -107,6 +107,7 @@ export const mainProcessState = {
   watcherShutdownPromise: null as Promise<void> | null,
   watcherShutdownDone: false,
   automations: null as AutomationService | null,
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: follows this file's `null as Service | null` pattern for lazily-initialized services.
   reviewNotificationPoller: null as ReviewNotificationPoller | null,
   pluginService: null as PluginService | null,
   pluginKillListService: null as PluginKillListService | null,

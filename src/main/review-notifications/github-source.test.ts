@@ -92,7 +92,7 @@ describe('github-source', () => {
   it('passes since and the repo-qualified endpoints', async () => {
     const runner = runnerFor([], [])
     await listGitHubReviewItems(provider, '2026-10-19T08:00:00Z', runner)
-    const endpoints = (runner as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0] as string)
+    const endpoints = runner.mock.calls.map((c) => c[0])
     expect(endpoints.some((e) => e.includes('repos/octocat/hello-world/pulls'))).toBe(true)
     expect(endpoints.some((e) => e.includes('since='))).toBe(true)
   })

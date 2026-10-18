@@ -2,12 +2,24 @@ import { Notification, shell } from 'electron'
 import { describeReviewEvent, type ReviewEvent, type ReviewPollItem } from './review-event'
 import type { ReviewBudgetDelivery } from './review-budget'
 
+export type ReviewNotificationHandle = {
+  show: () => void
+  close: () => void
+  onClick: (listener: () => void) => void
+  onAction: (listener: (index: number) => void) => void
+  onClose: (listener: () => void) => void
+}
+
+export type ReviewNotificationFactory = (
+  options: Electron.NotificationConstructorOptions
+) => ReviewNotificationHandle
+
 export type ReviewDeliveryDeps = {
   /** Called when the user clicks "Summarize" on a notification. */
   onSummarize: (event: ReviewEvent) => void
   /** Optional push-parity dispatch (e.g. mobile push via the notification controller). */
   dispatchPush?: (event: ReviewEvent) => void
-  createNotification?: (options: Electron.NotificationConstructorOptions) => Electron.Notification
+  createNotification?: ReviewNotificationFactory
   openUrl?: (url: string) => Promise<void>
 }
 
@@ -33,8 +45,19 @@ function bodyFor(event: ReviewEvent): string {
  * is untouched.
  */
 export function createReviewDelivery(deps: ReviewDeliveryDeps): ReviewBudgetDelivery {
-  const active = new Map<string, Electron.Notification>()
-  const createNotification = deps.createNotification ?? ((options) => new Notification(options))
+  const active = new Map<string, ReviewNotificationHandle>()
+  const createNotification: ReviewNotificationFactory =
+    deps.createNotification ??
+    ((options) => {
+      const native = new Notification(options)
+      return {
+        show: () => native.show(),
+        close: () => native.close(),
+        onClick: (listener) => native.on('click', listener),
+        onAction: (listener) => native.on('action', (_event, index) => listener(index)),
+        onClose: (listener) => native.on('close', listener)
+      }
+    })
   const openUrl = deps.openUrl ?? ((url) => shell.openExternal(url))
 
   const showNew = (event: ReviewEvent) => {
@@ -45,17 +68,17 @@ export function createReviewDelivery(deps: ReviewDeliveryDeps): ReviewBudgetDeli
       body: bodyFor(event),
       actions: [{ type: 'button', text: 'Summarize' }]
     })
-    notification.on('click', () => {
+    notification.onClick(() => {
       if (event.url) {
         void openUrl(event.url)
       }
     })
-    notification.on('action', (_e, index) => {
+    notification.onAction((index) => {
       if (index === 0) {
         deps.onSummarize(event)
       }
     })
-    notification.on('close', () => {
+    notification.onClose(() => {
       if (active.get(key) === notification) {
         active.delete(key)
       }
@@ -95,7 +118,7 @@ export function createReviewDelivery(deps: ReviewDeliveryDeps): ReviewBudgetDeli
           .map((e) => `• ${describeReviewEvent(e)}: ${e.title}`)
           .join('\n')
       })
-      notification.on('click', () => {
+      notification.onClick(() => {
         const first = events.find((e) => e.url)
         if (first?.url) {
           void openUrl(first.url)

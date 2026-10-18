@@ -1,7 +1,7 @@
 import { extractExecError } from '../git/exec-error'
 import { ghExecFileAsync } from '../git/command-runner/gh-exec-file'
 import type { GitHubReviewNotificationProvider } from '../../shared/review-notification-types'
-import type { ReviewEvent, ReviewNotificationAction } from './review-event'
+import type { ReviewEvent } from './review-event'
 
 export type GitHubSourceError = {
   kind: 'auth' | 'rate_limited' | 'network' | 'parse'
@@ -42,7 +42,8 @@ export function createGitHubApiRunner(): GitHubApiRunner {
   return async (endpoint) => {
     // Absolute API path carries the repo; default gh auth applies (github.com in 1a).
     const { stdout } = await ghExecFileAsync(['api', endpoint, '--paginate', '--method', 'GET'])
-    return JSON.parse(stdout) as unknown
+    const parsed: unknown = JSON.parse(stdout)
+    return parsed
   }
 }
 
@@ -63,7 +64,8 @@ function toEvent(
   kind: 'mr' | 'issue',
   provider: GitHubReviewNotificationProvider
 ): ReviewEvent | null {
-  const item = raw as unknown as GitHubItem
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: forge JSON boundary; every field is narrowed with ??/String()/Number() before use.
+  const item = raw as Partial<GitHubItem>
   const number = Number(item.number)
   if (!Number.isFinite(number)) {
     return null
@@ -73,7 +75,7 @@ function toEvent(
     host: 'github.com',
     repo: `${provider.owner}/${provider.repo}`,
     kind,
-    action: 'opened' as ReviewNotificationAction,
+    action: 'opened',
     iid: number,
     actor: item.user?.login ?? '',
     title: String(item.title ?? ''),
@@ -104,11 +106,11 @@ export async function listGitHubReviewItems(
       runner(`repos/${slug}/issues${since}`, provider)
     ])
     const mrs = (Array.isArray(prRaw) ? prRaw : [])
-      .map((r) => toEvent(r as Record<string, unknown>, 'mr', provider))
+      .map((r) => toEvent(r, 'mr', provider))
       .filter((e): e is ReviewEvent => e !== null)
     const issues = (Array.isArray(issueRaw) ? issueRaw : [])
-      .filter((r) => !(r as Record<string, unknown>).pull_request)
-      .map((r) => toEvent(r as Record<string, unknown>, 'issue', provider))
+      .filter((r) => typeof r === 'object' && r !== null && !('pull_request' in r))
+      .map((r) => toEvent(r, 'issue', provider))
       .filter((e): e is ReviewEvent => e !== null)
     return { mrs, issues }
   } catch (error) {

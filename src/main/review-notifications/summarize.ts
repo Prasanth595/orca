@@ -74,9 +74,21 @@ export function resolveOneShotCommand(agentId: TuiAgent | null | undefined): One
   return ONE_SHOT_COMMANDS[agentId] ?? null
 }
 
+export type OneShotProcessResult = {
+  code: number | null
+  stdout: string
+  stderr: string
+  timedOut: boolean
+}
+
+export type OneShotProcessRunner = (
+  spec: { program: string; args: string[]; timeoutMs: number; maxOutputBytes: number },
+  outputCapture: 'head' | 'tail'
+) => Promise<OneShotProcessResult>
+
 export type OneShotRunnerDeps = {
   agentId: TuiAgent | null | undefined
-  runProcessFn?: typeof runProcess
+  runProcessFn?: OneShotProcessRunner
   timeoutMs?: number
 }
 
@@ -98,7 +110,7 @@ export function createOneShotAgentRunner(deps: OneShotRunnerDeps): OneShotAgentR
           : 'No agent is configured for summaries.'
       }
     }
-    let result: Awaited<ReturnType<typeof runProcess>>
+    let result: OneShotProcessResult
     try {
       result = await runProcessFn(
         {

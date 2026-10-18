@@ -1,7 +1,7 @@
 import { extractExecError } from '../git/exec-error'
 import { glabExecFileAsync } from '../git/command-runner/glab-exec-file'
 import type { GitLabReviewNotificationProvider } from '../../shared/review-notification-types'
-import type { ReviewEvent, ReviewNotificationAction } from './review-event'
+import type { ReviewEvent } from './review-event'
 
 /**
  * Raw list items returned by the GitLab source before transition
@@ -46,13 +46,13 @@ function requireHttps(provider: GitLabReviewNotificationProvider): string {
   try {
     url = new URL(raw)
   } catch {
-    throw { kind: 'network', message: `Invalid GitLab baseUrl: ${raw}` } as GitLabSourceError
+    throw { kind: 'network', message: `Invalid GitLab baseUrl: ${raw}` }
   }
   if (url.protocol !== 'https:' && !provider.insecureHttp) {
     throw {
       kind: 'network',
       message: `GitLab baseUrl must be https (got ${url.protocol}); set insecureHttp only for lab environments.`
-    } as GitLabSourceError
+    }
   }
   return url.hostname
 }
@@ -89,7 +89,8 @@ export function createGitLabApiRunner(): GitLabApiRunner {
       '--method',
       'GET'
     ])
-    return JSON.parse(stdout) as unknown
+    const parsed: unknown = JSON.parse(stdout)
+    return parsed
   }
 }
 
@@ -98,19 +99,29 @@ function toListItem(raw: Record<string, unknown>): GitLabListItem | null {
   if (!Number.isFinite(iid)) {
     return null
   }
-  const author = raw.author as { username?: unknown } | undefined
+  const author = raw.author
+  const authorUsername =
+    typeof author === 'object' &&
+    author !== null &&
+    'username' in author &&
+    typeof author.username === 'string'
+      ? author.username
+      : ''
+  const reviewers = Array.isArray(raw.reviewers)
+    ? raw.reviewers
+        .filter((r): r is Record<string, unknown> => typeof r === 'object' && r !== null)
+        .map((r) => String(r.username ?? ''))
+    : []
   return {
     iid,
     title: String(raw.title ?? ''),
     webUrl: String(raw.web_url ?? ''),
-    authorUsername: typeof author?.username === 'string' ? author.username : '',
+    authorUsername,
     updatedAt: String(raw.updated_at ?? ''),
     draft: Boolean(raw.draft),
     mergeStatus: String(raw.merge_status ?? ''),
     labels: Array.isArray(raw.labels) ? raw.labels.map(String) : [],
-    reviewers: Array.isArray(raw.reviewers)
-      ? (raw.reviewers as { username?: unknown }[]).map((r) => String(r.username ?? ''))
-      : [],
+    reviewers,
     descriptionExcerpt: String(raw.description ?? '').slice(0, 300)
   }
 }
@@ -129,7 +140,7 @@ function toEvent(
     host,
     repo,
     kind,
-    action: 'opened' as ReviewNotificationAction,
+    action: 'opened',
     iid: item.iid,
     actor: item.authorUsername,
     title: item.title,
@@ -166,11 +177,11 @@ export async function listGitLabReviewItems(
       runner(`${project}/issues${params}`, provider)
     ])
     const mrs = (Array.isArray(mrRaw) ? mrRaw : [])
-      .map((r) => toListItem(r as Record<string, unknown>))
+      .map((r) => toListItem(r))
       .filter((i): i is GitLabListItem => i !== null)
       .map((i) => toEvent(i, 'mr', provider))
     const issues = (Array.isArray(issueRaw) ? issueRaw : [])
-      .map((r) => toListItem(r as Record<string, unknown>))
+      .map((r) => toListItem(r))
       .filter((i): i is GitLabListItem => i !== null)
       .map((i) => toEvent(i, 'issue', provider))
     return { mrs, issues }

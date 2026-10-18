@@ -39,16 +39,23 @@ describe('summarize', () => {
   })
 
   it('returns the agent stdout as the summary', async () => {
-    const runProcessFn = vi.fn(async () => ({
-      code: 0,
-      signal: null,
-      stdout: '  It adds search. \n',
-      stderr: '',
-      timedOut: false
-    }))
+    const runProcessFn = vi.fn(
+      async (_spec: {
+        program: string
+        args: string[]
+        timeoutMs: number
+        maxOutputBytes: number
+      }) => ({
+        code: 0,
+        signal: null,
+        stdout: '  It adds search. \n',
+        stderr: '',
+        timedOut: false
+      })
+    )
     const runner = createOneShotAgentRunner({
       agentId: 'claude',
-      runProcessFn: runProcessFn as never
+      runProcessFn
     })
     const outcome = await runner('prompt')
     expect(outcome).toEqual({ ok: true, summary: 'It adds search.' })
@@ -61,25 +68,25 @@ describe('summarize', () => {
   it('fails gracefully on timeout, non-zero exit, and empty output', async () => {
     const timedOut = createOneShotAgentRunner({
       agentId: 'codex',
-      runProcessFn: (async () => ({
+      runProcessFn: async () => ({
         code: null,
         signal: null,
         stdout: '',
         stderr: '',
         timedOut: true
-      })) as never
+      })
     })
     expect(await timedOut('p')).toMatchObject({ ok: false })
 
     const failed = createOneShotAgentRunner({
       agentId: 'codex',
-      runProcessFn: (async () => ({
+      runProcessFn: async () => ({
         code: 1,
         signal: null,
         stdout: '',
         stderr: 'boom',
         timedOut: false
-      })) as never
+      })
     })
     const failedOutcome = await failed('p')
     expect(failedOutcome.ok).toBe(false)
@@ -89,13 +96,13 @@ describe('summarize', () => {
 
     const empty = createOneShotAgentRunner({
       agentId: 'codex',
-      runProcessFn: (async () => ({
+      runProcessFn: async () => ({
         code: 0,
         signal: null,
         stdout: '   ',
         stderr: '',
         timedOut: false
-      })) as never
+      })
     })
     expect(await empty('p')).toMatchObject({ ok: false })
   })
@@ -103,9 +110,9 @@ describe('summarize', () => {
   it('fails gracefully when the CLI cannot start or the agent is unsupported', async () => {
     const cannotStart = createOneShotAgentRunner({
       agentId: 'claude',
-      runProcessFn: (async () => {
+      runProcessFn: async () => {
         throw new Error('spawn ENOENT')
-      }) as never
+      }
     })
     const outcome = await cannotStart('p')
     expect(outcome.ok).toBe(false)

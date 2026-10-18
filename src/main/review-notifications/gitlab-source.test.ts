@@ -110,7 +110,7 @@ describe('gitlab-source', () => {
   it('passes updated_after and hostname-qualified paths to glab api', async () => {
     const runner = runnerFor([], [])
     await listGitLabReviewItems(provider, '2026-10-19T08:00:00Z', runner)
-    const paths = (runner as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0] as string)
+    const paths = runner.mock.calls.map((call) => call[0])
     expect(paths.some((p) => p.includes('projects/42/merge_requests'))).toBe(true)
     expect(paths.some((p) => p.includes('updated_after='))).toBe(true)
   })

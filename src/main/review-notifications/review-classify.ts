@@ -94,12 +94,15 @@ export function classifyReviewItems(
     if (itemProvider !== provider) {
       continue
     }
+    if (kind !== 'mr' && kind !== 'issue') {
+      continue
+    }
     out.push({
       event: {
         provider,
         host,
         repo,
-        kind: kind as 'mr' | 'issue',
+        kind,
         action: 'closed',
         iid: Number(iid),
         actor: '',

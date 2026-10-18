@@ -84,6 +84,7 @@ type PersistedState = {
 async function readState(filePath: string): Promise<PersistedState> {
   try {
     const raw = await fs.readFile(filePath, 'utf-8')
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: JSON.parse returns any; fields are defaulted below so a corrupt file degrades to empty state.
     const parsed = JSON.parse(raw) as Partial<PersistedState>
     return {
       watermarks: parsed.watermarks ?? {},

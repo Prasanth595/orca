@@ -97,8 +97,6 @@ export function shouldNotifyForAction(
       return kind === 'mr' ? toggles.mrMerged : false
     case 'closed':
       return kind === 'mr' ? toggles.mrClosed : false
-    default:
-      return false
   }
 }
 

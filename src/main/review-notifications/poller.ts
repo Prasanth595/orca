@@ -13,8 +13,10 @@ import { ReviewNotificationBudget, type ReviewBudgetDelivery } from './review-bu
 import type { ReviewEvent, ReviewPollItem } from './review-event'
 import type { ItemSnapshot } from './transitions'
 
+export type ReviewPollerRepo = Pick<Repo, 'id' | 'displayName' | 'reviewNotifications'>
+
 export type ReviewPollerDeps = {
-  getRepos: () => Repo[]
+  getRepos: () => ReviewPollerRepo[]
   getGlobalEnabled: () => boolean
   store: ReviewWatermarkStore
   delivery: ReviewBudgetDelivery
@@ -23,8 +25,8 @@ export type ReviewPollerDeps = {
   onHealth?: (repoId: string, provider: 'gitlab' | 'github', error: string | null) => void
   gitlabList?: typeof listGitLabReviewItems
   githubList?: typeof listGitHubReviewItems
-  setTimeoutFn?: typeof setTimeout
-  clearTimeoutFn?: typeof clearTimeout
+  setTimeoutFn?: (callback: () => void, ms: number) => unknown
+  clearTimeoutFn?: (handle: unknown) => void
 }
 
 export type ReviewPollSourceError = {
@@ -33,12 +35,19 @@ export type ReviewPollSourceError = {
   message: string
 }
 
+function isSourceError(error: unknown): error is ReviewPollSourceError {
+  if (typeof error !== 'object' || error === null) {
+    return false
+  }
+  return 'kind' in error && 'message' in error && typeof error.message === 'string'
+}
+
 type ProviderJob = {
   repoId: string
   repoLabel: string
   provider: 'gitlab' | 'github'
   config: ReviewNotificationConfig
-  timer: ReturnType<typeof setTimeout> | null
+  timer: unknown
   consecutiveFailures: number
   budget: ReviewNotificationBudget
   /** Last-seen snapshots for transition classification (session-local). */
@@ -222,7 +231,10 @@ export class ReviewNotificationPoller {
         listed = await this.deps.githubList(provider, since)
       }
     } catch (error) {
-      this.onSourceError(job, error as ReviewPollSourceError)
+      this.onSourceError(
+        job,
+        isSourceError(error) ? error : { kind: 'network', message: String(error) }
+      )
       return []
     }
     job.consecutiveFailures = 0

@@ -2,6 +2,7 @@ import { app, Notification, shell } from 'electron'
 import { join } from 'node:path'
 import { mainProcessState as state } from './main-process-state'
 import { TUI_AGENT_AUTO_PICK_ORDER } from '../../shared/tui-agent-selection'
+import { isTuiAgent } from '../../shared/tui-agent-config'
 import type { TuiAgent } from '../../shared/tui-agent'
 import { createFileWatermarkStore } from '../review-notifications/dedup'
 import { createReviewDelivery } from '../review-notifications/delivery'
@@ -17,7 +18,8 @@ function resolveSummarizeAgent(): TuiAgent | null {
   if (preferred && preferred !== 'blank') {
     return preferred
   }
-  return (TUI_AGENT_AUTO_PICK_ORDER[0] as TuiAgent) ?? null
+  const first = TUI_AGENT_AUTO_PICK_ORDER[0]
+  return first !== undefined && isTuiAgent(first) ? first : null
 }
 
 async function handleSummarize(event: ReviewEvent): Promise<void> {
