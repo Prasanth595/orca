@@ -44,9 +44,10 @@ test('imports a cookie file into the paired desktop guest without touching the l
       }
     ])
   )
-  const host = await launchHeadlessPairedRuntimeHost()
+  let host: Awaited<ReturnType<typeof launchHeadlessPairedRuntimeHost>> | null = null
   let client: PairedElectronClient | null = null
   try {
+    host = await launchHeadlessPairedRuntimeHost()
     await host.client.call('repo.add', { path: testRepoPath, kind: 'git' })
     await host.client.call('terminal.create', {
       worktree: `path:${testRepoPath}`,
@@ -116,7 +117,7 @@ test('imports a cookie file into the paired desktop guest without touching the l
     await client.page.screenshot({ path: testInfo.outputPath('cookie-after.png') })
   } finally {
     await client?.dispose()
-    await host.dispose()
+    await host?.dispose()
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve()))
     )

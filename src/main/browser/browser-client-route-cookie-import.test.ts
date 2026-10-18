@@ -244,6 +244,16 @@ describe('importCookieFileIntoClientRoutePartition', () => {
     expect(recordClientRouteImportSourceMock).not.toHaveBeenCalled()
   })
 
+  it('preserves cancellation when the connection changes during the picker', async () => {
+    const result = await importCookieFileIntoClientRoutePartition(request, async () => {
+      getRouteIdentityMock.mockReturnValue(repairedRouteIdentity)
+      return null
+    })
+    expect(result).toEqual({ ok: false, reason: 'canceled' })
+    expect(importCookiesFromFileMock).not.toHaveBeenCalled()
+    expect(recordClientRouteImportSourceMock).not.toHaveBeenCalled()
+  })
+
   it('never opens the picker when partition binding conflicts', async () => {
     bindingStore.get.mockReturnValue('b'.repeat(64))
     const chooseFile = vi.fn()

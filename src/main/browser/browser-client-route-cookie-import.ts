@@ -103,6 +103,9 @@ async function runClientRouteCookieImport(
     return { ok: false, reason: error instanceof Error ? error.message : String(error) }
   }
   const result = await source.importIntoPartition(partition)
+  if (!result.ok && result.reason === 'canceled') {
+    return result
+  }
   // Why: the import runs for seconds. A host replacement inside that window retargets the
   // route, so reporting success here would badge a partition no page will ever read from.
   const settled = settledRoutePartition(request)
