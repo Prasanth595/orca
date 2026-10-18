@@ -21,6 +21,32 @@ function createElement(width: number, height: number): HTMLElement {
   } as unknown as HTMLElement
 }
 
+function createPixelSizeTerminal(
+  cssCellWidth: number,
+  cssCellHeight: number,
+  devicePixelRatio = 1
+) {
+  const cols = 100
+  const rows = 40
+  const width = cssCellWidth * devicePixelRatio
+  const height = cssCellHeight * devicePixelRatio
+  return {
+    cols,
+    rows,
+    dimensions: {
+      css: {
+        cell: { width: cssCellWidth, height: cssCellHeight },
+        canvas: { width: cssCellWidth * cols, height: cssCellHeight * rows }
+      },
+      device: {
+        cell: { width, height },
+        canvas: { width: width * cols, height: height * rows },
+        char: { width, height, top: 0, left: 0 }
+      }
+    }
+  }
+}
+
 describe('installTerminalCapabilityReplyHandlers', () => {
   it('answers primary DA1 with the default xterm-compatible response', async () => {
     const term = new Terminal({ cols: 80, rows: 24, allowProposedApi: true })
@@ -409,38 +435,83 @@ describe('installTerminalCapabilityReplyHandlers', () => {
     }
   })
 
-  it('answers window and cell pixel-size reports from renderer geometry', () => {
-    const sendInput = vi.fn<(data: string) => boolean>(() => true)
-    const observe = createTerminalPixelSizeQueryResponder(
-      {
-        cols: 100,
-        rows: 40,
-        element: createElement(900, 720)
-      },
-      sendInput
-    )
+  it.each([
+    {
+      name: 'DPR 2 device pixels',
+      width: 8,
+      height: 16,
+      dpr: 2,
+      cellReply: '\x1b[6;32;16t',
+      windowReply: '\x1b[4;1280;1600t'
+    },
+    {
+      name: 'consistently rounded fractional device pixels',
+      width: 7.8,
+      height: 15.6,
+      dpr: 2,
+      cellReply: '\x1b[6;31;16t',
+      windowReply: '\x1b[4;1240;1600t'
+    },
+    {
+      name: 'unchanged DPR 1 pixels',
+      width: 9,
+      height: 18,
+      dpr: 1,
+      cellReply: '\x1b[6;18;9t',
+      windowReply: '\x1b[4;720;900t'
+    }
+  ])(
+    'answers window and cell pixel-size reports with $name',
+    ({ width, height, dpr, cellReply, windowReply }) => {
+      const sendInput = vi.fn<(data: string) => boolean>(() => true)
+      const observe = createTerminalPixelSizeQueryResponder(
+        createPixelSizeTerminal(width, height, dpr),
+        sendInput
+      )
 
-    observe('\x1b[14t\x1b[16t')
+      observe('\x1b[14t\x1b[16t')
 
-    expect(sendInput).toHaveBeenCalledWith('\x1b[4;720;900t')
-    expect(sendInput).toHaveBeenCalledWith('\x1b[6;18;9t')
-  })
+      expect(sendInput.mock.calls).toEqual([[windowReply], [cellReply]])
+    }
+  )
 
   it('answers split pixel-size reports', () => {
     const sendInput = vi.fn<(data: string) => boolean>(() => true)
-    const observe = createTerminalPixelSizeQueryResponder(
-      {
-        cols: 100,
-        rows: 40,
-        element: createElement(900, 720)
-      },
-      sendInput
-    )
+    const observe = createTerminalPixelSizeQueryResponder(createPixelSizeTerminal(9, 18), sendInput)
 
     observe('\x1b[')
     observe('16t')
 
     expect(sendInput).toHaveBeenCalledWith('\x1b[6;18;9t')
+  })
+
+  it('does not answer pixel-size queries before the terminal is rendered', () => {
+    const sendInput = vi.fn<(data: string) => boolean>(() => true)
+    const observe = createTerminalPixelSizeQueryResponder(
+      { cols: 100, rows: 40, dimensions: undefined },
+      sendInput
+    )
+
+    observe('\x1b[14t\x1b[16t')
+
+    expect(sendInput).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [0, 16],
+    [8, 0],
+    [-8, 16],
+    [8, -16]
+  ])('does not answer pixel-size queries with a non-positive cell %s x %s', (width, height) => {
+    const sendInput = vi.fn<(data: string) => boolean>(() => true)
+    const observe = createTerminalPixelSizeQueryResponder(
+      createPixelSizeTerminal(width, height),
+      sendInput
+    )
+
+    observe('\x1b[14t\x1b[16t')
+
+    expect(sendInput).not.toHaveBeenCalled()
   })
 
   it('consumes replayed capability queries without sending input to the shell', async () => {

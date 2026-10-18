@@ -1,5 +1,5 @@
 diff --git a/src/IIPHandler.ts b/src/IIPHandler.ts
-index 559b907416eb38318f439d060d7f89311ed34c7e..73cedbe99f831bffd202697cc8ba80a46a39cb99 100644
+index 559b907416eb38318f439d060d7f89311ed34c7e..75741f358adc45fd93cb920c8e6c09834b5f7be2 100644
 --- a/src/IIPHandler.ts
 +++ b/src/IIPHandler.ts
 @@ -13,8 +13,10 @@ import { imageType, UNSUPPORTED_TYPE } from './IIPMetrics';
@@ -85,7 +85,7 @@ index 559b907416eb38318f439d060d7f89311ed34c7e..73cedbe99f831bffd202697cc8ba80a4
          this._storage.addImage(bm);
          return true;
        })
-@@ -209,6 +231,18 @@ export class IIPHandler implements IOscHandler, IResetHandler {
+@@ -209,11 +231,23 @@ export class IIPHandler implements IOscHandler, IResetHandler {
        });
    }
  
@@ -102,10 +102,19 @@ index 559b907416eb38318f439d060d7f89311ed34c7e..73cedbe99f831bffd202697cc8ba80a4
 +  }
 +
    private _resize(w: number, h: number): [number, number] {
-     const cw = this._renderer.dimensions?.css.cell.width || CELL_SIZE_DEFAULT.width;
-     const ch = this._renderer.dimensions?.css.cell.height || CELL_SIZE_DEFAULT.height;
+-    const cw = this._renderer.dimensions?.css.cell.width || CELL_SIZE_DEFAULT.width;
+-    const ch = this._renderer.dimensions?.css.cell.height || CELL_SIZE_DEFAULT.height;
+-    const width = this._renderer.dimensions?.css.canvas.width || cw * this._coreTerminal.cols;
+-    const height = this._renderer.dimensions?.css.canvas.height || ch * this._coreTerminal.rows;
++    const cw = this._renderer.dimensions?.device.cell.width || CELL_SIZE_DEFAULT.width;
++    const ch = this._renderer.dimensions?.device.cell.height || CELL_SIZE_DEFAULT.height;
++    const width = this._renderer.dimensions?.device.canvas.width || cw * this._coreTerminal.cols;
++    const height = this._renderer.dimensions?.device.canvas.height || ch * this._coreTerminal.rows;
+ 
+     const rw = this._dim(this._header.width!, width, cw);
+     const rh = this._dim(this._header.height!, height, ch);
 diff --git a/src/ImageAddon.ts b/src/ImageAddon.ts
-index 8fd39543118cd420e36c1614c1af370b6c7bbfbb..fcabb492ab1e21853f7c473f8c4d085e1ab12414 100644
+index 8fd39543118cd420e36c1614c1af370b6c7bbfbb..75a9716d2e2ff881c635be7b3c6c512e739c213b 100644
 --- a/src/ImageAddon.ts
 +++ b/src/ImageAddon.ts
 @@ -6,6 +6,7 @@
@@ -124,7 +133,17 @@ index 8fd39543118cd420e36c1614c1af370b6c7bbfbb..fcabb492ab1e21853f7c473f8c4d085e
      for (const obj of this._disposables) {
        obj.dispose();
      }
-@@ -196,14 +198,21 @@ export class ImageAddon implements ITerminalAddon, IImageApi {
+@@ -142,6 +144,9 @@ export class ImageAddon implements ITerminalAddon, IImageApi {
+       windowOps.getCellSizePixels = true;
+       windowOps.getWinSizeChars = true;
+       terminal.options.windowOptions = windowOps;
++      this._disposeLater(
++        terminal.parser.registerCsiHandler({ final: 't' }, params => this._reportSize(params))
++      );
+     }
+ 
+     this._disposeLater(
+@@ -196,14 +201,21 @@ export class ImageAddon implements ITerminalAddon, IImageApi {
  
      // Kitty graphics handler
      if (this._opts.kittySupport) {
@@ -147,11 +166,58 @@ index 8fd39543118cd420e36c1614c1af370b6c7bbfbb..fcabb492ab1e21853f7c473f8c4d085e
      }
    }
  
+@@ -258,6 +270,23 @@ export class ImageAddon implements ITerminalAddon, IImageApi {
+     this._terminal?._core.input(s, false);
+   }
+ 
++  private _reportSize(params: (number | number[])[]): boolean {
++    if (params[0] !== 14 && params[0] !== 16 || params[0] === 14 && params[1] === 2) {
++      return false;
++    }
++    const terminal = this._terminal;
++    const cell = this._renderer?.dimensions?.device.cell;
++    if (!terminal || !cell) {
++      return false;
++    }
++    const width = Math.round(cell.width);
++    const height = Math.round(cell.height);
++    this._report(params[0] === 16
++      ? `\x1b[6;${height};${width}t`
++      : `\x1b[4;${height * terminal.rows};${width * terminal.cols}t`);
++    return true;
++  }
++
+   private _decset(params: (number | number[])[]): boolean {
+     for (let i = 0; i < params.length; ++i) {
+       switch (params[i]) {
+@@ -344,8 +373,8 @@ export class ImageAddon implements ITerminalAddon, IImageApi {
+       switch (params[1]) {
+         // we only implement read and read_max here
+         case GaAction.READ:
+-          let width = this._renderer?.dimensions?.css.canvas.width;
+-          let height = this._renderer?.dimensions?.css.canvas.height;
++          let width = this._renderer?.dimensions?.device.canvas.width;
++          let height = this._renderer?.dimensions?.device.canvas.height;
+           if (!width || !height) {
+             // for some reason we have no working image renderer
+             // --> fallback to default cell size
 diff --git a/src/ImageRenderer.ts b/src/ImageRenderer.ts
-index 5854efaec1fdf9dfcb886023542998a563b6d2f2..85448368ec3d65e4f718ac4991a34d6a3fa0ca7d 100644
+index 5854efaec1fdf9dfcb886023542998a563b6d2f2..bdd97feeaf061fc493c1be6f282def39fe7e6d31 100644
 --- a/src/ImageRenderer.ts
 +++ b/src/ImageRenderer.ts
-@@ -140,6 +140,10 @@ export class ImageRenderer extends Disposable implements IDisposable {
+@@ -131,22 +131,26 @@ export class ImageRenderer extends Disposable implements IDisposable {
+   }
+ 
+   /**
+-   * Current cell size (float).
++   * Current cell size in device pixels.
+    */
+   public get cellSize(): ICellSize {
+     return {
+-      width: this.dimensions?.css.cell.width || -1,
+-      height: this.dimensions?.css.cell.height || -1
++      width: this.dimensions?.device.cell.width || -1,
++      height: this.dimensions?.device.cell.height || -1
      };
    }
  
@@ -162,6 +228,16 @@ index 5854efaec1fdf9dfcb886023542998a563b6d2f2..85448368ec3d65e4f718ac4991a34d6a
    /**
     * Clear a region of the image layer canvas.
     */
+   public clearLines(start: number, end: number, layer?: ImageLayer): void {
+-    const y = start * (this.dimensions?.css.cell.height || 0);
+-    const w = this.dimensions?.css.canvas.width || 0;
+-    const h = (end + 1 - start) * (this.dimensions?.css.cell.height || 0);
++    const y = start * (this.dimensions?.device.cell.height || 0);
++    const w = this.dimensions?.device.canvas.width || 0;
++    const h = (end + 1 - start) * (this.dimensions?.device.cell.height || 0);
+     if (!layer || layer === 'top') {
+       this._layers.get('top')?.clearRect(0, y, w, h);
+     }
 @@ -186,16 +190,17 @@ export class ImageRenderer extends Disposable implements IDisposable {
  
      this._rescaleImage(imgSpec, width, height);
@@ -288,7 +364,45 @@ index 5854efaec1fdf9dfcb886023542998a563b6d2f2..85448368ec3d65e4f718ac4991a34d6a
        );
        return canvas;
      }
-@@ -299,11 +367,16 @@ export class ImageRenderer extends Disposable implements IDisposable {
+@@ -250,10 +318,9 @@ export class ImageRenderer extends Disposable implements IDisposable {
+         return;
+       }
+ 
+-      if (!this._placeholder) {
+-        this._createPlaceHolder(Math.max(height + 1, Constants.PLACEHOLDER_HEIGHT));
+-      } else if (height >= this._placeholder!.height) {
+-        this._createPlaceHolder(height + 1);
++      if (!this._placeholder || height >= this._placeholder.height
++        || Math.floor(this.dimensions?.device.canvas.width || 0) > this._placeholder.width) {
++        this._createPlaceHolder(Math.max(height + 1, this._placeholder?.height || Constants.PLACEHOLDER_HEIGHT));
+       }
+       if (!this._placeholder) return;
+       ctx.drawImage(
+@@ -275,13 +342,21 @@ export class ImageRenderer extends Disposable implements IDisposable {
+    * Checked once from `ImageStorage.render`.
+    */
+   public rescaleCanvas(): void {
+-    const w = this.dimensions?.css.canvas.width || 0;
+-    const h = this.dimensions?.css.canvas.height || 0;
++    const dimensions = this.dimensions;
++    // Match canvas setters so fractional DOM metrics do not clear unchanged layers.
++    const w = Math.floor(dimensions?.device.canvas.width || 0);
++    const h = Math.floor(dimensions?.device.canvas.height || 0);
++    const cssWidth = `${dimensions?.css.canvas.width || 0}px`;
++    const cssHeight = `${dimensions?.css.canvas.height || 0}px`;
+     for (const ctx of this._layers.values()) {
+       if (ctx.canvas.width !== w || ctx.canvas.height !== h) {
+         ctx.canvas.width = w;
+         ctx.canvas.height = h;
+       }
++      if (ctx.canvas.style.width !== cssWidth || ctx.canvas.style.height !== cssHeight) {
++        ctx.canvas.style.width = cssWidth;
++        ctx.canvas.style.height = cssHeight;
++      }
+     }
+   }
+ 
+@@ -299,11 +374,16 @@ export class ImageRenderer extends Disposable implements IDisposable {
        spec.actualCellSize.height = originalHeight;
        return;
      }
@@ -310,7 +424,32 @@ index 5854efaec1fdf9dfcb886023542998a563b6d2f2..85448368ec3d65e4f718ac4991a34d6a
      const ctx = canvas.getContext('2d');
      if (ctx) {
        ctx.drawImage(spec.orig!, 0, 0, canvas.width, canvas.height);
-@@ -415,7 +488,11 @@ export class ImageRenderer extends Disposable implements IDisposable {
+@@ -336,10 +416,13 @@ export class ImageRenderer extends Disposable implements IDisposable {
+     if (this._layers.has(layer)) {
+       return;
+     }
++    const dimensions = this.dimensions;
+     const canvas = ImageRenderer.createCanvas(
+-      this.document, this.dimensions?.css.canvas.width || 0,
+-      this.dimensions?.css.canvas.height || 0
++      this.document, Math.floor(dimensions?.device.canvas.width || 0),
++      Math.floor(dimensions?.device.canvas.height || 0)
+     );
++    canvas.style.width = `${dimensions?.css.canvas.width || 0}px`;
++    canvas.style.height = `${dimensions?.css.canvas.height || 0}px`;
+     canvas.classList.add(`xterm-image-layer-${layer}`);
+     const screenElement = this._terminal._core.screenElement;
+     // Use isolation to create a stacking context without overriding z-index,
+@@ -405,7 +488,7 @@ export class ImageRenderer extends Disposable implements IDisposable {
+     ctx.putImageData(imgData, 0, 0);
+ 
+     // create placeholder line, width aligned to blueprint width
+-    const width = (screen.width + bWidth - 1) & ~(bWidth - 1) || Constants.PLACEHOLDER_LENGTH;
++    const width = (Math.floor(this.dimensions?.device.canvas.width || 0) + bWidth - 1) & ~(bWidth - 1) || Constants.PLACEHOLDER_LENGTH;
+     this._placeholder = ImageRenderer.createCanvas(this.document, width, height);
+     const ctx2 = this._placeholder.getContext('2d', { alpha: false });
+     if (!ctx2) {
+@@ -415,7 +498,11 @@ export class ImageRenderer extends Disposable implements IDisposable {
      for (let i = 0; i < width; i += bWidth) {
        ctx2.drawImage(blueprint, i, 0);
      }
@@ -591,7 +730,7 @@ index 04328420c2bae02010bb4c9adb3fd341aed56c0c..8dc120fac57656d2b378e1cc89f4edcf
    layer: ImageLayer;
    zIndex: number;
 diff --git a/src/kitty/KittyGraphicsHandler.ts b/src/kitty/KittyGraphicsHandler.ts
-index de889dfff75d9ecc8ab47a025e6989ffe75bb202..b69362705ac18c26997d4a07563e3bf512fdf00d 100644
+index de889dfff75d9ecc8ab47a025e6989ffe75bb202..4016ba1a08bce556473a6a753a4085d0ce9bd397 100644
 --- a/src/kitty/KittyGraphicsHandler.ts
 +++ b/src/kitty/KittyGraphicsHandler.ts
 @@ -7,6 +7,7 @@ import { IDisposable } from '@xterm/xterm';
@@ -862,18 +1001,18 @@ index de889dfff75d9ecc8ab47a025e6989ffe75bb202..b69362705ac18c26997d4a07563e3bf5
 -      if (finalCropW === 0 || finalCropH === 0) {
 -        throw new Error('invalid source rectangle');
 -      }
--
++      if (generation !== this._generation) throw new Error('image decode canceled');
++      const cropped = this._cropImage(bitmap, cmd);
++      bitmap = cropped instanceof Promise ? await cropped : cropped;
+ 
 -      if (cropX !== 0 || cropY !== 0 || finalCropW !== bitmap.width || finalCropH !== bitmap.height) {
 -        const cropped = await createImageBitmap(bitmap, cropX, cropY, finalCropW, finalCropH);
 -        bitmap.close();
 -        bitmap = cropped;
 -      }
-+      if (generation !== this._generation) throw new Error('image decode canceled');
-+      const cropped = this._cropImage(bitmap, cmd);
-+      bitmap = cropped instanceof Promise ? await cropped : cropped;
- 
-       const cw = this._renderer.dimensions?.css.cell.width || CELL_SIZE_DEFAULT.width;
-       const ch = this._renderer.dimensions?.css.cell.height || CELL_SIZE_DEFAULT.height;
+-
+-      const cw = this._renderer.dimensions?.css.cell.width || CELL_SIZE_DEFAULT.width;
+-      const ch = this._renderer.dimensions?.css.cell.height || CELL_SIZE_DEFAULT.height;
 -
 -      // Per spec: c/r default to image's natural cell dimensions.
 -      // If only one of c/r is specified, compute the other from image aspect ratio.
@@ -892,6 +1031,8 @@ index de889dfff75d9ecc8ab47a025e6989ffe75bb202..b69362705ac18c26997d4a07563e3bf5
 -        imgCols = Math.ceil(bitmap.width / cw);
 -        imgRows = Math.ceil(bitmap.height / ch);
 -      }
++      const cw = this._renderer.dimensions?.device.cell.width || CELL_SIZE_DEFAULT.width;
++      const ch = this._renderer.dimensions?.device.cell.height || CELL_SIZE_DEFAULT.height;
 +      let { cols: imgCols, rows: imgRows } = this._placementGrid(bitmap, cmd, cw, ch);
  
        let w = bitmap.width;
@@ -957,8 +1098,8 @@ index de889dfff75d9ecc8ab47a025e6989ffe75bb202..b69362705ac18c26997d4a07563e3bf5
 +      const cropped = this._cropImage(bitmap, cmd);
 +      bitmap = cropped instanceof Promise ? await cropped : cropped;
 +
-+      const cw = this._renderer.dimensions?.css.cell.width || CELL_SIZE_DEFAULT.width;
-+      const ch = this._renderer.dimensions?.css.cell.height || CELL_SIZE_DEFAULT.height;
++      const cw = this._renderer.dimensions?.device.cell.width || CELL_SIZE_DEFAULT.width;
++      const ch = this._renderer.dimensions?.device.cell.height || CELL_SIZE_DEFAULT.height;
 +      const { cols, rows } = this._placementGrid(bitmap, cmd, cw, ch);
 +
 +      if (bitmap.width * bitmap.height > this._opts.pixelLimit) {
