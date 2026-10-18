@@ -16,7 +16,10 @@ import {
   hostTestAttachParams,
   resetHostTestOperationIds
 } from './structured-agent-session-host-test-data'
-import { openTestJournalHostDatabase } from '../agent-session-journal/journal-host-database-test-support'
+import {
+  loadTestJournal,
+  openTestJournalHostDatabase
+} from '../agent-session-journal/journal-host-database-test-support'
 import { createStructuredAgentSessionLogger } from './structured-agent-session-logger'
 import { codexProviderHandle } from '../../../shared/agent-session-provider-handle-encoding'
 import { NO_STRUCTURED_AGENTS } from './structured-agent-session-adapter-router-test-support'
@@ -29,7 +32,6 @@ import {
   subagentJournalBody,
   subagentJournalItemIdentity
 } from '../agent-session-journal/journal-subagent-item'
-import { loadTestJournal } from '../agent-session-journal/journal-host-database-test-support'
 import { createStructuredSessionObservationClock } from './structured-agent-session-observation-clock.test-fixture'
 
 const CALLER = { callerKey: 'client-1' }

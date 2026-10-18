@@ -6,7 +6,12 @@ import type { CurrentRequestsSubscriber } from './agent-session-current-requests
 // Nothing raw reaches a subscriber — every event carries reducer output.
 
 import type { AgentJournalCursor } from '../../../shared/agent-session-journal-types'
-import type * as SubscriberWire from '../../../shared/agent-session-wire'
+import type {
+  AgentSessionHistoryPage,
+  AgentSessionSlashCommand,
+  AgentSessionSubscribeEvent,
+  AgentSessionTurnActivity
+} from '../../../shared/agent-session-wire'
 import {
   backgroundTaskFingerprint,
   emitSubscriberFrame,
@@ -21,15 +26,14 @@ import {
 } from './agent-session-subscriber-catch-up'
 import type { AgentSessionJournal } from '../agent-session-journal/journal-store'
 import { emptyAgentSessionBatch } from './agent-session-empty-batch'
-import { readAgentSessionHydrationPage } from './agent-session-history-page'
-import { withPublishedWork } from './agent-session-published-work'
+import { readPublishedHydrationPage } from './agent-session-published-work'
 import { subscriberHistoryReader } from './agent-session-bounded-frames'
 import { rememberSessionActivity } from './structured-agent-session-activity-retention'
 import { refreshDerivedStopNotes } from './agent-session-stop-note-refresh'
 import { refreshPublishedWork } from './agent-session-work-refresh'
 import type { StructuredAgentSessionCurrentWork } from './structured-agent-session-current-work'
 
-export type AgentSessionSubscriberEmit = (event: SubscriberWire.AgentSessionSubscribeEvent) => void
+export type AgentSessionSubscriberEmit = (event: AgentSessionSubscribeEvent) => void
 export type AgentSessionSubscribeInput = {
   id: string
   sessionId: string
@@ -52,7 +56,7 @@ export type Subscriber = CurrentRequestsSubscriber & {
   boundedFrames: boolean
   projectQueuePublication?: SubscriberFieldState['projectQueuePublication']
   snapshotCatchUp?: boolean
-  commands?: SubscriberWire.AgentSessionSlashCommand[] | null
+  commands?: AgentSessionSlashCommand[] | null
   /** Canonical publication last sent — never advanced on a page that withheld
    *  it, or the final replacement would be suppressed by the identity dedup. */
   queuePublication?: QueuePublication
@@ -64,7 +68,7 @@ export type Subscriber = CurrentRequestsSubscriber & {
 }
 
 export type AgentSessionSubscribersHooks = {
-  readCommands?: (sessionId: string) => SubscriberWire.AgentSessionSlashCommand[] | undefined
+  readCommands?: (sessionId: string) => AgentSessionSlashCommand[] | undefined
   /** Revision-stable per emit: an unchanged list keeps its reference, so token
    *  streams never re-serialize it; any draft-table write changes it. */
   readQueuePublication?: (sessionId: string) => QueuePublication | undefined
@@ -82,7 +86,7 @@ export type AgentSessionSubscribersHooks = {
 
 export class AgentSessionSubscribers {
   private readonly bySession = new Map<string, Map<string, Subscriber>>()
-  private readonly activityBySession = new Map<string, SubscriberWire.AgentSessionTurnActivity>()
+  private readonly activityBySession = new Map<string, AgentSessionTurnActivity>()
 
   constructor(private readonly hooks: AgentSessionSubscribersHooks = {}) {}
 
@@ -125,13 +129,10 @@ export class AgentSessionSubscribers {
       )
     } else {
       const work = this.hooks.readCurrentWork?.(input.sessionId, input.journal)
-      const page = withPublishedWork(
-        readAgentSessionHydrationPage(
-          input.journal,
-          input.fence,
-          subscriberHistoryReader(subscriber),
-          work?.formSnapshot
-        ),
+      const page = readPublishedHydrationPage(
+        input.journal,
+        input.fence,
+        subscriberHistoryReader(subscriber),
         work
       )
       this.emit(
@@ -170,7 +171,7 @@ export class AgentSessionSubscribers {
   publish(
     sessionId: string,
     journal: AgentSessionJournal,
-    activity?: SubscriberWire.AgentSessionTurnActivity | null
+    activity?: AgentSessionTurnActivity | null
   ): void {
     if (activity !== undefined) {
       if (activity) {
@@ -194,7 +195,7 @@ export class AgentSessionSubscribers {
   deliverFrames(
     sessionId: string,
     journal: AgentSessionJournal,
-    activity?: SubscriberWire.AgentSessionTurnActivity | null
+    activity?: AgentSessionTurnActivity | null
   ): void {
     const hostNow = this.now()
     for (const subscriber of this.subscribers(sessionId)) {
@@ -206,19 +207,11 @@ export class AgentSessionSubscribers {
   snapshot(sessionId: string, journal: AgentSessionJournal, fence: number): void {
     const work = this.hooks.readCurrentWork?.(sessionId, journal)
     // Read once per item form, since bounded-frame subscribers size their page by theirs.
-    let storedPage: SubscriberWire.AgentSessionHistoryPage | undefined
-    let boundedPage: SubscriberWire.AgentSessionHistoryPage | undefined
-    const read = (subscriber: Subscriber): SubscriberWire.AgentSessionHistoryPage =>
-      withPublishedWork(
-        readAgentSessionHydrationPage(
-          journal,
-          fence,
-          subscriberHistoryReader(subscriber),
-          work?.formSnapshot
-        ),
-        work
-      )
-    const pageFor = (subscriber: Subscriber): SubscriberWire.AgentSessionHistoryPage =>
+    let storedPage: AgentSessionHistoryPage | undefined
+    let boundedPage: AgentSessionHistoryPage | undefined
+    const read = (subscriber: Subscriber): AgentSessionHistoryPage =>
+      readPublishedHydrationPage(journal, fence, subscriberHistoryReader(subscriber), work)
+    const pageFor = (subscriber: Subscriber): AgentSessionHistoryPage =>
       subscriber.boundedFrames
         ? (boundedPage ??= read(subscriber))
         : (storedPage ??= read(subscriber))
@@ -296,7 +289,7 @@ export class AgentSessionSubscribers {
     journal: AgentSessionJournal,
     hostNow: number,
     emitCheckpoint = false,
-    activity?: SubscriberWire.AgentSessionTurnActivity | null
+    activity?: AgentSessionTurnActivity | null
   ): void {
     deliverToSubscriber(this.deliveryPort(), {
       subscriber,
@@ -325,7 +318,7 @@ export class AgentSessionSubscribers {
    *  unknown outcome or poison every later publication. */
   private emit(
     subscriber: Subscriber,
-    event: SubscriberWire.AgentSessionSubscribeEvent,
+    event: AgentSessionSubscribeEvent,
     options?: Parameters<SubscriberDeliveryPort['emit']>[2]
   ): void {
     try {
@@ -343,9 +336,7 @@ export class AgentSessionSubscribers {
     }
   }
 
-  private activityField(sessionId: string): {
-    activity: SubscriberWire.AgentSessionTurnActivity | null
-  } {
+  private activityField(sessionId: string): { activity: AgentSessionTurnActivity | null } {
     return { activity: this.activityBySession.get(sessionId) ?? null }
   }
 }

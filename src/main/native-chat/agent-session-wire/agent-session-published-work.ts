@@ -6,7 +6,8 @@ import type {
   AgentSessionHistoryResult
 } from '../../../shared/agent-session-wire'
 import type { AgentSessionJournal } from '../agent-session-journal/journal-store'
-import { snapshotLatestTurn } from './agent-session-history-page'
+import { readAgentSessionHydrationPage, snapshotLatestTurn } from './agent-session-history-page'
+import type { HistoryReader } from './agent-session-history-page-bounds'
 import type { StructuredAgentSessionCurrentWork } from './structured-agent-session-current-work'
 
 /** The newest turn record as clients are told it, and the prompts still waiting on the person.
@@ -63,6 +64,18 @@ export function withPublishedWork(
     ...publishedWorkFields(page.latestTurn, work),
     submissions: page.submissions.map(work.publishedSubmission)
   }
+}
+
+export function readPublishedHydrationPage(
+  journal: AgentSessionJournal,
+  fence: number,
+  reader: HistoryReader,
+  work: AgentSessionPublishedWork | undefined
+): AgentSessionHistoryPage {
+  return withPublishedWork(
+    readAgentSessionHydrationPage(journal, fence, reader, work?.formSnapshot),
+    work
+  )
 }
 
 export function withPublishedWorkResult(

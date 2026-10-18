@@ -13,18 +13,22 @@ import {
   AGENT_JOURNAL_THREAD_SCOPE,
   type AgentJournalSubmission
 } from '../../../shared/agent-session-journal-types'
-import type * as TestWire from '../../../shared/agent-session-wire'
-import * as rejection from '../../../shared/structured-agent-session-dispatch-rejection'
+import type {
+  AgentSessionSubscribeEvent,
+  AgentSessionTurnCompletionEvent
+} from '../../../shared/agent-session-wire'
+import {
+  classifyDispatchRejection,
+  DISPATCH_REJECTED_CANCELLED
+} from '../../../shared/structured-agent-session-dispatch-rejection'
 import { AgentSessionRecordStore } from '../../runtime/agent-session-record-store'
 import { openTestAgentSessionRecordStore } from '../../runtime/agent-session-record-store-test-harness'
 import type { AgentSessionJournal } from '../agent-session-journal/journal-store'
-import { openAgentSessionJournal } from '../agent-session-journal/journal-store-factory'
 import {
   AgentSessionPreSpawnError,
   type StructuredAgentSessionAdapter
 } from './structured-agent-session-adapter'
-import { journalIdentityFor } from './structured-agent-session-attach'
-import { attachParamsForRecord } from './structured-agent-session-conversation-open'
+import { writeEarlierProcessJournal } from './structured-agent-session-earlier-process.test-fixture'
 import { StructuredAgentSessionHost } from './structured-agent-session-host'
 import type { StructuredAgentSessionChildEndCause } from './structured-agent-session-host-types'
 import { persistRewindRecord } from './structured-rewind-recovery'
@@ -206,8 +210,8 @@ async function errorFailures(): Promise<(AgentSessionFailureFact | undefined)[]>
 
 let subscriptions = 0
 
-async function subscribe(): Promise<TestWire.AgentSessionSubscribeEvent[]> {
-  const events: TestWire.AgentSessionSubscribeEvent[] = []
+async function subscribe(): Promise<AgentSessionSubscribeEvent[]> {
+  const events: AgentSessionSubscribeEvent[] = []
   subscriptions += 1
   // Cloned as received: a frame shares the journal's live objects, which later rows revise.
   await host.subscribe({
@@ -219,7 +223,7 @@ async function subscribe(): Promise<TestWire.AgentSessionSubscribeEvent[]> {
 }
 
 /** What an open chat was told about one message, in frame order. */
-function framedStates(events: TestWire.AgentSessionSubscribeEvent[], id: string): string[] {
+function framedStates(events: AgentSessionSubscribeEvent[], id: string): string[] {
   let previous: string | undefined
   return events.flatMap((event) =>
     event.type === 'batch'
@@ -249,17 +253,7 @@ async function writeAsEarlierProcess(
   write: (journal: AgentSessionJournal, fence: number) => Promise<void>
 ): Promise<void> {
   await host.close(SESSION, 'evict')
-  const record = store.getRecord(SESSION)!
-  const params = attachParamsForRecord(record, {
-    clientOperationId: 'earlier',
-    expectedRuntimeFence: record.lease.runtimeFence
-  })
-  const journal = await openAgentSessionJournal({
-    identity: journalIdentityFor(record, params),
-    database: openTestJournalHostDatabase(root)
-  })
-  await write(journal, record.lease.runtimeFence)
-  await journal.close()
+  await writeEarlierProcessJournal(root, store.getRecord(SESSION)!, write)
   // The next host is a new process, which has not opened the chat yet.
   await host.flushAllStreamedEvents()
   await startHost()
@@ -413,7 +407,7 @@ describe('a start the chat needed and did not get', () => {
   it('notifies failed once for the queued messages one start failure refused', async () => {
     await host.close(SESSION, 'evict')
     acquire.mockRejectedValueOnce(new Error('spawn codex ENOENT'))
-    const completions: TestWire.AgentSessionTurnCompletionEvent[] = []
+    const completions: AgentSessionTurnCompletionEvent[] = []
     host.subscribeTurnCompletions({ id: 'dot-1', emit: (event) => completions.push(event) })
     await accept('first')
     const second = await accept('second')
@@ -726,7 +720,7 @@ describe('Stop withdraws what is queued', () => {
     starting.resolve()
     expect(await stopped).toMatchObject({ ok: true })
     await eventually(async () => expect((await submission(id))?.dispatchState).toBe('rejected'))
-    expect(await submission(id)).toMatchObject({ reason: rejection.DISPATCH_REJECTED_CANCELLED })
+    expect(await submission(id)).toMatchObject({ reason: DISPATCH_REJECTED_CANCELLED })
     expect((await submission(id))?.handedOverAt).toBeUndefined()
     expect(dispatch).not.toHaveBeenCalled()
   })
@@ -746,7 +740,7 @@ describe('Stop withdraws what is queued', () => {
 
     expect(await reopened(id)).toMatchObject({
       dispatchState: 'rejected',
-      reason: rejection.DISPATCH_REJECTED_CANCELLED
+      reason: DISPATCH_REJECTED_CANCELLED
     })
     expect(closeSession).toHaveBeenCalled()
     const next = await accept('after stop')
@@ -861,7 +855,7 @@ describe('a close that stops the child and then a wind-down step fails', () => {
       await eventually(async () => expect((await submission(id))?.dispatchState).toBe('rejected'))
       const rejected = (await submission(id))!
       expect(rejected.rejection).toMatchObject({ kind })
-      expect(rejection.classifyDispatchRejection(rejected).verdict).toBe(verdict)
+      expect(classifyDispatchRejection(rejected).verdict).toBe(verdict)
       expect(dispatch).not.toHaveBeenCalled()
     }
   )
