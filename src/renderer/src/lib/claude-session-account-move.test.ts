@@ -242,9 +242,10 @@ describe('findMovableClaudeSessions', () => {
       foregroundProcess: 'node',
       hasChildProcesses: true
     })
-    vi.mocked(confirmRuntimeTerminalForegroundProcess).mockResolvedValue('claude')
+    vi.mocked(confirmRuntimeTerminalForegroundProcess).mockClear().mockResolvedValue('claude')
 
     expect(await movable()).toEqual([ptyId(1)])
+    expect(confirmRuntimeTerminalForegroundProcess).toHaveBeenCalledWith(ptyId(1))
   })
 })
 
