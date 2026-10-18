@@ -88,7 +88,9 @@ export function createPruneLastVisitedTimestamps(
           result.worktrees.forEach(addValidWorktree)
         }
       }
-      const hasLoadedRepos = (s.repos && s.repos.length > 0) || (s.reposFetchGeneration ?? 0) > 0
+      // Why: reposFetchGeneration increments before the catalog is written. A failed
+      // fetch leaves it raised and the list empty, which is not a loaded catalog.
+      const hasLoadedRepos = (s.repos?.length ?? 0) > 0
       const isKnownWorkspaceOwner = (
         repoId: string,
         id: string,

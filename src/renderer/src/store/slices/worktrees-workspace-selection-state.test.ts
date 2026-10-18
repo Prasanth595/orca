@@ -205,6 +205,21 @@ describe('markWorktreeVisited', () => {
     })
   })
 
+  it('pruneLastVisitedTimestamps defers when a repo fetch bumped generation without writing rows', () => {
+    const store = createTestStore()
+    store.setState({
+      repos: [],
+      reposFetchGeneration: 1,
+      activeWorktreeId: 'repo1::/a',
+      activeWorkspaceKey: worktreeWorkspaceKey('repo1::/a'),
+      lastVisitedAtByWorktreeId: { 'repo1::/a': 100 }
+    })
+    store.getState().pruneLastVisitedTimestamps()
+    expect(store.getState().lastVisitedAtByWorktreeId).toEqual({ 'repo1::/a': 100 })
+    expect(store.getState().activeWorktreeId).toBe('repo1::/a')
+    expect(store.getState().activeWorkspaceKey).toBe(worktreeWorkspaceKey('repo1::/a'))
+  })
+
   it('pruneLastVisitedTimestamps drops entries and stale active pointer for repos removed from catalog', () => {
     const store = createTestStore()
     const wt = makeWorktree({ id: 'repo1::/a', repoId: 'repo1', path: '/a' })
