@@ -167,12 +167,44 @@ describe('ensureHooksConfirmed', () => {
 
     await vi.waitFor(() => expect(pending).toHaveLength(1))
     expect(pending[0].data.scriptKind).toBe('vmRecipe')
+    expect(pending[0].data.executionHostId).toBe('local')
     expect(pending[0].data.scriptContent).toContain('# environmentRecipes.cloud-sandbox')
     expect(pending[0].data.scriptContent).toContain('create: ./scripts/start-vm.sh')
     expect(pending[0].data.scriptContent).toContain('suspend: ./scripts/suspend-vm.sh')
     expect(pending[0].data.scriptContent).toContain('resume: ./scripts/resume-vm.sh')
     expect(pending[0].data.scriptContent).toContain('destroy: ./scripts/destroy-vm.sh')
 
+    pending[0].resolve('run')
+    await expect(promise).resolves.toBe('run')
+  })
+
+  it('carries the paired recipe owner into the trust dialog', async () => {
+    const { state, pending } = createTestState({
+      repos: [
+        {
+          id: 'server-repo',
+          path: '/server/project',
+          displayName: 'Project',
+          badgeColor: '',
+          addedAt: 1,
+          executionHostId: 'runtime:owner-env'
+        }
+      ]
+    })
+    runtimeEnvironmentCallMock.mockResolvedValue({
+      id: 'rpc-hooks',
+      ok: true,
+      result: {
+        hasHooks: true,
+        hooks: { environmentRecipes: [{ id: 'worker', name: 'Worker VM', create: './create' }] },
+        mayNeedUpdate: false
+      },
+      _meta: { runtimeId: 'runtime-owner' }
+    })
+    const promise = ensureHooksConfirmed(state, 'server-repo', 'vmRecipe', 'runtime:owner-env')
+    await vi.waitFor(() => expect(pending).toHaveLength(1))
+    expect(pending[0].data.executionHostId).toBe('runtime:owner-env')
+    expect(pending[0].data.scriptKind).toBe('vmRecipe')
     pending[0].resolve('run')
     await expect(promise).resolves.toBe('run')
   })

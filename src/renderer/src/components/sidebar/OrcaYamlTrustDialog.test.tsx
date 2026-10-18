@@ -8,7 +8,8 @@ const mocks = vi.hoisted(() => ({
     modalData: {} as Record<string, unknown>,
     closeModal: vi.fn(),
     markOrcaHookScriptConfirmed: vi.fn(),
-    markOrcaHookRepoAlwaysTrusted: vi.fn()
+    markOrcaHookRepoAlwaysTrusted: vi.fn(),
+    runtimeEnvironments: [{ id: 'server', name: 'agenthychos' }]
   }
 }))
 
@@ -73,7 +74,7 @@ describe('OrcaYamlTrustDialog', () => {
     const { default: OrcaYamlTrustDialog } = await import('./OrcaYamlTrustDialog')
     const text = decodeHtml(renderToStaticMarkup(<OrcaYamlTrustDialog />)).replace(/<[^>]+>/g, '')
 
-    expect(text).toContain("This repository's orca.yaml runs on your machine")
+    expect(text).toContain("This repository's orca.yaml runs on the selected execution host")
     expect(text).toContain('Only run if you trust orca.')
     expect(text).toContain('Always trust orca.yaml in orca')
     expect(text).not.toContain("repository'sorca.yaml")
@@ -95,4 +96,20 @@ describe('OrcaYamlTrustDialog', () => {
     expect(text).not.toContain('Always trustorca.yaml')
     expect(text).not.toContain('inorca')
   })
+
+  it.each([false, true])(
+    'names the recipe execution host (previously approved: %s)',
+    async (previouslyApproved) => {
+      mocks.state.modalData = {
+        ...mocks.state.modalData,
+        scriptKind: 'vmRecipe',
+        executionHostId: 'runtime:server',
+        previouslyApproved
+      }
+      const { default: OrcaYamlTrustDialog } = await import('./OrcaYamlTrustDialog')
+      const text = decodeHtml(renderToStaticMarkup(<OrcaYamlTrustDialog />)).replace(/<[^>]+>/g, '')
+      expect(text).toContain('on agenthychos before provisioning a VM')
+      expect(text).not.toContain('on your machine')
+    }
+  )
 })
