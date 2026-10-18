@@ -12,8 +12,10 @@ const mocks = vi.hoisted(() => ({
   openFiles: new Array<{ filePath: string; isDirty: boolean }>()
 }))
 
-vi.mock('@/runtime/runtime-file-client', () => ({
-  readRuntimeFileContent: mocks.read,
+vi.mock('@/runtime/runtime-file-read-client', () => ({
+  readRuntimeFileContent: mocks.read
+}))
+vi.mock('@/runtime/runtime-file-mutation-client', () => ({
   writeRuntimeFile: mocks.write
 }))
 vi.mock('@/components/editor/editor-autosave', () => ({
@@ -29,7 +31,7 @@ vi.mock('@/store', () => ({
 }))
 
 const route: FileExplorerOperationRoute = {
-  settings: { activeRuntimeEnvironmentId: null },
+  target: { kind: 'local' },
   expectedExecutionHostId: 'local'
 }
 

@@ -8,7 +8,6 @@ import {
 } from '../../../../shared/structured-agent-session-composer'
 import type { AgentType } from '../../../../shared/agent-status-types'
 import { dispatchNativeChatStructuredComposerText } from './native-chat-structured-composer-dispatch'
-import { pushHistory, type HistoryState } from './native-chat-composer-state'
 import type { NativeChatStructuredComposerTransport } from './native-chat-composer-types'
 import type { NativeChatComposerImageAttachment } from './NativeChatComposerField'
 import { nativeChatAttachImagesAgainReason } from './native-chat-image-reattach'
@@ -20,7 +19,6 @@ import {
   updateNativeChatComposerDraft
 } from './native-chat-composer-draft-store'
 import { nativeChatComposerDraftLeftAfterSend } from './native-chat-composer-draft-comparison'
-import type { NativeChatComposerDraft } from './native-chat-composer-draft-storage'
 
 export type UseNativeChatStructuredComposerSendArgs = {
   agent: AgentType
@@ -29,13 +27,12 @@ export type UseNativeChatStructuredComposerSendArgs = {
   structuredTransport?: NativeChatStructuredComposerTransport
   isComposing: () => boolean
   clearSkillOrigin: () => void
-  setHistory: (updater: (previous: HistoryState) => HistoryState) => void
   setDraft: (value: string) => void
   setCaret: (caret: number) => void
 }
 
 /** A command the host runs itself (and `/goal` where the host sets goals), never a message. */
-export function isNativeChatStructuredHostCommand(
+function isNativeChatStructuredHostCommand(
   text: string,
   agent: AgentType,
   transport: NativeChatStructuredComposerTransport
@@ -46,12 +43,9 @@ export function isNativeChatStructuredHostCommand(
   )
 }
 
-/** A structured send. `sentFrom`: the draft the message was taken from, for a send that goes out
- *  later than it was asked for; only what it held then leaves the composer. */
 export type NativeChatStructuredComposerSend = (
   text: string,
-  attachments?: readonly NativeChatComposerImageAttachment[],
-  sentFrom?: NativeChatComposerDraft
+  attachments?: readonly NativeChatComposerImageAttachment[]
 ) => Promise<void>
 
 /** Send through the structured journal transport, clearing the composer only
@@ -63,16 +57,24 @@ export function useNativeChatStructuredComposerSend({
   structuredTransport,
   isComposing,
   clearSkillOrigin,
-  setHistory,
   setDraft,
   setCaret
 }: UseNativeChatStructuredComposerSendArgs): NativeChatStructuredComposerSend {
   return useCallback<NativeChatStructuredComposerSend>(
-    async (text, attachments = imageAttachments, sentFrom): Promise<void> => {
-      if (!structuredTransport) {
+    async (text, attachments = imageAttachments): Promise<void> => {
+      // A picked command is held like Send: it would carry attachments still uploading, pathless.
+      if (!structuredTransport || attachments.some((attachment) => attachment.pending)) {
         return
       }
       const hostCommand = isNativeChatStructuredHostCommand(text, agent, structuredTransport)
+      // A held host takes no turn, and its notice says why; an option command only changes what
+      // the next turn runs with.
+      if (
+        structuredTransport.sendBlockedReason !== undefined &&
+        (!hostCommand || structuredAgentSessionCommandChangesConversation(text))
+      ) {
+        return
+      }
       // A command picked while images await re-attaching would send them without a file.
       const attachAgain = nativeChatAttachImagesAgainReason(attachments)
       if (attachAgain) {
@@ -92,10 +94,10 @@ export function useNativeChatStructuredComposerSend({
       if (hostCommand && structuredAgentSessionCommandChangesConversation(text)) {
         structuredTransport.onSubmitted?.()
       }
-      const submitted = sentFrom ?? readNativeChatComposerDraft(draftScopeKey)
+      const submitted = readNativeChatComposerDraft(draftScopeKey)
       await dispatchNativeChatStructuredComposerText(structuredTransport, text, attachments)
-        .then(({ accepted, error, revealsTranscript }) => {
-          structuredTransport.onError(error)
+        .then(({ accepted, error, refusedWhile, revealsTranscript }) => {
+          structuredTransport.onError(error, refusedWhile ? { refusedWhile } : undefined)
           if (!accepted) {
             return
           }
@@ -104,13 +106,12 @@ export function useNativeChatStructuredComposerSend({
             structuredTransport.onSubmitted?.()
           }
           // A real user send is a takeover, exactly as typing into a worker's pane is. Only past
-          // `accepted`, and only from this hook: the outbox dispatcher retries and would re-fire,
-          // and orchestration's own pointer nudges never reach the composer at all.
+          // `accepted`, and only from this hook: orchestration's own pointer nudges never reach
+          // the composer at all.
           reportStructuredSessionUserInput(
             structuredTransport.sessionId,
             structuredTransport.runtimeEnvironmentId
           )
-          setHistory((previous) => pushHistory(previous, text))
           // Why: the send settles after a round trip, while this or another composer of the same
           // conversation may have changed the draft; only what was sent leaves it.
           const left = nativeChatComposerDraftLeftAfterSend(
@@ -132,7 +133,7 @@ export function useNativeChatStructuredComposerSend({
             error,
             agentSessionWriteNoticeText([hostCommand ? 'notDoneCommand' : 'notDoneSend'])
           )
-          structuredTransport.onError(notice.text, notice.errorText)
+          structuredTransport.onError(notice.text, { errorText: notice.errorText })
         })
     },
     [
@@ -143,7 +144,6 @@ export function useNativeChatStructuredComposerSend({
       isComposing,
       setCaret,
       setDraft,
-      setHistory,
       structuredTransport
     ]
   )

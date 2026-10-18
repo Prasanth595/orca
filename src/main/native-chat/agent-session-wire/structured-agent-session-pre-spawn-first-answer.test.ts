@@ -2,6 +2,10 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  CLAUDE_PROFILE_MISSING_MESSAGE,
+  CLAUDE_PROFILE_SETUP_FAILED_MESSAGE
+} from '../../../shared/claude-profile-routing'
 import { computeAgentSessionPayloadFingerprint } from '../../../shared/agent-session-mutation-envelope'
 import { openTestAgentSessionRecordStore } from '../../runtime/agent-session-record-store-test-harness'
 import { mapRuntimeError } from '../../runtime/rpc/errors'
@@ -149,13 +153,13 @@ describe('a create that fails before any process spawns', () => {
       'an account switch in progress',
       'A Claude account switch is in progress. Try again after it finishes.',
       'accountSwitchInProgress',
-      'A Claude account switch is in progress. Try again after it finishes.'
+      "Claude's setup is changing on this host. Try again after it finishes."
     ],
     [
       'a Claude account added in WSL',
       'structured Claude is not offered under the active managed Claude account',
       'managedAccountUnsupported',
-      'While a Claude account is added in WSL, Claude chats need a Windows Claude account. Choose or add one in Claude Accounts settings, then send your message again.'
+      'While a Claude account is added in WSL, Claude chats need a Windows Claude account. Choose or add one in Claude Accounts settings.'
     ],
     [
       'a floating chat whose launch folder is gone',
@@ -168,6 +172,18 @@ describe('a create that fails before any process spawns', () => {
       'claude transcript is not in the selected account',
       'historyInOtherAccount',
       "This chat's history is in another Claude account. Switch back to that account to continue it."
+    ],
+    [
+      'a selected Claude account whose folder is gone',
+      CLAUDE_PROFILE_MISSING_MESSAGE,
+      'claudeAccountFolderMissing',
+      CLAUDE_PROFILE_MISSING_MESSAGE
+    ],
+    [
+      'a selected Claude account that could not be set up',
+      CLAUDE_PROFILE_SETUP_FAILED_MESSAGE,
+      'claudeAccountSetupFailed',
+      CLAUDE_PROFILE_SETUP_FAILED_MESSAGE
     ],
     [
       'a Command setting that names no runnable program',

@@ -2,6 +2,7 @@ import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { test, expect } from './helpers/orca-app'
+import { expectNoSidebarShadowMismatches } from './helpers/sidebar-shadow'
 import { waitForSessionReady } from './helpers/store'
 
 test('cycles visible folder workspaces with shortcuts and focused list arrows', async ({
@@ -23,12 +24,15 @@ test('cycles visible folder workspaces with shortcuts and focused list arrows', 
       parentPath,
       createdFrom: 'folder-scan'
     })
-    await store.getState().fetchProjectGroups()
-    const folder = await store.getState().createFolderWorkspace({
-      projectGroupId: group.id,
-      name: 'Folder workspace',
-      folderPath: parentPath
-    })
+    await store.getState().fetchProjectGroups({ runtimeEnvironmentId: null, throwOnError: true })
+    const folder = await store.getState().createFolderWorkspace(
+      {
+        projectGroupId: group.id,
+        name: 'Folder workspace',
+        folderPath: parentPath
+      },
+      { runtimeEnvironmentId: null }
+    )
     const repo = store.getState().repos[0]
     const [first, last] = repo ? (store.getState().worktreesByRepo[repo.id] ?? []) : []
     if (!folder || !repo || !first || !last) {
@@ -135,4 +139,5 @@ test('cycles visible folder workspaces with shortcuts and focused list arrows', 
   await expect(row(folder)).toHaveAttribute('aria-current', 'page')
   await expect(row(folder)).toBeInViewport({ ratio: 1 })
   await expect.poll(() => sidebar.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+  await expectNoSidebarShadowMismatches(orcaPage)
 })

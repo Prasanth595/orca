@@ -4,7 +4,8 @@ import {
   requestEditorSaveQuiesce,
   type EditorPathMutationTarget
 } from '@/components/editor/editor-autosave'
-import { readRuntimeFileContent, writeRuntimeFile } from '@/runtime/runtime-file-client'
+import { readRuntimeFileContent } from '@/runtime/runtime-file-read-client'
+import { writeRuntimeFile } from '@/runtime/runtime-file-mutation-client'
 import { useAppStore } from '@/store'
 import type { SearchFileResult } from '../../../../shared/code-search-types'
 import type { FileExplorerOperationGuard } from './file-explorer-operation-owner'
@@ -60,7 +61,7 @@ async function replaceInSearchFile(
     await requestEditorSaveQuiesce(mutationTarget)
     const readRoute = context.guard.assertCurrent()
     const file = await readRuntimeFileContent({
-      settings: readRoute.settings,
+      target: readRoute.target,
       filePath: fileResult.filePath,
       relativePath: fileResult.relativePath,
       worktreeId: context.worktreeId,
