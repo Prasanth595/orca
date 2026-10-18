@@ -5,14 +5,13 @@ import type { IImageAddonOptions } from '@xterm/addon-image'
 // of encoded data still covers any reasonable inline image.
 const IMAGE_SEQUENCE_SIZE_LIMIT = 8 * 1024 * 1024
 
-// Separate Kitty source/upload budgets and rendering can push total memory above 3× this decoded limit.
-
 /** Bound image sequences and decoded storage without enabling duplicate size reports. */
 export function buildInlineImageAddonOptions(storageLimitMb: number): IImageAddonOptions {
   return {
     // Orca already answers CSI 14t/16t via its pixel-size responder.
     enableSizeReports: false,
     storageLimit: storageLimitMb,
+    // Fixed per-image cap (32 MB of RGBA); intentionally independent of the cache size so a larger cache only retains more images.
     pixelLimit: 8_000_000,
     sixelSizeLimit: IMAGE_SEQUENCE_SIZE_LIMIT,
     iipSizeLimit: IMAGE_SEQUENCE_SIZE_LIMIT,

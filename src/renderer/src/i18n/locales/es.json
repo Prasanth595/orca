@@ -12434,7 +12434,8 @@
           "fffab5890b": "Muestre imágenes directamente en el terminal utilizando los protocolos gráficos SIXEL, iTerm2 (IIP) y Kitty.",
           "0121d245a6": "Caché de imágenes decodificadas",
           "2b7791ac60": "Solo imágenes decodificadas; la memoria total de imágenes puede superar 3× este valor por panel. Cada división tiene su propia caché. Reducir el límite puede descartar imágenes mostradas.",
-          "a8a3f239c1": "Tamaño de la caché de imágenes decodificadas"
+          "a8a3f239c1": "Tamaño de la caché de imágenes decodificadas",
+          "888772e66b": "{{value0}} MB"
         },
         "UnsealedCredentialNotice": {
           "body": "{{credential}} se almacena sin cifrar: este sistema no tiene ningún conjunto de claves del sistema operativo que Orca pueda usar. Cualquiera que pueda leer su disco o una copia de seguridad del mismo puede leer la credencial. Instale y desbloquee gnome-keyring o kwallet, luego guárdelo nuevamente para sellarlo."

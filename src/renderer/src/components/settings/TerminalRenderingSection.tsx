@@ -195,9 +195,13 @@ export function TerminalRenderingSection({
                 <SelectContent>
                   {inlineImageCacheOptions.map((mb) => (
                     <SelectItem key={mb} value={String(mb)}>
-                      {translate('auto.components.settings.VoicePane.91980ce124', '{{value0}} MB', {
-                        value0: mb
-                      })}
+                      {translate(
+                        'auto.components.settings.TerminalRenderingSection.888772e66b',
+                        '{{value0}} MB',
+                        {
+                          value0: mb
+                        }
+                      )}
                     </SelectItem>
                   ))}
                 </SelectContent>

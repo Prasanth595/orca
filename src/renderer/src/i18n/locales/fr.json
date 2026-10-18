@@ -12475,7 +12475,8 @@
           "fffab5890b": "Affichez les images directement dans le terminal à l'aide des protocoles graphiques SIXEL, iTerm2 (IIP) et Kitty.",
           "0121d245a6": "Cache des images décodées",
           "2b7791ac60": "Images décodées uniquement ; la mémoire totale des images peut dépasser 3× cette valeur par panneau. Chaque volet possède son propre cache. Réduire la limite peut supprimer des images affichées.",
-          "a8a3f239c1": "Taille du cache des images décodées"
+          "a8a3f239c1": "Taille du cache des images décodées",
+          "888772e66b": "{{value0}} Mo"
         },
         "CursorAccountsSection": {
           "dashboardLink": "Tableau de bord Cursor",
