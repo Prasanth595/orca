@@ -18827,7 +18827,9 @@
       "question": {
         "step": "Step {{value0}}",
         "other": "Other…",
-        "otherPlaceholder": "Type your answer",
+        "reply": "Reply",
+        "morePending": "More pending questions are available in the transcript.",
+        "otherPlaceholder": "Other: type your answer",
         "cancel": "Cancel",
         "send": "Submit",
         "next": "Next",

@@ -1,3 +1,4 @@
+import { MobileNativeChatPendingAsyncQuestions } from './MobileNativeChatPendingAsyncQuestions'
 import { useCallback, useMemo, useState } from 'react'
 import { nativeChatTaskListPredecessors } from '../../../src/shared/native-chat-task-list-history'
 import {
@@ -407,6 +408,7 @@ export function MobileNativeChatView({
           />
         </GestureHandlerRootView>
       )}
+      <MobileNativeChatPendingAsyncQuestions />
       {trayContent}
       <MobileNativeChatPromptCard
         key={promptKey ?? undefined}
