@@ -38,7 +38,7 @@ type PendingPrompt = {
   resolve: (decision: 'run' | 'skip') => void
 }
 
-function createTestState(overrides?: Partial<AppState>): {
+function createTestState(overrides?: Partial<Record<keyof AppState, unknown>>): {
   state: AppState
   pending: PendingPrompt[]
 } {
@@ -646,7 +646,7 @@ describe('ensureHooksConfirmed global defaults', () => {
     __resetTrustPromptChainForTests()
   })
 
-  const globalState = (overrides?: Partial<AppState>) =>
+  const globalState = (overrides?: Partial<Record<keyof AppState, unknown>>) =>
     createTestState({
       settings: {
         globalHookDefaults: { setup: 'global setup', archive: 'global archive' }

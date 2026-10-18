@@ -196,7 +196,7 @@ describe('RepositoryHooksSection global default hint', () => {
       onUpdateHookSettings: () => {},
       repo: {
         ...repo,
-        hookSettings: { scripts: { setup: 'local setup', archive: '' } }
+        hookSettings: { mode: 'auto', scripts: { setup: 'local setup', archive: '' } }
       }
     })
 

@@ -34,7 +34,7 @@ type PendingPrompt = {
   resolve: (decision: 'run' | 'skip') => void
 }
 
-function createTestState(overrides?: Partial<AppState>): {
+function createTestState(overrides?: Partial<Record<keyof AppState, unknown>>): {
   state: AppState
   pending: PendingPrompt[]
 } {
@@ -69,7 +69,7 @@ describe('ensureHooksConfirmed runtime-owner global defaults', () => {
     __resetTrustPromptChainForTests()
   })
 
-  const remoteRepoState = (overrides?: Partial<AppState>) =>
+  const remoteRepoState = (overrides?: Partial<Record<keyof AppState, unknown>>) =>
     createTestState({
       settings: { activeRuntimeEnvironmentId: 'focused-env' },
       repos: [{ id: 'repo-1', displayName: 'Repo One', executionHostId: 'runtime:owner-env' }],
