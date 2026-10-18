@@ -44,6 +44,7 @@ export type UISliceContextual = {
     | 'confirm-add-project-from-folder'
     | 'confirm-non-git-folder'
     | 'confirm-remove-folder'
+    | 'confirm-sleep-twin'
     | 'add-repo'
     | 'quick-open'
     | 'worktree-palette'
@@ -129,4 +130,6 @@ export type UISliceContextual = {
   markCodexTerminalServerIsolationNoticeSeen: () => void
   codexSharedSettingsNoticeSeen: boolean
   markCodexSharedSettingsNoticeSeen: () => void
+  claudeDiffPanelNoticeSeen: boolean
+  markClaudeDiffPanelNoticeSeen: () => void
 }

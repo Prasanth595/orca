@@ -43,7 +43,7 @@ export function createPerforceCopyWorkspace(
       stream: args.perforceCopy?.stream,
       settings: desktopPerforceSettings(store),
       onProgress: (detail) =>
-        emitCreateWorktreeProgress(mainWindow, 'creating', args.creationId, detail)
+        emitCreateWorktreeProgress(mainWindow, 'creating', args.creationId, undefined, detail)
     })
     const meta = store.setWorktreeMeta(worktreeId, {
       instanceId: randomUUID(),

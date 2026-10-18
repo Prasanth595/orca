@@ -6,7 +6,7 @@ import type { WorktreeMeta } from '../../../../shared/worktree/meta-types'
 import type { Store } from '../../../persistence/loading-store/store'
 import type { CreateWorktreeArgsWithSystemProvenance } from '../ipc-context-schemas'
 import { getFolderWorkspaceInstanceId, mergeFolderWorkspace } from '../folder-workspace-model'
-import { resolveWorktreeCreateDisplayNameRequest } from '../../worktree-logic'
+import { resolveWorktreeCreateDisplayNameRequest } from '../../worktree-display-name'
 
 /** Metadata a new folder-project workspace gets, shared by folder workspaces and Perforce copies. */
 export function folderWorkspaceCreateMeta(

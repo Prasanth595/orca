@@ -23,7 +23,6 @@ export function WorktreeCardMetaRow({
   const {
     worktree,
     repo,
-    hostContextLabel,
     identityDisplay,
     isFolder,
     newCardStyle,
@@ -36,6 +35,7 @@ export function WorktreeCardMetaRow({
   const {
     showRepoBadgeInMetaRow,
     showHostContextBadge,
+    contextLabel,
     showIdentityInNewCard,
     hasHoverDetails,
     showBranch,
@@ -57,7 +57,7 @@ export function WorktreeCardMetaRow({
           </div>
         )}
 
-        {showHostContextBadge && <WorktreeHostContextBadge label={hostContextLabel!} />}
+        {showHostContextBadge && <WorktreeHostContextBadge label={contextLabel ?? ''} />}
 
         {showIdentityInNewCard ? (
           <TruncatedSidebarLabel

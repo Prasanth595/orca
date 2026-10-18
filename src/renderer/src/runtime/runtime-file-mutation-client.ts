@@ -13,6 +13,21 @@ import { callRuntimeFileMutation } from './runtime-file-mutation-rpc'
 import { toRuntimeWorktreeSelector } from './runtime-worktree-selector'
 import type { LocalFileAccess } from '../../../shared/local-file-access'
 import { localAccess } from './runtime-file-read-client'
+import { REMOTE_RUNTIME_MAX_FILE_WRITE_CONTENT_BYTES } from '../../../shared/remote-runtime-memory-limits'
+
+/** Refuses a save the host's frame cap would reject by dropping the whole connection. */
+function assertRemoteWriteFitsOneRequest(content: string): void {
+  // Why: one UTF-16 unit escapes to at most 6 bytes, so most saves skip encoding.
+  if (content.length * 6 + 2 <= REMOTE_RUNTIME_MAX_FILE_WRITE_CONTENT_BYTES) {
+    return
+  }
+  const bytes = new TextEncoder().encode(JSON.stringify(content)).length
+  if (bytes > REMOTE_RUNTIME_MAX_FILE_WRITE_CONTENT_BYTES) {
+    throw new Error(
+      `File is too large to save to a remote Orca server (${Math.ceil(bytes / 1024)} KB; the limit is ${REMOTE_RUNTIME_MAX_FILE_WRITE_CONTENT_BYTES / 1024} KB).`
+    )
+  }
+}
 
 /** Runs before every write and may cancel it by throwing (e.g. a file Perforce left read-only). */
 export type RuntimeFileWriteGuard = (
@@ -66,6 +81,7 @@ export async function writeRuntimeFile(
     )
     return
   }
+  assertRemoteWriteFitsOneRequest(content)
   await fileWriteGuard?.(context, filePath)
   await callRuntimeFileMutation(
     remoteArgs.target,
