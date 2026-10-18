@@ -33,6 +33,11 @@ export const lightColors: MobileColors = {
   gitDecorationDeleted: '#b91c1c',
   diffAddedBg: 'rgba(34, 134, 58, 0.1)',
   diffDeletedBg: 'rgba(185, 28, 28, 0.08)',
+  diffAddedGutter: 'rgba(34, 134, 58, 0.26)',
+  diffDeletedGutter: 'rgba(185, 28, 28, 0.22)',
+  // Desktop's diff text mixes 70% decoration with 30% foreground.
+  chatDiffAdded: '#1f6530',
+  chatDiffRemoved: '#881b1b',
   syntaxComment: '#008000',
   syntaxKeyword: '#0000ff',
   syntaxString: '#a31515',
