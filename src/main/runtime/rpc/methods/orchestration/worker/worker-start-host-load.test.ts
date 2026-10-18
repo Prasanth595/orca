@@ -28,14 +28,14 @@ describe('worker-start --max-load host load gate', () => {
       id: 'repo::worktree',
       repoId: 'repo',
       hostId: 'ssh:build-box'
-    })
+    } as never)
   }
 
   function mockLegacyWorktree(): void {
     vi.mocked(harness.runtime.showManagedTerminalWorkspace).mockResolvedValue({
       id: 'repo::worktree',
       repoId: 'repo'
-    })
+    } as never)
   }
 
   function repoRow(overrides: {

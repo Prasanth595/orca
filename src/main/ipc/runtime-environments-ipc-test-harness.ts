@@ -1,6 +1,6 @@
 import { expect } from 'vitest'
 import type { Mock } from 'vitest'
-import { getPreferredPairingOffer } from '../../shared/runtime-environments'
+import { getPreferredPairedRuntimeConnection } from '../../shared/runtime-environments'
 import { encodePairingOffer } from '../../shared/pairing'
 import { resolveEnvironment } from '../../shared/runtime-environment-store'
 import { createRuntimeEnvironmentStatusOwner } from './runtime-environment-status-owner'
@@ -32,7 +32,7 @@ export function withRuntimeStatusOwners<T extends Record<string, Mock>>(transpor
           establish: () => {
             transport.ensureRemoteRuntimeSharedControlConnection?.(
               environment.id,
-              getPreferredPairingOffer(environment)
+              getPreferredPairedRuntimeConnection(environment)
             )
             transport.reconnectRemoteRuntimeSharedControlConnection?.(environment.id)
           },
@@ -58,12 +58,15 @@ export function withRuntimeStatusOwners<T extends Record<string, Mock>>(transpor
   }
 }
 
-export function pairingCode(endpoint = 'ws://127.0.0.1:6768'): string {
+export function pairingCode(
+  endpoint = 'ws://127.0.0.1:6768',
+  { deviceToken = 'device-token', keyByte = 1 }: { deviceToken?: string; keyByte?: number } = {}
+): string {
   return encodePairingOffer({
     v: 2,
     endpoint,
-    deviceToken: 'device-token',
-    publicKeyB64: Buffer.from(new Uint8Array(32).fill(1)).toString('base64')
+    deviceToken,
+    publicKeyB64: Buffer.from(new Uint8Array(32).fill(keyByte)).toString('base64')
   })
 }
 

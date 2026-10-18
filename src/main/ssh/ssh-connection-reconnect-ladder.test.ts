@@ -17,22 +17,40 @@ import {
   createTarget
 } from './ssh-connection-test-fixtures'
 import { SshConnection } from './ssh-connection'
-import { resolveWithSshG } from './ssh-config-parser'
+import { resolveWithSshG } from './config/ssh-g-config-resolution'
 import { CONNECT_TIMEOUT_MS, RECONNECT_BACKOFF_MS } from './ssh-connection-utils'
 import { MIN_SSH_RELAY_GRACE_PERIOD_SECONDS } from '../../shared/ssh-types'
 
 vi.mock('ssh2', async () => (await import('./ssh-connection-test-harness')).createSsh2Module())
-vi.mock('./system-ssh-binary', async () =>
+vi.mock('./system-transport/system-ssh-binary', async () =>
   (await import('./ssh-connection-test-harness')).createSystemSshBinaryModule()
 )
-vi.mock('./ssh-system-fallback', async () =>
-  (await import('./ssh-connection-test-harness')).createSystemFallbackModule()
+vi.mock('./system-transport/system-ssh-args', async (importOriginal) =>
+  (await import('./ssh-connection-test-harness')).withSystemSshArgsMocks(await importOriginal())
+)
+vi.mock('./system-transport/system-ssh-command', async (importOriginal) =>
+  (await import('./ssh-connection-test-harness')).withSystemSshCommandMocks(await importOriginal())
+)
+vi.mock('./system-transport/system-ssh-file-binary-transfer', async (importOriginal) =>
+  (await import('./ssh-connection-test-harness')).withSystemSshFileBinaryTransferMocks(
+    await importOriginal()
+  )
+)
+vi.mock('./system-transport/system-ssh-file-transfer', async (importOriginal) =>
+  (await import('./ssh-connection-test-harness')).withSystemSshFileTransferMocks(
+    await importOriginal()
+  )
 )
 vi.mock('./ssh-control-socket', async () =>
   (await import('./ssh-connection-test-harness')).createControlSocketModule()
 )
-vi.mock('./ssh-config-parser', async () =>
+vi.mock('./config/ssh-config-parser', async () =>
   (await import('./ssh-connection-test-harness')).createSshConfigParserModule()
+)
+vi.mock('./config/ssh-g-config-resolution', async (importOriginal) =>
+  (await import('./ssh-connection-test-harness')).withSshGConfigResolutionMocks(
+    await importOriginal()
+  )
 )
 
 describe('SshConnection', () => {
@@ -251,6 +269,41 @@ describe('SshConnection', () => {
 
       expect(statuses).not.toContain('reconnection-failed')
       expect(conn.getState().status).toBe('connected')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('recovers the same owner after a temporary DNS resolution failure', async () => {
+    vi.useFakeTimers()
+    try {
+      const states: string[] = []
+      const conn = new SshConnection(
+        createTarget(),
+        createCallbacks({
+          onStateChange: vi.fn((_id, state) => states.push(state.status))
+        })
+      )
+      await connectWithFakeTimers(conn)
+      const connectedGeneration = conn.getConnectGeneration()
+      const dnsFailure = Object.assign(
+        new Error('getaddrinfo EAI_AGAIN temporary failure in name resolution'),
+        { code: 'EAI_AGAIN' }
+      )
+      ssh2Mock.connectSequence = [dnsFailure, 'ready']
+
+      emitSshEvent('close')
+      await advanceToNextSshClient(RECONNECT_BACKOFF_MS[0])
+
+      expect(conn.getState().status).toBe('reconnecting')
+      expect(states).not.toContain('error')
+      expect(states).not.toContain('reconnection-failed')
+
+      await advanceToNextSshClient(RECONNECT_BACKOFF_MS[1])
+
+      expect(conn.getState().status).toBe('connected')
+      expect(conn.getConnectGeneration()).toBeGreaterThan(connectedGeneration)
+      expect(clientInstances).toHaveLength(3)
     } finally {
       vi.useRealTimers()
     }

@@ -11,17 +11,35 @@ import { createCallbacks, createTarget } from './ssh-connection-test-fixtures'
 import { SshConnection } from './ssh-connection'
 
 vi.mock('ssh2', async () => (await import('./ssh-connection-test-harness')).createSsh2Module())
-vi.mock('./system-ssh-binary', async () =>
+vi.mock('./system-transport/system-ssh-binary', async () =>
   (await import('./ssh-connection-test-harness')).createSystemSshBinaryModule()
 )
-vi.mock('./ssh-system-fallback', async () =>
-  (await import('./ssh-connection-test-harness')).createSystemFallbackModule()
+vi.mock('./system-transport/system-ssh-args', async (importOriginal) =>
+  (await import('./ssh-connection-test-harness')).withSystemSshArgsMocks(await importOriginal())
+)
+vi.mock('./system-transport/system-ssh-command', async (importOriginal) =>
+  (await import('./ssh-connection-test-harness')).withSystemSshCommandMocks(await importOriginal())
+)
+vi.mock('./system-transport/system-ssh-file-binary-transfer', async (importOriginal) =>
+  (await import('./ssh-connection-test-harness')).withSystemSshFileBinaryTransferMocks(
+    await importOriginal()
+  )
+)
+vi.mock('./system-transport/system-ssh-file-transfer', async (importOriginal) =>
+  (await import('./ssh-connection-test-harness')).withSystemSshFileTransferMocks(
+    await importOriginal()
+  )
 )
 vi.mock('./ssh-control-socket', async () =>
   (await import('./ssh-connection-test-harness')).createControlSocketModule()
 )
-vi.mock('./ssh-config-parser', async () =>
+vi.mock('./config/ssh-config-parser', async () =>
   (await import('./ssh-connection-test-harness')).createSshConfigParserModule()
+)
+vi.mock('./config/ssh-g-config-resolution', async (importOriginal) =>
+  (await import('./ssh-connection-test-harness')).withSshGConfigResolutionMocks(
+    await importOriginal()
+  )
 )
 
 describe('SshConnection', () => {
@@ -42,6 +60,19 @@ describe('SshConnection', () => {
     expect(wrapped).not.toContain('\n')
     expect(wrapped).toMatch(/^exec \/bin\/sh -c '.*printf %b .*' orca-command /)
     expect(wrapped).not.toContain('base64')
+  })
+
+  it('opens an interactive shell with the requested pty for plain SSH terminals', async () => {
+    const conn = new SshConnection(createTarget(), createCallbacks())
+    await conn.connect()
+
+    await conn.shell({ cols: 100, rows: 30, term: 'xterm-256color' })
+
+    expect(clientInstances[0].lastShellWindow).toEqual({
+      cols: 100,
+      rows: 30,
+      term: 'xterm-256color'
+    })
   })
 
   it('can execute native remote commands without the POSIX shell wrapper', async () => {
@@ -273,7 +304,7 @@ describe('SshConnection', () => {
     await expect(outcomePromise).resolves.toBe('AbortError')
   })
 
-  it('removes the late-channel close listener when abort grace expires', async () => {
+  it('removes the abort-grace waiter while retaining physical-close tracking', async () => {
     const conn = new SshConnection(createTarget(), createCallbacks())
     await conn.connect()
     vi.useFakeTimers()
@@ -289,12 +320,14 @@ describe('SshConnection', () => {
       await vi.advanceTimersByTimeAsync(0)
       controller.abort()
       pendingSftpCallback?.(undefined, lateSftp)
-      expect(lateSftp.listenerCount('close')).toBe(1)
+      expect(lateSftp.listenerCount('close')).toBe(2)
       expect(() => lateSftp.emit('error', new Error('late SFTP teardown'))).not.toThrow()
 
       await vi.advanceTimersByTimeAsync(5_000)
 
       await expect(outcomePromise).resolves.toBe('AbortError')
+      expect(lateSftp.listenerCount('close')).toBe(1)
+      lateSftp.emit('close')
       expect(lateSftp.listenerCount('close')).toBe(0)
     } finally {
       vi.useRealTimers()
@@ -363,7 +396,7 @@ describe('SshConnection', () => {
     expect(lateSftp.end).toHaveBeenCalledTimes(1)
   })
 
-  it('removes the late SFTP close listener when the bounded grace expires', async () => {
+  it('retains SFTP physical-close tracking after the bounded observation expires', async () => {
     const conn = new SshConnection(createTarget(), createCallbacks())
     await conn.connect()
     ssh2Mock.sftpBehavior = 'pending'
@@ -380,11 +413,13 @@ describe('SshConnection', () => {
       await Promise.resolve()
       controller.abort()
       pendingSftpCallback?.(undefined, lateSftp)
-      expect(lateSftp.listenerCount('close')).toBe(1)
+      expect(lateSftp.listenerCount('close')).toBe(2)
 
       await vi.advanceTimersByTimeAsync(5_000)
 
       await expect(outcomePromise).resolves.toBe('AbortError')
+      expect(lateSftp.listenerCount('close')).toBe(1)
+      lateSftp.emit('close')
       expect(lateSftp.listenerCount('close')).toBe(0)
       expect(lateSftp.end).toHaveBeenCalledTimes(1)
     } finally {
