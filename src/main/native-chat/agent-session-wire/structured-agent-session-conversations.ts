@@ -109,4 +109,8 @@ export class StructuredAgentSessionConversations extends Map<
   hasLoadedProviders(): boolean {
     return [...this.values()].some(({ child }) => child !== null)
   }
+
+  loadedSessionIds(): string[] {
+    return [...this].flatMap(([sessionId, { child }]) => (child ? [sessionId] : []))
+  }
 }

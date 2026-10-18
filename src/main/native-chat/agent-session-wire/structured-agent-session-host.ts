@@ -173,6 +173,7 @@ export class StructuredAgentSessionHost {
   private now = (): number => this.deps.now?.() ?? Date.now()
 
   hasSession = (sessionId: string): boolean => this.sessions.has(sessionId)
+  loadedSessionIds = (): string[] => this.sessions.loadedSessionIds()
   hasLoadedProviders = (): boolean => this.sessions.hasLoadedProviders()
   sessionAgent = (sessionId: string) => this.deps.store.getRecord(sessionId)?.provider ?? null
 
@@ -270,7 +271,7 @@ export class StructuredAgentSessionHost {
     }).finally(() => this.clientDelivery.closeAll())
   }
 
-  private mutationContext(): hostMutations.StructuredAgentSessionMutationContext {
+  private mutationContext = (): hostMutations.StructuredAgentSessionMutationContext => {
     return {
       deps: this.deps,
       sessions: this.sessions,
@@ -278,6 +279,7 @@ export class StructuredAgentSessionHost {
       conversation: this.lifetime.conversation,
       readChildWork: this.clientDelivery.readChildWork,
       publishChildWork: this.clientDelivery.publishChildWork,
+      publishWorkChanged: (sessionId) => this.clientDelivery.publishGenerationEnded(sessionId),
       captureChildWorkStops: this.clientDelivery.captureChildWorkStops,
       childWorkOpen: this.clientDelivery.childWorkOpen,
       childWorkIncomplete: this.clientDelivery.childWorkIncomplete,
@@ -308,9 +310,7 @@ export class StructuredAgentSessionHost {
 
   waitForSendSettlement = this.clientDelivery.waitForSendSettlement
 
-  private mutations = hostMutations.structuredAgentSessionMutationDelegates(() =>
-    this.mutationContext()
-  )
+  private mutations = hostMutations.structuredAgentSessionMutationDelegates(this.mutationContext)
   cancel = this.mutations.cancel
   respondToPrompt = this.mutations.respondToPrompt
   setOption = this.mutations.setOption
@@ -343,7 +343,6 @@ export class StructuredAgentSessionHost {
   subscribe = (input: AgentSessionSubscribeInput) => this.backgroundTasks.subscribe(input)
 
   settleLateDispatch = this.mutations.settleLateDispatch
-  releaseUnansweredDispatches = this.mutations.releaseUnansweredDispatches
   /** What the live child holds changed with no row: every reader re-derives current work. */
   publishWorkChanged: (sessionId: string) => void = this.clientDelivery.publishGenerationEnded
 
