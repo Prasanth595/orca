@@ -1,3 +1,4 @@
+import type { StructuredAgentSessionStatusObserverOptions } from './structured-agent-session-status-observation'
 import type { SubmissionRejectionFact } from '../../../shared/agent-session-failure'
 import type { AgentSessionOwnerProbe } from '../../../shared/agent-session-lease-adjudication'
 import type { AgentJournalCursor } from '../../../shared/agent-session-journal-types'
@@ -24,6 +25,8 @@ import type { AgentModelCatalogService } from '../agent-model-catalog/agent-mode
 import type { StructuredAgentSessionLogger } from './structured-agent-session-logger'
 import type { StructuredAgentId } from '../../../shared/agent-session-provider-handle'
 import type { StructuredAgentRegistry } from './structured-agent-registry'
+import type { StructuredAgentSessionStartupLimits } from './structured-agent-session-startup-attempt-contract'
+import type { AgentChatPermissionMode } from '../../../shared/agent-chat-permission-mode'
 
 export type StructuredAgentSessionCaller = { callerKey: string }
 
@@ -51,7 +54,10 @@ export type StructuredAgentSessionProviderChildIdentity = {
 export type StructuredAgentSessionChildClose = {
   /** The first stop's, which the child's end keeps however many asks join it. */
   readonly cause: StructuredAgentSessionStopCause
+  /** Asked for by quit, whose leftovers the next open settles as a crash's. */
+  readonly quit?: true
   readonly reason: string | null
+  readonly failure?: SubmissionRejectionFact
   /** The Stop event that stop wrote, folded before the work it ends is settled, with the settle a
    *  person's close that named no turn opens; a repeated ask reopens it. */
   recorded: Promise<JournalStopSettle | null>
@@ -63,12 +69,16 @@ export type StructuredAgentSessionChildClose = {
 /** The provider process behind a conversation. Written only in
  *  `structured-agent-session-provider-child`. */
 export type StructuredAgentSessionProviderChild = StructuredAgentSessionProviderChildIdentity & {
-  /** A publish-first acquire is `starting` until the adapter's `started` event; only then are its
-   *  reported options fact. */
+  /** A starting acquisition stays `starting` until the host settles its `started` event; only then is
+   *  it handed input and are its reported options fact. */
   phase: StructuredAgentSessionProviderChildPhase
   /** The queued message whose delivery started this child, fixed when the start is made; absent
    *  for any other start. In memory only: it tells a restart offer its own start from another. */
   readonly startedFor?: string
+  /** The permission mode it was launched with, in memory only; absent for an agent with none. */
+  readonly permissionMode?: AgentChatPermissionMode
+  /** The adapter's `heldSends` for this conversation, read at each decision. */
+  readonly heldSends?: () => ReadonlySet<string> | undefined
   close?: StructuredAgentSessionChildClose
 }
 
@@ -106,6 +116,11 @@ export type StructuredAgentSessionHostSession = {
    *  observed exit. */
   child: StructuredAgentSessionProviderChild | null
   lastEndedChild?: StructuredAgentSessionEndedChild
+  /** Bumped by every signal that a generation ended, which can change what is current with no
+   *  journal row or lease write: readers key what they cache of current work on it. */
+  operationalRevision?: number
+  /** Owned by one live restart action, so another caller cannot replace its progress. */
+  restartResume?: NonNullable<AgentSessionStatusSummary['restartResume']> & { operationId: string }
 }
 
 export type StructuredAgentSessionHostDeps = {
@@ -133,11 +148,18 @@ export type StructuredAgentSessionHostDeps = {
   resolveLaunchEnv?: (
     provider: AgentSessionRecord['provider']
   ) => Promise<Record<string, string> | undefined> | Record<string, string> | undefined
+  /** Execution-host path for a newly founded floating session. */
+  resolveWorkspacePath?: (workspaceId: string) => Promise<string>
   now?: () => number
   /** The idle sweep's period and window. Tests drive these; production takes the defaults. */
   idleSweep?: { intervalMs?: number; idleMs?: number }
+  /** How long a start may stay silent, and its ceiling. Tests drive these; production takes the
+   *  host constants. */
+  startupLimits?: Partial<StructuredAgentSessionStartupLimits>
   /** Whether an orchestration dispatch still owns this session's worker; absent answers no. */
   hasOpenDispatch?: (record: AgentSessionRecord) => boolean
+  /** A chat tab left the screen: closed, or its workspace removed. Advisory; a throw is logged. */
+  onSessionTabHidden?: (sessionId: string) => void
   /** Where every failure the host carries on past is reported. Required: a host without one would
    *  drop exactly the failures nobody sees in the UI. */
   logger: StructuredAgentSessionLogger
@@ -145,7 +167,7 @@ export type StructuredAgentSessionHostDeps = {
    *  already knew (restore, an arriving subscriber) rather than a fresh journal edge. */
   onSessionStatusChanged?: (
     summary: AgentSessionStatusSummary,
-    options: { replay: boolean }
+    options: StructuredAgentSessionStatusObserverOptions
   ) => void
   /** The agent-status store every held session's projection is written to and, on close,
    *  removed from. Both production hosts pass one — the desktop and headless `orcad`; absent,

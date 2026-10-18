@@ -7,6 +7,7 @@ import {
 } from '@/lib/worktree-sleep-intent'
 import { VIRTUALIZED_SCROLL_ANCHOR_RECORD_EVENT } from '@/hooks/useVirtualizedScrollAnchor'
 import { translate } from '@/i18n/i18n'
+import { describeSleepFailure } from './sleep-failure-message'
 
 /**
  * Shared "sleep worktree" flow (close all panels to free memory / CPU)
@@ -110,34 +111,37 @@ function preserveSidebarWorktreePosition(worktreeId: string): () => void {
   }
 }
 
-function describeSleepFailure(error: unknown): string {
-  const detail = error instanceof Error ? error.message : String(error)
-  if (detail.includes('legacy')) {
-    return translate(
-      'auto.components.sidebar.sleep.worktree.flow.legacy.unverified',
-      'The older host runtime could not confirm terminal shutdown. The workspace was kept open; update the host and try again.'
+export async function runSleepWorktrees(worktreeIds: readonly string[]): Promise<void> {
+  const { errors } = await sleepWorktreesReportingFailures(worktreeIds)
+  if (errors.length > 0) {
+    // Why: callers are fire-and-forget; surface actionable teardown failures after restoring retryable UI state.
+    toast.error(
+      new Set(worktreeIds).size === 1
+        ? translate(
+            'auto.components.sidebar.sleep.worktree.flow.8bc3fc0671',
+            'Failed to sleep workspace'
+          )
+        : translate(
+            'auto.components.sidebar.sleep.worktree.flow.c460fecc4a',
+            'Failed to sleep some workspaces'
+          ),
+      {
+        description: errors.join('\n')
+      }
     )
   }
-  if (
-    detail.includes('terminal_') ||
-    detail.includes('runtime') ||
-    detail.includes('connection') ||
-    detail.includes('Daemon')
-  ) {
-    return translate(
-      'auto.components.sidebar.sleep.worktree.flow.host.unverified',
-      'The host could not confirm terminal shutdown. The workspace was kept open; check the connection and try again.'
-    )
-  }
-  return translate(
-    'auto.components.sidebar.sleep.worktree.flow.retry',
-    'The workspace was kept open. Try again; if the problem continues, check the host connection.'
-  )
 }
 
-export async function runSleepWorktrees(worktreeIds: readonly string[]): Promise<void> {
+export type WorktreeSleepOutcome = { failedWorktreeIds: string[]; errors: string[] }
+
+/** The sleep without the toast, for callers that report failures themselves. */
+export async function sleepWorktreesReportingFailures(
+  requestedWorktreeIds: readonly string[]
+): Promise<WorktreeSleepOutcome> {
+  // Why unique: both copies of a twin share one id, and sleeping it sleeps the whole workspace.
+  const worktreeIds = [...new Set(requestedWorktreeIds)]
   if (worktreeIds.length === 0) {
-    return
+    return { failedWorktreeIds: [], errors: [] }
   }
   const {
     activeWorktreeId,
@@ -214,21 +218,5 @@ export async function runSleepWorktrees(worktreeIds: readonly string[]): Promise
       setActiveWorktree(sleptActiveWorktreeId)
     }
   }
-  if (errors.length > 0) {
-    // Why: callers are fire-and-forget; surface actionable teardown failures after restoring retryable UI state.
-    toast.error(
-      worktreeIds.length === 1
-        ? translate(
-            'auto.components.sidebar.sleep.worktree.flow.8bc3fc0671',
-            'Failed to sleep workspace'
-          )
-        : translate(
-            'auto.components.sidebar.sleep.worktree.flow.c460fecc4a',
-            'Failed to sleep some workspaces'
-          ),
-      {
-        description: errors.join('\n')
-      }
-    )
-  }
+  return { failedWorktreeIds: [...failedWorktreeIds], errors }
 }

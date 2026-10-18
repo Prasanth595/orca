@@ -3,12 +3,16 @@ import type { TerminalPaneSplitSource } from '../../../shared/feature-education-
 import type { RuntimeRpcResponse } from '../../../shared/runtime-rpc-envelope'
 import type { RuntimeTerminalClose, RuntimeTerminalSplit } from '../../../shared/runtime-types'
 import type { TerminalPaneLayoutNode } from '../../../shared/terminal-tab-types'
-import { getRuntimeEnvironmentIdForWorktree } from '../lib/worktree-runtime-owner'
+import type { PaneLayoutEditIntent } from '../../../shared/rpc-contract/session-tabs-schemas-params'
+import {
+  runtimeEnvironmentIdForWorkspaceOwner,
+  warnAmbiguousOwnerRefusalOnce
+} from '../lib/resolve-owner'
 import { useAppStore } from '../store'
-import { unwrapRuntimeRpcResult } from './runtime-rpc-client'
+import { unwrapRuntimeRpcResult } from './runtime-rpc-result'
 import { parseRemoteRuntimePtyId } from './runtime-terminal-stream'
 import { toRuntimeWorktreeSelector } from './runtime-worktree-selector'
-import { isWebTerminalSurfaceTabId, toHostSessionTabId } from './web-terminal-surface-id'
+import { isWebTerminalSurfaceTabId, toHostSessionTabId } from '../../../shared/terminal-surface-id'
 import {
   captureRuntimeEnvironmentCall,
   captureWebSessionIntentOwner,
@@ -191,6 +195,18 @@ export function closeWebRuntimeTerminal(ptyId: string | null | undefined): boole
   return true
 }
 
+// Why: a twin's edit must not reach either host on a guess; it stays local until one is chosen.
+function hostEnvironmentIdForTabMirror(worktreeId: string, site: string): string | null {
+  const owner = runtimeEnvironmentIdForWorkspaceOwner(useAppStore.getState(), {
+    workspaceId: worktreeId
+  })
+  if (owner.kind === 'ambiguous') {
+    warnAmbiguousOwnerRefusalOnce(site, worktreeId)
+    return null
+  }
+  return owner.environmentId
+}
+
 // Why: pane geometry is host-authoritative for remote tabs; local-only changes revert on next snapshot, so push to host.
 export async function updateWebRuntimePaneLayout(args: {
   worktreeId: string
@@ -199,9 +215,9 @@ export async function updateWebRuntimePaneLayout(args: {
   expandedLeafId: string | null
   chatLeafId?: string | null
   titlesByLeafId?: Record<string, string>
+  intent?: PaneLayoutEditIntent
 }): Promise<boolean> {
-  const environmentId =
-    getRuntimeEnvironmentIdForWorktree(useAppStore.getState(), args.worktreeId) ?? null
+  const environmentId = hostEnvironmentIdForTabMirror(args.worktreeId, 'pane-layout-push')
   if (!environmentId || !isWebRuntimeSessionActive(environmentId)) {
     return false
   }
@@ -218,7 +234,8 @@ export async function updateWebRuntimePaneLayout(args: {
         root: args.root,
         expandedLeafId: args.expandedLeafId,
         ...(args.chatLeafId !== undefined ? { chatLeafId: args.chatLeafId } : {}),
-        ...(args.titlesByLeafId ? { titlesByLeafId: args.titlesByLeafId } : {})
+        ...(args.titlesByLeafId ? { titlesByLeafId: args.titlesByLeafId } : {}),
+        ...(args.intent ? { intent: args.intent } : {})
       },
       timeoutMs: 15_000
     })
@@ -240,15 +257,15 @@ export function setWebRuntimeTabProps(args: {
   color?: string | null
   isPinned?: boolean
   viewMode?: 'terminal' | 'chat'
+  customTitle?: string | null
 }): boolean {
-  const environmentId =
-    getRuntimeEnvironmentIdForWorktree(useAppStore.getState(), args.worktreeId) ?? null
+  const environmentId = hostEnvironmentIdForTabMirror(args.worktreeId, 'tab-props-push')
   if (!environmentId || !isWebRuntimeSessionActive(environmentId)) {
     return false
   }
   const callEnvironment = captureRuntimeEnvironmentCall(environmentId)
   const state = useAppStore.getState()
-  void import('./web-session-tabs-sync')
+  void import('./web-session-tabs-sync/tracking-mappings')
     .then(({ resolveHostSessionTabIdForWebSessionTab }) => {
       const hostTabId =
         resolveHostSessionTabIdForWebSessionTab(state, {
@@ -263,7 +280,8 @@ export function setWebRuntimeTabProps(args: {
           tabId: hostTabId,
           ...(args.color !== undefined ? { color: args.color } : {}),
           ...(args.isPinned !== undefined ? { isPinned: args.isPinned } : {}),
-          ...(args.viewMode !== undefined ? { viewMode: args.viewMode } : {})
+          ...(args.viewMode !== undefined ? { viewMode: args.viewMode } : {}),
+          ...(args.customTitle !== undefined ? { customTitle: args.customTitle } : {})
         },
         timeoutMs: 15_000
       })

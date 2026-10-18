@@ -4,6 +4,7 @@ export type ServeOptionValidationInput = {
   bindHost?: string | null
   noPairing: boolean
   mobilePairing: boolean
+  grantDesktopControl?: boolean
   recipeJson: boolean
   projectRoot: string | null | undefined
 }
@@ -16,6 +17,9 @@ export function getServeOptionValidationError(options: ServeOptionValidationInpu
     // Why: mobile offer creation unconditionally widens, which a non-wildcard pin always refuses
     // (runtime-rpc-network-exposure), so the offer could only ever fail as network_exposure_failed.
     return 'Use either --mobile-pairing or --bind <non-wildcard>, not both; --mobile-pairing needs an all-interfaces bind.'
+  }
+  if (options.grantDesktopControl && (options.noPairing || options.mobilePairing)) {
+    return '--grant-desktop-control applies only to the default runtime pairing offer.'
   }
   if (options.recipeJson && options.noPairing) {
     return 'Recipe JSON output requires runtime pairing; remove --no-pairing.'
@@ -34,6 +38,8 @@ const SERVE_SECURITY_FLAG_NAMES = [
   '--serve-no-pairing',
   '--mobile-pairing',
   '--serve-mobile-pairing',
+  '--grant-desktop-control',
+  '--serve-grant-desktop-control',
   '--recipe-json',
   '--serve-recipe-json',
   '--pairing-address',

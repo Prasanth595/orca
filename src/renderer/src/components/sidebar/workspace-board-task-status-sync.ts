@@ -39,7 +39,8 @@ export type SyncWorkspaceBoardTaskStatusesArgs = {
     Pick<Worktree, 'linkedLinearIssue' | 'linkedLinearIssueWorkspaceId'>
   >
   settings?: RuntimeLinearSettings
-  getSettingsForWorktree?: (worktreeId: string) => RuntimeLinearSettings
+  /** `null` refuses the worktree: its owner is ambiguous, so no host's Linear settings apply. */
+  getSettingsForWorktree?: (worktreeId: string) => RuntimeLinearSettings | null
   getLatestWorkspaceStatus: (worktreeId: string) => WorkspaceStatus | null | undefined
   deps?: Partial<WorkspaceBoardTaskStatusSyncDependencies>
 }
@@ -177,9 +178,13 @@ async function syncLinearWorktreeStatus(
     return skipped(result)
   }
 
+  // Why: no source has always meant this computer.
   const settings = args.getSettingsForWorktree
     ? args.getSettingsForWorktree(worktreeId)
-    : args.settings
+    : (args.settings ?? { kind: 'local' })
+  if (!settings) {
+    return skipped(result, { kind: 'provider-error', issueIdentifier: worktree.linkedLinearIssue })
+  }
   const linkedWorkspaceId = worktree.linkedLinearIssueWorkspaceId ?? undefined
 
   try {

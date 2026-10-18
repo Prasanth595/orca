@@ -1,4 +1,3 @@
-import type { SubmissionRejectionFact } from '../../../shared/agent-session-failure'
 import type { StructuredAgentSessionAtRestCommands } from './structured-agent-session-at-rest-commands'
 import type { AgentSessionJournalIdentity } from '../../../shared/agent-session-journal-types'
 import type {
@@ -6,6 +5,7 @@ import type {
   AgentSessionExecutionLocation
 } from '../../../shared/agent-session-record'
 import type { StructuredAgentSessionAdapter } from './structured-agent-session-adapter'
+import { readNativeSessionOptions } from './structured-agent-session-option-restoration'
 import type {
   StructuredAgentRegistration,
   StructuredAgentRegistry
@@ -68,6 +68,14 @@ export class StructuredAgentSessionAdapterRouter implements StructuredAgentSessi
     return released
   }
 
+  open: NonNullable<StructuredAgentSessionAdapter['open']> = (input) => {
+    const adapter = this.owner(input.sessionId)
+    if (!adapter.open) {
+      return Promise.reject(new Error('The provider cannot open a published child.'))
+    }
+    return adapter.open(input)
+  }
+
   dispatch: StructuredAgentSessionAdapter['dispatch'] = (input) =>
     this.owner(input.sessionId).dispatch(input)
 
@@ -124,6 +132,16 @@ export class StructuredAgentSessionAdapterRouter implements StructuredAgentSessi
   holdsDispatch = (sessionId: string): boolean =>
     this.liveOwnerOrNull(sessionId)?.holdsDispatch?.(sessionId) ?? false
 
+  heldSends = (sessionId: string): ReadonlySet<string> | undefined =>
+    this.liveOwnerOrNull(sessionId)?.heldSends?.(sessionId)
+
+  holdsLiveProviderProcess = (sessionId: string, acquisitionGeneration: string): boolean =>
+    this.liveOwnerOrNull(sessionId)?.holdsLiveProviderProcess?.(sessionId, acquisitionGeneration) ??
+    false
+
+  startUnavailable: NonNullable<StructuredAgentSessionAdapter['startUnavailable']> = (sessionId) =>
+    this.liveOwnerOrNull(sessionId)?.startUnavailable?.(sessionId)
+
   stopEndsSession = (sessionId: string): boolean =>
     this.liveOwnerOrNull(sessionId)?.stopEndsSession?.(sessionId) ?? false
 
@@ -156,10 +174,11 @@ export class StructuredAgentSessionAdapterRouter implements StructuredAgentSessi
   setOption: StructuredAgentSessionAdapter['setOption'] = (input) =>
     this.owner(input.sessionId).setOption(input)
 
-  awaitOptionWritable = (sessionId: string): Promise<void> =>
-    this.liveOwnerOrNull(sessionId)?.awaitOptionWritable?.(sessionId) ?? Promise.resolve()
-  awaitStarted = (sessionId: string): Promise<void | SubmissionRejectionFact> =>
-    this.liveOwnerOrNull(sessionId)?.awaitStarted?.(sessionId) ?? Promise.resolve()
+  startAnswered = (sessionId: string): boolean | undefined =>
+    this.liveOwnerOrNull(sessionId)?.startAnswered?.(sessionId)
+
+  prepareReadOptions = (input: { sessionId: string; fence: number }) =>
+    this.liveOwnerOrNull(input.sessionId)?.prepareReadOptions?.(input)
 
   readOptions = (input: { sessionId: string; fence: number }) => {
     const reader = this.owner(input.sessionId).readOptions
@@ -167,6 +186,17 @@ export class StructuredAgentSessionAdapterRouter implements StructuredAgentSessi
       throw new Error(`structured session ${input.sessionId} does not report options`)
     }
     return reader(input)
+  }
+
+  readAcquisitionOptions = (input: {
+    sessionId: string
+    fence: number
+    priorOptions?: Readonly<Record<string, string>>
+  }) => {
+    const adapter = this.owner(input.sessionId)
+    return adapter.readAcquisitionOptions
+      ? adapter.readAcquisitionOptions(input)
+      : readNativeSessionOptions({ adapter, ...input })
   }
 
   readOptionRestoreFailures = (sessionId: string): readonly string[] =>
@@ -178,6 +208,14 @@ export class StructuredAgentSessionAdapterRouter implements StructuredAgentSessi
   }) =>
     this.requireAgent(input.identity).adapter.providerHistoryWindow?.(input) ??
     Promise.resolve(null)
+
+  copyConversation: NonNullable<StructuredAgentSessionAdapter['copyConversation']> = (input) => {
+    const { adapter } = this.requireAgent(input.identity)
+    if (!adapter.copyConversation) {
+      return Promise.reject(new Error(`${input.identity.agent} cannot copy a conversation`))
+    }
+    return adapter.copyConversation(input)
+  }
 
   closeSession = (sessionId: string): Promise<boolean> =>
     this.stopSession(sessionId, (adapter) => adapter.closeSession)
