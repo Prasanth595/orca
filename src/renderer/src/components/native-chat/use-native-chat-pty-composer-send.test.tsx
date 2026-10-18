@@ -95,3 +95,38 @@ it.each([
 it('reports nothing for a blank draft', () => {
   expect(send('codex', 'chat', '   ').submitted).not.toHaveBeenCalled()
 })
+
+it('routes a /workflow draft to the agent as an authoring prompt', () => {
+  const arm = vi.fn()
+  const { result } = renderHook(() =>
+    useNativeChatPtyComposerSend({
+      agent: 'claude',
+      draft: '/workflow check how much space my local disk has left',
+      imageAttachments: [],
+      disabled: false,
+      isDispatchingSessionOption: false,
+      launchDraftResolved: true,
+      resolveTarget: () => ({ ptyId: 'pty', settings: null }),
+      classifySend: () => 'chat',
+      onOptimisticSend: () => 'pending-1',
+      optimisticSendOutcome: { reject: vi.fn(), holdUnconfirmed: vi.fn() },
+      onSubmitted: vi.fn(),
+      onWorkflowRouteArmed: arm,
+      sessionOptionsSurface: null,
+      terminalTabId: 'tab',
+      trackPendingSend: vi.fn(),
+      setDraft: vi.fn(),
+      setCaret: vi.fn(),
+      clearSkillOrigin: vi.fn(),
+      clearImageAttachments: vi.fn(),
+      setNotice: vi.fn()
+    })
+  )
+  result.current()
+
+  const [ptyId, text] = vi.mocked(sendNativeChatMessage).mock.calls[0] ?? []
+  expect(ptyId).toBe('pty')
+  expect(text).toContain('check how much space my local disk has left')
+  expect(text).not.toMatch(/^\//)
+  expect(arm).toHaveBeenCalledWith('check how much space my local disk has left')
+})

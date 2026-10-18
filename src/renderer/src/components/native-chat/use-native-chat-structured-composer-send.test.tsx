@@ -99,6 +99,57 @@ describe('attachment guard follows what the host claims', () => {
   })
 })
 
+describe('/workflow routing', () => {
+  const armed = vi.fn((_description: string | null) => undefined)
+  it.each([
+    [
+      '/workflow check how much space my local disk has left',
+      'check how much space my local disk has left'
+    ],
+    ['/workflow', 'ask for the steps']
+  ] as const)(
+    'routes %s to an authoring prompt the agent sees as a message',
+    async (typed, marker) => {
+      armed.mockClear()
+      const { result, transport } = renderRoutedHarness(armed)
+      result.current(typed)
+      await vi.waitFor(() => expect(vi.mocked(transport.send).mock.calls.length).toBeGreaterThan(0))
+      const routed = vi.mocked(transport.send).mock.calls[0]?.[0]
+      expect(routed).toContain(marker)
+      expect(routed).not.toMatch(/^\//)
+      expect(armed).toHaveBeenCalledWith(marker === 'ask for the steps' ? null : marker)
+    }
+  )
+})
+
+function renderRoutedHarness(armed: (description: string | null) => void) {
+  const fields = {
+    send: vi.fn(() => true),
+    dispatchCommand: async () => ({ handled: false }),
+    optionSnapshot: [],
+    onError: vi.fn(),
+    runtime: 'local',
+    sessionId: 'session-test',
+    runtimeEnvironmentId: null
+  }
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: harness stub; the routed-send test exercises only send/dispatchCommand.
+  const transport = fields as unknown as NativeChatStructuredComposerTransport
+  const { result } = renderHook(() =>
+    useNativeChatStructuredComposerSend({
+      agent: 'claude',
+      draftScopeKey: 'tab-1:pane',
+      imageAttachments: [],
+      structuredTransport: transport,
+      isComposing: () => false,
+      clearSkillOrigin: vi.fn(),
+      setDraft: vi.fn(),
+      setCaret: vi.fn(),
+      onWorkflowRouteArmed: armed
+    })
+  )
+  return { result, transport }
+}
+
 describe('an attachment still uploading', () => {
   it('holds a picked command, as Send is held, rather than send the chip without its path', async () => {
     const { send, structuredTransport } = harness('claude')

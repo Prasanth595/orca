@@ -13,7 +13,10 @@ import { sendNativeChatMessageWithImageAttachments } from './native-chat-runtime
 import { resolveNativeChatLaunchDraftSend } from './native-chat-launch-draft-send'
 import { nativeChatComposerTargetIsRemote } from './native-chat-composer-target'
 import type { NativeChatResolvedTarget } from './native-chat-composer-target'
-import { isSlashCommandDraft } from '../../../../shared/native-chat-slash-commands'
+import {
+  isSlashCommandDraft,
+  nativeChatWorkflowRoute
+} from '../../../../shared/native-chat-slash-commands'
 import type { NativeChatPickerState } from './use-native-chat-picker-state'
 import type { NativeChatSendLifecycle } from './use-native-chat-send-lifecycle'
 import type { NativeChatPtySessionOptionsSurface } from './native-chat-pty-session-options'
@@ -37,6 +40,8 @@ export function useNativeChatPtyComposerSend(args: {
   onOptimisticSend?: (text: string, imagePaths?: string[]) => string | undefined
   optimisticSendOutcome?: NativeChatOptimisticSendOutcome
   onSlashCommand?: (command: string, output?: string) => void
+  /** Fired when a /workflow draft is routed to the agent as an authoring prompt. */
+  onWorkflowRouteArmed?: (description: string | null) => void
   answerCommandLocally?: NativeChatLocalCommandAnswer
   onSubmitted?: () => void
   sessionOptionsSurface: NativeChatPtySessionOptionsSurface | null
@@ -49,7 +54,13 @@ export function useNativeChatPtyComposerSend(args: {
   setNotice: (notice: string | null) => void
 }): () => void {
   return useCallback(() => {
-    const text = args.draft
+    // A /workflow draft re-enters as an ordinary chat prompt: the text is the
+    // description the agent authors from, never a workflow name.
+    const route = nativeChatWorkflowRoute(args.draft)
+    if (route) {
+      args.onWorkflowRouteArmed?.(route.description)
+    }
+    const text = route?.routedPrompt ?? args.draft
     const imagePaths = args.imageAttachments.map((attachment) => attachment.path)
     if ((text.trim() === '' && imagePaths.length === 0) || args.disabled) {
       return

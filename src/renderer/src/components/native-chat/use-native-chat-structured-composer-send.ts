@@ -6,6 +6,7 @@ import {
   isStructuredAgentSessionGoalCommand,
   structuredAgentSessionCommandChangesConversation
 } from '../../../../shared/structured-agent-session-composer'
+import { nativeChatWorkflowRoute } from '../../../../shared/native-chat-slash-commands'
 import type { AgentType } from '../../../../shared/agent-status-types'
 import { dispatchNativeChatStructuredComposerText } from './native-chat-structured-composer-dispatch'
 import type { NativeChatStructuredComposerTransport } from './native-chat-composer-types'
@@ -29,6 +30,8 @@ export type UseNativeChatStructuredComposerSendArgs = {
   clearSkillOrigin: () => void
   setDraft: (value: string) => void
   setCaret: (caret: number) => void
+  /** Fired when a /workflow draft is routed to the agent as an authoring prompt. */
+  onWorkflowRouteArmed?: (description: string | null) => void
 }
 
 /** A command the host runs itself (and `/goal` where the host sets goals), never a message. */
@@ -58,10 +61,18 @@ export function useNativeChatStructuredComposerSend({
   isComposing,
   clearSkillOrigin,
   setDraft,
-  setCaret
+  setCaret,
+  onWorkflowRouteArmed
 }: UseNativeChatStructuredComposerSendArgs): NativeChatStructuredComposerSend {
   return useCallback<NativeChatStructuredComposerSend>(
-    async (text, attachments = imageAttachments): Promise<void> => {
+    async (typed, attachments = imageAttachments): Promise<void> => {
+      // A /workflow draft re-enters as an ordinary chat prompt: the text is the
+      // description the agent authors from, never a workflow name.
+      const route = nativeChatWorkflowRoute(typed)
+      if (route) {
+        onWorkflowRouteArmed?.(route.description)
+      }
+      const text = route?.routedPrompt ?? typed
       // A picked command is held like Send: it would carry attachments still uploading, pathless.
       if (!structuredTransport || attachments.some((attachment) => attachment.pending)) {
         return
@@ -142,6 +153,7 @@ export function useNativeChatStructuredComposerSend({
       draftScopeKey,
       imageAttachments,
       isComposing,
+      onWorkflowRouteArmed,
       setCaret,
       setDraft,
       structuredTransport

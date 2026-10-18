@@ -160,6 +160,22 @@
           "identitySha256": "cd1b364bf35781bad06bf75ab1766afa8d6cec69cb2060529691d89871a2098a"
         }
       ]
+    },
+    {
+      "name": "workflows",
+      "sourcePath": "skills/workflows",
+      "packageDigest": "00ac5bd0c06aec0a0edb22c17a871296beb080e28e9f27658687485e91644591",
+      "files": [
+        {
+          "path": "SKILL.md",
+          "size": 3429,
+          "executable": false,
+          "classification": "text",
+          "exactSha256": "b55c7f643a0c5efa02cb5a93c194884f963d9c2126231f0b2f4e65f689556719",
+          "textNormalizedSha256": "b55c7f643a0c5efa02cb5a93c194884f963d9c2126231f0b2f4e65f689556719",
+          "identitySha256": "b55c7f643a0c5efa02cb5a93c194884f963d9c2126231f0b2f4e65f689556719"
+        }
+      ]
     }
   ]
 }

@@ -32,7 +32,11 @@ export type SlashCommandSuggestion = {
 const COMMON_COMMANDS: readonly SlashCommandSuggestion[] = [
   { name: 'clear', description: 'Clear the conversation' },
   { name: 'help', description: 'Show available commands' },
-  { name: 'workflow', description: 'Create a new workflow', argumentHint: '<name>' }
+  {
+    name: 'workflow',
+    description: 'Create a workflow from a description',
+    argumentHint: '<description>'
+  }
 ]
 
 const CLAUDE_COMMANDS: readonly SlashCommandSuggestion[] = [
@@ -231,4 +235,34 @@ export function classifyNativeChatSend(
     return 'unknown-token'
   }
   return 'chat'
+}
+
+const WORKFLOW_ROUTE_TAIL =
+  ' Author the graph as version-1 workflow JSON (use the `workflows` skill: ' +
+  '`ORCA skills get workflows`) and create it with `ORCA workflows import - --json` ' +
+  'so the Workflows page can open it. Name it from the intent, never from this ' +
+  'message, keep it disabled, and report the new workflow id.'
+
+/**
+ * The free text after `/workflow` is the description the agent authors from —
+ * never a workflow name. Rewriting at the send layer turns the command into an
+ * ordinary chat turn, so every transport (PTY and structured) needs no special case.
+ */
+export function nativeChatWorkflowRoute(
+  text: string
+): { routedPrompt: string; description: string | null } | null {
+  // `(?![\w-])` keeps `/workflowboard` prose; a bare `/workflow` still routes.
+  const match = /^\/workflow(?![\w-])\s*([\s\S]*)$/i.exec(text.trimStart())
+  if (!match) {
+    return null
+  }
+  const description = (match[1] ?? '').trim()
+  const brief =
+    description.length > 0
+      ? `Request: "${description}"`
+      : 'The user has not described what the workflow should do yet — ask for the steps before authoring.'
+  return {
+    routedPrompt: `Create an Orca agent workflow. ${brief} ${WORKFLOW_ROUTE_TAIL}`,
+    description: description.length > 0 ? description : null
+  }
 }
