@@ -4,9 +4,10 @@ import {
   REMOTE_IMPORT_MAX_TOTAL_BYTES
 } from './runtime-import-limits'
 import { constants } from 'node:fs'
-import { lstat, open, readdir, realpath } from 'node:fs/promises'
-import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { lstat, open, readdir, realpath, type FileHandle } from 'node:fs/promises'
+import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { classifyImportSource } from './filesystem-import-source-stat'
+import { detectImageFileSignature, IMAGE_SIGNATURE_BYTES } from '../image-file-signature'
 import type {
   StagedExternalImportEntry,
   StagedExternalImportSource
@@ -40,16 +41,29 @@ export async function stageOneSourceForRuntimeUpload(
     return classified.rejection
   }
   const sourceStat = classified.stat
+  const sourceName = basename(resolvedSource)
   try {
-    const entries = sourceStat.isDirectory()
-      ? await stageDirectoryEntries(resolvedSource, totalBytesBefore)
-      : [(await stageFileEntry(resolvedSource, '', { totalBytesBefore })).entry]
+    if (sourceStat.isDirectory()) {
+      return {
+        sourcePath,
+        status: 'staged',
+        name: sourceName,
+        kind: 'directory',
+        entries: await stageDirectoryEntries(resolvedSource, totalBytesBefore)
+      }
+    }
+    const staged = await stageFileEntry(resolvedSource, '', {
+      totalBytesBefore,
+      detectImageExtension: extname(sourceName) === ''
+    })
     return {
       sourcePath,
       status: 'staged',
-      name: basename(resolvedSource),
-      kind: sourceStat.isDirectory() ? 'directory' : 'file',
-      entries
+      // Why: some drag sources hand over images as an extensionless `noname`; the
+      // agent reading the dropped path needs `.png` to know it is an image.
+      name: staged.imageExtension ? `${sourceName}.${staged.imageExtension}` : sourceName,
+      kind: 'file',
+      entries: [staged.entry]
     }
   } catch (error) {
     if (error instanceof RuntimeUploadSymlinkError) {
@@ -119,8 +133,8 @@ async function stageDirectoryEntries(
 async function stageFileEntry(
   filePath: string,
   relativePath: string,
-  options: { rootRealPath?: string; totalBytesBefore: number }
-): Promise<{ entry: StagedExternalImportEntry; byteLength: number }> {
+  options: { rootRealPath?: string; totalBytesBefore: number; detectImageExtension?: boolean }
+): Promise<{ entry: StagedExternalImportEntry; byteLength: number; imageExtension?: string }> {
   const statResult = await lstat(filePath)
   const displayPath = normalizeRelativeUploadPath(relativePath)
   // Why: a dropped file's relative path is '', so errors would name nothing.
@@ -166,11 +180,20 @@ async function stageFileEntry(
         deviceId: openedStat.dev,
         modifiedAtMs: openedStat.mtimeMs
       },
-      byteLength: openedStat.size
+      byteLength: openedStat.size,
+      imageExtension: options.detectImageExtension
+        ? await readImageExtension(fileHandle)
+        : undefined
     }
   } finally {
     await fileHandle.close()
   }
+}
+
+async function readImageExtension(fileHandle: FileHandle): Promise<string | undefined> {
+  const header = Buffer.alloc(IMAGE_SIGNATURE_BYTES)
+  const { bytesRead } = await fileHandle.read(header, 0, IMAGE_SIGNATURE_BYTES, 0)
+  return detectImageFileSignature(header.subarray(0, bytesRead))?.extension
 }
 
 async function assertRealPathInsideRoot(
