@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Pressable, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useBackClaim } from '../navigation/use-back-claim'
 import { colors } from '../theme/mobile-theme'
 import { connectionRetryAction } from '../transport/connection-retry-action'
 import { useMobileSourceControlState } from './use-mobile-source-control-state'
@@ -217,9 +218,21 @@ export function MobileSourceControlPanel({
 
   // Embedded mode docks beside the terminal: close the dock instead of popping a route; skip
   // safe-area chrome (the dock column owns it). Two handlers rather than one chosen by mode,
-  // because the header renders a Close or a Back and they are not the same control.
-  const onBack = () => router.back()
-  const onClose = onRequestClose ?? (() => router.back())
+  // because the header renders a Close or a Back and they are not the same control. Hardware
+  // back claims the handler for this mode, so the key and the button leave the same way.
+  const onBack = useCallback(() => {
+    router.back()
+    return true
+  }, [router])
+  const onClose = useCallback(() => {
+    if (onRequestClose) {
+      onRequestClose()
+    } else {
+      router.back()
+    }
+    return true
+  }, [onRequestClose, router])
+  useBackClaim(embedded ? onClose : onBack)
   // Chromeless PR body has no header, so surface open-on-web on the hub chrome while the PR segment is active.
   const prWebUrl =
     activeTab === 'pr' &&
