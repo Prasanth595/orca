@@ -31,8 +31,6 @@ function createPixelSizeTerminal(
   const width = cssCellWidth * devicePixelRatio
   const height = cssCellHeight * devicePixelRatio
   return {
-    cols,
-    rows,
     dimensions: {
       css: {
         cell: { width: cssCellWidth, height: cssCellHeight },
@@ -445,12 +443,20 @@ describe('installTerminalCapabilityReplyHandlers', () => {
       windowReply: '\x1b[4;1280;1600t'
     },
     {
-      name: 'consistently rounded fractional device pixels',
+      name: 'fractional device pixels',
       width: 7.8,
       height: 15.6,
       dpr: 2,
       cellReply: '\x1b[6;31;16t',
-      windowReply: '\x1b[4;1240;1600t'
+      windowReply: '\x1b[4;1248;1560t'
+    },
+    {
+      name: 'floored fractional device canvas pixels',
+      width: 7.803,
+      height: 15.607,
+      dpr: 2,
+      cellReply: '\x1b[6;31;16t',
+      windowReply: '\x1b[4;1248;1560t'
     },
     {
       name: 'unchanged DPR 1 pixels',
@@ -487,10 +493,7 @@ describe('installTerminalCapabilityReplyHandlers', () => {
 
   it('does not answer pixel-size queries before the terminal is rendered', () => {
     const sendInput = vi.fn<(data: string) => boolean>(() => true)
-    const observe = createTerminalPixelSizeQueryResponder(
-      { cols: 100, rows: 40, dimensions: undefined },
-      sendInput
-    )
+    const observe = createTerminalPixelSizeQueryResponder({ dimensions: undefined }, sendInput)
 
     observe('\x1b[14t\x1b[16t')
 
@@ -501,17 +504,53 @@ describe('installTerminalCapabilityReplyHandlers', () => {
     [0, 16],
     [8, 0],
     [-8, 16],
-    [8, -16]
-  ])('does not answer pixel-size queries with a non-positive cell %s x %s', (width, height) => {
+    [8, -16],
+    [Number.NaN, 16],
+    [8, Number.NaN],
+    [Infinity, 16],
+    [8, Infinity]
+  ])('does not answer pixel-size queries with an invalid device cell %s x %s', (width, height) => {
     const sendInput = vi.fn<(data: string) => boolean>(() => true)
-    const observe = createTerminalPixelSizeQueryResponder(
-      createPixelSizeTerminal(width, height),
-      sendInput
-    )
+    const terminal = createPixelSizeTerminal(8, 16)
+    terminal.dimensions.device.cell = { width, height }
+    const observe = createTerminalPixelSizeQueryResponder(terminal, sendInput)
 
     observe('\x1b[14t\x1b[16t')
 
     expect(sendInput).not.toHaveBeenCalled()
+  })
+
+  it('answers only the cell-size query when the device canvas is missing', () => {
+    const sendInput = vi.fn<(data: string) => boolean>(() => true)
+    const terminal = createPixelSizeTerminal(9, 18)
+    Reflect.deleteProperty(terminal.dimensions.device, 'canvas')
+    const observe = createTerminalPixelSizeQueryResponder(terminal, sendInput)
+
+    observe('\x1b[14t\x1b[16t')
+
+    expect(sendInput.mock.calls).toEqual([['\x1b[6;18;9t']])
+  })
+
+  it.each([
+    [Infinity, 720],
+    [900, Infinity],
+    [Number.NaN, 720],
+    [900, Number.NaN],
+    [0, 720],
+    [900, 0],
+    [-1, 720],
+    [900, -1],
+    [0.5, 720],
+    [900, 0.5]
+  ])('answers only the cell-size query with an invalid device canvas %s x %s', (width, height) => {
+    const sendInput = vi.fn<(data: string) => boolean>(() => true)
+    const terminal = createPixelSizeTerminal(9, 18)
+    terminal.dimensions.device.canvas = { width, height }
+    const observe = createTerminalPixelSizeQueryResponder(terminal, sendInput)
+
+    observe('\x1b[14t\x1b[16t')
+
+    expect(sendInput.mock.calls).toEqual([['\x1b[6;18;9t']])
   })
 
   it('consumes replayed capability queries without sending input to the shell', async () => {

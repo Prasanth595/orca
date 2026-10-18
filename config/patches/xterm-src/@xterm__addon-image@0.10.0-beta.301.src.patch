@@ -114,7 +114,7 @@ index 559b907416eb38318f439d060d7f89311ed34c7e..75741f358adc45fd93cb920c8e6c0983
      const rw = this._dim(this._header.width!, width, cw);
      const rh = this._dim(this._header.height!, height, ch);
 diff --git a/src/ImageAddon.ts b/src/ImageAddon.ts
-index 8fd39543118cd420e36c1614c1af370b6c7bbfbb..3d91c6903d7b61fa84e2b8dee8336c631c4dfc18 100644
+index 8fd39543118cd420e36c1614c1af370b6c7bbfbb..c728e47bd26a1d1e671fcff17d1257ee588413c2 100644
 --- a/src/ImageAddon.ts
 +++ b/src/ImageAddon.ts
 @@ -6,6 +6,7 @@
@@ -166,7 +166,7 @@ index 8fd39543118cd420e36c1614c1af370b6c7bbfbb..3d91c6903d7b61fa84e2b8dee8336c63
      }
    }
  
-@@ -258,6 +270,26 @@ export class ImageAddon implements ITerminalAddon, IImageApi {
+@@ -258,6 +270,32 @@ export class ImageAddon implements ITerminalAddon, IImageApi {
      this._terminal?._core.input(s, false);
    }
  
@@ -174,26 +174,32 @@ index 8fd39543118cd420e36c1614c1af370b6c7bbfbb..3d91c6903d7b61fa84e2b8dee8336c63
 +    if (params[0] !== 14 && params[0] !== 16 || params[0] === 14 && params[1] === 2) {
 +      return false;
 +    }
-+    const terminal = this._terminal;
-+    const cell = this._renderer?.dimensions?.device.cell;
-+    if (!terminal || !cell) {
++    const device = this._renderer?.dimensions?.device;
++    if (!this._terminal || !device) {
 +      return false;
 +    }
-+    const width = Math.round(cell.width);
-+    const height = Math.round(cell.height);
++    let width = Math.round(device.cell.width);
++    let height = Math.round(device.cell.height);
 +    if (!Number.isFinite(width) || !Number.isFinite(height) || width < 1 || height < 1) {
 +      return false;
 +    }
++    if (params[0] === 14) {
++      width = Math.floor(device.canvas.width);
++      height = Math.floor(device.canvas.height);
++      if (!Number.isFinite(width) || !Number.isFinite(height) || width < 1 || height < 1) {
++        return false;
++      }
++    }
 +    this._report(params[0] === 16
 +      ? `\x1b[6;${height};${width}t`
-+      : `\x1b[4;${height * terminal.rows};${width * terminal.cols}t`);
++      : `\x1b[4;${height};${width}t`);
 +    return true;
 +  }
 +
    private _decset(params: (number | number[])[]): boolean {
      for (let i = 0; i < params.length; ++i) {
        switch (params[i]) {
-@@ -344,8 +376,8 @@ export class ImageAddon implements ITerminalAddon, IImageApi {
+@@ -344,8 +382,8 @@ export class ImageAddon implements ITerminalAddon, IImageApi {
        switch (params[1]) {
          // we only implement read and read_max here
          case GaAction.READ:

@@ -249,43 +249,59 @@ describe('installed xterm image device-pixel contract', () => {
     }
   )
 
-  it('reports device cells and a matching cell-times-grid text area when size reports are enabled', async () => {
-    const h = createTerminal(2, true)
-    const replies = []
-    h.terminal.onData((data) => replies.push(data))
-    try {
-      h.dimensions.mockReturnValue(terminalDimensions(1.25, 8.4, 16.4))
-      await write(h.terminal, '\x1b[16t\x1b[14t')
-      expect(replies).toEqual(['\x1b[6;21;11t', '\x1b[4;126;220t'])
-    } finally {
-      h.terminal.dispose()
+  it.each([
+    [15.6, 31.2, ['\x1b[6;31;16t', '\x1b[4;1248;1560t']],
+    [16, 32, ['\x1b[6;32;16t', '\x1b[4;1280;1600t']]
+  ])(
+    'reports rounded %f × %f device cells and the device canvas text area',
+    async (width, height, replies) => {
+      const h = createTerminal(2, true)
+      try {
+        h.terminal.resize(100, 40)
+        const dimensions = terminalDimensions(1, width, height)
+        dimensions.device.canvas = { width: width * 100, height: height * 40 }
+        h.dimensions.mockReturnValue(dimensions)
+        await write(h.terminal, '\x1b[16t\x1b[14t')
+        expect(h.replies).toEqual(replies)
+      } finally {
+        h.terminal.dispose()
+      }
     }
-  })
+  )
 
   it.each(
-    ['width', 'height'].flatMap((dimension) =>
-      [0, -1, NaN, Infinity, 0.3].map((value) => ({ dimension, value }))
+    ['cell', 'canvas'].flatMap((metric) =>
+      ['width', 'height'].flatMap((dimension) =>
+        [0, -1, Number.NaN, Number.POSITIVE_INFINITY, 0.3].map((value) => ({
+          metric,
+          dimension,
+          value
+        }))
+      )
     )
-  )('declines size reports with device cell $dimension of $value', async ({ dimension, value }) => {
-    const h = createTerminal(2, true)
-    try {
-      const dimensions = terminalDimensions(2)
-      dimensions.device.cell[dimension] = value
-      h.dimensions.mockReturnValue(dimensions)
-      await write(h.terminal, '\x1b[16t\x1b[14t')
-      expect(h.replies).toEqual([])
-    } finally {
-      h.terminal.dispose()
+  )(
+    'declines text-area reports with device $metric $dimension of $value',
+    async ({ metric, dimension, value }) => {
+      const h = createTerminal(2, true)
+      try {
+        const dimensions = terminalDimensions(2)
+        dimensions.device[metric][dimension] = value
+        h.dimensions.mockReturnValue(dimensions)
+        await write(h.terminal, '\x1b[14t')
+        expect(h.replies).toEqual([])
+        await write(h.terminal, '\x1b[16t')
+        expect(h.replies).toEqual(metric === 'cell' ? [] : ['\x1b[6;32;16t'])
+      } finally {
+        h.terminal.dispose()
+      }
     }
-  })
+  )
 
   it('does not enable pixel size reports when disabled', async () => {
     const h = createTerminal()
-    const replies = []
-    h.terminal.onData((data) => replies.push(data))
     try {
       await write(h.terminal, '\x1b[16t\x1b[14t')
-      expect(replies).toEqual([])
+      expect(h.replies).toEqual([])
     } finally {
       h.terminal.dispose()
     }

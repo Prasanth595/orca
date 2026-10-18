@@ -132,10 +132,11 @@ are unchanged.
 
 - **Responder** (`terminal-capability-replies.ts`). `measureCellPixels` reads
   xterm's public `terminal.dimensions.device.cell`, rounded, and clamps it to at
-  least 1 px. `CSI 14 t` is the rounded cell size times `cols`/`rows`, so the
-  14t and 16t replies stay consistent with each other. The DOM-rect helper
-  `getTerminalScreenElement` is removed. At DPR 1, device equals CSS, so the
-  replies are byte-for-byte the same as before.
+  least 1 px for `CSI 16 t`. `CSI 14 t` reports the floored
+  `terminal.dimensions.device.canvas`. This matches the image layer's backing
+  store, so a full-width image sized from 14t fits it exactly. The DOM-rect
+  helper `getTerminalScreenElement` is removed. At DPR 1, device equals CSS,
+  so the measured replies are byte-for-byte the same as before.
 - **Addon** (source patch regenerated with
   `node config/scripts/regenerate-xterm-patches.mjs --write`; shipped patch and
   `pnpm-lock.yaml` patch hash updated):
@@ -165,10 +166,11 @@ are unchanged.
 ### Regression tests
 
 - `src/renderer/src/components/terminal-pane/terminal-capability-replies.test.ts`
-  checks DPR 2 device-pixel replies, consistent fractional-cell rounding,
-  unchanged DPR 1 replies, split queries, and silence before dimensions are
-  available or when cell metrics are non-positive. Existing DA1 and replay
-  tests are unchanged.
+  checks DPR 2 device-pixel replies, rounded fractional cells and floored canvas
+  dimensions, unchanged DPR 1 replies, split queries, and silence before
+  dimensions are available or when cell metrics are non-positive or non-finite.
+  Missing or invalid canvas metrics suppress only the 14t reply. Existing DA1
+  and replay tests are unchanged.
 - `config/scripts/xterm-image-device-pixel-contract.test.mjs` checks device-sized
   backing canvases with CSS layout sizes across DPR changes, fractional canvas
   dimensions without destructive clears, full-width eviction placeholders,

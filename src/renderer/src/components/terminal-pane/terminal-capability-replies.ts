@@ -54,12 +54,7 @@ function isPrimaryDeviceAttributesQuery(params: (number | number[])[]): boolean 
   return params.length === 0 || (params.length === 1 && params[0] === 0)
 }
 
-function measureCellPixels(
-  terminal: Pick<Terminal, 'cols' | 'rows' | 'dimensions'>
-): TerminalCellPixelSize | null {
-  if (terminal.cols <= 0 || terminal.rows <= 0) {
-    return null
-  }
+function measureCellPixels(terminal: Pick<Terminal, 'dimensions'>): TerminalCellPixelSize | null {
   const cell = terminal.dimensions?.device.cell
   if (!cell) {
     return null
@@ -98,7 +93,7 @@ function sendTerminalOscColorQueryRepliesForSlots(
 }
 
 export function createTerminalPixelSizeQueryResponder(
-  terminal: Pick<Terminal, 'cols' | 'rows' | 'dimensions'>,
+  terminal: Pick<Terminal, 'dimensions'>,
   sendInput: (data: string) => boolean | void
 ): (data: string) => void {
   let pending = ''
@@ -107,7 +102,10 @@ export function createTerminalPixelSizeQueryResponder(
     if (!cell) {
       return
     }
-    sendInput(formatTerminalPixelSizeReply(query, cell, terminal.cols, terminal.rows))
+    const reply = formatTerminalPixelSizeReply(query, cell, terminal.dimensions?.device.canvas)
+    if (reply) {
+      sendInput(reply)
+    }
   }
   return (data) => {
     const input = pending + data
