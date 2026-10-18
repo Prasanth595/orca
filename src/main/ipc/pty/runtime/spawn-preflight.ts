@@ -147,6 +147,7 @@ export async function prepareRuntimePtySpawn(
   ctx.env = hostEnv.env
   ctx.selectedCodexHomePath = hostEnv.selectedCodexHomePath
   ctx.codexResumeHomeSelected = hostEnv.codexResumeHomeSelected
+  ctx.codexResumedTranscriptPath = hostEnv.codexResumedTranscriptPath
   ctx.skipCodexHomeEnv = hostEnv.skipCodexHomeEnv
   ctx.stripInheritedOrcaCodexHome = hostEnv.stripInheritedOrcaCodexHome
 
