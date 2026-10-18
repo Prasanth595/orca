@@ -10,19 +10,11 @@ import type {
   AiVaultAgent,
   AiVaultFirstUserPromptArgs,
   AiVaultListArgs,
-  AiVaultListResult,
   AiVaultSubagentListArgs
 } from '../../shared/ai-vault-types'
-import type {
-  AiVaultSessionTitlesArgs,
-  AiVaultSessionTitlesResult
-} from '../../shared/ai-vault-session-title'
-import type { AiVaultPrepareSessionResumeArgs } from '../../shared/ai-vault-resume-preparation'
-import type {
-  AiVaultHistoryReadResult,
-  AiVaultHistorySearchResult
-} from '../../shared/ai-vault-history-types'
-import type { PreloadApi } from '../api-types'
+import type { AiVaultSessionTitlesArgs } from '../../shared/ai-vault-session-title'
+import type { AiVaultPrepareSessionResumeRequest } from '../../shared/ai-vault-resume-preparation'
+import type { AiVaultHistoryReadResult, AiVaultHistorySearchResult } from '../../shared/ai-vault-history-types'
 import type {
   ConversationKnowledgeIndexStatus,
   ConversationKnowledgeItem,
@@ -30,6 +22,12 @@ import type {
   GenerateConversationKnowledgeRequest,
   StartConversationKnowledgeIndexRequest
 } from '../../shared/conversation-knowledge-items'
+import type { PreloadApi } from '../api-types'
+import {
+  AI_VAULT_SCAN_PROGRESS_CHANNEL,
+  type AiVaultScanProgress,
+  type AiVaultScanProgressUpdate
+} from '../../shared/ai-vault-scan-progress'
 
 function searchClient(
   executionHostScope?: ExecutionHostScope
@@ -44,37 +42,7 @@ function searchClient(
   )
 }
 
-function invokeAiVault<T>(channel: string, ...args: unknown[]): Promise<T> {
-  return ipcRenderer.invoke(channel, ...args)
-}
-
 export const aiVaultApi = {
-  listSessions: (args?: AiVaultListArgs): Promise<AiVaultListResult> =>
-    invokeAiVault<AiVaultListResult>('aiVault:listSessions', args),
-  searchHistory: (args: { query: string; limit?: number }): Promise<AiVaultHistorySearchResult> =>
-    invokeAiVault<AiVaultHistorySearchResult>('aiVault:searchHistory', args),
-  readHistory: (args: {
-    agent: AiVaultAgent
-    sessionId: string
-    limit?: number
-  }): Promise<AiVaultHistoryReadResult> =>
-    invokeAiVault<AiVaultHistoryReadResult>('aiVault:readHistory', args),
-  enrichHistory: (args: GenerateConversationKnowledgeRequest): Promise<ConversationKnowledgeItem> =>
-    invokeAiVault<ConversationKnowledgeItem>('aiVault:enrichHistory', args),
-  listKnowledge: (args?: {
-    query?: string
-    scopePaths?: string[]
-  }): Promise<ConversationKnowledgeListResult> =>
-    invokeAiVault<ConversationKnowledgeListResult>('aiVault:listKnowledge', args),
-  startKnowledgeIndex: (
-    args: StartConversationKnowledgeIndexRequest
-  ): Promise<ConversationKnowledgeIndexStatus> =>
-    invokeAiVault<ConversationKnowledgeIndexStatus>('aiVault:startKnowledgeIndex', args),
-  getKnowledgeIndexStatus: (): Promise<ConversationKnowledgeIndexStatus> =>
-    invokeAiVault<ConversationKnowledgeIndexStatus>('aiVault:getKnowledgeIndexStatus'),
-  cancelKnowledgeIndex: (): Promise<void> => invokeAiVault<void>('aiVault:cancelKnowledgeIndex'),
-  resolveSessionTitles: (args: AiVaultSessionTitlesArgs): Promise<AiVaultSessionTitlesResult> =>
-    invokeAiVault<AiVaultSessionTitlesResult>('aiVault:resolveSessionTitles', args),
   searchSessions: (request: AiVaultSearchRequest, executionHostScope?: ExecutionHostScope) =>
     searchClient(executionHostScope).searchSessions(request),
   searchStatus: (executionHostScope?: ExecutionHostId) =>
@@ -85,9 +53,29 @@ export const aiVaultApi = {
   ): Promise<AiVaultSearchStatus> =>
     ipcRenderer.invoke('aiVault:setSearchEnabled', executionHostId, enabled),
   clearSearchIndex: (): Promise<void> => ipcRenderer.invoke('aiVault:clearSearchIndex'),
+  searchHistory: (args: { query: string; limit?: number }): Promise<AiVaultHistorySearchResult> =>
+    ipcRenderer.invoke('aiVault:searchHistory', args),
+  readHistory: (args: {
+    agent: AiVaultAgent
+    sessionId: string
+    limit?: number
+  }): Promise<AiVaultHistoryReadResult> => ipcRenderer.invoke('aiVault:readHistory', args),
+  enrichHistory: (args: GenerateConversationKnowledgeRequest): Promise<ConversationKnowledgeItem> =>
+    ipcRenderer.invoke('aiVault:enrichHistory', args),
+  listKnowledge: (args?: { query?: string; scopePaths?: string[] }): Promise<ConversationKnowledgeListResult> =>
+    ipcRenderer.invoke('aiVault:listKnowledge', args),
+  startKnowledgeIndex: (
+    args: StartConversationKnowledgeIndexRequest
+  ): Promise<ConversationKnowledgeIndexStatus> => ipcRenderer.invoke('aiVault:startKnowledgeIndex', args),
+  getKnowledgeIndexStatus: (): Promise<ConversationKnowledgeIndexStatus> =>
+    ipcRenderer.invoke('aiVault:getKnowledgeIndexStatus'),
+  cancelKnowledgeIndex: (): Promise<void> => ipcRenderer.invoke('aiVault:cancelKnowledgeIndex'),
+  listSessions: (args?: AiVaultListArgs) => ipcRenderer.invoke('aiVault:listSessions', args),
+  resolveSessionTitles: (args: AiVaultSessionTitlesArgs) =>
+    ipcRenderer.invoke('aiVault:resolveSessionTitles', args),
   cancelListSessions: (args: { requestToken: string }): Promise<void> =>
     ipcRenderer.invoke('aiVault:cancelListSessions', args),
-  prepareSessionResume: (args: AiVaultPrepareSessionResumeArgs) =>
+  prepareSessionResume: (args: AiVaultPrepareSessionResumeRequest) =>
     ipcRenderer.invoke('aiVault:prepareSessionResume', args),
   listSubagentSessions: (args: AiVaultSubagentListArgs) =>
     ipcRenderer.invoke('aiVault:listSubagentSessions', args),
@@ -99,5 +87,13 @@ export const aiVaultApi = {
     const listener = (_event: Electron.IpcRendererEvent) => callback()
     ipcRenderer.on('aiVault:windowFocused', listener)
     return () => ipcRenderer.removeListener('aiVault:windowFocused', listener)
+  },
+  getScanProgress: (scanKey: string): Promise<AiVaultScanProgress | null> =>
+    ipcRenderer.invoke('aiVault:getScanProgress', scanKey),
+  onScanProgress: (callback: (update: AiVaultScanProgressUpdate) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, update: AiVaultScanProgressUpdate) =>
+      callback(update)
+    ipcRenderer.on(AI_VAULT_SCAN_PROGRESS_CHANNEL, listener)
+    return () => ipcRenderer.removeListener(AI_VAULT_SCAN_PROGRESS_CHANNEL, listener)
   }
 } satisfies PreloadApi['aiVault']

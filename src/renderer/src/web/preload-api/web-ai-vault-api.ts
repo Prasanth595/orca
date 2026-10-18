@@ -4,7 +4,7 @@ import {
 } from '../../../../shared/ai-vault-search-client'
 import type { PreloadApi } from '../../../../preload/api-types'
 import type {
-  AiVaultPrepareSessionResumeArgs,
+  AiVaultPrepareSessionResumeRequest,
   AiVaultPrepareSessionResumeResult
 } from '../../../../shared/ai-vault-resume-preparation'
 import type { AiVaultDeleteSessionArgs } from '../../../../shared/ai-vault-session-deletion'
@@ -86,6 +86,9 @@ export function createWebAiVaultApi(): NonNullable<Partial<PreloadApi>['aiVault'
         includeAntigravityIdeSessions: args?.includeAntigravityIdeSessions,
         limit: args?.limit,
         force: args?.force,
+        ...(requestedScope === executionHostId && args?.afterFingerprint !== undefined
+          ? { afterFingerprint: args.afterFingerprint }
+          : {}),
         scopePaths: args?.scopePaths,
         executionHostId
       })
@@ -107,7 +110,7 @@ export function createWebAiVaultApi(): NonNullable<Partial<PreloadApi>['aiVault'
     // settles on its own timeout. The renderer's refreshId guard already drops
     // the late result; this only means web pays for a scan nobody reads.
     cancelListSessions: () => Promise.resolve(),
-    prepareSessionResume: (args: AiVaultPrepareSessionResumeArgs) =>
+    prepareSessionResume: (args: AiVaultPrepareSessionResumeRequest) =>
       callRuntimeResult<AiVaultPrepareSessionResumeResult>('aiVault.prepareSessionResume', args),
     // Why: no server-side RPC for subagent transcript listing yet, so report an empty (not erroring) result.
     listSubagentSessions: () => Promise.resolve({ sessions: [], issues: [] }),
@@ -122,7 +125,10 @@ export function createWebAiVaultApi(): NonNullable<Partial<PreloadApi>['aiVault'
         agent: args.agent,
         reason: 'non-local-host' as const
       }),
-    onWindowFocused: () => noopUnsubscribe
+    onWindowFocused: () => noopUnsubscribe,
+    // Why: the runtime RPC has no progress stream, so the panel keeps its plain spinner here.
+    getScanProgress: () => Promise.resolve(null),
+    onScanProgress: () => noopUnsubscribe
   }
 }
 

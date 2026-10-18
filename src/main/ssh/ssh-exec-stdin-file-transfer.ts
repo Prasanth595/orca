@@ -11,10 +11,10 @@ import { constants } from 'node:fs'
 import { lstat, open } from 'node:fs/promises'
 import { posix } from 'node:path'
 import { Readable } from 'node:stream'
-import type { SshConnection } from './ssh-connection'
+import type { RemoteInstallTransport } from '../managed-server/install/remote-install-transport'
 import { shellEscape } from './ssh-connection-utils'
-import { execCommand } from './ssh-relay-exec-command'
-import { RELAY_DEPLOY_TIMEOUT_MS } from './ssh-relay-deploy-timing'
+import { execCommand } from './remote-exec-command'
+import { RELAY_DEPLOY_TIMEOUT_MS } from '../managed-server/install/remote-deploy-timing'
 import type { RemoteHostPlatform } from './ssh-remote-platform'
 import { makePosixWriteFileCommand } from './system-ssh-file-binary-transfer'
 import { collectLocalUploadPlan } from './system-ssh-file-transfer'
@@ -47,7 +47,7 @@ export function makeExecStdinWriteFileCommand(
 }
 
 async function writeViaExecStdin(
-  conn: SshConnection,
+  conn: RemoteInstallTransport,
   remotePath: string,
   byteLength: number,
   stdin: Readable,
@@ -67,7 +67,7 @@ async function writeViaExecStdin(
 }
 
 export async function uploadFileViaExecStdin(
-  conn: SshConnection,
+  conn: RemoteInstallTransport,
   localPath: string,
   remotePath: string,
   options?: ExecStdinOptions
@@ -103,7 +103,7 @@ export async function uploadFileViaExecStdin(
 }
 
 export async function writeStringViaExecStdin(
-  conn: SshConnection,
+  conn: RemoteInstallTransport,
   remotePath: string,
   contents: string,
   options?: ExecStdinOptions
@@ -114,7 +114,7 @@ export async function writeStringViaExecStdin(
 
 /** One exec creates the tree (empty directories included), then one exec per file. */
 export async function uploadDirectoryViaExecStdin(
-  conn: SshConnection,
+  conn: RemoteInstallTransport,
   localDir: string,
   remoteDir: string,
   host: RemoteHostPlatform,

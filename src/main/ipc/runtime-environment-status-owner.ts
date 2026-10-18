@@ -3,7 +3,7 @@ import { sendRemoteRuntimeRequest } from '../../shared/remote-runtime-client'
 import { REMOTE_RUNTIME_SHARED_CONTROL_CAPABILITY } from '../../shared/protocol-version'
 import { ELECTRON_REMOTE_RUNTIME_CLIENT_CAPABILITIES } from '../../shared/electron-remote-runtime-client-capabilities'
 import {
-  getPreferredPairingOffer,
+  getPreferredPairedRuntimeConnection,
   type KnownRuntimeEnvironment
 } from '../../shared/runtime-environments'
 import { recordRuntimeEnvironmentUsage } from './runtime-environment-usage-record'
@@ -23,6 +23,14 @@ import { isRuntimeEnvironmentManuallyDisconnected } from './runtime-environment-
 import { runtimeEnvironmentChangedFailure } from './runtime-environment-revision-guard'
 import { resolveManagedRuntimeEnvironment } from './runtime-environment-managed-tunnel'
 
+const statusListeners = new Set<() => void>()
+
+/** Main's own readers of server status, alongside the windows it is sent to. */
+export function onRuntimeEnvironmentStatusPublished(listener: () => void): () => void {
+  statusListeners.add(listener)
+  return () => statusListeners.delete(listener)
+}
+
 export function createRuntimeEnvironmentStatusOwner(
   userDataPath: string,
   environment: KnownRuntimeEnvironment,
@@ -33,8 +41,8 @@ export function createRuntimeEnvironmentStatusOwner(
     pause: () => void
   }
 ): RuntimeHostStatusOwner {
-  const pairing = getPreferredPairingOffer(environment)
-  let evidence = captureRuntimeEnvironmentCapabilityEvidence(environment.id, pairing)
+  const connection = getPreferredPairedRuntimeConnection(environment)
+  let evidence = captureRuntimeEnvironmentCapabilityEvidence(environment.id, connection)
   return new RuntimeHostStatusOwner({
     environmentId: environment.id,
     pairingRevision: environment.pairingRevision ?? environment.createdAt,
@@ -49,13 +57,13 @@ export function createRuntimeEnvironmentStatusOwner(
         }
         signal.throwIfAborted()
       }
-      evidence = captureRuntimeEnvironmentCapabilityEvidence(environment.id, pairing)
+      evidence = captureRuntimeEnvironmentCapabilityEvidence(environment.id, connection)
       const response = await (transport.isReady() &&
-      getAcceptedRuntimeEnvironmentCapabilityOutcome(environment.id, pairing, null)?.kind ===
+      getAcceptedRuntimeEnvironmentCapabilityOutcome(environment.id, connection, null)?.kind ===
         'supported'
         ? transport.request(signal)
         : sendRemoteRuntimeRequest<RuntimeStatus>(
-            pairing,
+            connection,
             'status.get',
             undefined,
             15_000,
@@ -77,7 +85,7 @@ export function createRuntimeEnvironmentStatusOwner(
         recordRuntimeEnvironmentUsage(userDataPath, environment.id, {
           runtimeId: response._meta.runtimeId,
           pairedDeviceId: response.result.pairedDeviceId,
-          pairingDeviceToken: pairing.deviceToken
+          pairingDeviceToken: connection.credential.deviceToken
         })
         if (capable) {
           transport.establish()
@@ -97,6 +105,9 @@ export function createRuntimeEnvironmentStatusOwner(
         } catch {
           /* A renderer can close during publication. */
         }
+      }
+      for (const listener of statusListeners) {
+        listener()
       }
     }
   })

@@ -11,12 +11,13 @@ import { useWorktreeJumpPaletteListEntries } from './use-worktree-jump-palette-l
 import { useWorktreeJumpPaletteSelectionLifecycle } from './use-worktree-jump-palette-selection-lifecycle'
 import { useWorktreeJumpPaletteSelectionActions } from './use-worktree-jump-palette-selection-actions'
 import { useWorktreeJumpPaletteCreateAction } from './use-worktree-jump-palette-create-action'
+import { useWorktreeJumpPaletteTaskSearch } from './use-worktree-jump-palette-task-search'
 import { useWorktreeJumpPaletteTaskUrl } from './use-worktree-jump-palette-task-url'
 import { useWorkspaceEmojiShortcodeInput } from '@/components/workspace-emoji/useWorkspaceEmojiShortcodeInput'
+import { useWorktreeJumpPaletteKnowledgeSearch } from './use-worktree-jump-palette-knowledge-search'
 import { usePaletteSearchEvaluationContext } from '@/hooks/use-palette-search-evaluation-context'
 import type { WorktreePaletteRequestGuard } from '@/lib/worktree-palette-create-action'
 import { useMemo } from 'react'
-import { useWorktreeJumpPaletteKnowledgeSearch } from './use-worktree-jump-palette-knowledge-search'
 
 export function useWorktreeJumpPaletteController({
   visible,
@@ -33,7 +34,7 @@ export function useWorktreeJumpPaletteController({
     () => ({
       query: localState.paletteSearchQuery,
       agentStatus: storeState.agentStatusByPaneKey,
-      worktrees: storeState.allWorktrees,
+      worktrees: storeState.workspaces,
       browserPages: storeState.browserPagesByWorkspace,
       browserWorkspaces: storeState.browserTabsByWorktree,
       openFiles: storeState.openFiles,
@@ -45,7 +46,7 @@ export function useWorktreeJumpPaletteController({
     [
       localState.paletteSearchQuery,
       storeState.agentStatusByPaneKey,
-      storeState.allWorktrees,
+      storeState.workspaces,
       storeState.browserPagesByWorkspace,
       storeState.browserTabsByWorktree,
       storeState.openFiles,
@@ -64,6 +65,7 @@ export function useWorktreeJumpPaletteController({
     createLookupGuard
   })
   const filter = useWorktreeJumpPaletteFilter({ ...storeState, ...localState })
+  const taskSearch = useWorktreeJumpPaletteTaskSearch({ ...storeState, ...localState, ...filter })
   const worktrees = useWorktreeJumpPaletteWorktrees({
     ...storeState,
     ...localState,
@@ -117,6 +119,7 @@ export function useWorktreeJumpPaletteController({
     ...worktrees,
     ...openTabs,
     ...sections,
+    ...taskSearch,
     ...taskUrl,
     ...knowledge
   })
@@ -129,15 +132,17 @@ export function useWorktreeJumpPaletteController({
     ...recentTabs,
     ...projectTargets,
     ...quickActions,
-    ...knowledge,
     ...sections,
     ...listEntries,
-    ...taskUrl
+    ...taskSearch,
+    ...taskUrl,
+    ...knowledge
   })
   const selectionActions = useWorktreeJumpPaletteSelectionActions({
     ...storeState,
     ...localState,
     ...quickActions,
+    ...taskSearch,
     ...knowledge,
     ...selectionLifecycle
   })
@@ -162,13 +167,14 @@ export function useWorktreeJumpPaletteController({
     ...storeState,
     ...localState,
     ...taskUrl,
+    ...taskSearch,
+    ...knowledge,
     ...filter,
     ...worktrees,
     ...openTabs,
     ...recentTabs,
     ...projectTargets,
     ...quickActions,
-    ...knowledge,
     ...sections,
     ...listEntries,
     ...selectionLifecycle,

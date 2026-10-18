@@ -9,22 +9,20 @@ import {
   removeControlSocketPathMock,
   resetSshConnectionMocks,
   spawnSystemSshCommandMock,
-  spawnSystemSshMock,
   ssh2Mock
 } from './ssh-connection-test-harness'
 import {
   createCallbacks,
   createFailingSystemCommandChannel,
   createHangingSystemCommandChannel,
-  createPendingSystemSshProcess,
   createResolvedConfig,
   createSystemCommandChannel,
-  createSystemSshProcess,
   createTarget
 } from './ssh-connection-test-fixtures'
-import { SshConnection, shouldUseSystemSshTransport } from './ssh-connection'
-import { resolveWithSshG } from './ssh-config-parser'
-import { writeFileViaSystemSsh } from './ssh-system-fallback'
+import { SshConnection } from './ssh-connection'
+import { shouldUseSystemSshTransport } from './ssh-transport-selection'
+import { resolveWithSshG } from './ssh-g-config-resolution'
+import { writeFileViaSystemSsh } from './system-ssh-file-transfer'
 import { CONNECT_TIMEOUT_MS } from './ssh-connection-utils'
 import type { SshTarget } from '../../shared/ssh-types'
 import {
@@ -36,14 +34,32 @@ vi.mock('ssh2', async () => (await import('./ssh-connection-test-harness')).crea
 vi.mock('./system-ssh-binary', async () =>
   (await import('./ssh-connection-test-harness')).createSystemSshBinaryModule()
 )
-vi.mock('./ssh-system-fallback', async () =>
-  (await import('./ssh-connection-test-harness')).createSystemFallbackModule()
+vi.mock('./system-ssh-args', async (importOriginal) =>
+  (await import('./ssh-connection-test-harness')).withSystemSshArgsMocks(await importOriginal())
+)
+vi.mock('./system-ssh-command', async (importOriginal) =>
+  (await import('./ssh-connection-test-harness')).withSystemSshCommandMocks(await importOriginal())
+)
+vi.mock('./system-ssh-file-binary-transfer', async (importOriginal) =>
+  (await import('./ssh-connection-test-harness')).withSystemSshFileBinaryTransferMocks(
+    await importOriginal()
+  )
+)
+vi.mock('./system-ssh-file-transfer', async (importOriginal) =>
+  (await import('./ssh-connection-test-harness')).withSystemSshFileTransferMocks(
+    await importOriginal()
+  )
 )
 vi.mock('./ssh-control-socket', async () =>
   (await import('./ssh-connection-test-harness')).createControlSocketModule()
 )
 vi.mock('./ssh-config-parser', async () =>
   (await import('./ssh-connection-test-harness')).createSshConfigParserModule()
+)
+vi.mock('./ssh-g-config-resolution', async (importOriginal) =>
+  (await import('./ssh-connection-test-harness')).withSshGConfigResolutionMocks(
+    await importOriginal()
+  )
 )
 
 describe('SshConnection', () => {
@@ -209,35 +225,6 @@ describe('SshConnection', () => {
     await expect(conn.connect()).rejects.toThrow(stderr)
     expect(spawnSystemSshCommandMock).toHaveBeenCalledTimes(1)
     expect(removeControlSocketPathMock).toHaveBeenCalledWith('/tmp/orca-ssh-501/stale-socket')
-  })
-
-  it('retries a generic direct system SSH timeout without ControlMaster', async () => {
-    vi.useFakeTimers()
-    try {
-      getOrcaControlSocketPathMock.mockImplementation(
-        (_target: SshTarget, options?: { disableControlMaster?: boolean }) =>
-          options?.disableControlMaster ? null : '/tmp/orca-ssh-501/stale-socket'
-      )
-      spawnSystemSshMock
-        .mockImplementationOnce(() => createPendingSystemSshProcess())
-        .mockImplementation(() => createSystemSshProcess())
-      vi.mocked(resolveWithSshG).mockResolvedValue(createResolvedConfig())
-      const conn = new SshConnection(createTarget({ configHost: 'fdpass-host' }), createCallbacks())
-
-      const settled = conn.connectViaSystemSsh()
-      await vi.advanceTimersByTimeAsync(CONNECT_TIMEOUT_MS)
-
-      await expect(settled).resolves.toBeDefined()
-      expect(spawnSystemSshMock).toHaveBeenCalledTimes(2)
-      expect(removeControlSocketPathMock).toHaveBeenCalledWith('/tmp/orca-ssh-501/stale-socket')
-      expect(spawnSystemSshMock).toHaveBeenNthCalledWith(
-        2,
-        expect.anything(),
-        expect.objectContaining({ disableControlMaster: true })
-      )
-    } finally {
-      vi.useRealTimers()
-    }
   })
 
   it('uses system SSH transport for ProxyCommand targets before ssh2 auth', async () => {

@@ -1,7 +1,8 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { connect, createServer, type AddressInfo, type Socket } from 'node:net'
 import type { SshTarget } from '../../shared/ssh-types'
-import { buildSshArgs, findSystemSsh, type SystemSshBuildArgsOptions } from './ssh-system-fallback'
+import { buildSshArgs, type SystemSshBuildArgsOptions } from './system-ssh-args'
+import { findSystemSsh } from './system-ssh-binary'
 import { waitForSystemSshForwardStop } from './system-ssh-forward-process'
 
 const STARTUP_TIMEOUT_MS = 10_000
@@ -35,7 +36,9 @@ export async function startSystemSshDynamicForwardProcess(
     nonInteractive: true
   })
   const destinationIndex = args.lastIndexOf('--')
-  const dynamicArgs = ['-N', '-o', 'ExitOnForwardFailure=yes', '-D', `127.0.0.1:${localPort}`]
+  // Why `no`: an ssh_config forward the main connection already holds would end this one; the
+  // listener probe below is what proves our own -D bound.
+  const dynamicArgs = ['-N', '-o', 'ExitOnForwardFailure=no', '-D', `127.0.0.1:${localPort}`]
   args.splice(destinationIndex === -1 ? 0 : destinationIndex, 0, ...dynamicArgs)
   const process = spawn(sshPath, args, {
     stdio: ['ignore', 'ignore', 'pipe'],

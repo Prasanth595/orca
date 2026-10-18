@@ -5,16 +5,13 @@ import type {
   OrcadDeltaMoveResult
 } from '../../shared/orcad-managed-runtime'
 import { listEnvironments } from '../../shared/runtime-environment-store'
-import { requireManagedOrcadInfrastructure } from '../ssh/orcad-managed-runtime-context'
-import { ensureOrcadManagedTunnel } from '../ssh/orcad-managed-tunnel'
+import { requireManagedOrcadInfrastructure } from '../managed-server/lifecycle/orcad-managed-runtime-context'
+import { ensureOrcadManagedTunnel } from '../managed-server/lifecycle/orcad-managed-tunnel'
 import { keepOrcadServerVersion, runOrcadDeltaMove } from '../ssh/orcad-migration-delta-move'
 import { planOrcadDeltaMove } from '../ssh/orcad-migration-delta-plan'
-import { orcadMigrationRelayPtyLister } from '../ssh/orcad-migration-relay-pty-lister'
-import { censusHostRelayTerminalsFor } from '../ssh/ssh-host-relay-census-for-target'
-import { orcadMigrationDestinationFor } from '../ssh/orcad-runtime-conversion-wiring'
-import { hasRegisteredDirectSshAuthority } from '../ssh/ssh-target-registry'
+import { censusHostRelayTerminalsFor } from '../ssh/legacy-relay/ssh-host-relay-census-for-target'
+import { orcadMigrationDestinationFor } from '../managed-server/lifecycle/orcad-runtime-conversion-wiring'
 import { requiredString } from './orcad-runtime-lifecycle-handlers'
-import { disconnectRegisteredSshTarget } from './ssh-session-teardown'
 import { publishResolvedChangedHostStatus } from './runtime-environment-managed-tunnel'
 import { runTargetLifecycle } from './ssh-target-lifecycle-queue'
 
@@ -46,13 +43,7 @@ export function registerOrcadDeltaMoveHandlers(getUserDataPath: () => string): v
         target,
         environment,
         destination: orcadMigrationDestinationFor(environment),
-        listRelayPtyIds: orcadMigrationRelayPtyLister(target.id),
         censusHost: censusHostRelayTerminalsFor(target),
-        releaseDirectSession: async (targetId) => {
-          if (hasRegisteredDirectSshAuthority(targetId)) {
-            await disconnectRegisteredSshTarget(targetId)
-          }
-        },
         ensureTunnel: async () => {
           await ensureOrcadManagedTunnel(userDataPath, environment.id)
         },

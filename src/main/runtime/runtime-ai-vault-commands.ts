@@ -37,8 +37,8 @@ export class RuntimeAiVaultCommands {
       | undefined
   ) {}
 
-  list(args?: AiVaultListArgs): Promise<AiVaultListResult> {
-    return listAiVaultSessions(args)
+  list(args?: AiVaultListArgs, signal?: AbortSignal): Promise<AiVaultListResult> {
+    return listAiVaultSessions(args, { signal })
   }
 
   searchHistory(args: {
