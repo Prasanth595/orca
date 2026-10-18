@@ -29,6 +29,20 @@ function assertRemoteWriteFitsOneRequest(content: string): void {
   }
 }
 
+/** Runs before every write and may cancel it by throwing (e.g. a file Perforce left read-only). */
+export type RuntimeFileWriteGuard = (
+  context: RuntimeFileOperationArgs,
+  filePath: string
+) => Promise<void>
+
+// Why: registered by the app instead of imported, because guards read '@/store', whose editor
+// slices import this client. Unset (tests, headless), a write goes straight to disk.
+let fileWriteGuard: RuntimeFileWriteGuard | null = null
+
+export function setRuntimeFileWriteGuard(next: RuntimeFileWriteGuard | null): void {
+  fileWriteGuard = next
+}
+
 export async function readRuntimeDirectory(
   context: RuntimeFileOperationArgs,
   dirPath: string,
@@ -56,6 +70,7 @@ export async function writeRuntimeFile(
   const remoteArgs = getRemoteFileArgs(context, filePath)
   if (!remoteArgs) {
     assertLocalFilesystemFallbackAllowed(context)
+    await fileWriteGuard?.(context, filePath)
     await window.api.fs.writeFile(
       withSshMutationExpectation(context, {
         filePath,
@@ -67,6 +82,7 @@ export async function writeRuntimeFile(
     return
   }
   assertRemoteWriteFitsOneRequest(content)
+  await fileWriteGuard?.(context, filePath)
   await callRuntimeFileMutation(
     remoteArgs.target,
     'files.write',
