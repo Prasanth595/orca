@@ -11,9 +11,10 @@ import { getClientForEnvironment, requireActiveEnvironmentOrNull } from './web-r
 export function createWebNativeChatApi(): NativeChatApi {
   return {
     askSideQuestion: (request) =>
-      callRuntimeResult('nativeChat.askSideQuestion', request) as ReturnType<
-        NativeChatApi['askSideQuestion']
-      >,
+      callRuntimeResult<Awaited<ReturnType<NativeChatApi['askSideQuestion']>>>(
+        'nativeChat.askSideQuestion',
+        request
+      ),
     readSession: async (agent, sessionId, limit, transcriptPath) =>
       parseRuntimeNativeChatReadSessionResult(
         await callRuntimeResult<unknown>('nativeChat.readSession', {

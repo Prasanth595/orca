@@ -6,6 +6,7 @@ import {
   isNativeChatBtwCommand,
   nativeChatBtwTranscriptExcerpt,
   nativeChatSideQuestionAgentId,
+  nativeChatSideQuestionModelId,
   parseNativeChatBtwCommand,
   withNativeChatBtwCommand
 } from './native-chat-btw'
@@ -33,6 +34,17 @@ describe('nativeChatSideQuestionAgentId', () => {
 
   it('rejects an agent with no non-interactive print mode', () => {
     expect(nativeChatSideQuestionAgentId('unknown-agent')).toBeNull()
+  })
+})
+
+describe('nativeChatSideQuestionModelId', () => {
+  it('falls back to a static agent default when the session model is unknown', () => {
+    expect(nativeChatSideQuestionModelId('amp', 'claude-opus-4')).toBe('smart')
+    expect(nativeChatSideQuestionModelId('amp', 'rush')).toBe('rush')
+  })
+
+  it('keeps a dynamic agent session model even when it is not in the fallback list', () => {
+    expect(nativeChatSideQuestionModelId('claude', 'claude-sonnet-4-6')).toBe('claude-sonnet-4-6')
   })
 })
 

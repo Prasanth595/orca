@@ -18,11 +18,17 @@ export function NativeChatBtwOverlay({
   onDraftChange: (draft: string) => void
 }): React.JSX.Element | null {
   const inputRef = useRef<HTMLInputElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    if (!state.question) {
+    if (!state.open) {
+      return
+    }
+    if (state.question) {
+      dialogRef.current?.focus()
+    } else {
       inputRef.current?.focus()
     }
-  }, [state.question])
+  }, [state.open, state.question])
 
   if (!state.open) {
     return null
@@ -30,19 +36,18 @@ export function NativeChatBtwOverlay({
 
   const title = translate('components.native-chat.btw.title', 'By the way')
   const closeLabel = translate('components.native-chat.btw.close', 'Close')
-  const placeholder = translate(
-    'components.native-chat.btw.placeholder',
-    'Ask a side question…'
-  )
+  const placeholder = translate('components.native-chat.btw.placeholder', 'Ask a side question…')
   const answering = translate('components.native-chat.btw.answering', 'Answering…')
 
   return (
     <div
+      ref={dialogRef}
       role="dialog"
+      tabIndex={-1}
       aria-label={title}
       data-native-chat-typing-redirect-ignore="true"
       data-native-chat-btw-overlay="true"
-      className="absolute right-4 bottom-3 left-4 z-20 mx-auto max-w-lg rounded-lg border border-border bg-popover/95 p-3 text-popover-foreground shadow-floating backdrop-blur-sm"
+      className="absolute right-4 bottom-3 left-4 z-20 mx-auto max-w-lg rounded-lg border border-border bg-popover/95 p-3 text-popover-foreground shadow-floating outline-none backdrop-blur-sm"
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           event.preventDefault()
@@ -92,7 +97,7 @@ export function NativeChatBtwOverlay({
         <p className="mt-2 text-sm text-destructive">{state.error}</p>
       ) : null}
       {state.status === 'ready' && state.answer ? (
-        <p className="mt-2 max-h-48 overflow-y-auto whitespace-pre-wrap text-sm text-foreground">
+        <p className="mt-2 max-h-48 overflow-y-auto whitespace-pre-wrap text-sm text-foreground scrollbar-sleek">
           {state.answer}
         </p>
       ) : null}

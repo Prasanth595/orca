@@ -32,10 +32,7 @@ import { useImeEnterGestureOwnership } from '@/lib/ime-composition-keyboard-even
 import { useNativeChatComposerAppMenuSelection } from './use-native-chat-composer-app-menu-selection'
 import { useNativeChatComposerSubmit } from './use-native-chat-composer-submit'
 
-export type {
-  NativeChatComposerHandle,
-  NativeChatComposerProps
-} from './native-chat-composer-types'
+export type { NativeChatComposerHandle, NativeChatComposerProps }
 
 /**
  * Rich native input for the chat view. Sends prompts into the running agent

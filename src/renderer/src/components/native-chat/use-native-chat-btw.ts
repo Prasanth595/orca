@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import type { NativeChatMessage } from '../../../../shared/native-chat-types'
 import { translate } from '@/i18n/i18n'
 
@@ -25,6 +25,10 @@ const closed: NativeChatBtwState = {
   status: 'idle'
 }
 
+function sideQuestionFailedMessage(): string {
+  return translate('components.native-chat.btw.failed', 'Could not answer the side question.')
+}
+
 export function useNativeChatBtw(args: {
   messages: readonly NativeChatMessage[]
   ask: NativeChatBtwAsk
@@ -35,11 +39,13 @@ export function useNativeChatBtw(args: {
   setDraft: (draft: string) => void
 } {
   const [state, setState] = useState<NativeChatBtwState>(closed)
+  const requestIdRef = useRef(0)
   const { messages, ask } = args
 
   const run = useCallback(
     async (question: string) => {
       const trimmed = question.trim()
+      const requestId = ++requestIdRef.current
       if (!trimmed) {
         setState({
           open: true,
@@ -59,21 +65,36 @@ export function useNativeChatBtw(args: {
         error: null,
         status: 'loading'
       })
-      const result = await ask(trimmed, messages)
-      setState((current) => {
-        if (!current.open || current.question !== trimmed) {
-          return current
+      try {
+        const result = await ask(trimmed, messages)
+        if (requestId !== requestIdRef.current) {
+          return
         }
-        return result.success
-          ? { ...current, status: 'ready', answer: result.answer, error: null }
-          : {
-              ...current,
-              status: 'error',
-              error:
-                result.error ||
-                translate('components.native-chat.btw.failed', 'Could not answer the side question.')
-            }
-      })
+        setState((current) => {
+          if (!current.open) {
+            return current
+          }
+          return result.success
+            ? { ...current, status: 'ready', answer: result.answer, error: null }
+            : { ...current, status: 'error', error: result.error || sideQuestionFailedMessage() }
+        })
+      } catch (error) {
+        if (requestId !== requestIdRef.current) {
+          return
+        }
+        setState((current) =>
+          current.open
+            ? {
+                ...current,
+                status: 'error',
+                error:
+                  error instanceof Error && error.message
+                    ? error.message
+                    : sideQuestionFailedMessage()
+              }
+            : current
+        )
+      }
     },
     [ask, messages]
   )
@@ -81,7 +102,10 @@ export function useNativeChatBtw(args: {
   return {
     state,
     ask: run,
-    dismiss: () => setState(closed),
+    dismiss: () => {
+      requestIdRef.current += 1
+      setState(closed)
+    },
     setDraft: (draft) => setState((current) => ({ ...current, draft }))
   }
 }

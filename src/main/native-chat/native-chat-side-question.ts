@@ -1,6 +1,8 @@
 import { planCommitMessageGeneration } from '../../shared/commit-message-plan'
-import { getCommitMessageAgentSpec } from '../../shared/commit-message-agent-spec'
-import { nativeChatSideQuestionAgentId } from '../../shared/native-chat-btw'
+import {
+  nativeChatSideQuestionAgentId,
+  nativeChatSideQuestionModelId
+} from '../../shared/native-chat-btw'
 import {
   commandBackslashMode,
   executeGenerationPlan
@@ -27,15 +29,15 @@ export async function generateNativeChatSideQuestion(input: {
   if (!agentId) {
     return { success: false, error: '/btw is not available for this agent.' }
   }
-  const spec = getCommitMessageAgentSpec(agentId)
-  if (!spec) {
+  const model = nativeChatSideQuestionModelId(agentId, input.model)
+  if (!model) {
     return { success: false, error: '/btw is not available for this agent.' }
   }
   const target = input.target ?? { kind: 'local', cwd: input.cwd }
   const planned = planCommitMessageGeneration(
     {
       agentId,
-      model: input.model?.trim() || spec.defaultModelId,
+      model,
       ...(input.agentCommandOverride ? { agentCommandOverride: input.agentCommandOverride } : {}),
       backslash: commandBackslashMode(target)
     },
@@ -47,7 +49,7 @@ export async function generateNativeChatSideQuestion(input: {
   const result = await executeGenerationPlan({
     params: {
       agentId,
-      model: input.model?.trim() || spec.defaultModelId
+      model
     },
     plan: planned.plan,
     target,

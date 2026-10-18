@@ -30,4 +30,42 @@ describe('useNativeChatBtw', () => {
       answer: 'the retry lives in timer.ts'
     })
   })
+
+  it('surfaces a thrown ask instead of staying on Answering', async () => {
+    const ask = vi.fn(async () => {
+      throw new Error('spawn failed')
+    })
+    const { result } = renderHook(() => useNativeChatBtw({ messages: [], ask }))
+    await act(async () => {
+      result.current.ask('why?')
+    })
+    expect(result.current.state).toMatchObject({
+      open: true,
+      status: 'error',
+      error: 'spawn failed'
+    })
+  })
+
+  it('ignores a late answer after dismiss', async () => {
+    let resolveAsk!: (value: { success: true; answer: string }) => void
+    const ask = vi.fn(
+      () =>
+        new Promise<{ success: true; answer: string }>((resolve) => {
+          resolveAsk = resolve
+        })
+    )
+    const { result } = renderHook(() => useNativeChatBtw({ messages: [], ask }))
+    act(() => {
+      result.current.ask('why?')
+    })
+    expect(result.current.state.status).toBe('loading')
+    act(() => {
+      result.current.dismiss()
+    })
+    await act(async () => {
+      resolveAsk({ success: true, answer: 'stale' })
+    })
+    expect(result.current.state.open).toBe(false)
+    expect(result.current.state.answer).toBeNull()
+  })
 })

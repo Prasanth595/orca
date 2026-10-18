@@ -1,4 +1,4 @@
-import { getCommitMessageAgentSpec } from './commit-message-agent-spec'
+import { getCommitMessageAgentSpec, getCommitMessageModel } from './commit-message-agent-spec'
 import type { NativeChatMessage } from './native-chat-types'
 import type { SlashCommandSuggestion } from './native-chat-slash-commands'
 import type { TuiAgent } from './tui-agent'
@@ -17,6 +17,22 @@ export function nativeChatSideQuestionAgentId(agent: string): TuiAgent | null {
     return null
   }
   return mapped
+}
+
+/** Session model if the one-shot spec accepts it; otherwise that spec's default. */
+export function nativeChatSideQuestionModelId(
+  agentId: TuiAgent,
+  requested?: string
+): string | null {
+  const spec = getCommitMessageAgentSpec(agentId)
+  if (!spec) {
+    return null
+  }
+  const model = requested?.trim()
+  if (model && getCommitMessageModel(agentId, model)) {
+    return model
+  }
+  return spec.defaultModelId
 }
 
 /** Host-owned Chat UI command: a side question that never joins the transcript. */
@@ -74,7 +90,10 @@ export function nativeChatBtwTranscriptExcerpt(messages: readonly NativeChatMess
   return joined.slice(joined.length - TRANSCRIPT_EXCERPT_MAX_CHARS)
 }
 
-export function buildNativeChatBtwPrompt(messages: readonly NativeChatMessage[], question: string): string {
+export function buildNativeChatBtwPrompt(
+  messages: readonly NativeChatMessage[],
+  question: string
+): string {
   const excerpt = nativeChatBtwTranscriptExcerpt(messages)
   const conversation = excerpt || '(The session has no user or assistant messages yet.)'
   return [
