@@ -9,7 +9,8 @@ const RIGHT = '22222222-2222-4222-8222-222222222222'
 
 const mocks = vi.hoisted(() => ({
   layoutOwnerIsMain: false,
-  sendLayoutCommandToOwner: vi.fn<typeof sendLayoutCommandToOwner>()
+  sendLayoutCommandToOwner: vi.fn<typeof sendLayoutCommandToOwner>(),
+  syncPaneTerminalTitle: vi.fn().mockResolvedValue(undefined)
 }))
 
 vi.mock('../../../../shared/layout-owner-switch', () => ({
@@ -19,6 +20,9 @@ vi.mock('../../../../shared/layout-owner-switch', () => ({
 }))
 vi.mock('@/runtime/layout-owner-command', () => ({
   sendLayoutCommandToOwner: mocks.sendLayoutCommandToOwner
+}))
+vi.mock('@/runtime/pane-terminal-title-sync', () => ({
+  syncPaneTerminalTitle: mocks.syncPaneTerminalTitle
 }))
 vi.mock('../../store', () => ({
   useAppStore: { getState: () => ({ terminalLayoutsByTabId: {} }) }
@@ -87,6 +91,7 @@ afterEach(() => {
   cleanup()
   mocks.layoutOwnerIsMain = false
   mocks.sendLayoutCommandToOwner.mockReset()
+  mocks.syncPaneTerminalTitle.mockClear()
 })
 
 describe('terminal layout gesture persist', () => {
@@ -136,6 +141,18 @@ describe('terminal layout gesture persist', () => {
 
     expect(mocks.sendLayoutCommandToOwner).not.toHaveBeenCalled()
     expect(pushedIntents()).toEqual(['gesture'])
+  })
+
+  it('mirrors pane title changes to the runtime', () => {
+    const { hook } = renderPersistence()
+
+    hook.result.current.changePaneTitle(2, 'server')
+    hook.result.current.removePaneTitle(1)
+
+    expect(mocks.syncPaneTerminalTitle.mock.calls).toEqual([
+      [{ worktreeId: 'wt', tabId: 'tab', leafId: RIGHT, title: 'server' }],
+      [{ worktreeId: 'wt', tabId: 'tab', leafId: LEFT, title: null }]
+    ])
   })
 
   it('a layout-owner build shows a title change only once main has saved it', () => {

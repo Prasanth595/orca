@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
+import { syncPaneTerminalTitle } from '@/runtime/pane-terminal-title-sync'
 import { useAppStore } from '../../store'
 import type { ManagedPane } from '@/lib/pane-manager/pane-manager'
 import { serializeTerminalLayout } from './layout-serialization'
@@ -203,6 +204,17 @@ export function useTerminalPaneLayoutPersistence(controller: TerminalPaneStartup
       const showTitle = (): void =>
         title === null ? removePaneTitleLocally(paneId) : setPaneTitleLocally(paneId, title)
       const leafId = managerRef.current?.getPanes().find((pane) => pane.id === paneId)?.leafId
+      /** Apply the title locally, then mirror it to the runtime that owns the pane. */
+      const showTitleAndSync = (): void => {
+        showTitle()
+        if (leafId) {
+          void syncPaneTerminalTitle({ worktreeId, tabId, leafId, title }).catch(
+            (error: unknown) => {
+              console.warn('[terminal-pane] failed to sync pane title to runtime:', error)
+            }
+          )
+        }
+      }
       // Switch point: main renames the pane first; the window then shows the title.
       if (
         ORCA_LAYOUT_OWNER_IS_MAIN &&
@@ -210,12 +222,12 @@ export function useTerminalPaneLayoutPersistence(controller: TerminalPaneStartup
         sendLayoutCommandToOwner(
           worktreeId,
           { type: 'renamePane', tabId, leafId, title },
-          { apply: showTitle, asToday: showTitle }
+          { apply: showTitleAndSync, asToday: showTitleAndSync }
         )
       ) {
         return
       }
-      showTitle()
+      showTitleAndSync()
     },
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- Refs are stable.
     [removePaneTitleLocally, setPaneTitleLocally, tabId, worktreeId]
