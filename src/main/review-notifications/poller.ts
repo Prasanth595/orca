@@ -7,10 +7,11 @@ import {
 } from '../../shared/review-notification-types'
 import { listGitLabClosedReviewItems, listGitLabReviewItems } from './gitlab-source'
 import { listGitHubClosedReviewItems, listGitHubReviewItems } from './github-source'
-import { advanceWatermark, skewBack, watermarkKey, type ReviewWatermarkStore } from './dedup'
+import { advanceListingCursors, queryCursors, readListingCursors } from './listing-cursors'
+import type { ReviewWatermarkStore } from './dedup'
 import { classifyReviewItems } from './review-classify'
 import { ReviewNotificationBudget, type ReviewBudgetDelivery } from './review-budget'
-import { maxUpdatedAt, type ReviewEvent, type ReviewPollItem } from './review-event'
+import type { ReviewEvent, ReviewPollItem } from './review-event'
 
 export type ReviewPollerRepo = Pick<Repo, 'id' | 'displayName' | 'reviewNotifications'>
 
@@ -232,14 +233,8 @@ export class ReviewNotificationPoller {
     const pollWindowStart = new Date(
       this.deps.now() - job.config.pollIntervalMinutes * 60 * 1000
     ).toISOString()
-    // Open and closed listings advance independent cursors: a shared cursor
-    // let the newer side's timestamp skip the other side's unfetched items
-    // past per_page, stranding closed notifications or missing opens.
-    const sinceOpen =
-      this.deps.store.getWatermark(watermarkKey(job.provider, host, slug, 'mr')) ?? pollWindowStart
-    const sinceClosed =
-      this.deps.store.getWatermark(watermarkKey(job.provider, host, slug, 'mr-closed')) ??
-      pollWindowStart
+    const since = readListingCursors(this.deps.store, job.provider, host, slug, pollWindowStart)
+    const query = queryCursors(since)
     let listed: { mrs: ReviewEvent[]; issues: ReviewEvent[] }
     let closed: { mrs: ReviewEvent[]; issues: ReviewEvent[] }
     let events: ReviewNotificationEventToggles
@@ -253,8 +248,8 @@ export class ReviewNotificationPoller {
         events = provider.events
         watchedLabels = provider.watchedLabels ?? []
         const [openItems, closedItems] = await Promise.all([
-          this.deps.gitlabList(provider, sinceOpen),
-          this.deps.gitlabListClosed(provider, sinceClosed)
+          this.deps.gitlabList(provider, query.open),
+          this.deps.gitlabListClosed(provider, query.closed)
         ])
         listed = openItems
         closed = closedItems
@@ -266,8 +261,8 @@ export class ReviewNotificationPoller {
         events = provider.events
         watchedLabels = provider.watchedLabels ?? []
         const [openItems, closedItems] = await Promise.all([
-          this.deps.githubList(provider, sinceOpen),
-          this.deps.githubListClosed(provider, sinceClosed)
+          this.deps.githubList(provider, query.open),
+          this.deps.githubListClosed(provider, query.closed)
         ])
         listed = openItems
         closed = closedItems
@@ -295,23 +290,7 @@ export class ReviewNotificationPoller {
     })
 
     const nowIso = new Date(this.deps.now()).toISOString()
-    // Each cursor advances only from its own listing, minus a skew overlap so
-    // second-precision exclusive windows cannot skip same-timestamp items.
-    // With sort=asc the oldest page comes first, so the closed cursor
-    // converges across polls even when a listing exceeds per_page.
-    const openMax = maxUpdatedAt([...listed.mrs, ...listed.issues])
-    const closedMax = maxUpdatedAt([...closed.mrs, ...closed.issues])
-    advanceWatermark(
-      this.deps.store,
-      watermarkKey(job.provider, host, slug, 'mr'),
-      openMax && openMax > sinceOpen ? skewBack(openMax) : nowIso
-    )
-    advanceWatermark(
-      this.deps.store,
-      watermarkKey(job.provider, host, slug, 'mr-closed'),
-      closedMax && closedMax > sinceClosed ? skewBack(closedMax) : nowIso
-    )
-    advanceWatermark(this.deps.store, watermarkKey(job.provider, host, slug, 'issue'), nowIso)
+    advanceListingCursors(this.deps.store, job.provider, host, slug, since, listed, closed, nowIso)
     await this.deps.store.flush()
     return delivered
   }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ReviewNotificationPoller, type ReviewPollItem } from './poller'
-import { createInMemoryWatermarkStore } from './dedup'
+import { createInMemoryWatermarkStore, watermarkKey } from './dedup'
 import type { ReviewEvent } from './review-event'
 import {
   resolveReviewNotificationConfig,
@@ -78,14 +78,14 @@ function makeHarness(
     onHealth: (repoId, provider, error) => {
       health.push({ repoId, provider, error })
     },
-    gitlabList: async () => {
+    gitlabList: async (_provider, _cursors) => {
       if (throwError) {
         throw throwError
       }
       return listed
     },
     githubList: async () => ({ mrs: [], issues: [] }),
-    gitlabListClosed: async () => {
+    gitlabListClosed: async (_provider, _cursors) => {
       if (throwError) {
         throw throwError
       }
@@ -409,18 +409,19 @@ describe('poller orphan jobs', () => {
 })
 
 describe('poller listing cursors', () => {
-  // Sources simulate forge pagination: items with updatedAt > since, oldest
-  // 50 first (sort=asc, per_page=50, no further pages followed).
+  // Sources are fully paginated internally, so the mock returns every item
+  // newer than the per-kind cursor (oldest first, like sort=asc).
   function pagedHarness() {
     const nowRef = { now: new Date('2026-10-19T12:00:00Z').getTime() }
     const store = createInMemoryWatermarkStore()
     let openItems: ReviewEvent[] = []
     let closedItems: ReviewEvent[] = []
-    const pageOf = (items: ReviewEvent[], since: string) =>
+    let openIssues: ReviewEvent[] = []
+    let closedIssues: ReviewEvent[] = []
+    const matching = (items: ReviewEvent[], since: string) =>
       items
         .filter((e) => e.updatedAt > since)
         .sort((a, b) => (a.updatedAt < b.updatedAt ? -1 : a.updatedAt > b.updatedAt ? 1 : 0))
-        .slice(0, 50)
     const poller = new ReviewNotificationPoller({
       getRepos: () => [
         {
@@ -437,11 +438,14 @@ describe('poller listing cursors', () => {
       delivery: { deliver: async () => {}, deliverDigest: async () => {} },
       now: () => nowRef.now,
       random: () => 0.5,
-      gitlabList: async (_provider, since) => ({ mrs: pageOf(openItems, since), issues: [] }),
+      gitlabList: async (_provider, cursors) => ({
+        mrs: matching(openItems, cursors.mrSince),
+        issues: matching(openIssues, cursors.issueSince)
+      }),
       githubList: async () => ({ mrs: [], issues: [] }),
-      gitlabListClosed: async (_provider, since) => ({
-        mrs: pageOf(closedItems, since),
-        issues: []
+      gitlabListClosed: async (_provider, cursors) => ({
+        mrs: matching(closedItems, cursors.mrSince),
+        issues: matching(closedIssues, cursors.issueSince)
       }),
       githubListClosed: async () => ({ mrs: [], issues: [] }),
       setTimeoutFn: () => ({}),
@@ -456,7 +460,12 @@ describe('poller listing cursors', () => {
       },
       setClosed: (items: ReviewEvent[]) => {
         closedItems = items
-      }
+      },
+      setOpenIssues: (items: ReviewEvent[]) => {
+        openIssues = items
+      },
+      cursor: (kind: 'mr-open' | 'mr-closed' | 'issue-open' | 'issue-closed') =>
+        store.getWatermark(watermarkKey('gitlab', 'gitlab.example.com', 'projects/42', kind))
     }
   }
 
@@ -467,28 +476,31 @@ describe('poller listing cursors', () => {
     mrEvent({ iid, action: 'opened', updatedAt: at(mins), title: `MR ${iid}` })
   const closedMr = (iid: number, mins: number): ReviewEvent =>
     mrEvent({ iid, action: 'closed', updatedAt: at(mins), title: `MR ${iid}` })
+  const openIssue = (iid: number, mins: number): ReviewEvent =>
+    mrEvent({
+      iid,
+      kind: 'issue',
+      action: 'opened',
+      updatedAt: at(mins),
+      title: `Issue ${iid}`,
+      url: `https://gitlab.example.com/-/issues/${iid}`
+    })
 
-  it('resolves every closed item across polls when the closed listing exceeds per_page', async () => {
+  it('resolves every closed item when the closed listing exceeds per_page', async () => {
     const h = pagedHarness()
-    // Polls 1-2: 60 open MRs, all notified (the open listing itself pages).
+    // Polls 1-2: 60 open MRs, all notified.
     h.setOpen(Array.from({ length: 60 }, (_, i) => openMr(i + 1, i + 1)))
     h.setClosed([])
     await h.poller.pollOnce('r1', 'gitlab')
     await h.poller.pollOnce('r1', 'gitlab')
 
-    // Poll 2: all 60 now closed, plus a newer open MR. The closed listing
-    // returns only the oldest 50 (per_page); the open item is newer.
+    // Poll 3: all 60 now closed, plus a newer open MR. The source paginates
+    // internally, so one poll sees every closed item and resolves all 60.
     h.nowRef.now = new Date('2026-10-19T12:10:00Z').getTime()
     h.setOpen([openMr(61, 91)])
     h.setClosed(Array.from({ length: 60 }, (_, i) => closedMr(i + 1, 60 + (i + 1) * 0.5)))
-    const second = await h.poller.pollOnce('r1', 'gitlab')
-    expect(second.filter((i) => i.disposition === 'resolve')).toHaveLength(50)
-
-    // Poll 3: the remaining 10 closed items must still resolve. With a shared
-    // cursor the newer open item would have advanced the watermark past them.
-    h.nowRef.now = new Date('2026-10-19T12:20:00Z').getTime()
     const third = await h.poller.pollOnce('r1', 'gitlab')
-    const resolved = [...second, ...third]
+    const resolved = third
       .filter((i) => i.disposition === 'resolve')
       .map((i) => i.event.iid)
       .sort((a, b) => a - b)
@@ -497,29 +509,88 @@ describe('poller listing cursors', () => {
 
   it('does not miss open items when a newer closed item exists', async () => {
     const h = pagedHarness()
-    // Polls 1-2: 60 open MRs, all notified (the open listing itself pages).
+    // Polls 1-2: 60 open MRs, all notified.
     h.setOpen(Array.from({ length: 60 }, (_, i) => openMr(i + 1, i + 1)))
     h.setClosed([])
     await h.poller.pollOnce('r1', 'gitlab')
     await h.poller.pollOnce('r1', 'gitlab')
 
-    // Poll 2: 60 new open MRs plus one closed item newer than all of them.
-    // The open listing returns only the oldest 50 (per_page).
+    // Poll 3: 60 new open MRs plus one closed item newer than all of them.
+    // Independent per-listing cursors keep the newer closed item from
+    // advancing the open cursor past any MR.
     h.nowRef.now = new Date('2026-10-19T12:10:00Z').getTime()
     h.setOpen(Array.from({ length: 60 }, (_, i) => openMr(101 + i, 60 + (i + 1) * 0.5)))
     h.setClosed([closedMr(1, 91)])
-    const second = await h.poller.pollOnce('r1', 'gitlab')
-    expect(second.filter((i) => i.disposition === 'notify')).toHaveLength(50)
-    expect(second.filter((i) => i.disposition === 'resolve')).toHaveLength(1)
-
-    // Poll 3: the remaining 10 open MRs must still notify. With a shared
-    // cursor the newer closed item would have advanced the watermark past them.
-    h.nowRef.now = new Date('2026-10-19T12:20:00Z').getTime()
     const third = await h.poller.pollOnce('r1', 'gitlab')
-    const notified = [...second, ...third]
+    const notified = third
       .filter((i) => i.disposition === 'notify')
       .map((i) => i.event.iid)
       .sort((a, b) => a - b)
     expect(notified).toEqual(Array.from({ length: 60 }, (_, i) => 101 + i))
+    expect(third.filter((i) => i.disposition === 'resolve')).toHaveLength(1)
+  })
+
+  it('regression: a newer issue never advances the MR cursor past unfetched MRs', async () => {
+    const h = pagedHarness()
+    // Poll 1: two MRs plus one issue newer than both (each > 60s apart so the
+    // overlap window cannot mask the cursor positions).
+    h.setOpen([openMr(1, 0), openMr(2, 5)])
+    h.setOpenIssues([openIssue(10, 10)])
+    h.setClosed([])
+    const first = await h.poller.pollOnce('r1', 'gitlab')
+    expect(
+      first
+        .filter((i) => i.disposition === 'notify')
+        .map((i) => i.event.iid)
+        .sort((a, b) => a - b)
+    ).toEqual([1, 2, 10])
+    // Each cursor advances only from its own listing: the MR cursor must sit
+    // at the newest MR (11:05), not at the newer issue (11:10).
+    expect(h.cursor('mr-open')).toBe(at(5))
+    expect(h.cursor('issue-open')).toBe(at(10))
+
+    // Poll 2: a new MR updated between the MR cursor and the issue cursor. With
+    // a shared cursor it would fall outside the MR query window and be missed.
+    h.nowRef.now = new Date('2026-10-19T12:10:00Z').getTime()
+    h.setOpen([openMr(3, 7)])
+    h.setOpenIssues([])
+    const second = await h.poller.pollOnce('r1', 'gitlab')
+    const notified = second.filter((i) => i.disposition === 'notify').map((i) => i.event.iid)
+    expect(notified).toEqual([3])
+  })
+
+  it('regression: a burst inside the skew window cannot pin the cursor', async () => {
+    const h = pagedHarness()
+    // 120 items, all updated within 60s of the initial cursor (11:00). The
+    // source is fully paginated, so one poll sees all of them.
+    const burst = Array.from({ length: 120 }, (_, i) =>
+      openMr(i + 1, 10 / 60 + (i * 40) / 120 / 60)
+    )
+    h.setOpen(burst)
+    h.setClosed([])
+    const first = await h.poller.pollOnce('r1', 'gitlab')
+    expect(first.filter((i) => i.disposition === 'notify')).toHaveLength(120)
+    // The cursor must reach the newest item: with the skew baked into the
+    // cursor, skewBack(max) <= previous pins it at 11:00 and every later poll
+    // refetches the same set forever.
+    const maxTs = burst
+      .map((e) => e.updatedAt)
+      .sort()
+      .pop()
+    expect(h.cursor('mr-open')).toBe(maxTs)
+
+    // Poll 2: the overlap query refetches the tail, but fingerprints dedup it
+    // and the cursor must not be pinned at the pre-burst position. With
+    // nothing newer in the window it advances to now (the overlap query
+    // proved nothing newer exists).
+    const second = await h.poller.pollOnce('r1', 'gitlab')
+    expect(second.filter((i) => i.disposition === 'notify')).toHaveLength(0)
+    const pinned = new Date('2026-10-19T11:00:00Z').toISOString()
+    const mrOpenCursor = h.cursor('mr-open')
+    expect(mrOpenCursor).not.toBe(pinned)
+    if (mrOpenCursor === null) {
+      throw new Error('expected the mr-open cursor to be set after polling')
+    }
+    expect(Date.parse(mrOpenCursor)).toBeGreaterThanOrEqual(Date.parse(maxTs))
   })
 })

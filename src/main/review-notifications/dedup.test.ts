@@ -15,16 +15,19 @@ import type { ItemSnapshot } from './transitions'
 
 describe('dedup', () => {
   it('watermarkKey is stable and case-insensitive', () => {
-    expect(watermarkKey('gitlab', 'H', 'R', 'mr')).toBe(watermarkKey('gitlab', 'h', 'r', 'mr'))
-    expect(watermarkKey('gitlab', 'h', 'r', 'mr')).not.toBe(
-      watermarkKey('gitlab', 'h', 'r', 'issue')
+    expect(watermarkKey('gitlab', 'H', 'R', 'mr-open')).toBe(
+      watermarkKey('gitlab', 'h', 'r', 'mr-open')
+    )
+    expect(watermarkKey('gitlab', 'h', 'r', 'mr-open')).not.toBe(
+      watermarkKey('gitlab', 'h', 'r', 'issue-open')
     )
   })
 
-  it('watermarkKey distinguishes the closed-listing cursor', () => {
-    expect(watermarkKey('gitlab', 'h', 'r', 'mr-closed')).not.toBe(
-      watermarkKey('gitlab', 'h', 'r', 'mr')
+  it('watermarkKey gives every listing its own cursor', () => {
+    const keys = (['mr-open', 'mr-closed', 'issue-open', 'issue-closed'] as const).map((k) =>
+      watermarkKey('gitlab', 'h', 'r', k)
     )
+    expect(new Set(keys).size).toBe(4)
   })
 
   it('skewBack subtracts the overlap so exclusive windows cannot skip items', () => {
@@ -35,7 +38,7 @@ describe('dedup', () => {
 
   it('advanceWatermark moves forward only (clock skew never rewinds)', () => {
     const store = createInMemoryWatermarkStore()
-    const key = watermarkKey('gitlab', 'h', 'r', 'mr')
+    const key = watermarkKey('gitlab', 'h', 'r', 'mr-open')
     expect(store.getWatermark(key)).toBeNull()
     expect(advanceWatermark(store, key, '2026-10-19T10:00:00Z')).toBe('2026-10-19T10:00:00Z')
     // Older candidate: ignored.
@@ -61,7 +64,7 @@ describe('dedup', () => {
     const dir = mkdtempSync(join(tmpdir(), 'review-notifications-'))
     const file = join(dir, 'state.json')
     const first = createFileWatermarkStore(file)
-    const key = watermarkKey('gitlab', 'h', 'r', 'mr')
+    const key = watermarkKey('gitlab', 'h', 'r', 'mr-open')
     first.setWatermark(key, '2026-10-19T10:00:00Z')
     first.addFingerprint('abc123')
     await first.flush()

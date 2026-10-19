@@ -1,7 +1,7 @@
 import { extractExecError } from '../git/exec-error'
 import { glabExecFileAsync } from '../git/command-runner/glab-exec-file'
 import type { GitLabReviewNotificationProvider } from '../../shared/review-notification-types'
-import type { ReviewEvent } from './review-event'
+import type { ReviewEvent, ReviewListingCursors } from './review-event'
 
 /**
  * Raw list items returned by the GitLab source before transition
@@ -159,34 +159,68 @@ function sinceParam(since: string): string {
   return `&updated_after=${encodeURIComponent(since)}`
 }
 
+const GITLAB_PER_PAGE = 50
+/** Pages fetched per endpoint per poll; 10 pages x 50 items bounds one poll. */
+const GITLAB_MAX_PAGES = 10
+
 /**
- * List MRs/issues closed or merged since `sinceIso` (read-only).
+ * Fetch every page of a GitLab list endpoint (oldest first, sort=asc). A
+ * single per_page slice is not enough: when a full page comes back, later
+ * pages hold newer items that a cursor advanced from page one would skip.
+ * Stops at the first short page; the cap bounds a pathological poll.
+ */
+async function fetchGitLabPages(
+  runner: GitLabApiRunner,
+  basePath: string,
+  provider: GitLabReviewNotificationProvider
+): Promise<unknown[]> {
+  const items: unknown[] = []
+  for (let page = 1; page <= GITLAB_MAX_PAGES; page++) {
+    const raw = await runner(`${basePath}&page=${page}`, provider)
+    const batch = Array.isArray(raw) ? raw : []
+    items.push(...batch)
+    if (batch.length < GITLAB_PER_PAGE) {
+      break
+    }
+  }
+  return items
+}
+
+/** Forge JSON boundary: keep only object items before mapping. */
+function asRecords(raw: unknown[]): Record<string, unknown>[] {
+  return raw.filter((r): r is Record<string, unknown> => typeof r === 'object' && r !== null)
+}
+
+/**
+ * List MRs/issues closed or merged since the per-kind cursors (read-only).
  * Used only to resolve open notifications: these items are confirmed gone,
  * unlike the delta open listing where an item's absence proves nothing.
  */
 export async function listGitLabClosedReviewItems(
   provider: GitLabReviewNotificationProvider,
-  sinceIso: string,
+  cursors: ReviewListingCursors,
   runner: GitLabApiRunner = createGitLabApiRunner()
 ): Promise<{ mrs: ReviewEvent[]; issues: ReviewEvent[] }> {
   // Validate before any network call, regardless of the injected runner.
   requireHttps(provider)
   const project = `projects/${provider.projectId}`
-  const params = (state: string) =>
-    `?state=${state}&order_by=updated_at&sort=asc&per_page=50${sinceParam(sinceIso)}`
-  const toMrs = (raw: unknown): ReviewEvent[] =>
-    (Array.isArray(raw) ? raw : [])
+  const mrParams = (state: string) =>
+    `?state=${state}&order_by=updated_at&sort=asc&per_page=${GITLAB_PER_PAGE}${sinceParam(cursors.mrSince)}`
+  const issueParams = (state: string) =>
+    `?state=${state}&order_by=updated_at&sort=asc&per_page=${GITLAB_PER_PAGE}${sinceParam(cursors.issueSince)}`
+  const toMrs = (raw: unknown[]): ReviewEvent[] =>
+    asRecords(raw)
       .map((r) => toListItem(r))
       .filter((i): i is GitLabListItem => i !== null)
       .map((i) => toEvent(i, 'mr', provider))
   try {
     const [closedMrRaw, mergedMrRaw, closedIssueRaw] = await Promise.all([
-      runner(`${project}/merge_requests${params('closed')}`, provider),
-      runner(`${project}/merge_requests${params('merged')}`, provider),
-      runner(`${project}/issues${params('closed')}`, provider)
+      fetchGitLabPages(runner, `${project}/merge_requests${mrParams('closed')}`, provider),
+      fetchGitLabPages(runner, `${project}/merge_requests${mrParams('merged')}`, provider),
+      fetchGitLabPages(runner, `${project}/issues${issueParams('closed')}`, provider)
     ])
     const mrs = [...toMrs(closedMrRaw), ...toMrs(mergedMrRaw)]
-    const issues = (Array.isArray(closedIssueRaw) ? closedIssueRaw : [])
+    const issues = asRecords(closedIssueRaw)
       .map((r) => toListItem(r))
       .filter((i): i is GitLabListItem => i !== null)
       .map((i) => toEvent(i, 'issue', provider))
@@ -200,28 +234,29 @@ export async function listGitLabClosedReviewItems(
 }
 
 /**
- * List open MRs and issues updated since `sinceIso` (read-only).
+ * List open MRs and issues updated since the per-kind cursors (read-only).
  * Errors are classified so the poller can back off quietly.
  */
 export async function listGitLabReviewItems(
   provider: GitLabReviewNotificationProvider,
-  sinceIso: string,
+  cursors: ReviewListingCursors,
   runner: GitLabApiRunner = createGitLabApiRunner()
 ): Promise<{ mrs: ReviewEvent[]; issues: ReviewEvent[] }> {
   // Validate before any network call, regardless of the injected runner.
   requireHttps(provider)
   const project = `projects/${provider.projectId}`
-  const params = `?state=opened&order_by=updated_at&sort=asc&per_page=50${sinceParam(sinceIso)}`
+  const mrParams = `?state=opened&order_by=updated_at&sort=asc&per_page=${GITLAB_PER_PAGE}${sinceParam(cursors.mrSince)}`
+  const issueParams = `?state=opened&order_by=updated_at&sort=asc&per_page=${GITLAB_PER_PAGE}${sinceParam(cursors.issueSince)}`
   try {
     const [mrRaw, issueRaw] = await Promise.all([
-      runner(`${project}/merge_requests${params}`, provider),
-      runner(`${project}/issues${params}`, provider)
+      fetchGitLabPages(runner, `${project}/merge_requests${mrParams}`, provider),
+      fetchGitLabPages(runner, `${project}/issues${issueParams}`, provider)
     ])
-    const mrs = (Array.isArray(mrRaw) ? mrRaw : [])
+    const mrs = asRecords(mrRaw)
       .map((r) => toListItem(r))
       .filter((i): i is GitLabListItem => i !== null)
       .map((i) => toEvent(i, 'mr', provider))
-    const issues = (Array.isArray(issueRaw) ? issueRaw : [])
+    const issues = asRecords(issueRaw)
       .map((r) => toListItem(r))
       .filter((i): i is GitLabListItem => i !== null)
       .map((i) => toEvent(i, 'issue', provider))

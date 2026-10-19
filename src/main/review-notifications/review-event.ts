@@ -32,6 +32,16 @@ export type ReviewEvent = {
   }
 }
 
+/**
+ * Per-kind listing cursors passed to a source. MR and issue listings advance
+ * independently: sharing one cursor lets the newer kind skip the other kind's
+ * unfetched pages past per_page.
+ */
+export type ReviewListingCursors = {
+  mrSince: string
+  issueSince: string
+}
+
 /** Stable identity: the same provider event always yields the same fingerprint. */
 export function fingerprintReviewEvent(event: ReviewEvent): string {
   const parts = [

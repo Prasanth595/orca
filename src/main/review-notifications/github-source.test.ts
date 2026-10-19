@@ -61,7 +61,7 @@ describe('github-source', () => {
   it('normalizes PRs to kind mr and filters PRs out of the issues list', async () => {
     const { mrs, issues } = await listGitHubReviewItems(
       provider,
-      '2026-10-19T08:00:00Z',
+      { mrSince: '2026-10-19T08:00:00Z', issueSince: '2026-10-19T08:00:00Z' },
       runnerFor(prFixture, issueFixture)
     )
     expect(mrs).toHaveLength(1)
@@ -82,7 +82,11 @@ describe('github-source', () => {
       throw Object.assign(new Error('403 Forbidden'), { stderr: 'HTTP 403: Forbidden' })
     }
     await expect(
-      listGitHubReviewItems(provider, '2026-10-19T08:00:00Z', authRunner)
+      listGitHubReviewItems(
+        provider,
+        { mrSince: '2026-10-19T08:00:00Z', issueSince: '2026-10-19T08:00:00Z' },
+        authRunner
+      )
     ).rejects.toMatchObject({ kind: 'auth' })
     const rateRunner: GitHubApiRunner = async () => {
       throw Object.assign(new Error('abuse'), {
@@ -90,13 +94,21 @@ describe('github-source', () => {
       })
     }
     await expect(
-      listGitHubReviewItems(provider, '2026-10-19T08:00:00Z', rateRunner)
+      listGitHubReviewItems(
+        provider,
+        { mrSince: '2026-10-19T08:00:00Z', issueSince: '2026-10-19T08:00:00Z' },
+        rateRunner
+      )
     ).rejects.toMatchObject({ kind: 'rate_limited' })
   })
 
   it('passes since and the repo-qualified endpoints', async () => {
     const runner = runnerFor([], [])
-    await listGitHubReviewItems(provider, '2026-10-19T08:00:00Z', runner)
+    await listGitHubReviewItems(
+      provider,
+      { mrSince: '2026-10-19T08:00:00Z', issueSince: '2026-10-19T08:00:00Z' },
+      runner
+    )
     const endpoints = runner.mock.calls.map((c) => c[0])
     expect(endpoints.some((e) => e.includes('repos/octocat/hello-world/pulls'))).toBe(true)
     expect(endpoints.some((e) => e.includes('since='))).toBe(true)
@@ -109,7 +121,11 @@ describe('github-source', () => {
       })
     }
     await expect(
-      listGitHubReviewItems(provider, '2026-10-19T08:00:00Z', runner)
+      listGitHubReviewItems(
+        provider,
+        { mrSince: '2026-10-19T08:00:00Z', issueSince: '2026-10-19T08:00:00Z' },
+        runner
+      )
     ).rejects.toMatchObject({ kind: 'rate_limited', retryAfterMs: 60000 })
   })
 
@@ -121,6 +137,39 @@ describe('github-source', () => {
     expect(parseSlurpedPages(JSON.stringify([page1]))).toEqual(page1)
     // Non-array output degrades to empty rather than throwing downstream.
     expect(parseSlurpedPages(JSON.stringify({}))).toEqual([])
+  })
+
+  it('queries the closed endpoint with the older of the two cursors', async () => {
+    const seen: string[] = []
+    const runner: GitHubApiRunner = vi.fn(async (endpoint: string) => {
+      seen.push(endpoint)
+      return []
+    })
+    await listGitHubClosedReviewItems(
+      provider,
+      { mrSince: '2026-10-19T08:00:00Z', issueSince: '2026-10-19T09:00:00Z' },
+      runner
+    )
+    expect(seen).toHaveLength(1)
+    // Older cursor wins so neither kind's window is skipped.
+    expect(seen[0]).toContain('since=2026-10-19T08%3A00%3A00Z')
+  })
+
+  it('queries PR and issue endpoints with their own cursors', async () => {
+    const seen: string[] = []
+    const runner: GitHubApiRunner = vi.fn(async (endpoint: string) => {
+      seen.push(endpoint)
+      return []
+    })
+    await listGitHubReviewItems(
+      provider,
+      { mrSince: '2026-10-19T08:00:00Z', issueSince: '2026-10-19T09:00:00Z' },
+      runner
+    )
+    const pulls = seen.find((e) => e.includes('/pulls'))
+    const issues = seen.find((e) => e.includes('/issues'))
+    expect(pulls).toContain('since=2026-10-19T08%3A00%3A00Z')
+    expect(issues).toContain('since=2026-10-19T09%3A00%3A00Z')
   })
 
   it('lists closed PRs and issues for resolve detection', async () => {
@@ -145,7 +194,7 @@ describe('github-source', () => {
     })
     const { mrs, issues } = await listGitHubClosedReviewItems(
       provider,
-      '2026-10-19T08:00:00Z',
+      { mrSince: '2026-10-19T08:00:00Z', issueSince: '2026-10-19T08:00:00Z' },
       runner
     )
     expect(mrs).toHaveLength(1)

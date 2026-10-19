@@ -1,7 +1,7 @@
 import { extractExecError } from '../git/exec-error'
 import { ghExecFileAsync } from '../git/command-runner/gh-exec-file'
 import type { GitHubReviewNotificationProvider } from '../../shared/review-notification-types'
-import type { ReviewEvent } from './review-event'
+import type { ReviewEvent, ReviewListingCursors } from './review-event'
 
 export type GitHubSourceError = {
   kind: 'auth' | 'rate_limited' | 'network' | 'parse'
@@ -110,18 +110,22 @@ function toEvent(
 }
 
 /**
- * List PRs/issues closed since `sinceIso` (read-only). The issues endpoint
- * returns closed PRs too; items carrying `pull_request` map to kind 'mr'.
- * Used only to resolve open notifications: these items are confirmed gone,
- * unlike the delta open listing where an item's absence proves nothing.
+ * List PRs/issues closed since the per-kind cursors (read-only). The issues
+ * endpoint returns closed PRs too; items carrying `pull_request` map to kind
+ * 'mr'. One endpoint serves both kinds, so it is queried with the older of the
+ * two cursors and the results are split; each cursor still advances only from
+ * its own kind. Used only to resolve open notifications: these items are
+ * confirmed gone, unlike the delta open listing where an item's absence proves
+ * nothing.
  */
 export async function listGitHubClosedReviewItems(
   provider: GitHubReviewNotificationProvider,
-  sinceIso: string,
+  cursors: ReviewListingCursors,
   runner: GitHubApiRunner = createGitHubApiRunner()
 ): Promise<{ mrs: ReviewEvent[]; issues: ReviewEvent[] }> {
   const slug = `${provider.owner}/${provider.repo}`
-  const query = `?state=closed&sort=updated&direction=asc&per_page=50&since=${encodeURIComponent(sinceIso)}`
+  const since = cursors.mrSince < cursors.issueSince ? cursors.mrSince : cursors.issueSince
+  const query = `?state=closed&sort=updated&direction=asc&per_page=50&since=${encodeURIComponent(since)}`
   try {
     const raw = await runner(`repos/${slug}/issues${query}`, provider)
     const mrs: ReviewEvent[] = []
@@ -151,20 +155,21 @@ export async function listGitHubClosedReviewItems(
 }
 
 /**
- * List open PRs and issues updated since `sinceIso` (read-only).
+ * List open PRs and issues updated since the per-kind cursors (read-only).
  * The issues endpoint returns PRs too; they are filtered out.
  */
 export async function listGitHubReviewItems(
   provider: GitHubReviewNotificationProvider,
-  sinceIso: string,
+  cursors: ReviewListingCursors,
   runner: GitHubApiRunner = createGitHubApiRunner()
 ): Promise<{ mrs: ReviewEvent[]; issues: ReviewEvent[] }> {
   const slug = `${provider.owner}/${provider.repo}`
-  const since = `?state=open&sort=updated&direction=asc&per_page=50&since=${encodeURIComponent(sinceIso)}`
+  const mrSince = `?state=open&sort=updated&direction=asc&per_page=50&since=${encodeURIComponent(cursors.mrSince)}`
+  const issueSince = `?state=open&sort=updated&direction=asc&per_page=50&since=${encodeURIComponent(cursors.issueSince)}`
   try {
     const [prRaw, issueRaw] = await Promise.all([
-      runner(`repos/${slug}/pulls${since}`, provider),
-      runner(`repos/${slug}/issues${since}`, provider)
+      runner(`repos/${slug}/pulls${mrSince}`, provider),
+      runner(`repos/${slug}/issues${issueSince}`, provider)
     ])
     const mrs = (Array.isArray(prRaw) ? prRaw : [])
       .map((r) => toEvent(r, 'mr', provider))

@@ -31,15 +31,23 @@ export type ReviewWatermarkStore = {
   flush: () => Promise<void>
 }
 
-export type ReviewWatermarkKind = 'mr' | 'issue' | 'mr-closed'
+export type ReviewWatermarkKind = 'mr-open' | 'mr-closed' | 'issue-open' | 'issue-closed'
 
+/**
+ * One independent cursor per listing. MR and issue listings must never share
+ * a cursor: with per_page limits, a newer item of one kind would otherwise
+ * advance the cursor past the other kind's unfetched pages, skipping them on
+ * the next poll. Open and closed listings are independent for the same reason.
+ */
 export function watermarkKey(
   provider: string,
   host: string,
   repo: string,
   kind: ReviewWatermarkKind
 ): string {
-  return [provider, host.toLowerCase(), repo.toLowerCase(), kind].join('|')
+  // 'v2' retires the pre-split key format ('mr' / 'issue' / shared 'mr-closed'):
+  // a stale v1 value could sit ahead of a kind's true cursor and strand items.
+  return [provider, host.toLowerCase(), repo.toLowerCase(), 'v2', kind].join('|')
 }
 
 /**
