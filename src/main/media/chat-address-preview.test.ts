@@ -31,16 +31,19 @@ vi.mock('../ipc/local-file-access-resolution', () => ({ resolveLocalFileRequestP
 function owner(id: number) {
   const events = new EventEmitter()
   const frame = {}
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: fixture implements every WebContents member consumed by preview grants.
   const sender = Object.assign(events, {
     id,
     mainFrame: frame,
     isDestroyed: () => false,
     getType: () => 'window',
     getURL: () => 'file:///app/index.html'
-  }) as unknown as WebContents
+  }) as WebContents
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: preview handlers read only these sender and frame fields.
   return { sender, senderFrame: frame } as IpcMainInvokeEvent
 }
 
+// oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: local file authorization is mocked and never reads Store in these fixtures.
 const store = {} as Store
 let directory: string
 let sender: IpcMainInvokeEvent
@@ -159,6 +162,7 @@ describe('desktop address preview resources', () => {
       await previewChatAddress(sender, { id: 'share', source: '//host/share/file' }, store)
     ).toMatchObject({ status: 'error' })
     expect(authorize).not.toHaveBeenCalled()
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: fixture replaces only getType to exercise caller rejection before any other member is read.
     const untrusted = {
       ...sender,
       sender: { ...sender.sender, isDestroyed: () => false, getType: () => 'webview' }
@@ -168,7 +172,7 @@ describe('desktop address preview resources', () => {
     ).toMatchObject({ status: 'error' })
     expect(
       await previewChatAddress(
-        { ...sender, senderFrame: {} } as IpcMainInvokeEvent,
+        { ...sender, senderFrame: null },
         { id: 'frame', source: directory },
         store
       )

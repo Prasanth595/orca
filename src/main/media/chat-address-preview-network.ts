@@ -199,7 +199,7 @@ export async function readPreviewNetworkBytes(
   let total = 0
   try {
     for await (const value of result.response) {
-      const chunk = value as Buffer
+      const chunk: Buffer = value
       const remaining = limit - total
       if (!prefix && chunk.length > remaining) {
         throw new Error('Preview file exceeds the size limit')

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { lookup } from 'node:dns/promises'
+const lookup = vi.hoisted(() => vi.fn<() => Promise<{ address: string; family: number }[]>>())
 import {
   PrivatePreviewAddressError,
   isPublicPreviewAddress,
@@ -9,7 +9,7 @@ import {
   resolvePreviewAddress
 } from './chat-address-preview-security'
 
-vi.mock('node:dns/promises', () => ({ lookup: vi.fn() }))
+vi.mock('node:dns/promises', () => ({ lookup }))
 
 beforeEach(() => vi.clearAllMocks())
 
@@ -49,7 +49,7 @@ describe('chat preview address security', () => {
     vi.mocked(lookup).mockResolvedValue([
       { address: '1.1.1.1', family: 4 },
       { address: '127.0.0.1', family: 4 }
-    ] as never)
+    ])
     const url = new URL('https://files.example/data')
     await expect(
       resolvePreviewAddress(url, false, new AbortController().signal)

@@ -172,9 +172,11 @@ function ReadyPreviewCard({
       )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="flex max-h-[90vh] max-w-[90vw] min-w-0 flex-col sm:max-w-4xl">
-          <DialogTitle className="truncate pr-6 text-sm">{label}</DialogTitle>
-          <DialogDescription className="truncate" title={source}>
-            {source}
+          <DialogTitle>
+            <span className="block truncate pr-6">{label}</span>
+          </DialogTitle>
+          <DialogDescription title={source}>
+            <span className="block truncate">{source}</span>
           </DialogDescription>
           {open && (
             <div
@@ -235,7 +237,7 @@ export function NativeChatAddressPreviews({
               type="button"
               size="icon-xs"
               variant="ghost"
-              className="absolute right-1 top-1 z-10 text-muted-foreground"
+              className="absolute right-1 top-1 z-10"
               aria-label={translate(
                 'components.native-chat.addressPreview.remove',
                 'Remove preview: {{name}}',

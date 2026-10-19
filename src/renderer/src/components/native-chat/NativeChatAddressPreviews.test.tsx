@@ -131,7 +131,10 @@ describe('NativeChatAddressPreviews', () => {
         <NativeChatAddressPreviews entries={[entry]} {...actions} />
       )
       expect(screen.queryByRole('button', { name: 'Open preview: recording' })).toBeNull()
-      const player = document.querySelector(kind) as HTMLMediaElement
+      const player = document.querySelector(kind)
+      if (!(player instanceof HTMLMediaElement)) {
+        throw new Error('Missing media player')
+      }
       expect(player.controls).toBe(true)
       expect(player.autoplay).toBe(false)
       expect(player.preload).toBe('metadata')
@@ -158,7 +161,10 @@ describe('NativeChatAddressPreviews', () => {
       expect(player.hasAttribute('src')).toBe(false)
       expect(pause).toHaveBeenCalled()
       expect(load).toHaveBeenCalled()
-      const replacement = document.querySelector(kind) as HTMLMediaElement
+      const replacement = document.querySelector(kind)
+      if (!(replacement instanceof HTMLMediaElement)) {
+        throw new Error('Missing replacement player')
+      }
       expect(replacement).not.toBe(player)
       expect(replacement.getAttribute('src')).toBe('blob:replacement')
       expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()

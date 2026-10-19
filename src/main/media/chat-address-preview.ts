@@ -190,8 +190,10 @@ export async function previewChatAddress(
   value: unknown,
   store: Store
 ): Promise<ChatAddressPreviewResult> {
-  const request = value as Partial<ChatAddressPreviewRequest> | null
-  const id = isValidPreviewId(request?.id) ? request.id : ''
+  const request = typeof value === 'object' && value !== null ? value : {}
+  const id = 'id' in request && isValidPreviewId(request.id) ? request.id : ''
+  const allowPrivateNetwork =
+    'allowPrivateNetwork' in request ? request.allowPrivateNetwork : undefined
   let grant: ChatPreviewGrant | undefined
   try {
     if (!isTrustedBrowserRenderer(event.sender) || event.senderFrame !== event.sender.mainFrame) {
@@ -199,16 +201,16 @@ export async function previewChatAddress(
     }
     if (
       !id ||
-      typeof request?.source !== 'string' ||
+      !('source' in request) ||
+      typeof request.source !== 'string' ||
       !request.source.length ||
       request.source.length > CHAT_PREVIEW_MAX_SOURCE_LENGTH ||
-      (request.allowPrivateNetwork !== undefined &&
-        typeof request.allowPrivateNetwork !== 'boolean')
+      (allowPrivateNetwork !== undefined && typeof allowPrivateNetwork !== 'boolean')
     ) {
       throw new Error('Invalid address preview request')
     }
     grant = createChatPreviewGrant(event.sender, id)
-    const input = { id, source: request.source, allowPrivateNetwork: request.allowPrivateNetwork }
+    const input = { id, source: request.source, allowPrivateNetwork }
     return /^https?:/i.test(input.source)
       ? await loadNetworkPreview(grant, input)
       : await loadLocalPreview(grant, input.source, store)
@@ -232,7 +234,8 @@ export function registerChatAddressPreviewHandlers(store: Store): void {
     if (!isTrustedBrowserRenderer(event.sender) || event.senderFrame !== event.sender.mainFrame) {
       throw new Error('Untrusted address preview release')
     }
-    const id = (request as { id?: unknown } | null)?.id
+    const id =
+      typeof request === 'object' && request !== null && 'id' in request ? request.id : undefined
     if (!isValidPreviewId(id)) {
       throw new Error('Invalid address preview ID')
     }

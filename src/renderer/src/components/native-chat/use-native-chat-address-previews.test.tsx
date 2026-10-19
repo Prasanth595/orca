@@ -3,7 +3,6 @@
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ChatAddressPreviewResult } from '../../../../shared/chat-address-preview'
-import type { NativeChatComposerInput } from './native-chat-composer-input'
 import { useNativeChatAddressPreviews } from './use-native-chat-address-previews'
 
 const originalApi = Object.getOwnPropertyDescriptor(window, 'api')
@@ -28,7 +27,9 @@ describe('address preview visibility and conversation lifetime', () => {
         value: { fs: { previewAddress, releaseAddressPreview } }
       })
       const source = '/tmp/recording.wav'
-      const inputRef = { current: { value: source } as NativeChatComposerInput }
+      const input = document.createElement('textarea')
+      input.value = source
+      const inputRef = { current: input }
       const view = renderHook(
         ({ scopeKey, enabled }) =>
           useNativeChatAddressPreviews({ scopeKey, enabled, draft: source, inputRef }),

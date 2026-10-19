@@ -1,7 +1,9 @@
 import { EventEmitter } from 'node:events'
 import { Readable } from 'node:stream'
-import { lookup } from 'node:dns/promises'
-import { request } from 'node:http'
+const { lookup, request } = vi.hoisted(() => ({
+  lookup: vi.fn<() => Promise<{ address: string; family: number }[]>>(),
+  request: vi.fn<(options: RequestOptions, callback: (incoming: unknown) => void) => EventEmitter>()
+}))
 import type { IncomingMessage, RequestOptions } from 'node:http'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -13,8 +15,8 @@ import {
   streamPreviewNetworkResponse
 } from './chat-address-preview-network'
 
-vi.mock('node:dns/promises', () => ({ lookup: vi.fn() }))
-vi.mock('node:http', () => ({ request: vi.fn() }))
+vi.mock('node:dns/promises', () => ({ lookup }))
+vi.mock('node:http', () => ({ request }))
 vi.mock('node:https', () => ({ request: vi.fn() }))
 
 const proxy = vi.hoisted(() => ({
@@ -33,10 +35,7 @@ function respond(statusCode: number, headers: IncomingMessage['headers'], chunks
     headers,
     setTimeout: vi.fn()
   })
-  vi.mocked(request).mockImplementationOnce(((
-    _options: RequestOptions,
-    callback: (incoming: unknown) => void
-  ) => {
+  vi.mocked(request).mockImplementationOnce((_options, callback) => {
     const outgoing = Object.assign(new EventEmitter(), {
       end: () => callback(response),
       destroy: () => {
@@ -45,7 +44,7 @@ function respond(statusCode: number, headers: IncomingMessage['headers'], chunks
       }
     })
     return outgoing
-  }) as never)
+  })
   return response
 }
 
@@ -53,7 +52,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   proxy.resolve.mockResolvedValue('DIRECT')
   proxy.ready.mockReturnValue(true)
-  vi.mocked(lookup).mockResolvedValue([{ address: '1.1.1.1', family: 4 }] as never)
+  vi.mocked(lookup).mockResolvedValue([{ address: '1.1.1.1', family: 4 }])
 })
 
 const options = () => ({
@@ -91,7 +90,7 @@ describe('chat preview pinned HTTP transport', () => {
   it('checks policy again after asynchronous DNS before connecting', async () => {
     vi.mocked(lookup).mockImplementationOnce(async () => {
       proxy.resolve.mockResolvedValue('PROXY proxy.example:8080')
-      return [{ address: '1.1.1.1', family: 4 }] as never
+      return [{ address: '1.1.1.1', family: 4 }]
     })
     await expect(
       openPreviewNetworkResponse(new URL('http://files.example/file'), options())
@@ -104,7 +103,7 @@ describe('chat preview pinned HTTP transport', () => {
       new URL('http://files.example/no-extension?token=public'),
       options()
     )
-    const requestOptions = vi.mocked(request).mock.calls[0][0] as RequestOptions
+    const requestOptions = vi.mocked(request).mock.calls[0][0]
     expect(requestOptions.hostname).toBe('1.1.1.1')
     expect(requestOptions.agent).toBe(false)
     expect(requestOptions.path).toBe('/no-extension?token=public')
@@ -141,8 +140,8 @@ describe('chat preview pinned HTTP transport', () => {
 
   it('revalidates DNS on every redirect rather than reusing the public result', async () => {
     vi.mocked(lookup)
-      .mockResolvedValueOnce([{ address: '1.1.1.1', family: 4 }] as never)
-      .mockResolvedValueOnce([{ address: '10.0.0.1', family: 4 }] as never)
+      .mockResolvedValueOnce([{ address: '1.1.1.1', family: 4 }])
+      .mockResolvedValueOnce([{ address: '10.0.0.1', family: 4 }])
     respond(302, { location: '/rebound' })
     await expect(
       openPreviewNetworkResponse(new URL('http://files.example/file'), options())
