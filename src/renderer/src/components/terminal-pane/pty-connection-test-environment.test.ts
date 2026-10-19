@@ -22,20 +22,22 @@ describe('pty-connection test environment', () => {
     expect(fired).toBe(0)
   })
 
-  it('clears the same timers from an instance re-imported after resetModules', async () => {
+  it('clears, from an instance re-imported after resetModules, timers started before the reset', async () => {
+    await installTerminalTestGlobals()
+    let fired = 0
+    // Long enough to stay pending through the re-import below.
+    setTimeout(() => {
+      fired += 1
+    }, 200)
+    setInterval(() => {
+      fired += 1
+    }, 200)
+
     vi.resetModules()
     const reloaded = await import('./pty-connection-test-environment')
     await reloaded.installTerminalTestGlobals()
-    let fired = 0
-    setTimeout(() => {
-      fired += 1
-    }, 5)
-    setInterval(() => {
-      fired += 1
-    }, 5)
-
     await reloaded.restoreTerminalTestGlobals()
-    await new Promise<void>((resolve) => setTimeout(resolve, 40))
+    await new Promise<void>((resolve) => setTimeout(resolve, 300))
 
     expect(fired).toBe(0)
   })
