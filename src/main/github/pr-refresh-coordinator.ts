@@ -18,7 +18,7 @@ import {
 } from './pr-refresh-event-publisher'
 import { PRRefreshPacing } from './pr-refresh-pacing'
 import { PRRefreshQueue } from './pr-refresh-queue'
-import { PRRefreshQueueDrainer } from './pr-refresh-queue-drainer'
+import { PRRefreshQueueDrainer, type PRRefreshRegistrationCheck } from './pr-refresh-queue-drainer'
 import { prRefreshRateLimitPausedUntil } from './pr-refresh-rate-limit-gate'
 import { PRRefreshRetryState } from './pr-refresh-retry-state'
 import { PRRefreshVisibility } from './pr-refresh-visibility'
@@ -28,24 +28,14 @@ const queue = new PRRefreshQueue((key) => retry.reset(key))
 const pacing = new PRRefreshPacing()
 const visibility = new PRRefreshVisibility()
 const events = new PRRefreshEventPublisher()
-let registrationCheck: ((candidate: GitHubPRRefreshCandidate) => boolean) | null = null
-const drainer = new PRRefreshQueueDrainer(
-  queue,
-  pacing,
-  visibility,
-  retry,
-  events,
-  (candidate) => registrationCheck?.(candidate) ?? true
-)
+const drainer = new PRRefreshQueueDrainer(queue, pacing, visibility, retry, events)
 
 export function setPRRefreshOutcomeObserver(observer: PRRefreshOutcomeObserver | null): void {
   events.setOutcomeObserver(observer)
 }
 
-export function setPRRefreshRegistrationCheck(
-  check: ((candidate: GitHubPRRefreshCandidate) => boolean) | null
-): void {
-  registrationCheck = check
+export function setPRRefreshRegistrationCheck(check: PRRefreshRegistrationCheck | null): void {
+  drainer.setRegistrationCheck(check)
 }
 
 function removeInvisibleVisibleRefreshes(): void {

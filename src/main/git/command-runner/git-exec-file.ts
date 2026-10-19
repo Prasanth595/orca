@@ -16,8 +16,7 @@ import {
   isQuietGitControlFlowExit,
   disableDirectWslGitAfterSuccessfulFallback,
   invalidateMissingDirectWslGit,
-  resolveGitCommand,
-  resolveGitCommandWithoutProbe
+  resolveGitCommand
 } from './git-command-resolution'
 import { prepareWindowsHostGitEnvironment } from './windows-host-git-environment'
 import { buildNetworkSshPolicyEnv } from './git-ssh-policy-env'
@@ -27,7 +26,7 @@ import { GitCommandTimeoutError, gitCommandTimeoutMs } from './git-command-timeo
 import { classifyGitCommand } from '../../../shared/git-command-classification'
 import { createAbortError } from './abort-error'
 import { readCapturedGitBuffer, readCapturedGitString } from './captured-git-output'
-import { noteGitSpawnFailure, pendingKnownMissingGitCwdCheck } from './missing-git-spawn-cwd'
+import { runUnlessGitCwdKnownMissing } from './missing-git-spawn-cwd'
 
 /**
  * Async git command execution. Drop-in replacement for
@@ -37,16 +36,6 @@ async function gitExecFileAsyncUnlocked(
   args: string[],
   options: GitExecOptions
 ): Promise<{ stdout: string; stderr: string }> {
-  // Why: before the span; a known-missing folder starts no process, so it records no git.exec.
-  const missingCwdCheck = pendingKnownMissingGitCwdCheck(
-    options.cwd,
-    () => resolveGitCommandWithoutProbe(args, options),
-    options.signal,
-    options.encoding
-  )
-  if (missingCwdCheck) {
-    await missingCwdCheck
-  }
   // Why: span the user-visible `git <subcommand>` form, not the resolved binary, so dashboards group by intent.
   return withGitSpan(
     { args, ...(options.cwd !== undefined ? { cwd: options.cwd } : {}) },
@@ -120,8 +109,7 @@ async function gitExecFileAsyncUnlocked(
             )
           : execFileCapture(command.binary, command.args, captureOptions)
         // Why: a dead WSL distro fails with an empty stderr, so the span would carry no cause at all.
-        return captured.catch(async (error: unknown) => {
-          await noteGitSpawnFailure(error, command, options.signal)
+        return captured.catch((error: unknown) => {
           throw annotateWslHostFailure(error, command)
         })
       }
@@ -186,21 +174,24 @@ export function gitExecFileAsync(
   options: GitExecOptions
 ): Promise<{ stdout: string; stderr: string }> {
   const command = resolveGitFetchHeadCommand(args, options.cwd)
-  return command.needsLock
-    ? runWithGitFetchHeadLock(
-        command.cwd,
-        options.signal,
-        () => gitExecFileAsyncUnlocked(args, options),
-        command.gitDir
-      )
-    : gitExecFileAsyncUnlocked(args, options)
+  // Why outside the lock and span: a known-missing folder starts no process, so it records no git.exec.
+  return runUnlessGitCwdKnownMissing(options, () =>
+    command.needsLock
+      ? runWithGitFetchHeadLock(
+          command.cwd,
+          options.signal,
+          () => gitExecFileAsyncUnlocked(args, options),
+          command.gitDir
+        )
+      : gitExecFileAsyncUnlocked(args, options)
+  )
 }
 
 /**
  * Async git command execution that returns a Buffer.
  * Used for reading binary blobs (git show).
  */
-export async function gitExecFileAsyncBuffer(
+async function gitExecFileAsyncBufferInSpan(
   args: string[],
   options: {
     cwd: string
@@ -214,15 +205,6 @@ export async function gitExecFileAsyncBuffer(
     signal?: AbortSignal
   }
 ): Promise<{ stdout: Buffer }> {
-  const missingCwdCheck = pendingKnownMissingGitCwdCheck(
-    options.cwd,
-    () => resolveGitCommandWithoutProbe(args, options),
-    options.signal,
-    'buffer'
-  )
-  if (missingCwdCheck) {
-    await missingCwdCheck
-  }
   return withGitSpan({ args, cwd: options.cwd }, async (span) => {
     const checkoutRoutingReady = pendingWslDriveCheckoutGitRouting(args, options)
     if (checkoutRoutingReady) {
@@ -268,9 +250,6 @@ export async function gitExecFileAsyncBuffer(
         ...(timeoutMs === undefined
           ? {}
           : { createTimeoutError: () => new GitCommandTimeoutError(timeoutMs) })
-      }).catch(async (error: unknown) => {
-        await noteGitSpawnFailure(error, resolved, options.signal)
-        throw error
       })
       if (!Buffer.isBuffer(stdout)) {
         throw new Error('Git buffer capture returned text instead of bytes')
@@ -288,6 +267,13 @@ export async function gitExecFileAsyncBuffer(
 
 // Why: sync git blocks the main thread; a dead network drive can hang git for minutes without a timeout (issue #7225's 127s freeze).
 const GIT_EXEC_SYNC_TIMEOUT_MS = 15_000
+
+export function gitExecFileAsyncBuffer(
+  args: string[],
+  options: Parameters<typeof gitExecFileAsyncBufferInSpan>[1]
+): Promise<{ stdout: Buffer }> {
+  return runUnlessGitCwdKnownMissing(options, () => gitExecFileAsyncBufferInSpan(args, options))
+}
 
 /**
  * Sync git command execution. Drop-in replacement for
