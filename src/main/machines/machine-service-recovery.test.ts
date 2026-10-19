@@ -1,7 +1,10 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { encodePairingOffer } from '../../shared/pairing'
-import { MACHINE_CREATE_RECONCILE_WINDOW_MS } from '../../shared/machine-inventory'
+import {
+  MACHINE_CREATE_RECONCILE_WINDOW_MS,
+  type MachineProgressEvent
+} from '../../shared/machine-inventory'
 import { getMachineInventoryStorePath } from './machine-inventory-store'
 import { MachineService } from './machine-service'
 import {
@@ -62,6 +65,79 @@ describe('MachineService recovery', () => {
     await expect(service.connect(KEY, 'sbx-1')).resolves.toMatchObject({ kind: 'ssh' })
     expect(verbs().filter((verb) => verb === 'get')).toHaveLength(1)
     expect(sshTargets.connect).toHaveBeenCalledTimes(2)
+  })
+
+  it('redials a just-woken machine while its sshd starts, but never past a key refusal', async () => {
+    const { service, sshTargets, delay } = await setup({
+      list: inventory([machine({ state: 'sleeping', access: undefined })]),
+      wake: reply(machine())
+    })
+    const refused = { targetId: 't', status: 'error' as const, reconnectAttempt: 0 }
+    vi.mocked(sshTargets.connect)
+      .mockResolvedValueOnce({ ...refused, error: 'Connection closed by UNKNOWN port 65535' })
+      .mockResolvedValueOnce({
+        targetId: 't',
+        status: 'connected',
+        error: null,
+        reconnectAttempt: 0
+      })
+      .mockResolvedValueOnce({ ...refused, error: 'Host key verification failed for x.' })
+    await service.list(KEY)
+    await service.wake(KEY, 'sbx-1')
+    await expect(service.connect(KEY, 'sbx-1')).resolves.toMatchObject({ kind: 'ssh' })
+    expect(delay).toHaveBeenCalledWith(2_000)
+
+    delay.mockClear()
+    await expect(service.connect(KEY, 'sbx-1')).rejects.toThrow('Host key verification failed')
+    expect(delay).not.toHaveBeenCalled()
+  })
+
+  it('keeps a deleted machine as gone with its managed server link for its worktrees', async () => {
+    const { service, sshTargets } = await setup({
+      list: [inventory([machine()]), inventory([])],
+      delete: fail('not-found')
+    })
+    vi.mocked(sshTargets.connect).mockResolvedValueOnce({
+      targetId: 't',
+      status: 'connected',
+      error: null,
+      reconnectAttempt: 0,
+      managedServer: { kind: 'managed', environmentId: 'env-machine' }
+    })
+    await service.list(KEY)
+    await service.connect(KEY, 'sbx-1')
+    await service.delete(KEY, 'sbx-1')
+    const snapshot = await service.list(KEY, { force: true })
+    expect(snapshot.machines).toEqual([
+      expect.objectContaining({ id: 'sbx-1', state: 'gone', managedEnvironmentId: 'env-machine' })
+    ])
+    expect(snapshot.machines[0]).not.toHaveProperty('sshTargetId', expect.anything())
+  })
+
+  it('drops a gone row on the next list once no repo or workspace runs on its server', async () => {
+    const referenced = new Set(['runtime:env-machine'])
+    const { deps, sshTargets } = await setup({
+      list: [inventory([machine()]), inventory([]), inventory([])],
+      delete: fail('not-found')
+    })
+    const service = new MachineService({
+      ...deps,
+      isHostReferenced: (hostId) => referenced.has(hostId)
+    })
+    vi.mocked(sshTargets.connect).mockResolvedValueOnce({
+      targetId: 't',
+      status: 'connected',
+      error: null,
+      reconnectAttempt: 0,
+      managedServer: { kind: 'managed', environmentId: 'env-machine' }
+    })
+    await service.list(KEY)
+    await service.connect(KEY, 'sbx-1')
+    await service.delete(KEY, 'sbx-1')
+    expect((await service.list(KEY, { force: true })).machines).toHaveLength(1)
+
+    referenced.clear()
+    expect((await service.list(KEY, { force: true })).machines).toEqual([])
   })
 
   it('does not retry when the endpoint is unchanged', async () => {
@@ -136,6 +212,43 @@ describe('MachineService recovery', () => {
     clock.now += MACHINE_CREATE_RECONCILE_WINDOW_MS + 1
     await service.list(KEY, { force: true })
     expect(service.snapshots()[0]?.pendingCreates).toEqual([])
+  })
+
+  it('resolves a create only once the machine runs', async () => {
+    const { service, delay } = await setup({
+      create: (args) =>
+        reply(
+          machine({ state: 'creating', access: undefined, creatingOperationId: args.operationId })
+        )(args),
+      get: [reply(machine({ state: 'creating', access: undefined })), reply(machine())]
+    })
+    const record = await service.create(KEY, { name: 'dev', lifetime: 'persistent' })
+    expect(record).toMatchObject({ state: 'running', access: { kind: 'ssh' } })
+    expect(delay).toHaveBeenCalledWith(3_000)
+  })
+
+  it('tags wake progress with the caller operationId and machine', async () => {
+    const events: MachineProgressEvent[] = []
+    const { deps } = await setup({
+      list: inventory([machine({ state: 'sleeping', access: undefined })]),
+      wake: (args) => {
+        args.onStderr?.('starting container\n')
+        return reply(machine())(args)
+      }
+    })
+    const tagged = new MachineService({ ...deps, onProgress: (event) => events.push(event) })
+    await tagged.list(KEY)
+    await tagged.wake(KEY, 'sbx-1', { operationId: 'op-wake' })
+    expect(events).toEqual([
+      {
+        operationId: 'op-wake',
+        providerKey: KEY,
+        machineId: 'sbx-1',
+        verb: 'wake',
+        stream: 'stderr',
+        chunk: 'starting container\n'
+      }
+    ])
   })
 
   it('never overwrites an inventory written by a newer build', async () => {

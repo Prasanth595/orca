@@ -5,6 +5,7 @@ import type {
   MachineTarget
 } from '../../shared/machine-inventory'
 import type { MachineLifetime } from '../../shared/machine-provider-protocol'
+import { getRepoExecutionHostId } from '../../shared/execution-host'
 import { MACHINES_DISABLED, toMachineActionResult } from '../machines/machine-action-result'
 import { createDesktopMachineService } from '../machines/desktop-machine-service'
 import type { Store } from '../persistence'
@@ -36,9 +37,15 @@ export function registerMachineHandlers(store: Store, pluginService?: PluginServ
   for (const channel of CHANNELS) {
     ipcMain.removeHandler(channel)
   }
-  const service = createDesktopMachineService(app.getPath('userData'), pluginService, () =>
-    isEnabled(store)
-  )
+  const service = createDesktopMachineService({
+    userDataPath: app.getPath('userData'),
+    pluginService,
+    isEnabled: () => isEnabled(store),
+    isHostReferenced: (hostId) =>
+      [...store.getRepos(), ...store.getFolderWorkspaces()].some(
+        (project) => getRepoExecutionHostId(project) === hostId
+      )
+  })
   const onTarget =
     (run: (key: MachineProviderKey, machineId: string) => Promise<unknown>) =>
     (_event: unknown, args: MachineTarget) =>
@@ -89,9 +96,8 @@ export function registerMachineHandlers(store: Store, pluginService?: PluginServ
     'machines:sleep',
     onTarget((key, id) => service.sleep(key, id))
   )
-  ipcMain.handle(
-    'machines:wake',
-    onTarget((key, id) => service.wake(key, id))
+  ipcMain.handle('machines:wake', (_event, args: MachineTarget & { operationId?: string }) =>
+    act(store, () => service.wake(args.providerKey, args.machineId, args))
   )
   ipcMain.handle(
     'machines:archive',
@@ -101,8 +107,7 @@ export function registerMachineHandlers(store: Store, pluginService?: PluginServ
     'machines:delete',
     onTarget((key, id) => service.delete(key, id))
   )
-  ipcMain.handle(
-    'machines:connect',
-    onTarget((key, id) => service.connect(key, id))
+  ipcMain.handle('machines:connect', (_event, args: MachineTarget & { operationId?: string }) =>
+    act(store, () => service.connect(args.providerKey, args.machineId, args))
   )
 }

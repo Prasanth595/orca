@@ -20,6 +20,8 @@ export type MachineRecord = Omit<ProviderMachine, 'state'> & {
   lastError?: string
   sshTargetId?: string
   runtimeEnvironmentId?: string
+  /** The managed Orca server an SSH machine's worktrees run on; kept on gone rows as their link. */
+  managedEnvironmentId?: string
   /** Pairing codes are credentials: rows keep `access.pairingCode` empty and store only this. */
   pairingCodeSha256?: string
 }
@@ -69,6 +71,16 @@ export type MachineTarget = { providerKey: MachineProviderKey; machineId: string
 export type MachineConnection =
   | { kind: 'ssh'; sshTargetId: string; environmentId?: string }
   | { kind: 'orca-server'; runtimeEnvironmentId: string }
+
+/** One provider stderr chunk for an action the UI started; stdout is never forwarded. */
+export type MachineProgressEvent = {
+  operationId: string
+  providerKey: MachineProviderKey
+  machineId?: string
+  verb: 'create' | 'wake' | 'connect'
+  stream: 'stderr'
+  chunk: string
+}
 
 export const MACHINE_CREATE_RECONCILE_WINDOW_MS = 15 * 60_000
 

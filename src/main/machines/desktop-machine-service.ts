@@ -1,5 +1,5 @@
 import { BrowserWindow } from 'electron'
-import { machineProviderKey, type MachineProviderSnapshot } from '../../shared/machine-inventory'
+import { machineProviderKey } from '../../shared/machine-inventory'
 import { getSshConnectionStore } from '../ipc/ssh/ssh'
 import {
   disconnectRegisteredSshTarget,
@@ -47,13 +47,13 @@ function listPluginMachineProviders(pluginService?: PluginService): MachineProvi
   )
 }
 
-function broadcastMachinesChanged(snapshot: MachineProviderSnapshot): void {
+function broadcast(channel: 'machines:changed' | 'machines:progress', payload: unknown): void {
   for (const window of BrowserWindow.getAllWindows()) {
     if (window.isDestroyed()) {
       continue
     }
     try {
-      window.webContents.send('machines:changed', snapshot)
+      window.webContents.send(channel, payload)
     } catch {
       // A renderer can disappear between isDestroyed() and send().
     }
@@ -61,15 +61,19 @@ function broadcastMachinesChanged(snapshot: MachineProviderSnapshot): void {
 }
 
 /** Providers run in this process, with this desktop's ssh config and credentials. */
-export function createDesktopMachineService(
-  userDataPath: string,
-  pluginService: PluginService | undefined,
+export function createDesktopMachineService(options: {
+  userDataPath: string
+  pluginService?: PluginService
   isEnabled: () => boolean
-): MachineService {
+  isHostReferenced: (hostId: string) => boolean
+}): MachineService {
+  const { userDataPath, pluginService, isEnabled, isHostReferenced } = options
   const service = new MachineService({
     userDataPath,
+    isHostReferenced,
     listProviders: () => listPluginMachineProviders(pluginService),
-    onChanged: broadcastMachinesChanged,
+    onChanged: (snapshot) => broadcast('machines:changed', snapshot),
+    onProgress: (event) => broadcast('machines:progress', event),
     sshTargets,
     removeSshTarget: removeRegisteredSshTarget,
     pairing: {
