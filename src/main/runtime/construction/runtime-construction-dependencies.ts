@@ -18,6 +18,7 @@ import type { OrchestrationEnvironmentTransport } from '../orchestration/environ
 import type { SessionSearchSettingsApply } from '../runtime-session-search-settings'
 
 export type RuntimeConstructionDependencies = {
+  getSetupTerminalTitle?: () => string
   getLocalProvider?: () => IPtyProvider
   prepareClaudeAuth?: PrepareClaudeAuth
   onPtyStopped?: (ptyId: string) => void

@@ -6520,5 +6520,8 @@
   },
   "auto.components.settings.task.tracker.integration.cards.connectedWorkspacePlural": {
     "ko": "워크스페이스 {{count}}개 연결됨"
+  },
+  "worktree.setupTerminalTitle": {
+    "ko": "초기 설정"
   }
 }

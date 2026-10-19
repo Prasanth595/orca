@@ -23,6 +23,8 @@ export type WorktreeTerminalProvisioningHost = {
   // The title is the tab's own, as the window's setTabCustomTitle sets it, never the pane's title.
   setTabTitle: (handle: string, title: string) => Promise<void>
   setTabColor: (handle: string, color: string) => Promise<void>
+  // Desktop hosts inject localized copy; Node hosts retain the English fallback.
+  getSetupTerminalTitle?: () => string
   getPtyId: (handle: string) => string | undefined
   recordSetupCompletionToken: (ptyId: string, token: string) => void
 }
@@ -160,7 +162,7 @@ export async function provisionWorktreeTerminals(
         )
       const env = { ...args.setup.envVars, ...observed?.env }
       const setupTerminal = await host.createTerminal(args.worktreeSelector, {
-        title: 'Setup',
+        title: host.getSetupTerminalTitle?.() ?? 'Setup',
         command,
         env,
         ...surfacing

@@ -14,6 +14,7 @@ export type WorktreeRuntimeStub = {
   reconcileWorktreeBaseStatus: ReturnType<typeof vi.fn>
   clearOptimisticReconcileToken: ReturnType<typeof vi.fn>
   resolveManagedMrBase: ReturnType<typeof vi.fn>
+  getSetupTerminalTitle: ReturnType<typeof vi.fn>
   createTerminal: ReturnType<typeof vi.fn>
   invalidateWorktreeCatalog: ReturnType<typeof vi.fn>
   splitTerminal: ReturnType<typeof vi.fn>
@@ -44,6 +45,7 @@ export function createWorktreeRuntimeStub(mainWindow?: {
     reconcileWorktreeBaseStatus: vi.fn(),
     clearOptimisticReconcileToken: vi.fn(),
     resolveManagedMrBase: vi.fn().mockResolvedValue({ baseBranch: 'origin/mr-branch' }),
+    getSetupTerminalTitle: vi.fn().mockReturnValue('Setup'),
     createTerminal: vi.fn().mockResolvedValue({
       handle: 'term-startup',
       worktreeId: 'repo-1::/workspace/improve-dashboard',
