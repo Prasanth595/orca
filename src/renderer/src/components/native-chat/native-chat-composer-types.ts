@@ -137,6 +137,8 @@ export type NativeChatLaunchSeed = {
   launchDraftResolved: boolean
   /** False for every pane of a split tab; gates adopting the seed, not cleanup. */
   ownsTabWideLaunchDraft: boolean
+  /** `agentInputLineText` of the agent's input line. */
+  readTerminalDraft?: () => string | null
 }
 
 export type NativeChatComposerHandle = {
