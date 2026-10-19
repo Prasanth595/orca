@@ -5,7 +5,10 @@ import { getProjectGroupHostId } from '@/store/slices/project-group-owner-routin
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 import type { ProjectOrderBy } from '../../../../../../shared/ui-chrome-types'
 import type { Repo } from '../../../../../../shared/repo-types'
-import type { ExecutionHostId } from '../../../../../../shared/execution-host'
+import {
+  getRepoExecutionHostId,
+  type ExecutionHostId
+} from '../../../../../../shared/execution-host'
 import type {
   HostHeaderRow,
   HostSectionRow
@@ -161,9 +164,13 @@ export function useWorktreeSidebarHeaderDrag(args: {
   )
   const commitProjectGroupOrder = useCallback(
     (repoId: string, projectGroupId: string | null, order: number) => {
-      void moveProjectToGroup(repoId, projectGroupId, order)
+      const repo = repoMap.get(repoId)
+      if (!repo) {
+        return
+      }
+      void moveProjectToGroup(repoId, projectGroupId, order, getRepoExecutionHostId(repo))
     },
-    [moveProjectToGroup]
+    [moveProjectToGroup, repoMap]
   )
   const commitProjectGroupHeaderOrder = useCallback(
     (groupId: string, tabOrder: number) => {
