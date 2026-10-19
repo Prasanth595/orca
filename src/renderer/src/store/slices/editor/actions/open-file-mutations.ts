@@ -167,8 +167,14 @@ export function createOpenFileMutations(
     anchorEditBaseline: (fileId, baseContent) =>
       set((s) => {
         const file = s.openFiles.find((f) => f.id === fileId)
-        // Why: only the first edit of a clean tab anchors; later edits derive from the same base.
-        if (!file || file.isDirty || file.lastKnownDiskSignature === undefined) {
+        // Why: the base belongs to the draft. A dirty tab, or a clean one still holding a draft
+        // (edit then undo), keeps the base that draft was started from, whichever panel edits next.
+        if (
+          !file ||
+          file.isDirty ||
+          s.editorDrafts[fileId] !== undefined ||
+          file.lastKnownDiskSignature === undefined
+        ) {
           return s
         }
         // Why written-content: the base may be text this tab just wrote rather than text read back.

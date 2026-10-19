@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useAppStore } from '@/store'
 import type { OpenFile } from '@/store/slices/editor'
 import type { DiffContent, FileContent } from './editor-panel-content-types'
@@ -37,10 +37,11 @@ function panelDiskBase(
  *
  * Why the refs: depending on the loaded-content maps directly churned the
  * callback identity on every content load, pushing fresh props through the
- * whole memoized editor subtree. They are written in a layout effect rather
- * than during render because a render React discards must not move the
- * dirty-check baseline, and a committed one lands before any input event can
- * reach the handler.
+ * whole memoized editor subtree. They are written in a passive effect, not during
+ * render (a discarded render must not move the dirty-check base) and not in a
+ * layout effect: editors swap in new text in their own passive effects, which run
+ * before this panel's, so the base moves together with the text on screen and a
+ * keystroke on the old model is compared and anchored against the old text.
  *
  * Why anchor: split panels cache content separately while a tab's disk baseline is shared, so a
  * clean tab's first edit, however it is reported, pins the baseline to the text this panel showed.
@@ -57,7 +58,7 @@ export function useEditorContentChangeHandler({
   const anchorEditBaseline = useAppStore((s) => s.anchorEditBaseline)
   const fileContentsRef = useRef(fileContents)
   const diffContentsRef = useRef(diffContents)
-  useLayoutEffect(() => {
+  useEffect(() => {
     fileContentsRef.current = fileContents
     diffContentsRef.current = diffContents
   }, [diffContents, fileContents])
@@ -108,7 +109,6 @@ export function useEditorContentChangeHandler({
       ) {
         return
       }
-      setEditorDraft(file.id, content)
       const original =
         file.mode === 'edit'
           ? (fileContentsRef.current[file.id]?.content ?? '')
@@ -117,9 +117,10 @@ export function useEditorContentChangeHandler({
               return diff?.kind === 'text' ? diff.modifiedContent : ''
             })()
       const dirty = !isEditorContentUnchanged(content, original, file.language === 'markdown')
-      if (dirty) {
-        anchorToPanel(file)
-      }
+      // Why always, and before the draft: whatever draft this creates (even one Markdown counts as
+      // clean) is based on this panel's text; anchoring is a no-op once a draft exists.
+      anchorToPanel(file)
+      setEditorDraft(file.id, content)
       markFileDirty(file.id, dirty)
     },
     [anchorToPanel, markFileDirty, setEditorDraft]

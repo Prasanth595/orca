@@ -1,3 +1,4 @@
+import { getDiskBaselineSignature } from '../../../shared/disk-baseline-signature'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   hashMarkdownContent,
@@ -231,7 +232,12 @@ describe('mobile markdown bridge', () => {
         filePath: '/repo/README.md',
         content: 'mobile edit',
         connectionId: undefined,
-        expectedExecutionHostId: 'local'
+        expectedExecutionHostId: 'local',
+        // The phone's edit is guarded against the disk text it was verified against.
+        diskPrecondition: {
+          expectedSignature: getDiskBaselineSignature('original'),
+          allowMissing: true
+        }
       })
       expect(response).toMatchObject({
         id: 'save-2',

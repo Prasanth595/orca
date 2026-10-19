@@ -115,11 +115,13 @@ export function createEditorSaveQueue(store: AppStoreApi): EditorSaveQueue {
 
         flushPendingEditorChange(file.id, trigger === 'autosave')
         const flushedFile = store.getState().openFiles.find((openFile) => openFile.id === file.id)
-        // Why: a clean tab has nothing of its own to write, and its panel may show older text than
-        // the shared baseline; only a tombstoned tab's save means "recreate this file".
+        // Why: a clean tab with no draft has nothing of its own to write, and its panel may show older
+        // text than the shared baseline; only a tombstoned tab's save means "recreate this file". A
+        // clean draft (e.g. a trailing newline Markdown ignores for dirtiness) still saves on its base.
         if (
           flushedFile &&
           !flushedFile.isDirty &&
+          store.getState().editorDrafts[file.id] === undefined &&
           !hasPendingEditorChange(file.id) &&
           flushedFile.externalMutation !== 'deleted' &&
           flushedFile.externalMutation !== 'renamed'

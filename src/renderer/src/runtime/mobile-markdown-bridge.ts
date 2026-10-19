@@ -1,3 +1,4 @@
+import { getDiskBaselineSignature } from '../../../shared/disk-baseline-signature'
 import {
   ORCA_EDITOR_FILE_SAVED_EVENT,
   requestEditorFileSave,
@@ -119,9 +120,14 @@ async function saveMobileMarkdownTab(
     const state = useAppStore.getState()
     const previousDraft = state.editorDrafts[freshTarget.sourceFile.id]
     const previousDirty = freshTarget.sourceFile.isDirty
+    if (!previousDirty) {
+      // Why: the phone's edit replaces any clean desktop draft and is based on the disk text just verified.
+      state.setLastKnownDiskSignature(
+        freshTarget.sourceFile.id,
+        getDiskBaselineSignature(current.content)
+      )
+    }
     state.setEditorDraft(freshTarget.sourceFile.id, content)
-    // Why: the phone's edit is based on the disk text just verified above.
-    state.anchorEditBaseline(freshTarget.sourceFile.id, current.content)
     state.markFileDirty(freshTarget.sourceFile.id, true)
     let verified: string
     try {
