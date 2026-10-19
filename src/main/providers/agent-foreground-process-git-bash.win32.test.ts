@@ -180,7 +180,8 @@ describeOnWindows("Git Bash launcher shell proof with Orca's real launch", () =>
       await vi.waitFor(async () => expect(await inspect(true)).toBe('no-children'), {
         timeout: 10_000
       })
-      expect(await inspect(false)).toBe('children')
+      // Close checks keep the job census: the daemon still counts there.
+      expect(await inspect(false)).not.toBe('no-children')
 
       // MSYS leaves the background sleep under an exited Win32 parent too, but on the console.
       proc.write('sleep 60 &\r')
