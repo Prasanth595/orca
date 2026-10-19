@@ -1,7 +1,7 @@
 /**
  * Agent/tool preflight detection. Split out of `ipc/preflight.ts` so the Orca
- * runtime — which calls `detectInstalledAgentsWithShellPathHydration` and
- * `detectRemoteAgents` during normal operation — can reach this logic without
+ * runtime — which calls `detectInstalledAgentsWithShellPathHydration`
+ * during normal operation — can reach this logic without
  * dragging `ipcMain` into its module graph. The Electron handler registration
  * stays in `ipc/preflight.ts` and imports from here.
  */
@@ -38,7 +38,7 @@ import {
   getTuiAgentDetectionProbeCommands,
   KNOWN_TUI_AGENT_DETECTION_COMMANDS,
   resolveDetectedTuiAgentIds
-} from '../ipc/tui-agent-detection-commands'
+} from '../../shared/tui-agent-detection-commands'
 import { invalidateWslGuestEnvironment } from '../wsl/wsl-guest-environment'
 import { prunePreflightWslCache } from '../preflight-wsl-cache'
 import { detectAgentCommandsOnHost } from './agent-command-detection'
@@ -216,8 +216,6 @@ export async function refreshShellPathAndDetectAgents(
     pathFailureReason: hydration.failureReason
   }
 }
-
-export { detectRemoteAgents } from './remote-agent-detection'
 
 // Why the probe object rather than the bare command name: on the local path
 // `binary` is the copy that just passed `--version`, which on a shim-shadowed

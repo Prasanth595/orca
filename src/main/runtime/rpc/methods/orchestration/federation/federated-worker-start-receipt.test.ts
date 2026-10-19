@@ -123,6 +123,7 @@ describe('federated worker start receipt validation', () => {
       }
     )
 
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: The asserted failure receipt fields are checked below against the persisted dispatch.
     const result = (await startFederatedWorker({
       params: {
         task: task.id,

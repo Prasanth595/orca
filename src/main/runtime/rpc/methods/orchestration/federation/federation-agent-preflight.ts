@@ -22,12 +22,18 @@ export async function validateFederatedCreationPreflight(
   if (!createsWorktree) {
     return
   }
+  if (!repo) {
+    throw new OrchestrationError(
+      'invalid_argument',
+      'A remote new-top-level worktree requires an explicit --repo.'
+    )
+  }
   await assertOrchestrationWorktreeCreationSupported({
     runtime,
-    repoSelector: repo as string,
+    repoSelector: repo,
     existingPlacement: 'an exact existing folder workspace'
   })
-  await validateFederatedAgentLauncherForRepo(runtime, agent, repo as string)
+  await validateFederatedAgentLauncherForRepo(runtime, agent, repo)
 }
 
 export async function resolveFederatedExistingWorktreePreflight(

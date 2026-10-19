@@ -78,7 +78,7 @@ export const ORCHESTRATION_FEDERATION_ATTACH_METHODS = [
       })
       const effects: FederationEffect[] = []
       let failedStage = createsWorktree ? 'worktree_create' : 'worktree_resolve'
-      let worktree = existingWorktree
+      let worktree: { id: string } | undefined = existingWorktree
       let terminalHandle = params.terminal
       const setupSource = createsWorktree
         ? (params.setupSource ?? (params.setup ? 'explicit_request' : 'orchestration_default'))
@@ -112,6 +112,9 @@ export const ORCHESTRATION_FEDERATION_ATTACH_METHODS = [
         if (createsWorktree) {
           ;({ worktree, terminalHandle } = await launchAgent())
         } else {
+          if (!worktree) {
+            throw new Error('Federated worker topology did not resolve.')
+          }
           effects.push(
             { kind: 'worktree', action: 'reused', id: worktree.id },
             { kind: 'setup', action: 'not_applicable', state: 'not_applicable' }

@@ -22,6 +22,7 @@ describe('federated worker agent launch', () => {
     runtime.setOrchestrationDb(db)
     vi.spyOn(runtime, 'validateOrchestrationAgentLauncher').mockImplementation(() => {})
     vi.spyOn(runtime, 'validateOrchestrationAgentLauncherForRepo').mockResolvedValue()
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: The mocked workspace resolver is used only for its id and repoId.
     vi.spyOn(runtime, 'showManagedTerminalWorkspace').mockResolvedValue({
       id: 'folder:remote-workspace',
       repoId: 'repo-1'
@@ -114,6 +115,7 @@ describe('federated worker agent launch', () => {
     const runtime = new OrcaRuntimeService()
     runtime.setOrchestrationDb(db)
     vi.spyOn(runtime, 'validateOrchestrationAgentLauncher').mockImplementation(() => {})
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Preflight reads only repoId before the intentional unavailable-agent rejection.
     vi.spyOn(runtime, 'showManagedTerminalWorkspace').mockResolvedValue({
       id: 'folder:remote-workspace',
       repoId: 'repo-1'

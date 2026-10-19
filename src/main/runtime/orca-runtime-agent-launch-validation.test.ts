@@ -4,29 +4,29 @@ import type * as ManagedAgentHookTargets from '../../shared/managed-agent-hook-t
 
 const {
   detectInstalledAgents,
-  detectRemoteAgents,
   detectWslCommandsOnPath,
   detectLocalManagedAgentCliPresence,
   resolveLocalProjectRuntimeForRepo,
-  isCommandOnLocalPath
+  isCommandOnLocalPath,
+  agentLaunchPlatformForScope
 } = vi.hoisted(() => ({
   detectInstalledAgents: vi.fn<(...args: never[]) => Promise<string[]>>(),
-  detectRemoteAgents: vi.fn<(...args: never[]) => Promise<string[]>>(),
   detectWslCommandsOnPath: vi.fn<(...args: never[]) => Promise<Set<string>>>(),
   detectLocalManagedAgentCliPresence:
     vi.fn<(...args: never[]) => Promise<Record<string, unknown>>>(),
   resolveLocalProjectRuntimeForRepo: vi.fn(),
-  isCommandOnLocalPath: vi.fn()
+  isCommandOnLocalPath: vi.fn(),
+  agentLaunchPlatformForScope: vi.fn(() => process.platform)
 }))
 
 vi.mock('../preflight/agent-detection', () => ({
-  detectInstalledAgentsWithShellPathHydration: detectInstalledAgents,
-  detectRemoteAgents
+  detectInstalledAgentsWithShellPathHydration: detectInstalledAgents
 }))
 vi.mock('../ipc/preflight-wsl-agent-detection', () => ({ detectWslCommandsOnPath }))
 vi.mock('../agent-hooks/local-agent-cli-presence', () => ({ detectLocalManagedAgentCliPresence }))
 vi.mock('../project-runtime-git-options', () => ({ resolveLocalProjectRuntimeForRepo }))
 vi.mock('../ipc/command-path-resolver', () => ({ isCommandOnLocalPath }))
+vi.mock('./agent-launch-scope-runtime', () => ({ agentLaunchPlatformForScope }))
 vi.mock('../../shared/managed-agent-hook-targets', async (importOriginal) => ({
   ...(await importOriginal<typeof ManagedAgentHookTargets>()),
   getManagedAgentHookTarget: () => null
@@ -43,10 +43,8 @@ const repo = (connectionId?: string) => ({
 
 function createRuntime(settings: Record<string, unknown> = {}) {
   const runtime = new OrcaRuntimeService()
-  ;(runtime as unknown as { store: unknown }).store = {
-    getSettings: () => ({ agentCmdOverrides: {}, ...settings })
-  }
-  vi.spyOn(runtime, 'showRepo').mockResolvedValue(repo() as never)
+  Object.assign(runtime, { store: { getSettings: () => ({ agentCmdOverrides: {}, ...settings }) } })
+  vi.spyOn(runtime, 'showRepo').mockResolvedValue(repo())
   return runtime
 }
 
@@ -54,38 +52,27 @@ afterEach(() => {
   vi.clearAllMocks()
   resolveLocalProjectRuntimeForRepo.mockReturnValue(undefined)
   detectInstalledAgents.mockResolvedValue([])
-  detectRemoteAgents.mockResolvedValue([])
   detectWslCommandsOnPath.mockResolvedValue(new Set())
   detectLocalManagedAgentCliPresence.mockResolvedValue({})
   isCommandOnLocalPath.mockResolvedValue(false)
+  agentLaunchPlatformForScope.mockReturnValue(process.platform)
 })
 
 describe('validateOrchestrationAgentLauncherForRepo', () => {
-  it('uses strict remote detection and keeps remote unavailable errors', async () => {
-    const runtime = createRuntime()
-    vi.spyOn(runtime, 'showRepo').mockResolvedValue(repo('ssh-1') as never)
-    detectRemoteAgents.mockResolvedValue(['codex'])
+  it.each([undefined, 'managed-codex --flag'])(
+    'rejects an unserved SSH target without probing the local host (override: %s)',
+    async (override) => {
+      const runtime = createRuntime({ agentCmdOverrides: { codex: override } })
+      vi.spyOn(runtime, 'showRepo').mockResolvedValue(repo('ssh-1'))
 
-    await expect(
-      runtime.validateOrchestrationAgentLauncherForRepo('codex', 'repo-1')
-    ).resolves.toBeUndefined()
-    expect(detectRemoteAgents).toHaveBeenCalledWith(
-      expect.objectContaining({ connectionId: 'ssh-1', requireAvailable: true })
-    )
-  })
-
-  it('includes a custom remote override in the probe request', async () => {
-    const runtime = createRuntime({ agentCmdOverrides: { codex: 'managed-codex --flag' } })
-    vi.spyOn(runtime, 'showRepo').mockResolvedValue(repo('ssh-1') as never)
-    detectRemoteAgents.mockResolvedValue(['codex'])
-
-    await runtime.validateOrchestrationAgentLauncherForRepo('codex', 'repo-1')
-    expect(detectRemoteAgents.mock.calls[0]?.[0]).toMatchObject({
-      commands: expect.arrayContaining([
-        expect.objectContaining({ id: 'codex', cmd: 'managed-codex' })
-      ])
-    })
-  })
+      await expect(
+        runtime.validateOrchestrationAgentLauncherForRepo('codex', 'repo-1')
+      ).rejects.toMatchObject({ code: 'ssh_host_not_served', connectionId: 'ssh-1' })
+      expect(detectInstalledAgents).not.toHaveBeenCalled()
+      expect(detectWslCommandsOnPath).not.toHaveBeenCalled()
+      expect(isCommandOnLocalPath).not.toHaveBeenCalled()
+    }
+  )
 
   it.each([
     ['native', undefined, ['codex']],
@@ -130,6 +117,22 @@ describe('validateOrchestrationAgentLauncherForRepo', () => {
     })
   })
 
+  it('preserves an unavailable WSL host instead of reporting a missing agent', async () => {
+    const runtime = createRuntime()
+    const error = Object.assign(new Error('WSL unavailable'), {
+      code: 'remote_runtime_unavailable'
+    })
+    detectInstalledAgents.mockRejectedValueOnce(error)
+
+    await expect(runtime.validateOrchestrationAgentLauncherForRepo('codex', 'repo-1')).rejects.toBe(
+      error
+    )
+    expect(detectInstalledAgents).toHaveBeenCalledWith(
+      { projectRuntime: undefined },
+      { failOnProbeError: true }
+    )
+  })
+
   it('reports a missing agent from a repair-required runtime without probing its override', async () => {
     const runtime = createRuntime({ agentCmdOverrides: { amp: 'managed-amp' } })
     resolveLocalProjectRuntimeForRepo.mockReturnValue({
@@ -152,11 +155,7 @@ describe('validateOrchestrationAgentLauncherForRepo', () => {
 
   it('validates claude-teams through Claude on Windows', async () => {
     const runtime = createRuntime()
-    vi.spyOn(runtime, 'showRepo').mockResolvedValue(repo() as never)
-    vi.spyOn(
-      runtime as unknown as { getAgentLaunchPlatformForRepo: (repo: unknown) => NodeJS.Platform },
-      'getAgentLaunchPlatformForRepo'
-    ).mockReturnValue('win32')
+    agentLaunchPlatformForScope.mockReturnValue('win32')
     detectInstalledAgents.mockResolvedValue(['claude'])
 
     await expect(

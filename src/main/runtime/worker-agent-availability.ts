@@ -1,7 +1,5 @@
-import {
-  detectInstalledAgentsWithShellPathHydration,
-  detectRemoteAgents
-} from '../preflight/agent-detection'
+import { detectInstalledAgentsWithShellPathHydration } from '../preflight/agent-detection'
+import { SshHostNotServedError } from '../providers/ssh-host-not-served-error'
 import { detectWslCommandsOnPath } from '../ipc/preflight-wsl-agent-detection'
 import { detectLocalManagedAgentCliPresence } from '../agent-hooks/local-agent-cli-presence'
 import {
@@ -9,21 +7,62 @@ import {
   isManagedAgentHookTarget
 } from '../../shared/managed-agent-hook-targets'
 import { extractExecutableToken } from '../../shared/managed-agent-command-token'
-import { TUI_AGENT_CONFIG } from '../../shared/tui-agent-config'
-import { KNOWN_TUI_AGENT_DETECTION_COMMANDS } from '../../shared/tui-agent-detection-commands'
 import { isCommandOnLocalPath } from '../ipc/command-path-resolver'
 import { buildLocalPreflightEnv } from '../ipc/preflight-local-env'
-import type { Store } from '../persistence'
-import type { OrcaRuntimeService } from './orca-runtime'
+import type { GlobalSettings } from '../../shared/global-settings-types'
+import type { Repo } from '../../shared/repo-types'
 import type { TuiAgent } from '../../shared/tui-agent'
 import { OrchestrationError } from './orchestration/orchestration-error'
-import type { resolveLocalProjectRuntimeForRepo } from '../project-runtime-git-options'
+import type { ProjectExecutionRuntimeResolution } from '../../shared/project-execution-runtime'
+import type { RuntimeStore } from './runtime-store-contract'
+import type { OrcaRuntimeService } from './orca-runtime'
+import { resolveLocalProjectRuntimeForRepo } from '../project-runtime-git-options'
+import { agentLaunchPlatformForScope } from './agent-launch-scope-runtime'
+import { isTuiAgentEnabled } from '../../shared/tui-agent-selection'
+
+export function validateWorkerAgentEnabled(
+  agent: TuiAgent,
+  settings: Partial<Pick<GlobalSettings, 'disabledTuiAgents'>> | undefined
+): void {
+  if (!settings) {
+    throw new Error('runtime_unavailable')
+  }
+  if (!isTuiAgentEnabled(agent, settings.disabledTuiAgents)) {
+    throw new OrchestrationError(
+      'agent_unconfigured',
+      `Agent launcher ${agent} is disabled or unavailable.`
+    )
+  }
+}
+
+export async function validateWorkerAgentForRepo(
+  runtime: Pick<OrcaRuntimeService, 'showRepo' | 'validateOrchestrationAgentLauncher'>,
+  store: RuntimeStore,
+  agent: TuiAgent,
+  repoSelector: string
+): Promise<void> {
+  runtime.validateOrchestrationAgentLauncher(agent)
+  const repo = await runtime.showRepo(repoSelector)
+  await validateWorkerAgentAvailability({
+    agent,
+    settings: store.getSettings(),
+    repo,
+    projectRuntime: repo.connectionId ? undefined : resolveLocalProjectRuntimeForRepo(store, repo),
+    platform: agentLaunchPlatformForScope(store, {
+      id: '',
+      folderWorkspace: null,
+      repo,
+      path: repo.path,
+      connectionId: repo.connectionId ?? null
+    })
+  })
+}
 
 export async function validateWorkerAgentAvailability(args: {
   agent: TuiAgent
-  settings: ReturnType<Store['getSettings']>
-  repo: Awaited<ReturnType<OrcaRuntimeService['showRepo']>>
-  projectRuntime: ReturnType<typeof resolveLocalProjectRuntimeForRepo> | undefined
+  settings: Partial<Pick<GlobalSettings, 'agentCmdOverrides' | 'agentDefaultEnv'>>
+  repo: Repo
+  projectRuntime: ProjectExecutionRuntimeResolution | undefined
   platform: NodeJS.Platform
 }): Promise<void> {
   const { agent, settings, repo, projectRuntime, platform } = args
@@ -31,28 +70,7 @@ export async function validateWorkerAgentAvailability(args: {
     projectRuntime?.status === 'resolved' ? projectRuntime.runtime.kind : undefined
   let detected: string[]
   if (repo.connectionId) {
-    const override = extractExecutableToken(settings.agentCmdOverrides?.[agent])
-    const config = TUI_AGENT_CONFIG[agent]
-    const commands = override
-      ? [
-          ...KNOWN_TUI_AGENT_DETECTION_COMMANDS,
-          {
-            id: agent,
-            cmd: override,
-            ...(config.detectRequiredCommands
-              ? { requiredCommands: config.detectRequiredCommands }
-              : {}),
-            ...(config.detectUnsupportedRuntimes
-              ? { unsupportedRuntimes: config.detectUnsupportedRuntimes }
-              : {})
-          }
-        ]
-      : undefined
-    detected = await detectRemoteAgents({
-      connectionId: repo.connectionId,
-      commands,
-      requireAvailable: true
-    })
+    throw new SshHostNotServedError(repo.connectionId)
   } else {
     detected = await detectInstalledAgentsWithShellPathHydration(
       { projectRuntime },
