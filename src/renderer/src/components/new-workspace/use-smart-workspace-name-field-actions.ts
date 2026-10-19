@@ -52,6 +52,7 @@ export function useSmartWorkspaceNameFieldActions(
     onGitLabItemSelect,
     onJiraIssueSelect,
     onLinearIssueSelect,
+    onYouTrackIssueSelect,
     onValueChange,
     setOpen,
     selectedSource,
@@ -100,6 +101,8 @@ export function useSmartWorkspaceNameFieldActions(
           return
         }
         onJiraIssueSelect?.(row.issue, sourceContext)
+      } else if (row.kind === 'youtrack') {
+        onYouTrackIssueSelect?.(row.issue)
       } else {
         onLinearIssueSelect(row.issue)
       }
@@ -113,6 +116,7 @@ export function useSmartWorkspaceNameFieldActions(
       onJiraIssueSelect,
       onLinearIssueSelect,
       onValueChange,
+      onYouTrackIssueSelect,
       setOpen,
       selectJiraAccount
     ]

@@ -49,9 +49,10 @@ export type WorkspaceIntentWorkItem = {
   type: 'issue' | 'pr' | 'mr'
   number: number
   title: string
-  provider?: 'github' | 'gitlab' | 'linear' | 'jira'
+  provider?: 'github' | 'gitlab' | 'linear' | 'jira' | 'youtrack'
   linearIdentifier?: string
   jiraIdentifier?: string
+  youtrackIdentifier?: string
 }
 
 export type WorkspaceIntentName = {
@@ -160,7 +161,7 @@ function compactWords(input: string, maxWords = 4): string {
 }
 
 function compactWorkItemTitle(title: string, item: WorkspaceIntentWorkItem): string {
-  const identifier = item.linearIdentifier ?? item.jiraIdentifier
+  const identifier = item.linearIdentifier ?? item.jiraIdentifier ?? item.youtrackIdentifier
   let withoutPrefix = title
     .trim()
     .replace(/^(?:issue|pr|pull request|mr|merge request)\s*[#!]?\d+\s*[:-]\s*/i, '')
@@ -185,6 +186,9 @@ function workItemIdentity(item: WorkspaceIntentWorkItem): string {
   if (item.jiraIdentifier) {
     return item.jiraIdentifier.toUpperCase()
   }
+  if (item.youtrackIdentifier) {
+    return item.youtrackIdentifier.toUpperCase()
+  }
   if (item.type === 'pr') {
     return `PR ${item.number}`
   }
@@ -198,7 +202,7 @@ export function getLinkedWorkItemWorkspaceName(
   item: WorkspaceIntentWorkItem,
   options: WorkspaceSeedNameOptions = {}
 ): WorkspaceIntentName | null {
-  const identifier = item.linearIdentifier ?? item.jiraIdentifier
+  const identifier = item.linearIdentifier ?? item.jiraIdentifier ?? item.youtrackIdentifier
   let subject = getLinkedWorkItemTitleSubject(item) || item.title.trim()
   if (identifier) {
     subject = subject
