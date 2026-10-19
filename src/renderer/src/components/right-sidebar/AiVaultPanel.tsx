@@ -130,16 +130,14 @@ export default function AiVaultPanel({
   const scopePaths = useMemo(
     () =>
       deriveAiVaultScopeSessionPaths(activeWorktree ?? null, allWorktrees, {
-        scope,
         activeProjectKey,
         projectHostSetupProjection
       }),
-    [activeProjectKey, activeWorktree, allWorktrees, projectHostSetupProjection, scope]
+    [activeProjectKey, activeWorktree, allWorktrees, projectHostSetupProjection]
   )
   const {
     error,
     loading,
-    scopePending,
     refresh,
     scanResult,
     sessions: history,
@@ -322,7 +320,6 @@ export default function AiVaultPanel({
             groups={groups}
             collapsedGroups={collapsedGroups}
             loading={searching ? search.loading : loading}
-            scopePending={!searching && scopePending}
             scanProgressShown={stripProgress !== null}
             sessionsCount={sessions.length}
             filteredSessionsCount={filteredSessions.length}
