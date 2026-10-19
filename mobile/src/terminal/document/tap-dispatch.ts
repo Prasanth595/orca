@@ -73,6 +73,14 @@ export function armLongPress(scope: TerminalDocumentScope, touch: Touch) {
       return
     }
     enterSelect(scope, c.col, c.row)
+    // Why: the finger that pressed is still down. Latch it as the end handle, as a native long
+    // press does, so moving it extends the selection instead of scrolling the surface under it.
+    if (scope.sel && scope.touchDispatch.mode === 'surface') {
+      scope.sel.activeHandle = 'end'
+      scope.touchDispatch.mode = 'select-drag'
+      scope.touchDispatch.touchId = scope.longPressOrigin.identifier
+      scope.tapCandidate = null
+    }
   }, LONG_PRESS_MS)
 }
 
