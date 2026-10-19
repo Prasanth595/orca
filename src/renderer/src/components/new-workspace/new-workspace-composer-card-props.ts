@@ -38,9 +38,19 @@ export type NewWorkspaceComposerCardProps = {
   nameInputRef?: React.RefObject<HTMLInputElement | null>
   quickAgent: TuiAgent | null
   onQuickAgentChange: (agent: TuiAgent | null) => void
+  /** Present only when the opener prefilled an agent prompt. */
+  agentDraft?: string | null
+  onAgentDraftChange?: (value: string) => void
+  agentDraftUnavailableReason?: string | null
+  /** Shown under the agent prompt when the opener pinned session options. */
+  agentSessionNote?: string | null
   /** Cleared picker: skip the agent and the extra shell when setup runs. */
   quickSetupOnly?: boolean
   onQuickSetupOnlySelect?: () => void
+  /** Rendered under the agent prompt, e.g. a choice of where the agent runs. */
+  existingWorkspaceField?: React.ReactNode
+  /** The agent starts in a workspace that already exists, so the fields that shape a new one are left out. */
+  startsInExistingWorkspace?: boolean
   eligibleRepos: readonly RepoOption[]
   selectedRepo?: RepoOption | null
   repoId: string

@@ -9,6 +9,8 @@ import {
   DialogTitle
 } from '@/components/ui/dialog'
 import NewWorkspaceComposerCard from '@/components/NewWorkspaceComposerCard'
+import { NewWorkspaceComposerExistingWorkspaceField } from '@/components/new-workspace/NewWorkspaceComposerExistingWorkspaceField'
+import { startTaskInExistingWorkspace } from '@/lib/plugin-task-existing-workspace-start'
 import AgentSettingsDialog from '@/components/agent/AgentSettingsDialog'
 import type { AddRepoDialogHostedController } from '@/components/sidebar/use-add-repo-hosted-controller'
 import { useComposerState } from '@/hooks/useComposerState'
@@ -24,6 +26,12 @@ import type { TuiAgent } from '../../../shared/tui-agent'
 import type { WorkspaceSource as WorkspaceCreateTelemetrySource } from '../../../shared/workspace-source'
 import type { WorkspaceStatus } from '../../../shared/worktree/types'
 import type { TaskSourceContext } from '../../../shared/task-source-context'
+import type { LinkedPluginTask } from '../../../shared/plugins/plugin-task-link'
+import {
+  describePluginTaskSessionOptions,
+  sessionOptionsForAgent,
+  type PluginTaskSessionOptions
+} from '@/lib/plugin-task-session-options'
 import { translate } from '@/i18n/i18n'
 import { getWorkspaceComposerInitialFocusTarget } from '@/lib/workspace-composer-initial-focus'
 import { getFolderWorkspacePrimaryActionLabel } from '@/components/sidebar/folder-workspace-composer-helpers'
@@ -45,6 +53,12 @@ type ComposerModalData = {
   taskSourceContext?: TaskSourceContext | null
   initialWorkspaceTarget?: WorkspaceCreationTargetHint | null
   initialBaseBranch?: string
+  /** Editable draft typed into the agent after launch (e.g. a plugin task's prompt). */
+  initialAgentDraft?: string
+  /** Per-launch agent session options (e.g. model, effort) from the opener. */
+  initialAgentSessionOptions?: PluginTaskSessionOptions
+  /** Plugin task the new workspace links back to. */
+  linkedPluginTask?: LinkedPluginTask
   initialWorkspaceStatus?: WorkspaceStatus
   enableIssueAutomation?: boolean
   /** Telemetry surface that opened the composer. Set by each
@@ -199,10 +213,18 @@ function QuickTabBody({
     setQuickAgentOverride(null)
     setQuickSelectionCleared(true)
   }, [])
+  const [agentDraft, setAgentDraft] = useState<string | null>(modalData.initialAgentDraft ?? null)
+  // Why keyed by project: picking another project must fall back to creating a workspace.
+  const [existingWorkspace, setExistingWorkspace] = useState<{
+    repoId: string
+    worktreeId: string
+  } | null>(null)
 
-  const handleCreate = useCallback(async (): Promise<void> => {
-    await submitQuick(quickAgent, { setupOnly: quickSetupOnly })
-  }, [quickAgent, quickSetupOnly, submitQuick])
+  const { initialAgentSessionOptions, linkedPluginTask } = modalData
+  const launchSessionOptions = useMemo(
+    () => sessionOptionsForAgent(initialAgentSessionOptions, quickAgent),
+    [initialAgentSessionOptions, quickAgent]
+  )
   // Why: Add Project layers over the composer as a nested dialog instead of
   // replacing it in the activeModal slot — closing the composer mid-flow (and
   // losing the typed name/prompt) was the old, abrupt behavior. Once opened it
@@ -246,11 +268,61 @@ function QuickTabBody({
     (option) => option.id === cardProps.selectedProjectId
   )
   const isFolderWorkspaceTarget = selectedProjectOption?.kind === 'project-group'
-  const primaryActionLabel = isFolderWorkspaceTarget
-    ? getFolderWorkspacePrimaryActionLabel()
-    : cardProps.selectedRepoIsGit
-      ? translate('auto.components.NewWorkspaceComposerModal.createWorktree', 'Create worktree')
-      : translate('auto.components.NewWorkspaceComposerModal.createWorkspace', 'Create workspace')
+  const offersExistingWorkspace =
+    modalData.initialAgentDraft !== undefined && !isFolderWorkspaceTarget
+  const existingWorktreeId =
+    offersExistingWorkspace && quickAgent !== null && existingWorkspace?.repoId === cardProps.repoId
+      ? existingWorkspace.worktreeId
+      : null
+  const primaryActionLabel = existingWorktreeId
+    ? translate('auto.components.NewWorkspaceComposerCard.startInWorkspace', 'Start in workspace')
+    : isFolderWorkspaceTarget
+      ? getFolderWorkspacePrimaryActionLabel()
+      : cardProps.selectedRepoIsGit
+        ? translate('auto.components.NewWorkspaceComposerModal.createWorktree', 'Create worktree')
+        : translate('auto.components.NewWorkspaceComposerModal.createWorkspace', 'Create workspace')
+  const agentDraftUnavailableReason = isFolderWorkspaceTarget
+    ? translate(
+        'auto.components.NewWorkspaceComposerModal.agentDraftFolderGroup',
+        'Folder workspaces do not take an agent prompt, so this one will not be sent.'
+      )
+    : quickAgent === null
+      ? translate(
+          'auto.components.NewWorkspaceComposerModal.agentDraftNoAgent',
+          'Pick an agent to send this prompt.'
+        )
+      : null
+
+  const handleCreate = useCallback(async (): Promise<void> => {
+    if (existingWorktreeId) {
+      const started = startTaskInExistingWorkspace({
+        agent: quickAgent,
+        worktreeId: existingWorktreeId,
+        prompt: agentDraft ?? '',
+        ...(linkedPluginTask ? { link: linkedPluginTask } : {}),
+        ...(launchSessionOptions ? { sessionOptions: launchSessionOptions } : {})
+      })
+      if (started) {
+        onClose()
+      }
+      return
+    }
+    await submitQuick(quickAgent, {
+      setupOnly: quickSetupOnly,
+      ...(agentDraft?.trim() ? { agentDraft } : {}),
+      ...(launchSessionOptions ? { sessionOptions: launchSessionOptions } : {}),
+      ...(linkedPluginTask ? { linkedPluginTask } : {})
+    })
+  }, [
+    agentDraft,
+    existingWorktreeId,
+    launchSessionOptions,
+    linkedPluginTask,
+    onClose,
+    quickAgent,
+    quickSetupOnly,
+    submitQuick
+  ])
 
   // Cmd/Ctrl+Enter submits. Escape belongs to the dialog's dismissable layer:
   // the page-style "blur the focused field first" rule assumes the user chose
@@ -316,8 +388,26 @@ function QuickTabBody({
         nameInputRef={nameInputRef}
         quickAgent={quickAgent}
         onQuickAgentChange={handleQuickAgentChange}
+        agentDraft={agentDraft}
+        onAgentDraftChange={setAgentDraft}
+        agentDraftUnavailableReason={agentDraftUnavailableReason}
+        agentSessionNote={describePluginTaskSessionOptions(initialAgentSessionOptions, quickAgent)}
         quickSetupOnly={quickSetupOnly}
         onQuickSetupOnlySelect={handleQuickSetupOnlySelect}
+        existingWorkspaceField={
+          offersExistingWorkspace ? (
+            <NewWorkspaceComposerExistingWorkspaceField
+              repoId={cardProps.repoId}
+              executionHostId={cardProps.selectedRepoExecutionHostId}
+              value={existingWorktreeId}
+              onChange={(worktreeId) =>
+                setExistingWorkspace(worktreeId ? { repoId: cardProps.repoId, worktreeId } : null)
+              }
+              unavailableReason={agentDraftUnavailableReason}
+            />
+          ) : undefined
+        }
+        startsInExistingWorkspace={existingWorktreeId !== null}
         {...cardProps}
         primaryActionLabel={primaryActionLabel}
         onOpenAgentSettings={() => setAgentSettingsOpen(true)}
