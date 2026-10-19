@@ -75,7 +75,14 @@ function readAtRest(agents: StructuredAgentRegistry, live?: StructuredAgentSessi
   const resting = {
     child: live ? { fence: 1 } : null,
     params: { provider: RECORD.provider },
-    journal: { threadGoal: () => null, contextUsage: () => null, context: { floor: () => null } }
+    journal: {
+      threadGoal: () => null,
+      visitItems: () => {},
+      // A chat that has sent, so a value it never saved reads as a default.
+      submissions: () => [{}],
+      contextUsage: () => null,
+      context: { floor: () => null }
+    }
   }
   // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the read touches only these members.
   const context = {
@@ -129,6 +136,7 @@ describe('a registered definition', () => {
     expect(options.current).toEqual({
       model: 'pilot-model',
       effort: 'low',
+      defaulted: ['effort'],
       permissionMode: 'ask'
     })
     expect(options.threadGoal).toEqual({ current: null })
@@ -152,7 +160,7 @@ describe('a registered definition', () => {
     expect(refused.persistOptions).not.toHaveBeenCalled()
     const options = await readAtRest(agents)
     expect(options.models).toEqual([])
-    expect(options.current).toEqual({ model: 'pilot-model' })
+    expect(options.current).toEqual({ model: 'pilot-model', defaulted: [] })
     expect(options.conversationCommands).toEqual(['clear'])
     expect(options.acceptsImages).toBe(false)
   })

@@ -145,6 +145,7 @@ function restingRecord(options: Record<string, string>): AgentSessionRecord {
   return {
     provider: 'claude',
     accountHome: { variable: 'CLAUDE_CONFIG_DIR', path: ACCOUNT_HOME },
+    providerHandleChain: [],
     location: { executionHostId: 'local', wslDistro: null },
     // Why released: a chat at rest has no live claim, so its next start reads the current account.
     lease: { claimStatus: 'released' },
@@ -175,7 +176,13 @@ function readAtRest(store: AgentModelCatalogStore, record: AgentSessionRecord) {
   const resting = {
     child: null,
     params: { provider: 'claude' },
-    journal: { threadGoal: () => null, contextUsage: () => null, context: { floor: () => null } }
+    journal: {
+      threadGoal: () => null,
+      visitItems: () => {},
+      submissions: () => [],
+      contextUsage: () => null,
+      context: { floor: () => null }
+    }
   }
   // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the resting read touches only these members.
   const context = {
@@ -283,6 +290,7 @@ describe('Claude effort default at rest', () => {
     const record = {
       provider: 'codex',
       accountHome: { variable: 'CODEX_HOME', path: '/accounts/codex' },
+      providerHandleChain: [],
       location: { executionHostId: 'local', wslDistro: null },
       options: { model: 'gpt-unlisted', effort: 'high' }
     } as unknown as AgentSessionRecord
@@ -365,6 +373,7 @@ describe('Claude effort default at rest', () => {
     const record = {
       provider: 'codex',
       accountHome: { variable: 'CODEX_HOME', path: '/accounts/codex' },
+      providerHandleChain: [],
       location: { executionHostId: 'local', wslDistro: null },
       options: { model: 'gpt-5.5', effort: 'high' }
     } as unknown as AgentSessionRecord
@@ -382,6 +391,7 @@ describe('Claude effort default at rest', () => {
     const record = {
       provider: 'codex',
       accountHome: { variable: 'CODEX_HOME', path: '/accounts/codex' },
+      providerHandleChain: [],
       location: { executionHostId: 'local', wslDistro: null },
       options: { model: 'gpt-5.5' }
     } as unknown as AgentSessionRecord
@@ -408,7 +418,7 @@ describe('Claude effort default at rest', () => {
 
     const result = await readAtRest(store, record)
 
-    expect(result.current).toEqual({ model: 'gpt-5.5', permissionMode: 'ask' })
+    expect(result.current).toEqual({ model: 'gpt-5.5', defaulted: [], permissionMode: 'ask' })
   })
 
   it("never saves the applied effort as the chat's pick, yet shows it at rest", async () => {

@@ -18,6 +18,7 @@ import type {
 } from '../../../shared/agent-session-journal-types'
 import { decodeStructuredAgentSessionOptionValue } from '../../../shared/structured-agent-session-option-codec'
 import { finishedListingIds } from '../../../shared/structured-agent-session-options'
+import { savedEffectiveServiceTier } from '../../../shared/structured-agent-session-effective-tier'
 import {
   AGENT_CHAT_PERMISSION_MODE_OPTION_ID,
   agentChatPermissionModes
@@ -34,6 +35,8 @@ import { structuredAgentSessionOptionModels } from './structured-agent-session-o
 import { structuredAgentSessionLaunchPermission } from './structured-agent-session-launch-permission'
 import type { AgentSessionTurnContext, TurnOutcome } from './structured-agent-session-turns'
 import type { StructuredAgentSessionMutationContext } from './structured-agent-session-host-mutations'
+import { structuredAgentSessionNeverSent } from './structured-agent-session-never-sent'
+import { restingPickReplyOptions } from './structured-agent-session-pick-reply'
 
 type RestingOptions = Pick<
   AgentSessionOptionsResult,
@@ -142,6 +145,11 @@ async function readStructuredAgentSessionOptionsAtRest(
     (rules?.effortDefaultsToModel || (saved.model === undefined && folderDefault)
       ? models.find((entry) => entry.id === model)?.defaultEffort
       : undefined)
+  const defaulted = (['model', 'effort'] as const).filter(
+    (key) => saved[key] === undefined && Boolean(key === 'model' ? model : effort)
+  )
+  // The tier the chat's own model runs; the record keeps the saved one for a model that offers it.
+  const serviceTier = savedEffectiveServiceTier(saved, models)
   return {
     models: listed ? structuredAgentSessionOptionModels(listed, model, (row) => row) : [],
     ...(listedModelIds ? { listedModelIds } : {}),
@@ -152,7 +160,8 @@ async function readStructuredAgentSessionOptionsAtRest(
       ...(model ? { model } : {}),
       ...(effort ? { effort } : {}),
       ...(typeof fastMode === 'boolean' ? { fastMode } : {}),
-      ...(saved.serviceTier ? { serviceTier: saved.serviceTier } : {})
+      ...(serviceTier ? { serviceTier } : {}),
+      defaulted
     }
   }
 }
@@ -162,7 +171,7 @@ export async function recordStructuredAgentSessionOptionIntent(
   deps: {
     store: Pick<AgentSessionRecordStore, 'getRecord' | 'replaceSessionOptions'>
     agents: Pick<StructuredAgentRegistry, 'definition'>
-  },
+  } & Parameters<typeof restingPickReplyOptions>[0],
   ctx: Pick<AgentSessionTurnContext, 'sessionId' | 'fence' | 'persistOptions' | 'publish' | 'now'>,
   input: { key: string; value: string }
 ): Promise<TurnOutcome<AgentSessionOptionResult>> {
@@ -188,7 +197,8 @@ export async function recordStructuredAgentSessionOptionIntent(
       })
     : ctx.persistOptions(options))
   ctx.publish()
-  return { ok: true, value: { ...input, options } }
+  const replied = await restingPickReplyOptions(deps, record, ctx.sessionId, options)
+  return { ok: true, value: { ...input, options: replied } }
 }
 
 /** A live child's own answer, or the answer at rest; the goal, usage and rewind either way. */
@@ -281,6 +291,12 @@ export async function readStructuredAgentSessionOptions(
     ...(shownSaved('model') ? { model: selected.current.model } : {}),
     ...(shownSaved('effort') ? { effort: selected.current.effort } : {})
   }
+  // A chat that saved a value has no default for it: the saved value shows, or the child it
+  // refused runs what it reports, which the next send records. A chat that has sent nothing runs
+  // the default it shows, which its first send pins.
+  const defaulted = structuredAgentSessionNeverSent(record, session.journal)
+    ? []
+    : (options.current.defaulted ?? []).filter((key) => saved?.[key] === undefined)
   const confirmed = current.confirmed?.filter((key) =>
     key === 'model'
       ? current.model === options.current.model
@@ -290,6 +306,7 @@ export async function readStructuredAgentSessionOptions(
     ...options,
     current: {
       ...current,
+      defaulted,
       ...(confirmed ? { confirmed } : {}),
       ...(permissionMode ? { permissionMode } : {})
     },
