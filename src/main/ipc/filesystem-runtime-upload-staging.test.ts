@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as RuntimeImportLimits from './runtime-import-limits'
+import type * as FsPromises from 'node:fs/promises'
 
 type RuntimeImportLimitsModule = typeof RuntimeImportLimits
 
@@ -13,6 +14,25 @@ vi.mock('./runtime-import-limits', async (importOriginal) => ({
   REMOTE_IMPORT_MAX_FILE_BYTES: 4 * 1024,
   REMOTE_IMPORT_MAX_TOTAL_BYTES: 16 * 1024
 }))
+
+// #30476: paths whose next FileHandle.read rejects with EIO (consumed once).
+const failNextHeaderRead = new Set<string>()
+vi.mock('node:fs/promises', async (importOriginal) => {
+  type FsPromisesModule = typeof FsPromises
+  const actual = await importOriginal<FsPromisesModule>()
+  const wrappedOpen: FsPromisesModule['open'] = async (path) => {
+    const handle = await actual.open(path)
+    const marker = typeof path === 'string' ? path : ''
+    if (failNextHeaderRead.has(marker)) {
+      failNextHeaderRead.delete(marker)
+      handle.read = (async () => {
+        throw Object.assign(new Error('EIO: i/o error, read'))
+      }) as typeof handle.read
+    }
+    return handle
+  }
+  return { ...actual, open: wrappedOpen }
+})
 
 const { stagedRuntimeUploadByteLength, stageOneSourceForRuntimeUpload } =
   await import('./filesystem-runtime-upload-staging')
@@ -196,6 +216,24 @@ describe('stageOneSourceForRuntimeUpload', () => {
       await expect(stage(filePath)).resolves.toMatchObject({
         name: 'capture.dat'
       })
+    })
+
+    it('keeps its name when the header probe cannot read the file (#30476)', async () => {
+      const filePath = join(workDir, 'noname')
+      await writeFile(filePath, PNG_HEADER)
+
+      // Why the harness flag: node:fs/promises cannot be spied in ESM, so the
+      // hoisted module mock below wraps FileHandle.read to reject once for
+      // this path — exactly the header-probe EIO the issue reports.
+      failNextHeaderRead.add(filePath)
+      try {
+        await expect(stage(filePath)).resolves.toMatchObject({
+          status: 'staged',
+          name: 'noname'
+        })
+      } finally {
+        failNextHeaderRead.delete(filePath)
+      }
     })
 
     it('leaves files inside a dropped directory as named', async () => {

@@ -184,9 +184,13 @@ async function stageFileEntry(
         modifiedAtMs: openedStat.mtimeMs
       },
       byteLength: openedStat.size,
-      imageExtension: options.detectImageExtension
-        ? await readImageExtension(fileHandle)
-        : undefined
+      // Why (#30476): staging only needs the file's metadata; the probe only
+      // renames it. A header-read failure must not fail the drop, so it stages
+      // under the original name instead.
+      imageExtension:
+        options.detectImageExtension === true
+          ? await readImageExtension(fileHandle).catch(() => undefined)
+          : undefined
     }
   } finally {
     await fileHandle.close()
