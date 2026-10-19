@@ -140,7 +140,7 @@ export function syncAgentHookCompletionNotificationsForStoreUpdate(
   return true
 }
 
-function getPtyIdForPaneKey(paneKey: string): string | null {
+export function getPtyIdForPaneKey(paneKey: string): string | null {
   const parsed = parsePaneKey(paneKey)
   if (!parsed) {
     return null
@@ -231,6 +231,10 @@ function paneCanReceiveHookCompletion(paneKey: string, tabIndex?: TabIndex): boo
   return paneKeyHasUnsuppressedPtyHint(state, paneKey, tabIndex) || paneHasLivePty(paneKey)
 }
 
+function hookLaneDispatchEnabled(paneKey: string): boolean {
+  return isAgentTaskCompleteTrackingEnabled() && !paneKeysRequiringFreshWorking.has(paneKey)
+}
+
 function createCoordinator(paneKey: string, worktreeId: string): AgentCompletionCoordinator {
   return createAgentCompletionCoordinator({
     paneKey,
@@ -242,7 +246,7 @@ function createCoordinator(paneKey: string, worktreeId: string): AgentCompletion
     }),
     dispatchHookLifecycle: (payload) => dispatchAgentHookTerminalLifecycle(paneKey, payload),
     dispatchCompletion: (title, meta) => {
-      if (!isAgentTaskCompleteTrackingEnabled() || paneKeysRequiringFreshWorking.has(paneKey)) {
+      if (!hookLaneDispatchEnabled(paneKey)) {
         return
       }
       dispatchTerminalNotification(worktreeId, {
@@ -253,7 +257,7 @@ function createCoordinator(paneKey: string, worktreeId: string): AgentCompletion
       })
     },
     dispatchAttention: (title, meta) => {
-      if (!isAgentTaskCompleteTrackingEnabled() || paneKeysRequiringFreshWorking.has(paneKey)) {
+      if (!hookLaneDispatchEnabled(paneKey)) {
         return
       }
       // Why: native notification settings still label this channel as "agent
@@ -317,6 +321,16 @@ export function observeAgentHookCompletionForNotification({
   } else {
     entry.coordinator.observeHookStatus(payload)
   }
+}
+
+// Why: asked of the lane itself so title lanes defer only where it would announce: live, agent evidence, not re-arming.
+export function hookLaneCanAnnouncePaneTurnEnd(paneKey: string): boolean {
+  const coordinator = coordinatorsByPaneKey.get(paneKey)?.coordinator
+  return coordinator?.canAnnounceCompletion() === true && hookLaneDispatchEnabled(paneKey)
+}
+
+export function hasPendingHookLaneCompletion(paneKey: string): boolean {
+  return coordinatorsByPaneKey.get(paneKey)?.coordinator.hasPendingHookDoneCompletion() === true
 }
 
 export function resetAgentHookCompletionNotificationCoordinators(): void {

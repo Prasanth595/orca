@@ -4,6 +4,8 @@ import type { RuntimeTerminalProcessInspection } from '@/runtime/runtime-termina
 
 export type AgentCompletionStatusSnapshot = ParsedAgentStatusPayload & {
   stateStartedAt?: number
+  /** The host's stamp for the turn end this `done` reports; restatements keep it. */
+  turnEndedAt?: number
   /** Renderer-local boundary used only to reject a delayed cross-host completion. */
   localStateStartedAt?: number
 }
@@ -42,6 +44,8 @@ export type AgentCompletionCoordinatorOptions = {
   /** Fired once per confirmed exit (settled local absence, or the host's `exited` verdict). */
   onForegroundAgentExited?: (exited: RecognizedAgentProcess) => void
   isLive: () => boolean
+  /** True when this pane's turn ends belong to its hook lane, so a title idle edge announces nothing. */
+  titleCompletionOwnedByHooks?: (title: string) => boolean
   shouldPollProcessCadence?: () => boolean
   // Why: a host that publishes foreground evidence with its inventory lets a
   // pane without agent evidence stay push-driven instead of scheduling
@@ -67,6 +71,8 @@ export type AgentCompletionCoordinator = {
   /** Another reader saw this agent in the foreground; lets the monitor confirm its exit. */
   observeForegroundAgentProcess: (process: RecognizedAgentProcess) => void
   hasPendingHookDoneCompletion: () => boolean
+  /** Whether a turn end observed now could be announced (live, with agent evidence, not re-arming). */
+  canAnnounceCompletion: () => boolean
   resetCompletionState: (options?: { requireFreshWorking?: boolean }) => void
   dispose: () => void
 }

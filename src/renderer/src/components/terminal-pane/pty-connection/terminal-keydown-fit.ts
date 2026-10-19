@@ -8,6 +8,8 @@ import { isFreshNonDoneAgentStatus } from '../../../../../shared/agent-status-ty
 import { isCtrlCKeyEvent, isPlainEscapeKeyEvent } from '../agent-interrupt-inference'
 import { createAgentCompletionCoordinator } from '../agent-completion-coordinator'
 import { dispatchAgentHookTerminalLifecycle } from '../agent-hook-terminal-lifecycle'
+import { hookLaneOwnsPaneTurnEnds } from '@/hooks/agent-hook-turn-end-ownership'
+import { absorbBurstBellForHookOwnedIdle } from './agent-task-complete-notify'
 import { resolveCompatibleAgentTypeForOwner } from '../../../../../shared/agent-title-owner'
 import { registerTerminalSideEffectFactConsumer } from '../terminal-side-effect-facts-handler'
 
@@ -176,6 +178,13 @@ export function installTerminalKeydownFit(session: ConnectPanePtySession): void 
     inspectProcess: inspectRuntimeTerminalProcess,
     dispatchHookLifecycle: (payload) =>
       dispatchAgentHookTerminalLifecycle(session.cacheKey, payload),
+    titleCompletionOwnedByHooks: (title) => {
+      if (!hookLaneOwnsPaneTurnEnds(session.cacheKey, title)) {
+        return false
+      }
+      absorbBurstBellForHookOwnedIdle(session)
+      return true
+    },
     shouldSuppressProcessReplacementCompletion: (_exited, replacement) => {
       const currentStatus = useAppStore.getState().agentStatusByPaneKey[session.cacheKey]
       const currentAgentForReplacement = resolveCompatibleAgentTypeForOwner(
@@ -187,6 +196,10 @@ export function installTerminalKeydownFit(session: ConnectPanePtySession): void 
       )
     },
     shouldSuppressConfirmedProcessExitCompletion: (exited) => {
+      // Why: the hook lane owns this pane's turn ends and its last turn ended, so quitting ends none.
+      if (hookLaneOwnsPaneTurnEnds(session.cacheKey, exited.processName)) {
+        return true
+      }
       const currentStatus = useAppStore.getState().agentStatusByPaneKey[session.cacheKey]
       const currentAgentForExited = resolveCompatibleAgentTypeForOwner(
         currentStatus?.agentType,

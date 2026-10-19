@@ -181,7 +181,7 @@ export function createAgentCompletionCoordinator(
     holdTitleCompletionPending,
     hasPendingTitle: () => pendingTitle.get() !== null,
     dropPendingTitle,
-    markTitleCompletionNotified,
+    claimTitleCompletion,
     dispatchTitleCompletion: (title) =>
       dispatchCompletion('title', title, {
         completionIdentity: {
@@ -208,14 +208,7 @@ export function createAgentCompletionCoordinator(
     }
     const title = currentPendingTitle.title
     dropPendingTitle()
-    markTitleCompletionNotified(title)
-    dispatchCompletion('title', title, {
-      completionIdentity: {
-        source: 'title',
-        identity: title,
-        agentIdentity: titleObserver.titleCompletionAgentIdentity(title)
-      }
-    })
+    titleObserver.dispatchTitle(title)
   }
 
   function holdTitleCompletionPending(title: string): void {
@@ -253,12 +246,19 @@ export function createAgentCompletionCoordinator(
     recordTitleWorking()
   }
 
-  function markTitleCompletionNotified(title: string): void {
+  function claimTitleCompletion(title: string): boolean {
+    // Why: the hook lane announces this turn end, so settle the turn here without the claim that would swallow its Done.
+    if (options.titleCompletionOwnedByHooks?.(title) === true) {
+      completionState.lastCompletedTurn = completionState.currentTurn
+      completionState.workingStatusObserved = false
+      return false
+    }
     completionState.lastCompletionIdentity = {
       source: 'title',
       identity: title,
       agentIdentity: titleObserver.titleCompletionAgentIdentity(title)
     }
+    return true
   }
 
   hookObserver = createAgentCompletionHookObserver({
@@ -319,6 +319,7 @@ export function createAgentCompletionCoordinator(
     startProcessTracking: () => processMonitor.start(),
     observeForegroundAgentProcess: processMonitor.observeRecognizedProcess,
     hasPendingHookDoneCompletion: lifecycle.hasPendingHookDoneCompletion,
+    canAnnounceCompletion: notification.canAnnounceCompletion,
     resetCompletionState: lifecycle.resetCompletionState,
     dispose: lifecycle.dispose
   }

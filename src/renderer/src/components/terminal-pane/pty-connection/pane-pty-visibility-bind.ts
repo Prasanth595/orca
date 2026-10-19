@@ -8,6 +8,7 @@ import { notifyCodexPaneBoundForStaleSweep } from '@/lib/codex-stale-pane-sweep'
 import { createTerminalGitHubPRLinkDetector } from '../../../../../shared/terminal-github-pr-link-detector'
 import { setRendererPtyVisibilityClaim } from '../pty-renderer-delivery-claims'
 import { AGENT_TASK_COMPLETE_NOTIFICATION_GRACE_MS } from '../agent-task-complete-policy'
+import { hasPendingHookLaneCompletion } from '@/hooks/agent-hook-completion-notifications'
 
 import {
   isAgentTaskCompleteNotificationEnabled,
@@ -239,6 +240,13 @@ export function installPanePtyVisibilityBind(session: ConnectPanePtySession): vo
         return
       }
       session.pendingTerminalBellNotification = false
+      // Why: the hook lane's pending Done announces this burst's turn end, superseding the BEL as a pane completion does.
+      if (
+        isAgentTaskCompleteNotificationEnabled() &&
+        hasPendingHookLaneCompletion(session.cacheKey)
+      ) {
+        return
+      }
       session.deps.dispatchNotification({
         source: 'terminal-bell',
         paneKey: session.cacheKey,
