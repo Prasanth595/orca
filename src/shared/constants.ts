@@ -132,6 +132,7 @@ export function getDefaultVoiceControlSettings(): VoiceControlSettings {
     agentVoiceMode: 'coordinator',
     maxSessionMinutes: 30,
     idleSuspendMinutes: 5,
+    voiceSpeed: 1,
     customInstructions: ''
   }
 }
