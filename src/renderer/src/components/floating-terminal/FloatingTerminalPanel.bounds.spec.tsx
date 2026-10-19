@@ -14,7 +14,8 @@ import { FLOATING_TERMINAL_PANEL_VIEW_STATE_STORAGE_KEY } from './floating-termi
 import {
   setupFloatingTerminalPanelTest,
   mocks,
-  hookRuntime
+  hookRuntime,
+  settleConfirmationDialogs
 } from './floating-terminal-panel-test-harness'
 import {
   findByProp,
@@ -642,6 +643,7 @@ describe('FloatingTerminalPanel markdown editor', () => {
     const element = await renderPanel(true)
     const tabBar = findByTypeName(element, 'TabBar')
     ;(tabBar.props.onCloseAllFiles as () => void)()
+    await settleConfirmationDialogs()
 
     expect(requestedEditorCloses()).toEqual(['file-a', 'file-b'])
     expect(mocks.closeFile).not.toHaveBeenCalledWith('file-a')
@@ -658,6 +660,7 @@ describe('FloatingTerminalPanel markdown editor', () => {
     const element = await renderPanel(true)
     const tabBar = findByTypeName(element, 'TabBar')
     ;(tabBar.props.onCloseOthers as (tabId: string) => void)('tab-file-b')
+    await settleConfirmationDialogs()
     expect(requestedEditorCloses()).toEqual(['file-a', 'file-c'])
 
     vi.mocked(window.dispatchEvent).mockClear()
@@ -666,6 +669,7 @@ describe('FloatingTerminalPanel markdown editor', () => {
     const nextElement = await renderPanel(true)
     const nextTabBar = findByTypeName(nextElement, 'TabBar')
     ;(nextTabBar.props.onCloseToRight as (tabId: string) => void)('tab-file-a')
+    await settleConfirmationDialogs()
     expect(requestedEditorCloses()).toEqual(['file-b', 'file-c'])
     expect(mocks.closeFile).not.toHaveBeenCalledWith('file-c')
   })

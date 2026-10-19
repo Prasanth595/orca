@@ -4,6 +4,7 @@ import type { Mock } from 'vitest'
 import { consumeFloatingTerminalOpenMaximizedIntent } from '@/lib/floating-terminal'
 import { clearFloatingPanelReclaimIntent } from '@/lib/floating-workspace-focus-reclaim'
 import type { useContextualTour } from '@/components/contextual-tours/use-contextual-tour'
+import type { ConfirmationDialogContextValue } from '@/components/confirmation-dialog-context'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../../shared/constants'
 import type { CliInstallStatus } from '../../../../shared/cli-install-types'
 import type { MarkdownDocument } from '../../../../shared/filesystem-entry-types'
@@ -32,6 +33,7 @@ export type FloatingTerminalPanelMocks = {
   >
   closeBrowserTab: Mock<FloatingPanelStoreState['closeBrowserTab']>
   closeWebRuntimeSessionTab: Mock<(args: { worktreeId: string; tabId: string }) => Promise<boolean>>
+  confirmDialog: Mock<ConfirmationDialogContextValue>
   clearEditorDraft: Mock<FloatingPanelStoreState['clearEditorDraft']>
   closeFile: Mock<FloatingPanelStoreState['closeFile']>
   closeTab: Mock<(tabId: string, options?: { reason?: string }) => void>
@@ -88,6 +90,7 @@ export const mocks: FloatingTerminalPanelMocks = {
   activateWebRuntimeSessionTab: vi.fn(),
   closeBrowserTab: vi.fn(),
   closeWebRuntimeSessionTab: vi.fn(),
+  confirmDialog: vi.fn(),
   clearEditorDraft: vi.fn(),
   closeFile: vi.fn(),
   closeTab: vi.fn(),
@@ -137,6 +140,11 @@ export const mocks: FloatingTerminalPanelMocks = {
   setTabPaneExpanded: vi.fn(),
   shouldDeferParkedPtyExitTabClose: vi.fn(),
   useContextualTour: vi.fn()
+}
+
+// Awaits every requested confirmation; product .then callbacks registered first run before this resumes.
+export async function settleConfirmationDialogs(): Promise<void> {
+  await Promise.all(mocks.confirmDialog.mock.results.map((result) => result.value))
 }
 
 export const saveDialogBox = {
@@ -226,6 +234,7 @@ export function setupFloatingTerminalPanelTest(): void {
   mocks.isWebRuntimeSessionActive.mockReturnValue(false)
   mocks.pickFloatingMarkdownDocument.mockResolvedValue(null)
   mocks.shouldDeferParkedPtyExitTabClose.mockReturnValue(false)
+  mocks.confirmDialog.mockResolvedValue(true)
   const localStorage = {
     clear: vi.fn(),
     getItem: vi.fn(() => null),

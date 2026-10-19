@@ -10,7 +10,11 @@ import {
   storeBox,
   type FloatingPanelStoreState
 } from './floating-terminal-panel-test-fixtures'
-import { mocks, setupFloatingTerminalPanelTest } from './floating-terminal-panel-test-harness'
+import {
+  mocks,
+  settleConfirmationDialogs,
+  setupFloatingTerminalPanelTest
+} from './floating-terminal-panel-test-harness'
 import {
   findByProp,
   findByTypeName,
@@ -304,6 +308,7 @@ describe('FloatingTerminalPanel close behavior', () => {
     const element = await renderPanel(true)
     const tabBar = findByTypeName(element, 'TabBar')
     ;(tabBar.props.onCloseAllFiles as () => void)()
+    await settleConfirmationDialogs()
 
     expect(mocks.closeFile).toHaveBeenCalledWith(file.id)
     expect(mocks.closeUnifiedTab).not.toHaveBeenCalledWith(simulatorTab.id)
@@ -353,6 +358,10 @@ describe('FloatingTerminalPanel close behavior', () => {
     const refreshed = await renderPanel(true)
     const tabBar = findByTypeName(refreshed, 'TabBar')
     ;(tabBar.props.onCloseOthers as (tabId: string) => void)('new-keep')
+    await settleConfirmationDialogs()
+    expect(mocks.confirmDialog).toHaveBeenCalledWith(
+      expect.objectContaining({ confirmVariant: 'destructive' })
+    )
     expect(mocks.closeTerminalTab).toHaveBeenCalledWith(
       'new-left',
       expect.objectContaining({ skipRunningProcessConfirm: true })
@@ -372,6 +381,7 @@ describe('FloatingTerminalPanel close behavior', () => {
     const next = await renderPanel(true)
     // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the rendered TabBar stub supplies this close callback with a tab id.
     ;(findByTypeName(next, 'TabBar').props.onCloseToRight as (tabId: string) => void)('new-left')
+    await settleConfirmationDialogs()
     expect(mocks.closeTerminalTab).toHaveBeenCalledWith(
       'new-keep',
       expect.objectContaining({ skipRunningProcessConfirm: true })
@@ -399,6 +409,7 @@ describe('FloatingTerminalPanel close behavior', () => {
     const element = await renderPanel(true)
     const tabBar = findByTypeName(element, 'TabBar')
     ;(tabBar.props.onCloseToRight as (tabId: string) => void)('tab-c')
+    await settleConfirmationDialogs()
 
     expect(mocks.closeTerminalTab).toHaveBeenCalledWith(
       'tab-a',

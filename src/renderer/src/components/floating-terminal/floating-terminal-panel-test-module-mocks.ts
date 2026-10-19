@@ -104,6 +104,11 @@ export function createPinnedTabCloseGuardModule(): Pick<
   }
 }
 
+// Why: the probe calls the panel outside a React render, so the real useContext has no dispatcher.
+export function createConfirmationDialogModule() {
+  return { useConfirmationDialog: () => mocks.confirmDialog }
+}
+
 export function createContextualTourModule(): Pick<
   FloatingTerminalPanelMocks,
   'useContextualTour'
