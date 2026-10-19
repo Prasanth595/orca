@@ -5,10 +5,11 @@
 
 import type { BrowserWorkspace } from '../../../../../shared/browser-workspace-types'
 import { recordLayoutApply, type sendLayoutApply } from '@/runtime/layout-apply-send'
+import { drawnTabPlacement } from '@/runtime/layout-owner-drawn-tab-placement'
 import type { AppState } from '../../types'
 
 type BrowserCommandState = Parameters<typeof sendLayoutApply>[0] &
-  Pick<AppState, 'unifiedTabsByWorktree' | 'groupsByWorktree'>
+  Pick<AppState, 'unifiedTabsByWorktree' | 'groupsByWorktree' | 'layoutByWorktree'>
 
 /** The open of a browser tab the window just drew, placed where the window drew it. */
 export function recordBrowserTabOpen(state: BrowserCommandState, tab: BrowserWorkspace): void {
@@ -17,11 +18,6 @@ export function recordBrowserTabOpen(state: BrowserCommandState, tab: BrowserWor
   if (!entry || !pageId) {
     return
   }
-  const order = state.groupsByWorktree[tab.worktreeId]?.find(
-    (group) => group.id === entry.groupId
-  )?.tabOrder
-  const position = order?.indexOf(entry.id) ?? -1
-  const afterTabId = position > 0 ? order?.[position - 1] : undefined
   recordLayoutApply(state, tab.worktreeId, {
     type: 'openBrowserTab',
     tabId: entry.id,
@@ -29,8 +25,10 @@ export function recordBrowserTabOpen(state: BrowserCommandState, tab: BrowserWor
     pageId,
     profileId: tab.sessionProfileId ?? null,
     sessionPartition: tab.sessionPartition ?? null,
-    groupId: entry.groupId,
-    ...(afterTabId ? { afterTabId } : position === 0 ? { index: 0 } : {})
+    // Open to the side: main makes the window's new split with the tab.
+    ...drawnTabPlacement(state, tab.worktreeId, entry.groupId, entry.id),
+    createdAt: entry.createdAt,
+    browserCreatedAt: tab.createdAt
   })
 }
 

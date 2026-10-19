@@ -3,9 +3,15 @@ import { applyWindowLayoutCommand, type WindowLayoutCommand } from './runtime-la
 import type { RuntimeStore } from './runtime-store-contract'
 import type { LayoutApplyOutcome } from '../../shared/workspace-layout/workspace-layout-command-types'
 
-const mocks = vi.hoisted(() => ({ markAgentLaunchesClosedByUser: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  markAgentLaunchesClosedByUser: vi.fn(),
+  frozen: new Set<string>()
+}))
 vi.mock('../agent-launch/agent-launch-pane-attachment', () => ({
   markAgentLaunchesClosedByUser: mocks.markAgentLaunchesClosedByUser
+}))
+vi.mock('../persistence/moving-wsl-projects/wsl-move-scope-guard', () => ({
+  isWslMoveWorkspaceSessionFrozen: (workspaceId: string) => mocks.frozen.has(workspaceId)
 }))
 
 const CLOSE = { type: 'closePane', workspace: 'wt-1', tabId: 'tab-1', leafId: 'leaf-1' } as const
@@ -21,7 +27,10 @@ function storeWith() {
 }
 
 describe('applyWindowLayoutCommand', () => {
-  beforeEach(() => mocks.markAgentLaunchesClosedByUser.mockReset())
+  beforeEach(() => {
+    mocks.markAgentLaunchesClosedByUser.mockReset()
+    mocks.frozen.clear()
+  })
 
   it('closes a pane as the user’s close, in every local or SSH holder', async () => {
     const { store, applyLayoutCommand } = storeWith()
@@ -39,6 +48,15 @@ describe('applyWindowLayoutCommand', () => {
     })
   })
 
+  it('closes a pane automatically with the user-close rules but stops no launch as the user’s', async () => {
+    const { store, applyLayoutCommand } = storeWith()
+
+    await applyWindowLayoutCommand(store, () => ['local'], { ...CLOSE, automatic: true })
+
+    expect(applyLayoutCommand).toHaveBeenCalledWith({ ...CLOSE, userPaneClose: true }, ['local'])
+    expect(mocks.markAgentLaunchesClosedByUser).not.toHaveBeenCalled()
+  })
+
   it('applies other commands to the routed partition only', async () => {
     const { store, applyLayoutCommand } = storeWith()
     const rename = { ...CLOSE, type: 'renamePane', title: 'Pane' } as const
@@ -47,6 +65,26 @@ describe('applyWindowLayoutCommand', () => {
 
     expect(applyLayoutCommand).toHaveBeenCalledWith(rename, ['local'])
     expect(mocks.markAgentLaunchesClosedByUser).not.toHaveBeenCalled()
+  })
+
+  it('records a sleep and a wake in every partition holding the tab, and in no paired server’s', async () => {
+    const { store, applyLayoutCommand } = storeWith()
+    const paneKey = 'tab-1:11111111-1111-4111-8111-111111111111'
+    const wake: WindowLayoutCommand = {
+      type: 'wake',
+      workspace: 'wt-1',
+      tabId: 'tab-1',
+      paneKeys: [paneKey]
+    }
+    const sleep: WindowLayoutCommand = { ...wake, type: 'sleep', records: [] }
+
+    await applyWindowLayoutCommand(store, () => ['local', 'ssh:target-1', 'runtime:env-1'], sleep)
+    await applyWindowLayoutCommand(store, () => ['local', 'ssh:target-1'], wake)
+
+    expect(applyLayoutCommand.mock.calls).toEqual([
+      [sleep, ['local', 'ssh:target-1']],
+      [wake, ['local', 'ssh:target-1']]
+    ])
   })
 
   it('routes a group tree command by its workspace, with no tab to look up', async () => {
@@ -62,6 +100,21 @@ describe('applyWindowLayoutCommand', () => {
 
     expect(hostIdsFor).toHaveBeenCalledWith('wt-1', null)
     expect(applyLayoutCommand).toHaveBeenCalledWith(ratios, ['ssh:target-1'])
+  })
+
+  it('renames editor files in the workspace’s routed partition, an SSH one too', async () => {
+    const { store, applyLayoutCommand } = storeWith()
+    const hostIdsFor = vi.fn(() => ['ssh:target-1' as const])
+    const rename: WindowLayoutCommand = {
+      type: 'renameEditorFiles',
+      workspace: 'wt-1',
+      renames: [{ fileId: '/a.ts', newFileId: '/b.ts' }]
+    }
+
+    await applyWindowLayoutCommand(store, hostIdsFor, rename)
+
+    expect(hostIdsFor).toHaveBeenCalledWith('wt-1', null)
+    expect(applyLayoutCommand).toHaveBeenCalledWith(rename, ['ssh:target-1'])
   })
 
   it('records the window’s tab close in every holder, forced, stopping no terminal', async () => {
@@ -182,5 +235,104 @@ describe('applyWindowLayoutCommand', () => {
     ).resolves.toEqual({ ok: false, code: 'host_not_owned' })
     expect(applyLayoutCommand).not.toHaveBeenCalled()
     expect(mocks.markAgentLaunchesClosedByUser).not.toHaveBeenCalled()
+  })
+
+  it('moves editor tabs within one partition or across two, and refuses a paired server', async () => {
+    const { store, applyLayoutCommand } = storeWith()
+    const moveTabToWorkspaceAcrossPartitions = vi.fn(async (): Promise<LayoutApplyOutcome> => ({
+      ok: true,
+      result: {}
+    }))
+    store.moveTabToWorkspaceAcrossPartitions = moveTabToWorkspaceAcrossPartitions
+    const move: WindowLayoutCommand = {
+      type: 'moveTabToWorkspace',
+      workspace: 'wt-1',
+      toWorkspace: 'wt-2',
+      tabs: [{ tabId: 'tab-1', newTabId: 'tab-1', newEntityId: 'file-2' }],
+      groupId: 'g2'
+    }
+    const hostIdsFor = vi.fn((_worktreeId: string, _tabId: string | null) => [
+      'ssh:target-1' as const
+    ])
+
+    await applyWindowLayoutCommand(store, hostIdsFor, move)
+    expect(hostIdsFor.mock.calls).toEqual([
+      ['wt-1', null],
+      ['wt-2', null]
+    ])
+    expect(applyLayoutCommand).toHaveBeenCalledWith(move, ['ssh:target-1'])
+
+    applyLayoutCommand.mockClear()
+    await applyWindowLayoutCommand(
+      store,
+      (worktreeId) => [worktreeId === 'wt-1' ? 'local' : 'ssh:target-1'],
+      move
+    )
+    expect(moveTabToWorkspaceAcrossPartitions).toHaveBeenCalledWith(move, 'local', 'ssh:target-1')
+    expect(applyLayoutCommand).not.toHaveBeenCalled()
+
+    const partitions = {
+      'a paired server': [['local'], ['runtime:env-1'], 'host_not_owned'],
+      'an unknown target': [['local'], [], 'host_not_owned']
+    } as const
+    for (const [from, to, code] of Object.values(partitions)) {
+      await expect(
+        applyWindowLayoutCommand(
+          store,
+          (worktreeId) => [...(worktreeId === 'wt-1' ? from : to)],
+          move
+        )
+      ).resolves.toEqual({ ok: false, code })
+    }
+    expect(applyLayoutCommand).not.toHaveBeenCalled()
+  })
+
+  it('refuses any command on a workspace a WSL move has paused, writing nothing', async () => {
+    const { store, applyLayoutCommand } = storeWith()
+    mocks.frozen.add('wt-1')
+    const commands: WindowLayoutCommand[] = [
+      CLOSE,
+      { ...CLOSE, type: 'renamePane', title: 'Pane' },
+      { type: 'closeTabs', workspace: 'wt-1', tabIds: ['tab-1'], recordClose: 'user' },
+      { type: 'setGroupRatios', workspace: 'wt-1', groupLayout: { type: 'leaf', groupId: 'g-1' } }
+    ]
+
+    for (const command of commands) {
+      await expect(applyWindowLayoutCommand(store, () => ['local'], command)).resolves.toEqual({
+        ok: false,
+        code: 'wsl_move_in_progress'
+      })
+    }
+    expect(applyLayoutCommand).not.toHaveBeenCalled()
+    expect(mocks.markAgentLaunchesClosedByUser).not.toHaveBeenCalled()
+  })
+
+  it('refuses a tab move into a paused workspace, which would drop the moved tab', async () => {
+    const { store, applyLayoutCommand } = storeWith()
+    mocks.frozen.add('wt-2')
+    const move: WindowLayoutCommand = {
+      type: 'moveTabToWorkspace',
+      workspace: 'wt-1',
+      toWorkspace: 'wt-2',
+      tabs: [{ tabId: 'tab-1', newTabId: 'tab-2', newEntityId: 'tab-2' }],
+      groupId: 'g-2'
+    }
+
+    await expect(applyWindowLayoutCommand(store, () => ['local'], move)).resolves.toEqual({
+      ok: false,
+      code: 'wsl_move_in_progress'
+    })
+    expect(applyLayoutCommand).not.toHaveBeenCalled()
+  })
+
+  it('applies as before on a workspace no move has paused', async () => {
+    const { store, applyLayoutCommand } = storeWith()
+    mocks.frozen.add('wt-other')
+
+    await expect(applyWindowLayoutCommand(store, () => ['local'], CLOSE)).resolves.toEqual({
+      ok: true,
+      result: {}
+    })
+    expect(applyLayoutCommand).toHaveBeenCalledTimes(1)
   })
 })

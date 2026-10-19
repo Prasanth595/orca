@@ -8,6 +8,7 @@ import {
   type SubmissionRejectionFact
 } from '../../../shared/agent-session-failure'
 import { PROVIDER_EXIT_ROW_PREFIX } from '../../../shared/agent-session-stop-row-identity'
+import { isQueuedAgentJournalSubmission } from '../../../shared/agent-session-queued-submission'
 import { structuredAgentSessionFailureWordsContext } from './structured-agent-session-send-preparation'
 import type { StructuredAgentSessionEndedEvent } from './structured-agent-session-adapter'
 import type {
@@ -74,6 +75,7 @@ export type StructuredAgentSessionChildExitContext<
   wakeDelivery?: (sessionId: string) => void
   /** An ended child's start, if still open, has nothing left to time. */
   startupAttempts?: Pick<StructuredAgentSessionStartupAttempts, 'childEnded'>
+  abortOpen?: (sessionId: string) => void
   serialize: <T>(sessionId: string, task: () => Promise<T>) => Promise<T>
   now: () => number
   logger: StructuredAgentSessionLogger
@@ -134,12 +136,15 @@ export async function endExitedStructuredAgentSessionChildUnderSerialize<
   // The host's own phase decides, so a provider that omits the flag still gets a start that
   // failed told as one: the row says so.
   const exitedDuringStartup = exit.startupUnproven === true || child.phase === 'starting'
+  if (child.phase === 'starting') {
+    context.abortOpen?.(sessionId)
+  }
   // A close during startup settles what the child was handed, never echoed, by who asked: a
   // person's Stop stops it; the host's stop fails the start, as an exit of its own would.
   const startClose = expected && exitedDuringStartup ? close?.cause : undefined
   const startFailure = expected
     ? startClose === 'host-stop'
-      ? agentSessionFailureFact('hostStopped')
+      ? (exit.failure ?? close?.failure ?? agentSessionFailureFact('hostStopped'))
       : undefined
     : exit.failure
   // A send the child was handed and never echoed cannot have run when a person's Stop ended its
@@ -167,7 +172,7 @@ export async function endExitedStructuredAgentSessionChildUnderSerialize<
     // A close keeps the cause of the stop that asked for it, and ends where it was asked.
     cause: expected ? (close?.cause ?? 'evict') : 'exit',
     reason: expected ? (close?.reason ?? null) : exit.reason,
-    ...(!expected && exit.failure ? { failure: exit.failure } : {}),
+    ...(startFailure ? { failure: startFailure } : {}),
     duringStartup: exitedDuringStartup,
     // The adapter publishes an exit only once it saw the root go, first-hand or proven.
     rootGone: true,
@@ -181,11 +186,19 @@ export async function endExitedStructuredAgentSessionChildUnderSerialize<
     }
     context.publishStatus?.(sessionId)
   }
+  const wakeQueuedDelivery = (): void => {
+    if (
+      !session.journal.submissions ||
+      session.journal.submissions().some(isQueuedAgentJournalSubmission)
+    ) {
+      context.wakeDelivery?.(sessionId)
+    }
+  }
   const record = context.store.getRecord(sessionId)
   if (!record || record.lease.handoffStage !== null) {
     // An acquisition or recovery already owns this lease's transition.
     endChild()
-    context.wakeDelivery?.(sessionId)
+    wakeQueuedDelivery()
     return
   }
   let settlement: StructuredAgentSessionExitSettlement | null = null
@@ -289,7 +302,7 @@ export async function endExitedStructuredAgentSessionChildUnderSerialize<
     // Stop's own) issued at the fence before. Either way every reader learns the generation ended
     // and the queued-card drain runs, whether or not the release or the settlement was written.
     context.generationEnded(sessionId, { restate: released && !expected })
-    context.wakeDelivery?.(sessionId)
+    wakeQueuedDelivery()
   }
 }
 
