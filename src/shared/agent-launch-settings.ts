@@ -1,13 +1,22 @@
 import type { GlobalSettings } from './global-settings-types'
+import { agentChatPermissionModes } from './agent-chat-permission-mode'
 import type { TuiAgent } from './tui-agent'
 import { buildDefaultAgentSettingsUpdate } from './default-agent-settings'
 import {
   buildAgentAvailabilitySettingsUpdate,
   normalizeDisabledTuiAgents
 } from './tui-agent-selection'
-import { normalizeTuiAgentArgsRecord, resolveTuiAgentLaunchEnv } from './tui-agent-launch-defaults'
+import {
+  normalizeTuiAgentArgsRecord,
+  resolveTuiAgentLaunchArgs,
+  resolveTuiAgentLaunchEnv
+} from './tui-agent-launch-defaults'
 import {
   applyAgentPermissionMode,
+  AUTO_TUI_AGENT_ARGS,
+  YOLO_TUI_AGENT_ARGS,
+  YOLO_TUI_AGENT_ENV,
+  resolveTuiAgentPermissionMode,
   resolveAgentPermissionModeSummary,
   type AgentPermissionMode
 } from './tui-agent-permissions'
@@ -21,6 +30,8 @@ export type AgentLaunchSettingsSource = Partial<
     | 'agentCmdOverrides'
     | 'agentDefaultArgs'
     | 'agentDefaultEnv'
+    | 'nativeChatPermissionMode'
+    | 'agentNativeChatPermissionModes'
   >
 >
 
@@ -31,13 +42,14 @@ export type AgentLaunchSettings = {
   agentCmdOverrides: NonNullable<GlobalSettings['agentCmdOverrides']>
   agentDefaultArgs: NonNullable<GlobalSettings['agentDefaultArgs']>
   environmentNames: Partial<Record<TuiAgent, string[]>>
-  permissionMode: AgentPermissionMode
+  permissionMode: Exclude<AgentPermissionMode, 'auto'>
+  autoPermissionMode?: true
 }
 
 export type AgentLaunchSettingsMutation =
   | { type: 'default'; agent: GlobalSettings['defaultTuiAgent']; setupOnly?: boolean }
   | { type: 'availability'; agent: TuiAgent; enabled: boolean }
-  | { type: 'permissions'; mode: Exclude<AgentPermissionMode, 'mixed'> }
+  | { type: 'permissions'; mode: Exclude<AgentPermissionMode, 'mixed'>; agent?: TuiAgent }
   | { type: 'command'; agent: TuiAgent; value: string }
   | { type: 'arguments'; agent: TuiAgent; value: string }
   | { type: 'environment-set'; agent: TuiAgent; name: string; value: string }
@@ -46,6 +58,7 @@ export type AgentLaunchSettingsMutation =
 export function projectAgentLaunchSettings(
   settings: AgentLaunchSettingsSource
 ): AgentLaunchSettings {
+  const permissionMode = resolveAgentPermissionModeSummary(settings)
   return {
     defaultTuiAgent: settings.defaultTuiAgent ?? null,
     newWorkspaceSetupOnly: false,
@@ -58,7 +71,9 @@ export function projectAgentLaunchSettings(
         Object.keys(env ?? {}).sort()
       ])
     ),
-    permissionMode: resolveAgentPermissionModeSummary(settings)
+    // Older clients understand Mixed and ignore the optional automatic-mode marker.
+    permissionMode: permissionMode === 'auto' ? 'mixed' : permissionMode,
+    ...(permissionMode === 'auto' ? { autoPermissionMode: true } : {})
   }
 }
 
@@ -79,8 +94,44 @@ export function agentLaunchSettingsMutationUpdates(
         mutation.agent,
         mutation.enabled
       )
-    case 'permissions':
-      return applyAgentPermissionMode({ ...settings, mode: mutation.mode })
+    case 'permissions': {
+      const nativeMode =
+        mutation.mode === 'yolo' ? 'full-access' : mutation.mode === 'auto' ? 'auto' : 'ask'
+      if (mutation.agent) {
+        const agent = mutation.agent
+        if (!(agent in YOLO_TUI_AGENT_ARGS) && !(agent in YOLO_TUI_AGENT_ENV)) {
+          throw new Error('This agent has no configurable terminal permission mode')
+        }
+        if (mutation.mode === 'auto' && !AUTO_TUI_AGENT_ARGS[agent]) {
+          throw new Error('This agent does not support automatic permission review')
+        }
+        if (
+          resolveTuiAgentPermissionMode({
+            agent,
+            agentArgs: resolveTuiAgentLaunchArgs(agent, settings.agentDefaultArgs),
+            agentEnv: resolveTuiAgentLaunchEnv(agent, settings.agentDefaultEnv)
+          }) === 'mixed'
+        ) {
+          throw new Error('Edit custom launch arguments before choosing a permission mode')
+        }
+        return {
+          ...applyAgentPermissionMode({ ...settings, mode: mutation.mode, agent }),
+          ...(agentChatPermissionModes(agent)
+            ? {
+                agentNativeChatPermissionModes: {
+                  ...settings.agentNativeChatPermissionModes,
+                  [agent]: nativeMode
+                }
+              }
+            : {})
+        }
+      }
+      return {
+        ...applyAgentPermissionMode({ ...settings, mode: mutation.mode }),
+        nativeChatPermissionMode: nativeMode,
+        agentNativeChatPermissionModes: {}
+      }
+    }
     case 'command': {
       const commands = { ...settings.agentCmdOverrides }
       if (mutation.value.trim()) {

@@ -115,8 +115,31 @@ describe('execution-host agent launch settings', () => {
     host.agentDefaultArgs = { claude: '--dangerously-skip-permissions' }
     await controller.mutateAgentLaunch({ type: 'permissions', mode: 'manual' })
     expect(host.agentDefaultArgs?.claude).toBe('')
+    expect(host.nativeChatPermissionMode).toBe('ask')
     expect(host.agentDefaultEnv?.claude).toEqual({ API_KEY: 'host-secret', KEEP: 'host-only' })
     expect(JSON.stringify(controller.getAgentLaunch())).not.toContain('host-only')
+  })
+
+  it('applies Auto to new chats on the execution host', async () => {
+    const { controller, host } = fixture()
+    host.agentDefaultArgs = { claude: '', codex: '' }
+    await controller.mutateAgentLaunch({ type: 'permissions', mode: 'auto' })
+    expect(host.agentDefaultArgs).toMatchObject({
+      claude: '--permission-mode auto',
+      codex: '--approve-for-me'
+    })
+    expect(host.nativeChatPermissionMode).toBe('auto')
+  })
+
+  it('publishes scoped host defaults and resets them when a paired client chooses a shared chat default', async () => {
+    const { controller, host } = fixture()
+    host.agentDefaultArgs = { claude: '', codex: '' }
+    await controller.mutateAgentLaunch({ type: 'permissions', agent: 'codex', mode: 'auto' })
+    expect(controller.get().agentNativeChatPermissionModes).toEqual({ codex: 'auto' })
+    expect(host.agentDefaultArgs.claude).toBe('')
+    await controller.update({ nativeChatPermissionMode: 'ask' })
+    expect(controller.get().agentNativeChatPermissionModes).toEqual({})
+    expect(host.nativeChatPermissionMode).toBe('ask')
   })
 
   it('normalizes older-client None default requests to Blank Terminal', async () => {
