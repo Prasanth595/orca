@@ -248,6 +248,7 @@ export function routeScrollLines(
     if (mouseInput) {
       // Why: Claude Code reads a report's rows from the gap since the last one (tui-wheel-pacing).
       scope.lastTuiWheelReportAt = performance.now()
+      scope.term.beginRemoteScrollPresentation?.(lines)
       notify(scope, { type: 'terminal-input', bytes: mouseInput })
       return
     }
@@ -256,6 +257,7 @@ export function routeScrollLines(
     // scrollback/no-op while a mouse-aware app owns scroll gestures.
     const fallbackInput = buildTuiScrollInput(scope, lines, clientX, clientY)
     if (fallbackInput) {
+      scope.term.beginRemoteScrollPresentation?.(lines)
       notify(scope, { type: 'terminal-input', bytes: fallbackInput })
     }
     return
@@ -265,6 +267,7 @@ export function routeScrollLines(
     // scrollback there, so mobile scroll gestures must become terminal input.
     const input = buildTuiScrollInput(scope, lines, clientX, clientY)
     if (input) {
+      scope.term.beginRemoteScrollPresentation?.(lines)
       notify(scope, { type: 'terminal-input', bytes: input })
     }
     return

@@ -9,6 +9,7 @@ import { XTERM_ENGINE_CSS } from './terminal-webview-engine-css.generated'
 import { createTerminalDocument } from './document/create-terminal-document'
 import type { TerminalWebViewCommand } from './terminal-webview-messages'
 import { createSmoothTerminal, createSmoothWebglAddon } from './smooth-viewport-renderer.mjs'
+import { createRemoteScrollTerminal } from './remote-scroll-compositor.mjs'
 
 /**
  * The terminal document, mounted in the page instead of in a WebView.
@@ -35,12 +36,13 @@ export type TerminalWebDocument = {
 const STYLE_ELEMENT_ID = 'orca-terminal-document-style'
 
 /**
- * The engine with the sub-row scroll seam the WebView's bundle gives it.
+ * The engine with the scroll seams the WebView's bundle gives it.
  *
  * The page imports xterm itself rather than loading that bundle, so it wraps the same two classes
- * here; without them its scrollback moves only in whole rows.
+ * here; without them its scrollback moves only in whole rows and a program's redraw jumps a row a
+ * wheel report.
  */
-const SmoothTerminal = createSmoothTerminal(Terminal)
+const SmoothTerminal = createRemoteScrollTerminal(createSmoothTerminal(Terminal))
 const SmoothWebglAddon = createSmoothWebglAddon(WebglAddon)
 
 /** The class the host carries, and the prefix every injected rule is held under. */
