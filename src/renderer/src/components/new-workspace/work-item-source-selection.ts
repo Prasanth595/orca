@@ -6,7 +6,8 @@ import {
   buildGitLabWorkspaceSource,
   buildLinearWorkspaceSource,
   buildJiraWorkspaceSource,
-  type WorkspaceSourceLinkedItem
+  type WorkspaceSourceLinkedItem,
+  type WorkspaceSourceProvider
 } from '../../../../shared/new-workspace/workspace-source'
 import { parseGitHubIssueOrPRLink } from '../../../../shared/github/links'
 import { parseGitLabIssueOrMRLink } from '../../../../shared/new-workspace/gitlab-links'
@@ -22,7 +23,11 @@ export function resolveWorkItemSourceRow(
   contexts: WorkItemSourceContexts,
   sites: readonly JiraSite[] = []
 ):
-  | (WorkspaceSourceLinkedItem & { identifier?: string; taskSourceContext?: TaskSourceContext })
+  | (Omit<WorkspaceSourceLinkedItem, 'provider'> & {
+      provider: Exclude<WorkspaceSourceProvider, 'local'>
+      identifier?: string
+      taskSourceContext?: TaskSourceContext
+    })
   | null {
   if (row.kind === 'github' || row.kind === 'gitlab') {
     const { type, number, title, url, repoId } = row.item

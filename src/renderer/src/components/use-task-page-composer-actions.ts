@@ -3,6 +3,7 @@ import { useCallback } from 'react'
 import type { LinearIssue } from '../../../shared/linear/issue-types'
 import type { LinearWorkspaceSelection } from '../../../shared/linear/workspace-types'
 import type { JiraIssue } from '../../../shared/jira-types'
+import { useTaskPageLocalComposerActions } from './use-task-page-local-composer-actions'
 import { buildLinearIssueLinkedWorkItem } from '@/lib/linear-linked-work-item'
 import { getLinearIssueWorkspaceName } from '../../../shared/workspace-name'
 import { useAppStore } from '@/store'
@@ -28,8 +29,9 @@ export function useTaskPageComposerActions(model: TaskPageJiraListEffectsModel) 
     taskSource,
     linearTaskSourceContext,
     jiraTaskSourceContext,
-    gitlabDialogItem,
+    localTaskSourceContext,
     dialogWorkItem,
+    gitlabDialogItem,
     selectedLinearIssue,
     clearSelectedLinearIssue,
     selectedJiraIssue,
@@ -235,6 +237,11 @@ export function useTaskPageComposerActions(model: TaskPageJiraListEffectsModel) 
     },
     [openComposerForJiraItem]
   )
+  const { openComposerForLocalTask, handleUseLocalTask } = useTaskPageLocalComposerActions({
+    openModal,
+    localTaskSourceContext,
+    repos: model.repos
+  })
   const taskPageListChromeHidden = shouldHideTaskPageListChrome({
     taskSource,
     hasGitHubDetail: Boolean(dialogWorkItem),
@@ -254,6 +261,8 @@ export function useTaskPageComposerActions(model: TaskPageJiraListEffectsModel) 
     handleLinearAccessConnected: typeof handleLinearAccessConnected
     openComposerForJiraItem: typeof openComposerForJiraItem
     handleUseJiraItem: typeof handleUseJiraItem
+    openComposerForLocalTask: typeof openComposerForLocalTask
+    handleUseLocalTask: typeof handleUseLocalTask
     taskPageListChromeHidden: typeof taskPageListChromeHidden
   }
   nextModel.openComposerForLinearItem = openComposerForLinearItem
@@ -265,6 +274,8 @@ export function useTaskPageComposerActions(model: TaskPageJiraListEffectsModel) 
   nextModel.handleLinearAccessConnected = handleLinearAccessConnected
   nextModel.openComposerForJiraItem = openComposerForJiraItem
   nextModel.handleUseJiraItem = handleUseJiraItem
+  nextModel.openComposerForLocalTask = openComposerForLocalTask
+  nextModel.handleUseLocalTask = handleUseLocalTask
   nextModel.taskPageListChromeHidden = taskPageListChromeHidden
   return nextModel
 }

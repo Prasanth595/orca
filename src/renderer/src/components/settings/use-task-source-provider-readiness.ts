@@ -67,6 +67,12 @@ export function useTaskSourceProviderReadiness(
   return useMemo(() => {
     const visible = new Set(visibleProvidersKey.split(',') as TaskProvider[])
     return {
+      local: {
+        connected: true,
+        checking: false,
+        unavailable: false,
+        visible: visible.has('local')
+      },
       github: {
         connected: githubConnected,
         checking: reviewChecking,

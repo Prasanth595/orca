@@ -381,6 +381,8 @@ export type GlobalSettings = GlobalSettingsBase & {
   visibleTaskProviders: TaskProvider[]
   /** Why: one-shot guard to make Jira visible for existing profiles once, without re-adding after a later opt-out. */
   visibleTaskProvidersDefaultedForJira: boolean
+  /** Why: one-shot guard to make the local provider visible for existing profiles once, mirroring the Jira backfill. */
+  visibleTaskProvidersDefaultedForLocal?: boolean
   /** Persisted repo selection (cross-repo tasks view). null = sticky-all (includes future-added repos);
    *  string[] = frozen curated subset (ineligible ids dropped on load; empty after drop is treated as null). */
   defaultRepoSelection: string[] | null

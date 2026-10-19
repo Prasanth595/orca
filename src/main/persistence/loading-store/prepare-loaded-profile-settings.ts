@@ -104,8 +104,15 @@ export function prepareLoadedProfileSettings(
     : rawTaskProviderSettings.visibleTaskProviders.includes('jira')
       ? rawTaskProviderSettings.visibleTaskProviders
       : [...rawTaskProviderSettings.visibleTaskProviders, 'jira' as const]
+  const visibleTaskProvidersDefaultedForLocal =
+    parsed.settings?.visibleTaskProvidersDefaultedForLocal === true
+  const migratedWithLocalProviders = visibleTaskProvidersDefaultedForLocal
+    ? migratedVisibleTaskProviders
+    : migratedVisibleTaskProviders.includes('local')
+      ? migratedVisibleTaskProviders
+      : ['local' as const, ...migratedVisibleTaskProviders]
   const taskProviderSettings = normalizeTaskProviderSettings({
-    visibleTaskProviders: migratedVisibleTaskProviders,
+    visibleTaskProviders: migratedWithLocalProviders,
     defaultTaskSource: rawTaskProviderSettings.defaultTaskSource
   })
   const primarySelectionDefaultedForLinux =
@@ -125,6 +132,9 @@ export function prepareLoadedProfileSettings(
     markNeedsSave()
   }
   if (!visibleTaskProvidersDefaultedForJira) {
+    markNeedsSave()
+  }
+  if (!visibleTaskProvidersDefaultedForLocal) {
     markNeedsSave()
   }
   const claudeAgentTeamsDefaultDisabledMigrated =

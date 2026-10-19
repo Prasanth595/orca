@@ -5,6 +5,7 @@ import type { GitLabTaskFilter, GitLabIssueFilter } from '@/components/task-page
 import type { GitLabWorkItem, GitLabTodo } from '../../../shared/gitlab-types'
 import { getRepoBackedTaskEmptyState } from '@/components/task-page-empty-state'
 import { isGitLabIssueFilter, isGitLabMRFilter } from './task-page-source-context'
+import type { LocalTask } from '../../../shared/local-task'
 export function useTaskPageProviderState(model: TaskPageSourceAvailabilityModel) {
   const {
     settings,
@@ -99,6 +100,16 @@ export function useTaskPageProviderState(model: TaskPageSourceAvailabilityModel)
     }
     return gitlabItems
   }, [gitlabItems, gitlabView])
+  // ── Local task-source state ─────────────────────────────────────
+  const [localTasks, setLocalTasks] = useState<LocalTask[]>([])
+  const [localTasksLoading, setLocalTasksLoading] = useState(false)
+  const [localTasksError, setLocalTasksError] = useState<string | null>(null)
+  const [localTaskDialog, setLocalTaskDialog] = useState<
+    | { mode: 'create' }
+    | { mode: 'edit'; task: LocalTask }
+    | { mode: 'delete'; task: LocalTask }
+    | null
+  >(null)
   const nextModel = model as typeof model & {
     taskSourceManuallyChangedRef: typeof taskSourceManuallyChangedRef
     lastPageTaskSourceRef: typeof lastPageTaskSourceRef
@@ -134,6 +145,14 @@ export function useTaskPageProviderState(model: TaskPageSourceAvailabilityModel)
     gitlabFilterIsValid: typeof gitlabFilterIsValid
     activeGitlabFilter: typeof activeGitlabFilter
     displayedGitLabItems: typeof displayedGitLabItems
+    localTasks: typeof localTasks
+    setLocalTasks: typeof setLocalTasks
+    localTasksLoading: typeof localTasksLoading
+    setLocalTasksLoading: typeof setLocalTasksLoading
+    localTasksError: typeof localTasksError
+    setLocalTasksError: typeof setLocalTasksError
+    localTaskDialog: typeof localTaskDialog
+    setLocalTaskDialog: typeof setLocalTaskDialog
   }
   nextModel.taskSourceManuallyChangedRef = taskSourceManuallyChangedRef
   nextModel.lastPageTaskSourceRef = lastPageTaskSourceRef
@@ -167,8 +186,15 @@ export function useTaskPageProviderState(model: TaskPageSourceAvailabilityModel)
   nextModel.setGitlabTodosLoading = setGitlabTodosLoading
   nextModel.gitlabEmptyState = gitlabEmptyState
   nextModel.gitlabFilterIsValid = gitlabFilterIsValid
-  nextModel.activeGitlabFilter = activeGitlabFilter
   nextModel.displayedGitLabItems = displayedGitLabItems
+  nextModel.localTasks = localTasks
+  nextModel.setLocalTasks = setLocalTasks
+  nextModel.localTasksLoading = localTasksLoading
+  nextModel.setLocalTasksLoading = setLocalTasksLoading
+  nextModel.localTasksError = localTasksError
+  nextModel.setLocalTasksError = setLocalTasksError
+  nextModel.localTaskDialog = localTaskDialog
+  nextModel.setLocalTaskDialog = setLocalTaskDialog
   return nextModel
 }
 export type TaskPageProviderStateModel = ReturnType<typeof useTaskPageProviderState>

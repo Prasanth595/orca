@@ -9,6 +9,7 @@ import {
 import type { TaskSourceHostAvailability } from './task-source-context-summary'
 import { getRepoBackedProviderAvailability } from '@/components/task-source-provider-availability'
 import { getSettingsFocusedExecutionHostId } from '../../../shared/execution-host'
+import { getLocalTaskSourceContext } from '../../../shared/local-task-source-context'
 import {
   type TaskSourceContext,
   normalizeTaskSourceContext,
@@ -139,6 +140,16 @@ export function useTaskPageSourceAvailabilityPrelude(model: TaskPageRuntimeHosts
       selectedJiraSiteId
     ]
   )
+  const localTaskSourceProjectId = useMemo(() => {
+    const firstRepoContext = taskSourceRepoContexts
+      .map((context) => context?.projectId)
+      .find((projectId): projectId is string => Boolean(projectId))
+    return firstRepoContext ?? null
+  }, [taskSourceRepoContexts])
+  const localTaskSourceContext = useMemo(
+    () => getLocalTaskSourceContext(localTaskSourceProjectId),
+    [localTaskSourceProjectId]
+  )
   const jiraTaskSourceScopeKey = jiraTaskSourceContext
     ? getTaskSourceCacheScope(jiraTaskSourceContext)
     : providerRuntimeContextKey
@@ -159,6 +170,8 @@ export function useTaskPageSourceAvailabilityPrelude(model: TaskPageRuntimeHosts
     linearListInvalidationVersionForSource: typeof linearListInvalidationVersionForSource
     jiraTaskSourceContext: typeof jiraTaskSourceContext
     jiraTaskSourceScopeKey: typeof jiraTaskSourceScopeKey
+    localTaskSourceProjectId: typeof localTaskSourceProjectId
+    localTaskSourceContext: typeof localTaskSourceContext
     accountBackedTaskSourceHostAvailability: typeof accountBackedTaskSourceHostAvailability
   }
   nextModel.getTaskPickerRepoHostLabel = getTaskPickerRepoHostLabel
@@ -169,6 +182,8 @@ export function useTaskPageSourceAvailabilityPrelude(model: TaskPageRuntimeHosts
   nextModel.linearListInvalidationVersionForSource = linearListInvalidationVersionForSource
   nextModel.jiraTaskSourceContext = jiraTaskSourceContext
   nextModel.jiraTaskSourceScopeKey = jiraTaskSourceScopeKey
+  nextModel.localTaskSourceProjectId = localTaskSourceProjectId
+  nextModel.localTaskSourceContext = localTaskSourceContext
   nextModel.accountBackedTaskSourceHostAvailability = accountBackedTaskSourceHostAvailability
   return nextModel
 }

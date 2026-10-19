@@ -266,6 +266,26 @@ export function syncProjectHostSetupCompatibilityState(owner: RepoLifecycleOpera
   owner[repoLifecycleOperationsContext].runtime.state.projects = compatibilityState.projects
   owner[repoLifecycleOperationsContext].runtime.state.projectHostSetups =
     compatibilityState.projectHostSetups
+  // Why catalog-authoritative: the project catalog is complete here (derived
+  // from the repo list), so unknown local-task project keys are orphans.
+  // The read normalizer never prunes; only this write path does.
+  const state = owner[repoLifecycleOperationsContext].runtime.state
+  const knownProjectIds = new Set(state.projects.map((project) => project.id))
+  const current = state.localTasksByProject
+  if (current) {
+    let pruned = false
+    const next: typeof current = {}
+    for (const [projectId, bucket] of Object.entries(current)) {
+      if (knownProjectIds.has(projectId)) {
+        next[projectId] = bucket
+      } else {
+        pruned = true
+      }
+    }
+    if (pruned) {
+      state.localTasksByProject = next
+    }
+  }
 }
 
 export function getProjectHostSetupOperations(

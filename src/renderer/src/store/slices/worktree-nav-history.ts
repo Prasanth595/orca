@@ -5,6 +5,7 @@ import type { GitHubWorkItem } from '../../../../shared/github/work-item-types'
 import type { JiraIssue } from '../../../../shared/jira-types'
 import type { LinearIssue } from '../../../../shared/linear/issue-types'
 import type { GitLabWorkItem } from '../../../../shared/gitlab-types'
+import type { LocalTask } from '../../../../shared/local-task'
 import {
   getTaskSourceCacheScope,
   type TaskSourceContext
@@ -46,6 +47,12 @@ export type WorktreeNavHistoryTaskDetailEntry =
       kind: 'task-detail'
       source: 'jira'
       issue: JiraIssue
+      sourceContext?: TaskSourceContext | null
+    }
+  | {
+      kind: 'task-detail'
+      source: 'local'
+      task: LocalTask
       sourceContext?: TaskSourceContext | null
     }
 export type WorktreeNavHistoryViewEntry =
@@ -125,6 +132,13 @@ function getHistoryEntryKey(entry: WorktreeNavHistoryEntry): string {
         ? getTaskSourceCacheScope(entry.sourceContext)
         : 'legacy'
     return `view:task-detail:jira:${sourceScope}:${entry.issue.siteId ?? 'selected'}:${entry.issue.key}`
+  }
+  if (entry.source === 'local') {
+    const sourceScope =
+      entry.sourceContext?.provider === 'local'
+        ? getTaskSourceCacheScope(entry.sourceContext)
+        : 'legacy'
+    return `view:task-detail:local:${sourceScope}:${entry.task.id}`
   }
   const sourceScope =
     entry.sourceContext?.provider === 'linear'

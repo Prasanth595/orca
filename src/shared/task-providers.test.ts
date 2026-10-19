@@ -16,7 +16,13 @@ describe('task providers', () => {
   })
 
   it('falls back to all providers when none are visible', () => {
-    expect(normalizeVisibleTaskProviders([])).toEqual(['github', 'gitlab', 'linear', 'jira'])
+    expect(normalizeVisibleTaskProviders([])).toEqual([
+      'local',
+      'github',
+      'gitlab',
+      'linear',
+      'jira'
+    ])
   })
 
   it('restores a valid saved default when provider settings drifted', () => {
@@ -115,5 +121,20 @@ describe('task providers', () => {
         linearConnected: false
       })
     ).toEqual(['github'])
+  })
+  it('keeps an explicitly listed local in place', () => {
+    expect(normalizeVisibleTaskProviders(['gitlab', 'local', 'unknown'])).toEqual([
+      'gitlab',
+      'local'
+    ])
+  })
+
+  it('reports local always available without connection flags', () => {
+    expect(
+      filterAvailableTaskProviders(['local', 'gitlab', 'linear'], {
+        gitlabInstalled: false,
+        linearConnected: false
+      })
+    ).toEqual(['local'])
   })
 })

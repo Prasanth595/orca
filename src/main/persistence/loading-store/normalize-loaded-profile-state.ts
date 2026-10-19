@@ -6,6 +6,7 @@ import { normalizeFolderWorkspaces } from '../../../shared/folder-workspaces'
 import { normalizeOrcadMigrationEvictedReceipts } from '../../../shared/orcad-migration-evicted-receipts'
 import { normalizeOrcadMigrationImportReceipts } from '../../../shared/orcad-migration-manifest-validation'
 import { normalizeOrcadMigrationStagedCatalogs } from '../../../shared/orcad-migration-staged-catalog-validation'
+import { normalizeLocalTasksByProject } from '../../../shared/local-tasks'
 import { normalizeWorkspaceLineageByChildKey } from '../applying-settings/ui-interaction-merge'
 import {
   normalizeSshRemotePtyLease,
@@ -65,6 +66,7 @@ export function normalizeLoadedProfileState(
       ? {}
       : { worktreeMetaByIdentity: hydrateWorktreeMetaAliasProjection(parsed) }),
     worktreeLineageById: parsed.worktreeLineageById ?? {},
+    localTasksByProject: normalizeLocalTasksByProject(parsed.localTasksByProject) ?? {},
     mobileClientTabSelectionsByDeviceId: normalizePersistedMobileClientTabSelections(
       parsed.mobileClientTabSelectionsByDeviceId
     ),

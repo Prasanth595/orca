@@ -2,16 +2,19 @@ import type { TaskPageGitHubIssueDraftModel } from './use-task-page-github-issue
 import { useState, useMemo, useCallback } from 'react'
 import type { LinearIssue } from '../../../shared/linear/issue-types'
 import type { JiraIssue } from '../../../shared/jira-types'
+import type { LocalTask } from '../../../shared/local-task'
 import { useAppStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
 import { findTaskPageLinearIssue } from '@/components/task-page-cache-selectors'
 import { findTaskPageJiraIssue } from '@/components/task-page-jira-cache-selectors'
+
 export function useTaskPageDetailRouting(model: TaskPageGitHubIssueDraftModel) {
   const {
     pageData,
     openTaskPage,
     linearTaskSourceContext,
     jiraTaskSourceContext,
+    localTaskSourceContext,
     setDialogWorkItem
   } = model
   const [selectedLinearIssueIdState, setSelectedLinearIssueId] = useState<string | null>(null)
@@ -108,6 +111,7 @@ export function useTaskPageDetailRouting(model: TaskPageGitHubIssueDraftModel) {
     }
     setDialogWorkItem(null)
     clearSelectedLinearIssue()
+    setSelectedLocalTask(null)
     useAppStore.setState((s) => ({
       taskPageData: {
         ...s.taskPageData,
@@ -119,7 +123,9 @@ export function useTaskPageDetailRouting(model: TaskPageGitHubIssueDraftModel) {
         openLinearIssue: undefined,
         openLinearSourceContext: undefined,
         openJiraIssue: undefined,
-        openJiraSourceContext: undefined
+        openJiraSourceContext: undefined,
+        openLocalTask: undefined,
+        openLocalSourceContext: undefined
       }
     }))
   }, [clearSelectedLinearIssue, setDialogWorkItem])
@@ -182,9 +188,46 @@ export function useTaskPageDetailRouting(model: TaskPageGitHubIssueDraftModel) {
     },
     [jiraTaskSourceContext, openTaskPage]
   )
+  const [selectedLocalTaskState, setSelectedLocalTask] = useState<LocalTask | null>(null)
+  const selectedLocalTask = pageData.openLocalTask ?? selectedLocalTaskState
+  const localDetailSourceContext = useMemo(() => {
+    if (
+      selectedLocalTask &&
+      pageData.openLocalSourceContext?.provider === 'local' &&
+      pageData.openLocalTask?.id === selectedLocalTask.id
+    ) {
+      return pageData.openLocalSourceContext
+    }
+    return localTaskSourceContext
+  }, [
+    localTaskSourceContext,
+    pageData.openLocalTask,
+    pageData.openLocalSourceContext,
+    selectedLocalTask
+  ])
+  const openLocalDetailPage = useCallback(
+    (task: LocalTask) => {
+      setSelectedLocalTask(task)
+      openTaskPage(
+        {
+          taskSource: 'local',
+          openLocalTask: task,
+          openLocalSourceContext: localTaskSourceContext
+        },
+        {
+          recordTasksInteraction: false
+        }
+      )
+    },
+    [localTaskSourceContext, openTaskPage]
+  )
 
   // Linear tab state
   const nextModel = model as typeof model & {
+    selectedLocalTask: typeof selectedLocalTask
+    setSelectedLocalTask: typeof setSelectedLocalTask
+    localDetailSourceContext: typeof localDetailSourceContext
+    openLocalDetailPage: typeof openLocalDetailPage
     selectedLinearIssueId: typeof selectedLinearIssueId
     setSelectedLinearIssueId: typeof setSelectedLinearIssueId
     selectedLinearIssueFallback: typeof selectedLinearIssueFallback
@@ -236,6 +279,10 @@ export function useTaskPageDetailRouting(model: TaskPageGitHubIssueDraftModel) {
   nextModel.jiraDetailSourceContext = jiraDetailSourceContext
   nextModel.setSelectedJiraIssue = setSelectedJiraIssue
   nextModel.openJiraDetailPage = openJiraDetailPage
+  nextModel.selectedLocalTask = selectedLocalTask
+  nextModel.setSelectedLocalTask = setSelectedLocalTask
+  nextModel.localDetailSourceContext = localDetailSourceContext
+  nextModel.openLocalDetailPage = openLocalDetailPage
   return nextModel
 }
 export type TaskPageDetailRoutingModel = ReturnType<typeof useTaskPageDetailRouting>

@@ -22,6 +22,8 @@ export function shouldHideTaskPageListChrome({
   // Why: provider-specific selection can intentionally survive source switches;
   // stale detail state from another provider must not hide the active list chrome.
   switch (taskSource) {
+    case 'local':
+      return false
     case 'github':
       return hasGitHubDetail
     case 'gitlab':

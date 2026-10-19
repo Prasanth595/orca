@@ -212,6 +212,7 @@ export function buildWorkspaceRunContext(args: {
 
 function normalizeTaskProvider(value: unknown): TaskProvider | null {
   switch (value) {
+    case 'local':
     case 'github':
     case 'gitlab':
     case 'linear':

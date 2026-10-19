@@ -8,6 +8,7 @@ import type { FeatureInteractionState } from '../../../../shared/feature-interac
 import type { TaskSourceContext } from '../../../../shared/task-source-context'
 import type { AppState } from '../types'
 import type { JiraIssue } from '../../../../shared/jira-types'
+import type { LocalTask } from '../../../../shared/local-task'
 import { createUIStore, makePersistedUI } from './ui-slice-test-harness'
 
 const mocks = vi.hoisted(() => ({
@@ -91,7 +92,6 @@ function makeLinearIssue(overrides: Partial<LinearIssue> = {}): LinearIssue {
     ...overrides
   } as LinearIssue
 }
-
 function makeJiraIssue(overrides: Partial<JiraIssue> = {}): JiraIssue {
   return {
     id: 'ORC-1',
@@ -106,6 +106,19 @@ function makeJiraIssue(overrides: Partial<JiraIssue> = {}): JiraIssue {
     labels: [],
     createdAt: '2026-05-30T00:00:00.000Z',
     updatedAt: '2026-05-30T00:00:00.000Z',
+    ...overrides
+  }
+}
+
+function makeLocalTask(overrides: Partial<LocalTask> = {}): LocalTask {
+  return {
+    id: 1,
+    url: 'orca://local-task/v1/project-1/1',
+    title: 'Write local board plan',
+    description: '',
+    status: 'todo',
+    createdAt: 1700000000000,
+    updatedAt: 1700000000000,
     ...overrides
   }
 }
@@ -375,11 +388,13 @@ describe('createUISlice page navigation history', () => {
     store.getState().openTaskPage({ taskSource: 'github', openGitHubWorkItem: workItem })
     store.getState().openTaskPage({ taskSource: 'linear', openLinearIssue: linearIssue })
     store.getState().openTaskPage({ taskSource: 'jira', openJiraIssue: jiraIssue })
+    store.getState().openTaskPage({ taskSource: 'local', openLocalTask: makeLocalTask() })
 
     expect(recordFeatureInteraction).toHaveBeenCalledWith('tasks')
     expect(recordFeatureInteraction).toHaveBeenCalledWith('github-tasks')
     expect(recordFeatureInteraction).toHaveBeenCalledWith('linear-tasks')
     expect(recordFeatureInteraction).toHaveBeenCalledWith('jira-tasks')
+    expect(recordFeatureInteraction).toHaveBeenCalledWith('local-tasks')
   })
 
   it('preserves GitHub task detail source context in navigation history', () => {
@@ -391,7 +406,6 @@ describe('createUISlice page navigation history', () => {
       projectId: 'project-1',
       hostId: 'ssh:devbox',
       projectHostSetupId: 'setup-1',
-      repoId: 'repo-remote',
       providerIdentity: { provider: 'github', owner: 'stablyai', repo: 'orca' }
     }
 
@@ -484,6 +498,31 @@ describe('createUISlice page navigation history', () => {
       kind: 'task-detail',
       source: 'jira',
       issue,
+      sourceContext
+    })
+  })
+
+  it('preserves Local task detail source context in navigation history', () => {
+    const store = createUIStore()
+    const task = makeLocalTask()
+    const sourceContext: TaskSourceContext = {
+      kind: 'task-source',
+      provider: 'local',
+      projectId: 'project-1',
+      hostId: 'local',
+      providerIdentity: null
+    }
+
+    store.getState().openTaskPage({
+      taskSource: 'local',
+      openLocalTask: task,
+      openLocalSourceContext: sourceContext
+    })
+
+    expect(store.getState().worktreeNavHistory.at(-1)).toEqual({
+      kind: 'task-detail',
+      source: 'local',
+      task,
       sourceContext
     })
   })

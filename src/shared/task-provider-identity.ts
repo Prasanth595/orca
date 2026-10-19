@@ -22,6 +22,11 @@ export type LinearTaskProviderIdentity = {
   teamKey?: string | null
 }
 
+export type LocalTaskProviderIdentity = {
+  provider: 'local'
+  boardId?: string | null
+}
+
 export type JiraTaskProviderIdentity = {
   provider: 'jira'
   siteId?: string | null
@@ -30,6 +35,7 @@ export type JiraTaskProviderIdentity = {
 }
 
 export type TaskProviderIdentity =
+  | LocalTaskProviderIdentity
   | GitHubTaskProviderIdentity
   | GitLabTaskProviderIdentity
   | LinearTaskProviderIdentity
@@ -47,13 +53,18 @@ export function normalizeTaskProviderIdentity(
     return null
   }
   switch (provider) {
+    case 'local':
+      return {
+        provider,
+        boardId: normalizeNonEmptyString(raw.boardId)
+      }
     case 'github': {
       const owner = normalizeNonEmptyString(raw.owner)
       const repo = normalizeNonEmptyString(raw.repo)
+      const host = normalizeNonEmptyString(raw.host)
       if (!owner || !repo) {
         return null
       }
-      const host = normalizeNonEmptyString(raw.host)
       return { provider, owner, repo, ...(host ? { host } : {}) }
     }
     case 'gitlab':
@@ -94,6 +105,8 @@ export function isStoredTaskProviderIdentity(provider: TaskProvider, identity: u
     return false
   }
   switch (provider) {
+    case 'local':
+      return isNullableOptionalString(raw.boardId)
     case 'github':
       return (
         typeof raw.owner === 'string' &&
@@ -116,6 +129,7 @@ export function isStoredTaskProviderIdentity(provider: TaskProvider, identity: u
 }
 
 const TASK_PROVIDER_IDENTITY_FIELDS: Record<TaskProvider, readonly string[]> = {
+  local: ['boardId'],
   github: ['owner', 'repo', 'host'],
   gitlab: ['projectId', 'namespace', 'project', 'webUrl'],
   linear: ['workspaceId', 'workspaceName', 'teamId', 'teamKey'],
@@ -149,6 +163,8 @@ export function taskProviderIdentityCachePart(
     return ''
   }
   switch (identity.provider) {
+    case 'local':
+      return identity.boardId ?? ''
     case 'github':
       return githubRepoIdentityKey(identity)
     case 'gitlab':

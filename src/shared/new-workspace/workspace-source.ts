@@ -1,4 +1,5 @@
 import { getLinearOrganizationUrlKeyFromIssueUrl } from '../linear/links'
+import { LOCAL_TASK_URL_PREFIX } from '../local-tasks'
 import type { FolderWorkspaceLinkedTask } from '../folder-workspace-types'
 import type { JiraIssue } from '../jira-types'
 import type { LinearIssue } from '../linear/issue-types'
@@ -49,6 +50,7 @@ export type WorkspaceSourceSelectionKind =
   | 'branch'
   | 'linear'
   | 'jira'
+  | 'local'
 
 export type WorkspaceSourceSelection = {
   kind: WorkspaceSourceSelectionKind
@@ -82,6 +84,9 @@ export function getWorkspaceSourceProvider(item: WorkspaceSourceItemLike): Works
   if (item.provider) {
     return item.provider
   }
+  if (isLocalTaskUrl(item.url)) {
+    return 'local'
+  }
   if (item.linearIdentifier) {
     return 'linear'
   }
@@ -95,6 +100,10 @@ export function getWorkspaceSourceProvider(item: WorkspaceSourceItemLike): Works
     return 'linear'
   }
   return 'github'
+}
+
+function isLocalTaskUrl(url: string): boolean {
+  return url.startsWith(LOCAL_TASK_URL_PREFIX)
 }
 
 export function buildGitHubWorkspaceSource(item: {
@@ -195,24 +204,26 @@ export function buildWorkspaceSourceSelection(args: {
     return baseBranch ? { kind: 'branch', label: baseBranch } : null
   }
   const provider = getWorkspaceSourceProvider(linkedWorkItem)
-  const kind: WorkspaceSourceSelectionKind =
-    provider === 'linear'
-      ? 'linear'
-      : provider === 'jira'
-        ? 'jira'
-        : provider === 'gitlab'
-          ? linkedWorkItem.type === 'mr'
-            ? 'gitlab-mr'
-            : 'gitlab-issue'
-          : linkedWorkItem.type === 'pr'
-            ? 'github-pr'
-            : 'github-issue'
+  if (provider === 'local') {
+    return { kind: 'local', label: linkedWorkItem.title, url: linkedWorkItem.url }
+  }
+  if (provider === 'linear' || provider === 'jira' || linkedWorkItem.number === 0) {
+    return {
+      kind: provider === 'linear' ? 'linear' : 'jira',
+      label: linkedWorkItem.title,
+      url: linkedWorkItem.url
+    }
+  }
+  if (provider === 'gitlab') {
+    return {
+      kind: linkedWorkItem.type === 'mr' ? 'gitlab-mr' : 'gitlab-issue',
+      label: `#${linkedWorkItem.number} ${linkedWorkItem.title}`,
+      url: linkedWorkItem.url
+    }
+  }
   return {
-    kind,
-    label:
-      provider === 'linear' || provider === 'jira' || linkedWorkItem.number === 0
-        ? linkedWorkItem.title
-        : `#${linkedWorkItem.number} ${linkedWorkItem.title}`,
+    kind: linkedWorkItem.type === 'pr' ? 'github-pr' : 'github-issue',
+    label: `#${linkedWorkItem.number} ${linkedWorkItem.title}`,
     url: linkedWorkItem.url
   }
 }
@@ -224,5 +235,5 @@ export function shouldPreserveWorkspaceSourceOnRepoChange(
     return false
   }
   const provider = getWorkspaceSourceProvider(item)
-  return provider === 'linear' || provider === 'jira'
+  return provider === 'local' || provider === 'linear' || provider === 'jira'
 }

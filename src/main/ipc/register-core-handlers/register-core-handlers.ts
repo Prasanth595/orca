@@ -50,6 +50,7 @@ import { registerSkillsHandlers } from '../skills'
 import { registerSkillDeleteIpcHandlers } from '../skill-delete/handlers'
 import { registerWorkspaceSpaceHandlers } from '../workspace-space'
 import { registerWorkspacePortHandlers } from '../workspace-ports'
+import { registerLocalTaskHandlers } from '../local-tasks'
 import { registerLocalhostWorktreeLabelHandlers } from '../localhost-worktree-labels'
 import { registerAutomationHandlers } from '../automations'
 import { registerKeybindingHandlers } from '../keybindings'
@@ -241,6 +242,7 @@ export function registerCoreHandlers(
   registerEmulatorVideoStreamHandlers()
   registerWorkspaceSpaceHandlers(store)
   registerWorkspacePortHandlers(store)
+  registerLocalTaskHandlers(store)
   registerLocalhostWorktreeLabelHandlers(store)
   if (commitMessageAgentEnv) {
     registerFilesystemHandlers(store, commitMessageAgentEnv)

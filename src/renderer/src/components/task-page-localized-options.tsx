@@ -113,6 +113,11 @@ export function getGitHubTaskKindPresets(kind: GitHubTaskKind): TaskQueryPreset[
 
 export const getSourceOptions = createLocalizedCatalog((): SourceOption[] => [
   {
+    id: 'local',
+    label: translate('auto.components.TaskPage.localSource', 'Local'),
+    Icon: ({ className }) => <LinearIcon className={className} />
+  },
+  {
     id: 'github',
     label: translate('auto.components.TaskPage.acef77f7ca', 'GitHub'),
     Icon: ({ className }) => <Github className={className} />

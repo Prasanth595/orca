@@ -228,6 +228,17 @@ export function SidebarTaskNavButton(): React.JSX.Element | null {
                 <JiraIcon className="size-3.5" />
               </TaskProviderShortcut>
             ) : null}
+            {visibleTaskProviders.includes('local') ? (
+              <TaskProviderShortcut
+                label={translate(
+                  'auto.components.sidebar.SidebarNav.localTasks',
+                  'Open Local tasks'
+                )}
+                onOpen={() => openTaskPage({ taskSource: 'local' })}
+              >
+                <List className="size-3.5" aria-hidden />
+              </TaskProviderShortcut>
+            ) : null}
           </span>
         </div>
       </ContextMenuTrigger>

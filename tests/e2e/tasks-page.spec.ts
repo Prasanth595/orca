@@ -449,4 +449,36 @@ test.describe('Tasks page', () => {
     await expect(input).toHaveValue('is:issue ratex')
     await expect(existingIssue).toBeVisible()
   })
+
+  test('local source creates, shows, and deletes a task', async ({ orcaPage }) => {
+    await openTasksPage(orcaPage)
+
+    await expect
+      .poll(async () => getStoreState<string>(orcaPage, 'activeView'), { timeout: 5_000 })
+      .toBe('tasks')
+
+    const localSource = orcaPage.locator('button[data-task-source="local"]')
+    await expect(localSource).toBeVisible({ timeout: 10_000 })
+    await localSource.click()
+
+    // Empty board offers a create action.
+    const newTaskButton = orcaPage.getByRole('button', { name: /new task/i })
+    await expect(newTaskButton).toBeVisible({ timeout: 10_000 })
+    await newTaskButton.click()
+
+    const titleInput = orcaPage.getByLabel(/title/i)
+    await expect(titleInput).toBeVisible({ timeout: 5_000 })
+    await titleInput.fill('E2E local task')
+    await orcaPage.getByRole('button', { name: /^create$/i }).click()
+
+    // Card shows in the To do column.
+    const todoColumn = orcaPage.getByTestId('local-column-todo')
+    await expect(todoColumn.getByText('E2E local task')).toBeVisible({ timeout: 10_000 })
+
+    // Delete with confirmation removes the card and returns to empty.
+    await todoColumn.getByRole('button', { name: /delete task/i }).click()
+    await orcaPage.getByRole('button', { name: /^delete$/i }).click()
+    await expect(todoColumn.getByText('E2E local task')).toHaveCount(0, { timeout: 10_000 })
+    await expect(orcaPage.getByRole('button', { name: /new task/i })).toBeVisible()
+  })
 })

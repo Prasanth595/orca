@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Github, Gitlab } from 'lucide-react'
+import { Github, Gitlab, List } from 'lucide-react'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import type { TaskProvider } from '../../../../shared/task-providers'
 import {
@@ -15,6 +15,7 @@ import { SearchableSetting } from './SearchableSetting'
 import { SettingsSubsectionHeader } from './SettingsFormControls'
 import { CodeHostSetupSteps, JiraSetupSteps } from './TaskSourceSimpleSetup'
 import { TaskSourceLinearSetup } from './TaskSourceLinearSetup'
+import { TaskSourceShowInTasksStep } from './TaskSourceShowInTasksStep'
 import { TaskSourceProviderCard } from './TaskSourceProviderCard'
 import {
   getStalledVisibleTaskProviders,
@@ -42,6 +43,18 @@ const PROVIDER_META: Record<
     Icon: (props: { className?: string }) => React.JSX.Element
   }
 > = {
+  local: {
+    get label() {
+      return translate('auto.components.settings.TasksPane.localLabel', 'Local')
+    },
+    get description() {
+      return translate(
+        'auto.components.settings.TasksPane.localDescription',
+        'Track tasks per project without connecting an integration.'
+      )
+    },
+    Icon: ({ className }) => <List className={className} />
+  },
   github: {
     get label() {
       return translate('auto.components.settings.TasksPane.e14063e727', 'GitHub')
@@ -216,6 +229,14 @@ export function TasksPane({ settings, updateSettings }: TasksPaneProps): React.J
                     canHide={canHide}
                     onToggleVisible={() => toggleProvider('linear')}
                     onOpenIntegrations={() => openIntegrations(LINEAR_INTEGRATION_SECTION_ID)}
+                  />
+                ) : provider === 'local' ? (
+                  <TaskSourceShowInTasksStep
+                    index={1}
+                    providerLabel={meta.label}
+                    visible={visible}
+                    canHide={canHide}
+                    onToggleVisible={() => toggleProvider('local')}
                   />
                 ) : provider === 'jira' ? (
                   <JiraSetupSteps

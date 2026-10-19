@@ -3,10 +3,10 @@ type WorktreeCardTitleDisplayInput = {
   branchName: string | null | undefined
   linearIssueTitle?: string | null
   jiraIssueTitle?: string | null
+  localTaskTitle?: string | null
   issueTitle?: string | null
   reviewTitle?: string | null
 }
-
 function normalizeComparableTitle(value: string | null | undefined): string | null {
   const trimmed = value?.trim()
   return trimmed ? trimmed : null
@@ -41,13 +41,13 @@ export function getWorktreeCardTitleDisplay({
   branchName,
   linearIssueTitle,
   jiraIssueTitle,
+  localTaskTitle,
   issueTitle,
   reviewTitle
 }: WorktreeCardTitleDisplayInput): string {
   const normalizedStoredDisplayName = normalizeComparableTitle(storedDisplayName)
   const normalizedBranchName = normalizeComparableTitle(branchName)
   const visibleStoredDisplayName = coerceWorktreeCardVisibleTitle(storedDisplayName)
-
   if (!normalizedBranchName) {
     return normalizedStoredDisplayName ? visibleStoredDisplayName : ''
   }
@@ -64,6 +64,7 @@ export function getWorktreeCardTitleDisplay({
   return (
     normalizeTitle(linearIssueTitle) ??
     normalizeTitle(jiraIssueTitle) ??
+    normalizeTitle(localTaskTitle) ??
     normalizeTitle(issueTitle) ??
     normalizeTitle(reviewTitle) ??
     (normalizedStoredDisplayName ? visibleStoredDisplayName : '')

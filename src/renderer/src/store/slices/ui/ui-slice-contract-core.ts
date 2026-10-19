@@ -8,6 +8,7 @@ import type { GitHubWorkItem } from '../../../../../shared/github/work-item-type
 import type { GitLabWorkItem } from '../../../../../shared/gitlab-types'
 import type { JiraIssue } from '../../../../../shared/jira-types'
 import type { LinearIssue } from '../../../../../shared/linear/issue-types'
+import type { LocalTask } from '../../../../../shared/local-task'
 import type { TaskProvider } from '../../../../../shared/task-providers'
 import type { TuiAgent } from '../../../../../shared/tui-agent'
 import type { LaunchSource } from '../../../../../shared/telemetry-events'
@@ -71,6 +72,8 @@ export type TaskPageData = {
   openLinearSourceContext?: TaskSourceContext | null
   openJiraIssue?: JiraIssue
   openJiraSourceContext?: TaskSourceContext | null
+  openLocalTask?: LocalTask
+  openLocalSourceContext?: TaskSourceContext | null
 }
 
 export type NewWorkspaceDraft = {
@@ -85,7 +88,7 @@ export type NewWorkspaceDraft = {
   note: string
   attachments: string[]
   linkedWorkItem: {
-    provider?: 'github' | 'gitlab' | 'linear' | 'jira'
+    provider?: 'local' | 'github' | 'gitlab' | 'linear' | 'jira'
     type: 'issue' | 'pr' | 'mr'
     number: number
     title: string

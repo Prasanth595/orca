@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Github, Gitlab, Plus } from 'lucide-react'
+import { Github, Gitlab, List, Plus } from 'lucide-react'
 import { LinearIcon } from '@/components/icons/LinearIcon'
 import { JiraIcon } from '@/components/icons/JiraIcon'
 import { CommandItem } from '@/components/ui/command'
@@ -11,13 +11,16 @@ import { translate } from '@/i18n/i18n'
 function TaskUrlProviderIcon({
   provider
 }: {
-  provider: CmdJTaskUrlCreatePreview['provider']
+  provider: CmdJTaskUrlCreatePreview['provider'] | 'local'
 }): React.JSX.Element {
   if (provider === 'github') {
     return <Github className="size-3" aria-hidden="true" />
   }
   if (provider === 'gitlab') {
     return <Gitlab className="size-3" aria-hidden="true" />
+  }
+  if (provider === 'local') {
+    return <List className="size-3" aria-hidden="true" />
   }
   return <JiraIcon className="size-3" />
 }

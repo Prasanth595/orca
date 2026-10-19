@@ -4,6 +4,7 @@ import { useTaskPageRepoSelection } from '../use-task-page-repo-selection'
 import { useTaskPageRuntimeHosts } from '../use-task-page-runtime-hosts'
 import { useTaskPageSourceAvailability } from '../use-task-page-source-availability'
 import { useTaskPageProviderState } from '../use-task-page-provider-state'
+import { useTaskPageLocalLoading } from '../use-task-page-local-loading'
 import { useTaskPageGitHubListState } from '../use-task-page-github-list-state'
 import { useTaskPageGitHubDetail } from '../use-task-page-github-detail'
 import { useTaskPageGitHubCacheReconciliation } from '../use-task-page-github-cache-reconciliation'
@@ -81,6 +82,7 @@ export default function TaskPage(): React.JSX.Element {
   const stage37 = useTaskPageLinearInOrcaEffects(stage36)
   const stage38 = useTaskPageLinearCollectionEffects(stage37)
   const stage39 = useTaskPageJiraListEffects(stage38)
-  const stage40 = useTaskPageComposerActions(stage39)
-  return <TaskPageSurface model={stage40} />
+  const stage40 = useTaskPageLocalLoading(stage39)
+  const stage41 = useTaskPageComposerActions(stage40)
+  return <TaskPageSurface model={stage41} />
 }

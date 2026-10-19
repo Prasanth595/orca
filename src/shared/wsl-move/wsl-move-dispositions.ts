@@ -72,6 +72,9 @@ export const PERSISTED_STATE_DISPOSITIONS = {
   settings: notApplicableDisposition(62, 'Desktop-global; see SETTINGS_KEYS_NAMING_A_PATH.'),
   ui: { disposition: 'per-field', item: 38 },
   githubCache: notApplicableDisposition(21, 'Cache keyed by repoId, which the move keeps.'),
+  localTasksByProject: moveDisposition(23, {
+    note: 'Project-scoped task rows move with the project; ids stay stable.'
+  }),
   workspaceSession: { disposition: 'per-field', item: 22 },
   workspaceSessionsByHostId: {
     disposition: 'rewrite-desktop',

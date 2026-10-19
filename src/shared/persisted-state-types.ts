@@ -13,6 +13,7 @@ import type { NativeChatUpgradeTipAudience } from './native-chat-upgrade-tip-aud
 import type { DiffComment } from './diff-comment-types'
 import type { FolderWorkspace, WorkspaceKey } from './folder-workspace-types'
 import type { GlobalSettings } from './global-settings-types'
+import type { LocalTask } from './local-task'
 import type { IssueInfo, PRInfo } from './github/pull-request-types'
 import type { OnboardingState } from './onboarding-state-types'
 import type { PersistedUIState } from './persisted-ui-state-types'
@@ -30,6 +31,12 @@ import type {
   OrcadMigrationImportReceipt,
   OrcadMigrationStagedCatalog
 } from './orcad-migration-manifest'
+
+// ─── Local tasks ────────────────────────────────────────────────────
+export type LocalTasksByProject = {
+  tasks: LocalTask[]
+  nextLocalTaskId: number
+}
 
 export type LegacyPaneKeyAliasEntry = {
   ptyId: string
@@ -96,6 +103,8 @@ export type PersistedState = {
     pr: Record<string, { data: PRInfo | null; fetchedAt: number }>
     issue: Record<string, { data: IssueInfo | null; fetchedAt: number }>
   }
+  /** Local tasks keyed by project id. Optional so old builds round-trip it verbatim; absent key stays absent. */
+  localTasksByProject?: Record<string, LocalTasksByProject>
   /** Legacy single-blob session, kept as the canonical 'local' host partition so an app downgrade still reads its workspace. */
   workspaceSession: WorkspaceSessionState
   /** Per-execution-host session partitions for non-'local' hosts (ssh:/runtime:); 'local' stays in workspaceSession so pre-partition builds keep working. */

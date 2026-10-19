@@ -28,6 +28,7 @@ export function normalizeWorkspaceLinkedItem(value: unknown): WorkspaceLinkedIte
   }
   const raw = value as Partial<WorkspaceLinkedItem>
   if (
+    raw.provider !== 'local' &&
     raw.provider !== 'github' &&
     raw.provider !== 'gitlab' &&
     raw.provider !== 'linear' &&

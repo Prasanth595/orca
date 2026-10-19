@@ -3,6 +3,7 @@ import { getWorkspaceAttachments } from '../../../../shared/workspace-attachment
 import type { IssueInfo } from '../../../../shared/github/pull-request-types'
 import type { LinearIssue } from '../../../../shared/linear/issue-types'
 import { getWorktreeCardJiraIssueDisplay } from './worktree-card-jira-issue-display'
+import { getWorktreeCardLocalTaskDisplay } from './worktree-card-local-task-display'
 import type { WorktreeCardIssueDisplay } from './WorktreeCardMeta'
 import {
   coerceWorktreeCardVisibleTitle,
@@ -76,11 +77,13 @@ export function useWorktreeCardLinkedDetails({
         }
     : null
   const jiraIssueDisplay = getWorktreeCardJiraIssueDisplay(worktree)
+  const localTaskDisplay = getWorktreeCardLocalTaskDisplay(worktree)
   const cardTitleDisplay = getWorktreeCardTitleDisplay({
     storedDisplayName: worktree.displayName,
     branchName: branch,
     linearIssueTitle: linearIssueDisplay?.title,
     jiraIssueTitle: jiraIssueDisplay?.title,
+    localTaskTitle: localTaskDisplay?.title,
     issueTitle: issueDisplay?.title,
     reviewTitle: prDisplay?.title
   })
@@ -98,6 +101,7 @@ export function useWorktreeCardLinkedDetails({
     linearIssue,
     linearIssueDisplay,
     jiraIssueDisplay,
+    localTaskDisplay,
     visibleCardTitle,
     isDeleting,
     isQueuedForDeletion,

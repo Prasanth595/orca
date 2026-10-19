@@ -1,6 +1,12 @@
-export type TaskProvider = 'github' | 'gitlab' | 'linear' | 'jira'
+export type TaskProvider = 'local' | 'github' | 'gitlab' | 'linear' | 'jira'
 
-export const TASK_PROVIDERS: readonly TaskProvider[] = ['github', 'gitlab', 'linear', 'jira']
+export const TASK_PROVIDERS: readonly TaskProvider[] = [
+  'local',
+  'github',
+  'gitlab',
+  'linear',
+  'jira'
+]
 
 const TASK_PROVIDER_SET = new Set<TaskProvider>(TASK_PROVIDERS)
 
@@ -94,6 +100,9 @@ function isTaskProviderAvailable(
   provider: TaskProvider,
   availability: TaskProviderAvailability
 ): boolean {
+  if (provider === 'local') {
+    return true
+  }
   if (provider === 'github') {
     return true
   }
