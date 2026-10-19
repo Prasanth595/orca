@@ -3,14 +3,9 @@ import type * as FsPromises from 'node:fs/promises'
 import type { GitWorktreeInfo } from '../../shared/worktree/types'
 import type { gitExecFileAsync } from './runner'
 
-const { statProbe, gitExec, missingPathProbe } = vi.hoisted(() => ({
+const { statProbe, gitExec } = vi.hoisted(() => ({
   statProbe: vi.fn<(worktreePath: string) => Promise<void>>(),
-  gitExec: vi.fn<typeof gitExecFileAsync>(),
-  missingPathProbe: vi.fn<() => Promise<boolean>>()
-}))
-
-vi.mock('../local-worktree-filesystem', () => ({
-  isLocalWorktreePathMissing: missingPathProbe
+  gitExec: vi.fn<typeof gitExecFileAsync>()
 }))
 
 vi.mock('node:fs/promises', async (importOriginal) => ({
@@ -27,7 +22,6 @@ vi.mock('../../shared/git-worktree-admin', () => ({
 
 import { clearGitCapabilityStateForTests } from './git-capability-state'
 import { readWorktreeList } from './worktree-list-reader'
-import { listWorktreesStrictAllowingTrueEmpty } from './worktree-listing'
 
 function porcelainRow(worktreePath: string, markers: string[] = []): string {
   return [
@@ -49,7 +43,6 @@ beforeEach(() => {
   clearGitCapabilityStateForTests()
   statProbe.mockReset()
   gitExec.mockReset()
-  missingPathProbe.mockReset().mockResolvedValue(false)
   porcelain =
     porcelainRow('/repo') +
     Array.from({ length: 32 }, (_, index) => porcelainRow(`/repo/task-${index}`)).join('')
@@ -59,14 +52,6 @@ beforeEach(() => {
     }
     return { stdout: porcelain, stderr: '' }
   })
-})
-
-it('skips Git for a missing repo path and scans after the path returns', async () => {
-  missingPathProbe.mockResolvedValueOnce(true).mockResolvedValueOnce(false)
-  await expect(listWorktreesStrictAllowingTrueEmpty('/repo')).resolves.toEqual([])
-  expect(gitExec).not.toHaveBeenCalled()
-  await readWorktreeList('/repo')
-  expect(gitExec).toHaveBeenCalled()
 })
 
 describe('old-Git native worktree listing cancellation', () => {

@@ -1,6 +1,5 @@
 import { runProcess } from '@orca/process-host'
 import { lstat, readFile } from 'node:fs/promises'
-import { isDefinitiveAbsence } from '../shared/definitive-filesystem-absence'
 import { buildWslExecArgs, quotePosixShell } from '../shared/wsl-login-shell-command'
 import { removeHostTree } from './host-tree-removal'
 import { toLinuxPath } from './wsl'
@@ -117,21 +116,6 @@ export function getLocalWorktreePathAccess(
       const stdout = await runWslCommand(distro, `cat -- ${target}`)
       return stdout
     }
-  }
-}
-
-export async function isLocalWorktreePathMissing(
-  path: string,
-  options: LocalWorktreeFilesystemOptions = {}
-): Promise<boolean> {
-  try {
-    await getLocalWorktreePathAccess(options).statPath(path)
-    return false
-  } catch (error) {
-    if (isDefinitiveAbsence(error)) {
-      return true
-    }
-    throw error
   }
 }
 

@@ -2,14 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Repo } from '../../../../shared/repo-types'
 import type { DetectedWorktreeListResult } from '../../../../shared/worktree/types'
 
-const { gitExecFileAsyncMock, missingPathProbe } = vi.hoisted(() => ({
-  gitExecFileAsyncMock: vi.fn(),
-  missingPathProbe: vi.fn()
-}))
-
-vi.mock('../../../local-worktree-filesystem', () => ({
-  isLocalWorktreePathMissing: missingPathProbe
-}))
+const gitExecFileAsyncMock = vi.hoisted(() => vi.fn())
 
 vi.mock('electron', () => ({
   ipcMain: { handle: vi.fn(), removeHandler: vi.fn() },
@@ -73,7 +66,6 @@ async function listDetected(): Promise<DetectedWorktreeListResult> {
 describe('detected worktree listing authority', () => {
   beforeEach(() => {
     gitExecFileAsyncMock.mockReset()
-    missingPathProbe.mockReset().mockResolvedValue(false)
     removeWorktreeLineage.mockReset()
     __resetDetectedWorktreeScanCacheForTests()
     _resetWorktreeScanCacheForTests()
