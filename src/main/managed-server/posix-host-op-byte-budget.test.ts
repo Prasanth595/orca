@@ -34,11 +34,12 @@ import {
   captureOrcadStateSnapshotCommand,
   clearOrcadStateSnapshotMembersCommand,
   compareOrcadStateSnapshotCommand,
-  newestStateMtimeCommand,
   probeOrcadStateSnapshotCommand,
   restoreOrcadStateSnapshotCommand,
   serializedStateMutationCommand
 } from './host-state/orcad-state-snapshot'
+import { newestStateMtimeCommand } from './host-state/orcad-state-newest-mtime'
+import { orcadSnapshotSpaceCommand } from './host-state/orcad-state-snapshot-space'
 import { posixProcessGroupCommand } from './host-state/orcad-state-mutation-owner-record'
 import { orcadMachineClaimCommand } from './host-state/orcad-machine-claim-command'
 import { orcadMachineHomeProbeCommand } from './host-state/orcad-machine-home'
@@ -95,7 +96,8 @@ const POSIX_HOST_OP_BYTE_BUDGET = 6 * 1024
 // capture/restore/clear ops leave when they move onto the Node host script (R4-10b, decision D-J);
 // install-lock steal and anything else that runs before a verified Node must shrink in shell.
 const OVER_BUDGET_CEILINGS: Readonly<Record<string, number>> = {
-  captureOrcadStateSnapshotCommand: 15_327,
+  // Correct #30635's stale 15,327 baseline: #30618 had already grown main's capture to 17,407.
+  captureOrcadStateSnapshotCommand: 17_407,
   restoreOrcadStateSnapshotCommand: 20_805,
   clearOrcadStateSnapshotMembersCommand: 9_175,
   tryStealInstallLockCommand: 9_022,
@@ -166,6 +168,10 @@ const BUILDERS: Readonly<Record<string, (c: HostCase) => string>> = {
   compareOrcadStateSnapshotCommand: ({ host }) =>
     compareOrcadStateSnapshotCommand(host, userDataDir, snapshotDir, baseDir),
   newestStateMtimeCommand: ({ host }) => newestStateMtimeCommand(host, userDataDir, baseDir),
+  orcadSnapshotSpaceCommand: ({ host }) =>
+    orcadSnapshotSpaceCommand(host, userDataDir, `${baseDir}/orcad-snapshots`, baseDir, [
+      'pre-1.4.299-rc.12-1760000000000'
+    ]) ?? '',
   posixProcessGroupCommand: () => posixProcessGroupCommand('"$pid"'),
   orcadMachineClaimCommand: ({ host }) => orcadMachineClaimCommand(host, home, 'k'.repeat(64)),
   orcadMachineHomeProbeCommand: ({ host }) => orcadMachineHomeProbeCommand(host),
