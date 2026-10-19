@@ -18,6 +18,7 @@ import { structuredAgentSessionHostSupport } from './mobile-structured-agent-ses
 describe('structuredAgentSessionHostSupport', () => {
   it('reads each structured-session feature from the host capability list', () => {
     const none = {
+      attachments: false,
       promptCancel: false,
       questionAnswers: false,
       queuedMessages: false,
@@ -31,6 +32,9 @@ describe('structuredAgentSessionHostSupport', () => {
       phoneAttachments: false
     }
     expect(structuredAgentSessionHostSupport([])).toEqual(none)
+    expect(
+      structuredAgentSessionHostSupport([AGENT_SESSION_ATTACHMENTS_RUNTIME_CAPABILITY])
+    ).toEqual({ ...none, attachments: true })
     expect(
       structuredAgentSessionHostSupport([AGENT_SESSION_QUESTION_ANSWERS_RUNTIME_CAPABILITY])
     ).toEqual({ ...none, questionAnswers: true })
@@ -64,9 +68,12 @@ describe('structuredAgentSessionHostSupport', () => {
     expect(
       structuredAgentSessionHostSupport([AGENT_SESSION_PHONE_ATTACHMENTS_RUNTIME_CAPABILITY])
     ).toEqual({ ...none, phoneAttachments: true })
-    // A host with the store but from before phones could upload into it offers them nothing.
+    // Read previews and phone uploads are advertised independently.
     expect(
-      structuredAgentSessionHostSupport([AGENT_SESSION_ATTACHMENTS_RUNTIME_CAPABILITY])
-    ).toEqual(none)
+      structuredAgentSessionHostSupport([
+        AGENT_SESSION_ATTACHMENTS_RUNTIME_CAPABILITY,
+        AGENT_SESSION_PHONE_ATTACHMENTS_RUNTIME_CAPABILITY
+      ])
+    ).toEqual({ ...none, attachments: true, phoneAttachments: true })
   })
 })
