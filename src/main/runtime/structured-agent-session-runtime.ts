@@ -112,6 +112,7 @@ export type StructuredAgentSessionRuntimeDeps = StructuredAgentSessionTransportO
   resolveAgentLaunchEnv?: (agent: string) => Record<string, string>
   /** The settings a per-agent Command override is read from, for the same agents. */
   resolveAgentCommandSettings?: () => StructuredAgentCommandSettings
+  transientRecovery?: StructuredAgentSessionHostDeps['transientRecovery']
   resolveEnvironment?: () => Promise<NodeJS.ProcessEnv>
   /** Which login-shell variables Codex and Claude children inherit; absent inherits all. */
   resolveShellEnvironmentPolicy?: () => NativeChatShellEnvironmentPolicy
@@ -302,6 +303,7 @@ async function installOnJournal(
   })
   host = new StructuredAgentSessionHost({
     store,
+    transientRecovery: deps.transientRecovery,
     adapter,
     agents,
     recoveryCapsule: new AgentSessionRecoveryCapsule(deps.stateDirectory),
