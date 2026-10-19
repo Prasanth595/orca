@@ -6,15 +6,13 @@ import { StructuredConversationCommandController } from './structured-conversati
 // only through `conversation`, which opens it at rest; an agent is started only by work that needs
 // it, and the idle sweep is the one thing that puts it to rest.
 
-import type { AgentSessionExecutionLocation } from '../../../shared/agent-session-record'
 import { createRestartReconciler } from './structured-agent-session-restart-reconcile'
 import type { AgentSessionSubscribeInput } from './structured-agent-session-subscribers'
 import { StructuredAgentSessionTaskQueue } from './structured-agent-session-task-queue'
-import * as providerSupport from './structured-agent-session-provider-support'
 import * as reveal from './structured-agent-session-reveal'
 import { structuredAgentSessionOwnerStatus } from './structured-agent-session-owner-status'
 import { StructuredAgentSessionHostRuntimeState } from './structured-agent-session-host-runtime-state'
-import { structuredAgentSessionEntryDelegates } from './structured-agent-session-create'
+import { structuredAgentSessionEntryDelegates } from './structured-agent-session-entry-delegates'
 import type { StructuredAgentSessionLifetimeContext } from './structured-agent-session-host-lifetime'
 import * as agentStart from './structured-agent-session-agent-start'
 import { createStructuredAgentSessionHostMutationContext } from './structured-agent-session-host-mutation-wiring'
@@ -176,6 +174,8 @@ export class StructuredAgentSessionHost {
   loadedSessionIds = (): string[] =>
     [...this.sessions].flatMap(([sessionId, { child }]) => (child ? [sessionId] : []))
   hasLoadedProviders = (): boolean => this.loadedSessionIds().length > 0
+  restartWorkCount = () => this.lifetime.restartWorkCount()
+  drainForRestart = () => this.lifetime.idleSweep.drainForRestart()
   sessionAgent = (sessionId: string) => this.deps.store.getRecord(sessionId)?.provider ?? null
 
   handleAdapterEvent = (event: Parameters<StructuredAgentSessionEventRecovery['handle']>[0]) =>
@@ -226,14 +226,6 @@ export class StructuredAgentSessionHost {
       workspaceId
     )
 
-  supportsCreate = (location: AgentSessionExecutionLocation, agent: string): boolean =>
-    providerSupport.adapterSupportsCreate(this.deps.adapter, location, agent)
-
-  /** Every agent this runtime registered: what `agentSession.agents` publishes. */
-  agentDefinitions = () => this.deps.agents.definitions()
-
-  knownAgentIds = (): readonly string[] => providerSupport.knownAgentIds(this.deps)
-
   private readonly tabs = createTabs(this, this.sessions, this.clientDelivery.forgetStatus)
   listSessionTabs = this.tabs.listSessionTabs
   getPersistedVisibleSessionTabIndex = this.tabs.getPersistedVisibleSessionTabIndex
@@ -259,6 +251,9 @@ export class StructuredAgentSessionHost {
   private serialize = this.tasks.serialize.bind(this.tasks)
 
   private readonly entry = structuredAgentSessionEntryDelegates(() => this.attachContext())
+  supportsCreate = this.entry.supportsCreate
+  agentDefinitions = this.entry.agentDefinitions
+  knownAgentIds = this.entry.knownAgentIds
   attach = this.entry.attach
   create = this.entry.create
 

@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => {
     state,
     resolveContext: vi.fn(),
     census: vi.fn(),
+    restartAdmission: vi.fn(),
+    admissionPort: { reserve: vi.fn(), commit: vi.fn(), release: vi.fn() },
     deploy: vi.fn(),
     rollback: vi.fn(),
     recover: vi.fn(),
@@ -36,7 +38,10 @@ vi.mock('./targets/ssh-target-registry', () => ({
 vi.mock('../managed-server/install/orcad-remote-context', () => ({
   resolveOrcadRemoteContext: mocks.resolveContext
 }))
-vi.mock('./orcad-terminal-census-client', () => ({ collectManagedTerminalCensus: mocks.census }))
+vi.mock('./orcad-terminal-census-client', () => ({
+  collectManagedTerminalCensus: mocks.census,
+  managedOrcadRestartAdmission: mocks.restartAdmission
+}))
 vi.mock('./orcad-remote-deploy', () => ({ deployOrcad: mocks.deploy }))
 vi.mock('../managed-server/install/orcad-remote-rollback', () => ({
   rollbackOrcad: mocks.rollback
@@ -83,6 +88,7 @@ beforeEach(() => {
   mocks.state.store = harness.targetStore
   mocks.resolveContext.mockImplementation(async () => harness.context())
   mocks.census.mockResolvedValue(idle)
+  mocks.restartAdmission.mockReturnValue(mocks.admissionPort)
   mocks.probe.mockResolvedValue(managedReadiness())
   mocks.buildHash.mockResolvedValue('previous-hash')
   mocks.recover.mockResolvedValue({ outcome: 'none' })
@@ -106,6 +112,8 @@ describe('updateManagedOrcadEnvironment', () => {
     expect(result).toMatchObject({ outcome: 'deferred', forceable: false })
     expect(mocks.deploy.mock.calls[0]?.[0]).toMatchObject({
       census: { liveSessions: null },
+      // The incumbent ends itself through this reservation; the update never signals it.
+      restartAdmission: mocks.admissionPort,
       port: 6_768,
       nodePath: ''
     })

@@ -41,7 +41,10 @@ import { deployOrcad, type OrcadDeployOptions } from './orcad-remote-deploy'
 import { ORCAD_ACTIVATION_POLICY_REFUSED_CODE } from './orcad-installed-activation'
 import { pruneManagedOrcadVersions } from '../managed-server/lifecycle/orcad-managed-version-gc'
 import { rollbackOrcad } from '../managed-server/install/orcad-remote-rollback'
-import { collectManagedTerminalCensus } from './orcad-terminal-census-client'
+import {
+  collectManagedTerminalCensus,
+  managedOrcadRestartAdmission
+} from './orcad-terminal-census-client'
 import { findIncompleteManagedOrcadMigration } from '../managed-server/lifecycle/orcad-managed-migration-status'
 import { latestOrcadMigrationInto } from './orcad-migration-rollback-mark'
 import { tunneledOrcadPairingCode } from './orcad-tunneled-pairing'
@@ -124,6 +127,11 @@ export async function runManagedOrcadUpdate(
     undefined,
     { releaseFinishedAutomationTerminals: true }
   )
+  const restartAdmission = managedOrcadRestartAdmission(
+    userDataPath,
+    environment,
+    context.activationRecord
+  )
   const localOrcadDir =
     args.localOrcadDir ??
     (await materializeOrcadArtifact(context.serverTarget, { signal: args.signal }))
@@ -134,6 +142,11 @@ export async function runManagedOrcadUpdate(
     target: context.serverTarget,
     census,
     censusRecord: context.activationRecord,
+    ...(restartAdmission ? { restartAdmission } : {}),
+    recountCensus: () =>
+      collectManagedTerminalCensus(userDataPath, environment, context.activationRecord, undefined, {
+        releaseFinishedAutomationTerminals: true
+      }),
     force: args.force,
     appVersion: getAppEnvironment().getVersion(),
     ...(args.admitRecord ? { admitRecord: args.admitRecord } : {})
