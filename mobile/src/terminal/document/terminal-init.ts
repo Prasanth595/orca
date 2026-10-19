@@ -123,6 +123,7 @@ export function init(
   scope.mouseModeScanTail = ''
   scope.trackedMouseTrackingMode = 'none'
   scope.mouseEncodingKnown = false
+  scope.mouseEncodingLive = false
   scope.sgrMouseMode = false
   scope.sgrMousePixelsMode = false
   scope.lastEmittedModes = {

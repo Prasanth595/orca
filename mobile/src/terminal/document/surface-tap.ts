@@ -3,7 +3,8 @@ import { notify } from './host-notify'
 import {
   buildMouseClickInput,
   getMouseTrackingMode,
-  isClickMouseTrackingMode
+  isClickMouseTrackingMode,
+  mouseReportEncoding
 } from './mouse-input-encoding'
 import { oscLinkAtViewportPoint, resolveTerminalFileUrlTap } from './osc-link-tap'
 import { filePathAtViewportPoint } from './path-tap'
@@ -63,7 +64,7 @@ export function notifyTerminalSurfaceTap(
   if (
     focusKeyboard ||
     !isClickMouseTrackingMode(getMouseTrackingMode(scope)) ||
-    !scope.mouseEncodingKnown
+    !mouseReportEncoding(scope)
   ) {
     notify(scope, { type: 'terminal-tap' })
   }

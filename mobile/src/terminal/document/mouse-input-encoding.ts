@@ -55,13 +55,38 @@ export function buildArrowScrollSequence(scope: TerminalDocumentScope, lines: nu
   return ESC + prefix + (lines < 0 ? 'A' : 'B')
 }
 
+/** How a mouse report is encoded for the program: SGR pixels (1016), SGR (1006) or the default. */
+export type MouseReportEncoding = 'sgr-pixels' | 'sgr' | 'default'
+
+/**
+ * The encoding a mouse report uses now, or null while it is unproven.
+ *
+ * A replay can lose the encoding while keeping the tracking. xterm's serializer writes ?1000h–?1003h
+ * without ?1006h; hosts since #23943 add back the encoding their pane parsed, but an older host does
+ * not, and a pane or headless screen seeded from such an image restates it as the default with
+ * ?1006l. A program that only ever tracks with SGR (Claude Code and Codex enable 1006 in the same
+ * burst as tracking) reads a default report as nothing, so for it a replay's missing or default
+ * encoding is that loss; its own live bytes still decide. An SGR encoding a replay does carry can
+ * only have come from the program.
+ */
+export function mouseReportEncoding(scope: TerminalDocumentScope): MouseReportEncoding | null {
+  if (scope.sgrMousePixelsMode) {
+    return 'sgr-pixels'
+  }
+  if (scope.sgrMouseMode || (scope.sgrMouseProgram && !scope.mouseEncodingLive)) {
+    return 'sgr'
+  }
+  return scope.mouseEncodingKnown ? 'default' : null
+}
+
 export function buildMouseWheelSequence(
   scope: TerminalDocumentScope,
   lines: number,
   clientX: number,
   clientY: number
 ) {
-  if (!scope.mouseEncodingKnown) {
+  const encoding = mouseReportEncoding(scope)
+  if (!encoding) {
     return ''
   }
   const cell = viewportToMouseReportCell(scope, clientX, clientY)
@@ -69,13 +94,13 @@ export function buildMouseWheelSequence(
     return ''
   }
   const eventCode = lines < 0 ? 64 : 65
-  if (scope.sgrMousePixelsMode) {
+  if (encoding === 'sgr-pixels') {
     if (!isSafeSgrMouseCoordinate(cell.x) || !isSafeSgrMouseCoordinate(cell.y)) {
       return ''
     }
     return ESC + '[<' + eventCode + ';' + cell.x + ';' + cell.y + 'M'
   }
-  if (scope.sgrMouseMode) {
+  if (encoding === 'sgr') {
     // Why: xterm increments zero-based mouse cells before encoding reports.
     const sgrCol = cell.col + 1
     const sgrRow = cell.row + 1
@@ -108,14 +133,15 @@ export function buildMouseClickInput(
   clientY: number
 ) {
   const mouseTrackingMode = getMouseTrackingMode(scope)
-  if (!isClickMouseTrackingMode(mouseTrackingMode) || !scope.mouseEncodingKnown) {
+  const encoding = mouseReportEncoding(scope)
+  if (!isClickMouseTrackingMode(mouseTrackingMode) || !encoding) {
     return ''
   }
   const cell = viewportToMouseReportCell(scope, clientX, clientY)
   if (!cell) {
     return ''
   }
-  if (scope.sgrMousePixelsMode) {
+  if (encoding === 'sgr-pixels') {
     // Why: xterm 1016 keeps SGR syntax but reports raw zero-based pixel positions.
     const pixelX = cell.x
     const pixelY = cell.y
@@ -128,7 +154,7 @@ export function buildMouseClickInput(
     }
     return pixelPress + ESC + '[<0;' + pixelX + ';' + pixelY + 'm'
   }
-  if (scope.sgrMouseMode) {
+  if (encoding === 'sgr') {
     // Why: xterm increments zero-based mouse cells before encoding reports.
     const sgrCol = cell.col + 1
     const sgrRow = cell.row + 1
@@ -174,7 +200,7 @@ export function isWheelMouseTrackingMode(mode: string) {
 // Why: a replay can carry tracking without its encoding (?1006h/?1016h); a guessed
 // legacy report would type `ESC[M` bytes into the program, so scroll locally instead.
 export function isWheelEncodingUnproven(scope: TerminalDocumentScope, mode: string) {
-  return isWheelMouseTrackingMode(mode) && !scope.mouseEncodingKnown
+  return isWheelMouseTrackingMode(mode) && !mouseReportEncoding(scope)
 }
 
 export function shouldRouteScrollToTerminalInput(scope: TerminalDocumentScope) {

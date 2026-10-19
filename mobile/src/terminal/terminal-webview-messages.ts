@@ -29,3 +29,4 @@ export type TerminalWebViewCommand =
   | { type: 'cancel-select'; id?: number }
   | { type: 'do-select-all'; id?: number }
   | { type: 'set-theme'; id?: number; terminalTheme?: RuntimeMobileTerminalTheme }
+  | { type: 'set-sgr-mouse-program'; id?: number; enabled: boolean }

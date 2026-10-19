@@ -26,6 +26,7 @@ export type TerminalHostMessage = {
   oscLinks?: unknown
   data?: string
   frame?: { width: number; height: number } | null
+  enabled?: unknown
 }
 
 /** The frame React Native laid out, sent with every grid; null when absent or without a size. */
@@ -95,6 +96,7 @@ export function handleMsg(scope: TerminalDocumentScope, msg: TerminalHostMessage
     scope.afterDrainCallbacks = []
     scope.writesDraining = false
     scope.mouseEncodingKnown = false
+    scope.mouseEncodingLive = false
     scope.mouseModeScanTail = ''
     scope.trackedMouseTrackingMode = 'none'
     scope.sgrMouseMode = false
@@ -113,6 +115,8 @@ export function handleMsg(scope: TerminalDocumentScope, msg: TerminalHostMessage
       notify(scope, { type: 'selection-evicted' })
       cancelSelect(scope)
     }
+  } else if (msg.type === 'set-sgr-mouse-program') {
+    scope.sgrMouseProgram = msg.enabled === true
   } else if (msg.type === 'reset-zoom') {
     applyFitScale(scope, 'reset-zoom-msg')
   } else if (msg.type === 'set-theme') {
