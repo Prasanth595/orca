@@ -4,25 +4,33 @@ import type { ProjectGroup } from '../../../../shared/project-group-types'
 import type { Repo } from '../../../../shared/repo-types'
 import { selectProjectGroupRemovalTargets } from '../slices/project-group-removal-targets'
 import {
-  projectGroupMatchesOwnerHost,
-  resolveProjectGroupOwnerHostId,
-  settingsForProjectGroupOwner
+  getProjectGroupHostId,
+  isProjectGroupJoinableFromCatalog,
+  projectGroupMatchesOwnerHost
 } from '../slices/project-group-owner-routing'
 import { findRepoForHost, repoMatchesHostIdentity } from '../slices/repo-host-identity'
-import { callRuntimeRpc, getActiveRuntimeTarget } from '../../runtime/runtime-rpc-client'
+import { callRuntimeRpc } from '../../runtime/runtime-rpc-client'
+import { ipcOrRuntimeTargetForHostId } from '../../runtime/runtime-client-target'
 import { getRepoExecutionHostId } from '../../../../shared/execution-host'
 import type { ProjectRemovalFailure, RepoSlice } from '../repos/repo-state'
 import { mergeProjectCompatibilityForHostRepoChange } from '../repos/repo-catalog-identity'
 import { applyProjectGroupDeleteCascade } from './project-group-removal-state'
-import { repoWithFetchedOwner, settingsForRepoOwner } from '../repos/owner-routing'
-import { projectGroupWithFetchedOwner } from './project-group-owner-stamping'
-import { createProjectGroupAction } from './project-group-create'
-import { getCatalogOwnerHostId } from '@/lib/worktree-runtime-owner-index'
-import {
-  getProjectGroupRuntimeTarget,
-  getProjectGroupTargetHostId,
-  resolveProjectGroupMutationTarget
-} from './project-group-mutation-routing'
+import { resolveProjectGroupMutationTarget } from './project-group-mutation-routing'
+import { adoptFromEndpoint } from '../adopt-from-endpoint'
+import { toast } from 'sonner'
+import { translate } from '@/i18n/i18n'
+
+function notifyProjectGroupOnOtherHost(): void {
+  toast.error(
+    translate('auto.store.slices.repos.moveToGroupOtherHost', 'Could not move project to group'),
+    {
+      description: translate(
+        'auto.store.slices.repos.moveToGroupOtherHostDesc',
+        'The computer this project runs on does not have this group. A project can only join groups saved on its own computer.'
+      )
+    }
+  )
+}
 
 export function createProjectGroupMutationActions(
   set: Parameters<StateCreator<AppState>>[0],
@@ -36,7 +44,50 @@ export function createProjectGroupMutationActions(
   | 'moveProjectToGroup'
 > {
   return {
-    createProjectGroup: createProjectGroupAction(set, get),
+    createProjectGroup: async (name, hostId) => {
+      try {
+        // Why: a new group lands on the host of the project that seeds it, not the focused one.
+        const target = ipcOrRuntimeTargetForHostId(hostId)
+        if (!target) {
+          return null
+        }
+        const group =
+          target.kind === 'local'
+            ? await window.api.projectGroups.create({
+                name,
+                createdFrom: 'manual'
+              })
+            : (
+                await callRuntimeRpc<{ group: ProjectGroup }>(
+                  target,
+                  'projectGroup.create',
+                  { name, createdFrom: 'manual' },
+                  { timeoutMs: 15_000 }
+                )
+              ).group
+        const ownedGroup = adoptFromEndpoint(target, { kind: 'projectGroup', row: group })
+        const ownerHostId = getProjectGroupHostId(ownedGroup)
+        set((s) => {
+          // An overlapping catalog refresh may have already inserted a newer copy.
+          if (
+            s.projectGroups.some(
+              (existing) =>
+                existing.id === ownedGroup.id && getProjectGroupHostId(existing) === ownerHostId
+            )
+          ) {
+            return s
+          }
+          return {
+            projectGroups: [...s.projectGroups, ownedGroup],
+            folderWorkspacePathStatuses: {}
+          }
+        })
+        return ownedGroup
+      } catch (err) {
+        console.error('Failed to create project group:', err)
+        return null
+      }
+    },
 
     updateProjectGroup: async (groupId, updates, options) => {
       try {
@@ -60,7 +111,7 @@ export function createProjectGroupMutationActions(
         if (!updated) {
           return false
         }
-        const ownedGroup = projectGroupWithFetchedOwner(updated, target)
+        const ownedGroup = adoptFromEndpoint(target, { kind: 'projectGroup', row: updated })
         set((s) => ({
           projectGroups: s.projectGroups.map((group) =>
             projectGroupMatchesOwnerHost(group, groupId, ownerHostId) ? ownedGroup : group
@@ -105,13 +156,8 @@ export function createProjectGroupMutationActions(
     },
 
     deleteProjectGroupWithContainedProjects: async (groupId, options) => {
-      const requestedHostId = options.executionHostId ?? options.hostId
-      if (
-        requestedHostId &&
-        !get().projectGroups.some(
-          (group) => group.id === groupId && getCatalogOwnerHostId(group) === requestedHostId
-        )
-      ) {
+      const route = resolveProjectGroupMutationTarget(get(), groupId, options)
+      if (!route) {
         return {
           status: 'missing-group',
           groupId,
@@ -120,25 +166,7 @@ export function createProjectGroupMutationActions(
           failedProjectRemovals: []
         }
       }
-      const executionTarget = options.executionHostId
-        ? getProjectGroupRuntimeTarget(get(), groupId, options.executionHostId)
-        : null
-      if (options.executionHostId && !executionTarget) {
-        return {
-          status: 'group-delete-failed',
-          groupId,
-          requestedProjectIds: [],
-          removedProjectIds: [],
-          failedProjectRemovals: []
-        }
-      }
-      const target =
-        executionTarget?.target ??
-        getActiveRuntimeTarget(settingsForProjectGroupOwner(get(), groupId, requestedHostId))
-      const ownerHostId =
-        executionTarget?.ownerHostId ??
-        resolveProjectGroupOwnerHostId(get(), groupId, requestedHostId) ??
-        getProjectGroupTargetHostId(target)
+      const { ownerHostId } = route
       const targets = selectProjectGroupRemovalTargets(
         get().projectGroups,
         get().repos,
@@ -231,26 +259,17 @@ export function createProjectGroupMutationActions(
       }
     },
 
-    moveProjectToGroup: async (projectId, groupId, order, options) => {
+    moveProjectToGroup: async (projectId, groupId, order, hostId) => {
       try {
-        const resolvedGroup = groupId
-          ? getProjectGroupRuntimeTarget(get(), groupId, options?.executionHostId)
-          : null
-        if (groupId && !resolvedGroup) {
+        const repo = findRepoForHost(get().repos, projectId, { settings: get().settings, hostId })
+        const target = repo ? ipcOrRuntimeTargetForHostId(getRepoExecutionHostId(repo)) : null
+        if (!target) {
           return false
         }
-        // Why: the source repo and destination group may belong to different hosts.
-        const sourceRepo = findRepoForHost(get().repos, projectId, {
-          settings: get().settings,
-          hostId: options?.executionHostId
-        })
-        if (!sourceRepo) {
+        if (groupId && !isProjectGroupJoinableFromCatalog(get().projectGroups, groupId, target)) {
+          notifyProjectGroupOnOtherHost()
           return false
         }
-        const repoHostId = getRepoExecutionHostId(sourceRepo)
-        const target =
-          resolvedGroup?.target ??
-          getActiveRuntimeTarget(settingsForRepoOwner(get(), projectId, repoHostId))
         const moved =
           target.kind === 'local'
             ? await window.api.projectGroups.moveProject({
@@ -269,7 +288,7 @@ export function createProjectGroupMutationActions(
         if (!moved) {
           return false
         }
-        const ownedMoved = repoWithFetchedOwner(moved, target)
+        const ownedMoved = adoptFromEndpoint(target, { kind: 'repo', row: moved })
         const movedHostId = getRepoExecutionHostId(ownedMoved)
         set((s) => {
           const nextRepos = s.repos.map((repo) =>
@@ -285,6 +304,11 @@ export function createProjectGroupMutationActions(
             folderWorkspacePathStatuses: {}
           }
         })
+        // Why: hosts store an unknown group id as "no group" and still return the row (#13699).
+        if (groupId && (moved.projectGroupId ?? null) !== groupId) {
+          notifyProjectGroupOnOtherHost()
+          return false
+        }
         return true
       } catch (err) {
         console.error('Failed to move repo to group:', err)

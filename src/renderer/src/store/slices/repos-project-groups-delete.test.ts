@@ -266,9 +266,7 @@ describe('project group deletion store routing', () => {
     })
 
     await expect(
-      store
-        .getState()
-        .moveProjectToGroup(remoteRepo.id, projectGroup.id, 3, { executionHostId: 'local' })
+      store.getState().moveProjectToGroup(remoteRepo.id, projectGroup.id, 3, 'local')
     ).resolves.toBe(true)
 
     expect(projectGroupsMoveProject).toHaveBeenCalledWith({
@@ -300,7 +298,7 @@ describe('project group deletion store routing', () => {
     })
 
     await expect(
-      store.getState().moveProjectToGroup('dup-repo', null, undefined, { executionHostId: 'local' })
+      store.getState().moveProjectToGroup('dup-repo', null, undefined, 'local')
     ).resolves.toBe(true)
 
     expect(projectGroupsMoveProject).toHaveBeenCalledWith({

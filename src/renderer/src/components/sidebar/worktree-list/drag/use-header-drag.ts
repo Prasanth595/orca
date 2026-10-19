@@ -5,10 +5,15 @@ import { getProjectGroupHostId } from '@/store/slices/project-group-owner-routin
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 import type { ProjectOrderBy } from '../../../../../../shared/ui-chrome-types'
 import type { Repo } from '../../../../../../shared/repo-types'
-import type { ExecutionHostId } from '../../../../../../shared/execution-host'
-import { getCatalogEntryExecutionHostId } from '@/lib/catalog-entry-execution-host'
-import type { HostHeaderRow, HostSectionRow } from '../../host-section-rows'
-import type { Row, WorktreeGroupBy } from '../grouping/row-types'
+import {
+  getRepoExecutionHostId,
+  type ExecutionHostId
+} from '../../../../../../shared/execution-host'
+import type {
+  HostHeaderRow,
+  HostSectionRow
+} from '../../../../../../shared/sidebar-list/host-section-rows'
+import type { Row, WorktreeGroupBy } from '../../../../../../shared/sidebar-list/row-types'
 import type { RenderRow } from '../listing/render-row'
 import {
   getProjectGroupHeaderSectionEndByGroupId,
@@ -159,12 +164,13 @@ export function useWorktreeSidebarHeaderDrag(args: {
   )
   const commitProjectGroupOrder = useCallback(
     (repoId: string, projectGroupId: string | null, order: number) => {
-      const executionHostId = projectGroupId
-        ? getCatalogEntryExecutionHostId(projectGroupByIdForHeaderDrag.get(projectGroupId))
-        : getCatalogEntryExecutionHostId(repoMap.get(repoId))
-      void moveProjectToGroup(repoId, projectGroupId, order, { executionHostId })
+      const repo = repoMap.get(repoId)
+      if (!repo) {
+        return
+      }
+      void moveProjectToGroup(repoId, projectGroupId, order, getRepoExecutionHostId(repo))
     },
-    [moveProjectToGroup, projectGroupByIdForHeaderDrag, repoMap]
+    [moveProjectToGroup, repoMap]
   )
   const commitProjectGroupHeaderOrder = useCallback(
     (groupId: string, tabOrder: number) => {

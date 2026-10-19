@@ -2,7 +2,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
   findIndexedProjectGroupOwner,
   findIndexedWorktreeOwnerForHost,
-  isProjectGroupIdAmbiguous
+  resolveIndexedProjectGroupOwner
 } from './worktree-runtime-owner-index'
 
 describe('worktree runtime owner index', () => {
@@ -11,7 +11,7 @@ describe('worktree runtime owner index', () => {
     const remote = { id: 'group-1', name: 'Remote group', executionHostId: 'ssh:target' }
     const groups = [local, remote]
 
-    expect(isProjectGroupIdAmbiguous(groups, 'group-1')).toBe(true)
+    expect(resolveIndexedProjectGroupOwner(groups, 'group-1').kind).toBe('ambiguous')
     expect(findIndexedProjectGroupOwner(groups, 'group-1')).toBeNull()
     const owner = findIndexedProjectGroupOwner(groups, 'group-1', 'ssh:target')
     expect(owner).toBe(remote)

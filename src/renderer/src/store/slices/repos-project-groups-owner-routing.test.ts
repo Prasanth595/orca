@@ -73,14 +73,12 @@ function runtimeRpcResponse(result: unknown) {
 }
 
 describe('project group mutations route to the owning host', () => {
-  it('moves a source repo to a group owned by another host', async () => {
+  it('rejects a move to a group owned by another host', async () => {
     const sourceRepo: Repo = { ...baseRepo, executionHostId: 'local' }
     const destinationGroup: ProjectGroup = {
       ...folderScanGroup,
       executionHostId: 'runtime:env-1'
     }
-    const movedRepo = { ...sourceRepo, projectGroupId: destinationGroup.id, projectGroupOrder: 1 }
-    runtimeEnvironmentCall.mockResolvedValue(runtimeRpcResponse({ repo: movedRepo }))
     const store = createTestStore()
     store.setState({
       settings: { activeRuntimeEnvironmentId: null } as never,
@@ -90,14 +88,9 @@ describe('project group mutations route to the owning host', () => {
 
     await expect(
       store.getState().moveProjectToGroup(sourceRepo.id, destinationGroup.id, 1)
-    ).resolves.toBe(true)
+    ).resolves.toBe(false)
 
-    expect(runtimeEnvironmentCall).toHaveBeenCalledWith({
-      selector: 'env-1',
-      method: 'projectGroup.moveProject',
-      params: { repo: sourceRepo.id, groupId: destinationGroup.id, order: 1 },
-      timeoutMs: 15_000
-    })
+    expect(runtimeEnvironmentCall).not.toHaveBeenCalled()
   })
 
   it('renames a runtime-owned folder-scan group while the local host is focused', async () => {
@@ -210,7 +203,7 @@ describe('project group mutations route to the owning host', () => {
     expect(store.getState().projectGroups).toEqual([localGroup])
   })
 
-  it('keeps the focused host when a colliding id has no unambiguous owner', async () => {
+  it('rejects a colliding id with no unambiguous owner instead of using the focused host', async () => {
     projectGroupsDelete.mockResolvedValue(true)
     const store = createTestStore()
     store.setState({
@@ -221,10 +214,11 @@ describe('project group mutations route to the owning host', () => {
       ]
     })
 
-    await expect(store.getState().deleteProjectGroup(folderScanGroup.id)).resolves.toBe(true)
+    await expect(store.getState().deleteProjectGroup(folderScanGroup.id)).resolves.toBe(false)
 
-    expect(projectGroupsDelete).toHaveBeenCalledWith({ groupId: folderScanGroup.id })
+    expect(projectGroupsDelete).not.toHaveBeenCalled()
     expect(runtimeEnvironmentCall).not.toHaveBeenCalled()
+    expect(store.getState().projectGroups).toHaveLength(2)
   })
 
   // Why: a lost connection is unverifiable, not a refusal - the failure toast copy must stay non-asserting.
