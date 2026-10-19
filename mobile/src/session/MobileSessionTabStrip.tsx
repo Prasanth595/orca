@@ -5,6 +5,7 @@ import { triggerMediumImpact } from '../platform/haptics'
 import { MobileAgentIcon } from '../components/MobileAgentIcon'
 import {
   getMobileSessionTabTitle,
+  getMobileTerminalTabHostAgentIdentity,
   resolveMobileTerminalTabAgentId
 } from './mobile-terminal-tab-agent'
 import { colors } from '../theme/mobile-theme'
@@ -40,6 +41,7 @@ export function MobileSessionTabStrip({
     scrollActiveTabIntoView,
     switchSessionTab,
     openSessionTabActionSheetAfterKeyboardDismiss,
+    terminals,
     visibleTabs
   } = controller
   const tabBarKeepsKeyboard = useKeyboardPersistingTaps('handled')
@@ -119,14 +121,19 @@ export function MobileSessionTabStrip({
               {t.type === 'agent-session' && <MobileAgentIcon agentId={t.agent} size={13} />}
               {t.type === 'terminal' &&
                 (() => {
-                  const agentId = resolveMobileTerminalTabAgentId(t)
+                  // Why: icon and title read the same host identity, so a Cursor pane that
+                  // replayed a Claude hook shows Cursor in both.
+                  const agentId = resolveMobileTerminalTabAgentId(
+                    t,
+                    getMobileTerminalTabHostAgentIdentity(t, terminals)
+                  )
                   return agentId ? <MobileAgentIcon agentId={agentId} size={13} /> : null
                 })()}
               <Text
                 style={[styles.tabText, t.id === activeSessionTabId && styles.tabTextActive]}
                 numberOfLines={1}
               >
-                {getMobileSessionTabTitle(t)}
+                {getMobileSessionTabTitle(t, getMobileTerminalTabHostAgentIdentity(t, terminals))}
               </Text>
             </View>
           </Pressable>
