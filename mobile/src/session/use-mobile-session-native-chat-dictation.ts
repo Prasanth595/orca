@@ -1,4 +1,5 @@
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useRef } from 'react'
+import { AppState } from 'react-native'
 import { useFocusEffect } from 'expo-router'
 import { useMobileDictation } from '../hooks/use-mobile-dictation'
 import { triggerError } from '../platform/haptics'
@@ -204,22 +205,40 @@ export function useMobileSessionNativeChatDictation(
     }
   }, [cancelDictation, dictation])
 
+  // Why: only the newest read may publish — a reply from a retired focus or connection would
+  // otherwise land after the current host's answer and rebind the mic to the old mode.
+  const dictationModeReadRef = useRef(0)
   const refreshDictationMode = useCallback(async () => {
-    if (!client) {
+    const read = ++dictationModeReadRef.current
+    if (!client || connState !== 'connected') {
       return
     }
     try {
       const setup = await fetchDictationSetup(client)
-      setDictationMode(setup.dictationMode)
+      if (read === dictationModeReadRef.current) {
+        setDictationMode(setup.dictationMode)
+      }
     } catch {
-      // Non-fatal: fall back to the default toggle behavior.
+      // Non-fatal: keep the last mode the host reported (the default toggle until one answers).
     }
-  }, [client])
+  }, [client, connState])
 
   // Re-read on focus so a Settings ▸ Voice dictation-mode change is reflected on return.
+  // Why: a cold route focuses before its client connects (a relay session refuses that read) and
+  // the logical client survives reconnects, so moving into 'connected' re-reads too; a desktop-side
+  // change made while the phone was backgrounded is picked up when the app becomes active.
   useFocusEffect(
     useCallback(() => {
       void refreshDictationMode()
+      const subscription = AppState.addEventListener('change', (state) => {
+        if (state === 'active') {
+          void refreshDictationMode()
+        }
+      })
+      return () => {
+        dictationModeReadRef.current += 1
+        subscription.remove()
+      }
     }, [refreshDictationMode])
   )
 
