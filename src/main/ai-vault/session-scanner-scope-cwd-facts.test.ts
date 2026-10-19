@@ -87,7 +87,7 @@ it('settles out-of-scope transcripts once and reads none of them after a restart
   const roots = isolatedScanRoots(root)
   const persistence = { filePath: join(root, 'user-data', 'parse-cache.json'), appVersion: 'test' }
   initSessionParseCachePersistence(persistence)
-  const others = []
+  const others: string[] = []
   for (const day of [15, 14, 13]) {
     others.push(await writeGrokSession(roots.grokSessionsDir, `other-${day}`, '/other', day))
   }
