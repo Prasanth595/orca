@@ -21,6 +21,7 @@ async function probeIdentity(
   thread: { resumeThreadId: string | null; commandEnv?: Record<string, string> }
 ): Promise<{ threadId: string; seen: string }> {
   let output = ''
+  let turnCompleted = false
   const cwd = join(base, 'workspace')
   const connection = await openCodexAppServerConnection(
     {
@@ -29,7 +30,12 @@ async function probeIdentity(
       cwd,
       env: { HOME: base, CODEX_HOME: join(base, 'codex-home'), ORCA_AGENT_SESSION_ID: SESSION_ID }
     },
-    { onNotification: (_method, params) => (output += JSON.stringify(params)) }
+    {
+      onNotification: (method, params) => {
+        output += JSON.stringify(params)
+        turnCompleted ||= method === 'turn/completed'
+      }
+    }
   )
   try {
     const opened = await openCodexThread(
@@ -42,11 +48,12 @@ async function probeIdentity(
       { threadId: opened.threadId, command: PROBE },
       { timeoutMs: 10_000 }
     )
+    // Until the turn completes Codex may not have saved the rollout the cold resume reads.
     const deadline = Date.now() + 15_000
-    let seen: RegExpMatchArray | null = null
-    while (!(seen = output.match(/probe\[([^\]%]*)\]/)) && Date.now() < deadline) {
+    while (!turnCompleted && Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, 100))
     }
+    const seen = output.match(/probe\[([^\]%]*)\]/)
     return { threadId: opened.threadId, seen: seen?.[1] ?? '<no output>' }
   } finally {
     await connection.close()
