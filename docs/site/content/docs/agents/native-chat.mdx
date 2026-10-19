@@ -31,7 +31,7 @@ On desktop, paste an absolute local file path, a `file://` URL, or a direct HTTP
 
 Remove a card to dismiss only its preview. Removing its address from the draft, undoing the paste, or hiding/switching the chat stops playback and releases the preview. Restoring a draft does not fetch its addresses again; paste an address again or use **Retry** after a load failure.
 
-Up to eight previews can be active per composer. Images are limited to 16 MiB with additional dimension limits, text/Markdown to 1 MiB, and PDFs to 10 MiB. Network media with a known size above 512 MiB is rejected, and each streamed network response is capped at 512 MiB. Local media is streamed without reading the whole file into memory.
+Up to eight previews can be active per desktop window, shared across its composers. Images are limited to 16 MiB with additional dimension limits, text/Markdown to 1 MiB, and PDFs to 10 MiB. Network media with a known size above 512 MiB is rejected, and each streamed network response is capped at 512 MiB. Local media is streamed without reading the whole file into memory. Network media times out only while waiting for headers or idle incoming data, not while playback is paused or the reader is backpressured.
 
 Local paths always refer to the desktop client, even in an SSH or paired-server chat. Folders, network shares and device paths are not supported. Private-network addresses require an explicit **Allow network preview** action. Network previews do not send browser cookies or authorization headers, do not resolve video-platform sharing pages, and never bypass a configured proxy: when a proxy is required, use a local copy instead.
 

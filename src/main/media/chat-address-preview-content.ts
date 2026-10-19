@@ -31,7 +31,12 @@ export function inspectPreviewContent(
   if (ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP') {
     return typed('image', 'image/webp')
   }
-  if (ascii(0, 2) === 'BM') {
+  if (
+    ascii(0, 2) === 'BM' &&
+    bytes.length >= 18 &&
+    [12, 16, 40, 52, 56, 64, 108, 124].includes(bytes.readUInt32LE(14)) &&
+    bytes.length >= 14 + bytes.readUInt32LE(14)
+  ) {
     return typed('image', 'image/bmp')
   }
   if (bytes.length >= 6 && bytes.readUInt32LE(0) === 0x00010000) {

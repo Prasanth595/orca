@@ -104,6 +104,9 @@ async function requestPinned(
       requestOptions,
       (incoming) => {
         response = incoming
+        if (options.media) {
+          clearTimeout(timer)
+        }
         incoming.once('close', closeCount)
         incoming.once('error', () => {})
         pending.resolve({
@@ -124,7 +127,7 @@ async function requestPinned(
     })
     timer = setTimeout(
       () => request.destroy(new Error('Preview request timed out')),
-      options.media ? CHAT_PREVIEW_MEDIA_TIMEOUT_MS : CHAT_PREVIEW_NETWORK_TIMEOUT_MS
+      CHAT_PREVIEW_NETWORK_TIMEOUT_MS
     )
     timer.unref()
     request.end()
@@ -221,6 +224,10 @@ export function streamPreviewNetworkResponse(
   onClose: () => void
 ): ReadableStream<Uint8Array> {
   const iterator = result.response[Symbol.asyncIterator]()
+  const timeout = (): void => {
+    result.response.destroy(new Error('Preview media response timed out'))
+  }
+  result.response.once('timeout', timeout)
   let total = 0
   let closed = false
   let controller: ReadableStreamDefaultController<Uint8Array>
@@ -230,6 +237,8 @@ export function streamPreviewNetworkResponse(
     }
     closed = true
     signal.removeEventListener('abort', abort)
+    result.response.setTimeout(0)
+    result.response.removeListener('timeout', timeout)
     result.close()
     onClose()
   }
@@ -249,7 +258,14 @@ export function streamPreviewNetworkResponse(
     },
     async pull(value) {
       try {
-        const next = await iterator.next()
+        // Only a waiting reader needs an idle deadline; buffered playback may pause indefinitely.
+        result.response.setTimeout(CHAT_PREVIEW_MEDIA_TIMEOUT_MS)
+        let next: IteratorResult<Buffer>
+        try {
+          next = await iterator.next()
+        } finally {
+          result.response.setTimeout(0)
+        }
         if (closed) {
           return
         }

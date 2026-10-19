@@ -3,11 +3,14 @@ import { Readable } from 'node:stream'
 import { lookup } from 'node:dns/promises'
 import { request } from 'node:http'
 import type { IncomingMessage, RequestOptions } from 'node:http'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   openPreviewNetworkResponse,
   readPreviewNetworkBytes,
-  CHAT_PREVIEW_MAX_NETWORK_REQUESTS
+  CHAT_PREVIEW_MAX_NETWORK_REQUESTS,
+  CHAT_PREVIEW_MEDIA_TIMEOUT_MS,
+  CHAT_PREVIEW_NETWORK_TIMEOUT_MS,
+  streamPreviewNetworkResponse
 } from './chat-address-preview-network'
 
 vi.mock('node:dns/promises', () => ({ lookup: vi.fn() }))
@@ -22,8 +25,14 @@ vi.mock('electron', () => ({ session: { defaultSession: { resolveProxy: proxy.re
 vi.mock('../network/proxy-settings', () => ({
   getProxySessionApplicationReadiness: proxy.ready
 }))
+
+afterEach(() => vi.useRealTimers())
 function respond(statusCode: number, headers: IncomingMessage['headers'], chunks: Buffer[] = []) {
-  const response = Object.assign(Readable.from(chunks), { statusCode, headers })
+  const response = Object.assign(Readable.from(chunks), {
+    statusCode,
+    headers,
+    setTimeout: vi.fn()
+  })
   vi.mocked(request).mockImplementationOnce(((
     _options: RequestOptions,
     callback: (incoming: unknown) => void
@@ -172,5 +181,49 @@ describe('chat preview pinned HTTP transport', () => {
       openPreviewNetworkResponse(new URL('http://files.example/file'), exhausted)
     ).rejects.toThrow('request limit')
     expect(request).toHaveBeenCalledTimes(5)
+  })
+
+  it('does not expire a media body at the header deadline or the former lifetime deadline', async () => {
+    vi.useFakeTimers()
+    const incoming = respond(200, {}, [Buffer.from('media')])
+    const result = await openPreviewNetworkResponse(new URL('http://files.example/video'), {
+      ...options(),
+      media: true
+    })
+    await vi.advanceTimersByTimeAsync(
+      CHAT_PREVIEW_NETWORK_TIMEOUT_MS + CHAT_PREVIEW_MEDIA_TIMEOUT_MS
+    )
+    expect(incoming.destroyed).toBe(false)
+    expect(await readPreviewNetworkBytes(result, 32)).toEqual(Buffer.from('media'))
+  })
+
+  it('enables socket idle timeout only while the media reader is waiting for data', async () => {
+    const incoming = respond(200, {}, [Buffer.from('first'), Buffer.from('second')])
+    const result = await openPreviewNetworkResponse(new URL('http://files.example/video'), {
+      ...options(),
+      media: true
+    })
+    const onClose = vi.fn()
+    const reader = streamPreviewNetworkResponse(result, options().signal, onClose).getReader()
+    expect((await reader.read()).value).toEqual(Buffer.from('first'))
+    await vi.waitFor(() => expect(incoming.setTimeout).toHaveBeenLastCalledWith(0))
+    expect(incoming.setTimeout).toHaveBeenCalledWith(CHAT_PREVIEW_MEDIA_TIMEOUT_MS)
+    await reader.cancel()
+    expect(incoming.destroyed).toBe(true)
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('fails an idle media socket and releases its stream', async () => {
+    const incoming = respond(200, {})
+    const result = await openPreviewNetworkResponse(new URL('http://files.example/video'), {
+      ...options(),
+      media: true
+    })
+    const onClose = vi.fn()
+    const reader = streamPreviewNetworkResponse(result, options().signal, onClose).getReader()
+    incoming.emit('timeout')
+    await expect(reader.read()).rejects.toThrow('timed out')
+    expect(incoming.destroyed).toBe(true)
+    expect(onClose).toHaveBeenCalledOnce()
   })
 })

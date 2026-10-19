@@ -15,6 +15,36 @@ describe('chat address preview content inspection', () => {
     })
   })
 
+  it.each(['BM', 'BMI results for this appointment'])(
+    'keeps text beginning with %s out of the BMP decoder',
+    (text) => {
+      expect(inspectPreviewContent(Buffer.from(text), 'notes.md')).toEqual({
+        kind: 'markdown',
+        mimeType: 'text/markdown'
+      })
+      expect(inspectPreviewContent(Buffer.from(text), 'notes.txt')).toEqual({
+        kind: 'text',
+        mimeType: 'text/plain'
+      })
+    }
+  )
+
+  it.each([12, 16, 40, 52, 56, 64, 108, 124])(
+    'recognizes a BMP with a complete %i-byte DIB header',
+    (headerSize) => {
+      const bytes = Buffer.alloc(14 + headerSize)
+      bytes.write('BM')
+      bytes.writeUInt32LE(headerSize, 14)
+      expect(inspectPreviewContent(bytes, 'download')).toEqual({
+        kind: 'image',
+        mimeType: 'image/bmp'
+      })
+      expect(inspectPreviewContent(bytes.subarray(0, bytes.length - 1), 'download').kind).toBe(
+        'file'
+      )
+    }
+  )
+
   it('uses MIME to recognize extensionless Markdown while treating executable documents as text', () => {
     expect(
       inspectPreviewContent(Buffer.from('# Notes'), 'download', 'text/markdown; charset=utf-8')
