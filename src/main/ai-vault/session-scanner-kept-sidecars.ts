@@ -1,4 +1,5 @@
 import type { AiVaultAgent, AiVaultScanIssue } from '../../shared/ai-vault-types'
+import { mapWithConcurrency } from '../../shared/map-with-concurrency'
 import { WslTranscriptFsError } from '../native-chat/wsl-transcript-fs-gate'
 import { wslGatedStat } from '../native-chat/wsl-transcript-fs-access'
 import { throwIfAiVaultScanCancelled } from './ai-vault-scan-cancellation'
@@ -21,7 +22,7 @@ export async function attachKeptSidecars(
     signal?: AbortSignal
   },
   traversal: ReadonlyMap<string, number>,
-  inSlot: <T>(read: () => Promise<T>) => Promise<T>
+  reads: { concurrency: number; inSlot: <T>(read: () => Promise<T>) => Promise<T> }
 ): Promise<FileWithMtime[]> {
   const resolve = args.contentDependencyPath
   if (!resolve) {
@@ -36,13 +37,12 @@ export async function attachKeptSidecars(
       return { error }
     }
   }
-  const observed: { path: string; order: number; entry: KeptSidecar }[] = []
-  for (const file of kept) {
+  const observed = await mapWithConcurrency(kept, reads.concurrency, async (file) => {
     throwIfAiVaultScanCancelled(args.signal)
-    const entry = await inSlot(() => read(file))
+    const entry = await reads.inSlot(() => read(file))
     noteAiVaultScanProgress(args.signal)
-    observed.push({ path: file.path, order: traversal.get(file.path) ?? 0, entry })
-  }
+    return { path: file.path, order: traversal.get(file.path) ?? 0, entry }
+  })
   // A read the cancel cut short is not an unreadable sidecar; never record it.
   throwIfAiVaultScanCancelled(args.signal)
   // Issues in traversal order, as a scan that read every sidecar would report them.

@@ -165,7 +165,10 @@ export async function discoverFiles(args: {
       files.newest(),
       args,
       traversal,
-      native ? withNativeDiscoverySlot : (read) => read()
+      // A WSL root reads one file at a time, as its discovery does.
+      native
+        ? { concurrency: NATIVE_DISCOVERY_CONCURRENCY, inSlot: withNativeDiscoverySlot }
+        : { concurrency: 1, inSlot: (read) => read() }
     )
   }
 }

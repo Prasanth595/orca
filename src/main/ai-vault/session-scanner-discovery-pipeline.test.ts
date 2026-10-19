@@ -78,6 +78,40 @@ describe('fresh discovery pipeline', () => {
     expect((await scan()).files).toHaveLength(60)
   })
 
+  it('reads kept sidecars concurrently, still reporting them in traversal order', async () => {
+    const files = await createFiles(root, 12)
+    let inFlight = 0
+    let mostInFlight = 0
+    fsMocks.stat.mockImplementation(async (path: string) => {
+      if (!path.endsWith('.meta')) {
+        return fs.stat(path)
+      }
+      inFlight += 1
+      mostInFlight = Math.max(mostInFlight, inFlight)
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      inFlight -= 1
+      throw Object.assign(new Error('EIO'), { code: 'EIO' })
+    })
+    const issues: AiVaultScanIssue[] = []
+    const discovery = await discoverFiles({
+      rootDir: root,
+      issues,
+      limit: 100,
+      agent: 'claude',
+      extensions: ['.jsonl'],
+      contentDependencyPath: (path) => `${path}.meta`
+    })
+    expect(discovery.files).toHaveLength(files.length)
+    expect(mostInFlight).toBeGreaterThan(1)
+    expect(issues).toEqual([
+      {
+        agent: 'claude',
+        path: `${files[0]}.meta`,
+        message: 'Session metadata could not be read this scan.'
+      }
+    ])
+  })
+
   it('stops on cancel among kept sidecars and reports the cut-short reads as no issue', async () => {
     const files = await createFiles(root, 20)
     const controller = new AbortController()
