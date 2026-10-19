@@ -88,7 +88,11 @@ function listProps(worktrees: Worktree[]) {
     reconnectAttempts: 0,
     relayRecovery: { pairingRejected: false },
     sectionsResult: { rawSections: sections, sections, repoById: stable.repoById },
-    settings: { activeFilterCount: 0, toggleWorktreeLineage: noop },
+    settings: {
+      activeFilterCount: 0,
+      toggleWorktreeLineage: noop,
+      pendingViewChanges: { pending: [], stale: false }
+    },
     state: {
       actionError: '',
       setActionTarget: noop,
@@ -114,6 +118,45 @@ describe('host list rows across polls', () => {
     const changed = [rows[0]!, { ...rows[1]!, branch: 'feature/b-renamed' }, rows[2]!]
     act(() => tree!.update(createElement(HostWorkspaceList, listProps(changed))))
 
+    expect(rowRenders).toHaveBeenCalledTimes(1)
+    act(() => tree!.unmount())
+  })
+  it('re-renders only the workspace whose child roster changed', () => {
+    const row = worktree('a', {
+      agents: [
+        {
+          paneKey: 'parent',
+          parentPaneKey: null,
+          state: 'working',
+          agentType: 'codex',
+          prompt: '',
+          taskTitle: null,
+          displayName: null,
+          lastAssistantMessage: null,
+          toolName: null,
+          toolInput: null,
+          interrupted: false,
+          stateStartedAt: 1,
+          updatedAt: 1,
+          subagents: [{ id: 'child', state: 'working', startedAt: 1 }]
+        }
+      ]
+    })
+    let tree: ReactTestRenderer | null = null
+    act(() => {
+      tree = create(createElement(HostWorkspaceList, listProps([row, worktree('b')])))
+    })
+    rowRenders.mockClear()
+    const changed = {
+      ...row,
+      agents: [
+        {
+          ...row.agents![0]!,
+          subagents: [{ id: 'child', state: 'waiting' as const, startedAt: 1 }]
+        }
+      ]
+    }
+    act(() => tree!.update(createElement(HostWorkspaceList, listProps([changed, worktree('b')]))))
     expect(rowRenders).toHaveBeenCalledTimes(1)
     act(() => tree!.unmount())
   })
